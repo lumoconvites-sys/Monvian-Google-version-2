@@ -1,0 +1,51 @@
+@import "tailwindcss";
+
+@layer base {
+  :root {
+    font-family: 'SF Pro Display', -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'SF Pro', system-ui, sans-serif !important;
+    letter-spacing: -0.022em;
+  }
+  *, body, button, input, select, textarea, div, span, p, h1, h2, h3, h4, h5, h6 {
+    font-family: 'SF Pro Display', -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'SF Pro', system-ui, sans-serif !important;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+}
+
+@layer utilities {
+  .scrollbar-none::-webkit-scrollbar {
+    display: none;
+  }
+  .scrollbar-none {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+}
+
+/* MapLibre custom container resets */
+.maplibregl-map {
+  font-family: inherit;
+}
+
+.maplibregl-canvas {
+  outline: none;
+}
+
+/* Smooth marker transition */
+.campos-spot-marker {
+  transform-origin: center center;
+  will-change: transform;
+}
+
+@keyframes pulseGlow {
+  0%, 100% {
+    box-shadow: 0 0 15px rgba(0, 255, 136, 0.4);
+  }
+  50% {
+    box-shadow: 0 0 25px rgba(0, 255, 136, 0.85);
+  }
+}
+
+#user-voce-marker .ring-3 {
+  animation: pulseGlow 2.5s infinite ease-in-out;
+}

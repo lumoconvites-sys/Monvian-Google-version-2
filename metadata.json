@@ -1,0 +1,6 @@
+{
+  "name": "Mapa Interativo Campos do Jordão",
+  "description": "Aplicativo social e mapa interativo para turistas descobrirem pontos turísticos, restaurantes e atrações em Campos do Jordão.",
+  "requestFramePermissions": ["geolocation"],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
