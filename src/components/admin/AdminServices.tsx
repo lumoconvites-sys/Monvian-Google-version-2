@@ -1,0 +1,315 @@
+import React, { useState, useEffect } from 'react';
+import {
+  Plus,
+  Search,
+  CheckCircle2,
+  Trash2,
+  Edit,
+  Store,
+  Utensils,
+  Hotel,
+  Coffee,
+  HeartPulse,
+  RefreshCw,
+  MapPin,
+  Star,
+  Building2
+} from 'lucide-react';
+import { AdminSpotModal } from './AdminSpotModal';
+
+export const AdminServices: React.FC = () => {
+  const [services, setServices] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [selectedCategory, setSelectedCategory] = useState('all');
+
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [serviceToEdit, setServiceToEdit] = useState<any | null>(null);
+  const [serviceToDelete, setServiceToDelete] = useState<any | null>(null);
+
+  const [toast, setToast] = useState<string | null>(null);
+
+  const fetchServices = async () => {
+    try {
+      setLoading(true);
+      const res = await fetch('/api/admin/spots');
+      const data = await res.json();
+      if (data.success) {
+        // Filter spots that belong to services, hotels, gastronomy, shops, cafes, pharmacies
+        const serviceCategories = ['hotels', 'gastronomy', 'cafes', 'sweets', 'pharmacies', 'services', 'shops'];
+        const list = data.spots.filter((s: any) => serviceCategories.includes(s.category));
+        setServices(list);
+      }
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchServices();
+  }, []);
+
+  const showToast = (msg: string) => {
+    setToast(msg);
+    setTimeout(() => setToast(null), 3000);
+  };
+
+  const handleToggleActive = async (id: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    try {
+      const res = await fetch(`/api/admin/spots/${id}/toggle-active`, { method: 'PATCH' });
+      const data = await res.json();
+      if (data.success) {
+        setServices((prev) =>
+          prev.map((s) => (s.id === id ? { ...s, isActive: data.isActive } : s))
+        );
+        showToast(data.isActive ? 'Serviço ativado no mapa.' : 'Serviço desativado.');
+      }
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
+  const confirmDelete = async () => {
+    if (!serviceToDelete) return;
+    try {
+      const res = await fetch(`/api/admin/spots/${serviceToDelete.id}`, { method: 'DELETE' });
+      const data = await res.json();
+      if (data.success) {
+        setServices((prev) => prev.filter((s) => s.id !== serviceToDelete.id));
+        showToast('Local/Serviço excluído com sucesso.');
+        setServiceToDelete(null);
+      }
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
+  const filteredServices = services.filter((item) => {
+    const matchesSearch =
+      item.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      (item.description && item.description.toLowerCase().includes(searchQuery.toLowerCase())) ||
+      (item.address && item.address.toLowerCase().includes(searchQuery.toLowerCase()));
+
+    const matchesCategory =
+      selectedCategory === 'all' || item.category === selectedCategory;
+
+    return matchesSearch && matchesCategory;
+  });
+
+  return (
+    <div className="space-y-6">
+      {/* Toast */}
+      {toast && (
+        <div className="fixed bottom-6 right-6 z-50 bg-zinc-900 text-white text-xs font-black px-4 py-3 rounded-2xl shadow-xl flex items-center gap-2 border border-zinc-700">
+          <CheckCircle2 className="w-4 h-4 text-[#00C896]" />
+          <span>{toast}</span>
+        </div>
+      )}
+
+      {/* Header */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        <div>
+          <div className="flex items-center gap-2 text-blue-600 text-xs font-black tracking-wider uppercase mb-1">
+            <span className="w-2 h-2 rounded-full bg-blue-600"></span>
+            CONSOLE OPERACIONAL
+          </div>
+          <h1 className="text-2xl sm:text-3xl font-black text-zinc-900 tracking-tight">
+            Locais e Serviços
+          </h1>
+          <p className="text-xs sm:text-sm text-zinc-500 mt-0.5">
+            Gerencie hotéis, gastronomia, chocolaterias, farmácias e comércio em Campos do Jordão.
+          </p>
+        </div>
+
+        <button
+          onClick={() => {
+            setServiceToEdit(null);
+            setIsModalOpen(true);
+          }}
+          className="flex items-center gap-2 px-4 py-2.5 bg-blue-600 hover:bg-blue-700 active:scale-95 text-white text-xs sm:text-sm font-black rounded-xl shadow-lg shadow-blue-600/20 transition-all cursor-pointer"
+        >
+          <Plus className="w-4 h-4" />
+          <span>+ Novo Estabelecimento</span>
+        </button>
+      </div>
+
+      {/* Search and Category Tabs */}
+      <div className="flex flex-col md:flex-row gap-3">
+        <div className="flex-1 relative">
+          <Search className="w-4 h-4 text-zinc-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
+          <input
+            type="text"
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            placeholder="Buscar hotéis, restaurantes, docerias..."
+            className="w-full pl-10 pr-4 py-2.5 bg-white border border-zinc-200 rounded-xl text-xs sm:text-sm text-zinc-900 placeholder-zinc-400 focus:outline-none focus:border-blue-500 shadow-xs"
+          />
+        </div>
+
+        <div className="flex items-center gap-1.5 overflow-x-auto pb-1 md:pb-0">
+          {[
+            { id: 'all', label: 'Todos os Serviços' },
+            { id: 'hotels', label: 'Hotéis & Pousadas' },
+            { id: 'gastronomy', label: 'Gastronomia' },
+            { id: 'sweets', label: 'Chocolates' },
+            { id: 'cafes', label: 'Cafés' },
+            { id: 'pharmacies', label: 'Farmácias' },
+          ].map((cat) => (
+            <button
+              key={cat.id}
+              onClick={() => setSelectedCategory(cat.id)}
+              className={`px-3 py-2 rounded-xl text-xs font-black whitespace-nowrap transition-all cursor-pointer ${
+                selectedCategory === cat.id
+                  ? 'bg-zinc-900 text-white shadow-xs'
+                  : 'bg-white hover:bg-zinc-100 text-zinc-600 border border-zinc-200'
+              }`}
+            >
+              {cat.label}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* Grid */}
+      {loading ? (
+        <div className="flex flex-col items-center justify-center py-20 bg-white rounded-3xl border border-zinc-200">
+          <RefreshCw className="w-8 h-8 text-blue-600 animate-spin mb-3" />
+          <p className="text-sm font-black text-zinc-600">Carregando estabelecimentos...</p>
+        </div>
+      ) : filteredServices.length === 0 ? (
+        <div className="text-center py-16 bg-white rounded-3xl border border-zinc-200 p-8">
+          <Store className="w-12 h-12 text-zinc-300 mx-auto mb-3" />
+          <h3 className="text-base font-black text-zinc-800">Nenhum estabelecimento encontrado</h3>
+          <p className="text-xs text-zinc-500 mt-1 max-w-sm mx-auto">
+            Cadastre novos hotéis, restaurantes ou comércios parceiros para o aplicativo.
+          </p>
+          <button
+            onClick={() => {
+              setServiceToEdit(null);
+              setIsModalOpen(true);
+            }}
+            className="mt-4 px-4 py-2 bg-blue-600 text-white rounded-xl text-xs font-black shadow-xs cursor-pointer inline-flex items-center gap-1.5"
+          >
+            <Plus className="w-3.5 h-3.5" />
+            <span>Cadastrar Estabelecimento</span>
+          </button>
+        </div>
+      ) : (
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
+          {filteredServices.map((item) => (
+            <div
+              key={item.id}
+              className="bg-white rounded-2xl border border-zinc-200/90 shadow-xs hover:shadow-md transition-all overflow-hidden flex flex-col group"
+            >
+              <div className="relative h-44 w-full bg-zinc-100 overflow-hidden">
+                <img
+                  src={item.image}
+                  alt={item.name}
+                  className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                />
+
+                <div className="absolute top-3 left-3 right-3 flex items-center justify-between pointer-events-auto">
+                  {item.isVerified ? (
+                    <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-[#00C896]/90 backdrop-blur-md text-white text-[10px] font-black uppercase shadow-sm">
+                      <CheckCircle2 className="w-3 h-3" />
+                      VERIFICADO
+                    </span>
+                  ) : (
+                    <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-zinc-800/80 backdrop-blur-md text-white text-[10px] font-black">
+                      PADRÃO
+                    </span>
+                  )}
+
+                  <div className="flex items-center gap-1.5 bg-black/50 backdrop-blur-md px-2 py-1 rounded-full">
+                    <span className="text-[10px] font-black text-white uppercase">
+                      {item.isActive ? 'Ativo' : 'Pausado'}
+                    </span>
+                    <button
+                      type="button"
+                      onClick={(e) => handleToggleActive(item.id, e)}
+                      className={`relative inline-flex h-4 w-8 shrink-0 cursor-pointer rounded-full border border-transparent transition-colors duration-200 ease-in-out ${
+                        item.isActive ? 'bg-[#00C896]' : 'bg-zinc-500'
+                      }`}
+                    >
+                      <span
+                        className={`pointer-events-none inline-block h-3 w-3 transform rounded-full bg-white shadow-sm ring-0 transition duration-200 ease-in-out mt-0.5 ${
+                          item.isActive ? 'translate-x-4' : 'translate-x-0.5'
+                        }`}
+                      />
+                    </button>
+                  </div>
+                </div>
+
+                <div className="absolute bottom-3 left-3">
+                  <span className="text-[10px] font-black uppercase tracking-wider text-white bg-black/60 backdrop-blur-md px-2.5 py-1 rounded-lg">
+                    {item.categoryLabel || item.category}
+                  </span>
+                </div>
+
+                <div className="absolute bottom-3 right-3 bg-black/60 backdrop-blur-md px-2 py-1 rounded-lg flex items-center gap-1 text-white text-xs font-black">
+                  <Star className="w-3 h-3 text-amber-400 fill-amber-400" />
+                  <span>{item.rating?.toFixed(1) || '4.8'}</span>
+                </div>
+              </div>
+
+              <div className="p-4 flex-1 flex flex-col justify-between">
+                <div>
+                  <h3 className="text-base font-black text-zinc-900 group-hover:text-blue-600 transition-colors line-clamp-1">
+                    {item.name}
+                  </h3>
+                  <p className="text-xs text-zinc-500 mt-1 line-clamp-2 leading-relaxed">
+                    {item.description || 'Estabelecimento verificado em Campos do Jordão.'}
+                  </p>
+                </div>
+
+                <div className="mt-4 pt-3 border-t border-zinc-100 flex items-center justify-between">
+                  <div className="flex items-center gap-1 text-[11px] text-zinc-400 truncate max-w-[140px]">
+                    <MapPin className="w-3.5 h-3.5 shrink-0 text-blue-500" />
+                    <span className="truncate">{item.address || 'Campos do Jordão'}</span>
+                  </div>
+
+                  <div className="flex items-center gap-1.5">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setServiceToEdit(item);
+                        setIsModalOpen(true);
+                      }}
+                      className="p-1.5 rounded-lg text-zinc-600 hover:text-blue-600 hover:bg-blue-50 transition-colors cursor-pointer"
+                      title="Editar"
+                    >
+                      <Edit className="w-4 h-4" />
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setServiceToDelete(item)}
+                      className="p-1.5 rounded-lg text-zinc-600 hover:text-rose-600 hover:bg-rose-50 transition-colors cursor-pointer"
+                      title="Excluir"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* Modal */}
+      <AdminSpotModal
+        isOpen={isModalOpen}
+        onClose={() => setIsModalOpen(false)}
+        mode="service"
+        spotToEdit={serviceToEdit}
+        onSaveSuccess={() => {
+          fetchServices();
+          showToast(serviceToEdit ? 'Estabelecimento atualizado!' : 'Novo estabelecimento cadastrado!');
+        }}
+      />
+    </div>
+  );
+};

@@ -13,6 +13,13 @@ export type SpotCategory =
   | 'viewpoint' 
   | 'services';
 
+export interface MapsGroundingPlace {
+  title: string;
+  uri: string;
+  address?: string;
+  reviewSnippet?: string;
+}
+
 export interface Spot {
   id: string;
   name: string;
@@ -35,6 +42,12 @@ export interface Spot {
   visitorsToday: number;
   badge?: string;
   highlighted?: boolean;
+  mapsUrl?: string;
+  googleRating?: number;
+  googleReviewSnippet?: string;
+  lastSyncedMaps?: string;
+  website?: string;
+  phone?: string;
 }
 
 export interface WeatherInfo {
@@ -67,5 +80,36 @@ export interface AIChatMessage {
   sender: 'user' | 'assistant';
   text: string;
   time: string;
+  groundingPlaces?: MapsGroundingPlace[];
+}
+
+export interface UserPreferences {
+  referral_source?: string;
+  travel_frequency?: string;
+  travel_style?: string;
+  main_interests?: string[];
+  preferred_season?: string;
+  onboarding_completed_at?: string;
+}
+
+export interface User {
+  id: number;
+  name: string;
+  email?: string;
+  whatsapp?: string;
+  role: 'admin' | 'user' | 'creator';
+  is_banned?: number;
+  avatar_url?: string;
+  visits_count?: number;
+  last_access?: string;
+  created_at?: string;
+  onboarding_completed?: boolean;
+  onboarding_step?: number;
+  referral_source?: string;
+  travel_frequency?: string;
+  travel_style?: string;
+  main_interests?: string[];
+  preferred_season?: string;
+  onboarding_completed_at?: string;
 }
 

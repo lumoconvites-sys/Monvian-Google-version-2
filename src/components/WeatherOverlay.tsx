@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { motion } from 'motion/react';
 
 interface WeatherOverlayProps {
   locationName?: string;
@@ -52,78 +53,87 @@ export const WeatherOverlay: React.FC<WeatherOverlayProps> = ({
     <div
       id="weather-ios-overlay"
       onClick={onClose}
-      className={`fixed top-0 left-0 right-0 z-50 pointer-events-auto select-none transition-all duration-400 ease-out cursor-pointer ${
+      className={`absolute top-0 left-0 right-0 z-50 pointer-events-auto select-none transition-all duration-400 ease-out cursor-pointer ${
         isFadingOut
           ? 'opacity-0 -translate-y-2'
           : 'opacity-100 translate-y-0 animate-in fade-in slide-in-from-top-3'
-      }`}
-      style={{
-        background: 'linear-gradient(to bottom, rgba(10, 10, 12, 0.96) 0%, rgba(10, 10, 12, 0.85) 65%, rgba(10, 10, 12, 0) 100%)',
-      }}
+      } bg-gradient-to-b from-white/95 via-white/85 to-transparent dark:from-[#0a0a0c]/95 dark:via-[#0a0a0c]/85 dark:to-transparent`}
     >
-      <div className="max-w-md mx-auto px-6 pt-7 sm:pt-9 pb-12 flex flex-col items-start text-left">
+      <div
+        className="max-w-md mx-auto px-6 pb-12 flex flex-col items-start text-left"
+        style={{
+          paddingTop: 'calc(env(safe-area-inset-top, 0px) + 20px)',
+          paddingLeft: 'max(24px, env(safe-area-inset-left, 0px))',
+          paddingRight: 'max(24px, env(safe-area-inset-right, 0px))',
+        }}
+      >
         {loading ? (
           /* Loading effect with pulse */
           <div className="flex flex-col gap-3 animate-pulse py-1 w-full">
             <div className="flex items-center gap-2">
-              <div className="w-2 h-2 rounded-full bg-sky-400 animate-ping" />
-              <span className="text-white/60 text-xs font-medium">Carregando clima em tempo real...</span>
+              <div className="w-2 h-2 rounded-full bg-sky-500 dark:bg-sky-400 animate-ping" />
+              <span className="text-zinc-500 dark:text-white/60 text-xs font-black">Carregando clima em tempo real...</span>
             </div>
-            <div className="h-7 w-48 bg-white/15 rounded-lg" />
+            <div className="h-7 w-48 bg-zinc-200 dark:bg-white/15 rounded-lg" />
             <div className="flex items-center gap-4 my-1">
-              <div className="h-20 w-32 bg-white/15 rounded-2xl" />
-              <div className="h-14 w-14 bg-white/15 rounded-full" />
+              <div className="h-20 w-32 bg-zinc-200 dark:bg-white/15 rounded-2xl" />
+              <div className="h-14 w-14 bg-zinc-200 dark:bg-white/15 rounded-full" />
             </div>
-            <div className="h-5 w-40 bg-white/15 rounded-lg" />
+            <div className="h-5 w-40 bg-zinc-200 dark:bg-white/15 rounded-lg" />
           </div>
         ) : (
           /* Exact recreation from screenshot */
           <div className="flex flex-col items-start animate-in fade-in duration-300">
             {/* Title: Campos do Jordão */}
-            <h2 className="text-2xl sm:text-[26px] font-semibold text-white tracking-tight drop-shadow-sm">
+            <h2 className="text-2xl sm:text-[26px] font-black text-zinc-900 dark:text-white tracking-tight drop-shadow-sm">
               {locationName}
             </h2>
 
-            {/* Temperature 20° + Sun Behind Cloud Icon */}
+            {/* Temperature 20° + Dynamic Animated Weather Sun Icon */}
             <div className="flex items-center gap-3.5 my-1">
-              <span className="text-[76px] sm:text-[88px] font-light text-white tracking-tighter leading-none">
-                {temperature}°
+              <span className="text-[76px] sm:text-[88px] font-light text-zinc-900 dark:text-white tracking-tighter leading-none flex items-start">
+                {temperature}
+                <motion.span 
+                  animate={{ rotate: [0, 15, -15, 0], scale: [1, 1.1, 1] }}
+                  transition={{ repeat: Infinity, duration: 4, ease: 'easeInOut' }}
+                  className="text-3xl sm:text-4xl font-black text-amber-500 ml-1 inline-block"
+                >
+                  °
+                </motion.span>
               </span>
 
-              {/* Exact SVG recreation of the sun behind cloud icon from the screenshot */}
-              <div className="relative text-white flex items-center justify-center">
-                <svg
-                  className="w-14 h-14 sm:w-16 sm:h-16 text-sky-200"
-                  viewBox="0 0 48 48"
-                  fill="none"
-                  xmlns="http://www.w3.org/2000/svg"
+              {/* Dynamic Animated Sun & Ray Icon */}
+              <div className="relative text-zinc-900 dark:text-white flex items-center justify-center">
+                <motion.div
+                  animate={{ rotate: 360 }}
+                  transition={{ repeat: Infinity, duration: 18, ease: 'linear' }}
+                  className="relative w-14 h-14 sm:w-16 sm:h-16 flex items-center justify-center"
                 >
-                  {/* Sun rays & ring behind */}
-                  <path
-                    d="M34 16A8 8 0 0 0 26.5 10"
-                    stroke="#ffffff"
-                    strokeWidth="2.5"
-                    strokeLinecap="round"
-                  />
-                  <line x1="33" y1="6" x2="33" y2="3" stroke="#ffffff" strokeWidth="2.5" strokeLinecap="round" />
-                  <line x1="41" y1="12" x2="44" y2="11" stroke="#ffffff" strokeWidth="2.5" strokeLinecap="round" />
-                  <line x1="41" y1="21" x2="44" y2="22" stroke="#ffffff" strokeWidth="2.5" strokeLinecap="round" />
-                  <line x1="24" y1="6" x2="22" y2="3" stroke="#ffffff" strokeWidth="2.5" strokeLinecap="round" />
-
-                  {/* Cloud foreground */}
-                  <path
-                    d="M17 38H33C37.4183 38 41 34.4183 41 30C41 25.8648 37.8631 22.4632 33.8242 22.0464C32.7483 16.8967 28.2198 13 22.8 13C16.8353 13 12 17.8353 12 23.8C12 24.5369 12.0739 25.2562 12.2152 25.9507C8.74977 26.8528 6.2 30.0094 6.2 33.8C6.2 36.1196 7.12187 38 9 38H17Z"
-                    stroke="#bfe3f7"
-                    strokeWidth="2.8"
+                  <svg
+                    className="w-full h-full text-amber-500 drop-shadow-[0_0_12px_rgba(245,158,11,0.5)]"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2"
                     strokeLinecap="round"
                     strokeLinejoin="round"
-                  />
-                </svg>
+                  >
+                    <circle cx="12" cy="12" r="5" className="fill-amber-400/30 text-amber-500" />
+                    <line x1="12" y1="1" x2="12" y2="3" />
+                    <line x1="12" y1="21" x2="12" y2="23" />
+                    <line x1="4.22" y1="4.22" x2="5.64" y2="5.64" />
+                    <line x1="18.36" y1="18.36" x2="19.78" y2="19.78" />
+                    <line x1="1" y1="12" x2="3" y2="12" />
+                    <line x1="21" y1="12" x2="23" y2="12" />
+                    <line x1="4.22" y1="19.78" x2="5.64" y2="18.36" />
+                    <line x1="18.36" y1="5.64" x2="19.78" y2="4.22" />
+                  </svg>
+                </motion.div>
               </div>
             </div>
 
             {/* Condition: Parcialmente nublado */}
-            <p className="text-lg sm:text-[19px] font-normal text-white/95 tracking-tight">
+            <p className="text-lg sm:text-[19px] font-black text-zinc-600 dark:text-white/95 tracking-tight">
               {condition}
             </p>
           </div>

@@ -1,14 +1,56 @@
 @import "tailwindcss";
 
+@custom-variant dark (&:where(.dark, .dark *));
+
 @layer base {
   :root {
-    font-family: 'SF Pro Display', -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'SF Pro', system-ui, sans-serif !important;
-    letter-spacing: -0.022em;
+    font-family: 'Manrope', -apple-system, BlinkMacSystemFont, system-ui, sans-serif !important;
+    letter-spacing: -0.015em;
   }
-  *, body, button, input, select, textarea, div, span, p, h1, h2, h3, h4, h5, h6 {
-    font-family: 'SF Pro Display', -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'SF Pro', system-ui, sans-serif !important;
+  html, body {
+    width: 100%;
+    height: 100%;
+    margin: 0;
+    padding: 0;
+    overflow: hidden;
+    overscroll-behavior: none;
+    -webkit-tap-highlight-color: transparent;
+    background-color: #111315;
+    transition: background-color 0.3s ease;
+  }
+  #root {
+    width: 100%;
+    height: 100%;
+    overflow: hidden;
+    background-color: #111315;
+    transition: background-color 0.3s ease;
+  }
+  html.dark,
+  html.dark body,
+  html.dark #root,
+  .dark {
+    background-color: #111315 !important;
+  }
+  html.light,
+  html.light body,
+  html.light #root {
+    background-color: #f4f4f5 !important;
+  }
+  *, body, button, input, select, textarea, div, span, p, label {
+    font-family: 'Manrope', -apple-system, BlinkMacSystemFont, system-ui, sans-serif !important;
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
+    font-weight: 600; /* Force weight 600 as base */
+  }
+  input::placeholder, textarea::placeholder {
+    font-weight: 600 !important;
+    opacity: 0.7;
+  }
+  h1, h2, h3, h4, h5, h6, b, strong, th {
+    font-weight: 700 !important;
+  }
+  button, [role="button"], a {
+    font-weight: 700 !important;
   }
 }
 
@@ -20,9 +62,26 @@
     -ms-overflow-style: none;
     scrollbar-width: none;
   }
+
+  /* Global Primary Action Button standard - solid blue, white text & icons */
+  .btn-solid-blue,
+  .btn-primary {
+    background-color: #0000FF;
+    color: #FFFFFF;
+    border: none;
+  }
+  .btn-solid-blue:hover,
+  .btn-primary:hover {
+    background-color: #0000DD;
+  }
+  .btn-solid-blue svg,
+  .btn-primary svg {
+    color: #FFFFFF;
+    stroke: #FFFFFF;
+  }
 }
 
-/* MapLibre custom container resets */
+/* MapLibre custom container resets & safe area positioning */
 .maplibregl-map {
   font-family: inherit;
 }
@@ -31,21 +90,144 @@
   outline: none;
 }
 
-/* Smooth marker transition */
-.campos-spot-marker {
-  transform-origin: center center;
-  will-change: transform;
+/* Confine MapLibre marker layer so markers never overlay floating UI controls */
+.maplibregl-canvas-container {
+  z-index: 0;
 }
 
-@keyframes pulseGlow {
-  0%, 100% {
-    box-shadow: 0 0 15px rgba(0, 255, 136, 0.4);
+.maplibregl-marker {
+  z-index: 10 !important;
+}
+
+/* Ensure MapLibre attribution sits cleanly above the bottom navigation and respects safe areas */
+.maplibregl-ctrl-bottom-left,
+.maplibregl-ctrl-bottom-right {
+  bottom: 60px !important;
+  z-index: 20 !important;
+}
+
+.maplibregl-ctrl-bottom-left {
+  left: max(10px, env(safe-area-inset-left, 0px)) !important;
+}
+
+.maplibregl-ctrl-bottom-right {
+  right: max(10px, env(safe-area-inset-right, 0px)) !important;
+}
+
+/* iPhone Gloss / Liquid Glass style for marker labels with 30% reduced resting opacity (0.7) */
+.spot-marker-label {
+  transition: opacity 0.22s cubic-bezier(0.2, 0.8, 0.2, 1), background-color 0.2s ease;
+  opacity: 0.7;
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+}
+
+.map-panning-active .spot-marker-label {
+  opacity: 0.42 !important;
+}
+
+.spot-marker-container:hover .spot-marker-label {
+  opacity: 0.95;
+}
+
+/* Tactile animation when touching map pins (ultra subtle micro-tap) */
+@keyframes pinTapBounce {
+  0% {
+    transform: scale(1);
   }
-  50% {
-    box-shadow: 0 0 25px rgba(0, 255, 136, 0.85);
+  40% {
+    transform: scale(0.95);
+  }
+  75% {
+    transform: scale(1.04);
+  }
+  100% {
+    transform: scale(1);
   }
 }
 
-#user-voce-marker .ring-3 {
-  animation: pulseGlow 2.5s infinite ease-in-out;
+.pin-tap-anim {
+  animation: pinTapBounce 0.2s cubic-bezier(0.25, 1, 0.5, 1) !important;
+}
+
+/* ============================================================ */
+/* HIGH CONTRAST MODE (Acessibilidade & Máxima Legibilidade)    */
+/* ============================================================ */
+.high-contrast {
+  --high-contrast-border: #000000;
+  --high-contrast-text: #000000;
+}
+
+.high-contrast.dark,
+.dark .high-contrast,
+.high-contrast .dark {
+  --high-contrast-border: #ffffff;
+  --high-contrast-text: #ffffff;
+}
+
+/* 1. Map Canvas Enhancements */
+.high-contrast .maplibregl-canvas {
+  filter: contrast(140%) brightness(95%) saturate(120%) !important;
+}
+
+/* 2. Spot Markers and Labels */
+.high-contrast .spot-marker-container > div {
+  border-width: 3px !important;
+  border-color: #ffffff !important;
+  box-shadow: 0 0 0 2px #000000, 0 4px 12px rgba(0, 0, 0, 0.6) !important;
+}
+
+.high-contrast #user-voce-marker > div {
+  border-width: 3px !important;
+  border-color: #00FFB2 !important;
+  box-shadow: 0 0 0 3px #000000, 0 0 16px rgba(0, 255, 178, 0.9) !important;
+}
+
+.high-contrast .spot-marker-label {
+  opacity: 1 !important;
+  background-color: #000000 !important;
+  color: #ffffff !important;
+  border: 2px solid #ffffff !important;
+  font-weight: 800 !important;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.8) !important;
+}
+
+/* 3. Text and Border Sharpening in UI */
+.high-contrast * {
+  font-weight: 700 !important;
+}
+
+.high-contrast h1,
+.high-contrast h2,
+.high-contrast h3,
+.high-contrast h4,
+.high-contrast h5,
+.high-contrast h6,
+.high-contrast strong,
+.high-contrast b {
+  font-weight: 900 !important;
+  letter-spacing: -0.01em;
+}
+
+.high-contrast button,
+.high-contrast input,
+.high-contrast select,
+.high-contrast textarea {
+  border-width: 2px !important;
+  border-color: currentColor !important;
+}
+
+.high-contrast .text-zinc-500,
+.high-contrast .text-zinc-400,
+.high-contrast .text-zinc-600 {
+  color: #27272a !important;
+}
+
+.high-contrast.dark .text-zinc-500,
+.high-contrast.dark .text-zinc-400,
+.high-contrast.dark .text-zinc-600,
+.dark.high-contrast .text-zinc-500,
+.dark.high-contrast .text-zinc-400,
+.dark.high-contrast .text-zinc-600 {
+  color: #f4f4f5 !important;
 }

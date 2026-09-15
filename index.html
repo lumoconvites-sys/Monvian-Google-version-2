@@ -2,7 +2,15 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-title" content="Monvian" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="theme-color" content="#111315" id="theme-color-meta" />
+    <link rel="manifest" href="/manifest.json" />
+    <link rel="icon" type="image/png" href="/loogo.png" />
+    <link rel="apple-touch-icon" sizes="180x180" href="/loogo.png" />
     <title>Mapa Interativo Campos do Jordão</title>
     <meta name="description" content="Aplicativo social e mapa interativo para turistas descobrirem pontos turísticos, restaurantes e atrações em Campos do Jordão." />
     <meta property="og:title" content="Mapa Interativo Campos do Jordão" />
@@ -10,8 +18,10 @@
     <meta property="og:type" content="website" />
     <meta name="twitter:card" content="summary_large_image" />
     <link rel="stylesheet" href="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.css" />
-    <!-- Apple SF Pro Font Family (Display and Text) -->
-    <link rel="stylesheet" href="https://fonts.cdnfonts.com/css/sf-pro-display" />
+    <!-- Manrope Font Family -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@200..800&display=swap" rel="stylesheet">
   </head>
   <body>
     <div id="root"></div>

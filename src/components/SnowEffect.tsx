@@ -2,9 +2,10 @@ import React, { useEffect, useRef } from 'react';
 
 interface SnowEffectProps {
   enabled?: boolean;
+  theme?: 'dark' | 'light';
 }
 
-export const SnowEffect: React.FC<SnowEffectProps> = ({ enabled = true }) => {
+export const SnowEffect: React.FC<SnowEffectProps> = ({ enabled = false, theme = 'dark' }) => {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
 
   useEffect(() => {
@@ -27,7 +28,6 @@ export const SnowEffect: React.FC<SnowEffectProps> = ({ enabled = true }) => {
 
     window.addEventListener('resize', handleResize);
 
-    // Generate snowflakes matching the aesthetic in the user's screenshot
     const flakeCount = Math.floor(Math.min(width, 1200) / 18);
     const flakes: {
       x: number;
@@ -62,8 +62,13 @@ export const SnowEffect: React.FC<SnowEffectProps> = ({ enabled = true }) => {
     ) => {
       context.save();
       context.translate(x, y);
-      context.strokeStyle = `rgba(255, 255, 255, ${opacity})`;
-      context.fillStyle = `rgba(255, 255, 255, ${opacity * 0.9})`;
+
+      // Blue in light mode (modo branco), white in dark mode
+      const strokeColor = theme === 'light' ? `rgba(37, 99, 235, ${opacity})` : `rgba(255, 255, 255, ${opacity})`;
+      const fillColor = theme === 'light' ? `rgba(37, 99, 235, ${opacity * 0.9})` : `rgba(255, 255, 255, ${opacity * 0.9})`;
+
+      context.strokeStyle = strokeColor;
+      context.fillStyle = fillColor;
       context.lineWidth = 1;
 
       // 6-arm star/crystal
@@ -73,7 +78,6 @@ export const SnowEffect: React.FC<SnowEffectProps> = ({ enabled = true }) => {
         context.lineTo(0, -radius);
         context.stroke();
 
-        // mini branches
         if (radius > 4) {
           context.beginPath();
           context.moveTo(0, -radius * 0.55);
@@ -98,7 +102,6 @@ export const SnowEffect: React.FC<SnowEffectProps> = ({ enabled = true }) => {
         f.y += f.speedY;
         f.x += Math.sin(angle + f.d) * 0.4 + f.speedX;
 
-        // Wrap around
         if (f.y > height + 10) {
           f.y = -10;
           f.x = Math.random() * width;
@@ -111,9 +114,13 @@ export const SnowEffect: React.FC<SnowEffectProps> = ({ enabled = true }) => {
         } else {
           ctx.beginPath();
           ctx.arc(f.x, f.y, f.r * 0.8, 0, Math.PI * 2);
-          ctx.fillStyle = `rgba(255, 255, 255, ${f.opacity})`;
+
+          const dotColor = theme === 'light' ? `rgba(37, 99, 235, ${f.opacity})` : `rgba(255, 255, 255, ${f.opacity})`;
+          const shadowColor = theme === 'light' ? 'rgba(37, 99, 235, 0.4)' : 'rgba(255, 255, 255, 0.4)';
+
+          ctx.fillStyle = dotColor;
           ctx.shadowBlur = 4;
-          ctx.shadowColor = 'rgba(255, 255, 255, 0.4)';
+          ctx.shadowColor = shadowColor;
           ctx.fill();
         }
       }
@@ -127,7 +134,7 @@ export const SnowEffect: React.FC<SnowEffectProps> = ({ enabled = true }) => {
       window.removeEventListener('resize', handleResize);
       cancelAnimationFrame(animationFrameId);
     };
-  }, [enabled]);
+  }, [enabled, theme]);
 
   if (!enabled) return null;
 
