@@ -208,7 +208,7 @@ export function AuthScreen({ onSuccess }: AuthScreenProps) {
                 placeholder="Seu e-mail"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
-                className="w-full pl-11 pr-5 py-4 rounded-[22px] bg-[#141518] border border-white/10 text-white placeholder:text-zinc-500 focus:outline-none focus:border-[#00C896] focus:ring-1 focus:ring-[#00C896] transition-all text-[15px] font-medium shadow-sm"
+                className="w-full pl-11 pr-5 py-4 rounded-[22px] bg-[#141518] border border-white/10 text-white placeholder:text-zinc-500 focus:outline-none focus:border-white focus:ring-1 focus:ring-white transition-all text-[15px] font-medium shadow-sm"
                 required
                 autoComplete="email"
               />
@@ -222,7 +222,7 @@ export function AuthScreen({ onSuccess }: AuthScreenProps) {
                 placeholder="Sua senha"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
-                className="w-full pl-11 pr-12 py-4 rounded-[22px] bg-[#141518] border border-white/10 text-white placeholder:text-zinc-500 focus:outline-none focus:border-[#00C896] focus:ring-1 focus:ring-[#00C896] transition-all text-[15px] font-medium shadow-sm"
+                className="w-full pl-11 pr-12 py-4 rounded-[22px] bg-[#141518] border border-white/10 text-white placeholder:text-zinc-500 focus:outline-none focus:border-white focus:ring-1 focus:ring-white transition-all text-[15px] font-medium shadow-sm"
                 required
                 autoComplete="current-password"
               />
@@ -310,7 +310,7 @@ export function AuthScreen({ onSuccess }: AuthScreenProps) {
                 placeholder="Seu nome completo"
                 value={name}
                 onChange={(e) => setName(e.target.value)}
-                className="w-full pl-11 pr-5 py-4 rounded-[22px] bg-[#141518] border border-white/10 text-white placeholder:text-zinc-500 focus:outline-none focus:border-[#00C896] focus:ring-1 focus:ring-[#00C896] transition-all text-[15px] font-medium shadow-sm"
+                className="w-full pl-11 pr-5 py-4 rounded-[22px] bg-[#141518] border border-white/10 text-white placeholder:text-zinc-500 focus:outline-none focus:border-white focus:ring-1 focus:ring-white transition-all text-[15px] font-medium shadow-sm"
                 required
                 autoComplete="name"
               />
@@ -324,7 +324,7 @@ export function AuthScreen({ onSuccess }: AuthScreenProps) {
                 placeholder="Seu e-mail"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
-                className="w-full pl-11 pr-5 py-4 rounded-[22px] bg-[#141518] border border-white/10 text-white placeholder:text-zinc-500 focus:outline-none focus:border-[#00C896] focus:ring-1 focus:ring-[#00C896] transition-all text-[15px] font-medium shadow-sm"
+                className="w-full pl-11 pr-5 py-4 rounded-[22px] bg-[#141518] border border-white/10 text-white placeholder:text-zinc-500 focus:outline-none focus:border-white focus:ring-1 focus:ring-white transition-all text-[15px] font-medium shadow-sm"
                 required
                 autoComplete="email"
               />
@@ -338,7 +338,7 @@ export function AuthScreen({ onSuccess }: AuthScreenProps) {
                 placeholder="Crie uma senha (mínimo 6 dígitos)"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
-                className="w-full pl-11 pr-12 py-4 rounded-[22px] bg-[#141518] border border-white/10 text-white placeholder:text-zinc-500 focus:outline-none focus:border-[#00C896] focus:ring-1 focus:ring-[#00C896] transition-all text-[15px] font-medium shadow-sm"
+                className="w-full pl-11 pr-12 py-4 rounded-[22px] bg-[#141518] border border-white/10 text-white placeholder:text-zinc-500 focus:outline-none focus:border-white focus:ring-1 focus:ring-white transition-all text-[15px] font-medium shadow-sm"
                 required
                 minLength={6}
                 autoComplete="new-password"

@@ -256,7 +256,7 @@ export const SearchFilterDrawer: React.FC<SearchFilterDrawerProps> = ({
                 >
                   {/* Left: Rounded Square Icon Box + Titles */}
                   <div className="flex items-center gap-3.5 min-w-0">
-                    <div className="w-12 h-12 rounded-2xl bg-zinc-100 dark:bg-[#202227] flex items-center justify-center text-zinc-600 dark:text-zinc-200 group-hover:text-zinc-900 dark:group-hover:text-white transition-colors shrink-0">
+                    <div className="w-12 h-12 rounded-2xl bg-zinc-100 dark:bg-[#202227] flex items-center justify-center text-zinc-900 dark:text-white shrink-0 shadow-xs border border-zinc-200/50 dark:border-white/5">
                       <Icon className="w-5 h-5 stroke-[1.8]" />
                     </div>
 

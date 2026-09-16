@@ -26,9 +26,9 @@ export const SpotPreviewBanner: React.FC<SpotPreviewBannerProps> = ({
       transition={{ type: 'spring', damping: 25, stiffness: 350 }}
       onClick={(e) => e.stopPropagation()}
       onTouchStart={(e) => e.stopPropagation()}
-      className="fixed left-1/2 -translate-x-1/2 z-40 w-[92%] max-w-sm bg-white/95 dark:bg-[#18191d]/95 backdrop-blur-2xl border border-zinc-200/80 dark:border-white/15 rounded-[28px] p-3 sm:p-3.5 shadow-[0_16px_40px_rgba(0,0,0,0.12)] dark:shadow-[0_16px_45px_rgba(0,0,0,0.8)] flex items-center gap-3 select-none pointer-events-auto transition-colors"
+      className="fixed left-1/2 -translate-x-1/2 z-40 w-[92%] max-w-sm ios-glass rounded-[28px] p-3 sm:p-3.5 flex items-center gap-3 select-none pointer-events-auto transition-all"
       style={{
-        bottom: '64px',
+        bottom: 'calc(max(8px, env(safe-area-inset-bottom, 16px)) + 64px)',
       }}
     >
       {/* Left: Spot Squircle Thumbnail */}

@@ -17,12 +17,9 @@ import {
   Sliders,
   ExternalLink,
   Loader2,
-  Contrast,
-  Volume2,
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { InstagramLogo, WhatsAppLogo } from './SocialIcons';
-import { isPinSoundEnabled, setPinSoundEnabled, playPinTapSound } from '../utils/sound';
 
 interface ProfileModalProps {
   isOpen: boolean;
@@ -97,7 +94,6 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
   // Permissions state
   const [locationPerm, setLocationPerm] = useState(true);
   const [notificationsPerm, setNotificationsPerm] = useState(true);
-  const [pinSoundPerm, setPinSoundPerm] = useState(isPinSoundEnabled);
 
   if (!isOpen) return null;
 
@@ -276,9 +272,9 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
               id="card-user-info"
               className="w-full p-5 rounded-[32px] bg-white dark:bg-[#141518] border border-zinc-200 dark:border-white/10 flex items-center gap-4 shadow-sm dark:shadow-xl"
             >
-              {/* Avatar with #00C896 border */}
+              {/* Avatar with pure white border */}
               <div className="relative shrink-0">
-                <div className="w-18 h-18 sm:w-20 sm:h-20 rounded-full overflow-hidden border-2 border-[#00C896] ring-4 ring-[#00C896]/20 bg-zinc-100 dark:bg-zinc-900 shadow-md relative">
+                <div className="w-18 h-18 sm:w-20 sm:h-20 rounded-full overflow-hidden border-2 border-white ring-4 ring-white/20 bg-zinc-100 dark:bg-zinc-900 shadow-md relative">
                   <img
                     src={userAvatar}
                     alt={userName}
@@ -317,7 +313,7 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
                 className="w-full p-4 rounded-3xl bg-white dark:bg-[#141518] hover:bg-zinc-50 dark:hover:bg-[#1a1c21] active:scale-[0.98] border border-zinc-200 dark:border-white/5 hover:border-zinc-300 dark:hover:border-white/15 transition-all flex items-center justify-between text-left cursor-pointer group shadow-sm"
               >
                 <div className="flex items-center gap-3.5 min-w-0">
-                  <div className="w-11 h-11 rounded-2xl bg-zinc-100 dark:bg-[#202227] flex items-center justify-center text-[#00C896] shrink-0">
+                  <div className="w-11 h-11 rounded-2xl bg-zinc-100 dark:bg-[#202227] flex items-center justify-center text-zinc-900 dark:text-white shrink-0">
                     <Pencil className="w-5 h-5 stroke-[1.8]" />
                   </div>
                   <div className="min-w-0">
@@ -414,7 +410,7 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
                 className="w-full p-4 rounded-3xl bg-white dark:bg-[#141518] hover:bg-zinc-50 dark:hover:bg-[#1a1c21] active:scale-[0.98] border border-zinc-200 dark:border-white/5 hover:border-zinc-300 dark:hover:border-white/15 transition-all flex items-center justify-between text-left cursor-pointer group shadow-sm"
               >
                 <div className="flex items-center gap-3.5 min-w-0">
-                  <div className="w-11 h-11 rounded-2xl bg-zinc-100 dark:bg-[#202227] flex items-center justify-center text-[#00C896] shrink-0">
+                  <div className="w-11 h-11 rounded-2xl bg-zinc-100 dark:bg-[#202227] flex items-center justify-center text-zinc-900 dark:text-white shrink-0">
                     <Sliders className="w-5 h-5 stroke-[1.8]" />
                   </div>
                   <div className="min-w-0">
@@ -493,7 +489,7 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
               {/* Avatar Selector and Preview */}
               <div className="flex flex-col items-center justify-center pb-2 pt-1">
                 <div className="relative group">
-                  <div className="w-24 h-24 rounded-full overflow-hidden border-2 border-[#00C896] ring-4 ring-[#00C896]/20 bg-zinc-100 dark:bg-zinc-900 shadow-lg relative">
+                  <div className="w-24 h-24 rounded-full overflow-hidden border-2 border-white ring-4 ring-white/20 bg-zinc-100 dark:bg-zinc-900 shadow-lg relative">
                     <img
                       src={tempAvatar || userAvatar}
                       alt="Preview"
@@ -509,7 +505,7 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
                     type="button"
                     onClick={() => fileInputRef.current?.click()}
                     title="Carregar imagem"
-                    className="absolute bottom-0 right-0 w-8 h-8 rounded-full bg-[#00C896] hover:bg-[#0000dd] text-white flex items-center justify-center shadow-lg border-2 border-white dark:border-[#141518] transition-transform active:scale-95 cursor-pointer"
+                    className="absolute bottom-0 right-0 w-8 h-8 rounded-full bg-white text-zinc-900 flex items-center justify-center shadow-lg border-2 border-zinc-200 dark:border-white/20 transition-transform active:scale-95 cursor-pointer"
                   >
                     <Camera className="w-4 h-4 stroke-[2.5]" />
                   </button>
@@ -517,7 +513,7 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
                 <button
                   type="button"
                   onClick={() => fileInputRef.current?.click()}
-                  className="mt-3 text-xs font-black text-[#00C896] hover:underline flex items-center gap-1.5 cursor-pointer"
+                  className="mt-3 text-xs font-black text-zinc-900 dark:text-white hover:underline flex items-center gap-1.5 cursor-pointer"
                 >
                   <Upload className="w-3.5 h-3.5" />
                   <span>Escolher foto do dispositivo</span>
@@ -532,7 +528,7 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
                   type="text"
                   value={tempName}
                   onChange={(e) => setTempName(e.target.value)}
-                  className="w-full px-4 py-3 rounded-2xl bg-zinc-50 dark:bg-zinc-900 border border-zinc-200 dark:border-white/10 text-zinc-900 dark:text-white text-sm focus:outline-none focus:border-[#00C896]"
+                  className="w-full px-4 py-3 rounded-2xl bg-zinc-50 dark:bg-zinc-900 border border-zinc-200 dark:border-white/10 text-zinc-900 dark:text-white text-sm focus:outline-none focus:border-zinc-900 dark:focus:border-white"
                   required
                 />
               </div>
@@ -546,7 +542,7 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
                   placeholder="seu@email.com"
                   value={tempEmail}
                   onChange={(e) => setTempEmail(e.target.value)}
-                  className="w-full px-4 py-3 rounded-2xl bg-zinc-50 dark:bg-zinc-900 border border-zinc-200 dark:border-white/10 text-zinc-900 dark:text-white text-sm focus:outline-none focus:border-[#00C896]"
+                  className="w-full px-4 py-3 rounded-2xl bg-zinc-50 dark:bg-zinc-900 border border-zinc-200 dark:border-white/10 text-zinc-900 dark:text-white text-sm focus:outline-none focus:border-zinc-900 dark:focus:border-white"
                   required
                 />
               </div>
@@ -562,7 +558,7 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
               </button>
               <button
                 type="submit"
-                className="flex-1 py-3 rounded-full bg-[#00C896] hover:bg-[#0000dd] text-white text-sm font-black transition-all cursor-pointer shadow-lg flex items-center justify-center gap-1.5"
+                className="flex-1 py-3 rounded-full bg-zinc-900 dark:bg-white text-white dark:text-zinc-900 hover:opacity-90 text-sm font-black transition-all cursor-pointer shadow-lg flex items-center justify-center gap-1.5"
               >
                 {saveToast ? <Check className="w-4 h-4" /> : null}
                 <span>{saveToast ? 'Salvo!' : 'Salvar alterações'}</span>
@@ -606,7 +602,7 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
                     </div>
 
                     <div className="min-w-0 flex-1">
-                      <h4 className="text-sm font-black text-zinc-900 dark:text-white tracking-tight truncate group-hover:text-[#00C896] transition-colors">
+                      <h4 className="text-sm font-black text-zinc-900 dark:text-white tracking-tight truncate group-hover:text-zinc-600 dark:group-hover:text-zinc-300 transition-colors">
                         {spot.name}
                       </h4>
                       <p className="text-xs text-zinc-500 dark:text-zinc-400 font-black truncate mt-0.5">
@@ -635,69 +631,10 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
         {/* ============================================================ */}
         {activeSubView === 'permissoes' && (
           <div className="space-y-3 pt-2">
-            {/* Modo de Aparência */}
-            <div className="p-4 rounded-3xl bg-white dark:bg-[#141518] border border-zinc-200 dark:border-white/10 flex items-center justify-between shadow-sm">
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-2xl bg-indigo-50 dark:bg-indigo-950/40 flex items-center justify-center text-indigo-500 dark:text-indigo-400">
-                  <Sliders className="w-5 h-5" />
-                </div>
-                <div>
-                  <div className="text-sm font-black text-zinc-900 dark:text-white">Modo de aparência</div>
-                  <div className="text-xs text-zinc-500 dark:text-zinc-400">
-                    {theme === 'dark' ? 'Modo escuro' : 'Modo branco'}
-                  </div>
-                </div>
-              </div>
-              <button
-                onClick={onToggleTheme}
-                className={`w-12 h-6 rounded-full transition-colors relative cursor-pointer ${
-                  theme === 'light' ? 'bg-[#00C896]' : 'bg-zinc-300 dark:bg-white/20'
-                }`}
-              >
-                <div
-                  className={`w-4 h-4 rounded-full bg-white dark:bg-black transition-transform absolute top-1 ${
-                    theme === 'light' ? 'left-7' : 'left-1'
-                  }`}
-                />
-              </button>
-            </div>
-
-            {/* Modo de Alto Contraste (Acessibilidade Visual) */}
-            <div className="p-4 rounded-3xl bg-white dark:bg-[#141518] border border-zinc-200 dark:border-white/10 flex items-center justify-between shadow-sm">
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-2xl bg-amber-50 dark:bg-amber-950/40 flex items-center justify-center text-amber-500 dark:text-amber-400">
-                  <Contrast className="w-5 h-5" />
-                </div>
-                <div>
-                  <div className="text-sm font-black text-zinc-900 dark:text-white flex items-center gap-1.5">
-                    <span>Modo de Alto Contraste</span>
-                    <span className="px-1.5 py-0.5 text-[10px] uppercase font-black tracking-wider bg-amber-100 dark:bg-amber-950/80 text-amber-700 dark:text-amber-300 rounded-md">
-                      Acessibilidade
-                    </span>
-                  </div>
-                  <div className="text-xs text-zinc-500 dark:text-zinc-400">
-                    Aumenta a nitidez do mapa, contornos e textos para facilitar a visualização
-                  </div>
-                </div>
-              </div>
-              <button
-                onClick={onToggleHighContrast}
-                className={`w-12 h-6 rounded-full transition-colors relative cursor-pointer ${
-                  highContrast ? 'bg-[#00C896]' : 'bg-zinc-300 dark:bg-white/20'
-                }`}
-              >
-                <div
-                  className={`w-4 h-4 rounded-full bg-white dark:bg-black transition-transform absolute top-1 ${
-                    highContrast ? 'left-7' : 'left-1'
-                  }`}
-                />
-              </button>
-            </div>
-
             {/* Localização GPS */}
             <div className="p-4 rounded-3xl bg-white dark:bg-[#141518] border border-zinc-200 dark:border-white/10 flex items-center justify-between shadow-sm">
               <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-2xl bg-blue-50 dark:bg-blue-950/40 flex items-center justify-center text-[#00C896]">
+                <div className="w-10 h-10 rounded-2xl bg-zinc-100 dark:bg-[#202227] flex items-center justify-center text-zinc-900 dark:text-white">
                   <MapPin className="w-5 h-5" />
                 </div>
                 <div>
@@ -708,44 +645,12 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
               <button
                 onClick={() => setLocationPerm(!locationPerm)}
                 className={`w-12 h-6 rounded-full transition-colors relative cursor-pointer ${
-                  locationPerm ? 'bg-[#00C896]' : 'bg-zinc-300 dark:bg-white/20'
+                  locationPerm ? 'bg-zinc-900 dark:bg-white' : 'bg-zinc-300 dark:bg-white/20'
                 }`}
               >
                 <div
-                  className={`w-4 h-4 rounded-full bg-white dark:bg-black transition-transform absolute top-1 ${
+                  className={`w-4 h-4 rounded-full bg-white dark:bg-zinc-950 transition-transform absolute top-1 ${
                     locationPerm ? 'left-7' : 'left-1'
-                  }`}
-                />
-              </button>
-            </div>
-
-            {/* Som de Toque nos Pins */}
-            <div className="p-4 rounded-3xl bg-white dark:bg-[#141518] border border-zinc-200 dark:border-white/10 flex items-center justify-between shadow-sm">
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-2xl bg-emerald-50 dark:bg-emerald-950/40 flex items-center justify-center text-[#00C896]">
-                  <Volume2 className="w-5 h-5" />
-                </div>
-                <div>
-                  <div className="text-sm font-black text-zinc-900 dark:text-white">Som de Toque nos Pins</div>
-                  <div className="text-xs text-zinc-500 dark:text-zinc-400">Feedback acústico suave ao tocar nos marcadores</div>
-                </div>
-              </div>
-              <button
-                onClick={() => {
-                  const nextVal = !pinSoundPerm;
-                  setPinSoundPerm(nextVal);
-                  setPinSoundEnabled(nextVal);
-                  if (nextVal) {
-                    playPinTapSound();
-                  }
-                }}
-                className={`w-12 h-6 rounded-full transition-colors relative cursor-pointer ${
-                  pinSoundPerm ? 'bg-[#00C896]' : 'bg-zinc-300 dark:bg-white/20'
-                }`}
-              >
-                <div
-                  className={`w-4 h-4 rounded-full bg-white dark:bg-black transition-transform absolute top-1 ${
-                    pinSoundPerm ? 'left-7' : 'left-1'
                   }`}
                 />
               </button>
@@ -760,7 +665,7 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
           <div className="space-y-3 pt-2">
             <div className="p-4 rounded-3xl bg-white dark:bg-[#141518] border border-zinc-200 dark:border-white/10 shadow-sm">
               <div className="flex items-center gap-2 mb-2 text-sm font-black text-zinc-900 dark:text-white">
-                <Sliders className="w-4 h-4 text-[#00C896]" />
+                <Sliders className="w-4 h-4 text-zinc-900 dark:text-white" />
                 <span>Console de Controle do Guia</span>
               </div>
               <p className="text-xs text-zinc-500 dark:text-zinc-400 leading-relaxed">
@@ -780,7 +685,7 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
               </div>
               <div className="flex justify-between text-xs py-1">
                 <span className="text-zinc-500 dark:text-zinc-400">IA Turística:</span>
-                <span className="text-[#00C896] font-black">Online (Gemini API)</span>
+                <span className="text-zinc-900 dark:text-white font-black">Online (Gemini API)</span>
               </div>
             </div>
           </div>

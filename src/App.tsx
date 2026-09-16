@@ -5,12 +5,10 @@ import { MapComponent } from './components/MapComponent';
 import { BottomNavigation, TabType } from './components/BottomNavigation';
 import { SpotDetailSheet } from './components/SpotDetailSheet';
 import { SpotPreviewBanner } from './components/SpotPreviewBanner';
-import { WeatherOverlay } from './components/WeatherOverlay';
 import { SearchFilterDrawer } from './components/SearchFilterDrawer';
 import { AIChatModal } from './components/AIChatModal';
 import { ProfileModal } from './components/ProfileModal';
-import { getRandomSpotFromPopularCategory, DailyTipResult } from './utils/dailyTip';
-import { CloudRain, Sparkles, SlidersHorizontal, MapPin, Navigation2, Mic, Search, X, ShieldCheck, Sun, Moon } from 'lucide-react';
+import { CloudRain, Sparkles, SlidersHorizontal, MapPin, Navigation2, Mic, Search, X, ShieldCheck, Sun, Moon, Building2, UtensilsCrossed, Coffee, Cake, Mountain, Cross, Check, RotateCcw } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { AuthScreen } from './components/AuthScreen';
 import { AdminLayout } from './components/admin/AdminLayout';
@@ -168,31 +166,12 @@ export default function App() {
   // Spot card dynamic layout behavior
   const isSpotCardOpen = Boolean(selectedSpot && !isDetailOpen && activeTab === 'explorar');
 
-  const [isWeatherOpen, setIsWeatherOpen] = useState(false);
   const [favorites, setFavorites] = useState<string[]>(['itapeva', 'baden-baden', 'amantikir']);
   const [selectedCategoryFilter, setSelectedCategoryFilter] = useState<string | null>(null);
   const [isCategoryCardOpen, setIsCategoryCardOpen] = useState<boolean>(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [isSearchOpen, setIsSearchOpen] = useState(false);
   const [isListening, setIsListening] = useState(false);
-
-  // Dica do Dia / Sugestões state & logic
-  const [dailyTip, setDailyTip] = useState<DailyTipResult | null>(null);
-  const [isSuggestionsOpen, setIsSuggestionsOpen] = useState(false);
-
-  const refreshDailyTip = useCallback(() => {
-    const tip = getRandomSpotFromPopularCategory(spots, favorites);
-    if (tip) {
-      setDailyTip(tip);
-    }
-  }, [spots, favorites]);
-
-  // Initial load of suggestion spot
-  useEffect(() => {
-    if (!dailyTip && spots.length > 0) {
-      refreshDailyTip();
-    }
-  }, [spots, dailyTip, refreshDailyTip]);
 
   // Handle URL deep link (e.g. from QR Code scan: ?spot=spotId)
   useEffect(() => {
@@ -233,10 +212,8 @@ export default function App() {
   }, [isDetailOpen, selectedSpot]);
 
   const handleMapLoad = useCallback(() => {
-    if (!dailyTip && spots.length > 0) {
-      refreshDailyTip();
-    }
-  }, [spots, dailyTip, refreshDailyTip]);
+    // Map loaded callback
+  }, []);
 
   const handleVoiceSearch = () => {
     const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
@@ -347,17 +324,14 @@ export default function App() {
   const handleSelectSpot = useCallback((spot: Spot | null) => {
     setSelectedSpot(spot);
     setIsDetailOpen(false);
-    setIsSuggestionsOpen(false);
   }, []);
 
   // Dismiss all cards, previews and overlays when touching the map (map acts like an "x")
   const handleMapDismiss = useCallback(() => {
     setSelectedSpot(null);
     setIsDetailOpen(false);
-    setIsSuggestionsOpen(false);
     setIsCategoryCardOpen(false);
     setIsSearchOpen(false);
-    setIsWeatherOpen(false);
   }, []);
 
   // User location state
@@ -518,10 +492,10 @@ export default function App() {
   }
 
   return (
-    <div className="fixed inset-0 w-full h-full overflow-hidden bg-zinc-100 dark:bg-[#111315]">
+    <div className="fixed inset-0 w-full h-full overflow-hidden bg-zinc-100 dark:bg-black">
       <OfflineIndicator />
       <main
-        className="absolute inset-0 w-full h-full overflow-hidden bg-zinc-50 dark:bg-[#111315] select-none"
+        className="absolute inset-0 w-full h-full overflow-hidden bg-zinc-50 dark:bg-black select-none"
       >
         {/* 1. Interactive Map Engine */}
       <MapComponent
@@ -540,7 +514,7 @@ export default function App() {
       {/* 3. Top Floating Header Bar */}
       <header
         aria-label="Informações de Campos do Jordão"
-        className="absolute top-0 left-0 right-0 z-30 flex items-center justify-between pointer-events-none px-4 sm:px-6"
+        className="absolute top-0 left-0 right-0 z-40 flex items-center justify-between pointer-events-none px-4 sm:px-6"
         style={{
           paddingTop: 'max(calc(env(safe-area-inset-top, 0px) + 12px), 24px)',
           paddingLeft: 'max(16px, env(safe-area-inset-left, 0px))',
@@ -549,16 +523,15 @@ export default function App() {
       >
         {/* Left: Big Weather Temperature & Yellow Sun (Apple Weather aesthetic matching screenshot) */}
         <div className="flex items-center pointer-events-auto">
-          <button
-            id="btn-weather-header"
-            onClick={() => setIsWeatherOpen(true)}
-            className="flex items-center gap-1.5 pointer-events-auto active:scale-95 transition-transform duration-200 cursor-pointer select-none group"
-            title="Clima em Campos do Jordão - Clique para previsão completa"
+          <div
+            id="weather-header-display"
+            className="flex items-center gap-1.5 select-none"
+            title={`Campos do Jordão - ${realWeather.temperature}°C ${realWeather.condition}`}
           >
             <span className="text-5xl sm:text-6xl font-extrabold tracking-tighter text-zinc-900 dark:text-white leading-none drop-shadow-[0_2px_12px_rgba(0,0,0,0.4)]">
               {realWeather.temperature}°
             </span>
-            <div className="relative w-12 h-12 sm:w-14 sm:h-14 flex items-center justify-center shrink-0 -mt-1 group-hover:scale-105 transition-transform duration-300">
+            <div className="relative w-12 h-12 sm:w-14 sm:h-14 flex items-center justify-center shrink-0 -mt-1">
               {/* Apple-style 3D Vibrant Yellow Sun with Fluffy White Cloud */}
               <svg className="w-full h-full" viewBox="0 0 48 48" fill="none">
                 <defs>
@@ -593,7 +566,7 @@ export default function App() {
                 </g>
               </svg>
             </div>
-          </button>
+          </div>
         </div>
 
         {/* Right: Circular Theme Button + Circular Search Button + Category Filter Button */}
@@ -602,7 +575,7 @@ export default function App() {
           <button
             id="btn-theme-toggle"
             onClick={() => setTheme((prev) => (prev === 'dark' ? 'light' : 'dark'))}
-            className="w-12 h-12 rounded-full bg-white/95 dark:bg-[#16171a]/90 hover:bg-zinc-100 dark:hover:bg-[#1f2128] text-zinc-900 dark:text-white shadow-xl border border-zinc-200/80 dark:border-white/15 backdrop-blur-xl flex items-center justify-center transition-all duration-300 active:scale-95 cursor-pointer group"
+            className="w-12 h-12 rounded-full ios-glass-btn text-zinc-900 dark:text-white flex items-center justify-center active:scale-95 cursor-pointer group"
             title={theme === 'dark' ? 'Mudar para tema claro' : 'Mudar para tema escuro'}
           >
             {theme === 'dark' ? (
@@ -620,9 +593,9 @@ export default function App() {
                 </svg>
               </div>
             ) : (
-              <div className="relative w-6 h-6 flex items-center justify-center text-zinc-900 dark:text-white group-hover:-rotate-12 transition-transform duration-500">
-                <svg className="w-full h-full text-zinc-900 dark:text-white" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round">
-                  <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z" className="fill-zinc-900 dark:fill-white" />
+              <div className="relative w-6 h-6 flex items-center justify-center text-[#6E00B3] dark:text-white group-hover:-rotate-12 transition-transform duration-500">
+                <svg className="w-full h-full text-[#6E00B3] dark:text-white" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z" className="fill-[#6E00B3] dark:fill-white" />
                 </svg>
               </div>
             )}
@@ -632,10 +605,10 @@ export default function App() {
           <button
             id="btn-search-toggle"
             onClick={() => setIsSearchOpen((prev) => !prev)}
-            className={`w-12 h-12 rounded-full shadow-xl border backdrop-blur-xl flex items-center justify-center transition-all duration-300 active:scale-95 cursor-pointer group ${
+            className={`w-12 h-12 rounded-full flex items-center justify-center transition-all duration-300 active:scale-95 cursor-pointer group ${
               isSearchOpen || searchQuery
-                ? 'bg-[#00C896] text-white border-transparent shadow-[0_0_20px_rgba(0,200,150,0.5)]'
-                : 'bg-white/95 dark:bg-[#16171a]/90 hover:bg-zinc-100 dark:hover:bg-[#1f2128] text-zinc-900 dark:text-white border-zinc-200/80 dark:border-white/15'
+                ? 'bg-[#00C896] text-white border border-transparent shadow-[0_0_20px_rgba(0,200,150,0.5)]'
+                : 'ios-glass-btn text-zinc-900 dark:text-white'
             }`}
             title="Pesquisar no mapa"
           >
@@ -647,59 +620,108 @@ export default function App() {
             </div>
           </button>
 
-          {selectedCategoryFilter ? (
+          {/* Circular Category Filter Button with Dropdown */}
+          <div className="relative shrink-0">
             <button
-              id="btn-reset-filters"
-              onClick={() => setSelectedCategoryFilter(null)}
-              className="h-12 px-4 rounded-full bg-[#00C896] hover:bg-[#00b085] text-white text-xs font-black shadow-2xl transition-all active:scale-95 cursor-pointer flex items-center gap-1.5"
-              title="Voltar ao normal sem filtros"
+              id="btn-category-icon-toggle"
+              onClick={() => setIsCategoryCardOpen((prev) => !prev)}
+              className={`w-12 h-12 rounded-full flex items-center justify-center transition-all duration-300 active:scale-95 cursor-pointer group shrink-0 ${
+                selectedCategoryFilter
+                  ? 'bg-[#00C896] text-white border border-transparent shadow-[0_0_20px_rgba(0,200,150,0.5)]'
+                  : 'ios-glass-btn text-zinc-900 dark:text-white'
+              }`}
+              title={selectedCategoryFilter ? 'Filtro de categoria ativo - Clique para alterar ou limpar' : 'Filtrar por Categoria'}
             >
-              <span>Voltar ao normal</span>
-            </button>
-          ) : (
-            <div className="relative">
-              <button
-                id="btn-category-icon-toggle"
-                onClick={() => setIsCategoryCardOpen(!isCategoryCardOpen)}
-                className="w-12 h-12 rounded-full bg-white/95 dark:bg-[#16171a]/90 hover:bg-zinc-100 dark:hover:bg-[#1f2128] active:scale-95 text-zinc-900 dark:text-white shadow-xl border border-zinc-200/80 dark:border-white/15 backdrop-blur-xl flex items-center justify-center transition-all duration-300 cursor-pointer group"
-                title="Filtrar por Categoria"
-              >
-                {/* New Modern Funnel / Sliders Filter Icon */}
-                <div className="relative w-6 h-6 flex items-center justify-center text-zinc-900 dark:text-white group-hover:scale-110 transition-transform duration-300">
-                  <SlidersHorizontal className="w-5 h-5 text-zinc-900 dark:text-white stroke-[2.2]" />
-                </div>
-              </button>
-
-              {/* Small Category Card / Dropdown */}
-              {isCategoryCardOpen && (
-                <div className="absolute right-0 top-14 w-52 p-2 rounded-3xl bg-white dark:bg-[#181a1e] border border-zinc-200 dark:border-white/10 shadow-2xl z-50 space-y-1">
-                  <div className="px-3 py-2 text-[11px] font-black text-zinc-400 dark:text-zinc-500 uppercase tracking-wider border-b border-zinc-100 dark:border-white/5">
-                    Categorias
-                  </div>
-                  {[
-                    { id: 'hotels', label: 'Hotéis e Pousadas', emoji: '🏨' },
-                    { id: 'restaurants', label: 'Restaurantes', emoji: '🍽️' },
-                    { id: 'cafes', label: 'Cafés', emoji: '☕' },
-                    { id: 'sweets', label: 'Chocolates & Doces', emoji: '🍫' },
-                    { id: 'attractions', label: 'Atrações & Parques', emoji: '⛰️' },
-                    { id: 'pharmacies', label: 'Farmácias', emoji: '💊' },
-                  ].map((cat) => (
-                    <button
-                      key={cat.id}
-                      onClick={() => {
-                        setSelectedCategoryFilter(cat.id);
-                        setIsCategoryCardOpen(false);
-                      }}
-                      className="w-full px-3 py-2.5 rounded-2xl hover:bg-zinc-100 dark:hover:bg-[#252830] text-zinc-800 dark:text-zinc-200 text-xs font-black flex items-center gap-2.5 transition-all text-left cursor-pointer"
-                    >
-                      <span className="text-base">{cat.emoji}</span>
-                      <span className="truncate">{cat.label}</span>
-                    </button>
-                  ))}
-                </div>
+              <div className="relative w-6 h-6 flex items-center justify-center text-current group-hover:scale-110 transition-transform duration-300">
+                <SlidersHorizontal className="w-5 h-5 stroke-[2.2]" />
+              </div>
+              {selectedCategoryFilter && (
+                <span className="absolute top-1.5 right-1.5 w-2.5 h-2.5 rounded-full bg-white ring-2 ring-[#00C896]" />
               )}
-            </div>
-          )}
+            </button>
+
+            {/* Small Category Card / Dropdown */}
+            <AnimatePresence>
+              {isCategoryCardOpen && (
+                <>
+                  {/* Backdrop to dismiss on outside tap */}
+                  <div
+                    className="fixed inset-0 z-40 bg-black/15 dark:bg-black/40 backdrop-blur-[1px] cursor-pointer pointer-events-auto"
+                    onClick={() => setIsCategoryCardOpen(false)}
+                  />
+
+                  {/* Dropdown Container */}
+                  <motion.div
+                    initial={{ opacity: 0, scale: 0.94, y: -6 }}
+                    animate={{ opacity: 1, scale: 1, y: 0 }}
+                    exit={{ opacity: 0, scale: 0.94, y: -6 }}
+                    transition={{ type: 'spring', damping: 25, stiffness: 420 }}
+                    className="!absolute right-0 top-14 w-64 p-2.5 rounded-[26px] ios-glass z-50 space-y-1 shadow-[0_20px_50px_rgba(0,0,0,0.25)] dark:shadow-[0_25px_60px_rgba(0,0,0,0.85)] pointer-events-auto"
+                    style={{ position: 'absolute' }}
+                  >
+                    <div className="flex items-center justify-between px-3 py-2 border-b border-zinc-900/10 dark:border-white/10">
+                      <span className="text-[11px] font-black text-zinc-400 dark:text-zinc-400 uppercase tracking-wider">
+                        Categorias
+                      </span>
+                      {selectedCategoryFilter && (
+                        <button
+                          onClick={() => {
+                            setSelectedCategoryFilter(null);
+                            setIsCategoryCardOpen(false);
+                          }}
+                          className="text-[11px] font-black text-[#00C896] hover:underline cursor-pointer flex items-center gap-1"
+                        >
+                          <RotateCcw className="w-3 h-3" />
+                          Limpar
+                        </button>
+                      )}
+                    </div>
+
+                    {[
+                      { id: 'hotels', label: 'Hotéis e Pousadas', icon: Building2 },
+                      { id: 'restaurants', label: 'Restaurantes', icon: UtensilsCrossed },
+                      { id: 'cafes', label: 'Cafés', icon: Coffee },
+                      { id: 'sweets', label: 'Chocolates & Doces', icon: Cake },
+                      { id: 'attractions', label: 'Atrações & Parques', icon: Mountain },
+                      { id: 'pharmacies', label: 'Farmácias', icon: Cross },
+                    ].map((cat) => {
+                      const CategoryIcon = cat.icon;
+                      const isSelected = selectedCategoryFilter === cat.id;
+
+                      return (
+                        <button
+                          key={cat.id}
+                          onClick={() => {
+                            setSelectedCategoryFilter(isSelected ? null : cat.id);
+                            setIsCategoryCardOpen(false);
+                          }}
+                          className={`w-full px-3 py-2.5 rounded-2xl active:scale-[0.98] text-xs font-black flex items-center justify-between gap-2.5 transition-all text-left cursor-pointer group ${
+                            isSelected
+                              ? 'bg-[#00C896]/15 text-[#00C896] font-extrabold'
+                              : 'hover:bg-zinc-900/5 dark:hover:bg-white/10 text-zinc-800 dark:text-zinc-200'
+                          }`}
+                        >
+                          <div className="flex items-center gap-2.5 min-w-0">
+                            <div className={`w-7 h-7 rounded-xl flex items-center justify-center shrink-0 group-hover:scale-105 transition-transform ${
+                              isSelected
+                                ? 'bg-[#00C896] text-white'
+                                : 'bg-zinc-900/5 dark:bg-white/10 text-zinc-900 dark:text-white'
+                            }`}>
+                              <CategoryIcon className="w-4 h-4 stroke-[2]" />
+                            </div>
+                            <span className="truncate">{cat.label}</span>
+                          </div>
+                          {isSelected && (
+                            <Check className="w-4 h-4 text-[#00C896] shrink-0 stroke-[2.5]" />
+                          )}
+                        </button>
+                      );
+                    })}
+                  </motion.div>
+                </>
+              )}
+            </AnimatePresence>
+          </div>
         </div>
       </header>
 
@@ -716,7 +738,7 @@ export default function App() {
               top: 'max(calc(env(safe-area-inset-top, 0px) + 72px), 84px)',
             }}
           >
-            <div className="flex items-center gap-2 px-4 py-2.5 rounded-full bg-white/95 dark:bg-[#1b1c20]/95 backdrop-blur-2xl border border-zinc-200 dark:border-white/15 shadow-[0_12px_40px_rgba(0,0,0,0.15)] dark:shadow-[0_12px_40px_rgba(0,0,0,0.8)] transition-all">
+            <div className="flex items-center gap-2 px-4 py-2.5 rounded-full ios-glass transition-all">
               <Search className="w-4 h-4 text-zinc-400 dark:text-zinc-400 shrink-0" />
               <input
                 autoFocus
@@ -751,31 +773,11 @@ export default function App() {
         )}
       </AnimatePresence>
 
-      {/* 4. Bottom Floating Navigation Pill with Integrated Suggestions Chevron & Card */}
+      {/* 4. Bottom Floating Navigation Pill */}
       <BottomNavigation
         activeTab={activeTab}
-        onChangeTab={(tab) => {
-          setIsSuggestionsOpen(false);
-          handleTabChange(tab);
-        }}
+        onChangeTab={handleTabChange}
         unreadCount={2}
-        isSuggestionsOpen={isSuggestionsOpen}
-        onToggleSuggestions={() => {
-          if (!isSuggestionsOpen) {
-            setSelectedSpot(null);
-            if (!dailyTip) {
-              refreshDailyTip();
-            }
-          }
-          setIsSuggestionsOpen((prev) => !prev);
-        }}
-        suggestionSpot={dailyTip?.spot || null}
-        popularCategoryLabel={dailyTip?.popularCategoryLabel || 'Mais Populares'}
-        onSelectSpot={(spot) => {
-          setIsSuggestionsOpen(false);
-          handleSelectSpot(spot);
-        }}
-        showSuggestionsChevron={activeTab === 'explorar' && !isSearchOpen}
       />
 
       {/* 5. Mini Banner Preview (occupies the space freed by the retracted search bar when a spot is opened) */}
@@ -809,16 +811,7 @@ export default function App() {
         }}
       />
 
-      {/* 7. Weather iOS Overlay (matches screenshot with loading effect and 3-second auto dismiss) */}
-      <WeatherOverlay
-        locationName="Campos do Jordão"
-        temperature={20}
-        condition="Parcialmente nublado"
-        isOpen={isWeatherOpen}
-        onClose={() => setIsWeatherOpen(false)}
-      />
-
-      {/* 8. Search & Discovery Drawer (Tab: 'buscar') */}
+      {/* 7. Search & Discovery Drawer (Tab: 'buscar') */}
       <SearchFilterDrawer
         isOpen={activeTab === 'buscar'}
         onClose={() => setActiveTab('explorar')}

@@ -245,14 +245,15 @@ Como posso te ajudar agora?`;
     >
       {/* Top Header Bar */}
       <div
-        className="relative px-6 pb-2 flex items-center justify-between z-10 shrink-0"
+        className="relative px-6 pb-2 flex items-center justify-between z-10 shrink-0 w-full"
         style={{
           paddingTop: 'max(calc(env(safe-area-inset-top, 0px) + 14px), 24px)',
           paddingLeft: 'max(24px, env(safe-area-inset-left, 0px))',
           paddingRight: 'max(24px, env(safe-area-inset-right, 0px))',
         }}
       >
-        <div className="w-10">
+        {/* Left: Reset Button */}
+        <div className="w-10 flex items-center justify-start">
           {messages.length > 0 && (
             <motion.button
               whileTap={{ scale: 0.85 }}
@@ -266,22 +267,37 @@ Como posso te ajudar agora?`;
           )}
         </div>
 
-        {/* Center: When in active chat, show mini avatar and Chat title */}
+        {/* Center: Always strictly centered avatar, Chat title and verified badge */}
         {messages.length > 0 && (
           <motion.div 
             initial={{ opacity: 0, y: -6 }}
             animate={{ opacity: 1, y: 0 }}
-            className="flex items-center gap-2"
+            className="absolute left-1/2 -translate-x-1/2 flex items-center gap-2 pointer-events-none"
           >
-            <div className="w-8 h-8 rounded-full overflow-hidden border border-zinc-200 dark:border-white/20">
+            <div className="w-8 h-8 rounded-full overflow-hidden border border-zinc-200 dark:border-white/20 shadow-xs">
               <img src={GUIDE_AVATAR_URL} alt="Guia" className="w-full h-full object-cover" />
             </div>
             <div className="flex items-center gap-1.5">
               <span className="text-base font-black tracking-tight text-zinc-900 dark:text-white">Chat</span>
-              <CheckCircle2 className="w-4 h-4 text-[#00C896] fill-[#00C896]/20" />
+              <div className="w-4.5 h-4.5 rounded-full bg-[#007AFF] flex items-center justify-center text-white shrink-0">
+                <svg
+                  className="w-3 h-3"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="3.5"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                >
+                  <polyline points="20 6 9 17 4 12" />
+                </svg>
+              </div>
             </div>
           </motion.div>
         )}
+
+        {/* Right placeholder to balance flex container if needed */}
+        <div className="w-10" />
       </div>
 
       {/* Main Content Area */}
@@ -316,7 +332,7 @@ Como posso te ajudar agora?`;
                 Chat
               </h1>
               {/* Verified Badge Circle identical to screenshot */}
-              <div className="w-5 h-5 rounded-full bg-[#00C896] flex items-center justify-center text-white">
+              <div className="w-5 h-5 rounded-full bg-[#007AFF] flex items-center justify-center text-white">
                 <svg
                   className="w-3.5 h-3.5"
                   viewBox="0 0 24 24"

@@ -1,3 +1,5 @@
+export type MapModeType = 'explorar' | 'carro' | 'transporte' | 'animado' | 'satelite';
+
 export type SpotCategory = 
   | 'hotels'
   | 'restaurants'

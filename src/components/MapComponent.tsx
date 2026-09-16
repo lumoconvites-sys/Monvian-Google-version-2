@@ -1,7 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import * as maplibregl from 'maplibre-gl';
 import 'maplibre-gl/dist/maplibre-gl.css';
-import { Spot, SpotCategory } from '../types';
+import { Spot, SpotCategory, MapModeType } from '../types';
 import { Layers, Plus, Minus } from 'lucide-react';
 import { CompassIcon } from './CompassIcon';
 import { motion, AnimatePresence } from 'motion/react';
@@ -20,17 +20,16 @@ interface MapComponentProps {
   onMapClick?: () => void;
 }
 
-export type MapModeType = 'explorar' | 'carro' | 'transporte' | 'satelite';
+export type { MapModeType };
 
 const MAPBOX_TOKEN = (import.meta.env.VITE_MAPBOX_ACCESS_TOKEN || '').trim();
 
-// High-fidelity standard and Mapbox-powered styles for all 4 modes
-const createStyle = (type: MapModeType, theme: 'dark' | 'light' = 'dark'): maplibregl.StyleSpecification | string => {
+const createStyle = (type: MapModeType, theme: 'dark' | 'light' = 'dark'): maplibregl.StyleSpecification => {
   if (MAPBOX_TOKEN) {
     let tilePath = theme === 'light' ? 'light-v11' : 'dark-v11';
     if (type === 'satelite') tilePath = 'satellite-streets-v12';
     if (type === 'carro') tilePath = theme === 'light' ? 'navigation-day-v1' : 'navigation-night-v1';
-    if (type === 'transporte') tilePath = 'streets-v12';
+    if (type === 'transporte' || type === 'animado') tilePath = 'streets-v12';
     if (type === 'explorar') tilePath = theme === 'light' ? 'light-v11' : 'dark-v11';
 
     return {
@@ -58,7 +57,7 @@ const createStyle = (type: MapModeType, theme: 'dark' | 'light' = 'dark'): mapli
     };
   }
 
-  // Fallbacks if no token
+  // Satélite: High-resolution Esri Satellite imagery
   if (type === 'satelite') {
     return {
       version: 8,
@@ -85,44 +84,14 @@ const createStyle = (type: MapModeType, theme: 'dark' | 'light' = 'dark'): mapli
     };
   }
 
-  if (type === 'carro') {
-    return {
-      version: 8,
-      projection: { type: 'globe' } as any,
-      sources: {
-        'carto-navigation': {
-          type: 'raster',
-          tiles: [
-            'https://a.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}@2x.png',
-            'https://b.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}@2x.png',
-            'https://c.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}@2x.png',
-          ],
-          tileSize: 256,
-          attribution: '&copy; OpenStreetMap contributors &copy; CARTO',
-        },
-      },
-      layers: [
-        {
-          id: 'carto-navigation-layer',
-          type: 'raster',
-          source: 'carto-navigation',
-          minzoom: 0,
-          maxzoom: 20,
-        },
-      ],
-    };
-  }
-
-  if (type === 'transporte') {
+  if (type === 'transporte' || type === 'animado') {
     return {
       version: 8,
       projection: { type: 'globe' } as any,
       sources: {
         'osm-transport': {
           type: 'raster',
-          tiles: [
-            'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
-          ],
+          tiles: ['https://tile.openstreetmap.org/{z}/{x}/{y}.png'],
           tileSize: 256,
           attribution: '&copy; OpenStreetMap contributors',
         },
@@ -139,12 +108,51 @@ const createStyle = (type: MapModeType, theme: 'dark' | 'light' = 'dark'): mapli
     };
   }
 
-  // Explorar / Default theme based (Vector dark style matching user screenshot)
-  if (theme === 'dark') {
-    return 'https://tiles.openfreemap.org/styles/dark';
-  }
+  // Explorar & De Carro:
+  // Dark mode: CARTO Dark Matter optimized with high contrast so ground is pure pitch black (#000000) and all streets, names & landmarks are pure crisp white (#FFFFFF)
+  // Light mode: CARTO Voyager with rich vibrant colors, high contrast and crystal-clear street labels
+  const cartoTiles =
+    theme === 'light'
+      ? [
+          'https://a.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}@2x.png',
+          'https://b.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}@2x.png',
+          'https://c.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}@2x.png',
+          'https://d.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}@2x.png',
+        ]
+      : [
+          'https://a.basemaps.cartocdn.com/rastertiles/dark_all/{z}/{x}/{y}@2x.png',
+          'https://b.basemaps.cartocdn.com/rastertiles/dark_all/{z}/{x}/{y}@2x.png',
+          'https://c.basemaps.cartocdn.com/rastertiles/dark_all/{z}/{x}/{y}@2x.png',
+          'https://d.basemaps.cartocdn.com/rastertiles/dark_all/{z}/{x}/{y}@2x.png',
+        ];
 
-  return 'https://tiles.openfreemap.org/styles/bright';
+  return {
+    version: 8,
+    projection: { type: 'globe' } as any,
+    sources: {
+      'carto-base': {
+        type: 'raster',
+        tiles: cartoTiles,
+        tileSize: 256,
+        attribution: '&copy; CARTO &copy; OpenStreetMap contributors',
+      },
+    },
+    layers: [
+      {
+        id: 'carto-base-layer',
+        type: 'raster',
+        source: 'carto-base',
+        minzoom: 0,
+        maxzoom: 20,
+        paint: {
+          'raster-contrast': theme === 'dark' ? 0.75 : 0.2,
+          'raster-brightness-min': 0.0,
+          'raster-brightness-max': 1.0,
+          'raster-saturation': theme === 'dark' ? -0.9 : 0.15,
+        },
+      },
+    ],
+  };
 };
 
 // Beautiful vector thumbnail graphics matching reference screenshot exactly
@@ -201,7 +209,7 @@ const DeCarroThumbnail = () => (
   </svg>
 );
 
-const TransporteThumbnail = () => (
+const AnimadoThumbnail = () => (
   <svg viewBox="0 0 100 100" className="w-full h-full object-cover">
     <rect width="100" height="100" fill="#2a303d" />
     {/* Background street structure */}
@@ -225,6 +233,7 @@ const TransporteThumbnail = () => (
     <path d="M -10 42 Q 40 55 88 110" fill="none" stroke="#00C896" strokeWidth="4" strokeLinecap="round" />
   </svg>
 );
+const TransporteThumbnail = AnimadoThumbnail;
 
 const SateliteThumbnail = () => (
   <svg viewBox="0 0 100 100" className="w-full h-full object-cover">
@@ -260,7 +269,7 @@ const MODES_CONFIG: {
 }[] = [
   { id: 'explorar', name: 'Explorar', thumbnail: ExplorarThumbnail },
   { id: 'carro', name: 'De Carro', thumbnail: DeCarroThumbnail },
-  { id: 'transporte', name: 'Transporte Público', thumbnail: TransporteThumbnail },
+  { id: 'animado', name: 'Animado', thumbnail: AnimadoThumbnail },
   { id: 'satelite', name: 'Satélite', thumbnail: SateliteThumbnail },
 ];
 
@@ -302,7 +311,7 @@ export const MapComponentInner: React.FC<MapComponentProps> = ({
     onMapClickRef.current = onMapClick;
   }, [onMapClick]);
 
-  const [currentStyle, setCurrentStyle] = useState<MapModeType>('explorar');
+  const [currentStyle, setCurrentStyle] = useState<MapModeType>(() => (theme === 'light' ? 'animado' : 'explorar'));
   const [showStyleMenu, setShowStyleMenu] = useState(false);
   const [compassRotation, setCompassRotation] = useState<number>(0);
   const hasCenteredInitiallyRef = useRef<boolean>(false);
@@ -338,10 +347,11 @@ export const MapComponentInner: React.FC<MapComponentProps> = ({
     if (!mapContainerRef.current) return;
 
     const initialCenter = userCoords && !isNaN(userCoords[0]) ? userCoords : [-45.5870, -22.7420];
+    const initialMode: MapModeType = theme === 'light' ? 'animado' : currentStyle;
 
     const map = new maplibregl.Map({
       container: mapContainerRef.current,
-      style: createStyle(currentStyle, theme),
+      style: createStyle(initialMode, theme),
       center: initialCenter,
       zoom: 14.8,
       pitch: 58,
@@ -349,8 +359,6 @@ export const MapComponentInner: React.FC<MapComponentProps> = ({
       projection: { type: 'globe' },
       attributionControl: false,
     } as any);
-
-    map.addControl(new maplibregl.AttributionControl({ compact: true }), 'bottom-left');
 
     map.on('load', () => {
       map.resize();
@@ -490,10 +498,20 @@ export const MapComponentInner: React.FC<MapComponentProps> = ({
   };
 
   // Observar mudança de tema para atualizar o mapa automaticamente
+  // Na versão clara (branca), carrega automaticamente o mapa "Animado" (antigo Transporte Público)
   useEffect(() => {
     const map = mapRef.current;
-    if (map) {
-      map.setStyle(createStyle(currentStyle, theme));
+    if (!map) return;
+
+    if (theme === 'light') {
+      setCurrentStyle('animado');
+      map.setStyle(createStyle('animado', 'light'));
+    } else {
+      setCurrentStyle((prev) => {
+        const nextStyle = prev === 'animado' || prev === 'transporte' ? 'explorar' : prev;
+        map.setStyle(createStyle(nextStyle, 'dark'));
+        return nextStyle;
+      });
     }
   }, [theme]);
 
@@ -706,7 +724,7 @@ export const MapComponentInner: React.FC<MapComponentProps> = ({
 
   return (
     <div
-      className="absolute inset-0 w-full h-full overflow-hidden bg-zinc-50 dark:bg-[#111315]"
+      className="absolute inset-0 w-full h-full overflow-hidden bg-zinc-50 dark:bg-black"
     >
       {/* Map Container */}
       <div ref={mapContainerRef} className="absolute inset-0 w-full h-full z-0" tabIndex={0} />
@@ -726,7 +744,7 @@ export const MapComponentInner: React.FC<MapComponentProps> = ({
         <button
           id="btn-map-zoom-in"
           onClick={handleZoomIn}
-          className="w-12 h-12 rounded-full bg-white/95 dark:bg-[#1b1c20]/90 hover:bg-zinc-100 dark:hover:bg-[#282a30] active:scale-95 text-zinc-900 dark:text-white/95 shadow-2xl border border-zinc-200 dark:border-white/10 backdrop-blur-md flex items-center justify-center transition-all focus:outline-none cursor-pointer"
+          className="w-12 h-12 rounded-full ios-glass-btn active:scale-95 text-zinc-900 dark:text-white/95 flex items-center justify-center focus:outline-none cursor-pointer"
           title="Aproximar mapa"
         >
           <Plus className="w-6 h-6 stroke-[2.2]" />
@@ -736,7 +754,7 @@ export const MapComponentInner: React.FC<MapComponentProps> = ({
         <button
           id="btn-map-zoom-out"
           onClick={handleZoomOut}
-          className="w-12 h-12 rounded-full bg-white/95 dark:bg-[#1b1c20]/90 hover:bg-zinc-100 dark:hover:bg-[#282a30] active:scale-95 text-zinc-900 dark:text-white/95 shadow-2xl border border-zinc-200 dark:border-white/10 backdrop-blur-md flex items-center justify-center transition-all focus:outline-none cursor-pointer"
+          className="w-12 h-12 rounded-full ios-glass-btn active:scale-95 text-zinc-900 dark:text-white/95 flex items-center justify-center focus:outline-none cursor-pointer"
           title="Afastar mapa"
         >
           <Minus className="w-6 h-6 stroke-[2.2]" />
@@ -746,7 +764,7 @@ export const MapComponentInner: React.FC<MapComponentProps> = ({
         <button
           id="btn-map-locate-me"
           onClick={handleCenterUser}
-          className="w-12 h-12 sm:w-13 sm:h-13 rounded-[18px] sm:rounded-[20px] bg-white/95 dark:bg-[#16171a]/95 hover:bg-zinc-100 dark:hover:bg-[#1f2128] active:scale-95 shadow-xl border border-zinc-200/80 dark:border-white/15 backdrop-blur-xl flex items-center justify-center transition-all duration-300 focus:outline-none cursor-pointer group"
+          className="w-12 h-12 sm:w-13 sm:h-13 rounded-[18px] sm:rounded-[20px] ios-glass-btn active:scale-95 flex items-center justify-center focus:outline-none cursor-pointer group"
           title="Centralizar Bússola"
         >
           <motion.div
@@ -762,7 +780,7 @@ export const MapComponentInner: React.FC<MapComponentProps> = ({
         <button
           id="btn-map-layer-switch"
           onClick={() => setShowStyleMenu(true)}
-          className="w-12 h-12 rounded-full bg-white/95 dark:bg-[#1b1c20]/90 hover:bg-zinc-100 dark:hover:bg-[#282a30] active:scale-95 text-zinc-900 dark:text-white/95 shadow-2xl border border-zinc-200 dark:border-white/10 backdrop-blur-md flex items-center justify-center transition-all focus:outline-none cursor-pointer"
+          className="w-12 h-12 rounded-full ios-glass-btn active:scale-95 text-zinc-900 dark:text-white/95 flex items-center justify-center focus:outline-none cursor-pointer"
           title="Modos do Mapa"
         >
           <Layers className="w-5 h-5 stroke-[2]" />
@@ -784,13 +802,13 @@ export const MapComponentInner: React.FC<MapComponentProps> = ({
             />
 
             {/* Modal Card */}
-              <motion.div
+            <motion.div
               id="map-modes-modal"
               initial={{ opacity: 0, scale: 0.92, y: 12 }}
               animate={{ opacity: 1, scale: 1, y: 0 }}
               exit={{ opacity: 0, scale: 0.92, y: 12 }}
               transition={{ type: 'spring', stiffness: 450, damping: 30 }}
-              className="relative w-full max-w-[440px] bg-white/95 dark:bg-[#141922]/95 backdrop-blur-2xl border border-zinc-200 dark:border-white/15 rounded-[28px] sm:rounded-[32px] p-5 sm:p-7 shadow-[0_25px_70px_rgba(0,0,0,0.2)] dark:shadow-[0_25px_70px_rgba(0,0,0,0.8)] text-zinc-900 dark:text-white select-none overflow-hidden z-10"
+              className="relative w-full max-w-[440px] ios-glass rounded-[28px] sm:rounded-[32px] p-5 sm:p-7 text-zinc-900 dark:text-white select-none overflow-hidden z-10"
               style={{ fontFamily: "'Manrope', -apple-system, BlinkMacSystemFont, sans-serif" }}
             >
               {/* Header: Title Centered */}
@@ -803,7 +821,10 @@ export const MapComponentInner: React.FC<MapComponentProps> = ({
               {/* 4 Options Grid */}
               <div className="grid grid-cols-4 gap-2.5 sm:gap-3.5">
                 {MODES_CONFIG.map((mode) => {
-                  const isSelected = currentStyle === mode.id;
+                  const isSelected =
+                    currentStyle === mode.id ||
+                    ((mode.id === 'animado' || mode.id === 'transporte') &&
+                      (currentStyle === 'animado' || currentStyle === 'transporte'));
                   const ThumbnailComponent = mode.thumbnail;
 
                   return (
@@ -829,7 +850,7 @@ export const MapComponentInner: React.FC<MapComponentProps> = ({
                       {/* Mode Label */}
                       <span
                         className={`text-[11px] sm:text-[13px] text-center mt-2.5 leading-tight font-black transition-colors ${
-                          isSelected ? 'text-zinc-900 dark:text-white' : 'text-zinc-600 dark:text-zinc-200 group-hover:text-zinc-900 dark:group-hover:text-white'
+                          isSelected ? 'text-zinc-900 dark:text-white' : 'text-zinc-600 dark:text-zinc-300 group-hover:text-zinc-900 dark:group-hover:text-white'
                         }`}
                       >
                         {mode.name}
@@ -837,13 +858,6 @@ export const MapComponentInner: React.FC<MapComponentProps> = ({
                     </button>
                   );
                 })}
-              </div>
-
-              {/* Attribution / Footer Text */}
-              <div className="mt-6 text-center">
-                <span className="text-[11px] text-zinc-500 dark:text-zinc-400 font-black tracking-tight">
-                  © OpenStreetMap e outros provedores de dados
-                </span>
               </div>
             </motion.div>
           </div>
