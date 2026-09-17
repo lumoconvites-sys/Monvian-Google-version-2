@@ -18,7 +18,7 @@ const DEFAULT_SUGGESTIONS = [
   'O que posso fazer com a minha família hoje?',
 ];
 
-const GUIDE_AVATAR_URL = '/guide_avatar.jpg';
+const GUIDE_AVATAR_URL = '/capybara_avatar.jpg';
 
 export const AIChatModal: React.FC<AIChatModalProps> = ({
   isOpen,
@@ -232,12 +232,8 @@ Como posso te ajudar agora?`;
   };
 
   return (
-    <motion.div
+    <div
       id="ai-chat-fullscreen-overlay"
-      initial={{ opacity: 1 }}
-      animate={{ opacity: 1 }}
-      exit={{ opacity: 0 }}
-      transition={{ duration: 0 }}
       className="absolute inset-0 z-45 bg-zinc-50 dark:bg-[#111315] text-zinc-900 dark:text-white flex flex-col justify-between overflow-hidden"
       style={{
         fontFamily: "'Manrope', -apple-system, BlinkMacSystemFont, sans-serif",
@@ -320,7 +316,7 @@ Como posso te ajudar agora?`;
               <div className="w-24 h-24 sm:w-28 sm:h-28 rounded-full overflow-hidden border-2 border-zinc-200 dark:border-white/15 shadow-2xl bg-zinc-100 dark:bg-zinc-900 mx-auto ring-4 ring-zinc-50 dark:ring-white/5">
                 <img
                   src={GUIDE_AVATAR_URL}
-                  alt="Sua guia em Campos do Jordão"
+                  alt="Capivara Guia Turística"
                   className="w-full h-full object-cover"
                 />
               </div>
@@ -548,6 +544,6 @@ Como posso te ajudar agora?`;
           </motion.button>
         </form>
       </div>
-    </motion.div>
+    </div>
   );
 };

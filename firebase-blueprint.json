@@ -1,0 +1,50 @@
+{
+  "entities": {
+    "User": {
+      "title": "User",
+      "description": "User profile, credentials, and settings",
+      "type": "object",
+      "properties": {
+        "id": { "type": "number", "description": "Numeric ID" },
+        "name": { "type": "string", "description": "User full name" },
+        "email": { "type": "string", "description": "User email" },
+        "whatsapp": { "type": "string", "description": "WhatsApp or contact identifier" },
+        "password_hash": { "type": "string", "description": "Bcrypt password hash" },
+        "role": { "type": "string", "description": "User role (admin or user)" },
+        "avatar_url": { "type": "string", "description": "Avatar URL" },
+        "visits_count": { "type": "number", "description": "Login visit count" },
+        "is_banned": { "type": "number", "description": "Banned flag (0 or 1)" },
+        "snow_enabled": { "type": "number", "description": "Snow effect preference" },
+        "theme": { "type": "string", "description": "Theme preference ('dark' or 'light')" },
+        "high_contrast": { "type": "number", "description": "High contrast preference" },
+        "onboarding_completed": { "type": "number", "description": "Onboarding completed flag" },
+        "onboarding_step": { "type": "number", "description": "Current onboarding step" },
+        "last_access": { "type": "string", "description": "Timestamp of last access" },
+        "created_at": { "type": "string", "description": "Creation timestamp" }
+      },
+      "required": ["email", "password_hash"]
+    },
+    "Session": {
+      "title": "Session",
+      "description": "User session token mapping",
+      "type": "object",
+      "properties": {
+        "token": { "type": "string", "description": "Session token" },
+        "user_id": { "type": "number", "description": "User ID" },
+        "user_email": { "type": "string", "description": "User Email" },
+        "created_at": { "type": "string", "description": "Session creation timestamp" }
+      },
+      "required": ["token", "user_email"]
+    }
+  },
+  "firestore": {
+    "/users/{email}": {
+      "schema": "User",
+      "description": "Persistent users indexed by clean email"
+    },
+    "/sessions/{token}": {
+      "schema": "Session",
+      "description": "Persistent active sessions indexed by token"
+    }
+  }
+}

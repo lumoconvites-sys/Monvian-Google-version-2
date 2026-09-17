@@ -20,6 +20,15 @@ interface MapComponentProps {
   onMapClick?: () => void;
 }
 
+// Initial camera overview configuration strictly matching the reference view (IMG_6912)
+// Wide regional tourist view with perspective tilt (pitch) and slight orientation (bearing)
+const CAMPOS_OVERVIEW_CAMERA = {
+  center: [-45.5830, -22.7290] as [number, number],
+  zoom: 11.75,
+  pitch: 52,
+  bearing: -13,
+};
+
 export type { MapModeType };
 
 const MAPBOX_TOKEN = (import.meta.env.VITE_MAPBOX_ACCESS_TOKEN || '').trim();
@@ -346,16 +355,15 @@ export const MapComponentInner: React.FC<MapComponentProps> = ({
   useEffect(() => {
     if (!mapContainerRef.current) return;
 
-    const initialCenter = userCoords && !isNaN(userCoords[0]) ? userCoords : [-45.5870, -22.7420];
     const initialMode: MapModeType = theme === 'light' ? 'animado' : currentStyle;
 
     const map = new maplibregl.Map({
       container: mapContainerRef.current,
       style: createStyle(initialMode, theme),
-      center: initialCenter,
-      zoom: 14.8,
-      pitch: 58,
-      bearing: 0,
+      center: CAMPOS_OVERVIEW_CAMERA.center,
+      zoom: CAMPOS_OVERVIEW_CAMERA.zoom,
+      pitch: CAMPOS_OVERVIEW_CAMERA.pitch,
+      bearing: CAMPOS_OVERVIEW_CAMERA.bearing,
       projection: { type: 'globe' },
       attributionControl: false,
     } as any);
@@ -369,7 +377,7 @@ export const MapComponentInner: React.FC<MapComponentProps> = ({
           // Fallback if not supported on runtime version
         }
       }
-      map.setPadding({ top: 90, right: 30, bottom: 200, left: 30 });
+      map.setPadding({ top: 60, right: 20, bottom: 85, left: 20 });
       if (onMapLoadRef.current) {
         onMapLoadRef.current();
       }
@@ -683,22 +691,10 @@ export const MapComponentInner: React.FC<MapComponentProps> = ({
     userMarkerRef.current = uMarker;
   }, [userCoords, defaultAvatar, userName]);
 
-  // When userCoords updates, smooth flyTo coordinates on initial fix
+  // User coordinates tracking: strictly avoid automatic flyTo on load
+  // to ensure the camera always opens in the wide regional perspective requested in the second image.
   useEffect(() => {
-    const map = mapRef.current;
-    if (!map) return;
-
-    if (!hasCenteredInitiallyRef.current && userCoords && !isNaN(userCoords[0])) {
-      hasCenteredInitiallyRef.current = true;
-      map.flyTo({
-        center: userCoords,
-        zoom: 14.8,
-        pitch: 58,
-        bearing: 0,
-        speed: 1.2,
-        essential: true,
-      });
-    }
+    hasCenteredInitiallyRef.current = true;
   }, [userCoords]);
 
   // Controls Handlers
@@ -712,10 +708,27 @@ export const MapComponentInner: React.FC<MapComponentProps> = ({
 
   const handleCenterUser = () => {
     setCompassRotation((prev) => prev + 360);
-    if (mapRef.current) {
-      mapRef.current.flyTo({
+    const map = mapRef.current;
+    if (!map) return;
+
+    const currentZoom = map.getZoom();
+    // If the user is currently zoomed in, clicking the button returns to the wide tourist overview
+    if (currentZoom > 13.5) {
+      map.flyTo({
+        center: CAMPOS_OVERVIEW_CAMERA.center,
+        zoom: CAMPOS_OVERVIEW_CAMERA.zoom,
+        pitch: CAMPOS_OVERVIEW_CAMERA.pitch,
+        bearing: CAMPOS_OVERVIEW_CAMERA.bearing,
+        speed: 1.2,
+        essential: true,
+      });
+    } else {
+      // Otherwise, smoothly zoom in to the user's location with perspective
+      map.flyTo({
         center: userCoords,
-        zoom: 15.2,
+        zoom: 14.8,
+        pitch: 52,
+        bearing: -13,
         speed: 1.2,
         essential: true,
       });
@@ -744,7 +757,7 @@ export const MapComponentInner: React.FC<MapComponentProps> = ({
         <button
           id="btn-map-zoom-in"
           onClick={handleZoomIn}
-          className="w-12 h-12 rounded-full ios-glass-btn active:scale-95 text-zinc-900 dark:text-white/95 flex items-center justify-center focus:outline-none cursor-pointer"
+          className="w-12 h-12 rounded-full ios-glass-btn active:scale-95 text-zinc-700 dark:text-white/95 flex items-center justify-center focus:outline-none cursor-pointer"
           title="Aproximar mapa"
         >
           <Plus className="w-6 h-6 stroke-[2.2]" />
@@ -754,7 +767,7 @@ export const MapComponentInner: React.FC<MapComponentProps> = ({
         <button
           id="btn-map-zoom-out"
           onClick={handleZoomOut}
-          className="w-12 h-12 rounded-full ios-glass-btn active:scale-95 text-zinc-900 dark:text-white/95 flex items-center justify-center focus:outline-none cursor-pointer"
+          className="w-12 h-12 rounded-full ios-glass-btn active:scale-95 text-zinc-700 dark:text-white/95 flex items-center justify-center focus:outline-none cursor-pointer"
           title="Afastar mapa"
         >
           <Minus className="w-6 h-6 stroke-[2.2]" />
@@ -764,7 +777,7 @@ export const MapComponentInner: React.FC<MapComponentProps> = ({
         <button
           id="btn-map-locate-me"
           onClick={handleCenterUser}
-          className="w-12 h-12 sm:w-13 sm:h-13 rounded-[18px] sm:rounded-[20px] ios-glass-btn active:scale-95 flex items-center justify-center focus:outline-none cursor-pointer group"
+          className="w-12 h-12 sm:w-13 sm:h-13 rounded-[18px] sm:rounded-[20px] ios-glass-btn active:scale-95 text-zinc-700 dark:text-white/95 flex items-center justify-center focus:outline-none cursor-pointer group"
           title="Centralizar Bússola"
         >
           <motion.div
@@ -780,7 +793,7 @@ export const MapComponentInner: React.FC<MapComponentProps> = ({
         <button
           id="btn-map-layer-switch"
           onClick={() => setShowStyleMenu(true)}
-          className="w-12 h-12 rounded-full ios-glass-btn active:scale-95 text-zinc-900 dark:text-white/95 flex items-center justify-center focus:outline-none cursor-pointer"
+          className="w-12 h-12 rounded-full ios-glass-btn active:scale-95 text-zinc-700 dark:text-white/95 flex items-center justify-center focus:outline-none cursor-pointer"
           title="Modos do Mapa"
         >
           <Layers className="w-5 h-5 stroke-[2]" />
@@ -808,7 +821,7 @@ export const MapComponentInner: React.FC<MapComponentProps> = ({
               animate={{ opacity: 1, scale: 1, y: 0 }}
               exit={{ opacity: 0, scale: 0.92, y: 12 }}
               transition={{ type: 'spring', stiffness: 450, damping: 30 }}
-              className="relative w-full max-w-[440px] ios-glass rounded-[28px] sm:rounded-[32px] p-5 sm:p-7 text-zinc-900 dark:text-white select-none overflow-hidden z-10"
+              className="relative w-full max-w-[440px] ios-glass rounded-[28px] sm:rounded-[32px] p-5 sm:p-7 text-zinc-800 dark:text-white select-none overflow-hidden z-10"
               style={{ fontFamily: "'Manrope', -apple-system, BlinkMacSystemFont, sans-serif" }}
             >
               {/* Header: Title Centered */}
@@ -850,7 +863,7 @@ export const MapComponentInner: React.FC<MapComponentProps> = ({
                       {/* Mode Label */}
                       <span
                         className={`text-[11px] sm:text-[13px] text-center mt-2.5 leading-tight font-black transition-colors ${
-                          isSelected ? 'text-zinc-900 dark:text-white' : 'text-zinc-600 dark:text-zinc-300 group-hover:text-zinc-900 dark:group-hover:text-white'
+                          isSelected ? 'text-zinc-800 dark:text-white' : 'text-zinc-500 dark:text-zinc-300 group-hover:text-zinc-800 dark:group-hover:text-white'
                         }`}
                       >
                         {mode.name}

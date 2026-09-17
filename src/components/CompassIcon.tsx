@@ -21,7 +21,7 @@ export const CompassIcon: React.FC<CompassIconProps> = ({ className = '', size =
       */}
       <path
         d="M 45 18 C 47 10, 53 10, 55 18 C 62 28, 70 37, 70 50 C 70 63, 62 72, 55 82 C 53 90, 47 90, 45 82 C 38 72, 30 63, 30 50 C 30 37, 38 28, 45 18 Z"
-        className="fill-black dark:fill-white text-black dark:text-white"
+        className="fill-zinc-700 dark:fill-white text-zinc-700 dark:text-white"
         transform="rotate(52 50 50)"
       />
     </svg>

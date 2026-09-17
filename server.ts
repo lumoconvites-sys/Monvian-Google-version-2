@@ -7,6 +7,14 @@ import Database from 'better-sqlite3';
 import bcrypt from 'bcryptjs';
 import crypto from 'crypto';
 import { CAMPOS_SPOTS } from './src/data/spots';
+import {
+  persistUserToFirestore,
+  getUserFromFirestore,
+  persistSessionToFirestore,
+  getSessionFromFirestore,
+  deleteSessionFromFirestore,
+  syncDatabaseWithFirestore
+} from './src/services/firestoreSync';
 
 dotenv.config();
 
@@ -310,6 +318,12 @@ if (userTotal.count < 3) {
   }
 }
 
+// Durable cloud synchronization with Cloud Firestore
+// Ensures user accounts, sessions and roles are NEVER lost upon deployment or container restart
+syncDatabaseWithFirestore(db).catch(err => {
+  console.error('[Boot] Firestore initial sync warning:', err);
+});
+
 // Log admin action helper
 function logAdminAction(userId: number | null, userName: string | null, action: string, details: string) {
   try {
@@ -524,7 +538,7 @@ async function startServer() {
   app.use(express.json({ limit: '10mb' }));
 
   // Helper auth middleware
-  const getAuthUser = (req: express.Request) => {
+  const getAuthUserSync = (req: express.Request) => {
     const authHeader = req.headers.authorization;
     if (!authHeader || !authHeader.startsWith('Bearer ')) return null;
     const token = authHeader.split(' ')[1];
@@ -534,18 +548,72 @@ async function startServer() {
     return user || null;
   };
 
-  const requireAuth = (req: express.Request, res: express.Response, next: express.NextFunction) => {
-    const user = getAuthUser(req);
-    if (!user) {
-      res.status(401).json({ error: 'Não autorizado' });
-      return;
+  const getAuthUser = async (req: express.Request) => {
+    const cached = getAuthUserSync(req);
+    if (cached) return cached;
+
+    const authHeader = req.headers.authorization;
+    if (!authHeader || !authHeader.startsWith('Bearer ')) return null;
+    const token = authHeader.split(' ')[1];
+
+    try {
+      const cloudSession = await getSessionFromFirestore(token);
+      if (cloudSession && cloudSession.user_email) {
+        const cleanEmail = cloudSession.user_email.trim().toLowerCase();
+        let user: any = db.prepare('SELECT * FROM users WHERE LOWER(email) = ? OR LOWER(whatsapp) = ?').get(cleanEmail, cleanEmail);
+        if (!user) {
+          const cloudUser = await getUserFromFirestore(cleanEmail);
+          if (cloudUser && cloudUser.password_hash) {
+            const res = db.prepare(`
+              INSERT INTO users (name, email, whatsapp, password_hash, role, avatar_url, visits_count, is_banned, snow_enabled, theme, high_contrast, onboarding_completed, onboarding_step, last_access, created_at)
+              VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            `).run(
+              cloudUser.name || cleanEmail.split('@')[0],
+              cleanEmail,
+              cloudUser.whatsapp || cleanEmail,
+              cloudUser.password_hash,
+              cloudUser.role || 'user',
+              cloudUser.avatar_url || '/fotoperfil.png',
+              cloudUser.visits_count || 1,
+              cloudUser.is_banned || 0,
+              cloudUser.snow_enabled || 0,
+              cloudUser.theme || 'dark',
+              cloudUser.high_contrast || 0,
+              cloudUser.onboarding_completed !== undefined ? cloudUser.onboarding_completed : 1,
+              cloudUser.onboarding_step || 1,
+              cloudUser.last_access || new Date().toISOString(),
+              cloudUser.created_at || new Date().toISOString()
+            );
+            user = db.prepare('SELECT * FROM users WHERE id = ?').get(res.lastInsertRowid);
+          }
+        }
+        if (user) {
+          db.prepare('INSERT OR REPLACE INTO sessions (token, user_id) VALUES (?, ?)').run(token, user.id);
+          return user;
+        }
+      }
+    } catch (e) {
+      console.error('[Auth] Erro ao validar sessão remota:', e);
     }
-    if (user.is_banned === 1) {
-      res.status(403).json({ error: 'Esta conta foi suspensa/banida pelo administrador.' });
-      return;
+    return null;
+  };
+
+  const requireAuth = async (req: express.Request, res: express.Response, next: express.NextFunction) => {
+    try {
+      const user = await getAuthUser(req);
+      if (!user) {
+        res.status(401).json({ error: 'Não autorizado' });
+        return;
+      }
+      if (user.is_banned === 1) {
+        res.status(403).json({ error: 'Esta conta foi suspensa/banida pelo administrador.' });
+        return;
+      }
+      (req as any).user = user;
+      next();
+    } catch (err) {
+      res.status(401).json({ error: 'Erro de autenticação' });
     }
-    (req as any).user = user;
-    next();
   };
 
   // Health check endpoint
@@ -560,14 +628,14 @@ async function startServer() {
   });
 
   // Real Analytics Event Logger Endpoint
-  app.post('/api/analytics/event', (req, res) => {
+  app.post('/api/analytics/event', async (req, res) => {
     try {
       const { event_type, item_id, item_name, metadata, session_id } = req.body;
       if (!event_type) {
         res.status(400).json({ error: 'event_type é obrigatório' });
         return;
       }
-      const user = getAuthUser(req);
+      const user = await getAuthUser(req);
       const userId = user ? user.id : null;
 
       db.prepare(`
@@ -613,7 +681,7 @@ async function startServer() {
     }
   });
 
-  app.post('/api/reviews', (req, res) => {
+  app.post('/api/reviews', async (req, res) => {
     try {
       const { spot_id, rating, comment, user_name, user_avatar } = req.body;
       if (!spot_id || rating === undefined || rating === null) {
@@ -621,7 +689,7 @@ async function startServer() {
         return;
       }
 
-      const user = getAuthUser(req);
+      const user = await getAuthUser(req);
       const userId = user ? user.id : null;
       const reviewerName = user ? (user.name || user.whatsapp) : (user_name || 'Visitante');
       const reviewerAvatar = user ? (user.avatar_url || '') : (user_avatar || '');
@@ -658,7 +726,7 @@ async function startServer() {
   });
 
   // User Profile Update (with photo upload)
-  app.post('/api/user/profile', requireAuth, (req, res) => {
+  app.post('/api/user/profile', requireAuth, async (req, res) => {
     try {
       const user = (req as any).user;
       const { name, email, whatsapp, avatar_url } = req.body;
@@ -690,19 +758,41 @@ async function startServer() {
         db.prepare(`UPDATE users SET ${updates.join(', ')} WHERE id = ?`).run(...params);
       }
 
-      const updatedUser: any = db.prepare('SELECT id, name, email, whatsapp, role, avatar_url, visits_count FROM users WHERE id = ?').get(user.id);
+      const updatedUser: any = db.prepare('SELECT id, name, email, whatsapp, password_hash, role, avatar_url, visits_count, is_banned, snow_enabled, theme, high_contrast, onboarding_completed, onboarding_step FROM users WHERE id = ?').get(user.id);
       if (updatedUser) {
         updatedUser.email = updatedUser.email || updatedUser.whatsapp;
+
+        // Persist to Cloud Firestore
+        await persistUserToFirestore({
+          id: updatedUser.id,
+          name: updatedUser.name,
+          email: updatedUser.email,
+          whatsapp: updatedUser.whatsapp || updatedUser.email,
+          password_hash: updatedUser.password_hash,
+          role: updatedUser.role || 'user',
+          avatar_url: updatedUser.avatar_url,
+          visits_count: updatedUser.visits_count,
+          is_banned: updatedUser.is_banned || 0,
+          snow_enabled: updatedUser.snow_enabled || 0,
+          theme: updatedUser.theme || 'dark',
+          high_contrast: updatedUser.high_contrast || 0,
+          onboarding_completed: updatedUser.onboarding_completed,
+          onboarding_step: updatedUser.onboarding_step
+        });
+
+        try {
+          db.pragma('wal_checkpoint(TRUNCATE)');
+        } catch (e) {}
       }
 
       // Log action
-      logAdminAction(user.id, updatedUser.name || 'Usuário', 'Atualizou Perfil', 'Foto/dados alterados');
+      logAdminAction(user.id, updatedUser ? (updatedUser.name || 'Usuário') : 'Usuário', 'Atualizou Perfil', 'Foto/dados alterados');
 
       // Log analytics
       db.prepare(`
         INSERT INTO analytics_events (user_id, event_type, item_name)
         VALUES (?, 'profile_update', ?)
-      `).run(user.id, updatedUser.name || 'Usuário');
+      `).run(user.id, updatedUser ? (updatedUser.name || 'Usuário') : 'Usuário');
 
       res.json({ success: true, user: updatedUser });
     } catch (err) {
@@ -999,6 +1089,13 @@ async function startServer() {
         return;
       }
 
+      // Also verify Cloud Firestore to ensure uniqueness across containers
+      const cloudExistingUser = await getUserFromFirestore(cleanEmail);
+      if (cloudExistingUser) {
+        res.status(400).json({ error: 'Usuário já cadastrado com este e-mail' });
+        return;
+      }
+
       const hash = await bcrypt.hash(password, 10);
       const isFirst = ((db.prepare('SELECT count(*) as count FROM users').get() as any).count) === 0;
       const isAdminEmail = cleanEmail === 'marioyesk@gmail.com' || cleanEmail.includes('admin');
@@ -1009,7 +1106,7 @@ async function startServer() {
         INSERT INTO users (name, email, whatsapp, password_hash, role, visits_count, onboarding_completed, onboarding_step, avatar_url)
         VALUES (?, ?, ?, ?, ?, 1, 0, 1, ?)
       `).run(name.trim(), cleanEmail, cleanEmail, hash, role, defaultAvatar);
-      const userId = result.lastInsertRowid;
+      const userId = Number(result.lastInsertRowid);
 
       try {
         db.prepare('INSERT OR IGNORE INTO user_preferences (user_id) VALUES (?)').run(userId);
@@ -1017,6 +1114,29 @@ async function startServer() {
 
       const token = crypto.randomBytes(32).toString('hex');
       db.prepare('INSERT INTO sessions (token, user_id) VALUES (?, ?)').run(token, userId);
+
+      // Persist to Cloud Firestore so accounts NEVER disappear on new deploys/publishing
+      await persistUserToFirestore({
+        id: userId,
+        name: name.trim(),
+        email: cleanEmail,
+        whatsapp: cleanEmail,
+        password_hash: hash,
+        role,
+        avatar_url: defaultAvatar,
+        visits_count: 1,
+        is_banned: 0,
+        snow_enabled: 0,
+        theme: 'dark',
+        high_contrast: 0,
+        onboarding_completed: 0,
+        onboarding_step: 1
+      });
+      await persistSessionToFirestore(token, userId, cleanEmail);
+
+      try {
+        db.pragma('wal_checkpoint(TRUNCATE)');
+      } catch (e) {}
 
       res.json({
         success: true,
@@ -1050,7 +1170,35 @@ async function startServer() {
         return;
       }
 
-      const user: any = db.prepare('SELECT * FROM users WHERE LOWER(email) = ? OR LOWER(whatsapp) = ?').get(identifier, identifier);
+      let user: any = db.prepare('SELECT * FROM users WHERE LOWER(email) = ? OR LOWER(whatsapp) = ?').get(identifier, identifier);
+      if (!user) {
+        // Fallback: check Cloud Firestore (e.g. freshly started container after deploy)
+        const cloudUser = await getUserFromFirestore(identifier);
+        if (cloudUser && cloudUser.password_hash) {
+          const resInsert = db.prepare(`
+            INSERT INTO users (name, email, whatsapp, password_hash, role, avatar_url, visits_count, is_banned, snow_enabled, theme, high_contrast, onboarding_completed, onboarding_step, last_access, created_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+          `).run(
+            cloudUser.name || identifier.split('@')[0],
+            cloudUser.email,
+            cloudUser.whatsapp || cloudUser.email,
+            cloudUser.password_hash,
+            cloudUser.role || 'user',
+            cloudUser.avatar_url || '/fotoperfil.png',
+            cloudUser.visits_count || 1,
+            cloudUser.is_banned || 0,
+            cloudUser.snow_enabled || 0,
+            cloudUser.theme || 'dark',
+            cloudUser.high_contrast || 0,
+            cloudUser.onboarding_completed !== undefined ? cloudUser.onboarding_completed : 1,
+            cloudUser.onboarding_step || 1,
+            cloudUser.last_access || new Date().toISOString(),
+            cloudUser.created_at || new Date().toISOString()
+          );
+          user = db.prepare('SELECT * FROM users WHERE id = ?').get(resInsert.lastInsertRowid);
+        }
+      }
+
       if (!user) {
         res.status(401).json({ error: 'E-mail ou senha incorretos' });
         return;
@@ -1069,11 +1217,35 @@ async function startServer() {
 
       // Update visit count and last access
       db.prepare(`UPDATE users SET visits_count = visits_count + 1, last_access = CURRENT_TIMESTAMP WHERE id = ?`).run(user.id);
+      user.visits_count = (user.visits_count || 1) + 1;
 
       const token = crypto.randomBytes(32).toString('hex');
       db.prepare('INSERT INTO sessions (token, user_id) VALUES (?, ?)').run(token, user.id);
 
-      const userEmail = user.email || user.whatsapp;
+      const userEmail = (user.email || user.whatsapp || '').trim().toLowerCase();
+
+      // Persist session and user update to Cloud Firestore
+      await persistSessionToFirestore(token, user.id, userEmail);
+      await persistUserToFirestore({
+        id: user.id,
+        name: user.name,
+        email: userEmail,
+        whatsapp: user.whatsapp || userEmail,
+        password_hash: user.password_hash,
+        role: user.role || 'user',
+        avatar_url: user.avatar_url,
+        visits_count: user.visits_count,
+        is_banned: user.is_banned || 0,
+        snow_enabled: user.snow_enabled || 0,
+        theme: user.theme || 'dark',
+        high_contrast: user.high_contrast || 0,
+        onboarding_completed: user.onboarding_completed,
+        onboarding_step: user.onboarding_step
+      });
+
+      try {
+        db.pragma('wal_checkpoint(TRUNCATE)');
+      } catch (e) {}
 
       res.json({
         success: true,
@@ -1128,18 +1300,44 @@ async function startServer() {
 
       let user: any = db.prepare('SELECT * FROM users WHERE LOWER(email) = ? OR LOWER(whatsapp) = ?').get(cleanEmail, cleanEmail);
       if (!user) {
-        const isFirst = ((db.prepare('SELECT count(*) as count FROM users').get() as any).count) === 0;
-        const isAdminEmail = cleanEmail === 'marioyesk@gmail.com' || cleanEmail.includes('admin');
-        const role = (isFirst || isAdminEmail) ? 'admin' : 'user';
-        const dummyPass = crypto.randomBytes(16).toString('hex');
-        const hash = await bcrypt.hash(dummyPass, 10);
-        const defaultAvatar = '/fotoperfil.png';
+        // Check Firestore first
+        const cloudUser = await getUserFromFirestore(cleanEmail);
+        if (cloudUser) {
+          const resInsert = db.prepare(`
+            INSERT INTO users (name, email, whatsapp, password_hash, role, avatar_url, visits_count, is_banned, snow_enabled, theme, high_contrast, onboarding_completed, onboarding_step, last_access, created_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+          `).run(
+            cloudUser.name || cleanEmail.split('@')[0],
+            cloudUser.email,
+            cloudUser.whatsapp || cloudUser.email,
+            cloudUser.password_hash,
+            cloudUser.role || 'user',
+            cloudUser.avatar_url || '/fotoperfil.png',
+            cloudUser.visits_count || 1,
+            cloudUser.is_banned || 0,
+            cloudUser.snow_enabled || 0,
+            cloudUser.theme || 'dark',
+            cloudUser.high_contrast || 0,
+            cloudUser.onboarding_completed !== undefined ? cloudUser.onboarding_completed : 1,
+            cloudUser.onboarding_step || 1,
+            cloudUser.last_access || new Date().toISOString(),
+            cloudUser.created_at || new Date().toISOString()
+          );
+          user = db.prepare('SELECT * FROM users WHERE id = ?').get(resInsert.lastInsertRowid);
+        } else {
+          const isFirst = ((db.prepare('SELECT count(*) as count FROM users').get() as any).count) === 0;
+          const isAdminEmail = cleanEmail === 'marioyesk@gmail.com' || cleanEmail.includes('admin');
+          const role = (isFirst || isAdminEmail) ? 'admin' : 'user';
+          const dummyPass = crypto.randomBytes(16).toString('hex');
+          const hash = await bcrypt.hash(dummyPass, 10);
+          const defaultAvatar = '/fotoperfil.png';
 
-        const result = db.prepare(`
-          INSERT INTO users (name, email, whatsapp, password_hash, role, visits_count, onboarding_completed, onboarding_step, avatar_url)
-          VALUES (?, ?, ?, ?, ?, 1, 0, 1, ?)
-        `).run(cleanEmail.split('@')[0], cleanEmail, cleanEmail, hash, role, defaultAvatar);
-        user = db.prepare('SELECT * FROM users WHERE id = ?').get(result.lastInsertRowid);
+          const result = db.prepare(`
+            INSERT INTO users (name, email, whatsapp, password_hash, role, visits_count, onboarding_completed, onboarding_step, avatar_url)
+            VALUES (?, ?, ?, ?, ?, 1, 0, 1, ?)
+          `).run(cleanEmail.split('@')[0], cleanEmail, cleanEmail, hash, role, defaultAvatar);
+          user = db.prepare('SELECT * FROM users WHERE id = ?').get(result.lastInsertRowid);
+        }
       } else {
         if (user.is_banned === 1) {
           res.status(403).json({ error: 'Esta conta foi suspensa/banida pelo administrador.' });
@@ -1151,7 +1349,30 @@ async function startServer() {
       const token = crypto.randomBytes(32).toString('hex');
       db.prepare('INSERT INTO sessions (token, user_id) VALUES (?, ?)').run(token, user.id);
 
-      const userEmail = user.email || user.whatsapp;
+      const userEmail = (user.email || user.whatsapp || '').trim().toLowerCase();
+
+      // Persist session and user to Firestore
+      await persistSessionToFirestore(token, user.id, userEmail);
+      await persistUserToFirestore({
+        id: user.id,
+        name: user.name,
+        email: userEmail,
+        whatsapp: user.whatsapp || userEmail,
+        password_hash: user.password_hash,
+        role: user.role || 'user',
+        avatar_url: user.avatar_url,
+        visits_count: user.visits_count || 1,
+        is_banned: user.is_banned || 0,
+        snow_enabled: user.snow_enabled || 0,
+        theme: user.theme || 'dark',
+        high_contrast: user.high_contrast || 0,
+        onboarding_completed: user.onboarding_completed,
+        onboarding_step: user.onboarding_step
+      });
+
+      try {
+        db.pragma('wal_checkpoint(TRUNCATE)');
+      } catch (e) {}
 
       res.json({
         success: true,
@@ -1187,24 +1408,50 @@ async function startServer() {
       let user: any = db.prepare('SELECT * FROM users WHERE LOWER(email) = ? OR LOWER(whatsapp) = ?').get(cleanEmail, cleanEmail);
 
       if (!user) {
-        const isFirst = ((db.prepare('SELECT count(*) as count FROM users').get() as any).count) === 0;
-        const isAdminEmail = cleanEmail === 'marioyesk@gmail.com' || cleanEmail.includes('admin');
-        const role = (isFirst || isAdminEmail) ? 'admin' : 'user';
-        const dummyPassword = crypto.randomBytes(16).toString('hex');
-        const hash = await bcrypt.hash(dummyPassword, 10);
-        const avatar = avatar_url || '/fotoperfil.png';
+        // Check Firestore first
+        const cloudUser = await getUserFromFirestore(cleanEmail);
+        if (cloudUser) {
+          const resInsert = db.prepare(`
+            INSERT INTO users (name, email, whatsapp, password_hash, role, avatar_url, visits_count, is_banned, snow_enabled, theme, high_contrast, onboarding_completed, onboarding_step, last_access, created_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+          `).run(
+            cloudUser.name || name || cleanEmail.split('@')[0],
+            cloudUser.email,
+            cloudUser.whatsapp || cloudUser.email,
+            cloudUser.password_hash,
+            cloudUser.role || 'user',
+            cloudUser.avatar_url || avatar_url || '/fotoperfil.png',
+            cloudUser.visits_count || 1,
+            cloudUser.is_banned || 0,
+            cloudUser.snow_enabled || 0,
+            cloudUser.theme || 'dark',
+            cloudUser.high_contrast || 0,
+            cloudUser.onboarding_completed !== undefined ? cloudUser.onboarding_completed : 1,
+            cloudUser.onboarding_step || 1,
+            cloudUser.last_access || new Date().toISOString(),
+            cloudUser.created_at || new Date().toISOString()
+          );
+          user = db.prepare('SELECT * FROM users WHERE id = ?').get(resInsert.lastInsertRowid);
+        } else {
+          const isFirst = ((db.prepare('SELECT count(*) as count FROM users').get() as any).count) === 0;
+          const isAdminEmail = cleanEmail === 'marioyesk@gmail.com' || cleanEmail.includes('admin');
+          const role = (isFirst || isAdminEmail) ? 'admin' : 'user';
+          const dummyPassword = crypto.randomBytes(16).toString('hex');
+          const hash = await bcrypt.hash(dummyPassword, 10);
+          const avatar = avatar_url || '/fotoperfil.png';
 
-        const result = db.prepare(`
-          INSERT INTO users (name, email, whatsapp, password_hash, role, visits_count, onboarding_completed, onboarding_step, avatar_url)
-          VALUES (?, ?, ?, ?, ?, 1, 1, 1, ?)
-        `).run(name || cleanEmail.split('@')[0], cleanEmail, cleanEmail, hash, role, avatar);
-        const userId = result.lastInsertRowid;
+          const result = db.prepare(`
+            INSERT INTO users (name, email, whatsapp, password_hash, role, visits_count, onboarding_completed, onboarding_step, avatar_url)
+            VALUES (?, ?, ?, ?, ?, 1, 1, 1, ?)
+          `).run(name || cleanEmail.split('@')[0], cleanEmail, cleanEmail, hash, role, avatar);
+          const userId = result.lastInsertRowid;
 
-        try {
-          db.prepare('INSERT OR IGNORE INTO user_preferences (user_id) VALUES (?)').run(userId);
-        } catch (e) {}
+          try {
+            db.prepare('INSERT OR IGNORE INTO user_preferences (user_id) VALUES (?)').run(userId);
+          } catch (e) {}
 
-        user = db.prepare('SELECT * FROM users WHERE id = ?').get(userId);
+          user = db.prepare('SELECT * FROM users WHERE id = ?').get(userId);
+        }
       } else {
         if (user.is_banned === 1) {
           res.status(403).json({ error: 'Esta conta foi suspensa/banida pelo administrador.' });
@@ -1220,7 +1467,30 @@ async function startServer() {
       const token = crypto.randomBytes(32).toString('hex');
       db.prepare('INSERT INTO sessions (token, user_id) VALUES (?, ?)').run(token, user.id);
 
-      const userEmail = user.email || user.whatsapp;
+      const userEmail = (user.email || user.whatsapp || '').trim().toLowerCase();
+
+      // Persist session and user to Cloud Firestore
+      await persistSessionToFirestore(token, user.id, userEmail);
+      await persistUserToFirestore({
+        id: user.id,
+        name: user.name,
+        email: userEmail,
+        whatsapp: user.whatsapp || userEmail,
+        password_hash: user.password_hash,
+        role: user.role || 'user',
+        avatar_url: user.avatar_url,
+        visits_count: user.visits_count || 1,
+        is_banned: user.is_banned || 0,
+        snow_enabled: user.snow_enabled || 0,
+        theme: user.theme || 'dark',
+        high_contrast: user.high_contrast || 0,
+        onboarding_completed: user.onboarding_completed,
+        onboarding_step: user.onboarding_step
+      });
+
+      try {
+        db.pragma('wal_checkpoint(TRUNCATE)');
+      } catch (e) {}
 
       res.json({
         success: true,
@@ -1244,9 +1514,9 @@ async function startServer() {
   });
 
   // 7. Get Current Authenticated User Session
-  app.get('/api/auth/me', (req, res) => {
+  app.get('/api/auth/me', async (req, res) => {
     try {
-      const user = getAuthUser(req);
+      const user = await getAuthUser(req);
       if (!user) {
         res.status(401).json({ error: 'Sessão inválida ou expirada' });
         return;
@@ -1461,13 +1731,17 @@ async function startServer() {
     }
   });
 
-  app.post('/api/auth/logout', (req, res) => {
+  app.post('/api/auth/logout', async (req, res) => {
     try {
       const authHeader = req.headers.authorization;
       if (authHeader && authHeader.startsWith('Bearer ')) {
         const token = authHeader.split(' ')[1];
         db.prepare('DELETE FROM sessions WHERE token = ?').run(token);
+        await deleteSessionFromFirestore(token);
       }
+      try {
+        db.pragma('wal_checkpoint(TRUNCATE)');
+      } catch (e) {}
       res.json({ success: true });
     } catch (err) {
       res.status(500).json({ error: 'Erro ao fazer logout' });
@@ -1485,7 +1759,7 @@ async function startServer() {
     });
   });
 
-  app.post('/api/user/settings', requireAuth, (req, res) => {
+  app.post('/api/user/settings', requireAuth, async (req, res) => {
     const user = (req as any).user;
     const { snow_enabled, theme, high_contrast } = req.body;
     db.prepare('UPDATE users SET snow_enabled = ?, theme = ?, high_contrast = ? WHERE id = ?').run(
@@ -1494,6 +1768,29 @@ async function startServer() {
       high_contrast ? 1 : 0,
       user.id
     );
+
+    const userEmail = (user.email || user.whatsapp || '').trim().toLowerCase();
+    await persistUserToFirestore({
+      id: user.id,
+      name: user.name,
+      email: userEmail,
+      whatsapp: user.whatsapp || userEmail,
+      password_hash: user.password_hash,
+      role: user.role || 'user',
+      avatar_url: user.avatar_url,
+      visits_count: user.visits_count,
+      is_banned: user.is_banned || 0,
+      snow_enabled: snow_enabled ? 1 : 0,
+      theme: theme || 'dark',
+      high_contrast: high_contrast ? 1 : 0,
+      onboarding_completed: user.onboarding_completed,
+      onboarding_step: user.onboarding_step
+    });
+
+    try {
+      db.pragma('wal_checkpoint(TRUNCATE)');
+    } catch (e) {}
+
     res.json({ success: true });
   });
 

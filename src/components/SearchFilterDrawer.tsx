@@ -164,12 +164,8 @@ export const SearchFilterDrawer: React.FC<SearchFilterDrawerProps> = ({
   if (!isOpen) return null;
 
   return (
-    <motion.div
+    <div
       id="search-filter-overlay"
-      initial={{ opacity: 1 }}
-      animate={{ opacity: 1 }}
-      exit={{ opacity: 0 }}
-      transition={{ duration: 0 }}
       className="absolute inset-0 z-45 bg-zinc-50 dark:bg-[#111315] text-zinc-900 dark:text-white flex flex-col justify-between overflow-hidden"
       style={{
         fontFamily: "'Manrope', -apple-system, BlinkMacSystemFont, sans-serif",
@@ -256,7 +252,7 @@ export const SearchFilterDrawer: React.FC<SearchFilterDrawerProps> = ({
                 >
                   {/* Left: Rounded Square Icon Box + Titles */}
                   <div className="flex items-center gap-3.5 min-w-0">
-                    <div className="w-12 h-12 rounded-2xl bg-zinc-100 dark:bg-[#202227] flex items-center justify-center text-zinc-900 dark:text-white shrink-0 shadow-xs border border-zinc-200/50 dark:border-white/5">
+                    <div className="w-12 h-12 rounded-2xl bg-zinc-100 dark:bg-[#202227] flex items-center justify-center text-zinc-700 dark:text-white shrink-0 shadow-xs border border-zinc-200/50 dark:border-white/5">
                       <Icon className="w-5 h-5 stroke-[1.8]" />
                     </div>
 
@@ -367,6 +363,6 @@ export const SearchFilterDrawer: React.FC<SearchFilterDrawerProps> = ({
           </div>
         )}
       </div>
-    </motion.div>
+    </div>
   );
 };

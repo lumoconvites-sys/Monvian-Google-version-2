@@ -17,7 +17,14 @@ import { OfflineIndicator } from './components/OfflineIndicator';
 
 export default function App() {
   const [isAuthenticated, setIsAuthenticated] = useState<boolean | null>(null);
-  const [user, setUser] = useState<any>(null);
+  const [user, setUser] = useState<any>(() => {
+    try {
+      const savedUser = localStorage.getItem('monvian_user');
+      return savedUser ? JSON.parse(savedUser) : null;
+    } catch (e) {
+      return null;
+    }
+  });
   const [snowEnabled, setSnowEnabled] = useState<boolean>(() => {
     const saved = localStorage.getItem('monvian_snow_enabled');
     return saved !== null ? JSON.parse(saved) : false;
@@ -41,44 +48,86 @@ export default function App() {
       return;
     }
 
-    fetch('/api/auth/me', {
-      headers: { Authorization: `Bearer ${token}` }
-    })
-      .then(res => res.json())
-      .then(data => {
-        if (data.success) {
-          setUser(data.user);
-          setIsAuthenticated(true);
-          // Fetch real user settings from database
-          fetch('/api/user/settings', {
-            headers: { Authorization: `Bearer ${token}` }
-          })
-            .then(res => res.json())
-            .then(settings => {
-              if (settings.success) {
-                if (typeof settings.snow_enabled === 'boolean') {
-                  setSnowEnabled(settings.snow_enabled);
-                  localStorage.setItem('monvian_snow_enabled', JSON.stringify(settings.snow_enabled));
-                }
-                if (settings.theme) {
-                  setTheme(settings.theme);
-                  localStorage.setItem('monvian_theme', settings.theme);
-                }
-                if (typeof settings.high_contrast === 'boolean') {
-                  setHighContrast(settings.high_contrast);
-                  localStorage.setItem('monvian_high_contrast', JSON.stringify(settings.high_contrast));
-                }
-              }
-            })
-            .catch(() => {});
-        } else {
+    let isMounted = true;
+
+    const checkSession = async (retriesLeft = 2) => {
+      try {
+        const res = await fetch('/api/auth/me', {
+          headers: { Authorization: `Bearer ${token}` }
+        });
+
+        if (res.status === 401 || res.status === 403) {
+          // Token is explicitly invalidated or user is banned
           localStorage.removeItem('monvian_token');
-          setIsAuthenticated(false);
+          localStorage.removeItem('monvian_user');
+          if (isMounted) {
+            setUser(null);
+            setIsAuthenticated(false);
+          }
+          return;
         }
-      })
-      .catch(() => {
-        setIsAuthenticated(false);
-      });
+
+        const data = await res.json();
+        if (data.success && isMounted) {
+          setUser(data.user);
+          localStorage.setItem('monvian_user', JSON.stringify(data.user));
+          setIsAuthenticated(true);
+
+          // Fetch real user settings from database
+          try {
+            const settingsRes = await fetch('/api/user/settings', {
+              headers: { Authorization: `Bearer ${token}` }
+            });
+            const settings = await settingsRes.json();
+            if (settings.success && isMounted) {
+              if (typeof settings.snow_enabled === 'boolean') {
+                setSnowEnabled(settings.snow_enabled);
+                localStorage.setItem('monvian_snow_enabled', JSON.stringify(settings.snow_enabled));
+              }
+              if (settings.theme) {
+                setTheme(settings.theme);
+                localStorage.setItem('monvian_theme', settings.theme);
+              }
+              if (typeof settings.high_contrast === 'boolean') {
+                setHighContrast(settings.high_contrast);
+                localStorage.setItem('monvian_high_contrast', JSON.stringify(settings.high_contrast));
+              }
+            }
+          } catch (e) {}
+        } else if (isMounted) {
+          if (retriesLeft > 0) {
+            setTimeout(() => {
+              if (isMounted) checkSession(retriesLeft - 1);
+            }, 1200);
+          } else {
+            localStorage.removeItem('monvian_token');
+            localStorage.removeItem('monvian_user');
+            setIsAuthenticated(false);
+          }
+        }
+      } catch (err) {
+        // Network connection error or server cold start: retry before logging out
+        if (retriesLeft > 0) {
+          setTimeout(() => {
+            if (isMounted) checkSession(retriesLeft - 1);
+          }, 1500);
+        } else if (isMounted) {
+          // If we had a cached user, keep them in place instead of kicking them out abruptly
+          const cachedUser = localStorage.getItem('monvian_user');
+          if (cachedUser) {
+            setIsAuthenticated(true);
+          } else {
+            setIsAuthenticated(false);
+          }
+        }
+      }
+    };
+
+    checkSession();
+
+    return () => {
+      isMounted = false;
+    };
   }, []);
 
   // Save settings on change to localStorage and backend database
@@ -528,7 +577,7 @@ export default function App() {
             className="flex items-center gap-1.5 select-none"
             title={`Campos do Jordão - ${realWeather.temperature}°C ${realWeather.condition}`}
           >
-            <span className="text-5xl sm:text-6xl font-extrabold tracking-tighter text-zinc-900 dark:text-white leading-none drop-shadow-[0_2px_12px_rgba(0,0,0,0.4)]">
+            <span className="text-5xl sm:text-6xl font-extrabold tracking-tighter text-zinc-800 dark:text-white leading-none drop-shadow-[0_2px_12px_rgba(0,0,0,0.3)]">
               {realWeather.temperature}°
             </span>
             <div className="relative w-12 h-12 sm:w-14 sm:h-14 flex items-center justify-center shrink-0 -mt-1">
@@ -575,13 +624,13 @@ export default function App() {
           <button
             id="btn-theme-toggle"
             onClick={() => setTheme((prev) => (prev === 'dark' ? 'light' : 'dark'))}
-            className="w-12 h-12 rounded-full ios-glass-btn text-zinc-900 dark:text-white flex items-center justify-center active:scale-95 cursor-pointer group"
+            className="w-12 h-12 rounded-full ios-glass-btn text-zinc-700 dark:text-white flex items-center justify-center active:scale-95 cursor-pointer group"
             title={theme === 'dark' ? 'Mudar para tema claro' : 'Mudar para tema escuro'}
           >
             {theme === 'dark' ? (
-              <div className="relative w-6 h-6 flex items-center justify-center text-zinc-900 dark:text-white group-hover:rotate-45 transition-transform duration-500">
-                <svg className="w-full h-full text-zinc-900 dark:text-white" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round">
-                  <circle cx="12" cy="12" r="4" className="fill-zinc-900 dark:fill-white" />
+              <div className="relative w-6 h-6 flex items-center justify-center text-zinc-700 dark:text-white group-hover:rotate-45 transition-transform duration-500">
+                <svg className="w-full h-full text-zinc-700 dark:text-white" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round">
+                  <circle cx="12" cy="12" r="4" className="fill-zinc-700 dark:fill-white" />
                   <line x1="12" y1="1" x2="12" y2="3" />
                   <line x1="12" y1="21" x2="12" y2="23" />
                   <line x1="4.22" y1="4.22" x2="5.64" y2="5.64" />
@@ -593,9 +642,9 @@ export default function App() {
                 </svg>
               </div>
             ) : (
-              <div className="relative w-6 h-6 flex items-center justify-center text-[#6E00B3] dark:text-white group-hover:-rotate-12 transition-transform duration-500">
-                <svg className="w-full h-full text-[#6E00B3] dark:text-white" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round">
-                  <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z" className="fill-[#6E00B3] dark:fill-white" />
+              <div className="relative w-6 h-6 flex items-center justify-center text-[#5856D6] dark:text-white group-hover:-rotate-12 transition-transform duration-500">
+                <svg className="w-full h-full text-[#5856D6] dark:text-white" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z" className="fill-[#5856D6] dark:fill-white" />
                 </svg>
               </div>
             )}
@@ -608,13 +657,13 @@ export default function App() {
             className={`w-12 h-12 rounded-full flex items-center justify-center transition-all duration-300 active:scale-95 cursor-pointer group ${
               isSearchOpen || searchQuery
                 ? 'bg-[#00C896] text-white border border-transparent shadow-[0_0_20px_rgba(0,200,150,0.5)]'
-                : 'ios-glass-btn text-zinc-900 dark:text-white'
+                : 'ios-glass-btn text-zinc-700 dark:text-white'
             }`}
             title="Pesquisar no mapa"
           >
-            <div className={`relative w-6 h-6 flex items-center justify-center group-hover:scale-110 transition-transform ${isSearchOpen || searchQuery ? 'text-white' : 'text-zinc-900 dark:text-white'}`}>
+            <div className={`relative w-6 h-6 flex items-center justify-center group-hover:scale-110 transition-transform ${isSearchOpen || searchQuery ? 'text-white' : 'text-zinc-700 dark:text-white'}`}>
               <svg className="w-full h-full" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round">
-                <circle cx="11" cy="11" r="7" className={isSearchOpen || searchQuery ? 'fill-white/20' : 'fill-zinc-900/10 dark:fill-white/10'} />
+                <circle cx="11" cy="11" r="7" className={isSearchOpen || searchQuery ? 'fill-white/20' : 'fill-zinc-700/10 dark:fill-white/10'} />
                 <line x1="21" y1="21" x2="16.65" y2="16.65" />
               </svg>
             </div>
@@ -628,7 +677,7 @@ export default function App() {
               className={`w-12 h-12 rounded-full flex items-center justify-center transition-all duration-300 active:scale-95 cursor-pointer group shrink-0 ${
                 selectedCategoryFilter
                   ? 'bg-[#00C896] text-white border border-transparent shadow-[0_0_20px_rgba(0,200,150,0.5)]'
-                  : 'ios-glass-btn text-zinc-900 dark:text-white'
+                  : 'ios-glass-btn text-zinc-700 dark:text-white'
               }`}
               title={selectedCategoryFilter ? 'Filtro de categoria ativo - Clique para alterar ou limpar' : 'Filtrar por Categoria'}
             >
@@ -705,7 +754,7 @@ export default function App() {
                             <div className={`w-7 h-7 rounded-xl flex items-center justify-center shrink-0 group-hover:scale-105 transition-transform ${
                               isSelected
                                 ? 'bg-[#00C896] text-white'
-                                : 'bg-zinc-900/5 dark:bg-white/10 text-zinc-900 dark:text-white'
+                                : 'bg-zinc-900/5 dark:bg-white/10 text-zinc-700 dark:text-white'
                             }`}>
                               <CategoryIcon className="w-4 h-4 stroke-[2]" />
                             </div>
@@ -781,35 +830,36 @@ export default function App() {
       />
 
       {/* 5. Mini Banner Preview (occupies the space freed by the retracted search bar when a spot is opened) */}
-      <AnimatePresence>
-        {isSpotCardOpen && selectedSpot && (
-          <SpotPreviewBanner
-            key={`preview-${selectedSpot.id}`}
-            spot={selectedSpot}
-            onClose={() => setSelectedSpot(null)}
-            onOpenDetails={(spot) => {
-              setSelectedSpot(spot);
-              setIsDetailOpen(true);
-            }}
-          />
-        )}
-      </AnimatePresence>
+      {isSpotCardOpen && selectedSpot && (
+        <SpotPreviewBanner
+          key={`preview-${selectedSpot.id}`}
+          spot={selectedSpot}
+          onClose={() => setSelectedSpot(null)}
+          onOpenDetails={(spot) => {
+            setSelectedSpot(spot);
+            setIsDetailOpen(true);
+          }}
+        />
+      )}
 
       {/* 6. Spot Detail Modal / Bottom Sheet (opened ONLY when user clicks "Ver Local") */}
-      <SpotDetailSheet
-        spot={isDetailOpen ? selectedSpot : null}
-        onClose={() => setIsDetailOpen(false)}
-        onNavigateTo={(spot) => {
-          setSelectedSpot(spot);
-          setIsDetailOpen(true);
-        }}
-        isFavorite={selectedSpot ? favorites.includes(selectedSpot.id) : false}
-        onToggleFavorite={handleToggleFavorite}
-        onUpdateSpot={(updatedSpot) => {
-          setSpots((prev) => prev.map((s) => (s.id === updatedSpot.id ? updatedSpot : s)));
-          setSelectedSpot(updatedSpot);
-        }}
-      />
+      {isDetailOpen && selectedSpot && (
+        <SpotDetailSheet
+          key={`spot-detail-${selectedSpot.id}`}
+          spot={selectedSpot}
+          onClose={() => setIsDetailOpen(false)}
+          onNavigateTo={(spot) => {
+            setSelectedSpot(spot);
+            setIsDetailOpen(false);
+          }}
+          isFavorite={favorites.includes(selectedSpot.id)}
+          onToggleFavorite={handleToggleFavorite}
+          onUpdateSpot={(updatedSpot) => {
+            setSpots((prev) => prev.map((s) => (s.id === updatedSpot.id ? updatedSpot : s)));
+            setSelectedSpot(updatedSpot);
+          }}
+        />
+      )}
 
       {/* 7. Search & Discovery Drawer (Tab: 'buscar') */}
       <SearchFilterDrawer

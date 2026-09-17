@@ -1,8 +1,6 @@
 import React, { useState } from 'react';
-import { Search } from 'lucide-react';
-import { BarCompassIcon } from './BarCompassIcon';
-import { ProfileIcon } from './ProfileIcon';
 import { motion } from 'motion/react';
+import { NavExploreIcon, NavChatIcon, NavSearchIcon, NavProfileIcon } from './NavIcons';
 
 export type TabType = 'explorar' | 'chat' | 'buscar' | 'perfil';
 
@@ -19,10 +17,10 @@ export const BottomNavigation: React.FC<BottomNavigationProps> = ({
 }) => {
   const [compassRotation, setCompassRotation] = useState<number>(0);
 
-  const tabs: { id: TabType; label: string; icon?: any; isAvatar?: boolean }[] = [
+  const tabs: { id: TabType; label: string }[] = [
     { id: 'explorar', label: 'Explorar' },
-    { id: 'chat', label: 'Chat', isAvatar: true },
-    { id: 'buscar', label: 'Buscar', icon: Search },
+    { id: 'chat', label: 'Chat' },
+    { id: 'buscar', label: 'Buscar' },
     { id: 'perfil', label: 'Perfil' },
   ];
 
@@ -37,17 +35,15 @@ export const BottomNavigation: React.FC<BottomNavigationProps> = ({
     <nav
       id="bottom-floating-navigation"
       aria-label="Navegação Principal"
-      className="fixed bottom-0 left-0 right-0 z-50 w-full pointer-events-auto select-none ios-glass-nav rounded-t-[28px] sm:rounded-t-[32px] border-t border-zinc-900/10 dark:border-white/10 shadow-[0_-8px_32px_rgba(0,0,0,0.12)] dark:shadow-[0_-12px_40px_rgba(0,0,0,0.6)]"
+      className="fixed left-1/2 -translate-x-1/2 z-50 w-[94%] max-w-[380px] pointer-events-auto select-none font-['Manrope']"
       style={{
-        paddingBottom: 'max(8px, env(safe-area-inset-bottom, 16px))',
-        paddingTop: '8px',
+        bottom: 'max(8px, env(safe-area-inset-bottom, 8px))',
       }}
     >
-      {/* Main Bottom Navigation Bar Pill */}
-      <div className="w-full max-w-md mx-auto flex items-center justify-around px-2 relative">
+      {/* Main Bottom Navigation Bar Capsule (matches IMG_6904) */}
+      <div className="w-full flex items-center justify-between p-1.5 sm:p-2 rounded-full ios-glass-nav relative shadow-[0_12px_40px_rgba(0,0,0,0.4)] dark:shadow-[0_16px_50px_rgba(0,0,0,0.9)] border border-white/20 dark:border-white/20">
         {tabs.map((tab) => {
           const isActive = activeTab === tab.id;
-          const Icon = tab.icon;
 
           return (
             <button
@@ -55,69 +51,83 @@ export const BottomNavigation: React.FC<BottomNavigationProps> = ({
               id={`nav-btn-${tab.id}`}
               type="button"
               onClick={() => handleTabClick(tab.id)}
-              className="relative flex flex-col items-center justify-center gap-1 py-1.5 px-3.5 rounded-full cursor-pointer z-10 select-none active:scale-95 transition-transform"
+              className="relative flex flex-col items-center justify-center w-[66px] h-[60px] rounded-full cursor-pointer z-10 select-none active:scale-95 transition-all"
             >
-              {/* Active pill background with adaptive glass feel */}
+              {/* Active Tab Circular Highlight matching reference image IMG_6904 */}
               {isActive && (
-                <div className="absolute inset-0 rounded-full bg-zinc-900/5 dark:bg-white/12 ring-1 ring-zinc-900/10 dark:ring-white/25 -z-10 shadow-xs" />
+                <motion.div
+                  layoutId="activeTabCircle"
+                  className="absolute inset-0 rounded-full bg-white/[0.12] dark:bg-white/[0.14] border border-white/30 dark:border-white/30 shadow-[0_0_12px_rgba(255,255,255,0.08)] -z-10"
+                  transition={{ type: 'spring', stiffness: 450, damping: 32 }}
+                />
               )}
 
-              {tab.isAvatar ? (
-                <div className="relative">
-                  <div
-                    className={`w-7 h-7 rounded-full overflow-hidden border ${
-                      isActive
-                        ? 'border-white ring-2 ring-white/40 shadow-xs'
-                        : 'border-zinc-300 dark:border-white/30 opacity-75'
-                    }`}
-                  >
-                    <img
-                      src="/guide_avatar.jpg"
-                      alt="Chat Guia IA"
-                      className="w-full h-full object-cover"
-                    />
-                  </div>
-                  {unreadCount > 0 && (
-                    <span className="absolute -top-0.5 -right-0.5 w-2.5 h-2.5 bg-white rounded-full ring-2 ring-zinc-300 dark:ring-black shadow-xs" />
-                  )}
-                </div>
-              ) : tab.id === 'explorar' ? (
+              {/* 1. Explorar Icon */}
+              {tab.id === 'explorar' && (
                 <div
-                  className={`w-7 h-7 rounded-full flex items-center justify-center transition-all ${
-                    isActive ? 'opacity-100 scale-100' : 'opacity-70 hover:opacity-100 scale-95'
+                  className={`w-7 h-7 flex items-center justify-center mb-0.5 transition-all ${
+                    isActive
+                      ? 'text-zinc-700 dark:text-white scale-105 opacity-100'
+                      : 'text-zinc-500 dark:text-zinc-400 opacity-85'
                   }`}
                 >
                   <motion.div
                     animate={{ rotate: compassRotation }}
                     transition={{ duration: 0.8, ease: [0.34, 1.56, 0.64, 1] }}
-                    className="w-5.5 h-5.5 flex items-center justify-center"
+                    className="w-6.5 h-6.5 flex items-center justify-center"
                   >
-                    <BarCompassIcon size={22} className="w-full h-full" />
+                    <NavExploreIcon size={25} className="w-full h-full text-current" />
                   </motion.div>
                 </div>
-              ) : tab.id === 'perfil' ? (
+              )}
+
+              {/* 2. Chat Icon (No characters or avatars, elegant smart assistant bubble) */}
+              {tab.id === 'chat' && (
                 <div
-                  className={`w-7 h-7 rounded-full flex items-center justify-center ${
-                    isActive ? 'text-zinc-900 dark:text-white' : 'text-zinc-400 dark:text-zinc-400'
+                  className={`relative w-7 h-7 flex items-center justify-center mb-0.5 transition-all ${
+                    isActive
+                      ? 'text-zinc-700 dark:text-white scale-105 opacity-100'
+                      : 'text-zinc-500 dark:text-zinc-400 opacity-85'
                   }`}
                 >
-                  <ProfileIcon size={20} className="w-5 h-5 text-current" />
+                  <NavChatIcon size={24} className="w-6 h-6 text-current" />
+                  {unreadCount > 0 && (
+                    <span className="absolute -top-0.5 right-0.5 w-2 h-2 bg-emerald-500 rounded-full ring-2 ring-white dark:ring-zinc-900 shadow-xs" />
+                  )}
                 </div>
-              ) : (
+              )}
+
+              {/* 3. Buscar Icon (Refined magnifying glass) */}
+              {tab.id === 'buscar' && (
                 <div
-                  className={`w-7 h-7 rounded-full flex items-center justify-center ${
-                    isActive ? 'text-zinc-900 dark:text-white' : 'text-zinc-400 dark:text-zinc-400'
+                  className={`w-7 h-7 flex items-center justify-center mb-0.5 transition-all ${
+                    isActive
+                      ? 'text-zinc-700 dark:text-white scale-105 opacity-100'
+                      : 'text-zinc-500 dark:text-zinc-400 opacity-85'
                   }`}
                 >
-                  {Icon && <Icon className="w-5 h-5 stroke-[2.2]" />}
+                  <NavSearchIcon size={24} className="w-6 h-6 text-current" />
+                </div>
+              )}
+
+              {/* 4. Perfil Icon (Clean geometric user representation) */}
+              {tab.id === 'perfil' && (
+                <div
+                  className={`w-7 h-7 flex items-center justify-center mb-0.5 transition-all ${
+                    isActive
+                      ? 'text-zinc-700 dark:text-white scale-105 opacity-100'
+                      : 'text-zinc-500 dark:text-zinc-400 opacity-85'
+                  }`}
+                >
+                  <NavProfileIcon size={24} className="w-6 h-6 text-current" />
                 </div>
               )}
 
               <span
-                className={`text-[11px] tracking-tight ${
+                className={`font-['Manrope'] text-[11.5px] leading-tight tracking-tight select-none ${
                   isActive
-                    ? 'font-black text-zinc-900 dark:text-white'
-                    : 'font-black text-zinc-400 dark:text-zinc-400'
+                    ? 'font-extrabold text-zinc-700 dark:text-white drop-shadow-[0_1px_2px_rgba(0,0,0,0.2)]'
+                    : 'font-bold text-zinc-500 dark:text-zinc-400'
                 }`}
               >
                 {tab.label}

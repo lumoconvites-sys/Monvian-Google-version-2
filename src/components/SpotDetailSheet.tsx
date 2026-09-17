@@ -10,13 +10,10 @@ import {
   Navigation,
   Phone,
   Globe,
-  RefreshCw,
   ExternalLink,
-  CheckCircle2,
-  Sparkles,
   QrCode
 } from 'lucide-react';
-import { motion, AnimatePresence } from 'motion/react';
+import { motion } from 'motion/react';
 import { SpotQrModal } from './SpotQrModal';
 
 interface SpotDetailSheetProps {
@@ -29,7 +26,7 @@ interface SpotDetailSheetProps {
 }
 
 const VerifiedBadge = () => (
-  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" className="text-[#00C896] shrink-0">
+  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" className="text-[#007AFF] shrink-0" aria-label="Verificado">
     <path d="M12 2L15.09 5.09L19.18 5.18L19.27 9.27L22.36 12.36L19.27 15.45L19.18 19.54L15.09 19.63L12 22.72L8.91 19.63L4.82 19.54L4.73 15.45L1.64 12.36L4.73 9.27L4.82 5.18L8.91 5.09L12 2Z" fill="currentColor"/>
     <path d="M10 16L6 12L7.41 10.59L10 13.17L16.59 6.58L18 8L10 16Z" fill="white"/>
   </svg>
@@ -44,8 +41,6 @@ export const SpotDetailSheet: React.FC<SpotDetailSheetProps> = ({
   onUpdateSpot,
 }) => {
   const [activeTab, setActiveTab] = useState('Sobre');
-  const [isSyncingMaps, setIsSyncingMaps] = useState(false);
-  const [syncStatusMsg, setSyncStatusMsg] = useState<string | null>(null);
   const [isQrModalOpen, setIsQrModalOpen] = useState(false);
 
   if (!spot) return null;
@@ -54,36 +49,9 @@ export const SpotDetailSheet: React.FC<SpotDetailSheetProps> = ({
   const views = (spot.visitorsToday * 112 + 15000).toLocaleString('pt-BR');
   const mapsUrl = spot.mapsUrl || `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(spot.name + ' Campos do Jordão')}`;
 
-  const handleSyncGoogleMaps = async () => {
-    if (isSyncingMaps) return;
-    setIsSyncingMaps(true);
-    setSyncStatusMsg(null);
-    try {
-      const res = await fetch(`/api/spots/${spot.id}/sync-maps`, { method: 'POST' });
-      const data = await res.json();
-      if (data.success && data.spot) {
-        if (onUpdateSpot) {
-          onUpdateSpot(data.spot);
-        }
-        setSyncStatusMsg(data.liveSummary || 'Dados atualizados em tempo real com Google Maps!');
-      } else {
-        setSyncStatusMsg('Informações checadas no Google Maps.');
-      }
-    } catch (e) {
-      setSyncStatusMsg('Verificado com dados recentes.');
-    } finally {
-      setIsSyncingMaps(false);
-      setTimeout(() => setSyncStatusMsg(null), 5000);
-    }
-  };
-
   return (
-    <motion.div
-      initial={{ opacity: 1, y: 0 }}
-      animate={{ opacity: 1, y: 0 }}
-      exit={{ opacity: 0 }}
-      transition={{ duration: 0 }}
-      className="fixed inset-0 z-[100] bg-white dark:bg-[#0e1014] text-zinc-900 dark:text-white flex flex-col select-none"
+    <div
+      className="fixed inset-0 z-[100] bg-white dark:bg-[#0e1014] text-zinc-900 dark:text-white flex flex-col select-none overflow-hidden"
       style={{ fontFamily: "'Manrope', -apple-system, BlinkMacSystemFont, sans-serif" }}
     >
       {/* Header Image Area */}
@@ -115,7 +83,7 @@ export const SpotDetailSheet: React.FC<SpotDetailSheetProps> = ({
             <motion.button 
               whileTap={{ scale: 0.9 }}
               onClick={() => setIsQrModalOpen(true)}
-              className="w-10 h-10 rounded-full bg-white/90 dark:bg-black/60 backdrop-blur-md flex items-center justify-center border border-zinc-200/80 dark:border-white/15 text-zinc-900 dark:text-white shadow-sm cursor-pointer hover:text-[#00C896] hover:border-[#00C896]/50 transition-colors"
+              className="w-10 h-10 rounded-full bg-white/90 dark:bg-black/60 backdrop-blur-md flex items-center justify-center border border-zinc-200/80 dark:border-white/15 text-zinc-900 dark:text-white shadow-sm cursor-pointer hover:bg-zinc-100 dark:hover:bg-white/20 transition-colors"
               title="Gerar QR Code deste local"
             >
               <QrCode className="w-5 h-5" />
@@ -152,9 +120,11 @@ export const SpotDetailSheet: React.FC<SpotDetailSheetProps> = ({
 
       {/* Main Content Card */}
       <div className="relative -mt-8 flex-1 bg-white dark:bg-[#141519] rounded-t-[32px] p-6 shadow-[0_-10px_30px_rgba(0,0,0,0.05)] dark:shadow-[0_-10px_30px_rgba(0,0,0,0.6)] border-t border-transparent dark:border-white/10 overflow-hidden flex flex-col">
-        
+        {/* iOS Drag Indicator Handle */}
+        <div className="w-10 h-1 rounded-full bg-zinc-300 dark:bg-white/20 mx-auto mb-4 shrink-0" />
+
         {/* Title and Badge */}
-        <div className="flex items-center gap-1.5 mb-4">
+        <div className="flex items-center gap-2 mb-3">
           <h1 className="text-2xl font-black tracking-tight text-zinc-900 dark:text-white">{spot.name}</h1>
           <VerifiedBadge />
         </div>
@@ -176,101 +146,40 @@ export const SpotDetailSheet: React.FC<SpotDetailSheetProps> = ({
           </div>
         </div>
 
-        {/* Big Action Buttons Row */}
-        <div className="grid grid-cols-5 gap-2 mb-6">
+        {/* Action Buttons Row - Apple Maps iOS Aesthetic */}
+        <div className="grid grid-cols-3 gap-3 mb-6">
           <motion.button 
-            whileTap={{ scale: 0.95 }}
+            whileTap={{ scale: 0.96 }}
             onClick={() => { onNavigateTo(spot); onClose(); }}
-            className="bg-[#00C896] hover:bg-[#00a87e] rounded-[18px] py-2.5 flex flex-col items-center justify-center gap-1 transition-all cursor-pointer shadow-md text-white"
+            className="bg-black text-white hover:bg-zinc-800 dark:bg-white dark:text-black dark:hover:bg-zinc-100 rounded-2xl py-3 px-3 flex items-center justify-center gap-2 transition-all cursor-pointer shadow-sm font-bold"
             title="Traçar Rota"
           >
-            <Navigation className="w-4 h-4 text-white" />
-            <span className="text-[10px] sm:text-[11px] font-black text-white">Rota</span>
-          </motion.button>
-
-          <motion.button 
-            whileTap={{ scale: 0.95 }}
-            onClick={() => setIsQrModalOpen(true)}
-            className="bg-zinc-50 hover:bg-zinc-100 dark:bg-white/5 dark:hover:bg-white/10 border border-zinc-200/80 dark:border-white/10 rounded-[18px] py-2.5 flex flex-col items-center justify-center gap-1 transition-colors cursor-pointer group"
-            title="Compartilhar via QR Code"
-          >
-            <QrCode className="w-4 h-4 text-[#00C896] group-hover:scale-110 transition-transform" />
-            <span className="text-[10px] sm:text-[11px] font-black text-zinc-900 dark:text-white">QR Code</span>
+            <Navigation className="w-4 h-4 fill-current shrink-0" />
+            <span className="text-sm font-bold">Rota</span>
           </motion.button>
 
           <motion.a 
-            whileTap={{ scale: 0.95 }}
-            href={mapsUrl}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="bg-emerald-50 dark:bg-emerald-950/30 hover:bg-emerald-100 dark:hover:bg-emerald-900/40 border border-emerald-500/30 rounded-[18px] py-2.5 flex flex-col items-center justify-center gap-1 transition-colors cursor-pointer text-emerald-700 dark:text-emerald-300"
-            title="Abrir no Google Maps"
-          >
-            <MapPin className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
-            <span className="text-[10px] sm:text-[11px] font-black">Maps</span>
-          </motion.a>
-
-          <motion.a 
-            whileTap={{ scale: 0.95 }}
+            whileTap={{ scale: 0.96 }}
             href={spot.phone ? `tel:${spot.phone}` : "tel:+551236631234"}
-            className="bg-zinc-50 hover:bg-zinc-100 dark:bg-white/5 dark:hover:bg-white/10 border border-zinc-200/80 dark:border-white/10 rounded-[18px] py-2.5 flex flex-col items-center justify-center gap-1 transition-colors cursor-pointer"
+            className="bg-zinc-100 hover:bg-zinc-200 dark:bg-white/10 dark:hover:bg-white/15 border border-zinc-200/80 dark:border-white/10 text-zinc-900 dark:text-white rounded-2xl py-3 px-3 flex items-center justify-center gap-2 transition-colors cursor-pointer font-bold"
             title="Ligar para o estabelecimento"
           >
-            <Phone className="w-4 h-4 text-zinc-900 dark:text-white" />
-            <span className="text-[10px] sm:text-[11px] font-black text-zinc-900 dark:text-white">Ligar</span>
+            <Phone className="w-4 h-4 shrink-0" />
+            <span className="text-sm font-bold">Ligar</span>
           </motion.a>
 
           <motion.a 
-            whileTap={{ scale: 0.95 }}
+            whileTap={{ scale: 0.96 }}
             href={spot.website || "https://www.camposdojordao.sp.gov.br/turismo"}
             target="_blank"
             rel="noopener noreferrer"
-            className="bg-zinc-50 hover:bg-zinc-100 dark:bg-white/5 dark:hover:bg-white/10 border border-zinc-200/80 dark:border-white/10 rounded-[18px] py-2.5 flex flex-col items-center justify-center gap-1 transition-colors cursor-pointer"
+            className="bg-zinc-100 hover:bg-zinc-200 dark:bg-white/10 dark:hover:bg-white/15 border border-zinc-200/80 dark:border-white/10 text-zinc-900 dark:text-white rounded-2xl py-3 px-3 flex items-center justify-center gap-2 transition-colors cursor-pointer font-bold"
             title="Acessar Website"
           >
-            <Globe className="w-4 h-4 text-zinc-900 dark:text-white" />
-            <span className="text-[10px] sm:text-[11px] font-black text-zinc-900 dark:text-white">Site</span>
+            <Globe className="w-4 h-4 shrink-0" />
+            <span className="text-sm font-bold">Site</span>
           </motion.a>
         </div>
-
-        {/* Live Google Maps Status Banner */}
-        <div className="mb-5 p-3.5 rounded-2xl bg-gradient-to-r from-emerald-500/10 via-teal-500/10 to-blue-500/10 border border-emerald-500/25 dark:border-emerald-500/30 flex items-center justify-between gap-3">
-          <div className="flex items-center gap-2.5 min-w-0">
-            <div className="w-8 h-8 rounded-full bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 flex items-center justify-center shrink-0">
-              <Sparkles className="w-4 h-4" />
-            </div>
-            <div className="min-w-0">
-              <div className="flex items-center gap-1.5">
-                <span className="text-xs font-black text-zinc-900 dark:text-white">Dados do Google Maps</span>
-                <CheckCircle2 className="w-3.5 h-3.5 text-emerald-500" />
-              </div>
-              <p className="text-[11px] text-zinc-500 dark:text-zinc-400 truncate">
-                {spot.googleReviewSnippet ? `"${spot.googleReviewSnippet.slice(0, 50)}..."` : 'Informações em tempo real com Grounding'}
-              </p>
-            </div>
-          </div>
-          <motion.button
-            whileTap={{ scale: 0.9 }}
-            onClick={handleSyncGoogleMaps}
-            disabled={isSyncingMaps}
-            className="px-2.5 py-1.5 rounded-full bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-700 dark:text-emerald-300 text-[11px] font-black flex items-center gap-1 shrink-0 transition-colors cursor-pointer disabled:opacity-50"
-            title="Atualizar via Google Maps"
-          >
-            <RefreshCw className={`w-3 h-3 ${isSyncingMaps ? 'animate-spin' : ''}`} />
-            <span>{isSyncingMaps ? 'Atualizando...' : 'Atualizar'}</span>
-          </motion.button>
-        </div>
-
-        {syncStatusMsg && (
-          <motion.div
-            initial={{ opacity: 0, y: -6 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0 }}
-            className="mb-4 p-2.5 rounded-xl bg-emerald-500/15 border border-emerald-500/30 text-xs text-emerald-800 dark:text-emerald-200"
-          >
-            {syncStatusMsg}
-          </motion.div>
-        )}
 
         {/* Tabs Row */}
         <div className="flex items-center justify-between border-b border-zinc-200 dark:border-white/10 mb-6">
@@ -288,7 +197,7 @@ export const SpotDetailSheet: React.FC<SpotDetailSheetProps> = ({
                 {isActive && (
                   <motion.div
                     layoutId="activeSpotTab"
-                    className="absolute bottom-0 left-0 right-0 h-[2.5px] bg-[#00C896] rounded-full"
+                    className="absolute bottom-0 left-0 right-0 h-[2.5px] bg-zinc-950 dark:bg-white rounded-full"
                   />
                 )}
               </button>
@@ -325,14 +234,14 @@ export const SpotDetailSheet: React.FC<SpotDetailSheetProps> = ({
                 </div>
                 <div className="p-3.5 rounded-2xl bg-zinc-50 dark:bg-white/5 border border-zinc-100 dark:border-white/10">
                   <span className="text-xs text-zinc-500 dark:text-zinc-400 font-black block mb-1">Entrada</span>
-                  <span className="text-sm font-black text-[#00C896]">{spot.priceRange === 'Grátis' ? 'Acesso Livre' : (spot.priceRange || 'Consultar')}</span>
+                  <span className="text-sm font-bold text-zinc-900 dark:text-white">{spot.priceRange === 'Grátis' ? 'Acesso Livre' : (spot.priceRange || 'Consultar')}</span>
                 </div>
               </div>
 
               {/* Endereço Confirmado no Google Maps */}
               <div className="p-3.5 rounded-2xl bg-zinc-50 dark:bg-white/5 border border-zinc-100 dark:border-white/10 flex items-start justify-between gap-3">
                 <div className="flex items-start gap-2.5 min-w-0">
-                  <MapPin className="w-4 h-4 text-emerald-500 shrink-0 mt-0.5" />
+                  <MapPin className="w-4 h-4 text-zinc-500 dark:text-zinc-400 shrink-0 mt-0.5" />
                   <div className="min-w-0">
                     <span className="text-xs text-zinc-500 dark:text-zinc-400 font-black block">Endereço Confirmado</span>
                     <p className="text-xs sm:text-sm font-medium text-zinc-800 dark:text-zinc-200 mt-0.5">
@@ -344,7 +253,7 @@ export const SpotDetailSheet: React.FC<SpotDetailSheetProps> = ({
                   href={mapsUrl}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="px-3 py-1.5 rounded-xl bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 text-xs font-black shrink-0 flex items-center gap-1 transition-colors"
+                  className="px-3 py-1.5 rounded-xl bg-zinc-100 hover:bg-zinc-200 dark:bg-white/10 dark:hover:bg-white/15 text-zinc-900 dark:text-white text-xs font-semibold shrink-0 flex items-center gap-1 transition-colors"
                 >
                   <span>Ver no Maps</span>
                   <ExternalLink className="w-3 h-3" />
@@ -358,20 +267,20 @@ export const SpotDetailSheet: React.FC<SpotDetailSheetProps> = ({
                 className="w-full p-4 rounded-2xl bg-zinc-50 dark:bg-white/5 hover:bg-zinc-100 dark:hover:bg-white/10 border border-zinc-200/70 dark:border-white/10 flex items-center justify-between text-left transition-all cursor-pointer group shadow-2xs"
               >
                 <div className="flex items-center gap-3.5 min-w-0">
-                  <div className="w-10 h-10 rounded-xl bg-[#00C896]/15 text-[#00C896] flex items-center justify-center shrink-0 group-hover:scale-105 transition-transform">
+                  <div className="w-10 h-10 rounded-xl bg-zinc-100 dark:bg-white/10 text-zinc-900 dark:text-white flex items-center justify-center shrink-0 group-hover:scale-105 transition-transform">
                     <QrCode className="w-5 h-5" />
                   </div>
                   <div className="min-w-0">
                     <div className="flex items-center gap-2">
                       <span className="text-xs font-black text-zinc-900 dark:text-white">Compartilhar via QR Code</span>
-                      <span className="text-[9px] font-black px-1.5 py-0.5 rounded-full bg-[#00C896]/15 text-[#00C896] uppercase tracking-wider">Novo</span>
+                      <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-full bg-zinc-200 dark:bg-white/15 text-zinc-700 dark:text-zinc-300 uppercase tracking-wider">Novo</span>
                     </div>
                     <p className="text-[11px] text-zinc-500 dark:text-zinc-400 truncate mt-0.5">
                       Gere o código para outros viajantes abrirem este ponto no app
                     </p>
                   </div>
                 </div>
-                <span className="text-xs font-black text-[#00C896] group-hover:translate-x-0.5 transition-transform shrink-0 ml-2">
+                <span className="text-xs font-bold text-zinc-900 dark:text-white group-hover:translate-x-0.5 transition-transform shrink-0 ml-2">
                   Abrir QR →
                 </span>
               </motion.button>
@@ -379,13 +288,13 @@ export const SpotDetailSheet: React.FC<SpotDetailSheetProps> = ({
               <motion.button 
                 whileTap={{ scale: 0.98 }}
                 onClick={() => { onNavigateTo(spot); onClose(); }}
-                className="w-full py-4 rounded-[20px] bg-[#00C896] hover:bg-[#00a87e] text-white font-black flex items-center justify-between px-6 shadow-md transition-all cursor-pointer"
+                className="w-full py-3.5 rounded-2xl bg-black text-white hover:bg-zinc-800 dark:bg-white dark:text-black dark:hover:bg-zinc-100 font-bold flex items-center justify-between px-6 shadow-sm transition-all cursor-pointer"
               >
                 <div className="flex items-center gap-3">
-                  <Navigation className="w-5 h-5 text-white" />
-                  <span className="text-white font-black">Como chegar no GPS</span>
+                  <Navigation className="w-5 h-5 fill-current" />
+                  <span className="font-bold">Como chegar no GPS</span>
                 </div>
-                <span className="text-white font-black text-lg">→</span>
+                <span className="font-bold text-lg">→</span>
               </motion.button>
             </div>
           )}
@@ -396,15 +305,15 @@ export const SpotDetailSheet: React.FC<SpotDetailSheetProps> = ({
                 <h3 className="font-black text-zinc-900 dark:text-white text-sm uppercase tracking-wider">O que esperar</h3>
                 <ul className="space-y-2.5 text-sm text-zinc-600 dark:text-zinc-300">
                   <li className="flex items-start gap-2">
-                    <span className="text-[#00C896] font-black">✓</span>
+                    <span className="text-[#007AFF] font-bold">✓</span>
                     <span>Mirante panorâmico com vista de tirar o fôlego para vales e montanhas</span>
                   </li>
                   <li className="flex items-start gap-2">
-                    <span className="text-[#00C896] font-black">✓</span>
+                    <span className="text-[#007AFF] font-bold">✓</span>
                     <span>Excelente ponto para fotografia e contemplação do pôr do sol</span>
                   </li>
                   <li className="flex items-start gap-2">
-                    <span className="text-[#00C896] font-black">✓</span>
+                    <span className="text-[#007AFF] font-bold">✓</span>
                     <span>Estacionamento e cafés típicos nas imediações</span>
                   </li>
                 </ul>
@@ -499,7 +408,7 @@ export const SpotDetailSheet: React.FC<SpotDetailSheetProps> = ({
         onClose={() => setIsQrModalOpen(false)}
         spot={spot}
       />
-    </motion.div>
+    </div>
   );
 };
 

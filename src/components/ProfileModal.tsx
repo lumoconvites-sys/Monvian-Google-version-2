@@ -173,6 +173,7 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
       });
       const data = await res.json();
       if (data.success && data.user) {
+        localStorage.setItem('monvian_user', JSON.stringify(data.user));
         if (onUpdateUser) {
           onUpdateUser(data.user);
         }
@@ -202,12 +203,8 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
   };
 
   return (
-    <motion.div
+    <div
       id="profile-fullscreen-overlay"
-      initial={{ opacity: 1 }}
-      animate={{ opacity: 1 }}
-      exit={{ opacity: 0 }}
-      transition={{ duration: 0 }}
       className="absolute inset-0 z-45 bg-zinc-50 dark:bg-[#111315] text-zinc-900 dark:text-white flex flex-col justify-between overflow-hidden"
       style={{
         fontFamily: "'Manrope', -apple-system, BlinkMacSystemFont, sans-serif",
@@ -730,6 +727,7 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
                     }
                   } catch (e) {}
                   localStorage.removeItem('monvian_token');
+                  localStorage.removeItem('monvian_user');
                   window.location.reload();
                 }}
                 className="flex-1 py-3 rounded-full bg-red-500 dark:bg-red-600 hover:bg-red-600 dark:hover:bg-red-700 text-white text-sm font-black transition-all cursor-pointer shadow-lg"
@@ -740,6 +738,6 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
           </div>
         )}
       </div>
-    </motion.div>
+    </div>
   );
 };

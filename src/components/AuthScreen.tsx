@@ -42,6 +42,7 @@ export function AuthScreen({ onSuccess }: AuthScreenProps) {
       
       if (res.ok && data.success) {
         localStorage.setItem('monvian_token', data.token);
+        localStorage.setItem('monvian_user', JSON.stringify(data.user));
         onSuccess(data.token, data.user);
       } else {
         setError(data.error || 'Erro na autenticação.');
@@ -89,6 +90,7 @@ export function AuthScreen({ onSuccess }: AuthScreenProps) {
 
       if (res.ok && data.success) {
         localStorage.setItem('monvian_token', data.token);
+        localStorage.setItem('monvian_user', JSON.stringify(data.user));
         onSuccess(data.token, data.user);
       } else {
         setError(data.error || 'Erro ao registrar conta.');
@@ -126,6 +128,7 @@ export function AuthScreen({ onSuccess }: AuthScreenProps) {
       const data = await res.json();
       if (res.ok && data.success) {
         localStorage.setItem('monvian_token', data.token);
+        localStorage.setItem('monvian_user', JSON.stringify(data.user));
         onSuccess(data.token, data.user);
       } else {
         setError(data.error || 'Erro ao vincular conta do Google.');

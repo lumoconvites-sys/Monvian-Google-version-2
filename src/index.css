@@ -159,12 +159,6 @@ html:not(.dark) .maplibregl-canvas {
               box-shadow 0.4s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
-.ios-glass-nav {
-  border-bottom: none !important;
-  border-left: none !important;
-  border-right: none !important;
-}
-
 /* Light Theme: Pure crystal translucent glass with subtle specular gloss */
 html:not(.dark) .ios-glass,
 html:not(.dark) .ios-glass-nav {
