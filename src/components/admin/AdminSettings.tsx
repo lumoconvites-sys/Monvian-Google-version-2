@@ -179,6 +179,95 @@ export const AdminSettings: React.FC = () => {
           />
         </div>
 
+        {/* Setting 4: Map & Camera Configurations (Persistência Duradoura) */}
+        <div className="space-y-4 pt-6 border-t border-zinc-100">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <ShieldCheck className="w-4 h-4 text-[#00C896]" />
+              <h3 className="text-xs font-black text-zinc-900 uppercase tracking-wider">
+                Configurações & Câmera do Mapa (Persistência na Nuvem)
+              </h3>
+            </div>
+            <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200">
+              Cloud Firestore Ativo
+            </span>
+          </div>
+          <p className="text-[11px] text-zinc-500">
+            Todas as posições, ângulos de câmera, estilo padrão e tokens são sincronizados e preservados entre builds e publicações.
+          </p>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div className="space-y-1.5">
+              <label className="text-[11px] font-bold text-zinc-700">Latitude Central Padrão</label>
+              <input
+                type="text"
+                value={settings.map_center_lat || '-22.7290'}
+                onChange={(e) => setSettings({ ...settings, map_center_lat: e.target.value })}
+                placeholder="-22.7290"
+                className="w-full px-3.5 py-2 bg-zinc-50 border border-zinc-200 rounded-xl text-xs font-mono text-zinc-900 focus:outline-none focus:border-blue-500"
+              />
+            </div>
+
+            <div className="space-y-1.5">
+              <label className="text-[11px] font-bold text-zinc-700">Longitude Central Padrão</label>
+              <input
+                type="text"
+                value={settings.map_center_lng || '-45.5830'}
+                onChange={(e) => setSettings({ ...settings, map_center_lng: e.target.value })}
+                placeholder="-45.5830"
+                className="w-full px-3.5 py-2 bg-zinc-50 border border-zinc-200 rounded-xl text-xs font-mono text-zinc-900 focus:outline-none focus:border-blue-500"
+              />
+            </div>
+
+            <div className="space-y-1.5">
+              <label className="text-[11px] font-bold text-zinc-700">Zoom Inicial Padrão</label>
+              <input
+                type="text"
+                value={settings.map_zoom || '11.75'}
+                onChange={(e) => setSettings({ ...settings, map_zoom: e.target.value })}
+                placeholder="11.75"
+                className="w-full px-3.5 py-2 bg-zinc-50 border border-zinc-200 rounded-xl text-xs font-mono text-zinc-900 focus:outline-none focus:border-blue-500"
+              />
+            </div>
+
+            <div className="space-y-1.5">
+              <label className="text-[11px] font-bold text-zinc-700">Inclinação da Câmera (Pitch / 3D)</label>
+              <input
+                type="text"
+                value={settings.map_pitch || '52'}
+                onChange={(e) => setSettings({ ...settings, map_pitch: e.target.value })}
+                placeholder="52"
+                className="w-full px-3.5 py-2 bg-zinc-50 border border-zinc-200 rounded-xl text-xs font-mono text-zinc-900 focus:outline-none focus:border-blue-500"
+              />
+            </div>
+
+            <div className="space-y-1.5">
+              <label className="text-[11px] font-bold text-zinc-700">Modo de Estilo Padrão</label>
+              <select
+                value={settings.map_default_mode || 'explorar'}
+                onChange={(e) => setSettings({ ...settings, map_default_mode: e.target.value })}
+                className="w-full px-3.5 py-2 bg-zinc-50 border border-zinc-200 rounded-xl text-xs text-zinc-900 focus:outline-none focus:border-blue-500 font-medium"
+              >
+                <option value="explorar">Explorar (Apple Maps Minimalista Escuro/Claro)</option>
+                <option value="satelite">Satélite HD (Esri / Imagem Orbital)</option>
+                <option value="carro">Carro / Navegação</option>
+                <option value="animado">Animado / Linhas Topográficas</option>
+              </select>
+            </div>
+
+            <div className="space-y-1.5">
+              <label className="text-[11px] font-bold text-zinc-700">Mapbox Access Token (Opcional)</label>
+              <input
+                type="password"
+                value={settings.mapbox_access_token || ''}
+                onChange={(e) => setSettings({ ...settings, mapbox_access_token: e.target.value })}
+                placeholder="pk.eyJ1..."
+                className="w-full px-3.5 py-2 bg-zinc-50 border border-zinc-200 rounded-xl text-xs font-mono text-zinc-900 focus:outline-none focus:border-blue-500"
+              />
+            </div>
+          </div>
+        </div>
+
         {/* Submit */}
         <div className="pt-6 border-t border-zinc-100 flex items-center justify-end">
           <button

@@ -287,7 +287,7 @@ export const SearchFilterDrawer: React.FC<SearchFilterDrawerProps> = ({
               {selectedCategory && (
                 <button
                   onClick={() => setSelectedCategory(null)}
-                  className="text-xs text-[#00C896] hover:underline cursor-pointer"
+                  className="text-xs text-blue-500 dark:text-blue-400 hover:underline cursor-pointer font-semibold"
                 >
                   Ver todas categorias
                 </button>
@@ -331,7 +331,7 @@ export const SearchFilterDrawer: React.FC<SearchFilterDrawerProps> = ({
 
                     <div className="min-w-0 flex-1">
                       <div className="flex items-center gap-1.5">
-                        <h4 className="text-sm font-black text-zinc-900 dark:text-white tracking-tight truncate group-hover:text-[#00C896] transition-colors">
+                        <h4 className="text-sm font-black text-zinc-900 dark:text-white tracking-tight truncate group-hover:text-blue-500 dark:group-hover:text-blue-400 transition-colors">
                           {spot.name}
                         </h4>
                       </div>

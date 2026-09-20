@@ -11,6 +11,56 @@ interface IconProps {
  * com curvas aerodinâmicas e ponto focal central.
  * Substitui a antiga bússola com agulha / rosa dos ventos tradicional.
  */
+/**
+ * 1. Agora: Ícone premium para "Agora", representando o momento ao vivo,
+ * pulso dinâmico e localização em tempo real no padrão minimalista do iOS.
+ * Apresenta um aro externo de sincronia viva e o ponto de presença instantâneo com feixe.
+ */
+export const NavAgoraIcon: React.FC<IconProps> = ({ className = '', size = 25 }) => {
+  return (
+    <svg
+      width={size}
+      height={size}
+      viewBox="0 0 24 24"
+      fill="none"
+      xmlns="http://www.w3.org/2000/svg"
+      className={className}
+      aria-hidden="true"
+    >
+      {/* Halo de pulso em tempo real (momento presente) */}
+      <circle
+        cx="12"
+        cy="12"
+        r="9"
+        stroke="currentColor"
+        strokeWidth="1.8"
+        strokeLinecap="round"
+        strokeDasharray="4.5 2.5"
+        opacity="0.45"
+      />
+      {/* Disco central e anel interno de presença instantânea */}
+      <circle
+        cx="12"
+        cy="12"
+        r="5.2"
+        stroke="currentColor"
+        strokeWidth="1.9"
+        fill="currentColor"
+        fillOpacity="0.16"
+      />
+      {/* Ponto focal de precisão / ao vivo */}
+      <circle cx="12" cy="12" r="2.2" fill="currentColor" />
+      {/* Feixe direcional superior sutil de radar ativo */}
+      <path
+        d="M12 2.8V5.2"
+        stroke="currentColor"
+        strokeWidth="2"
+        strokeLinecap="round"
+      />
+    </svg>
+  );
+};
+
 export const NavExploreIcon: React.FC<IconProps> = ({ className = '', size = 25 }) => {
   return (
     <svg

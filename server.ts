@@ -13,12 +13,20 @@ import {
   persistSessionToFirestore,
   getSessionFromFirestore,
   deleteSessionFromFirestore,
+  persistSpotToFirestore,
+  deleteSpotFromFirestore,
+  persistMapVisualIconToFirestore,
+  deleteMapVisualIconFromFirestore,
+  persistSystemSettingToFirestore,
+  persistEventToFirestore,
+  deleteEventFromFirestore,
   syncDatabaseWithFirestore
 } from './src/services/firestoreSync';
 
 dotenv.config();
 
-const PORT = Number(process.env.PORT) || 3000;
+// Port 3000 is required by the infrastructure proxy (never read process.env.PORT)
+const PORT = 3000;
 const SERVER_START_TIME = Date.now();
 
 // Setup Database
@@ -152,6 +160,107 @@ try { db.exec(`CREATE INDEX IF NOT EXISTS idx_analytics_type_date ON analytics_e
 try { db.exec(`CREATE INDEX IF NOT EXISTS idx_reviews_spot ON reviews (spot_id, created_at);`); } catch (e) {}
 try { db.exec(`CREATE INDEX IF NOT EXISTS idx_user_prefs_user ON user_preferences (user_id);`); } catch (e) {}
 
+// MAP VISUAL ICONS TABLE (Dynamic, strictly non-interactive visual markers layer)
+db.exec(`
+  CREATE TABLE IF NOT EXISTS map_visual_icons (
+    id TEXT PRIMARY KEY,
+    category TEXT NOT NULL,
+    icon TEXT NOT NULL,
+    latitude REAL NOT NULL,
+    longitude REAL NOT NULL,
+    color TEXT,
+    is_active INTEGER DEFAULT 1,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+  );
+`);
+try { db.exec(`ALTER TABLE map_visual_icons ADD COLUMN color TEXT;`); } catch (e) {}
+try { db.exec(`CREATE INDEX IF NOT EXISTS idx_map_visual_icons_active ON map_visual_icons (is_active);`); } catch (e) {}
+try { db.exec(`CREATE INDEX IF NOT EXISTS idx_map_visual_icons_category ON map_visual_icons (category);`); } catch (e) {}
+
+// Seed realistic initial map visual icons for Campos do Jordão (matching user reference screenshot)
+try {
+  const iconCount = (db.prepare('SELECT count(*) as count FROM map_visual_icons').get() as any)?.count || 0;
+  if (iconCount === 0) {
+    const initialVisualIcons = [
+      // Postos de Gasolina (Azul com bomba)
+      { id: 'icon-posto-portal', category: 'gas_station', icon: 'gas_station', lat: -22.7684, lng: -45.5842 },
+      { id: 'icon-posto-abernessia', category: 'gas_station', icon: 'gas_station', lat: -22.7441, lng: -45.5925 },
+      { id: 'icon-posto-jaguaribe', category: 'gas_station', icon: 'gas_station', lat: -22.7335, lng: -45.5788 },
+      { id: 'icon-posto-capivari', category: 'gas_station', icon: 'gas_station', lat: -22.7180, lng: -45.5685 },
+      { id: 'icon-posto-sp123', category: 'gas_station', icon: 'gas_station', lat: -22.7820, lng: -45.5710 },
+      { id: 'icon-posto-altovista', category: 'gas_station', icon: 'gas_station', lat: -22.7050, lng: -45.5890 },
+      { id: 'icon-posto-entroncamento', category: 'gas_station', icon: 'gas_station', lat: -22.7210, lng: -45.6420 },
+
+      // Farmácias (Vermelho coral com cruz médica)
+      { id: 'icon-farmacia-abernessia', category: 'pharmacy', icon: 'pharmacy', lat: -22.7420, lng: -45.5910 },
+      { id: 'icon-farmacia-capivari', category: 'pharmacy', icon: 'pharmacy', lat: -22.7225, lng: -45.5695 },
+      { id: 'icon-farmacia-jaguaribe', category: 'pharmacy', icon: 'pharmacy', lat: -22.7360, lng: -45.5830 },
+
+      // Hospitais / Pronto Atendimento (Vermelho vivo)
+      { id: 'icon-hospital-municipal', category: 'hospital', icon: 'hospital', lat: -22.7410, lng: -45.5940 },
+      { id: 'icon-pronto-atendimento', category: 'hospital', icon: 'hospital', lat: -22.7380, lng: -45.5870 },
+
+      // Picos / Montanhas (Verde escuro / Alpine)
+      { id: 'icon-pico-itapeva', category: 'mountain_peak', icon: 'mountain_peak', lat: -22.7750, lng: -45.5340 },
+      { id: 'icon-pico-imbiri', category: 'mountain_peak', icon: 'mountain_peak', lat: -22.7210, lng: -45.5450 },
+      { id: 'icon-pico-bau', category: 'mountain_peak', icon: 'mountain_peak', lat: -22.6850, lng: -45.6620 },
+      { id: 'icon-cume-elefante', category: 'mountain_peak', icon: 'mountain_peak', lat: -22.7140, lng: -45.5580 },
+
+      // Estacionamentos (Azul marinho com P branco)
+      { id: 'icon-estac-capivari', category: 'parking', icon: 'parking', lat: -22.7230, lng: -45.5710 },
+      { id: 'icon-estac-abernessia', category: 'parking', icon: 'parking', lat: -22.7430, lng: -45.5930 },
+      { id: 'icon-estac-baden', category: 'parking', icon: 'parking', lat: -22.7185, lng: -45.5670 },
+
+      // Mirantes (Roxo vibrante com câmera)
+      { id: 'icon-mirante-chinesa', category: 'viewpoint', icon: 'viewpoint', lat: -22.7690, lng: -45.6120 },
+      { id: 'icon-mirante-vila-inglesa', category: 'viewpoint', icon: 'viewpoint', lat: -22.7120, lng: -45.5510 },
+      { id: 'icon-mirante-alto-capivari', category: 'viewpoint', icon: 'viewpoint', lat: -22.7080, lng: -45.5640 },
+
+      // Alimentação / Cafés (Laranja quente)
+      { id: 'icon-cafe-bosque', category: 'cafe', icon: 'cafe', lat: -22.7310, lng: -45.5750 },
+      { id: 'icon-rest-capivari', category: 'restaurant', icon: 'restaurant', lat: -22.7250, lng: -45.5660 },
+      { id: 'icon-cafe-estrada', category: 'cafe', icon: 'cafe', lat: -22.7160, lng: -45.5820 },
+
+      // Mercados (Âmbar com carrinho)
+      { id: 'icon-mercado-abernessia', category: 'market', icon: 'market', lat: -22.7450, lng: -45.5935 },
+      { id: 'icon-mercado-capivari', category: 'market', icon: 'market', lat: -22.7210, lng: -45.5730 },
+
+      // Parques (Verde com pinheiro)
+      { id: 'icon-parque-lagoinha', category: 'park', icon: 'park', lat: -22.7480, lng: -45.5620 },
+      { id: 'icon-parque-bosque-silencio', category: 'park', icon: 'park', lat: -22.7290, lng: -45.5540 },
+
+      // Igrejas (Ardósia com cruz)
+      { id: 'icon-igreja-matriz', category: 'church', icon: 'church', lat: -22.7415, lng: -45.5920 },
+      { id: 'icon-igreja-benedito', category: 'church', icon: 'church', lat: -22.7228, lng: -45.5712 },
+
+      // Pousadas / Hotéis (Lilás com cama)
+      { id: 'icon-pousada-vale', category: 'lodging', icon: 'lodging', lat: -22.7380, lng: -45.5680 },
+      { id: 'icon-hotel-bosque', category: 'lodging', icon: 'lodging', lat: -22.7150, lng: -45.5790 },
+
+      // Banheiro Público (Ciano)
+      { id: 'icon-banheiro-praca', category: 'restroom', icon: 'restroom', lat: -22.7235, lng: -45.5702 },
+
+      // Caixa Eletrônico (Verde esmeralda)
+      { id: 'icon-banco-capivari', category: 'atm', icon: 'atm', lat: -22.7222, lng: -45.5705 },
+
+      // Terminal / Transporte (Azul índigo)
+      { id: 'icon-terminal-estacao', category: 'terminal', icon: 'terminal', lat: -22.7250, lng: -45.5740 }
+    ];
+
+    const insertIconStmt = db.prepare(`
+      INSERT INTO map_visual_icons (id, category, icon, latitude, longitude, is_active)
+      VALUES (?, ?, ?, ?, ?, 1)
+    `);
+
+    for (const item of initialVisualIcons) {
+      insertIconStmt.run(item.id, item.category, item.icon, item.lat, item.lng);
+    }
+  }
+} catch (e) {
+  console.error('Error seeding map visual icons:', e);
+}
+
 // Migrations for existing tables
 try { db.exec(`ALTER TABLE users ADD COLUMN name TEXT;`); } catch (e) {}
 try { db.exec(`ALTER TABLE users ADD COLUMN snow_enabled INTEGER DEFAULT 0;`); } catch (e) {}
@@ -246,7 +355,14 @@ const defaultSettings: Record<string, string> = {
   app_name: 'Monvian - Campos do Jordão',
   weather_rain_mode: 'auto',
   weather_snow_mode: 'fraca',
-  maintenance_mode: '0'
+  maintenance_mode: '0',
+  map_center_lat: '-22.7290',
+  map_center_lng: '-45.5830',
+  map_zoom: '11.75',
+  map_pitch: '52',
+  map_bearing: '-13',
+  map_default_mode: 'explorar',
+  mapbox_access_token: process.env.VITE_MAPBOX_ACCESS_TOKEN || ''
 };
 
 for (const [key, value] of Object.entries(defaultSettings)) {
@@ -762,8 +878,8 @@ async function startServer() {
       if (updatedUser) {
         updatedUser.email = updatedUser.email || updatedUser.whatsapp;
 
-        // Persist to Cloud Firestore
-        await persistUserToFirestore({
+        // Persist to Cloud Firestore in background
+        persistUserToFirestore({
           id: updatedUser.id,
           name: updatedUser.name,
           email: updatedUser.email,
@@ -778,7 +894,7 @@ async function startServer() {
           high_contrast: updatedUser.high_contrast || 0,
           onboarding_completed: updatedUser.onboarding_completed,
           onboarding_step: updatedUser.onboarding_step
-        });
+        }).catch(() => {});
 
         try {
           db.pragma('wal_checkpoint(TRUNCATE)');
@@ -844,6 +960,17 @@ async function startServer() {
     } catch (err: any) {
       console.error(err);
       res.status(500).json({ error: 'Erro ao buscar pontos' });
+    }
+  });
+
+  // Public visual icons endpoint for the map (strictly non-interactive layer)
+  app.get('/api/map-visual-icons', (req, res) => {
+    try {
+      const rows = db.prepare(`SELECT * FROM map_visual_icons WHERE is_active = 1 ORDER BY created_at ASC`).all();
+      res.json({ success: true, icons: rows });
+    } catch (err: any) {
+      console.error('Error fetching map visual icons:', err);
+      res.status(500).json({ error: 'Erro ao buscar ícones visuais do mapa' });
     }
   });
 
@@ -1115,8 +1242,8 @@ async function startServer() {
       const token = crypto.randomBytes(32).toString('hex');
       db.prepare('INSERT INTO sessions (token, user_id) VALUES (?, ?)').run(token, userId);
 
-      // Persist to Cloud Firestore so accounts NEVER disappear on new deploys/publishing
-      await persistUserToFirestore({
+      // Persist to Cloud Firestore in background so user response is immediate
+      persistUserToFirestore({
         id: userId,
         name: name.trim(),
         email: cleanEmail,
@@ -1131,8 +1258,8 @@ async function startServer() {
         high_contrast: 0,
         onboarding_completed: 0,
         onboarding_step: 1
-      });
-      await persistSessionToFirestore(token, userId, cleanEmail);
+      }).catch(() => {});
+      persistSessionToFirestore(token, userId, cleanEmail).catch(() => {});
 
       try {
         db.pragma('wal_checkpoint(TRUNCATE)');
@@ -1224,9 +1351,9 @@ async function startServer() {
 
       const userEmail = (user.email || user.whatsapp || '').trim().toLowerCase();
 
-      // Persist session and user update to Cloud Firestore
-      await persistSessionToFirestore(token, user.id, userEmail);
-      await persistUserToFirestore({
+      // Persist session and user update to Cloud Firestore in background
+      persistSessionToFirestore(token, user.id, userEmail).catch(() => {});
+      persistUserToFirestore({
         id: user.id,
         name: user.name,
         email: userEmail,
@@ -1241,7 +1368,7 @@ async function startServer() {
         high_contrast: user.high_contrast || 0,
         onboarding_completed: user.onboarding_completed,
         onboarding_step: user.onboarding_step
-      });
+      }).catch(() => {});
 
       try {
         db.pragma('wal_checkpoint(TRUNCATE)');
@@ -1351,9 +1478,9 @@ async function startServer() {
 
       const userEmail = (user.email || user.whatsapp || '').trim().toLowerCase();
 
-      // Persist session and user to Firestore
-      await persistSessionToFirestore(token, user.id, userEmail);
-      await persistUserToFirestore({
+      // Persist session and user to Firestore in background
+      persistSessionToFirestore(token, user.id, userEmail).catch(() => {});
+      persistUserToFirestore({
         id: user.id,
         name: user.name,
         email: userEmail,
@@ -1368,7 +1495,7 @@ async function startServer() {
         high_contrast: user.high_contrast || 0,
         onboarding_completed: user.onboarding_completed,
         onboarding_step: user.onboarding_step
-      });
+      }).catch(() => {});
 
       try {
         db.pragma('wal_checkpoint(TRUNCATE)');
@@ -1469,9 +1596,9 @@ async function startServer() {
 
       const userEmail = (user.email || user.whatsapp || '').trim().toLowerCase();
 
-      // Persist session and user to Cloud Firestore
-      await persistSessionToFirestore(token, user.id, userEmail);
-      await persistUserToFirestore({
+      // Persist session and user to Cloud Firestore in background
+      persistSessionToFirestore(token, user.id, userEmail).catch(() => {});
+      persistUserToFirestore({
         id: user.id,
         name: user.name,
         email: userEmail,
@@ -1486,7 +1613,7 @@ async function startServer() {
         high_contrast: user.high_contrast || 0,
         onboarding_completed: user.onboarding_completed,
         onboarding_step: user.onboarding_step
-      });
+      }).catch(() => {});
 
       try {
         db.pragma('wal_checkpoint(TRUNCATE)');
@@ -1770,7 +1897,7 @@ async function startServer() {
     );
 
     const userEmail = (user.email || user.whatsapp || '').trim().toLowerCase();
-    await persistUserToFirestore({
+    persistUserToFirestore({
       id: user.id,
       name: user.name,
       email: userEmail,
@@ -1785,7 +1912,7 @@ async function startServer() {
       high_contrast: high_contrast ? 1 : 0,
       onboarding_completed: user.onboarding_completed,
       onboarding_step: user.onboarding_step
-    });
+    }).catch(() => {});
 
     try {
       db.pragma('wal_checkpoint(TRUNCATE)');
@@ -2073,9 +2200,11 @@ async function startServer() {
       const { rainMode, snowMode } = req.body;
       if (rainMode) {
         db.prepare(`INSERT OR REPLACE INTO system_settings (key, value) VALUES ('weather_rain_mode', ?)`).run(rainMode);
+        persistSystemSettingToFirestore('weather_rain_mode', String(rainMode)).catch(() => {});
       }
       if (snowMode) {
         db.prepare(`INSERT OR REPLACE INTO system_settings (key, value) VALUES ('weather_snow_mode', ?)`).run(snowMode);
+        persistSystemSettingToFirestore('weather_snow_mode', String(snowMode)).catch(() => {});
       }
       logAdminAction(null, 'Gerente ADM', 'Atualizou Clima/Efeitos', `Chuva: ${rainMode || 'mantido'}, Neve: ${snowMode || 'mantido'}`);
       res.json({ success: true, rainMode, snowMode });
@@ -2141,6 +2270,52 @@ async function startServer() {
     }
   });
 
+  // Admin Spots: Upload Spot Image
+  app.post('/api/admin/upload-spot-image', (req, res) => {
+    try {
+      const { image, fileName } = req.body;
+      if (!image) {
+        res.status(400).json({ error: 'Nenhuma imagem enviada' });
+        return;
+      }
+
+      // Check if it's a data URL
+      const matches = image.match(/^data:image\/([a-zA-Z0-9+.-]+);base64,(.+)$/);
+      if (!matches) {
+        // If it's already an external URL or path, just return it
+        if (image.startsWith('http') || image.startsWith('/')) {
+          res.json({ success: true, url: image });
+          return;
+        }
+        res.status(400).json({ error: 'Formato de imagem inválido' });
+        return;
+      }
+
+      const ext = matches[1] === 'jpeg' ? 'jpg' : matches[1].replace(/[^a-zA-Z0-9]/g, '');
+      const base64Data = matches[2];
+      const buffer = Buffer.from(base64Data, 'base64');
+
+      const uploadsDir = path.resolve(process.cwd(), 'public', 'uploads', 'spots');
+      if (!fs.existsSync(uploadsDir)) {
+        fs.mkdirSync(uploadsDir, { recursive: true });
+      }
+
+      const cleanFileName = fileName 
+        ? fileName.toLowerCase().replace(/[^a-z0-9]/g, '-').slice(0, 30)
+        : 'spot';
+      const uniqueFileName = `${cleanFileName}-${Date.now()}-${Math.random().toString(36).substring(2, 7)}.${ext}`;
+      const filePath = path.join(uploadsDir, uniqueFileName);
+
+      fs.writeFileSync(filePath, buffer);
+
+      const publicUrl = `/uploads/spots/${uniqueFileName}`;
+      res.json({ success: true, url: publicUrl });
+    } catch (err: any) {
+      console.error('Error saving uploaded spot image:', err);
+      res.status(500).json({ error: 'Falha ao salvar imagem do ponto turístico' });
+    }
+  });
+
   // Admin Spots: Create New Spot
   app.post('/api/admin/spots', (req, res) => {
     try {
@@ -2162,7 +2337,8 @@ async function startServer() {
         isVerified,
         isActive,
         highlighted,
-        badge
+        badge,
+        rating
       } = req.body;
 
       if (!name || !category || lat === undefined || lng === undefined) {
@@ -2178,6 +2354,10 @@ async function startServer() {
         .replace(/(^-|-$)/g, '') + '-' + Date.now().toString().slice(-4);
 
       const defaultImage = image || 'https://images.unsplash.com/photo-1506744038136-46273834b3fb?auto=format&fit=crop&w=600&q=80';
+
+      const parsedRating = rating !== undefined && rating !== null && !isNaN(Number(rating))
+        ? Math.max(1.0, Math.min(5.0, Number(rating)))
+        : 4.8;
 
       db.prepare(`
         INSERT INTO spots (
@@ -2206,7 +2386,7 @@ async function startServer() {
         gallery ? JSON.stringify(gallery) : '[]',
         description || '',
         touristTip || '',
-        4.8,
+        parsedRating,
         1,
         hours || 'Todos os dias das 09h às 18h',
         address || 'Campos do Jordão, SP',
@@ -2221,6 +2401,34 @@ async function startServer() {
       );
 
       logAdminAction(null, 'Gerente ADM', 'Criou Ponto Turístico', `Nome: ${name} (${category})`);
+
+      // Persist to Cloud Firestore
+      persistSpotToFirestore({
+        id,
+        name,
+        short_name: name,
+        tag_label: name,
+        category,
+        category_label: categoryLabel || category,
+        lat: Number(lat),
+        lng: Number(lng),
+        image: defaultImage,
+        gallery: gallery ? JSON.stringify(gallery) : '[]',
+        description: description || '',
+        tourist_tip: touristTip || '',
+        rating: parsedRating,
+        review_count: 1,
+        hours: hours || 'Todos os dias das 09h às 18h',
+        address: address || 'Campos do Jordão, SP',
+        price_range: priceRange || '$$',
+        visitors_today: 50,
+        badge: badge || '',
+        highlighted: highlighted ? 1 : 0,
+        is_active: isActive !== undefined ? (isActive ? 1 : 0) : 1,
+        is_verified: isVerified !== undefined ? (isVerified ? 1 : 0) : 1,
+        website: website || '',
+        phone: phone || ''
+      }).catch(err => console.warn('[FirestoreSync] Failed to persist new spot:', id, err));
 
       res.json({ success: true, id, message: 'Ponto turístico cadastrado com sucesso!' });
     } catch (err: any) {
@@ -2251,7 +2459,8 @@ async function startServer() {
         isVerified,
         isActive,
         highlighted,
-        badge
+        badge,
+        rating
       } = req.body;
 
       const existing = db.prepare('SELECT id FROM spots WHERE id = ?').get(id);
@@ -2259,6 +2468,10 @@ async function startServer() {
         res.status(404).json({ error: 'Ponto não encontrado' });
         return;
       }
+
+      const parsedRating = rating !== undefined && rating !== null && !isNaN(Number(rating))
+        ? Math.max(1.0, Math.min(5.0, Number(rating)))
+        : null;
 
       db.prepare(`
         UPDATE spots SET
@@ -2281,6 +2494,7 @@ async function startServer() {
           is_active = COALESCE(?, is_active),
           highlighted = COALESCE(?, highlighted),
           badge = COALESCE(?, badge),
+          rating = COALESCE(?, rating),
           updated_at = CURRENT_TIMESTAMP
         WHERE id = ?
       `).run(
@@ -2303,10 +2517,43 @@ async function startServer() {
         isActive !== undefined ? (isActive ? 1 : 0) : null,
         highlighted !== undefined ? (highlighted ? 1 : 0) : null,
         badge,
+        parsedRating,
         id
       );
 
       logAdminAction(null, 'Gerente ADM', 'Editou Ponto Turístico', `ID: ${id}, Nome: ${name}`);
+
+      const updatedSpot = db.prepare('SELECT * FROM spots WHERE id = ?').get(id) as any;
+      if (updatedSpot) {
+        persistSpotToFirestore({
+          id: updatedSpot.id,
+          name: updatedSpot.name,
+          short_name: updatedSpot.short_name,
+          tag_label: updatedSpot.tag_label,
+          category: updatedSpot.category,
+          category_label: updatedSpot.category_label,
+          lat: Number(updatedSpot.lat),
+          lng: Number(updatedSpot.lng),
+          image: updatedSpot.image,
+          gallery: updatedSpot.gallery,
+          description: updatedSpot.description,
+          tourist_tip: updatedSpot.tourist_tip,
+          rating: Number(updatedSpot.rating),
+          review_count: Number(updatedSpot.review_count),
+          hours: updatedSpot.hours,
+          address: updatedSpot.address,
+          price_range: updatedSpot.price_range,
+          popular_times: updatedSpot.popular_times,
+          visitors_today: Number(updatedSpot.visitors_today),
+          badge: updatedSpot.badge,
+          highlighted: Number(updatedSpot.highlighted),
+          is_active: Number(updatedSpot.is_active),
+          is_verified: Number(updatedSpot.is_verified),
+          website: updatedSpot.website,
+          phone: updatedSpot.phone,
+          maps_url: updatedSpot.maps_url
+        }).catch(err => console.warn('[FirestoreSync] Failed to persist updated spot:', id, err));
+      }
 
       res.json({ success: true, message: 'Ponto atualizado com sucesso!' });
     } catch (err: any) {
@@ -2328,6 +2575,8 @@ async function startServer() {
       db.prepare('DELETE FROM spots WHERE id = ?').run(id);
       logAdminAction(null, 'Gerente ADM', 'Excluiu Ponto Turístico', `ID: ${id}, Nome: ${spot.name}`);
 
+      deleteSpotFromFirestore(id).catch(err => console.warn('[FirestoreSync] Failed to delete spot from cloud:', id, err));
+
       res.json({ success: true, message: 'Ponto excluído com sucesso.' });
     } catch (err: any) {
       res.status(500).json({ error: 'Erro ao excluir ponto: ' + err.message });
@@ -2346,6 +2595,12 @@ async function startServer() {
       const newStatus = spot.is_active === 1 ? 0 : 1;
       db.prepare('UPDATE spots SET is_active = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?').run(newStatus, id);
       logAdminAction(null, 'Gerente ADM', newStatus ? 'Ativou Ponto' : 'Desativou Ponto', spot.name);
+
+      const updatedSpot = db.prepare('SELECT * FROM spots WHERE id = ?').get(id) as any;
+      if (updatedSpot) {
+        persistSpotToFirestore(updatedSpot).catch(() => {});
+      }
+
       res.json({ success: true, isActive: Boolean(newStatus) });
     } catch (err: any) {
       res.status(500).json({ error: 'Erro ao alternar status do ponto' });
@@ -2364,9 +2619,214 @@ async function startServer() {
       const newVerified = spot.is_verified === 1 ? 0 : 1;
       db.prepare('UPDATE spots SET is_verified = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?').run(newVerified, id);
       logAdminAction(null, 'Gerente ADM', newVerified ? 'Marcou Verificado' : 'Removeu Verificação', spot.name);
+
+      const updatedSpot = db.prepare('SELECT * FROM spots WHERE id = ?').get(id) as any;
+      if (updatedSpot) {
+        persistSpotToFirestore(updatedSpot).catch(() => {});
+      }
+
       res.json({ success: true, isVerified: Boolean(newVerified) });
     } catch (err: any) {
       res.status(500).json({ error: 'Erro ao alternar verificação do ponto' });
+    }
+  });
+
+  // ==========================================
+  // ADMIN MAP VISUAL ICONS (ÍCONES DO MAPA)
+  // ==========================================
+
+  // Admin: List all visual icons with stats and filters
+  app.get('/api/admin/map-visual-icons', (req, res) => {
+    try {
+      const { category, status, q } = req.query;
+      let query = `SELECT * FROM map_visual_icons WHERE 1=1`;
+      const params: any[] = [];
+
+      if (category && typeof category === 'string' && category !== 'all') {
+        query += ` AND category = ?`;
+        params.push(category);
+      }
+
+      if (status && typeof status === 'string' && status !== 'all') {
+        if (status === 'active') {
+          query += ` AND is_active = 1`;
+        } else if (status === 'inactive') {
+          query += ` AND is_active = 0`;
+        }
+      }
+
+      if (q && typeof q === 'string' && q.trim()) {
+        query += ` AND (category LIKE ? OR id LIKE ?)`;
+        const search = `%${q.trim()}%`;
+        params.push(search, search);
+      }
+
+      query += ` ORDER BY created_at DESC`;
+      const icons = db.prepare(query).all(...params);
+
+      // Category breakdown and counts
+      const stats = {
+        total: (db.prepare('SELECT count(*) as count FROM map_visual_icons').get() as any)?.count || 0,
+        active: (db.prepare('SELECT count(*) as count FROM map_visual_icons WHERE is_active = 1').get() as any)?.count || 0,
+        inactive: (db.prepare('SELECT count(*) as count FROM map_visual_icons WHERE is_active = 0').get() as any)?.count || 0
+      };
+
+      res.json({ success: true, icons, stats });
+    } catch (err: any) {
+      console.error('Error fetching admin map visual icons:', err);
+      res.status(500).json({ error: 'Erro ao carregar ícones do mapa' });
+    }
+  });
+
+  // Admin: Create new visual icon
+  app.post('/api/admin/map-visual-icons', (req, res) => {
+    try {
+      const { category, icon, latitude, longitude, color, is_active } = req.body;
+
+      if (!category || latitude === undefined || longitude === undefined) {
+        res.status(400).json({ error: 'Categoria e coordenadas (latitude e longitude) são obrigatórias.' });
+        return;
+      }
+
+      const id = 'icon-' + category + '-' + Date.now().toString(36) + '-' + Math.random().toString(36).substring(2, 6);
+      const iconKey = icon || category;
+      const activeState = is_active !== undefined ? (is_active ? 1 : 0) : 1;
+      const lat = Number(latitude);
+      const lng = Number(longitude);
+      const chosenColor = color && typeof color === 'string' && color.trim() ? color.trim() : null;
+
+      db.prepare(`
+        INSERT INTO map_visual_icons (id, category, icon, latitude, longitude, color, is_active, created_at, updated_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+      `).run(id, category, iconKey, lat, lng, chosenColor, activeState);
+
+      logAdminAction(null, 'Gerente ADM', 'Adicionou Ícone no Mapa', `Categoria: ${category}, Lat: ${lat.toFixed(4)}, Lng: ${lng.toFixed(4)}`);
+
+      persistMapVisualIconToFirestore({
+        id,
+        category,
+        icon: iconKey,
+        latitude: lat,
+        longitude: lng,
+        color: chosenColor || undefined,
+        is_active: activeState
+      }).catch(err => console.warn('[FirestoreSync] Failed to persist visual icon:', id, err));
+
+      const created = db.prepare('SELECT * FROM map_visual_icons WHERE id = ?').get(id);
+      res.json({ success: true, icon: created, message: 'Ícone adicionado com sucesso!' });
+    } catch (err: any) {
+      console.error('Error creating map visual icon:', err);
+      res.status(500).json({ error: 'Erro ao adicionar ícone: ' + err.message });
+    }
+  });
+
+  // Admin: Update visual icon (category, icon, position, or status)
+  app.put('/api/admin/map-visual-icons/:id', (req, res) => {
+    try {
+      const { id } = req.params;
+      const { category, icon, latitude, longitude, color, is_active } = req.body;
+
+      const existing: any = db.prepare('SELECT * FROM map_visual_icons WHERE id = ?').get(id);
+      if (!existing) {
+        res.status(404).json({ error: 'Ícone não encontrado.' });
+        return;
+      }
+
+      const newCategory = category || existing.category;
+      const newIcon = icon || existing.icon;
+      const newLat = latitude !== undefined ? Number(latitude) : existing.latitude;
+      const newLng = longitude !== undefined ? Number(longitude) : existing.longitude;
+      const newColor = color !== undefined ? (color && typeof color === 'string' && color.trim() ? color.trim() : null) : existing.color;
+      const newActive = is_active !== undefined ? (is_active ? 1 : 0) : existing.is_active;
+
+      db.prepare(`
+        UPDATE map_visual_icons
+        SET category = ?,
+            icon = ?,
+            latitude = ?,
+            longitude = ?,
+            color = ?,
+            is_active = ?,
+            updated_at = CURRENT_TIMESTAMP
+        WHERE id = ?
+      `).run(newCategory, newIcon, newLat, newLng, newColor, newActive, id);
+
+      logAdminAction(null, 'Gerente ADM', 'Atualizou Ícone no Mapa', `ID: ${id}, Categoria: ${newCategory}`);
+
+      const updated: any = db.prepare('SELECT * FROM map_visual_icons WHERE id = ?').get(id);
+      if (updated) {
+        persistMapVisualIconToFirestore({
+          id: updated.id,
+          category: updated.category,
+          icon: updated.icon,
+          latitude: Number(updated.latitude),
+          longitude: Number(updated.longitude),
+          color: updated.color || undefined,
+          is_active: Number(updated.is_active)
+        }).catch(err => console.warn('[FirestoreSync] Failed to update visual icon in cloud:', id, err));
+      }
+
+      res.json({ success: true, icon: updated, message: 'Ícone atualizado com sucesso!' });
+    } catch (err: any) {
+      console.error('Error updating map visual icon:', err);
+      res.status(500).json({ error: 'Erro ao atualizar ícone: ' + err.message });
+    }
+  });
+
+  // Admin: Toggle active state of visual icon
+  app.patch('/api/admin/map-visual-icons/:id/toggle-active', (req, res) => {
+    try {
+      const { id } = req.params;
+      const existing: any = db.prepare('SELECT * FROM map_visual_icons WHERE id = ?').get(id);
+      if (!existing) {
+        res.status(404).json({ error: 'Ícone não encontrado.' });
+        return;
+      }
+
+      const nextActive = existing.is_active === 1 ? 0 : 1;
+      db.prepare('UPDATE map_visual_icons SET is_active = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?').run(nextActive, id);
+
+      logAdminAction(null, 'Gerente ADM', nextActive ? 'Ativou Ícone no Mapa' : 'Desativou Ícone no Mapa', `ID: ${id}, Categoria: ${existing.category}`);
+
+      const updated: any = db.prepare('SELECT * FROM map_visual_icons WHERE id = ?').get(id);
+      if (updated) {
+        persistMapVisualIconToFirestore({
+          id: updated.id,
+          category: updated.category,
+          icon: updated.icon,
+          latitude: Number(updated.latitude),
+          longitude: Number(updated.longitude),
+          is_active: Number(updated.is_active)
+        }).catch(() => {});
+      }
+
+      res.json({ success: true, id, is_active: nextActive, message: nextActive ? 'Ícone ativado no mapa.' : 'Ícone desativado do mapa.' });
+    } catch (err: any) {
+      console.error('Error toggling map visual icon:', err);
+      res.status(500).json({ error: 'Erro ao alternar status do ícone' });
+    }
+  });
+
+  // Admin: Delete visual icon
+  app.delete('/api/admin/map-visual-icons/:id', (req, res) => {
+    try {
+      const { id } = req.params;
+      const existing: any = db.prepare('SELECT * FROM map_visual_icons WHERE id = ?').get(id);
+      if (!existing) {
+        res.status(404).json({ error: 'Ícone não encontrado.' });
+        return;
+      }
+
+      db.prepare('DELETE FROM map_visual_icons WHERE id = ?').run(id);
+
+      logAdminAction(null, 'Gerente ADM', 'Excluiu Ícone do Mapa', `ID: ${id}, Categoria: ${existing.category}`);
+
+      deleteMapVisualIconFromFirestore(id).catch(err => console.warn('[FirestoreSync] Failed to delete visual icon from cloud:', id, err));
+
+      res.json({ success: true, id, message: 'Ícone excluído com sucesso.' });
+    } catch (err: any) {
+      console.error('Error deleting map visual icon:', err);
+      res.status(500).json({ error: 'Erro ao excluir ícone: ' + err.message });
     }
   });
 
@@ -2550,6 +3010,22 @@ async function startServer() {
       );
 
       logAdminAction(null, 'Gerente ADM', 'Criou Evento', name);
+
+      persistEventToFirestore({
+        id,
+        name,
+        description: description || '',
+        image: image || 'https://images.unsplash.com/photo-1465847899084-d164df4dedc6?auto=format&fit=crop&w=800&q=80',
+        category: category || 'Geral',
+        date: date || 'Em breve',
+        time: time || '18h00',
+        address: address || 'Campos do Jordão',
+        lat: Number(lat),
+        lng: Number(lng),
+        status: status || 'active',
+        highlighted: highlighted ? 1 : 0
+      }).catch(() => {});
+
       res.json({ success: true, id, message: 'Evento criado com sucesso!' });
     } catch (err: any) {
       res.status(500).json({ error: 'Erro ao criar evento: ' + err.message });
@@ -2591,6 +3067,12 @@ async function startServer() {
       );
 
       logAdminAction(null, 'Gerente ADM', 'Atualizou Evento', name || id);
+
+      const updated = db.prepare('SELECT * FROM events WHERE id = ?').get(id) as any;
+      if (updated) {
+        persistEventToFirestore(updated).catch(() => {});
+      }
+
       res.json({ success: true, message: 'Evento atualizado!' });
     } catch (err: any) {
       res.status(500).json({ error: 'Erro ao atualizar evento: ' + err.message });
@@ -2602,6 +3084,9 @@ async function startServer() {
       const { id } = req.params;
       db.prepare('DELETE FROM events WHERE id = ?').run(id);
       logAdminAction(null, 'Gerente ADM', 'Excluiu Evento', id);
+
+      deleteEventFromFirestore(id).catch(() => {});
+
       res.json({ success: true, message: 'Evento excluído com sucesso.' });
     } catch (err: any) {
       res.status(500).json({ error: 'Erro ao excluir evento' });
@@ -2653,6 +3138,11 @@ async function startServer() {
 
       saveMany(Object.entries(settings));
       logAdminAction(null, 'Gerente ADM', 'Atualizou Configurações Gerais', JSON.stringify(Object.keys(settings)));
+
+      // Persist every updated setting to Cloud Firestore
+      for (const [key, value] of Object.entries(settings)) {
+        persistSystemSettingToFirestore(key, String(value)).catch(err => console.warn('[FirestoreSync] Failed to persist setting:', key, err));
+      }
 
       res.json({ success: true, message: 'Configurações salvas com sucesso!' });
     } catch (err: any) {

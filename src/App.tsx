@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { CAMPOS_SPOTS, INITIAL_WEATHER } from './data/spots';
-import { Spot } from './types';
+import { Spot, MapVisualIcon } from './types';
 import { MapComponent } from './components/MapComponent';
 import { BottomNavigation, TabType } from './components/BottomNavigation';
 import { SpotDetailSheet } from './components/SpotDetailSheet';
@@ -178,6 +178,7 @@ export default function App() {
     } catch (e) {}
     return CAMPOS_SPOTS;
   });
+  const [mapVisualIcons, setMapVisualIcons] = useState<MapVisualIcon[]>([]);
   const [isAdminOpen, setIsAdminOpen] = useState(false);
   const [systemSettings, setSystemSettings] = useState<Record<string, string>>({});
   const [selectedSpot, setSelectedSpot] = useState<Spot | null>(null);
@@ -195,6 +196,18 @@ export default function App() {
     }
   };
 
+  const fetchVisualIcons = async () => {
+    try {
+      const res = await fetch('/api/map-visual-icons');
+      const data = await res.json();
+      if (data.success && Array.isArray(data.icons)) {
+        setMapVisualIcons(data.icons);
+      }
+    } catch (e) {
+      console.warn('Using offline visual icons fallback', e);
+    }
+  };
+
   const fetchSettings = async () => {
     try {
       const res = await fetch('/api/settings');
@@ -207,6 +220,7 @@ export default function App() {
 
   useEffect(() => {
     fetchSpots();
+    fetchVisualIcons();
     fetchSettings();
   }, []);
   const [isDetailOpen, setIsDetailOpen] = useState(false);
@@ -520,6 +534,7 @@ export default function App() {
         onExitAdmin={() => {
           setIsAdminOpen(false);
           fetchSpots();
+          fetchVisualIcons();
           fetchSettings();
         }}
         onLogout={async () => {
@@ -554,6 +569,7 @@ export default function App() {
         onMapClick={handleMapDismiss}
         userCoords={userCoords}
         theme={theme}
+        visualIcons={mapVisualIcons}
         userAvatar={user?.avatar_url}
         userName={user?.name}
         highContrast={highContrast}
@@ -654,16 +670,16 @@ export default function App() {
           <button
             id="btn-search-toggle"
             onClick={() => setIsSearchOpen((prev) => !prev)}
-            className={`w-12 h-12 rounded-full flex items-center justify-center transition-all duration-300 active:scale-95 cursor-pointer group ${
+            className={`w-12 h-12 rounded-full ios-glass-btn flex items-center justify-center transition-all duration-300 active:scale-95 cursor-pointer group ${
               isSearchOpen || searchQuery
-                ? 'bg-[#00C896] text-white border border-transparent shadow-[0_0_20px_rgba(0,200,150,0.5)]'
-                : 'ios-glass-btn text-zinc-700 dark:text-white'
+                ? 'ring-2 ring-white/40 dark:ring-white/35 bg-white/25 dark:bg-white/20 text-zinc-900 dark:text-white'
+                : 'text-zinc-700 dark:text-white'
             }`}
             title="Pesquisar no mapa"
           >
-            <div className={`relative w-6 h-6 flex items-center justify-center group-hover:scale-110 transition-transform ${isSearchOpen || searchQuery ? 'text-white' : 'text-zinc-700 dark:text-white'}`}>
+            <div className="relative w-6 h-6 flex items-center justify-center text-current group-hover:scale-110 transition-transform">
               <svg className="w-full h-full" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round">
-                <circle cx="11" cy="11" r="7" className={isSearchOpen || searchQuery ? 'fill-white/20' : 'fill-zinc-700/10 dark:fill-white/10'} />
+                <circle cx="11" cy="11" r="7" className={isSearchOpen || searchQuery ? 'fill-zinc-700/20 dark:fill-white/20' : 'fill-zinc-700/10 dark:fill-white/10'} />
                 <line x1="21" y1="21" x2="16.65" y2="16.65" />
               </svg>
             </div>
@@ -674,10 +690,10 @@ export default function App() {
             <button
               id="btn-category-icon-toggle"
               onClick={() => setIsCategoryCardOpen((prev) => !prev)}
-              className={`w-12 h-12 rounded-full flex items-center justify-center transition-all duration-300 active:scale-95 cursor-pointer group shrink-0 ${
-                selectedCategoryFilter
-                  ? 'bg-[#00C896] text-white border border-transparent shadow-[0_0_20px_rgba(0,200,150,0.5)]'
-                  : 'ios-glass-btn text-zinc-700 dark:text-white'
+              className={`w-12 h-12 rounded-full ios-glass-btn flex items-center justify-center transition-all duration-300 active:scale-95 cursor-pointer group shrink-0 ${
+                selectedCategoryFilter || isCategoryCardOpen
+                  ? 'ring-2 ring-white/40 dark:ring-white/35 bg-white/25 dark:bg-white/20 text-zinc-900 dark:text-white'
+                  : 'text-zinc-700 dark:text-white'
               }`}
               title={selectedCategoryFilter ? 'Filtro de categoria ativo - Clique para alterar ou limpar' : 'Filtrar por Categoria'}
             >
@@ -685,7 +701,7 @@ export default function App() {
                 <SlidersHorizontal className="w-5 h-5 stroke-[2.2]" />
               </div>
               {selectedCategoryFilter && (
-                <span className="absolute top-1.5 right-1.5 w-2.5 h-2.5 rounded-full bg-white ring-2 ring-[#00C896]" />
+                <span className="absolute top-1.5 right-1.5 w-2 h-2 rounded-full bg-white dark:bg-white shadow-[0_0_6px_rgba(255,255,255,0.8)] ring-1 ring-black/20" />
               )}
             </button>
 
@@ -718,7 +734,7 @@ export default function App() {
                             setSelectedCategoryFilter(null);
                             setIsCategoryCardOpen(false);
                           }}
-                          className="text-[11px] font-black text-[#00C896] hover:underline cursor-pointer flex items-center gap-1"
+                          className="text-[11px] font-black text-blue-500 dark:text-blue-400 hover:underline cursor-pointer flex items-center gap-1"
                         >
                           <RotateCcw className="w-3 h-3" />
                           Limpar
@@ -746,14 +762,14 @@ export default function App() {
                           }}
                           className={`w-full px-3 py-2.5 rounded-2xl active:scale-[0.98] text-xs font-black flex items-center justify-between gap-2.5 transition-all text-left cursor-pointer group ${
                             isSelected
-                              ? 'bg-[#00C896]/15 text-[#00C896] font-extrabold'
+                              ? 'bg-blue-500/15 dark:bg-blue-500/20 text-blue-600 dark:text-blue-400 font-extrabold'
                               : 'hover:bg-zinc-900/5 dark:hover:bg-white/10 text-zinc-800 dark:text-zinc-200'
                           }`}
                         >
                           <div className="flex items-center gap-2.5 min-w-0">
                             <div className={`w-7 h-7 rounded-xl flex items-center justify-center shrink-0 group-hover:scale-105 transition-transform ${
                               isSelected
-                                ? 'bg-[#00C896] text-white'
+                                ? 'bg-blue-600 text-white shadow-sm'
                                 : 'bg-zinc-900/5 dark:bg-white/10 text-zinc-700 dark:text-white'
                             }`}>
                               <CategoryIcon className="w-4 h-4 stroke-[2]" />
@@ -761,7 +777,7 @@ export default function App() {
                             <span className="truncate">{cat.label}</span>
                           </div>
                           {isSelected && (
-                            <Check className="w-4 h-4 text-[#00C896] shrink-0 stroke-[2.5]" />
+                            <Check className="w-4 h-4 text-blue-600 dark:text-blue-400 shrink-0 stroke-[2.5]" />
                           )}
                         </button>
                       );

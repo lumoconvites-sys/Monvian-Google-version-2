@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { motion } from 'motion/react';
-import { NavExploreIcon, NavChatIcon, NavSearchIcon, NavProfileIcon } from './NavIcons';
+import { NavAgoraIcon, NavChatIcon, NavSearchIcon, NavProfileIcon } from './NavIcons';
 
 export type TabType = 'explorar' | 'chat' | 'buscar' | 'perfil';
 
@@ -15,10 +15,10 @@ export const BottomNavigation: React.FC<BottomNavigationProps> = ({
   onChangeTab,
   unreadCount = 2,
 }) => {
-  const [compassRotation, setCompassRotation] = useState<number>(0);
+  const [pulseAnimation, setPulseAnimation] = useState<number>(0);
 
   const tabs: { id: TabType; label: string }[] = [
-    { id: 'explorar', label: 'Explorar' },
+    { id: 'explorar', label: 'Agora' },
     { id: 'chat', label: 'Chat' },
     { id: 'buscar', label: 'Buscar' },
     { id: 'perfil', label: 'Perfil' },
@@ -26,7 +26,7 @@ export const BottomNavigation: React.FC<BottomNavigationProps> = ({
 
   const handleTabClick = (tabId: TabType) => {
     if (tabId === 'explorar') {
-      setCompassRotation((prev) => prev + 360);
+      setPulseAnimation((prev) => prev + 360);
     }
     onChangeTab(tabId);
   };
@@ -35,13 +35,10 @@ export const BottomNavigation: React.FC<BottomNavigationProps> = ({
     <nav
       id="bottom-floating-navigation"
       aria-label="Navegação Principal"
-      className="fixed left-1/2 -translate-x-1/2 z-50 w-[94%] max-w-[380px] pointer-events-auto select-none font-['Manrope']"
-      style={{
-        bottom: 'max(8px, env(safe-area-inset-bottom, 8px))',
-      }}
+      className="fixed left-0 right-0 bottom-1.5 sm:bottom-2 z-50 flex justify-center pointer-events-auto select-none font-['Manrope'] px-3"
     >
-      {/* Main Bottom Navigation Bar Capsule (matches IMG_6904) */}
-      <div className="w-full flex items-center justify-between p-1.5 sm:p-2 rounded-full ios-glass-nav relative shadow-[0_12px_40px_rgba(0,0,0,0.4)] dark:shadow-[0_16px_50px_rgba(0,0,0,0.9)] border border-white/20 dark:border-white/20">
+      {/* Bottom Navigation Rounded Capsule Bar with full borders */}
+      <div className="w-full max-w-[400px] flex items-center justify-around px-2 py-1.5 ios-glass-nav rounded-[28px] border border-white/20 dark:border-white/20 shadow-[0_8px_32px_rgba(0,0,0,0.5)] dark:shadow-[0_12px_40px_rgba(0,0,0,0.85)] relative">
         {tabs.map((tab) => {
           const isActive = activeTab === tab.id;
 
@@ -51,7 +48,7 @@ export const BottomNavigation: React.FC<BottomNavigationProps> = ({
               id={`nav-btn-${tab.id}`}
               type="button"
               onClick={() => handleTabClick(tab.id)}
-              className="relative flex flex-col items-center justify-center w-[66px] h-[60px] rounded-full cursor-pointer z-10 select-none active:scale-95 transition-all"
+              className="relative flex flex-col items-center justify-center w-[66px] h-[52px] rounded-full cursor-pointer z-10 select-none active:scale-95 transition-all"
             >
               {/* Active Tab Circular Highlight matching reference image IMG_6904 */}
               {isActive && (
@@ -62,7 +59,7 @@ export const BottomNavigation: React.FC<BottomNavigationProps> = ({
                 />
               )}
 
-              {/* 1. Explorar Icon */}
+              {/* 1. Agora Icon */}
               {tab.id === 'explorar' && (
                 <div
                   className={`w-7 h-7 flex items-center justify-center mb-0.5 transition-all ${
@@ -72,11 +69,11 @@ export const BottomNavigation: React.FC<BottomNavigationProps> = ({
                   }`}
                 >
                   <motion.div
-                    animate={{ rotate: compassRotation }}
+                    animate={{ rotate: pulseAnimation }}
                     transition={{ duration: 0.8, ease: [0.34, 1.56, 0.64, 1] }}
                     className="w-6.5 h-6.5 flex items-center justify-center"
                   >
-                    <NavExploreIcon size={25} className="w-full h-full text-current" />
+                    <NavAgoraIcon size={25} className="w-full h-full text-current" />
                   </motion.div>
                 </div>
               )}

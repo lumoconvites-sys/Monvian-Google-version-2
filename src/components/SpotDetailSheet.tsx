@@ -264,24 +264,23 @@ export const SpotDetailSheet: React.FC<SpotDetailSheetProps> = ({
               <motion.button
                 whileTap={{ scale: 0.98 }}
                 onClick={() => setIsQrModalOpen(true)}
-                className="w-full p-4 rounded-2xl bg-zinc-50 dark:bg-white/5 hover:bg-zinc-100 dark:hover:bg-white/10 border border-zinc-200/70 dark:border-white/10 flex items-center justify-between text-left transition-all cursor-pointer group shadow-2xs"
+                className="w-full py-3.5 px-4 rounded-2xl bg-zinc-100/70 hover:bg-zinc-100 dark:bg-white/5 dark:hover:bg-white/10 border border-zinc-200/50 dark:border-white/10 flex items-center justify-between text-left transition-colors cursor-pointer group"
               >
-                <div className="flex items-center gap-3.5 min-w-0">
-                  <div className="w-10 h-10 rounded-xl bg-zinc-100 dark:bg-white/10 text-zinc-900 dark:text-white flex items-center justify-center shrink-0 group-hover:scale-105 transition-transform">
-                    <QrCode className="w-5 h-5" />
+                <div className="flex items-center gap-3 min-w-0">
+                  <div className="w-8 h-8 rounded-xl bg-zinc-200/60 dark:bg-white/10 text-zinc-700 dark:text-zinc-200 flex items-center justify-center shrink-0">
+                    <QrCode className="w-4 h-4" />
                   </div>
                   <div className="min-w-0">
-                    <div className="flex items-center gap-2">
-                      <span className="text-xs font-black text-zinc-900 dark:text-white">Compartilhar via QR Code</span>
-                      <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-full bg-zinc-200 dark:bg-white/15 text-zinc-700 dark:text-zinc-300 uppercase tracking-wider">Novo</span>
-                    </div>
-                    <p className="text-[11px] text-zinc-500 dark:text-zinc-400 truncate mt-0.5">
-                      Gere o código para outros viajantes abrirem este ponto no app
-                    </p>
+                    <span className="text-xs font-semibold text-zinc-800 dark:text-zinc-200 block">
+                      Código QR
+                    </span>
+                    <span className="text-[11px] text-zinc-400 dark:text-zinc-500 block truncate">
+                      Escanear e abrir no dispositivo
+                    </span>
                   </div>
                 </div>
-                <span className="text-xs font-bold text-zinc-900 dark:text-white group-hover:translate-x-0.5 transition-transform shrink-0 ml-2">
-                  Abrir QR →
+                <span className="text-xs font-medium text-zinc-500 dark:text-zinc-400 group-hover:text-zinc-800 dark:group-hover:text-white transition-colors shrink-0 ml-2">
+                  Ver código
                 </span>
               </motion.button>
 

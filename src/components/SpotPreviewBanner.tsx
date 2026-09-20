@@ -24,7 +24,7 @@ export const SpotPreviewBanner: React.FC<SpotPreviewBannerProps> = ({
       onTouchStart={(e) => e.stopPropagation()}
       className="fixed left-1/2 -translate-x-1/2 z-40 w-[92%] max-w-sm ios-glass rounded-[28px] p-3 sm:p-3.5 flex items-center gap-3 select-none pointer-events-auto"
       style={{
-        bottom: 'calc(max(8px, env(safe-area-inset-bottom, 8px)) + 74px)',
+        bottom: 'calc(max(12px, env(safe-area-inset-bottom, 12px)) + 64px)',
       }}
     >
       {/* Left: Spot Squircle Thumbnail */}

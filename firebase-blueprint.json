@@ -35,6 +35,106 @@
         "created_at": { "type": "string", "description": "Session creation timestamp" }
       },
       "required": ["token", "user_email"]
+    },
+    "Spot": {
+      "title": "Spot",
+      "description": "Tourist spot and point of interest on the map",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "description": "Spot identifier" },
+        "name": { "type": "string", "description": "Spot full title" },
+        "short_name": { "type": "string", "description": "Short name for badges" },
+        "tag_label": { "type": "string", "description": "Tag label" },
+        "category": { "type": "string", "description": "Category slug" },
+        "category_label": { "type": "string", "description": "Category friendly title" },
+        "lat": { "type": "number", "description": "Latitude coordinate" },
+        "lng": { "type": "number", "description": "Longitude coordinate" },
+        "image": { "type": "string", "description": "Cover image URL" },
+        "gallery": { "type": "string", "description": "JSON string array of gallery URLs" },
+        "description": { "type": "string", "description": "Spot description" },
+        "tourist_tip": { "type": "string", "description": "Tourist tip text" },
+        "rating": { "type": "number", "description": "Rating score (0 to 5)" },
+        "review_count": { "type": "number", "description": "Number of reviews" },
+        "hours": { "type": "string", "description": "Operating hours" },
+        "address": { "type": "string", "description": "Physical address" },
+        "price_range": { "type": "string", "description": "Price indicator" },
+        "popular_times": { "type": "string", "description": "Popular times string" },
+        "visitors_today": { "type": "number", "description": "Today visitor count" },
+        "badge": { "type": "string", "description": "Highlight badge label" },
+        "highlighted": { "type": "number", "description": "Is highlighted flag" },
+        "is_active": { "type": "number", "description": "Is active on map flag" },
+        "is_verified": { "type": "number", "description": "Is verified flag" },
+        "website": { "type": "string", "description": "Website URL" },
+        "phone": { "type": "string", "description": "Phone number" },
+        "maps_url": { "type": "string", "description": "Google Maps external URL" },
+        "created_at": { "type": "string", "description": "Creation timestamp" },
+        "updated_at": { "type": "string", "description": "Update timestamp" }
+      },
+      "required": ["id", "name", "category", "lat", "lng", "image"]
+    },
+    "MapVisualIcon": {
+      "title": "MapVisualIcon",
+      "description": "Visual non-interactive icon marker firmly anchored to GPS position",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "description": "Visual icon ID" },
+        "category": { "type": "string", "description": "Icon category identifier" },
+        "icon": { "type": "string", "description": "Icon type identifier" },
+        "latitude": { "type": "number", "description": "Latitude coordinate" },
+        "longitude": { "type": "number", "description": "Longitude coordinate" },
+        "is_active": { "type": "number", "description": "Active flag (0 or 1)" },
+        "created_at": { "type": "string", "description": "Creation timestamp" },
+        "updated_at": { "type": "string", "description": "Update timestamp" }
+      },
+      "required": ["id", "category", "icon", "latitude", "longitude"]
+    },
+    "SystemSetting": {
+      "title": "SystemSetting",
+      "description": "System-wide persistent configuration (map settings, camera, community links)",
+      "type": "object",
+      "properties": {
+        "key": { "type": "string", "description": "Configuration key" },
+        "value": { "type": "string", "description": "Configuration value" },
+        "updated_at": { "type": "string", "description": "Update timestamp" }
+      },
+      "required": ["key", "value"]
+    },
+    "Event": {
+      "title": "Event",
+      "description": "City event or festival",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "description": "Event ID" },
+        "name": { "type": "string", "description": "Event name" },
+        "description": { "type": "string", "description": "Event description" },
+        "image": { "type": "string", "description": "Image URL" },
+        "category": { "type": "string", "description": "Event category" },
+        "date": { "type": "string", "description": "Date label" },
+        "time": { "type": "string", "description": "Time label" },
+        "address": { "type": "string", "description": "Address" },
+        "lat": { "type": "number", "description": "Latitude coordinate" },
+        "lng": { "type": "number", "description": "Longitude coordinate" },
+        "status": { "type": "string", "description": "Event status" },
+        "highlighted": { "type": "number", "description": "Highlighted flag" },
+        "created_at": { "type": "string", "description": "Creation timestamp" }
+      },
+      "required": ["id", "name", "lat", "lng"]
+    },
+    "Review": {
+      "title": "Review",
+      "description": "Spot review and rating",
+      "type": "object",
+      "properties": {
+        "id": { "type": "number", "description": "Review ID" },
+        "spot_id": { "type": "string", "description": "Spot ID" },
+        "user_id": { "type": "number", "description": "User ID" },
+        "user_name": { "type": "string", "description": "Author name" },
+        "user_avatar": { "type": "string", "description": "Author avatar URL" },
+        "rating": { "type": "number", "description": "Rating given" },
+        "comment": { "type": "string", "description": "Review text" },
+        "created_at": { "type": "string", "description": "Creation timestamp" }
+      },
+      "required": ["spot_id", "rating"]
     }
   },
   "firestore": {
@@ -45,6 +145,26 @@
     "/sessions/{token}": {
       "schema": "Session",
       "description": "Persistent active sessions indexed by token"
+    },
+    "/spots/{id}": {
+      "schema": "Spot",
+      "description": "Persistent tourist spots on the map"
+    },
+    "/map_visual_icons/{id}": {
+      "schema": "MapVisualIcon",
+      "description": "Persistent map visual icons"
+    },
+    "/system_settings/{key}": {
+      "schema": "SystemSetting",
+      "description": "Persistent system and map settings"
+    },
+    "/events/{id}": {
+      "schema": "Event",
+      "description": "Persistent city events"
+    },
+    "/reviews/{id}": {
+      "schema": "Review",
+      "description": "Persistent spot reviews"
     }
   }
 }

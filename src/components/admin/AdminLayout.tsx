@@ -7,6 +7,7 @@ import {
   Calendar,
   Settings,
   Sparkles,
+  Layers,
   Menu,
   X,
   Search,
@@ -25,6 +26,7 @@ import { AdminUsers } from './AdminUsers';
 import { AdminEvents } from './AdminEvents';
 import { AdminSettings } from './AdminSettings';
 import { AdminCleanup } from './AdminCleanup';
+import { AdminMapIcons } from './AdminMapIcons';
 
 interface AdminLayoutProps {
   currentUser: any;
@@ -67,6 +69,7 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({
   const NAV_ITEMS = [
     { id: 'dashboard', label: 'Visão Geral', icon: LayoutDashboard },
     { id: 'spots', label: 'Pontos Turísticos', icon: MapPin },
+    { id: 'map_icons', label: 'Ícones do mapa', icon: Layers },
     { id: 'services', label: 'Locais e Serviços', icon: Store },
     { id: 'users', label: 'Usuários & Comunidade', icon: Users },
     { id: 'events', label: 'Eventos no Mapa', icon: Calendar },
@@ -300,6 +303,7 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({
         <main className="flex-1 p-4 sm:p-6 lg:p-8 overflow-y-auto max-w-7xl mx-auto w-full">
           {activeTab === 'dashboard' && <AdminDashboard onNavigateTo={(tab) => setActiveTab(tab)} />}
           {activeTab === 'spots' && <AdminSpots />}
+          {activeTab === 'map_icons' && <AdminMapIcons />}
           {activeTab === 'services' && <AdminServices />}
           {activeTab === 'users' && <AdminUsers />}
           {activeTab === 'events' && <AdminEvents />}

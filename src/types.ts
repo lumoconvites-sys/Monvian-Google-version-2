@@ -115,3 +115,15 @@ export interface User {
   onboarding_completed_at?: string;
 }
 
+export interface MapVisualIcon {
+  id: string;
+  category: string;
+  icon: string;
+  latitude: number;
+  longitude: number;
+  color?: string;
+  is_active: number;
+  created_at?: string;
+  updated_at?: string;
+}
+

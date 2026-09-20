@@ -1,8 +1,7 @@
-// Monvian PWA Service Worker - Offline Caching Engine for Spots & Map Tiles
-const STATIC_CACHE = 'monvian-static-v3';
-const API_CACHE = 'monvian-api-v3';
-const TILES_CACHE = 'monvian-tiles-v3';
-const IMAGES_CACHE = 'monvian-images-v3';
+// Monvian PWA Service Worker - Offline Caching Engine for Spots & Assets
+const STATIC_CACHE = 'monvian-static-v5';
+const API_CACHE = 'monvian-api-v5';
+const IMAGES_CACHE = 'monvian-images-v5';
 
 const PRECACHE_ASSETS = [
   '/',
@@ -16,41 +15,18 @@ const PRECACHE_ASSETS = [
   '/loogo.png'
 ];
 
-// Initial map tiles around Campos do Jordão (-22.7420, -45.5870) for instant offline availability
-const PRECACHE_TILES = [
-  'https://a.basemaps.cartocdn.com/dark_all/14/6118/9216@2x.png',
-  'https://b.basemaps.cartocdn.com/dark_all/14/6119/9216@2x.png',
-  'https://c.basemaps.cartocdn.com/dark_all/14/6118/9217@2x.png',
-  'https://d.basemaps.cartocdn.com/dark_all/14/6119/9217@2x.png',
-  'https://a.basemaps.cartocdn.com/light_all/14/6118/9216@2x.png',
-  'https://b.basemaps.cartocdn.com/light_all/14/6119/9216@2x.png'
-];
-
 self.addEventListener('install', (event) => {
   event.waitUntil(
-    Promise.all([
-      // 1. Cache essential app shell
-      caches.open(STATIC_CACHE).then((cache) => {
-        return cache.addAll(PRECACHE_ASSETS).catch((err) => {
-          console.warn('[SW] Precache shell warning:', err);
-        });
-      }),
-      // 2. Precache base map tiles for Campos do Jordão
-      caches.open(TILES_CACHE).then((cache) => {
-        return Promise.allSettled(
-          PRECACHE_TILES.map((tileUrl) =>
-            fetch(tileUrl, { mode: 'no-cors' })
-              .then((res) => cache.put(tileUrl, res))
-              .catch(() => {})
-          )
-        );
-      })
-    ]).then(() => self.skipWaiting())
+    caches.open(STATIC_CACHE).then((cache) => {
+      return cache.addAll(PRECACHE_ASSETS).catch((err) => {
+        console.warn('[SW] Precache shell warning:', err);
+      });
+    }).then(() => self.skipWaiting())
   );
 });
 
 self.addEventListener('activate', (event) => {
-  const currentCaches = [STATIC_CACHE, API_CACHE, TILES_CACHE, IMAGES_CACHE];
+  const currentCaches = [STATIC_CACHE, API_CACHE, IMAGES_CACHE];
   event.waitUntil(
     caches.keys().then((cacheNames) => {
       return Promise.all(
@@ -74,36 +50,19 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
-  // 1. Map Tiles Caching Strategy (Cache-First with Background Update)
-  // Handles CARTO, OpenStreetMap, ESRI, etc.
+  // Allow map tiles to bypass Service Worker completely so browser native HTTP cache
+  // handles them cleanly without CORS or opaque response issues in WebGL
   const isMapTile =
     url.hostname.includes('cartocdn.com') ||
+    url.hostname.includes('mapbox.com') ||
     url.hostname.includes('openstreetmap.org') ||
     url.hostname.includes('arcgisonline.com') ||
     url.pathname.includes('/rastertiles/') ||
+    url.pathname.includes('/tiles/') ||
     url.pathname.includes('/tile/');
 
   if (isMapTile) {
-    event.respondWith(
-      caches.open(TILES_CACHE).then(async (cache) => {
-        const cachedResponse = await cache.match(request);
-        if (cachedResponse) {
-          return cachedResponse;
-        }
-
-        try {
-          const networkResponse = await fetch(request);
-          if (networkResponse && (networkResponse.status === 200 || networkResponse.type === 'opaque')) {
-            cache.put(request, networkResponse.clone());
-          }
-          return networkResponse;
-        } catch (err) {
-          // If offline and not in cache, return empty fallback
-          return cachedResponse || new Response(null, { status: 503, statusText: 'Tile Offline' });
-        }
-      })
-    );
-    return;
+    return; // Pass through to native browser network & HTTP disk cache
   }
 
   // 2. Read-Only API Endpoints Caching Strategy (Stale-While-Revalidate / Network-First with Cache Fallback)
