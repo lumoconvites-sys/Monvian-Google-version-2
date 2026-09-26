@@ -1,7 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Spot } from '../types';
 import { 
-  X, 
   Copy, 
   Check, 
   Share2, 
@@ -17,26 +16,36 @@ interface SpotQrModalProps {
   spot: Spot | null;
 }
 
+// In-memory module cache for instant zero-latency QR loading
+const qrCodeCache = new Map<string, string>();
+
 export const SpotQrModal: React.FC<SpotQrModalProps> = ({
   isOpen,
   onClose,
   spot,
 }) => {
-  const [qrDataUrl, setQrDataUrl] = useState<string>('');
   const [copied, setCopied] = useState(false);
-  const [isGenerating, setIsGenerating] = useState(true);
 
   // Generate deep link for the spot
   const shareUrl = typeof window !== 'undefined' && spot
     ? `${window.location.origin}${window.location.pathname}?spot=${encodeURIComponent(spot.id)}`
     : '';
 
+  const [qrDataUrl, setQrDataUrl] = useState<string>(() => {
+    return shareUrl && qrCodeCache.has(shareUrl) ? (qrCodeCache.get(shareUrl) as string) : '';
+  });
+
   useEffect(() => {
     if (!isOpen || !spot || !shareUrl) return;
 
-    setIsGenerating(true);
+    if (qrCodeCache.has(shareUrl)) {
+      setQrDataUrl(qrCodeCache.get(shareUrl)!);
+      return;
+    }
+
+    let isMounted = true;
     QRCode.toDataURL(shareUrl, {
-      width: 340,
+      width: 360,
       margin: 1.5,
       color: {
         dark: '#111215',
@@ -45,16 +54,19 @@ export const SpotQrModal: React.FC<SpotQrModalProps> = ({
       errorCorrectionLevel: 'M',
     })
       .then((url) => {
-        setQrDataUrl(url);
-        setIsGenerating(false);
+        qrCodeCache.set(shareUrl, url);
+        if (isMounted) {
+          setQrDataUrl(url);
+        }
       })
       .catch((err) => {
         console.error('Error generating QR code:', err);
-        setIsGenerating(false);
       });
-  }, [isOpen, spot, shareUrl]);
 
-  if (!isOpen || !spot) return null;
+    return () => {
+      isMounted = false;
+    };
+  }, [isOpen, spot, shareUrl]);
 
   const handleCopyLink = async () => {
     try {
@@ -68,6 +80,7 @@ export const SpotQrModal: React.FC<SpotQrModalProps> = ({
   };
 
   const handleNativeShare = () => {
+    if (!spot) return;
     playPinTapSound();
     if (typeof navigator !== 'undefined' && navigator.share) {
       navigator
@@ -83,7 +96,7 @@ export const SpotQrModal: React.FC<SpotQrModalProps> = ({
   };
 
   const handleDownloadQr = () => {
-    if (!qrDataUrl) return;
+    if (!qrDataUrl || !spot) return;
     playPinTapSound();
     const link = document.createElement('a');
     link.href = qrDataUrl;
@@ -95,110 +108,114 @@ export const SpotQrModal: React.FC<SpotQrModalProps> = ({
 
   return (
     <AnimatePresence>
-      <div className="fixed inset-0 z-[120] flex items-end sm:items-center justify-center p-0 sm:p-4">
-        {/* Backdrop */}
-        <motion.div
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          exit={{ opacity: 0 }}
-          onClick={onClose}
-          className="fixed inset-0 bg-black/60 backdrop-blur-xs"
-        />
-
-        {/* Modal Window: Apple iOS Sheet Style */}
-        <motion.div
-          initial={{ y: '100%', opacity: 0.9 }}
-          animate={{ y: 0, opacity: 1 }}
-          exit={{ y: '100%', opacity: 0 }}
-          transition={{ type: 'spring', damping: 30, stiffness: 360 }}
-          className="relative w-full max-w-[340px] bg-white dark:bg-[#15171b] text-zinc-900 dark:text-white rounded-t-[28px] sm:rounded-[28px] shadow-2xl border border-zinc-200/70 dark:border-white/10 overflow-hidden flex flex-col z-10 p-5"
-          style={{ fontFamily: "'Manrope', -apple-system, BlinkMacSystemFont, sans-serif" }}
+      {isOpen && spot && (
+        <div 
+          id="spot-qr-modal-overlay"
+          className="fixed inset-0 z-[140] flex items-center justify-center p-4 select-none"
         >
-          {/* Header */}
-          <div className="flex items-center justify-between pb-4">
-            <div className="min-w-0 pr-2">
-              <h3 className="text-base font-semibold tracking-tight text-zinc-900 dark:text-white truncate">
+          {/* Backdrop: Smooth fade with tap to close */}
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.2, ease: 'easeOut' }}
+            onClick={onClose}
+            className="fixed inset-0 bg-black/60 backdrop-blur-xs cursor-pointer"
+          />
+
+          {/* Modal Card: Smooth native Apple card entrance, no X button */}
+          <motion.div
+            initial={{ opacity: 0, scale: 0.94, y: 14 }}
+            animate={{ opacity: 1, scale: 1, y: 0 }}
+            exit={{ opacity: 0, scale: 0.95, y: 10 }}
+            transition={{
+              type: 'spring',
+              damping: 28,
+              stiffness: 340,
+              mass: 0.8,
+            }}
+            onClick={(e) => e.stopPropagation()}
+            className="relative w-full max-w-[320px] sm:max-w-[340px] bg-white dark:bg-[#000000] text-zinc-900 dark:text-white rounded-[28px] shadow-2xl border border-zinc-200/80 dark:border-white/10 overflow-hidden flex flex-col z-10 p-5"
+            style={{
+              fontFamily: "'Manrope', -apple-system, BlinkMacSystemFont, sans-serif",
+              willChange: 'transform, opacity',
+            }}
+          >
+            {/* Header: Name and category without X close button */}
+            <div className="pb-3 text-left">
+              <h3 className="text-base font-bold tracking-tight text-zinc-900 dark:text-white truncate">
                 {spot.name}
               </h3>
-              <p className="text-xs text-zinc-400 dark:text-zinc-500 truncate mt-0.5">
+              <p className="text-xs text-zinc-500 dark:text-zinc-400 truncate mt-0.5">
                 {spot.categoryLabel || spot.category}
               </p>
             </div>
 
-            <button
-              onClick={onClose}
-              className="w-7 h-7 rounded-full bg-zinc-100 hover:bg-zinc-200 dark:bg-white/10 dark:hover:bg-white/15 flex items-center justify-center text-zinc-500 dark:text-zinc-400 transition-colors cursor-pointer shrink-0"
-              title="Fechar"
-            >
-              <X className="w-3.5 h-3.5" />
-            </button>
-          </div>
-
-          {/* Minimalist QR Frame */}
-          <div className="flex flex-col items-center justify-center my-2">
-            <div className="p-3.5 rounded-2xl bg-white shadow-xs border border-zinc-100 flex items-center justify-center">
-              {isGenerating ? (
-                <div className="w-44 h-44 flex items-center justify-center">
-                  <div className="w-6 h-6 border-2 border-zinc-400 border-t-transparent rounded-full animate-spin" />
-                </div>
-              ) : (
-                <img
-                  src={qrDataUrl}
-                  alt={`QR Code para ${spot.name}`}
-                  className="w-44 h-44 block rounded-lg"
-                />
-              )}
-            </div>
-
-            <span className="text-[11px] text-zinc-400 dark:text-zinc-500 text-center mt-3 font-normal">
-              Aponte a câmera para abrir no app
-            </span>
-          </div>
-
-          {/* Minimalist Action Controls - Monochrome Apple style */}
-          <div className="space-y-2 pt-3">
-            {/* Primary Action: Compartilhar */}
-            <motion.button
-              whileTap={{ scale: 0.98 }}
-              onClick={handleNativeShare}
-              className="w-full py-2.5 rounded-xl bg-zinc-900 hover:bg-zinc-800 text-white dark:bg-white dark:text-zinc-900 dark:hover:bg-zinc-100 text-xs font-medium flex items-center justify-center gap-2 transition-colors cursor-pointer"
-            >
-              <Share2 className="w-3.5 h-3.5" />
-              <span>Compartilhar</span>
-            </motion.button>
-
-            {/* Secondary Actions: Copiar Link & Salvar Imagem */}
-            <div className="grid grid-cols-2 gap-2">
-              <motion.button
-                whileTap={{ scale: 0.97 }}
-                onClick={handleCopyLink}
-                className="py-2.5 px-3 rounded-xl bg-zinc-100 hover:bg-zinc-200/80 dark:bg-white/5 dark:hover:bg-white/10 text-zinc-700 dark:text-zinc-300 text-xs font-medium flex items-center justify-center gap-1.5 transition-colors cursor-pointer"
-              >
-                {copied ? (
-                  <>
-                    <Check className="w-3.5 h-3.5 text-zinc-900 dark:text-white" />
-                    <span>Copiado</span>
-                  </>
+            {/* Minimalist QR Frame: Fixed size to eliminate layout shift */}
+            <div className="flex flex-col items-center justify-center my-1">
+              <div className="w-[190px] h-[190px] p-2.5 rounded-2xl bg-white shadow-xs border border-zinc-100 flex items-center justify-center overflow-hidden">
+                {qrDataUrl ? (
+                  <img
+                    src={qrDataUrl}
+                    alt={`QR Code para ${spot.name}`}
+                    className="w-full h-full object-contain block rounded-lg"
+                    decoding="async"
+                  />
                 ) : (
-                  <>
-                    <Copy className="w-3.5 h-3.5 text-zinc-500 dark:text-zinc-400" />
-                    <span>Copiar link</span>
-                  </>
+                  <div className="w-6 h-6 border-2 border-zinc-300 border-t-transparent rounded-full animate-spin" />
                 )}
+              </div>
+
+              <span className="text-[11px] text-zinc-500 dark:text-zinc-400 text-center mt-2.5 font-normal">
+                Aponte a câmera para abrir no app
+              </span>
+            </div>
+
+            {/* Minimalist Action Controls - Apple Monochrome Style */}
+            <div className="space-y-2 pt-3">
+              {/* Primary Action: Compartilhar */}
+              <motion.button
+                whileTap={{ scale: 0.98 }}
+                onClick={handleNativeShare}
+                className="w-full py-2.5 rounded-xl bg-zinc-900 hover:bg-zinc-800 text-white dark:bg-white dark:text-zinc-900 dark:hover:bg-zinc-100 text-xs font-semibold flex items-center justify-center gap-2 transition-colors cursor-pointer shadow-xs active:opacity-90"
+              >
+                <Share2 className="w-3.5 h-3.5" />
+                <span>Compartilhar</span>
               </motion.button>
 
-              <motion.button
-                whileTap={{ scale: 0.97 }}
-                onClick={handleDownloadQr}
-                className="py-2.5 px-3 rounded-xl bg-zinc-100 hover:bg-zinc-200/80 dark:bg-white/5 dark:hover:bg-white/10 text-zinc-700 dark:text-zinc-300 text-xs font-medium flex items-center justify-center gap-1.5 transition-colors cursor-pointer"
-              >
-                <Download className="w-3.5 h-3.5 text-zinc-500 dark:text-zinc-400" />
-                <span>Salvar</span>
-              </motion.button>
+              {/* Secondary Actions: Copiar Link & Salvar */}
+              <div className="grid grid-cols-2 gap-2">
+                <motion.button
+                  whileTap={{ scale: 0.97 }}
+                  onClick={handleCopyLink}
+                  className="py-2.5 px-3 rounded-xl bg-zinc-100 hover:bg-zinc-200/80 dark:bg-white/5 dark:hover:bg-white/10 text-zinc-700 dark:text-zinc-300 text-xs font-medium flex items-center justify-center gap-1.5 transition-colors cursor-pointer"
+                >
+                  {copied ? (
+                    <>
+                      <Check className="w-3.5 h-3.5 text-zinc-900 dark:text-white" />
+                      <span>Copiado</span>
+                    </>
+                  ) : (
+                    <>
+                      <Copy className="w-3.5 h-3.5 text-zinc-500 dark:text-zinc-400" />
+                      <span>Copiar link</span>
+                    </>
+                  )}
+                </motion.button>
+
+                <motion.button
+                  whileTap={{ scale: 0.97 }}
+                  onClick={handleDownloadQr}
+                  className="py-2.5 px-3 rounded-xl bg-zinc-100 hover:bg-zinc-200/80 dark:bg-white/5 dark:hover:bg-white/10 text-zinc-700 dark:text-zinc-300 text-xs font-medium flex items-center justify-center gap-1.5 transition-colors cursor-pointer"
+                >
+                  <Download className="w-3.5 h-3.5 text-zinc-500 dark:text-zinc-400" />
+                  <span>Salvar</span>
+                </motion.button>
+              </div>
             </div>
-          </div>
-        </motion.div>
-      </div>
+          </motion.div>
+        </div>
+      )}
     </AnimatePresence>
   );
 };

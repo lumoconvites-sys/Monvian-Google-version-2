@@ -323,74 +323,94 @@ export async function deleteEventFromFirestore(eventId: string): Promise<void> {
 // FULL BIDIRECTIONAL REPLICATION ON SERVER BOOT
 // ----------------------------------------------------
 
+const PRIMARY_ADMIN_EMAILS = ['empresariomario@gmail.com', 'marioyesk@gmail.com'];
+
+export function isPrimaryAdmin(email?: string | null): boolean {
+  if (!email) return false;
+  const clean = email.trim().toLowerCase();
+  return PRIMARY_ADMIN_EMAILS.includes(clean);
+}
+
 export async function syncDatabaseWithFirestore(sqliteDb: any): Promise<void> {
-  console.log('[FirestoreSync] Starting full sync between SQLite and Cloud Firestore...');
+  console.log('[FirestoreSync] Starting durable sync: Cloud Firestore is the absolute authority...');
   
   try {
     // ----------------------------------------------------
-    // 1. SYSTEM SETTINGS
+    // 1. SYSTEM SETTINGS (Read from Cloud Firestore first!)
     // ----------------------------------------------------
     try {
-      const localSettings = sqliteDb.prepare('SELECT key, value FROM system_settings').all();
-      for (const s of localSettings) {
-        if (s.key) {
-          await persistSystemSettingToFirestore(s.key, s.value);
-        }
-      }
+      const defaultSettings: Record<string, string> = {
+        community_url: 'https://chat.whatsapp.com/invite/monvian-campos',
+        instagram_url: 'https://instagram.com/monvian.campos',
+        support_phone: '+55 12 99123-4567',
+        app_name: 'Monvian - Campos do Jordão',
+        weather_rain_mode: 'auto',
+        weather_snow_mode: 'fraca',
+        maintenance_mode: '0',
+        map_center_lat: '-22.7290',
+        map_center_lng: '-45.5830',
+        map_zoom: '11.75',
+        map_pitch: '52',
+        map_bearing: '-13',
+        map_default_mode: 'explorar'
+      };
 
-      const settingsSnap = await withTimeout(getDocs(collection(firestore, 'system_settings')), 4000, null as any);
+      const settingsSnap = await withTimeout(getDocs(collection(firestore, 'system_settings')), 5000, null as any);
+      const foundCloudKeys = new Set<string>();
+
+      const upsertSetting = sqliteDb.prepare('INSERT OR REPLACE INTO system_settings (key, value) VALUES (?, ?)');
+
       if (settingsSnap && !settingsSnap.empty) {
-        const upsertSetting = sqliteDb.prepare('INSERT OR REPLACE INTO system_settings (key, value) VALUES (?, ?)');
         settingsSnap.forEach((docSnap: any) => {
           const data = docSnap.data();
           if (data && data.key && data.key !== '_health') {
+            foundCloudKeys.add(data.key);
             upsertSetting.run(data.key, String(data.value || ''));
           }
         });
+      }
+
+      // Fill in any missing default settings that were never written to Firestore
+      for (const [key, value] of Object.entries(defaultSettings)) {
+        if (!foundCloudKeys.has(key)) {
+          const existingLocal = sqliteDb.prepare('SELECT value FROM system_settings WHERE key = ?').get(key);
+          const finalVal = existingLocal ? String(existingLocal.value) : value;
+          upsertSetting.run(key, finalVal);
+          await persistSystemSettingToFirestore(key, finalVal);
+        }
       }
     } catch (e) {
       console.warn('[FirestoreSync] Settings sync notice:', e);
     }
 
     // ----------------------------------------------------
-    // 2. MAP VISUAL ICONS (Firmly anchored to GPS)
+    // 2. MAP VISUAL ICONS (Firmly anchored to GPS, Firestore Authority)
     // ----------------------------------------------------
     try {
-      const localIcons = sqliteDb.prepare('SELECT * FROM map_visual_icons').all();
-      for (const icon of localIcons) {
-        if (icon.id) {
-          await persistMapVisualIconToFirestore({
-            id: icon.id,
-            category: icon.category,
-            icon: icon.icon,
-            latitude: Number(icon.latitude),
-            longitude: Number(icon.longitude),
-            is_active: Number(icon.is_active !== undefined ? icon.is_active : 1),
-            created_at: icon.created_at,
-            updated_at: icon.updated_at
-          });
-        }
-      }
+      try { sqliteDb.exec(`ALTER TABLE map_visual_icons ADD COLUMN color TEXT;`); } catch (e) {}
 
-      const iconsSnap = await withTimeout(getDocs(collection(firestore, 'map_visual_icons')), 5000, null as any);
+      const iconsSnap = await withTimeout(getDocs(collection(firestore, 'map_visual_icons')), 6000, null as any);
+      const upsertIcon = sqliteDb.prepare(`
+        INSERT INTO map_visual_icons (id, category, icon, latitude, longitude, color, is_active, created_at, updated_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ON CONFLICT(id) DO UPDATE SET
+          category = excluded.category,
+          icon = excluded.icon,
+          latitude = excluded.latitude,
+          longitude = excluded.longitude,
+          color = excluded.color,
+          is_active = excluded.is_active,
+          updated_at = excluded.updated_at
+      `);
+
       if (iconsSnap && !iconsSnap.empty) {
-        try { sqliteDb.exec(`ALTER TABLE map_visual_icons ADD COLUMN color TEXT;`); } catch (e) {}
-        const upsertIcon = sqliteDb.prepare(`
-          INSERT INTO map_visual_icons (id, category, icon, latitude, longitude, color, is_active, created_at, updated_at)
-          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-          ON CONFLICT(id) DO UPDATE SET
-            category = excluded.category,
-            icon = excluded.icon,
-            latitude = excluded.latitude,
-            longitude = excluded.longitude,
-            color = excluded.color,
-            is_active = excluded.is_active,
-            updated_at = excluded.updated_at
-        `);
+        console.log(`[FirestoreSync] Restoring ${iconsSnap.size} map visual icons from Cloud Firestore...`);
+        const validIconIds = new Set<string>();
 
         iconsSnap.forEach((docSnap: any) => {
           const icon = docSnap.data() as FirestoreMapVisualIcon;
           if (icon && icon.id && icon.category && !isNaN(icon.latitude) && !isNaN(icon.longitude)) {
+            validIconIds.add(icon.id);
             upsertIcon.run(
               icon.id,
               icon.category,
@@ -404,99 +424,76 @@ export async function syncDatabaseWithFirestore(sqliteDb: any): Promise<void> {
             );
           }
         });
+
+        // Delete any local SQLite visual icons that were removed by the admin
+        const localIcons = sqliteDb.prepare('SELECT id FROM map_visual_icons').all() as { id: string }[];
+        for (const local of localIcons) {
+          if (!validIconIds.has(local.id)) {
+            sqliteDb.prepare('DELETE FROM map_visual_icons WHERE id = ?').run(local.id);
+          }
+        }
       }
     } catch (e) {
       console.warn('[FirestoreSync] Map visual icons sync notice:', e);
     }
 
     // ----------------------------------------------------
-    // 3. SPOTS (Tourist Spots / Points of Interest)
+    // 3. SPOTS (Tourist Spots / Points of Interest - Firestore Authority)
     // ----------------------------------------------------
     try {
-      const localSpots = sqliteDb.prepare('SELECT * FROM spots').all();
-      for (const spot of localSpots) {
-        if (spot.id) {
-          await persistSpotToFirestore({
-            id: spot.id,
-            name: spot.name,
-            short_name: spot.short_name,
-            tag_label: spot.tag_label,
-            category: spot.category,
-            category_label: spot.category_label,
-            lat: Number(spot.lat),
-            lng: Number(spot.lng),
-            image: spot.image,
-            gallery: spot.gallery,
-            description: spot.description,
-            tourist_tip: spot.tourist_tip,
-            rating: Number(spot.rating || 4.5),
-            review_count: Number(spot.review_count || 0),
-            hours: spot.hours,
-            address: spot.address,
-            price_range: spot.price_range,
-            popular_times: spot.popular_times,
-            visitors_today: Number(spot.visitors_today || 0),
-            badge: spot.badge,
-            highlighted: Number(spot.highlighted || 0),
-            is_active: Number(spot.is_active !== undefined ? spot.is_active : 1),
-            is_verified: Number(spot.is_verified !== undefined ? spot.is_verified : 1),
-            website: spot.website,
-            phone: spot.phone,
-            maps_url: spot.maps_url,
-            created_at: spot.created_at,
-            updated_at: spot.updated_at
-          });
-        }
-      }
+      const spotsSnap = await withTimeout(getDocs(collection(firestore, 'spots')), 7000, null as any);
+      
+      const upsertSpot = sqliteDb.prepare(`
+        INSERT INTO spots (
+          id, name, short_name, tag_label, category, category_label,
+          lat, lng, image, gallery, description, tourist_tip,
+          rating, review_count, hours, address, price_range,
+          popular_times, visitors_today, badge, highlighted, is_active, is_verified,
+          website, phone, maps_url, created_at, updated_at
+        ) VALUES (
+          ?, ?, ?, ?, ?, ?,
+          ?, ?, ?, ?, ?, ?,
+          ?, ?, ?, ?, ?,
+          ?, ?, ?, ?, ?, ?,
+          ?, ?, ?, ?, ?
+        )
+        ON CONFLICT(id) DO UPDATE SET
+          name = excluded.name,
+          short_name = excluded.short_name,
+          tag_label = excluded.tag_label,
+          category = excluded.category,
+          category_label = excluded.category_label,
+          lat = excluded.lat,
+          lng = excluded.lng,
+          image = excluded.image,
+          gallery = excluded.gallery,
+          description = excluded.description,
+          tourist_tip = excluded.tourist_tip,
+          rating = excluded.rating,
+          review_count = excluded.review_count,
+          hours = excluded.hours,
+          address = excluded.address,
+          price_range = excluded.price_range,
+          popular_times = excluded.popular_times,
+          visitors_today = excluded.visitors_today,
+          badge = excluded.badge,
+          highlighted = excluded.highlighted,
+          is_active = excluded.is_active,
+          is_verified = excluded.is_verified,
+          website = excluded.website,
+          phone = excluded.phone,
+          maps_url = excluded.maps_url,
+          updated_at = excluded.updated_at
+      `);
 
-      const spotsSnap = await withTimeout(getDocs(collection(firestore, 'spots')), 5000, null as any);
       if (spotsSnap && !spotsSnap.empty) {
-        const upsertSpot = sqliteDb.prepare(`
-          INSERT INTO spots (
-            id, name, short_name, tag_label, category, category_label,
-            lat, lng, image, gallery, description, tourist_tip,
-            rating, review_count, hours, address, price_range,
-            popular_times, visitors_today, badge, highlighted, is_active, is_verified,
-            website, phone, maps_url, created_at, updated_at
-          ) VALUES (
-            ?, ?, ?, ?, ?, ?,
-            ?, ?, ?, ?, ?, ?,
-            ?, ?, ?, ?, ?,
-            ?, ?, ?, ?, ?, ?,
-            ?, ?, ?, ?, ?
-          )
-          ON CONFLICT(id) DO UPDATE SET
-            name = excluded.name,
-            short_name = excluded.short_name,
-            tag_label = excluded.tag_label,
-            category = excluded.category,
-            category_label = excluded.category_label,
-            lat = excluded.lat,
-            lng = excluded.lng,
-            image = excluded.image,
-            gallery = excluded.gallery,
-            description = excluded.description,
-            tourist_tip = excluded.tourist_tip,
-            rating = excluded.rating,
-            review_count = excluded.review_count,
-            hours = excluded.hours,
-            address = excluded.address,
-            price_range = excluded.price_range,
-            popular_times = excluded.popular_times,
-            visitors_today = excluded.visitors_today,
-            badge = excluded.badge,
-            highlighted = excluded.highlighted,
-            is_active = excluded.is_active,
-            is_verified = excluded.is_verified,
-            website = excluded.website,
-            phone = excluded.phone,
-            maps_url = excluded.maps_url,
-            updated_at = excluded.updated_at
-        `);
+        console.log(`[FirestoreSync] Restoring ${spotsSnap.size} spots from Cloud Firestore...`);
+        const validSpotIds = new Set<string>();
 
         spotsSnap.forEach((docSnap: any) => {
           const s = docSnap.data() as FirestoreSpot;
           if (s && s.id && s.name && !isNaN(s.lat) && !isNaN(s.lng)) {
+            validSpotIds.add(s.id);
             upsertSpot.run(
               s.id,
               s.name,
@@ -529,47 +526,127 @@ export async function syncDatabaseWithFirestore(sqliteDb: any): Promise<void> {
             );
           }
         });
+
+        // Delete any local SQLite spots that were deleted by the admin or stale seed pins
+        const localSpots = sqliteDb.prepare('SELECT id FROM spots').all() as { id: string }[];
+        for (const local of localSpots) {
+          if (!validSpotIds.has(local.id)) {
+            sqliteDb.prepare('DELETE FROM spots WHERE id = ?').run(local.id);
+          }
+        }
+      } else {
+        // If Firestore had no spots yet, seed from SQLite and store permanently in Cloud Firestore
+        const localSpots = sqliteDb.prepare('SELECT * FROM spots').all();
+        for (const spot of localSpots) {
+          if (spot.id) {
+            await persistSpotToFirestore({
+              id: spot.id,
+              name: spot.name,
+              short_name: spot.short_name,
+              tag_label: spot.tag_label,
+              category: spot.category,
+              category_label: spot.category_label,
+              lat: Number(spot.lat),
+              lng: Number(spot.lng),
+              image: spot.image,
+              gallery: spot.gallery,
+              description: spot.description,
+              tourist_tip: spot.tourist_tip,
+              rating: Number(spot.rating || 4.5),
+              review_count: Number(spot.review_count || 0),
+              hours: spot.hours,
+              address: spot.address,
+              price_range: spot.price_range,
+              popular_times: spot.popular_times,
+              visitors_today: Number(spot.visitors_today || 0),
+              badge: spot.badge,
+              highlighted: Number(spot.highlighted || 0),
+              is_active: Number(spot.is_active !== undefined ? spot.is_active : 1),
+              is_verified: Number(spot.is_verified !== undefined ? spot.is_verified : 1),
+              website: spot.website,
+              phone: spot.phone,
+              maps_url: spot.maps_url,
+              created_at: spot.created_at,
+              updated_at: spot.updated_at
+            });
+          }
+        }
       }
     } catch (e) {
       console.warn('[FirestoreSync] Spots sync notice:', e);
     }
 
     // ----------------------------------------------------
-    // 4. USERS (Profiles, credentials, preferences)
+    // 4. EVENTS (Firestore Authority)
     // ----------------------------------------------------
     try {
-      const localUsers = sqliteDb.prepare('SELECT * FROM users').all();
-      for (const u of localUsers) {
-        const email = (u.email || u.whatsapp || '').trim().toLowerCase();
-        if (email && email.includes('@')) {
-          await persistUserToFirestore({
-            id: u.id,
-            name: u.name || '',
-            email: email,
-            whatsapp: u.whatsapp || email,
-            password_hash: u.password_hash,
-            role: u.role || 'user',
-            avatar_url: u.avatar_url || '/fotoperfil.png',
-            visits_count: u.visits_count || 1,
-            is_banned: u.is_banned || 0,
-            snow_enabled: u.snow_enabled || 0,
-            theme: u.theme || 'dark',
-            high_contrast: u.high_contrast || 0,
-            onboarding_completed: u.onboarding_completed !== undefined ? u.onboarding_completed : 1,
-            onboarding_step: u.onboarding_step || 1,
-            last_access: u.last_access,
-            created_at: u.created_at
-          });
+      const eventsSnap = await withTimeout(getDocs(collection(firestore, 'events')), 5000, null as any);
+      if (eventsSnap && !eventsSnap.empty) {
+        const validEventIds = new Set<string>();
+        const upsertEvent = sqliteDb.prepare(`
+          INSERT INTO events (id, name, description, image, category, date, time, address, lat, lng, status, highlighted, created_at)
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+          ON CONFLICT(id) DO UPDATE SET
+            name = excluded.name,
+            description = excluded.description,
+            image = excluded.image,
+            category = excluded.category,
+            date = excluded.date,
+            time = excluded.time,
+            address = excluded.address,
+            lat = excluded.lat,
+            lng = excluded.lng,
+            status = excluded.status,
+            highlighted = excluded.highlighted
+        `);
+
+        eventsSnap.forEach((docSnap: any) => {
+          const ev = docSnap.data() as FirestoreEvent;
+          if (ev && ev.id && ev.name) {
+            validEventIds.add(ev.id);
+            upsertEvent.run(
+              ev.id,
+              ev.name,
+              ev.description || '',
+              ev.image || '',
+              ev.category || 'Geral',
+              ev.date || '',
+              ev.time || '',
+              ev.address || '',
+              Number(ev.lat || -22.7290),
+              Number(ev.lng || -45.5830),
+              ev.status || 'active',
+              ev.highlighted ? 1 : 0,
+              ev.created_at || new Date().toISOString()
+            );
+          }
+        });
+
+        // Delete any local events not in Firestore
+        const localEvents = sqliteDb.prepare('SELECT id FROM events').all() as { id: string }[];
+        for (const local of localEvents) {
+          if (!validEventIds.has(local.id)) {
+            sqliteDb.prepare('DELETE FROM events WHERE id = ?').run(local.id);
+          }
         }
       }
+    } catch (e) {
+      console.warn('[FirestoreSync] Events sync notice:', e);
+    }
 
-      const usersSnap = await withTimeout(getDocs(collection(firestore, 'users')), 4000, null as any);
+    // ----------------------------------------------------
+    // 5. USERS (Profiles, credentials, roles)
+    // ----------------------------------------------------
+    try {
+      const usersSnap = await withTimeout(getDocs(collection(firestore, 'users')), 5000, null as any);
       if (usersSnap && !usersSnap.empty) {
         usersSnap.forEach((docSnap: any) => {
           const cloudUser = docSnap.data() as FirestoreUser;
           if (!cloudUser.email || !cloudUser.password_hash) return;
 
           const cleanEmail = cloudUser.email.trim().toLowerCase();
+          const targetRole = isPrimaryAdmin(cleanEmail) ? 'admin' : 'user';
+
           const existingUser = sqliteDb.prepare('SELECT id FROM users WHERE LOWER(email) = ? OR LOWER(whatsapp) = ?').get(cleanEmail, cleanEmail);
 
           if (!existingUser) {
@@ -581,12 +658,12 @@ export async function syncDatabaseWithFirestore(sqliteDb: any): Promise<void> {
               cleanEmail,
               cloudUser.whatsapp || cleanEmail,
               cloudUser.password_hash,
-              cloudUser.role || 'user',
+              targetRole,
               cloudUser.avatar_url || '/fotoperfil.png',
               cloudUser.visits_count || 1,
               cloudUser.is_banned || 0,
               cloudUser.snow_enabled || 0,
-              cloudUser.theme || 'dark',
+              cloudUser.theme || 'light',
               cloudUser.high_contrast || 0,
               cloudUser.onboarding_completed !== undefined ? cloudUser.onboarding_completed : 1,
               cloudUser.onboarding_step || 1,
@@ -601,7 +678,7 @@ export async function syncDatabaseWithFirestore(sqliteDb: any): Promise<void> {
             `).run(
               cloudUser.name,
               cloudUser.password_hash,
-              cloudUser.role || 'user',
+              targetRole,
               cloudUser.avatar_url || '/fotoperfil.png',
               cloudUser.is_banned || 0,
               existingUser.id
@@ -609,6 +686,17 @@ export async function syncDatabaseWithFirestore(sqliteDb: any): Promise<void> {
           }
         });
       }
+
+      // Enforce: ONLY empresariomario@gmail.com and marioyesk@gmail.com are admin
+      sqliteDb.prepare(`
+        UPDATE users 
+        SET role = CASE 
+          WHEN LOWER(TRIM(COALESCE(email, ''))) IN ('empresariomario@gmail.com', 'marioyesk@gmail.com') 
+            OR LOWER(TRIM(COALESCE(whatsapp, ''))) IN ('empresariomario@gmail.com', 'marioyesk@gmail.com') THEN 'admin'
+          ELSE 'user'
+        END
+      `).run();
+
     } catch (e) {
       console.warn('[FirestoreSync] Users sync notice:', e);
     }

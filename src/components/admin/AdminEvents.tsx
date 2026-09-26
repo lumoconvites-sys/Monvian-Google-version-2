@@ -152,7 +152,7 @@ export const AdminEvents: React.FC = () => {
       {/* Toast */}
       {toast && (
         <div className="fixed bottom-6 right-6 z-50 bg-zinc-900 text-white text-xs font-black px-4 py-3 rounded-2xl shadow-xl flex items-center gap-2 border border-zinc-700">
-          <CheckCircle2 className="w-4 h-4 text-[#00C896]" />
+          <CheckCircle2 className="w-4 h-4 text-blue-500" />
           <span>{toast}</span>
         </div>
       )}
@@ -160,14 +160,14 @@ export const AdminEvents: React.FC = () => {
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <div className="flex items-center gap-2 text-blue-600 text-xs font-black tracking-wider uppercase mb-1">
-            <span className="w-2 h-2 rounded-full bg-blue-600"></span>
+          <div className="flex items-center gap-2 text-blue-600 dark:text-blue-400 text-xs font-black tracking-wider uppercase mb-1">
+            <span className="w-2 h-2 rounded-full bg-blue-600 dark:bg-blue-400"></span>
             CONSOLE OPERACIONAL
           </div>
-          <h1 className="text-2xl sm:text-3xl font-black text-zinc-900 tracking-tight">
+          <h1 className="text-2xl sm:text-3xl font-black text-zinc-900 dark:text-white tracking-tight">
             Eventos no Mapa
           </h1>
-          <p className="text-xs sm:text-sm text-zinc-500 mt-0.5">
+          <p className="text-xs sm:text-sm text-zinc-500 dark:text-zinc-400 mt-0.5">
             Festivais, feiras gastronômicas e apresentações culturais na serra.
           </p>
         </div>
@@ -186,9 +186,9 @@ export const AdminEvents: React.FC = () => {
         {events.map((evt) => (
           <div
             key={evt.id}
-            className="bg-white rounded-3xl border border-zinc-200/90 shadow-xs overflow-hidden flex flex-col group"
+            className="bg-white dark:bg-[#121418] rounded-3xl border border-zinc-200/90 dark:border-zinc-800 shadow-xs overflow-hidden flex flex-col group"
           >
-            <div className="relative h-48 w-full bg-zinc-100">
+            <div className="relative h-48 w-full bg-zinc-100 dark:bg-zinc-800">
               <img src={evt.image} alt={evt.name} className="w-full h-full object-cover" />
               <div className="absolute top-3 left-3 bg-black/60 backdrop-blur-md text-white text-[10px] font-black uppercase px-2.5 py-1 rounded-lg">
                 {evt.category}
@@ -196,13 +196,13 @@ export const AdminEvents: React.FC = () => {
               <div className="absolute top-3 right-3 flex items-center gap-1.5">
                 <button
                   onClick={() => handleOpenEdit(evt)}
-                  className="p-2 rounded-xl bg-white/90 hover:bg-white text-zinc-700 shadow-sm transition-all cursor-pointer"
+                  className="p-2 rounded-xl bg-white/90 dark:bg-zinc-800/90 hover:bg-white dark:hover:bg-zinc-700 text-zinc-700 dark:text-zinc-200 shadow-sm transition-all cursor-pointer"
                 >
                   <Edit className="w-3.5 h-3.5" />
                 </button>
                 <button
                   onClick={() => handleDelete(evt.id)}
-                  className="p-2 rounded-xl bg-white/90 hover:bg-white text-rose-600 shadow-sm transition-all cursor-pointer"
+                  className="p-2 rounded-xl bg-white/90 dark:bg-zinc-800/90 hover:bg-white dark:hover:bg-zinc-700 text-rose-600 shadow-sm transition-all cursor-pointer"
                 >
                   <Trash2 className="w-3.5 h-3.5" />
                 </button>
@@ -211,15 +211,15 @@ export const AdminEvents: React.FC = () => {
 
             <div className="p-5 flex-1 flex flex-col justify-between space-y-3">
               <div>
-                <h3 className="text-base font-black text-zinc-900 group-hover:text-blue-600 transition-colors">
+                <h3 className="text-base font-black text-zinc-900 dark:text-white group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors">
                   {evt.name}
                 </h3>
-                <p className="text-xs text-zinc-500 mt-1 line-clamp-2 leading-relaxed">
+                <p className="text-xs text-zinc-500 dark:text-zinc-400 mt-1 line-clamp-2 leading-relaxed">
                   {evt.description}
                 </p>
               </div>
 
-              <div className="pt-3 border-t border-zinc-100 space-y-1.5 text-xs text-zinc-600">
+              <div className="pt-3 border-t border-zinc-100 dark:border-zinc-800 space-y-1.5 text-xs text-zinc-600 dark:text-zinc-400">
                 <div className="flex items-center gap-2">
                   <Calendar className="w-3.5 h-3.5 text-blue-500 shrink-0" />
                   <span>{evt.date} • {evt.time}</span>
@@ -236,77 +236,77 @@ export const AdminEvents: React.FC = () => {
 
       {/* Modal */}
       {isModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm overflow-y-auto">
-          <div className="relative w-full max-w-2xl my-auto bg-white rounded-3xl shadow-2xl border border-zinc-200 overflow-hidden max-h-[92vh] flex flex-col">
-            <div className="px-6 py-4 border-b border-zinc-100 flex items-center justify-between">
-              <h2 className="text-lg font-black text-zinc-900">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm overflow-y-auto">
+          <div className="relative w-full max-w-2xl my-auto bg-white dark:bg-[#16181d] rounded-3xl shadow-2xl border border-zinc-200 dark:border-zinc-800 overflow-hidden max-h-[92vh] flex flex-col">
+            <div className="px-6 py-4 border-b border-zinc-100 dark:border-zinc-800 flex items-center justify-between">
+              <h2 className="text-lg font-black text-zinc-900 dark:text-white">
                 {eventToEdit ? 'Editar Evento' : 'Cadastrar Evento no Mapa'}
               </h2>
               <button
                 onClick={() => setIsModalOpen(false)}
-                className="w-8 h-8 rounded-full bg-zinc-100 hover:bg-zinc-200 flex items-center justify-center"
+                className="w-8 h-8 rounded-full bg-zinc-100 dark:bg-zinc-800 hover:bg-zinc-200 dark:hover:bg-zinc-700 flex items-center justify-center cursor-pointer"
               >
-                <X className="w-4 h-4 text-zinc-600" />
+                <X className="w-4 h-4 text-zinc-600 dark:text-zinc-300" />
               </button>
             </div>
 
             <form onSubmit={handleSubmit} className="p-6 overflow-y-auto space-y-4">
               <div>
-                <label className="block text-xs font-black text-zinc-700 mb-1">Nome do Evento *</label>
+                <label className="block text-xs font-black text-zinc-700 dark:text-zinc-300 mb-1">Nome do Evento *</label>
                 <input
                   type="text"
                   required
                   value={name}
                   onChange={(e) => setName(e.target.value)}
-                  className="w-full px-3.5 py-2.5 bg-zinc-50 border border-zinc-200 rounded-xl text-sm"
+                  className="w-full px-3.5 py-2.5 bg-zinc-50 dark:bg-zinc-900/80 border border-zinc-200 dark:border-zinc-700 rounded-xl text-sm text-zinc-900 dark:text-white"
                 />
               </div>
 
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-xs font-black text-zinc-700 mb-1">Data</label>
+                  <label className="block text-xs font-black text-zinc-700 dark:text-zinc-300 mb-1">Data</label>
                   <input
                     type="text"
                     value={date}
                     onChange={(e) => setDate(e.target.value)}
                     placeholder="Ex: Julho de 2026"
-                    className="w-full px-3.5 py-2.5 bg-zinc-50 border border-zinc-200 rounded-xl text-sm"
+                    className="w-full px-3.5 py-2.5 bg-zinc-50 dark:bg-zinc-900/80 border border-zinc-200 dark:border-zinc-700 rounded-xl text-sm text-zinc-900 dark:text-white"
                   />
                 </div>
                 <div>
-                  <label className="block text-xs font-black text-zinc-700 mb-1">Horário</label>
+                  <label className="block text-xs font-black text-zinc-700 dark:text-zinc-300 mb-1">Horário</label>
                   <input
                     type="text"
                     value={time}
                     onChange={(e) => setTime(e.target.value)}
                     placeholder="Ex: 19h às 22h"
-                    className="w-full px-3.5 py-2.5 bg-zinc-50 border border-zinc-200 rounded-xl text-sm"
+                    className="w-full px-3.5 py-2.5 bg-zinc-50 dark:bg-zinc-900/80 border border-zinc-200 dark:border-zinc-700 rounded-xl text-sm text-zinc-900 dark:text-white"
                   />
                 </div>
               </div>
 
               <div>
-                <label className="block text-xs font-black text-zinc-700 mb-1">Descrição</label>
+                <label className="block text-xs font-black text-zinc-700 dark:text-zinc-300 mb-1">Descrição</label>
                 <textarea
                   rows={2}
                   value={description}
                   onChange={(e) => setDescription(e.target.value)}
-                  className="w-full px-3.5 py-2.5 bg-zinc-50 border border-zinc-200 rounded-xl text-sm"
+                  className="w-full px-3.5 py-2.5 bg-zinc-50 dark:bg-zinc-900/80 border border-zinc-200 dark:border-zinc-700 rounded-xl text-sm text-zinc-900 dark:text-white"
                 />
               </div>
 
               <div>
-                <label className="block text-xs font-black text-zinc-700 mb-1">URL da Imagem</label>
+                <label className="block text-xs font-black text-zinc-700 dark:text-zinc-300 mb-1">URL da Imagem</label>
                 <input
                   type="url"
                   value={image}
                   onChange={(e) => setImage(e.target.value)}
-                  className="w-full px-3.5 py-2.5 bg-zinc-50 border border-zinc-200 rounded-xl text-sm"
+                  className="w-full px-3.5 py-2.5 bg-zinc-50 dark:bg-zinc-900/80 border border-zinc-200 dark:border-zinc-700 rounded-xl text-sm text-zinc-900 dark:text-white"
                 />
               </div>
 
               <div>
-                <label className="block text-xs font-black text-zinc-700 mb-1">Localização no Mapa</label>
+                <label className="block text-xs font-black text-zinc-700 dark:text-zinc-300 mb-1">Localização no Mapa</label>
                 <AdminMapPicker
                   lat={lat}
                   lng={lng}
@@ -318,18 +318,18 @@ export const AdminEvents: React.FC = () => {
                 />
               </div>
 
-              <div className="pt-4 border-t border-zinc-100 flex justify-end gap-2">
+              <div className="pt-4 border-t border-zinc-100 dark:border-zinc-800 flex justify-end gap-2">
                 <button
                   type="button"
                   onClick={() => setIsModalOpen(false)}
-                  className="px-4 py-2 text-xs font-black text-zinc-600 rounded-xl border border-zinc-200"
+                  className="px-4 py-2 text-xs font-black text-zinc-600 dark:text-zinc-400 rounded-xl border border-zinc-200 dark:border-zinc-700 hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors cursor-pointer"
                 >
                   Cancelar
                 </button>
                 <button
                   type="submit"
                   disabled={isSubmitting}
-                  className="px-5 py-2 text-xs font-black text-white bg-blue-600 rounded-xl shadow-md"
+                  className="px-5 py-2 text-xs font-black text-white bg-blue-600 hover:bg-blue-700 active:scale-95 rounded-xl shadow-md transition-all cursor-pointer"
                 >
                   {isSubmitting ? 'Salvando...' : 'Salvar Evento'}
                 </button>

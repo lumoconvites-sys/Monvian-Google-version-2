@@ -3,14 +3,153 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
+    <meta name="referrer" content="no-referrer" />
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-title" content="Monvian" />
-    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
-    <meta name="theme-color" content="#111315" id="theme-color-meta" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="default" id="apple-status-bar-meta" />
+    <meta name="theme-color" content="#f4f4f5" id="theme-color-meta" />
+    <meta name="theme-color" media="(prefers-color-scheme: light)" content="#f4f4f5" />
+    <meta name="theme-color" media="(prefers-color-scheme: dark)" content="#000000" />
     <link rel="manifest" href="/manifest.json" />
     <link rel="icon" type="image/png" href="/loogo.png" />
     <link rel="apple-touch-icon" sizes="180x180" href="/loogo.png" />
+    <script>
+      (function() {
+        try {
+          var saved = localStorage.getItem('monvian_theme');
+          var isDark = saved === 'dark';
+          var topColor = isDark ? '#000000' : '#ffffff';
+          var statusStyle = isDark ? 'black-translucent' : 'default';
+
+          var themeMeta = document.getElementById('theme-color-meta');
+          if (themeMeta) themeMeta.setAttribute('content', topColor);
+          var statusMeta = document.getElementById('apple-status-bar-meta');
+          if (statusMeta) statusMeta.setAttribute('content', statusStyle);
+
+          document.documentElement.style.backgroundColor = topColor;
+          if (isDark) {
+            document.documentElement.classList.add('dark');
+            document.documentElement.classList.remove('light');
+          } else {
+            document.documentElement.classList.remove('dark');
+            document.documentElement.classList.add('light');
+          }
+        } catch (e) {}
+      })();
+    </script>
+    <!-- Dynamic Viewport Height & Zoom Lock for iOS/Android Mobile Devices -->
+    <script>
+      (function() {
+        function updateAppHeight() {
+          try {
+            var isStandalone = (window.navigator && window.navigator.standalone === true) ||
+              (window.matchMedia && window.matchMedia('(display-mode: standalone)').matches);
+            
+            var h = window.innerHeight;
+            
+            if (isStandalone && window.screen && window.screen.height) {
+              var isLandscape = (window.matchMedia && window.matchMedia('(orientation: landscape)').matches) ||
+                Math.abs(Number(window.orientation) || 0) === 90 ||
+                window.innerWidth > window.innerHeight;
+              var screenH = isLandscape
+                ? Math.min(window.screen.width, window.screen.height)
+                : Math.max(window.screen.width, window.screen.height);
+              h = Math.max(window.innerHeight || 0, (window.visualViewport && window.visualViewport.height) || 0, screenH);
+            } else if (window.visualViewport && window.visualViewport.height) {
+              h = window.visualViewport.height;
+            } else if (document.documentElement && document.documentElement.clientHeight) {
+              h = Math.max(window.innerHeight || 0, document.documentElement.clientHeight);
+            }
+
+            if (h && h > 0) {
+              document.documentElement.style.setProperty('--app-height', h + 'px');
+            }
+          } catch (e) {}
+        }
+
+        updateAppHeight();
+
+        function handleOrientation() {
+          updateAppHeight();
+          if (window.requestAnimationFrame) window.requestAnimationFrame(updateAppHeight);
+          setTimeout(updateAppHeight, 50);
+          setTimeout(updateAppHeight, 150);
+          setTimeout(updateAppHeight, 300);
+          setTimeout(updateAppHeight, 500);
+        }
+
+        window.addEventListener('resize', updateAppHeight, { passive: true });
+        window.addEventListener('orientationchange', handleOrientation, { passive: true });
+        window.addEventListener('pageshow', updateAppHeight, { passive: true });
+        if (window.visualViewport) {
+          window.visualViewport.addEventListener('resize', updateAppHeight, { passive: true });
+        }
+        if (window.screen && window.screen.orientation) {
+          window.screen.orientation.addEventListener('change', handleOrientation, { passive: true });
+        }
+        document.addEventListener('visibilitychange', function() {
+          if (document.visibilityState === 'visible') updateAppHeight();
+        }, { passive: true });
+
+        // Helper: Check if touch/event target is inside the interactive map
+        function isInsideMap(target) {
+          if (!target) return false;
+          if (target.nodeType === 3) target = target.parentElement; // handle text nodes
+          return !!(target && target.closest && target.closest('.maplibregl-map, .maplibregl-canvas-container, .maplibregl-canvas, #map, [data-map-container]'));
+        }
+
+        // Prevent pinch gesture zoom on iOS Safari outside map
+        document.addEventListener('gesturestart', function(e) {
+          if (!isInsideMap(e.target)) {
+            e.preventDefault();
+          }
+        }, { passive: false });
+
+        document.addEventListener('gesturechange', function(e) {
+          if (!isInsideMap(e.target)) {
+            e.preventDefault();
+          }
+        }, { passive: false });
+
+        document.addEventListener('gestureend', function(e) {
+          if (!isInsideMap(e.target)) {
+            e.preventDefault();
+          }
+        }, { passive: false });
+
+        // Prevent multi-touch pinch on body/elements outside map
+        document.addEventListener('touchstart', function(e) {
+          if (e.touches && e.touches.length > 1) {
+            if (!isInsideMap(e.target)) {
+              e.preventDefault();
+            }
+          }
+        }, { passive: false });
+
+        document.addEventListener('touchmove', function(e) {
+          if (e.touches && e.touches.length > 1) {
+            if (!isInsideMap(e.target)) {
+              e.preventDefault();
+            }
+          }
+        }, { passive: false });
+
+        // Prevent Ctrl + Mouse Wheel zoom on UI elements outside map
+        document.addEventListener('wheel', function(e) {
+          if (e.ctrlKey && !isInsideMap(e.target)) {
+            e.preventDefault();
+          }
+        }, { passive: false });
+
+        // Prevent keyboard zoom shortcuts (Ctrl/Cmd + +/-/0)
+        document.addEventListener('keydown', function(e) {
+          if ((e.ctrlKey || e.metaKey) && (e.key === '+' || e.key === '-' || e.key === '=' || e.key === '0')) {
+            e.preventDefault();
+          }
+        });
+      })();
+    </script>
     <title>Monvian</title>
     <meta name="description" content="Seu guia inteligente para viver Campos do Jordão." />
     <meta property="og:title" content="Monvian" />

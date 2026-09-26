@@ -20,8 +20,10 @@ import {
   persistSystemSettingToFirestore,
   persistEventToFirestore,
   deleteEventFromFirestore,
-  syncDatabaseWithFirestore
+  syncDatabaseWithFirestore,
+  isPrimaryAdmin
 } from './src/services/firestoreSync';
+import { setupItineraryDatabase, registerItineraryRoutes } from './src/server/itineraryRoutes';
 
 dotenv.config();
 
@@ -174,6 +176,7 @@ db.exec(`
     updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
   );
 `);
+try { db.exec(`ALTER TABLE users ADD COLUMN rain_enabled INTEGER DEFAULT 1;`); } catch (e) {}
 try { db.exec(`ALTER TABLE map_visual_icons ADD COLUMN color TEXT;`); } catch (e) {}
 try { db.exec(`CREATE INDEX IF NOT EXISTS idx_map_visual_icons_active ON map_visual_icons (is_active);`); } catch (e) {}
 try { db.exec(`CREATE INDEX IF NOT EXISTS idx_map_visual_icons_category ON map_visual_icons (category);`); } catch (e) {}
@@ -264,7 +267,7 @@ try {
 // Migrations for existing tables
 try { db.exec(`ALTER TABLE users ADD COLUMN name TEXT;`); } catch (e) {}
 try { db.exec(`ALTER TABLE users ADD COLUMN snow_enabled INTEGER DEFAULT 0;`); } catch (e) {}
-try { db.exec(`ALTER TABLE users ADD COLUMN theme TEXT DEFAULT 'dark';`); } catch (e) {}
+try { db.exec(`ALTER TABLE users ADD COLUMN theme TEXT DEFAULT 'light';`); } catch (e) {}
 try { db.exec(`ALTER TABLE users ADD COLUMN high_contrast INTEGER DEFAULT 0;`); } catch (e) {}
 try { db.exec(`ALTER TABLE users ADD COLUMN role TEXT DEFAULT 'user';`); } catch (e) {}
 try { db.exec(`ALTER TABLE users ADD COLUMN is_banned INTEGER DEFAULT 0;`); } catch (e) {}
@@ -347,6 +350,13 @@ if (spotCount.count === 0) {
   console.log(`Pre-seeded ${CAMPOS_SPOTS.length} spots into database.`);
 }
 
+// Initialize Itineraries and Route Planning tables and seeds
+try {
+  setupItineraryDatabase(db);
+} catch (itinErr) {
+  console.error('Error setting up itinerary database:', itinErr);
+}
+
 // Seed initial default settings
 const defaultSettings: Record<string, string> = {
   community_url: 'https://chat.whatsapp.com/invite/monvian-campos',
@@ -415,7 +425,7 @@ if (eventCount.count === 0) {
 const userTotal = db.prepare('SELECT count(*) as count FROM users').get() as { count: number };
 if (userTotal.count < 3) {
   const demoUsers = [
-    { name: 'mariomeloz', whatsapp: '11999990001', role: 'admin', visits: 48, avatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=150&q=80', created: '2026-09-12 16:35:00' },
+    { name: 'mariomeloz', whatsapp: '11999990001', role: 'user', visits: 48, avatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=150&q=80', created: '2026-09-12 16:35:00' },
     { name: 'miihs653', whatsapp: '12988887702', role: 'user', visits: 14, avatar: 'https://images.unsplash.com/photo-1517841905240-472988babdf9?auto=format&fit=crop&w=150&q=80', created: '2026-09-06 13:55:00' },
     { name: 'Lucas Rossi', whatsapp: '11977776603', role: 'user', visits: 9, avatar: 'https://images.unsplash.com/photo-1539571696357-5a69c17a67c6?auto=format&fit=crop&w=150&q=80', created: '2026-09-07 23:17:00' },
     { name: 'Camila Mendonça', whatsapp: '12991112204', role: 'user', visits: 22, avatar: 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?auto=format&fit=crop&w=150&q=80', created: '2026-09-08 15:51:00' },
@@ -470,37 +480,78 @@ function getGenAI(): GoogleGenAI | null {
   return genAIClient;
 }
 
-const SYSTEM_INSTRUCTION = `Você é o Chat, o assistente de inteligência artificial generativa integrado ao aplicativo Monvian.
-Seu nome exibido e identidade é estritamente e exclusivamente "Chat". NUNCA use "Monviana", "Assistente Monviana", "Guia Monviana", "Mon Viana" ou qualquer outro nome próprio.
+const MONVIAN_BASE_INSTRUCTION = `Você é o assistente oficial do Monvian, especialista em Campos do Jordão (SP). Seu objetivo é ajudar turistas com roteiros personalizados, restaurantes, hotéis, cafeterias, pontos turísticos, eventos, clima e dicas locais. Responda sempre em português brasileiro, seja acolhedor, objetivo e faça perguntas quando faltar contexto, como orçamento, quantidade de dias, se possui carro ou se a viagem é para casal, família ou amigos.`;
 
-1. OBJETIVO & INTELIGÊNCIA GERAL:
-- Você é um modelo de IA generativo moderno, inteligente, versátil, atencioso e acolhedor.
-- Você conversa com total naturalidade sobre QUALQUER assunto (conhecimento geral, ciência, história, economia, tecnologia, dicas do dia a dia, listas de coisas para levar, cálculos, etc.).
-- Você NÃO depende de perguntas pré-cadastradas nem segue respostas fixas. Você interpreta semanticamente a intenção, analisa o contexto da conversa e formula uma resposta inteligente.
+function buildMonvianSystemInstruction(): string {
+  try {
+    // 1. Fetch active spots from Monvian DB (restaurants, hotels, cafes, tourist spots)
+    const spots = db.prepare(`
+      SELECT id, name, category, category_label, rating, review_count, hours, address, price_range, description, tourist_tip
+      FROM spots
+      WHERE is_active = 1
+      ORDER BY rating DESC
+      LIMIT 50
+    `).all() as any[];
 
-2. ESPECIALIZAÇÃO EM CAMPOS DO JORDÃO (SP):
-- Quando a conversa for relacionada a Campos do Jordão ou Serra da Mantiqueira, você possui profundo conhecimento em:
-  * Hotéis, pousadas e chalés
-  * Restaurantes, fondues, trutas, chocolates artesanais e cafés coloniais
-  * Pontos turísticos, parques e mirantes (Vila Capivari, Amantikir, Pico do Itapeva, Morro do Elefante, Horto Florestal, Tarundu, etc.)
-  * Roteiros personalizados (casais, famílias com crianças, aventura, viagens econômicas, etc.)
-  * Clima de montanha, transporte e eventos locais.
+    // 2. Fetch active events
+    const events = db.prepare(`
+      SELECT id, name, description, category, date, time, address
+      FROM events
+      WHERE status = 'active'
+      LIMIT 15
+    `).all() as any[];
 
-3. CONTEXTO & MEMÓRIA DA CONVERSA:
-- Mantenha continuidade ativa do contexto.
-- Exemplo: se o usuário disse "Vou para Campos sábado com minha namorada" e depois pergunta "E domingo?", você compreende que "domingo" é o segundo dia da viagem romântica a dois, sem pedir para ele repetir.
-- Se o usuário fez uma pergunta curta, com gírias, abreviações ou pequenos erros de digitação ("onde fica campos?", "vai chover hj?", "oq tem pra fazer?", "quanto custa?"), entenda perfeitamente e responda sem julgar.
+    // 3. Fetch recent reviews
+    const reviews = db.prepare(`
+      SELECT spot_id, user_name, rating, comment
+      FROM reviews
+      ORDER BY created_at DESC
+      LIMIT 20
+    `).all() as any[];
 
-4. FERRAMENTAS & DADOS EM TEMPO REAL:
-- Para informações dinâmicas que mudam constantemente (horário atual, temperatura/previsão do tempo, atrações e restaurantes cadastrados no banco de dados, eventos ativos, cálculo de distâncias), chame a ferramenta apropriada (get_current_time, get_weather, search_places, get_events, calculate_distance).
-- NUNCA invente informações em tempo real ou dados inexistentes. Se não tiver acesso, seja transparente.
+    const spotsCatalog = spots.map((s) => {
+      return `• [${s.category_label || s.category}] ${s.name} (Avaliação: ${s.rating}★, ${s.review_count} avaliações, Faixa de Preço: ${s.price_range || '$$'})
+  - Endereço/Horário: ${s.address || 'Campos do Jordão - SP'} | ${s.hours || 'Horário comercial'}
+  - Descrição: ${s.description || ''}
+  - Dica do Monvian: ${s.tourist_tip || ''}`;
+    }).join('\n\n');
 
-5. RESPOSTAS OTIMIZADAS PARA MOBILE:
-- Parágrafos curtos e objetivos.
-- Utilize listas numeradas ou bullet points apenas quando ajudarem a clareza.
-- Para roteiros, estruture de forma limpa por Dias e Períodos (☀️ Manhã, 🌅 Tarde, 🌙 Noite).
-- Destaques com "💡 Dica:".
-- Emojis com moderação e bom senso. Evite formalidade excessiva ou textos gigantes desnecessários.`;
+    const eventsCatalog = events.length > 0 
+      ? events.map((e) => `• [Evento] ${e.name} (${e.date} às ${e.time || 'A definir'}) - ${e.address || 'Campos do Jordão'}: ${e.description}`).join('\n')
+      : 'Nenhum evento especial com data futura no momento.';
+
+    const reviewsCatalog = reviews.length > 0
+      ? reviews.map((r) => `• [Avaliação] Local ID ${r.spot_id}: ${r.rating}★ por ${r.user_name || 'Visitante'}: "${r.comment}"`).join('\n')
+      : 'Sem avaliações recentes.';
+
+    const now = new Date();
+    const dateInfo = `Data e hora atual de Brasília: ${now.toLocaleDateString('pt-BR', { timeZone: 'America/Sao_Paulo' })} ${now.toLocaleTimeString('pt-BR', { timeZone: 'America/Sao_Paulo' })}. Localização padrão: Campos do Jordão - SP (Altitude 1.628m, Serra da Mantiqueira).`;
+
+    return `${MONVIAN_BASE_INSTRUCTION}
+
+${dateInfo}
+
+=== BANCO DE DADOS OFICIAL DO MONVIAN (PRIORIDADE MÁXIMA DE CONSULTA E RECOMENDAÇÃO) ===
+Sempre que o usuário perguntar sobre locais, restaurantes, hotéis, cafeterias, passeios ou eventos, utilize prioritariamente as informações abaixo cadastradas no banco de dados do Monvian antes de recorrer ao conhecimento geral:
+
+[PONTOS TURÍSTICOS, RESTAURANTES, CAFETERIAS, HOTÉIS E ATRAÇÕES CADASTRADAS NO MONVIAN]:
+${spotsCatalog}
+
+[EVENTOS E PROGRAMAÇÕES REGISTRADAS NO MONVIAN]:
+${eventsCatalog}
+
+[AVALIAÇÕES RECENTES DOS USUÁRIOS DO MONVIAN]:
+${reviewsCatalog}
+
+[DIRETRIZES FUNDAMENTAIS]:
+1. Priorize e recomende os locais, restaurantes e atrações listados acima no banco do Monvian.
+2. Quando faltar contexto (como orçamento, quantidade de dias, se possui carro ou se a viagem é para casal, família com crianças ou amigos), faça perguntas atenciosas e objetivas para entender as preferências do turista.
+3. Responda sempre em português brasileiro de forma acolhedora, com formatação limpa e organizada por períodos (☀️ Manhã, 🌅 Tarde, 🌙 Noite) e destaques com "💡 Dica:".`;
+  } catch (err) {
+    console.error('Error generating Monvian instruction:', err);
+    return MONVIAN_BASE_INSTRUCTION;
+  }
+}
 
 const chatToolsDeclarations: FunctionDeclaration[] = [
   {
@@ -661,6 +712,11 @@ async function startServer() {
     const session: any = db.prepare('SELECT user_id FROM sessions WHERE token = ?').get(token);
     if (!session) return null;
     const user: any = db.prepare('SELECT * FROM users WHERE id = ?').get(session.user_id);
+    if (user) {
+      const email = user.email || user.whatsapp;
+      const shouldBeAdmin = isPrimaryAdmin(email);
+      user.role = shouldBeAdmin ? 'admin' : 'user';
+    }
     return user || null;
   };
 
@@ -680,6 +736,7 @@ async function startServer() {
         if (!user) {
           const cloudUser = await getUserFromFirestore(cleanEmail);
           if (cloudUser && cloudUser.password_hash) {
+            const role = isPrimaryAdmin(cleanEmail) ? 'admin' : 'user';
             const res = db.prepare(`
               INSERT INTO users (name, email, whatsapp, password_hash, role, avatar_url, visits_count, is_banned, snow_enabled, theme, high_contrast, onboarding_completed, onboarding_step, last_access, created_at)
               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
@@ -688,7 +745,7 @@ async function startServer() {
               cleanEmail,
               cloudUser.whatsapp || cleanEmail,
               cloudUser.password_hash,
-              cloudUser.role || 'user',
+              role,
               cloudUser.avatar_url || '/fotoperfil.png',
               cloudUser.visits_count || 1,
               cloudUser.is_banned || 0,
@@ -704,6 +761,8 @@ async function startServer() {
           }
         }
         if (user) {
+          const email = user.email || user.whatsapp;
+          user.role = isPrimaryAdmin(email) ? 'admin' : 'user';
           db.prepare('INSERT OR REPLACE INTO sessions (token, user_id) VALUES (?, ?)').run(token, user.id);
           return user;
         }
@@ -1181,7 +1240,7 @@ async function startServer() {
   // 3. Register with Email + Verification Code
   app.post('/api/auth/register', async (req, res) => {
     try {
-      const { name, email, whatsapp, password, code } = req.body;
+      const { name, email, whatsapp, password, code, gender } = req.body;
       const cleanEmail = (email || whatsapp || '').trim().toLowerCase();
 
       if (!name || !cleanEmail || !password) {
@@ -1224,11 +1283,15 @@ async function startServer() {
       }
 
       const hash = await bcrypt.hash(password, 10);
-      const isFirst = ((db.prepare('SELECT count(*) as count FROM users').get() as any).count) === 0;
-      const isAdminEmail = cleanEmail === 'marioyesk@gmail.com' || cleanEmail.includes('admin');
-      const role = (isFirst || isAdminEmail) ? 'admin' : 'user';
+      const role = isPrimaryAdmin(cleanEmail) ? 'admin' : 'user';
 
-      const defaultAvatar = '/fotoperfil.png';
+      let defaultAvatar = '/avatar_female.jpg';
+      if (gender === 'masculino') {
+        defaultAvatar = '/avatar_male.jpg';
+      } else if (gender === 'feminino' || gender === 'outro') {
+        defaultAvatar = '/avatar_female.jpg';
+      }
+
       const result = db.prepare(`
         INSERT INTO users (name, email, whatsapp, password_hash, role, visits_count, onboarding_completed, onboarding_step, avatar_url)
         VALUES (?, ?, ?, ?, ?, 1, 0, 1, ?)
@@ -1254,7 +1317,7 @@ async function startServer() {
         visits_count: 1,
         is_banned: 0,
         snow_enabled: 0,
-        theme: 'dark',
+        theme: 'light',
         high_contrast: 0,
         onboarding_completed: 0,
         onboarding_step: 1
@@ -1350,6 +1413,8 @@ async function startServer() {
       db.prepare('INSERT INTO sessions (token, user_id) VALUES (?, ?)').run(token, user.id);
 
       const userEmail = (user.email || user.whatsapp || '').trim().toLowerCase();
+      const userRole = isPrimaryAdmin(userEmail) ? 'admin' : 'user';
+      user.role = userRole;
 
       // Persist session and user update to Cloud Firestore in background
       persistSessionToFirestore(token, user.id, userEmail).catch(() => {});
@@ -1359,7 +1424,7 @@ async function startServer() {
         email: userEmail,
         whatsapp: user.whatsapp || userEmail,
         password_hash: user.password_hash,
-        role: user.role || 'user',
+        role: userRole,
         avatar_url: user.avatar_url,
         visits_count: user.visits_count,
         is_banned: user.is_banned || 0,
@@ -1382,7 +1447,7 @@ async function startServer() {
           name: user.name,
           email: userEmail,
           whatsapp: userEmail,
-          role: user.role || 'user',
+          role: userRole,
           is_banned: user.is_banned || 0,
           avatar_url: user.avatar_url,
           onboarding_completed: user.onboarding_completed === 1,
@@ -1452,9 +1517,7 @@ async function startServer() {
           );
           user = db.prepare('SELECT * FROM users WHERE id = ?').get(resInsert.lastInsertRowid);
         } else {
-          const isFirst = ((db.prepare('SELECT count(*) as count FROM users').get() as any).count) === 0;
-          const isAdminEmail = cleanEmail === 'marioyesk@gmail.com' || cleanEmail.includes('admin');
-          const role = (isFirst || isAdminEmail) ? 'admin' : 'user';
+          const role = isPrimaryAdmin(cleanEmail) ? 'admin' : 'user';
           const dummyPass = crypto.randomBytes(16).toString('hex');
           const hash = await bcrypt.hash(dummyPass, 10);
           const defaultAvatar = '/fotoperfil.png';
@@ -1477,6 +1540,8 @@ async function startServer() {
       db.prepare('INSERT INTO sessions (token, user_id) VALUES (?, ?)').run(token, user.id);
 
       const userEmail = (user.email || user.whatsapp || '').trim().toLowerCase();
+      const userRole = isPrimaryAdmin(userEmail) ? 'admin' : 'user';
+      user.role = userRole;
 
       // Persist session and user to Firestore in background
       persistSessionToFirestore(token, user.id, userEmail).catch(() => {});
@@ -1486,7 +1551,7 @@ async function startServer() {
         email: userEmail,
         whatsapp: user.whatsapp || userEmail,
         password_hash: user.password_hash,
-        role: user.role || 'user',
+        role: userRole,
         avatar_url: user.avatar_url,
         visits_count: user.visits_count || 1,
         is_banned: user.is_banned || 0,
@@ -1509,7 +1574,7 @@ async function startServer() {
           name: user.name,
           email: userEmail,
           whatsapp: userEmail,
-          role: user.role || 'user',
+          role: userRole,
           is_banned: user.is_banned || 0,
           avatar_url: user.avatar_url,
           onboarding_completed: user.onboarding_completed === 1,
@@ -1560,9 +1625,7 @@ async function startServer() {
           );
           user = db.prepare('SELECT * FROM users WHERE id = ?').get(resInsert.lastInsertRowid);
         } else {
-          const isFirst = ((db.prepare('SELECT count(*) as count FROM users').get() as any).count) === 0;
-          const isAdminEmail = cleanEmail === 'marioyesk@gmail.com' || cleanEmail.includes('admin');
-          const role = (isFirst || isAdminEmail) ? 'admin' : 'user';
+          const role = isPrimaryAdmin(cleanEmail) ? 'admin' : 'user';
           const dummyPassword = crypto.randomBytes(16).toString('hex');
           const hash = await bcrypt.hash(dummyPassword, 10);
           const avatar = avatar_url || '/fotoperfil.png';
@@ -1595,6 +1658,8 @@ async function startServer() {
       db.prepare('INSERT INTO sessions (token, user_id) VALUES (?, ?)').run(token, user.id);
 
       const userEmail = (user.email || user.whatsapp || '').trim().toLowerCase();
+      const userRole = isPrimaryAdmin(userEmail) ? 'admin' : 'user';
+      user.role = userRole;
 
       // Persist session and user to Cloud Firestore in background
       persistSessionToFirestore(token, user.id, userEmail).catch(() => {});
@@ -1604,7 +1669,7 @@ async function startServer() {
         email: userEmail,
         whatsapp: user.whatsapp || userEmail,
         password_hash: user.password_hash,
-        role: user.role || 'user',
+        role: userRole,
         avatar_url: user.avatar_url,
         visits_count: user.visits_count || 1,
         is_banned: user.is_banned || 0,
@@ -1627,7 +1692,7 @@ async function startServer() {
           name: user.name,
           email: userEmail,
           whatsapp: userEmail,
-          role: user.role || 'user',
+          role: userRole,
           is_banned: user.is_banned || 0,
           avatar_url: user.avatar_url,
           onboarding_completed: user.onboarding_completed === 1,
@@ -1880,6 +1945,7 @@ async function startServer() {
     const user = (req as any).user;
     res.json({
       success: true,
+      rain_enabled: user.rain_enabled !== undefined ? Boolean(user.rain_enabled) : true,
       snow_enabled: Boolean(user.snow_enabled),
       theme: user.theme || 'dark',
       high_contrast: Boolean(user.high_contrast)
@@ -1888,8 +1954,9 @@ async function startServer() {
 
   app.post('/api/user/settings', requireAuth, async (req, res) => {
     const user = (req as any).user;
-    const { snow_enabled, theme, high_contrast } = req.body;
-    db.prepare('UPDATE users SET snow_enabled = ?, theme = ?, high_contrast = ? WHERE id = ?').run(
+    const { rain_enabled, snow_enabled, theme, high_contrast } = req.body;
+    db.prepare('UPDATE users SET rain_enabled = ?, snow_enabled = ?, theme = ?, high_contrast = ? WHERE id = ?').run(
+      rain_enabled !== undefined ? (rain_enabled ? 1 : 0) : 1,
       snow_enabled ? 1 : 0,
       theme || 'dark',
       high_contrast ? 1 : 0,
@@ -2260,6 +2327,10 @@ async function startServer() {
         isVerified: Boolean(r.is_verified),
         website: r.website || '',
         phone: r.phone || '',
+        availableForItinerary: r.available_for_itinerary === 1,
+        durationMinutes: r.duration_minutes || 90,
+        tags: r.tags ? r.tags.split(',').map((t: string) => t.trim()) : [],
+        price: r.price || r.price_range || '',
         createdAt: r.created_at
       }));
 
@@ -2338,7 +2409,11 @@ async function startServer() {
         isActive,
         highlighted,
         badge,
-        rating
+        rating,
+        availableForItinerary,
+        durationMinutes,
+        tags,
+        price
       } = req.body;
 
       if (!name || !category || lat === undefined || lng === undefined) {
@@ -2359,19 +2434,21 @@ async function startServer() {
         ? Math.max(1.0, Math.min(5.0, Number(rating)))
         : 4.8;
 
+      const formattedTags = Array.isArray(tags) ? tags.join(', ') : (tags || '');
+
       db.prepare(`
         INSERT INTO spots (
           id, name, short_name, tag_label, category, category_label,
           lat, lng, image, gallery, description, tourist_tip,
           rating, review_count, hours, address, price_range,
           visitors_today, badge, highlighted, is_active, is_verified,
-          website, phone
+          website, phone, available_for_itinerary, duration_minutes, tags, price
         ) VALUES (
           ?, ?, ?, ?, ?, ?,
           ?, ?, ?, ?, ?, ?,
           ?, ?, ?, ?, ?,
           ?, ?, ?, ?, ?,
-          ?, ?
+          ?, ?, ?, ?, ?, ?
         )
       `).run(
         id,
@@ -2397,7 +2474,11 @@ async function startServer() {
         isActive !== undefined ? (isActive ? 1 : 0) : 1,
         isVerified !== undefined ? (isVerified ? 1 : 0) : 1,
         website || '',
-        phone || ''
+        phone || '',
+        availableForItinerary !== undefined ? (availableForItinerary ? 1 : 0) : 1,
+        Number(durationMinutes) || 90,
+        formattedTags,
+        price || priceRange || ''
       );
 
       logAdminAction(null, 'Gerente ADM', 'Criou Ponto Turístico', `Nome: ${name} (${category})`);
@@ -2460,7 +2541,11 @@ async function startServer() {
         isActive,
         highlighted,
         badge,
-        rating
+        rating,
+        availableForItinerary,
+        durationMinutes,
+        tags,
+        price
       } = req.body;
 
       const existing = db.prepare('SELECT id FROM spots WHERE id = ?').get(id);
@@ -2471,6 +2556,10 @@ async function startServer() {
 
       const parsedRating = rating !== undefined && rating !== null && !isNaN(Number(rating))
         ? Math.max(1.0, Math.min(5.0, Number(rating)))
+        : null;
+
+      const formattedTags = tags !== undefined
+        ? (Array.isArray(tags) ? tags.join(', ') : tags)
         : null;
 
       db.prepare(`
@@ -2495,6 +2584,10 @@ async function startServer() {
           highlighted = COALESCE(?, highlighted),
           badge = COALESCE(?, badge),
           rating = COALESCE(?, rating),
+          available_for_itinerary = COALESCE(?, available_for_itinerary),
+          duration_minutes = COALESCE(?, duration_minutes),
+          tags = COALESCE(?, tags),
+          price = COALESCE(?, price),
           updated_at = CURRENT_TIMESTAMP
         WHERE id = ?
       `).run(
@@ -2518,6 +2611,10 @@ async function startServer() {
         highlighted !== undefined ? (highlighted ? 1 : 0) : null,
         badge,
         parsedRating,
+        availableForItinerary !== undefined ? (availableForItinerary ? 1 : 0) : null,
+        durationMinutes !== undefined ? Number(durationMinutes) : null,
+        formattedTags,
+        price,
         id
       );
 
@@ -2566,19 +2663,32 @@ async function startServer() {
   app.delete('/api/admin/spots/:id', (req, res) => {
     try {
       const { id } = req.params;
-      const spot: any = db.prepare('SELECT name FROM spots WHERE id = ?').get(id);
+      const decodedId = decodeURIComponent(id);
+      const spot: any = db.prepare('SELECT name FROM spots WHERE id = ? OR id = ?').get(id, decodedId);
       if (!spot) {
-        res.status(404).json({ error: 'Ponto não encontrado' });
+        // If not found in SQLite, try deleting anyway to ensure synchronization
+        try { db.prepare('DELETE FROM spots WHERE id = ? OR id = ?').run(id, decodedId); } catch (e) {}
+        deleteSpotFromFirestore(id).catch(() => {});
+        deleteSpotFromFirestore(decodedId).catch(() => {});
+        res.json({ success: true, message: 'Ponto excluído com sucesso.' });
         return;
       }
 
-      db.prepare('DELETE FROM spots WHERE id = ?').run(id);
+      // Cleanup dependent records safely
+      try { db.prepare('DELETE FROM reviews WHERE spot_id = ? OR spot_id = ?').run(id, decodedId); } catch (e) {}
+      try { db.prepare('DELETE FROM favorites WHERE spot_id = ? OR spot_id = ?').run(id, decodedId); } catch (e) {}
+      try { db.prepare('DELETE FROM user_favorites WHERE spot_id = ? OR spot_id = ?').run(id, decodedId); } catch (e) {}
+      try { db.prepare('DELETE FROM itinerary_items WHERE spot_id = ? OR spot_id = ?').run(id, decodedId); } catch (e) {}
+
+      db.prepare('DELETE FROM spots WHERE id = ? OR id = ?').run(id, decodedId);
       logAdminAction(null, 'Gerente ADM', 'Excluiu Ponto Turístico', `ID: ${id}, Nome: ${spot.name}`);
 
       deleteSpotFromFirestore(id).catch(err => console.warn('[FirestoreSync] Failed to delete spot from cloud:', id, err));
+      deleteSpotFromFirestore(decodedId).catch(() => {});
 
       res.json({ success: true, message: 'Ponto excluído com sucesso.' });
     } catch (err: any) {
+      console.error('Error deleting spot:', err);
       res.status(500).json({ error: 'Erro ao excluir ponto: ' + err.message });
     }
   });
@@ -3273,13 +3383,13 @@ async function startServer() {
             });
           }
 
-          const currentDateTimeInfo = `Contexto do Sistema: Data/Hora atual de Brasília: ${new Date().toLocaleString('pt-BR', { timeZone: 'America/Sao_Paulo' })}. Localização padrão: Campos do Jordão - SP (Altitude 1.628m, Serra da Mantiqueira).`;
+          const monvianPromptSystem = buildMonvianSystemInstruction();
 
           const response = await ai.models.generateContent({
             model: 'gemini-2.5-flash',
             contents,
             config: {
-              systemInstruction: SYSTEM_INSTRUCTION + '\n' + currentDateTimeInfo,
+              systemInstruction: monvianPromptSystem,
               tools: [{ functionDeclarations: chatToolsDeclarations }],
             },
           });
@@ -3325,7 +3435,7 @@ async function startServer() {
               model: 'gemini-2.5-flash',
               contents: secondContents,
               config: {
-                systemInstruction: SYSTEM_INSTRUCTION + '\n' + currentDateTimeInfo,
+                systemInstruction: monvianPromptSystem,
                 tools: [{ functionDeclarations: chatToolsDeclarations }],
               },
             });
@@ -3562,6 +3672,9 @@ Forneça um resumo curto sobre o local, horários de pico, status atual, endere�
     }
   });
 
+  // Register Itineraries & Tour Planner API routes
+  registerItineraryRoutes(app, db, getAuthUserSync, logAdminAction, getGenAI);
+
   // Serve public static assets (manifest.json, sw.js, icons, etc.)
   const publicPath = path.resolve(process.cwd(), 'public');
   app.use(express.static(publicPath));
@@ -3580,6 +3693,14 @@ Forneça um resumo curto sobre o local, horários de pico, status atual, endere�
     app.get('*', (req, res) => {
       res.sendFile(path.resolve(distPath, 'index.html'));
     });
+  }
+
+  // Await complete Cloud Firestore sync before accepting connections
+  try {
+    await syncDatabaseWithFirestore(db);
+    console.log('[Boot] Initial Cloud Firestore synchronization completed.');
+  } catch (syncErr) {
+    console.warn('[Boot] Initial Cloud Firestore sync notice:', syncErr);
   }
 
   app.listen(PORT, '0.0.0.0', () => {

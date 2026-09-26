@@ -12,11 +12,9 @@ interface IconProps {
  * Substitui a antiga bússola com agulha / rosa dos ventos tradicional.
  */
 /**
- * 1. Agora: Ícone premium para "Agora", representando o momento ao vivo,
- * pulso dinâmico e localização em tempo real no padrão minimalista do iOS.
- * Apresenta um aro externo de sincronia viva e o ponto de presença instantâneo com feixe.
+ * 1. Explorar (antigo Agora): Bússola minimalista no padrão Apple iOS SF Symbols.
  */
-export const NavAgoraIcon: React.FC<IconProps> = ({ className = '', size = 25 }) => {
+export const NavAgoraIcon: React.FC<IconProps> = ({ className = '', size = 24 }) => {
   return (
     <svg
       width={size}
@@ -27,35 +25,10 @@ export const NavAgoraIcon: React.FC<IconProps> = ({ className = '', size = 25 })
       className={className}
       aria-hidden="true"
     >
-      {/* Halo de pulso em tempo real (momento presente) */}
-      <circle
-        cx="12"
-        cy="12"
-        r="9"
-        stroke="currentColor"
-        strokeWidth="1.8"
-        strokeLinecap="round"
-        strokeDasharray="4.5 2.5"
-        opacity="0.45"
-      />
-      {/* Disco central e anel interno de presença instantânea */}
-      <circle
-        cx="12"
-        cy="12"
-        r="5.2"
-        stroke="currentColor"
-        strokeWidth="1.9"
-        fill="currentColor"
-        fillOpacity="0.16"
-      />
-      {/* Ponto focal de precisão / ao vivo */}
-      <circle cx="12" cy="12" r="2.2" fill="currentColor" />
-      {/* Feixe direcional superior sutil de radar ativo */}
+      <circle cx="12" cy="12" r="9" stroke="currentColor" strokeWidth="2" />
       <path
-        d="M12 2.8V5.2"
-        stroke="currentColor"
-        strokeWidth="2"
-        strokeLinecap="round"
+        d="M16 8L13.2 13.2L8 16L10.8 10.8L16 8Z"
+        fill="currentColor"
       />
     </svg>
   );
@@ -202,3 +175,30 @@ export const NavProfileIcon: React.FC<IconProps> = ({ className = '', size = 24 
     </svg>
   );
 };
+
+/**
+ * 5. Roteiros: Linha de rota minimalista e elegante conectando dois pontos no padrão iOS.
+ */
+export const NavRoteirosIcon: React.FC<IconProps> = ({ className = '', size = 24 }) => {
+  return (
+    <svg
+      width={size}
+      height={size}
+      viewBox="0 0 24 24"
+      fill="none"
+      xmlns="http://www.w3.org/2000/svg"
+      className={className}
+      aria-hidden="true"
+    >
+      <path
+        d="M6 18C6 11.5 18 12.5 18 6"
+        stroke="currentColor"
+        strokeWidth="2.2"
+        strokeLinecap="round"
+      />
+      <circle cx="6" cy="18" r="2.8" fill="currentColor" />
+      <circle cx="18" cy="6" r="2.8" fill="currentColor" />
+    </svg>
+  );
+};
+

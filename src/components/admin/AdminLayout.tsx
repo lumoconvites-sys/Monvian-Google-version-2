@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { motion, AnimatePresence } from 'motion/react';
 import {
   LayoutDashboard,
   MapPin,
@@ -10,17 +11,16 @@ import {
   Layers,
   Menu,
   X,
-  Search,
-  Bell,
   ArrowLeft,
-  CloudSun,
   ShieldCheck,
   Compass,
   LogOut,
-  ChevronRight
+  ChevronRight,
+  Route
 } from 'lucide-react';
 import { AdminDashboard } from './AdminDashboard';
 import { AdminSpots } from './AdminSpots';
+import { AdminItineraries } from './AdminItineraries';
 import { AdminServices } from './AdminServices';
 import { AdminUsers } from './AdminUsers';
 import { AdminEvents } from './AdminEvents';
@@ -42,7 +42,6 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({
   const [activeTab, setActiveTab] = useState<string>('dashboard');
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [currentTime, setCurrentTime] = useState('');
-  const [searchQuery, setSearchQuery] = useState('');
 
   // Live Clock & Date formatted (matching screenshot: 16:35 | 12 de setembro)
   useEffect(() => {
@@ -69,6 +68,7 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({
   const NAV_ITEMS = [
     { id: 'dashboard', label: 'Visão Geral', icon: LayoutDashboard },
     { id: 'spots', label: 'Pontos Turísticos', icon: MapPin },
+    { id: 'itineraries', label: 'Roteiros', icon: Route },
     { id: 'map_icons', label: 'Ícones do mapa', icon: Layers },
     { id: 'services', label: 'Locais e Serviços', icon: Store },
     { id: 'users', label: 'Usuários & Comunidade', icon: Users },
@@ -78,10 +78,10 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({
   ];
 
   return (
-    <div className="min-h-screen bg-[#f8fafc] text-zinc-900 flex flex-col font-sans antialiased">
-      {/* Top Header Bar (Matching screenshot 1) */}
+    <div className="h-screen h-[100dvh] w-full bg-[#f8fafc] dark:bg-[#0c0d10] text-zinc-900 dark:text-zinc-100 flex flex-col font-sans antialiased overflow-hidden">
+      {/* Top Header Bar */}
       <header
-        className="sticky top-0 z-40 bg-white border-b border-zinc-200/80 px-4 sm:px-6 py-3 flex items-center justify-between shadow-2xs"
+        className="shrink-0 z-40 bg-white dark:bg-[#121418] border-b border-zinc-200/80 dark:border-zinc-800 px-4 sm:px-6 py-3 flex items-center justify-between shadow-2xs"
         style={{
           paddingTop: 'max(12px, env(safe-area-inset-top, 0px))',
           paddingLeft: 'max(16px, env(safe-area-inset-left, 0px))',
@@ -93,23 +93,23 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({
           {/* Mobile hamburger */}
           <button
             onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
-            className="md:hidden p-2 rounded-xl text-zinc-600 hover:bg-zinc-100 transition-colors cursor-pointer"
+            className="md:hidden p-2 rounded-xl text-zinc-600 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors cursor-pointer"
           >
             {isMobileMenuOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
           </button>
 
           <div>
             <div className="flex items-center gap-2">
-              <span className="text-xs sm:text-sm font-black text-zinc-900 tracking-tight">
+              <span className="text-xs sm:text-sm font-black text-zinc-900 dark:text-white tracking-tight">
                 BOA TARDE, {userName}
               </span>
             </div>
-            <div className="flex items-center gap-2 text-[11px] text-zinc-400 font-black">
+            <div className="flex items-center gap-2 text-[11px] text-zinc-400 dark:text-zinc-400 font-black">
               <span>{currentTime}</span>
-              <span className="text-zinc-300">•</span>
+              <span className="text-zinc-300 dark:text-zinc-600">•</span>
               <button
                 onClick={onExitAdmin}
-                className="text-blue-600 font-black hover:underline cursor-pointer flex items-center gap-0.5"
+                className="text-blue-600 dark:text-blue-400 font-black hover:underline cursor-pointer flex items-center gap-0.5"
               >
                 <span>VOLTAR AO MAPA</span>
               </button>
@@ -117,48 +117,20 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({
           </div>
         </div>
 
-        {/* Right: Weather, Search, Notifications, Profile */}
+        {/* Right: Profile */}
         <div className="flex items-center gap-3">
-          {/* Weather pill */}
-          <div className="hidden lg:flex items-center gap-2 bg-zinc-50 border border-zinc-200/80 px-3 py-1.5 rounded-xl text-xs font-black text-zinc-700">
-            <CloudSun className="w-4 h-4 text-amber-500" />
-            <span>CAMPOS 20°C - Parcialmente nublado</span>
-          </div>
-
-          {/* Quick Search */}
-          <div className="hidden md:flex items-center gap-2 bg-zinc-50 border border-zinc-200/80 rounded-xl px-3 py-1.5 w-56 lg:w-64">
-            <Search className="w-3.5 h-3.5 text-zinc-400" />
-            <input
-              type="text"
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="Busque locais, serviços... ⌘K"
-              className="w-full text-xs text-zinc-800 bg-transparent outline-none placeholder-zinc-400"
-            />
-          </div>
-
-          {/* Bell Icon */}
-          <button
-            type="button"
-            className="relative w-9 h-9 rounded-xl bg-zinc-50 hover:bg-zinc-100 border border-zinc-200/80 flex items-center justify-center text-zinc-600 transition-colors cursor-pointer"
-            title="Notificações"
-          >
-            <Bell className="w-4 h-4" />
-            <span className="absolute top-2 right-2 w-2 h-2 rounded-full bg-blue-600"></span>
-          </button>
-
           {/* User Profile Capsule */}
-          <div className="flex items-center gap-2 pl-2 border-l border-zinc-200">
+          <div className="flex items-center gap-2 pl-2 border-l border-zinc-200 dark:border-zinc-700">
             <img
               src={currentUser?.avatar_url || '/fotoperfil.png'}
               alt="Avatar"
-              className="w-8 h-8 rounded-full object-cover ring-1 ring-zinc-200"
+              className="w-8 h-8 rounded-full object-cover ring-1 ring-zinc-200 dark:ring-zinc-700"
             />
             <div className="hidden sm:block text-left">
-              <span className="block text-xs font-black text-zinc-900 leading-tight">
+              <span className="block text-xs font-black text-zinc-900 dark:text-zinc-100 leading-tight">
                 {currentUser?.name || 'mariomeloz'}
               </span>
-              <span className="text-[10px] font-black text-blue-600 tracking-wider">
+              <span className="text-[10px] font-black text-blue-600 dark:text-blue-400 tracking-wider">
                 GERENTE
               </span>
             </div>
@@ -167,20 +139,20 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({
       </header>
 
       {/* Main Container: Sidebar + Content */}
-      <div className="flex-1 flex">
+      <div className="flex-1 flex min-h-0 overflow-hidden">
         {/* Desktop Sidebar (Matching screenshot layout) */}
-        <aside className="hidden md:flex w-64 bg-white border-r border-zinc-200/80 flex-col justify-between shrink-0 p-4">
+        <aside className="hidden md:flex w-64 bg-white dark:bg-[#121418] border-r border-zinc-200/80 dark:border-zinc-800 flex-col justify-between shrink-0 p-4 overflow-y-auto">
           <div className="space-y-6">
             {/* Logo */}
             <div className="px-3 py-2 flex items-center gap-2.5">
               <div className="w-9 h-9 rounded-xl bg-black flex items-center justify-center shadow-sm overflow-hidden p-1.5">
-                <img src="/loogo.png" alt="Logo" className="w-full h-full object-contain" />
+                <img src="/logo-white.png" alt="Logo" className="w-full h-full object-contain" />
               </div>
               <div>
-                <span className="block text-sm font-black tracking-tight text-zinc-900">
+                <span className="block text-sm font-black tracking-tight text-zinc-900 dark:text-white">
                   MONVIAN ADM
                 </span>
-                <span className="block text-[10px] font-black text-zinc-400 uppercase tracking-wider">
+                <span className="block text-[10px] font-black text-zinc-400 dark:text-zinc-500 uppercase tracking-wider">
                   Campos do Jordão
                 </span>
               </div>
@@ -197,11 +169,11 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({
                     onClick={() => setActiveTab(item.id)}
                     className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-xs font-black transition-all cursor-pointer ${
                       isActive
-                        ? 'bg-blue-50 text-blue-600 font-black shadow-2xs'
-                        : 'text-zinc-600 hover:bg-zinc-50 hover:text-zinc-900'
+                        ? 'bg-blue-50 dark:bg-blue-950/40 text-blue-600 dark:text-blue-400 font-black shadow-2xs'
+                        : 'text-zinc-600 dark:text-zinc-400 hover:bg-zinc-50 dark:hover:bg-zinc-800/60 hover:text-zinc-900 dark:hover:text-zinc-100'
                     }`}
                   >
-                    <Icon className={`w-4 h-4 ${isActive ? 'text-blue-600' : 'text-zinc-400'}`} />
+                    <Icon className={`w-4 h-4 ${isActive ? 'text-blue-600 dark:text-blue-400' : 'text-zinc-400 dark:text-zinc-500'}`} />
                     <span>{item.label}</span>
                   </button>
                 );
@@ -210,23 +182,23 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({
           </div>
 
           {/* Bottom Sidebar: System Health Card (Matching reference) */}
-          <div className="space-y-3 pt-4 border-t border-zinc-100">
-            <div className="p-3.5 bg-zinc-50 border border-zinc-200/80 rounded-2xl space-y-1.5">
-              <div className="flex items-center justify-between text-[11px] font-black text-zinc-400 uppercase">
+          <div className="space-y-3 pt-4 border-t border-zinc-100 dark:border-zinc-800">
+            <div className="p-3.5 bg-zinc-50 dark:bg-zinc-800/50 border border-zinc-200/80 dark:border-zinc-700/60 rounded-2xl space-y-1.5">
+              <div className="flex items-center justify-between text-[11px] font-black text-zinc-400 dark:text-zinc-500 uppercase">
                 <span>SAÚDE DO SISTEMA</span>
-                <span className="w-2 h-2 rounded-full bg-[#00C896] animate-pulse"></span>
+                <span className="w-2 h-2 rounded-full bg-blue-500 animate-pulse"></span>
               </div>
               <div className="flex items-center gap-1.5">
-                <span className="text-xs font-black text-[#00C896]">Operacional</span>
+                <span className="text-xs font-black text-blue-600 dark:text-blue-400">Operacional</span>
               </div>
-              <p className="text-[10px] text-zinc-400 font-black">
+              <p className="text-[10px] text-zinc-400 dark:text-zinc-500 font-black">
                 Latência: 24ms • Ativo há 12d 4h
               </p>
             </div>
 
             <button
               onClick={onExitAdmin}
-              className="w-full flex items-center justify-center gap-2 py-2 px-3 bg-zinc-100 hover:bg-zinc-200 text-zinc-700 rounded-xl text-xs font-black transition-colors cursor-pointer"
+              className="w-full flex items-center justify-center gap-2 py-2 px-3 bg-zinc-100 dark:bg-zinc-800 hover:bg-zinc-200 dark:hover:bg-zinc-700 text-zinc-700 dark:text-zinc-200 rounded-xl text-xs font-black transition-colors cursor-pointer"
             >
               <ArrowLeft className="w-3.5 h-3.5" />
               <span>Voltar ao Aplicativo</span>
@@ -238,21 +210,29 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({
         {isMobileMenuOpen && (
           <div className="md:hidden fixed inset-0 z-50 flex">
             <div
-              className="fixed inset-0 bg-black/40 backdrop-blur-xs"
+              className="fixed inset-0 bg-black/50 backdrop-blur-xs"
               onClick={() => setIsMobileMenuOpen(false)}
             />
-            <div className="relative w-72 max-w-[80vw] bg-white h-full p-5 flex flex-col justify-between shadow-2xl z-10 animate-in slide-in-from-left duration-200">
+            <div 
+              className="relative w-72 max-w-[80vw] bg-white dark:bg-[#121418] h-full flex flex-col justify-between shadow-2xl z-10 animate-in slide-in-from-left duration-200"
+              style={{
+                paddingTop: 'max(24px, calc(env(safe-area-inset-top, 0px) + 16px))',
+                paddingBottom: 'max(24px, calc(env(safe-area-inset-bottom, 0px) + 16px))',
+                paddingLeft: 'max(16px, env(safe-area-inset-left, 0px))',
+                paddingRight: 'max(16px, env(safe-area-inset-right, 0px))',
+              }}
+            >
               <div className="space-y-6">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2">
                     <div className="w-9 h-9 rounded-xl bg-black flex items-center justify-center shadow-sm overflow-hidden p-1.5">
-                      <img src="/loogo.png" alt="Logo" className="w-full h-full object-contain" />
+                      <img src="/logo-white.png" alt="Logo" className="w-full h-full object-contain" />
                     </div>
-                    <span className="font-black text-sm text-zinc-900">MONVIAN ADM</span>
+                    <span className="font-black text-sm text-zinc-900 dark:text-white">MONVIAN ADM</span>
                   </div>
                   <button
                     onClick={() => setIsMobileMenuOpen(false)}
-                    className="p-2 text-zinc-400 hover:text-zinc-600"
+                    className="p-2 text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-200"
                   >
                     <X className="w-5 h-5" />
                   </button>
@@ -271,8 +251,8 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({
                         }}
                         className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-xs font-black transition-all ${
                           isActive
-                            ? 'bg-blue-50 text-blue-600 font-black'
-                            : 'text-zinc-600 hover:bg-zinc-50'
+                            ? 'bg-blue-50 dark:bg-blue-950/40 text-blue-600 dark:text-blue-400 font-black'
+                            : 'text-zinc-600 dark:text-zinc-400 hover:bg-zinc-50 dark:hover:bg-zinc-800'
                         }`}
                       >
                         <Icon className="w-4 h-4" />
@@ -289,7 +269,7 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({
                     setIsMobileMenuOpen(false);
                     onExitAdmin();
                   }}
-                  className="w-full py-2.5 bg-blue-600 text-white font-black text-xs rounded-xl flex items-center justify-center gap-2"
+                  className="w-full py-2.5 bg-blue-600 hover:bg-blue-700 text-white font-black text-xs rounded-xl flex items-center justify-center gap-2"
                 >
                   <ArrowLeft className="w-4 h-4" />
                   <span>Voltar ao Monvian</span>
@@ -299,16 +279,33 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({
           </div>
         )}
 
-        {/* Dynamic Content Area */}
-        <main className="flex-1 p-4 sm:p-6 lg:p-8 overflow-y-auto max-w-7xl mx-auto w-full">
-          {activeTab === 'dashboard' && <AdminDashboard onNavigateTo={(tab) => setActiveTab(tab)} />}
-          {activeTab === 'spots' && <AdminSpots />}
-          {activeTab === 'map_icons' && <AdminMapIcons />}
-          {activeTab === 'services' && <AdminServices />}
-          {activeTab === 'users' && <AdminUsers />}
-          {activeTab === 'events' && <AdminEvents />}
-          {activeTab === 'settings' && <AdminSettings />}
-          {activeTab === 'cleanup' && <AdminCleanup />}
+        {/* Dynamic Content Area with Full Scroll & Safe Bottom Padding */}
+        <main 
+          className="flex-1 p-4 sm:p-6 lg:p-8 overflow-y-auto min-h-0 max-w-7xl mx-auto w-full"
+          style={{
+            paddingBottom: 'max(128px, calc(env(safe-area-inset-bottom, 0px) + 96px))',
+          }}
+        >
+          <AnimatePresence mode="wait">
+            <motion.div
+              key={activeTab}
+              initial={{ opacity: 0, y: 12 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -12 }}
+              transition={{ duration: 0.18, ease: "easeOut" }}
+              className="w-full"
+            >
+              {activeTab === 'dashboard' && <AdminDashboard onNavigateTo={(tab) => setActiveTab(tab)} />}
+              {activeTab === 'spots' && <AdminSpots />}
+              {activeTab === 'itineraries' && <AdminItineraries />}
+              {activeTab === 'map_icons' && <AdminMapIcons />}
+              {activeTab === 'services' && <AdminServices />}
+              {activeTab === 'users' && <AdminUsers />}
+              {activeTab === 'events' && <AdminEvents />}
+              {activeTab === 'settings' && <AdminSettings />}
+              {activeTab === 'cleanup' && <AdminCleanup />}
+            </motion.div>
+          </AnimatePresence>
         </main>
       </div>
     </div>

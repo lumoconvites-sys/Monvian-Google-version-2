@@ -23,7 +23,7 @@ export const InstallAppOption: React.FC = () => {
         // Estado: Já instalado neste dispositivo
         <div className="p-4 rounded-3xl bg-white dark:bg-[#141518] border border-zinc-200 dark:border-white/10 flex items-center justify-between shadow-sm">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-2xl bg-blue-50 dark:bg-blue-950/40 flex items-center justify-center text-[#00C896]">
+            <div className="w-10 h-10 rounded-2xl bg-zinc-100 dark:bg-zinc-800 flex items-center justify-center text-zinc-900 dark:text-white">
               <CheckCircle2 className="w-5 h-5 stroke-[2]" />
             </div>
             <div>
@@ -35,7 +35,7 @@ export const InstallAppOption: React.FC = () => {
               </div>
             </div>
           </div>
-          <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-2xl bg-blue-50 dark:bg-blue-950/50 text-[#00C896] text-xs font-black shrink-0">
+          <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-2xl bg-zinc-100 dark:bg-white/15 text-zinc-900 dark:text-white text-xs font-black shrink-0">
             <CheckCircle2 className="w-3.5 h-3.5 stroke-[2.5]" />
             <span>Instalado</span>
           </div>
@@ -49,7 +49,7 @@ export const InstallAppOption: React.FC = () => {
           className="w-full p-4 rounded-3xl bg-white dark:bg-[#141518] hover:bg-zinc-50 dark:hover:bg-[#1a1c21] active:scale-[0.98] border border-zinc-200 dark:border-white/10 hover:border-zinc-300 dark:hover:border-white/20 transition-all flex items-center justify-between shadow-sm cursor-pointer text-left group"
         >
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-2xl bg-blue-50 dark:bg-blue-950/40 flex items-center justify-center text-[#00C896] group-hover:scale-105 transition-transform">
+            <div className="w-10 h-10 rounded-2xl bg-zinc-100 dark:bg-zinc-800 flex items-center justify-center text-zinc-900 dark:text-white group-hover:scale-105 transition-transform">
               <Download className="w-5 h-5 stroke-[2]" />
             </div>
             <div>
@@ -61,9 +61,9 @@ export const InstallAppOption: React.FC = () => {
               </div>
             </div>
           </div>
-          <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-2xl bg-[#00C896] text-white text-xs font-black shadow-xs shrink-0">
+          <div className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-2xl bg-white text-zinc-950 text-xs font-black shadow-xs shrink-0">
             <span>Instalar</span>
-            <ChevronRight className="w-4 h-4 text-white" />
+            <ChevronRight className="w-4 h-4 text-zinc-950" />
           </div>
         </button>
       )}
@@ -77,7 +77,7 @@ export const InstallAppOption: React.FC = () => {
               animate={{ opacity: 1, scale: 1, y: 0 }}
               exit={{ opacity: 0 }}
               transition={{ duration: 0 }}
-              className="w-full max-w-sm rounded-[32px] bg-white dark:bg-[#16181d] border border-zinc-200 dark:border-white/10 p-6 shadow-2xl space-y-5"
+              className="w-full max-w-sm rounded-[32px] bg-white dark:bg-[#000000] border border-zinc-200 dark:border-white/10 p-6 shadow-2xl space-y-5"
             >
               <div className="flex items-start justify-between">
                 <div className="flex items-center gap-3">
@@ -97,7 +97,7 @@ export const InstallAppOption: React.FC = () => {
 
               <div className="space-y-3 text-sm text-zinc-600 dark:text-zinc-300">
                 <div className="flex items-center gap-3 p-3 rounded-2xl bg-zinc-50 dark:bg-[#1f2229] border border-zinc-100 dark:border-white/5">
-                  <div className="w-8 h-8 rounded-xl bg-blue-50 dark:bg-blue-950/40 text-[#00C896] flex items-center justify-center shrink-0">
+                  <div className="w-8 h-8 rounded-xl bg-zinc-100 dark:bg-zinc-800 text-zinc-900 dark:text-white flex items-center justify-center shrink-0">
                     <Share2 className="w-4 h-4" />
                   </div>
                   <div className="text-xs">
@@ -115,7 +115,7 @@ export const InstallAppOption: React.FC = () => {
                 </div>
 
                 <div className="flex items-center gap-3 p-3 rounded-2xl bg-zinc-50 dark:bg-[#1f2229] border border-zinc-100 dark:border-white/5">
-                  <div className="w-8 h-8 rounded-xl bg-blue-50 dark:bg-blue-950/40 text-[#00C896] flex items-center justify-center shrink-0">
+                  <div className="w-8 h-8 rounded-xl bg-zinc-100 dark:bg-zinc-800 text-zinc-900 dark:text-white flex items-center justify-center shrink-0">
                     <CheckCircle2 className="w-4 h-4" />
                   </div>
                   <div className="text-xs">
@@ -127,7 +127,7 @@ export const InstallAppOption: React.FC = () => {
               <button
                 type="button"
                 onClick={() => setShowIOSGuide(false)}
-                className="w-full py-3 px-4 rounded-2xl bg-[#00C896] text-white font-black text-sm shadow-md hover:opacity-95 transition-opacity cursor-pointer text-center"
+                className="w-full py-3 px-4 rounded-2xl bg-white text-zinc-950 font-black text-sm shadow-md hover:bg-zinc-100 transition-colors cursor-pointer text-center"
               >
                 Entendi
               </button>
@@ -145,11 +145,11 @@ export const InstallAppOption: React.FC = () => {
               animate={{ opacity: 1, scale: 1 }}
               exit={{ opacity: 0 }}
               transition={{ duration: 0 }}
-              className="w-full max-w-sm rounded-[32px] bg-white dark:bg-[#16181d] border border-zinc-200 dark:border-white/10 p-6 shadow-2xl space-y-4"
+              className="w-full max-w-sm rounded-[32px] bg-white dark:bg-[#000000] border border-zinc-200 dark:border-white/10 p-6 shadow-2xl space-y-4"
             >
               <div className="flex items-start justify-between">
                 <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-2xl bg-blue-50 dark:bg-blue-950/40 text-[#00C896] flex items-center justify-center">
+                  <div className="w-10 h-10 rounded-2xl bg-zinc-100 dark:bg-zinc-800 text-zinc-900 dark:text-white flex items-center justify-center">
                     <Download className="w-5 h-5 stroke-[2]" />
                   </div>
                   <div>
@@ -170,7 +170,7 @@ export const InstallAppOption: React.FC = () => {
               <button
                 type="button"
                 onClick={() => setShowBrowserGuide(false)}
-                className="w-full py-3 px-4 rounded-2xl bg-[#00C896] hover:bg-[#0000dd] text-white font-black text-sm shadow-md transition-all cursor-pointer text-center"
+                className="w-full py-3 px-4 rounded-2xl bg-white text-zinc-950 hover:bg-zinc-100 font-black text-sm shadow-md transition-all cursor-pointer text-center"
               >
                 Fechar
               </button>

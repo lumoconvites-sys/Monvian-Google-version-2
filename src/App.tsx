@@ -1,6 +1,6 @@
-import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { CAMPOS_SPOTS, INITIAL_WEATHER } from './data/spots';
-import { Spot, MapVisualIcon } from './types';
+import { Spot, MapVisualIcon, MapModeType } from './types';
 import { MapComponent } from './components/MapComponent';
 import { BottomNavigation, TabType } from './components/BottomNavigation';
 import { SpotDetailSheet } from './components/SpotDetailSheet';
@@ -8,12 +8,55 @@ import { SpotPreviewBanner } from './components/SpotPreviewBanner';
 import { SearchFilterDrawer } from './components/SearchFilterDrawer';
 import { AIChatModal } from './components/AIChatModal';
 import { ProfileModal } from './components/ProfileModal';
-import { CloudRain, Sparkles, SlidersHorizontal, MapPin, Navigation2, Mic, Search, X, ShieldCheck, Sun, Moon, Building2, UtensilsCrossed, Coffee, Cake, Mountain, Cross, Check, RotateCcw } from 'lucide-react';
+import { ItinerariesView } from './components/ItinerariesView';
+import { CloudRain, SlidersHorizontal, MapPin, Navigation2, Mic, Search, X, ShieldCheck, Sun, Moon, Building2, UtensilsCrossed, Coffee, Cake, Mountain, Cross, Check, RotateCcw, Star, ChevronRight } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { AuthScreen } from './components/AuthScreen';
 import { AdminLayout } from './components/admin/AdminLayout';
 import { OnboardingFlow } from './components/OnboardingFlow';
 import { OfflineIndicator } from './components/OfflineIndicator';
+import { Weather3DIcon } from './components/Weather3DIcon';
+import { WeatherModal } from './components/WeatherModal';
+import { RainEffect } from './components/RainEffect';
+import { computeAdaptiveThemeColor, applySystemThemeColor } from './utils/themeColor';
+import { gpsNavigationManager } from './services/gpsNavigation';
+
+const VerifiedBadge = ({ className = 'w-3.5 h-3.5' }: { className?: string }) => (
+  <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" className={`${className} text-white shrink-0`} aria-label="Verificado">
+    <path d="M12 2L15.09 5.09L19.18 5.18L19.27 9.27L22.36 12.36L19.27 15.45L19.18 19.54L15.09 19.63L12 22.72L8.91 19.63L4.82 19.54L4.73 15.45L1.64 12.36L4.73 9.27L4.82 5.18L8.91 5.09L12 2Z" fill="currentColor"/>
+    <path d="M10 16L6 12L7.41 10.59L10 13.17L16.59 6.58L18 8L10 16Z" fill="black"/>
+  </svg>
+);
+
+const welcomeContainerVariants = {
+  hidden: { opacity: 0 },
+  visible: {
+    opacity: 1,
+    transition: {
+      staggerChildren: 0.032,
+      delayChildren: 0.15,
+    },
+  },
+};
+
+const welcomeCharVariants = {
+  hidden: {
+    opacity: 0,
+    y: 8,
+    filter: 'blur(3px)',
+  },
+  visible: {
+    opacity: 1,
+    y: 0,
+    filter: 'blur(0px)',
+    transition: {
+      type: 'spring' as const,
+      damping: 24,
+      stiffness: 280,
+      mass: 0.7,
+    },
+  },
+};
 
 export default function App() {
   const [isAuthenticated, setIsAuthenticated] = useState<boolean | null>(null);
@@ -29,10 +72,31 @@ export default function App() {
     const saved = localStorage.getItem('monvian_snow_enabled');
     return saved !== null ? JSON.parse(saved) : false;
   });
+  const [rainEnabled, setRainEnabled] = useState<boolean>(() => {
+    const saved = localStorage.getItem('monvian_rain_enabled');
+    return saved !== null ? JSON.parse(saved) : true;
+  });
 
-  // Global Theme State
+  // Global Theme State: Default to 'light' (tema branco)
   const [theme, setTheme] = useState<'dark' | 'light'>(() => {
-    return (localStorage.getItem('monvian_theme') as 'dark' | 'light') || 'dark';
+    const saved = localStorage.getItem('monvian_theme');
+    return (saved as 'dark' | 'light') || 'light';
+  });
+
+  // 2-second initial loading splash screen
+  const [isInitialSplash, setIsInitialSplash] = useState<boolean>(true);
+
+  useEffect(() => {
+    const splashTimer = setTimeout(() => {
+      setIsInitialSplash(false);
+    }, 2000);
+    return () => clearTimeout(splashTimer);
+  }, []);
+
+  // Map style mode state: synced with theme & user selection
+  const [mapStyle, setMapStyle] = useState<MapModeType>(() => {
+    const saved = localStorage.getItem('monvian_theme');
+    return saved === 'dark' ? 'explorar' : 'animado';
   });
 
   // Accessibility: High Contrast Mode State
@@ -40,6 +104,138 @@ export default function App() {
     const saved = localStorage.getItem('monvian_high_contrast');
     return saved !== null ? JSON.parse(saved) : false;
   });
+
+  // Map interaction state for Apple iOS translucent dynamic effects
+  const [isMapInteracting, setIsMapInteracting] = useState<boolean>(false);
+
+  // Welcome translucent overlay on new account creation
+  const [showWelcomeOverlay, setShowWelcomeOverlay] = useState<boolean>(false);
+  const [zoomToUserTrigger, setZoomToUserTrigger] = useState<number>(0);
+
+  // Weather modal state
+  const [isWeatherModalOpen, setIsWeatherModalOpen] = useState<boolean>(false);
+
+  // Standalone PWA detection vs standard mobile web browser
+  const [isStandalone, setIsStandalone] = useState<boolean>(() => {
+    if (typeof window === 'undefined') return false;
+    return (
+      window.matchMedia('(display-mode: standalone)').matches ||
+      (window.navigator as any).standalone === true ||
+      document.referrer.includes('android-app://')
+    );
+  });
+
+  useEffect(() => {
+    const checkStandalone = () => {
+      const standalone =
+        window.matchMedia('(display-mode: standalone)').matches ||
+        (window.navigator as any).standalone === true ||
+        document.referrer.includes('android-app://');
+      setIsStandalone(standalone);
+    };
+    checkStandalone();
+    const mql = window.matchMedia('(display-mode: standalone)');
+    mql.addEventListener?.('change', checkStandalone);
+    window.addEventListener('resize', checkStandalone);
+    return () => {
+      mql.removeEventListener?.('change', checkStandalone);
+      window.removeEventListener('resize', checkStandalone);
+    };
+  }, []);
+
+  // Viewport real & dynamic height syncing for iOS PWA and mobile devices
+  useEffect(() => {
+    const updateAppHeight = () => {
+      try {
+        const isStandalone =
+          (window.navigator as any).standalone === true ||
+          window.matchMedia('(display-mode: standalone)').matches;
+
+        let h = window.innerHeight;
+
+        if (isStandalone && window.screen && window.screen.height) {
+          const isLandscape =
+            window.matchMedia('(orientation: landscape)').matches ||
+            Math.abs(Number(window.orientation) || 0) === 90 ||
+            window.innerWidth > window.innerHeight;
+          const screenH = isLandscape
+            ? Math.min(window.screen.width, window.screen.height)
+            : Math.max(window.screen.width, window.screen.height);
+          h = Math.max(
+            window.innerHeight || 0,
+            window.visualViewport?.height || 0,
+            screenH
+          );
+        } else if (window.visualViewport && window.visualViewport.height) {
+          h = window.visualViewport.height;
+        } else if (document.documentElement && document.documentElement.clientHeight) {
+          h = Math.max(window.innerHeight || 0, document.documentElement.clientHeight);
+        }
+
+        if (h && h > 0) {
+          document.documentElement.style.setProperty('--app-height', `${h}px`);
+        }
+      } catch (e) {}
+    };
+
+    updateAppHeight();
+
+    const handleOrientation = () => {
+      updateAppHeight();
+      requestAnimationFrame(updateAppHeight);
+      setTimeout(updateAppHeight, 50);
+      setTimeout(updateAppHeight, 150);
+      setTimeout(updateAppHeight, 300);
+      setTimeout(updateAppHeight, 500);
+    };
+
+    window.addEventListener('resize', updateAppHeight, { passive: true });
+    window.addEventListener('orientationchange', handleOrientation, { passive: true });
+    window.addEventListener('pageshow', updateAppHeight, { passive: true });
+
+    if (window.visualViewport) {
+      window.visualViewport.addEventListener('resize', updateAppHeight, { passive: true });
+    }
+
+    if (window.screen?.orientation) {
+      window.screen.orientation.addEventListener('change', handleOrientation, { passive: true });
+    }
+
+    const mql = window.matchMedia('(display-mode: standalone)');
+    mql.addEventListener?.('change', updateAppHeight);
+
+    const handleVisibility = () => {
+      if (document.visibilityState === 'visible') {
+        updateAppHeight();
+      }
+    };
+    document.addEventListener('visibilitychange', handleVisibility, { passive: true });
+
+    const t1 = setTimeout(updateAppHeight, 50);
+    const t2 = setTimeout(updateAppHeight, 150);
+    const t3 = setTimeout(updateAppHeight, 400);
+
+    return () => {
+      window.removeEventListener('resize', updateAppHeight);
+      window.removeEventListener('orientationchange', handleOrientation);
+      window.removeEventListener('pageshow', updateAppHeight);
+      if (window.visualViewport) {
+        window.visualViewport.removeEventListener('resize', updateAppHeight);
+      }
+      if (window.screen?.orientation) {
+        window.screen.orientation.removeEventListener('change', handleOrientation);
+      }
+      mql.removeEventListener?.('change', updateAppHeight);
+      document.removeEventListener('visibilitychange', handleVisibility);
+      clearTimeout(t1);
+      clearTimeout(t2);
+      clearTimeout(t3);
+    };
+  }, []);
+
+  const handleToggleWeather = useCallback(() => {
+    setIsWeatherModalOpen((prev) => !prev);
+  }, []);
 
   useEffect(() => {
     const token = localStorage.getItem('monvian_token');
@@ -80,6 +276,10 @@ export default function App() {
             });
             const settings = await settingsRes.json();
             if (settings.success && isMounted) {
+              if (typeof settings.rain_enabled === 'boolean') {
+                setRainEnabled(settings.rain_enabled);
+                localStorage.setItem('monvian_rain_enabled', JSON.stringify(settings.rain_enabled));
+              }
               if (typeof settings.snow_enabled === 'boolean') {
                 setSnowEnabled(settings.snow_enabled);
                 localStorage.setItem('monvian_snow_enabled', JSON.stringify(settings.snow_enabled));
@@ -132,9 +332,16 @@ export default function App() {
 
   // Save settings on change to localStorage and backend database
   useEffect(() => {
+    localStorage.setItem('monvian_rain_enabled', JSON.stringify(rainEnabled));
     localStorage.setItem('monvian_snow_enabled', JSON.stringify(snowEnabled));
     localStorage.setItem('monvian_theme', theme);
     localStorage.setItem('monvian_high_contrast', JSON.stringify(highContrast));
+
+    if (theme === 'dark') {
+      setMapStyle((prev) => (prev === 'animado' || prev === 'transporte' ? 'explorar' : prev));
+    } else {
+      setMapStyle('animado');
+    }
 
     if (highContrast) {
       document.documentElement.classList.add('high-contrast');
@@ -142,17 +349,12 @@ export default function App() {
       document.documentElement.classList.remove('high-contrast');
     }
 
-    const metaThemeColor = document.getElementById('theme-color-meta');
     if (theme === 'dark') {
       document.documentElement.classList.add('dark');
-      document.documentElement.style.backgroundColor = '#000000';
-      document.body.style.backgroundColor = '#000000';
-      if (metaThemeColor) metaThemeColor.setAttribute('content', '#000000');
+      document.documentElement.classList.remove('light');
     } else {
       document.documentElement.classList.remove('dark');
-      document.documentElement.style.backgroundColor = '#f4f4f5';
-      document.body.style.backgroundColor = '#f4f4f5';
-      if (metaThemeColor) metaThemeColor.setAttribute('content', '#f4f4f5');
+      document.documentElement.classList.add('light');
     }
 
     const token = localStorage.getItem('monvian_token');
@@ -163,10 +365,10 @@ export default function App() {
           'Content-Type': 'application/json',
           Authorization: `Bearer ${token}`
         },
-        body: JSON.stringify({ snow_enabled: snowEnabled, theme, high_contrast: highContrast })
+        body: JSON.stringify({ rain_enabled: rainEnabled, snow_enabled: snowEnabled, theme, high_contrast: highContrast })
       }).catch(() => {});
     }
-  }, [snowEnabled, theme, highContrast]);
+  }, [rainEnabled, snowEnabled, theme, highContrast]);
 
   const [spots, setSpots] = useState<Spot[]>(() => {
     try {
@@ -235,6 +437,36 @@ export default function App() {
   const [searchQuery, setSearchQuery] = useState('');
   const [isSearchOpen, setIsSearchOpen] = useState(false);
   const [isListening, setIsListening] = useState(false);
+
+  // Dynamic adaptive system & status bar color based on current screen / modal / theme
+  const currentAdaptiveColor = useMemo(() => {
+    return computeAdaptiveThemeColor({
+      theme,
+      activeTab,
+      isAuthenticated,
+      mapStyle,
+      isDetailOpen,
+      isWeatherModalOpen,
+      isAdminOpen,
+      isCategoryCardOpen,
+      isSearchOpen,
+    });
+  }, [
+    theme,
+    activeTab,
+    isAuthenticated,
+    mapStyle,
+    isDetailOpen,
+    isWeatherModalOpen,
+    isAdminOpen,
+    isCategoryCardOpen,
+    isSearchOpen,
+  ]);
+
+  // Synchronize mobile browser address/status bar and root theme-color
+  useEffect(() => {
+    applySystemThemeColor(currentAdaptiveColor);
+  }, [currentAdaptiveColor]);
 
   // Handle URL deep link (e.g. from QR Code scan: ?spot=spotId)
   useEffect(() => {
@@ -319,41 +551,104 @@ export default function App() {
   const [realWeather, setRealWeather] = useState<{
     temperature: number;
     condition: string;
-  }>({
-    temperature: 18,
-    condition: 'Parcialmente nublado',
+    isDay: boolean;
+    weatherCode: number;
+  }>(() => {
+    try {
+      const cached = localStorage.getItem('monvian_cached_weather');
+      if (cached) {
+        const parsed = JSON.parse(cached);
+        if (typeof parsed.temperature === 'number' && parsed.condition) {
+          return parsed;
+        }
+      }
+    } catch {}
+    return {
+      temperature: 17,
+      condition: 'Parcialmente nublado',
+      isDay: true,
+      weatherCode: 2,
+    };
   });
 
   useEffect(() => {
+    let isSubscribed = true;
+
     const fetchWeather = async () => {
       try {
-        const res = await fetch('https://api.open-meteo.com/v1/forecast?latitude=-22.7355&longitude=-45.5870&current=temperature_2m,weather_code');
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 4000);
+
+        const res = await fetch(
+          'https://api.open-meteo.com/v1/forecast?latitude=-22.7394&longitude=-45.5914&current=temperature_2m,relative_humidity_2m,is_day,weather_code&timezone=America%2FSao_Paulo',
+          { signal: controller.signal, cache: 'no-cache' }
+        );
+        clearTimeout(timeoutId);
+
         const data = await res.json();
-        if (data && data.current) {
+        if (data && data.current && isSubscribed) {
           const temp = Math.round(data.current.temperature_2m);
           const wcode = data.current.weather_code;
-          let cond = 'Parcialmente nublado';
-          if (wcode === 0) cond = 'Céu limpo';
-          else if (wcode >= 1 && wcode <= 2) cond = 'Parcialmente nublado';
-          else if (wcode === 3) cond = 'Nublado';
-          else if (wcode === 45 || wcode === 48) cond = 'Nevoeiro na serra';
-          else if (wcode >= 51 && wcode <= 67) cond = 'Chuva';
-          else if (wcode >= 71 && wcode <= 77) cond = 'Neve / Geada';
-          else if (wcode >= 80) cond = 'Pancadas de chuva';
+          const isDay = data.current.is_day !== 0;
 
-          setRealWeather({
+          let cond = isDay ? 'Parcialmente nublado' : 'Céu parcialmente encoberto';
+
+          if (wcode === 0) {
+            cond = isDay ? 'Céu limpo' : 'Céu estrelado';
+          } else if (wcode === 1) {
+            cond = isDay ? 'Ensolarado' : 'Noite de céu limpo';
+          } else if (wcode === 2) {
+            cond = isDay ? 'Parcialmente nublado' : 'Parcialmente nublado';
+          } else if (wcode === 3) {
+            cond = 'Tempo nublado';
+          } else if (wcode === 45 || wcode === 48) {
+            cond = 'Nevoeiro na serra';
+          } else if (wcode >= 51 && wcode <= 55) {
+            cond = 'Garoa fraca';
+          } else if (wcode === 56 || wcode === 57) {
+            cond = 'Garoa gélida';
+          } else if (wcode === 61 || wcode === 63) {
+            cond = 'Chuva moderada';
+          } else if (wcode === 65) {
+            cond = 'Chuva forte';
+          } else if (wcode === 66 || wcode === 67) {
+            cond = 'Chuva congelante';
+          } else if (wcode >= 71 && wcode <= 77) {
+            cond = 'Frio de serra / Geada';
+          } else if (wcode >= 80 && wcode <= 82) {
+            cond = 'Pancadas de chuva';
+          } else if (wcode >= 85 && wcode <= 86) {
+            cond = 'Pancadas de neve';
+          } else if (wcode >= 95) {
+            cond = 'Tempestade com raios';
+          }
+
+          const newWeather = {
             temperature: temp,
             condition: cond,
-          });
+            isDay,
+            weatherCode: wcode,
+          };
+
+          setRealWeather(newWeather);
+          localStorage.setItem('monvian_cached_weather', JSON.stringify(newWeather));
         }
       } catch (err) {
-        console.warn('Error fetching real weather:', err);
+        // Silently use cached weather fallback
       }
     };
 
     fetchWeather();
-    const interval = setInterval(fetchWeather, 15 * 60 * 1000);
-    return () => clearInterval(interval);
+    // Fast polling every 2.5 minutes + on window focus
+    const interval = setInterval(fetchWeather, 2.5 * 60 * 1000);
+    const onFocus = () => fetchWeather();
+    window.addEventListener('focus', onFocus);
+
+    return () => {
+      isSubscribed = false;
+      clearInterval(interval);
+      window.removeEventListener('focus', onFocus);
+    };
   }, []);
 
   const filteredSpots = useMemo(() => {
@@ -384,6 +679,24 @@ export default function App() {
     });
   }, [spots, selectedCategoryFilter, searchQuery]);
 
+  // Floating search bar results (places appearing right below search bar)
+  const searchResults = useMemo(() => {
+    if (!searchQuery.trim()) {
+      return spots.filter((s) => s.highlighted || s.rating >= 4.7).slice(0, 5);
+    }
+    const q = searchQuery.toLowerCase().trim();
+    return spots.filter((spot) => {
+      const matchesName = spot.name.toLowerCase().includes(q);
+      const matchesDesc = spot.description ? spot.description.toLowerCase().includes(q) : false;
+      const matchesCatLabel = spot.categoryLabel ? spot.categoryLabel.toLowerCase().includes(q) : false;
+      const matchesAddress = spot.address ? spot.address.toLowerCase().includes(q) : false;
+      const matchesTip = spot.touristTip ? spot.touristTip.toLowerCase().includes(q) : false;
+      return matchesName || matchesDesc || matchesCatLabel || matchesAddress || matchesTip;
+    });
+  }, [spots, searchQuery]);
+
+  const isBlurActive = Boolean(isCategoryCardOpen || isSearchOpen);
+
   const handleSelectSpot = useCallback((spot: Spot | null) => {
     setSelectedSpot(spot);
     setIsDetailOpen(false);
@@ -402,96 +715,32 @@ export default function App() {
   const [geoStatus, setGeoStatus] = useState<'prompt' | 'granted' | 'denied' | 'locating'>('locating');
   const [locationName, setLocationName] = useState<string>('Obtendo localização...');
 
-  // Request and track user's real geolocation with robust fallback
+  // Request or re-trigger high accuracy real geolocation
   const requestRealLocation = () => {
-    if (!('geolocation' in navigator)) {
-      setGeoStatus('denied');
-      setLocationName('Geolocalização indisponível');
-      return;
-    }
-
-    setGeoStatus('locating');
-
-    const handleSuccess = (pos: GeolocationPosition) => {
-      const lat = pos.coords.latitude;
-      const lng = pos.coords.longitude;
-      setUserCoords((prev) => {
-        const [prevLng, prevLat] = prev;
-        if (Math.abs(prevLng - lng) < 0.0001 && Math.abs(prevLat - lat) < 0.0001) {
-          return prev;
-        }
-        return [lng, lat];
-      });
-      setGeoStatus('granted');
-      setLocationName(`${lat.toFixed(4)}, ${lng.toFixed(4)}`);
-    };
-
-    const handleError = (error: GeolocationPositionError) => {
-      console.warn('Geolocation high accuracy error:', error);
-      // Fallback with enableHighAccuracy: false for desktop / IP geolocation
-      navigator.geolocation.getCurrentPosition(
-        handleSuccess,
-        (err2) => {
-          console.warn('Geolocation fallback error:', err2);
-          setGeoStatus('denied');
-          setLocationName('GPS bloqueado pelo navegador');
-        },
-        {
-          enableHighAccuracy: false,
-          timeout: 15000,
-          maximumAge: 60000,
-        }
-      );
-    };
-
-    navigator.geolocation.getCurrentPosition(
-      handleSuccess,
-      handleError,
-      {
-        enableHighAccuracy: true,
-        timeout: 8000,
-        maximumAge: 0,
-      }
-    );
+    gpsNavigationManager.start();
   };
 
   useEffect(() => {
-    requestRealLocation();
+    let lastReactSync = 0;
+    const unsubscribe = gpsNavigationManager.subscribe((navState) => {
+      setGeoStatus(navState.status);
 
-    // Also watch for live updates with micro-jitter threshold
-    let watchId: number | null = null;
-    if ('geolocation' in navigator) {
-      try {
-        watchId = navigator.geolocation.watchPosition(
-          (pos) => {
-            const lat = pos.coords.latitude;
-            const lng = pos.coords.longitude;
-            setUserCoords((prev) => {
-              const [prevLng, prevLat] = prev;
-              // Ignore GPS micro-jitter (less than ~10 meters) to avoid unnecessary re-renders
-              if (Math.abs(prevLng - lng) < 0.0001 && Math.abs(prevLat - lat) < 0.0001) {
-                return prev;
-              }
-              return [lng, lat];
-            });
-            setGeoStatus((prev) => (prev === 'granted' ? prev : 'granted'));
-            const newLoc = `${lat.toFixed(4)}, ${lng.toFixed(4)}`;
-            setLocationName((prev) => (prev === newLoc ? prev : newLoc));
-          },
-          (err) => {
-            console.warn('WatchPosition notice:', err);
-          },
-          { enableHighAccuracy: true, maximumAge: 10000 }
-        );
-      } catch (e) {
-        console.warn('watchPosition failed', e);
+      const now = performance.now();
+      // Keep React state updated smoothly without re-rendering the whole page at 60fps
+      if (now - lastReactSync > 350) {
+        lastReactSync = now;
+        setUserCoords(navState.coords);
+        if (navState.isCarMode) {
+          setLocationName(`Em trânsito • ${Math.round(navState.speed)} km/h`);
+        } else {
+          const [lng, lat] = navState.coords;
+          setLocationName(`${lat.toFixed(4)}, ${lng.toFixed(4)}`);
+        }
       }
-    }
+    });
 
     return () => {
-      if (watchId !== null && 'geolocation' in navigator) {
-        navigator.geolocation.clearWatch(watchId);
-      }
+      unsubscribe();
     };
   }, []);
 
@@ -505,61 +754,141 @@ export default function App() {
     setActiveTab(tab);
   };
 
-  if (isAuthenticated === null) {
-    return (
-      <div className="fixed inset-0 w-full h-full bg-[#111315] flex flex-col items-center justify-center gap-4 text-white select-none">
-        <div className="w-10 h-10 border-3 border-white/20 border-t-[#0084ff] rounded-full animate-spin" />
-        <span className="text-xs font-bold text-zinc-400 tracking-wider uppercase">Carregando Monvian...</span>
-      </div>
-    );
-  }
+  // User's first name for personalized greetings
+  const userFirstName = (() => {
+    if (!user?.name) return '';
+    const clean = user.name.trim();
+    const first = clean.split(/\s+/)[0];
+    if (!first) return '';
+    return first.charAt(0).toUpperCase() + first.slice(1);
+  })();
 
-  if (isAuthenticated === false) {
-    return (
-      <AuthScreen 
-        onSuccess={(token, userData) => {
-          setUser(userData);
-          setIsAuthenticated(true);
-          requestRealLocation();
-        }} 
-      />
-    );
-  }
+  const welcomePhrase = userFirstName ? `Seja bem vindo ${userFirstName}!` : 'Seja bem vindo a Campos do Jordão!';
 
-  // Real Administrative Panel Fullscreen View
-  if (isAdminOpen) {
-    return (
-      <AdminLayout
-        currentUser={user}
-        onExitAdmin={() => {
-          setIsAdminOpen(false);
-          fetchSpots();
-          fetchVisualIcons();
-          fetchSettings();
-        }}
-        onLogout={async () => {
-          const token = localStorage.getItem('monvian_token');
-          if (token) {
-            try {
-              await fetch('/api/auth/logout', {
-                method: 'POST',
-                headers: { Authorization: `Bearer ${token}` }
-              });
-            } catch (e) {}
-          }
-          localStorage.removeItem('monvian_token');
-          setIsAuthenticated(false);
-          setIsAdminOpen(false);
-        }}
-      />
-    );
-  }
+  const isWhiteMapUI = activeTab === 'explorar' && (theme === 'light' || mapStyle === 'animado' || mapStyle === 'satelite' || mapStyle === 'transporte');
+
+  const isSplashVisible = isInitialSplash || isAuthenticated === null;
 
   return (
-    <div className="fixed inset-0 w-full h-full overflow-hidden bg-zinc-100 dark:bg-black">
+    <AnimatePresence mode="wait">
+      {isSplashVisible ? (
+        <motion.div
+          key="monvian-splash-screen"
+          initial={{ opacity: 1 }}
+          exit={{
+            opacity: 0,
+            scale: 1.04,
+            filter: 'blur(8px)',
+            transition: { duration: 0.45, ease: [0.32, 0.72, 0, 1] },
+          }}
+          className={`fixed inset-0 w-full h-full flex flex-col items-center justify-center select-none z-50 transition-colors duration-300 ${
+            theme === 'light' ? 'bg-white' : 'bg-black'
+          }`}
+          style={{
+            height: 'var(--app-height, 100%)',
+            minHeight: 'var(--app-height, 100%)',
+            backgroundColor: theme === 'light' ? '#ffffff' : '#000000',
+          }}
+        >
+          <motion.div
+            initial={{ opacity: 0, scale: 0.9, filter: 'blur(6px)' }}
+            animate={{ opacity: 1, scale: 1, filter: 'blur(0px)' }}
+            transition={{ duration: 0.6, ease: [0.16, 1, 0.3, 1] }}
+            className="flex items-center justify-center p-6"
+          >
+            <motion.img
+              src={theme === 'light' ? '/logocarregamento.png' : '/logo-white.png'}
+              alt="Monvian"
+              className="h-20 sm:h-24 w-auto max-w-[280px] object-contain"
+              animate={{
+                scale: [1, 1.025, 1],
+              }}
+              transition={{
+                duration: 2.0,
+                ease: 'easeInOut',
+                repeat: Infinity,
+              }}
+            />
+          </motion.div>
+        </motion.div>
+      ) : isAuthenticated === false ? (
+        <motion.div
+          key="monvian-auth-screen"
+          initial={{ opacity: 0, scale: 0.98, filter: 'blur(4px)' }}
+          animate={{ opacity: 1, scale: 1, filter: 'blur(0px)' }}
+          exit={{ opacity: 0, scale: 0.98, filter: 'blur(4px)' }}
+          transition={{ duration: 0.5, ease: [0.16, 1, 0.3, 1] }}
+          className="fixed inset-0 w-full h-full"
+        >
+          <AuthScreen 
+            onSuccess={(token, userData, isNewAccount) => {
+              setUser(userData);
+              setIsAuthenticated(true);
+              requestRealLocation();
+              if (isNewAccount) {
+                setShowWelcomeOverlay(true);
+              }
+            }} 
+          />
+        </motion.div>
+      ) : isAdminOpen ? (
+        <motion.div
+          key="monvian-admin-screen"
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          exit={{ opacity: 0 }}
+          className="fixed inset-0 w-full h-full"
+        >
+          <AdminLayout
+            currentUser={user}
+            onExitAdmin={() => {
+              setIsAdminOpen(false);
+              fetchSpots();
+              fetchVisualIcons();
+              fetchSettings();
+            }}
+            onLogout={async () => {
+              const token = localStorage.getItem('monvian_token');
+              if (token) {
+                try {
+                  await fetch('/api/auth/logout', {
+                    method: 'POST',
+                    headers: { Authorization: `Bearer ${token}` }
+                  });
+                } catch (e) {}
+              }
+              localStorage.removeItem('monvian_token');
+              setIsAuthenticated(false);
+              setIsAdminOpen(false);
+            }}
+          />
+        </motion.div>
+      ) : (
+        <motion.div
+          key="monvian-main-app"
+          initial={{ opacity: 0, scale: 0.98, filter: 'blur(6px)' }}
+          animate={{ opacity: 1, scale: 1, filter: 'blur(0px)' }}
+          transition={{ duration: 0.55, ease: [0.16, 1, 0.3, 1] }}
+          id="app-root-shell"
+          className={`fixed inset-0 w-full overflow-hidden select-none transition-colors duration-300 ${
+            theme === 'dark' ? 'bg-black' : 'bg-[#f4f4f5]'
+          }`}
+          style={{
+            height: 'var(--app-height, 100%)',
+            minHeight: '100%',
+            top: 0,
+            bottom: 0,
+            left: 0,
+            right: 0,
+            backgroundColor: currentAdaptiveColor,
+          }}
+        >
       <OfflineIndicator />
       <main
-        className="absolute inset-0 w-full h-full overflow-hidden bg-zinc-50 dark:bg-black select-none"
+        id="main-app-content"
+        className={`relative w-full h-full overflow-hidden select-none transition-all duration-300 ${
+          theme === 'dark' ? 'bg-black' : 'bg-zinc-50'
+        }`}
       >
         {/* 1. Interactive Map Engine */}
       <MapComponent
@@ -574,63 +903,93 @@ export default function App() {
         userName={user?.name}
         highContrast={highContrast}
         onMapLoad={handleMapLoad}
+        onInteractionChange={setIsMapInteracting}
+        zoomToUserTrigger={zoomToUserTrigger}
+        onStyleChange={setMapStyle}
+      />
+
+      {/* 2. Dynamic Rain Particle Effect Overlay */}
+      <RainEffect
+        enabled={rainEnabled}
+        weatherCode={realWeather.weatherCode}
+        theme={theme}
       />
 
       {/* 3. Top Floating Header Bar */}
       <header
         aria-label="Informações de Campos do Jordão"
-        className="absolute top-0 left-0 right-0 z-40 flex items-center justify-between pointer-events-none px-4 sm:px-6"
+        className={`absolute top-0 left-0 right-0 ${isCategoryCardOpen ? 'z-[60]' : 'z-40'} flex items-center justify-between pointer-events-none px-4 sm:px-6`}
         style={{
           paddingTop: 'max(calc(env(safe-area-inset-top, 0px) + 12px), 24px)',
           paddingLeft: 'max(16px, env(safe-area-inset-left, 0px))',
           paddingRight: 'max(16px, env(safe-area-inset-right, 0px))',
         }}
       >
-        {/* Left: Big Weather Temperature & Yellow Sun (Apple Weather aesthetic matching screenshot) */}
+        {/* Left: Big Weather Temperature & Dynamic Condition (Apple Weather aesthetic matching screenshot) */}
         <div className="flex items-center pointer-events-auto">
           <div
             id="weather-header-display"
-            className="flex items-center gap-1.5 select-none"
-            title={`Campos do Jordão - ${realWeather.temperature}°C ${realWeather.condition}`}
+            className={`flex flex-col items-start select-none transition-all duration-300 ease-out ${
+              isMapInteracting
+                ? 'opacity-20 scale-95'
+                : 'opacity-90 hover:opacity-100 scale-100'
+            }`}
+            title={`Campos do Jordão: ${realWeather.temperature}°C — ${realWeather.condition}`}
           >
-            <span className="text-5xl sm:text-6xl font-extrabold tracking-tighter text-zinc-800 dark:text-white leading-none drop-shadow-[0_2px_12px_rgba(0,0,0,0.3)]">
-              {realWeather.temperature}°
-            </span>
-            <div className="relative w-12 h-12 sm:w-14 sm:h-14 flex items-center justify-center shrink-0 -mt-1">
-              {/* Apple-style 3D Vibrant Yellow Sun with Fluffy White Cloud */}
-              <svg className="w-full h-full" viewBox="0 0 48 48" fill="none">
-                <defs>
-                  <radialGradient id="sunRealistic" cx="35%" cy="30%" r="65%">
-                    <stop offset="0%" stopColor="#FFF275" />
-                    <stop offset="35%" stopColor="#FFC800" />
-                    <stop offset="75%" stopColor="#FFA000" />
-                    <stop offset="100%" stopColor="#FF7A00" />
-                  </radialGradient>
-                  <linearGradient id="cloudRealistic" x1="20%" y1="0%" x2="80%" y2="100%">
-                    <stop offset="0%" stopColor="#FFFFFF" />
-                    <stop offset="70%" stopColor="#F0F4F8" />
-                    <stop offset="100%" stopColor="#D9E2EC" />
-                  </linearGradient>
-                  <filter id="softShadow" x="-20%" y="-20%" width="140%" height="140%">
-                    <feDropShadow dx="0" dy="2" stdDeviation="3" floodColor="#000000" floodOpacity="0.35" />
-                  </filter>
-                  <filter id="cloudShadow" x="-20%" y="-20%" width="140%" height="140%">
-                    <feDropShadow dx="0" dy="2" stdDeviation="2.5" floodColor="#000000" floodOpacity="0.3" />
-                  </filter>
-                </defs>
-                {/* Sun Orb */}
-                <circle cx="21" cy="20" r="14.5" fill="url(#sunRealistic)" filter="url(#softShadow)" />
-                {/* Soft Highlight on Sun */}
-                <ellipse cx="17" cy="14" rx="5" ry="3.5" fill="#FFFFFF" fillOpacity="0.4" transform="rotate(-20 17 14)" />
-                {/* Puffy 3D Cloud resting over bottom right of sun */}
-                <g filter="url(#cloudShadow)">
-                  <path
-                    d="M20 37C17.79 37 16 35.21 16 33C16 31.06 17.38 29.45 19.23 29.08C19.78 26.24 22.25 24 25.25 24C28.75 24 31.62 26.71 31.74 30.18C33.62 30.68 35 32.4 35 34.45C35 36.96 32.96 39 30.45 39H20V37Z"
-                    fill="url(#cloudRealistic)"
-                  />
-                </g>
-              </svg>
+            {/* Layout: Large beautiful 3D icon on the left, bold prominent degrees */}
+            <div className="flex items-center gap-1.5 sm:gap-2">
+              {/* Weather 3D Icon */}
+              <button
+                id="btn-icon-toggle-weather"
+                type="button"
+                onClick={handleToggleWeather}
+                className="group relative cursor-pointer active:scale-95 transition-transform duration-200 focus:outline-none select-none flex items-center justify-center shrink-0"
+                aria-label="Ver previsão completa do tempo em Campos do Jordão"
+                title="Toque para ver a previsão do tempo"
+              >
+                <Weather3DIcon
+                  weatherCode={realWeather.weatherCode}
+                  isDay={realWeather.isDay}
+                  className="w-14 h-14 sm:w-16 sm:h-16 lg:w-20 lg:h-20 -my-2.5"
+                />
+              </button>
+
+              {/* Temperature Degrees - Reinforced & Prominent */}
+              <button
+                id="btn-degrees-toggle-weather"
+                type="button"
+                onClick={handleToggleWeather}
+                className="group relative flex items-baseline cursor-pointer active:scale-95 transition-transform duration-150 focus:outline-none select-none text-left"
+                aria-label="Ver detalhes do clima em Campos do Jordão"
+                title="Toque para ver a previsão do tempo"
+              >
+                <span className={`text-5xl sm:text-6xl font-extrabold tracking-tighter leading-none transition-colors group-hover:text-blue-400 ${
+                  mapStyle === 'animado' || theme === 'dark'
+                    ? 'text-white drop-shadow-[0_3px_16px_rgba(0,0,0,0.85)] [text-shadow:_0_2px_12px_rgba(0,0,0,0.8)]'
+                    : 'text-zinc-900/95 dark:text-white/95 drop-shadow-[0_2px_14px_rgba(0,0,0,0.4)]'
+                }`}>
+                  {realWeather.temperature}°
+                </span>
+              </button>
             </div>
+
+            {/* Condition label under the temperature */}
+            <button
+              id="btn-phrase-toggle-weather"
+              type="button"
+              onClick={handleToggleWeather}
+              className="cursor-pointer pointer-events-auto text-left focus:outline-none active:opacity-75 mt-0.5 ml-1"
+              aria-label="Ver previsão completa do tempo"
+              title="Toque para ver a previsão do tempo"
+            >
+              <span className={`block text-[13px] sm:text-[14px] font-semibold tracking-tight whitespace-nowrap ${
+                mapStyle === 'animado' || theme === 'dark'
+                  ? 'text-white/95 drop-shadow-[0_1px_6px_rgba(0,0,0,0.7)]'
+                  : 'text-zinc-700/90 dark:text-zinc-200/90 drop-shadow-[0_1px_4px_rgba(0,0,0,0.35)]'
+              }`}>
+                {realWeather.condition}
+              </span>
+            </button>
           </div>
         </div>
 
@@ -640,13 +999,17 @@ export default function App() {
           <button
             id="btn-theme-toggle"
             onClick={() => setTheme((prev) => (prev === 'dark' ? 'light' : 'dark'))}
-            className="w-12 h-12 rounded-full ios-glass-btn text-zinc-700 dark:text-white flex items-center justify-center active:scale-95 cursor-pointer group"
+            className={`w-12 h-12 rounded-full flex items-center justify-center active:scale-95 cursor-pointer group transition-all ${
+              isWhiteMapUI
+                ? 'ios-glass-btn-white text-zinc-900'
+                : 'ios-glass-btn text-zinc-700 dark:text-white'
+            }`}
             title={theme === 'dark' ? 'Mudar para tema claro' : 'Mudar para tema escuro'}
           >
             {theme === 'dark' ? (
-              <div className="relative w-6 h-6 flex items-center justify-center text-zinc-700 dark:text-white group-hover:rotate-45 transition-transform duration-500">
-                <svg className="w-full h-full text-zinc-700 dark:text-white" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round">
-                  <circle cx="12" cy="12" r="4" className="fill-zinc-700 dark:fill-white" />
+              <div className="relative w-6 h-6 flex items-center justify-center group-hover:rotate-45 transition-transform duration-500 text-[#FFD60A]">
+                <svg className="w-full h-full text-[#FFD60A]" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round">
+                  <circle cx="12" cy="12" r="4" className="fill-[#FFD60A]" />
                   <line x1="12" y1="1" x2="12" y2="3" />
                   <line x1="12" y1="21" x2="12" y2="23" />
                   <line x1="4.22" y1="4.22" x2="5.64" y2="5.64" />
@@ -658,9 +1021,9 @@ export default function App() {
                 </svg>
               </div>
             ) : (
-              <div className="relative w-6 h-6 flex items-center justify-center text-[#5856D6] dark:text-white group-hover:-rotate-12 transition-transform duration-500">
-                <svg className="w-full h-full text-[#5856D6] dark:text-white" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round">
-                  <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z" className="fill-[#5856D6] dark:fill-white" />
+              <div className="relative w-6 h-6 flex items-center justify-center group-hover:-rotate-12 transition-transform duration-500 text-[#5F55E8]">
+                <svg className="w-full h-full text-current" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z" className="fill-[#5F55E8]" />
                 </svg>
               </div>
             )}
@@ -669,17 +1032,28 @@ export default function App() {
           {/* Circular Search Button */}
           <button
             id="btn-search-toggle"
-            onClick={() => setIsSearchOpen((prev) => !prev)}
-            className={`w-12 h-12 rounded-full ios-glass-btn flex items-center justify-center transition-all duration-300 active:scale-95 cursor-pointer group ${
-              isSearchOpen || searchQuery
-                ? 'ring-2 ring-white/40 dark:ring-white/35 bg-white/25 dark:bg-white/20 text-zinc-900 dark:text-white'
-                : 'text-zinc-700 dark:text-white'
+            onClick={() => {
+              setIsSearchOpen((prev) => !prev);
+              setIsCategoryCardOpen(false);
+            }}
+            className={`w-12 h-12 rounded-full flex items-center justify-center transition-all duration-300 active:scale-95 cursor-pointer group ${
+              isWhiteMapUI
+                ? isSearchOpen || searchQuery
+                  ? 'ios-glass-btn-white ring-2 ring-black/20 text-zinc-950 bg-white'
+                  : 'ios-glass-btn-white text-zinc-900'
+                : isSearchOpen || searchQuery
+                  ? 'ios-glass-btn ring-2 ring-white/40 dark:ring-white/35 bg-white/25 dark:bg-white/20 text-zinc-900 dark:text-white'
+                  : 'ios-glass-btn text-zinc-700 dark:text-white'
             }`}
             title="Pesquisar no mapa"
           >
             <div className="relative w-6 h-6 flex items-center justify-center text-current group-hover:scale-110 transition-transform">
               <svg className="w-full h-full" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round">
-                <circle cx="11" cy="11" r="7" className={isSearchOpen || searchQuery ? 'fill-zinc-700/20 dark:fill-white/20' : 'fill-zinc-700/10 dark:fill-white/10'} />
+                <circle cx="11" cy="11" r="7" className={
+                  isSearchOpen || searchQuery
+                    ? isWhiteMapUI ? 'fill-zinc-900/20' : 'fill-zinc-700/20 dark:fill-white/20'
+                    : isWhiteMapUI ? 'fill-zinc-900/10' : 'fill-zinc-700/10 dark:fill-white/10'
+                } />
                 <line x1="21" y1="21" x2="16.65" y2="16.65" />
               </svg>
             </div>
@@ -689,11 +1063,18 @@ export default function App() {
           <div className="relative shrink-0">
             <button
               id="btn-category-icon-toggle"
-              onClick={() => setIsCategoryCardOpen((prev) => !prev)}
-              className={`w-12 h-12 rounded-full ios-glass-btn flex items-center justify-center transition-all duration-300 active:scale-95 cursor-pointer group shrink-0 ${
-                selectedCategoryFilter || isCategoryCardOpen
-                  ? 'ring-2 ring-white/40 dark:ring-white/35 bg-white/25 dark:bg-white/20 text-zinc-900 dark:text-white'
-                  : 'text-zinc-700 dark:text-white'
+              onClick={() => {
+                setIsCategoryCardOpen((prev) => !prev);
+                setIsSearchOpen(false);
+              }}
+              className={`w-12 h-12 rounded-full flex items-center justify-center transition-all duration-300 active:scale-95 cursor-pointer group shrink-0 ${
+                isWhiteMapUI
+                  ? selectedCategoryFilter || isCategoryCardOpen
+                    ? 'ios-glass-btn-white ring-2 ring-black/20 text-zinc-950 bg-white'
+                    : 'ios-glass-btn-white text-zinc-900'
+                  : selectedCategoryFilter || isCategoryCardOpen
+                    ? 'ios-glass-btn ring-2 ring-white/40 dark:ring-white/35 bg-white/25 dark:bg-white/20 text-zinc-900 dark:text-white'
+                    : 'ios-glass-btn text-zinc-700 dark:text-white'
               }`}
               title={selectedCategoryFilter ? 'Filtro de categoria ativo - Clique para alterar ou limpar' : 'Filtrar por Categoria'}
             >
@@ -701,109 +1082,135 @@ export default function App() {
                 <SlidersHorizontal className="w-5 h-5 stroke-[2.2]" />
               </div>
               {selectedCategoryFilter && (
-                <span className="absolute top-1.5 right-1.5 w-2 h-2 rounded-full bg-white dark:bg-white shadow-[0_0_6px_rgba(255,255,255,0.8)] ring-1 ring-black/20" />
+                <span className="absolute top-1.5 right-1.5 w-2 h-2 rounded-full bg-white shadow-[0_0_6px_rgba(255,255,255,0.8)] ring-1 ring-black/40" />
               )}
             </button>
 
             {/* Small Category Card / Dropdown */}
             <AnimatePresence>
               {isCategoryCardOpen && (
-                <>
-                  {/* Backdrop to dismiss on outside tap */}
-                  <div
-                    className="fixed inset-0 z-40 bg-black/15 dark:bg-black/40 backdrop-blur-[1px] cursor-pointer pointer-events-auto"
-                    onClick={() => setIsCategoryCardOpen(false)}
-                  />
+                <motion.div
+                  initial={{ opacity: 0, scale: 0.94, y: -6 }}
+                  animate={{ opacity: 1, scale: 1, y: 0 }}
+                  exit={{ opacity: 0, scale: 0.94, y: -6 }}
+                  transition={{ type: 'spring', damping: 25, stiffness: 420 }}
+                  className="!absolute right-0 top-14 w-64 p-2.5 rounded-[26px] ios-glass z-[60] space-y-1 shadow-[0_20px_50px_rgba(0,0,0,0.25)] dark:shadow-[0_25px_60px_rgba(0,0,0,0.85)] pointer-events-auto"
+                  style={{ position: 'absolute' }}
+                >
+                  <div className="flex items-center justify-between px-3 py-2 border-b border-zinc-900/10 dark:border-white/10">
+                    <span className="text-[11px] font-black text-zinc-400 dark:text-zinc-400 uppercase tracking-wider">
+                      Categorias
+                    </span>
+                    {selectedCategoryFilter && (
+                      <button
+                        onClick={() => {
+                          setSelectedCategoryFilter(null);
+                          setIsCategoryCardOpen(false);
+                        }}
+                        className="text-[11px] font-black text-zinc-700 dark:text-white hover:underline cursor-pointer flex items-center gap-1"
+                      >
+                        <RotateCcw className="w-3 h-3" />
+                        Limpar
+                      </button>
+                    )}
+                  </div>
 
-                  {/* Dropdown Container */}
-                  <motion.div
-                    initial={{ opacity: 0, scale: 0.94, y: -6 }}
-                    animate={{ opacity: 1, scale: 1, y: 0 }}
-                    exit={{ opacity: 0, scale: 0.94, y: -6 }}
-                    transition={{ type: 'spring', damping: 25, stiffness: 420 }}
-                    className="!absolute right-0 top-14 w-64 p-2.5 rounded-[26px] ios-glass z-50 space-y-1 shadow-[0_20px_50px_rgba(0,0,0,0.25)] dark:shadow-[0_25px_60px_rgba(0,0,0,0.85)] pointer-events-auto"
-                    style={{ position: 'absolute' }}
-                  >
-                    <div className="flex items-center justify-between px-3 py-2 border-b border-zinc-900/10 dark:border-white/10">
-                      <span className="text-[11px] font-black text-zinc-400 dark:text-zinc-400 uppercase tracking-wider">
-                        Categorias
-                      </span>
-                      {selectedCategoryFilter && (
-                        <button
-                          onClick={() => {
-                            setSelectedCategoryFilter(null);
-                            setIsCategoryCardOpen(false);
-                          }}
-                          className="text-[11px] font-black text-blue-500 dark:text-blue-400 hover:underline cursor-pointer flex items-center gap-1"
-                        >
-                          <RotateCcw className="w-3 h-3" />
-                          Limpar
-                        </button>
-                      )}
-                    </div>
+                  {[
+                    { id: 'hotels', label: 'Hotéis e Pousadas', image: '/hotel.png' },
+                    { id: 'restaurants', label: 'Restaurantes', image: '/restaurante.png' },
+                    { id: 'cafes', label: 'Cafés', image: '/cafe.png' },
+                    { id: 'sweets', label: 'Chocolates & Doces', image: '/doce.png' },
+                    { id: 'attractions', label: 'Atrações & Parques', image: '/atracoes.png' },
+                    { id: 'pharmacies', label: 'Farmácias', image: '/medicacao.png' },
+                  ].map((cat) => {
+                    const CategoryIcon = 'icon' in cat ? (cat.icon as React.ComponentType<{ className?: string }>) : null;
+                    const isSelected = selectedCategoryFilter === cat.id;
 
-                    {[
-                      { id: 'hotels', label: 'Hotéis e Pousadas', icon: Building2 },
-                      { id: 'restaurants', label: 'Restaurantes', icon: UtensilsCrossed },
-                      { id: 'cafes', label: 'Cafés', icon: Coffee },
-                      { id: 'sweets', label: 'Chocolates & Doces', icon: Cake },
-                      { id: 'attractions', label: 'Atrações & Parques', icon: Mountain },
-                      { id: 'pharmacies', label: 'Farmácias', icon: Cross },
-                    ].map((cat) => {
-                      const CategoryIcon = cat.icon;
-                      const isSelected = selectedCategoryFilter === cat.id;
-
-                      return (
-                        <button
-                          key={cat.id}
-                          onClick={() => {
-                            setSelectedCategoryFilter(isSelected ? null : cat.id);
-                            setIsCategoryCardOpen(false);
-                          }}
-                          className={`w-full px-3 py-2.5 rounded-2xl active:scale-[0.98] text-xs font-black flex items-center justify-between gap-2.5 transition-all text-left cursor-pointer group ${
-                            isSelected
-                              ? 'bg-blue-500/15 dark:bg-blue-500/20 text-blue-600 dark:text-blue-400 font-extrabold'
-                              : 'hover:bg-zinc-900/5 dark:hover:bg-white/10 text-zinc-800 dark:text-zinc-200'
-                          }`}
-                        >
-                          <div className="flex items-center gap-2.5 min-w-0">
+                    return (
+                      <button
+                        key={cat.id}
+                        onClick={() => {
+                          setSelectedCategoryFilter(isSelected ? null : cat.id);
+                          setIsCategoryCardOpen(false);
+                        }}
+                        className={`w-full px-3 py-2.5 rounded-2xl active:scale-[0.98] text-xs font-black flex items-center justify-between gap-2.5 transition-all text-left cursor-pointer group ${
+                          isSelected
+                            ? 'bg-white/20 text-zinc-950 dark:text-white font-extrabold'
+                            : 'hover:bg-zinc-900/5 dark:hover:bg-white/10 text-zinc-800 dark:text-zinc-200'
+                        }`}
+                      >
+                        <div className="flex items-center gap-2.5 min-w-0">
+                          {'image' in cat && cat.image ? (
+                            <div className="w-7 h-7 shrink-0 flex items-center justify-center group-hover:scale-110 transition-transform">
+                              <img
+                                src={cat.image}
+                                alt={cat.label}
+                                className="w-full h-full object-contain select-none"
+                                onError={(e) => {
+                                  const target = e.currentTarget;
+                                  if (!target.src.endsWith('.png.png') && target.src.endsWith('.png')) {
+                                    target.src = target.src + '.png';
+                                  }
+                                }}
+                              />
+                            </div>
+                          ) : (
                             <div className={`w-7 h-7 rounded-xl flex items-center justify-center shrink-0 group-hover:scale-105 transition-transform ${
                               isSelected
-                                ? 'bg-blue-600 text-white shadow-sm'
+                                ? 'bg-white text-zinc-950 shadow-sm'
                                 : 'bg-zinc-900/5 dark:bg-white/10 text-zinc-700 dark:text-white'
                             }`}>
-                              <CategoryIcon className="w-4 h-4 stroke-[2]" />
+                              {CategoryIcon && <CategoryIcon className="w-4 h-4 stroke-[2]" />}
                             </div>
-                            <span className="truncate">{cat.label}</span>
-                          </div>
-                          {isSelected && (
-                            <Check className="w-4 h-4 text-blue-600 dark:text-blue-400 shrink-0 stroke-[2.5]" />
                           )}
-                        </button>
-                      );
-                    })}
-                  </motion.div>
-                </>
+                          <span className="truncate">{cat.label}</span>
+                        </div>
+                        {isSelected && (
+                          <Check className="w-4 h-4 text-zinc-950 dark:text-white shrink-0 stroke-[2.5]" />
+                        )}
+                      </button>
+                    );
+                  })}
+                </motion.div>
               )}
             </AnimatePresence>
           </div>
         </div>
       </header>
 
-      {/* Floating Search Bar (Opened by the circular search button) */}
+      {/* Fullscreen Blur Backdrop for Filters & Search (Smooth iOS symmetric fade) */}
       <AnimatePresence>
-        {(isSearchOpen || searchQuery) && (
+        {isBlurActive && (
+          <motion.div
+            id="global-blur-backdrop"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.22, ease: [0.32, 0.72, 0, 1] }}
+            className="fixed inset-0 z-[55] bg-black/25 dark:bg-black/55 backdrop-blur-md cursor-pointer pointer-events-auto"
+            onClick={() => {
+              setIsCategoryCardOpen(false);
+              setIsSearchOpen(false);
+            }}
+          />
+        )}
+      </AnimatePresence>
+
+      {/* Floating Search Bar and Results (Opened by circular search button, floats prominently above blur) */}
+      <AnimatePresence>
+        {isSearchOpen && (
           <motion.div
             initial={{ opacity: 0, y: -10, scale: 0.98 }}
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: -10, scale: 0.98 }}
             transition={{ type: 'spring', stiffness: 500, damping: 30 }}
-            className="fixed left-1/2 -translate-x-1/2 z-40 w-[92%] max-w-sm pointer-events-auto"
+            className="fixed left-1/2 -translate-x-1/2 z-[60] w-[94%] max-w-md pointer-events-auto flex flex-col"
             style={{
-              top: 'max(calc(env(safe-area-inset-top, 0px) + 72px), 84px)',
+              top: 'max(calc(env(safe-area-inset-top, 0px) + 76px), 88px)',
             }}
           >
-            <div className="flex items-center gap-2 px-4 py-2.5 rounded-full ios-glass transition-all">
+            {/* Search Input Bar */}
+            <div className="flex items-center gap-2.5 px-4 py-2.5 rounded-full ios-glass shadow-[0_12px_36px_rgba(0,0,0,0.25)] dark:shadow-[0_16px_40px_rgba(0,0,0,0.7)] border border-white/30 dark:border-white/15 transition-all">
               <Search className="w-4 h-4 text-zinc-400 dark:text-zinc-400 shrink-0" />
               <input
                 autoFocus
@@ -811,12 +1218,12 @@ export default function App() {
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 placeholder={isListening ? 'Ouvindo... Fale o local' : 'O que você quer encontrar?'}
-                className="w-full bg-transparent border-none outline-none text-sm text-zinc-900 dark:text-white placeholder-zinc-400 dark:placeholder-zinc-500 font-black"
+                className="w-full bg-transparent border-none outline-none text-sm text-zinc-900 dark:text-white placeholder-zinc-400 dark:placeholder-zinc-500 font-bold"
               />
               {searchQuery && (
                 <button
                   onClick={() => setSearchQuery('')}
-                  className="p-1 rounded-full hover:bg-zinc-100 dark:hover:bg-white/10 text-zinc-400 dark:text-zinc-400 transition-colors cursor-pointer"
+                  className="p-1 rounded-full hover:bg-zinc-200/60 dark:hover:bg-white/10 text-zinc-400 hover:text-zinc-700 dark:hover:text-white transition-colors cursor-pointer"
                   title="Limpar pesquisa"
                 >
                   <X className="w-4 h-4" />
@@ -833,49 +1240,131 @@ export default function App() {
               >
                 <Mic className="w-3.5 h-3.5" />
               </button>
+              <button
+                onClick={() => {
+                  setIsSearchOpen(false);
+                  setSearchQuery('');
+                }}
+                className="ml-1 px-2.5 py-1 rounded-full bg-zinc-900/5 dark:bg-white/10 hover:bg-zinc-900/10 dark:hover:bg-white/20 text-[11px] font-bold text-zinc-600 dark:text-zinc-300 transition-colors cursor-pointer shrink-0"
+              >
+                Fechar
+              </button>
+            </div>
+
+            {/* Results appearing underneath the search bar */}
+            <div className="mt-2.5 w-full max-h-[56vh] overflow-y-auto scrollbar-none rounded-[26px] ios-glass p-2 shadow-[0_20px_50px_rgba(0,0,0,0.3)] dark:shadow-[0_25px_60px_rgba(0,0,0,0.85)] border border-white/25 dark:border-white/15 flex flex-col gap-1">
+              <div className="px-3 pt-2 pb-2 text-[11px] font-bold text-zinc-400 dark:text-zinc-400 uppercase tracking-wider border-b border-zinc-200/50 dark:border-white/5">
+                <span>{searchQuery.trim() ? `Locais encontrados (${searchResults.length})` : 'Sugestões em destaque'}</span>
+              </div>
+
+              {searchResults.length > 0 ? (
+                <div className="flex flex-col gap-1 pt-1">
+                  {searchResults.map((spot) => (
+                    <button
+                      key={spot.id}
+                      onClick={() => {
+                        handleSelectSpot(spot);
+                        setIsSearchOpen(false);
+                      }}
+                      className="w-full flex items-center gap-3 p-2.5 rounded-2xl hover:bg-zinc-900/5 dark:hover:bg-white/5 active:scale-[0.98] transition-all text-left cursor-pointer group"
+                    >
+                      <img
+                        src={spot.image || 'https://images.unsplash.com/photo-1585320806297-9794b3e4eeae?auto=format&fit=crop&w=200&q=80'}
+                        alt={spot.name}
+                        className="w-12 h-12 rounded-xl object-cover shrink-0 border border-black/5 dark:border-white/10 shadow-xs group-hover:scale-105 transition-transform"
+                        referrerPolicy="no-referrer"
+                        loading="lazy"
+                        onError={(e) => {
+                          (e.target as HTMLImageElement).src =
+                            'https://images.unsplash.com/photo-1585320806297-9794b3e4eeae?auto=format&fit=crop&w=200&q=80';
+                        }}
+                      />
+                      <div className="flex-1 min-w-0">
+                        {/* Name row: Name followed by verified badge + Rating */}
+                        <div className="flex items-center gap-1.5 mb-0.5 min-w-0">
+                          <span className="text-[13.5px] font-bold text-zinc-900 dark:text-white truncate">
+                            {spot.name}
+                          </span>
+                          <VerifiedBadge className="w-3.5 h-3.5 shrink-0" />
+                          {spot.rating && (
+                            <div className="flex items-center gap-0.5 px-1.5 py-0.5 rounded-md bg-amber-500/15 text-amber-600 dark:text-amber-400 text-[10px] font-black shrink-0 ml-auto">
+                              <Star className="w-2.5 h-2.5 fill-current" />
+                              <span>{spot.rating.toFixed(1)}</span>
+                            </div>
+                          )}
+                        </div>
+                        {/* Subtitle row: Category • Address - NO BLUE, clean, single line, aligned */}
+                        <div className="flex items-center gap-1.5 text-xs text-zinc-500 dark:text-zinc-400 min-w-0">
+                          <span className="font-semibold text-zinc-700 dark:text-zinc-300 truncate max-w-[130px] sm:max-w-none">
+                            {spot.categoryLabel}
+                          </span>
+                          <span className="text-zinc-300 dark:text-zinc-600 shrink-0">•</span>
+                          <span className="truncate text-zinc-400 dark:text-zinc-500">
+                            {spot.address || 'Campos do Jordão'}
+                          </span>
+                        </div>
+                      </div>
+                      <ChevronRight className="w-4 h-4 text-zinc-400 dark:text-zinc-500 group-hover:text-zinc-900 dark:group-hover:text-white group-hover:translate-x-0.5 transition-all shrink-0 ml-0.5" />
+                    </button>
+                  ))}
+                </div>
+              ) : (
+                <div className="py-7 px-4 text-center flex flex-col items-center justify-center">
+                  <div className="w-10 h-10 rounded-full bg-zinc-500/10 flex items-center justify-center text-zinc-400 mb-2">
+                    <MapPin className="w-5 h-5" />
+                  </div>
+                  <p className="text-sm font-bold text-zinc-800 dark:text-zinc-200">
+                    Nenhum local encontrado
+                  </p>
+                  <p className="text-xs text-zinc-500 dark:text-zinc-400 mt-1 max-w-[260px]">
+                    Não encontramos resultados para "{searchQuery}". Tente pesquisar por hotéis, restaurantes ou atrações.
+                  </p>
+                </div>
+              )}
             </div>
           </motion.div>
         )}
       </AnimatePresence>
 
-      {/* 4. Bottom Floating Navigation Pill */}
-      <BottomNavigation
-        activeTab={activeTab}
-        onChangeTab={handleTabChange}
-        unreadCount={2}
-      />
+      {/* 4. Bottom Floating Navigation Pill moved to root level */}
 
       {/* 5. Mini Banner Preview (occupies the space freed by the retracted search bar when a spot is opened) */}
-      {isSpotCardOpen && selectedSpot && (
-        <SpotPreviewBanner
-          key={`preview-${selectedSpot.id}`}
-          spot={selectedSpot}
-          onClose={() => setSelectedSpot(null)}
-          onOpenDetails={(spot) => {
-            setSelectedSpot(spot);
-            setIsDetailOpen(true);
-          }}
-        />
-      )}
+      <AnimatePresence>
+        {isSpotCardOpen && selectedSpot && (
+          <SpotPreviewBanner
+            key={`preview-${selectedSpot.id}`}
+            spot={selectedSpot}
+            onClose={() => {
+              setSelectedSpot(null);
+            }}
+            onOpenDetails={(spot) => {
+              setSelectedSpot(spot);
+              setIsDetailOpen(true);
+            }}
+          />
+        )}
+      </AnimatePresence>
 
       {/* 6. Spot Detail Modal / Bottom Sheet (opened ONLY when user clicks "Ver Local") */}
-      {isDetailOpen && selectedSpot && (
-        <SpotDetailSheet
-          key={`spot-detail-${selectedSpot.id}`}
-          spot={selectedSpot}
-          onClose={() => setIsDetailOpen(false)}
-          onNavigateTo={(spot) => {
-            setSelectedSpot(spot);
-            setIsDetailOpen(false);
-          }}
-          isFavorite={favorites.includes(selectedSpot.id)}
-          onToggleFavorite={handleToggleFavorite}
-          onUpdateSpot={(updatedSpot) => {
-            setSpots((prev) => prev.map((s) => (s.id === updatedSpot.id ? updatedSpot : s)));
-            setSelectedSpot(updatedSpot);
-          }}
-        />
-      )}
+      <AnimatePresence>
+        {isDetailOpen && selectedSpot && (
+          <SpotDetailSheet
+            key={`spot-detail-${selectedSpot.id}`}
+            spot={selectedSpot}
+            onClose={() => setIsDetailOpen(false)}
+            onNavigateTo={(spot) => {
+              setSelectedSpot(spot);
+              setIsDetailOpen(false);
+            }}
+            isFavorite={favorites.includes(selectedSpot.id)}
+            onToggleFavorite={handleToggleFavorite}
+            onUpdateSpot={(updatedSpot) => {
+              setSpots((prev) => prev.map((s) => (s.id === updatedSpot.id ? updatedSpot : s)));
+              setSelectedSpot(updatedSpot);
+            }}
+          />
+        )}
+      </AnimatePresence>
 
       {/* 7. Search & Discovery Drawer (Tab: 'buscar') */}
       <SearchFilterDrawer
@@ -886,6 +1375,14 @@ export default function App() {
           handleSelectSpot(spot);
           setActiveTab('explorar');
         }}
+      />
+
+      {/* 8.5. Itineraries & Route Planning (Tab: 'roteiros') */}
+      <ItinerariesView
+        isOpen={activeTab === 'roteiros'}
+        onClose={() => setActiveTab('explorar')}
+        theme={theme}
+        spots={spots}
       />
 
       {/* 9. AI Travel Guide Chat (Tab: 'chat') matching screenshot */}
@@ -914,6 +1411,8 @@ export default function App() {
           handleSelectSpot(spot);
           setActiveTab('explorar');
         }}
+        rainEnabled={rainEnabled}
+        onToggleRain={() => setRainEnabled(!rainEnabled)}
         snowEnabled={snowEnabled}
         onToggleSnow={() => setSnowEnabled(!snowEnabled)}
         theme={theme}
@@ -931,7 +1430,111 @@ export default function App() {
         communityUrl={systemSettings.community_url}
         instagramUrl={systemSettings.instagram_url}
       />
+
+      {/* 10.5 Weather Details Modal with full forecast and tips */}
+      <WeatherModal
+        isOpen={isWeatherModalOpen}
+        onClose={() => setIsWeatherModalOpen(false)}
+        weather={{
+          ...INITIAL_WEATHER,
+          temperature: realWeather.temperature,
+          condition: realWeather.condition,
+        }}
+        weatherCode={realWeather.weatherCode}
+        isDay={realWeather.isDay}
+        theme={theme}
+      />
+
+      {/* 11. Welcome to Campos do Jordão Translucent & Blurred Overlay */}
+      <AnimatePresence>
+        {showWelcomeOverlay && (
+          <motion.div
+            id="welcome-overlay-campos"
+            key="welcome-campos-overlay"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ 
+              opacity: 0,
+              backdropFilter: 'blur(0px)',
+              transition: { duration: 0.5, ease: [0.32, 0.72, 0, 1] }
+            }}
+            transition={{ duration: 0.5, ease: [0.16, 1, 0.3, 1] }}
+            onClick={() => {
+              setShowWelcomeOverlay(false);
+              setZoomToUserTrigger((prev) => prev + 1);
+            }}
+            className="fixed inset-0 z-[160] bg-black/65 backdrop-blur-xl md:backdrop-blur-2xl flex flex-col items-center justify-center p-6 text-center select-none cursor-pointer"
+            style={{
+              paddingTop: 'max(32px, env(safe-area-inset-top, 0px))',
+              paddingBottom: 'max(32px, env(safe-area-inset-bottom, 0px))',
+              paddingLeft: 'max(24px, env(safe-area-inset-left, 0px))',
+              paddingRight: 'max(24px, env(safe-area-inset-right, 0px))',
+            }}
+          >
+            <motion.div
+              id="welcome-overlay-content"
+              initial={{ opacity: 0, scale: 0.94, y: 20 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ 
+                opacity: 0, 
+                scale: 1.05, 
+                y: -12,
+                filter: 'blur(12px)',
+                transition: { duration: 0.4, ease: [0.32, 0.72, 0, 1] }
+              }}
+              transition={{ type: 'spring', damping: 26, stiffness: 240, delay: 0.08 }}
+              className="flex flex-col items-center max-w-lg mx-auto pointer-events-none"
+            >
+              {/* Main Welcome Phrase - Apple Welcome Screen fluid character by character animation */}
+              <motion.h1
+                id="welcome-overlay-title"
+                variants={welcomeContainerVariants}
+                initial="hidden"
+                animate="visible"
+                className="text-3xl sm:text-5xl font-black text-white tracking-tight leading-tight drop-shadow-[0_4px_24px_rgba(0,0,0,0.7)] flex flex-wrap justify-center items-center gap-x-[0.28em] gap-y-1 text-center"
+              >
+                {welcomePhrase.split(' ').map((word, wordIdx) => (
+                  <span key={wordIdx} className="inline-block whitespace-nowrap">
+                    {Array.from(word).map((char, charIdx) => (
+                      <motion.span
+                        key={charIdx}
+                        variants={welcomeCharVariants}
+                        className="inline-block will-change-[transform,opacity,filter]"
+                      >
+                        {char}
+                      </motion.span>
+                    ))}
+                  </span>
+                ))}
+              </motion.h1>
+
+              {/* Tap to continue prompt */}
+              <motion.p
+                id="welcome-overlay-prompt"
+                initial={{ opacity: 0, y: 8 }}
+                animate={{ opacity: 0.75, y: 0 }}
+                transition={{ delay: 0.85, duration: 0.5, ease: 'easeOut' }}
+                className="text-xs sm:text-sm font-semibold tracking-wider text-zinc-300 mt-6 uppercase text-center drop-shadow"
+              >
+                Toque na tela para começar
+              </motion.p>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </main>
-  </div>
+
+    {/* 4. Bottom Navigation Pill rendered at root level */}
+    <BottomNavigation
+      activeTab={activeTab}
+      onChangeTab={handleTabChange}
+      unreadCount={2}
+      isBlurred={isBlurActive}
+      forceWhiteUI={isWhiteMapUI}
+      theme={theme}
+    />
+  </motion.div>
+  )}
+  </AnimatePresence>
   );
 }

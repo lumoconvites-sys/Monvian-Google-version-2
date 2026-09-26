@@ -64,6 +64,12 @@ export const AdminSpotModal: React.FC<AdminSpotModalProps> = ({
   const [rating, setRating] = useState<number>(4.8);
   const [hoverRating, setHoverRating] = useState<number | null>(null);
 
+  // Itinerary settings
+  const [availableForItinerary, setAvailableForItinerary] = useState(true);
+  const [durationMinutes, setDurationMinutes] = useState(90);
+  const [tags, setTags] = useState('');
+  const [price, setPrice] = useState('');
+
   // Image Upload state
   const [isUploadingImage, setIsUploadingImage] = useState(false);
   const [uploadError, setUploadError] = useState('');
@@ -93,6 +99,10 @@ export const AdminSpotModal: React.FC<AdminSpotModalProps> = ({
       setHighlighted(Boolean(spotToEdit.highlighted));
       setBadge(spotToEdit.badge || '');
       setRating(spotToEdit.rating !== undefined && spotToEdit.rating !== null && !isNaN(Number(spotToEdit.rating)) ? Number(spotToEdit.rating) : 4.8);
+      setAvailableForItinerary(spotToEdit.availableForItinerary !== undefined ? Boolean(spotToEdit.availableForItinerary) : true);
+      setDurationMinutes(spotToEdit.durationMinutes !== undefined ? Number(spotToEdit.durationMinutes) : 90);
+      setTags(Array.isArray(spotToEdit.tags) ? spotToEdit.tags.join(', ') : (spotToEdit.tags || ''));
+      setPrice(spotToEdit.price || '');
     } else {
       setName('');
       setCategory(mode === 'service' ? 'hotels' : 'attractions');
@@ -111,6 +121,10 @@ export const AdminSpotModal: React.FC<AdminSpotModalProps> = ({
       setHighlighted(false);
       setBadge('');
       setRating(4.8);
+      setAvailableForItinerary(true);
+      setDurationMinutes(90);
+      setTags('');
+      setPrice('');
     }
     setUploadError('');
     setErrorMsg('');
@@ -249,7 +263,11 @@ export const AdminSpotModal: React.FC<AdminSpotModalProps> = ({
       isVerified,
       highlighted,
       badge: badge.trim(),
-      rating: parsedRating
+      rating: parsedRating,
+      availableForItinerary: Boolean(availableForItinerary),
+      durationMinutes: Number(durationMinutes) || 90,
+      tags: tags.trim(),
+      price: price.trim()
     };
 
     try {
@@ -277,21 +295,21 @@ export const AdminSpotModal: React.FC<AdminSpotModalProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-5 bg-black/50 backdrop-blur-sm overflow-y-auto">
-      <div className="relative w-full max-w-3xl my-auto bg-white rounded-3xl shadow-2xl border border-zinc-200 overflow-hidden flex flex-col max-h-[92vh]">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-5 bg-black/60 backdrop-blur-sm overflow-y-auto">
+      <div className="relative w-full max-w-3xl my-auto bg-white dark:bg-[#16181d] rounded-3xl shadow-2xl border border-zinc-200 dark:border-zinc-800 overflow-hidden flex flex-col max-h-[92vh]">
         {/* Modal Header */}
-        <div className="px-6 py-4 border-b border-zinc-100 flex items-center justify-between shrink-0 bg-zinc-50/50">
+        <div className="px-6 py-4 border-b border-zinc-100 dark:border-zinc-800 flex items-center justify-between shrink-0 bg-zinc-50/50 dark:bg-zinc-900/50">
           <div>
-            <span className="text-[11px] font-black text-blue-600 tracking-wider uppercase">
+            <span className="text-[11px] font-black text-blue-600 dark:text-blue-400 tracking-wider uppercase">
               {isEditing ? 'Edição Oficial' : 'Novo Cadastro'}
             </span>
-            <h2 className="text-xl font-black text-zinc-900">
+            <h2 className="text-xl font-black text-zinc-900 dark:text-white">
               {isEditing ? `Editar: ${spotToEdit.name}` : mode === 'service' ? 'Cadastrar Novo Local ou Serviço' : 'Cadastrar Novo Ponto Turístico'}
             </h2>
           </div>
           <button
             onClick={onClose}
-            className="w-9 h-9 rounded-full bg-zinc-100 hover:bg-zinc-200 text-zinc-600 flex items-center justify-center transition-colors cursor-pointer"
+            className="w-9 h-9 rounded-full bg-zinc-100 dark:bg-zinc-800 hover:bg-zinc-200 dark:hover:bg-zinc-700 text-zinc-600 dark:text-zinc-300 flex items-center justify-center transition-colors cursor-pointer"
           >
             <X className="w-5 h-5" />
           </button>
@@ -300,7 +318,7 @@ export const AdminSpotModal: React.FC<AdminSpotModalProps> = ({
         {/* Form Body with Scroll */}
         <form onSubmit={handleSubmit} className="flex-1 overflow-y-auto p-6 space-y-6">
           {errorMsg && (
-            <div className="p-3.5 rounded-2xl bg-rose-50 border border-rose-200 text-rose-700 text-xs flex items-center gap-2">
+            <div className="p-3.5 rounded-2xl bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-900 text-rose-700 dark:text-rose-300 text-xs flex items-center gap-2">
               <AlertCircle className="w-4 h-4 shrink-0 text-rose-500" />
               <span>{errorMsg}</span>
             </div>
@@ -308,14 +326,14 @@ export const AdminSpotModal: React.FC<AdminSpotModalProps> = ({
 
           {/* Section 1: Basic Info */}
           <div className="space-y-4">
-            <h3 className="text-sm font-black text-zinc-800 flex items-center gap-2">
-              <span className="w-6 h-6 rounded-full bg-blue-50 text-blue-600 text-xs flex items-center justify-center font-black">1</span>
+            <h3 className="text-sm font-black text-zinc-800 dark:text-zinc-200 flex items-center gap-2">
+              <span className="w-6 h-6 rounded-full bg-blue-50 dark:bg-blue-950/50 text-blue-600 dark:text-blue-400 text-xs flex items-center justify-center font-black">1</span>
               Informações Principais
             </h3>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
-                <label className="block text-xs font-black text-zinc-700 mb-1.5">
+                <label className="block text-xs font-black text-zinc-700 dark:text-zinc-300 mb-1.5">
                   Nome do Ponto / Estabelecimento *
                 </label>
                 <input
@@ -324,18 +342,18 @@ export const AdminSpotModal: React.FC<AdminSpotModalProps> = ({
                   value={name}
                   onChange={(e) => setName(e.target.value)}
                   placeholder="Ex: Parque Capivari, Restaurante Baden..."
-                  className="w-full px-3.5 py-2.5 bg-zinc-50 border border-zinc-200 rounded-xl text-sm text-zinc-900 placeholder-zinc-400 focus:outline-none focus:border-blue-500 focus:bg-white transition-all"
+                  className="w-full px-3.5 py-2.5 bg-zinc-50 dark:bg-zinc-900/80 border border-zinc-200 dark:border-zinc-700 rounded-xl text-sm text-zinc-900 dark:text-white placeholder-zinc-400 focus:outline-none focus:border-blue-500 focus:bg-white dark:focus:bg-zinc-900 transition-all"
                 />
               </div>
 
               <div>
-                <label className="block text-xs font-black text-zinc-700 mb-1.5">
+                <label className="block text-xs font-black text-zinc-700 dark:text-zinc-300 mb-1.5">
                   Categoria *
                 </label>
                 <select
                   value={category}
                   onChange={(e) => setCategory(e.target.value)}
-                  className="w-full px-3.5 py-2.5 bg-zinc-50 border border-zinc-200 rounded-xl text-sm text-zinc-900 focus:outline-none focus:border-blue-500 focus:bg-white transition-all"
+                  className="w-full px-3.5 py-2.5 bg-zinc-50 dark:bg-zinc-900/80 border border-zinc-200 dark:border-zinc-700 rounded-xl text-sm text-zinc-900 dark:text-white focus:outline-none focus:border-blue-500 focus:bg-white dark:focus:bg-zinc-900 transition-all"
                 >
                   {CATEGORIES.map((cat) => (
                     <option key={cat.id} value={cat.id}>
@@ -347,7 +365,7 @@ export const AdminSpotModal: React.FC<AdminSpotModalProps> = ({
             </div>
 
             <div>
-              <label className="block text-xs font-black text-zinc-700 mb-1.5">
+              <label className="block text-xs font-black text-zinc-700 dark:text-zinc-300 mb-1.5">
                 Descrição Completa
               </label>
               <textarea
@@ -355,12 +373,12 @@ export const AdminSpotModal: React.FC<AdminSpotModalProps> = ({
                 value={description}
                 onChange={(e) => setDescription(e.target.value)}
                 placeholder="Descreva a atração, história, atrativos e o que o visitante encontrará..."
-                className="w-full px-3.5 py-2.5 bg-zinc-50 border border-zinc-200 rounded-xl text-sm text-zinc-900 placeholder-zinc-400 focus:outline-none focus:border-blue-500 focus:bg-white transition-all resize-none"
+                className="w-full px-3.5 py-2.5 bg-zinc-50 dark:bg-zinc-900/80 border border-zinc-200 dark:border-zinc-700 rounded-xl text-sm text-zinc-900 dark:text-white placeholder-zinc-400 focus:outline-none focus:border-blue-500 focus:bg-white dark:focus:bg-zinc-900 transition-all resize-none"
               />
             </div>
 
             <div>
-              <label className="block text-xs font-black text-zinc-700 mb-1.5">
+              <label className="block text-xs font-black text-zinc-700 dark:text-zinc-300 mb-1.5">
                 Dica do Guia / Dica Turística
               </label>
               <input
@@ -368,19 +386,19 @@ export const AdminSpotModal: React.FC<AdminSpotModalProps> = ({
                 value={touristTip}
                 onChange={(e) => setTouristTip(e.target.value)}
                 placeholder="Ex: O melhor horário para fotos no mirante é no entardecer."
-                className="w-full px-3.5 py-2.5 bg-zinc-50 border border-zinc-200 rounded-xl text-sm text-zinc-900 placeholder-zinc-400 focus:outline-none focus:border-blue-500 focus:bg-white transition-all"
+                className="w-full px-3.5 py-2.5 bg-zinc-50 dark:bg-zinc-900/80 border border-zinc-200 dark:border-zinc-700 rounded-xl text-sm text-zinc-900 dark:text-white placeholder-zinc-400 focus:outline-none focus:border-blue-500 focus:bg-white dark:focus:bg-zinc-900 transition-all"
               />
             </div>
           </div>
 
           {/* Section 2: Photo Upload (Instead of URL) */}
-          <div className="space-y-4 pt-2 border-t border-zinc-100">
+          <div className="space-y-4 pt-2 border-t border-zinc-100 dark:border-zinc-800">
             <div className="flex items-center justify-between">
-              <h3 className="text-sm font-black text-zinc-800 flex items-center gap-2">
-                <span className="w-6 h-6 rounded-full bg-blue-50 text-blue-600 text-xs flex items-center justify-center font-black">2</span>
+              <h3 className="text-sm font-black text-zinc-800 dark:text-zinc-200 flex items-center gap-2">
+                <span className="w-6 h-6 rounded-full bg-blue-50 dark:bg-blue-950/50 text-blue-600 dark:text-blue-400 text-xs flex items-center justify-center font-black">2</span>
                 Foto do Ponto Turístico
               </h3>
-              <span className="text-[11px] text-zinc-500">Upload direto de imagem</span>
+              <span className="text-[11px] text-zinc-500 dark:text-zinc-400">Upload direto de imagem</span>
             </div>
 
             {/* Hidden native file input */}
@@ -397,7 +415,7 @@ export const AdminSpotModal: React.FC<AdminSpotModalProps> = ({
             />
 
             {uploadError && (
-              <div className="p-3 rounded-xl bg-rose-50 border border-rose-200 text-rose-700 text-xs flex items-center gap-2">
+              <div className="p-3 rounded-xl bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-900 text-rose-700 dark:text-rose-300 text-xs flex items-center gap-2">
                 <AlertCircle className="w-4 h-4 shrink-0 text-rose-500" />
                 <span>{uploadError}</span>
               </div>
@@ -405,7 +423,7 @@ export const AdminSpotModal: React.FC<AdminSpotModalProps> = ({
 
             {/* Image Upload Area or Active Preview */}
             {image ? (
-              <div className="relative rounded-2xl overflow-hidden border border-zinc-200 bg-zinc-900 shadow-sm group">
+              <div className="relative rounded-2xl overflow-hidden border border-zinc-200 dark:border-zinc-700 bg-zinc-900 shadow-sm group">
                 <div className="h-56 sm:h-64 w-full relative">
                   <img
                     src={image}
@@ -416,7 +434,7 @@ export const AdminSpotModal: React.FC<AdminSpotModalProps> = ({
 
                   {/* Top Bar Controls */}
                   <div className="absolute top-3 left-3 right-3 flex items-center justify-between pointer-events-auto">
-                    <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-[#00C896] text-white text-[11px] font-black shadow-md">
+                    <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-blue-600 text-white text-[11px] font-black shadow-md">
                       <Check className="w-3.5 h-3.5" />
                       Foto Carregada
                     </span>
@@ -426,7 +444,7 @@ export const AdminSpotModal: React.FC<AdminSpotModalProps> = ({
                         type="button"
                         onClick={() => fileInputRef.current?.click()}
                         disabled={isUploadingImage}
-                        className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-white/95 hover:bg-white text-zinc-900 text-xs font-black shadow-md backdrop-blur-sm transition-all cursor-pointer hover:scale-105 active:scale-95"
+                        className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-white/95 dark:bg-zinc-800/95 hover:bg-white text-zinc-900 dark:text-white text-xs font-black shadow-md backdrop-blur-sm transition-all cursor-pointer hover:scale-105 active:scale-95"
                       >
                         {isUploadingImage ? (
                           <RefreshCw className="w-3.5 h-3.5 text-blue-600 animate-spin" />
@@ -470,24 +488,24 @@ export const AdminSpotModal: React.FC<AdminSpotModalProps> = ({
                 onClick={() => fileInputRef.current?.click()}
                 className={`relative border-2 border-dashed rounded-2xl p-7 text-center transition-all cursor-pointer flex flex-col items-center justify-center ${
                   isDragging
-                    ? 'border-blue-500 bg-blue-50/60 scale-[1.01]'
-                    : 'border-zinc-300 hover:border-blue-500 bg-zinc-50/70 hover:bg-zinc-100/70'
+                    ? 'border-blue-500 bg-blue-50/60 dark:bg-blue-950/30 scale-[1.01]'
+                    : 'border-zinc-300 dark:border-zinc-700 hover:border-blue-500 bg-zinc-50/70 dark:bg-zinc-900/60 hover:bg-zinc-100/70 dark:hover:bg-zinc-800/60'
                 }`}
               >
                 {isUploadingImage ? (
                   <div className="flex flex-col items-center gap-3 py-4">
                     <RefreshCw className="w-8 h-8 text-blue-600 animate-spin" />
-                    <span className="text-xs font-black text-zinc-800">Otimizando e enviando foto em alta qualidade...</span>
+                    <span className="text-xs font-black text-zinc-800 dark:text-zinc-200">Otimizando e enviando foto em alta qualidade...</span>
                   </div>
                 ) : (
                   <>
-                    <div className="w-14 h-14 rounded-2xl bg-blue-50 text-blue-600 flex items-center justify-center mb-3 shadow-xs">
+                    <div className="w-14 h-14 rounded-2xl bg-blue-50 dark:bg-blue-950/50 text-blue-600 dark:text-blue-400 flex items-center justify-center mb-3 shadow-xs">
                       <Upload className="w-7 h-7" />
                     </div>
-                    <p className="text-sm font-black text-zinc-900">
+                    <p className="text-sm font-black text-zinc-900 dark:text-white">
                       Clique para fazer upload da foto ou arraste o arquivo aqui
                     </p>
-                    <p className="text-xs text-zinc-500 mt-1 max-w-sm">
+                    <p className="text-xs text-zinc-500 dark:text-zinc-400 mt-1 max-w-sm">
                       Selecione imagens do seu dispositivo (JPG, PNG, WEBP). O sistema otimiza a foto automaticamente sem perda de nitidez.
                     </p>
                     <button
@@ -507,7 +525,7 @@ export const AdminSpotModal: React.FC<AdminSpotModalProps> = ({
               <button
                 type="button"
                 onClick={() => setShowAdvancedImage(!showAdvancedImage)}
-                className="text-xs font-bold text-zinc-500 hover:text-zinc-800 flex items-center gap-1.5 cursor-pointer transition-colors"
+                className="text-xs font-bold text-zinc-500 dark:text-zinc-400 hover:text-zinc-800 dark:hover:text-zinc-200 flex items-center gap-1.5 cursor-pointer transition-colors"
               >
                 <LinkIcon className="w-3.5 h-3.5" />
                 <span>Opções adicionais (Colar URL ou selecionar foto padrão)</span>
@@ -515,9 +533,9 @@ export const AdminSpotModal: React.FC<AdminSpotModalProps> = ({
               </button>
 
               {showAdvancedImage && (
-                <div className="mt-3 p-3.5 bg-zinc-50 border border-zinc-200 rounded-2xl space-y-3 animate-in fade-in duration-200">
+                <div className="mt-3 p-3.5 bg-zinc-50 dark:bg-zinc-900/60 border border-zinc-200 dark:border-zinc-700 rounded-2xl space-y-3 animate-in fade-in duration-200">
                   <div>
-                    <label className="block text-[11px] font-black text-zinc-600 mb-1">
+                    <label className="block text-[11px] font-black text-zinc-600 dark:text-zinc-300 mb-1">
                       URL Direta da Imagem (Opcional)
                     </label>
                     <input
@@ -525,12 +543,12 @@ export const AdminSpotModal: React.FC<AdminSpotModalProps> = ({
                       value={image}
                       onChange={(e) => setImage(e.target.value)}
                       placeholder="https://images.unsplash.com/..."
-                      className="w-full px-3.5 py-2 bg-white border border-zinc-200 rounded-xl text-xs text-zinc-900 placeholder-zinc-400 focus:outline-none focus:border-blue-500"
+                      className="w-full px-3.5 py-2 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-700 rounded-xl text-xs text-zinc-900 dark:text-white placeholder-zinc-400 focus:outline-none focus:border-blue-500"
                     />
                   </div>
 
                   <div>
-                    <span className="block text-[11px] font-black text-zinc-600 mb-1.5">Ou escolher imagem modelo de Campos do Jordão:</span>
+                    <span className="block text-[11px] font-black text-zinc-600 dark:text-zinc-300 mb-1.5">Ou escolher imagem modelo de Campos do Jordão:</span>
                     <div className="grid grid-cols-3 sm:grid-cols-6 gap-2">
                       {PRESET_IMAGES.map((p, idx) => (
                         <button
@@ -538,7 +556,7 @@ export const AdminSpotModal: React.FC<AdminSpotModalProps> = ({
                           type="button"
                           onClick={() => setImage(p.url)}
                           className={`relative h-14 rounded-xl overflow-hidden border-2 transition-all cursor-pointer ${
-                            image === p.url ? 'border-blue-600 ring-2 ring-blue-500/20' : 'border-zinc-200 opacity-70 hover:opacity-100'
+                            image === p.url ? 'border-blue-600 ring-2 ring-blue-500/20' : 'border-zinc-200 dark:border-zinc-700 opacity-70 hover:opacity-100'
                           }`}
                         >
                           <img src={p.url} alt={p.label} className="w-full h-full object-cover" />
@@ -555,17 +573,17 @@ export const AdminSpotModal: React.FC<AdminSpotModalProps> = ({
           </div>
 
           {/* Section 3: Interactive Location & Map Picker */}
-          <div className="space-y-4 pt-2 border-t border-zinc-100">
+          <div className="space-y-4 pt-2 border-t border-zinc-100 dark:border-zinc-800">
             <div className="flex items-center justify-between">
-              <h3 className="text-sm font-black text-zinc-800 flex items-center gap-2">
-                <span className="w-6 h-6 rounded-full bg-blue-50 text-blue-600 text-xs flex items-center justify-center font-black">3</span>
+              <h3 className="text-sm font-black text-zinc-800 dark:text-zinc-200 flex items-center gap-2">
+                <span className="w-6 h-6 rounded-full bg-blue-50 dark:bg-blue-950/50 text-blue-600 dark:text-blue-400 text-xs flex items-center justify-center font-black">3</span>
                 Localização no Mapa Interativo
               </h3>
-              <span className="text-[11px] text-zinc-500">Sincroniza automaticamente com o mapa do Monvian</span>
+              <span className="text-[11px] text-zinc-500 dark:text-zinc-400">Sincroniza automaticamente com o mapa do Monvian</span>
             </div>
 
             <div>
-              <label className="block text-xs font-black text-zinc-700 mb-1.5">
+              <label className="block text-xs font-black text-zinc-700 dark:text-zinc-300 mb-1.5">
                 Endereço por Extenso
               </label>
               <input
@@ -573,7 +591,7 @@ export const AdminSpotModal: React.FC<AdminSpotModalProps> = ({
                 value={address}
                 onChange={(e) => setAddress(e.target.value)}
                 placeholder="Ex: Av. José de Oliveira Damas, 500 - Vila Capivari"
-                className="w-full px-3.5 py-2.5 bg-zinc-50 border border-zinc-200 rounded-xl text-sm text-zinc-900 placeholder-zinc-400 focus:outline-none focus:border-blue-500"
+                className="w-full px-3.5 py-2.5 bg-zinc-50 dark:bg-zinc-900/80 border border-zinc-200 dark:border-zinc-700 rounded-xl text-sm text-zinc-900 dark:text-white placeholder-zinc-400 focus:outline-none focus:border-blue-500"
               />
             </div>
 
@@ -593,23 +611,23 @@ export const AdminSpotModal: React.FC<AdminSpotModalProps> = ({
           </div>
 
           {/* Section 4: Rating (Editable Stars) & Details */}
-          <div className="space-y-4 pt-2 border-t border-zinc-100">
-            <h3 className="text-sm font-black text-zinc-800 flex items-center gap-2">
-              <span className="w-6 h-6 rounded-full bg-blue-50 text-blue-600 text-xs flex items-center justify-center font-black">4</span>
+          <div className="space-y-4 pt-2 border-t border-zinc-100 dark:border-zinc-800">
+            <h3 className="text-sm font-black text-zinc-800 dark:text-zinc-200 flex items-center gap-2">
+              <span className="w-6 h-6 rounded-full bg-blue-50 dark:bg-blue-950/50 text-blue-600 dark:text-blue-400 text-xs flex items-center justify-center font-black">4</span>
               Avaliação (Estrelas), Horários e Status
             </h3>
 
             {/* EDITABLE STARS / RATING CARD */}
-            <div className="p-4 bg-amber-50/60 border border-amber-200/80 rounded-2xl space-y-3">
+            <div className="p-4 bg-amber-50/60 dark:bg-amber-950/20 border border-amber-200/80 dark:border-amber-900/60 rounded-2xl space-y-3">
               <div className="flex items-center justify-between flex-wrap gap-2">
-                <label className="text-xs font-black text-zinc-900 flex items-center gap-1.5">
+                <label className="text-xs font-black text-zinc-900 dark:text-white flex items-center gap-1.5">
                   <Star className="w-4 h-4 text-amber-500 fill-amber-500" />
                   <span>Número de Estrelas / Avaliação Oficial *</span>
                 </label>
-                <div className="flex items-center gap-1.5 px-3 py-1 bg-amber-400/20 rounded-full border border-amber-300/60">
+                <div className="flex items-center gap-1.5 px-3 py-1 bg-amber-400/20 rounded-full border border-amber-300/60 dark:border-amber-700/60">
                   <Star className="w-3.5 h-3.5 text-amber-500 fill-amber-500" />
-                  <span className="text-xs font-black text-amber-900">{rating.toFixed(1)} / 5.0</span>
-                  <span className="text-[10px] font-bold text-amber-800 ml-1">
+                  <span className="text-xs font-black text-amber-900 dark:text-amber-200">{rating.toFixed(1)} / 5.0</span>
+                  <span className="text-[10px] font-bold text-amber-800 dark:text-amber-300 ml-1">
                     {rating >= 4.9 ? 'Excepcional' : rating >= 4.7 ? 'Excelente' : rating >= 4.4 ? 'Muito Bom' : rating >= 4.0 ? 'Bom' : 'Regular'}
                   </span>
                 </div>
@@ -639,7 +657,7 @@ export const AdminSpotModal: React.FC<AdminSpotModalProps> = ({
                               ? 'text-amber-400 fill-amber-400 drop-shadow-xs'
                               : isHalf
                               ? 'text-amber-400 fill-amber-400/40'
-                              : 'text-zinc-300'
+                              : 'text-zinc-300 dark:text-zinc-600'
                           }`}
                         />
                       </button>
@@ -649,7 +667,7 @@ export const AdminSpotModal: React.FC<AdminSpotModalProps> = ({
 
                 {/* Numeric input with precision */}
                 <div className="flex items-center gap-2">
-                  <span className="text-xs font-bold text-zinc-700">Nota precisa:</span>
+                  <span className="text-xs font-bold text-zinc-700 dark:text-zinc-300">Nota precisa:</span>
                   <input
                     type="number"
                     step="0.1"
@@ -662,14 +680,14 @@ export const AdminSpotModal: React.FC<AdminSpotModalProps> = ({
                         setRating(Math.max(1.0, Math.min(5.0, Number(val.toFixed(1)))));
                       }
                     }}
-                    className="w-20 px-2.5 py-1.5 bg-white border border-amber-300 rounded-xl text-xs font-black text-zinc-900 text-center focus:outline-none focus:ring-2 focus:ring-amber-400 shadow-xs"
+                    className="w-20 px-2.5 py-1.5 bg-white dark:bg-zinc-900 border border-amber-300 dark:border-amber-700 rounded-xl text-xs font-black text-zinc-900 dark:text-white text-center focus:outline-none focus:ring-2 focus:ring-amber-400 shadow-xs"
                   />
                 </div>
               </div>
 
               {/* Quick shortcut chips */}
-              <div className="flex items-center gap-1.5 flex-wrap pt-1 border-t border-amber-200/60">
-                <span className="text-[11px] font-bold text-zinc-500 mr-1">Atalhos rápidos:</span>
+              <div className="flex items-center gap-1.5 flex-wrap pt-1 border-t border-amber-200/60 dark:border-amber-900/40">
+                <span className="text-[11px] font-bold text-zinc-500 dark:text-zinc-400 mr-1">Atalhos rápidos:</span>
                 {[5.0, 4.9, 4.8, 4.7, 4.5, 4.0].map((r) => (
                   <button
                     key={r}
@@ -678,7 +696,7 @@ export const AdminSpotModal: React.FC<AdminSpotModalProps> = ({
                     className={`px-2.5 py-1 rounded-lg text-xs font-black transition-all cursor-pointer ${
                       rating === r
                         ? 'bg-amber-500 text-white shadow-xs scale-105'
-                        : 'bg-white text-zinc-700 border border-zinc-200 hover:bg-amber-50'
+                        : 'bg-white dark:bg-zinc-800 text-zinc-700 dark:text-zinc-300 border border-zinc-200 dark:border-zinc-700 hover:bg-amber-50 dark:hover:bg-zinc-700'
                     }`}
                   >
                     ★ {r.toFixed(1)}
@@ -689,7 +707,7 @@ export const AdminSpotModal: React.FC<AdminSpotModalProps> = ({
 
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
               <div>
-                <label className="block text-xs font-black text-zinc-700 mb-1.5">
+                <label className="block text-xs font-black text-zinc-700 dark:text-zinc-300 mb-1.5">
                   Horário de Funcionamento
                 </label>
                 <input
@@ -697,18 +715,18 @@ export const AdminSpotModal: React.FC<AdminSpotModalProps> = ({
                   value={hours}
                   onChange={(e) => setHours(e.target.value)}
                   placeholder="Ex: 09h às 18h"
-                  className="w-full px-3.5 py-2.5 bg-zinc-50 border border-zinc-200 rounded-xl text-sm text-zinc-900 focus:outline-none focus:border-blue-500"
+                  className="w-full px-3.5 py-2.5 bg-zinc-50 dark:bg-zinc-900/80 border border-zinc-200 dark:border-zinc-700 rounded-xl text-sm text-zinc-900 dark:text-white focus:outline-none focus:border-blue-500"
                 />
               </div>
 
               <div>
-                <label className="block text-xs font-black text-zinc-700 mb-1.5">
+                <label className="block text-xs font-black text-zinc-700 dark:text-zinc-300 mb-1.5">
                   Faixa de Preço
                 </label>
                 <select
                   value={priceRange}
                   onChange={(e: any) => setPriceRange(e.target.value)}
-                  className="w-full px-3.5 py-2.5 bg-zinc-50 border border-zinc-200 rounded-xl text-sm text-zinc-900 focus:outline-none focus:border-blue-500"
+                  className="w-full px-3.5 py-2.5 bg-zinc-50 dark:bg-zinc-900/80 border border-zinc-200 dark:border-zinc-700 rounded-xl text-sm text-zinc-900 dark:text-white focus:outline-none focus:border-blue-500"
                 >
                   <option value="Grátis">Grátis (Sem custo)</option>
                   <option value="$">$ (Econômico)</option>
@@ -719,7 +737,7 @@ export const AdminSpotModal: React.FC<AdminSpotModalProps> = ({
               </div>
 
               <div>
-                <label className="block text-xs font-black text-zinc-700 mb-1.5">
+                <label className="block text-xs font-black text-zinc-700 dark:text-zinc-300 mb-1.5">
                   Selo Especial / Badge (Opcional)
                 </label>
                 <input
@@ -727,14 +745,14 @@ export const AdminSpotModal: React.FC<AdminSpotModalProps> = ({
                   value={badge}
                   onChange={(e) => setBadge(e.target.value)}
                   placeholder="Ex: Imperdível, Charmosa"
-                  className="w-full px-3.5 py-2.5 bg-zinc-50 border border-zinc-200 rounded-xl text-sm text-zinc-900 focus:outline-none focus:border-blue-500"
+                  className="w-full px-3.5 py-2.5 bg-zinc-50 dark:bg-zinc-900/80 border border-zinc-200 dark:border-zinc-700 rounded-xl text-sm text-zinc-900 dark:text-white focus:outline-none focus:border-blue-500"
                 />
               </div>
             </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
-                <label className="block text-xs font-black text-zinc-700 mb-1.5">
+                <label className="block text-xs font-black text-zinc-700 dark:text-zinc-300 mb-1.5">
                   Telefone / WhatsApp
                 </label>
                 <input
@@ -742,12 +760,12 @@ export const AdminSpotModal: React.FC<AdminSpotModalProps> = ({
                   value={phone}
                   onChange={(e) => setPhone(e.target.value)}
                   placeholder="(12) 3663-0000"
-                  className="w-full px-3.5 py-2.5 bg-zinc-50 border border-zinc-200 rounded-xl text-sm text-zinc-900 focus:outline-none focus:border-blue-500"
+                  className="w-full px-3.5 py-2.5 bg-zinc-50 dark:bg-zinc-900/80 border border-zinc-200 dark:border-zinc-700 rounded-xl text-sm text-zinc-900 dark:text-white focus:outline-none focus:border-blue-500"
                 />
               </div>
 
               <div>
-                <label className="block text-xs font-black text-zinc-700 mb-1.5">
+                <label className="block text-xs font-black text-zinc-700 dark:text-zinc-300 mb-1.5">
                   Site Oficial / Link
                 </label>
                 <input
@@ -755,35 +773,35 @@ export const AdminSpotModal: React.FC<AdminSpotModalProps> = ({
                   value={website}
                   onChange={(e) => setWebsite(e.target.value)}
                   placeholder="https://..."
-                  className="w-full px-3.5 py-2.5 bg-zinc-50 border border-zinc-200 rounded-xl text-sm text-zinc-900 focus:outline-none focus:border-blue-500"
+                  className="w-full px-3.5 py-2.5 bg-zinc-50 dark:bg-zinc-900/80 border border-zinc-200 dark:border-zinc-700 rounded-xl text-sm text-zinc-900 dark:text-white focus:outline-none focus:border-blue-500"
                 />
               </div>
             </div>
 
             {/* Toggles */}
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-2">
-              <label className="p-3 bg-zinc-50 border border-zinc-200 rounded-2xl flex items-center justify-between cursor-pointer hover:bg-zinc-100 transition-colors">
-                <span className="text-xs font-black text-zinc-800">Ativo no Mapa</span>
+              <label className="p-3 bg-zinc-50 dark:bg-zinc-900/80 border border-zinc-200 dark:border-zinc-700 rounded-2xl flex items-center justify-between cursor-pointer hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors">
+                <span className="text-xs font-black text-zinc-800 dark:text-zinc-200">Ativo no Mapa</span>
                 <input
                   type="checkbox"
                   checked={isActive}
                   onChange={(e) => setIsActive(e.target.checked)}
-                  className="w-4 h-4 accent-[#00C896] rounded"
+                  className="w-4 h-4 accent-blue-600 rounded"
                 />
               </label>
 
-              <label className="p-3 bg-zinc-50 border border-zinc-200 rounded-2xl flex items-center justify-between cursor-pointer hover:bg-zinc-100 transition-colors">
-                <span className="text-xs font-black text-zinc-800">Verificado</span>
+              <label className="p-3 bg-zinc-50 dark:bg-zinc-900/80 border border-zinc-200 dark:border-zinc-700 rounded-2xl flex items-center justify-between cursor-pointer hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors">
+                <span className="text-xs font-black text-zinc-800 dark:text-zinc-200">Verificado</span>
                 <input
                   type="checkbox"
                   checked={isVerified}
                   onChange={(e) => setIsVerified(e.target.checked)}
-                  className="w-4 h-4 accent-[#00C896] rounded"
+                  className="w-4 h-4 accent-blue-600 rounded"
                 />
               </label>
 
-              <label className="p-3 bg-zinc-50 border border-zinc-200 rounded-2xl flex items-center justify-between cursor-pointer hover:bg-zinc-100 transition-colors">
-                <span className="text-xs font-black text-zinc-800">Destaque Especial</span>
+              <label className="p-3 bg-zinc-50 dark:bg-zinc-900/80 border border-zinc-200 dark:border-zinc-700 rounded-2xl flex items-center justify-between cursor-pointer hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors">
+                <span className="text-xs font-black text-zinc-800 dark:text-zinc-200">Destaque Especial</span>
                 <input
                   type="checkbox"
                   checked={highlighted}
@@ -792,14 +810,80 @@ export const AdminSpotModal: React.FC<AdminSpotModalProps> = ({
                 />
               </label>
             </div>
+
+            {/* Roteiros & Itinerários settings */}
+            <div className="p-4 bg-zinc-50 dark:bg-zinc-900/60 border border-zinc-200 dark:border-zinc-800 rounded-2xl space-y-3">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h4 className="text-xs font-black text-zinc-900 dark:text-white uppercase tracking-wider">
+                    Sistema de Roteiros
+                  </h4>
+                  <p className="text-[11px] text-zinc-500 font-medium">
+                    Parâmetros para sugestão e inclusão em roteiros turísticos
+                  </p>
+                </div>
+                <label className="flex items-center gap-2 cursor-pointer">
+                  <span className="text-xs font-bold text-zinc-700 dark:text-zinc-300">Disponível em Roteiros</span>
+                  <input
+                    type="checkbox"
+                    checked={availableForItinerary}
+                    onChange={(e) => setAvailableForItinerary(e.target.checked)}
+                    className="w-4 h-4 accent-zinc-900 dark:accent-white rounded"
+                  />
+                </label>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-1">
+                <div>
+                  <label className="block text-[11px] font-bold text-zinc-600 dark:text-zinc-400 mb-1">
+                    Tempo Médio (minutos)
+                  </label>
+                  <input
+                    type="number"
+                    min="15"
+                    max="480"
+                    step="15"
+                    value={durationMinutes}
+                    onChange={(e) => setDurationMinutes(Number(e.target.value))}
+                    className="w-full px-3 py-2 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-700 rounded-xl text-xs text-zinc-900 dark:text-white focus:outline-none"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-[11px] font-bold text-zinc-600 dark:text-zinc-400 mb-1">
+                    Preço / Ingresso
+                  </label>
+                  <input
+                    type="text"
+                    value={price}
+                    onChange={(e) => setPrice(e.target.value)}
+                    placeholder="Ex: Grátis ou R$ 40"
+                    className="w-full px-3 py-2 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-700 rounded-xl text-xs text-zinc-900 dark:text-white focus:outline-none"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-[11px] font-bold text-zinc-600 dark:text-zinc-400 mb-1">
+                    Tags de Roteiro
+                  </label>
+                  <input
+                    type="text"
+                    value={tags}
+                    onChange={(e) => setTags(e.target.value)}
+                    placeholder="Ex: mirante, fotos, casal"
+                    className="w-full px-3 py-2 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-700 rounded-xl text-xs text-zinc-900 dark:text-white focus:outline-none"
+                  />
+                </div>
+              </div>
+            </div>
           </div>
 
           {/* Footer Submit Button */}
-          <div className="pt-4 border-t border-zinc-100 flex items-center justify-end gap-3">
+          <div className="pt-4 border-t border-zinc-100 dark:border-zinc-800 flex items-center justify-end gap-3">
             <button
               type="button"
               onClick={onClose}
-              className="px-5 py-2.5 rounded-xl border border-zinc-200 text-sm font-black text-zinc-700 hover:bg-zinc-100 transition-colors cursor-pointer"
+              className="px-5 py-2.5 rounded-xl border border-zinc-200 dark:border-zinc-700 text-sm font-black text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors cursor-pointer"
             >
               Cancelar
             </button>

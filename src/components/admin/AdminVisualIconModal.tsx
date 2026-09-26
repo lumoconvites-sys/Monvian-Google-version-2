@@ -485,7 +485,7 @@ export const AdminVisualIconModal: React.FC<AdminVisualIconModalProps> = ({
             </form>
 
             {searchFeedback && (
-              <p className={`text-xs font-medium ${searchFeedback.includes('Erro') || searchFeedback.includes('não') ? 'text-amber-600' : 'text-emerald-600'}`}>
+              <p className={`text-xs font-medium ${searchFeedback.includes('Erro') || searchFeedback.includes('não') ? 'text-amber-600' : 'text-blue-600'}`}>
                 {searchFeedback}
               </p>
             )}
@@ -534,7 +534,7 @@ export const AdminVisualIconModal: React.FC<AdminVisualIconModalProps> = ({
               type="button"
               onClick={() => setIsActive(!isActive)}
               className={`w-12 h-6 rounded-full transition-colors relative p-0.5 cursor-pointer ${
-                isActive ? 'bg-emerald-500' : 'bg-zinc-300'
+                isActive ? 'bg-blue-600' : 'bg-zinc-300'
               }`}
             >
               <div

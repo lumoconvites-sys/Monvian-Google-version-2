@@ -489,7 +489,7 @@ export const AIMessageRenderer: React.FC<AIMessageRendererProps> = ({ content })
               >
                 {/* Day Badge */}
                 <div className="flex items-center gap-2">
-                  <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-[#00C896]/15 dark:bg-[#00C896]/25 text-[#00C896] dark:text-blue-400 font-black text-xs uppercase tracking-wider">
+                  <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-blue-500/15 dark:bg-blue-500/25 text-blue-600 dark:text-blue-400 font-black text-xs uppercase tracking-wider">
                     <span>📅</span>
                     <span>{day.dayLabel}</span>
                   </div>
@@ -527,10 +527,10 @@ export const AIMessageRenderer: React.FC<AIMessageRendererProps> = ({ content })
             return (
               <div
                 key={`item-${idx}`}
-                className="flex items-start gap-3 p-3.5 rounded-xl bg-zinc-50 dark:bg-[#181a1f] border border-zinc-200/90 dark:border-white/10 shadow-xs hover:border-[#00C896]/40 transition-colors"
+                className="flex items-start gap-3 p-3.5 rounded-xl bg-zinc-50 dark:bg-[#181a1f] border border-zinc-200/90 dark:border-white/10 shadow-xs hover:border-blue-500/40 transition-colors"
               >
                 {/* Badge/Icon */}
-                <div className="w-8 h-8 rounded-full bg-[#00C896]/10 dark:bg-[#00C896]/20 text-[#00C896] dark:text-blue-400 flex items-center justify-center font-black text-xs shrink-0 mt-0.5">
+                <div className="w-8 h-8 rounded-full bg-blue-500/10 dark:bg-blue-500/20 text-blue-600 dark:text-blue-400 flex items-center justify-center font-black text-xs shrink-0 mt-0.5">
                   {item.index ? item.index : item.icon}
                 </div>
 

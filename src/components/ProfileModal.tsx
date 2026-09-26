@@ -17,6 +17,7 @@ import {
   Sliders,
   ExternalLink,
   Loader2,
+  CloudRain,
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { InstagramLogo, WhatsAppLogo } from './SocialIcons';
@@ -27,6 +28,8 @@ interface ProfileModalProps {
   favorites: string[];
   spots: Spot[];
   onSelectSpot: (spot: Spot) => void;
+  rainEnabled?: boolean;
+  onToggleRain?: () => void;
   snowEnabled?: boolean;
   onToggleSnow?: () => void;
   theme: 'dark' | 'light';
@@ -48,6 +51,8 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
   favorites,
   spots,
   onSelectSpot,
+  rainEnabled = true,
+  onToggleRain,
   snowEnabled,
   onToggleSnow,
   theme,
@@ -83,6 +88,13 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
 
   // Sub-view management
   const [activeSubView, setActiveSubView] = useState<SubView>('main');
+
+  const isUserAdmin = Boolean(
+    user && (
+      (user.email && ['empresariomario@gmail.com', 'marioyesk@gmail.com'].includes(user.email.trim().toLowerCase())) ||
+      (user.whatsapp && ['empresariomario@gmail.com', 'marioyesk@gmail.com'].includes(user.whatsapp.trim().toLowerCase()))
+    )
+  );
 
   // Form states for editing profile
   const [tempName, setTempName] = useState(userName);
@@ -205,7 +217,7 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
   return (
     <div
       id="profile-fullscreen-overlay"
-      className="absolute inset-0 z-45 bg-zinc-50 dark:bg-[#111315] text-zinc-900 dark:text-white flex flex-col justify-between overflow-hidden"
+      className="absolute inset-0 z-45 bg-zinc-50 dark:bg-[#000000] text-zinc-900 dark:text-white flex flex-col justify-between overflow-hidden"
       style={{
         fontFamily: "'Manrope', -apple-system, BlinkMacSystemFont, sans-serif",
       }}
@@ -245,7 +257,7 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
 
       {/* Main Content Area */}
       <div
-        className="flex-1 overflow-y-auto px-5 sm:px-6 max-w-md mx-auto w-full"
+        className="flex-1 overflow-y-auto px-5 sm:px-8 max-w-3xl mx-auto w-full flex flex-col"
         style={{
           paddingBottom: 'calc(max(16px, calc(env(safe-area-inset-bottom, 0px) + 6px)) + 80px)',
         }}
@@ -310,8 +322,18 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
                 className="w-full p-4 rounded-3xl bg-white dark:bg-[#141518] hover:bg-zinc-50 dark:hover:bg-[#1a1c21] active:scale-[0.98] border border-zinc-200 dark:border-white/5 hover:border-zinc-300 dark:hover:border-white/15 transition-all flex items-center justify-between text-left cursor-pointer group shadow-sm"
               >
                 <div className="flex items-center gap-3.5 min-w-0">
-                  <div className="w-11 h-11 rounded-2xl bg-zinc-100 dark:bg-[#202227] flex items-center justify-center text-zinc-900 dark:text-white shrink-0">
-                    <Pencil className="w-5 h-5 stroke-[1.8]" />
+                  <div className="w-14 h-14 shrink-0 flex items-center justify-center group-hover:scale-110 transition-transform duration-300">
+                    <img
+                      src="/lapis.png"
+                      alt="Editar Perfil"
+                      className="w-full h-full object-contain filter drop-shadow-sm select-none"
+                      onError={(e) => {
+                        const target = e.currentTarget;
+                        if (!target.src.endsWith('.png.png') && target.src.endsWith('.png')) {
+                          target.src = target.src + '.png';
+                        }
+                      }}
+                    />
                   </div>
                   <div className="min-w-0">
                     <h3 className="text-base font-black text-zinc-900 dark:text-white tracking-tight leading-tight">
@@ -424,33 +446,35 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
 
 
 
-              {/* Painel ADM */}
-              <button
-                id="btn-profile-painel-adm"
-                onClick={() => {
-                  if (onOpenAdmin) {
-                    onOpenAdmin();
-                  } else {
-                    setActiveSubView('painel-adm');
-                  }
-                }}
-                className="w-full p-4 rounded-3xl bg-white dark:bg-[#141518] hover:bg-zinc-50 dark:hover:bg-[#1a1c21] active:scale-[0.98] border border-zinc-200 dark:border-white/5 hover:border-zinc-300 dark:hover:border-white/15 transition-all flex items-center justify-between text-left cursor-pointer group shadow-sm"
-              >
-                <div className="flex items-center gap-3.5 min-w-0">
-                  <div className="w-11 h-11 rounded-2xl bg-blue-50 dark:bg-blue-950/40 flex items-center justify-center text-blue-600 dark:text-blue-400 shrink-0">
-                    <Settings className="w-5 h-5 stroke-[1.8]" />
+              {/* Painel ADM (Exibido estritamente para a conta de administrador) */}
+              {isUserAdmin && (
+                <button
+                  id="btn-profile-painel-adm"
+                  onClick={() => {
+                    if (onOpenAdmin) {
+                      onOpenAdmin();
+                    } else {
+                      setActiveSubView('painel-adm');
+                    }
+                  }}
+                  className="w-full p-4 rounded-3xl bg-white dark:bg-[#141518] hover:bg-zinc-50 dark:hover:bg-[#1a1c21] active:scale-[0.98] border border-zinc-200 dark:border-white/5 hover:border-zinc-300 dark:hover:border-white/15 transition-all flex items-center justify-between text-left cursor-pointer group shadow-sm"
+                >
+                  <div className="flex items-center gap-3.5 min-w-0">
+                    <div className="w-11 h-11 rounded-2xl bg-zinc-100 dark:bg-zinc-800 flex items-center justify-center text-zinc-900 dark:text-white shrink-0">
+                      <Settings className="w-5 h-5 stroke-[1.8]" />
+                    </div>
+                    <div className="min-w-0">
+                      <h3 className="text-base font-black text-zinc-900 dark:text-white tracking-tight leading-tight">
+                        Painel ADM
+                      </h3>
+                      <p className="text-xs text-zinc-500 dark:text-zinc-400 font-black mt-0.5">
+                        Console de controle administrativo
+                      </p>
+                    </div>
                   </div>
-                  <div className="min-w-0">
-                    <h3 className="text-base font-black text-zinc-900 dark:text-white tracking-tight leading-tight">
-                      Painel ADM
-                    </h3>
-                    <p className="text-xs text-zinc-500 dark:text-zinc-400 font-black mt-0.5">
-                      Console de controle administrativo
-                    </p>
-                  </div>
-                </div>
-                <ChevronRight className="w-5 h-5 text-zinc-400 dark:text-zinc-500 group-hover:text-zinc-600 dark:group-hover:text-zinc-300 transition-colors shrink-0" />
-              </button>
+                  <ChevronRight className="w-5 h-5 text-zinc-400 dark:text-zinc-500 group-hover:text-zinc-600 dark:group-hover:text-zinc-300 transition-colors shrink-0" />
+                </button>
+              )}
 
               {/* logout (Highlighted Red Card from Screenshot) */}
               <button
@@ -481,103 +505,111 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
         {/* VIEW 2: EDIT PROFILE                                         */}
         {/* ============================================================ */}
         {activeSubView === 'edit-profile' && (
-          <form onSubmit={handleSaveProfile} className="space-y-4 pt-2">
-            <div className="p-5 rounded-3xl bg-white dark:bg-[#141518] border border-zinc-200 dark:border-white/10 space-y-4 shadow-sm">
-              {/* Avatar Selector and Preview */}
-              <div className="flex flex-col items-center justify-center pb-2 pt-1">
-                <div className="relative group">
-                  <div className="w-24 h-24 rounded-full overflow-hidden border-2 border-white ring-4 ring-white/20 bg-zinc-100 dark:bg-zinc-900 shadow-lg relative">
-                    <img
-                      src={tempAvatar || userAvatar}
-                      alt="Preview"
-                      className="w-full h-full object-cover"
-                    />
-                    {isUploading && (
-                      <div className="absolute inset-0 bg-black/60 flex items-center justify-center">
-                        <Loader2 className="w-6 h-6 text-white animate-spin" />
-                      </div>
-                    )}
+          <div className="flex-1 flex flex-col justify-center my-auto w-full max-w-md mx-auto py-4">
+            <form onSubmit={handleSaveProfile} className="space-y-4 w-full">
+              <div className="p-5 rounded-3xl bg-white dark:bg-[#141518] border border-zinc-200 dark:border-white/10 space-y-4 shadow-sm">
+                {/* Avatar Selector and Preview */}
+                <div className="flex flex-col items-center justify-center pb-2 pt-1">
+                  <div className="relative group">
+                    <div className="w-24 h-24 rounded-full overflow-hidden border-2 border-white ring-4 ring-white/20 bg-zinc-100 dark:bg-zinc-900 shadow-lg relative">
+                      <img
+                        src={tempAvatar || userAvatar}
+                        alt="Preview"
+                        className="w-full h-full object-cover"
+                      />
+                      {isUploading && (
+                        <div className="absolute inset-0 bg-black/60 flex items-center justify-center">
+                          <Loader2 className="w-6 h-6 text-white animate-spin" />
+                        </div>
+                      )}
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => fileInputRef.current?.click()}
+                      title="Carregar imagem"
+                      className="absolute bottom-0 right-0 w-8 h-8 rounded-full bg-white text-zinc-900 flex items-center justify-center shadow-lg border-2 border-zinc-200 dark:border-white/20 transition-transform active:scale-95 cursor-pointer"
+                    >
+                      <Camera className="w-4 h-4 stroke-[2.5]" />
+                    </button>
                   </div>
                   <button
                     type="button"
                     onClick={() => fileInputRef.current?.click()}
-                    title="Carregar imagem"
-                    className="absolute bottom-0 right-0 w-8 h-8 rounded-full bg-white text-zinc-900 flex items-center justify-center shadow-lg border-2 border-zinc-200 dark:border-white/20 transition-transform active:scale-95 cursor-pointer"
+                    className="mt-3 text-xs font-black text-zinc-900 dark:text-white hover:underline flex items-center gap-1.5 cursor-pointer"
                   >
-                    <Camera className="w-4 h-4 stroke-[2.5]" />
+                    <Upload className="w-3.5 h-3.5" />
+                    <span>Escolher foto do dispositivo</span>
                   </button>
                 </div>
+
+                <div>
+                  <label className="block text-xs font-black text-zinc-500 dark:text-zinc-400 mb-1.5">
+                    Nome de usuário
+                  </label>
+                  <input
+                    type="text"
+                    value={tempName}
+                    onChange={(e) => setTempName(e.target.value)}
+                    className="w-full px-4 py-3 rounded-2xl bg-zinc-50 dark:bg-zinc-900 border border-zinc-200 dark:border-white/10 text-zinc-900 dark:text-white text-sm focus:outline-none focus:border-zinc-900 dark:focus:border-white"
+                    required
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-black text-zinc-500 dark:text-zinc-400 mb-1.5">
+                    E-mail de acesso
+                  </label>
+                  <input
+                    type="email"
+                    placeholder="seu@email.com"
+                    value={tempEmail}
+                    onChange={(e) => setTempEmail(e.target.value)}
+                    className="w-full px-4 py-3 rounded-2xl bg-zinc-50 dark:bg-zinc-900 border border-zinc-200 dark:border-white/10 text-zinc-900 dark:text-white text-sm focus:outline-none focus:border-zinc-900 dark:focus:border-white"
+                    required
+                  />
+                </div>
+              </div>
+
+              <div className="flex items-center gap-3">
                 <button
                   type="button"
-                  onClick={() => fileInputRef.current?.click()}
-                  className="mt-3 text-xs font-black text-zinc-900 dark:text-white hover:underline flex items-center gap-1.5 cursor-pointer"
+                  onClick={() => setActiveSubView('main')}
+                  className="flex-1 py-3 rounded-full bg-zinc-200 dark:bg-white/10 hover:bg-zinc-300 dark:hover:bg-white/15 text-sm font-black text-zinc-700 dark:text-zinc-300 transition-all cursor-pointer"
                 >
-                  <Upload className="w-3.5 h-3.5" />
-                  <span>Escolher foto do dispositivo</span>
+                  Cancelar
+                </button>
+                <button
+                  type="submit"
+                  className="flex-1 py-3 rounded-full bg-zinc-900 dark:bg-white text-white dark:text-zinc-900 hover:opacity-90 text-sm font-black transition-all cursor-pointer shadow-lg flex items-center justify-center gap-1.5"
+                >
+                  {saveToast ? <Check className="w-4 h-4" /> : null}
+                  <span>{saveToast ? 'Salvo!' : 'Salvar alterações'}</span>
                 </button>
               </div>
-
-              <div>
-                <label className="block text-xs font-black text-zinc-500 dark:text-zinc-400 mb-1.5">
-                  Nome de usuário
-                </label>
-                <input
-                  type="text"
-                  value={tempName}
-                  onChange={(e) => setTempName(e.target.value)}
-                  className="w-full px-4 py-3 rounded-2xl bg-zinc-50 dark:bg-zinc-900 border border-zinc-200 dark:border-white/10 text-zinc-900 dark:text-white text-sm focus:outline-none focus:border-zinc-900 dark:focus:border-white"
-                  required
-                />
-              </div>
-
-              <div>
-                <label className="block text-xs font-black text-zinc-500 dark:text-zinc-400 mb-1.5">
-                  E-mail de acesso
-                </label>
-                <input
-                  type="email"
-                  placeholder="seu@email.com"
-                  value={tempEmail}
-                  onChange={(e) => setTempEmail(e.target.value)}
-                  className="w-full px-4 py-3 rounded-2xl bg-zinc-50 dark:bg-zinc-900 border border-zinc-200 dark:border-white/10 text-zinc-900 dark:text-white text-sm focus:outline-none focus:border-zinc-900 dark:focus:border-white"
-                  required
-                />
-              </div>
-            </div>
-
-            <div className="flex items-center gap-3">
-              <button
-                type="button"
-                onClick={() => setActiveSubView('main')}
-                className="flex-1 py-3 rounded-full bg-zinc-200 dark:bg-white/10 hover:bg-zinc-300 dark:hover:bg-white/15 text-sm font-black text-zinc-700 dark:text-zinc-300 transition-all cursor-pointer"
-              >
-                Cancelar
-              </button>
-              <button
-                type="submit"
-                className="flex-1 py-3 rounded-full bg-zinc-900 dark:bg-white text-white dark:text-zinc-900 hover:opacity-90 text-sm font-black transition-all cursor-pointer shadow-lg flex items-center justify-center gap-1.5"
-              >
-                {saveToast ? <Check className="w-4 h-4" /> : null}
-                <span>{saveToast ? 'Salvo!' : 'Salvar alterações'}</span>
-              </button>
-            </div>
-          </form>
+            </form>
+          </div>
         )}
 
         {/* ============================================================ */}
         {/* VIEW 3: CURTIDOS (FAVORITES)                                  */}
         {/* ============================================================ */}
         {activeSubView === 'curtidos' && (
-          <div className="space-y-3 pt-2">
-            <p className="text-xs text-zinc-500 dark:text-zinc-400">
-              Você tem {favoriteSpots.length} lugares salvos para visitar em Campos do Jordão.
-            </p>
+          <div className={`pt-2 ${favoriteSpots.length === 0 ? 'flex-1 flex flex-col justify-center min-h-[65vh]' : 'space-y-3'}`}>
+            {favoriteSpots.length > 0 && (
+              <p className="text-xs text-zinc-500 dark:text-zinc-400">
+                Você tem {favoriteSpots.length} {favoriteSpots.length === 1 ? 'lugar salvo' : 'lugares salvos'} para visitar em Campos do Jordão.
+              </p>
+            )}
 
             {favoriteSpots.length === 0 ? (
-              <div className="p-8 text-center rounded-3xl bg-zinc-50 dark:bg-[#141518] border border-zinc-200 dark:border-white/10 text-zinc-500 dark:text-zinc-400 text-sm">
-                <Heart className="w-10 h-10 text-zinc-300 dark:text-zinc-600 mx-auto mb-2" />
-                <p>Nenhum lugar curtido ainda.</p>
-                <p className="text-xs text-zinc-400 dark:text-zinc-500 mt-1">Toque no coração de qualquer ponto turístico para salvar aqui!</p>
+              <div className="flex-1 flex flex-col items-center justify-center -mt-6">
+                <div className="w-full max-w-md p-8 text-center rounded-3xl bg-zinc-50 dark:bg-[#141518] border border-zinc-200 dark:border-white/10 text-zinc-500 dark:text-zinc-400 text-sm shadow-xs">
+                  <Heart className="w-10 h-10 text-zinc-300 dark:text-zinc-600 mx-auto mb-2" />
+                  <p className="font-bold text-zinc-700 dark:text-zinc-200 text-base">Nenhum lugar curtido ainda.</p>
+                  <p className="text-xs text-zinc-400 dark:text-zinc-500 mt-1 max-w-xs mx-auto">
+                    Toque no coração de qualquer ponto turístico para salvar aqui!
+                  </p>
+                </div>
               </div>
             ) : (
               favoriteSpots.map((spot) => (
@@ -627,30 +659,72 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
         {/* VIEW 4: CONFIGURAÇÕES & PRIVACIDADE                           */}
         {/* ============================================================ */}
         {activeSubView === 'permissoes' && (
-          <div className="space-y-3 pt-2">
-            {/* Localização GPS */}
-            <div className="p-4 rounded-3xl bg-white dark:bg-[#141518] border border-zinc-200 dark:border-white/10 flex items-center justify-between shadow-sm">
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-2xl bg-zinc-100 dark:bg-[#202227] flex items-center justify-center text-zinc-900 dark:text-white">
-                  <MapPin className="w-5 h-5" />
-                </div>
-                <div>
-                  <div className="text-sm font-black text-zinc-900 dark:text-white">Localização em Tempo Real</div>
-                  <div className="text-xs text-zinc-500 dark:text-zinc-400">Exibir sua proximidade aos pontos turísticos</div>
-                </div>
+          <div className="space-y-4 pt-2">
+            {/* Efeitos do Mapa Section */}
+            <div>
+              <div className="text-xs font-black uppercase tracking-wider text-zinc-400 dark:text-zinc-500 mb-2 px-1">
+                Efeitos do mapa
               </div>
-              <button
-                onClick={() => setLocationPerm(!locationPerm)}
-                className={`w-12 h-6 rounded-full transition-colors relative cursor-pointer ${
-                  locationPerm ? 'bg-zinc-900 dark:bg-white' : 'bg-zinc-300 dark:bg-white/20'
-                }`}
-              >
-                <div
-                  className={`w-4 h-4 rounded-full bg-white dark:bg-zinc-950 transition-transform absolute top-1 ${
-                    locationPerm ? 'left-7' : 'left-1'
+              <div className="p-4 rounded-3xl bg-white dark:bg-[#141518] border border-zinc-200 dark:border-white/10 flex items-center justify-between shadow-sm">
+                <div className="flex items-center gap-3 pr-2">
+                  <div className="w-10 h-10 rounded-2xl bg-zinc-100 dark:bg-zinc-800 flex items-center justify-center text-zinc-900 dark:text-white shrink-0">
+                    <CloudRain className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <div className="text-sm font-black text-zinc-900 dark:text-white">Efeito de chuva</div>
+                    <div className="text-xs text-zinc-500 dark:text-zinc-400 leading-snug">
+                      Mostra uma animação de chuva sobre o mapa quando estiver chovendo.
+                    </div>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  id="btn-toggle-rain-effect"
+                  onClick={() => onToggleRain && onToggleRain()}
+                  className={`w-12 h-6 rounded-full transition-colors relative cursor-pointer shrink-0 ${
+                    rainEnabled ? 'bg-zinc-900 dark:bg-white' : 'bg-zinc-300 dark:bg-white/20'
                   }`}
-                />
-              </button>
+                  aria-label="Alternar efeito de chuva"
+                >
+                  <div
+                    className={`w-4 h-4 rounded-full bg-white dark:bg-zinc-950 transition-transform absolute top-1 ${
+                      rainEnabled ? 'left-7' : 'left-1'
+                    }`}
+                  />
+                </button>
+              </div>
+            </div>
+
+            {/* Privacidade e Permissões Section */}
+            <div>
+              <div className="text-xs font-black uppercase tracking-wider text-zinc-400 dark:text-zinc-500 mb-2 px-1">
+                Privacidade
+              </div>
+              <div className="p-4 rounded-3xl bg-white dark:bg-[#141518] border border-zinc-200 dark:border-white/10 flex items-center justify-between shadow-sm">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-2xl bg-zinc-100 dark:bg-[#202227] flex items-center justify-center text-zinc-900 dark:text-white shrink-0">
+                    <MapPin className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <div className="text-sm font-black text-zinc-900 dark:text-white">Localização em Tempo Real</div>
+                    <div className="text-xs text-zinc-500 dark:text-zinc-400">Exibir sua proximidade aos pontos turísticos</div>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setLocationPerm(!locationPerm)}
+                  className={`w-12 h-6 rounded-full transition-colors relative cursor-pointer shrink-0 ${
+                    locationPerm ? 'bg-zinc-900 dark:bg-white' : 'bg-zinc-300 dark:bg-white/20'
+                  }`}
+                  aria-label="Alternar permissão de localização"
+                >
+                  <div
+                    className={`w-4 h-4 rounded-full bg-white dark:bg-zinc-950 transition-transform absolute top-1 ${
+                      locationPerm ? 'left-7' : 'left-1'
+                    }`}
+                  />
+                </button>
+              </div>
             </div>
           </div>
         )}
@@ -694,28 +768,35 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
         {/* VIEW 7: LOGOUT CONFIRMATION                                   */}
         {/* ============================================================ */}
         {activeSubView === 'logout-confirm' && (
-          <div className="space-y-4 pt-4 text-center">
-            <div className="w-16 h-16 rounded-full bg-rose-100 dark:bg-red-950/40 text-rose-500 mx-auto flex items-center justify-center border border-rose-200 dark:border-red-900/50">
-              <LogOut className="w-8 h-8 stroke-[1.8]" />
+          <div className="flex-1 flex flex-col items-center justify-center text-center my-auto w-full max-w-sm mx-auto py-8">
+            {/* Icon */}
+            <div className="w-20 h-20 rounded-full bg-rose-100/90 dark:bg-red-950/40 text-rose-500 flex items-center justify-center border border-rose-200/80 dark:border-red-900/50 mb-6 shadow-sm">
+              <LogOut className="w-9 h-9 stroke-[2] translate-x-0.5" />
             </div>
 
-            <div>
-              <h3 className="text-lg font-black text-zinc-900 dark:text-white">Deseja encerrar a sessão?</h3>
-              <p className="text-xs text-zinc-500 dark:text-zinc-400 mt-1 max-w-xs mx-auto">
+            {/* Title & Description */}
+            <div className="space-y-2.5 mb-8">
+              <h3 className="text-xl sm:text-2xl font-black text-zinc-900 dark:text-white tracking-tight">
+                Deseja encerrar a sessão?
+              </h3>
+              <p className="text-sm text-zinc-500 dark:text-zinc-400 max-w-xs mx-auto leading-relaxed">
                 Você poderá entrar novamente a qualquer momento com sua conta {userEmail}.
               </p>
             </div>
 
-            <div className="flex items-center gap-3 pt-2">
+            {/* Action Buttons */}
+            <div className="flex items-center gap-3 w-full">
               <button
                 type="button"
+                id="btn-logout-cancel"
                 onClick={() => setActiveSubView('main')}
-                className="flex-1 py-3 rounded-full bg-zinc-200 dark:bg-white/10 hover:bg-zinc-300 dark:hover:bg-white/15 text-sm font-black text-zinc-700 dark:text-zinc-300 transition-all cursor-pointer"
+                className="flex-1 py-3.5 rounded-2xl bg-zinc-200/80 dark:bg-white/10 hover:bg-zinc-300 dark:hover:bg-white/15 text-sm font-bold text-zinc-800 dark:text-zinc-200 transition-all cursor-pointer active:scale-95"
               >
                 Permanecer
               </button>
               <button
                 type="button"
+                id="btn-logout-confirm"
                 onClick={async () => {
                   try {
                     const token = localStorage.getItem('monvian_token');
@@ -730,7 +811,7 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
                   localStorage.removeItem('monvian_user');
                   window.location.reload();
                 }}
-                className="flex-1 py-3 rounded-full bg-red-500 dark:bg-red-600 hover:bg-red-600 dark:hover:bg-red-700 text-white text-sm font-black transition-all cursor-pointer shadow-lg"
+                className="flex-1 py-3.5 rounded-2xl bg-red-500 hover:bg-red-600 text-white text-sm font-bold transition-all cursor-pointer shadow-lg shadow-red-500/25 active:scale-95"
               >
                 Sim, sair
               </button>

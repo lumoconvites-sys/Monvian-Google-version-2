@@ -44,6 +44,10 @@ export interface Spot {
   visitorsToday: number;
   badge?: string;
   highlighted?: boolean;
+  availableForItinerary?: boolean;
+  durationMinutes?: number;
+  tags?: string[];
+  price?: string;
   mapsUrl?: string;
   googleRating?: number;
   googleReviewSnippet?: string;
@@ -125,5 +129,92 @@ export interface MapVisualIcon {
   is_active: number;
   created_at?: string;
   updated_at?: string;
+}
+
+export interface ItineraryCategory {
+  id: string;
+  name: string;
+  icon: string;
+  description?: string;
+  isActive: boolean;
+  sortOrder: number;
+}
+
+export interface ItineraryStep {
+  id: string;
+  itineraryId?: string;
+  dayId?: string;
+  dayNumber?: number;
+  spotId: string;
+  stepOrder: number;
+  suggestedTime: string;
+  durationMinutes: number;
+  notes?: string;
+  spot?: Spot;
+  distanceToNextKm?: number;
+  durationToNextMin?: number;
+  isPinned?: boolean;
+  pinnedAt?: number;
+}
+
+export interface ItineraryDay {
+  id: string;
+  itineraryId?: string;
+  dayNumber: number;
+  title: string;
+  summary?: string;
+  steps: ItineraryStep[];
+}
+
+export interface Itinerary {
+  id: string;
+  title: string;
+  description: string;
+  coverImage: string;
+  daysCount: number;
+  categories: string[];
+  isActive: boolean;
+  isRecommended: boolean;
+  usageCount: number;
+  notes?: string;
+  days: ItineraryDay[];
+  placesCount?: number;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+export interface UserItinerary {
+  id: string;
+  userId?: number;
+  sessionId?: string;
+  title: string;
+  description?: string;
+  coverImage?: string;
+  daysCount: number;
+  tripDate?: string;
+  pace: 'Relaxado' | 'Equilibrado' | 'Intenso';
+  hasCar: boolean;
+  lessWalking: boolean;
+  prioritizeFood: boolean;
+  prioritizeAttractions: boolean;
+  preferencesJson?: string;
+  itineraryDataJson?: string;
+  days: ItineraryDay[];
+  createdAt: string;
+  updatedAt?: string;
+}
+
+export interface ItineraryPreferences {
+  categories: string[];
+  selectedSpotIds: string[];
+  daysCount: number;
+  tripDate?: string;
+  pace: 'Relaxado' | 'Equilibrado' | 'Intenso';
+  startTime: string;
+  endTime: string;
+  hasCar: boolean;
+  lessWalking: boolean;
+  prioritizeFood: boolean;
+  prioritizeAttractions: boolean;
 }
 

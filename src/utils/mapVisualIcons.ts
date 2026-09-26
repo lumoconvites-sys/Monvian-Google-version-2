@@ -204,9 +204,9 @@ export const DEFAULT_CATEGORY_KEYS = Object.keys(MAP_VISUAL_ICON_CATEGORIES);
  * Generates the clean HTML string for MapLibre marker
  * Strictly pointer-events-none and user-select-none
  */
-export function generateMarkerHtml(categoryKey: string, size = 26, customColor?: string): string {
+export function generateMarkerHtml(categoryKey: string, size = 18, customColor?: string): string {
   const meta = MAP_VISUAL_ICON_CATEGORIES[categoryKey] || MAP_VISUAL_ICON_CATEGORIES.gas_station;
-  const innerSize = Math.round(size * 0.56);
+  const innerSize = Math.round(size * 0.58);
   const bgColor = (customColor && customColor.trim()) ? customColor.trim() : meta.bgColor;
 
   return `

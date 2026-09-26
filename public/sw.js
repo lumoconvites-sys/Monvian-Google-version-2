@@ -123,18 +123,21 @@ self.addEventListener('fetch', (event) => {
     event.respondWith(
       caches.open(IMAGES_CACHE).then(async (cache) => {
         const cached = await cache.match(request);
-        if (cached) {
+        if (cached && cached.status === 200) {
           return cached;
         }
 
         try {
-          const networkResponse = await fetch(request);
+          const networkResponse = await fetch(request, { referrerPolicy: 'no-referrer' });
           if (networkResponse && (networkResponse.status === 200 || networkResponse.type === 'opaque')) {
-            cache.put(request, networkResponse.clone());
+            try {
+              cache.put(request, networkResponse.clone());
+            } catch (e) {}
           }
           return networkResponse;
         } catch (err) {
-          return cached || new Response(null, { status: 404 });
+          if (cached) return cached;
+          return fetch(request);
         }
       })
     );

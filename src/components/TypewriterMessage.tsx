@@ -83,15 +83,15 @@ export const TypewriterMessage: React.FC<TypewriterMessageProps> = ({
       {isTyping && (
         <div className="flex items-center justify-between gap-2 mt-2 pt-1 border-t border-zinc-100 dark:border-white/5">
           <div className="flex items-center gap-1.5 text-xs text-zinc-400 dark:text-zinc-500 font-medium">
-            <span className="inline-block w-1.5 h-3.5 bg-[#00C896] rounded-xs animate-pulse" />
-            <span className="text-[11px] animate-pulse text-[#00C896] font-bold">Digitando...</span>
+            <span className="inline-block w-1.5 h-3.5 bg-blue-600 rounded-xs animate-pulse" />
+            <span className="text-[11px] animate-pulse text-blue-600 font-bold">Digitando...</span>
           </div>
 
           <motion.button
             whileTap={{ scale: 0.92 }}
             type="button"
             onClick={handleSkip}
-            className="text-[11px] font-bold text-zinc-400 hover:text-[#00C896] dark:hover:text-[#00C896] transition-colors flex items-center gap-1 cursor-pointer px-2 py-0.5 rounded-full hover:bg-zinc-100 dark:hover:bg-white/10"
+            className="text-[11px] font-bold text-zinc-400 hover:text-blue-600 dark:hover:text-blue-400 transition-colors flex items-center gap-1 cursor-pointer px-2 py-0.5 rounded-full hover:bg-zinc-100 dark:hover:bg-white/10"
             title="Mostrar texto completo"
           >
             <FastForward className="w-3 h-3" />

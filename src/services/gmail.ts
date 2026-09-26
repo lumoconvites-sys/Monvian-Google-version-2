@@ -149,8 +149,8 @@ export function generateVerificationEmailHtml(code: string, recipientName?: stri
       Olá${recipientName ? ` ${recipientName}` : ''}! Use o código de 6 dígitos abaixo para autenticar seu e-mail no aplicativo Monvian:
     </p>
 
-    <div style="display: inline-block; background-color: #1e2025; border: 1.5px solid #00C896; border-radius: 16px; padding: 16px 36px; margin-bottom: 24px;">
-      <span style="font-size: 32px; font-weight: 900; letter-spacing: 8px; color: #00C896; font-family: monospace;">${code}</span>
+    <div style="display: inline-block; background-color: #1e2025; border: 1.5px solid #0000FF; border-radius: 16px; padding: 16px 36px; margin-bottom: 24px;">
+      <span style="font-size: 32px; font-weight: 900; letter-spacing: 8px; color: #3b82f6; font-family: monospace;">${code}</span>
     </div>
 
     <p style="font-size: 12px; color: #71717a; margin: 0 0 28px; line-height: 1.4;">

@@ -2,12 +2,15 @@ import React, { useEffect, useRef, useState } from 'react';
 import * as maplibregl from 'maplibre-gl';
 import 'maplibre-gl/dist/maplibre-gl.css';
 import { Spot, SpotCategory, MapModeType, MapVisualIcon } from '../types';
-import { Layers, Plus, Minus } from 'lucide-react';
+import { Layers, Plus, Minus, Compass } from 'lucide-react';
 import { CompassIcon } from './CompassIcon';
 import { motion, AnimatePresence } from 'motion/react';
 import { playPinTapSound } from '../utils/sound';
 import { generateMarkerHtml } from '../utils/mapVisualIcons';
-import { setupNightLights, removeNightLights } from '../utils/nightLightsLayer';
+import { setupNightLights, removeNightLights, getNightLightsData } from '../utils/nightLightsLayer';
+import { setupFerrisWheel3D } from '../utils/ferrisWheel3DLayer';
+import { deviceHeadingManager } from '../utils/deviceHeading';
+import { gpsNavigationManager } from '../services/gpsNavigation';
 
 interface MapComponentProps {
   spots: Spot[];
@@ -21,6 +24,9 @@ interface MapComponentProps {
   highContrast?: boolean;
   onMapLoad?: () => void;
   onMapClick?: () => void;
+  onInteractionChange?: (isInteracting: boolean) => void;
+  zoomToUserTrigger?: number;
+  onStyleChange?: (style: MapModeType) => void;
 }
 
 // Initial camera overview configuration strictly matching the reference view (IMG_6912)
@@ -38,11 +44,11 @@ const MAPBOX_TOKEN = (import.meta.env.VITE_MAPBOX_ACCESS_TOKEN || '').trim();
 
 const createStyle = (type: MapModeType, theme: 'dark' | 'light' = 'dark'): maplibregl.StyleSpecification => {
   if (MAPBOX_TOKEN) {
-    let tilePath = theme === 'light' ? 'light-v11' : 'dark-v11';
+    let tilePath = theme === 'light' ? 'streets-v12' : 'dark-v11';
     if (type === 'satelite') tilePath = 'satellite-streets-v12';
     if (type === 'carro') tilePath = theme === 'light' ? 'navigation-day-v1' : 'navigation-night-v1';
     if (type === 'transporte' || type === 'animado') tilePath = 'streets-v12';
-    if (type === 'explorar') tilePath = theme === 'light' ? 'light-v11' : 'dark-v11';
+    if (type === 'explorar') tilePath = theme === 'light' ? 'streets-v12' : 'dark-v11';
 
     return {
       version: 8,
@@ -96,6 +102,7 @@ const createStyle = (type: MapModeType, theme: 'dark' | 'light' = 'dark'): mapli
     };
   }
 
+  // Animado / Transporte: Colorful illustrated map (Always bright/illustrated)
   if (type === 'transporte' || type === 'animado') {
     return {
       version: 8,
@@ -115,38 +122,83 @@ const createStyle = (type: MapModeType, theme: 'dark' | 'light' = 'dark'): mapli
           source: 'osm-transport',
           minzoom: 0,
           maxzoom: 19,
+          paint: {
+            'raster-contrast': 0.15,
+            'raster-brightness-min': 0.0,
+            'raster-brightness-max': 1.0,
+            'raster-saturation': 0.85,
+            'raster-hue-rotate': 14,
+          },
         },
       ],
     };
   }
 
-  // Explorar & De Carro:
-  // Dark mode: CARTO Dark Matter optimized with high contrast so ground is pure pitch black (#000000) and all streets, names & landmarks are pure crisp white (#FFFFFF)
-  // Light mode: CARTO Voyager with rich vibrant colors, high contrast and crystal-clear street labels
-  const cartoTiles =
-    theme === 'light'
-      ? [
-          'https://a.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}@2x.png',
-          'https://b.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}@2x.png',
-          'https://c.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}@2x.png',
-          'https://d.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}@2x.png',
-        ]
-      : [
-          'https://a.basemaps.cartocdn.com/rastertiles/dark_all/{z}/{x}/{y}@2x.png',
-          'https://b.basemaps.cartocdn.com/rastertiles/dark_all/{z}/{x}/{y}@2x.png',
-          'https://c.basemaps.cartocdn.com/rastertiles/dark_all/{z}/{x}/{y}@2x.png',
-          'https://d.basemaps.cartocdn.com/rastertiles/dark_all/{z}/{x}/{y}@2x.png',
-        ];
+  if (theme === 'light') {
+    return {
+      version: 8,
+      projection: { type: 'globe' } as any,
+      sources: {
+        'carto-base': {
+          type: 'raster',
+          tiles: [
+            'https://a.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}@2x.png',
+            'https://b.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}@2x.png',
+            'https://c.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}@2x.png',
+            'https://d.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}@2x.png',
+          ],
+          tileSize: 256,
+          attribution: '&copy; CARTO &copy; OpenStreetMap contributors',
+        },
+      },
+      layers: [
+        {
+          id: 'carto-base-layer',
+          type: 'raster',
+          source: 'carto-base',
+          minzoom: 0,
+          maxzoom: 20,
+          paint: {
+            'raster-contrast': 0.22,
+            'raster-brightness-min': 0.0,
+            'raster-brightness-max': 1.0,
+            'raster-saturation': 0.88,
+            'raster-hue-rotate': 14,
+          },
+        },
+      ],
+    };
+  }
 
+  // Dark mode (Explorar, De Carro, Animado): Pitch black base with glowing golden night lights & NASA earth-at-night
+  const nightLightsData = getNightLightsData();
   return {
     version: 8,
     projection: { type: 'globe' } as any,
     sources: {
       'carto-base': {
         type: 'raster',
-        tiles: cartoTiles,
+        tiles: [
+          'https://a.basemaps.cartocdn.com/rastertiles/dark_all/{z}/{x}/{y}@2x.png',
+          'https://b.basemaps.cartocdn.com/rastertiles/dark_all/{z}/{x}/{y}@2x.png',
+          'https://c.basemaps.cartocdn.com/rastertiles/dark_all/{z}/{x}/{y}@2x.png',
+          'https://d.basemaps.cartocdn.com/rastertiles/dark_all/{z}/{x}/{y}@2x.png',
+        ],
         tileSize: 256,
         attribution: '&copy; CARTO &copy; OpenStreetMap contributors',
+      },
+      'nasa-night-lights': {
+        type: 'raster',
+        tiles: [
+          'https://gibs.earthdata.nasa.gov/wmts/epsg3857/best/VIIRS_Black_Marble/default/GoogleMapsCompatible_Level8/{z}/{y}/{x}.png',
+        ],
+        tileSize: 256,
+        maxzoom: 8,
+        attribution: '&copy; NASA Earth at Night / VIIRS Black Marble',
+      },
+      'monvian-night-lights-source': {
+        type: 'geojson',
+        data: nightLightsData,
       },
     },
     layers: [
@@ -157,10 +209,152 @@ const createStyle = (type: MapModeType, theme: 'dark' | 'light' = 'dark'): mapli
         minzoom: 0,
         maxzoom: 20,
         paint: {
-          'raster-contrast': theme === 'dark' ? 0.75 : 0.2,
+          'raster-contrast': 0.5,
           'raster-brightness-min': 0.0,
-          'raster-brightness-max': 1.0,
-          'raster-saturation': theme === 'dark' ? -0.9 : 0.15,
+          'raster-brightness-max': 0.85,
+          'raster-saturation': -0.9,
+        },
+      },
+      {
+        id: 'nasa-night-lights-layer',
+        type: 'raster',
+        source: 'nasa-night-lights',
+        minzoom: 0,
+        maxzoom: 12,
+        paint: {
+          'raster-opacity': [
+            'interpolate',
+            ['linear'],
+            ['zoom'],
+            0, 0.95,
+            3, 0.95,
+            6, 0.85,
+            8, 0.65,
+            9.5, 0.35,
+            11.0, 0.0,
+          ],
+          'raster-resampling': 'linear',
+        },
+      },
+      {
+        id: 'monvian-night-lights-glow',
+        type: 'circle',
+        source: 'monvian-night-lights-source',
+        paint: {
+          'circle-radius': [
+            'interpolate',
+            ['exponential', 1.35],
+            ['zoom'],
+            1, 3.5,
+            3, 7.0,
+            6, 12.0,
+            10, 20.0,
+            12, 28.0,
+            14, 34.0,
+            16, 40.0,
+          ],
+          'circle-color': [
+            'match',
+            ['get', 'colorType'],
+            'warm_gold', '#FFD269',
+            'soft_amber', '#FFA940',
+            'warm_white', '#FFF1B8',
+            'incandescent', '#FFE58F',
+            '#FFD269',
+          ],
+          'circle-blur': 0.75,
+          'circle-opacity': [
+            'interpolate',
+            ['linear'],
+            ['zoom'],
+            1, ['*', ['get', 'intensity'], 0.45],
+            3, ['*', ['get', 'intensity'], 0.55],
+            6, ['*', ['get', 'intensity'], 0.50],
+            10, ['*', ['get', 'intensity'], 0.45],
+            12, ['*', ['get', 'intensity'], 0.40],
+            14, ['*', ['get', 'intensity'], 0.30],
+            16, ['*', ['get', 'intensity'], 0.20],
+          ],
+        },
+      },
+      {
+        id: 'monvian-night-lights-core',
+        type: 'circle',
+        source: 'monvian-night-lights-source',
+        paint: {
+          'circle-radius': [
+            'interpolate',
+            ['linear'],
+            ['zoom'],
+            1, ['*', ['get', 'size'], 2.0],
+            3, ['*', ['get', 'size'], 2.8],
+            6, ['*', ['get', 'size'], 3.6],
+            10, ['*', ['get', 'size'], 4.5],
+            12, ['*', ['get', 'size'], 5.2],
+            14, ['*', ['get', 'size'], 4.2],
+            16, ['*', ['get', 'size'], 3.0],
+          ],
+          'circle-color': [
+            'match',
+            ['get', 'colorType'],
+            'warm_gold', '#FFE082',
+            'soft_amber', '#FFC107',
+            'warm_white', '#FFF8E1',
+            'incandescent', '#FFECB3',
+            '#FFE082',
+          ],
+          'circle-blur': 0.15,
+          'circle-opacity': [
+            'interpolate',
+            ['linear'],
+            ['zoom'],
+            1, ['*', ['get', 'intensity'], 0.90],
+            3, ['*', ['get', 'intensity'], 0.98],
+            6, ['*', ['get', 'intensity'], 0.98],
+            10, ['*', ['get', 'intensity'], 0.95],
+            12, ['*', ['get', 'intensity'], 0.90],
+            14, ['*', ['get', 'intensity'], 0.80],
+            16, ['*', ['get', 'intensity'], 0.60],
+          ],
+        },
+      },
+      {
+        id: 'monvian-night-lights-fine',
+        type: 'circle',
+        source: 'monvian-night-lights-source',
+        paint: {
+          'circle-radius': [
+            'interpolate',
+            ['linear'],
+            ['zoom'],
+            4, ['*', ['get', 'size'], 1.2],
+            8, ['*', ['get', 'size'], 2.2],
+            11, ['*', ['get', 'size'], 3.2],
+            13, ['*', ['get', 'size'], 3.8],
+            15, ['*', ['get', 'size'], 3.0],
+            17, ['*', ['get', 'size'], 2.0],
+          ],
+          'circle-color': [
+            'match',
+            ['get', 'colorType'],
+            'warm_gold', '#FFF2B2',
+            'soft_amber', '#FFD56B',
+            'warm_white', '#FFFFFF',
+            'incandescent', '#FFE7A0',
+            '#FFF2B2',
+          ],
+          'circle-blur': 0.12,
+          'circle-opacity': [
+            'interpolate',
+            ['linear'],
+            ['zoom'],
+            4.0, 0.0,
+            6.0, ['*', ['get', 'intensity'], 0.60],
+            9.0, ['*', ['get', 'intensity'], 0.95],
+            12.0, ['*', ['get', 'intensity'], 0.90],
+            14.5, ['*', ['get', 'intensity'], 0.75],
+            16.5, ['*', ['get', 'intensity'], 0.50],
+          ],
         },
       },
     ],
@@ -213,10 +407,10 @@ const ExplorarThumbnail = () => (
       <line x1="0" y1="-3" x2="0" y2="0" stroke="#ffffff" strokeWidth="0.75" />
     </g>
 
-    {/* 3. Hotel / Lodge (Blue Pin with Bed icon) */}
+    {/* 3. Hotel / Lodge (Green Pin with Bed icon) */}
     <g transform="translate(80, 40)">
-      <circle cx="0" cy="0" r="7" fill="#007AFF" />
-      <circle cx="0" cy="0" r="6" fill="#1A8CFF" />
+      <circle cx="0" cy="0" r="7" fill="#34C759" />
+      <circle cx="0" cy="0" r="6" fill="#30D158" />
       {/* Bed glyph */}
       <rect x="-3" y="-0.5" width="6" height="2.2" rx="0.6" fill="#ffffff" />
       <circle cx="-1.8" cy="-1.8" r="0.9" fill="#ffffff" />
@@ -337,15 +531,15 @@ const AnimadoThumbnail = () => (
     <path d="M 50 0 Q 45 50 50 100" stroke="#202734" strokeWidth="10" fill="none" />
 
     {/* Multiple vibrant motion flux corridors */}
-    {/* Flux Corridor 1 - Neon Emerald Transit Flow */}
+    {/* Flux Corridor 1 - Neon Blue Transit Flow */}
     <path
       d="M -10 25 C 25 35, 45 75, 110 80"
       fill="none"
-      stroke="#00C896"
+      stroke="#0066FF"
       strokeWidth="4"
       strokeLinecap="round"
       opacity="0.95"
-      filter="drop-shadow(0 0 3px rgba(0,200,150,0.8))"
+      filter="drop-shadow(0 0 3px rgba(0,102,255,0.8))"
     />
     {/* Flow pulses */}
     <circle cx="28" cy="46" r="2.2" fill="#ffffff" />
@@ -388,7 +582,7 @@ const AnimadoThumbnail = () => (
     {/* Live GPS Dynamic Location Beacon with Pulsing Radar Rings */}
     <g transform="translate(50, 48)">
       {/* Outer expansion ripple */}
-      <circle cx="0" cy="0" r="16" fill="none" stroke="#00C896" strokeWidth="1" opacity="0.3" strokeDasharray="3 2" />
+      <circle cx="0" cy="0" r="16" fill="none" stroke="#0084ff" strokeWidth="1" opacity="0.3" strokeDasharray="3 2" />
       <circle cx="0" cy="0" r="11" fill="none" stroke="#0084ff" strokeWidth="1.4" opacity="0.55" />
       
       {/* Core beacon puck */}
@@ -532,10 +726,22 @@ export const MapComponentInner: React.FC<MapComponentProps> = ({
   highContrast = false,
   onMapLoad,
   onMapClick,
+  onInteractionChange,
+  zoomToUserTrigger,
+  onStyleChange,
 }) => {
   const mapContainerRef = useRef<HTMLDivElement | null>(null);
   const mapRef = useRef<maplibregl.Map | null>(null);
   const userMarkerRef = useRef<maplibregl.Marker | null>(null);
+  const userBeamElRef = useRef<HTMLDivElement | null>(null);
+  const userCircleElRef = useRef<HTMLDivElement | null>(null);
+  const userLabelElRef = useRef<HTMLDivElement | null>(null);
+  const userCarElRef = useRef<HTMLDivElement | null>(null);
+  const userCarGraphicRef = useRef<HTMLDivElement | null>(null);
+  const userCarSpeedBadgeRef = useRef<HTMLDivElement | null>(null);
+  const isFollowingUserRef = useRef<boolean>(false);
+  const isOrientingHeadingRef = useRef<boolean>(false);
+  const lastCameraEaseTimeRef = useRef<number>(0);
   const userAvatarRef = useRef<string>('');
   const spotMarkersRef = useRef<Map<string, SpotMarkerRecord>>(new Map());
   const visualMarkersRef = useRef<Map<string, VisualMarkerRecord>>(new Map());
@@ -544,6 +750,11 @@ export const MapComponentInner: React.FC<MapComponentProps> = ({
   useEffect(() => {
     onSelectSpotRef.current = onSelectSpot;
   }, [onSelectSpot]);
+
+  const onStyleChangeRef = useRef(onStyleChange);
+  useEffect(() => {
+    onStyleChangeRef.current = onStyleChange;
+  }, [onStyleChange]);
 
   const themeRef = useRef(theme);
   useEffect(() => {
@@ -560,11 +771,29 @@ export const MapComponentInner: React.FC<MapComponentProps> = ({
     onMapClickRef.current = onMapClick;
   }, [onMapClick]);
 
-  const [currentStyle, setCurrentStyle] = useState<MapModeType>(() => (theme === 'light' ? 'animado' : 'explorar'));
+  const onInteractionChangeRef = useRef(onInteractionChange);
+  useEffect(() => {
+    onInteractionChangeRef.current = onInteractionChange;
+  }, [onInteractionChange]);
+
+  const [currentStyle, setCurrentStyle] = useState<MapModeType>(() => (theme === 'dark' ? 'explorar' : 'animado'));
   const [showStyleMenu, setShowStyleMenu] = useState(false);
+  const [showCompassPrompt, setShowCompassPrompt] = useState<boolean>(() => {
+    return deviceHeadingManager.isPermissionRequired() && !deviceHeadingManager.isPermissionHandled();
+  });
   const [compassRotation, setCompassRotation] = useState<number>(0);
   const hasCenteredInitiallyRef = useRef<boolean>(false);
   const lastCameraState = useRef<any>(null);
+
+  const handleEnableCompass = async () => {
+    await deviceHeadingManager.requestPermission();
+    setShowCompassPrompt(false);
+  };
+
+  const handleDismissCompass = () => {
+    deviceHeadingManager.markPermissionHandled();
+    setShowCompassPrompt(false);
+  };
 
   // Restore camera when spot is deselected
   useEffect(() => {
@@ -583,6 +812,29 @@ export const MapComponentInner: React.FC<MapComponentProps> = ({
       lastCameraState.current = null; // Clear it
     }
   }, [selectedSpot]);
+
+  // Center camera when a spot is selected from search results or external triggers
+  useEffect(() => {
+    if (!selectedSpot) return;
+    const map = mapRef.current;
+    if (!map) return;
+
+    if (!lastCameraState.current) {
+      lastCameraState.current = {
+        center: map.getCenter(),
+        zoom: map.getZoom(),
+        pitch: map.getPitch(),
+        bearing: map.getBearing(),
+      };
+    }
+
+    map.flyTo({
+      center: [selectedSpot.lng, selectedSpot.lat],
+      zoom: 15.4,
+      speed: 1.2,
+      essential: true,
+    });
+  }, [selectedSpot?.id]);
 
   // Sync highContrast class on container if needed
   useEffect(() => {
@@ -619,14 +871,24 @@ export const MapComponentInner: React.FC<MapComponentProps> = ({
       }
       map.setPadding({ top: 60, right: 20, bottom: 85, left: 20 });
       setupNightLights(map, themeRef.current);
+      setupFerrisWheel3D(map, themeRef.current === 'dark');
+      deviceHeadingManager.setMapBearing(map.getBearing());
       if (onMapLoadRef.current) {
         onMapLoadRef.current();
       }
+      setTimeout(() => {
+        onStyleChangeRef.current?.(initialMode);
+      }, 0);
+    });
+
+    map.on('rotate', () => {
+      deviceHeadingManager.setMapBearing(map.getBearing());
     });
 
     map.on('styledata', () => {
       if (map.isStyleLoaded()) {
         setupNightLights(map, themeRef.current);
+        setupFerrisWheel3D(map, themeRef.current === 'dark');
       }
     });
 
@@ -640,7 +902,19 @@ export const MapComponentInner: React.FC<MapComponentProps> = ({
     };
 
     map.on('click', () => {
+      deviceHeadingManager.requestPermission();
       dismissAllOverlays();
+    });
+
+    map.on('rotate', () => {
+      deviceHeadingManager.setMapBearing(map.getBearing());
+      const carGraphic = userCarGraphicRef.current;
+      if (carGraphic) {
+        const heading = gpsNavigationManager.getCurrentHeading();
+        const carScreenAngle = (heading - map.getBearing() + 360) % 360;
+        carGraphic.style.transform = `rotate(${carScreenAngle.toFixed(1)}deg)`;
+        carGraphic.style.webkitTransform = `rotate(${carScreenAngle.toFixed(1)}deg)`;
+      }
     });
 
     // Fade in/out spot markers during map drag/move
@@ -654,27 +928,41 @@ export const MapComponentInner: React.FC<MapComponentProps> = ({
       }
 
       if (active) {
-        isInteracting = true;
-        mapContainerRef.current?.classList.add('map-panning-active');
+        if (!isInteracting) {
+          isInteracting = true;
+          mapContainerRef.current?.classList.add('map-panning-active');
+          onInteractionChangeRef.current?.(true);
+        }
       } else {
         interactionTimeout = setTimeout(() => {
           if (!map.isMoving()) {
             isInteracting = false;
             mapContainerRef.current?.classList.remove('map-panning-active');
+            onInteractionChangeRef.current?.(false);
           }
-        }, 120);
+        }, 150);
       }
     };
 
     map.on('movestart', () => setInteracting(true));
+    map.on('move', () => setInteracting(true));
     map.on('moveend', () => setInteracting(false));
     map.on('dragstart', () => {
       setInteracting(true);
       dismissAllOverlays();
+      isFollowingUserRef.current = false; // User took manual camera control
+      isOrientingHeadingRef.current = false;
     });
     map.on('dragend', () => setInteracting(false));
     map.on('zoomstart', () => setInteracting(true));
     map.on('zoomend', () => setInteracting(false));
+    map.on('rotatestart', () => {
+      setInteracting(true);
+      isOrientingHeadingRef.current = false; // User manually rotated map
+    });
+    map.on('rotateend', () => setInteracting(false));
+    map.on('pitchstart', () => setInteracting(true));
+    map.on('pitchend', () => setInteracting(false));
 
     const canvas = map.getCanvas();
     let touchStartX = 0;
@@ -745,6 +1033,7 @@ export const MapComponentInner: React.FC<MapComponentProps> = ({
   // Atualizar estilo quando o modo ou tema mudar (Suave, mantém localização, zoom e centro intactos)
   const handleSelectMode = (mode: MapModeType) => {
     setCurrentStyle(mode);
+    onStyleChangeRef.current?.(mode);
     const map = mapRef.current;
     if (map) {
       map.setStyle(createStyle(mode, theme));
@@ -761,21 +1050,25 @@ export const MapComponentInner: React.FC<MapComponentProps> = ({
     if (theme === 'light') {
       setCurrentStyle('animado');
       map.setStyle(createStyle('animado', 'light'));
+      setTimeout(() => {
+        onStyleChangeRef.current?.('animado');
+      }, 0);
     } else {
-      setCurrentStyle((prev) => {
-        const nextStyle = prev === 'animado' || prev === 'transporte' ? 'explorar' : prev;
-        map.setStyle(createStyle(nextStyle, 'dark'));
-        return nextStyle;
-      });
+      const nextStyle = currentStyle === 'animado' || currentStyle === 'transporte' ? 'explorar' : currentStyle;
+      setCurrentStyle(nextStyle);
+      map.setStyle(createStyle(nextStyle, 'dark'));
+      setTimeout(() => {
+        onStyleChangeRef.current?.(nextStyle);
+      }, 0);
     }
   }, [theme]);
 
   // Helper to update selection visual state without recreating DOM or reloading images
   const updateMarkerSelection = (record: SpotMarkerRecord, isSelected: boolean) => {
     if (isSelected) {
-      record.circleEl.className = 'relative w-11 h-11 sm:w-12 sm:h-12 rounded-full overflow-hidden border-2 border-[#007AFF] ring-2 ring-[#007AFF]/70 bg-zinc-900 shrink-0';
+      record.circleEl.className = 'relative w-[39px] h-[39px] sm:w-[41px] sm:h-[41px] rounded-full overflow-hidden border-2 border-[#34C759] ring-2 ring-[#34C759]/70 bg-zinc-900 shrink-0 shadow-md transition-transform';
     } else {
-      record.circleEl.className = 'relative w-11 h-11 sm:w-12 sm:h-12 rounded-full overflow-hidden border-2 border-white hover:border-[#007AFF] bg-zinc-900 shrink-0';
+      record.circleEl.className = 'relative w-[39px] h-[39px] sm:w-[41px] sm:h-[41px] rounded-full overflow-hidden border-2 border-white hover:border-[#34C759] bg-zinc-900 shrink-0 shadow-sm transition-transform';
     }
   };
 
@@ -795,7 +1088,7 @@ export const MapComponentInner: React.FC<MapComponentProps> = ({
     });
 
     // Add only new markers (keep existing ones completely untouched)
-    spots.forEach((spot) => {
+    spots.forEach((spot, idx) => {
       const existing = spotMarkersRef.current.get(spot.id);
       if (existing) {
         // Spot already exists! Keep the DOM and <img> completely untouched.
@@ -812,13 +1105,21 @@ export const MapComponentInner: React.FC<MapComponentProps> = ({
       el.className = 'spot-marker-container flex flex-col items-center cursor-pointer select-none z-10';
 
       const circleDiv = document.createElement('div');
-      circleDiv.className = 'relative w-11 h-11 sm:w-12 sm:h-12 rounded-full overflow-hidden border-2 border-white hover:border-[#007AFF] bg-zinc-900 shrink-0';
+      circleDiv.className = 'relative w-[39px] h-[39px] sm:w-[41px] sm:h-[41px] rounded-full overflow-hidden border-2 border-white hover:border-[#34C759] bg-zinc-900 shrink-0 shadow-sm transition-transform pin-pop-in';
+      // Subtle stagger based on order to create an organic fluid ripple on load/filter
+      circleDiv.style.animationDelay = `${Math.min(idx * 22, 280)}ms`;
+
+      circleDiv.addEventListener('animationend', () => {
+        circleDiv.classList.remove('pin-pop-in');
+        circleDiv.style.animationDelay = '';
+      }, { once: true });
 
       const img = document.createElement('img');
-      img.src = spot.image;
+      img.src = spot.image || 'https://images.unsplash.com/photo-1585320806297-9794b3e4eeae?auto=format&fit=crop&w=150&q=80';
       img.alt = spot.name;
       img.className = 'w-full h-full object-cover pointer-events-none';
       img.loading = 'eager';
+      img.referrerPolicy = 'no-referrer';
       img.onerror = () => {
         img.src = 'https://images.unsplash.com/photo-1585320806297-9794b3e4eeae?auto=format&fit=crop&w=150&q=80';
       };
@@ -826,15 +1127,55 @@ export const MapComponentInner: React.FC<MapComponentProps> = ({
 
       el.appendChild(circleDiv);
 
-      el.addEventListener('pointerdown', (e) => {
-        e.stopPropagation();
-      });
+      // Smart touch & drag tracking: allow map dragging & pinch-to-zoom even when finger starts on a pin
+      let touchStartX = 0;
+      let touchStartY = 0;
+      let hasMovedSignificantly = false;
 
       el.addEventListener('touchstart', (e) => {
-        e.stopPropagation();
+        if (e.touches && e.touches.length > 0) {
+          touchStartX = e.touches[0].clientX;
+          touchStartY = e.touches[0].clientY;
+          hasMovedSignificantly = false;
+        }
+      }, { passive: true });
+
+      el.addEventListener('touchmove', (e) => {
+        if (e.touches && e.touches.length > 0) {
+          const dx = e.touches[0].clientX - touchStartX;
+          const dy = e.touches[0].clientY - touchStartY;
+          if (Math.hypot(dx, dy) > 8) {
+            hasMovedSignificantly = true;
+          }
+        }
+      }, { passive: true });
+
+      let pointerStartX = 0;
+      let pointerStartY = 0;
+      let pointerMoved = false;
+
+      el.addEventListener('pointerdown', (e) => {
+        pointerStartX = e.clientX;
+        pointerStartY = e.clientY;
+        pointerMoved = false;
+      }, { passive: true });
+
+      el.addEventListener('pointermove', (e) => {
+        if (e.buttons > 0) {
+          const dx = e.clientX - pointerStartX;
+          const dy = e.clientY - pointerStartY;
+          if (Math.hypot(dx, dy) > 8) {
+            pointerMoved = true;
+          }
+        }
       }, { passive: true });
 
       el.addEventListener('click', (e) => {
+        if (hasMovedSignificantly || pointerMoved) {
+          hasMovedSignificantly = false;
+          pointerMoved = false;
+          return;
+        }
         e.stopPropagation();
         playPinTapSound();
         circleDiv.classList.remove('pin-tap-anim');
@@ -911,14 +1252,14 @@ export const MapComponentInner: React.FC<MapComponentProps> = ({
         if (existing.category !== item.category || existing.color !== itemColor) {
           existing.category = item.category;
           existing.color = itemColor;
-          existing.badgeEl.innerHTML = generateMarkerHtml(item.category, 28, itemColor);
+          existing.badgeEl.innerHTML = generateMarkerHtml(item.category, 18, itemColor);
         }
       } else {
         const containerEl = document.createElement('div');
         containerEl.id = `visual-icon-${item.id}`;
         containerEl.className = 'map-visual-icon-marker select-none';
-        containerEl.style.width = '28px';
-        containerEl.style.height = '28px';
+        containerEl.style.width = '18px';
+        containerEl.style.height = '18px';
         containerEl.style.display = 'flex';
         containerEl.style.alignItems = 'center';
         containerEl.style.justifyContent = 'center';
@@ -928,7 +1269,7 @@ export const MapComponentInner: React.FC<MapComponentProps> = ({
 
         const badgeEl = document.createElement('div');
         badgeEl.className = 'visual-icon-badge-inner flex items-center justify-center';
-        badgeEl.innerHTML = generateMarkerHtml(item.category, 28, item.color);
+        badgeEl.innerHTML = generateMarkerHtml(item.category, 18, item.color);
         containerEl.appendChild(badgeEl);
 
         const marker = new maplibregl.Marker({
@@ -971,28 +1312,269 @@ export const MapComponentInner: React.FC<MapComponentProps> = ({
     userAvatarRef.current = defaultAvatar;
     const userEl = document.createElement('div');
     userEl.id = 'user-voce-marker';
-    userEl.className = 'flex flex-col items-center cursor-pointer select-none z-20';
+    userEl.className = 'relative flex items-center justify-center cursor-pointer select-none z-20';
+    userEl.style.width = '48px';
+    userEl.style.height = '48px';
 
+    // 1. Apple Maps Directional Flashlight / Heading Cone Beam (Pedestrian Mode)
+    const beamContainer = document.createElement('div');
+    beamContainer.id = 'user-voce-beam';
+    beamContainer.className = 'absolute pointer-events-none z-0 flex items-center justify-center';
+    beamContainer.style.width = '108px';
+    beamContainer.style.height = '108px';
+    beamContainer.style.top = '-30px';
+    beamContainer.style.left = '-30px';
+    beamContainer.style.transformOrigin = '54px 54px';
+    beamContainer.style.willChange = 'transform, opacity';
+    beamContainer.style.transition = 'opacity 300ms ease, transform 120ms cubic-bezier(0.2, 0.9, 0.4, 1)';
+
+    beamContainer.innerHTML = `
+      <svg viewBox="0 0 108 108" class="w-full h-full overflow-visible pointer-events-none" style="filter: drop-shadow(0 -2px 10px rgba(52, 199, 89, 0.7));">
+        <defs>
+          <radialGradient id="apple-heading-radial" cx="50%" cy="50%" r="50%">
+            <stop offset="0%" stop-color="#34C759" stop-opacity="0.9" />
+            <stop offset="40%" stop-color="#30D158" stop-opacity="0.6" />
+            <stop offset="80%" stop-color="#34C759" stop-opacity="0.2" />
+            <stop offset="100%" stop-color="#34C759" stop-opacity="0" />
+          </radialGradient>
+          <linearGradient id="apple-heading-fan" x1="0%" y1="100%" x2="0%" y2="0%">
+            <stop offset="0%" stop-color="#34C759" stop-opacity="0.8" />
+            <stop offset="35%" stop-color="#30D158" stop-opacity="0.55" />
+            <stop offset="75%" stop-color="#86EFAC" stop-opacity="0.25" />
+            <stop offset="100%" stop-color="#BBF7D0" stop-opacity="0" />
+          </linearGradient>
+        </defs>
+        <!-- Soft Light Cone (approx 54 deg fan pointing up) -->
+        <path d="M 54 54 L 30.5 7.8 A 52 52 0 0 1 77.5 7.8 Z" fill="url(#apple-heading-fan)" />
+        <!-- Inner Core Bright Cone (approx 32 deg fan) -->
+        <path d="M 54 54 L 42.4 13.8 A 42 42 0 0 1 65.6 13.8 Z" fill="url(#apple-heading-radial)" opacity="0.9" />
+        <!-- Soft Center Glow Circle -->
+        <circle cx="54" cy="54" r="24" fill="#34C759" opacity="0.15" />
+      </svg>
+    `;
+
+    userBeamElRef.current = beamContainer;
+    userEl.appendChild(beamContainer);
+
+    // 2. Pedestrian User Avatar Circle
     const userCircle = document.createElement('div');
-    userCircle.className = 'relative w-11 h-11 sm:w-12 sm:h-12 rounded-full overflow-hidden border-2 border-white ring-2 ring-[#007AFF] bg-zinc-900 shadow-md';
+    userCircle.id = 'user-voce-circle';
+    userCircle.className = 'relative z-10 w-[39px] h-[39px] sm:w-[41px] sm:h-[41px] rounded-full overflow-hidden border-2 border-white ring-2 ring-[#34C759] bg-zinc-900 shadow-md user-photo-pulse transition-all duration-300';
 
     const userImg = document.createElement('img');
     userImg.id = 'user-voce-marker-img';
     userImg.src = defaultAvatar;
-    userImg.alt = userName || 'Você';
+    userImg.alt = 'Eu';
     userImg.className = 'w-full h-full object-cover pointer-events-none';
     userCircle.appendChild(userImg);
 
+    userCircleElRef.current = userCircle;
     userEl.appendChild(userCircle);
 
+    // 3. Pedestrian Label "Eu" embaixo do ícone
+    const userLabel = document.createElement('div');
+    userLabel.id = 'user-voce-marker-label';
+    userLabel.className = 'absolute top-[48px] left-1/2 -translate-x-1/2 z-20 px-2 py-0.5 rounded-full text-[10px] sm:text-[11px] font-black tracking-tight text-white bg-black/80 border border-white/20 shadow-md backdrop-blur-md select-none pointer-events-none whitespace-nowrap leading-none transition-opacity duration-300';
+    userLabel.innerText = 'Eu';
+    userLabelElRef.current = userLabel;
+    userEl.appendChild(userLabel);
+
+    // 4. Premium 3D-styled Red Ferrari Marker (scaled proportionally to street width)
+    const carContainer = document.createElement('div');
+    carContainer.id = 'user-voce-car';
+    carContainer.className = 'absolute pointer-events-none z-30 flex flex-col items-center justify-center transition-all duration-300 opacity-0 scale-50';
+    // Calibrated proportional Ferrari dimensions: 80px wide x 135px long
+    // Fills the road width comfortably like in Apple Maps / Waze high-detail 3D navigation
+    carContainer.style.width = '80px';
+    carContainer.style.height = '135px';
+    carContainer.style.top = '-67px';
+    carContainer.style.left = '-40px';
+
+    const carGraphic = document.createElement('div');
+    carGraphic.id = 'user-car-graphic';
+    carGraphic.className = 'w-full h-full flex items-center justify-center will-change-transform';
+    carGraphic.style.transformOrigin = 'center center';
+    carGraphic.innerHTML = `
+      <svg viewBox="0 0 32 54" class="w-full h-full overflow-visible pointer-events-none" style="filter: drop-shadow(0 8px 18px rgba(0, 0, 0, 0.55));">
+        <defs>
+          <!-- Forward Headlight Projector Beams (Soft Golden Xenon) -->
+          <linearGradient id="ferrari-beam" x1="0%" y1="100%" x2="0%" y2="0%">
+            <stop offset="0%" stop-color="#FFFFFF" stop-opacity="0.75" />
+            <stop offset="35%" stop-color="#FEF08A" stop-opacity="0.35" />
+            <stop offset="100%" stop-color="#FEF08A" stop-opacity="0" />
+          </linearGradient>
+
+          <!-- Iconic Rosso Corsa Ferrari Metallic Body Gradient -->
+          <linearGradient id="ferrari-rosso-corsa" x1="0%" y1="0%" x2="100%" y2="0%">
+            <stop offset="0%" stop-color="#800A0A" />
+            <stop offset="14%" stop-color="#C51616" />
+            <stop offset="32%" stop-color="#E71B1B" />
+            <stop offset="50%" stop-color="#FF3838" />
+            <stop offset="68%" stop-color="#E71B1B" />
+            <stop offset="86%" stop-color="#C51616" />
+            <stop offset="100%" stop-color="#800A0A" />
+          </linearGradient>
+
+          <!-- Carbon Fiber Roof & Aerodynamic Aero-Bridge -->
+          <linearGradient id="ferrari-carbon-cockpit" x1="0%" y1="0%" x2="100%" y2="100%">
+            <stop offset="0%" stop-color="#38BDF8" stop-opacity="0.9" />
+            <stop offset="42%" stop-color="#090D16" stop-opacity="0.98" />
+            <stop offset="85%" stop-color="#1E293B" stop-opacity="0.95" />
+            <stop offset="100%" stop-color="#0284C7" stop-opacity="0.7" />
+          </linearGradient>
+
+          <!-- Glass Engine Cover / Bonnet Glare -->
+          <linearGradient id="ferrari-engine-glass" x1="0%" y1="0%" x2="0%" y2="100%">
+            <stop offset="0%" stop-color="#1E293B" stop-opacity="0.9" />
+            <stop offset="50%" stop-color="#0F172A" stop-opacity="0.95" />
+            <stop offset="100%" stop-color="#E2E8F0" stop-opacity="0.4" />
+          </linearGradient>
+        </defs>
+
+        <!-- Forward Light Beams extending onto the road ahead -->
+        <polygon points="8,10 -2,-12 12,-12" fill="url(#ferrari-beam)" />
+        <polygon points="24,10 20,-12 34,-12" fill="url(#ferrari-beam)" />
+
+        <!-- Ground Ambient Occlusion Shadow -->
+        <ellipse cx="16" cy="28" rx="12" ry="20" fill="rgba(0,0,0,0.55)" filter="blur(2px)" />
+
+        <!-- Wide Low-Profile Pirelli P-Zero Tires (Peeking subtly at corners) -->
+        <rect x="2" y="10" width="3" height="8" rx="1.5" fill="#18181B" />
+        <rect x="27" y="10" width="3" height="8" rx="1.5" fill="#18181B" />
+        <rect x="1.5" y="36" width="3.5" height="9.5" rx="1.5" fill="#18181B" />
+        <rect x="27" y="36" width="3.5" height="9.5" rx="1.5" fill="#18181B" />
+
+        <!-- Aerodynamic Side Mirrors (Carbon Stalks) -->
+        <path d="M 2.5 18 C 1.5 17, 4.5 15, 6 16.5 L 5 19.5 Z" fill="#450A0A" />
+        <path d="M 29.5 18 C 30.5 17, 27.5 15, 26 16.5 L 27 19.5 Z" fill="#450A0A" />
+
+        <!-- Sculpted Ferrari Body: Sharp nose, wide air-intake hips, rear diffuser profile -->
+        <path d="M 16 5 
+                 C 20.5 5, 24.5 7.5, 25.5 12
+                 C 26.2 16, 25.5 21, 26.5 28
+                 C 27.2 33, 28 38, 27.5 45
+                 C 27 49, 23 50.5, 16 50.5
+                 C 9 50.5, 5 49, 4.5 45
+                 C 4 38, 4.8 33, 5.5 28
+                 C 6.5 21, 5.8 16, 6.5 12
+                 C 7.5 7.5, 11.5 5, 16 5 Z" 
+              fill="url(#ferrari-rosso-corsa)" 
+              stroke="#FFA3A3" 
+              stroke-width="0.55" />
+
+        <!-- Front Splitter & Formula 1-Inspired S-Duct Hood Channel -->
+        <path d="M 11 7 Q 16 9.5 21 7 L 19 12 Q 16 14 13 12 Z" fill="#18181B" opacity="0.85" />
+        <path d="M 13 11 L 16 16 L 19 11" stroke="#991B1B" stroke-width="0.6" fill="none" />
+
+        <!-- Aggressive Slanted LED Matrix Headlights -->
+        <path d="M 8.5 10.5 L 12 12.5 L 11 14.5 L 8 12.5 Z" fill="#FFFFFF" style="filter: drop-shadow(0 0 1.5px #60A5FA);" />
+        <path d="M 23.5 10.5 L 20 12.5 L 21 14.5 L 24 12.5 Z" fill="#FFFFFF" style="filter: drop-shadow(0 0 1.5px #60A5FA);" />
+
+        <!-- Tinted Teardrop Cockpit Windshield -->
+        <path d="M 10 18 L 22 18 L 20.5 27 L 11.5 27 Z" fill="url(#ferrari-carbon-cockpit)" />
+
+        <!-- Black Carbon Contrast Roof with Giallo Modena Prancing Horse Crest Dot -->
+        <path d="M 11.5 27 L 20.5 27 L 19.5 35 L 12.5 35 Z" fill="#090D16" />
+        <!-- Miniature Yellow Emblem dot on roof/hood -->
+        <circle cx="16" cy="14" r="0.8" fill="#FACC15" />
+
+        <!-- Rear Mid-Engine Bay Glass Hatch with Heat Vents -->
+        <path d="M 12.5 35 L 19.5 35 L 21 43 L 11 43 Z" fill="url(#ferrari-engine-glass)" />
+        <line x1="13.5" y1="37.5" x2="18.5" y2="37.5" stroke="#E2E8F0" stroke-width="0.5" opacity="0.6" />
+        <line x1="13" y1="40" x2="19" y2="40" stroke="#E2E8F0" stroke-width="0.5" opacity="0.6" />
+
+        <!-- Rear Twin Round Ferrari Afterburner Taillights & Twin Exhaust Tips -->
+        <circle cx="8" cy="48.5" r="1.6" fill="#EF4444" style="filter: drop-shadow(0 0 2px #DC2626);" />
+        <circle cx="24" cy="48.5" r="1.6" fill="#EF4444" style="filter: drop-shadow(0 0 2px #DC2626);" />
+        <circle cx="8" cy="48.5" r="0.7" fill="#FEE2E2" />
+        <circle cx="24" cy="48.5" r="0.7" fill="#FEE2E2" />
+
+        <!-- Rear Aerodynamic Active Diffuser -->
+        <rect x="12" y="49.5" width="8" height="1.8" rx="0.5" fill="#090D16" />
+        <circle cx="13.5" cy="50" r="0.6" fill="#71717A" />
+        <circle cx="18.5" cy="50" r="0.6" fill="#71717A" />
+      </svg>
+    `;
+
+    carContainer.appendChild(carGraphic);
+
+    // Car Speed Badge (Compact, non-intrusive floating HUD badge)
+    const carSpeedBadge = document.createElement('div');
+    carSpeedBadge.id = 'user-car-speed-badge';
+    carSpeedBadge.className = 'mt-1 px-1.5 py-0.5 rounded-full text-[9px] font-black tracking-tight text-white bg-red-600/90 border border-white/25 shadow-md backdrop-blur-md select-none pointer-events-none whitespace-nowrap leading-none';
+    carSpeedBadge.innerText = '0 km/h';
+    carContainer.appendChild(carSpeedBadge);
+
+    userCarElRef.current = carContainer;
+    userCarGraphicRef.current = carGraphic;
+    userCarSpeedBadgeRef.current = carSpeedBadge;
+    userEl.appendChild(carContainer);
+
+    let userTouchStartX = 0;
+    let userTouchStartY = 0;
+    let userHasMoved = false;
+
+    userEl.addEventListener('touchstart', (e) => {
+      if (e.touches && e.touches.length > 0) {
+        userTouchStartX = e.touches[0].clientX;
+        userTouchStartY = e.touches[0].clientY;
+        userHasMoved = false;
+      }
+    }, { passive: true });
+
+    userEl.addEventListener('touchmove', (e) => {
+      if (e.touches && e.touches.length > 0) {
+        const dx = e.touches[0].clientX - userTouchStartX;
+        const dy = e.touches[0].clientY - userTouchStartY;
+        if (Math.hypot(dx, dy) > 8) {
+          userHasMoved = true;
+        }
+      }
+    }, { passive: true });
+
+    let userPointerStartX = 0;
+    let userPointerStartY = 0;
+    let userPointerMoved = false;
+
+    userEl.addEventListener('pointerdown', (e) => {
+      userPointerStartX = e.clientX;
+      userPointerStartY = e.clientY;
+      userPointerMoved = false;
+    }, { passive: true });
+
+    userEl.addEventListener('pointermove', (e) => {
+      if (e.buttons > 0) {
+        const dx = e.clientX - userPointerStartX;
+        const dy = e.clientY - userPointerStartY;
+        if (Math.hypot(dx, dy) > 8) {
+          userPointerMoved = true;
+        }
+      }
+    }, { passive: true });
+
     userEl.addEventListener('click', () => {
+      if (userHasMoved || userPointerMoved) {
+        userHasMoved = false;
+        userPointerMoved = false;
+        return;
+      }
+      // Trigger sensor permission silently if not already granted
+      deviceHeadingManager.requestPermission();
       playPinTapSound();
+
       userCircle.classList.remove('pin-tap-anim');
       void userCircle.offsetWidth;
       userCircle.classList.add('pin-tap-anim');
+
+      isFollowingUserRef.current = true;
+      const isCar = gpsNavigationManager.isCarMode();
+      const currentPos = gpsNavigationManager.getCurrentInterpolatedCoords();
+
       map.flyTo({
-        center: userCoords,
-        zoom: 15.5,
+        center: currentPos,
+        zoom: isCar ? 15.6 : 15.2,
+        pitch: isCar ? 48 : 52,
+        bearing: isCar ? gpsNavigationManager.getCurrentHeading() : map.getBearing(),
         speed: 1.2,
       });
     });
@@ -1007,11 +1589,222 @@ export const MapComponentInner: React.FC<MapComponentProps> = ({
     userMarkerRef.current = uMarker;
   }, [userCoords, defaultAvatar, userName]);
 
+  // High-performance 60fps GPS continuous interpolation and navigation subscription
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map) return;
+
+    const unsubscribe = gpsNavigationManager.subscribe((navState) => {
+      if (!userMarkerRef.current) return;
+
+      // 1. Move marker smoothly at 60fps without jumping
+      userMarkerRef.current.setLngLat(navState.interpolatedCoords);
+
+      const circleEl = userCircleElRef.current;
+      const beamEl = userBeamElRef.current;
+      const labelEl = userLabelElRef.current;
+      const carEl = userCarElRef.current;
+      const carGraphic = userCarGraphicRef.current;
+      const speedBadge = userCarSpeedBadgeRef.current;
+
+      const mapBearing = map.getBearing();
+
+      if (navState.isCarMode) {
+        // Active Car Mode (speed > 15 km/h with stability margin)
+        if (circleEl) {
+          circleEl.style.opacity = '0';
+          circleEl.style.transform = 'scale(0.5)';
+          circleEl.style.pointerEvents = 'none';
+        }
+        if (beamEl) {
+          beamEl.style.opacity = '0';
+        }
+        if (labelEl) {
+          labelEl.style.opacity = '0';
+        }
+        if (carEl) {
+          carEl.style.opacity = '1';
+          carEl.style.transform = 'scale(1)';
+          carEl.style.pointerEvents = 'auto';
+        }
+        if (carGraphic) {
+          // When in car navigation mode, the camera rotates with the vehicle's heading,
+          // so the car graphic is always pointing forward/upward (0°) on screen.
+          // In case user manually rotated or during brief transitions, align smoothly with mapBearing:
+          const carScreenAngle = isFollowingUserRef.current
+            ? 0
+            : (navState.heading - mapBearing + 360) % 360;
+          carGraphic.style.transform = `rotate(${carScreenAngle.toFixed(1)}deg)`;
+          carGraphic.style.webkitTransform = `rotate(${carScreenAngle.toFixed(1)}deg)`;
+        }
+        if (speedBadge) {
+          speedBadge.innerText = `${Math.round(navState.speed)} km/h`;
+        }
+      } else {
+        // Standard Pedestrian / Stationary Mode (<= 15 km/h)
+        if (carEl) {
+          carEl.style.opacity = '0';
+          carEl.style.transform = 'scale(0.5)';
+          carEl.style.pointerEvents = 'none';
+        }
+        if (circleEl) {
+          circleEl.style.opacity = '1';
+          circleEl.style.transform = 'scale(1)';
+          circleEl.style.pointerEvents = 'auto';
+        }
+        if (beamEl) {
+          beamEl.style.opacity = '1';
+        }
+        if (labelEl) {
+          labelEl.style.opacity = '1';
+        }
+      }
+
+      // Smooth camera follow when user is moving and follow mode is active
+      if (isFollowingUserRef.current) {
+        const now = performance.now();
+        if (now - lastCameraEaseTimeRef.current > 70) {
+          lastCameraEaseTimeRef.current = now;
+
+          if (navState.isCarMode) {
+            // ============================================================
+            // WAZE-STYLE 3D DRIVING NAVIGATION PERSPECTIVE
+            // ============================================================
+            // 1. Course heading: camera stays behind the Ferrari pointing in driving direction
+            const drivingHeading = navState.heading;
+
+            // 2. Speed-adaptive Close-up Street Zoom:
+            // - Low speeds / stops / city corners (0-25 km/h): close-up street view (zoom 18.7 - 18.4)
+            // - Moderate city speeds (25-55 km/h): zoom 18.2 - 17.7
+            // - High highway speeds (55-90+ km/h): zoom 17.2 - 16.8
+            const speed = Math.max(0, navState.speed);
+            let targetZoom = 18.6;
+            if (speed > 80) {
+              targetZoom = 16.8;
+            } else if (speed > 55) {
+              targetZoom = 17.3;
+            } else if (speed > 35) {
+              targetZoom = 17.8;
+            } else if (speed > 18) {
+              targetZoom = 18.2;
+            } else {
+              targetZoom = 18.6;
+            }
+
+            // 3. Perspective 3D Pitch:
+            // 55° - 58° tilt reveals road ahead while keeping street labels and car clear
+            const targetPitch = speed > 50 ? 58 : 55;
+
+            // 4. Position the Ferrari in the lower third / bottom center of the screen
+            // In 3D perspective, offset [0, containerHeight * 0.28] keeps the vehicle
+            // perfectly placed in the lower-middle screen, showing plenty of road ahead
+            const containerHeight = mapContainerRef.current?.clientHeight || 700;
+            const bottomOffsetPixels = Math.round(containerHeight * 0.28);
+
+            map.easeTo({
+              center: navState.interpolatedCoords,
+              offset: [0, bottomOffsetPixels],
+              bearing: drivingHeading,
+              pitch: targetPitch,
+              zoom: targetZoom,
+              duration: 200,
+              easing: (t) => t * (2 - t),
+            });
+          } else if (isOrientingHeadingRef.current) {
+            // Pedestrian / stationary orienting compass mode
+            const deviceHeading = deviceHeadingManager.getCurrentHeading();
+            map.easeTo({
+              center: navState.interpolatedCoords,
+              offset: [0, 0],
+              bearing: deviceHeading || 0,
+              duration: 110,
+              easing: (t) => t,
+            });
+          } else if (navState.isMoving) {
+            map.easeTo({
+              center: navState.interpolatedCoords,
+              offset: [0, 0],
+              duration: 140,
+              easing: (t) => t,
+            });
+          }
+        }
+      }
+    });
+
+    return () => {
+      unsubscribe();
+    };
+  }, []);
+
+  // Subscribe to device orientation / compass heading for smooth marker beam rotation
+  // When isOrientingHeadingRef is active, the camera rotates to match the device heading,
+  // so compensatedHeading will naturally stay at 0° (pointing straight up to the top of screen).
+  // Also when moving/rotating while stationary in orient mode, continuously ease the camera.
+  useEffect(() => {
+    let lastSensorEaseTime = 0;
+    const unsubscribe = deviceHeadingManager.subscribe((rawHeading, compensatedHeading) => {
+      const beamEl = userBeamElRef.current || (document.getElementById('user-voce-beam') as HTMLElement | null);
+      if (beamEl) {
+        const rotStr = `rotate(${compensatedHeading.toFixed(1)}deg)`;
+        beamEl.style.transform = rotStr;
+        beamEl.style.webkitTransform = rotStr;
+      }
+
+      // If in Orienting Mode and not moving at high speed, dynamically sync map bearing with compass smoothly
+      const map = mapRef.current;
+      if (map && isFollowingUserRef.current && isOrientingHeadingRef.current) {
+        const isCar = gpsNavigationManager.isCarMode();
+        // If not in fast car motion (where GPS course takes over), follow device compass heading
+        if (!isCar) {
+          const now = performance.now();
+          if (now - lastSensorEaseTime > 60) {
+            lastSensorEaseTime = now;
+            map.easeTo({
+              bearing: rawHeading,
+              duration: 180,
+              easing: (t) => t * (2 - t), // smooth quadratic ease-out
+            });
+          }
+        }
+      }
+    });
+
+    return () => {
+      unsubscribe();
+    };
+  }, []);
+
   // User coordinates tracking: strictly avoid automatic flyTo on load
   // to ensure the camera always opens in the wide regional perspective requested in the second image.
   useEffect(() => {
     hasCenteredInitiallyRef.current = true;
   }, [userCoords]);
+
+  useEffect(() => {
+    if (zoomToUserTrigger && zoomToUserTrigger > 0) {
+      const map = mapRef.current;
+      if (!map) return;
+      const currentCoords = gpsNavigationManager.getCurrentInterpolatedCoords();
+      const isCar = gpsNavigationManager.isCarMode();
+      isFollowingUserRef.current = true;
+      isOrientingHeadingRef.current = true;
+
+      const containerHeight = mapContainerRef.current?.clientHeight || 700;
+      const bottomOffsetPixels = isCar ? Math.round(containerHeight * 0.28) : 0;
+
+      map.flyTo({
+        center: currentCoords,
+        offset: [0, bottomOffsetPixels],
+        zoom: isCar ? 18.5 : 15.2,
+        pitch: isCar ? 55 : 52,
+        bearing: isCar ? gpsNavigationManager.getCurrentHeading() : -13,
+        duration: 1500,
+        curve: 1.4,
+        essential: true,
+      });
+    }
+  }, [zoomToUserTrigger]);
 
   // Controls Handlers
   const handleZoomIn = () => {
@@ -1022,34 +1815,50 @@ export const MapComponentInner: React.FC<MapComponentProps> = ({
     mapRef.current?.zoomOut({ duration: 300 });
   };
 
-  const handleCenterUser = () => {
+  const handleCenterUser = async () => {
     setCompassRotation((prev) => prev + 360);
     const map = mapRef.current;
     if (!map) return;
 
-    const currentZoom = map.getZoom();
-    // If the user is currently zoomed in, clicking the button returns to the wide tourist overview
-    if (currentZoom > 13.5) {
-      map.flyTo({
-        center: CAMPOS_OVERVIEW_CAMERA.center,
-        zoom: CAMPOS_OVERVIEW_CAMERA.zoom,
-        pitch: CAMPOS_OVERVIEW_CAMERA.pitch,
-        bearing: CAMPOS_OVERVIEW_CAMERA.bearing,
-        speed: 1.2,
-        essential: true,
-      });
-    } else {
-      // Otherwise, smoothly zoom in to the user's location with perspective
-      map.flyTo({
-        center: userCoords,
-        zoom: 14.8,
-        pitch: 52,
-        bearing: -13,
-        speed: 1.2,
-        essential: true,
-      });
-    }
+    // 1. Request or awaken device compass sensor permission if on iOS Safari
+    deviceHeadingManager.requestPermission();
+    playPinTapSound();
+
+    const currentCoords = gpsNavigationManager.getCurrentInterpolatedCoords();
+    const isCar = gpsNavigationManager.isCarMode();
+
+    // 2. Fetch current real heading from device orientation or vehicle course
+    const deviceHeading = deviceHeadingManager.getCurrentHeading();
+    const targetBearing = isCar
+      ? gpsNavigationManager.getCurrentHeading()
+      : (deviceHeading || 0);
+
+    // 3. Mark both follow and orienting modes active so camera remains locked to user heading
+    isFollowingUserRef.current = true;
+    isOrientingHeadingRef.current = true;
+
+    // 4. Smoothly fly to user location, orienting bearing to match driving direction
+    // and 3D perspective with fluid deceleration curve
+    const containerHeight = mapContainerRef.current?.clientHeight || 700;
+    const bottomOffsetPixels = isCar ? Math.round(containerHeight * 0.28) : 0;
+
+    map.flyTo({
+      center: currentCoords,
+      offset: [0, bottomOffsetPixels],
+      zoom: isCar ? 18.5 : 15.4,
+      pitch: isCar ? 55 : 54,
+      bearing: targetBearing,
+      duration: 1600,
+      curve: 1.42,
+      easing: (t) => {
+        // Natural Apple-style cubic ease-out curve
+        return 1 - Math.pow(1 - t, 3.2);
+      },
+      essential: true,
+    });
   };
+
+  const isWhiteControls = theme === 'light' || currentStyle === 'animado' || currentStyle === 'satelite' || currentStyle === 'transporte';
 
   return (
     <div
@@ -1073,28 +1882,40 @@ export const MapComponentInner: React.FC<MapComponentProps> = ({
         <button
           id="btn-map-zoom-in"
           onClick={handleZoomIn}
-          className="w-12 h-12 rounded-full ios-glass-btn active:scale-95 text-zinc-700 dark:text-white/95 flex items-center justify-center focus:outline-none cursor-pointer"
+          className={`w-12 h-12 rounded-full active:scale-95 flex items-center justify-center focus:outline-none cursor-pointer transition-all ${
+            isWhiteControls
+              ? 'ios-glass-btn-white text-zinc-900'
+              : 'ios-glass-btn text-zinc-700 dark:text-white/95'
+          }`}
           title="Aproximar mapa"
         >
-          <Plus className="w-6 h-6 stroke-[2.2]" />
+          <Plus className="w-6 h-6 stroke-[2.4]" />
         </button>
 
         {/* Zoom Out (-) */}
         <button
           id="btn-map-zoom-out"
           onClick={handleZoomOut}
-          className="w-12 h-12 rounded-full ios-glass-btn active:scale-95 text-zinc-700 dark:text-white/95 flex items-center justify-center focus:outline-none cursor-pointer"
+          className={`w-12 h-12 rounded-full active:scale-95 flex items-center justify-center focus:outline-none cursor-pointer transition-all ${
+            isWhiteControls
+              ? 'ios-glass-btn-white text-zinc-900'
+              : 'ios-glass-btn text-zinc-700 dark:text-white/95'
+          }`}
           title="Afastar mapa"
         >
-          <Minus className="w-6 h-6 stroke-[2.2]" />
+          <Minus className="w-6 h-6 stroke-[2.4]" />
         </button>
 
-        {/* Center on "Você" / My Location (Compass Icon) */}
+        {/* Center & Orient on "Você" / My Location (Compass Icon) */}
         <button
           id="btn-map-locate-me"
           onClick={handleCenterUser}
-          className="w-12 h-12 sm:w-13 sm:h-13 rounded-[18px] sm:rounded-[20px] ios-glass-btn active:scale-95 text-zinc-700 dark:text-white/95 flex items-center justify-center focus:outline-none cursor-pointer group"
-          title="Centralizar Bússola"
+          className={`w-12 h-12 sm:w-13 sm:h-13 rounded-[18px] sm:rounded-[20px] active:scale-95 flex items-center justify-center focus:outline-none cursor-pointer group transition-all ${
+            isWhiteControls
+              ? 'ios-glass-btn-white text-zinc-900'
+              : 'ios-glass-btn text-zinc-700 dark:text-white/95'
+          }`}
+          title="Centralizar e orientar"
         >
           <motion.div
             animate={{ rotate: compassRotation }}
@@ -1109,10 +1930,14 @@ export const MapComponentInner: React.FC<MapComponentProps> = ({
         <button
           id="btn-map-layer-switch"
           onClick={() => setShowStyleMenu(true)}
-          className="w-12 h-12 rounded-full ios-glass-btn active:scale-95 text-zinc-700 dark:text-white/95 flex items-center justify-center focus:outline-none cursor-pointer"
+          className={`w-12 h-12 rounded-full active:scale-95 flex items-center justify-center focus:outline-none cursor-pointer transition-all ${
+            isWhiteControls
+              ? 'ios-glass-btn-white text-zinc-900'
+              : 'ios-glass-btn text-zinc-700 dark:text-white/95'
+          }`}
           title="Modos do Mapa"
         >
-          <Layers className="w-5 h-5 stroke-[2]" />
+          <Layers className="w-5 h-5 stroke-[2.2]" />
         </button>
       </aside>
 
@@ -1190,6 +2015,51 @@ export const MapComponentInner: React.FC<MapComponentProps> = ({
               </div>
             </motion.div>
           </div>
+        )}
+      </AnimatePresence>
+
+      {/* One-Time Apple-Style Compass & Sensor Orientation Request */}
+      <AnimatePresence>
+        {showCompassPrompt && (
+          <motion.div
+            id="compass-orientation-prompt"
+            initial={{ opacity: 0, y: 30, scale: 0.95 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: 20, scale: 0.95 }}
+            transition={{ type: 'spring', stiffness: 420, damping: 28 }}
+            className="fixed bottom-24 left-4 right-4 max-w-sm mx-auto z-40 p-4 rounded-2xl bg-[#1C1C1E]/95 backdrop-blur-2xl border border-white/15 text-white shadow-2xl flex flex-col gap-3 pointer-events-auto"
+            style={{ fontFamily: "'Manrope', -apple-system, BlinkMacSystemFont, sans-serif" }}
+          >
+            <div className="flex items-start gap-3">
+              <div className="w-9 h-9 rounded-full bg-[#34C759]/20 flex items-center justify-center shrink-0 text-[#34C759]">
+                <Compass className="w-5 h-5 stroke-[2.2]" />
+              </div>
+              <div className="flex-1 min-w-0">
+                <h4 className="text-sm font-bold text-white tracking-tight">Orientação no Mapa</h4>
+                <p className="text-xs text-zinc-300 mt-0.5 leading-snug">
+                  Ative os sensores para que o feixe verde do seu marcador acompanhe para onde o celular está apontando.
+                </p>
+              </div>
+            </div>
+            <div className="flex items-center justify-end gap-2 mt-1">
+              <button
+                id="btn-dismiss-compass"
+                type="button"
+                onClick={handleDismissCompass}
+                className="px-3 py-1.5 rounded-xl text-xs font-semibold text-zinc-400 hover:text-zinc-200 active:scale-95 transition-all cursor-pointer"
+              >
+                Agora Não
+              </button>
+              <button
+                id="btn-enable-compass"
+                type="button"
+                onClick={handleEnableCompass}
+                className="px-4 py-1.5 rounded-xl text-xs font-semibold bg-[#34C759] hover:bg-[#28CD41] text-white active:scale-95 transition-all shadow-md cursor-pointer"
+              >
+                Ativar Orientação
+              </button>
+            </div>
+          </motion.div>
         )}
       </AnimatePresence>
     </div>

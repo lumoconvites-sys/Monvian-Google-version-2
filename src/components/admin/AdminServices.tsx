@@ -25,7 +25,6 @@ export const AdminServices: React.FC = () => {
 
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [serviceToEdit, setServiceToEdit] = useState<any | null>(null);
-  const [serviceToDelete, setServiceToDelete] = useState<any | null>(null);
 
   const [toast, setToast] = useState<string | null>(null);
 
@@ -34,14 +33,11 @@ export const AdminServices: React.FC = () => {
       setLoading(true);
       const res = await fetch('/api/admin/spots');
       const data = await res.json();
-      if (data.success) {
-        // Filter spots that belong to services, hotels, gastronomy, shops, cafes, pharmacies
-        const serviceCategories = ['hotels', 'gastronomy', 'cafes', 'sweets', 'pharmacies', 'services', 'shops'];
-        const list = data.spots.filter((s: any) => serviceCategories.includes(s.category));
-        setServices(list);
+      if (data.success && Array.isArray(data.spots)) {
+        setServices(data.spots);
       }
     } catch (err) {
-      console.error(err);
+      console.error('Error fetching spots in AdminServices:', err);
     } finally {
       setLoading(false);
     }
@@ -65,38 +61,80 @@ export const AdminServices: React.FC = () => {
         setServices((prev) =>
           prev.map((s) => (s.id === id ? { ...s, isActive: data.isActive } : s))
         );
-        showToast(data.isActive ? 'Serviço ativado no mapa.' : 'Serviço desativado.');
+        showToast(data.isActive ? 'Local/Serviço ativado no mapa.' : 'Local/Serviço pausado.');
       }
     } catch (err) {
       console.error(err);
     }
   };
 
-  const confirmDelete = async () => {
-    if (!serviceToDelete) return;
+  const handleDelete = async (item: any) => {
     try {
-      const res = await fetch(`/api/admin/spots/${serviceToDelete.id}`, { method: 'DELETE' });
+      // Optimistic UI removal
+      setServices((prev) => prev.filter((s) => s.id !== item.id));
+      const res = await fetch(`/api/admin/spots/${item.id}`, { method: 'DELETE' });
       const data = await res.json();
       if (data.success) {
-        setServices((prev) => prev.filter((s) => s.id !== serviceToDelete.id));
         showToast('Local/Serviço excluído com sucesso.');
-        setServiceToDelete(null);
+      } else {
+        fetchServices();
+        showToast('Erro ao excluir local.');
       }
     } catch (err) {
       console.error(err);
+      fetchServices();
+      showToast('Erro ao excluir local.');
     }
   };
 
+  const CATEGORY_TABS = [
+    { id: 'all', label: 'Todos os Locais & Serviços' },
+    { id: 'attractions', label: 'Atrações & Parques' },
+    { id: 'gastronomy', label: 'Gastronomia' },
+    { id: 'hotels', label: 'Hotéis & Pousadas' },
+    { id: 'sweets', label: 'Chocolates & Cafés' },
+    { id: 'nature', label: 'Natureza & Mirantes' },
+    { id: 'pharmacies', label: 'Farmácias & Saúde' },
+    { id: 'services', label: 'Comércio & Serviços' },
+  ];
+
   const filteredServices = services.filter((item) => {
+    const query = searchQuery.toLowerCase().trim();
     const matchesSearch =
-      item.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      (item.description && item.description.toLowerCase().includes(searchQuery.toLowerCase())) ||
-      (item.address && item.address.toLowerCase().includes(searchQuery.toLowerCase()));
+      !query ||
+      (item.name && item.name.toLowerCase().includes(query)) ||
+      (item.description && item.description.toLowerCase().includes(query)) ||
+      (item.categoryLabel && item.categoryLabel.toLowerCase().includes(query)) ||
+      (item.category && item.category.toLowerCase().includes(query)) ||
+      (item.address && item.address.toLowerCase().includes(query));
 
-    const matchesCategory =
-      selectedCategory === 'all' || item.category === selectedCategory;
+    if (!matchesSearch) return false;
 
-    return matchesSearch && matchesCategory;
+    if (selectedCategory === 'all') return true;
+
+    if (selectedCategory === 'attractions') {
+      return ['attractions', 'parks', 'culture', 'lazer'].includes(item.category);
+    }
+    if (selectedCategory === 'nature') {
+      return ['nature', 'viewpoint'].includes(item.category);
+    }
+    if (selectedCategory === 'gastronomy') {
+      return ['gastronomy', 'restaurant', 'food'].includes(item.category);
+    }
+    if (selectedCategory === 'sweets') {
+      return ['sweets', 'chocolate', 'cafes', 'cafe', 'bistro'].includes(item.category);
+    }
+    if (selectedCategory === 'hotels') {
+      return ['hotels', 'hotel', 'pousada', 'lodging'].includes(item.category);
+    }
+    if (selectedCategory === 'pharmacies') {
+      return ['pharmacies', 'pharmacy', 'health', 'saude'].includes(item.category);
+    }
+    if (selectedCategory === 'services') {
+      return ['services', 'shops', 'shop', 'comercio'].includes(item.category);
+    }
+
+    return item.category === selectedCategory;
   });
 
   return (
@@ -104,7 +142,7 @@ export const AdminServices: React.FC = () => {
       {/* Toast */}
       {toast && (
         <div className="fixed bottom-6 right-6 z-50 bg-zinc-900 text-white text-xs font-black px-4 py-3 rounded-2xl shadow-xl flex items-center gap-2 border border-zinc-700">
-          <CheckCircle2 className="w-4 h-4 text-[#00C896]" />
+          <CheckCircle2 className="w-4 h-4 text-blue-500" />
           <span>{toast}</span>
         </div>
       )}
@@ -112,15 +150,15 @@ export const AdminServices: React.FC = () => {
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <div className="flex items-center gap-2 text-blue-600 text-xs font-black tracking-wider uppercase mb-1">
+          <div className="flex items-center gap-2 text-blue-600 dark:text-blue-400 text-xs font-black tracking-wider uppercase mb-1">
             <span className="w-2 h-2 rounded-full bg-blue-600"></span>
             CONSOLE OPERACIONAL
           </div>
-          <h1 className="text-2xl sm:text-3xl font-black text-zinc-900 tracking-tight">
+          <h1 className="text-2xl sm:text-3xl font-black text-zinc-900 dark:text-white tracking-tight">
             Locais e Serviços
           </h1>
-          <p className="text-xs sm:text-sm text-zinc-500 mt-0.5">
-            Gerencie hotéis, gastronomia, chocolaterias, farmácias e comércio em Campos do Jordão.
+          <p className="text-xs sm:text-sm text-zinc-500 dark:text-zinc-400 mt-0.5">
+            {services.length} locais e estabelecimentos cadastrados no sistema.
           </p>
         </div>
 
@@ -144,27 +182,20 @@ export const AdminServices: React.FC = () => {
             type="text"
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            placeholder="Buscar hotéis, restaurantes, docerias..."
-            className="w-full pl-10 pr-4 py-2.5 bg-white border border-zinc-200 rounded-xl text-xs sm:text-sm text-zinc-900 placeholder-zinc-400 focus:outline-none focus:border-blue-500 shadow-xs"
+            placeholder="Buscar por nome, categoria ou endereço..."
+            className="w-full pl-10 pr-4 py-2.5 bg-white dark:bg-[#16181d] border border-zinc-200 dark:border-zinc-800 rounded-xl text-xs sm:text-sm text-zinc-900 dark:text-white placeholder-zinc-400 focus:outline-none focus:border-blue-500 shadow-xs"
           />
         </div>
 
         <div className="flex items-center gap-1.5 overflow-x-auto pb-1 md:pb-0">
-          {[
-            { id: 'all', label: 'Todos os Serviços' },
-            { id: 'hotels', label: 'Hotéis & Pousadas' },
-            { id: 'gastronomy', label: 'Gastronomia' },
-            { id: 'sweets', label: 'Chocolates' },
-            { id: 'cafes', label: 'Cafés' },
-            { id: 'pharmacies', label: 'Farmácias' },
-          ].map((cat) => (
+          {CATEGORY_TABS.map((cat) => (
             <button
               key={cat.id}
               onClick={() => setSelectedCategory(cat.id)}
               className={`px-3 py-2 rounded-xl text-xs font-black whitespace-nowrap transition-all cursor-pointer ${
                 selectedCategory === cat.id
-                  ? 'bg-zinc-900 text-white shadow-xs'
-                  : 'bg-white hover:bg-zinc-100 text-zinc-600 border border-zinc-200'
+                  ? 'bg-zinc-900 dark:bg-white text-white dark:text-zinc-900 shadow-xs'
+                  : 'bg-white dark:bg-[#16181d] hover:bg-zinc-100 dark:hover:bg-zinc-800 text-zinc-600 dark:text-zinc-300 border border-zinc-200 dark:border-zinc-800'
               }`}
             >
               {cat.label}
@@ -175,15 +206,15 @@ export const AdminServices: React.FC = () => {
 
       {/* Grid */}
       {loading ? (
-        <div className="flex flex-col items-center justify-center py-20 bg-white rounded-3xl border border-zinc-200">
+        <div className="flex flex-col items-center justify-center py-20 bg-white dark:bg-[#16181d] rounded-3xl border border-zinc-200 dark:border-zinc-800">
           <RefreshCw className="w-8 h-8 text-blue-600 animate-spin mb-3" />
-          <p className="text-sm font-black text-zinc-600">Carregando estabelecimentos...</p>
+          <p className="text-sm font-black text-zinc-600 dark:text-zinc-400">Carregando estabelecimentos...</p>
         </div>
       ) : filteredServices.length === 0 ? (
-        <div className="text-center py-16 bg-white rounded-3xl border border-zinc-200 p-8">
-          <Store className="w-12 h-12 text-zinc-300 mx-auto mb-3" />
-          <h3 className="text-base font-black text-zinc-800">Nenhum estabelecimento encontrado</h3>
-          <p className="text-xs text-zinc-500 mt-1 max-w-sm mx-auto">
+        <div className="text-center py-16 bg-white dark:bg-[#16181d] rounded-3xl border border-zinc-200 dark:border-zinc-800 p-8">
+          <Store className="w-12 h-12 text-zinc-300 dark:text-zinc-600 mx-auto mb-3" />
+          <h3 className="text-base font-black text-zinc-800 dark:text-zinc-200">Nenhum estabelecimento encontrado</h3>
+          <p className="text-xs text-zinc-500 dark:text-zinc-400 mt-1 max-w-sm mx-auto">
             Cadastre novos hotéis, restaurantes ou comércios parceiros para o aplicativo.
           </p>
           <button
@@ -202,9 +233,9 @@ export const AdminServices: React.FC = () => {
           {filteredServices.map((item) => (
             <div
               key={item.id}
-              className="bg-white rounded-2xl border border-zinc-200/90 shadow-xs hover:shadow-md transition-all overflow-hidden flex flex-col group"
+              className="bg-white dark:bg-[#16181d] rounded-2xl border border-zinc-200/90 dark:border-zinc-800/90 shadow-xs hover:shadow-md transition-all overflow-hidden flex flex-col group"
             >
-              <div className="relative h-44 w-full bg-zinc-100 overflow-hidden">
+              <div className="relative h-44 w-full bg-zinc-100 dark:bg-zinc-800 overflow-hidden">
                 <img
                   src={item.image}
                   alt={item.name}
@@ -213,7 +244,7 @@ export const AdminServices: React.FC = () => {
 
                 <div className="absolute top-3 left-3 right-3 flex items-center justify-between pointer-events-auto">
                   {item.isVerified ? (
-                    <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-[#00C896]/90 backdrop-blur-md text-white text-[10px] font-black uppercase shadow-sm">
+                    <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-blue-600/90 backdrop-blur-md text-white text-[10px] font-black uppercase shadow-sm">
                       <CheckCircle2 className="w-3 h-3" />
                       VERIFICADO
                     </span>
@@ -231,7 +262,7 @@ export const AdminServices: React.FC = () => {
                       type="button"
                       onClick={(e) => handleToggleActive(item.id, e)}
                       className={`relative inline-flex h-4 w-8 shrink-0 cursor-pointer rounded-full border border-transparent transition-colors duration-200 ease-in-out ${
-                        item.isActive ? 'bg-[#00C896]' : 'bg-zinc-500'
+                        item.isActive ? 'bg-blue-600' : 'bg-zinc-500'
                       }`}
                     >
                       <span
@@ -257,16 +288,16 @@ export const AdminServices: React.FC = () => {
 
               <div className="p-4 flex-1 flex flex-col justify-between">
                 <div>
-                  <h3 className="text-base font-black text-zinc-900 group-hover:text-blue-600 transition-colors line-clamp-1">
+                  <h3 className="text-base font-black text-zinc-900 dark:text-white group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors line-clamp-1">
                     {item.name}
                   </h3>
-                  <p className="text-xs text-zinc-500 mt-1 line-clamp-2 leading-relaxed">
+                  <p className="text-xs text-zinc-500 dark:text-zinc-400 mt-1 line-clamp-2 leading-relaxed">
                     {item.description || 'Estabelecimento verificado em Campos do Jordão.'}
                   </p>
                 </div>
 
-                <div className="mt-4 pt-3 border-t border-zinc-100 flex items-center justify-between">
-                  <div className="flex items-center gap-1 text-[11px] text-zinc-400 truncate max-w-[140px]">
+                <div className="mt-4 pt-3 border-t border-zinc-100 dark:border-zinc-800 flex items-center justify-between">
+                  <div className="flex items-center gap-1 text-[11px] text-zinc-400 dark:text-zinc-500 truncate max-w-[140px]">
                     <MapPin className="w-3.5 h-3.5 shrink-0 text-blue-500" />
                     <span className="truncate">{item.address || 'Campos do Jordão'}</span>
                   </div>
@@ -278,15 +309,15 @@ export const AdminServices: React.FC = () => {
                         setServiceToEdit(item);
                         setIsModalOpen(true);
                       }}
-                      className="p-1.5 rounded-lg text-zinc-600 hover:text-blue-600 hover:bg-blue-50 transition-colors cursor-pointer"
+                      className="p-1.5 rounded-lg text-zinc-600 dark:text-zinc-300 hover:text-blue-600 dark:hover:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/30 transition-colors cursor-pointer"
                       title="Editar"
                     >
                       <Edit className="w-4 h-4" />
                     </button>
                     <button
                       type="button"
-                      onClick={() => setServiceToDelete(item)}
-                      className="p-1.5 rounded-lg text-zinc-600 hover:text-rose-600 hover:bg-rose-50 transition-colors cursor-pointer"
+                      onClick={() => handleDelete(item)}
+                      className="p-1.5 rounded-lg text-zinc-600 dark:text-zinc-300 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/30 transition-colors cursor-pointer"
                       title="Excluir"
                     >
                       <Trash2 className="w-4 h-4" />

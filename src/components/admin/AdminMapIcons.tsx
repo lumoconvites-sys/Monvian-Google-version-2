@@ -11,8 +11,7 @@ import {
   SlidersHorizontal,
   RefreshCw,
   Layers,
-  Compass,
-  AlertTriangle
+  Compass
 } from 'lucide-react';
 import { MAP_VISUAL_ICON_CATEGORIES, MapVisualIconMeta } from '../../utils/mapVisualIcons';
 import { AdminVisualIconModal } from './AdminVisualIconModal';
@@ -39,10 +38,6 @@ export const AdminMapIcons: React.FC = () => {
   // Modal State
   const [isModalOpen, setIsModalOpen] = useState<boolean>(false);
   const [iconToEdit, setIconToEdit] = useState<MapVisualIconItem | null>(null);
-
-  // Delete State
-  const [iconToDelete, setIconToDelete] = useState<MapVisualIconItem | null>(null);
-  const [isDeleting, setIsDeleting] = useState<boolean>(false);
 
   // Toast
   const [toast, setToast] = useState<string | null>(null);
@@ -90,24 +85,24 @@ export const AdminMapIcons: React.FC = () => {
     }
   };
 
-  const confirmDelete = async () => {
-    if (!iconToDelete) return;
-    setIsDeleting(true);
+  const handleDelete = async (item: MapVisualIconItem) => {
     try {
-      const res = await fetch(`/api/admin/map-visual-icons/${iconToDelete.id}`, {
+      // Optimistic UI removal
+      setIcons((prev) => prev.filter((i) => i.id !== item.id));
+      const res = await fetch(`/api/admin/map-visual-icons/${item.id}`, {
         method: 'DELETE'
       });
       const data = await res.json();
       if (data.success) {
-        setIcons((prev) => prev.filter((i) => i.id !== iconToDelete.id));
         showToast('Ícone removido com sucesso.');
-        setIconToDelete(null);
+      } else {
+        fetchIcons();
+        showToast('Erro ao excluir ícone.');
       }
     } catch (err) {
       console.error(err);
+      fetchIcons();
       showToast('Erro ao excluir ícone.');
-    } finally {
-      setIsDeleting(false);
     }
   };
 
@@ -161,7 +156,7 @@ export const AdminMapIcons: React.FC = () => {
       {/* Toast Notification */}
       {toast && (
         <div className="fixed bottom-6 right-6 z-50 bg-zinc-900 text-white text-xs font-black px-4 py-3 rounded-2xl shadow-xl flex items-center gap-2 border border-zinc-700 animate-in slide-in-from-bottom-3">
-          <CheckCircle2 className="w-4 h-4 text-[#00C896]" />
+          <CheckCircle2 className="w-4 h-4 text-blue-500" />
           <span>{toast}</span>
         </div>
       )}
@@ -200,8 +195,8 @@ export const AdminMapIcons: React.FC = () => {
           <div className="text-2xl font-black text-zinc-900 dark:text-white mt-1">{icons.length}</div>
         </div>
         <div className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800/80 rounded-2xl p-4 shadow-sm">
-          <div className="text-[11px] font-bold text-emerald-600 uppercase tracking-wider">Ativos no Mapa</div>
-          <div className="text-2xl font-black text-emerald-600 mt-1">{totalActive}</div>
+          <div className="text-[11px] font-bold text-blue-600 uppercase tracking-wider">Ativos no Mapa</div>
+          <div className="text-2xl font-black text-blue-600 mt-1">{totalActive}</div>
         </div>
         <div className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800/80 rounded-2xl p-4 shadow-sm">
           <div className="text-[11px] font-bold text-zinc-400 uppercase tracking-wider">Desativados</div>
@@ -240,7 +235,7 @@ export const AdminMapIcons: React.FC = () => {
               onClick={() => setStatusFilter('active')}
               className={`px-3 py-1.5 text-xs font-bold rounded-lg transition-colors ${
                 statusFilter === 'active'
-                  ? 'bg-white dark:bg-zinc-900 text-emerald-600 shadow-sm'
+                  ? 'bg-white dark:bg-zinc-900 text-blue-600 shadow-sm'
                   : 'text-zinc-500 hover:text-zinc-900 dark:hover:text-white'
               }`}
             >
@@ -325,7 +320,7 @@ export const AdminMapIcons: React.FC = () => {
                           {meta.label}
                         </span>
                         {item.is_active === 1 ? (
-                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500/10 text-emerald-600 border border-emerald-500/20">
+                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-blue-500/10 text-blue-600 border border-blue-500/20">
                             Ativo
                           </span>
                         ) : (
@@ -354,7 +349,7 @@ export const AdminMapIcons: React.FC = () => {
                       title={item.is_active === 1 ? 'Desativar do mapa' : 'Ativar no mapa'}
                       className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold border transition-colors ${
                         item.is_active === 1
-                          ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-600 hover:bg-emerald-500/20'
+                          ? 'bg-blue-500/10 border-blue-500/30 text-blue-600 hover:bg-blue-500/20'
                           : 'bg-zinc-100 dark:bg-zinc-800 border-zinc-300 dark:border-zinc-700 text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300'
                       }`}
                     >
@@ -388,8 +383,8 @@ export const AdminMapIcons: React.FC = () => {
                     {/* Delete */}
                     <button
                       type="button"
-                      onClick={() => setIconToDelete(item)}
-                      className="p-2 rounded-xl text-zinc-400 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/30 transition-colors"
+                      onClick={() => handleDelete(item)}
+                      className="p-2 rounded-xl text-zinc-400 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/30 transition-colors cursor-pointer"
                       title="Excluir ícone"
                     >
                       <Trash2 className="w-4 h-4" />
@@ -415,41 +410,6 @@ export const AdminMapIcons: React.FC = () => {
           showToast(iconToEdit ? 'Ícone atualizado com sucesso!' : 'Ícone adicionado ao mapa!');
         }}
       />
-
-      {/* Delete Confirmation Dialog */}
-      {iconToDelete && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm animate-in fade-in duration-200">
-          <div className="bg-zinc-950 border border-zinc-800 rounded-3xl p-6 max-w-md w-full shadow-2xl space-y-4 text-zinc-100">
-            <div className="flex items-center gap-3 text-rose-500">
-              <div className="p-2.5 rounded-2xl bg-rose-500/10 border border-rose-500/20">
-                <AlertTriangle className="w-6 h-6" />
-              </div>
-              <h3 className="text-lg font-black text-white">Excluir Ícone do Mapa</h3>
-            </div>
-            <p className="text-xs text-zinc-400 leading-relaxed">
-              Tem certeza que deseja remover este marcador permanente da camada visual do mapa? Esta ação não pode ser desfeita.
-            </p>
-            <div className="flex items-center justify-end gap-2 pt-2">
-              <button
-                type="button"
-                disabled={isDeleting}
-                onClick={() => setIconToDelete(null)}
-                className="px-4 py-2 rounded-xl bg-zinc-800 hover:bg-zinc-700 text-xs font-bold text-zinc-300 transition-colors"
-              >
-                Cancelar
-              </button>
-              <button
-                type="button"
-                disabled={isDeleting}
-                onClick={confirmDelete}
-                className="px-5 py-2 rounded-xl bg-rose-600 hover:bg-rose-500 text-xs font-black text-white transition-colors disabled:opacity-50"
-              >
-                {isDeleting ? 'Excluindo...' : 'Confirmar Exclusão'}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 };

@@ -9,7 +9,7 @@ const LAYER_FINE_POINTS = 'monvian-night-lights-fine';
 // Cached GeoJSON to avoid regenerating features on every map style switch
 let cachedGeoJSON: GeoJSON.FeatureCollection<GeoJSON.Point> | null = null;
 
-function getNightLightsData() {
+export function getNightLightsData() {
   if (!cachedGeoJSON) {
     cachedGeoJSON = generateNightLightsGeoJSON();
   }
@@ -23,11 +23,16 @@ function getNightLightsData() {
 export function setupNightLights(map: maplibregl.Map, theme: 'dark' | 'light' = 'dark') {
   if (!map || !map.getStyle()) return;
 
-  // Remove existing layers if present
-  removeNightLights(map);
-
   // Night lights are only rendered in night/dark mode
-  if (theme !== 'dark') return;
+  if (theme !== 'dark') {
+    removeNightLights(map);
+    return;
+  }
+
+  // If layers are already established in style specification, keep them
+  if (map.getLayer(LAYER_CORE_POINTS)) {
+    return;
+  }
 
   const data = getNightLightsData();
 

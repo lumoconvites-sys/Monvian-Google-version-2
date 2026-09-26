@@ -64,6 +64,10 @@
         "highlighted": { "type": "number", "description": "Is highlighted flag" },
         "is_active": { "type": "number", "description": "Is active on map flag" },
         "is_verified": { "type": "number", "description": "Is verified flag" },
+        "available_for_itinerary": { "type": "number", "description": "Whether spot can be used in itinerary generator (0 or 1)" },
+        "duration_minutes": { "type": "number", "description": "Suggested visit duration in minutes" },
+        "tags": { "type": "string", "description": "Comma separated or JSON tags" },
+        "price": { "type": "string", "description": "Specific price or pricing note" },
         "website": { "type": "string", "description": "Website URL" },
         "phone": { "type": "string", "description": "Phone number" },
         "maps_url": { "type": "string", "description": "Google Maps external URL" },
@@ -135,6 +139,109 @@
         "created_at": { "type": "string", "description": "Creation timestamp" }
       },
       "required": ["spot_id", "rating"]
+    },
+    "ItineraryCategory": {
+      "title": "ItineraryCategory",
+      "description": "Category for filtering and organizing travel routes",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "description": "Category slug" },
+        "name": { "type": "string", "description": "Category friendly title" },
+        "icon": { "type": "string", "description": "Lucide icon identifier" },
+        "description": { "type": "string", "description": "Category description" },
+        "is_active": { "type": "number", "description": "Active flag (0 or 1)" },
+        "sort_order": { "type": "number", "description": "Display sort order" },
+        "created_at": { "type": "string", "description": "Creation timestamp" },
+        "updated_at": { "type": "string", "description": "Update timestamp" }
+      },
+      "required": ["id", "name"]
+    },
+    "Itinerary": {
+      "title": "Itinerary",
+      "description": "Curated or admin-managed travel route for Campos do Jordão",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "description": "Itinerary ID" },
+        "title": { "type": "string", "description": "Itinerary name" },
+        "description": { "type": "string", "description": "Itinerary summary description" },
+        "cover_image": { "type": "string", "description": "Cover photo URL" },
+        "days_count": { "type": "number", "description": "Duration in days" },
+        "categories": { "type": "string", "description": "JSON array of category slugs" },
+        "is_active": { "type": "number", "description": "Active in app flag (0 or 1)" },
+        "is_recommended": { "type": "number", "description": "Recommended highlight flag" },
+        "usage_count": { "type": "number", "description": "Number of users who created or saved this route" },
+        "notes": { "type": "string", "description": "General travel advice or instructions" },
+        "created_at": { "type": "string", "description": "Creation timestamp" },
+        "updated_at": { "type": "string", "description": "Update timestamp" }
+      },
+      "required": ["id", "title"]
+    },
+    "ItineraryDay": {
+      "title": "ItineraryDay",
+      "description": "A single day segment within an itinerary",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "description": "Day record ID" },
+        "itinerary_id": { "type": "string", "description": "Parent itinerary ID" },
+        "day_number": { "type": "number", "description": "Day index (1, 2, 3...)" },
+        "title": { "type": "string", "description": "Day heading title" },
+        "summary": { "type": "string", "description": "Day summary note" },
+        "created_at": { "type": "string", "description": "Creation timestamp" }
+      },
+      "required": ["id", "itinerary_id", "day_number"]
+    },
+    "ItineraryStep": {
+      "title": "ItineraryStep",
+      "description": "A spot stop on a specific day in an itinerary",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "description": "Step record ID" },
+        "itinerary_id": { "type": "string", "description": "Parent itinerary ID" },
+        "day_id": { "type": "string", "description": "Parent day record ID" },
+        "spot_id": { "type": "string", "description": "Referenced tourist spot ID" },
+        "step_order": { "type": "number", "description": "Sequence order index (1, 2, 3...)" },
+        "suggested_time": { "type": "string", "description": "Suggested arrival time (e.g. 09:30)" },
+        "duration_minutes": { "type": "number", "description": "Suggested duration at spot" },
+        "notes": { "type": "string", "description": "Specific tip for this stop" },
+        "created_at": { "type": "string", "description": "Creation timestamp" }
+      },
+      "required": ["id", "itinerary_id", "day_id", "spot_id", "step_order"]
+    },
+    "UserItinerary": {
+      "title": "UserItinerary",
+      "description": "User created or customized itinerary",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "description": "User itinerary ID" },
+        "user_id": { "type": "number", "description": "User ID if authenticated" },
+        "session_id": { "type": "string", "description": "Session ID if guest" },
+        "title": { "type": "string", "description": "Itinerary title" },
+        "description": { "type": "string", "description": "Description" },
+        "cover_image": { "type": "string", "description": "Cover image URL" },
+        "days_count": { "type": "number", "description": "Days duration" },
+        "trip_date": { "type": "string", "description": "Planned trip date" },
+        "pace": { "type": "string", "description": "Travel pace (Relaxado, Equilibrado, Intenso)" },
+        "has_car": { "type": "number", "description": "Travelling by car flag (0 or 1)" },
+        "less_walking": { "type": "number", "description": "Less walking preference" },
+        "prioritize_food": { "type": "number", "description": "Prioritize gastronomic stops" },
+        "prioritize_attractions": { "type": "number", "description": "Prioritize tourist attractions" },
+        "preferences_json": { "type": "string", "description": "JSON object of preferences" },
+        "itinerary_data_json": { "type": "string", "description": "Full structured JSON days and steps" },
+        "created_at": { "type": "string", "description": "Creation timestamp" },
+        "updated_at": { "type": "string", "description": "Update timestamp" }
+      },
+      "required": ["id", "title", "itinerary_data_json"]
+    },
+    "PlannerSetting": {
+      "title": "PlannerSetting",
+      "description": "Configuration settings for route generator and planner",
+      "type": "object",
+      "properties": {
+        "key": { "type": "string", "description": "Setting key" },
+        "value": { "type": "string", "description": "Setting value" },
+        "updated_at": { "type": "string", "description": "Update timestamp" }
+      },
+      "required": ["key", "value"]
     }
   },
   "firestore": {
@@ -165,6 +272,22 @@
     "/reviews/{id}": {
       "schema": "Review",
       "description": "Persistent spot reviews"
+    },
+    "/itinerary_categories/{id}": {
+      "schema": "ItineraryCategory",
+      "description": "Persistent route categories"
+    },
+    "/itineraries/{id}": {
+      "schema": "Itinerary",
+      "description": "Persistent curated routes"
+    },
+    "/user_itineraries/{id}": {
+      "schema": "UserItinerary",
+      "description": "Persistent user custom itineraries"
+    },
+    "/planner_settings/{key}": {
+      "schema": "PlannerSetting",
+      "description": "Persistent planner settings"
     }
   }
 }

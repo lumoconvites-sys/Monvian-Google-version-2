@@ -4,7 +4,7 @@ import { motion, AnimatePresence } from 'motion/react';
 import { googleSignIn, setCachedAccessToken } from '../lib/firebase';
 
 interface AuthScreenProps {
-  onSuccess: (token: string, user: any) => void;
+  onSuccess: (token: string, user: any, isNewAccount?: boolean) => void;
 }
 
 export function AuthScreen({ onSuccess }: AuthScreenProps) {
@@ -14,6 +14,7 @@ export function AuthScreen({ onSuccess }: AuthScreenProps) {
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [gender, setGender] = useState<'masculino' | 'feminino' | 'outro'>('masculino');
   const [showPassword, setShowPassword] = useState(false);
   
   // Loading & error
@@ -84,6 +85,7 @@ export function AuthScreen({ onSuccess }: AuthScreenProps) {
           name: name.trim(),
           email: email.trim(),
           password,
+          gender,
         }),
       });
       const data = await res.json();
@@ -91,7 +93,7 @@ export function AuthScreen({ onSuccess }: AuthScreenProps) {
       if (res.ok && data.success) {
         localStorage.setItem('monvian_token', data.token);
         localStorage.setItem('monvian_user', JSON.stringify(data.user));
-        onSuccess(data.token, data.user);
+        onSuccess(data.token, data.user, true);
       } else {
         setError(data.error || 'Erro ao registrar conta.');
       }
@@ -129,7 +131,7 @@ export function AuthScreen({ onSuccess }: AuthScreenProps) {
       if (res.ok && data.success) {
         localStorage.setItem('monvian_token', data.token);
         localStorage.setItem('monvian_user', JSON.stringify(data.user));
-        onSuccess(data.token, data.user);
+        onSuccess(data.token, data.user, Boolean(data.is_new || data.user?.visits_count === 1));
       } else {
         setError(data.error || 'Erro ao vincular conta do Google.');
       }
@@ -151,10 +153,10 @@ export function AuthScreen({ onSuccess }: AuthScreenProps) {
       animate={{ opacity: 1 }}
       exit={{ opacity: 0 }}
       transition={{ duration: 0.25 }}
-      className="fixed inset-0 z-[100] bg-[#0a0a0c] flex flex-col items-center justify-center text-white select-none overflow-y-auto"
+      className="fixed inset-0 z-[100] bg-[#000000] flex flex-col items-center justify-center text-white select-none overflow-y-auto"
       style={{
         fontFamily: "'Manrope', -apple-system, BlinkMacSystemFont, sans-serif",
-        backgroundColor: '#0a0a0c',
+        backgroundColor: '#000000',
         paddingTop: 'max(24px, env(safe-area-inset-top, 0px))',
         paddingBottom: 'max(24px, env(safe-area-inset-bottom, 0px))',
         paddingLeft: 'max(24px, env(safe-area-inset-left, 0px))',
@@ -179,19 +181,7 @@ export function AuthScreen({ onSuccess }: AuthScreenProps) {
             src="/logo-white.png" 
             alt="Monvian" 
             className="h-full w-auto max-w-[240px] object-contain"
-            onError={(e) => {
-              e.currentTarget.style.display = 'none';
-              const textLogo = document.getElementById('text-logo-fallback');
-              if (textLogo) textLogo.style.display = 'block';
-            }}
           />
-          <h1 
-            id="text-logo-fallback"
-            className="text-[46px] font-black tracking-tight hidden text-white"
-            style={{ fontFamily: 'Georgia, serif', fontStyle: 'italic' }}
-          >
-            Monvian
-          </h1>
         </motion.div>
         
         <p className="text-[13px] text-zinc-400 font-bold mb-6 tracking-wide text-center">
@@ -355,6 +345,32 @@ export function AuthScreen({ onSuccess }: AuthScreenProps) {
               </button>
             </div>
 
+            {/* Gender Selector */}
+            <div className="space-y-1.5 pt-1">
+              <label className="text-[12px] text-zinc-400 font-semibold px-1">Sexo / Gênero</label>
+              <div className="grid grid-cols-3 gap-2">
+                {(['masculino', 'feminino', 'outro'] as const).map((g) => {
+                  const isSelected = gender === g;
+                  const label = g === 'masculino' ? 'Masculino' : g === 'feminino' ? 'Feminino' : 'Outro';
+                  return (
+                    <button
+                      key={g}
+                      type="button"
+                      onClick={() => setGender(g)}
+                      className={`py-2.5 px-2 rounded-[18px] text-[13px] font-semibold transition-all cursor-pointer flex items-center justify-center gap-1.5 border ${
+                        isSelected
+                          ? 'bg-white text-black border-white shadow-sm scale-[1.02]'
+                          : 'bg-[#141518] text-zinc-400 border-white/10 hover:border-white/20 hover:text-white'
+                      }`}
+                    >
+                      <span className={`w-2 h-2 rounded-full ${isSelected ? (g === 'masculino' ? 'bg-blue-500' : 'bg-pink-500') : 'bg-zinc-600'}`} />
+                      <span>{label}</span>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
             {error && (
               <motion.p 
                 initial={{ opacity: 0, y: -4 }}
@@ -371,7 +387,7 @@ export function AuthScreen({ onSuccess }: AuthScreenProps) {
                 whileTap={{ scale: 0.98 }}
                 type="submit"
                 disabled={loading || googleLoading}
-                className="w-full py-[16px] rounded-[22px] bg-[#00C896] text-white text-[15px] font-bold flex items-center justify-center gap-2 hover:bg-[#00b084] transition-all disabled:opacity-70 shadow-md cursor-pointer"
+                className="w-full py-[16px] rounded-[22px] bg-[#0000FF] text-white text-[15px] font-bold flex items-center justify-center gap-2 hover:bg-[#0000DD] transition-all disabled:opacity-70 shadow-md cursor-pointer"
               >
                 {loading ? 'Cadastrando...' : 'Criar Conta →'}
               </motion.button>
