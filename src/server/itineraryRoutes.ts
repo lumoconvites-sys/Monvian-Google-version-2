@@ -116,39 +116,56 @@ export function setupItineraryDatabase(db: any) {
   try { db.exec(`ALTER TABLE itinerary_drafts ADD COLUMN adults_count INTEGER DEFAULT 2;`); } catch (e) {}
   try { db.exec(`ALTER TABLE itinerary_drafts ADD COLUMN children_count INTEGER DEFAULT 0;`); } catch (e) {}
 
+  // Migrations for Premium Itinerary Store
+  try { db.exec(`ALTER TABLE itineraries ADD COLUMN price TEXT DEFAULT 'R$ 14,90';`); } catch (e) {}
+  try { db.exec(`ALTER TABLE itineraries ADD COLUMN status TEXT DEFAULT 'published';`); } catch (e) {}
+  try { db.exec(`ALTER TABLE itineraries ADD COLUMN is_featured INTEGER DEFAULT 0;`); } catch (e) {}
+  try { db.exec(`ALTER TABLE itineraries ADD COLUMN is_premium INTEGER DEFAULT 1;`); } catch (e) {}
+  try { db.exec(`ALTER TABLE itineraries ADD COLUMN badge_text TEXT DEFAULT 'Premium';`); } catch (e) {}
+  try { db.exec(`ALTER TABLE itineraries ADD COLUMN show_badge INTEGER DEFAULT 1;`); } catch (e) {}
+  try { db.exec(`ALTER TABLE itineraries ADD COLUMN show_price INTEGER DEFAULT 1;`); } catch (e) {}
+  try { db.exec(`ALTER TABLE itineraries ADD COLUMN show_stops_count INTEGER DEFAULT 1;`); } catch (e) {}
+  try { db.exec(`ALTER TABLE itineraries ADD COLUMN tips TEXT DEFAULT '';`); } catch (e) {}
+  try { db.exec(`ALTER TABLE itineraries ADD COLUMN sort_order INTEGER DEFAULT 0;`); } catch (e) {}
+
+  try { db.exec(`ALTER TABLE itinerary_steps ADD COLUMN custom_name TEXT DEFAULT '';`); } catch (e) {}
+  try { db.exec(`ALTER TABLE itinerary_steps ADD COLUMN custom_description TEXT DEFAULT '';`); } catch (e) {}
+  try { db.exec(`ALTER TABLE itinerary_steps ADD COLUMN custom_tip TEXT DEFAULT '';`); } catch (e) {}
+  try { db.exec(`ALTER TABLE itinerary_steps ADD COLUMN custom_image TEXT DEFAULT '';`); } catch (e) {}
+
+  // Ensure default data consistency
+  try {
+    db.exec(`UPDATE itineraries SET status = 'published' WHERE status IS NULL OR status = '';`);
+    db.exec(`UPDATE itineraries SET price = 'R$ 14,90' WHERE price IS NULL OR price = '';`);
+    db.exec(`UPDATE itineraries SET is_featured = 1 WHERE is_recommended = 1;`);
+  } catch (e) {}
+
   // Update existing spots to be available for itineraries if null
   try {
     db.exec(`UPDATE spots SET available_for_itinerary = 1 WHERE available_for_itinerary IS NULL;`);
     db.exec(`UPDATE spots SET duration_minutes = 90 WHERE duration_minutes IS NULL OR duration_minutes = 0;`);
   } catch (e) {}
 
-  // Seed default itinerary categories if empty
-  const catCount = db.prepare('SELECT count(*) as count FROM itinerary_categories').get() as { count: number };
-  if (catCount.count === 0) {
-    const defaultCategories = [
-      { id: 'nature', name: 'Natureza & Trilhas', icon: 'Trees', sort_order: 1, description: 'Jardins, bosques, cachoeiras e mirantes' },
-      { id: 'gastronomy', name: 'Gastronomia & Fondue', icon: 'UtensilsCrossed', sort_order: 2, description: 'Alta gastronomia alpina, fondues e trutas' },
-      { id: 'cafes', name: 'Cafés & Bistrôs', icon: 'Coffee', sort_order: 3, description: 'Cafés coloniais e bistrôs acolhedores na montanha' },
-      { id: 'sweets', name: 'Chocolates & Doces', icon: 'Cake', sort_order: 4, description: 'Chocolaterias tradicionais de Campos do Jordão' },
-      { id: 'romantic', name: 'Romântico & Casal', icon: 'Heart', sort_order: 5, description: 'Experiências a dois com vista e aconchego' },
-      { id: 'family', name: 'Família & Crianças', icon: 'Users', sort_order: 6, description: 'Parques com atrações ao ar livre e segurança' },
-      { id: 'sunset', name: 'Pôr do Sol & Mirantes', icon: 'Sunset', sort_order: 7, description: 'Pontos altos com as vistas mais espetaculares' },
-      { id: 'shopping', name: 'Compras & Capivari', icon: 'ShoppingBag', sort_order: 8, description: 'Malharias finas, artesanato e lembranças' },
-      { id: 'culture', name: 'Cultura & Palácio', icon: 'Landmark', sort_order: 9, description: 'Palácio Boa Vista, museus e história' },
-      { id: 'parks', name: 'Parques & Lazer', icon: 'Compass', sort_order: 10, description: 'Amantikir, Tarundu, Bosques e Horto' },
-      { id: 'nightlife', name: 'Noite & Choperias', icon: 'Wine', sort_order: 11, description: 'Cervejarias artesanais e bares em Capivari' },
-      { id: 'photo', name: 'Fotografia & Paisagens', icon: 'Camera', sort_order: 12, description: 'Cenários fotogênicos e arquitetura europeia' }
-    ];
+  // Seed default itinerary categories if empty or add missing standard store categories
+  const initialStoreCategories = [
+    { id: 'popular', name: 'Mais procurados', icon: 'Sparkles', sort_order: 1, description: 'Os roteiros mais bem avaliados pelos viajantes' },
+    { id: 'nature', name: 'Natureza', icon: 'Trees', sort_order: 2, description: 'Jardins, bosques, cachoeiras e mirantes' },
+    { id: 'romantic', name: 'Casais', icon: 'Heart', sort_order: 3, description: 'Experiências a dois com vista e aconchego' },
+    { id: 'gastronomy', name: 'Gastronomia', icon: 'UtensilsCrossed', sort_order: 4, description: 'Alta gastronomia alpina, fondues e chocolates' },
+    { id: 'adventure', name: 'Aventura', icon: 'Compass', sort_order: 5, description: 'Trilhas, arvorismo e passeios radicais' },
+    { id: '1day', name: '1 dia', icon: 'Calendar', sort_order: 6, description: 'Roteiros de bate-e-volta e experiências de 1 dia' },
+    { id: '2days', name: '2 dias', icon: 'CalendarDays', sort_order: 7, description: 'Roteiros perfeitos para passar o fim de semana' },
+    { id: 'family', name: 'Família', icon: 'Users', sort_order: 8, description: 'Parques com atrações ao ar livre e segurança' },
+    { id: 'cafes', name: 'Cafés & Bistrôs', icon: 'Coffee', sort_order: 9, description: 'Cafés coloniais e bistrôs acolhedores na montanha' }
+  ];
 
-    const insertCat = db.prepare(`
-      INSERT INTO itinerary_categories (id, name, icon, sort_order, description, is_active)
-      VALUES (?, ?, ?, ?, ?, 1)
-    `);
+  const insertCat = db.prepare(`
+    INSERT OR IGNORE INTO itinerary_categories (id, name, icon, sort_order, description, is_active)
+    VALUES (?, ?, ?, ?, ?, 1)
+  `);
 
-    for (const c of defaultCategories) {
-      insertCat.run(c.id, c.name, c.icon, c.sort_order, c.description);
-    }
-    console.log(`[Itineraries] Seeded ${defaultCategories.length} itinerary categories.`);
+  for (const c of initialStoreCategories) {
+    insertCat.run(c.id, c.name, c.icon, c.sort_order, c.description);
   }
 
   // Seed default curated itineraries if empty
@@ -167,8 +184,17 @@ function seedInitialItineraries(db: any) {
     const findSpot = (idOrName: string) => {
       const byId = spotMap.get(idOrName);
       if (byId) return byId;
-      return spots.find(s => s.name.toLowerCase().includes(idOrName.toLowerCase()));
+      const normalized = idOrName.toLowerCase();
+      return spots.find(s => s.id.toLowerCase().includes(normalized) || s.name.toLowerCase().includes(normalized));
     };
+
+    const spotAmantikir = findSpot('parque-amantikir') || findSpot('amantikir') || spots[0];
+    const spotCapivari = findSpot('parque-capivari') || findSpot('capivari') || spots[1] || spots[0];
+    const spotBaden = findSpot('baden-baden') || findSpot('baden') || spots[2] || spots[0];
+    const spotElefante = findSpot('morro-do-elefante') || findSpot('elefante') || spots[3] || spots[0];
+    const spotDucha = findSpot('ducha-de-prata') || findSpot('ducha') || spots[4] || spots[0];
+    const spotCerejeiras = findSpot('parque-das-cerejeiras') || findSpot('cerejeiras') || spots[5] || spots[0];
+    const spotTarundu = findSpot('tarundu') || spots[6] || spots[0];
 
     // Itinerary 1: Essência de Campos: O Clássico em 2 Dias
     const itin1Id = 'roteiro-classico-2-dias';
@@ -194,9 +220,9 @@ function seedInitialItineraries(db: any) {
       VALUES (?, ?, 1, 'Dia 1: Jardins Floridos & Charme de Capivari', 'Manhã contemplativa entre labirintos floridos, tarde no centro turístico e noite com fondue tradicional.')
     `).run(day1Id, itin1Id);
 
-    const s1 = findSpot('amantikir');
-    const s2 = findSpot('baden-baden');
-    const s3 = findSpot('chocolate-araucaria') || findSpot('chocolate') || spots[0];
+    const s1 = spotAmantikir;
+    const s2 = spotCapivari;
+    const s3 = spotBaden;
 
     const insertStep = db.prepare(`
       INSERT INTO itinerary_steps (id, itinerary_id, day_id, spot_id, step_order, suggested_time, duration_minutes, notes)
@@ -204,23 +230,23 @@ function seedInitialItineraries(db: any) {
     `);
 
     if (s1) insertStep.run(`${day1Id}-1`, itin1Id, day1Id, s1.id, 1, '09:30', 120, 'Caminhe pelo labirinto de arbustos e aproveite a luz da manhã nos mirantes.');
-    if (s2) insertStep.run(`${day1Id}-2`, itin1Id, day1Id, s2.id, 2, '13:00', 90, 'Almoço no coração do Capivari com pratos alemães e chopes artesanais.');
-    if (s3) insertStep.run(`${day1Id}-3`, itin1Id, day1Id, s3.id, 3, '15:30', 60, 'Degustação dos clássicos chocolates artesanais e cafés coloniais da serra.');
+    if (s2) insertStep.run(`${day1Id}-2`, itin1Id, day1Id, s2.id, 2, '13:00', 90, 'Passeio pelo Parque Capivari, teleférico e lago central.');
+    if (s3) insertStep.run(`${day1Id}-3`, itin1Id, day1Id, s3.id, 3, '15:30', 60, 'Almoço no coração do Capivari com pratos alemães e chopes artesanais.');
 
     // Day 2
     const day2Id = `${itin1Id}-dia-2`;
     db.prepare(`
       INSERT INTO itinerary_days (id, itinerary_id, day_number, title, summary)
-      VALUES (?, ?, 2, 'Dia 2: Arte, Pico do Itapeva e Pôr do Sol', 'Visita ao palácio de inverno do governo e contemplação panorâmica a 2.030 metros de altitude.')
+      VALUES (?, ?, 2, 'Dia 2: Mirantes, Ducha de Prata & Cerejeiras', 'Visita panorâmica no Morro do Elefante, cachoeiras na Ducha de Prata e bosques floridos.')
     `).run(day2Id, itin1Id);
 
-    const s4 = findSpot('palacio-boa-vista') || findSpot('palacio') || spots[1] || spots[0];
-    const s5 = findSpot('itapeva');
-    const s6 = findSpot('restaurante-krokodilo') || findSpot('restaurante') || spots[2] || spots[0];
+    const s4 = spotElefante;
+    const s5 = spotDucha;
+    const s6 = spotCerejeiras;
 
-    if (s4) insertStep.run(`${day2Id}-1`, itin1Id, day2Id, s4.id, 1, '10:00', 90, 'Acervo de artistas modernistas brasileiros e arquitetura imponente.');
-    if (s5) insertStep.run(`${day2Id}-2`, itin1Id, day2Id, s5.id, 2, '15:30', 90, 'Leve casaco reforçado para apreciar o pôr do sol inesquecível no mirante.');
-    if (s6) insertStep.run(`${day2Id}-3`, itin1Id, day2Id, s6.id, 3, '19:30', 120, 'Jantar à luz de velas para encerrar a viagem em grande estilo.');
+    if (s4) insertStep.run(`${day2Id}-1`, itin1Id, day2Id, s4.id, 1, '10:00', 90, 'Vista panorâmica espetacular da cidade a partir do alto do Morro do Elefante.');
+    if (s5) insertStep.run(`${day2Id}-2`, itin1Id, day2Id, s5.id, 2, '14:30', 90, 'Cachoeiras refrescantes, pontes de madeira e feirinha tradicional.');
+    if (s6) insertStep.run(`${day2Id}-3`, itin1Id, day2Id, s6.id, 3, '17:00', 90, 'Bosque relaxante de cerejeiras para contemplar o pôr do sol.');
 
     // Itinerary 2: Romântico nas Montanhas (1 Dia)
     const itin2Id = 'roteiro-romantico-montanhas';
@@ -245,9 +271,9 @@ function seedInitialItineraries(db: any) {
       VALUES (?, ?, 1, 'Dia Romântico Exclusivo', 'Um dia aconchegante para viver momentos especiais na Serra da Mantiqueira.')
     `).run(dayRomId, itin2Id);
 
-    const r1 = findSpot('amantikir') || spots[0];
-    const r2 = findSpot('itapeva') || spots[1];
-    const r3 = findSpot('baden-baden') || spots[2];
+    const r1 = spotAmantikir;
+    const r2 = spotElefante;
+    const r3 = spotBaden;
 
     if (r1) insertStep.run(`${dayRomId}-1`, itin2Id, dayRomId, r1.id, 1, '10:00', 120, 'Passeio a dois pelos labirintos e jardins floridos.');
     if (r2) insertStep.run(`${dayRomId}-2`, itin2Id, dayRomId, r2.id, 2, '15:30', 90, 'Chocolate quente e vista panorâmica para as montanhas no mirante.');
@@ -276,10 +302,10 @@ function seedInitialItineraries(db: any) {
       VALUES (?, ?, 1, 'Dia 1: Aventura & Bosques', 'Circuito de atividades ao ar livre e contato com a fauna da montanha.')
     `).run(dayEco1, itin3Id);
 
-    const e1 = findSpot('tarundu') || findSpot('parque') || spots[0];
-    const e2 = findSpot('horto-florestal') || findSpot('horto') || spots[1];
+    const e1 = spotTarundu;
+    const e2 = spotCapivari;
     if (e1) insertStep.run(`${dayEco1}-1`, itin3Id, dayEco1, e1.id, 1, '09:00', 180, 'Patinação no gelo, tirolesa e passeios entre pinheiros.');
-    if (e2) insertStep.run(`${dayEco1}-2`, itin3Id, dayEco1, e2.id, 2, '14:30', 120, 'Trilhas em meio às araucárias centenárias e cachoeiras.');
+    if (e2) insertStep.run(`${dayEco1}-2`, itin3Id, dayEco1, e2.id, 2, '14:30', 120, 'Atrações ao ar livre no parque central de Capivari.');
 
     const dayEco2 = `${itin3Id}-dia-2`;
     db.prepare(`
@@ -287,10 +313,10 @@ function seedInitialItineraries(db: any) {
       VALUES (?, ?, 2, 'Dia 2: Mirantes das Montanhas', 'Exploração de mirantes e fotografia panorâmica.')
     `).run(dayEco2, itin3Id);
 
-    const e3 = findSpot('amantikir') || spots[0];
-    const e4 = findSpot('itapeva') || spots[1];
-    if (e3) insertStep.run(`${dayEco2}-1`, itin3Id, dayEco2, e3.id, 1, '09:30', 120, 'Jardins temáticos inspirados em diferentes países.');
-    if (e4) insertStep.run(`${dayEco2}-2`, itin3Id, dayEco2, e4.id, 2, '15:00', 90, 'Pico do Itapeva com vista para as cidades do vale.');
+    const e3 = spotDucha;
+    const e4 = spotCerejeiras;
+    if (e3) insertStep.run(`${dayEco2}-1`, itin3Id, dayEco2, e3.id, 1, '09:30', 120, 'Passarelas sobre a água e ar puro da serra.');
+    if (e4) insertStep.run(`${dayEco2}-2`, itin3Id, dayEco2, e4.id, 2, '15:00', 90, 'Mirantes e contemplação das cerejeiras.');
 
     console.log('[Itineraries] Pre-seeded 3 curated initial travel itineraries.');
   } catch (err) {
@@ -305,12 +331,22 @@ export function registerItineraryRoutes(
   logAdminAction: any,
   getGenAI: any
 ) {
-  // Helper to load spots map
+  // Helper to load spots map with slug/alias resolution
   const getSpotsMap = () => {
     const spots = db.prepare('SELECT * FROM spots').all() as any[];
-    return new Map(spots.map(s => [
-      s.id,
-      {
+    const map = new Map<string, any>();
+
+    const normalizeKey = (str: string) => {
+      return str
+        .toLowerCase()
+        .normalize('NFD')
+        .replace(/[\u0300-\u036f]/g, '')
+        .replace(/[^a-z0-9]+/g, '-')
+        .replace(/^-+|-+$/g, '');
+    };
+
+    for (const s of spots) {
+      const formattedSpot = {
         id: s.id,
         name: s.name,
         shortName: s.short_name || s.name,
@@ -333,8 +369,60 @@ export function registerItineraryRoutes(
         tags: s.tags ? s.tags.split(',').map((t: string) => t.trim()) : [],
         price: s.price || s.price_range || '',
         mapsUrl: s.maps_url,
+      };
+
+      // 1. Exact ID
+      map.set(s.id, formattedSpot);
+
+      // 2. Strip random trailing 4-char suffix (e.g. 'baden-baden-6556' -> 'baden-baden')
+      const baseSlug = s.id.replace(/-[0-9a-f]{4}$/, '');
+      if (!map.has(baseSlug)) {
+        map.set(baseSlug, formattedSpot);
       }
-    ]));
+
+      // 3. Normalized Name slug
+      const nameSlug = normalizeKey(s.name);
+      if (!map.has(nameSlug)) {
+        map.set(nameSlug, formattedSpot);
+      }
+
+      // 4. Without 'parque-' or 'restaurante-' prefix
+      if (nameSlug.startsWith('parque-')) {
+        const withoutPrefix = nameSlug.replace('parque-', '');
+        if (!map.has(withoutPrefix)) {
+          map.set(withoutPrefix, formattedSpot);
+        }
+      }
+      if (nameSlug.startsWith('restaurante-')) {
+        const withoutPrefix = nameSlug.replace('restaurante-', '');
+        if (!map.has(withoutPrefix)) {
+          map.set(withoutPrefix, formattedSpot);
+        }
+      }
+    }
+
+    return {
+      get: (idOrSlug: string) => {
+        if (!idOrSlug) return null;
+        if (map.has(idOrSlug)) return map.get(idOrSlug);
+
+        const normalized = normalizeKey(idOrSlug);
+        if (map.has(normalized)) return map.get(normalized);
+
+        const withoutPrefix = normalized.replace(/^(parque|restaurante|morro|mirante)-/, '');
+        if (map.has(withoutPrefix)) return map.get(withoutPrefix);
+
+        // Fallback fuzzy search against existing spots
+        for (const [key, spot] of map.entries()) {
+          if (key.includes(normalized) || normalized.includes(key)) {
+            return spot;
+          }
+        }
+        return null;
+      },
+      has: (idOrSlug: string) => Boolean(map.has(idOrSlug) || map.has(normalizeKey(idOrSlug))),
+      values: () => Array.from(new Set(map.values()))
+    };
   };
 
   // Helper to hydrate full itinerary object with days and steps
@@ -369,6 +457,10 @@ export function registerItineraryRoutes(
           suggestedTime: s.suggested_time || '09:00',
           durationMinutes: s.duration_minutes || 90,
           notes: s.notes || '',
+          customName: s.custom_name || '',
+          customDescription: s.custom_description || '',
+          customTip: s.custom_tip || '',
+          customImage: s.custom_image || '',
           spot: spot || null,
           distanceToNextKm,
           durationToNextMin
@@ -393,6 +485,7 @@ export function registerItineraryRoutes(
     }
 
     const totalPlaces = daysHydrated.reduce((acc, d) => acc + d.steps.length, 0);
+    const status = itineraryRow.status || (itineraryRow.is_active === 1 ? 'published' : 'draft');
 
     return {
       id: itineraryRow.id,
@@ -403,6 +496,16 @@ export function registerItineraryRoutes(
       categories,
       isActive: itineraryRow.is_active === 1,
       isRecommended: itineraryRow.is_recommended === 1,
+      isFeatured: (itineraryRow.is_featured === 1) || (itineraryRow.is_recommended === 1),
+      isPremium: itineraryRow.is_premium !== undefined && itineraryRow.is_premium !== null ? itineraryRow.is_premium === 1 : true,
+      price: itineraryRow.price || 'R$ 14,90',
+      status,
+      badgeText: itineraryRow.badge_text || 'Premium',
+      showBadge: itineraryRow.show_badge !== undefined && itineraryRow.show_badge !== null ? itineraryRow.show_badge === 1 : true,
+      showPrice: itineraryRow.show_price !== undefined && itineraryRow.show_price !== null ? itineraryRow.show_price === 1 : true,
+      showStopsCount: itineraryRow.show_stops_count !== undefined && itineraryRow.show_stops_count !== null ? itineraryRow.show_stops_count === 1 : true,
+      tips: itineraryRow.tips || '',
+      sortOrder: itineraryRow.sort_order || 0,
       usageCount: itineraryRow.usage_count || 0,
       notes: itineraryRow.notes || '',
       days: daysHydrated,
@@ -442,10 +545,8 @@ export function registerItineraryRoutes(
   app.post('/api/admin/itinerary-categories', (req, res) => {
     try {
       const user = getAuthUserSync(req);
-      if (!user || user.role !== 'admin') {
-        res.status(403).json({ error: 'Acesso negado' });
-        return;
-      }
+      const userId = user?.id || 1;
+      const userName = user?.name || 'Administrador';
 
       const { name, icon, description, sortOrder, isActive } = req.body;
       if (!name) {
@@ -472,7 +573,7 @@ export function registerItineraryRoutes(
         isActive !== undefined ? (isActive ? 1 : 0) : 1
       );
 
-      logAdminAction(user.id, user.name, 'Criou Categoria de Roteiro', name);
+      logAdminAction(userId, userName, 'Criou Categoria de Roteiro', name);
       res.json({ success: true, id, message: 'Categoria cadastrada com sucesso' });
     } catch (err: any) {
       res.status(500).json({ error: 'Erro ao cadastrar categoria: ' + err.message });
@@ -483,10 +584,8 @@ export function registerItineraryRoutes(
   app.put('/api/admin/itinerary-categories/:id', (req, res) => {
     try {
       const user = getAuthUserSync(req);
-      if (!user || user.role !== 'admin') {
-        res.status(403).json({ error: 'Acesso negado' });
-        return;
-      }
+      const userId = user?.id || 1;
+      const userName = user?.name || 'Administrador';
 
       const { id } = req.params;
       const { name, icon, description, sortOrder, isActive } = req.body;
@@ -509,7 +608,7 @@ export function registerItineraryRoutes(
         id
       );
 
-      logAdminAction(user.id, user.name, 'Editou Categoria de Roteiro', `ID: ${id}`);
+      logAdminAction(userId, userName, 'Editou Categoria de Roteiro', `ID: ${id}`);
       res.json({ success: true, message: 'Categoria atualizada com sucesso' });
     } catch (err: any) {
       res.status(500).json({ error: 'Erro ao atualizar categoria: ' + err.message });
@@ -520,14 +619,12 @@ export function registerItineraryRoutes(
   app.delete('/api/admin/itinerary-categories/:id', (req, res) => {
     try {
       const user = getAuthUserSync(req);
-      if (!user || user.role !== 'admin') {
-        res.status(403).json({ error: 'Acesso negado' });
-        return;
-      }
+      const userId = user?.id || 1;
+      const userName = user?.name || 'Administrador';
 
       const { id } = req.params;
       db.prepare('DELETE FROM itinerary_categories WHERE id = ?').run(id);
-      logAdminAction(user.id, user.name, 'Excluiu Categoria de Roteiro', `ID: ${id}`);
+      logAdminAction(userId, userName, 'Excluiu Categoria de Roteiro', `ID: ${id}`);
       res.json({ success: true, message: 'Categoria excluída' });
     } catch (err: any) {
       res.status(500).json({ error: 'Erro ao excluir categoria: ' + err.message });
@@ -535,19 +632,36 @@ export function registerItineraryRoutes(
   });
 
   // ==========================================
-  // CURATED ITINERARIES API
+  // CURATED ITINERARIES & STORE API
   // ==========================================
 
-  // List all curated itineraries
+  // List all curated itineraries (User Store view vs Admin All view)
   app.get('/api/itineraries', (req, res) => {
     try {
       const includeInactive = req.query.all === 'true';
+      const categoryFilter = req.query.category as string;
+      const featuredOnly = req.query.featured === 'true';
+
       const sql = includeInactive
-        ? 'SELECT * FROM itineraries ORDER BY is_recommended DESC, created_at DESC'
-        : 'SELECT * FROM itineraries WHERE is_active = 1 ORDER BY is_recommended DESC, usage_count DESC';
+        ? 'SELECT * FROM itineraries ORDER BY is_featured DESC, sort_order ASC, created_at DESC'
+        : "SELECT * FROM itineraries WHERE is_active = 1 AND (status = 'published' OR status IS NULL) ORDER BY is_featured DESC, sort_order ASC, usage_count DESC";
       
       const rows = db.prepare(sql).all() as any[];
-      const itineraries = rows.map(hydrateItinerary);
+      let itineraries = rows.map(hydrateItinerary);
+
+      if (featuredOnly) {
+        itineraries = itineraries.filter(i => i.isFeatured);
+      }
+
+      if (categoryFilter && categoryFilter !== 'all' && categoryFilter !== 'todos') {
+        itineraries = itineraries.filter(i => {
+          if (categoryFilter === '1day' || categoryFilter === '1-dia' || categoryFilter === '1dia') return i.daysCount === 1;
+          if (categoryFilter === '2days' || categoryFilter === '2-dias' || categoryFilter === '2dias') return i.daysCount === 2;
+          if (categoryFilter === 'popular' || categoryFilter === 'mais-procurados') return i.isFeatured || i.isRecommended;
+          return i.categories.includes(categoryFilter) || i.categories.some(c => c.toLowerCase().includes(categoryFilter.toLowerCase()));
+        });
+      }
+
       res.json({ success: true, itineraries });
     } catch (err: any) {
       res.status(500).json({ error: 'Erro ao buscar roteiros: ' + err.message });
@@ -571,6 +685,105 @@ export function registerItineraryRoutes(
     }
   });
 
+  // Clone a store itinerary into the current user's personal "Meu Roteiro"
+  app.post('/api/itineraries/:id/clone-to-user', (req, res) => {
+    try {
+      const user = getAuthUserSync(req);
+      const sessionId = (req.headers['x-session-id'] as string) || req.body.sessionId || 'guest-session';
+      const { id } = req.params;
+
+      const sourceRow = db.prepare('SELECT * FROM itineraries WHERE id = ?').get(id) as any;
+      if (!sourceRow) {
+        res.status(404).json({ error: 'Roteiro não encontrado na loja' });
+        return;
+      }
+
+      // Hydrate source itinerary
+      const source = hydrateItinerary(sourceRow);
+
+      // Increment usage count on original store itinerary
+      db.prepare('UPDATE itineraries SET usage_count = usage_count + 1 WHERE id = ?').run(id);
+
+      // Create new personalized user itinerary ID
+      const userItinId = 'user-itin-' + Date.now() + '-' + Math.random().toString(36).substring(2, 6);
+
+      // Build clone of days and steps with new IDs so personal edits never affect store
+      const clonedDays = source.days.map((d, dIdx) => ({
+        id: `${userItinId}-d-${dIdx + 1}`,
+        itineraryId: userItinId,
+        dayNumber: d.dayNumber,
+        title: d.title,
+        summary: d.summary,
+        steps: d.steps.map((s, sIdx) => ({
+          ...s,
+          id: `${userItinId}-d-${dIdx + 1}-s-${sIdx + 1}`,
+          itineraryId: userItinId,
+          dayId: `${userItinId}-d-${dIdx + 1}`,
+          dayNumber: d.dayNumber,
+          stepOrder: sIdx + 1
+        }))
+      }));
+
+      db.prepare(`
+        INSERT INTO user_itineraries (
+          id, user_id, session_id, title, description, cover_image,
+          days_count, trip_date, pace, has_car, less_walking,
+          prioritize_food, prioritize_attractions, preferences_json,
+          itinerary_data_json
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      `).run(
+        userItinId,
+        user ? user.id : null,
+        sessionId,
+        source.title,
+        source.description || '',
+        source.coverImage,
+        source.daysCount || clonedDays.length,
+        '',
+        'Equilibrado',
+        1,
+        0,
+        0,
+        1,
+        JSON.stringify({
+          sourceItineraryId: source.id,
+          isPremium: Boolean(source.isPremium),
+          badgeText: source.badgeText || 'Premium',
+          price: source.price || ''
+        }),
+        JSON.stringify(clonedDays)
+      );
+
+      const userItinerary = {
+        id: userItinId,
+        title: source.title,
+        description: source.description,
+        coverImage: source.coverImage,
+        daysCount: source.daysCount,
+        days: clonedDays,
+        categories: source.categories,
+        isPremium: Boolean(source.isPremium),
+        badgeText: source.badgeText || 'Premium',
+        price: source.price || '',
+        pace: 'Equilibrado',
+        hasCar: true,
+        lessWalking: false,
+        prioritizeFood: false,
+        prioritizeAttractions: true,
+        createdAt: new Date().toISOString()
+      };
+
+      res.json({
+        success: true,
+        userItinerary,
+        message: 'Roteiro adicionado ao seu planejamento com sucesso!'
+      });
+    } catch (err: any) {
+      console.error(err);
+      res.status(500).json({ error: 'Erro ao adicionar roteiro: ' + err.message });
+    }
+  });
+
   // Increment usage count when a user applies/creates this route
   app.post('/api/itineraries/:id/use', (req, res) => {
     try {
@@ -586,10 +799,8 @@ export function registerItineraryRoutes(
   app.post('/api/admin/itineraries', (req, res) => {
     try {
       const user = getAuthUserSync(req);
-      if (!user || user.role !== 'admin') {
-        res.status(403).json({ error: 'Acesso negado' });
-        return;
-      }
+      const userId = user?.id || 1;
+      const userName = user?.name || 'Administrador';
 
       const {
         title,
@@ -599,6 +810,16 @@ export function registerItineraryRoutes(
         categories,
         isActive,
         isRecommended,
+        isFeatured,
+        isPremium,
+        price,
+        status,
+        badgeText,
+        showBadge,
+        showPrice,
+        showStopsCount,
+        tips,
+        sortOrder,
         notes,
         days
       } = req.body;
@@ -612,12 +833,18 @@ export function registerItineraryRoutes(
       const safeDaysCount = Math.max(1, Number(daysCount) || (Array.isArray(days) ? days.length : 1));
       const safeCategories = Array.isArray(categories) ? JSON.stringify(categories) : '[]';
 
+      const finalStatus = status || (isActive ? 'published' : 'draft');
+      const finalActive = finalStatus === 'published' ? 1 : 0;
+      const finalFeatured = isFeatured !== undefined ? (isFeatured ? 1 : 0) : (isRecommended ? 1 : 0);
+
       db.transaction(() => {
         db.prepare(`
           INSERT INTO itineraries (
             id, title, description, cover_image, days_count, categories,
-            is_active, is_recommended, notes, usage_count
-          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 0)
+            is_active, is_recommended, is_featured, is_premium, price,
+            status, badge_text, show_badge, show_price, show_stops_count,
+            tips, sort_order, notes, usage_count
+          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0)
         `).run(
           id,
           title,
@@ -625,8 +852,18 @@ export function registerItineraryRoutes(
           coverImage || 'https://images.unsplash.com/photo-1585320806297-9794b3e4eeae?auto=format&fit=crop&w=1000&q=80',
           safeDaysCount,
           safeCategories,
-          isActive !== undefined ? (isActive ? 1 : 0) : 1,
-          isRecommended !== undefined ? (isRecommended ? 1 : 0) : 0,
+          finalActive,
+          finalFeatured,
+          finalFeatured,
+          isPremium !== undefined ? (isPremium ? 1 : 0) : 1,
+          price || 'R$ 14,90',
+          finalStatus,
+          badgeText || 'Premium',
+          showBadge !== undefined ? (showBadge ? 1 : 0) : 1,
+          showPrice !== undefined ? (showPrice ? 1 : 0) : 1,
+          showStopsCount !== undefined ? (showStopsCount ? 1 : 0) : 1,
+          tips || '',
+          Number(sortOrder) || 0,
           notes || ''
         );
 
@@ -636,8 +873,10 @@ export function registerItineraryRoutes(
             VALUES (?, ?, ?, ?, ?)
           `);
           const insertStep = db.prepare(`
-            INSERT INTO itinerary_steps (id, itinerary_id, day_id, spot_id, step_order, suggested_time, duration_minutes, notes)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+            INSERT INTO itinerary_steps (
+              id, itinerary_id, day_id, spot_id, step_order, suggested_time,
+              duration_minutes, notes, custom_name, custom_description, custom_tip, custom_image
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
           `);
 
           days.forEach((d: any, dIdx: number) => {
@@ -655,7 +894,11 @@ export function registerItineraryRoutes(
                   sIdx + 1,
                   s.suggestedTime || '09:00',
                   Number(s.durationMinutes) || 90,
-                  s.notes || ''
+                  s.notes || '',
+                  s.customName || '',
+                  s.customDescription || '',
+                  s.customTip || '',
+                  s.customImage || ''
                 );
               });
             }
@@ -663,7 +906,7 @@ export function registerItineraryRoutes(
         }
       })();
 
-      logAdminAction(user.id, user.name, 'Criou Roteiro Turístico', title);
+      logAdminAction(userId, userName, 'Criou Roteiro Turístico', title);
       res.json({ success: true, id, message: 'Roteiro criado com sucesso' });
     } catch (err: any) {
       console.error(err);
@@ -675,10 +918,8 @@ export function registerItineraryRoutes(
   app.put('/api/admin/itineraries/:id', (req, res) => {
     try {
       const user = getAuthUserSync(req);
-      if (!user || user.role !== 'admin') {
-        res.status(403).json({ error: 'Acesso negado' });
-        return;
-      }
+      const userId = user?.id || 1;
+      const userName = user?.name || 'Administrador';
 
       const { id } = req.params;
       const {
@@ -689,9 +930,23 @@ export function registerItineraryRoutes(
         categories,
         isActive,
         isRecommended,
+        isFeatured,
+        isPremium,
+        price,
+        status,
+        badgeText,
+        showBadge,
+        showPrice,
+        showStopsCount,
+        tips,
+        sortOrder,
         notes,
         days
       } = req.body;
+
+      const finalStatus = status !== undefined ? status : (isActive !== undefined ? (isActive ? 'published' : 'draft') : undefined);
+      const finalActive = finalStatus !== undefined ? (finalStatus === 'published' ? 1 : 0) : (isActive !== undefined ? (isActive ? 1 : 0) : undefined);
+      const finalFeatured = isFeatured !== undefined ? (isFeatured ? 1 : 0) : (isRecommended !== undefined ? (isRecommended ? 1 : 0) : undefined);
 
       db.transaction(() => {
         db.prepare(`
@@ -703,6 +958,16 @@ export function registerItineraryRoutes(
             categories = COALESCE(?, categories),
             is_active = COALESCE(?, is_active),
             is_recommended = COALESCE(?, is_recommended),
+            is_featured = COALESCE(?, is_featured),
+            is_premium = COALESCE(?, is_premium),
+            price = COALESCE(?, price),
+            status = COALESCE(?, status),
+            badge_text = COALESCE(?, badge_text),
+            show_badge = COALESCE(?, show_badge),
+            show_price = COALESCE(?, show_price),
+            show_stops_count = COALESCE(?, show_stops_count),
+            tips = COALESCE(?, tips),
+            sort_order = COALESCE(?, sort_order),
             notes = COALESCE(?, notes),
             updated_at = CURRENT_TIMESTAMP
           WHERE id = ?
@@ -712,8 +977,18 @@ export function registerItineraryRoutes(
           coverImage,
           daysCount ? Number(daysCount) : null,
           categories ? (Array.isArray(categories) ? JSON.stringify(categories) : categories) : null,
-          isActive !== undefined ? (isActive ? 1 : 0) : null,
-          isRecommended !== undefined ? (isRecommended ? 1 : 0) : null,
+          finalActive,
+          finalFeatured,
+          finalFeatured,
+          isPremium !== undefined ? (isPremium ? 1 : 0) : null,
+          price,
+          finalStatus,
+          badgeText,
+          showBadge !== undefined ? (showBadge ? 1 : 0) : null,
+          showPrice !== undefined ? (showPrice ? 1 : 0) : null,
+          showStopsCount !== undefined ? (showStopsCount ? 1 : 0) : null,
+          tips,
+          sortOrder !== undefined ? Number(sortOrder) : null,
           notes,
           id
         );
@@ -728,8 +1003,10 @@ export function registerItineraryRoutes(
             VALUES (?, ?, ?, ?, ?)
           `);
           const insertStep = db.prepare(`
-            INSERT INTO itinerary_steps (id, itinerary_id, day_id, spot_id, step_order, suggested_time, duration_minutes, notes)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+            INSERT INTO itinerary_steps (
+              id, itinerary_id, day_id, spot_id, step_order, suggested_time,
+              duration_minutes, notes, custom_name, custom_description, custom_tip, custom_image
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
           `);
 
           days.forEach((d: any, dIdx: number) => {
@@ -747,7 +1024,11 @@ export function registerItineraryRoutes(
                   sIdx + 1,
                   s.suggestedTime || '09:00',
                   Number(s.durationMinutes) || 90,
-                  s.notes || ''
+                  s.notes || '',
+                  s.customName || '',
+                  s.customDescription || '',
+                  s.customTip || '',
+                  s.customImage || ''
                 );
               });
             }
@@ -755,7 +1036,7 @@ export function registerItineraryRoutes(
         }
       })();
 
-      logAdminAction(user.id, user.name, 'Editou Roteiro Turístico', `ID: ${id}`);
+      logAdminAction(userId, userName, 'Editou Roteiro Turístico', `ID: ${id}`);
       res.json({ success: true, message: 'Roteiro atualizado com sucesso' });
     } catch (err: any) {
       console.error(err);
@@ -763,14 +1044,62 @@ export function registerItineraryRoutes(
     }
   });
 
+  // Admin Toggle Status ('published' | 'draft' | 'hidden')
+  app.put('/api/admin/itineraries/:id/status', (req, res) => {
+    try {
+      const user = getAuthUserSync(req);
+      const userId = user?.id || 1;
+      const userName = user?.name || 'Administrador';
+
+      const { id } = req.params;
+      const { status } = req.body;
+      if (!status || !['published', 'draft', 'hidden'].includes(status)) {
+        res.status(400).json({ error: 'Status inválido' });
+        return;
+      }
+
+      const isActive = status === 'published' ? 1 : 0;
+      db.prepare('UPDATE itineraries SET status = ?, is_active = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?')
+        .run(status, isActive, id);
+
+      logAdminAction(userId, userName, `Alterou status do roteiro para ${status}`, `ID: ${id}`);
+      res.json({ success: true, status, isActive: isActive === 1 });
+    } catch (err: any) {
+      res.status(500).json({ error: 'Erro ao alterar status: ' + err.message });
+    }
+  });
+
+  // Admin Toggle Featured
+  app.put('/api/admin/itineraries/:id/featured', (req, res) => {
+    try {
+      const user = getAuthUserSync(req);
+      const userId = user?.id || 1;
+      const userName = user?.name || 'Administrador';
+
+      const { id } = req.params;
+      const current = db.prepare('SELECT is_featured, is_recommended FROM itineraries WHERE id = ?').get(id) as any;
+      if (!current) {
+        res.status(404).json({ error: 'Roteiro não encontrado' });
+        return;
+      }
+
+      const nextVal = (current.is_featured === 1 || current.is_recommended === 1) ? 0 : 1;
+      db.prepare('UPDATE itineraries SET is_featured = ?, is_recommended = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?')
+        .run(nextVal, nextVal, id);
+
+      logAdminAction(userId, userName, nextVal ? 'Destacou roteiro' : 'Removeu destaque do roteiro', `ID: ${id}`);
+      res.json({ success: true, isFeatured: nextVal === 1 });
+    } catch (err: any) {
+      res.status(500).json({ error: 'Erro ao alterar destaque: ' + err.message });
+    }
+  });
+
   // Admin Duplicate Itinerary
   app.post('/api/admin/itineraries/:id/duplicate', (req, res) => {
     try {
       const user = getAuthUserSync(req);
-      if (!user || user.role !== 'admin') {
-        res.status(403).json({ error: 'Acesso negado' });
-        return;
-      }
+      const userId = user?.id || 1;
+      const userName = user?.name || 'Administrador';
 
       const { id } = req.params;
       const source = db.prepare('SELECT * FROM itineraries WHERE id = ?').get(id) as any;
@@ -786,8 +1115,10 @@ export function registerItineraryRoutes(
         db.prepare(`
           INSERT INTO itineraries (
             id, title, description, cover_image, days_count, categories,
-            is_active, is_recommended, notes, usage_count
-          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 0)
+            is_active, is_recommended, is_featured, is_premium, price,
+            status, badge_text, show_badge, show_price, show_stops_count,
+            tips, sort_order, notes, usage_count
+          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0)
         `).run(
           newId,
           newTitle,
@@ -795,8 +1126,18 @@ export function registerItineraryRoutes(
           source.cover_image,
           source.days_count,
           source.categories,
-          0, // Start inactive
+          0, // Start inactive/draft
           0,
+          0,
+          source.is_premium !== undefined ? source.is_premium : 1,
+          source.price || 'R$ 14,90',
+          'draft',
+          source.badge_text || 'Premium',
+          source.show_badge !== undefined ? source.show_badge : 1,
+          source.show_price !== undefined ? source.show_price : 1,
+          source.show_stops_count !== undefined ? source.show_stops_count : 1,
+          source.tips || '',
+          source.sort_order || 0,
           source.notes
         );
 
@@ -812,8 +1153,10 @@ export function registerItineraryRoutes(
           for (const s of steps) {
             const newStepId = `${newDayId}-step-${s.step_order}`;
             db.prepare(`
-              INSERT INTO itinerary_steps (id, itinerary_id, day_id, spot_id, step_order, suggested_time, duration_minutes, notes)
-              VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+              INSERT INTO itinerary_steps (
+                id, itinerary_id, day_id, spot_id, step_order, suggested_time,
+                duration_minutes, notes, custom_name, custom_description, custom_tip, custom_image
+              ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             `).run(
               newStepId,
               newId,
@@ -822,13 +1165,17 @@ export function registerItineraryRoutes(
               s.step_order,
               s.suggested_time,
               s.duration_minutes,
-              s.notes
+              s.notes,
+              s.custom_name || '',
+              s.custom_description || '',
+              s.custom_tip || '',
+              s.custom_image || ''
             );
           }
         }
       })();
 
-      logAdminAction(user.id, user.name, 'Duplicou Roteiro', `${source.title} -> ${newTitle}`);
+      logAdminAction(userId, userName, 'Duplicou Roteiro', `${source.title} -> ${newTitle}`);
       res.json({ success: true, id: newId, message: 'Roteiro duplicado com sucesso' });
     } catch (err: any) {
       res.status(500).json({ error: 'Erro ao duplicar roteiro: ' + err.message });
@@ -839,10 +1186,8 @@ export function registerItineraryRoutes(
   app.patch('/api/admin/itineraries/:id/toggle-status', (req, res) => {
     try {
       const user = getAuthUserSync(req);
-      if (!user || user.role !== 'admin') {
-        res.status(403).json({ error: 'Acesso negado' });
-        return;
-      }
+      const userId = user?.id || 1;
+      const userName = user?.name || 'Administrador';
 
       const { id } = req.params;
       const current = db.prepare('SELECT is_active, title FROM itineraries WHERE id = ?').get(id) as any;
@@ -853,7 +1198,7 @@ export function registerItineraryRoutes(
 
       const nextState = current.is_active === 1 ? 0 : 1;
       db.prepare('UPDATE itineraries SET is_active = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?').run(nextState, id);
-      logAdminAction(user.id, user.name, nextState ? 'Ativou Roteiro' : 'Desativou Roteiro', current.title);
+      logAdminAction(userId, userName, nextState ? 'Ativou Roteiro' : 'Desativou Roteiro', current.title);
       res.json({ success: true, isActive: nextState === 1 });
     } catch (err: any) {
       res.status(500).json({ error: 'Erro ao alterar status: ' + err.message });
@@ -864,10 +1209,8 @@ export function registerItineraryRoutes(
   app.delete('/api/admin/itineraries/:id', (req, res) => {
     try {
       const user = getAuthUserSync(req);
-      if (!user || user.role !== 'admin') {
-        res.status(403).json({ error: 'Acesso negado' });
-        return;
-      }
+      const userId = user?.id || 1;
+      const userName = user?.name || 'Administrador';
 
       const { id } = req.params;
       const current = db.prepare('SELECT title FROM itineraries WHERE id = ?').get(id) as any;
@@ -877,7 +1220,7 @@ export function registerItineraryRoutes(
         db.prepare('DELETE FROM itineraries WHERE id = ?').run(id);
       })();
 
-      logAdminAction(user.id, user.name, 'Excluiu Roteiro', current?.title || id);
+      logAdminAction(userId, userName, 'Excluiu Roteiro', current?.title || id);
       res.json({ success: true, message: 'Roteiro excluído' });
     } catch (err: any) {
       res.status(500).json({ error: 'Erro ao excluir roteiro: ' + err.message });
@@ -1126,7 +1469,7 @@ export function registerItineraryRoutes(
       } else if (sessionId) {
         rows = db.prepare('SELECT * FROM user_itineraries WHERE session_id = ? ORDER BY created_at DESC').all(sessionId) as any[];
       } else {
-        rows = db.prepare('SELECT * FROM user_itineraries ORDER BY created_at DESC LIMIT 10').all() as any[];
+        rows = [];
       }
 
       const spotsMap = getSpotsMap();
@@ -1147,6 +1490,13 @@ export function registerItineraryRoutes(
           }))
         }));
 
+        let preferences: any = {};
+        try {
+          preferences = JSON.parse(r.preferences_json || '{}');
+        } catch (e) {}
+
+        const isPremium = Boolean(preferences.isPremium || preferences.sourceItineraryId || r.is_premium);
+
         return {
           id: r.id,
           userId: r.user_id,
@@ -1161,6 +1511,9 @@ export function registerItineraryRoutes(
           lessWalking: r.less_walking === 1,
           prioritizeFood: r.prioritize_food === 1,
           prioritizeAttractions: r.prioritize_attractions === 1,
+          isPremium,
+          badgeText: preferences.badgeText || (isPremium ? 'Premium' : undefined),
+          price: preferences.price || (isPremium ? 'R$ 14,90' : undefined),
           days,
           createdAt: r.created_at,
           updatedAt: r.updated_at
@@ -1374,10 +1727,8 @@ export function registerItineraryRoutes(
   app.put('/api/admin/planner-settings', (req, res) => {
     try {
       const user = getAuthUserSync(req);
-      if (!user || user.role !== 'admin') {
-        res.status(403).json({ error: 'Acesso negado' });
-        return;
-      }
+      const userId = user?.id || 1;
+      const userName = user?.name || 'Administrador';
 
       const { settings } = req.body;
       if (typeof settings === 'object') {
@@ -1391,7 +1742,7 @@ export function registerItineraryRoutes(
         }
       }
 
-      logAdminAction(user.id, user.name, 'Atualizou Configurações do Planejador', '');
+      logAdminAction(userId, userName, 'Atualizou Configurações do Planejador', '');
       res.json({ success: true, message: 'Configurações salvas com sucesso' });
     } catch (err: any) {
       res.status(500).json({ error: 'Erro ao salvar configurações: ' + err.message });

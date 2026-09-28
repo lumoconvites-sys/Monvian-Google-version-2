@@ -1063,12 +1063,33 @@ export const MapComponentInner: React.FC<MapComponentProps> = ({
     }
   }, [theme]);
 
+  // Helper to check if logged in user is Gold
+  const checkIsGoldUser = (): boolean => {
+    try {
+      const u = JSON.parse(localStorage.getItem('monvian_user') || '{}');
+      const cleanEmail = (u.email || u.whatsapp || '').trim().toLowerCase();
+      const isGoldAdmin = ['empresariomario@gmail.com', 'marioempresario@gmail.com', 'marioyesk@gmail.com'].includes(cleanEmail);
+      return isGoldAdmin || Boolean(u.isGold || u.is_gold === 1 || u.isPremium || u.is_premium === 1);
+    } catch {
+      return false;
+    }
+  };
+
   // Helper to update selection visual state without recreating DOM or reloading images
   const updateMarkerSelection = (record: SpotMarkerRecord, isSelected: boolean) => {
+    const isGoldUser = checkIsGoldUser();
     if (isSelected) {
-      record.circleEl.className = 'relative w-[39px] h-[39px] sm:w-[41px] sm:h-[41px] rounded-full overflow-hidden border-2 border-[#34C759] ring-2 ring-[#34C759]/70 bg-zinc-900 shrink-0 shadow-md transition-transform';
+      if (isGoldUser) {
+        record.circleEl.className = 'relative w-[39px] h-[39px] sm:w-[41px] sm:h-[41px] rounded-full overflow-hidden border-[2.5px] border-[#FFF4A3] ring-2 ring-[#F5BE38] bg-zinc-900 shrink-0 shadow-[0_0_18px_rgba(245,190,56,0.85)] transition-all';
+      } else {
+        record.circleEl.className = 'relative w-[39px] h-[39px] sm:w-[41px] sm:h-[41px] rounded-full overflow-hidden border-2 border-[#34C759] ring-2 ring-[#34C759]/70 bg-zinc-900 shrink-0 shadow-md transition-transform';
+      }
     } else {
-      record.circleEl.className = 'relative w-[39px] h-[39px] sm:w-[41px] sm:h-[41px] rounded-full overflow-hidden border-2 border-white hover:border-[#34C759] bg-zinc-900 shrink-0 shadow-sm transition-transform';
+      if (isGoldUser) {
+        record.circleEl.className = 'relative w-[39px] h-[39px] sm:w-[41px] sm:h-[41px] rounded-full overflow-hidden border-[2.5px] border-[#F5BE38] ring-1 ring-[#E5AC33]/60 bg-zinc-900 shrink-0 shadow-[0_2px_12px_rgba(230,172,51,0.55)] transition-transform';
+      } else {
+        record.circleEl.className = 'relative w-[39px] h-[39px] sm:w-[41px] sm:h-[41px] rounded-full overflow-hidden border-2 border-white hover:border-[#34C759] bg-zinc-900 shrink-0 shadow-sm transition-transform';
+      }
     }
   };
 
@@ -1097,6 +1118,7 @@ export const MapComponentInner: React.FC<MapComponentProps> = ({
         if (Math.abs(currentLngLat.lng - spot.lng) > 0.00001 || Math.abs(currentLngLat.lat - spot.lat) > 0.00001) {
           existing.marker.setLngLat([spot.lng, spot.lat]);
         }
+        updateMarkerSelection(existing, spot.id === selectedSpot?.id);
         return;
       }
 
@@ -1104,8 +1126,13 @@ export const MapComponentInner: React.FC<MapComponentProps> = ({
       el.id = `spot-marker-${spot.id}`;
       el.className = 'spot-marker-container flex flex-col items-center cursor-pointer select-none z-10';
 
+      const isGoldUser = checkIsGoldUser();
       const circleDiv = document.createElement('div');
-      circleDiv.className = 'relative w-[39px] h-[39px] sm:w-[41px] sm:h-[41px] rounded-full overflow-hidden border-2 border-white hover:border-[#34C759] bg-zinc-900 shrink-0 shadow-sm transition-transform pin-pop-in';
+      if (isGoldUser) {
+        circleDiv.className = 'relative w-[39px] h-[39px] sm:w-[41px] sm:h-[41px] rounded-full overflow-hidden border-[2.5px] border-[#F5BE38] ring-1 ring-[#E5AC33]/60 bg-zinc-900 shrink-0 shadow-[0_2px_12px_rgba(230,172,51,0.55)] transition-transform pin-pop-in';
+      } else {
+        circleDiv.className = 'relative w-[39px] h-[39px] sm:w-[41px] sm:h-[41px] rounded-full overflow-hidden border-2 border-white hover:border-[#34C759] bg-zinc-900 shrink-0 shadow-sm transition-transform pin-pop-in';
+      }
       // Subtle stagger based on order to create an organic fluid ripple on load/filter
       circleDiv.style.animationDelay = `${Math.min(idx * 22, 280)}ms`;
 
@@ -1316,6 +1343,20 @@ export const MapComponentInner: React.FC<MapComponentProps> = ({
     userEl.style.width = '48px';
     userEl.style.height = '48px';
 
+    // Check if logged-in user is Gold
+    const isGoldUser = Boolean(
+      (() => {
+        try {
+          const u = JSON.parse(localStorage.getItem('monvian_user') || '{}');
+          const cleanEmail = (u.email || u.whatsapp || '').trim().toLowerCase();
+          const isGoldAdmin = ['empresariomario@gmail.com', 'marioempresario@gmail.com', 'marioyesk@gmail.com'].includes(cleanEmail);
+          return isGoldAdmin || Boolean(u.isGold || u.is_gold === 1 || u.isPremium || u.is_premium === 1);
+        } catch {
+          return false;
+        }
+      })()
+    );
+
     // 1. Apple Maps Directional Flashlight / Heading Cone Beam (Pedestrian Mode)
     const beamContainer = document.createElement('div');
     beamContainer.id = 'user-voce-beam';
@@ -1325,31 +1366,46 @@ export const MapComponentInner: React.FC<MapComponentProps> = ({
     beamContainer.style.top = '-30px';
     beamContainer.style.left = '-30px';
     beamContainer.style.transformOrigin = '54px 54px';
-    beamContainer.style.willChange = 'transform, opacity';
-    beamContainer.style.transition = 'opacity 300ms ease, transform 120ms cubic-bezier(0.2, 0.9, 0.4, 1)';
+    beamContainer.style.willChange = 'transform';
+    beamContainer.style.backfaceVisibility = 'hidden';
+    beamContainer.style.webkitBackfaceVisibility = 'hidden';
+    beamContainer.style.transition = 'opacity 300ms ease';
+
+    const beamDropShadow = isGoldUser ? 'drop-shadow(0 -2px 12px rgba(230, 172, 51, 0.85))' : 'drop-shadow(0 -2px 10px rgba(0, 122, 255, 0.75))';
+    const radCol0 = isGoldUser ? '#FFF4A3' : '#007AFF';
+    const radCol40 = isGoldUser ? '#F5BE38' : '#0A84FF';
+    const radCol80 = isGoldUser ? '#E6AC33' : '#007AFF';
+    const radCol100 = isGoldUser ? '#B88214' : '#007AFF';
+
+    const fanCol0 = isGoldUser ? '#F5BE38' : '#007AFF';
+    const fanCol35 = isGoldUser ? '#FFF4A3' : '#0A84FF';
+    const fanCol75 = isGoldUser ? '#E6AC33' : '#93C5FD';
+    const fanCol100 = isGoldUser ? '#B88214' : '#DBEAFE';
+
+    const centerGlowFill = isGoldUser ? '#F5BE38' : '#007AFF';
 
     beamContainer.innerHTML = `
-      <svg viewBox="0 0 108 108" class="w-full h-full overflow-visible pointer-events-none" style="filter: drop-shadow(0 -2px 10px rgba(52, 199, 89, 0.7));">
+      <svg viewBox="0 0 108 108" class="w-full h-full overflow-visible pointer-events-none" style="filter: ${beamDropShadow};">
         <defs>
           <radialGradient id="apple-heading-radial" cx="50%" cy="50%" r="50%">
-            <stop offset="0%" stop-color="#34C759" stop-opacity="0.9" />
-            <stop offset="40%" stop-color="#30D158" stop-opacity="0.6" />
-            <stop offset="80%" stop-color="#34C759" stop-opacity="0.2" />
-            <stop offset="100%" stop-color="#34C759" stop-opacity="0" />
+            <stop offset="0%" stop-color="${radCol0}" stop-opacity="0.95" />
+            <stop offset="40%" stop-color="${radCol40}" stop-opacity="0.75" />
+            <stop offset="80%" stop-color="${radCol80}" stop-opacity="0.35" />
+            <stop offset="100%" stop-color="${radCol100}" stop-opacity="0" />
           </radialGradient>
           <linearGradient id="apple-heading-fan" x1="0%" y1="100%" x2="0%" y2="0%">
-            <stop offset="0%" stop-color="#34C759" stop-opacity="0.8" />
-            <stop offset="35%" stop-color="#30D158" stop-opacity="0.55" />
-            <stop offset="75%" stop-color="#86EFAC" stop-opacity="0.25" />
-            <stop offset="100%" stop-color="#BBF7D0" stop-opacity="0" />
+            <stop offset="0%" stop-color="${fanCol0}" stop-opacity="0.9" />
+            <stop offset="35%" stop-color="${fanCol35}" stop-opacity="0.75" />
+            <stop offset="75%" stop-color="${fanCol75}" stop-opacity="0.35" />
+            <stop offset="100%" stop-color="${fanCol100}" stop-opacity="0" />
           </linearGradient>
         </defs>
         <!-- Soft Light Cone (approx 54 deg fan pointing up) -->
         <path d="M 54 54 L 30.5 7.8 A 52 52 0 0 1 77.5 7.8 Z" fill="url(#apple-heading-fan)" />
         <!-- Inner Core Bright Cone (approx 32 deg fan) -->
-        <path d="M 54 54 L 42.4 13.8 A 42 42 0 0 1 65.6 13.8 Z" fill="url(#apple-heading-radial)" opacity="0.9" />
+        <path d="M 54 54 L 42.4 13.8 A 42 42 0 0 1 65.6 13.8 Z" fill="url(#apple-heading-radial)" opacity="0.95" />
         <!-- Soft Center Glow Circle -->
-        <circle cx="54" cy="54" r="24" fill="#34C759" opacity="0.15" />
+        <circle cx="54" cy="54" r="24" fill="${centerGlowFill}" opacity="0.22" />
       </svg>
     `;
 
@@ -1359,7 +1415,8 @@ export const MapComponentInner: React.FC<MapComponentProps> = ({
     // 2. Pedestrian User Avatar Circle
     const userCircle = document.createElement('div');
     userCircle.id = 'user-voce-circle';
-    userCircle.className = 'relative z-10 w-[39px] h-[39px] sm:w-[41px] sm:h-[41px] rounded-full overflow-hidden border-2 border-white ring-2 ring-[#34C759] bg-zinc-900 shadow-md user-photo-pulse transition-all duration-300';
+    const ringClass = isGoldUser ? 'ring-[#F5BE38]' : 'ring-[#007AFF]';
+    userCircle.className = `relative z-10 w-[39px] h-[39px] sm:w-[41px] sm:h-[41px] rounded-full overflow-hidden border-2 border-white ring-2 ${ringClass} bg-zinc-900 shadow-md user-photo-pulse transition-all duration-300`;
 
     const userImg = document.createElement('img');
     userImg.id = 'user-voce-marker-img';
@@ -1746,7 +1803,7 @@ export const MapComponentInner: React.FC<MapComponentProps> = ({
     const unsubscribe = deviceHeadingManager.subscribe((rawHeading, compensatedHeading) => {
       const beamEl = userBeamElRef.current || (document.getElementById('user-voce-beam') as HTMLElement | null);
       if (beamEl) {
-        const rotStr = `rotate(${compensatedHeading.toFixed(1)}deg)`;
+        const rotStr = `rotate(${compensatedHeading.toFixed(1)}deg) translateZ(0)`;
         beamEl.style.transform = rotStr;
         beamEl.style.webkitTransform = rotStr;
       }
@@ -2031,13 +2088,13 @@ export const MapComponentInner: React.FC<MapComponentProps> = ({
             style={{ fontFamily: "'Manrope', -apple-system, BlinkMacSystemFont, sans-serif" }}
           >
             <div className="flex items-start gap-3">
-              <div className="w-9 h-9 rounded-full bg-[#34C759]/20 flex items-center justify-center shrink-0 text-[#34C759]">
+              <div className="w-9 h-9 rounded-full bg-[#007AFF]/20 flex items-center justify-center shrink-0 text-[#007AFF]">
                 <Compass className="w-5 h-5 stroke-[2.2]" />
               </div>
               <div className="flex-1 min-w-0">
                 <h4 className="text-sm font-bold text-white tracking-tight">Orientação no Mapa</h4>
                 <p className="text-xs text-zinc-300 mt-0.5 leading-snug">
-                  Ative os sensores para que o feixe verde do seu marcador acompanhe para onde o celular está apontando.
+                  Ative os sensores para que o feixe azul do seu marcador acompanhe para onde o celular está apontando.
                 </p>
               </div>
             </div>
@@ -2054,7 +2111,7 @@ export const MapComponentInner: React.FC<MapComponentProps> = ({
                 id="btn-enable-compass"
                 type="button"
                 onClick={handleEnableCompass}
-                className="px-4 py-1.5 rounded-xl text-xs font-semibold bg-[#34C759] hover:bg-[#28CD41] text-white active:scale-95 transition-all shadow-md cursor-pointer"
+                className="px-4 py-1.5 rounded-xl text-xs font-semibold bg-[#007AFF] hover:bg-blue-600 text-white active:scale-95 transition-all shadow-md cursor-pointer"
               >
                 Ativar Orientação
               </button>

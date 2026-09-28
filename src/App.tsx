@@ -110,6 +110,7 @@ export default function App() {
 
   // Welcome translucent overlay on new account creation
   const [showWelcomeOverlay, setShowWelcomeOverlay] = useState<boolean>(false);
+  const [isPendingNewAccountWizard, setIsPendingNewAccountWizard] = useState<boolean>(false);
   const [zoomToUserTrigger, setZoomToUserTrigger] = useState<number>(0);
 
   // Weather modal state
@@ -265,8 +266,22 @@ export default function App() {
 
         const data = await res.json();
         if (data.success && isMounted) {
-          setUser(data.user);
-          localStorage.setItem('monvian_user', JSON.stringify(data.user));
+          const userObj = data.user;
+          const userEmail = (userObj.email || userObj.whatsapp || '').trim().toLowerCase();
+          const isGoldAdmin = ['empresariomario@gmail.com', 'marioempresario@gmail.com', 'marioyesk@gmail.com'].includes(userEmail);
+          const isGold = isGoldAdmin || Boolean(userObj.isGold || userObj.is_gold === 1 || userObj.isPremium || userObj.is_premium === 1);
+          
+          userObj.isGold = isGold;
+          userObj.isPremium = isGold;
+          setUser(userObj);
+          localStorage.setItem('monvian_user', JSON.stringify(userObj));
+          if (isGold) {
+            localStorage.setItem('monvian_is_premium', 'true');
+            localStorage.setItem('monvian_is_gold', 'true');
+          } else {
+            localStorage.removeItem('monvian_is_premium');
+            localStorage.removeItem('monvian_is_gold');
+          }
           setIsAuthenticated(true);
 
           // Fetch real user settings from database
@@ -781,13 +796,11 @@ export default function App() {
             filter: 'blur(8px)',
             transition: { duration: 0.45, ease: [0.32, 0.72, 0, 1] },
           }}
-          className={`fixed inset-0 w-full h-full flex flex-col items-center justify-center select-none z-50 transition-colors duration-300 ${
-            theme === 'light' ? 'bg-white' : 'bg-black'
-          }`}
+          className="fixed inset-0 w-full h-full flex flex-col items-center justify-center select-none z-50 bg-white text-black"
           style={{
             height: 'var(--app-height, 100%)',
             minHeight: 'var(--app-height, 100%)',
-            backgroundColor: theme === 'light' ? '#ffffff' : '#000000',
+            backgroundColor: '#ffffff',
           }}
         >
           <motion.div
@@ -797,7 +810,7 @@ export default function App() {
             className="flex items-center justify-center p-6"
           >
             <motion.img
-              src={theme === 'light' ? '/logocarregamento.png' : '/logo-white.png'}
+              src="/logocarregamento.png"
               alt="Monvian"
               className="h-20 sm:h-24 w-auto max-w-[280px] object-contain"
               animate={{
@@ -827,6 +840,7 @@ export default function App() {
               requestRealLocation();
               if (isNewAccount) {
                 setShowWelcomeOverlay(true);
+                setIsPendingNewAccountWizard(true);
               }
             }} 
           />
@@ -858,6 +872,9 @@ export default function App() {
                 } catch (e) {}
               }
               localStorage.removeItem('monvian_token');
+              localStorage.removeItem('monvian_user');
+              localStorage.removeItem('monvian_active_itinerary');
+              localStorage.removeItem('monvian_itinerary_session');
               setIsAuthenticated(false);
               setIsAdminOpen(false);
             }}
@@ -1389,6 +1406,7 @@ export default function App() {
       <AIChatModal
         isOpen={activeTab === 'chat'}
         onClose={() => setActiveTab('explorar')}
+        theme={theme}
         userCoords={userCoords ? { lat: userCoords[1], lng: userCoords[0] } : null}
         onSelectSpotByName={(name) => {
           const found = spots.find(
@@ -1462,6 +1480,10 @@ export default function App() {
             onClick={() => {
               setShowWelcomeOverlay(false);
               setZoomToUserTrigger((prev) => prev + 1);
+              if (isPendingNewAccountWizard) {
+                setIsPendingNewAccountWizard(false);
+                setActiveTab('roteiros');
+              }
             }}
             className="fixed inset-0 z-[160] bg-black/65 backdrop-blur-xl md:backdrop-blur-2xl flex flex-col items-center justify-center p-6 text-center select-none cursor-pointer"
             style={{

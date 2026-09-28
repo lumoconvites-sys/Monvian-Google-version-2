@@ -249,28 +249,29 @@ class DeviceHeadingManager {
     return heading;
   }
 
-  private animationLoop() {
+  private lastAnimTime: number = 0;
+
+  private animationLoop(timestamp?: number) {
     if (!this.isListening) return;
+
+    const now = typeof timestamp === 'number' ? timestamp : performance.now();
+    const dt = this.lastAnimTime ? Math.min((now - this.lastAnimTime) / 1000, 0.08) : 0.016;
+    this.lastAnimTime = now;
 
     // Shortest angular difference between current and target heading [-180, 180]
     let diff = this.targetHeading - this.currentHeading;
     while (diff < -180) diff += 360;
     while (diff > 180) diff -= 360;
 
-    // Adaptive Apple-grade smoothing:
-    // Small sensor jitter (< 0.6°) uses very gentle damping (0.09) to avoid nervous twitches.
-    // Moderate rotation (0.6° - 25°) interpolates at a silky responsive rate (0.16).
-    // Fast sudden turn (> 25°) catches up smoothly (0.24) without lagging behind user hand gestures.
     const absDiff = Math.abs(diff);
-    let stepFactor = 0.16;
-    if (absDiff < 0.6) {
-      stepFactor = 0.08;
-    } else if (absDiff > 25) {
-      stepFactor = 0.24;
-    }
 
-    if (absDiff > 0.02) {
-      this.currentHeading = (this.currentHeading + diff * stepFactor + 360) % 360;
+    if (absDiff > 0.03) {
+      // Dynamic Apple-style exponential smoothing
+      // If large angle jump (sudden turn or device shake), respond quickly (~20 rad/s)
+      // If small angle change, smooth out sensor noise smoothly (~12 rad/s)
+      const lambda = absDiff > 15 ? 22 : absDiff > 2 ? 16 : 10;
+      const factor = 1 - Math.exp(-lambda * dt);
+      this.currentHeading = (this.currentHeading + diff * factor + 360) % 360;
     } else {
       this.currentHeading = this.targetHeading;
     }

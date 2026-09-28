@@ -63,6 +63,8 @@ export interface FirestoreUser {
   avatar_url?: string;
   visits_count?: number;
   is_banned?: number;
+  is_premium?: number;
+  is_gold?: number;
   snow_enabled?: number;
   theme?: string;
   high_contrast?: number;
@@ -157,6 +159,8 @@ export async function persistUserToFirestore(user: FirestoreUser): Promise<void>
       avatar_url: user.avatar_url || '/fotoperfil.png',
       visits_count: user.visits_count || 1,
       is_banned: user.is_banned || 0,
+      is_premium: ['empresariomario@gmail.com', 'marioempresario@gmail.com', 'marioyesk@gmail.com'].includes(cleanEmail) ? 1 : (user.is_premium || 0),
+      is_gold: ['empresariomario@gmail.com', 'marioempresario@gmail.com', 'marioyesk@gmail.com'].includes(cleanEmail) ? 1 : (user.is_gold || 0),
       snow_enabled: user.snow_enabled || 0,
       theme: user.theme || 'dark',
       high_contrast: user.high_contrast || 0,
@@ -323,7 +327,7 @@ export async function deleteEventFromFirestore(eventId: string): Promise<void> {
 // FULL BIDIRECTIONAL REPLICATION ON SERVER BOOT
 // ----------------------------------------------------
 
-const PRIMARY_ADMIN_EMAILS = ['empresariomario@gmail.com', 'marioyesk@gmail.com'];
+const PRIMARY_ADMIN_EMAILS = ['empresariomario@gmail.com', 'marioempresario@gmail.com', 'marioyesk@gmail.com'];
 
 export function isPrimaryAdmin(email?: string | null): boolean {
   if (!email) return false;

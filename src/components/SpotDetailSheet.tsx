@@ -7,7 +7,6 @@ import {
   Star,
   MapPin,
   Eye,
-  Navigation,
   Phone,
   Globe,
   ExternalLink,
@@ -15,6 +14,7 @@ import {
 } from 'lucide-react';
 import { motion } from 'motion/react';
 import { SpotQrModal } from './SpotQrModal';
+import { RoundedNavigationIcon } from './RoundedNavigationIcon';
 
 interface SpotDetailSheetProps {
   spot: Spot | null;
@@ -43,11 +43,38 @@ export const SpotDetailSheet: React.FC<SpotDetailSheetProps> = ({
   const [isQrModalOpen, setIsQrModalOpen] = useState(false);
   const scrollRef = useRef<HTMLDivElement | null>(null);
 
+  const isGoldUser = Boolean(
+    (() => {
+      try {
+        const u = JSON.parse(localStorage.getItem('monvian_user') || '{}');
+        const cleanEmail = (u.email || u.whatsapp || '').trim().toLowerCase();
+        const isGoldAdmin = ['empresariomario@gmail.com', 'marioempresario@gmail.com', 'marioyesk@gmail.com'].includes(cleanEmail);
+        return isGoldAdmin || Boolean(u.isGold || u.is_gold === 1 || u.isPremium || u.is_premium === 1);
+      } catch {
+        return false;
+      }
+    })()
+  );
+
   if (!spot) return null;
+
+  const openDirectionsMap = (s: Spot) => {
+    const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) || 
+      (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+    
+    const destination = s.lat && s.lng 
+      ? `${s.lat},${s.lng}` 
+      : encodeURIComponent(s.address ? `${s.name}, ${s.address}` : `${s.name} Campos do Jordão`);
+
+    if (isIOS) {
+      window.open(`https://maps.apple.com/?daddr=${destination}&dirflg=d`, '_blank');
+    } else {
+      window.open(`https://www.google.com/maps/dir/?api=1&destination=${destination}`, '_blank');
+    }
+  };
 
   const distance = "1,4 km";
   const views = (spot.visitorsToday * 112 + 15000).toLocaleString('pt-BR');
-  const mapsUrl = spot.mapsUrl || `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(spot.name + ' Campos do Jordão')}`;
 
   return (
     <motion.div
@@ -189,12 +216,12 @@ export const SpotDetailSheet: React.FC<SpotDetailSheetProps> = ({
             {/* Metadata Row */}
             <div className="flex items-center gap-2.5 text-xs sm:text-sm mb-5 text-zinc-600 dark:text-[#9A9894] flex-wrap">
               <div className="flex items-center gap-1 bg-zinc-100 dark:bg-white/10 px-3 py-1.5 rounded-full">
-                <Star className="w-4 h-4 fill-[#007AFF] text-[#007AFF]" />
+                <Star className={`w-4 h-4 ${isGoldUser ? 'fill-[#F5BE38] text-[#F5BE38]' : 'fill-[#007AFF] text-[#007AFF]'}`} />
                 <span className="font-bold text-zinc-900 dark:text-[#F5F2EA]">{spot.rating}</span>
                 <span className="text-[#9A9894] font-semibold">({spot.reviewCount})</span>
               </div>
               <div className="flex items-center gap-1.5 bg-zinc-100 dark:bg-white/10 px-3 py-1.5 rounded-full">
-                <MapPin className="w-4 h-4 text-[#007AFF]" />
+                <MapPin className={`w-4 h-4 ${isGoldUser ? 'text-[#F5BE38]' : 'text-[#007AFF]'}`} />
                 <span className="font-semibold text-zinc-700 dark:text-[#9A9894]">{distance}</span>
               </div>
               <div className="flex items-center gap-1.5 bg-zinc-100 dark:bg-white/10 px-3 py-1.5 rounded-full">
@@ -207,11 +234,15 @@ export const SpotDetailSheet: React.FC<SpotDetailSheetProps> = ({
             <div className="grid grid-cols-3 gap-3 mb-6">
               <motion.button 
                 whileTap={{ scale: 0.96 }}
-                onClick={() => { onNavigateTo(spot); onClose(); }}
-                className="bg-black text-white hover:bg-zinc-800 dark:bg-white dark:text-black dark:hover:bg-zinc-100 rounded-2xl py-3 px-3 flex items-center justify-center gap-2 transition-all cursor-pointer shadow-sm font-bold active:opacity-90"
-                title="Traçar Rota"
+                onClick={() => openDirectionsMap(spot)}
+                className={`rounded-2xl py-3 px-3 flex items-center justify-center gap-2 transition-all cursor-pointer shadow-sm font-bold active:opacity-90 ${
+                  isGoldUser
+                    ? 'bg-metallic-gold text-[#1A1202] border border-[#FFF4A3]/60 shadow-[0_4px_16px_rgba(230,172,51,0.4)]'
+                    : 'bg-black text-white hover:bg-zinc-800 dark:bg-white dark:text-black dark:hover:bg-zinc-100'
+                }`}
+                title="Traçar Rota no GPS"
               >
-                <Navigation className="w-4 h-4 fill-current shrink-0" />
+                <RoundedNavigationIcon isGold={false} className={`w-4 h-4 shrink-0 ${isGoldUser ? 'text-[#1A1202]' : ''}`} size={16} />
                 <span className="text-sm font-bold">Rota</span>
               </motion.button>
 
@@ -255,7 +286,9 @@ export const SpotDetailSheet: React.FC<SpotDetailSheetProps> = ({
                       <motion.div
                         layoutId="activeSpotTab"
                         transition={{ type: 'spring', damping: 26, stiffness: 320 }}
-                        className="absolute bottom-0 left-0 right-0 h-[2.5px] bg-zinc-950 dark:bg-white rounded-full"
+                        className={`absolute bottom-0 left-0 right-0 h-[2.5px] rounded-full ${
+                          isGoldUser ? 'bg-[#F5BE38]' : 'bg-zinc-950 dark:bg-white'
+                        }`}
                       />
                     )}
                   </button>
@@ -282,7 +315,7 @@ export const SpotDetailSheet: React.FC<SpotDetailSheetProps> = ({
                     />
                     <div className="min-w-0 flex-1">
                       <h3 className="text-xs sm:text-[13px] font-bold tracking-tight text-zinc-900 dark:text-[#F5F2EA] leading-snug flex items-center gap-1.5">
-                        <span className="text-[#007AFF]">★</span> Destaque da cidade
+                        <span className={isGoldUser ? "text-[#F5BE38]" : "text-[#007AFF]"}>★</span> Destaque da cidade
                       </h3>
                       <p className="text-[11px] sm:text-xs text-[#9A9894] font-semibold mt-0.5 leading-relaxed line-clamp-2">
                         {spot.description}
@@ -298,66 +331,24 @@ export const SpotDetailSheet: React.FC<SpotDetailSheetProps> = ({
                     </div>
                     <div className="p-3.5 rounded-2xl bg-zinc-50 dark:bg-white/5 border border-zinc-100 dark:border-white/10">
                       <span className="text-xs text-[#9A9894] font-bold block mb-1">Entrada</span>
-                      <span className="text-sm font-bold text-[#007AFF]">{spot.priceRange === 'Grátis' ? 'Acesso Livre' : (spot.priceRange || 'Consultar')}</span>
+                      <span className={`text-sm font-bold ${isGoldUser ? 'text-[#F5BE38]' : 'text-[#007AFF]'}`}>{spot.priceRange === 'Grátis' ? 'Acesso Livre' : (spot.priceRange || 'Consultar')}</span>
                     </div>
                   </div>
-
-                  {/* Endereço Confirmado no Google Maps */}
-                  <div className="p-3.5 rounded-2xl bg-zinc-50 dark:bg-white/5 border border-zinc-100 dark:border-white/10 flex items-start justify-between gap-3">
-                    <div className="flex items-start gap-2.5 min-w-0">
-                      <MapPin className="w-4 h-4 text-zinc-500 dark:text-zinc-400 shrink-0 mt-0.5" />
-                      <div className="min-w-0">
-                        <span className="text-xs text-zinc-500 dark:text-zinc-400 font-black block">Endereço Confirmado</span>
-                        <p className="text-xs sm:text-sm font-medium text-zinc-800 dark:text-zinc-200 mt-0.5">
-                          {spot.address || "Campos do Jordão, SP"}
-                        </p>
-                      </div>
-                    </div>
-                    <a
-                      href={mapsUrl}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="px-3 py-1.5 rounded-xl bg-zinc-100 hover:bg-zinc-200 dark:bg-white/10 dark:hover:bg-white/15 text-zinc-900 dark:text-white text-xs font-semibold shrink-0 flex items-center gap-1 transition-colors"
-                    >
-                      <span>Ver no Maps</span>
-                      <ExternalLink className="w-3 h-3" />
-                    </a>
-                  </div>
-
-                  {/* Compartilhar via QR Code */}
-                  <motion.button
-                    whileTap={{ scale: 0.98 }}
-                    onClick={() => setIsQrModalOpen(true)}
-                    className="w-full py-3.5 px-4 rounded-2xl bg-zinc-100/70 hover:bg-zinc-100 dark:bg-white/5 dark:hover:bg-white/10 border border-zinc-200/50 dark:border-white/10 flex items-center justify-between text-left transition-colors cursor-pointer group"
-                  >
-                    <div className="flex items-center gap-3 min-w-0">
-                      <div className="w-8 h-8 rounded-xl bg-zinc-200/60 dark:bg-white/10 text-zinc-700 dark:text-zinc-200 flex items-center justify-center shrink-0">
-                        <QrCode className="w-4 h-4" />
-                      </div>
-                      <div className="min-w-0">
-                        <span className="text-xs font-semibold text-zinc-800 dark:text-zinc-200 block">
-                          Código QR
-                        </span>
-                        <span className="text-[11px] text-zinc-400 dark:text-zinc-500 block truncate">
-                          Escanear e abrir no dispositivo
-                        </span>
-                      </div>
-                    </div>
-                    <span className="text-xs font-medium text-zinc-500 dark:text-zinc-400 group-hover:text-zinc-800 dark:group-hover:text-white transition-colors shrink-0 ml-2">
-                      Ver código
-                    </span>
-                  </motion.button>
 
                   <motion.button 
                     whileTap={{ scale: 0.98 }}
-                    onClick={() => { onNavigateTo(spot); onClose(); }}
-                    className="w-full py-3.5 rounded-2xl bg-black text-white hover:bg-zinc-800 dark:bg-white dark:text-black dark:hover:bg-zinc-100 font-bold flex items-center justify-between px-6 shadow-sm transition-all cursor-pointer"
+                    onClick={() => openDirectionsMap(spot)}
+                    className={`w-full py-3.5 rounded-2xl font-bold flex items-center justify-between px-6 shadow-sm transition-all cursor-pointer ${
+                      isGoldUser
+                        ? 'bg-metallic-gold text-[#1A1202] border border-[#FFF4A3]/70 shadow-[0_4px_20px_rgba(230,172,51,0.45)]'
+                        : 'bg-black text-white hover:bg-zinc-800 dark:bg-white dark:text-black dark:hover:bg-zinc-100'
+                    }`}
                   >
                     <div className="flex items-center gap-3">
-                      <Navigation className="w-5 h-5 fill-current" />
+                      <RoundedNavigationIcon isGold={false} className={`w-5 h-5 ${isGoldUser ? 'text-[#1A1202]' : ''}`} size={20} />
                       <span className="font-bold">Como chegar no GPS</span>
                     </div>
-                    <span className="font-bold text-lg">→</span>
+                    <span className={`font-bold text-lg ${isGoldUser ? 'text-[#1A1202]' : ''}`}>→</span>
                   </motion.button>
                 </div>
               )}

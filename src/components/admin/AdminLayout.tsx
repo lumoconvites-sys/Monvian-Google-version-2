@@ -146,7 +146,7 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({
             {/* Logo */}
             <div className="px-3 py-2 flex items-center gap-2.5">
               <div className="w-9 h-9 rounded-xl bg-black flex items-center justify-center shadow-sm overflow-hidden p-1.5">
-                <img src="/logo-white.png" alt="Logo" className="w-full h-full object-contain" />
+                <img src="/logomodoescuro.png" alt="Logo" className="w-full h-full object-contain" />
               </div>
               <div>
                 <span className="block text-sm font-black tracking-tight text-zinc-900 dark:text-white">
@@ -226,7 +226,7 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2">
                     <div className="w-9 h-9 rounded-xl bg-black flex items-center justify-center shadow-sm overflow-hidden p-1.5">
-                      <img src="/logo-white.png" alt="Logo" className="w-full h-full object-contain" />
+                      <img src="/logomodoescuro.png" alt="Logo" className="w-full h-full object-contain" />
                     </div>
                     <span className="font-black text-sm text-zinc-900 dark:text-white">MONVIAN ADM</span>
                   </div>

@@ -35,6 +35,10 @@ import { BudgetStep } from './itineraries/BudgetStep';
 import { TinderDiscoveryStep } from './itineraries/TinderDiscoveryStep';
 import { ItineraryEditModal } from './itineraries/ItineraryEditModal';
 import { generateCustomItinerary } from './itineraries/routeGenerator';
+import { RoundedNavigationIcon } from './RoundedNavigationIcon';
+import { ItineraryStoreModal } from './itineraries/ItineraryStoreModal';
+import { PlusActionMenuModal } from './itineraries/PlusActionMenuModal';
+import { ImportSpotFloatingModal } from './itineraries/ImportSpotFloatingModal';
 
 interface ItinerariesViewProps {
   isOpen: boolean;
@@ -153,6 +157,7 @@ interface SwipeableStopCardProps {
   totalSteps: number;
   isSelected: boolean;
   isDark: boolean;
+  isPremium?: boolean;
   onSelect: (step: ItineraryStep) => void;
   onDelete: (stepId: string) => void;
   onMoveUp?: (index: number) => void;
@@ -160,6 +165,18 @@ interface SwipeableStopCardProps {
 }
 
 const OPEN_OFFSET_LEFT = -84;
+const getShortDisplayTitle = (title: string): string => {
+  if (!title) return 'Roteiro';
+  const cleaned = title.replace(/\s*\([^)]*\)/g, '').trim();
+  const words = cleaned.split(/\s+/);
+  if (words.length >= 2 && words[0].toLowerCase() === 'roteiro') {
+    return words[1];
+  }
+  if (words.length >= 2) {
+    return words[1];
+  }
+  return words[0] || cleaned;
+};
 const SPRING_IOS = { type: 'spring' as const, stiffness: 440, damping: 36, mass: 0.8 };
 const SPRING_LAYOUT = { type: 'spring' as const, stiffness: 520, damping: 38, mass: 0.6 };
 
@@ -169,6 +186,7 @@ const SwipeableStopCard: React.FC<SwipeableStopCardProps> = ({
   totalSteps,
   isSelected,
   isDark,
+  isPremium = false,
   onSelect,
   onDelete,
   onMoveUp,
@@ -315,7 +333,11 @@ const SwipeableStopCard: React.FC<SwipeableStopCardProps> = ({
         className={`relative z-10 py-2 px-3 sm:py-2.5 sm:px-3.5 rounded-[28px] flex items-center justify-between gap-3 cursor-pointer ${
           isSelected
             ? isDark
-              ? 'bg-[#242426] border border-white/30 ring-1 ring-white/20 shadow-md text-white'
+              ? isPremium
+                ? 'bg-[#242426] border border-[#E5AC33]/60 ring-1 ring-[#FFF4A3]/30 shadow-md text-white'
+                : 'bg-[#242426] border border-white/30 ring-1 ring-white/20 shadow-md text-white'
+              : isPremium
+              ? 'bg-white ring-2 ring-[#E5AC33]/70 shadow-md text-zinc-900 border border-[#E5AC33]/40'
               : 'bg-white ring-2 ring-blue-500/50 shadow-md text-zinc-900 border border-zinc-200'
             : isDark
             ? 'bg-[#1c1c1e] border border-white/10 hover:border-white/20 hover:bg-[#242426] text-white'
@@ -328,9 +350,15 @@ const SwipeableStopCard: React.FC<SwipeableStopCardProps> = ({
             <span
               className={`w-7 h-7 sm:w-7.5 sm:h-7.5 rounded-full text-[11px] font-black flex items-center justify-center leading-none text-center tracking-tight transition-colors self-center ${
                 isSelected
-                  ? 'bg-blue-600 text-white shadow-md shadow-blue-600/40'
+                  ? isPremium
+                    ? 'bg-metallic-gold text-[#1A1202] shadow-md shadow-[#E5AC33]/40'
+                    : 'bg-blue-600 text-white shadow-md shadow-blue-600/40'
                   : isDark
-                  ? 'bg-zinc-800 text-zinc-300 border border-white/10'
+                  ? isPremium
+                    ? 'bg-zinc-800 text-[#F5BE38] dark:text-[#FDE073] border border-[#E5AC33]/45'
+                    : 'bg-zinc-800 text-zinc-300 border border-white/10'
+                  : isPremium
+                  ? 'bg-[#FFF9E6] text-[#B88214] border border-[#E5AC33]/55'
                   : 'bg-zinc-100 text-zinc-700 border border-black/5'
               }`}
             >
@@ -359,7 +387,9 @@ const SwipeableStopCard: React.FC<SwipeableStopCardProps> = ({
           {/* Middle Column */}
           <div className="min-w-0 flex-1 flex flex-col justify-center self-center py-0.5 pointer-events-none">
             <div className="flex items-center gap-1.5 flex-nowrap leading-none">
-              <span className="inline-flex items-center gap-1 text-[10.5px] font-black text-blue-600 dark:text-blue-400 leading-none">
+              <span className={`inline-flex items-center gap-1 text-[10.5px] font-black leading-none ${
+                isPremium ? 'text-[#C28514] dark:text-[#FDE073]' : 'text-blue-600 dark:text-blue-400'
+              }`}>
                 <Clock className="w-3 h-3 shrink-0" />
                 <span>{step.suggestedTime || '09:30'}</span>
               </span>
@@ -368,7 +398,11 @@ const SwipeableStopCard: React.FC<SwipeableStopCardProps> = ({
                 {spot?.categoryLabel || 'ATRAÇÃO / TURÍSTICO'}
               </span>
               {spot?.highlighted && (
-                <span className="inline-flex items-center gap-0.5 text-[8.5px] font-bold uppercase tracking-wider px-1.5 py-0.2 rounded-full bg-blue-500/12 text-blue-500 border border-blue-500/20 leading-none">
+                <span className={`inline-flex items-center gap-0.5 text-[8.5px] font-bold uppercase tracking-wider px-1.5 py-0.2 rounded-full leading-none ${
+                  isPremium
+                    ? 'bg-metallic-gold-badge text-[#C28514] dark:text-[#FDE073] border'
+                    : 'bg-blue-500/12 text-blue-500 border border-blue-500/20'
+                }`}>
                   ★ Verificado
                 </span>
               )}
@@ -382,7 +416,7 @@ const SwipeableStopCard: React.FC<SwipeableStopCardProps> = ({
 
             {step.durationToNextMin ? (
               <p className="text-[10.5px] font-bold text-zinc-400 dark:text-zinc-400 truncate leading-none flex items-center gap-1 pointer-events-none">
-                <Navigation className="w-3 h-3 text-blue-500 shrink-0" />
+                <RoundedNavigationIcon isGold={isPremium} className={`w-3 h-3 shrink-0 ${isPremium ? '' : 'text-blue-500'}`} size={12} />
                 <span>{step.durationToNextMin} min até o próximo ponto</span>
               </p>
             ) : (
@@ -496,6 +530,126 @@ export const ItinerariesView: React.FC<ItinerariesViewProps> = ({
 
   // Modal for editing stops
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+
+  // Loja de Roteiros Premium Modal state
+  const [isStoreOpen, setIsStoreOpen] = useState(false);
+  const [storeToast, setStoreToast] = useState<string | null>(null);
+
+  // Plus menu & Import spot floating modal states
+  const [isPlusMenuOpen, setIsPlusMenuOpen] = useState(false);
+  const [isImportModalOpen, setIsImportModalOpen] = useState(false);
+
+  // Get active step spot IDs for quick import tracking
+  const activeStepSpotIds = useMemo(() => {
+    if (!userItinerary?.days?.[0]?.steps) return [];
+    return userItinerary.days[0].steps.map((s) => s.spotId).filter(Boolean) as string[];
+  }, [userItinerary]);
+
+  // Handler to import a spot into current active itinerary
+  const handleImportSpotToItinerary = (spot: Spot) => {
+    if (!userItinerary) return;
+
+    const currentSteps = userItinerary.days?.[0]?.steps || [];
+    const nextOrder = currentSteps.length + 1;
+    const lastTime = currentSteps[currentSteps.length - 1]?.suggestedTime || '09:30';
+    const [h, m] = lastTime.split(':').map(Number);
+    const nextHour = (h + 1) % 24;
+    const formattedTime = `${String(nextHour).padStart(2, '0')}:${String(isNaN(m) ? 0 : m).padStart(2, '0')}`;
+
+    const newStep: ItineraryStep = {
+      id: `step-imp-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
+      spotId: spot.id,
+      title: spot.name,
+      spotName: spot.name,
+      category: spot.categoryLabel || spot.category || 'Atração',
+      categoryLabel: spot.categoryLabel || 'Atração / Turística',
+      description: spot.description || spot.address || '',
+      suggestedTime: formattedTime,
+      durationMinutes: 90,
+      travelTimeFromPrev: '15 min até o próximo ponto',
+      image: spot.image || '',
+      lat: spot.lat,
+      lng: spot.lng,
+      stepOrder: nextOrder,
+      spot: spot,
+    };
+
+    const updatedDays = (userItinerary.days && userItinerary.days.length > 0)
+      ? userItinerary.days.map((day, dIdx) => {
+          if (dIdx === 0) {
+            return {
+              ...day,
+              steps: [...(day.steps || []), newStep],
+            };
+          }
+          return day;
+        })
+      : [{ dayNumber: 1, theme: 'Dia 1', steps: [newStep] }];
+
+    const updated: Itinerary = {
+      ...userItinerary,
+      days: updatedDays,
+    };
+
+    setUserItinerary(updated);
+    setSelectedStopId(newStep.id);
+    if (mapRef.current && spot.lng != null && spot.lat != null) {
+      mapRef.current.easeTo({
+        center: [spot.lng, spot.lat],
+        zoom: 14.8,
+        duration: 800,
+      });
+    }
+    setStoreToast(`Local "${spot.name}" adicionado ao roteiro!`);
+    setTimeout(() => {
+      setStoreToast(null);
+    }, 2800);
+
+    try {
+      localStorage.setItem('monvian_active_itinerary', JSON.stringify(updated));
+      if (userItinerary.id) {
+        fetch(`/api/user-itineraries/${userItinerary.id}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(updated),
+        }).catch(() => {});
+      }
+    } catch (e) {
+      console.error('Error saving imported spot:', e);
+    }
+  };
+
+  const handleApplyStoreItinerary = async (storeItin: Itinerary) => {
+    try {
+      const res = await fetch(`/api/itineraries/${storeItin.id}/clone-to-user`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-session-id': sessionId
+        },
+        body: JSON.stringify({ sessionId })
+      });
+      const data = await res.json();
+      if (data.success && data.userItinerary) {
+        setIsExpanded(false);
+        setUserItinerary(data.userItinerary);
+        try {
+          localStorage.setItem('monvian_active_itinerary', JSON.stringify(data.userItinerary));
+        } catch (e) {}
+
+        const firstStep = data.userItinerary.days?.[0]?.steps?.[0];
+        if (firstStep) {
+          setSelectedStopId(firstStep.id);
+        }
+
+        // Apple style toast feedback
+        setStoreToast('Roteiro adicionado com sucesso!');
+        setTimeout(() => setStoreToast(null), 3000);
+      }
+    } catch (e) {
+      console.error('Error applying store itinerary:', e);
+    }
+  };
 
   // Notes Modal state & persistent trip notes
   const [isNotesModalOpen, setIsNotesModalOpen] = useState(false);
@@ -859,8 +1013,60 @@ export const ItinerariesView: React.FC<ItinerariesViewProps> = ({
   // Active steps from current user itinerary
   const activeSteps = useMemo(() => {
     if (!userItinerary?.days || userItinerary.days.length === 0) return [];
-    return [...(userItinerary.days[0].steps || [])].sort((a, b) => a.stepOrder - b.stepOrder);
+    const rawSteps = [...(userItinerary.days[0].steps || [])].sort((a, b) => a.stepOrder - b.stepOrder);
+    const availableSpots = spots || CAMPOS_SPOTS;
+    return rawSteps.map((step) => {
+      const foundSpot = step.spot || availableSpots.find((sp) => sp.id === step.spotId);
+      const spotToUse = foundSpot || {
+        id: step.spotId || 'spot-' + Math.random(),
+        name: step.spotName || step.title || 'Ponto Turístico',
+        shortName: step.spotName || 'Ponto',
+        tagLabel: 'Atração',
+        category: 'attractions',
+        categoryLabel: step.categoryLabel || 'Atração / Turística',
+        lat: step.lat || -22.734,
+        lng: step.lng || -45.591,
+        image: step.image || 'https://images.unsplash.com/photo-1585320806297-9794b3e4eeae?auto=format&fit=crop&w=600&q=80',
+        description: step.description || '',
+        touristTip: '',
+        rating: 4.8,
+        reviewCount: 120,
+        hours: '09:00 - 18:00',
+        address: 'Campos do Jordão, SP',
+        visitorsToday: 42,
+      };
+      return {
+        ...step,
+        spot: spotToUse,
+        lat: step.lat ?? spotToUse.lat,
+        lng: step.lng ?? spotToUse.lng,
+      };
+    });
+  }, [userItinerary, spots]);
+
+  // Check if current logged-in user is Gold
+  const isUserGold = useMemo(() => {
+    try {
+      const u = JSON.parse(localStorage.getItem('monvian_user') || '{}');
+      const cleanEmail = (u.email || u.whatsapp || '').trim().toLowerCase();
+      const isGoldAdmin = ['empresariomario@gmail.com', 'marioempresario@gmail.com', 'marioyesk@gmail.com'].includes(cleanEmail);
+      return isGoldAdmin || Boolean(u.isGold || u.is_gold === 1 || u.isPremium || u.is_premium === 1);
+    } catch {
+      return false;
+    }
   }, [userItinerary]);
+
+  // Check if current active user itinerary should render in gold theme
+  const isPremiumItinerary = useMemo(() => {
+    if (!isUserGold) return false;
+    return Boolean(
+      userItinerary?.isPremium ||
+      (userItinerary?.price && userItinerary.price.trim().length > 0) ||
+      userItinerary?.badgeText?.toLowerCase().includes('premium') ||
+      (userItinerary as any)?.preferences?.isPremium ||
+      (userItinerary as any)?.preferences?.sourceItineraryId
+    );
+  }, [userItinerary, isUserGold]);
 
   // Reorder steps up / down directly from the order arrows on cards (matching IMG_7287)
   const handleMoveStepUp = async (index: number) => {
@@ -871,6 +1077,7 @@ export const ItinerariesView: React.FC<ItinerariesViewProps> = ({
     currentSteps[index] = temp;
 
     const reorderedSteps = currentSteps.map((s, idx) => ({ ...s, stepOrder: idx + 1 }));
+    const movedStep = reorderedSteps[index - 1];
 
     const updatedDays = (userItinerary.days || []).map((day, dIdx) => {
       if (dIdx === 0) {
@@ -886,6 +1093,21 @@ export const ItinerariesView: React.FC<ItinerariesViewProps> = ({
 
     setUserItinerary(updated);
     localStorage.setItem('monvian_active_itinerary', JSON.stringify(updated));
+
+    if (movedStep?.id) {
+      setSelectedStopId(movedStep.id);
+      if (mapRef.current && movedStep.spot && typeof movedStep.spot.lat === 'number' && typeof movedStep.spot.lng === 'number') {
+        const verticalOffset = isExpanded
+          ? -Math.round(window.innerHeight * 0.20)
+          : -Math.round(window.innerHeight * 0.08);
+        mapRef.current.easeTo({
+          center: [movedStep.spot.lng, movedStep.spot.lat],
+          zoom: 15.3,
+          offset: [0, verticalOffset],
+          duration: 600,
+        });
+      }
+    }
 
     try {
       await fetch(`/api/user-itineraries/${updated.id}`, {
@@ -915,6 +1137,7 @@ export const ItinerariesView: React.FC<ItinerariesViewProps> = ({
     currentSteps[index] = temp;
 
     const reorderedSteps = currentSteps.map((s, idx) => ({ ...s, stepOrder: idx + 1 }));
+    const movedStep = reorderedSteps[index + 1];
 
     const updatedDays = (userItinerary.days || []).map((day, dIdx) => {
       if (dIdx === 0) {
@@ -930,6 +1153,21 @@ export const ItinerariesView: React.FC<ItinerariesViewProps> = ({
 
     setUserItinerary(updated);
     localStorage.setItem('monvian_active_itinerary', JSON.stringify(updated));
+
+    if (movedStep?.id) {
+      setSelectedStopId(movedStep.id);
+      if (mapRef.current && movedStep.spot && typeof movedStep.spot.lat === 'number' && typeof movedStep.spot.lng === 'number') {
+        const verticalOffset = isExpanded
+          ? -Math.round(window.innerHeight * 0.20)
+          : -Math.round(window.innerHeight * 0.08);
+        mapRef.current.easeTo({
+          center: [movedStep.spot.lng, movedStep.spot.lat],
+          zoom: 15.3,
+          offset: [0, verticalOffset],
+          duration: 600,
+        });
+      }
+    }
 
     try {
       await fetch(`/api/user-itineraries/${updated.id}`, {
@@ -961,35 +1199,67 @@ export const ItinerariesView: React.FC<ItinerariesViewProps> = ({
     return activeSteps[0];
   }, [activeSteps, selectedStopId]);
 
-  // In-place marker visual sync matching Foto 2
+  // In-place marker visual sync matching Foto 2 (with yellow/gold styling for premium itineraries)
   const syncMarkerHighlight = useCallback((activeStepId: string | null) => {
+    const isPremium = isPremiumItinerary;
     markerRecordsRef.current.forEach((rec) => {
       const isSelected = rec.stepId === activeStepId;
       rec.containerEl.style.transform = isSelected ? 'scale(1.22)' : 'scale(0.96)';
       rec.containerEl.style.zIndex = isSelected ? '50' : '20';
 
-      rec.badgeEl.style.background = isSelected ? '#007AFF' : (isDark ? '#27272a' : '#FFFFFF');
-      rec.badgeEl.style.color = isSelected ? '#FFFFFF' : (isDark ? '#e4e4e7' : '#18181b');
-      rec.badgeEl.style.border = isSelected
-        ? '3px solid #FFFFFF'
-        : (isDark ? '2px solid rgba(255,255,255,0.2)' : '2px solid rgba(0,0,0,0.18)');
-      rec.badgeEl.style.boxShadow = isSelected
-        ? '0 6px 22px rgba(0, 122, 255, 0.65), 0 2px 8px rgba(0, 0, 0, 0.3)'
-        : '0 2px 8px rgba(0, 0, 0, 0.2)';
+      if (isPremium) {
+        // Luxury Metallic Gold styling for Premium Itineraries (Matching 24k polished gold leaf)
+        rec.badgeEl.style.background = isSelected
+          ? 'linear-gradient(135deg, #B88214 0%, #E6AC33 22%, #FFF4A3 48%, #F5BE38 68%, #C98B18 88%, #9E6505 100%)'
+          : (isDark ? '#222225' : '#FFFDF7');
+        rec.badgeEl.style.color = isSelected ? '#1A1202' : (isDark ? '#FDE073' : '#B88214');
+        rec.badgeEl.style.border = isSelected
+          ? '3px solid #FFFFFF'
+          : (isDark ? '2px solid rgba(245, 190, 56, 0.65)' : '2px solid rgba(230, 172, 51, 0.75)');
+        rec.badgeEl.style.boxShadow = isSelected
+          ? '0 6px 26px rgba(230, 172, 51, 0.85), 0 2px 8px rgba(0, 0, 0, 0.4)'
+          : '0 2px 10px rgba(230, 172, 51, 0.25), 0 1px 4px rgba(0, 0, 0, 0.15)';
 
-      rec.arrowEl.style.background = isSelected ? '#007AFF' : (isDark ? '#27272a' : '#FFFFFF');
-      rec.arrowEl.style.borderRight = isSelected
-        ? '3px solid #FFFFFF'
-        : (isDark ? '2px solid rgba(255,255,255,0.2)' : '2px solid rgba(0,0,0,0.18)');
-      rec.arrowEl.style.borderBottom = isSelected
-        ? '3px solid #FFFFFF'
-        : (isDark ? '2px solid rgba(255,255,255,0.2)' : '2px solid rgba(0,0,0,0.18)');
+        rec.arrowEl.style.background = isSelected
+          ? 'linear-gradient(135deg, #B88214 0%, #E6AC33 22%, #FFF4A3 48%, #F5BE38 68%, #C98B18 88%, #9E6505 100%)'
+          : (isDark ? '#222225' : '#FFFDF7');
+        rec.arrowEl.style.borderRight = isSelected
+          ? '3px solid #FFFFFF'
+          : (isDark ? '2px solid rgba(245, 190, 56, 0.65)' : '2px solid rgba(230, 172, 51, 0.75)');
+        rec.arrowEl.style.borderBottom = isSelected
+          ? '3px solid #FFFFFF'
+          : (isDark ? '2px solid rgba(245, 190, 56, 0.65)' : '2px solid rgba(230, 172, 51, 0.75)');
 
-      if (rec.pulseEl) {
-        rec.pulseEl.style.display = isSelected ? 'block' : 'none';
+        if (rec.pulseEl) {
+          rec.pulseEl.style.background = 'radial-gradient(circle, rgba(230, 172, 51, 0.75) 0%, rgba(255, 244, 163, 0.35) 50%, transparent 75%)';
+          rec.pulseEl.style.display = isSelected ? 'block' : 'none';
+        }
+      } else {
+        // Standard Apple Blue styling for Free/Custom Itineraries
+        rec.badgeEl.style.background = isSelected ? '#007AFF' : (isDark ? '#27272a' : '#FFFFFF');
+        rec.badgeEl.style.color = isSelected ? '#FFFFFF' : (isDark ? '#e4e4e7' : '#18181b');
+        rec.badgeEl.style.border = isSelected
+          ? '3px solid #FFFFFF'
+          : (isDark ? '2px solid rgba(255,255,255,0.2)' : '2px solid rgba(0,0,0,0.18)');
+        rec.badgeEl.style.boxShadow = isSelected
+          ? '0 6px 22px rgba(0, 122, 255, 0.65), 0 2px 8px rgba(0, 0, 0, 0.3)'
+          : '0 2px 8px rgba(0, 0, 0, 0.2)';
+
+        rec.arrowEl.style.background = isSelected ? '#007AFF' : (isDark ? '#27272a' : '#FFFFFF');
+        rec.arrowEl.style.borderRight = isSelected
+          ? '3px solid #FFFFFF'
+          : (isDark ? '2px solid rgba(255,255,255,0.2)' : '2px solid rgba(0,0,0,0.18)');
+        rec.arrowEl.style.borderBottom = isSelected
+          ? '3px solid #FFFFFF'
+          : (isDark ? '2px solid rgba(255,255,255,0.2)' : '2px solid rgba(0,0,0,0.18)');
+
+        if (rec.pulseEl) {
+          rec.pulseEl.style.background = 'radial-gradient(circle, rgba(0, 122, 255, 0.5) 0%, rgba(0, 122, 255, 0.2) 55%, transparent 75%)';
+          rec.pulseEl.style.display = isSelected ? 'block' : 'none';
+        }
       }
     });
-  }, [isDark]);
+  }, [isDark, isPremiumItinerary]);
 
   // Update Route Polyline and Markers efficiently without destroying DOM elements
   const renderRouteAndMarkers = useCallback((shouldFitBounds = false) => {
@@ -1017,6 +1287,8 @@ export const ItinerariesView: React.FC<ItinerariesViewProps> = ({
     const glowLayerId = 'itinerary-route-glow';
     const casingLayerId = 'itinerary-route-casing';
     const lineLayerId = 'itinerary-route-line';
+    const isPremium = isPremiumItinerary;
+    const routeColor = isPremium ? '#E5AC33' : '#007AFF';
 
     const geojsonData: GeoJSON.FeatureCollection = {
       type: 'FeatureCollection',
@@ -1038,6 +1310,12 @@ export const ItinerariesView: React.FC<ItinerariesViewProps> = ({
     const existingSource = map.getSource(routeSourceId) as maplibregl.GeoJSONSource;
     if (existingSource) {
       existingSource.setData(geojsonData);
+      if (map.getLayer(glowLayerId)) {
+        map.setPaintProperty(glowLayerId, 'line-color', routeColor);
+      }
+      if (map.getLayer(lineLayerId)) {
+        map.setPaintProperty(lineLayerId, 'line-color', routeColor);
+      }
     } else {
       map.addSource(routeSourceId, {
         type: 'geojson',
@@ -1054,9 +1332,9 @@ export const ItinerariesView: React.FC<ItinerariesViewProps> = ({
           'line-join': 'round',
         },
         paint: {
-          'line-color': '#007AFF',
+          'line-color': routeColor,
           'line-width': 12,
-          'line-opacity': 0.35,
+          'line-opacity': isPremium ? 0.45 : 0.35,
           'line-blur': 6,
         },
       });
@@ -1087,7 +1365,7 @@ export const ItinerariesView: React.FC<ItinerariesViewProps> = ({
           'line-join': 'round',
         },
         paint: {
-          'line-color': '#007AFF',
+          'line-color': routeColor,
           'line-width': 4.5,
         },
       });
@@ -1112,13 +1390,17 @@ export const ItinerariesView: React.FC<ItinerariesViewProps> = ({
       });
 
     if (isSameMarkerSet && areMarkersAttachedToCurrentMap) {
-      // In-place update of step numbers: 0 DOM destruction, 60fps/120fps guarantee!
+      // In-place update of step numbers and positions on map: 0 DOM destruction, 60fps/120fps guarantee!
       validSteps.forEach((step, idx) => {
         const rec = markerRecordsRef.current.find((r) => r.stepId === step.id);
         if (rec) {
           rec.badgeEl.innerText = String(idx + 1).padStart(2, '0');
+          if (step.spot && typeof step.spot.lng === 'number' && typeof step.spot.lat === 'number') {
+            rec.marker.setLngLat([step.spot.lng, step.spot.lat]);
+          }
         }
       });
+      syncMarkerHighlight(selectedStopId);
       return;
     }
 
@@ -1147,7 +1429,7 @@ export const ItinerariesView: React.FC<ItinerariesViewProps> = ({
       containerEl.style.transform = isSelected ? 'scale(1.22)' : 'scale(0.96)';
       containerEl.style.zIndex = isSelected ? '50' : '20';
 
-      // Glowing circular translucent blue aura/halo (Foto 2)
+      // Glowing circular translucent aura/halo (Foto 2 / Gold for premium)
       const pulseEl = document.createElement('div');
       pulseEl.style.position = 'absolute';
       pulseEl.style.width = '64px';
@@ -1155,12 +1437,14 @@ export const ItinerariesView: React.FC<ItinerariesViewProps> = ({
       pulseEl.style.borderRadius = '9999px';
       pulseEl.style.top = '-14px';
       pulseEl.style.left = '-14px';
-      pulseEl.style.background = 'radial-gradient(circle, rgba(0, 122, 255, 0.5) 0%, rgba(0, 122, 255, 0.2) 55%, transparent 75%)';
+      pulseEl.style.background = isPremium
+        ? 'radial-gradient(circle, rgba(230, 172, 51, 0.75) 0%, rgba(255, 244, 163, 0.35) 50%, transparent 75%)'
+        : 'radial-gradient(circle, rgba(0, 122, 255, 0.5) 0%, rgba(0, 122, 255, 0.2) 55%, transparent 75%)';
       pulseEl.style.pointerEvents = 'none';
       pulseEl.style.zIndex = '-1';
       pulseEl.style.display = isSelected ? 'block' : 'none';
 
-      // Pin Circular Badge (Foto 2: Blue with 3px solid white border, white bold text)
+      // Pin Circular Badge (Foto 2: Metallic Gold for premium, Blue for free)
       const badgeEl = document.createElement('div');
       badgeEl.style.width = '36px';
       badgeEl.style.height = '36px';
@@ -1172,14 +1456,28 @@ export const ItinerariesView: React.FC<ItinerariesViewProps> = ({
       badgeEl.style.fontWeight = '800';
       badgeEl.style.fontSize = '14px';
       badgeEl.style.letterSpacing = '-0.02em';
-      badgeEl.style.background = isSelected ? '#007AFF' : (isDark ? '#27272a' : '#FFFFFF');
-      badgeEl.style.color = isSelected ? '#FFFFFF' : (isDark ? '#e4e4e7' : '#18181b');
-      badgeEl.style.border = isSelected
-        ? '3px solid #FFFFFF'
-        : (isDark ? '2px solid rgba(255,255,255,0.2)' : '2px solid rgba(0,0,0,0.18)');
-      badgeEl.style.boxShadow = isSelected
-        ? '0 6px 22px rgba(0, 122, 255, 0.65), 0 2px 8px rgba(0, 0, 0, 0.3)'
-        : '0 2px 8px rgba(0, 0, 0, 0.2)';
+
+      if (isPremium) {
+        badgeEl.style.background = isSelected
+          ? 'linear-gradient(135deg, #B88214 0%, #E6AC33 22%, #FFF4A3 48%, #F5BE38 68%, #C98B18 88%, #9E6505 100%)'
+          : (isDark ? '#222225' : '#FFFDF7');
+        badgeEl.style.color = isSelected ? '#1A1202' : (isDark ? '#FDE073' : '#B88214');
+        badgeEl.style.border = isSelected
+          ? '3px solid #FFFFFF'
+          : (isDark ? '2px solid rgba(245, 190, 56, 0.65)' : '2px solid rgba(230, 172, 51, 0.75)');
+        badgeEl.style.boxShadow = isSelected
+          ? '0 6px 26px rgba(230, 172, 51, 0.85), 0 2px 8px rgba(0, 0, 0, 0.4)'
+          : '0 2px 10px rgba(230, 172, 51, 0.25), 0 1px 4px rgba(0, 0, 0, 0.15)';
+      } else {
+        badgeEl.style.background = isSelected ? '#007AFF' : (isDark ? '#27272a' : '#FFFFFF');
+        badgeEl.style.color = isSelected ? '#FFFFFF' : (isDark ? '#e4e4e7' : '#18181b');
+        badgeEl.style.border = isSelected
+          ? '3px solid #FFFFFF'
+          : (isDark ? '2px solid rgba(255,255,255,0.2)' : '2px solid rgba(0,0,0,0.18)');
+        badgeEl.style.boxShadow = isSelected
+          ? '0 6px 22px rgba(0, 122, 255, 0.65), 0 2px 8px rgba(0, 0, 0, 0.3)'
+          : '0 2px 8px rgba(0, 0, 0, 0.2)';
+      }
       badgeEl.innerText = stepNumberFormatted;
 
       // Pin downward arrow pointer
@@ -1188,13 +1486,26 @@ export const ItinerariesView: React.FC<ItinerariesViewProps> = ({
       arrowEl.style.height = '7px';
       arrowEl.style.transform = 'rotate(45deg)';
       arrowEl.style.marginTop = '-3.5px';
-      arrowEl.style.background = isSelected ? '#007AFF' : (isDark ? '#27272a' : '#FFFFFF');
-      arrowEl.style.borderRight = isSelected
-        ? '3px solid #FFFFFF'
-        : (isDark ? '2px solid rgba(255,255,255,0.2)' : '2px solid rgba(0,0,0,0.18)');
-      arrowEl.style.borderBottom = isSelected
-        ? '3px solid #FFFFFF'
-        : (isDark ? '2px solid rgba(255,255,255,0.2)' : '2px solid rgba(0,0,0,0.18)');
+
+      if (isPremium) {
+        arrowEl.style.background = isSelected
+          ? 'linear-gradient(135deg, #B88214 0%, #E6AC33 22%, #FFF4A3 48%, #F5BE38 68%, #C98B18 88%, #9E6505 100%)'
+          : (isDark ? '#222225' : '#FFFDF7');
+        arrowEl.style.borderRight = isSelected
+          ? '3px solid #FFFFFF'
+          : (isDark ? '2px solid rgba(245, 190, 56, 0.65)' : '2px solid rgba(230, 172, 51, 0.75)');
+        arrowEl.style.borderBottom = isSelected
+          ? '3px solid #FFFFFF'
+          : (isDark ? '2px solid rgba(245, 190, 56, 0.65)' : '2px solid rgba(230, 172, 51, 0.75)');
+      } else {
+        arrowEl.style.background = isSelected ? '#007AFF' : (isDark ? '#27272a' : '#FFFFFF');
+        arrowEl.style.borderRight = isSelected
+          ? '3px solid #FFFFFF'
+          : (isDark ? '2px solid rgba(255,255,255,0.2)' : '2px solid rgba(0,0,0,0.18)');
+        arrowEl.style.borderBottom = isSelected
+          ? '3px solid #FFFFFF'
+          : (isDark ? '2px solid rgba(255,255,255,0.2)' : '2px solid rgba(0,0,0,0.18)');
+      }
 
       containerEl.appendChild(pulseEl);
       containerEl.appendChild(badgeEl);
@@ -1236,7 +1547,7 @@ export const ItinerariesView: React.FC<ItinerariesViewProps> = ({
         duration: 600,
       });
     }
-  }, [activeSteps, selectedStopId, isDark]);
+  }, [activeSteps, selectedStopId, isDark, isPremiumItinerary, syncMarkerHighlight]);
 
   // Initialize MapLibre GL map when userItinerary exists and tab is open
   useEffect(() => {
@@ -1472,7 +1783,7 @@ export const ItinerariesView: React.FC<ItinerariesViewProps> = ({
   // VIEW MODE B: Map with the Route and Sequential Points
   // -------------------------------------------------------------
   return (
-    <div className={`fixed inset-0 ${isEditModalOpen ? 'z-[120]' : 'z-40'} w-full h-full overflow-hidden ${isDark ? 'bg-[#111315]' : 'bg-[#F4F4F6]'} select-none`}>
+    <div className={`fixed inset-0 ${isEditModalOpen || isStoreOpen ? 'z-[90]' : 'z-40'} w-full h-full overflow-hidden ${isDark ? 'bg-[#111315]' : 'bg-[#F4F4F6]'} select-none`}>
       {/* 1. MapLibre GL Interactive Canvas */}
       <div
         ref={mapContainerRef}
@@ -1514,7 +1825,13 @@ export const ItinerariesView: React.FC<ItinerariesViewProps> = ({
               : 'ios-glass-white text-zinc-900 shadow-lg'
           }`}
         >
-          <Navigation className={`w-5 h-5 sm:w-5.5 sm:h-5.5 fill-current shrink-0 ${isDark ? 'text-blue-500' : 'text-blue-600'}`} />
+          <RoundedNavigationIcon isGold={isPremiumItinerary} className={`w-[26px] h-[26px] sm:w-[28px] sm:h-[28px] shrink-0 ${
+            isPremiumItinerary
+              ? ''
+              : isDark
+              ? 'text-blue-500'
+              : 'text-blue-600'
+          }`} size={28} />
 
           {isEditingTitle ? (
             <form
@@ -1533,14 +1850,16 @@ export const ItinerariesView: React.FC<ItinerariesViewProps> = ({
                 onBlur={() => handleRenameTitle(editedTitle)}
                 className={`w-28 sm:w-40 px-2 py-0.5 rounded-xl font-black text-xs sm:text-sm outline-none border ${
                   isDark
-                    ? 'bg-zinc-800 border-blue-500 text-white'
-                    : 'bg-zinc-100 border-blue-600 text-zinc-900'
+                    ? isPremiumItinerary ? 'bg-zinc-800 border-[#E5AC33]/60 text-white' : 'bg-zinc-800 border-blue-500 text-white'
+                    : isPremiumItinerary ? 'bg-zinc-100 border-[#E5AC33]/70 text-zinc-900' : 'bg-zinc-100 border-blue-600 text-zinc-900'
                 }`}
                 placeholder="Nome do roteiro..."
               />
               <button
                 type="submit"
-                className="w-6 h-6 rounded-full bg-blue-600 text-white flex items-center justify-center shrink-0 hover:bg-blue-500 transition-colors cursor-pointer"
+                className={`w-6 h-6 rounded-full text-white flex items-center justify-center shrink-0 transition-colors cursor-pointer ${
+                  isPremiumItinerary ? 'bg-metallic-gold text-[#1A1202]' : 'bg-blue-600 hover:bg-blue-500'
+                }`}
                 title="Salvar nome"
               >
                 <Check className="w-3.5 h-3.5 stroke-[3]" />
@@ -1558,31 +1877,16 @@ export const ItinerariesView: React.FC<ItinerariesViewProps> = ({
                 }`}
                 title="Toque para editar"
               >
-                {userItinerary.title}
+                {getShortDisplayTitle(userItinerary.title)}
               </span>
-              <button
-                type="button"
-                onClick={() => {
-                  setEditedTitle(userItinerary.title);
-                  setIsEditingTitle(true);
-                }}
-                className={`w-6 h-6 rounded-full flex items-center justify-center transition-colors cursor-pointer shrink-0 ${
-                  isDark
-                    ? 'text-zinc-400 hover:text-blue-400 hover:bg-white/10'
-                    : 'text-zinc-400 hover:text-blue-600 hover:bg-zinc-100'
-                }`}
-                title="Editar nome do roteiro"
-              >
-                <Edit3 className="w-3.5 h-3.5" />
-              </button>
+
+              {isPremiumItinerary && (
+                <span className="px-2.5 py-0.5 rounded-full bg-metallic-gold-badge border text-[#C28514] dark:text-[#FDE073] text-[9px] font-black uppercase tracking-wider shrink-0 shadow-xs">
+                  {userItinerary.badgeText && userItinerary.badgeText.toUpperCase() !== 'PREMIUM' ? userItinerary.badgeText : 'CONTA GOLD'}
+                </span>
+              )}
             </div>
           )}
-
-          <span className={`font-bold ${isDark ? 'text-zinc-600' : 'text-zinc-300'}`}>·</span>
-
-          <span className={`font-black text-xs sm:text-sm shrink-0 ${isDark ? 'text-blue-400' : 'text-blue-600'}`}>
-            {activeSteps.length} {activeSteps.length === 1 ? 'parada' : 'paradas'}
-          </span>
         </div>
 
         {/* Action button to open edit modal (Clean Apple Sliders) */}
@@ -1598,6 +1902,32 @@ export const ItinerariesView: React.FC<ItinerariesViewProps> = ({
         >
           <SlidersHorizontal className="w-5 h-5" />
         </button>
+      </div>
+
+      {/* Floating Add Spot "+" Button on Map (Right side above bottom sheet - matching IMG_7590) */}
+      <div 
+        className="absolute right-4 sm:right-6 z-30 pointer-events-auto transition-all duration-300"
+        style={{
+          bottom: isExpanded 
+            ? 'calc(46vh + 16px)' 
+            : 'calc(210px + env(safe-area-inset-bottom, 16px))',
+        }}
+      >
+        <motion.button
+          whileTap={{ scale: 0.90 }}
+          whileHover={{ scale: 1.05 }}
+          type="button"
+          onClick={() => setIsPlusMenuOpen(true)}
+          className={`w-[43px] h-[43px] sm:w-[45px] sm:h-[45px] rounded-full flex items-center justify-center cursor-pointer transition-all duration-200 ${
+            isUserGold
+              ? 'bg-metallic-gold text-[#1A1202] shadow-[0_5px_20px_rgba(230,172,51,0.55)] border border-[#FFF4A3]/70'
+              : 'bg-[#007AFF] text-white shadow-[0_5px_20px_rgba(0,122,255,0.45)] border border-white/25 hover:bg-blue-500'
+          }`}
+          title="Opções do roteiro"
+          aria-label="Opções do roteiro"
+        >
+          <Plus className="w-5 h-5 stroke-[2.8]" />
+        </motion.button>
       </div>
 
       {/* 4. Bottom Sheet with Route Stops and Actions (50% Split or Compact) */}
@@ -1658,7 +1988,11 @@ export const ItinerariesView: React.FC<ItinerariesViewProps> = ({
               }`}
             >
               <div className="flex items-center gap-2.5 min-w-0 flex-1 self-center">
-                <span className="w-7 h-7 rounded-full text-[11px] font-black flex items-center justify-center leading-none text-center bg-blue-600 text-white shadow-md shadow-blue-600/40 shrink-0 self-center">
+                <span className={`w-7 h-7 rounded-full text-[11px] font-black flex items-center justify-center leading-none text-center shrink-0 self-center ${
+                  isPremiumItinerary
+                    ? 'bg-metallic-gold text-[#1A1202] shadow-md shadow-[#E5AC33]/40'
+                    : 'bg-blue-600 text-white shadow-md shadow-blue-600/40'
+                }`}>
                   {String(
                     Math.max(
                       1,
@@ -1682,7 +2016,9 @@ export const ItinerariesView: React.FC<ItinerariesViewProps> = ({
                 )}
                 <div className="min-w-0 flex-1 flex flex-col justify-center self-center py-0.5">
                   <div className="flex items-center gap-1.5 flex-nowrap leading-none">
-                    <span className="inline-flex items-center gap-1 text-[10.5px] font-black text-blue-600 dark:text-blue-400 leading-none">
+                    <span className={`inline-flex items-center gap-1 text-[10.5px] font-black leading-none ${
+                      isPremiumItinerary ? 'text-[#C28514] dark:text-[#FDE073]' : 'text-blue-600 dark:text-blue-400'
+                    }`}>
                       <Clock className="w-3 h-3 shrink-0" />
                       <span>{currentSelectedStep.suggestedTime || '09:30'}</span>
                     </span>
@@ -1695,7 +2031,7 @@ export const ItinerariesView: React.FC<ItinerariesViewProps> = ({
                     {currentSelectedStep.spot?.name}
                   </h4>
                   <p className="text-[10.5px] font-bold text-zinc-400 truncate leading-none flex items-center gap-1">
-                    <Navigation className="w-3 h-3 text-blue-500 shrink-0" />
+                    <RoundedNavigationIcon isGold={isPremiumItinerary} className={`w-3 h-3 shrink-0 ${isPremiumItinerary ? '' : 'text-blue-500'}`} size={12} />
                     <span>{currentSelectedStep.durationToNextMin ? `${currentSelectedStep.durationToNextMin} min até o próximo ponto` : 'Parada planejada do roteiro'}</span>
                   </p>
                 </div>
@@ -1725,6 +2061,7 @@ export const ItinerariesView: React.FC<ItinerariesViewProps> = ({
                   totalSteps={activeSteps.length}
                   isSelected={step.id === currentSelectedStep?.id}
                   isDark={isDark}
+                  isPremium={isPremiumItinerary}
                   onSelect={handleSelectStopOnMap}
                   onDelete={handleDeleteStep}
                   onMoveUp={handleMoveStepUp}
@@ -1749,6 +2086,7 @@ export const ItinerariesView: React.FC<ItinerariesViewProps> = ({
           onDeleteItinerary={handleDeleteItinerary}
           onCreateNewItinerary={handleCreateNewItinerary}
           theme={theme}
+          isPremium={isUserGold}
         />
       )}
 
@@ -1849,6 +2187,52 @@ export const ItinerariesView: React.FC<ItinerariesViewProps> = ({
           </div>
         )}
       </AnimatePresence>
+
+      {/* Toast Notification for Itinerary Added */}
+      <AnimatePresence>
+        {storeToast && (
+          <motion.div
+            initial={{ opacity: 0, y: -20, scale: 0.95 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: -15, scale: 0.95 }}
+            className="fixed top-20 inset-x-0 mx-auto z-70 w-fit px-5 py-2.5 rounded-full bg-zinc-900/90 text-white border border-white/15 backdrop-blur-xl shadow-2xl flex items-center gap-2 text-xs font-black"
+          >
+            <span className="w-5 h-5 rounded-full bg-emerald-500 text-white flex items-center justify-center shrink-0">
+              <Check className="w-3 h-3 stroke-[3]" />
+            </span>
+            <span>{storeToast}</span>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Loja de Roteiros Premium Modal */}
+      <ItineraryStoreModal
+        isOpen={isStoreOpen}
+        onClose={() => setIsStoreOpen(false)}
+        onApplyItinerary={handleApplyStoreItinerary}
+        theme={theme}
+      />
+
+      {/* Plus Action Sheet Popover Menu */}
+      <PlusActionMenuModal
+        isOpen={isPlusMenuOpen}
+        onClose={() => setIsPlusMenuOpen(false)}
+        onCreateNewItinerary={() => setIsStoreOpen(true)}
+        onAddSpot={() => setIsImportModalOpen(true)}
+        theme={theme}
+        isGoldUser={isUserGold}
+      />
+
+      {/* Floating Import Spots Modal */}
+      <ImportSpotFloatingModal
+        isOpen={isImportModalOpen}
+        onClose={() => setIsImportModalOpen(false)}
+        spots={spots || CAMPOS_SPOTS}
+        importedSpotIds={activeStepSpotIds}
+        onImportSpot={handleImportSpotToItinerary}
+        theme={theme}
+        isGoldUser={isUserGold}
+      />
     </div>
   );
 };

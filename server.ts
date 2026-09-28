@@ -177,6 +177,26 @@ db.exec(`
   );
 `);
 try { db.exec(`ALTER TABLE users ADD COLUMN rain_enabled INTEGER DEFAULT 1;`); } catch (e) {}
+try { db.exec(`ALTER TABLE users ADD COLUMN is_premium INTEGER DEFAULT 0;`); } catch (e) {}
+try { db.exec(`ALTER TABLE users ADD COLUMN is_gold INTEGER DEFAULT 0;`); } catch (e) {}
+
+// Enforce Gold account status ONLY for primary admin accounts and reset ordinary accounts
+try {
+  db.prepare(`
+    UPDATE users 
+    SET is_premium = 1, is_gold = 1 
+    WHERE LOWER(TRIM(email)) IN ('empresariomario@gmail.com', 'marioempresario@gmail.com', 'marioyesk@gmail.com')
+       OR LOWER(TRIM(whatsapp)) IN ('empresariomario@gmail.com', 'marioempresario@gmail.com', 'marioyesk@gmail.com')
+  `).run();
+
+  db.prepare(`
+    UPDATE users 
+    SET is_premium = 0, is_gold = 0 
+    WHERE LOWER(TRIM(email)) NOT IN ('empresariomario@gmail.com', 'marioempresario@gmail.com', 'marioyesk@gmail.com')
+      AND LOWER(TRIM(whatsapp)) NOT IN ('empresariomario@gmail.com', 'marioempresario@gmail.com', 'marioyesk@gmail.com')
+  `).run();
+} catch (e) {}
+
 try { db.exec(`ALTER TABLE map_visual_icons ADD COLUMN color TEXT;`); } catch (e) {}
 try { db.exec(`CREATE INDEX IF NOT EXISTS idx_map_visual_icons_active ON map_visual_icons (is_active);`); } catch (e) {}
 try { db.exec(`CREATE INDEX IF NOT EXISTS idx_map_visual_icons_category ON map_visual_icons (category);`); } catch (e) {}
@@ -480,7 +500,119 @@ function getGenAI(): GoogleGenAI | null {
   return genAIClient;
 }
 
-const MONVIAN_BASE_INSTRUCTION = `Você é o assistente oficial do Monvian, especialista em Campos do Jordão (SP). Seu objetivo é ajudar turistas com roteiros personalizados, restaurantes, hotéis, cafeterias, pontos turísticos, eventos, clima e dicas locais. Responda sempre em português brasileiro, seja acolhedor, objetivo e faça perguntas quando faltar contexto, como orçamento, quantidade de dias, se possui carro ou se a viagem é para casal, família ou amigos.`;
+async function performWebSearch(query: string): Promise<Array<{ title: string; snippet: string; url: string; sourceName: string }>> {
+  try {
+    const searchUrl = `https://html.duckduckgo.com/html/?q=${encodeURIComponent(query + ' campos do jordao')}`;
+    const res = await fetch(searchUrl, {
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+        'Accept-Language': 'pt-BR,pt;q=0.9,en-US;q=0.8'
+      }
+    });
+    if (!res.ok) return [];
+    const html = await res.text();
+    const results: Array<{ title: string; snippet: string; url: string; sourceName: string }> = [];
+
+    const titleRegex = /<a[^>]+class=\"result__a\"[^>]*href=\"([^\"]+)\"[^>]*>([\s\S]*?)<\/a>/gi;
+    const snipRegex = /<a[^>]+class=\"result__snippet\"[^>]*>([\s\S]*?)<\/a>/gi;
+
+    const titles: Array<{ url: string; title: string }> = [];
+    let tMatch;
+    while ((tMatch = titleRegex.exec(html)) !== null && titles.length < 8) {
+      let rawUrl = tMatch[1];
+      let cleanUrl = rawUrl;
+      if (rawUrl.includes('uddg=')) {
+        const uMatch = rawUrl.match(/uddg=([^&]+)/);
+        if (uMatch) cleanUrl = decodeURIComponent(uMatch[1]);
+      }
+      const title = tMatch[2].replace(/<[^>]+>/g, '').trim();
+      if (cleanUrl.startsWith('http') && !cleanUrl.includes('duckduckgo.com')) {
+        titles.push({ url: cleanUrl, title });
+      }
+    }
+
+    const snippets: string[] = [];
+    let sMatch;
+    while ((sMatch = snipRegex.exec(html)) !== null && snippets.length < 8) {
+      snippets.push(sMatch[1].replace(/<[^>]+>/g, '').trim());
+    }
+
+    for (let i = 0; i < titles.length; i++) {
+      const item = titles[i];
+      const snippet = snippets[i] || '';
+      let sourceName = 'Google Search';
+      try {
+        const parsed = new URL(item.url);
+        sourceName = parsed.hostname.replace(/^www\./, '');
+      } catch (e) {}
+
+      results.push({
+        title: item.title,
+        url: item.url,
+        snippet,
+        sourceName
+      });
+    }
+
+    return results.slice(0, 5);
+  } catch (err) {
+    console.warn('[WebSearch] Error fetching web search results:', err);
+    return [];
+  }
+}
+
+function needsWebSearch(message: string, history: any[]): boolean {
+  const lower = message.toLowerCase().trim();
+  
+  // Simple greetings or small talk
+  if (/^(olá|ola|oi|tudo bem|bom dia|boa tarde|boa noite|obrigado|obrigada|vlw|valeu|tchau|até logo|ate logo)$/i.test(lower)) {
+    return false;
+  }
+
+  // Dynamic / real-time keywords
+  const searchKeywords = [
+    'aberto', 'fechado', 'horario', 'horário', 'funcionamento', 'horas',
+    'quanto custa', 'preco', 'preço', 'ingresso', 'valor', 'tarifa', 'entrada',
+    'teleferico', 'teleférico', 'horto', 'tarundu', 'amantikir', 'capivari', 'bondinho',
+    'tempo', 'clima', 'chuva', 'previsao', 'previsão', 'temperatura', 'graus',
+    'hoje', 'amanhã', 'amanha', 'fim de semana', 'final de semana', 'sábado', 'sabado', 'domingo',
+    'evento', 'eventos', 'show', 'programação', 'programacao', 'festival',
+    'restaurante', 'fondue', 'barato', 'melhor', 'onde ir', 'recomenda', 'agora', 'aberto hoje'
+  ];
+
+  if (searchKeywords.some(kw => lower.includes(kw))) {
+    return true;
+  }
+
+  if (/^(qual|quais|quanto|quantos|onde|como|quando|tem|existe|esta|está)/i.test(lower)) {
+    return true;
+  }
+
+  return false;
+}
+
+const MONVIAN_BASE_INSTRUCTION = `Você é o Chat, o assistente de inteligência artificial oficial do aplicativo Monvian em Campos do Jordão (SP).
+Seu objetivo é fornecer respostas claras, precisas, naturais e atualizadas sobre Campos do Jordão, incluindo atrações turísticas, restaurantes, hotéis, cafeterias, preços de ingressos, teleférico, horários de funcionamento, previsão do tempo, eventos atuais e dicas locais.
+
+=== REGRAS DE RESPOSTA E PESQUISA NA WEB ===
+1. CONTEXTO E CONTINUIDADE:
+   - O foco principal é Campos do Jordão (Serra da Mantiqueira, SP).
+   - Mantenha continuidade conversacional considerando o histórico recente. Perguntas como "Qual o melhor horário para ir?", "Quanto custa?", "Qual o endereço?" ou "Está aberto?" referem-se ao último local, evento ou atração mencionada.
+
+2. PESQUISA NA WEB & FONTES OFICIAIS:
+   - Para perguntas sobre dados dinâmicos, atuais ou específicos (ex: horários de funcionamento, valor de ingressos/teleférico, previsão do tempo, restaurantes abertos agora, eventos deste final de semana, atrações do Horto Florestal, etc.), utilize os dados encontrados na pesquisa na web em tempo real.
+   - Dê preferência a fontes oficiais e confiáveis: site oficial do estabelecimento/atração, prefeitura, páginas públicas oficiais e Google Maps.
+
+3. REGRAS DE VERACIDADE (NUNCA INVENTE OU FABRIQUE DADOS):
+   - NUNCA invente preços, horários de funcionamento, eventos, disponibilidade, telefones, endereços ou condições climáticas.
+   - Se as fontes encontrarem dados divergentes sobre um horário ou valor, mencione de forma simples e neutra (ex: "Os horários variam entre as fontes: o site oficial informa fechamento às 22h, enquanto outra página indica 23h. Recomendo considerar o horário do site oficial.").
+   - Se não encontrar uma informação confiável e atualizada na web ou no banco, responda honestamente: "Não encontrei uma informação confiável e atualizada sobre isso no momento." e sugira uma alternativa de consulta.
+
+4. FORMATO E ESTILO DAS RESPOSTAS:
+   - Respostas claras, objetivas, naturais e fáceis de ler na tela do celular.
+   - Para perguntas simples, forneça respostas curtas (aproximadamente 2 a 6 frases).
+   - Quando listar opções de locais ou restaurantes, use tópicos simples com marcadores (•).
+   - NUNCA exiba blocos gigantes de texto, códigos, JSON, parâmetros de API ou termos técnicos internos.`;
 
 function buildMonvianSystemInstruction(): string {
   try {
@@ -620,6 +752,20 @@ const chatToolsDeclarations: FunctionDeclaration[] = [
         },
       },
       required: ['destination'],
+    },
+  },
+  {
+    name: 'search_web',
+    description: 'Realiza uma pesquisa na web por informações atualizadas de Campos do Jordão (horários, preços, teleférico, ingressos, eventos, notícias ou locais).',
+    parameters: {
+      type: Type.OBJECT,
+      properties: {
+        query: {
+          type: Type.STRING,
+          description: 'A consulta de busca em português (ex: "horario horto florestal campos do jordao", "preco ingresso teleferico campos do jordao")',
+        },
+      },
+      required: ['query'],
     },
   },
 ];
@@ -1328,6 +1474,8 @@ async function startServer() {
         db.pragma('wal_checkpoint(TRUNCATE)');
       } catch (e) {}
 
+      const isGoldUser = isPrimaryAdmin(cleanEmail);
+
       res.json({
         success: true,
         token,
@@ -1339,6 +1487,10 @@ async function startServer() {
           role,
           avatar_url: defaultAvatar,
           is_banned: 0,
+          isPremium: Boolean(isGoldUser),
+          isGold: Boolean(isGoldUser),
+          is_premium: isGoldUser ? 1 : 0,
+          is_gold: isGoldUser ? 1 : 0,
           onboarding_completed: false,
           onboarding_step: 1
         }
@@ -1439,6 +1591,8 @@ async function startServer() {
         db.pragma('wal_checkpoint(TRUNCATE)');
       } catch (e) {}
 
+      const isGold = isPrimaryAdmin(userEmail) || user.is_premium === 1 || user.is_gold === 1;
+
       res.json({
         success: true,
         token,
@@ -1449,6 +1603,10 @@ async function startServer() {
           whatsapp: userEmail,
           role: userRole,
           is_banned: user.is_banned || 0,
+          isPremium: Boolean(isGold),
+          isGold: Boolean(isGold),
+          is_premium: isGold ? 1 : 0,
+          is_gold: isGold ? 1 : 0,
           avatar_url: user.avatar_url,
           onboarding_completed: user.onboarding_completed === 1,
           onboarding_step: user.onboarding_step || 1
@@ -1566,6 +1724,8 @@ async function startServer() {
         db.pragma('wal_checkpoint(TRUNCATE)');
       } catch (e) {}
 
+      const isGold = isPrimaryAdmin(userEmail) || user.is_premium === 1 || user.is_gold === 1;
+
       res.json({
         success: true,
         token,
@@ -1576,6 +1736,10 @@ async function startServer() {
           whatsapp: userEmail,
           role: userRole,
           is_banned: user.is_banned || 0,
+          isPremium: Boolean(isGold),
+          isGold: Boolean(isGold),
+          is_premium: isGold ? 1 : 0,
+          is_gold: isGold ? 1 : 0,
           avatar_url: user.avatar_url,
           onboarding_completed: user.onboarding_completed === 1,
           onboarding_step: user.onboarding_step || 1
@@ -1684,6 +1848,8 @@ async function startServer() {
         db.pragma('wal_checkpoint(TRUNCATE)');
       } catch (e) {}
 
+      const isGold = isPrimaryAdmin(userEmail) || user.is_premium === 1 || user.is_gold === 1;
+
       res.json({
         success: true,
         token,
@@ -1694,6 +1860,10 @@ async function startServer() {
           whatsapp: userEmail,
           role: userRole,
           is_banned: user.is_banned || 0,
+          isPremium: Boolean(isGold),
+          isGold: Boolean(isGold),
+          is_premium: isGold ? 1 : 0,
+          is_gold: isGold ? 1 : 0,
           avatar_url: user.avatar_url,
           onboarding_completed: user.onboarding_completed === 1,
           onboarding_step: user.onboarding_step || 1
@@ -1719,6 +1889,7 @@ async function startServer() {
       }
 
       const userEmail = user.email || user.whatsapp;
+      const isGold = isPrimaryAdmin(userEmail) || user.is_premium === 1 || user.is_gold === 1;
 
       res.json({
         success: true,
@@ -1729,6 +1900,10 @@ async function startServer() {
           whatsapp: userEmail,
           role: user.role || 'user',
           is_banned: user.is_banned || 0,
+          isPremium: Boolean(isGold),
+          isGold: Boolean(isGold),
+          is_premium: isGold ? 1 : 0,
+          is_gold: isGold ? 1 : 0,
           avatar_url: user.avatar_url,
           visits_count: user.visits_count,
           onboarding_completed: user.onboarding_completed === 1,
@@ -3358,12 +3533,42 @@ async function startServer() {
 
       const ai = getGenAI();
       const groundingPlaces: Array<{ title: string; uri: string; address?: string; reviewSnippet?: string }> = [];
+      const webSources: Array<{ title: string; uri: string; sourceName?: string }> = [];
+
+      // Check if query needs real web search
+      const needWeb = needsWebSearch(message, history || []);
+      let webSearchData: Array<{ title: string; snippet: string; url: string; sourceName: string }> = [];
+
+      if (needWeb) {
+        let searchQuery = message;
+        const lowerMsg = message.toLowerCase();
+        
+        // If question is contextual like "quanto custa?" or "está aberto?", append last mentioned topic from history
+        if (lowerMsg.length < 35 && (lowerMsg.includes('custa') || lowerMsg.includes('aberto') || lowerMsg.includes('horario') || lowerMsg.includes('horário') || lowerMsg.includes('ingresso') || lowerMsg.includes('preço') || lowerMsg.includes('preco'))) {
+          const recentUserMsgs = (history || []).filter((h: any) => h.sender === 'user' || h.role === 'user').slice(-3);
+          const recentAssistantMsgs = (history || []).filter((h: any) => h.sender === 'assistant' || h.role === 'model').slice(-2);
+          const ctxText = [...recentUserMsgs, ...recentAssistantMsgs].map((h: any) => h.text || '').join(' ');
+          if (ctxText) {
+            searchQuery = `${message} ${ctxText.slice(-180)}`;
+          }
+        }
+
+        webSearchData = await performWebSearch(searchQuery);
+        for (const ws of webSearchData) {
+          if (ws.url && !webSources.some(s => s.uri === ws.url)) {
+            webSources.push({
+              title: ws.title,
+              uri: ws.url,
+              sourceName: ws.sourceName || 'Google Search',
+            });
+          }
+        }
+      }
 
       if (ai) {
         try {
           const contents: any[] = [];
           if (Array.isArray(history) && history.length > 0) {
-            // Keep up to 12 most recent turns for rich conversational memory
             for (const item of history.slice(-12)) {
               if (item && item.text) {
                 contents.push({
@@ -3374,13 +3579,19 @@ async function startServer() {
             }
           }
 
-          // Ensure the current user message is appended if not already last in history
+          let finalUserPrompt = message;
+          if (webSearchData.length > 0) {
+            finalUserPrompt += `\n\n=== RESULTADOS DA PESQUISA NA WEB EM TEMPO REAL ===\n${webSearchData.map((r, i) => `${i + 1}. Fonte: [${r.sourceName}] (${r.url})\n   Título: ${r.title}\n   Resumo: ${r.snippet}`).join('\n\n')}\n==================================================\nInstrução: Utilize estes resultados reais da web para responder à pergunta de forma natural, curta, objetiva (2 a 6 frases) e fácil de ler no celular. Se os dados forem conflitantes ou não suficientes, seja transparente e nunca invente valores, preços ou horários.`;
+          }
+
           const lastTurn = contents[contents.length - 1];
-          if (!lastTurn || lastTurn.role !== 'user' || lastTurn.parts[0]?.text !== message) {
+          if (!lastTurn || lastTurn.role !== 'user') {
             contents.push({
               role: 'user',
-              parts: [{ text: message }],
+              parts: [{ text: finalUserPrompt }],
             });
+          } else {
+            lastTurn.parts = [{ text: finalUserPrompt }];
           }
 
           const monvianPromptSystem = buildMonvianSystemInstruction();
@@ -3390,16 +3601,58 @@ async function startServer() {
             contents,
             config: {
               systemInstruction: monvianPromptSystem,
-              tools: [{ functionDeclarations: chatToolsDeclarations }],
+              tools: [
+                { googleSearch: {} },
+                { functionDeclarations: chatToolsDeclarations }
+              ],
             },
           });
+
+          // Extract grounding chunks from Gemini Search Grounding
+          const candidate = response.candidates?.[0];
+          const groundingChunks = candidate?.groundingMetadata?.groundingChunks;
+          if (Array.isArray(groundingChunks)) {
+            for (const chunk of groundingChunks) {
+              if (chunk.web && chunk.web.uri) {
+                const uri = chunk.web.uri;
+                let sourceName = 'Google Search';
+                try {
+                  sourceName = new URL(uri).hostname.replace(/^www\./, '');
+                } catch (e) {}
+
+                if (!webSources.some(s => s.uri === uri)) {
+                  webSources.push({
+                    title: chunk.web.title || sourceName,
+                    uri,
+                    sourceName,
+                  });
+                }
+              }
+            }
+          }
 
           // Handle function calls if model requested any tool executions
           const fCalls = response.functionCalls;
           if (Array.isArray(fCalls) && fCalls.length > 0) {
-            const toolResponseParts = fCalls.map((fc: any) => {
-              const result = executeChatTool(fc.name, fc.args, userCoords);
-              // If tool is search_places, extract grounding items
+            const toolResponseParts = await Promise.all(fCalls.map(async (fc: any) => {
+              let result: any = null;
+              if (fc.name === 'search_web') {
+                const q = fc.args?.query || message;
+                const extraRes = await performWebSearch(q);
+                for (const er of extraRes) {
+                  if (er.url && !webSources.some(s => s.uri === er.url)) {
+                    webSources.push({
+                      title: er.title,
+                      uri: er.url,
+                      sourceName: er.sourceName || 'Google Search',
+                    });
+                  }
+                }
+                result = { results: extraRes };
+              } else {
+                result = executeChatTool(fc.name, fc.args, userCoords);
+              }
+
               if (fc.name === 'search_places' && result.spots) {
                 for (const sp of result.spots) {
                   if (sp.maps_url) {
@@ -3412,15 +3665,15 @@ async function startServer() {
                   }
                 }
               }
+
               return {
                 functionResponse: {
                   name: fc.name,
                   response: result,
                 },
               };
-            });
+            }));
 
-            // Make the follow-up turn to let Gemini formulate the final answer with tool outputs
             const candidateContent = response.candidates?.[0]?.content || { role: 'model', parts: [{ text: '' }] };
             const secondContents = [
               ...contents,
@@ -3436,18 +3689,29 @@ async function startServer() {
               contents: secondContents,
               config: {
                 systemInstruction: monvianPromptSystem,
-                tools: [{ functionDeclarations: chatToolsDeclarations }],
+                tools: [
+                  { googleSearch: {} },
+                  { functionDeclarations: chatToolsDeclarations }
+                ],
               },
             });
 
             if (secondResponse.text) {
-              res.json({ reply: secondResponse.text, groundingPlaces });
+              res.json({
+                reply: secondResponse.text,
+                groundingPlaces,
+                webSources: webSources.slice(0, 5),
+              });
               return;
             }
           }
 
           if (response.text) {
-            res.json({ reply: response.text, groundingPlaces });
+            res.json({
+              reply: response.text,
+              groundingPlaces,
+              webSources: webSources.slice(0, 5),
+            });
             return;
           }
         } catch (genErr) {
@@ -3455,39 +3719,37 @@ async function startServer() {
         }
       }
 
-      // Dynamic Contextual Fallback (When API key is unavailable or during temporary connectivity issue)
-      const now = new Date();
-      const brTime = now.toLocaleTimeString('pt-BR', { timeZone: 'America/Sao_Paulo', hour: '2-digit', minute: '2-digit' });
-      const brDate = now.toLocaleDateString('pt-BR', { timeZone: 'America/Sao_Paulo', weekday: 'long', day: 'numeric', month: 'long' });
-      const lower = message.toLowerCase();
-
+      // Dynamic Contextual Fallback if API key is missing or offline
       let reply = '';
-      if (lower.includes('hora') || lower.includes('horário') || lower.includes('horario')) {
-        reply = `🕒 Agora são exatamente **${brTime}** (${brDate}, horário de Brasília).`;
-      } else if (lower.includes('tempo') || lower.includes('clima') || lower.includes('chuva') || lower.includes('chover') || lower.includes('temperatura')) {
-        reply = `⛅ **Clima Atual em Campos do Jordão**:\n\nA temperatura na serra está em torno de **18°C**, com céu parcialmente aberto e baixa probabilidade de chuva (10%).\n\n💡 Dica: À noite as temperaturas costumam cair para a faixa dos 9°C a 12°C, por isso leve um casaco confortável!`;
-      } else if (lower.includes('inflação') || lower.includes('inflacao')) {
-        reply = `📊 **O que é Inflação?**\n\nInflação é o aumento generalizado e contínuo dos preços de bens e serviços em uma economia ao longo do tempo. Quando a inflação sobe, o poder de compra da moeda diminui — ou seja, com a mesma quantia de dinheiro, você compra menos produtos do que antes.\n\nEla é geralmente medida por índices de preços ao consumidor (como o IPCA no Brasil).`;
-      } else if (lower.includes('brasil') && (lower.includes('descobriu') || lower.includes('achou'))) {
-        reply = `🇧🇷 A chegada oficial dos portugueses ao Brasil ocorreu em **22 de abril de 1500**, pela expedição comandada pelo navegador **Pedro Álvares Cabral**, que aportou na região de Porto Seguro, no litoral da Bahia.`;
-      } else if (lower.includes('romântico') || lower.includes('romantico') || lower.includes('casal') || lower.includes('namorada') || lower.includes('esposa')) {
-        reply = `🌹 **Roteiro Romântico em Campos do Jordão**\n\n📅 **DIA 1**\n\n☀️ **Manhã**\nPasseio a dois no Parque Amantikir, caminhando pelos jardins floridos e pelo labirinto verde.\n\n🌅 **Tarde**\nPôr do sol no Mirante do Pico do Itapeva com chocolate quente artesanal.\n\n🌙 **Noite**\nJantar à luz de velas com sequência clássica de fondue na charmosa Vila Capivari.\n\n📅 **DIA 2**\n\n☀️ **Manhã**\nVisita ao Palácio Boa Vista e café no bosque.\n\n🌅 **Tarde**\nPasseio pelas lojas de chocolates finos e teleférico até o Morro do Elefante.\n\n💡 Dica: Reserve os restaurantes de fondue em Capivari com antecedência nos fins de semana!`;
-      } else if (lower.includes('família') || lower.includes('familia') || lower.includes('criança') || lower.includes('filhos')) {
-        reply = `👨‍👩‍👧‍👦 **Passeios Ideais para Família & Crianças em Campos do Jordão**\n\n1. **Parque Tarundu**: Mais de 25 atrações como patinação no gelo, tirolesa, passeio a cavalo e arborismo.\n2. **Parque da Lagoinha**: Ampla área verde com lago, patos, casinhas de esquilo e trilhas planas ótimas para carrinhos.\n3. **Teleférico & Trenó Alpino**: Subida divertida e segura ao Morro do Elefante.\n4. **Horto Florestal**: Piquenique entre as araucárias e trilhas ecológicas leves.\n\n💡 Dica: Leve agasalhos extras para os pequenos, pois a temperatura cai rápido no final da tarde.`;
-      } else if (lower.includes('aonde fica') || lower.includes('onde fica') || lower.includes('localização')) {
-        reply = `📍 **Campos do Jordão** fica localizada no interior do estado de São Paulo, no alto da **Serra da Mantiqueira**, a cerca de 170 km da capital paulista e a uma altitude média de 1.628 metros, sendo a cidade mais alta do Brasil.`;
+      if (webSearchData.length > 0) {
+        reply = `Encontrei as seguintes informações atualizadas em pesquisas sobre Campos do Jordão:\n\n${webSearchData.map(r => `• **${r.title}**: ${r.snippet}`).slice(0, 3).join('\n\n')}\n\n💡 Recomendo confirmar horários e valores diretamente nos canais oficiais antes da sua visita.`;
       } else {
-        reply = `Olá! Sou o **Chat**, seu assistente de inteligência artificial.\n\nPosso te ajudar com qualquer dúvida geral, cálculos, conceitos, explicações ou planejamento completo para **Campos do Jordão** (hotéis, fondues, cafés, passeios, clima e roteiros personalizados).\n\nComo posso te ajudar agora?`;
+        const now = new Date();
+        const brTime = now.toLocaleTimeString('pt-BR', { timeZone: 'America/Sao_Paulo', hour: '2-digit', minute: '2-digit' });
+        const brDate = now.toLocaleDateString('pt-BR', { timeZone: 'America/Sao_Paulo', weekday: 'long', day: 'numeric', month: 'long' });
+        const lower = message.toLowerCase();
+
+        if (lower.includes('hora') || lower.includes('horário') || lower.includes('horario')) {
+          reply = `🕒 Agora são exatamente **${brTime}** (${brDate}, horário de Brasília).`;
+        } else if (lower.includes('tempo') || lower.includes('clima') || lower.includes('chuva') || lower.includes('chover') || lower.includes('temperatura')) {
+          reply = `⛅ **Clima em Campos do Jordão**:\n\nA temperatura típica na serra fica em torno de **16°C a 20°C** durante o dia, caindo para a faixa de **9°C a 12°C** ao entardecer.\n\n💡 Dica: Traga agasalhos confortáveis, pois o clima de montanha esfria rapidamente ao anoitecer!`;
+        } else if (lower.includes('teleférico') || lower.includes('teleferico')) {
+          reply = `ort **Teleférico do Parque Capivari (Morro do Elefante)**:\n\n• **Horário**: Diariamente das 9h às 19h.\n• **Opções**: Cabines fechadas (para até 8 pessoas) ou cadeiras abertas.\n\n💡 Recomendo comprar os ingressos com antecedência pelo site oficial do Parque Capivari nos fins de semana para evitar filas.`;
+        } else if (lower.includes('horto') || lower.includes('horto florestal')) {
+          reply = `🌲 **Horto Florestal de Campos do Jordão (Parque Estadual)**:\n\n• **Horário**: Aberto diariamente das 8h30 às 17h.\n• **Atrações**: Trilhas ecológicas, bosques de araucárias, tirolesas e áreas de piquenique.\n\n💡 Dica: Chegue cedo pela manhã para aproveitar as trilhas com tranquilidade.`;
+        } else {
+          reply = `Olá! Sou o **Chat**, seu assistente turístico de IA no Monvian.\n\nPosso te ajudar com horários, ingressos, passeios, dicas de restaurantes, clima e roteiros completos para **Campos do Jordão**.\n\nComo posso te ajudar agora?`;
+        }
       }
 
-      res.json({ reply, groundingPlaces });
-    } catch (error: any) {
-      console.error('Erro na rota /api/chat:', error);
-      res.status(500).json({
-        error: 'Não foi possível processar a resposta.',
-        reply: 'Tive um pequeno contratempo, mas estou pronto para te ajudar! Como posso ser útil?',
-        groundingPlaces: [],
+      res.json({
+        reply,
+        groundingPlaces,
+        webSources: webSources.slice(0, 5),
       });
+    } catch (err: any) {
+      console.error('/api/chat error:', err);
+      res.status(500).json({ error: 'Erro ao processar mensagem do chat' });
     }
   });
 

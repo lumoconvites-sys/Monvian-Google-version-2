@@ -18,9 +18,11 @@ import {
   ExternalLink,
   Loader2,
   CloudRain,
+  Crown,
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { InstagramLogo, WhatsAppLogo } from './SocialIcons';
+import { PremiumModal } from './PremiumModal';
 
 interface ProfileModalProps {
   isOpen: boolean;
@@ -106,6 +108,11 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
   // Permissions state
   const [locationPerm, setLocationPerm] = useState(true);
   const [notificationsPerm, setNotificationsPerm] = useState(true);
+  const [isPremiumModalOpen, setIsPremiumModalOpen] = useState(false);
+
+  const cleanUserEmail = (user?.email || user?.whatsapp || '').trim().toLowerCase();
+  const isGoldAdmin = ['empresariomario@gmail.com', 'marioempresario@gmail.com', 'marioyesk@gmail.com'].includes(cleanUserEmail);
+  const isPremiumUser = isGoldAdmin || Boolean(user?.isGold || user?.is_gold === 1 || user?.isPremium || user?.is_premium === 1);
 
   if (!isOpen) return null;
 
@@ -277,39 +284,110 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
         {activeSubView === 'main' && (
           <div className="space-y-3.5 pt-1">
             {/* 1. Header User Card */}
-            <div
-              id="card-user-info"
-              className="w-full p-5 rounded-[32px] bg-white dark:bg-[#141518] border border-zinc-200 dark:border-white/10 flex items-center gap-4 shadow-sm dark:shadow-xl"
-            >
-              {/* Avatar with pure white border */}
-              <div className="relative shrink-0">
-                <div className="w-18 h-18 sm:w-20 sm:h-20 rounded-full overflow-hidden border-2 border-white ring-4 ring-white/20 bg-zinc-100 dark:bg-zinc-900 shadow-md relative">
-                  <img
-                    src={userAvatar}
-                    alt={userName}
-                    className="w-full h-full object-cover"
-                  />
-                  {isUploading && (
-                    <div className="absolute inset-0 bg-black/60 flex items-center justify-center">
-                      <Loader2 className="w-6 h-6 text-white animate-spin" />
+            {isPremiumUser ? (
+              <div id="card-user-info" className="gold-vip-frame-wrapper border border-[#E5AC33]/40 dark:border-transparent">
+                <div className="relative z-10 w-full p-5 rounded-[30.5px] bg-white dark:bg-[#141518] flex items-center gap-4">
+                  {/* Avatar with metallic gold 3D bezel ring */}
+                  <div className="relative shrink-0">
+                    <div className="gold-vip-avatar-ring">
+                      <div className="w-18 h-18 sm:w-20 sm:h-20 rounded-full overflow-hidden bg-zinc-100 dark:bg-zinc-900 relative border border-[#FFF4A3]/70 dark:border-[#FFF4A3]/50">
+                        <img
+                          src={userAvatar}
+                          alt={userName}
+                          className="w-full h-full object-cover"
+                        />
+                        {isUploading && (
+                          <div className="absolute inset-0 bg-black/60 flex items-center justify-center">
+                            <Loader2 className="w-6 h-6 text-white animate-spin" />
+                          </div>
+                        )}
+                      </div>
                     </div>
-                  )}
+
+                  </div>
+
+                  {/* User details */}
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center gap-1.5 flex-wrap">
+                      <h2 className="text-xl sm:text-[22px] font-black text-zinc-900 dark:text-white tracking-tight leading-tight flex items-center gap-1.5">
+                        <span>{userName}</span>
+                        <Crown className="w-4 h-4 text-[#F5BE38] fill-[#F5BE38]/30 stroke-[2.2] shrink-0" />
+                      </h2>
+                    </div>
+                    <p className="text-xs sm:text-sm text-zinc-500 dark:text-zinc-400 font-medium truncate mt-1">
+                      {userEmail}
+                    </p>
+                  </div>
                 </div>
               </div>
+            ) : (
+              <div
+                id="card-user-info"
+                className="w-full p-5 rounded-[32px] bg-white dark:bg-[#141518] border border-zinc-200 dark:border-white/10 flex items-center gap-4 shadow-sm dark:shadow-xl"
+              >
+                {/* Avatar with pure white border */}
+                <div className="relative shrink-0">
+                  <div className="w-18 h-18 sm:w-20 sm:h-20 rounded-full overflow-hidden border-2 border-white ring-4 ring-white/20 bg-zinc-100 dark:bg-zinc-900 shadow-md relative">
+                    <img
+                      src={userAvatar}
+                      alt={userName}
+                      className="w-full h-full object-cover"
+                    />
+                    {isUploading && (
+                      <div className="absolute inset-0 bg-black/60 flex items-center justify-center">
+                        <Loader2 className="w-6 h-6 text-white animate-spin" />
+                      </div>
+                    )}
+                  </div>
+                </div>
 
-              {/* User details */}
-              <div className="min-w-0 flex-1">
-                <h2 className="text-xl sm:text-[22px] font-black text-zinc-900 dark:text-white tracking-tight truncate leading-tight">
-                  {userName}
-                </h2>
-                <p className="text-xs sm:text-sm text-zinc-500 dark:text-zinc-400 font-black truncate mt-1">
-                  {userEmail}
-                </p>
+                {/* User details */}
+                <div className="min-w-0 flex-1">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <h2 className="text-xl sm:text-[22px] font-black text-zinc-900 dark:text-white tracking-tight leading-tight">
+                      {userName}
+                    </h2>
+                    <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-[#007AFF]/15 border border-[#007AFF]/35 text-[#007AFF] text-[10px] font-black uppercase tracking-wider shadow-xs">
+                      <span className="w-1.5 h-1.5 rounded-full bg-[#007AFF]" />
+                      <span>Conta Beta</span>
+                    </span>
+                  </div>
+                  <p className="text-xs sm:text-sm text-zinc-500 dark:text-zinc-400 font-black truncate mt-1">
+                    {userEmail}
+                  </p>
+                </div>
               </div>
-            </div>
+            )}
 
             {/* 2. Options List */}
             <div className="space-y-3">
+              {/* Monvian Conta Gold Selector (only visible for non-gold accounts) */}
+              {!isPremiumUser && (
+                <button
+                  type="button"
+                  id="btn-profile-premium-main"
+                  onClick={() => setIsPremiumModalOpen(true)}
+                  className="w-full p-4 rounded-3xl transition-all flex items-center justify-between text-left cursor-pointer group shadow-sm active:scale-[0.98] border bg-white dark:bg-[#141518] hover:bg-zinc-50 dark:hover:bg-[#1a1c21] border-[#E5AC33]/35 dark:border-[#F5BE38]/30 hover:border-[#FFF4A3]/60"
+                >
+                  <div className="flex items-center gap-3.5 min-w-0">
+                    <div className="w-11 h-11 rounded-2xl bg-metallic-gold-icon border flex items-center justify-center text-[#F5BE38] shrink-0 group-hover:scale-105 transition-transform shadow-xs">
+                      <Crown className="w-5 h-5 stroke-[2.3] text-[#F5BE38]" />
+                    </div>
+                    <div className="min-w-0">
+                      <div className="flex items-center gap-2">
+                        <h3 className="text-base font-black text-zinc-900 dark:text-white tracking-tight leading-tight">
+                          CONTA GOLD
+                        </h3>
+                      </div>
+                      <p className="text-xs text-zinc-500 dark:text-zinc-400 font-medium mt-0.5 truncate">
+                        Desbloqueie todos os conteúdos do Monvian
+                      </p>
+                    </div>
+                  </div>
+                  <ChevronRight className="w-5 h-5 text-[#F5BE38] group-hover:translate-x-0.5 transition-all shrink-0 ml-2" />
+                </button>
+              )}
+
               {/* Editar Perfil */}
               <button
                 id="btn-profile-edit-option"
@@ -322,7 +400,7 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
                 className="w-full p-4 rounded-3xl bg-white dark:bg-[#141518] hover:bg-zinc-50 dark:hover:bg-[#1a1c21] active:scale-[0.98] border border-zinc-200 dark:border-white/5 hover:border-zinc-300 dark:hover:border-white/15 transition-all flex items-center justify-between text-left cursor-pointer group shadow-sm"
               >
                 <div className="flex items-center gap-3.5 min-w-0">
-                  <div className="w-14 h-14 shrink-0 flex items-center justify-center group-hover:scale-110 transition-transform duration-300">
+                  <div className="w-10 h-10 shrink-0 flex items-center justify-center group-hover:scale-105 transition-transform duration-300">
                     <img
                       src="/lapis.png"
                       alt="Editar Perfil"
@@ -809,6 +887,8 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
                   } catch (e) {}
                   localStorage.removeItem('monvian_token');
                   localStorage.removeItem('monvian_user');
+                  localStorage.removeItem('monvian_active_itinerary');
+                  localStorage.removeItem('monvian_itinerary_session');
                   window.location.reload();
                 }}
                 className="flex-1 py-3.5 rounded-2xl bg-red-500 hover:bg-red-600 text-white text-sm font-bold transition-all cursor-pointer shadow-lg shadow-red-500/25 active:scale-95"
@@ -819,6 +899,13 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
           </div>
         )}
       </div>
+
+      {/* Monvian Premium Modal */}
+      <PremiumModal
+        isOpen={isPremiumModalOpen}
+        onClose={() => setIsPremiumModalOpen(false)}
+        theme={theme}
+      />
     </div>
   );
 };

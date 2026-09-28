@@ -81,12 +81,21 @@ export interface ChatMessage {
   likes: number;
 }
 
+export interface WebSource {
+  title: string;
+  uri: string;
+  sourceName?: string;
+  snippet?: string;
+}
+
 export interface AIChatMessage {
   id: string;
   sender: 'user' | 'assistant';
   text: string;
   time: string;
   groundingPlaces?: MapsGroundingPlace[];
+  sources?: WebSource[];
+  isSearchingWeb?: boolean;
 }
 
 export interface UserPreferences {
@@ -117,6 +126,10 @@ export interface User {
   main_interests?: string[];
   preferred_season?: string;
   onboarding_completed_at?: string;
+  isPremium?: boolean;
+  is_premium?: number | boolean;
+  isGold?: boolean;
+  is_gold?: number | boolean;
 }
 
 export interface MapVisualIcon {
@@ -140,6 +153,8 @@ export interface ItineraryCategory {
   sortOrder: number;
 }
 
+export type ItineraryStatus = 'published' | 'draft' | 'hidden';
+
 export interface ItineraryStep {
   id: string;
   itineraryId?: string;
@@ -150,6 +165,19 @@ export interface ItineraryStep {
   suggestedTime: string;
   durationMinutes: number;
   notes?: string;
+  title?: string;
+  spotName?: string;
+  category?: string;
+  categoryLabel?: string;
+  description?: string;
+  image?: string;
+  lat?: number;
+  lng?: number;
+  travelTimeFromPrev?: string;
+  customName?: string;
+  customDescription?: string;
+  customTip?: string;
+  customImage?: string;
   spot?: Spot;
   distanceToNextKm?: number;
   durationToNextMin?: number;
@@ -175,6 +203,16 @@ export interface Itinerary {
   categories: string[];
   isActive: boolean;
   isRecommended: boolean;
+  isFeatured?: boolean;
+  isPremium?: boolean;
+  price?: string;
+  status?: ItineraryStatus;
+  badgeText?: string;
+  showBadge?: boolean;
+  showPrice?: boolean;
+  showStopsCount?: boolean;
+  tips?: string;
+  sortOrder?: number;
   usageCount: number;
   notes?: string;
   days: ItineraryDay[];

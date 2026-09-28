@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   X,
   Plus,
@@ -14,9 +14,24 @@ import {
   Compass,
   Image as ImageIcon,
   CheckCircle2,
-  AlertCircle
+  AlertCircle,
+  Eye,
+  EyeOff,
+  DollarSign,
+  Tag,
+  Lightbulb,
+  Search,
+  Upload,
+  Camera,
+  Link as LinkIcon,
+  RefreshCw,
+  Sliders,
+  Layers,
+  Layout,
+  Sun,
+  Moon
 } from 'lucide-react';
-import { Spot, Itinerary, ItineraryCategory } from '../../types';
+import { Spot, Itinerary, ItineraryCategory, ItineraryStatus } from '../../types';
 
 interface AdminItineraryModalProps {
   isOpen: boolean;
@@ -32,7 +47,7 @@ const COVER_PRESETS = [
   { label: 'Montanhas & Mirante', url: 'https://images.unsplash.com/photo-1506744038136-46273834b3fb?auto=format&fit=crop&w=1000&q=80' },
   { label: 'Vila Capivari Inverno', url: 'https://images.unsplash.com/photo-1542314831-068cd1dbfeeb?auto=format&fit=crop&w=1000&q=80' },
   { label: 'Fondue & Gastronomia', url: 'https://images.unsplash.com/photo-1517248135467-4c7edcad34c4?auto=format&fit=crop&w=1000&q=80' },
-  { label: 'Trilha & Floresta de Pinhos', url: 'https://images.unsplash.com/photo-1448375240586-882707db888b?auto=format&fit=crop&w=1000&q=80' },
+  { label: 'Trilha & Bosque de Pinhos', url: 'https://images.unsplash.com/photo-1448375240586-882707db888b?auto=format&fit=crop&w=1000&q=80' },
 ];
 
 export const AdminItineraryModal: React.FC<AdminItineraryModalProps> = ({
@@ -42,21 +57,38 @@ export const AdminItineraryModal: React.FC<AdminItineraryModalProps> = ({
   itineraryToEdit,
   categories
 }) => {
-  const [activeTab, setActiveTab] = useState<'info' | 'builder'>('info');
+  const [activeTab, setActiveTab] = useState<'info' | 'cover' | 'builder' | 'appearance'>('info');
   const [availableSpots, setAvailableSpots] = useState<Spot[]>([]);
   const [loadingSpots, setLoadingSpots] = useState(false);
 
   // Form states
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
+  const [tips, setTips] = useState('');
   const [coverImage, setCoverImage] = useState(COVER_PRESETS[0].url);
   const [daysCount, setDaysCount] = useState(2);
   const [selectedCategories, setSelectedCategories] = useState<string[]>([]);
-  const [isActive, setIsActive] = useState(true);
-  const [isRecommended, setIsRecommended] = useState(false);
-  const [notes, setNotes] = useState('');
+  const [price, setPrice] = useState('R$ 14,90');
+  const [status, setStatus] = useState<ItineraryStatus>('published');
+  const [isFeatured, setIsFeatured] = useState(false);
+  const [isPremium, setIsPremium] = useState(true);
+  const [badgeText, setBadgeText] = useState('Premium');
+  const [showPrice, setShowPrice] = useState(true);
+  const [showStopsCount, setShowStopsCount] = useState(true);
+  const [showBadge, setShowBadge] = useState(true);
+
+  // Upload States for Cover
+  const [isUploadingCover, setIsUploadingCover] = useState(false);
+  const [coverUploadError, setCoverUploadError] = useState('');
+  const [isDraggingCover, setIsDraggingCover] = useState(false);
+  const [showCoverUrlInput, setShowCoverUrlInput] = useState(false);
+  const coverFileInputRef = useRef<HTMLInputElement>(null);
+
+  // Preview Mode inside Admin Modal
+  const [previewTheme, setPreviewTheme] = useState<'dark' | 'light'>('dark');
 
   // Days and Steps state
+  const [activeDayIdx, setActiveDayIdx] = useState(0);
   const [days, setDays] = useState<Array<{
     dayNumber: number;
     title: string;
@@ -67,13 +99,21 @@ export const AdminItineraryModal: React.FC<AdminItineraryModalProps> = ({
       suggestedTime: string;
       durationMinutes: number;
       notes: string;
+      customName?: string;
+      customDescription?: string;
+      customTip?: string;
+      customImage?: string;
     }>;
   }>>([]);
 
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
 
-  // Fetch all spots for the picker
+  // Spot photo upload tracking for steps
+  const [uploadingStepIdx, setUploadingStepIdx] = useState<{ dayIdx: number; stepIdx: number } | null>(null);
+  const stepFileInputRef = useRef<HTMLInputElement>(null);
+
+  // Fetch spots for selector
   useEffect(() => {
     if (!isOpen) return;
     const fetchSpots = async () => {
@@ -85,7 +125,7 @@ export const AdminItineraryModal: React.FC<AdminItineraryModalProps> = ({
           setAvailableSpots(data.spots);
         }
       } catch (e) {
-        console.error('Error fetching spots for itinerary builder:', e);
+        console.error('Error fetching spots:', e);
       } finally {
         setLoadingSpots(false);
       }
@@ -100,12 +140,18 @@ export const AdminItineraryModal: React.FC<AdminItineraryModalProps> = ({
     if (itineraryToEdit) {
       setTitle(itineraryToEdit.title || '');
       setDescription(itineraryToEdit.description || '');
+      setTips(itineraryToEdit.tips || itineraryToEdit.notes || '');
       setCoverImage(itineraryToEdit.coverImage || COVER_PRESETS[0].url);
       setDaysCount(itineraryToEdit.daysCount || 1);
       setSelectedCategories(itineraryToEdit.categories || []);
-      setIsActive(itineraryToEdit.isActive !== false);
-      setIsRecommended(Boolean(itineraryToEdit.isRecommended));
-      setNotes(itineraryToEdit.notes || '');
+      setPrice(itineraryToEdit.price || 'R$ 14,90');
+      setStatus(itineraryToEdit.status || (itineraryToEdit.isActive !== false ? 'published' : 'draft'));
+      setIsFeatured(Boolean(itineraryToEdit.isFeatured || itineraryToEdit.isRecommended));
+      setIsPremium(itineraryToEdit.isPremium !== false);
+      setBadgeText(itineraryToEdit.badgeText || 'Premium');
+      setShowPrice(itineraryToEdit.showPrice !== false);
+      setShowStopsCount(itineraryToEdit.showStopsCount !== false);
+      setShowBadge(itineraryToEdit.showBadge !== false);
 
       if (Array.isArray(itineraryToEdit.days) && itineraryToEdit.days.length > 0) {
         setDays(
@@ -113,39 +159,54 @@ export const AdminItineraryModal: React.FC<AdminItineraryModalProps> = ({
             dayNumber: d.dayNumber || dIdx + 1,
             title: d.title || `Dia ${dIdx + 1}`,
             summary: d.summary || '',
-            steps: (d.steps || []).map((s, sIdx) => ({
-              spotId: s.spotId || (s.spot?.id || ''),
-              stepOrder: s.stepOrder || sIdx + 1,
-              suggestedTime: s.suggestedTime || '09:00',
-              durationMinutes: s.durationMinutes || 90,
-              notes: s.notes || ''
-            }))
+            steps: Array.isArray(d.steps)
+              ? d.steps.map((s, sIdx) => ({
+                  spotId: s.spotId || (s.spot ? s.spot.id : ''),
+                  stepOrder: s.stepOrder || sIdx + 1,
+                  suggestedTime: s.suggestedTime || '09:00',
+                  durationMinutes: s.durationMinutes || 90,
+                  notes: s.notes || '',
+                  customName: s.customName || (s.spot ? s.spot.name : ''),
+                  customDescription: s.customDescription || '',
+                  customTip: s.customTip || '',
+                  customImage: s.customImage || (s.spot ? s.spot.image : '')
+                }))
+              : []
           }))
         );
       } else {
-        initDefaultDays(itineraryToEdit.daysCount || 1);
+        initializeDays(itineraryToEdit.daysCount || 2);
       }
     } else {
+      // New Itinerary Initial State
       setTitle('');
       setDescription('');
+      setTips('');
       setCoverImage(COVER_PRESETS[0].url);
       setDaysCount(2);
-      setSelectedCategories(['nature', 'gastronomy']);
-      setIsActive(true);
-      setIsRecommended(false);
-      setNotes('');
-      initDefaultDays(2);
+      setSelectedCategories(['popular']);
+      setPrice('R$ 14,90');
+      setStatus('published');
+      setIsFeatured(false);
+      setIsPremium(true);
+      setBadgeText('Premium');
+      setShowPrice(true);
+      setShowStopsCount(true);
+      setShowBadge(true);
+      initializeDays(2);
     }
-    setActiveTab('info');
     setErrorMsg('');
+    setCoverUploadError('');
+    setActiveTab('info');
+    setActiveDayIdx(0);
   }, [isOpen, itineraryToEdit]);
 
-  const initDefaultDays = (count: number) => {
+  const initializeDays = (count: number) => {
     const newDays = [];
     for (let i = 1; i <= count; i++) {
       newDays.push({
         dayNumber: i,
-        title: `Dia ${i}: Explorando a Montanha`,
+        title: `Dia ${i}: Experiências e Paradas`,
         summary: '',
         steps: []
       });
@@ -154,74 +215,140 @@ export const AdminItineraryModal: React.FC<AdminItineraryModalProps> = ({
   };
 
   const handleDaysCountChange = (newCount: number) => {
-    const validCount = Math.max(1, Math.min(7, newCount));
-    setDaysCount(validCount);
-
-    setDays(prev => {
-      if (validCount > prev.length) {
-        const added = [];
-        for (let i = prev.length + 1; i <= validCount; i++) {
-          added.push({
-            dayNumber: i,
-            title: `Dia ${i}: Passeios & Gastronomia`,
-            summary: '',
-            steps: []
-          });
-        }
-        return [...prev, ...added];
-      } else if (validCount < prev.length) {
-        return prev.slice(0, validCount);
+    setDaysCount(newCount);
+    if (newCount > days.length) {
+      const added: typeof days = [];
+      for (let i = days.length + 1; i <= newCount; i++) {
+        added.push({
+          dayNumber: i,
+          title: `Dia ${i}: Experiências e Paradas`,
+          summary: '',
+          steps: []
+        });
       }
-      return prev;
-    });
+      setDays([...days, ...added]);
+    } else if (newCount < days.length) {
+      setDays(days.slice(0, newCount));
+      if (activeDayIdx >= newCount) {
+        setActiveDayIdx(newCount - 1);
+      }
+    }
   };
 
   const toggleCategory = (catId: string) => {
-    setSelectedCategories(prev =>
-      prev.includes(catId) ? prev.filter(c => c !== catId) : [...prev, catId]
-    );
+    if (selectedCategories.includes(catId)) {
+      setSelectedCategories(selectedCategories.filter(c => c !== catId));
+    } else {
+      setSelectedCategories([...selectedCategories, catId]);
+    }
   };
 
+  // Image upload and client-side compression
+  const compressImage = (file: File): Promise<string> => {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        const img = new Image();
+        img.onload = () => {
+          const canvas = document.createElement('canvas');
+          const MAX_DIM = 1600;
+          let width = img.width;
+          let height = img.height;
+
+          if (width > height) {
+            if (width > MAX_DIM) {
+              height = Math.round((height * MAX_DIM) / width);
+              width = MAX_DIM;
+            }
+          } else {
+            if (height > MAX_DIM) {
+              width = Math.round((width * MAX_DIM) / height);
+              height = MAX_DIM;
+            }
+          }
+
+          canvas.width = width;
+          canvas.height = height;
+          const ctx = canvas.getContext('2d');
+          if (!ctx) {
+            resolve(e.target?.result as string);
+            return;
+          }
+          ctx.drawImage(img, 0, 0, width, height);
+          const compressed = canvas.toDataURL('image/jpeg', 0.88);
+          resolve(compressed);
+        };
+        img.onerror = () => reject(new Error('Falha ao processar imagem'));
+        img.src = e.target?.result as string;
+      };
+      reader.onerror = () => reject(new Error('Falha ao ler arquivo'));
+      reader.readAsDataURL(file);
+    });
+  };
+
+  const handleCoverFileUpload = async (file: File) => {
+    if (!file.type.startsWith('image/')) {
+      setCoverUploadError('Por favor, selecione um arquivo de imagem válido (JPG, PNG, WEBP).');
+      return;
+    }
+    setIsUploadingCover(true);
+    setCoverUploadError('');
+    try {
+      const compressedDataUrl = await compressImage(file);
+      setCoverImage(compressedDataUrl);
+    } catch (err: any) {
+      setCoverUploadError(err.message || 'Erro ao carregar imagem');
+    } finally {
+      setIsUploadingCover(false);
+    }
+  };
+
+  const handleStepCustomImageUpload = async (file: File) => {
+    if (!uploadingStepIdx) return;
+    if (!file.type.startsWith('image/')) return;
+
+    try {
+      const compressedDataUrl = await compressImage(file);
+      updateStepField(uploadingStepIdx.dayIdx, uploadingStepIdx.stepIdx, 'customImage', compressedDataUrl);
+    } catch (err) {
+      console.error('Error uploading step image:', err);
+    } finally {
+      setUploadingStepIdx(null);
+    }
+  };
+
+  // Steps handling inside a day
   const addStepToDay = (dayIndex: number) => {
-    if (availableSpots.length === 0) return;
     const defaultSpot = availableSpots[0];
+    const newStep = {
+      spotId: defaultSpot ? defaultSpot.id : '',
+      stepOrder: (days[dayIndex]?.steps.length || 0) + 1,
+      suggestedTime: '09:30',
+      durationMinutes: 90,
+      notes: '',
+      customName: defaultSpot ? defaultSpot.name : '',
+      customDescription: '',
+      customTip: '',
+      customImage: defaultSpot ? defaultSpot.image : ''
+    };
+
     setDays(prev => {
       const copy = [...prev];
-      const targetDay = { ...copy[dayIndex] };
-      const newSteps = [...targetDay.steps];
-
-      // Calculate default suggested time based on previous step
-      let nextTime = '09:30';
-      if (newSteps.length > 0) {
-        const lastStep = newSteps[newSteps.length - 1];
-        const [h, m] = (lastStep.suggestedTime || '09:00').split(':').map(Number);
-        const nextMin = (h || 9) * 60 + (m || 0) + (lastStep.durationMinutes || 90) + 30;
-        const nh = Math.floor(nextMin / 60) % 24;
-        const nm = nextMin % 60;
-        nextTime = `${String(nh).padStart(2, '0')}:${String(nm).padStart(2, '0')}`;
-      }
-
-      newSteps.push({
-        spotId: defaultSpot.id,
-        stepOrder: newSteps.length + 1,
-        suggestedTime: nextTime,
-        durationMinutes: (defaultSpot as any).durationMinutes || 90,
-        notes: ''
-      });
-      targetDay.steps = newSteps;
-      copy[dayIndex] = targetDay;
+      copy[dayIndex] = {
+        ...copy[dayIndex],
+        steps: [...copy[dayIndex].steps, newStep]
+      };
       return copy;
     });
   };
 
-  const removeStep = (dayIndex: number, stepIndex: number) => {
+  const removeStepFromDay = (dayIndex: number, stepIndex: number) => {
     setDays(prev => {
       const copy = [...prev];
-      const targetDay = { ...copy[dayIndex] };
-      targetDay.steps = targetDay.steps
+      const updatedSteps = copy[dayIndex].steps
         .filter((_, idx) => idx !== stepIndex)
         .map((s, idx) => ({ ...s, stepOrder: idx + 1 }));
-      copy[dayIndex] = targetDay;
+      copy[dayIndex] = { ...copy[dayIndex], steps: updatedSteps };
       return copy;
     });
   };
@@ -229,18 +356,18 @@ export const AdminItineraryModal: React.FC<AdminItineraryModalProps> = ({
   const moveStep = (dayIndex: number, stepIndex: number, direction: 'up' | 'down') => {
     setDays(prev => {
       const copy = [...prev];
-      const targetDay = { ...copy[dayIndex] };
-      const steps = [...targetDay.steps];
-      const targetIdx = direction === 'up' ? stepIndex - 1 : stepIndex + 1;
+      const steps = [...copy[dayIndex].steps];
+      const targetIndex = direction === 'up' ? stepIndex - 1 : stepIndex + 1;
 
-      if (targetIdx < 0 || targetIdx >= steps.length) return prev;
+      if (targetIndex < 0 || targetIndex >= steps.length) return prev;
 
       const temp = steps[stepIndex];
-      steps[stepIndex] = steps[targetIdx];
-      steps[targetIdx] = temp;
+      steps[stepIndex] = steps[targetIndex];
+      steps[targetIndex] = temp;
 
-      targetDay.steps = steps.map((s, idx) => ({ ...s, stepOrder: idx + 1 }));
-      copy[dayIndex] = targetDay;
+      // Reorder numbers
+      const reindexed = steps.map((s, idx) => ({ ...s, stepOrder: idx + 1 }));
+      copy[dayIndex] = { ...copy[dayIndex], steps: reindexed };
       return copy;
     });
   };
@@ -252,11 +379,11 @@ export const AdminItineraryModal: React.FC<AdminItineraryModalProps> = ({
       const steps = [...targetDay.steps];
       steps[stepIndex] = { ...steps[stepIndex], [field]: value };
 
-      // If spotId changed, also update duration if appropriate
       if (field === 'spotId') {
         const found = availableSpots.find(s => s.id === value);
-        if (found && (found as any).durationMinutes) {
-          steps[stepIndex].durationMinutes = (found as any).durationMinutes;
+        if (found) {
+          steps[stepIndex].customName = found.name;
+          steps[stepIndex].customImage = found.image;
         }
       }
 
@@ -266,8 +393,7 @@ export const AdminItineraryModal: React.FC<AdminItineraryModalProps> = ({
     });
   };
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const handleSaveWithStatus = async (chosenStatus: ItineraryStatus) => {
     if (!title.trim()) {
       setErrorMsg('Por favor, informe o título do roteiro.');
       setActiveTab('info');
@@ -276,7 +402,7 @@ export const AdminItineraryModal: React.FC<AdminItineraryModalProps> = ({
 
     const totalSteps = days.reduce((acc, d) => acc + d.steps.length, 0);
     if (totalSteps === 0) {
-      setErrorMsg('Adicione pelo menos um ponto turístico ao roteiro no Construtor de Dias.');
+      setErrorMsg('Adicione pelo menos uma parada ao roteiro no Construtor de Paradas.');
       setActiveTab('builder');
       return;
     }
@@ -287,12 +413,21 @@ export const AdminItineraryModal: React.FC<AdminItineraryModalProps> = ({
     const payload = {
       title: title.trim(),
       description: description.trim(),
+      tips: tips.trim(),
       coverImage: coverImage.trim(),
       daysCount,
       categories: selectedCategories,
-      isActive,
-      isRecommended,
-      notes: notes.trim(),
+      price: price.trim() || 'R$ 14,90',
+      status: chosenStatus,
+      isActive: chosenStatus === 'published',
+      isFeatured,
+      isRecommended: isFeatured,
+      isPremium,
+      badgeText: badgeText.trim() || 'Premium',
+      showPrice,
+      showStopsCount,
+      showBadge,
+      notes: tips.trim(),
       days
     };
 
@@ -300,14 +435,25 @@ export const AdminItineraryModal: React.FC<AdminItineraryModalProps> = ({
       const url = itineraryToEdit ? `/api/admin/itineraries/${itineraryToEdit.id}` : '/api/admin/itineraries';
       const method = itineraryToEdit ? 'PUT' : 'POST';
 
+      const token = localStorage.getItem('monvian_auth_token') || localStorage.getItem('auth_token');
+      const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+      if (token) {
+        headers['Authorization'] = `Bearer ${token}`;
+      }
+
       const res = await fetch(url, {
         method,
-        headers: { 'Content-Type': 'application/json' },
+        headers,
         body: JSON.stringify(payload)
       });
 
       const data = await res.json();
       if (data.success) {
+        // Broadcast instant update event across all components
+        try {
+          window.dispatchEvent(new CustomEvent('monvian:itineraries-updated', { detail: { updatedItineraryId: itineraryToEdit?.id } }));
+        } catch (e) {}
+
         onSaved();
         onClose();
       } else {
@@ -323,67 +469,110 @@ export const AdminItineraryModal: React.FC<AdminItineraryModalProps> = ({
   if (!isOpen) return null;
 
   const totalPlaces = days.reduce((acc, d) => acc + d.steps.length, 0);
+  const currentDay = days[activeDayIdx] || days[0];
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/70 backdrop-blur-xs animate-in fade-in duration-200">
-      <div className="bg-white dark:bg-[#121418] border border-zinc-200 dark:border-zinc-800 rounded-2xl w-full max-w-4xl max-h-[92vh] flex flex-col shadow-2xl overflow-hidden">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/80 backdrop-blur-md animate-in fade-in duration-200">
+      <div className="bg-white dark:bg-[#121418] border border-zinc-200 dark:border-zinc-800 rounded-3xl w-full max-w-4xl max-h-[94vh] flex flex-col shadow-2xl overflow-hidden">
         
-        {/* Header */}
-        <div className="px-5 py-4 border-b border-zinc-200 dark:border-zinc-800 flex items-center justify-between bg-zinc-50 dark:bg-[#17191e] shrink-0">
+        {/* 1. Top Modal Header */}
+        <div className="px-5 py-3.5 sm:py-4 border-b border-zinc-200 dark:border-zinc-800 flex items-center justify-between bg-zinc-50 dark:bg-[#17191e] shrink-0">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-zinc-100 dark:bg-zinc-800 text-zinc-800 dark:text-zinc-200 flex items-center justify-center">
+            <div className="w-10 h-10 rounded-2xl bg-[#007AFF]/15 text-[#007AFF] flex items-center justify-center border border-[#007AFF]/30 shrink-0">
               <Compass className="w-5 h-5" />
             </div>
             <div>
-              <h2 className="text-base sm:text-lg font-bold text-zinc-900 dark:text-white">
-                {itineraryToEdit ? 'Editar Roteiro Turístico' : 'Criar Novo Roteiro'}
-              </h2>
-              <p className="text-xs text-zinc-700 dark:text-zinc-400 font-medium">
-                {totalPlaces} {totalPlaces === 1 ? 'lugar cadastrado' : 'lugares cadastrados'} em {daysCount} {daysCount === 1 ? 'dia' : 'dias'}
+              <div className="flex items-center gap-2">
+                <h2 className="text-base sm:text-lg font-black text-zinc-900 dark:text-white tracking-tight">
+                  {itineraryToEdit ? 'Configurações do Roteiro' : 'Novo Roteiro Turístico'}
+                </h2>
+                <span className={`px-2 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider ${
+                  status === 'published'
+                    ? 'bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 border border-emerald-500/30'
+                    : status === 'draft'
+                    ? 'bg-amber-500/20 text-amber-600 dark:text-amber-400 border border-amber-500/30'
+                    : 'bg-zinc-500/20 text-zinc-600 dark:text-zinc-400 border border-zinc-500/30'
+                }`}>
+                  {status === 'published' ? 'Publicado' : status === 'draft' ? 'Rascunho' : 'Oculto'}
+                </span>
+              </div>
+              <p className="text-xs text-zinc-500 dark:text-zinc-400 font-medium">
+                {totalPlaces} {totalPlaces === 1 ? 'parada' : 'paradas'} · {daysCount} {daysCount === 1 ? 'dia' : 'dias'} · {price}
               </p>
             </div>
           </div>
           <button
+            type="button"
             onClick={onClose}
-            className="p-2 text-zinc-700 hover:text-zinc-900 dark:text-zinc-400 dark:hover:text-white rounded-lg hover:bg-zinc-200 dark:hover:bg-zinc-800 transition-colors"
+            className="p-2 text-zinc-500 hover:text-zinc-900 dark:text-zinc-400 dark:hover:text-white rounded-xl hover:bg-zinc-200 dark:hover:bg-zinc-800 transition-colors cursor-pointer"
           >
             <X className="w-5 h-5" />
           </button>
         </div>
 
-        {/* Tab Selector */}
-        <div className="flex items-center border-b border-zinc-200 dark:border-zinc-800 px-5 pt-2 bg-zinc-50/50 dark:bg-[#15171c] shrink-0">
+        {/* 2. Tab Navigation */}
+        <div className="flex items-center border-b border-zinc-200 dark:border-zinc-800 px-4 pt-1.5 bg-zinc-50/70 dark:bg-[#15171c] shrink-0 gap-1 sm:gap-2 overflow-x-auto no-scrollbar">
           <button
             type="button"
             onClick={() => setActiveTab('info')}
-            className={`px-4 py-2.5 text-xs font-semibold border-b-2 transition-colors cursor-pointer ${
+            className={`px-3 py-2 text-xs font-bold border-b-2 transition-all cursor-pointer shrink-0 flex items-center gap-1.5 ${
               activeTab === 'info'
-                ? 'border-zinc-900 dark:border-white text-zinc-900 dark:text-white'
-                : 'border-transparent text-zinc-700 hover:text-zinc-900 dark:text-zinc-400 dark:hover:text-zinc-200'
+                ? 'border-[#007AFF] text-[#007AFF]'
+                : 'border-transparent text-zinc-500 hover:text-zinc-900 dark:text-zinc-400 dark:hover:text-zinc-200'
             }`}
           >
-            1. Informações Principais
+            <Info className="w-3.5 h-3.5" />
+            <span>1. Informações & Preço</span>
           </button>
+
+          <button
+            type="button"
+            onClick={() => setActiveTab('cover')}
+            className={`px-3 py-2 text-xs font-bold border-b-2 transition-all cursor-pointer shrink-0 flex items-center gap-1.5 ${
+              activeTab === 'cover'
+                ? 'border-[#007AFF] text-[#007AFF]'
+                : 'border-transparent text-zinc-500 hover:text-zinc-900 dark:text-zinc-400 dark:hover:text-zinc-200'
+            }`}
+          >
+            <ImageIcon className="w-3.5 h-3.5" />
+            <span>2. Foto de Capa</span>
+            {coverImage && <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />}
+          </button>
+
           <button
             type="button"
             onClick={() => setActiveTab('builder')}
-            className={`px-4 py-2.5 text-xs font-semibold border-b-2 transition-colors flex items-center gap-1.5 cursor-pointer ${
+            className={`px-3 py-2 text-xs font-bold border-b-2 transition-all flex items-center gap-1.5 cursor-pointer shrink-0 ${
               activeTab === 'builder'
-                ? 'border-zinc-900 dark:border-white text-zinc-900 dark:text-white'
-                : 'border-transparent text-zinc-700 hover:text-zinc-900 dark:text-zinc-400 dark:hover:text-zinc-200'
+                ? 'border-[#007AFF] text-[#007AFF]'
+                : 'border-transparent text-zinc-500 hover:text-zinc-900 dark:text-zinc-400 dark:hover:text-zinc-200'
             }`}
           >
-            <span>2. Construtor de Dias & Pontos</span>
-            <span className="px-1.5 py-0.5 rounded-full text-[10px] bg-zinc-200 dark:bg-zinc-800 text-zinc-800 dark:text-zinc-300 font-bold">
+            <Layers className="w-3.5 h-3.5" />
+            <span>3. Paradas do Roteiro</span>
+            <span className="px-1.5 py-0.2 rounded-full text-[10px] bg-[#007AFF]/20 text-[#007AFF] font-bold">
               {totalPlaces}
             </span>
           </button>
+
+          <button
+            type="button"
+            onClick={() => setActiveTab('appearance')}
+            className={`px-3 py-2 text-xs font-bold border-b-2 transition-all cursor-pointer shrink-0 flex items-center gap-1.5 ${
+              activeTab === 'appearance'
+                ? 'border-[#007AFF] text-[#007AFF]'
+                : 'border-transparent text-zinc-500 hover:text-zinc-900 dark:text-zinc-400 dark:hover:text-zinc-200'
+            }`}
+          >
+            <Layout className="w-3.5 h-3.5" />
+            <span>4. Destaque & Preview</span>
+          </button>
         </div>
 
-        {/* Body Form */}
-        <form onSubmit={handleSubmit} className="flex-1 overflow-y-auto p-5 sm:p-6 space-y-6">
+        {/* Form Body */}
+        <div className="flex-1 overflow-y-auto p-4 sm:p-6 space-y-6">
           {errorMsg && (
-            <div className="p-3.5 bg-red-50 dark:bg-red-950/40 border border-red-200 dark:border-red-800 rounded-xl flex items-center gap-2.5 text-xs text-red-600 dark:text-red-400">
+            <div className="p-3.5 bg-red-50 dark:bg-red-950/40 border border-red-200 dark:border-red-800 rounded-2xl flex items-center gap-2.5 text-xs text-red-600 dark:text-red-400 font-semibold">
               <AlertCircle className="w-4 h-4 shrink-0" />
               <span>{errorMsg}</span>
             </div>
@@ -392,10 +581,10 @@ export const AdminItineraryModal: React.FC<AdminItineraryModalProps> = ({
           {/* TAB 1: INFORMATIONS */}
           {activeTab === 'info' && (
             <div className="space-y-5 animate-in fade-in duration-150">
-              {/* Title & Days */}
+              {/* Title & Price */}
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                 <div className="sm:col-span-2">
-                  <label className="block text-xs font-semibold text-zinc-700 dark:text-zinc-300 mb-1.5">
+                  <label className="block text-xs font-black text-zinc-700 dark:text-zinc-300 mb-1.5">
                     Nome do Roteiro *
                   </label>
                   <input
@@ -404,406 +593,769 @@ export const AdminItineraryModal: React.FC<AdminItineraryModalProps> = ({
                     value={title}
                     onChange={e => setTitle(e.target.value)}
                     placeholder="Ex: Essência de Campos: O Clássico em 2 Dias"
-                    className="w-full px-3.5 py-2.5 bg-white dark:bg-[#181a20] border border-zinc-300 dark:border-zinc-700 rounded-xl text-sm text-zinc-900 dark:text-white focus:outline-hidden focus:border-zinc-500"
+                    className="w-full px-3.5 py-2.5 bg-zinc-50 dark:bg-[#181a20] border border-zinc-300 dark:border-zinc-700 rounded-xl text-sm text-zinc-900 dark:text-white font-semibold focus:outline-hidden focus:border-[#007AFF]"
                   />
                 </div>
 
                 <div>
-                  <label className="block text-xs font-semibold text-zinc-700 dark:text-zinc-300 mb-1.5">
-                    Quantidade de Dias
+                  <label className="block text-xs font-black text-zinc-700 dark:text-zinc-300 mb-1.5">
+                    Preço de Venda
+                  </label>
+                  <input
+                    type="text"
+                    value={price}
+                    onChange={e => setPrice(e.target.value)}
+                    placeholder="Ex: R$ 14,90"
+                    className="w-full px-3.5 py-2.5 bg-zinc-50 dark:bg-[#181a20] border border-zinc-300 dark:border-zinc-700 rounded-xl text-sm text-zinc-900 dark:text-white font-bold focus:outline-hidden focus:border-[#007AFF]"
+                  />
+                </div>
+              </div>
+
+              {/* Status Radio Options */}
+              <div>
+                <label className="block text-xs font-black text-zinc-700 dark:text-zinc-300 mb-2">
+                  Status de Publicação
+                </label>
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
+                  <button
+                    type="button"
+                    onClick={() => setStatus('published')}
+                    className={`p-3 rounded-2xl border text-left flex items-start gap-2.5 cursor-pointer transition-all ${
+                      status === 'published'
+                        ? 'border-emerald-500 bg-emerald-50/60 dark:bg-emerald-950/20 text-emerald-900 dark:text-emerald-300 ring-2 ring-emerald-500/20'
+                        : 'border-zinc-200 dark:border-zinc-800 bg-zinc-50 dark:bg-[#181a20] text-zinc-700 dark:text-zinc-400'
+                    }`}
+                  >
+                    <CheckCircle2 className={`w-4 h-4 shrink-0 mt-0.5 ${status === 'published' ? 'text-emerald-500' : 'text-zinc-400'}`} />
+                    <div>
+                      <span className="block text-xs font-black">Publicado</span>
+                      <span className="text-[11px] leading-tight opacity-80 block mt-0.5">Visível para os turistas na loja</span>
+                    </div>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setStatus('draft')}
+                    className={`p-3 rounded-2xl border text-left flex items-start gap-2.5 cursor-pointer transition-all ${
+                      status === 'draft'
+                        ? 'border-amber-500 bg-amber-50/60 dark:bg-amber-950/20 text-amber-900 dark:text-amber-300 ring-2 ring-amber-500/20'
+                        : 'border-zinc-200 dark:border-zinc-800 bg-zinc-50 dark:bg-[#181a20] text-zinc-700 dark:text-zinc-400'
+                    }`}
+                  >
+                    <Clock className={`w-4 h-4 shrink-0 mt-0.5 ${status === 'draft' ? 'text-amber-500' : 'text-zinc-400'}`} />
+                    <div>
+                      <span className="block text-xs font-black">Rascunho</span>
+                      <span className="text-[11px] leading-tight opacity-80 block mt-0.5">Em edição (não aparece na loja)</span>
+                    </div>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setStatus('hidden')}
+                    className={`p-3 rounded-2xl border text-left flex items-start gap-2.5 cursor-pointer transition-all ${
+                      status === 'hidden'
+                        ? 'border-zinc-500 bg-zinc-100 dark:bg-zinc-800 text-zinc-900 dark:text-zinc-200 ring-2 ring-zinc-500/20'
+                        : 'border-zinc-200 dark:border-zinc-800 bg-zinc-50 dark:bg-[#181a20] text-zinc-700 dark:text-zinc-400'
+                    }`}
+                  >
+                    <EyeOff className={`w-4 h-4 shrink-0 mt-0.5 ${status === 'hidden' ? 'text-zinc-500' : 'text-zinc-400'}`} />
+                    <div>
+                      <span className="block text-xs font-black">Oculto</span>
+                      <span className="text-[11px] leading-tight opacity-80 block mt-0.5">Desativado / Arquivado</span>
+                    </div>
+                  </button>
+                </div>
+              </div>
+
+              {/* Duration & Categories */}
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                <div>
+                  <label className="block text-xs font-black text-zinc-700 dark:text-zinc-300 mb-1.5">
+                    Duração em Dias
                   </label>
                   <select
                     value={daysCount}
                     onChange={e => handleDaysCountChange(Number(e.target.value))}
-                    className="w-full px-3.5 py-2.5 bg-white dark:bg-[#181a20] border border-zinc-300 dark:border-zinc-700 rounded-xl text-sm text-zinc-900 dark:text-white focus:outline-hidden focus:border-zinc-500"
+                    className="w-full px-3.5 py-2.5 bg-zinc-50 dark:bg-[#181a20] border border-zinc-300 dark:border-zinc-700 rounded-xl text-sm text-zinc-900 dark:text-white font-semibold focus:outline-hidden focus:border-[#007AFF]"
                   >
                     <option value={1}>1 Dia (Bate e Volta / Expresso)</option>
-                    <option value={2}>2 Dias (Fim de Semana Clássico)</option>
+                    <option value={2}>2 Dias (Fim de Semana)</option>
                     <option value={3}>3 Dias (Feriado Prolongado)</option>
                     <option value={4}>4 Dias (Experiência Completa)</option>
-                    <option value={5}>5 Dias (Imersão Total na Serra)</option>
                   </select>
+                </div>
+
+                <div className="sm:col-span-2">
+                  <label className="block text-xs font-black text-zinc-700 dark:text-zinc-300 mb-1.5">
+                    Categorias do Roteiro (Filtros na Loja)
+                  </label>
+                  <div className="flex flex-wrap gap-1.5">
+                    {categories.map(cat => {
+                      const selected = selectedCategories.includes(cat.id);
+                      return (
+                        <button
+                          key={cat.id}
+                          type="button"
+                          onClick={() => toggleCategory(cat.id)}
+                          className={`px-3 py-1.5 rounded-xl text-xs font-bold border flex items-center gap-1.5 transition-all cursor-pointer ${
+                            selected
+                              ? 'bg-[#007AFF] text-white border-blue-500 shadow-xs'
+                              : 'bg-zinc-50 dark:bg-[#181a20] text-zinc-600 dark:text-zinc-400 border-zinc-200 dark:border-zinc-700 hover:border-zinc-400'
+                          }`}
+                        >
+                          {selected && <Check className="w-3 h-3 stroke-[3]" />}
+                          <span>{cat.name}</span>
+                        </button>
+                      );
+                    })}
+                  </div>
                 </div>
               </div>
 
               {/* Description */}
               <div>
-                <label className="block text-xs font-semibold text-zinc-700 dark:text-zinc-300 mb-1.5">
-                  Descrição do Roteiro
+                <label className="block text-xs font-black text-zinc-700 dark:text-zinc-300 mb-1.5">
+                  Descrição Completa do Roteiro
                 </label>
                 <textarea
                   rows={3}
                   value={description}
                   onChange={e => setDescription(e.target.value)}
-                  placeholder="Explique o objetivo deste roteiro, o perfil indicado e os principais destaques..."
-                  className="w-full px-3.5 py-2.5 bg-white dark:bg-[#181a20] border border-zinc-300 dark:border-zinc-700 rounded-xl text-sm text-zinc-900 dark:text-white focus:outline-hidden focus:border-zinc-500 resize-none"
+                  placeholder="Apresente os pontos fortes deste roteiro, o clima da experiência e o que os turistas irão desfrutar..."
+                  className="w-full px-3.5 py-2.5 bg-zinc-50 dark:bg-[#181a20] border border-zinc-300 dark:border-zinc-700 rounded-xl text-sm text-zinc-900 dark:text-white font-medium focus:outline-hidden focus:border-[#007AFF] resize-none"
                 />
               </div>
 
-              {/* Cover Image */}
+              {/* Tips */}
               <div>
-                <label className="block text-xs font-semibold text-zinc-700 dark:text-zinc-300 mb-1.5">
-                  Imagem de Capa (URL)
-                </label>
-                <div className="flex gap-2 mb-2.5">
-                  <input
-                    type="url"
-                    value={coverImage}
-                    onChange={e => setCoverImage(e.target.value)}
-                    placeholder="https://images.unsplash.com/..."
-                    className="flex-1 px-3.5 py-2 bg-white dark:bg-[#181a20] border border-zinc-300 dark:border-zinc-700 rounded-xl text-xs text-zinc-900 dark:text-white focus:outline-hidden focus:border-zinc-500"
-                  />
-                  {coverImage && (
-                    <img
-                      src={coverImage}
-                      alt="Capa"
-                      className="w-10 h-10 rounded-lg object-cover border border-zinc-200 dark:border-zinc-800 shrink-0"
-                    />
-                  )}
-                </div>
-
-                {/* Presets */}
-                <div className="space-y-1.5">
-                  <span className="text-[11px] text-zinc-700 dark:text-zinc-400 font-medium">Fotos de Campos do Jordão recomendadas:</span>
-                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
-                    {COVER_PRESETS.map((preset, idx) => (
-                      <button
-                        key={idx}
-                        type="button"
-                        onClick={() => setCoverImage(preset.url)}
-                        className={`text-left p-1.5 rounded-xl border flex items-center gap-2 transition-all ${
-                          coverImage === preset.url
-                            ? 'border-zinc-900 dark:border-white bg-zinc-100 dark:bg-zinc-800'
-                            : 'border-zinc-200 dark:border-zinc-800 hover:border-zinc-300 dark:hover:border-zinc-700'
-                        }`}
-                      >
-                        <img src={preset.url} alt={preset.label} className="w-8 h-8 rounded-lg object-cover shrink-0" />
-                        <span className="text-[11px] font-medium text-zinc-700 dark:text-zinc-300 truncate">
-                          {preset.label}
-                        </span>
-                      </button>
-                    ))}
-                  </div>
-                </div>
-              </div>
-
-              {/* Categories Multi-Select */}
-              <div>
-                <label className="block text-xs font-semibold text-zinc-700 dark:text-zinc-300 mb-1.5">
-                  Categorias do Roteiro (Selecione as que combinam com este roteiro)
-                </label>
-                <div className="flex flex-wrap gap-2">
-                  {categories.map(cat => {
-                    const selected = selectedCategories.includes(cat.id);
-                    return (
-                      <button
-                        key={cat.id}
-                        type="button"
-                        onClick={() => toggleCategory(cat.id)}
-                        className={`px-3 py-1.5 rounded-xl text-xs font-medium border flex items-center gap-1.5 transition-all cursor-pointer ${
-                          selected
-                            ? 'bg-zinc-900 text-white dark:bg-white dark:text-zinc-900 border-transparent shadow-2xs'
-                            : 'bg-white dark:bg-[#181a20] text-zinc-700 dark:text-zinc-300 border-zinc-200 dark:border-zinc-800 hover:border-zinc-300'
-                        }`}
-                      >
-                        {selected && <Check className="w-3.5 h-3.5" />}
-                        <span>{cat.name}</span>
-                      </button>
-                    );
-                  })}
-                </div>
-              </div>
-
-              {/* Status and Recommendation Switches */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-2">
-                <div className="p-3.5 rounded-xl border border-zinc-200 dark:border-zinc-800 bg-zinc-50 dark:bg-[#181a20] flex items-center justify-between">
-                  <div>
-                    <div className="text-xs font-semibold text-zinc-900 dark:text-white">Status do Roteiro</div>
-                    <div className="text-[11px] text-zinc-700 dark:text-zinc-400 font-medium">Visível para os turistas no aplicativo</div>
-                  </div>
-                  <button
-                    type="button"
-                    onClick={() => setIsActive(!isActive)}
-                    className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors cursor-pointer ${
-                      isActive ? 'bg-blue-600' : 'bg-zinc-300 dark:bg-zinc-700'
-                    }`}
-                  >
-                    <span
-                      className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
-                        isActive ? 'translate-x-6' : 'translate-x-1'
-                      }`}
-                    />
-                  </button>
-                </div>
-
-                <div className="p-3.5 rounded-xl border border-zinc-200 dark:border-zinc-800 bg-zinc-50 dark:bg-[#181a20] flex items-center justify-between">
-                  <div>
-                    <div className="text-xs font-semibold text-zinc-900 dark:text-white">Destaque Recomendado</div>
-                    <div className="text-[11px] text-zinc-700 dark:text-zinc-400 font-medium">Exibir com selo de destaque no topo</div>
-                  </div>
-                  <button
-                    type="button"
-                    onClick={() => setIsRecommended(!isRecommended)}
-                    className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors cursor-pointer ${
-                      isRecommended ? 'bg-zinc-900 dark:bg-white' : 'bg-zinc-300 dark:bg-zinc-700'
-                    }`}
-                  >
-                    <span
-                      className={`inline-block h-4 w-4 transform rounded-full bg-white dark:bg-zinc-900 transition-transform ${
-                        isRecommended ? 'translate-x-6' : 'translate-x-1'
-                      }`}
-                    />
-                  </button>
-                </div>
-              </div>
-
-              {/* Observações Gerais */}
-              <div>
-                <label className="block text-xs font-semibold text-zinc-700 dark:text-zinc-300 mb-1.5">
-                  Dicas e Observações Importantes
+                <label className="block text-xs font-black text-zinc-700 dark:text-zinc-300 mb-1.5 flex items-center gap-1.5">
+                  <Lightbulb className="w-3.5 h-3.5 text-[#007AFF]" />
+                  <span>Dicas Exclusivas do Guia Local</span>
                 </label>
                 <textarea
                   rows={2}
-                  value={notes}
-                  onChange={e => setNotes(e.target.value)}
-                  placeholder="Ex: Leve agasalho para o final da tarde, reserve o fondue com antecedência..."
-                  className="w-full px-3.5 py-2.5 bg-white dark:bg-[#181a20] border border-zinc-300 dark:border-zinc-700 rounded-xl text-sm text-zinc-900 dark:text-white focus:outline-hidden focus:border-zinc-500 resize-none"
+                  value={tips}
+                  onChange={e => setTips(e.target.value)}
+                  placeholder="Dicas de vestimenta, horários de pico, reservas recomendadas, melhores mirantes..."
+                  className="w-full px-3.5 py-2.5 bg-zinc-50 dark:bg-[#181a20] border border-zinc-300 dark:border-zinc-700 rounded-xl text-sm text-zinc-900 dark:text-white font-medium focus:outline-hidden focus:border-[#007AFF] resize-none"
                 />
               </div>
             </div>
           )}
 
-          {/* TAB 2: BUILDER (DAYS & STEPS) */}
-          {activeTab === 'builder' && (
+          {/* TAB 2: FOTO DE CAPA (CARD UNIFICADO & PREMIUM iOS) */}
+          {activeTab === 'cover' && (
             <div className="space-y-6 animate-in fade-in duration-150">
-              <div className="flex items-center justify-between pb-2 border-b border-zinc-200 dark:border-zinc-800">
-                <p className="text-xs text-zinc-700 dark:text-zinc-400 font-medium">
-                  Organize os pontos turísticos em ordem cronológica de visitação.
-                </p>
-                <span className="text-xs font-semibold text-zinc-800 dark:text-zinc-200">
-                  Total: {totalPlaces} {totalPlaces === 1 ? 'local' : 'locais'}
-                </span>
-              </div>
+              {/* 3. CARD PRINCIPAL ÚNICO & BEM ESTRUTURADO */}
+              <div className="bg-white dark:bg-[#15171c] border border-zinc-200/90 dark:border-zinc-800/90 rounded-3xl p-5 sm:p-6 shadow-xs space-y-5">
+                
+                {/* Topo do Card */}
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1 border-b border-zinc-100 dark:border-zinc-800/60 pb-3.5">
+                  <div>
+                    <h3 className="text-sm sm:text-base font-black text-zinc-900 dark:text-white tracking-tight">
+                      Foto de capa
+                    </h3>
+                    <p className="text-xs text-zinc-500 dark:text-zinc-400 font-medium mt-0.5">
+                      Escolha uma imagem para representar este roteiro.
+                    </p>
+                  </div>
+                  <span className="text-[11px] text-zinc-400 dark:text-zinc-500 font-medium shrink-0">
+                    16:9 ou 4:3 recomendado
+                  </span>
+                </div>
 
-              {days.map((day, dIdx) => (
+                {/* 4. Área de Upload (Compacta & Limpa) */}
+                <input
+                  type="file"
+                  ref={coverFileInputRef}
+                  accept="image/*"
+                  onChange={e => {
+                    const file = e.target.files?.[0];
+                    if (file) handleCoverFileUpload(file);
+                  }}
+                  className="hidden"
+                />
+
                 <div
-                  key={dIdx}
-                  className="border border-zinc-200 dark:border-zinc-800 rounded-2xl bg-zinc-50/70 dark:bg-[#15171d] p-4 sm:p-5 space-y-4"
+                  onDragOver={e => {
+                    e.preventDefault();
+                    setIsDraggingCover(true);
+                  }}
+                  onDragLeave={() => setIsDraggingCover(false)}
+                  onDrop={e => {
+                    e.preventDefault();
+                    setIsDraggingCover(false);
+                    const file = e.dataTransfer.files?.[0];
+                    if (file) handleCoverFileUpload(file);
+                  }}
+                  className={`border border-dashed rounded-2xl p-4 sm:p-5 text-center transition-all flex flex-col items-center justify-center gap-2.5 ${
+                    isDraggingCover
+                      ? 'border-[#007AFF] bg-[#007AFF]/10'
+                      : 'border-zinc-300/80 dark:border-zinc-700/80 bg-zinc-50/70 dark:bg-zinc-900/40 hover:border-[#007AFF] hover:bg-zinc-100/70 dark:hover:bg-zinc-900/70'
+                  }`}
                 >
-                  {/* Day Header */}
-                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-                    <div className="flex-1">
-                      <div className="flex items-center gap-2 mb-1">
-                        <span className="px-2 py-0.5 rounded-md text-[11px] font-bold bg-zinc-200 dark:bg-zinc-800 text-zinc-800 dark:text-zinc-200">
-                          Dia {day.dayNumber}
-                        </span>
-                        <input
-                          type="text"
-                          value={day.title}
-                          onChange={e => {
-                            const newDays = [...days];
-                            newDays[dIdx].title = e.target.value;
-                            setDays(newDays);
-                          }}
-                          placeholder={`Título do Dia ${day.dayNumber}`}
-                          className="font-bold text-sm bg-transparent border-b border-transparent hover:border-zinc-300 dark:hover:border-zinc-700 focus:border-zinc-500 focus:outline-hidden text-zinc-900 dark:text-white px-1 py-0.5"
-                        />
-                      </div>
-                      <input
-                        type="text"
-                        value={day.summary}
-                        onChange={e => {
-                          const newDays = [...days];
-                          newDays[dIdx].summary = e.target.value;
-                          setDays(newDays);
-                        }}
-                        placeholder="Resumo do dia (opcional, ex: Manhã com flores e tarde no Capivari)"
-                        className="w-full text-xs bg-transparent border-b border-transparent hover:border-zinc-300 dark:hover:border-zinc-700 focus:border-zinc-500 focus:outline-hidden text-zinc-700 dark:text-zinc-400 font-medium px-1 py-0.5"
-                      />
-                    </div>
+                  <div className="w-10 h-10 rounded-full bg-[#007AFF]/10 text-[#007AFF] flex items-center justify-center shrink-0">
+                    {isUploadingCover ? (
+                      <RefreshCw className="w-5 h-5 animate-spin" />
+                    ) : (
+                      <Upload className="w-5 h-5" />
+                    )}
+                  </div>
 
+                  <div className="space-y-1">
                     <button
                       type="button"
-                      onClick={() => addStepToDay(dIdx)}
-                      className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-zinc-900 dark:bg-white text-white dark:text-zinc-900 rounded-xl text-xs font-semibold hover:opacity-90 transition-opacity cursor-pointer shrink-0"
+                      onClick={() => coverFileInputRef.current?.click()}
+                      disabled={isUploadingCover}
+                      className="px-4 py-2 rounded-xl bg-[#007AFF] text-white text-xs font-black inline-flex items-center gap-1.5 shadow-xs hover:bg-blue-600 transition-colors cursor-pointer disabled:opacity-50"
                     >
-                      <Plus className="w-3.5 h-3.5" />
-                      <span>Adicionar Ponto</span>
+                      <Upload className="w-3.5 h-3.5" />
+                      <span>{isUploadingCover ? 'Processando imagem...' : 'Escolher foto'}</span>
+                    </button>
+                    
+                    <p className="text-[11px] text-zinc-500 dark:text-zinc-400 font-medium">
+                      JPG, PNG ou WEBP <span className="opacity-60">·</span> <span className="text-zinc-400 dark:text-zinc-500">ou arraste uma imagem aqui</span>
+                    </p>
+                  </div>
+                </div>
+
+                {coverUploadError && (
+                  <p className="text-xs text-red-500 font-semibold">{coverUploadError}</p>
+                )}
+
+                {/* 5. Pré-visualização (Grande e com Ações Discretas) */}
+                {coverImage && (
+                  <div className="space-y-2.5 pt-1">
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs font-bold text-zinc-800 dark:text-zinc-200">
+                        Prévia da capa
+                      </span>
+                      <div className="flex items-center gap-2">
+                        <button
+                          type="button"
+                          onClick={() => coverFileInputRef.current?.click()}
+                          className="text-xs text-[#007AFF] hover:underline font-bold cursor-pointer"
+                        >
+                          Trocar foto
+                        </button>
+                        <span className="text-zinc-300 dark:text-zinc-700">·</span>
+                        <button
+                          type="button"
+                          onClick={() => setCoverImage('')}
+                          className="text-xs text-red-500 hover:underline font-bold cursor-pointer"
+                        >
+                          Remover
+                        </button>
+                      </div>
+                    </div>
+
+                    <div className="relative rounded-2xl overflow-hidden aspect-video max-h-64 bg-zinc-900 border border-zinc-200/80 dark:border-zinc-800 group shadow-xs">
+                      <img
+                        src={coverImage}
+                        alt="Prévia da capa"
+                        className="w-full h-full object-cover"
+                      />
+                    </div>
+                  </div>
+                )}
+
+                {/* 6. Galeria de Campos do Jordão */}
+                <div className="pt-2 border-t border-zinc-100 dark:border-zinc-800/60 space-y-3">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-bold text-zinc-800 dark:text-zinc-200">
+                      Ou escolha da galeria
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => setShowCoverUrlInput(!showCoverUrlInput)}
+                      className="text-xs text-[#007AFF] font-bold hover:underline flex items-center gap-1 cursor-pointer"
+                    >
+                      <LinkIcon className="w-3 h-3" />
+                      <span>{showCoverUrlInput ? 'Ocultar URL web' : 'Inserir URL web'}</span>
                     </button>
                   </div>
 
-                  {/* Day Steps */}
-                  {day.steps.length === 0 ? (
-                    <div className="py-8 text-center border border-dashed border-zinc-300 dark:border-zinc-800 rounded-xl bg-white dark:bg-[#17191f]">
-                      <Compass className="w-8 h-8 text-zinc-400 dark:text-zinc-600 mx-auto mb-2" />
-                      <p className="text-xs text-zinc-700 dark:text-zinc-400 font-medium mb-2">
-                        Nenhum ponto adicionado ao Dia {day.dayNumber}.
-                      </p>
-                      <button
-                        type="button"
-                        onClick={() => addStepToDay(dIdx)}
-                        className="text-xs font-semibold text-zinc-900 dark:text-white underline hover:opacity-80 cursor-pointer"
-                      >
-                        + Adicionar primeiro ponto turístico
-                      </button>
-                    </div>
-                  ) : (
-                    <div className="space-y-2.5">
-                      {day.steps.map((step, sIdx) => {
-                        const spotData = availableSpots.find(s => s.id === step.spotId);
-                        return (
-                          <div
-                            key={sIdx}
-                            className="bg-white dark:bg-[#181a20] border border-zinc-200 dark:border-zinc-800 rounded-xl p-3.5 flex flex-col sm:flex-row items-start sm:items-center gap-3.5 shadow-2xs"
-                          >
-                            {/* Number & Reorder controls */}
-                            <div className="flex items-center gap-1 shrink-0">
-                              <span className="w-6 h-6 rounded-lg bg-zinc-100 dark:bg-zinc-800 text-zinc-700 dark:text-zinc-300 font-bold text-xs flex items-center justify-center">
-                                {step.stepOrder}
-                              </span>
-                              <div className="flex flex-col gap-0.5">
-                                <button
-                                  type="button"
-                                  disabled={sIdx === 0}
-                                  onClick={() => moveStep(dIdx, sIdx, 'up')}
-                                  className="p-0.5 text-zinc-700 hover:text-zinc-900 dark:text-zinc-400 dark:hover:text-white disabled:opacity-20 cursor-pointer"
-                                  title="Mover para cima"
-                                >
-                                  <ChevronUp className="w-3.5 h-3.5" />
-                                </button>
-                                <button
-                                  type="button"
-                                  disabled={sIdx === day.steps.length - 1}
-                                  onClick={() => moveStep(dIdx, sIdx, 'down')}
-                                  className="p-0.5 text-zinc-700 hover:text-zinc-900 dark:text-zinc-400 dark:hover:text-white disabled:opacity-20 cursor-pointer"
-                                  title="Mover para baixo"
-                                >
-                                  <ChevronDown className="w-3.5 h-3.5" />
-                                </button>
-                              </div>
-                            </div>
-
-                            {/* Spot thumbnail & Spot selection dropdown */}
-                            <div className="flex-1 flex items-center gap-2.5 min-w-[200px] w-full sm:w-auto">
-                              {spotData?.image && (
-                                <img
-                                  src={spotData.image}
-                                  alt=""
-                                  className="w-10 h-10 rounded-lg object-cover shrink-0 border border-zinc-200 dark:border-zinc-800"
-                                />
-                              )}
-                              <div className="flex-1">
-                                <select
-                                  value={step.spotId}
-                                  onChange={e => updateStepField(dIdx, sIdx, 'spotId', e.target.value)}
-                                  className="w-full text-xs font-semibold bg-zinc-50 dark:bg-zinc-800/60 border border-zinc-200 dark:border-zinc-700 rounded-lg px-2.5 py-1.5 text-zinc-900 dark:text-white focus:outline-hidden"
-                                >
-                                  {availableSpots.map(s => (
-                                    <option key={s.id} value={s.id}>
-                                      {s.name} ({s.categoryLabel || s.category})
-                                    </option>
-                                  ))}
-                                </select>
-                              </div>
-                            </div>
-
-                            {/* Suggested Time & Duration */}
-                            <div className="flex items-center gap-2 shrink-0 w-full sm:w-auto">
-                              <div className="flex items-center gap-1 bg-zinc-50 dark:bg-zinc-800/60 px-2 py-1 rounded-lg border border-zinc-200 dark:border-zinc-700">
-                                <Clock className="w-3 h-3 text-zinc-700 dark:text-zinc-400" />
-                                <input
-                                  type="text"
-                                  value={step.suggestedTime}
-                                  onChange={e => updateStepField(dIdx, sIdx, 'suggestedTime', e.target.value)}
-                                  placeholder="09:00"
-                                  className="w-12 text-xs font-semibold bg-transparent text-zinc-900 dark:text-white focus:outline-hidden text-center"
-                                />
-                              </div>
-
-                              <div className="flex items-center gap-1 bg-zinc-50 dark:bg-zinc-800/60 px-2 py-1 rounded-lg border border-zinc-200 dark:border-zinc-700">
-                                <span className="text-[10px] text-zinc-700 dark:text-zinc-400 font-medium">Duração:</span>
-                                <input
-                                  type="number"
-                                  min={15}
-                                  max={360}
-                                  step={15}
-                                  value={step.durationMinutes}
-                                  onChange={e => updateStepField(dIdx, sIdx, 'durationMinutes', Number(e.target.value))}
-                                  className="w-10 text-xs font-semibold bg-transparent text-zinc-900 dark:text-white focus:outline-hidden text-center"
-                                />
-                                <span className="text-[10px] text-zinc-700 dark:text-zinc-400 font-medium">min</span>
-                              </div>
-
-                              <button
-                                type="button"
-                                onClick={() => removeStep(dIdx, sIdx)}
-                                className="p-1.5 text-zinc-700 hover:text-red-500 dark:text-zinc-400 dark:hover:text-red-400 rounded-lg hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors cursor-pointer"
-                                title="Remover ponto"
-                              >
-                                <Trash2 className="w-4 h-4" />
-                              </button>
-                            </div>
-                          </div>
-                        );
-                      })}
+                  {showCoverUrlInput && (
+                    <div className="flex gap-2">
+                      <input
+                        type="url"
+                        value={coverImage}
+                        onChange={e => setCoverImage(e.target.value)}
+                        placeholder="https://images.unsplash.com/..."
+                        className="flex-1 px-3.5 py-2 bg-zinc-50 dark:bg-[#181a20] border border-zinc-300 dark:border-zinc-700 rounded-xl text-xs text-zinc-900 dark:text-white font-medium focus:outline-hidden focus:border-[#007AFF]"
+                      />
                     </div>
                   )}
-                </div>
-              ))}
 
-              {/* Add day button */}
-              {days.length < 7 && (
-                <button
-                  type="button"
-                  onClick={() => handleDaysCountChange(days.length + 1)}
-                  className="w-full py-3 border border-dashed border-zinc-300 dark:border-zinc-800 rounded-2xl text-xs font-semibold text-zinc-700 dark:text-zinc-300 hover:border-zinc-400 dark:hover:border-zinc-700 flex items-center justify-center gap-2 cursor-pointer transition-colors"
-                >
-                  <Plus className="w-4 h-4" />
-                  <span>Adicionar Dia {days.length + 1} ao Roteiro</span>
-                </button>
-              )}
+                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5">
+                    {COVER_PRESETS.map((preset, idx) => {
+                      const isSelected = coverImage === preset.url;
+                      return (
+                        <button
+                          key={idx}
+                          type="button"
+                          onClick={() => setCoverImage(preset.url)}
+                          className={`text-left p-2 rounded-2xl border flex items-center gap-2.5 transition-all cursor-pointer ${
+                            isSelected
+                              ? 'border-[#007AFF] bg-[#007AFF]/10 ring-2 ring-[#007AFF]'
+                              : 'border-zinc-200/90 dark:border-zinc-800 bg-zinc-50/50 dark:bg-zinc-900/40 hover:border-zinc-300 dark:hover:border-zinc-700'
+                          }`}
+                        >
+                          <img src={preset.url} alt={preset.label} className="w-10 h-10 rounded-xl object-cover shrink-0" />
+                          <div className="overflow-hidden min-w-0">
+                            <span className={`text-xs font-bold block truncate ${
+                              isSelected ? 'text-[#007AFF]' : 'text-zinc-800 dark:text-zinc-200'
+                            }`}>
+                              {preset.label}
+                            </span>
+                            <span className="text-[10px] text-zinc-400 dark:text-zinc-500">Campos do Jordão</span>
+                          </div>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+
+              </div>
             </div>
           )}
 
-          {/* Footer Submit Buttons */}
-          <div className="pt-4 border-t border-zinc-200 dark:border-zinc-800 flex items-center justify-between shrink-0">
-            <button
-              type="button"
-              onClick={onClose}
-              className="px-4 py-2 text-xs font-semibold text-zinc-700 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-white transition-colors cursor-pointer"
-            >
-              Cancelar
-            </button>
-
-            <div className="flex items-center gap-2.5">
-              {activeTab === 'info' ? (
-                <button
-                  type="button"
-                  onClick={() => setActiveTab('builder')}
-                  className="px-4 py-2 bg-zinc-100 dark:bg-zinc-800 text-zinc-900 dark:text-white rounded-xl text-xs font-semibold hover:bg-zinc-200 dark:hover:bg-zinc-700 transition-colors cursor-pointer"
-                >
-                  Próximo: Construtor de Dias & Pontos →
-                </button>
-              ) : (
-                <button
-                  type="button"
-                  onClick={() => setActiveTab('info')}
-                  className="px-3.5 py-2 text-zinc-600 dark:text-zinc-400 text-xs font-semibold hover:underline cursor-pointer"
-                >
-                  ← Voltar às Informações
-                </button>
+          {/* TAB 3: PARADAS DO ROTEIRO (BUILDER) */}
+          {activeTab === 'builder' && (
+            <div className="space-y-5 animate-in fade-in duration-150">
+              {/* Day selection tabs */}
+              {days.length > 1 && (
+                <div className="flex items-center gap-2 overflow-x-auto pb-1">
+                  {days.map((d, dIdx) => (
+                    <button
+                      key={dIdx}
+                      type="button"
+                      onClick={() => setActiveDayIdx(dIdx)}
+                      className={`px-4 py-2 rounded-xl text-xs font-black transition-all cursor-pointer shrink-0 border ${
+                        activeDayIdx === dIdx
+                          ? 'bg-[#007AFF] text-white border-blue-500 shadow-sm'
+                          : 'bg-zinc-100 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-300 border-transparent hover:bg-zinc-200'
+                      }`}
+                    >
+                      Dia {d.dayNumber} ({d.steps.length} paradas)
+                    </button>
+                  ))}
+                </div>
               )}
 
-              <button
-                type="submit"
-                disabled={isSubmitting}
-                className="px-5 py-2 bg-zinc-900 text-white dark:bg-white dark:text-zinc-900 rounded-xl text-xs font-bold hover:opacity-90 transition-opacity disabled:opacity-50 cursor-pointer shadow-xs"
-              >
-                {isSubmitting ? 'Salvando...' : itineraryToEdit ? 'Salvar Alterações' : 'Publicar Roteiro'}
-              </button>
+              {/* Day Details Bar */}
+              <div className="p-3.5 rounded-2xl bg-zinc-50 dark:bg-[#181a20] border border-zinc-200 dark:border-zinc-800 flex items-center justify-between gap-3">
+                <input
+                  type="text"
+                  value={currentDay?.title || ''}
+                  onChange={e => {
+                    const copy = [...days];
+                    copy[activeDayIdx] = { ...copy[activeDayIdx], title: e.target.value };
+                    setDays(copy);
+                  }}
+                  placeholder="Título deste dia (ex: Dia 1: O Clássico de Capivari)"
+                  className="flex-1 bg-transparent text-xs font-black text-zinc-900 dark:text-white outline-none"
+                />
+
+                <button
+                  type="button"
+                  onClick={() => addStepToDay(activeDayIdx)}
+                  className="px-3 py-1.5 rounded-xl bg-[#007AFF] text-white text-xs font-black flex items-center gap-1.5 shadow-sm hover:bg-blue-600 cursor-pointer shrink-0"
+                >
+                  <Plus className="w-3.5 h-3.5 stroke-[3]" />
+                  <span>Adicionar parada</span>
+                </button>
+              </div>
+
+              {/* Hidden file input for step photo uploads */}
+              <input
+                type="file"
+                ref={stepFileInputRef}
+                accept="image/*"
+                onChange={e => {
+                  const file = e.target.files?.[0];
+                  if (file) handleStepCustomImageUpload(file);
+                }}
+                className="hidden"
+              />
+
+              {/* Steps List */}
+              <div className="space-y-3">
+                {currentDay?.steps.length === 0 ? (
+                  <div className="p-8 rounded-3xl border border-dashed border-zinc-300 dark:border-zinc-700 text-center space-y-3">
+                    <MapPin className="w-8 h-8 text-zinc-400 mx-auto" />
+                    <p className="text-xs font-bold text-zinc-600 dark:text-zinc-400">
+                      Nenhuma parada adicionada a este dia.
+                    </p>
+                    <button
+                      type="button"
+                      onClick={() => addStepToDay(activeDayIdx)}
+                      className="px-4 py-2 rounded-xl bg-[#007AFF] text-white text-xs font-black inline-flex items-center gap-1.5 cursor-pointer shadow-sm"
+                    >
+                      <Plus className="w-3.5 h-3.5" />
+                      <span>Adicionar primeira parada</span>
+                    </button>
+                  </div>
+                ) : (
+                  currentDay?.steps.map((step, sIdx) => {
+                    const stepNumber = String(sIdx + 1).padStart(2, '0');
+                    const stepPhoto = step.customImage || availableSpots.find(s => s.id === step.spotId)?.image;
+
+                    return (
+                      <div
+                        key={sIdx}
+                        className="p-4 rounded-2xl bg-zinc-50 dark:bg-[#181a20] border border-zinc-200 dark:border-zinc-800 space-y-3"
+                      >
+                        {/* Header: Number, Spot Picker, Order buttons & Delete */}
+                        <div className="flex items-center justify-between gap-2 flex-wrap">
+                          <div className="flex items-center gap-2.5 flex-1 min-w-[220px]">
+                            <span className="w-7 h-7 rounded-full bg-[#007AFF] text-white font-black text-xs flex items-center justify-center shrink-0">
+                              {stepNumber}
+                            </span>
+                            
+                            {/* Small step photo preview + upload trigger */}
+                            <div className="relative group shrink-0">
+                              {stepPhoto ? (
+                                <img
+                                  src={stepPhoto}
+                                  alt="Parada"
+                                  className="w-9 h-9 rounded-xl object-cover border border-zinc-300 dark:border-zinc-700"
+                                />
+                              ) : (
+                                <div className="w-9 h-9 rounded-xl bg-zinc-200 dark:bg-zinc-800 flex items-center justify-center text-zinc-500">
+                                  <Camera className="w-4 h-4" />
+                                </div>
+                              )}
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setUploadingStepIdx({ dayIdx: activeDayIdx, stepIdx: sIdx });
+                                  stepFileInputRef.current?.click();
+                                }}
+                                className="absolute inset-0 bg-black/60 rounded-xl opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center text-white cursor-pointer"
+                                title="Fazer upload de foto para esta parada"
+                              >
+                                <Upload className="w-3.5 h-3.5" />
+                              </button>
+                            </div>
+
+                            <select
+                              value={step.spotId}
+                              onChange={e => updateStepField(activeDayIdx, sIdx, 'spotId', e.target.value)}
+                              className="flex-1 px-3 py-1.5 bg-white dark:bg-zinc-900 border border-zinc-300 dark:border-zinc-700 rounded-xl text-xs font-bold text-zinc-900 dark:text-white"
+                            >
+                              {availableSpots.map(s => (
+                                <option key={s.id} value={s.id}>
+                                  {s.name} ({s.categoryLabel || s.category})
+                                </option>
+                              ))}
+                            </select>
+                          </div>
+
+                          <div className="flex items-center gap-1 shrink-0">
+                            {/* Move Up */}
+                            <button
+                              type="button"
+                              disabled={sIdx === 0}
+                              onClick={() => moveStep(activeDayIdx, sIdx, 'up')}
+                              className="p-1.5 rounded-lg bg-white dark:bg-zinc-800 text-zinc-700 dark:text-zinc-300 disabled:opacity-30 hover:bg-zinc-200 cursor-pointer"
+                              title="Subir parada"
+                            >
+                              <ChevronUp className="w-4 h-4" />
+                            </button>
+                            {/* Move Down */}
+                            <button
+                              type="button"
+                              disabled={sIdx === (currentDay?.steps.length || 0) - 1}
+                              onClick={() => moveStep(activeDayIdx, sIdx, 'down')}
+                              className="p-1.5 rounded-lg bg-white dark:bg-zinc-800 text-zinc-700 dark:text-zinc-300 disabled:opacity-30 hover:bg-zinc-200 cursor-pointer"
+                              title="Descer parada"
+                            >
+                              <ChevronDown className="w-4 h-4" />
+                            </button>
+                            {/* Delete */}
+                            <button
+                              type="button"
+                              onClick={() => removeStepFromDay(activeDayIdx, sIdx)}
+                              className="p-1.5 rounded-lg bg-red-100 dark:bg-red-950/40 text-red-600 hover:bg-red-200 cursor-pointer ml-1"
+                              title="Remover parada"
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </button>
+                          </div>
+                        </div>
+
+                        {/* Timing and Custom notes */}
+                        <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
+                          <div>
+                            <label className="block text-[11px] font-bold text-zinc-500 dark:text-zinc-400 mb-1">
+                              Horário Sugerido
+                            </label>
+                            <input
+                              type="text"
+                              value={step.suggestedTime}
+                              onChange={e => updateStepField(activeDayIdx, sIdx, 'suggestedTime', e.target.value)}
+                              placeholder="09:30"
+                              className="w-full px-2.5 py-1.5 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-700 rounded-xl text-xs font-semibold text-zinc-900 dark:text-white"
+                            />
+                          </div>
+
+                          <div>
+                            <label className="block text-[11px] font-bold text-zinc-500 dark:text-zinc-400 mb-1">
+                              Duração Estimada (min)
+                            </label>
+                            <input
+                              type="number"
+                              value={step.durationMinutes}
+                              onChange={e => updateStepField(activeDayIdx, sIdx, 'durationMinutes', Number(e.target.value))}
+                              placeholder="90"
+                              className="w-full px-2.5 py-1.5 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-700 rounded-xl text-xs font-semibold text-zinc-900 dark:text-white"
+                            />
+                          </div>
+
+                          <div>
+                            <label className="block text-[11px] font-bold text-zinc-500 dark:text-zinc-400 mb-1">
+                              Dica Especial da Parada
+                            </label>
+                            <input
+                              type="text"
+                              value={step.customTip || ''}
+                              onChange={e => updateStepField(activeDayIdx, sIdx, 'customTip', e.target.value)}
+                              placeholder="Ex: Chegue 15 min antes"
+                              className="w-full px-2.5 py-1.5 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-700 rounded-xl text-xs font-semibold text-zinc-900 dark:text-white"
+                            />
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })
+                )}
+              </div>
             </div>
+          )}
+
+          {/* TAB 4: APPEARANCE & LIVE PREVIEW */}
+          {activeTab === 'appearance' && (
+            <div className="space-y-6 animate-in fade-in duration-150">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                {/* Left Column: Settings */}
+                <div className="space-y-4">
+                  <div className="p-4 rounded-2xl bg-zinc-50 dark:bg-[#181a20] border border-zinc-200 dark:border-zinc-800 space-y-3">
+                    <h3 className="text-xs font-black text-zinc-900 dark:text-white uppercase tracking-wider">
+                      Destaque na Loja
+                    </h3>
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <span className="block text-xs font-bold text-zinc-800 dark:text-zinc-200">
+                          Roteiro em Destaque
+                        </span>
+                        <span className="text-[11px] text-zinc-500">
+                          Aparece no carrossel superior "Roteiros em destaque"
+                        </span>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => setIsFeatured(!isFeatured)}
+                        className={`w-12 h-6.5 rounded-full transition-colors relative cursor-pointer ${
+                          isFeatured ? 'bg-[#007AFF]' : 'bg-zinc-300 dark:bg-zinc-700'
+                        }`}
+                      >
+                        <span
+                          className={`block w-5 h-5 rounded-full bg-white transition-transform ${
+                            isFeatured ? 'translate-x-6' : 'translate-x-1'
+                          }`}
+                        />
+                      </button>
+                    </div>
+                  </div>
+
+                  <div className="p-4 rounded-2xl bg-zinc-50 dark:bg-[#181a20] border border-zinc-200 dark:border-zinc-800 space-y-4">
+                    <h3 className="text-xs font-black text-zinc-900 dark:text-white uppercase tracking-wider">
+                      Selo & Badges do Card
+                    </h3>
+
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <span className="block text-xs font-bold text-zinc-800 dark:text-zinc-200">
+                          Ativar Selo
+                        </span>
+                        <span className="text-[11px] text-zinc-500">
+                          Exibe selo estilizado sobre o card na Loja
+                        </span>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => setIsPremium(!isPremium)}
+                        className={`w-12 h-6.5 rounded-full transition-colors relative cursor-pointer ${
+                          isPremium ? 'bg-[#007AFF]' : 'bg-zinc-300 dark:bg-zinc-700'
+                        }`}
+                      >
+                        <span
+                          className={`block w-5 h-5 rounded-full bg-white transition-transform ${
+                            isPremium ? 'translate-x-6' : 'translate-x-1'
+                          }`}
+                        />
+                      </button>
+                    </div>
+
+                    {isPremium && (
+                      <div>
+                        <label className="block text-xs font-bold text-zinc-700 dark:text-zinc-300 mb-1">
+                          Texto do Selo
+                        </label>
+                        <input
+                          type="text"
+                          value={badgeText}
+                          onChange={e => setBadgeText(e.target.value)}
+                          placeholder="Premium"
+                          className="w-full px-3 py-2 bg-white dark:bg-zinc-900 border border-zinc-300 dark:border-zinc-700 rounded-xl text-xs font-bold text-zinc-900 dark:text-white"
+                        />
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="p-4 rounded-2xl bg-zinc-50 dark:bg-[#181a20] border border-zinc-200 dark:border-zinc-800 space-y-3">
+                    <h3 className="text-xs font-black text-zinc-900 dark:text-white uppercase tracking-wider">
+                      Visibilidade dos Dados
+                    </h3>
+
+                    <div className="flex items-center justify-between pt-1">
+                      <span className="text-xs font-semibold text-zinc-700 dark:text-zinc-300">Mostrar Preço no Card</span>
+                      <input
+                        type="checkbox"
+                        checked={showPrice}
+                        onChange={e => setShowPrice(e.target.checked)}
+                        className="w-4 h-4 accent-[#007AFF] cursor-pointer"
+                      />
+                    </div>
+
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs font-semibold text-zinc-700 dark:text-zinc-300">Mostrar Contagem de Paradas</span>
+                      <input
+                        type="checkbox"
+                        checked={showStopsCount}
+                        onChange={e => setShowStopsCount(e.target.checked)}
+                        className="w-4 h-4 accent-[#007AFF] cursor-pointer"
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                {/* Right Column: Live Card Preview */}
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-black text-zinc-900 dark:text-white uppercase tracking-wider">
+                      Pré-visualização do Card na Loja
+                    </span>
+                    <div className="flex items-center gap-1 bg-zinc-200 dark:bg-zinc-800 p-0.5 rounded-lg">
+                      <button
+                        type="button"
+                        onClick={() => setPreviewTheme('dark')}
+                        className={`p-1 rounded text-xs font-bold ${previewTheme === 'dark' ? 'bg-zinc-900 text-white shadow-xs' : 'text-zinc-500'}`}
+                        title="Modo Escuro"
+                      >
+                        <Moon className="w-3 h-3" />
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setPreviewTheme('light')}
+                        className={`p-1 rounded text-xs font-bold ${previewTheme === 'light' ? 'bg-white text-zinc-900 shadow-xs' : 'text-zinc-500'}`}
+                        title="Modo Claro"
+                      >
+                        <Sun className="w-3 h-3" />
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Simulated Card in Shop */}
+                  <div className={`p-4 rounded-3xl border transition-colors ${
+                    previewTheme === 'light'
+                      ? 'bg-[#f4f4f6] border-zinc-300 text-zinc-900'
+                      : 'bg-[#000000] border-zinc-800 text-white'
+                  }`}>
+                    <div className={`rounded-2xl p-3.5 border transition-all ${
+                      previewTheme === 'light'
+                        ? 'bg-white border-zinc-200 shadow-sm'
+                        : 'bg-[#121418] border-white/10'
+                    }`}>
+                      {/* Image */}
+                      <div className="aspect-16/9 rounded-xl overflow-hidden relative mb-3 bg-zinc-800">
+                        {coverImage ? (
+                          <img src={coverImage} alt="Preview" className="w-full h-full object-cover" />
+                        ) : (
+                          <div className="w-full h-full flex items-center justify-center text-zinc-600 text-xs">
+                            Sem imagem
+                          </div>
+                        )}
+                        {isPremium && (
+                          <div className="absolute top-2 left-2 px-2 py-0.5 rounded-full bg-black/60 backdrop-blur-md border border-white/20 text-white text-[10px] font-black">
+                            {badgeText}
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Content */}
+                      <div className="space-y-1">
+                        <div className="flex items-center justify-between text-[11px] text-zinc-400">
+                          <span>{daysCount} {daysCount === 1 ? 'dia' : 'dias'} · {totalPlaces} {totalPlaces === 1 ? 'parada' : 'paradas'}</span>
+                          {showPrice && <span className="font-bold text-[#007AFF]">{price}</span>}
+                        </div>
+                        <h4 className="text-sm font-black tracking-tight line-clamp-1">
+                          {title || 'Título do Roteiro'}
+                        </h4>
+                        <p className="text-xs text-zinc-500 line-clamp-2">
+                          {description || 'Descrição do roteiro que será exibida para os viajantes...'}
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* 10. Modal Footer Buttons (Alinhamento & Mesma Altura) */}
+        <div className="px-5 py-3.5 border-t border-zinc-200 dark:border-zinc-800 flex items-center justify-between bg-zinc-50/90 dark:bg-[#17191e] shrink-0">
+          <button
+            type="button"
+            onClick={onClose}
+            className="h-10 px-4 text-xs font-bold text-zinc-500 hover:text-zinc-900 dark:text-zinc-400 dark:hover:text-white transition-colors cursor-pointer flex items-center justify-center rounded-xl hover:bg-zinc-100 dark:hover:bg-zinc-800"
+          >
+            Cancelar
+          </button>
+
+          <div className="flex items-center gap-2.5">
+            <button
+              type="button"
+              disabled={isSubmitting}
+              onClick={() => handleSaveWithStatus('draft')}
+              className="h-10 px-4 rounded-xl border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-zinc-800 dark:text-zinc-200 text-xs font-bold hover:bg-zinc-100 dark:hover:bg-zinc-700 transition-colors cursor-pointer disabled:opacity-50 flex items-center justify-center shadow-2xs"
+            >
+              Salvar como Rascunho
+            </button>
+
+            <button
+              type="button"
+              disabled={isSubmitting}
+              onClick={() => handleSaveWithStatus('published')}
+              className="h-10 px-5 rounded-xl bg-[#007AFF] text-white text-xs font-black hover:bg-blue-600 transition-colors cursor-pointer disabled:opacity-50 shadow-xs flex items-center justify-center gap-1.5"
+            >
+              {isSubmitting ? (
+                <>
+                  <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                  <span>Salvando...</span>
+                </>
+              ) : (
+                <>
+                  <CheckCircle2 className="w-3.5 h-3.5" />
+                  <span>{itineraryToEdit ? 'Atualizar Roteiro' : 'Publicar Roteiro'}</span>
+                </>
+              )}
+            </button>
           </div>
-        </form>
+        </div>
+
       </div>
     </div>
   );

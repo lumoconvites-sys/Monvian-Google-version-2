@@ -178,7 +178,7 @@ export function AuthScreen({ onSuccess }: AuthScreenProps) {
           className="h-16 mb-2 flex items-center justify-center"
         >
           <img 
-            src="/logo-white.png" 
+            src="/logomodoescuro.png" 
             alt="Monvian" 
             className="h-full w-auto max-w-[240px] object-contain"
           />

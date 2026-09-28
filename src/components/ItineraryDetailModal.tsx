@@ -99,7 +99,7 @@ export const ItineraryDetailModal: React.FC<ItineraryDetailModalProps> = ({
             }}
           >
         {/* Header with Cover */}
-        <div className="relative aspect-21/9 w-full bg-zinc-900 shrink-0 overflow-hidden">
+        <div className="relative aspect-21/9 w-full bg-zinc-900 shrink-0 overflow-hidden rounded-b-[28px]">
           <img
             src={itinerary.coverImage || 'https://images.unsplash.com/photo-1585320806297-9794b3e4eeae?auto=format&fit=crop&w=1000&q=80'}
             alt={itinerary.title}

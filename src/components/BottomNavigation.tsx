@@ -21,6 +21,18 @@ export const BottomNavigation: React.FC<BottomNavigationProps> = ({
   forceWhiteUI = false,
   theme = 'dark',
 }) => {
+  const isUserGold = Boolean(
+    (() => {
+      try {
+        const u = JSON.parse(localStorage.getItem('monvian_user') || '{}');
+        const cleanEmail = (u.email || u.whatsapp || '').trim().toLowerCase();
+        const isGoldAdmin = ['empresariomario@gmail.com', 'marioempresario@gmail.com', 'marioyesk@gmail.com'].includes(cleanEmail);
+        return isGoldAdmin || Boolean(u.isGold || u.is_gold === 1 || u.isPremium || u.is_premium === 1);
+      } catch {
+        return false;
+      }
+    })()
+  );
   const [pulseAnimation, setPulseAnimation] = useState<number>(0);
   const [isDragging, setIsDragging] = useState<boolean>(false);
   const [dragOffset, setDragOffset] = useState<number>(0);
@@ -310,7 +322,9 @@ export const BottomNavigation: React.FC<BottomNavigationProps> = ({
                 >
                   <NavChatIcon size={22} className="w-5.5 h-5.5 text-current" />
                   {unreadCount > 0 && (
-                    <span className="absolute -top-0.5 right-0.5 w-2 h-2 bg-blue-600 rounded-full ring-2 ring-white dark:ring-[#16181d] shadow-xs" />
+                    <span className={`absolute -top-0.5 right-0.5 w-2 h-2 rounded-full ring-2 ring-white dark:ring-[#16181d] shadow-xs ${
+                      isUserGold ? 'bg-[#F5BE38]' : 'bg-blue-600'
+                    }`} />
                   )}
                 </div>
               )}

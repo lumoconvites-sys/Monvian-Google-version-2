@@ -117,6 +117,19 @@ export const SearchFilterDrawer: React.FC<SearchFilterDrawerProps> = ({
 }) => {
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCategory, setSelectedCategory] = useState<CategoryConfig | null>(null);
+
+  const isGoldUser = Boolean(
+    (() => {
+      try {
+        const u = JSON.parse(localStorage.getItem('monvian_user') || '{}');
+        const cleanEmail = (u.email || u.whatsapp || '').trim().toLowerCase();
+        const isGoldAdmin = ['empresariomario@gmail.com', 'marioempresario@gmail.com', 'marioyesk@gmail.com'].includes(cleanEmail);
+        return isGoldAdmin || Boolean(u.isGold || u.is_gold === 1 || u.isPremium || u.is_premium === 1);
+      } catch {
+        return false;
+      }
+    })()
+  );
   const searchInputRef = useRef<HTMLInputElement | null>(null);
 
   // Focus input when opened or reset
@@ -348,7 +361,9 @@ export const SearchFilterDrawer: React.FC<SearchFilterDrawerProps> = ({
 
                       <div className="min-w-0 flex-1">
                         <div className="flex items-center gap-1.5 min-w-0">
-                          <h4 className="text-sm font-extrabold text-zinc-900 dark:text-[#F5F2EA] tracking-tight truncate group-hover:text-[#007AFF] transition-colors">
+                          <h4 className={`text-sm font-extrabold text-zinc-900 dark:text-[#F5F2EA] tracking-tight truncate transition-colors ${
+                            isGoldUser ? 'group-hover:text-[#F5BE38]' : 'group-hover:text-[#007AFF]'
+                          }`}>
                             {spot.name}
                           </h4>
                           <VerifiedBadge />
@@ -359,13 +374,13 @@ export const SearchFilterDrawer: React.FC<SearchFilterDrawerProps> = ({
                         </p>
 
                         <div className="flex items-center gap-2 text-[11px] text-[#9A9894] mt-1">
-                          <span className="flex items-center gap-0.5 text-[#007AFF] font-bold">
-                            <Star className="w-3 h-3 fill-[#007AFF] text-[#007AFF]" />
+                          <span className={`flex items-center gap-0.5 font-bold ${isGoldUser ? 'text-[#F5BE38]' : 'text-[#007AFF]'}`}>
+                            <Star className={`w-3 h-3 ${isGoldUser ? 'fill-[#F5BE38] text-[#F5BE38]' : 'fill-[#007AFF] text-[#007AFF]'}`} />
                             {spot.rating}
                           </span>
                           <span>•</span>
                           <span className="truncate flex items-center gap-1 text-[#9A9894] font-semibold">
-                            <MapPin className="w-3 h-3 shrink-0 text-[#007AFF]" />
+                            <MapPin className={`w-3 h-3 shrink-0 ${isGoldUser ? 'text-[#F5BE38]' : 'text-[#007AFF]'}`} />
                             <span className="truncate">{spot.address.split(',')[0]}</span>
                           </span>
                         </div>

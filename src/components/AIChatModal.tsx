@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { X, Send, Mic, MicOff, CheckCircle2, RotateCcw, Loader2, MapPin, ExternalLink } from 'lucide-react';
-import { AIChatMessage, MapsGroundingPlace } from '../types';
+import { X, Send, Mic, MicOff, CheckCircle2, RotateCcw, Loader2, MapPin, ExternalLink, Globe } from 'lucide-react';
+import { AIChatMessage, MapsGroundingPlace, WebSource } from '../types';
 import { motion, AnimatePresence } from 'motion/react';
 import { TypewriterMessage } from './TypewriterMessage';
 import robotAvatar from '../assets/images/ai_robot_avatar_1790114566623.jpg';
@@ -10,6 +10,7 @@ interface AIChatModalProps {
   onClose: () => void;
   onSelectSpotByName?: (spotName: string) => void;
   userCoords?: { lat: number; lng: number } | null;
+  theme?: 'dark' | 'light';
 }
 
 const DEFAULT_SUGGESTIONS = [
@@ -26,7 +27,22 @@ export const AIChatModal: React.FC<AIChatModalProps> = ({
   onClose,
   onSelectSpotByName,
   userCoords,
+  theme = 'dark',
 }) => {
+  const isLight = theme === 'light';
+
+  const isGoldUser = Boolean(
+    (() => {
+      try {
+        const u = JSON.parse(localStorage.getItem('monvian_user') || '{}');
+        const cleanEmail = (u.email || u.whatsapp || '').trim().toLowerCase();
+        const isGoldAdmin = ['empresariomario@gmail.com', 'marioempresario@gmail.com', 'marioyesk@gmail.com'].includes(cleanEmail);
+        return isGoldAdmin || Boolean(u.isGold || u.is_gold === 1 || u.isPremium || u.is_premium === 1);
+      } catch {
+        return false;
+      }
+    })()
+  );
   const [messages, setMessages] = useState<AIChatMessage[]>(() => {
     try {
       const saved = sessionStorage.getItem('monvian_chat_session_messages');
@@ -119,6 +135,7 @@ export const AIChatModal: React.FC<AIChatModalProps> = ({
       const data = await response.json();
       const replyText = data.reply || 'Campos do Jordão tem opções maravilhosas para isso!';
       const groundingPlaces: MapsGroundingPlace[] = data.groundingPlaces || [];
+      const sources: WebSource[] = data.webSources || [];
 
       const newAssistantId = `assistant-${Date.now()}`;
       const assistantMessage: AIChatMessage = {
@@ -127,6 +144,7 @@ export const AIChatModal: React.FC<AIChatModalProps> = ({
         text: replyText,
         time: new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }),
         groundingPlaces,
+        sources,
       };
 
       setAnimatingMessageId(newAssistantId);
@@ -255,9 +273,12 @@ Como posso te ajudar agora?`;
   return (
     <div
       id="ai-chat-fullscreen-overlay"
-      className="absolute inset-0 z-45 text-white flex flex-col justify-between overflow-hidden bg-[#000000]"
+      className={`absolute inset-0 z-45 flex flex-col justify-between overflow-hidden transition-colors duration-300 ${
+        isLight ? 'bg-white text-black' : 'bg-[#000000] text-white'
+      }`}
       style={{
         fontFamily: "'Manrope', -apple-system, BlinkMacSystemFont, sans-serif",
+        backgroundColor: isLight ? '#ffffff' : '#000000',
       }}
     >
       {/* Top Header Bar */}
@@ -276,7 +297,11 @@ Como posso te ajudar agora?`;
               whileTap={{ scale: 0.85 }}
               id="btn-chat-reset"
               onClick={handleReset}
-              className="w-10 h-10 rounded-full bg-white/10 hover:bg-white/15 text-zinc-200 flex items-center justify-center transition-colors cursor-pointer border border-white/10"
+              className={`w-10 h-10 rounded-full flex items-center justify-center transition-colors cursor-pointer border ${
+                isLight
+                  ? 'bg-zinc-100 hover:bg-zinc-200 text-zinc-800 border-zinc-200 shadow-xs'
+                  : 'bg-white/10 hover:bg-white/15 text-zinc-200 border-white/10'
+              }`}
               title="Nova conversa"
             >
               <RotateCcw className="w-4 h-4" />
@@ -289,12 +314,14 @@ Como posso te ajudar agora?`;
           <div 
             className="absolute left-1/2 -translate-x-1/2 flex items-center gap-2 pointer-events-none"
           >
-            <div className="w-8 h-8 rounded-full overflow-hidden border border-white/20 shadow-xs">
+            <div className={`w-8 h-8 rounded-full overflow-hidden border shadow-xs ${isLight ? 'border-zinc-200 bg-zinc-100' : 'border-white/20 bg-zinc-900'}`}>
               <img src={GUIDE_AVATAR_URL} alt="Assistente AI" className="w-full h-full object-cover" referrerPolicy="no-referrer" />
             </div>
             <div className="flex items-center gap-1.5">
-              <span className="text-base font-black tracking-tight text-white">Chat</span>
-              <div className="w-4.5 h-4.5 rounded-full bg-[#007AFF] flex items-center justify-center text-white shrink-0">
+              <span className={`text-base font-black tracking-tight ${isLight ? 'text-black' : 'text-white'}`}>Chat</span>
+              <div className={`w-4.5 h-4.5 rounded-full flex items-center justify-center text-white shrink-0 ${
+                isGoldUser ? 'bg-metallic-gold text-[#1A1202] border border-[#FFF4A3]/50' : 'bg-[#007AFF]'
+              }`}>
                 <svg
                   className="w-3 h-3"
                   viewBox="0 0 24 24"
@@ -324,7 +351,11 @@ Como posso te ajudar agora?`;
           >
             {/* 3D Guide Avatar Portrait */}
             <div className="relative mb-3">
-              <div className="w-24 h-24 sm:w-28 sm:h-28 rounded-full overflow-hidden border-2 border-white/15 shadow-2xl bg-zinc-900 mx-auto ring-4 ring-white/5">
+              <div className={`w-24 h-24 sm:w-28 sm:h-28 rounded-full overflow-hidden border-2 shadow-2xl mx-auto ${
+                isGoldUser
+                  ? 'border-[#FFF4A3]/70 bg-[#141518] ring-4 ring-[#F5BE38]/30 shadow-[0_0_25px_rgba(245,190,56,0.35)]'
+                  : isLight ? 'border-zinc-200 bg-zinc-100 ring-4 ring-zinc-100' : 'border-white/15 bg-zinc-900 ring-4 ring-white/5'
+              }`}>
                 <img
                   src={GUIDE_AVATAR_URL}
                   alt="Assistente de Inteligência Artificial"
@@ -336,11 +367,13 @@ Como posso te ajudar agora?`;
 
             {/* Chat Title with Verified Checkmark */}
             <div className="flex items-center justify-center gap-1.5 mb-1.5">
-              <h1 className="text-2xl sm:text-[26px] font-black text-white tracking-tight">
+              <h1 className={`text-2xl sm:text-[26px] font-black tracking-tight ${isLight ? 'text-black' : 'text-white'}`}>
                 Chat
               </h1>
               {/* Verified Badge Circle */}
-              <div className="w-5 h-5 rounded-full bg-[#007AFF] flex items-center justify-center text-white">
+              <div className={`w-5 h-5 rounded-full flex items-center justify-center shrink-0 ${
+                isGoldUser ? 'bg-metallic-gold text-[#1A1202] border border-[#FFF4A3]/60' : 'bg-[#007AFF] text-white'
+              }`}>
                 <svg
                   className="w-3.5 h-3.5"
                   viewBox="0 0 24 24"
@@ -356,7 +389,7 @@ Como posso te ajudar agora?`;
             </div>
 
             {/* Subtitle: Assistente de inteligência artificial */}
-            <p className="text-zinc-400 text-sm font-bold tracking-tight mb-5 sm:mb-6">
+            <p className={`text-sm font-bold tracking-tight mb-5 sm:mb-6 ${isLight ? 'text-zinc-600' : 'text-zinc-400'}`}>
               Assistente de inteligência artificial
             </p>
 
@@ -367,7 +400,11 @@ Como posso te ajudar agora?`;
                   key={index}
                   id={`btn-suggestion-${index}`}
                   onClick={() => sendMessage(suggestion)}
-                  className="w-full py-3.5 px-5 rounded-2xl sm:rounded-full bg-[#141518] hover:bg-[#1c1d22] active:bg-[#23262c] border border-white/10 text-left text-sm text-zinc-100 font-bold tracking-tight transition-all duration-200 shadow-xs hover:shadow-sm cursor-pointer flex items-center justify-between group active:scale-[0.98]"
+                  className={`w-full py-3.5 px-5 rounded-2xl sm:rounded-full text-left text-sm font-bold tracking-tight transition-all duration-200 shadow-xs hover:shadow-sm cursor-pointer flex items-center justify-between group active:scale-[0.98] border ${
+                    isLight
+                      ? 'bg-[#f4f4f6] hover:bg-[#e9e9ed] active:bg-[#dedee3] border-zinc-200/90 text-black'
+                      : 'bg-[#141518] hover:bg-[#1c1d22] active:bg-[#23262c] border-white/10 text-zinc-100'
+                  }`}
                 >
                   <span>{suggestion}</span>
                 </button>
@@ -392,7 +429,9 @@ Como posso te ajudar agora?`;
                     className={`flex items-start gap-2.5 scroll-mt-20 ${isUser ? 'justify-end' : 'justify-start'}`}
                   >
                     {!isUser && (
-                      <div className="w-8 h-8 rounded-full overflow-hidden border border-white/20 shrink-0 mt-0.5 shadow-sm">
+                      <div className={`w-8 h-8 rounded-full overflow-hidden border shrink-0 mt-0.5 shadow-sm ${
+                        isLight ? 'border-zinc-200 bg-zinc-100' : 'border-white/20 bg-zinc-900'
+                      }`}>
                         <img src={GUIDE_AVATAR_URL} alt="Guia" className="w-full h-full object-cover" />
                       </div>
                     )}
@@ -400,7 +439,11 @@ Como posso te ajudar agora?`;
                     <div
                       className={`px-4 py-3 rounded-2xl text-sm leading-relaxed ${
                         isUser
-                          ? 'max-w-[85%] sm:max-w-[75%] bg-[#007AFF] text-white font-black rounded-br-xs shadow-md'
+                          ? isGoldUser
+                            ? 'max-w-[85%] sm:max-w-[75%] bg-metallic-gold text-[#1A1202] font-black rounded-br-xs shadow-md border border-[#FFF4A3]/60'
+                            : 'max-w-[85%] sm:max-w-[75%] bg-[#007AFF] text-white font-black rounded-br-xs shadow-md'
+                          : isLight
+                          ? 'w-full max-w-[95%] sm:max-w-[85%] bg-[#f4f4f6] text-black border border-zinc-200/90 rounded-tl-xs shadow-xs font-semibold'
                           : 'w-full max-w-[95%] sm:max-w-[85%] bg-[#141518] text-zinc-100 border border-white/10 rounded-tl-xs shadow-xs'
                       }`}
                     >
@@ -418,9 +461,11 @@ Como posso te ajudar agora?`;
                             <motion.div
                               initial={{ opacity: 0, y: 6 }}
                               animate={{ opacity: 1, y: 0 }}
-                              className="mt-3 pt-3 border-t border-white/10 space-y-2"
+                              className={`mt-3 pt-3 border-t space-y-2 ${isLight ? 'border-zinc-200' : 'border-white/10'}`}
                             >
-                              <div className="flex items-center gap-1.5 text-[11px] font-black uppercase tracking-wider text-[#007AFF]">
+                              <div className={`flex items-center gap-1.5 text-[11px] font-black uppercase tracking-wider ${
+                                isGoldUser ? 'text-[#F5BE38]' : 'text-[#007AFF]'
+                              }`}>
                                 <MapPin className="w-3.5 h-3.5 shrink-0" />
                                 <span>Locais verificados no Google Maps</span>
                               </div>
@@ -431,28 +476,74 @@ Como posso te ajudar agora?`;
                                     href={place.uri}
                                     target="_blank"
                                     rel="noopener noreferrer"
-                                    className="flex items-start justify-between gap-2 p-2.5 rounded-xl bg-zinc-900/80 hover:bg-[#007AFF]/15 border border-white/10 hover:border-[#007AFF]/40 transition-all text-left group cursor-pointer"
+                                    className={`flex items-start justify-between gap-2 p-2.5 rounded-xl border transition-all text-left group cursor-pointer ${
+                                      isLight
+                                        ? 'bg-white hover:bg-blue-50/70 border-zinc-200/90 hover:border-[#007AFF]/40 text-black shadow-xs'
+                                        : 'bg-zinc-900/80 hover:bg-[#007AFF]/15 border-white/10 hover:border-[#007AFF]/40'
+                                    }`}
                                   >
                                     <div className="min-w-0 flex-1">
                                       <div className="flex items-center gap-1.5 flex-wrap">
-                                        <span className="text-xs font-black text-white group-hover:text-[#007AFF] transition-colors">
+                                        <span className={`text-xs font-black transition-colors ${
+                                          isLight ? 'text-black group-hover:text-[#007AFF]' : 'text-white group-hover:text-[#007AFF]'
+                                        }`}>
                                           {place.title}
                                         </span>
                                       </div>
                                       {place.address && (
-                                        <span className="text-[11px] text-zinc-400 block truncate mt-0.5">
+                                        <span className={`text-[11px] block truncate mt-0.5 ${isLight ? 'text-zinc-600' : 'text-zinc-400'}`}>
                                           {place.address}
                                         </span>
                                       )}
                                       {place.reviewSnippet && (
-                                        <p className="text-[11px] text-zinc-300 line-clamp-2 mt-1 italic">
+                                        <p className={`text-[11px] line-clamp-2 mt-1 italic ${isLight ? 'text-zinc-700' : 'text-zinc-300'}`}>
                                           "{place.reviewSnippet}"
                                         </p>
                                       )}
                                     </div>
-                                    <ExternalLink className="w-3.5 h-3.5 text-zinc-400 group-hover:text-[#007AFF] shrink-0 mt-0.5 transition-colors" />
+                                    <ExternalLink className={`w-3.5 h-3.5 group-hover:text-[#007AFF] shrink-0 mt-0.5 transition-colors ${
+                                      isLight ? 'text-zinc-500' : 'text-zinc-400'
+                                    }`} />
                                   </a>
                                 ))}
+                              </div>
+                            </motion.div>
+                          )}
+
+                          {msg.sources && msg.sources.length > 0 && !isCurrentlyTyping && (
+                            <motion.div
+                              initial={{ opacity: 0, y: 6 }}
+                              animate={{ opacity: 1, y: 0 }}
+                              className={`mt-3 pt-2.5 border-t space-y-1.5 ${isLight ? 'border-zinc-200/80' : 'border-white/10'}`}
+                            >
+                              <div className="flex items-center gap-1.5 text-[10.5px] font-black uppercase tracking-wider text-zinc-500 dark:text-zinc-400">
+                                <Globe className="w-3.5 h-3.5 text-[#007AFF] shrink-0" />
+                                <span>Fontes da web</span>
+                              </div>
+                              <div className="flex flex-wrap gap-1.5">
+                                {msg.sources.map((src, sIdx) => {
+                                  let label = src.sourceName || src.title;
+                                  if (label.length > 28) {
+                                    label = label.slice(0, 26) + '...';
+                                  }
+                                  return (
+                                    <a
+                                      key={sIdx}
+                                      href={src.uri}
+                                      target="_blank"
+                                      rel="noopener noreferrer"
+                                      className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg border text-[11px] font-semibold transition-all group cursor-pointer ${
+                                        isLight
+                                          ? 'bg-white hover:bg-blue-50/80 border-zinc-200 text-zinc-700 hover:text-[#007AFF] hover:border-[#007AFF]/40 shadow-xs'
+                                          : 'bg-zinc-900/90 hover:bg-[#007AFF]/20 border-white/10 text-zinc-300 hover:text-white hover:border-[#007AFF]/40'
+                                      }`}
+                                      title={src.title}
+                                    >
+                                      <span className="truncate max-w-[200px]">{label}</span>
+                                      <ExternalLink className="w-3 h-3 text-zinc-400 group-hover:text-[#007AFF] shrink-0 transition-colors" />
+                                    </a>
+                                  );
+                                })}
                               </div>
                             </motion.div>
                           )}
@@ -460,7 +551,7 @@ Como posso te ajudar agora?`;
                       )}
                       <div
                         className={`text-[10px] mt-2 text-right ${
-                          isUser ? 'text-white/80' : 'text-zinc-400'
+                          isUser ? 'text-white/80' : isLight ? 'text-zinc-500' : 'text-zinc-400'
                         }`}
                       >
                         {msg.time}
@@ -477,12 +568,16 @@ Como posso te ajudar agora?`;
                 animate={{ opacity: 1, y: 0 }}
                 className="flex items-start gap-2.5"
               >
-                <div className="w-7 h-7 rounded-full overflow-hidden border border-white/20 shrink-0 mt-0.5">
+                <div className={`w-7 h-7 rounded-full overflow-hidden border shrink-0 mt-0.5 ${
+                  isLight ? 'border-zinc-200 bg-zinc-100' : 'border-white/20 bg-zinc-900'
+                }`}>
                   <img src={GUIDE_AVATAR_URL} alt="Assistente AI" className="w-full h-full object-cover" referrerPolicy="no-referrer" />
                 </div>
-                <div className="px-4 py-3 rounded-2xl bg-[#141518] border border-white/10 text-xs text-zinc-300 flex items-center gap-2 shadow-xs">
-                  <Loader2 className="w-3.5 h-3.5 animate-spin text-[#007AFF]" />
-                  <span>Preparando as melhores dicas de Campos do Jordão...</span>
+                <div className={`px-4 py-3 rounded-2xl border text-xs flex items-center gap-2 shadow-xs ${
+                  isLight ? 'bg-[#f4f4f6] border-zinc-200 text-zinc-800' : 'bg-[#141518] border-white/10 text-zinc-300'
+                }`}>
+                  <Globe className="w-3.5 h-3.5 animate-pulse text-[#007AFF]" />
+                  <span className="font-semibold">Buscando informações atualizadas em Campos do Jordão...</span>
                 </div>
               </motion.div>
             )}
@@ -501,7 +596,11 @@ Como posso te ajudar agora?`;
       >
         <form
           onSubmit={handleSubmit}
-          className="relative flex items-center bg-[#141518]/95 backdrop-blur-xl border border-white/12 rounded-full px-4 py-2.5 shadow-2xl focus-within:border-[#007AFF]/50 transition-all"
+          className={`relative flex items-center backdrop-blur-xl border rounded-full px-4 py-2.5 transition-all ${
+            isLight
+              ? 'bg-zinc-100/90 border-zinc-200/80 shadow-xs focus-within:border-zinc-300'
+              : 'bg-[#141518] border-white/10 shadow-xs focus-within:border-white/20'
+          }`}
         >
           {/* Input text */}
           <input
@@ -511,7 +610,9 @@ Como posso te ajudar agora?`;
             value={inputText}
             onChange={(e) => setInputText(e.target.value)}
             placeholder="Pergunte algo..."
-            className="flex-1 bg-transparent text-sm text-white placeholder-zinc-500 focus:outline-none pr-2 font-medium"
+            className={`flex-1 bg-transparent text-sm focus:outline-none pr-2 font-semibold ${
+              isLight ? 'text-black placeholder-zinc-400' : 'text-white placeholder-zinc-500'
+            }`}
           />
 
           {/* Microphone button */}
@@ -523,6 +624,8 @@ Como posso te ajudar agora?`;
             className={`w-9 h-9 rounded-full flex items-center justify-center transition-all cursor-pointer mr-1 ${
               isListening
                 ? 'bg-red-500 text-white animate-pulse'
+                : isLight
+                ? 'bg-zinc-100 hover:bg-zinc-200 text-zinc-700'
                 : 'bg-white/5 hover:bg-white/10 text-zinc-300'
             }`}
             title={isListening ? 'Ouvindo você...' : 'Falar por voz'}
@@ -542,7 +645,11 @@ Como posso te ajudar agora?`;
             disabled={!inputText.trim() || isLoading}
             className={`w-9 h-9 rounded-full flex items-center justify-center transition-all cursor-pointer ${
               inputText.trim() && !isLoading
-                ? 'bg-[#007AFF] text-white hover:bg-blue-600 active:scale-95 shadow-sm'
+                ? isGoldUser
+                  ? 'bg-metallic-gold text-[#1A1202] border border-[#FFF4A3]/60 shadow-[0_2px_10px_rgba(230,172,51,0.4)] active:scale-95'
+                  : 'bg-[#007AFF] text-white hover:bg-blue-600 active:scale-95 shadow-sm'
+                : isLight
+                ? 'text-zinc-300 cursor-not-allowed'
                 : 'text-zinc-600 cursor-not-allowed'
             }`}
             title="Enviar mensagem"

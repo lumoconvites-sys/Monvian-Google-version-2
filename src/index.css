@@ -163,6 +163,86 @@
     scrollbar-width: none;
   }
 
+  /* Metallic Gold Palette (Inspired by polished brushed 24k gold leaf) */
+  .bg-metallic-gold {
+    background: linear-gradient(135deg, #B88214 0%, #E6AC33 22%, #FFF4A3 48%, #F5BE38 68%, #C98B18 88%, #9E6505 100%) !important;
+  }
+  .bg-metallic-gold-badge {
+    background: linear-gradient(135deg, rgba(230,172,51,0.22) 0%, rgba(255,244,163,0.42) 45%, rgba(184,130,20,0.22) 100%) !important;
+    border-color: rgba(245,190,56,0.65) !important;
+  }
+  .bg-metallic-gold-icon {
+    background: linear-gradient(145deg, rgba(184,130,20,0.25) 0%, rgba(255,244,163,0.38) 45%, rgba(201,139,24,0.22) 100%) !important;
+    border-color: rgba(245,190,56,0.55) !important;
+  }
+  .text-metallic-gold {
+    background: linear-gradient(135deg, #D49B24 0%, #FFF4A3 38%, #F7C948 68%, #C28514 100%) !important;
+    -webkit-background-clip: text !important;
+    -webkit-text-fill-color: transparent !important;
+  }
+  .text-metallic-gold-solid {
+    color: #F5BE38 !important;
+  }
+  .border-metallic-gold {
+    border-color: rgba(245,190,56,0.55) !important;
+  }
+
+  /* Premium VIP Gold Animated Frame */
+  @keyframes goldBorderRotate {
+    0% {
+      transform: rotate(0deg);
+    }
+    100% {
+      transform: rotate(360deg);
+    }
+  }
+
+  .gold-vip-frame-wrapper {
+    position: relative;
+    padding: 1.5px;
+    border-radius: 32px;
+    overflow: hidden;
+    background: #ffffff;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08), 0 0 18px rgba(229, 172, 51, 0.28);
+  }
+
+  .dark .gold-vip-frame-wrapper {
+    background: #141518;
+    box-shadow: 0 12px 36px rgba(0, 0, 0, 0.75), 0 0 24px rgba(229, 172, 51, 0.22);
+  }
+
+  .gold-vip-frame-wrapper::before {
+    content: '';
+    position: absolute;
+    top: -100%;
+    left: -100%;
+    right: -100%;
+    bottom: -100%;
+    background: conic-gradient(
+      from 0deg,
+      #9E6505 0deg,
+      #E6AC33 60deg,
+      #FFF4A3 120deg,
+      #FFFFFF 135deg,
+      #FFF4A3 150deg,
+      #F5BE38 210deg,
+      #B88214 270deg,
+      #E6AC33 330deg,
+      #9E6505 360deg
+    );
+    animation: goldBorderRotate 8s linear infinite;
+    will-change: transform;
+    opacity: 0.95;
+  }
+
+  .gold-vip-avatar-ring {
+    position: relative;
+    padding: 2.5px;
+    border-radius: 9999px;
+    background: linear-gradient(135deg, #B88214 0%, #E6AC33 22%, #FFF4A3 48%, #F5BE38 68%, #9E6505 100%);
+    box-shadow: 0 0 16px rgba(245, 190, 56, 0.45), inset 0 0 6px rgba(255, 244, 163, 0.6);
+  }
+
   /* Global Primary Action Button standard - solid blue, white text & icons */
   .btn-solid-blue,
   .btn-primary {
