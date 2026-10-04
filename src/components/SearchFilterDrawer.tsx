@@ -17,13 +17,8 @@ import {
   SlidersHorizontal,
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
-
-const VerifiedBadge = () => (
-  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" className="text-white shrink-0" aria-label="Verificado">
-    <path d="M12 2L15.09 5.09L19.18 5.18L19.27 9.27L22.36 12.36L19.27 15.45L19.18 19.54L15.09 19.63L12 22.72L8.91 19.63L4.82 19.54L4.73 15.45L1.64 12.36L4.73 9.27L4.82 5.18L8.91 5.09L12 2Z" fill="currentColor"/>
-    <path d="M10 16L6 12L7.41 10.59L10 13.17L16.59 6.58L18 8L10 16Z" fill="black"/>
-  </svg>
-);
+import { getSpotImage, getSpotFallbackImage } from '../utils/spotImages';
+import { VerifiedBadge } from './ui/VerifiedBadge';
 
 interface SearchFilterDrawerProps {
   isOpen: boolean;
@@ -187,16 +182,21 @@ export const SearchFilterDrawer: React.FC<SearchFilterDrawerProps> = ({
   return (
     <div
       id="search-filter-overlay"
-      className="absolute inset-0 z-45 bg-zinc-50 dark:bg-[#000000] text-zinc-900 dark:text-white flex flex-col justify-between overflow-hidden"
-      style={{
-        fontFamily: "'Manrope', -apple-system, BlinkMacSystemFont, sans-serif",
-      }}
+      onClick={onClose}
+      className="fixed inset-0 z-45 flex flex-col justify-end md:justify-center md:items-center md:p-6 select-none overflow-hidden transition-colors duration-300 md:bg-black/50 md:backdrop-blur-xs"
     >
+      <div
+        onClick={(e) => e.stopPropagation()}
+        className="relative w-full h-full md:h-[88vh] md:max-w-2xl bg-zinc-50 dark:bg-[#000000] md:dark:ios-glass text-zinc-900 dark:text-white rounded-none md:rounded-[32px] overflow-hidden flex flex-col justify-between shadow-2xl md:border md:border-black/10 md:dark:border-white/15"
+        style={{
+          fontFamily: "'Manrope', -apple-system, BlinkMacSystemFont, sans-serif",
+        }}
+      >
       {/* Top Header Bar identical to screenshot */}
       <div
         className="px-5 sm:px-6 pb-3 flex items-center justify-between z-10 shrink-0"
         style={{
-          paddingTop: 'max(calc(env(safe-area-inset-top, 0px) + 14px), 24px)',
+          paddingTop: 'max(calc(env(safe-area-inset-top, 0px) + 16px), 24px)',
           paddingLeft: 'max(20px, env(safe-area-inset-left, 0px))',
           paddingRight: 'max(20px, env(safe-area-inset-right, 0px))',
         }}
@@ -206,7 +206,7 @@ export const SearchFilterDrawer: React.FC<SearchFilterDrawerProps> = ({
             <button
               id="btn-back-categories"
               onClick={() => setSelectedCategory(null)}
-              className="w-10 h-10 rounded-full bg-zinc-200/80 dark:bg-white/10 hover:bg-zinc-300 dark:hover:bg-white/20 text-zinc-900 dark:text-white flex items-center justify-center transition-colors cursor-pointer mr-1 active:scale-90"
+              className="w-10 h-10 rounded-full bg-zinc-200/80 dark:bg-white/10 hover:bg-zinc-300 dark:hover:bg-white/20 text-zinc-900 dark:text-white flex items-center justify-center transition-all cursor-pointer mr-1 active:scale-95"
               title="Voltar às categorias"
             >
               <ArrowLeft className="w-5 h-5 stroke-[2.2]" />
@@ -214,16 +214,28 @@ export const SearchFilterDrawer: React.FC<SearchFilterDrawerProps> = ({
           ) : null}
 
           <h1 className="text-2xl sm:text-[28px] font-extrabold text-zinc-900 dark:text-[#F5F2EA] tracking-tight">
-            {selectedCategory ? selectedCategory.name : 'Explorar'}
+            {selectedCategory ? selectedCategory.name : 'Buscar'}
           </h1>
         </div>
+
+        {/* Desktop Close Button */}
+        <button
+          type="button"
+          onClick={onClose}
+          className="w-9 h-9 rounded-full bg-zinc-200/80 dark:bg-white/10 hover:bg-zinc-300 dark:hover:bg-white/20 text-zinc-900 dark:text-white flex items-center justify-center transition-colors cursor-pointer"
+          title="Fechar busca"
+          aria-label="Fechar busca"
+        >
+          <X className="w-4 h-4 stroke-[2.2]" />
+        </button>
       </div>
 
       {/* Main Content Area */}
       <div
         className="flex-1 overflow-y-auto px-5 sm:px-8 max-w-3xl mx-auto w-full"
         style={{
-          paddingBottom: 'calc(max(16px, calc(env(safe-area-inset-bottom, 0px) + 6px)) + 80px)',
+          WebkitOverflowScrolling: 'touch',
+          paddingBottom: 'calc(env(safe-area-inset-bottom, 16px) + 90px)',
         }}
       >
         {/* Search Bar matching screenshot */}
@@ -347,14 +359,13 @@ export const SearchFilterDrawer: React.FC<SearchFilterDrawerProps> = ({
                     <div className="flex items-center gap-3.5 min-w-0">
                       <div className="w-14 h-14 rounded-2xl overflow-hidden bg-zinc-100 dark:bg-zinc-800 shrink-0 border border-zinc-200 dark:border-white/10 shadow-inner">
                         <img
-                          src={spot.image || 'https://images.unsplash.com/photo-1585320806297-9794b3e4eeae?auto=format&fit=crop&w=200&q=80'}
+                          src={getSpotImage(spot)}
                           alt={spot.name}
                           className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
                           referrerPolicy="no-referrer"
                           loading="lazy"
                           onError={(e) => {
-                            (e.target as HTMLImageElement).src =
-                              'https://images.unsplash.com/photo-1585320806297-9794b3e4eeae?auto=format&fit=crop&w=200&q=80';
+                            (e.target as HTMLImageElement).src = getSpotFallbackImage(spot.name, spot.category);
                           }}
                         />
                       </div>
@@ -397,6 +408,7 @@ export const SearchFilterDrawer: React.FC<SearchFilterDrawerProps> = ({
           </div>
         )}
       </div>
+    </div>
     </div>
   );
 };

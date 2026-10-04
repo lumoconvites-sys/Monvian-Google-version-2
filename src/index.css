@@ -10,6 +10,10 @@
   --color-gold: #007AFF;
 }
 
+*, *::before, *::after {
+  box-sizing: border-box;
+}
+
 @layer base {
   :root {
     font-family: 'Manrope', -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'SF Pro Text', system-ui, sans-serif !important;
@@ -19,59 +23,60 @@
   }
   html {
     width: 100%;
-    height: 100%;
-    height: -webkit-fill-available;
-    height: var(--app-height, 100dvh);
-    min-height: 100%;
     margin: 0;
     padding: 0;
+    box-sizing: border-box;
+    height: 100%;
+    min-height: 100%;
+    min-height: -webkit-fill-available;
+    min-height: calc(100dvh + env(safe-area-inset-bottom, 0px));
+    height: calc(100dvh + env(safe-area-inset-bottom, 0px));
     overflow: hidden;
     overscroll-behavior: none;
     -webkit-tap-highlight-color: transparent;
     touch-action: manipulation;
     -webkit-text-size-adjust: 100%;
     text-size-adjust: 100%;
-    background-color: #f4f4f5;
+    background-color: #000000;
     transition: background-color 0.25s ease;
   }
   body {
     width: 100%;
-    height: 100%;
-    height: -webkit-fill-available;
-    height: var(--app-height, 100dvh);
-    min-height: 100%;
     margin: 0;
     padding: 0;
+    box-sizing: border-box;
+    height: 100%;
+    min-height: 100%;
+    min-height: -webkit-fill-available;
+    min-height: calc(100dvh + env(safe-area-inset-bottom, 0px));
+    height: calc(100dvh + env(safe-area-inset-bottom, 0px));
     overflow: hidden;
     overscroll-behavior: none;
     -webkit-tap-highlight-color: transparent;
     touch-action: manipulation;
     -webkit-text-size-adjust: 100%;
     text-size-adjust: 100%;
-    background-color: #f4f4f5;
+    background-color: #000000;
     transition: background-color 0.25s ease;
+  }
+  #root {
+    width: 100%;
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
     position: fixed;
     inset: 0;
     top: 0;
     bottom: 0;
     left: 0;
     right: 0;
-  }
-  #root {
-    width: 100%;
     height: 100%;
-    height: var(--app-height, 100%);
     min-height: 100%;
-    margin: 0;
-    padding: 0;
+    min-height: -webkit-fill-available;
+    min-height: calc(100dvh + env(safe-area-inset-bottom, 0px));
+    height: calc(100dvh + env(safe-area-inset-bottom, 0px));
     overflow: hidden;
-    background-color: #f4f4f5;
-    position: absolute;
-    inset: 0;
-    top: 0;
-    bottom: 0;
-    left: 0;
-    right: 0;
+    background-color: #000000;
     transition: background-color 0.25s ease;
   }
   html.dark,
@@ -86,53 +91,48 @@
     background-color: #f4f4f5 !important;
   }
   *, body, button, input, select, textarea, div, span, p, label {
-    font-family: 'Manrope', -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'SF Pro Text', system-ui, sans-serif !important;
+    font-family: 'Manrope', -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'SF Pro Text', system-ui, sans-serif;
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
-    font-weight: 600; /* Secondary descriptions & body text default to weight 600 */
   }
   input::placeholder, textarea::placeholder {
-    font-weight: 600 !important;
     color: #9A9894 !important;
     opacity: 0.85;
   }
 
-  /* Headings & Titles: 'Manrope' negrito (700+), #F5F2EA na cor dos títulos no tema escuro, kerning e espaçamento SF Pro */
+  /* Headings & Titles: 'Manrope' / SF Pro negrito (700+), #F5F2EA na cor dos títulos no tema escuro, kerning refinado */
   h1, h2, h3, h4, h5, h6,
   .font-title,
   .title-heading,
   .heading-title {
-    font-family: 'Manrope', -apple-system, BlinkMacSystemFont, 'SF Pro Display', system-ui, sans-serif !important;
-    font-weight: 800 !important;
-    letter-spacing: -0.026em !important;
-    line-height: 1.25 !important;
+    font-family: 'Manrope', -apple-system, BlinkMacSystemFont, 'SF Pro Display', system-ui, sans-serif;
+    letter-spacing: -0.024em;
+    line-height: 1.25;
   }
 
   .dark h1, .dark h2, .dark h3, .dark h4, .dark h5, .dark h6,
   .dark .font-title,
   .dark .title-heading,
   .dark .heading-title {
-    color: #F5F2EA !important;
+    color: #F5F2EA;
   }
 
-  /* Descrições secundárias: peso 600 em #9A9894, espaçamento entre linhas refinado */
+  /* Descrições secundárias: #9A9894, espaçamento entre linhas refinado */
   .text-secondary-desc,
   .desc-secondary,
   .text-secondary,
   .dark .text-secondary-desc {
-    color: #9A9894 !important;
-    font-weight: 600 !important;
+    color: #9A9894;
     letter-spacing: -0.012em;
-    line-height: 1.55;
+    line-height: 1.5;
   }
 
   .dark .text-zinc-400,
   .dark .text-zinc-500 {
     color: #9A9894;
-    font-weight: 600;
   }
 
-  /* Destaques em #007AFF */
+  /* Destaques em #007AFF (Apple System Blue) */
   .text-highlight,
   .text-gold,
   .text-accent-gold {
@@ -243,16 +243,208 @@
     box-shadow: 0 0 16px rgba(245, 190, 56, 0.45), inset 0 0 6px rgba(255, 244, 163, 0.6);
   }
 
-  /* Global Primary Action Button standard - solid blue, white text & icons */
+  /* ========================================================
+     METALLIC GOLD LUXURY ITINERARY CARDS (GOLD PASS EXCLUSIVE)
+     ======================================================== */
+  @keyframes goldSheenRay {
+    0%, 12% {
+      transform: translateX(-160%) rotate(30deg);
+      opacity: 0;
+    }
+    18% {
+      opacity: 0.9;
+    }
+    32%, 100% {
+      transform: translateX(280%) rotate(30deg);
+      opacity: 0;
+    }
+  }
+
+  @keyframes goldBorderGleamSpin {
+    0% {
+      transform: rotate(0deg);
+    }
+    100% {
+      transform: rotate(360deg);
+    }
+  }
+
+  .gold-featured-card-wrapper {
+    position: relative;
+    padding: 2px;
+    border-radius: 28px;
+    overflow: hidden;
+    background: linear-gradient(135deg, #9E6505 0%, #E6AC33 22%, #FFF4A3 48%, #F5BE38 68%, #C98B18 88%, #9E6505 100%);
+    box-shadow: 0 16px 42px rgba(0, 0, 0, 0.75), 0 0 28px rgba(229, 172, 51, 0.35);
+    transition: transform 0.22s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.22s cubic-bezier(0.16, 1, 0.3, 1);
+    will-change: transform, box-shadow;
+  }
+
+  .gold-featured-card-wrapper:hover,
+  .gold-featured-card-wrapper:active {
+    box-shadow: 0 20px 50px rgba(0, 0, 0, 0.85), 0 0 40px rgba(229, 172, 51, 0.6);
+  }
+
+  .gold-featured-card-wrapper::before {
+    content: '';
+    position: absolute;
+    top: -120%;
+    left: -120%;
+    right: -120%;
+    bottom: -120%;
+    background: conic-gradient(
+      from 0deg,
+      transparent 0deg,
+      rgba(255, 244, 163, 0.95) 45deg,
+      transparent 90deg,
+      transparent 180deg,
+      rgba(255, 244, 163, 0.8) 225deg,
+      transparent 270deg,
+      transparent 360deg
+    );
+    animation: goldBorderGleamSpin 7.5s linear infinite;
+    will-change: transform;
+    pointer-events: none;
+  }
+
+  .gold-featured-card-inner {
+    position: relative;
+    z-index: 10;
+    border-radius: 26px;
+    background: linear-gradient(180deg, #18191d 0%, #121316 100%);
+    overflow: hidden;
+  }
+
+  .gold-featured-card-inner.light,
+  .light .gold-featured-card-inner {
+    background: linear-gradient(180deg, #FFFFFF 0%, #F9F9FB 100%);
+  }
+
+  .gold-featured-card-wrapper.light,
+  .light .gold-featured-card-wrapper {
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.07), 0 0 22px rgba(229, 172, 51, 0.28);
+  }
+
+  .gold-featured-card-wrapper.light:hover,
+  .gold-featured-card-wrapper.light:active,
+  .light .gold-featured-card-wrapper:hover,
+  .light .gold-featured-card-wrapper:active {
+    box-shadow: 0 14px 36px rgba(0, 0, 0, 0.11), 0 0 32px rgba(229, 172, 51, 0.45);
+  }
+
+  .gold-sheen-overlay {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    overflow: hidden;
+    pointer-events: none;
+    z-index: 20;
+    border-radius: inherit;
+  }
+
+  .gold-sheen-overlay::after {
+    content: '';
+    position: absolute;
+    top: -50%;
+    left: 0;
+    width: 45%;
+    height: 200%;
+    background: linear-gradient(
+      90deg,
+      transparent 0%,
+      rgba(255, 244, 163, 0.05) 20%,
+      rgba(255, 244, 163, 0.32) 50%,
+      rgba(255, 255, 255, 0.55) 55%,
+      rgba(255, 244, 163, 0.32) 60%,
+      transparent 100%
+    );
+    animation: goldSheenRay 7.5s ease-in-out infinite;
+    will-change: transform;
+  }
+
+  /* Standard Itinerary Gold Card */
+  .gold-standard-card {
+    position: relative;
+    border-radius: 20px;
+    border: 1px solid rgba(245, 190, 56, 0.5);
+    background: linear-gradient(180deg, rgba(28, 29, 34, 0.96) 0%, rgba(18, 19, 23, 0.98) 100%);
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.55), 0 0 16px rgba(229, 172, 51, 0.16);
+    transition: transform 0.22s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.22s cubic-bezier(0.16, 1, 0.3, 1), border-color 0.22s ease;
+    overflow: hidden;
+    will-change: transform, box-shadow;
+  }
+
+  .gold-standard-card:hover,
+  .gold-standard-card:active {
+    border-color: rgba(255, 244, 163, 0.9);
+    box-shadow: 0 12px 32px rgba(0, 0, 0, 0.7), 0 0 28px rgba(229, 172, 51, 0.4);
+  }
+
+  .gold-standard-card.light,
+  .light .gold-standard-card {
+    border: 1px solid rgba(230, 172, 51, 0.55);
+    background: linear-gradient(180deg, #FFFFFF 0%, #F8F9FA 100%);
+    box-shadow: 0 4px 18px rgba(0, 0, 0, 0.05), 0 0 14px rgba(229, 172, 51, 0.14);
+  }
+
+  .gold-standard-card.light:hover,
+  .gold-standard-card.light:active,
+  .light .gold-standard-card:hover,
+  .light .gold-standard-card:active {
+    border-color: rgba(201, 139, 24, 0.85);
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.08), 0 0 22px rgba(229, 172, 51, 0.28);
+  }
+
+  .gold-standard-sheen {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    overflow: hidden;
+    pointer-events: none;
+    z-index: 15;
+    border-radius: inherit;
+  }
+
+  .gold-standard-sheen::after {
+    content: '';
+    position: absolute;
+    top: -50%;
+    left: 0;
+    width: 35%;
+    height: 200%;
+    background: linear-gradient(
+      90deg,
+      transparent 0%,
+      rgba(255, 244, 163, 0.22) 50%,
+      rgba(255, 255, 255, 0.4) 55%,
+      transparent 100%
+    );
+    animation: goldSheenRay 9s ease-in-out infinite;
+    animation-delay: 2.2s;
+    will-change: transform;
+  }
+
+  /* Global Primary Action Button standard - Apple system blue, white text & icons */
   .btn-solid-blue,
   .btn-primary {
-    background-color: #0000FF;
+    background-color: #007AFF;
     color: #FFFFFF;
     border: none;
+    border-radius: 9999px;
+    font-weight: 700;
+    transition: background-color 0.2s ease, transform 0.15s ease;
   }
   .btn-solid-blue:hover,
   .btn-primary:hover {
-    background-color: #0000DD;
+    background-color: #0066D6;
+  }
+  .btn-solid-blue:active,
+  .btn-primary:active {
+    transform: scale(0.97);
   }
   .btn-solid-blue svg,
   .btn-primary svg {
@@ -440,75 +632,80 @@ html:not(.dark) .ios-glass-nav::before {
 }
 
 html:not(.dark) .ios-glass-btn {
-  background: rgba(255, 255, 255, 0.40) !important;
+  background: rgba(255, 255, 255, 0.75) !important;
   backdrop-filter: blur(20px) saturate(190%) !important;
   -webkit-backdrop-filter: blur(20px) saturate(190%) !important;
-  border: 1px solid rgba(255, 255, 255, 0.50) !important;
-  box-shadow: 0 8px 24px -4px rgba(0, 0, 0, 0.08),
-              0 1px 2px 0 rgba(0, 0, 0, 0.03),
-              inset 0 1px 1px 0 rgba(255, 255, 255, 0.8) !important;
+  border: 1px solid rgba(0, 0, 0, 0.08) !important;
+  box-shadow: none !important;
 }
 
 html:not(.dark) .ios-glass-btn:hover {
-  background: rgba(255, 255, 255, 0.55) !important;
-  box-shadow: 0 10px 28px -2px rgba(0, 0, 0, 0.11),
-              inset 0 1px 1.5px 0 rgba(255, 255, 255, 0.9) !important;
+  background: rgba(255, 255, 255, 0.90) !important;
+  border-color: rgba(0, 0, 0, 0.12) !important;
+  box-shadow: none !important;
 }
 
 .dark .ios-glass-btn {
-  background: rgba(20, 22, 28, 0.38) !important;
+  background: rgba(20, 22, 28, 0.65) !important;
   backdrop-filter: blur(24px) saturate(190%) !important;
   -webkit-backdrop-filter: blur(24px) saturate(190%) !important;
-  border: 1px solid rgba(255, 255, 255, 0.10) !important;
-  box-shadow: 0 12px 32px -6px rgba(0, 0, 0, 0.55),
-              inset 0 1px 1px 0 rgba(255, 255, 255, 0.16) !important;
+  border: 1px solid rgba(255, 255, 255, 0.12) !important;
+  box-shadow: none !important;
 }
 
 .dark .ios-glass-btn:hover {
-  background: rgba(28, 30, 38, 0.50) !important;
+  background: rgba(28, 30, 38, 0.80) !important;
   border-color: rgba(255, 255, 255, 0.18) !important;
-  box-shadow: 0 14px 36px -4px rgba(0, 0, 0, 0.65),
-              inset 0 1px 1.5px 0 rgba(255, 255, 255, 0.22) !important;
+  box-shadow: none !important;
 }
 
-/* White / Light Apple Glass Variants (For Animated Map, Satellite Map & Light Theme) */
-.ios-glass-btn-white,
+/* White / Light Apple Glass Variants - matching the translucent card */
+.ios-glass-btn-white {
+  background: rgba(255, 255, 255, 0.40) !important;
+  backdrop-filter: blur(24px) saturate(190%) !important;
+  -webkit-backdrop-filter: blur(24px) saturate(190%) !important;
+  border: 1px solid rgba(255, 255, 255, 0.50) !important;
+  box-shadow: 0 8px 24px -4px rgba(0, 0, 0, 0.12),
+              inset 0 1px 1.5px 0 rgba(255, 255, 255, 0.8) !important;
+  color: #18181b !important;
+}
+
 .dark .ios-glass-btn-white {
-  background: rgba(255, 255, 255, 0.76) !important;
-  backdrop-filter: blur(28px) saturate(190%) !important;
-  -webkit-backdrop-filter: blur(28px) saturate(190%) !important;
-  border: 1px solid rgba(255, 255, 255, 0.85) !important;
-  box-shadow: 0 10px 28px -4px rgba(0, 0, 0, 0.14),
-              0 2px 6px 0 rgba(0, 0, 0, 0.06),
-              inset 0 1px 1.5px 0 rgba(255, 255, 255, 0.95),
-              inset 0 -1px 1px 0 rgba(0, 0, 0, 0.04) !important;
+  background: rgba(255, 255, 255, 0.38) !important;
+  backdrop-filter: blur(24px) saturate(190%) !important;
+  -webkit-backdrop-filter: blur(24px) saturate(190%) !important;
+  border: 1px solid rgba(255, 255, 255, 0.45) !important;
+  box-shadow: 0 8px 24px -4px rgba(0, 0, 0, 0.25),
+              inset 0 1px 1.5px 0 rgba(255, 255, 255, 0.7) !important;
   color: #18181b !important;
 }
 
 .ios-glass-btn-white:hover,
 .dark .ios-glass-btn-white:hover {
-  background: rgba(255, 255, 255, 0.92) !important;
-  box-shadow: 0 12px 32px -4px rgba(0, 0, 0, 0.18),
-              inset 0 1px 1.5px 0 rgba(255, 255, 255, 1) !important;
+  background: rgba(255, 255, 255, 0.55) !important;
+  border-color: rgba(255, 255, 255, 0.65) !important;
+  box-shadow: 0 10px 28px -4px rgba(0, 0, 0, 0.18) !important;
 }
 
 .ios-glass-nav-white,
+html:not(.dark) .ios-glass-nav-white,
 .dark .ios-glass-nav-white {
-  background: rgba(255, 255, 255, 0.82) !important;
-  backdrop-filter: blur(32px) saturate(200%) !important;
-  -webkit-backdrop-filter: blur(32px) saturate(200%) !important;
-  border: 1px solid rgba(255, 255, 255, 0.90) !important;
-  box-shadow: none !important;
+  background: rgba(255, 255, 255, 0.40) !important;
+  backdrop-filter: blur(24px) saturate(190%) !important;
+  -webkit-backdrop-filter: blur(24px) saturate(190%) !important;
+  border: 1px solid rgba(255, 255, 255, 0.50) !important;
+  box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.15) !important;
 }
 
 .ios-glass-white,
+html:not(.dark) .ios-glass-white,
 .dark .ios-glass-white {
-  background: rgba(255, 255, 255, 0.82) !important;
-  backdrop-filter: blur(30px) saturate(200%) !important;
-  -webkit-backdrop-filter: blur(30px) saturate(200%) !important;
-  border: 1px solid rgba(255, 255, 255, 0.88) !important;
-  box-shadow: 0 14px 40px -6px rgba(0, 0, 0, 0.18),
-              inset 0 1px 2px 0 rgba(255, 255, 255, 0.95) !important;
+  background: rgba(255, 255, 255, 0.40) !important;
+  backdrop-filter: blur(24px) saturate(190%) !important;
+  -webkit-backdrop-filter: blur(24px) saturate(190%) !important;
+  border: 1px solid rgba(255, 255, 255, 0.50) !important;
+  box-shadow: 0 14px 40px -6px rgba(0, 0, 0, 0.15),
+              inset 0 1px 2px 0 rgba(255, 255, 255, 0.8) !important;
   color: #18181b !important;
 }
 
@@ -664,7 +861,21 @@ html:not(.dark) .ios-glass-btn:hover {
   margin: 0px !important;
   padding-left: 16px !important;
   padding-right: 16px !important;
-  padding-bottom: max(8px, env(safe-area-inset-bottom, 8px)) !important;
+  padding-bottom: max(22px, calc(env(safe-area-inset-bottom, 0px) + 16px)) !important;
   z-index: 50 !important;
+}
+
+/* Map Saturation & Color Boost (+40% Verde Mais Saturado e Relevo Vibrante) */
+.map-canvas-green-boost .maplibregl-canvas {
+  filter: saturate(1.4) contrast(1.05);
+}
+
+.map-canvas-satellite-boost .maplibregl-canvas {
+  filter: brightness(1.22) contrast(1.08) saturate(1.4);
+}
+
+/* Satellite Map +40% Brighter & Enhanced Visibility */
+.itinerary-satellite-canvas .maplibregl-canvas {
+  filter: brightness(1.22) contrast(1.08) saturate(1.4);
 }
 

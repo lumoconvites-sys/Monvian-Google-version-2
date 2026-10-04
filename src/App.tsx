@@ -14,19 +14,20 @@ import { motion, AnimatePresence } from 'motion/react';
 import { AuthScreen } from './components/AuthScreen';
 import { AdminLayout } from './components/admin/AdminLayout';
 import { OnboardingFlow } from './components/OnboardingFlow';
+import { OnboardingQuestionsModal } from './components/OnboardingQuestionsModal';
 import { OfflineIndicator } from './components/OfflineIndicator';
 import { Weather3DIcon } from './components/Weather3DIcon';
 import { WeatherModal } from './components/WeatherModal';
 import { RainEffect } from './components/RainEffect';
+import { SnowEffect } from './components/SnowEffect';
+import { GoldSuccessModal } from './components/GoldSuccessModal';
 import { computeAdaptiveThemeColor, applySystemThemeColor } from './utils/themeColor';
 import { gpsNavigationManager } from './services/gpsNavigation';
-
-const VerifiedBadge = ({ className = 'w-3.5 h-3.5' }: { className?: string }) => (
-  <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" className={`${className} text-white shrink-0`} aria-label="Verificado">
-    <path d="M12 2L15.09 5.09L19.18 5.18L19.27 9.27L22.36 12.36L19.27 15.45L19.18 19.54L15.09 19.63L12 22.72L8.91 19.63L4.82 19.54L4.73 15.45L1.64 12.36L4.73 9.27L4.82 5.18L8.91 5.09L12 2Z" fill="currentColor"/>
-    <path d="M10 16L6 12L7.41 10.59L10 13.17L16.59 6.58L18 8L10 16Z" fill="black"/>
-  </svg>
-);
+import { getSpotImage, getSpotFallbackImage } from './utils/spotImages';
+import { VerifiedBadge } from './components/ui/VerifiedBadge';
+import { DesktopSidebar } from './components/desktop/DesktopSidebar';
+import { DesktopTopBar } from './components/desktop/DesktopTopBar';
+import { DesktopExplorePanel } from './components/desktop/DesktopExplorePanel';
 
 const welcomeContainerVariants = {
   hidden: { opacity: 0 },
@@ -77,26 +78,55 @@ export default function App() {
     return saved !== null ? JSON.parse(saved) : true;
   });
 
-  // Global Theme State: Default to 'light' (tema branco)
+  // Global Theme State: Automatically synchronized with user's native device preference (prefers-color-scheme)
   const [theme, setTheme] = useState<'dark' | 'light'>(() => {
-    const saved = localStorage.getItem('monvian_theme');
-    return (saved as 'dark' | 'light') || 'light';
+    if (typeof window !== 'undefined' && window.matchMedia) {
+      return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+    }
+    return 'light';
   });
 
-  // 2-second initial loading splash screen
+  // Dynamic automatic listener for OS Light / Dark mode changes (iOS, Android, Desktop)
+  useEffect(() => {
+    if (typeof window === 'undefined' || !window.matchMedia) return;
+    const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)');
+    
+    const applySystemTheme = (matches: boolean) => {
+      const newTheme = matches ? 'dark' : 'light';
+      setTheme(newTheme);
+    };
+
+    applySystemTheme(mediaQuery.matches);
+
+    const handler = (e: MediaQueryListEvent) => {
+      applySystemTheme(e.matches);
+    };
+
+    if (mediaQuery.addEventListener) {
+      mediaQuery.addEventListener('change', handler);
+      return () => mediaQuery.removeEventListener('change', handler);
+    } else if ((mediaQuery as any).addListener) {
+      (mediaQuery as any).addListener(handler);
+      return () => (mediaQuery as any).removeListener(handler);
+    }
+  }, []);
+
+  // 1-second initial loading splash screen
   const [isInitialSplash, setIsInitialSplash] = useState<boolean>(true);
 
   useEffect(() => {
     const splashTimer = setTimeout(() => {
       setIsInitialSplash(false);
-    }, 2000);
+    }, 1000);
     return () => clearTimeout(splashTimer);
   }, []);
 
   // Map style mode state: synced with theme & user selection
   const [mapStyle, setMapStyle] = useState<MapModeType>(() => {
-    const saved = localStorage.getItem('monvian_theme');
-    return saved === 'dark' ? 'explorar' : 'animado';
+    if (typeof window !== 'undefined' && window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) {
+      return 'explorar';
+    }
+    return 'animado';
   });
 
   // Accessibility: High Contrast Mode State
@@ -107,14 +137,61 @@ export default function App() {
 
   // Map interaction state for Apple iOS translucent dynamic effects
   const [isMapInteracting, setIsMapInteracting] = useState<boolean>(false);
+  const [isProfileSettingsOpen, setIsProfileSettingsOpen] = useState<boolean>(false);
 
-  // Welcome translucent overlay on new account creation
+  // Welcome translucent overlay & Onboarding questionnaire on new account creation
   const [showWelcomeOverlay, setShowWelcomeOverlay] = useState<boolean>(false);
-  const [isPendingNewAccountWizard, setIsPendingNewAccountWizard] = useState<boolean>(false);
+  const [showOnboardingQuestions, setShowOnboardingQuestions] = useState<boolean>(false);
   const [zoomToUserTrigger, setZoomToUserTrigger] = useState<number>(0);
 
   // Weather modal state
   const [isWeatherModalOpen, setIsWeatherModalOpen] = useState<boolean>(false);
+  const [isGoldSuccessModalOpen, setIsGoldSuccessModalOpen] = useState<boolean>(false);
+
+  // Handle Stripe Checkout return & Official Webhook / Backend Verification
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const params = new URLSearchParams(window.location.search);
+    const payment = params.get('payment');
+    const sessionId = params.get('session_id');
+
+    if (payment === 'success' && sessionId) {
+      const token = localStorage.getItem('monvian_token');
+      fetch(`/api/stripe/verify-session?session_id=${encodeURIComponent(sessionId)}`, {
+        headers: token ? { Authorization: `Bearer ${token}` } : {}
+      })
+        .then((res) => res.json())
+        .then((data) => {
+          if (data.success && (data.is_gold === 1 || data.isGold)) {
+            setUser((prev: any) => {
+              const updated = {
+                ...(prev || data.user || {}),
+                plan: 'gold' as const,
+                isGold: true,
+                isPremium: true,
+                is_gold: 1,
+                is_premium: 1,
+              };
+              localStorage.setItem('monvian_user', JSON.stringify(updated));
+              localStorage.setItem('monvian_is_gold', 'true');
+              localStorage.setItem('monvian_is_premium', 'true');
+              return updated;
+            });
+            setIsGoldSuccessModalOpen(true);
+          }
+        })
+        .catch((err) => {
+          console.error('Error verifying Stripe session:', err);
+        })
+        .finally(() => {
+          const cleanUrl = window.location.pathname;
+          window.history.replaceState({}, document.title, cleanUrl);
+        });
+    } else if (payment === 'cancelled') {
+      const cleanUrl = window.location.pathname;
+      window.history.replaceState({}, document.title, cleanUrl);
+    }
+  }, []);
 
   // Standalone PWA detection vs standard mobile web browser
   const [isStandalone, setIsStandalone] = useState<boolean>(() => {
@@ -148,38 +225,37 @@ export default function App() {
   useEffect(() => {
     const updateAppHeight = () => {
       try {
-        const isStandalone =
-          (window.navigator as any).standalone === true ||
-          window.matchMedia('(display-mode: standalone)').matches;
+        const isLandscape =
+          window.matchMedia('(orientation: landscape)').matches ||
+          Math.abs(Number(window.orientation) || 0) === 90 ||
+          window.innerWidth > window.innerHeight;
 
-        let h = window.innerHeight;
-
-        if (isStandalone && window.screen && window.screen.height) {
-          const isLandscape =
-            window.matchMedia('(orientation: landscape)').matches ||
-            Math.abs(Number(window.orientation) || 0) === 90 ||
-            window.innerWidth > window.innerHeight;
-          const screenH = isLandscape
+        let screenH = 0;
+        if (typeof window !== 'undefined' && window.screen && window.screen.height) {
+          screenH = isLandscape
             ? Math.min(window.screen.width, window.screen.height)
             : Math.max(window.screen.width, window.screen.height);
-          h = Math.max(
-            window.innerHeight || 0,
-            window.visualViewport?.height || 0,
-            screenH
-          );
-        } else if (window.visualViewport && window.visualViewport.height) {
-          h = window.visualViewport.height;
-        } else if (document.documentElement && document.documentElement.clientHeight) {
-          h = Math.max(window.innerHeight || 0, document.documentElement.clientHeight);
         }
+
+        const h = Math.max(
+          window.innerHeight || 0,
+          document.documentElement?.clientHeight || 0,
+          screenH || 0
+        );
 
         if (h && h > 0) {
           document.documentElement.style.setProperty('--app-height', `${h}px`);
+        }
+        if (typeof window !== 'undefined' && window.scrollTo) {
+          window.scrollTo(0, 0);
         }
       } catch (e) {}
     };
 
     updateAppHeight();
+    if (typeof window !== 'undefined' && window.scrollTo) {
+      window.scrollTo(0, 0);
+    }
 
     const handleOrientation = () => {
       updateAppHeight();
@@ -212,9 +288,74 @@ export default function App() {
     };
     document.addEventListener('visibilitychange', handleVisibility, { passive: true });
 
-    const t1 = setTimeout(updateAppHeight, 50);
-    const t2 = setTimeout(updateAppHeight, 150);
-    const t3 = setTimeout(updateAppHeight, 400);
+    // Rapid orientation & layout cycle on entry as requested by user
+    const triggerFastOrientationCycle = () => {
+      try {
+        if (typeof window !== 'undefined') {
+          if (window.scrollTo) window.scrollTo(0, 1);
+          
+          // 1. Temporarily apply landscape geometry cycle
+          const rootEl = document.getElementById('root');
+          const shellEl = document.getElementById('app-root-shell');
+          if (window.screen) {
+            const sW = window.screen.width || 393;
+            const sH = window.screen.height || 852;
+            const maxD = Math.max(sW, sH);
+            const minD = Math.min(sW, sH);
+            if (rootEl) {
+              rootEl.style.width = `${maxD}px`;
+              rootEl.style.height = `${minD}px`;
+            }
+            if (shellEl) {
+              shellEl.style.width = `${maxD}px`;
+              shellEl.style.height = `${minD}px`;
+            }
+          }
+
+          try { (window as any).orientation = 90; } catch (e) {}
+          try { (window.screen?.orientation as any)?.lock?.('landscape')?.catch?.(() => {}); } catch (e) {}
+          window.dispatchEvent(new Event('orientationchange'));
+          window.dispatchEvent(new Event('resize'));
+          if (window.visualViewport) {
+            window.visualViewport.dispatchEvent(new Event('resize'));
+          }
+
+          setTimeout(() => {
+            try { (window as any).orientation = 0; } catch (e) {}
+            try { (window.screen?.orientation as any)?.unlock?.(); } catch (e) {}
+            if (rootEl) {
+              rootEl.style.width = '100%';
+              rootEl.style.height = '100dvh';
+            }
+            if (shellEl) {
+              shellEl.style.width = '100%';
+              shellEl.style.height = '100dvh';
+            }
+            if (window.scrollTo) window.scrollTo(0, 0);
+            updateAppHeight();
+            window.dispatchEvent(new Event('orientationchange'));
+            window.dispatchEvent(new Event('resize'));
+            if (window.visualViewport) {
+              window.visualViewport.dispatchEvent(new Event('resize'));
+            }
+            // Trigger layout recalculation reflow
+            document.documentElement.style.height = '100.05%';
+            void document.body.offsetHeight;
+            document.documentElement.style.height = '';
+          }, 50);
+
+          setTimeout(() => {
+            if (window.scrollTo) window.scrollTo(0, 0);
+            updateAppHeight();
+            window.dispatchEvent(new Event('resize'));
+          }, 140);
+        }
+      } catch (err) {}
+    };
+
+    triggerFastOrientationCycle();
+    const t0 = setTimeout(triggerFastOrientationCycle, 350);
+    const t1 = setTimeout(triggerFastOrientationCycle, 1200);
 
     return () => {
       window.removeEventListener('resize', updateAppHeight);
@@ -228,9 +369,8 @@ export default function App() {
       }
       mql.removeEventListener?.('change', updateAppHeight);
       document.removeEventListener('visibilitychange', handleVisibility);
+      clearTimeout(t0);
       clearTimeout(t1);
-      clearTimeout(t2);
-      clearTimeout(t3);
     };
   }, []);
 
@@ -399,6 +539,7 @@ export default function App() {
   const [isAdminOpen, setIsAdminOpen] = useState(false);
   const [systemSettings, setSystemSettings] = useState<Record<string, string>>({});
   const [selectedSpot, setSelectedSpot] = useState<Spot | null>(null);
+  const [is3DMode, setIs3DMode] = useState<boolean>(false);
 
   const fetchSpots = async () => {
     try {
@@ -439,7 +580,41 @@ export default function App() {
     fetchSpots();
     fetchVisualIcons();
     fetchSettings();
+
+    const handleSpotsUpdated = (e: any) => {
+      const updated = e.detail;
+      if (updated && updated.id) {
+        setSpots((prev) => {
+          const exists = prev.some((s) => s.id === updated.id);
+          const next = exists
+            ? prev.map((s) => (s.id === updated.id ? updated : s))
+            : [updated, ...prev];
+          try {
+            localStorage.setItem('monvian_cached_spots', JSON.stringify(next));
+          } catch (err) {}
+          return next;
+        });
+      }
+      fetchSpots();
+    };
+
+    const handleWindowFocus = () => {
+      fetchSpots();
+    };
+
+    window.addEventListener('monvian:spots_updated', handleSpotsUpdated);
+    window.addEventListener('focus', handleWindowFocus);
+    return () => {
+      window.removeEventListener('monvian:spots_updated', handleSpotsUpdated);
+      window.removeEventListener('focus', handleWindowFocus);
+    };
   }, []);
+
+  useEffect(() => {
+    if (!isAdminOpen) {
+      fetchSpots();
+    }
+  }, [isAdminOpen]);
   const [isDetailOpen, setIsDetailOpen] = useState(false);
   const [activeTab, setActiveTab] = useState<TabType>('explorar');
 
@@ -668,6 +843,9 @@ export default function App() {
 
   const filteredSpots = useMemo(() => {
     return spots.filter(spot => {
+      // Hide deactivated spots
+      if (spot.isActive === false) return false;
+
       // Category filter
       if (selectedCategoryFilter) {
         let matchesCat = true;
@@ -683,10 +861,10 @@ export default function App() {
       // Search query filter (covers spot name, description, category label, address)
       if (searchQuery.trim()) {
         const q = searchQuery.toLowerCase().trim();
-        const matchesName = spot.name.toLowerCase().includes(q);
-        const matchesDesc = spot.description.toLowerCase().includes(q);
-        const matchesCatLabel = spot.categoryLabel.toLowerCase().includes(q);
-        const matchesAddress = spot.address.toLowerCase().includes(q);
+        const matchesName = (spot.name || '').toLowerCase().includes(q);
+        const matchesDesc = (spot.description || '').toLowerCase().includes(q);
+        const matchesCatLabel = (spot.categoryLabel || '').toLowerCase().includes(q);
+        const matchesAddress = (spot.address || '').toLowerCase().includes(q);
         return matchesName || matchesDesc || matchesCatLabel || matchesAddress;
       }
 
@@ -697,17 +875,19 @@ export default function App() {
   // Floating search bar results (places appearing right below search bar)
   const searchResults = useMemo(() => {
     if (!searchQuery.trim()) {
-      return spots.filter((s) => s.highlighted || s.rating >= 4.7).slice(0, 5);
+      return spots.filter((s) => s.isActive !== false && (s.highlighted || (s.rating && s.rating >= 4.7))).slice(0, 5);
     }
     const q = searchQuery.toLowerCase().trim();
-    return spots.filter((spot) => {
-      const matchesName = spot.name.toLowerCase().includes(q);
-      const matchesDesc = spot.description ? spot.description.toLowerCase().includes(q) : false;
-      const matchesCatLabel = spot.categoryLabel ? spot.categoryLabel.toLowerCase().includes(q) : false;
-      const matchesAddress = spot.address ? spot.address.toLowerCase().includes(q) : false;
-      const matchesTip = spot.touristTip ? spot.touristTip.toLowerCase().includes(q) : false;
-      return matchesName || matchesDesc || matchesCatLabel || matchesAddress || matchesTip;
-    });
+    return spots
+      .filter((s) => {
+        if (s.isActive === false) return false;
+        const matchesName = (s.name || '').toLowerCase().includes(q);
+        const matchesDesc = (s.description || '').toLowerCase().includes(q);
+        const matchesCat = (s.category || '').toLowerCase().includes(q);
+        const matchesCatLabel = (s.categoryLabel || '').toLowerCase().includes(q);
+        return matchesName || matchesDesc || matchesCat || matchesCatLabel;
+      })
+      .slice(0, 8);
   }, [spots, searchQuery]);
 
   const isBlurActive = Boolean(isCategoryCardOpen || isSearchOpen);
@@ -767,6 +947,9 @@ export default function App() {
 
   const handleTabChange = (tab: TabType) => {
     setActiveTab(tab);
+    if (tab !== 'perfil') {
+      setIsProfileSettingsOpen(false);
+    }
   };
 
   // User's first name for personalized greetings
@@ -781,6 +964,13 @@ export default function App() {
   const welcomePhrase = userFirstName ? `Seja bem vindo ${userFirstName}!` : 'Seja bem vindo a Campos do Jordão!';
 
   const isWhiteMapUI = activeTab === 'explorar' && (theme === 'light' || mapStyle === 'animado' || mapStyle === 'satelite' || mapStyle === 'transporte');
+
+  const [isDesktopExplorePanelOpen, setIsDesktopExplorePanelOpen] = useState<boolean>(true);
+
+  const isUserAdmin = Boolean(
+    user?.role === 'admin' ||
+    ['empresariomario@gmail.com', 'marioempresario@gmail.com', 'marioyesk@gmail.com'].includes((user?.email || '').trim().toLowerCase())
+  );
 
   const isSplashVisible = isInitialSplash || isAuthenticated === null;
 
@@ -798,8 +988,17 @@ export default function App() {
           }}
           className="fixed inset-0 w-full h-full flex flex-col items-center justify-center select-none z-50 bg-white text-black"
           style={{
-            height: 'var(--app-height, 100%)',
-            minHeight: 'var(--app-height, 100%)',
+            position: 'fixed',
+            top: 0,
+            bottom: 0,
+            left: 0,
+            right: 0,
+            width: '100%',
+            height: '100%',
+            minHeight: 'calc(100dvh + env(safe-area-inset-bottom, 0px))',
+            boxSizing: 'border-box',
+            margin: 0,
+            padding: 0,
             backgroundColor: '#ffffff',
           }}
         >
@@ -812,7 +1011,7 @@ export default function App() {
             <motion.img
               src="/logocarregamento.png"
               alt="Monvian"
-              className="h-20 sm:h-24 w-auto max-w-[280px] object-contain"
+              className="h-24 sm:h-28 w-auto max-w-[340px] object-contain"
               animate={{
                 scale: [1, 1.025, 1],
               }}
@@ -839,8 +1038,7 @@ export default function App() {
               setIsAuthenticated(true);
               requestRealLocation();
               if (isNewAccount) {
-                setShowWelcomeOverlay(true);
-                setIsPendingNewAccountWizard(true);
+                setShowOnboardingQuestions(true);
               }
             }} 
           />
@@ -887,25 +1085,52 @@ export default function App() {
           animate={{ opacity: 1, scale: 1, filter: 'blur(0px)' }}
           transition={{ duration: 0.55, ease: [0.16, 1, 0.3, 1] }}
           id="app-root-shell"
-          className={`fixed inset-0 w-full overflow-hidden select-none transition-colors duration-300 ${
+          className={`fixed inset-0 w-full h-full overflow-hidden select-none flex transition-colors duration-300 ${
             theme === 'dark' ? 'bg-black' : 'bg-[#f4f4f5]'
           }`}
           style={{
-            height: 'var(--app-height, 100%)',
-            minHeight: '100%',
+            position: 'fixed',
             top: 0,
             bottom: 0,
             left: 0,
             right: 0,
+            width: '100%',
+            height: '100%',
+            minHeight: 'calc(100dvh + env(safe-area-inset-bottom, 0px))',
+            boxSizing: 'border-box',
+            margin: 0,
+            padding: 0,
             backgroundColor: currentAdaptiveColor,
           }}
         >
       <OfflineIndicator />
+
+      {/* Desktop Left Sidebar (Only visible on md+ >= 768px, elegant native desktop vertical menu) */}
+      <DesktopSidebar
+        activeTab={activeTab}
+        onChangeTab={handleTabChange}
+        unreadCount={2}
+        theme={theme}
+        onToggleTheme={() => setTheme((prev) => (prev === 'dark' ? 'light' : 'dark'))}
+        realWeather={realWeather}
+        onOpenWeatherModal={() => setIsWeatherModalOpen(true)}
+        user={user}
+        onOpenAdmin={() => setIsAdminOpen(true)}
+        isUserAdmin={isUserAdmin}
+      />
+
       <main
         id="main-app-content"
-        className={`relative w-full h-full overflow-hidden select-none transition-all duration-300 ${
+        className={`relative flex-1 w-full h-full overflow-hidden select-none transition-all duration-300 ${
           theme === 'dark' ? 'bg-black' : 'bg-zinc-50'
         }`}
+        style={{
+          height: '100%',
+          minHeight: '100%',
+          boxSizing: 'border-box',
+          margin: 0,
+          padding: 0,
+        }}
       >
         {/* 1. Interactive Map Engine */}
       <MapComponent
@@ -923,6 +1148,10 @@ export default function App() {
         onInteractionChange={setIsMapInteracting}
         zoomToUserTrigger={zoomToUserTrigger}
         onStyleChange={setMapStyle}
+        onReturnToChat={() => {
+          setActiveTab('chat');
+        }}
+        is3DMode={is3DMode}
       />
 
       {/* 2. Dynamic Rain Particle Effect Overlay */}
@@ -932,12 +1161,51 @@ export default function App() {
         theme={theme}
       />
 
-      {/* 3. Top Floating Header Bar */}
+      {/* 2.5. Dynamic Snow Particle Effect Overlay */}
+      <SnowEffect
+        enabled={snowEnabled}
+        theme={theme}
+      />
+
+      {/* DESKTOP FLOATING TOP BAR (Visible on md+ >= 768px) */}
+      <DesktopTopBar
+        spots={spots}
+        searchQuery={searchQuery}
+        onSearchChange={setSearchQuery}
+        selectedCategory={selectedCategoryFilter || 'all'}
+        onSelectCategory={(catId) => setSelectedCategoryFilter(catId === 'all' ? null : catId)}
+        onSelectSpot={handleSelectSpot}
+        theme={theme}
+        realWeather={realWeather}
+        onOpenWeatherModal={() => setIsWeatherModalOpen(true)}
+        is3DMode={is3DMode}
+        onToggle3DMode={() => setIs3DMode((prev) => !prev)}
+        onOpenMapModes={() => {
+          const btn = document.getElementById('btn-map-layer-switch');
+          if (btn) btn.click();
+        }}
+      />
+
+      {/* DESKTOP EXPLORE PANEL (Visible when activeTab === 'explorar' on desktop) */}
+      {activeTab === 'explorar' && (
+        <DesktopExplorePanel
+          spots={filteredSpots}
+          selectedSpot={selectedSpot}
+          onSelectSpot={handleSelectSpot}
+          selectedCategory={selectedCategoryFilter || 'all'}
+          onSelectCategory={(catId) => setSelectedCategoryFilter(catId === 'all' ? null : catId)}
+          theme={theme}
+          isOpen={isDesktopExplorePanelOpen}
+          onToggleOpen={() => setIsDesktopExplorePanelOpen((prev) => !prev)}
+        />
+      )}
+
+      {/* 3. Top Floating Header Bar (MOBILE ONLY: md:hidden) */}
       <header
         aria-label="Informações de Campos do Jordão"
-        className={`absolute top-0 left-0 right-0 ${isCategoryCardOpen ? 'z-[60]' : 'z-40'} flex items-center justify-between pointer-events-none px-4 sm:px-6`}
+        className={`md:hidden absolute top-0 left-0 right-0 ${isCategoryCardOpen ? 'z-[60]' : 'z-40'} flex items-center justify-between pointer-events-none px-4 sm:px-6`}
         style={{
-          paddingTop: 'max(calc(env(safe-area-inset-top, 0px) + 12px), 24px)',
+          paddingTop: 'max(calc(env(safe-area-inset-top, 0px) + 16px), 28px)',
           paddingLeft: 'max(16px, env(safe-area-inset-left, 0px))',
           paddingRight: 'max(16px, env(safe-area-inset-right, 0px))',
         }}
@@ -981,9 +1249,11 @@ export default function App() {
                 title="Toque para ver a previsão do tempo"
               >
                 <span className={`text-5xl sm:text-6xl font-extrabold tracking-tighter leading-none transition-colors group-hover:text-blue-400 ${
-                  mapStyle === 'animado' || theme === 'dark'
-                    ? 'text-white drop-shadow-[0_3px_16px_rgba(0,0,0,0.85)] [text-shadow:_0_2px_12px_rgba(0,0,0,0.8)]'
-                    : 'text-zinc-900/95 dark:text-white/95 drop-shadow-[0_2px_14px_rgba(0,0,0,0.4)]'
+                  mapStyle === 'animado'
+                    ? 'text-white [-webkit-text-stroke:_0.6px_rgba(0,0,0,0.22)]'
+                    : theme === 'dark'
+                      ? 'text-white'
+                      : 'text-zinc-900 dark:text-white'
                 }`}>
                   {realWeather.temperature}°
                 </span>
@@ -1000,9 +1270,11 @@ export default function App() {
               title="Toque para ver a previsão do tempo"
             >
               <span className={`block text-[13px] sm:text-[14px] font-semibold tracking-tight whitespace-nowrap ${
-                mapStyle === 'animado' || theme === 'dark'
-                  ? 'text-white/95 drop-shadow-[0_1px_6px_rgba(0,0,0,0.7)]'
-                  : 'text-zinc-700/90 dark:text-zinc-200/90 drop-shadow-[0_1px_4px_rgba(0,0,0,0.35)]'
+                mapStyle === 'animado'
+                  ? 'text-white [-webkit-text-stroke:_0.35px_rgba(0,0,0,0.20)]'
+                  : theme === 'dark'
+                    ? 'text-white/95'
+                    : 'text-zinc-800 dark:text-zinc-200'
               }`}>
                 {realWeather.condition}
               </span>
@@ -1012,7 +1284,7 @@ export default function App() {
 
         {/* Right: Circular Theme Button + Circular Search Button + Category Filter Button */}
         <div className="flex items-center gap-2.5 pointer-events-auto relative">
-          {/* Circular Theme Toggle Button */}
+          {/* Circular Theme Toggle Button (Sol e Lua) */}
           <button
             id="btn-theme-toggle"
             onClick={() => setTheme((prev) => (prev === 'dark' ? 'light' : 'dark'))}
@@ -1046,33 +1318,22 @@ export default function App() {
             )}
           </button>
 
-          {/* Circular Search Button */}
+          {/* Circular 3D View Toggle Button */}
           <button
-            id="btn-search-toggle"
-            onClick={() => {
-              setIsSearchOpen((prev) => !prev);
-              setIsCategoryCardOpen(false);
-            }}
+            id="btn-3d-toggle"
+            type="button"
+            onClick={() => setIs3DMode((prev) => !prev)}
             className={`w-12 h-12 rounded-full flex items-center justify-center transition-all duration-300 active:scale-95 cursor-pointer group ${
-              isWhiteMapUI
-                ? isSearchOpen || searchQuery
-                  ? 'ios-glass-btn-white ring-2 ring-black/20 text-zinc-950 bg-white'
-                  : 'ios-glass-btn-white text-zinc-900'
-                : isSearchOpen || searchQuery
-                  ? 'ios-glass-btn ring-2 ring-white/40 dark:ring-white/35 bg-white/25 dark:bg-white/20 text-zinc-900 dark:text-white'
-                  : 'ios-glass-btn text-zinc-700 dark:text-white'
+              is3DMode
+                ? 'ios-glass-btn ring-2 ring-blue-500/80 bg-blue-500/25 text-blue-400 border border-blue-400/40 shadow-[0_0_18px_rgba(59,130,246,0.5)]'
+                : isWhiteMapUI
+                ? 'ios-glass-btn-white text-zinc-900 border border-black/10'
+                : 'ios-glass-btn text-zinc-700 dark:text-white border border-white/20 dark:border-white/15'
             }`}
-            title="Pesquisar no mapa"
+            title={is3DMode ? 'Alternar para visão 2D Plana' : 'Alternar para visão 3D com Relevo e Montanhas'}
           >
-            <div className="relative w-6 h-6 flex items-center justify-center text-current group-hover:scale-110 transition-transform">
-              <svg className="w-full h-full" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round">
-                <circle cx="11" cy="11" r="7" className={
-                  isSearchOpen || searchQuery
-                    ? isWhiteMapUI ? 'fill-zinc-900/20' : 'fill-zinc-700/20 dark:fill-white/20'
-                    : isWhiteMapUI ? 'fill-zinc-900/10' : 'fill-zinc-700/10 dark:fill-white/10'
-                } />
-                <line x1="21" y1="21" x2="16.65" y2="16.65" />
-              </svg>
+            <div className="relative flex items-center justify-center font-black text-xs sm:text-[13.5px] tracking-tighter group-hover:scale-110 transition-transform">
+              <span>3D</span>
             </div>
           </button>
 
@@ -1286,14 +1547,13 @@ export default function App() {
                       className="w-full flex items-center gap-3 p-2.5 rounded-2xl hover:bg-zinc-900/5 dark:hover:bg-white/5 active:scale-[0.98] transition-all text-left cursor-pointer group"
                     >
                       <img
-                        src={spot.image || 'https://images.unsplash.com/photo-1585320806297-9794b3e4eeae?auto=format&fit=crop&w=200&q=80'}
+                        src={getSpotImage(spot)}
                         alt={spot.name}
                         className="w-12 h-12 rounded-xl object-cover shrink-0 border border-black/5 dark:border-white/10 shadow-xs group-hover:scale-105 transition-transform"
                         referrerPolicy="no-referrer"
                         loading="lazy"
                         onError={(e) => {
-                          (e.target as HTMLImageElement).src =
-                            'https://images.unsplash.com/photo-1585320806297-9794b3e4eeae?auto=format&fit=crop&w=200&q=80';
+                          (e.target as HTMLImageElement).src = getSpotFallbackImage(spot.name, spot.category);
                         }}
                       />
                       <div className="flex-1 min-w-0">
@@ -1408,12 +1668,19 @@ export default function App() {
         onClose={() => setActiveTab('explorar')}
         theme={theme}
         userCoords={userCoords ? { lat: userCoords[1], lng: userCoords[0] } : null}
+        onOpenItineraries={() => {
+          setActiveTab('roteiros');
+        }}
         onSelectSpotByName={(name) => {
-          const found = spots.find(
-            (s) => s.name.toLowerCase().includes(name.toLowerCase()) || name.toLowerCase().includes(s.name.toLowerCase())
-          );
+          const lower = name.toLowerCase().trim();
+          const found = spots.find((s) => {
+            const sName = s.name.toLowerCase();
+            return sName.includes(lower) || lower.includes(sName) || (s.tagLabel && s.tagLabel.toLowerCase().includes(lower));
+          });
           if (found) {
             handleSelectSpot(found);
+            setActiveTab('explorar');
+          } else {
             setActiveTab('explorar');
           }
         }}
@@ -1445,6 +1712,9 @@ export default function App() {
           setActiveTab('explorar');
           setIsAdminOpen(true);
         }}
+        onSubViewChange={(subView) => {
+          setIsProfileSettingsOpen(subView === 'permissoes');
+        }}
         communityUrl={systemSettings.community_url}
         instagramUrl={systemSettings.instagram_url}
       />
@@ -1463,7 +1733,38 @@ export default function App() {
         theme={theme}
       />
 
-      {/* 11. Welcome to Campos do Jordão Translucent & Blurred Overlay */}
+      {/* 10.6 Gold Success Celebration Modal */}
+      <GoldSuccessModal
+        isOpen={isGoldSuccessModalOpen}
+        onClose={() => setIsGoldSuccessModalOpen(false)}
+        theme={theme}
+        onExplore={() => {
+          setIsGoldSuccessModalOpen(false);
+          setActiveTab('roteiros');
+        }}
+      />
+
+      {/* 11. Onboarding Preferences Questionnaire on Pure Black (Appears first for new accounts) */}
+      <AnimatePresence>
+        {showOnboardingQuestions && (
+          <OnboardingQuestionsModal
+            isOpen={showOnboardingQuestions}
+            spots={spots}
+            userName={user?.name}
+            onComplete={() => {
+              setShowOnboardingQuestions(false);
+              setShowWelcomeOverlay(true);
+            }}
+            onClose={() => {
+              setShowOnboardingQuestions(false);
+              setShowWelcomeOverlay(true);
+            }}
+            theme="dark"
+          />
+        )}
+      </AnimatePresence>
+
+      {/* 12. Welcome to Campos do Jordão Translucent & Blurred Overlay (Appears after questions) */}
       <AnimatePresence>
         {showWelcomeOverlay && (
           <motion.div
@@ -1480,12 +1781,8 @@ export default function App() {
             onClick={() => {
               setShowWelcomeOverlay(false);
               setZoomToUserTrigger((prev) => prev + 1);
-              if (isPendingNewAccountWizard) {
-                setIsPendingNewAccountWizard(false);
-                setActiveTab('roteiros');
-              }
             }}
-            className="fixed inset-0 z-[160] bg-black/65 backdrop-blur-xl md:backdrop-blur-2xl flex flex-col items-center justify-center p-6 text-center select-none cursor-pointer"
+            className="fixed inset-0 z-[180] bg-black/75 backdrop-blur-xl md:backdrop-blur-2xl flex flex-col items-center justify-center p-6 text-center select-none cursor-pointer"
             style={{
               paddingTop: 'max(32px, env(safe-area-inset-top, 0px))',
               paddingBottom: 'max(32px, env(safe-area-inset-bottom, 0px))',
@@ -1546,15 +1843,19 @@ export default function App() {
       </AnimatePresence>
     </main>
 
-    {/* 4. Bottom Navigation Pill rendered at root level */}
-    <BottomNavigation
-      activeTab={activeTab}
-      onChangeTab={handleTabChange}
-      unreadCount={2}
-      isBlurred={isBlurActive}
-      forceWhiteUI={isWhiteMapUI}
-      theme={theme}
-    />
+    {/* 4. Bottom Navigation Pill rendered at root level (MOBILE ONLY) */}
+    {!isProfileSettingsOpen && (
+      <div className="md:hidden">
+        <BottomNavigation
+          activeTab={activeTab}
+          onChangeTab={handleTabChange}
+          unreadCount={2}
+          isBlurred={isBlurActive}
+          forceWhiteUI={false}
+          theme={theme}
+        />
+      </div>
+    )}
   </motion.div>
   )}
   </AnimatePresence>

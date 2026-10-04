@@ -63,13 +63,15 @@ export const SnowEffect: React.FC<SnowEffectProps> = ({ enabled = false, theme =
       context.save();
       context.translate(x, y);
 
-      // Blue in light mode (modo branco), white in dark mode
-      const strokeColor = theme === 'light' ? `rgba(37, 99, 235, ${opacity})` : `rgba(255, 255, 255, ${opacity})`;
-      const fillColor = theme === 'light' ? `rgba(37, 99, 235, ${opacity * 0.9})` : `rgba(255, 255, 255, ${opacity * 0.9})`;
+      // Snowflake styling for realistic appearance
+      const strokeColor = theme === 'light' ? `rgba(255, 255, 255, ${Math.min(1, opacity + 0.3)})` : `rgba(255, 255, 255, ${opacity})`;
+      const fillColor = theme === 'light' ? `rgba(255, 255, 255, ${Math.min(1, opacity + 0.2)})` : `rgba(255, 255, 255, ${opacity * 0.9})`;
 
+      context.shadowBlur = theme === 'light' ? 3 : 6;
+      context.shadowColor = theme === 'light' ? 'rgba(0, 0, 0, 0.35)' : 'rgba(255, 255, 255, 0.6)';
       context.strokeStyle = strokeColor;
       context.fillStyle = fillColor;
-      context.lineWidth = 1;
+      context.lineWidth = 1.2;
 
       // 6-arm star/crystal
       for (let i = 0; i < 6; i++) {
@@ -115,11 +117,11 @@ export const SnowEffect: React.FC<SnowEffectProps> = ({ enabled = false, theme =
           ctx.beginPath();
           ctx.arc(f.x, f.y, f.r * 0.8, 0, Math.PI * 2);
 
-          const dotColor = theme === 'light' ? `rgba(37, 99, 235, ${f.opacity})` : `rgba(255, 255, 255, ${f.opacity})`;
-          const shadowColor = theme === 'light' ? 'rgba(37, 99, 235, 0.4)' : 'rgba(255, 255, 255, 0.4)';
+          const dotColor = theme === 'light' ? `rgba(255, 255, 255, ${Math.min(1, f.opacity + 0.3)})` : `rgba(255, 255, 255, ${f.opacity})`;
+          const shadowColor = theme === 'light' ? 'rgba(0, 0, 0, 0.35)' : 'rgba(255, 255, 255, 0.5)';
 
           ctx.fillStyle = dotColor;
-          ctx.shadowBlur = 4;
+          ctx.shadowBlur = theme === 'light' ? 3 : 5;
           ctx.shadowColor = shadowColor;
           ctx.fill();
         }
@@ -142,7 +144,7 @@ export const SnowEffect: React.FC<SnowEffectProps> = ({ enabled = false, theme =
     <canvas
       ref={canvasRef}
       id="snow-canvas-overlay"
-      className="pointer-events-none absolute inset-0 z-15 h-full w-full opacity-80"
+      className="pointer-events-none absolute inset-0 z-[15] h-full w-full opacity-90 select-none"
     />
   );
 };

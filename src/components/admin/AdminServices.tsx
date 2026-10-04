@@ -336,8 +336,18 @@ export const AdminServices: React.FC = () => {
         onClose={() => setIsModalOpen(false)}
         mode="service"
         spotToEdit={serviceToEdit}
-        onSaveSuccess={() => {
+        onSaveSuccess={(savedSpot) => {
           fetchServices();
+          if (savedSpot) {
+            setSelectedCategory('all');
+            setServices((prev) => {
+              const exists = prev.some((s) => s.id === savedSpot.id);
+              if (exists) {
+                return prev.map((s) => (s.id === savedSpot.id ? savedSpot : s));
+              }
+              return [savedSpot, ...prev];
+            });
+          }
           showToast(serviceToEdit ? 'Estabelecimento atualizado!' : 'Novo estabelecimento cadastrado!');
         }}
       />

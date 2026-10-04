@@ -175,12 +175,12 @@ export function AuthScreen({ onSuccess }: AuthScreenProps) {
           initial={{ scale: 0.9, opacity: 0 }}
           animate={{ scale: 1, opacity: 1 }}
           transition={{ type: 'spring', stiffness: 500, damping: 25, delay: 0.05 }}
-          className="h-16 mb-2 flex items-center justify-center"
+          className="h-20 mb-2 flex items-center justify-center"
         >
           <img 
             src="/logomodoescuro.png" 
             alt="Monvian" 
-            className="h-full w-auto max-w-[240px] object-contain"
+            className="h-full w-auto max-w-[290px] object-contain"
           />
         </motion.div>
         

@@ -22,6 +22,7 @@ import {
   Plus,
   RotateCcw,
   SlidersHorizontal,
+  Store,
   Trash2,
   Users,
   Wallet,
@@ -29,6 +30,7 @@ import {
 } from 'lucide-react';
 import { Itinerary, ItineraryDay, ItineraryStep, Spot } from '../types';
 import { CAMPOS_SPOTS } from '../data/spots';
+import { getSpotImage, getSpotFallbackImage } from '../utils/spotImages';
 import { TripDateStep } from './itineraries/TripDateStep';
 import { PeopleStep } from './itineraries/PeopleStep';
 import { BudgetStep } from './itineraries/BudgetStep';
@@ -39,6 +41,7 @@ import { RoundedNavigationIcon } from './RoundedNavigationIcon';
 import { ItineraryStoreModal } from './itineraries/ItineraryStoreModal';
 import { PlusActionMenuModal } from './itineraries/PlusActionMenuModal';
 import { ImportSpotFloatingModal } from './itineraries/ImportSpotFloatingModal';
+import { TripNotesModal } from './itineraries/TripNotesModal';
 
 interface ItinerariesViewProps {
   isOpen: boolean;
@@ -58,7 +61,96 @@ const qrSpringTransition = {
 };
 
 // Map style helper
-const getMapStyle = (theme: 'dark' | 'light' = 'light'): maplibregl.StyleSpecification => {
+// Calibrated +40% brighter, high-contrast, crystal-clear satellite imagery with street & landmark labels
+const getMapStyle = (
+  mode: 'satelite' | 'escuro' = 'satelite',
+  theme: 'dark' | 'light' = 'dark'
+): maplibregl.StyleSpecification => {
+  if (mode === 'satelite') {
+    if (MAPBOX_TOKEN) {
+      return {
+        version: 8,
+        projection: { type: 'globe' } as any,
+        sources: {
+          'mapbox-satellite': {
+            type: 'raster',
+            tiles: [
+              `https://api.mapbox.com/styles/v1/mapbox/satellite-streets-v12/tiles/256/{z}/{x}/{y}@2x?access_token=${MAPBOX_TOKEN}`,
+            ],
+            tileSize: 256,
+            attribution: '&copy; Mapbox &copy; OpenStreetMap',
+          },
+        },
+        layers: [
+          {
+            id: 'mapbox-satellite-layer',
+            type: 'raster',
+            source: 'mapbox-satellite',
+            minzoom: 0,
+            maxzoom: 22,
+            paint: {
+              'raster-brightness-min': 0.20, // +40% elevação de áreas de sombra e matas
+              'raster-brightness-max': 1.0,
+              'raster-contrast': 0.18,       // Contraste apurado de estradas e relevo
+              'raster-saturation': 0.25,     // Cores naturais vivas
+            },
+          },
+        ],
+      };
+    }
+
+    // High-Resolution Esri World Imagery + Reference (Boundaries, Roads & Labels)
+    // Calibrado para ficar 40% mais claro, nítido e altamente visível
+    return {
+      version: 8,
+      projection: { type: 'globe' } as any,
+      sources: {
+        'esri-satellite': {
+          type: 'raster',
+          tiles: [
+            'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
+          ],
+          tileSize: 256,
+          attribution: '&copy; Esri, Maxar, Earthstar Geographics',
+        },
+        'esri-reference': {
+          type: 'raster',
+          tiles: [
+            'https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Boundaries_and_Places/MapServer/tile/{z}/{y}/{x}',
+          ],
+          tileSize: 256,
+          attribution: '&copy; Esri, OpenStreetMap contributors',
+        },
+      },
+      layers: [
+        {
+          id: 'esri-satellite-layer',
+          type: 'raster',
+          source: 'esri-satellite',
+          minzoom: 0,
+          maxzoom: 19,
+          paint: {
+            'raster-brightness-min': 0.22, // +40% mais claro nas sombras e vegetação
+            'raster-brightness-max': 1.0,
+            'raster-contrast': 0.18,       // Maior nitidez de estradas e curvas de nível
+            'raster-saturation': 0.26,     // Cores ricas e nítidas
+          },
+        },
+        {
+          id: 'esri-reference-layer',
+          type: 'raster',
+          source: 'esri-reference',
+          minzoom: 0,
+          maxzoom: 19,
+          paint: {
+            'raster-opacity': 0.95,        // Nomes de cidades, bairros e vias 100% legíveis
+          },
+        },
+      ],
+    };
+  }
+
+  // Dark vector mode
   if (MAPBOX_TOKEN) {
     const tilePath = theme === 'light' ? 'streets-v12' : 'dark-v11';
     return {
@@ -291,22 +383,26 @@ const SwipeableStopCard: React.FC<SwipeableStopCardProps> = ({
       }}
       className="relative w-full rounded-[28px] overflow-hidden select-none touch-pan-y transform-gpu will-change-transform"
     >
-      {/* Background Red Swipe Area (iOS Delete Action - Right side) */}
+      {/* Background Swipe Area (iOS Action - Right side, neutral background) */}
       <motion.div
         style={{ opacity: bgOpacity }}
         onClick={handleDeleteItem}
-        className="absolute inset-0 bg-[#FF3B30] rounded-[28px] flex items-center justify-end px-6 z-0 cursor-pointer"
+        className={`absolute inset-0 rounded-[28px] flex items-center justify-end px-5 z-0 cursor-pointer ${
+          isDark ? 'bg-[#18191E] border border-white/10' : 'bg-zinc-200 border border-zinc-300'
+        }`}
         aria-label="Excluir ponto turístico"
       >
         <motion.div
           style={{ opacity: trashOpacity, scale: trashScale }}
-          className="flex items-center gap-1.5 text-white font-bold select-none"
+          className="flex items-center gap-1.5 text-red-500 font-bold select-none"
         >
-          <Trash2 className="w-5 h-5 stroke-[2.2]" />
+          <div className="w-9 h-9 rounded-full bg-red-500/15 border border-red-500/30 flex items-center justify-center text-red-500 shadow-xs">
+            <Trash2 className="w-4 h-4 stroke-[2.2]" />
+          </div>
         </motion.div>
       </motion.div>
 
-      {/* Foreground Draggable Card - 100% OPAQUE to prevent any bleeding/tinting */}
+      {/* Foreground Draggable Card - 100% OPAQUE to prevent any background tinting/bleeding */}
       <motion.div
         ref={containerRef}
         style={{ x }}
@@ -329,19 +425,23 @@ const SwipeableStopCard: React.FC<SwipeableStopCardProps> = ({
         }}
         tabIndex={0}
         role="button"
-        aria-label={`Parada ${idx + 1}: ${spot?.name || 'Local'}. Deslize para a esquerda para excluir.`}
-        className={`relative z-10 py-2 px-3 sm:py-2.5 sm:px-3.5 rounded-[28px] flex items-center justify-between gap-3 cursor-pointer ${
+        aria-label={`Local ${idx + 1}: ${spot?.name || 'Local'}. Deslize para a esquerda para excluir.`}
+        className={`relative z-10 py-2 px-3 sm:py-2.5 sm:px-3.5 rounded-[28px] flex items-center justify-between gap-3 cursor-pointer transition-all ${
           isSelected
+            ? isPremium
+              ? isDark
+                ? 'bg-[#1C1E24] border border-[#E5AC33]/60 ring-1.5 ring-[#FFF4A3]/40 shadow-xs text-white'
+                : 'bg-white border border-[#E5AC33]/60 ring-1.5 ring-[#FFF4A3]/40 shadow-xs text-zinc-900'
+              : isDark
+              ? 'bg-[#1C1E24] border border-white/45 ring-1.5 ring-blue-500/40 shadow-xs text-white'
+              : 'bg-white border border-blue-500/45 ring-1.5 ring-blue-500/40 shadow-xs text-zinc-900'
+            : isPremium
             ? isDark
-              ? isPremium
-                ? 'bg-[#242426] border border-[#E5AC33]/60 ring-1 ring-[#FFF4A3]/30 shadow-md text-white'
-                : 'bg-[#242426] border border-white/30 ring-1 ring-white/20 shadow-md text-white'
-              : isPremium
-              ? 'bg-white ring-2 ring-[#E5AC33]/70 shadow-md text-zinc-900 border border-[#E5AC33]/40'
-              : 'bg-white ring-2 ring-blue-500/50 shadow-md text-zinc-900 border border-zinc-200'
+              ? 'bg-[#141519] hover:bg-[#1C1E24] border border-[#E5AC33]/30 text-white'
+              : 'bg-white hover:bg-zinc-50 border border-[#E5AC33]/40 text-zinc-900 shadow-2xs'
             : isDark
-            ? 'bg-[#1c1c1e] border border-white/10 hover:border-white/20 hover:bg-[#242426] text-white'
-            : 'bg-white hover:bg-zinc-50 border border-zinc-200/80 shadow-xs text-zinc-900'
+            ? 'bg-[#141519] hover:bg-[#1C1E24] border border-white/12 text-white'
+            : 'bg-white hover:bg-zinc-50 border border-zinc-200/90 text-zinc-900 shadow-2xs'
         }`}
       >
         {/* Left: Stop Number + Compact Thumbnail */}
@@ -358,26 +458,25 @@ const SwipeableStopCard: React.FC<SwipeableStopCardProps> = ({
                     ? 'bg-zinc-800 text-[#F5BE38] dark:text-[#FDE073] border border-[#E5AC33]/45'
                     : 'bg-zinc-800 text-zinc-300 border border-white/10'
                   : isPremium
-                  ? 'bg-[#FFF9E6] text-[#B88214] border border-[#E5AC33]/55'
-                  : 'bg-zinc-100 text-zinc-700 border border-black/5'
+                  ? 'bg-white/30 text-[#B88214] border border-[#E5AC33]/55'
+                  : 'bg-black/10 dark:bg-white/10 text-zinc-700 dark:text-zinc-300 border border-black/10 dark:border-white/15'
               }`}
             >
               {String(idx + 1).padStart(2, '0')}
             </span>
           </div>
 
-          {spot?.image && (
+          {spot && (
             <div
               className="w-12 h-12 sm:w-13 sm:h-13 rounded-[16px] overflow-hidden shrink-0 bg-zinc-800 relative select-none self-center hover:opacity-90 active:scale-98 transition-all"
             >
               <img
-                src={spot.image}
+                src={getSpotImage(spot)}
                 alt={spot.name}
                 className="w-full h-full object-cover pointer-events-none"
                 referrerPolicy="no-referrer"
                 onError={(e) => {
-                  (e.target as HTMLImageElement).src =
-                    'https://images.unsplash.com/photo-1585320806297-9794b3e4eeae?auto=format&fit=crop&w=200&q=80';
+                  (e.target as HTMLImageElement).src = getSpotFallbackImage(spot.name, spot.category);
                 }}
               />
               <div className="absolute inset-0 bg-gradient-to-t from-black/25 to-transparent pointer-events-none" />
@@ -421,7 +520,7 @@ const SwipeableStopCard: React.FC<SwipeableStopCardProps> = ({
               </p>
             ) : (
               <p className="text-[10.5px] font-bold text-zinc-400 dark:text-zinc-400 truncate leading-none pointer-events-none">
-                {(spot as { shortDescription?: string })?.shortDescription || spot?.description || 'Parada planejada do roteiro'}
+                {(spot as { shortDescription?: string })?.shortDescription || spot?.description || 'Local planejado do roteiro'}
               </p>
             )}
           </div>
@@ -451,8 +550,8 @@ const SwipeableStopCard: React.FC<SwipeableStopCardProps> = ({
                 ? 'text-zinc-200 hover:text-white hover:bg-white/10 active:bg-white/15 cursor-pointer'
                 : 'text-zinc-800 hover:text-black hover:bg-zinc-100 active:bg-zinc-200 cursor-pointer'
             }`}
-            title={idx === 0 ? 'Primeira parada' : 'Mover para cima'}
-            aria-label="Mover parada para cima"
+            title={idx === 0 ? 'Primeiro local' : 'Mover para cima'}
+            aria-label="Mover local para cima"
           >
             <ArrowUp className="w-4.5 h-4.5 stroke-[2.2]" />
           </motion.button>
@@ -476,8 +575,8 @@ const SwipeableStopCard: React.FC<SwipeableStopCardProps> = ({
                 ? 'text-zinc-200 hover:text-white hover:bg-white/10 active:bg-white/15 cursor-pointer'
                 : 'text-zinc-800 hover:text-black hover:bg-zinc-100 active:bg-zinc-200 cursor-pointer'
             }`}
-            title={idx === totalSteps - 1 ? 'Última parada' : 'Mover para baixo'}
-            aria-label="Mover parada para baixo"
+            title={idx === totalSteps - 1 ? 'Último local' : 'Mover para baixo'}
+            aria-label="Mover local para baixo"
           >
             <ArrowDown className="w-4.5 h-4.5 stroke-[2.2]" />
           </motion.button>
@@ -535,6 +634,25 @@ export const ItinerariesView: React.FC<ItinerariesViewProps> = ({
   const [isStoreOpen, setIsStoreOpen] = useState(false);
   const [storeToast, setStoreToast] = useState<string | null>(null);
 
+  // Active itinerary map style: default is 'satelite' (+40% mais claro e nítido)
+  const [itineraryMapStyle, setItineraryMapStyle] = useState<'satelite' | 'escuro'>(() => {
+    try {
+      const saved = localStorage.getItem('monvian_itinerary_map_style');
+      if (saved === 'escuro' || saved === 'satelite') return saved;
+    } catch (e) {}
+    return 'satelite';
+  });
+
+  const handleToggleMapStyle = () => {
+    const next = itineraryMapStyle === 'satelite' ? 'escuro' : 'satelite';
+    setItineraryMapStyle(next);
+    try {
+      localStorage.setItem('monvian_itinerary_map_style', next);
+    } catch (e) {}
+    setStoreToast(next === 'satelite' ? 'Satélite HD (40% Mais Claro)' : 'Mapa Noturno / Escuro');
+    setTimeout(() => setStoreToast(null), 2500);
+  };
+
   // Plus menu & Import spot floating modal states
   const [isPlusMenuOpen, setIsPlusMenuOpen] = useState(false);
   const [isImportModalOpen, setIsImportModalOpen] = useState(false);
@@ -547,9 +665,7 @@ export const ItinerariesView: React.FC<ItinerariesViewProps> = ({
 
   // Handler to import a spot into current active itinerary
   const handleImportSpotToItinerary = (spot: Spot) => {
-    if (!userItinerary) return;
-
-    const currentSteps = userItinerary.days?.[0]?.steps || [];
+    const currentSteps = userItinerary?.days?.[0]?.steps || [];
     const nextOrder = currentSteps.length + 1;
     const lastTime = currentSteps[currentSteps.length - 1]?.suggestedTime || '09:30';
     const [h, m] = lastTime.split(':').map(Number);
@@ -564,7 +680,7 @@ export const ItinerariesView: React.FC<ItinerariesViewProps> = ({
       category: spot.categoryLabel || spot.category || 'Atração',
       categoryLabel: spot.categoryLabel || 'Atração / Turística',
       description: spot.description || spot.address || '',
-      suggestedTime: formattedTime,
+      suggestedTime: currentSteps.length === 0 ? '09:30' : formattedTime,
       durationMinutes: 90,
       travelTimeFromPrev: '15 min até o próximo ponto',
       image: spot.image || '',
@@ -574,7 +690,7 @@ export const ItinerariesView: React.FC<ItinerariesViewProps> = ({
       spot: spot,
     };
 
-    const updatedDays = (userItinerary.days && userItinerary.days.length > 0)
+    const updatedDays = (userItinerary?.days && userItinerary.days.length > 0)
       ? userItinerary.days.map((day, dIdx) => {
           if (dIdx === 0) {
             return {
@@ -586,8 +702,16 @@ export const ItinerariesView: React.FC<ItinerariesViewProps> = ({
         })
       : [{ dayNumber: 1, theme: 'Dia 1', steps: [newStep] }];
 
-    const updated: Itinerary = {
+    const updated: Itinerary = userItinerary ? {
       ...userItinerary,
+      days: updatedDays,
+    } : {
+      id: `itinerary-user-${Date.now()}`,
+      title: 'Meu Roteiro em Campos',
+      description: 'Roteiro personalizado de Campos do Jordão',
+      coverImage: spot.image || '/hotel.png',
+      isPremium: isUserGold,
+      badgeText: isUserGold ? 'CONTA GOLD' : undefined,
       days: updatedDays,
     };
 
@@ -596,10 +720,17 @@ export const ItinerariesView: React.FC<ItinerariesViewProps> = ({
     if (mapRef.current && spot.lng != null && spot.lat != null) {
       mapRef.current.easeTo({
         center: [spot.lng, spot.lat],
-        zoom: 14.8,
+        zoom: 15.3,
+        pitch: 52,
+        bearing: -13,
         duration: 800,
       });
     }
+    setTimeout(() => {
+      if (mapRef.current) {
+        renderRouteAndMarkers(true);
+      }
+    }, 150);
     setStoreToast(`Local "${spot.name}" adicionado ao roteiro!`);
     setTimeout(() => {
       setStoreToast(null);
@@ -607,7 +738,7 @@ export const ItinerariesView: React.FC<ItinerariesViewProps> = ({
 
     try {
       localStorage.setItem('monvian_active_itinerary', JSON.stringify(updated));
-      if (userItinerary.id) {
+      if (userItinerary?.id) {
         fetch(`/api/user-itineraries/${userItinerary.id}`, {
           method: 'PUT',
           headers: { 'Content-Type': 'application/json' },
@@ -653,7 +784,6 @@ export const ItinerariesView: React.FC<ItinerariesViewProps> = ({
 
   // Notes Modal state & persistent trip notes
   const [isNotesModalOpen, setIsNotesModalOpen] = useState(false);
-  const [isListeningNote, setIsListeningNote] = useState(false);
   const [tripNoteText, setTripNoteText] = useState<string>(() => {
     try {
       const saved = localStorage.getItem('monvian_trip_note_campos');
@@ -661,45 +791,12 @@ export const ItinerariesView: React.FC<ItinerariesViewProps> = ({
     } catch (e) {}
     return '';
   });
-  const [isNoteSavedToast, setIsNoteSavedToast] = useState(false);
-
-  const toggleDictation = () => {
-    const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
-    if (!SpeechRecognition) {
-      alert('Ditado por voz não é suportado neste navegador.');
-      return;
-    }
-    if (isListeningNote) {
-      setIsListeningNote(false);
-      return;
-    }
-    try {
-      const recognition = new SpeechRecognition();
-      recognition.lang = 'pt-BR';
-      recognition.continuous = false;
-      recognition.interimResults = false;
-      recognition.onstart = () => setIsListeningNote(true);
-      recognition.onend = () => setIsListeningNote(false);
-      recognition.onerror = () => setIsListeningNote(false);
-      recognition.onresult = (event: any) => {
-        const transcript = event.results?.[0]?.[0]?.transcript;
-        if (transcript) {
-          setTripNoteText((prev) => (prev ? `${prev} ${transcript}` : transcript));
-        }
-      };
-      recognition.start();
-    } catch (e) {
-      setIsListeningNote(false);
-    }
-  };
 
   const handleSaveTripNote = (text: string) => {
     setTripNoteText(text);
     try {
       localStorage.setItem('monvian_trip_note_campos', text);
     } catch (e) {}
-    setIsNoteSavedToast(true);
-    setTimeout(() => setIsNoteSavedToast(false), 2200);
   };
 
   // Rename title inline
@@ -716,11 +813,13 @@ export const ItinerariesView: React.FC<ItinerariesViewProps> = ({
   const markerRecordsRef = useRef<Array<{
     stepId: string;
     marker: maplibregl.Marker;
+    el: HTMLElement;
     containerEl: HTMLElement;
     badgeEl: HTMLElement;
     arrowEl: HTMLElement;
     pulseEl: HTMLElement | null;
   }>>([]);
+  const renderRouteAndMarkersRef = useRef<((shouldFitBounds?: boolean, overrideSteps?: ItineraryStep[], overrideSelectedId?: string | null) => void) | null>(null);
 
   // Fetch saved user itinerary or draft on startup
   useEffect(() => {
@@ -913,6 +1012,12 @@ export const ItinerariesView: React.FC<ItinerariesViewProps> = ({
     setUserItinerary(updated);
     localStorage.setItem('monvian_active_itinerary', JSON.stringify(updated));
 
+    const firstStep = updated.days?.[0]?.steps?.[0];
+    if (firstStep) {
+      setSelectedStopId(firstStep.id);
+    }
+    renderRouteAndMarkers(false, updated.days?.[0]?.steps, firstStep?.id);
+
     try {
       await fetch(`/api/user-itineraries/${updated.id}`, {
         method: 'PUT',
@@ -937,10 +1042,13 @@ export const ItinerariesView: React.FC<ItinerariesViewProps> = ({
   const handleDeleteStep = async (stepId: string) => {
     if (!userItinerary) return;
 
-    const updatedDays = (userItinerary.days || []).map((day) => ({
-      ...day,
-      steps: (day.steps || []).filter((s) => s.id !== stepId)
-    }));
+    const updatedDays = (userItinerary.days || []).map((day) => {
+      const filtered = (day.steps || []).filter((s) => s.id !== stepId);
+      return {
+        ...day,
+        steps: filtered.map((s, idx) => ({ ...s, stepOrder: idx + 1 })),
+      };
+    });
 
     const updated: Itinerary = {
       ...userItinerary,
@@ -950,10 +1058,16 @@ export const ItinerariesView: React.FC<ItinerariesViewProps> = ({
     setUserItinerary(updated);
     localStorage.setItem('monvian_active_itinerary', JSON.stringify(updated));
 
-    if (selectedStopId === stepId) {
-      const remainingSteps = updatedDays.flatMap(d => d.steps);
-      setSelectedStopId(remainingSteps.length > 0 ? remainingSteps[0].id : null);
+    const nextActiveSteps = updatedDays[0]?.steps || [];
+    const nextSelectedId = selectedStopId === stepId
+      ? (nextActiveSteps.length > 0 ? nextActiveSteps[0].id : null)
+      : selectedStopId;
+    if (nextSelectedId !== selectedStopId) {
+      setSelectedStopId(nextSelectedId);
     }
+
+    // Instantly sync route line and numbered pins on delete
+    renderRouteAndMarkers(false, nextActiveSteps, nextSelectedId);
 
     try {
       await fetch(`/api/user-itineraries/${updated.id}`, {
@@ -1010,15 +1124,15 @@ export const ItinerariesView: React.FC<ItinerariesViewProps> = ({
     }
   };
 
-  // Active steps from current user itinerary
+  // Active steps from current user itinerary - single source of truth for ordinal numbers
   const activeSteps = useMemo(() => {
     if (!userItinerary?.days || userItinerary.days.length === 0) return [];
-    const rawSteps = [...(userItinerary.days[0].steps || [])].sort((a, b) => a.stepOrder - b.stepOrder);
+    const rawSteps = [...(userItinerary.days[0].steps || [])].sort((a, b) => (a.stepOrder ?? 0) - (b.stepOrder ?? 0));
     const availableSpots = spots || CAMPOS_SPOTS;
-    return rawSteps.map((step) => {
+    return rawSteps.map((step, idx) => {
       const foundSpot = step.spot || availableSpots.find((sp) => sp.id === step.spotId);
       const spotToUse = foundSpot || {
-        id: step.spotId || 'spot-' + Math.random(),
+        id: step.spotId || `spot-${idx}`,
         name: step.spotName || step.title || 'Ponto Turístico',
         shortName: step.spotName || 'Ponto',
         tagLabel: 'Atração',
@@ -1035,11 +1149,17 @@ export const ItinerariesView: React.FC<ItinerariesViewProps> = ({
         address: 'Campos do Jordão, SP',
         visitorsToday: 42,
       };
+
+      // Guaranteed stable, unique step ID
+      const stepId = step.id || (step.spotId ? `step-${step.spotId}` : `step-item-${idx}`);
+
       return {
         ...step,
+        id: stepId,
+        stepOrder: idx + 1,
         spot: spotToUse,
-        lat: step.lat ?? spotToUse.lat,
-        lng: step.lng ?? spotToUse.lng,
+        lat: typeof step.lat === 'number' ? step.lat : spotToUse.lat,
+        lng: typeof step.lng === 'number' ? step.lng : spotToUse.lng,
       };
     });
   }, [userItinerary, spots]);
@@ -1056,17 +1176,10 @@ export const ItinerariesView: React.FC<ItinerariesViewProps> = ({
     }
   }, [userItinerary]);
 
-  // Check if current active user itinerary should render in gold theme
+  // Check if current active user itinerary should render in gold theme - STRICTLY for Gold subscribers only
   const isPremiumItinerary = useMemo(() => {
-    if (!isUserGold) return false;
-    return Boolean(
-      userItinerary?.isPremium ||
-      (userItinerary?.price && userItinerary.price.trim().length > 0) ||
-      userItinerary?.badgeText?.toLowerCase().includes('premium') ||
-      (userItinerary as any)?.preferences?.isPremium ||
-      (userItinerary as any)?.preferences?.sourceItineraryId
-    );
-  }, [userItinerary, isUserGold]);
+    return Boolean(isUserGold);
+  }, [isUserGold]);
 
   // Reorder steps up / down directly from the order arrows on cards (matching IMG_7287)
   const handleMoveStepUp = async (index: number) => {
@@ -1076,9 +1189,18 @@ export const ItinerariesView: React.FC<ItinerariesViewProps> = ({
     currentSteps[index - 1] = currentSteps[index];
     currentSteps[index] = temp;
 
+    // 1. Immediately update ordinal numbers (1, 2, 3...)
     const reorderedSteps = currentSteps.map((s, idx) => ({ ...s, stepOrder: idx + 1 }));
     const movedStep = reorderedSteps[index - 1];
 
+    if (movedStep?.id) {
+      setSelectedStopId(movedStep.id);
+    }
+
+    // 2. Synchronize pins and route line on the map INSTANTLY using reorderedSteps
+    renderRouteAndMarkers(false, reorderedSteps, movedStep?.id);
+
+    // 3. Update active user itinerary state and persistence
     const updatedDays = (userItinerary.days || []).map((day, dIdx) => {
       if (dIdx === 0) {
         return { ...day, steps: reorderedSteps };
@@ -1095,7 +1217,6 @@ export const ItinerariesView: React.FC<ItinerariesViewProps> = ({
     localStorage.setItem('monvian_active_itinerary', JSON.stringify(updated));
 
     if (movedStep?.id) {
-      setSelectedStopId(movedStep.id);
       if (mapRef.current && movedStep.spot && typeof movedStep.spot.lat === 'number' && typeof movedStep.spot.lng === 'number') {
         const verticalOffset = isExpanded
           ? -Math.round(window.innerHeight * 0.20)
@@ -1103,6 +1224,8 @@ export const ItinerariesView: React.FC<ItinerariesViewProps> = ({
         mapRef.current.easeTo({
           center: [movedStep.spot.lng, movedStep.spot.lat],
           zoom: 15.3,
+          pitch: 52,
+          bearing: -13,
           offset: [0, verticalOffset],
           duration: 600,
         });
@@ -1136,9 +1259,18 @@ export const ItinerariesView: React.FC<ItinerariesViewProps> = ({
     currentSteps[index + 1] = currentSteps[index];
     currentSteps[index] = temp;
 
+    // 1. Immediately update ordinal numbers (1, 2, 3...)
     const reorderedSteps = currentSteps.map((s, idx) => ({ ...s, stepOrder: idx + 1 }));
     const movedStep = reorderedSteps[index + 1];
 
+    if (movedStep?.id) {
+      setSelectedStopId(movedStep.id);
+    }
+
+    // 2. Synchronize pins and route line on the map INSTANTLY using reorderedSteps
+    renderRouteAndMarkers(false, reorderedSteps, movedStep?.id);
+
+    // 3. Update active user itinerary state and persistence
     const updatedDays = (userItinerary.days || []).map((day, dIdx) => {
       if (dIdx === 0) {
         return { ...day, steps: reorderedSteps };
@@ -1155,7 +1287,6 @@ export const ItinerariesView: React.FC<ItinerariesViewProps> = ({
     localStorage.setItem('monvian_active_itinerary', JSON.stringify(updated));
 
     if (movedStep?.id) {
-      setSelectedStopId(movedStep.id);
       if (mapRef.current && movedStep.spot && typeof movedStep.spot.lat === 'number' && typeof movedStep.spot.lng === 'number') {
         const verticalOffset = isExpanded
           ? -Math.round(window.innerHeight * 0.20)
@@ -1163,6 +1294,8 @@ export const ItinerariesView: React.FC<ItinerariesViewProps> = ({
         mapRef.current.easeTo({
           center: [movedStep.spot.lng, movedStep.spot.lat],
           zoom: 15.3,
+          pitch: 52,
+          bearing: -13,
           offset: [0, verticalOffset],
           duration: 600,
         });
@@ -1200,10 +1333,10 @@ export const ItinerariesView: React.FC<ItinerariesViewProps> = ({
   }, [activeSteps, selectedStopId]);
 
   // In-place marker visual sync matching Foto 2 (with yellow/gold styling for premium itineraries)
-  const syncMarkerHighlight = useCallback((activeStepId: string | null) => {
+  const syncMarkerHighlight = useCallback((activeStepId: string | null | undefined) => {
     const isPremium = isPremiumItinerary;
-    markerRecordsRef.current.forEach((rec) => {
-      const isSelected = rec.stepId === activeStepId;
+    markerRecordsRef.current.forEach((rec, idx) => {
+      const isSelected = (activeStepId && rec.stepId === activeStepId) || (!activeStepId && idx === 0);
       rec.containerEl.style.transform = isSelected ? 'scale(1.22)' : 'scale(0.96)';
       rec.containerEl.style.zIndex = isSelected ? '50' : '20';
 
@@ -1235,23 +1368,23 @@ export const ItinerariesView: React.FC<ItinerariesViewProps> = ({
           rec.pulseEl.style.display = isSelected ? 'block' : 'none';
         }
       } else {
-        // Standard Apple Blue styling for Free/Custom Itineraries
-        rec.badgeEl.style.background = isSelected ? '#007AFF' : (isDark ? '#27272a' : '#FFFFFF');
-        rec.badgeEl.style.color = isSelected ? '#FFFFFF' : (isDark ? '#e4e4e7' : '#18181b');
+        // Standard Apple Blue styling (Bolinha Azul / Balão com número)
+        rec.badgeEl.style.background = '#007AFF';
+        rec.badgeEl.style.color = '#FFFFFF';
         rec.badgeEl.style.border = isSelected
           ? '3px solid #FFFFFF'
-          : (isDark ? '2px solid rgba(255,255,255,0.2)' : '2px solid rgba(0,0,0,0.18)');
+          : '2px solid rgba(255, 255, 255, 0.85)';
         rec.badgeEl.style.boxShadow = isSelected
-          ? '0 6px 22px rgba(0, 122, 255, 0.65), 0 2px 8px rgba(0, 0, 0, 0.3)'
-          : '0 2px 8px rgba(0, 0, 0, 0.2)';
+          ? '0 6px 22px rgba(0, 122, 255, 0.75), 0 2px 8px rgba(0, 0, 0, 0.35)'
+          : '0 3px 10px rgba(0, 122, 255, 0.4), 0 1px 4px rgba(0, 0, 0, 0.2)';
 
-        rec.arrowEl.style.background = isSelected ? '#007AFF' : (isDark ? '#27272a' : '#FFFFFF');
+        rec.arrowEl.style.background = '#007AFF';
         rec.arrowEl.style.borderRight = isSelected
           ? '3px solid #FFFFFF'
-          : (isDark ? '2px solid rgba(255,255,255,0.2)' : '2px solid rgba(0,0,0,0.18)');
+          : '2px solid rgba(255, 255, 255, 0.85)';
         rec.arrowEl.style.borderBottom = isSelected
           ? '3px solid #FFFFFF'
-          : (isDark ? '2px solid rgba(255,255,255,0.2)' : '2px solid rgba(0,0,0,0.18)');
+          : '2px solid rgba(255, 255, 255, 0.85)';
 
         if (rec.pulseEl) {
           rec.pulseEl.style.background = 'radial-gradient(circle, rgba(0, 122, 255, 0.5) 0%, rgba(0, 122, 255, 0.2) 55%, transparent 75%)';
@@ -1261,161 +1394,33 @@ export const ItinerariesView: React.FC<ItinerariesViewProps> = ({
     });
   }, [isDark, isPremiumItinerary]);
 
-  // Update Route Polyline and Markers efficiently without destroying DOM elements
-  const renderRouteAndMarkers = useCallback((shouldFitBounds = false) => {
+  // Update Route Polyline and Markers efficiently with strictly synchronized numbering
+  const renderRouteAndMarkers = useCallback((shouldFitBounds = false, overrideSteps?: ItineraryStep[], overrideSelectedId?: string | null) => {
     const map = mapRef.current;
     if (!map) return;
 
-    if (!map.isStyleLoaded()) {
-      map.once('load', () => {
-        if (mapRef.current === map) renderRouteAndMarkers(shouldFitBounds);
-      });
-      map.once('styledata', () => {
-        if (mapRef.current === map) renderRouteAndMarkers(shouldFitBounds);
-      });
-      return;
-    }
-
-    // Extract coordinates
-    const validSteps = activeSteps.filter(
+    // Extract coordinates from activeSteps (or override steps passed during instant reordering)
+    const steps = overrideSteps || activeSteps;
+    const validSteps = steps.filter(
       (s) => s.spot && typeof s.spot.lat === 'number' && typeof s.spot.lng === 'number'
     );
     const coordinates: [number, number][] = validSteps.map((s) => [s.spot!.lng, s.spot!.lat]);
-
-    // GeoJSON route
-    const routeSourceId = 'itinerary-route-source';
-    const glowLayerId = 'itinerary-route-glow';
-    const casingLayerId = 'itinerary-route-casing';
-    const lineLayerId = 'itinerary-route-line';
+    const targetSelectedId = overrideSelectedId !== undefined ? overrideSelectedId : selectedStopId;
     const isPremium = isPremiumItinerary;
     const routeColor = isPremium ? '#E5AC33' : '#007AFF';
 
-    const geojsonData: GeoJSON.FeatureCollection = {
-      type: 'FeatureCollection',
-      features:
-        coordinates.length >= 2
-          ? [
-              {
-                type: 'Feature',
-                properties: {},
-                geometry: {
-                  type: 'LineString',
-                  coordinates,
-                },
-              },
-            ]
-          : [],
-    };
-
-    const existingSource = map.getSource(routeSourceId) as maplibregl.GeoJSONSource;
-    if (existingSource) {
-      existingSource.setData(geojsonData);
-      if (map.getLayer(glowLayerId)) {
-        map.setPaintProperty(glowLayerId, 'line-color', routeColor);
-      }
-      if (map.getLayer(lineLayerId)) {
-        map.setPaintProperty(lineLayerId, 'line-color', routeColor);
-      }
-    } else {
-      map.addSource(routeSourceId, {
-        type: 'geojson',
-        data: geojsonData,
-      });
-
-      // Outer glow
-      map.addLayer({
-        id: glowLayerId,
-        type: 'line',
-        source: routeSourceId,
-        layout: {
-          'line-cap': 'round',
-          'line-join': 'round',
-        },
-        paint: {
-          'line-color': routeColor,
-          'line-width': 12,
-          'line-opacity': isPremium ? 0.45 : 0.35,
-          'line-blur': 6,
-        },
-      });
-
-      // Casing
-      map.addLayer({
-        id: casingLayerId,
-        type: 'line',
-        source: routeSourceId,
-        layout: {
-          'line-cap': 'round',
-          'line-join': 'round',
-        },
-        paint: {
-          'line-color': '#FFFFFF',
-          'line-width': 7,
-          'line-opacity': 0.9,
-        },
-      });
-
-      // Line
-      map.addLayer({
-        id: lineLayerId,
-        type: 'line',
-        source: routeSourceId,
-        layout: {
-          'line-cap': 'round',
-          'line-join': 'round',
-        },
-        paint: {
-          'line-color': routeColor,
-          'line-width': 4.5,
-        },
-      });
-    }
-
-    // Check if we can safely update existing marker numbers in-place on this active map instance
-    const existingStepIds = markerRecordsRef.current.map((r) => r.stepId);
-    const newStepIds = validSteps.map((s) => s.id);
-    const isSameMarkerSet =
-      existingStepIds.length === newStepIds.length &&
-      existingStepIds.every((id) => newStepIds.includes(id));
-
-    const areMarkersAttachedToCurrentMap =
-      markerRecordsRef.current.length > 0 &&
-      markerRecordsRef.current.every((rec) => {
-        try {
-          const el = rec.marker.getElement();
-          return Boolean(el && el.isConnected && map.getContainer().contains(el));
-        } catch {
-          return false;
-        }
-      });
-
-    if (isSameMarkerSet && areMarkersAttachedToCurrentMap) {
-      // In-place update of step numbers and positions on map: 0 DOM destruction, 60fps/120fps guarantee!
-      validSteps.forEach((step, idx) => {
-        const rec = markerRecordsRef.current.find((r) => r.stepId === step.id);
-        if (rec) {
-          rec.badgeEl.innerText = String(idx + 1).padStart(2, '0');
-          if (step.spot && typeof step.spot.lng === 'number' && typeof step.spot.lat === 'number') {
-            rec.marker.setLngLat([step.spot.lng, step.spot.lat]);
-          }
-        }
-      });
-      syncMarkerHighlight(selectedStopId);
-      return;
-    }
-
-    // Clear previous markers
-    markerRecordsRef.current.forEach((rec) => {
+    // 1. Cleanly recreate DOM Markers so that pin numbers strictly reflect the card sequence (1, 2, 3...)
+    const currentRecords = markerRecordsRef.current;
+    currentRecords.forEach((rec) => {
       try {
         rec.marker.remove();
       } catch (e) {}
     });
     markerRecordsRef.current = [];
 
-    // Attach markers with direct element references matching Foto 2
     validSteps.forEach((step, idx) => {
       const stepNumberFormatted = String(idx + 1).padStart(2, '0');
-      const isSelected = (selectedStopId && selectedStopId === step.id) || (!selectedStopId && idx === 0);
+      const isSelected = (targetSelectedId && targetSelectedId === step.id) || (!targetSelectedId && idx === 0);
 
       const el = document.createElement('div');
       el.className = 'monvian-route-marker group cursor-pointer select-none';
@@ -1429,7 +1434,7 @@ export const ItinerariesView: React.FC<ItinerariesViewProps> = ({
       containerEl.style.transform = isSelected ? 'scale(1.22)' : 'scale(0.96)';
       containerEl.style.zIndex = isSelected ? '50' : '20';
 
-      // Glowing circular translucent aura/halo (Foto 2 / Gold for premium)
+      // Glowing circular translucent aura/halo
       const pulseEl = document.createElement('div');
       pulseEl.style.position = 'absolute';
       pulseEl.style.width = '64px';
@@ -1444,7 +1449,7 @@ export const ItinerariesView: React.FC<ItinerariesViewProps> = ({
       pulseEl.style.zIndex = '-1';
       pulseEl.style.display = isSelected ? 'block' : 'none';
 
-      // Pin Circular Badge (Foto 2: Metallic Gold for premium, Blue for free)
+      // Pin Circular Badge (Bolinha com o número da sequência)
       const badgeEl = document.createElement('div');
       badgeEl.style.width = '36px';
       badgeEl.style.height = '36px';
@@ -1469,15 +1474,17 @@ export const ItinerariesView: React.FC<ItinerariesViewProps> = ({
           ? '0 6px 26px rgba(230, 172, 51, 0.85), 0 2px 8px rgba(0, 0, 0, 0.4)'
           : '0 2px 10px rgba(230, 172, 51, 0.25), 0 1px 4px rgba(0, 0, 0, 0.15)';
       } else {
-        badgeEl.style.background = isSelected ? '#007AFF' : (isDark ? '#27272a' : '#FFFFFF');
-        badgeEl.style.color = isSelected ? '#FFFFFF' : (isDark ? '#e4e4e7' : '#18181b');
+        // Standard Apple Blue (Bolinha Azul)
+        badgeEl.style.background = '#007AFF';
+        badgeEl.style.color = '#FFFFFF';
         badgeEl.style.border = isSelected
           ? '3px solid #FFFFFF'
-          : (isDark ? '2px solid rgba(255,255,255,0.2)' : '2px solid rgba(0,0,0,0.18)');
+          : '2px solid rgba(255, 255, 255, 0.85)';
         badgeEl.style.boxShadow = isSelected
-          ? '0 6px 22px rgba(0, 122, 255, 0.65), 0 2px 8px rgba(0, 0, 0, 0.3)'
-          : '0 2px 8px rgba(0, 0, 0, 0.2)';
+          ? '0 6px 22px rgba(0, 122, 255, 0.75), 0 2px 8px rgba(0, 0, 0, 0.35)'
+          : '0 3px 10px rgba(0, 122, 255, 0.4), 0 1px 4px rgba(0, 0, 0, 0.2)';
       }
+      badgeEl.textContent = stepNumberFormatted;
       badgeEl.innerText = stepNumberFormatted;
 
       // Pin downward arrow pointer
@@ -1498,13 +1505,13 @@ export const ItinerariesView: React.FC<ItinerariesViewProps> = ({
           ? '3px solid #FFFFFF'
           : (isDark ? '2px solid rgba(245, 190, 56, 0.65)' : '2px solid rgba(230, 172, 51, 0.75)');
       } else {
-        arrowEl.style.background = isSelected ? '#007AFF' : (isDark ? '#27272a' : '#FFFFFF');
+        arrowEl.style.background = '#007AFF';
         arrowEl.style.borderRight = isSelected
           ? '3px solid #FFFFFF'
-          : (isDark ? '2px solid rgba(255,255,255,0.2)' : '2px solid rgba(0,0,0,0.18)');
+          : '2px solid rgba(255, 255, 255, 0.85)';
         arrowEl.style.borderBottom = isSelected
           ? '3px solid #FFFFFF'
-          : (isDark ? '2px solid rgba(255,255,255,0.2)' : '2px solid rgba(0,0,0,0.18)');
+          : '2px solid rgba(255, 255, 255, 0.85)';
       }
 
       containerEl.appendChild(pulseEl);
@@ -1512,10 +1519,11 @@ export const ItinerariesView: React.FC<ItinerariesViewProps> = ({
       containerEl.appendChild(arrowEl);
       el.appendChild(containerEl);
 
-      el.addEventListener('click', (e) => {
+      const currentStepId = step.id;
+      el.onclick = (e) => {
         e.stopPropagation();
-        handleSelectStopOnMap(step);
-      });
+        handleSelectStopOnMapById(currentStepId);
+      };
 
       const marker = new maplibregl.Marker({ element: el })
         .setLngLat([step.spot!.lng, step.spot!.lat])
@@ -1524,34 +1532,138 @@ export const ItinerariesView: React.FC<ItinerariesViewProps> = ({
       markerRecordsRef.current.push({
         stepId: step.id,
         marker,
+        el,
         containerEl,
         badgeEl,
         arrowEl,
         pulseEl,
       });
     });
+    syncMarkerHighlight(targetSelectedId);
 
-    // Fit camera bounds only when explicitly requested (e.g. initial load or stop deletion)
-    if (shouldFitBounds && coordinates.length > 0) {
-      const bounds = new maplibregl.LngLatBounds();
-      coordinates.forEach((coord) => bounds.extend(coord));
+    // 2. Safely update GeoJSON Route Line if style is loaded
+    try {
+      if (map.isStyleLoaded()) {
+        const routeSourceId = 'itinerary-route-source';
+        const glowLayerId = 'itinerary-route-glow';
+        const casingLayerId = 'itinerary-route-casing';
+        const lineLayerId = 'itinerary-route-line';
 
-      map.fitBounds(bounds, {
-        padding: {
-          top: 90,
-          bottom: Math.round(window.innerHeight * 0.5) + 20,
-          left: 45,
-          right: 45,
-        },
-        maxZoom: 14.8,
-        duration: 600,
-      });
+        const geojsonData: GeoJSON.FeatureCollection = {
+          type: 'FeatureCollection',
+          features:
+            coordinates.length >= 2
+              ? [
+                  {
+                    type: 'Feature',
+                    properties: {},
+                    geometry: {
+                      type: 'LineString',
+                      coordinates,
+                    },
+                  },
+                ]
+              : [],
+        };
+
+        const existingSource = map.getSource(routeSourceId) as maplibregl.GeoJSONSource | undefined;
+        if (existingSource) {
+          existingSource.setData(geojsonData);
+          if (map.getLayer(glowLayerId)) {
+            map.setPaintProperty(glowLayerId, 'line-color', routeColor);
+          }
+          if (map.getLayer(lineLayerId)) {
+            map.setPaintProperty(lineLayerId, 'line-color', routeColor);
+          }
+        } else {
+          map.addSource(routeSourceId, {
+            type: 'geojson',
+            data: geojsonData,
+          });
+
+          map.addLayer({
+            id: glowLayerId,
+            type: 'line',
+            source: routeSourceId,
+            layout: { 'line-cap': 'round', 'line-join': 'round' },
+            paint: {
+              'line-color': routeColor,
+              'line-width': 12,
+              'line-opacity': isPremium ? 0.45 : 0.35,
+              'line-blur': 6,
+            },
+          });
+
+          map.addLayer({
+            id: casingLayerId,
+            type: 'line',
+            source: routeSourceId,
+            layout: { 'line-cap': 'round', 'line-join': 'round' },
+            paint: {
+              'line-color': '#FFFFFF',
+              'line-width': 7,
+              'line-opacity': 0.9,
+            },
+          });
+
+          map.addLayer({
+            id: lineLayerId,
+            type: 'line',
+            source: routeSourceId,
+            layout: { 'line-cap': 'round', 'line-join': 'round' },
+            paint: {
+              'line-color': routeColor,
+              'line-width': 4.5,
+            },
+          });
+        }
+      }
+    } catch (e) {
+      console.warn('Error updating route line on map:', e);
     }
-  }, [activeSteps, selectedStopId, isDark, isPremiumItinerary, syncMarkerHighlight]);
 
-  // Initialize MapLibre GL map when userItinerary exists and tab is open
+    // 3. Fit camera bounds only when explicitly requested (e.g. initial load or stop deletion)
+    if (shouldFitBounds && coordinates.length > 0) {
+      if (coordinates.length === 1) {
+        const verticalOffset = isExpanded
+          ? -Math.round(window.innerHeight * 0.20)
+          : -Math.round(window.innerHeight * 0.08);
+        map.easeTo({
+          center: coordinates[0],
+          zoom: 15.3,
+          pitch: 52,
+          bearing: -13,
+          offset: [0, verticalOffset],
+          duration: 600,
+        });
+      } else {
+        const bounds = new maplibregl.LngLatBounds();
+        coordinates.forEach((coord) => bounds.extend(coord));
+
+        map.fitBounds(bounds, {
+          padding: {
+            top: 90,
+            bottom: Math.round(window.innerHeight * 0.5) + 20,
+            left: 45,
+            right: 45,
+          },
+          pitch: 52,
+          bearing: -13,
+          maxZoom: 15.2,
+          duration: 600,
+        });
+      }
+    }
+  }, [activeSteps, selectedStopId, isDark, isPremiumItinerary, syncMarkerHighlight, isExpanded]);
+
+  // Keep renderRouteAndMarkers ref continuously in sync for instant callers
   useEffect(() => {
-    if (!isOpen || !userItinerary || !mapContainerRef.current) return;
+    renderRouteAndMarkersRef.current = renderRouteAndMarkers;
+  }, [renderRouteAndMarkers]);
+
+  // Initialize MapLibre GL map when tab is open
+  useEffect(() => {
+    if (!isOpen || !mapContainerRef.current) return;
 
     // Clean up any stale markers before initializing map
     markerRecordsRef.current.forEach((rec) => {
@@ -1570,11 +1682,14 @@ export const ItinerariesView: React.FC<ItinerariesViewProps> = ({
 
     const map = new maplibregl.Map({
       container: mapContainerRef.current,
-      style: getMapStyle(theme === 'dark' ? 'dark' : 'light'),
-      center: [-45.5910, -22.7340],
-      zoom: 12.8,
+      style: getMapStyle(itineraryMapStyle, theme === 'dark' ? 'dark' : 'light'),
+      center: [-45.5870, -22.7355],
+      zoom: 15.2,
+      pitch: 52,
+      bearing: -13,
+      projection: { type: 'globe' },
       attributionControl: false,
-    });
+    } as any);
 
     mapRef.current = map;
 
@@ -1612,11 +1727,11 @@ export const ItinerariesView: React.FC<ItinerariesViewProps> = ({
         mapRef.current = null;
       }
     };
-  }, [isOpen, userItinerary?.id, theme]);
+  }, [isOpen, userItinerary?.id, itineraryMapStyle, theme]);
 
   // When active steps change or map finishes loading
   useEffect(() => {
-    if (mapRef.current && mapRef.current.isStyleLoaded()) {
+    if (mapRef.current) {
       renderRouteAndMarkers(false);
     }
   }, [activeSteps, renderRouteAndMarkers]);
@@ -1626,187 +1741,64 @@ export const ItinerariesView: React.FC<ItinerariesViewProps> = ({
     syncMarkerHighlight(selectedStopId);
   }, [selectedStopId, syncMarkerHighlight]);
 
-  // Select stop, highlight numbered marker, zoom in and center in the visible half of the map
-  const handleSelectStopOnMap = (step: ItineraryStep) => {
-    setSelectedStopId(step.id);
-    if (mapRef.current && step.spot) {
+  // Select stop by ID, highlight numbered marker, zoom in and center in the visible half of the map
+  const handleSelectStopOnMapById = (stepId: string) => {
+    setSelectedStopId(stepId);
+    const targetStep = activeSteps.find((s) => s.id === stepId);
+    if (mapRef.current && targetStep?.spot && typeof targetStep.spot.lat === 'number' && typeof targetStep.spot.lng === 'number') {
       // Center the marker precisely in the middle of the visible map area above the bottom sheet
       const verticalOffset = isExpanded
         ? -Math.round(window.innerHeight * 0.20)
         : -Math.round(window.innerHeight * 0.08);
 
       mapRef.current.easeTo({
-        center: [step.spot.lng, step.spot.lat],
+        center: [targetStep.spot.lng, targetStep.spot.lat],
         zoom: 15.3,
+        pitch: 52,
+        bearing: -13,
         offset: [0, verticalOffset],
         duration: 600,
       });
     }
   };
 
+  const handleSelectStopOnMap = (step: ItineraryStep) => {
+    handleSelectStopOnMapById(step.id);
+  };
+
   if (!isOpen) return null;
 
   // -------------------------------------------------------------
-  // VIEW MODE A: Step-by-Step Creation Wizard (Single question at a time)
-  // -------------------------------------------------------------
-  if (!userItinerary) {
-    return (
-      <div
-        className={`fixed inset-0 z-[120] flex flex-col justify-between overflow-y-auto transition-colors duration-200 select-none ${
-          isDark ? 'bg-[#111315] text-white' : 'bg-[#F4F4F6] text-zinc-900'
-        }`}
-        style={{
-          paddingTop: 'max(14px, env(safe-area-inset-top, 0px))',
-          paddingBottom: 'max(16px, env(safe-area-inset-bottom, 16px))',
-        }}
-      >
-        {/* Top Minimalist Header with iOS Frosted Glass */}
-        <div className="w-full max-w-md sm:max-w-xl mx-auto px-4 py-2.5 flex items-center justify-between shrink-0">
-          <button
-            type="button"
-            onClick={() => {
-              if (wizardStep === 'people') setWizardStep('date');
-              else if (wizardStep === 'budget') setWizardStep('people');
-              else if (wizardStep === 'tinder') setWizardStep('budget');
-              else onClose();
-            }}
-            className="w-11 h-11 rounded-full ios-glass-btn flex items-center justify-center transition-all active:scale-95 cursor-pointer shadow-lg text-zinc-800 dark:text-white"
-            title="Voltar"
-          >
-            <ArrowLeft className="w-5 h-5" />
-          </button>
-
-          {/* Step Pill */}
-          <div className="flex items-center gap-2 px-4 py-2 rounded-full ios-glass shadow-md">
-            <span
-              className={`w-2 h-2 rounded-full transition-all ${
-                wizardStep === 'date' ? 'bg-blue-600 scale-125' : 'bg-zinc-400 dark:bg-zinc-600'
-              }`}
-            />
-            <span
-              className={`w-2 h-2 rounded-full transition-all ${
-                wizardStep === 'people' ? 'bg-blue-600 scale-125' : 'bg-zinc-400 dark:bg-zinc-600'
-              }`}
-            />
-            <span
-              className={`w-2 h-2 rounded-full transition-all ${
-                wizardStep === 'budget' ? 'bg-blue-600 scale-125' : 'bg-zinc-400 dark:bg-zinc-600'
-              }`}
-            />
-            <span
-              className={`w-2 h-2 rounded-full transition-all ${
-                wizardStep === 'tinder' ? 'bg-blue-600 scale-125' : 'bg-zinc-400 dark:bg-zinc-600'
-              }`}
-            />
-          </div>
-
-          <div className="w-11 flex items-center justify-end">
-            {wizardStep === 'tinder' ? (
-              <span className="text-[11px] font-black text-zinc-400 dark:text-zinc-500 tabular-nums px-2 py-1 rounded-full ios-glass">
-                4/4
-              </span>
-            ) : null}
-          </div>
-        </div>
-
-        {/* Wizard Step Content */}
-        <div className="flex-1 w-full overflow-y-auto flex flex-col items-center justify-center px-4 py-2 sm:py-4 my-auto">
-          <AnimatePresence mode="wait">
-            {wizardStep === 'date' && (
-              <TripDateStep
-                key="step-date"
-                initialDate={tripDate}
-                onContinue={handleDateContinue}
-                theme={theme}
-              />
-            )}
-
-            {wizardStep === 'people' && (
-              <PeopleStep
-                key="step-people"
-                initialAdults={adultsCount}
-                initialChildren={childrenCount}
-                initialCount={peopleCount}
-                onContinue={handlePeopleContinue}
-                onBack={() => setWizardStep('date')}
-                theme={theme}
-              />
-            )}
-
-            {wizardStep === 'budget' && (
-              <BudgetStep
-                key="step-budget"
-                initialBudget={budget}
-                onContinue={handleBudgetContinue}
-                onBack={() => setWizardStep('people')}
-                theme={theme}
-              />
-            )}
-
-            {wizardStep === 'tinder' && (
-              <TinderDiscoveryStep
-                key="step-tinder"
-                spots={spots}
-                onFinish={handleTinderFinish}
-                onBack={() => setWizardStep('budget')}
-                theme={theme}
-              />
-            )}
-
-            {wizardStep === 'generating' && (
-              <motion.div
-                key="step-generating"
-                initial={{ opacity: 0, scale: 0.95 }}
-                animate={{ opacity: 1, scale: 1 }}
-                exit={{ opacity: 0, scale: 1.05 }}
-                transition={{ duration: 0.4 }}
-                className="w-full max-w-sm sm:max-w-md mx-auto my-auto flex flex-col items-center justify-center text-center px-6 py-12"
-              >
-                <div className="relative w-16 h-16 sm:w-18 sm:h-18 mb-6 flex items-center justify-center">
-                  <div className="w-full h-full rounded-full border-[3.5px] border-blue-500/20 border-t-blue-500 animate-spin" />
-                </div>
-                <h2 className="text-2xl sm:text-3xl font-extrabold text-zinc-900 dark:text-white tracking-tight">
-                  Criando seu Roteiro...
-                </h2>
-                <p className="text-sm sm:text-base font-medium text-zinc-500 dark:text-zinc-400 mt-2.5 max-w-[280px] sm:max-w-[320px] leading-relaxed mx-auto">
-                  Organizando os pontos turísticos em sequência inteligente para minimizar deslocamentos.
-                </p>
-              </motion.div>
-            )}
-          </AnimatePresence>
-        </div>
-      </div>
-    );
-  }
-
-  // -------------------------------------------------------------
-  // VIEW MODE B: Map with the Route and Sequential Points
+  // VIEW MODE: Interactive Map with Route, Sequential Points & Store
   // -------------------------------------------------------------
   return (
-    <div className={`fixed inset-0 ${isEditModalOpen || isStoreOpen ? 'z-[90]' : 'z-40'} w-full h-full overflow-hidden ${isDark ? 'bg-[#111315]' : 'bg-[#F4F4F6]'} select-none`}>
+    <div className={`fixed inset-0 md:left-64 lg:left-72 ${isEditModalOpen || isStoreOpen ? 'z-[90]' : 'z-40'} w-full md:w-auto h-full overflow-hidden ${isDark ? 'bg-black' : 'bg-white'} select-none`}>
       {/* 1. MapLibre GL Interactive Canvas */}
       <div
         ref={mapContainerRef}
         onClick={() => setIsExpanded(false)}
-        className="absolute inset-0 w-full h-full cursor-grab active:cursor-grabbing"
+        className={`absolute inset-0 w-full h-full cursor-grab active:cursor-grabbing ${
+          itineraryMapStyle === 'satelite' ? 'itinerary-satellite-canvas' : ''
+        }`}
       />
 
-      {/* 2. Top Header Overlay with Back Button and Itinerary Name Dynamic Island */}
+      {/* 2. Top Header Overlay with Back Button and Itinerary Name Dynamic Island (MOBILE ONLY) */}
       <div
-        className="absolute top-0 inset-x-0 z-30 pointer-events-none p-3.5 sm:p-4 flex items-center justify-between gap-2"
-        style={{ paddingTop: 'max(14px, env(safe-area-inset-top, 0px))' }}
+        className="md:hidden absolute top-0 left-0 right-0 z-30 pointer-events-none flex items-center justify-between gap-2 px-4 sm:px-6"
+        style={{
+          paddingTop: 'max(calc(env(safe-area-inset-top, 0px) + 16px), 28px)',
+          paddingLeft: 'max(16px, env(safe-area-inset-left, 0px))',
+          paddingRight: 'max(16px, env(safe-area-inset-right, 0px))',
+        }}
       >
+        {/* Left: Notes & Memories Modal Trigger Button (Translucent glass matching card) */}
         <button
           onClick={() => setIsNotesModalOpen(true)}
           type="button"
-          className={`relative w-11 h-11 sm:w-12 sm:h-12 rounded-full flex items-center justify-center pointer-events-auto transition-transform active:scale-95 cursor-pointer shrink-0 ${
-            isDark
-              ? 'ios-glass-btn text-white'
-              : 'ios-glass-btn-white text-zinc-900 shadow-md'
-          }`}
+          className="relative w-12 h-12 rounded-full flex items-center justify-center pointer-events-auto transition-transform active:scale-95 cursor-pointer shrink-0 ios-glass border border-white/25 text-zinc-900 dark:text-white shadow-lg"
           title="Anotações da viagem"
         >
-          <Notebook className="w-5 h-5 stroke-[1.8] text-zinc-900 dark:text-white" />
+          <Notebook className="w-5 h-5 stroke-[1.8] text-current" />
 
           {/* Glowing white pulsing dot indicator when notes are saved */}
           {tripNoteText.trim().length > 0 && (
@@ -1817,13 +1809,9 @@ export const ItinerariesView: React.FC<ItinerariesViewProps> = ({
           )}
         </button>
 
-        {/* Dynamic Island Style Pill (iPhone style, structured, rounded, bold title, pencil icon & stop count) */}
+        {/* Dynamic Island Style Pill (Translucent glass matching card) */}
         <div
-          className={`px-4 py-2.5 sm:px-5 sm:py-3 rounded-full pointer-events-auto flex items-center gap-2.5 sm:gap-3 text-xs sm:text-sm font-bold max-w-[calc(100vw-116px)] sm:max-w-none transition-all duration-200 ${
-            isDark
-              ? 'ios-glass text-white shadow-2xl'
-              : 'ios-glass-white text-zinc-900 shadow-lg'
-          }`}
+          className="h-12 px-4 sm:px-5 rounded-full pointer-events-auto flex items-center gap-2.5 sm:gap-3 text-xs sm:text-sm font-bold max-w-[calc(100vw-128px)] sm:max-w-none transition-all duration-200 ios-glass border border-white/25 text-zinc-900 dark:text-white shadow-xl"
         >
           <RoundedNavigationIcon isGold={isPremiumItinerary} className={`w-[26px] h-[26px] sm:w-[28px] sm:h-[28px] shrink-0 ${
             isPremiumItinerary
@@ -1869,75 +1857,290 @@ export const ItinerariesView: React.FC<ItinerariesViewProps> = ({
             <div className="flex items-center gap-1.5 min-w-0">
               <span
                 onClick={() => {
-                  setEditedTitle(userItinerary.title);
+                  setEditedTitle(userItinerary?.title || 'MEU ROTEIRO');
                   setIsEditingTitle(true);
                 }}
-                className={`font-black text-sm sm:text-base tracking-tight truncate max-w-[140px] sm:max-w-[240px] cursor-pointer ${
-                  isDark ? 'text-white' : 'text-zinc-900'
-                }`}
+                className="font-black text-sm sm:text-base tracking-tight truncate max-w-[140px] sm:max-w-[240px] cursor-pointer text-zinc-900 dark:text-white"
                 title="Toque para editar"
               >
-                {getShortDisplayTitle(userItinerary.title)}
+                {getShortDisplayTitle(userItinerary?.title || 'MEU ROTEIRO')}
               </span>
 
-              {isPremiumItinerary && (
+              {isUserGold ? (
                 <span className="px-2.5 py-0.5 rounded-full bg-metallic-gold-badge border text-[#C28514] dark:text-[#FDE073] text-[9px] font-black uppercase tracking-wider shrink-0 shadow-xs">
-                  {userItinerary.badgeText && userItinerary.badgeText.toUpperCase() !== 'PREMIUM' ? userItinerary.badgeText : 'CONTA GOLD'}
+                  CONTA GOLD
+                </span>
+              ) : (
+                <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-[#007AFF]/15 border border-[#007AFF]/35 text-[#007AFF] text-[9px] font-black uppercase tracking-wider shadow-xs shrink-0">
+                  <span className="w-1.5 h-1.5 rounded-full bg-[#007AFF]" />
+                  <span>Conta Beta</span>
                 </span>
               )}
             </div>
           )}
         </div>
 
-        {/* Action button to open edit modal (Clean Apple Sliders) */}
+        {/* Action button to open edit modal (Translucent glass matching card) */}
         <button
-          onClick={() => setIsEditModalOpen(true)}
+          onClick={() => {
+            if (userItinerary) {
+              setIsEditModalOpen(true);
+            } else {
+              setIsStoreOpen(true);
+            }
+          }}
           type="button"
-          className={`w-11 h-11 sm:w-12 sm:h-12 rounded-full flex items-center justify-center pointer-events-auto transition-transform active:scale-95 cursor-pointer shrink-0 ${
-            isDark
-              ? 'ios-glass-btn text-white'
-              : 'ios-glass-btn-white text-zinc-900 shadow-md'
-          }`}
+          className="w-12 h-12 rounded-full flex items-center justify-center pointer-events-auto transition-transform active:scale-95 cursor-pointer shrink-0 ios-glass border border-white/25 text-zinc-900 dark:text-white shadow-lg"
           title="Opções do roteiro"
         >
-          <SlidersHorizontal className="w-5 h-5" />
+          <SlidersHorizontal className="w-5 h-5 text-current" />
         </button>
       </div>
 
-      {/* Floating Add Spot "+" Button on Map (Right side above bottom sheet - matching IMG_7590) */}
+      {/* Floating Map Actions (Layers & Casinha/Store - Always above card with z-50, never covered or hidden) */}
       <div 
-        className="absolute right-4 sm:right-6 z-30 pointer-events-auto transition-all duration-300"
+        className="absolute right-4 sm:right-6 md:top-24 md:bottom-auto z-50 pointer-events-auto transition-all duration-300 flex flex-col items-center gap-3"
         style={{
-          bottom: isExpanded 
-            ? 'calc(46vh + 16px)' 
-            : 'calc(210px + env(safe-area-inset-bottom, 16px))',
+          bottom: (activeSteps.length === 0 || isExpanded)
+            ? 'calc(54vh + 16px)' 
+            : 'calc(max(265px, calc(env(safe-area-inset-bottom, 0px) + 165px)))',
         }}
       >
+        {/* Toggle between Satélite and Escuro / Claro (Translucent glass matching card) */}
         <motion.button
           whileTap={{ scale: 0.90 }}
           whileHover={{ scale: 1.05 }}
           type="button"
-          onClick={() => setIsPlusMenuOpen(true)}
-          className={`w-[43px] h-[43px] sm:w-[45px] sm:h-[45px] rounded-full flex items-center justify-center cursor-pointer transition-all duration-200 ${
-            isUserGold
-              ? 'bg-metallic-gold text-[#1A1202] shadow-[0_5px_20px_rgba(230,172,51,0.55)] border border-[#FFF4A3]/70'
-              : 'bg-[#007AFF] text-white shadow-[0_5px_20px_rgba(0,122,255,0.45)] border border-white/25 hover:bg-blue-500'
-          }`}
-          title="Opções do roteiro"
-          aria-label="Opções do roteiro"
+          onClick={handleToggleMapStyle}
+          className="w-[45px] h-[45px] rounded-full flex items-center justify-center cursor-pointer transition-all duration-200 ios-glass border border-white/25 text-zinc-900 dark:text-white shadow-lg"
+          title={itineraryMapStyle === 'satelite' ? 'Modo Satélite Ativo (Toque para alternar)' : 'Alternar satélite / mapa'}
+          aria-label="Alternar satélite / mapa"
         >
-          <Plus className="w-5 h-5 stroke-[2.8]" />
+          <Layers className="w-5 h-5 stroke-[2.2] text-current" />
+        </motion.button>
+
+        {/* Floating Create Itinerary Button on Map (Casinha / Loja de Roteiros - NEVER hidden or under card) */}
+        <motion.button
+          whileTap={{ scale: 0.90 }}
+          whileHover={{ scale: 1.05 }}
+          type="button"
+          onClick={() => setIsStoreOpen(true)}
+          className="w-[45px] h-[45px] rounded-full flex items-center justify-center cursor-pointer transition-all duration-200 ios-glass border border-white/25 shadow-lg"
+          title="Criar novo roteiro / Loja de Roteiros"
+          aria-label="Criar novo roteiro"
+        >
+          <Store className={`w-5 h-5 stroke-[2.2] ${isUserGold ? 'text-[#E6AC33]' : 'text-zinc-900 dark:text-white'}`} />
         </motion.button>
       </div>
 
-      {/* 4. Bottom Sheet with Route Stops and Actions (50% Split or Compact) */}
+      {/* 4-A. DESKTOP ITINERARY SIDE PANEL (Hidden on mobile, desktop-native vertical layout) */}
+      <aside
+        aria-label="Roteiro de Viagem"
+        className="hidden md:flex flex-col absolute top-5 bottom-5 left-5 w-96 lg:w-[420px] z-30 rounded-[28px] overflow-hidden border ios-glass border-white/15 dark:border-white/10 shadow-2xl pointer-events-auto select-none transition-colors duration-200 text-white"
+        onClick={(e) => e.stopPropagation()}
+      >
+        {/* Desktop Panel Header */}
+        <div className="p-4 lg:p-5 pb-3 border-b border-black/10 dark:border-white/10 shrink-0">
+          <div className="flex items-center justify-between gap-2 mb-2">
+            <div className="flex items-center gap-2.5 min-w-0">
+              <RoundedNavigationIcon
+                isGold={isPremiumItinerary}
+                className={`w-6 h-6 shrink-0 ${isPremiumItinerary ? '' : 'text-blue-500'}`}
+                size={24}
+              />
+              <h2 className="text-base font-black uppercase tracking-tight truncate text-zinc-900 dark:text-white">
+                {userItinerary?.title || 'Roteiro de Viagem'}
+              </h2>
+            </div>
+            <div className="flex items-center gap-1.5 shrink-0">
+              <button
+                type="button"
+                onClick={() => setIsEditModalOpen(true)}
+                className="p-1.5 rounded-xl bg-white/10 hover:bg-white/15 text-zinc-300 hover:text-white transition-colors cursor-pointer"
+                title="Editar roteiro"
+              >
+                <Edit3 className="w-4 h-4" />
+              </button>
+              <button
+                type="button"
+                onClick={() => setIsNotesModalOpen(true)}
+                className="p-1.5 rounded-xl bg-white/10 hover:bg-white/15 text-zinc-300 hover:text-white transition-colors cursor-pointer"
+                title="Anotações"
+              >
+                <Notebook className="w-4 h-4" />
+              </button>
+            </div>
+          </div>
+
+          {/* Subheader: Stops count + Days switcher */}
+          <div className="flex items-center justify-between text-xs text-zinc-400 font-semibold pt-1">
+            <span>{activeSteps.length} {activeSteps.length === 1 ? 'local' : 'locais'} planejados</span>
+            {userItinerary?.days && userItinerary.days.length > 1 && (
+              <div className="flex items-center gap-1">
+                {userItinerary.days.map((day) => (
+                  <span
+                    key={day.dayNumber}
+                    className="px-2 py-0.5 rounded-lg text-xs font-bold bg-blue-600/25 text-blue-400 border border-blue-500/30"
+                  >
+                    Dia {day.dayNumber}
+                  </span>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* Desktop Stops List with Independent Scrolling */}
+        <div
+          className="flex-1 overflow-y-auto p-3.5 space-y-2.5 custom-scrollbar"
+          onWheel={(e) => e.stopPropagation()}
+        >
+          {activeSteps.length > 0 ? (
+            activeSteps.map((step, idx) => (
+              <div
+                key={step.id}
+                onClick={() => handleSelectStopOnMap(step)}
+                className={`w-full flex items-center justify-between gap-3 p-3 rounded-2xl border text-left cursor-pointer transition-all duration-200 group relative ${
+                  step.id === currentSelectedStep?.id
+                    ? isPremiumItinerary
+                      ? 'bg-[#1C1E24] border-[#E5AC33]/60 shadow-md ring-1 ring-[#FFF4A3]/30 text-white'
+                      : 'bg-blue-600/15 border-blue-500/50 shadow-md ring-1 ring-blue-500/30 text-white'
+                    : 'bg-white/5 border-white/8 hover:bg-white/10 hover:border-white/15 text-white'
+                }`}
+              >
+                {/* Stop Number Badge */}
+                <div className="flex items-center gap-2.5 min-w-0 flex-1">
+                  <span className={`w-7 h-7 rounded-full text-[11px] font-black flex items-center justify-center leading-none shrink-0 ${
+                    isPremiumItinerary
+                      ? 'bg-metallic-gold text-[#1A1202] shadow-sm'
+                      : 'bg-blue-600 text-white shadow-sm'
+                  }`}>
+                    {String(idx + 1).padStart(2, '0')}
+                  </span>
+
+                  {/* Thumbnail Image */}
+                  {step.spot && (
+                    <div className="w-12 h-12 rounded-xl overflow-hidden shrink-0 bg-zinc-800">
+                      <img
+                        src={getSpotImage(step.spot)}
+                        alt={step.spot.name}
+                        className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-200"
+                        onError={(e) => {
+                          (e.target as HTMLImageElement).src = getSpotFallbackImage(step.spot?.name || '', step.spot?.category || 'attractions');
+                        }}
+                      />
+                    </div>
+                  )}
+
+                  {/* Info */}
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center gap-1.5 leading-none mb-1">
+                      <span className={`text-[10px] font-bold ${
+                        isPremiumItinerary ? 'text-[#FDE073]' : 'text-blue-400'
+                      }`}>
+                        {step.suggestedTime || '09:30'}
+                      </span>
+                      <span className="text-zinc-600">•</span>
+                      <span className="text-[9.5px] font-bold uppercase tracking-wider text-zinc-400 truncate">
+                        {step.spot?.categoryLabel || 'Ponto Turístico'}
+                      </span>
+                    </div>
+
+                    <h4 className="text-[13.5px] font-bold truncate text-white leading-tight">
+                      {step.spot?.name || `Local ${idx + 1}`}
+                    </h4>
+
+                    {step.durationToNextMin ? (
+                      <p className="text-[10.5px] text-zinc-400 truncate mt-0.5">
+                        {step.durationToNextMin} min até o próximo local
+                      </p>
+                    ) : (
+                      <p className="text-[10.5px] text-zinc-500 truncate mt-0.5">
+                        Local planejado do roteiro
+                      </p>
+                    )}
+                  </div>
+                </div>
+
+                {/* Right Actions: Reorder Arrows (Up/Down) & Delete */}
+                <div className="flex items-center gap-1 shrink-0">
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleMoveStepUp(idx);
+                    }}
+                    disabled={idx === 0}
+                    className={`w-7 h-7 rounded-lg flex items-center justify-center transition-colors cursor-pointer ${
+                      idx === 0
+                        ? 'opacity-30 cursor-not-allowed text-zinc-600'
+                        : 'bg-white/10 hover:bg-white/20 text-white'
+                    }`}
+                    title="Mover local para cima"
+                  >
+                    <ArrowUp className="w-3.5 h-3.5 stroke-[2.2]" />
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleMoveStepDown(idx);
+                    }}
+                    disabled={idx === activeSteps.length - 1}
+                    className={`w-7 h-7 rounded-lg flex items-center justify-center transition-colors cursor-pointer ${
+                      idx === activeSteps.length - 1
+                        ? 'opacity-30 cursor-not-allowed text-zinc-600'
+                        : 'bg-white/10 hover:bg-white/20 text-white'
+                    }`}
+                    title="Mover local para baixo"
+                  >
+                    <ArrowDown className="w-3.5 h-3.5 stroke-[2.2]" />
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleDeleteStep(step.id);
+                    }}
+                    className="w-7 h-7 rounded-lg flex items-center justify-center bg-red-500/15 hover:bg-red-500/25 text-red-400 hover:text-red-300 transition-colors cursor-pointer ml-0.5"
+                    title="Remover local"
+                  >
+                    <Trash2 className="w-3.5 h-3.5 stroke-[2.2]" />
+                  </button>
+                </div>
+              </div>
+            ))
+          ) : (
+            <div className="py-12 text-center text-zinc-500 text-xs">
+              Nenhum local adicionado ainda.
+            </div>
+          )}
+
+          {/* Add Stop Button at bottom of list */}
+          <div className="pt-2 pb-4">
+            <button
+              type="button"
+              onClick={() => setIsImportModalOpen(true)}
+              className="w-full flex items-center justify-center gap-2 py-3 px-4 rounded-2xl border border-dashed border-white/20 bg-white/5 hover:bg-white/10 text-white text-xs font-bold transition-all cursor-pointer"
+            >
+              <Plus className="w-4 h-4" />
+              <span>Adicionar Ponto ao Roteiro</span>
+            </button>
+          </div>
+        </div>
+      </aside>
+
+      {/* 4-B. Bottom Sheet with Route Stops and Actions (MOBILE ONLY - Hidden on Desktop) */}
       <motion.div
         layout
         transition={qrSpringTransition}
-        drag="y"
+        drag={activeSteps.length > 0 ? "y" : false}
         dragConstraints={{ top: 0, bottom: 0 }}
         dragElastic={{ top: 0.08, bottom: 0.3 }}
         onDragEnd={(_e, info) => {
+          if (activeSteps.length === 0) return;
           if (info.offset.y > 40 || info.velocity.y > 100) {
             setIsExpanded(false);
           } else if (info.offset.y < -40 || info.velocity.y < -100) {
@@ -1945,134 +2148,174 @@ export const ItinerariesView: React.FC<ItinerariesViewProps> = ({
           }
         }}
         onClick={(e) => {
-          if (!isExpanded) {
+          if (activeSteps.length > 0 && !isExpanded) {
             e.stopPropagation();
             setIsExpanded(true);
           }
         }}
-        className={`!absolute inset-x-0 bottom-0 z-40 max-w-3xl mx-auto rounded-t-[32px] sm:rounded-t-[36px] overflow-hidden flex flex-col pointer-events-auto transition-colors duration-200 border-x-0 sm:border-x ${
-          isDark
-            ? 'ios-glass-nav text-white shadow-[0_-20px_50px_rgba(0,0,0,0.85)]'
-            : 'ios-glass-nav-white text-zinc-900 shadow-[0_-15px_40px_rgba(0,0,0,0.12)]'
-        }`}
+        className="md:hidden !absolute inset-x-0 bottom-0 z-40 max-w-3xl mx-auto rounded-t-[32px] sm:rounded-t-[36px] overflow-hidden flex flex-col pointer-events-auto transition-colors duration-200 border-x-0 sm:border-x ios-glass border-t border-white/30 shadow-[0_-8px_32px_rgba(0,0,0,0.18)] text-zinc-900 dark:text-white"
         style={{
           position: 'absolute',
-          bottom: '-0.8vh',
-          maxHeight: isExpanded ? '46vh' : '200px',
-          height: isExpanded ? '46vh' : 'auto',
-          paddingBottom: isExpanded ? '0px' : 'calc(88px + env(safe-area-inset-bottom, 16px))',
+          bottom: 0,
+          maxHeight: activeSteps.length === 0 ? '52vh' : (isExpanded ? '52vh' : 'auto'),
+          height: activeSteps.length === 0 ? '52vh' : (isExpanded ? '52vh' : 'auto'),
+          paddingBottom: activeSteps.length === 0 ? '0px' : (isExpanded ? '0px' : 'max(calc(env(safe-area-inset-bottom, 0px) + 82px), 98px)'),
         }}
       >
         {/* Drag handle */}
         <div
           onClick={(e) => {
             e.stopPropagation();
-            setIsExpanded(!isExpanded);
+            if (activeSteps.length > 0) {
+              setIsExpanded(!isExpanded);
+            }
           }}
-          className="w-full pt-2.5 pb-1 flex items-center justify-center cursor-grab active:cursor-grabbing touch-none shrink-0"
+          className={`w-full pt-2.5 pb-1 flex items-center justify-center touch-none shrink-0 ${
+            activeSteps.length > 0 ? 'cursor-grab active:cursor-grabbing' : 'cursor-default pointer-events-none'
+          }`}
         >
           <div className="w-9 h-1 rounded-full bg-zinc-400/60 dark:bg-zinc-600/60" />
         </div>
 
-        {/* Collapsed state with ONE route stop: 100% visible, extra rounded and compact above nav bar */}
-        {!isExpanded && currentSelectedStep && (
-          <div
-            onClick={() => setIsExpanded(true)}
-            className="px-4 pb-1 cursor-pointer"
-          >
-            <div
-              className={`py-2 px-3 sm:py-2.5 sm:px-3.5 rounded-[28px] flex items-center justify-between gap-3 transition-all ${
-                isDark
-                  ? 'bg-white/[0.07] backdrop-blur-xl border border-white/25 ring-1 ring-white/10 shadow-md'
-                  : 'ios-glass-white text-zinc-900 shadow-md'
-              }`}
+        {/* State A: When NO route spots exist (activeSteps.length === 0) -> Render ONLY ONE "+" button perfectly centered in the Card */}
+        {activeSteps.length === 0 ? (
+          <div className="flex-1 flex flex-col items-center justify-center px-4 pt-2 pb-[max(76px,calc(env(safe-area-inset-bottom,0px)+64px))] my-auto">
+            <motion.button
+              whileTap={{ scale: 0.95 }}
+              whileHover={{ scale: 1.04 }}
+              type="button"
+              onClick={() => setIsImportModalOpen(true)}
+              className="w-14 h-14 rounded-full flex items-center justify-center cursor-pointer transition-all duration-200 active:scale-95 ios-glass border border-white/25 text-zinc-900 dark:text-white shadow-lg"
+              title="Adicionar ponto ao roteiro"
+              aria-label="Adicionar local ao roteiro"
             >
-              <div className="flex items-center gap-2.5 min-w-0 flex-1 self-center">
-                <span className={`w-7 h-7 rounded-full text-[11px] font-black flex items-center justify-center leading-none text-center shrink-0 self-center ${
-                  isPremiumItinerary
-                    ? 'bg-metallic-gold text-[#1A1202] shadow-md shadow-[#E5AC33]/40'
-                    : 'bg-blue-600 text-white shadow-md shadow-blue-600/40'
-                }`}>
-                  {String(
-                    Math.max(
-                      1,
-                      activeSteps.findIndex((s) => s.id === currentSelectedStep.id) + 1
-                    )
-                  ).padStart(2, '0')}
-                </span>
-                {currentSelectedStep.spot?.image && (
-                  <div className="w-12 h-12 rounded-[16px] overflow-hidden shrink-0 bg-zinc-800 relative self-center">
-                    <img
-                      src={currentSelectedStep.spot.image}
-                      alt={currentSelectedStep.spot.name}
-                      className="w-full h-full object-cover"
-                      referrerPolicy="no-referrer"
-                      onError={(e) => {
-                        (e.target as HTMLImageElement).src =
-                          'https://images.unsplash.com/photo-1585320806297-9794b3e4eeae?auto=format&fit=crop&w=200&q=80';
-                      }}
-                    />
-                  </div>
-                )}
-                <div className="min-w-0 flex-1 flex flex-col justify-center self-center py-0.5">
-                  <div className="flex items-center gap-1.5 flex-nowrap leading-none">
-                    <span className={`inline-flex items-center gap-1 text-[10.5px] font-black leading-none ${
-                      isPremiumItinerary ? 'text-[#C28514] dark:text-[#FDE073]' : 'text-blue-600 dark:text-blue-400'
+              <Plus className="w-6 h-6 stroke-[2.4] text-current" />
+            </motion.button>
+            <span className="text-[11px] sm:text-[12px] font-black uppercase tracking-wider text-zinc-800 dark:text-zinc-200 mt-2.5 select-none">
+              Adicionar Local
+            </span>
+          </div>
+        ) : (
+          /* State B: When route spots exist (activeSteps.length > 0) */
+          <>
+            {/* Collapsed state with ONE route stop: 100% visible, extra rounded and compact above nav bar */}
+            {!isExpanded && currentSelectedStep && (
+              <div
+                onClick={() => setIsExpanded(true)}
+                className="px-4 pt-0.5 pb-2 sm:pb-2.5 cursor-pointer"
+              >
+                <div
+                  className={`py-2 px-3 sm:py-2.5 sm:px-3.5 rounded-[28px] flex items-center justify-between gap-3 transition-all ${
+                    isPremiumItinerary
+                      ? 'bg-white/30 dark:bg-white/15 border border-[#E5AC33]/60 ring-1.5 ring-[#FFF4A3]/40 shadow-xs text-zinc-900 dark:text-white backdrop-blur-md'
+                      : 'bg-white/30 dark:bg-white/15 border border-white/45 ring-1.5 ring-blue-500/40 shadow-xs text-zinc-900 dark:text-white backdrop-blur-md'
+                  }`}
+                >
+                  <div className="flex items-center gap-2.5 min-w-0 flex-1 self-center">
+                    <span className={`w-7 h-7 sm:w-7.5 sm:h-7.5 rounded-full text-[11px] font-black flex items-center justify-center leading-none text-center shrink-0 self-center ${
+                      isPremiumItinerary
+                        ? 'bg-metallic-gold text-[#1A1202] shadow-md shadow-[#E5AC33]/40'
+                        : 'bg-blue-600 text-white shadow-md shadow-blue-600/40'
                     }`}>
-                      <Clock className="w-3 h-3 shrink-0" />
-                      <span>{currentSelectedStep.suggestedTime || '09:30'}</span>
+                      {String(
+                        Math.max(
+                          1,
+                          activeSteps.findIndex((s) => s.id === currentSelectedStep.id) + 1
+                        )
+                      ).padStart(2, '0')}
                     </span>
-                    <span className="text-zinc-300 dark:text-zinc-600 font-bold leading-none">·</span>
-                    <span className="text-[9.5px] font-black uppercase tracking-wider text-zinc-400 dark:text-zinc-500 truncate max-w-[130px] leading-none">
-                      {currentSelectedStep.spot?.categoryLabel || 'ATRAÇÃO / TURÍSTICO'}
-                    </span>
+                    {currentSelectedStep.spot && (
+                      <div className="w-12 h-12 rounded-[16px] overflow-hidden shrink-0 bg-zinc-800 relative self-center">
+                        <img
+                          src={getSpotImage(currentSelectedStep.spot)}
+                          alt={currentSelectedStep.spot.name}
+                          className="w-full h-full object-cover"
+                          referrerPolicy="no-referrer"
+                          onError={(e) => {
+                            (e.target as HTMLImageElement).src = getSpotFallbackImage(currentSelectedStep.spot?.name || '', currentSelectedStep.spot?.category || 'attractions');
+                          }}
+                        />
+                      </div>
+                    )}
+                    <div className="min-w-0 flex-1 flex flex-col justify-center self-center py-0.5">
+                      <div className="flex items-center gap-1.5 flex-nowrap leading-none">
+                        <span className={`inline-flex items-center gap-1 text-[10.5px] font-black leading-none ${
+                          isPremiumItinerary ? 'text-[#C28514] dark:text-[#FDE073]' : 'text-blue-600 dark:text-blue-400'
+                        }`}>
+                          <Clock className="w-3 h-3 shrink-0" />
+                          <span>{currentSelectedStep.suggestedTime || '09:30'}</span>
+                        </span>
+                        <span className="text-zinc-300 dark:text-zinc-600 font-bold leading-none">·</span>
+                        <span className="text-[9.5px] font-black uppercase tracking-wider text-zinc-400 dark:text-zinc-500 truncate max-w-[130px] leading-none">
+                          {currentSelectedStep.spot?.categoryLabel || 'ATRAÇÃO / TURÍSTICO'}
+                        </span>
+                      </div>
+                      <h4 className="text-[14px] sm:text-[15px] font-black uppercase truncate leading-tight my-1 text-zinc-900 dark:text-white">
+                        {currentSelectedStep.spot?.name}
+                      </h4>
+                      <p className="text-[10.5px] font-bold text-zinc-400 truncate leading-none flex items-center gap-1">
+                        <RoundedNavigationIcon isGold={isPremiumItinerary} className={`w-3 h-3 shrink-0 ${isPremiumItinerary ? '' : 'text-blue-500'}`} size={12} />
+                        <span>{currentSelectedStep.durationToNextMin ? `${currentSelectedStep.durationToNextMin} min até o próximo ponto` : 'Local planejado do roteiro'}</span>
+                      </p>
+                    </div>
                   </div>
-                  <h4 className="text-[14px] sm:text-[15px] font-black uppercase truncate leading-tight my-1 text-zinc-900 dark:text-white">
-                    {currentSelectedStep.spot?.name}
-                  </h4>
-                  <p className="text-[10.5px] font-bold text-zinc-400 truncate leading-none flex items-center gap-1">
-                    <RoundedNavigationIcon isGold={isPremiumItinerary} className={`w-3 h-3 shrink-0 ${isPremiumItinerary ? '' : 'text-blue-500'}`} size={12} />
-                    <span>{currentSelectedStep.durationToNextMin ? `${currentSelectedStep.durationToNextMin} min até o próximo ponto` : 'Parada planejada do roteiro'}</span>
-                  </p>
+                  <div className="w-8 h-8 rounded-full flex items-center justify-center bg-zinc-800/60 text-zinc-400 dark:text-zinc-300 shrink-0 self-center">
+                    <ChevronRight className="w-4 h-4 stroke-[2.2]" />
+                  </div>
                 </div>
               </div>
-              <div className="w-8 h-8 rounded-full flex items-center justify-center bg-zinc-800/60 text-zinc-400 dark:text-zinc-300 shrink-0 self-center">
-                <ChevronRight className="w-4 h-4 stroke-[2.2]" />
+            )}
+
+            {/* Scrollable Sequential Stops List (when expanded) - Matching the exact visual identity of Foto 1 */}
+            {isExpanded && (
+              <div
+                className="flex-1 overflow-y-auto px-4 sm:px-5 py-1.5 space-y-2"
+                style={{
+                  paddingBottom: 'max(calc(env(safe-area-inset-bottom, 0px) + 88px), 108px)',
+                  WebkitOverflowScrolling: 'touch',
+                }}
+              >
+                <AnimatePresence mode="popLayout">
+                  {activeSteps.map((step, idx) => (
+                    <SwipeableStopCard
+                      key={step.id}
+                      step={step}
+                      idx={idx}
+                      totalSteps={activeSteps.length}
+                      isSelected={step.id === currentSelectedStep?.id}
+                      isDark={isDark}
+                      isPremium={isPremiumItinerary}
+                      onSelect={handleSelectStopOnMap}
+                      onDelete={handleDeleteStep}
+                      onMoveUp={handleMoveStepUp}
+                      onMoveDown={handleMoveStepDown}
+                    />
+                  ))}
+                </AnimatePresence>
+
+                {/* Add Spot "+" Button directly below the last tourist spot (revealed when pulled up) */}
+                <div className="pt-2 pb-6 flex flex-col items-center justify-center">
+                  <motion.button
+                    whileTap={{ scale: 0.95 }}
+                    whileHover={{ scale: 1.04 }}
+                    type="button"
+                    onClick={() => setIsImportModalOpen(true)}
+                    className="w-11 h-11 rounded-full flex items-center justify-center cursor-pointer transition-all duration-200 active:scale-95 ios-glass border border-white/25 text-zinc-900 dark:text-white shadow-lg"
+                    title="Adicionar ponto turístico ao roteiro"
+                    aria-label="Adicionar ponto turístico ao roteiro"
+                  >
+                    <Plus className="w-5 h-5 stroke-[2.4] text-current" />
+                  </motion.button>
+                  <span className="text-[10px] sm:text-[10.5px] font-bold uppercase tracking-wider text-zinc-800 dark:text-zinc-200 mt-2 select-none">
+                    Adicionar Local
+                  </span>
+                </div>
+
+                {/* Bottom padding spacer to ensure smooth scroll clearance above bottom nav */}
+                <div className="h-4" />
               </div>
-            </div>
-          </div>
-        )}
-
-        {/* Scrollable Sequential Stops List (when expanded) - Matching the exact visual identity of Foto 1 */}
-        {isExpanded && (
-          <div
-            className="flex-1 overflow-y-auto px-4 sm:px-5 py-1.5 space-y-2"
-            style={{
-              paddingBottom: 'calc(88px + env(safe-area-inset-bottom, 16px))',
-              WebkitOverflowScrolling: 'touch',
-            }}
-          >
-            <AnimatePresence mode="popLayout">
-              {activeSteps.map((step, idx) => (
-                <SwipeableStopCard
-                  key={step.id}
-                  step={step}
-                  idx={idx}
-                  totalSteps={activeSteps.length}
-                  isSelected={step.id === currentSelectedStep?.id}
-                  isDark={isDark}
-                  isPremium={isPremiumItinerary}
-                  onSelect={handleSelectStopOnMap}
-                  onDelete={handleDeleteStep}
-                  onMoveUp={handleMoveStepUp}
-                  onMoveDown={handleMoveStepDown}
-                />
-              ))}
-            </AnimatePresence>
-
-            {/* Bottom padding spacer to ensure smooth scroll clearance above bottom nav */}
-            <div className="h-2" />
-          </div>
+            )}
+          </>
         )}
       </motion.div>
 
@@ -2090,101 +2333,16 @@ export const ItinerariesView: React.FC<ItinerariesViewProps> = ({
         />
       )}
 
-      {/* 6. Notes Modal (Anotações da viagem) */}
+      {/* 6. Notes Modal (Anotações da viagem com folha de diário temática) */}
       <AnimatePresence>
         {isNotesModalOpen && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6 pointer-events-auto">
-            {/* Backdrop */}
-            <motion.div
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              transition={{ duration: 0.2 }}
-              onClick={() => setIsNotesModalOpen(false)}
-              className="absolute inset-0 bg-black/40 backdrop-blur-sm"
-            />
-
-            {/* Card */}
-            <motion.div
-              initial={{ opacity: 0, scale: 0.95, y: 12 }}
-              animate={{ opacity: 1, scale: 1, y: 0 }}
-              exit={{ opacity: 0, scale: 0.95, y: 12 }}
-              transition={{ type: 'spring', damping: 26, stiffness: 320 }}
-              className={`relative w-full max-w-lg rounded-[28px] p-6 sm:p-7 z-10 flex flex-col gap-4 overflow-hidden ${
-                isDark
-                  ? 'ios-glass text-white shadow-2xl border border-white/12'
-                  : 'ios-glass-white text-zinc-900 shadow-2xl border border-white/80'
-              }`}
-            >
-              {/* Close Button X */}
-              <button
-                type="button"
-                onClick={() => setIsNotesModalOpen(false)}
-                className="absolute top-5 right-5 w-8 h-8 rounded-full bg-zinc-100 dark:bg-zinc-800 text-zinc-500 hover:text-zinc-900 dark:hover:text-white flex items-center justify-center transition-colors cursor-pointer"
-                title="Fechar"
-              >
-                <X className="w-4 h-4 stroke-[2.2]" />
-              </button>
-
-              {/* Header */}
-              <div className="flex flex-col gap-0.5 pr-8">
-                <div className="flex items-center gap-2">
-                  <Notebook className="w-5 h-5 text-blue-600 dark:text-blue-400 shrink-0 stroke-[2]" />
-                  <h3 className="text-xl sm:text-2xl font-black tracking-tight text-zinc-900 dark:text-white">
-                    Anotações da viagem
-                  </h3>
-                </div>
-                <p className="text-xs sm:text-sm font-semibold text-zinc-400 dark:text-zinc-500">
-                  Campos do Jordão
-                </p>
-              </div>
-
-              {/* Text Area */}
-              <div className="relative mt-1">
-                <textarea
-                  rows={7}
-                  value={tripNoteText}
-                  onChange={(e) => setTripNoteText(e.target.value)}
-                  placeholder="Escreva uma anotação sobre sua viagem..."
-                  className="w-full p-4 pr-12 rounded-2xl bg-white/60 dark:bg-zinc-900/60 border border-white/70 dark:border-white/10 text-zinc-900 dark:text-white placeholder:text-zinc-400 dark:placeholder:text-zinc-500 font-normal text-sm sm:text-base leading-relaxed outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500/30 transition-all resize-none shadow-xs"
-                />
-                <button
-                  type="button"
-                  onClick={toggleDictation}
-                  className={`absolute bottom-3 right-3 w-9 h-9 rounded-full flex items-center justify-center transition-all cursor-pointer shadow-sm ${
-                    isListeningNote
-                      ? 'bg-red-500 text-white animate-pulse'
-                      : 'bg-zinc-200/80 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-300 hover:bg-blue-600 hover:text-white'
-                  }`}
-                  title={isListeningNote ? 'Ouvindo... toque para parar' : 'Ditar por voz'}
-                >
-                  <Mic className="w-4 h-4 stroke-[2]" />
-                </button>
-              </div>
-
-              {/* Footer / Save Button */}
-              <div className="flex items-center justify-between pt-1">
-                <span className="text-xs font-semibold text-zinc-400 dark:text-zinc-500">
-                  {isNoteSavedToast ? (
-                    <span className="text-emerald-600 dark:text-emerald-400 font-bold flex items-center gap-1 transition-all">
-                      <Check className="w-3.5 h-3.5 stroke-[3]" /> Salvo com sucesso
-                    </span>
-                  ) : (
-                    <span>Sua anotação é salva localmente</span>
-                  )}
-                </span>
-
-                <button
-                  type="button"
-                  onClick={() => handleSaveTripNote(tripNoteText)}
-                  className="px-5 py-2.5 rounded-full bg-zinc-900 dark:bg-white text-white dark:text-zinc-900 text-xs sm:text-sm font-bold tracking-tight hover:opacity-90 active:scale-95 transition-all shadow-md cursor-pointer flex items-center gap-1.5"
-                >
-                  <Check className="w-3.5 h-3.5 stroke-[2.5]" />
-                  <span>Salvar</span>
-                </button>
-              </div>
-            </motion.div>
-          </div>
+          <TripNotesModal
+            isOpen={isNotesModalOpen}
+            onClose={() => setIsNotesModalOpen(false)}
+            tripNoteText={tripNoteText}
+            onSave={handleSaveTripNote}
+            theme={theme}
+          />
         )}
       </AnimatePresence>
 

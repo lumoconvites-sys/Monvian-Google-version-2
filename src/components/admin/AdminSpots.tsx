@@ -357,8 +357,18 @@ export const AdminSpots: React.FC = () => {
       <AdminSpotModal
         isOpen={isModalOpen}
         onClose={() => setIsModalOpen(false)}
-        onSaveSuccess={() => {
+        onSaveSuccess={(savedSpot) => {
           fetchSpots();
+          if (savedSpot) {
+            setSelectedCategory('all');
+            setSpots((prev) => {
+              const exists = prev.some((s) => s.id === savedSpot.id);
+              if (exists) {
+                return prev.map((s) => (s.id === savedSpot.id ? savedSpot : s));
+              }
+              return [savedSpot, ...prev];
+            });
+          }
           showToast(spotToEdit ? 'Ponto atualizado com sucesso!' : 'Novo ponto cadastrado no app!');
         }}
         spotToEdit={spotToEdit}

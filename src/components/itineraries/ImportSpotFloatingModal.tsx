@@ -3,6 +3,7 @@ import { createPortal } from 'react-dom';
 import { X, Search, Star, MapPin, Check, Plus } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { Spot } from '../../types';
+import { getSpotImage, getSpotFallbackImage } from '../../utils/spotImages';
 
 interface ImportSpotFloatingModalProps {
   isOpen: boolean;
@@ -47,41 +48,45 @@ export const ImportSpotFloatingModal: React.FC<ImportSpotFloatingModalProps> = (
     }, 1800);
   };
 
-  if (!isOpen) return null;
-
   return createPortal(
-    <AnimatePresence>
-      <motion.div
-        key="import-spot-modal-backdrop"
-        initial={{ opacity: 0 }}
-        animate={{ opacity: 1 }}
-        exit={{ opacity: 0 }}
-        transition={{ duration: 0.2 }}
-        onClick={onClose}
-        className="fixed inset-0 z-[120] bg-black/60 backdrop-blur-md flex items-center justify-center p-4 sm:p-6 select-none cursor-pointer"
-      >
+    <AnimatePresence mode="wait">
+      {isOpen && (
         <motion.div
-          key="import-spot-modal-card"
-          initial={{ opacity: 0, scale: 0.92, y: 20 }}
-          animate={{ opacity: 1, scale: 1, y: 0 }}
-          exit={{ opacity: 0, scale: 0.94, y: 16 }}
-          transition={{ type: 'spring', damping: 28, stiffness: 340 }}
-          onClick={(e) => e.stopPropagation()}
-          className={`relative w-full max-w-lg max-h-[85vh] rounded-[32px] overflow-hidden flex flex-col shadow-2xl border cursor-auto backdrop-blur-2xl ${
-            isLight
-              ? 'bg-white/95 border-zinc-200/90 text-zinc-900 shadow-xl'
-              : 'bg-[#18191d]/95 border-white/15 text-white shadow-[0_20px_50px_rgba(0,0,0,0.8)]'
-          }`}
-          style={{
-            fontFamily: "'Manrope', -apple-system, BlinkMacSystemFont, sans-serif",
-          }}
+          key="import-spot-modal-backdrop"
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          exit={{ opacity: 0 }}
+          transition={{ duration: 0.2, ease: 'easeOut' }}
+          onClick={onClose}
+          className="fixed inset-0 z-[120] bg-black/55 backdrop-blur-[3px] flex items-center justify-center p-4 sm:p-6 select-none cursor-pointer"
+          style={{ willChange: 'opacity' }}
         >
+          <motion.div
+            key="import-spot-modal-card"
+            initial={{ opacity: 0, scale: 0.94, y: 14 }}
+            animate={{ opacity: 1, scale: 1, y: 0 }}
+            exit={{ opacity: 0, scale: 0.95, y: 10 }}
+            transition={{ duration: 0.22, ease: [0.16, 1, 0.3, 1] }}
+            onClick={(e) => e.stopPropagation()}
+            className={`relative w-full max-w-lg max-h-[85vh] rounded-[36px] overflow-hidden flex flex-col shadow-2xl border cursor-auto ${
+              isLight
+                ? 'bg-white/80 border-white/70 text-zinc-900 shadow-[0_25px_70px_rgba(0,0,0,0.16)] ring-1 ring-black/5'
+                : 'bg-[#1c1c1e]/80 border-white/20 text-white shadow-[0_30px_90px_rgba(0,0,0,0.9)] ring-1 ring-white/10'
+            }`}
+            style={{
+              fontFamily: "'Manrope', -apple-system, BlinkMacSystemFont, sans-serif",
+              WebkitBackdropFilter: 'blur(25px) saturate(180%)',
+              backdropFilter: 'blur(25px) saturate(180%)',
+              willChange: 'transform, opacity',
+              transform: 'translateZ(0)',
+            }}
+          >
           {/* Minimal Top Bar with Search & Close */}
-          <div className="p-4 sm:p-5 pb-3 flex items-center gap-3 border-b border-zinc-200/60 dark:border-white/10 shrink-0">
+          <div className="p-4 sm:p-5 pb-3 flex items-center gap-3 border-b border-black/[0.06] dark:border-white/10 shrink-0">
             <div className={`relative flex items-center flex-1 rounded-2xl border px-3.5 py-2.5 transition-all ${
               isLight
-                ? 'bg-zinc-100/90 border-zinc-200 text-zinc-900 focus-within:border-blue-500'
-                : 'bg-zinc-900/90 border-white/15 text-white focus-within:border-[#F5BE38]/60'
+                ? 'bg-black/[0.04] border-black/5 text-zinc-900 focus-within:border-blue-500'
+                : 'bg-white/[0.08] border-white/15 text-white focus-within:border-[#F5BE38]/60'
             }`}>
               <Search className="w-4 h-4 text-zinc-400 shrink-0 mr-2.5" />
               <input
@@ -106,7 +111,7 @@ export const ImportSpotFloatingModal: React.FC<ImportSpotFloatingModalProps> = (
             <button
               type="button"
               onClick={onClose}
-              className="w-10 h-10 rounded-full bg-zinc-100 hover:bg-zinc-200 dark:bg-white/10 dark:hover:bg-white/20 flex items-center justify-center transition-colors cursor-pointer shrink-0"
+              className="w-10 h-10 rounded-full bg-black/5 hover:bg-black/10 dark:bg-white/10 dark:hover:bg-white/20 flex items-center justify-center transition-colors cursor-pointer shrink-0"
               title="Fechar"
             >
               <X className="w-4 h-4 text-zinc-700 dark:text-zinc-300" />
@@ -130,21 +135,20 @@ export const ImportSpotFloatingModal: React.FC<ImportSpotFloatingModalProps> = (
                     key={spot.id}
                     className={`flex items-center justify-between gap-3 p-3 rounded-2xl border transition-all ${
                       isLight
-                        ? 'bg-zinc-50/80 border-zinc-200/80 hover:bg-zinc-100/90'
-                        : 'bg-zinc-900/60 border-white/10 hover:bg-zinc-900/90'
+                        ? 'bg-white/60 border-black/5 hover:bg-white/85 shadow-sm backdrop-blur-md'
+                        : 'bg-white/[0.05] border-white/10 hover:bg-white/[0.09] backdrop-blur-md'
                     }`}
                   >
                     {/* Spot Avatar & Info */}
                     <div className="flex items-center gap-3 min-w-0 flex-1">
                       <div className="w-12 h-12 rounded-2xl overflow-hidden shrink-0 bg-zinc-800 relative border border-white/10">
                         <img
-                          src={spot.image || 'https://images.unsplash.com/photo-1585320806297-9794b3e4eeae?auto=format&fit=crop&w=150&q=80'}
+                          src={getSpotImage(spot)}
                           alt={spot.name}
                           className="w-full h-full object-cover"
                           loading="lazy"
                           onError={(e) => {
-                            (e.target as HTMLImageElement).src =
-                              'https://images.unsplash.com/photo-1585320806297-9794b3e4eeae?auto=format&fit=crop&w=150&q=80';
+                            (e.target as HTMLImageElement).src = getSpotFallbackImage(spot.name, spot.category);
                           }}
                         />
                       </div>
@@ -203,6 +207,7 @@ export const ImportSpotFloatingModal: React.FC<ImportSpotFloatingModalProps> = (
           </div>
         </motion.div>
       </motion.div>
+      )}
     </AnimatePresence>,
     document.body
   );

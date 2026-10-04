@@ -10,6 +10,7 @@ import {
   Settings,
   LogOut,
   ChevronRight,
+  ChevronLeft,
   ArrowLeft,
   Star,
   MapPin,
@@ -23,6 +24,7 @@ import {
 import { motion, AnimatePresence } from 'motion/react';
 import { InstagramLogo, WhatsAppLogo } from './SocialIcons';
 import { PremiumModal } from './PremiumModal';
+import { IOSSwitch } from './IOSSwitch';
 
 interface ProfileModalProps {
   isOpen: boolean;
@@ -41,6 +43,7 @@ interface ProfileModalProps {
   user: any;
   onUpdateUser?: (updatedUser: any) => void;
   onOpenAdmin?: () => void;
+  onSubViewChange?: (subView: SubView) => void;
   communityUrl?: string;
   instagramUrl?: string;
 }
@@ -64,6 +67,7 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
   user,
   onUpdateUser,
   onOpenAdmin,
+  onSubViewChange,
   communityUrl = 'https://chat.whatsapp.com/invite/monvian-campos',
   instagramUrl = 'https://instagram.com/monvian.campos'
 }) => {
@@ -91,6 +95,11 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
   // Sub-view management
   const [activeSubView, setActiveSubView] = useState<SubView>('main');
 
+  const handleSetSubView = (sub: SubView) => {
+    setActiveSubView(sub);
+    onSubViewChange?.(sub);
+  };
+
   const isUserAdmin = Boolean(
     user && (
       (user.email && ['empresariomario@gmail.com', 'marioyesk@gmail.com'].includes(user.email.trim().toLowerCase())) ||
@@ -105,9 +114,45 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
   const [isUploading, setIsUploading] = useState(false);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
 
-  // Permissions state
-  const [locationPerm, setLocationPerm] = useState(true);
-  const [notificationsPerm, setNotificationsPerm] = useState(true);
+  // Persistent settings states
+  const [locationPerm, setLocationPerm] = useState<boolean>(() => {
+    const saved = localStorage.getItem('monvian_location_perm');
+    return saved !== null ? saved === 'true' : true;
+  });
+
+  const [proximityAlerts, setProximityAlerts] = useState<boolean>(() => {
+    const saved = localStorage.getItem('monvian_proximity_alerts');
+    return saved !== null ? saved === 'true' : true;
+  });
+
+  const [soundEnabled, setSoundEnabled] = useState<boolean>(() => {
+    const saved = localStorage.getItem('monvian_sound_enabled');
+    return saved !== null ? saved === 'true' : true;
+  });
+
+  const handleToggleLocation = (val: boolean) => {
+    setLocationPerm(val);
+    localStorage.setItem('monvian_location_perm', String(val));
+    if (val && navigator.geolocation) {
+      navigator.geolocation.getCurrentPosition(() => {}, () => {});
+    }
+  };
+
+  const handleToggleProximity = (val: boolean) => {
+    setProximityAlerts(val);
+    localStorage.setItem('monvian_proximity_alerts', String(val));
+  };
+
+  const handleToggleSound = (val: boolean) => {
+    setSoundEnabled(val);
+    localStorage.setItem('monvian_sound_enabled', String(val));
+    if (val) {
+      localStorage.removeItem('monvian_sound_disabled');
+    } else {
+      localStorage.setItem('monvian_sound_disabled', 'true');
+    }
+  };
+
   const [isPremiumModalOpen, setIsPremiumModalOpen] = useState(false);
 
   const cleanUserEmail = (user?.email || user?.whatsapp || '').trim().toLowerCase();
@@ -115,6 +160,197 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
   const isPremiumUser = isGoldAdmin || Boolean(user?.isGold || user?.is_gold === 1 || user?.isPremium || user?.is_premium === 1);
 
   if (!isOpen) return null;
+
+  if (activeSubView === 'permissoes') {
+    return (
+      <div
+        id="ios-settings-screen"
+        className={`fixed inset-0 z-50 flex flex-col justify-between overflow-hidden select-none transition-colors duration-200 ${
+          theme === 'dark' ? 'bg-black text-white' : 'bg-white text-zinc-900'
+        }`}
+        style={{
+          fontFamily: "'Manrope', -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'SF Pro Text', sans-serif",
+          paddingTop: 'max(14px, env(safe-area-inset-top, 0px))',
+          paddingBottom: 'max(20px, env(safe-area-inset-bottom, 20px))',
+        }}
+      >
+        {/* Top iOS Navigation Bar with Back Button and Centered Large Title */}
+        <div className="w-full max-w-2xl mx-auto px-4 sm:px-6 py-3 flex items-center justify-between shrink-0">
+          <button
+            type="button"
+            id="btn-back-settings"
+            onClick={() => handleSetSubView('main')}
+            className="w-10 h-10 rounded-full bg-zinc-100 dark:bg-[#1c1c1e] text-zinc-800 dark:text-white flex items-center justify-center transition-transform active:scale-95 cursor-pointer shadow-xs border border-black/5 dark:border-white/5 shrink-0"
+            title="Voltar ao Perfil"
+          >
+            <ChevronLeft className="w-5 h-5 stroke-[2.5]" />
+          </button>
+
+          <h1 className="text-xl sm:text-2xl font-bold text-zinc-900 dark:text-white tracking-tight text-center">
+            Configurações
+          </h1>
+
+          {/* Symmetrical placeholder for exact center alignment */}
+          <div className="w-10 h-10 pointer-events-none shrink-0" />
+        </div>
+
+        {/* Scrollable Settings Content */}
+        <div className="flex-1 overflow-y-auto px-4 sm:px-6 max-w-2xl mx-auto w-full pt-2 pb-16">
+
+          {/* SEÇÃO 1: EFEITOS DO MAPA */}
+          <div className="mb-7">
+            <h2 className="text-[12px] sm:text-[13px] font-semibold uppercase tracking-wider text-zinc-500 dark:text-[#8e8e93] px-2 mb-2">
+              Efeitos do Mapa
+            </h2>
+            <div className="space-y-3">
+              <div>
+                <div className="p-4 sm:p-4.5 rounded-[16px] bg-[#f2f2f7] dark:bg-[#1c1c1e] flex items-center justify-between transition-colors">
+                  <span className="text-[17px] sm:text-[18px] font-semibold text-zinc-900 dark:text-white leading-tight pr-4">
+                    Efeito de chuva
+                  </span>
+                  <IOSSwitch
+                    id="toggle-rain-effect"
+                    ariaLabel="Efeito de chuva"
+                    checked={rainEnabled}
+                    onChange={() => onToggleRain && onToggleRain()}
+                  />
+                </div>
+                <p className="text-[13px] sm:text-[14px] font-normal text-zinc-500 dark:text-[#8e8e93] px-2 pt-1.5 leading-relaxed">
+                  Mostra uma animação de chuva sobre o mapa quando estiver chovendo.
+                </p>
+              </div>
+
+              <div>
+                <div className="p-4 sm:p-4.5 rounded-[16px] bg-[#f2f2f7] dark:bg-[#1c1c1e] flex items-center justify-between transition-colors">
+                  <span className="text-[17px] sm:text-[18px] font-semibold text-zinc-900 dark:text-white leading-tight pr-4">
+                    Efeito de neve
+                  </span>
+                  <IOSSwitch
+                    id="toggle-snow-effect"
+                    ariaLabel="Efeito de neve"
+                    checked={Boolean(snowEnabled)}
+                    onChange={() => onToggleSnow && onToggleSnow()}
+                  />
+                </div>
+                <p className="text-[13px] sm:text-[14px] font-normal text-zinc-500 dark:text-[#8e8e93] px-2 pt-1.5 leading-relaxed">
+                  Mostra partículas de neve caindo sobre as montanhas e picos da cidade.
+                </p>
+              </div>
+            </div>
+          </div>
+
+          {/* SEÇÃO 2: PRIVACIDADE */}
+          <div className="mb-7">
+            <h2 className="text-[12px] sm:text-[13px] font-semibold uppercase tracking-wider text-zinc-500 dark:text-[#8e8e93] px-2 mb-2">
+              Privacidade
+            </h2>
+            <div className="space-y-3">
+              <div>
+                <div className="p-4 sm:p-4.5 rounded-[16px] bg-[#f2f2f7] dark:bg-[#1c1c1e] flex items-center justify-between transition-colors">
+                  <span className="text-[17px] sm:text-[18px] font-semibold text-zinc-900 dark:text-white leading-tight pr-4">
+                    Localização em Tempo Real
+                  </span>
+                  <IOSSwitch
+                    id="toggle-location-perm"
+                    ariaLabel="Localização em Tempo Real"
+                    checked={locationPerm}
+                    onChange={handleToggleLocation}
+                  />
+                </div>
+                <p className="text-[13px] sm:text-[14px] font-normal text-zinc-500 dark:text-[#8e8e93] px-2 pt-1.5 leading-relaxed">
+                  Exibir sua proximidade aos pontos turísticos.
+                </p>
+              </div>
+
+              <div>
+                <div className="p-4 sm:p-4.5 rounded-[16px] bg-[#f2f2f7] dark:bg-[#1c1c1e] flex items-center justify-between transition-colors">
+                  <span className="text-[17px] sm:text-[18px] font-semibold text-zinc-900 dark:text-white leading-tight pr-4">
+                    Alertas de Proximidade
+                  </span>
+                  <IOSSwitch
+                    id="toggle-proximity-alerts"
+                    ariaLabel="Alertas de Proximidade"
+                    checked={proximityAlerts}
+                    onChange={handleToggleProximity}
+                  />
+                </div>
+                <p className="text-[13px] sm:text-[14px] font-normal text-zinc-500 dark:text-[#8e8e93] px-2 pt-1.5 leading-relaxed">
+                  Avisar quando você estiver a menos de 200m de uma atração recomendada.
+                </p>
+              </div>
+            </div>
+          </div>
+
+          {/* SEÇÃO 3: APARÊNCIA */}
+          <div className="mb-7">
+            <h2 className="text-[12px] sm:text-[13px] font-semibold uppercase tracking-wider text-zinc-500 dark:text-[#8e8e93] px-2 mb-2">
+              Aparência
+            </h2>
+            <div className="space-y-3">
+              <div>
+                <div className="p-4 sm:p-4.5 rounded-[16px] bg-[#f2f2f7] dark:bg-[#1c1c1e] flex items-center justify-between transition-colors">
+                  <span className="text-[17px] sm:text-[18px] font-semibold text-zinc-900 dark:text-white leading-tight pr-4">
+                    Modo Escuro
+                  </span>
+                  <IOSSwitch
+                    id="toggle-dark-theme"
+                    ariaLabel="Modo Escuro"
+                    checked={theme === 'dark'}
+                    onChange={() => onToggleTheme && onToggleTheme()}
+                  />
+                </div>
+                <p className="text-[13px] sm:text-[14px] font-normal text-zinc-500 dark:text-[#8e8e93] px-2 pt-1.5 leading-relaxed">
+                  Alternar entre o visual escuro e claro em todo o aplicativo.
+                </p>
+              </div>
+
+              <div>
+                <div className="p-4 sm:p-4.5 rounded-[16px] bg-[#f2f2f7] dark:bg-[#1c1c1e] flex items-center justify-between transition-colors">
+                  <span className="text-[17px] sm:text-[18px] font-semibold text-zinc-900 dark:text-white leading-tight pr-4">
+                    Alto Contraste
+                  </span>
+                  <IOSSwitch
+                    id="toggle-high-contrast-mode"
+                    ariaLabel="Alto Contraste"
+                    checked={Boolean(highContrast)}
+                    onChange={() => onToggleHighContrast && onToggleHighContrast()}
+                  />
+                </div>
+                <p className="text-[13px] sm:text-[14px] font-normal text-zinc-500 dark:text-[#8e8e93] px-2 pt-1.5 leading-relaxed">
+                  Aumentar a nitidez de linhas e elementos para maior visibilidade.
+                </p>
+              </div>
+            </div>
+          </div>
+
+          {/* SEÇÃO 4: ÁUDIO E RETORNO */}
+          <div className="mb-8">
+            <h2 className="text-[12px] sm:text-[13px] font-semibold uppercase tracking-wider text-zinc-500 dark:text-[#8e8e93] px-2 mb-2">
+              Áudio e Retorno
+            </h2>
+            <div className="space-y-3">
+              <div>
+                <div className="p-4 sm:p-4.5 rounded-[16px] bg-[#f2f2f7] dark:bg-[#1c1c1e] flex items-center justify-between transition-colors">
+                  <span className="text-[17px] sm:text-[18px] font-semibold text-zinc-900 dark:text-white leading-tight pr-4">
+                    Efeitos Sonoros
+                  </span>
+                  <IOSSwitch
+                    id="toggle-sound-effects"
+                    ariaLabel="Efeitos Sonoros"
+                    checked={soundEnabled}
+                    onChange={handleToggleSound}
+                  />
+                </div>
+                <p className="text-[13px] sm:text-[14px] font-normal text-zinc-500 dark:text-[#8e8e93] px-2 pt-1.5 leading-relaxed">
+                  Reproduzir sons suaves de confirmação e navegação no app.
+                </p>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   const favoriteSpots = spots.filter((s) => favorites.includes(s.id));
 
@@ -217,18 +453,23 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
     setSaveToast(true);
     setTimeout(() => {
       setSaveToast(false);
-      setActiveSubView('main');
+      handleSetSubView('main');
     }, 800);
   };
 
   return (
     <div
       id="profile-fullscreen-overlay"
-      className="absolute inset-0 z-45 bg-zinc-50 dark:bg-[#000000] text-zinc-900 dark:text-white flex flex-col justify-between overflow-hidden"
-      style={{
-        fontFamily: "'Manrope', -apple-system, BlinkMacSystemFont, sans-serif",
-      }}
+      onClick={onClose}
+      className="fixed inset-0 z-45 flex flex-col justify-end md:justify-center md:items-center md:p-6 select-none overflow-hidden transition-colors duration-300 md:bg-black/50 md:backdrop-blur-xs"
     >
+      <div
+        onClick={(e) => e.stopPropagation()}
+        className="relative w-full h-full md:h-[88vh] md:max-w-2xl bg-zinc-50 dark:bg-[#000000] md:dark:ios-glass text-zinc-900 dark:text-white rounded-none md:rounded-[32px] overflow-hidden flex flex-col justify-between shadow-2xl md:border md:border-black/10 md:dark:border-white/15"
+        style={{
+          fontFamily: "'Manrope', -apple-system, BlinkMacSystemFont, sans-serif",
+        }}
+      >
       {/* Top Header Bar identical to screenshot */}
       <div
         className="px-5 sm:px-6 pb-3 flex items-center justify-between z-10 shrink-0"
@@ -241,9 +482,9 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
         <div className="flex items-center gap-3">
           {activeSubView !== 'main' ? (
             <motion.button
-              whileTap={{ scale: 0.85 }}
+              whileTap={{ scale: 0.95 }}
               id="btn-back-profile-main"
-              onClick={() => setActiveSubView('main')}
+              onClick={() => handleSetSubView('main')}
               className="w-10 h-10 rounded-full bg-zinc-200/80 dark:bg-white/10 hover:bg-zinc-300 dark:hover:bg-white/20 text-zinc-900 dark:text-white flex items-center justify-center transition-colors cursor-pointer mr-1"
               title="Voltar"
             >
@@ -260,13 +501,25 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
             {activeSubView === 'logout-confirm' && 'Encerrar Sessão'}
           </h1>
         </div>
+
+        {/* Desktop Close Button */}
+        <button
+          type="button"
+          onClick={onClose}
+          className="w-9 h-9 rounded-full bg-zinc-200/80 dark:bg-white/10 hover:bg-zinc-300 dark:hover:bg-white/20 text-zinc-900 dark:text-white flex items-center justify-center transition-colors cursor-pointer"
+          title="Fechar perfil"
+          aria-label="Fechar perfil"
+        >
+          <X className="w-4 h-4 stroke-[2.2]" />
+        </button>
       </div>
 
       {/* Main Content Area */}
       <div
-        className="flex-1 overflow-y-auto px-5 sm:px-8 max-w-3xl mx-auto w-full flex flex-col"
+        className="flex-1 min-h-0 overflow-y-auto overscroll-contain px-5 sm:px-8 max-w-3xl mx-auto w-full flex flex-col"
         style={{
-          paddingBottom: 'calc(max(16px, calc(env(safe-area-inset-bottom, 0px) + 6px)) + 80px)',
+          WebkitOverflowScrolling: 'touch',
+          paddingBottom: 'calc(env(safe-area-inset-bottom, 16px) + 76px)',
         }}
       >
         {/* Hidden File Input for Avatar Upload */}
@@ -347,10 +600,17 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
                     <h2 className="text-xl sm:text-[22px] font-black text-zinc-900 dark:text-white tracking-tight leading-tight">
                       {userName}
                     </h2>
-                    <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-[#007AFF]/15 border border-[#007AFF]/35 text-[#007AFF] text-[10px] font-black uppercase tracking-wider shadow-xs">
-                      <span className="w-1.5 h-1.5 rounded-full bg-[#007AFF]" />
-                      <span>Conta Beta</span>
-                    </span>
+                    {isPremiumUser ? (
+                      <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-[#F5BE38]/20 border border-[#F5BE38]/40 text-[#D99A1C] dark:text-[#F5BE38] text-[10px] font-black uppercase tracking-wider shadow-xs">
+                        <Crown className="w-3 h-3 text-[#D99A1C] dark:text-[#F5BE38]" />
+                        <span>Membro Gold</span>
+                      </span>
+                    ) : (
+                      <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-[#007AFF]/15 border border-[#007AFF]/35 text-[#007AFF] text-[10px] font-black uppercase tracking-wider shadow-xs">
+                        <span className="w-1.5 h-1.5 rounded-full bg-[#007AFF]" />
+                        <span>Conta Beta</span>
+                      </span>
+                    )}
                   </div>
                   <p className="text-xs sm:text-sm text-zinc-500 dark:text-zinc-400 font-black truncate mt-1">
                     {userEmail}
@@ -361,33 +621,6 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
 
             {/* 2. Options List */}
             <div className="space-y-3">
-              {/* Monvian Conta Gold Selector (only visible for non-gold accounts) */}
-              {!isPremiumUser && (
-                <button
-                  type="button"
-                  id="btn-profile-premium-main"
-                  onClick={() => setIsPremiumModalOpen(true)}
-                  className="w-full p-4 rounded-3xl transition-all flex items-center justify-between text-left cursor-pointer group shadow-sm active:scale-[0.98] border bg-white dark:bg-[#141518] hover:bg-zinc-50 dark:hover:bg-[#1a1c21] border-[#E5AC33]/35 dark:border-[#F5BE38]/30 hover:border-[#FFF4A3]/60"
-                >
-                  <div className="flex items-center gap-3.5 min-w-0">
-                    <div className="w-11 h-11 rounded-2xl bg-metallic-gold-icon border flex items-center justify-center text-[#F5BE38] shrink-0 group-hover:scale-105 transition-transform shadow-xs">
-                      <Crown className="w-5 h-5 stroke-[2.3] text-[#F5BE38]" />
-                    </div>
-                    <div className="min-w-0">
-                      <div className="flex items-center gap-2">
-                        <h3 className="text-base font-black text-zinc-900 dark:text-white tracking-tight leading-tight">
-                          CONTA GOLD
-                        </h3>
-                      </div>
-                      <p className="text-xs text-zinc-500 dark:text-zinc-400 font-medium mt-0.5 truncate">
-                        Desbloqueie todos os conteúdos do Monvian
-                      </p>
-                    </div>
-                  </div>
-                  <ChevronRight className="w-5 h-5 text-[#F5BE38] group-hover:translate-x-0.5 transition-all shrink-0 ml-2" />
-                </button>
-              )}
-
               {/* Editar Perfil */}
               <button
                 id="btn-profile-edit-option"
@@ -395,7 +628,7 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
                   setTempName(userName);
                   setTempEmail(userEmail);
                   setTempAvatar(userAvatar);
-                  setActiveSubView('edit-profile');
+                  handleSetSubView('edit-profile');
                 }}
                 className="w-full p-4 rounded-3xl bg-white dark:bg-[#141518] hover:bg-zinc-50 dark:hover:bg-[#1a1c21] active:scale-[0.98] border border-zinc-200 dark:border-white/5 hover:border-zinc-300 dark:hover:border-white/15 transition-all flex items-center justify-between text-left cursor-pointer group shadow-sm"
               >
@@ -424,6 +657,36 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
                 </div>
                 <ChevronRight className="w-5 h-5 text-zinc-400 dark:text-zinc-500 group-hover:text-zinc-600 dark:group-hover:text-zinc-300 transition-colors shrink-0" />
               </button>
+
+              {/* Painel ADM (Exibido em segundo para a conta de administrador) */}
+              {isUserAdmin && (
+                <button
+                  id="btn-profile-painel-adm"
+                  onClick={() => {
+                    if (onOpenAdmin) {
+                      onOpenAdmin();
+                    } else {
+                      handleSetSubView('painel-adm');
+                    }
+                  }}
+                  className="w-full p-4 rounded-3xl bg-white dark:bg-[#141518] hover:bg-zinc-50 dark:hover:bg-[#1a1c21] active:scale-[0.98] border border-zinc-200 dark:border-white/5 hover:border-zinc-300 dark:hover:border-white/15 transition-all flex items-center justify-between text-left cursor-pointer group shadow-sm"
+                >
+                  <div className="flex items-center gap-3.5 min-w-0">
+                    <div className="w-11 h-11 rounded-2xl bg-zinc-100 dark:bg-zinc-800 flex items-center justify-center text-zinc-900 dark:text-white shrink-0">
+                      <Settings className="w-5 h-5 stroke-[1.8]" />
+                    </div>
+                    <div className="min-w-0">
+                      <h3 className="text-base font-black text-zinc-900 dark:text-white tracking-tight leading-tight">
+                        Painel ADM
+                      </h3>
+                      <p className="text-xs text-zinc-500 dark:text-zinc-400 font-black mt-0.5">
+                        Console de controle administrativo
+                      </p>
+                    </div>
+                  </div>
+                  <ChevronRight className="w-5 h-5 text-zinc-400 dark:text-zinc-500 group-hover:text-zinc-600 dark:group-hover:text-zinc-300 transition-colors shrink-0" />
+                </button>
+              )}
 
               {/* Instagram */}
               <button
@@ -476,7 +739,7 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
               {/* Curtidos */}
               <button
                 id="btn-profile-curtidos"
-                onClick={() => setActiveSubView('curtidos')}
+                onClick={() => handleSetSubView('curtidos')}
                 className="w-full p-4 rounded-3xl bg-white dark:bg-[#141518] hover:bg-zinc-50 dark:hover:bg-[#1a1c21] active:scale-[0.98] border border-zinc-200 dark:border-white/5 hover:border-zinc-300 dark:hover:border-white/15 transition-all flex items-center justify-between text-left cursor-pointer group shadow-sm"
               >
                 <div className="flex items-center gap-3.5 min-w-0">
@@ -503,7 +766,7 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
               {/* Configurações */}
               <button
                 id="btn-profile-permissoes"
-                onClick={() => setActiveSubView('permissoes')}
+                onClick={() => handleSetSubView('permissoes')}
                 className="w-full p-4 rounded-3xl bg-white dark:bg-[#141518] hover:bg-zinc-50 dark:hover:bg-[#1a1c21] active:scale-[0.98] border border-zinc-200 dark:border-white/5 hover:border-zinc-300 dark:hover:border-white/15 transition-all flex items-center justify-between text-left cursor-pointer group shadow-sm"
               >
                 <div className="flex items-center gap-3.5 min-w-0">
@@ -522,43 +785,15 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
                 <ChevronRight className="w-5 h-5 text-zinc-400 dark:text-zinc-500 group-hover:text-zinc-600 dark:group-hover:text-zinc-300 transition-colors shrink-0" />
               </button>
 
-
-
-              {/* Painel ADM (Exibido estritamente para a conta de administrador) */}
-              {isUserAdmin && (
-                <button
-                  id="btn-profile-painel-adm"
-                  onClick={() => {
-                    if (onOpenAdmin) {
-                      onOpenAdmin();
-                    } else {
-                      setActiveSubView('painel-adm');
-                    }
-                  }}
-                  className="w-full p-4 rounded-3xl bg-white dark:bg-[#141518] hover:bg-zinc-50 dark:hover:bg-[#1a1c21] active:scale-[0.98] border border-zinc-200 dark:border-white/5 hover:border-zinc-300 dark:hover:border-white/15 transition-all flex items-center justify-between text-left cursor-pointer group shadow-sm"
-                >
-                  <div className="flex items-center gap-3.5 min-w-0">
-                    <div className="w-11 h-11 rounded-2xl bg-zinc-100 dark:bg-zinc-800 flex items-center justify-center text-zinc-900 dark:text-white shrink-0">
-                      <Settings className="w-5 h-5 stroke-[1.8]" />
-                    </div>
-                    <div className="min-w-0">
-                      <h3 className="text-base font-black text-zinc-900 dark:text-white tracking-tight leading-tight">
-                        Painel ADM
-                      </h3>
-                      <p className="text-xs text-zinc-500 dark:text-zinc-400 font-black mt-0.5">
-                        Console de controle administrativo
-                      </p>
-                    </div>
-                  </div>
-                  <ChevronRight className="w-5 h-5 text-zinc-400 dark:text-zinc-500 group-hover:text-zinc-600 dark:group-hover:text-zinc-300 transition-colors shrink-0" />
-                </button>
-              )}
-
               {/* logout (Highlighted Red Card from Screenshot) */}
               <button
+                type="button"
                 id="btn-profile-logout"
-                onClick={() => setActiveSubView('logout-confirm')}
-                className="w-full p-4 rounded-3xl bg-rose-50 dark:bg-[#180f12] hover:bg-rose-100 dark:hover:bg-[#221318] active:scale-[0.98] border border-rose-200 dark:border-red-950/50 hover:border-rose-300 dark:hover:border-red-900/60 transition-all flex items-center justify-between text-left cursor-pointer group shadow-sm"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  handleSetSubView('logout-confirm');
+                }}
+                className="w-full p-4 rounded-3xl bg-rose-50 dark:bg-[#180f12] hover:bg-rose-100 dark:hover:bg-[#221318] active:scale-[0.98] border border-rose-200 dark:border-red-950/50 hover:border-rose-300 dark:hover:border-red-900/60 transition-all flex items-center justify-between text-left cursor-pointer group shadow-sm select-none relative z-10"
               >
                 <div className="flex items-center gap-3.5 min-w-0">
                   <div className="w-11 h-11 rounded-2xl bg-rose-200/50 dark:bg-red-950/40 flex items-center justify-center text-rose-500 dark:text-rose-400 shrink-0">
@@ -575,6 +810,9 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
                 </div>
                 <ChevronRight className="w-5 h-5 text-rose-400/80 dark:text-rose-400/60 group-hover:text-rose-600 dark:group-hover:text-rose-400 transition-colors shrink-0" />
               </button>
+
+              {/* Snug bottom spacer at the limit */}
+              <div className="h-2 shrink-0" />
             </div>
           </div>
         )}
@@ -651,7 +889,7 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
               <div className="flex items-center gap-3">
                 <button
                   type="button"
-                  onClick={() => setActiveSubView('main')}
+                  onClick={() => handleSetSubView('main')}
                   className="flex-1 py-3 rounded-full bg-zinc-200 dark:bg-white/10 hover:bg-zinc-300 dark:hover:bg-white/15 text-sm font-black text-zinc-700 dark:text-zinc-300 transition-all cursor-pointer"
                 >
                   Cancelar
@@ -680,14 +918,12 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
             )}
 
             {favoriteSpots.length === 0 ? (
-              <div className="flex-1 flex flex-col items-center justify-center -mt-6">
-                <div className="w-full max-w-md p-8 text-center rounded-3xl bg-zinc-50 dark:bg-[#141518] border border-zinc-200 dark:border-white/10 text-zinc-500 dark:text-zinc-400 text-sm shadow-xs">
-                  <Heart className="w-10 h-10 text-zinc-300 dark:text-zinc-600 mx-auto mb-2" />
-                  <p className="font-bold text-zinc-700 dark:text-zinc-200 text-base">Nenhum lugar curtido ainda.</p>
-                  <p className="text-xs text-zinc-400 dark:text-zinc-500 mt-1 max-w-xs mx-auto">
-                    Toque no coração de qualquer ponto turístico para salvar aqui!
-                  </p>
-                </div>
+              <div className="flex-1 flex flex-col items-center justify-center text-center py-16 text-zinc-500 dark:text-zinc-400">
+                <Heart className="w-10 h-10 text-zinc-300 dark:text-zinc-600 mx-auto mb-3" />
+                <p className="font-bold text-zinc-700 dark:text-zinc-200 text-base">Nenhum lugar curtido ainda.</p>
+                <p className="text-xs text-zinc-400 dark:text-zinc-500 mt-1 max-w-xs mx-auto">
+                  Toque no coração de qualquer ponto turístico para salvar aqui!
+                </p>
               </div>
             ) : (
               favoriteSpots.map((spot) => (
@@ -726,84 +962,11 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
                     </div>
                   </div>
 
-                  <ExternalLink className="w-4 h-4 text-zinc-400 dark:text-zinc-500 group-hover:text-zinc-600 dark:group-hover:text-zinc-300 shrink-0 ml-2" />
+                    <ExternalLink className="w-4 h-4 text-zinc-400 dark:text-zinc-500 group-hover:text-zinc-600 dark:group-hover:text-zinc-300 shrink-0 ml-2" />
                 </div>
               ))
             )}
-          </div>
-        )}
-
-        {/* ============================================================ */}
-        {/* VIEW 4: CONFIGURAÇÕES & PRIVACIDADE                           */}
-        {/* ============================================================ */}
-        {activeSubView === 'permissoes' && (
-          <div className="space-y-4 pt-2">
-            {/* Efeitos do Mapa Section */}
-            <div>
-              <div className="text-xs font-black uppercase tracking-wider text-zinc-400 dark:text-zinc-500 mb-2 px-1">
-                Efeitos do mapa
-              </div>
-              <div className="p-4 rounded-3xl bg-white dark:bg-[#141518] border border-zinc-200 dark:border-white/10 flex items-center justify-between shadow-sm">
-                <div className="flex items-center gap-3 pr-2">
-                  <div className="w-10 h-10 rounded-2xl bg-zinc-100 dark:bg-zinc-800 flex items-center justify-center text-zinc-900 dark:text-white shrink-0">
-                    <CloudRain className="w-5 h-5" />
-                  </div>
-                  <div>
-                    <div className="text-sm font-black text-zinc-900 dark:text-white">Efeito de chuva</div>
-                    <div className="text-xs text-zinc-500 dark:text-zinc-400 leading-snug">
-                      Mostra uma animação de chuva sobre o mapa quando estiver chovendo.
-                    </div>
-                  </div>
-                </div>
-                <button
-                  type="button"
-                  id="btn-toggle-rain-effect"
-                  onClick={() => onToggleRain && onToggleRain()}
-                  className={`w-12 h-6 rounded-full transition-colors relative cursor-pointer shrink-0 ${
-                    rainEnabled ? 'bg-zinc-900 dark:bg-white' : 'bg-zinc-300 dark:bg-white/20'
-                  }`}
-                  aria-label="Alternar efeito de chuva"
-                >
-                  <div
-                    className={`w-4 h-4 rounded-full bg-white dark:bg-zinc-950 transition-transform absolute top-1 ${
-                      rainEnabled ? 'left-7' : 'left-1'
-                    }`}
-                  />
-                </button>
-              </div>
-            </div>
-
-            {/* Privacidade e Permissões Section */}
-            <div>
-              <div className="text-xs font-black uppercase tracking-wider text-zinc-400 dark:text-zinc-500 mb-2 px-1">
-                Privacidade
-              </div>
-              <div className="p-4 rounded-3xl bg-white dark:bg-[#141518] border border-zinc-200 dark:border-white/10 flex items-center justify-between shadow-sm">
-                <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-2xl bg-zinc-100 dark:bg-[#202227] flex items-center justify-center text-zinc-900 dark:text-white shrink-0">
-                    <MapPin className="w-5 h-5" />
-                  </div>
-                  <div>
-                    <div className="text-sm font-black text-zinc-900 dark:text-white">Localização em Tempo Real</div>
-                    <div className="text-xs text-zinc-500 dark:text-zinc-400">Exibir sua proximidade aos pontos turísticos</div>
-                  </div>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => setLocationPerm(!locationPerm)}
-                  className={`w-12 h-6 rounded-full transition-colors relative cursor-pointer shrink-0 ${
-                    locationPerm ? 'bg-zinc-900 dark:bg-white' : 'bg-zinc-300 dark:bg-white/20'
-                  }`}
-                  aria-label="Alternar permissão de localização"
-                >
-                  <div
-                    className={`w-4 h-4 rounded-full bg-white dark:bg-zinc-950 transition-transform absolute top-1 ${
-                      locationPerm ? 'left-7' : 'left-1'
-                    }`}
-                  />
-                </button>
-              </div>
-            </div>
+            <div className="h-16 shrink-0" />
           </div>
         )}
 
@@ -837,6 +1000,7 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
                 <span className="text-zinc-900 dark:text-white font-black">Online (Gemini API)</span>
               </div>
             </div>
+            <div className="h-16 shrink-0" />
           </div>
         )}
 
@@ -867,7 +1031,7 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
               <button
                 type="button"
                 id="btn-logout-cancel"
-                onClick={() => setActiveSubView('main')}
+                onClick={() => handleSetSubView('main')}
                 className="flex-1 py-3.5 rounded-2xl bg-zinc-200/80 dark:bg-white/10 hover:bg-zinc-300 dark:hover:bg-white/15 text-sm font-bold text-zinc-800 dark:text-zinc-200 transition-all cursor-pointer active:scale-95"
               >
                 Permanecer
@@ -906,6 +1070,7 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
         onClose={() => setIsPremiumModalOpen(false)}
         theme={theme}
       />
+      </div>
     </div>
   );
 };

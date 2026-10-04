@@ -96,6 +96,15 @@ export interface AIChatMessage {
   groundingPlaces?: MapsGroundingPlace[];
   sources?: WebSource[];
   isSearchingWeb?: boolean;
+  showItineraryCards?: boolean;
+  openMapSpot?: {
+    id?: string;
+    name: string;
+    lat: number;
+    lng: number;
+    category?: string;
+    categoryLabel?: string;
+  };
 }
 
 export interface UserPreferences {
@@ -130,6 +139,8 @@ export interface User {
   is_premium?: number | boolean;
   isGold?: boolean;
   is_gold?: number | boolean;
+  plan?: 'beta' | 'gold';
+  gold_activated_at?: string;
 }
 
 export interface MapVisualIcon {
@@ -183,6 +194,8 @@ export interface ItineraryStep {
   durationToNextMin?: number;
   isPinned?: boolean;
   pinnedAt?: number;
+  isCompleted?: boolean;
+  completedAt?: string;
 }
 
 export interface ItineraryDay {

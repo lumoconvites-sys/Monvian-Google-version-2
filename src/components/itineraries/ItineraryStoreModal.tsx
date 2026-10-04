@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo, useRef } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { createPortal } from 'react-dom';
 import {
   X,
@@ -69,7 +69,6 @@ export const ItineraryStoreModal: React.FC<ItineraryStoreModalProps> = ({
   const [categories, setCategories] = useState<ItineraryCategory[]>(getInitialCategories);
   const [loading, setLoading] = useState<boolean>(() => itineraries.length === 0);
   const [searchQuery, setSearchQuery] = useState('');
-  const [selectedCategory, setSelectedCategory] = useState<string>('all');
   const [selectedItinerary, setSelectedItinerary] = useState<Itinerary | null>(null);
   const [isDetailOpen, setIsDetailOpen] = useState(false);
 
@@ -128,101 +127,33 @@ export const ItineraryStoreModal: React.FC<ItineraryStoreModalProps> = ({
     };
   }, []);
 
-  // Filter tabs: Todos, Mais procurados, Natureza, Casais + extras
-  const filterTabs = useMemo(() => {
-    const base: { id: string; name: string }[] = [
-      { id: 'all', name: 'Todos' },
-      { id: 'popular', name: 'Mais procurados' },
-      { id: 'nature', name: 'Natureza' },
-      { id: 'romantic', name: 'Casais' },
-    ];
-
-    // Append any extra category from DB if not already represented
-    for (const cat of categories) {
-      const lowerId = cat.id.toLowerCase();
-      const lowerName = cat.name.toLowerCase();
-      const isAlready =
-        lowerId === 'all' ||
-        lowerId === 'popular' ||
-        lowerId === 'nature' ||
-        lowerId === 'romantic' ||
-        lowerName.includes('mais procurad') ||
-        lowerName.includes('natureza') ||
-        lowerName.includes('casais') ||
-        lowerName.includes('casal');
-
-      if (!isAlready) {
-        base.push({ id: cat.id, name: cat.name });
-      }
-    }
-    return base;
-  }, [categories]);
-
-  // Featured itineraries (isFeatured / isRecommended)
-  const featuredItineraries = useMemo(() => {
-    return itineraries.filter(i => i.isFeatured || i.isRecommended);
-  }, [itineraries]);
-
-  // Filtered itineraries based on search & category
+  // Filtered itineraries based on search query
   const filteredItineraries = useMemo(() => {
+    const q = searchQuery.toLowerCase().trim();
+    if (!q) return itineraries;
     return itineraries.filter(itin => {
-      // 1. Search Query filter
-      if (searchQuery.trim()) {
-        const q = searchQuery.toLowerCase().trim();
-        const matchesTitle = itin.title.toLowerCase().includes(q);
-        const matchesDesc = itin.description?.toLowerCase().includes(q);
-        const matchesCat = itin.categories.some(c => c.toLowerCase().includes(q));
-        const matchesSpots = itin.days.some(d => d.steps.some(s => s.spot?.name.toLowerCase().includes(q)));
-        if (!matchesTitle && !matchesDesc && !matchesCat && !matchesSpots) return false;
-      }
-
-      // 2. Category filter
-      if (selectedCategory !== 'all') {
-        if (selectedCategory === 'popular' || selectedCategory === 'mais-procurados') {
-          return itin.isFeatured || itin.isRecommended;
-        }
-        if (selectedCategory === 'nature' || selectedCategory === 'natureza') {
-          return itin.categories.some(c => {
-            const lc = c.toLowerCase();
-            return lc.includes('nature') || lc.includes('natureza') || lc.includes('parque') || lc.includes('ar');
-          });
-        }
-        if (selectedCategory === 'romantic' || selectedCategory === 'casais' || selectedCategory === 'casal') {
-          return itin.categories.some(c => {
-            const lc = c.toLowerCase();
-            return lc.includes('romantic') || lc.includes('românt') || lc.includes('romant') || lc.includes('casal') || lc.includes('casais');
-          });
-        }
-        if (selectedCategory === '1day' || selectedCategory === '1-dia' || selectedCategory === '1dia') {
-          return itin.daysCount === 1;
-        }
-        if (selectedCategory === '2days' || selectedCategory === '2-dias' || selectedCategory === '2dias') {
-          return itin.daysCount === 2;
-        }
-        const matchesCategory = itin.categories.includes(selectedCategory) ||
-          itin.categories.some(c => c.toLowerCase().includes(selectedCategory.toLowerCase()));
-        if (!matchesCategory) return false;
-      }
-
-      return true;
+      const matchesTitle = itin.title.toLowerCase().includes(q);
+      const matchesDesc = itin.description?.toLowerCase().includes(q);
+      const matchesCat = (itin.categories || []).some(c => c.toLowerCase().includes(q));
+      const matchesSpots = (itin.days || []).some(d => (d.steps || []).some(s => s.spot?.name?.toLowerCase().includes(q)));
+      return matchesTitle || matchesDesc || matchesCat || matchesSpots;
     });
-  }, [itineraries, searchQuery, selectedCategory]);
+  }, [itineraries, searchQuery]);
 
-  // Single featured itinerary for the hero card (strictly 1 single item)
+  // Single featured itinerary for the hero card (when not searching)
   const singleFeaturedItinerary = useMemo(() => {
-    if (featuredItineraries.length > 0) return featuredItineraries[0];
-    if (itineraries.length > 0) return itineraries[0];
-    return null;
-  }, [featuredItineraries, itineraries]);
+    if (searchQuery.trim()) return null;
+    const featured = itineraries.find(i => i.isFeatured || i.isRecommended);
+    return featured || itineraries[0] || null;
+  }, [itineraries, searchQuery]);
 
-  // Items for the "Todos os roteiros" section
+  // Other itineraries for the main list
   const otherItineraries = useMemo(() => {
-    // When in initial view (all + no search query), avoid duplicating the single featured hero card
-    if (selectedCategory === 'all' && !searchQuery && singleFeaturedItinerary) {
+    if (!searchQuery.trim() && singleFeaturedItinerary) {
       return filteredItineraries.filter(i => i.id !== singleFeaturedItinerary.id);
     }
     return filteredItineraries;
-  }, [filteredItineraries, selectedCategory, searchQuery, singleFeaturedItinerary]);
+  }, [filteredItineraries, searchQuery, singleFeaturedItinerary]);
 
   const handleOpenDetail = (itin: Itinerary) => {
     setSelectedItinerary(itin);
@@ -235,345 +166,246 @@ export const ItineraryStoreModal: React.FC<ItineraryStoreModalProps> = ({
     onClose();
   };
 
-  const modalContent = (
-    <AnimatePresence>
-      {isOpen && (
-        <motion.div
-          key="itinerary-store-modal"
-          initial={{ x: '100%' }}
-          animate={{ x: '0%' }}
-          exit={{ x: '100%' }}
-          transition={{
-            type: 'spring',
-            stiffness: 320,
-            damping: 32,
-            mass: 0.8
-          }}
-          className={`fixed inset-0 z-[190] w-full h-full flex flex-col overflow-hidden transition-colors duration-200 ${
-            isLight
-              ? 'bg-[#ffffff] text-zinc-900'
-              : 'bg-[#0e0f12] text-white'
-          }`}
-          style={{
-            fontFamily: "-apple-system, BlinkMacSystemFont, 'SF Pro Text', 'SF Pro Display', 'Manrope', sans-serif",
-            WebkitBackdropFilter: 'blur(30px) saturate(180%)',
-            backdropFilter: 'blur(30px) saturate(180%)',
-            transform: 'translateZ(0)',
-            WebkitTransform: 'translateZ(0)',
-            willChange: 'transform, opacity'
-          }}
-        >
-          {/* 1. CABEÇALHO COM ESTILO CONSISTENTE DE "EXPLORAR" */}
-          <div
-            className={`relative px-5 pb-3.5 shrink-0 border-b z-20 transition-colors duration-200 ${
-              isLight
-                ? 'bg-white/80 border-zinc-200/70 text-zinc-900'
-                : 'bg-black/60 border-white/10 text-white'
-            }`}
-            style={{
-              paddingTop: 'max(calc(env(safe-area-inset-top, 0px) + 16px), 22px)',
-              WebkitBackdropFilter: 'blur(20px)',
-              backdropFilter: 'blur(20px)'
-            }}
+  return createPortal(
+    <>
+      <AnimatePresence mode="wait">
+        {isOpen && (
+          <motion.div
+            key="itinerary-store-backdrop"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.2, ease: 'easeOut' }}
+            onClick={onClose}
+            className="fixed inset-0 z-[120] bg-black/55 backdrop-blur-[3px] flex items-center justify-center p-4 sm:p-6 select-none cursor-pointer"
+            style={{ willChange: 'opacity' }}
           >
-            {/* Título grande, preto e forte à esquerda com botão discreto à direita */}
-            <div className="flex items-center justify-between mb-3.5">
-              <h1 className={`text-2xl sm:text-[28px] font-black tracking-tight leading-none ${
-                isLight ? 'text-zinc-900' : 'text-white'
-              }`}>
-                Roteiros
-              </h1>
-
-              <motion.button
-                whileTap={{ scale: 0.9 }}
-                type="button"
-                onClick={onClose}
-                className={`w-9 h-9 rounded-full border flex items-center justify-center transition-colors cursor-pointer shrink-0 ${
-                  isLight
-                    ? 'bg-zinc-100 hover:bg-zinc-200 border-zinc-200/80 text-zinc-600 hover:text-zinc-900'
-                    : 'bg-zinc-900 hover:bg-zinc-800 border-white/10 text-zinc-400 hover:text-white'
-                }`}
-                title="Fechar"
-                aria-label="Fechar"
-              >
-                <X className="w-4 h-4 stroke-[2]" />
-              </motion.button>
-            </div>
-
-            {/* 2. CAMPO DE BUSCA COMPATÍVEL COM "EXPLORAR" */}
-            <div className="relative">
-              <div className={`flex items-center border rounded-full px-4 h-11 transition-all ${
+            <motion.div
+              key="itinerary-store-card"
+              initial={{ opacity: 0, scale: 0.94, y: 14 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 10 }}
+              transition={{ duration: 0.22, ease: [0.16, 1, 0.3, 1] }}
+              onClick={(e) => e.stopPropagation()}
+              className={`relative w-full max-w-lg max-h-[85vh] rounded-[36px] overflow-hidden flex flex-col shadow-2xl border cursor-auto ${
                 isLight
-                  ? 'bg-zinc-100/90 border-zinc-200/70 focus-within:border-zinc-300 focus-within:bg-white text-zinc-900'
-                  : 'bg-white/5 border-white/10 focus-within:border-white/20 text-white'
-              }`}>
-                <Search className={`w-4 h-4 mr-2.5 shrink-0 stroke-[2] ${
-                  isLight ? 'text-zinc-400' : 'text-zinc-500'
-                }`} />
-                <input
-                  type="text"
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  placeholder="Buscar roteiros..."
-                  className={`w-full bg-transparent text-sm font-medium focus:outline-none ${
-                    isLight ? 'text-zinc-900 placeholder-zinc-400' : 'text-white placeholder-zinc-500'
-                  }`}
-                />
-                {searchQuery && (
-                  <button
-                    type="button"
-                    onClick={() => setSearchQuery('')}
-                    className={`w-5 h-5 rounded-full flex items-center justify-center text-xs cursor-pointer ${
-                      isLight ? 'bg-zinc-200 text-zinc-600 hover:bg-zinc-300' : 'bg-white/10 text-zinc-400 hover:bg-white/20'
-                    }`}
-                  >
-                    <X className="w-3 h-3" />
-                  </button>
-                )}
-              </div>
+                  ? 'bg-white/80 border-white/70 text-zinc-900 shadow-[0_25px_70px_rgba(0,0,0,0.16)] ring-1 ring-black/5'
+                  : 'bg-[#1c1c1e]/80 border-white/20 text-white shadow-[0_30px_90px_rgba(0,0,0,0.9)] ring-1 ring-white/10'
+              }`}
+              style={{
+                fontFamily: "'Manrope', -apple-system, BlinkMacSystemFont, 'SF Pro Display', sans-serif",
+                WebkitBackdropFilter: 'blur(25px) saturate(180%)',
+                backdropFilter: 'blur(25px) saturate(180%)',
+                willChange: 'transform, opacity',
+                transform: 'translateZ(0)',
+              }}
+            >
+          {/* Minimal Top Bar with Search & Close matching Foto 2 */}
+          <div className="p-4 sm:p-5 pb-3 flex items-center gap-3 border-b border-black/[0.06] dark:border-white/10 shrink-0">
+            <div className={`relative flex items-center flex-1 rounded-2xl border px-3.5 py-2.5 transition-all ${
+              isLight
+                ? 'bg-black/[0.04] border-black/5 text-zinc-900 focus-within:border-blue-500'
+                : 'bg-white/[0.08] border-white/15 text-white focus-within:border-[#F5BE38]/60'
+            }`}>
+              <Search className="w-4 h-4 text-zinc-400 shrink-0 mr-2.5" />
+              <input
+                type="text"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                placeholder="Buscar roteiro..."
+                className="w-full bg-transparent text-sm font-medium outline-none placeholder:text-zinc-400 dark:placeholder:text-zinc-500"
+                autoFocus={false}
+              />
+              {searchQuery && (
+                <button
+                  type="button"
+                  onClick={() => setSearchQuery('')}
+                  className="text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-200 p-0.5 cursor-pointer"
+                >
+                  <X className="w-3.5 h-3.5" />
+                </button>
+              )}
             </div>
 
-            {/* 3. FILTROS HORIZONTAIS COMPACTOS E REFINADOS */}
-            <div className="mt-3 flex items-center gap-1.5 overflow-x-auto no-scrollbar pb-0.5">
-              {filterTabs.map((tab) => {
-                const isSelected = selectedCategory === tab.id;
-                return (
-                  <button
-                    key={tab.id}
-                    type="button"
-                    onClick={() => setSelectedCategory(tab.id)}
-                    className={`px-3.5 py-1.5 rounded-full text-xs font-semibold whitespace-nowrap transition-all cursor-pointer shrink-0 border ${
-                      isSelected
-                        ? 'bg-[#007AFF] text-white border-transparent shadow-xs'
-                        : isLight
-                        ? 'bg-zinc-100/90 text-zinc-600 border-zinc-200/70 hover:bg-zinc-200/80 hover:text-zinc-900'
-                        : 'bg-white/5 text-zinc-400 border-white/10 hover:bg-white/10 hover:text-zinc-200'
-                    }`}
-                  >
-                    {tab.name}
-                  </button>
-                );
-              })}
-            </div>
+            <button
+              type="button"
+              onClick={onClose}
+              className="w-10 h-10 rounded-full bg-black/5 hover:bg-black/10 dark:bg-white/10 dark:hover:bg-white/20 flex items-center justify-center transition-colors cursor-pointer shrink-0"
+              title="Fechar"
+              aria-label="Fechar"
+            >
+              <X className="w-4 h-4 text-zinc-700 dark:text-zinc-300" />
+            </button>
           </div>
 
-          {/* CONTEÚDO PRINCIPAL COM SCROLL SUAVE E ESPAÇAMENTO */}
-          <div className="flex-1 overflow-y-auto px-5 pt-5 pb-36 space-y-6">
+          {/* Scrollable Content */}
+          <div className="flex-1 overflow-y-auto px-4 sm:px-5 py-4 space-y-4 no-scrollbar">
             {loading && itineraries.length === 0 ? (
-              <div className="py-20 flex flex-col items-center justify-center space-y-3">
-                <div className="w-8 h-8 rounded-full border-2 border-[#007AFF] border-t-transparent animate-spin" />
-                <p className={`text-xs font-medium ${isLight ? 'text-zinc-500' : 'text-zinc-400'}`}>
-                  Carregando roteiros...
-                </p>
+              <div className="py-16 flex flex-col items-center justify-center space-y-3">
+                <div className="w-7 h-7 rounded-full border-2 border-[#007AFF] border-t-transparent animate-spin" />
+                <p className="text-xs font-semibold text-zinc-400">Carregando roteiros...</p>
+              </div>
+            ) : filteredItineraries.length === 0 ? (
+              <div className="text-center py-12 text-zinc-400 dark:text-zinc-500 space-y-1">
+                <Compass className="w-8 h-8 mx-auto mb-2 opacity-50 stroke-[1.8]" />
+                <p className="text-sm font-bold text-zinc-800 dark:text-zinc-200">Nenhum roteiro encontrado</p>
+                <p className="text-xs">Tente buscar por outro nome ou termo</p>
               </div>
             ) : (
               <>
-                {/* 4. SEÇÃO "ROTEIRO EM DESTAQUE" (EXATAMENTE UM ÚNICO CARD CENTRALIZADO) */}
-                {selectedCategory === 'all' && !searchQuery && singleFeaturedItinerary && (
-                  <div className="space-y-3">
-                    <h2 className={`text-sm sm:text-base font-bold tracking-tight px-0.5 ${
-                      isLight ? 'text-zinc-900' : 'text-white'
-                    }`}>
+                {/* Featured Itinerary Card (Clean Hero) */}
+                {singleFeaturedItinerary && (
+                  <div className="space-y-2">
+                    <h3 className="text-xs font-bold uppercase tracking-wider text-zinc-500 dark:text-zinc-400 px-1">
                       Roteiro em destaque
-                    </h2>
+                    </h3>
 
-                    {/* Card Único Perfeitamente Centralizado com Margem Lateral Confortável */}
-                    <div className="w-full flex justify-center">
-                      {(() => {
-                        const itin = singleFeaturedItinerary;
-                        const stopsCount = itin.placesCount || itin.days.reduce((acc, d) => acc + d.steps.length, 0);
+                    {(() => {
+                      const itin = singleFeaturedItinerary;
+                      const stopsCount = itin.placesCount || (itin.days || []).reduce((acc, d) => acc + (d.steps || []).length, 0);
 
-                        return (
-                          <motion.div
-                            key={itin.id}
-                            whileTap={{ scale: 0.98 }}
-                            transition={{
-                              type: 'spring',
-                              stiffness: 450,
-                              damping: 28
-                            }}
-                            onClick={() => handleOpenDetail(itin)}
-                            className={`w-full max-w-[340px] sm:max-w-[356px] p-4 rounded-3xl border transition-all cursor-pointer flex flex-col space-y-3 ${
-                              isLight
-                                ? 'bg-white border-zinc-200/70 shadow-[0_4px_20px_rgba(0,0,0,0.04)] hover:border-zinc-300'
-                                : 'bg-[#141518] border-white/10 hover:border-white/20 shadow-md'
-                            }`}
-                          >
-                            {/* [ IMAGEM GRANDE ] */}
-                            <div className={`relative w-full aspect-[16/10] rounded-2xl overflow-hidden shrink-0 ${
-                              isLight ? 'bg-zinc-100' : 'bg-zinc-900'
+                      return (
+                        <motion.div
+                          whileTap={{ scale: 0.985 }}
+                          whileHover={{ scale: 1.008 }}
+                          onClick={() => handleOpenDetail(itin)}
+                          className={`gold-featured-card-wrapper w-full cursor-pointer group ${isLight ? 'light' : ''}`}
+                        >
+                          <div className="gold-sheen-overlay" />
+                          <div className={`gold-featured-card-inner p-4 flex flex-col space-y-3 ${isLight ? 'light' : ''}`}>
+                            {/* Image */}
+                            <div className={`relative w-full aspect-[16/9] rounded-2xl overflow-hidden shrink-0 border ${
+                              isLight ? 'bg-zinc-100 border-[#F5BE38]/40 shadow-xs' : 'bg-zinc-900 border-[#F5BE38]/40 shadow-inner'
                             }`}>
                               <img
                                 src={itin.coverImage}
                                 alt={itin.title}
-                                className="w-full h-full object-cover transition-transform duration-500 hover:scale-105"
+                                className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
                                 loading="lazy"
                               />
+                              {/* Badge CONTA GOLD Metallic */}
+                              <div className="absolute top-2.5 left-2.5 px-3 py-1 rounded-full bg-black/80 backdrop-blur-md border border-[#FFF4A3]/70 flex items-center gap-1.5 shadow-[0_2px_12px_rgba(0,0,0,0.7)]">
+                                <Crown className="w-3.5 h-3.5 text-[#F5BE38] stroke-[2.5]" />
+                                <span className="text-[10px] font-black uppercase tracking-wider text-metallic-gold">
+                                  {itin.badgeText && itin.badgeText.toUpperCase() !== 'PREMIUM' ? itin.badgeText : 'CONTA GOLD'}
+                                </span>
+                              </div>
                             </div>
 
-                            {/* Informações internas organizadas */}
+                            {/* Info */}
                             <div className="space-y-1.5 px-0.5">
-                              {/* CONTA GOLD */}
-                              {itin.isPremium && (
-                                <div className="flex items-center">
-                                  <span className="text-[10px] sm:text-[11px] font-black uppercase tracking-wider text-[#C28514] dark:text-[#FDE073] flex items-center gap-1">
-                                    <Crown className="w-3 h-3 stroke-[2.3] text-[#F5BE38]" />
-                                    {itin.badgeText && itin.badgeText.toUpperCase() !== 'PREMIUM' ? itin.badgeText : 'CONTA GOLD'}
-                                  </span>
-                                </div>
-                              )}
-
-                              {/* Título grande e forte */}
-                              <h3 className={`text-base sm:text-lg font-black tracking-tight leading-snug line-clamp-2 ${
+                              <h4 className={`text-base sm:text-lg font-black tracking-tight leading-snug line-clamp-1 transition-colors ${
                                 isLight ? 'text-zinc-900' : 'text-white'
                               }`}>
                                 {itin.title}
-                              </h3>
-
-                              {/* Duração • Paradas */}
+                              </h4>
                               <p className={`text-xs font-semibold ${
                                 isLight ? 'text-zinc-500' : 'text-zinc-400'
                               }`}>
-                                {itin.daysCount} {itin.daysCount === 1 ? 'dia' : 'dias'}  •  {stopsCount} {stopsCount === 1 ? 'parada' : 'paradas'}
+                                {itin.daysCount} {itin.daysCount === 1 ? 'dia' : 'dias'} • {stopsCount} {stopsCount === 1 ? 'parada' : 'paradas'}
                               </p>
-
-                              {/* Descrição curta */}
-                              <p className={`text-xs font-normal line-clamp-2 leading-relaxed ${
-                                isLight ? 'text-zinc-600' : 'text-zinc-400'
-                              }`}>
-                                {itin.description}
-                              </p>
-                            </div>
-                          </motion.div>
-                        );
-                      })()}
-                    </div>
-                  </div>
-                )}
-
-                {/* 5. SEÇÃO "TODOS OS ROTEIROS" */}
-                <div className="space-y-3">
-                  <div className="px-0.5">
-                    <h2 className={`text-sm sm:text-base font-bold tracking-tight ${
-                      isLight ? 'text-zinc-900' : 'text-white'
-                    }`}>
-                      Todos os roteiros
-                    </h2>
-                  </div>
-
-                  {otherItineraries.length === 0 ? (
-                    <div className={`p-8 rounded-2xl border text-center space-y-2 ${
-                      isLight
-                        ? 'bg-white border-zinc-200/70 text-zinc-900'
-                        : 'bg-[#141518] border-white/10 text-white'
-                    }`}>
-                      <Compass className={`w-8 h-8 mx-auto mb-1 ${
-                        isLight ? 'text-zinc-400' : 'text-zinc-600'
-                      }`} />
-                      <p className="text-sm font-bold">Nenhum roteiro encontrado</p>
-                      <p className={`text-xs ${isLight ? 'text-zinc-500' : 'text-zinc-400'}`}>
-                        Tente buscar por outro termo ou selecione a categoria "Todos".
-                      </p>
-                    </div>
-                  ) : (
-                    <div className="space-y-2.5">
-                      {otherItineraries.map((itin) => {
-                        const stopsCount = itin.placesCount || itin.days.reduce((acc, d) => acc + d.steps.length, 0);
-
-                        return (
-                          <motion.div
-                            key={itin.id}
-                            whileTap={{ scale: 0.98 }}
-                            transition={{
-                              type: 'spring',
-                              stiffness: 450,
-                              damping: 28
-                            }}
-                            onClick={() => handleOpenDetail(itin)}
-                            className={`w-full p-3 rounded-2xl border transition-all cursor-pointer flex gap-3.5 items-center justify-between text-left group ${
-                              isLight
-                                ? 'bg-white border-zinc-200/70 shadow-[0_2px_12px_rgba(0,0,0,0.03)] hover:border-zinc-300'
-                                : 'bg-[#141518] border-white/10 hover:border-white/20'
-                            }`}
-                          >
-                            {/* [ FOTO ] */}
-                            <div className={`w-20 h-20 sm:w-22 sm:h-22 rounded-xl overflow-hidden shrink-0 ${
-                              isLight ? 'bg-zinc-100' : 'bg-zinc-900'
-                            }`}>
-                              <img
-                                src={itin.coverImage}
-                                alt={itin.title}
-                                className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
-                                loading="lazy"
-                              />
-                            </div>
-
-                            {/* CONTEÚDO CENTRAL */}
-                            <div className="flex-1 min-w-0 flex flex-col justify-between py-0.5">
-                              <div>
-                                <h3 className={`text-sm sm:text-[15px] font-black tracking-tight truncate leading-tight ${
-                                  isLight ? 'text-zinc-900' : 'text-white'
-                                }`}>
-                                  {itin.title}
-                                </h3>
-                                <p className={`text-[11px] font-semibold mt-0.5 ${
-                                  isLight ? 'text-zinc-500' : 'text-zinc-400'
-                                }`}>
-                                  {itin.daysCount} {itin.daysCount === 1 ? 'dia' : 'dias'}  •  {stopsCount} {stopsCount === 1 ? 'parada' : 'paradas'}
-                                </p>
-                                <p className={`text-xs font-normal line-clamp-1 mt-1 leading-snug ${
-                                  isLight ? 'text-zinc-600' : 'text-zinc-400'
+                              {itin.description && (
+                                <p className={`text-xs line-clamp-2 leading-relaxed font-medium ${
+                                  isLight ? 'text-zinc-600' : 'text-zinc-300'
                                 }`}>
                                   {itin.description}
                                 </p>
-                              </div>
-
-                              <div className="pt-1.5 flex items-center justify-between">
-                                {itin.isPremium ? (
-                                  <span className="text-[10px] font-black uppercase tracking-wider text-[#C28514] dark:text-[#FDE073] flex items-center gap-1">
-                                    <Crown className="w-2.5 h-2.5 stroke-[2.3] text-[#F5BE38]" />
-                                    {itin.badgeText && itin.badgeText.toUpperCase() !== 'PREMIUM' ? itin.badgeText : 'CONTA GOLD'}
-                                  </span>
-                                ) : (
-                                  <span className={`text-xs font-semibold ${
-                                    isLight ? 'text-zinc-400' : 'text-zinc-500'
-                                  }`}>
-                                    Disponível
-                                  </span>
-                                )}
-                              </div>
+                              )}
                             </div>
+                          </div>
+                        </motion.div>
+                      );
+                    })()}
+                  </div>
+                )}
 
-                            {/* Seta discreta à direita indicando que o card é clicável */}
-                            <div className="shrink-0 text-zinc-400 group-hover:text-zinc-600 dark:text-zinc-500 dark:group-hover:text-zinc-300 transition-colors pl-1">
-                              <ChevronRight className="w-4 h-4 stroke-[2]" />
-                            </div>
-                          </motion.div>
-                        );
-                      })}
-                    </div>
+                {/* All / Other Itineraries (Clean Free Cards) */}
+                <div className="space-y-2 pt-1">
+                  {singleFeaturedItinerary && otherItineraries.length > 0 && (
+                    <h3 className="text-xs font-bold uppercase tracking-wider text-zinc-500 dark:text-zinc-400 px-1">
+                      Todos os roteiros
+                    </h3>
                   )}
+
+                  <div className="space-y-2.5">
+                    {otherItineraries.map((itin) => {
+                      const stopsCount = itin.placesCount || (itin.days || []).reduce((acc, d) => acc + (d.steps || []).length, 0);
+
+                      return (
+                        <motion.div
+                          key={itin.id}
+                          whileTap={{ scale: 0.985 }}
+                          whileHover={{ scale: 1.01 }}
+                          onClick={() => handleOpenDetail(itin)}
+                          className={`w-full p-3.5 rounded-2xl cursor-pointer flex gap-3.5 items-center justify-between text-left transition-all duration-200 group ${
+                            isLight
+                              ? 'bg-white border border-black/[0.07] hover:border-black/20 shadow-xs'
+                              : 'bg-white/[0.06] border border-white/10 hover:border-white/20 shadow-xs'
+                          }`}
+                        >
+                          {/* Image */}
+                          <div className={`w-16 h-16 sm:w-18 sm:h-18 rounded-2xl overflow-hidden shrink-0 relative border shadow-xs ${
+                            isLight ? 'bg-zinc-100 border-black/5' : 'bg-zinc-900 border-white/10'
+                          }`}>
+                            <img
+                              src={itin.coverImage}
+                              alt={itin.title}
+                              className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                              loading="lazy"
+                            />
+                          </div>
+
+                          {/* Info */}
+                          <div className="flex-1 min-w-0 py-0.5">
+                            <h4 className={`text-sm font-black tracking-tight truncate leading-tight transition-colors ${
+                              isLight ? 'text-zinc-900' : 'text-white'
+                            }`}>
+                              {itin.title}
+                            </h4>
+                            <p className={`text-xs font-semibold mt-0.5 ${
+                              isLight ? 'text-zinc-500' : 'text-zinc-400'
+                            }`}>
+                              {itin.daysCount} {itin.daysCount === 1 ? 'dia' : 'dias'} • {stopsCount} {stopsCount === 1 ? 'parada' : 'paradas'}
+                            </p>
+                            {itin.description && (
+                              <p className={`text-xs line-clamp-1 mt-0.5 font-medium ${
+                                isLight ? 'text-zinc-600' : 'text-zinc-300'
+                              }`}>
+                                {itin.description}
+                              </p>
+                            )}
+                          </div>
+
+                          {/* Arrow */}
+                          <div className={`w-8 h-8 rounded-full border flex items-center justify-center transition-all shrink-0 ml-1 ${
+                            isLight
+                              ? 'bg-black/5 border-black/5 text-zinc-600 group-hover:bg-black/10 group-hover:text-zinc-900'
+                              : 'bg-white/10 border-white/10 text-zinc-300 group-hover:bg-white/20 group-hover:text-white'
+                          }`}>
+                            <ChevronRight className="w-4 h-4 stroke-[2.2] group-hover:translate-x-0.5 transition-transform" />
+                          </div>
+                        </motion.div>
+                      );
+                    })}
+                  </div>
                 </div>
               </>
             )}
           </div>
-
-          {/* Itinerary Details Modal */}
-          <ItineraryStoreDetailModal
-            itinerary={selectedItinerary}
-            isOpen={isDetailOpen}
-            onClose={() => setIsDetailOpen(false)}
-            onApplyItinerary={handleApplyFromDetail}
-            theme={theme}
-          />
         </motion.div>
-      )}
-    </AnimatePresence>
+      </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Itinerary Details Modal */}
+      <ItineraryStoreDetailModal
+        itinerary={selectedItinerary}
+        isOpen={isDetailOpen}
+        onClose={() => setIsDetailOpen(false)}
+        onApplyItinerary={handleApplyFromDetail}
+        theme={theme}
+      />
+    </>,
+    document.body
   );
-
-  if (typeof document !== 'undefined') {
-    return createPortal(modalContent, document.body);
-  }
-
-  return modalContent;
 };

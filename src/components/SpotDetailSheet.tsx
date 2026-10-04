@@ -15,6 +15,8 @@ import {
 import { motion } from 'motion/react';
 import { SpotQrModal } from './SpotQrModal';
 import { RoundedNavigationIcon } from './RoundedNavigationIcon';
+import { getSpotImage, getSpotFallbackImage } from '../utils/spotImages';
+import { VerifiedBadge } from './ui/VerifiedBadge';
 
 interface SpotDetailSheetProps {
   spot: Spot | null;
@@ -24,13 +26,6 @@ interface SpotDetailSheetProps {
   onToggleFavorite: (spotId: string) => void;
   onUpdateSpot?: (updatedSpot: Spot) => void;
 }
-
-const VerifiedBadge = () => (
-  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" className="text-white shrink-0" aria-label="Verificado">
-    <path d="M12 2L15.09 5.09L19.18 5.18L19.27 9.27L22.36 12.36L19.27 15.45L19.18 19.54L15.09 19.63L12 22.72L8.91 19.63L4.82 19.54L4.73 15.45L1.64 12.36L4.73 9.27L4.82 5.18L8.91 5.09L12 2Z" fill="currentColor"/>
-    <path d="M10 16L6 12L7.41 10.59L10 13.17L16.59 6.58L18 8L10 16Z" fill="black"/>
-  </svg>
-);
 
 export const SpotDetailSheet: React.FC<SpotDetailSheetProps> = ({
   spot,
@@ -84,7 +79,7 @@ export const SpotDetailSheet: React.FC<SpotDetailSheetProps> = ({
       exit={{ opacity: 0 }}
       transition={{ duration: 0.25, ease: 'easeOut' }}
       onClick={onClose}
-      className="fixed inset-0 z-[100] bg-black/60 backdrop-blur-xs flex flex-col justify-end select-none cursor-pointer"
+      className="fixed inset-0 z-[100] bg-black/40 backdrop-blur-xs flex flex-col justify-end md:justify-center md:items-start md:p-6 md:pl-[310px] lg:md:pl-[340px] select-none cursor-pointer"
     >
       {/* Native Apple Fluid Spring Sheet with smooth scale and slide physics */}
       <motion.div
@@ -99,7 +94,7 @@ export const SpotDetailSheet: React.FC<SpotDetailSheetProps> = ({
           mass: 0.8,
         }}
         onClick={(e) => e.stopPropagation()}
-        className="relative w-full h-[94vh] sm:h-[92vh] max-w-2xl mx-auto bg-white dark:bg-[#000000] text-zinc-900 dark:text-white rounded-t-[32px] overflow-hidden flex flex-col shadow-2xl origin-bottom cursor-auto transform-gpu"
+        className="relative w-full h-[94vh] sm:h-[92vh] md:h-[88vh] max-w-2xl md:max-w-md lg:max-w-lg mx-auto md:mx-0 bg-white dark:bg-[#0e1014] text-zinc-900 dark:text-white rounded-t-[32px] md:rounded-[32px] overflow-hidden flex flex-col shadow-2xl origin-bottom md:origin-center cursor-auto transform-gpu border border-transparent dark:md:border-white/10"
         style={{
           fontFamily: "'Manrope', -apple-system, BlinkMacSystemFont, sans-serif",
           willChange: 'transform, opacity',
@@ -179,14 +174,14 @@ export const SpotDetailSheet: React.FC<SpotDetailSheetProps> = ({
               initial={{ scale: 1.08 }}
               animate={{ scale: 1 }}
               transition={{ duration: 0.45, ease: [0.25, 1, 0.5, 1] }}
-              src={spot.image || 'https://images.unsplash.com/photo-1585320806297-9794b3e4eeae?auto=format&fit=crop&w=600&q=80'} 
+              src={getSpotImage(spot)} 
               alt={spot.name} 
               className="w-full h-full object-cover pointer-events-none transform-gpu" 
               loading="eager"
               decoding="async"
               referrerPolicy="no-referrer"
               onError={(e) => {
-                (e.target as HTMLImageElement).src = 'https://images.unsplash.com/photo-1585320806297-9794b3e4eeae?auto=format&fit=crop&w=600&q=80';
+                (e.target as HTMLImageElement).src = getSpotFallbackImage(spot.name, spot.category);
               }}
             />
             {/* Subtle Gradient Shadow for Top Bar Legibility */}
@@ -194,7 +189,7 @@ export const SpotDetailSheet: React.FC<SpotDetailSheetProps> = ({
           </div>
 
           {/* Main Content Body */}
-          <div className="relative -mt-6 bg-white dark:bg-[#000000] rounded-t-[32px] px-5 sm:px-6 pt-3 pb-8 shadow-[0_-10px_30px_rgba(0,0,0,0.06)] dark:shadow-[0_-10px_30px_rgba(0,0,0,0.6)] border-t border-zinc-200/40 dark:border-white/10 min-h-[calc(100vh-250px)] flex flex-col">
+          <div className="relative -mt-6 bg-white dark:bg-[#000000] rounded-t-[32px] px-5 sm:px-6 pt-3 pb-8 shadow-[0_-10px_30px_rgba(0,0,0,0.06)] dark:shadow-[0_-10px_30px_rgba(0,0,0,0.6)] border-t border-zinc-200/40 dark:border-white/10 min-h-[calc(100dvh-250px)] flex flex-col">
             
             {/* Clean iOS Drag Handle */}
             <div
@@ -303,14 +298,14 @@ export const SpotDetailSheet: React.FC<SpotDetailSheetProps> = ({
                   {/* Compact Minimal Highlight Card */}
                   <div className="flex items-center gap-3 p-2.5 sm:p-3 bg-zinc-100/80 dark:bg-[#1c1e24] rounded-2xl border border-zinc-200/60 dark:border-white/[0.08] shadow-sm">
                     <img 
-                      src={spot.image || 'https://images.unsplash.com/photo-1585320806297-9794b3e4eeae?auto=format&fit=crop&w=600&q=80'} 
+                      src={getSpotImage(spot)} 
                       alt={spot.name} 
                       className="w-12 h-12 rounded-xl object-cover shrink-0 border border-zinc-200/40 dark:border-white/10" 
                       loading="lazy"
                       decoding="async"
                       referrerPolicy="no-referrer"
                       onError={(e) => {
-                        (e.target as HTMLImageElement).src = 'https://images.unsplash.com/photo-1585320806297-9794b3e4eeae?auto=format&fit=crop&w=600&q=80';
+                        (e.target as HTMLImageElement).src = getSpotFallbackImage(spot.name, spot.category);
                       }}
                     />
                     <div className="min-w-0 flex-1">

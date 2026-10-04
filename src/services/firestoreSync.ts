@@ -65,6 +65,8 @@ export interface FirestoreUser {
   is_banned?: number;
   is_premium?: number;
   is_gold?: number;
+  plan?: 'beta' | 'gold';
+  gold_activated_at?: string;
   snow_enabled?: number;
   theme?: string;
   high_contrast?: number;
@@ -159,8 +161,10 @@ export async function persistUserToFirestore(user: FirestoreUser): Promise<void>
       avatar_url: user.avatar_url || '/fotoperfil.png',
       visits_count: user.visits_count || 1,
       is_banned: user.is_banned || 0,
-      is_premium: ['empresariomario@gmail.com', 'marioempresario@gmail.com', 'marioyesk@gmail.com'].includes(cleanEmail) ? 1 : (user.is_premium || 0),
+      is_premium: ['empresariomario@gmail.com', 'marioempresario@gmail.com', 'marioyesk@gmail.com'].includes(cleanEmail) ? 1 : (user.is_premium || user.is_gold || 0),
       is_gold: ['empresariomario@gmail.com', 'marioempresario@gmail.com', 'marioyesk@gmail.com'].includes(cleanEmail) ? 1 : (user.is_gold || 0),
+      plan: ['empresariomario@gmail.com', 'marioempresario@gmail.com', 'marioyesk@gmail.com'].includes(cleanEmail) || user.is_gold === 1 || user.plan === 'gold' ? 'gold' : 'beta',
+      gold_activated_at: user.gold_activated_at || null,
       snow_enabled: user.snow_enabled || 0,
       theme: user.theme || 'dark',
       high_contrast: user.high_contrast || 0,
@@ -653,10 +657,13 @@ export async function syncDatabaseWithFirestore(sqliteDb: any): Promise<void> {
 
           const existingUser = sqliteDb.prepare('SELECT id FROM users WHERE LOWER(email) = ? OR LOWER(whatsapp) = ?').get(cleanEmail, cleanEmail);
 
+          const isGold = isPrimaryAdmin(cleanEmail) || cloudUser.is_gold === 1 || cloudUser.plan === 'gold';
+          const plan = isGold ? 'gold' : (cloudUser.plan || 'beta');
+
           if (!existingUser) {
             sqliteDb.prepare(`
-              INSERT INTO users (name, email, whatsapp, password_hash, role, avatar_url, visits_count, is_banned, snow_enabled, theme, high_contrast, onboarding_completed, onboarding_step, last_access, created_at)
-              VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+              INSERT INTO users (name, email, whatsapp, password_hash, role, avatar_url, visits_count, is_banned, is_premium, is_gold, plan, gold_activated_at, snow_enabled, theme, high_contrast, onboarding_completed, onboarding_step, last_access, created_at)
+              VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             `).run(
               cloudUser.name || cleanEmail.split('@')[0],
               cleanEmail,
@@ -666,6 +673,10 @@ export async function syncDatabaseWithFirestore(sqliteDb: any): Promise<void> {
               cloudUser.avatar_url || '/fotoperfil.png',
               cloudUser.visits_count || 1,
               cloudUser.is_banned || 0,
+              isGold ? 1 : 0,
+              isGold ? 1 : 0,
+              plan,
+              cloudUser.gold_activated_at || null,
               cloudUser.snow_enabled || 0,
               cloudUser.theme || 'light',
               cloudUser.high_contrast || 0,
@@ -677,7 +688,11 @@ export async function syncDatabaseWithFirestore(sqliteDb: any): Promise<void> {
           } else {
             sqliteDb.prepare(`
               UPDATE users 
-              SET name = ?, password_hash = ?, role = ?, avatar_url = ?, is_banned = ?
+              SET name = ?, password_hash = ?, role = ?, avatar_url = ?, is_banned = ?,
+                  is_premium = CASE WHEN ? = 1 THEN 1 ELSE is_premium END,
+                  is_gold = CASE WHEN ? = 1 THEN 1 ELSE is_gold END,
+                  plan = CASE WHEN ? = 'gold' THEN 'gold' ELSE plan END,
+                  gold_activated_at = COALESCE(gold_activated_at, ?)
               WHERE id = ?
             `).run(
               cloudUser.name,
@@ -685,6 +700,10 @@ export async function syncDatabaseWithFirestore(sqliteDb: any): Promise<void> {
               targetRole,
               cloudUser.avatar_url || '/fotoperfil.png',
               cloudUser.is_banned || 0,
+              isGold ? 1 : 0,
+              isGold ? 1 : 0,
+              plan,
+              cloudUser.gold_activated_at || null,
               existingUser.id
             );
           }

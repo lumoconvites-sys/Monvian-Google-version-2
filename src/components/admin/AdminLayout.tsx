@@ -117,8 +117,17 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({
           </div>
         </div>
 
-        {/* Right: Profile */}
-        <div className="flex items-center gap-3">
+        {/* Right: Actions and Profile */}
+        <div className="flex items-center gap-2.5">
+          <button
+            onClick={onExitAdmin}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-blue-600 hover:bg-blue-700 active:scale-95 text-white font-black text-xs shadow-xs transition-all cursor-pointer"
+            title="Voltar ao Mapa"
+          >
+            <ArrowLeft className="w-3.5 h-3.5" />
+            <span>Mapa</span>
+          </button>
+
           {/* User Profile Capsule */}
           <div className="flex items-center gap-2 pl-2 border-l border-zinc-200 dark:border-zinc-700">
             <img
@@ -145,7 +154,7 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({
           <div className="space-y-6">
             {/* Logo */}
             <div className="px-3 py-2 flex items-center gap-2.5">
-              <div className="w-9 h-9 rounded-xl bg-black flex items-center justify-center shadow-sm overflow-hidden p-1.5">
+              <div className="w-11 h-11 rounded-xl bg-black flex items-center justify-center shadow-sm overflow-hidden p-1.5">
                 <img src="/logomodoescuro.png" alt="Logo" className="w-full h-full object-contain" />
               </div>
               <div>
@@ -225,7 +234,7 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({
               <div className="space-y-6">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2">
-                    <div className="w-9 h-9 rounded-xl bg-black flex items-center justify-center shadow-sm overflow-hidden p-1.5">
+                    <div className="w-11 h-11 rounded-xl bg-black flex items-center justify-center shadow-sm overflow-hidden p-1.5">
                       <img src="/logomodoescuro.png" alt="Logo" className="w-full h-full object-contain" />
                     </div>
                     <span className="font-black text-sm text-zinc-900 dark:text-white">MONVIAN ADM</span>

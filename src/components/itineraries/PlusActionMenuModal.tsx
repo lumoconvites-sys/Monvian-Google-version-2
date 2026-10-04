@@ -1,6 +1,6 @@
 import React from 'react';
 import { createPortal } from 'react-dom';
-import { X, Sparkles, MapPin, PlusCircle, Compass, ChevronRight } from 'lucide-react';
+import { X, PlusCircle, Compass, ChevronRight } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 
 interface PlusActionMenuModalProps {
@@ -22,37 +22,41 @@ export const PlusActionMenuModal: React.FC<PlusActionMenuModalProps> = ({
 }) => {
   const isLight = theme === 'light';
 
-  if (!isOpen) return null;
-
   return createPortal(
-    <AnimatePresence>
-      <motion.div
-        key="plus-action-menu-backdrop"
-        initial={{ opacity: 0 }}
-        animate={{ opacity: 1 }}
-        exit={{ opacity: 0 }}
-        transition={{ duration: 0.18 }}
-        onClick={onClose}
-        className="fixed inset-0 z-[115] bg-black/60 backdrop-blur-md flex items-end sm:items-center justify-center p-4 sm:p-6 select-none cursor-pointer"
-      >
+    <AnimatePresence mode="wait">
+      {isOpen && (
         <motion.div
-          key="plus-action-menu-card"
-          initial={{ opacity: 0, scale: 0.90, y: 24 }}
-          animate={{ opacity: 1, scale: 1, y: 0 }}
-          exit={{ opacity: 0, scale: 0.92, y: 20 }}
-          transition={{ type: 'spring', damping: 26, stiffness: 360 }}
-          onClick={(e) => e.stopPropagation()}
-          className={`relative w-full max-w-sm rounded-[32px] p-5 overflow-hidden flex flex-col gap-3 shadow-2xl border cursor-auto backdrop-blur-2xl ${
-            isLight
-              ? 'bg-white/95 border-zinc-200/90 text-zinc-900 shadow-xl'
-              : 'bg-[#18191d]/95 border-white/20 text-white shadow-[0_20px_50px_rgba(0,0,0,0.85)]'
-          }`}
-          style={{
-            fontFamily: "'Manrope', -apple-system, BlinkMacSystemFont, sans-serif",
-          }}
+          key="plus-action-menu-backdrop"
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          exit={{ opacity: 0 }}
+          transition={{ duration: 0.18, ease: 'easeOut' }}
+          onClick={onClose}
+          className="fixed inset-0 z-[115] bg-black/45 backdrop-blur-[2px] flex items-end sm:items-center justify-center p-4 sm:p-6 select-none cursor-pointer"
+          style={{ willChange: 'opacity' }}
         >
+          <motion.div
+            key="plus-action-menu-card"
+            initial={{ opacity: 0, scale: 0.94, y: 14 }}
+            animate={{ opacity: 1, scale: 1, y: 0 }}
+            exit={{ opacity: 0, scale: 0.95, y: 10 }}
+            transition={{ duration: 0.2, ease: [0.16, 1, 0.3, 1] }}
+            onClick={(e) => e.stopPropagation()}
+            className={`relative w-full max-w-sm rounded-[32px] p-5 overflow-hidden flex flex-col gap-3 shadow-2xl border cursor-auto ${
+              isLight
+                ? 'bg-white/80 border-white/60 text-zinc-900 shadow-[0_20px_60px_rgba(0,0,0,0.16)] ring-1 ring-black/5'
+                : 'bg-[#1c1c1e]/80 border-white/15 text-white shadow-[0_25px_70px_rgba(0,0,0,0.85)] ring-1 ring-white/10'
+            }`}
+            style={{
+              fontFamily: "'Manrope', -apple-system, BlinkMacSystemFont, sans-serif",
+              WebkitBackdropFilter: 'blur(25px) saturate(180%)',
+              backdropFilter: 'blur(25px) saturate(180%)',
+              willChange: 'transform, opacity',
+              transform: 'translateZ(0)',
+            }}
+          >
           {/* Header */}
-          <div className="flex items-center justify-between pb-1 border-b border-zinc-200/60 dark:border-white/10">
+          <div className="flex items-center justify-between pb-2 border-b border-black/[0.06] dark:border-white/10">
             <div>
               <h3 className="text-base sm:text-lg font-black tracking-tight leading-tight">
                 O que deseja fazer?
@@ -64,7 +68,8 @@ export const PlusActionMenuModal: React.FC<PlusActionMenuModalProps> = ({
             <button
               type="button"
               onClick={onClose}
-              className="w-8 h-8 rounded-full bg-zinc-100 hover:bg-zinc-200 dark:bg-white/10 dark:hover:bg-white/20 flex items-center justify-center transition-colors cursor-pointer shrink-0 ml-2"
+              className="w-8 h-8 rounded-full bg-black/5 hover:bg-black/10 dark:bg-white/10 dark:hover:bg-white/20 flex items-center justify-center transition-colors cursor-pointer shrink-0 ml-2"
+              title="Fechar"
             >
               <X className="w-4 h-4 text-zinc-700 dark:text-zinc-300" />
             </button>
@@ -79,8 +84,8 @@ export const PlusActionMenuModal: React.FC<PlusActionMenuModalProps> = ({
             }}
             className={`w-full p-4 rounded-2xl border text-left flex items-center justify-between transition-all cursor-pointer group ${
               isLight
-                ? 'bg-zinc-50 hover:bg-zinc-100 border-zinc-200'
-                : 'bg-zinc-900/80 hover:bg-zinc-900 border-white/10 hover:border-white/25'
+                ? 'bg-white/60 hover:bg-white/85 border-black/5 hover:border-black/10 shadow-sm backdrop-blur-md'
+                : 'bg-white/[0.06] hover:bg-white/[0.12] border-white/10 hover:border-white/20 backdrop-blur-md'
             }`}
           >
             <div className="flex items-center gap-3.5 min-w-0">
@@ -112,8 +117,8 @@ export const PlusActionMenuModal: React.FC<PlusActionMenuModalProps> = ({
             }}
             className={`w-full p-4 rounded-2xl border text-left flex items-center justify-between transition-all cursor-pointer group ${
               isLight
-                ? 'bg-zinc-50 hover:bg-zinc-100 border-zinc-200'
-                : 'bg-zinc-900/80 hover:bg-zinc-900 border-white/10 hover:border-white/25'
+                ? 'bg-white/60 hover:bg-white/85 border-black/5 hover:border-black/10 shadow-sm backdrop-blur-md'
+                : 'bg-white/[0.06] hover:bg-white/[0.12] border-white/10 hover:border-white/20 backdrop-blur-md'
             }`}
           >
             <div className="flex items-center gap-3.5 min-w-0">
@@ -137,6 +142,7 @@ export const PlusActionMenuModal: React.FC<PlusActionMenuModalProps> = ({
           </motion.button>
         </motion.div>
       </motion.div>
+      )}
     </AnimatePresence>,
     document.body
   );

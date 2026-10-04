@@ -76,8 +76,8 @@ export const DailyTipCard: React.FC<DailyTipCardProps> = ({
             {/* Header: Tag + Popularity indicator */}
             <div className="flex items-center justify-between gap-2 mb-3">
               <div className="flex items-center gap-1.5 px-3 py-1 rounded-full bg-white/10 border border-white/20 text-zinc-900 dark:text-white text-[11px] font-black uppercase tracking-wider">
-                <Compass className="w-3.5 h-3.5 text-zinc-900 dark:text-white" />
                 <span>Dica do Dia</span>
+                <Compass className="w-3.5 h-3.5 text-zinc-900 dark:text-white" />
               </div>
 
               <div className="flex items-center gap-1.5 text-[11px] font-bold text-zinc-500 dark:text-zinc-400">

@@ -8,8 +8,8 @@
     <meta name="mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-title" content="Monvian" />
     <meta name="apple-mobile-web-app-status-bar-style" content="default" id="apple-status-bar-meta" />
-    <meta name="theme-color" content="#f4f4f5" id="theme-color-meta" />
-    <meta name="theme-color" media="(prefers-color-scheme: light)" content="#f4f4f5" />
+    <meta name="theme-color" content="#000000" id="theme-color-meta" />
+    <meta name="theme-color" media="(prefers-color-scheme: light)" content="#000000" />
     <meta name="theme-color" media="(prefers-color-scheme: dark)" content="#000000" />
     <link rel="manifest" href="/manifest.json" />
     <link rel="icon" type="image/png" href="/loogo.png" />
@@ -18,9 +18,9 @@
       (function() {
         try {
           var saved = localStorage.getItem('monvian_theme');
-          var isDark = saved === 'dark';
-          var topColor = isDark ? '#000000' : '#ffffff';
-          var statusStyle = isDark ? 'black-translucent' : 'default';
+          var isDark = saved !== 'light'; // Default to dark aesthetic
+          var topColor = isDark ? '#000000' : '#f4f4f5';
+          var statusStyle = isDark ? 'black' : 'default';
 
           var themeMeta = document.getElementById('theme-color-meta');
           if (themeMeta) themeMeta.setAttribute('content', topColor);
@@ -28,6 +28,7 @@
           if (statusMeta) statusMeta.setAttribute('content', statusStyle);
 
           document.documentElement.style.backgroundColor = topColor;
+          if (document.body) document.body.style.backgroundColor = topColor;
           if (isDark) {
             document.documentElement.classList.add('dark');
             document.documentElement.classList.remove('light');
@@ -43,32 +44,83 @@
       (function() {
         function updateAppHeight() {
           try {
-            var isStandalone = (window.navigator && window.navigator.standalone === true) ||
-              (window.matchMedia && window.matchMedia('(display-mode: standalone)').matches);
+            var isLandscape = (window.matchMedia && window.matchMedia('(orientation: landscape)').matches) ||
+              Math.abs(Number(window.orientation) || 0) === 90 ||
+              window.innerWidth > window.innerHeight;
             
-            var h = window.innerHeight;
-            
-            if (isStandalone && window.screen && window.screen.height) {
-              var isLandscape = (window.matchMedia && window.matchMedia('(orientation: landscape)').matches) ||
-                Math.abs(Number(window.orientation) || 0) === 90 ||
-                window.innerWidth > window.innerHeight;
-              var screenH = isLandscape
+            var screenH = 0;
+            if (window.screen && window.screen.height) {
+              screenH = isLandscape
                 ? Math.min(window.screen.width, window.screen.height)
                 : Math.max(window.screen.width, window.screen.height);
-              h = Math.max(window.innerHeight || 0, (window.visualViewport && window.visualViewport.height) || 0, screenH);
-            } else if (window.visualViewport && window.visualViewport.height) {
-              h = window.visualViewport.height;
-            } else if (document.documentElement && document.documentElement.clientHeight) {
-              h = Math.max(window.innerHeight || 0, document.documentElement.clientHeight);
             }
+
+            var h = Math.max(
+              window.innerHeight || 0,
+              (document.documentElement && document.documentElement.clientHeight) || 0,
+              screenH || 0
+            );
 
             if (h && h > 0) {
               document.documentElement.style.setProperty('--app-height', h + 'px');
             }
+            if (window.scrollTo) {
+              window.scrollTo(0, 0);
+            }
+          } catch (e) {}
+        }
+
+        function performQuickRotationCycle() {
+          try {
+            var rootEl = document.getElementById('root');
+            if (window.scrollTo) window.scrollTo(0, 1);
+
+            // Emulate landscape dimension reflow
+            if (rootEl && window.screen) {
+              var sW = window.screen.width || 393;
+              var sH = window.screen.height || 852;
+              rootEl.style.width = Math.max(sW, sH) + 'px';
+              rootEl.style.height = Math.min(sW, sH) + 'px';
+            }
+            
+            if ('orientation' in window) {
+              try { window.orientation = 90; } catch (e) {}
+            }
+            window.dispatchEvent(new Event('orientationchange'));
+            window.dispatchEvent(new Event('resize'));
+            if (window.visualViewport) {
+              window.visualViewport.dispatchEvent(new Event('resize'));
+            }
+
+            setTimeout(function() {
+              if ('orientation' in window) {
+                try { window.orientation = 0; } catch (e) {}
+              }
+              if (rootEl) {
+                rootEl.style.width = '100%';
+                rootEl.style.height = '100dvh';
+              }
+              if (window.scrollTo) window.scrollTo(0, 0);
+              updateAppHeight();
+              window.dispatchEvent(new Event('orientationchange'));
+              window.dispatchEvent(new Event('resize'));
+              if (window.visualViewport) {
+                window.visualViewport.dispatchEvent(new Event('resize'));
+              }
+            }, 45);
+
+            setTimeout(function() {
+              if (window.scrollTo) window.scrollTo(0, 0);
+              updateAppHeight();
+              window.dispatchEvent(new Event('resize'));
+            }, 120);
           } catch (e) {}
         }
 
         updateAppHeight();
+        if (window.scrollTo) window.scrollTo(0, 0);
+        performQuickRotationCycle();
+        setTimeout(performQuickRotationCycle, 300);
 
         function handleOrientation() {
           updateAppHeight();
@@ -157,10 +209,10 @@
     <meta property="og:type" content="website" />
     <meta name="twitter:card" content="summary_large_image" />
     <link rel="stylesheet" href="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.css" />
-    <!-- Manrope Font Family -->
+    <!-- Manrope Font Family & Vintage Handwriting Script Fonts -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@200..800&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@200..800&family=Dancing+Script:wght@500;600;700&family=Marck+Script&display=swap" rel="stylesheet">
   </head>
   <body>
     <div id="root"></div>

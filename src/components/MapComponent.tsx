@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useRef, useState, useCallback } from 'react';
 import * as maplibregl from 'maplibre-gl';
 import 'maplibre-gl/dist/maplibre-gl.css';
 import { Spot, SpotCategory, MapModeType, MapVisualIcon } from '../types';
@@ -11,6 +11,8 @@ import { setupNightLights, removeNightLights, getNightLightsData } from '../util
 import { setupFerrisWheel3D } from '../utils/ferrisWheel3DLayer';
 import { deviceHeadingManager } from '../utils/deviceHeading';
 import { gpsNavigationManager } from '../services/gpsNavigation';
+import { getSpotImage, getSpotFallbackImage } from '../utils/spotImages';
+import robotAvatar from '../assets/images/ai_robot_avatar_1790114566623.jpg';
 
 interface MapComponentProps {
   spots: Spot[];
@@ -27,13 +29,14 @@ interface MapComponentProps {
   onInteractionChange?: (isInteracting: boolean) => void;
   zoomToUserTrigger?: number;
   onStyleChange?: (style: MapModeType) => void;
+  onReturnToChat?: () => void;
+  is3DMode?: boolean;
 }
 
-// Initial camera overview configuration strictly matching the reference view (IMG_6912)
-// Wide regional tourist view with perspective tilt (pitch) and slight orientation (bearing)
+// Initial camera configuration focused on the user
 const CAMPOS_OVERVIEW_CAMERA = {
-  center: [-45.5830, -22.7290] as [number, number],
-  zoom: 11.75,
+  center: [-45.5870, -22.7355] as [number, number],
+  zoom: 15.2,
   pitch: 52,
   bearing: -13,
 };
@@ -75,7 +78,7 @@ const createStyle = (type: MapModeType, theme: 'dark' | 'light' = 'dark'): mapli
     };
   }
 
-  // Satélite: High-resolution Esri Satellite imagery
+  // Satélite: High-resolution Esri Satellite imagery calibrated +40% brighter with visible street labels
   if (type === 'satelite') {
     return {
       version: 8,
@@ -89,6 +92,14 @@ const createStyle = (type: MapModeType, theme: 'dark' | 'light' = 'dark'): mapli
           tileSize: 256,
           attribution: '&copy; Esri, Maxar, Earthstar Geographics',
         },
+        'esri-reference': {
+          type: 'raster',
+          tiles: [
+            'https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Boundaries_and_Places/MapServer/tile/{z}/{y}/{x}',
+          ],
+          tileSize: 256,
+          attribution: '&copy; Esri, OpenStreetMap contributors',
+        },
       },
       layers: [
         {
@@ -97,12 +108,28 @@ const createStyle = (type: MapModeType, theme: 'dark' | 'light' = 'dark'): mapli
           source: 'esri-satellite',
           minzoom: 0,
           maxzoom: 19,
+          paint: {
+            'raster-brightness-min': 0.22, // +40% mais claro nas sombras e relevos
+            'raster-brightness-max': 1.0,
+            'raster-contrast': 0.18,       // Nitidez ampliada para topografia e vias
+            'raster-saturation': 0.26,     // Cores vivas
+          },
+        },
+        {
+          id: 'esri-reference-layer',
+          type: 'raster',
+          source: 'esri-reference',
+          minzoom: 0,
+          maxzoom: 19,
+          paint: {
+            'raster-opacity': 0.95,
+          },
         },
       ],
     };
   }
 
-  // Animado / Transporte: Colorful illustrated map (Always bright/illustrated)
+  // Animado / Transporte: Colorful illustrated map (Always bright/illustrated with +40% green saturation)
   if (type === 'transporte' || type === 'animado') {
     return {
       version: 8,
@@ -123,11 +150,11 @@ const createStyle = (type: MapModeType, theme: 'dark' | 'light' = 'dark'): mapli
           minzoom: 0,
           maxzoom: 19,
           paint: {
-            'raster-contrast': 0.15,
+            'raster-contrast': 0.18,
             'raster-brightness-min': 0.0,
             'raster-brightness-max': 1.0,
-            'raster-saturation': 0.85,
-            'raster-hue-rotate': 14,
+            'raster-saturation': 1.0, // Max saturation (+40% boosted)
+            'raster-hue-rotate': 10,
           },
         },
       ],
@@ -162,8 +189,8 @@ const createStyle = (type: MapModeType, theme: 'dark' | 'light' = 'dark'): mapli
             'raster-contrast': 0.22,
             'raster-brightness-min': 0.0,
             'raster-brightness-max': 1.0,
-            'raster-saturation': 0.88,
-            'raster-hue-rotate': 14,
+            'raster-saturation': 1.0, // Max saturation (+40% boosted)
+            'raster-hue-rotate': 10,
           },
         },
       ],
@@ -729,6 +756,8 @@ export const MapComponentInner: React.FC<MapComponentProps> = ({
   onInteractionChange,
   zoomToUserTrigger,
   onStyleChange,
+  onReturnToChat,
+  is3DMode,
 }) => {
   const mapContainerRef = useRef<HTMLDivElement | null>(null);
   const mapRef = useRef<maplibregl.Map | null>(null);
@@ -750,6 +779,11 @@ export const MapComponentInner: React.FC<MapComponentProps> = ({
   useEffect(() => {
     onSelectSpotRef.current = onSelectSpot;
   }, [onSelectSpot]);
+
+  const onReturnToChatRef = useRef(onReturnToChat);
+  useEffect(() => {
+    onReturnToChatRef.current = onReturnToChat;
+  }, [onReturnToChat]);
 
   const onStyleChangeRef = useRef(onStyleChange);
   useEffect(() => {
@@ -778,6 +812,25 @@ export const MapComponentInner: React.FC<MapComponentProps> = ({
 
   const [currentStyle, setCurrentStyle] = useState<MapModeType>(() => (theme === 'dark' ? 'explorar' : 'animado'));
   const [showStyleMenu, setShowStyleMenu] = useState(false);
+  const [isOrbiting, setIsOrbiting] = useState<boolean>(false);
+  const orbitAnimFrameRef = useRef<number | null>(null);
+
+  const stopOrbit = useCallback(() => {
+    setIsOrbiting(false);
+    if (orbitAnimFrameRef.current) {
+      cancelAnimationFrame(orbitAnimFrameRef.current);
+      orbitAnimFrameRef.current = null;
+    }
+  }, []);
+
+  const handleOrbitScreenTap = useCallback(() => {
+    stopOrbit();
+    onSelectSpotRef.current(null);
+    if (onReturnToChatRef.current) {
+      onReturnToChatRef.current();
+    }
+  }, [stopOrbit]);
+
   const [showCompassPrompt, setShowCompassPrompt] = useState<boolean>(() => {
     return deviceHeadingManager.isPermissionRequired() && !deviceHeadingManager.isPermissionHandled();
   });
@@ -813,9 +866,12 @@ export const MapComponentInner: React.FC<MapComponentProps> = ({
     }
   }, [selectedSpot]);
 
-  // Center camera when a spot is selected from search results or external triggers
+  // Center camera & start 360° orbit rotation with 40% blur overlay when a spot is selected
   useEffect(() => {
-    if (!selectedSpot) return;
+    if (!selectedSpot) {
+      stopOrbit();
+      return;
+    }
     const map = mapRef.current;
     if (!map) return;
 
@@ -828,13 +884,45 @@ export const MapComponentInner: React.FC<MapComponentProps> = ({
       };
     }
 
+    isFollowingUserRef.current = false;
+    isOrientingHeadingRef.current = false;
+
+    let currentBearing = map.getBearing() || 0;
+
     map.flyTo({
       center: [selectedSpot.lng, selectedSpot.lat],
-      zoom: 15.4,
-      speed: 1.2,
+      zoom: 16.8,
+      pitch: 58,
+      bearing: currentBearing,
+      speed: 1.3,
       essential: true,
     });
-  }, [selectedSpot?.id]);
+
+    setIsOrbiting(true);
+
+    let active = true;
+    const rotateLoop = () => {
+      if (!active || !mapRef.current) return;
+      currentBearing = (currentBearing + 0.38) % 360;
+      mapRef.current.setBearing(currentBearing);
+      orbitAnimFrameRef.current = requestAnimationFrame(rotateLoop);
+    };
+
+    const delayTimer = setTimeout(() => {
+      if (active) {
+        orbitAnimFrameRef.current = requestAnimationFrame(rotateLoop);
+      }
+    }, 1100);
+
+    return () => {
+      active = false;
+      clearTimeout(delayTimer);
+      if (orbitAnimFrameRef.current) {
+        cancelAnimationFrame(orbitAnimFrameRef.current);
+        orbitAnimFrameRef.current = null;
+      }
+    };
+  }, [selectedSpot?.id, stopOrbit]);
 
   // Sync highContrast class on container if needed
   useEffect(() => {
@@ -843,17 +931,39 @@ export const MapComponentInner: React.FC<MapComponentProps> = ({
     }
   }, [highContrast]);
 
+  // Handle 3D Terrain Pitch & Mountain Elevation toggle
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map) return;
+    if (is3DMode) {
+      map.easeTo({
+        pitch: 62,
+        bearing: -18,
+        duration: 1100,
+        essential: true,
+      });
+    } else if (is3DMode === false) {
+      map.easeTo({
+        pitch: 0,
+        bearing: 0,
+        duration: 1100,
+        essential: true,
+      });
+    }
+  }, [is3DMode]);
+
   // Initialize Map
   useEffect(() => {
     if (!mapContainerRef.current) return;
 
     const initialMode: MapModeType = theme === 'light' ? 'animado' : currentStyle;
+    const initialCenter = (userCoords && !isNaN(userCoords[0])) ? userCoords : CAMPOS_OVERVIEW_CAMERA.center;
 
     const map = new maplibregl.Map({
       container: mapContainerRef.current,
       style: createStyle(initialMode, theme),
-      center: CAMPOS_OVERVIEW_CAMERA.center,
-      zoom: CAMPOS_OVERVIEW_CAMERA.zoom,
+      center: initialCenter,
+      zoom: 15.2,
       pitch: CAMPOS_OVERVIEW_CAMERA.pitch,
       bearing: CAMPOS_OVERVIEW_CAMERA.bearing,
       projection: { type: 'globe' },
@@ -862,6 +972,9 @@ export const MapComponentInner: React.FC<MapComponentProps> = ({
 
     map.on('load', () => {
       map.resize();
+      setTimeout(() => { try { map.resize(); } catch (e) {} }, 80);
+      setTimeout(() => { try { map.resize(); } catch (e) {} }, 250);
+      setTimeout(() => { try { map.resize(); } catch (e) {} }, 600);
       if ('setProjection' in map && typeof (map as any).setProjection === 'function') {
         try {
           (map as any).setProjection({ type: 'globe' });
@@ -894,6 +1007,7 @@ export const MapComponentInner: React.FC<MapComponentProps> = ({
 
     // Dismiss all cards, previews and opened overlays on map touch/click/drag
     const dismissAllOverlays = () => {
+      stopOrbit();
       setShowStyleMenu(false);
       onSelectSpotRef.current(null);
       if (onMapClickRef.current) {
@@ -1000,17 +1114,30 @@ export const MapComponentInner: React.FC<MapComponentProps> = ({
     canvas.addEventListener('mousedown', handleMouseDown);
     window.addEventListener('mouseup', handleMouseUp);
 
-    // Handle container resize
+    // Handle container resize & iOS viewport/orientation/visibility shifts
     const handleResize = () => {
+      if (!map) return;
       map.resize();
+      requestAnimationFrame(() => map && map.resize());
     };
-    window.addEventListener('resize', handleResize);
+    window.addEventListener('resize', handleResize, { passive: true });
+    window.addEventListener('orientationchange', handleResize, { passive: true });
+    window.addEventListener('pageshow', handleResize, { passive: true });
+    if (window.visualViewport) {
+      window.visualViewport.addEventListener('resize', handleResize, { passive: true });
+    }
+    const handleVisibility = () => {
+      if (document.visibilityState === 'visible' && map) {
+        handleResize();
+      }
+    };
+    document.addEventListener('visibilitychange', handleVisibility, { passive: true });
 
     // Also observe the map container element directly to handle dynamic safe area or viewport shifts
     let resizeObserver: ResizeObserver | null = null;
     if (mapContainerRef.current && typeof ResizeObserver !== 'undefined') {
       resizeObserver = new ResizeObserver(() => {
-        map.resize();
+        handleResize();
       });
       resizeObserver.observe(mapContainerRef.current);
     }
@@ -1025,6 +1152,12 @@ export const MapComponentInner: React.FC<MapComponentProps> = ({
       canvas.removeEventListener('mousedown', handleMouseDown);
       window.removeEventListener('mouseup', handleMouseUp);
       window.removeEventListener('resize', handleResize);
+      window.removeEventListener('orientationchange', handleResize);
+      window.removeEventListener('pageshow', handleResize);
+      if (window.visualViewport) {
+        window.visualViewport.removeEventListener('resize', handleResize);
+      }
+      document.removeEventListener('visibilitychange', handleVisibility);
       map.remove();
       mapRef.current = null;
     };
@@ -1063,33 +1196,12 @@ export const MapComponentInner: React.FC<MapComponentProps> = ({
     }
   }, [theme]);
 
-  // Helper to check if logged in user is Gold
-  const checkIsGoldUser = (): boolean => {
-    try {
-      const u = JSON.parse(localStorage.getItem('monvian_user') || '{}');
-      const cleanEmail = (u.email || u.whatsapp || '').trim().toLowerCase();
-      const isGoldAdmin = ['empresariomario@gmail.com', 'marioempresario@gmail.com', 'marioyesk@gmail.com'].includes(cleanEmail);
-      return isGoldAdmin || Boolean(u.isGold || u.is_gold === 1 || u.isPremium || u.is_premium === 1);
-    } catch {
-      return false;
-    }
-  };
-
   // Helper to update selection visual state without recreating DOM or reloading images
   const updateMarkerSelection = (record: SpotMarkerRecord, isSelected: boolean) => {
-    const isGoldUser = checkIsGoldUser();
     if (isSelected) {
-      if (isGoldUser) {
-        record.circleEl.className = 'relative w-[39px] h-[39px] sm:w-[41px] sm:h-[41px] rounded-full overflow-hidden border-[2.5px] border-[#FFF4A3] ring-2 ring-[#F5BE38] bg-zinc-900 shrink-0 shadow-[0_0_18px_rgba(245,190,56,0.85)] transition-all';
-      } else {
-        record.circleEl.className = 'relative w-[39px] h-[39px] sm:w-[41px] sm:h-[41px] rounded-full overflow-hidden border-2 border-[#34C759] ring-2 ring-[#34C759]/70 bg-zinc-900 shrink-0 shadow-md transition-transform';
-      }
+      record.circleEl.className = 'relative w-[39px] h-[39px] sm:w-[41px] sm:h-[41px] rounded-full overflow-hidden border-2 border-[#007AFF] ring-2 ring-[#007AFF]/70 bg-zinc-900 shrink-0 shadow-md transition-transform scale-110';
     } else {
-      if (isGoldUser) {
-        record.circleEl.className = 'relative w-[39px] h-[39px] sm:w-[41px] sm:h-[41px] rounded-full overflow-hidden border-[2.5px] border-[#F5BE38] ring-1 ring-[#E5AC33]/60 bg-zinc-900 shrink-0 shadow-[0_2px_12px_rgba(230,172,51,0.55)] transition-transform';
-      } else {
-        record.circleEl.className = 'relative w-[39px] h-[39px] sm:w-[41px] sm:h-[41px] rounded-full overflow-hidden border-2 border-white hover:border-[#34C759] bg-zinc-900 shrink-0 shadow-sm transition-transform';
-      }
+      record.circleEl.className = 'relative w-[39px] h-[39px] sm:w-[41px] sm:h-[41px] rounded-full overflow-hidden border-2 border-white hover:border-[#007AFF] bg-zinc-900 shrink-0 shadow-sm transition-transform';
     }
   };
 
@@ -1126,13 +1238,8 @@ export const MapComponentInner: React.FC<MapComponentProps> = ({
       el.id = `spot-marker-${spot.id}`;
       el.className = 'spot-marker-container flex flex-col items-center cursor-pointer select-none z-10';
 
-      const isGoldUser = checkIsGoldUser();
       const circleDiv = document.createElement('div');
-      if (isGoldUser) {
-        circleDiv.className = 'relative w-[39px] h-[39px] sm:w-[41px] sm:h-[41px] rounded-full overflow-hidden border-[2.5px] border-[#F5BE38] ring-1 ring-[#E5AC33]/60 bg-zinc-900 shrink-0 shadow-[0_2px_12px_rgba(230,172,51,0.55)] transition-transform pin-pop-in';
-      } else {
-        circleDiv.className = 'relative w-[39px] h-[39px] sm:w-[41px] sm:h-[41px] rounded-full overflow-hidden border-2 border-white hover:border-[#34C759] bg-zinc-900 shrink-0 shadow-sm transition-transform pin-pop-in';
-      }
+      circleDiv.className = 'relative w-[39px] h-[39px] sm:w-[41px] sm:h-[41px] rounded-full overflow-hidden border-2 border-white hover:border-[#007AFF] bg-zinc-900 shrink-0 shadow-sm transition-transform pin-pop-in';
       // Subtle stagger based on order to create an organic fluid ripple on load/filter
       circleDiv.style.animationDelay = `${Math.min(idx * 22, 280)}ms`;
 
@@ -1142,13 +1249,13 @@ export const MapComponentInner: React.FC<MapComponentProps> = ({
       }, { once: true });
 
       const img = document.createElement('img');
-      img.src = spot.image || 'https://images.unsplash.com/photo-1585320806297-9794b3e4eeae?auto=format&fit=crop&w=150&q=80';
+      img.src = getSpotImage(spot);
       img.alt = spot.name;
       img.className = 'w-full h-full object-cover pointer-events-none';
       img.loading = 'eager';
       img.referrerPolicy = 'no-referrer';
       img.onerror = () => {
-        img.src = 'https://images.unsplash.com/photo-1585320806297-9794b3e4eeae?auto=format&fit=crop&w=150&q=80';
+        img.src = getSpotFallbackImage(spot.name, spot.category);
       };
       circleDiv.appendChild(img);
 
@@ -1832,10 +1939,22 @@ export const MapComponentInner: React.FC<MapComponentProps> = ({
     };
   }, []);
 
-  // User coordinates tracking: strictly avoid automatic flyTo on load
-  // to ensure the camera always opens in the wide regional perspective requested in the second image.
+  // User coordinates tracking: ensure map starts with zoom focused on user
   useEffect(() => {
-    hasCenteredInitiallyRef.current = true;
+    if (!hasCenteredInitiallyRef.current && userCoords && !isNaN(userCoords[0])) {
+      hasCenteredInitiallyRef.current = true;
+      const map = mapRef.current;
+      if (map) {
+        map.flyTo({
+          center: userCoords,
+          zoom: 15.2,
+          pitch: 52,
+          bearing: -13,
+          duration: 1000,
+          essential: true,
+        });
+      }
+    }
   }, [userCoords]);
 
   useEffect(() => {
@@ -1922,14 +2041,70 @@ export const MapComponentInner: React.FC<MapComponentProps> = ({
       className="absolute inset-0 w-full h-full overflow-hidden bg-zinc-50 dark:bg-black"
     >
       {/* Map Container */}
-      <div ref={mapContainerRef} className="absolute inset-0 w-full h-full z-0" tabIndex={0} />
+      <div 
+        ref={mapContainerRef} 
+        className={`absolute inset-0 w-full h-full z-0 ${
+          theme === 'light' || currentStyle === 'animado' || currentStyle === 'transporte'
+            ? 'map-canvas-green-boost'
+            : currentStyle === 'satelite'
+            ? 'map-canvas-satellite-boost'
+            : ''
+        }`} 
+        tabIndex={0} 
+      />
+
+      {/* 360° Orbit Focus Overlay (Clean transparent screen overlay; clicking anywhere returns to chat) */}
+      <AnimatePresence>
+        {isOrbiting && selectedSpot && (
+          <motion.div
+            key="spot-360-orbit-overlay"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.25 }}
+            onClick={handleOrbitScreenTap}
+            onTouchStart={handleOrbitScreenTap}
+            onPointerDown={handleOrbitScreenTap}
+            className="fixed inset-0 z-[100] cursor-pointer pointer-events-auto flex flex-col items-center justify-start py-10 select-none overflow-hidden"
+          >
+            {/* Top Translucent AI Bar (Clean, shadow around bar, works in dark and white mode) */}
+            <div
+              className={`mt-12 sm:mt-14 px-4.5 py-2.5 rounded-full backdrop-blur-2xl flex items-center gap-3 pointer-events-none z-10 select-none max-w-[92%] transition-all ${
+                isWhiteControls
+                  ? 'bg-white/80 text-zinc-900 border border-black/10 shadow-[0_12px_36px_rgba(0,0,0,0.22)]'
+                  : 'bg-black/60 text-white border border-white/20 shadow-[0_12px_40px_rgba(0,0,0,0.65)]'
+              }`}
+            >
+              {/* Round AI Avatar Photo */}
+              <div
+                className={`w-8 h-8 rounded-full overflow-hidden shrink-0 shadow-xs border ${
+                  isWhiteControls ? 'border-black/15 bg-zinc-100' : 'border-white/30 bg-zinc-900'
+                }`}
+              >
+                <img
+                  src={robotAvatar}
+                  alt="IA"
+                  className="w-full h-full object-cover"
+                  referrerPolicy="no-referrer"
+                />
+              </div>
+
+              {/* Text phrase */}
+              <span className={`text-xs sm:text-sm font-bold tracking-tight truncate ${
+                isWhiteControls ? 'text-zinc-900' : 'text-zinc-100'
+              }`}>
+                Visualização 360 graus do local...
+              </span>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {/* Floating Map Controls on Right Side (Always floats above map and spot icons, identical to top filter bar) */}
       <aside
         aria-label="Controles do mapa"
-        className="absolute right-4 top-1/2 -translate-y-[calc(50%+16px)] z-30 flex flex-col gap-2.5 pointer-events-auto select-none"
+        className="absolute right-4 md:right-6 top-1/2 -translate-y-[calc(50%+16px)] z-30 flex flex-col gap-3 pointer-events-auto select-none"
         style={{
-          right: 'max(16px, env(safe-area-inset-right, 0px))',
           zIndex: 35,
         }}
         onClick={(e) => e.stopPropagation()}
@@ -1939,11 +2114,7 @@ export const MapComponentInner: React.FC<MapComponentProps> = ({
         <button
           id="btn-map-zoom-in"
           onClick={handleZoomIn}
-          className={`w-12 h-12 rounded-full active:scale-95 flex items-center justify-center focus:outline-none cursor-pointer transition-all ${
-            isWhiteControls
-              ? 'ios-glass-btn-white text-zinc-900'
-              : 'ios-glass-btn text-zinc-700 dark:text-white/95'
-          }`}
+          className="w-12 h-12 rounded-full active:scale-95 flex items-center justify-center focus:outline-none cursor-pointer transition-all ios-glass border border-white/25 text-zinc-900 dark:text-white shadow-lg"
           title="Aproximar mapa"
         >
           <Plus className="w-6 h-6 stroke-[2.4]" />
@@ -1953,11 +2124,7 @@ export const MapComponentInner: React.FC<MapComponentProps> = ({
         <button
           id="btn-map-zoom-out"
           onClick={handleZoomOut}
-          className={`w-12 h-12 rounded-full active:scale-95 flex items-center justify-center focus:outline-none cursor-pointer transition-all ${
-            isWhiteControls
-              ? 'ios-glass-btn-white text-zinc-900'
-              : 'ios-glass-btn text-zinc-700 dark:text-white/95'
-          }`}
+          className="w-12 h-12 rounded-full active:scale-95 flex items-center justify-center focus:outline-none cursor-pointer transition-all ios-glass border border-white/25 text-zinc-900 dark:text-white shadow-lg"
           title="Afastar mapa"
         >
           <Minus className="w-6 h-6 stroke-[2.4]" />
@@ -1967,11 +2134,7 @@ export const MapComponentInner: React.FC<MapComponentProps> = ({
         <button
           id="btn-map-locate-me"
           onClick={handleCenterUser}
-          className={`w-12 h-12 sm:w-13 sm:h-13 rounded-[18px] sm:rounded-[20px] active:scale-95 flex items-center justify-center focus:outline-none cursor-pointer group transition-all ${
-            isWhiteControls
-              ? 'ios-glass-btn-white text-zinc-900'
-              : 'ios-glass-btn text-zinc-700 dark:text-white/95'
-          }`}
+          className="w-12 h-12 sm:w-13 sm:h-13 rounded-[18px] sm:rounded-[20px] active:scale-95 flex items-center justify-center focus:outline-none cursor-pointer group transition-all ios-glass border border-white/25 text-zinc-900 dark:text-white shadow-lg"
           title="Centralizar e orientar"
         >
           <motion.div
@@ -1987,11 +2150,7 @@ export const MapComponentInner: React.FC<MapComponentProps> = ({
         <button
           id="btn-map-layer-switch"
           onClick={() => setShowStyleMenu(true)}
-          className={`w-12 h-12 rounded-full active:scale-95 flex items-center justify-center focus:outline-none cursor-pointer transition-all ${
-            isWhiteControls
-              ? 'ios-glass-btn-white text-zinc-900'
-              : 'ios-glass-btn text-zinc-700 dark:text-white/95'
-          }`}
+          className="w-12 h-12 rounded-full active:scale-95 flex items-center justify-center focus:outline-none cursor-pointer transition-all ios-glass border border-white/25 text-zinc-900 dark:text-white shadow-lg"
           title="Modos do Mapa"
         >
           <Layers className="w-5 h-5 stroke-[2.2]" />

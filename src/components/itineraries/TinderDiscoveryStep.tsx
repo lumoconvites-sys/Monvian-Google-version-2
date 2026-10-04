@@ -3,6 +3,7 @@ import { motion, useMotionValue, useTransform, AnimatePresence, PanInfo } from '
 import { Check, X, ArrowLeft, ArrowRight } from 'lucide-react';
 import { Spot } from '../../types';
 import { formatSpotForTinder, FormattedSpotCard } from './tinderSpotHelpers';
+import { getSpotImage, getSpotFallbackImage } from '../../utils/spotImages';
 
 interface TinderDiscoveryStepProps {
   spots: Spot[];
@@ -52,13 +53,12 @@ const SingleCard: React.FC<SingleCardProps> = ({ cardData, isFront, onSwipe, isD
       >
         <div className="w-full h-[57%] overflow-hidden bg-zinc-900/10 dark:bg-zinc-800">
           <img
-            src={cardData.spot.image || 'https://images.unsplash.com/photo-1585320806297-9794b3e4eeae?auto=format&fit=crop&w=600&q=80'}
+            src={getSpotImage(cardData.spot)}
             alt={cardData.name}
             className="w-full h-full object-cover filter blur-[1px] brightness-90"
             referrerPolicy="no-referrer"
             onError={(e) => {
-              (e.target as HTMLImageElement).src =
-                'https://images.unsplash.com/photo-1585320806297-9794b3e4eeae?auto=format&fit=crop&w=600&q=80';
+              (e.target as HTMLImageElement).src = getSpotFallbackImage(cardData.name, cardData.spot.category);
             }}
           />
         </div>
@@ -114,13 +114,12 @@ const SingleCard: React.FC<SingleCardProps> = ({ cardData, isFront, onSwipe, isD
       {/* TOP: Large Full-Bleed Photo */}
       <div className="w-full h-[57%] relative overflow-hidden bg-zinc-900/10 dark:bg-zinc-800">
         <img
-          src={cardData.spot.image || 'https://images.unsplash.com/photo-1585320806297-9794b3e4eeae?auto=format&fit=crop&w=600&q=80'}
+          src={getSpotImage(cardData.spot)}
           alt={cardData.name}
           className="w-full h-full object-cover pointer-events-none"
           referrerPolicy="no-referrer"
           onError={(e) => {
-            (e.target as HTMLImageElement).src =
-              'https://images.unsplash.com/photo-1585320806297-9794b3e4eeae?auto=format&fit=crop&w=600&q=80';
+            (e.target as HTMLImageElement).src = getSpotFallbackImage(cardData.name, cardData.spot.category);
           }}
         />
         {/* Subtle gradient vignette at bottom of image */}

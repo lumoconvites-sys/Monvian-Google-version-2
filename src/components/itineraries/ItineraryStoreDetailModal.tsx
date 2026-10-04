@@ -75,7 +75,7 @@ export const ItineraryStoreDetailModal: React.FC<ItineraryStoreDetailModalProps>
   const [activeDayIndex, setActiveDayIndex] = useState(0);
   const [isPremiumModalOpen, setIsPremiumModalOpen] = useState(false);
 
-  if (!isOpen || !itinerary) return null;
+  if (!itinerary) return null;
 
   const isLight = theme === 'light';
   const currentUserObj = (() => {
@@ -88,6 +88,7 @@ export const ItineraryStoreDetailModal: React.FC<ItineraryStoreDetailModalProps>
   const currentUserEmail = (currentUserObj.email || currentUserObj.whatsapp || '').trim().toLowerCase();
   const isGoldAdmin = ['empresariomario@gmail.com', 'marioempresario@gmail.com', 'marioyesk@gmail.com'].includes(currentUserEmail);
   const isPremiumUser = isGoldAdmin || Boolean(currentUserObj.isGold || currentUserObj.is_gold === 1 || currentUserObj.isPremium || currentUserObj.is_premium === 1);
+  const isGoldItinerary = Boolean(itinerary.isPremium || (itinerary as any).isGold || (itinerary as any).is_gold);
   const totalStops =
     itinerary.placesCount ||
     itinerary.days.reduce((acc, d) => acc + d.steps.length, 0);
@@ -118,38 +119,38 @@ export const ItineraryStoreDetailModal: React.FC<ItineraryStoreDetailModalProps>
   const daySubtitle = currentDay ? cleanDayTitle(currentDay.title || '', currentDay.dayNumber || activeDayIndex + 1) : '';
 
   const modalContent = (
-    <AnimatePresence>
-      <motion.div
-        key="itinerary-detail-backdrop"
-        initial={{ opacity: 0 }}
-        animate={{ opacity: 1 }}
-        exit={{ opacity: 0 }}
-        className={`fixed inset-0 z-[200] flex flex-col backdrop-blur-xl transition-colors duration-200 ${
-          isLight ? 'bg-black/40' : 'bg-black/85'
-        }`}
-        style={{ fontFamily: "'Manrope', -apple-system, BlinkMacSystemFont, sans-serif" }}
-      >
-        {/* Fullscreen Mobile View Container */}
+    <AnimatePresence mode="wait">
+      {isOpen && (
         <motion.div
-          key="itinerary-detail-content"
-          initial={{ x: '100%' }}
-          animate={{ x: '0%' }}
-          exit={{ x: '100%' }}
-          transition={{
-            type: 'spring',
-            stiffness: 320,
-            damping: 32,
-            mass: 0.8
-          }}
-          className={`relative w-full h-full flex flex-col max-w-xl mx-auto overflow-hidden transition-colors duration-200 ${
-            isLight ? 'bg-white text-zinc-900' : 'bg-[#000000] text-white'
+          key="itinerary-detail-backdrop"
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          exit={{ opacity: 0 }}
+          transition={{ duration: 0.22, ease: 'easeOut' }}
+          className={`fixed inset-0 z-[200] flex flex-col backdrop-blur-md transition-colors duration-200 ${
+            isLight ? 'bg-black/40' : 'bg-black/85'
           }`}
-          style={{
-            transform: 'translateZ(0)',
-            WebkitTransform: 'translateZ(0)',
-            willChange: 'transform, opacity'
-          }}
+          style={{ fontFamily: "'Manrope', -apple-system, BlinkMacSystemFont, sans-serif", willChange: 'opacity' }}
         >
+          {/* Fullscreen Mobile View Container */}
+          <motion.div
+            key="itinerary-detail-content"
+            initial={{ x: '100%' }}
+            animate={{ x: '0%' }}
+            exit={{ x: '100%' }}
+            transition={{
+              duration: 0.26,
+              ease: [0.16, 1, 0.3, 1]
+            }}
+            className={`relative w-full h-full flex flex-col max-w-xl mx-auto overflow-hidden transition-colors duration-200 ${
+              isLight ? 'bg-white text-zinc-900' : 'bg-[#000000] text-white'
+            }`}
+            style={{
+              transform: 'translateZ(0)',
+              WebkitTransform: 'translateZ(0)',
+              willChange: 'transform, opacity'
+            }}
+          >
           {/* Scrollable Body */}
           <div className="flex-1 overflow-y-auto overscroll-contain pb-36">
             
@@ -251,17 +252,17 @@ export const ItineraryStoreDetailModal: React.FC<ItineraryStoreDetailModalProps>
                 isLight ? 'border-zinc-100 text-zinc-600' : 'border-white/10 text-zinc-400'
               }`}>
                 <span className="flex items-center gap-1.5">
-                  <Clock className="w-3.5 h-3.5 text-[#007AFF] shrink-0" />
+                  <Clock className={`w-3.5 h-3.5 shrink-0 ${isGoldItinerary ? 'text-[#E5AC33] dark:text-[#FDE073] drop-shadow-[0_0_8px_rgba(229,172,51,0.5)]' : 'text-[#007AFF]'}`} />
                   <span>{itinerary.daysCount} {itinerary.daysCount === 1 ? 'dia' : 'dias'}</span>
                 </span>
                 <span className="opacity-30">·</span>
                 <span className="flex items-center gap-1.5">
-                  <MapPin className="w-3.5 h-3.5 text-[#007AFF] shrink-0" />
+                  <MapPin className={`w-3.5 h-3.5 shrink-0 ${isGoldItinerary ? 'text-[#E5AC33] dark:text-[#FDE073] drop-shadow-[0_0_8px_rgba(229,172,51,0.5)]' : 'text-[#007AFF]'}`} />
                   <span>{totalStops} {totalStops === 1 ? 'parada' : 'paradas'}</span>
                 </span>
                 <span className="opacity-30">·</span>
                 <span className="flex items-center gap-1.5">
-                  <Compass className="w-3.5 h-3.5 text-[#007AFF] shrink-0" />
+                  <Compass className={`w-3.5 h-3.5 shrink-0 ${isGoldItinerary ? 'text-[#E5AC33] dark:text-[#FDE073] drop-shadow-[0_0_8px_rgba(229,172,51,0.5)]' : 'text-[#007AFF]'}`} />
                   <span>Ritmo otimizado</span>
                 </span>
               </div>
@@ -273,7 +274,7 @@ export const ItineraryStoreDetailModal: React.FC<ItineraryStoreDetailModalProps>
                     ? 'bg-zinc-50 border-zinc-200/70 text-zinc-800'
                     : 'bg-[#15171c] border-white/10 text-zinc-200'
                 }`}>
-                  <Lightbulb className="w-4 h-4 text-[#007AFF] shrink-0 mt-0.5" />
+                  <Lightbulb className={`w-4 h-4 shrink-0 mt-0.5 ${isGoldItinerary ? 'text-[#E5AC33] dark:text-[#FDE073] drop-shadow-[0_0_8px_rgba(229,172,51,0.6)]' : 'text-[#007AFF]'}`} />
                   <div className="space-y-0.5 text-xs">
                     <span className="font-bold block text-zinc-900 dark:text-white">
                       Dicas do guia
@@ -300,7 +301,9 @@ export const ItineraryStoreDetailModal: React.FC<ItineraryStoreDetailModalProps>
                           onClick={() => setActiveDayIndex(idx)}
                           className={`px-4 py-1.5 rounded-full text-xs font-bold transition-all cursor-pointer shrink-0 border ${
                             isSelected
-                              ? 'bg-[#007AFF] text-white border-blue-500 shadow-2xs'
+                              ? isGoldItinerary
+                                ? 'bg-metallic-gold text-[#1A1202] border-[#FFF4A3]/70 shadow-md shadow-[#E5AC33]/30 font-black'
+                                : 'bg-[#007AFF] text-white border-blue-500 shadow-2xs'
                               : isLight
                               ? 'bg-zinc-100 text-zinc-600 border-zinc-200/80 hover:bg-zinc-200'
                               : 'bg-zinc-900 text-zinc-400 border-white/10 hover:text-white'
@@ -371,7 +374,11 @@ export const ItineraryStoreDetailModal: React.FC<ItineraryStoreDetailModalProps>
                           isBlurred ? 'filter blur-[5.5px] select-none pointer-events-none opacity-45 dark:opacity-35' : ''
                         }`}>
                           {/* Número da parada */}
-                          <div className="w-6 h-6 rounded-full bg-[#007AFF]/15 text-[#007AFF] flex items-center justify-center shrink-0 font-bold text-[11px]">
+                          <div className={`w-6 h-6 rounded-full flex items-center justify-center shrink-0 font-bold text-[11px] ${
+                            isGoldItinerary
+                              ? 'bg-metallic-gold text-[#1A1202] font-black shadow-xs shadow-[#E5AC33]/25 border border-[#FFF4A3]/60'
+                              : 'bg-[#007AFF]/15 text-[#007AFF]'
+                          }`}>
                             {stepNumber}
                           </div>
 
@@ -388,7 +395,9 @@ export const ItineraryStoreDetailModal: React.FC<ItineraryStoreDetailModalProps>
                           {/* Informações da parada */}
                           <div className="flex-1 min-w-0">
                             <div className="flex items-center justify-between gap-1">
-                              <span className="text-[10px] font-bold text-[#007AFF] uppercase tracking-wider truncate">
+                              <span className={`text-[10px] font-bold uppercase tracking-wider truncate ${
+                                isGoldItinerary ? 'text-[#E5AC33] dark:text-[#FDE073] drop-shadow-[0_0_6px_rgba(229,172,51,0.3)]' : 'text-[#007AFF]'
+                              }`}>
                                 {spotCategory}
                               </span>
                               {isValidContent(step.suggestedTime) && (
@@ -485,6 +494,7 @@ export const ItineraryStoreDetailModal: React.FC<ItineraryStoreDetailModalProps>
 
         </motion.div>
       </motion.div>
+      )}
 
       {/* Monvian Premium Access Modal */}
       <PremiumModal

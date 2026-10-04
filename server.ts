@@ -24,6 +24,7 @@ import {
   isPrimaryAdmin
 } from './src/services/firestoreSync';
 import { setupItineraryDatabase, registerItineraryRoutes } from './src/server/itineraryRoutes';
+import { setupStripeDatabase, registerStripeRoutes } from './src/server/stripeRoutes';
 
 dotenv.config();
 
@@ -155,6 +156,17 @@ db.exec(`
     updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (user_id) REFERENCES users (id)
   );
+
+  CREATE TABLE IF NOT EXISTS chat_messages (
+    id TEXT PRIMARY KEY,
+    user_id INTEGER NOT NULL,
+    sender TEXT NOT NULL,
+    text TEXT NOT NULL,
+    time TEXT,
+    data_json TEXT,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (user_id) REFERENCES users (id)
+  );
 `);
 
 // Create indices for faster analytics queries
@@ -176,24 +188,25 @@ db.exec(`
     updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
   );
 `);
-try { db.exec(`ALTER TABLE users ADD COLUMN rain_enabled INTEGER DEFAULT 1;`); } catch (e) {}
-try { db.exec(`ALTER TABLE users ADD COLUMN is_premium INTEGER DEFAULT 0;`); } catch (e) {}
-try { db.exec(`ALTER TABLE users ADD COLUMN is_gold INTEGER DEFAULT 0;`); } catch (e) {}
+// Initialize Itineraries & Stripe databases
+setupItineraryDatabase(db);
+setupStripeDatabase(db);
 
-// Enforce Gold account status ONLY for primary admin accounts and reset ordinary accounts
+// Enforce Gold account status for primary admin accounts and preserve paid users
 try {
   db.prepare(`
     UPDATE users 
-    SET is_premium = 1, is_gold = 1 
+    SET is_premium = 1, is_gold = 1, plan = 'gold' 
     WHERE LOWER(TRIM(email)) IN ('empresariomario@gmail.com', 'marioempresario@gmail.com', 'marioyesk@gmail.com')
        OR LOWER(TRIM(whatsapp)) IN ('empresariomario@gmail.com', 'marioempresario@gmail.com', 'marioyesk@gmail.com')
   `).run();
 
+  // Restore gold status for all users who completed a purchase
   db.prepare(`
     UPDATE users 
-    SET is_premium = 0, is_gold = 0 
-    WHERE LOWER(TRIM(email)) NOT IN ('empresariomario@gmail.com', 'marioempresario@gmail.com', 'marioyesk@gmail.com')
-      AND LOWER(TRIM(whatsapp)) NOT IN ('empresariomario@gmail.com', 'marioempresario@gmail.com', 'marioyesk@gmail.com')
+    SET is_premium = 1, is_gold = 1, plan = 'gold' 
+    WHERE id IN (SELECT DISTINCT user_id FROM purchases WHERE payment_status = 'paid')
+       OR LOWER(email) IN (SELECT DISTINCT LOWER(user_email) FROM purchases WHERE payment_status = 'paid')
   `).run();
 } catch (e) {}
 
@@ -502,13 +515,19 @@ function getGenAI(): GoogleGenAI | null {
 
 async function performWebSearch(query: string): Promise<Array<{ title: string; snippet: string; url: string; sourceName: string }>> {
   try {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 2800);
+
     const searchUrl = `https://html.duckduckgo.com/html/?q=${encodeURIComponent(query + ' campos do jordao')}`;
     const res = await fetch(searchUrl, {
+      signal: controller.signal,
       headers: {
         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
         'Accept-Language': 'pt-BR,pt;q=0.9,en-US;q=0.8'
       }
     });
+    clearTimeout(timeoutId);
+
     if (!res.ok) return [];
     const html = await res.text();
     const results: Array<{ title: string; snippet: string; url: string; sourceName: string }> = [];
@@ -556,8 +575,45 @@ async function performWebSearch(query: string): Promise<Array<{ title: string; s
 
     return results.slice(0, 5);
   } catch (err) {
-    console.warn('[WebSearch] Error fetching web search results:', err);
     return [];
+  }
+}
+
+async function fetchCamposWeatherForecast(): Promise<string> {
+  try {
+    const url = 'https://api.open-meteo.com/v1/forecast?latitude=-22.7394&longitude=-45.5913&daily=weathercode,temperature_2m_max,temperature_2m_min,precipitation_sum,precipitation_probability_max&timezone=America%2FSao_Paulo';
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 2500);
+    const res = await fetch(url, { signal: controller.signal });
+    clearTimeout(timeoutId);
+    if (!res.ok) return '';
+    const data = await res.json();
+    if (!data || !data.daily) return '';
+
+    const days = data.daily.time || [];
+    const maxTemps = data.daily.temperature_2m_max || [];
+    const minTemps = data.daily.temperature_2m_min || [];
+    const precipProb = data.daily.precipitation_probability_max || [];
+    const precipSum = data.daily.precipitation_sum || [];
+
+    const dateNames = ['Domingo', 'Segunda-feira', 'Terça-feira', 'Quarta-feira', 'Quinta-feira', 'Sexta-feira', 'Sábado'];
+
+    const forecastLines = days.map((dateStr: string, idx: number) => {
+      const d = new Date(dateStr + 'T12:00:00');
+      const dayName = dateNames[d.getDay()];
+      const dateFormatted = d.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' });
+      const maxT = Math.round(maxTemps[idx]);
+      const minT = Math.round(minTemps[idx]);
+      const prob = precipProb[idx] !== undefined ? precipProb[idx] : 0;
+      const mm = precipSum[idx] !== undefined ? precipSum[idx] : 0;
+      const isRainy = prob >= 40 || mm > 1;
+
+      return `• ${dayName} (${dateFormatted}): ${isRainy ? '🌧️ Pancadas de chuva / Sol com nuvens' : '☀️/⛅ Sol com poucas nuvens'} | Mín: ${minT}°C / Máx: ${maxT}°C | Chance de chuva: ${prob}% (${mm}mm)`;
+    });
+
+    return `=== PREVISÃO DO TEMPO E CHUVAS REAL EM CAMPOS DO JORDÃO (PRÓXIMOS 7 DIAS) ===\n${forecastLines.join('\n')}\n==============================================`;
+  } catch (e) {
+    return '';
   }
 }
 
@@ -591,28 +647,64 @@ function needsWebSearch(message: string, history: any[]): boolean {
   return false;
 }
 
-const MONVIAN_BASE_INSTRUCTION = `Você é o Chat, o assistente de inteligência artificial oficial do aplicativo Monvian em Campos do Jordão (SP).
-Seu objetivo é fornecer respostas claras, precisas, naturais e atualizadas sobre Campos do Jordão, incluindo atrações turísticas, restaurantes, hotéis, cafeterias, preços de ingressos, teleférico, horários de funcionamento, previsão do tempo, eventos atuais e dicas locais.
+const MONVIAN_BASE_INSTRUCTION = `=== DIRETRIZES DO ASSISTENTE MONVIAN ===
 
-=== REGRAS DE RESPOSTA E PESQUISA NA WEB ===
-1. CONTEXTO E CONTINUIDADE:
-   - O foco principal é Campos do Jordão (Serra da Mantiqueira, SP).
-   - Mantenha continuidade conversacional considerando o histórico recente. Perguntas como "Qual o melhor horário para ir?", "Quanto custa?", "Qual o endereço?" ou "Está aberto?" referem-se ao último local, evento ou atração mencionada.
+Você é a inteligência artificial do Monvian, especializada em Campos do Jordão (SP).
+Sua função é responder às perguntas dos usuários de forma RÁPIDA, OBJETIVA e NATURAL, realizando pesquisas na internet sempre que necessário, SEM NUNCA citar fontes, mantendo um tom conversacional e prestativo.
 
-2. PESQUISA NA WEB & FONTES OFICIAIS:
-   - Para perguntas sobre dados dinâmicos, atuais ou específicos (ex: horários de funcionamento, valor de ingressos/teleférico, previsão do tempo, restaurantes abertos agora, eventos deste final de semana, atrações do Horto Florestal, etc.), utilize os dados encontrados na pesquisa na web em tempo real.
-   - Dê preferência a fontes oficiais e confiáveis: site oficial do estabelecimento/atração, prefeitura, páginas públicas oficiais e Google Maps.
+==================================================
+1. ANÁLISE DA PERGUNTA & INTENÇÃO
+==================================================
+- Leia atentamente a pergunta do usuário.
+- Identifique a intenção real por trás da mensagem (localização, evento, informação factual, recomendação, etc.).
+- Se a pergunta for ambígua, responda com a interpretação mais provável antes de pedir esclarecimentos.
 
-3. REGRAS DE VERACIDADE (NUNCA INVENTE OU FABRIQUE DADOS):
-   - NUNCA invente preços, horários de funcionamento, eventos, disponibilidade, telefones, endereços ou condições climáticas.
-   - Se as fontes encontrarem dados divergentes sobre um horário ou valor, mencione de forma simples e neutra (ex: "Os horários variam entre as fontes: o site oficial informa fechamento às 22h, enquanto outra página indica 23h. Recomendo considerar o horário do site oficial.").
-   - Se não encontrar uma informação confiável e atualizada na web ou no banco, responda honestamente: "Não encontrei uma informação confiável e atualizada sobre isso no momento." e sugira uma alternativa de consulta.
+==================================================
+2. PESQUISA AUTOMÁTICA
+==================================================
+- Se você souber a resposta com certeza, responda diretamente.
+- Se você não souber ou tiver dúvida, pesquise na internet antes de responder.
+- Priorize informações atualizadas, especialmente para eventos, horários e dados temporais.
 
-4. FORMATO E ESTILO DAS RESPOSTAS:
-   - Respostas claras, objetivas, naturais e fáceis de ler na tela do celular.
-   - Para perguntas simples, forneça respostas curtas (aproximadamente 2 a 6 frases).
-   - Quando listar opções de locais ou restaurantes, use tópicos simples com marcadores (•).
-   - NUNCA exiba blocos gigantes de texto, códigos, JSON, parâmetros de API ou termos técnicos internos.`;
+==================================================
+3. RESPOSTA OBJETIVA
+==================================================
+- Responda em NO MÁXIMO 2 A 3 FRASES CURTAS.
+- Vá direto ao ponto, sem introduções longas ou explicações desnecessárias.
+- NUNCA cite fontes, links ou sites de onde a informação foi retirada (nada de "Fonte:", URLs ou [1]).
+- Use linguagem natural, humana, próxima e educada.
+
+==================================================
+4. TOQUE FINAL (OPCIONAL)
+==================================================
+- Quando fizer sentido, encerre com uma pergunta curta de acompanhamento oferecendo ajuda adicional.
+Exemplos:
+• "Quer que eu te mande a localização no mapa?"
+• "Quer que eu te passe os detalhes de algum deles?"
+
+==================================================
+EXEMPLOS DE APLICAÇÃO
+==================================================
+
+Usuário: "Aonde fica Campos do Jordão?"
+Assistente: "Campos do Jordão fica no interior de São Paulo, na Serra da Mantiqueira, a cerca de 1.628 metros de altitude. Quer que eu te mande a localização no mapa?"
+
+Usuário: "Quais eventos estão acontecendo em Campos do Jordão?"
+Assistente: "Neste momento estão rolando atrações culturais e apresentações na praça do Capivari. Quer que eu te passe os detalhes de algum deles?"
+
+Usuário: "Oi"
+Assistente: "Oi! 😊 Como posso te ajudar em Campos do Jordão hoje?"
+
+==================================================
+REGRAS INVIOLÁVEIS
+==================================================
+✅ Respostas curtas e objetivas (2-3 frases)
+✅ Tom humano e conversacional
+✅ Pesquisar automaticamente para dados atualizados/duvidosos
+✅ POSICIONAMENTO DE EMOJIS: Sempre que usar emojis ou ícones em títulos, frases ou tópicos, coloque o emoji/ícone OBRIGATORIAMENTE À DIREITA do texto (exemplo: "Campos do Jordão 📍", "Roteiros Prontos 🗺️", "Dica do Guia 💡"). NUNCA coloque o emoji à esquerda do título ou frase!
+❌ NUNCA mencionar fontes ou links
+❌ NUNCA enrolar ou enviar roteiros não solicitados
+✅ Sempre ler com atenção máxima à pergunta do usuário`;
 
 function buildMonvianSystemInstruction(): string {
   try {
@@ -622,10 +714,31 @@ function buildMonvianSystemInstruction(): string {
       FROM spots
       WHERE is_active = 1
       ORDER BY rating DESC
-      LIMIT 50
+      LIMIT 60
     `).all() as any[];
 
-    // 2. Fetch active events
+    // 2. Fetch curated itineraries from DB
+    let itinerariesCatalog = '';
+    try {
+      const itineraries = db.prepare(`
+        SELECT id, title, description, days_count, is_premium, price
+        FROM itineraries
+        WHERE is_active = 1
+        ORDER BY is_premium DESC, title ASC
+        LIMIT 20
+      `).all() as any[];
+
+      if (itineraries.length > 0) {
+        itinerariesCatalog = itineraries.map((it) => {
+          const typeLabel = (it.is_premium || it.price === 'Conta Gold' || it.price === 'Gold') 
+            ? '⭐ ROTEIRO CONTA GOLD (Exclusivo para assinantes Gold)' 
+            : '🆓 ROTEIRO GRATUITO (Acesso 100% livre para todos os usuários)';
+          return `• [${typeLabel}] "${it.title}" (${it.days_count || 1} dia(s))\n  Descrição: ${it.description || 'Roteiro completo com paradas e mapa interativo.'}`;
+        }).join('\n\n');
+      }
+    } catch (e) {}
+
+    // 3. Fetch active events
     const events = db.prepare(`
       SELECT id, name, description, category, date, time, address
       FROM events
@@ -633,7 +746,7 @@ function buildMonvianSystemInstruction(): string {
       LIMIT 15
     `).all() as any[];
 
-    // 3. Fetch recent reviews
+    // 4. Fetch recent reviews
     const reviews = db.prepare(`
       SELECT spot_id, user_name, rating, comment
       FROM reviews
@@ -663,6 +776,15 @@ function buildMonvianSystemInstruction(): string {
 
 ${dateInfo}
 
+=== ROTEIROS PRONTOS CADASTRADOS NO APLICATIVO MONVIAN ===
+Sempre que o usuário pedir um roteiro pronto, sugestão de roteiro (ex: "monte um roteiro", "o que fazer em 2 dias", "roteiro romântico", "quero um roteiro pronto"):
+1. Crie a sugestão personalizada e detalhada respondendo à dúvida do usuário com as paradas recomendadas.
+2. Em seguida, oriente o usuário de forma calorosa a abrir a aba "Roteiros" no menu inferior do app, onde ele pode navegar pelo mapa interativo com paradas passo a passo.
+3. Mencione que no app existem tanto Roteiros Gratuitos prontos para uso quanto Roteiros Exclusivos da Conta Gold.
+
+[ROTEIROS CADASTRADOS NO APP]:
+${itinerariesCatalog || 'Roteiros de 1 a 3 dias disponíveis na aba Roteiros do app.'}
+
 === BANCO DE DADOS OFICIAL DO MONVIAN (PRIORIDADE MÁXIMA DE CONSULTA E RECOMENDAÇÃO) ===
 Sempre que o usuário perguntar sobre locais, restaurantes, hotéis, cafeterias, passeios ou eventos, utilize prioritariamente as informações abaixo cadastradas no banco de dados do Monvian antes de recorrer ao conhecimento geral:
 
@@ -677,8 +799,9 @@ ${reviewsCatalog}
 
 [DIRETRIZES FUNDAMENTAIS]:
 1. Priorize e recomende os locais, restaurantes e atrações listados acima no banco do Monvian.
-2. Quando faltar contexto (como orçamento, quantidade de dias, se possui carro ou se a viagem é para casal, família com crianças ou amigos), faça perguntas atenciosas e objetivas para entender as preferências do turista.
-3. Responda sempre em português brasileiro de forma acolhedora, com formatação limpa e organizada por períodos (☀️ Manhã, 🌅 Tarde, 🌙 Noite) e destaques com "💡 Dica:".`;
+2. NUNCA responda com mensagens genéricas sem relação com a pergunta do usuário. Responda diretamente e com inteligência exatamente ao que foi solicitado.
+3. Se o usuário perguntar sobre algo alheio a turismo/Campos do Jordão, recuse com simpatia e brevidade, convidando-o a perguntar sobre a cidade.
+4. Responda sempre em português brasileiro de forma acolhedora, com formatação limpa no padrão ChatGPT (parágrafos claros, negrito nos locais e organização por períodos quando fizer roteiro).`;
   } catch (err) {
     console.error('Error generating Monvian instruction:', err);
     return MONVIAN_BASE_INSTRUCTION;
@@ -848,7 +971,12 @@ function executeChatTool(callName: string, callArgs: any, userCoords?: { lat: nu
 
 async function startServer() {
   const app = express();
-  app.use(express.json({ limit: '10mb' }));
+  app.use(express.json({
+    limit: '10mb',
+    verify: (req: any, res, buf) => {
+      req.rawBody = buf;
+    }
+  }));
 
   // Helper auth middleware
   const getAuthUserSync = (req: express.Request) => {
@@ -1122,6 +1250,86 @@ async function startServer() {
     }
   });
 
+  // Smart photo resolver for spots
+  const SPOT_IMAGE_DICTIONARY: Record<string, string> = {
+    'amantikir': 'https://images.unsplash.com/photo-1585320806297-9794b3e4eeae?auto=format&fit=crop&w=800&q=80',
+    'itapeva': 'https://images.unsplash.com/photo-1506744038136-46273834b3fb?auto=format&fit=crop&w=800&q=80',
+    'baden-baden': 'https://images.unsplash.com/photo-1514933651103-005eec06c04b?auto=format&fit=crop&w=800&q=80',
+    'ducha-de-prata': 'https://images.unsplash.com/photo-1432405972618-c60b0225b8f9?auto=format&fit=crop&w=800&q=80',
+    'ducha-prata': 'https://images.unsplash.com/photo-1432405972618-c60b0225b8f9?auto=format&fit=crop&w=800&q=80',
+    'morro-do-elefante': 'https://images.unsplash.com/photo-1507525428034-b723cf961d3e?auto=format&fit=crop&w=800&q=80',
+    'morro-elefante': 'https://images.unsplash.com/photo-1507525428034-b723cf961d3e?auto=format&fit=crop&w=800&q=80',
+    'parque-capivari': 'https://images.unsplash.com/photo-1513836279014-a89f7a76ae86?auto=format&fit=crop&w=800&q=80',
+    'capivari': 'https://images.unsplash.com/photo-1513836279014-a89f7a76ae86?auto=format&fit=crop&w=800&q=80',
+    'parque-das-cerejeiras': 'https://images.unsplash.com/photo-1522383225653-ed111181a951?auto=format&fit=crop&w=800&q=80',
+    'cerejeiras': 'https://images.unsplash.com/photo-1522383225653-ed111181a951?auto=format&fit=crop&w=800&q=80',
+    'portal': 'https://images.unsplash.com/photo-1519501025264-65ba15a82390?auto=format&fit=crop&w=800&q=80',
+    'portal-de-campos-do-jordao': 'https://images.unsplash.com/photo-1519501025264-65ba15a82390?auto=format&fit=crop&w=800&q=80',
+    'tarundu': 'https://images.unsplash.com/photo-1448375240586-882707db888b?auto=format&fit=crop&w=800&q=80',
+    'horto': 'https://images.unsplash.com/photo-1473448912268-2022ce9509d8?auto=format&fit=crop&w=800&q=80',
+    'horto-florestal': 'https://images.unsplash.com/photo-1473448912268-2022ce9509d8?auto=format&fit=crop&w=800&q=80',
+    'felicia-leirner': 'https://images.unsplash.com/photo-1561214115-f2f134cc4912?auto=format&fit=crop&w=800&q=80',
+    'museu-felicia-leirner': 'https://images.unsplash.com/photo-1561214115-f2f134cc4912?auto=format&fit=crop&w=800&q=80',
+    'bosque-silencio': 'https://images.unsplash.com/photo-1441974231531-c6227db76b6e?auto=format&fit=crop&w=800&q=80',
+    'bosque-do-silencio': 'https://images.unsplash.com/photo-1441974231531-c6227db76b6e?auto=format&fit=crop&w=800&q=80',
+    'pedra-bau': 'https://images.unsplash.com/photo-1464822759023-fed622ff2c3b?auto=format&fit=crop&w=800&q=80',
+    'pedra-do-bau': 'https://images.unsplash.com/photo-1464822759023-fed622ff2c3b?auto=format&fit=crop&w=800&q=80',
+    'palacio-boa-vista': 'https://images.unsplash.com/photo-1541872703-74c5e44368f9?auto=format&fit=crop&w=800&q=80',
+    'chocolate-araucaria': 'https://images.unsplash.com/photo-1501339847302-ac426a4a7cbb?auto=format&fit=crop&w=800&q=80',
+    'vila-capivari': 'https://images.unsplash.com/photo-1513694203232-719a280e022f?auto=format&fit=crop&w=800&q=80'
+  };
+
+  function resolveSpotPhoto(name: string, id: string, category: string, currentImage: string): string {
+    if (!currentImage) {
+      const cleanId = (id || '').toLowerCase().replace(/[^a-z0-9]/g, '-');
+      const cleanName = (name || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9]/g, '-');
+      for (const [key, url] of Object.entries(SPOT_IMAGE_DICTIONARY)) {
+        if (cleanId.includes(key) || key.includes(cleanId) || cleanName.includes(key) || key.includes(cleanName)) {
+          return url;
+        }
+      }
+      return 'https://images.unsplash.com/photo-1519501025264-65ba15a82390?auto=format&fit=crop&w=800&q=80';
+    }
+
+    if (currentImage.startsWith('data:image/')) {
+      return currentImage;
+    }
+
+    if (currentImage.startsWith('/uploads/')) {
+      const diskPath = path.resolve(process.cwd(), 'public', currentImage.replace(/^\//, ''));
+      if (fs.existsSync(diskPath)) {
+        return currentImage;
+      }
+    }
+
+    const cleanId = (id || '').toLowerCase().replace(/[^a-z0-9]/g, '-');
+    const cleanName = (name || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9]/g, '-');
+
+    for (const [key, url] of Object.entries(SPOT_IMAGE_DICTIONARY)) {
+      if (cleanId.includes(key) || key.includes(cleanId) || cleanName.includes(key) || key.includes(cleanName)) {
+        return url;
+      }
+    }
+    if (currentImage.startsWith('http')) return currentImage;
+    return 'https://images.unsplash.com/photo-1519501025264-65ba15a82390?auto=format&fit=crop&w=800&q=80';
+  }
+
+  // Dynamic uploads handler (serves static file or redirects seamlessly to spot photo)
+  app.get('/uploads/spots/:filename', (req, res) => {
+    const filename = req.params.filename;
+    const filePath = path.resolve(process.cwd(), 'public', 'uploads', 'spots', filename);
+    if (fs.existsSync(filePath)) {
+      return res.sendFile(filePath);
+    }
+    const clean = filename.toLowerCase();
+    for (const [key, url] of Object.entries(SPOT_IMAGE_DICTIONARY)) {
+      if (clean.includes(key)) {
+        return res.redirect(302, url);
+      }
+    }
+    return res.redirect(302, 'https://images.unsplash.com/photo-1519501025264-65ba15a82390?auto=format&fit=crop&w=800&q=80');
+  });
+
   // ==========================================
   // PUBLIC CLIENT ENDPOINTS
   // ==========================================
@@ -1139,7 +1347,7 @@ async function startServer() {
         categoryLabel: r.category_label || r.category,
         lat: r.lat,
         lng: r.lng,
-        image: r.image,
+        image: resolveSpotPhoto(r.name, r.id, r.category, r.image),
         gallery: r.gallery ? JSON.parse(r.gallery) : [],
         description: r.description,
         touristTip: r.tourist_tip,
@@ -2473,7 +2681,7 @@ async function startServer() {
         params.push(category);
       }
 
-      query += ` ORDER BY is_active DESC, rating DESC, created_at DESC`;
+      query += ` ORDER BY created_at DESC, id DESC`;
       const rows = db.prepare(query).all(...params);
 
       const spots = rows.map((r: any) => ({
@@ -2485,7 +2693,7 @@ async function startServer() {
         categoryLabel: r.category_label || r.category,
         lat: r.lat,
         lng: r.lng,
-        image: r.image,
+        image: resolveSpotPhoto(r.name, r.id, r.category, r.image),
         gallery: r.gallery ? JSON.parse(r.gallery) : [],
         description: r.description,
         touristTip: r.tourist_tip,
@@ -2552,10 +2760,15 @@ async function startServer() {
       const uniqueFileName = `${cleanFileName}-${Date.now()}-${Math.random().toString(36).substring(2, 7)}.${ext}`;
       const filePath = path.join(uploadsDir, uniqueFileName);
 
-      fs.writeFileSync(filePath, buffer);
+      try {
+        fs.writeFileSync(filePath, buffer);
+      } catch (fsErr) {
+        console.warn('Could not write uploaded file to disk, relying on base64 data URI:', fsErr);
+      }
 
-      const publicUrl = `/uploads/spots/${uniqueFileName}`;
-      res.json({ success: true, url: publicUrl });
+      // Return base64 Data URL if < 800KB for complete persistence in Firestore/SQLite, fallback to publicUrl
+      const finalUrl = (image && image.length < 800000) ? image : `/uploads/spots/${uniqueFileName}`;
+      res.json({ success: true, url: finalUrl });
     } catch (err: any) {
       console.error('Error saving uploaded spot image:', err);
       res.status(500).json({ error: 'Falha ao salvar imagem do ponto turístico' });
@@ -2611,19 +2824,23 @@ async function startServer() {
 
       const formattedTags = Array.isArray(tags) ? tags.join(', ') : (tags || '');
 
+      const nowIso = new Date().toISOString();
+
       db.prepare(`
         INSERT INTO spots (
           id, name, short_name, tag_label, category, category_label,
           lat, lng, image, gallery, description, tourist_tip,
           rating, review_count, hours, address, price_range,
           visitors_today, badge, highlighted, is_active, is_verified,
-          website, phone, available_for_itinerary, duration_minutes, tags, price
+          website, phone, available_for_itinerary, duration_minutes, tags, price,
+          created_at, updated_at
         ) VALUES (
           ?, ?, ?, ?, ?, ?,
           ?, ?, ?, ?, ?, ?,
           ?, ?, ?, ?, ?,
           ?, ?, ?, ?, ?,
-          ?, ?, ?, ?, ?, ?
+          ?, ?, ?, ?, ?, ?,
+          ?, ?
         )
       `).run(
         id,
@@ -2653,7 +2870,9 @@ async function startServer() {
         availableForItinerary !== undefined ? (availableForItinerary ? 1 : 0) : 1,
         Number(durationMinutes) || 90,
         formattedTags,
-        price || priceRange || ''
+        price || priceRange || '',
+        nowIso,
+        nowIso
       );
 
       logAdminAction(null, 'Gerente ADM', 'Criou Ponto Turístico', `Nome: ${name} (${category})`);
@@ -2686,7 +2905,40 @@ async function startServer() {
         phone: phone || ''
       }).catch(err => console.warn('[FirestoreSync] Failed to persist new spot:', id, err));
 
-      res.json({ success: true, id, message: 'Ponto turístico cadastrado com sucesso!' });
+      const newSpotRecord = {
+        id,
+        name,
+        shortName: name,
+        tagLabel: name,
+        category,
+        categoryLabel: categoryLabel || category,
+        lat: Number(lat),
+        lng: Number(lng),
+        image: resolveSpotPhoto(name, id, category, defaultImage),
+        gallery: gallery ? (Array.isArray(gallery) ? gallery : JSON.parse(gallery)) : [defaultImage],
+        description: description || '',
+        touristTip: touristTip || '',
+        rating: parsedRating,
+        reviewCount: 1,
+        hours: hours || 'Todos os dias das 09h às 18h',
+        address: address || 'Campos do Jordão, SP',
+        priceRange: priceRange || '$$',
+        popularTimes: '',
+        visitorsToday: 50,
+        badge: badge || '',
+        highlighted: Boolean(highlighted),
+        isActive: isActive !== undefined ? Boolean(isActive) : true,
+        isVerified: isVerified !== undefined ? Boolean(isVerified) : true,
+        website: website || '',
+        phone: phone || '',
+        availableForItinerary: availableForItinerary !== undefined ? Boolean(availableForItinerary) : true,
+        durationMinutes: Number(durationMinutes) || 90,
+        tags: formattedTags ? formattedTags.split(',').map((t: string) => t.trim()) : [],
+        price: price || priceRange || '',
+        createdAt: new Date().toISOString()
+      };
+
+      res.json({ success: true, id, spot: newSpotRecord, message: 'Ponto turístico cadastrado com sucesso!' });
     } catch (err: any) {
       console.error(err);
       res.status(500).json({ error: 'Erro ao cadastrar ponto: ' + err.message });
@@ -2825,6 +3077,42 @@ async function startServer() {
           phone: updatedSpot.phone,
           maps_url: updatedSpot.maps_url
         }).catch(err => console.warn('[FirestoreSync] Failed to persist updated spot:', id, err));
+
+        const formattedUpdated = {
+          id: updatedSpot.id,
+          name: updatedSpot.name,
+          shortName: updatedSpot.short_name || updatedSpot.name,
+          tagLabel: updatedSpot.tag_label || updatedSpot.name,
+          category: updatedSpot.category,
+          categoryLabel: updatedSpot.category_label || updatedSpot.category,
+          lat: Number(updatedSpot.lat),
+          lng: Number(updatedSpot.lng),
+          image: resolveSpotPhoto(updatedSpot.name, updatedSpot.id, updatedSpot.category, updatedSpot.image),
+          gallery: updatedSpot.gallery ? JSON.parse(updatedSpot.gallery) : [],
+          description: updatedSpot.description,
+          touristTip: updatedSpot.tourist_tip,
+          rating: Number(updatedSpot.rating),
+          reviewCount: Number(updatedSpot.review_count),
+          hours: updatedSpot.hours,
+          address: updatedSpot.address,
+          priceRange: updatedSpot.price_range,
+          popularTimes: updatedSpot.popular_times,
+          visitorsToday: Number(updatedSpot.visitors_today),
+          badge: updatedSpot.badge,
+          highlighted: Boolean(updatedSpot.highlighted),
+          isActive: Boolean(updatedSpot.is_active),
+          isVerified: Boolean(updatedSpot.is_verified),
+          website: updatedSpot.website || '',
+          phone: updatedSpot.phone || '',
+          availableForItinerary: updatedSpot.available_for_itinerary === 1,
+          durationMinutes: updatedSpot.duration_minutes || 90,
+          tags: updatedSpot.tags ? updatedSpot.tags.split(',').map((t: string) => t.trim()) : [],
+          price: updatedSpot.price || updatedSpot.price_range || '',
+          updatedAt: updatedSpot.updated_at
+        };
+
+        res.json({ success: true, spot: formattedUpdated, message: 'Ponto atualizado com sucesso!' });
+        return;
       }
 
       res.json({ success: true, message: 'Ponto atualizado com sucesso!' });
@@ -3523,6 +3811,118 @@ async function startServer() {
   // AI CHAT ENDPOINT ("CHAT" ASSISTANT ENGINE)
   // ==========================================
 
+  // GET /api/chat/messages — Retrieve saved user conversation history
+  app.get('/api/chat/messages', (req, res) => {
+    const authHeader = req.headers.authorization;
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+      res.status(401).json({ success: false, error: 'Não autorizado' });
+      return;
+    }
+    const token = authHeader.split(' ')[1];
+    const session = db.prepare('SELECT user_id FROM sessions WHERE token = ?').get(token) as any;
+    if (!session) {
+      res.status(401).json({ success: false, error: 'Sessão inválida' });
+      return;
+    }
+
+    try {
+      const rows = db.prepare(`
+        SELECT id, sender, text, time, data_json, created_at
+        FROM chat_messages
+        WHERE user_id = ?
+        ORDER BY created_at ASC
+      `).all(session.user_id) as any[];
+
+      const messages = rows.map((r) => {
+        let extra = {};
+        if (r.data_json) {
+          try { extra = JSON.parse(r.data_json); } catch (e) {}
+        }
+        return {
+          id: r.id,
+          sender: r.sender,
+          text: r.text,
+          time: r.time,
+          ...extra,
+        };
+      });
+
+      res.json({ success: true, messages });
+    } catch (e) {
+      res.status(500).json({ success: false, error: 'Erro ao buscar mensagens do chat' });
+    }
+  });
+
+  // POST /api/chat/messages — Save/sync user conversation history
+  app.post('/api/chat/messages', (req, res) => {
+    const authHeader = req.headers.authorization;
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+      res.status(401).json({ success: false, error: 'Não autorizado' });
+      return;
+    }
+    const token = authHeader.split(' ')[1];
+    const session = db.prepare('SELECT user_id FROM sessions WHERE token = ?').get(token) as any;
+    if (!session) {
+      res.status(401).json({ success: false, error: 'Sessão inválida' });
+      return;
+    }
+
+    const { messages } = req.body;
+    if (!Array.isArray(messages)) {
+      res.status(400).json({ success: false, error: 'Formato de mensagens inválido' });
+      return;
+    }
+
+    try {
+      const stmt = db.prepare(`
+        INSERT INTO chat_messages (id, user_id, sender, text, time, data_json)
+        VALUES (?, ?, ?, ?, ?, ?)
+        ON CONFLICT(id) DO UPDATE SET
+          text = excluded.text,
+          time = excluded.time,
+          data_json = excluded.data_json
+      `);
+
+      const insertMany = db.transaction((msgs: any[]) => {
+        for (const m of msgs) {
+          if (!m || !m.id || !m.sender || !m.text) continue;
+          const { id, sender, text, time, ...rest } = m;
+          const dataJson = Object.keys(rest).length > 0 ? JSON.stringify(rest) : null;
+          stmt.run(id, session.user_id, sender, text, time || '', dataJson);
+        }
+      });
+
+      insertMany(messages);
+
+      res.json({ success: true });
+    } catch (e) {
+      console.error('Error saving chat messages:', e);
+      res.status(500).json({ success: false, error: 'Erro ao salvar mensagens do chat' });
+    }
+  });
+
+  // DELETE /api/chat/messages — Clear user conversation history
+  app.delete('/api/chat/messages', (req, res) => {
+    const authHeader = req.headers.authorization;
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+      res.status(401).json({ success: false, error: 'Não autorizado' });
+      return;
+    }
+    const token = authHeader.split(' ')[1];
+    const session = db.prepare('SELECT user_id FROM sessions WHERE token = ?').get(token) as any;
+    if (!session) {
+      res.status(401).json({ success: false, error: 'Sessão inválida' });
+      return;
+    }
+
+    try {
+      db.prepare('DELETE FROM chat_messages WHERE user_id = ?').run(session.user_id);
+      res.json({ success: true });
+    } catch (e) {
+      res.status(500).json({ success: false, error: 'Erro ao limpar mensagens do chat' });
+    }
+  });
+
   app.post('/api/chat', async (req, res) => {
     try {
       const { message, history, userCoords } = req.body;
@@ -3565,6 +3965,176 @@ async function startServer() {
         }
       }
 
+      // Dynamic Intelligent Handling
+      const lower = message.toLowerCase().trim();
+
+      // 1. Fast, friendly response for simple greetings & casual conversation (NEVER dump itineraries on greeting!)
+      if (lower === 'oi' || lower === 'olá' || lower === 'ola' || lower === 'oie' || lower === 'oii' || lower === 'oiii') {
+        res.json({
+          reply: 'Oi! 😊 Como posso te ajudar em Campos do Jordão?',
+          groundingPlaces: [],
+          webSources: [],
+        });
+        return;
+      }
+
+      if (lower === 'bom dia' || lower.startsWith('bom dia')) {
+        res.json({
+          reply: 'Bom dia! 😊 Como posso te ajudar?',
+          groundingPlaces: [],
+          webSources: [],
+        });
+        return;
+      }
+
+      if (lower === 'boa tarde' || lower.startsWith('boa tarde')) {
+        res.json({
+          reply: 'Boa tarde! 😊 Como posso te ajudar?',
+          groundingPlaces: [],
+          webSources: [],
+        });
+        return;
+      }
+
+      if (lower === 'boa noite' || lower.startsWith('boa noite')) {
+        res.json({
+          reply: 'Boa noite! 😊 Como posso te ajudar?',
+          groundingPlaces: [],
+          webSources: [],
+        });
+        return;
+      }
+
+      if (['obrigado', 'obrigada', 'muito obrigado', 'muito obrigada', 'obrigadão', 'brigado', 'brigada'].includes(lower)) {
+        res.json({
+          reply: 'Por nada! 😊',
+          groundingPlaces: [],
+          webSources: [],
+        });
+        return;
+      }
+
+      if (['valeu', 'valeu!', 'vlw', 'tks', 'thanks'].includes(lower)) {
+        res.json({
+          reply: 'Imagina! 😊',
+          groundingPlaces: [],
+          webSources: [],
+        });
+        return;
+      }
+
+      const greetingPhrases = ['oi tudo bem', 'oi tudo bem?', 'ola tudo bem', 'tudo bem', 'tudo bem?', 'e aí', 'e ai', 'opa', 'hey', 'hello'];
+      if (greetingPhrases.includes(lower) || (lower.startsWith('oi') && lower.length <= 15 && (lower.includes('tudo bem') || lower.includes('bom dia') || lower.includes('boa tarde')))) {
+        res.json({
+          reply: 'Olá! Tudo bem com você? Como posso te ajudar hoje em Campos do Jordão?',
+          groundingPlaces: [],
+          webSources: [],
+        });
+        return;
+      }
+
+      // 2. Confused, punctuation or single dot input
+      if (['.', '..', '...', '?', '??', '!', 'oi?', 'q', 'oq', 'o que'].includes(lower) || (lower.length === 1 && !/[a-z0-9]/i.test(lower))) {
+        res.json({
+          reply: 'Oi! Não entendi o que você quis dizer. Como posso te ajudar com passeios, restaurantes ou dicas em Campos do Jordão?',
+          groundingPlaces: [],
+          webSources: [],
+        });
+        return;
+      }
+
+      // 3. Location detection: "Onde fica...", "Aonde fica...", "Localização de..."
+      const isLocationQuery = /^(onde|aonde|como chegar|localização|localizacao|onde é|fica onde)\b/i.test(lower) || lower.includes('onde fica') || lower.includes('aonde fica') || lower.includes('onde é o') || lower.includes('onde e o');
+      
+      // Special case: Location of Campos do Jordão city itself
+      if (lower.includes('aonde fica campos do jordão') || lower.includes('onde fica campos do jordão') || lower.includes('aonde fica campos do jordao') || lower.includes('onde fica campos do jordao') || (isLocationQuery && (lower.includes('campos do jordao') || lower.includes('campos do jordão')) && !lower.includes('em campos do jordão') && !lower.includes('em campos'))) {
+        res.json({
+          reply: 'Campos do Jordão fica no interior de São Paulo, na Serra da Mantiqueira, a cerca de 1.628 metros de altitude. Quer que eu te mande a localização no mapa?',
+          openMapSpot: {
+            id: 'campos-do-jordao-center',
+            name: 'Campos do Jordão',
+            lat: -22.7394,
+            lng: -45.5913,
+            category: 'tourist_spot',
+            categoryLabel: 'Centro da Cidade',
+          },
+          groundingPlaces: [],
+          webSources: [],
+        });
+        return;
+      }
+
+      if (isLocationQuery) {
+        let matchedSpot: any = null;
+        try {
+          const spots = db.prepare('SELECT id, name, category, category_label, lat, lng, address, tourist_tip, description FROM spots WHERE is_active = 1').all() as any[];
+          for (const s of spots) {
+            const spotNameLower = s.name.toLowerCase();
+            const cleanSpotName = spotNameLower.replace(/^(parque|pico|morro|vila|restaurante|café|cafe|chocolateria|hotel|pousada)\s+/i, '');
+            if (lower.includes(spotNameLower) || lower.includes(cleanSpotName) || (cleanSpotName.length > 3 && lower.includes(cleanSpotName.slice(0, 5)))) {
+              matchedSpot = s;
+              break;
+            }
+          }
+        } catch (e) {}
+
+        if (matchedSpot) {
+          const replyText = `O **${matchedSpot.name}** fica localizado em Campos do Jordão (${matchedSpot.address || 'região turística'}). Vou abrir a localização no mapa para você agora mesmo!`;
+          res.json({
+            reply: replyText,
+            openMapSpot: {
+              id: matchedSpot.id,
+              name: matchedSpot.name,
+              lat: matchedSpot.lat,
+              lng: matchedSpot.lng,
+              category: matchedSpot.category,
+              categoryLabel: matchedSpot.category_label,
+            },
+            groundingPlaces: matchedSpot.lat && matchedSpot.lng ? [{
+              title: matchedSpot.name,
+              uri: `https://www.google.com/maps/search/?api=1&query=${matchedSpot.lat},${matchedSpot.lng}`,
+              address: matchedSpot.address,
+              reviewSnippet: matchedSpot.tourist_tip || matchedSpot.description,
+            }] : [],
+            webSources: [],
+          });
+          return;
+        }
+      }
+
+      // 4. Off-topic detection
+      const nonTourismKeywords = ['política', 'politica', 'eleição', 'eleicao', 'governo', 'presidente', 'deputado', 'crime', 'preso', 'assassinato', 'polícia', 'policia', 'fofoca', 'famosos', 'futebol', 'jogo de futebol', 'programação', 'javascript', 'python', 'cálculo', 'derivada', 'integral'];
+      if (nonTourismKeywords.some(kw => lower.includes(kw))) {
+        res.json({
+          reply: 'Que tal voltarmos a falar sobre os melhores pontos e experiências de Campos do Jordão? Posso te sugerir ótimos passeios, restaurantes ou mirantes!',
+          groundingPlaces: [],
+          webSources: [],
+        });
+        return;
+      }
+
+      // Detect weather / rain forecast intent
+      const isWeatherQuery = /^(previsão|previsao|clima|tempo|temperatura|chuva|chover|chove|sol|frio|calor)\b/i.test(lower) ||
+        lower.includes('chover') || lower.includes('chuva') || lower.includes('clima') || lower.includes('temperatura') ||
+        lower.includes('previsão') || lower.includes('previsao') || lower.includes('tempo pra semana') || lower.includes('tempo para a semana') ||
+        lower.includes('vai chover') || lower.includes('dias que vai chover');
+
+      let weatherData = '';
+      if (isWeatherQuery) {
+        weatherData = await fetchCamposWeatherForecast();
+      }
+
+      // Check if user is asking for itineraries (STRICT: EXCLUDE weather queries!)
+      const isAskingItinerary = !isWeatherQuery && (
+        lower.includes('roteiro') ||
+        lower.includes('itinerario') ||
+        lower.includes('itinerário') ||
+        lower.includes('o que fazer em') ||
+        (lower.includes('planejar') && !lower.includes('tempo')) ||
+        lower.includes('sugestão de passeio') ||
+        lower.includes('sugestao de passeio')
+      );
+
       if (ai) {
         try {
           const contents: any[] = [];
@@ -3581,7 +4151,11 @@ async function startServer() {
 
           let finalUserPrompt = message;
           if (webSearchData.length > 0) {
-            finalUserPrompt += `\n\n=== RESULTADOS DA PESQUISA NA WEB EM TEMPO REAL ===\n${webSearchData.map((r, i) => `${i + 1}. Fonte: [${r.sourceName}] (${r.url})\n   Título: ${r.title}\n   Resumo: ${r.snippet}`).join('\n\n')}\n==================================================\nInstrução: Utilize estes resultados reais da web para responder à pergunta de forma natural, curta, objetiva (2 a 6 frases) e fácil de ler no celular. Se os dados forem conflitantes ou não suficientes, seja transparente e nunca invente valores, preços ou horários.`;
+            finalUserPrompt += `\n\n=== DADOS RECENTES PARA CONSULTA (PESQUISA GOOGLE) ===\n${webSearchData.map((r, i) => `${i + 1}. ${r.title}: ${r.snippet}`).join('\n\n')}\n====================================\nInstrução Obrigatória: Use esses dados para responder à pergunta de forma estritamente OBJETIVA e DIRETA ao ponto. NUNCA mencione fontes, URLs, links, sites ou numerações de referência como [1] ou [2]. Envie APENAS a resposta limpa e objetiva.`;
+          }
+
+          if (isWeatherQuery && weatherData) {
+            finalUserPrompt += `\n\n${weatherData}\n\nINSTRUÇÃO CRÍTICA DO SISTEMA PARA PREVISÃO DO TEMPO:\nO usuário está perguntando ESPECIFICAMENTE sobre a PREVISÃO DO TEMPO, CHUVAS E TEMPERATURAS em Campos do Jordão.\n1. Use os dados de previsão do tempo acima para explicar de forma Clara e Objetiva os dias em que vai chover (com porcentagem/intensidade) e os dias em que fará sol/tempo firme, informando as temperaturas mínima e máxima em °C.\n2. NUNCA envie ou ofereça um ROTEIRO DE PASSEIOS ("Roteiro Sugerido") nem lista de atrações turísticas nesta resposta!\n3. Mantenha a resposta focada 100% no tempo, clima e chuva solicitados pelo usuário.`;
           }
 
           const lastTurn = contents[contents.length - 1];
@@ -3596,121 +4170,51 @@ async function startServer() {
 
           const monvianPromptSystem = buildMonvianSystemInstruction();
 
-          const response = await ai.models.generateContent({
-            model: 'gemini-2.5-flash',
-            contents,
-            config: {
-              systemInstruction: monvianPromptSystem,
-              tools: [
-                { googleSearch: {} },
-                { functionDeclarations: chatToolsDeclarations }
-              ],
-            },
-          });
-
-          // Extract grounding chunks from Gemini Search Grounding
-          const candidate = response.candidates?.[0];
-          const groundingChunks = candidate?.groundingMetadata?.groundingChunks;
-          if (Array.isArray(groundingChunks)) {
-            for (const chunk of groundingChunks) {
-              if (chunk.web && chunk.web.uri) {
-                const uri = chunk.web.uri;
-                let sourceName = 'Google Search';
-                try {
-                  sourceName = new URL(uri).hostname.replace(/^www\./, '');
-                } catch (e) {}
-
-                if (!webSources.some(s => s.uri === uri)) {
-                  webSources.push({
-                    title: chunk.web.title || sourceName,
-                    uri,
-                    sourceName,
-                  });
-                }
-              }
-            }
-          }
-
-          // Handle function calls if model requested any tool executions
-          const fCalls = response.functionCalls;
-          if (Array.isArray(fCalls) && fCalls.length > 0) {
-            const toolResponseParts = await Promise.all(fCalls.map(async (fc: any) => {
-              let result: any = null;
-              if (fc.name === 'search_web') {
-                const q = fc.args?.query || message;
-                const extraRes = await performWebSearch(q);
-                for (const er of extraRes) {
-                  if (er.url && !webSources.some(s => s.uri === er.url)) {
-                    webSources.push({
-                      title: er.title,
-                      uri: er.url,
-                      sourceName: er.sourceName || 'Google Search',
-                    });
-                  }
-                }
-                result = { results: extraRes };
-              } else {
-                result = executeChatTool(fc.name, fc.args, userCoords);
-              }
-
-              if (fc.name === 'search_places' && result.spots) {
-                for (const sp of result.spots) {
-                  if (sp.maps_url) {
-                    groundingPlaces.push({
-                      title: sp.name,
-                      uri: sp.maps_url,
-                      address: sp.address,
-                      reviewSnippet: sp.tourist_tip || sp.description,
-                    });
-                  }
-                }
-              }
-
-              return {
-                functionResponse: {
-                  name: fc.name,
-                  response: result,
+          // Call Gemini with timeout race
+          const generateWithTimeout = async () => {
+            try {
+              return await ai.models.generateContent({
+                model: 'gemini-3.8-flash',
+                contents,
+                config: {
+                  systemInstruction: monvianPromptSystem,
+                  tools: [
+                    { googleSearch: {} },
+                  ],
                 },
-              };
-            }));
-
-            const candidateContent = response.candidates?.[0]?.content || { role: 'model', parts: [{ text: '' }] };
-            const secondContents = [
-              ...contents,
-              candidateContent,
-              {
-                role: 'user',
-                parts: toolResponseParts,
-              },
-            ];
-
-            const secondResponse = await ai.models.generateContent({
-              model: 'gemini-2.5-flash',
-              contents: secondContents,
-              config: {
-                systemInstruction: monvianPromptSystem,
-                tools: [
-                  { googleSearch: {} },
-                  { functionDeclarations: chatToolsDeclarations }
-                ],
-              },
-            });
-
-            if (secondResponse.text) {
-              res.json({
-                reply: secondResponse.text,
-                groundingPlaces,
-                webSources: webSources.slice(0, 5),
               });
-              return;
+            } catch (searchToolErr) {
+              // Retry directly without search tool if googleSearch errored
+              return await ai.models.generateContent({
+                model: 'gemini-3.8-flash',
+                contents,
+                config: {
+                  systemInstruction: monvianPromptSystem,
+                },
+              });
             }
-          }
+          };
 
-          if (response.text) {
+          const timeoutPromise = new Promise((_, reject) => setTimeout(() => reject(new Error('AI generation timeout')), 7500));
+          const response: any = await Promise.race([generateWithTimeout(), timeoutPromise]);
+
+          if (response?.text) {
+            // Clean up any residual markdown URLs, footnotes or citation tags
+            let cleanReply = response.text
+              .replace(/\[\d+\]/g, '')
+              .replace(/\[([^\]]+)\]\((https?:\/\/[^\)]+)\)/g, '$1')
+              .replace(/\(https?:\/\/[^\)]+\)/g, '')
+              .replace(/https?:\/\/[^\s]+/g, '')
+              .replace(/Fonte:\s*.*$/gim, '')
+              .replace(/Fontes:\s*.*$/gim, '')
+              .replace(/\n{3,}/g, '\n\n')
+              .trim();
+
             res.json({
-              reply: response.text,
-              groundingPlaces,
-              webSources: webSources.slice(0, 5),
+              reply: cleanReply,
+              groundingPlaces: [],
+              webSources: [],
+              showItineraryCards: isAskingItinerary,
             });
             return;
           }
@@ -3719,33 +4223,63 @@ async function startServer() {
         }
       }
 
-      // Dynamic Contextual Fallback if API key is missing or offline
+      // Dynamic Intelligent Fallback if API key is missing or network timed out
       let reply = '';
-      if (webSearchData.length > 0) {
-        reply = `Encontrei as seguintes informações atualizadas em pesquisas sobre Campos do Jordão:\n\n${webSearchData.map(r => `• **${r.title}**: ${r.snippet}`).slice(0, 3).join('\n\n')}\n\n💡 Recomendo confirmar horários e valores diretamente nos canais oficiais antes da sua visita.`;
-      } else {
-        const now = new Date();
-        const brTime = now.toLocaleTimeString('pt-BR', { timeZone: 'America/Sao_Paulo', hour: '2-digit', minute: '2-digit' });
-        const brDate = now.toLocaleDateString('pt-BR', { timeZone: 'America/Sao_Paulo', weekday: 'long', day: 'numeric', month: 'long' });
-        const lower = message.toLowerCase();
+      if (isAskingItinerary) {
+        // Fetch real itineraries and spots from DB
+        let sampleItins = [];
+        try {
+          sampleItins = db.prepare('SELECT title, description, is_premium FROM itineraries WHERE is_active = 1 LIMIT 3').all() as any[];
+        } catch (e) {}
 
-        if (lower.includes('hora') || lower.includes('horário') || lower.includes('horario')) {
-          reply = `🕒 Agora são exatamente **${brTime}** (${brDate}, horário de Brasília).`;
-        } else if (lower.includes('tempo') || lower.includes('clima') || lower.includes('chuva') || lower.includes('chover') || lower.includes('temperatura')) {
-          reply = `⛅ **Clima em Campos do Jordão**:\n\nA temperatura típica na serra fica em torno de **16°C a 20°C** durante o dia, caindo para a faixa de **9°C a 12°C** ao entardecer.\n\n💡 Dica: Traga agasalhos confortáveis, pois o clima de montanha esfria rapidamente ao anoitecer!`;
-        } else if (lower.includes('teleférico') || lower.includes('teleferico')) {
-          reply = `ort **Teleférico do Parque Capivari (Morro do Elefante)**:\n\n• **Horário**: Diariamente das 9h às 19h.\n• **Opções**: Cabines fechadas (para até 8 pessoas) ou cadeiras abertas.\n\n💡 Recomendo comprar os ingressos com antecedência pelo site oficial do Parque Capivari nos fins de semana para evitar filas.`;
-        } else if (lower.includes('horto') || lower.includes('horto florestal')) {
-          reply = `🌲 **Horto Florestal de Campos do Jordão (Parque Estadual)**:\n\n• **Horário**: Aberto diariamente das 8h30 às 17h.\n• **Atrações**: Trilhas ecológicas, bosques de araucárias, tirolesas e áreas de piquenique.\n\n💡 Dica: Chegue cedo pela manhã para aproveitar as trilhas com tranquilidade.`;
+        const itinList = sampleItins.length > 0
+          ? sampleItins.map(it => `• **${it.title}** ${it.is_premium ? '⭐ (Conta Gold)' : '🆓 (Grátis)'}: ${it.description || 'Roteiro com mapa interativo'}`).join('\n')
+          : '• **Campos Clássico (2 Dias)**: Vila Capivari, Amantikir, Teleférico e Pico do Itapeva.\n• **Roteiro Romântico a Dois**: Chocolaterias, pôr do sol no mirante e jantar com sequência de fondue.';
+
+        reply = `Aqui está uma sugestão personalizada para a sua experiência em **Campos do Jordão**:\n\n` +
+          `**Manhã**: Comece o dia conhecendo o charmoso **Parque Amantikir** com seus jardins temáticos ou subindo o **Morro do Elefante** de teleférico.\n\n` +
+          `**Tarde**: Almoce ou tome um café especial em **Vila Capivari**, visite uma chocolateria artesanal e suba ao **Pico do Itapeva** para admirar a vista da Serra da Mantiqueira.\n\n` +
+          `**Noite**: Finalize com um tradicional fondue suíço à luz de velas acompanhado de um bom vinho serrano.\n\n` +
+          `🗺️ **Quer navegar passo a passo com mapa?**\n` +
+          `Você pode acessar a aba **Roteiros** na barra inferior do aplicativo Monvian. Lá você encontra roteiros prontos e estruturados com mapa interativo:`;
+      } else if (lower.includes('fondue') || lower.includes('comer') || lower.includes('restaurante') || lower.includes('jantar') || lower.includes('almoço') || lower.includes('almoco') || lower.includes('gastronomia')) {
+        let spots = [];
+        try {
+          spots = db.prepare("SELECT name, address, tourist_tip FROM spots WHERE (category = 'restaurant' OR name LIKE '%fondue%' OR description LIKE '%fondue%') AND is_active = 1 LIMIT 3").all() as any[];
+        } catch (e) {}
+        
+        reply = `Campos do Jordão conta com excelentes opções gastronômicas:\n\n` +
+          (spots.length > 0 
+            ? spots.map(s => `• **${s.name}**: ${s.tourist_tip || s.address}`).join('\n\n')
+            : `• **Sequência Tradicional de Fondue em Capivari**: Queijo alpino acompanhado de pães e batatas, carnes nobres e fondue de chocolate com frutas frescas.\n• **Baden Baden Vila Capivari**: Clássicos pratos alemães, chopes artesanais e atmosfera serrana animada.`) +
+          `\n\nDica: Nos fins de semana, vale a pena reservar mesa com antecedência.`;
+      } else if (lower.includes('tempo') || lower.includes('clima') || lower.includes('chuva') || lower.includes('temperatura') || lower.includes('frio')) {
+        reply = `O clima em **Campos do Jordão** é de montanha. Durante o dia, as temperaturas costumam ficar agradáveis entre **16°C e 22°C**, mas ao entardecer e à noite o clima esfria rápido, atingindo entre **8°C e 12°C**.\n\nDica: Tenha sempre uma jaqueta ou casaco à mão.`;
+      } else if (webSearchData.length > 0) {
+        // Direct objective summary from web search without sources or links
+        const cleanSnippets = webSearchData.map(r => r.snippet.replace(/https?:\/\/[^\s]+/g, '').trim()).filter(Boolean).slice(0, 2);
+        reply = cleanSnippets.length > 0 
+          ? cleanSnippets.join('\n\n')
+          : `Em Campos do Jordão você encontra opções completas para isso. Como posso te orientar melhor?`;
+      } else {
+        // Find matching spots in DB
+        let matchingSpots = [];
+        try {
+          matchingSpots = db.prepare("SELECT name, category_label, description, tourist_tip FROM spots WHERE is_active = 1 AND (name LIKE ? OR description LIKE ?) LIMIT 3").all(`%${lower}%`, `%${lower}%`) as any[];
+        } catch (e) {}
+
+        if (matchingSpots.length > 0) {
+          reply = matchingSpots.map(s => `• **${s.name}**: ${s.description}${s.tourist_tip ? ` (${s.tourist_tip})` : ''}`).join('\n\n');
         } else {
-          reply = `Olá! Sou o **Chat**, seu assistente turístico de IA no Monvian.\n\nPosso te ajudar com horários, ingressos, passeios, dicas de restaurantes, clima e roteiros completos para **Campos do Jordão**.\n\nComo posso te ajudar agora?`;
+          reply = `Campos do Jordão oferece excelentes opções para passeios, gastronomia e lazer. O que você gostaria de saber especificamente?`;
         }
       }
 
       res.json({
         reply,
-        groundingPlaces,
-        webSources: webSources.slice(0, 5),
+        groundingPlaces: [],
+        webSources: [],
+        showItineraryCards: isAskingItinerary,
       });
     } catch (err: any) {
       console.error('/api/chat error:', err);
@@ -3778,7 +4312,7 @@ async function startServer() {
 Forneça um resumo curto sobre o local, horários de pico, status atual, endereço exato e uma dica ou trecho de avaliação dos visitantes.`;
 
           const response = await ai.models.generateContent({
-            model: 'gemini-3.5-flash',
+            model: 'gemini-3.8-flash',
             contents: prompt,
             config: {
               tools: [{ googleMaps: {} }],
@@ -3888,7 +4422,7 @@ Forneça um resumo curto sobre o local, horários de pico, status atual, endere�
       if (ai) {
         try {
           const response = await ai.models.generateContent({
-            model: 'gemini-3.5-flash',
+            model: 'gemini-3.8-flash',
             contents: `Encontre e liste os melhores e mais atualizados locais para "${query}" em Campos do Jordão, SP. Forneça detalhes de horário, endereço e destaques com base no Google Maps.`,
             config: {
               tools: [{ googleMaps: {} }],
@@ -3936,6 +4470,9 @@ Forneça um resumo curto sobre o local, horários de pico, status atual, endere�
 
   // Register Itineraries & Tour Planner API routes
   registerItineraryRoutes(app, db, getAuthUserSync, logAdminAction, getGenAI);
+
+  // Register Stripe One-Time Payment & Webhook routes
+  registerStripeRoutes(app, db, getAuthUser, logAdminAction);
 
   // Serve public static assets (manifest.json, sw.js, icons, etc.)
   const publicPath = path.resolve(process.cwd(), 'public');

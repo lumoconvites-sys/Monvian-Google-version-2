@@ -55,7 +55,7 @@ export function computeAdaptiveThemeColor(params: SystemThemeParams): string {
   }
 
   if (activeTab === 'roteiros') {
-    return theme === 'dark' ? '#111315' : '#F4F4F6';
+    return theme === 'dark' ? '#000000' : '#ffffff';
   }
 
   if (activeTab === 'buscar') {

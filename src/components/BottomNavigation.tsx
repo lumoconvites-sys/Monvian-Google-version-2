@@ -178,7 +178,7 @@ export const BottomNavigation: React.FC<BottomNavigationProps> = ({
             transition={{ duration: 0.22, ease: [0.32, 0.72, 0, 1] }}
             className="fixed inset-x-0 bottom-0 pointer-events-none z-48 select-none overflow-hidden"
             style={{
-              height: 'calc(max(8px, env(safe-area-inset-bottom, 8px)) + 76px)',
+              height: 'calc(max(22px, calc(env(safe-area-inset-bottom, 0px) + 16px)) + 64px)',
               background:
                 theme === 'light'
                   ? 'linear-gradient(to top, rgba(242, 242, 245, 0.46) 0%, rgba(242, 242, 245, 0.38) 45%, rgba(242, 242, 245, 0.18) 75%, rgba(242, 242, 245, 0) 100%)'
@@ -198,10 +198,10 @@ export const BottomNavigation: React.FC<BottomNavigationProps> = ({
       <nav
         id="bottom-floating-navigation"
         aria-label="Navegação Principal"
-        className={`fixed inset-x-0 bottom-0 z-50 flex justify-center select-none font-['Manrope'] px-3 pb-0 transition-[filter,opacity,transform] duration-200 ease-out ${
+        className={`fixed inset-x-0 bottom-0 z-50 flex justify-center select-none font-['Manrope'] px-3 pointer-events-none transition-[filter,opacity,transform] duration-200 ease-out ${
           isBlurred
-            ? 'pointer-events-none filter blur-sm opacity-35 scale-[0.98]'
-            : 'pointer-events-auto filter-none opacity-100 scale-100'
+            ? 'filter blur-sm opacity-35 scale-[0.98]'
+            : 'filter-none opacity-100 scale-100'
         }`}
         onPointerDown={handlePointerDown}
         onPointerMove={handlePointerMove}
@@ -216,30 +216,21 @@ export const BottomNavigation: React.FC<BottomNavigationProps> = ({
           margin: 0,
           paddingLeft: '16px',
           paddingRight: '16px',
-          paddingBottom: 'max(8px, env(safe-area-inset-bottom, 8px))',
+          paddingBottom: 'max(22px, calc(env(safe-area-inset-bottom, 0px) + 16px))',
         }}
       >
-        {/* Bottom Navigation Capsule Bar - Exact horizontal width matching tourist spot card */}
+        {/* Bottom Navigation Capsule Bar - Compact centered iOS dock for desktop and mobile */}
         <div
           ref={containerRef}
-          className={`w-full max-w-[calc(768px-32px)] flex items-center justify-around px-2 sm:px-3 py-1.5 mb-0 rounded-full relative overflow-hidden transition-all duration-300 shadow-none ${
-            forceWhiteUI
-              ? 'ios-glass-nav-white border border-white/80'
-              : 'ios-glass-nav border border-white/20 dark:border-white/15'
-          }`}
+          className="w-full max-w-[430px] sm:max-w-[460px] pointer-events-auto flex items-center justify-around px-2 sm:px-3 py-1.5 rounded-full relative overflow-hidden transition-all duration-300 shadow-lg ios-glass-nav border border-white/20 dark:border-white/15"
           style={{
-            marginBottom: 0,
-            boxShadow: 'none',
+            boxShadow: '0 8px 32px 0 rgba(0, 0, 0, 0.37)',
           }}
         >
         {/* Active Tab Pill Indicator with Smooth Drag & Spring Snap */}
         {tabRects.length > 0 && (
           <motion.div
-            className={`absolute rounded-full -z-10 pointer-events-none transition-colors duration-300 shadow-none ${
-              forceWhiteUI
-                ? 'bg-black/[0.08] border border-black/[0.06]'
-                : 'bg-white/[0.14] dark:bg-white/[0.15] border border-white/25 dark:border-white/20'
-            }`}
+            className="absolute rounded-full -z-10 pointer-events-none transition-colors duration-300 shadow-none bg-white/[0.14] dark:bg-white/[0.15] border border-white/25 dark:border-white/20"
             style={{
               top: 3,
               bottom: 3,
@@ -258,22 +249,11 @@ export const BottomNavigation: React.FC<BottomNavigationProps> = ({
           const isActive = activeTab === tab.id;
           const isPreviewHovered = isDragging && previewIndex === idx;
 
-          // Compute text/icon colors based on forceWhiteUI vs dark mode
-          const activeColorClass = forceWhiteUI
-            ? 'text-zinc-950 scale-100 opacity-100 font-extrabold'
-            : 'text-zinc-800 dark:text-white scale-100 opacity-100 font-extrabold';
-
-          const inactiveColorClass = forceWhiteUI
-            ? 'text-zinc-500 opacity-80 font-medium hover:text-zinc-950'
-            : 'text-zinc-400 dark:text-zinc-400 opacity-80 font-medium hover:text-zinc-700 dark:hover:text-zinc-200';
-
-          const labelActiveColor = forceWhiteUI
-            ? 'font-extrabold text-zinc-950'
-            : 'font-extrabold text-zinc-900 dark:text-white';
-
-          const labelInactiveColor = forceWhiteUI
-            ? 'font-medium text-zinc-500'
-            : 'font-medium text-zinc-400 dark:text-zinc-400';
+          // Standard iOS glass navigation colors matching the strong tone of the search magnifying glass icon
+          const activeColorClass = 'text-zinc-950 dark:text-white scale-100 opacity-100 font-black';
+          const inactiveColorClass = 'text-zinc-800 dark:text-zinc-200 opacity-100 font-bold hover:text-zinc-950 dark:hover:text-white';
+          const labelActiveColor = 'font-black text-zinc-950 dark:text-white';
+          const labelInactiveColor = 'font-bold text-zinc-800 dark:text-zinc-200';
 
           return (
             <button

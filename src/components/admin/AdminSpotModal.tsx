@@ -8,7 +8,7 @@ import { AdminMapPicker } from './AdminMapPicker';
 interface AdminSpotModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onSaveSuccess: () => void;
+  onSaveSuccess: (savedSpot?: any) => void;
   spotToEdit?: any | null;
   mode?: 'spot' | 'service';
 }
@@ -105,7 +105,7 @@ export const AdminSpotModal: React.FC<AdminSpotModalProps> = ({
       setPrice(spotToEdit.price || '');
     } else {
       setName('');
-      setCategory(mode === 'service' ? 'hotels' : 'attractions');
+      setCategory('attractions');
       setDescription('');
       setTouristTip('');
       setImage(PRESET_IMAGES[0].url);
@@ -184,8 +184,10 @@ export const AdminSpotModal: React.FC<AdminSpotModalProps> = ({
       });
 
       const base64Image = await base64Promise;
+      // Immediately set the base64 preview so the user sees their selected photo
+      setImage(base64Image);
 
-      // Send to server upload endpoint
+      // Send to server upload endpoint for storage
       const res = await fetch('/api/admin/upload-spot-image', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -198,9 +200,6 @@ export const AdminSpotModal: React.FC<AdminSpotModalProps> = ({
       const data = await res.json();
       if (res.ok && data.success && data.url) {
         setImage(data.url);
-      } else {
-        // Fallback to compressed base64 if server storage returned error
-        setImage(base64Image);
       }
     } catch (err: any) {
       console.error(err);
@@ -285,7 +284,27 @@ export const AdminSpotModal: React.FC<AdminSpotModalProps> = ({
         throw new Error(data.error || 'Erro ao salvar informações.');
       }
 
-      onSaveSuccess();
+      const savedSpot = data.spot || {
+        ...payload,
+        id: data.id || (spotToEdit && spotToEdit.id) || `spot-${Date.now()}`
+      };
+
+      // Realtime map sync: update local cache and dispatch event
+      try {
+        const cached = localStorage.getItem('monvian_cached_spots');
+        if (cached) {
+          const list = JSON.parse(cached);
+          if (Array.isArray(list)) {
+            const exists = list.some((s: any) => s.id === savedSpot.id);
+            const next = exists ? list.map((s: any) => s.id === savedSpot.id ? savedSpot : s) : [savedSpot, ...list];
+            localStorage.setItem('monvian_cached_spots', JSON.stringify(next));
+          }
+        }
+      } catch (e) {}
+
+      window.dispatchEvent(new CustomEvent('monvian:spots_updated', { detail: savedSpot }));
+
+      onSaveSuccess(savedSpot);
       onClose();
     } catch (err: any) {
       setErrorMsg(err.message || 'Falha ao salvar no banco de dados.');

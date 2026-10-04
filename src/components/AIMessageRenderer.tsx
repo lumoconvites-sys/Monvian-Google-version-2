@@ -456,22 +456,20 @@ export const AIMessageRenderer: React.FC<AIMessageRendererProps> = ({ content })
     );
   }
 
+  // Render clean text blocks without any gray card box containers
   return (
-    <div className="w-full flex flex-col gap-3.5 text-zinc-900 dark:text-zinc-100 select-text">
+    <div className="w-full flex flex-col gap-2.5 text-zinc-900 dark:text-zinc-100 select-text">
       {blocks.map((block, idx) => {
         switch (block.type) {
-          // 1. Header Block (Major Title + Optional Subtitle)
+          // 1. Header Block
           case 'header': {
             return (
-              <div
-                key={`header-${idx}`}
-                className="pt-1 pb-2 border-b border-zinc-200/80 dark:border-white/10"
-              >
-                <h3 className="text-base sm:text-lg font-black tracking-tight text-zinc-900 dark:text-white flex items-center gap-2">
+              <div key={`header-${idx}`} className="pt-1 pb-1">
+                <h3 className="text-base sm:text-lg font-black tracking-tight text-zinc-900 dark:text-white">
                   {renderInlineFormatted(block.data.title)}
                 </h3>
                 {block.data.subtitle && (
-                  <p className="text-xs sm:text-sm font-black text-zinc-500 dark:text-zinc-400 mt-0.5">
+                  <p className="text-xs sm:text-sm font-semibold text-zinc-500 dark:text-zinc-400 mt-0.5">
                     {block.data.subtitle}
                   </p>
                 )}
@@ -479,39 +477,25 @@ export const AIMessageRenderer: React.FC<AIMessageRendererProps> = ({ content })
             );
           }
 
-          // 2. Itinerary Day Card
+          // 2. Itinerary Day Block - Clean text format without background card boxes
           case 'itinerary_day': {
             const day = block.data;
             return (
-              <div
-                key={`day-${idx}`}
-                className="rounded-2xl p-4 sm:p-4.5 bg-zinc-50 dark:bg-[#181a1f] border border-zinc-200/90 dark:border-white/10 shadow-xs flex flex-col gap-3.5"
-              >
-                {/* Day Badge */}
-                <div className="flex items-center gap-2">
-                  <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-blue-500/15 dark:bg-blue-500/25 text-blue-600 dark:text-blue-400 font-black text-xs uppercase tracking-wider">
-                    <span>📅</span>
-                    <span>{day.dayLabel}</span>
-                  </div>
+              <div key={`day-${idx}`} className="flex flex-col gap-2 my-1">
+                {/* Day Header */}
+                <div className="font-black text-sm uppercase tracking-wider text-blue-600 dark:text-blue-400">
+                  {day.dayLabel}
                 </div>
 
                 {/* Periods list */}
-                <div className="flex flex-col gap-3 divide-y divide-zinc-200/60 dark:divide-white/5">
+                <div className="flex flex-col gap-2.5 pl-1">
                   {day.periods.map((period, pIdx) => (
-                    <div
-                      key={`period-${pIdx}`}
-                      className={`flex flex-col gap-1.5 ${pIdx > 0 ? 'pt-3' : ''}`}
-                    >
-                      {/* Period Header */}
-                      <div className="flex items-center gap-2">
-                        <span className="text-base">{period.icon}</span>
-                        <h4 className="text-xs sm:text-sm font-black uppercase tracking-wider text-zinc-900 dark:text-white">
-                          {period.periodLabel}
-                        </h4>
+                    <div key={`period-${pIdx}`} className="flex flex-col gap-1">
+                      <div className="flex items-center gap-1.5 font-bold text-xs sm:text-sm uppercase tracking-wider text-zinc-900 dark:text-white">
+                        <span>{period.periodLabel}</span>
+                        <span>{period.icon}</span>
                       </div>
-
-                      {/* Period Content */}
-                      <div className="text-sm leading-relaxed text-zinc-600 dark:text-zinc-300 pl-6 sm:pl-7">
+                      <div className="text-sm leading-relaxed text-zinc-700 dark:text-zinc-200 pl-2">
                         {renderInlineFormatted(period.content)}
                       </div>
                     </div>
@@ -521,53 +505,40 @@ export const AIMessageRenderer: React.FC<AIMessageRendererProps> = ({ content })
             );
           }
 
-          // 3. Recommendation Item Card
+          // 3. Recommendation Item - Clean list item without background card
           case 'item_card': {
             const item = block.data;
             return (
-              <div
-                key={`item-${idx}`}
-                className="flex items-start gap-3 p-3.5 rounded-xl bg-zinc-50 dark:bg-[#181a1f] border border-zinc-200/90 dark:border-white/10 shadow-xs hover:border-blue-500/40 transition-colors"
-              >
-                {/* Badge/Icon */}
-                <div className="w-8 h-8 rounded-full bg-blue-500/10 dark:bg-blue-500/20 text-blue-600 dark:text-blue-400 flex items-center justify-center font-black text-xs shrink-0 mt-0.5">
-                  {item.index ? item.index : item.icon}
-                </div>
-
-                {/* Info */}
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-1.5 flex-wrap">
-                    <span className="text-sm font-black text-zinc-900 dark:text-white">
-                      {renderInlineFormatted(item.title)}
-                    </span>
-                  </div>
+              <div key={`item-${idx}`} className="flex items-start justify-between gap-2 py-0.5">
+                <div className="flex-1 min-w-0 text-sm leading-relaxed">
+                  <strong className="font-bold text-zinc-900 dark:text-white">
+                    {renderInlineFormatted(item.title)}
+                  </strong>
                   {item.description && (
-                    <p className="text-xs sm:text-sm text-zinc-600 dark:text-zinc-300 leading-relaxed mt-1">
+                    <span className="text-zinc-700 dark:text-zinc-300 ml-1">
                       {renderInlineFormatted(item.description)}
-                    </p>
+                    </span>
                   )}
                 </div>
+                {item.icon && (
+                  <span className="text-sm shrink-0 font-bold text-blue-600 dark:text-blue-400 ml-1">
+                    {item.icon}
+                  </span>
+                )}
               </div>
             );
           }
 
-          // 4. Tip / Highlight Card
+          // 4. Tip / Highlight - Clean tip line with icon on the right
           case 'tip_card': {
             const tip = block.data;
             return (
-              <div
-                key={`tip-${idx}`}
-                className="rounded-xl p-3.5 bg-amber-500/10 dark:bg-amber-500/15 border border-amber-500/25 dark:border-amber-500/30 flex items-start gap-2.5"
-              >
-                <span className="text-lg shrink-0 mt-0.5">💡</span>
-                <div className="flex-1 min-w-0">
-                  <h4 className="text-xs font-black uppercase tracking-wider text-amber-900 dark:text-amber-200 mb-1">
-                    {tip.title}
-                  </h4>
-                  <div className="text-xs sm:text-sm leading-relaxed text-zinc-700 dark:text-zinc-300">
-                    {renderInlineFormatted(tip.content)}
-                  </div>
+              <div key={`tip-${idx}`} className="flex items-start justify-between gap-2 py-1 text-sm leading-relaxed text-zinc-800 dark:text-zinc-200 font-medium">
+                <div>
+                  <strong className="font-bold text-zinc-900 dark:text-white mr-1">{tip.title}:</strong>
+                  {renderInlineFormatted(tip.content)}
                 </div>
+                <span className="text-base shrink-0 ml-1">💡</span>
               </div>
             );
           }
@@ -575,10 +546,7 @@ export const AIMessageRenderer: React.FC<AIMessageRendererProps> = ({ content })
           // 5. Normal Paragraph Block
           case 'paragraph': {
             return (
-              <p
-                key={`p-${idx}`}
-                className="text-sm leading-relaxed text-zinc-700 dark:text-zinc-300"
-              >
+              <p key={`p-${idx}`} className="text-sm sm:text-[15px] leading-relaxed text-zinc-800 dark:text-zinc-200">
                 {renderInlineFormatted(block.data)}
               </p>
             );

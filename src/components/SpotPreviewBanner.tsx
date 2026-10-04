@@ -2,13 +2,8 @@ import React from 'react';
 import { Spot } from '../types';
 import { Star, ArrowRight } from 'lucide-react';
 import { motion } from 'motion/react';
-
-const VerifiedBadge = () => (
-  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" className="text-white shrink-0" aria-label="Verificado">
-    <path d="M12 2L15.09 5.09L19.18 5.18L19.27 9.27L22.36 12.36L19.27 15.45L19.18 19.54L15.09 19.63L12 22.72L8.91 19.63L4.82 19.54L4.73 15.45L1.64 12.36L4.73 9.27L4.82 5.18L8.91 5.09L12 2Z" fill="currentColor"/>
-    <path d="M10 16L6 12L7.41 10.59L10 13.17L16.59 6.58L18 8L10 16Z" fill="black"/>
-  </svg>
-);
+import { getSpotImage, getSpotFallbackImage } from '../utils/spotImages';
+import { VerifiedBadge } from './ui/VerifiedBadge';
 
 interface SpotPreviewBannerProps {
   spot: Spot | null;
@@ -37,9 +32,9 @@ export const SpotPreviewBanner: React.FC<SpotPreviewBannerProps> = ({
       }}
       onClick={(e) => e.stopPropagation()}
       onTouchStart={(e) => e.stopPropagation()}
-      className="fixed left-1/2 -translate-x-1/2 z-40 w-[92%] max-w-sm ios-glass rounded-[28px] p-3 sm:p-3.5 flex items-center gap-3 select-none pointer-events-auto shadow-2xl border border-white/20 dark:border-white/10 origin-bottom transform-gpu"
+      className="fixed left-1/2 -translate-x-1/2 md:left-auto md:right-8 md:translate-x-0 z-40 w-[92%] max-w-sm md:w-88 md:max-w-none ios-glass rounded-[28px] p-3 sm:p-3.5 flex items-center gap-3 select-none pointer-events-auto shadow-2xl border border-white/20 dark:border-white/10 origin-bottom md:origin-bottom-right transform-gpu"
       style={{
-        bottom: 'calc(max(12px, env(safe-area-inset-bottom, 12px)) + 64px)',
+        bottom: typeof window !== 'undefined' && window.innerWidth >= 768 ? '32px' : 'calc(max(22px, calc(env(safe-area-inset-bottom, 0px) + 16px)) + 64px)',
         willChange: 'transform, opacity',
       }}
     >
@@ -51,15 +46,14 @@ export const SpotPreviewBanner: React.FC<SpotPreviewBannerProps> = ({
         onClick={() => onOpenDetails(spot)}
       >
         <img
-          src={spot.image || 'https://images.unsplash.com/photo-1585320806297-9794b3e4eeae?auto=format&fit=crop&w=200&q=80'}
+          src={getSpotImage(spot)}
           alt={spot.name}
           className="w-full h-full object-cover pointer-events-none"
           loading="eager"
           decoding="async"
           referrerPolicy="no-referrer"
           onError={(e) => {
-            (e.target as HTMLImageElement).src =
-              'https://images.unsplash.com/photo-1585320806297-9794b3e4eeae?auto=format&fit=crop&w=200&q=80';
+            (e.target as HTMLImageElement).src = getSpotFallbackImage(spot.name, spot.category);
           }}
         />
       </motion.div>

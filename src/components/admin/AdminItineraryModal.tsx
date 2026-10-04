@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import {
   X,
   Plus,
@@ -7,7 +7,6 @@ import {
   ChevronDown,
   Clock,
   MapPin,
-  Calendar,
   Check,
   Sparkles,
   Info,
@@ -15,21 +14,20 @@ import {
   Image as ImageIcon,
   CheckCircle2,
   AlertCircle,
-  Eye,
   EyeOff,
-  DollarSign,
-  Tag,
   Lightbulb,
   Search,
   Upload,
   Camera,
   Link as LinkIcon,
   RefreshCw,
-  Sliders,
   Layers,
   Layout,
   Sun,
-  Moon
+  Moon,
+  Crown,
+  Lock,
+  ArrowRight
 } from 'lucide-react';
 import { Spot, Itinerary, ItineraryCategory, ItineraryStatus } from '../../types';
 
@@ -61,6 +59,10 @@ export const AdminItineraryModal: React.FC<AdminItineraryModalProps> = ({
   const [availableSpots, setAvailableSpots] = useState<Spot[]>([]);
   const [loadingSpots, setLoadingSpots] = useState(false);
 
+  // Spot picker search & category filter in Builder
+  const [spotSearchQuery, setSpotSearchQuery] = useState('');
+  const [spotCategoryFilter, setSpotCategoryFilter] = useState('all');
+
   // Form states
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
@@ -68,11 +70,11 @@ export const AdminItineraryModal: React.FC<AdminItineraryModalProps> = ({
   const [coverImage, setCoverImage] = useState(COVER_PRESETS[0].url);
   const [daysCount, setDaysCount] = useState(2);
   const [selectedCategories, setSelectedCategories] = useState<string[]>([]);
-  const [price, setPrice] = useState('R$ 14,90');
+  const [price, setPrice] = useState('Grátis');
   const [status, setStatus] = useState<ItineraryStatus>('published');
   const [isFeatured, setIsFeatured] = useState(false);
-  const [isPremium, setIsPremium] = useState(true);
-  const [badgeText, setBadgeText] = useState('Premium');
+  const [isPremium, setIsPremium] = useState(false); // false = Grátis, true = Conta Gold
+  const [badgeText, setBadgeText] = useState('CONTA GOLD');
   const [showPrice, setShowPrice] = useState(true);
   const [showStopsCount, setShowStopsCount] = useState(true);
   const [showBadge, setShowBadge] = useState(true);
@@ -144,11 +146,13 @@ export const AdminItineraryModal: React.FC<AdminItineraryModalProps> = ({
       setCoverImage(itineraryToEdit.coverImage || COVER_PRESETS[0].url);
       setDaysCount(itineraryToEdit.daysCount || 1);
       setSelectedCategories(itineraryToEdit.categories || []);
-      setPrice(itineraryToEdit.price || 'R$ 14,90');
+      
+      const hasGold = Boolean(itineraryToEdit.isPremium || (itineraryToEdit as any).isGold || (itineraryToEdit as any).is_gold);
+      setIsPremium(hasGold);
+      setPrice(itineraryToEdit.price || (hasGold ? 'R$ 14,90' : 'Grátis'));
       setStatus(itineraryToEdit.status || (itineraryToEdit.isActive !== false ? 'published' : 'draft'));
       setIsFeatured(Boolean(itineraryToEdit.isFeatured || itineraryToEdit.isRecommended));
-      setIsPremium(itineraryToEdit.isPremium !== false);
-      setBadgeText(itineraryToEdit.badgeText || 'Premium');
+      setBadgeText(itineraryToEdit.badgeText || (hasGold ? 'CONTA GOLD' : ''));
       setShowPrice(itineraryToEdit.showPrice !== false);
       setShowStopsCount(itineraryToEdit.showStopsCount !== false);
       setShowBadge(itineraryToEdit.showBadge !== false);
@@ -159,46 +163,45 @@ export const AdminItineraryModal: React.FC<AdminItineraryModalProps> = ({
             dayNumber: d.dayNumber || dIdx + 1,
             title: d.title || `Dia ${dIdx + 1}`,
             summary: d.summary || '',
-            steps: Array.isArray(d.steps)
-              ? d.steps.map((s, sIdx) => ({
-                  spotId: s.spotId || (s.spot ? s.spot.id : ''),
-                  stepOrder: s.stepOrder || sIdx + 1,
-                  suggestedTime: s.suggestedTime || '09:00',
-                  durationMinutes: s.durationMinutes || 90,
-                  notes: s.notes || '',
-                  customName: s.customName || (s.spot ? s.spot.name : ''),
-                  customDescription: s.customDescription || '',
-                  customTip: s.customTip || '',
-                  customImage: s.customImage || (s.spot ? s.spot.image : '')
-                }))
-              : []
+            steps: (d.steps || []).map((s, sIdx) => ({
+              spotId: s.spotId || s.spot?.id || '',
+              stepOrder: s.stepOrder || sIdx + 1,
+              suggestedTime: s.suggestedTime || '09:30',
+              durationMinutes: s.durationMinutes || 90,
+              notes: s.notes || '',
+              customName: s.customName || s.spot?.name || '',
+              customDescription: s.customDescription || s.spot?.description || '',
+              customTip: s.customTip || '',
+              customImage: s.customImage || s.spot?.image || ''
+            }))
           }))
         );
       } else {
-        initializeDays(itineraryToEdit.daysCount || 2);
+        initializeDays(itineraryToEdit.daysCount || 1);
       }
     } else {
-      // New Itinerary Initial State
+      // Reset for creating new
       setTitle('');
       setDescription('');
       setTips('');
       setCoverImage(COVER_PRESETS[0].url);
       setDaysCount(2);
-      setSelectedCategories(['popular']);
-      setPrice('R$ 14,90');
+      setSelectedCategories([]);
+      setPrice('Grátis');
       setStatus('published');
       setIsFeatured(false);
-      setIsPremium(true);
-      setBadgeText('Premium');
+      setIsPremium(false);
+      setBadgeText('');
       setShowPrice(true);
       setShowStopsCount(true);
       setShowBadge(true);
       initializeDays(2);
     }
     setErrorMsg('');
-    setCoverUploadError('');
     setActiveTab('info');
     setActiveDayIdx(0);
+    setSpotSearchQuery('');
+    setSpotCategoryFilter('all');
   }, [isOpen, itineraryToEdit]);
 
   const initializeDays = (count: number) => {
@@ -317,26 +320,27 @@ export const AdminItineraryModal: React.FC<AdminItineraryModalProps> = ({
     }
   };
 
-  // Steps handling inside a day
-  const addStepToDay = (dayIndex: number) => {
-    const defaultSpot = availableSpots[0];
+  // Add a specific spot from the catalog directly to active day
+  const addSpotToActiveDay = (spot: Spot) => {
+    const currentSteps = days[activeDayIdx]?.steps || [];
     const newStep = {
-      spotId: defaultSpot ? defaultSpot.id : '',
-      stepOrder: (days[dayIndex]?.steps.length || 0) + 1,
-      suggestedTime: '09:30',
-      durationMinutes: 90,
+      spotId: spot.id,
+      stepOrder: currentSteps.length + 1,
+      suggestedTime: currentSteps.length === 0 ? '09:00' : '11:00',
+      durationMinutes: 60,
       notes: '',
-      customName: defaultSpot ? defaultSpot.name : '',
-      customDescription: '',
+      customName: spot.name,
+      customDescription: spot.description || '',
       customTip: '',
-      customImage: defaultSpot ? defaultSpot.image : ''
+      customImage: spot.image || '',
     };
 
     setDays(prev => {
       const copy = [...prev];
-      copy[dayIndex] = {
-        ...copy[dayIndex],
-        steps: [...copy[dayIndex].steps, newStep]
+      if (!copy[activeDayIdx]) return prev;
+      copy[activeDayIdx] = {
+        ...copy[activeDayIdx],
+        steps: [...copy[activeDayIdx].steps, newStep]
       };
       return copy;
     });
@@ -393,6 +397,32 @@ export const AdminItineraryModal: React.FC<AdminItineraryModalProps> = ({
     });
   };
 
+  // Filter available spots in the builder tab
+  const filteredSpotsForBuilder = useMemo(() => {
+    let result = availableSpots;
+    if (spotCategoryFilter !== 'all') {
+      result = result.filter(s => (s.category || '').toLowerCase() === spotCategoryFilter.toLowerCase());
+    }
+    const q = spotSearchQuery.toLowerCase().trim();
+    if (q) {
+      result = result.filter(s =>
+        s.name.toLowerCase().includes(q) ||
+        (s.categoryLabel || '').toLowerCase().includes(q) ||
+        (s.description || '').toLowerCase().includes(q)
+      );
+    }
+    return result;
+  }, [availableSpots, spotCategoryFilter, spotSearchQuery]);
+
+  // Unique categories for spot filter pills
+  const spotCategories = useMemo(() => {
+    const set = new Set<string>();
+    availableSpots.forEach(s => {
+      if (s.category) set.add(s.category);
+    });
+    return Array.from(set);
+  }, [availableSpots]);
+
   const handleSaveWithStatus = async (chosenStatus: ItineraryStatus) => {
     if (!title.trim()) {
       setErrorMsg('Por favor, informe o título do roteiro.');
@@ -402,7 +432,7 @@ export const AdminItineraryModal: React.FC<AdminItineraryModalProps> = ({
 
     const totalSteps = days.reduce((acc, d) => acc + d.steps.length, 0);
     if (totalSteps === 0) {
-      setErrorMsg('Adicione pelo menos uma parada ao roteiro no Construtor de Paradas.');
+      setErrorMsg('Adicione pelo menos uma parada ao roteiro na aba "3. Paradas do Roteiro".');
       setActiveTab('builder');
       return;
     }
@@ -417,16 +447,16 @@ export const AdminItineraryModal: React.FC<AdminItineraryModalProps> = ({
       coverImage: coverImage.trim(),
       daysCount,
       categories: selectedCategories,
-      price: price.trim() || 'R$ 14,90',
+      price: isPremium ? (price.trim() || 'R$ 14,90') : 'Grátis',
       status: chosenStatus,
       isActive: chosenStatus === 'published',
       isFeatured,
       isRecommended: isFeatured,
       isPremium,
-      badgeText: badgeText.trim() || 'Premium',
+      badgeText: isPremium ? (badgeText.trim() || 'CONTA GOLD') : '',
       showPrice,
       showStopsCount,
-      showBadge,
+      showBadge: isPremium ? showBadge : false,
       notes: tips.trim(),
       days
     };
@@ -449,7 +479,6 @@ export const AdminItineraryModal: React.FC<AdminItineraryModalProps> = ({
 
       const data = await res.json();
       if (data.success) {
-        // Broadcast instant update event across all components
         try {
           window.dispatchEvent(new CustomEvent('monvian:itineraries-updated', { detail: { updatedItineraryId: itineraryToEdit?.id } }));
         } catch (e) {}
@@ -473,20 +502,27 @@ export const AdminItineraryModal: React.FC<AdminItineraryModalProps> = ({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/80 backdrop-blur-md animate-in fade-in duration-200">
-      <div className="bg-white dark:bg-[#121418] border border-zinc-200 dark:border-zinc-800 rounded-3xl w-full max-w-4xl max-h-[94vh] flex flex-col shadow-2xl overflow-hidden">
+      <div 
+        className="bg-white dark:bg-[#121418] border border-zinc-200 dark:border-zinc-800 rounded-3xl w-full max-w-5xl max-h-[94vh] flex flex-col shadow-2xl overflow-hidden"
+        style={{ fontFamily: "'Manrope', -apple-system, BlinkMacSystemFont, 'SF Pro Display', sans-serif" }}
+      >
         
         {/* 1. Top Modal Header */}
         <div className="px-5 py-3.5 sm:py-4 border-b border-zinc-200 dark:border-zinc-800 flex items-center justify-between bg-zinc-50 dark:bg-[#17191e] shrink-0">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-2xl bg-[#007AFF]/15 text-[#007AFF] flex items-center justify-center border border-[#007AFF]/30 shrink-0">
-              <Compass className="w-5 h-5" />
+            <div className={`w-10 h-10 rounded-2xl flex items-center justify-center border shrink-0 ${
+              isPremium 
+                ? 'bg-amber-500/15 text-amber-500 border-amber-500/30' 
+                : 'bg-[#007AFF]/15 text-[#007AFF] border-[#007AFF]/30'
+            }`}>
+              {isPremium ? <Crown className="w-5 h-5 stroke-[2.2]" /> : <Compass className="w-5 h-5 stroke-[2.2]" />}
             </div>
             <div>
               <div className="flex items-center gap-2">
                 <h2 className="text-base sm:text-lg font-black text-zinc-900 dark:text-white tracking-tight">
                   {itineraryToEdit ? 'Configurações do Roteiro' : 'Novo Roteiro Turístico'}
                 </h2>
-                <span className={`px-2 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider ${
+                <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider ${
                   status === 'published'
                     ? 'bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 border border-emerald-500/30'
                     : status === 'draft'
@@ -495,9 +531,16 @@ export const AdminItineraryModal: React.FC<AdminItineraryModalProps> = ({
                 }`}>
                   {status === 'published' ? 'Publicado' : status === 'draft' ? 'Rascunho' : 'Oculto'}
                 </span>
+                <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider ${
+                  isPremium
+                    ? 'bg-amber-500/20 text-amber-600 dark:text-amber-400 border border-amber-500/30'
+                    : 'bg-blue-500/20 text-blue-600 dark:text-blue-400 border border-blue-500/30'
+                }`}>
+                  {isPremium ? 'Conta Gold' : 'Grátis'}
+                </span>
               </div>
-              <p className="text-xs text-zinc-500 dark:text-zinc-400 font-medium">
-                {totalPlaces} {totalPlaces === 1 ? 'parada' : 'paradas'} · {daysCount} {daysCount === 1 ? 'dia' : 'dias'} · {price}
+              <p className="text-xs text-zinc-500 dark:text-zinc-400 font-semibold mt-0.5">
+                {totalPlaces} {totalPlaces === 1 ? 'parada' : 'paradas'} · {daysCount} {daysCount === 1 ? 'dia' : 'dias'} · {isPremium ? price : 'Acesso Livre'}
               </p>
             </div>
           </div>
@@ -515,20 +558,20 @@ export const AdminItineraryModal: React.FC<AdminItineraryModalProps> = ({
           <button
             type="button"
             onClick={() => setActiveTab('info')}
-            className={`px-3 py-2 text-xs font-bold border-b-2 transition-all cursor-pointer shrink-0 flex items-center gap-1.5 ${
+            className={`px-3.5 py-2.5 text-xs font-bold border-b-2 transition-all cursor-pointer shrink-0 flex items-center gap-2 ${
               activeTab === 'info'
                 ? 'border-[#007AFF] text-[#007AFF]'
                 : 'border-transparent text-zinc-500 hover:text-zinc-900 dark:text-zinc-400 dark:hover:text-zinc-200'
             }`}
           >
             <Info className="w-3.5 h-3.5" />
-            <span>1. Informações & Preço</span>
+            <span>1. Informações & Acesso</span>
           </button>
 
           <button
             type="button"
             onClick={() => setActiveTab('cover')}
-            className={`px-3 py-2 text-xs font-bold border-b-2 transition-all cursor-pointer shrink-0 flex items-center gap-1.5 ${
+            className={`px-3.5 py-2.5 text-xs font-bold border-b-2 transition-all cursor-pointer shrink-0 flex items-center gap-2 ${
               activeTab === 'cover'
                 ? 'border-[#007AFF] text-[#007AFF]'
                 : 'border-transparent text-zinc-500 hover:text-zinc-900 dark:text-zinc-400 dark:hover:text-zinc-200'
@@ -542,7 +585,7 @@ export const AdminItineraryModal: React.FC<AdminItineraryModalProps> = ({
           <button
             type="button"
             onClick={() => setActiveTab('builder')}
-            className={`px-3 py-2 text-xs font-bold border-b-2 transition-all flex items-center gap-1.5 cursor-pointer shrink-0 ${
+            className={`px-3.5 py-2.5 text-xs font-bold border-b-2 transition-all flex items-center gap-2 cursor-pointer shrink-0 ${
               activeTab === 'builder'
                 ? 'border-[#007AFF] text-[#007AFF]'
                 : 'border-transparent text-zinc-500 hover:text-zinc-900 dark:text-zinc-400 dark:hover:text-zinc-200'
@@ -550,7 +593,7 @@ export const AdminItineraryModal: React.FC<AdminItineraryModalProps> = ({
           >
             <Layers className="w-3.5 h-3.5" />
             <span>3. Paradas do Roteiro</span>
-            <span className="px-1.5 py-0.2 rounded-full text-[10px] bg-[#007AFF]/20 text-[#007AFF] font-bold">
+            <span className="px-2 py-0.5 rounded-full text-[10px] bg-[#007AFF]/20 text-[#007AFF] font-black">
               {totalPlaces}
             </span>
           </button>
@@ -558,14 +601,14 @@ export const AdminItineraryModal: React.FC<AdminItineraryModalProps> = ({
           <button
             type="button"
             onClick={() => setActiveTab('appearance')}
-            className={`px-3 py-2 text-xs font-bold border-b-2 transition-all cursor-pointer shrink-0 flex items-center gap-1.5 ${
+            className={`px-3.5 py-2.5 text-xs font-bold border-b-2 transition-all cursor-pointer shrink-0 flex items-center gap-2 ${
               activeTab === 'appearance'
                 ? 'border-[#007AFF] text-[#007AFF]'
                 : 'border-transparent text-zinc-500 hover:text-zinc-900 dark:text-zinc-400 dark:hover:text-zinc-200'
             }`}
           >
             <Layout className="w-3.5 h-3.5" />
-            <span>4. Destaque & Preview</span>
+            <span>4. Destaque na Loja</span>
           </button>
         </div>
 
@@ -578,40 +621,130 @@ export const AdminItineraryModal: React.FC<AdminItineraryModalProps> = ({
             </div>
           )}
 
-          {/* TAB 1: INFORMATIONS */}
+          {/* TAB 1: INFORMATIONS & ACCESS TYPE */}
           {activeTab === 'info' && (
-            <div className="space-y-5 animate-in fade-in duration-150">
-              {/* Title & Price */}
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                <div className="sm:col-span-2">
-                  <label className="block text-xs font-black text-zinc-700 dark:text-zinc-300 mb-1.5">
-                    Nome do Roteiro *
-                  </label>
-                  <input
-                    type="text"
-                    required
-                    value={title}
-                    onChange={e => setTitle(e.target.value)}
-                    placeholder="Ex: Essência de Campos: O Clássico em 2 Dias"
-                    className="w-full px-3.5 py-2.5 bg-zinc-50 dark:bg-[#181a20] border border-zinc-300 dark:border-zinc-700 rounded-xl text-sm text-zinc-900 dark:text-white font-semibold focus:outline-hidden focus:border-[#007AFF]"
-                  />
-                </div>
+            <div className="space-y-6 animate-in fade-in duration-150">
+              
+              {/* 1. Nome do Roteiro */}
+              <div>
+                <label className="block text-xs font-black text-zinc-700 dark:text-zinc-300 mb-1.5">
+                  Nome do Roteiro *
+                </label>
+                <input
+                  type="text"
+                  required
+                  value={title}
+                  onChange={e => setTitle(e.target.value)}
+                  placeholder="Ex: Essência de Campos: O Clássico em 2 Dias"
+                  className="w-full px-4 py-3 bg-zinc-50 dark:bg-[#181a20] border border-zinc-300 dark:border-zinc-700 rounded-2xl text-sm text-zinc-900 dark:text-white font-bold focus:outline-hidden focus:border-[#007AFF] shadow-2xs"
+                />
+              </div>
 
-                <div>
-                  <label className="block text-xs font-black text-zinc-700 dark:text-zinc-300 mb-1.5">
-                    Preço de Venda
-                  </label>
-                  <input
-                    type="text"
-                    value={price}
-                    onChange={e => setPrice(e.target.value)}
-                    placeholder="Ex: R$ 14,90"
-                    className="w-full px-3.5 py-2.5 bg-zinc-50 dark:bg-[#181a20] border border-zinc-300 dark:border-zinc-700 rounded-xl text-sm text-zinc-900 dark:text-white font-bold focus:outline-hidden focus:border-[#007AFF]"
-                  />
+              {/* 2. Tipo de Acesso: ROTEIRO GRÁTIS vs CONTA GOLD */}
+              <div className="space-y-2">
+                <label className="block text-xs font-black text-zinc-700 dark:text-zinc-300">
+                  Modelo de Acesso do Roteiro *
+                </label>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  
+                  {/* Option A: Grátis */}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setIsPremium(false);
+                      setPrice('Grátis');
+                      setBadgeText('');
+                    }}
+                    className={`p-4 rounded-2xl border text-left flex items-start gap-3.5 cursor-pointer transition-all ${
+                      !isPremium
+                        ? 'border-[#007AFF] bg-blue-50/50 dark:bg-blue-950/20 text-zinc-900 dark:text-white ring-2 ring-[#007AFF]/30 shadow-xs'
+                        : 'border-zinc-200 dark:border-zinc-800 bg-zinc-50 dark:bg-[#181a20] text-zinc-600 dark:text-zinc-400 hover:border-zinc-300 dark:hover:border-zinc-700'
+                    }`}
+                  >
+                    <div className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 ${
+                      !isPremium ? 'bg-[#007AFF] text-white shadow-xs' : 'bg-zinc-200 dark:bg-zinc-800 text-zinc-500'
+                    }`}>
+                      <Compass className="w-5 h-5 stroke-[2.2]" />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center justify-between">
+                        <span className="text-sm font-black text-zinc-900 dark:text-white">Roteiro Grátis</span>
+                        <span className="text-[10px] font-black uppercase px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 border border-emerald-500/30">
+                          Acesso Livre
+                        </span>
+                      </div>
+                      <p className="text-xs text-zinc-500 dark:text-zinc-400 font-medium mt-1 leading-relaxed">
+                        Aberto para todos os turistas no app sem necessidade de assinatura ou pagamento.
+                      </p>
+                    </div>
+                  </button>
+
+                  {/* Option B: Conta Gold */}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setIsPremium(true);
+                      if (price === 'Grátis' || !price) setPrice('R$ 14,90');
+                      if (!badgeText) setBadgeText('CONTA GOLD');
+                    }}
+                    className={`p-4 rounded-2xl border text-left flex items-start gap-3.5 cursor-pointer transition-all ${
+                      isPremium
+                        ? 'border-amber-500 bg-amber-50/60 dark:bg-amber-950/20 text-zinc-900 dark:text-white ring-2 ring-amber-500/30 shadow-xs'
+                        : 'border-zinc-200 dark:border-zinc-800 bg-zinc-50 dark:bg-[#181a20] text-zinc-600 dark:text-zinc-400 hover:border-zinc-300 dark:hover:border-zinc-700'
+                    }`}
+                  >
+                    <div className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 ${
+                      isPremium ? 'bg-metallic-gold text-[#1A1202] shadow-xs' : 'bg-zinc-200 dark:bg-zinc-800 text-zinc-500'
+                    }`}>
+                      <Crown className="w-5 h-5 stroke-[2.2]" />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center justify-between">
+                        <span className="text-sm font-black text-zinc-900 dark:text-white">Roteiro Conta Gold</span>
+                        <span className="text-[10px] font-black uppercase px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-600 dark:text-amber-400 border border-amber-500/30">
+                          Gold Exclusivo
+                        </span>
+                      </div>
+                      <p className="text-xs text-zinc-500 dark:text-zinc-400 font-medium mt-1 leading-relaxed">
+                        Exclusivo para assinantes Gold com borda dourada, brilho e selo oficial.
+                      </p>
+                    </div>
+                  </button>
+
                 </div>
               </div>
 
-              {/* Status Radio Options */}
+              {/* Sub-settings if Conta Gold is chosen */}
+              {isPremium && (
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 p-4 rounded-2xl bg-amber-500/10 border border-amber-500/30">
+                  <div>
+                    <label className="block text-xs font-black text-zinc-800 dark:text-zinc-200 mb-1.5">
+                      Preço de Venda / Referência
+                    </label>
+                    <input
+                      type="text"
+                      value={price}
+                      onChange={e => setPrice(e.target.value)}
+                      placeholder="Ex: R$ 14,90"
+                      className="w-full px-3.5 py-2.5 bg-white dark:bg-[#181a20] border border-amber-500/40 rounded-xl text-sm text-zinc-900 dark:text-white font-bold focus:outline-hidden focus:border-amber-500"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-black text-zinc-800 dark:text-zinc-200 mb-1.5">
+                      Texto do Selo Gold
+                    </label>
+                    <input
+                      type="text"
+                      value={badgeText}
+                      onChange={e => setBadgeText(e.target.value)}
+                      placeholder="CONTA GOLD"
+                      className="w-full px-3.5 py-2.5 bg-white dark:bg-[#181a20] border border-amber-500/40 rounded-xl text-sm text-zinc-900 dark:text-white font-bold focus:outline-hidden focus:border-amber-500 uppercase"
+                    />
+                  </div>
+                </div>
+              )}
+
+              {/* Status de Publicação */}
               <div>
                 <label className="block text-xs font-black text-zinc-700 dark:text-zinc-300 mb-2">
                   Status de Publicação
@@ -620,9 +753,9 @@ export const AdminItineraryModal: React.FC<AdminItineraryModalProps> = ({
                   <button
                     type="button"
                     onClick={() => setStatus('published')}
-                    className={`p-3 rounded-2xl border text-left flex items-start gap-2.5 cursor-pointer transition-all ${
+                    className={`p-3.5 rounded-2xl border text-left flex items-start gap-2.5 cursor-pointer transition-all ${
                       status === 'published'
-                        ? 'border-emerald-500 bg-emerald-50/60 dark:bg-emerald-950/20 text-emerald-900 dark:text-emerald-300 ring-2 ring-emerald-500/20'
+                        ? 'border-emerald-500 bg-emerald-50/60 dark:bg-emerald-950/20 text-emerald-900 dark:text-emerald-300 ring-2 ring-emerald-500/20 shadow-2xs'
                         : 'border-zinc-200 dark:border-zinc-800 bg-zinc-50 dark:bg-[#181a20] text-zinc-700 dark:text-zinc-400'
                     }`}
                   >
@@ -636,9 +769,9 @@ export const AdminItineraryModal: React.FC<AdminItineraryModalProps> = ({
                   <button
                     type="button"
                     onClick={() => setStatus('draft')}
-                    className={`p-3 rounded-2xl border text-left flex items-start gap-2.5 cursor-pointer transition-all ${
+                    className={`p-3.5 rounded-2xl border text-left flex items-start gap-2.5 cursor-pointer transition-all ${
                       status === 'draft'
-                        ? 'border-amber-500 bg-amber-50/60 dark:bg-amber-950/20 text-amber-900 dark:text-amber-300 ring-2 ring-amber-500/20'
+                        ? 'border-amber-500 bg-amber-50/60 dark:bg-amber-950/20 text-amber-900 dark:text-amber-300 ring-2 ring-amber-500/20 shadow-2xs'
                         : 'border-zinc-200 dark:border-zinc-800 bg-zinc-50 dark:bg-[#181a20] text-zinc-700 dark:text-zinc-400'
                     }`}
                   >
@@ -652,9 +785,9 @@ export const AdminItineraryModal: React.FC<AdminItineraryModalProps> = ({
                   <button
                     type="button"
                     onClick={() => setStatus('hidden')}
-                    className={`p-3 rounded-2xl border text-left flex items-start gap-2.5 cursor-pointer transition-all ${
+                    className={`p-3.5 rounded-2xl border text-left flex items-start gap-2.5 cursor-pointer transition-all ${
                       status === 'hidden'
-                        ? 'border-zinc-500 bg-zinc-100 dark:bg-zinc-800 text-zinc-900 dark:text-zinc-200 ring-2 ring-zinc-500/20'
+                        ? 'border-zinc-500 bg-zinc-100 dark:bg-zinc-800 text-zinc-900 dark:text-zinc-200 ring-2 ring-zinc-500/20 shadow-2xs'
                         : 'border-zinc-200 dark:border-zinc-800 bg-zinc-50 dark:bg-[#181a20] text-zinc-700 dark:text-zinc-400'
                     }`}
                   >
@@ -667,7 +800,7 @@ export const AdminItineraryModal: React.FC<AdminItineraryModalProps> = ({
                 </div>
               </div>
 
-              {/* Duration & Categories */}
+              {/* Duração & Categorias */}
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                 <div>
                   <label className="block text-xs font-black text-zinc-700 dark:text-zinc-300 mb-1.5">
@@ -676,7 +809,7 @@ export const AdminItineraryModal: React.FC<AdminItineraryModalProps> = ({
                   <select
                     value={daysCount}
                     onChange={e => handleDaysCountChange(Number(e.target.value))}
-                    className="w-full px-3.5 py-2.5 bg-zinc-50 dark:bg-[#181a20] border border-zinc-300 dark:border-zinc-700 rounded-xl text-sm text-zinc-900 dark:text-white font-semibold focus:outline-hidden focus:border-[#007AFF]"
+                    className="w-full px-3.5 py-3 bg-zinc-50 dark:bg-[#181a20] border border-zinc-300 dark:border-zinc-700 rounded-2xl text-sm text-zinc-900 dark:text-white font-bold focus:outline-hidden focus:border-[#007AFF]"
                   >
                     <option value={1}>1 Dia (Bate e Volta / Expresso)</option>
                     <option value={2}>2 Dias (Fim de Semana)</option>
@@ -689,7 +822,7 @@ export const AdminItineraryModal: React.FC<AdminItineraryModalProps> = ({
                   <label className="block text-xs font-black text-zinc-700 dark:text-zinc-300 mb-1.5">
                     Categorias do Roteiro (Filtros na Loja)
                   </label>
-                  <div className="flex flex-wrap gap-1.5">
+                  <div className="flex flex-wrap gap-1.5 pt-1">
                     {categories.map(cat => {
                       const selected = selectedCategories.includes(cat.id);
                       return (
@@ -699,7 +832,7 @@ export const AdminItineraryModal: React.FC<AdminItineraryModalProps> = ({
                           onClick={() => toggleCategory(cat.id)}
                           className={`px-3 py-1.5 rounded-xl text-xs font-bold border flex items-center gap-1.5 transition-all cursor-pointer ${
                             selected
-                              ? 'bg-[#007AFF] text-white border-blue-500 shadow-xs'
+                              ? 'bg-[#007AFF] text-white border-blue-500 shadow-2xs'
                               : 'bg-zinc-50 dark:bg-[#181a20] text-zinc-600 dark:text-zinc-400 border-zinc-200 dark:border-zinc-700 hover:border-zinc-400'
                           }`}
                         >
@@ -712,7 +845,7 @@ export const AdminItineraryModal: React.FC<AdminItineraryModalProps> = ({
                 </div>
               </div>
 
-              {/* Description */}
+              {/* Descrição */}
               <div>
                 <label className="block text-xs font-black text-zinc-700 dark:text-zinc-300 mb-1.5">
                   Descrição Completa do Roteiro
@@ -722,11 +855,11 @@ export const AdminItineraryModal: React.FC<AdminItineraryModalProps> = ({
                   value={description}
                   onChange={e => setDescription(e.target.value)}
                   placeholder="Apresente os pontos fortes deste roteiro, o clima da experiência e o que os turistas irão desfrutar..."
-                  className="w-full px-3.5 py-2.5 bg-zinc-50 dark:bg-[#181a20] border border-zinc-300 dark:border-zinc-700 rounded-xl text-sm text-zinc-900 dark:text-white font-medium focus:outline-hidden focus:border-[#007AFF] resize-none"
+                  className="w-full px-4 py-3 bg-zinc-50 dark:bg-[#181a20] border border-zinc-300 dark:border-zinc-700 rounded-2xl text-sm text-zinc-900 dark:text-white font-medium focus:outline-hidden focus:border-[#007AFF] resize-none shadow-2xs"
                 />
               </div>
 
-              {/* Tips */}
+              {/* Dicas */}
               <div>
                 <label className="block text-xs font-black text-zinc-700 dark:text-zinc-300 mb-1.5 flex items-center gap-1.5">
                   <Lightbulb className="w-3.5 h-3.5 text-[#007AFF]" />
@@ -737,26 +870,24 @@ export const AdminItineraryModal: React.FC<AdminItineraryModalProps> = ({
                   value={tips}
                   onChange={e => setTips(e.target.value)}
                   placeholder="Dicas de vestimenta, horários de pico, reservas recomendadas, melhores mirantes..."
-                  className="w-full px-3.5 py-2.5 bg-zinc-50 dark:bg-[#181a20] border border-zinc-300 dark:border-zinc-700 rounded-xl text-sm text-zinc-900 dark:text-white font-medium focus:outline-hidden focus:border-[#007AFF] resize-none"
+                  className="w-full px-4 py-3 bg-zinc-50 dark:bg-[#181a20] border border-zinc-300 dark:border-zinc-700 rounded-2xl text-sm text-zinc-900 dark:text-white font-medium focus:outline-hidden focus:border-[#007AFF] resize-none shadow-2xs"
                 />
               </div>
             </div>
           )}
 
-          {/* TAB 2: FOTO DE CAPA (CARD UNIFICADO & PREMIUM iOS) */}
+          {/* TAB 2: FOTO DE CAPA */}
           {activeTab === 'cover' && (
             <div className="space-y-6 animate-in fade-in duration-150">
-              {/* 3. CARD PRINCIPAL ÚNICO & BEM ESTRUTURADO */}
               <div className="bg-white dark:bg-[#15171c] border border-zinc-200/90 dark:border-zinc-800/90 rounded-3xl p-5 sm:p-6 shadow-xs space-y-5">
                 
-                {/* Topo do Card */}
                 <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1 border-b border-zinc-100 dark:border-zinc-800/60 pb-3.5">
                   <div>
                     <h3 className="text-sm sm:text-base font-black text-zinc-900 dark:text-white tracking-tight">
                       Foto de capa
                     </h3>
                     <p className="text-xs text-zinc-500 dark:text-zinc-400 font-medium mt-0.5">
-                      Escolha uma imagem para representar este roteiro.
+                      Escolha uma imagem de alta qualidade para representar este roteiro.
                     </p>
                   </div>
                   <span className="text-[11px] text-zinc-400 dark:text-zinc-500 font-medium shrink-0">
@@ -764,7 +895,6 @@ export const AdminItineraryModal: React.FC<AdminItineraryModalProps> = ({
                   </span>
                 </div>
 
-                {/* 4. Área de Upload (Compacta & Limpa) */}
                 <input
                   type="file"
                   ref={coverFileInputRef}
@@ -801,69 +931,33 @@ export const AdminItineraryModal: React.FC<AdminItineraryModalProps> = ({
                       <Upload className="w-5 h-5" />
                     )}
                   </div>
-
-                  <div className="space-y-1">
-                    <button
-                      type="button"
-                      onClick={() => coverFileInputRef.current?.click()}
-                      disabled={isUploadingCover}
-                      className="px-4 py-2 rounded-xl bg-[#007AFF] text-white text-xs font-black inline-flex items-center gap-1.5 shadow-xs hover:bg-blue-600 transition-colors cursor-pointer disabled:opacity-50"
-                    >
-                      <Upload className="w-3.5 h-3.5" />
-                      <span>{isUploadingCover ? 'Processando imagem...' : 'Escolher foto'}</span>
-                    </button>
-                    
-                    <p className="text-[11px] text-zinc-500 dark:text-zinc-400 font-medium">
-                      JPG, PNG ou WEBP <span className="opacity-60">·</span> <span className="text-zinc-400 dark:text-zinc-500">ou arraste uma imagem aqui</span>
+                  <div>
+                    <p className="text-xs font-black text-zinc-800 dark:text-zinc-200">
+                      Arraste uma foto ou faça upload do seu computador
+                    </p>
+                    <p className="text-[11px] text-zinc-500 dark:text-zinc-400 mt-0.5">
+                      PNG, JPG ou WEBP até 10MB
                     </p>
                   </div>
+                  <button
+                    type="button"
+                    onClick={() => coverFileInputRef.current?.click()}
+                    disabled={isUploadingCover}
+                    className="mt-1 px-4 py-2 rounded-xl bg-[#007AFF] text-white text-xs font-bold hover:bg-blue-600 transition-colors cursor-pointer shadow-2xs"
+                  >
+                    {isUploadingCover ? 'Processando...' : 'Selecionar do Computador'}
+                  </button>
                 </div>
 
                 {coverUploadError && (
                   <p className="text-xs text-red-500 font-semibold">{coverUploadError}</p>
                 )}
 
-                {/* 5. Pré-visualização (Grande e com Ações Discretas) */}
-                {coverImage && (
-                  <div className="space-y-2.5 pt-1">
-                    <div className="flex items-center justify-between">
-                      <span className="text-xs font-bold text-zinc-800 dark:text-zinc-200">
-                        Prévia da capa
-                      </span>
-                      <div className="flex items-center gap-2">
-                        <button
-                          type="button"
-                          onClick={() => coverFileInputRef.current?.click()}
-                          className="text-xs text-[#007AFF] hover:underline font-bold cursor-pointer"
-                        >
-                          Trocar foto
-                        </button>
-                        <span className="text-zinc-300 dark:text-zinc-700">·</span>
-                        <button
-                          type="button"
-                          onClick={() => setCoverImage('')}
-                          className="text-xs text-red-500 hover:underline font-bold cursor-pointer"
-                        >
-                          Remover
-                        </button>
-                      </div>
-                    </div>
-
-                    <div className="relative rounded-2xl overflow-hidden aspect-video max-h-64 bg-zinc-900 border border-zinc-200/80 dark:border-zinc-800 group shadow-xs">
-                      <img
-                        src={coverImage}
-                        alt="Prévia da capa"
-                        className="w-full h-full object-cover"
-                      />
-                    </div>
-                  </div>
-                )}
-
-                {/* 6. Galeria de Campos do Jordão */}
-                <div className="pt-2 border-t border-zinc-100 dark:border-zinc-800/60 space-y-3">
+                {/* Cover Preview & Presets */}
+                <div className="space-y-3 pt-2">
                   <div className="flex items-center justify-between">
-                    <span className="text-xs font-bold text-zinc-800 dark:text-zinc-200">
-                      Ou escolha da galeria
+                    <span className="text-xs font-black text-zinc-700 dark:text-zinc-300">
+                      Imagens Sugeridas de Campos do Jordão
                     </span>
                     <button
                       type="button"
@@ -882,7 +976,7 @@ export const AdminItineraryModal: React.FC<AdminItineraryModalProps> = ({
                         value={coverImage}
                         onChange={e => setCoverImage(e.target.value)}
                         placeholder="https://images.unsplash.com/..."
-                        className="flex-1 px-3.5 py-2 bg-zinc-50 dark:bg-[#181a20] border border-zinc-300 dark:border-zinc-700 rounded-xl text-xs text-zinc-900 dark:text-white font-medium focus:outline-hidden focus:border-[#007AFF]"
+                        className="flex-1 px-3.5 py-2.5 bg-zinc-50 dark:bg-[#181a20] border border-zinc-300 dark:border-zinc-700 rounded-xl text-xs text-zinc-900 dark:text-white font-medium focus:outline-hidden focus:border-[#007AFF]"
                       />
                     </div>
                   )}
@@ -895,13 +989,13 @@ export const AdminItineraryModal: React.FC<AdminItineraryModalProps> = ({
                           key={idx}
                           type="button"
                           onClick={() => setCoverImage(preset.url)}
-                          className={`text-left p-2 rounded-2xl border flex items-center gap-2.5 transition-all cursor-pointer ${
+                          className={`text-left p-2.5 rounded-2xl border flex items-center gap-2.5 transition-all cursor-pointer ${
                             isSelected
                               ? 'border-[#007AFF] bg-[#007AFF]/10 ring-2 ring-[#007AFF]'
                               : 'border-zinc-200/90 dark:border-zinc-800 bg-zinc-50/50 dark:bg-zinc-900/40 hover:border-zinc-300 dark:hover:border-zinc-700'
                           }`}
                         >
-                          <img src={preset.url} alt={preset.label} className="w-10 h-10 rounded-xl object-cover shrink-0" />
+                          <img src={preset.url} alt={preset.label} className="w-11 h-11 rounded-xl object-cover shrink-0" />
                           <div className="overflow-hidden min-w-0">
                             <span className={`text-xs font-bold block truncate ${
                               isSelected ? 'text-[#007AFF]' : 'text-zinc-800 dark:text-zinc-200'
@@ -920,9 +1014,10 @@ export const AdminItineraryModal: React.FC<AdminItineraryModalProps> = ({
             </div>
           )}
 
-          {/* TAB 3: PARADAS DO ROTEIRO (BUILDER) */}
+          {/* TAB 3: PARADAS DO ROTEIRO (SELEÇÃO EM LISTA INTUITIVA) */}
           {activeTab === 'builder' && (
             <div className="space-y-5 animate-in fade-in duration-150">
+              
               {/* Day selection tabs */}
               {days.length > 1 && (
                 <div className="flex items-center gap-2 overflow-x-auto pb-1">
@@ -931,10 +1026,10 @@ export const AdminItineraryModal: React.FC<AdminItineraryModalProps> = ({
                       key={dIdx}
                       type="button"
                       onClick={() => setActiveDayIdx(dIdx)}
-                      className={`px-4 py-2 rounded-xl text-xs font-black transition-all cursor-pointer shrink-0 border ${
+                      className={`px-4 py-2 rounded-2xl text-xs font-black transition-all cursor-pointer shrink-0 border ${
                         activeDayIdx === dIdx
                           ? 'bg-[#007AFF] text-white border-blue-500 shadow-sm'
-                          : 'bg-zinc-100 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-300 border-transparent hover:bg-zinc-200'
+                          : 'bg-zinc-100 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-300 border-transparent hover:bg-zinc-200 dark:hover:bg-zinc-700'
                       }`}
                     >
                       Dia {d.dayNumber} ({d.steps.length} paradas)
@@ -944,27 +1039,28 @@ export const AdminItineraryModal: React.FC<AdminItineraryModalProps> = ({
               )}
 
               {/* Day Details Bar */}
-              <div className="p-3.5 rounded-2xl bg-zinc-50 dark:bg-[#181a20] border border-zinc-200 dark:border-zinc-800 flex items-center justify-between gap-3">
-                <input
-                  type="text"
-                  value={currentDay?.title || ''}
-                  onChange={e => {
-                    const copy = [...days];
-                    copy[activeDayIdx] = { ...copy[activeDayIdx], title: e.target.value };
-                    setDays(copy);
-                  }}
-                  placeholder="Título deste dia (ex: Dia 1: O Clássico de Capivari)"
-                  className="flex-1 bg-transparent text-xs font-black text-zinc-900 dark:text-white outline-none"
-                />
-
-                <button
-                  type="button"
-                  onClick={() => addStepToDay(activeDayIdx)}
-                  className="px-3 py-1.5 rounded-xl bg-[#007AFF] text-white text-xs font-black flex items-center gap-1.5 shadow-sm hover:bg-blue-600 cursor-pointer shrink-0"
-                >
-                  <Plus className="w-3.5 h-3.5 stroke-[3]" />
-                  <span>Adicionar parada</span>
-                </button>
+              <div className="p-4 rounded-2xl bg-zinc-50 dark:bg-[#181a20] border border-zinc-200 dark:border-zinc-800 flex items-center justify-between gap-3">
+                <div className="flex-1 min-w-0">
+                  <label className="block text-[10px] font-black uppercase text-zinc-400 tracking-wider mb-0.5">
+                    Título do Dia {activeDayIdx + 1}
+                  </label>
+                  <input
+                    type="text"
+                    value={currentDay?.title || ''}
+                    onChange={e => {
+                      const copy = [...days];
+                      copy[activeDayIdx] = { ...copy[activeDayIdx], title: e.target.value };
+                      setDays(copy);
+                    }}
+                    placeholder={`Dia ${activeDayIdx + 1}: O Clássico de Capivari`}
+                    className="w-full bg-transparent text-sm font-black text-zinc-900 dark:text-white outline-none"
+                  />
+                </div>
+                <div className="text-right shrink-0">
+                  <span className="text-xs font-black text-[#007AFF]">
+                    {currentDay?.steps.length || 0} {currentDay?.steps.length === 1 ? 'local adicionado' : 'locais adicionados'}
+                  </span>
+                </div>
               </div>
 
               {/* Hidden file input for step photo uploads */}
@@ -979,165 +1075,272 @@ export const AdminItineraryModal: React.FC<AdminItineraryModalProps> = ({
                 className="hidden"
               />
 
-              {/* Steps List */}
-              <div className="space-y-3">
-                {currentDay?.steps.length === 0 ? (
-                  <div className="p-8 rounded-3xl border border-dashed border-zinc-300 dark:border-zinc-700 text-center space-y-3">
-                    <MapPin className="w-8 h-8 text-zinc-400 mx-auto" />
-                    <p className="text-xs font-bold text-zinc-600 dark:text-zinc-400">
-                      Nenhuma parada adicionada a este dia.
-                    </p>
-                    <button
-                      type="button"
-                      onClick={() => addStepToDay(activeDayIdx)}
-                      className="px-4 py-2 rounded-xl bg-[#007AFF] text-white text-xs font-black inline-flex items-center gap-1.5 cursor-pointer shadow-sm"
-                    >
-                      <Plus className="w-3.5 h-3.5" />
-                      <span>Adicionar primeira parada</span>
-                    </button>
+              {/* TWO COLUMNS: CURRENT STOPS (LEFT) & SPOT CATALOG SELECTOR (RIGHT) */}
+              <div className="grid grid-cols-1 lg:grid-cols-12 gap-5">
+                
+                {/* LEFT COLUMN: Current Stops List */}
+                <div className="lg:col-span-6 space-y-3">
+                  <div className="flex items-center justify-between px-1">
+                    <h3 className="text-xs font-black uppercase tracking-wider text-zinc-500 dark:text-zinc-400 flex items-center gap-1.5">
+                      <Layers className="w-3.5 h-3.5 text-[#007AFF]" />
+                      <span>Roteiro do Dia {activeDayIdx + 1} ({currentDay?.steps.length || 0})</span>
+                    </h3>
                   </div>
-                ) : (
-                  currentDay?.steps.map((step, sIdx) => {
-                    const stepNumber = String(sIdx + 1).padStart(2, '0');
-                    const stepPhoto = step.customImage || availableSpots.find(s => s.id === step.spotId)?.image;
 
-                    return (
-                      <div
-                        key={sIdx}
-                        className="p-4 rounded-2xl bg-zinc-50 dark:bg-[#181a20] border border-zinc-200 dark:border-zinc-800 space-y-3"
-                      >
-                        {/* Header: Number, Spot Picker, Order buttons & Delete */}
-                        <div className="flex items-center justify-between gap-2 flex-wrap">
-                          <div className="flex items-center gap-2.5 flex-1 min-w-[220px]">
-                            <span className="w-7 h-7 rounded-full bg-[#007AFF] text-white font-black text-xs flex items-center justify-center shrink-0">
-                              {stepNumber}
-                            </span>
-                            
-                            {/* Small step photo preview + upload trigger */}
-                            <div className="relative group shrink-0">
-                              {stepPhoto ? (
-                                <img
-                                  src={stepPhoto}
-                                  alt="Parada"
-                                  className="w-9 h-9 rounded-xl object-cover border border-zinc-300 dark:border-zinc-700"
-                                />
-                              ) : (
-                                <div className="w-9 h-9 rounded-xl bg-zinc-200 dark:bg-zinc-800 flex items-center justify-center text-zinc-500">
-                                  <Camera className="w-4 h-4" />
+                  {currentDay?.steps.length === 0 ? (
+                    <div className="p-8 rounded-3xl border border-dashed border-zinc-300 dark:border-zinc-700 text-center space-y-2.5 bg-zinc-50/50 dark:bg-zinc-900/30">
+                      <MapPin className="w-8 h-8 text-zinc-400 mx-auto" />
+                      <p className="text-xs font-black text-zinc-700 dark:text-zinc-300">
+                        Nenhuma parada no Dia {activeDayIdx + 1} ainda.
+                      </p>
+                      <p className="text-[11px] text-zinc-500">
+                        Selecione os pontos turísticos na lista ao lado para adicionar a este dia.
+                      </p>
+                    </div>
+                  ) : (
+                    <div className="space-y-2.5 max-h-[500px] overflow-y-auto pr-1 no-scrollbar">
+                      {currentDay?.steps.map((step, sIdx) => {
+                        const stepNumber = String(sIdx + 1).padStart(2, '0');
+                        const spotData = availableSpots.find(s => s.id === step.spotId);
+                        const stepPhoto = step.customImage || spotData?.image;
+                        const stepName = step.customName || spotData?.name || 'Local Turístico';
+
+                        return (
+                          <div
+                            key={sIdx}
+                            className="p-3.5 rounded-2xl bg-zinc-50 dark:bg-[#181a20] border border-zinc-200 dark:border-zinc-800 space-y-2.5 shadow-2xs hover:border-zinc-300 dark:hover:border-zinc-700 transition-colors"
+                          >
+                            <div className="flex items-center justify-between gap-2">
+                              <div className="flex items-center gap-2.5 min-w-0 flex-1">
+                                <span className="w-6 h-6 rounded-full bg-[#007AFF] text-white font-black text-[11px] flex items-center justify-center shrink-0">
+                                  {stepNumber}
+                                </span>
+                                
+                                {stepPhoto ? (
+                                  <img
+                                    src={stepPhoto}
+                                    alt={stepName}
+                                    className="w-10 h-10 rounded-xl object-cover border border-zinc-300 dark:border-zinc-700 shrink-0"
+                                  />
+                                ) : (
+                                  <div className="w-10 h-10 rounded-xl bg-zinc-200 dark:bg-zinc-800 flex items-center justify-center text-zinc-500 shrink-0">
+                                    <Camera className="w-4 h-4" />
+                                  </div>
+                                )}
+
+                                <div className="min-w-0 flex-1">
+                                  <h4 className="text-xs font-black text-zinc-900 dark:text-white truncate">
+                                    {stepName}
+                                  </h4>
+                                  <span className="text-[10.5px] text-zinc-500 font-semibold block truncate">
+                                    {spotData?.categoryLabel || spotData?.category || 'Atração'}
+                                  </span>
                                 </div>
-                              )}
-                              <button
-                                type="button"
-                                onClick={() => {
-                                  setUploadingStepIdx({ dayIdx: activeDayIdx, stepIdx: sIdx });
-                                  stepFileInputRef.current?.click();
-                                }}
-                                className="absolute inset-0 bg-black/60 rounded-xl opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center text-white cursor-pointer"
-                                title="Fazer upload de foto para esta parada"
-                              >
-                                <Upload className="w-3.5 h-3.5" />
-                              </button>
+                              </div>
+
+                              {/* Controls */}
+                              <div className="flex items-center gap-1 shrink-0">
+                                <button
+                                  type="button"
+                                  disabled={sIdx === 0}
+                                  onClick={() => moveStep(activeDayIdx, sIdx, 'up')}
+                                  className="p-1.5 rounded-lg bg-white dark:bg-zinc-800 text-zinc-700 dark:text-zinc-300 disabled:opacity-20 hover:bg-zinc-200 cursor-pointer shadow-2xs"
+                                  title="Subir"
+                                >
+                                  <ChevronUp className="w-3.5 h-3.5" />
+                                </button>
+                                <button
+                                  type="button"
+                                  disabled={sIdx === (currentDay?.steps.length || 0) - 1}
+                                  onClick={() => moveStep(activeDayIdx, sIdx, 'down')}
+                                  className="p-1.5 rounded-lg bg-white dark:bg-zinc-800 text-zinc-700 dark:text-zinc-300 disabled:opacity-20 hover:bg-zinc-200 cursor-pointer shadow-2xs"
+                                  title="Descer"
+                                >
+                                  <ChevronDown className="w-3.5 h-3.5" />
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => removeStepFromDay(activeDayIdx, sIdx)}
+                                  className="p-1.5 rounded-lg bg-red-100 dark:bg-red-950/40 text-red-600 hover:bg-red-200 cursor-pointer ml-1"
+                                  title="Remover"
+                                >
+                                  <Trash2 className="w-3.5 h-3.5" />
+                                </button>
+                              </div>
                             </div>
 
-                            <select
-                              value={step.spotId}
-                              onChange={e => updateStepField(activeDayIdx, sIdx, 'spotId', e.target.value)}
-                              className="flex-1 px-3 py-1.5 bg-white dark:bg-zinc-900 border border-zinc-300 dark:border-zinc-700 rounded-xl text-xs font-bold text-zinc-900 dark:text-white"
-                            >
-                              {availableSpots.map(s => (
-                                <option key={s.id} value={s.id}>
-                                  {s.name} ({s.categoryLabel || s.category})
-                                </option>
-                              ))}
-                            </select>
-                          </div>
+                            {/* Timing inputs */}
+                            <div className="grid grid-cols-2 gap-2 pt-1 border-t border-zinc-200/60 dark:border-zinc-800/60">
+                              <div>
+                                <label className="block text-[10px] font-bold text-zinc-400 mb-0.5">
+                                  Horário Sugerido
+                                </label>
+                                <input
+                                  type="text"
+                                  value={step.suggestedTime}
+                                  onChange={e => updateStepField(activeDayIdx, sIdx, 'suggestedTime', e.target.value)}
+                                  placeholder="09:30"
+                                  className="w-full px-2.5 py-1.5 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-700 rounded-xl text-xs font-bold text-zinc-900 dark:text-white"
+                                />
+                              </div>
 
-                          <div className="flex items-center gap-1 shrink-0">
-                            {/* Move Up */}
-                            <button
-                              type="button"
-                              disabled={sIdx === 0}
-                              onClick={() => moveStep(activeDayIdx, sIdx, 'up')}
-                              className="p-1.5 rounded-lg bg-white dark:bg-zinc-800 text-zinc-700 dark:text-zinc-300 disabled:opacity-30 hover:bg-zinc-200 cursor-pointer"
-                              title="Subir parada"
-                            >
-                              <ChevronUp className="w-4 h-4" />
-                            </button>
-                            {/* Move Down */}
-                            <button
-                              type="button"
-                              disabled={sIdx === (currentDay?.steps.length || 0) - 1}
-                              onClick={() => moveStep(activeDayIdx, sIdx, 'down')}
-                              className="p-1.5 rounded-lg bg-white dark:bg-zinc-800 text-zinc-700 dark:text-zinc-300 disabled:opacity-30 hover:bg-zinc-200 cursor-pointer"
-                              title="Descer parada"
-                            >
-                              <ChevronDown className="w-4 h-4" />
-                            </button>
-                            {/* Delete */}
-                            <button
-                              type="button"
-                              onClick={() => removeStepFromDay(activeDayIdx, sIdx)}
-                              className="p-1.5 rounded-lg bg-red-100 dark:bg-red-950/40 text-red-600 hover:bg-red-200 cursor-pointer ml-1"
-                              title="Remover parada"
-                            >
-                              <Trash2 className="w-4 h-4" />
-                            </button>
+                              <div>
+                                <label className="block text-[10px] font-bold text-zinc-400 mb-0.5">
+                                  Duração Estimada (min)
+                                </label>
+                                <input
+                                  type="number"
+                                  value={step.durationMinutes}
+                                  onChange={e => updateStepField(activeDayIdx, sIdx, 'durationMinutes', Number(e.target.value))}
+                                  placeholder="60"
+                                  className="w-full px-2.5 py-1.5 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-700 rounded-xl text-xs font-bold text-zinc-900 dark:text-white"
+                                />
+                              </div>
+                            </div>
                           </div>
-                        </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
 
-                        {/* Timing and Custom notes */}
-                        <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
-                          <div>
-                            <label className="block text-[11px] font-bold text-zinc-500 dark:text-zinc-400 mb-1">
-                              Horário Sugerido
-                            </label>
-                            <input
-                              type="text"
-                              value={step.suggestedTime}
-                              onChange={e => updateStepField(activeDayIdx, sIdx, 'suggestedTime', e.target.value)}
-                              placeholder="09:30"
-                              className="w-full px-2.5 py-1.5 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-700 rounded-xl text-xs font-semibold text-zinc-900 dark:text-white"
-                            />
-                          </div>
+                {/* RIGHT COLUMN: SEARCHABLE SPOT CATALOG */}
+                <div className="lg:col-span-6 space-y-3">
+                  <div className="flex items-center justify-between px-1">
+                    <h3 className="text-xs font-black uppercase tracking-wider text-zinc-500 dark:text-zinc-400 flex items-center gap-1.5">
+                      <Search className="w-3.5 h-3.5 text-[#007AFF]" />
+                      <span>Locais Turísticos Disponíveis ({filteredSpotsForBuilder.length})</span>
+                    </h3>
+                  </div>
 
-                          <div>
-                            <label className="block text-[11px] font-bold text-zinc-500 dark:text-zinc-400 mb-1">
-                              Duração Estimada (min)
-                            </label>
-                            <input
-                              type="number"
-                              value={step.durationMinutes}
-                              onChange={e => updateStepField(activeDayIdx, sIdx, 'durationMinutes', Number(e.target.value))}
-                              placeholder="90"
-                              className="w-full px-2.5 py-1.5 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-700 rounded-xl text-xs font-semibold text-zinc-900 dark:text-white"
-                            />
-                          </div>
+                  {/* Search and Filters */}
+                  <div className="space-y-2 bg-zinc-50 dark:bg-[#181a20] p-3 rounded-2xl border border-zinc-200 dark:border-zinc-800">
+                    <div className="relative">
+                      <Search className="w-4 h-4 text-zinc-400 absolute left-3 top-1/2 -translate-y-1/2" />
+                      <input
+                        type="text"
+                        value={spotSearchQuery}
+                        onChange={e => setSpotSearchQuery(e.target.value)}
+                        placeholder="Buscar local por nome..."
+                        className="w-full pl-9 pr-3 py-2 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-700 rounded-xl text-xs font-bold text-zinc-900 dark:text-white outline-none focus:border-[#007AFF]"
+                      />
+                      {spotSearchQuery && (
+                        <button
+                          type="button"
+                          onClick={() => setSpotSearchQuery('')}
+                          className="absolute right-2.5 top-1/2 -translate-y-1/2 text-zinc-400 hover:text-zinc-600 p-1"
+                        >
+                          <X className="w-3 h-3" />
+                        </button>
+                      )}
+                    </div>
 
-                          <div>
-                            <label className="block text-[11px] font-bold text-zinc-500 dark:text-zinc-400 mb-1">
-                              Dica Especial da Parada
-                            </label>
-                            <input
-                              type="text"
-                              value={step.customTip || ''}
-                              onChange={e => updateStepField(activeDayIdx, sIdx, 'customTip', e.target.value)}
-                              placeholder="Ex: Chegue 15 min antes"
-                              className="w-full px-2.5 py-1.5 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-700 rounded-xl text-xs font-semibold text-zinc-900 dark:text-white"
-                            />
-                          </div>
-                        </div>
+                    {/* Category pills */}
+                    <div className="flex gap-1.5 overflow-x-auto no-scrollbar pt-1">
+                      <button
+                        type="button"
+                        onClick={() => setSpotCategoryFilter('all')}
+                        className={`px-2.5 py-1 rounded-lg text-[11px] font-bold shrink-0 transition-colors ${
+                          spotCategoryFilter === 'all'
+                            ? 'bg-[#007AFF] text-white'
+                            : 'bg-white dark:bg-zinc-900 text-zinc-600 dark:text-zinc-400 border border-zinc-200 dark:border-zinc-700'
+                        }`}
+                      >
+                        Todos
+                      </button>
+                      {spotCategories.map(cat => (
+                        <button
+                          key={cat}
+                          type="button"
+                          onClick={() => setSpotCategoryFilter(cat)}
+                          className={`px-2.5 py-1 rounded-lg text-[11px] font-bold shrink-0 capitalize transition-colors ${
+                            spotCategoryFilter === cat
+                              ? 'bg-[#007AFF] text-white'
+                              : 'bg-white dark:bg-zinc-900 text-zinc-600 dark:text-zinc-400 border border-zinc-200 dark:border-zinc-700'
+                          }`}
+                        >
+                          {cat}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Spot items list */}
+                  <div className="space-y-2 max-h-[440px] overflow-y-auto pr-1 no-scrollbar">
+                    {loadingSpots ? (
+                      <div className="py-12 text-center text-xs text-zinc-400">
+                        Carregando locais turísticos...
                       </div>
-                    );
-                  })
-                )}
+                    ) : filteredSpotsForBuilder.length === 0 ? (
+                      <div className="py-12 text-center text-xs text-zinc-400">
+                        Nenhum local turístico encontrado.
+                      </div>
+                    ) : (
+                      filteredSpotsForBuilder.map(spot => {
+                        const countInCurrentDay = (currentDay?.steps || []).filter(s => s.spotId === spot.id).length;
+
+                        return (
+                          <div
+                            key={spot.id}
+                            className="p-2.5 rounded-2xl bg-white dark:bg-[#181a20] border border-zinc-200 dark:border-zinc-800 flex items-center justify-between gap-3 hover:border-blue-400 dark:hover:border-blue-500 transition-all group"
+                          >
+                            <div className="flex items-center gap-2.5 min-w-0 flex-1">
+                              <img
+                                src={spot.image || 'https://images.unsplash.com/photo-1585320806297-9794b3e4eeae?auto=format&fit=crop&w=300&q=80'}
+                                alt={spot.name}
+                                className="w-11 h-11 rounded-xl object-cover shrink-0 border border-black/5 dark:border-white/10"
+                                loading="lazy"
+                              />
+                              <div className="min-w-0 flex-1">
+                                <h4 className="text-xs font-black text-zinc-900 dark:text-white truncate">
+                                  {spot.name}
+                                </h4>
+                                <div className="flex items-center gap-1.5 mt-0.5">
+                                  <span className="text-[10px] font-bold text-zinc-500 capitalize">
+                                    {spot.categoryLabel || spot.category || 'Ponto Turístico'}
+                                  </span>
+                                  {spot.priceRange && (
+                                    <>
+                                      <span className="text-[10px] text-zinc-400">·</span>
+                                      <span className="text-[10px] font-bold text-emerald-600 dark:text-emerald-400">
+                                        {spot.priceRange}
+                                      </span>
+                                    </>
+                                  )}
+                                </div>
+                              </div>
+                            </div>
+
+                            <button
+                              type="button"
+                              onClick={() => addSpotToActiveDay(spot)}
+                              className={`px-3 py-1.5 rounded-xl text-xs font-black flex items-center gap-1 transition-all cursor-pointer shrink-0 shadow-2xs ${
+                                countInCurrentDay > 0
+                                  ? 'bg-emerald-500 text-white hover:bg-emerald-600'
+                                  : 'bg-[#007AFF] text-white hover:bg-blue-600 group-hover:scale-102'
+                              }`}
+                            >
+                              <Plus className="w-3.5 h-3.5 stroke-[3]" />
+                              <span>{countInCurrentDay > 0 ? `Adicionado (${countInCurrentDay})` : 'Adicionar'}</span>
+                            </button>
+                          </div>
+                        );
+                      })
+                    )}
+                  </div>
+
+                </div>
+
               </div>
+
             </div>
           )}
 
-          {/* TAB 4: APPEARANCE & LIVE PREVIEW */}
+          {/* TAB 4: DESTAQUE NA LOJA & LIVE PREVIEW */}
           {activeTab === 'appearance' && (
             <div className="space-y-6 animate-in fade-in duration-150">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                
                 {/* Left Column: Settings */}
                 <div className="space-y-4">
                   <div className="p-4 rounded-2xl bg-zinc-50 dark:bg-[#181a20] border border-zinc-200 dark:border-zinc-800 space-y-3">
@@ -1150,7 +1353,7 @@ export const AdminItineraryModal: React.FC<AdminItineraryModalProps> = ({
                           Roteiro em Destaque
                         </span>
                         <span className="text-[11px] text-zinc-500">
-                          Aparece no carrossel superior "Roteiros em destaque"
+                          Aparece no topo em "Roteiros em destaque"
                         </span>
                       </div>
                       <button
@@ -1169,58 +1372,13 @@ export const AdminItineraryModal: React.FC<AdminItineraryModalProps> = ({
                     </div>
                   </div>
 
-                  <div className="p-4 rounded-2xl bg-zinc-50 dark:bg-[#181a20] border border-zinc-200 dark:border-zinc-800 space-y-4">
-                    <h3 className="text-xs font-black text-zinc-900 dark:text-white uppercase tracking-wider">
-                      Selo & Badges do Card
-                    </h3>
-
-                    <div className="flex items-center justify-between">
-                      <div>
-                        <span className="block text-xs font-bold text-zinc-800 dark:text-zinc-200">
-                          Ativar Selo
-                        </span>
-                        <span className="text-[11px] text-zinc-500">
-                          Exibe selo estilizado sobre o card na Loja
-                        </span>
-                      </div>
-                      <button
-                        type="button"
-                        onClick={() => setIsPremium(!isPremium)}
-                        className={`w-12 h-6.5 rounded-full transition-colors relative cursor-pointer ${
-                          isPremium ? 'bg-[#007AFF]' : 'bg-zinc-300 dark:bg-zinc-700'
-                        }`}
-                      >
-                        <span
-                          className={`block w-5 h-5 rounded-full bg-white transition-transform ${
-                            isPremium ? 'translate-x-6' : 'translate-x-1'
-                          }`}
-                        />
-                      </button>
-                    </div>
-
-                    {isPremium && (
-                      <div>
-                        <label className="block text-xs font-bold text-zinc-700 dark:text-zinc-300 mb-1">
-                          Texto do Selo
-                        </label>
-                        <input
-                          type="text"
-                          value={badgeText}
-                          onChange={e => setBadgeText(e.target.value)}
-                          placeholder="Premium"
-                          className="w-full px-3 py-2 bg-white dark:bg-zinc-900 border border-zinc-300 dark:border-zinc-700 rounded-xl text-xs font-bold text-zinc-900 dark:text-white"
-                        />
-                      </div>
-                    )}
-                  </div>
-
                   <div className="p-4 rounded-2xl bg-zinc-50 dark:bg-[#181a20] border border-zinc-200 dark:border-zinc-800 space-y-3">
                     <h3 className="text-xs font-black text-zinc-900 dark:text-white uppercase tracking-wider">
                       Visibilidade dos Dados
                     </h3>
 
                     <div className="flex items-center justify-between pt-1">
-                      <span className="text-xs font-semibold text-zinc-700 dark:text-zinc-300">Mostrar Preço no Card</span>
+                      <span className="text-xs font-semibold text-zinc-700 dark:text-zinc-300">Mostrar Preço / Acesso</span>
                       <input
                         type="checkbox"
                         checked={showPrice}
@@ -1273,54 +1431,68 @@ export const AdminItineraryModal: React.FC<AdminItineraryModalProps> = ({
                       ? 'bg-[#f4f4f6] border-zinc-300 text-zinc-900'
                       : 'bg-[#000000] border-zinc-800 text-white'
                   }`}>
-                    <div className={`rounded-2xl p-3.5 border transition-all ${
-                      previewTheme === 'light'
-                        ? 'bg-white border-zinc-200 shadow-sm'
-                        : 'bg-[#121418] border-white/10'
-                    }`}>
-                      {/* Image */}
-                      <div className="aspect-16/9 rounded-xl overflow-hidden relative mb-3 bg-zinc-800">
-                        {coverImage ? (
-                          <img src={coverImage} alt="Preview" className="w-full h-full object-cover" />
-                        ) : (
-                          <div className="w-full h-full flex items-center justify-center text-zinc-600 text-xs">
-                            Sem imagem
+                    {isPremium && isFeatured ? (
+                      /* Gold Featured Card Preview */
+                      <div className="gold-featured-card-wrapper w-full">
+                        <div className="gold-sheen-overlay" />
+                        <div className={`gold-featured-card-inner p-3.5 flex flex-col space-y-2.5 ${previewTheme === 'light' ? 'light' : ''}`}>
+                          <div className="aspect-16/9 rounded-xl overflow-hidden relative bg-zinc-900 border border-[#F5BE38]/40">
+                            {coverImage && <img src={coverImage} alt="Preview" className="w-full h-full object-cover" />}
+                            <div className="absolute top-2 left-2 px-2.5 py-0.5 rounded-full bg-black/80 backdrop-blur-md border border-[#FFF4A3]/70 flex items-center gap-1 text-[9.5px] font-black uppercase text-metallic-gold">
+                              <Crown className="w-3 h-3 text-[#F5BE38]" />
+                              <span>{badgeText || 'CONTA GOLD'}</span>
+                            </div>
                           </div>
-                        )}
-                        {isPremium && (
-                          <div className="absolute top-2 left-2 px-2 py-0.5 rounded-full bg-black/60 backdrop-blur-md border border-white/20 text-white text-[10px] font-black">
-                            {badgeText}
+                          <div className="space-y-1">
+                            <h4 className="text-sm font-black tracking-tight">{title || 'Título do Roteiro'}</h4>
+                            <p className="text-[11px] text-zinc-400 font-semibold">{daysCount} dias · {totalPlaces} paradas</p>
                           </div>
-                        )}
-                      </div>
-
-                      {/* Content */}
-                      <div className="space-y-1">
-                        <div className="flex items-center justify-between text-[11px] text-zinc-400">
-                          <span>{daysCount} {daysCount === 1 ? 'dia' : 'dias'} · {totalPlaces} {totalPlaces === 1 ? 'parada' : 'paradas'}</span>
-                          {showPrice && <span className="font-bold text-[#007AFF]">{price}</span>}
                         </div>
-                        <h4 className="text-sm font-black tracking-tight line-clamp-1">
-                          {title || 'Título do Roteiro'}
-                        </h4>
-                        <p className="text-xs text-zinc-500 line-clamp-2">
-                          {description || 'Descrição do roteiro que será exibida para os viajantes...'}
-                        </p>
                       </div>
-                    </div>
+                    ) : (
+                      /* Standard Clean Free Card Preview */
+                      <div className={`rounded-2xl p-3.5 border transition-all ${
+                        previewTheme === 'light'
+                          ? 'bg-white border-zinc-200 shadow-sm text-zinc-900'
+                          : 'bg-[#121418] border-white/10 text-white'
+                      }`}>
+                        <div className="aspect-16/9 rounded-xl overflow-hidden relative mb-2.5 bg-zinc-800">
+                          {coverImage ? (
+                            <img src={coverImage} alt="Preview" className="w-full h-full object-cover" />
+                          ) : (
+                            <div className="w-full h-full flex items-center justify-center text-zinc-600 text-xs">
+                              Sem imagem
+                            </div>
+                          )}
+                        </div>
+                        <div className="space-y-1">
+                          <div className="flex items-center justify-between text-[11px] text-zinc-400">
+                            <span>{daysCount} {daysCount === 1 ? 'dia' : 'dias'} · {totalPlaces} {totalPlaces === 1 ? 'parada' : 'paradas'}</span>
+                            <span className="font-bold text-[#007AFF]">{isPremium ? price : 'Grátis'}</span>
+                          </div>
+                          <h4 className="text-sm font-black tracking-tight line-clamp-1">
+                            {title || 'Título do Roteiro'}
+                          </h4>
+                          <p className="text-xs text-zinc-500 line-clamp-2">
+                            {description || 'Descrição do roteiro que será exibida para os viajantes...'}
+                          </p>
+                        </div>
+                      </div>
+                    )}
                   </div>
                 </div>
+
               </div>
             </div>
           )}
         </div>
 
-        {/* 10. Modal Footer Buttons (Alinhamento & Mesma Altura) */}
+        {/* 10. Modal Footer Buttons */}
         <div className="px-5 py-3.5 border-t border-zinc-200 dark:border-zinc-800 flex items-center justify-between bg-zinc-50/90 dark:bg-[#17191e] shrink-0">
           <button
             type="button"
             onClick={onClose}
-            className="h-10 px-4 text-xs font-bold text-zinc-500 hover:text-zinc-900 dark:text-zinc-400 dark:hover:text-white transition-colors cursor-pointer flex items-center justify-center rounded-xl hover:bg-zinc-100 dark:hover:bg-zinc-800"
+            className="h-11 px-4 text-xs font-bold text-zinc-500 hover:text-zinc-900 dark:text-zinc-400 dark:hover:text-white transition-colors cursor-pointer flex items-center justify-center rounded-xl hover:bg-zinc-100 dark:hover:bg-zinc-800"
           >
             Cancelar
           </button>
@@ -1330,7 +1502,7 @@ export const AdminItineraryModal: React.FC<AdminItineraryModalProps> = ({
               type="button"
               disabled={isSubmitting}
               onClick={() => handleSaveWithStatus('draft')}
-              className="h-10 px-4 rounded-xl border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-zinc-800 dark:text-zinc-200 text-xs font-bold hover:bg-zinc-100 dark:hover:bg-zinc-700 transition-colors cursor-pointer disabled:opacity-50 flex items-center justify-center shadow-2xs"
+              className="h-11 px-4 rounded-2xl border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-zinc-800 dark:text-zinc-200 text-xs font-bold hover:bg-zinc-100 dark:hover:bg-zinc-700 transition-colors cursor-pointer disabled:opacity-50 flex items-center justify-center shadow-2xs"
             >
               Salvar como Rascunho
             </button>
@@ -1339,7 +1511,7 @@ export const AdminItineraryModal: React.FC<AdminItineraryModalProps> = ({
               type="button"
               disabled={isSubmitting}
               onClick={() => handleSaveWithStatus('published')}
-              className="h-10 px-5 rounded-xl bg-[#007AFF] text-white text-xs font-black hover:bg-blue-600 transition-colors cursor-pointer disabled:opacity-50 shadow-xs flex items-center justify-center gap-1.5"
+              className="h-11 px-5 rounded-2xl bg-[#007AFF] text-white text-xs font-black hover:bg-blue-600 transition-colors cursor-pointer disabled:opacity-50 shadow-xs flex items-center justify-center gap-1.5"
             >
               {isSubmitting ? (
                 <>

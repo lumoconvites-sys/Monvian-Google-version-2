@@ -17,6 +17,8 @@ import {
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { Itinerary, Spot } from '../types';
+import { Checkmark3DBadge } from './Checkmark3DBadge';
+import { getSpotImage, getSpotFallbackImage } from '../utils/spotImages';
 
 interface ItineraryDetailModalProps {
   isOpen: boolean;
@@ -101,13 +103,13 @@ export const ItineraryDetailModal: React.FC<ItineraryDetailModalProps> = ({
         {/* Header with Cover */}
         <div className="relative aspect-21/9 w-full bg-zinc-900 shrink-0 overflow-hidden rounded-b-[28px]">
           <img
-            src={itinerary.coverImage || 'https://images.unsplash.com/photo-1585320806297-9794b3e4eeae?auto=format&fit=crop&w=1000&q=80'}
+            src={itinerary.coverImage || 'https://images.unsplash.com/photo-1519501025264-65ba15a82390?auto=format&fit=crop&w=1000&q=80'}
             alt={itinerary.title}
             className="w-full h-full object-cover"
             referrerPolicy="no-referrer"
             onError={(e) => {
               (e.target as HTMLImageElement).src =
-                'https://images.unsplash.com/photo-1585320806297-9794b3e4eeae?auto=format&fit=crop&w=1000&q=80';
+                'https://images.unsplash.com/photo-1519501025264-65ba15a82390?auto=format&fit=crop&w=1000&q=80';
             }}
           />
           <div className="absolute inset-0 bg-gradient-to-t from-black/85 via-black/40 to-transparent" />
@@ -218,13 +220,13 @@ export const ItineraryDetailModal: React.FC<ItineraryDetailModalProps> = ({
                       onClick={() => toggleStepVisited(stepKey)}
                       className={`absolute left-1.5 top-3.5 -translate-x-1/2 w-6 h-6 rounded-full flex items-center justify-center transition-all cursor-pointer z-10 ${
                         isVisited
-                          ? 'bg-blue-600 text-white ring-4 ring-blue-100 dark:ring-blue-950'
+                          ? ''
                           : 'bg-white dark:bg-[#121418] border-2 border-zinc-300 dark:border-zinc-700 text-zinc-400 group-hover:border-zinc-500'
                       }`}
                       title={isVisited ? 'Marcar como não visitado' : 'Marcar como visitado'}
                     >
                       {isVisited ? (
-                        <CheckCircle2 className="w-3.5 h-3.5" />
+                        <Checkmark3DBadge size={24} glow />
                       ) : (
                         <span className="text-[10px] font-bold text-zinc-700 dark:text-zinc-400">
                           {step.stepOrder || sIdx + 1}
@@ -264,15 +266,14 @@ export const ItineraryDetailModal: React.FC<ItineraryDetailModalProps> = ({
 
                       {/* Spot Details */}
                       <div className="flex items-start gap-3">
-                        {spot?.image && (
+                        {spot && (
                           <img
-                            src={spot.image || 'https://images.unsplash.com/photo-1585320806297-9794b3e4eeae?auto=format&fit=crop&w=200&q=80'}
+                            src={getSpotImage(spot)}
                             alt={spot.name}
                             className="w-16 h-16 rounded-xl object-cover shrink-0 border border-zinc-200 dark:border-zinc-800"
                             referrerPolicy="no-referrer"
                             onError={(e) => {
-                              (e.target as HTMLImageElement).src =
-                                'https://images.unsplash.com/photo-1585320806297-9794b3e4eeae?auto=format&fit=crop&w=200&q=80';
+                              (e.target as HTMLImageElement).src = getSpotFallbackImage(spot.name, spot.category);
                             }}
                           />
                         )}

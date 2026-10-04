@@ -1,6 +1,6 @@
 import React from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { X, Check, Crown } from 'lucide-react';
+import { X, MapPin, User, Star, Infinity, ArrowRight } from 'lucide-react';
 import { createPortal } from 'react-dom';
 
 export interface PremiumModalProps {
@@ -21,23 +21,53 @@ export const PremiumModal: React.FC<PremiumModalProps> = ({
   const [purchaseNotice, setPurchaseNotice] = React.useState('');
 
   const benefits = [
-    'Todos os roteiros exclusivos',
-    'Roteiros para casal, família e fim de semana',
-    'Pontos turísticos selecionados por guias',
-    'Mais lugares disponíveis no mapa',
-    'Recomendações e experiências especiais',
-    'Acesso permanente',
+    { icon: MapPin, text: 'Roteiros exclusivos' },
+    { icon: User, text: 'Lugares selecionados por guias' },
+    { icon: Star, text: 'Experiências e recomendações especiais' },
+    { icon: Infinity, text: 'Acesso vitalício' },
   ];
 
-  const handleUnlockClick = () => {
+  const handleUnlockClick = async () => {
     if (isProcessing) return;
     setIsProcessing(true);
     setPurchaseNotice('');
-    
-    setTimeout(() => {
+
+    try {
+      const token = localStorage.getItem('monvian_token');
+      if (!token) {
+        setIsProcessing(false);
+        setPurchaseNotice('Faça login ou crie sua conta para adquirir a Conta Gold.');
+        return;
+      }
+
+      const res = await fetch('/api/stripe/create-checkout-session', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        }
+      });
+
+      const data = await res.json();
+
+      if (data.alreadyGold) {
+        setIsProcessing(false);
+        setPurchaseNotice('Sua conta já possui a Conta Gold ativa permanentemente!');
+        if (onUnlock) onUnlock();
+        return;
+      }
+
+      if (!res.ok || !data.url) {
+        throw new Error(data.error || 'Não foi possível iniciar o checkout.');
+      }
+
+      // Redirect user directly to Stripe Checkout
+      window.location.href = data.url;
+    } catch (err: any) {
+      console.error('Stripe checkout initiation error:', err);
       setIsProcessing(false);
-      setPurchaseNotice('Pagamentos indisponíveis no momento. Tente novamente mais tarde.');
-    }, 700);
+      setPurchaseNotice(err.message || 'Erro ao conectar ao Stripe. Tente novamente.');
+    }
   };
 
   if (!isOpen) return null;
@@ -51,7 +81,9 @@ export const PremiumModal: React.FC<PremiumModalProps> = ({
         exit={{ opacity: 0 }}
         transition={{ duration: 0.2 }}
         onClick={onClose}
-        className="fixed inset-0 z-[120] flex items-center justify-center p-4 sm:p-6 bg-black/60 backdrop-blur-xs select-none"
+        className={`fixed inset-0 z-[300] flex items-center justify-center p-4 sm:p-6 backdrop-blur-md select-none ${
+          isLight ? 'bg-black/40' : 'bg-black/80'
+        }`}
         style={{
           paddingTop: 'max(16px, env(safe-area-inset-top, 16px))',
           paddingBottom: 'max(16px, env(safe-area-inset-bottom, 16px))',
@@ -59,122 +91,141 @@ export const PremiumModal: React.FC<PremiumModalProps> = ({
       >
         <motion.div
           key="monvian-premium-card"
-          initial={{ opacity: 0, scale: 0.94, y: 8 }}
+          initial={{ opacity: 0, scale: 0.94, y: 12 }}
           animate={{ opacity: 1, scale: 1, y: 0 }}
-          exit={{ opacity: 0, scale: 0.95, y: 8 }}
+          exit={{ opacity: 0, scale: 0.95, y: 12 }}
           transition={{ type: 'spring', damping: 26, stiffness: 320 }}
           onClick={(e) => e.stopPropagation()}
-          className={`relative w-full max-w-sm sm:max-w-md rounded-[32px] p-6 sm:p-7 shadow-2xl transition-colors duration-200 overflow-hidden border ${
+          className={`relative w-full max-w-[370px] sm:max-w-[390px] rounded-[36px] overflow-hidden transition-colors ${
             isLight
-              ? 'bg-white text-zinc-900 border-zinc-200/90 shadow-[0_20px_50px_rgba(0,0,0,0.14)]'
-              : 'bg-[#18191d] text-white border-white/10 shadow-[0_20px_60px_rgba(0,0,0,0.7)]'
+              ? 'bg-white text-zinc-900 border border-zinc-200/90 shadow-[0_25px_70px_rgba(0,0,0,0.18)]'
+              : 'bg-[#0C0D10] text-white border border-white/10 shadow-[0_25px_80px_rgba(0,0,0,0.9)]'
           }`}
         >
-          {/* Subtle metallic gold glow behind header in dark mode */}
-          {!isLight && (
-            <div className="absolute -top-24 left-1/2 -translate-x-1/2 w-48 h-48 bg-[#E5AC33]/15 rounded-full blur-3xl pointer-events-none" />
-          )}
-
-          {/* Close button [ × ] */}
-          <button
-            type="button"
-            onClick={onClose}
-            aria-label="Fechar"
-            className={`absolute top-5 right-5 w-8 h-8 rounded-full flex items-center justify-center transition-colors cursor-pointer z-20 ${
+          {/* Top Banner Image with Smooth Fade to Card Background */}
+          <div className="relative w-full h-44 sm:h-48 overflow-hidden bg-black">
+            <img
+              src="/stripe_gold_banner.jpg"
+              alt="Campos do Jordão Monvian Gold"
+              className="w-full h-full object-cover object-center scale-105"
+            />
+            {/* Elegant gradient overlay merging into bottom card background */}
+            <div className={`absolute inset-0 ${
               isLight
-                ? 'bg-zinc-100 hover:bg-zinc-200 text-zinc-600'
-                : 'bg-white/10 hover:bg-white/15 text-zinc-300'
-            }`}
-          >
-            <X className="w-4 h-4 stroke-[2.4]" />
-          </button>
+                ? 'bg-gradient-to-b from-black/15 via-white/20 to-white'
+                : 'bg-gradient-to-b from-black/25 via-black/40 to-[#0C0D10]'
+            }`} />
 
-          {/* Header Badge */}
-          <div className="flex items-center gap-1.5 mb-2">
-            <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-metallic-gold-badge border text-[10px] sm:text-[11px] font-black uppercase tracking-widest shadow-xs">
-              <Crown className="w-3.5 h-3.5 text-[#F5BE38] stroke-[2.3]" />
-              <span className="text-[#C28514] dark:text-[#FDE073]">CONTA GOLD</span>
-            </span>
-          </div>
-
-          {/* Title */}
-          <h2 className="text-xl sm:text-2xl font-black tracking-tight leading-tight pr-6">
-            Tenha acesso completo com a Conta Gold
-          </h2>
-
-          {/* Description */}
-          <p
-            className={`text-xs sm:text-[13px] leading-relaxed mt-2 ${
-              isLight ? 'text-zinc-600' : 'text-zinc-400'
-            }`}
-          >
-            Desbloqueie todos os roteiros e conteúdos exclusivos para aproveitar Campos do Jordão da melhor forma.
-          </p>
-
-          {/* Benefits List */}
-          <div className="my-5 space-y-2.5">
-            {benefits.map((benefit, index) => (
-              <div key={index} className="flex items-start gap-2.5">
-                <div className="w-4 h-4 rounded-full bg-metallic-gold-icon border flex items-center justify-center text-[#F5BE38] shrink-0 mt-0.5 shadow-2xs">
-                  <Check className="w-2.5 h-2.5 stroke-[3.5] text-[#F5BE38]" />
-                </div>
-                <span
-                  className={`text-xs sm:text-[13px] font-medium leading-tight ${
-                    isLight ? 'text-zinc-800' : 'text-zinc-200'
-                  }`}
-                >
-                  {benefit}
-                </span>
-              </div>
-            ))}
-          </div>
-
-          {/* Price Block */}
-          <div
-            className={`p-4 rounded-2xl border text-center transition-colors mb-5 ${
-              isLight
-                ? 'bg-[#E5AC33]/[0.06] border-[#E5AC33]/40'
-                : 'bg-[#E5AC33]/[0.06] border-[#E5AC33]/30'
-            }`}
-          >
-            <div className="text-2xl sm:text-3xl font-black tracking-tight text-[#E5AC33] dark:text-[#FDE073]">
-              R$ 29,90
-            </div>
-            <p
-              className={`text-[11px] sm:text-xs font-semibold mt-0.5 ${
-                isLight ? 'text-zinc-600' : 'text-zinc-400'
+            {/* Close Button [ × ] */}
+            <button
+              type="button"
+              onClick={onClose}
+              aria-label="Fechar"
+              className={`absolute top-5 right-5 w-8 h-8 rounded-full flex items-center justify-center backdrop-blur-md transition-colors cursor-pointer z-20 ${
+                isLight
+                  ? 'bg-black/20 hover:bg-black/30 text-white border border-white/30'
+                  : 'bg-black/60 hover:bg-black/80 text-white/80 hover:text-white border border-white/15'
               }`}
             >
-              Pagamento único · acesso permanente
-            </p>
+              <X className="w-4 h-4 stroke-[2.2]" />
+            </button>
           </div>
 
-          {/* Unlock Button */}
-          <motion.button
-            whileTap={{ scale: 0.98 }}
-            type="button"
-            disabled={isProcessing}
-            onClick={handleUnlockClick}
-            className="w-full h-12 rounded-2xl bg-metallic-gold text-[#1A1202] font-black text-xs sm:text-sm uppercase tracking-wider flex items-center justify-center gap-2 shadow-lg shadow-[#E5AC33]/30 active:opacity-90 cursor-pointer transition-all disabled:opacity-70"
-          >
-            {isProcessing ? (
-              <div className="flex items-center gap-2 text-[#1A1202]">
-                <div className="w-4 h-4 border-2 border-[#1A1202] border-t-transparent rounded-full animate-spin" />
-                <span>Processando...</span>
-              </div>
-            ) : (
-              <>
-                <Crown className="w-4 h-4 text-[#1A1202] stroke-[2.4]" />
-                <span>Desbloquear Conta Gold</span>
-              </>
-            )}
-          </motion.button>
-
-          {purchaseNotice && (
-            <p className="text-[11px] font-bold text-center text-amber-500 dark:text-[#FDE073] mt-2.5 px-2 animate-fadeIn">
-              {purchaseNotice}
+          {/* Modal Content Body */}
+          <div className="px-6 pb-6 pt-1">
+            {/* Small uppercase tag */}
+            <p className={`text-[10px] font-bold tracking-[0.25em] uppercase mb-1.5 ${
+              isLight ? 'text-zinc-500' : 'text-zinc-400'
+            }`}>
+              MONVIAN GOLD
             </p>
-          )}
+
+            {/* Title */}
+            <h2 className="text-2xl sm:text-[28px] font-black tracking-tight leading-[1.15]">
+              <span className={`block ${isLight ? 'text-zinc-900' : 'text-white'}`}>Desbloqueie o</span>
+              <span className={`block ${isLight ? 'text-[#C28514]' : 'text-[#E5B045]'}`}>Monvian Gold.</span>
+            </h2>
+
+            {/* Description */}
+            <p className={`text-xs sm:text-[13px] font-normal leading-relaxed mt-2.5 ${
+              isLight ? 'text-zinc-600' : 'text-zinc-400'
+            }`}>
+              Experiências exclusivas, roteiros selecionados e lugares especiais em Campos do Jordão.
+            </p>
+
+            {/* 4 Clean Benefits List */}
+            <div className="my-5 space-y-3.5">
+              {benefits.map((benefit, index) => {
+                const Icon = benefit.icon;
+                return (
+                  <div key={index} className="flex items-center gap-3">
+                    <Icon className={`w-5 h-5 stroke-[1.8] shrink-0 ${
+                      isLight ? 'text-zinc-800' : 'text-white'
+                    }`} />
+                    <span className={`text-[13px] sm:text-sm font-medium ${
+                      isLight ? 'text-zinc-800' : 'text-zinc-200'
+                    }`}>
+                      {benefit.text}
+                    </span>
+                  </div>
+                );
+              })}
+            </div>
+
+            {/* Extremely Discreet Divider Line */}
+            <div className={`w-full h-px my-4 ${
+              isLight ? 'bg-zinc-200/80' : 'bg-white/[0.08]'
+            }`} />
+
+            {/* Price Section */}
+            <div className="text-center my-3">
+              <div className={`flex items-baseline justify-center gap-1.5 ${
+                isLight ? 'text-zinc-900' : 'text-white'
+              }`}>
+                <span className={`text-base sm:text-lg font-bold ${
+                  isLight ? 'text-zinc-500' : 'text-zinc-300'
+                }`}>R$</span>
+                <span className="text-3xl sm:text-4xl font-black tracking-tight">19.90</span>
+              </div>
+              <p className={`text-[9px] sm:text-[10px] font-medium tracking-[0.2em] uppercase mt-1 ${
+                isLight ? 'text-zinc-500' : 'text-zinc-400'
+              }`}>
+                PAGAMENTO ÚNICO · ACESSO VITALÍCIO
+              </p>
+            </div>
+
+            {/* Discrete Luxury Action Button */}
+            <motion.button
+              whileTap={{ scale: 0.98 }}
+              type="button"
+              id="btn-unlock-gold-modal"
+              disabled={isProcessing}
+              onClick={handleUnlockClick}
+              className={`w-full h-13 rounded-full font-semibold text-xs sm:text-sm tracking-[0.15em] uppercase flex items-center justify-center gap-2 cursor-pointer transition-all disabled:opacity-60 mt-4 ${
+                isLight
+                  ? 'bg-zinc-900 hover:bg-black text-white shadow-lg shadow-black/15 border border-zinc-800'
+                  : 'bg-gradient-to-b from-[#2C2D33] to-[#191A1E] hover:from-[#35363D] hover:to-[#222328] text-white border border-white/15 shadow-xl shadow-black/60'
+              }`}
+            >
+              {isProcessing ? (
+                <div className="flex items-center gap-2 text-white">
+                  <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                  <span>Processando...</span>
+                </div>
+              ) : (
+                <>
+                  <span>ATIVAR GOLD</span>
+                  <ArrowRight className="w-4 h-4 stroke-[2.2]" />
+                </>
+              )}
+            </motion.button>
+
+            {purchaseNotice && (
+              <p className="text-[11px] font-medium text-center text-amber-500 dark:text-amber-400 mt-2.5 px-2 animate-fadeIn">
+                {purchaseNotice}
+              </p>
+            )}
+          </div>
         </motion.div>
       </motion.div>
     </AnimatePresence>

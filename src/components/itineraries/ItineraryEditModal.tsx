@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { ArrowUp, ArrowDown, Trash2, X, Check, AlertTriangle, Plus, Clock } from 'lucide-react';
+import { ArrowUp, ArrowDown, X, Check, AlertTriangle, Plus, Clock } from 'lucide-react';
 import { Itinerary, ItineraryStep, Spot } from '../../types';
 
 interface ItineraryEditModalProps {
@@ -81,12 +81,13 @@ export const ItineraryEditModal: React.FC<ItineraryEditModalProps> = ({
   };
 
   const handleSave = () => {
+    const reindexedSteps = steps.map((s, idx) => ({ ...s, stepOrder: idx + 1 }));
     const updatedItinerary: Itinerary = {
       ...itinerary,
       days: [
         {
           ...itinerary.days[0],
-          steps
+          steps: reindexedSteps
         },
         ...itinerary.days.slice(1)
       ]
@@ -198,10 +199,10 @@ export const ItineraryEditModal: React.FC<ItineraryEditModalProps> = ({
                 <button
                   type="button"
                   onClick={() => handleRemoveStep(step.id)}
-                  className="w-7 h-7 rounded-lg flex items-center justify-center text-rose-500 hover:bg-rose-500/10 active:scale-95 transition-all ml-0.5"
+                  className="px-2 py-1 rounded-lg flex items-center justify-center text-rose-500 hover:bg-rose-500/10 active:scale-95 text-[11px] font-bold transition-all ml-0.5"
                   title="Remover ponto"
                 >
-                  <Trash2 className="w-4 h-4" />
+                  Remover
                 </button>
               </div>
             </div>
@@ -244,8 +245,7 @@ export const ItineraryEditModal: React.FC<ItineraryEditModalProps> = ({
                 onClick={() => setConfirmDelete(true)}
                 className="py-2.5 px-3 rounded-xl text-rose-500 hover:bg-rose-500/10 font-bold text-xs flex items-center gap-1.5 transition-colors cursor-pointer"
               >
-                <Trash2 className="w-3.5 h-3.5" />
-                <span>Apagar</span>
+                <span>Apagar roteiro</span>
               </button>
 
               <div className="flex items-center gap-2">
