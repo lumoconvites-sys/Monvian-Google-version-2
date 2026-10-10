@@ -13,6 +13,7 @@ import {
 import { motion, AnimatePresence } from 'motion/react';
 import { Itinerary } from '../../types';
 import { PremiumModal } from '../PremiumModal';
+import { getSpotImage, getSpotFallbackImage } from '../../utils/spotImages';
 
 interface ItineraryStoreDetailModalProps {
   itinerary: Itinerary | null;
@@ -160,6 +161,11 @@ export const ItineraryStoreDetailModal: React.FC<ItineraryStoreDetailModalProps>
                 src={itinerary.coverImage}
                 alt={itinerary.title}
                 className="w-full h-full object-cover"
+                referrerPolicy="no-referrer"
+                loading="eager"
+                onError={(e) => {
+                  (e.target as HTMLImageElement).src = 'https://images.unsplash.com/photo-1506744038136-46273834b3fb?auto=format&fit=crop&w=1000&q=80';
+                }}
               />
               
               {/* Degradê sutil na parte inferior para legibilidade */}
@@ -348,8 +354,13 @@ export const ItineraryStoreDetailModal: React.FC<ItineraryStoreDetailModalProps>
                     const stepNumber = String(idx + 1).padStart(2, '0');
                     const spot = step.spot;
                     const spotName = step.customName || spot?.name || 'Ponto Turístico';
-                    const spotImg = step.customImage || spot?.image || itinerary.coverImage;
                     const spotCategory = spot?.categoryLabel || spot?.category || 'Atração';
+                    const spotImg = getSpotImage({
+                      id: spot?.id,
+                      name: spotName,
+                      category: spotCategory,
+                      image: step.customImage || spot?.image || itinerary.coverImage,
+                    });
                     const descriptionText = step.customDescription || step.notes || spot?.description || spot?.touristTip;
                     const isBlurred = !isPremiumUser && idx >= 2;
 
@@ -388,7 +399,11 @@ export const ItineraryStoreDetailModal: React.FC<ItineraryStoreDetailModalProps>
                               src={spotImg}
                               alt={spotName}
                               className="w-full h-full object-cover"
-                              loading="lazy"
+                              loading="eager"
+                              referrerPolicy="no-referrer"
+                              onError={(e) => {
+                                (e.target as HTMLImageElement).src = getSpotFallbackImage(spotName, spotCategory);
+                              }}
                             />
                           </div>
 

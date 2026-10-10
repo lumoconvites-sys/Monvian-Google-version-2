@@ -16,6 +16,35 @@ export function calculateDistanceKm(lat1: number, lon1: number, lat2: number, lo
   return Math.round(R * c * 10) / 10;
 }
 
+const SPOT_PHOTO_MAP: Record<string, string> = {
+  'parque-amantikir': 'https://images.unsplash.com/photo-1585320806297-9794b3e4eeae?auto=format&fit=crop&w=800&q=80',
+  'amantikir': 'https://images.unsplash.com/photo-1585320806297-9794b3e4eeae?auto=format&fit=crop&w=800&q=80',
+  'parque-capivari': 'https://images.unsplash.com/photo-1513836279014-a89f7a76ae86?auto=format&fit=crop&w=800&q=80',
+  'capivari': 'https://images.unsplash.com/photo-1513836279014-a89f7a76ae86?auto=format&fit=crop&w=800&q=80',
+  'baden-baden': 'https://images.unsplash.com/photo-1514933651103-005eec06c04b?auto=format&fit=crop&w=800&q=80',
+  'baden': 'https://images.unsplash.com/photo-1514933651103-005eec06c04b?auto=format&fit=crop&w=800&q=80',
+  'morro-do-elefante': 'https://images.unsplash.com/photo-1507525428034-b723cf961d3e?auto=format&fit=crop&w=800&q=80',
+  'morro-elefante': 'https://images.unsplash.com/photo-1507525428034-b723cf961d3e?auto=format&fit=crop&w=800&q=80',
+  'ducha-de-prata': 'https://images.unsplash.com/photo-1432405972618-c60b0225b8f9?auto=format&fit=crop&w=800&q=80',
+  'ducha-prata': 'https://images.unsplash.com/photo-1432405972618-c60b0225b8f9?auto=format&fit=crop&w=800&q=80',
+  'parque-das-cerejeiras': 'https://images.unsplash.com/photo-1522383225653-ed111181a951?auto=format&fit=crop&w=800&q=80',
+  'cerejeiras': 'https://images.unsplash.com/photo-1522383225653-ed111181a951?auto=format&fit=crop&w=800&q=80',
+  'itapeva': 'https://images.unsplash.com/photo-1506744038136-46273834b3fb?auto=format&fit=crop&w=800&q=80',
+  'pico-do-itapeva': 'https://images.unsplash.com/photo-1506744038136-46273834b3fb?auto=format&fit=crop&w=800&q=80',
+  'tarundu': 'https://images.unsplash.com/photo-1448375240586-882707db888b?auto=format&fit=crop&w=800&q=80',
+  'portal': 'https://images.unsplash.com/photo-1519501025264-65ba15a82390?auto=format&fit=crop&w=800&q=80',
+  'portal-de-campos-do-jordao': 'https://images.unsplash.com/photo-1519501025264-65ba15a82390?auto=format&fit=crop&w=800&q=80',
+  'horto': 'https://images.unsplash.com/photo-1473448912268-2022ce9509d8?auto=format&fit=crop&w=800&q=80',
+  'horto-florestal': 'https://images.unsplash.com/photo-1473448912268-2022ce9509d8?auto=format&fit=crop&w=800&q=80',
+  'felicia-leirner': 'https://images.unsplash.com/photo-1561214115-f2f134cc4912?auto=format&fit=crop&w=800&q=80',
+  'museu-felicia-leirner': 'https://images.unsplash.com/photo-1561214115-f2f134cc4912?auto=format&fit=crop&w=800&q=80',
+  'bosque-silencio': 'https://images.unsplash.com/photo-1441974231531-c6227db76b6e?auto=format&fit=crop&w=800&q=80',
+  'pedra-bau': 'https://images.unsplash.com/photo-1464822759023-fed622ff2c3b?auto=format&fit=crop&w=800&q=80',
+  'palacio-boa-vista': 'https://images.unsplash.com/photo-1541872703-74c5e44368f9?auto=format&fit=crop&w=800&q=80',
+  'chocolate-araucaria': 'https://images.unsplash.com/photo-1501339847302-ac426a4a7cbb?auto=format&fit=crop&w=800&q=80',
+  'vila-capivari': 'https://images.unsplash.com/photo-1513694203232-719a280e022f?auto=format&fit=crop&w=800&q=80'
+};
+
 export function setupItineraryDatabase(db: any) {
   // 1. Table: itinerary_categories
   db.exec(`
@@ -538,6 +567,13 @@ export function registerItineraryRoutes(
           }
         }
 
+        const resolvedSpot = spot ? {
+          ...spot,
+          image: (!spot.image || spot.image.startsWith('/uploads/'))
+            ? (SPOT_PHOTO_MAP[spot.id] || SPOT_PHOTO_MAP[spot.name?.toLowerCase()] || 'https://images.unsplash.com/photo-1519501025264-65ba15a82390?auto=format&fit=crop&w=800&q=80')
+            : spot.image
+        } : null;
+
         return {
           id: s.id,
           itineraryId: s.itinerary_id,
@@ -551,8 +587,8 @@ export function registerItineraryRoutes(
           customName: s.custom_name || '',
           customDescription: s.custom_description || '',
           customTip: s.custom_tip || '',
-          customImage: s.custom_image || '',
-          spot: spot || null,
+          customImage: (s.custom_image && !s.custom_image.startsWith('/uploads/')) ? s.custom_image : '',
+          spot: resolvedSpot,
           distanceToNextKm,
           durationToNextMin
         };

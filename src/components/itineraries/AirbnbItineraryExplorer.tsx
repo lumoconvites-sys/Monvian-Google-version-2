@@ -18,6 +18,7 @@ import {
 import { motion, AnimatePresence } from 'motion/react';
 import { Itinerary, ItineraryCategory } from '../../types';
 import { ItineraryStoreDetailModal } from './ItineraryStoreDetailModal';
+import { DEFAULT_CURATED_ITINERARIES } from '../../data/defaultItineraries';
 
 // Fast in-memory cache for instant hydration
 let memoryItinerariesCache: Itinerary[] | null = null;
@@ -40,7 +41,7 @@ function getInitialItineraries(): Itinerary[] {
       }
     }
   } catch (e) {}
-  return [];
+  return DEFAULT_CURATED_ITINERARIES;
 }
 
 function getInitialCategories(): ItineraryCategory[] {
@@ -139,29 +140,37 @@ export const AirbnbItineraryExplorer: React.FC<AirbnbItineraryExplorerProps> = (
         setLoading(true);
       }
       const [itinsRes, catsRes] = await Promise.all([
-        fetch('/api/itineraries'),
-        fetch('/api/itinerary-categories'),
+        fetch('/api/itineraries').catch(() => null),
+        fetch('/api/itinerary-categories').catch(() => null),
       ]);
 
-      const itinsData = await itinsRes.json();
-      const catsData = await catsRes.json();
-
-      if (itinsData.success && Array.isArray(itinsData.itineraries)) {
-        setItineraries(itinsData.itineraries);
-        memoryItinerariesCache = itinsData.itineraries;
+      if (itinsRes && itinsRes.ok) {
         try {
-          localStorage.setItem(CACHE_KEY_ITINS, JSON.stringify(itinsData.itineraries));
+          const itinsData = await itinsRes.json();
+          if (itinsData.success && Array.isArray(itinsData.itineraries) && itinsData.itineraries.length > 0) {
+            setItineraries(itinsData.itineraries);
+            memoryItinerariesCache = itinsData.itineraries;
+            try {
+              localStorage.setItem(CACHE_KEY_ITINS, JSON.stringify(itinsData.itineraries));
+            } catch (e) {}
+          }
         } catch (e) {}
       }
-      if (catsData.success && Array.isArray(catsData.categories)) {
-        setCategories(catsData.categories);
-        memoryCategoriesCache = catsData.categories;
+
+      if (catsRes && catsRes.ok) {
         try {
-          localStorage.setItem(CACHE_KEY_CATS, JSON.stringify(catsData.categories));
+          const catsData = await catsRes.json();
+          if (catsData.success && Array.isArray(catsData.categories) && catsData.categories.length > 0) {
+            setCategories(catsData.categories);
+            memoryCategoriesCache = catsData.categories;
+            try {
+              localStorage.setItem(CACHE_KEY_CATS, JSON.stringify(catsData.categories));
+            } catch (e) {}
+          }
         } catch (e) {}
       }
     } catch (e) {
-      console.error('Error loading store data:', e);
+      console.warn('Network issue fetching store data, using curated local data:', e);
     } finally {
       setLoading(false);
     }
@@ -412,13 +421,13 @@ export const AirbnbItineraryExplorer: React.FC<AirbnbItineraryExplorerProps> = (
               }}
               className={`relative flex items-center justify-center flex-1 h-[52px] rounded-full px-4 transition-all border cursor-pointer select-none ${
                 isDark
-                  ? 'bg-[#16171B] text-white border-white/[0.08] hover:border-white/15'
+                  ? 'bg-zinc-900 text-white border-white/[0.05] hover:border-white/10'
                   : 'bg-white text-zinc-900 border-black/10 hover:border-black/20'
               }`}
             >
               {/* Centered magnifying glass + text right next to each other, identical to IMG_8236 */}
               {!isSearchFocused && !searchQuery ? (
-                <div className="flex items-center justify-center gap-2 pointer-events-none select-none">
+                <div className="flex items-center justify-center gap-2 pointer-events-none select-none w-full">
                   <Search
                     className={`w-4 h-4 shrink-0 stroke-[2.2] ${
                       isDark ? 'text-zinc-400' : 'text-zinc-500'
@@ -869,6 +878,10 @@ const AirbnbItineraryCardItem: React.FC<AirbnbItineraryCardItemProps> = ({
           alt={itinerary.title}
           className="w-full h-full object-cover transition-transform duration-500 ease-out group-hover:scale-105"
           loading="lazy"
+          referrerPolicy="no-referrer"
+          onError={(e) => {
+            (e.target as HTMLImageElement).src = 'https://images.unsplash.com/photo-1506744038136-46273834b3fb?auto=format&fit=crop&w=800&q=80';
+          }}
         />
 
         {/* Top-Right Heart Button */}

@@ -5,7 +5,10 @@ import {
   GoogleAuthProvider, 
   onAuthStateChanged, 
   User, 
-  signOut 
+  signOut,
+  signInWithEmailAndPassword,
+  createUserWithEmailAndPassword,
+  updateProfile
 } from 'firebase/auth';
 import firebaseConfig from '../../firebase-applet-config.json';
 
