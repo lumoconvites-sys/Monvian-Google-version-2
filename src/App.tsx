@@ -6,7 +6,7 @@ import { BottomNavigation, TabType } from './components/BottomNavigation';
 import { SpotDetailSheet } from './components/SpotDetailSheet';
 import { SpotPreviewBanner } from './components/SpotPreviewBanner';
 import { SearchFilterDrawer } from './components/SearchFilterDrawer';
-import { AIChatModal } from './components/AIChatModal';
+import { PublicationsView } from './components/PublicationsView';
 import { ProfileModal } from './components/ProfileModal';
 import { ItinerariesView } from './components/ItinerariesView';
 import { CloudRain, SlidersHorizontal, MapPin, Navigation2, Mic, Search, X, ShieldCheck, Sun, Moon, Building2, UtensilsCrossed, Coffee, Cake, Mountain, Cross, Check, RotateCcw, Star, ChevronRight } from 'lucide-react';
@@ -60,7 +60,14 @@ const welcomeCharVariants = {
 };
 
 export default function App() {
-  const [isAuthenticated, setIsAuthenticated] = useState<boolean | null>(null);
+  const [isAuthenticated, setIsAuthenticated] = useState<boolean>(() => {
+    try {
+      const token = localStorage.getItem('monvian_token');
+      return Boolean(token);
+    } catch (e) {
+      return false;
+    }
+  });
   const [user, setUser] = useState<any>(() => {
     try {
       const savedUser = localStorage.getItem('monvian_user');
@@ -111,15 +118,7 @@ export default function App() {
     }
   }, []);
 
-  // 1-second initial loading splash screen
-  const [isInitialSplash, setIsInitialSplash] = useState<boolean>(true);
 
-  useEffect(() => {
-    const splashTimer = setTimeout(() => {
-      setIsInitialSplash(false);
-    }, 1000);
-    return () => clearTimeout(splashTimer);
-  }, []);
 
   // Map style mode state: synced with theme & user selection
   const [mapStyle, setMapStyle] = useState<MapModeType>(() => {
@@ -137,6 +136,7 @@ export default function App() {
 
   // Map interaction state for Apple iOS translucent dynamic effects
   const [isMapInteracting, setIsMapInteracting] = useState<boolean>(false);
+  const [isMapOrbiting, setIsMapOrbiting] = useState<boolean>(false);
   const [isProfileSettingsOpen, setIsProfileSettingsOpen] = useState<boolean>(false);
 
   // Welcome translucent overlay & Onboarding questionnaire on new account creation
@@ -147,6 +147,7 @@ export default function App() {
   // Weather modal state
   const [isWeatherModalOpen, setIsWeatherModalOpen] = useState<boolean>(false);
   const [isGoldSuccessModalOpen, setIsGoldSuccessModalOpen] = useState<boolean>(false);
+  const [isChatKeyboardOpen, setIsChatKeyboardOpen] = useState<boolean>(false);
 
   // Handle Stripe Checkout return & Official Webhook / Backend Verification
   useEffect(() => {
@@ -288,75 +289,6 @@ export default function App() {
     };
     document.addEventListener('visibilitychange', handleVisibility, { passive: true });
 
-    // Rapid orientation & layout cycle on entry as requested by user
-    const triggerFastOrientationCycle = () => {
-      try {
-        if (typeof window !== 'undefined') {
-          if (window.scrollTo) window.scrollTo(0, 1);
-          
-          // 1. Temporarily apply landscape geometry cycle
-          const rootEl = document.getElementById('root');
-          const shellEl = document.getElementById('app-root-shell');
-          if (window.screen) {
-            const sW = window.screen.width || 393;
-            const sH = window.screen.height || 852;
-            const maxD = Math.max(sW, sH);
-            const minD = Math.min(sW, sH);
-            if (rootEl) {
-              rootEl.style.width = `${maxD}px`;
-              rootEl.style.height = `${minD}px`;
-            }
-            if (shellEl) {
-              shellEl.style.width = `${maxD}px`;
-              shellEl.style.height = `${minD}px`;
-            }
-          }
-
-          try { (window as any).orientation = 90; } catch (e) {}
-          try { (window.screen?.orientation as any)?.lock?.('landscape')?.catch?.(() => {}); } catch (e) {}
-          window.dispatchEvent(new Event('orientationchange'));
-          window.dispatchEvent(new Event('resize'));
-          if (window.visualViewport) {
-            window.visualViewport.dispatchEvent(new Event('resize'));
-          }
-
-          setTimeout(() => {
-            try { (window as any).orientation = 0; } catch (e) {}
-            try { (window.screen?.orientation as any)?.unlock?.(); } catch (e) {}
-            if (rootEl) {
-              rootEl.style.width = '100%';
-              rootEl.style.height = '100dvh';
-            }
-            if (shellEl) {
-              shellEl.style.width = '100%';
-              shellEl.style.height = '100dvh';
-            }
-            if (window.scrollTo) window.scrollTo(0, 0);
-            updateAppHeight();
-            window.dispatchEvent(new Event('orientationchange'));
-            window.dispatchEvent(new Event('resize'));
-            if (window.visualViewport) {
-              window.visualViewport.dispatchEvent(new Event('resize'));
-            }
-            // Trigger layout recalculation reflow
-            document.documentElement.style.height = '100.05%';
-            void document.body.offsetHeight;
-            document.documentElement.style.height = '';
-          }, 50);
-
-          setTimeout(() => {
-            if (window.scrollTo) window.scrollTo(0, 0);
-            updateAppHeight();
-            window.dispatchEvent(new Event('resize'));
-          }, 140);
-        }
-      } catch (err) {}
-    };
-
-    triggerFastOrientationCycle();
-    const t0 = setTimeout(triggerFastOrientationCycle, 350);
-    const t1 = setTimeout(triggerFastOrientationCycle, 1200);
-
     return () => {
       window.removeEventListener('resize', updateAppHeight);
       window.removeEventListener('orientationchange', handleOrientation);
@@ -369,8 +301,6 @@ export default function App() {
       }
       mql.removeEventListener?.('change', updateAppHeight);
       document.removeEventListener('visibilitychange', handleVisibility);
-      clearTimeout(t0);
-      clearTimeout(t1);
     };
   }, []);
 
@@ -947,6 +877,7 @@ export default function App() {
 
   const handleTabChange = (tab: TabType) => {
     setActiveTab(tab);
+    setIsChatKeyboardOpen(false);
     if (tab !== 'perfil') {
       setIsProfileSettingsOpen(false);
     }
@@ -972,58 +903,9 @@ export default function App() {
     ['empresariomario@gmail.com', 'marioempresario@gmail.com', 'marioyesk@gmail.com'].includes((user?.email || '').trim().toLowerCase())
   );
 
-  const isSplashVisible = isInitialSplash || isAuthenticated === null;
-
   return (
     <AnimatePresence mode="wait">
-      {isSplashVisible ? (
-        <motion.div
-          key="monvian-splash-screen"
-          initial={{ opacity: 1 }}
-          exit={{
-            opacity: 0,
-            scale: 1.04,
-            filter: 'blur(8px)',
-            transition: { duration: 0.45, ease: [0.32, 0.72, 0, 1] },
-          }}
-          className="fixed inset-0 w-full h-full flex flex-col items-center justify-center select-none z-50 bg-white text-black"
-          style={{
-            position: 'fixed',
-            top: 0,
-            bottom: 0,
-            left: 0,
-            right: 0,
-            width: '100%',
-            height: '100%',
-            minHeight: 'calc(100dvh + env(safe-area-inset-bottom, 0px))',
-            boxSizing: 'border-box',
-            margin: 0,
-            padding: 0,
-            backgroundColor: '#ffffff',
-          }}
-        >
-          <motion.div
-            initial={{ opacity: 0, scale: 0.9, filter: 'blur(6px)' }}
-            animate={{ opacity: 1, scale: 1, filter: 'blur(0px)' }}
-            transition={{ duration: 0.6, ease: [0.16, 1, 0.3, 1] }}
-            className="flex items-center justify-center p-6"
-          >
-            <motion.img
-              src="/logocarregamento.png"
-              alt="Monvian"
-              className="h-24 sm:h-28 w-auto max-w-[340px] object-contain"
-              animate={{
-                scale: [1, 1.025, 1],
-              }}
-              transition={{
-                duration: 2.0,
-                ease: 'easeInOut',
-                repeat: Infinity,
-              }}
-            />
-          </motion.div>
-        </motion.div>
-      ) : isAuthenticated === false ? (
+      {isAuthenticated === false ? (
         <motion.div
           key="monvian-auth-screen"
           initial={{ opacity: 0, scale: 0.98, filter: 'blur(4px)' }}
@@ -1148,10 +1030,9 @@ export default function App() {
         onInteractionChange={setIsMapInteracting}
         zoomToUserTrigger={zoomToUserTrigger}
         onStyleChange={setMapStyle}
-        onReturnToChat={() => {
-          setActiveTab('chat');
-        }}
         is3DMode={is3DMode}
+        onOrbitChange={setIsMapOrbiting}
+        isDetailOpen={isDetailOpen}
       />
 
       {/* 2. Dynamic Rain Particle Effect Overlay */}
@@ -1168,26 +1049,28 @@ export default function App() {
       />
 
       {/* DESKTOP FLOATING TOP BAR (Visible on md+ >= 768px) */}
-      <DesktopTopBar
-        spots={spots}
-        searchQuery={searchQuery}
-        onSearchChange={setSearchQuery}
-        selectedCategory={selectedCategoryFilter || 'all'}
-        onSelectCategory={(catId) => setSelectedCategoryFilter(catId === 'all' ? null : catId)}
-        onSelectSpot={handleSelectSpot}
-        theme={theme}
-        realWeather={realWeather}
-        onOpenWeatherModal={() => setIsWeatherModalOpen(true)}
-        is3DMode={is3DMode}
-        onToggle3DMode={() => setIs3DMode((prev) => !prev)}
-        onOpenMapModes={() => {
-          const btn = document.getElementById('btn-map-layer-switch');
-          if (btn) btn.click();
-        }}
-      />
+      {!isMapOrbiting && (
+        <DesktopTopBar
+          spots={spots}
+          searchQuery={searchQuery}
+          onSearchChange={setSearchQuery}
+          selectedCategory={selectedCategoryFilter || 'all'}
+          onSelectCategory={(catId) => setSelectedCategoryFilter(catId === 'all' ? null : catId)}
+          onSelectSpot={handleSelectSpot}
+          theme={theme}
+          realWeather={realWeather}
+          onOpenWeatherModal={() => setIsWeatherModalOpen(true)}
+          is3DMode={is3DMode}
+          onToggle3DMode={() => setIs3DMode((prev) => !prev)}
+          onOpenMapModes={() => {
+            const btn = document.getElementById('btn-map-layer-switch');
+            if (btn) btn.click();
+          }}
+        />
+      )}
 
       {/* DESKTOP EXPLORE PANEL (Visible when activeTab === 'explorar' on desktop) */}
-      {activeTab === 'explorar' && (
+      {activeTab === 'explorar' && !isMapOrbiting && (
         <DesktopExplorePanel
           spots={filteredSpots}
           selectedSpot={selectedSpot}
@@ -1201,15 +1084,16 @@ export default function App() {
       )}
 
       {/* 3. Top Floating Header Bar (MOBILE ONLY: md:hidden) */}
-      <header
-        aria-label="Informações de Campos do Jordão"
-        className={`md:hidden absolute top-0 left-0 right-0 ${isCategoryCardOpen ? 'z-[60]' : 'z-40'} flex items-center justify-between pointer-events-none px-4 sm:px-6`}
-        style={{
-          paddingTop: 'max(calc(env(safe-area-inset-top, 0px) + 16px), 28px)',
-          paddingLeft: 'max(16px, env(safe-area-inset-left, 0px))',
-          paddingRight: 'max(16px, env(safe-area-inset-right, 0px))',
-        }}
-      >
+      {!isMapOrbiting && (
+        <header
+          aria-label="Informações de Campos do Jordão"
+          className={`md:hidden absolute top-0 left-0 right-0 ${isCategoryCardOpen ? 'z-[60]' : 'z-40'} flex items-center justify-between pointer-events-none px-4 sm:px-6`}
+          style={{
+            paddingTop: 'max(calc(env(safe-area-inset-top, 0px) + 16px), 28px)',
+            paddingLeft: 'max(16px, env(safe-area-inset-left, 0px))',
+            paddingRight: 'max(16px, env(safe-area-inset-right, 0px))',
+          }}
+        >
         {/* Left: Big Weather Temperature & Dynamic Condition (Apple Weather aesthetic matching screenshot) */}
         <div className="flex items-center pointer-events-auto">
           <div
@@ -1455,6 +1339,7 @@ export default function App() {
           </div>
         </div>
       </header>
+      )}
 
       {/* Fullscreen Blur Backdrop for Filters & Search (Smooth iOS symmetric fade) */}
       <AnimatePresence>
@@ -1662,28 +1547,30 @@ export default function App() {
         spots={spots}
       />
 
-      {/* 9. AI Travel Guide Chat (Tab: 'chat') matching screenshot */}
-      <AIChatModal
+      {/* Backdrop for Chat Tab so Map is never visible */}
+      {activeTab === 'chat' && (
+        <div
+          id="chat-tab-solid-backdrop"
+          className="fixed inset-0 w-full h-full z-44 pointer-events-none select-none transition-colors duration-200"
+          style={{
+            backgroundColor: theme === 'light' ? '#ffffff' : '#000000',
+          }}
+          aria-hidden="true"
+        />
+      )}
+
+      {/* 9. Social Publications Feed (Tab: 'chat' / 'publicacoes') */}
+      <PublicationsView
         isOpen={activeTab === 'chat'}
         onClose={() => setActiveTab('explorar')}
         theme={theme}
-        userCoords={userCoords ? { lat: userCoords[1], lng: userCoords[0] } : null}
-        onOpenItineraries={() => {
-          setActiveTab('roteiros');
+        spots={spots}
+        onSelectSpot={(spot) => {
+          setSelectedSpot(spot);
+          setIsDetailOpen(true);
+          setActiveTab('explorar');
         }}
-        onSelectSpotByName={(name) => {
-          const lower = name.toLowerCase().trim();
-          const found = spots.find((s) => {
-            const sName = s.name.toLowerCase();
-            return sName.includes(lower) || lower.includes(sName) || (s.tagLabel && s.tagLabel.toLowerCase().includes(lower));
-          });
-          if (found) {
-            handleSelectSpot(found);
-            setActiveTab('explorar');
-          } else {
-            setActiveTab('explorar');
-          }
-        }}
+        onKeyboardStateChange={setIsChatKeyboardOpen}
       />
 
       {/* 10. Profile & Favorites (Tab: 'perfil') */}
@@ -1843,9 +1730,9 @@ export default function App() {
       </AnimatePresence>
     </main>
 
-    {/* 4. Bottom Navigation Pill rendered at root level (MOBILE ONLY) */}
-    {!isProfileSettingsOpen && (
-      <div className="md:hidden">
+    {/* 4. Bottom Navigation Pill rendered at root level (Visible on all pages and viewports) */}
+    {!isProfileSettingsOpen && !isMapOrbiting && (
+      <div className={`transition-opacity duration-150 ${isChatKeyboardOpen ? 'opacity-0 pointer-events-none' : 'opacity-100 pointer-events-auto'}`}>
         <BottomNavigation
           activeTab={activeTab}
           onChangeTab={handleTabChange}

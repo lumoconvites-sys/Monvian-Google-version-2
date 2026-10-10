@@ -71,12 +71,12 @@ export const GoldSuccessModal: React.FC<GoldSuccessModalProps> = ({
           {/* Top Badge */}
           <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-metallic-gold-badge border text-[11px] font-black uppercase tracking-widest shadow-xs mb-3">
             <Sparkles className="w-3.5 h-3.5 text-[#F5BE38] stroke-[2.4]" />
-            <span className="text-[#C28514] dark:text-[#FDE073]">CONTA GOLD ATIVADA</span>
+            <span className="text-[#C28514] dark:text-[#FDE073]">CONTA ELITE GOLD ATIVADA</span>
           </div>
 
           {/* Main Title */}
           <h2 className="text-2xl sm:text-[28px] font-black tracking-tight leading-tight text-zinc-900 dark:text-white">
-            Sua Conta Gold foi ativada!
+            Sua Conta Elite Gold foi ativada!
           </h2>
 
           {/* Description */}
@@ -109,7 +109,7 @@ export const GoldSuccessModal: React.FC<GoldSuccessModalProps> = ({
             className="w-full h-13 rounded-2xl bg-metallic-gold text-[#1A1202] font-black text-sm uppercase tracking-wider flex items-center justify-center gap-2 shadow-lg shadow-[#E5AC33]/30 active:opacity-90 cursor-pointer transition-all hover:brightness-105"
           >
             <Crown className="w-4 h-4 text-[#1A1202] stroke-[2.4]" />
-            <span>EXPLORAR CONTA GOLD</span>
+            <span>EXPLORAR CONTA ELITE GOLD</span>
           </motion.button>
         </motion.div>
       </motion.div>

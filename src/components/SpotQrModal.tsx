@@ -137,7 +137,7 @@ export const SpotQrModal: React.FC<SpotQrModalProps> = ({
             onClick={(e) => e.stopPropagation()}
             className="relative w-full max-w-[320px] sm:max-w-[340px] bg-white dark:bg-[#000000] text-zinc-900 dark:text-white rounded-[28px] shadow-2xl border border-zinc-200/80 dark:border-white/10 overflow-hidden flex flex-col z-10 p-5"
             style={{
-              fontFamily: "'Manrope', -apple-system, BlinkMacSystemFont, sans-serif",
+              fontFamily: "'Inter', -apple-system, BlinkMacSystemFont, sans-serif",
               willChange: 'transform, opacity',
             }}
           >

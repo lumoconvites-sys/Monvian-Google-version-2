@@ -32,7 +32,8 @@ export const SpotPreviewBanner: React.FC<SpotPreviewBannerProps> = ({
       }}
       onClick={(e) => e.stopPropagation()}
       onTouchStart={(e) => e.stopPropagation()}
-      className="fixed left-1/2 -translate-x-1/2 md:left-auto md:right-8 md:translate-x-0 z-40 w-[92%] max-w-sm md:w-88 md:max-w-none ios-glass rounded-[28px] p-3 sm:p-3.5 flex items-center gap-3 select-none pointer-events-auto shadow-2xl border border-white/20 dark:border-white/10 origin-bottom md:origin-bottom-right transform-gpu"
+      onPointerDown={(e) => e.stopPropagation()}
+      className="fixed left-1/2 -translate-x-1/2 md:left-auto md:right-8 md:translate-x-0 z-[105] w-[92%] max-w-sm md:w-88 md:max-w-none ios-glass rounded-[28px] p-3 sm:p-3.5 flex items-center gap-3 select-none pointer-events-auto shadow-2xl border border-white/20 dark:border-white/10 origin-bottom md:origin-bottom-right transform-gpu"
       style={{
         bottom: typeof window !== 'undefined' && window.innerWidth >= 768 ? '32px' : 'calc(max(22px, calc(env(safe-area-inset-bottom, 0px) + 16px)) + 64px)',
         willChange: 'transform, opacity',
@@ -43,7 +44,10 @@ export const SpotPreviewBanner: React.FC<SpotPreviewBannerProps> = ({
         whileHover={{ scale: 1.05 }}
         whileTap={{ scale: 0.96 }}
         className="relative w-16 h-16 sm:w-18 sm:h-18 rounded-[18px] overflow-hidden shrink-0 bg-zinc-100 dark:bg-zinc-900 border border-zinc-200/80 dark:border-white/10 shadow-md cursor-pointer"
-        onClick={() => onOpenDetails(spot)}
+        onClick={(e) => {
+          e.stopPropagation();
+          onOpenDetails(spot);
+        }}
       >
         <img
           src={getSpotImage(spot)}
@@ -61,7 +65,10 @@ export const SpotPreviewBanner: React.FC<SpotPreviewBannerProps> = ({
       {/* Center: Spot Details */}
       <div 
         className="flex-1 min-w-0 flex flex-col justify-center cursor-pointer"
-        onClick={() => onOpenDetails(spot)}
+        onClick={(e) => {
+          e.stopPropagation();
+          onOpenDetails(spot);
+        }}
       >
         <h3 className="text-zinc-900 dark:text-[#F5F2EA] font-extrabold text-[15px] sm:text-[17px] leading-snug truncate flex items-center gap-1.5 min-w-0 tracking-tight">
           <span className="truncate">{spot.name}</span>
@@ -71,7 +78,7 @@ export const SpotPreviewBanner: React.FC<SpotPreviewBannerProps> = ({
           {spot.categoryLabel || spot.category}
         </p>
         <div className="flex items-center gap-1.5 mt-1.5">
-          <Star className="w-3.5 h-3.5 text-[#007AFF] fill-[#007AFF] shrink-0" />
+          <Star className="w-3.5 h-3.5 text-zinc-900 fill-zinc-900 dark:text-white dark:fill-white shrink-0" />
           <span className="text-zinc-800 dark:text-[#F5F2EA] font-bold text-xs">
             {spot.rating ? spot.rating.toFixed(1) : '4.5'}
           </span>
@@ -83,7 +90,12 @@ export const SpotPreviewBanner: React.FC<SpotPreviewBannerProps> = ({
         <motion.button
           id="btn-open-spot-details"
           whileTap={{ scale: 0.94 }}
-          onClick={() => onOpenDetails(spot)}
+          onClick={(e) => {
+            e.stopPropagation();
+            onOpenDetails(spot);
+          }}
+          onTouchStart={(e) => e.stopPropagation()}
+          onPointerDown={(e) => e.stopPropagation()}
           className="px-3.5 sm:px-4 py-2 sm:py-2.5 rounded-full bg-zinc-950 text-white dark:bg-white dark:text-zinc-950 hover:bg-zinc-800 dark:hover:bg-zinc-100 font-bold text-xs whitespace-nowrap shadow-sm transition-all cursor-pointer flex items-center gap-1.5 active:opacity-90"
         >
           <span>Ver Local</span>

@@ -244,7 +244,7 @@ export const AdminItineraries: React.FC = () => {
   const featuredCount = featuredItineraries.length;
 
   return (
-    <div className="space-y-6" style={{ fontFamily: "'Manrope', -apple-system, BlinkMacSystemFont, sans-serif" }}>
+    <div className="space-y-6" style={{ fontFamily: "'Inter', -apple-system, BlinkMacSystemFont, sans-serif" }}>
       {/* Toast Feedback */}
       {toast && (
         <div className="fixed top-5 right-5 z-50 animate-in slide-in-from-top-3 duration-200">

@@ -25,6 +25,8 @@ import {
 } from './src/services/firestoreSync';
 import { setupItineraryDatabase, registerItineraryRoutes } from './src/server/itineraryRoutes';
 import { setupStripeDatabase, registerStripeRoutes } from './src/server/stripeRoutes';
+import { setupSocialDatabase, registerSocialRoutes } from './src/server/socialRoutes';
+import { setupStoriesDatabase, registerStoryRoutes } from './src/server/storyRoutes';
 
 dotenv.config();
 
@@ -51,7 +53,8 @@ db.exec(`
     avatar_url TEXT,
     visits_count INTEGER DEFAULT 1,
     last_access DATETIME DEFAULT CURRENT_TIMESTAMP,
-    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
   );
 
   CREATE TABLE IF NOT EXISTS sessions (
@@ -191,6 +194,8 @@ db.exec(`
 // Initialize Itineraries & Stripe databases
 setupItineraryDatabase(db);
 setupStripeDatabase(db);
+setupSocialDatabase(db);
+setupStoriesDatabase(db);
 
 // Enforce Gold account status for primary admin accounts and preserve paid users
 try {
@@ -312,6 +317,31 @@ try { db.exec(`ALTER TABLE users ADD COLUMN onboarding_completed INTEGER DEFAULT
 try { db.exec(`ALTER TABLE users ADD COLUMN onboarding_step INTEGER DEFAULT 1;`); } catch (e) {}
 try { db.exec(`ALTER TABLE users ADD COLUMN email TEXT;`); } catch (e) {}
 try { db.exec(`CREATE UNIQUE INDEX IF NOT EXISTS idx_users_email ON users (email) WHERE email IS NOT NULL;`); } catch (e) {}
+try { db.exec(`ALTER TABLE users ADD COLUMN username TEXT;`); } catch (e) {}
+try { db.exec(`ALTER TABLE users ADD COLUMN username_normalized TEXT;`); } catch (e) {}
+try { db.exec(`ALTER TABLE users ADD COLUMN bio TEXT;`); } catch (e) {}
+try { db.exec(`ALTER TABLE users ADD COLUMN updated_at DATETIME DEFAULT CURRENT_TIMESTAMP;`); } catch (e) {}
+try { db.exec(`CREATE UNIQUE INDEX IF NOT EXISTS idx_users_username_normalized ON users (username_normalized) WHERE username_normalized IS NOT NULL;`); } catch (e) {}
+
+// Backfill any existing users without username
+try {
+  const usersWithoutUsername = db.prepare('SELECT id, name, email, whatsapp FROM users WHERE username IS NULL OR username = ""').all() as any[];
+  for (const u of usersWithoutUsername) {
+    let raw = (u.name || u.email?.split('@')[0] || `user_${u.id}`)
+      .toLowerCase()
+      .replace(/[^a-z0-9_]/g, '')
+      .slice(0, 24);
+    if (!raw || raw.length < 3) raw = `user_${u.id}`;
+    let cand = raw;
+    let n = 1;
+    while (db.prepare('SELECT 1 FROM users WHERE username_normalized = ? AND id != ?').get(cand, u.id)) {
+      cand = `${raw}${n++}`;
+    }
+    db.prepare('UPDATE users SET username = ?, username_normalized = ? WHERE id = ?').run(cand, cand, u.id);
+  }
+} catch (backfillErr) {
+  console.warn('Username backfill notice:', backfillErr);
+}
 try { 
   db.exec(`
     CREATE TABLE IF NOT EXISTS email_verifications (
@@ -730,8 +760,8 @@ function buildMonvianSystemInstruction(): string {
 
       if (itineraries.length > 0) {
         itinerariesCatalog = itineraries.map((it) => {
-          const typeLabel = (it.is_premium || it.price === 'Conta Gold' || it.price === 'Gold') 
-            ? '⭐ ROTEIRO CONTA GOLD (Exclusivo para assinantes Gold)' 
+          const typeLabel = (it.is_premium || it.price === 'Conta Elite Gold' || it.price === 'Elite Gold' || it.price === 'Conta Gold' || it.price === 'Gold') 
+            ? '⭐ ROTEIRO CONTA ELITE GOLD (Exclusivo para assinantes Elite Gold)' 
             : '🆓 ROTEIRO GRATUITO (Acesso 100% livre para todos os usuários)';
           return `• [${typeLabel}] "${it.title}" (${it.days_count || 1} dia(s))\n  Descrição: ${it.description || 'Roteiro completo com paradas e mapa interativo.'}`;
         }).join('\n\n');
@@ -1178,7 +1208,7 @@ async function startServer() {
   app.post('/api/user/profile', requireAuth, async (req, res) => {
     try {
       const user = (req as any).user;
-      const { name, email, whatsapp, avatar_url } = req.body;
+      const { name, username, bio, email, whatsapp, avatar_url } = req.body;
 
       const updates: string[] = [];
       const params: any[] = [];
@@ -1187,6 +1217,41 @@ async function startServer() {
         updates.push('name = ?');
         params.push(typeof name === 'string' ? name.trim() : '');
       }
+
+      if (username !== undefined) {
+        const rawUsername = typeof username === 'string' ? username.trim().replace(/^@+/, '') : '';
+        if (!rawUsername) {
+          res.status(400).json({ error: 'O nome de usuário é obrigatório.' });
+          return;
+        }
+        if (rawUsername.length < 3 || rawUsername.length > 30) {
+          res.status(400).json({ error: 'O nome de usuário deve ter entre 3 e 30 caracteres.' });
+          return;
+        }
+        if (!/^[a-zA-Z0-9_]+$/.test(rawUsername)) {
+          res.status(400).json({ error: 'O nome de usuário só pode conter letras, números e underscore (_).' });
+          return;
+        }
+
+        const normalizedUsername = rawUsername.toLowerCase();
+        const existingUsername = db.prepare('SELECT id FROM users WHERE username_normalized = ? AND id != ?').get(normalizedUsername, user.id);
+        if (existingUsername) {
+          res.status(400).json({ error: 'Este nome de usuário já está em uso.' });
+          return;
+        }
+
+        updates.push('username = ?');
+        params.push(rawUsername);
+        updates.push('username_normalized = ?');
+        params.push(normalizedUsername);
+      }
+
+      if (bio !== undefined) {
+        updates.push('bio = ?');
+        params.push(typeof bio === 'string' ? bio.trim() : '');
+      }
+      updates.push('updated_at = CURRENT_TIMESTAMP');
+
       if (email !== undefined) {
         const cleanEmail = typeof email === 'string' ? email.trim() : '';
         updates.push('email = ?');
@@ -1207,7 +1272,7 @@ async function startServer() {
         db.prepare(`UPDATE users SET ${updates.join(', ')} WHERE id = ?`).run(...params);
       }
 
-      const updatedUser: any = db.prepare('SELECT id, name, email, whatsapp, password_hash, role, avatar_url, visits_count, is_banned, snow_enabled, theme, high_contrast, onboarding_completed, onboarding_step FROM users WHERE id = ?').get(user.id);
+      const updatedUser: any = db.prepare('SELECT id, name, username, username_normalized, bio, email, whatsapp, password_hash, role, avatar_url, visits_count, is_banned, snow_enabled, theme, high_contrast, onboarding_completed, onboarding_step FROM users WHERE id = ?').get(user.id);
       if (updatedUser) {
         updatedUser.email = updatedUser.email || updatedUser.whatsapp;
 
@@ -1244,8 +1309,17 @@ async function startServer() {
       `).run(user.id, updatedUser ? (updatedUser.name || 'Usuário') : 'Usuário');
 
       res.json({ success: true, user: updatedUser });
-    } catch (err) {
+    } catch (err: any) {
       console.error('Error updating user profile:', err);
+      const msg = err?.message || '';
+      if (msg.includes('UNIQUE constraint failed: users.username_normalized')) {
+        res.status(400).json({ error: 'Este nome de usuário já está em uso.' });
+        return;
+      }
+      if (msg.includes('UNIQUE constraint failed: users.email') || msg.includes('UNIQUE constraint failed: users.whatsapp')) {
+        res.status(400).json({ error: 'Este e-mail já está em uso por outra conta.' });
+        return;
+      }
       res.status(500).json({ error: 'Erro ao atualizar perfil do usuário' });
     }
   });
@@ -1594,11 +1668,32 @@ async function startServer() {
   // 3. Register with Email + Verification Code
   app.post('/api/auth/register', async (req, res) => {
     try {
-      const { name, email, whatsapp, password, code, gender } = req.body;
+      const { name, username, email, whatsapp, password, code, gender } = req.body;
       const cleanEmail = (email || whatsapp || '').trim().toLowerCase();
 
       if (!name || !cleanEmail || !password) {
         res.status(400).json({ error: 'Nome, e-mail e senha são obrigatórios' });
+        return;
+      }
+
+      // Username validation
+      const rawUsername = (username || '').trim().replace(/^@+/, '');
+      if (!rawUsername) {
+        res.status(400).json({ error: 'O nome de usuário é obrigatório.' });
+        return;
+      }
+      if (rawUsername.length < 3 || rawUsername.length > 30) {
+        res.status(400).json({ error: 'O nome de usuário deve ter entre 3 e 30 caracteres.' });
+        return;
+      }
+      if (!/^[a-zA-Z0-9_]+$/.test(rawUsername)) {
+        res.status(400).json({ error: 'O nome de usuário pode conter apenas letras, números e underscore (_).' });
+        return;
+      }
+      const normalizedUsername = rawUsername.toLowerCase();
+      const existingUsername = db.prepare('SELECT id FROM users WHERE username_normalized = ?').get(normalizedUsername);
+      if (existingUsername) {
+        res.status(400).json({ error: 'Este nome de usuário já está em uso.' });
         return;
       }
 
@@ -1647,9 +1742,9 @@ async function startServer() {
       }
 
       const result = db.prepare(`
-        INSERT INTO users (name, email, whatsapp, password_hash, role, visits_count, onboarding_completed, onboarding_step, avatar_url)
-        VALUES (?, ?, ?, ?, ?, 1, 0, 1, ?)
-      `).run(name.trim(), cleanEmail, cleanEmail, hash, role, defaultAvatar);
+        INSERT INTO users (name, username, username_normalized, email, whatsapp, password_hash, role, visits_count, onboarding_completed, onboarding_step, avatar_url)
+        VALUES (?, ?, ?, ?, ?, ?, ?, 1, 0, 1, ?)
+      `).run(name.trim(), rawUsername, normalizedUsername, cleanEmail, cleanEmail, hash, role, defaultAvatar);
       const userId = Number(result.lastInsertRowid);
 
       try {
@@ -1663,6 +1758,8 @@ async function startServer() {
       persistUserToFirestore({
         id: userId,
         name: name.trim(),
+        username: rawUsername,
+        username_normalized: normalizedUsername,
         email: cleanEmail,
         whatsapp: cleanEmail,
         password_hash: hash,
@@ -1690,6 +1787,8 @@ async function startServer() {
         user: {
           id: userId,
           name: name.trim(),
+          username: rawUsername,
+          username_normalized: normalizedUsername,
           email: cleanEmail,
           whatsapp: cleanEmail,
           role,
@@ -1703,9 +1802,18 @@ async function startServer() {
           onboarding_step: 1
         }
       });
-    } catch (err) {
-      console.error(err);
-      res.status(500).json({ error: 'Erro ao registrar usuário' });
+    } catch (err: any) {
+      console.error('[Register Error]', err);
+      const msg = err?.message || '';
+      if (msg.includes('UNIQUE constraint failed: users.username_normalized')) {
+        res.status(400).json({ error: 'Este nome de usuário já está em uso.' });
+        return;
+      }
+      if (msg.includes('UNIQUE constraint failed: users.email') || msg.includes('UNIQUE constraint failed: users.whatsapp')) {
+        res.status(400).json({ error: 'Já existe uma conta cadastrada com este e-mail.' });
+        return;
+      }
+      res.status(500).json({ error: 'Erro ao registrar usuário. Tente novamente.' });
     }
   });
 
@@ -1807,6 +1915,9 @@ async function startServer() {
         user: {
           id: user.id,
           name: user.name,
+          username: user.username,
+          username_normalized: user.username_normalized,
+          bio: user.bio || '',
           email: userEmail,
           whatsapp: userEmail,
           role: userRole,
@@ -4470,6 +4581,12 @@ Forneça um resumo curto sobre o local, horários de pico, status atual, endere�
 
   // Register Itineraries & Tour Planner API routes
   registerItineraryRoutes(app, db, getAuthUserSync, logAdminAction, getGenAI);
+
+  // Register Social Publications Feed API routes
+  registerSocialRoutes(app, db);
+
+  // Register Stories 24h Feed & Views API routes
+  registerStoryRoutes(app, db);
 
   // Register Stripe One-Time Payment & Webhook routes
   registerStripeRoutes(app, db, getAuthUser, logAdminAction);

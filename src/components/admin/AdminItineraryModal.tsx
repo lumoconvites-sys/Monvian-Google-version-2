@@ -73,8 +73,8 @@ export const AdminItineraryModal: React.FC<AdminItineraryModalProps> = ({
   const [price, setPrice] = useState('Grátis');
   const [status, setStatus] = useState<ItineraryStatus>('published');
   const [isFeatured, setIsFeatured] = useState(false);
-  const [isPremium, setIsPremium] = useState(false); // false = Grátis, true = Conta Gold
-  const [badgeText, setBadgeText] = useState('CONTA GOLD');
+  const [isPremium, setIsPremium] = useState(false); // false = Grátis, true = Elite Gold
+  const [badgeText, setBadgeText] = useState('ELITE GOLD');
   const [showPrice, setShowPrice] = useState(true);
   const [showStopsCount, setShowStopsCount] = useState(true);
   const [showBadge, setShowBadge] = useState(true);
@@ -152,7 +152,7 @@ export const AdminItineraryModal: React.FC<AdminItineraryModalProps> = ({
       setPrice(itineraryToEdit.price || (hasGold ? 'R$ 14,90' : 'Grátis'));
       setStatus(itineraryToEdit.status || (itineraryToEdit.isActive !== false ? 'published' : 'draft'));
       setIsFeatured(Boolean(itineraryToEdit.isFeatured || itineraryToEdit.isRecommended));
-      setBadgeText(itineraryToEdit.badgeText || (hasGold ? 'CONTA GOLD' : ''));
+      setBadgeText(itineraryToEdit.badgeText || (hasGold ? 'ELITE GOLD' : ''));
       setShowPrice(itineraryToEdit.showPrice !== false);
       setShowStopsCount(itineraryToEdit.showStopsCount !== false);
       setShowBadge(itineraryToEdit.showBadge !== false);
@@ -453,7 +453,7 @@ export const AdminItineraryModal: React.FC<AdminItineraryModalProps> = ({
       isFeatured,
       isRecommended: isFeatured,
       isPremium,
-      badgeText: isPremium ? (badgeText.trim() || 'CONTA GOLD') : '',
+      badgeText: isPremium ? (badgeText.trim() || 'ELITE GOLD') : '',
       showPrice,
       showStopsCount,
       showBadge: isPremium ? showBadge : false,
@@ -504,7 +504,7 @@ export const AdminItineraryModal: React.FC<AdminItineraryModalProps> = ({
     <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/80 backdrop-blur-md animate-in fade-in duration-200">
       <div 
         className="bg-white dark:bg-[#121418] border border-zinc-200 dark:border-zinc-800 rounded-3xl w-full max-w-5xl max-h-[94vh] flex flex-col shadow-2xl overflow-hidden"
-        style={{ fontFamily: "'Manrope', -apple-system, BlinkMacSystemFont, 'SF Pro Display', sans-serif" }}
+        style={{ fontFamily: "'Inter', -apple-system, BlinkMacSystemFont, 'SF Pro Display', sans-serif" }}
       >
         
         {/* 1. Top Modal Header */}
@@ -679,13 +679,13 @@ export const AdminItineraryModal: React.FC<AdminItineraryModalProps> = ({
                     </div>
                   </button>
 
-                  {/* Option B: Conta Gold */}
+                  {/* Option B: Elite Gold */}
                   <button
                     type="button"
                     onClick={() => {
                       setIsPremium(true);
                       if (price === 'Grátis' || !price) setPrice('R$ 14,90');
-                      if (!badgeText) setBadgeText('CONTA GOLD');
+                      if (!badgeText) setBadgeText('ELITE GOLD');
                     }}
                     className={`p-4 rounded-2xl border text-left flex items-start gap-3.5 cursor-pointer transition-all ${
                       isPremium
@@ -700,13 +700,13 @@ export const AdminItineraryModal: React.FC<AdminItineraryModalProps> = ({
                     </div>
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center justify-between">
-                        <span className="text-sm font-black text-zinc-900 dark:text-white">Roteiro Conta Gold</span>
+                        <span className="text-sm font-black text-zinc-900 dark:text-white">Roteiro Elite Gold</span>
                         <span className="text-[10px] font-black uppercase px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-600 dark:text-amber-400 border border-amber-500/30">
-                          Gold Exclusivo
+                          Elite Exclusivo
                         </span>
                       </div>
                       <p className="text-xs text-zinc-500 dark:text-zinc-400 font-medium mt-1 leading-relaxed">
-                        Exclusivo para assinantes Gold com borda dourada, brilho e selo oficial.
+                        Exclusivo para assinantes Elite Gold com borda dourada, brilho e selo oficial.
                       </p>
                     </div>
                   </button>
@@ -714,7 +714,7 @@ export const AdminItineraryModal: React.FC<AdminItineraryModalProps> = ({
                 </div>
               </div>
 
-              {/* Sub-settings if Conta Gold is chosen */}
+              {/* Sub-settings if Elite Gold is chosen */}
               {isPremium && (
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 p-4 rounded-2xl bg-amber-500/10 border border-amber-500/30">
                   <div>
@@ -731,13 +731,13 @@ export const AdminItineraryModal: React.FC<AdminItineraryModalProps> = ({
                   </div>
                   <div>
                     <label className="block text-xs font-black text-zinc-800 dark:text-zinc-200 mb-1.5">
-                      Texto do Selo Gold
+                      Texto do Selo Elite Gold
                     </label>
                     <input
                       type="text"
                       value={badgeText}
                       onChange={e => setBadgeText(e.target.value)}
-                      placeholder="CONTA GOLD"
+                      placeholder="ELITE GOLD"
                       className="w-full px-3.5 py-2.5 bg-white dark:bg-[#181a20] border border-amber-500/40 rounded-xl text-sm text-zinc-900 dark:text-white font-bold focus:outline-hidden focus:border-amber-500 uppercase"
                     />
                   </div>

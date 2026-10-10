@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { Eye, EyeOff, Mail, Lock, User, ArrowLeft } from 'lucide-react';
+import React, { useState, useEffect, useRef } from 'react';
+import { Eye, EyeOff, Mail, Lock, User, ArrowLeft, AtSign, Check, X, Loader2 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { googleSignIn, setCachedAccessToken } from '../lib/firebase';
 
@@ -12,6 +12,9 @@ export function AuthScreen({ onSuccess }: AuthScreenProps) {
   
   // Fields
   const [name, setName] = useState('');
+  const [username, setUsername] = useState('');
+  const [usernameStatus, setUsernameStatus] = useState<'idle' | 'checking' | 'available' | 'unavailable'>('idle');
+  const [usernameError, setUsernameError] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [gender, setGender] = useState<'masculino' | 'feminino' | 'outro'>('masculino');
@@ -21,6 +24,55 @@ export function AuthScreen({ onSuccess }: AuthScreenProps) {
   const [loading, setLoading] = useState(false);
   const [googleLoading, setGoogleLoading] = useState(false);
   const [error, setError] = useState('');
+
+  const checkTimerRef = useRef<any>(null);
+
+  // Debounced real-time check of username against real database
+  useEffect(() => {
+    if (authMode !== 'register') return;
+    const clean = username.trim().replace(/^@+/, '');
+    if (!clean) {
+      setUsernameStatus('idle');
+      setUsernameError('');
+      return;
+    }
+
+    if (clean.length < 3) {
+      setUsernameStatus('unavailable');
+      setUsernameError('Mínimo 3 caracteres');
+      return;
+    }
+
+    if (!/^[a-zA-Z0-9_]+$/.test(clean)) {
+      setUsernameStatus('unavailable');
+      setUsernameError('Apenas letras, números e _');
+      return;
+    }
+
+    setUsernameStatus('checking');
+    setUsernameError('');
+    if (checkTimerRef.current) clearTimeout(checkTimerRef.current);
+
+    checkTimerRef.current = setTimeout(async () => {
+      try {
+        const res = await fetch(`/api/users/check-username?username=${encodeURIComponent(clean)}`);
+        const data = await res.json();
+        if (data.available) {
+          setUsernameStatus('available');
+          setUsernameError('');
+        } else {
+          setUsernameStatus('unavailable');
+          setUsernameError(data.error || 'Este nome de usuário já está em uso.');
+        }
+      } catch {
+        setUsernameStatus('idle');
+      }
+    }, 350);
+
+    return () => {
+      if (checkTimerRef.current) clearTimeout(checkTimerRef.current);
+    };
+  }, [username, authMode]);
 
   // 1. Submit Login (Email + Password)
   const handleLoginSubmit = async (e: React.FormEvent) => {
@@ -55,13 +107,34 @@ export function AuthScreen({ onSuccess }: AuthScreenProps) {
     }
   };
 
-  // 2. Submit Register (Name + Email + Password without verification code)
+  // 2. Submit Register (Name + Username + Email + Password)
   const handleRegisterSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
     
     if (!name.trim() || !email.trim() || !password) {
-      setError('Preencha seu nome, e-mail e crie uma senha.');
+      setError('Preencha seu nome, nome de usuário, e-mail e crie uma senha.');
+      return;
+    }
+
+    const cleanUsername = username.trim().replace(/^@+/, '');
+    if (!cleanUsername) {
+      setError('Escolha um nome de usuário (ex: @mariana).');
+      return;
+    }
+
+    if (cleanUsername.length < 3 || cleanUsername.length > 30) {
+      setError('O nome de usuário deve ter entre 3 e 30 caracteres.');
+      return;
+    }
+
+    if (!/^[a-zA-Z0-9_]+$/.test(cleanUsername)) {
+      setError('O nome de usuário pode conter apenas letras, números e underscore (_).');
+      return;
+    }
+
+    if (usernameStatus === 'unavailable') {
+      setError(usernameError || 'Este nome de usuário já está em uso.');
       return;
     }
 
@@ -83,6 +156,7 @@ export function AuthScreen({ onSuccess }: AuthScreenProps) {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           name: name.trim(),
+          username: cleanUsername,
           email: email.trim(),
           password,
           gender,
@@ -155,7 +229,7 @@ export function AuthScreen({ onSuccess }: AuthScreenProps) {
       transition={{ duration: 0.25 }}
       className="fixed inset-0 z-[100] bg-[#000000] flex flex-col items-center justify-center text-white select-none overflow-y-auto"
       style={{
-        fontFamily: "'Manrope', -apple-system, BlinkMacSystemFont, sans-serif",
+        fontFamily: "'Inter', -apple-system, BlinkMacSystemFont, sans-serif",
         backgroundColor: '#000000',
         paddingTop: 'max(24px, env(safe-area-inset-top, 0px))',
         paddingBottom: 'max(24px, env(safe-area-inset-bottom, 0px))',
@@ -295,6 +369,7 @@ export function AuthScreen({ onSuccess }: AuthScreenProps) {
         {/* ---------------------------------------------------- */}
         {authMode === 'register' && (
           <form onSubmit={handleRegisterSubmit} className="w-full space-y-3.5">
+            {/* Nome Completo */}
             <div className="relative">
               <User className="absolute left-4 top-1/2 -translate-y-1/2 w-[18px] h-[18px] text-zinc-500" />
               <input
@@ -307,6 +382,59 @@ export function AuthScreen({ onSuccess }: AuthScreenProps) {
                 required
                 autoComplete="name"
               />
+            </div>
+
+            {/* Nome de Usuário (@username) com validação em tempo real */}
+            <div>
+              <div className="relative">
+                <AtSign className="absolute left-4 top-1/2 -translate-y-1/2 w-[18px] h-[18px] text-zinc-500" />
+                <input
+                  id="input-register-username"
+                  type="text"
+                  placeholder="Nome de usuário (ex: marianasilva)"
+                  value={username}
+                  onChange={(e) => {
+                    const cleanVal = e.target.value.replace(/[^a-zA-Z0-9_]/g, '');
+                    setUsername(cleanVal);
+                  }}
+                  className={`w-full pl-11 pr-11 py-4 rounded-[22px] bg-[#141518] border text-white placeholder:text-zinc-500 focus:outline-none transition-all text-[15px] font-medium shadow-sm ${
+                    usernameStatus === 'available'
+                      ? 'border-emerald-500/70 focus:border-emerald-400 focus:ring-1 focus:ring-emerald-400'
+                      : usernameStatus === 'unavailable'
+                      ? 'border-rose-500/70 focus:border-rose-400 focus:ring-1 focus:ring-rose-400'
+                      : 'border-white/10 focus:border-white focus:ring-1 focus:ring-white'
+                  }`}
+                  required
+                  autoCapitalize="none"
+                  autoCorrect="off"
+                  spellCheck={false}
+                />
+                <div className="absolute right-4 top-1/2 -translate-y-1/2 flex items-center">
+                  {usernameStatus === 'checking' && (
+                    <Loader2 className="w-4 h-4 text-zinc-400 animate-spin" />
+                  )}
+                  {usernameStatus === 'available' && (
+                    <div className="w-5 h-5 rounded-full bg-emerald-500/20 text-emerald-400 flex items-center justify-center">
+                      <Check className="w-3.5 h-3.5 stroke-[2.5]" />
+                    </div>
+                  )}
+                  {usernameStatus === 'unavailable' && (
+                    <div className="w-5 h-5 rounded-full bg-rose-500/20 text-rose-400 flex items-center justify-center">
+                      <X className="w-3.5 h-3.5 stroke-[2.5]" />
+                    </div>
+                  )}
+                </div>
+              </div>
+              {usernameStatus === 'available' && (
+                <p className="text-[12px] text-emerald-400 font-semibold px-3 mt-1.5 flex items-center gap-1">
+                  <span>Nome de usuário disponível</span>
+                </p>
+              )}
+              {usernameStatus === 'unavailable' && usernameError && (
+                <p className="text-[12px] text-rose-400 font-semibold px-3 mt-1.5 flex items-center gap-1">
+                  <span>{usernameError}</span>
+                </p>
+              )}
             </div>
 
             <div className="relative">

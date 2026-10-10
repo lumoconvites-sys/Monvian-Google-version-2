@@ -50,6 +50,19 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
+  // Bypass Vite internal modules and dev requests
+  if (
+    url.pathname.includes('/@vite/') ||
+    url.pathname.includes('/@id/') ||
+    url.pathname.includes('/@fs/') ||
+    url.pathname.startsWith('/src/') ||
+    url.pathname.startsWith('/node_modules/') ||
+    url.search.includes('?t=')
+  ) {
+    return;
+  }
+
+
   // Allow map tiles to bypass Service Worker completely so browser native HTTP cache
   // handles them cleanly without CORS or opaque response issues in WebGL
   const isMapTile =

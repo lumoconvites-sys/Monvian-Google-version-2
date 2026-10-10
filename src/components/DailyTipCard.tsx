@@ -154,14 +154,6 @@ export const DailyTipCard: React.FC<DailyTipCardProps> = ({
                 </button>
               </div>
             </div>
-
-            {/* Sleek auto-hide progress bar (Pure White) */}
-            <div className="absolute bottom-0 left-0 right-0 h-1 bg-zinc-100 dark:bg-white/10 overflow-hidden">
-              <div
-                className="h-full bg-white transition-[width] duration-75 ease-linear shadow-[0_0_8px_rgba(255,255,255,0.8)]"
-                style={{ width: `${progress}%` }}
-              />
-            </div>
           </div>
         </motion.div>
       )}

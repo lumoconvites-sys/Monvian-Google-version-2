@@ -3,7 +3,7 @@
 @custom-variant dark (&:where(.dark, .dark *));
 
 @theme {
-  --font-sans: 'Manrope', -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'SF Pro Display', system-ui, sans-serif;
+  --font-sans: 'Inter', -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'SF Pro Display', system-ui, sans-serif;
   --color-title: #F5F2EA;
   --color-secondary-desc: #9A9894;
   --color-highlight: #007AFF;
@@ -16,8 +16,8 @@
 
 @layer base {
   :root {
-    font-family: 'Manrope', -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'SF Pro Text', system-ui, sans-serif !important;
-    letter-spacing: -0.018em;
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'SF Pro Text', system-ui, sans-serif !important;
+    letter-spacing: -0.015em;
     line-height: 1.5;
     --app-height: 100dvh;
   }
@@ -91,7 +91,7 @@
     background-color: #f4f4f5 !important;
   }
   *, body, button, input, select, textarea, div, span, p, label {
-    font-family: 'Manrope', -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'SF Pro Text', system-ui, sans-serif;
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'SF Pro Text', system-ui, sans-serif;
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
   }
@@ -100,13 +100,13 @@
     opacity: 0.85;
   }
 
-  /* Headings & Titles: 'Manrope' / SF Pro negrito (700+), #F5F2EA na cor dos títulos no tema escuro, kerning refinado */
+  /* Headings & Titles: 'Inter' / SF Pro (700 bold), #F5F2EA na cor dos títulos no tema escuro, kerning refinado */
   h1, h2, h3, h4, h5, h6,
   .font-title,
   .title-heading,
   .heading-title {
-    font-family: 'Manrope', -apple-system, BlinkMacSystemFont, 'SF Pro Display', system-ui, sans-serif;
-    letter-spacing: -0.024em;
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'SF Pro Display', system-ui, sans-serif;
+    letter-spacing: -0.02em;
     line-height: 1.25;
   }
 
@@ -878,4 +878,111 @@ html:not(.dark) .ios-glass-white,
 .itinerary-satellite-canvas .maplibregl-canvas {
   filter: brightness(1.22) contrast(1.08) saturate(1.4);
 }
+
+/* ========================================================
+   UNIVERSAL SCROLLBAR REMOVAL - PURE CLEAN NATIVE IOS FEEL
+   ======================================================== */
+* {
+  scrollbar-width: none !important;
+  -ms-overflow-style: none !important;
+}
+*::-webkit-scrollbar {
+  display: none !important;
+  width: 0px !important;
+  height: 0px !important;
+  background: transparent !important;
+}
+
+.no-scrollbar::-webkit-scrollbar {
+  display: none !important;
+  width: 0 !important;
+  height: 0 !important;
+}
+.no-scrollbar {
+  -ms-overflow-style: none !important;
+  scrollbar-width: none !important;
+}
+
+/* iOS Apple Shimmer Animation (120 FPS Hardware-Accelerated) */
+@keyframes ios-shimmer {
+  0% {
+    transform: translate3d(-100%, 0, 0);
+  }
+  100% {
+    transform: translate3d(100%, 0, 0);
+  }
+}
+
+.animate-ios-shimmer {
+  animation: ios-shimmer 1.35s cubic-bezier(0.16, 1, 0.3, 1) infinite;
+  will-change: transform;
+  transform: translate3d(0, 0, 0);
+  backface-visibility: hidden;
+}
+
+@keyframes pulse-subtle {
+  0%, 100% {
+    opacity: 0.9;
+    transform: scale3d(1, 1, 1);
+  }
+  50% {
+    opacity: 0.45;
+    transform: scale3d(0.992, 0.992, 1);
+  }
+}
+
+.animate-pulse-subtle {
+  animation: pulse-subtle 1.8s cubic-bezier(0.16, 1, 0.3, 1) infinite;
+  will-change: opacity, transform;
+}
+
+/* 120 FPS Native iOS Physics Compositing Layer */
+.fps-120 {
+  transform: translate3d(0, 0, 0);
+  backface-visibility: hidden;
+  perspective: 1000px;
+  will-change: transform, opacity;
+  contain: layout style paint;
+}
+
+/* ========================================================
+   STORY RING INFINITE ANIMATION (CONFINED TO RING COLOR)
+   ======================================================== */
+@keyframes story-ring-spin {
+  0% {
+    transform: rotate(0deg);
+  }
+  100% {
+    transform: rotate(360deg);
+  }
+}
+
+/* Efeito refinado: 95% reduzido, concentrado estritamente sobre a borda colorida */
+@keyframes story-light-glow {
+  0%, 100% {
+    opacity: 0.25;
+    transform: scale(1.005) rotate(0deg);
+    filter: blur(0.5px);
+  }
+  50% {
+    opacity: 0.45;
+    transform: scale(1.01) rotate(180deg);
+    filter: blur(1px);
+  }
+}
+
+.animate-story-ring {
+  animation: story-ring-spin 4s linear infinite;
+  will-change: transform;
+}
+
+.animate-story-glow {
+  animation: story-light-glow 3s ease-in-out infinite;
+  will-change: transform, opacity, filter;
+}
+
+.story-gradient {
+  background: conic-gradient(from 0deg, #f09433, #dc2743, #bc1888, #dc2743, #f09433);
+}
+
 

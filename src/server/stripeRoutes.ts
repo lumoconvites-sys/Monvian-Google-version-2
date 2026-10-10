@@ -155,12 +155,12 @@ export function registerStripeRoutes(
         logAdminAction(
           userId,
           updatedUser?.name || cleanEmail,
-          'Ativação de Conta Gold Permanente (Stripe R$ 29,90)',
+          'Ativação de Conta Elite Gold Permanente (Stripe R$ 19,90)',
           `Sessão: ${stripeSessionId} | Valor: R$ ${(amountTotal / 100).toFixed(2)}`
         );
       }
 
-      console.log(`[Stripe] Conta Gold ativada com sucesso para ${cleanEmail} (ID: ${userId})`);
+      console.log(`[Stripe] Conta Elite Gold ativada com sucesso para ${cleanEmail} (ID: ${userId})`);
       return { success: true, user: updatedUser };
     } catch (err) {
       console.error('[Stripe] Error activating user gold:', err);
@@ -188,7 +188,7 @@ export function registerStripeRoutes(
     try {
       const user = await getAuthUser(req);
       if (!user) {
-        res.status(401).json({ error: 'Você precisa estar conectado para adquirir a Conta Gold.' });
+        res.status(401).json({ error: 'Você precisa estar conectado para adquirir a Conta Elite Gold.' });
         return;
       }
 
@@ -199,7 +199,7 @@ export function registerStripeRoutes(
       if (isAlreadyGold) {
         res.json({
           alreadyGold: true,
-          message: 'Sua conta já possui acesso permanente à Conta Gold!'
+          message: 'Sua conta já possui acesso permanente à Conta Elite Gold!'
         });
         return;
       }
@@ -233,7 +233,7 @@ export function registerStripeRoutes(
             price_data: {
               currency: GOLD_CURRENCY,
               product_data: {
-                name: 'Monvians - conta gold premium',
+                name: 'Monvian - Conta Elite Gold',
                 description: 'Acesso permanente aos roteiros exclusivos, pontos turísticos selecionados por guias e experiências em Campos do Jordão.',
                 images: [
                   `${origin}/monvian_gold_banner.jpg`
@@ -542,7 +542,7 @@ export function registerStripeRoutes(
 
       res.json({
         success: true,
-        message: `Conta Gold ativada com sucesso para ${targetUser.email}!`,
+        message: `Conta Elite Gold ativada com sucesso para ${targetUser.email}!`,
         user: result.user
       });
     } catch (err: any) {

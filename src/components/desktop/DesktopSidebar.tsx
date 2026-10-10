@@ -89,7 +89,7 @@ export const DesktopSidebar: React.FC<DesktopSidebarProps> = ({
             />
           </div>
           <div className="min-w-0 flex-1">
-            <span className="block text-base font-black tracking-tight leading-none text-zinc-900 dark:text-white uppercase font-['Manrope']">
+            <span className="block text-base font-black tracking-tight leading-none text-zinc-900 dark:text-white uppercase font-['Inter']">
               Monvian
             </span>
             <span className="block text-[11px] font-bold text-zinc-500 dark:text-zinc-400 uppercase tracking-wider mt-1 truncate">
@@ -109,7 +109,7 @@ export const DesktopSidebar: React.FC<DesktopSidebarProps> = ({
               id={`desktop-nav-${item.id}`}
               type="button"
               onClick={() => onChangeTab(item.id)}
-              className={`w-full flex items-center gap-3.5 px-4 py-3 rounded-2xl text-[14px] transition-all duration-200 cursor-pointer relative font-['Manrope'] ${
+              className={`w-full flex items-center gap-3.5 px-4 py-3 rounded-2xl text-[14px] transition-all duration-200 cursor-pointer relative font-['Inter'] ${
                 isActive
                   ? 'bg-white/[0.14] dark:bg-white/[0.15] border border-white/25 dark:border-white/20 text-zinc-950 dark:text-white font-extrabold shadow-sm'
                   : 'text-zinc-800 dark:text-zinc-200 hover:text-zinc-950 dark:hover:text-white hover:bg-black/5 dark:hover:bg-white/5 border border-transparent font-bold'

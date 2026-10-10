@@ -318,7 +318,98 @@ function seedInitialItineraries(db: any) {
     if (e3) insertStep.run(`${dayEco2}-1`, itin3Id, dayEco2, e3.id, 1, '09:30', 120, 'Passarelas sobre a água e ar puro da serra.');
     if (e4) insertStep.run(`${dayEco2}-2`, itin3Id, dayEco2, e4.id, 2, '15:00', 90, 'Mirantes e contemplação das cerejeiras.');
 
-    console.log('[Itineraries] Pre-seeded 3 curated initial travel itineraries.');
+    // Itinerary 4: Tour Gastronômico: Sabores & Chocolates da Serra (1 Dia)
+    const itin4Id = 'roteiro-gastronomia-chocolates';
+    db.prepare(`
+      INSERT INTO itineraries (
+        id, title, description, cover_image, days_count, categories,
+        is_active, is_recommended, is_featured, is_premium, badge_text, usage_count, notes
+      ) VALUES (?, ?, ?, ?, ?, ?, 1, 1, 1, 1, 'Gastronomia', 278, ?)
+    `).run(
+      itin4Id,
+      'Tour Gastronômico: Sabores & Chocolates da Serra',
+      'Degustações especiais, fondue suíço artesanal, cervejarias consagradas e as fábricas de chocolate mais famosas de Campos do Jordão.',
+      'https://images.unsplash.com/photo-1517248135467-4c7edcad34c4?auto=format&fit=crop&w=1000&q=80',
+      1,
+      JSON.stringify(['gastronomy', 'sweets', 'cafes', 'popular']),
+      'Recomendamos iniciar pela cervejaria no almoço e reservar as fábricas de chocolate para a tarde.'
+    );
+
+    const dayGastId = `${itin4Id}-dia-1`;
+    db.prepare(`
+      INSERT INTO itinerary_days (id, itinerary_id, day_number, title, summary)
+      VALUES (?, ?, 1, 'Dia 1: Sabores da Montanha', 'Experiência gastronômica completa com chopes nobres e chocolates artesanais.')
+    `).run(dayGastId, itin4Id);
+
+    if (spotBaden) insertStep.run(`${dayGastId}-1`, itin4Id, dayGastId, spotBaden.id, 1, '12:30', 90, 'Almoço clássico com pratos alemães e chopes artesanais.');
+    if (spotCapivari) insertStep.run(`${dayGastId}-2`, itin4Id, dayGastId, spotCapivari.id, 2, '15:00', 75, 'Passeio pelo boulevard com visita a cafés coloniais.');
+    if (spotElefante) insertStep.run(`${dayGastId}-3`, itin4Id, dayGastId, spotElefante.id, 3, '17:00', 60, 'Chocolate quente cremoso e vista das montanhas.');
+
+    // Itinerary 5: Campos em Família: Diversão para Todas as Idades (2 Dias)
+    const itin5Id = 'roteiro-familia-divertida';
+    db.prepare(`
+      INSERT INTO itineraries (
+        id, title, description, cover_image, days_count, categories,
+        is_active, is_recommended, is_featured, is_premium, badge_text, usage_count, notes
+      ) VALUES (?, ?, ?, ?, ?, ?, 1, 1, 0, 1, 'Família', 312, ?)
+    `).run(
+      itin5Id,
+      'Campos em Família: Diversão para Todas as Idades',
+      'Parques ao ar livre com segurança, arvorismo, tirolesas, contato com animais e cenários mágicos que encantam crianças e adultos.',
+      'https://images.unsplash.com/photo-1476514525535-07fb3b4ae5f1?auto=format&fit=crop&w=1000&q=80',
+      2,
+      JSON.stringify(['family', 'nature', 'adventure', 'parks']),
+      'Programe os passeios ao ar livre com calçados confortáveis e agasalhos para as crianças.'
+    );
+
+    const dayFam1 = `${itin5Id}-dia-1`;
+    db.prepare(`
+      INSERT INTO itinerary_days (id, itinerary_id, day_number, title, summary)
+      VALUES (?, ?, 1, 'Dia 1: Aventura & Emoção no Tarundu', 'Atividades recreativas dinâmicas ao ar livre com segurança total.')
+    `).run(dayFam1, itin5Id);
+
+    if (spotTarundu) insertStep.run(`${dayFam1}-1`, itin5Id, dayFam1, spotTarundu.id, 1, '10:00', 180, 'Mais de 30 atrações ao ar livre, tirolesas e passeios a cavalo.');
+    if (spotCapivari) insertStep.run(`${dayFam1}-2`, itin5Id, dayFam1, spotCapivari.id, 2, '15:30', 90, 'Teleférico panorâmico e pedalinhos no lago central.');
+
+    const dayFam2 = `${itin5Id}-dia-2`;
+    db.prepare(`
+      INSERT INTO itinerary_days (id, itinerary_id, day_number, title, summary)
+      VALUES (?, ?, 2, 'Dia 2: Labirintos & Quedas d Água', 'Labirinto verde no Amantikir e passarelas na Ducha de Prata.')
+    `).run(dayFam2, itin5Id);
+
+    if (spotAmantikir) insertStep.run(`${dayFam2}-1`, itin5Id, dayFam2, spotAmantikir.id, 1, '09:30', 120, 'Labirinto de arbustos verde e jardins de vários países.');
+    if (spotDucha) insertStep.run(`${dayFam2}-2`, itin5Id, dayFam2, spotDucha.id, 2, '14:00', 90, 'Passarelas de madeira e tirolesa sobre as cachoeiras.');
+
+    // Itinerary 6: Bate-e-Volta: O Melhor de Campos em 24h
+    const itin6Id = 'roteiro-bate-volta-essencial';
+    db.prepare(`
+      INSERT INTO itineraries (
+        id, title, description, cover_image, days_count, categories,
+        is_active, is_recommended, is_featured, is_premium, badge_text, usage_count, notes
+      ) VALUES (?, ?, ?, ?, ?, ?, 1, 1, 0, 0, 'Bate-e-Volta', 420, ?)
+    `).run(
+      itin6Id,
+      'Bate-e-Volta: O Melhor de Campos em 24h',
+      'Roteiro express dinâmico para quem tem apenas um dia para conhecer o essencial da Suíça Brasileira sem perder tempo no trânsito.',
+      'https://images.unsplash.com/photo-1469854523086-cc02fe5d8800?auto=format&fit=crop&w=1000&q=80',
+      1,
+      JSON.stringify(['1day', 'popular', 'nature', 'gastronomy']),
+      'Chegue cedo pelo Portal da Cidade para aproveitar desde as primeiras horas da manhã.'
+    );
+
+    const dayBate1 = `${itin6Id}-dia-1`;
+    db.prepare(`
+      INSERT INTO itinerary_days (id, itinerary_id, day_number, title, summary)
+      VALUES (?, ?, 1, 'Dia 1: Rota Expressa dos Clássicos', 'Circuito dos principais cartões postais em um único dia inesquecível.')
+    `).run(dayBate1, itin6Id);
+
+    const spotPortal = findSpot('portal') || spots[0];
+    if (spotPortal) insertStep.run(`${dayBate1}-1`, itin6Id, dayBate1, spotPortal.id, 1, '08:30', 30, 'Foto tradicional no Portal alpino de boas-vindas.');
+    if (spotAmantikir) insertStep.run(`${dayBate1}-2`, itin6Id, dayBate1, spotAmantikir.id, 2, '09:30', 110, 'Visita aos jardins botânicos premiados da cidade.');
+    if (spotBaden) insertStep.run(`${dayBate1}-3`, itin6Id, dayBate1, spotBaden.id, 3, '13:00', 90, 'Almoço no coração do Capivari.');
+    if (spotElefante) insertStep.run(`${dayBate1}-4`, itin6Id, dayBate1, spotElefante.id, 4, '16:00', 75, 'Vista panorâmica do pôr do sol no Morro do Elefante.');
+
+    console.log('[Itineraries] Pre-seeded 6 curated initial travel itineraries.');
   } catch (err) {
     console.error('[Itineraries] Error seeding initial itineraries:', err);
   }

@@ -4,6 +4,7 @@ import { Search, X, SlidersHorizontal, RotateCcw, Star, ChevronRight } from 'luc
 import { Spot } from '../../types';
 import { VerifiedBadge } from '../ui/VerifiedBadge';
 import { getSpotImage, getSpotFallbackImage } from '../../utils/spotImages';
+import { Map3DIcon } from '../Map3DIcon';
 
 export const DESKTOP_CATEGORIES = [
   { id: 'hotels', label: 'Hotéis e Pousadas', image: '/hotel.png' },
@@ -200,8 +201,8 @@ export const DesktopTopBar: React.FC<DesktopTopBarProps> = ({
           }`}
           title={is3DMode ? 'Alternar para visão 2D Plana' : 'Alternar para visão 3D com Relevo e Montanhas'}
         >
-          <div className="relative flex items-center justify-center font-black text-xs tracking-tighter group-hover:scale-110 transition-transform">
-            <span>3D</span>
+          <div className="relative flex items-center justify-center group-hover:scale-110 transition-transform">
+            <Map3DIcon className="w-5 h-5 text-current" />
           </div>
         </button>
       </div>

@@ -189,7 +189,7 @@ export const SearchFilterDrawer: React.FC<SearchFilterDrawerProps> = ({
         onClick={(e) => e.stopPropagation()}
         className="relative w-full h-full md:h-[88vh] md:max-w-2xl bg-zinc-50 dark:bg-[#000000] md:dark:ios-glass text-zinc-900 dark:text-white rounded-none md:rounded-[32px] overflow-hidden flex flex-col justify-between shadow-2xl md:border md:border-black/10 md:dark:border-white/15"
         style={{
-          fontFamily: "'Manrope', -apple-system, BlinkMacSystemFont, sans-serif",
+          fontFamily: "'Inter', -apple-system, BlinkMacSystemFont, sans-serif",
         }}
       >
       {/* Top Header Bar identical to screenshot */}
@@ -391,7 +391,7 @@ export const SearchFilterDrawer: React.FC<SearchFilterDrawerProps> = ({
                           </span>
                           <span>•</span>
                           <span className="truncate flex items-center gap-1 text-[#9A9894] font-semibold">
-                            <MapPin className={`w-3 h-3 shrink-0 ${isGoldUser ? 'text-[#F5BE38]' : 'text-[#007AFF]'}`} />
+                            <MapPin className={`w-3 h-3 shrink-0 ${isGoldUser ? 'text-[#F5BE38]' : 'text-zinc-600 dark:text-white'}`} />
                             <span className="truncate">{spot.address.split(',')[0]}</span>
                           </span>
                         </div>

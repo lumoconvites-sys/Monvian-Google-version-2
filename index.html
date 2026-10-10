@@ -2,7 +2,7 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover, interactive-widget=resizes-content" />
     <meta name="referrer" content="no-referrer" />
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="mobile-web-app-capable" content="yes" />
@@ -19,8 +19,9 @@
         try {
           var saved = localStorage.getItem('monvian_theme');
           var isDark = saved !== 'light'; // Default to dark aesthetic
-          var topColor = isDark ? '#000000' : '#f4f4f5';
+          var topColor = isDark ? '#000000' : '#ffffff';
           var statusStyle = isDark ? 'black' : 'default';
+          var logoSrc = isDark ? '/logo-white.png' : '/logo.png';
 
           var themeMeta = document.getElementById('theme-color-meta');
           if (themeMeta) themeMeta.setAttribute('content', topColor);
@@ -36,6 +37,11 @@
             document.documentElement.classList.remove('dark');
             document.documentElement.classList.add('light');
           }
+
+          var preloader = document.getElementById('monvian-app-preloader');
+          if (preloader) preloader.style.backgroundColor = isDark ? '#000000' : '#ffffff';
+          var preloaderLogo = document.getElementById('monvian-preloader-logo');
+          if (preloaderLogo) preloaderLogo.setAttribute('src', logoSrc);
         } catch (e) {}
       })();
     </script>
@@ -70,65 +76,14 @@
           } catch (e) {}
         }
 
-        function performQuickRotationCycle() {
-          try {
-            var rootEl = document.getElementById('root');
-            if (window.scrollTo) window.scrollTo(0, 1);
-
-            // Emulate landscape dimension reflow
-            if (rootEl && window.screen) {
-              var sW = window.screen.width || 393;
-              var sH = window.screen.height || 852;
-              rootEl.style.width = Math.max(sW, sH) + 'px';
-              rootEl.style.height = Math.min(sW, sH) + 'px';
-            }
-            
-            if ('orientation' in window) {
-              try { window.orientation = 90; } catch (e) {}
-            }
-            window.dispatchEvent(new Event('orientationchange'));
-            window.dispatchEvent(new Event('resize'));
-            if (window.visualViewport) {
-              window.visualViewport.dispatchEvent(new Event('resize'));
-            }
-
-            setTimeout(function() {
-              if ('orientation' in window) {
-                try { window.orientation = 0; } catch (e) {}
-              }
-              if (rootEl) {
-                rootEl.style.width = '100%';
-                rootEl.style.height = '100dvh';
-              }
-              if (window.scrollTo) window.scrollTo(0, 0);
-              updateAppHeight();
-              window.dispatchEvent(new Event('orientationchange'));
-              window.dispatchEvent(new Event('resize'));
-              if (window.visualViewport) {
-                window.visualViewport.dispatchEvent(new Event('resize'));
-              }
-            }, 45);
-
-            setTimeout(function() {
-              if (window.scrollTo) window.scrollTo(0, 0);
-              updateAppHeight();
-              window.dispatchEvent(new Event('resize'));
-            }, 120);
-          } catch (e) {}
-        }
-
         updateAppHeight();
         if (window.scrollTo) window.scrollTo(0, 0);
-        performQuickRotationCycle();
-        setTimeout(performQuickRotationCycle, 300);
 
         function handleOrientation() {
           updateAppHeight();
           if (window.requestAnimationFrame) window.requestAnimationFrame(updateAppHeight);
           setTimeout(updateAppHeight, 50);
           setTimeout(updateAppHeight, 150);
-          setTimeout(updateAppHeight, 300);
-          setTimeout(updateAppHeight, 500);
         }
 
         window.addEventListener('resize', updateAppHeight, { passive: true });
@@ -208,14 +163,23 @@
     <meta property="og:description" content="Seu guia inteligente para viver Campos do Jordão." />
     <meta property="og:type" content="website" />
     <meta name="twitter:card" content="summary_large_image" />
-    <link rel="stylesheet" href="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.css" />
-    <!-- Manrope Font Family & Vintage Handwriting Script Fonts -->
+    <!-- Inter Font Family & Vintage Handwriting Script Fonts -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@200..800&family=Dancing+Script:wght@500;600;700&family=Marck+Script&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Dancing+Script:wght@500;600;700&family=Marck+Script&display=swap" rel="stylesheet">
   </head>
   <body>
-    <div id="root"></div>
+    <div id="root">
+      <div id="monvian-app-preloader" style="position:fixed;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;background-color:#000000;z-index:99999;user-select:none;-webkit-user-select:none;touch-action:none;">
+        <img id="monvian-preloader-logo" src="/logo-white.png" alt="Monvian" style="height:48px;width:auto;max-width:220px;object-fit:contain;animation:monvianPulse 1.4s ease-in-out infinite;" onerror="this.src='/loogo.png'" />
+      </div>
+      <style>
+        @keyframes monvianPulse {
+          0%, 100% { opacity: 0.75; transform: scale(0.98); }
+          50% { opacity: 1; transform: scale(1.02); }
+        }
+      </style>
+    </div>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>

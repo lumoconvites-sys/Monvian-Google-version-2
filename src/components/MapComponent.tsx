@@ -31,6 +31,8 @@ interface MapComponentProps {
   onStyleChange?: (style: MapModeType) => void;
   onReturnToChat?: () => void;
   is3DMode?: boolean;
+  onOrbitChange?: (orbiting: boolean) => void;
+  isDetailOpen?: boolean;
 }
 
 // Initial camera configuration focused on the user
@@ -758,6 +760,8 @@ export const MapComponentInner: React.FC<MapComponentProps> = ({
   onStyleChange,
   onReturnToChat,
   is3DMode,
+  onOrbitChange,
+  isDetailOpen = false,
 }) => {
   const mapContainerRef = useRef<HTMLDivElement | null>(null);
   const mapRef = useRef<maplibregl.Map | null>(null);
@@ -810,10 +814,19 @@ export const MapComponentInner: React.FC<MapComponentProps> = ({
     onInteractionChangeRef.current = onInteractionChange;
   }, [onInteractionChange]);
 
+  const onOrbitChangeRef = useRef(onOrbitChange);
+  useEffect(() => {
+    onOrbitChangeRef.current = onOrbitChange;
+  }, [onOrbitChange]);
+
   const [currentStyle, setCurrentStyle] = useState<MapModeType>(() => (theme === 'dark' ? 'explorar' : 'animado'));
   const [showStyleMenu, setShowStyleMenu] = useState(false);
   const [isOrbiting, setIsOrbiting] = useState<boolean>(false);
   const orbitAnimFrameRef = useRef<number | null>(null);
+
+  useEffect(() => {
+    onOrbitChangeRef.current?.(isOrbiting);
+  }, [isOrbiting]);
 
   const stopOrbit = useCallback(() => {
     setIsOrbiting(false);
@@ -823,12 +836,17 @@ export const MapComponentInner: React.FC<MapComponentProps> = ({
     }
   }, []);
 
-  const handleOrbitScreenTap = useCallback(() => {
-    stopOrbit();
-    onSelectSpotRef.current(null);
-    if (onReturnToChatRef.current) {
-      onReturnToChatRef.current();
+  useEffect(() => {
+    if (isDetailOpen) {
+      stopOrbit();
     }
+  }, [isDetailOpen, stopOrbit]);
+
+  const handleOrbitScreenTap = useCallback((e?: React.MouseEvent | React.TouchEvent) => {
+    if (e) {
+      e.stopPropagation();
+    }
+    stopOrbit();
   }, [stopOrbit]);
 
   const [showCompassPrompt, setShowCompassPrompt] = useState<boolean>(() => {
@@ -959,16 +977,21 @@ export const MapComponentInner: React.FC<MapComponentProps> = ({
     const initialMode: MapModeType = theme === 'light' ? 'animado' : currentStyle;
     const initialCenter = (userCoords && !isNaN(userCoords[0])) ? userCoords : CAMPOS_OVERVIEW_CAMERA.center;
 
-    const map = new maplibregl.Map({
-      container: mapContainerRef.current,
-      style: createStyle(initialMode, theme),
-      center: initialCenter,
-      zoom: 15.2,
-      pitch: CAMPOS_OVERVIEW_CAMERA.pitch,
-      bearing: CAMPOS_OVERVIEW_CAMERA.bearing,
-      projection: { type: 'globe' },
-      attributionControl: false,
-    } as any);
+    let map: maplibregl.Map;
+    try {
+      map = new maplibregl.Map({
+        container: mapContainerRef.current,
+        style: createStyle(initialMode, theme),
+        center: initialCenter,
+        zoom: 15.2,
+        pitch: CAMPOS_OVERVIEW_CAMERA.pitch,
+        bearing: CAMPOS_OVERVIEW_CAMERA.bearing,
+        attributionControl: false,
+      } as any);
+    } catch (err) {
+      console.warn('[MapComponent initialization caught error]:', err);
+      return;
+    }
 
     map.on('load', () => {
       map.resize();
@@ -1237,9 +1260,14 @@ export const MapComponentInner: React.FC<MapComponentProps> = ({
       const el = document.createElement('div');
       el.id = `spot-marker-${spot.id}`;
       el.className = 'spot-marker-container flex flex-col items-center cursor-pointer select-none z-10';
+      el.style.willChange = 'transform';
+      el.style.transform = 'translate3d(0,0,0)';
 
       const circleDiv = document.createElement('div');
       circleDiv.className = 'relative w-[39px] h-[39px] sm:w-[41px] sm:h-[41px] rounded-full overflow-hidden border-2 border-white hover:border-[#007AFF] bg-zinc-900 shrink-0 shadow-sm transition-transform pin-pop-in';
+      circleDiv.style.willChange = 'transform';
+      circleDiv.style.backfaceVisibility = 'hidden';
+      circleDiv.style.transform = 'translate3d(0,0,0)';
       // Subtle stagger based on order to create an organic fluid ripple on load/filter
       circleDiv.style.animationDelay = `${Math.min(idx * 22, 280)}ms`;
 
@@ -2053,23 +2081,22 @@ export const MapComponentInner: React.FC<MapComponentProps> = ({
         tabIndex={0} 
       />
 
-      {/* 360° Orbit Focus Overlay (Clean transparent screen overlay; clicking anywhere returns to chat) */}
+      {/* 360° Orbit Focus Indicator (Top pill; stops orbit when tapped, leaves banner and map interactive) */}
       <AnimatePresence>
-        {isOrbiting && selectedSpot && (
+        {isOrbiting && selectedSpot && !isDetailOpen && (
           <motion.div
             key="spot-360-orbit-overlay"
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
+            initial={{ opacity: 0, y: -10 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -10 }}
             transition={{ duration: 0.25 }}
-            onClick={handleOrbitScreenTap}
-            onTouchStart={handleOrbitScreenTap}
-            onPointerDown={handleOrbitScreenTap}
-            className="fixed inset-0 z-[100] cursor-pointer pointer-events-auto flex flex-col items-center justify-start py-10 select-none overflow-hidden"
+            className="fixed top-0 left-0 right-0 z-30 pointer-events-none flex flex-col items-center justify-start py-10 select-none overflow-hidden"
           >
             {/* Top Translucent AI Bar (Clean, shadow around bar, works in dark and white mode) */}
             <div
-              className={`mt-12 sm:mt-14 px-4.5 py-2.5 rounded-full backdrop-blur-2xl flex items-center gap-3 pointer-events-none z-10 select-none max-w-[92%] transition-all ${
+              onClick={handleOrbitScreenTap}
+              onTouchStart={handleOrbitScreenTap}
+              className={`mt-12 sm:mt-14 px-4.5 py-2.5 rounded-full backdrop-blur-2xl flex items-center gap-3 pointer-events-auto cursor-pointer active:scale-95 z-10 select-none max-w-[92%] transition-all ${
                 isWhiteControls
                   ? 'bg-white/80 text-zinc-900 border border-black/10 shadow-[0_12px_36px_rgba(0,0,0,0.22)]'
                   : 'bg-black/60 text-white border border-white/20 shadow-[0_12px_40px_rgba(0,0,0,0.65)]'
@@ -2100,62 +2127,64 @@ export const MapComponentInner: React.FC<MapComponentProps> = ({
         )}
       </AnimatePresence>
 
-      {/* Floating Map Controls on Right Side (Always floats above map and spot icons, identical to top filter bar) */}
-      <aside
-        aria-label="Controles do mapa"
-        className="absolute right-4 md:right-6 top-1/2 -translate-y-[calc(50%+16px)] z-30 flex flex-col gap-3 pointer-events-auto select-none"
-        style={{
-          zIndex: 35,
-        }}
-        onClick={(e) => e.stopPropagation()}
-        onTouchStart={(e) => e.stopPropagation()}
-      >
-        {/* Zoom In (+) */}
-        <button
-          id="btn-map-zoom-in"
-          onClick={handleZoomIn}
-          className="w-12 h-12 rounded-full active:scale-95 flex items-center justify-center focus:outline-none cursor-pointer transition-all ios-glass border border-white/25 text-zinc-900 dark:text-white shadow-lg"
-          title="Aproximar mapa"
+      {/* Floating Map Controls on Right Side (Hidden during 360° orbit) */}
+      {!isOrbiting && (
+        <aside
+          aria-label="Controles do mapa"
+          className="absolute right-4 md:right-6 top-1/2 -translate-y-[calc(50%+16px)] z-30 flex flex-col gap-3 pointer-events-auto select-none"
+          style={{
+            zIndex: 35,
+          }}
+          onClick={(e) => e.stopPropagation()}
+          onTouchStart={(e) => e.stopPropagation()}
         >
-          <Plus className="w-6 h-6 stroke-[2.4]" />
-        </button>
-
-        {/* Zoom Out (-) */}
-        <button
-          id="btn-map-zoom-out"
-          onClick={handleZoomOut}
-          className="w-12 h-12 rounded-full active:scale-95 flex items-center justify-center focus:outline-none cursor-pointer transition-all ios-glass border border-white/25 text-zinc-900 dark:text-white shadow-lg"
-          title="Afastar mapa"
-        >
-          <Minus className="w-6 h-6 stroke-[2.4]" />
-        </button>
-
-        {/* Center & Orient on "Você" / My Location (Compass Icon) */}
-        <button
-          id="btn-map-locate-me"
-          onClick={handleCenterUser}
-          className="w-12 h-12 sm:w-13 sm:h-13 rounded-[18px] sm:rounded-[20px] active:scale-95 flex items-center justify-center focus:outline-none cursor-pointer group transition-all ios-glass border border-white/25 text-zinc-900 dark:text-white shadow-lg"
-          title="Centralizar e orientar"
-        >
-          <motion.div
-            animate={{ rotate: compassRotation }}
-            transition={{ duration: 0.8, ease: [0.34, 1.56, 0.64, 1] }}
-            className="w-7 h-7 sm:w-8 sm:h-8 flex items-center justify-center pointer-events-none"
+          {/* Zoom In (+) */}
+          <button
+            id="btn-map-zoom-in"
+            onClick={handleZoomIn}
+            className="w-12 h-12 rounded-full active:scale-95 flex items-center justify-center focus:outline-none cursor-pointer transition-all ios-glass border border-white/25 text-zinc-900 dark:text-white shadow-lg"
+            title="Aproximar mapa"
           >
-            <CompassIcon size={32} className="w-full h-full" />
-          </motion.div>
-        </button>
+            <Plus className="w-6 h-6 stroke-[2.4]" />
+          </button>
 
-        {/* Layers / Styles Switcher Button */}
-        <button
-          id="btn-map-layer-switch"
-          onClick={() => setShowStyleMenu(true)}
-          className="w-12 h-12 rounded-full active:scale-95 flex items-center justify-center focus:outline-none cursor-pointer transition-all ios-glass border border-white/25 text-zinc-900 dark:text-white shadow-lg"
-          title="Modos do Mapa"
-        >
-          <Layers className="w-5 h-5 stroke-[2.2]" />
-        </button>
-      </aside>
+          {/* Zoom Out (-) */}
+          <button
+            id="btn-map-zoom-out"
+            onClick={handleZoomOut}
+            className="w-12 h-12 rounded-full active:scale-95 flex items-center justify-center focus:outline-none cursor-pointer transition-all ios-glass border border-white/25 text-zinc-900 dark:text-white shadow-lg"
+            title="Afastar mapa"
+          >
+            <Minus className="w-6 h-6 stroke-[2.4]" />
+          </button>
+
+          {/* Center & Orient on "Você" / My Location (Compass Icon) */}
+          <button
+            id="btn-map-locate-me"
+            onClick={handleCenterUser}
+            className="w-12 h-12 sm:w-13 sm:h-13 rounded-[18px] sm:rounded-[20px] active:scale-95 flex items-center justify-center focus:outline-none cursor-pointer group transition-all ios-glass border border-white/25 text-zinc-900 dark:text-white shadow-lg"
+            title="Centralizar e orientar"
+          >
+            <motion.div
+              animate={{ rotate: compassRotation }}
+              transition={{ duration: 0.8, ease: [0.34, 1.56, 0.64, 1] }}
+              className="w-7 h-7 sm:w-8 sm:h-8 flex items-center justify-center pointer-events-none"
+            >
+              <CompassIcon size={32} className="w-full h-full" />
+            </motion.div>
+          </button>
+
+          {/* Layers / Styles Switcher Button */}
+          <button
+            id="btn-map-layer-switch"
+            onClick={() => setShowStyleMenu(true)}
+            className="w-12 h-12 rounded-full active:scale-95 flex items-center justify-center focus:outline-none cursor-pointer transition-all ios-glass border border-white/25 text-zinc-900 dark:text-white shadow-lg"
+            title="Modos do Mapa"
+          >
+            <Layers className="w-5 h-5 stroke-[2.2]" />
+          </button>
+        </aside>
+      )}
 
       {/* NEW Apple Maps Style "Modos do Mapa" Modal (Matches Reference Image 2) */}
       <AnimatePresence>
@@ -2179,7 +2208,7 @@ export const MapComponentInner: React.FC<MapComponentProps> = ({
               exit={{ opacity: 0, scale: 0.92, y: 12 }}
               transition={{ type: 'spring', stiffness: 450, damping: 30 }}
               className="relative w-full max-w-[440px] ios-glass rounded-[28px] sm:rounded-[32px] p-5 sm:p-7 text-zinc-800 dark:text-white select-none overflow-hidden z-10"
-              style={{ fontFamily: "'Manrope', -apple-system, BlinkMacSystemFont, sans-serif" }}
+              style={{ fontFamily: "'Inter', -apple-system, BlinkMacSystemFont, sans-serif" }}
             >
               {/* Header: Title Centered */}
               <div className="relative flex items-center justify-center mb-5 sm:mb-6">
@@ -2244,7 +2273,7 @@ export const MapComponentInner: React.FC<MapComponentProps> = ({
             exit={{ opacity: 0, y: 20, scale: 0.95 }}
             transition={{ type: 'spring', stiffness: 420, damping: 28 }}
             className="fixed bottom-24 left-4 right-4 max-w-sm mx-auto z-40 p-4 rounded-2xl bg-[#1C1C1E]/95 backdrop-blur-2xl border border-white/15 text-white shadow-2xl flex flex-col gap-3 pointer-events-auto"
-            style={{ fontFamily: "'Manrope', -apple-system, BlinkMacSystemFont, sans-serif" }}
+            style={{ fontFamily: "'Inter', -apple-system, BlinkMacSystemFont, sans-serif" }}
           >
             <div className="flex items-start gap-3">
               <div className="w-9 h-9 rounded-full bg-[#007AFF]/20 flex items-center justify-center shrink-0 text-[#007AFF]">

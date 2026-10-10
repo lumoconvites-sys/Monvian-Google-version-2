@@ -36,7 +36,7 @@ export const PremiumModal: React.FC<PremiumModalProps> = ({
       const token = localStorage.getItem('monvian_token');
       if (!token) {
         setIsProcessing(false);
-        setPurchaseNotice('Faça login ou crie sua conta para adquirir a Conta Gold.');
+        setPurchaseNotice('Faça login ou crie sua conta para adquirir a Conta Elite Gold.');
         return;
       }
 
@@ -52,7 +52,7 @@ export const PremiumModal: React.FC<PremiumModalProps> = ({
 
       if (data.alreadyGold) {
         setIsProcessing(false);
-        setPurchaseNotice('Sua conta já possui a Conta Gold ativa permanentemente!');
+        setPurchaseNotice('Sua conta já possui a Conta Elite Gold ativa permanentemente!');
         if (onUnlock) onUnlock();
         return;
       }
@@ -137,13 +137,13 @@ export const PremiumModal: React.FC<PremiumModalProps> = ({
             <p className={`text-[10px] font-bold tracking-[0.25em] uppercase mb-1.5 ${
               isLight ? 'text-zinc-500' : 'text-zinc-400'
             }`}>
-              MONVIAN GOLD
+              MONVIAN ELITE GOLD
             </p>
 
             {/* Title */}
             <h2 className="text-2xl sm:text-[28px] font-black tracking-tight leading-[1.15]">
               <span className={`block ${isLight ? 'text-zinc-900' : 'text-white'}`}>Desbloqueie o</span>
-              <span className={`block ${isLight ? 'text-[#C28514]' : 'text-[#E5B045]'}`}>Monvian Gold.</span>
+              <span className={`block ${isLight ? 'text-[#C28514]' : 'text-[#E5B045]'}`}>Monvian Elite Gold.</span>
             </h2>
 
             {/* Description */}
@@ -214,7 +214,7 @@ export const PremiumModal: React.FC<PremiumModalProps> = ({
                 </div>
               ) : (
                 <>
-                  <span>ATIVAR GOLD</span>
+                  <span>ATIVAR ELITE GOLD</span>
                   <ArrowRight className="w-4 h-4 stroke-[2.2]" />
                 </>
               )}

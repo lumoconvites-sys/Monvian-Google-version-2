@@ -242,6 +242,70 @@
         "updated_at": { "type": "string", "description": "Update timestamp" }
       },
       "required": ["key", "value"]
+    },
+    "Post": {
+      "title": "Post",
+      "description": "Social feed publication with photo and engagement counts",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "description": "Post unique ID" },
+        "userId": { "type": "string", "description": "Author user ID" },
+        "userName": { "type": "string", "description": "Author display name" },
+        "userPhoto": { "type": "string", "description": "Author profile avatar URL" },
+        "imageUrl": { "type": "string", "description": "Photo URL" },
+        "caption": { "type": "string", "description": "Optional caption or description" },
+        "location": { "type": "string", "description": "Location tag" },
+        "likesCount": { "type": "number", "description": "Total like count" },
+        "commentsCount": { "type": "number", "description": "Total comment count" },
+        "createdAt": { "type": "string", "description": "Creation timestamp" }
+      },
+      "required": ["id", "userId", "userName", "imageUrl", "createdAt"]
+    },
+    "PostLike": {
+      "title": "PostLike",
+      "description": "Like record on a publication",
+      "type": "object",
+      "properties": {
+        "postId": { "type": "string", "description": "Referenced post ID" },
+        "userId": { "type": "string", "description": "Liking user ID" },
+        "createdAt": { "type": "string", "description": "Creation timestamp" }
+      },
+      "required": ["postId", "userId"]
+    },
+    "PostComment": {
+      "title": "PostComment",
+      "description": "Comment on a publication",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "description": "Comment ID" },
+        "postId": { "type": "string", "description": "Referenced post ID" },
+        "userId": { "type": "string", "description": "Author user ID" },
+        "userName": { "type": "string", "description": "Author display name" },
+        "userPhoto": { "type": "string", "description": "Author avatar URL" },
+        "text": { "type": "string", "description": "Comment text" },
+        "createdAt": { "type": "string", "description": "Creation timestamp" }
+      },
+      "required": ["id", "postId", "userId", "text", "createdAt"]
+    },
+    "Story": {
+      "title": "Story",
+      "description": "24-hour ephemeral story video or image",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "description": "Story unique ID" },
+        "userId": { "type": "string", "description": "Author user ID" },
+        "userName": { "type": "string", "description": "Author display name" },
+        "userPhoto": { "type": "string", "description": "Author avatar URL" },
+        "mediaUrl": { "type": "string", "description": "Story media URL" },
+        "mediaType": { "type": "string", "description": "image or video" },
+        "caption": { "type": "string", "description": "Optional story caption" },
+        "location": { "type": "string", "description": "Optional tourist location tag" },
+        "viewsCount": { "type": "number", "description": "Count of views" },
+        "createdAt": { "type": "string", "description": "ISO timestamp of creation" },
+        "expiresAt": { "type": "string", "description": "ISO timestamp of expiration (24h after creation)" },
+        "status": { "type": "string", "description": "active or deleted" }
+      },
+      "required": ["id", "userId", "mediaUrl", "createdAt", "expiresAt"]
     }
   },
   "firestore": {
@@ -288,6 +352,22 @@
     "/planner_settings/{key}": {
       "schema": "PlannerSetting",
       "description": "Persistent planner settings"
+    },
+    "/posts/{id}": {
+      "schema": "Post",
+      "description": "Persistent social publications"
+    },
+    "/post_likes/{likeId}": {
+      "schema": "PostLike",
+      "description": "Persistent publication likes"
+    },
+    "/post_comments/{commentId}": {
+      "schema": "PostComment",
+      "description": "Persistent publication comments"
+    },
+    "/stories/{id}": {
+      "schema": "Story",
+      "description": "Persistent 24-hour stories"
     }
   }
 }

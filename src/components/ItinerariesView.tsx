@@ -8,6 +8,7 @@ import {
   ArrowUp,
   Check,
   ChevronDown,
+  ChevronLeft,
   ChevronRight,
   ChevronUp,
   Clock,
@@ -15,6 +16,7 @@ import {
   Edit3,
   ExternalLink,
   Layers,
+  List,
   Maximize2,
   Mic,
   Navigation,
@@ -39,6 +41,7 @@ import { ItineraryEditModal } from './itineraries/ItineraryEditModal';
 import { generateCustomItinerary } from './itineraries/routeGenerator';
 import { RoundedNavigationIcon } from './RoundedNavigationIcon';
 import { ItineraryStoreModal } from './itineraries/ItineraryStoreModal';
+import { AirbnbItineraryExplorer } from './itineraries/AirbnbItineraryExplorer';
 import { PlusActionMenuModal } from './itineraries/PlusActionMenuModal';
 import { ImportSpotFloatingModal } from './itineraries/ImportSpotFloatingModal';
 import { TripNotesModal } from './itineraries/TripNotesModal';
@@ -630,6 +633,9 @@ export const ItinerariesView: React.FC<ItinerariesViewProps> = ({
   // Modal for editing stops
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
 
+  // Active view mode: 'explore' (Airbnb Exploration Screen) or 'map' (Interactive Map)
+  const [itineraryViewMode, setItineraryViewMode] = useState<'explore' | 'map'>('explore');
+
   // Loja de Roteiros Premium Modal state
   const [isStoreOpen, setIsStoreOpen] = useState(false);
   const [storeToast, setStoreToast] = useState<string | null>(null);
@@ -700,7 +706,7 @@ export const ItinerariesView: React.FC<ItinerariesViewProps> = ({
           }
           return day;
         })
-      : [{ dayNumber: 1, theme: 'Dia 1', steps: [newStep] }];
+      : [{ id: 'day-1', title: 'Dia 1', dayNumber: 1, theme: 'Dia 1', steps: [newStep] }];
 
     const updated: Itinerary = userItinerary ? {
       ...userItinerary,
@@ -710,8 +716,13 @@ export const ItinerariesView: React.FC<ItinerariesViewProps> = ({
       title: 'Meu Roteiro em Campos',
       description: 'Roteiro personalizado de Campos do Jordão',
       coverImage: spot.image || '/hotel.png',
+      daysCount: 1,
+      categories: ['Roteiro'],
+      isActive: true,
+      isRecommended: false,
+      usageCount: 1,
       isPremium: isUserGold,
-      badgeText: isUserGold ? 'CONTA GOLD' : undefined,
+      badgeText: isUserGold ? 'ELITE GOLD' : undefined,
       days: updatedDays,
     };
 
@@ -776,6 +787,7 @@ export const ItinerariesView: React.FC<ItinerariesViewProps> = ({
         // Apple style toast feedback
         setStoreToast('Roteiro adicionado com sucesso!');
         setTimeout(() => setStoreToast(null), 3000);
+        setItineraryViewMode('map');
       }
     } catch (e) {
       console.error('Error applying store itinerary:', e);
@@ -1661,9 +1673,9 @@ export const ItinerariesView: React.FC<ItinerariesViewProps> = ({
     renderRouteAndMarkersRef.current = renderRouteAndMarkers;
   }, [renderRouteAndMarkers]);
 
-  // Initialize MapLibre GL map when tab is open
+  // Initialize MapLibre GL map when tab is open and in map mode
   useEffect(() => {
-    if (!isOpen || !mapContainerRef.current) return;
+    if (!isOpen || itineraryViewMode !== 'map' || !mapContainerRef.current) return;
 
     // Clean up any stale markers before initializing map
     markerRecordsRef.current.forEach((rec) => {
@@ -1727,7 +1739,7 @@ export const ItinerariesView: React.FC<ItinerariesViewProps> = ({
         mapRef.current = null;
       }
     };
-  }, [isOpen, userItinerary?.id, itineraryMapStyle, theme]);
+  }, [isOpen, itineraryViewMode, userItinerary?.id, itineraryMapStyle, theme]);
 
   // When active steps change or map finishes loading
   useEffect(() => {
@@ -1769,6 +1781,39 @@ export const ItinerariesView: React.FC<ItinerariesViewProps> = ({
   if (!isOpen) return null;
 
   // -------------------------------------------------------------
+  // EXPLORE MODE: Full-page Airbnb Itinerary Discovery Screen
+  // -------------------------------------------------------------
+  if (itineraryViewMode === 'explore') {
+    return (
+      <div className={`fixed inset-0 z-40 w-full h-full overflow-hidden ${isDark ? 'bg-[#000000]' : 'bg-white'} select-none`}>
+        <AirbnbItineraryExplorer
+          onSelectItinerary={handleApplyStoreItinerary}
+          onOpenMap={() => setItineraryViewMode('map')}
+          theme={theme}
+          activeItineraryId={userItinerary?.id}
+        />
+
+        {/* Global Toast */}
+        <AnimatePresence>
+          {storeToast && (
+            <motion.div
+              initial={{ opacity: 0, y: -20, scale: 0.95 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              exit={{ opacity: 0, y: -15, scale: 0.95 }}
+              className="fixed top-20 inset-x-0 mx-auto z-70 w-fit px-5 py-2.5 rounded-full bg-zinc-900/90 text-white border border-white/15 backdrop-blur-xl shadow-2xl flex items-center gap-2 text-xs font-black"
+            >
+              <span className="w-5 h-5 rounded-full bg-emerald-500 text-white flex items-center justify-center shrink-0">
+                <Check className="w-3 h-3 stroke-[3]" />
+              </span>
+              <span>{storeToast}</span>
+            </motion.div>
+          )}
+        </AnimatePresence>
+      </div>
+    );
+  }
+
+  // -------------------------------------------------------------
   // VIEW MODE: Interactive Map with Route, Sequential Points & Store
   // -------------------------------------------------------------
   return (
@@ -1791,23 +1836,17 @@ export const ItinerariesView: React.FC<ItinerariesViewProps> = ({
           paddingRight: 'max(16px, env(safe-area-inset-right, 0px))',
         }}
       >
-        {/* Left: Notes & Memories Modal Trigger Button (Translucent glass matching card) */}
-        <button
-          onClick={() => setIsNotesModalOpen(true)}
-          type="button"
-          className="relative w-12 h-12 rounded-full flex items-center justify-center pointer-events-auto transition-transform active:scale-95 cursor-pointer shrink-0 ios-glass border border-white/25 text-zinc-900 dark:text-white shadow-lg"
-          title="Anotações da viagem"
-        >
-          <Notebook className="w-5 h-5 stroke-[1.8] text-current" />
-
-          {/* Glowing white pulsing dot indicator when notes are saved */}
-          {tripNoteText.trim().length > 0 && (
-            <span className="absolute top-1 right-1 flex h-2.5 w-2.5 pointer-events-none">
-              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-white opacity-90 shadow-[0_0_10px_rgba(255,255,255,1)]" />
-              <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-white border border-zinc-300 dark:border-zinc-700 shadow-[0_0_8px_rgba(255,255,255,1)]" />
-            </span>
-          )}
-        </button>
+        {/* Left: Back Button to Airbnb Explorer + Notes Button */}
+        <div className="flex items-center gap-2 pointer-events-auto shrink-0">
+          <button
+            onClick={() => setItineraryViewMode('explore')}
+            type="button"
+            className="w-12 h-12 rounded-full flex items-center justify-center transition-transform active:scale-95 cursor-pointer shrink-0 ios-glass border border-white/25 text-zinc-900 dark:text-white shadow-lg"
+            title="Voltar para explorar roteiros"
+          >
+            <ChevronLeft className="w-6 h-6 stroke-[2.2] text-current" />
+          </button>
+        </div>
 
         {/* Dynamic Island Style Pill (Translucent glass matching card) */}
         <div
@@ -1866,14 +1905,9 @@ export const ItinerariesView: React.FC<ItinerariesViewProps> = ({
                 {getShortDisplayTitle(userItinerary?.title || 'MEU ROTEIRO')}
               </span>
 
-              {isUserGold ? (
+              {isUserGold && (
                 <span className="px-2.5 py-0.5 rounded-full bg-metallic-gold-badge border text-[#C28514] dark:text-[#FDE073] text-[9px] font-black uppercase tracking-wider shrink-0 shadow-xs">
-                  CONTA GOLD
-                </span>
-              ) : (
-                <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-[#007AFF]/15 border border-[#007AFF]/35 text-[#007AFF] text-[9px] font-black uppercase tracking-wider shadow-xs shrink-0">
-                  <span className="w-1.5 h-1.5 rounded-full bg-[#007AFF]" />
-                  <span>Conta Beta</span>
+                  ELITE GOLD
                 </span>
               )}
             </div>
@@ -1919,15 +1953,15 @@ export const ItinerariesView: React.FC<ItinerariesViewProps> = ({
           <Layers className="w-5 h-5 stroke-[2.2] text-current" />
         </motion.button>
 
-        {/* Floating Create Itinerary Button on Map (Casinha / Loja de Roteiros - NEVER hidden or under card) */}
+        {/* Floating Create Itinerary Button on Map (Casinha / Loja de Roteiros - switches to explore) */}
         <motion.button
           whileTap={{ scale: 0.90 }}
           whileHover={{ scale: 1.05 }}
           type="button"
-          onClick={() => setIsStoreOpen(true)}
+          onClick={() => setItineraryViewMode('explore')}
           className="w-[45px] h-[45px] rounded-full flex items-center justify-center cursor-pointer transition-all duration-200 ios-glass border border-white/25 shadow-lg"
-          title="Criar novo roteiro / Loja de Roteiros"
-          aria-label="Criar novo roteiro"
+          title="Explorar Roteiros / Loja"
+          aria-label="Explorar Roteiros"
         >
           <Store className={`w-5 h-5 stroke-[2.2] ${isUserGold ? 'text-[#E6AC33]' : 'text-zinc-900 dark:text-white'}`} />
         </motion.button>
@@ -1953,6 +1987,15 @@ export const ItinerariesView: React.FC<ItinerariesViewProps> = ({
               </h2>
             </div>
             <div className="flex items-center gap-1.5 shrink-0">
+              <button
+                type="button"
+                onClick={() => setItineraryViewMode('explore')}
+                className="px-2.5 py-1.5 rounded-xl bg-white/10 hover:bg-white/15 text-zinc-300 hover:text-white transition-colors cursor-pointer text-xs font-bold flex items-center gap-1"
+                title="Explorar outros roteiros"
+              >
+                <ChevronLeft className="w-3.5 h-3.5" />
+                <span>Explorar</span>
+              </button>
               <button
                 type="button"
                 onClick={() => setIsEditModalOpen(true)}
@@ -2375,7 +2418,7 @@ export const ItinerariesView: React.FC<ItinerariesViewProps> = ({
       <PlusActionMenuModal
         isOpen={isPlusMenuOpen}
         onClose={() => setIsPlusMenuOpen(false)}
-        onCreateNewItinerary={() => setIsStoreOpen(true)}
+        onCreateNewItinerary={() => setItineraryViewMode('explore')}
         onAddSpot={() => setIsImportModalOpen(true)}
         theme={theme}
         isGoldUser={isUserGold}
@@ -2391,6 +2434,21 @@ export const ItinerariesView: React.FC<ItinerariesViewProps> = ({
         theme={theme}
         isGoldUser={isUserGold}
       />
+
+      {/* Floating "Lista" / Back to Explore Button at Bottom Center */}
+      <div className="fixed bottom-22 sm:bottom-24 left-1/2 -translate-x-1/2 z-50 pointer-events-auto">
+        <motion.button
+          whileTap={{ scale: 0.92 }}
+          whileHover={{ scale: 1.05 }}
+          onClick={() => setItineraryViewMode('explore')}
+          type="button"
+          className="px-5 py-2.5 rounded-full bg-[#1C1D22] text-white border border-white/20 shadow-[0_8px_30px_rgba(0,0,0,0.85)] flex items-center gap-2 text-[13.5px] font-bold tracking-tight cursor-pointer hover:border-white/40 transition-all backdrop-blur-md"
+          title="Voltar para a lista de roteiros"
+        >
+          <List className="w-4 h-4 stroke-[2.2] text-white" />
+          <span>Lista</span>
+        </motion.button>
+      </div>
     </div>
   );
 };

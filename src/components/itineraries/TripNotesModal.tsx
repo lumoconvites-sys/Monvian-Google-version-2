@@ -156,7 +156,7 @@ export const TripNotesModal: React.FC<TripNotesModalProps> = ({
         transition={{ type: 'spring', damping: 28, stiffness: 350 }}
         className="relative w-full max-w-[430px] sm:max-w-md md:max-w-lg h-[86vh] max-h-[740px] min-h-[500px] z-10 flex flex-col justify-between select-none"
         style={{
-          fontFamily: "'Manrope', -apple-system, BlinkMacSystemFont, sans-serif",
+          fontFamily: "'Inter', -apple-system, BlinkMacSystemFont, sans-serif",
         }}
       >
         {/* VINTAGE PARCHMENT SHEET (No side glass card, pure travel diary sheet) */}

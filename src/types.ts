@@ -54,6 +54,7 @@ export interface Spot {
   lastSyncedMaps?: string;
   website?: string;
   phone?: string;
+  isActive?: boolean;
 }
 
 export interface WeatherInfo {
@@ -203,6 +204,7 @@ export interface ItineraryDay {
   itineraryId?: string;
   dayNumber: number;
   title: string;
+  theme?: string;
   summary?: string;
   steps: ItineraryStep[];
 }

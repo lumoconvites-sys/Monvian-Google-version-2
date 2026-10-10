@@ -210,7 +210,7 @@ export const OnboardingFlow: React.FC<OnboardingFlowProps> = ({
       <div
         className="fixed inset-0 z-[120] bg-[#000000] flex flex-col items-center justify-center text-white select-none"
         style={{
-          fontFamily: "'Manrope', -apple-system, BlinkMacSystemFont, sans-serif",
+          fontFamily: "'Inter', -apple-system, BlinkMacSystemFont, sans-serif",
           backgroundColor: '#000000',
           paddingTop: 'max(24px, env(safe-area-inset-top, 0px))',
           paddingBottom: 'max(24px, env(safe-area-inset-bottom, 0px))',
@@ -343,7 +343,7 @@ export const OnboardingFlow: React.FC<OnboardingFlowProps> = ({
     <div
       className="fixed inset-0 z-[110] bg-[#000000] flex flex-col items-center justify-between text-white select-none overflow-y-auto"
       style={{
-        fontFamily: "'Manrope', -apple-system, BlinkMacSystemFont, sans-serif",
+        fontFamily: "'Inter', -apple-system, BlinkMacSystemFont, sans-serif",
         backgroundColor: '#000000',
         paddingTop: 'max(20px, env(safe-area-inset-top, 0px))',
         paddingBottom: 'max(20px, env(safe-area-inset-bottom, 0px))',

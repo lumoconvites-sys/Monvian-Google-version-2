@@ -20,6 +20,7 @@ import {
   Loader2,
   CloudRain,
   Crown,
+  AtSign,
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { InstagramLogo, WhatsAppLogo } from './SocialIcons';
@@ -76,43 +77,109 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
     return '/fotoperfil.png';
   };
 
+  const [activeSubView, setActiveSubView] = useState<SubView>('main');
+  const handleSetSubView = (subView: SubView) => {
+    setActiveSubView(subView);
+    onSubViewChange?.(subView);
+  };
+  const isUserAdmin = Boolean(
+    user?.role === 'admin' ||
+    ['empresariomario@gmail.com', 'marioempresario@gmail.com', 'marioyesk@gmail.com'].includes((user?.email || '').trim().toLowerCase())
+  );
+
   // User profile state matching screenshot
   const [userName, setUserName] = useState(user?.name || 'Viajante');
+  const [userUsername, setUserUsername] = useState(user?.username || '');
+  const [userBio, setUserBio] = useState(user?.bio || '');
   const [userEmail, setUserEmail] = useState(user?.email || user?.whatsapp || '');
   const [userAvatar, setUserAvatar] = useState(getInitialAvatar(user));
   const [tempAvatar, setTempAvatar] = useState(getInitialAvatar(user));
 
+  // Form states for editing profile
+  const [tempName, setTempName] = useState(userName);
+  const [tempUsername, setTempUsername] = useState(user?.username || '');
+  const [usernameStatus, setUsernameStatus] = useState<'idle' | 'checking' | 'available' | 'unavailable'>('idle');
+  const [usernameFeedback, setUsernameFeedback] = useState('');
+  const [tempBio, setTempBio] = useState(user?.bio || '');
+  const [tempEmail, setTempEmail] = useState(userEmail);
+  const [saveToast, setSaveToast] = useState(false);
+  const [saveError, setSaveError] = useState('');
+  const [isUploading, setIsUploading] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const checkUsernameTimerRef = useRef<any>(null);
+
   useEffect(() => {
     if (user) {
       setUserName(user.name || 'Viajante');
+      setUserUsername(user.username || '');
+      setUserBio(user.bio || '');
       setUserEmail(user.email || user.whatsapp || '');
       const av = getInitialAvatar(user);
       setUserAvatar(av);
       setTempAvatar(av);
+      setTempName(user.name || 'Viajante');
+      setTempUsername(user.username || '');
+      setTempBio(user.bio || '');
+      setTempEmail(user.email || user.whatsapp || '');
     }
   }, [user]);
 
-  // Sub-view management
-  const [activeSubView, setActiveSubView] = useState<SubView>('main');
+  // Real-time verification of username availability in database
+  useEffect(() => {
+    if (activeSubView !== 'edit-profile') return;
+    const clean = tempUsername.trim().replace(/^@+/, '');
 
-  const handleSetSubView = (sub: SubView) => {
-    setActiveSubView(sub);
-    onSubViewChange?.(sub);
-  };
+    if (!clean) {
+      setUsernameStatus('idle');
+      setUsernameFeedback('');
+      return;
+    }
 
-  const isUserAdmin = Boolean(
-    user && (
-      (user.email && ['empresariomario@gmail.com', 'marioyesk@gmail.com'].includes(user.email.trim().toLowerCase())) ||
-      (user.whatsapp && ['empresariomario@gmail.com', 'marioyesk@gmail.com'].includes(user.whatsapp.trim().toLowerCase()))
-    )
-  );
+    if (clean.length < 3) {
+      setUsernameStatus('unavailable');
+      setUsernameFeedback('Nome de usuário indisponível (mínimo 3 caracteres)');
+      return;
+    }
 
-  // Form states for editing profile
-  const [tempName, setTempName] = useState(userName);
-  const [tempEmail, setTempEmail] = useState(userEmail);
-  const [saveToast, setSaveToast] = useState(false);
-  const [isUploading, setIsUploading] = useState(false);
-  const fileInputRef = useRef<HTMLInputElement | null>(null);
+    if (!/^[a-zA-Z0-9_]+$/.test(clean)) {
+      setUsernameStatus('unavailable');
+      setUsernameFeedback('Nome de usuário indisponível (use apenas letras, números e _)');
+      return;
+    }
+
+    // If same as current user's username
+    if (user?.username && clean.toLowerCase() === user.username.toLowerCase()) {
+      setUsernameStatus('available');
+      setUsernameFeedback('Nome de usuário disponível');
+      return;
+    }
+
+    setUsernameStatus('checking');
+    setUsernameFeedback('Verificando disponibilidade...');
+
+    if (checkUsernameTimerRef.current) clearTimeout(checkUsernameTimerRef.current);
+    checkUsernameTimerRef.current = setTimeout(async () => {
+      try {
+        const userIdParam = user?.id ? `&currentUserId=${encodeURIComponent(user.id)}` : '';
+        const res = await fetch(`/api/users/check-username?username=${encodeURIComponent(clean)}${userIdParam}`);
+        const data = await res.json();
+        if (data.available) {
+          setUsernameStatus('available');
+          setUsernameFeedback('Nome de usuário disponível');
+        } else {
+          setUsernameStatus('unavailable');
+          setUsernameFeedback('Nome de usuário indisponível');
+        }
+      } catch {
+        setUsernameStatus('idle');
+        setUsernameFeedback('');
+      }
+    }, 350);
+
+    return () => {
+      if (checkUsernameTimerRef.current) clearTimeout(checkUsernameTimerRef.current);
+    };
+  }, [tempUsername, activeSubView, user]);
 
   // Persistent settings states
   const [locationPerm, setLocationPerm] = useState<boolean>(() => {
@@ -169,7 +236,7 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
           theme === 'dark' ? 'bg-black text-white' : 'bg-white text-zinc-900'
         }`}
         style={{
-          fontFamily: "'Manrope', -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'SF Pro Text', sans-serif",
+          fontFamily: "'Inter', -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'SF Pro Text', sans-serif",
           paddingTop: 'max(14px, env(safe-area-inset-top, 0px))',
           paddingBottom: 'max(20px, env(safe-area-inset-bottom, 20px))',
         }}
@@ -396,7 +463,7 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
           setUserAvatar(compressedBase64);
           
           // Auto-sync if uploaded from main view
-          saveProfileToBackend(userName, userEmail, compressedBase64);
+          saveProfileToBackend(userName, userUsername, userBio, userEmail, compressedBase64);
         }
         setIsUploading(false);
       };
@@ -408,11 +475,13 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
     reader.readAsDataURL(file);
   };
 
-  const saveProfileToBackend = async (name: string, emailOrWhatsapp: string, avatar: string) => {
+  const saveProfileToBackend = async (name: string, usernameStr: string, bioStr: string, emailOrWhatsapp: string, avatar: string): Promise<boolean> => {
     const token = localStorage.getItem('monvian_token');
-    if (!token) return;
+    if (!token) return false;
 
+    setSaveError('');
     try {
+      const cleanUsername = usernameStr.trim().replace(/^@+/, '');
       const res = await fetch('/api/user/profile', {
         method: 'POST',
         headers: {
@@ -421,34 +490,63 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
         },
         body: JSON.stringify({
           name: name.trim(),
+          username: cleanUsername,
+          bio: bioStr.trim(),
           email: emailOrWhatsapp.trim(),
           whatsapp: emailOrWhatsapp.trim(),
           avatar_url: avatar
         })
       });
       const data = await res.json();
+      if (!res.ok || !data.success) {
+        setSaveError(data.error || 'Erro ao salvar alterações.');
+        return false;
+      }
       if (data.success && data.user) {
         localStorage.setItem('monvian_user', JSON.stringify(data.user));
+        setUserUsername(data.user.username || cleanUsername);
+        setUserBio(data.user.bio || bioStr);
         if (onUpdateUser) {
           onUpdateUser(data.user);
         }
+        return true;
       }
+      return true;
     } catch (err) {
       console.error('Error saving user profile:', err);
+      setSaveError('Erro de conexão ao salvar.');
+      return false;
     }
   };
 
   const handleSaveProfile = async (e: React.FormEvent) => {
     e.preventDefault();
+    setSaveError('');
+
+    const cleanUsername = tempUsername.trim().replace(/^@+/, '');
+    if (!cleanUsername) {
+      setSaveError('O nome de usuário é obrigatório.');
+      return;
+    }
+
+    if (usernameStatus === 'unavailable') {
+      setSaveError('Nome de usuário indisponível. Escolha outro.');
+      return;
+    }
+
     const finalName = tempName.trim() || userName;
     const finalEmail = tempEmail.trim() || userEmail;
     const finalAvatar = tempAvatar || userAvatar;
+    const finalBio = tempBio.trim();
+
+    const ok = await saveProfileToBackend(finalName, cleanUsername, finalBio, finalEmail, finalAvatar);
+    if (!ok) return;
 
     setUserName(finalName);
+    setUserUsername(cleanUsername);
+    setUserBio(finalBio);
     setUserEmail(finalEmail);
     setUserAvatar(finalAvatar);
-
-    await saveProfileToBackend(finalName, finalEmail, finalAvatar);
 
     setSaveToast(true);
     setTimeout(() => {
@@ -467,7 +565,7 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
         onClick={(e) => e.stopPropagation()}
         className="relative w-full h-full md:h-[88vh] md:max-w-2xl bg-zinc-50 dark:bg-[#000000] md:dark:ios-glass text-zinc-900 dark:text-white rounded-none md:rounded-[32px] overflow-hidden flex flex-col justify-between shadow-2xl md:border md:border-black/10 md:dark:border-white/15"
         style={{
-          fontFamily: "'Manrope', -apple-system, BlinkMacSystemFont, sans-serif",
+          fontFamily: "'Inter', -apple-system, BlinkMacSystemFont, sans-serif",
         }}
       >
       {/* Top Header Bar identical to screenshot */}
@@ -496,7 +594,6 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
             {activeSubView === 'main' && 'Perfil'}
             {activeSubView === 'edit-profile' && 'Editar Perfil'}
             {activeSubView === 'curtidos' && 'Lugares Curtidos'}
-            {activeSubView === 'permissoes' && 'Configurações'}
             {activeSubView === 'painel-adm' && 'Painel ADM'}
             {activeSubView === 'logout-confirm' && 'Encerrar Sessão'}
           </h1>
@@ -567,7 +664,10 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
                         <Crown className="w-4 h-4 text-[#F5BE38] fill-[#F5BE38]/30 stroke-[2.2] shrink-0" />
                       </h2>
                     </div>
-                    <p className="text-xs sm:text-sm text-zinc-500 dark:text-zinc-400 font-medium truncate mt-1">
+                    <p className="text-xs sm:text-[13px] text-sky-500 font-bold truncate mt-0.5">
+                      @{userUsername || user?.username || 'usuario'}
+                    </p>
+                    <p className="text-xs sm:text-sm text-zinc-500 dark:text-zinc-400 font-medium truncate mt-0.5">
                       {userEmail}
                     </p>
                   </div>
@@ -600,19 +700,17 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
                     <h2 className="text-xl sm:text-[22px] font-black text-zinc-900 dark:text-white tracking-tight leading-tight">
                       {userName}
                     </h2>
-                    {isPremiumUser ? (
+                    {isPremiumUser && (
                       <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-[#F5BE38]/20 border border-[#F5BE38]/40 text-[#D99A1C] dark:text-[#F5BE38] text-[10px] font-black uppercase tracking-wider shadow-xs">
                         <Crown className="w-3 h-3 text-[#D99A1C] dark:text-[#F5BE38]" />
-                        <span>Membro Gold</span>
-                      </span>
-                    ) : (
-                      <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-[#007AFF]/15 border border-[#007AFF]/35 text-[#007AFF] text-[10px] font-black uppercase tracking-wider shadow-xs">
-                        <span className="w-1.5 h-1.5 rounded-full bg-[#007AFF]" />
-                        <span>Conta Beta</span>
+                        <span>Membro Elite Gold</span>
                       </span>
                     )}
                   </div>
-                  <p className="text-xs sm:text-sm text-zinc-500 dark:text-zinc-400 font-black truncate mt-1">
+                  <p className="text-xs sm:text-[13px] text-sky-500 font-bold truncate mt-0.5">
+                    @{userUsername || user?.username || 'usuario'}
+                  </p>
+                  <p className="text-xs sm:text-sm text-zinc-500 dark:text-zinc-400 font-black truncate mt-0.5">
                     {userEmail}
                   </p>
                 </div>
@@ -626,8 +724,13 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
                 id="btn-profile-edit-option"
                 onClick={() => {
                   setTempName(userName);
+                  setTempUsername(userUsername);
+                  setTempBio(userBio);
                   setTempEmail(userEmail);
                   setTempAvatar(userAvatar);
+                  setUsernameStatus('idle');
+                  setUsernameFeedback('');
+                  setSaveError('');
                   handleSetSubView('edit-profile');
                 }}
                 className="w-full p-4 rounded-3xl bg-white dark:bg-[#141518] hover:bg-zinc-50 dark:hover:bg-[#1a1c21] active:scale-[0.98] border border-zinc-200 dark:border-white/5 hover:border-zinc-300 dark:hover:border-white/15 transition-all flex items-center justify-between text-left cursor-pointer group shadow-sm"
@@ -858,16 +961,91 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
                   </button>
                 </div>
 
+                {/* Nome de Exibição */}
                 <div>
                   <label className="block text-xs font-black text-zinc-500 dark:text-zinc-400 mb-1.5">
-                    Nome de usuário
+                    Nome
                   </label>
                   <input
                     type="text"
+                    placeholder="Seu nome (ex: Mariana Silva)"
                     value={tempName}
                     onChange={(e) => setTempName(e.target.value)}
                     className="w-full px-4 py-3 rounded-2xl bg-zinc-50 dark:bg-zinc-900 border border-zinc-200 dark:border-white/10 text-zinc-900 dark:text-white text-sm focus:outline-none focus:border-zinc-900 dark:focus:border-white"
                     required
+                  />
+                </div>
+
+                {/* Nome de Usuário com validação em tempo real */}
+                <div>
+                  <div className="flex items-center justify-between mb-1.5">
+                    <label className="text-xs font-black text-zinc-500 dark:text-zinc-400">
+                      Nome de usuário
+                    </label>
+                    {usernameStatus === 'checking' && (
+                      <span className="text-[11px] text-zinc-400 font-medium flex items-center gap-1">
+                        <Loader2 className="w-3 h-3 animate-spin" />
+                        Verificando...
+                      </span>
+                    )}
+                    {usernameStatus === 'available' && (
+                      <span className="text-[11px] text-emerald-500 font-bold flex items-center gap-1">
+                        <Check className="w-3 h-3 stroke-[2.5]" />
+                        Nome de usuário disponível
+                      </span>
+                    )}
+                    {usernameStatus === 'unavailable' && (
+                      <span className="text-[11px] text-rose-500 font-bold flex items-center gap-1">
+                        <X className="w-3 h-3 stroke-[2.5]" />
+                        Nome de usuário indisponível
+                      </span>
+                    )}
+                  </div>
+                  <div className="relative">
+                    <div className="absolute left-3.5 top-1/2 -translate-y-1/2 text-zinc-400 font-bold text-sm pointer-events-none select-none">
+                      @
+                    </div>
+                    <input
+                      type="text"
+                      placeholder="marianasilva"
+                      value={tempUsername}
+                      onChange={(e) => {
+                        const clean = e.target.value.replace(/^@+/, '').replace(/[^a-zA-Z0-9_]/g, '');
+                        setTempUsername(clean);
+                      }}
+                      className={`w-full pl-8 pr-4 py-3 rounded-2xl bg-zinc-50 dark:bg-zinc-900 border text-zinc-900 dark:text-white text-sm focus:outline-none transition-colors ${
+                        usernameStatus === 'available'
+                          ? 'border-emerald-500/80 focus:border-emerald-500'
+                          : usernameStatus === 'unavailable'
+                          ? 'border-rose-500/80 focus:border-rose-500'
+                          : 'border-zinc-200 dark:border-white/10 focus:border-zinc-900 dark:focus:border-white'
+                      }`}
+                      required
+                      autoCapitalize="none"
+                      autoCorrect="off"
+                      spellCheck={false}
+                    />
+                  </div>
+                  {usernameFeedback && (
+                    <p className={`text-[11.5px] font-semibold mt-1 px-1 ${
+                      usernameStatus === 'available' ? 'text-emerald-500' : 'text-rose-500'
+                    }`}>
+                      {usernameFeedback}
+                    </p>
+                  )}
+                </div>
+
+                {/* Biografia */}
+                <div>
+                  <label className="block text-xs font-black text-zinc-500 dark:text-zinc-400 mb-1.5">
+                    Biografia
+                  </label>
+                  <textarea
+                    rows={2}
+                    placeholder="Conte sobre sua paixão por viajar e explorar Campos..."
+                    value={tempBio}
+                    onChange={(e) => setTempBio(e.target.value)}
+                    className="w-full px-4 py-2.5 rounded-2xl bg-zinc-50 dark:bg-zinc-900 border border-zinc-200 dark:border-white/10 text-zinc-900 dark:text-white text-sm focus:outline-none focus:border-zinc-900 dark:focus:border-white resize-none"
                   />
                 </div>
 
@@ -884,6 +1062,12 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
                     required
                   />
                 </div>
+
+                {saveError && (
+                  <p className="text-xs text-rose-500 font-bold px-1 text-center">
+                    {saveError}
+                  </p>
+                )}
               </div>
 
               <div className="flex items-center gap-3">

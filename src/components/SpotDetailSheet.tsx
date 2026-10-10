@@ -79,7 +79,7 @@ export const SpotDetailSheet: React.FC<SpotDetailSheetProps> = ({
       exit={{ opacity: 0 }}
       transition={{ duration: 0.25, ease: 'easeOut' }}
       onClick={onClose}
-      className="fixed inset-0 z-[100] bg-black/40 backdrop-blur-xs flex flex-col justify-end md:justify-center md:items-start md:p-6 md:pl-[310px] lg:md:pl-[340px] select-none cursor-pointer"
+      className="fixed inset-0 z-[110] bg-black/40 backdrop-blur-xs flex flex-col justify-end md:justify-center md:items-start md:p-6 md:pl-[310px] lg:md:pl-[340px] select-none cursor-pointer"
     >
       {/* Native Apple Fluid Spring Sheet with smooth scale and slide physics */}
       <motion.div
@@ -96,7 +96,7 @@ export const SpotDetailSheet: React.FC<SpotDetailSheetProps> = ({
         onClick={(e) => e.stopPropagation()}
         className="relative w-full h-[94vh] sm:h-[92vh] md:h-[88vh] max-w-2xl md:max-w-md lg:max-w-lg mx-auto md:mx-0 bg-white dark:bg-[#0e1014] text-zinc-900 dark:text-white rounded-t-[32px] md:rounded-[32px] overflow-hidden flex flex-col shadow-2xl origin-bottom md:origin-center cursor-auto transform-gpu border border-transparent dark:md:border-white/10"
         style={{
-          fontFamily: "'Manrope', -apple-system, BlinkMacSystemFont, sans-serif",
+          fontFamily: "'Inter', -apple-system, BlinkMacSystemFont, sans-serif",
           willChange: 'transform, opacity',
         }}
       >
@@ -189,17 +189,8 @@ export const SpotDetailSheet: React.FC<SpotDetailSheetProps> = ({
           </div>
 
           {/* Main Content Body */}
-          <div className="relative -mt-6 bg-white dark:bg-[#000000] rounded-t-[32px] px-5 sm:px-6 pt-3 pb-8 shadow-[0_-10px_30px_rgba(0,0,0,0.06)] dark:shadow-[0_-10px_30px_rgba(0,0,0,0.6)] border-t border-zinc-200/40 dark:border-white/10 min-h-[calc(100dvh-250px)] flex flex-col">
+          <div className="relative -mt-6 bg-white dark:bg-[#000000] rounded-t-[32px] px-5 sm:px-6 pt-5 pb-8 shadow-[0_-10px_30px_rgba(0,0,0,0.06)] dark:shadow-[0_-10px_30px_rgba(0,0,0,0.6)] border-t border-zinc-200/40 dark:border-white/10 min-h-[calc(100dvh-250px)] flex flex-col">
             
-            {/* Clean iOS Drag Handle */}
-            <div
-              className="w-full flex items-center justify-center py-2.5 -mt-1 mb-2.5 cursor-pointer select-none"
-              onClick={onClose}
-              title="Toque para fechar"
-            >
-              <div className="w-11 h-1.5 rounded-full bg-zinc-300 dark:bg-white/20 hover:bg-zinc-400 dark:hover:bg-white/40 transition-colors" />
-            </div>
-
             {/* Title and Badge */}
             <div className="flex items-center gap-2 mb-2">
               <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight text-zinc-900 dark:text-[#F5F2EA] leading-tight">
@@ -211,12 +202,12 @@ export const SpotDetailSheet: React.FC<SpotDetailSheetProps> = ({
             {/* Metadata Row */}
             <div className="flex items-center gap-2.5 text-xs sm:text-sm mb-5 text-zinc-600 dark:text-[#9A9894] flex-wrap">
               <div className="flex items-center gap-1 bg-zinc-100 dark:bg-white/10 px-3 py-1.5 rounded-full">
-                <Star className={`w-4 h-4 ${isGoldUser ? 'fill-[#F5BE38] text-[#F5BE38]' : 'fill-[#007AFF] text-[#007AFF]'}`} />
+                <Star className={`w-4 h-4 ${isGoldUser ? 'fill-[#F5BE38] text-[#F5BE38]' : 'fill-zinc-900 text-zinc-900 dark:fill-white dark:text-white'}`} />
                 <span className="font-bold text-zinc-900 dark:text-[#F5F2EA]">{spot.rating}</span>
                 <span className="text-[#9A9894] font-semibold">({spot.reviewCount})</span>
               </div>
               <div className="flex items-center gap-1.5 bg-zinc-100 dark:bg-white/10 px-3 py-1.5 rounded-full">
-                <MapPin className={`w-4 h-4 ${isGoldUser ? 'text-[#F5BE38]' : 'text-[#007AFF]'}`} />
+                <MapPin className={`w-4 h-4 ${isGoldUser ? 'text-[#F5BE38]' : 'text-zinc-900 dark:text-white'}`} />
                 <span className="font-semibold text-zinc-700 dark:text-[#9A9894]">{distance}</span>
               </div>
               <div className="flex items-center gap-1.5 bg-zinc-100 dark:bg-white/10 px-3 py-1.5 rounded-full">

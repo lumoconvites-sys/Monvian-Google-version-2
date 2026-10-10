@@ -55,7 +55,7 @@ export const DesktopExplorePanel: React.FC<DesktopExplorePanelProps> = ({
             <div className="p-4 lg:p-5 pb-3 border-b border-black/10 dark:border-white/10 shrink-0">
               <div className="flex items-center justify-between">
                 <div>
-                  <h2 className="text-base lg:text-lg font-black tracking-tight text-zinc-900 dark:text-white font-['Manrope']">
+                  <h2 className="text-base lg:text-lg font-black tracking-tight text-zinc-900 dark:text-white font-['Inter']">
                     Pontos Turísticos
                   </h2>
                   <p className="text-xs text-zinc-500 dark:text-zinc-400 font-medium mt-0.5">

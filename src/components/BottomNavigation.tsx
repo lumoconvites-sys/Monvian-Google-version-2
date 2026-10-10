@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect, useLayoutEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { NavAgoraIcon, NavChatIcon, NavSearchIcon, NavProfileIcon, NavRoteirosIcon } from './NavIcons';
+import { NavAgoraIcon, NavChatIcon, NavPostsIcon, NavSearchIcon, NavProfileIcon, NavRoteirosIcon } from './NavIcons';
 
 export type TabType = 'explorar' | 'roteiros' | 'chat' | 'buscar' | 'perfil';
 
@@ -21,6 +21,7 @@ export const BottomNavigation: React.FC<BottomNavigationProps> = ({
   forceWhiteUI = false,
   theme = 'dark',
 }) => {
+  const isDark = theme !== 'light' && !forceWhiteUI;
   const isUserGold = Boolean(
     (() => {
       try {
@@ -49,7 +50,7 @@ export const BottomNavigation: React.FC<BottomNavigationProps> = ({
   const tabs: { id: TabType; label: string }[] = [
     { id: 'explorar', label: 'Explorar' },
     { id: 'roteiros', label: 'Roteiros' },
-    { id: 'chat', label: 'Chat' },
+    { id: 'chat', label: 'Publicações' },
     { id: 'buscar', label: 'Buscar' },
     { id: 'perfil', label: 'Perfil' },
   ];
@@ -163,42 +164,10 @@ export const BottomNavigation: React.FC<BottomNavigationProps> = ({
 
   return (
     <>
-      {/* 0. Translucent Glassmorphism Protection Scrim behind the bottom bar
-          Active ONLY on the four screens that use the bottom navigation (Roteiros, Chat, Buscar, Perfil).
-          Preserves the main map view (Explorar) completely free of any overlay, blur, or mask. */}
-      <AnimatePresence>
-        {activeTab !== 'explorar' && (
-          <motion.div
-            key="bottom-nav-protection-layer"
-            id="bottom-nav-protection-layer"
-            aria-hidden="true"
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            transition={{ duration: 0.22, ease: [0.32, 0.72, 0, 1] }}
-            className="fixed inset-x-0 bottom-0 pointer-events-none z-48 select-none overflow-hidden"
-            style={{
-              height: 'calc(max(22px, calc(env(safe-area-inset-bottom, 0px) + 16px)) + 64px)',
-              background:
-                theme === 'light'
-                  ? 'linear-gradient(to top, rgba(242, 242, 245, 0.46) 0%, rgba(242, 242, 245, 0.38) 45%, rgba(242, 242, 245, 0.18) 75%, rgba(242, 242, 245, 0) 100%)'
-                  : 'linear-gradient(to top, rgba(0, 0, 0, 0.42) 0%, rgba(0, 0, 0, 0.38) 45%, rgba(0, 0, 0, 0.20) 75%, rgba(0, 0, 0, 0) 100%)',
-              backdropFilter: 'blur(20px)',
-              WebkitBackdropFilter: 'blur(20px)',
-              maskImage:
-                'linear-gradient(to top, rgba(0,0,0,1) 0%, rgba(0,0,0,0.85) 45%, rgba(0,0,0,0.3) 80%, rgba(0,0,0,0) 100%)',
-              WebkitMaskImage:
-                'linear-gradient(to top, rgba(0,0,0,1) 0%, rgba(0,0,0,0.85) 45%, rgba(0,0,0,0.3) 80%, rgba(0,0,0,0) 100%)',
-              boxShadow: 'none',
-            }}
-          />
-        )}
-      </AnimatePresence>
-
       <nav
         id="bottom-floating-navigation"
         aria-label="Navegação Principal"
-        className={`fixed inset-x-0 bottom-0 z-50 flex justify-center select-none font-['Manrope'] px-3 pointer-events-none transition-[filter,opacity,transform] duration-200 ease-out ${
+        className={`fixed inset-x-0 bottom-0 z-50 flex justify-center select-none font-['Inter'] px-3 pointer-events-none transition-[filter,opacity,transform] duration-200 ease-out ${
           isBlurred
             ? 'filter blur-sm opacity-35 scale-[0.98]'
             : 'filter-none opacity-100 scale-100'
@@ -216,44 +185,39 @@ export const BottomNavigation: React.FC<BottomNavigationProps> = ({
           margin: 0,
           paddingLeft: '16px',
           paddingRight: '16px',
-          paddingBottom: 'max(22px, calc(env(safe-area-inset-bottom, 0px) + 16px))',
+          paddingBottom:
+            activeTab === 'chat'
+              ? 'max(6px, calc(env(safe-area-inset-bottom, 0px) + 6px))'
+              : 'max(22px, calc(env(safe-area-inset-bottom, 0px) + 16px))',
         }}
       >
-        {/* Bottom Navigation Capsule Bar - Compact centered iOS dock for desktop and mobile */}
+        {/* Bottom Navigation Bar */}
         <div
           ref={containerRef}
-          className="w-full max-w-[430px] sm:max-w-[460px] pointer-events-auto flex items-center justify-around px-2 sm:px-3 py-1.5 rounded-full relative overflow-hidden transition-all duration-300 shadow-lg ios-glass-nav border border-white/20 dark:border-white/15"
+          className={`w-full max-w-[430px] sm:max-w-[460px] pointer-events-auto flex items-center justify-around px-2 sm:px-3 py-1 relative overflow-hidden rounded-full shadow-2xl ios-glass-nav transition-all duration-300 ${
+            isDark
+              ? 'border border-white/20 bg-black/75 backdrop-blur-xl'
+              : 'border border-black/15 bg-white/90 backdrop-blur-xl shadow-[0_12px_36px_rgba(0,0,0,0.2)]'
+          }`}
           style={{
-            boxShadow: '0 8px 32px 0 rgba(0, 0, 0, 0.37)',
+            boxShadow: isDark ? '0 8px 32px 0 rgba(0, 0, 0, 0.45)' : '0 10px 36px 0 rgba(0, 0, 0, 0.18)',
           }}
         >
-        {/* Active Tab Pill Indicator with Smooth Drag & Spring Snap */}
-        {tabRects.length > 0 && (
-          <motion.div
-            className="absolute rounded-full -z-10 pointer-events-none transition-colors duration-300 shadow-none bg-white/[0.14] dark:bg-white/[0.15] border border-white/25 dark:border-white/20"
-            style={{
-              top: 3,
-              bottom: 3,
-              width: Math.max(0, activeRect.width - 4),
-              left: activeRect.left + 2,
-            }}
-            animate={
-              isDragging
-                ? { x: dragOffset, transition: { duration: 0 } }
-                : { x: 0, transition: { type: 'spring', stiffness: 500, damping: 35 } }
-            }
-          />
-        )}
-
         {tabs.map((tab, idx) => {
           const isActive = activeTab === tab.id;
           const isPreviewHovered = isDragging && previewIndex === idx;
 
-          // Standard iOS glass navigation colors matching the strong tone of the search magnifying glass icon
-          const activeColorClass = 'text-zinc-950 dark:text-white scale-100 opacity-100 font-black';
-          const inactiveColorClass = 'text-zinc-800 dark:text-zinc-200 opacity-100 font-bold hover:text-zinc-950 dark:hover:text-white';
-          const labelActiveColor = 'font-black text-zinc-950 dark:text-white';
-          const labelInactiveColor = 'font-bold text-zinc-800 dark:text-zinc-200';
+          // Standard iOS glass navigation colors - High contrast cinza forte in light mode as requested
+          const activeColorClass = isDark
+            ? 'text-white scale-100 opacity-100 font-black'
+            : 'text-zinc-950 scale-100 opacity-100 font-black';
+
+          const inactiveColorClass = isDark
+            ? 'text-zinc-300 opacity-90 font-bold hover:text-white'
+            : 'text-zinc-700 opacity-100 font-black hover:text-black'; // Cinza forte bem destacado
+
+          const labelActiveColor = isDark ? 'font-black text-white' : 'font-black text-zinc-950';
+          const labelInactiveColor = isDark ? 'font-bold text-zinc-300' : 'font-extrabold text-zinc-700';
 
           return (
             <button
@@ -263,7 +227,9 @@ export const BottomNavigation: React.FC<BottomNavigationProps> = ({
               type="button"
               onClick={() => handleTabClick(tab.id)}
               title={tab.label}
-              className="relative flex flex-col items-center justify-center w-[60px] sm:w-[68px] h-[48px] sm:h-[50px] rounded-full cursor-pointer z-10 select-none hover:bg-black/5 dark:hover:bg-white/5 active:scale-95 transition-all"
+              className={`relative flex flex-col items-center justify-center w-[60px] sm:w-[68px] h-[48px] sm:h-[50px] rounded-full cursor-pointer z-10 select-none ${
+                isDark ? 'hover:bg-white/5' : 'hover:bg-black/5'
+              } active:scale-95 transition-all`}
             >
               {/* 1. Agora Icon */}
               {tab.id === 'explorar' && (
@@ -293,20 +259,24 @@ export const BottomNavigation: React.FC<BottomNavigationProps> = ({
                 </div>
               )}
 
-              {/* 3. Chat Icon */}
+              {/* 3. Publicações Icon */}
               {tab.id === 'chat' && (
-                <div
-                  className={`relative w-6.5 h-6.5 flex items-center justify-center mb-0.5 transition-all ${
+                <motion.div
+                  animate={isActive ? { scale: [0.92, 1.12, 1] } : { scale: 1 }}
+                  transition={{ type: 'spring', stiffness: 450, damping: 20 }}
+                  className={`relative w-6.5 h-6.5 flex items-center justify-center mb-0.5 transition-all transform-gpu ${
                     isActive || isPreviewHovered ? activeColorClass : inactiveColorClass
                   }`}
                 >
-                  <NavChatIcon size={22} className="w-5.5 h-5.5 text-current" />
+                  <NavPostsIcon size={22} className="w-5.5 h-5.5 text-current" />
                   {unreadCount > 0 && (
-                    <span className={`absolute -top-0.5 right-0.5 w-2 h-2 rounded-full ring-2 ring-white dark:ring-[#16181d] shadow-xs ${
+                    <span className={`absolute -top-0.5 right-0.5 w-2 h-2 rounded-full ring-2 shadow-xs ${
+                      isDark ? 'ring-[#16181d]' : 'ring-white'
+                    } ${
                       isUserGold ? 'bg-[#F5BE38]' : 'bg-blue-600'
                     }`} />
                   )}
-                </div>
+                </motion.div>
               )}
 
               {/* 3. Buscar Icon */}
@@ -332,7 +302,7 @@ export const BottomNavigation: React.FC<BottomNavigationProps> = ({
               )}
 
               <span
-                className={`font-['Manrope'] text-[11px] leading-tight tracking-tight select-none transition-all ${
+                className={`font-['Inter'] text-[11px] leading-tight tracking-tight select-none transition-all ${
                   isActive || isPreviewHovered ? labelActiveColor : labelInactiveColor
                 }`}
               >

@@ -56,6 +56,9 @@ export async function isFirestoreReachable(): Promise<boolean> {
 export interface FirestoreUser {
   id?: number;
   name: string;
+  username?: string;
+  username_normalized?: string;
+  bio?: string;
   email: string;
   whatsapp?: string;
   password_hash: string;

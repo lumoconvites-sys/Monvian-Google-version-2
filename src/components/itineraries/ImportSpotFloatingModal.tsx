@@ -74,7 +74,7 @@ export const ImportSpotFloatingModal: React.FC<ImportSpotFloatingModalProps> = (
                 : 'bg-[#1c1c1e]/80 border-white/20 text-white shadow-[0_30px_90px_rgba(0,0,0,0.9)] ring-1 ring-white/10'
             }`}
             style={{
-              fontFamily: "'Manrope', -apple-system, BlinkMacSystemFont, sans-serif",
+              fontFamily: "'Inter', -apple-system, BlinkMacSystemFont, sans-serif",
               WebkitBackdropFilter: 'blur(25px) saturate(180%)',
               backdropFilter: 'blur(25px) saturate(180%)',
               willChange: 'transform, opacity',

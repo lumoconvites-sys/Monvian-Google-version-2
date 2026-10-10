@@ -107,6 +107,44 @@ export const NavChatIcon: React.FC<IconProps> = ({ className = '', size = 25 }) 
 };
 
 /**
+ * 2.5. Publicações: Ícone minimalista de foto/feed no padrão Apple iOS SF Symbols.
+ * Representa publicações e fotos de Campos do Jordão com linhas limpas e elegantes.
+ */
+export const NavPostsIcon: React.FC<IconProps> = ({ className = '', size = 23 }) => {
+  return (
+    <svg
+      width={size}
+      height={size}
+      viewBox="0 0 24 24"
+      fill="none"
+      xmlns="http://www.w3.org/2000/svg"
+      className={className}
+      aria-hidden="true"
+    >
+      <rect
+        x="3"
+        y="3.5"
+        width="18"
+        height="17"
+        rx="4.5"
+        stroke="currentColor"
+        strokeWidth="1.9"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+      <circle cx="8" cy="8.5" r="1.5" fill="currentColor" />
+      <path
+        d="M20.5 15.5L15.5 10.8C15.1 10.4 14.4 10.4 14 10.8L4 20"
+        stroke="currentColor"
+        strokeWidth="1.9"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
+  );
+};
+
+/**
  * 3. Buscar: Lupa redesenhada refinada, com traços uniformes e proporções
  * equilibradas no padrão premium do iOS.
  */

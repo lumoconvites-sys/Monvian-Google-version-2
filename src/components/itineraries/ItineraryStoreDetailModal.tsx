@@ -130,7 +130,7 @@ export const ItineraryStoreDetailModal: React.FC<ItineraryStoreDetailModalProps>
           className={`fixed inset-0 z-[200] flex flex-col backdrop-blur-md transition-colors duration-200 ${
             isLight ? 'bg-black/40' : 'bg-black/85'
           }`}
-          style={{ fontFamily: "'Manrope', -apple-system, BlinkMacSystemFont, sans-serif", willChange: 'opacity' }}
+          style={{ fontFamily: "'Inter', -apple-system, BlinkMacSystemFont, sans-serif", willChange: 'opacity' }}
         >
           {/* Fullscreen Mobile View Container */}
           <motion.div
@@ -189,7 +189,7 @@ export const ItineraryStoreDetailModal: React.FC<ItineraryStoreDetailModalProps>
                   {itinerary.isPremium && (
                     <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-metallic-gold text-[#1A1202] text-[9.5px] font-black uppercase tracking-wider shadow-xs border border-[#FFF4A3]/60">
                       <Crown className="w-3 h-3 stroke-[2.4] text-[#1A1202]" />
-                      <span>{itinerary.badgeText && itinerary.badgeText.toUpperCase() !== 'PREMIUM' ? itinerary.badgeText : 'CONTA GOLD'}</span>
+                      <span>{itinerary.badgeText && itinerary.badgeText.toUpperCase() !== 'PREMIUM' ? itinerary.badgeText : 'ELITE GOLD'}</span>
                     </span>
                   )}
 
