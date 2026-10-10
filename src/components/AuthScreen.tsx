@@ -160,6 +160,7 @@ export function AuthScreen({ onSuccess }: AuthScreenProps) {
           email: email.trim(),
           password,
           gender,
+          code: '', // Passar o código, se necessário. Se for opcional no backend, pode ser vazio.
         }),
       });
       const data = await res.json();
