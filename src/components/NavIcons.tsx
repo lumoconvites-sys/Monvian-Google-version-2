@@ -107,9 +107,31 @@ export const NavChatIcon: React.FC<IconProps> = ({ className = '', size = 25 }) 
 };
 
 /**
- * 2.5. Publicações: Ícone minimalista de foto/feed no padrão Apple iOS SF Symbols.
- * Representa publicações e fotos de Campos do Jordão com linhas limpas e elegantes.
+ * 2.5. Salvos / Favoritos: Ícone de coração no padrão Apple iOS SF Symbols / Airbnb.
+ * Traço fino e refinado, proporções equilibradas e preenchimento adaptativo.
  */
+export const NavSalvosIcon: React.FC<IconProps & { filled?: boolean }> = ({ className = '', size = 22, filled = false }) => {
+  return (
+    <svg
+      width={size}
+      height={size}
+      viewBox="0 0 24 24"
+      fill={filled ? 'currentColor' : 'none'}
+      xmlns="http://www.w3.org/2000/svg"
+      className={className}
+      aria-hidden="true"
+    >
+      <path
+        d="M12 21.05c-.32 0-.63-.12-.87-.34-4.83-4.39-7.98-7.39-7.98-11.21 0-3.12 2.37-5.5 5.5-5.5 1.95 0 3.75 1.01 4.75 2.59 1-1.58 2.8-2.59 4.75-2.59 3.13 0 5.5 2.38 5.5 5.5 0 3.82-3.15 6.82-7.98 11.21-.24.22-.55.34-.87.34z"
+        stroke="currentColor"
+        strokeWidth={filled ? '0' : '1.85'}
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
+  );
+};
+
 export const NavPostsIcon: React.FC<IconProps> = ({ className = '', size = 23 }) => {
   return (
     <svg
@@ -143,6 +165,7 @@ export const NavPostsIcon: React.FC<IconProps> = ({ className = '', size = 23 })
     </svg>
   );
 };
+
 
 /**
  * 3. Buscar: Lupa redesenhada refinada, com traços uniformes e proporções

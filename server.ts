@@ -190,6 +190,15 @@ db.exec(`
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
   );
+
+  CREATE TABLE IF NOT EXISTS user_favorites (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id INTEGER NOT NULL,
+    item_type TEXT NOT NULL,
+    item_id TEXT NOT NULL,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(user_id, item_type, item_id)
+  );
 `);
 // Initialize Itineraries & Stripe databases
 setupItineraryDatabase(db);
@@ -2480,6 +2489,184 @@ async function startServer() {
     } catch (e) {}
 
     res.json({ success: true });
+  });
+
+  // ==========================================
+  // USER FAVORITES / WISHLISTS API ENDPOINTS
+  // ==========================================
+  app.get('/api/user/favorites', (req: Request, res: Response) => {
+    const authHeader = req.headers.authorization;
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+      return res.status(401).json({ error: 'Não autenticado' });
+    }
+    const token = authHeader.split(' ')[1];
+    let decoded: any;
+    try {
+      decoded = jwt.verify(token, JWT_SECRET);
+    } catch (e) {
+      return res.status(401).json({ error: 'Token inválido' });
+    }
+
+    try {
+      const rows = db.prepare('SELECT item_type, item_id FROM user_favorites WHERE user_id = ?').all(decoded.id) as Array<{ item_type: string; item_id: string }>;
+      const favorites = {
+        itineraries: rows.filter(r => r.item_type === 'itinerary').map(r => r.item_id),
+        spots: rows.filter(r => r.item_type === 'spot').map(r => r.item_id),
+        places: rows.filter(r => r.item_type === 'place').map(r => r.item_id)
+      };
+      res.json({ success: true, favorites });
+    } catch (error) {
+      console.error('Error fetching favorites:', error);
+      res.status(500).json({ error: 'Erro ao carregar favoritos' });
+    }
+  });
+
+  app.post('/api/user/favorites/toggle', (req: Request, res: Response) => {
+    const authHeader = req.headers.authorization;
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+      return res.status(401).json({ error: 'Não autenticado' });
+    }
+    const token = authHeader.split(' ')[1];
+    let decoded: any;
+    try {
+      decoded = jwt.verify(token, JWT_SECRET);
+    } catch (e) {
+      return res.status(401).json({ error: 'Token inválido' });
+    }
+
+    const { item_type, item_id, is_saved } = req.body;
+    if (!item_type || !item_id) {
+      return res.status(400).json({ error: 'Dados incompletos' });
+    }
+
+    try {
+      if (is_saved) {
+        db.prepare(`
+          INSERT INTO user_favorites (user_id, item_type, item_id)
+          VALUES (?, ?, ?)
+          ON CONFLICT(user_id, item_type, item_id) DO NOTHING
+        `).run(decoded.id, item_type, item_id);
+      } else {
+        db.prepare('DELETE FROM user_favorites WHERE user_id = ? AND item_type = ? AND item_id = ?')
+          .run(decoded.id, item_type, item_id);
+      }
+      res.json({ success: true });
+    } catch (error) {
+      console.error('Error updating favorite:', error);
+      res.status(500).json({ error: 'Erro ao salvar favorito' });
+    }
+  });
+
+  app.post('/api/user/favorites/remove-batch', (req: Request, res: Response) => {
+    const authHeader = req.headers.authorization;
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+      return res.status(401).json({ error: 'Não autenticado' });
+    }
+    const token = authHeader.split(' ')[1];
+    let decoded: any;
+    try {
+      decoded = jwt.verify(token, JWT_SECRET);
+    } catch (e) {
+      return res.status(401).json({ error: 'Token inválido' });
+    }
+
+    const { items } = req.body;
+    if (!Array.isArray(items)) {
+      return res.status(400).json({ error: 'Lista inválida' });
+    }
+
+    try {
+      const deleteStmt = db.prepare('DELETE FROM user_favorites WHERE user_id = ? AND item_type = ? AND item_id = ?');
+      const deleteMany = db.transaction((list: Array<{ type: string; id: string }>) => {
+        for (const item of list) {
+          deleteStmt.run(decoded.id, item.type, item.id);
+        }
+      });
+      deleteMany(items);
+      res.json({ success: true, count: items.length });
+    } catch (error) {
+      console.error('Error batch removing favorites:', error);
+      res.status(500).json({ error: 'Erro ao remover itens' });
+    }
+  });
+
+  // User Persistent Favorites (Airbnb Wishlists)
+  app.get('/api/user/favorites', requireAuth, (req, res) => {
+    try {
+      const user = (req as any).user;
+      const rows = db.prepare('SELECT item_type, item_id FROM user_favorites WHERE user_id = ?').all(user.id) as Array<{ item_type: string; item_id: string }>;
+
+      const itineraries = rows.filter((r) => r.item_type === 'itinerary').map((r) => r.item_id);
+      const spots = rows.filter((r) => r.item_type === 'spot').map((r) => r.item_id);
+      const places = rows.filter((r) => r.item_type === 'place').map((r) => r.item_id);
+
+      res.json({
+        success: true,
+        favorites: {
+          itineraries,
+          spots,
+          places,
+        },
+      });
+    } catch (err: any) {
+      console.error('Error fetching favorites:', err);
+      res.status(500).json({ error: 'Erro ao carregar favoritos' });
+    }
+  });
+
+  app.post('/api/user/favorites/toggle', requireAuth, (req, res) => {
+    try {
+      const user = (req as any).user;
+      const { item_type, item_id, is_saved } = req.body;
+      if (!item_type || !item_id) {
+        res.status(400).json({ error: 'item_type e item_id são obrigatórios' });
+        return;
+      }
+
+      if (is_saved) {
+        db.prepare(`
+          INSERT OR IGNORE INTO user_favorites (user_id, item_type, item_id)
+          VALUES (?, ?, ?)
+        `).run(user.id, item_type, item_id);
+      } else {
+        db.prepare(`
+          DELETE FROM user_favorites
+          WHERE user_id = ? AND item_type = ? AND item_id = ?
+        `).run(user.id, item_type, item_id);
+      }
+
+      res.json({ success: true, is_saved: Boolean(is_saved) });
+    } catch (err: any) {
+      console.error('Error toggling favorite:', err);
+      res.status(500).json({ error: 'Erro ao atualizar favorito' });
+    }
+  });
+
+  app.post('/api/user/favorites/remove-batch', requireAuth, (req, res) => {
+    try {
+      const user = (req as any).user;
+      const { items } = req.body;
+      if (!Array.isArray(items) || items.length === 0) {
+        res.json({ success: true, count: 0 });
+        return;
+      }
+
+      const stmt = db.prepare('DELETE FROM user_favorites WHERE user_id = ? AND item_type = ? AND item_id = ?');
+      const deleteMany = db.transaction((list: Array<{ type: string; id: string }>) => {
+        let count = 0;
+        for (const item of list) {
+          const result = stmt.run(user.id, item.type, item.id);
+          count += result.changes;
+        }
+        return count;
+      });
+
+      const deletedCount = deleteMany(items);
+      res.json({ success: true, count: deletedCount });
+    } catch (err: any) {
+      console.error('Error batch removing favorites:', err);
+      res.status(500).json({ error: 'Erro ao remover favoritos em lote' });
+    }
   });
 
   // ==========================================

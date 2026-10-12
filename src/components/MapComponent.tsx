@@ -1222,9 +1222,9 @@ export const MapComponentInner: React.FC<MapComponentProps> = ({
   // Helper to update selection visual state without recreating DOM or reloading images
   const updateMarkerSelection = (record: SpotMarkerRecord, isSelected: boolean) => {
     if (isSelected) {
-      record.circleEl.className = 'relative w-[39px] h-[39px] sm:w-[41px] sm:h-[41px] rounded-full overflow-hidden border-2 border-[#007AFF] ring-2 ring-[#007AFF]/70 bg-zinc-900 shrink-0 shadow-md transition-transform scale-110';
+      record.circleEl.className = 'relative w-[39px] h-[39px] sm:w-[41px] sm:h-[41px] rounded-full overflow-hidden border-2 border-[#FFFFFF] ring-2 ring-[#FFFFFF]/70 bg-zinc-900 shrink-0 shadow-md transition-transform scale-110';
     } else {
-      record.circleEl.className = 'relative w-[39px] h-[39px] sm:w-[41px] sm:h-[41px] rounded-full overflow-hidden border-2 border-white hover:border-[#007AFF] bg-zinc-900 shrink-0 shadow-sm transition-transform';
+      record.circleEl.className = 'relative w-[39px] h-[39px] sm:w-[41px] sm:h-[41px] rounded-full overflow-hidden border-2 border-white hover:border-[#FFFFFF] bg-zinc-900 shrink-0 shadow-sm transition-transform';
     }
   };
 
@@ -1264,7 +1264,7 @@ export const MapComponentInner: React.FC<MapComponentProps> = ({
       el.style.transform = 'translate3d(0,0,0)';
 
       const circleDiv = document.createElement('div');
-      circleDiv.className = 'relative w-[39px] h-[39px] sm:w-[41px] sm:h-[41px] rounded-full overflow-hidden border-2 border-white hover:border-[#007AFF] bg-zinc-900 shrink-0 shadow-sm transition-transform pin-pop-in';
+      circleDiv.className = 'relative w-[39px] h-[39px] sm:w-[41px] sm:h-[41px] rounded-full overflow-hidden border-2 border-white hover:border-[#FFFFFF] bg-zinc-900 shrink-0 shadow-sm transition-transform pin-pop-in';
       circleDiv.style.willChange = 'transform';
       circleDiv.style.backfaceVisibility = 'hidden';
       circleDiv.style.transform = 'translate3d(0,0,0)';
@@ -1507,17 +1507,17 @@ export const MapComponentInner: React.FC<MapComponentProps> = ({
     beamContainer.style.transition = 'opacity 300ms ease';
 
     const beamDropShadow = isGoldUser ? 'drop-shadow(0 -2px 12px rgba(230, 172, 51, 0.85))' : 'drop-shadow(0 -2px 10px rgba(0, 122, 255, 0.75))';
-    const radCol0 = isGoldUser ? '#FFF4A3' : '#007AFF';
+    const radCol0 = isGoldUser ? '#FFF4A3' : '#FFFFFF';
     const radCol40 = isGoldUser ? '#F5BE38' : '#0A84FF';
-    const radCol80 = isGoldUser ? '#E6AC33' : '#007AFF';
-    const radCol100 = isGoldUser ? '#B88214' : '#007AFF';
+    const radCol80 = isGoldUser ? '#E6AC33' : '#FFFFFF';
+    const radCol100 = isGoldUser ? '#B88214' : '#FFFFFF';
 
-    const fanCol0 = isGoldUser ? '#F5BE38' : '#007AFF';
+    const fanCol0 = isGoldUser ? '#F5BE38' : '#FFFFFF';
     const fanCol35 = isGoldUser ? '#FFF4A3' : '#0A84FF';
     const fanCol75 = isGoldUser ? '#E6AC33' : '#93C5FD';
     const fanCol100 = isGoldUser ? '#B88214' : '#DBEAFE';
 
-    const centerGlowFill = isGoldUser ? '#F5BE38' : '#007AFF';
+    const centerGlowFill = isGoldUser ? '#F5BE38' : '#FFFFFF';
 
     beamContainer.innerHTML = `
       <svg viewBox="0 0 108 108" class="w-full h-full overflow-visible pointer-events-none" style="filter: ${beamDropShadow};">
@@ -1550,7 +1550,7 @@ export const MapComponentInner: React.FC<MapComponentProps> = ({
     // 2. Pedestrian User Avatar Circle
     const userCircle = document.createElement('div');
     userCircle.id = 'user-voce-circle';
-    const ringClass = isGoldUser ? 'ring-[#F5BE38]' : 'ring-[#007AFF]';
+    const ringClass = isGoldUser ? 'ring-[#F5BE38]' : 'ring-[#FFFFFF]';
     userCircle.className = `relative z-10 w-[39px] h-[39px] sm:w-[41px] sm:h-[41px] rounded-full overflow-hidden border-2 border-white ring-2 ${ringClass} bg-zinc-900 shadow-md user-photo-pulse transition-all duration-300`;
 
     const userImg = document.createElement('img');
@@ -2098,14 +2098,14 @@ export const MapComponentInner: React.FC<MapComponentProps> = ({
               onTouchStart={handleOrbitScreenTap}
               className={`mt-12 sm:mt-14 px-4.5 py-2.5 rounded-full backdrop-blur-2xl flex items-center gap-3 pointer-events-auto cursor-pointer active:scale-95 z-10 select-none max-w-[92%] transition-all ${
                 isWhiteControls
-                  ? 'bg-white/80 text-zinc-900 border border-black/10 shadow-[0_12px_36px_rgba(0,0,0,0.22)]'
+                  ? 'bg-white/80 text-zinc-900 border border-white shadow-[0_12px_36px_rgba(0,0,0,0.22)]'
                   : 'bg-black/60 text-white border border-white/20 shadow-[0_12px_40px_rgba(0,0,0,0.65)]'
               }`}
             >
               {/* Round AI Avatar Photo */}
               <div
                 className={`w-8 h-8 rounded-full overflow-hidden shrink-0 shadow-xs border ${
-                  isWhiteControls ? 'border-black/15 bg-zinc-100' : 'border-white/30 bg-zinc-900'
+                  isWhiteControls ? 'border-white bg-zinc-100' : 'border-white/30 bg-zinc-900'
                 }`}
               >
                 <img
@@ -2276,7 +2276,7 @@ export const MapComponentInner: React.FC<MapComponentProps> = ({
             style={{ fontFamily: "'Inter', -apple-system, BlinkMacSystemFont, sans-serif" }}
           >
             <div className="flex items-start gap-3">
-              <div className="w-9 h-9 rounded-full bg-[#007AFF]/20 flex items-center justify-center shrink-0 text-[#007AFF]">
+              <div className="w-9 h-9 rounded-full bg-[#FFFFFF]/20 flex items-center justify-center shrink-0 text-[#FFFFFF]">
                 <Compass className="w-5 h-5 stroke-[2.2]" />
               </div>
               <div className="flex-1 min-w-0">
@@ -2299,7 +2299,7 @@ export const MapComponentInner: React.FC<MapComponentProps> = ({
                 id="btn-enable-compass"
                 type="button"
                 onClick={handleEnableCompass}
-                className="px-4 py-1.5 rounded-xl text-xs font-semibold bg-[#007AFF] hover:bg-blue-600 text-white active:scale-95 transition-all shadow-md cursor-pointer"
+                className="px-4 py-1.5 rounded-xl text-xs font-bold bg-[#FFFFFF] hover:bg-zinc-200 text-black active:scale-95 transition-all shadow-md cursor-pointer"
               >
                 Ativar Orientação
               </button>

@@ -373,7 +373,7 @@ export const SearchFilterDrawer: React.FC<SearchFilterDrawerProps> = ({
                       <div className="min-w-0 flex-1">
                         <div className="flex items-center gap-1.5 min-w-0">
                           <h4 className={`text-sm font-extrabold text-zinc-900 dark:text-[#F5F2EA] tracking-tight truncate transition-colors ${
-                            isGoldUser ? 'group-hover:text-[#F5BE38]' : 'group-hover:text-[#007AFF]'
+                            isGoldUser ? 'group-hover:text-[#F5BE38]' : 'group-hover:text-[#FFFFFF]'
                           }`}>
                             {spot.name}
                           </h4>
@@ -385,8 +385,8 @@ export const SearchFilterDrawer: React.FC<SearchFilterDrawerProps> = ({
                         </p>
 
                         <div className="flex items-center gap-2 text-[11px] text-[#9A9894] mt-1">
-                          <span className={`flex items-center gap-0.5 font-bold ${isGoldUser ? 'text-[#F5BE38]' : 'text-[#007AFF]'}`}>
-                            <Star className={`w-3 h-3 ${isGoldUser ? 'fill-[#F5BE38] text-[#F5BE38]' : 'fill-[#007AFF] text-[#007AFF]'}`} />
+                          <span className={`flex items-center gap-0.5 font-bold ${isGoldUser ? 'text-[#F5BE38]' : 'text-[#FFFFFF]'}`}>
+                            <Star className={`w-3 h-3 ${isGoldUser ? 'fill-[#F5BE38] text-[#F5BE38]' : 'fill-[#FFFFFF] text-[#FFFFFF]'}`} />
                             {spot.rating}
                           </span>
                           <span>•</span>

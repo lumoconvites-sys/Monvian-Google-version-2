@@ -144,7 +144,7 @@ export const ItineraryEditModal: React.FC<ItineraryEditModalProps> = ({
                   <span className={`w-7 h-7 rounded-full text-xs font-black flex items-center justify-center shrink-0 shadow-sm ${
                     isGoldUser
                       ? 'bg-metallic-gold text-[#1A1202] shadow-[#E5AC33]/40 border border-[#FFF4A3]/60'
-                      : 'bg-blue-600 text-white shadow-blue-600/30'
+                      : 'bg-white text-black shadow-white/20'
                   }`}>
                     {String(idx + 1).padStart(2, '0')}
                   </span>
@@ -156,7 +156,7 @@ export const ItineraryEditModal: React.FC<ItineraryEditModalProps> = ({
                     </h4>
                   </div>
                   <div className="flex items-center gap-1.5 text-xs text-zinc-400 font-bold mt-0.5">
-                    <Clock className={`w-3 h-3 shrink-0 ${isGoldUser ? 'text-[#F5BE38]' : 'text-blue-500'}`} />
+                    <Clock className={`w-3 h-3 shrink-0 ${isGoldUser ? 'text-[#F5BE38]' : 'text-zinc-400'}`} />
                     <span>{step.suggestedTime || '09:30'}</span>
                   </div>
                 </div>
@@ -258,7 +258,7 @@ export const ItineraryEditModal: React.FC<ItineraryEditModalProps> = ({
                   className={`py-2.5 px-3 rounded-xl font-bold text-xs transition-colors cursor-pointer ${
                     isGoldUser
                       ? 'text-[#F5BE38] hover:bg-[#F5BE38]/10'
-                      : 'text-blue-600 dark:text-blue-400 hover:bg-blue-500/10'
+                      : 'text-white hover:bg-white/10'
                   }`}
                 >
                   Criar Novo
@@ -270,7 +270,7 @@ export const ItineraryEditModal: React.FC<ItineraryEditModalProps> = ({
                   className={`py-2.5 px-4 rounded-xl font-black text-xs transition-all shadow-md flex items-center gap-1.5 cursor-pointer active:scale-95 ${
                     isGoldUser
                       ? 'bg-metallic-gold text-[#1A1202] shadow-[#E5AC33]/40 border border-[#FFF4A3]/60 hover:opacity-95'
-                      : 'bg-blue-600 hover:bg-blue-500 text-white shadow-blue-600/25'
+                      : 'bg-white hover:bg-zinc-200 text-black shadow-white/20'
                   }`}
                 >
                   <Check className="w-3.5 h-3.5 stroke-[3]" />

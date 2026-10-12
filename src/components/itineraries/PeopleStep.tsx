@@ -85,8 +85,8 @@ export const PeopleStep: React.FC<PeopleStepProps> = ({
         >
           <div className="flex items-center justify-between w-full mb-3 px-1">
             <div className="flex items-center gap-2">
-              <div className="w-8 h-8 rounded-full bg-blue-500/10 flex items-center justify-center">
-                <Users className="w-4 h-4 text-[#007AFF]" />
+              <div className="w-8 h-8 rounded-full bg-white/10 flex items-center justify-center">
+                <Users className="w-4 h-4 text-white dark:text-white" />
               </div>
               <div className="flex flex-col text-left">
                 <span className="text-xs font-black uppercase tracking-wider text-zinc-400 dark:text-zinc-400">
@@ -238,7 +238,7 @@ export const PeopleStep: React.FC<PeopleStepProps> = ({
           id="btn-itinerary-people-continue"
           type="button"
           onClick={handleContinue}
-          className="w-full py-4 px-6 rounded-2xl bg-[#007AFF] hover:bg-[#0066d6] active:scale-[0.98] text-white font-black text-base transition-all shadow-lg shadow-blue-500/25 flex items-center justify-center gap-2 cursor-pointer"
+          className="w-full py-4 px-6 rounded-2xl bg-white hover:bg-zinc-200 active:scale-[0.98] text-black font-black text-base transition-all shadow-lg shadow-black/20 flex items-center justify-center gap-2 cursor-pointer"
         >
           Continuar
         </button>

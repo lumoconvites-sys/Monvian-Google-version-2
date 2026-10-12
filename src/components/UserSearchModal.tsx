@@ -190,7 +190,7 @@ export const UserSearchModal: React.FC<UserSearchModalProps> = ({
             <button
               type="button"
               onClick={onClose}
-              className="px-2 text-[14px] font-semibold text-blue-500 hover:text-blue-400 cursor-pointer"
+              className="px-2 text-[14px] font-semibold text-white hover:text-zinc-300 cursor-pointer"
             >
               Cancelar
             </button>

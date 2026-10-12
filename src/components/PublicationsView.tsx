@@ -159,11 +159,7 @@ const OrbitalPublishLoader: React.FC<OrbitalPublishLoaderProps> = ({ photos }) =
   const borderRadius = isSingle ? 18 : 14;
 
   return (
-    <motion.div
-      initial={{ opacity: 0 }}
-      animate={{ opacity: 1 }}
-      exit={{ opacity: 0 }}
-      transition={{ duration: 0.2, ease: 'easeInOut' }}
+    <div
       className="absolute inset-0 z-40 bg-[#000000]/95 backdrop-blur-md flex items-center justify-center rounded-[28px] overflow-hidden select-none"
     >
       <div className="relative w-52 h-52 flex items-center justify-center">
@@ -229,7 +225,7 @@ const OrbitalPublishLoader: React.FC<OrbitalPublishLoaderProps> = ({ photos }) =
           })}
         </motion.div>
       </div>
-    </motion.div>
+    </div>
   );
 };
 
@@ -378,7 +374,15 @@ export const PublicationsView: React.FC<PublicationsViewProps> = ({
 
       if (data.success && Array.isArray(data.posts)) {
         if (pageNumber === 1 || isRefresh) {
-          setPosts(data.posts);
+          let fetchedPosts = data.posts;
+          if (isRefresh && fetchedPosts.length > 0) {
+            fetchedPosts.sort((a: Post, b: Post) => {
+              const scoreA = (Number(a.likes_count || 0) * 2 + Number(a.comments_count || 0)) + (new Date(a.created_at || Date.now()).getTime() / 100000000);
+              const scoreB = (Number(b.likes_count || 0) * 2 + Number(b.comments_count || 0)) + (new Date(b.created_at || Date.now()).getTime() / 100000000);
+              return scoreB - scoreA;
+            });
+          }
+          setPosts(fetchedPosts);
         } else {
           setPosts((prev) => {
             const existingIds = new Set(prev.map((p) => p.id));
@@ -865,9 +869,9 @@ export const PublicationsView: React.FC<PublicationsViewProps> = ({
                 isDark ? 'bg-[#000000] text-zinc-400' : 'bg-[#ffffff] text-zinc-600'
               }`}
             >
-              <div className="flex items-center gap-2 text-xs font-semibold tracking-tight py-2">
-                <RefreshCw className={`w-3.5 h-3.5 ${isRefreshing ? (isDark ? 'animate-spin text-white' : 'animate-spin text-black') : ''}`} />
-                <span>{isRefreshing ? 'Atualizando publicações...' : 'Puxe para atualizar'}</span>
+              <div className="flex items-center justify-center w-full py-2">
+                <RefreshCw className={`w-5 h-5 ${isRefreshing ? (isDark ? 'animate-spin text-white' : 'animate-spin text-black') : ''}`} />
+                {isRefreshing && <span className="ml-2 text-xs font-semibold tracking-tight">Atualizando...</span>}
               </div>
             </motion.div>
           )}
@@ -1490,11 +1494,11 @@ export const PublicationsView: React.FC<PublicationsViewProps> = ({
                       type="submit"
                       disabled={!newCommentText.trim() || isSubmittingComment}
                       className={`text-[13px] font-bold tracking-tight ${
-                        isDark ? 'text-white hover:text-zinc-200 disabled:text-zinc-600' : 'text-blue-600 hover:text-blue-700 disabled:text-zinc-400'
+                        isDark ? 'text-white hover:text-zinc-200 disabled:text-zinc-600' : 'text-zinc-900 hover:text-black disabled:text-zinc-400'
                       } disabled:opacity-40 disabled:pointer-events-none transition-all ml-2 cursor-pointer shrink-0`}
                     >
                       {isSubmittingComment ? (
-                        <Loader2 className={`w-4 h-4 animate-spin ${isDark ? 'text-white' : 'text-blue-600'}`} />
+                        <Loader2 className={`w-4 h-4 animate-spin ${isDark ? 'text-white' : 'text-zinc-900'}`} />
                       ) : (
                         'Publicar'
                       )}

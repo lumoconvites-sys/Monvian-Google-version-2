@@ -32,7 +32,7 @@ const SPOT_PHOTO_MAP: Record<string, string> = {
   'vila-capivari': 'https://images.unsplash.com/photo-1513694203232-719a280e022f?auto=format&fit=crop&w=800&q=80'
 };
 
-const CATEGORY_FALLBACK_IMAGES: Record<string, string[]> = {
+export const CATEGORY_FALLBACK_IMAGES: Record<string, string[]> = {
   gastronomy: [
     'https://images.unsplash.com/photo-1514933651103-005eec06c04b?auto=format&fit=crop&w=800&q=80',
     'https://images.unsplash.com/photo-1555396273-367ea4eb4db5?auto=format&fit=crop&w=800&q=80',

@@ -13,7 +13,7 @@ interface AdminVisualIconModalProps {
 }
 
 const PRESET_COLORS = [
-  { label: 'Azul Apple', hex: '#007AFF' },
+  { label: 'Azul Apple', hex: '#FFFFFF' },
   { label: 'Índigo', hex: '#5856D6' },
   { label: 'Roxo', hex: '#AF52DE' },
   { label: 'Rosa', hex: '#FF2D55' },
@@ -444,7 +444,7 @@ export const AdminVisualIconModal: React.FC<AdminVisualIconModalProps> = ({
                       setCustomColor('#' + val);
                     }
                   }}
-                  placeholder="007AFF"
+                  placeholder="FFFFFF"
                   className="w-20 px-2.5 py-1.5 bg-white border border-zinc-200 rounded-xl text-xs font-mono font-bold text-zinc-900 placeholder-zinc-400 focus:outline-none focus:border-blue-500 shadow-xs"
                 />
               </div>

@@ -188,7 +188,7 @@ export const TripDateStep: React.FC<TripDateStepProps> = ({
         {/* Month Navigation */}
         <div className="flex items-center justify-between mb-3 sm:mb-4 px-1">
           <div className="flex items-center gap-2">
-            <CalendarIcon className="w-5 h-5 text-blue-500 dark:text-blue-400" />
+            <CalendarIcon className="w-5 h-5 text-zinc-900 dark:text-white" />
             <span className="text-base sm:text-lg font-black text-zinc-900 dark:text-white">
               {MONTH_NAMES[currentMonth]} {currentYear}
             </span>
@@ -240,7 +240,7 @@ export const TripDateStep: React.FC<TripDateStepProps> = ({
                   onClick={() => handleSelectDay(item.day, item.month, item.year, item.isPast)}
                   className={`w-8 h-8 sm:w-9 sm:h-9 rounded-full flex items-center justify-center text-xs sm:text-sm font-black transition-all relative ${
                     item.isSelected
-                      ? 'bg-blue-600 text-white font-black shadow-md shadow-blue-500/30 scale-105'
+                      ? 'bg-white text-black font-black shadow-md scale-105'
                       : item.isPast
                       ? 'text-zinc-300 dark:text-zinc-700 cursor-not-allowed opacity-40 font-semibold'
                       : !item.isCurrentMonth
@@ -252,7 +252,7 @@ export const TripDateStep: React.FC<TripDateStepProps> = ({
                 >
                   {item.day}
                   {item.isToday && !item.isSelected && (
-                    <span className="absolute bottom-1 w-1.5 h-1.5 rounded-full bg-blue-500" />
+                    <span className="absolute bottom-1 w-1.5 h-1.5 rounded-full bg-white dark:bg-white" />
                   )}
                 </button>
               </div>
@@ -281,7 +281,7 @@ export const TripDateStep: React.FC<TripDateStepProps> = ({
           id="btn-itinerary-date-continue"
           type="button"
           onClick={handleContinue}
-          className="w-full py-3.5 sm:py-4 px-6 rounded-2xl bg-blue-600 hover:bg-blue-500 active:scale-[0.98] text-white font-black text-base transition-all shadow-lg shadow-blue-600/25 flex items-center justify-center gap-2 cursor-pointer"
+          className="w-full py-3.5 sm:py-4 px-6 rounded-2xl bg-white hover:bg-zinc-200 active:scale-[0.98] text-black font-black text-base transition-all shadow-lg shadow-black/20 flex items-center justify-center gap-2 cursor-pointer"
         >
           Continuar
         </button>

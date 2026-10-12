@@ -16,7 +16,6 @@ import {
   Edit3,
   ExternalLink,
   Layers,
-  List,
   Maximize2,
   Mic,
   Navigation,
@@ -45,6 +44,7 @@ import { AirbnbItineraryExplorer } from './itineraries/AirbnbItineraryExplorer';
 import { PlusActionMenuModal } from './itineraries/PlusActionMenuModal';
 import { ImportSpotFloatingModal } from './itineraries/ImportSpotFloatingModal';
 import { TripNotesModal } from './itineraries/TripNotesModal';
+import { LazyImage } from './ui/LazyImage';
 
 interface ItinerariesViewProps {
   isOpen: boolean;
@@ -369,23 +369,9 @@ const SwipeableStopCard: React.FC<SwipeableStopCardProps> = ({
   };
 
   return (
-    <motion.div
-      layout="position"
-      layoutId={step.id}
-      initial={{ opacity: 0, y: 12 }}
-      animate={{
-        opacity: isDeleting ? 0 : 1,
-        height: isDeleting ? 0 : 'auto',
-        y: 0,
-      }}
-      exit={{ opacity: 0, height: 0 }}
-      transition={{
-        layout: SPRING_LAYOUT,
-        opacity: { duration: 0.18 },
-        height: { duration: 0.22 },
-      }}
-      className="relative w-full rounded-[28px] overflow-hidden select-none touch-pan-y transform-gpu will-change-transform"
-    >
+      <div
+        className="relative w-full rounded-[28px] overflow-hidden select-none touch-pan-y transform-gpu will-change-transform"
+      >
       {/* Background Swipe Area (iOS Action - Right side, neutral background) */}
       <motion.div
         style={{ opacity: bgOpacity }}
@@ -406,14 +392,9 @@ const SwipeableStopCard: React.FC<SwipeableStopCardProps> = ({
       </motion.div>
 
       {/* Foreground Draggable Card - 100% OPAQUE to prevent any background tinting/bleeding */}
-      <motion.div
+      <div
         ref={containerRef}
-        style={{ x }}
-        drag="x"
-        dragConstraints={{ left: -400, right: 0 }}
-        dragElastic={{ left: 0.12, right: 0 }}
-        onDragStart={handleDragStart}
-        onDragEnd={handleDragEnd}
+        // ... (Removendo props de animação)
         onClick={(e) => {
           e.stopPropagation();
           if (isOpenRef.current) {
@@ -436,8 +417,8 @@ const SwipeableStopCard: React.FC<SwipeableStopCardProps> = ({
                 ? 'bg-[#1C1E24] border border-[#E5AC33]/60 ring-1.5 ring-[#FFF4A3]/40 shadow-xs text-white'
                 : 'bg-white border border-[#E5AC33]/60 ring-1.5 ring-[#FFF4A3]/40 shadow-xs text-zinc-900'
               : isDark
-              ? 'bg-[#1C1E24] border border-white/45 ring-1.5 ring-blue-500/40 shadow-xs text-white'
-              : 'bg-white border border-blue-500/45 ring-1.5 ring-blue-500/40 shadow-xs text-zinc-900'
+              ? 'bg-[#1C1E24] border border-white/50 ring-1.5 ring-white/35 shadow-xs text-white'
+              : 'bg-white border border-white ring-1.5 ring-white shadow-xs text-zinc-900'
             : isPremium
             ? isDark
               ? 'bg-[#141519] hover:bg-[#1C1E24] border border-[#E5AC33]/30 text-white'
@@ -455,14 +436,14 @@ const SwipeableStopCard: React.FC<SwipeableStopCardProps> = ({
                 isSelected
                   ? isPremium
                     ? 'bg-metallic-gold text-[#1A1202] shadow-md shadow-[#E5AC33]/40'
-                    : 'bg-blue-600 text-white shadow-md shadow-blue-600/40'
+                    : 'bg-white text-black shadow-md shadow-white/20 ring-2 ring-white scale-105'
                   : isDark
                   ? isPremium
                     ? 'bg-zinc-800 text-[#F5BE38] dark:text-[#FDE073] border border-[#E5AC33]/45'
-                    : 'bg-zinc-800 text-zinc-300 border border-white/10'
+                    : 'bg-white text-black border border-white/40'
                   : isPremium
                   ? 'bg-white/30 text-[#B88214] border border-[#E5AC33]/55'
-                  : 'bg-black/10 dark:bg-white/10 text-zinc-700 dark:text-zinc-300 border border-black/10 dark:border-white/15'
+                  : 'bg-white text-black border border-white shadow-2xs'
               }`}
             >
               {String(idx + 1).padStart(2, '0')}
@@ -473,11 +454,10 @@ const SwipeableStopCard: React.FC<SwipeableStopCardProps> = ({
             <div
               className="w-12 h-12 sm:w-13 sm:h-13 rounded-[16px] overflow-hidden shrink-0 bg-zinc-800 relative select-none self-center hover:opacity-90 active:scale-98 transition-all"
             >
-              <img
+              <LazyImage
                 src={getSpotImage(spot)}
                 alt={spot.name}
                 className="w-full h-full object-cover pointer-events-none"
-                referrerPolicy="no-referrer"
                 onError={(e) => {
                   (e.target as HTMLImageElement).src = getSpotFallbackImage(spot.name, spot.category);
                 }}
@@ -489,10 +469,8 @@ const SwipeableStopCard: React.FC<SwipeableStopCardProps> = ({
           {/* Middle Column */}
           <div className="min-w-0 flex-1 flex flex-col justify-center self-center py-0.5 pointer-events-none">
             <div className="flex items-center gap-1.5 flex-nowrap leading-none">
-              <span className={`inline-flex items-center gap-1 text-[10.5px] font-black leading-none ${
-                isPremium ? 'text-[#C28514] dark:text-[#FDE073]' : 'text-blue-600 dark:text-blue-400'
-              }`}>
-                <Clock className="w-3 h-3 shrink-0" />
+              <span className="inline-flex items-center gap-1 text-[10.5px] font-bold leading-none text-zinc-400">
+                <Clock className="w-3 h-3 shrink-0 text-zinc-400" />
                 <span>{step.suggestedTime || '09:30'}</span>
               </span>
               <span className="text-zinc-300 dark:text-zinc-600 font-bold leading-none">·</span>
@@ -503,7 +481,7 @@ const SwipeableStopCard: React.FC<SwipeableStopCardProps> = ({
                 <span className={`inline-flex items-center gap-0.5 text-[8.5px] font-bold uppercase tracking-wider px-1.5 py-0.2 rounded-full leading-none ${
                   isPremium
                     ? 'bg-metallic-gold-badge text-[#C28514] dark:text-[#FDE073] border'
-                    : 'bg-blue-500/12 text-blue-500 border border-blue-500/20'
+                    : 'bg-white/10 text-white border border-white/20'
                 }`}>
                   ★ Verificado
                 </span>
@@ -513,12 +491,12 @@ const SwipeableStopCard: React.FC<SwipeableStopCardProps> = ({
             <h4
               className="text-[14px] sm:text-[15px] font-black uppercase truncate leading-tight my-1 text-zinc-900 dark:text-white"
             >
-              {spot?.name || `Ponto ${idx + 1}`}
+              {spot?.shortName || spot?.name || `Ponto ${idx + 1}`}
             </h4>
 
             {step.durationToNextMin ? (
               <p className="text-[10.5px] font-bold text-zinc-400 dark:text-zinc-400 truncate leading-none flex items-center gap-1 pointer-events-none">
-                <RoundedNavigationIcon isGold={isPremium} className={`w-3 h-3 shrink-0 ${isPremium ? '' : 'text-blue-500'}`} size={12} />
+                <RoundedNavigationIcon isGold={isPremium} className={`w-3 h-3 shrink-0 ${isPremium ? '' : 'text-white'}`} size={12} />
                 <span>{step.durationToNextMin} min até o próximo ponto</span>
               </p>
             ) : (
@@ -584,8 +562,8 @@ const SwipeableStopCard: React.FC<SwipeableStopCardProps> = ({
             <ArrowDown className="w-4.5 h-4.5 stroke-[2.2]" />
           </motion.button>
         </div>
-      </motion.div>
-    </motion.div>
+      </div>
+    </div>
   );
 };
 
@@ -1380,26 +1358,26 @@ export const ItinerariesView: React.FC<ItinerariesViewProps> = ({
           rec.pulseEl.style.display = isSelected ? 'block' : 'none';
         }
       } else {
-        // Standard Apple Blue styling (Bolinha Azul / Balão com número)
-        rec.badgeEl.style.background = '#007AFF';
-        rec.badgeEl.style.color = '#FFFFFF';
+        // Pin da cor branca, número preto e contorno da cor branca
+        rec.badgeEl.style.background = '#FFFFFF';
+        rec.badgeEl.style.color = '#000000';
         rec.badgeEl.style.border = isSelected
           ? '3px solid #FFFFFF'
-          : '2px solid rgba(255, 255, 255, 0.85)';
+          : '2px solid #FFFFFF';
         rec.badgeEl.style.boxShadow = isSelected
-          ? '0 6px 22px rgba(0, 122, 255, 0.75), 0 2px 8px rgba(0, 0, 0, 0.35)'
-          : '0 3px 10px rgba(0, 122, 255, 0.4), 0 1px 4px rgba(0, 0, 0, 0.2)';
+          ? '0 6px 20px rgba(0, 0, 0, 0.35), 0 0 0 2px #FFFFFF'
+          : '0 3px 10px rgba(0, 0, 0, 0.25)';
 
-        rec.arrowEl.style.background = '#007AFF';
+        rec.arrowEl.style.background = '#FFFFFF';
         rec.arrowEl.style.borderRight = isSelected
           ? '3px solid #FFFFFF'
-          : '2px solid rgba(255, 255, 255, 0.85)';
+          : '2px solid #FFFFFF';
         rec.arrowEl.style.borderBottom = isSelected
           ? '3px solid #FFFFFF'
-          : '2px solid rgba(255, 255, 255, 0.85)';
+          : '2px solid #FFFFFF';
 
         if (rec.pulseEl) {
-          rec.pulseEl.style.background = 'radial-gradient(circle, rgba(0, 122, 255, 0.5) 0%, rgba(0, 122, 255, 0.2) 55%, transparent 75%)';
+          rec.pulseEl.style.background = 'radial-gradient(circle, rgba(255, 255, 255, 0.6) 0%, rgba(255, 255, 255, 0.2) 55%, transparent 75%)';
           rec.pulseEl.style.display = isSelected ? 'block' : 'none';
         }
       }
@@ -1419,7 +1397,7 @@ export const ItinerariesView: React.FC<ItinerariesViewProps> = ({
     const coordinates: [number, number][] = validSteps.map((s) => [s.spot!.lng, s.spot!.lat]);
     const targetSelectedId = overrideSelectedId !== undefined ? overrideSelectedId : selectedStopId;
     const isPremium = isPremiumItinerary;
-    const routeColor = isPremium ? '#E5AC33' : '#007AFF';
+    const routeColor = isPremium ? '#E5AC33' : '#FFFFFF';
 
     // 1. Cleanly recreate DOM Markers so that pin numbers strictly reflect the card sequence (1, 2, 3...)
     const currentRecords = markerRecordsRef.current;
@@ -1456,7 +1434,7 @@ export const ItinerariesView: React.FC<ItinerariesViewProps> = ({
       pulseEl.style.left = '-14px';
       pulseEl.style.background = isPremium
         ? 'radial-gradient(circle, rgba(230, 172, 51, 0.75) 0%, rgba(255, 244, 163, 0.35) 50%, transparent 75%)'
-        : 'radial-gradient(circle, rgba(0, 122, 255, 0.5) 0%, rgba(0, 122, 255, 0.2) 55%, transparent 75%)';
+        : 'radial-gradient(circle, rgba(255, 255, 255, 0.45) 0%, rgba(255, 255, 255, 0.15) 55%, transparent 75%)';
       pulseEl.style.pointerEvents = 'none';
       pulseEl.style.zIndex = '-1';
       pulseEl.style.display = isSelected ? 'block' : 'none';
@@ -1486,15 +1464,15 @@ export const ItinerariesView: React.FC<ItinerariesViewProps> = ({
           ? '0 6px 26px rgba(230, 172, 51, 0.85), 0 2px 8px rgba(0, 0, 0, 0.4)'
           : '0 2px 10px rgba(230, 172, 51, 0.25), 0 1px 4px rgba(0, 0, 0, 0.15)';
       } else {
-        // Standard Apple Blue (Bolinha Azul)
-        badgeEl.style.background = '#007AFF';
-        badgeEl.style.color = '#FFFFFF';
+        // Pin da cor branca, número preto e contorno da cor branca
+        badgeEl.style.background = '#FFFFFF';
+        badgeEl.style.color = '#000000';
         badgeEl.style.border = isSelected
           ? '3px solid #FFFFFF'
-          : '2px solid rgba(255, 255, 255, 0.85)';
+          : '2px solid #FFFFFF';
         badgeEl.style.boxShadow = isSelected
-          ? '0 6px 22px rgba(0, 122, 255, 0.75), 0 2px 8px rgba(0, 0, 0, 0.35)'
-          : '0 3px 10px rgba(0, 122, 255, 0.4), 0 1px 4px rgba(0, 0, 0, 0.2)';
+          ? '0 6px 20px rgba(0, 0, 0, 0.35), 0 0 0 2px #FFFFFF'
+          : '0 3px 10px rgba(0, 0, 0, 0.25)';
       }
       badgeEl.textContent = stepNumberFormatted;
       badgeEl.innerText = stepNumberFormatted;
@@ -1517,13 +1495,13 @@ export const ItinerariesView: React.FC<ItinerariesViewProps> = ({
           ? '3px solid #FFFFFF'
           : (isDark ? '2px solid rgba(245, 190, 56, 0.65)' : '2px solid rgba(230, 172, 51, 0.75)');
       } else {
-        arrowEl.style.background = '#007AFF';
+        arrowEl.style.background = '#FFFFFF';
         arrowEl.style.borderRight = isSelected
           ? '3px solid #FFFFFF'
-          : '2px solid rgba(255, 255, 255, 0.85)';
+          : '2px solid #FFFFFF';
         arrowEl.style.borderBottom = isSelected
           ? '3px solid #FFFFFF'
-          : '2px solid rgba(255, 255, 255, 0.85)';
+          : '2px solid #FFFFFF';
       }
 
       containerEl.appendChild(pulseEl);
@@ -1841,7 +1819,7 @@ export const ItinerariesView: React.FC<ItinerariesViewProps> = ({
           <button
             onClick={() => setItineraryViewMode('explore')}
             type="button"
-            className="w-12 h-12 rounded-full flex items-center justify-center transition-transform active:scale-95 cursor-pointer shrink-0 ios-glass border border-white/25 text-zinc-900 dark:text-white shadow-lg"
+            className="w-12 h-12 rounded-full flex items-center justify-center transition-transform active:scale-95 cursor-pointer shrink-0 ios-glass border border-white/50 text-zinc-900 dark:text-white shadow-lg"
             title="Voltar para explorar roteiros"
           >
             <ChevronLeft className="w-6 h-6 stroke-[2.2] text-current" />
@@ -1850,14 +1828,12 @@ export const ItinerariesView: React.FC<ItinerariesViewProps> = ({
 
         {/* Dynamic Island Style Pill (Translucent glass matching card) */}
         <div
-          className="h-12 px-4 sm:px-5 rounded-full pointer-events-auto flex items-center gap-2.5 sm:gap-3 text-xs sm:text-sm font-bold max-w-[calc(100vw-128px)] sm:max-w-none transition-all duration-200 ios-glass border border-white/25 text-zinc-900 dark:text-white shadow-xl"
+          className="h-12 px-4 sm:px-5 rounded-full pointer-events-auto flex items-center gap-2.5 sm:gap-3 text-xs sm:text-sm font-bold max-w-[calc(100vw-128px)] sm:max-w-none transition-all duration-200 ios-glass border border-white/50 text-zinc-900 dark:text-white shadow-xl"
         >
           <RoundedNavigationIcon isGold={isPremiumItinerary} className={`w-[26px] h-[26px] sm:w-[28px] sm:h-[28px] shrink-0 ${
             isPremiumItinerary
               ? ''
-              : isDark
-              ? 'text-blue-500'
-              : 'text-blue-600'
+              : 'text-white'
           }`} size={28} />
 
           {isEditingTitle ? (
@@ -1877,15 +1853,15 @@ export const ItinerariesView: React.FC<ItinerariesViewProps> = ({
                 onBlur={() => handleRenameTitle(editedTitle)}
                 className={`w-28 sm:w-40 px-2 py-0.5 rounded-xl font-black text-xs sm:text-sm outline-none border ${
                   isDark
-                    ? isPremiumItinerary ? 'bg-zinc-800 border-[#E5AC33]/60 text-white' : 'bg-zinc-800 border-blue-500 text-white'
-                    : isPremiumItinerary ? 'bg-zinc-100 border-[#E5AC33]/70 text-zinc-900' : 'bg-zinc-100 border-blue-600 text-zinc-900'
+                    ? isPremiumItinerary ? 'bg-zinc-800 border-[#E5AC33]/60 text-white' : 'bg-zinc-800 border-white/40 text-white'
+                    : isPremiumItinerary ? 'bg-zinc-100 border-[#E5AC33]/70 text-zinc-900' : 'bg-zinc-100 border-zinc-300 text-zinc-900'
                 }`}
                 placeholder="Nome do roteiro..."
               />
               <button
                 type="submit"
                 className={`w-6 h-6 rounded-full text-white flex items-center justify-center shrink-0 transition-colors cursor-pointer ${
-                  isPremiumItinerary ? 'bg-metallic-gold text-[#1A1202]' : 'bg-blue-600 hover:bg-blue-500'
+                  isPremiumItinerary ? 'bg-metallic-gold text-[#1A1202]' : 'bg-white text-black hover:bg-zinc-200'
                 }`}
                 title="Salvar nome"
               >
@@ -1924,7 +1900,7 @@ export const ItinerariesView: React.FC<ItinerariesViewProps> = ({
             }
           }}
           type="button"
-          className="w-12 h-12 rounded-full flex items-center justify-center pointer-events-auto transition-transform active:scale-95 cursor-pointer shrink-0 ios-glass border border-white/25 text-zinc-900 dark:text-white shadow-lg"
+          className="w-12 h-12 rounded-full flex items-center justify-center pointer-events-auto transition-transform active:scale-95 cursor-pointer shrink-0 ios-glass border border-white/50 text-zinc-900 dark:text-white shadow-lg"
           title="Opções do roteiro"
         >
           <SlidersHorizontal className="w-5 h-5 text-current" />
@@ -1946,7 +1922,7 @@ export const ItinerariesView: React.FC<ItinerariesViewProps> = ({
           whileHover={{ scale: 1.05 }}
           type="button"
           onClick={handleToggleMapStyle}
-          className="w-[45px] h-[45px] rounded-full flex items-center justify-center cursor-pointer transition-all duration-200 ios-glass border border-white/25 text-zinc-900 dark:text-white shadow-lg"
+          className="w-[45px] h-[45px] rounded-full flex items-center justify-center cursor-pointer transition-all duration-200 ios-glass border border-white/50 text-zinc-900 dark:text-white shadow-lg"
           title={itineraryMapStyle === 'satelite' ? 'Modo Satélite Ativo (Toque para alternar)' : 'Alternar satélite / mapa'}
           aria-label="Alternar satélite / mapa"
         >
@@ -1959,7 +1935,7 @@ export const ItinerariesView: React.FC<ItinerariesViewProps> = ({
           whileHover={{ scale: 1.05 }}
           type="button"
           onClick={() => setItineraryViewMode('explore')}
-          className="w-[45px] h-[45px] rounded-full flex items-center justify-center cursor-pointer transition-all duration-200 ios-glass border border-white/25 shadow-lg"
+          className="w-[45px] h-[45px] rounded-full flex items-center justify-center cursor-pointer transition-all duration-200 ios-glass border border-white/50 shadow-lg"
           title="Explorar Roteiros / Loja"
           aria-label="Explorar Roteiros"
         >
@@ -1979,11 +1955,11 @@ export const ItinerariesView: React.FC<ItinerariesViewProps> = ({
             <div className="flex items-center gap-2.5 min-w-0">
               <RoundedNavigationIcon
                 isGold={isPremiumItinerary}
-                className={`w-6 h-6 shrink-0 ${isPremiumItinerary ? '' : 'text-blue-500'}`}
+                className={`w-6 h-6 shrink-0 ${isPremiumItinerary ? '' : 'text-white'}`}
                 size={24}
               />
               <h2 className="text-base font-black uppercase tracking-tight truncate text-zinc-900 dark:text-white">
-                {userItinerary?.title || 'Roteiro de Viagem'}
+                {getShortDisplayTitle(userItinerary?.title || 'Roteiro de Viagem')}
               </h2>
             </div>
             <div className="flex items-center gap-1.5 shrink-0">
@@ -2023,7 +1999,7 @@ export const ItinerariesView: React.FC<ItinerariesViewProps> = ({
                 {userItinerary.days.map((day) => (
                   <span
                     key={day.dayNumber}
-                    className="px-2 py-0.5 rounded-lg text-xs font-bold bg-blue-600/25 text-blue-400 border border-blue-500/30"
+                    className="px-2 py-0.5 rounded-lg text-xs font-bold bg-white/10 text-white border border-white/20"
                   >
                     Dia {day.dayNumber}
                   </span>
@@ -2047,7 +2023,7 @@ export const ItinerariesView: React.FC<ItinerariesViewProps> = ({
                   step.id === currentSelectedStep?.id
                     ? isPremiumItinerary
                       ? 'bg-[#1C1E24] border-[#E5AC33]/60 shadow-md ring-1 ring-[#FFF4A3]/30 text-white'
-                      : 'bg-blue-600/15 border-blue-500/50 shadow-md ring-1 ring-blue-500/30 text-white'
+                      : 'bg-white/15 border-white/40 shadow-md ring-1 ring-white/30 text-white'
                     : 'bg-white/5 border-white/8 hover:bg-white/10 hover:border-white/15 text-white'
                 }`}
               >
@@ -2056,7 +2032,7 @@ export const ItinerariesView: React.FC<ItinerariesViewProps> = ({
                   <span className={`w-7 h-7 rounded-full text-[11px] font-black flex items-center justify-center leading-none shrink-0 ${
                     isPremiumItinerary
                       ? 'bg-metallic-gold text-[#1A1202] shadow-sm'
-                      : 'bg-blue-600 text-white shadow-sm'
+                      : 'bg-white text-black shadow-sm'
                   }`}>
                     {String(idx + 1).padStart(2, '0')}
                   </span>
@@ -2079,7 +2055,7 @@ export const ItinerariesView: React.FC<ItinerariesViewProps> = ({
                   <div className="min-w-0 flex-1">
                     <div className="flex items-center gap-1.5 leading-none mb-1">
                       <span className={`text-[10px] font-bold ${
-                        isPremiumItinerary ? 'text-[#FDE073]' : 'text-blue-400'
+                        isPremiumItinerary ? 'text-[#FDE073]' : 'text-zinc-400'
                       }`}>
                         {step.suggestedTime || '09:30'}
                       </span>
@@ -2090,7 +2066,7 @@ export const ItinerariesView: React.FC<ItinerariesViewProps> = ({
                     </div>
 
                     <h4 className="text-[13.5px] font-bold truncate text-white leading-tight">
-                      {step.spot?.name || `Local ${idx + 1}`}
+                      {step.spot?.shortName || step.spot?.name || `Local ${idx + 1}`}
                     </h4>
 
                     {step.durationToNextMin ? (
@@ -2228,7 +2204,7 @@ export const ItinerariesView: React.FC<ItinerariesViewProps> = ({
               whileHover={{ scale: 1.04 }}
               type="button"
               onClick={() => setIsImportModalOpen(true)}
-              className="w-14 h-14 rounded-full flex items-center justify-center cursor-pointer transition-all duration-200 active:scale-95 ios-glass border border-white/25 text-zinc-900 dark:text-white shadow-lg"
+              className="w-14 h-14 rounded-full flex items-center justify-center cursor-pointer transition-all duration-200 active:scale-95 ios-glass border border-white text-zinc-900 dark:text-white shadow-lg"
               title="Adicionar ponto ao roteiro"
               aria-label="Adicionar local ao roteiro"
             >
@@ -2251,14 +2227,14 @@ export const ItinerariesView: React.FC<ItinerariesViewProps> = ({
                   className={`py-2 px-3 sm:py-2.5 sm:px-3.5 rounded-[28px] flex items-center justify-between gap-3 transition-all ${
                     isPremiumItinerary
                       ? 'bg-white/30 dark:bg-white/15 border border-[#E5AC33]/60 ring-1.5 ring-[#FFF4A3]/40 shadow-xs text-zinc-900 dark:text-white backdrop-blur-md'
-                      : 'bg-white/30 dark:bg-white/15 border border-white/45 ring-1.5 ring-blue-500/40 shadow-xs text-zinc-900 dark:text-white backdrop-blur-md'
+                      : 'bg-white/30 dark:bg-white/15 border border-white/45 ring-1.5 ring-white/40 shadow-xs text-zinc-900 dark:text-white backdrop-blur-md'
                   }`}
                 >
                   <div className="flex items-center gap-2.5 min-w-0 flex-1 self-center">
                     <span className={`w-7 h-7 sm:w-7.5 sm:h-7.5 rounded-full text-[11px] font-black flex items-center justify-center leading-none text-center shrink-0 self-center ${
                       isPremiumItinerary
                         ? 'bg-metallic-gold text-[#1A1202] shadow-md shadow-[#E5AC33]/40'
-                        : 'bg-blue-600 text-white shadow-md shadow-blue-600/40'
+                        : 'bg-white text-black shadow-md shadow-white/20'
                     }`}>
                       {String(
                         Math.max(
@@ -2282,10 +2258,10 @@ export const ItinerariesView: React.FC<ItinerariesViewProps> = ({
                     )}
                     <div className="min-w-0 flex-1 flex flex-col justify-center self-center py-0.5">
                       <div className="flex items-center gap-1.5 flex-nowrap leading-none">
-                        <span className={`inline-flex items-center gap-1 text-[10.5px] font-black leading-none ${
-                          isPremiumItinerary ? 'text-[#C28514] dark:text-[#FDE073]' : 'text-blue-600 dark:text-blue-400'
+                        <span className={`inline-flex items-center gap-1 text-[10.5px] font-bold leading-none ${
+                          isPremiumItinerary ? 'text-[#C28514] dark:text-[#FDE073]' : 'text-zinc-400'
                         }`}>
-                          <Clock className="w-3 h-3 shrink-0" />
+                          <Clock className="w-3 h-3 shrink-0 text-zinc-400" />
                           <span>{currentSelectedStep.suggestedTime || '09:30'}</span>
                         </span>
                         <span className="text-zinc-300 dark:text-zinc-600 font-bold leading-none">·</span>
@@ -2297,7 +2273,7 @@ export const ItinerariesView: React.FC<ItinerariesViewProps> = ({
                         {currentSelectedStep.spot?.name}
                       </h4>
                       <p className="text-[10.5px] font-bold text-zinc-400 truncate leading-none flex items-center gap-1">
-                        <RoundedNavigationIcon isGold={isPremiumItinerary} className={`w-3 h-3 shrink-0 ${isPremiumItinerary ? '' : 'text-blue-500'}`} size={12} />
+                        <RoundedNavigationIcon isGold={isPremiumItinerary} className={`w-3 h-3 shrink-0 ${isPremiumItinerary ? '' : 'text-white'}`} size={12} />
                         <span>{currentSelectedStep.durationToNextMin ? `${currentSelectedStep.durationToNextMin} min até o próximo ponto` : 'Local planejado do roteiro'}</span>
                       </p>
                     </div>
@@ -2343,7 +2319,7 @@ export const ItinerariesView: React.FC<ItinerariesViewProps> = ({
                     whileHover={{ scale: 1.04 }}
                     type="button"
                     onClick={() => setIsImportModalOpen(true)}
-                    className="w-11 h-11 rounded-full flex items-center justify-center cursor-pointer transition-all duration-200 active:scale-95 ios-glass border border-white/25 text-zinc-900 dark:text-white shadow-lg"
+                    className="w-11 h-11 rounded-full flex items-center justify-center cursor-pointer transition-all duration-200 active:scale-95 ios-glass border border-white text-zinc-900 dark:text-white shadow-lg"
                     title="Adicionar ponto turístico ao roteiro"
                     aria-label="Adicionar ponto turístico ao roteiro"
                   >
@@ -2434,21 +2410,6 @@ export const ItinerariesView: React.FC<ItinerariesViewProps> = ({
         theme={theme}
         isGoldUser={isUserGold}
       />
-
-      {/* Floating "Lista" / Back to Explore Button at Bottom Center */}
-      <div className="fixed bottom-22 sm:bottom-24 left-1/2 -translate-x-1/2 z-50 pointer-events-auto">
-        <motion.button
-          whileTap={{ scale: 0.92 }}
-          whileHover={{ scale: 1.05 }}
-          onClick={() => setItineraryViewMode('explore')}
-          type="button"
-          className="px-5 py-2.5 rounded-full bg-[#1C1D22] text-white border border-white/20 shadow-[0_8px_30px_rgba(0,0,0,0.85)] flex items-center gap-2 text-[13.5px] font-bold tracking-tight cursor-pointer hover:border-white/40 transition-all backdrop-blur-md"
-          title="Voltar para a lista de roteiros"
-        >
-          <List className="w-4 h-4 stroke-[2.2] text-white" />
-          <span>Lista</span>
-        </motion.button>
-      </div>
     </div>
   );
 };

@@ -93,10 +93,10 @@ const SingleCard: React.FC<SingleCardProps> = ({ cardData, isFront, onSwipe, isD
       {/* Visual Stamp Indicators: LIKE (Right) & SKIP (Left) */}
       <motion.div
         style={{ opacity: likeOpacity }}
-        className="absolute top-5 left-5 z-20 pointer-events-none transform -rotate-12 bg-blue-600/95 backdrop-blur-md text-white border-2 border-white px-4 py-1.5 rounded-2xl shadow-xl"
+        className="absolute top-5 left-5 z-20 pointer-events-none transform -rotate-12 bg-white/95 backdrop-blur-md text-black border-2 border-white px-4 py-1.5 rounded-2xl shadow-xl"
       >
-        <span className="text-sm font-black uppercase tracking-wider flex items-center gap-1.5">
-          <Check className="w-5 h-5 stroke-[3]" />
+        <span className="text-sm font-black uppercase tracking-wider flex items-center gap-1.5 text-black">
+          <Check className="w-5 h-5 stroke-[3] text-black" />
           Quero Visitar
         </span>
       </motion.div>
@@ -142,7 +142,7 @@ const SingleCard: React.FC<SingleCardProps> = ({ cardData, isFront, onSwipe, isD
             {cardData.isVerified && (
               <>
                 <span className="text-zinc-300 dark:text-zinc-600">·</span>
-                <span className="inline-flex items-center gap-1 text-[11px] font-bold tracking-wide uppercase px-2 py-0.5 rounded-full bg-blue-500/12 text-blue-600 dark:bg-blue-400/15 dark:text-blue-400 border border-blue-500/20">
+                <span className="inline-flex items-center gap-1 text-[11px] font-bold tracking-wide uppercase px-2 py-0.5 rounded-full bg-white/10 text-zinc-800 dark:text-white border border-white/20">
                   <span>★</span> Verificado
                 </span>
               </>
@@ -320,7 +320,7 @@ export const TinderDiscoveryStep: React.FC<TinderDiscoveryStepProps> = ({
               isDark ? 'bg-[#1c1c1e] border border-white/10' : 'bg-white border border-black/5 shadow-md'
             }`}
           >
-            <div className="w-16 h-16 rounded-full bg-blue-500/15 text-blue-600 dark:text-blue-400 flex items-center justify-center mb-4">
+            <div className="w-16 h-16 rounded-full bg-white text-black flex items-center justify-center mb-4 shadow-lg">
               <Check className="w-8 h-8 stroke-[3]" />
             </div>
             <h3 className="text-2xl sm:text-3xl font-black text-zinc-900 dark:text-white tracking-tight">
@@ -331,7 +331,7 @@ export const TinderDiscoveryStep: React.FC<TinderDiscoveryStepProps> = ({
             </p>
             <button
               onClick={handleGenerateNow}
-              className="mt-6 py-4 px-8 rounded-2xl bg-blue-600 hover:bg-blue-500 active:scale-95 text-white font-black text-base shadow-xl shadow-blue-600/30 flex items-center gap-2 cursor-pointer transition-all"
+              className="mt-6 py-4 px-8 rounded-2xl bg-white hover:bg-zinc-200 active:scale-95 text-black font-black text-base shadow-xl shadow-black/20 flex items-center gap-2 cursor-pointer transition-all"
             >
               <span>Gerar Roteiro Agora</span>
             </button>

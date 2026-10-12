@@ -196,7 +196,7 @@ export const DesktopTopBar: React.FC<DesktopTopBarProps> = ({
           onClick={onToggle3DMode}
           className={`w-11 h-11 rounded-full flex items-center justify-center transition-all duration-300 active:scale-95 cursor-pointer group shrink-0 ${
             is3DMode
-              ? 'ios-glass-btn ring-2 ring-blue-500/80 bg-blue-500/25 text-blue-400 border border-blue-400/40 shadow-[0_0_18px_rgba(59,130,246,0.5)]'
+              ? 'ios-glass-btn ring-2 ring-white/80 bg-white/20 text-white border border-white/40 shadow-[0_0_18px_rgba(255,255,255,0.35)]'
               : 'ios-glass-btn text-zinc-700 dark:text-white border border-white/20 dark:border-white/15'
           }`}
           title={is3DMode ? 'Alternar para visão 2D Plana' : 'Alternar para visão 3D com Relevo e Montanhas'}

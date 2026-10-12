@@ -85,8 +85,8 @@ export const ImportSpotFloatingModal: React.FC<ImportSpotFloatingModalProps> = (
           <div className="p-4 sm:p-5 pb-3 flex items-center gap-3 border-b border-black/[0.06] dark:border-white/10 shrink-0">
             <div className={`relative flex items-center flex-1 rounded-2xl border px-3.5 py-2.5 transition-all ${
               isLight
-                ? 'bg-black/[0.04] border-black/5 text-zinc-900 focus-within:border-blue-500'
-                : 'bg-white/[0.08] border-white/15 text-white focus-within:border-[#F5BE38]/60'
+                ? 'bg-black/[0.04] border-black/5 text-zinc-900 focus-within:border-black/30'
+                : 'bg-white/[0.08] border-white/15 text-white focus-within:border-white/40'
             }`}>
               <Search className="w-4 h-4 text-zinc-400 shrink-0 mr-2.5" />
               <input
@@ -158,7 +158,7 @@ export const ImportSpotFloatingModal: React.FC<ImportSpotFloatingModalProps> = (
                           {spot.name}
                         </h4>
                         <div className="flex items-center gap-2 text-xs text-zinc-500 dark:text-zinc-400 font-semibold mt-1">
-                          <span className={`flex items-center gap-0.5 font-bold ${isGoldUser ? 'text-[#F5BE38]' : 'text-blue-500'}`}>
+                          <span className={`flex items-center gap-0.5 font-bold ${isGoldUser ? 'text-[#F5BE38]' : 'text-white'}`}>
                             <Star className="w-3 h-3 fill-current" />
                             {spot.rating}
                           </span>
@@ -192,7 +192,7 @@ export const ImportSpotFloatingModal: React.FC<ImportSpotFloatingModalProps> = (
                           className={`px-3.5 py-2 rounded-xl text-xs font-black shadow-md flex items-center gap-1.5 transition-all cursor-pointer active:scale-95 ${
                             isGoldUser
                               ? 'bg-metallic-gold text-[#1A1202] border border-[#FFF4A3]/70 hover:opacity-95 shadow-[#E5AC33]/25'
-                              : 'bg-blue-600 hover:bg-blue-500 text-white shadow-blue-600/25'
+                              : 'bg-white hover:bg-zinc-200 text-black shadow-white/20'
                           }`}
                         >
                           <Plus className="w-3.5 h-3.5 stroke-[3]" />

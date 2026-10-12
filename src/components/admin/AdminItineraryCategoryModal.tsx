@@ -109,7 +109,7 @@ export const AdminItineraryCategoryModal: React.FC<AdminItineraryCategoryModalPr
         {/* Header */}
         <div className="px-5 py-4 border-b border-zinc-200 dark:border-zinc-800 flex items-center justify-between bg-zinc-50 dark:bg-[#17191e]">
           <div className="flex items-center gap-2.5">
-            <div className="w-8 h-8 rounded-xl bg-[#007AFF]/15 text-[#007AFF] flex items-center justify-center">
+            <div className="w-8 h-8 rounded-xl bg-[#FFFFFF]/15 text-[#FFFFFF] flex items-center justify-center">
               <Tag className="w-4 h-4" />
             </div>
             <h2 className="text-sm sm:text-base font-black text-zinc-900 dark:text-white">
@@ -143,7 +143,7 @@ export const AdminItineraryCategoryModal: React.FC<AdminItineraryCategoryModalPr
               value={name}
               onChange={e => setName(e.target.value)}
               placeholder="Ex: Aventura, Casais, 1 dia..."
-              className="w-full px-3 py-2 bg-zinc-50 dark:bg-[#181a20] border border-zinc-200 dark:border-zinc-700 rounded-xl text-xs font-bold text-zinc-900 dark:text-white focus:outline-hidden focus:border-[#007AFF]"
+              className="w-full px-3 py-2 bg-zinc-50 dark:bg-[#181a20] border border-zinc-200 dark:border-zinc-700 rounded-xl text-xs font-bold text-zinc-900 dark:text-white focus:outline-hidden focus:border-[#FFFFFF]"
             />
           </div>
 
@@ -154,7 +154,7 @@ export const AdminItineraryCategoryModal: React.FC<AdminItineraryCategoryModalPr
             <select
               value={icon}
               onChange={e => setIcon(e.target.value)}
-              className="w-full px-3 py-2 bg-zinc-50 dark:bg-[#181a20] border border-zinc-200 dark:border-zinc-700 rounded-xl text-xs font-bold text-zinc-900 dark:text-white focus:outline-hidden focus:border-[#007AFF]"
+              className="w-full px-3 py-2 bg-zinc-50 dark:bg-[#181a20] border border-zinc-200 dark:border-zinc-700 rounded-xl text-xs font-bold text-zinc-900 dark:text-white focus:outline-hidden focus:border-[#FFFFFF]"
             >
               {AVAILABLE_ICONS.map(i => (
                 <option key={i.value} value={i.value}>
@@ -173,7 +173,7 @@ export const AdminItineraryCategoryModal: React.FC<AdminItineraryCategoryModalPr
               value={sortOrder}
               onChange={e => setSortOrder(Number(e.target.value))}
               placeholder="0, 1, 2..."
-              className="w-full px-3 py-2 bg-zinc-50 dark:bg-[#181a20] border border-zinc-200 dark:border-zinc-700 rounded-xl text-xs font-bold text-zinc-900 dark:text-white focus:outline-hidden focus:border-[#007AFF]"
+              className="w-full px-3 py-2 bg-zinc-50 dark:bg-[#181a20] border border-zinc-200 dark:border-zinc-700 rounded-xl text-xs font-bold text-zinc-900 dark:text-white focus:outline-hidden focus:border-[#FFFFFF]"
             />
           </div>
 
@@ -186,7 +186,7 @@ export const AdminItineraryCategoryModal: React.FC<AdminItineraryCategoryModalPr
               value={description}
               onChange={e => setDescription(e.target.value)}
               placeholder="Breve resumo da categoria..."
-              className="w-full px-3 py-2 bg-zinc-50 dark:bg-[#181a20] border border-zinc-200 dark:border-zinc-700 rounded-xl text-xs font-medium text-zinc-900 dark:text-white focus:outline-hidden focus:border-[#007AFF]"
+              className="w-full px-3 py-2 bg-zinc-50 dark:bg-[#181a20] border border-zinc-200 dark:border-zinc-700 rounded-xl text-xs font-medium text-zinc-900 dark:text-white focus:outline-hidden focus:border-[#FFFFFF]"
             />
           </div>
 
@@ -196,7 +196,7 @@ export const AdminItineraryCategoryModal: React.FC<AdminItineraryCategoryModalPr
               type="checkbox"
               checked={isActive}
               onChange={e => setIsActive(e.target.checked)}
-              className="w-4 h-4 accent-[#007AFF] cursor-pointer"
+              className="w-4 h-4 accent-[#FFFFFF] cursor-pointer"
             />
           </div>
 
@@ -212,7 +212,7 @@ export const AdminItineraryCategoryModal: React.FC<AdminItineraryCategoryModalPr
             <button
               type="submit"
               disabled={isSubmitting}
-              className="px-4 py-2 rounded-xl bg-[#007AFF] text-white text-xs font-black hover:bg-blue-600 shadow-md cursor-pointer disabled:opacity-50"
+              className="px-4 py-2 rounded-xl bg-[#FFFFFF] text-white text-xs font-black hover:bg-blue-600 shadow-md cursor-pointer disabled:opacity-50"
             >
               {isSubmitting ? 'Salvando...' : 'Salvar Categoria'}
             </button>

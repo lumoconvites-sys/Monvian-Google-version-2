@@ -16,31 +16,9 @@ import firebaseConfig from '../../firebase-applet-config.json';
 const app = getApps().length > 0 ? getApp() : initializeApp(firebaseConfig);
 export const auth = getAuth(app);
 
-export const GMAIL_SCOPES = [
-  'https://mail.google.com/',
-  'https://www.googleapis.com/auth/gmail.send',
-  'https://www.googleapis.com/auth/gmail.readonly',
-  'https://www.googleapis.com/auth/gmail.modify',
-  'https://www.googleapis.com/auth/gmail.compose',
-  'https://www.googleapis.com/auth/gmail.labels',
-  'https://www.googleapis.com/auth/gmail.metadata',
-  'https://www.googleapis.com/auth/gmail.insert',
-  'https://www.googleapis.com/auth/gmail.settings.basic',
-  'https://www.googleapis.com/auth/gmail.settings.sharing',
-  'https://www.googleapis.com/auth/gmail.addons.current.action.compose',
-  'https://www.googleapis.com/auth/gmail.addons.current.message.action',
-  'https://www.googleapis.com/auth/gmail.addons.current.message.metadata',
-  'https://www.googleapis.com/auth/gmail.addons.current.message.readonly'
-];
-
 export const googleProvider = new GoogleAuthProvider();
-GMAIL_SCOPES.forEach((scope) => {
-  googleProvider.addScope(scope);
-});
-// Request offline access prompt if needed
 googleProvider.setCustomParameters({
-  prompt: 'consent',
-  access_type: 'offline'
+  prompt: 'select_account'
 });
 
 // In-memory cache for access token (MANDATORY: never store access token in localStorage)

@@ -492,7 +492,7 @@ export function AuthScreen({ onSuccess }: AuthScreenProps) {
                           : 'bg-[#141518] text-zinc-400 border-white/10 hover:border-white/20 hover:text-white'
                       }`}
                     >
-                      <span className={`w-2 h-2 rounded-full ${isSelected ? (g === 'masculino' ? 'bg-blue-500' : 'bg-pink-500') : 'bg-zinc-600'}`} />
+                      <span className={`w-2 h-2 rounded-full ${isSelected ? 'bg-black' : 'bg-zinc-600'}`} />
                       <span>{label}</span>
                     </button>
                   );

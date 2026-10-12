@@ -1,11 +1,11 @@
 import React, { useState, useRef, useEffect, useLayoutEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { NavAgoraIcon, NavChatIcon, NavPostsIcon, NavSearchIcon, NavProfileIcon, NavRoteirosIcon } from './NavIcons';
+import { NavAgoraIcon, NavChatIcon, NavSalvosIcon, NavSearchIcon, NavProfileIcon, NavRoteirosIcon } from './NavIcons';
 
-export type TabType = 'explorar' | 'roteiros' | 'chat' | 'buscar' | 'perfil';
+export type TabType = 'explorar' | 'roteiros' | 'salvos' | 'buscar' | 'perfil';
 
 export interface BottomNavigationProps {
-  activeTab: TabType;
+  activeTab: TabType | 'chat'; // support 'chat' for backward compatibility
   onChangeTab: (tab: TabType) => void;
   unreadCount?: number;
   isBlurred?: boolean;
@@ -16,7 +16,7 @@ export interface BottomNavigationProps {
 export const BottomNavigation: React.FC<BottomNavigationProps> = ({
   activeTab,
   onChangeTab,
-  unreadCount = 2,
+  unreadCount = 0,
   isBlurred = false,
   forceWhiteUI = false,
   theme = 'dark',
@@ -47,15 +47,19 @@ export const BottomNavigation: React.FC<BottomNavigationProps> = ({
   const pointerDownPosRef = useRef<{ x: number; y: number }>({ x: 0, y: 0 });
   const hasMovedRef = useRef<boolean>(false);
 
+  // Remapeia 'chat' antigo para 'salvos' caso persista no estado anterior
+  const normalizedActiveTab: TabType = activeTab === ('chat' as any) ? 'salvos' : activeTab;
+
   const tabs: { id: TabType; label: string }[] = [
     { id: 'explorar', label: 'Explorar' },
     { id: 'roteiros', label: 'Roteiros' },
-    { id: 'chat', label: 'Publicações' },
+    { id: 'salvos', label: 'Salvos' },
     { id: 'buscar', label: 'Buscar' },
     { id: 'perfil', label: 'Perfil' },
   ];
 
-  const activeIndex = tabs.findIndex((t) => t.id === activeTab);
+  const activeIndex = tabs.findIndex((t) => t.id === normalizedActiveTab);
+
 
   const updateTabRects = () => {
     if (!containerRef.current) return;
@@ -162,6 +166,8 @@ export const BottomNavigation: React.FC<BottomNavigationProps> = ({
     onChangeTab(tabId);
   };
 
+  const isRoteirosPage = activeTab === 'roteiros';
+
   return (
     <>
       <nav
@@ -194,30 +200,39 @@ export const BottomNavigation: React.FC<BottomNavigationProps> = ({
         {/* Bottom Navigation Bar */}
         <div
           ref={containerRef}
-          className={`w-full max-w-[430px] sm:max-w-[460px] pointer-events-auto flex items-center justify-around px-2 sm:px-3 py-1 relative overflow-hidden rounded-full shadow-2xl ios-glass-nav transition-all duration-300 ${
+          className={`w-full max-w-[430px] sm:max-w-[460px] pointer-events-auto flex items-center justify-around px-2 sm:px-3 py-1 relative overflow-hidden rounded-full transition-all duration-300 ios-glass ${
             isDark
-              ? 'border border-white/20 bg-black/75 backdrop-blur-xl'
-              : 'border border-black/15 bg-white/90 backdrop-blur-xl shadow-[0_12px_36px_rgba(0,0,0,0.2)]'
+              ? 'text-white border border-white/20'
+              : 'text-zinc-900 border border-white/50'
           }`}
           style={{
-            boxShadow: isDark ? '0 8px 32px 0 rgba(0, 0, 0, 0.45)' : '0 10px 36px 0 rgba(0, 0, 0, 0.18)',
+            backdropFilter: 'blur(24px) saturate(190%)',
+            WebkitBackdropFilter: 'blur(24px) saturate(190%)',
+            boxShadow: isDark
+              ? '0 16px 40px -8px rgba(0, 0, 0, 0.65), 0 0 0 1px rgba(255, 255, 255, 0.06), inset 0 1px 1px 0 rgba(255, 255, 255, 0.20)'
+              : '0 12px 36px -4px rgba(0, 0, 0, 0.12), inset 0 1px 1.5px 0 rgba(255, 255, 255, 0.85)',
           }}
         >
         {tabs.map((tab, idx) => {
           const isActive = activeTab === tab.id;
           const isPreviewHovered = isDragging && previewIndex === idx;
 
-          // Standard iOS glass navigation colors - High contrast cinza forte in light mode as requested
+          // Colors adapted from image 2 buttons: active is crisp high-contrast, inactive is subtle translucent
           const activeColorClass = isDark
             ? 'text-white scale-100 opacity-100 font-black'
             : 'text-zinc-950 scale-100 opacity-100 font-black';
 
           const inactiveColorClass = isDark
-            ? 'text-zinc-300 opacity-90 font-bold hover:text-white'
-            : 'text-zinc-700 opacity-100 font-black hover:text-black'; // Cinza forte bem destacado
+            ? 'text-zinc-300/80 opacity-80 font-medium hover:text-white hover:opacity-100'
+            : 'text-zinc-700/80 opacity-80 font-medium hover:text-zinc-950 hover:opacity-100';
 
-          const labelActiveColor = isDark ? 'font-black text-white' : 'font-black text-zinc-950';
-          const labelInactiveColor = isDark ? 'font-bold text-zinc-300' : 'font-extrabold text-zinc-700';
+          const labelActiveColor = isDark
+            ? 'font-black text-white'
+            : 'font-black text-zinc-950';
+
+          const labelInactiveColor = isDark
+            ? 'font-semibold text-zinc-300/80'
+            : 'font-semibold text-zinc-700/80';
 
           return (
             <button
@@ -228,7 +243,13 @@ export const BottomNavigation: React.FC<BottomNavigationProps> = ({
               onClick={() => handleTabClick(tab.id)}
               title={tab.label}
               className={`relative flex flex-col items-center justify-center w-[60px] sm:w-[68px] h-[48px] sm:h-[50px] rounded-full cursor-pointer z-10 select-none ${
-                isDark ? 'hover:bg-white/5' : 'hover:bg-black/5'
+                isRoteirosPage
+                  ? isDark
+                    ? 'hover:bg-white/10'
+                    : 'hover:bg-black/5'
+                  : isDark
+                    ? 'hover:bg-white/5'
+                    : 'hover:bg-black/5'
               } active:scale-95 transition-all`}
             >
               {/* 1. Agora Icon */}
@@ -259,23 +280,16 @@ export const BottomNavigation: React.FC<BottomNavigationProps> = ({
                 </div>
               )}
 
-              {/* 3. Publicações Icon */}
-              {tab.id === 'chat' && (
+              {/* 3. Salvos Icon (Airbnb wishlist heart) */}
+              {tab.id === 'salvos' && (
                 <motion.div
-                  animate={isActive ? { scale: [0.92, 1.12, 1] } : { scale: 1 }}
+                  animate={isActive ? { scale: [0.92, 1.15, 1] } : { scale: 1 }}
                   transition={{ type: 'spring', stiffness: 450, damping: 20 }}
                   className={`relative w-6.5 h-6.5 flex items-center justify-center mb-0.5 transition-all transform-gpu ${
                     isActive || isPreviewHovered ? activeColorClass : inactiveColorClass
                   }`}
                 >
-                  <NavPostsIcon size={22} className="w-5.5 h-5.5 text-current" />
-                  {unreadCount > 0 && (
-                    <span className={`absolute -top-0.5 right-0.5 w-2 h-2 rounded-full ring-2 shadow-xs ${
-                      isDark ? 'ring-[#16181d]' : 'ring-white'
-                    } ${
-                      isUserGold ? 'bg-[#F5BE38]' : 'bg-blue-600'
-                    }`} />
-                  )}
+                  <NavSalvosIcon size={22} filled={isActive} className="w-5.5 h-5.5 text-current" />
                 </motion.div>
               )}
 

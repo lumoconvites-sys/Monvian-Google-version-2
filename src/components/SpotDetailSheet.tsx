@@ -301,7 +301,7 @@ export const SpotDetailSheet: React.FC<SpotDetailSheetProps> = ({
                     />
                     <div className="min-w-0 flex-1">
                       <h3 className="text-xs sm:text-[13px] font-bold tracking-tight text-zinc-900 dark:text-[#F5F2EA] leading-snug flex items-center gap-1.5">
-                        <span className={isGoldUser ? "text-[#F5BE38]" : "text-[#007AFF]"}>★</span> Destaque da cidade
+                        <span className={isGoldUser ? "text-[#F5BE38]" : "text-[#FFFFFF]"}>★</span> Destaque da cidade
                       </h3>
                       <p className="text-[11px] sm:text-xs text-[#9A9894] font-semibold mt-0.5 leading-relaxed line-clamp-2">
                         {spot.description}
@@ -317,7 +317,7 @@ export const SpotDetailSheet: React.FC<SpotDetailSheetProps> = ({
                     </div>
                     <div className="p-3.5 rounded-2xl bg-zinc-50 dark:bg-white/5 border border-zinc-100 dark:border-white/10">
                       <span className="text-xs text-[#9A9894] font-bold block mb-1">Entrada</span>
-                      <span className={`text-sm font-bold ${isGoldUser ? 'text-[#F5BE38]' : 'text-[#007AFF]'}`}>{spot.priceRange === 'Grátis' ? 'Acesso Livre' : (spot.priceRange || 'Consultar')}</span>
+                      <span className={`text-sm font-bold ${isGoldUser ? 'text-[#F5BE38]' : 'text-[#FFFFFF]'}`}>{spot.priceRange === 'Grátis' ? 'Acesso Livre' : (spot.priceRange || 'Consultar')}</span>
                     </div>
                   </div>
 

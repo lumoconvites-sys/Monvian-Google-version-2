@@ -252,7 +252,7 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
                   <div className="flex items-center justify-between gap-4 pt-1">
                     {/* Big Avatar with iOS Ring */}
                     <div className="relative shrink-0">
-                      <div className="w-20 h-20 sm:w-22 sm:h-22 rounded-full p-1 bg-gradient-to-tr from-[#007AFF] to-[#5856D6] shadow-md">
+                      <div className="w-20 h-20 sm:w-22 sm:h-22 rounded-full p-1 bg-gradient-to-tr from-[#FFFFFF] to-[#5856D6] shadow-md">
                         <div className="w-full h-full rounded-full overflow-hidden bg-zinc-900 border-2 border-black">
                           <img
                             src={profile.avatar_url || '/fotoperfil.png'}
@@ -282,7 +282,7 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
                         onClick={() => openFollowList('followers')}
                         className="flex flex-col items-center group cursor-pointer transition-transform active:scale-95"
                       >
-                        <span className="text-[17px] sm:text-[19px] font-extrabold tracking-tight group-hover:text-blue-500 transition-colors">
+                        <span className="text-[17px] sm:text-[19px] font-extrabold tracking-tight group-hover:text-zinc-200 transition-colors">
                           {followersCount}
                         </span>
                         <span className="text-[12px] text-zinc-400 font-medium group-hover:text-zinc-200">
@@ -296,7 +296,7 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
                         onClick={() => openFollowList('following')}
                         className="flex flex-col items-center group cursor-pointer transition-transform active:scale-95"
                       >
-                        <span className="text-[17px] sm:text-[19px] font-extrabold tracking-tight group-hover:text-blue-500 transition-colors">
+                        <span className="text-[17px] sm:text-[19px] font-extrabold tracking-tight group-hover:text-zinc-200 transition-colors">
                           {followingCount}
                         </span>
                         <span className="text-[12px] text-zinc-400 font-medium group-hover:text-zinc-200">
@@ -349,7 +349,7 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
                               ? 'bg-zinc-900 hover:bg-zinc-800 text-zinc-200 border-white/15'
                               : 'bg-zinc-200 hover:bg-zinc-300 text-zinc-800 border-zinc-300'
                             : isDark
-                              ? 'bg-[#007AFF] hover:bg-blue-600 text-white border-transparent shadow-md'
+                              ? 'bg-[#FFFFFF] hover:bg-zinc-200 text-black border-transparent shadow-md'
                               : 'bg-black hover:bg-zinc-800 text-white border-transparent shadow-md'
                         }`}
                       >
@@ -702,7 +702,7 @@ const PostFullscreenPage: React.FC<PostFullscreenPageProps> = ({
               className={`px-3.5 py-1 rounded-full text-xs font-semibold transition-all cursor-pointer active:scale-95 ${
                 isFollowing
                   ? 'bg-white/10 text-zinc-300 border border-white/20 hover:bg-white/15'
-                  : 'bg-[#007AFF] hover:bg-[#0066d6] text-white shadow-sm'
+                  : 'bg-[#FFFFFF] hover:bg-[#0066d6] text-white shadow-sm'
               }`}
             >
               {isFollowing ? 'Seguindo' : 'Seguir'}
@@ -888,7 +888,7 @@ const PostFullscreenPage: React.FC<PostFullscreenPageProps> = ({
             disabled={!commentInput.trim() || submittingComment}
             className={`text-xs font-bold px-3 py-2 transition-colors cursor-pointer ${
               commentInput.trim() && !submittingComment
-                ? 'text-[#007AFF] hover:text-blue-400'
+                ? 'text-[#FFFFFF] hover:text-zinc-300'
                 : 'text-zinc-600 cursor-not-allowed'
             }`}
           >

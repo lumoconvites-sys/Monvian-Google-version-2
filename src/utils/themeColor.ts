@@ -5,7 +5,7 @@
 
 export interface SystemThemeParams {
   theme: 'dark' | 'light';
-  activeTab: 'explorar' | 'buscar' | 'roteiros' | 'chat' | 'perfil';
+  activeTab: 'explorar' | 'buscar' | 'roteiros' | 'salvos' | 'chat' | 'perfil';
   isAuthenticated?: boolean | null;
   mapStyle?: string;
   isDetailOpen?: boolean;
@@ -50,8 +50,8 @@ export function computeAdaptiveThemeColor(params: SystemThemeParams): string {
   }
 
   // 2. Tab-specific top background colors:
-  if (activeTab === 'chat') {
-    return '#000000';
+  if (activeTab === 'salvos' || activeTab === 'chat') {
+    return theme === 'dark' ? '#000000' : '#ffffff';
   }
 
   if (activeTab === 'roteiros') {

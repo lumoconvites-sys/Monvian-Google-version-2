@@ -6,9 +6,12 @@ import { BottomNavigation, TabType } from './components/BottomNavigation';
 import { SpotDetailSheet } from './components/SpotDetailSheet';
 import { SpotPreviewBanner } from './components/SpotPreviewBanner';
 import { SearchFilterDrawer } from './components/SearchFilterDrawer';
-import { PublicationsView } from './components/PublicationsView';
+import { SavedView } from './components/SavedView';
+import { ItineraryDetailModal } from './components/ItineraryDetailModal';
 import { ProfileModal } from './components/ProfileModal';
 import { ItinerariesView } from './components/ItinerariesView';
+import { Itinerary } from './types';
+import { favoritesManager } from './services/favoritesManager';
 import { CloudRain, SlidersHorizontal, MapPin, Navigation2, Mic, Search, X, ShieldCheck, Sun, Moon, Building2, UtensilsCrossed, Coffee, Cake, Mountain, Cross, Check, RotateCcw, Star, ChevronRight } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { AuthScreen } from './components/AuthScreen';
@@ -17,6 +20,7 @@ import { OnboardingFlow } from './components/OnboardingFlow';
 import { OnboardingQuestionsModal } from './components/OnboardingQuestionsModal';
 import { OfflineIndicator } from './components/OfflineIndicator';
 import { Weather3DIcon } from './components/Weather3DIcon';
+import { Map3DIcon } from './components/Map3DIcon';
 import { WeatherModal } from './components/WeatherModal';
 import { RainEffect } from './components/RainEffect';
 import { SnowEffect } from './components/SnowEffect';
@@ -28,6 +32,7 @@ import { VerifiedBadge } from './components/ui/VerifiedBadge';
 import { DesktopSidebar } from './components/desktop/DesktopSidebar';
 import { DesktopTopBar } from './components/desktop/DesktopTopBar';
 import { DesktopExplorePanel } from './components/desktop/DesktopExplorePanel';
+import { startPreloadResources } from './utils/preloadItineraries';
 
 const welcomeContainerVariants = {
   hidden: { opacity: 0 },
@@ -116,6 +121,11 @@ export default function App() {
       (mediaQuery as any).addListener(handler);
       return () => (mediaQuery as any).removeListener(handler);
     }
+  }, []);
+
+  // Preload all itinerary images in background as soon as app opens, even if user is on another tab
+  useEffect(() => {
+    startPreloadResources();
   }, []);
 
 
@@ -551,7 +561,21 @@ export default function App() {
   // Spot card dynamic layout behavior
   const isSpotCardOpen = Boolean(selectedSpot && !isDetailOpen && activeTab === 'explorar');
 
-  const [favorites, setFavorites] = useState<string[]>(['itapeva', 'baden-baden', 'amantikir']);
+  const [selectedItinerary, setSelectedItinerary] = useState<Itinerary | null>(null);
+
+  const [favorites, setFavorites] = useState<string[]>(() => {
+    const s = favoritesManager.getState();
+    return Array.from(new Set([...s.spots, ...s.places]));
+  });
+
+  useEffect(() => {
+    const unsubscribe = favoritesManager.subscribe(() => {
+      const s = favoritesManager.getState();
+      setFavorites(Array.from(new Set([...s.spots, ...s.places])));
+    });
+    return () => unsubscribe();
+  }, []);
+
   const [selectedCategoryFilter, setSelectedCategoryFilter] = useState<string | null>(null);
   const [isCategoryCardOpen, setIsCategoryCardOpen] = useState<boolean>(false);
   const [searchQuery, setSearchQuery] = useState('');
@@ -870,9 +894,11 @@ export default function App() {
   }, []);
 
   const handleToggleFavorite = (spotId: string) => {
-    setFavorites((prev) =>
-      prev.includes(spotId) ? prev.filter((id) => id !== spotId) : [...prev, spotId]
-    );
+    const spot = spots.find((s) => s.id === spotId);
+    const isTourist = spot
+      ? ['attractions', 'viewpoint', 'parks', 'nature', 'culture', 'monument', 'trail'].includes(spot.category)
+      : false;
+    favoritesManager.toggleItem(isTourist ? 'spot' : 'place', spotId);
   };
 
   const handleTabChange = (tab: TabType) => {
@@ -1003,7 +1029,7 @@ export default function App() {
 
       <main
         id="main-app-content"
-        className={`relative flex-1 w-full h-full overflow-hidden select-none transition-all duration-300 ${
+        className={`relative flex-1 w-full h-full overflow-hidden select-none transition-all duration-300 pb-[60px] ${
           theme === 'dark' ? 'bg-black' : 'bg-zinc-50'
         }`}
         style={{
@@ -1132,7 +1158,7 @@ export default function App() {
                 aria-label="Ver detalhes do clima em Campos do Jordão"
                 title="Toque para ver a previsão do tempo"
               >
-                <span className={`text-5xl sm:text-6xl font-extrabold tracking-tighter leading-none transition-colors group-hover:text-blue-400 ${
+                <span className={`text-5xl sm:text-6xl font-extrabold tracking-tighter leading-none transition-opacity group-hover:opacity-80 ${
                   mapStyle === 'animado'
                     ? 'text-white [-webkit-text-stroke:_0.6px_rgba(0,0,0,0.22)]'
                     : theme === 'dark'
@@ -1209,15 +1235,15 @@ export default function App() {
             onClick={() => setIs3DMode((prev) => !prev)}
             className={`w-12 h-12 rounded-full flex items-center justify-center transition-all duration-300 active:scale-95 cursor-pointer group ${
               is3DMode
-                ? 'ios-glass-btn ring-2 ring-blue-500/80 bg-blue-500/25 text-blue-400 border border-blue-400/40 shadow-[0_0_18px_rgba(59,130,246,0.5)]'
+                ? 'ios-glass-btn ring-2 ring-white/80 bg-white/20 text-white border border-white/40 shadow-[0_0_18px_rgba(255,255,255,0.35)]'
                 : isWhiteMapUI
-                ? 'ios-glass-btn-white text-zinc-900 border border-black/10'
+                ? 'ios-glass-btn-white text-zinc-900 border border-white'
                 : 'ios-glass-btn text-zinc-700 dark:text-white border border-white/20 dark:border-white/15'
             }`}
             title={is3DMode ? 'Alternar para visão 2D Plana' : 'Alternar para visão 3D com Relevo e Montanhas'}
           >
-            <div className="relative flex items-center justify-center font-black text-xs sm:text-[13.5px] tracking-tighter group-hover:scale-110 transition-transform">
-              <span>3D</span>
+            <div className="relative flex items-center justify-center group-hover:scale-110 transition-transform">
+              <Map3DIcon className="w-7 h-7 rounded-full shadow-sm" />
             </div>
           </button>
 
@@ -1232,7 +1258,7 @@ export default function App() {
               className={`w-12 h-12 rounded-full flex items-center justify-center transition-all duration-300 active:scale-95 cursor-pointer group shrink-0 ${
                 isWhiteMapUI
                   ? selectedCategoryFilter || isCategoryCardOpen
-                    ? 'ios-glass-btn-white ring-2 ring-black/20 text-zinc-950 bg-white'
+                    ? 'ios-glass-btn-white ring-2 ring-white text-zinc-950 bg-white'
                     : 'ios-glass-btn-white text-zinc-900'
                   : selectedCategoryFilter || isCategoryCardOpen
                     ? 'ios-glass-btn ring-2 ring-white/40 dark:ring-white/35 bg-white/25 dark:bg-white/20 text-zinc-900 dark:text-white'
@@ -1244,7 +1270,7 @@ export default function App() {
                 <SlidersHorizontal className="w-5 h-5 stroke-[2.2]" />
               </div>
               {selectedCategoryFilter && (
-                <span className="absolute top-1.5 right-1.5 w-2 h-2 rounded-full bg-white shadow-[0_0_6px_rgba(255,255,255,0.8)] ring-1 ring-black/40" />
+                <span className="absolute top-1.5 right-1.5 w-2 h-2 rounded-full bg-white shadow-[0_0_6px_rgba(255,255,255,0.8)] ring-1 ring-white" />
               )}
             </button>
 
@@ -1540,38 +1566,51 @@ export default function App() {
       />
 
       {/* 8.5. Itineraries & Route Planning (Tab: 'roteiros') */}
-      <ItinerariesView
-        isOpen={activeTab === 'roteiros'}
-        onClose={() => setActiveTab('explorar')}
-        theme={theme}
-        spots={spots}
-      />
-
-      {/* Backdrop for Chat Tab so Map is never visible */}
-      {activeTab === 'chat' && (
-        <div
-          id="chat-tab-solid-backdrop"
-          className="fixed inset-0 w-full h-full z-44 pointer-events-none select-none transition-colors duration-200"
-          style={{
-            backgroundColor: theme === 'light' ? '#ffffff' : '#000000',
-          }}
-          aria-hidden="true"
+      {activeTab === 'roteiros' && (
+        <ItinerariesView
+          isOpen={true}
+          onClose={() => setActiveTab('explorar')}
+          theme={theme}
+          spots={spots}
         />
       )}
 
-      {/* 9. Social Publications Feed (Tab: 'chat' / 'publicacoes') */}
-      <PublicationsView
-        isOpen={activeTab === 'chat'}
-        onClose={() => setActiveTab('explorar')}
+      {/* 9. Saved / Favorites Wishlists (Tab: 'salvos', Airbnb-inspired) */}
+      <SavedView
+        isOpen={activeTab === 'salvos' || activeTab === ('chat' as any)}
         theme={theme}
         spots={spots}
-        onSelectSpot={(spot) => {
+        onOpenSpot={(spot) => {
           setSelectedSpot(spot);
           setIsDetailOpen(true);
-          setActiveTab('explorar');
         }}
-        onKeyboardStateChange={setIsChatKeyboardOpen}
+        onOpenItinerary={(itinerary) => {
+          setSelectedItinerary(itinerary);
+        }}
+        onNavigateTab={(targetTab) => {
+          setActiveTab(targetTab);
+        }}
       />
+
+      {/* 9.5. Curated & Saved Itinerary Detail Modal */}
+      <AnimatePresence>
+        {selectedItinerary && (
+          <ItineraryDetailModal
+            isOpen={Boolean(selectedItinerary)}
+            onClose={() => setSelectedItinerary(null)}
+            itinerary={selectedItinerary}
+            onSelectSpot={(spot) => {
+              setSelectedItinerary(null);
+              setSelectedSpot(spot);
+              setIsDetailOpen(true);
+            }}
+            isSaved={selectedItinerary ? favoritesManager.isItinerarySaved(selectedItinerary.id) : false}
+            onSaveItinerary={(itinerary) => {
+              favoritesManager.toggleItinerary(itinerary.id);
+            }}
+          />
+        )}
+      </AnimatePresence>
 
       {/* 10. Profile & Favorites (Tab: 'perfil') */}
       <ProfileModal

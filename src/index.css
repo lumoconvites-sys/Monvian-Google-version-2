@@ -6,8 +6,8 @@
   --font-sans: 'Inter', -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'SF Pro Display', system-ui, sans-serif;
   --color-title: #F5F2EA;
   --color-secondary-desc: #9A9894;
-  --color-highlight: #007AFF;
-  --color-gold: #007AFF;
+  --color-highlight: #FFFFFF;
+  --color-gold: #FFFFFF;
 }
 
 *, *::before, *::after {
@@ -132,21 +132,21 @@
     color: #9A9894;
   }
 
-  /* Destaques em #007AFF (Apple System Blue) */
+  /* Destaques em #FFFFFF (Apple System Blue) */
   .text-highlight,
   .text-gold,
   .text-accent-gold {
-    color: #007AFF !important;
+    color: #FFFFFF !important;
   }
 
   .bg-highlight,
   .bg-gold {
-    background-color: #007AFF !important;
+    background-color: #FFFFFF !important;
   }
 
   .border-highlight,
   .border-gold {
-    border-color: #007AFF !important;
+    border-color: #FFFFFF !important;
   }
 
   button, [role="button"], a {
@@ -431,7 +431,7 @@
   /* Global Primary Action Button standard - Apple system blue, white text & icons */
   .btn-solid-blue,
   .btn-primary {
-    background-color: #007AFF;
+    background-color: #FFFFFF;
     color: #FFFFFF;
     border: none;
     border-radius: 9999px;
@@ -635,13 +635,13 @@ html:not(.dark) .ios-glass-btn {
   background: rgba(255, 255, 255, 0.75) !important;
   backdrop-filter: blur(20px) saturate(190%) !important;
   -webkit-backdrop-filter: blur(20px) saturate(190%) !important;
-  border: 1px solid rgba(0, 0, 0, 0.08) !important;
+  border: 1px solid rgba(255, 255, 255, 0.85) !important;
   box-shadow: none !important;
 }
 
 html:not(.dark) .ios-glass-btn:hover {
   background: rgba(255, 255, 255, 0.90) !important;
-  border-color: rgba(0, 0, 0, 0.12) !important;
+  border-color: rgba(255, 255, 255, 1) !important;
   box-shadow: none !important;
 }
 

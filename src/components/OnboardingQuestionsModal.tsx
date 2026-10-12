@@ -119,22 +119,22 @@ export const OnboardingQuestionsModal: React.FC<OnboardingQuestionsModalProps> =
         <div className="flex items-center gap-2 px-4 py-2 rounded-full ios-glass shadow-md">
           <span
             className={`w-2 h-2 rounded-full transition-all ${
-              wizardStep === 'date' ? 'bg-blue-500 scale-125' : 'bg-zinc-600'
+              wizardStep === 'date' ? 'bg-white scale-125' : 'bg-zinc-600'
             }`}
           />
           <span
             className={`w-2 h-2 rounded-full transition-all ${
-              wizardStep === 'people' ? 'bg-blue-500 scale-125' : 'bg-zinc-600'
+              wizardStep === 'people' ? 'bg-white scale-125' : 'bg-zinc-600'
             }`}
           />
           <span
             className={`w-2 h-2 rounded-full transition-all ${
-              wizardStep === 'budget' ? 'bg-blue-500 scale-125' : 'bg-zinc-600'
+              wizardStep === 'budget' ? 'bg-white scale-125' : 'bg-zinc-600'
             }`}
           />
           <span
             className={`w-2 h-2 rounded-full transition-all ${
-              wizardStep === 'tinder' ? 'bg-blue-500 scale-125' : 'bg-zinc-600'
+              wizardStep === 'tinder' ? 'bg-white scale-125' : 'bg-zinc-600'
             }`}
           />
         </div>

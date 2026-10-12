@@ -258,17 +258,17 @@ export const ItineraryStoreDetailModal: React.FC<ItineraryStoreDetailModalProps>
                 isLight ? 'border-zinc-100 text-zinc-600' : 'border-white/10 text-zinc-400'
               }`}>
                 <span className="flex items-center gap-1.5">
-                  <Clock className={`w-3.5 h-3.5 shrink-0 ${isGoldItinerary ? 'text-[#E5AC33] dark:text-[#FDE073] drop-shadow-[0_0_8px_rgba(229,172,51,0.5)]' : 'text-[#007AFF]'}`} />
+                  <Clock className={`w-3.5 h-3.5 shrink-0 ${isGoldItinerary ? 'text-[#E5AC33] dark:text-[#FDE073] drop-shadow-[0_0_8px_rgba(229,172,51,0.5)]' : (isLight ? 'text-black' : 'text-white')}`} />
                   <span>{itinerary.daysCount} {itinerary.daysCount === 1 ? 'dia' : 'dias'}</span>
                 </span>
                 <span className="opacity-30">·</span>
                 <span className="flex items-center gap-1.5">
-                  <MapPin className={`w-3.5 h-3.5 shrink-0 ${isGoldItinerary ? 'text-[#E5AC33] dark:text-[#FDE073] drop-shadow-[0_0_8px_rgba(229,172,51,0.5)]' : 'text-[#007AFF]'}`} />
+                  <MapPin className={`w-3.5 h-3.5 shrink-0 ${isGoldItinerary ? 'text-[#E5AC33] dark:text-[#FDE073] drop-shadow-[0_0_8px_rgba(229,172,51,0.5)]' : (isLight ? 'text-black' : 'text-white')}`} />
                   <span>{totalStops} {totalStops === 1 ? 'parada' : 'paradas'}</span>
                 </span>
                 <span className="opacity-30">·</span>
                 <span className="flex items-center gap-1.5">
-                  <Compass className={`w-3.5 h-3.5 shrink-0 ${isGoldItinerary ? 'text-[#E5AC33] dark:text-[#FDE073] drop-shadow-[0_0_8px_rgba(229,172,51,0.5)]' : 'text-[#007AFF]'}`} />
+                  <Compass className={`w-3.5 h-3.5 shrink-0 ${isGoldItinerary ? 'text-[#E5AC33] dark:text-[#FDE073] drop-shadow-[0_0_8px_rgba(229,172,51,0.5)]' : (isLight ? 'text-black' : 'text-white')}`} />
                   <span>Ritmo otimizado</span>
                 </span>
               </div>
@@ -280,7 +280,7 @@ export const ItineraryStoreDetailModal: React.FC<ItineraryStoreDetailModalProps>
                     ? 'bg-zinc-50 border-zinc-200/70 text-zinc-800'
                     : 'bg-[#15171c] border-white/10 text-zinc-200'
                 }`}>
-                  <Lightbulb className={`w-4 h-4 shrink-0 mt-0.5 ${isGoldItinerary ? 'text-[#E5AC33] dark:text-[#FDE073] drop-shadow-[0_0_8px_rgba(229,172,51,0.6)]' : 'text-[#007AFF]'}`} />
+                  <Lightbulb className={`w-4 h-4 shrink-0 mt-0.5 ${isGoldItinerary ? 'text-[#E5AC33] dark:text-[#FDE073] drop-shadow-[0_0_8px_rgba(229,172,51,0.6)]' : (isLight ? 'text-black' : 'text-white')}`} />
                   <div className="space-y-0.5 text-xs">
                     <span className="font-bold block text-zinc-900 dark:text-white">
                       Dicas do guia
@@ -309,7 +309,7 @@ export const ItineraryStoreDetailModal: React.FC<ItineraryStoreDetailModalProps>
                             isSelected
                               ? isGoldItinerary
                                 ? 'bg-metallic-gold text-[#1A1202] border-[#FFF4A3]/70 shadow-md shadow-[#E5AC33]/30 font-black'
-                                : 'bg-[#007AFF] text-white border-blue-500 shadow-2xs'
+                                : isLight ? 'bg-black text-white border-black shadow-2xs' : 'bg-white text-black border-white shadow-2xs'
                               : isLight
                               ? 'bg-zinc-100 text-zinc-600 border-zinc-200/80 hover:bg-zinc-200'
                               : 'bg-zinc-900 text-zinc-400 border-white/10 hover:text-white'
@@ -388,7 +388,7 @@ export const ItineraryStoreDetailModal: React.FC<ItineraryStoreDetailModalProps>
                           <div className={`w-6 h-6 rounded-full flex items-center justify-center shrink-0 font-bold text-[11px] ${
                             isGoldItinerary
                               ? 'bg-metallic-gold text-[#1A1202] font-black shadow-xs shadow-[#E5AC33]/25 border border-[#FFF4A3]/60'
-                              : 'bg-[#007AFF]/15 text-[#007AFF]'
+                              : isLight ? 'bg-black/10 text-black' : 'bg-white/15 text-white'
                           }`}>
                             {stepNumber}
                           </div>
@@ -411,7 +411,7 @@ export const ItineraryStoreDetailModal: React.FC<ItineraryStoreDetailModalProps>
                           <div className="flex-1 min-w-0">
                             <div className="flex items-center justify-between gap-1">
                               <span className={`text-[10px] font-bold uppercase tracking-wider truncate ${
-                                isGoldItinerary ? 'text-[#E5AC33] dark:text-[#FDE073] drop-shadow-[0_0_6px_rgba(229,172,51,0.3)]' : 'text-[#007AFF]'
+                                isGoldItinerary ? 'text-[#E5AC33] dark:text-[#FDE073] drop-shadow-[0_0_6px_rgba(229,172,51,0.3)]' : (isLight ? 'text-black' : 'text-white')
                               }`}>
                                 {spotCategory}
                               </span>
@@ -482,11 +482,7 @@ export const ItineraryStoreDetailModal: React.FC<ItineraryStoreDetailModalProps>
                 type="button"
                 disabled={isApplying}
                 onClick={handleAdd}
-                className={`w-full h-12 rounded-2xl font-black text-sm flex items-center justify-center gap-2 transition-all cursor-pointer disabled:opacity-60 ${
-                  itinerary.isPremium
-                    ? 'bg-metallic-gold text-[#1A1202] shadow-lg shadow-[#E5AC33]/30 active:opacity-90'
-                    : 'bg-[#007AFF] hover:bg-blue-600 text-white shadow-lg shadow-[#007AFF]/25'
-                }`}
+                className="w-full h-12 rounded-2xl font-black text-sm flex items-center justify-center gap-2 transition-all cursor-pointer disabled:opacity-60 bg-[#22c55e] hover:bg-[#16a34a] text-white shadow-lg shadow-[#22c55e]/25 active:opacity-90"
               >
                 {isApplying ? (
                   <div className="flex items-center gap-2">
@@ -494,14 +490,7 @@ export const ItineraryStoreDetailModal: React.FC<ItineraryStoreDetailModalProps>
                     <span>Adicionando...</span>
                   </div>
                 ) : (
-                  <>
-                    {itinerary.isPremium ? (
-                      <Crown className="w-4 h-4 stroke-[2.4] text-[#1A1202]" />
-                    ) : (
-                      <Compass className="w-4 h-4 stroke-[2.5]" />
-                    )}
-                    <span>Adicionar ao meu roteiro</span>
-                  </>
+                  <span>Adicionar</span>
                 )}
               </motion.button>
             </div>

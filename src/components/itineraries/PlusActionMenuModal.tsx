@@ -92,7 +92,7 @@ export const PlusActionMenuModal: React.FC<PlusActionMenuModalProps> = ({
               <div className={`w-10 h-10 rounded-2xl flex items-center justify-center shrink-0 shadow-sm ${
                 isGoldUser
                   ? 'bg-metallic-gold text-[#1A1202] border border-[#FFF4A3]/70'
-                  : 'bg-blue-600 text-white'
+                  : 'bg-white text-black'
               }`}>
                 <Compass className="w-5 h-5 stroke-[2.2]" />
               </div>
@@ -125,7 +125,7 @@ export const PlusActionMenuModal: React.FC<PlusActionMenuModalProps> = ({
               <div className={`w-10 h-10 rounded-2xl flex items-center justify-center shrink-0 shadow-sm ${
                 isGoldUser
                   ? 'bg-[#F5BE38]/20 text-[#F5BE38] border border-[#F5BE38]/40'
-                  : 'bg-blue-500/15 text-blue-500 border border-blue-500/30'
+                  : 'bg-white/10 text-white border border-white/20'
               }`}>
                 <PlusCircle className="w-5 h-5 stroke-[2.2]" />
               </div>

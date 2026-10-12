@@ -3,7 +3,7 @@ import { TabType } from '../BottomNavigation';
 import {
   NavAgoraIcon,
   NavRoteirosIcon,
-  NavChatIcon,
+  NavSalvosIcon,
   NavSearchIcon,
   NavProfileIcon,
 } from '../NavIcons';
@@ -53,10 +53,9 @@ export const DesktopSidebar: React.FC<DesktopSidebarProps> = ({
       icon: <NavRoteirosIcon size={22} className="shrink-0" />,
     },
     {
-      id: 'chat',
-      label: 'Chat',
-      icon: <NavChatIcon size={22} className="shrink-0" />,
-      badge: unreadCount > 0 ? unreadCount : undefined,
+      id: 'salvos',
+      label: 'Salvos',
+      icon: <NavSalvosIcon size={22} filled={activeTab === 'salvos'} className="shrink-0" />,
     },
     {
       id: 'buscar',
@@ -126,7 +125,7 @@ export const DesktopSidebar: React.FC<DesktopSidebarProps> = ({
               <span className="truncate flex-1 text-left">{item.label}</span>
 
               {item.badge && item.badge > 0 && (
-                <span className="px-2 py-0.5 rounded-full text-[11px] font-black bg-[#007AFF] text-white shrink-0">
+                <span className="px-2 py-0.5 rounded-full text-[11px] font-black bg-[#FFFFFF] text-white shrink-0">
                   {item.badge}
                 </span>
               )}

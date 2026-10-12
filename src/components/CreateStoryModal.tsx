@@ -687,7 +687,7 @@ export const CreateStoryModal: React.FC<CreateStoryModalProps> = ({
                   disabled={isPublishing}
                   onClick={() => setIsLocationSelectorOpen(!isLocationSelectorOpen)}
                   className={`w-10 h-10 rounded-full backdrop-blur-md border flex items-center justify-center transition-colors cursor-pointer active:scale-95 ${
-                    selectedLocation ? 'bg-[#007AFF] text-white border-[#007AFF]' : 'bg-black/50 border-white/15 text-white'
+                    selectedLocation ? 'bg-[#FFFFFF] text-white border-[#FFFFFF]' : 'bg-black/50 border-white/15 text-white'
                   }`}
                   title="Marcar Localização"
                 >

@@ -62,8 +62,8 @@ export const BudgetStep: React.FC<BudgetStepProps> = ({
               className={`w-full p-4 sm:p-4.5 rounded-[24px] flex items-center justify-between text-left transition-all active:scale-[0.99] cursor-pointer border backdrop-blur-xl ${
                 isSelected
                   ? isDark
-                    ? 'bg-[#141b28]/85 border-2 border-blue-500 text-white shadow-[0_4px_25px_rgba(37,99,235,0.25)]'
-                    : 'bg-blue-50/90 border-2 border-blue-600 text-zinc-900 shadow-sm'
+                    ? 'bg-[#1C1E24] border-2 border-white text-white shadow-lg'
+                    : 'bg-zinc-100 border-2 border-black text-zinc-900 shadow-sm'
                   : isDark
                   ? 'bg-[#18181b]/80 hover:bg-[#202024]/90 border-white/10 hover:border-white/20 text-zinc-200'
                   : 'bg-white/80 hover:bg-white/95 border-black/8 text-zinc-800 shadow-[0_2px_8px_rgba(0,0,0,0.03)]'
@@ -73,7 +73,7 @@ export const BudgetStep: React.FC<BudgetStepProps> = ({
                 <div
                   className={`w-10 h-10 rounded-[14px] flex items-center justify-center shrink-0 transition-colors ${
                     isSelected
-                      ? 'bg-blue-600 text-white shadow-md shadow-blue-600/40'
+                      ? 'bg-white text-black shadow-md'
                       : isDark
                       ? 'bg-zinc-800/80 text-zinc-400'
                       : 'bg-zinc-100 text-zinc-600'
@@ -95,13 +95,13 @@ export const BudgetStep: React.FC<BudgetStepProps> = ({
               <div
                 className={`w-6 h-6 rounded-full flex items-center justify-center shrink-0 transition-all ${
                   isSelected
-                    ? 'bg-blue-600 text-white shadow-sm ring-2 ring-blue-500/30'
+                    ? 'bg-white text-black shadow-sm ring-2 ring-white/30'
                     : isDark
                     ? 'border-2 border-zinc-700'
                     : 'border-2 border-zinc-300'
                 }`}
               >
-                {isSelected && <Check className="w-3.5 h-3.5 stroke-[3]" />}
+                {isSelected && <Check className="w-3.5 h-3.5 stroke-[3] text-black" />}
               </div>
             </button>
           );
@@ -114,7 +114,7 @@ export const BudgetStep: React.FC<BudgetStepProps> = ({
           id="btn-itinerary-budget-continue"
           type="button"
           onClick={handleContinue}
-          className="w-full py-3.5 sm:py-4 px-6 rounded-2xl bg-blue-600 hover:bg-blue-500 active:scale-[0.98] text-white font-black text-base transition-all shadow-lg shadow-blue-600/25 flex items-center justify-center gap-2 cursor-pointer"
+          className="w-full py-3.5 sm:py-4 px-6 rounded-2xl bg-white hover:bg-zinc-200 active:scale-[0.98] text-black font-black text-base transition-all shadow-lg shadow-black/20 flex items-center justify-center gap-2 cursor-pointer"
         >
           Continuar
         </button>

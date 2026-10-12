@@ -21,11 +21,13 @@ import {
   CloudRain,
   Crown,
   AtSign,
+  Bell,
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { InstagramLogo, WhatsAppLogo } from './SocialIcons';
 import { PremiumModal } from './PremiumModal';
 import { IOSSwitch } from './IOSSwitch';
+import { NotificationsModal } from './NotificationsModal';
 
 interface ProfileModalProps {
   isOpen: boolean;
@@ -49,7 +51,7 @@ interface ProfileModalProps {
   instagramUrl?: string;
 }
 
-type SubView = 'main' | 'edit-profile' | 'curtidos' | 'permissoes' | 'painel-adm' | 'logout-confirm';
+type SubView = 'main' | 'edit-profile' | 'curtidos' | 'permissoes' | 'logout-confirm';
 
 export const ProfileModal: React.FC<ProfileModalProps> = ({
   isOpen,
@@ -221,6 +223,9 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
   };
 
   const [isPremiumModalOpen, setIsPremiumModalOpen] = useState(false);
+  const [isNotificationsOpen, setIsNotificationsOpen] = useState(false);
+  const [notificationsList, setNotificationsList] = useState<any[]>([]);
+  const [isLoadingNotifications, setIsLoadingNotifications] = useState(false);
 
   const cleanUserEmail = (user?.email || user?.whatsapp || '').trim().toLowerCase();
   const isGoldAdmin = ['empresariomario@gmail.com', 'marioempresario@gmail.com', 'marioyesk@gmail.com'].includes(cleanUserEmail);
@@ -594,21 +599,32 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
             {activeSubView === 'main' && 'Perfil'}
             {activeSubView === 'edit-profile' && 'Editar Perfil'}
             {activeSubView === 'curtidos' && 'Lugares Curtidos'}
-            {activeSubView === 'painel-adm' && 'Painel ADM'}
+
             {activeSubView === 'logout-confirm' && 'Encerrar Sessão'}
           </h1>
         </div>
 
-        {/* Desktop Close Button */}
-        <button
-          type="button"
-          onClick={onClose}
-          className="w-9 h-9 rounded-full bg-zinc-200/80 dark:bg-white/10 hover:bg-zinc-300 dark:hover:bg-white/20 text-zinc-900 dark:text-white flex items-center justify-center transition-colors cursor-pointer"
-          title="Fechar perfil"
-          aria-label="Fechar perfil"
-        >
-          <X className="w-4 h-4 stroke-[2.2]" />
-        </button>
+        {activeSubView === 'main' ? (
+          <button
+            type="button"
+            onClick={() => setIsNotificationsOpen(true)}
+            className="w-10 h-10 rounded-full bg-zinc-100 dark:bg-white/10 text-zinc-900 dark:text-white flex items-center justify-center hover:bg-zinc-200 dark:hover:bg-white/20 transition-colors cursor-pointer shadow-xs"
+            title="Notificações"
+            aria-label="Notificações"
+          >
+            <Bell className="w-5 h-5 stroke-[2]" />
+          </button>
+        ) : (
+          <button
+            type="button"
+            onClick={onClose}
+            className="w-9 h-9 rounded-full bg-zinc-200/80 dark:bg-white/10 hover:bg-zinc-300 dark:hover:bg-white/20 text-zinc-900 dark:text-white flex items-center justify-center transition-colors cursor-pointer"
+            title="Fechar perfil"
+            aria-label="Fechar perfil"
+          >
+            <X className="w-4 h-4 stroke-[2.2]" />
+          </button>
+        )}
       </div>
 
       {/* Main Content Area */}
@@ -616,7 +632,7 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
         className="flex-1 min-h-0 overflow-y-auto overscroll-contain px-5 sm:px-8 max-w-3xl mx-auto w-full flex flex-col"
         style={{
           WebkitOverflowScrolling: 'touch',
-          paddingBottom: 'calc(env(safe-area-inset-bottom, 16px) + 76px)',
+          paddingBottom: 'calc(env(safe-area-inset-bottom, 32px) + 200px)',
         }}
       >
         {/* Hidden File Input for Avatar Upload */}
@@ -632,290 +648,194 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
         {/* VIEW 1: MAIN PROFILE (Exact Match to Screenshot)            */}
         {/* ============================================================ */}
         {activeSubView === 'main' && (
-          <div className="space-y-3.5 pt-1">
-            {/* 1. Header User Card */}
-            {isPremiumUser ? (
-              <div id="card-user-info" className="gold-vip-frame-wrapper border border-[#E5AC33]/40 dark:border-transparent">
-                <div className="relative z-10 w-full p-5 rounded-[30.5px] bg-white dark:bg-[#141518] flex items-center gap-4">
-                  {/* Avatar with metallic gold 3D bezel ring */}
-                  <div className="relative shrink-0">
-                    <div className="gold-vip-avatar-ring">
-                      <div className="w-18 h-18 sm:w-20 sm:h-20 rounded-full overflow-hidden bg-zinc-100 dark:bg-zinc-900 relative border border-[#FFF4A3]/70 dark:border-[#FFF4A3]/50">
-                        <img
-                          src={userAvatar}
-                          alt={userName}
-                          className="w-full h-full object-cover"
-                        />
-                        {isUploading && (
-                          <div className="absolute inset-0 bg-black/60 flex items-center justify-center">
-                            <Loader2 className="w-6 h-6 text-white animate-spin" />
-                          </div>
-                        )}
-                      </div>
-                    </div>
-
+          <div className="space-y-4 pt-2 pb-12">
+            {/* 1. Main Profile Card (Airbnb Style) */}
+            <div
+              onClick={() => {
+                setTempName(userName);
+                setTempUsername(userUsername);
+                setTempBio(userBio);
+                setTempEmail(userEmail);
+                setTempAvatar(userAvatar);
+                setUsernameStatus('idle');
+                setUsernameFeedback('');
+                setSaveError('');
+                handleSetSubView('edit-profile');
+              }}
+              className="w-full p-6 rounded-[32px] bg-white dark:bg-[#1c1c1e] border border-black/5 dark:border-white/10 shadow-xs flex flex-col items-center text-center cursor-pointer group active:scale-[0.98] transition-all"
+            >
+              <div className="relative mb-3.5">
+                {userAvatar && !userAvatar.endsWith('fotoperfil.png') ? (
+                  <div className="w-28 h-28 rounded-full overflow-hidden shadow-md bg-zinc-100 dark:bg-zinc-800 border-2 border-white dark:border-zinc-800">
+                    <img src={userAvatar} alt={userName} className="w-full h-full object-cover" />
                   </div>
-
-                  {/* User details */}
-                  <div className="min-w-0 flex-1">
-                    <div className="flex items-center gap-1.5 flex-wrap">
-                      <h2 className="text-xl sm:text-[22px] font-black text-zinc-900 dark:text-white tracking-tight leading-tight flex items-center gap-1.5">
-                        <span>{userName}</span>
-                        <Crown className="w-4 h-4 text-[#F5BE38] fill-[#F5BE38]/30 stroke-[2.2] shrink-0" />
-                      </h2>
-                    </div>
-                    <p className="text-xs sm:text-[13px] text-sky-500 font-bold truncate mt-0.5">
-                      @{userUsername || user?.username || 'usuario'}
-                    </p>
-                    <p className="text-xs sm:text-sm text-zinc-500 dark:text-zinc-400 font-medium truncate mt-0.5">
-                      {userEmail}
-                    </p>
+                ) : (
+                  <div className="w-28 h-28 rounded-full bg-[#EBE9F9] dark:bg-[#2c283c] text-[#5851DB] dark:text-[#a29bfd] text-4xl font-bold flex items-center justify-center shadow-md border-2 border-white dark:border-zinc-800">
+                    {(userName || 'Mario').charAt(0).toUpperCase()}
                   </div>
-                </div>
+                )}
               </div>
-            ) : (
+
+              <h2 className="text-2xl sm:text-[26px] font-bold text-zinc-900 dark:text-white tracking-tight leading-tight">
+                {userName || 'Mario'}
+              </h2>
+              <p className="text-sm text-zinc-500 dark:text-zinc-400 font-medium mt-0.5">
+                Viajante
+              </p>
+            </div>
+
+            {/* 2. Feature Cards Grid (2 per row: Viagens anteriores & Conexões) */}
+            <div className="grid grid-cols-2 gap-3.5">
+              {/* Viagens anteriores */}
               <div
-                id="card-user-info"
-                className="w-full p-5 rounded-[32px] bg-white dark:bg-[#141518] border border-zinc-200 dark:border-white/10 flex items-center gap-4 shadow-sm dark:shadow-xl"
+                onClick={() => {
+                  handleSetSubView('curtidos');
+                }}
+                className="bg-white dark:bg-[#1c1c1e] rounded-[24px] p-4 border border-black/5 dark:border-white/10 shadow-xs flex flex-col justify-between relative cursor-pointer active:scale-[0.98] transition-transform group"
               >
-                {/* Avatar with pure white border */}
-                <div className="relative shrink-0">
-                  <div className="w-18 h-18 sm:w-20 sm:h-20 rounded-full overflow-hidden border-2 border-white ring-4 ring-white/20 bg-zinc-100 dark:bg-zinc-900 shadow-md relative">
-                    <img
-                      src={userAvatar}
-                      alt={userName}
-                      className="w-full h-full object-cover"
-                    />
-                    {isUploading && (
-                      <div className="absolute inset-0 bg-black/60 flex items-center justify-center">
-                        <Loader2 className="w-6 h-6 text-white animate-spin" />
-                      </div>
-                    )}
-                  </div>
+                <div className="flex justify-end">
+                  <span className="px-2.5 py-0.5 rounded-full bg-zinc-900 text-white dark:bg-white dark:text-zinc-900 text-[9.5px] font-bold uppercase tracking-wider shadow-xs">
+                    NOVO
+                  </span>
                 </div>
-
-                {/* User details */}
-                <div className="min-w-0 flex-1">
-                  <div className="flex items-center gap-2 flex-wrap">
-                    <h2 className="text-xl sm:text-[22px] font-black text-zinc-900 dark:text-white tracking-tight leading-tight">
-                      {userName}
-                    </h2>
-                    {isPremiumUser && (
-                      <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-[#F5BE38]/20 border border-[#F5BE38]/40 text-[#D99A1C] dark:text-[#F5BE38] text-[10px] font-black uppercase tracking-wider shadow-xs">
-                        <Crown className="w-3 h-3 text-[#D99A1C] dark:text-[#F5BE38]" />
-                        <span>Membro Elite Gold</span>
-                      </span>
-                    )}
-                  </div>
-                  <p className="text-xs sm:text-[13px] text-sky-500 font-bold truncate mt-0.5">
-                    @{userUsername || user?.username || 'usuario'}
-                  </p>
-                  <p className="text-xs sm:text-sm text-zinc-500 dark:text-zinc-400 font-black truncate mt-0.5">
-                    {userEmail}
-                  </p>
+                <div className="my-2 flex justify-center">
+                  <span className="text-[40px] leading-none drop-shadow-xs">
+                    🧳
+                  </span>
+                </div>
+                <div>
+                  <h3 className="text-base font-bold text-zinc-900 dark:text-white tracking-tight leading-snug">
+                    Viagens anteriores
+                  </h3>
                 </div>
               </div>
-            )}
 
-            {/* 2. Options List */}
-            <div className="space-y-3">
-              {/* Editar Perfil */}
-              <button
-                id="btn-profile-edit-option"
+              {/* Conexões */}
+              <div
                 onClick={() => {
-                  setTempName(userName);
-                  setTempUsername(userUsername);
-                  setTempBio(userBio);
-                  setTempEmail(userEmail);
-                  setTempAvatar(userAvatar);
-                  setUsernameStatus('idle');
-                  setUsernameFeedback('');
-                  setSaveError('');
-                  handleSetSubView('edit-profile');
+                  window.open(communityUrl, '_blank');
                 }}
-                className="w-full p-4 rounded-3xl bg-white dark:bg-[#141518] hover:bg-zinc-50 dark:hover:bg-[#1a1c21] active:scale-[0.98] border border-zinc-200 dark:border-white/5 hover:border-zinc-300 dark:hover:border-white/15 transition-all flex items-center justify-between text-left cursor-pointer group shadow-sm"
+                className="bg-white dark:bg-[#1c1c1e] rounded-[24px] p-4 border border-black/5 dark:border-white/10 shadow-xs flex flex-col justify-between relative cursor-pointer active:scale-[0.98] transition-transform group"
               >
-                <div className="flex items-center gap-3.5 min-w-0">
-                  <div className="w-10 h-10 shrink-0 flex items-center justify-center group-hover:scale-105 transition-transform duration-300">
-                    <img
-                      src="/lapis.png"
-                      alt="Editar Perfil"
-                      className="w-full h-full object-contain filter drop-shadow-sm select-none"
-                      onError={(e) => {
-                        const target = e.currentTarget;
-                        if (!target.src.endsWith('.png.png') && target.src.endsWith('.png')) {
-                          target.src = target.src + '.png';
-                        }
-                      }}
-                    />
-                  </div>
-                  <div className="min-w-0">
-                    <h3 className="text-base font-black text-zinc-900 dark:text-white tracking-tight leading-tight">
-                      Editar Perfil
-                    </h3>
-                    <p className="text-xs text-zinc-500 dark:text-zinc-400 font-black mt-0.5">
-                      Alterar seu nome, foto e contato
-                    </p>
-                  </div>
+                <div className="flex justify-end">
+                  <span className="px-2.5 py-0.5 rounded-full bg-zinc-900 text-white dark:bg-white dark:text-zinc-900 text-[9.5px] font-bold uppercase tracking-wider shadow-xs">
+                    NOVO
+                  </span>
                 </div>
-                <ChevronRight className="w-5 h-5 text-zinc-400 dark:text-zinc-500 group-hover:text-zinc-600 dark:group-hover:text-zinc-300 transition-colors shrink-0" />
-              </button>
+                <div className="my-2 flex justify-center">
+                  <span className="text-[40px] leading-none drop-shadow-xs">
+                    👥
+                  </span>
+                </div>
+                <div>
+                  <h3 className="text-base font-bold text-zinc-900 dark:text-white tracking-tight leading-snug">
+                    Conexões
+                  </h3>
+                </div>
+              </div>
+            </div>
 
-              {/* Painel ADM (Exibido em segundo para a conta de administrador) */}
+            {/* 3. Horizontal Promotional Card ("Torne-se um anfitrião") */}
+            <div
+              onClick={() => {
+                setIsPremiumModalOpen(true);
+              }}
+              className="bg-white dark:bg-[#1c1c1e] rounded-[24px] p-4.5 border border-black/5 dark:border-white/10 shadow-xs flex items-center gap-4 cursor-pointer active:scale-[0.98] transition-transform group"
+            >
+              <div className="shrink-0 flex items-center justify-center text-[40px] leading-none pl-1">
+                🏡
+              </div>
+              <div className="min-w-0 flex-1">
+                <h3 className="text-base font-bold text-zinc-900 dark:text-white tracking-tight leading-tight">
+                  Torne-se um anfitrião
+                </h3>
+                <p className="text-xs text-zinc-500 dark:text-zinc-400 font-medium mt-0.5 leading-snug">
+                  É fácil começar a receber hóspedes e ganhar uma renda extra.
+                </p>
+              </div>
+            </div>
+
+            {/* 4. Options List ("Configurações da conta", "Obtenha ajuda", "Sair da conta") */}
+            <div className="space-y-3 pt-2">
               {isUserAdmin && (
                 <button
-                  id="btn-profile-painel-adm"
+                  type="button"
                   onClick={() => {
-                    if (onOpenAdmin) {
-                      onOpenAdmin();
-                    } else {
-                      handleSetSubView('painel-adm');
-                    }
+                    onClose();
+                    onOpenAdmin?.();
                   }}
-                  className="w-full p-4 rounded-3xl bg-white dark:bg-[#141518] hover:bg-zinc-50 dark:hover:bg-[#1a1c21] active:scale-[0.98] border border-zinc-200 dark:border-white/5 hover:border-zinc-300 dark:hover:border-white/15 transition-all flex items-center justify-between text-left cursor-pointer group shadow-sm"
+                  className="w-full p-4 rounded-3xl bg-white dark:bg-[#1c1c1e] hover:bg-zinc-50 dark:hover:bg-[#252528] active:scale-[0.98] border border-black/5 dark:border-white/10 transition-all flex items-center justify-between text-left cursor-pointer group shadow-xs"
                 >
                   <div className="flex items-center gap-3.5 min-w-0">
-                    <div className="w-11 h-11 rounded-2xl bg-zinc-100 dark:bg-zinc-800 flex items-center justify-center text-zinc-900 dark:text-white shrink-0">
-                      <Settings className="w-5 h-5 stroke-[1.8]" />
+                    <div className="w-10 h-10 flex items-center justify-center text-indigo-500 shrink-0 bg-transparent border-0">
+                      <ShieldCheck className="w-6 h-6 stroke-[1.8]" />
                     </div>
                     <div className="min-w-0">
-                      <h3 className="text-base font-black text-zinc-900 dark:text-white tracking-tight leading-tight">
+                      <h3 className="text-base font-bold text-indigo-500 dark:text-indigo-400 tracking-tight leading-tight">
                         Painel ADM
                       </h3>
-                      <p className="text-xs text-zinc-500 dark:text-zinc-400 font-black mt-0.5">
-                        Console de controle administrativo
-                      </p>
                     </div>
                   </div>
                   <ChevronRight className="w-5 h-5 text-zinc-400 dark:text-zinc-500 group-hover:text-zinc-600 dark:group-hover:text-zinc-300 transition-colors shrink-0" />
                 </button>
               )}
 
-              {/* Instagram */}
               <button
-                id="btn-profile-instagram"
-                onClick={() => {
-                  window.open(instagramUrl, '_blank');
-                }}
-                className="w-full p-4 rounded-3xl bg-white dark:bg-[#141518] hover:bg-zinc-50 dark:hover:bg-[#1a1c21] active:scale-[0.98] border border-zinc-200 dark:border-white/5 hover:border-zinc-300 dark:hover:border-white/15 transition-all flex items-center justify-between text-left cursor-pointer group shadow-sm"
+                type="button"
+                onClick={() => handleSetSubView('permissoes')}
+                className="w-full p-4 rounded-3xl bg-white dark:bg-[#1c1c1e] hover:bg-zinc-50 dark:hover:bg-[#252528] active:scale-[0.98] border border-black/5 dark:border-white/10 transition-all flex items-center justify-between text-left cursor-pointer group shadow-xs"
               >
                 <div className="flex items-center gap-3.5 min-w-0">
-                  <div className="w-11 h-11 rounded-2xl bg-zinc-100 dark:bg-[#202227] flex items-center justify-center shrink-0">
-                    <InstagramLogo className="w-6 h-6 shrink-0" />
+                  <div className="w-10 h-10 flex items-center justify-center text-zinc-900 dark:text-white shrink-0 bg-transparent border-0 relative">
+                    <Settings className="w-6 h-6 stroke-[1.8]" />
+                    <span className="absolute -top-0.5 -right-0.5 w-2.5 h-2.5 rounded-full bg-[#FF3B30] border-2 border-white dark:border-[#1c1c1e]" />
                   </div>
                   <div className="min-w-0">
-                    <h3 className="text-base font-black text-zinc-900 dark:text-white tracking-tight leading-tight">
-                      Instagram
+                    <h3 className="text-base font-bold text-zinc-900 dark:text-white tracking-tight leading-tight">
+                      Configurações da conta
                     </h3>
-                    <p className="text-xs text-zinc-500 dark:text-zinc-400 font-black mt-0.5">
-                      Siga o perfil oficial
-                    </p>
                   </div>
                 </div>
                 <ChevronRight className="w-5 h-5 text-zinc-400 dark:text-zinc-500 group-hover:text-zinc-600 dark:group-hover:text-zinc-300 transition-colors shrink-0" />
               </button>
 
-              {/* Grupo e comunidade / WhatsApp */}
               <button
-                id="btn-profile-community"
+                type="button"
                 onClick={() => {
                   window.open(communityUrl, '_blank');
                 }}
-                className="w-full p-4 rounded-3xl bg-white dark:bg-[#141518] hover:bg-zinc-50 dark:hover:bg-[#1a1c21] active:scale-[0.98] border border-zinc-200 dark:border-white/5 hover:border-zinc-300 dark:hover:border-white/15 transition-all flex items-center justify-between text-left cursor-pointer group shadow-sm"
+                className="w-full p-4 rounded-3xl bg-white dark:bg-[#1c1c1e] hover:bg-zinc-50 dark:hover:bg-[#252528] active:scale-[0.98] border border-black/5 dark:border-white/10 transition-all flex items-center justify-between text-left cursor-pointer group shadow-xs"
               >
                 <div className="flex items-center gap-3.5 min-w-0">
-                  <div className="w-11 h-11 rounded-2xl bg-zinc-100 dark:bg-[#202227] flex items-center justify-center shrink-0">
-                    <WhatsAppLogo className="w-6 h-6 shrink-0" />
+                  <div className="w-10 h-10 flex items-center justify-center text-zinc-900 dark:text-white shrink-0 bg-transparent border-0">
+                    <Star className="w-6 h-6 stroke-[1.8]" />
                   </div>
                   <div className="min-w-0">
-                    <h3 className="text-base font-black text-zinc-900 dark:text-white tracking-tight leading-tight">
-                      WhatsApp e Comunidade
+                    <h3 className="text-base font-bold text-zinc-900 dark:text-white tracking-tight leading-tight">
+                      Obtenha ajuda
                     </h3>
-                    <p className="text-xs text-zinc-500 dark:text-zinc-400 font-black mt-0.5">
-                      Participe do nosso grupo oficial
-                    </p>
                   </div>
                 </div>
                 <ChevronRight className="w-5 h-5 text-zinc-400 dark:text-zinc-500 group-hover:text-zinc-600 dark:group-hover:text-zinc-300 transition-colors shrink-0" />
               </button>
 
-              {/* Curtidos */}
-              <button
-                id="btn-profile-curtidos"
-                onClick={() => handleSetSubView('curtidos')}
-                className="w-full p-4 rounded-3xl bg-white dark:bg-[#141518] hover:bg-zinc-50 dark:hover:bg-[#1a1c21] active:scale-[0.98] border border-zinc-200 dark:border-white/5 hover:border-zinc-300 dark:hover:border-white/15 transition-all flex items-center justify-between text-left cursor-pointer group shadow-sm"
-              >
-                <div className="flex items-center gap-3.5 min-w-0">
-                  <div className="w-11 h-11 rounded-2xl bg-zinc-100 dark:bg-[#202227] flex items-center justify-center text-rose-500 shrink-0">
-                    <Heart className="w-5 h-5 fill-rose-500 stroke-[1.8]" />
-                  </div>
-                  <div className="min-w-0">
-                    <h3 className="text-base font-black text-zinc-900 dark:text-white tracking-tight leading-tight">
-                      Curtidos
-                    </h3>
-                    <p className="text-xs text-zinc-500 dark:text-zinc-400 font-black mt-0.5">
-                      Lugares que você amou
-                    </p>
-                  </div>
-                </div>
-                <div className="flex items-center gap-2 shrink-0">
-                  <span className="w-6 h-6 rounded-full bg-zinc-200 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-300 text-xs font-black flex items-center justify-center">
-                    {favoriteSpots.length}
-                  </span>
-                  <ChevronRight className="w-5 h-5 text-zinc-400 dark:text-zinc-500 group-hover:text-zinc-600 dark:group-hover:text-zinc-300 transition-colors" />
-                </div>
-              </button>
-
-              {/* Configurações */}
-              <button
-                id="btn-profile-permissoes"
-                onClick={() => handleSetSubView('permissoes')}
-                className="w-full p-4 rounded-3xl bg-white dark:bg-[#141518] hover:bg-zinc-50 dark:hover:bg-[#1a1c21] active:scale-[0.98] border border-zinc-200 dark:border-white/5 hover:border-zinc-300 dark:hover:border-white/15 transition-all flex items-center justify-between text-left cursor-pointer group shadow-sm"
-              >
-                <div className="flex items-center gap-3.5 min-w-0">
-                  <div className="w-11 h-11 rounded-2xl bg-zinc-100 dark:bg-[#202227] flex items-center justify-center text-zinc-900 dark:text-white shrink-0">
-                    <Sliders className="w-5 h-5 stroke-[1.8]" />
-                  </div>
-                  <div className="min-w-0">
-                    <h3 className="text-base font-black text-zinc-900 dark:text-white tracking-tight leading-tight">
-                      Configurações
-                    </h3>
-                    <p className="text-xs text-zinc-500 dark:text-zinc-400 font-black mt-0.5">
-                      Aparência, privacidade e avisos
-                    </p>
-                  </div>
-                </div>
-                <ChevronRight className="w-5 h-5 text-zinc-400 dark:text-zinc-500 group-hover:text-zinc-600 dark:group-hover:text-zinc-300 transition-colors shrink-0" />
-              </button>
-
-              {/* logout (Highlighted Red Card from Screenshot) */}
               <button
                 type="button"
-                id="btn-profile-logout"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  handleSetSubView('logout-confirm');
-                }}
-                className="w-full p-4 rounded-3xl bg-rose-50 dark:bg-[#180f12] hover:bg-rose-100 dark:hover:bg-[#221318] active:scale-[0.98] border border-rose-200 dark:border-red-950/50 hover:border-rose-300 dark:hover:border-red-900/60 transition-all flex items-center justify-between text-left cursor-pointer group shadow-sm select-none relative z-10"
+                onClick={() => handleSetSubView('logout-confirm')}
+                className="w-full p-4 rounded-3xl bg-white dark:bg-[#1c1c1e] hover:bg-zinc-50 dark:hover:bg-[#252528] active:scale-[0.98] border border-black/5 dark:border-white/10 transition-all flex items-center justify-between text-left cursor-pointer group shadow-xs"
               >
                 <div className="flex items-center gap-3.5 min-w-0">
-                  <div className="w-11 h-11 rounded-2xl bg-rose-200/50 dark:bg-red-950/40 flex items-center justify-center text-rose-500 dark:text-rose-400 shrink-0">
-                    <LogOut className="w-5 h-5 stroke-[1.8]" />
+                  <div className="w-10 h-10 flex items-center justify-center text-rose-500 shrink-0 bg-transparent border-0">
+                    <LogOut className="w-6 h-6 stroke-[1.8]" />
                   </div>
                   <div className="min-w-0">
-                    <h3 className="text-base font-black text-rose-600 dark:text-rose-400 tracking-tight leading-tight">
-                      logout
+                    <h3 className="text-base font-bold text-rose-500 dark:text-rose-400 tracking-tight leading-tight">
+                      Sair da conta
                     </h3>
-                    <p className="text-xs text-rose-500/80 dark:text-rose-400/70 font-black mt-0.5">
-                      Encerrar sessão ativa
-                    </p>
                   </div>
                 </div>
-                <ChevronRight className="w-5 h-5 text-rose-400/80 dark:text-rose-400/60 group-hover:text-rose-600 dark:group-hover:text-rose-400 transition-colors shrink-0" />
+                <ChevronRight className="w-5 h-5 text-zinc-400 dark:text-zinc-500 group-hover:text-zinc-600 dark:group-hover:text-zinc-300 transition-colors shrink-0" />
               </button>
-
-              {/* Snug bottom spacer at the limit */}
-              <div className="h-2 shrink-0" />
             </div>
           </div>
         )}
@@ -1253,6 +1173,18 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
         isOpen={isPremiumModalOpen}
         onClose={() => setIsPremiumModalOpen(false)}
         theme={theme}
+      />
+
+      {/* Notifications Modal */}
+      <NotificationsModal
+        isOpen={isNotificationsOpen}
+        onClose={() => setIsNotificationsOpen(false)}
+        notifications={notificationsList}
+        isLoading={isLoadingNotifications}
+        theme={theme}
+        onMarkAllAsRead={() => {
+          setNotificationsList(prev => prev.map(n => ({ ...n, is_read: 1 })));
+        }}
       />
       </div>
     </div>

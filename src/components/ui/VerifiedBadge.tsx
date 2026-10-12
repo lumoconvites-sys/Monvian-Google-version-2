@@ -21,7 +21,7 @@ export const VerifiedBadge: React.FC<VerifiedBadgeProps> = ({
         cx="12"
         cy="12"
         r="11"
-        fill={isGold ? 'url(#verified-gold-grad)' : '#007AFF'}
+        fill={isGold ? 'url(#verified-gold-grad)' : '#FFFFFF'}
       />
       {isGold && (
         <defs>

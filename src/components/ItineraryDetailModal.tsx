@@ -13,7 +13,8 @@ import {
   ExternalLink,
   ChevronRight,
   Info,
-  Navigation
+  Navigation,
+  Heart,
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { Itinerary, Spot } from '../types';
@@ -122,6 +123,15 @@ export const ItineraryDetailModal: React.FC<ItineraryDetailModalProps> = ({
             </span>
 
             <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => onSaveItinerary?.(itinerary)}
+                className="w-9 h-9 rounded-full bg-black/60 backdrop-blur-md text-white border border-white/10 flex items-center justify-center hover:bg-black/80 active:scale-90 transition-transform cursor-pointer"
+                title={isSaved ? 'Remover dos salvos' : 'Salvar roteiro'}
+              >
+                <Heart className={`w-4 h-4 ${isSaved ? 'fill-rose-500 text-rose-500' : 'text-white'}`} />
+              </button>
+
               <button
                 onClick={handleShare}
                 className="w-9 h-9 rounded-full bg-black/60 backdrop-blur-md text-white border border-white/10 flex items-center justify-center hover:bg-black/80 transition-colors cursor-pointer"
@@ -364,7 +374,7 @@ export const ItineraryDetailModal: React.FC<ItineraryDetailModalProps> = ({
                   : 'bg-zinc-900 text-white dark:bg-white dark:text-zinc-900 hover:opacity-90'
               }`}
             >
-              {isSaved ? <BookmarkCheck className="w-4 h-4 text-blue-600 dark:text-blue-400" /> : <Bookmark className="w-4 h-4" />}
+              {isSaved ? <BookmarkCheck className="w-4 h-4 text-white" /> : <Bookmark className="w-4 h-4" />}
               <span>{isSaved ? 'Roteiro Salvo' : 'Salvar nos Meus Roteiros'}</span>
             </button>
           )}

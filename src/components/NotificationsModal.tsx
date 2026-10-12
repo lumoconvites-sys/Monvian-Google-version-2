@@ -340,7 +340,7 @@ const NotificationRow: React.FC<NotificationRowProps> = ({
             </div>
           )}
           {item.type === 'comment' && (
-            <div className={`absolute -bottom-0.5 -right-0.5 w-5 h-5 rounded-full bg-[#007AFF] flex items-center justify-center border-2 ${isDark ? 'border-black' : 'border-white'}`}>
+            <div className={`absolute -bottom-0.5 -right-0.5 w-5 h-5 rounded-full bg-[#FFFFFF] flex items-center justify-center border-2 ${isDark ? 'border-black' : 'border-white'}`}>
               <MessageCircle className="w-2.5 h-2.5 fill-white text-white" />
             </div>
           )}

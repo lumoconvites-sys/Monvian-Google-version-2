@@ -15,10 +15,11 @@ import {
   Check,
   Sparkles,
 } from 'lucide-react';
-import { motion, AnimatePresence } from 'motion/react';
+import { motion, AnimatePresence, useScroll, useTransform } from 'motion/react';
 import { Itinerary, ItineraryCategory } from '../../types';
 import { ItineraryStoreDetailModal } from './ItineraryStoreDetailModal';
 import { DEFAULT_CURATED_ITINERARIES } from '../../data/defaultItineraries';
+import { preloadImage, extractAllItineraryImageUrls } from '../../utils/preloadItineraries';
 
 // Fast in-memory cache for instant hydration
 let memoryItinerariesCache: Itinerary[] | null = null;
@@ -153,6 +154,10 @@ export const AirbnbItineraryExplorer: React.FC<AirbnbItineraryExplorerProps> = (
             try {
               localStorage.setItem(CACHE_KEY_ITINS, JSON.stringify(itinsData.itineraries));
             } catch (e) {}
+
+            // Proactively preload all fresh images into browser memory cache
+            const freshImageUrls = extractAllItineraryImageUrls(itinsData.itineraries);
+            freshImageUrls.forEach((u) => preloadImage(u, 'high'));
           }
         } catch (e) {}
       }
@@ -192,16 +197,16 @@ export const AirbnbItineraryExplorer: React.FC<AirbnbItineraryExplorerProps> = (
     };
   }, []);
 
-  // Curated Categories: Preserved with Todos, Destaques, Natureza, Românticos, Gastronomia, Família, Aventura
+  // Curated Categories with emojis 2x larger
   const curatedCategories = useMemo(() => {
     return [
-      { id: 'all', name: 'Todos', icon: Sparkles },
-      { id: 'destaque', name: 'Destaques', icon: Flame },
-      { id: 'natureza', name: 'Natureza', icon: TreePine },
-      { id: 'romantico', name: 'Românticos', icon: Heart },
-      { id: 'gastronomia', name: 'Gastronomia', icon: Utensils },
-      { id: 'familia', name: 'Família', icon: Users },
-      { id: 'aventura', name: 'Aventura', icon: Compass },
+      { id: 'all', name: 'Todos', emoji: '✨' },
+      { id: 'destaque', name: 'Destaques', emoji: '🔥' },
+      { id: 'natureza', name: 'Natureza', emoji: '🌲' },
+      { id: 'romantico', name: 'Românticos', emoji: '❤️' },
+      { id: 'gastronomia', name: 'Gastronomia', emoji: '🍽️' },
+      { id: 'familia', name: 'Família', emoji: '👨‍👩‍👧' },
+      { id: 'aventura', name: 'Aventura', emoji: '🧭' },
     ];
   }, []);
 
@@ -372,30 +377,37 @@ export const AirbnbItineraryExplorer: React.FC<AirbnbItineraryExplorerProps> = (
 
   const isDark = theme === 'dark';
 
+  const containerRef = useRef<HTMLDivElement>(null);
+  const { scrollYProgress } = useScroll({ container: containerRef });
+  const searchBarScale = useTransform(scrollYProgress, [0, 0.1], [1, 0.9]);
+
   return (
     <div
+      ref={containerRef}
       className={`relative w-full h-full overflow-y-auto overscroll-contain select-none transition-colors duration-200 ${
         isDark ? 'bg-[#000000] text-white' : 'bg-[#F8F9FA] text-zinc-900'
       }`}
       style={{
         fontFamily: "'Inter', -apple-system, BlinkMacSystemFont, 'SF Pro Display', sans-serif",
+        WebkitOverflowScrolling: 'touch',
+        touchAction: 'pan-y',
       }}
     >
       {/* ========================================================
           1. TOP STICKY HEADER: PURE WHITE CAPSULE SEARCH BAR + HORIZONTAL SCROLLING CATEGORIES
          ======================================================== */}
       <div
-        className={`sticky top-0 z-30 shrink-0 backdrop-blur-md border-b transition-colors ${
+        className={`sticky top-0 z-30 shrink-0 backdrop-blur-md transition-colors ${
           isDark
-            ? 'bg-[#000000]/95 border-white/[0.08]'
-            : 'bg-[#F8F9FA]/95 border-black/[0.06]'
+            ? 'bg-[#000000]/95'
+            : 'bg-[#F8F9FA]/95'
         }`}
         style={{
           paddingTop: 'max(calc(env(safe-area-inset-top, 0px) + 10px), 16px)',
         }}
       >
         {/* 1.1 BARRA DE PESQUISA: Cápsula Minimalista Centralizada */}
-        <div className="pb-2.5 px-6 sm:px-7">
+        <motion.div style={{ scale: searchBarScale }} className="pb-2.5 px-4.5 sm:px-5.5">
           <div className="flex items-center gap-2 max-w-xl mx-auto w-full">
             {expandedSection && (
               <button
@@ -504,53 +516,60 @@ export const AirbnbItineraryExplorer: React.FC<AirbnbItineraryExplorerProps> = (
               </button>
             )}
           </div>
-        </div>
+        </motion.div>
 
         {/* 1.2 CATEGORIAS: Imediatamente abaixo da pesquisa, linha horizontal única com rolagem */}
         {!expandedSection && (
-          <div className="pt-0.5 pb-2.5">
-            <div className="flex items-center gap-2 sm:gap-2.5 overflow-x-auto no-scrollbar scroll-smooth whitespace-nowrap px-6 sm:px-7">
-              {curatedCategories.map((cat) => {
+          <motion.div
+            style={{
+              opacity: useTransform(scrollYProgress, [0, 0.05], [1, 0]),
+              y: useTransform(scrollYProgress, [0, 0.05], [0, -20]),
+            }}
+            className="pt-0.5 pb-2.5"
+          >
+            <div className="flex items-center gap-2 sm:gap-2.5 overflow-x-auto no-scrollbar scroll-smooth whitespace-nowrap px-4.5 sm:px-5.5">
+              {curatedCategories.map((cat, idx) => {
                 const isSelected = selectedCategory === cat.id;
-                const IconComp = cat.icon;
 
                 return (
-                  <button
+                  <motion.button
                     key={cat.id}
                     type="button"
+                    whileTap={{ scale: 0.95 }}
+                    whileHover={{ scale: 1.03 }}
+                    animate={{ scale: isSelected ? [1, 1.08, 1] : 1 }}
+                    transition={{
+                      type: 'spring',
+                      stiffness: 400,
+                      damping: 17,
+                    }}
                     onClick={() => {
                       setSelectedCategory(cat.id);
                       setExpandedSection(null);
                     }}
-                    className={`h-[40px] px-4 rounded-full shrink-0 flex items-center gap-2 transition-all cursor-pointer select-none text-center ${
+                    className={`h-[36px] px-3.5 rounded-full shrink-0 flex items-center gap-1.5 cursor-pointer select-none text-center ${
+                      idx === 2 ? 'mr-6' : ''
+                    } ${
                       isSelected
-                        ? isDark
-                          ? 'bg-white text-black font-bold shadow-xs border border-white'
-                          : 'bg-black text-white font-bold shadow-xs border border-black'
+                        ? 'bg-[#ebebeb] text-zinc-900 font-semibold shadow-xs'
                         : isDark
-                        ? 'bg-[#18191E] text-zinc-300 hover:text-white border border-white/10 font-semibold'
-                        : 'bg-white text-zinc-700 hover:text-black border border-black/10 font-semibold shadow-xs'
+                          ? 'bg-zinc-900 text-zinc-900 border border-white/[0.05] shadow-xs hover:border-white/10'
+                          : 'bg-white text-zinc-900 border border-black/10 shadow-xs hover:border-black/20'
                     }`}
                   >
-                    <IconComp
-                      className={`w-4 h-4 shrink-0 ${
-                        isSelected
-                          ? isDark
-                            ? 'text-black stroke-[2.2]'
-                            : 'text-white stroke-[2.2]'
-                          : isDark
-                          ? 'text-zinc-300 stroke-[2]'
-                          : 'text-zinc-600 stroke-[2]'
-                      }`}
-                    />
-                    <span className="text-[13px] tracking-tight whitespace-nowrap">
+                    <span className="text-[17px] shrink-0 leading-none select-none">
+                      {cat.emoji}
+                    </span>
+                    <span className={`text-[13px] tracking-tight whitespace-nowrap font-bold ${
+                      isSelected ? 'text-zinc-900' : 'text-zinc-900'
+                    }`}>
                       {cat.name}
                     </span>
-                  </button>
+                  </motion.button>
                 );
               })}
             </div>
-          </div>
+          </motion.div>
         )}
       </div>
 
@@ -643,7 +662,7 @@ export const AirbnbItineraryExplorer: React.FC<AirbnbItineraryExplorerProps> = (
             </div>
           )
         ) : selectedCategory !== 'all' ? (
-          /* Filtered Category Grid */
+          /* Filtered Category Carousel (2 cards per line, horizontal scroll) */
           filteredItineraries.length === 0 ? (
             <div className={`text-center py-20 px-6 space-y-2 ${isDark ? 'text-zinc-400' : 'text-zinc-500'}`}>
               <Compass className="w-10 h-10 mx-auto mb-2 opacity-50 stroke-[1.8]" />
@@ -661,8 +680,8 @@ export const AirbnbItineraryExplorer: React.FC<AirbnbItineraryExplorerProps> = (
               </button>
             </div>
           ) : (
-            <div className="space-y-4 px-6 sm:px-7">
-              <div className="flex items-center justify-between">
+            <div className="space-y-4">
+              <div className="flex items-center justify-between px-4.5 sm:px-5.5">
                 <div>
                   <h3 className={`text-lg font-bold tracking-tight ${isDark ? 'text-white' : 'text-zinc-900'}`}>
                     {curatedCategories.find((c) => c.id === selectedCategory)?.name || 'Roteiros'}
@@ -672,82 +691,130 @@ export const AirbnbItineraryExplorer: React.FC<AirbnbItineraryExplorerProps> = (
                     {filteredItineraries.length === 1 ? 'roteiro disponível' : 'roteiros disponíveis'}
                   </p>
                 </div>
-                <button
-                  type="button"
-                  onClick={() => setSelectedCategory('all')}
-                  className={`text-xs font-semibold underline cursor-pointer ${
-                    isDark ? 'text-white/80 hover:text-white' : 'text-zinc-700 hover:text-black'
-                  }`}
-                >
-                  Mostrar todos
-                </button>
+                <div className="flex items-center gap-2">
+                  {filteredItineraries.length > 2 && (
+                    <div className="flex items-center gap-1.5">
+                      <button
+                        type="button"
+                        onClick={() => scrollCarousel(selectedCategory, 'left')}
+                        disabled={!scrollPositions[selectedCategory]?.canLeft}
+                        className={`w-7 h-7 rounded-full flex items-center justify-center transition-all ${
+                          scrollPositions[selectedCategory]?.canLeft
+                            ? isDark
+                              ? 'bg-zinc-800 text-white hover:bg-zinc-700 cursor-pointer'
+                              : 'bg-zinc-200 text-zinc-900 hover:bg-zinc-300 cursor-pointer'
+                            : 'opacity-20 cursor-not-allowed text-zinc-500'
+                        }`}
+                        aria-label="Roteiro anterior"
+                      >
+                        <ChevronLeft className="w-4 h-4 stroke-[2.2]" />
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => scrollCarousel(selectedCategory, 'right')}
+                        disabled={scrollPositions[selectedCategory]?.canRight === false}
+                        className={`w-7 h-7 rounded-full flex items-center justify-center transition-all ${
+                          scrollPositions[selectedCategory]?.canRight !== false
+                            ? isDark
+                              ? 'bg-zinc-800 text-white hover:bg-zinc-700 cursor-pointer'
+                              : 'bg-zinc-200 text-zinc-900 hover:bg-zinc-300 cursor-pointer'
+                            : 'opacity-20 cursor-not-allowed text-zinc-500'
+                        }`}
+                        aria-label="Próximo roteiro"
+                      >
+                        <ChevronRight className="w-4 h-4 stroke-[2.2]" />
+                      </button>
+                    </div>
+                  )}
+                  <button
+                    type="button"
+                    onClick={() => setSelectedCategory('all')}
+                    className={`text-xs font-semibold underline cursor-pointer ${
+                      isDark ? 'text-white/80 hover:text-white' : 'text-zinc-700 hover:text-black'
+                    }`}
+                  >
+                    Mostrar todos
+                  </button>
+                </div>
               </div>
 
-              <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 sm:gap-3.5">
-                {filteredItineraries.map((itin) => (
-                  <AirbnbItineraryCardItem
-                    key={itin.id}
-                    itinerary={itin}
-                    isFavorite={favorites.includes(itin.id)}
-                    onToggleFavorite={(e) => handleToggleFavorite(itin.id, e)}
-                    onClick={() => handleOpenDetail(itin)}
-                    isActiveRoute={itin.id === activeItineraryId}
-                    isDark={isDark}
-                  />
-                ))}
+              {/* Horizontal Carousel: Exactly TWO cards visible per line (+3% width & photo size) */}
+              <div className="px-4.5 sm:px-5.5">
+                <div
+                  ref={(el) => {
+                    carouselRefs.current[selectedCategory] = el;
+                  }}
+                  onScroll={() => updateScrollState(selectedCategory)}
+                  className="flex gap-3 overflow-x-auto no-scrollbar pb-1 scroll-smooth"
+                  style={{
+                    touchAction: 'pan-x pan-y',
+                    WebkitOverflowScrolling: 'touch',
+                  }}
+                >
+                  {filteredItineraries.map((itin) => (
+                    <div
+                      key={itin.id}
+                      className="shrink-0"
+                      style={{
+                        width: 'calc((100% - 12px) / 2)',
+                        minWidth: 'calc((100% - 12px) / 2)',
+                        touchAction: 'pan-x pan-y',
+                      }}
+                    >
+                      <AirbnbItineraryCardItem
+                        itinerary={itin}
+                        isFavorite={favorites.includes(itin.id)}
+                        onToggleFavorite={(e) => handleToggleFavorite(itin.id, e)}
+                        onClick={() => handleOpenDetail(itin)}
+                        isActiveRoute={itin.id === activeItineraryId}
+                        isDark={isDark}
+                      />
+                    </div>
+                  ))}
+                </div>
               </div>
             </div>
           )
         ) : (
-          /* Default Airbnb Sections with Standard Horizontal Carousels */
+          /* Default Airbnb Sections with Standard Horizontal Carousels: EXACTLY TWO CARDS PER LINE */
           sections.map((section) => (
             <section key={section.id} className="space-y-2.5">
-              {/* Section Header: Title + Navigation Arrow Buttons */}
-              <div className="flex items-center justify-between px-6 sm:px-7">
+              {/* Section Header: Title & Navigation Controls */}
+              <div className="flex items-center justify-between px-4.5 sm:px-5.5">
                 <h3 className={`text-[17px] sm:text-[18px] font-bold tracking-tight ${
                   isDark ? 'text-white' : 'text-zinc-900'
                 }`}>
                   {section.title}
                 </h3>
-
-                {section.items.length > 2 && section.id !== 'todos' && (
-                  <div className="flex items-center gap-1.5 shrink-0">
-                    {scrollPositions[section.id]?.canLeft && (
-                      <button
-                        type="button"
-                        onClick={() => scrollCarousel(section.id, 'left')}
-                        className={`w-7 h-7 rounded-full border flex items-center justify-center transition-colors cursor-pointer shrink-0 ${
-                          isDark
-                            ? 'border-white/15 bg-white/5 hover:bg-white/15 text-zinc-300 hover:text-white'
-                            : 'border-black/10 bg-black/5 hover:bg-black/10 text-zinc-700 hover:text-black'
-                        }`}
-                        title="Roteiros anteriores"
-                        aria-label="Roteiros anteriores"
-                      >
-                        <ChevronLeft className="w-4 h-4 stroke-[2.2]" />
-                      </button>
-                    )}
-
+                {section.items.length > 2 && (
+                  <div className="flex items-center gap-1.5">
                     <button
                       type="button"
-                      onClick={() => {
-                        if (scrollPositions[section.id]?.canRight ?? true) {
-                          scrollCarousel(section.id, 'right');
-                        } else {
-                          setExpandedSection(section.id);
-                        }
-                      }}
-                      className={`w-7 h-7 rounded-full border flex items-center justify-center transition-colors cursor-pointer shrink-0 ${
-                        isDark
-                          ? 'border-white/15 bg-white/5 hover:bg-white/15 text-zinc-300 hover:text-white'
-                          : 'border-black/10 bg-black/5 hover:bg-black/10 text-zinc-700 hover:text-black'
+                      onClick={() => scrollCarousel(section.id, 'left')}
+                      disabled={!scrollPositions[section.id]?.canLeft}
+                      className={`w-7 h-7 rounded-full flex items-center justify-center transition-all ${
+                        scrollPositions[section.id]?.canLeft
+                          ? isDark
+                            ? 'bg-zinc-800 text-white hover:bg-zinc-700 cursor-pointer'
+                            : 'bg-zinc-200 text-zinc-900 hover:bg-zinc-300 cursor-pointer'
+                          : 'opacity-20 cursor-not-allowed text-zinc-500'
                       }`}
-                      title={
-                        scrollPositions[section.id]?.canRight ?? true
-                          ? `Próximos roteiros de ${section.title}`
-                          : `Ver todos de ${section.title}`
-                      }
-                      aria-label={`Navegar ${section.title}`}
+                      aria-label="Roteiro anterior"
+                    >
+                      <ChevronLeft className="w-4 h-4 stroke-[2.2]" />
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => scrollCarousel(section.id, 'right')}
+                      disabled={scrollPositions[section.id]?.canRight === false}
+                      className={`w-7 h-7 rounded-full flex items-center justify-center transition-all ${
+                        scrollPositions[section.id]?.canRight !== false
+                          ? isDark
+                            ? 'bg-zinc-800 text-white hover:bg-zinc-700 cursor-pointer'
+                            : 'bg-zinc-200 text-zinc-900 hover:bg-zinc-300 cursor-pointer'
+                          : 'opacity-20 cursor-not-allowed text-zinc-500'
+                      }`}
+                      aria-label="Próximo roteiro"
                     >
                       <ChevronRight className="w-4 h-4 stroke-[2.2]" />
                     </button>
@@ -756,43 +823,29 @@ export const AirbnbItineraryExplorer: React.FC<AirbnbItineraryExplorerProps> = (
               </div>
 
               {/* Horizontal Carousel: EXACTLY TWO cards visible per line, third card 100% off-screen */}
-              {section.id !== 'todos' ? (
-                <div className="px-6 sm:px-7">
-                  <div
-                    ref={(el) => {
-                      carouselRefs.current[section.id] = el;
-                    }}
-                    onScroll={() => updateScrollState(section.id)}
-                    className="flex gap-3 overflow-x-auto no-scrollbar pb-1 scroll-smooth snap-x snap-mandatory"
-                  >
-                    {section.items.map((itin) => (
-                      <div
-                        key={itin.id}
-                        className="shrink-0 snap-start"
-                        style={{
-                          width: 'calc((100% - 12px) / 2)',
-                          minWidth: 'calc((100% - 12px) / 2)',
-                        }}
-                      >
-                        <AirbnbItineraryCardItem
-                          itinerary={itin}
-                          isFavorite={favorites.includes(itin.id)}
-                          onToggleFavorite={(e) => handleToggleFavorite(itin.id, e)}
-                          onClick={() => handleOpenDetail(itin)}
-                          isActiveRoute={itin.id === activeItineraryId}
-                          isDark={isDark}
-                        />
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              ) : (
-                /* Grid for "Todos os roteiros" at bottom - Reusing exact same card item */
-                <div className="px-6 sm:px-7">
-                  <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 sm:gap-3.5 pt-1">
-                    {section.items.map((itin) => (
+              <div className="px-4.5 sm:px-5.5">
+                <div
+                  ref={(el) => {
+                    carouselRefs.current[section.id] = el;
+                  }}
+                  onScroll={() => updateScrollState(section.id)}
+                  className="flex gap-3 overflow-x-auto no-scrollbar pb-1 scroll-smooth"
+                  style={{
+                    touchAction: 'pan-x pan-y',
+                    WebkitOverflowScrolling: 'touch',
+                  }}
+                >
+                  {section.items.map((itin) => (
+                    <div
+                      key={itin.id}
+                      className="shrink-0"
+                      style={{
+                        width: 'calc((100% - 12px) / 2)',
+                        minWidth: 'calc((100% - 12px) / 2)',
+                        touchAction: 'pan-x pan-y',
+                      }}
+                    >
                       <AirbnbItineraryCardItem
-                        key={itin.id}
                         itinerary={itin}
                         isFavorite={favorites.includes(itin.id)}
                         onToggleFavorite={(e) => handleToggleFavorite(itin.id, e)}
@@ -800,10 +853,10 @@ export const AirbnbItineraryExplorer: React.FC<AirbnbItineraryExplorerProps> = (
                         isActiveRoute={itin.id === activeItineraryId}
                         isDark={isDark}
                       />
-                    ))}
-                  </div>
+                    </div>
+                  ))}
                 </div>
-              )}
+              </div>
             </section>
           ))
         )}
@@ -867,17 +920,23 @@ const AirbnbItineraryCardItem: React.FC<AirbnbItineraryCardItemProps> = ({
   return (
     <div
       onClick={onClick}
+      style={{ touchAction: 'pan-x pan-y' }}
       className="group flex flex-col cursor-pointer select-none transition-transform duration-200 active:scale-[0.98]"
     >
-      {/* 1. PHOTOGRAPH: Fixed 1:1 Aspect Ratio with 22px Rounded Corners Directly on Image */}
-      <div className={`relative w-full aspect-square rounded-[22px] overflow-hidden shadow-xs shrink-0 ${
-        isDark ? 'bg-zinc-900' : 'bg-zinc-100'
-      }`}>
+      {/* 1. PHOTOGRAPH: +3% Size with 23px Rounded Corners Directly on Image */}
+      <div 
+        style={{ touchAction: 'pan-x pan-y' }}
+        className={`relative w-full aspect-[1.05/1.12] rounded-[23px] overflow-hidden shadow-xs shrink-0 ${
+          isDark ? 'bg-zinc-900' : 'bg-zinc-100'
+        }`}
+      >
         <img
           src={itinerary.coverImage}
           alt={itinerary.title}
-          className="w-full h-full object-cover transition-transform duration-500 ease-out group-hover:scale-105"
-          loading="lazy"
+          draggable={false}
+          className="w-full h-full object-cover transition-transform duration-500 ease-out group-hover:scale-105 pointer-events-none select-none"
+          loading="eager"
+          decoding="async"
           referrerPolicy="no-referrer"
           onError={(e) => {
             (e.target as HTMLImageElement).src = 'https://images.unsplash.com/photo-1506744038136-46273834b3fb?auto=format&fit=crop&w=800&q=80';
@@ -888,11 +947,11 @@ const AirbnbItineraryCardItem: React.FC<AirbnbItineraryCardItemProps> = ({
         <button
           type="button"
           onClick={onToggleFavorite}
-          className="absolute top-2.5 right-2.5 w-8 h-8 rounded-full flex items-center justify-center transition-transform hover:scale-110 active:scale-90 cursor-pointer z-10"
+          className="absolute top-2.5 right-2.5 w-10 h-10 rounded-full flex items-center justify-center transition-transform hover:scale-110 active:scale-90 cursor-pointer z-10"
           title={isFavorite ? 'Remover dos favoritos' : 'Salvar nos favoritos'}
         >
           <Heart
-            className={`w-4.5 h-4.5 drop-shadow-[0_2px_4px_rgba(0,0,0,0.8)] ${
+            className={`w-6 h-6 ${
               isFavorite
                 ? 'fill-rose-500 text-rose-500 stroke-[2]'
                 : 'fill-black/35 text-white stroke-[2]'
@@ -902,8 +961,8 @@ const AirbnbItineraryCardItem: React.FC<AirbnbItineraryCardItemProps> = ({
 
         {/* Top-Left Discreet Badge */}
         {isActiveRoute ? (
-          <div className="absolute top-2.5 left-2.5 px-2.5 py-0.5 rounded-full bg-blue-600 text-white text-[9px] font-bold uppercase tracking-wider shadow-xs flex items-center gap-1">
-            <Check className="w-2.5 h-2.5 stroke-[3]" />
+          <div className="absolute top-2.5 left-2.5 px-2.5 py-0.5 rounded-full bg-white text-zinc-950 text-[9px] font-black uppercase tracking-wider shadow-xs flex items-center gap-1">
+            <Check className="w-2.5 h-2.5 stroke-[3] text-zinc-950" />
             <span>ATIVO</span>
           </div>
         ) : isEliteGold ? (
