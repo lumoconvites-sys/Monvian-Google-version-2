@@ -169,53 +169,50 @@ const createStyle = (type: MapModeType, theme: 'dark' | 'light' = 'dark'): mapli
       version: 8,
       projection: { type: 'globe' } as any,
       sources: {
-        'carto-base': {
+        'osm-base': {
           type: 'raster',
           tiles: [
-            'https://a.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}@2x.png',
-            'https://b.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}@2x.png',
-            'https://c.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}@2x.png',
-            'https://d.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}@2x.png',
+            'https://a.tile.openstreetmap.org/{z}/{x}/{y}.png',
+            'https://b.tile.openstreetmap.org/{z}/{x}/{y}.png',
+            'https://c.tile.openstreetmap.org/{z}/{x}/{y}.png',
           ],
           tileSize: 256,
-          attribution: '&copy; CARTO &copy; OpenStreetMap contributors',
+          attribution: '&copy; OpenStreetMap contributors',
         },
       },
       layers: [
         {
-          id: 'carto-base-layer',
+          id: 'osm-base-layer',
           type: 'raster',
-          source: 'carto-base',
+          source: 'osm-base',
           minzoom: 0,
           maxzoom: 20,
           paint: {
-            'raster-contrast': 0.22,
+            'raster-contrast': 0.1,
             'raster-brightness-min': 0.0,
             'raster-brightness-max': 1.0,
-            'raster-saturation': 1.0, // Max saturation (+40% boosted)
-            'raster-hue-rotate': 10,
+            'raster-saturation': 0.0, // Natural colors, zero fluorescence
           },
         },
       ],
     };
   }
 
-  // Dark mode (Explorar, De Carro, Animado): Pitch black base with glowing golden night lights & NASA earth-at-night
+  // Dark mode fallback (without Mapbox token): Clean dark slate map using OSM tiles (No Carto API key required!)
   const nightLightsData = getNightLightsData();
   return {
     version: 8,
     projection: { type: 'globe' } as any,
     sources: {
-      'carto-base': {
+      'osm-base': {
         type: 'raster',
         tiles: [
-          'https://a.basemaps.cartocdn.com/rastertiles/dark_all/{z}/{x}/{y}@2x.png',
-          'https://b.basemaps.cartocdn.com/rastertiles/dark_all/{z}/{x}/{y}@2x.png',
-          'https://c.basemaps.cartocdn.com/rastertiles/dark_all/{z}/{x}/{y}@2x.png',
-          'https://d.basemaps.cartocdn.com/rastertiles/dark_all/{z}/{x}/{y}@2x.png',
+          'https://a.tile.openstreetmap.org/{z}/{x}/{y}.png',
+          'https://b.tile.openstreetmap.org/{z}/{x}/{y}.png',
+          'https://c.tile.openstreetmap.org/{z}/{x}/{y}.png',
         ],
         tileSize: 256,
-        attribution: '&copy; CARTO &copy; OpenStreetMap contributors',
+        attribution: '&copy; OpenStreetMap contributors',
       },
       'nasa-night-lights': {
         type: 'raster',
@@ -233,16 +230,17 @@ const createStyle = (type: MapModeType, theme: 'dark' | 'light' = 'dark'): mapli
     },
     layers: [
       {
-        id: 'carto-base-layer',
+        id: 'osm-base-layer',
         type: 'raster',
-        source: 'carto-base',
+        source: 'osm-base',
         minzoom: 0,
         maxzoom: 20,
         paint: {
-          'raster-contrast': 0.5,
-          'raster-brightness-min': 0.0,
-          'raster-brightness-max': 0.85,
-          'raster-saturation': -0.9,
+          'raster-contrast': 0.35,
+          'raster-brightness-min': 0.05,
+          'raster-brightness-max': 0.3, // Deep dark slate background
+          'raster-saturation': -0.95,   // Desaturated clean dark theme
+          'raster-hue-rotate': 180,     // Elegant dark night styling
         },
       },
       {

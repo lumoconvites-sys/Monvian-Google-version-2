@@ -1104,7 +1104,7 @@ export default function App() {
         <div className="flex items-center pointer-events-auto">
           <div
             id="weather-header-display"
-            className={`flex flex-col items-start select-none transition-all duration-300 ease-out ${
+            className={`flex flex-col items-start select-none transition-all duration-300 ease-out ios-glass p-3 rounded-2xl border border-white/20 ${
               isMapInteracting
                 ? 'opacity-20 scale-95'
                 : 'opacity-90 hover:opacity-100 scale-100'

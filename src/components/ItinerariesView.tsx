@@ -187,60 +187,64 @@ const getMapStyle = (
       version: 8,
       projection: { type: 'globe' } as any,
       sources: {
-        'osm-transport': {
+        'osm-base': {
           type: 'raster',
-          tiles: ['https://tile.openstreetmap.org/{z}/{x}/{y}.png'],
+          tiles: [
+            'https://a.tile.openstreetmap.org/{z}/{x}/{y}.png',
+            'https://b.tile.openstreetmap.org/{z}/{x}/{y}.png',
+            'https://c.tile.openstreetmap.org/{z}/{x}/{y}.png',
+          ],
           tileSize: 256,
           attribution: '&copy; OpenStreetMap contributors',
         },
       },
       layers: [
         {
-          id: 'osm-transport-layer',
+          id: 'osm-base-layer',
           type: 'raster',
-          source: 'osm-transport',
+          source: 'osm-base',
           minzoom: 0,
-          maxzoom: 19,
+          maxzoom: 20,
           paint: {
-            'raster-contrast': 0.15,
+            'raster-contrast': 0.1,
             'raster-brightness-min': 0.0,
             'raster-brightness-max': 1.0,
-            'raster-saturation': 0.85,
-            'raster-hue-rotate': 14,
+            'raster-saturation': 0.0, // Natural colors, zero fluorescence
           },
         },
       ],
     };
   }
 
-  // Dark mode
+  // Dark mode fallback (without Mapbox token): Clean dark slate map using OSM tiles
   return {
     version: 8,
     projection: { type: 'globe' } as any,
     sources: {
-      'carto-base': {
+      'osm-base': {
         type: 'raster',
         tiles: [
-          'https://a.basemaps.cartocdn.com/rastertiles/dark_all/{z}/{x}/{y}@2x.png',
-          'https://b.basemaps.cartocdn.com/rastertiles/dark_all/{z}/{x}/{y}@2x.png',
-          'https://c.basemaps.cartocdn.com/rastertiles/dark_all/{z}/{x}/{y}@2x.png',
-          'https://d.basemaps.cartocdn.com/rastertiles/dark_all/{z}/{x}/{y}@2x.png',
+          'https://a.tile.openstreetmap.org/{z}/{x}/{y}.png',
+          'https://b.tile.openstreetmap.org/{z}/{x}/{y}.png',
+          'https://c.tile.openstreetmap.org/{z}/{x}/{y}.png',
         ],
         tileSize: 256,
-        attribution: '&copy; CARTO &copy; OpenStreetMap',
+        attribution: '&copy; OpenStreetMap contributors',
       },
     },
     layers: [
       {
-        id: 'carto-base-layer',
+        id: 'osm-base-layer',
         type: 'raster',
-        source: 'carto-base',
+        source: 'osm-base',
         minzoom: 0,
         maxzoom: 20,
         paint: {
-          'raster-contrast': 0.2,
-          'raster-brightness-min': 0.0,
-          'raster-brightness-max': 0.85,
+          'raster-contrast': 0.35,
+          'raster-brightness-min': 0.05,
+          'raster-brightness-max': 0.3,
+          'raster-saturation': -0.95,
+          'raster-hue-rotate': 180,
         },
       },
     ],

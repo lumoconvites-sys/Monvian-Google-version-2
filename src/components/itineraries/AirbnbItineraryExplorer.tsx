@@ -847,7 +847,7 @@ export const AirbnbItineraryExplorer: React.FC<AirbnbItineraryExplorerProps> = (
                     carouselRefs.current[section.id] = el;
                   }}
                   onScroll={() => updateScrollState(section.id)}
-                  className="flex gap-3 overflow-x-auto no-scrollbar pb-1 scroll-smooth"
+                  className="flex gap-3 overflow-x-auto no-scrollbar pb-1 scroll-smooth px-6 sm:px-7"
                   style={{
                     touchAction: 'pan-x pan-y',
                     WebkitOverflowScrolling: 'touch',
