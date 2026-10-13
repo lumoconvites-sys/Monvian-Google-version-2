@@ -33,6 +33,7 @@ import { DesktopTopBar } from './components/desktop/DesktopTopBar';
 import { DesktopExplorePanel } from './components/desktop/DesktopExplorePanel';
 import { startPreloadResources } from './utils/preloadItineraries';
 import { AirbnbPresentationCard, isPresentationCardSeen, markPresentationCardSeen, PresentationTab } from './components/AirbnbPresentationCard';
+import { persistUserToFirestore } from './services/firestoreSync';
 
 const welcomeContainerVariants = {
   hidden: { opacity: 0 },
@@ -321,7 +322,7 @@ export default function App() {
   useEffect(() => {
     const token = localStorage.getItem('monvian_token');
     if (!token) {
-      setIsAuthenticated(true);
+      setIsAuthenticated(false);
       return;
     }
 
@@ -453,7 +454,8 @@ export default function App() {
     }
 
     const token = localStorage.getItem('monvian_token');
-    if (token) {
+
+    if (token && user) {
       fetch('/api/user/settings', {
         method: 'POST',
         headers: {
@@ -462,8 +464,15 @@ export default function App() {
         },
         body: JSON.stringify({ rain_enabled: rainEnabled, snow_enabled: snowEnabled, theme, high_contrast: highContrast })
       }).catch(() => {});
+
+      persistUserToFirestore({
+        ...user,
+        snow_enabled: snowEnabled ? 1 : 0,
+        theme: theme,
+        high_contrast: highContrast ? 1 : 0,
+      }).catch(() => {});
     }
-  }, [rainEnabled, snowEnabled, theme, highContrast]);
+  }, [rainEnabled, snowEnabled, theme, highContrast, user]);
 
   const [spots, setSpots] = useState<Spot[]>(() => {
     try {
@@ -968,7 +977,11 @@ export default function App() {
 
   return (
     <AnimatePresence mode="wait">
-      {isAdminOpen ? (
+      {!isAuthenticated ? (
+        <AuthScreen key="auth-screen" onSuccess={(token, user) => {
+          setIsAuthenticated(true);
+        }} />
+      ) : isAdminOpen ? (
         <motion.div
           key="monvian-admin-screen"
           initial={{ opacity: 0 }}
@@ -1124,8 +1137,8 @@ export default function App() {
           selectedCategory={selectedCategoryFilter || 'all'}
           onSelectCategory={(catId) => setSelectedCategoryFilter(catId === 'all' ? null : catId)}
           theme={theme}
-          isOpen={isDesktopExplorePanelOpen}
-          onToggleOpen={() => setIsDesktopExplorePanelOpen((prev) => !prev)}
+          isOpen={true}
+          onToggleOpen={() => {}}
         />
       )}
 

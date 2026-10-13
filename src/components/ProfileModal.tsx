@@ -27,6 +27,7 @@ import { InstagramLogo, WhatsAppLogo } from './SocialIcons';
 import { PremiumModal } from './PremiumModal';
 import { IOSSwitch } from './IOSSwitch';
 import { NotificationsModal } from './NotificationsModal';
+import { persistUserToFirestore } from '../services/firestoreSync';
 
 interface ProfileModalProps {
   isOpen: boolean;
@@ -492,6 +493,7 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
     reader.readAsDataURL(file);
   };
 
+
   const saveProfileToBackend = async (name: string, usernameStr: string, bioStr: string, emailOrWhatsapp: string, avatar: string): Promise<boolean> => {
     const token = localStorage.getItem('monvian_token');
     if (!token) return false;
@@ -523,6 +525,20 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
         localStorage.setItem('monvian_user', JSON.stringify(data.user));
         setUserUsername(data.user.username || cleanUsername);
         setUserBio(data.user.bio || bioStr);
+        
+        // Sync to Firestore
+        await persistUserToFirestore({
+          ...user,
+          ...data.user,
+          name: name.trim(),
+          username: cleanUsername,
+          bio: bioStr.trim(),
+          email: emailOrWhatsapp.trim(),
+          avatar_url: avatar,
+          password_hash: user?.password_hash || '',
+          role: user?.role || 'user',
+        });
+
         if (onUpdateUser) {
           onUpdateUser(data.user);
         }

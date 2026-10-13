@@ -1,3 +1,4 @@
+import { supabase } from './src/services/supabaseClient';
 import express from 'express';
 import path from 'path';
 import fs from 'fs';
@@ -29,6 +30,7 @@ import { setupSocialDatabase, registerSocialRoutes } from './src/server/socialRo
 import { setupStoriesDatabase, registerStoryRoutes } from './src/server/storyRoutes';
 
 dotenv.config();
+
 
 // Port 3000 is required by the infrastructure proxy (never read process.env.PORT)
 const PORT = 3000;
@@ -334,7 +336,7 @@ try { db.exec(`CREATE UNIQUE INDEX IF NOT EXISTS idx_users_username_normalized O
 
 // Backfill any existing users without username
 try {
-  const usersWithoutUsername = db.prepare('SELECT id, name, email, whatsapp FROM users WHERE username IS NULL OR username = ""').all() as any[];
+  const usersWithoutUsername = db.prepare('SELECT id, name, email, whatsapp FROM users WHERE username IS NULL OR username = \'\'').all() as any[];
   for (const u of usersWithoutUsername) {
     let raw = (u.name || u.email?.split('@')[0] || `user_${u.id}`)
       .toLowerCase()
@@ -1674,270 +1676,131 @@ async function startServer() {
     }
   });
 
-  // 3. Register with Email + Verification Code
+  // 3. Register with Supabase Auth
   app.post('/api/auth/register', async (req, res) => {
     try {
-      const { name, username, email, whatsapp, password, code, gender } = req.body;
-      const cleanEmail = (email || whatsapp || '').trim().toLowerCase();
+      const { name, username, email, password, gender } = req.body;
+      const cleanEmail = (email || '').trim().toLowerCase();
 
       if (!name || !cleanEmail || !password) {
         res.status(400).json({ error: 'Nome, e-mail e senha são obrigatórios' });
         return;
       }
 
-      // Username validation
-      const rawUsername = (username || '').trim().replace(/^@+/, '');
-      if (!rawUsername) {
-        res.status(400).json({ error: 'O nome de usuário é obrigatório.' });
-        return;
-      }
-      if (rawUsername.length < 3 || rawUsername.length > 30) {
-        res.status(400).json({ error: 'O nome de usuário deve ter entre 3 e 30 caracteres.' });
-        return;
-      }
-      if (!/^[a-zA-Z0-9_]+$/.test(rawUsername)) {
-        res.status(400).json({ error: 'O nome de usuário pode conter apenas letras, números e underscore (_).' });
-        return;
-      }
-      const normalizedUsername = rawUsername.toLowerCase();
-      const existingUsername = db.prepare('SELECT id FROM users WHERE username_normalized = ?').get(normalizedUsername);
-      if (existingUsername) {
-        res.status(400).json({ error: 'Este nome de usuário já está em uso.' });
-        return;
-      }
-
-      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-      if (!emailRegex.test(cleanEmail)) {
-        res.status(400).json({ error: 'Por favor, insira um e-mail válido' });
-        return;
-      }
-
-      // Check code verification
-      if (code) {
-        const cleanCode = String(code).trim();
-        const verifiedRecord: any = db.prepare(`
-          SELECT * FROM email_verifications 
-          WHERE LOWER(email) = ? AND code = ? 
-          ORDER BY id DESC LIMIT 1
-        `).get(cleanEmail, cleanCode);
-
-        if (!verifiedRecord) {
-          res.status(400).json({ error: 'Código de verificação incorreto' });
-          return;
+      // 1. Sign up with Supabase
+      const { data, error } = await supabase.auth.signUp({
+        email: cleanEmail,
+        password: password,
+        options: {
+          data: { name: name.trim() }
         }
-      }
+      });
 
-      const checkUser = db.prepare('SELECT id FROM users WHERE LOWER(email) = ? OR LOWER(whatsapp) = ?').get(cleanEmail, cleanEmail);
-      if (checkUser) {
-        res.status(400).json({ error: 'Usuário já cadastrado com este e-mail' });
+      if (error) {
+        res.status(400).json({ error: error.message });
         return;
       }
 
-      // Also verify Cloud Firestore to ensure uniqueness across containers
-      const cloudExistingUser = await getUserFromFirestore(cleanEmail);
-      if (cloudExistingUser) {
-        res.status(400).json({ error: 'Usuário já cadastrado com este e-mail' });
+      const userAuth = data.user;
+      if (!userAuth) {
+        res.status(400).json({ error: 'Erro ao criar usuário.' });
         return;
       }
 
-      const hash = await bcrypt.hash(password, 10);
-      const role = isPrimaryAdmin(cleanEmail) ? 'admin' : 'user';
-
-      let defaultAvatar = '/avatar_female.jpg';
-      if (gender === 'masculino') {
-        defaultAvatar = '/avatar_male.jpg';
-      } else if (gender === 'feminino' || gender === 'outro') {
-        defaultAvatar = '/avatar_female.jpg';
-      }
+      // 2. Insert into public.users
+      const rawUsername = (username || '').trim().replace(/^@+/, '');
+      const normalizedUsername = rawUsername.toLowerCase();
+      
+      let defaultAvatar = gender === 'masculino' ? '/avatar_male.jpg' : '/avatar_female.jpg';
 
       const result = db.prepare(`
-        INSERT INTO users (name, username, username_normalized, email, whatsapp, password_hash, role, visits_count, onboarding_completed, onboarding_step, avatar_url)
-        VALUES (?, ?, ?, ?, ?, ?, ?, 1, 0, 1, ?)
-      `).run(name.trim(), rawUsername, normalizedUsername, cleanEmail, cleanEmail, hash, role, defaultAvatar);
-      const userId = Number(result.lastInsertRowid);
-
-      try {
-        db.prepare('INSERT OR IGNORE INTO user_preferences (user_id) VALUES (?)').run(userId);
-      } catch (e) {}
-
-      const token = crypto.randomBytes(32).toString('hex');
-      db.prepare('INSERT INTO sessions (token, user_id) VALUES (?, ?)').run(token, userId);
-
-      // Persist to Cloud Firestore in background so user response is immediate
-      persistUserToFirestore({
-        id: userId,
-        name: name.trim(),
-        username: rawUsername,
-        username_normalized: normalizedUsername,
-        email: cleanEmail,
-        whatsapp: cleanEmail,
-        password_hash: hash,
-        role,
-        avatar_url: defaultAvatar,
-        visits_count: 1,
-        is_banned: 0,
-        snow_enabled: 0,
-        theme: 'light',
-        high_contrast: 0,
-        onboarding_completed: 0,
-        onboarding_step: 1
-      }).catch(() => {});
-      persistSessionToFirestore(token, userId, cleanEmail).catch(() => {});
-
-      try {
-        db.pragma('wal_checkpoint(TRUNCATE)');
-      } catch (e) {}
-
-      const isGoldUser = isPrimaryAdmin(cleanEmail);
+        INSERT INTO users (id, name, username, username_normalized, email, whatsapp, password_hash, role, visits_count, onboarding_completed, onboarding_step, avatar_url)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      `).run(
+        userAuth.id, // Using Supabase Auth ID as public.users.id
+        name.trim(),
+        rawUsername,
+        normalizedUsername,
+        cleanEmail,
+        cleanEmail,
+        'supabase-managed', // Placeholder
+        'user',
+        1,
+        0,
+        1,
+        defaultAvatar
+      );
 
       res.json({
         success: true,
-        token,
         user: {
-          id: userId,
+          id: userAuth.id,
           name: name.trim(),
-          username: rawUsername,
-          username_normalized: normalizedUsername,
           email: cleanEmail,
-          whatsapp: cleanEmail,
-          role,
-          avatar_url: defaultAvatar,
-          is_banned: 0,
-          isPremium: Boolean(isGoldUser),
-          isGold: Boolean(isGoldUser),
-          is_premium: isGoldUser ? 1 : 0,
-          is_gold: isGoldUser ? 1 : 0,
-          onboarding_completed: false,
-          onboarding_step: 1
+          role: 'user',
         }
       });
     } catch (err: any) {
       console.error('[Register Error]', err);
-      const msg = err?.message || '';
-      if (msg.includes('UNIQUE constraint failed: users.username_normalized')) {
-        res.status(400).json({ error: 'Este nome de usuário já está em uso.' });
-        return;
-      }
-      if (msg.includes('UNIQUE constraint failed: users.email') || msg.includes('UNIQUE constraint failed: users.whatsapp')) {
-        res.status(400).json({ error: 'Já existe uma conta cadastrada com este e-mail.' });
-        return;
-      }
       res.status(500).json({ error: 'Erro ao registrar usuário. Tente novamente.' });
     }
   });
 
-  // 4. Login with Email + Password
+  // 4. Login with Supabase Auth
   app.post('/api/auth/login', async (req, res) => {
     try {
-      const { email, whatsapp, password } = req.body;
-      const identifier = (email || whatsapp || '').trim().toLowerCase();
+      const { email, password } = req.body;
+      const cleanEmail = (email || '').trim().toLowerCase();
 
-      if (!identifier || !password) {
+      if (!cleanEmail || !password) {
         res.status(400).json({ error: 'E-mail e senha são obrigatórios' });
         return;
       }
 
-      let user: any = db.prepare('SELECT * FROM users WHERE LOWER(email) = ? OR LOWER(whatsapp) = ?').get(identifier, identifier);
-      if (!user) {
-        // Fallback: check Cloud Firestore (e.g. freshly started container after deploy)
-        const cloudUser = await getUserFromFirestore(identifier);
-        if (cloudUser && cloudUser.password_hash) {
-          const resInsert = db.prepare(`
-            INSERT INTO users (name, email, whatsapp, password_hash, role, avatar_url, visits_count, is_banned, snow_enabled, theme, high_contrast, onboarding_completed, onboarding_step, last_access, created_at)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-          `).run(
-            cloudUser.name || identifier.split('@')[0],
-            cloudUser.email,
-            cloudUser.whatsapp || cloudUser.email,
-            cloudUser.password_hash,
-            cloudUser.role || 'user',
-            cloudUser.avatar_url || '/fotoperfil.png',
-            cloudUser.visits_count || 1,
-            cloudUser.is_banned || 0,
-            cloudUser.snow_enabled || 0,
-            cloudUser.theme || 'dark',
-            cloudUser.high_contrast || 0,
-            cloudUser.onboarding_completed !== undefined ? cloudUser.onboarding_completed : 1,
-            cloudUser.onboarding_step || 1,
-            cloudUser.last_access || new Date().toISOString(),
-            cloudUser.created_at || new Date().toISOString()
-          );
-          user = db.prepare('SELECT * FROM users WHERE id = ?').get(resInsert.lastInsertRowid);
-        }
-      }
+      // 1. Sign in with Supabase
+      const { data, error } = await supabase.auth.signInWithPassword({
+        email: cleanEmail,
+        password: password
+      });
 
-      if (!user) {
+      if (error) {
         res.status(401).json({ error: 'E-mail ou senha incorretos' });
         return;
       }
 
-      if (user.is_banned === 1) {
-        res.status(403).json({ error: 'Esta conta foi suspensa/banida pelo administrador.' });
-        return;
-      }
-
-      const isValid = await bcrypt.compare(password, user.password_hash);
-      if (!isValid) {
-        res.status(401).json({ error: 'E-mail ou senha incorretos' });
-        return;
+      const userAuth = data.user;
+      
+      // 2. Fetch from public.users
+      let user: any = db.prepare('SELECT * FROM users WHERE id = ?').get(userAuth.id);
+      
+      if (!user) {
+        // Fallback/Sync
+        const result = db.prepare(`
+          INSERT INTO users (id, name, email, whatsapp, password_hash, role, visits_count, avatar_url)
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+        `).run(
+          userAuth.id,
+          userAuth.user_metadata?.name || cleanEmail.split('@')[0],
+          cleanEmail,
+          cleanEmail,
+          'supabase-managed',
+          'user',
+          1,
+          '/avatar_female.jpg'
+        );
+        user = db.prepare('SELECT * FROM users WHERE id = ?').get(userAuth.id);
       }
 
       // Update visit count and last access
       db.prepare(`UPDATE users SET visits_count = visits_count + 1, last_access = CURRENT_TIMESTAMP WHERE id = ?`).run(user.id);
-      user.visits_count = (user.visits_count || 1) + 1;
-
-      const token = crypto.randomBytes(32).toString('hex');
-      db.prepare('INSERT INTO sessions (token, user_id) VALUES (?, ?)').run(token, user.id);
-
-      const userEmail = (user.email || user.whatsapp || '').trim().toLowerCase();
-      const userRole = isPrimaryAdmin(userEmail) ? 'admin' : 'user';
-      user.role = userRole;
-
-      // Persist session and user update to Cloud Firestore in background
-      persistSessionToFirestore(token, user.id, userEmail).catch(() => {});
-      persistUserToFirestore({
-        id: user.id,
-        name: user.name,
-        email: userEmail,
-        whatsapp: user.whatsapp || userEmail,
-        password_hash: user.password_hash,
-        role: userRole,
-        avatar_url: user.avatar_url,
-        visits_count: user.visits_count,
-        is_banned: user.is_banned || 0,
-        snow_enabled: user.snow_enabled || 0,
-        theme: user.theme || 'dark',
-        high_contrast: user.high_contrast || 0,
-        onboarding_completed: user.onboarding_completed,
-        onboarding_step: user.onboarding_step
-      }).catch(() => {});
-
-      try {
-        db.pragma('wal_checkpoint(TRUNCATE)');
-      } catch (e) {}
-
-      const isGold = isPrimaryAdmin(userEmail) || user.is_premium === 1 || user.is_gold === 1;
-
+      
       res.json({
         success: true,
-        token,
         user: {
           id: user.id,
           name: user.name,
-          username: user.username,
-          username_normalized: user.username_normalized,
-          bio: user.bio || '',
-          email: userEmail,
-          whatsapp: userEmail,
-          role: userRole,
-          is_banned: user.is_banned || 0,
-          isPremium: Boolean(isGold),
-          isGold: Boolean(isGold),
-          is_premium: isGold ? 1 : 0,
-          is_gold: isGold ? 1 : 0,
-          avatar_url: user.avatar_url,
-          onboarding_completed: user.onboarding_completed === 1,
-          onboarding_step: user.onboarding_step || 1
+          email: user.email,
+          role: user.role,
         }
       });
     } catch (err) {
