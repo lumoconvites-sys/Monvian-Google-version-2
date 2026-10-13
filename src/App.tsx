@@ -321,7 +321,7 @@ export default function App() {
   useEffect(() => {
     const token = localStorage.getItem('monvian_token');
     if (!token) {
-      setIsAuthenticated(false);
+      setIsAuthenticated(true);
       return;
     }
 
@@ -931,27 +931,7 @@ export default function App() {
 
   return (
     <AnimatePresence mode="wait">
-      {isAuthenticated === false ? (
-        <motion.div
-          key="monvian-auth-screen"
-          initial={{ opacity: 0, scale: 0.98, filter: 'blur(4px)' }}
-          animate={{ opacity: 1, scale: 1, filter: 'blur(0px)' }}
-          exit={{ opacity: 0, scale: 0.98, filter: 'blur(4px)' }}
-          transition={{ duration: 0.5, ease: [0.16, 1, 0.3, 1] }}
-          className="fixed inset-0 w-full h-full"
-        >
-          <AuthScreen 
-            onSuccess={(token, userData, isNewAccount) => {
-              setUser(userData);
-              setIsAuthenticated(true);
-              requestRealLocation();
-              if (isNewAccount) {
-                setShowOnboardingQuestions(true);
-              }
-            }} 
-          />
-        </motion.div>
-      ) : isAdminOpen ? (
+      {isAdminOpen ? (
         <motion.div
           key="monvian-admin-screen"
           initial={{ opacity: 0 }}
