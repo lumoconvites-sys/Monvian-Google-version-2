@@ -236,14 +236,29 @@ export default function App() {
   useEffect(() => {
     const updateAppHeight = () => {
       try {
-        const h =
-          (window.visualViewport && window.visualViewport.height) ||
-          window.innerHeight ||
-          document.documentElement?.clientHeight ||
-          0;
+        const isLandscape =
+          window.matchMedia('(orientation: landscape)').matches ||
+          Math.abs(Number(window.orientation) || 0) === 90 ||
+          window.innerWidth > window.innerHeight;
+
+        let screenH = 0;
+        if (typeof window !== 'undefined' && window.screen && window.screen.height) {
+          screenH = isLandscape
+            ? Math.min(window.screen.width, window.screen.height)
+            : Math.max(window.screen.width, window.screen.height);
+        }
+
+        const h = Math.max(
+          window.innerHeight || 0,
+          document.documentElement?.clientHeight || 0,
+          screenH || 0
+        );
 
         if (h && h > 0) {
           document.documentElement.style.setProperty('--app-height', `${h}px`);
+        }
+        if (typeof window !== 'undefined' && window.scrollTo) {
+          window.scrollTo(0, 0);
         }
       } catch (e) {}
     };
@@ -954,9 +969,9 @@ export default function App() {
       ) : (
         <motion.div
           key="monvian-main-app"
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          transition={{ duration: 0.35, ease: 'easeOut' }}
+          initial={{ opacity: 0, scale: 0.98, filter: 'blur(6px)' }}
+          animate={{ opacity: 1, scale: 1, filter: 'blur(0px)' }}
+          transition={{ duration: 0.55, ease: [0.16, 1, 0.3, 1] }}
           id="app-root-shell"
           className={`fixed inset-0 w-full h-full overflow-hidden select-none flex transition-colors duration-300 ${
             theme === 'dark' ? 'bg-black' : 'bg-[#f4f4f5]'
@@ -969,6 +984,7 @@ export default function App() {
             right: 0,
             width: '100%',
             height: '100%',
+            minHeight: 'calc(100dvh + env(safe-area-inset-bottom, 0px))',
             boxSizing: 'border-box',
             margin: 0,
             padding: 0,
@@ -993,7 +1009,7 @@ export default function App() {
 
       <main
         id="main-app-content"
-        className={`relative flex-1 w-full h-full min-h-0 overflow-hidden select-none transition-all duration-300 ${
+        className={`relative flex-1 w-full h-[100dvh] overflow-hidden select-none transition-all duration-300 ${
           theme === 'dark' ? 'bg-black' : 'bg-zinc-50'
         }`}
         style={{
@@ -1086,7 +1102,7 @@ export default function App() {
         <div className="flex items-center pointer-events-auto">
           <div
             id="weather-header-display"
-            className={`flex flex-col items-start select-none transition-all duration-300 ease-out ${
+            className={`flex flex-col items-start select-none transition-all duration-300 ease-out ios-glass p-3 rounded-2xl border border-white/20 ${
               isMapInteracting
                 ? 'opacity-20 scale-95'
                 : 'opacity-90 hover:opacity-100 scale-100'
