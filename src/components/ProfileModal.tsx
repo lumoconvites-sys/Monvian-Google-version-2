@@ -16,7 +16,6 @@ import {
   MapPin,
   Check,
   Sliders,
-  ExternalLink,
   Loader2,
   CloudRain,
   Crown,
@@ -588,10 +587,13 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
               whileTap={{ scale: 0.95 }}
               id="btn-back-profile-main"
               onClick={() => handleSetSubView('main')}
-              className="w-10 h-10 rounded-full bg-zinc-200/80 dark:bg-white/10 hover:bg-zinc-300 dark:hover:bg-white/20 text-zinc-900 dark:text-white flex items-center justify-center transition-colors cursor-pointer mr-1"
+              className="w-10 h-10 rounded-full bg-zinc-200/80 dark:bg-white/10 hover:bg-zinc-300 dark:hover:bg-white/20 text-black dark:text-white flex items-center justify-center transition-colors cursor-pointer mr-1"
               title="Voltar"
             >
-              <ArrowLeft className="w-5 h-5 stroke-[2.2]" />
+              <ArrowLeft
+                className="w-5 h-5 stroke-[2.2] text-black dark:text-white"
+                style={{ color: theme === 'dark' ? '#ffffff' : '#000000' }}
+              />
             </motion.button>
           ) : null}
 
@@ -614,17 +616,7 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
           >
             <Bell className="w-5 h-5 stroke-[2]" />
           </button>
-        ) : (
-          <button
-            type="button"
-            onClick={onClose}
-            className="w-9 h-9 rounded-full bg-zinc-200/80 dark:bg-white/10 hover:bg-zinc-300 dark:hover:bg-white/20 text-zinc-900 dark:text-white flex items-center justify-center transition-colors cursor-pointer"
-            title="Fechar perfil"
-            aria-label="Fechar perfil"
-          >
-            <X className="w-4 h-4 stroke-[2.2]" />
-          </button>
-        )}
+        ) : null}
       </div>
 
       {/* Main Content Area */}
@@ -750,7 +742,7 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
                   Torne-se um anfitrião
                 </h3>
                 <p className="text-xs text-zinc-500 dark:text-zinc-400 font-medium mt-0.5 leading-snug">
-                  É fácil começar a receber hóspedes e ganhar uma renda extra.
+                  É fácil começar a receber viajantes e ganhar uma renda extra.
                 </p>
               </div>
             </div>
@@ -1014,13 +1006,7 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
         {/* VIEW 3: CURTIDOS (FAVORITES)                                  */}
         {/* ============================================================ */}
         {activeSubView === 'curtidos' && (
-          <div className={`pt-2 ${favoriteSpots.length === 0 ? 'flex-1 flex flex-col justify-center min-h-[65vh]' : 'space-y-3'}`}>
-            {favoriteSpots.length > 0 && (
-              <p className="text-xs text-zinc-500 dark:text-zinc-400">
-                Você tem {favoriteSpots.length} {favoriteSpots.length === 1 ? 'lugar salvo' : 'lugares salvos'} para visitar em Campos do Jordão.
-              </p>
-            )}
-
+          <div className={`pt-2 ${favoriteSpots.length === 0 ? 'flex-1 flex flex-col justify-center min-h-[65vh]' : 'space-y-3.5'}`}>
             {favoriteSpots.length === 0 ? (
               <div className="flex-1 flex flex-col items-center justify-center text-center py-16 text-zinc-500 dark:text-zinc-400">
                 <Heart className="w-10 h-10 text-zinc-300 dark:text-zinc-600 mx-auto mb-3" />
@@ -1037,10 +1023,10 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
                     onSelectSpot(spot);
                     onClose();
                   }}
-                  className="w-full p-3.5 rounded-3xl bg-white dark:bg-[#141518] hover:bg-zinc-50 dark:hover:bg-[#1a1c21] active:scale-[0.98] border border-zinc-200 dark:border-white/5 hover:border-zinc-300 dark:hover:border-white/20 transition-all flex items-center justify-between text-left cursor-pointer group shadow-sm dark:shadow-md"
+                  className="w-full p-4.5 sm:p-5 rounded-[28px] bg-white dark:bg-[#141518] hover:bg-zinc-50 dark:hover:bg-[#1a1c21] active:scale-[0.98] border border-zinc-200 dark:border-white/5 hover:border-zinc-300 dark:hover:border-white/20 transition-all flex items-center justify-between text-left cursor-pointer group shadow-sm dark:shadow-md"
                 >
-                  <div className="flex items-center gap-3.5 min-w-0">
-                    <div className="w-14 h-14 rounded-2xl overflow-hidden bg-zinc-100 dark:bg-zinc-800 shrink-0 border border-zinc-200 dark:border-white/10">
+                  <div className="flex items-center gap-4 sm:gap-4.5 min-w-0 flex-1">
+                    <div className="w-[68px] h-[68px] sm:w-[72px] sm:h-[72px] rounded-[20px] overflow-hidden bg-zinc-100 dark:bg-zinc-800 shrink-0 border border-zinc-200 dark:border-white/10">
                       <img
                         src={spot.image}
                         alt={spot.name}
@@ -1049,15 +1035,15 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
                     </div>
 
                     <div className="min-w-0 flex-1">
-                      <h4 className="text-sm font-black text-zinc-900 dark:text-white tracking-tight truncate group-hover:text-zinc-600 dark:group-hover:text-zinc-300 transition-colors">
+                      <h4 className="text-[16.5px] sm:text-[17px] font-bold text-zinc-900 dark:text-white tracking-tight truncate group-hover:text-zinc-600 dark:group-hover:text-zinc-300 transition-colors">
                         {spot.name}
                       </h4>
-                      <p className="text-xs text-zinc-500 dark:text-zinc-400 font-black truncate mt-0.5">
+                      <p className="text-[13.5px] text-zinc-500 dark:text-zinc-400 font-medium truncate mt-0.5">
                         {spot.categoryLabel}
                       </p>
-                      <div className="flex items-center gap-2 text-[11px] text-zinc-500 dark:text-zinc-400 mt-1">
-                        <span className="flex items-center gap-0.5 text-amber-500 dark:text-amber-400 font-black">
-                          <Star className="w-3 h-3 fill-amber-500 dark:fill-amber-400" />
+                      <div className="flex items-center gap-2 text-[12.5px] text-zinc-500 dark:text-zinc-400 mt-1.5">
+                        <span className="flex items-center gap-1 text-amber-500 dark:text-amber-400 font-bold">
+                          <Star className="w-3.5 h-3.5 fill-amber-500 dark:fill-amber-400" />
                           {spot.rating}
                         </span>
                         <span>•</span>
@@ -1065,8 +1051,6 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
                       </div>
                     </div>
                   </div>
-
-                    <ExternalLink className="w-4 h-4 text-zinc-400 dark:text-zinc-500 group-hover:text-zinc-600 dark:group-hover:text-zinc-300 shrink-0 ml-2" />
                 </div>
               ))
             )}
@@ -1074,39 +1058,7 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
           </div>
         )}
 
-        {/* ============================================================ */}
-        {/* VIEW 5: PAINEL ADM                                            */}
-        {/* ============================================================ */}
-        {activeSubView === 'painel-adm' && (
-          <div className="space-y-3 pt-2">
-            <div className="p-4 rounded-3xl bg-white dark:bg-[#141518] border border-zinc-200 dark:border-white/10 shadow-sm">
-              <div className="flex items-center gap-2 mb-2 text-sm font-black text-zinc-900 dark:text-white">
-                <Sliders className="w-4 h-4 text-zinc-900 dark:text-white" />
-                <span>Console de Controle do Guia</span>
-              </div>
-              <p className="text-xs text-zinc-500 dark:text-zinc-400 leading-relaxed">
-                Gerencie atalhos de redes sociais, status da temporada de inverno e configurações gerais do aplicativo de Campos do Jordão.
-              </p>
-            </div>
 
-            <div className="p-4 rounded-3xl bg-white dark:bg-[#141518] border border-zinc-200 dark:border-white/10 space-y-3 shadow-sm">
-              <div className="text-xs font-black text-zinc-500 dark:text-zinc-400">Informações do Sistema</div>
-              <div className="flex justify-between text-xs py-1 border-b border-zinc-100 dark:border-white/5">
-                <span className="text-zinc-500 dark:text-zinc-400">Versão:</span>
-                <span className="font-mono text-zinc-700 dark:text-zinc-200">v2.4.0-campos</span>
-              </div>
-              <div className="flex justify-between text-xs py-1 border-b border-zinc-100 dark:border-white/5">
-                <span className="text-zinc-500 dark:text-zinc-400">Pontos cadastrados:</span>
-                <span className="font-mono text-zinc-700 dark:text-zinc-200">{spots.length} atrações</span>
-              </div>
-              <div className="flex justify-between text-xs py-1">
-                <span className="text-zinc-500 dark:text-zinc-400">IA Turística:</span>
-                <span className="text-zinc-900 dark:text-white font-black">Online (Gemini API)</span>
-              </div>
-            </div>
-            <div className="h-16 shrink-0" />
-          </div>
-        )}
 
 
 

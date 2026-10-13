@@ -424,51 +424,57 @@ export const AdminItineraries: React.FC = () => {
               </div>
 
               {/* Status Filters */}
-              <div className="flex items-center gap-1.5 w-full sm:w-auto overflow-x-auto">
+              <div className="flex items-center gap-2 w-full sm:w-auto overflow-x-auto no-scrollbar py-0.5">
                 {[
                   { label: 'Todos', value: 'all' as const },
                   { label: 'Publicados', value: 'published' as const },
                   { label: 'Rascunhos', value: 'draft' as const },
                   { label: 'Ocultos', value: 'hidden' as const },
-                ].map(s => (
-                  <button
-                    key={s.value}
-                    type="button"
-                    onClick={() => setStatusFilter(s.value)}
-                    className={`px-3 py-1.5 rounded-lg text-xs font-bold cursor-pointer transition-colors ${
-                      statusFilter === s.value
-                        ? 'bg-[#FFFFFF] text-white shadow-xs'
-                        : 'bg-zinc-100 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-300 hover:bg-zinc-200'
-                    }`}
-                  >
-                    {s.label}
-                  </button>
-                ))}
+                ].map(s => {
+                  const isSelected = statusFilter === s.value;
+                  return (
+                    <button
+                      key={s.value}
+                      type="button"
+                      onClick={() => setStatusFilter(s.value)}
+                      className={`h-[34px] px-3.5 rounded-full text-xs font-medium whitespace-nowrap transition-all duration-200 ease-out cursor-pointer inline-flex items-center select-none active:scale-[0.96] ${
+                        isSelected
+                          ? 'bg-[#E5E5EA] dark:bg-white/20 text-zinc-900 dark:text-white border border-black/[0.06] dark:border-white/20 shadow-[inset_0_1.5px_2.5px_rgba(0,0,0,0.12)] font-semibold'
+                          : 'bg-white dark:bg-[#1C1C1E] text-zinc-700 dark:text-zinc-300 border border-zinc-200/90 dark:border-white/10 shadow-[0_2px_5px_-1px_rgba(0,0,0,0.07),_0_1px_2px_rgba(0,0,0,0.04)] hover:shadow-[0_3px_8px_-1px_rgba(0,0,0,0.09)]'
+                      }`}
+                    >
+                      {s.label}
+                    </button>
+                  );
+                })}
               </div>
             </div>
 
             {/* Days Filters */}
-            <div className="flex items-center gap-2 pt-1 border-t border-zinc-100 dark:border-zinc-800/60 overflow-x-auto text-xs">
-              <span className="text-zinc-500 font-bold shrink-0">Duração:</span>
+            <div className="flex items-center gap-2 pt-1.5 border-t border-zinc-100 dark:border-zinc-800/60 overflow-x-auto text-xs py-0.5">
+              <span className="text-zinc-500 font-medium shrink-0">Duração:</span>
               {[
                 { label: 'Todas as durações', value: 'all' as const },
                 { label: '1 Dia', value: 1 },
                 { label: '2 Dias', value: 2 },
                 { label: '3+ Dias', value: 3 },
-              ].map((item, idx) => (
-                <button
-                  key={idx}
-                  type="button"
-                  onClick={() => setDaysFilter(item.value)}
-                  className={`px-2.5 py-1 rounded-md text-[11px] font-bold shrink-0 cursor-pointer transition-colors ${
-                    daysFilter === item.value
-                      ? 'bg-zinc-900 dark:bg-white text-white dark:text-zinc-900'
-                      : 'text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-200'
-                  }`}
-                >
-                  {item.label}
-                </button>
-              ))}
+              ].map((item, idx) => {
+                const isSelected = daysFilter === item.value;
+                return (
+                  <button
+                    key={idx}
+                    type="button"
+                    onClick={() => setDaysFilter(item.value)}
+                    className={`h-[28px] px-3 rounded-full text-[11px] font-medium whitespace-nowrap transition-all duration-200 ease-out cursor-pointer inline-flex items-center select-none active:scale-[0.96] ${
+                      isSelected
+                        ? 'bg-[#E5E5EA] dark:bg-white/20 text-zinc-900 dark:text-white border border-black/[0.06] dark:border-white/20 shadow-[inset_0_1.5px_2px_rgba(0,0,0,0.1)] font-semibold'
+                        : 'bg-white dark:bg-[#1C1C1E] text-zinc-700 dark:text-zinc-300 border border-zinc-200/90 dark:border-white/10 shadow-[0_1.5px_4px_rgba(0,0,0,0.06)]'
+                    }`}
+                  >
+                    {item.label}
+                  </button>
+                );
+              })}
             </div>
           </div>
 

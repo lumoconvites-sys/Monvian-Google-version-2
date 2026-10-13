@@ -822,7 +822,7 @@ export const AdminItineraryModal: React.FC<AdminItineraryModalProps> = ({
                   <label className="block text-xs font-black text-zinc-700 dark:text-zinc-300 mb-1.5">
                     Categorias do Roteiro (Filtros na Loja)
                   </label>
-                  <div className="flex flex-wrap gap-1.5 pt-1">
+                  <div className="flex flex-wrap gap-2 pt-1 pb-1">
                     {categories.map(cat => {
                       const selected = selectedCategories.includes(cat.id);
                       return (
@@ -830,13 +830,13 @@ export const AdminItineraryModal: React.FC<AdminItineraryModalProps> = ({
                           key={cat.id}
                           type="button"
                           onClick={() => toggleCategory(cat.id)}
-                          className={`px-3 py-1.5 rounded-xl text-xs font-bold border flex items-center gap-1.5 transition-all cursor-pointer ${
+                          className={`h-[32px] px-3.5 rounded-full text-xs transition-all duration-200 ease-out flex items-center gap-1.5 cursor-pointer select-none active:scale-[0.96] ${
                             selected
-                              ? 'bg-[#FFFFFF] text-white border-blue-500 shadow-2xs'
-                              : 'bg-zinc-50 dark:bg-[#181a20] text-zinc-600 dark:text-zinc-400 border-zinc-200 dark:border-zinc-700 hover:border-zinc-400'
+                              ? 'bg-[#E5E5EA] dark:bg-white/20 text-zinc-900 dark:text-white border border-black/[0.06] dark:border-white/20 shadow-[inset_0_1.5px_2px_rgba(0,0,0,0.12)] font-semibold'
+                              : 'bg-white dark:bg-[#1C1C1E] text-zinc-700 dark:text-zinc-300 border border-zinc-200/90 dark:border-white/10 shadow-[0_2px_5px_-1px_rgba(0,0,0,0.07),_0_1px_2px_rgba(0,0,0,0.04)] hover:shadow-[0_3px_8px_-1px_rgba(0,0,0,0.09)]'
                           }`}
                         >
-                          {selected && <Check className="w-3 h-3 stroke-[3]" />}
+                          {selected && <Check className="w-3.5 h-3.5 stroke-[2.5]" />}
                           <span>{cat.name}</span>
                         </button>
                       );
@@ -1236,14 +1236,17 @@ export const AdminItineraryModal: React.FC<AdminItineraryModalProps> = ({
                     </div>
 
                     {/* Category pills */}
-                    <div className="flex gap-1.5 overflow-x-auto no-scrollbar pt-1">
+                    <div className="category-carousel-container flex gap-2 overflow-x-auto no-scrollbar pt-1 pb-1">
                       <button
                         type="button"
-                        onClick={() => setSpotCategoryFilter('all')}
-                        className={`px-2.5 py-1 rounded-lg text-[11px] font-bold shrink-0 transition-colors ${
+                        onClick={(e) => {
+                          setSpotCategoryFilter('all');
+                          (e.currentTarget as HTMLElement)?.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
+                        }}
+                        className={`h-[28px] px-3 rounded-full text-[11px] font-medium shrink-0 transition-all duration-200 ease-out cursor-pointer select-none active:scale-[0.96] ${
                           spotCategoryFilter === 'all'
-                            ? 'bg-[#FFFFFF] text-white'
-                            : 'bg-white dark:bg-zinc-900 text-zinc-600 dark:text-zinc-400 border border-zinc-200 dark:border-zinc-700'
+                            ? 'bg-[#E5E5EA] dark:bg-white/20 text-zinc-900 dark:text-white border border-black/[0.06] dark:border-white/20 shadow-[inset_0_1.5px_2px_rgba(0,0,0,0.1)] font-semibold'
+                            : 'bg-white dark:bg-[#1C1C1E] text-zinc-700 dark:text-zinc-300 border border-zinc-200/90 dark:border-white/10 shadow-[0_1.5px_4px_rgba(0,0,0,0.06)]'
                         }`}
                       >
                         Todos
@@ -1252,11 +1255,14 @@ export const AdminItineraryModal: React.FC<AdminItineraryModalProps> = ({
                         <button
                           key={cat}
                           type="button"
-                          onClick={() => setSpotCategoryFilter(cat)}
-                          className={`px-2.5 py-1 rounded-lg text-[11px] font-bold shrink-0 capitalize transition-colors ${
+                          onClick={(e) => {
+                            setSpotCategoryFilter(cat);
+                            (e.currentTarget as HTMLElement)?.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
+                          }}
+                          className={`h-[28px] px-3 rounded-full text-[11px] font-medium shrink-0 capitalize transition-all duration-200 ease-out cursor-pointer select-none active:scale-[0.96] ${
                             spotCategoryFilter === cat
-                              ? 'bg-[#FFFFFF] text-white'
-                              : 'bg-white dark:bg-zinc-900 text-zinc-600 dark:text-zinc-400 border border-zinc-200 dark:border-zinc-700'
+                              ? 'bg-[#E5E5EA] dark:bg-white/20 text-zinc-900 dark:text-white border border-black/[0.06] dark:border-white/20 shadow-[inset_0_1.5px_2px_rgba(0,0,0,0.1)] font-semibold'
+                              : 'bg-white dark:bg-[#1C1C1E] text-zinc-700 dark:text-zinc-300 border border-zinc-200/90 dark:border-white/10 shadow-[0_1.5px_4px_rgba(0,0,0,0.06)]'
                           }`}
                         >
                           {cat}

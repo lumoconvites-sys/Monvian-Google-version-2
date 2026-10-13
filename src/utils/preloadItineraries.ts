@@ -2,6 +2,7 @@ import { Itinerary } from '../types';
 import { DEFAULT_CURATED_ITINERARIES } from '../data/defaultItineraries';
 import { CAMPOS_SPOTS } from '../data/spots';
 import { CATEGORY_FALLBACK_IMAGES } from '../utils/spotImages';
+import { initGeoCachePreload } from './geoCache';
 
 // Persistent registry of already preloaded image URLs to avoid duplicate requests
 const preloadedUrls = new Set<string>();
@@ -100,6 +101,9 @@ export function startPreloadResources(): void {
   if (typeof window === 'undefined') return;
   if (hasPreloadStarted) return;
   hasPreloadStarted = true;
+
+  // Initialize 40km geographic preloading & caching centered on Campos do Jordão
+  initGeoCachePreload(CAMPOS_SPOTS);
 
   // 1. Preload spot images from CAMPOS_SPOTS
   CAMPOS_SPOTS.forEach(spot => {

@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState, useCallback } from 'react';
+import React, { useEffect, useRef, useState, useCallback, useMemo } from 'react';
 import * as maplibregl from 'maplibre-gl';
 import 'maplibre-gl/dist/maplibre-gl.css';
 import { Spot, SpotCategory, MapModeType, MapVisualIcon } from '../types';
@@ -13,6 +13,7 @@ import { deviceHeadingManager } from '../utils/deviceHeading';
 import { gpsNavigationManager } from '../services/gpsNavigation';
 import { getSpotImage, getSpotFallbackImage } from '../utils/spotImages';
 import robotAvatar from '../assets/images/ai_robot_avatar_1790114566623.jpg';
+import { getCachedGeoData, isWithinCamposRadius } from '../utils/geoCache';
 
 interface MapComponentProps {
   spots: Spot[];
@@ -764,6 +765,13 @@ export const MapComponentInner: React.FC<MapComponentProps> = ({
   isDetailOpen = false,
 }) => {
   const mapContainerRef = useRef<HTMLDivElement | null>(null);
+  const effectiveSpots = useMemo(() => {
+    const cached = getCachedGeoData<Spot[]>('campos_spots_40km');
+    if (cached && cached.length > 0 && (!spots || spots.length === 0)) {
+      return cached;
+    }
+    return spots || cached || [];
+  }, [spots]);
   const mapRef = useRef<maplibregl.Map | null>(null);
   const userMarkerRef = useRef<maplibregl.Marker | null>(null);
   const userBeamElRef = useRef<HTMLDivElement | null>(null);
@@ -1233,7 +1241,7 @@ export const MapComponentInner: React.FC<MapComponentProps> = ({
     const map = mapRef.current;
     if (!map) return;
 
-    const currentSpotIds = new Set(spots.map((s) => s.id));
+    const currentSpotIds = new Set(effectiveSpots.map((s) => s.id));
 
     // Remove only markers that are no longer present in the spots list
     spotMarkersRef.current.forEach((record, spotId) => {
@@ -1244,7 +1252,7 @@ export const MapComponentInner: React.FC<MapComponentProps> = ({
     });
 
     // Add only new markers (keep existing ones completely untouched)
-    spots.forEach((spot, idx) => {
+    effectiveSpots.forEach((spot, idx) => {
       const existing = spotMarkersRef.current.get(spot.id);
       if (existing) {
         // Spot already exists! Keep the DOM and <img> completely untouched.

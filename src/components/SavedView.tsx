@@ -208,12 +208,8 @@ export const SavedView: React.FC<SavedViewProps> = ({
           // ==========================================
           // 1. TELA PRINCIPAL: AS 3 COLEÇÕES AIRBNB
           // ==========================================
-          <motion.div
+          <div
             key="saved-overview"
-            initial={{ opacity: 0, x: 16 }}
-            animate={{ opacity: 1, x: 0 }}
-            exit={{ opacity: 0, x: 16 }}
-            transition={{ duration: 0.24, ease: [0.16, 1, 0.3, 1] }}
             className="flex-1 flex flex-col w-full h-full overflow-y-auto overscroll-y-contain"
             style={{
               paddingTop: 'max(calc(env(safe-area-inset-top, 0px) + 20px), 24px)',
@@ -230,13 +226,13 @@ export const SavedView: React.FC<SavedViewProps> = ({
             {/* List of 3 Collections in a 2-Column Grid */}
             <main className="px-6 flex-1 max-w-lg mx-auto w-full">
               <div className="grid grid-cols-2 gap-x-4 gap-y-6">
-                {/* Coleção 1: Roteiros salvos */}
+                 {/* Coleção 1: Roteiros salvos */}
                 <CollectionCoverCard
                   title="Roteiros salvos"
                   count={resolvedItineraries.length}
                   photos={itineraryPhotos}
                   isDark={isDark}
-                  fallbackIcon={<Compass className="w-8 h-8 text-zinc-400 dark:text-zinc-500 stroke-[1.5]" />}
+                  fallbackIcon={<Compass className="w-8 h-8 text-black dark:text-white stroke-[1.5]" />}
                   onClick={() => handleOpenCollection('roteiros')}
                 />
 
@@ -246,7 +242,7 @@ export const SavedView: React.FC<SavedViewProps> = ({
                   count={resolvedTouristSpots.length}
                   photos={touristSpotPhotos}
                   isDark={isDark}
-                  fallbackIcon={<MapPin className="w-8 h-8 text-zinc-400 dark:text-zinc-500 stroke-[1.5]" />}
+                  fallbackIcon={<MapPin className="w-8 h-8 text-black dark:text-white stroke-[1.5]" />}
                   onClick={() => handleOpenCollection('pontos')}
                 />
 
@@ -256,22 +252,22 @@ export const SavedView: React.FC<SavedViewProps> = ({
                   count={resolvedPlaces.length}
                   photos={placePhotos}
                   isDark={isDark}
-                  fallbackIcon={<UtensilsCrossed className="w-8 h-8 text-zinc-400 dark:text-zinc-500 stroke-[1.5]" />}
+                  fallbackIcon={<UtensilsCrossed className="w-8 h-8 text-black dark:text-white stroke-[1.5]" />}
                   onClick={() => handleOpenCollection('lugares')}
                 />
               </div>
             </main>
-          </motion.div>
+          </div>
         ) : (
           // ==========================================
           // 2. DETALHE DA COLEÇÃO SELECIONADA
           // ==========================================
           <motion.div
             key={`saved-detail-${activeCollection}`}
-            initial={{ opacity: 0, x: 24 }}
-            animate={{ opacity: 1, x: 0 }}
-            exit={{ opacity: 0, x: 24 }}
-            transition={{ duration: 0.24, ease: [0.16, 1, 0.3, 1] }}
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.18, ease: 'easeOut' }}
             className="flex-1 flex flex-col w-full h-full overflow-hidden"
             style={{
               paddingTop: 'max(calc(env(safe-area-inset-top, 0px) + 12px), 16px)',
@@ -631,7 +627,7 @@ const CollectionCoverCard: React.FC<CollectionCoverCardProps> = ({
         {count === 0 ? (
           // Empty placeholder state
           <div className="w-full h-full flex flex-col items-center justify-center p-6 text-center bg-zinc-50 dark:bg-zinc-900/40">
-            <div className="w-16 h-16 rounded-full bg-zinc-100 dark:bg-zinc-800/80 flex items-center justify-center mb-3 text-zinc-400">
+            <div className="mb-3">
               {fallbackIcon}
             </div>
             <p className="text-xs font-semibold text-zinc-400 dark:text-zinc-500">

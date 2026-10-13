@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import * as maplibregl from 'maplibre-gl';
 import 'maplibre-gl/dist/maplibre-gl.css';
+import { getCachedGeoData, isWithinCamposRadius } from '../utils/geoCache';
 import { motion, AnimatePresence, useMotionValue, useTransform, animate } from 'motion/react';
 import {
   ArrowDown,
@@ -496,7 +497,7 @@ const SwipeableStopCard: React.FC<SwipeableStopCardProps> = ({
 
             {step.durationToNextMin ? (
               <p className="text-[10.5px] font-bold text-zinc-400 dark:text-zinc-400 truncate leading-none flex items-center gap-1 pointer-events-none">
-                <RoundedNavigationIcon isGold={isPremium} className={`w-3 h-3 shrink-0 ${isPremium ? '' : 'text-white'}`} size={12} />
+                <RoundedNavigationIcon isGold={isPremium} className={`w-3 h-3 shrink-0 ${isPremium ? '' : (isDark ? 'text-white' : 'text-black')}`} size={12} />
                 <span>{step.durationToNextMin} min até o próximo ponto</span>
               </p>
             ) : (
@@ -596,13 +597,23 @@ export const ItinerariesView: React.FC<ItinerariesViewProps> = ({
   const [peopleCount, setPeopleCount] = useState<number>(2);
   const [budget, setBudget] = useState<string>('300-600');
 
+  // User explicitly opened the store in this active session
+  const userHasExplicitlyOpenedStoreRef = useRef(false);
+
   // Current active user itinerary
   const [userItinerary, setUserItinerary] = useState<Itinerary | null>(() => {
     try {
       const cached = localStorage.getItem('monvian_active_itinerary');
       if (cached) {
         const parsed = JSON.parse(cached);
-        if (parsed && parsed.days && parsed.days.length > 0) return parsed;
+        if (
+          parsed &&
+          (parsed.id || parsed.title) &&
+          Array.isArray(parsed.days) &&
+          parsed.days.length > 0
+        ) {
+          return parsed;
+        }
       }
     } catch (e) {}
     return null;
@@ -612,7 +623,25 @@ export const ItinerariesView: React.FC<ItinerariesViewProps> = ({
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
 
   // Active view mode: 'explore' (Airbnb Exploration Screen) or 'map' (Interactive Map)
-  const [itineraryViewMode, setItineraryViewMode] = useState<'explore' | 'map'>('explore');
+  // Se a pessoa já tiver um roteiro escolhido/salvo, mantém o roteiro carregado na tela ('map') até ela clicar em loja de roteiros
+  const [itineraryViewMode, setItineraryViewMode] = useState<'explore' | 'map'>(() => {
+    try {
+      const cached = localStorage.getItem('monvian_active_itinerary');
+      if (cached) {
+        const parsed = JSON.parse(cached);
+        if (
+          parsed &&
+          (parsed.id || parsed.title) &&
+          Array.isArray(parsed.days) &&
+          parsed.days.length > 0 &&
+          parsed.days.some((d: any) => Array.isArray(d.steps) && d.steps.length > 0)
+        ) {
+          return 'map';
+        }
+      }
+    } catch (e) {}
+    return 'explore';
+  });
 
   // Loja de Roteiros Premium Modal state
   const [isStoreOpen, setIsStoreOpen] = useState(false);
@@ -751,6 +780,7 @@ export const ItinerariesView: React.FC<ItinerariesViewProps> = ({
       });
       const data = await res.json();
       if (data.success && data.userItinerary) {
+        userHasExplicitlyOpenedStoreRef.current = false;
         setIsExpanded(false);
         setUserItinerary(data.userItinerary);
         try {
@@ -763,7 +793,7 @@ export const ItinerariesView: React.FC<ItinerariesViewProps> = ({
         }
 
         // Apple style toast feedback
-        setStoreToast('Roteiro adicionado com sucesso!');
+        setStoreToast('Roteiro carregado com sucesso!');
         setTimeout(() => setStoreToast(null), 3000);
         setItineraryViewMode('map');
       }
@@ -795,7 +825,17 @@ export const ItinerariesView: React.FC<ItinerariesViewProps> = ({
 
   // Bottom Sheet expansion state: false = compact (inteiro e compacto acima da barra), true = 50% split
   const [isExpanded, setIsExpanded] = useState(true);
-  const [selectedStopId, setSelectedStopId] = useState<string | null>(null);
+  const [selectedStopId, setSelectedStopId] = useState<string | null>(() => {
+    try {
+      const cached = localStorage.getItem('monvian_active_itinerary');
+      if (cached) {
+        const parsed = JSON.parse(cached);
+        const firstStep = parsed?.days?.[0]?.steps?.[0];
+        if (firstStep?.id) return firstStep.id;
+      }
+    } catch (e) {}
+    return null;
+  });
 
   // Map references
   const mapContainerRef = useRef<HTMLDivElement | null>(null);
@@ -836,6 +876,19 @@ export const ItinerariesView: React.FC<ItinerariesViewProps> = ({
             };
             setUserItinerary(enriched);
             localStorage.setItem('monvian_active_itinerary', JSON.stringify(enriched));
+
+            // Se o usuário possui um roteiro com locais e não abriu explicitamente a loja nesta sessão, mantém o roteiro carregado na tela ('map')
+            if (
+              !userHasExplicitlyOpenedStoreRef.current &&
+              enriched.days &&
+              enriched.days.some((d: any) => Array.isArray(d.steps) && d.steps.length > 0)
+            ) {
+              setItineraryViewMode('map');
+              const firstStep = enriched.days?.[0]?.steps?.[0];
+              if (firstStep?.id) {
+                setSelectedStopId((curr) => curr || firstStep.id);
+              }
+            }
             return;
           }
         }
@@ -1814,26 +1867,35 @@ export const ItinerariesView: React.FC<ItinerariesViewProps> = ({
           paddingRight: 'max(16px, env(safe-area-inset-right, 0px))',
         }}
       >
-        {/* Left: Back Button to Airbnb Explorer + Notes Button */}
+        {/* Left: Back Button to Airbnb Explorer / Loja de Roteiros */}
         <div className="flex items-center gap-2 pointer-events-auto shrink-0">
           <button
-            onClick={() => setItineraryViewMode('explore')}
+            onClick={() => {
+              userHasExplicitlyOpenedStoreRef.current = true;
+              setItineraryViewMode('explore');
+            }}
             type="button"
-            className="w-12 h-12 rounded-full flex items-center justify-center transition-transform active:scale-95 cursor-pointer shrink-0 ios-glass border border-white/50 text-zinc-900 dark:text-white shadow-lg"
-            title="Voltar para explorar roteiros"
+            className={`w-12 h-12 rounded-full flex items-center justify-center transition-transform active:scale-95 cursor-pointer shrink-0 bg-white dark:bg-zinc-900 border border-zinc-200/80 dark:border-white/15 ${
+              isDark ? 'text-white' : 'text-black'
+            } shadow-[0_2px_12px_rgba(0,0,0,0.06)]`}
+            title="Loja de Roteiros"
+            aria-label="Loja de Roteiros"
           >
-            <ChevronLeft className="w-6 h-6 stroke-[2.2] text-current" />
+            <ChevronLeft
+              className={`w-6 h-6 stroke-[2.2] ${isDark ? 'text-white' : 'text-black'}`}
+              style={{ color: isDark ? '#ffffff' : '#000000' }}
+            />
           </button>
         </div>
 
-        {/* Dynamic Island Style Pill (Translucent glass matching card) */}
+        {/* Dynamic Island Style Pill (Solid white surface) */}
         <div
-          className="h-12 px-4 sm:px-5 rounded-full pointer-events-auto flex items-center gap-2.5 sm:gap-3 text-xs sm:text-sm font-bold max-w-[calc(100vw-128px)] sm:max-w-none transition-all duration-200 ios-glass border border-white/50 text-zinc-900 dark:text-white shadow-xl"
+          className="h-12 px-4 sm:px-5 rounded-full pointer-events-auto flex items-center gap-2.5 sm:gap-3 text-xs sm:text-sm font-bold max-w-[calc(100vw-128px)] sm:max-w-none transition-all duration-200 bg-white dark:bg-zinc-900 border border-zinc-200/80 dark:border-white/15 text-zinc-900 dark:text-white shadow-[0_4px_20px_rgba(0,0,0,0.08)]"
         >
           <RoundedNavigationIcon isGold={isPremiumItinerary} className={`w-[26px] h-[26px] sm:w-[28px] sm:h-[28px] shrink-0 ${
             isPremiumItinerary
               ? ''
-              : 'text-white'
+              : (isDark ? 'text-white' : 'text-black')
           }`} size={28} />
 
           {isEditingTitle ? (
@@ -1890,7 +1952,7 @@ export const ItinerariesView: React.FC<ItinerariesViewProps> = ({
           )}
         </div>
 
-        {/* Action button to open edit modal (Translucent glass matching card) */}
+        {/* Action button to open edit modal (Solid surface) */}
         <button
           onClick={() => {
             if (userItinerary) {
@@ -1900,7 +1962,7 @@ export const ItinerariesView: React.FC<ItinerariesViewProps> = ({
             }
           }}
           type="button"
-          className="w-12 h-12 rounded-full flex items-center justify-center pointer-events-auto transition-transform active:scale-95 cursor-pointer shrink-0 ios-glass border border-white/50 text-zinc-900 dark:text-white shadow-lg"
+          className="w-12 h-12 rounded-full flex items-center justify-center pointer-events-auto transition-transform active:scale-95 cursor-pointer shrink-0 bg-white dark:bg-zinc-900 border border-zinc-200/80 dark:border-white/15 text-zinc-900 dark:text-white shadow-[0_2px_12px_rgba(0,0,0,0.06)]"
           title="Opções do roteiro"
         >
           <SlidersHorizontal className="w-5 h-5 text-current" />
@@ -1916,17 +1978,22 @@ export const ItinerariesView: React.FC<ItinerariesViewProps> = ({
             : 'calc(max(265px, calc(env(safe-area-inset-bottom, 0px) + 165px)))',
         }}
       >
-        {/* Toggle between Satélite and Escuro / Claro (Translucent glass matching card) */}
+        {/* Toggle between Satélite and Escuro / Claro (Solid white surface) */}
         <motion.button
           whileTap={{ scale: 0.90 }}
           whileHover={{ scale: 1.05 }}
           type="button"
           onClick={handleToggleMapStyle}
-          className="w-[45px] h-[45px] rounded-full flex items-center justify-center cursor-pointer transition-all duration-200 ios-glass border border-white/50 text-zinc-900 dark:text-white shadow-lg"
+          className={`w-[45px] h-[45px] rounded-full flex items-center justify-center cursor-pointer transition-all duration-200 bg-white dark:bg-zinc-900 border border-zinc-200/80 dark:border-white/15 ${
+            isDark ? 'text-white' : 'text-black'
+          } shadow-[0_4px_16px_rgba(0,0,0,0.08)]`}
           title={itineraryMapStyle === 'satelite' ? 'Modo Satélite Ativo (Toque para alternar)' : 'Alternar satélite / mapa'}
           aria-label="Alternar satélite / mapa"
         >
-          <Layers className="w-5 h-5 stroke-[2.2] text-current" />
+          <Layers
+            className={`w-5 h-5 stroke-[2.2] ${isDark ? 'text-white' : 'text-black'}`}
+            style={{ color: isDark ? '#ffffff' : '#000000' }}
+          />
         </motion.button>
 
         {/* Floating Create Itinerary Button on Map (Casinha / Loja de Roteiros - switches to explore) */}
@@ -1934,19 +2001,29 @@ export const ItinerariesView: React.FC<ItinerariesViewProps> = ({
           whileTap={{ scale: 0.90 }}
           whileHover={{ scale: 1.05 }}
           type="button"
-          onClick={() => setItineraryViewMode('explore')}
-          className="w-[45px] h-[45px] rounded-full flex items-center justify-center cursor-pointer transition-all duration-200 ios-glass border border-white/50 shadow-lg"
-          title="Explorar Roteiros / Loja"
-          aria-label="Explorar Roteiros"
+          onClick={() => {
+            userHasExplicitlyOpenedStoreRef.current = true;
+            setItineraryViewMode('explore');
+          }}
+          className={`w-[45px] h-[45px] rounded-full flex items-center justify-center cursor-pointer transition-all duration-200 bg-white dark:bg-zinc-900 border border-zinc-200/80 dark:border-white/15 shadow-[0_4px_16px_rgba(0,0,0,0.08)] ${
+            isDark ? 'text-white' : 'text-black'
+          }`}
+          title="Loja de Roteiros"
+          aria-label="Loja de Roteiros"
         >
-          <Store className={`w-5 h-5 stroke-[2.2] ${isUserGold ? 'text-[#E6AC33]' : 'text-zinc-900 dark:text-white'}`} />
+          <Store
+            className={`w-5 h-5 stroke-[2.2] ${
+              isUserGold ? 'text-[#E6AC33]' : (isDark ? 'text-white' : 'text-black')
+            }`}
+            style={{ color: isUserGold ? '#E6AC33' : (isDark ? '#ffffff' : '#000000') }}
+          />
         </motion.button>
       </div>
 
       {/* 4-A. DESKTOP ITINERARY SIDE PANEL (Hidden on mobile, desktop-native vertical layout) */}
       <aside
         aria-label="Roteiro de Viagem"
-        className="hidden md:flex flex-col absolute top-5 bottom-5 left-5 w-96 lg:w-[420px] z-30 rounded-[28px] overflow-hidden border ios-glass border-white/15 dark:border-white/10 shadow-2xl pointer-events-auto select-none transition-colors duration-200 text-white"
+        className="hidden md:flex flex-col absolute top-5 bottom-5 left-5 w-96 lg:w-[420px] z-30 rounded-[28px] overflow-hidden border bg-white dark:bg-zinc-900 border-zinc-200/80 dark:border-white/10 shadow-[0_12px_40px_rgba(0,0,0,0.12)] pointer-events-auto select-none transition-colors duration-200 text-zinc-900 dark:text-white"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Desktop Panel Header */}
@@ -1955,7 +2032,7 @@ export const ItinerariesView: React.FC<ItinerariesViewProps> = ({
             <div className="flex items-center gap-2.5 min-w-0">
               <RoundedNavigationIcon
                 isGold={isPremiumItinerary}
-                className={`w-6 h-6 shrink-0 ${isPremiumItinerary ? '' : 'text-white'}`}
+                className={`w-6 h-6 shrink-0 ${isPremiumItinerary ? '' : (isDark ? 'text-white' : 'text-black')}`}
                 size={24}
               />
               <h2 className="text-base font-black uppercase tracking-tight truncate text-zinc-900 dark:text-white">
@@ -1965,12 +2042,22 @@ export const ItinerariesView: React.FC<ItinerariesViewProps> = ({
             <div className="flex items-center gap-1.5 shrink-0">
               <button
                 type="button"
-                onClick={() => setItineraryViewMode('explore')}
-                className="px-2.5 py-1.5 rounded-xl bg-white/10 hover:bg-white/15 text-zinc-300 hover:text-white transition-colors cursor-pointer text-xs font-bold flex items-center gap-1"
-                title="Explorar outros roteiros"
+                onClick={() => {
+                  userHasExplicitlyOpenedStoreRef.current = true;
+                  setItineraryViewMode('explore');
+                }}
+                className={`px-2.5 py-1.5 rounded-xl ${
+                  isDark
+                    ? 'bg-white/10 hover:bg-white/15 text-zinc-300 hover:text-white'
+                    : 'bg-black/5 hover:bg-black/10 text-black hover:text-black font-bold'
+                } transition-colors cursor-pointer text-xs font-bold flex items-center gap-1`}
+                title="Loja de Roteiros"
               >
-                <ChevronLeft className="w-3.5 h-3.5" />
-                <span>Explorar</span>
+                <ChevronLeft
+                  className={`w-3.5 h-3.5 ${isDark ? 'text-white' : 'text-black'}`}
+                  style={{ color: isDark ? '#ffffff' : '#000000' }}
+                />
+                <span>Loja de Roteiros</span>
               </button>
               <button
                 type="button"
@@ -2172,7 +2259,7 @@ export const ItinerariesView: React.FC<ItinerariesViewProps> = ({
             setIsExpanded(true);
           }
         }}
-        className="md:hidden !absolute inset-x-0 bottom-0 z-40 max-w-3xl mx-auto rounded-t-[32px] sm:rounded-t-[36px] overflow-hidden flex flex-col pointer-events-auto transition-colors duration-200 border-x-0 sm:border-x ios-glass border-t border-white/30 shadow-[0_-8px_32px_rgba(0,0,0,0.18)] text-zinc-900 dark:text-white"
+        className="md:hidden !absolute inset-x-0 bottom-0 z-40 max-w-3xl mx-auto rounded-t-[32px] sm:rounded-t-[36px] overflow-hidden flex flex-col pointer-events-auto transition-colors duration-200 border-x-0 sm:border-x bg-white dark:bg-zinc-900 border-t border-zinc-200/80 dark:border-white/10 shadow-[0_-4px_24px_rgba(0,0,0,0.08)] text-zinc-900 dark:text-white"
         style={{
           position: 'absolute',
           bottom: 0,
@@ -2204,7 +2291,7 @@ export const ItinerariesView: React.FC<ItinerariesViewProps> = ({
               whileHover={{ scale: 1.04 }}
               type="button"
               onClick={() => setIsImportModalOpen(true)}
-              className="w-14 h-14 rounded-full flex items-center justify-center cursor-pointer transition-all duration-200 active:scale-95 ios-glass border border-white text-zinc-900 dark:text-white shadow-lg"
+              className="w-14 h-14 rounded-full flex items-center justify-center cursor-pointer transition-all duration-200 active:scale-95 bg-white dark:bg-zinc-900 border border-zinc-200/80 dark:border-white/15 text-zinc-900 dark:text-white shadow-[0_4px_16px_rgba(0,0,0,0.08)]"
               title="Adicionar ponto ao roteiro"
               aria-label="Adicionar local ao roteiro"
             >
@@ -2273,13 +2360,18 @@ export const ItinerariesView: React.FC<ItinerariesViewProps> = ({
                         {currentSelectedStep.spot?.name}
                       </h4>
                       <p className="text-[10.5px] font-bold text-zinc-400 truncate leading-none flex items-center gap-1">
-                        <RoundedNavigationIcon isGold={isPremiumItinerary} className={`w-3 h-3 shrink-0 ${isPremiumItinerary ? '' : 'text-white'}`} size={12} />
+                        <RoundedNavigationIcon isGold={isPremiumItinerary} className={`w-3 h-3 shrink-0 ${isPremiumItinerary ? '' : (isDark ? 'text-white' : 'text-black')}`} size={12} />
                         <span>{currentSelectedStep.durationToNextMin ? `${currentSelectedStep.durationToNextMin} min até o próximo ponto` : 'Local planejado do roteiro'}</span>
                       </p>
                     </div>
                   </div>
-                  <div className="w-8 h-8 rounded-full flex items-center justify-center bg-zinc-800/60 text-zinc-400 dark:text-zinc-300 shrink-0 self-center">
-                    <ChevronRight className="w-4 h-4 stroke-[2.2]" />
+                  <div className={`w-8 h-8 rounded-full flex items-center justify-center shrink-0 self-center ${
+                    isDark ? 'bg-zinc-800/60 text-zinc-300' : 'bg-black/5 text-black'
+                  }`}>
+                    <ChevronRight
+                      className={`w-4 h-4 stroke-[2.2] ${isDark ? 'text-zinc-300' : 'text-black'}`}
+                      style={{ color: isDark ? undefined : '#000000' }}
+                    />
                   </div>
                 </div>
               </div>

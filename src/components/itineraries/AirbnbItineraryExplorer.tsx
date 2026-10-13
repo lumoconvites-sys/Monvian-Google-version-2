@@ -15,7 +15,7 @@ import {
   Check,
   Sparkles,
 } from 'lucide-react';
-import { motion, AnimatePresence, useScroll, useTransform } from 'motion/react';
+import { motion, AnimatePresence } from 'motion/react';
 import { Itinerary, ItineraryCategory } from '../../types';
 import { ItineraryStoreDetailModal } from './ItineraryStoreDetailModal';
 import { DEFAULT_CURATED_ITINERARIES } from '../../data/defaultItineraries';
@@ -377,13 +377,8 @@ export const AirbnbItineraryExplorer: React.FC<AirbnbItineraryExplorerProps> = (
 
   const isDark = theme === 'dark';
 
-  const containerRef = useRef<HTMLDivElement>(null);
-  const { scrollYProgress } = useScroll({ container: containerRef });
-  const searchBarScale = useTransform(scrollYProgress, [0, 0.1], [1, 0.9]);
-
   return (
     <div
-      ref={containerRef}
       className={`relative w-full h-full overflow-y-auto overscroll-contain select-none transition-colors duration-200 ${
         isDark ? 'bg-[#000000] text-white' : 'bg-[#F8F9FA] text-zinc-900'
       }`}
@@ -407,23 +402,43 @@ export const AirbnbItineraryExplorer: React.FC<AirbnbItineraryExplorerProps> = (
         }}
       >
         {/* 1.1 BARRA DE PESQUISA: Cápsula Minimalista Centralizada */}
-        <motion.div style={{ scale: searchBarScale }} className="pb-2.5 px-4.5 sm:px-5.5">
+        <div className="pb-2.5 px-4">
           <div className="flex items-center gap-2 max-w-xl mx-auto w-full">
-            {expandedSection && (
+            {expandedSection ? (
               <button
                 type="button"
                 onClick={() => setExpandedSection(null)}
                 className={`w-10 h-10 rounded-full flex items-center justify-center transition-colors cursor-pointer shrink-0 border ${
                   isDark
                     ? 'border-white/15 bg-white/10 hover:bg-white/15 text-white'
-                    : 'border-black/10 bg-black/5 hover:bg-black/10 text-zinc-900'
+                    : 'border-black/10 bg-black/5 hover:bg-black/10 text-black'
                 }`}
-                title="Voltar"
+                title="Voltar às seções"
                 aria-label="Voltar às seções"
               >
-                <ChevronLeft className="w-5 h-5 stroke-[2.2]" />
+                <ChevronLeft
+                  className={`w-5 h-5 stroke-[2.2] ${isDark ? 'text-white' : 'text-black'}`}
+                  style={{ color: isDark ? '#ffffff' : '#000000' }}
+                />
               </button>
-            )}
+            ) : (activeItineraryId && onOpenMap) ? (
+              <button
+                type="button"
+                onClick={onOpenMap}
+                className={`w-10 h-10 rounded-full flex items-center justify-center transition-colors cursor-pointer shrink-0 border ${
+                  isDark
+                    ? 'border-white/15 bg-white/10 hover:bg-white/15 text-white'
+                    : 'border-black/10 bg-black/5 hover:bg-black/10 text-black'
+                }`}
+                title="Voltar ao mapa do roteiro"
+                aria-label="Voltar ao mapa do roteiro"
+              >
+                <ChevronLeft
+                  className={`w-5 h-5 stroke-[2.2] ${isDark ? 'text-white' : 'text-black'}`}
+                  style={{ color: isDark ? '#ffffff' : '#000000' }}
+                />
+              </button>
+            ) : null}
 
             {/* Capsule Search Bar (52px height, dark on dark mode, white on light mode, centered search & text identical to IMG_8236) */}
             <div
@@ -516,60 +531,51 @@ export const AirbnbItineraryExplorer: React.FC<AirbnbItineraryExplorerProps> = (
               </button>
             )}
           </div>
-        </motion.div>
+        </div>
 
         {/* 1.2 CATEGORIAS: Imediatamente abaixo da pesquisa, linha horizontal única com rolagem */}
         {!expandedSection && (
-          <motion.div
-            style={{
-              opacity: useTransform(scrollYProgress, [0, 0.05], [1, 0]),
-              y: useTransform(scrollYProgress, [0, 0.05], [0, -20]),
-            }}
-            className="pt-0.5 pb-2.5"
-          >
-            <div className="flex items-center gap-2 sm:gap-2.5 overflow-x-auto no-scrollbar scroll-smooth whitespace-nowrap px-4.5 sm:px-5.5">
-              {curatedCategories.map((cat, idx) => {
+          <div className="pt-0.5 pb-2.5">
+            <div className="category-carousel-container flex items-center gap-2 sm:gap-2.5 overflow-x-auto no-scrollbar scroll-smooth whitespace-nowrap px-4 py-1">
+              {curatedCategories.map((cat) => {
                 const isSelected = selectedCategory === cat.id;
 
                 return (
                   <motion.button
                     key={cat.id}
                     type="button"
-                    whileTap={{ scale: 0.95 }}
-                    whileHover={{ scale: 1.03 }}
-                    animate={{ scale: isSelected ? [1, 1.08, 1] : 1 }}
-                    transition={{
-                      type: 'spring',
-                      stiffness: 400,
-                      damping: 17,
-                    }}
-                    onClick={() => {
+                    whileTap={{ scale: 0.96 }}
+                    transition={{ duration: 0.15, ease: 'easeOut' }}
+                    onClick={(e) => {
                       setSelectedCategory(cat.id);
                       setExpandedSection(null);
+                      (e.currentTarget as HTMLElement)?.scrollIntoView({
+                        behavior: 'smooth',
+                        block: 'nearest',
+                        inline: 'center',
+                      });
                     }}
-                    className={`h-[36px] px-3.5 rounded-full shrink-0 flex items-center gap-1.5 cursor-pointer select-none text-center ${
-                      idx === 2 ? 'mr-6' : ''
-                    } ${
+                    className={`h-[38px] sm:h-[40px] px-3.5 sm:px-4 rounded-full shrink-0 inline-flex items-center justify-center gap-2 cursor-pointer select-none text-center transition-all duration-200 ease-out ${
                       isSelected
-                        ? 'bg-[#ebebeb] text-zinc-900 font-semibold shadow-xs'
+                        ? isDark
+                          ? 'bg-white/20 text-white font-medium border border-white/20 shadow-[inset_0_1.5px_2.5px_rgba(255,255,255,0.15)]'
+                          : 'bg-[#E5E5EA] text-zinc-900 font-medium border border-black/[0.06] shadow-[inset_0_1.5px_2.5px_rgba(0,0,0,0.12),_0_1px_1px_rgba(255,255,255,0.7)]'
                         : isDark
-                          ? 'bg-zinc-900 text-zinc-900 border border-white/[0.05] shadow-xs hover:border-white/10'
-                          : 'bg-white text-zinc-900 border border-black/10 shadow-xs hover:border-black/20'
+                          ? 'bg-[#1C1C1E] text-zinc-200 border border-white/10 shadow-[0_2px_6px_rgba(0,0,0,0.45)] hover:bg-[#252528]'
+                          : 'bg-white text-zinc-800 border border-zinc-200/90 shadow-[0_2px_5px_-1px_rgba(0,0,0,0.07),_0_1px_2px_rgba(0,0,0,0.04)] hover:shadow-[0_3px_8px_-1px_rgba(0,0,0,0.09)]'
                     }`}
                   >
-                    <span className="text-[17px] shrink-0 leading-none select-none">
+                    <span className="text-[17px] sm:text-[18px] shrink-0 leading-none select-none flex items-center justify-center">
                       {cat.emoji}
                     </span>
-                    <span className={`text-[13px] tracking-tight whitespace-nowrap font-bold ${
-                      isSelected ? 'text-zinc-900' : 'text-zinc-900'
-                    }`}>
+                    <span className="text-[13.5px] font-medium tracking-tight whitespace-nowrap leading-none">
                       {cat.name}
                     </span>
                   </motion.button>
                 );
               })}
             </div>
-          </motion.div>
+          </div>
         )}
       </div>
 
@@ -681,7 +687,7 @@ export const AirbnbItineraryExplorer: React.FC<AirbnbItineraryExplorerProps> = (
             </div>
           ) : (
             <div className="space-y-4">
-              <div className="flex items-center justify-between px-4.5 sm:px-5.5">
+              <div className="flex items-center justify-between px-4">
                 <div>
                   <h3 className={`text-lg font-bold tracking-tight ${isDark ? 'text-white' : 'text-zinc-900'}`}>
                     {curatedCategories.find((c) => c.id === selectedCategory)?.name || 'Roteiros'}
@@ -702,12 +708,15 @@ export const AirbnbItineraryExplorer: React.FC<AirbnbItineraryExplorerProps> = (
                           scrollPositions[selectedCategory]?.canLeft
                             ? isDark
                               ? 'bg-zinc-800 text-white hover:bg-zinc-700 cursor-pointer'
-                              : 'bg-zinc-200 text-zinc-900 hover:bg-zinc-300 cursor-pointer'
+                              : 'bg-zinc-200 text-black hover:bg-zinc-300 cursor-pointer'
                             : 'opacity-20 cursor-not-allowed text-zinc-500'
                         }`}
                         aria-label="Roteiro anterior"
                       >
-                        <ChevronLeft className="w-4 h-4 stroke-[2.2]" />
+                        <ChevronLeft
+                          className={`w-4 h-4 stroke-[2.2] ${isDark ? 'text-white' : 'text-black'}`}
+                          style={{ color: isDark ? '#ffffff' : '#000000' }}
+                        />
                       </button>
                       <button
                         type="button"
@@ -717,12 +726,15 @@ export const AirbnbItineraryExplorer: React.FC<AirbnbItineraryExplorerProps> = (
                           scrollPositions[selectedCategory]?.canRight !== false
                             ? isDark
                               ? 'bg-zinc-800 text-white hover:bg-zinc-700 cursor-pointer'
-                              : 'bg-zinc-200 text-zinc-900 hover:bg-zinc-300 cursor-pointer'
+                              : 'bg-zinc-200 text-black hover:bg-zinc-300 cursor-pointer'
                             : 'opacity-20 cursor-not-allowed text-zinc-500'
                         }`}
                         aria-label="Próximo roteiro"
                       >
-                        <ChevronRight className="w-4 h-4 stroke-[2.2]" />
+                        <ChevronRight
+                          className={`w-4 h-4 stroke-[2.2] ${isDark ? 'text-white' : 'text-black'}`}
+                          style={{ color: isDark ? '#ffffff' : '#000000' }}
+                        />
                       </button>
                     </div>
                   )}
@@ -739,7 +751,7 @@ export const AirbnbItineraryExplorer: React.FC<AirbnbItineraryExplorerProps> = (
               </div>
 
               {/* Horizontal Carousel: Exactly TWO cards visible per line (+3% width & photo size) */}
-              <div className="px-4.5 sm:px-5.5">
+              <div className="w-full">
                 <div
                   ref={(el) => {
                     carouselRefs.current[selectedCategory] = el;
@@ -780,7 +792,7 @@ export const AirbnbItineraryExplorer: React.FC<AirbnbItineraryExplorerProps> = (
           sections.map((section) => (
             <section key={section.id} className="space-y-2.5">
               {/* Section Header: Title & Navigation Controls */}
-              <div className="flex items-center justify-between px-4.5 sm:px-5.5">
+              <div className="flex items-center justify-between px-4">
                 <h3 className={`text-[17px] sm:text-[18px] font-bold tracking-tight ${
                   isDark ? 'text-white' : 'text-zinc-900'
                 }`}>
@@ -796,12 +808,15 @@ export const AirbnbItineraryExplorer: React.FC<AirbnbItineraryExplorerProps> = (
                         scrollPositions[section.id]?.canLeft
                           ? isDark
                             ? 'bg-zinc-800 text-white hover:bg-zinc-700 cursor-pointer'
-                            : 'bg-zinc-200 text-zinc-900 hover:bg-zinc-300 cursor-pointer'
+                            : 'bg-zinc-200 text-black hover:bg-zinc-300 cursor-pointer'
                           : 'opacity-20 cursor-not-allowed text-zinc-500'
                       }`}
                       aria-label="Roteiro anterior"
                     >
-                      <ChevronLeft className="w-4 h-4 stroke-[2.2]" />
+                      <ChevronLeft
+                        className={`w-4 h-4 stroke-[2.2] ${isDark ? 'text-white' : 'text-black'}`}
+                        style={{ color: isDark ? '#ffffff' : '#000000' }}
+                      />
                     </button>
                     <button
                       type="button"
@@ -811,19 +826,22 @@ export const AirbnbItineraryExplorer: React.FC<AirbnbItineraryExplorerProps> = (
                         scrollPositions[section.id]?.canRight !== false
                           ? isDark
                             ? 'bg-zinc-800 text-white hover:bg-zinc-700 cursor-pointer'
-                            : 'bg-zinc-200 text-zinc-900 hover:bg-zinc-300 cursor-pointer'
+                            : 'bg-zinc-200 text-black hover:bg-zinc-300 cursor-pointer'
                           : 'opacity-20 cursor-not-allowed text-zinc-500'
                       }`}
                       aria-label="Próximo roteiro"
                     >
-                      <ChevronRight className="w-4 h-4 stroke-[2.2]" />
+                      <ChevronRight
+                        className={`w-4 h-4 stroke-[2.2] ${isDark ? 'text-white' : 'text-black'}`}
+                        style={{ color: isDark ? '#ffffff' : '#000000' }}
+                      />
                     </button>
                   </div>
                 )}
               </div>
 
               {/* Horizontal Carousel: EXACTLY TWO cards visible per line, third card 100% off-screen */}
-              <div className="px-4.5 sm:px-5.5">
+              <div className="w-full">
                 <div
                   ref={(el) => {
                     carouselRefs.current[section.id] = el;
@@ -970,9 +988,9 @@ const AirbnbItineraryCardItem: React.FC<AirbnbItineraryCardItemProps> = ({
             <Crown className="w-2.5 h-2.5 text-amber-500 fill-amber-500" />
             <span>Elite Gold</span>
           </div>
-        ) : itinerary.isFeatured ? (
+        ) : itinerary.isFeatured || (itinerary.badgeText && itinerary.badgeText.toLowerCase() === 'destaque') ? (
           <div className="absolute top-2.5 left-2.5 px-2.5 py-0.5 rounded-full bg-white/95 text-zinc-900 text-[9.5px] font-bold shadow-xs">
-            Destaque
+            Livre
           </div>
         ) : null}
 

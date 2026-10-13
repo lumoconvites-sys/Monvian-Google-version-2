@@ -3,7 +3,6 @@ import { motion, AnimatePresence } from 'motion/react';
 import {
   ArrowLeft,
   ChevronLeft,
-  X,
   Heart,
   MessageCircle,
   UserCheck,
@@ -214,11 +213,14 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
                 type="button"
                 onClick={onClose}
                 className={`w-9 h-9 rounded-full flex items-center justify-center transition-all cursor-pointer ${
-                  isDark ? 'bg-white/10 hover:bg-white/15 text-white' : 'bg-zinc-100 hover:bg-zinc-200 text-zinc-800'
+                  isDark ? 'bg-white/10 hover:bg-white/15 text-white' : 'bg-zinc-100 hover:bg-zinc-200 text-black'
                 }`}
                 title="Voltar"
               >
-                <ArrowLeft className="w-5 h-5 stroke-[2.2]" />
+                <ArrowLeft
+                  className={`w-5 h-5 stroke-[2.2] ${isDark ? 'text-white' : 'text-black'}`}
+                  style={{ color: isDark ? '#ffffff' : '#000000' }}
+                />
               </button>
 
               <div className="flex flex-col items-center">
@@ -227,16 +229,7 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
                 </span>
               </div>
 
-              <button
-                type="button"
-                onClick={onClose}
-                className={`w-9 h-9 rounded-full flex items-center justify-center transition-all cursor-pointer ${
-                  isDark ? 'bg-white/10 hover:bg-white/15 text-white' : 'bg-zinc-100 hover:bg-zinc-200 text-zinc-800'
-                }`}
-                title="Fechar"
-              >
-                <X className="w-4 h-4 stroke-[2.2]" />
-              </button>
+              <div className="w-9 h-9" aria-hidden="true" />
             </div>
 
             {/* Scrollable Profile Body */}

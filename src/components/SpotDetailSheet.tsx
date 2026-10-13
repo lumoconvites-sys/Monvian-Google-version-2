@@ -112,11 +112,13 @@ export const SpotDetailSheet: React.FC<SpotDetailSheetProps> = ({
           <motion.button 
             whileTap={{ scale: 0.92 }}
             onClick={onClose} 
-            className="w-10 h-10 rounded-full bg-white/90 dark:bg-black/65 backdrop-blur-md flex items-center justify-center border border-zinc-200/80 dark:border-white/15 text-zinc-900 dark:text-white shadow-md cursor-pointer pointer-events-auto active:opacity-80 transition-opacity"
+            className="w-10 h-10 rounded-full bg-white/90 dark:bg-black/65 backdrop-blur-md flex items-center justify-center border border-zinc-200/80 dark:border-white/15 text-black dark:text-white shadow-md cursor-pointer pointer-events-auto active:opacity-80 transition-opacity"
             title="Voltar"
             aria-label="Voltar para o mapa"
           >
-            <ArrowLeft className="w-5 h-5" />
+            <ArrowLeft
+              className="w-5 h-5 text-black dark:text-white"
+            />
           </motion.button>
 
           <div className="flex items-center gap-2 pointer-events-auto">

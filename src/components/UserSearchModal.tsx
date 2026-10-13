@@ -149,11 +149,14 @@ export const UserSearchModal: React.FC<UserSearchModalProps> = ({
               type="button"
               onClick={onClose}
               className={`p-2 rounded-full cursor-pointer transition-colors ${
-                isDark ? 'hover:bg-white/10 text-white' : 'hover:bg-zinc-100 text-zinc-800'
+                isDark ? 'hover:bg-white/10 text-white' : 'hover:bg-zinc-100 text-black'
               }`}
               title="Voltar"
             >
-              <ArrowLeft className="w-5 h-5 stroke-[2.2]" />
+              <ArrowLeft
+                className={`w-5 h-5 stroke-[2.2] ${isDark ? 'text-white' : 'text-black'}`}
+                style={{ color: isDark ? '#ffffff' : '#000000' }}
+              />
             </button>
 
             {/* Input with Magnifier */}

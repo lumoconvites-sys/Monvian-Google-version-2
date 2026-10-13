@@ -187,12 +187,12 @@ export const SearchFilterDrawer: React.FC<SearchFilterDrawerProps> = ({
     >
       <div
         onClick={(e) => e.stopPropagation()}
-        className="relative w-full h-full md:h-[88vh] md:max-w-2xl bg-zinc-50 dark:bg-[#000000] md:dark:ios-glass text-zinc-900 dark:text-white rounded-none md:rounded-[32px] overflow-hidden flex flex-col justify-between shadow-2xl md:border md:border-black/10 md:dark:border-white/15"
+        className="relative w-full h-full md:h-[88vh] md:max-w-2xl bg-white dark:bg-[#000000] md:dark:ios-glass text-zinc-900 dark:text-white rounded-none md:rounded-[32px] overflow-hidden flex flex-col justify-between shadow-2xl md:border md:border-black/10 md:dark:border-white/15"
         style={{
           fontFamily: "'Inter', -apple-system, BlinkMacSystemFont, sans-serif",
         }}
       >
-      {/* Top Header Bar identical to screenshot */}
+      {/* Top Header Bar */}
       <div
         className="px-5 sm:px-6 pb-3 flex items-center justify-between z-10 shrink-0"
         style={{
@@ -203,68 +203,64 @@ export const SearchFilterDrawer: React.FC<SearchFilterDrawerProps> = ({
       >
         <div className="flex items-center gap-3">
           {selectedCategory ? (
-            <button
+            <motion.button
+              whileTap={{ scale: 0.95 }}
               id="btn-back-categories"
               onClick={() => setSelectedCategory(null)}
-              className="w-10 h-10 rounded-full bg-zinc-200/80 dark:bg-white/10 hover:bg-zinc-300 dark:hover:bg-white/20 text-zinc-900 dark:text-white flex items-center justify-center transition-all cursor-pointer mr-1 active:scale-95"
+              className="w-10 h-10 rounded-full bg-zinc-200/80 dark:bg-white/10 hover:bg-zinc-300 dark:hover:bg-white/20 text-black dark:text-white flex items-center justify-center transition-all cursor-pointer mr-1"
               title="Voltar às categorias"
             >
-              <ArrowLeft className="w-5 h-5 stroke-[2.2]" />
-            </button>
+              <ArrowLeft
+                className="w-5 h-5 stroke-[2.2] text-black dark:text-white"
+              />
+            </motion.button>
           ) : null}
 
-          <h1 className="text-2xl sm:text-[28px] font-extrabold text-zinc-900 dark:text-[#F5F2EA] tracking-tight">
+          <h1 className="text-2xl sm:text-[28px] font-black text-zinc-900 dark:text-white tracking-tight">
             {selectedCategory ? selectedCategory.name : 'Buscar'}
           </h1>
         </div>
 
-        {/* Desktop Close Button */}
-        <button
-          type="button"
-          onClick={onClose}
-          className="w-9 h-9 rounded-full bg-zinc-200/80 dark:bg-white/10 hover:bg-zinc-300 dark:hover:bg-white/20 text-zinc-900 dark:text-white flex items-center justify-center transition-colors cursor-pointer"
-          title="Fechar busca"
-          aria-label="Fechar busca"
-        >
-          <X className="w-4 h-4 stroke-[2.2]" />
-        </button>
+        {/* Mantém cabeçalho limpo sem botão X conforme padrão da segunda imagem */}
       </div>
 
       {/* Main Content Area */}
       <div
-        className="flex-1 overflow-y-auto px-5 sm:px-8 max-w-3xl mx-auto w-full"
+        className="flex-1 overflow-y-auto px-4 sm:px-6 w-full"
         style={{
           WebkitOverflowScrolling: 'touch',
           paddingBottom: 'calc(env(safe-area-inset-bottom, 16px) + 90px)',
         }}
       >
-        {/* Search Bar matching screenshot */}
-        <div className="mt-2 mb-5">
-          <div className="relative flex items-center bg-white dark:bg-[#131417] border border-zinc-200 dark:border-white/10 rounded-full px-4 py-3.5 shadow-xl focus-within:border-zinc-300 dark:focus-within:border-white/25 transition-all">
-            <Search className="w-4 h-4 text-zinc-400 shrink-0 mr-3 stroke-[2.2]" />
-            <input
-              ref={searchInputRef}
-              id="search-by-name-input"
-              type="text"
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="Buscar pelo nome..."
-              className="flex-1 bg-transparent text-sm text-zinc-900 dark:text-white placeholder-zinc-500 focus:outline-none"
-            />
-            {searchQuery && (
-              <button
-                type="button"
-                id="btn-clear-search"
-                onClick={() => setSearchQuery('')}
-                className="w-5 h-5 rounded-full bg-zinc-200 dark:bg-white/10 hover:bg-zinc-300 dark:hover:bg-white/20 text-zinc-500 dark:text-zinc-400 flex items-center justify-center ml-2 cursor-pointer active:scale-90"
-              >
-                <X className="w-3 h-3" />
-              </button>
-            )}
+        {/* Barra de busca exibida apenas na tela inicial de categorias ou busca por texto */}
+        {!selectedCategory && (
+          <div className="mt-2 mb-5">
+            <div className="relative flex items-center bg-white dark:bg-[#131417] border border-zinc-200 dark:border-white/10 rounded-full px-4 py-3.5 shadow-xl focus-within:border-zinc-300 dark:focus-within:border-white/25 transition-all">
+              <Search className="w-4 h-4 text-zinc-400 shrink-0 mr-3 stroke-[2.2]" />
+              <input
+                ref={searchInputRef}
+                id="search-by-name-input"
+                type="text"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                placeholder="Buscar pelo nome..."
+                className="flex-1 bg-transparent text-sm text-zinc-900 dark:text-white placeholder-zinc-500 focus:outline-none"
+              />
+              {searchQuery && (
+                <button
+                  type="button"
+                  id="btn-clear-search"
+                  onClick={() => setSearchQuery('')}
+                  className="w-5 h-5 rounded-full bg-zinc-200 dark:bg-white/10 hover:bg-zinc-300 dark:hover:bg-white/20 text-zinc-500 dark:text-zinc-400 flex items-center justify-center ml-2 cursor-pointer active:scale-90"
+                >
+                  <X className="w-3 h-3" />
+                </button>
+              )}
+            </div>
           </div>
-        </div>
+        )}
 
-        {/* VIEW 1: Main Category Cards List (Responsive Grid on Desktop) */}
+        {/* VIEW 1: Categorias Principais (quando nenhuma categoria ou busca foi acionada) */}
         {!searchQuery && !selectedCategory && (
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             {SEARCH_CATEGORIES.map((cat) => {
@@ -318,23 +314,18 @@ export const SearchFilterDrawer: React.FC<SearchFilterDrawerProps> = ({
           </div>
         )}
 
-        {/* VIEW 2: Spots List (when a category is tapped or user searches by name) */}
+        {/* VIEW 2: Lista de Locais da Categoria Selecionada ou Busca por Nome (Estilo idêntico à segunda imagem) */}
         {(searchQuery || selectedCategory) && (
-          <div className="flex flex-col gap-3 pt-1">
-            <div className="flex items-center justify-between px-1 text-xs text-zinc-500 dark:text-zinc-400 mb-1">
-              <span>
-                {filteredSpots.length}{' '}
-                {filteredSpots.length === 1 ? 'local encontrado' : 'locais encontrados'}
-              </span>
-              {selectedCategory && (
-                <button
-                  onClick={() => setSelectedCategory(null)}
-                  className="text-xs text-zinc-700 dark:text-white hover:underline cursor-pointer font-bold"
-                >
-                  Ver todas categorias
-                </button>
-              )}
-            </div>
+          <div className="pt-2">
+            {/* Se estiver buscando por texto no topo, mostra contador discreto; na categoria limpa não polui a tela */}
+            {searchQuery && !selectedCategory && (
+              <div className="flex items-center justify-between px-1 text-xs text-zinc-500 dark:text-zinc-400 mb-2">
+                <span>
+                  {filteredSpots.length}{' '}
+                  {filteredSpots.length === 1 ? 'local encontrado' : 'locais encontrados'}
+                </span>
+              </div>
+            )}
 
             {filteredSpots.length === 0 ? (
               <div 
@@ -342,10 +333,10 @@ export const SearchFilterDrawer: React.FC<SearchFilterDrawerProps> = ({
               >
                 <SlidersHorizontal className="w-8 h-8 text-zinc-400 dark:text-zinc-600 mb-2 stroke-[1.5]" />
                 <p className="text-zinc-600 dark:text-zinc-400 font-bold">Nenhum local encontrado em Campos do Jordão.</p>
-                <p className="text-xs text-zinc-400 dark:text-zinc-600 mt-1">Tente outro nome ou volte às categorias.</p>
+                <p className="text-xs text-zinc-400 dark:text-zinc-600 mt-1">Toque na seta para voltar às categorias.</p>
               </div>
             ) : (
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div className="space-y-3.5">
                 {filteredSpots.map((spot) => (
                   <div
                     key={spot.id}
@@ -354,10 +345,11 @@ export const SearchFilterDrawer: React.FC<SearchFilterDrawerProps> = ({
                       onSelectSpot(spot);
                       onClose();
                     }}
-                    className="w-full p-3.5 rounded-3xl bg-white dark:bg-[#141518] hover:bg-zinc-50 dark:hover:bg-[#1a1c21] border border-zinc-200 dark:border-white/5 hover:border-zinc-300 dark:hover:border-white/20 transition-all flex items-center justify-between text-left cursor-pointer group shadow-sm hover:shadow-md dark:shadow-md active:scale-[0.98]"
+                    className="w-full p-4.5 sm:p-5 rounded-[28px] bg-white dark:bg-[#141518] hover:bg-zinc-50 dark:hover:bg-[#1a1c21] active:scale-[0.98] border border-zinc-200 dark:border-white/5 hover:border-zinc-300 dark:hover:border-white/20 transition-all flex items-center justify-between text-left cursor-pointer group shadow-sm dark:shadow-md"
                   >
-                    <div className="flex items-center gap-3.5 min-w-0">
-                      <div className="w-14 h-14 rounded-2xl overflow-hidden bg-zinc-100 dark:bg-zinc-800 shrink-0 border border-zinc-200 dark:border-white/10 shadow-inner">
+                    <div className="flex items-center gap-4 sm:gap-4.5 min-w-0 flex-1">
+                      {/* Thumbnail do local (68px, cantos arredondados modernos 20px) */}
+                      <div className="w-[68px] h-[68px] sm:w-[72px] sm:h-[72px] rounded-[20px] overflow-hidden bg-zinc-100 dark:bg-zinc-800 shrink-0 border border-zinc-200 dark:border-white/10">
                         <img
                           src={getSpotImage(spot)}
                           alt={spot.name}
@@ -370,36 +362,23 @@ export const SearchFilterDrawer: React.FC<SearchFilterDrawerProps> = ({
                         />
                       </div>
 
+                      {/* Informações: Título, Categoria e Linha com Estrela Dourada + Cidade */}
                       <div className="min-w-0 flex-1">
-                        <div className="flex items-center gap-1.5 min-w-0">
-                          <h4 className={`text-sm font-extrabold text-zinc-900 dark:text-[#F5F2EA] tracking-tight truncate transition-colors ${
-                            isGoldUser ? 'group-hover:text-[#F5BE38]' : 'group-hover:text-[#FFFFFF]'
-                          }`}>
-                            {spot.name}
-                          </h4>
-                          <VerifiedBadge />
-                        </div>
-
-                        <p className="text-xs text-[#9A9894] font-semibold truncate mt-0.5">
+                        <h4 className="text-[16.5px] sm:text-[17px] font-bold text-zinc-900 dark:text-white tracking-tight truncate group-hover:text-zinc-600 dark:group-hover:text-zinc-300 transition-colors">
+                          {spot.name}
+                        </h4>
+                        <p className="text-[13.5px] text-zinc-500 dark:text-zinc-400 font-medium truncate mt-0.5">
                           {spot.categoryLabel}
                         </p>
-
-                        <div className="flex items-center gap-2 text-[11px] text-[#9A9894] mt-1">
-                          <span className={`flex items-center gap-0.5 font-bold ${isGoldUser ? 'text-[#F5BE38]' : 'text-[#FFFFFF]'}`}>
-                            <Star className={`w-3 h-3 ${isGoldUser ? 'fill-[#F5BE38] text-[#F5BE38]' : 'fill-[#FFFFFF] text-[#FFFFFF]'}`} />
-                            {spot.rating}
+                        <div className="flex items-center gap-2 text-[12.5px] text-zinc-500 dark:text-zinc-400 mt-1.5">
+                          <span className="flex items-center gap-1 text-amber-500 dark:text-amber-400 font-bold">
+                            <Star className="w-3.5 h-3.5 fill-amber-500 text-amber-500 dark:fill-amber-400 dark:text-amber-400" />
+                            {spot.rating || 4.8}
                           </span>
                           <span>•</span>
-                          <span className="truncate flex items-center gap-1 text-[#9A9894] font-semibold">
-                            <MapPin className={`w-3 h-3 shrink-0 ${isGoldUser ? 'text-[#F5BE38]' : 'text-zinc-600 dark:text-white'}`} />
-                            <span className="truncate">{spot.address.split(',')[0]}</span>
-                          </span>
+                          <span className="truncate">{spot.address ? spot.address.split(',')[0] : 'Campos do Jordão'}</span>
                         </div>
                       </div>
-                    </div>
-
-                    <div className="text-zinc-400 dark:text-zinc-500 group-hover:text-zinc-600 dark:group-hover:text-zinc-300 transition-colors shrink-0 ml-2">
-                      <ChevronRight className="w-4 h-4 stroke-[2]" />
                     </div>
                   </div>
                 ))}

@@ -187,20 +187,27 @@ export const AdminServices: React.FC = () => {
           />
         </div>
 
-        <div className="flex items-center gap-1.5 overflow-x-auto pb-1 md:pb-0">
-          {CATEGORY_TABS.map((cat) => (
-            <button
-              key={cat.id}
-              onClick={() => setSelectedCategory(cat.id)}
-              className={`px-3 py-2 rounded-xl text-xs font-black whitespace-nowrap transition-all cursor-pointer ${
-                selectedCategory === cat.id
-                  ? 'bg-zinc-900 dark:bg-white text-white dark:text-zinc-900 shadow-xs'
-                  : 'bg-white dark:bg-[#16181d] hover:bg-zinc-100 dark:hover:bg-zinc-800 text-zinc-600 dark:text-zinc-300 border border-zinc-200 dark:border-zinc-800'
-              }`}
-            >
-              {cat.label}
-            </button>
-          ))}
+        <div className="category-carousel-container flex items-center gap-2 overflow-x-auto no-scrollbar pb-1 md:pb-0 py-0.5">
+          {CATEGORY_TABS.map((cat) => {
+            const isSelected = selectedCategory === cat.id;
+            return (
+              <button
+                key={cat.id}
+                type="button"
+                onClick={(e) => {
+                  setSelectedCategory(cat.id);
+                  (e.currentTarget as HTMLElement)?.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
+                }}
+                className={`h-[36px] px-3.5 rounded-full text-xs whitespace-nowrap transition-all duration-200 ease-out cursor-pointer inline-flex items-center gap-1.5 select-none active:scale-[0.96] ${
+                  isSelected
+                    ? 'bg-[#E5E5EA] dark:bg-white/20 text-zinc-900 dark:text-white border border-black/[0.06] dark:border-white/20 shadow-[inset_0_1.5px_2.5px_rgba(0,0,0,0.12)] font-semibold'
+                    : 'bg-white dark:bg-[#1C1C1E] text-zinc-700 dark:text-zinc-300 border border-zinc-200/90 dark:border-white/10 shadow-[0_2px_5px_-1px_rgba(0,0,0,0.07),_0_1px_2px_rgba(0,0,0,0.04)] hover:shadow-[0_3px_8px_-1px_rgba(0,0,0,0.09)]'
+                }`}
+              >
+                {cat.label}
+              </button>
+            );
+          })}
         </div>
       </div>
 

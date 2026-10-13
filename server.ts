@@ -2491,95 +2491,19 @@ async function startServer() {
     res.json({ success: true });
   });
 
-  // ==========================================
-  // USER FAVORITES / WISHLISTS API ENDPOINTS
-  // ==========================================
-  app.get('/api/user/favorites', (req: Request, res: Response) => {
-    const authHeader = req.headers.authorization;
-    if (!authHeader || !authHeader.startsWith('Bearer ')) {
-      return res.status(401).json({ error: 'Não autenticado' });
-    }
-    const token = authHeader.split(' ')[1];
-    let decoded: any;
+  app.post('/api/user/favorites/remove-batch', requireAuth, (req, res) => {
     try {
-      decoded = jwt.verify(token, JWT_SECRET);
-    } catch (e) {
-      return res.status(401).json({ error: 'Token inválido' });
-    }
-
-    try {
-      const rows = db.prepare('SELECT item_type, item_id FROM user_favorites WHERE user_id = ?').all(decoded.id) as Array<{ item_type: string; item_id: string }>;
-      const favorites = {
-        itineraries: rows.filter(r => r.item_type === 'itinerary').map(r => r.item_id),
-        spots: rows.filter(r => r.item_type === 'spot').map(r => r.item_id),
-        places: rows.filter(r => r.item_type === 'place').map(r => r.item_id)
-      };
-      res.json({ success: true, favorites });
-    } catch (error) {
-      console.error('Error fetching favorites:', error);
-      res.status(500).json({ error: 'Erro ao carregar favoritos' });
-    }
-  });
-
-  app.post('/api/user/favorites/toggle', (req: Request, res: Response) => {
-    const authHeader = req.headers.authorization;
-    if (!authHeader || !authHeader.startsWith('Bearer ')) {
-      return res.status(401).json({ error: 'Não autenticado' });
-    }
-    const token = authHeader.split(' ')[1];
-    let decoded: any;
-    try {
-      decoded = jwt.verify(token, JWT_SECRET);
-    } catch (e) {
-      return res.status(401).json({ error: 'Token inválido' });
-    }
-
-    const { item_type, item_id, is_saved } = req.body;
-    if (!item_type || !item_id) {
-      return res.status(400).json({ error: 'Dados incompletos' });
-    }
-
-    try {
-      if (is_saved) {
-        db.prepare(`
-          INSERT INTO user_favorites (user_id, item_type, item_id)
-          VALUES (?, ?, ?)
-          ON CONFLICT(user_id, item_type, item_id) DO NOTHING
-        `).run(decoded.id, item_type, item_id);
-      } else {
-        db.prepare('DELETE FROM user_favorites WHERE user_id = ? AND item_type = ? AND item_id = ?')
-          .run(decoded.id, item_type, item_id);
+      const user = (req as any).user;
+      const { items } = req.body;
+      if (!Array.isArray(items)) {
+        res.status(400).json({ error: 'Lista inválida' });
+        return;
       }
-      res.json({ success: true });
-    } catch (error) {
-      console.error('Error updating favorite:', error);
-      res.status(500).json({ error: 'Erro ao salvar favorito' });
-    }
-  });
 
-  app.post('/api/user/favorites/remove-batch', (req: Request, res: Response) => {
-    const authHeader = req.headers.authorization;
-    if (!authHeader || !authHeader.startsWith('Bearer ')) {
-      return res.status(401).json({ error: 'Não autenticado' });
-    }
-    const token = authHeader.split(' ')[1];
-    let decoded: any;
-    try {
-      decoded = jwt.verify(token, JWT_SECRET);
-    } catch (e) {
-      return res.status(401).json({ error: 'Token inválido' });
-    }
-
-    const { items } = req.body;
-    if (!Array.isArray(items)) {
-      return res.status(400).json({ error: 'Lista inválida' });
-    }
-
-    try {
       const deleteStmt = db.prepare('DELETE FROM user_favorites WHERE user_id = ? AND item_type = ? AND item_id = ?');
       const deleteMany = db.transaction((list: Array<{ type: string; id: string }>) => {
         for (const item of list) {
-          deleteStmt.run(decoded.id, item.type, item.id);
+          deleteStmt.run(user.id, item.type, item.id);
         }
       });
       deleteMany(items);
@@ -2589,6 +2513,7 @@ async function startServer() {
       res.status(500).json({ error: 'Erro ao remover itens' });
     }
   });
+
 
   // User Persistent Favorites (Airbnb Wishlists)
   app.get('/api/user/favorites', requireAuth, (req, res) => {

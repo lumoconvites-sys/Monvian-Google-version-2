@@ -65,21 +65,21 @@ const welcomeCharVariants = {
 };
 
 export default function App() {
-  const [isAuthenticated, setIsAuthenticated] = useState<boolean>(() => {
-    try {
-      const token = localStorage.getItem('monvian_token');
-      return Boolean(token);
-    } catch (e) {
-      return false;
-    }
-  });
+  const [isAuthenticated, setIsAuthenticated] = useState<boolean>(true);
   const [user, setUser] = useState<any>(() => {
     try {
       const savedUser = localStorage.getItem('monvian_user');
-      return savedUser ? JSON.parse(savedUser) : null;
-    } catch (e) {
-      return null;
-    }
+      if (savedUser) return JSON.parse(savedUser);
+    } catch (e) {}
+    // Default guest account user
+    return {
+      id: 'guest_user_1',
+      name: 'Viajante Convidado',
+      email: 'convidado@monvia.com',
+      avatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80',
+      role: 'user',
+      bio: 'Explorando Campos do Jordão com o Monvia.',
+    };
   });
   const [snowEnabled, setSnowEnabled] = useState<boolean>(() => {
     const saved = localStorage.getItem('monvian_snow_enabled');

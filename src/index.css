@@ -163,6 +163,15 @@
     scrollbar-width: none;
   }
 
+  /* Container do carrossel de categorias */
+  .category-carousel-container,
+  .categories-carousel-container,
+  .category-carousel,
+  .categories-carousel {
+    scroll-behavior: smooth !important;
+    -webkit-overflow-scrolling: touch;
+  }
+
   /* Metallic Gold Palette (Inspired by polished brushed 24k gold leaf) */
   .bg-metallic-gold {
     background: linear-gradient(135deg, #B88214 0%, #E6AC33 22%, #FFF4A3 48%, #F5BE38 68%, #C98B18 88%, #9E6505 100%) !important;
@@ -466,15 +475,20 @@
   transition: filter 0.3s ease;
 }
 
-/* Dark Theme: Pitch pure black canvas */
+/* Dark Theme: Atmospheric dark blurred background during tile loading instead of black/white blocks */
 .dark .maplibregl-canvas {
-  background-color: #000000 !important;
+  background-color: #0b0f17 !important;
+  background-image: radial-gradient(circle at 50% 50%, #111827 0%, #080b11 100%);
+  filter: blur(0px);
+  transition: filter 0.4s ease, opacity 0.4s ease;
 }
 
-/* Light Theme: High-contrast, sharp, rich and easily visible streets & landmarks */
+/* Light Theme: Atmospheric soft light gray/blue blurred background during tile loading */
 html:not(.dark) .maplibregl-canvas {
-  background-color: #f8fafc !important;
-  filter: saturate(1.15);
+  background-color: #e5eaf2 !important;
+  background-image: radial-gradient(circle at 50% 50%, #edf2f7 0%, #d8e1ed 100%);
+  filter: saturate(1.15) blur(0px);
+  transition: filter 0.4s ease, opacity 0.4s ease;
 }
 
 /* Confine MapLibre marker layer so markers never overlay floating UI controls */

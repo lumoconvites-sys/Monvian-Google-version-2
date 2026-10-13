@@ -14,7 +14,7 @@ export const DEFAULT_CURATED_ITINERARIES: Itinerary[] = [
     isPremium: true,
     price: 'R$ 0',
     status: 'published',
-    badgeText: 'Destaque',
+    badgeText: 'Livre',
     showBadge: true,
     showPrice: true,
     showStopsCount: true,

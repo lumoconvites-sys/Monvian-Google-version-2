@@ -48,7 +48,7 @@ export const BottomNavigation: React.FC<BottomNavigationProps> = ({
   const hasMovedRef = useRef<boolean>(false);
 
   // Remapeia 'chat' antigo para 'salvos' caso persista no estado anterior
-  const normalizedActiveTab: TabType = activeTab === ('chat' as any) ? 'salvos' : activeTab;
+  const normalizedActiveTab: TabType = (activeTab as string) === 'chat' ? 'salvos' : (activeTab as TabType);
 
   const tabs: { id: TabType; label: string }[] = [
     { id: 'explorar', label: 'Explorar' },
@@ -200,17 +200,15 @@ export const BottomNavigation: React.FC<BottomNavigationProps> = ({
         {/* Bottom Navigation Bar */}
         <div
           ref={containerRef}
-          className={`w-full max-w-[430px] sm:max-w-[460px] pointer-events-auto flex items-center justify-around px-2 sm:px-3 py-1 relative overflow-hidden rounded-full transition-all duration-300 ios-glass ${
+          className={`w-full max-w-[430px] sm:max-w-[460px] pointer-events-auto flex items-center justify-around px-2 sm:px-3 py-1 relative overflow-hidden rounded-full transition-all duration-300 bg-white dark:bg-zinc-900 ${
             isDark
-              ? 'text-white border border-white/20'
-              : 'text-zinc-900 border border-white/50'
+              ? 'text-white border border-white/15'
+              : 'text-zinc-900 border border-zinc-200/80'
           }`}
           style={{
-            backdropFilter: 'blur(24px) saturate(190%)',
-            WebkitBackdropFilter: 'blur(24px) saturate(190%)',
             boxShadow: isDark
-              ? '0 16px 40px -8px rgba(0, 0, 0, 0.65), 0 0 0 1px rgba(255, 255, 255, 0.06), inset 0 1px 1px 0 rgba(255, 255, 255, 0.20)'
-              : '0 12px 36px -4px rgba(0, 0, 0, 0.12), inset 0 1px 1.5px 0 rgba(255, 255, 255, 0.85)',
+              ? '0 12px 36px -4px rgba(0, 0, 0, 0.5)'
+              : '0 4px 24px -2px rgba(0, 0, 0, 0.08)',
           }}
         >
         {tabs.map((tab, idx) => {
