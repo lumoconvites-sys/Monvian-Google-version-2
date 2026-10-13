@@ -187,9 +187,13 @@ export const SearchFilterDrawer: React.FC<SearchFilterDrawerProps> = ({
     >
       <div
         onClick={(e) => e.stopPropagation()}
-        className="relative w-full h-full md:h-[88vh] md:max-w-2xl bg-white dark:bg-[#000000] md:dark:ios-glass text-zinc-900 dark:text-white rounded-none md:rounded-[32px] overflow-hidden flex flex-col justify-between shadow-2xl md:border md:border-black/10 md:dark:border-white/15"
+        className="relative w-full h-full md:h-[88vh] md:max-w-2xl bg-white dark:bg-[#000000] md:dark:ios-glass text-zinc-900 dark:text-white rounded-t-[26px] md:rounded-[32px] overflow-hidden flex flex-col justify-between shadow-2xl md:border md:border-black/10 md:dark:border-white/15 ios-page-top-rounded"
         style={{
           fontFamily: "'Inter', -apple-system, BlinkMacSystemFont, sans-serif",
+          borderTopLeftRadius: '26px',
+          borderTopRightRadius: '26px',
+          overflow: 'hidden',
+          WebkitMaskImage: '-webkit-radial-gradient(white, black)',
         }}
       >
       {/* Top Header Bar */}

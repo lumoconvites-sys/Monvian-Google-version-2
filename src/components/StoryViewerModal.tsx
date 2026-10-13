@@ -776,12 +776,16 @@ export const StoryViewerModal: React.FC<StoryViewerModalProps> = ({
       {/* 3D CUBE STAGE CONTAINER */}
       <div
         ref={stageRef}
-        className="relative w-full h-full max-w-md bg-black overflow-hidden shadow-2xl"
+        className="relative w-full h-full max-w-md bg-black overflow-hidden shadow-2xl rounded-t-[26px] ios-page-top-rounded"
         style={{
           perspective: '1200px',
           perspectiveOrigin: '50% 50%',
           transformStyle: 'preserve-3d',
           touchAction: 'none',
+          borderTopLeftRadius: '26px',
+          borderTopRightRadius: '26px',
+          overflow: 'hidden',
+          WebkitMaskImage: '-webkit-radial-gradient(white, black)',
         }}
         onPointerDown={handlePointerDown}
         onPointerMove={handlePointerMove}

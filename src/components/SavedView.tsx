@@ -196,11 +196,16 @@ export const SavedView: React.FC<SavedViewProps> = ({
   return (
     <div
       id="saved-view-root"
-      className={`fixed inset-0 w-full h-full z-45 flex flex-col transition-colors duration-200 select-none overflow-hidden ${
+      className={`fixed inset-0 w-full h-full z-45 flex flex-col transition-colors duration-200 select-none overflow-hidden rounded-t-[26px] ios-page-top-rounded ${
         isDark ? 'bg-black text-white' : 'bg-white text-zinc-900'
       }`}
       style={{
         fontFamily: "'Inter', -apple-system, BlinkMacSystemFont, sans-serif",
+        borderTopLeftRadius: '26px',
+        borderTopRightRadius: '26px',
+        overflow: 'hidden',
+        WebkitMaskImage: '-webkit-radial-gradient(white, black)',
+        isolation: 'isolate',
       }}
     >
       <AnimatePresence mode="wait">
@@ -210,10 +215,12 @@ export const SavedView: React.FC<SavedViewProps> = ({
           // ==========================================
           <div
             key="saved-overview"
-            className="flex-1 flex flex-col w-full h-full overflow-y-auto overscroll-y-contain"
+            className="flex-1 flex flex-col w-full h-full overflow-y-auto overscroll-y-contain rounded-t-[26px]"
             style={{
               paddingTop: 'max(calc(env(safe-area-inset-top, 0px) + 20px), 24px)',
               paddingBottom: 'calc(max(24px, env(safe-area-inset-bottom, 0px)) + 84px)',
+              borderTopLeftRadius: '26px',
+              borderTopRightRadius: '26px',
             }}
           >
             {/* Header Title Airbnb style */}
@@ -268,12 +275,14 @@ export const SavedView: React.FC<SavedViewProps> = ({
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             transition={{ duration: 0.18, ease: 'easeOut' }}
-            className="flex-1 flex flex-col w-full h-full overflow-hidden"
+            className="flex-1 flex flex-col w-full h-full overflow-hidden rounded-t-[26px]"
             style={{
               paddingTop: 'max(calc(env(safe-area-inset-top, 0px) + 12px), 16px)',
               paddingBottom: isEditing
                 ? 'calc(max(24px, env(safe-area-inset-bottom, 0px)) + 140px)'
                 : 'calc(max(24px, env(safe-area-inset-bottom, 0px)) + 84px)',
+              borderTopLeftRadius: '26px',
+              borderTopRightRadius: '26px',
             }}
           >
             {/* Header: Botão Voltar Circular + Título Grande + Botão "Editar" Airbnb */}

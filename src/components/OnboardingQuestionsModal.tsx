@@ -93,10 +93,15 @@ export const OnboardingQuestionsModal: React.FC<OnboardingQuestionsModalProps> =
       animate={{ opacity: 1 }}
       exit={{ opacity: 0 }}
       transition={{ duration: 0.3 }}
-      className="fixed inset-0 z-[170] flex flex-col justify-between overflow-y-auto bg-black text-white select-none"
+      className="fixed inset-0 z-[170] flex flex-col justify-between overflow-y-auto bg-black text-white select-none rounded-t-[26px] ios-page-top-rounded"
       style={{
         paddingTop: 'max(14px, env(safe-area-inset-top, 0px))',
         paddingBottom: 'max(16px, env(safe-area-inset-bottom, 16px))',
+        borderTopLeftRadius: '26px',
+        borderTopRightRadius: '26px',
+        overflow: 'hidden',
+        WebkitMaskImage: '-webkit-radial-gradient(white, black)',
+        isolation: 'isolate',
       }}
     >
       {/* Top Minimalist Header with iOS Pure Dark Style */}

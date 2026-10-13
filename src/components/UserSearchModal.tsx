@@ -135,11 +135,15 @@ export const UserSearchModal: React.FC<UserSearchModalProps> = ({
           animate={{ y: 0, opacity: 1 }}
           exit={{ y: -30, opacity: 0 }}
           transition={{ type: 'spring', damping: 28, stiffness: 350 }}
-          className={`relative w-full h-full flex flex-col z-10 ${
+          className={`relative w-full h-full flex flex-col z-10 rounded-t-[26px] ios-page-top-rounded ${
             isDark ? 'bg-[#000000] text-white' : 'bg-[#ffffff] text-zinc-900'
           }`}
           style={{
             paddingTop: 'max(calc(env(safe-area-inset-top, 0px) + 8px), 12px)',
+            borderTopLeftRadius: '26px',
+            borderTopRightRadius: '26px',
+            overflow: 'hidden',
+            WebkitMaskImage: '-webkit-radial-gradient(white, black)',
           }}
         >
           {/* Search Header Bar (Instagram Style) */}

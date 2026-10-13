@@ -95,10 +95,14 @@ export const ItineraryDetailModal: React.FC<ItineraryDetailModalProps> = ({
               mass: 0.8,
             }}
             onClick={(e) => e.stopPropagation()}
-            className="relative z-10 bg-white dark:bg-[#000000] border-t sm:border border-zinc-200 dark:border-zinc-800 rounded-t-[32px] sm:rounded-[32px] w-full max-w-2xl max-h-[92vh] flex flex-col shadow-2xl overflow-hidden origin-bottom sm:origin-center transform-gpu"
+            className="relative z-10 bg-white dark:bg-[#000000] border-t sm:border border-zinc-200 dark:border-zinc-800 rounded-t-[26px] sm:rounded-[26px] w-full max-w-2xl max-h-[92vh] flex flex-col shadow-2xl overflow-hidden origin-bottom sm:origin-center transform-gpu ios-page-top-rounded"
             style={{
               paddingBottom: 'max(16px, env(safe-area-inset-bottom, 0px))',
               willChange: 'transform, opacity',
+              borderTopLeftRadius: '26px',
+              borderTopRightRadius: '26px',
+              overflow: 'hidden',
+              WebkitMaskImage: '-webkit-radial-gradient(white, black)',
             }}
           >
         {/* Header with Cover */}

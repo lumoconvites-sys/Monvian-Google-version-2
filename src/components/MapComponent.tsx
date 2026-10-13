@@ -2072,18 +2072,31 @@ export const MapComponentInner: React.FC<MapComponentProps> = ({
 
   return (
     <div
-      className="absolute inset-0 w-full h-full overflow-hidden bg-zinc-50 dark:bg-black"
+      className="absolute inset-0 w-full h-full overflow-hidden bg-zinc-50 dark:bg-black rounded-t-[26px] ios-page-top-rounded"
+      style={{
+        borderTopLeftRadius: '26px',
+        borderTopRightRadius: '26px',
+        overflow: 'hidden',
+        WebkitMaskImage: '-webkit-radial-gradient(white, black)',
+        isolation: 'isolate',
+      }}
     >
       {/* Map Container */}
       <div 
         ref={mapContainerRef} 
-        className={`absolute inset-0 w-full h-full z-0 ${
+        className={`absolute inset-0 w-full h-full z-0 rounded-t-[26px] overflow-hidden ios-page-top-rounded ${
           theme === 'light' || currentStyle === 'animado' || currentStyle === 'transporte'
             ? 'map-canvas-green-boost'
             : currentStyle === 'satelite'
             ? 'map-canvas-satellite-boost'
             : ''
         }`} 
+        style={{
+          borderTopLeftRadius: '26px',
+          borderTopRightRadius: '26px',
+          overflow: 'hidden',
+          WebkitMaskImage: '-webkit-radial-gradient(white, black)',
+        }}
         tabIndex={0} 
       />
 

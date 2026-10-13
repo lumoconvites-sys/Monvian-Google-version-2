@@ -379,26 +379,32 @@ export const AirbnbItineraryExplorer: React.FC<AirbnbItineraryExplorerProps> = (
 
   return (
     <div
-      className={`relative w-full h-full overflow-y-auto overscroll-contain select-none transition-colors duration-200 ${
+      className={`relative w-full h-full overflow-y-auto overscroll-contain select-none transition-colors duration-200 rounded-t-[26px] ios-page-top-rounded ${
         isDark ? 'bg-[#000000] text-white' : 'bg-[#F8F9FA] text-zinc-900'
       }`}
       style={{
         fontFamily: "'Inter', -apple-system, BlinkMacSystemFont, 'SF Pro Display', sans-serif",
         WebkitOverflowScrolling: 'touch',
         touchAction: 'pan-y',
+        borderTopLeftRadius: '26px',
+        borderTopRightRadius: '26px',
+        overflow: 'hidden',
+        WebkitMaskImage: '-webkit-radial-gradient(white, black)',
       }}
     >
       {/* ========================================================
           1. TOP STICKY HEADER: PURE WHITE CAPSULE SEARCH BAR + HORIZONTAL SCROLLING CATEGORIES
          ======================================================== */}
       <div
-        className={`sticky top-0 z-30 shrink-0 backdrop-blur-md transition-colors ${
+        className={`sticky top-0 z-30 shrink-0 backdrop-blur-md transition-colors rounded-t-[26px] ${
           isDark
             ? 'bg-[#000000]/95'
             : 'bg-[#F8F9FA]/95'
         }`}
         style={{
           paddingTop: 'max(calc(env(safe-area-inset-top, 0px) + 10px), 16px)',
+          borderTopLeftRadius: '26px',
+          borderTopRightRadius: '26px',
         }}
       >
         {/* 1.1 BARRA DE PESQUISA: Cápsula Minimalista Centralizada */}

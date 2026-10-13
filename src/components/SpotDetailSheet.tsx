@@ -94,10 +94,14 @@ export const SpotDetailSheet: React.FC<SpotDetailSheetProps> = ({
           mass: 0.8,
         }}
         onClick={(e) => e.stopPropagation()}
-        className="relative w-full h-[94vh] sm:h-[92vh] md:h-[88vh] max-w-2xl md:max-w-md lg:max-w-lg mx-auto md:mx-0 bg-white dark:bg-[#0e1014] text-zinc-900 dark:text-white rounded-t-[32px] md:rounded-[32px] overflow-hidden flex flex-col shadow-2xl origin-bottom md:origin-center cursor-auto transform-gpu border border-transparent dark:md:border-white/10"
+        className="relative w-full h-[94vh] sm:h-[92vh] md:h-[88vh] max-w-2xl md:max-w-md lg:max-w-lg mx-auto md:mx-0 bg-white dark:bg-[#0e1014] text-zinc-900 dark:text-white rounded-t-[26px] md:rounded-[26px] overflow-hidden flex flex-col shadow-2xl origin-bottom md:origin-center cursor-auto transform-gpu border border-transparent dark:md:border-white/10 ios-page-top-rounded"
         style={{
           fontFamily: "'Inter', -apple-system, BlinkMacSystemFont, sans-serif",
           willChange: 'transform, opacity',
+          borderTopLeftRadius: '26px',
+          borderTopRightRadius: '26px',
+          overflow: 'hidden',
+          WebkitMaskImage: '-webkit-radial-gradient(white, black)',
         }}
       >
         {/* Floating Top Bar Controls */}

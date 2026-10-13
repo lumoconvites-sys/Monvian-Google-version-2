@@ -7,7 +7,7 @@
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-title" content="Monvian" />
-    <meta name="apple-mobile-web-app-status-bar-style" content="default" id="apple-status-bar-meta" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" id="apple-status-bar-meta" />
     <meta name="theme-color" content="#000000" id="theme-color-meta" />
     <meta name="theme-color" media="(prefers-color-scheme: light)" content="#000000" />
     <meta name="theme-color" media="(prefers-color-scheme: dark)" content="#000000" />
@@ -16,10 +16,17 @@
     <link rel="apple-touch-icon" sizes="180x180" href="/loogo.png" />
     <script>
       (function() {
+        try {
+          var savedTheme = localStorage.getItem('monvian_theme');
+          var isDark = savedTheme !== 'light';
+          var topColor = isDark ? '#000000' : '#f4f4f5';
+          var statusStyle = 'black-translucent';
           var logoSrc = '/logocarregamento.png';
 
-          var themeMeta = document.getElementById('theme-color-meta');
-          if (themeMeta) themeMeta.setAttribute('content', topColor);
+          var themeMetas = document.querySelectorAll('meta[name="theme-color"]');
+          themeMetas.forEach(function(meta) {
+            meta.setAttribute('content', topColor);
+          });
           var statusMeta = document.getElementById('apple-status-bar-meta');
           if (statusMeta) statusMeta.setAttribute('content', statusStyle);
 
@@ -29,9 +36,8 @@
             document.documentElement.classList.add('dark');
             document.documentElement.classList.remove('light');
           } else {
-            document.documentElement.classList.remove('light');
-            document.documentElement.classList.add('light'); 
             document.documentElement.classList.remove('dark');
+            document.documentElement.classList.add('light'); 
           }
 
           var preloader = document.getElementById('monvian-app-preloader');
@@ -61,28 +67,13 @@
       (function() {
         function updateAppHeight() {
           try {
-            var isLandscape = (window.matchMedia && window.matchMedia('(orientation: landscape)').matches) ||
-              Math.abs(Number(window.orientation) || 0) === 90 ||
-              window.innerWidth > window.innerHeight;
-            
-            var screenH = 0;
-            if (window.screen && window.screen.height) {
-              screenH = isLandscape
-                ? Math.min(window.screen.width, window.screen.height)
-                : Math.max(window.screen.width, window.screen.height);
-            }
-
-            var h = Math.max(
-              window.innerHeight || 0,
-              (document.documentElement && document.documentElement.clientHeight) || 0,
-              screenH || 0
-            );
+            var h = (window.visualViewport && window.visualViewport.height) ||
+              window.innerHeight ||
+              (document.documentElement && document.documentElement.clientHeight) ||
+              0;
 
             if (h && h > 0) {
               document.documentElement.style.setProperty('--app-height', h + 'px');
-            }
-            if (window.scrollTo) {
-              window.scrollTo(0, 0);
             }
           } catch (e) {}
         }

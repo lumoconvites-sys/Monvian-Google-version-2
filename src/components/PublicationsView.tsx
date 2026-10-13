@@ -838,12 +838,17 @@ export const PublicationsView: React.FC<PublicationsViewProps> = ({
       id="publications-fullscreen-overlay"
       className={`fixed inset-0 z-45 flex flex-col justify-between overflow-hidden select-none ${
         isDark ? 'bg-[#000000] text-white' : 'bg-[#ffffff] text-black'
-      } transition-colors duration-200`}
+      } transition-colors duration-200 rounded-t-[26px] ios-page-top-rounded`}
       style={{
         fontFamily: "'Inter', -apple-system, BlinkMacSystemFont, sans-serif",
         backgroundColor: isDark ? '#000000' : '#ffffff',
         height: '100dvh',
         width: '100vw',
+        borderTopLeftRadius: '26px',
+        borderTopRightRadius: '26px',
+        overflow: 'hidden',
+        WebkitMaskImage: '-webkit-radial-gradient(white, black)',
+        isolation: 'isolate',
       }}
     >
       {/* Scrollable Feed: Header + Posts scroll seamlessly together */}

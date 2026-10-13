@@ -349,11 +349,16 @@ export const CreateStoryModal: React.FC<CreateStoryModalProps> = ({
         animate={{ opacity: 1, y: 0, scale: 1 }}
         exit={{ opacity: 0, y: '100%', scale: 0.96 }}
         transition={{ type: 'spring', damping: 32, stiffness: 360, mass: 0.75 }}
-        className="fixed inset-0 z-55 flex flex-col bg-black text-white select-none overflow-hidden transform-gpu will-change-transform"
+        className="fixed inset-0 z-55 flex flex-col bg-black text-white select-none overflow-hidden transform-gpu will-change-transform rounded-t-[26px] ios-page-top-rounded"
         style={{
           height: '100dvh',
           width: '100vw',
-          fontFamily: "'Inter', -apple-system, BlinkMacSystemFont, 'SF Pro Text', sans-serif"
+          fontFamily: "'Inter', -apple-system, BlinkMacSystemFont, 'SF Pro Text', sans-serif",
+          borderTopLeftRadius: '26px',
+          borderTopRightRadius: '26px',
+          overflow: 'hidden',
+          WebkitMaskImage: '-webkit-radial-gradient(white, black)',
+          isolation: 'isolate',
         }}
       >
         {/* Hidden file inputs for device camera & gallery */}

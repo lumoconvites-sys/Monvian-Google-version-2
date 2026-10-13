@@ -187,26 +187,34 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
   return (
     <>
       <AnimatePresence>
-        <div className="fixed inset-0 z-[115] w-full h-full flex flex-col select-none overflow-hidden">
+        <div className="fixed inset-0 z-[115] w-full h-full flex flex-col select-none overflow-hidden rounded-t-[26px] ios-page-top-rounded">
           {/* Full Screen Modal Container */}
           <motion.div
             initial={{ opacity: 0, scale: 0.98 }}
             animate={{ opacity: 1, scale: 1 }}
             exit={{ opacity: 0, scale: 0.98 }}
             transition={{ duration: 0.25, ease: [0.16, 1, 0.3, 1] }}
-            className={`relative w-full h-full rounded-none overflow-hidden flex flex-col shadow-none z-10 ${
+            className={`relative w-full h-full rounded-t-[26px] overflow-hidden flex flex-col shadow-none z-10 ios-page-top-rounded ${
               isDark
                 ? 'bg-[#000000] text-white'
                 : 'bg-[#ffffff] text-zinc-900'
             }`}
+            style={{
+              borderTopLeftRadius: '26px',
+              borderTopRightRadius: '26px',
+              overflow: 'hidden',
+              WebkitMaskImage: '-webkit-radial-gradient(white, black)',
+            }}
           >
             {/* Top Navigation Bar */}
             <div
-              className={`px-4 sm:px-6 py-3.5 border-b flex items-center justify-between shrink-0 ${
+              className={`px-4 sm:px-6 py-3.5 border-b flex items-center justify-between shrink-0 rounded-t-[26px] ${
                 isDark ? 'border-white/10 bg-[#000000]' : 'border-zinc-200 bg-[#ffffff]'
               }`}
               style={{
                 paddingTop: 'max(calc(env(safe-area-inset-top, 0px) + 8px), 14px)',
+                borderTopLeftRadius: '26px',
+                borderTopRightRadius: '26px',
               }}
             >
               <button

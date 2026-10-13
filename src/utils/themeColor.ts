@@ -107,9 +107,7 @@ export function applySystemThemeColor(color: string) {
     document.head.appendChild(meta);
   }
 
-  // 2. Update apple-mobile-web-app-status-bar-style:
-  // 'default' = dark text/icons on light background
-  // 'black-translucent' = white text/icons on dark background
+  // 2. Keep apple-mobile-web-app-status-bar-style as black-translucent for edge-to-edge status bar
   let statusMeta = document.querySelector(
     'meta[name="apple-mobile-web-app-status-bar-style"]'
   ) as HTMLMetaElement | null;
@@ -118,7 +116,7 @@ export function applySystemThemeColor(color: string) {
     statusMeta.name = 'apple-mobile-web-app-status-bar-style';
     document.head.appendChild(statusMeta);
   }
-  statusMeta.setAttribute('content', isDark ? 'black-translucent' : 'default');
+  statusMeta.setAttribute('content', 'black-translucent');
 
   // 3. Update document and root background styles so Safari's overscroll, notch and safe areas match seamlessly
   document.documentElement.style.backgroundColor = color;

@@ -78,14 +78,25 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({
   ];
 
   return (
-    <div className="h-screen h-[100dvh] w-full bg-[#f8fafc] dark:bg-[#0c0d10] text-zinc-900 dark:text-zinc-100 flex flex-col font-sans antialiased overflow-hidden">
+    <div
+      className="h-screen h-[100dvh] w-full bg-[#f8fafc] dark:bg-[#0c0d10] text-zinc-900 dark:text-zinc-100 flex flex-col font-sans antialiased overflow-hidden rounded-t-[26px] ios-page-top-rounded"
+      style={{
+        borderTopLeftRadius: '26px',
+        borderTopRightRadius: '26px',
+        overflow: 'hidden',
+        WebkitMaskImage: '-webkit-radial-gradient(white, black)',
+        isolation: 'isolate',
+      }}
+    >
       {/* Top Header Bar */}
       <header
-        className="shrink-0 z-40 bg-white dark:bg-[#121418] border-b border-zinc-200/80 dark:border-zinc-800 px-4 sm:px-6 py-3 flex items-center justify-between shadow-2xs"
+        className="shrink-0 z-40 bg-white dark:bg-[#121418] border-b border-zinc-200/80 dark:border-zinc-800 px-4 sm:px-6 py-3 flex items-center justify-between shadow-2xs rounded-t-[26px]"
         style={{
           paddingTop: 'max(12px, env(safe-area-inset-top, 0px))',
           paddingLeft: 'max(16px, env(safe-area-inset-left, 0px))',
           paddingRight: 'max(16px, env(safe-area-inset-right, 0px))',
+          borderTopLeftRadius: '26px',
+          borderTopRightRadius: '26px',
         }}
       >
         {/* Left: Greeting and Clock */}

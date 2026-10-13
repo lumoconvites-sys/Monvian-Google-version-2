@@ -1820,7 +1820,16 @@ export const ItinerariesView: React.FC<ItinerariesViewProps> = ({
   // -------------------------------------------------------------
   if (itineraryViewMode === 'explore') {
     return (
-      <div className={`fixed inset-0 z-40 w-full h-full overflow-hidden ${isDark ? 'bg-[#000000]' : 'bg-white'} select-none`}>
+      <div
+        className={`fixed inset-0 z-40 w-full h-full overflow-hidden rounded-t-[26px] ios-page-top-rounded ${isDark ? 'bg-[#000000]' : 'bg-white'} select-none`}
+        style={{
+          borderTopLeftRadius: '26px',
+          borderTopRightRadius: '26px',
+          overflow: 'hidden',
+          WebkitMaskImage: '-webkit-radial-gradient(white, black)',
+          isolation: 'isolate',
+        }}
+      >
         <AirbnbItineraryExplorer
           onSelectItinerary={handleApplyStoreItinerary}
           onOpenMap={() => setItineraryViewMode('map')}
@@ -1852,14 +1861,29 @@ export const ItinerariesView: React.FC<ItinerariesViewProps> = ({
   // VIEW MODE: Interactive Map with Route, Sequential Points & Store
   // -------------------------------------------------------------
   return (
-    <div className={`fixed inset-0 md:left-64 lg:left-72 ${isEditModalOpen || isStoreOpen ? 'z-[90]' : 'z-40'} w-full md:w-auto h-full overflow-hidden ${isDark ? 'bg-black' : 'bg-white'} select-none`}>
+    <div
+      className={`fixed inset-0 md:left-64 lg:left-72 ${isEditModalOpen || isStoreOpen ? 'z-[90]' : 'z-40'} w-full md:w-auto h-full overflow-hidden rounded-t-[26px] ios-page-top-rounded ${isDark ? 'bg-black' : 'bg-white'} select-none`}
+      style={{
+        borderTopLeftRadius: '26px',
+        borderTopRightRadius: '26px',
+        overflow: 'hidden',
+        WebkitMaskImage: '-webkit-radial-gradient(white, black)',
+        isolation: 'isolate',
+      }}
+    >
       {/* 1. MapLibre GL Interactive Canvas */}
       <div
         ref={mapContainerRef}
         onClick={() => setIsExpanded(false)}
-        className={`absolute inset-0 w-full h-full cursor-grab active:cursor-grabbing ${
+        className={`absolute inset-0 w-full h-full cursor-grab active:cursor-grabbing rounded-t-[26px] overflow-hidden ${
           itineraryMapStyle === 'satelite' ? 'itinerary-satellite-canvas' : ''
         }`}
+        style={{
+          borderTopLeftRadius: '26px',
+          borderTopRightRadius: '26px',
+          overflow: 'hidden',
+          WebkitMaskImage: '-webkit-radial-gradient(white, black)',
+        }}
       />
 
       {/* 2. Top Header Overlay with Back Button and Itinerary Name Dynamic Island (MOBILE ONLY) */}

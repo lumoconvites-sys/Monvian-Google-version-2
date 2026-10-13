@@ -236,13 +236,18 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
     return (
       <div
         id="ios-settings-screen"
-        className={`fixed inset-0 z-50 flex flex-col justify-between overflow-hidden select-none transition-colors duration-200 ${
+        className={`fixed inset-0 z-50 flex flex-col justify-between overflow-hidden select-none transition-colors duration-200 rounded-t-[26px] ios-page-top-rounded ${
           theme === 'dark' ? 'bg-black text-white' : 'bg-white text-zinc-900'
         }`}
         style={{
           fontFamily: "'Inter', -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'SF Pro Text', sans-serif",
           paddingTop: 'max(14px, env(safe-area-inset-top, 0px))',
           paddingBottom: 'max(20px, env(safe-area-inset-bottom, 20px))',
+          borderTopLeftRadius: '26px',
+          borderTopRightRadius: '26px',
+          overflow: 'hidden',
+          WebkitMaskImage: '-webkit-radial-gradient(white, black)',
+          isolation: 'isolate',
         }}
       >
         {/* Top iOS Navigation Bar with Back Button and Centered Large Title */}
@@ -567,9 +572,13 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
     >
       <div
         onClick={(e) => e.stopPropagation()}
-        className="relative w-full h-full md:h-[88vh] md:max-w-2xl bg-zinc-50 dark:bg-[#000000] md:dark:ios-glass text-zinc-900 dark:text-white rounded-none md:rounded-[32px] overflow-hidden flex flex-col justify-between shadow-2xl md:border md:border-black/10 md:dark:border-white/15"
+        className="relative w-full h-full md:h-[88vh] md:max-w-2xl bg-zinc-50 dark:bg-[#000000] md:dark:ios-glass text-zinc-900 dark:text-white rounded-t-[26px] md:rounded-[32px] overflow-hidden flex flex-col justify-between shadow-2xl md:border md:border-black/10 md:dark:border-white/15 ios-page-top-rounded"
         style={{
           fontFamily: "'Inter', -apple-system, BlinkMacSystemFont, sans-serif",
+          borderTopLeftRadius: '26px',
+          borderTopRightRadius: '26px',
+          overflow: 'hidden',
+          WebkitMaskImage: '-webkit-radial-gradient(white, black)',
         }}
       >
       {/* Top Header Bar identical to screenshot */}

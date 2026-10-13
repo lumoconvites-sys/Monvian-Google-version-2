@@ -999,4 +999,16 @@ html:not(.dark) .ios-glass-white,
   background: conic-gradient(from 0deg, #f09433, #dc2743, #bc1888, #dc2743, #f09433);
 }
 
+/* ========================================================
+   GLOBAL iOS TOP ROUNDED CORNER CONTAINER (20px - 28px standard)
+   ======================================================== */
+.ios-page-top-rounded {
+  border-top-left-radius: 26px !important;
+  border-top-right-radius: 26px !important;
+  overflow: hidden !important;
+  -webkit-mask-image: -webkit-radial-gradient(white, black);
+  isolation: isolate;
+}
+
+
 

@@ -143,24 +143,28 @@ export const ItineraryStoreDetailModal: React.FC<ItineraryStoreDetailModalProps>
               duration: 0.26,
               ease: [0.16, 1, 0.3, 1]
             }}
-            className={`relative w-full h-full flex flex-col max-w-xl mx-auto overflow-hidden transition-colors duration-200 ${
+            className={`relative w-full h-full flex flex-col max-w-xl mx-auto overflow-hidden transition-colors duration-200 rounded-t-[26px] ios-page-top-rounded ${
               isLight ? 'bg-white text-zinc-900' : 'bg-[#000000] text-white'
             }`}
             style={{
               transform: 'translateZ(0)',
               WebkitTransform: 'translateZ(0)',
-              willChange: 'transform, opacity'
+              willChange: 'transform, opacity',
+              borderTopLeftRadius: '26px',
+              borderTopRightRadius: '26px',
+              overflow: 'hidden',
+              WebkitMaskImage: '-webkit-radial-gradient(white, black)',
             }}
           >
           {/* Scrollable Body */}
-          <div className="flex-1 overflow-y-auto overscroll-contain pb-36">
+          <div className="flex-1 overflow-y-auto overscroll-contain pb-36 rounded-t-[26px]">
             
-            {/* 1. HERO / FOTO DE CAPA (FULL BLEED, BORDAS RETAS) */}
-            <div className="relative w-full h-72 sm:h-80 shrink-0 overflow-hidden bg-zinc-900">
+            {/* 1. HERO / FOTO DE CAPA (FULL BLEED, BORDAS ARREDONDADAS NO TOPO) */}
+            <div className="relative w-full h-72 sm:h-80 shrink-0 overflow-hidden bg-zinc-900 rounded-t-[26px]">
               <img
                 src={itinerary.coverImage}
                 alt={itinerary.title}
-                className="w-full h-full object-cover"
+                className="w-full h-full object-cover rounded-t-[26px]"
                 referrerPolicy="no-referrer"
                 loading="eager"
                 onError={(e) => {

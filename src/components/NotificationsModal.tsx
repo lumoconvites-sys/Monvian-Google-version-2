@@ -98,12 +98,17 @@ export const NotificationsModal: React.FC<NotificationsModalProps> = ({
       id="notifications-fullscreen-view"
       className={`fixed inset-0 z-[150] flex flex-col ${
         isDark ? 'bg-[#000000] text-white' : 'bg-[#ffffff] text-black'
-      } select-none overflow-hidden`}
+      } select-none overflow-hidden rounded-t-[26px] ios-page-top-rounded`}
       style={{
         fontFamily: "'Inter', -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'SF Pro Text', sans-serif",
         backgroundColor: isDark ? '#000000' : '#ffffff',
         height: '100dvh',
         width: '100vw',
+        borderTopLeftRadius: '26px',
+        borderTopRightRadius: '26px',
+        overflow: 'hidden',
+        WebkitMaskImage: '-webkit-radial-gradient(white, black)',
+        isolation: 'isolate',
       }}
     >
         {/* Top Header - Apple iOS Large Title Style matching reference */}

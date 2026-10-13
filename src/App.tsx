@@ -1009,13 +1009,18 @@ export default function App() {
 
       <main
         id="main-app-content"
-        className={`relative flex-1 w-full h-[100dvh] overflow-hidden select-none transition-all duration-300 ${
+        className={`relative flex-1 w-full h-[100dvh] overflow-hidden select-none transition-all duration-300 rounded-t-[26px] ios-page-top-rounded ${
           theme === 'dark' ? 'bg-black' : 'bg-zinc-50'
         }`}
         style={{
           boxSizing: 'border-box',
           margin: 0,
           padding: 0,
+          borderTopLeftRadius: '26px',
+          borderTopRightRadius: '26px',
+          overflow: 'hidden',
+          WebkitMaskImage: '-webkit-radial-gradient(white, black)',
+          isolation: 'isolate',
         }}
       >
         {/* 1. Interactive Map Engine */}
