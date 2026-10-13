@@ -1009,12 +1009,10 @@ export default function App() {
 
       <main
         id="main-app-content"
-        className={`relative flex-1 w-full h-full overflow-hidden select-none transition-all duration-300 pb-[60px] ${
+        className={`relative flex-1 w-full h-[100dvh] overflow-hidden select-none transition-all duration-300 ${
           theme === 'dark' ? 'bg-black' : 'bg-zinc-50'
         }`}
         style={{
-          height: '100%',
-          minHeight: '100%',
           boxSizing: 'border-box',
           margin: 0,
           padding: 0,
