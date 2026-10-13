@@ -10,6 +10,7 @@ import {
   createUserWithEmailAndPassword,
   updateProfile
 } from 'firebase/auth';
+export { createUserWithEmailAndPassword, signInWithEmailAndPassword, updateProfile };
 import firebaseConfig from '../../firebase-applet-config.json';
 
 // Initialize Firebase App singleton

@@ -1688,6 +1688,9 @@ async function startServer() {
       }
 
       // 1. Sign up with Supabase
+      if (!supabase) {
+        throw new Error('Supabase client not initialized');
+      }
       const { data, error } = await supabase.auth.signUp({
         email: cleanEmail,
         password: password,
@@ -1746,6 +1749,57 @@ async function startServer() {
     }
   });
 
+  // 3.5. Register with Firebase (Client-side authenticated)
+  app.post('/api/auth/register-firebase', async (req, res) => {
+    try {
+      const { uid, name, username, email, gender } = req.body;
+      const cleanEmail = (email || '').trim().toLowerCase();
+
+      if (!uid || !name || !cleanEmail) {
+        res.status(400).json({ error: 'Dados incompletos' });
+        return;
+      }
+
+      // Insert into public.users
+      const rawUsername = (username || '').trim().replace(/^@+/, '');
+      const normalizedUsername = rawUsername.toLowerCase();
+      
+      let defaultAvatar = gender === 'masculino' ? '/avatar_male.jpg' : '/avatar_female.jpg';
+
+      db.prepare(`
+        INSERT INTO users (id, name, username, username_normalized, email, whatsapp, password_hash, role, visits_count, onboarding_completed, onboarding_step, avatar_url)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      `).run(
+        uid,
+        name.trim(),
+        rawUsername,
+        normalizedUsername,
+        cleanEmail,
+        cleanEmail,
+        'firebase-managed', // Placeholder
+        'user',
+        1,
+        0,
+        1,
+        defaultAvatar
+      );
+
+      res.json({
+        success: true,
+        token: 'firebase-token',
+        user: {
+          id: uid,
+          name: name.trim(),
+          email: cleanEmail,
+          role: 'user',
+        }
+      });
+    } catch (err: any) {
+      console.error('[Register Firebase Error]', err);
+      res.status(500).json({ error: 'Erro ao registrar usuário. Tente novamente.' });
+    }
+  });
+
   // 4. Login with Supabase Auth
   app.post('/api/auth/login', async (req, res) => {
     try {
@@ -1758,6 +1812,9 @@ async function startServer() {
       }
 
       // 1. Sign in with Supabase
+      if (!supabase) {
+        throw new Error('Supabase client not initialized');
+      }
       const { data, error } = await supabase.auth.signInWithPassword({
         email: cleanEmail,
         password: password

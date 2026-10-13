@@ -151,29 +151,35 @@ export function AuthScreen({ onSuccess }: AuthScreenProps) {
 
     setLoading(true);
     try {
-      const res = await fetch('/api/auth/register', {
+      // 1. Create User in Firebase
+      const { createUserWithEmailAndPassword, auth } = await import('../lib/firebase');
+      const userCredential = await createUserWithEmailAndPassword(auth, email.trim(), password);
+      const firebaseUser = userCredential.user;
+
+      // 2. Sync to Backend
+      const res = await fetch('/api/auth/register-firebase', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
+          uid: firebaseUser.uid,
           name: name.trim(),
           username: cleanUsername,
-          email: email.trim(),
-          password,
+          email: firebaseUser.email,
           gender,
-          code: '', // Passar o código, se necessário. Se for opcional no backend, pode ser vazio.
         }),
       });
       const data = await res.json();
 
       if (res.ok && data.success) {
-        localStorage.setItem('monvian_token', data.token);
+        localStorage.setItem('monvian_token', data.token || 'firebase-token'); // Placeholder token
         localStorage.setItem('monvian_user', JSON.stringify(data.user));
-        onSuccess(data.token, data.user, true);
+        onSuccess(data.token || 'firebase-token', data.user, true);
       } else {
-        setError(data.error || 'Erro ao registrar conta.');
+        setError(data.error || 'Erro ao registrar conta no servidor.');
       }
-    } catch (err) {
-      setError('Erro ao se comunicar com o servidor.');
+    } catch (err: any) {
+      console.error(err);
+      setError(err.message || 'Erro ao se comunicar com o servidor.');
     } finally {
       setLoading(false);
     }
