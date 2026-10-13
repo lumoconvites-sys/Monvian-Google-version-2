@@ -93,12 +93,25 @@ export const NotificationsModal: React.FC<NotificationsModalProps> = ({
 
   const hasUnread = unread.length > 0;
 
+  const handleBack = (e?: React.MouseEvent | React.TouchEvent) => {
+    if (e) {
+      e.preventDefault();
+      e.stopPropagation();
+    }
+    if (onBack) {
+      onBack();
+    } else if (onClose) {
+      onClose();
+    }
+  };
+
   const modalContent = (
     <div
       id="notifications-fullscreen-view"
+      onClick={(e) => e.stopPropagation()}
       className={`fixed inset-0 z-[150] flex flex-col ${
         isDark ? 'bg-[#000000] text-white' : 'bg-[#ffffff] text-black'
-      } select-none overflow-hidden rounded-t-[26px] ios-page-top-rounded`}
+      } select-none overflow-hidden rounded-t-[26px] pointer-events-auto`}
       style={{
         fontFamily: "'Inter', -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'SF Pro Text', sans-serif",
         backgroundColor: isDark ? '#000000' : '#ffffff',
@@ -107,8 +120,6 @@ export const NotificationsModal: React.FC<NotificationsModalProps> = ({
         borderTopLeftRadius: '26px',
         borderTopRightRadius: '26px',
         overflow: 'hidden',
-        WebkitMaskImage: '-webkit-radial-gradient(white, black)',
-        isolation: 'isolate',
       }}
     >
         {/* Top Header - Apple iOS Large Title Style matching reference */}
@@ -125,15 +136,17 @@ export const NotificationsModal: React.FC<NotificationsModalProps> = ({
             <button
               id="btn-back-notifications"
               type="button"
-              onClick={onBack || onClose}
-              title="Voltar"
-              className={`w-10 h-10 rounded-full ${
+              onClick={handleBack}
+              onTouchEnd={handleBack}
+              title="Voltar ao Perfil"
+              aria-label="Voltar para o perfil"
+              className={`w-11 h-11 rounded-full ${
                 isDark
-                  ? 'bg-white/[0.08] hover:bg-white/[0.14] text-white border-white/10'
+                  ? 'bg-white/[0.12] hover:bg-white/[0.20] text-white border-white/15'
                   : 'bg-zinc-100 hover:bg-zinc-200 text-zinc-900 border-zinc-200/80'
-              } active:scale-95 flex items-center justify-center transition-all cursor-pointer border shadow-xs shrink-0`}
+              } active:scale-90 flex items-center justify-center transition-all cursor-pointer border shadow-sm shrink-0 pointer-events-auto`}
             >
-              <ChevronLeft className="w-5 h-5 stroke-[2.4]" />
+              <ChevronLeft className="w-5 h-5 stroke-[2.6]" />
             </button>
 
             <h1 className={`text-2xl sm:text-3xl font-bold tracking-tight text-center flex-1 mx-2 ${

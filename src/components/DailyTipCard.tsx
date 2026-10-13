@@ -2,6 +2,7 @@ import React, { useEffect, useState, useRef } from 'react';
 import { Spot } from '../types';
 import { Compass, ArrowRight, Eye } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
+import { iosSpring } from '../utils/animations';
 
 interface DailyTipCardProps {
   spot: Spot | null;
@@ -59,7 +60,7 @@ export const DailyTipCard: React.FC<DailyTipCardProps> = ({
           initial={{ opacity: 0, y: -24, scale: 0.95 }}
           animate={{ opacity: 1, y: 0, scale: 1 }}
           exit={{ opacity: 0, y: -20, scale: 0.96 }}
-          transition={{ type: 'spring', damping: 26, stiffness: 320 }}
+          transition={iosSpring}
           onMouseEnter={() => setIsPaused(true)}
           onMouseLeave={() => setIsPaused(false)}
           onTouchStart={() => setIsPaused(true)}
@@ -71,17 +72,17 @@ export const DailyTipCard: React.FC<DailyTipCardProps> = ({
         >
           <div
             onClick={() => onSelectSpot(spot)}
-            className="group relative overflow-hidden rounded-[28px] bg-white/95 dark:bg-[#181a1e]/95 backdrop-blur-2xl border border-zinc-200/90 dark:border-white/15 p-4 sm:p-4.5 shadow-[0_18px_50px_rgba(0,0,0,0.18)] dark:shadow-[0_20px_60px_rgba(0,0,0,0.7)] transition-all cursor-pointer hover:border-white/40"
+            className="group relative overflow-hidden rounded-[28px] bg-white dark:bg-[#181a1e] border border-zinc-200 dark:border-white/15 p-4 sm:p-4.5 shadow-[0_18px_50px_rgba(0,0,0,0.18)] dark:shadow-[0_20px_60px_rgba(0,0,0,0.7)] transition-all duration-200 cursor-pointer hover:border-zinc-300 dark:hover:border-white/30"
           >
             {/* Header: Tag + Popularity indicator */}
             <div className="flex items-center justify-between gap-2 mb-3">
-              <div className="flex items-center gap-1.5 px-3 py-1 rounded-full bg-white/10 border border-white/20 text-zinc-900 dark:text-white text-[11px] font-black uppercase tracking-wider">
+              <div className="flex items-center gap-1.5 px-3 py-1 rounded-full bg-zinc-100 dark:bg-white/10 text-zinc-900 dark:text-white text-[11px] font-black uppercase tracking-wider">
                 <span>Dica do Dia</span>
                 <Compass className="w-3.5 h-3.5 text-zinc-900 dark:text-white" />
               </div>
 
               <div className="flex items-center gap-1.5 text-[11px] font-bold text-zinc-500 dark:text-zinc-400">
-                <span className="w-1.5 h-1.5 rounded-full bg-white animate-pulse" />
+                <span className="w-1.5 h-1.5 rounded-full bg-zinc-400 animate-pulse" />
                 <span>Em alta: <strong className="text-zinc-800 dark:text-zinc-200">{popularCategoryLabel}</strong></span>
               </div>
             </div>
@@ -114,7 +115,7 @@ export const DailyTipCard: React.FC<DailyTipCardProps> = ({
                 </p>
 
                 {/* Tourist Tip Snippet */}
-                <div className="rounded-xl bg-zinc-100/90 dark:bg-white/5 px-2.5 py-1.5 border border-zinc-200/50 dark:border-white/5">
+                <div className="rounded-xl bg-zinc-100 dark:bg-white/5 px-2.5 py-1.5 border border-zinc-200/50 dark:border-white/5">
                   <p className="text-xs text-zinc-700 dark:text-zinc-300 font-medium line-clamp-2 leading-relaxed italic">
                     "{spot.touristTip || spot.description}"
                   </p>
@@ -130,7 +131,8 @@ export const DailyTipCard: React.FC<DailyTipCardProps> = ({
               </span>
 
               <div className="flex items-center gap-2">
-                <button
+                <motion.button
+                  whileTap={{ scale: 0.94 }}
                   type="button"
                   onClick={(e) => {
                     e.stopPropagation();
@@ -139,19 +141,20 @@ export const DailyTipCard: React.FC<DailyTipCardProps> = ({
                   className="px-3 py-1 rounded-full text-xs font-bold text-zinc-600 dark:text-zinc-300 hover:text-zinc-900 dark:hover:text-white hover:bg-zinc-100 dark:hover:bg-white/10 transition-colors cursor-pointer"
                 >
                   Dispensar
-                </button>
+                </motion.button>
 
-                <button
+                <motion.button
+                  whileTap={{ scale: 0.94 }}
                   type="button"
                   onClick={(e) => {
                     e.stopPropagation();
                     onSelectSpot(spot);
                   }}
-                  className="px-3.5 py-1 rounded-full bg-white text-zinc-950 hover:bg-zinc-100 text-xs font-black flex items-center gap-1 shadow-md active:scale-95 transition-all cursor-pointer"
+                  className="px-3.5 py-1 rounded-full bg-zinc-900 dark:bg-white text-white dark:text-zinc-950 hover:bg-zinc-800 dark:hover:bg-zinc-100 text-xs font-black flex items-center gap-1 shadow-md transition-all cursor-pointer"
                 >
                   <span>Ver Local</span>
-                  <ArrowRight className="w-3 h-3 text-zinc-950" />
-                </button>
+                  <ArrowRight className="w-3 h-3 text-current" />
+                </motion.button>
               </div>
             </div>
           </div>

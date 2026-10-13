@@ -119,10 +119,11 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({
               <span>{currentTime}</span>
               <span className="text-zinc-300 dark:text-zinc-600">•</span>
               <button
+                type="button"
                 onClick={onExitAdmin}
                 className="text-blue-600 dark:text-blue-400 font-black hover:underline cursor-pointer flex items-center gap-0.5"
               >
-                <span>VOLTAR AO MAPA</span>
+                <span>VOLTAR AO PERFIL</span>
               </button>
             </div>
           </div>
@@ -131,12 +132,18 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({
         {/* Right: Actions and Profile */}
         <div className="flex items-center gap-2.5">
           <button
+            type="button"
+            id="btn-admin-back-to-profile"
             onClick={onExitAdmin}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-blue-600 hover:bg-blue-700 active:scale-95 text-white font-black text-xs shadow-xs transition-all cursor-pointer"
-            title="Voltar ao Mapa"
+            onTouchEnd={(e) => {
+              e.preventDefault();
+              onExitAdmin();
+            }}
+            className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-zinc-900 dark:bg-white hover:bg-zinc-800 dark:hover:bg-zinc-100 active:scale-95 text-white dark:text-zinc-900 font-black text-xs shadow-xs transition-all cursor-pointer pointer-events-auto z-30"
+            title="Voltar ao Perfil"
           >
-            <ArrowLeft className="w-3.5 h-3.5" />
-            <span>Mapa</span>
+            <ArrowLeft className="w-3.5 h-3.5 stroke-[2.5]" />
+            <span>Voltar ao Perfil</span>
           </button>
 
           {/* User Profile Capsule */}
@@ -217,11 +224,16 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({
             </div>
 
             <button
+              type="button"
               onClick={onExitAdmin}
-              className="w-full flex items-center justify-center gap-2 py-2 px-3 bg-zinc-100 dark:bg-zinc-800 hover:bg-zinc-200 dark:hover:bg-zinc-700 text-zinc-700 dark:text-zinc-200 rounded-xl text-xs font-black transition-colors cursor-pointer"
+              onTouchEnd={(e) => {
+                e.preventDefault();
+                onExitAdmin();
+              }}
+              className="w-full flex items-center justify-center gap-2 py-2 px-3 bg-zinc-100 dark:bg-zinc-800 hover:bg-zinc-200 dark:hover:bg-zinc-700 text-zinc-700 dark:text-zinc-200 rounded-xl text-xs font-black transition-colors cursor-pointer pointer-events-auto"
             >
-              <ArrowLeft className="w-3.5 h-3.5" />
-              <span>Voltar ao Aplicativo</span>
+              <ArrowLeft className="w-3.5 h-3.5 stroke-[2.5]" />
+              <span>Voltar ao Perfil</span>
             </button>
           </div>
         </aside>
@@ -285,14 +297,20 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({
 
               <div className="space-y-2">
                 <button
+                  type="button"
                   onClick={() => {
                     setIsMobileMenuOpen(false);
                     onExitAdmin();
                   }}
-                  className="w-full py-2.5 bg-blue-600 hover:bg-blue-700 text-white font-black text-xs rounded-xl flex items-center justify-center gap-2"
+                  onTouchEnd={(e) => {
+                    e.preventDefault();
+                    setIsMobileMenuOpen(false);
+                    onExitAdmin();
+                  }}
+                  className="w-full py-2.5 bg-zinc-900 dark:bg-white text-white dark:text-zinc-900 font-black text-xs rounded-xl flex items-center justify-center gap-2 cursor-pointer pointer-events-auto"
                 >
-                  <ArrowLeft className="w-4 h-4" />
-                  <span>Voltar ao Monvian</span>
+                  <ArrowLeft className="w-4 h-4 stroke-[2.5]" />
+                  <span>Voltar ao Perfil</span>
                 </button>
               </div>
             </div>

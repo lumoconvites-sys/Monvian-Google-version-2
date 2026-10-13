@@ -2161,7 +2161,7 @@ export const MapComponentInner: React.FC<MapComponentProps> = ({
           <button
             id="btn-map-zoom-in"
             onClick={handleZoomIn}
-            className="w-12 h-12 rounded-full active:scale-95 flex items-center justify-center focus:outline-none cursor-pointer transition-all ios-glass border border-white/25 text-zinc-900 dark:text-white shadow-lg"
+            className="w-12 h-12 rounded-full active:scale-95 flex items-center justify-center focus:outline-none cursor-pointer transition-all bg-white dark:bg-zinc-900 border border-zinc-200/80 dark:border-white/15 text-zinc-900 dark:text-white shadow-[0_4px_16px_rgba(0,0,0,0.08)]"
             title="Aproximar mapa"
           >
             <Plus className="w-6 h-6 stroke-[2.4]" />
@@ -2171,7 +2171,7 @@ export const MapComponentInner: React.FC<MapComponentProps> = ({
           <button
             id="btn-map-zoom-out"
             onClick={handleZoomOut}
-            className="w-12 h-12 rounded-full active:scale-95 flex items-center justify-center focus:outline-none cursor-pointer transition-all ios-glass border border-white/25 text-zinc-900 dark:text-white shadow-lg"
+            className="w-12 h-12 rounded-full active:scale-95 flex items-center justify-center focus:outline-none cursor-pointer transition-all bg-white dark:bg-zinc-900 border border-zinc-200/80 dark:border-white/15 text-zinc-900 dark:text-white shadow-[0_4px_16px_rgba(0,0,0,0.08)]"
             title="Afastar mapa"
           >
             <Minus className="w-6 h-6 stroke-[2.4]" />
@@ -2181,7 +2181,7 @@ export const MapComponentInner: React.FC<MapComponentProps> = ({
           <button
             id="btn-map-locate-me"
             onClick={handleCenterUser}
-            className="w-12 h-12 sm:w-13 sm:h-13 rounded-[18px] sm:rounded-[20px] active:scale-95 flex items-center justify-center focus:outline-none cursor-pointer group transition-all ios-glass border border-white/25 text-zinc-900 dark:text-white shadow-lg"
+            className="w-12 h-12 sm:w-13 sm:h-13 rounded-[18px] sm:rounded-[20px] active:scale-95 flex items-center justify-center focus:outline-none cursor-pointer group transition-all bg-white dark:bg-zinc-900 border border-zinc-200/80 dark:border-white/15 text-zinc-900 dark:text-white shadow-[0_4px_16px_rgba(0,0,0,0.08)]"
             title="Centralizar e orientar"
           >
             <motion.div
@@ -2197,7 +2197,7 @@ export const MapComponentInner: React.FC<MapComponentProps> = ({
           <button
             id="btn-map-layer-switch"
             onClick={() => setShowStyleMenu(true)}
-            className="w-12 h-12 rounded-full active:scale-95 flex items-center justify-center focus:outline-none cursor-pointer transition-all ios-glass border border-white/25 text-zinc-900 dark:text-white shadow-lg"
+            className="w-12 h-12 rounded-full active:scale-95 flex items-center justify-center focus:outline-none cursor-pointer transition-all bg-white dark:bg-zinc-900 border border-zinc-200/80 dark:border-white/15 text-zinc-900 dark:text-white shadow-[0_4px_16px_rgba(0,0,0,0.08)]"
             title="Modos do Mapa"
           >
             <Layers className="w-5 h-5 stroke-[2.2]" />

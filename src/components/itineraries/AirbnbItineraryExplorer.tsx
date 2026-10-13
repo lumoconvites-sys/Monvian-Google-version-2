@@ -379,7 +379,8 @@ export const AirbnbItineraryExplorer: React.FC<AirbnbItineraryExplorerProps> = (
 
   return (
     <div
-      className={`relative w-full h-full overflow-y-auto overscroll-contain select-none transition-colors duration-200 rounded-t-[26px] ios-page-top-rounded ${
+      id="airbnb-itinerary-scroll-container"
+      className={`relative w-full h-full overflow-y-auto overscroll-y-contain select-none transition-colors duration-200 rounded-t-[26px] ${
         isDark ? 'bg-[#000000] text-white' : 'bg-[#F8F9FA] text-zinc-900'
       }`}
       style={{
@@ -388,8 +389,6 @@ export const AirbnbItineraryExplorer: React.FC<AirbnbItineraryExplorerProps> = (
         touchAction: 'pan-y',
         borderTopLeftRadius: '26px',
         borderTopRightRadius: '26px',
-        overflow: 'hidden',
-        WebkitMaskImage: '-webkit-radial-gradient(white, black)',
       }}
     >
       {/* ========================================================
@@ -588,7 +587,7 @@ export const AirbnbItineraryExplorer: React.FC<AirbnbItineraryExplorerProps> = (
       {/* ========================================================
           2. SCROLLABLE MAIN BODY: COMPACT HORIZONTAL SECTIONS (AIRBNB FIDELITY)
          ======================================================== */}
-      <div className="py-4 space-y-6 pb-32">
+      <div className="py-4 space-y-6 pb-48">
         {loading && itineraries.length === 0 ? (
           <div className="py-24 flex flex-col items-center justify-center space-y-3">
             <div className={`w-8 h-8 rounded-full border-2 border-t-transparent animate-spin ${

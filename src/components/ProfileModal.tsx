@@ -246,20 +246,28 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
           borderTopLeftRadius: '26px',
           borderTopRightRadius: '26px',
           overflow: 'hidden',
-          WebkitMaskImage: '-webkit-radial-gradient(white, black)',
-          isolation: 'isolate',
         }}
       >
         {/* Top iOS Navigation Bar with Back Button and Centered Large Title */}
-        <div className="w-full max-w-2xl mx-auto px-4 sm:px-6 py-3 flex items-center justify-between shrink-0">
+        <div className="w-full max-w-2xl mx-auto px-4 sm:px-6 py-3 flex items-center justify-between shrink-0 relative z-30">
           <button
             type="button"
             id="btn-back-settings"
-            onClick={() => handleSetSubView('main')}
-            className="w-10 h-10 rounded-full bg-zinc-100 dark:bg-[#1c1c1e] text-zinc-800 dark:text-white flex items-center justify-center transition-transform active:scale-95 cursor-pointer shadow-xs border border-black/5 dark:border-white/5 shrink-0"
+            onClick={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              handleSetSubView('main');
+            }}
+            onTouchEnd={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              handleSetSubView('main');
+            }}
+            className="w-11 h-11 min-w-[44px] min-h-[44px] rounded-full bg-zinc-100 dark:bg-[#1c1c1e] hover:bg-zinc-200 dark:hover:bg-[#2c2c2e] active:scale-95 text-zinc-900 dark:text-white flex items-center justify-center transition-all cursor-pointer shadow-xs border border-black/5 dark:border-white/10 shrink-0 pointer-events-auto z-40"
             title="Voltar ao Perfil"
+            aria-label="Voltar ao Perfil"
           >
-            <ChevronLeft className="w-5 h-5 stroke-[2.5]" />
+            <ChevronLeft className="w-6 h-6 stroke-[2.5]" />
           </button>
 
           <h1 className="text-xl sm:text-2xl font-bold text-zinc-900 dark:text-white tracking-tight text-center">
@@ -595,9 +603,19 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
             <motion.button
               whileTap={{ scale: 0.95 }}
               id="btn-back-profile-main"
-              onClick={() => handleSetSubView('main')}
-              className="w-10 h-10 rounded-full bg-zinc-200/80 dark:bg-white/10 hover:bg-zinc-300 dark:hover:bg-white/20 text-black dark:text-white flex items-center justify-center transition-colors cursor-pointer mr-1"
-              title="Voltar"
+              onClick={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                handleSetSubView('main');
+              }}
+              onTouchEnd={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                handleSetSubView('main');
+              }}
+              className="w-11 h-11 min-w-[44px] min-h-[44px] rounded-full bg-zinc-200/80 dark:bg-white/10 hover:bg-zinc-300 dark:hover:bg-white/20 text-black dark:text-white flex items-center justify-center transition-colors cursor-pointer mr-1 pointer-events-auto z-40"
+              title="Voltar ao Perfil"
+              aria-label="Voltar ao Perfil"
             >
               <ArrowLeft
                 className="w-5 h-5 stroke-[2.2] text-black dark:text-white"

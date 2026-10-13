@@ -21,7 +21,6 @@ import { OnboardingQuestionsModal } from './components/OnboardingQuestionsModal'
 import { OfflineIndicator } from './components/OfflineIndicator';
 import { Weather3DIcon } from './components/Weather3DIcon';
 import { Map3DIcon } from './components/Map3DIcon';
-import { WeatherModal } from './components/WeatherModal';
 import { RainEffect } from './components/RainEffect';
 import { SnowEffect } from './components/SnowEffect';
 import { GoldSuccessModal } from './components/GoldSuccessModal';
@@ -33,6 +32,7 @@ import { DesktopSidebar } from './components/desktop/DesktopSidebar';
 import { DesktopTopBar } from './components/desktop/DesktopTopBar';
 import { DesktopExplorePanel } from './components/desktop/DesktopExplorePanel';
 import { startPreloadResources } from './utils/preloadItineraries';
+import { AirbnbPresentationCard, isPresentationCardSeen, markPresentationCardSeen, PresentationTab } from './components/AirbnbPresentationCard';
 
 const welcomeContainerVariants = {
   hidden: { opacity: 0 },
@@ -556,7 +556,7 @@ export default function App() {
     }
   }, [isAdminOpen]);
   const [isDetailOpen, setIsDetailOpen] = useState(false);
-  const [activeTab, setActiveTab] = useState<TabType>('explorar');
+  const [activeTab, setActiveTab] = useState<TabType>('roteiros');
 
   // Spot card dynamic layout behavior
   const isSpotCardOpen = Boolean(selectedSpot && !isDetailOpen && activeTab === 'explorar');
@@ -909,6 +909,43 @@ export default function App() {
     }
   };
 
+  // Airbnb Presentation Cards logic (first visit to 'explorar', 'roteiros', 'salvos')
+  const [airbnbCardTab, setAirbnbCardTab] = useState<PresentationTab | null>(null);
+
+  useEffect(() => {
+    // Wait until full-screen onboarding modals and admin are closed
+    if (isAdminOpen || showOnboardingQuestions || showWelcomeOverlay) {
+      setAirbnbCardTab(null);
+      return;
+    }
+
+    if (activeTab === 'explorar' && !isPresentationCardSeen('explorar')) {
+      setAirbnbCardTab('explorar');
+    } else if (activeTab === 'roteiros' && !isPresentationCardSeen('roteiros')) {
+      setAirbnbCardTab('roteiros');
+    } else if (activeTab === 'salvos' && !isPresentationCardSeen('salvos')) {
+      setAirbnbCardTab('salvos');
+    } else {
+      setAirbnbCardTab(null);
+    }
+  }, [activeTab, showOnboardingQuestions, showWelcomeOverlay, isAdminOpen]);
+
+  const handleAirbnbCardAction = () => {
+    if (!airbnbCardTab) return;
+    const current = airbnbCardTab;
+    markPresentationCardSeen(current);
+    setAirbnbCardTab(null);
+    if (current === 'salvos') {
+      handleTabChange('explorar');
+    }
+  };
+
+  const handleAirbnbCardClose = () => {
+    if (!airbnbCardTab) return;
+    markPresentationCardSeen(airbnbCardTab);
+    setAirbnbCardTab(null);
+  };
+
   // User's first name for personalized greetings
   const userFirstName = (() => {
     if (!user?.name) return '';
@@ -1001,7 +1038,7 @@ export default function App() {
         theme={theme}
         onToggleTheme={() => setTheme((prev) => (prev === 'dark' ? 'light' : 'dark'))}
         realWeather={realWeather}
-        onOpenWeatherModal={() => setIsWeatherModalOpen(true)}
+        onOpenWeatherModal={() => {}}
         user={user}
         onOpenAdmin={() => setIsAdminOpen(true)}
         isUserAdmin={isUserAdmin}
@@ -1068,7 +1105,7 @@ export default function App() {
           onSelectSpot={handleSelectSpot}
           theme={theme}
           realWeather={realWeather}
-          onOpenWeatherModal={() => setIsWeatherModalOpen(true)}
+          onOpenWeatherModal={() => {}}
           is3DMode={is3DMode}
           onToggle3DMode={() => setIs3DMode((prev) => !prev)}
           onOpenMapModes={() => {
@@ -1103,45 +1140,37 @@ export default function App() {
             paddingRight: 'max(16px, env(safe-area-inset-right, 0px))',
           }}
         >
-        {/* Left: Big Weather Temperature & Dynamic Condition (Apple Weather aesthetic matching screenshot) */}
+        {/* Left: Big Weather Temperature & Dynamic Condition (Clean display without card box) */}
         <div className="flex items-center pointer-events-auto">
           <div
             id="weather-header-display"
-            className={`flex flex-col items-start select-none transition-all duration-300 ease-out ios-glass p-3 rounded-2xl border border-white/20 ${
+            className={`flex flex-col items-start select-none transition-all duration-300 ease-out ${
               isMapInteracting
                 ? 'opacity-20 scale-95'
-                : 'opacity-90 hover:opacity-100 scale-100'
+                : 'opacity-100 scale-100'
             }`}
             title={`Campos do Jordão: ${realWeather.temperature}°C — ${realWeather.condition}`}
           >
             {/* Layout: Large beautiful 3D icon on the left, bold prominent degrees */}
             <div className="flex items-center gap-1.5 sm:gap-2">
               {/* Weather 3D Icon */}
-              <button
-                id="btn-icon-toggle-weather"
-                type="button"
-                onClick={handleToggleWeather}
-                className="group relative cursor-pointer active:scale-95 transition-transform duration-200 focus:outline-none select-none flex items-center justify-center shrink-0"
-                aria-label="Ver previsão completa do tempo em Campos do Jordão"
-                title="Toque para ver a previsão do tempo"
+              <div
+                id="weather-3d-icon-clean"
+                className="select-none flex items-center justify-center shrink-0 drop-shadow-md"
               >
                 <Weather3DIcon
                   weatherCode={realWeather.weatherCode}
                   isDay={realWeather.isDay}
                   className="w-14 h-14 sm:w-16 sm:h-16 lg:w-20 lg:h-20 -my-2.5"
                 />
-              </button>
+              </div>
 
-              {/* Temperature Degrees - Reinforced & Prominent */}
-              <button
-                id="btn-degrees-toggle-weather"
-                type="button"
-                onClick={handleToggleWeather}
-                className="group relative flex items-baseline cursor-pointer active:scale-95 transition-transform duration-150 focus:outline-none select-none text-left"
-                aria-label="Ver detalhes do clima em Campos do Jordão"
-                title="Toque para ver a previsão do tempo"
+              {/* Temperature Degrees */}
+              <div
+                id="weather-degrees-clean"
+                className="flex items-baseline select-none text-left drop-shadow-[0_2px_8px_rgba(0,0,0,0.6)]"
               >
-                <span className={`text-5xl sm:text-6xl font-extrabold tracking-tighter leading-none transition-opacity group-hover:opacity-80 ${
+                <span className={`text-5xl sm:text-6xl font-extrabold tracking-tighter leading-none ${
                   mapStyle === 'animado'
                     ? 'text-white [-webkit-text-stroke:_0.6px_rgba(0,0,0,0.22)]'
                     : theme === 'dark'
@@ -1150,17 +1179,13 @@ export default function App() {
                 }`}>
                   {realWeather.temperature}°
                 </span>
-              </button>
+              </div>
             </div>
 
             {/* Condition label under the temperature */}
-            <button
-              id="btn-phrase-toggle-weather"
-              type="button"
-              onClick={handleToggleWeather}
-              className="cursor-pointer pointer-events-auto text-left focus:outline-none active:opacity-75 mt-0.5 ml-1"
-              aria-label="Ver previsão completa do tempo"
-              title="Toque para ver a previsão do tempo"
+            <div
+              id="weather-condition-clean"
+              className="text-left mt-0.5 ml-1 drop-shadow-[0_1px_4px_rgba(0,0,0,0.6)]"
             >
               <span className={`block text-[13px] sm:text-[14px] font-semibold tracking-tight whitespace-nowrap ${
                 mapStyle === 'animado'
@@ -1171,7 +1196,7 @@ export default function App() {
               }`}>
                 {realWeather.condition}
               </span>
-            </button>
+            </div>
           </div>
         </div>
 
@@ -1628,19 +1653,6 @@ export default function App() {
         instagramUrl={systemSettings.instagram_url}
       />
 
-      {/* 10.5 Weather Details Modal with full forecast and tips */}
-      <WeatherModal
-        isOpen={isWeatherModalOpen}
-        onClose={() => setIsWeatherModalOpen(false)}
-        weather={{
-          ...INITIAL_WEATHER,
-          temperature: realWeather.temperature,
-          condition: realWeather.condition,
-        }}
-        weatherCode={realWeather.weatherCode}
-        isDay={realWeather.isDay}
-        theme={theme}
-      />
 
       {/* 10.6 Gold Success Celebration Modal */}
       <GoldSuccessModal
@@ -1751,6 +1763,15 @@ export default function App() {
         )}
       </AnimatePresence>
     </main>
+
+    {/* 3.8. Airbnb-Style Presentation Cards on first tab visit (Explorar, Roteiros, Salvos) */}
+    <AirbnbPresentationCard
+      isOpen={Boolean(airbnbCardTab)}
+      tab={airbnbCardTab}
+      onClose={handleAirbnbCardClose}
+      onAction={handleAirbnbCardAction}
+      theme={theme}
+    />
 
     {/* 4. Bottom Navigation Pill rendered at root level (Visible on all pages and viewports) */}
     {!isProfileSettingsOpen && !isMapOrbiting && (

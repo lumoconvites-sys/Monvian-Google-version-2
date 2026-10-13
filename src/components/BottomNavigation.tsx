@@ -51,8 +51,8 @@ export const BottomNavigation: React.FC<BottomNavigationProps> = ({
   const normalizedActiveTab: TabType = (activeTab as string) === 'chat' ? 'salvos' : (activeTab as TabType);
 
   const tabs: { id: TabType; label: string }[] = [
-    { id: 'explorar', label: 'Explorar' },
     { id: 'roteiros', label: 'Roteiros' },
+    { id: 'explorar', label: 'Explorar' },
     { id: 'salvos', label: 'Salvos' },
     { id: 'buscar', label: 'Buscar' },
     { id: 'perfil', label: 'Perfil' },
@@ -221,8 +221,8 @@ export const BottomNavigation: React.FC<BottomNavigationProps> = ({
             : 'text-zinc-950 scale-100 opacity-100 font-black';
 
           const inactiveColorClass = isDark
-            ? 'text-zinc-300/80 opacity-80 font-medium hover:text-white hover:opacity-100'
-            : 'text-zinc-700/80 opacity-80 font-medium hover:text-zinc-950 hover:opacity-100';
+            ? 'text-zinc-300/80 opacity-80 font-medium'
+            : 'text-zinc-700/80 opacity-80 font-medium';
 
           const labelActiveColor = isDark
             ? 'font-black text-white'
@@ -233,13 +233,15 @@ export const BottomNavigation: React.FC<BottomNavigationProps> = ({
             : 'font-semibold text-zinc-700/80';
 
           return (
-            <button
+            <motion.button
               key={tab.id}
               ref={(el) => { tabRefs.current[idx] = el; }}
               id={`nav-btn-${tab.id}`}
               type="button"
               onClick={() => handleTabClick(tab.id)}
               title={tab.label}
+              whileTap={{ scale: 0.94 }}
+              transition={{ type: 'spring', stiffness: 400, damping: 25 }}
               className={`relative flex flex-col items-center justify-center w-[60px] sm:w-[68px] h-[48px] sm:h-[50px] rounded-full cursor-pointer z-10 select-none ${
                 isRoteirosPage
                   ? isDark
@@ -248,79 +250,35 @@ export const BottomNavigation: React.FC<BottomNavigationProps> = ({
                   : isDark
                     ? 'hover:bg-white/5'
                     : 'hover:bg-black/5'
-              } active:scale-95 transition-all`}
+              }`}
             >
-              {/* 1. Agora Icon */}
-              {tab.id === 'explorar' && (
-                <div
-                  className={`w-6.5 h-6.5 flex items-center justify-center mb-0.5 transition-all ${
-                    isActive || isPreviewHovered ? activeColorClass : inactiveColorClass
-                  }`}
-                >
-                  <motion.div
-                    animate={{ rotate: pulseAnimation }}
-                    transition={{ duration: 0.8, ease: [0.34, 1.56, 0.64, 1] }}
-                    className="w-6 h-6 flex items-center justify-center"
-                  >
-                    <NavAgoraIcon size={23} className="w-full h-full text-current" />
-                  </motion.div>
-                </div>
-              )}
+              {/* Icon logic stays the same but cleaner */}
+              <motion.div
+                initial={false}
+                animate={{ 
+                  scale: isActive ? 1.05 : 1,
+                  color: isActive ? (isDark ? '#ffffff' : '#000000') : (isDark ? '#a1a1aa' : '#71717a')
+                }}
+                transition={{ duration: 0.2, ease: "easeInOut" }}
+                className="w-6.5 h-6.5 flex items-center justify-center mb-0.5"
+              >
+                  {/* Inside: Icons logic */}
+                  {tab.id === 'explorar' && <NavAgoraIcon size={23} className="text-current" />}
+                  {tab.id === 'roteiros' && <NavRoteirosIcon size={22} className="text-current" />}
+                  {tab.id === 'salvos' && <NavSalvosIcon size={22} filled={isActive} className="text-current" />}
+                  {tab.id === 'buscar' && <NavSearchIcon size={22} className="text-current" />}
+                  {tab.id === 'perfil' && <NavProfileIcon size={22} className="text-current" />}
+              </motion.div>
 
-              {/* 2. Roteiros Icon */}
-              {tab.id === 'roteiros' && (
-                <div
-                  className={`w-6.5 h-6.5 flex items-center justify-center mb-0.5 transition-all ${
-                    isActive || isPreviewHovered ? activeColorClass : inactiveColorClass
-                  }`}
-                >
-                  <NavRoteirosIcon size={22} className="w-5.5 h-5.5 text-current" />
-                </div>
-              )}
-
-              {/* 3. Salvos Icon (Airbnb wishlist heart) */}
-              {tab.id === 'salvos' && (
-                <motion.div
-                  animate={isActive ? { scale: [0.92, 1.15, 1] } : { scale: 1 }}
-                  transition={{ type: 'spring', stiffness: 450, damping: 20 }}
-                  className={`relative w-6.5 h-6.5 flex items-center justify-center mb-0.5 transition-all transform-gpu ${
-                    isActive || isPreviewHovered ? activeColorClass : inactiveColorClass
-                  }`}
-                >
-                  <NavSalvosIcon size={22} filled={isActive} className="w-5.5 h-5.5 text-current" />
-                </motion.div>
-              )}
-
-              {/* 3. Buscar Icon */}
-              {tab.id === 'buscar' && (
-                <div
-                  className={`w-6.5 h-6.5 flex items-center justify-center mb-0.5 transition-all ${
-                    isActive || isPreviewHovered ? activeColorClass : inactiveColorClass
-                  }`}
-                >
-                  <NavSearchIcon size={22} className="w-5.5 h-5.5 text-current" />
-                </div>
-              )}
-
-              {/* 4. Perfil Icon */}
-              {tab.id === 'perfil' && (
-                <div
-                  className={`w-6.5 h-6.5 flex items-center justify-center mb-0.5 transition-all ${
-                    isActive || isPreviewHovered ? activeColorClass : inactiveColorClass
-                  }`}
-                >
-                  <NavProfileIcon size={22} className="w-5.5 h-5.5 text-current" />
-                </div>
-              )}
-
-              <span
-                className={`font-['Inter'] text-[11px] leading-tight tracking-tight select-none transition-all ${
-                  isActive || isPreviewHovered ? labelActiveColor : labelInactiveColor
-                }`}
+              <motion.span
+                animate={{ 
+                  color: isActive ? (isDark ? '#ffffff' : '#000000') : (isDark ? '#a1a1aa' : '#71717a')
+                }}
+                className="font-['Inter'] text-[11px] leading-tight tracking-tight select-none"
               >
                 {tab.label}
-              </span>
-            </button>
+              </motion.span>
+            </motion.button>
           );
         })}
       </div>

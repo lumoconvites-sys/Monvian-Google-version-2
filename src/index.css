@@ -1005,7 +1005,6 @@ html:not(.dark) .ios-glass-white,
 .ios-page-top-rounded {
   border-top-left-radius: 26px !important;
   border-top-right-radius: 26px !important;
-  overflow: hidden !important;
   -webkit-mask-image: -webkit-radial-gradient(white, black);
   isolation: isolate;
 }

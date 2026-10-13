@@ -43,14 +43,14 @@ export const DesktopSidebar: React.FC<DesktopSidebarProps> = ({
   // Navigation tabs matching the exact mobile bottom dock 1:1
   const navItems: { id: TabType; label: string; icon: React.ReactNode; badge?: number }[] = [
     {
-      id: 'explorar',
-      label: 'Explorar',
-      icon: <NavAgoraIcon size={22} className="shrink-0" />,
-    },
-    {
       id: 'roteiros',
       label: 'Roteiros',
       icon: <NavRoteirosIcon size={22} className="shrink-0" />,
+    },
+    {
+      id: 'explorar',
+      label: 'Explorar',
+      icon: <NavAgoraIcon size={22} className="shrink-0" />,
     },
     {
       id: 'salvos',

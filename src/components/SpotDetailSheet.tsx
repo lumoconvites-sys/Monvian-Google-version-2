@@ -84,24 +84,20 @@ export const SpotDetailSheet: React.FC<SpotDetailSheetProps> = ({
       {/* Native Apple Fluid Spring Sheet with smooth scale and slide physics */}
       <motion.div
         id="spot-detail-sheet-container"
-        initial={{ opacity: 0, scale: 0.88, y: 32 }}
-        animate={{ opacity: 1, scale: 1, y: 0 }}
-        exit={{ opacity: 0, scale: 0.90, y: 24 }}
+        initial={{ opacity: 0, y: '100%' }}
+        animate={{ opacity: 1, y: 0 }}
+        exit={{ opacity: 0, y: '100%' }}
         transition={{
           type: 'spring',
-          damping: 28,
-          stiffness: 320,
-          mass: 0.8,
+          damping: 30,
+          stiffness: 300,
+          mass: 1,
         }}
         onClick={(e) => e.stopPropagation()}
-        className="relative w-full h-[94vh] sm:h-[92vh] md:h-[88vh] max-w-2xl md:max-w-md lg:max-w-lg mx-auto md:mx-0 bg-white dark:bg-[#0e1014] text-zinc-900 dark:text-white rounded-t-[26px] md:rounded-[26px] overflow-hidden flex flex-col shadow-2xl origin-bottom md:origin-center cursor-auto transform-gpu border border-transparent dark:md:border-white/10 ios-page-top-rounded"
+        className="fixed inset-0 w-full h-full bg-white dark:bg-[#000000] text-zinc-900 dark:text-white flex flex-col z-[110] transform-gpu overflow-hidden"
         style={{
           fontFamily: "'Inter', -apple-system, BlinkMacSystemFont, sans-serif",
           willChange: 'transform, opacity',
-          borderTopLeftRadius: '26px',
-          borderTopRightRadius: '26px',
-          overflow: 'hidden',
-          WebkitMaskImage: '-webkit-radial-gradient(white, black)',
         }}
       >
         {/* Floating Top Bar Controls */}
@@ -175,11 +171,11 @@ export const SpotDetailSheet: React.FC<SpotDetailSheetProps> = ({
           }}
         >
           {/* Header Image Area */}
-          <div className="relative h-[280px] sm:h-[320px] w-full shrink-0 select-none overflow-hidden bg-zinc-900">
+          <div className="relative h-[320px] w-full shrink-0 select-none overflow-hidden bg-zinc-900">
             <motion.img 
-              initial={{ scale: 1.08 }}
+              initial={{ scale: 1.05 }}
               animate={{ scale: 1 }}
-              transition={{ duration: 0.45, ease: [0.25, 1, 0.5, 1] }}
+              transition={{ duration: 0.6, ease: [0.16, 1, 0.3, 1] }}
               src={getSpotImage(spot)} 
               alt={spot.name} 
               className="w-full h-full object-cover pointer-events-none transform-gpu" 
@@ -195,7 +191,7 @@ export const SpotDetailSheet: React.FC<SpotDetailSheetProps> = ({
           </div>
 
           {/* Main Content Body */}
-          <div className="relative -mt-6 bg-white dark:bg-[#000000] rounded-t-[32px] px-5 sm:px-6 pt-5 pb-8 shadow-[0_-10px_30px_rgba(0,0,0,0.06)] dark:shadow-[0_-10px_30px_rgba(0,0,0,0.6)] border-t border-zinc-200/40 dark:border-white/10 min-h-[calc(100dvh-250px)] flex flex-col">
+          <div className="relative -mt-8 bg-white dark:bg-[#000000] rounded-t-[32px] px-5 sm:px-6 pt-6 pb-12 flex flex-col min-h-[calc(100vh-280px)]">
             
             {/* Title and Badge */}
             <div className="flex items-center gap-2 mb-2">
@@ -206,7 +202,7 @@ export const SpotDetailSheet: React.FC<SpotDetailSheetProps> = ({
             </div>
 
             {/* Metadata Row */}
-            <div className="flex items-center gap-2.5 text-xs sm:text-sm mb-5 text-zinc-600 dark:text-[#9A9894] flex-wrap">
+            <div className="flex items-center gap-2.5 text-xs sm:text-sm mb-6 text-zinc-600 dark:text-[#9A9894] flex-wrap">
               <div className="flex items-center gap-1 bg-zinc-100 dark:bg-white/10 px-3 py-1.5 rounded-full">
                 <Star className={`w-4 h-4 ${isGoldUser ? 'fill-[#F5BE38] text-[#F5BE38]' : 'fill-zinc-900 text-zinc-900 dark:fill-white dark:text-white'}`} />
                 <span className="font-bold text-zinc-900 dark:text-[#F5F2EA]">{spot.rating}</span>
@@ -223,7 +219,7 @@ export const SpotDetailSheet: React.FC<SpotDetailSheetProps> = ({
             </div>
 
             {/* Action Buttons Row - Apple Maps iOS Aesthetic */}
-            <div className="grid grid-cols-3 gap-3 mb-6">
+            <div className="grid grid-cols-3 gap-3 mb-8">
               <motion.button 
                 whileTap={{ scale: 0.96 }}
                 onClick={() => openDirectionsMap(spot)}
@@ -292,28 +288,9 @@ export const SpotDetailSheet: React.FC<SpotDetailSheetProps> = ({
             <div className="flex-1 space-y-6 pb-6">
               {activeTab === 'Sobre' && (
                 <div className="space-y-5">
-                  {/* Compact Minimal Highlight Card */}
-                  <div className="flex items-center gap-3 p-2.5 sm:p-3 bg-zinc-100/80 dark:bg-[#1c1e24] rounded-2xl border border-zinc-200/60 dark:border-white/[0.08] shadow-sm">
-                    <img 
-                      src={getSpotImage(spot)} 
-                      alt={spot.name} 
-                      className="w-12 h-12 rounded-xl object-cover shrink-0 border border-zinc-200/40 dark:border-white/10" 
-                      loading="lazy"
-                      decoding="async"
-                      referrerPolicy="no-referrer"
-                      onError={(e) => {
-                        (e.target as HTMLImageElement).src = getSpotFallbackImage(spot.name, spot.category);
-                      }}
-                    />
-                    <div className="min-w-0 flex-1">
-                      <h3 className="text-xs sm:text-[13px] font-bold tracking-tight text-zinc-900 dark:text-[#F5F2EA] leading-snug flex items-center gap-1.5">
-                        <span className={isGoldUser ? "text-[#F5BE38]" : "text-[#FFFFFF]"}>★</span> Destaque da cidade
-                      </h3>
-                      <p className="text-[11px] sm:text-xs text-[#9A9894] font-semibold mt-0.5 leading-relaxed line-clamp-2">
-                        {spot.description}
-                      </p>
-                    </div>
-                  </div>
+                  <p className="text-sm sm:text-base text-zinc-700 dark:text-zinc-300 leading-relaxed">
+                    {spot.description}
+                  </p>
 
                   {/* Informações Práticas */}
                   <div className="grid grid-cols-2 gap-3">
