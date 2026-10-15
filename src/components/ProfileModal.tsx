@@ -21,6 +21,14 @@ import {
   Crown,
   AtSign,
   Bell,
+  Sun,
+  Moon,
+  Snowflake,
+  User,
+  Info,
+  Smartphone,
+  Sparkles,
+  Shield,
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { InstagramLogo, WhatsAppLogo } from './SocialIcons';
@@ -51,7 +59,7 @@ interface ProfileModalProps {
   instagramUrl?: string;
 }
 
-type SubView = 'main' | 'edit-profile' | 'curtidos' | 'permissoes' | 'logout-confirm';
+type SubView = 'main' | 'edit-profile' | 'settings' | 'curtidos' | 'logout-confirm';
 
 export const ProfileModal: React.FC<ProfileModalProps> = ({
   isOpen,
@@ -80,18 +88,44 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
   };
 
   const [activeSubView, setActiveSubView] = useState<SubView>('main');
+  const [previousSubView, setPreviousSubView] = useState<SubView>('main');
+
   const handleSetSubView = (subView: SubView) => {
+    setPreviousSubView(activeSubView);
     setActiveSubView(subView);
     onSubViewChange?.(subView);
   };
+
+  const handleBack = () => {
+    if (activeSubView === 'edit-profile' && previousSubView === 'settings') {
+      handleSetSubView('settings');
+    } else {
+      handleSetSubView('main');
+    }
+  };
+
   const isUserAdmin = Boolean(
     user?.role === 'admin' ||
     ['empresariomario@gmail.com', 'marioempresario@gmail.com', 'marioyesk@gmail.com'].includes((user?.email || '').trim().toLowerCase())
   );
 
   // User profile state matching screenshot
-  const [userName, setUserName] = useState(user?.name || 'Viajante');
-  const [userUsername, setUserUsername] = useState(user?.username || '');
+  const [userName, setUserName] = useState(() => {
+    if (user?.name) return user.name;
+    try {
+      const saved = JSON.parse(localStorage.getItem('monvian_user') || '{}');
+      if (saved.name) return saved.name;
+    } catch {}
+    return 'Viajante';
+  });
+  const [userUsername, setUserUsername] = useState(() => {
+    if (user?.username) return user.username;
+    try {
+      const saved = JSON.parse(localStorage.getItem('monvian_user') || '{}');
+      if (saved.username) return saved.username;
+    } catch {}
+    return '';
+  });
   const [userBio, setUserBio] = useState(user?.bio || '');
   const [userEmail, setUserEmail] = useState(user?.email || user?.whatsapp || '');
   const [userAvatar, setUserAvatar] = useState(getInitialAvatar(user));
@@ -111,20 +145,27 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
   const checkUsernameTimerRef = useRef<any>(null);
 
   useEffect(() => {
-    if (user) {
-      setUserName(user.name || 'Viajante');
-      setUserUsername(user.username || '');
-      setUserBio(user.bio || '');
-      setUserEmail(user.email || user.whatsapp || '');
-      const av = getInitialAvatar(user);
+    let currentUser = user;
+    if (!currentUser || !currentUser.name) {
+      try {
+        const saved = JSON.parse(localStorage.getItem('monvian_user') || '{}');
+        if (saved && (saved.name || saved.email)) currentUser = saved;
+      } catch {}
+    }
+    if (currentUser) {
+      setUserName(currentUser.name || 'Viajante');
+      setUserUsername(currentUser.username || '');
+      setUserBio(currentUser.bio || '');
+      setUserEmail(currentUser.email || currentUser.whatsapp || '');
+      const av = getInitialAvatar(currentUser);
       setUserAvatar(av);
       setTempAvatar(av);
-      setTempName(user.name || 'Viajante');
-      setTempUsername(user.username || '');
-      setTempBio(user.bio || '');
-      setTempEmail(user.email || user.whatsapp || '');
+      setTempName(currentUser.name || 'Viajante');
+      setTempUsername(currentUser.username || '');
+      setTempBio(currentUser.bio || '');
+      setTempEmail(currentUser.email || currentUser.whatsapp || '');
     }
-  }, [user]);
+  }, [user, isOpen]);
 
   // Real-time verification of username availability in database
   useEffect(() => {
@@ -233,209 +274,7 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
 
   if (!isOpen) return null;
 
-  if (activeSubView === 'permissoes') {
-    return (
-      <div
-        id="ios-settings-screen"
-        className={`fixed inset-0 z-50 flex flex-col justify-between overflow-hidden select-none transition-colors duration-200 rounded-t-[26px] ios-page-top-rounded ${
-          theme === 'dark' ? 'bg-black text-white' : 'bg-white text-zinc-900'
-        }`}
-        style={{
-          fontFamily: "'Inter', -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'SF Pro Text', sans-serif",
-          paddingTop: 'max(14px, env(safe-area-inset-top, 0px))',
-          paddingBottom: 'max(20px, env(safe-area-inset-bottom, 20px))',
-          borderTopLeftRadius: '26px',
-          borderTopRightRadius: '26px',
-          overflow: 'hidden',
-        }}
-      >
-        {/* Top iOS Navigation Bar with Back Button and Centered Large Title */}
-        <div className="w-full max-w-2xl mx-auto px-4 sm:px-6 py-3 flex items-center justify-between shrink-0 relative z-30">
-          <button
-            type="button"
-            id="btn-back-settings"
-            onClick={(e) => {
-              e.preventDefault();
-              e.stopPropagation();
-              handleSetSubView('main');
-            }}
-            onTouchEnd={(e) => {
-              e.preventDefault();
-              e.stopPropagation();
-              handleSetSubView('main');
-            }}
-            className="w-11 h-11 min-w-[44px] min-h-[44px] rounded-full bg-zinc-100 dark:bg-[#1c1c1e] hover:bg-zinc-200 dark:hover:bg-[#2c2c2e] active:scale-95 text-zinc-900 dark:text-white flex items-center justify-center transition-all cursor-pointer shadow-xs border border-black/5 dark:border-white/10 shrink-0 pointer-events-auto z-40"
-            title="Voltar ao Perfil"
-            aria-label="Voltar ao Perfil"
-          >
-            <ChevronLeft className="w-6 h-6 stroke-[2.5]" />
-          </button>
 
-          <h1 className="text-xl sm:text-2xl font-bold text-zinc-900 dark:text-white tracking-tight text-center">
-            Configurações
-          </h1>
-
-          {/* Symmetrical placeholder for exact center alignment */}
-          <div className="w-10 h-10 pointer-events-none shrink-0" />
-        </div>
-
-        {/* Scrollable Settings Content */}
-        <div className="flex-1 overflow-y-auto px-4 sm:px-6 max-w-2xl mx-auto w-full pt-2 pb-16">
-
-          {/* SEÇÃO 1: EFEITOS DO MAPA */}
-          <div className="mb-7">
-            <h2 className="text-[12px] sm:text-[13px] font-semibold uppercase tracking-wider text-zinc-500 dark:text-[#8e8e93] px-2 mb-2">
-              Efeitos do Mapa
-            </h2>
-            <div className="space-y-3">
-              <div>
-                <div className="p-4 sm:p-4.5 rounded-[16px] bg-[#f2f2f7] dark:bg-[#1c1c1e] flex items-center justify-between transition-colors">
-                  <span className="text-[17px] sm:text-[18px] font-semibold text-zinc-900 dark:text-white leading-tight pr-4">
-                    Efeito de chuva
-                  </span>
-                  <IOSSwitch
-                    id="toggle-rain-effect"
-                    ariaLabel="Efeito de chuva"
-                    checked={rainEnabled}
-                    onChange={() => onToggleRain && onToggleRain()}
-                  />
-                </div>
-                <p className="text-[13px] sm:text-[14px] font-normal text-zinc-500 dark:text-[#8e8e93] px-2 pt-1.5 leading-relaxed">
-                  Mostra uma animação de chuva sobre o mapa quando estiver chovendo.
-                </p>
-              </div>
-
-              <div>
-                <div className="p-4 sm:p-4.5 rounded-[16px] bg-[#f2f2f7] dark:bg-[#1c1c1e] flex items-center justify-between transition-colors">
-                  <span className="text-[17px] sm:text-[18px] font-semibold text-zinc-900 dark:text-white leading-tight pr-4">
-                    Efeito de neve
-                  </span>
-                  <IOSSwitch
-                    id="toggle-snow-effect"
-                    ariaLabel="Efeito de neve"
-                    checked={Boolean(snowEnabled)}
-                    onChange={() => onToggleSnow && onToggleSnow()}
-                  />
-                </div>
-                <p className="text-[13px] sm:text-[14px] font-normal text-zinc-500 dark:text-[#8e8e93] px-2 pt-1.5 leading-relaxed">
-                  Mostra partículas de neve caindo sobre as montanhas e picos da cidade.
-                </p>
-              </div>
-            </div>
-          </div>
-
-          {/* SEÇÃO 2: PRIVACIDADE */}
-          <div className="mb-7">
-            <h2 className="text-[12px] sm:text-[13px] font-semibold uppercase tracking-wider text-zinc-500 dark:text-[#8e8e93] px-2 mb-2">
-              Privacidade
-            </h2>
-            <div className="space-y-3">
-              <div>
-                <div className="p-4 sm:p-4.5 rounded-[16px] bg-[#f2f2f7] dark:bg-[#1c1c1e] flex items-center justify-between transition-colors">
-                  <span className="text-[17px] sm:text-[18px] font-semibold text-zinc-900 dark:text-white leading-tight pr-4">
-                    Localização em Tempo Real
-                  </span>
-                  <IOSSwitch
-                    id="toggle-location-perm"
-                    ariaLabel="Localização em Tempo Real"
-                    checked={locationPerm}
-                    onChange={handleToggleLocation}
-                  />
-                </div>
-                <p className="text-[13px] sm:text-[14px] font-normal text-zinc-500 dark:text-[#8e8e93] px-2 pt-1.5 leading-relaxed">
-                  Exibir sua proximidade aos pontos turísticos.
-                </p>
-              </div>
-
-              <div>
-                <div className="p-4 sm:p-4.5 rounded-[16px] bg-[#f2f2f7] dark:bg-[#1c1c1e] flex items-center justify-between transition-colors">
-                  <span className="text-[17px] sm:text-[18px] font-semibold text-zinc-900 dark:text-white leading-tight pr-4">
-                    Alertas de Proximidade
-                  </span>
-                  <IOSSwitch
-                    id="toggle-proximity-alerts"
-                    ariaLabel="Alertas de Proximidade"
-                    checked={proximityAlerts}
-                    onChange={handleToggleProximity}
-                  />
-                </div>
-                <p className="text-[13px] sm:text-[14px] font-normal text-zinc-500 dark:text-[#8e8e93] px-2 pt-1.5 leading-relaxed">
-                  Avisar quando você estiver a menos de 200m de uma atração recomendada.
-                </p>
-              </div>
-            </div>
-          </div>
-
-          {/* SEÇÃO 3: APARÊNCIA */}
-          <div className="mb-7">
-            <h2 className="text-[12px] sm:text-[13px] font-semibold uppercase tracking-wider text-zinc-500 dark:text-[#8e8e93] px-2 mb-2">
-              Aparência
-            </h2>
-            <div className="space-y-3">
-              <div>
-                <div className="p-4 sm:p-4.5 rounded-[16px] bg-[#f2f2f7] dark:bg-[#1c1c1e] flex items-center justify-between transition-colors">
-                  <span className="text-[17px] sm:text-[18px] font-semibold text-zinc-900 dark:text-white leading-tight pr-4">
-                    Modo Escuro
-                  </span>
-                  <IOSSwitch
-                    id="toggle-dark-theme"
-                    ariaLabel="Modo Escuro"
-                    checked={theme === 'dark'}
-                    onChange={() => onToggleTheme && onToggleTheme()}
-                  />
-                </div>
-                <p className="text-[13px] sm:text-[14px] font-normal text-zinc-500 dark:text-[#8e8e93] px-2 pt-1.5 leading-relaxed">
-                  Alternar entre o visual escuro e claro em todo o aplicativo.
-                </p>
-              </div>
-
-              <div>
-                <div className="p-4 sm:p-4.5 rounded-[16px] bg-[#f2f2f7] dark:bg-[#1c1c1e] flex items-center justify-between transition-colors">
-                  <span className="text-[17px] sm:text-[18px] font-semibold text-zinc-900 dark:text-white leading-tight pr-4">
-                    Alto Contraste
-                  </span>
-                  <IOSSwitch
-                    id="toggle-high-contrast-mode"
-                    ariaLabel="Alto Contraste"
-                    checked={Boolean(highContrast)}
-                    onChange={() => onToggleHighContrast && onToggleHighContrast()}
-                  />
-                </div>
-                <p className="text-[13px] sm:text-[14px] font-normal text-zinc-500 dark:text-[#8e8e93] px-2 pt-1.5 leading-relaxed">
-                  Aumentar a nitidez de linhas e elementos para maior visibilidade.
-                </p>
-              </div>
-            </div>
-          </div>
-
-          {/* SEÇÃO 4: ÁUDIO E RETORNO */}
-          <div className="mb-8">
-            <h2 className="text-[12px] sm:text-[13px] font-semibold uppercase tracking-wider text-zinc-500 dark:text-[#8e8e93] px-2 mb-2">
-              Áudio e Retorno
-            </h2>
-            <div className="space-y-3">
-              <div>
-                <div className="p-4 sm:p-4.5 rounded-[16px] bg-[#f2f2f7] dark:bg-[#1c1c1e] flex items-center justify-between transition-colors">
-                  <span className="text-[17px] sm:text-[18px] font-semibold text-zinc-900 dark:text-white leading-tight pr-4">
-                    Efeitos Sonoros
-                  </span>
-                  <IOSSwitch
-                    id="toggle-sound-effects"
-                    ariaLabel="Efeitos Sonoros"
-                    checked={soundEnabled}
-                    onChange={handleToggleSound}
-                  />
-                </div>
-                <p className="text-[13px] sm:text-[14px] font-normal text-zinc-500 dark:text-[#8e8e93] px-2 pt-1.5 leading-relaxed">
-                  Reproduzir sons suaves de confirmação e navegação no app.
-                </p>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-    );
-  }
 
   const favoriteSpots = spots.filter((s) => favorites.includes(s.id));
 
@@ -622,12 +461,12 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
               onClick={(e) => {
                 e.preventDefault();
                 e.stopPropagation();
-                handleSetSubView('main');
+                handleBack();
               }}
               onTouchEnd={(e) => {
                 e.preventDefault();
                 e.stopPropagation();
-                handleSetSubView('main');
+                handleBack();
               }}
               className="w-11 h-11 min-w-[44px] min-h-[44px] rounded-full bg-zinc-200/80 dark:bg-white/10 hover:bg-zinc-300 dark:hover:bg-white/20 text-black dark:text-white flex items-center justify-center transition-colors cursor-pointer mr-1 pointer-events-auto z-40"
               title="Voltar ao Perfil"
@@ -643,8 +482,8 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
           <h1 className="text-2xl sm:text-[28px] font-black text-zinc-900 dark:text-white tracking-tight">
             {activeSubView === 'main' && 'Perfil'}
             {activeSubView === 'edit-profile' && 'Editar Perfil'}
+            {activeSubView === 'settings' && 'Configurações'}
             {activeSubView === 'curtidos' && 'Lugares Curtidos'}
-
             {activeSubView === 'logout-confirm' && 'Encerrar Sessão'}
           </h1>
         </div>
@@ -712,11 +551,8 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
               </div>
 
               <h2 className="text-2xl sm:text-[26px] font-bold text-zinc-900 dark:text-white tracking-tight leading-tight">
-                {userName || 'Mario'}
+                {userName || 'Usuário'}
               </h2>
-              <p className="text-sm text-zinc-500 dark:text-zinc-400 font-medium mt-0.5">
-                Viajante
-              </p>
             </div>
 
             {/* 2. Feature Cards Grid (2 per row: Viagens anteriores & Conexões) */}
@@ -757,10 +593,8 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
                     NOVO
                   </span>
                 </div>
-                <div className="my-2 flex justify-center">
-                  <span className="text-[40px] leading-none drop-shadow-xs">
-                    👥
-                  </span>
+                <div className="my-2 flex justify-center items-center h-[50px]">
+                  <img src="/conexao.png" alt="Conexões" className="h-[78px] w-auto object-contain" />
                 </div>
                 <div>
                   <h3 className="text-base font-bold text-zinc-900 dark:text-white tracking-tight leading-snug">
@@ -777,8 +611,8 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
               }}
               className="bg-white dark:bg-[#1c1c1e] rounded-[24px] p-4.5 border border-black/5 dark:border-white/10 shadow-xs flex items-center gap-4 cursor-pointer active:scale-[0.98] transition-transform group"
             >
-              <div className="shrink-0 flex items-center justify-center text-[40px] leading-none pl-1">
-                🏡
+              <div className="shrink-0 flex items-center justify-center h-[50px] w-[50px]">
+                <img src="/anfitriao.png" alt="Torne-se um anfitrião" className="h-[156px] w-auto object-contain" />
               </div>
               <div className="min-w-0 flex-1">
                 <h3 className="text-base font-bold text-zinc-900 dark:text-white tracking-tight leading-tight">
@@ -817,7 +651,9 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
 
               <button
                 type="button"
-                onClick={() => handleSetSubView('permissoes')}
+                onClick={() => {
+                  handleSetSubView('settings');
+                }}
                 className="w-full p-4 rounded-3xl bg-white dark:bg-[#1c1c1e] hover:bg-zinc-50 dark:hover:bg-[#252528] active:scale-[0.98] border border-black/5 dark:border-white/10 transition-all flex items-center justify-between text-left cursor-pointer group shadow-xs"
               >
                 <div className="flex items-center gap-3.5 min-w-0">
@@ -1028,7 +864,7 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
               <div className="flex items-center gap-3">
                 <button
                   type="button"
-                  onClick={() => handleSetSubView('main')}
+                  onClick={handleBack}
                   className="flex-1 py-3 rounded-full bg-zinc-200 dark:bg-white/10 hover:bg-zinc-300 dark:hover:bg-white/15 text-sm font-black text-zinc-700 dark:text-zinc-300 transition-all cursor-pointer"
                 >
                   Cancelar
@@ -1042,6 +878,117 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
                 </button>
               </div>
             </form>
+          </div>
+        )}
+
+        {/* ============================================================ */}
+        {/* VIEW 2.5: SETTINGS (Configurações da Conta)                   */}
+        {/* ============================================================ */}
+        {activeSubView === 'settings' && (
+          <div className="flex-1 flex flex-col justify-start my-auto w-full max-w-md mx-auto py-4 space-y-4 overflow-y-auto">
+            <div className="p-5 rounded-3xl bg-white dark:bg-[#141518] border border-zinc-200 dark:border-white/10 space-y-4 shadow-sm">
+              <div className="flex items-center justify-between py-2 border-b border-zinc-100 dark:border-white/5">
+                <div className="flex items-center gap-3">
+                  <div className="w-9 h-9 rounded-2xl bg-zinc-100 dark:bg-zinc-800 flex items-center justify-center text-zinc-900 dark:text-white">
+                    <User className="w-5 h-5 stroke-[2]" />
+                  </div>
+                  <div>
+                    <h4 className="text-sm font-bold text-zinc-900 dark:text-white">Editar Perfil</h4>
+                    <p className="text-xs text-zinc-500 dark:text-zinc-400">Nome, @username, foto e bio</p>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setTempName(userName);
+                    setTempUsername(userUsername);
+                    setTempBio(userBio);
+                    setTempEmail(userEmail);
+                    setTempAvatar(userAvatar);
+                    setUsernameStatus('idle');
+                    setUsernameFeedback('');
+                    setSaveError('');
+                    handleSetSubView('edit-profile');
+                  }}
+                  className="px-4 py-2 rounded-xl bg-zinc-900 dark:bg-white text-white dark:text-zinc-900 text-xs font-bold hover:opacity-90 transition-all cursor-pointer"
+                >
+                  Editar
+                </button>
+              </div>
+
+              <div className="flex items-center justify-between py-2 border-b border-zinc-100 dark:border-white/5">
+                <div className="flex items-center gap-3">
+                  <div className="w-9 h-9 rounded-2xl bg-zinc-100 dark:bg-zinc-800 flex items-center justify-center text-zinc-900 dark:text-white">
+                    {theme === 'dark' ? <Moon className="w-5 h-5 stroke-[2]" /> : <Sun className="w-5 h-5 stroke-[2]" />}
+                  </div>
+                  <div>
+                    <h4 className="text-sm font-bold text-zinc-900 dark:text-white">Aparência do Aplicativo</h4>
+                    <p className="text-xs text-zinc-500 dark:text-zinc-400">{theme === 'dark' ? 'Modo Escuro Ativo' : 'Modo Claro Ativo'}</p>
+                  </div>
+                </div>
+                <IOSSwitch
+                  checked={theme === 'dark'}
+                  onChange={onToggleTheme}
+                  ariaLabel="Alternar Tema"
+                />
+              </div>
+
+              <div className="flex items-center justify-between py-2 border-b border-zinc-100 dark:border-white/5">
+                <div className="flex items-center gap-3">
+                  <div className="w-9 h-9 rounded-2xl bg-zinc-100 dark:bg-zinc-800 flex items-center justify-center text-zinc-900 dark:text-white">
+                    <CloudRain className="w-5 h-5 stroke-[2]" />
+                  </div>
+                  <div>
+                    <h4 className="text-sm font-bold text-zinc-900 dark:text-white">Efeito de Chuva Dinâmica</h4>
+                    <p className="text-xs text-zinc-500 dark:text-zinc-400">Ativar partículas de chuva no mapa</p>
+                  </div>
+                </div>
+                <IOSSwitch
+                  checked={Boolean(rainEnabled)}
+                  onChange={() => onToggleRain?.()}
+                  ariaLabel="Efeito de Chuva"
+                />
+              </div>
+
+              <div className="flex items-center justify-between py-2 border-b border-zinc-100 dark:border-white/5">
+                <div className="flex items-center gap-3">
+                  <div className="w-9 h-9 rounded-2xl bg-zinc-100 dark:bg-zinc-800 flex items-center justify-center text-zinc-900 dark:text-white">
+                    <Snowflake className="w-5 h-5 stroke-[2]" />
+                  </div>
+                  <div>
+                    <h4 className="text-sm font-bold text-zinc-900 dark:text-white">Efeito de Neve Dinâmica</h4>
+                    <p className="text-xs text-zinc-500 dark:text-zinc-400">Ativar efeito de neve invernal</p>
+                  </div>
+                </div>
+                <IOSSwitch
+                  checked={Boolean(snowEnabled)}
+                  onChange={() => onToggleSnow?.()}
+                  ariaLabel="Efeito de Neve"
+                />
+              </div>
+
+              <div className="flex items-center justify-between py-2">
+                <div className="flex items-center gap-3">
+                  <div className="w-9 h-9 rounded-2xl bg-zinc-100 dark:bg-zinc-800 flex items-center justify-center text-zinc-900 dark:text-white">
+                    <Sparkles className="w-5 h-5 stroke-[2]" />
+                  </div>
+                  <div>
+                    <h4 className="text-sm font-bold text-zinc-900 dark:text-white">Alto Contraste</h4>
+                    <p className="text-xs text-zinc-500 dark:text-zinc-400">Aumentar contraste visual</p>
+                  </div>
+                </div>
+                <IOSSwitch
+                  checked={Boolean(highContrast)}
+                  onChange={() => onToggleHighContrast?.()}
+                  ariaLabel="Alto Contraste"
+                />
+              </div>
+            </div>
+
+            <div className="p-4 rounded-3xl bg-white dark:bg-[#141518] border border-zinc-200 dark:border-white/10 text-center space-y-2">
+              <p className="text-xs font-bold text-zinc-500 dark:text-zinc-400">Monvian Campos do Jordão • iOS Edition</p>
+              <p className="text-[11px] text-zinc-400 dark:text-zinc-500">Versão 3.8.4 • Compilação Estável</p>
+            </div>
           </div>
         )}
 
@@ -1100,7 +1047,6 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
             <div className="h-16 shrink-0" />
           </div>
         )}
-
 
 
 

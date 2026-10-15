@@ -41,7 +41,7 @@
           }
 
           var preloader = document.getElementById('monvian-app-preloader');
-          if (preloader) preloader.style.backgroundColor = isDark ? '#000000' : '#ffffff';
+          if (preloader) preloader.style.backgroundColor = '#ffffff';
           var preloaderLogo = document.getElementById('monvian-preloader-logo');
           if (preloaderLogo) preloaderLogo.setAttribute('src', logoSrc);
         } catch (e) {}
@@ -172,8 +172,8 @@
   </head>
   <body>
     <div id="root">
-      <div id="monvian-app-preloader" style="position:fixed;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;background-color:#000000;z-index:99999;user-select:none;-webkit-user-select:none;touch-action:none;">
-        <img id="monvian-preloader-logo" src="/logo-white.png" alt="Monvian" style="height:48px;width:auto;max-width:220px;object-fit:contain;" />
+      <div id="monvian-app-preloader" style="position:fixed;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;background-color:#ffffff;z-index:99999;user-select:none;-webkit-user-select:none;touch-action:none;">
+        <img id="monvian-preloader-logo" src="/logocarregamento.png" alt="Monvian" style="height:72px;width:auto;max-width:280px;object-fit:contain;" />
       </div>
       <style>
         @keyframes monvianPulse {

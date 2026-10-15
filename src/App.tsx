@@ -66,29 +66,61 @@ const welcomeCharVariants = {
 };
 
 export default function App() {
-  const [isAuthenticated, setIsAuthenticated] = useState<boolean>(true);
+  const [isAuthenticated, setIsAuthenticated] = useState<boolean>(() => {
+    try {
+      const token = localStorage.getItem('monvian_token');
+      const savedUser = localStorage.getItem('monvian_user');
+      return Boolean(token && savedUser);
+    } catch {
+      return false;
+    }
+  });
+
+  const [isIPhone, setIsIPhone] = useState(true);
+  useEffect(() => {
+    const isIphoneDevice = /iPhone/.test(navigator.userAgent);
+    setIsIPhone(isIphoneDevice);
+  }, []);
+
+  if (!isIPhone) {
+    const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+    const imageUrl = isMobile ? "/bloqueio.jpeg" : "/bloqueiopc.jpeg";
+    return (
+      <div style={{
+        position: 'fixed',
+        inset: 0,
+        backgroundColor: 'black',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        zIndex: 9999
+      }}>
+        <img 
+          src={imageUrl} 
+          alt="Acesso exclusivo para iPhone" 
+          style={{ width: '100%', height: '100%', objectFit: 'contain' }} 
+        />
+      </div>
+    );
+  }
   const [user, setUser] = useState<any>(() => {
     try {
       const savedUser = localStorage.getItem('monvian_user');
       if (savedUser) return JSON.parse(savedUser);
     } catch (e) {}
-    // Default guest account user
-    return {
-      id: 'guest_user_1',
-      name: 'Viajante Convidado',
-      email: 'convidado@monvia.com',
-      avatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80',
-      role: 'user',
-      bio: 'Explorando Campos do Jordão com o Monvia.',
-    };
+    return null;
   });
   const [snowEnabled, setSnowEnabled] = useState<boolean>(() => {
-    const saved = localStorage.getItem('monvian_snow_enabled');
-    return saved !== null ? JSON.parse(saved) : false;
+    try {
+      const saved = localStorage.getItem('monvian_snow_enabled');
+      return saved !== null ? JSON.parse(saved) : false;
+    } catch { return false; }
   });
   const [rainEnabled, setRainEnabled] = useState<boolean>(() => {
-    const saved = localStorage.getItem('monvian_rain_enabled');
-    return saved !== null ? JSON.parse(saved) : true;
+    try {
+      const saved = localStorage.getItem('monvian_rain_enabled');
+      return saved !== null ? JSON.parse(saved) : true;
+    } catch { return true; }
   });
 
   // Global Theme State: Automatically synchronized with user's native device preference (prefers-color-scheme)
@@ -141,14 +173,15 @@ export default function App() {
 
   // Accessibility: High Contrast Mode State
   const [highContrast, setHighContrast] = useState<boolean>(() => {
-    const saved = localStorage.getItem('monvian_high_contrast');
-    return saved !== null ? JSON.parse(saved) : false;
+    try {
+      const saved = localStorage.getItem('monvian_high_contrast');
+      return saved !== null ? JSON.parse(saved) : false;
+    } catch { return false; }
   });
 
   // Map interaction state for Apple iOS translucent dynamic effects
   const [isMapInteracting, setIsMapInteracting] = useState<boolean>(false);
   const [isMapOrbiting, setIsMapOrbiting] = useState<boolean>(false);
-  const [isProfileSettingsOpen, setIsProfileSettingsOpen] = useState<boolean>(false);
 
   // Welcome translucent overlay & Onboarding questionnaire on new account creation
   const [showWelcomeOverlay, setShowWelcomeOverlay] = useState<boolean>(false);
@@ -567,6 +600,12 @@ export default function App() {
   const [isDetailOpen, setIsDetailOpen] = useState(false);
   const [activeTab, setActiveTab] = useState<TabType>('roteiros');
 
+  useEffect(() => {
+    if (activeTab === 'explorar') {
+      setZoomToUserTrigger((prev) => prev + 1);
+    }
+  }, [activeTab]);
+
   // Spot card dynamic layout behavior
   const isSpotCardOpen = Boolean(selectedSpot && !isDetailOpen && activeTab === 'explorar');
 
@@ -913,8 +952,8 @@ export default function App() {
   const handleTabChange = (tab: TabType) => {
     setActiveTab(tab);
     setIsChatKeyboardOpen(false);
-    if (tab !== 'perfil') {
-      setIsProfileSettingsOpen(false);
+    if (tab === 'explorar') {
+      setZoomToUserTrigger((prev) => prev + 1);
     }
   };
 
@@ -976,9 +1015,24 @@ export default function App() {
   );
 
   return (
-    <AnimatePresence mode="wait">
+    <div>
       {!isAuthenticated ? (
-        <AuthScreen key="auth-screen" onSuccess={(token, user) => {
+        <AuthScreen key="auth-screen" onSuccess={(token, loggedUser) => {
+          if (token) {
+            try {
+              localStorage.setItem('monvian_token', token);
+            } catch (e) {}
+          }
+          if (loggedUser) {
+            setUser(loggedUser);
+            try {
+              localStorage.setItem('monvian_user', JSON.stringify(loggedUser));
+              if (loggedUser.isGold || loggedUser.is_gold === 1 || loggedUser.isPremium || loggedUser.is_premium === 1) {
+                localStorage.setItem('monvian_is_gold', 'true');
+                localStorage.setItem('monvian_is_premium', 'true');
+              }
+            } catch (e) {}
+          }
           setIsAuthenticated(true);
         }} />
       ) : isAdminOpen ? (
@@ -1017,30 +1071,26 @@ export default function App() {
           />
         </motion.div>
       ) : (
-        <motion.div
-          key="monvian-main-app"
-          initial={{ opacity: 0, scale: 0.98, filter: 'blur(6px)' }}
-          animate={{ opacity: 1, scale: 1, filter: 'blur(0px)' }}
-          transition={{ duration: 0.55, ease: [0.16, 1, 0.3, 1] }}
-          id="app-root-shell"
-          className={`fixed inset-0 w-full h-full overflow-hidden select-none flex transition-colors duration-300 ${
-            theme === 'dark' ? 'bg-black' : 'bg-[#f4f4f5]'
-          }`}
-          style={{
-            position: 'fixed',
-            top: 0,
-            bottom: 0,
-            left: 0,
-            right: 0,
-            width: '100%',
-            height: '100%',
-            minHeight: 'calc(100dvh + env(safe-area-inset-bottom, 0px))',
-            boxSizing: 'border-box',
-            margin: 0,
-            padding: 0,
-            backgroundColor: currentAdaptiveColor,
-          }}
-        >
+      <div
+        id="app-root-shell"
+        className={`fixed inset-0 w-full h-full overflow-hidden select-none flex transition-colors duration-300 ${
+          theme === 'dark' ? 'bg-black' : 'bg-[#f4f4f5]'
+        }`}
+        style={{
+          position: 'fixed',
+          top: 0,
+          bottom: 0,
+          left: 0,
+          right: 0,
+          width: '100%',
+          height: '100%',
+          minHeight: 'calc(100dvh + env(safe-area-inset-bottom, 0px))',
+          boxSizing: 'border-box',
+          margin: 0,
+          padding: 0,
+          backgroundColor: currentAdaptiveColor,
+        }}
+      >
       <OfflineIndicator />
 
       {/* Desktop Left Sidebar (Only visible on md+ >= 768px, elegant native desktop vertical menu) */}
@@ -1157,11 +1207,7 @@ export default function App() {
         <div className="flex items-center pointer-events-auto">
           <div
             id="weather-header-display"
-            className={`flex flex-col items-start select-none transition-all duration-300 ease-out ${
-              isMapInteracting
-                ? 'opacity-20 scale-95'
-                : 'opacity-100 scale-100'
-            }`}
+            className="flex flex-col items-start select-none opacity-100 scale-100"
             title={`Campos do Jordão: ${realWeather.temperature}°C — ${realWeather.condition}`}
           >
             {/* Layout: Large beautiful 3D icon on the left, bold prominent degrees */}
@@ -1659,9 +1705,7 @@ export default function App() {
           setActiveTab('explorar');
           setIsAdminOpen(true);
         }}
-        onSubViewChange={(subView) => {
-          setIsProfileSettingsOpen(subView === 'permissoes');
-        }}
+        onSubViewChange={() => {}}
         communityUrl={systemSettings.community_url}
         instagramUrl={systemSettings.instagram_url}
       />
@@ -1777,17 +1821,16 @@ export default function App() {
       </AnimatePresence>
     </main>
 
-    {/* 3.8. Airbnb-Style Presentation Cards on first tab visit (Explorar, Roteiros, Salvos) */}
-    <AirbnbPresentationCard
-      isOpen={Boolean(airbnbCardTab)}
-      tab={airbnbCardTab}
-      onClose={handleAirbnbCardClose}
-      onAction={handleAirbnbCardAction}
-      theme={theme}
-    />
+      {/* 3.8. Airbnb-Style Presentation Cards on first tab visit (Explorar, Roteiros, Salvos) */}
+      <AirbnbPresentationCard
+        isOpen={Boolean(airbnbCardTab)}
+        tab={airbnbCardTab}
+        onClose={handleAirbnbCardClose}
+        onAction={handleAirbnbCardAction}
+        theme={theme}
+      />
 
-    {/* 4. Bottom Navigation Pill rendered at root level (Visible on all pages and viewports) */}
-    {!isProfileSettingsOpen && !isMapOrbiting && (
+      {/* 4. Bottom Navigation Pill rendered at root level (Visible on all pages and viewports) */}
       <div className={`transition-opacity duration-150 ${isChatKeyboardOpen ? 'opacity-0 pointer-events-none' : 'opacity-100 pointer-events-auto'}`}>
         <BottomNavigation
           activeTab={activeTab}
@@ -1798,9 +1841,6 @@ export default function App() {
           theme={theme}
         />
       </div>
-    )}
-  </motion.div>
-  )}
-  </AnimatePresence>
+    </div>
   );
 }

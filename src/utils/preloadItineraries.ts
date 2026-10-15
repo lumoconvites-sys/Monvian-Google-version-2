@@ -25,21 +25,13 @@ export function preloadImage(url?: string | null, priority: 'high' | 'auto' | 'l
   }
   preloadedUrls.add(trimmedUrl);
 
-  // 1. Inject link preload tag into document head for highest browser network priority
-  if (typeof document !== 'undefined' && document.head) {
-    try {
-      const link = document.createElement('link');
-      link.rel = 'preload';
-      link.as = 'image';
-      link.href = trimmedUrl;
-      if (priority === 'high') {
-        link.setAttribute('fetchpriority', 'high');
-      }
-      document.head.appendChild(link);
-    } catch (_) {}
+  // Maintain bounded memory cache (max 40 items) to prevent high RAM consumption on mobile
+  if (inMemoryImageCache.size > 40) {
+    const firstKey = inMemoryImageCache.keys().next().value;
+    if (firstKey) inMemoryImageCache.delete(firstKey);
   }
 
-  // 2. Instantiate Image element and trigger asynchronous decode into memory
+  // Instantiate Image element and trigger asynchronous decode into browser cache
   return new Promise<boolean>((resolve) => {
     try {
       const img = new Image();

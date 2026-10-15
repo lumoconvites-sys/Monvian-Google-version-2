@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect, useLayoutEffect } from 'react';
+import React, { useState, useRef, useEffect, useLayoutEffect, useMemo } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { NavAgoraIcon, NavChatIcon, NavSalvosIcon, NavSearchIcon, NavProfileIcon, NavRoteirosIcon } from './NavIcons';
 
@@ -22,18 +22,16 @@ export const BottomNavigation: React.FC<BottomNavigationProps> = ({
   theme = 'dark',
 }) => {
   const isDark = theme !== 'light' && !forceWhiteUI;
-  const isUserGold = Boolean(
-    (() => {
-      try {
-        const u = JSON.parse(localStorage.getItem('monvian_user') || '{}');
-        const cleanEmail = (u.email || u.whatsapp || '').trim().toLowerCase();
-        const isGoldAdmin = ['empresariomario@gmail.com', 'marioempresario@gmail.com', 'marioyesk@gmail.com'].includes(cleanEmail);
-        return isGoldAdmin || Boolean(u.isGold || u.is_gold === 1 || u.isPremium || u.is_premium === 1);
-      } catch {
-        return false;
-      }
-    })()
-  );
+  const isUserGold = useMemo(() => {
+    try {
+      const u = JSON.parse(localStorage.getItem('monvian_user') || '{}');
+      const cleanEmail = (u.email || u.whatsapp || '').trim().toLowerCase();
+      const isGoldAdmin = ['empresariomario@gmail.com', 'marioempresario@gmail.com', 'marioyesk@gmail.com'].includes(cleanEmail);
+      return isGoldAdmin || Boolean(u.isGold || u.is_gold === 1 || u.isPremium || u.is_premium === 1);
+    } catch {
+      return false;
+    }
+  }, []);
   const [pulseAnimation, setPulseAnimation] = useState<number>(0);
   const [isDragging, setIsDragging] = useState<boolean>(false);
   const [dragOffset, setDragOffset] = useState<number>(0);
@@ -52,8 +50,8 @@ export const BottomNavigation: React.FC<BottomNavigationProps> = ({
 
   const tabs: { id: TabType; label: string }[] = [
     { id: 'roteiros', label: 'Roteiros' },
-    { id: 'explorar', label: 'Explorar' },
     { id: 'salvos', label: 'Salvos' },
+    { id: 'explorar', label: 'Explorar' },
     { id: 'buscar', label: 'Buscar' },
     { id: 'perfil', label: 'Perfil' },
   ];
@@ -257,13 +255,14 @@ export const BottomNavigation: React.FC<BottomNavigationProps> = ({
                 initial={false}
                 animate={{ 
                   scale: isActive ? 1.05 : 1,
+                  rotate: tab.id === 'explorar' ? pulseAnimation : 0,
                   color: isActive ? (isDark ? '#ffffff' : '#000000') : (isDark ? '#a1a1aa' : '#71717a')
                 }}
-                transition={{ duration: 0.2, ease: "easeInOut" }}
+                transition={{ duration: 0.4, ease: "easeInOut" }}
                 className="w-6.5 h-6.5 flex items-center justify-center mb-0.5"
               >
                   {/* Inside: Icons logic */}
-                  {tab.id === 'explorar' && <NavAgoraIcon size={23} className="text-current" />}
+                  {tab.id === 'explorar' && <NavAgoraIcon size={22} className="text-current" />}
                   {tab.id === 'roteiros' && <NavRoteirosIcon size={22} className="text-current" />}
                   {tab.id === 'salvos' && <NavSalvosIcon size={22} filled={isActive} className="text-current" />}
                   {tab.id === 'buscar' && <NavSearchIcon size={22} className="text-current" />}

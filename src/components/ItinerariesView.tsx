@@ -1820,7 +1820,11 @@ export const ItinerariesView: React.FC<ItinerariesViewProps> = ({
   // -------------------------------------------------------------
   if (itineraryViewMode === 'explore') {
     return (
-      <div
+      <motion.div
+        initial={{ opacity: 0, scale: 0.97, y: 14 }}
+        animate={{ opacity: 1, scale: 1, y: 0 }}
+        exit={{ opacity: 0, scale: 0.97, y: 14 }}
+        transition={{ duration: 0.35, ease: [0.16, 1, 0.3, 1] }}
         className={`fixed inset-0 z-40 w-full h-full overflow-hidden rounded-t-[26px] ios-page-top-rounded ${isDark ? 'bg-[#000000]' : 'bg-white'} select-none`}
         style={{
           borderTopLeftRadius: '26px',
@@ -1853,7 +1857,7 @@ export const ItinerariesView: React.FC<ItinerariesViewProps> = ({
             </motion.div>
           )}
         </AnimatePresence>
-      </div>
+      </motion.div>
     );
   }
 

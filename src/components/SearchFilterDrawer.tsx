@@ -177,25 +177,33 @@ export const SearchFilterDrawer: React.FC<SearchFilterDrawerProps> = ({
     });
   }, [spots, searchQuery, selectedCategory]);
 
-  if (!isOpen) return null;
-
   return (
-    <div
-      id="search-filter-overlay"
-      onClick={onClose}
-      className="fixed inset-0 z-45 flex flex-col justify-end md:justify-center md:items-center md:p-6 select-none overflow-hidden transition-colors duration-300 md:bg-black/50 md:backdrop-blur-xs"
-    >
-      <div
-        onClick={(e) => e.stopPropagation()}
-        className="relative w-full h-full md:h-[88vh] md:max-w-2xl bg-white dark:bg-[#000000] md:dark:ios-glass text-zinc-900 dark:text-white rounded-t-[26px] md:rounded-[32px] overflow-hidden flex flex-col justify-between shadow-2xl md:border md:border-black/10 md:dark:border-white/15 ios-page-top-rounded"
-        style={{
-          fontFamily: "'Inter', -apple-system, BlinkMacSystemFont, sans-serif",
-          borderTopLeftRadius: '26px',
-          borderTopRightRadius: '26px',
-          overflow: 'hidden',
-          WebkitMaskImage: '-webkit-radial-gradient(white, black)',
-        }}
-      >
+    <AnimatePresence>
+      {isOpen && (
+        <motion.div
+          id="search-filter-overlay"
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          exit={{ opacity: 0 }}
+          transition={{ duration: 0.22, ease: 'easeOut' }}
+          onClick={onClose}
+          className="fixed inset-0 z-45 flex flex-col justify-end md:justify-center md:items-center md:p-6 select-none overflow-hidden transition-colors duration-300 md:bg-black/50"
+        >
+          <motion.div
+            initial={{ y: '100%' }}
+            animate={{ y: 0 }}
+            exit={{ y: '100%' }}
+            transition={{ type: 'spring', damping: 32, stiffness: 340, mass: 0.9 }}
+            onClick={(e) => e.stopPropagation()}
+            className="relative w-full h-full md:h-[88vh] md:max-w-2xl bg-white dark:bg-[#000000] text-zinc-900 dark:text-white rounded-t-[26px] md:rounded-[32px] overflow-hidden flex flex-col justify-between shadow-2xl md:border md:border-black/10 md:dark:border-white/15 ios-page-top-rounded"
+            style={{
+              fontFamily: "'Inter', -apple-system, BlinkMacSystemFont, sans-serif",
+              borderTopLeftRadius: '26px',
+              borderTopRightRadius: '26px',
+              overflow: 'hidden',
+              WebkitMaskImage: '-webkit-radial-gradient(white, black)',
+            }}
+          >
       {/* Top Header Bar */}
       <div
         className="px-5 sm:px-6 pb-3 flex items-center justify-between z-10 shrink-0"
@@ -391,7 +399,9 @@ export const SearchFilterDrawer: React.FC<SearchFilterDrawerProps> = ({
           </div>
         )}
       </div>
-    </div>
-    </div>
+    </motion.div>
+    </motion.div>
+      )}
+    </AnimatePresence>
   );
 };

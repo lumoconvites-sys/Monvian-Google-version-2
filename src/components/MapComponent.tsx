@@ -1187,6 +1187,15 @@ export const MapComponentInner: React.FC<MapComponentProps> = ({
         window.visualViewport.removeEventListener('resize', handleResize);
       }
       document.removeEventListener('visibilitychange', handleVisibility);
+
+      // Clean up all markers from map and memory to prevent leaks
+      spotMarkersRef.current.forEach((r) => r.marker.remove());
+      spotMarkersRef.current.clear();
+      visualIconMarkersRef.current.forEach((r) => r.marker.remove());
+      visualIconMarkersRef.current.clear();
+      userMarkerRef.current?.remove();
+      userMarkerRef.current = null;
+
       map.remove();
       mapRef.current = null;
     };
@@ -1380,7 +1389,7 @@ export const MapComponentInner: React.FC<MapComponentProps> = ({
 
       spotMarkersRef.current.set(spot.id, record);
     });
-  }, [spots]);
+  }, [effectiveSpots]);
 
   // Synchronize selection styling without re-creating any DOM or images
   useEffect(() => {

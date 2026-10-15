@@ -333,6 +333,8 @@ try { db.exec(`ALTER TABLE users ADD COLUMN username_normalized TEXT;`); } catch
 try { db.exec(`ALTER TABLE users ADD COLUMN bio TEXT;`); } catch (e) {}
 try { db.exec(`ALTER TABLE users ADD COLUMN updated_at DATETIME DEFAULT CURRENT_TIMESTAMP;`); } catch (e) {}
 try { db.exec(`CREATE UNIQUE INDEX IF NOT EXISTS idx_users_username_normalized ON users (username_normalized) WHERE username_normalized IS NOT NULL;`); } catch (e) {}
+try { db.exec(`ALTER TABLE users ADD COLUMN firebase_uid TEXT;`); } catch (e) {}
+try { db.exec(`CREATE INDEX IF NOT EXISTS idx_users_firebase_uid ON users (firebase_uid);`); } catch (e) {}
 
 // Backfill any existing users without username
 try {
@@ -1676,193 +1678,267 @@ async function startServer() {
     }
   });
 
-  // 3. Register with Supabase Auth
-  app.post('/api/auth/register', async (req, res) => {
+  const getBaseAvatarByName = (fullName: string) => {
+    if (!fullName) return '/avatar_male.jpg';
+    const firstName = fullName.trim().split(' ')[0].toLowerCase();
+    const feminineEndings = ['a', 'e', 'is', 'ys', 'ily'];
+    const isFem = feminineEndings.some(end => firstName.endsWith(end)) && !['lucas', 'thomas', 'nicolas', 'dias', 'jonas', 'elias', 'tobias'].includes(firstName);
+    return isFem ? '/avatar_female.jpg' : '/avatar_male.jpg';
+  };
+
+  const formatAuthUser = (user: any) => {
+    const userEmail = (user.email || user.whatsapp || '').trim().toLowerCase();
+    const isGold = isPrimaryAdmin(userEmail) || user.is_premium === 1 || user.is_gold === 1;
+    const role = isPrimaryAdmin(userEmail) ? 'admin' : (user.role || 'user');
+    return {
+      id: user.id,
+      name: user.name,
+      username: user.username,
+      email: userEmail,
+      whatsapp: user.whatsapp || userEmail,
+      role,
+      avatar_url: user.avatar_url || getBaseAvatarByName(user.name),
+      bio: user.bio || '',
+      theme: user.theme || 'dark',
+      high_contrast: user.high_contrast || 0,
+      snow_enabled: user.snow_enabled || 0,
+      rain_enabled: user.rain_enabled !== 0,
+      is_premium: isGold ? 1 : 0,
+      is_gold: isGold ? 1 : 0,
+      isGold,
+      isPremium: isGold,
+      onboarding_completed: user.onboarding_completed === 1,
+      onboarding_step: user.onboarding_step || 1
+    };
+  };
+
+  // 3. Register Handler (unified for direct & Firebase authentication)
+  const handleUserRegistration = async (req: express.Request, res: express.Response) => {
     try {
-      const { name, username, email, password, gender } = req.body;
+      const { uid, name, username, email, password } = req.body;
       const cleanEmail = (email || '').trim().toLowerCase();
 
-      if (!name || !cleanEmail || !password) {
-        res.status(400).json({ error: 'Nome, e-mail e senha são obrigatórios' });
+      if (!name || !cleanEmail) {
+        res.status(400).json({ error: 'Nome e e-mail são obrigatórios' });
         return;
       }
 
-      // 1. Sign up with Supabase
-      if (!supabase) {
-        throw new Error('Supabase client not initialized');
-      }
-      const { data, error } = await supabase.auth.signUp({
-        email: cleanEmail,
-        password: password,
-        options: {
-          data: { name: name.trim() }
+      // Check if user already exists by email or whatsapp
+      let existingUser: any = db.prepare('SELECT * FROM users WHERE LOWER(email) = ? OR LOWER(whatsapp) = ?').get(cleanEmail, cleanEmail);
+
+      const rawUsername = (username || '').trim().replace(/^@+/, '') || cleanEmail.split('@')[0];
+      const normalizedUsername = rawUsername.toLowerCase().replace(/[^a-z0-9_]/g, '');
+
+      const defaultAvatar = getBaseAvatarByName(name);
+
+      if (existingUser) {
+        if (uid && (!existingUser.firebase_uid || existingUser.firebase_uid !== uid)) {
+          db.prepare('UPDATE users SET firebase_uid = ? WHERE id = ?').run(uid, existingUser.id);
         }
-      });
+        if (password && (!existingUser.password_hash || existingUser.password_hash === 'firebase-managed')) {
+          const newHash = await bcrypt.hash(password, 10);
+          db.prepare('UPDATE users SET password_hash = ? WHERE id = ?').run(newHash, existingUser.id);
+        }
+        db.prepare('UPDATE users SET visits_count = visits_count + 1, last_access = CURRENT_TIMESTAMP WHERE id = ?').run(existingUser.id);
 
-      if (error) {
-        res.status(400).json({ error: error.message });
+        const token = crypto.randomBytes(32).toString('hex');
+        db.prepare('INSERT INTO sessions (token, user_id) VALUES (?, ?)').run(token, existingUser.id);
+        persistSessionToFirestore(token, existingUser.id, cleanEmail).catch(() => {});
+
+        const updatedUser = db.prepare('SELECT * FROM users WHERE id = ?').get(existingUser.id);
+        res.json({
+          success: true,
+          token,
+          user: formatAuthUser(updatedUser),
+          is_new: false
+        });
         return;
       }
 
-      const userAuth = data.user;
-      if (!userAuth) {
-        res.status(400).json({ error: 'Erro ao criar usuário.' });
-        return;
+      // Ensure username uniqueness
+      let finalUsername = rawUsername;
+      let finalNormalized = normalizedUsername;
+      const userWithUsername: any = db.prepare('SELECT id FROM users WHERE username_normalized = ?').get(finalNormalized);
+      if (userWithUsername) {
+        const suffix = Math.floor(100 + Math.random() * 900);
+        finalUsername = `${rawUsername}_${suffix}`;
+        finalNormalized = finalUsername.toLowerCase();
       }
 
-      // 2. Insert into public.users
-      const rawUsername = (username || '').trim().replace(/^@+/, '');
-      const normalizedUsername = rawUsername.toLowerCase();
-      
-      let defaultAvatar = gender === 'masculino' ? '/avatar_male.jpg' : '/avatar_female.jpg';
+      // Password hash
+      let passwordHash = 'firebase-managed';
+      if (password) {
+        passwordHash = await bcrypt.hash(password, 10);
+      }
 
-      const result = db.prepare(`
-        INSERT INTO users (id, name, username, username_normalized, email, whatsapp, password_hash, role, visits_count, onboarding_completed, onboarding_step, avatar_url)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      const role = isPrimaryAdmin(cleanEmail) ? 'admin' : 'user';
+
+      // Insert into SQLite (AUTOINCREMENT handles integer id)
+      const insertResult = db.prepare(`
+        INSERT INTO users (
+          name, username, username_normalized, email, whatsapp, password_hash,
+          role, visits_count, onboarding_completed, onboarding_step, avatar_url, firebase_uid,
+          plan, is_gold, is_premium, gold_activated_at, stripe_customer_id, high_contrast, bio
+        )
+        VALUES (?, ?, ?, ?, ?, ?, ?, 1, 0, 1, ?, ?, 'beta', 0, 0, NULL, NULL, 0, '')
       `).run(
-        userAuth.id, // Using Supabase Auth ID as public.users.id
         name.trim(),
-        rawUsername,
-        normalizedUsername,
+        finalUsername,
+        finalNormalized,
         cleanEmail,
         cleanEmail,
-        'supabase-managed', // Placeholder
-        'user',
-        1,
-        0,
-        1,
-        defaultAvatar
+        passwordHash,
+        role,
+        defaultAvatar,
+        uid || null
       );
+
+      const newUserId = insertResult.lastInsertRowid;
+      const newUser: any = db.prepare('SELECT * FROM users WHERE id = ?').get(newUserId);
+
+      // Create valid session token
+      const token = crypto.randomBytes(32).toString('hex');
+      db.prepare('INSERT INTO sessions (token, user_id) VALUES (?, ?)').run(token, newUser.id);
+
+      persistSessionToFirestore(token, newUser.id, cleanEmail).catch(() => {});
+      persistUserToFirestore({
+        id: newUser.id,
+        name: newUser.name,
+        username: newUser.username,
+        email: cleanEmail,
+        whatsapp: cleanEmail,
+        password_hash: passwordHash,
+        role,
+        avatar_url: defaultAvatar,
+        visits_count: 1,
+        is_banned: 0,
+        snow_enabled: 0,
+        theme: 'dark',
+        high_contrast: 0,
+        onboarding_completed: 0,
+        onboarding_step: 1,
+        firebase_uid: uid || null
+      }).catch(() => {});
+
+      logAdminAction(newUser.id, newUser.name, 'USER_REGISTER', `Usuário registrado: ${cleanEmail}`);
 
       res.json({
         success: true,
-        user: {
-          id: userAuth.id,
-          name: name.trim(),
-          email: cleanEmail,
-          role: 'user',
-        }
+        token,
+        user: formatAuthUser(newUser),
+        is_new: true
       });
     } catch (err: any) {
       console.error('[Register Error]', err);
-      res.status(500).json({ error: 'Erro ao registrar usuário. Tente novamente.' });
+      res.status(500).json({ error: 'Erro ao registrar usuário. Detalhes: ' + err.message });
     }
-  });
+  };
 
-  // 3.5. Register with Firebase (Client-side authenticated)
-  app.post('/api/auth/register-firebase', async (req, res) => {
-    try {
-      const { uid, name, username, email, gender } = req.body;
-      const cleanEmail = (email || '').trim().toLowerCase();
+  app.post('/api/auth/register', handleUserRegistration);
+  app.post('/api/auth/register-firebase', handleUserRegistration);
 
-      if (!uid || !name || !cleanEmail) {
-        res.status(400).json({ error: 'Dados incompletos' });
-        return;
-      }
-
-      // Insert into public.users
-      const rawUsername = (username || '').trim().replace(/^@+/, '');
-      const normalizedUsername = rawUsername.toLowerCase();
-      
-      let defaultAvatar = gender === 'masculino' ? '/avatar_male.jpg' : '/avatar_female.jpg';
-
-      db.prepare(`
-        INSERT INTO users (id, name, username, username_normalized, email, whatsapp, password_hash, role, visits_count, onboarding_completed, onboarding_step, avatar_url)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-      `).run(
-        uid,
-        name.trim(),
-        rawUsername,
-        normalizedUsername,
-        cleanEmail,
-        cleanEmail,
-        'firebase-managed', // Placeholder
-        'user',
-        1,
-        0,
-        1,
-        defaultAvatar
-      );
-
-      res.json({
-        success: true,
-        token: 'firebase-token',
-        user: {
-          id: uid,
-          name: name.trim(),
-          email: cleanEmail,
-          role: 'user',
-        }
-      });
-    } catch (err: any) {
-      console.error('[Register Firebase Error]', err);
-      res.status(500).json({ error: 'Erro ao registrar usuário. Tente novamente.' });
-    }
-  });
-
-  // 4. Login with Supabase Auth
+  // 4. Login with Email + Password / Firebase
   app.post('/api/auth/login', async (req, res) => {
     try {
-      const { email, password } = req.body;
+      const { email, password, firebaseUid } = req.body;
       const cleanEmail = (email || '').trim().toLowerCase();
 
-      if (!cleanEmail || !password) {
+      if (!cleanEmail || (!password && !firebaseUid)) {
         res.status(400).json({ error: 'E-mail e senha são obrigatórios' });
         return;
       }
 
-      // 1. Sign in with Supabase
-      if (!supabase) {
-        throw new Error('Supabase client not initialized');
+      // Check SQLite first
+      let user: any = db.prepare('SELECT * FROM users WHERE LOWER(email) = ? OR LOWER(whatsapp) = ? OR (username_normalized IS NOT NULL AND username_normalized = ?)').get(cleanEmail, cleanEmail, cleanEmail.replace(/^@+/, ''));
+      
+      // If not in SQLite, check Firestore
+      if (!user) {
+        const cloudUser = await getUserFromFirestore(cleanEmail);
+        if (cloudUser) {
+          const role = isPrimaryAdmin(cleanEmail) ? 'admin' : (cloudUser.role || 'user');
+          const resInsert = db.prepare(`
+            INSERT INTO users (name, email, whatsapp, password_hash, role, avatar_url, visits_count, is_banned, snow_enabled, theme, high_contrast, onboarding_completed, onboarding_step, last_access, created_at, firebase_uid)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+          `).run(
+            cloudUser.name || cleanEmail.split('@')[0],
+            cloudUser.email,
+            cloudUser.whatsapp || cleanEmail,
+            cloudUser.password_hash || 'firebase-managed',
+            role,
+            cloudUser.avatar_url || getBaseAvatarByName(cloudUser.name || cleanEmail),
+            cloudUser.visits_count || 1,
+            cloudUser.is_banned || 0,
+            cloudUser.snow_enabled || 0,
+            cloudUser.theme || 'dark',
+            cloudUser.high_contrast || 0,
+            cloudUser.onboarding_completed !== undefined ? cloudUser.onboarding_completed : 1,
+            cloudUser.onboarding_step || 1,
+            cloudUser.last_access || new Date().toISOString(),
+            cloudUser.created_at || new Date().toISOString(),
+            cloudUser.firebase_uid || null
+          );
+          user = db.prepare('SELECT * FROM users WHERE id = ?').get(resInsert.lastInsertRowid);
+        }
       }
-      const { data, error } = await supabase.auth.signInWithPassword({
-        email: cleanEmail,
-        password: password
-      });
 
-      if (error) {
-        res.status(401).json({ error: 'E-mail ou senha incorretos' });
+      if (!user) {
+        res.status(401).json({ error: 'Nenhuma conta encontrada com este e-mail ou nome de usuário.' });
         return;
       }
 
-      const userAuth = data.user;
-      
-      // 2. Fetch from public.users
-      let user: any = db.prepare('SELECT * FROM users WHERE id = ?').get(userAuth.id);
-      
-      if (!user) {
-        // Fallback/Sync
-        const result = db.prepare(`
-          INSERT INTO users (id, name, email, whatsapp, password_hash, role, visits_count, avatar_url)
-          VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-        `).run(
-          userAuth.id,
-          userAuth.user_metadata?.name || cleanEmail.split('@')[0],
-          cleanEmail,
-          cleanEmail,
-          'supabase-managed',
-          'user',
-          1,
-          '/avatar_female.jpg'
-        );
-        user = db.prepare('SELECT * FROM users WHERE id = ?').get(userAuth.id);
+      if (user.is_banned === 1) {
+        res.status(403).json({ error: 'Esta conta foi suspensa/banida pelo administrador.' });
+        return;
+      }
+
+      // Password verification
+      let passwordMatches = false;
+      if (firebaseUid && (user.firebase_uid === firebaseUid || !user.firebase_uid)) {
+        passwordMatches = true;
+        if (!user.firebase_uid) {
+          db.prepare('UPDATE users SET firebase_uid = ? WHERE id = ?').run(firebaseUid, user.id);
+        }
+      } else if (user.password_hash && user.password_hash.startsWith('$2')) {
+        passwordMatches = await bcrypt.compare(password, user.password_hash);
+      } else if (user.password_hash === 'firebase-managed') {
+        passwordMatches = true;
+        if (password) {
+          const newHash = await bcrypt.hash(password, 10);
+          db.prepare('UPDATE users SET password_hash = ? WHERE id = ?').run(newHash, user.id);
+        }
+      } else if (user.password_hash === password) {
+        passwordMatches = true;
+        const newHash = await bcrypt.hash(password, 10);
+        db.prepare('UPDATE users SET password_hash = ? WHERE id = ?').run(newHash, user.id);
+      }
+
+      if (!passwordMatches) {
+        res.status(401).json({ error: 'Senha incorreta. Verifique sua senha e tente novamente.' });
+        return;
       }
 
       // Update visit count and last access
       db.prepare(`UPDATE users SET visits_count = visits_count + 1, last_access = CURRENT_TIMESTAMP WHERE id = ?`).run(user.id);
-      
+
+      // Create new session token
+      const token = crypto.randomBytes(32).toString('hex');
+      db.prepare('INSERT INTO sessions (token, user_id) VALUES (?, ?)').run(token, user.id);
+
+      const userEmail = (user.email || user.whatsapp || '').trim().toLowerCase();
+      persistSessionToFirestore(token, user.id, userEmail).catch(() => {});
+
+      logAdminAction(user.id, user.name, 'USER_LOGIN', `Login realizado: ${userEmail}`);
+
+      const freshUser = db.prepare('SELECT * FROM users WHERE id = ?').get(user.id);
+
       res.json({
         success: true,
-        user: {
-          id: user.id,
-          name: user.name,
-          email: user.email,
-          role: user.role,
-        }
+        token,
+        user: formatAuthUser(freshUser || user)
       });
-    } catch (err) {
-      console.error(err);
-      res.status(500).json({ error: 'Erro ao fazer login' });
+    } catch (err: any) {
+      console.error('[Login Error]', err);
+      res.status(500).json({ error: 'Erro ao fazer login no servidor. Detalhes: ' + err.message });
     }
   });
 
@@ -2098,24 +2174,12 @@ async function startServer() {
 
       const isGold = isPrimaryAdmin(userEmail) || user.is_premium === 1 || user.is_gold === 1;
 
+      const freshGoogleUser = db.prepare('SELECT * FROM users WHERE id = ?').get(user.id);
+
       res.json({
         success: true,
         token,
-        user: {
-          id: user.id,
-          name: user.name,
-          email: userEmail,
-          whatsapp: userEmail,
-          role: userRole,
-          is_banned: user.is_banned || 0,
-          isPremium: Boolean(isGold),
-          isGold: Boolean(isGold),
-          is_premium: isGold ? 1 : 0,
-          is_gold: isGold ? 1 : 0,
-          avatar_url: user.avatar_url,
-          onboarding_completed: user.onboarding_completed === 1,
-          onboarding_step: user.onboarding_step || 1
-        }
+        user: formatAuthUser(freshGoogleUser || user)
       });
     } catch (err) {
       console.error('Google auth error:', err);
@@ -2136,27 +2200,9 @@ async function startServer() {
         return;
       }
 
-      const userEmail = user.email || user.whatsapp;
-      const isGold = isPrimaryAdmin(userEmail) || user.is_premium === 1 || user.is_gold === 1;
-
       res.json({
         success: true,
-        user: {
-          id: user.id,
-          name: user.name,
-          email: userEmail,
-          whatsapp: userEmail,
-          role: user.role || 'user',
-          is_banned: user.is_banned || 0,
-          isPremium: Boolean(isGold),
-          isGold: Boolean(isGold),
-          is_premium: isGold ? 1 : 0,
-          is_gold: isGold ? 1 : 0,
-          avatar_url: user.avatar_url,
-          visits_count: user.visits_count,
-          onboarding_completed: user.onboarding_completed === 1,
-          onboarding_step: user.onboarding_step || 1
-        }
+        user: formatAuthUser(user)
       });
     } catch (err) {
       console.error(err);

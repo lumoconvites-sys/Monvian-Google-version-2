@@ -17,7 +17,6 @@ export function AuthScreen({ onSuccess }: AuthScreenProps) {
   const [usernameError, setUsernameError] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [gender, setGender] = useState<'masculino' | 'feminino' | 'outro'>('masculino');
   const [showPassword, setShowPassword] = useState(false);
   
   // Loading & error
@@ -86,19 +85,32 @@ export function AuthScreen({ onSuccess }: AuthScreenProps) {
 
     setLoading(true);
     try {
+      let firebaseUid: string | null = null;
+      try {
+        const { signInWithEmailAndPassword, auth } = await import('../lib/firebase');
+        const userCred = await signInWithEmailAndPassword(auth, email.trim(), password);
+        firebaseUid = userCred?.user?.uid || null;
+      } catch (fbErr: any) {
+        console.warn('Firebase login attempt notice:', fbErr?.code || fbErr?.message);
+      }
+
       const res = await fetch('/api/auth/login', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email: email.trim(), password }),
+        body: JSON.stringify({
+          email: email.trim(),
+          password,
+          firebaseUid
+        }),
       });
       const data = await res.json();
       
-      if (res.ok && data.success) {
+      if (res.ok && data.success && data.user) {
         localStorage.setItem('monvian_token', data.token);
         localStorage.setItem('monvian_user', JSON.stringify(data.user));
         onSuccess(data.token, data.user);
       } else {
-        setError(data.error || 'Erro na autenticação.');
+        setError(data.error || 'E-mail ou senha incorretos.');
       }
     } catch (err) {
       setError('Erro de conexão ao servidor. Tente novamente.');
@@ -151,29 +163,50 @@ export function AuthScreen({ onSuccess }: AuthScreenProps) {
 
     setLoading(true);
     try {
-      // 1. Create User in Firebase
-      const { createUserWithEmailAndPassword, auth } = await import('../lib/firebase');
-      const userCredential = await createUserWithEmailAndPassword(auth, email.trim(), password);
-      const firebaseUser = userCredential.user;
+      // 1. Attempt Client-side Firebase User Creation
+      let firebaseUid: string | null = null;
+      try {
+        const { createUserWithEmailAndPassword, auth } = await import('../lib/firebase');
+        const userCredential = await createUserWithEmailAndPassword(auth, email.trim(), password);
+        firebaseUid = userCredential?.user?.uid || null;
+      } catch (fbErr: any) {
+        console.warn('Firebase registration notice:', fbErr?.code || fbErr?.message);
+        if (fbErr?.code === 'auth/email-already-in-use') {
+          setError('Este e-mail já está cadastrado. Alterne para Entrar.');
+          setLoading(false);
+          return;
+        }
+        if (fbErr?.code === 'auth/weak-password') {
+          setError('A senha deve ter pelo menos 6 caracteres.');
+          setLoading(false);
+          return;
+        }
+        if (fbErr?.code === 'auth/invalid-email') {
+          setError('Por favor, informe um endereço de e-mail válido.');
+          setLoading(false);
+          return;
+        }
+        // If operation-not-allowed or offline, continue to secure backend registration
+      }
 
-      // 2. Sync to Backend
+      // 2. Register on Backend
       const res = await fetch('/api/auth/register-firebase', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          uid: firebaseUser.uid,
+          uid: firebaseUid,
           name: name.trim(),
           username: cleanUsername,
-          email: firebaseUser.email,
-          gender,
+          email: email.trim().toLowerCase(),
+          password,
         }),
       });
       const data = await res.json();
 
-      if (res.ok && data.success) {
-        localStorage.setItem('monvian_token', data.token || 'firebase-token'); // Placeholder token
+      if (res.ok && data.success && data.user) {
+        localStorage.setItem('monvian_token', data.token);
         localStorage.setItem('monvian_user', JSON.stringify(data.user));
-        onSuccess(data.token || 'firebase-token', data.user, true);
+        onSuccess(data.token, data.user, true);
       } else {
         setError(data.error || 'Erro ao registrar conta no servidor.');
       }
@@ -480,32 +513,6 @@ export function AuthScreen({ onSuccess }: AuthScreenProps) {
               </button>
             </div>
 
-            {/* Gender Selector */}
-            <div className="space-y-1.5 pt-1">
-              <label className="text-[12px] text-zinc-400 font-semibold px-1">Sexo / Gênero</label>
-              <div className="grid grid-cols-3 gap-2">
-                {(['masculino', 'feminino', 'outro'] as const).map((g) => {
-                  const isSelected = gender === g;
-                  const label = g === 'masculino' ? 'Masculino' : g === 'feminino' ? 'Feminino' : 'Outro';
-                  return (
-                    <button
-                      key={g}
-                      type="button"
-                      onClick={() => setGender(g)}
-                      className={`py-2.5 px-2 rounded-[18px] text-[13px] font-semibold transition-all cursor-pointer flex items-center justify-center gap-1.5 border ${
-                        isSelected
-                          ? 'bg-white text-black border-white shadow-sm scale-[1.02]'
-                          : 'bg-[#141518] text-zinc-400 border-white/10 hover:border-white/20 hover:text-white'
-                      }`}
-                    >
-                      <span className={`w-2 h-2 rounded-full ${isSelected ? 'bg-black' : 'bg-zinc-600'}`} />
-                      <span>{label}</span>
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
-
             {error && (
               <motion.p 
                 initial={{ opacity: 0, y: -4 }}
@@ -522,7 +529,7 @@ export function AuthScreen({ onSuccess }: AuthScreenProps) {
                 whileTap={{ scale: 0.98 }}
                 type="submit"
                 disabled={loading || googleLoading}
-                className="w-full py-[16px] rounded-[22px] bg-[#0000FF] text-white text-[15px] font-bold flex items-center justify-center gap-2 hover:bg-[#0000DD] transition-all disabled:opacity-70 shadow-md cursor-pointer"
+                className="w-full py-[16px] rounded-[22px] bg-white text-zinc-900 text-[15px] font-bold flex items-center justify-center gap-2 hover:bg-zinc-100 transition-all disabled:opacity-70 shadow-md cursor-pointer"
               >
                 {loading ? 'Cadastrando...' : 'Criar Conta →'}
               </motion.button>

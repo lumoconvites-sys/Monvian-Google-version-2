@@ -69,6 +69,51 @@ export interface AirbnbItineraryExplorerProps {
   activeItineraryId?: string | null;
 }
 
+const CategoryIconButton: React.FC<{
+  cat: any;
+  isSelected: boolean;
+  isDark: boolean;
+  onClick: (e: React.MouseEvent) => void;
+}> = ({ cat, isSelected, isDark, onClick }) => {
+  const [loaded, setLoaded] = useState(false);
+
+  return (
+    <motion.button
+      type="button"
+      whileTap={{ scale: 0.96 }}
+      transition={{ duration: 0.15, ease: 'easeOut' }}
+      onClick={onClick}
+      className={`h-[38px] sm:h-[40px] px-3.5 sm:px-4 rounded-full shrink-0 inline-flex items-center justify-center gap-2 cursor-pointer select-none text-center transition-all duration-200 ease-out ${
+        isSelected
+          ? isDark
+            ? 'bg-white/20 text-white font-medium border border-white/20 shadow-[inset_0_1.5px_2.5px_rgba(255,255,255,0.15)]'
+            : 'bg-[#E5E5EA] text-zinc-900 font-medium border border-black/[0.06] shadow-[inset_0_1.5px_2.5px_rgba(0,0,0,0.12),_0_1px_1px_rgba(255,255,255,0.7)]'
+          : isDark
+            ? 'bg-[#1C1C1E] text-zinc-200 border border-white/10 shadow-[0_2px_6px_rgba(0,0,0,0.45)] hover:bg-[#252528]'
+            : 'bg-white text-zinc-800 border border-zinc-200/90 shadow-[0_2px_5px_-1px_rgba(0,0,0,0.07),_0_1px_2px_rgba(0,0,0,0.04)] hover:shadow-[0_3px_8px_-1px_rgba(0,0,0,0.09)]'
+      }`}
+    >
+      <span className="text-[17px] sm:text-[18px] shrink-0 leading-none select-none flex items-center justify-center relative">
+        {!loaded && (
+          <span className="absolute inset-0 flex items-center justify-center animate-pulse bg-zinc-500/20 rounded-full">
+            <span className="w-3.5 h-3.5 rounded-full border-2 border-zinc-400 border-t-transparent animate-spin" />
+          </span>
+        )}
+        <img 
+          src={cat.icon} 
+          alt={cat.name} 
+          onLoad={() => setLoaded(true)}
+          onError={() => setLoaded(true)}
+          className={`${cat.isLarge ? "h-11 w-11" : "h-6 w-6"} object-contain transition-all duration-300 ${loaded ? 'opacity-100 scale-100' : 'opacity-0 scale-90'}`} 
+        />
+      </span>
+      <span className="text-[13.5px] font-medium tracking-tight whitespace-nowrap leading-none">
+        {cat.name}
+      </span>
+    </motion.button>
+  );
+};
+
 export const AirbnbItineraryExplorer: React.FC<AirbnbItineraryExplorerProps> = ({
   onSelectItinerary,
   onOpenMap,
@@ -197,16 +242,17 @@ export const AirbnbItineraryExplorer: React.FC<AirbnbItineraryExplorerProps> = (
     };
   }, []);
 
-  // Curated Categories with emojis 2x larger
+  // Curated Categories with custom icons
   const curatedCategories = useMemo(() => {
     return [
-      { id: 'all', name: 'Todos', emoji: '✨' },
-      { id: 'destaque', name: 'Destaques', emoji: '🔥' },
-      { id: 'natureza', name: 'Natureza', emoji: '🌲' },
-      { id: 'romantico', name: 'Românticos', emoji: '❤️' },
-      { id: 'gastronomia', name: 'Gastronomia', emoji: '🍽️' },
-      { id: 'familia', name: 'Família', emoji: '👨‍👩‍👧' },
-      { id: 'aventura', name: 'Aventura', emoji: '🧭' },
+      { id: 'all', name: 'Todos', icon: '/foguinho.png', isLarge: true },
+      { id: 'destaque', name: 'Destaques', icon: '/star.png' },
+      { id: 'natureza', name: 'Natureza', icon: '/natureza.png' },
+      { id: 'romantico', name: 'Românticos', icon: '/romantic.png' },
+      { id: 'gastronomia', name: 'Gastronomia', icon: '/gastrom.png' },
+      { id: 'familia', name: 'Família', icon: '/family.png' },
+      { id: 'aventura', name: 'Aventura', icon: '/aventure.png' },
+      { id: 'terror', name: 'Terror', icon: '/terror.png' },
     ];
   }, []);
 
@@ -219,6 +265,7 @@ export const AirbnbItineraryExplorer: React.FC<AirbnbItineraryExplorerProps> = (
       result = result.filter((itin) => {
         const cat = selectedCategory.toLowerCase();
         if (cat === 'destaque') return itin.isFeatured || itin.isRecommended;
+        if (cat === 'terror') return (itin.categories || []).some(c => c.toLowerCase() === 'terror');
 
         const itinCats = (itin.categories || []).map((c) => c.toLowerCase());
         if (cat === 'romantico') {
@@ -546,11 +593,11 @@ export const AirbnbItineraryExplorer: React.FC<AirbnbItineraryExplorerProps> = (
                 const isSelected = selectedCategory === cat.id;
 
                 return (
-                  <motion.button
+                  <CategoryIconButton
                     key={cat.id}
-                    type="button"
-                    whileTap={{ scale: 0.96 }}
-                    transition={{ duration: 0.15, ease: 'easeOut' }}
+                    cat={cat}
+                    isSelected={isSelected}
+                    isDark={isDark}
                     onClick={(e) => {
                       setSelectedCategory(cat.id);
                       setExpandedSection(null);
@@ -560,23 +607,7 @@ export const AirbnbItineraryExplorer: React.FC<AirbnbItineraryExplorerProps> = (
                         inline: 'center',
                       });
                     }}
-                    className={`h-[38px] sm:h-[40px] px-3.5 sm:px-4 rounded-full shrink-0 inline-flex items-center justify-center gap-2 cursor-pointer select-none text-center transition-all duration-200 ease-out ${
-                      isSelected
-                        ? isDark
-                          ? 'bg-white/20 text-white font-medium border border-white/20 shadow-[inset_0_1.5px_2.5px_rgba(255,255,255,0.15)]'
-                          : 'bg-[#E5E5EA] text-zinc-900 font-medium border border-black/[0.06] shadow-[inset_0_1.5px_2.5px_rgba(0,0,0,0.12),_0_1px_1px_rgba(255,255,255,0.7)]'
-                        : isDark
-                          ? 'bg-[#1C1C1E] text-zinc-200 border border-white/10 shadow-[0_2px_6px_rgba(0,0,0,0.45)] hover:bg-[#252528]'
-                          : 'bg-white text-zinc-800 border border-zinc-200/90 shadow-[0_2px_5px_-1px_rgba(0,0,0,0.07),_0_1px_2px_rgba(0,0,0,0.04)] hover:shadow-[0_3px_8px_-1px_rgba(0,0,0,0.09)]'
-                    }`}
-                  >
-                    <span className="text-[17px] sm:text-[18px] shrink-0 leading-none select-none flex items-center justify-center">
-                      {cat.emoji}
-                    </span>
-                    <span className="text-[13.5px] font-medium tracking-tight whitespace-nowrap leading-none">
-                      {cat.name}
-                    </span>
-                  </motion.button>
+                  />
                 );
               })}
             </div>
@@ -691,68 +722,51 @@ export const AirbnbItineraryExplorer: React.FC<AirbnbItineraryExplorerProps> = (
               </button>
             </div>
           ) : (
-            <div className="space-y-4">
-              <div className="flex items-center justify-between px-4">
-                <div>
-                  <h3 className={`text-lg font-bold tracking-tight ${isDark ? 'text-white' : 'text-zinc-900'}`}>
-                    {curatedCategories.find((c) => c.id === selectedCategory)?.name || 'Roteiros'}
-                  </h3>
-                  <p className={`text-[13px] mt-0.5 ${isDark ? 'text-zinc-400' : 'text-zinc-500'}`}>
-                    {filteredItineraries.length}{' '}
-                    {filteredItineraries.length === 1 ? 'roteiro disponível' : 'roteiros disponíveis'}
-                  </p>
-                </div>
-                <div className="flex items-center gap-2">
-                  {filteredItineraries.length > 2 && (
-                    <div className="flex items-center gap-1.5">
-                      <button
-                        type="button"
-                        onClick={() => scrollCarousel(selectedCategory, 'left')}
-                        disabled={!scrollPositions[selectedCategory]?.canLeft}
-                        className={`w-7 h-7 rounded-full flex items-center justify-center transition-all ${
-                          scrollPositions[selectedCategory]?.canLeft
-                            ? isDark
-                              ? 'bg-zinc-800 text-white hover:bg-zinc-700 cursor-pointer'
-                              : 'bg-zinc-200 text-black hover:bg-zinc-300 cursor-pointer'
-                            : 'opacity-20 cursor-not-allowed text-zinc-500'
-                        }`}
-                        aria-label="Roteiro anterior"
-                      >
-                        <ChevronLeft
-                          className={`w-4 h-4 stroke-[2.2] ${isDark ? 'text-white' : 'text-black'}`}
-                          style={{ color: isDark ? '#ffffff' : '#000000' }}
-                        />
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => scrollCarousel(selectedCategory, 'right')}
-                        disabled={scrollPositions[selectedCategory]?.canRight === false}
-                        className={`w-7 h-7 rounded-full flex items-center justify-center transition-all ${
-                          scrollPositions[selectedCategory]?.canRight !== false
-                            ? isDark
-                              ? 'bg-zinc-800 text-white hover:bg-zinc-700 cursor-pointer'
-                              : 'bg-zinc-200 text-black hover:bg-zinc-300 cursor-pointer'
-                            : 'opacity-20 cursor-not-allowed text-zinc-500'
-                        }`}
-                        aria-label="Próximo roteiro"
-                      >
-                        <ChevronRight
-                          className={`w-4 h-4 stroke-[2.2] ${isDark ? 'text-white' : 'text-black'}`}
-                          style={{ color: isDark ? '#ffffff' : '#000000' }}
-                        />
-                      </button>
-                    </div>
-                  )}
-                  <button
-                    type="button"
-                    onClick={() => setSelectedCategory('all')}
-                    className={`text-xs font-semibold underline cursor-pointer ${
-                      isDark ? 'text-white/80 hover:text-white' : 'text-zinc-700 hover:text-black'
-                    }`}
-                  >
-                    Mostrar todos
-                  </button>
-                </div>
+            <div className="space-y-2.5">
+              <div className="flex items-center justify-between px-6 sm:px-7">
+                <h3 className={`text-[17px] sm:text-[18px] font-bold tracking-tight ${isDark ? 'text-white' : 'text-zinc-900'}`}>
+                  {curatedCategories.find((c) => c.id === selectedCategory)?.name || 'Roteiros'}
+                </h3>
+                {filteredItineraries.length > 2 && (
+                  <div className="flex items-center gap-1.5">
+                    <button
+                      type="button"
+                      onClick={() => scrollCarousel(selectedCategory, 'left')}
+                      disabled={!scrollPositions[selectedCategory]?.canLeft}
+                      className={`w-7 h-7 rounded-full flex items-center justify-center transition-all ${
+                        scrollPositions[selectedCategory]?.canLeft
+                          ? isDark
+                            ? 'bg-zinc-800 text-white hover:bg-zinc-700 cursor-pointer'
+                            : 'bg-zinc-200 text-black hover:bg-zinc-300 cursor-pointer'
+                          : 'opacity-20 cursor-not-allowed text-zinc-500'
+                      }`}
+                      aria-label="Roteiro anterior"
+                    >
+                      <ChevronLeft
+                        className={`w-4 h-4 stroke-[2.2] ${isDark ? 'text-white' : 'text-black'}`}
+                        style={{ color: isDark ? '#ffffff' : '#000000' }}
+                      />
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => scrollCarousel(selectedCategory, 'right')}
+                      disabled={scrollPositions[selectedCategory]?.canRight === false}
+                      className={`w-7 h-7 rounded-full flex items-center justify-center transition-all ${
+                        scrollPositions[selectedCategory]?.canRight !== false
+                          ? isDark
+                            ? 'bg-zinc-800 text-white hover:bg-zinc-700 cursor-pointer'
+                            : 'bg-zinc-200 text-black hover:bg-zinc-300 cursor-pointer'
+                          : 'opacity-20 cursor-not-allowed text-zinc-500'
+                      }`}
+                      aria-label="Próximo roteiro"
+                    >
+                      <ChevronRight
+                        className={`w-4 h-4 stroke-[2.2] ${isDark ? 'text-white' : 'text-black'}`}
+                        style={{ color: isDark ? '#ffffff' : '#000000' }}
+                      />
+                    </button>
+                  </div>
+                )}
               </div>
 
               {/* Horizontal Carousel: Exactly TWO cards visible per line (+3% width & photo size) */}
@@ -762,7 +776,7 @@ export const AirbnbItineraryExplorer: React.FC<AirbnbItineraryExplorerProps> = (
                     carouselRefs.current[selectedCategory] = el;
                   }}
                   onScroll={() => updateScrollState(selectedCategory)}
-                  className="flex gap-3 overflow-x-auto no-scrollbar pb-1 scroll-smooth"
+                  className="flex gap-3 overflow-x-auto no-scrollbar pb-1 scroll-smooth px-6 sm:px-7"
                   style={{
                     touchAction: 'pan-x pan-y',
                     WebkitOverflowScrolling: 'touch',
@@ -940,6 +954,21 @@ const AirbnbItineraryCardItem: React.FC<AirbnbItineraryCardItemProps> = ({
     return (4.88 + (hash % 11) * 0.01).toFixed(2);
   }, [itinerary.id, itinerary.title]);
 
+  const [floatingHearts, setFloatingHearts] = useState<Array<{ id: number; x: number; scale: number; rotate: number }>>([]);
+  const [imageLoaded, setImageLoaded] = useState(false);
+
+  const handleFavoriteClick = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    const newHearts = Array.from({ length: 4 }).map((_, i) => ({
+      id: Date.now() + i + Math.random(),
+      x: (Math.random() - 0.5) * 44,
+      scale: 0.65 + Math.random() * 0.55,
+      rotate: (Math.random() - 0.5) * 45,
+    }));
+    setFloatingHearts((prev) => [...prev, ...newHearts]);
+    onToggleFavorite(e);
+  };
+
   return (
     <div
       onClick={onClick}
@@ -953,15 +982,22 @@ const AirbnbItineraryCardItem: React.FC<AirbnbItineraryCardItemProps> = ({
           isDark ? 'bg-zinc-900' : 'bg-zinc-100'
         }`}
       >
+        {!imageLoaded && (
+          <div className={`absolute inset-0 flex items-center justify-center animate-pulse ${isDark ? 'bg-zinc-800' : 'bg-zinc-200'}`}>
+            <div className={`w-6 h-6 rounded-full border-2 border-t-transparent animate-spin ${isDark ? 'border-white/60' : 'border-zinc-700'}`} />
+          </div>
+        )}
         <img
           src={itinerary.coverImage}
           alt={itinerary.title}
           draggable={false}
-          className="w-full h-full object-cover transition-transform duration-500 ease-out group-hover:scale-105 pointer-events-none select-none"
+          className={`w-full h-full object-cover transition-all duration-500 ease-out group-hover:scale-105 pointer-events-none select-none ${imageLoaded ? 'opacity-100 scale-100' : 'opacity-0 scale-105'}`}
+          onLoad={() => setImageLoaded(true)}
           loading="eager"
           decoding="async"
           referrerPolicy="no-referrer"
           onError={(e) => {
+            setImageLoaded(true);
             (e.target as HTMLImageElement).src = 'https://images.unsplash.com/photo-1506744038136-46273834b3fb?auto=format&fit=crop&w=800&q=80';
           }}
         />
@@ -969,17 +1005,42 @@ const AirbnbItineraryCardItem: React.FC<AirbnbItineraryCardItemProps> = ({
         {/* Top-Right Heart Button */}
         <button
           type="button"
-          onClick={onToggleFavorite}
+          onClick={handleFavoriteClick}
           className="absolute top-2.5 right-2.5 w-10 h-10 rounded-full flex items-center justify-center transition-transform hover:scale-110 active:scale-90 cursor-pointer z-10"
           title={isFavorite ? 'Remover dos favoritos' : 'Salvar nos favoritos'}
         >
           <Heart
-            className={`w-6 h-6 ${
+            className={`w-6 h-6 transition-colors duration-200 ${
               isFavorite
                 ? 'fill-rose-500 text-rose-500 stroke-[2]'
                 : 'fill-black/35 text-white stroke-[2]'
             }`}
           />
+
+          {/* Floating Hearts Animation Particles */}
+          <AnimatePresence>
+            {floatingHearts.map((heart) => (
+              <motion.div
+                key={heart.id}
+                initial={{ opacity: 1, y: 0, x: 0, scale: heart.scale, rotate: 0 }}
+                animate={{
+                  opacity: 0,
+                  y: -100 - Math.random() * 40,
+                  x: heart.x,
+                  scale: heart.scale * 1.35,
+                  rotate: heart.rotate,
+                }}
+                exit={{ opacity: 0 }}
+                transition={{ duration: 0.85, ease: [0.16, 1, 0.3, 1] }}
+                onAnimationComplete={() => {
+                  setFloatingHearts((prev) => prev.filter((h) => h.id !== heart.id));
+                }}
+                className="absolute pointer-events-none z-30 text-rose-500"
+              >
+                <Heart className="w-5 h-5 fill-rose-500 text-rose-500" />
+              </motion.div>
+            ))}
+          </AnimatePresence>
         </button>
 
         {/* Top-Left Discreet Badge */}

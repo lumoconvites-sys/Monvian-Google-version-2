@@ -77,6 +77,7 @@ export interface FirestoreUser {
   onboarding_step?: number;
   last_access?: string;
   created_at?: string;
+  firebase_uid?: string | null;
 }
 
 export interface FirestoreSession {
