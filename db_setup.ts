@@ -25,6 +25,29 @@ db.exec(`
 
 try {
   db.exec(`ALTER TABLE users ADD COLUMN name TEXT;`);
-} catch (e) {
-  // Column might already exist
-}
+} catch (e) {}
+try {
+  db.exec(`ALTER TABLE users ADD COLUMN email TEXT;`);
+} catch (e) {}
+try {
+  db.exec(`ALTER TABLE users ADD COLUMN username TEXT;`);
+} catch (e) {}
+try {
+  db.exec(`ALTER TABLE users ADD COLUMN role TEXT DEFAULT 'user';`);
+} catch (e) {}
+try {
+  db.exec(`ALTER TABLE users ADD COLUMN avatar_url TEXT;`);
+} catch (e) {}
+try {
+  db.exec(`ALTER TABLE users ADD COLUMN is_gold INTEGER DEFAULT 0;`);
+} catch (e) {}
+
+db.exec(`
+  CREATE TABLE IF NOT EXISTS favorites (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id TEXT NOT NULL,
+    spot_id TEXT NOT NULL,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(user_id, spot_id)
+  );
+`);

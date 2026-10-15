@@ -1,28 +1,27 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { WifiOff } from 'lucide-react';
-import { useOnlineStatus } from '../hooks/useOnlineStatus';
-import { motion, AnimatePresence } from 'motion/react';
 
 export const OfflineIndicator: React.FC = () => {
-  const isOnline = useOnlineStatus();
+  const [isOffline, setIsOffline] = useState(!navigator.onLine);
+
+  useEffect(() => {
+    const handleOnline = () => setIsOffline(false);
+    const handleOffline = () => setIsOffline(true);
+    window.addEventListener('online', handleOnline);
+    window.addEventListener('offline', handleOffline);
+    return () => {
+      window.removeEventListener('online', handleOnline);
+      window.removeEventListener('offline', handleOffline);
+    };
+  }, []);
+
+  if (!isOffline) return null;
 
   return (
-    <AnimatePresence>
-      {!isOnline && (
-        <motion.div
-          initial={{ opacity: 0, y: -20, scale: 0.95 }}
-          animate={{ opacity: 1, y: 0, scale: 1 }}
-          exit={{ opacity: 0, y: -20, scale: 0.95 }}
-          transition={{ duration: 0.2 }}
-          className="fixed top-14 left-1/2 -translate-x-1/2 z-50 pointer-events-none"
-        >
-          <div className="flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-zinc-900/90 dark:bg-black/90 text-white text-xs font-bold shadow-xl border border-white/10 backdrop-blur-md">
-            <span className="w-2 h-2 rounded-full bg-amber-400 animate-pulse" />
-            <WifiOff className="w-3.5 h-3.5 text-amber-400" />
-            <span>Modo Offline — Mapa e pontos acessíveis via cache</span>
-          </div>
-        </motion.div>
-      )}
-    </AnimatePresence>
+    <div className="fixed top-2 left-1/2 -translate-x-1/2 z-50 px-3 py-1 rounded-full bg-rose-500/90 text-white text-[11px] font-bold flex items-center gap-1.5 shadow-md">
+      <WifiOff className="w-3.5 h-3.5" />
+      <span>Modo Offline</span>
+    </div>
   );
 };
+export default OfflineIndicator;

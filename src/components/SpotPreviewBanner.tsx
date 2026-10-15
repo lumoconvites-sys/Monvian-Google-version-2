@@ -1,108 +1,87 @@
 import React from 'react';
-import { Spot } from '../types';
-import { Star, ArrowRight } from 'lucide-react';
 import { motion } from 'motion/react';
-import { getSpotImage, getSpotFallbackImage } from '../utils/spotImages';
+import { X, Star, ChevronRight, MapPin } from 'lucide-react';
+import { Spot } from '../types';
 import { VerifiedBadge } from './ui/VerifiedBadge';
 
 interface SpotPreviewBannerProps {
-  spot: Spot | null;
+  spot: Spot;
   onClose: () => void;
-  onOpenDetails: (spot) => void;
+  onOpenDetails: (spot: Spot) => void;
 }
 
 export const SpotPreviewBanner: React.FC<SpotPreviewBannerProps> = ({
   spot,
+  onClose,
   onOpenDetails,
 }) => {
-  if (!spot) return null;
-
   return (
-    <motion.aside
-      id="spot-preview-banner"
-      aria-label={`Prévia de ${spot.name}`}
-      initial={{ opacity: 0, scale: 0.86, y: 22 }}
-      animate={{ opacity: 1, scale: 1, y: 0 }}
-      exit={{ opacity: 0, scale: 0.88, y: 16 }}
-      transition={{
-        type: 'spring',
-        damping: 26,
-        stiffness: 340,
-        mass: 0.75,
-      }}
-      onClick={(e) => e.stopPropagation()}
-      onTouchStart={(e) => e.stopPropagation()}
-      onPointerDown={(e) => e.stopPropagation()}
-      className="fixed left-1/2 -translate-x-1/2 md:left-auto md:right-8 md:translate-x-0 z-[105] w-[92%] max-w-sm md:w-88 md:max-w-none ios-glass rounded-[28px] p-3 sm:p-3.5 flex items-center gap-3 select-none pointer-events-auto shadow-2xl border border-white/20 dark:border-white/10 origin-bottom md:origin-bottom-right transform-gpu"
-      style={{
-        bottom: typeof window !== 'undefined' && window.innerWidth >= 768 ? '32px' : 'calc(max(22px, calc(env(safe-area-inset-bottom, 0px) + 16px)) + 64px)',
-        willChange: 'transform, opacity',
-      }}
+    <motion.div
+      initial={{ opacity: 0, y: 40, scale: 0.96 }}
+      animate={{ opacity: 1, y: 0, scale: 1 }}
+      exit={{ opacity: 0, y: 40, scale: 0.96 }}
+      transition={{ type: 'spring', damping: 28, stiffness: 350 }}
+      className="fixed bottom-24 left-4 right-4 md:left-auto md:right-8 md:w-96 z-40 bg-zinc-950/90 backdrop-blur-2xl border border-white/15 rounded-3xl p-3 shadow-[0_20px_50px_rgba(0,0,0,0.5)] select-none pointer-events-auto"
     >
-      {/* Left: Spot Squircle Thumbnail */}
-      <motion.div 
-        whileHover={{ scale: 1.05 }}
-        whileTap={{ scale: 0.96 }}
-        className="relative w-16 h-16 sm:w-18 sm:h-18 rounded-[18px] overflow-hidden shrink-0 bg-zinc-100 dark:bg-zinc-900 border border-zinc-200/80 dark:border-white/10 shadow-md cursor-pointer"
-        onClick={(e) => {
-          e.stopPropagation();
-          onOpenDetails(spot);
-        }}
-      >
-        <img
-          src={getSpotImage(spot)}
-          alt={spot.name}
-          className="w-full h-full object-cover pointer-events-none"
-          loading="eager"
-          decoding="async"
-          referrerPolicy="no-referrer"
-          onError={(e) => {
-            (e.target as HTMLImageElement).src = getSpotFallbackImage(spot.name, spot.category);
-          }}
-        />
-      </motion.div>
-
-      {/* Center: Spot Details */}
-      <div 
-        className="flex-1 min-w-0 flex flex-col justify-center cursor-pointer"
-        onClick={(e) => {
-          e.stopPropagation();
-          onOpenDetails(spot);
-        }}
-      >
-        <h3 className="text-zinc-900 dark:text-[#F5F2EA] font-extrabold text-[15px] sm:text-[17px] leading-snug truncate flex items-center gap-1.5 min-w-0 tracking-tight">
-          <span className="truncate">{spot.name}</span>
-          <VerifiedBadge />
-        </h3>
-        <p className="text-[#9A9894] text-xs truncate mt-0.5 capitalize font-semibold">
-          {spot.categoryLabel || spot.category}
-        </p>
-        <div className="flex items-center gap-1.5 mt-1.5">
-          <Star className="w-3.5 h-3.5 text-zinc-900 fill-zinc-900 dark:text-white dark:fill-white shrink-0" />
-          <span className="text-zinc-800 dark:text-[#F5F2EA] font-bold text-xs">
-            {spot.rating ? spot.rating.toFixed(1) : '4.5'}
-          </span>
-        </div>
-      </div>
-
-      {/* Right: Ver Local Action (No X button) */}
-      <div className="flex flex-col items-end justify-center self-stretch shrink-0 py-0.5 gap-2">
-        <motion.button
-          id="btn-open-spot-details"
-          whileTap={{ scale: 0.94 }}
-          onClick={(e) => {
-            e.stopPropagation();
-            onOpenDetails(spot);
-          }}
-          onTouchStart={(e) => e.stopPropagation()}
-          onPointerDown={(e) => e.stopPropagation()}
-          className="px-3.5 sm:px-4 py-2 sm:py-2.5 rounded-full bg-zinc-950 text-white dark:bg-white dark:text-zinc-950 hover:bg-zinc-800 dark:hover:bg-zinc-100 font-bold text-xs whitespace-nowrap shadow-sm transition-all cursor-pointer flex items-center gap-1.5 active:opacity-90"
+      <div className="flex items-center gap-3">
+        {/* Spot Thumbnail */}
+        <div
+          onClick={() => onOpenDetails(spot)}
+          className="w-16 h-16 rounded-2xl overflow-hidden shrink-0 cursor-pointer bg-zinc-800"
         >
-          <span>Ver Local</span>
-          <ArrowRight className="w-3.5 h-3.5" />
-        </motion.button>
+          <img
+            src={spot.image || '/loogo.png'}
+            alt={spot.name}
+            className="w-full h-full object-cover"
+          />
+        </div>
+
+        {/* Spot Details */}
+        <div
+          onClick={() => onOpenDetails(spot)}
+          className="flex-1 min-w-0 cursor-pointer"
+        >
+          <div className="flex items-center gap-1.5 min-w-0">
+            <h4 className="text-sm font-black text-white truncate">{spot.name}</h4>
+            <VerifiedBadge className="w-3.5 h-3.5 shrink-0" />
+          </div>
+
+          <div className="flex items-center gap-2 mt-0.5 text-xs text-zinc-400">
+            <span className="font-semibold text-zinc-300 truncate">{spot.categoryLabel || spot.category}</span>
+            {spot.rating && (
+              <span className="flex items-center gap-0.5 text-amber-400 font-bold shrink-0">
+                <Star className="w-3 h-3 fill-current" />
+                {spot.rating.toFixed(1)}
+              </span>
+            )}
+          </div>
+
+          <p className="text-[11px] text-zinc-400 truncate mt-0.5">
+            {spot.address || 'Campos do Jordão, SP'}
+          </p>
+        </div>
+
+        {/* Close Button */}
+        <button
+          onClick={onClose}
+          className="p-1.5 rounded-full bg-white/5 hover:bg-white/10 text-zinc-400 hover:text-white transition-colors cursor-pointer shrink-0"
+        >
+          <X className="w-4 h-4" />
+        </button>
       </div>
-    </motion.aside>
+
+      {/* Action CTA */}
+      <div className="mt-2.5 pt-2 border-t border-white/10 flex items-center justify-between">
+        <span className="text-[11px] font-bold text-zinc-400">Toque para ver informações</span>
+        <button
+          onClick={() => onOpenDetails(spot)}
+          className="flex items-center gap-1 text-xs font-black text-white hover:underline cursor-pointer"
+        >
+          Ver Local
+          <ChevronRight className="w-3.5 h-3.5" />
+        </button>
+      </div>
+    </motion.div>
   );
 };
-
+export default SpotPreviewBanner;

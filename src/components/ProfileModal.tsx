@@ -1,41 +1,7 @@
-import React, { useState, useRef, useEffect } from 'react';
-import { Spot } from '../types';
-import {
-  X,
-  Pencil,
-  Camera,
-  Upload,
-  Heart,
-  ShieldCheck,
-  Settings,
-  LogOut,
-  ChevronRight,
-  ChevronLeft,
-  ArrowLeft,
-  Star,
-  MapPin,
-  Check,
-  Sliders,
-  Loader2,
-  CloudRain,
-  Crown,
-  AtSign,
-  Bell,
-  Sun,
-  Moon,
-  Snowflake,
-  User,
-  Info,
-  Smartphone,
-  Sparkles,
-  Shield,
-} from 'lucide-react';
+import React from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { InstagramLogo, WhatsAppLogo } from './SocialIcons';
-import { PremiumModal } from './PremiumModal';
-import { IOSSwitch } from './IOSSwitch';
-import { NotificationsModal } from './NotificationsModal';
-import { persistUserToFirestore } from '../services/firestoreSync';
+import { User, Heart, Shield, CloudRain, Snowflake, Moon, Sun, LogOut, ExternalLink, Instagram, Users, Sparkles } from 'lucide-react';
+import { Spot } from '../types';
 
 interface ProfileModalProps {
   isOpen: boolean;
@@ -43,23 +9,21 @@ interface ProfileModalProps {
   favorites: string[];
   spots: Spot[];
   onSelectSpot: (spot: Spot) => void;
-  rainEnabled?: boolean;
-  onToggleRain?: () => void;
-  snowEnabled?: boolean;
-  onToggleSnow?: () => void;
+  rainEnabled: boolean;
+  onToggleRain: () => void;
+  snowEnabled: boolean;
+  onToggleSnow: () => void;
   theme: 'dark' | 'light';
   onToggleTheme: () => void;
-  highContrast?: boolean;
-  onToggleHighContrast?: () => void;
+  highContrast: boolean;
+  onToggleHighContrast: () => void;
   user: any;
-  onUpdateUser?: (updatedUser: any) => void;
-  onOpenAdmin?: () => void;
-  onSubViewChange?: (subView: SubView) => void;
+  onUpdateUser: (u: any) => void;
+  onOpenAdmin: () => void;
+  onSubViewChange?: (view: any) => void;
   communityUrl?: string;
   instagramUrl?: string;
 }
-
-type SubView = 'main' | 'edit-profile' | 'settings' | 'curtidos' | 'logout-confirm';
 
 export const ProfileModal: React.FC<ProfileModalProps> = ({
   isOpen,
@@ -67,1067 +31,166 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
   favorites,
   spots,
   onSelectSpot,
-  rainEnabled = true,
+  rainEnabled,
   onToggleRain,
   snowEnabled,
   onToggleSnow,
   theme,
   onToggleTheme,
-  highContrast = false,
-  onToggleHighContrast,
   user,
-  onUpdateUser,
   onOpenAdmin,
-  onSubViewChange,
-  communityUrl = 'https://chat.whatsapp.com/invite/monvian-campos',
-  instagramUrl = 'https://instagram.com/monvian.campos'
+  instagramUrl = 'https://instagram.com'
 }) => {
-  const getInitialAvatar = (u: any) => {
-    if (u?.avatar_url) return u.avatar_url;
-    return '/fotoperfil.png';
-  };
+  if (!isOpen) return null;
 
-  const [activeSubView, setActiveSubView] = useState<SubView>('main');
-  const [previousSubView, setPreviousSubView] = useState<SubView>('main');
-
-  const handleSetSubView = (subView: SubView) => {
-    setPreviousSubView(activeSubView);
-    setActiveSubView(subView);
-    onSubViewChange?.(subView);
-  };
-
-  const handleBack = () => {
-    if (activeSubView === 'edit-profile' && previousSubView === 'settings') {
-      handleSetSubView('settings');
-    } else {
-      handleSetSubView('main');
-    }
-  };
-
+  const isDark = theme === 'dark';
   const isUserAdmin = Boolean(
     user?.role === 'admin' ||
     ['empresariomario@gmail.com', 'marioempresario@gmail.com', 'marioyesk@gmail.com'].includes((user?.email || '').trim().toLowerCase())
   );
 
-  // User profile state matching screenshot
-  const [userName, setUserName] = useState(() => {
-    if (user?.name) return user.name;
-    try {
-      const saved = JSON.parse(localStorage.getItem('monvian_user') || '{}');
-      if (saved.name) return saved.name;
-    } catch {}
-    return 'Viajante';
-  });
-  const [userUsername, setUserUsername] = useState(() => {
-    if (user?.username) return user.username;
-    try {
-      const saved = JSON.parse(localStorage.getItem('monvian_user') || '{}');
-      if (saved.username) return saved.username;
-    } catch {}
-    return '';
-  });
-  const [userBio, setUserBio] = useState(user?.bio || '');
-  const [userEmail, setUserEmail] = useState(user?.email || user?.whatsapp || '');
-  const [userAvatar, setUserAvatar] = useState(getInitialAvatar(user));
-  const [tempAvatar, setTempAvatar] = useState(getInitialAvatar(user));
-
-  // Form states for editing profile
-  const [tempName, setTempName] = useState(userName);
-  const [tempUsername, setTempUsername] = useState(user?.username || '');
-  const [usernameStatus, setUsernameStatus] = useState<'idle' | 'checking' | 'available' | 'unavailable'>('idle');
-  const [usernameFeedback, setUsernameFeedback] = useState('');
-  const [tempBio, setTempBio] = useState(user?.bio || '');
-  const [tempEmail, setTempEmail] = useState(userEmail);
-  const [saveToast, setSaveToast] = useState(false);
-  const [saveError, setSaveError] = useState('');
-  const [isUploading, setIsUploading] = useState(false);
-  const fileInputRef = useRef<HTMLInputElement | null>(null);
-  const checkUsernameTimerRef = useRef<any>(null);
-
-  useEffect(() => {
-    let currentUser = user;
-    if (!currentUser || !currentUser.name) {
-      try {
-        const saved = JSON.parse(localStorage.getItem('monvian_user') || '{}');
-        if (saved && (saved.name || saved.email)) currentUser = saved;
-      } catch {}
-    }
-    if (currentUser) {
-      setUserName(currentUser.name || 'Viajante');
-      setUserUsername(currentUser.username || '');
-      setUserBio(currentUser.bio || '');
-      setUserEmail(currentUser.email || currentUser.whatsapp || '');
-      const av = getInitialAvatar(currentUser);
-      setUserAvatar(av);
-      setTempAvatar(av);
-      setTempName(currentUser.name || 'Viajante');
-      setTempUsername(currentUser.username || '');
-      setTempBio(currentUser.bio || '');
-      setTempEmail(currentUser.email || currentUser.whatsapp || '');
-    }
-  }, [user, isOpen]);
-
-  // Real-time verification of username availability in database
-  useEffect(() => {
-    if (activeSubView !== 'edit-profile') return;
-    const clean = tempUsername.trim().replace(/^@+/, '');
-
-    if (!clean) {
-      setUsernameStatus('idle');
-      setUsernameFeedback('');
-      return;
-    }
-
-    if (clean.length < 3) {
-      setUsernameStatus('unavailable');
-      setUsernameFeedback('Nome de usuário indisponível (mínimo 3 caracteres)');
-      return;
-    }
-
-    if (!/^[a-zA-Z0-9_]+$/.test(clean)) {
-      setUsernameStatus('unavailable');
-      setUsernameFeedback('Nome de usuário indisponível (use apenas letras, números e _)');
-      return;
-    }
-
-    // If same as current user's username
-    if (user?.username && clean.toLowerCase() === user.username.toLowerCase()) {
-      setUsernameStatus('available');
-      setUsernameFeedback('Nome de usuário disponível');
-      return;
-    }
-
-    setUsernameStatus('checking');
-    setUsernameFeedback('Verificando disponibilidade...');
-
-    if (checkUsernameTimerRef.current) clearTimeout(checkUsernameTimerRef.current);
-    checkUsernameTimerRef.current = setTimeout(async () => {
-      try {
-        const userIdParam = user?.id ? `&currentUserId=${encodeURIComponent(user.id)}` : '';
-        const res = await fetch(`/api/users/check-username?username=${encodeURIComponent(clean)}${userIdParam}`);
-        const data = await res.json();
-        if (data.available) {
-          setUsernameStatus('available');
-          setUsernameFeedback('Nome de usuário disponível');
-        } else {
-          setUsernameStatus('unavailable');
-          setUsernameFeedback('Nome de usuário indisponível');
-        }
-      } catch {
-        setUsernameStatus('idle');
-        setUsernameFeedback('');
-      }
-    }, 350);
-
-    return () => {
-      if (checkUsernameTimerRef.current) clearTimeout(checkUsernameTimerRef.current);
-    };
-  }, [tempUsername, activeSubView, user]);
-
-  // Persistent settings states
-  const [locationPerm, setLocationPerm] = useState<boolean>(() => {
-    const saved = localStorage.getItem('monvian_location_perm');
-    return saved !== null ? saved === 'true' : true;
-  });
-
-  const [proximityAlerts, setProximityAlerts] = useState<boolean>(() => {
-    const saved = localStorage.getItem('monvian_proximity_alerts');
-    return saved !== null ? saved === 'true' : true;
-  });
-
-  const [soundEnabled, setSoundEnabled] = useState<boolean>(() => {
-    const saved = localStorage.getItem('monvian_sound_enabled');
-    return saved !== null ? saved === 'true' : true;
-  });
-
-  const handleToggleLocation = (val: boolean) => {
-    setLocationPerm(val);
-    localStorage.setItem('monvian_location_perm', String(val));
-    if (val && navigator.geolocation) {
-      navigator.geolocation.getCurrentPosition(() => {}, () => {});
-    }
+  const handleLogout = () => {
+    localStorage.removeItem('monvian_token');
+    localStorage.removeItem('monvian_user');
+    window.location.reload();
   };
 
-  const handleToggleProximity = (val: boolean) => {
-    setProximityAlerts(val);
-    localStorage.setItem('monvian_proximity_alerts', String(val));
-  };
-
-  const handleToggleSound = (val: boolean) => {
-    setSoundEnabled(val);
-    localStorage.setItem('monvian_sound_enabled', String(val));
-    if (val) {
-      localStorage.removeItem('monvian_sound_disabled');
-    } else {
-      localStorage.setItem('monvian_sound_disabled', 'true');
-    }
-  };
-
-  const [isPremiumModalOpen, setIsPremiumModalOpen] = useState(false);
-  const [isNotificationsOpen, setIsNotificationsOpen] = useState(false);
-  const [notificationsList, setNotificationsList] = useState<any[]>([]);
-  const [isLoadingNotifications, setIsLoadingNotifications] = useState(false);
-
-  const cleanUserEmail = (user?.email || user?.whatsapp || '').trim().toLowerCase();
-  const isGoldAdmin = ['empresariomario@gmail.com', 'marioempresario@gmail.com', 'marioyesk@gmail.com'].includes(cleanUserEmail);
-  const isPremiumUser = isGoldAdmin || Boolean(user?.isGold || user?.is_gold === 1 || user?.isPremium || user?.is_premium === 1);
-
-  if (!isOpen) return null;
-
-
-
-  const favoriteSpots = spots.filter((s) => favorites.includes(s.id));
-
-  // Image resize and base64 helper
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-
-    if (!file.type.startsWith('image/')) {
-      alert('Por favor selecione uma imagem válida (JPEG, PNG ou WEBP).');
-      return;
-    }
-
-    setIsUploading(true);
-    const reader = new FileReader();
-    reader.onload = (event) => {
-      const img = new Image();
-      img.onload = () => {
-        const canvas = document.createElement('canvas');
-        const MAX_DIM = 400;
-        let width = img.width;
-        let height = img.height;
-
-        if (width > height) {
-          if (width > MAX_DIM) {
-            height = Math.round((height * MAX_DIM) / width);
-            width = MAX_DIM;
-          }
-        } else {
-          if (height > MAX_DIM) {
-            width = Math.round((width * MAX_DIM) / height);
-            height = MAX_DIM;
-          }
-        }
-
-        canvas.width = width;
-        canvas.height = height;
-        const ctx = canvas.getContext('2d');
-        if (ctx) {
-          ctx.drawImage(img, 0, 0, width, height);
-          const compressedBase64 = canvas.toDataURL('image/jpeg', 0.85);
-          setTempAvatar(compressedBase64);
-          setUserAvatar(compressedBase64);
-          
-          // Auto-sync if uploaded from main view
-          saveProfileToBackend(userName, userUsername, userBio, userEmail, compressedBase64);
-        }
-        setIsUploading(false);
-      };
-      img.onerror = () => {
-        setIsUploading(false);
-      };
-      img.src = event.target?.result as string;
-    };
-    reader.readAsDataURL(file);
-  };
-
-
-  const saveProfileToBackend = async (name: string, usernameStr: string, bioStr: string, emailOrWhatsapp: string, avatar: string): Promise<boolean> => {
-    const token = localStorage.getItem('monvian_token');
-    if (!token) return false;
-
-    setSaveError('');
-    try {
-      const cleanUsername = usernameStr.trim().replace(/^@+/, '');
-      const res = await fetch('/api/user/profile', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`
-        },
-        body: JSON.stringify({
-          name: name.trim(),
-          username: cleanUsername,
-          bio: bioStr.trim(),
-          email: emailOrWhatsapp.trim(),
-          whatsapp: emailOrWhatsapp.trim(),
-          avatar_url: avatar
-        })
-      });
-      const data = await res.json();
-      if (!res.ok || !data.success) {
-        setSaveError(data.error || 'Erro ao salvar alterações.');
-        return false;
-      }
-      if (data.success && data.user) {
-        localStorage.setItem('monvian_user', JSON.stringify(data.user));
-        setUserUsername(data.user.username || cleanUsername);
-        setUserBio(data.user.bio || bioStr);
-        
-        // Sync to Firestore
-        await persistUserToFirestore({
-          ...user,
-          ...data.user,
-          name: name.trim(),
-          username: cleanUsername,
-          bio: bioStr.trim(),
-          email: emailOrWhatsapp.trim(),
-          avatar_url: avatar,
-          password_hash: user?.password_hash || '',
-          role: user?.role || 'user',
-        });
-
-        if (onUpdateUser) {
-          onUpdateUser(data.user);
-        }
-        return true;
-      }
-      return true;
-    } catch (err) {
-      console.error('Error saving user profile:', err);
-      setSaveError('Erro de conexão ao salvar.');
-      return false;
-    }
-  };
-
-  const handleSaveProfile = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setSaveError('');
-
-    const cleanUsername = tempUsername.trim().replace(/^@+/, '');
-    if (!cleanUsername) {
-      setSaveError('O nome de usuário é obrigatório.');
-      return;
-    }
-
-    if (usernameStatus === 'unavailable') {
-      setSaveError('Nome de usuário indisponível. Escolha outro.');
-      return;
-    }
-
-    const finalName = tempName.trim() || userName;
-    const finalEmail = tempEmail.trim() || userEmail;
-    const finalAvatar = tempAvatar || userAvatar;
-    const finalBio = tempBio.trim();
-
-    const ok = await saveProfileToBackend(finalName, cleanUsername, finalBio, finalEmail, finalAvatar);
-    if (!ok) return;
-
-    setUserName(finalName);
-    setUserUsername(cleanUsername);
-    setUserBio(finalBio);
-    setUserEmail(finalEmail);
-    setUserAvatar(finalAvatar);
-
-    setSaveToast(true);
-    setTimeout(() => {
-      setSaveToast(false);
-      handleSetSubView('main');
-    }, 800);
-  };
+  const favoriteSpots = spots.filter(s => favorites.includes(s.id));
 
   return (
     <div
-      id="profile-fullscreen-overlay"
-      onClick={onClose}
-      className="fixed inset-0 z-45 flex flex-col justify-end md:justify-center md:items-center md:p-6 select-none overflow-hidden transition-colors duration-300 md:bg-black/50 md:backdrop-blur-xs"
+      className="fixed inset-0 z-30 pt-20 pb-28 px-4 sm:px-6 overflow-y-auto bg-black/95 text-white select-none pointer-events-auto"
+      style={{
+        paddingTop: 'max(84px, env(safe-area-inset-top, 0px))',
+        paddingBottom: 'max(96px, env(safe-area-inset-bottom, 0px))',
+      }}
     >
-      <div
-        onClick={(e) => e.stopPropagation()}
-        className="relative w-full h-full md:h-[88vh] md:max-w-2xl bg-zinc-50 dark:bg-[#000000] md:dark:ios-glass text-zinc-900 dark:text-white rounded-t-[26px] md:rounded-[32px] overflow-hidden flex flex-col justify-between shadow-2xl md:border md:border-black/10 md:dark:border-white/15 ios-page-top-rounded"
-        style={{
-          fontFamily: "'Inter', -apple-system, BlinkMacSystemFont, sans-serif",
-          borderTopLeftRadius: '26px',
-          borderTopRightRadius: '26px',
-          overflow: 'hidden',
-          WebkitMaskImage: '-webkit-radial-gradient(white, black)',
-        }}
-      >
-      {/* Top Header Bar identical to screenshot */}
-      <div
-        className="px-5 sm:px-6 pb-3 flex items-center justify-between z-10 shrink-0"
-        style={{
-          paddingTop: 'max(calc(env(safe-area-inset-top, 0px) + 14px), 24px)',
-          paddingLeft: 'max(20px, env(safe-area-inset-left, 0px))',
-          paddingRight: 'max(20px, env(safe-area-inset-right, 0px))',
-        }}
-      >
-        <div className="flex items-center gap-3">
-          {activeSubView !== 'main' ? (
-            <motion.button
-              whileTap={{ scale: 0.95 }}
-              id="btn-back-profile-main"
-              onClick={(e) => {
-                e.preventDefault();
-                e.stopPropagation();
-                handleBack();
-              }}
-              onTouchEnd={(e) => {
-                e.preventDefault();
-                e.stopPropagation();
-                handleBack();
-              }}
-              className="w-11 h-11 min-w-[44px] min-h-[44px] rounded-full bg-zinc-200/80 dark:bg-white/10 hover:bg-zinc-300 dark:hover:bg-white/20 text-black dark:text-white flex items-center justify-center transition-colors cursor-pointer mr-1 pointer-events-auto z-40"
-              title="Voltar ao Perfil"
-              aria-label="Voltar ao Perfil"
+      <div className="max-w-xl mx-auto space-y-6">
+        {/* User Card */}
+        <div className="flex items-center gap-4 p-5 rounded-3xl bg-zinc-900/90 border border-white/10 shadow-xl">
+          <img
+            src={user?.avatar_url || '/loogo.png'}
+            alt={user?.name || 'User'}
+            className="w-16 h-16 rounded-full object-cover border-2 border-white/20"
+          />
+          <div className="flex-1 min-w-0">
+            <h2 className="text-xl font-black text-white truncate">{user?.name || 'Turista'}</h2>
+            <p className="text-xs text-zinc-400 truncate">@{user?.username || 'monvian_user'}</p>
+            <p className="text-[11px] text-zinc-500 truncate mt-0.5">{user?.email || 'Campos do Jordão'}</p>
+          </div>
+          {isUserAdmin && (
+            <button
+              onClick={onOpenAdmin}
+              className="px-3.5 py-2 rounded-2xl bg-amber-400/20 text-amber-300 text-xs font-bold border border-amber-400/30 flex items-center gap-1.5 hover:bg-amber-400/30 transition-all cursor-pointer"
             >
-              <ArrowLeft
-                className="w-5 h-5 stroke-[2.2] text-black dark:text-white"
-                style={{ color: theme === 'dark' ? '#ffffff' : '#000000' }}
-              />
-            </motion.button>
-          ) : null}
-
-          <h1 className="text-2xl sm:text-[28px] font-black text-zinc-900 dark:text-white tracking-tight">
-            {activeSubView === 'main' && 'Perfil'}
-            {activeSubView === 'edit-profile' && 'Editar Perfil'}
-            {activeSubView === 'settings' && 'Configurações'}
-            {activeSubView === 'curtidos' && 'Lugares Curtidos'}
-            {activeSubView === 'logout-confirm' && 'Encerrar Sessão'}
-          </h1>
+              <Shield className="w-4 h-4" />
+              <span>Admin</span>
+            </button>
+          )}
         </div>
 
-        {activeSubView === 'main' ? (
-          <button
-            type="button"
-            onClick={() => setIsNotificationsOpen(true)}
-            className="w-10 h-10 rounded-full bg-zinc-100 dark:bg-white/10 text-zinc-900 dark:text-white flex items-center justify-center hover:bg-zinc-200 dark:hover:bg-white/20 transition-colors cursor-pointer shadow-xs"
-            title="Notificações"
-            aria-label="Notificações"
-          >
-            <Bell className="w-5 h-5 stroke-[2]" />
-          </button>
-        ) : null}
-      </div>
+        {/* Preferences / Experience Settings */}
+        <div className="p-5 rounded-3xl bg-zinc-900/80 border border-white/10 space-y-4">
+          <h3 className="text-xs font-bold uppercase tracking-wider text-zinc-400">Preferências & Efeitos</h3>
 
-      {/* Main Content Area */}
-      <div
-        className="flex-1 min-h-0 overflow-y-auto overscroll-contain px-5 sm:px-8 max-w-3xl mx-auto w-full flex flex-col"
-        style={{
-          WebkitOverflowScrolling: 'touch',
-          paddingBottom: 'calc(env(safe-area-inset-bottom, 32px) + 200px)',
-        }}
-      >
-        {/* Hidden File Input for Avatar Upload */}
-        <input
-          type="file"
-          ref={fileInputRef}
-          accept="image/png, image/jpeg, image/webp, image/jpg"
-          onChange={handleFileChange}
-          className="hidden"
-        />
-
-        {/* ============================================================ */}
-        {/* VIEW 1: MAIN PROFILE (Exact Match to Screenshot)            */}
-        {/* ============================================================ */}
-        {activeSubView === 'main' && (
-          <div className="space-y-4 pt-2 pb-12">
-            {/* 1. Main Profile Card (Airbnb Style) */}
-            <div
-              onClick={() => {
-                setTempName(userName);
-                setTempUsername(userUsername);
-                setTempBio(userBio);
-                setTempEmail(userEmail);
-                setTempAvatar(userAvatar);
-                setUsernameStatus('idle');
-                setUsernameFeedback('');
-                setSaveError('');
-                handleSetSubView('edit-profile');
-              }}
-              className="w-full p-6 rounded-[32px] bg-white dark:bg-[#1c1c1e] border border-black/5 dark:border-white/10 shadow-xs flex flex-col items-center text-center cursor-pointer group active:scale-[0.98] transition-all"
-            >
-              <div className="relative mb-3.5">
-                {userAvatar && !userAvatar.endsWith('fotoperfil.png') ? (
-                  <div className="w-28 h-28 rounded-full overflow-hidden shadow-md bg-zinc-100 dark:bg-zinc-800 border-2 border-white dark:border-zinc-800">
-                    <img src={userAvatar} alt={userName} className="w-full h-full object-cover" />
-                  </div>
-                ) : (
-                  <div className="w-28 h-28 rounded-full bg-[#EBE9F9] dark:bg-[#2c283c] text-[#5851DB] dark:text-[#a29bfd] text-4xl font-bold flex items-center justify-center shadow-md border-2 border-white dark:border-zinc-800">
-                    {(userName || 'Mario').charAt(0).toUpperCase()}
-                  </div>
-                )}
-              </div>
-
-              <h2 className="text-2xl sm:text-[26px] font-bold text-zinc-900 dark:text-white tracking-tight leading-tight">
-                {userName || 'Usuário'}
-              </h2>
-            </div>
-
-            {/* 2. Feature Cards Grid (2 per row: Viagens anteriores & Conexões) */}
-            <div className="grid grid-cols-2 gap-3.5">
-              {/* Viagens anteriores */}
-              <div
-                onClick={() => {
-                  handleSetSubView('curtidos');
-                }}
-                className="bg-white dark:bg-[#1c1c1e] rounded-[24px] p-4 border border-black/5 dark:border-white/10 shadow-xs flex flex-col justify-between relative cursor-pointer active:scale-[0.98] transition-transform group"
-              >
-                <div className="flex justify-end">
-                  <span className="px-2.5 py-0.5 rounded-full bg-zinc-900 text-white dark:bg-white dark:text-zinc-900 text-[9.5px] font-bold uppercase tracking-wider shadow-xs">
-                    NOVO
-                  </span>
-                </div>
-                <div className="my-2 flex justify-center">
-                  <span className="text-[40px] leading-none drop-shadow-xs">
-                    🧳
-                  </span>
-                </div>
-                <div>
-                  <h3 className="text-base font-bold text-zinc-900 dark:text-white tracking-tight leading-snug">
-                    Viagens anteriores
-                  </h3>
-                </div>
-              </div>
-
-              {/* Conexões */}
-              <div
-                onClick={() => {
-                  window.open(communityUrl, '_blank');
-                }}
-                className="bg-white dark:bg-[#1c1c1e] rounded-[24px] p-4 border border-black/5 dark:border-white/10 shadow-xs flex flex-col justify-between relative cursor-pointer active:scale-[0.98] transition-transform group"
-              >
-                <div className="flex justify-end">
-                  <span className="px-2.5 py-0.5 rounded-full bg-zinc-900 text-white dark:bg-white dark:text-zinc-900 text-[9.5px] font-bold uppercase tracking-wider shadow-xs">
-                    NOVO
-                  </span>
-                </div>
-                <div className="my-2 flex justify-center items-center h-[50px]">
-                  <img src="/conexao.png" alt="Conexões" className="h-[78px] w-auto object-contain" />
-                </div>
-                <div>
-                  <h3 className="text-base font-bold text-zinc-900 dark:text-white tracking-tight leading-snug">
-                    Conexões
-                  </h3>
-                </div>
-              </div>
-            </div>
-
-            {/* 3. Horizontal Promotional Card ("Torne-se um anfitrião") */}
-            <div
-              onClick={() => {
-                setIsPremiumModalOpen(true);
-              }}
-              className="bg-white dark:bg-[#1c1c1e] rounded-[24px] p-4.5 border border-black/5 dark:border-white/10 shadow-xs flex items-center gap-4 cursor-pointer active:scale-[0.98] transition-transform group"
-            >
-              <div className="shrink-0 flex items-center justify-center h-[50px] w-[50px]">
-                <img src="/anfitriao.png" alt="Torne-se um anfitrião" className="h-[156px] w-auto object-contain" />
-              </div>
-              <div className="min-w-0 flex-1">
-                <h3 className="text-base font-bold text-zinc-900 dark:text-white tracking-tight leading-tight">
-                  Torne-se um anfitrião
-                </h3>
-                <p className="text-xs text-zinc-500 dark:text-zinc-400 font-medium mt-0.5 leading-snug">
-                  É fácil começar a receber viajantes e ganhar uma renda extra.
-                </p>
-              </div>
-            </div>
-
-            {/* 4. Options List ("Configurações da conta", "Obtenha ajuda", "Sair da conta") */}
-            <div className="space-y-3 pt-2">
-              {isUserAdmin && (
-                <button
-                  type="button"
-                  onClick={() => {
-                    onClose();
-                    onOpenAdmin?.();
-                  }}
-                  className="w-full p-4 rounded-3xl bg-white dark:bg-[#1c1c1e] hover:bg-zinc-50 dark:hover:bg-[#252528] active:scale-[0.98] border border-black/5 dark:border-white/10 transition-all flex items-center justify-between text-left cursor-pointer group shadow-xs"
-                >
-                  <div className="flex items-center gap-3.5 min-w-0">
-                    <div className="w-10 h-10 flex items-center justify-center text-indigo-500 shrink-0 bg-transparent border-0">
-                      <ShieldCheck className="w-6 h-6 stroke-[1.8]" />
-                    </div>
-                    <div className="min-w-0">
-                      <h3 className="text-base font-bold text-indigo-500 dark:text-indigo-400 tracking-tight leading-tight">
-                        Painel ADM
-                      </h3>
-                    </div>
-                  </div>
-                  <ChevronRight className="w-5 h-5 text-zinc-400 dark:text-zinc-500 group-hover:text-zinc-600 dark:group-hover:text-zinc-300 transition-colors shrink-0" />
-                </button>
-              )}
-
-              <button
-                type="button"
-                onClick={() => {
-                  handleSetSubView('settings');
-                }}
-                className="w-full p-4 rounded-3xl bg-white dark:bg-[#1c1c1e] hover:bg-zinc-50 dark:hover:bg-[#252528] active:scale-[0.98] border border-black/5 dark:border-white/10 transition-all flex items-center justify-between text-left cursor-pointer group shadow-xs"
-              >
-                <div className="flex items-center gap-3.5 min-w-0">
-                  <div className="w-10 h-10 flex items-center justify-center text-zinc-900 dark:text-white shrink-0 bg-transparent border-0 relative">
-                    <Settings className="w-6 h-6 stroke-[1.8]" />
-                    <span className="absolute -top-0.5 -right-0.5 w-2.5 h-2.5 rounded-full bg-[#FF3B30] border-2 border-white dark:border-[#1c1c1e]" />
-                  </div>
-                  <div className="min-w-0">
-                    <h3 className="text-base font-bold text-zinc-900 dark:text-white tracking-tight leading-tight">
-                      Configurações da conta
-                    </h3>
-                  </div>
-                </div>
-                <ChevronRight className="w-5 h-5 text-zinc-400 dark:text-zinc-500 group-hover:text-zinc-600 dark:group-hover:text-zinc-300 transition-colors shrink-0" />
-              </button>
-
-              <button
-                type="button"
-                onClick={() => {
-                  window.open(communityUrl, '_blank');
-                }}
-                className="w-full p-4 rounded-3xl bg-white dark:bg-[#1c1c1e] hover:bg-zinc-50 dark:hover:bg-[#252528] active:scale-[0.98] border border-black/5 dark:border-white/10 transition-all flex items-center justify-between text-left cursor-pointer group shadow-xs"
-              >
-                <div className="flex items-center gap-3.5 min-w-0">
-                  <div className="w-10 h-10 flex items-center justify-center text-zinc-900 dark:text-white shrink-0 bg-transparent border-0">
-                    <Star className="w-6 h-6 stroke-[1.8]" />
-                  </div>
-                  <div className="min-w-0">
-                    <h3 className="text-base font-bold text-zinc-900 dark:text-white tracking-tight leading-tight">
-                      Obtenha ajuda
-                    </h3>
-                  </div>
-                </div>
-                <ChevronRight className="w-5 h-5 text-zinc-400 dark:text-zinc-500 group-hover:text-zinc-600 dark:group-hover:text-zinc-300 transition-colors shrink-0" />
-              </button>
-
-              <button
-                type="button"
-                onClick={() => handleSetSubView('logout-confirm')}
-                className="w-full p-4 rounded-3xl bg-white dark:bg-[#1c1c1e] hover:bg-zinc-50 dark:hover:bg-[#252528] active:scale-[0.98] border border-black/5 dark:border-white/10 transition-all flex items-center justify-between text-left cursor-pointer group shadow-xs"
-              >
-                <div className="flex items-center gap-3.5 min-w-0">
-                  <div className="w-10 h-10 flex items-center justify-center text-rose-500 shrink-0 bg-transparent border-0">
-                    <LogOut className="w-6 h-6 stroke-[1.8]" />
-                  </div>
-                  <div className="min-w-0">
-                    <h3 className="text-base font-bold text-rose-500 dark:text-rose-400 tracking-tight leading-tight">
-                      Sair da conta
-                    </h3>
-                  </div>
-                </div>
-                <ChevronRight className="w-5 h-5 text-zinc-400 dark:text-zinc-500 group-hover:text-zinc-600 dark:group-hover:text-zinc-300 transition-colors shrink-0" />
-              </button>
-            </div>
-          </div>
-        )}
-
-        {/* ============================================================ */}
-        {/* VIEW 2: EDIT PROFILE                                         */}
-        {/* ============================================================ */}
-        {activeSubView === 'edit-profile' && (
-          <div className="flex-1 flex flex-col justify-center my-auto w-full max-w-md mx-auto py-4">
-            <form onSubmit={handleSaveProfile} className="space-y-4 w-full">
-              <div className="p-5 rounded-3xl bg-white dark:bg-[#141518] border border-zinc-200 dark:border-white/10 space-y-4 shadow-sm">
-                {/* Avatar Selector and Preview */}
-                <div className="flex flex-col items-center justify-center pb-2 pt-1">
-                  <div className="relative group">
-                    <div className="w-24 h-24 rounded-full overflow-hidden border-2 border-white ring-4 ring-white/20 bg-zinc-100 dark:bg-zinc-900 shadow-lg relative">
-                      <img
-                        src={tempAvatar || userAvatar}
-                        alt="Preview"
-                        className="w-full h-full object-cover"
-                      />
-                      {isUploading && (
-                        <div className="absolute inset-0 bg-black/60 flex items-center justify-center">
-                          <Loader2 className="w-6 h-6 text-white animate-spin" />
-                        </div>
-                      )}
-                    </div>
-                    <button
-                      type="button"
-                      onClick={() => fileInputRef.current?.click()}
-                      title="Carregar imagem"
-                      className="absolute bottom-0 right-0 w-8 h-8 rounded-full bg-white text-zinc-900 flex items-center justify-center shadow-lg border-2 border-zinc-200 dark:border-white/20 transition-transform active:scale-95 cursor-pointer"
-                    >
-                      <Camera className="w-4 h-4 stroke-[2.5]" />
-                    </button>
-                  </div>
-                  <button
-                    type="button"
-                    onClick={() => fileInputRef.current?.click()}
-                    className="mt-3 text-xs font-black text-zinc-900 dark:text-white hover:underline flex items-center gap-1.5 cursor-pointer"
-                  >
-                    <Upload className="w-3.5 h-3.5" />
-                    <span>Escolher foto do dispositivo</span>
-                  </button>
-                </div>
-
-                {/* Nome de Exibição */}
-                <div>
-                  <label className="block text-xs font-black text-zinc-500 dark:text-zinc-400 mb-1.5">
-                    Nome
-                  </label>
-                  <input
-                    type="text"
-                    placeholder="Seu nome (ex: Mariana Silva)"
-                    value={tempName}
-                    onChange={(e) => setTempName(e.target.value)}
-                    className="w-full px-4 py-3 rounded-2xl bg-zinc-50 dark:bg-zinc-900 border border-zinc-200 dark:border-white/10 text-zinc-900 dark:text-white text-sm focus:outline-none focus:border-zinc-900 dark:focus:border-white"
-                    required
-                  />
-                </div>
-
-                {/* Nome de Usuário com validação em tempo real */}
-                <div>
-                  <div className="flex items-center justify-between mb-1.5">
-                    <label className="text-xs font-black text-zinc-500 dark:text-zinc-400">
-                      Nome de usuário
-                    </label>
-                    {usernameStatus === 'checking' && (
-                      <span className="text-[11px] text-zinc-400 font-medium flex items-center gap-1">
-                        <Loader2 className="w-3 h-3 animate-spin" />
-                        Verificando...
-                      </span>
-                    )}
-                    {usernameStatus === 'available' && (
-                      <span className="text-[11px] text-emerald-500 font-bold flex items-center gap-1">
-                        <Check className="w-3 h-3 stroke-[2.5]" />
-                        Nome de usuário disponível
-                      </span>
-                    )}
-                    {usernameStatus === 'unavailable' && (
-                      <span className="text-[11px] text-rose-500 font-bold flex items-center gap-1">
-                        <X className="w-3 h-3 stroke-[2.5]" />
-                        Nome de usuário indisponível
-                      </span>
-                    )}
-                  </div>
-                  <div className="relative">
-                    <div className="absolute left-3.5 top-1/2 -translate-y-1/2 text-zinc-400 font-bold text-sm pointer-events-none select-none">
-                      @
-                    </div>
-                    <input
-                      type="text"
-                      placeholder="marianasilva"
-                      value={tempUsername}
-                      onChange={(e) => {
-                        const clean = e.target.value.replace(/^@+/, '').replace(/[^a-zA-Z0-9_]/g, '');
-                        setTempUsername(clean);
-                      }}
-                      className={`w-full pl-8 pr-4 py-3 rounded-2xl bg-zinc-50 dark:bg-zinc-900 border text-zinc-900 dark:text-white text-sm focus:outline-none transition-colors ${
-                        usernameStatus === 'available'
-                          ? 'border-emerald-500/80 focus:border-emerald-500'
-                          : usernameStatus === 'unavailable'
-                          ? 'border-rose-500/80 focus:border-rose-500'
-                          : 'border-zinc-200 dark:border-white/10 focus:border-zinc-900 dark:focus:border-white'
-                      }`}
-                      required
-                      autoCapitalize="none"
-                      autoCorrect="off"
-                      spellCheck={false}
-                    />
-                  </div>
-                  {usernameFeedback && (
-                    <p className={`text-[11.5px] font-semibold mt-1 px-1 ${
-                      usernameStatus === 'available' ? 'text-emerald-500' : 'text-rose-500'
-                    }`}>
-                      {usernameFeedback}
-                    </p>
-                  )}
-                </div>
-
-                {/* Biografia */}
-                <div>
-                  <label className="block text-xs font-black text-zinc-500 dark:text-zinc-400 mb-1.5">
-                    Biografia
-                  </label>
-                  <textarea
-                    rows={2}
-                    placeholder="Conte sobre sua paixão por viajar e explorar Campos..."
-                    value={tempBio}
-                    onChange={(e) => setTempBio(e.target.value)}
-                    className="w-full px-4 py-2.5 rounded-2xl bg-zinc-50 dark:bg-zinc-900 border border-zinc-200 dark:border-white/10 text-zinc-900 dark:text-white text-sm focus:outline-none focus:border-zinc-900 dark:focus:border-white resize-none"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-xs font-black text-zinc-500 dark:text-zinc-400 mb-1.5">
-                    E-mail de acesso
-                  </label>
-                  <input
-                    type="email"
-                    placeholder="seu@email.com"
-                    value={tempEmail}
-                    onChange={(e) => setTempEmail(e.target.value)}
-                    className="w-full px-4 py-3 rounded-2xl bg-zinc-50 dark:bg-zinc-900 border border-zinc-200 dark:border-white/10 text-zinc-900 dark:text-white text-sm focus:outline-none focus:border-zinc-900 dark:focus:border-white"
-                    required
-                  />
-                </div>
-
-                {saveError && (
-                  <p className="text-xs text-rose-500 font-bold px-1 text-center">
-                    {saveError}
-                  </p>
-                )}
-              </div>
-
+          <div className="space-y-3">
+            <div className="flex items-center justify-between">
               <div className="flex items-center gap-3">
-                <button
-                  type="button"
-                  onClick={handleBack}
-                  className="flex-1 py-3 rounded-full bg-zinc-200 dark:bg-white/10 hover:bg-zinc-300 dark:hover:bg-white/15 text-sm font-black text-zinc-700 dark:text-zinc-300 transition-all cursor-pointer"
-                >
-                  Cancelar
-                </button>
-                <button
-                  type="submit"
-                  className="flex-1 py-3 rounded-full bg-zinc-900 dark:bg-white text-white dark:text-zinc-900 hover:opacity-90 text-sm font-black transition-all cursor-pointer shadow-lg flex items-center justify-center gap-1.5"
-                >
-                  {saveToast ? <Check className="w-4 h-4" /> : null}
-                  <span>{saveToast ? 'Salvo!' : 'Salvar alterações'}</span>
-                </button>
+                <CloudRain className="w-5 h-5 text-blue-400" />
+                <span className="text-sm font-semibold">Chuva Dinâmica no Relevo</span>
               </div>
-            </form>
-          </div>
-        )}
-
-        {/* ============================================================ */}
-        {/* VIEW 2.5: SETTINGS (Configurações da Conta)                   */}
-        {/* ============================================================ */}
-        {activeSubView === 'settings' && (
-          <div className="flex-1 flex flex-col justify-start my-auto w-full max-w-md mx-auto py-4 space-y-4 overflow-y-auto">
-            <div className="p-5 rounded-3xl bg-white dark:bg-[#141518] border border-zinc-200 dark:border-white/10 space-y-4 shadow-sm">
-              <div className="flex items-center justify-between py-2 border-b border-zinc-100 dark:border-white/5">
-                <div className="flex items-center gap-3">
-                  <div className="w-9 h-9 rounded-2xl bg-zinc-100 dark:bg-zinc-800 flex items-center justify-center text-zinc-900 dark:text-white">
-                    <User className="w-5 h-5 stroke-[2]" />
-                  </div>
-                  <div>
-                    <h4 className="text-sm font-bold text-zinc-900 dark:text-white">Editar Perfil</h4>
-                    <p className="text-xs text-zinc-500 dark:text-zinc-400">Nome, @username, foto e bio</p>
-                  </div>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setTempName(userName);
-                    setTempUsername(userUsername);
-                    setTempBio(userBio);
-                    setTempEmail(userEmail);
-                    setTempAvatar(userAvatar);
-                    setUsernameStatus('idle');
-                    setUsernameFeedback('');
-                    setSaveError('');
-                    handleSetSubView('edit-profile');
-                  }}
-                  className="px-4 py-2 rounded-xl bg-zinc-900 dark:bg-white text-white dark:text-zinc-900 text-xs font-bold hover:opacity-90 transition-all cursor-pointer"
-                >
-                  Editar
-                </button>
-              </div>
-
-              <div className="flex items-center justify-between py-2 border-b border-zinc-100 dark:border-white/5">
-                <div className="flex items-center gap-3">
-                  <div className="w-9 h-9 rounded-2xl bg-zinc-100 dark:bg-zinc-800 flex items-center justify-center text-zinc-900 dark:text-white">
-                    {theme === 'dark' ? <Moon className="w-5 h-5 stroke-[2]" /> : <Sun className="w-5 h-5 stroke-[2]" />}
-                  </div>
-                  <div>
-                    <h4 className="text-sm font-bold text-zinc-900 dark:text-white">Aparência do Aplicativo</h4>
-                    <p className="text-xs text-zinc-500 dark:text-zinc-400">{theme === 'dark' ? 'Modo Escuro Ativo' : 'Modo Claro Ativo'}</p>
-                  </div>
-                </div>
-                <IOSSwitch
-                  checked={theme === 'dark'}
-                  onChange={onToggleTheme}
-                  ariaLabel="Alternar Tema"
-                />
-              </div>
-
-              <div className="flex items-center justify-between py-2 border-b border-zinc-100 dark:border-white/5">
-                <div className="flex items-center gap-3">
-                  <div className="w-9 h-9 rounded-2xl bg-zinc-100 dark:bg-zinc-800 flex items-center justify-center text-zinc-900 dark:text-white">
-                    <CloudRain className="w-5 h-5 stroke-[2]" />
-                  </div>
-                  <div>
-                    <h4 className="text-sm font-bold text-zinc-900 dark:text-white">Efeito de Chuva Dinâmica</h4>
-                    <p className="text-xs text-zinc-500 dark:text-zinc-400">Ativar partículas de chuva no mapa</p>
-                  </div>
-                </div>
-                <IOSSwitch
-                  checked={Boolean(rainEnabled)}
-                  onChange={() => onToggleRain?.()}
-                  ariaLabel="Efeito de Chuva"
-                />
-              </div>
-
-              <div className="flex items-center justify-between py-2 border-b border-zinc-100 dark:border-white/5">
-                <div className="flex items-center gap-3">
-                  <div className="w-9 h-9 rounded-2xl bg-zinc-100 dark:bg-zinc-800 flex items-center justify-center text-zinc-900 dark:text-white">
-                    <Snowflake className="w-5 h-5 stroke-[2]" />
-                  </div>
-                  <div>
-                    <h4 className="text-sm font-bold text-zinc-900 dark:text-white">Efeito de Neve Dinâmica</h4>
-                    <p className="text-xs text-zinc-500 dark:text-zinc-400">Ativar efeito de neve invernal</p>
-                  </div>
-                </div>
-                <IOSSwitch
-                  checked={Boolean(snowEnabled)}
-                  onChange={() => onToggleSnow?.()}
-                  ariaLabel="Efeito de Neve"
-                />
-              </div>
-
-              <div className="flex items-center justify-between py-2">
-                <div className="flex items-center gap-3">
-                  <div className="w-9 h-9 rounded-2xl bg-zinc-100 dark:bg-zinc-800 flex items-center justify-center text-zinc-900 dark:text-white">
-                    <Sparkles className="w-5 h-5 stroke-[2]" />
-                  </div>
-                  <div>
-                    <h4 className="text-sm font-bold text-zinc-900 dark:text-white">Alto Contraste</h4>
-                    <p className="text-xs text-zinc-500 dark:text-zinc-400">Aumentar contraste visual</p>
-                  </div>
-                </div>
-                <IOSSwitch
-                  checked={Boolean(highContrast)}
-                  onChange={() => onToggleHighContrast?.()}
-                  ariaLabel="Alto Contraste"
-                />
-              </div>
+              <button
+                onClick={onToggleRain}
+                className={`w-12 h-6 rounded-full transition-colors p-1 flex items-center ${rainEnabled ? 'bg-blue-500 justify-end' : 'bg-zinc-700 justify-start'}`}
+              >
+                <div className="w-4 h-4 rounded-full bg-white shadow-sm" />
+              </button>
             </div>
 
-            <div className="p-4 rounded-3xl bg-white dark:bg-[#141518] border border-zinc-200 dark:border-white/10 text-center space-y-2">
-              <p className="text-xs font-bold text-zinc-500 dark:text-zinc-400">Monvian Campos do Jordão • iOS Edition</p>
-              <p className="text-[11px] text-zinc-400 dark:text-zinc-500">Versão 3.8.4 • Compilação Estável</p>
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <Snowflake className="w-5 h-5 text-cyan-300" />
+                <span className="text-sm font-semibold">Neve das Montanhas</span>
+              </div>
+              <button
+                onClick={onToggleSnow}
+                className={`w-12 h-6 rounded-full transition-colors p-1 flex items-center ${snowEnabled ? 'bg-cyan-500 justify-end' : 'bg-zinc-700 justify-start'}`}
+              >
+                <div className="w-4 h-4 rounded-full bg-white shadow-sm" />
+              </button>
+            </div>
+
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                {isDark ? <Sun className="w-5 h-5 text-amber-300" /> : <Moon className="w-5 h-5 text-zinc-400" />}
+                <span className="text-sm font-semibold">Tema {isDark ? 'Escuro' : 'Claro'}</span>
+              </div>
+              <button
+                onClick={onToggleTheme}
+                className="px-3 py-1.5 rounded-xl bg-white/10 text-xs font-bold text-white hover:bg-white/20 transition-all cursor-pointer"
+              >
+                Alternar
+              </button>
             </div>
           </div>
-        )}
+        </div>
 
-        {/* ============================================================ */}
-        {/* VIEW 3: CURTIDOS (FAVORITES)                                  */}
-        {/* ============================================================ */}
-        {activeSubView === 'curtidos' && (
-          <div className={`pt-2 ${favoriteSpots.length === 0 ? 'flex-1 flex flex-col justify-center min-h-[65vh]' : 'space-y-3.5'}`}>
-            {favoriteSpots.length === 0 ? (
-              <div className="flex-1 flex flex-col items-center justify-center text-center py-16 text-zinc-500 dark:text-zinc-400">
-                <Heart className="w-10 h-10 text-zinc-300 dark:text-zinc-600 mx-auto mb-3" />
-                <p className="font-bold text-zinc-700 dark:text-zinc-200 text-base">Nenhum lugar curtido ainda.</p>
-                <p className="text-xs text-zinc-400 dark:text-zinc-500 mt-1 max-w-xs mx-auto">
-                  Toque no coração de qualquer ponto turístico para salvar aqui!
-                </p>
-              </div>
-            ) : (
-              favoriteSpots.map((spot) => (
+        {/* Favorites Quick List */}
+        <div className="p-5 rounded-3xl bg-zinc-900/80 border border-white/10 space-y-3">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <Heart className="w-4 h-4 text-rose-500 fill-current" />
+              <h3 className="text-xs font-bold uppercase tracking-wider text-zinc-400">Meus Favoritos ({favoriteSpots.length})</h3>
+            </div>
+          </div>
+
+          {favoriteSpots.length === 0 ? (
+            <p className="text-xs text-zinc-500 py-3">Você ainda não favoritou locais em Campos do Jordão.</p>
+          ) : (
+            <div className="space-y-2 max-h-48 overflow-y-auto">
+              {favoriteSpots.map(s => (
                 <div
-                  key={spot.id}
+                  key={s.id}
                   onClick={() => {
-                    onSelectSpot(spot);
+                    onSelectSpot(s);
                     onClose();
                   }}
-                  className="w-full p-4.5 sm:p-5 rounded-[28px] bg-white dark:bg-[#141518] hover:bg-zinc-50 dark:hover:bg-[#1a1c21] active:scale-[0.98] border border-zinc-200 dark:border-white/5 hover:border-zinc-300 dark:hover:border-white/20 transition-all flex items-center justify-between text-left cursor-pointer group shadow-sm dark:shadow-md"
+                  className="flex items-center gap-3 p-2 rounded-xl hover:bg-white/5 cursor-pointer"
                 >
-                  <div className="flex items-center gap-4 sm:gap-4.5 min-w-0 flex-1">
-                    <div className="w-[68px] h-[68px] sm:w-[72px] sm:h-[72px] rounded-[20px] overflow-hidden bg-zinc-100 dark:bg-zinc-800 shrink-0 border border-zinc-200 dark:border-white/10">
-                      <img
-                        src={spot.image}
-                        alt={spot.name}
-                        className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
-                      />
-                    </div>
-
-                    <div className="min-w-0 flex-1">
-                      <h4 className="text-[16.5px] sm:text-[17px] font-bold text-zinc-900 dark:text-white tracking-tight truncate group-hover:text-zinc-600 dark:group-hover:text-zinc-300 transition-colors">
-                        {spot.name}
-                      </h4>
-                      <p className="text-[13.5px] text-zinc-500 dark:text-zinc-400 font-medium truncate mt-0.5">
-                        {spot.categoryLabel}
-                      </p>
-                      <div className="flex items-center gap-2 text-[12.5px] text-zinc-500 dark:text-zinc-400 mt-1.5">
-                        <span className="flex items-center gap-1 text-amber-500 dark:text-amber-400 font-bold">
-                          <Star className="w-3.5 h-3.5 fill-amber-500 dark:fill-amber-400" />
-                          {spot.rating}
-                        </span>
-                        <span>•</span>
-                        <span className="truncate">{spot.address.split(',')[0]}</span>
-                      </div>
-                    </div>
+                  <img src={s.image} alt={s.name} className="w-10 h-10 rounded-lg object-cover" />
+                  <div className="min-w-0 flex-1">
+                    <p className="text-sm font-bold truncate">{s.name}</p>
+                    <p className="text-xs text-zinc-400 truncate">{s.categoryLabel}</p>
                   </div>
                 </div>
-              ))
-            )}
-            <div className="h-16 shrink-0" />
-          </div>
-        )}
-
-
-
-
-        {/* ============================================================ */}
-        {/* VIEW 7: LOGOUT CONFIRMATION                                   */}
-        {/* ============================================================ */}
-        {activeSubView === 'logout-confirm' && (
-          <div className="flex-1 flex flex-col items-center justify-center text-center my-auto w-full max-w-sm mx-auto py-8">
-            {/* Icon */}
-            <div className="w-20 h-20 rounded-full bg-rose-100/90 dark:bg-red-950/40 text-rose-500 flex items-center justify-center border border-rose-200/80 dark:border-red-900/50 mb-6 shadow-sm">
-              <LogOut className="w-9 h-9 stroke-[2] translate-x-0.5" />
+              ))}
             </div>
+          )}
+        </div>
 
-            {/* Title & Description */}
-            <div className="space-y-2.5 mb-8">
-              <h3 className="text-xl sm:text-2xl font-black text-zinc-900 dark:text-white tracking-tight">
-                Deseja encerrar a sessão?
-              </h3>
-              <p className="text-sm text-zinc-500 dark:text-zinc-400 max-w-xs mx-auto leading-relaxed">
-                Você poderá entrar novamente a qualquer momento com sua conta {userEmail}.
-              </p>
-            </div>
+        {/* Social Link & Logout */}
+        <div className="flex flex-col gap-2">
+          <a
+            href={instagramUrl}
+            target="_blank"
+            rel="noreferrer"
+            className="flex items-center justify-center gap-2 w-full p-4 rounded-2xl bg-zinc-900/60 border border-white/10 text-zinc-300 hover:text-white text-xs font-bold transition-all"
+          >
+            <Instagram className="w-4 h-4 text-pink-500" />
+            <span>Siga o Monvian no Instagram</span>
+            <ExternalLink className="w-3.5 h-3.5 opacity-60" />
+          </a>
 
-            {/* Action Buttons */}
-            <div className="flex items-center gap-3 w-full">
-              <button
-                type="button"
-                id="btn-logout-cancel"
-                onClick={() => handleSetSubView('main')}
-                className="flex-1 py-3.5 rounded-2xl bg-zinc-200/80 dark:bg-white/10 hover:bg-zinc-300 dark:hover:bg-white/15 text-sm font-bold text-zinc-800 dark:text-zinc-200 transition-all cursor-pointer active:scale-95"
-              >
-                Permanecer
-              </button>
-              <button
-                type="button"
-                id="btn-logout-confirm"
-                onClick={async () => {
-                  try {
-                    const token = localStorage.getItem('monvian_token');
-                    if (token) {
-                      await fetch('/api/auth/logout', {
-                        method: 'POST',
-                        headers: { Authorization: `Bearer ${token}` }
-                      });
-                    }
-                  } catch (e) {}
-                  localStorage.removeItem('monvian_token');
-                  localStorage.removeItem('monvian_user');
-                  localStorage.removeItem('monvian_active_itinerary');
-                  localStorage.removeItem('monvian_itinerary_session');
-                  window.location.reload();
-                }}
-                className="flex-1 py-3.5 rounded-2xl bg-red-500 hover:bg-red-600 text-white text-sm font-bold transition-all cursor-pointer shadow-lg shadow-red-500/25 active:scale-95"
-              >
-                Sim, sair
-              </button>
-            </div>
-          </div>
-        )}
-      </div>
-
-      {/* Monvian Premium Modal */}
-      <PremiumModal
-        isOpen={isPremiumModalOpen}
-        onClose={() => setIsPremiumModalOpen(false)}
-        theme={theme}
-      />
-
-      {/* Notifications Modal */}
-      <NotificationsModal
-        isOpen={isNotificationsOpen}
-        onClose={() => setIsNotificationsOpen(false)}
-        notifications={notificationsList}
-        isLoading={isLoadingNotifications}
-        theme={theme}
-        onMarkAllAsRead={() => {
-          setNotificationsList(prev => prev.map(n => ({ ...n, is_read: 1 })));
-        }}
-      />
+          <button
+            onClick={handleLogout}
+            className="flex items-center justify-center gap-2 w-full p-4 rounded-2xl bg-rose-500/10 text-rose-400 hover:bg-rose-500/20 text-xs font-bold border border-rose-500/20 transition-all cursor-pointer mt-2"
+          >
+            <LogOut className="w-4 h-4" />
+            <span>Sair da Conta</span>
+          </button>
+        </div>
       </div>
     </div>
   );
 };
+export default ProfileModal;
