@@ -352,34 +352,6 @@ class GpsNavigationManager {
       targetHeading = computedBearing;
     }
 
-    // Hysteresis for Car Mode (> 15 km/h threshold)
-    // To enter car mode: speed >= 16.0 km/h or smoothedSpeed >= 15.0 km/h for 2 updates
-    // To exit car mode: speed <= 12.0 km/h and smoothedSpeed <= 12.5 km/h for 3 updates
-    let isCarMode = this.state.isCarMode;
-    if (!isCarMode) {
-      if (instantSpeed >= 16.0 || smoothedSpeed >= 15.0) {
-        this.carModeConsecutiveHigh++;
-        if (this.carModeConsecutiveHigh >= 2 || instantSpeed >= 18.0) {
-          isCarMode = true;
-          this.carModeConsecutiveHigh = 0;
-          this.carModeConsecutiveLow = 0;
-        }
-      } else {
-        this.carModeConsecutiveHigh = 0;
-      }
-    } else {
-      if (instantSpeed <= 12.0 && smoothedSpeed <= 12.5) {
-        this.carModeConsecutiveLow++;
-        if (this.carModeConsecutiveLow >= 3) {
-          isCarMode = false;
-          this.carModeConsecutiveLow = 0;
-          this.carModeConsecutiveHigh = 0;
-        }
-      } else {
-        this.carModeConsecutiveLow = 0;
-      }
-    }
-
     // Prepare smooth transition segment for animation loop
     this.startPoint = [...this.currentInterpolated];
     this.targetPoint = [rawLng, rawLat];
@@ -392,7 +364,7 @@ class GpsNavigationManager {
     this.state.coords = [rawLng, rawLat];
     this.state.instantSpeed = Math.round(instantSpeed * 10) / 10;
     this.state.speed = Math.round(smoothedSpeed * 10) / 10;
-    this.state.isCarMode = isCarMode;
+    this.state.isCarMode = false;
     this.state.isMoving = smoothedSpeed > 3.0;
 
     this.prevRawFix = {

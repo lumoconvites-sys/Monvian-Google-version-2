@@ -20,7 +20,6 @@ import { Spot, Itinerary } from '../types';
 import { DEFAULT_CURATED_ITINERARIES } from '../data/defaultItineraries';
 import { useFavorites } from '../hooks/useFavorites';
 import { getSpotImage } from '../utils/spotImages';
-import { BlurIn } from './ui/BlurIn';
 
 export type SavedCollectionType = 'roteiros' | 'pontos' | 'lugares';
 
@@ -251,7 +250,7 @@ export const SavedView: React.FC<SavedViewProps> = ({
             isolation: 'isolate',
           }}
         >
-          <BlurIn>
+          <div className="w-full h-full">
             <AnimatePresence mode="wait">
               {!activeCollection ? (
                 /* MAIN OVERVIEW: 2x2 COLLECTIONS GRID */
@@ -542,7 +541,7 @@ export const SavedView: React.FC<SavedViewProps> = ({
                 </motion.div>
               )}
             </AnimatePresence>
-          </BlurIn>
+          </div>
         </div>
       )}
     </AnimatePresence>

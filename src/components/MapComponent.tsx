@@ -21,7 +21,7 @@ interface MapComponentProps {
   selectedSpot: Spot | null;
   onSelectSpot: (spot: Spot) => void;
   onMapClick?: () => void;
-  userCoords?: { lat: number; lng: number } | null;
+  userCoords?: [number, number] | { lat: number; lng: number } | null;
   theme: 'dark' | 'light';
   visualIcons?: any[];
   userAvatar?: string;
@@ -32,6 +32,10 @@ interface MapComponentProps {
   isDetailOpen?: boolean;
   mapMode?: MapModeType;
   onMapModeChange?: (mode: MapModeType) => void;
+  onInteractionChange?: (isInteracting: boolean) => void;
+  zoomToUserTrigger?: number;
+  onStyleChange?: (style: any) => void;
+  onOrbitChange?: (isOrbiting: boolean) => void;
 }
 
 const getMapboxToken = (): string => {

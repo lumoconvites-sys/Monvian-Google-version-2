@@ -893,12 +893,8 @@ export default function App() {
       if (now - lastReactSync > 350) {
         lastReactSync = now;
         setUserCoords(navState.coords);
-        if (navState.isCarMode) {
-          setLocationName(`Em trânsito • ${Math.round(navState.speed)} km/h`);
-        } else {
-          const [lng, lat] = navState.coords;
-          setLocationName(`${lat.toFixed(4)}, ${lng.toFixed(4)}`);
-        }
+        const [lng, lat] = navState.coords;
+        setLocationName(`${lat.toFixed(4)}, ${lng.toFixed(4)}`);
       }
     });
 
