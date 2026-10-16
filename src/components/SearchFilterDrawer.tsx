@@ -15,6 +15,7 @@ import {
   MapPin,
   ArrowLeft,
   SlidersHorizontal,
+  Mic,
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { getSpotImage, getSpotFallbackImage } from '../utils/spotImages';
@@ -25,6 +26,7 @@ interface SearchFilterDrawerProps {
   onClose: () => void;
   spots: Spot[];
   onSelectSpot: (spot: Spot) => void;
+  theme?: 'dark' | 'light';
 }
 
 interface CategoryConfig {
@@ -109,9 +111,31 @@ export const SearchFilterDrawer: React.FC<SearchFilterDrawerProps> = ({
   onClose,
   spots,
   onSelectSpot,
+  theme = 'dark',
 }) => {
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCategory, setSelectedCategory] = useState<CategoryConfig | null>(null);
+  const [isListening, setIsListening] = useState(false);
+
+  const handleVoiceSearch = () => {
+    if (!('webkitSpeechRecognition' in window || 'SpeechRecognition' in window)) {
+      return;
+    }
+    try {
+      const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+      const recognition = new SpeechRecognition();
+      recognition.lang = 'pt-BR';
+      recognition.onstart = () => setIsListening(true);
+      recognition.onend = () => setIsListening(false);
+      recognition.onresult = (event: any) => {
+        const transcript = event.results[0][0].transcript;
+        setSearchQuery(transcript);
+      };
+      recognition.start();
+    } catch {
+      setIsListening(false);
+    }
+  };
 
   const isGoldUser = Boolean(
     (() => {
@@ -268,6 +292,18 @@ export const SearchFilterDrawer: React.FC<SearchFilterDrawerProps> = ({
                   <X className="w-3 h-3" />
                 </button>
               )}
+              <button
+                type="button"
+                onClick={handleVoiceSearch}
+                className={`p-1.5 rounded-full ml-1.5 transition-all cursor-pointer active:scale-95 ${
+                  isListening
+                    ? 'bg-rose-500 text-white animate-pulse'
+                    : 'text-zinc-400 hover:text-zinc-600 dark:hover:text-white'
+                }`}
+                title="Busca por voz"
+              >
+                <Mic className="w-4 h-4" />
+              </button>
             </div>
           </div>
         )}
@@ -376,9 +412,12 @@ export const SearchFilterDrawer: React.FC<SearchFilterDrawerProps> = ({
 
                       {/* Informações: Título, Categoria e Linha com Estrela Dourada + Cidade */}
                       <div className="min-w-0 flex-1">
-                        <h4 className="text-[16.5px] sm:text-[17px] font-bold text-zinc-900 dark:text-white tracking-tight truncate group-hover:text-zinc-600 dark:group-hover:text-zinc-300 transition-colors">
-                          {spot.name}
-                        </h4>
+                        <div className="flex items-center gap-1.5">
+                          <h4 className="text-[16.5px] sm:text-[17px] font-bold text-zinc-900 dark:text-white tracking-tight truncate group-hover:text-zinc-600 dark:group-hover:text-zinc-300 transition-colors">
+                            {spot.name}
+                          </h4>
+                          <VerifiedBadge className="w-3.5 h-3.5 shrink-0" />
+                        </div>
                         <p className="text-[13.5px] text-zinc-500 dark:text-zinc-400 font-medium truncate mt-0.5">
                           {spot.categoryLabel}
                         </p>

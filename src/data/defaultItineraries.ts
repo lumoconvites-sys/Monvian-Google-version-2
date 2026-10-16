@@ -546,3 +546,6 @@ export const DEFAULT_CURATED_ITINERARIES: Itinerary[] = [
     ]
   }
 ];
+
+export const DEFAULT_ITINERARIES = DEFAULT_CURATED_ITINERARIES;
+export type CuratedItinerary = Itinerary;

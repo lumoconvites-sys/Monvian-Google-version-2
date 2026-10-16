@@ -20,12 +20,12 @@ import {
 } from 'lucide-react';
 import { AdminDashboard } from './AdminDashboard';
 import { AdminSpots } from './AdminSpots';
-import { AdminItineraries } from './AdminItineraries';
-import { AdminServices } from './AdminServices';
 import { AdminUsers } from './AdminUsers';
 import { AdminEvents } from './AdminEvents';
 import { AdminSettings } from './AdminSettings';
 import { AdminCleanup } from './AdminCleanup';
+import { AdminItineraries } from './AdminItineraries';
+import { AdminServices } from './AdminServices';
 import { AdminMapIcons } from './AdminMapIcons';
 
 interface AdminLayoutProps {

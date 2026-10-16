@@ -96,7 +96,6 @@ export const SpotDetailSheet: React.FC<SpotDetailSheetProps> = ({
         onClick={(e) => e.stopPropagation()}
         className="fixed inset-0 w-full h-full bg-white dark:bg-[#000000] text-zinc-900 dark:text-white flex flex-col z-[110] transform-gpu overflow-hidden"
         style={{
-          fontFamily: "'Inter', -apple-system, BlinkMacSystemFont, sans-serif",
           willChange: 'transform, opacity',
         }}
       >
@@ -195,7 +194,7 @@ export const SpotDetailSheet: React.FC<SpotDetailSheetProps> = ({
             
             {/* Title and Badge */}
             <div className="flex items-center gap-2 mb-2">
-              <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight text-zinc-900 dark:text-[#F5F2EA] leading-tight">
+              <h1 className="text-2xl sm:text-3xl font-bold tracking-tight text-text-primary leading-tight">
                 {spot.name}
               </h1>
               <VerifiedBadge />
@@ -205,7 +204,7 @@ export const SpotDetailSheet: React.FC<SpotDetailSheetProps> = ({
             <div className="flex items-center gap-2.5 text-xs sm:text-sm mb-6 text-zinc-600 dark:text-[#9A9894] flex-wrap">
               <div className="flex items-center gap-1 bg-zinc-100 dark:bg-white/10 px-3 py-1.5 rounded-full">
                 <Star className={`w-4 h-4 ${isGoldUser ? 'fill-[#F5BE38] text-[#F5BE38]' : 'fill-zinc-900 text-zinc-900 dark:fill-white dark:text-white'}`} />
-                <span className="font-bold text-zinc-900 dark:text-[#F5F2EA]">{spot.rating}</span>
+                <span className="font-semibold text-zinc-900 dark:text-[#F5F2EA]">{spot.rating}</span>
                 <span className="text-[#9A9894] font-semibold">({spot.reviewCount})</span>
               </div>
               <div className="flex items-center gap-1.5 bg-zinc-100 dark:bg-white/10 px-3 py-1.5 rounded-full">
@@ -265,7 +264,7 @@ export const SpotDetailSheet: React.FC<SpotDetailSheetProps> = ({
                   <button 
                     key={tab} 
                     onClick={() => setActiveTab(tab)}
-                    className={`relative pb-3 text-sm font-black transition-colors cursor-pointer ${
+                    className={`relative pb-3 text-sm font-semibold transition-colors cursor-pointer ${
                       isActive ? 'text-zinc-900 dark:text-white' : 'text-zinc-400 dark:text-zinc-500 hover:text-zinc-600 dark:hover:text-zinc-300'
                     }`}
                   >

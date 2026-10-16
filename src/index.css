@@ -1,1 +1,1026 @@
 @import "tailwindcss";
+
+@custom-variant dark (&:where(.dark, .dark *));
+
+@theme {
+  --font-sans: 'SF Pro Display', 'SF Pro Text', -apple-system, BlinkMacSystemFont, system-ui, sans-serif;
+  
+  --color-canvas: #000000;
+  --color-canvas-light: #F4F4F5;
+  
+  --color-text-primary: #F5F2EA;
+  --color-text-secondary: #9A9894;
+  --color-text-highlight: #FFFFFF;
+  
+  --color-accent-gold: #E6AC33;
+  --color-accent-blue: #007AFF;
+  
+  --radius-sm: 8px;
+  --radius-md: 12px;
+  --radius-lg: 20px;
+  --radius-xl: 26px;
+  --radius-2xl: 32px;
+  --radius-3xl: 40px;
+}
+
+*, *::before, *::after {
+  box-sizing: border-box;
+}
+
+@layer base {
+  :root {
+    font-family: var(--font-sans) !important;
+    letter-spacing: -0.015em;
+    line-height: 1.5;
+    --app-height: 100dvh;
+  }
+  html {
+    width: 100%;
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+    height: 100%;
+    min-height: 100%;
+    min-height: -webkit-fill-available;
+    min-height: calc(100dvh + env(safe-area-inset-bottom, 0px));
+    height: calc(100dvh + env(safe-area-inset-bottom, 0px));
+    overflow: hidden;
+    overscroll-behavior: none;
+    -webkit-tap-highlight-color: transparent;
+    touch-action: manipulation;
+    -webkit-text-size-adjust: 100%;
+    text-size-adjust: 100%;
+    background-color: #000000;
+    transition: background-color 0.25s ease;
+  }
+  body {
+    width: 100%;
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+    height: 100%;
+    min-height: 100%;
+    min-height: -webkit-fill-available;
+    min-height: calc(100dvh + env(safe-area-inset-bottom, 0px));
+    height: calc(100dvh + env(safe-area-inset-bottom, 0px));
+    overflow: hidden;
+    overscroll-behavior: none;
+    -webkit-tap-highlight-color: transparent;
+    touch-action: manipulation;
+    -webkit-text-size-adjust: 100%;
+    text-size-adjust: 100%;
+    background-color: #000000;
+    transition: background-color 0.25s ease;
+  }
+  #root {
+    width: 100%;
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+    position: fixed;
+    inset: 0;
+    top: 0;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    height: 100%;
+    min-height: 100%;
+    min-height: -webkit-fill-available;
+    min-height: calc(100dvh + env(safe-area-inset-bottom, 0px));
+    height: calc(100dvh + env(safe-area-inset-bottom, 0px));
+    overflow: hidden;
+    background-color: #000000;
+    transition: background-color 0.25s ease;
+  }
+  html.dark,
+  html.dark body,
+  html.dark #root,
+  .dark {
+    background-color: #000000 !important;
+  }
+  html.light,
+  html.light body,
+  html.light #root {
+    background-color: #f4f4f5 !important;
+  }
+  *, body, button, input, select, textarea, div, span, p, label {
+    font-family: var(--font-sans);
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+  input::placeholder, textarea::placeholder {
+    color: #9A9894 !important;
+    opacity: 0.85;
+  }
+
+  /* Headings & Titles: 'Inter' / SF Pro (700 bold), #F5F2EA na cor dos títulos no tema escuro, kerning refinado */
+  h1, h2, h3, h4, h5, h6,
+  .font-title,
+  .title-heading,
+  .heading-title {
+    font-family: var(--font-sans);
+    letter-spacing: -0.02em;
+    line-height: 1.25;
+  }
+
+  .dark h1, .dark h2, .dark h3, .dark h4, .dark h5, .dark h6,
+  .dark .font-title,
+  .dark .title-heading,
+  .dark .heading-title {
+    color: #F5F2EA;
+  }
+
+  /* Descrições secundárias: #9A9894, espaçamento entre linhas refinado */
+  .text-secondary-desc,
+  .desc-secondary,
+  .text-secondary,
+  .dark .text-secondary-desc {
+    color: #9A9894;
+    letter-spacing: -0.012em;
+    line-height: 1.5;
+  }
+
+  .dark .text-zinc-400,
+  .dark .text-zinc-500 {
+    color: #9A9894;
+  }
+
+  /* Destaques em #FFFFFF (Apple System Blue) */
+  .text-highlight,
+  .text-gold,
+  .text-accent-gold {
+    color: #FFFFFF !important;
+  }
+
+  .bg-highlight,
+  .bg-gold {
+    background-color: #FFFFFF !important;
+  }
+
+  .border-highlight,
+  .border-gold {
+    border-color: #FFFFFF !important;
+  }
+
+  button, [role="button"], a {
+    font-weight: 600 !important;
+  }
+}
+
+@layer utilities {
+  .scrollbar-none::-webkit-scrollbar {
+    display: none;
+  }
+  .scrollbar-none {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+
+  /* Container do carrossel de categorias */
+  .category-carousel-container,
+  .categories-carousel-container,
+  .category-carousel,
+  .categories-carousel {
+    scroll-behavior: smooth !important;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  /* Metallic Gold Palette (Inspired by polished brushed 24k gold leaf) */
+  .bg-metallic-gold {
+    background: linear-gradient(135deg, #B88214 0%, #E6AC33 22%, #FFF4A3 48%, #F5BE38 68%, #C98B18 88%, #9E6505 100%) !important;
+  }
+  .bg-metallic-gold-badge {
+    background: linear-gradient(135deg, rgba(230,172,51,0.22) 0%, rgba(255,244,163,0.42) 45%, rgba(184,130,20,0.22) 100%) !important;
+    border-color: rgba(245,190,56,0.65) !important;
+  }
+  .bg-metallic-gold-icon {
+    background: linear-gradient(145deg, rgba(184,130,20,0.25) 0%, rgba(255,244,163,0.38) 45%, rgba(201,139,24,0.22) 100%) !important;
+    border-color: rgba(245,190,56,0.55) !important;
+  }
+  .text-metallic-gold {
+    background: linear-gradient(135deg, #D49B24 0%, #FFF4A3 38%, #F7C948 68%, #C28514 100%) !important;
+    -webkit-background-clip: text !important;
+    -webkit-text-fill-color: transparent !important;
+  }
+  .text-metallic-gold-solid {
+    color: #F5BE38 !important;
+  }
+  .border-metallic-gold {
+    border-color: rgba(245,190,56,0.55) !important;
+  }
+
+  /* Premium VIP Gold Animated Frame */
+  @keyframes goldBorderRotate {
+    0% {
+      transform: rotate(0deg);
+    }
+    100% {
+      transform: rotate(360deg);
+    }
+  }
+
+  .gold-vip-frame-wrapper {
+    position: relative;
+    padding: 1.5px;
+    border-radius: 32px;
+    overflow: hidden;
+    background: #ffffff;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08), 0 0 18px rgba(229, 172, 51, 0.28);
+  }
+
+  .dark .gold-vip-frame-wrapper {
+    background: #141518;
+    box-shadow: 0 12px 36px rgba(0, 0, 0, 0.75), 0 0 24px rgba(229, 172, 51, 0.22);
+  }
+
+  .gold-vip-frame-wrapper::before {
+    content: '';
+    position: absolute;
+    top: -100%;
+    left: -100%;
+    right: -100%;
+    bottom: -100%;
+    background: conic-gradient(
+      from 0deg,
+      #9E6505 0deg,
+      #E6AC33 60deg,
+      #FFF4A3 120deg,
+      #FFFFFF 135deg,
+      #FFF4A3 150deg,
+      #F5BE38 210deg,
+      #B88214 270deg,
+      #E6AC33 330deg,
+      #9E6505 360deg
+    );
+    animation: goldBorderRotate 8s linear infinite;
+    will-change: transform;
+    opacity: 0.95;
+  }
+
+  .gold-vip-avatar-ring {
+    position: relative;
+    padding: 2.5px;
+    border-radius: 9999px;
+    background: linear-gradient(135deg, #B88214 0%, #E6AC33 22%, #FFF4A3 48%, #F5BE38 68%, #9E6505 100%);
+    box-shadow: 0 0 16px rgba(245, 190, 56, 0.45), inset 0 0 6px rgba(255, 244, 163, 0.6);
+  }
+
+  /* ========================================================
+     METALLIC GOLD LUXURY ITINERARY CARDS (GOLD PASS EXCLUSIVE)
+     ======================================================== */
+  @keyframes goldSheenRay {
+    0%, 12% {
+      transform: translateX(-160%) rotate(30deg);
+      opacity: 0;
+    }
+    18% {
+      opacity: 0.9;
+    }
+    32%, 100% {
+      transform: translateX(280%) rotate(30deg);
+      opacity: 0;
+    }
+  }
+
+  @keyframes goldBorderGleamSpin {
+    0% {
+      transform: rotate(0deg);
+    }
+    100% {
+      transform: rotate(360deg);
+    }
+  }
+
+  .gold-featured-card-wrapper {
+    position: relative;
+    padding: 2px;
+    border-radius: 28px;
+    overflow: hidden;
+    background: linear-gradient(135deg, #9E6505 0%, #E6AC33 22%, #FFF4A3 48%, #F5BE38 68%, #C98B18 88%, #9E6505 100%);
+    box-shadow: 0 16px 42px rgba(0, 0, 0, 0.75), 0 0 28px rgba(229, 172, 51, 0.35);
+    transition: transform 0.22s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.22s cubic-bezier(0.16, 1, 0.3, 1);
+    will-change: transform, box-shadow;
+  }
+
+  .gold-featured-card-wrapper:hover,
+  .gold-featured-card-wrapper:active {
+    box-shadow: 0 20px 50px rgba(0, 0, 0, 0.85), 0 0 40px rgba(229, 172, 51, 0.6);
+  }
+
+  .gold-featured-card-wrapper::before {
+    content: '';
+    position: absolute;
+    top: -120%;
+    left: -120%;
+    right: -120%;
+    bottom: -120%;
+    background: conic-gradient(
+      from 0deg,
+      transparent 0deg,
+      rgba(255, 244, 163, 0.95) 45deg,
+      transparent 90deg,
+      transparent 180deg,
+      rgba(255, 244, 163, 0.8) 225deg,
+      transparent 270deg,
+      transparent 360deg
+    );
+    animation: goldBorderGleamSpin 7.5s linear infinite;
+    will-change: transform;
+    pointer-events: none;
+  }
+
+  .gold-featured-card-inner {
+    position: relative;
+    z-index: 10;
+    border-radius: 26px;
+    background: linear-gradient(180deg, #18191d 0%, #121316 100%);
+    overflow: hidden;
+  }
+
+  .gold-featured-card-inner.light,
+  .light .gold-featured-card-inner {
+    background: linear-gradient(180deg, #FFFFFF 0%, #F9F9FB 100%);
+  }
+
+  .gold-featured-card-wrapper.light,
+  .light .gold-featured-card-wrapper {
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.07), 0 0 22px rgba(229, 172, 51, 0.28);
+  }
+
+  .gold-featured-card-wrapper.light:hover,
+  .gold-featured-card-wrapper.light:active,
+  .light .gold-featured-card-wrapper:hover,
+  .light .gold-featured-card-wrapper:active {
+    box-shadow: 0 14px 36px rgba(0, 0, 0, 0.11), 0 0 32px rgba(229, 172, 51, 0.45);
+  }
+
+  .gold-sheen-overlay {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    overflow: hidden;
+    pointer-events: none;
+    z-index: 20;
+    border-radius: inherit;
+  }
+
+  .gold-sheen-overlay::after {
+    content: '';
+    position: absolute;
+    top: -50%;
+    left: 0;
+    width: 45%;
+    height: 200%;
+    background: linear-gradient(
+      90deg,
+      transparent 0%,
+      rgba(255, 244, 163, 0.05) 20%,
+      rgba(255, 244, 163, 0.32) 50%,
+      rgba(255, 255, 255, 0.55) 55%,
+      rgba(255, 244, 163, 0.32) 60%,
+      transparent 100%
+    );
+    animation: goldSheenRay 7.5s ease-in-out infinite;
+    will-change: transform;
+  }
+
+  /* Standard Itinerary Gold Card */
+  .gold-standard-card {
+    position: relative;
+    border-radius: 20px;
+    border: 1px solid rgba(245, 190, 56, 0.5);
+    background: linear-gradient(180deg, rgba(28, 29, 34, 0.96) 0%, rgba(18, 19, 23, 0.98) 100%);
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.55), 0 0 16px rgba(229, 172, 51, 0.16);
+    transition: transform 0.22s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.22s cubic-bezier(0.16, 1, 0.3, 1), border-color 0.22s ease;
+    overflow: hidden;
+    will-change: transform, box-shadow;
+  }
+
+  .gold-standard-card:hover,
+  .gold-standard-card:active {
+    border-color: rgba(255, 244, 163, 0.9);
+    box-shadow: 0 12px 32px rgba(0, 0, 0, 0.7), 0 0 28px rgba(229, 172, 51, 0.4);
+  }
+
+  .gold-standard-card.light,
+  .light .gold-standard-card {
+    border: 1px solid rgba(230, 172, 51, 0.55);
+    background: linear-gradient(180deg, #FFFFFF 0%, #F8F9FA 100%);
+    box-shadow: 0 4px 18px rgba(0, 0, 0, 0.05), 0 0 14px rgba(229, 172, 51, 0.14);
+  }
+
+  .gold-standard-card.light:hover,
+  .gold-standard-card.light:active,
+  .light .gold-standard-card:hover,
+  .light .gold-standard-card:active {
+    border-color: rgba(201, 139, 24, 0.85);
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.08), 0 0 22px rgba(229, 172, 51, 0.28);
+  }
+
+  .gold-standard-sheen {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    overflow: hidden;
+    pointer-events: none;
+    z-index: 15;
+    border-radius: inherit;
+  }
+
+  .gold-standard-sheen::after {
+    content: '';
+    position: absolute;
+    top: -50%;
+    left: 0;
+    width: 35%;
+    height: 200%;
+    background: linear-gradient(
+      90deg,
+      transparent 0%,
+      rgba(255, 244, 163, 0.22) 50%,
+      rgba(255, 255, 255, 0.4) 55%,
+      transparent 100%
+    );
+    animation: goldSheenRay 9s ease-in-out infinite;
+    animation-delay: 2.2s;
+    will-change: transform;
+  }
+
+  /* Global Primary Action Button standard - Apple system blue, white text & icons */
+  .btn-solid-blue,
+  .btn-primary {
+    background-color: #FFFFFF;
+    color: #FFFFFF;
+    border: none;
+    border-radius: 9999px;
+    font-weight: 700;
+    transition: background-color 0.2s ease, transform 0.15s ease;
+  }
+  .btn-solid-blue:hover,
+  .btn-primary:hover {
+    background-color: #0066D6;
+  }
+  .btn-solid-blue:active,
+  .btn-primary:active {
+    transform: scale(0.97);
+  }
+  .btn-solid-blue svg,
+  .btn-primary svg {
+    color: #FFFFFF;
+    stroke: #FFFFFF;
+  }
+}
+
+/* MapLibre custom container resets & safe area positioning */
+.maplibregl-map {
+  font-family: inherit;
+  touch-action: none !important;
+}
+
+.maplibregl-canvas,
+.maplibregl-canvas-container {
+  outline: none;
+  touch-action: none !important;
+  transition: filter 0.3s ease;
+}
+
+/* Dark Theme: Atmospheric dark blurred background during tile loading instead of black/white blocks */
+.dark .maplibregl-canvas {
+  background-color: #0b0f17 !important;
+  background-image: radial-gradient(circle at 50% 50%, #111827 0%, #080b11 100%);
+  filter: blur(0px);
+  transition: filter 0.4s ease, opacity 0.4s ease;
+}
+
+/* Light Theme: Atmospheric soft light gray/blue blurred background during tile loading */
+html:not(.dark) .maplibregl-canvas {
+  background-color: #e5eaf2 !important;
+  background-image: radial-gradient(circle at 50% 50%, #edf2f7 0%, #d8e1ed 100%);
+  filter: saturate(1.15) blur(0px);
+  transition: filter 0.4s ease, opacity 0.4s ease;
+}
+
+/* Confine MapLibre marker layer so markers never overlay floating UI controls */
+.maplibregl-canvas-container {
+  z-index: 0;
+}
+
+.maplibregl-marker {
+  z-index: 10 !important;
+}
+
+.spot-marker-container,
+#user-voce-marker {
+  touch-action: none !important;
+}
+
+/* Ensure MapLibre attribution sits cleanly above the bottom navigation and respects safe areas */
+.maplibregl-ctrl-bottom-left,
+.maplibregl-ctrl-bottom-right {
+  bottom: 60px !important;
+  z-index: 20 !important;
+}
+
+.maplibregl-ctrl-bottom-left {
+  left: max(10px, env(safe-area-inset-left, 0px)) !important;
+}
+
+.maplibregl-ctrl-bottom-right {
+  right: max(10px, env(safe-area-inset-right, 0px)) !important;
+}
+
+/* iPhone Gloss / Liquid Glass style for marker labels with 30% reduced resting opacity (0.7) */
+.spot-marker-label {
+  transition: opacity 0.22s cubic-bezier(0.2, 0.8, 0.2, 1), background-color 0.2s ease;
+  opacity: 0.7;
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+}
+
+.map-panning-active .spot-marker-label {
+  opacity: 0.42 !important;
+}
+
+.spot-marker-container:hover .spot-marker-label {
+  opacity: 0.95;
+}
+
+/* Subtle infinite breathing pulse for user photo marker on map */
+@keyframes userPhotoPulse {
+  0%, 100% {
+    transform: scale(1);
+    box-shadow: 0 0 0 0 rgba(0, 122, 255, 0.45);
+  }
+  50% {
+    transform: scale(1.07);
+    box-shadow: 0 0 0 7px rgba(0, 122, 255, 0);
+  }
+}
+
+.user-photo-pulse {
+  animation: userPhotoPulse 2.4s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+  will-change: transform, box-shadow;
+}
+
+/* ============================================================ */
+/* ADAPTIVE GLASSMORPHISM (iOS PREMIUM GLASS / GLOSS FOR UI)    */
+/* Applied exclusively to Navigation Bar, Floating Controls & Cards */
+/* ============================================================ */
+
+/* Primary Glass Pill / Bar Container */
+.ios-glass:not(.absolute):not(.fixed),
+.ios-glass-nav:not(.absolute):not(.fixed) {
+  position: relative;
+}
+
+.ios-glass,
+.ios-glass-nav {
+  transition: background-color 0.4s cubic-bezier(0.16, 1, 0.3, 1),
+              border-color 0.4s cubic-bezier(0.16, 1, 0.3, 1),
+              box-shadow 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+/* Light Theme: Pure crystal translucent glass with subtle specular gloss */
+html:not(.dark) .ios-glass {
+  background: rgba(255, 255, 255, 0.38) !important;
+  backdrop-filter: blur(20px) saturate(190%) !important;
+  -webkit-backdrop-filter: blur(20px) saturate(190%) !important;
+  border: 1px solid rgba(255, 255, 255, 0.45) !important;
+  box-shadow: 0 10px 30px -5px rgba(0, 0, 0, 0.07),
+              0 0 1px 1px rgba(0, 0, 0, 0.03),
+              inset 0 1px 1.5px 0 rgba(255, 255, 255, 0.8),
+              inset 0 -1px 1px 0 rgba(0, 0, 0, 0.03) !important;
+}
+
+html:not(.dark) .ios-glass-nav {
+  background: rgba(255, 255, 255, 0.38) !important;
+  backdrop-filter: blur(20px) saturate(190%) !important;
+  -webkit-backdrop-filter: blur(20px) saturate(190%) !important;
+  border: 1px solid rgba(255, 255, 255, 0.45) !important;
+  box-shadow: none !important;
+}
+
+/* Light Theme subtle top gloss reflection line */
+html:not(.dark) .ios-glass::before,
+html:not(.dark) .ios-glass-nav::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 12%;
+  right: 12%;
+  height: 1px;
+  background: linear-gradient(90deg, transparent 0%, rgba(255, 255, 255, 0.7) 50%, transparent 100%);
+  pointer-events: none;
+  z-index: 1;
+}
+
+/* Dark Theme: Smoked Obsidian glass with subtle rim light and deep depth */
+.dark .ios-glass {
+  background: rgba(18, 20, 26, 0.38) !important;
+  backdrop-filter: blur(24px) saturate(190%) !important;
+  -webkit-backdrop-filter: blur(24px) saturate(190%) !important;
+  border: 1px solid rgba(255, 255, 255, 0.10) !important;
+  box-shadow: 0 16px 40px -8px rgba(0, 0, 0, 0.6),
+              0 0 0 1px rgba(255, 255, 255, 0.04),
+              inset 0 1px 1px 0 rgba(255, 255, 255, 0.18),
+              inset 0 -1px 1px 0 rgba(0, 0, 0, 0.35) !important;
+}
+
+.dark .ios-glass-nav {
+  background: rgba(18, 20, 26, 0.38) !important;
+  backdrop-filter: blur(24px) saturate(190%) !important;
+  -webkit-backdrop-filter: blur(24px) saturate(190%) !important;
+  border: 1px solid rgba(255, 255, 255, 0.10) !important;
+  box-shadow: none !important;
+}
+
+/* Dark Theme subtle top specular rim */
+.dark .ios-glass::before,
+.dark .ios-glass-nav::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 10%;
+  right: 10%;
+  height: 1px;
+  background: linear-gradient(90deg, transparent 0%, rgba(255, 255, 255, 0.22) 50%, transparent 100%);
+  pointer-events: none;
+  z-index: 1;
+}
+
+/* Floating iOS Glass Buttons */
+.ios-glass-btn {
+  position: relative;
+  transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+html:not(.dark) .ios-glass-btn {
+  background: rgba(255, 255, 255, 0.75) !important;
+  backdrop-filter: blur(20px) saturate(190%) !important;
+  -webkit-backdrop-filter: blur(20px) saturate(190%) !important;
+  border: 1px solid rgba(255, 255, 255, 0.85) !important;
+  box-shadow: none !important;
+}
+
+html:not(.dark) .ios-glass-btn:hover {
+  background: rgba(255, 255, 255, 0.90) !important;
+  border-color: rgba(255, 255, 255, 1) !important;
+  box-shadow: none !important;
+}
+
+.dark .ios-glass-btn {
+  background: rgba(20, 22, 28, 0.65) !important;
+  backdrop-filter: blur(24px) saturate(190%) !important;
+  -webkit-backdrop-filter: blur(24px) saturate(190%) !important;
+  border: 1px solid rgba(255, 255, 255, 0.12) !important;
+  box-shadow: none !important;
+}
+
+.dark .ios-glass-btn:hover {
+  background: rgba(28, 30, 38, 0.80) !important;
+  border-color: rgba(255, 255, 255, 0.18) !important;
+  box-shadow: none !important;
+}
+
+/* White / Light Apple Glass Variants - matching the translucent card */
+.ios-glass-btn-white {
+  background: rgba(255, 255, 255, 0.40) !important;
+  backdrop-filter: blur(24px) saturate(190%) !important;
+  -webkit-backdrop-filter: blur(24px) saturate(190%) !important;
+  border: 1px solid rgba(255, 255, 255, 0.50) !important;
+  box-shadow: 0 8px 24px -4px rgba(0, 0, 0, 0.12),
+              inset 0 1px 1.5px 0 rgba(255, 255, 255, 0.8) !important;
+  color: #18181b !important;
+}
+
+.dark .ios-glass-btn-white {
+  background: rgba(255, 255, 255, 0.38) !important;
+  backdrop-filter: blur(24px) saturate(190%) !important;
+  -webkit-backdrop-filter: blur(24px) saturate(190%) !important;
+  border: 1px solid rgba(255, 255, 255, 0.45) !important;
+  box-shadow: 0 8px 24px -4px rgba(0, 0, 0, 0.25),
+              inset 0 1px 1.5px 0 rgba(255, 255, 255, 0.7) !important;
+  color: #18181b !important;
+}
+
+.ios-glass-btn-white:hover,
+.dark .ios-glass-btn-white:hover {
+  background: rgba(255, 255, 255, 0.55) !important;
+  border-color: rgba(255, 255, 255, 0.65) !important;
+  box-shadow: 0 10px 28px -4px rgba(0, 0, 0, 0.18) !important;
+}
+
+.ios-glass-nav-white,
+html:not(.dark) .ios-glass-nav-white,
+.dark .ios-glass-nav-white {
+  background: rgba(255, 255, 255, 0.40) !important;
+  backdrop-filter: blur(24px) saturate(190%) !important;
+  -webkit-backdrop-filter: blur(24px) saturate(190%) !important;
+  border: 1px solid rgba(255, 255, 255, 0.50) !important;
+  box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.15) !important;
+}
+
+.ios-glass-white,
+html:not(.dark) .ios-glass-white,
+.dark .ios-glass-white {
+  background: rgba(255, 255, 255, 0.40) !important;
+  backdrop-filter: blur(24px) saturate(190%) !important;
+  -webkit-backdrop-filter: blur(24px) saturate(190%) !important;
+  border: 1px solid rgba(255, 255, 255, 0.50) !important;
+  box-shadow: 0 14px 40px -6px rgba(0, 0, 0, 0.15),
+              inset 0 1px 2px 0 rgba(255, 255, 255, 0.8) !important;
+  color: #18181b !important;
+}
+
+/* High Contrast Mode fallback */
+.high-contrast .ios-glass,
+.high-contrast .ios-glass-nav,
+.high-contrast .ios-glass-btn {
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+}
+.high-contrast .ios-glass::before,
+.high-contrast .ios-glass-nav::before {
+  display: none !important;
+}
+
+/* Tactile animation when touching map pins (ultra subtle micro-tap) */
+@keyframes pinTapBounce {
+  0% {
+    transform: scale(1);
+  }
+  40% {
+    transform: scale(0.95);
+  }
+  75% {
+    transform: scale(1.04);
+  }
+  100% {
+    transform: scale(1);
+  }
+}
+
+.pin-tap-anim {
+  animation: pinTapBounce 0.2s cubic-bezier(0.25, 1, 0.5, 1) !important;
+}
+
+/* Fluid Apple/iOS Pop-In for Map Markers when loaded or filtered */
+@keyframes pinPopIn {
+  0% {
+    opacity: 0;
+    transform: scale(0.3);
+  }
+  65% {
+    opacity: 1;
+    transform: scale(1.12);
+  }
+  85% {
+    transform: scale(0.96);
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+.pin-pop-in {
+  animation: pinPopIn 0.36s cubic-bezier(0.34, 1.4, 0.64, 1) both;
+  transform-origin: center center;
+  will-change: transform, opacity;
+}
+
+/* ============================================================ */
+/* HIGH CONTRAST MODE (Acessibilidade & Máxima Legibilidade)    */
+/* ============================================================ */
+.high-contrast {
+  --high-contrast-border: #000000;
+  --high-contrast-text: #000000;
+}
+
+.high-contrast.dark,
+.dark .high-contrast,
+.high-contrast .dark {
+  --high-contrast-border: #ffffff;
+  --high-contrast-text: #ffffff;
+}
+
+/* 1. Map Canvas Enhancements */
+.high-contrast .maplibregl-canvas {
+  filter: contrast(140%) brightness(95%) saturate(120%) !important;
+}
+
+/* 2. Spot Markers and Labels */
+.high-contrast .spot-marker-container > div {
+  border-width: 3px !important;
+  border-color: #ffffff !important;
+  box-shadow: 0 0 0 2px #000000, 0 4px 12px rgba(0, 0, 0, 0.6) !important;
+}
+
+.high-contrast #user-voce-marker > div {
+  border-width: 3px !important;
+  border-color: #2563eb !important;
+  box-shadow: 0 0 0 3px #000000, 0 0 16px rgba(37, 99, 235, 0.9) !important;
+}
+
+.high-contrast .spot-marker-label {
+  opacity: 1 !important;
+  background-color: #000000 !important;
+  color: #ffffff !important;
+  border: 2px solid #ffffff !important;
+  font-weight: 800 !important;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.8) !important;
+}
+
+/* 3. Text and Border Sharpening in UI */
+.high-contrast * {
+  font-weight: 700 !important;
+}
+
+.high-contrast h1,
+.high-contrast h2,
+.high-contrast h3,
+.high-contrast h4,
+.high-contrast h5,
+.high-contrast h6,
+.high-contrast strong,
+.high-contrast b {
+  font-weight: 900 !important;
+  letter-spacing: -0.01em;
+}
+
+.high-contrast button,
+.high-contrast input,
+.high-contrast select,
+.high-contrast textarea {
+  border-width: 2px !important;
+  border-color: currentColor !important;
+}
+
+.high-contrast .text-zinc-500,
+.high-contrast .text-zinc-400,
+.high-contrast .text-zinc-600 {
+  color: #27272a !important;
+}
+
+.high-contrast.dark .text-zinc-500,
+.high-contrast.dark .text-zinc-400,
+.high-contrast.dark .text-zinc-600,
+.dark.high-contrast .text-zinc-500,
+.dark.high-contrast .text-zinc-400,
+.dark.high-contrast .text-zinc-600 {
+  color: #f4f4f5 !important;
+}
+
+/* Rounded top corners for standard browser view (non-PWA) */
+.non-pwa-container {
+  overflow: hidden !important;
+}
+
+#bottom-floating-navigation {
+  position: fixed !important;
+  bottom: 0px !important;
+  left: 0px !important;
+  right: 0px !important;
+  margin: 0px !important;
+  padding-left: 16px !important;
+  padding-right: 16px !important;
+  padding-bottom: max(22px, calc(env(safe-area-inset-bottom, 0px) + 16px)) !important;
+  z-index: 50 !important;
+}
+
+/* Map Saturation & Color Boost (+40% Verde Mais Saturado e Relevo Vibrante) */
+.map-canvas-green-boost .maplibregl-canvas {
+  filter: saturate(1.4) contrast(1.05);
+}
+
+.map-canvas-satellite-boost .maplibregl-canvas {
+  filter: brightness(1.22) contrast(1.08) saturate(1.4);
+}
+
+/* Satellite Map +40% Brighter & Enhanced Visibility */
+.itinerary-satellite-canvas .maplibregl-canvas {
+  filter: brightness(1.22) contrast(1.08) saturate(1.4);
+}
+
+/* ========================================================
+   UNIVERSAL SCROLLBAR REMOVAL - PURE CLEAN NATIVE IOS FEEL
+   ======================================================== */
+* {
+  scrollbar-width: none !important;
+  -ms-overflow-style: none !important;
+}
+*::-webkit-scrollbar {
+  display: none !important;
+  width: 0px !important;
+  height: 0px !important;
+  background: transparent !important;
+}
+
+.no-scrollbar::-webkit-scrollbar {
+  display: none !important;
+  width: 0 !important;
+  height: 0 !important;
+}
+.no-scrollbar {
+  -ms-overflow-style: none !important;
+  scrollbar-width: none !important;
+}
+
+/* iOS Apple Shimmer Animation (120 FPS Hardware-Accelerated) */
+@keyframes ios-shimmer {
+  0% {
+    transform: translate3d(-100%, 0, 0);
+  }
+  100% {
+    transform: translate3d(100%, 0, 0);
+  }
+}
+
+.animate-ios-shimmer {
+  animation: ios-shimmer 1.35s cubic-bezier(0.16, 1, 0.3, 1) infinite;
+  will-change: transform;
+  transform: translate3d(0, 0, 0);
+  backface-visibility: hidden;
+}
+
+@keyframes pulse-subtle {
+  0%, 100% {
+    opacity: 0.9;
+    transform: scale3d(1, 1, 1);
+  }
+  50% {
+    opacity: 0.45;
+    transform: scale3d(0.992, 0.992, 1);
+  }
+}
+
+.animate-pulse-subtle {
+  animation: pulse-subtle 1.8s cubic-bezier(0.16, 1, 0.3, 1) infinite;
+  will-change: opacity, transform;
+}
+
+/* 120 FPS Native iOS Physics Compositing Layer */
+.fps-120 {
+  transform: translate3d(0, 0, 0);
+  backface-visibility: hidden;
+  perspective: 1000px;
+  will-change: transform, opacity;
+  contain: layout style paint;
+}
+
+/* ========================================================
+   STORY RING INFINITE ANIMATION (CONFINED TO RING COLOR)
+   ======================================================== */
+@keyframes story-ring-spin {
+  0% {
+    transform: rotate(0deg);
+  }
+  100% {
+    transform: rotate(360deg);
+  }
+}
+
+/* Efeito refinado: 95% reduzido, concentrado estritamente sobre a borda colorida */
+@keyframes story-light-glow {
+  0%, 100% {
+    opacity: 0.25;
+    transform: scale(1.005) rotate(0deg);
+    filter: blur(0.5px);
+  }
+  50% {
+    opacity: 0.45;
+    transform: scale(1.01) rotate(180deg);
+    filter: blur(1px);
+  }
+}
+
+.animate-story-ring {
+  animation: story-ring-spin 4s linear infinite;
+  will-change: transform;
+}
+
+.animate-story-glow {
+  animation: story-light-glow 3s ease-in-out infinite;
+  will-change: transform, opacity, filter;
+}
+
+.story-gradient {
+  background: conic-gradient(from 0deg, #f09433, #dc2743, #bc1888, #dc2743, #f09433);
+}
+
+/* ========================================================
+   GLOBAL iOS TOP ROUNDED CORNER CONTAINER (20px - 28px standard)
+   ======================================================== */
+.ios-page-top-rounded {
+  border-top-left-radius: 26px !important;
+  border-top-right-radius: 26px !important;
+  -webkit-mask-image: -webkit-radial-gradient(white, black);
+  isolation: isolate;
+}
+
+
+

@@ -9,8 +9,7 @@ import { registerSocialRoutes, setupSocialDatabase } from './src/server/socialRo
 import { registerStoryRoutes, setupStoriesDatabase } from './src/server/storyRoutes.js';
 import { CAMPOS_SPOTS } from './src/data/spots.js';
 
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
+const __dirname = path.resolve();
 
 const isProd = process.env.NODE_ENV === 'production';
 const PORT = Number(process.env.PORT) || 3000;

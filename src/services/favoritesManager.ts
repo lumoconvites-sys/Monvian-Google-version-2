@@ -113,6 +113,17 @@ class FavoritesManager {
     };
   }
 
+  public getFavorites(): string[] {
+    return Array.from(new Set([...this.state.spots, ...this.state.places]));
+  }
+
+  public toggleFavorite(id: string): boolean {
+    if (this.state.places.includes(id)) {
+      return this.togglePlace(id);
+    }
+    return this.toggleSpot(id);
+  }
+
   public isItinerarySaved(id: string): boolean {
     return this.state.itineraries.includes(id);
   }
