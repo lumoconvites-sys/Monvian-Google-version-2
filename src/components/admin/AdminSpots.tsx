@@ -5,16 +5,14 @@ import {
   CheckCircle2,
   Trash2,
   Edit,
-  ExternalLink,
   Star,
   MapPin,
-  Eye,
-  AlertTriangle,
   RefreshCw,
-  SlidersHorizontal,
   Compass
 } from 'lucide-react';
 import { AdminSpotModal } from './AdminSpotModal';
+import { db } from '../../lib/firebase';
+import { collection, getDocs, deleteDoc, doc, updateDoc } from 'firebase/firestore';
 
 export const AdminSpots: React.FC = () => {
   const [spots, setSpots] = useState<any[]>([]);
@@ -32,11 +30,9 @@ export const AdminSpots: React.FC = () => {
   const fetchSpots = async () => {
     try {
       setLoading(true);
-      const res = await fetch('/api/admin/spots');
-      const data = await res.json();
-      if (data.success) {
-        setSpots(data.spots);
-      }
+      const spotsSnapshot = await getDocs(collection(db, 'spots'));
+      const spotsData = spotsSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+      setSpots(spotsData);
     } catch (err) {
       console.error(err);
     } finally {
@@ -56,14 +52,14 @@ export const AdminSpots: React.FC = () => {
   const handleToggleActive = async (id: string, e: React.MouseEvent) => {
     e.stopPropagation();
     try {
-      const res = await fetch(`/api/admin/spots/${id}/toggle-active`, { method: 'PATCH' });
-      const data = await res.json();
-      if (data.success) {
-        setSpots((prev) =>
-          prev.map((s) => (s.id === id ? { ...s, isActive: data.isActive } : s))
-        );
-        showToast(data.isActive ? 'Ponto ativado no mapa.' : 'Ponto desativado.');
-      }
+      const spotRef = doc(db, 'spots', id);
+      const spot = spots.find(s => s.id === id);
+      await updateDoc(spotRef, { isActive: !spot.isActive });
+      
+      setSpots((prev) =>
+        prev.map((s) => (s.id === id ? { ...s, isActive: !s.isActive } : s))
+      );
+      showToast(!spot.isActive ? 'Ponto ativado no mapa.' : 'Ponto desativado.');
     } catch (err) {
       console.error(err);
     }
@@ -72,14 +68,14 @@ export const AdminSpots: React.FC = () => {
   const handleToggleVerified = async (id: string, e: React.MouseEvent) => {
     e.stopPropagation();
     try {
-      const res = await fetch(`/api/admin/spots/${id}/toggle-verified`, { method: 'PATCH' });
-      const data = await res.json();
-      if (data.success) {
-        setSpots((prev) =>
-          prev.map((s) => (s.id === id ? { ...s, isVerified: data.isVerified } : s))
-        );
-        showToast(data.isVerified ? 'Ponto marcado como verificado.' : 'Verificação removida.');
-      }
+      const spotRef = doc(db, 'spots', id);
+      const spot = spots.find(s => s.id === id);
+      await updateDoc(spotRef, { isVerified: !spot.isVerified });
+      
+      setSpots((prev) =>
+        prev.map((s) => (s.id === id ? { ...s, isVerified: !s.isVerified } : s))
+      );
+      showToast(!spot.isVerified ? 'Ponto marcado como verificado.' : 'Verificação removida.');
     } catch (err) {
       console.error(err);
     }
@@ -87,16 +83,9 @@ export const AdminSpots: React.FC = () => {
 
   const handleDelete = async (spot: any) => {
     try {
-      // Optimistic UI removal
       setSpots((prev) => prev.filter((s) => s.id !== spot.id));
-      const res = await fetch(`/api/admin/spots/${spot.id}`, { method: 'DELETE' });
-      const data = await res.json();
-      if (data.success) {
-        showToast('Ponto turístico excluído com sucesso.');
-      } else {
-        fetchSpots();
-        showToast('Erro ao excluir ponto.');
-      }
+      await deleteDoc(doc(db, 'spots', spot.id));
+      showToast('Ponto turístico excluído com sucesso.');
     } catch (err) {
       console.error(err);
       fetchSpots();

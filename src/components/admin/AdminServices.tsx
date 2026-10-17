@@ -341,7 +341,6 @@ export const AdminServices: React.FC = () => {
       <AdminSpotModal
         isOpen={isModalOpen}
         onClose={() => setIsModalOpen(false)}
-        mode="service"
         spotToEdit={serviceToEdit}
         onSaveSuccess={(savedSpot) => {
           fetchServices();
