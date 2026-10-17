@@ -1,9 +1,13 @@
-import React, { useEffect, useRef, useImperativeHandle, forwardRef, useState, useMemo, useCallback } from 'react';
+import React, { useEffect, useRef, useImperativeHandle, forwardRef, useState, useCallback } from 'react';
 import * as maplibregl from 'maplibre-gl';
 import 'maplibre-gl/dist/maplibre-gl.css';
+import { Plus, Minus, Layers } from 'lucide-react';
 import { Spot, MapModeType } from '../types';
 import { getSpotImage, getSpotFallbackImage } from '../utils/spotImages';
 import { generateMarkerHtml } from '../utils/mapVisualIcons';
+import { gpsNavigationManager } from '../services/gpsNavigation';
+import { deviceHeadingManager } from '../utils/deviceHeading';
+import { CompassIcon } from './CompassIcon';
 
 export type { MapModeType };
 
@@ -249,6 +253,24 @@ const getVectorMapStyle = (
   };
 };
 
+function normalizeCoords(
+  coords?: [number, number] | { lat: number; lng: number } | null,
+  fallback: [number, number] = [-45.587, -22.7355]
+): [number, number] {
+  if (!coords) return fallback;
+  if (Array.isArray(coords) && coords.length === 2) {
+    const [lng, lat] = coords;
+    if (typeof lng === 'number' && typeof lat === 'number' && !isNaN(lng) && !isNaN(lat)) {
+      return [lng, lat];
+    }
+  } else if (typeof coords === 'object' && 'lng' in coords && 'lat' in coords) {
+    if (typeof coords.lng === 'number' && typeof coords.lat === 'number') {
+      return [coords.lng, coords.lat];
+    }
+  }
+  return fallback;
+}
+
 export const MapComponent = forwardRef<MapComponentHandle, MapComponentProps>(
   (
     {
@@ -256,22 +278,71 @@ export const MapComponent = forwardRef<MapComponentHandle, MapComponentProps>(
       selectedSpot,
       onSelectSpot,
       onMapClick,
+      userCoords,
       theme,
       visualIcons = [],
+      userAvatar,
+      userName,
       is3DMode = false,
       mapMode = 'explorar',
       onMapModeChange,
       onMapLoad,
+      onInteractionChange,
+      zoomToUserTrigger,
+      onStyleChange,
     },
     ref
   ) => {
     const mapContainerRef = useRef<HTMLDivElement | null>(null);
     const mapRef = useRef<maplibregl.Map | null>(null);
-    const markersRef = useRef<maplibregl.Marker[]>([]);
     const [currentMode, setCurrentMode] = useState<MapModeType>(mapMode);
+    const [isFollowingUser, setIsFollowingUser] = useState<boolean>(true);
+    const isFollowingUserRef = useRef<boolean>(true);
+
+    // User location marker & flashlight refs
+    const userMarkerRef = useRef<maplibregl.Marker | null>(null);
+    const userBeamElRef = useRef<HTMLDivElement | null>(null);
+    const userAvatarImgRef = useRef<HTMLImageElement | null>(null);
+    const latestUserCoordsRef = useRef<[number, number]>(
+      normalizeCoords(userCoords, [-45.587, -22.7355])
+    );
+    const hasCenteredOnFirstFixRef = useRef<boolean>(false);
 
     // Campos do Jordão Center Coordinates
     const CAMPOS_CENTER: [number, number] = [-45.5908, -22.7394];
+
+    const setFollowMode = useCallback((follow: boolean) => {
+      isFollowingUserRef.current = follow;
+      setIsFollowingUser(follow);
+    }, []);
+
+    const centerOnUserLocation = useCallback(
+      (activateSensors: boolean = true) => {
+        if (activateSensors) {
+          deviceHeadingManager.requestPermission().catch(() => {});
+          deviceHeadingManager.start();
+          gpsNavigationManager.start();
+        }
+
+        setFollowMode(true);
+
+        const targetCoords =
+          gpsNavigationManager.getCurrentInterpolatedCoords() ||
+          latestUserCoordsRef.current ||
+          CAMPOS_CENTER;
+
+        if (mapRef.current) {
+          mapRef.current.easeTo({
+            center: targetCoords,
+            zoom: Math.max(mapRef.current.getZoom(), 15.6),
+            pitch: is3DMode ? 52 : 0,
+            bearing: 0,
+            duration: 750,
+          });
+        }
+      },
+      [is3DMode, setFollowMode]
+    );
 
     // Expose map controls for external iOS floating buttons
     useImperativeHandle(ref, () => ({
@@ -282,15 +353,12 @@ export const MapComponent = forwardRef<MapComponentHandle, MapComponentProps>(
         mapRef.current?.zoomOut({ duration: 300 });
       },
       resetNorth: () => {
-        mapRef.current?.easeTo({
-          bearing: 0,
-          pitch: 0,
-          duration: 600,
-        });
+        centerOnUserLocation(true);
       },
       setMapMode: (mode: MapModeType) => {
         setCurrentMode(mode);
         if (onMapModeChange) onMapModeChange(mode);
+        if (onStyleChange) onStyleChange(mode);
       },
       getMapMode: () => currentMode,
       toggleMapMode: () => {
@@ -302,10 +370,12 @@ export const MapComponent = forwardRef<MapComponentHandle, MapComponentProps>(
             : 'explorar';
         setCurrentMode(next);
         if (onMapModeChange) onMapModeChange(next);
+        if (onStyleChange) onStyleChange(next);
         return next;
       },
       flyToSpot: (spot: Spot) => {
         if (!spot.lng || !spot.lat || !mapRef.current) return;
+        setFollowMode(false);
         const isMobile = window.innerWidth < 768;
         const verticalOffset = isMobile ? -Math.round(window.innerHeight * 0.12) : 0;
         mapRef.current.easeTo({
@@ -318,13 +388,7 @@ export const MapComponent = forwardRef<MapComponentHandle, MapComponentProps>(
         });
       },
       recenter: () => {
-        mapRef.current?.flyTo({
-          center: CAMPOS_CENTER,
-          zoom: 13,
-          bearing: 0,
-          pitch: is3DMode ? 45 : 0,
-          duration: 800,
-        });
+        centerOnUserLocation(true);
       },
     }));
 
@@ -342,11 +406,12 @@ export const MapComponent = forwardRef<MapComponentHandle, MapComponentProps>(
       const style = getVectorMapStyle(currentMode, theme);
 
       if (!mapRef.current) {
+        const initialCoords = normalizeCoords(userCoords, CAMPOS_CENTER);
         const map = new maplibregl.Map({
           container: mapContainerRef.current,
           style: style,
-          center: CAMPOS_CENTER,
-          zoom: 13,
+          center: initialCoords,
+          zoom: 14.5,
           pitch: is3DMode ? 50 : 0,
           bearing: is3DMode ? -20 : 0,
           attributionControl: false,
@@ -361,10 +426,269 @@ export const MapComponent = forwardRef<MapComponentHandle, MapComponentProps>(
         map.on('load', () => {
           if (onMapLoad) onMapLoad();
         });
+
+        // Pause auto-follow when user manually pans/drags the map
+        const onUserDragStart = (e: any) => {
+          if (e && e.originalEvent) {
+            setFollowMode(false);
+          }
+          if (onInteractionChange) onInteractionChange(true);
+        };
+
+        const onInteractionEnd = () => {
+          if (onInteractionChange) onInteractionChange(false);
+        };
+
+        map.on('dragstart', onUserDragStart);
+        map.on('MoveEnd', onInteractionEnd);
+        map.on('moveend', onInteractionEnd);
+
+        // Keep deviceHeadingManager aware of map bearing so the flashlight aligns with true heading
+        map.on('rotate', () => {
+          deviceHeadingManager.setMapBearing(map.getBearing());
+        });
+        map.on('move', () => {
+          deviceHeadingManager.setMapBearing(map.getBearing());
+        });
       } else {
         mapRef.current.setStyle(style);
       }
     }, [currentMode, theme]);
+
+    // Create and manage the 3D User Location Marker ("Eu" + Avatar + Rotating Blue Flashlight Cone)
+    useEffect(() => {
+      const map = mapRef.current;
+      if (!map) return;
+
+      if (!userMarkerRef.current) {
+        const rootEl = document.createElement('div');
+        rootEl.className = 'monvian-user-location-marker select-none';
+        rootEl.style.position = 'relative';
+        rootEl.style.width = '150px';
+        rootEl.style.height = '150px';
+        rootEl.style.display = 'flex';
+        rootEl.style.alignItems = 'center';
+        rootEl.style.justifyContent = 'center';
+        rootEl.style.pointerEvents = ' none';
+        rootEl.style.zIndex = '40';
+
+        // 1. Rotating Flashlight Beam (Lanterna Azul 3D que acompanha o giro do celular)
+        const beamWrapper = document.createElement('div');
+        beamWrapper.style.position = 'absolute';
+        beamWrapper.style.inset = '0';
+        beamWrapper.style.display = 'flex';
+        beamWrapper.style.alignItems = 'center';
+        beamWrapper.style.justifyContent = 'center';
+        beamWrapper.style.pointerEvents = 'none';
+        beamWrapper.style.willChange = 'transform';
+        beamWrapper.style.transformOrigin = '50% 50%';
+        beamWrapper.style.transform = 'rotate(0deg)';
+        beamWrapper.style.zIndex = '1';
+
+        beamWrapper.innerHTML = `
+          <svg width="150" height="150" viewBox="0 0 150 150" fill="none" xmlns="http://www.w3.org/2000/svg" style="overflow: visible;">
+            <defs>
+              <radialGradient id="monvianFlashlightGrad" cx="75" cy="75" r="68" fx="75" fy="75" gradientUnits="userSpaceOnUse">
+                <stop offset="0%" stop-color="#60A5FA" stop-opacity="0.0" />
+                <stop offset="26%" stop-color="#3B82F6" stop-opacity="0.58" />
+                <stop offset="62%" stop-color="#3B82F6" stop-opacity="0.26" />
+                <stop offset="100%" stop-color="#2563EB" stop-opacity="0.0" />
+              </radialGradient>
+              <radialGradient id="monvianBeaconGlow" cx="50%" cy="50%" r="50%">
+                <stop offset="0%" stop-color="#93C5FD" stop-opacity="1" />
+                <stop offset="45%" stop-color="#3B82F6" stop-opacity="0.88" />
+                <stop offset="100%" stop-color="#2563EB" stop-opacity="0" />
+              </radialGradient>
+            </defs>
+            <!-- Cone da Lanterna Azul -->
+            <path
+              d="M 75 75 L 34 10 A 76 76 0 0 1 116 10 Z"
+              fill="url(#monvianFlashlightGrad)"
+            />
+            <!-- Ponto de Luz Azul (Beacon) na borda frontal do círculo -->
+            <circle cx="75" cy="46" r="12" fill="url(#monvianBeaconGlow)" />
+            <circle cx="75" cy="46" r="4.5" fill="#60A5FA" stroke="#FFFFFF" stroke-width="1.5" />
+          </svg>
+        `;
+        userBeamElRef.current = beamWrapper;
+        rootEl.appendChild(beamWrapper);
+
+        // 2. Center 3D Avatar Circle + Outer Translucent Ring + "Eu" Pill
+        const centerStack = document.createElement('div');
+        centerStack.style.position = 'relative';
+        centerStack.style.display = 'flex';
+        centerStack.style.flexDirection = 'column';
+        centerStack.style.alignItems = 'center';
+        centerStack.style.justifyContent = 'center';
+        centerStack.style.zIndex = '2';
+        centerStack.style.pointerEvents = 'auto';
+        centerStack.style.cursor = 'pointer';
+
+        // Outer 3D Ring (Círculo 3D translúcido ao redor da foto)
+        const outerRing = document.createElement('div');
+        outerRing.style.width = '54px';
+        outerRing.style.height = '54px';
+        outerRing.style.borderRadius = '9999px';
+        outerRing.style.background = 'rgba(255, 255, 255, 0.16)';
+        outerRing.style.border = '1.5px solid rgba(255, 255, 255, 0.28)';
+        outerRing.style.boxShadow =
+          '0 8px 24px rgba(0, 0, 0, 0.5), 0 0 18px rgba(59, 130, 246, 0.32)';
+        outerRing.style.display = 'flex';
+        outerRing.style.alignItems = 'center';
+        outerRing.style.justifyContent = 'center';
+        outerRing.style.backdropFilter = 'blur(4px)';
+
+        // Inner Avatar Circle with White Border
+        const innerCircle = document.createElement('div');
+        innerCircle.style.width = '44px';
+        innerCircle.style.height = '44px';
+        innerCircle.style.borderRadius = '9999px';
+        innerCircle.style.border = '2.5px solid #FFFFFF';
+        innerCircle.style.overflow = 'hidden';
+        innerCircle.style.backgroundColor = '#18181B';
+        innerCircle.style.boxShadow = '0 2px 8px rgba(0, 0, 0, 0.4)';
+
+        const avatarImg = document.createElement('img');
+        avatarImg.src = userAvatar || '/fotoperfil.png';
+        avatarImg.alt = userName || 'Eu';
+        avatarImg.style.width = '100%';
+        avatarImg.style.height = '100%';
+        avatarImg.style.objectFit = 'cover';
+        avatarImg.style.objectPosition = 'center';
+        avatarImg.style.display = 'block';
+        avatarImg.style.pointerEvents = 'none';
+        avatarImg.onerror = () => {
+          avatarImg.src =
+            'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=200&q=80';
+        };
+        userAvatarImgRef.current = avatarImg;
+
+        innerCircle.appendChild(avatarImg);
+        outerRing.appendChild(innerCircle);
+
+        // "Eu" Pill Badge below the avatar
+        const euBadge = document.createElement('div');
+        euBadge.textContent = 'Eu';
+        euBadge.style.marginTop = '-4px';
+        euBadge.style.padding = '1.5px 10px';
+        euBadge.style.borderRadius = '9999px';
+        euBadge.style.backgroundColor = 'rgba(10, 10, 14, 0.92)';
+        euBadge.style.color = '#FFFFFF';
+        euBadge.style.fontSize = '11px';
+        euBadge.style.fontWeight = '800';
+        euBadge.style.letterSpacing = '0.01em';
+        euBadge.style.lineHeight = '1.25';
+        euBadge.style.border = '1px solid rgba(255, 255, 255, 0.16)';
+        euBadge.style.boxShadow = '0 4px 10px rgba(0, 0, 0, 0.5)';
+
+        centerStack.appendChild(outerRing);
+        centerStack.appendChild(euBadge);
+        rootEl.appendChild(centerStack);
+
+        centerStack.onclick = (e) => {
+          e.stopPropagation();
+          centerOnUserLocation(true);
+        };
+
+        const initialLngLat = normalizeCoords(userCoords, [-45.587, -22.7355]);
+        userMarkerRef.current = new maplibregl.Marker({
+          element: rootEl,
+          anchor: 'center',
+        })
+          .setLngLat(initialLngLat)
+          .addTo(map);
+      }
+
+      return () => {
+        if (userMarkerRef.current) {
+          userMarkerRef.current.remove();
+          userMarkerRef.current = null;
+        }
+      };
+    }, []);
+
+    // Keep user avatar updated if userAvatar prop changes
+    useEffect(() => {
+      if (userAvatarImgRef.current && userAvatar) {
+        userAvatarImgRef.current.src = userAvatar;
+      }
+    }, [userAvatar]);
+
+    // Sync with userCoords prop if provided externally
+    useEffect(() => {
+      if (!userCoords) return;
+      const normalized = normalizeCoords(userCoords, latestUserCoordsRef.current);
+      latestUserCoordsRef.current = normalized;
+      userMarkerRef.current?.setLngLat(normalized);
+    }, [userCoords]);
+
+    // Real-Time 60fps GPS Location Subscription + Camera Accompaniment
+    useEffect(() => {
+      gpsNavigationManager.start();
+
+      const unsubscribeGps = gpsNavigationManager.subscribe((navState) => {
+        const coords = navState.interpolatedCoords || navState.coords;
+        if (!coords || isNaN(coords[0]) || isNaN(coords[1])) return;
+
+        latestUserCoordsRef.current = coords;
+
+        // Move the 3D user marker in real time at 60fps
+        if (userMarkerRef.current) {
+          userMarkerRef.current.setLngLat(coords);
+        }
+
+        // If device compass hasn't emitted sensor data yet, rotate flashlight with GPS movement heading
+        if (!deviceHeadingManager.hasSensorData() && userBeamElRef.current) {
+          const mapBearing = mapRef.current?.getBearing() || 0;
+          const beamAngle = (navState.heading - mapBearing + 360) % 360;
+          userBeamElRef.current.style.transform = `rotate(${beamAngle.toFixed(1)}deg)`;
+        }
+
+        // Center camera on first real GPS fix or accompany user when follow mode is active
+        if (mapRef.current && navState.status === 'granted') {
+          if (!hasCenteredOnFirstFixRef.current) {
+            hasCenteredOnFirstFixRef.current = true;
+            mapRef.current.easeTo({
+              center: coords,
+              zoom: Math.max(mapRef.current.getZoom(), 15.2),
+              duration: 900,
+            });
+          } else if (isFollowingUserRef.current && !selectedSpot && navState.isMoving) {
+            mapRef.current.easeTo({
+              center: coords,
+              duration: 300,
+              easing: (t) => t,
+            });
+          }
+        }
+      });
+
+      return () => {
+        unsubscribeGps();
+      };
+    }, [selectedSpot]);
+
+    // Real-Time 60fps Device Orientation (Phone Rotation -> Flashlight Rotation)
+    useEffect(() => {
+      deviceHeadingManager.start();
+
+      const unsubscribeHeading = deviceHeadingManager.subscribe((_rawHeading, compensatedHeading) => {
+        if (userBeamElRef.current) {
+          userBeamElRef.current.style.transform = `rotate(${compensatedHeading.toFixed(1)}deg)`;
+        }
+      });
+
+      return () => {
+        unsubscribeHeading();
+      };
+    }, []);
+
+    // Trigger zoom to user when requested from parent (e.g. clicking 'Explorar' tab)
+    useEffect(() => {
+      if (zoomToUserTrigger && zoomToUserTrigger > 0) {
+        centerOnUserLocation(true);
+      }
+    }, [zoomToUserTrigger, centerOnUserLocation]);
 
     // Cleanup on unmount
     useEffect(() => {
@@ -404,7 +728,6 @@ export const MapComponent = forwardRef<MapComponentHandle, MapComponentProps>(
         rec.containerEl.style.transform = isSelected ? 'scale(1.25)' : 'scale(0.96)';
         rec.containerEl.style.zIndex = isSelected ? '50' : '20';
 
-        // Pin com borda branca e sombra suave igual a segunda foto (IMG_8419.png)
         rec.badgeEl.style.border = isSelected
           ? '3px solid #FFFFFF'
           : '2.5px solid #FFFFFF';
@@ -421,7 +744,8 @@ export const MapComponent = forwardRef<MapComponentHandle, MapComponentProps>(
           : '2.5px solid #FFFFFF';
 
         if (rec.pulseEl) {
-          rec.pulseEl.style.background = 'radial-gradient(circle, rgba(255, 255, 255, 0.7) 0%, rgba(255, 255, 255, 0.22) 55%, transparent 75%)';
+          rec.pulseEl.style.background =
+            'radial-gradient(circle, rgba(255, 255, 255, 0.7) 0%, rgba(255, 255, 255, 0.22) 55%, transparent 75%)';
           rec.pulseEl.style.display = isSelected ? 'block' : 'none';
         }
       });
@@ -460,15 +784,23 @@ export const MapComponent = forwardRef<MapComponentHandle, MapComponentProps>(
 
         // Spring entrance animation when appearing on map
         try {
-          containerEl.animate([
-            { transform: 'scale(0) translateY(12px)', opacity: 0 },
-            { transform: 'scale(1.2) translateY(-2px)', opacity: 1, offset: 0.68 },
-            { transform: isSelected ? 'scale(1.25) translateY(0px)' : 'scale(0.96) translateY(0px)', opacity: 1 }
-          ], {
-            duration: 420 + (spotIdx % 10) * 35,
-            easing: 'cubic-bezier(0.34, 1.56, 0.64, 1)',
-            fill: 'both'
-          });
+          containerEl.animate(
+            [
+              { transform: 'scale(0) translateY(12px)', opacity: 0 },
+              { transform: 'scale(1.2) translateY(-2px)', opacity: 1, offset: 0.68 },
+              {
+                transform: isSelected
+                  ? 'scale(1.25) translateY(0px)'
+                  : 'scale(0.96) translateY(0px)',
+                opacity: 1,
+              },
+            ],
+            {
+              duration: 420 + (spotIdx % 10) * 35,
+              easing: 'cubic-bezier(0.34, 1.56, 0.64, 1)',
+              fill: 'both',
+            }
+          );
         } catch (e) {}
 
         // Glowing circular translucent aura/halo (white aura)
@@ -481,10 +813,11 @@ export const MapComponent = forwardRef<MapComponentHandle, MapComponentProps>(
         pulseEl.style.left = '-14px';
         pulseEl.style.pointerEvents = 'none';
         pulseEl.style.zIndex = '-1';
-        pulseEl.style.background = 'radial-gradient(circle, rgba(255, 255, 255, 0.7) 0%, rgba(255, 255, 255, 0.22) 55%, transparent 75%)';
+        pulseEl.style.background =
+          'radial-gradient(circle, rgba(255, 255, 255, 0.7) 0%, rgba(255, 255, 255, 0.22) 55%, transparent 75%)';
         pulseEl.style.display = isSelected ? 'block' : 'none';
 
-        // Pin Circular Badge (Círculo arredondado com borda branca e foto do ponto turístico perfeitamente enquadrada)
+        // Pin Circular Badge
         const badgeEl = document.createElement('div');
         badgeEl.style.width = '42px';
         badgeEl.style.height = '42px';
@@ -499,7 +832,6 @@ export const MapComponent = forwardRef<MapComponentHandle, MapComponentProps>(
           ? '0 6px 22px rgba(0, 0, 0, 0.45), 0 0 0 2px rgba(255, 255, 255, 0.95)'
           : '0 3px 10px rgba(0, 0, 0, 0.35)';
 
-        // Foto do ponto turístico cadastrado
         const imgEl = document.createElement('img');
         imgEl.src = imgUrl;
         imgEl.alt = spot.name || 'Ponto Turístico';
@@ -533,6 +865,7 @@ export const MapComponent = forwardRef<MapComponentHandle, MapComponentProps>(
         el.appendChild(containerEl);
 
         const animateToSpot = (targetSpot: Spot) => {
+          setFollowMode(false);
           onSelectSpot(targetSpot);
           if (mapRef.current && targetSpot.lng && targetSpot.lat) {
             const isMobile = window.innerWidth < 768;
@@ -550,16 +883,18 @@ export const MapComponent = forwardRef<MapComponentHandle, MapComponentProps>(
 
         el.onclick = (e) => {
           e.stopPropagation();
-          // Native spring scale bounce feedback on click
           try {
-            containerEl.animate([
-              { transform: 'scale(0.85)' },
-              { transform: 'scale(1.38)', offset: 0.6 },
-              { transform: 'scale(1.25)' }
-            ], {
-              duration: 380,
-              easing: 'cubic-bezier(0.34, 1.56, 0.64, 1)'
-            });
+            containerEl.animate(
+              [
+                { transform: 'scale(0.85)' },
+                { transform: 'scale(1.38)', offset: 0.6 },
+                { transform: 'scale(1.25)' },
+              ],
+              {
+                duration: 380,
+                easing: 'cubic-bezier(0.34, 1.56, 0.64, 1)',
+              }
+            );
           } catch (err) {}
           animateToSpot(spot);
         };
@@ -580,7 +915,7 @@ export const MapComponent = forwardRef<MapComponentHandle, MapComponentProps>(
       });
 
       syncMarkerHighlight(selectedSpot?.id);
-    }, [spots, syncMarkerHighlight]);
+    }, [spots, syncMarkerHighlight, is3DMode, onSelectSpot, selectedSpot?.id, setFollowMode]);
 
     // Update marker highlight and camera zoom when selectedSpot changes
     useEffect(() => {
@@ -588,6 +923,7 @@ export const MapComponent = forwardRef<MapComponentHandle, MapComponentProps>(
 
       if (!mapRef.current || !selectedSpot?.lng || !selectedSpot?.lat) return;
 
+      setFollowMode(false);
       const isMobile = window.innerWidth < 768;
       const verticalOffset = isMobile ? -Math.round(window.innerHeight * 0.12) : 0;
 
@@ -599,16 +935,15 @@ export const MapComponent = forwardRef<MapComponentHandle, MapComponentProps>(
         offset: [0, verticalOffset],
         duration: 750,
       });
-    }, [selectedSpot, syncMarkerHighlight, is3DMode]);
+    }, [selectedSpot, syncMarkerHighlight, is3DMode, setFollowMode]);
 
-    // Render static visual map icons (Gas stations, Churches, Hospitals, Parks, etc.) with spring pop animations
+    // Render static visual map icons
     const visualIconMarkersRef = useRef<maplibregl.Marker[]>([]);
 
     useEffect(() => {
       const map = mapRef.current;
       if (!map) return;
 
-      // Clear previous visual icon markers
       visualIconMarkersRef.current.forEach((m) => {
         try {
           m.remove();
@@ -631,31 +966,35 @@ export const MapComponent = forwardRef<MapComponentHandle, MapComponentProps>(
 
         el.innerHTML = generateMarkerHtml(item.category, 26, item.color);
 
-        // Spring scale pop-in animation on entrance
         try {
-          el.animate([
-            { transform: 'scale(0)', opacity: 0 },
-            { transform: 'scale(1.28)', opacity: 1, offset: 0.68 },
-            { transform: 'scale(1)', opacity: 1 }
-          ], {
-            duration: 380 + (iconIdx % 12) * 30,
-            easing: 'cubic-bezier(0.34, 1.56, 0.64, 1)',
-            fill: 'both'
-          });
+          el.animate(
+            [
+              { transform: 'scale(0)', opacity: 0 },
+              { transform: 'scale(1.28)', opacity: 1, offset: 0.68 },
+              { transform: 'scale(1)', opacity: 1 },
+            ],
+            {
+              duration: 380 + (iconIdx % 12) * 30,
+              easing: 'cubic-bezier(0.34, 1.56, 0.64, 1)',
+              fill: 'both',
+            }
+          );
         } catch (e) {}
 
-        // Spring scale bounce feedback on tap/click
         el.onclick = (e) => {
           e.stopPropagation();
           try {
-            el.animate([
-              { transform: 'scale(0.82)' },
-              { transform: 'scale(1.35)', offset: 0.6 },
-              { transform: 'scale(1)' }
-            ], {
-              duration: 360,
-              easing: 'cubic-bezier(0.34, 1.56, 0.64, 1)'
-            });
+            el.animate(
+              [
+                { transform: 'scale(0.82)' },
+                { transform: 'scale(1.35)', offset: 0.6 },
+                { transform: 'scale(1)' },
+              ],
+              {
+                duration: 360,
+                easing: 'cubic-bezier(0.34, 1.56, 0.64, 1)',
+              }
+            );
           } catch (err) {}
         };
 
@@ -669,11 +1008,77 @@ export const MapComponent = forwardRef<MapComponentHandle, MapComponentProps>(
       });
     }, [visualIcons]);
 
+    const handleCycleMapStyle = () => {
+      const next: MapModeType =
+        currentMode === 'explorar'
+          ? 'satelite'
+          : currentMode === 'satelite'
+          ? 'escuro'
+          : 'explorar';
+      setCurrentMode(next);
+      if (onMapModeChange) onMapModeChange(next);
+      if (onStyleChange) onStyleChange(next);
+    };
+
     return (
-      <div
-        ref={mapContainerRef}
-        className="w-full h-full absolute inset-0 select-none"
-      />
+      <div className="w-full h-full relative inset-0 select-none overflow-hidden">
+        <div
+          ref={mapContainerRef}
+          className="w-full h-full absolute inset-0 select-none"
+        />
+
+        {/* Floating Right-Side Map Controls (+, -, Compass/Location, Layers) */}
+        <div
+          className="md:hidden absolute right-3.5 top-1/2 -translate-y-1/2 z-30 flex flex-col items-center gap-3 pointer-events-auto"
+          style={{
+            paddingRight: 'env(safe-area-inset-right, 0px)',
+          }}
+        >
+          {/* Zoom In (+) */}
+          <button
+            type="button"
+            onClick={() => mapRef.current?.zoomIn({ duration: 300 })}
+            aria-label="Aproximar mapa"
+            className="w-12 h-12 rounded-full bg-white/90 dark:bg-zinc-900/90 backdrop-blur-md border border-zinc-200/80 dark:border-white/10 shadow-[0_6px_20px_rgba(0,0,0,0.22)] flex items-center justify-center text-zinc-800 dark:text-white active:scale-90 transition-all cursor-pointer"
+          >
+            <Plus className="w-5 h-5 stroke-[2.5]" />
+          </button>
+
+          {/* Zoom Out (-) */}
+          <button
+            type="button"
+            onClick={() => mapRef.current?.zoomOut({ duration: 300 })}
+            aria-label="Afastar mapa"
+            className="w-12 h-12 rounded-full bg-white/90 dark:bg-zinc-900/90 backdrop-blur-md border border-zinc-200/80 dark:border-white/10 shadow-[0_6px_20px_rgba(0,0,0,0.22)] flex items-center justify-center text-zinc-800 dark:text-white active:scale-90 transition-all cursor-pointer"
+          >
+            <Minus className="w-5 h-5 stroke-[2.5]" />
+          </button>
+
+          {/* My Real-Time Location & Compass Orientation Button */}
+          <button
+            type="button"
+            onClick={() => centerOnUserLocation(true)}
+            aria-label="Centralizar na minha localização em tempo real"
+            className={`w-12 h-12 rounded-full backdrop-blur-md border shadow-[0_6px_20px_rgba(0,0,0,0.22)] flex items-center justify-center active:scale-90 transition-all cursor-pointer ${
+              isFollowingUser
+                ? 'bg-white dark:bg-zinc-900/95 border-blue-500/40 dark:border-white/15 ring-2 ring-blue-500/20'
+                : 'bg-white/90 dark:bg-zinc-900/90 border-zinc-200/80 dark:border-white/10'
+            }`}
+          >
+            <CompassIcon size={24} />
+          </button>
+
+          {/* Map Layers Toggle */}
+          <button
+            type="button"
+            onClick={handleCycleMapStyle}
+            aria-label="Alternar camada do mapa"
+            className="w-12 h-12 rounded-full bg-white/90 dark:bg-zinc-900/90 backdrop-blur-md border border-zinc-200/80 dark:border-white/10 shadow-[0_6px_20px_rgba(0,0,0,0.22)] flex items-center justify-center text-zinc-800 dark:text-white active:scale-90 transition-all cursor-pointer"
+          >
+            <Layers className="w-5 h-5 stroke-[2.2]" />
+          </button>
+        </div>
+      </div>
     );
   }
 );
