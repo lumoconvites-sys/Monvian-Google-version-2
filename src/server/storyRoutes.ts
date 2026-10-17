@@ -1,5 +1,6 @@
 import { Database as SqliteDatabase } from 'better-sqlite3';
 import { Express, Request, Response } from 'express';
+import { persistStoryToSupabase } from '../services/supabaseSync.js';
 import path from 'path';
 import fs from 'fs';
 import crypto from 'crypto';

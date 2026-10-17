@@ -2,13 +2,14 @@ import React, { useState, useEffect, useRef } from 'react';
 import { Eye, EyeOff, Mail, Lock, User, ArrowLeft, AtSign, Check, X, Loader2 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { googleSignIn, setCachedAccessToken } from '../lib/firebase';
+import { supabase } from '../lib/supabase';
 
 interface AuthScreenProps {
   onSuccess: (token: string, user: any, isNewAccount?: boolean) => void;
 }
 
 export function AuthScreen({ onSuccess }: AuthScreenProps) {
-  const [authMode, setAuthMode] = useState<'login' | 'register'>('login');
+  const [authMode, setAuthMode] = useState<'login' | 'register' | 'recover'>('login');
   
   // Fields
   const [name, setName] = useState('');
@@ -23,6 +24,7 @@ export function AuthScreen({ onSuccess }: AuthScreenProps) {
   const [loading, setLoading] = useState(false);
   const [googleLoading, setGoogleLoading] = useState(false);
   const [error, setError] = useState('');
+  const [recoverSuccessMsg, setRecoverSuccessMsg] = useState('');
 
   const checkTimerRef = useRef<any>(null);
 
@@ -73,7 +75,7 @@ export function AuthScreen({ onSuccess }: AuthScreenProps) {
     };
   }, [username, authMode]);
 
-  // 1. Submit Login (Email + Password)
+  // 1. Submit Login (Supabase Auth + Backend Session)
   const handleLoginSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
@@ -85,22 +87,25 @@ export function AuthScreen({ onSuccess }: AuthScreenProps) {
 
     setLoading(true);
     try {
-      let firebaseUid: string | null = null;
-      try {
-        const { signInWithEmailAndPassword, auth } = await import('../lib/firebase');
-        const userCred = await signInWithEmailAndPassword(auth, email.trim(), password);
-        firebaseUid = userCred?.user?.uid || null;
-      } catch (fbErr: any) {
-        console.warn('Firebase login attempt notice:', fbErr?.code || fbErr?.message);
+      let supabaseAuthId: string | null = null;
+      if (supabase && email.includes('@')) {
+        try {
+          const { data: supaAuth } = await supabase.auth.signInWithPassword({
+            email: email.trim().toLowerCase(),
+            password,
+          });
+          supabaseAuthId = supaAuth?.user?.id || null;
+        } catch {}
       }
 
       const res = await fetch('/api/auth/login', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          email: email.trim(),
+          email: email.trim().toLowerCase(),
+          identifier: email.trim().toLowerCase(),
           password,
-          firebaseUid
+          supabase_auth_id: supabaseAuthId,
         }),
       });
       const data = await res.json();
@@ -119,7 +124,34 @@ export function AuthScreen({ onSuccess }: AuthScreenProps) {
     }
   };
 
-  // 2. Submit Register (Name + Username + Email + Password)
+  // 1.5 Password Recovery via Supabase Auth
+  const handleRecoverPassword = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError('');
+    setRecoverSuccessMsg('');
+    if (!email.trim() || !email.includes('@')) {
+      setError('Informe o e-mail da sua conta para recuperar a senha.');
+      return;
+    }
+    setLoading(true);
+    try {
+      if (supabase) {
+        await supabase.auth.resetPasswordForEmail(email.trim().toLowerCase());
+      }
+      await fetch('/api/auth/recover-password', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: email.trim().toLowerCase() }),
+      });
+      setRecoverSuccessMsg('Enviamos um link de redefinição de senha para o seu e-mail.');
+    } catch {
+      setError('Não foi possível enviar o e-mail de recuperação. Tente novamente.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // 2. Submit Register (Name + Username + Email + Password via Supabase Auth + PostgreSQL)
   const handleRegisterSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
@@ -163,38 +195,30 @@ export function AuthScreen({ onSuccess }: AuthScreenProps) {
 
     setLoading(true);
     try {
-      // 1. Attempt Client-side Firebase User Creation
-      let firebaseUid: string | null = null;
-      try {
-        const { createUserWithEmailAndPassword, auth } = await import('../lib/firebase');
-        const userCredential = await createUserWithEmailAndPassword(auth, email.trim(), password);
-        firebaseUid = userCredential?.user?.uid || null;
-      } catch (fbErr: any) {
-        console.warn('Firebase registration notice:', fbErr?.code || fbErr?.message);
-        if (fbErr?.code === 'auth/email-already-in-use') {
-          setError('Este e-mail já está cadastrado. Alterne para Entrar.');
-          setLoading(false);
-          return;
-        }
-        if (fbErr?.code === 'auth/weak-password') {
-          setError('A senha deve ter pelo menos 6 caracteres.');
-          setLoading(false);
-          return;
-        }
-        if (fbErr?.code === 'auth/invalid-email') {
-          setError('Por favor, informe um endereço de e-mail válido.');
-          setLoading(false);
-          return;
-        }
-        // If operation-not-allowed or offline, continue to secure backend registration
+      // 1. Register user in Supabase Auth
+      let supabaseAuthId: string | null = null;
+      if (supabase) {
+        try {
+          const { data: supaSignUp } = await supabase.auth.signUp({
+            email: email.trim().toLowerCase(),
+            password,
+            options: {
+              data: {
+                full_name: name.trim(),
+                username: cleanUsername,
+              },
+            },
+          });
+          supabaseAuthId = supaSignUp?.user?.id || null;
+        } catch {}
       }
 
-      // 2. Register on Backend
-      const res = await fetch('/api/auth/register-firebase', {
+      // 2. Register in Backend + Supabase PostgreSQL
+      const res = await fetch('/api/auth/register', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          uid: firebaseUid,
+          supabase_auth_id: supabaseAuthId,
           name: name.trim(),
           username: cleanUsername,
           email: email.trim().toLowerCase(),

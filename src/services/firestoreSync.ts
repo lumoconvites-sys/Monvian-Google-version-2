@@ -9,6 +9,7 @@ import {
   deleteDoc
 } from 'firebase/firestore';
 import firebaseConfig from '../../firebase-applet-config.json';
+import { supabase } from '../lib/supabase';
 
 // Initialize Firebase singleton for server sync
 const firebaseApp = getApps().length > 0 ? getApp() : initializeApp(firebaseConfig);
@@ -153,7 +154,47 @@ export interface FirestoreEvent {
 export async function persistUserToFirestore(user: FirestoreUser): Promise<void> {
   if (!user.email) return;
   const cleanEmail = user.email.trim().toLowerCase();
-  
+  const isAdmin = ['empresariomario@gmail.com', 'marioempresario@gmail.com', 'marioyesk@gmail.com'].includes(cleanEmail) || user.role === 'admin';
+  const isGold = isAdmin || user.is_gold === 1 || user.is_premium === 1 || user.plan === 'gold';
+
+  if (supabase) {
+    try {
+      await withTimeout(
+        Promise.resolve(
+          supabase.from('users').upsert(
+            {
+              name: user.name || cleanEmail.split('@')[0],
+              username: user.username || cleanEmail.split('@')[0],
+              username_normalized: (user.username_normalized || user.username || cleanEmail.split('@')[0]).toLowerCase(),
+              bio: user.bio || '',
+              email: cleanEmail,
+              whatsapp: user.whatsapp || cleanEmail,
+              password_hash: user.password_hash || '',
+              role: isAdmin ? 'admin' : 'user',
+              avatar_url: user.avatar_url || '/fotoperfil.png',
+              visits_count: user.visits_count || 1,
+              is_banned: user.is_banned || 0,
+              is_premium: isGold ? 1 : 0,
+              is_gold: isGold ? 1 : 0,
+              plan: isGold ? 'gold' : 'beta',
+              gold_activated_at: user.gold_activated_at || null,
+              snow_enabled: user.snow_enabled || 0,
+              theme: user.theme || 'dark',
+              high_contrast: user.high_contrast || 0,
+              onboarding_completed: user.onboarding_completed !== undefined ? user.onboarding_completed : 1,
+              onboarding_step: user.onboarding_step || 1,
+              last_access: user.last_access || new Date().toISOString(),
+              updated_at: new Date().toISOString(),
+            },
+            { onConflict: 'email' }
+          )
+        ),
+        2500,
+        null
+      );
+    } catch {}
+  }
+
   try {
     const userRef = doc(firestore, 'users', cleanEmail);
     const dataToSave: any = {
@@ -161,13 +202,13 @@ export async function persistUserToFirestore(user: FirestoreUser): Promise<void>
       email: cleanEmail,
       whatsapp: user.whatsapp || cleanEmail,
       password_hash: user.password_hash,
-      role: user.role || 'user',
+      role: isAdmin ? 'admin' : 'user',
       avatar_url: user.avatar_url || '/fotoperfil.png',
       visits_count: user.visits_count || 1,
       is_banned: user.is_banned || 0,
-      is_premium: ['empresariomario@gmail.com', 'marioempresario@gmail.com', 'marioyesk@gmail.com'].includes(cleanEmail) ? 1 : (user.is_premium || user.is_gold || 0),
-      is_gold: ['empresariomario@gmail.com', 'marioempresario@gmail.com', 'marioyesk@gmail.com'].includes(cleanEmail) ? 1 : (user.is_gold || 0),
-      plan: ['empresariomario@gmail.com', 'marioempresario@gmail.com', 'marioyesk@gmail.com'].includes(cleanEmail) || user.is_gold === 1 || user.plan === 'gold' ? 'gold' : 'beta',
+      is_premium: isGold ? 1 : 0,
+      is_gold: isGold ? 1 : 0,
+      plan: isGold ? 'gold' : 'beta',
       gold_activated_at: user.gold_activated_at || null,
       snow_enabled: user.snow_enabled || 0,
       theme: user.theme || 'dark',
@@ -190,6 +231,26 @@ export async function persistUserToFirestore(user: FirestoreUser): Promise<void>
 export async function getUserFromFirestore(email: string): Promise<FirestoreUser | null> {
   if (!email) return null;
   const cleanEmail = email.trim().toLowerCase();
+
+  if (supabase) {
+    try {
+      const res: any = await withTimeout(
+        Promise.resolve(
+          supabase
+            .from('users')
+            .select('*')
+            .or(`email.ilike.${cleanEmail},username_normalized.eq.${cleanEmail},whatsapp.ilike.${cleanEmail}`)
+            .limit(1)
+            .maybeSingle()
+        ),
+        2500,
+        null
+      );
+      if (res?.data) {
+        return res.data as FirestoreUser;
+      }
+    } catch {}
+  }
 
   try {
     const userRef = doc(firestore, 'users', cleanEmail);
@@ -238,8 +299,43 @@ export async function deleteSessionFromFirestore(token: string): Promise<void> {
 // SPOTS PERSISTENCE
 // ----------------------------------------------------
 
-export async function persistSpotToFirestore(spot: FirestoreSpot): Promise<void> {
-  if (!spot.id) return;
+export async function persistSpotToFirestore(spot: FirestoreSpot | any): Promise<void> {
+  if (!spot?.id) return;
+  if (supabase) {
+    try {
+      await withTimeout(
+        Promise.resolve(
+          supabase.from('spots').upsert(
+            {
+              id: String(spot.id),
+              name: String(spot.name || ''),
+              short_name: spot.short_name || spot.shortName || spot.name || '',
+              tag_label: spot.tag_label || spot.tagLabel || spot.name || '',
+              category: spot.category || 'attractions',
+              category_label: spot.category_label || spot.categoryLabel || spot.category || 'Atrações',
+              lat: Number(spot.lat ?? -22.7192),
+              lng: Number(spot.lng ?? -45.5673),
+              image: spot.image || '',
+              gallery: typeof spot.gallery === 'string' ? spot.gallery : JSON.stringify(spot.gallery || []),
+              description: spot.description || '',
+              tourist_tip: spot.tourist_tip || spot.touristTip || '',
+              rating: Number(spot.rating ?? 4.8),
+              review_count: Number(spot.review_count ?? spot.reviewCount ?? 100),
+              hours: spot.hours || '',
+              address: spot.address || 'Campos do Jordão, SP',
+              price_range: spot.price_range || spot.priceRange || '$$',
+              maps_url: spot.maps_url || spot.mapsUrl || '',
+              is_active: spot.is_active !== undefined ? Number(spot.is_active) : spot.isActive === false ? 0 : 1,
+              updated_at: new Date().toISOString(),
+            },
+            { onConflict: 'id' }
+          )
+        ),
+        3000,
+        null
+      );
+    } catch {}
+  }
   try {
     const spotRef = doc(firestore, 'spots', spot.id);
     await withTimeout(setDoc(spotRef, {
@@ -253,6 +349,11 @@ export async function persistSpotToFirestore(spot: FirestoreSpot): Promise<void>
 
 export async function deleteSpotFromFirestore(spotId: string): Promise<void> {
   if (!spotId) return;
+  if (supabase) {
+    try {
+      await withTimeout(Promise.resolve(supabase.from('spots').delete().eq('id', spotId)), 3000, null);
+    } catch {}
+  }
   try {
     const spotRef = doc(firestore, 'spots', spotId);
     await withTimeout(deleteDoc(spotRef), 3000, null);
@@ -261,12 +362,57 @@ export async function deleteSpotFromFirestore(spotId: string): Promise<void> {
   }
 }
 
+export async function fetchCloudSpots(): Promise<any[]> {
+  if (supabase) {
+    try {
+      const res: any = await withTimeout(
+        Promise.resolve(supabase.from('spots').select('*').order('name', { ascending: true })),
+        3500,
+        null
+      );
+      if (res?.data && Array.isArray(res.data) && res.data.length > 0) {
+        return res.data;
+      }
+    } catch {}
+  }
+  try {
+    const spotsSnap = await withTimeout(getDocs(collection(firestore, 'spots')), 3500, null as any);
+    if (!spotsSnap || spotsSnap.empty) return [];
+    return spotsSnap.docs.map((d: any) => d.data());
+  } catch {
+    return [];
+  }
+}
+
 // ----------------------------------------------------
 // MAP VISUAL ICONS PERSISTENCE
 // ----------------------------------------------------
 
-export async function persistMapVisualIconToFirestore(icon: FirestoreMapVisualIcon): Promise<void> {
-  if (!icon.id) return;
+export async function persistMapVisualIconToFirestore(icon: FirestoreMapVisualIcon | any): Promise<void> {
+  if (!icon?.id) return;
+  if (supabase) {
+    try {
+      await withTimeout(
+        Promise.resolve(
+          supabase.from('map_visual_icons').upsert(
+            {
+              id: String(icon.id),
+              category: String(icon.category),
+              icon: String(icon.icon || icon.category),
+              latitude: Number(icon.latitude),
+              longitude: Number(icon.longitude),
+              color: icon.color || null,
+              is_active: icon.is_active !== undefined ? Number(icon.is_active) : 1,
+              updated_at: new Date().toISOString(),
+            },
+            { onConflict: 'id' }
+          )
+        ),
+        3000,
+        null
+      );
+    } catch {}
+  }
   try {
     const iconRef = doc(firestore, 'map_visual_icons', icon.id);
     await withTimeout(setDoc(iconRef, {
@@ -280,11 +426,38 @@ export async function persistMapVisualIconToFirestore(icon: FirestoreMapVisualIc
 
 export async function deleteMapVisualIconFromFirestore(iconId: string): Promise<void> {
   if (!iconId) return;
+  if (supabase) {
+    try {
+      await withTimeout(Promise.resolve(supabase.from('map_visual_icons').delete().eq('id', iconId)), 3000, null);
+    } catch {}
+  }
   try {
     const iconRef = doc(firestore, 'map_visual_icons', iconId);
     await withTimeout(deleteDoc(iconRef), 3000, null);
   } catch (err: any) {
     console.warn('[FirestoreSync] Failed to delete visual icon from Firestore:', iconId, err?.message);
+  }
+}
+
+export async function fetchCloudMapVisualIcons(): Promise<any[]> {
+  if (supabase) {
+    try {
+      const res: any = await withTimeout(
+        Promise.resolve(supabase.from('map_visual_icons').select('*')),
+        3500,
+        null
+      );
+      if (res?.data && Array.isArray(res.data) && res.data.length > 0) {
+        return res.data;
+      }
+    } catch {}
+  }
+  try {
+    const snap = await withTimeout(getDocs(collection(firestore, 'map_visual_icons')), 3500, null as any);
+    if (!snap || snap.empty) return [];
+    return snap.docs.map((d: any) => d.data());
+  } catch {
+    return [];
   }
 }
 
@@ -294,6 +467,20 @@ export async function deleteMapVisualIconFromFirestore(iconId: string): Promise<
 
 export async function persistSystemSettingToFirestore(key: string, value: string): Promise<void> {
   if (!key) return;
+  if (supabase) {
+    try {
+      await withTimeout(
+        Promise.resolve(
+          supabase.from('system_settings').upsert(
+            { key, value: String(value), updated_at: new Date().toISOString() },
+            { onConflict: 'key' }
+          )
+        ),
+        2500,
+        null
+      );
+    } catch {}
+  }
   try {
     const settingRef = doc(firestore, 'system_settings', key);
     await withTimeout(setDoc(settingRef, {
@@ -312,6 +499,33 @@ export async function persistSystemSettingToFirestore(key: string, value: string
 
 export async function persistEventToFirestore(event: FirestoreEvent): Promise<void> {
   if (!event.id) return;
+  if (supabase) {
+    try {
+      await withTimeout(
+        Promise.resolve(
+          supabase.from('events').upsert(
+            {
+              id: event.id,
+              name: event.name,
+              description: event.description || '',
+              image: event.image || '',
+              category: event.category || 'Música & Cultura',
+              date: event.date || '',
+              time: event.time || '',
+              address: event.address || 'Campos do Jordão, SP',
+              lat: Number(event.lat ?? -22.7192),
+              lng: Number(event.lng ?? -45.5673),
+              status: event.status || 'active',
+              highlighted: event.highlighted ? 1 : 0,
+            },
+            { onConflict: 'id' }
+          )
+        ),
+        2500,
+        null
+      );
+    } catch {}
+  }
   try {
     const eventRef = doc(firestore, 'events', event.id);
     await withTimeout(setDoc(eventRef, {
@@ -325,6 +539,11 @@ export async function persistEventToFirestore(event: FirestoreEvent): Promise<vo
 
 export async function deleteEventFromFirestore(eventId: string): Promise<void> {
   if (!eventId) return;
+  if (supabase) {
+    try {
+      await withTimeout(Promise.resolve(supabase.from('events').delete().eq('id', eventId)), 2500, null);
+    } catch {}
+  }
   try {
     const eventRef = doc(firestore, 'events', eventId);
     await withTimeout(deleteDoc(eventRef), 3000, null);

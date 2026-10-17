@@ -8,6 +8,10 @@ import {
   firestore,
   isPrimaryAdmin
 } from '../services/firestoreSync';
+import {
+  persistUserToSupabase,
+  persistPurchaseToSupabase,
+} from '../services/supabaseSync.js';
 import { doc, setDoc, getDoc } from 'firebase/firestore';
 
 // Setup SQLite Purchases Table and Users Columns
@@ -63,7 +67,7 @@ export function registerStripeRoutes(
   const GOLD_CURRENCY = 'brl';
 
   /**
-   * Helper to permanently grant Gold to a user in SQLite and Firestore
+   * Helper to permanently grant Gold to a user in SQLite, Supabase PostgreSQL, and Firestore
    */
   async function activateUserGoldPermanently(
     userId: number,
@@ -102,6 +106,27 @@ export function registerStripeRoutes(
       `).run(userId, cleanEmail, cleanEmail);
 
       const updatedUser: any = db.prepare('SELECT * FROM users WHERE id = ? OR LOWER(email) = ?').get(userId, cleanEmail);
+
+      // 2.5 Persist to Supabase PostgreSQL
+      await persistUserToSupabase({
+        ...updatedUser,
+        email: cleanEmail,
+        is_gold: 1,
+        is_premium: 1,
+        plan: 'gold',
+        gold_activated_at: nowIso,
+      });
+      await persistPurchaseToSupabase({
+        user_id: userId,
+        user_email: cleanEmail,
+        stripe_session_id: stripeSessionId,
+        stripe_payment_intent_id: paymentIntentId,
+        amount_total: amountTotal,
+        currency: currency.toLowerCase(),
+        payment_status: 'paid',
+        plan_granted: 'gold',
+        metadata: JSON.stringify(metadataObj),
+      });
 
       // 3. Persist to Cloud Firestore for cross-device & cross-container durability
       try {

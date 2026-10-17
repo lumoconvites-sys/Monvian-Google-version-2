@@ -3,6 +3,10 @@ import Database from 'better-sqlite3';
 import crypto from 'crypto';
 import { doc, getDoc, setDoc } from 'firebase/firestore';
 import { firestore } from '../services/firestoreSync';
+import {
+  persistHostProfileToSupabase,
+  fetchHostProfileFromSupabase,
+} from '../services/supabaseSync.js';
 
 export interface HostProfileRecord {
   id?: number;
@@ -157,6 +161,7 @@ export function setupHostDatabase(db: Database.Database) {
 async function syncHostProfileToFirestore(record: Partial<HostProfileRecord> & { user_email: string }) {
   if (!record.user_email) return;
   const cleanEmail = record.user_email.trim().toLowerCase();
+  persistHostProfileToSupabase(record).catch(() => {});
   try {
     const ref = doc(firestore, 'host_profiles', cleanEmail);
     await Promise.race([
@@ -179,6 +184,10 @@ async function syncHostProfileToFirestore(record: Partial<HostProfileRecord> & {
 async function fetchHostProfileFromFirestore(email: string): Promise<HostProfileRecord | null> {
   if (!email) return null;
   const cleanEmail = email.trim().toLowerCase();
+  try {
+    const supaRecord = await fetchHostProfileFromSupabase(cleanEmail);
+    if (supaRecord) return supaRecord as HostProfileRecord;
+  } catch {}
   try {
     const ref = doc(firestore, 'host_profiles', cleanEmail);
     const snap: any = await Promise.race([

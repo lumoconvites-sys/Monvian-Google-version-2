@@ -440,7 +440,6 @@ export const MapComponent = forwardRef<MapComponentHandle, MapComponentProps>(
         };
 
         map.on('dragstart', onUserDragStart);
-        map.on('MoveEnd', onInteractionEnd);
         map.on('moveend', onInteractionEnd);
 
         // Keep deviceHeadingManager aware of map bearing so the flashlight aligns with true heading
