@@ -24,8 +24,8 @@ import { preloadImage, extractAllItineraryImageUrls } from '../../utils/preloadI
 let memoryItinerariesCache: Itinerary[] | null = null;
 let memoryCategoriesCache: ItineraryCategory[] | null = null;
 
-const CACHE_KEY_ITINS = 'monvian_itineraries_store_cache_v5';
-const CACHE_KEY_CATS = 'monvian_itinerary_categories_cache_v5';
+const CACHE_KEY_ITINS = 'monvian_itineraries_store_cache_v6';
+const CACHE_KEY_CATS = 'monvian_itinerary_categories_cache_v6';
 
 function getInitialItineraries(): Itinerary[] {
   if (memoryItinerariesCache && memoryItinerariesCache.length > 0) {
@@ -36,8 +36,20 @@ function getInitialItineraries(): Itinerary[] {
     if (stored) {
       const parsed = JSON.parse(stored);
       if (Array.isArray(parsed) && parsed.length > 0) {
-        memoryItinerariesCache = parsed;
-        return parsed;
+        const sanitized = parsed.map((it: Itinerary) => {
+          if (
+            it.id === 'roteiro-classico-2-dias' ||
+            it.id?.startsWith('roteiro-classico') ||
+            it.badgeText?.toLowerCase() === 'livre' ||
+            it.price === 'R$ 0' ||
+            it.price === 'Grátis'
+          ) {
+            return { ...it, isPremium: false, badgeText: 'Livre' };
+          }
+          return it;
+        });
+        memoryItinerariesCache = sanitized;
+        return sanitized;
       }
     }
   } catch (e) {}
@@ -193,10 +205,22 @@ export const AirbnbItineraryExplorer: React.FC<AirbnbItineraryExplorerProps> = (
         try {
           const itinsData = await itinsRes.json();
           if (itinsData.success && Array.isArray(itinsData.itineraries) && itinsData.itineraries.length > 0) {
-            setItineraries(itinsData.itineraries);
-            memoryItinerariesCache = itinsData.itineraries;
+            const sanitized = itinsData.itineraries.map((it: Itinerary) => {
+              if (
+                it.id === 'roteiro-classico-2-dias' ||
+                it.id?.startsWith('roteiro-classico') ||
+                it.badgeText?.toLowerCase() === 'livre' ||
+                it.price === 'R$ 0' ||
+                it.price === 'Grátis'
+              ) {
+                return { ...it, isPremium: false, badgeText: 'Livre' };
+              }
+              return it;
+            });
+            setItineraries(sanitized);
+            memoryItinerariesCache = sanitized;
             try {
-              localStorage.setItem(CACHE_KEY_ITINS, JSON.stringify(itinsData.itineraries));
+              localStorage.setItem(CACHE_KEY_ITINS, JSON.stringify(sanitized));
             } catch (e) {}
 
             // Proactively preload all fresh images into browser memory cache

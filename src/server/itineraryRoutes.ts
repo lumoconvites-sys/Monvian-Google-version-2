@@ -239,6 +239,8 @@ export function setupItineraryDatabase(db: any) {
     db.exec(`UPDATE itineraries SET status = 'published' WHERE status IS NULL OR status = '';`);
     db.exec(`UPDATE itineraries SET price = 'R$ 14,90' WHERE price IS NULL OR price = '';`);
     db.exec(`UPDATE itineraries SET is_featured = 1 WHERE is_recommended = 1;`);
+    db.exec(`UPDATE itineraries SET is_premium = 0, badge_text = 'Livre', price = 'R$ 0' WHERE id = 'roteiro-classico-2-dias' OR badge_text = 'Livre';`);
+    db.exec(`UPDATE itineraries SET is_premium = 0, badge_text = '1 Dia', price = 'R$ 0' WHERE id = 'roteiro-bate-volta-essencial';`);
   } catch (e) {}
 
   // Update existing spots to be available for itineraries if null
@@ -302,8 +304,8 @@ function seedInitialItineraries(db: any) {
     db.prepare(`
       INSERT INTO itineraries (
         id, title, description, cover_image, days_count, categories,
-        is_active, is_recommended, usage_count, notes
-      ) VALUES (?, ?, ?, ?, ?, ?, 1, 1, 384, ?)
+        is_active, is_recommended, is_premium, badge_text, price, usage_count, notes
+      ) VALUES (?, ?, ?, ?, ?, ?, 1, 1, 0, 'Livre', 'R$ 0', 384, ?)
     `).run(
       itin1Id,
       'Essência de Campos: O Clássico em 2 Dias',

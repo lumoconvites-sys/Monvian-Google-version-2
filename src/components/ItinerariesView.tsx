@@ -616,6 +616,17 @@ export const ItinerariesView: React.FC<ItinerariesViewProps> = ({
           Array.isArray(parsed.days) &&
           parsed.days.length > 0
         ) {
+          const isLivre =
+            parsed.id === 'roteiro-classico-2-dias' ||
+            parsed.id?.startsWith('roteiro-classico') ||
+            parsed.id === 'roteiro-bate-volta-essencial' ||
+            parsed.badgeText?.toLowerCase() === 'livre' ||
+            parsed.price === 'R$ 0' ||
+            parsed.price === 'Grátis';
+          if (isLivre) {
+            parsed.isPremium = false;
+            parsed.badgeText = 'Livre';
+          }
           return parsed;
         }
       }
@@ -819,11 +830,39 @@ export const ItinerariesView: React.FC<ItinerariesViewProps> = ({
         })
       }));
 
+      const isStoreLivre = 
+        storeItin.id === 'roteiro-classico-2-dias' ||
+        storeItin.id?.startsWith('roteiro-classico') ||
+        storeItin.id === 'roteiro-bate-volta-essencial' ||
+        storeItin.badgeText?.toLowerCase() === 'livre' ||
+        storeItin.price === 'R$ 0' ||
+        storeItin.price === 'Grátis' ||
+        storeItin.isPremium === false;
+
       appliedItinerary = {
         ...storeItin,
         id: userItinId,
         days: clonedDays,
+        isPremium: isStoreLivre ? false : Boolean(storeItin.isPremium),
+        badgeText: isStoreLivre ? 'Livre' : (storeItin.badgeText || ''),
       };
+    } else {
+      const isStoreLivre = 
+        storeItin.id === 'roteiro-classico-2-dias' ||
+        storeItin.id?.startsWith('roteiro-classico') ||
+        storeItin.id === 'roteiro-bate-volta-essencial' ||
+        storeItin.badgeText?.toLowerCase() === 'livre' ||
+        storeItin.price === 'R$ 0' ||
+        storeItin.price === 'Grátis' ||
+        appliedItinerary.isPremium === false;
+
+      if (isStoreLivre) {
+        appliedItinerary = {
+          ...appliedItinerary,
+          isPremium: false,
+          badgeText: 'Livre',
+        };
+      }
     }
 
     userHasExplicitlyOpenedStoreRef.current = false;
@@ -908,9 +947,18 @@ export const ItinerariesView: React.FC<ItinerariesViewProps> = ({
           const data = await res.json();
           if (isMounted && data.success && Array.isArray(data.itineraries) && data.itineraries.length > 0) {
             const first = data.itineraries[0];
-            // Enrich with spots references
+            const isLivre =
+              first.id === 'roteiro-classico-2-dias' ||
+              first.id?.startsWith('roteiro-classico') ||
+              first.id === 'roteiro-bate-volta-essencial' ||
+              first.badgeText?.toLowerCase() === 'livre' ||
+              first.price === 'R$ 0' ||
+              first.price === 'Grátis';
+
             const enriched: Itinerary = {
               ...first,
+              isPremium: isLivre ? false : Boolean(first.isPremium),
+              badgeText: isLivre ? 'Livre' : (first.badgeText || ''),
               days: (first.days || []).map((day: ItineraryDay) => ({
                 ...day,
                 steps: (day.steps || []).map((step: ItineraryStep) => ({
@@ -1265,10 +1313,27 @@ export const ItinerariesView: React.FC<ItinerariesViewProps> = ({
     }
   }, [userItinerary]);
 
-  // Check if current active user itinerary should render in gold theme - STRICTLY for Gold subscribers only
+  // Check if current active user itinerary should render in gold theme - STRICTLY for Gold subscribers on Gold itineraries
   const isPremiumItinerary = useMemo(() => {
-    return Boolean(isUserGold);
-  }, [isUserGold]);
+    if (!userItinerary) return false;
+
+    // Check if the current itinerary is a free / livre itinerary
+    const isLivre =
+      userItinerary.id === 'roteiro-classico-2-dias' ||
+      userItinerary.id?.startsWith('roteiro-classico') ||
+      userItinerary.id === 'roteiro-bate-volta-essencial' ||
+      userItinerary.badgeText?.toLowerCase() === 'livre' ||
+      userItinerary.price === 'R$ 0' ||
+      userItinerary.price === 'Grátis' ||
+      userItinerary.isPremium === false;
+
+    if (isLivre) {
+      return false;
+    }
+
+    // Only render gold if user is gold AND the itinerary itself is premium
+    return Boolean(isUserGold && userItinerary.isPremium);
+  }, [isUserGold, userItinerary]);
 
   // Reorder steps up / down directly from the order arrows on cards (matching IMG_7287)
   const handleMoveStepUp = async (index: number) => {
@@ -2030,7 +2095,7 @@ export const ItinerariesView: React.FC<ItinerariesViewProps> = ({
                 {getShortDisplayTitle(userItinerary?.title || 'MEU ROTEIRO')}
               </span>
 
-              {isUserGold && (
+              {isPremiumItinerary && (
                 <span className="px-2.5 py-0.5 rounded-full bg-metallic-gold-badge border text-[#C28514] dark:text-[#FDE073] text-[9px] font-black uppercase tracking-wider shrink-0 shadow-xs">
                   ELITE GOLD
                 </span>
@@ -2559,7 +2624,7 @@ export const ItinerariesView: React.FC<ItinerariesViewProps> = ({
           onDeleteItinerary={handleDeleteItinerary}
           onCreateNewItinerary={handleCreateNewItinerary}
           theme={theme}
-          isPremium={isUserGold}
+          isPremium={isPremiumItinerary}
         />
       )}
 

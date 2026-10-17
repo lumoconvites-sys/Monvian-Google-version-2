@@ -89,7 +89,16 @@ export const ItineraryStoreDetailModal: React.FC<ItineraryStoreDetailModalProps>
   const currentUserEmail = (currentUserObj.email || currentUserObj.whatsapp || '').trim().toLowerCase();
   const isGoldAdmin = ['empresariomario@gmail.com', 'marioempresario@gmail.com', 'marioyesk@gmail.com'].includes(currentUserEmail);
   const isPremiumUser = isGoldAdmin || Boolean(currentUserObj.isGold || currentUserObj.is_gold === 1 || currentUserObj.isPremium || currentUserObj.is_premium === 1);
-  const isGoldItinerary = Boolean(itinerary.isPremium || (itinerary as any).isGold || (itinerary as any).is_gold);
+  const isLivreItinerary = 
+    itinerary.id === 'roteiro-classico-2-dias' ||
+    itinerary.id?.startsWith('roteiro-classico') ||
+    itinerary.id === 'roteiro-bate-volta-essencial' ||
+    itinerary.badgeText?.toLowerCase() === 'livre' ||
+    itinerary.price === 'R$ 0' ||
+    itinerary.price === 'Grátis' ||
+    itinerary.isPremium === false;
+
+  const isGoldItinerary = !isLivreItinerary && Boolean(itinerary.isPremium || (itinerary as any).isGold || (itinerary as any).is_gold);
   const totalStops =
     itinerary.placesCount ||
     itinerary.days.reduce((acc, d) => acc + d.steps.length, 0);
@@ -102,7 +111,7 @@ export const ItineraryStoreDetailModal: React.FC<ItineraryStoreDetailModalProps>
     .map(cat => TAG_TRANSLATIONS[cat.toLowerCase()] || cat.toUpperCase());
 
   const handleAdd = async () => {
-    if (itinerary.isPremium && !isPremiumUser) {
+    if (!isLivreItinerary && itinerary.isPremium && !isPremiumUser) {
       setIsPremiumModalOpen(true);
       return;
     }
@@ -194,12 +203,16 @@ export const ItineraryStoreDetailModal: React.FC<ItineraryStoreDetailModalProps>
                   <ChevronLeft className="w-4 h-4 stroke-[2.2] -ml-0.5" />
                 </motion.button>
 
-                {/* Direita: Badge Conta Gold + Botão Fechar [X] */}
+                {/* Direita: Badge Conta Gold / Livre + Botão Fechar [X] */}
                 <div className="flex items-center gap-1.5">
-                  {itinerary.isPremium && (
+                  {isGoldItinerary ? (
                     <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-metallic-gold text-[#1A1202] text-[9.5px] font-black uppercase tracking-wider shadow-xs border border-[#FFF4A3]/60">
                       <Crown className="w-3 h-3 stroke-[2.4] text-[#1A1202]" />
                       <span>{itinerary.badgeText && itinerary.badgeText.toUpperCase() !== 'PREMIUM' ? itinerary.badgeText : 'ELITE GOLD'}</span>
+                    </span>
+                  ) : (
+                    <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-black/40 backdrop-blur-md text-white text-[9.5px] font-black uppercase tracking-wider shadow-xs border border-white/20">
+                      <span>{itinerary.badgeText || 'ACESSO LIVRE'}</span>
                     </span>
                   )}
 
@@ -366,7 +379,7 @@ export const ItineraryStoreDetailModal: React.FC<ItineraryStoreDetailModalProps>
                       image: step.customImage || spot?.image || itinerary.coverImage,
                     });
                     const descriptionText = step.customDescription || step.notes || spot?.description || spot?.touristTip;
-                    const isBlurred = !isPremiumUser && idx >= 2;
+                    const isBlurred = !isLivreItinerary && !isPremiumUser && idx >= 2;
 
                     return (
                       <div
