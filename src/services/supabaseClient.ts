@@ -3,13 +3,18 @@ import dotenv from 'dotenv';
 
 dotenv.config();
 
-export const supabaseUrl = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL;
-export const supabaseAnonKey = process.env.SUPABASE_ANON_KEY || process.env.VITE_SUPABASE_ANON_KEY;
-export const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+export const supabaseUrl =
+  process.env.SUPABASE_URL ||
+  process.env.VITE_SUPABASE_URL ||
+  'https://hefkjmjovzpymtybyebw.supabase.co';
 
-if (!supabaseUrl || !supabaseAnonKey) {
-  console.error("Missing required Supabase environment variables for backend.");
-}
+export const supabaseAnonKey =
+  process.env.SUPABASE_ANON_KEY ||
+  process.env.VITE_SUPABASE_ANON_KEY ||
+  'sb_publishable_9KwMtGFOKB0zF17ozzG1rw_xXWKGBgQ';
+
+export const supabaseServiceKey =
+  process.env.SUPABASE_SERVICE_ROLE_KEY || supabaseAnonKey;
 
 export const supabase: SupabaseClient | null =
   supabaseUrl && supabaseServiceKey

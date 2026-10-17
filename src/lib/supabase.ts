@@ -1,22 +1,41 @@
 import { createClient } from '@supabase/supabase-js';
 
-export const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
-export const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
+const getEnvVar = (key: string): string => {
+  try {
+    if (typeof import.meta !== 'undefined' && (import.meta as any)?.env?.[key]) {
+      return (import.meta as any).env[key];
+    }
+  } catch {}
+  try {
+    if (typeof process !== 'undefined' && process.env?.[key]) {
+      return process.env[key] as string;
+    }
+  } catch {}
+  return '';
+};
 
-if (!supabaseUrl || !supabaseAnonKey) {
-  throw new Error("Missing required Supabase environment variables: VITE_SUPABASE_URL or VITE_SUPABASE_ANON_KEY");
-}
+export const supabaseUrl =
+  getEnvVar('VITE_SUPABASE_URL') ||
+  getEnvVar('SUPABASE_URL') ||
+  'https://hefkjmjovzpymtybyebw.supabase.co';
+
+export const supabaseAnonKey =
+  getEnvVar('VITE_SUPABASE_ANON_KEY') ||
+  getEnvVar('SUPABASE_ANON_KEY') ||
+  'sb_publishable_9KwMtGFOKB0zF17ozzG1rw_xXWKGBgQ';
 
 export const isSupabaseConfigured = Boolean(supabaseUrl && supabaseAnonKey);
 
-export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
-  auth: {
-    persistSession: true,
-    autoRefreshToken: true,
-    detectSessionInUrl: true,
-    storageKey: 'monvian_supabase_auth',
-  },
-});
+export const supabase = isSupabaseConfigured
+  ? createClient(supabaseUrl, supabaseAnonKey, {
+      auth: {
+        persistSession: true,
+        autoRefreshToken: true,
+        detectSessionInUrl: true,
+        storageKey: 'monvian_supabase_auth',
+      },
+    })
+  : null as any;
 
 /**
  * Uploads a base64 image or File to Supabase Storage ('monvian-media' bucket)
