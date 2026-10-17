@@ -14,15 +14,65 @@ const getEnvVar = (key: string): string => {
   return '';
 };
 
-export const supabaseUrl =
-  getEnvVar('VITE_SUPABASE_URL') ||
-  getEnvVar('SUPABASE_URL') ||
-  'https://hefkjmjovzpymtybyebw.supabase.co';
+const DEAD_HOSTS = ['hefkjmjovzpymtybyebw.supabase.co'];
 
-export const supabaseAnonKey =
-  getEnvVar('VITE_SUPABASE_ANON_KEY') ||
-  getEnvVar('SUPABASE_ANON_KEY') ||
-  'sb_publishable_9KwMtGFOKB0zF17ozzG1rw_xXWKGBgQ';
+const sanitizeSupabaseUrl = (url?: string): string => {
+  if (!url) return '';
+  const cleaned = url.trim().replace(/\/rest\/v1\/?$/, '').replace(/\/+$/, '');
+  if (DEAD_HOSTS.some((dh) => cleaned.includes(dh))) {
+    return '';
+  }
+  return cleaned;
+};
+
+const resolveSupabaseCredentials = () => {
+  const candidateUrls = [
+    getEnvVar('VITE_SUPABASE_URL'),
+    getEnvVar('SUPABASE_URL'),
+    'https://gxyqrwebnkbgxqrfdvuj.supabase.co',
+  ];
+
+  let resolvedUrl = '';
+  for (const candidate of candidateUrls) {
+    const cleaned = sanitizeSupabaseUrl(candidate);
+    if (cleaned) {
+      resolvedUrl = cleaned;
+      break;
+    }
+  }
+
+  let resolvedKey = '';
+  if (resolvedUrl.includes('gxyqrwebnkbgxqrfdvuj')) {
+    const keyCandidates = [
+      getEnvVar('SUPABASE_ANON_KEY'),
+      getEnvVar('VITE_SUPABASE_ANON_KEY'),
+      'sb_publishable_WaPR6pa1PiAD6pCG45aeuA_LrVfs39y',
+    ];
+    for (const k of keyCandidates) {
+      if (k && k.includes('WaPR6pa1Pi')) {
+        resolvedKey = k;
+        break;
+      }
+    }
+    if (!resolvedKey) {
+      resolvedKey = 'sb_publishable_WaPR6pa1PiAD6pCG45aeuA_LrVfs39y';
+    }
+  } else {
+    resolvedKey =
+      getEnvVar('VITE_SUPABASE_ANON_KEY') ||
+      getEnvVar('SUPABASE_ANON_KEY') ||
+      'sb_publishable_WaPR6pa1PiAD6pCG45aeuA_LrVfs39y';
+  }
+
+  return {
+    url: resolvedUrl || 'https://gxyqrwebnkbgxqrfdvuj.supabase.co',
+    key: resolvedKey.trim(),
+  };
+};
+
+const resolved = resolveSupabaseCredentials();
+export const supabaseUrl = resolved.url;
+export const supabaseAnonKey = resolved.key;
 
 export const isSupabaseConfigured = Boolean(supabaseUrl && supabaseAnonKey);
 

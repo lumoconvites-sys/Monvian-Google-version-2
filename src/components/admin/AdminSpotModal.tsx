@@ -16,6 +16,7 @@ import {
 import { AdminMapPicker } from './AdminMapPicker';
 import { persistSpotToFirestore } from '../../services/firestoreSync';
 import { uploadMediaToSupabaseStorage } from '../../lib/supabase';
+import { saveSpotToSupabase } from '../../services/supabaseSpots';
 
 export interface AdminSpotModalProps {
   isOpen: boolean;
@@ -272,37 +273,22 @@ export const AdminSpotModal: React.FC<AdminSpotModalProps> = ({
         isActive: formData.is_active === 1,
       };
 
-      const token = localStorage.getItem('monvian_token');
-      const endpoint = spotToEdit?.id ? `/api/admin/spots/${spotToEdit.id}` : '/api/admin/spots';
-      const method = spotToEdit?.id ? 'PUT' : 'POST';
+      // Persist directly and authoritatively to Supabase PostgreSQL (Single Source of Truth)
+      const savedSpot = await saveSpotToSupabase(payload, Boolean(spotToEdit?.id));
 
-      let savedSpot = payload;
+      // Best-effort secondary sync to Firestore if configured
       try {
-        const res = await fetch(endpoint, {
-          method,
-          headers: {
-            'Content-Type': 'application/json',
-            ...(token ? { Authorization: `Bearer ${token}` } : {}),
-          },
-          body: JSON.stringify(payload),
-        });
-        const data = await res.json();
-        if (res.ok && data.spot) {
-          savedSpot = data.spot;
-        }
+        persistSpotToFirestore({
+          ...savedSpot,
+          gallery: JSON.stringify(finalGallery),
+        }).catch(() => {});
       } catch {}
-
-      // Persist directly to Supabase PostgreSQL & Cloud Firestore
-      await persistSpotToFirestore({
-        ...savedSpot,
-        gallery: JSON.stringify(finalGallery),
-      });
 
       onSaveSuccess?.(savedSpot);
       onClose();
     } catch (err: any) {
       console.error('Error saving spot:', err);
-      setErrorMsg(err.message || 'Erro ao salvar ponto turístico.');
+      setErrorMsg(err.message || 'Erro ao salvar ponto turístico no Supabase.');
     } finally {
       setSaving(false);
     }

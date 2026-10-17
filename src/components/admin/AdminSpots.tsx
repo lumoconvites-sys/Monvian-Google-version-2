@@ -8,15 +8,22 @@ import {
   Star,
   MapPin,
   RefreshCw,
-  Compass
+  Compass,
+  AlertCircle
 } from 'lucide-react';
 import { AdminSpotModal } from './AdminSpotModal';
-import { db } from '../../lib/firebase';
-import { collection, getDocs, deleteDoc, doc, updateDoc } from 'firebase/firestore';
+import {
+  fetchSpotsFromSupabase,
+  deleteSpotFromSupabase,
+  toggleSpotActiveInSupabase,
+  toggleSpotVerifiedInSupabase,
+  subscribeToSpotsChanges
+} from '../../services/supabaseSpots';
 
 export const AdminSpots: React.FC = () => {
   const [spots, setSpots] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('all');
 
@@ -30,11 +37,12 @@ export const AdminSpots: React.FC = () => {
   const fetchSpots = async () => {
     try {
       setLoading(true);
-      const spotsSnapshot = await getDocs(collection(db, 'spots'));
-      const spotsData = spotsSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+      setError(null);
+      const spotsData = await fetchSpotsFromSupabase();
       setSpots(spotsData);
-    } catch (err) {
-      console.error(err);
+    } catch (err: any) {
+      console.error('[AdminSpots] Erro ao carregar pontos do Supabase:', err);
+      setError(err?.message || 'Falha ao conectar com o Supabase PostgreSQL.');
     } finally {
       setLoading(false);
     }
@@ -42,54 +50,62 @@ export const AdminSpots: React.FC = () => {
 
   useEffect(() => {
     fetchSpots();
+    // Realtime subscription to live Supabase updates
+    const unsubscribe = subscribeToSpotsChanges(() => {
+      fetchSpots();
+    });
+    return () => unsubscribe();
   }, []);
 
   const showToast = (msg: string) => {
     setToast(msg);
-    setTimeout(() => setToast(null), 3000);
+    setTimeout(() => setToast(null), 3500);
   };
 
   const handleToggleActive = async (id: string, e: React.MouseEvent) => {
     e.stopPropagation();
+    const spot = spots.find(s => s.id === id);
+    if (!spot) return;
+    const newStatus = !spot.isActive;
     try {
-      const spotRef = doc(db, 'spots', id);
-      const spot = spots.find(s => s.id === id);
-      await updateDoc(spotRef, { isActive: !spot.isActive });
-      
+      await toggleSpotActiveInSupabase(id, newStatus);
       setSpots((prev) =>
-        prev.map((s) => (s.id === id ? { ...s, isActive: !s.isActive } : s))
+        prev.map((s) => (s.id === id ? { ...s, isActive: newStatus, is_active: newStatus ? 1 : 0 } : s))
       );
-      showToast(!spot.isActive ? 'Ponto ativado no mapa.' : 'Ponto desativado.');
-    } catch (err) {
+      showToast(newStatus ? 'Ponto ativado no mapa.' : 'Ponto desativado no mapa.');
+    } catch (err: any) {
       console.error(err);
+      showToast('Erro ao atualizar status do ponto no Supabase.');
     }
   };
 
   const handleToggleVerified = async (id: string, e: React.MouseEvent) => {
     e.stopPropagation();
+    const spot = spots.find(s => s.id === id);
+    if (!spot) return;
+    const newStatus = !spot.isVerified;
     try {
-      const spotRef = doc(db, 'spots', id);
-      const spot = spots.find(s => s.id === id);
-      await updateDoc(spotRef, { isVerified: !spot.isVerified });
-      
+      await toggleSpotVerifiedInSupabase(id, newStatus);
       setSpots((prev) =>
-        prev.map((s) => (s.id === id ? { ...s, isVerified: !s.isVerified } : s))
+        prev.map((s) => (s.id === id ? { ...s, isVerified: newStatus, is_verified: newStatus ? 1 : 0 } : s))
       );
-      showToast(!spot.isVerified ? 'Ponto marcado como verificado.' : 'Verificação removida.');
-    } catch (err) {
+      showToast(newStatus ? 'Ponto marcado como verificado.' : 'Verificação removida.');
+    } catch (err: any) {
       console.error(err);
+      showToast('Erro ao atualizar verificação no Supabase.');
     }
   };
 
   const handleDelete = async (spot: any) => {
+    if (!window.confirm(`Tem certeza que deseja excluir "${spot.name}" do banco de dados?`)) return;
     try {
+      await deleteSpotFromSupabase(spot.id);
       setSpots((prev) => prev.filter((s) => s.id !== spot.id));
-      await deleteDoc(doc(db, 'spots', spot.id));
-      showToast('Ponto turístico excluído com sucesso.');
-    } catch (err) {
+      showToast('Ponto turístico excluído com sucesso do Supabase.');
+    } catch (err: any) {
       console.error(err);
       fetchSpots();
-      showToast('Erro ao excluir ponto.');
+      showToast(err?.message || 'Erro ao excluir ponto no Supabase.');
     }
   };
 
@@ -220,6 +236,21 @@ export const AdminSpots: React.FC = () => {
         <div className="flex flex-col items-center justify-center py-20 bg-white dark:bg-[#16181d] rounded-3xl border border-zinc-200 dark:border-zinc-800">
           <RefreshCw className="w-8 h-8 text-blue-600 animate-spin mb-3" />
           <p className="text-sm font-black text-zinc-600 dark:text-zinc-400">Carregando catálogo de pontos...</p>
+        </div>
+      ) : error ? (
+        <div className="text-center py-16 bg-white dark:bg-[#16181d] rounded-3xl border border-red-500/20 dark:border-red-500/30 p-8">
+          <AlertCircle className="w-12 h-12 text-red-500 mx-auto mb-3" />
+          <h3 className="text-base font-black text-zinc-800 dark:text-zinc-200">Não foi possível carregar os pontos</h3>
+          <p className="text-xs text-zinc-500 dark:text-zinc-400 mt-1 max-w-sm mx-auto">
+            {error}
+          </p>
+          <button
+            onClick={() => fetchSpots()}
+            className="mt-4 px-4 py-2 bg-blue-600 hover:bg-blue-700 active:scale-95 text-white rounded-xl text-xs font-black shadow-xs cursor-pointer inline-flex items-center gap-1.5 transition-all"
+          >
+            <RefreshCw className="w-3.5 h-3.5" />
+            <span>Tentar novamente</span>
+          </button>
         </div>
       ) : filteredSpots.length === 0 ? (
         <div className="text-center py-16 bg-white dark:bg-[#16181d] rounded-3xl border border-zinc-200 dark:border-zinc-800 p-8">

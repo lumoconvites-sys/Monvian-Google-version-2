@@ -35,6 +35,7 @@ import { startPreloadResources } from './utils/preloadItineraries';
 import { AirbnbPresentationCard, isPresentationCardSeen, markPresentationCardSeen, PresentationTab } from './components/AirbnbPresentationCard';
 import { persistUserToFirestore } from './services/firestoreSync';
 import { HostDashboard } from './components/HostDashboard';
+import { fetchSpotsFromSupabase, subscribeToSpotsChanges } from './services/supabaseSpots';
 
 const welcomeContainerVariants = {
   hidden: { opacity: 0 },
@@ -446,14 +447,12 @@ export default function App() {
 
   const fetchSpots = async () => {
     try {
-      const res = await fetch('/api/spots');
-      const data = await res.json();
-      if (data.success && data.spots && data.spots.length > 0) {
-        setSpots(data.spots);
-        localStorage.setItem('monvian_cached_spots', JSON.stringify(data.spots));
+      const spotsData = await fetchSpotsFromSupabase();
+      if (spotsData && spotsData.length > 0) {
+        setSpots(spotsData);
       }
     } catch (e) {
-      console.warn('Using offline spots fallback');
+      console.warn('Using offline spots fallback', e);
     }
   };
 
@@ -484,8 +483,12 @@ export default function App() {
     fetchVisualIcons();
     fetchSettings();
 
+    const unsubscribeRealtime = subscribeToSpotsChanges(() => {
+      fetchSpots();
+    });
+
     const handleSpotsUpdated = (e: any) => {
-      const updated = e.detail;
+      const updated = e.detail?.spot || e.detail;
       if (updated && updated.id) {
         setSpots((prev) => {
           const exists = prev.some((s) => s.id === updated.id);
@@ -528,6 +531,7 @@ export default function App() {
       window.removeEventListener('monvian:spots_updated', handleSpotsUpdated);
       window.removeEventListener('monvian:visual_icons_updated', handleVisualIconsUpdated);
       window.removeEventListener('focus', handleWindowFocus);
+      unsubscribeRealtime();
     };
   }, []);
 
