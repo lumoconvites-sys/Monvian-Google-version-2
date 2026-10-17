@@ -27,6 +27,7 @@ import { AdminCleanup } from './AdminCleanup';
 import { AdminItineraries } from './AdminItineraries';
 import { AdminServices } from './AdminServices';
 import { AdminMapIcons } from './AdminMapIcons';
+import { AffiliateHostDashboard } from '../affiliate/AffiliateHostDashboard';
 
 interface AdminLayoutProps {
   currentUser: any;
@@ -73,6 +74,7 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({
     { id: 'services', label: 'Locais e Serviços', icon: Store },
     { id: 'users', label: 'Usuários & Comunidade', icon: Users },
     { id: 'events', label: 'Eventos no Mapa', icon: Calendar },
+    { id: 'affiliate_host', label: 'Área Anfitrião (Prévia)', icon: Sparkles },
     { id: 'settings', label: 'Configurações', icon: Settings },
     { id: 'cleanup', label: 'Limpeza do Sistema', icon: Sparkles },
   ];
@@ -340,6 +342,14 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({
               {activeTab === 'services' && <AdminServices />}
               {activeTab === 'users' && <AdminUsers />}
               {activeTab === 'events' && <AdminEvents />}
+              {activeTab === 'affiliate_host' && (
+                <AffiliateHostDashboard
+                  isOpen={true}
+                  onClose={() => setActiveTab('dashboard')}
+                  theme="dark"
+                  user={currentUser}
+                />
+              )}
               {activeTab === 'settings' && <AdminSettings />}
               {activeTab === 'cleanup' && <AdminCleanup />}
             </motion.div>

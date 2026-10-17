@@ -79,22 +79,17 @@ export const SpotDetailSheet: React.FC<SpotDetailSheetProps> = ({
       exit={{ opacity: 0 }}
       transition={{ duration: 0.25, ease: 'easeOut' }}
       onClick={onClose}
-      className="fixed inset-0 z-[110] bg-black/40 backdrop-blur-xs flex flex-col justify-end md:justify-center md:items-start md:p-6 md:pl-[310px] lg:md:pl-[340px] select-none cursor-pointer"
+      className="fixed inset-0 z-[110] bg-black/60 backdrop-blur-md flex flex-col justify-end md:justify-center md:items-center md:p-6 select-none cursor-pointer"
     >
       {/* Native Apple Fluid Spring Sheet with smooth scale and slide physics */}
       <motion.div
         id="spot-detail-sheet-container"
-        initial={{ opacity: 0, y: '100%' }}
-        animate={{ opacity: 1, y: 0 }}
-        exit={{ opacity: 0, y: '100%' }}
-        transition={{
-          type: 'spring',
-          damping: 30,
-          stiffness: 300,
-          mass: 1,
-        }}
+        initial={{ opacity: 0, scale: 0.98, y: 12 }}
+        animate={{ opacity: 1, scale: 1, y: 0 }}
+        exit={{ opacity: 0, scale: 0.98, y: 10 }}
+        transition={{ duration: 0.24, ease: [0.16, 1, 0.3, 1] }}
         onClick={(e) => e.stopPropagation()}
-        className="fixed inset-0 w-full h-full bg-white dark:bg-[#000000] text-zinc-900 dark:text-white flex flex-col z-[110] transform-gpu overflow-hidden"
+        className="relative w-full h-full md:h-[86vh] md:max-w-2xl bg-white dark:bg-[#0E0F12] text-zinc-900 dark:text-white flex flex-col z-[110] transform-gpu overflow-hidden rounded-none md:border md:border-white/10 md:shadow-[0_25px_70px_rgba(0,0,0,0.6)]"
         style={{
           willChange: 'transform, opacity',
         }}

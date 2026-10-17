@@ -1,5 +1,7 @@
 import express from 'express';
 import { Database } from 'better-sqlite3';
+import { CAMPOS_SPOTS } from '../data/spots.js';
+import { DEFAULT_CURATED_ITINERARIES } from '../data/defaultItineraries.js';
 
 // Haversine formula to calculate distance between coordinates in km
 export function calculateDistanceKm(lat1: number, lon1: number, lat2: number, lon2: number): number {
@@ -130,12 +132,82 @@ export function setupItineraryDatabase(db: any) {
       updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
     );
 
+    CREATE TABLE IF NOT EXISTS spots (
+      id TEXT PRIMARY KEY,
+      name TEXT NOT NULL,
+      short_name TEXT,
+      tag_label TEXT,
+      category TEXT,
+      category_label TEXT,
+      lat REAL,
+      lng REAL,
+      image TEXT,
+      gallery TEXT DEFAULT '[]',
+      description TEXT,
+      tourist_tip TEXT,
+      rating REAL DEFAULT 4.8,
+      review_count INTEGER DEFAULT 0,
+      hours TEXT,
+      address TEXT,
+      price_range TEXT,
+      available_for_itinerary INTEGER DEFAULT 1,
+      duration_minutes INTEGER DEFAULT 90,
+      tags TEXT,
+      price TEXT,
+      maps_url TEXT,
+      is_active INTEGER DEFAULT 1,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    );
+
     CREATE TABLE IF NOT EXISTS planner_settings (
       key TEXT PRIMARY KEY,
       value TEXT,
       updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
     );
   `);
+
+  // Seed spots table with CAMPOS_SPOTS if empty
+  try {
+    const spotsCount = (db.prepare('SELECT count(*) as count FROM spots').get() as any)?.count || 0;
+    if (spotsCount === 0) {
+      const insertSpot = db.prepare(`
+        INSERT OR IGNORE INTO spots (
+          id, name, short_name, tag_label, category, category_label,
+          lat, lng, image, gallery, description, tourist_tip,
+          rating, review_count, hours, address, price_range,
+          available_for_itinerary, duration_minutes, tags, price, maps_url, is_active
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1)
+      `);
+      for (const s of CAMPOS_SPOTS) {
+        insertSpot.run(
+          s.id,
+          s.name,
+          s.shortName || s.name,
+          s.tagLabel || s.name,
+          s.category,
+          s.categoryLabel || s.category,
+          s.lat,
+          s.lng,
+          s.image || '',
+          JSON.stringify(s.gallery || []),
+          s.description || '',
+          s.touristTip || '',
+          s.rating || 4.8,
+          s.reviewCount || 0,
+          s.hours || '',
+          s.address || '',
+          s.priceRange || '',
+          s.availableForItinerary !== false ? 1 : 0,
+          s.durationMinutes || 90,
+          Array.isArray(s.tags) ? s.tags.join(', ') : '',
+          s.price || '',
+          s.mapsUrl || ''
+        );
+      }
+    }
+  } catch (e) {
+    console.warn('Spots table init notice:', e);
+  }
 
   // Migrations for spots and drafts table
   try { db.exec(`ALTER TABLE spots ADD COLUMN available_for_itinerary INTEGER DEFAULT 1;`); } catch (e) {}
@@ -819,17 +891,26 @@ export function registerItineraryRoutes(
       const sessionId = (req.headers['x-session-id'] as string) || req.body.sessionId || 'guest-session';
       const { id } = req.params;
 
+      let source: any = null;
       const sourceRow = db.prepare('SELECT * FROM itineraries WHERE id = ?').get(id) as any;
-      if (!sourceRow) {
+      if (sourceRow) {
+        source = hydrateItinerary(sourceRow);
+        try {
+          db.prepare('UPDATE itineraries SET usage_count = usage_count + 1 WHERE id = ?').run(id);
+        } catch (e) {}
+      } else {
+        const found = DEFAULT_CURATED_ITINERARIES.find((i) => i.id === id);
+        if (found) {
+          source = found;
+        } else if (req.body?.itinerary && req.body.itinerary.id) {
+          source = req.body.itinerary;
+        }
+      }
+
+      if (!source) {
         res.status(404).json({ error: 'Roteiro não encontrado na loja' });
         return;
       }
-
-      // Hydrate source itinerary
-      const source = hydrateItinerary(sourceRow);
-
-      // Increment usage count on original store itinerary
-      db.prepare('UPDATE itineraries SET usage_count = usage_count + 1 WHERE id = ?').run(id);
 
       // Create new personalized user itinerary ID
       const userItinId = 'user-itin-' + Date.now() + '-' + Math.random().toString(36).substring(2, 6);

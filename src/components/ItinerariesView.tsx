@@ -626,6 +626,9 @@ export const ItinerariesView: React.FC<ItinerariesViewProps> = ({
   // Modal for editing stops
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
 
+  // Selected day index for multi-day itineraries
+  const [selectedDayIndex, setSelectedDayIndex] = useState(0);
+
   // Active view mode: 'explore' (Airbnb Exploration Screen) or 'map' (Interactive Map)
   // Se a pessoa já tiver um roteiro escolhido/salvo, mantém o roteiro carregado na tela ('map') até ela clicar em loja de roteiros
   const [itineraryViewMode, setItineraryViewMode] = useState<'explore' | 'map'>(() => {
@@ -773,6 +776,8 @@ export const ItinerariesView: React.FC<ItinerariesViewProps> = ({
   };
 
   const handleApplyStoreItinerary = async (storeItin: Itinerary) => {
+    let appliedItinerary: Itinerary | null = null;
+
     try {
       const res = await fetch(`/api/itineraries/${storeItin.id}/clone-to-user`, {
         method: 'POST',
@@ -780,30 +785,66 @@ export const ItinerariesView: React.FC<ItinerariesViewProps> = ({
           'Content-Type': 'application/json',
           'x-session-id': sessionId
         },
-        body: JSON.stringify({ sessionId })
+        body: JSON.stringify({ sessionId, itinerary: storeItin })
       });
       const data = await res.json();
       if (data.success && data.userItinerary) {
-        userHasExplicitlyOpenedStoreRef.current = false;
-        setIsExpanded(false);
-        setUserItinerary(data.userItinerary);
-        try {
-          localStorage.setItem('monvian_active_itinerary', JSON.stringify(data.userItinerary));
-        } catch (e) {}
-
-        const firstStep = data.userItinerary.days?.[0]?.steps?.[0];
-        if (firstStep) {
-          setSelectedStopId(firstStep.id);
-        }
-
-        // Apple style toast feedback
-        setStoreToast('Roteiro carregado com sucesso!');
-        setTimeout(() => setStoreToast(null), 3000);
-        setItineraryViewMode('map');
+        appliedItinerary = data.userItinerary;
       }
     } catch (e) {
-      console.error('Error applying store itinerary:', e);
+      console.warn('Backend clone notice, applying client fallback:', e);
     }
+
+    // Instant client-side fallback if backend route was unavailable or returned non-success
+    if (!appliedItinerary) {
+      const userItinId = 'user-itin-' + Date.now();
+      const availableSpots = spots || CAMPOS_SPOTS;
+      const clonedDays = (storeItin.days || []).map((d, dIdx) => ({
+        id: `${userItinId}-d-${dIdx + 1}`,
+        itineraryId: userItinId,
+        dayNumber: d.dayNumber || dIdx + 1,
+        title: d.title || `Dia ${dIdx + 1}`,
+        summary: d.summary || '',
+        steps: (d.steps || []).map((s, sIdx) => {
+          const foundSpot = s.spot || availableSpots.find((sp) => sp.id === s.spotId);
+          return {
+            ...s,
+            id: `${userItinId}-d-${dIdx + 1}-s-${sIdx + 1}`,
+            itineraryId: userItinId,
+            dayId: `${userItinId}-d-${dIdx + 1}`,
+            dayNumber: d.dayNumber || dIdx + 1,
+            stepOrder: sIdx + 1,
+            spot: foundSpot || s.spot
+          };
+        })
+      }));
+
+      appliedItinerary = {
+        ...storeItin,
+        id: userItinId,
+        days: clonedDays,
+      };
+    }
+
+    userHasExplicitlyOpenedStoreRef.current = false;
+    setIsStoreOpen(false);
+    setIsExpanded(false);
+    setSelectedDayIndex(0);
+    setUserItinerary(appliedItinerary);
+
+    try {
+      localStorage.setItem('monvian_active_itinerary', JSON.stringify(appliedItinerary));
+    } catch (e) {}
+
+    const firstStep = appliedItinerary.days?.[0]?.steps?.[0];
+    if (firstStep) {
+      setSelectedStopId(firstStep.id);
+    }
+
+    // Apple style feedback
+    setStoreToast('Roteiro carregado com sucesso!');
+    setTimeout(() => setStoreToast(null), 3000);
+    setItineraryViewMode('map');
   };
 
   // Notes Modal state & persistent trip notes
@@ -850,7 +891,7 @@ export const ItinerariesView: React.FC<ItinerariesViewProps> = ({
     el: HTMLElement;
     containerEl: HTMLElement;
     badgeEl: HTMLElement;
-    arrowEl: HTMLElement;
+    arrowEl?: HTMLElement | null;
     pulseEl: HTMLElement | null;
   }>>([]);
   const renderRouteAndMarkersRef = useRef<((shouldFitBounds?: boolean, overrideSteps?: ItineraryStep[], overrideSelectedId?: string | null) => void) | null>(null);
@@ -1174,7 +1215,8 @@ export const ItinerariesView: React.FC<ItinerariesViewProps> = ({
   // Active steps from current user itinerary - single source of truth for ordinal numbers
   const activeSteps = useMemo(() => {
     if (!userItinerary?.days || userItinerary.days.length === 0) return [];
-    const rawSteps = [...(userItinerary.days[0].steps || [])].sort((a, b) => (a.stepOrder ?? 0) - (b.stepOrder ?? 0));
+    const dayToUse = userItinerary.days[selectedDayIndex] || userItinerary.days[0];
+    const rawSteps = [...(dayToUse?.steps || [])].sort((a, b) => (a.stepOrder ?? 0) - (b.stepOrder ?? 0));
     const availableSpots = spots || CAMPOS_SPOTS;
     return rawSteps.map((step, idx) => {
       const foundSpot = step.spot || availableSpots.find((sp) => sp.id === step.spotId);
@@ -1209,7 +1251,7 @@ export const ItinerariesView: React.FC<ItinerariesViewProps> = ({
         lng: typeof step.lng === 'number' ? step.lng : spotToUse.lng,
       };
     });
-  }, [userItinerary, spots]);
+  }, [userItinerary, selectedDayIndex, spots]);
 
   // Check if current logged-in user is Gold
   const isUserGold = useMemo(() => {
@@ -1400,15 +1442,17 @@ export const ItinerariesView: React.FC<ItinerariesViewProps> = ({
           ? '0 6px 26px rgba(230, 172, 51, 0.85), 0 2px 8px rgba(0, 0, 0, 0.4)'
           : '0 2px 10px rgba(230, 172, 51, 0.25), 0 1px 4px rgba(0, 0, 0, 0.15)';
 
-        rec.arrowEl.style.background = isSelected
-          ? 'linear-gradient(135deg, #B88214 0%, #E6AC33 22%, #FFF4A3 48%, #F5BE38 68%, #C98B18 88%, #9E6505 100%)'
-          : (isDark ? '#222225' : '#FFFDF7');
-        rec.arrowEl.style.borderRight = isSelected
-          ? '3px solid #FFFFFF'
-          : (isDark ? '2px solid rgba(245, 190, 56, 0.65)' : '2px solid rgba(230, 172, 51, 0.75)');
-        rec.arrowEl.style.borderBottom = isSelected
-          ? '3px solid #FFFFFF'
-          : (isDark ? '2px solid rgba(245, 190, 56, 0.65)' : '2px solid rgba(230, 172, 51, 0.75)');
+        if (rec.arrowEl) {
+          rec.arrowEl.style.background = isSelected
+            ? 'linear-gradient(135deg, #B88214 0%, #E6AC33 22%, #FFF4A3 48%, #F5BE38 68%, #C98B18 88%, #9E6505 100%)'
+            : (isDark ? '#222225' : '#FFFDF7');
+          rec.arrowEl.style.borderRight = isSelected
+            ? '3px solid #FFFFFF'
+            : (isDark ? '2px solid rgba(245, 190, 56, 0.65)' : '2px solid rgba(230, 172, 51, 0.75)');
+          rec.arrowEl.style.borderBottom = isSelected
+            ? '3px solid #FFFFFF'
+            : (isDark ? '2px solid rgba(245, 190, 56, 0.65)' : '2px solid rgba(230, 172, 51, 0.75)');
+        }
 
         if (rec.pulseEl) {
           rec.pulseEl.style.background = 'radial-gradient(circle, rgba(230, 172, 51, 0.75) 0%, rgba(255, 244, 163, 0.35) 50%, transparent 75%)';
@@ -1425,13 +1469,15 @@ export const ItinerariesView: React.FC<ItinerariesViewProps> = ({
           ? '0 6px 20px rgba(0, 0, 0, 0.35), 0 0 0 2px #FFFFFF'
           : '0 3px 10px rgba(0, 0, 0, 0.25)';
 
-        rec.arrowEl.style.background = '#FFFFFF';
-        rec.arrowEl.style.borderRight = isSelected
-          ? '3px solid #FFFFFF'
-          : '2px solid #FFFFFF';
-        rec.arrowEl.style.borderBottom = isSelected
-          ? '3px solid #FFFFFF'
-          : '2px solid #FFFFFF';
+        if (rec.arrowEl) {
+          rec.arrowEl.style.background = '#FFFFFF';
+          rec.arrowEl.style.borderRight = isSelected
+            ? '3px solid #FFFFFF'
+            : '2px solid #FFFFFF';
+          rec.arrowEl.style.borderBottom = isSelected
+            ? '3px solid #FFFFFF'
+            : '2px solid #FFFFFF';
+        }
 
         if (rec.pulseEl) {
           rec.pulseEl.style.background = 'radial-gradient(circle, rgba(255, 255, 255, 0.6) 0%, rgba(255, 255, 255, 0.2) 55%, transparent 75%)';
@@ -1534,36 +1580,8 @@ export const ItinerariesView: React.FC<ItinerariesViewProps> = ({
       badgeEl.textContent = stepNumberFormatted;
       badgeEl.innerText = stepNumberFormatted;
 
-      // Pin downward arrow pointer
-      const arrowEl = document.createElement('div');
-      arrowEl.style.width = '7px';
-      arrowEl.style.height = '7px';
-      arrowEl.style.transform = 'rotate(45deg)';
-      arrowEl.style.marginTop = '-3.5px';
-
-      if (isPremium) {
-        arrowEl.style.background = isSelected
-          ? 'linear-gradient(135deg, #B88214 0%, #E6AC33 22%, #FFF4A3 48%, #F5BE38 68%, #C98B18 88%, #9E6505 100%)'
-          : (isDark ? '#222225' : '#FFFDF7');
-        arrowEl.style.borderRight = isSelected
-          ? '3px solid #FFFFFF'
-          : (isDark ? '2px solid rgba(245, 190, 56, 0.65)' : '2px solid rgba(230, 172, 51, 0.75)');
-        arrowEl.style.borderBottom = isSelected
-          ? '3px solid #FFFFFF'
-          : (isDark ? '2px solid rgba(245, 190, 56, 0.65)' : '2px solid rgba(230, 172, 51, 0.75)');
-      } else {
-        arrowEl.style.background = '#FFFFFF';
-        arrowEl.style.borderRight = isSelected
-          ? '3px solid #FFFFFF'
-          : '2px solid #FFFFFF';
-        arrowEl.style.borderBottom = isSelected
-          ? '3px solid #FFFFFF'
-          : '2px solid #FFFFFF';
-      }
-
       containerEl.appendChild(pulseEl);
       containerEl.appendChild(badgeEl);
-      containerEl.appendChild(arrowEl);
       el.appendChild(containerEl);
 
       const currentStepId = step.id;
@@ -1582,7 +1600,6 @@ export const ItinerariesView: React.FC<ItinerariesViewProps> = ({
         el,
         containerEl,
         badgeEl,
-        arrowEl,
         pulseEl,
       });
     });
@@ -1746,13 +1763,36 @@ export const ItinerariesView: React.FC<ItinerariesViewProps> = ({
         map.resize();
       } catch (e) {}
       renderRouteAndMarkers(true);
+      // Secondary check to guarantee fit bounds after layout finishes
+      setTimeout(() => {
+        if (mapRef.current === map) {
+          try {
+            map.resize();
+          } catch (e) {}
+          renderRouteAndMarkers(true);
+        }
+      }, 250);
     };
 
     if (map.loaded() && map.isStyleLoaded()) {
       onMapReady();
     } else {
       map.once('load', onMapReady);
+      map.once('styledata', () => {
+        if (mapRef.current === map) {
+          try {
+            map.resize();
+          } catch (e) {}
+          renderRouteAndMarkers(true);
+        }
+      });
     }
+
+    const safetyTimer = setTimeout(() => {
+      if (mapRef.current === map) {
+        onMapReady();
+      }
+    }, 500);
 
     // When clicking anywhere on the map, collapse the sheet so only 20% is visible
     map.on('click', () => {
@@ -1760,6 +1800,7 @@ export const ItinerariesView: React.FC<ItinerariesViewProps> = ({
     });
 
     return () => {
+      clearTimeout(safetyTimer);
       markerRecordsRef.current.forEach((rec) => {
         try {
           rec.marker.remove();
@@ -1776,12 +1817,20 @@ export const ItinerariesView: React.FC<ItinerariesViewProps> = ({
     };
   }, [isOpen, itineraryViewMode, userItinerary?.id, itineraryMapStyle, theme]);
 
+  const prevItinIdRef = useRef<string | null>(userItinerary?.id || null);
+  const prevDayIndexRef = useRef<number>(selectedDayIndex);
+
   // When active steps change or map finishes loading
   useEffect(() => {
     if (mapRef.current) {
-      renderRouteAndMarkers(false);
+      const isNewItinOrDay =
+        userItinerary?.id !== prevItinIdRef.current ||
+        selectedDayIndex !== prevDayIndexRef.current;
+      prevItinIdRef.current = userItinerary?.id || null;
+      prevDayIndexRef.current = selectedDayIndex;
+      renderRouteAndMarkers(isNewItinOrDay);
     }
-  }, [activeSteps, renderRouteAndMarkers]);
+  }, [activeSteps, userItinerary?.id, selectedDayIndex, renderRouteAndMarkers]);
 
   // Marker highlight sync on stop selection
   useEffect(() => {
@@ -1821,17 +1870,18 @@ export const ItinerariesView: React.FC<ItinerariesViewProps> = ({
   if (itineraryViewMode === 'explore') {
     return (
       <motion.div
-        initial={{ opacity: 0, scale: 0.97, y: 14 }}
+        initial={{ opacity: 0, scale: 0.98, y: 12 }}
         animate={{ opacity: 1, scale: 1, y: 0 }}
-        exit={{ opacity: 0, scale: 0.97, y: 14 }}
-        transition={{ duration: 0.35, ease: [0.16, 1, 0.3, 1] }}
-        className={`fixed inset-0 z-40 w-full h-full overflow-hidden rounded-t-[26px] ios-page-top-rounded ${isDark ? 'bg-[#000000]' : 'bg-white'} select-none`}
+        exit={{ opacity: 0, scale: 0.98, y: 10 }}
+        transition={{ duration: 0.32, ease: [0.16, 1, 0.3, 1] }}
+        className={`fixed inset-0 md:left-64 lg:left-72 z-40 w-full md:w-auto h-full overflow-hidden rounded-none ${isDark ? 'bg-[#000000]' : 'bg-white'} select-none`}
         style={{
-          borderTopLeftRadius: '26px',
-          borderTopRightRadius: '26px',
+          borderTopLeftRadius: '0px',
+          borderTopRightRadius: '0px',
           overflow: 'hidden',
           WebkitMaskImage: '-webkit-radial-gradient(white, black)',
           isolation: 'isolate',
+          willChange: 'opacity, transform',
         }}
       >
         <AirbnbItineraryExplorer
@@ -1865,7 +1915,11 @@ export const ItinerariesView: React.FC<ItinerariesViewProps> = ({
   // VIEW MODE: Interactive Map with Route, Sequential Points & Store
   // -------------------------------------------------------------
   return (
-    <div
+    <motion.div
+      initial={{ opacity: 0, scale: 0.98, y: 12 }}
+      animate={{ opacity: 1, scale: 1, y: 0 }}
+      exit={{ opacity: 0, scale: 0.98, y: 10 }}
+      transition={{ duration: 0.32, ease: [0.16, 1, 0.3, 1] }}
       className={`fixed inset-0 md:left-64 lg:left-72 ${isEditModalOpen || isStoreOpen ? 'z-[90]' : 'z-40'} w-full md:w-auto h-full overflow-hidden rounded-t-[26px] ios-page-top-rounded ${isDark ? 'bg-black' : 'bg-white'} select-none`}
       style={{
         borderTopLeftRadius: '26px',
@@ -1873,6 +1927,7 @@ export const ItinerariesView: React.FC<ItinerariesViewProps> = ({
         overflow: 'hidden',
         WebkitMaskImage: '-webkit-radial-gradient(white, black)',
         isolation: 'isolate',
+        willChange: 'opacity, transform',
       }}
     >
       {/* 1. MapLibre GL Interactive Canvas */}
@@ -2115,13 +2170,23 @@ export const ItinerariesView: React.FC<ItinerariesViewProps> = ({
             <span>{activeSteps.length} {activeSteps.length === 1 ? 'local' : 'locais'} planejados</span>
             {userItinerary?.days && userItinerary.days.length > 1 && (
               <div className="flex items-center gap-1">
-                {userItinerary.days.map((day) => (
-                  <span
+                {userItinerary.days.map((day, dIdx) => (
+                  <button
+                    type="button"
                     key={day.dayNumber}
-                    className="px-2 py-0.5 rounded-lg text-xs font-bold bg-white/10 text-white border border-white/20"
+                    onClick={() => {
+                      setSelectedDayIndex(dIdx);
+                      const firstStepOfDay = day.steps?.[0];
+                      if (firstStepOfDay) setSelectedStopId(firstStepOfDay.id);
+                    }}
+                    className={`px-2.5 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                      selectedDayIndex === dIdx
+                        ? 'bg-white text-black shadow-md'
+                        : 'bg-white/10 text-white/80 hover:bg-white/20 border border-white/10'
+                    }`}
                   >
                     Dia {day.dayNumber}
-                  </span>
+                  </button>
                 ))}
               </div>
             )}
@@ -2418,6 +2483,28 @@ export const ItinerariesView: React.FC<ItinerariesViewProps> = ({
                   WebkitOverflowScrolling: 'touch',
                 }}
               >
+                {userItinerary?.days && userItinerary.days.length > 1 && (
+                  <div className="flex items-center gap-1.5 pb-2 overflow-x-auto no-scrollbar">
+                    {userItinerary.days.map((day, dIdx) => (
+                      <button
+                        type="button"
+                        key={day.dayNumber}
+                        onClick={() => {
+                          setSelectedDayIndex(dIdx);
+                          const firstStepOfDay = day.steps?.[0];
+                          if (firstStepOfDay) setSelectedStopId(firstStepOfDay.id);
+                        }}
+                        className={`px-3 py-1 rounded-full text-xs font-bold transition-all cursor-pointer whitespace-nowrap ${
+                          selectedDayIndex === dIdx
+                            ? 'bg-white text-black shadow-md'
+                            : 'bg-white/10 text-white/80 hover:bg-white/20 border border-white/10'
+                        }`}
+                      >
+                        Dia {day.dayNumber}
+                      </button>
+                    ))}
+                  </div>
+                )}
                 <AnimatePresence mode="popLayout">
                   {activeSteps.map((step, idx) => (
                     <SwipeableStopCard
@@ -2534,6 +2621,6 @@ export const ItinerariesView: React.FC<ItinerariesViewProps> = ({
         theme={theme}
         isGoldUser={isUserGold}
       />
-    </div>
+    </motion.div>
   );
 };

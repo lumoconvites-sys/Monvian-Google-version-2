@@ -111,14 +111,14 @@ export const NotificationsModal: React.FC<NotificationsModalProps> = ({
       onClick={(e) => e.stopPropagation()}
       className={`fixed inset-0 z-[150] flex flex-col ${
         isDark ? 'bg-[#000000] text-white' : 'bg-[#ffffff] text-black'
-      } select-none overflow-hidden rounded-t-[26px] pointer-events-auto`}
+      } select-none overflow-hidden rounded-none pointer-events-auto`}
       style={{
         fontFamily: "'Inter', -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'SF Pro Text', sans-serif",
         backgroundColor: isDark ? '#000000' : '#ffffff',
         height: '100dvh',
         width: '100vw',
-        borderTopLeftRadius: '26px',
-        borderTopRightRadius: '26px',
+        borderTopLeftRadius: '0px',
+        borderTopRightRadius: '0px',
         overflow: 'hidden',
       }}
     >

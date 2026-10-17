@@ -73,28 +73,26 @@ export const AdminVisualIconModal: React.FC<AdminVisualIconModalProps> = ({
     }
   }, [isOpen, iconToEdit]);
 
-  // MapLibre base map setup
+  // MapLibre base map setup (Esri World Street Map for crisp, watermark-free display)
   const MAP_STYLE: maplibregl.StyleSpecification = {
     version: 8,
     sources: {
-      'osm-tiles': {
+      'esri-street': {
         type: 'raster',
         tiles: [
-          'https://a.tile.openstreetmap.org/{z}/{x}/{y}.png',
-          'https://b.tile.openstreetmap.org/{z}/{x}/{y}.png',
-          'https://c.tile.openstreetmap.org/{z}/{x}/{y}.png',
+          'https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/{z}/{y}/{x}',
         ],
         tileSize: 256,
-        attribution: '&copy; OpenStreetMap contributors',
+        attribution: '&copy; Esri &copy; OpenStreetMap contributors',
       },
     },
     layers: [
       {
-        id: 'osm-layer',
+        id: 'esri-street-layer',
         type: 'raster',
-        source: 'osm-tiles',
+        source: 'esri-street',
         minzoom: 0,
-        maxzoom: 19,
+        maxzoom: 20,
       },
     ],
   };
@@ -254,6 +252,7 @@ export const AdminVisualIconModal: React.FC<AdminVisualIconModalProps> = ({
 
       const data = await res.json();
       if (data.success) {
+        window.dispatchEvent(new CustomEvent('monvian:visual_icons_updated', { detail: data.icon }));
         onSuccess(data.icon);
         onClose();
       } else {

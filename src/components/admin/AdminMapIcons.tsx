@@ -77,6 +77,7 @@ export const AdminMapIcons: React.FC = () => {
         setIcons((prev) =>
           prev.map((i) => (i.id === item.id ? { ...i, is_active: data.is_active } : i))
         );
+        window.dispatchEvent(new CustomEvent('monvian:visual_icons_updated'));
         showToast(data.message || (data.is_active ? 'Ícone ativado no mapa.' : 'Ícone desativado.'));
       }
     } catch (err) {
@@ -89,6 +90,7 @@ export const AdminMapIcons: React.FC = () => {
     try {
       // Optimistic UI removal
       setIcons((prev) => prev.filter((i) => i.id !== item.id));
+      window.dispatchEvent(new CustomEvent('monvian:visual_icons_updated'));
       const res = await fetch(`/api/admin/map-visual-icons/${item.id}`, {
         method: 'DELETE'
       });

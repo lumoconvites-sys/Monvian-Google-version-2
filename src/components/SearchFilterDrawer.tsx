@@ -209,23 +209,24 @@ export const SearchFilterDrawer: React.FC<SearchFilterDrawerProps> = ({
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
-          transition={{ duration: 0.22, ease: 'easeOut' }}
+          transition={{ duration: 0.28, ease: [0.16, 1, 0.3, 1] }}
           onClick={onClose}
           className="fixed inset-0 z-45 flex flex-col justify-end md:justify-center md:items-center md:p-6 select-none overflow-hidden transition-colors duration-300 md:bg-black/50"
         >
           <motion.div
-            initial={{ y: '100%' }}
-            animate={{ y: 0 }}
-            exit={{ y: '100%' }}
-            transition={{ type: 'spring', damping: 32, stiffness: 340, mass: 0.9 }}
+            initial={{ opacity: 0, scale: 0.98, y: 12 }}
+            animate={{ opacity: 1, scale: 1, y: 0 }}
+            exit={{ opacity: 0, scale: 0.98, y: 10 }}
+            transition={{ duration: 0.32, ease: [0.16, 1, 0.3, 1] }}
             onClick={(e) => e.stopPropagation()}
-            className="relative w-full h-full md:h-[88vh] md:max-w-2xl bg-white dark:bg-[#000000] text-zinc-900 dark:text-white rounded-t-[26px] md:rounded-[32px] overflow-hidden flex flex-col justify-between shadow-2xl md:border md:border-black/10 md:dark:border-white/15 ios-page-top-rounded"
+            className="relative w-full h-full md:h-[88vh] md:max-w-2xl bg-white dark:bg-[#000000] text-zinc-900 dark:text-white rounded-none overflow-hidden flex flex-col justify-between shadow-2xl md:border md:border-black/10 md:dark:border-white/15"
             style={{
               fontFamily: "'Inter', -apple-system, BlinkMacSystemFont, sans-serif",
-              borderTopLeftRadius: '26px',
-              borderTopRightRadius: '26px',
+              borderTopLeftRadius: '0px',
+              borderTopRightRadius: '0px',
               overflow: 'hidden',
               WebkitMaskImage: '-webkit-radial-gradient(white, black)',
+              willChange: 'opacity, transform',
             }}
           >
       {/* Top Header Bar */}
@@ -311,23 +312,33 @@ export const SearchFilterDrawer: React.FC<SearchFilterDrawerProps> = ({
         {/* VIEW 1: Categorias Principais (quando nenhuma categoria ou busca foi acionada) */}
         {!searchQuery && !selectedCategory && (
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            {SEARCH_CATEGORIES.map((cat) => {
+            {SEARCH_CATEGORIES.map((cat, idx) => {
               const Icon = cat.icon;
               return (
-                <button
+                <motion.button
                   key={cat.id}
                   id={`cat-card-${cat.id}`}
+                  initial={{ opacity: 0, scale: 0.88, y: 12 }}
+                  animate={{ opacity: 1, scale: 1, y: 0 }}
+                  transition={{
+                    type: 'spring',
+                    stiffness: 380,
+                    damping: 22,
+                    delay: idx * 0.035,
+                  }}
+                  whileHover={{ scale: 1.02, transition: { type: 'spring', stiffness: 400, damping: 18 } }}
+                  whileTap={{ scale: 0.93, transition: { type: 'spring', stiffness: 500, damping: 14 } }}
                   onClick={() => setSelectedCategory(cat)}
-                  className="w-full p-4 rounded-3xl bg-white dark:bg-[#141518] hover:bg-zinc-50 dark:hover:bg-[#1a1c21] border border-zinc-200 dark:border-white/5 hover:border-zinc-300 dark:hover:border-white/15 transition-all flex items-center justify-between text-left cursor-pointer group shadow-sm hover:shadow-md active:scale-[0.98]"
+                  className="w-full p-4 rounded-3xl bg-white dark:bg-[#141518] hover:bg-zinc-50 dark:hover:bg-[#1a1c21] border border-zinc-200 dark:border-white/5 hover:border-zinc-300 dark:hover:border-white/15 transition-colors flex items-center justify-between text-left cursor-pointer group shadow-sm hover:shadow-md"
                 >
-                  {/* Left: Rounded Square Icon Box OR Floating Image Asset + Titles */}
-                  <div className="flex items-center gap-3.5 min-w-0">
+                  {/* Left: Rounded Square Icon Box OR Floating Image Asset + Titles (+50% larger icons) */}
+                  <div className="flex items-center gap-4 min-w-0">
                     {cat.image ? (
-                      <div className="w-14 h-14 shrink-0 flex items-center justify-center group-hover:scale-110 transition-transform duration-300">
+                      <div className="w-[50px] h-[50px] shrink-0 flex items-center justify-center group-hover:scale-110 transition-transform duration-300">
                         <img
                           src={cat.image}
                           alt={cat.name}
-                          className="w-full h-full object-contain filter drop-shadow-sm select-none"
+                          className="w-full h-full object-contain filter drop-shadow-md select-none"
                           onError={(e) => {
                             const target = e.currentTarget;
                             if (!target.src.endsWith('.png.png') && target.src.endsWith('.png')) {
@@ -337,7 +348,7 @@ export const SearchFilterDrawer: React.FC<SearchFilterDrawerProps> = ({
                         />
                       </div>
                     ) : (
-                      <div className="w-12 h-12 rounded-2xl bg-zinc-100 dark:bg-[#202227] flex items-center justify-center text-zinc-700 dark:text-white shrink-0 shadow-xs border border-zinc-200/50 dark:border-white/5 group-hover:scale-105 transition-transform">
+                      <div className="w-11 h-11 rounded-2xl bg-zinc-100 dark:bg-[#202227] flex items-center justify-center text-zinc-700 dark:text-white shrink-0 shadow-xs border border-zinc-200/50 dark:border-white/5 group-hover:scale-105 transition-transform">
                         {Icon && <Icon className="w-5 h-5 stroke-[1.8]" />}
                       </div>
                     )}
@@ -356,7 +367,7 @@ export const SearchFilterDrawer: React.FC<SearchFilterDrawerProps> = ({
                   <div className="text-zinc-500 group-hover:text-zinc-300 transition-colors shrink-0 ml-2">
                     <ChevronRight className="w-5 h-5 stroke-[2]" />
                   </div>
-                </button>
+                </motion.button>
               );
             })}
           </div>

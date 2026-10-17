@@ -220,7 +220,8 @@ export function generateMarkerHtml(categoryKey: string, size = 18, customColor?:
       display: flex;
       align-items: center;
       justify-content: center;
-      pointer-events: none !important;
+      transition: transform 0.35s cubic-bezier(0.34, 1.56, 0.64, 1);
+      transform-origin: center center;
       user-select: none !important;
       -webkit-user-select: none !important;
     ">

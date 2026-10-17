@@ -85,15 +85,10 @@ export const ItineraryDetailModal: React.FC<ItineraryDetailModalProps> = ({
             className="fixed inset-0 bg-black/60 backdrop-blur-xs cursor-pointer"
           />
           <motion.div
-            initial={{ opacity: 0, scale: 0.88, y: 32 }}
+            initial={{ opacity: 0, scale: 0.98, y: 12 }}
             animate={{ opacity: 1, scale: 1, y: 0 }}
-            exit={{ opacity: 0, scale: 0.90, y: 24 }}
-            transition={{
-              type: 'spring',
-              damping: 28,
-              stiffness: 320,
-              mass: 0.8,
-            }}
+            exit={{ opacity: 0, scale: 0.98, y: 10 }}
+            transition={{ duration: 0.24, ease: [0.16, 1, 0.3, 1] }}
             onClick={(e) => e.stopPropagation()}
             className="relative z-10 bg-white dark:bg-[#000000] border-t sm:border border-zinc-200 dark:border-zinc-800 rounded-t-[26px] sm:rounded-[26px] w-full max-w-2xl max-h-[92vh] flex flex-col shadow-2xl overflow-hidden origin-bottom sm:origin-center transform-gpu ios-page-top-rounded"
             style={{

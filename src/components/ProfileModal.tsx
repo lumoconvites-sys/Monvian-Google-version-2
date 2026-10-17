@@ -50,6 +50,7 @@ interface ProfileModalProps {
   user: any;
   onUpdateUser?: (updatedUser: any) => void;
   onOpenAdmin?: () => void;
+  onOpenHostDashboard?: () => void;
   onSubViewChange?: (subView: SubView) => void;
   communityUrl?: string;
   instagramUrl?: string;
@@ -74,6 +75,7 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
   user,
   onUpdateUser,
   onOpenAdmin,
+  onOpenHostDashboard,
   onSubViewChange,
   communityUrl = 'https://chat.whatsapp.com/invite/monvian-campos',
   instagramUrl = 'https://instagram.com/monvian.campos',
@@ -373,25 +375,35 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
   };
 
   return (
-    <div
-      id="profile-fullscreen-overlay"
-      onClick={onClose}
-      className="fixed inset-0 z-45 flex flex-col justify-end md:justify-center md:items-center md:p-6 select-none overflow-hidden transition-colors duration-300 md:bg-black/50 md:backdrop-blur-xs"
-    >
-      <div
-        onClick={(e) => e.stopPropagation()}
-        className={`relative w-full h-full md:h-[88vh] md:max-w-2xl rounded-t-[30px] md:rounded-[36px] overflow-hidden flex flex-col justify-between shadow-2xl transition-colors duration-300 md:border ${
-          isDark
-            ? 'bg-[#000000] text-white md:border-white/10'
-            : 'bg-[#F2F2F7] text-zinc-900 md:border-black/10'
-        }`}
-        style={{
-          fontFamily: "'SF Pro Display', 'SF Pro Text', -apple-system, BlinkMacSystemFont, sans-serif",
-          borderTopLeftRadius: '30px',
-          borderTopRightRadius: '30px',
-          overflow: 'hidden',
-        }}
+    <AnimatePresence>
+      <motion.div
+        id="profile-fullscreen-overlay"
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        exit={{ opacity: 0 }}
+        transition={{ duration: 0.28, ease: [0.16, 1, 0.3, 1] }}
+        onClick={onClose}
+        className="fixed inset-0 z-45 flex flex-col justify-end md:justify-center md:items-center md:p-6 select-none overflow-hidden transition-colors duration-300 md:bg-black/50 md:backdrop-blur-xs"
       >
+        <motion.div
+          initial={{ opacity: 0, scale: 0.98, y: 12 }}
+          animate={{ opacity: 1, scale: 1, y: 0 }}
+          exit={{ opacity: 0, scale: 0.98, y: 10 }}
+          transition={{ duration: 0.32, ease: [0.16, 1, 0.3, 1] }}
+          onClick={(e) => e.stopPropagation()}
+          className={`relative w-full h-full md:h-[88vh] md:max-w-2xl rounded-none overflow-hidden flex flex-col justify-between shadow-2xl transition-colors duration-300 md:border ${
+            isDark
+              ? 'bg-[#000000] text-white md:border-white/10'
+              : 'bg-[#F2F2F7] text-zinc-900 md:border-black/10'
+          }`}
+          style={{
+            fontFamily: "'SF Pro Display', 'SF Pro Text', -apple-system, BlinkMacSystemFont, sans-serif",
+            borderTopLeftRadius: '30px',
+            borderTopRightRadius: '30px',
+            overflow: 'hidden',
+            willChange: 'opacity, transform',
+          }}
+        >
         {/* Top Header Bar */}
         <div
           className="px-5 sm:px-6 pb-2 flex items-center justify-between z-10 shrink-0"
@@ -533,8 +545,8 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
                       NOVO
                     </span>
                   </div>
-                  <div className="my-2 flex justify-center">
-                    <span className="text-[38px] leading-none">🧳</span>
+                  <div className="my-2 flex justify-center items-center h-[46px]">
+                    <img src="/lugares.png" alt="Viagens anteriores" className="h-[64px] w-auto object-contain" />
                   </div>
                   <div>
                     <h3 className="text-[15px] font-bold tracking-tight leading-snug">
@@ -566,9 +578,15 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
                 </div>
               </div>
 
-              {/* 3. Horizontal Promotional Card ("Torne-se um anfitrião") */}
+              {/* 3. Horizontal Promotional Card ("Torne-se um anfitrião" -> Área do anfitrião) */}
               <div
-                onClick={() => setIsPremiumModalOpen(true)}
+                onClick={() => {
+                  if (onOpenHostDashboard) {
+                    onOpenHostDashboard();
+                  } else {
+                    setIsPremiumModalOpen(true);
+                  }
+                }}
                 className={`rounded-[24px] p-4 border transition-transform cursor-pointer active:scale-[0.98] flex items-center gap-3.5 ${
                   isDark ? 'bg-[#1C1C1E] border-white/10 shadow-xs' : 'bg-white border-black/5 shadow-xs'
                 }`}
@@ -578,10 +596,10 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
                 </div>
                 <div className="min-w-0 flex-1">
                   <h3 className="text-[15px] font-bold tracking-tight leading-tight">
-                    Torne-se um anfitrião
+                    Área do anfitrião
                   </h3>
                   <p className="text-xs text-zinc-500 dark:text-zinc-400 font-medium mt-0.5 leading-snug">
-                    É fácil começar a receber viajantes e ganhar uma renda extra.
+                    Acompanhe suas indicações e seus ganhos no Monvians.
                   </p>
                 </div>
                 <ChevronRight className="w-5 h-5 text-zinc-400 shrink-0" />
@@ -600,11 +618,11 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
                       isDark ? 'bg-[#1C1C1E] border-white/10 hover:bg-[#252528]' : 'bg-white border-black/5 hover:bg-zinc-50'
                     }`}
                   >
-                    <div className="flex items-center gap-3 min-w-0">
-                      <div className="w-9 h-9 rounded-full bg-indigo-500/10 flex items-center justify-center text-indigo-500 shrink-0">
-                        <ShieldCheck className="w-5 h-5 stroke-[2]" />
+                    <div className="flex items-center gap-3.5 min-w-0">
+                      <div className="flex items-center justify-center shrink-0 text-zinc-950 dark:text-white">
+                        <ShieldCheck className="w-7 h-7 stroke-[1.8]" />
                       </div>
-                      <h3 className="text-[15px] font-semibold text-indigo-500 dark:text-indigo-400 tracking-tight">
+                      <h3 className="text-[15px] font-semibold text-zinc-950 dark:text-white tracking-tight">
                         Painel ADM
                       </h3>
                     </div>
@@ -620,12 +638,12 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
                     isDark ? 'bg-[#1C1C1E] border-white/10 hover:bg-[#252528]' : 'bg-white border-black/5 hover:bg-zinc-50'
                   }`}
                 >
-                  <div className="flex items-center gap-3 min-w-0">
-                    <div className="w-9 h-9 rounded-full bg-zinc-500/10 flex items-center justify-center text-zinc-700 dark:text-zinc-300 shrink-0 relative">
-                      <Settings className="w-5 h-5 stroke-[2]" />
-                      <span className="absolute top-1 right-1 w-2 h-2 rounded-full bg-[#FF3B30]" />
+                  <div className="flex items-center gap-3.5 min-w-0">
+                    <div className="relative flex items-center justify-center shrink-0 text-zinc-950 dark:text-white">
+                      <Settings className="w-7 h-7 stroke-[1.8]" />
+                      <span className="absolute -top-0.5 -right-0.5 w-2.5 h-2.5 rounded-full bg-[#FF3B30] ring-2 ring-[#1C1C1E] dark:ring-[#1C1C1E]" />
                     </div>
-                    <h3 className="text-[15px] font-semibold tracking-tight">
+                    <h3 className="text-[15px] font-semibold text-zinc-950 dark:text-white tracking-tight">
                       Configurações da conta
                     </h3>
                   </div>
@@ -639,30 +657,12 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
                     isDark ? 'bg-[#1C1C1E] border-white/10 hover:bg-[#252528]' : 'bg-white border-black/5 hover:bg-zinc-50'
                   }`}
                 >
-                  <div className="flex items-center gap-3 min-w-0">
-                    <div className="w-9 h-9 rounded-full bg-amber-500/10 flex items-center justify-center text-amber-500 shrink-0">
-                      <Star className="w-5 h-5 stroke-[2]" />
+                  <div className="flex items-center gap-3.5 min-w-0">
+                    <div className="flex items-center justify-center shrink-0 text-zinc-950 dark:text-white">
+                      <Star className="w-7 h-7 stroke-[1.8]" />
                     </div>
-                    <h3 className="text-[15px] font-semibold tracking-tight">
+                    <h3 className="text-[15px] font-semibold text-zinc-950 dark:text-white tracking-tight">
                       Obtenha ajuda
-                    </h3>
-                  </div>
-                  <ChevronRight className="w-5 h-5 text-zinc-400 shrink-0" />
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() => handleSetSubView('logout-confirm')}
-                  className={`w-full p-4 rounded-[22px] border transition-all flex items-center justify-between text-left cursor-pointer active:scale-[0.98] ${
-                    isDark ? 'bg-[#1C1C1E] border-white/10 hover:bg-[#252528]' : 'bg-white border-black/5 hover:bg-zinc-50'
-                  }`}
-                >
-                  <div className="flex items-center gap-3 min-w-0">
-                    <div className="w-9 h-9 rounded-full bg-rose-500/10 flex items-center justify-center text-rose-500 shrink-0">
-                      <LogOut className="w-5 h-5 stroke-[2]" />
-                    </div>
-                    <h3 className="text-[15px] font-semibold text-rose-500 dark:text-rose-400 tracking-tight">
-                      Sair da conta
                     </h3>
                   </div>
                   <ChevronRight className="w-5 h-5 text-zinc-400 shrink-0" />
@@ -686,9 +686,9 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
                 }`}>
                   {/* Chuva Dinâmica */}
                   <div className="p-4 flex items-center justify-between gap-3">
-                    <div className="flex items-center gap-3 min-w-0">
-                      <div className="w-8 h-8 rounded-full bg-blue-500/15 flex items-center justify-center text-blue-500 shrink-0">
-                        <CloudRain className="w-4.5 h-4.5 stroke-[2]" />
+                    <div className="flex items-center gap-3.5 min-w-0">
+                      <div className="flex items-center justify-center shrink-0 text-zinc-950 dark:text-white">
+                        <CloudRain className="w-7 h-7 stroke-[1.8]" />
                       </div>
                       <div className="min-w-0">
                         <h4 className="text-[15px] font-semibold tracking-tight">
@@ -708,9 +708,9 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
 
                   {/* Neve das Montanhas */}
                   <div className="p-4 flex items-center justify-between gap-3">
-                    <div className="flex items-center gap-3 min-w-0">
-                      <div className="w-8 h-8 rounded-full bg-cyan-500/15 flex items-center justify-center text-cyan-400 shrink-0">
-                        <Snowflake className="w-4.5 h-4.5 stroke-[2]" />
+                    <div className="flex items-center gap-3.5 min-w-0">
+                      <div className="flex items-center justify-center shrink-0 text-zinc-950 dark:text-white">
+                        <Snowflake className="w-7 h-7 stroke-[1.8]" />
                       </div>
                       <div className="min-w-0">
                         <h4 className="text-[15px] font-semibold tracking-tight">
@@ -730,9 +730,9 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
 
                   {/* Modo Escuro */}
                   <div className="p-4 flex items-center justify-between gap-3">
-                    <div className="flex items-center gap-3 min-w-0">
-                      <div className="w-8 h-8 rounded-full bg-indigo-500/15 flex items-center justify-center text-indigo-400 shrink-0">
-                        {isDark ? <Moon className="w-4.5 h-4.5 stroke-[2]" /> : <Sun className="w-4.5 h-4.5 stroke-[2]" />}
+                    <div className="flex items-center gap-3.5 min-w-0">
+                      <div className="flex items-center justify-center shrink-0 text-zinc-950 dark:text-white">
+                        {isDark ? <Moon className="w-7 h-7 stroke-[1.8]" /> : <Sun className="w-7 h-7 stroke-[1.8]" />}
                       </div>
                       <div className="min-w-0">
                         <h4 className="text-[15px] font-semibold tracking-tight">
@@ -752,9 +752,9 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
 
                   {/* Alto Contraste */}
                   <div className="p-4 flex items-center justify-between gap-3">
-                    <div className="flex items-center gap-3 min-w-0">
-                      <div className="w-8 h-8 rounded-full bg-purple-500/15 flex items-center justify-center text-purple-400 shrink-0">
-                        <Sliders className="w-4.5 h-4.5 stroke-[2]" />
+                    <div className="flex items-center gap-3.5 min-w-0">
+                      <div className="flex items-center justify-center shrink-0 text-zinc-950 dark:text-white">
+                        <Sliders className="w-7 h-7 stroke-[1.8]" />
                       </div>
                       <div className="min-w-0">
                         <h4 className="text-[15px] font-semibold tracking-tight">
@@ -784,9 +784,9 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
                 }`}>
                   {/* Localização GPS */}
                   <div className="p-4 flex items-center justify-between gap-3">
-                    <div className="flex items-center gap-3 min-w-0">
-                      <div className="w-8 h-8 rounded-full bg-emerald-500/15 flex items-center justify-center text-emerald-500 shrink-0">
-                        <MapPin className="w-4.5 h-4.5 stroke-[2]" />
+                    <div className="flex items-center gap-3.5 min-w-0">
+                      <div className="flex items-center justify-center shrink-0 text-zinc-950 dark:text-white">
+                        <MapPin className="w-7 h-7 stroke-[1.8]" />
                       </div>
                       <div className="min-w-0">
                         <h4 className="text-[15px] font-semibold tracking-tight">
@@ -806,9 +806,9 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
 
                   {/* Alertas de Proximidade */}
                   <div className="p-4 flex items-center justify-between gap-3">
-                    <div className="flex items-center gap-3 min-w-0">
-                      <div className="w-8 h-8 rounded-full bg-amber-500/15 flex items-center justify-center text-amber-500 shrink-0">
-                        <Bell className="w-4.5 h-4.5 stroke-[2]" />
+                    <div className="flex items-center gap-3.5 min-w-0">
+                      <div className="flex items-center justify-center shrink-0 text-zinc-950 dark:text-white">
+                        <Bell className="w-7 h-7 stroke-[1.8]" />
                       </div>
                       <div className="min-w-0">
                         <h4 className="text-[15px] font-semibold tracking-tight">
@@ -828,9 +828,9 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
 
                   {/* Efeitos Sonoros */}
                   <div className="p-4 flex items-center justify-between gap-3">
-                    <div className="flex items-center gap-3 min-w-0">
-                      <div className="w-8 h-8 rounded-full bg-rose-500/15 flex items-center justify-center text-rose-500 shrink-0">
-                        <Volume2 className="w-4.5 h-4.5 stroke-[2]" />
+                    <div className="flex items-center gap-3.5 min-w-0">
+                      <div className="flex items-center justify-center shrink-0 text-zinc-950 dark:text-white">
+                        <Volume2 className="w-7 h-7 stroke-[1.8]" />
                       </div>
                       <div className="min-w-0">
                         <h4 className="text-[15px] font-semibold tracking-tight">
@@ -863,9 +863,9 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
                     onClick={() => handleSetSubView('edit-profile')}
                     className="w-full p-4 flex items-center justify-between text-left cursor-pointer hover:opacity-80 transition-opacity"
                   >
-                    <div className="flex items-center gap-3 min-w-0">
-                      <div className="w-8 h-8 rounded-full bg-zinc-500/15 flex items-center justify-center text-zinc-700 dark:text-zinc-300 shrink-0">
-                        <Pencil className="w-4.5 h-4.5 stroke-[2]" />
+                    <div className="flex items-center gap-3.5 min-w-0">
+                      <div className="flex items-center justify-center shrink-0 text-zinc-950 dark:text-white">
+                        <Pencil className="w-7 h-7 stroke-[1.8]" />
                       </div>
                       <h4 className="text-[15px] font-semibold tracking-tight">
                         Editar Perfil e Foto
@@ -880,9 +880,9 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
                     rel="noreferrer"
                     className="w-full p-4 flex items-center justify-between text-left cursor-pointer hover:opacity-80 transition-opacity"
                   >
-                    <div className="flex items-center gap-3 min-w-0">
-                      <div className="w-8 h-8 rounded-full bg-emerald-500/15 flex items-center justify-center text-emerald-500 shrink-0">
-                        <WhatsAppLogo className="w-5 h-5" />
+                    <div className="flex items-center gap-3.5 min-w-0">
+                      <div className="flex items-center justify-center shrink-0 text-zinc-950 dark:text-white">
+                        <WhatsAppLogo className="w-7 h-7" />
                       </div>
                       <h4 className="text-[15px] font-semibold tracking-tight">
                         Comunidade Monvian no WhatsApp
@@ -897,9 +897,9 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
                     rel="noreferrer"
                     className="w-full p-4 flex items-center justify-between text-left cursor-pointer hover:opacity-80 transition-opacity"
                   >
-                    <div className="flex items-center gap-3 min-w-0">
-                      <div className="w-8 h-8 rounded-full bg-pink-500/15 flex items-center justify-center text-pink-500 shrink-0">
-                        <InstagramLogo className="w-5 h-5" />
+                    <div className="flex items-center gap-3.5 min-w-0">
+                      <div className="flex items-center justify-center shrink-0 text-zinc-950 dark:text-white">
+                        <InstagramLogo className="w-7 h-7" />
                       </div>
                       <h4 className="text-[15px] font-semibold tracking-tight">
                         Instagram Oficial (@monvian.campos)
@@ -1209,8 +1209,9 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
             setNotificationsList((prev) => prev.map((n) => ({ ...n, is_read: 1 })));
           }}
         />
-      </div>
-    </div>
+        </motion.div>
+      </motion.div>
+    </AnimatePresence>
   );
 };
 export default ProfileModal;

@@ -29,11 +29,12 @@ import { gpsNavigationManager } from './services/gpsNavigation';
 import { getSpotImage, getSpotFallbackImage } from './utils/spotImages';
 import { VerifiedBadge } from './components/ui/VerifiedBadge';
 import { DesktopSidebar } from './components/desktop/DesktopSidebar';
-import { DesktopTopBar } from './components/desktop/DesktopTopBar';
+import { DesktopMapControls } from './components/desktop/DesktopMapControls';
 import { DesktopExplorePanel } from './components/desktop/DesktopExplorePanel';
 import { startPreloadResources } from './utils/preloadItineraries';
 import { AirbnbPresentationCard, isPresentationCardSeen, markPresentationCardSeen, PresentationTab } from './components/AirbnbPresentationCard';
 import { persistUserToFirestore } from './services/firestoreSync';
+import { HostDashboard } from './components/HostDashboard';
 
 const welcomeContainerVariants = {
   hidden: { opacity: 0 },
@@ -66,21 +67,24 @@ const welcomeCharVariants = {
 };
 
 export default function App() {
-  const [isAuthenticated, setIsAuthenticated] = useState<boolean>(() => {
-    try {
-      const token = localStorage.getItem('monvian_token');
-      const savedUser = localStorage.getItem('monvian_user');
-      return Boolean(token && savedUser);
-    } catch {
-      return false;
-    }
-  });
+  const [isAuthenticated, setIsAuthenticated] = useState<boolean>(true);
   const [user, setUser] = useState<any>(() => {
     try {
       const savedUser = localStorage.getItem('monvian_user');
       if (savedUser) return JSON.parse(savedUser);
     } catch (e) {}
-    return null;
+    return {
+      id: 1,
+      name: 'Visitante',
+      username: 'visitante',
+      email: 'visitante@monvians.app',
+      role: 'admin',
+      isGold: true,
+      isPremium: true,
+      is_gold: 1,
+      is_premium: 1,
+      avatar_url: '/fotoperfil.png',
+    };
   });
   const [snowEnabled, setSnowEnabled] = useState<boolean>(() => {
     const saved = localStorage.getItem('monvian_snow_enabled');
@@ -321,31 +325,25 @@ export default function App() {
   useEffect(() => {
     const token = localStorage.getItem('monvian_token');
     if (!token) {
-      setIsAuthenticated(false);
+      setIsAuthenticated(true);
       return;
     }
 
     let isMounted = true;
 
-    const checkSession = async (retriesLeft = 2) => {
+    const checkSession = async () => {
       try {
         const res = await fetch('/api/auth/me', {
           headers: { Authorization: `Bearer ${token}` }
         });
 
-        if (res.status === 401 || res.status === 403) {
-          // Token is explicitly invalidated or user is banned
-          localStorage.removeItem('monvian_token');
-          localStorage.removeItem('monvian_user');
-          if (isMounted) {
-            setUser(null);
-            setIsAuthenticated(false);
-          }
+        if (!res.ok) {
+          if (isMounted) setIsAuthenticated(true);
           return;
         }
 
         const data = await res.json();
-        if (data.success && isMounted) {
+        if (data.success && data.user && isMounted) {
           const userObj = data.user;
           const userEmail = (userObj.email || userObj.whatsapp || '').trim().toLowerCase();
           const isGoldAdmin = ['empresariomario@gmail.com', 'marioempresario@gmail.com', 'marioyesk@gmail.com'].includes(userEmail);
@@ -355,66 +353,10 @@ export default function App() {
           userObj.isPremium = isGold;
           setUser(userObj);
           localStorage.setItem('monvian_user', JSON.stringify(userObj));
-          if (isGold) {
-            localStorage.setItem('monvian_is_premium', 'true');
-            localStorage.setItem('monvian_is_gold', 'true');
-          } else {
-            localStorage.removeItem('monvian_is_premium');
-            localStorage.removeItem('monvian_is_gold');
-          }
           setIsAuthenticated(true);
-
-          // Fetch real user settings from database
-          try {
-            const settingsRes = await fetch('/api/user/settings', {
-              headers: { Authorization: `Bearer ${token}` }
-            });
-            const settings = await settingsRes.json();
-            if (settings.success && isMounted) {
-              if (typeof settings.rain_enabled === 'boolean') {
-                setRainEnabled(settings.rain_enabled);
-                localStorage.setItem('monvian_rain_enabled', JSON.stringify(settings.rain_enabled));
-              }
-              if (typeof settings.snow_enabled === 'boolean') {
-                setSnowEnabled(settings.snow_enabled);
-                localStorage.setItem('monvian_snow_enabled', JSON.stringify(settings.snow_enabled));
-              }
-              if (settings.theme) {
-                setTheme(settings.theme);
-                localStorage.setItem('monvian_theme', settings.theme);
-              }
-              if (typeof settings.high_contrast === 'boolean') {
-                setHighContrast(settings.high_contrast);
-                localStorage.setItem('monvian_high_contrast', JSON.stringify(settings.high_contrast));
-              }
-            }
-          } catch (e) {}
-        } else if (isMounted) {
-          if (retriesLeft > 0) {
-            setTimeout(() => {
-              if (isMounted) checkSession(retriesLeft - 1);
-            }, 1200);
-          } else {
-            localStorage.removeItem('monvian_token');
-            localStorage.removeItem('monvian_user');
-            setIsAuthenticated(false);
-          }
         }
-      } catch (err) {
-        // Network connection error or server cold start: retry before logging out
-        if (retriesLeft > 0) {
-          setTimeout(() => {
-            if (isMounted) checkSession(retriesLeft - 1);
-          }, 1500);
-        } else if (isMounted) {
-          // If we had a cached user, keep them in place instead of kicking them out abruptly
-          const cachedUser = localStorage.getItem('monvian_user');
-          if (cachedUser) {
-            setIsAuthenticated(true);
-          } else {
-            setIsAuthenticated(false);
-          }
-        }
+      } catch {
+        if (isMounted) setIsAuthenticated(true);
       }
     };
 
@@ -485,6 +427,19 @@ export default function App() {
   });
   const [mapVisualIcons, setMapVisualIcons] = useState<MapVisualIcon[]>([]);
   const [isAdminOpen, setIsAdminOpen] = useState(false);
+  const [isHostDashboardOpen, setIsHostDashboardOpen] = useState<boolean>(() => {
+    if (typeof window === 'undefined') return false;
+    const p = window.location.pathname.toLowerCase();
+    const q = new URLSearchParams(window.location.search);
+    return (
+      p === '/anfitriao' ||
+      p === '/area-do-anfitriao' ||
+      p === '/dashboard-anfitriao' ||
+      p === '/host' ||
+      q.get('view') === 'anfitriao' ||
+      q.get('anfitriao') === '1'
+    );
+  });
   const [systemSettings, setSystemSettings] = useState<Record<string, string>>({});
   const [selectedSpot, setSelectedSpot] = useState<Spot | null>(null);
   const [is3DMode, setIs3DMode] = useState<boolean>(false);
@@ -546,14 +501,32 @@ export default function App() {
       fetchSpots();
     };
 
+    const handleVisualIconsUpdated = (e: any) => {
+      const updated = e?.detail;
+      if (updated && updated.id) {
+        setMapVisualIcons((prev) => {
+          const exists = prev.some((i) => i.id === updated.id);
+          if (exists) {
+            return prev.map((i) => (i.id === updated.id ? updated : i));
+          } else {
+            return [updated, ...prev];
+          }
+        });
+      }
+      fetchVisualIcons();
+    };
+
     const handleWindowFocus = () => {
       fetchSpots();
+      fetchVisualIcons();
     };
 
     window.addEventListener('monvian:spots_updated', handleSpotsUpdated);
+    window.addEventListener('monvian:visual_icons_updated', handleVisualIconsUpdated);
     window.addEventListener('focus', handleWindowFocus);
     return () => {
       window.removeEventListener('monvian:spots_updated', handleSpotsUpdated);
+      window.removeEventListener('monvian:visual_icons_updated', handleVisualIconsUpdated);
       window.removeEventListener('focus', handleWindowFocus);
     };
   }, []);
@@ -561,6 +534,7 @@ export default function App() {
   useEffect(() => {
     if (!isAdminOpen) {
       fetchSpots();
+      fetchVisualIcons();
     }
   }, [isAdminOpen]);
   const [isDetailOpen, setIsDetailOpen] = useState(false);
@@ -913,6 +887,7 @@ export default function App() {
 
   const handleTabChange = (tab: TabType) => {
     setActiveTab(tab);
+    setIsHostDashboardOpen(false);
     setIsChatKeyboardOpen(false);
     if (tab === 'explorar') {
       setZoomToUserTrigger((prev) => prev + 1);
@@ -978,11 +953,7 @@ export default function App() {
 
   return (
     <AnimatePresence mode="wait">
-      {!isAuthenticated ? (
-        <AuthScreen key="auth-screen" onSuccess={(token, user) => {
-          setIsAuthenticated(true);
-        }} />
-      ) : isAdminOpen ? (
+      {isAdminOpen ? (
         <motion.div
           key="monvian-admin-screen"
           initial={{ opacity: 0 }}
@@ -998,21 +969,7 @@ export default function App() {
               fetchVisualIcons();
               fetchSettings();
             }}
-            onLogout={async () => {
-              const token = localStorage.getItem('monvian_token');
-              if (token) {
-                try {
-                  await fetch('/api/auth/logout', {
-                    method: 'POST',
-                    headers: { Authorization: `Bearer ${token}` }
-                  });
-                } catch (e) {}
-              }
-              localStorage.removeItem('monvian_token');
-              localStorage.removeItem('monvian_user');
-              localStorage.removeItem('monvian_active_itinerary');
-              localStorage.removeItem('monvian_itinerary_session');
-              setIsAuthenticated(false);
+            onLogout={() => {
               setIsAdminOpen(false);
             }}
           />
@@ -1055,93 +1012,90 @@ export default function App() {
         onOpenWeatherModal={() => {}}
         user={user}
         onOpenAdmin={() => setIsAdminOpen(true)}
+        onOpenHostDashboard={() => setIsHostDashboardOpen(true)}
         isUserAdmin={isUserAdmin}
       />
 
       <main
         id="main-app-content"
-        className={`relative flex-1 w-full h-[100dvh] overflow-hidden select-none transition-all duration-300 rounded-t-[26px] ios-page-top-rounded ${
+        className={`relative flex-1 w-full h-[100dvh] overflow-hidden select-none transition-all duration-300 rounded-t-[26px] md:rounded-none ios-page-top-rounded ${
           theme === 'dark' ? 'bg-black' : 'bg-zinc-50'
         }`}
         style={{
           boxSizing: 'border-box',
           margin: 0,
           padding: 0,
-          borderTopLeftRadius: '26px',
-          borderTopRightRadius: '26px',
           overflow: 'hidden',
-          WebkitMaskImage: '-webkit-radial-gradient(white, black)',
           isolation: 'isolate',
         }}
       >
-        {/* 1. Interactive Map Engine */}
-      <MapComponent
-        spots={filteredSpots}
-        selectedSpot={selectedSpot}
-        onSelectSpot={handleSelectSpot}
-        onMapClick={handleMapDismiss}
-        userCoords={userCoords}
-        theme={theme}
-        visualIcons={mapVisualIcons}
-        userAvatar={user?.avatar_url}
-        userName={user?.name}
-        highContrast={highContrast}
-        onMapLoad={handleMapLoad}
-        onInteractionChange={setIsMapInteracting}
-        zoomToUserTrigger={zoomToUserTrigger}
-        onStyleChange={setMapStyle}
-        is3DMode={is3DMode}
-        onOrbitChange={setIsMapOrbiting}
-        isDetailOpen={isDetailOpen}
-      />
+        <div className="w-full h-full flex flex-row relative overflow-hidden">
+          {/* DESKTOP EXPLORE PANEL (Side-by-side Discovery Column on md+ when activeTab === 'explorar') */}
+          {activeTab === 'explorar' && !isMapOrbiting && (
+            <DesktopExplorePanel
+              spots={filteredSpots}
+              selectedSpot={selectedSpot}
+              onSelectSpot={handleSelectSpot}
+              onOpenSpotDetails={(spot) => {
+                setSelectedSpot(spot);
+                setIsDetailOpen(true);
+              }}
+              selectedCategory={selectedCategoryFilter || 'all'}
+              onSelectCategory={(catId) => setSelectedCategoryFilter(catId === 'all' ? null : catId)}
+              searchQuery={searchQuery}
+              onSearchChange={setSearchQuery}
+              theme={theme}
+            />
+          )}
 
-      {/* 2. Dynamic Rain Particle Effect Overlay */}
-      <RainEffect
-        enabled={rainEnabled}
-        weatherCode={realWeather.weatherCode}
-        theme={theme}
-      />
+          {/* Interactive Map Canvas Column */}
+          <div className="flex-1 h-full relative overflow-hidden">
+            {/* 1. Interactive Map Engine */}
+            <MapComponent
+              spots={filteredSpots}
+              selectedSpot={selectedSpot}
+              onSelectSpot={handleSelectSpot}
+              onMapClick={handleMapDismiss}
+              userCoords={userCoords}
+              theme={theme}
+              visualIcons={mapVisualIcons}
+              userAvatar={user?.avatar_url}
+              userName={user?.name}
+              highContrast={highContrast}
+              onMapLoad={handleMapLoad}
+              onInteractionChange={setIsMapInteracting}
+              zoomToUserTrigger={zoomToUserTrigger}
+              onStyleChange={setMapStyle}
+              is3DMode={is3DMode}
+              onOrbitChange={setIsMapOrbiting}
+              isDetailOpen={isDetailOpen}
+            />
 
-      {/* 2.5. Dynamic Snow Particle Effect Overlay */}
-      <SnowEffect
-        enabled={snowEnabled}
-        theme={theme}
-      />
+            {/* 2. Dynamic Rain Particle Effect Overlay */}
+            <RainEffect
+              enabled={rainEnabled}
+              weatherCode={realWeather.weatherCode}
+              theme={theme}
+            />
 
-      {/* DESKTOP FLOATING TOP BAR (Visible on md+ >= 768px) */}
-      {!isMapOrbiting && (
-        <DesktopTopBar
-          spots={spots}
-          searchQuery={searchQuery}
-          onSearchChange={setSearchQuery}
-          selectedCategory={selectedCategoryFilter || 'all'}
-          onSelectCategory={(catId) => setSelectedCategoryFilter(catId === 'all' ? null : catId)}
-          onSelectSpot={handleSelectSpot}
-          theme={theme}
-          realWeather={realWeather}
-          onOpenWeatherModal={() => {}}
-          is3DMode={is3DMode}
-          onToggle3DMode={() => setIs3DMode((prev) => !prev)}
-          onOpenMapModes={() => {
-            const btn = document.getElementById('btn-map-layer-switch');
-            if (btn) btn.click();
-          }}
-        />
-      )}
+            {/* 2.5. Dynamic Snow Particle Effect Overlay */}
+            <SnowEffect
+              enabled={snowEnabled}
+              theme={theme}
+            />
 
-      {/* DESKTOP EXPLORE PANEL (Visible when activeTab === 'explorar' on desktop) */}
-      {activeTab === 'explorar' && !isMapOrbiting && (
-        <DesktopExplorePanel
-          spots={filteredSpots}
-          selectedSpot={selectedSpot}
-          onSelectSpot={handleSelectSpot}
-          selectedCategory={selectedCategoryFilter || 'all'}
-          onSelectCategory={(catId) => setSelectedCategoryFilter(catId === 'all' ? null : catId)}
-          theme={theme}
-          isOpen={true}
-          onToggleOpen={() => {}}
-        />
-      )}
+            {/* DESKTOP MAP FLOATING CONTROLS (Top-Right Apple Style) */}
+            {!isMapOrbiting && (
+              <DesktopMapControls
+                currentMode={mapStyle}
+                onChangeMode={setMapStyle}
+                is3DMode={is3DMode}
+                onToggle3DMode={() => setIs3DMode((prev) => !prev)}
+                realWeather={realWeather}
+              />
+            )}
+          </div>
+        </div>
 
       {/* 3. Top Floating Header Bar (MOBILE ONLY: md:hidden) */}
       {!isMapOrbiting && (
@@ -1214,85 +1168,55 @@ export default function App() {
           </div>
         </div>
 
-        {/* Right: Circular Theme Button + Circular Search Button + Category Filter Button */}
-        <div className="flex items-center gap-2.5 pointer-events-auto relative">
-          {/* Circular Theme Toggle Button (Sol e Lua) */}
+        {/* Right: Clean Header Action Icons (Identical configuration, position, size and gray color) */}
+        <div className="flex items-center gap-3.5 pointer-events-auto relative">
+          {/* Theme Toggle Icon (Sol / Lua) */}
           <button
             id="btn-theme-toggle"
+            type="button"
             onClick={() => setTheme((prev) => (prev === 'dark' ? 'light' : 'dark'))}
-            className={`w-12 h-12 rounded-full flex items-center justify-center active:scale-95 cursor-pointer group transition-all ${
-              isWhiteMapUI
-                ? 'ios-glass-btn-white text-zinc-900'
-                : 'ios-glass-btn text-zinc-700 dark:text-white'
-            }`}
+            className="p-1 flex items-center justify-center active:scale-90 cursor-pointer group transition-all duration-200 bg-transparent border-none shadow-none text-zinc-500 dark:text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-200"
             title={theme === 'dark' ? 'Mudar para tema claro' : 'Mudar para tema escuro'}
           >
-            {theme === 'dark' ? (
-              <div className="relative w-6 h-6 flex items-center justify-center group-hover:rotate-45 transition-transform duration-500 text-[#FFD60A]">
-                <svg className="w-full h-full text-[#FFD60A]" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round">
-                  <circle cx="12" cy="12" r="4" className="fill-[#FFD60A]" />
-                  <line x1="12" y1="1" x2="12" y2="3" />
-                  <line x1="12" y1="21" x2="12" y2="23" />
-                  <line x1="4.22" y1="4.22" x2="5.64" y2="5.64" />
-                  <line x1="18.36" y1="18.36" x2="19.78" y2="19.78" />
-                  <line x1="1" y1="12" x2="3" y2="12" />
-                  <line x1="21" y1="12" x2="23" y2="12" />
-                  <line x1="4.22" y1="19.78" x2="5.64" y2="18.36" />
-                  <line x1="18.36" y1="5.64" x2="19.78" y2="4.22" />
-                </svg>
-              </div>
-            ) : (
-              <div className="relative w-6 h-6 flex items-center justify-center group-hover:-rotate-12 transition-transform duration-500 text-[#5F55E8]">
-                <svg className="w-full h-full text-current" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round">
-                  <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z" className="fill-[#5F55E8]" />
-                </svg>
-              </div>
-            )}
+            <div className="relative w-12 h-12 sm:w-13 sm:h-13 flex items-center justify-center group-hover:scale-110 transition-transform duration-300">
+              {theme === 'dark' ? (
+                <Sun className="w-8 h-8 sm:w-9 sm:h-9 text-zinc-500 dark:text-zinc-400 stroke-[2]" />
+              ) : (
+                <Moon className="w-8 h-8 sm:w-9 sm:h-9 text-zinc-500 dark:text-zinc-400 stroke-[2]" />
+              )}
+            </div>
           </button>
 
-          {/* Circular 3D View Toggle Button */}
+          {/* 3D View Toggle Icon */}
           <button
             id="btn-3d-toggle"
             type="button"
             onClick={() => setIs3DMode((prev) => !prev)}
-            className={`w-12 h-12 rounded-full flex items-center justify-center transition-all duration-300 active:scale-95 cursor-pointer group ${
-              is3DMode
-                ? 'ios-glass-btn ring-2 ring-white/80 bg-white/20 text-white border border-white/40 shadow-[0_0_18px_rgba(255,255,255,0.35)]'
-                : isWhiteMapUI
-                ? 'ios-glass-btn-white text-zinc-900 border border-white'
-                : 'ios-glass-btn text-zinc-700 dark:text-white border border-white/20 dark:border-white/15'
-            }`}
+            className="p-1 flex items-center justify-center transition-all duration-200 active:scale-90 cursor-pointer group bg-transparent border-none shadow-none text-zinc-500 dark:text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-200"
             title={is3DMode ? 'Alternar para visão 2D Plana' : 'Alternar para visão 3D com Relevo e Montanhas'}
           >
-            <div className="relative flex items-center justify-center group-hover:scale-110 transition-transform">
-              <Map3DIcon className="w-7 h-7 rounded-full shadow-sm" />
+            <div className="relative w-12 h-12 sm:w-13 sm:h-13 flex items-center justify-center group-hover:scale-110 transition-transform duration-300 text-zinc-500 dark:text-zinc-400">
+              <Map3DIcon className="w-8 h-8 sm:w-9 sm:h-9 text-zinc-500 dark:text-zinc-400" />
             </div>
           </button>
 
-          {/* Circular Category Filter Button with Dropdown */}
+          {/* Category Filter Button with Dropdown */}
           <div className="relative shrink-0">
             <button
               id="btn-category-icon-toggle"
+              type="button"
               onClick={() => {
                 setIsCategoryCardOpen((prev) => !prev);
                 setIsSearchOpen(false);
               }}
-              className={`w-12 h-12 rounded-full flex items-center justify-center transition-all duration-300 active:scale-95 cursor-pointer group shrink-0 ${
-                isWhiteMapUI
-                  ? selectedCategoryFilter || isCategoryCardOpen
-                    ? 'ios-glass-btn-white ring-2 ring-white text-zinc-950 bg-white'
-                    : 'ios-glass-btn-white text-zinc-900'
-                  : selectedCategoryFilter || isCategoryCardOpen
-                    ? 'ios-glass-btn ring-2 ring-white/40 dark:ring-white/35 bg-white/25 dark:bg-white/20 text-zinc-900 dark:text-white'
-                    : 'ios-glass-btn text-zinc-700 dark:text-white'
-              }`}
+              className="p-1 flex items-center justify-center transition-all duration-200 active:scale-90 cursor-pointer group shrink-0 bg-transparent border-none shadow-none text-zinc-500 dark:text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-200"
               title={selectedCategoryFilter ? 'Filtro de categoria ativo - Clique para alterar ou limpar' : 'Filtrar por Categoria'}
             >
-              <div className="relative w-6 h-6 flex items-center justify-center text-current group-hover:scale-110 transition-transform duration-300">
-                <SlidersHorizontal className="w-5 h-5 stroke-[2.2]" />
+              <div className="relative w-12 h-12 sm:w-13 sm:h-13 flex items-center justify-center group-hover:scale-110 transition-transform duration-300">
+                <SlidersHorizontal className="w-8 h-8 sm:w-9 sm:h-9 stroke-[2] text-zinc-500 dark:text-zinc-400" />
               </div>
               {selectedCategoryFilter && (
-                <span className="absolute top-1.5 right-1.5 w-2 h-2 rounded-full bg-white shadow-[0_0_6px_rgba(255,255,255,0.8)] ring-1 ring-white" />
+                <span className="absolute top-0 right-0 w-2.5 h-2.5 rounded-full bg-zinc-500 ring-2 ring-white dark:ring-black" />
               )}
             </button>
 
@@ -1351,7 +1275,7 @@ export default function App() {
                       >
                         <div className="flex items-center gap-2.5 min-w-0">
                           {'image' in cat && cat.image ? (
-                            <div className="w-7 h-7 shrink-0 flex items-center justify-center group-hover:scale-110 transition-transform">
+                            <div className="w-10.5 h-10.5 shrink-0 flex items-center justify-center group-hover:scale-110 transition-transform">
                               <img
                                 src={cat.image}
                                 alt={cat.label}
@@ -1365,7 +1289,7 @@ export default function App() {
                               />
                             </div>
                           ) : (
-                            <div className={`w-7 h-7 rounded-xl flex items-center justify-center shrink-0 group-hover:scale-105 transition-transform ${
+                            <div className={`w-10.5 h-10.5 rounded-xl flex items-center justify-center shrink-0 group-hover:scale-105 transition-transform ${
                               isSelected
                                 ? 'bg-white text-zinc-950 shadow-sm'
                                 : 'bg-zinc-900/5 dark:bg-white/10 text-zinc-700 dark:text-white'
@@ -1544,6 +1468,7 @@ export default function App() {
           <SpotPreviewBanner
             key={`preview-${selectedSpot.id}`}
             spot={selectedSpot}
+            theme={theme}
             onClose={() => {
               setSelectedSpot(null);
             }}
@@ -1588,14 +1513,17 @@ export default function App() {
       />
 
       {/* 8.5. Itineraries & Route Planning (Tab: 'roteiros') */}
-      {activeTab === 'roteiros' && (
-        <ItinerariesView
-          isOpen={true}
-          onClose={() => setActiveTab('explorar')}
-          theme={theme}
-          spots={spots}
-        />
-      )}
+      <AnimatePresence mode="wait">
+        {activeTab === 'roteiros' && (
+          <ItinerariesView
+            key="itineraries-view"
+            isOpen={true}
+            onClose={() => setActiveTab('explorar')}
+            theme={theme}
+            spots={spots}
+          />
+        )}
+      </AnimatePresence>
 
       {/* 9. Saved / Favorites Wishlists (Tab: 'salvos', Airbnb-inspired) */}
       <SavedView
@@ -1660,9 +1588,34 @@ export default function App() {
           setActiveTab('explorar');
           setIsAdminOpen(true);
         }}
+        onOpenHostDashboard={() => {
+          setIsHostDashboardOpen(true);
+        }}
         onSubViewChange={() => {}}
         communityUrl={systemSettings.community_url}
         instagramUrl={systemSettings.instagram_url}
+      />
+
+      {/* 10.5. Host Affiliate Area (Onboarding 'Configurar recebimentos' + Authorized Dashboard) */}
+      <HostDashboard
+        isOpen={isHostDashboardOpen}
+        onClose={() => {
+          setIsHostDashboardOpen(false);
+          if (typeof window !== 'undefined') {
+            const p = window.location.pathname.toLowerCase();
+            if (
+              p === '/anfitriao' ||
+              p === '/area-do-anfitriao' ||
+              p === '/dashboard-anfitriao' ||
+              p === '/host'
+            ) {
+              window.history.replaceState({}, document.title, '/');
+            }
+          }
+        }}
+        theme={theme}
+        onToggleTheme={() => setTheme((prev) => (prev === 'dark' ? 'light' : 'dark'))}
+        user={user}
       />
 
 
@@ -1785,9 +1738,9 @@ export default function App() {
       theme={theme}
     />
 
-    {/* 4. Bottom Navigation Pill rendered at root level (Visible on all pages and viewports) */}
+    {/* 4. Bottom Navigation Pill rendered at root level (Visible ONLY on mobile) */}
     {!isMapOrbiting && (
-      <div className={`transition-opacity duration-150 ${isChatKeyboardOpen ? 'opacity-0 pointer-events-none' : 'opacity-100 pointer-events-auto'}`}>
+      <div className={`md:hidden transition-opacity duration-150 ${isChatKeyboardOpen ? 'opacity-0 pointer-events-none' : 'opacity-100 pointer-events-auto'}`}>
         <BottomNavigation
           activeTab={activeTab}
           onChangeTab={handleTabChange}

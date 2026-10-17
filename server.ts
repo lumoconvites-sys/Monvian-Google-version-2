@@ -7,6 +7,9 @@ import bcrypt from 'bcryptjs';
 import { db } from './db_setup.js';
 import { registerSocialRoutes, setupSocialDatabase } from './src/server/socialRoutes.js';
 import { registerStoryRoutes, setupStoriesDatabase } from './src/server/storyRoutes.js';
+import { registerItineraryRoutes, setupItineraryDatabase } from './src/server/itineraryRoutes.js';
+import { registerStripeRoutes, setupStripeDatabase } from './src/server/stripeRoutes.js';
+import { registerHostRoutes, setupHostDatabase } from './src/server/hostRoutes.js';
 import { CAMPOS_SPOTS } from './src/data/spots.js';
 
 const __dirname = path.resolve();
@@ -19,27 +22,59 @@ async function startServer() {
   app.use(express.json({ limit: '10mb' }));
   app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
-  // Initialize SQLite databases for social feeds & stories
-  try {
-    setupSocialDatabase(db);
-    setupStoriesDatabase(db);
-    registerSocialRoutes(app, db);
-    registerStoryRoutes(app, db);
-  } catch (err) {
-    console.warn('Database initialization warning:', err);
-  }
-
   // Helper: Find user by token
   const getUserByToken = (token: string) => {
     try {
       const session = db.prepare('SELECT user_id FROM sessions WHERE token = ?').get(token) as { user_id: number } | undefined;
       if (!session) return null;
-      const user = db.prepare('SELECT id, name, username, email, avatar_url, role, is_gold, created_at FROM users WHERE id = ?').get(session.user_id) as any;
+      const user = db.prepare('SELECT id, name, username, email, whatsapp, avatar_url, role, is_gold, created_at FROM users WHERE id = ?').get(session.user_id) as any;
       return user || null;
     } catch {
       return null;
     }
   };
+
+  const getAuthUserSync = (req: Request) => {
+    try {
+      const authHeader = req.headers.authorization;
+      if (authHeader && authHeader.startsWith('Bearer ')) {
+        const token = authHeader.substring(7);
+        return getUserByToken(token);
+      }
+      return null;
+    } catch {
+      return null;
+    }
+  };
+
+  // Initialize SQLite databases & routes
+  try {
+    setupSocialDatabase(db);
+    setupStoriesDatabase(db);
+    setupItineraryDatabase(db);
+    setupStripeDatabase(db);
+    setupHostDatabase(db);
+    registerSocialRoutes(app, db);
+    registerStoryRoutes(app, db);
+    registerItineraryRoutes(
+      app,
+      db,
+      getAuthUserSync,
+      (userId: any, userName: any, action: any, details: any) => console.log(`[Admin] ${userName}: ${action}`, details),
+      () => null
+    );
+    registerStripeRoutes(
+      app,
+      db,
+      getAuthUserSync,
+      (userId: any, userName: any, action: any, details: any) => console.log(`[Admin] ${userName}: ${action}`, details)
+    );
+    registerHostRoutes(app, db, getAuthUserSync);
+  } catch (err) {
+    console.warn('Database initialization warning:', err);
+  }
+
+
 
   // --- Auth API Endpoints ---
   app.get('/api/users/check-username', (req: Request, res: Response) => {
@@ -224,16 +259,94 @@ async function startServer() {
     return res.json({ success: true, spots: CAMPOS_SPOTS });
   });
 
+  // --- Visual Map Icons API ---
+  app.get('/api/map-visual-icons', (_req: Request, res: Response) => {
+    try {
+      const rows = db.prepare('SELECT * FROM map_visual_icons WHERE is_active = 1 ORDER BY created_at DESC').all();
+      return res.json({ success: true, icons: rows });
+    } catch (err: any) {
+      return res.status(500).json({ success: false, error: err.message });
+    }
+  });
+
   app.get('/api/admin/map-visual-icons', (_req: Request, res: Response) => {
-    return res.json({ success: true, icons: [] });
+    try {
+      const rows = db.prepare('SELECT * FROM map_visual_icons ORDER BY created_at DESC').all();
+      return res.json({ success: true, icons: rows });
+    } catch (err: any) {
+      return res.status(500).json({ success: false, error: err.message });
+    }
   });
 
-  app.get('/api/itineraries', (_req: Request, res: Response) => {
-    return res.json({ success: true, itineraries: [] });
+  app.post('/api/admin/map-visual-icons', (req: Request, res: Response) => {
+    try {
+      const { id, category, latitude, longitude, color, is_active } = req.body;
+      if (!category || latitude === undefined || longitude === undefined) {
+        return res.status(400).json({ success: false, error: 'Categoria, latitude e longitude são obrigatórios' });
+      }
+
+      const iconId = id || `v_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
+      const activeState = is_active === undefined ? 1 : (is_active ? 1 : 0);
+
+      db.prepare(`
+        INSERT INTO map_visual_icons (id, category, latitude, longitude, color, is_active)
+        VALUES (?, ?, ?, ?, ?, ?)
+      `).run(iconId, String(category), Number(latitude), Number(longitude), color || null, activeState);
+
+      const created = db.prepare('SELECT * FROM map_visual_icons WHERE id = ?').get(iconId);
+      return res.json({ success: true, icon: created, message: 'Ícone adicionado com sucesso!' });
+    } catch (err: any) {
+      return res.status(500).json({ success: false, error: err.message });
+    }
   });
 
-  app.get('/api/itinerary-categories', (_req: Request, res: Response) => {
-    return res.json({ success: true, categories: [] });
+  app.put('/api/admin/map-visual-icons/:id', (req: Request, res: Response) => {
+    try {
+      const { id } = req.params;
+      const { category, latitude, longitude, color, is_active } = req.body;
+
+      db.prepare(`
+        UPDATE map_visual_icons
+        SET category = ?, latitude = ?, longitude = ?, color = ?, is_active = ?, updated_at = CURRENT_TIMESTAMP
+        WHERE id = ?
+      `).run(String(category), Number(latitude), Number(longitude), color || null, is_active ? 1 : 0, id);
+
+      const updated = db.prepare('SELECT * FROM map_visual_icons WHERE id = ?').get(id);
+      return res.json({ success: true, icon: updated, message: 'Ícone atualizado com sucesso!' });
+    } catch (err: any) {
+      return res.status(500).json({ success: false, error: err.message });
+    }
+  });
+
+  app.patch('/api/admin/map-visual-icons/:id/toggle-active', (req: Request, res: Response) => {
+    try {
+      const { id } = req.params;
+      const current = db.prepare('SELECT is_active FROM map_visual_icons WHERE id = ?').get(id) as { is_active: number } | undefined;
+      if (!current) {
+        return res.status(404).json({ success: false, error: 'Ícone não encontrado' });
+      }
+
+      const nextActive = current.is_active === 1 ? 0 : 1;
+      db.prepare('UPDATE map_visual_icons SET is_active = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?').run(nextActive, id);
+
+      return res.json({
+        success: true,
+        is_active: nextActive,
+        message: nextActive === 1 ? 'Marcador ativado no mapa' : 'Marcador ocultado do mapa'
+      });
+    } catch (err: any) {
+      return res.status(500).json({ success: false, error: err.message });
+    }
+  });
+
+  app.delete('/api/admin/map-visual-icons/:id', (req: Request, res: Response) => {
+    try {
+      const { id } = req.params;
+      db.prepare('DELETE FROM map_visual_icons WHERE id = ?').run(id);
+      return res.json({ success: true, message: 'Ícone removido com sucesso' });
+    } catch (err: any) {
+      return res.status(500).json({ success: false, error: err.message });
+    }
   });
 
   // Favorites
@@ -279,9 +392,10 @@ async function startServer() {
     });
     app.use(vite.middlewares);
   } else {
-    app.use(express.static(path.resolve(__dirname, 'dist')));
+    const distDir = path.resolve(process.cwd(), 'dist');
+    app.use(express.static(distDir));
     app.get('*', (_req: Request, res: Response) => {
-      res.sendFile(path.resolve(__dirname, 'dist', 'index.html'));
+      res.sendFile(path.resolve(distDir, 'index.html'));
     });
   }
 

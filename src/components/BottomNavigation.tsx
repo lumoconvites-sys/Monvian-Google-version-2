@@ -51,9 +51,9 @@ export const BottomNavigation: React.FC<BottomNavigationProps> = ({
   const normalizedActiveTab: TabType = (activeTab as string) === 'chat' ? 'salvos' : (activeTab as TabType);
 
   const tabs: { id: TabType; label: string }[] = [
-    { id: 'explorar', label: 'Explorar' },
-    { id: 'roteiros', label: 'Roteiros' },
     { id: 'salvos', label: 'Salvos' },
+    { id: 'roteiros', label: 'Roteiros' },
+    { id: 'explorar', label: 'Explorar' },
     { id: 'buscar', label: 'Buscar' },
     { id: 'perfil', label: 'Perfil' },
   ];
@@ -197,33 +197,27 @@ export const BottomNavigation: React.FC<BottomNavigationProps> = ({
               : 'max(22px, calc(env(safe-area-inset-bottom, 0px) + 16px))',
         }}
       >
-        {/* Bottom Navigation Bar */}
+        {/* Bottom Navigation Bar (White background, gray icons) */}
         <div
           ref={containerRef}
-          className={`w-full max-w-[430px] sm:max-w-[460px] pointer-events-auto flex items-center justify-around px-2 sm:px-3 py-1 relative overflow-hidden rounded-3xl ios-glass-nav transition-all duration-300 ${
-            isDark ? 'text-white' : 'text-zinc-900'
-          }`}
+          className="w-full max-w-[430px] sm:max-w-[460px] pointer-events-auto flex items-center justify-around px-2 sm:px-3 py-1.5 relative overflow-hidden rounded-full bg-white dark:bg-[#121316] text-zinc-900 dark:text-white border border-black/10 dark:border-white/10 shadow-[0_12px_40px_rgba(0,0,0,0.15)] dark:shadow-[0_16px_50px_rgba(0,0,0,0.6)] transition-all duration-300"
         >
         {tabs.map((tab, idx) => {
           const isActive = activeTab === tab.id;
           const isPreviewHovered = isDragging && previewIndex === idx;
 
-          // Colors adapted from image 2 buttons: active is crisp high-contrast, inactive is subtle translucent
+          // Crisp active vs clean gray inactive icons
           const activeColorClass = isDark
             ? 'text-white scale-100 opacity-100 font-semibold'
             : 'text-zinc-950 scale-100 opacity-100 font-semibold';
 
-          const inactiveColorClass = isDark
-            ? 'text-zinc-300/80 opacity-80 font-medium'
-            : 'text-zinc-700/80 opacity-80 font-medium';
+          const inactiveColorClass = 'text-zinc-500 dark:text-zinc-400 opacity-90 font-medium hover:text-zinc-700 dark:hover:text-zinc-200';
 
           const labelActiveColor = isDark
             ? 'font-medium text-white'
             : 'font-medium text-zinc-950';
 
-          const labelInactiveColor = isDark
-            ? 'font-medium text-zinc-300/80'
-            : 'font-medium text-zinc-700/80';
+          const labelInactiveColor = 'font-medium text-zinc-500 dark:text-zinc-400';
 
           return (
             <motion.button

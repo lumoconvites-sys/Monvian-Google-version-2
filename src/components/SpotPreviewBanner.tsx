@@ -1,6 +1,6 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { motion } from 'motion/react';
-import { X, Star, ChevronRight, MapPin } from 'lucide-react';
+import { X, Star, ChevronRight } from 'lucide-react';
 import { Spot } from '../types';
 import { VerifiedBadge } from './ui/VerifiedBadge';
 
@@ -8,80 +8,101 @@ interface SpotPreviewBannerProps {
   spot: Spot;
   onClose: () => void;
   onOpenDetails: (spot: Spot) => void;
+  theme?: 'dark' | 'light';
 }
 
 export const SpotPreviewBanner: React.FC<SpotPreviewBannerProps> = ({
   spot,
   onClose,
   onOpenDetails,
+  theme = 'dark',
 }) => {
+  const [imgError, setImgError] = useState(false);
+  const isDark = theme === 'dark';
+
+  const spotImage = !imgError && spot.image ? spot.image : '/loogo.png';
+  const categoryOrAddress = spot.address || spot.categoryLabel || spot.category || 'Campos do Jordão';
+
   return (
     <motion.div
-      initial={{ opacity: 0, y: 40, scale: 0.96 }}
+      initial={{ opacity: 0, y: 8, scale: 0.98 }}
       animate={{ opacity: 1, y: 0, scale: 1 }}
-      exit={{ opacity: 0, y: 40, scale: 0.96 }}
-      transition={{ type: 'spring', damping: 28, stiffness: 350 }}
-      className="fixed bottom-24 left-4 right-4 md:left-auto md:right-8 md:w-96 z-40 bg-zinc-950/90 backdrop-blur-2xl border border-white/15 rounded-3xl p-3 shadow-[0_20px_50px_rgba(0,0,0,0.5)] select-none pointer-events-auto"
+      exit={{ opacity: 0, y: 8, scale: 0.98 }}
+      transition={{ duration: 0.25, ease: [0.16, 1, 0.3, 1] }}
+      whileTap={{ scale: 0.98 }}
+      onClick={() => onOpenDetails(spot)}
+      style={{
+        fontFamily: "-apple-system, BlinkMacSystemFont, 'SF Pro Display', 'SF Pro Text', 'Helvetica Neue', sans-serif",
+      }}
+      className={`fixed bottom-[88px] left-3.5 right-3.5 sm:left-auto sm:right-6 sm:w-[380px] z-40 h-[80px] px-3.5 py-3 rounded-[24px] border backdrop-blur-2xl shadow-lg flex items-center justify-between gap-3 select-none cursor-pointer pointer-events-auto transition-colors ${
+        isDark
+          ? 'bg-[#1C1C1E]/85 border-white/10 text-white shadow-[0_16px_40px_rgba(0,0,0,0.5)]'
+          : 'bg-white/90 border-black/10 text-zinc-950 shadow-[0_12px_32px_rgba(0,0,0,0.12)]'
+      }`}
     >
-      <div className="flex items-center gap-3">
-        {/* Spot Thumbnail */}
-        <div
-          onClick={() => onOpenDetails(spot)}
-          className="w-16 h-16 rounded-2xl overflow-hidden shrink-0 cursor-pointer bg-zinc-800"
-        >
-          <img
-            src={spot.image || '/loogo.png'}
-            alt={spot.name}
-            className="w-full h-full object-cover"
-          />
-        </div>
-
-        {/* Spot Details */}
-        <div
-          onClick={() => onOpenDetails(spot)}
-          className="flex-1 min-w-0 cursor-pointer"
-        >
-          <div className="flex items-center gap-1.5 min-w-0">
-            <h4 className="text-sm font-black text-white truncate">{spot.name}</h4>
-            <VerifiedBadge className="w-3.5 h-3.5 shrink-0" />
-          </div>
-
-          <div className="flex items-center gap-2 mt-0.5 text-xs text-zinc-400">
-            <span className="font-semibold text-zinc-300 truncate">{spot.categoryLabel || spot.category}</span>
-            {spot.rating && (
-              <span className="flex items-center gap-0.5 text-amber-400 font-bold shrink-0">
-                <Star className="w-3 h-3 fill-current" />
-                {spot.rating.toFixed(1)}
-              </span>
-            )}
-          </div>
-
-          <p className="text-[11px] text-zinc-400 truncate mt-0.5">
-            {spot.address || 'Campos do Jordão, SP'}
-          </p>
-        </div>
-
-        {/* Close Button */}
-        <button
-          onClick={onClose}
-          className="p-1.5 rounded-full bg-white/5 hover:bg-white/10 text-zinc-400 hover:text-white transition-colors cursor-pointer shrink-0"
-        >
-          <X className="w-4 h-4" />
-        </button>
+      {/* 1. Circular Photo (44px) */}
+      <div className="w-[44px] h-[44px] rounded-full overflow-hidden shrink-0 bg-zinc-200 dark:bg-zinc-800 border border-black/5 dark:border-white/10 shadow-2xs">
+        <img
+          src={spotImage}
+          alt={spot.name}
+          onError={() => setImgError(true)}
+          className="w-full h-full object-cover"
+        />
       </div>
 
-      {/* Action CTA */}
-      <div className="mt-2.5 pt-2 border-t border-white/10 flex items-center justify-between">
-        <span className="text-[11px] font-bold text-zinc-400">Toque para ver informações</span>
+      {/* 2. Main Details Column */}
+      <div className="flex-1 min-w-0 flex flex-col justify-center">
+        {/* Row 1: Name + Verified Badge */}
+        <div className="flex items-center gap-1.5 min-w-0">
+          <h4 className={`text-[14px] font-semibold tracking-tight truncate leading-tight ${
+            isDark ? 'text-white' : 'text-zinc-950'
+          }`}>
+            {spot.name}
+          </h4>
+          <VerifiedBadge className="w-3.5 h-3.5 shrink-0" />
+        </div>
+
+        {/* Row 2: Rating with Star + Short Location */}
+        <div className="flex items-center gap-1.5 text-[11.5px] font-medium text-zinc-500 dark:text-zinc-400 mt-0.5 min-w-0 leading-tight">
+          {spot.rating ? (
+            <div className="flex items-center gap-0.5 text-amber-500 dark:text-amber-400 font-semibold shrink-0">
+              <Star className="w-3 h-3 fill-current" />
+              <span>{spot.rating.toFixed(1)}</span>
+            </div>
+          ) : null}
+
+          {spot.rating ? <span className="text-zinc-300 dark:text-zinc-600 shrink-0">•</span> : null}
+
+          <span className="truncate">
+            {categoryOrAddress}
+          </span>
+        </div>
+      </div>
+
+      {/* 3. Right Side Controls */}
+      <div className="flex items-center gap-2 shrink-0">
+        <ChevronRight className={`w-4 h-4 transition-transform ${
+          isDark ? 'text-zinc-500' : 'text-zinc-400'
+        }`} />
+
         <button
-          onClick={() => onOpenDetails(spot)}
-          className="flex items-center gap-1 text-xs font-black text-white hover:underline cursor-pointer"
+          type="button"
+          onClick={(e) => {
+            e.stopPropagation();
+            onClose();
+          }}
+          aria-label="Fechar"
+          className={`w-7 h-7 rounded-full flex items-center justify-center transition-colors cursor-pointer ${
+            isDark
+              ? 'bg-white/10 hover:bg-white/20 text-zinc-300 hover:text-white'
+              : 'bg-black/5 hover:bg-black/10 text-zinc-600 hover:text-zinc-950'
+          }`}
         >
-          Ver Local
-          <ChevronRight className="w-3.5 h-3.5" />
+          <X className="w-4 h-4 stroke-[1.8]" />
         </button>
       </div>
     </motion.div>
   );
 };
+
 export default SpotPreviewBanner;

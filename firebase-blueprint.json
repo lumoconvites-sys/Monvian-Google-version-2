@@ -306,12 +306,46 @@
         "status": { "type": "string", "description": "active or deleted" }
       },
       "required": ["id", "userId", "mediaUrl", "createdAt", "expiresAt"]
+    },
+    "HostProfile": {
+      "title": "HostProfile",
+      "description": "Host affiliate onboarding profile and payout setup state tied to authenticated user",
+      "type": "object",
+      "properties": {
+        "user_id": { "type": "number", "description": "Authenticated user ID" },
+        "user_email": { "type": "string", "description": "Normalized user email" },
+        "status": { "type": "string", "description": "Onboarding status ('incomplete' or 'completed')" },
+        "onboarding_completed": { "type": "number", "description": "Completion flag (0 or 1)" },
+        "current_step": { "type": "number", "description": "Current onboarding step (1 to 3)" },
+        "full_name": { "type": "string", "description": "Host legal full name" },
+        "contact_email": { "type": "string", "description": "Host contact email" },
+        "cpf_masked": { "type": "string", "description": "Masked CPF for display" },
+        "cpf_hash": { "type": "string", "description": "SHA-256 hash of CPF" },
+        "birth_date": { "type": "string", "description": "Birth date (DD/MM/YYYY)" },
+        "phone": { "type": "string", "description": "Phone number with DDD" },
+        "cep": { "type": "string", "description": "Postal code (CEP)" },
+        "street": { "type": "string", "description": "Street or avenue" },
+        "number": { "type": "string", "description": "Address number" },
+        "complement": { "type": "string", "description": "Optional address complement" },
+        "neighborhood": { "type": "string", "description": "Neighborhood" },
+        "city": { "type": "string", "description": "City" },
+        "state": { "type": "string", "description": "State UF code" },
+        "referral_code": { "type": "string", "description": "Host referral code" },
+        "stripe_onboarding_status": { "type": "string", "description": "Stripe verification state" },
+        "completed_at": { "type": "string", "description": "ISO timestamp of completion" },
+        "updated_at": { "type": "string", "description": "ISO timestamp of last update" }
+      },
+      "required": ["user_id", "user_email", "status", "onboarding_completed"]
     }
   },
   "firestore": {
     "/users/{email}": {
       "schema": "User",
       "description": "Persistent users indexed by clean email"
+    },
+    "/host_profiles/{email}": {
+      "schema": "HostProfile",
+      "description": "Persistent host affiliate registration profiles indexed by clean email"
     },
     "/sessions/{token}": {
       "schema": "Session",

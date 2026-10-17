@@ -1,4 +1,4 @@
-export type MapModeType = 'explorar' | 'carro' | 'transporte' | 'animado' | 'satelite';
+export type MapModeType = 'explorar' | 'satelite' | 'escuro' | 'animado' | 'transporte' | 'carro';
 
 export type SpotCategory = 
   | 'hotels'

@@ -240,26 +240,36 @@ export const SavedView: React.FC<SavedViewProps> = ({
   return (
     <AnimatePresence>
       {isOpen && (
-        <div
+        <motion.div
           id="saved-view-root"
-          className={`fixed inset-0 w-full h-full z-45 flex flex-col transition-colors duration-200 select-none overflow-hidden ${
+          initial={{ opacity: 0, scale: 0.98, y: 12 }}
+          animate={{ opacity: 1, scale: 1, y: 0 }}
+          exit={{ opacity: 0, scale: 0.98, y: 10 }}
+          transition={{ duration: 0.32, ease: [0.16, 1, 0.3, 1] }}
+          className={`fixed inset-0 md:left-64 lg:left-72 w-full md:w-auto h-full z-45 flex flex-col transition-colors duration-200 select-none overflow-hidden ${
             isDark ? 'bg-black text-white' : 'bg-[#F2F2F7] text-zinc-900'
           }`}
           style={{
             fontFamily: "'SF Pro Display', 'SF Pro Text', -apple-system, BlinkMacSystemFont, sans-serif",
             isolation: 'isolate',
+            willChange: 'opacity, transform',
           }}
         >
           <div className="w-full h-full">
             <AnimatePresence mode="wait">
               {!activeCollection ? (
                 /* MAIN OVERVIEW: 2x2 COLLECTIONS GRID */
-                <div
+                <motion.div
                   key="saved-overview"
+                  initial={{ opacity: 0, scale: 0.98, y: 12 }}
+                  animate={{ opacity: 1, scale: 1, y: 0 }}
+                  exit={{ opacity: 0, scale: 0.98, y: 10 }}
+                  transition={{ duration: 0.24, ease: [0.16, 1, 0.3, 1] }}
                   className="flex-1 flex flex-col w-full h-full overflow-y-auto overscroll-y-contain"
                   style={{
                     paddingTop: 'max(calc(env(safe-area-inset-top, 0px) + 20px), 24px)',
                     paddingBottom: 'calc(max(24px, env(safe-area-inset-bottom, 0px)) + 92px)',
+                    willChange: 'opacity, transform',
                   }}
                 >
                   <header className="px-6 pb-6 pt-3 shrink-0">
@@ -299,15 +309,15 @@ export const SavedView: React.FC<SavedViewProps> = ({
                       />
                     </div>
                   </main>
-                </div>
+                </motion.div>
               ) : (
                 /* COLLECTION DRILL-DOWN LIST VIEW */
                 <motion.div
                   key={`saved-detail-${activeCollection}`}
-                  initial={{ opacity: 0, x: 20 }}
-                  animate={{ opacity: 1, x: 0 }}
-                  exit={{ opacity: 0, x: -20 }}
-                  transition={{ duration: 0.2, ease: 'easeOut' }}
+                  initial={{ opacity: 0, scale: 0.98, y: 12 }}
+                  animate={{ opacity: 1, scale: 1, y: 0 }}
+                  exit={{ opacity: 0, scale: 0.98, y: 10 }}
+                  transition={{ duration: 0.24, ease: [0.16, 1, 0.3, 1] }}
                   className="flex-1 flex flex-col w-full h-full overflow-hidden"
                   style={{
                     paddingTop: 'max(calc(env(safe-area-inset-top, 0px) + 12px), 16px)',
@@ -542,7 +552,7 @@ export const SavedView: React.FC<SavedViewProps> = ({
               )}
             </AnimatePresence>
           </div>
-        </div>
+        </motion.div>
       )}
     </AnimatePresence>
   );
