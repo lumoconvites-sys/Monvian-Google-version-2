@@ -1013,8 +1013,8 @@ export default function App() {
           key="monvian-main-app"
           initial={{ opacity: 0, scale: 0.98, filter: 'blur(6px)' }}
           animate={{ opacity: 1, scale: 1, filter: 'blur(0px)' }}
-          transition={{ duration: 0.55, ease: [0.16, 1, 0.3, 1] }}
-          id="app-root-shell"
+          id="monvian-main-app"
+          data-shell="app-root-shell"
           className={`fixed inset-0 w-full h-full overflow-hidden select-none flex transition-colors duration-300 ${
             theme === 'dark' ? 'bg-black md:bg-[#ffffff]' : 'bg-[#ffffff]'
           }`}

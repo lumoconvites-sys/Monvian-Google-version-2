@@ -71,17 +71,37 @@ export const SpotDetailSheet: React.FC<SpotDetailSheetProps> = ({
   const distance = "1,4 km";
   const views = (spot.visitorsToday * 112 + 15000).toLocaleString('pt-BR');
 
+  const hasDirections = Boolean((spot.lat && spot.lng) || spot.address || spot.name);
+  const phoneHref = spot.phone ? `tel:${spot.phone}` : 'tel:+551236631234';
+  const websiteHref = spot.website || spot.mapsUrl || 'https://www.camposdojordao.sp.gov.br/turismo';
+
+  const handleShare = () => {
+    if (navigator.share) {
+      navigator
+        .share({
+          title: spot.name,
+          text: `Confira ${spot.name} em Campos do Jordão!`,
+          url: window.location.href,
+        })
+        .catch(() => {});
+    } else {
+      setIsQrModalOpen(true);
+    }
+  };
+
   return (
     <motion.div
       id="spot-detail-sheet-backdrop"
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       exit={{ opacity: 0 }}
-      transition={{ duration: 0.25, ease: 'easeOut' }}
+      transition={{ duration: 0.2, ease: 'easeOut' }}
       onClick={onClose}
-      className="fixed inset-0 z-[110] bg-black/60 backdrop-blur-md flex flex-col justify-end md:justify-center md:items-center md:p-6 select-none cursor-pointer"
+      className="fixed inset-0 z-[110] bg-black/60 md:bg-black/45 backdrop-blur-md md:backdrop-blur-xs flex flex-col justify-end md:justify-center md:items-center md:pl-[calc(var(--desktop-sidebar-width,72px)+24px)] md:pr-6 md:py-6 select-none cursor-pointer"
     >
-      {/* Native Apple Fluid Spring Sheet with smooth scale and slide physics */}
+      {/* =====================================================================
+          1. MOBILE VIEW (< 768px): PRESERVED 100% INTACT
+         ===================================================================== */}
       <motion.div
         id="spot-detail-sheet-container"
         initial={{ opacity: 0, scale: 0.98, y: 12 }}
@@ -89,12 +109,12 @@ export const SpotDetailSheet: React.FC<SpotDetailSheetProps> = ({
         exit={{ opacity: 0, scale: 0.98, y: 10 }}
         transition={{ duration: 0.24, ease: [0.16, 1, 0.3, 1] }}
         onClick={(e) => e.stopPropagation()}
-        className="relative w-full h-full md:h-[86vh] md:max-w-2xl bg-white dark:bg-[#0E0F12] text-zinc-900 dark:text-white flex flex-col z-[110] transform-gpu overflow-hidden rounded-none md:border md:border-white/10 md:shadow-[0_25px_70px_rgba(0,0,0,0.6)]"
+        className="md:hidden relative w-full h-full bg-white dark:bg-[#0E0F12] text-zinc-900 dark:text-white flex flex-col z-[110] transform-gpu overflow-hidden rounded-none"
         style={{
           willChange: 'transform, opacity',
         }}
       >
-        {/* Floating Top Bar Controls */}
+        {/* Floating Top Bar Controls (Mobile) */}
         <div
           className="absolute left-0 right-0 z-30 flex items-center justify-between pointer-events-none px-4"
           style={{
@@ -126,17 +146,7 @@ export const SpotDetailSheet: React.FC<SpotDetailSheetProps> = ({
             </motion.button>
             <motion.button 
               whileTap={{ scale: 0.92 }}
-              onClick={() => {
-                if (navigator.share) {
-                  navigator.share({
-                    title: spot.name,
-                    text: `Confira ${spot.name} em Campos do Jordão!`,
-                    url: window.location.href,
-                  }).catch(() => {});
-                } else {
-                  setIsQrModalOpen(true);
-                }
-              }}
+              onClick={handleShare}
               className="w-10 h-10 rounded-full bg-white/90 dark:bg-black/65 backdrop-blur-md flex items-center justify-center border border-zinc-200/80 dark:border-white/15 text-zinc-900 dark:text-white shadow-md cursor-pointer active:opacity-80 transition-opacity"
               title="Compartilhar"
             >
@@ -153,7 +163,7 @@ export const SpotDetailSheet: React.FC<SpotDetailSheetProps> = ({
           </div>
         </div>
 
-        {/* Fluid Hardware-Accelerated Smooth Scroll Surface */}
+        {/* Fluid Hardware-Accelerated Smooth Scroll Surface (Mobile) */}
         <div
           ref={scrollRef}
           className="flex-1 overflow-y-auto overscroll-y-contain touch-pan-y"
@@ -247,7 +257,7 @@ export const SpotDetailSheet: React.FC<SpotDetailSheetProps> = ({
               <motion.a 
                 whileHover={{ scale: 1.02, transition: { type: 'spring', stiffness: 400, damping: 18 } }}
                 whileTap={{ scale: 0.94, transition: { type: 'spring', stiffness: 500, damping: 14 } }}
-                href={spot.phone ? `tel:${spot.phone}` : "tel:+551236631234"}
+                href={phoneHref}
                 className="bg-[#ffffff] hover:bg-zinc-200 dark:bg-[#ffffff] dark:hover:bg-white/15 border border-zinc-200/80 dark:border-white/10 text-zinc-900 dark:text-white rounded-2xl py-3 px-3 flex items-center justify-center gap-2 transition-colors cursor-pointer font-bold active:opacity-90"
                 title="Ligar para o estabelecimento"
               >
@@ -258,7 +268,7 @@ export const SpotDetailSheet: React.FC<SpotDetailSheetProps> = ({
               <motion.a 
                 whileHover={{ scale: 1.02, transition: { type: 'spring', stiffness: 400, damping: 18 } }}
                 whileTap={{ scale: 0.94, transition: { type: 'spring', stiffness: 500, damping: 14 } }}
-                href={spot.website || "https://www.camposdojordao.sp.gov.br/turismo"}
+                href={websiteHref}
                 target="_blank"
                 rel="noopener noreferrer"
                 className="bg-[#ffffff] hover:bg-zinc-200 dark:bg-[#ffffff] dark:hover:bg-white/15 border border-zinc-200/80 dark:border-white/10 text-zinc-900 dark:text-white rounded-2xl py-3 px-3 flex items-center justify-center gap-2 transition-colors cursor-pointer font-bold active:opacity-90"
@@ -393,7 +403,7 @@ export const SpotDetailSheet: React.FC<SpotDetailSheetProps> = ({
                   >
                     <h4 className="font-black text-zinc-900 dark:text-white text-xs uppercase tracking-wider mb-2">Dica de quem foi</h4>
                     <p className="text-sm text-zinc-600 dark:text-zinc-300 leading-relaxed">
-                      Leve um casaco quentinho, especialmente no final da tarde, pois a altitude faz a temperatura cair rapidamente!
+                      {spot.touristTip || 'Leve um casaco quentinho, especialmente no final da tarde, pois a altitude faz a temperatura cair rapidamente!'}
                     </p>
                   </motion.div>
                 </motion.div>
@@ -504,14 +514,412 @@ export const SpotDetailSheet: React.FC<SpotDetailSheetProps> = ({
             </div>
           </div>
         </div>
-
-        {/* Modal de Compartilhamento por QR Code */}
-        <SpotQrModal
-          isOpen={isQrModalOpen}
-          onClose={() => setIsQrModalOpen(false)}
-          spot={spot}
-        />
       </motion.div>
+
+      {/* =====================================================================
+          2. DESKTOP & TABLET VIEW (>= 768px): TWO-COLUMN HORIZONTAL PANEL
+         ===================================================================== */}
+      <motion.div
+        id="spot-detail-desktop-panel"
+        initial={{ opacity: 0, scale: 0.97, y: 8 }}
+        animate={{ opacity: 1, scale: 1, y: 0 }}
+        exit={{ opacity: 0, scale: 0.97, y: 8 }}
+        transition={{ duration: 0.2, ease: [0.16, 1, 0.3, 1] }}
+        onClick={(e) => e.stopPropagation()}
+        className="hidden md:flex flex-col lg:flex-row w-full max-w-[960px] lg:max-w-[1080px] xl:max-w-[1180px] 2xl:max-w-[1260px] md:max-h-[88vh] lg:h-[min(680px,85vh)] xl:h-[min(730px,85vh)] bg-white text-zinc-950 rounded-[24px] border border-zinc-200/90 shadow-[0_20px_60px_rgba(0,0,0,0.18)] overflow-hidden cursor-default z-[110]"
+        style={{
+          fontFamily: "-apple-system, BlinkMacSystemFont, 'SF Pro Display', 'SF Pro Text', system-ui, sans-serif",
+          backgroundColor: '#ffffff',
+        }}
+      >
+        {/* LEFT COLUMN (56-58% on Desktop): Horizontal Image & Floating Controls */}
+        <div className="relative w-full lg:w-[56%] xl:w-[58%] h-[260px] md:h-[300px] lg:h-full p-3 lg:p-4 shrink-0 flex flex-col bg-white">
+          <div className="relative w-full h-full rounded-[18px] overflow-hidden bg-zinc-100 border border-zinc-200/60">
+            <img
+              src={getSpotImage(spot)}
+              alt={spot.name}
+              className="w-full h-full object-cover select-none"
+              loading="eager"
+              decoding="async"
+              referrerPolicy="no-referrer"
+              onError={(e) => {
+                (e.target as HTMLImageElement).src = getSpotFallbackImage(spot.name, spot.category);
+              }}
+            />
+
+            {/* Subtle top vignette for control legibility */}
+            <div className="absolute inset-x-0 top-0 h-20 bg-gradient-to-b from-black/25 to-transparent pointer-events-none" />
+
+            {/* Top-Left: Back Button */}
+            <div className="absolute top-3.5 left-3.5 z-20">
+              <button
+                type="button"
+                onClick={onClose}
+                className="w-9 h-9 rounded-full bg-white/95 hover:bg-white text-zinc-900 border border-black/10 shadow-sm flex items-center justify-center transition-transform active:scale-95 cursor-pointer"
+                title="Voltar"
+                aria-label="Voltar para o mapa"
+              >
+                <ArrowLeft className="w-4 h-4 stroke-[2.2] text-zinc-900" />
+              </button>
+            </div>
+
+            {/* Top-Right: Discreet Floating Controls (QR Code, Share, Favorite) */}
+            <div className="absolute top-3.5 right-3.5 z-20 flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => setIsQrModalOpen(true)}
+                className="w-9 h-9 rounded-full bg-white/95 hover:bg-white text-zinc-900 border border-black/10 shadow-sm flex items-center justify-center transition-transform active:scale-95 cursor-pointer"
+                title="Gerar QR Code deste local"
+                aria-label="QR Code"
+              >
+                <QrCode className="w-4 h-4 stroke-[2] text-zinc-900" />
+              </button>
+              <button
+                type="button"
+                onClick={handleShare}
+                className="w-9 h-9 rounded-full bg-white/95 hover:bg-white text-zinc-900 border border-black/10 shadow-sm flex items-center justify-center transition-transform active:scale-95 cursor-pointer"
+                title="Compartilhar"
+                aria-label="Compartilhar"
+              >
+                <Share2 className="w-4 h-4 stroke-[2] text-zinc-900" />
+              </button>
+              <button
+                type="button"
+                onClick={() => onToggleFavorite(spot.id)}
+                className="w-9 h-9 rounded-full bg-white/95 hover:bg-white text-zinc-900 border border-black/10 shadow-sm flex items-center justify-center transition-transform active:scale-95 cursor-pointer"
+                title={isFavorite ? 'Remover dos favoritos' : 'Adicionar aos favoritos'}
+                aria-label="Favoritar"
+              >
+                <Heart
+                  className={`w-4 h-4 stroke-[2] transition-colors ${
+                    isFavorite ? 'fill-red-500 text-red-500' : 'text-zinc-900'
+                  }`}
+                />
+              </button>
+            </div>
+          </div>
+        </div>
+
+        {/* RIGHT COLUMN (42-44% on Desktop): Structured Info, Actions & Integrated Tabs */}
+        <div className="flex-1 lg:w-[44%] xl:w-[42%] h-full min-h-0 flex flex-col bg-white px-5 py-4 lg:px-7 lg:py-6 overflow-hidden">
+          {/* 1 & 2. Full Name + Verification Indicator */}
+          <div className="flex items-center gap-2 shrink-0">
+            <h1 className="text-xl lg:text-2xl xl:text-[26px] font-bold tracking-tight text-zinc-950 leading-tight">
+              {spot.name}
+            </h1>
+            <div className="shrink-0">
+              <VerifiedBadge />
+            </div>
+          </div>
+
+          {/* 3. Category & Location */}
+          <div className="flex items-center gap-1.5 text-xs lg:text-[13px] font-medium text-zinc-500 mt-1.5 shrink-0 flex-wrap">
+            <span className="text-zinc-700 font-semibold">
+              {spot.categoryLabel || spot.category}
+            </span>
+            <span aria-hidden="true">·</span>
+            <span className="inline-flex items-center gap-1 text-zinc-500">
+              <MapPin className="w-3.5 h-3.5 text-zinc-400 shrink-0" />
+              <span className="truncate max-w-[280px] xl:max-w-[340px]">
+                {spot.address || 'Campos do Jordão, SP'}
+              </span>
+            </span>
+            <span aria-hidden="true">·</span>
+            <span>{distance}</span>
+          </div>
+
+          {/* 4. Average Rating, Review Count & Views */}
+          <div className="flex items-center gap-3 text-xs lg:text-[13px] mt-3 pb-3.5 border-b border-zinc-100 shrink-0 flex-wrap">
+            {spot.rating !== undefined && (
+              <div className="flex items-center gap-1">
+                <Star className="w-4 h-4 fill-zinc-950 text-zinc-950 shrink-0" />
+                <span className="font-bold text-zinc-950">{spot.rating}</span>
+                {spot.reviewCount !== undefined && (
+                  <span className="text-zinc-500 font-medium">
+                    ({spot.reviewCount.toLocaleString('pt-BR')} avaliações)
+                  </span>
+                )}
+              </div>
+            )}
+            {spot.rating !== undefined && <span className="text-zinc-300" aria-hidden="true">·</span>}
+            <div className="flex items-center gap-1.5 text-zinc-500 font-medium">
+              <Eye className="w-4 h-4 text-zinc-400 shrink-0" />
+              <span>{views} visualizações</span>
+            </div>
+          </div>
+
+          {/* 5. Concise Summary Description */}
+          {spot.description && (
+            <p className="text-[13px] lg:text-[13.5px] text-zinc-600 leading-relaxed mt-3 line-clamp-2 shrink-0">
+              {spot.description}
+            </p>
+          )}
+
+          {/* 6. Action Buttons Side-by-Side (Como chegar, Ligar, Site) */}
+          <div className="flex items-center gap-2.5 mt-4 shrink-0">
+            {hasDirections && (
+              <button
+                type="button"
+                onClick={() => openDirectionsMap(spot)}
+                className="flex-1 h-10 px-4 rounded-xl bg-zinc-950 hover:bg-zinc-800 text-white text-xs lg:text-[13px] font-semibold flex items-center justify-center gap-2 transition-colors cursor-pointer shadow-2xs"
+                title="Traçar rota até este local"
+              >
+                <RoundedNavigationIcon isGold={false} className="w-4 h-4 shrink-0 text-white [&_polygon]:text-white" size={15} />
+                <span className="truncate">Como chegar</span>
+              </button>
+            )}
+
+            {phoneHref && (
+              <a
+                href={phoneHref}
+                className="h-10 px-4 rounded-xl bg-zinc-100 hover:bg-zinc-200/80 text-zinc-900 border border-zinc-200/80 text-xs lg:text-[13px] font-semibold flex items-center justify-center gap-1.5 transition-colors cursor-pointer shrink-0"
+                title="Ligar para o local"
+              >
+                <Phone className="w-3.5 h-3.5 text-zinc-700 shrink-0" />
+                <span>Ligar</span>
+              </a>
+            )}
+
+            {websiteHref && (
+              <a
+                href={websiteHref}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="h-10 px-4 rounded-xl bg-zinc-100 hover:bg-zinc-200/80 text-zinc-900 border border-zinc-200/80 text-xs lg:text-[13px] font-semibold flex items-center justify-center gap-1.5 transition-colors cursor-pointer shrink-0"
+                title="Acessar site oficial"
+              >
+                <Globe className="w-3.5 h-3.5 text-zinc-700 shrink-0" />
+                <span>Site</span>
+              </a>
+            )}
+          </div>
+
+          {/* 7. Horizontal Desktop Tab Navigation (Sobre, Experiência, Vídeos, Avaliações) */}
+          <div className="flex items-center gap-6 border-b border-zinc-200 mt-5 shrink-0" role="tablist">
+            {['Sobre', 'Experiência', 'Vídeos', 'Avaliações'].map((tab) => {
+              const isActive = activeTab === tab;
+              return (
+                <button
+                  key={tab}
+                  type="button"
+                  role="tab"
+                  aria-selected={isActive}
+                  onClick={() => setActiveTab(tab)}
+                  className={`relative pb-2.5 text-[13px] lg:text-sm font-semibold transition-colors cursor-pointer ${
+                    isActive ? 'text-zinc-950' : 'text-zinc-400 hover:text-zinc-700'
+                  }`}
+                >
+                  {tab}
+                  {isActive && (
+                    <motion.div
+                      layoutId="activeSpotTabDesktop"
+                      transition={{ type: 'spring', damping: 28, stiffness: 360 }}
+                      className="absolute bottom-0 left-0 right-0 h-[2px] rounded-full bg-zinc-950"
+                    />
+                  )}
+                </button>
+              );
+            })}
+          </div>
+
+          {/* Scrollable Tab Content Area (Independent vertical scroll inside right column) */}
+          <div className="flex-1 min-h-0 overflow-y-auto pt-4 pb-2 pr-1 space-y-4 custom-scrollbar">
+            {activeTab === 'Sobre' && (
+              <motion.div
+                key="desktop-tab-sobre"
+                initial={{ opacity: 0, y: 6 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.16 }}
+                className="space-y-4"
+              >
+                <p className="text-sm text-zinc-700 leading-relaxed">
+                  {spot.description}
+                </p>
+
+                {/* Practical Info Grid */}
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="p-3.5 rounded-xl bg-zinc-50 border border-zinc-200/70">
+                    <span className="text-[11px] text-zinc-500 font-semibold block mb-1">
+                      Horário de Funcionamento
+                    </span>
+                    <span className="text-[13px] font-bold text-zinc-900">
+                      {spot.hours || '09:00 - 18:00'}
+                    </span>
+                  </div>
+                  <div className="p-3.5 rounded-xl bg-zinc-50 border border-zinc-200/70">
+                    <span className="text-[11px] text-zinc-500 font-semibold block mb-1">
+                      Entrada
+                    </span>
+                    <span className="text-[13px] font-bold text-zinc-900">
+                      {spot.priceRange === 'Grátis' ? 'Acesso Livre' : (spot.priceRange || 'Consultar')}
+                    </span>
+                  </div>
+                </div>
+
+                {spot.address && (
+                  <div className="p-3.5 rounded-xl bg-zinc-50 border border-zinc-200/70 flex items-center justify-between gap-3">
+                    <div className="min-w-0">
+                      <span className="text-[11px] text-zinc-500 font-semibold block mb-0.5">
+                        Endereço
+                      </span>
+                      <span className="text-xs font-medium text-zinc-800 block truncate">
+                        {spot.address}
+                      </span>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => openDirectionsMap(spot)}
+                      className="px-3 py-1.5 rounded-lg bg-white hover:bg-zinc-100 text-zinc-900 border border-zinc-200 text-xs font-semibold shrink-0 cursor-pointer transition-colors"
+                    >
+                      Abrir no GPS
+                    </button>
+                  </div>
+                )}
+              </motion.div>
+            )}
+
+            {activeTab === 'Experiência' && (
+              <motion.div
+                key="desktop-tab-experiencia"
+                initial={{ opacity: 0, y: 6 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.16 }}
+                className="space-y-3.5"
+              >
+                <div className="p-4 bg-zinc-50 rounded-xl border border-zinc-200/70 space-y-2.5">
+                  <h3 className="font-bold text-zinc-900 text-xs uppercase tracking-wider">
+                    O que esperar
+                  </h3>
+                  <ul className="space-y-2 text-[13px] text-zinc-600">
+                    <li className="flex items-start gap-2">
+                      <span className="text-zinc-900 font-bold">✓</span>
+                      <span>Mirante panorâmico com vista de tirar o fôlego para vales e montanhas</span>
+                    </li>
+                    <li className="flex items-start gap-2">
+                      <span className="text-zinc-900 font-bold">✓</span>
+                      <span>Excelente ponto para fotografia e contemplação do pôr do sol</span>
+                    </li>
+                    <li className="flex items-start gap-2">
+                      <span className="text-zinc-900 font-bold">✓</span>
+                      <span>Estacionamento e cafés típicos nas imediações</span>
+                    </li>
+                  </ul>
+                </div>
+
+                <div className="p-4 bg-zinc-50 rounded-xl border border-zinc-200/70">
+                  <h4 className="font-bold text-zinc-900 text-xs uppercase tracking-wider mb-1.5">
+                    Dica de quem foi
+                  </h4>
+                  <p className="text-[13px] text-zinc-600 leading-relaxed">
+                    {spot.touristTip || 'Leve um casaco quentinho, especialmente no final da tarde, pois a altitude faz a temperatura cair rapidamente!'}
+                  </p>
+                </div>
+              </motion.div>
+            )}
+
+            {activeTab === 'Vídeos' && (
+              <motion.div
+                key="desktop-tab-videos"
+                initial={{ opacity: 0, y: 6 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.16 }}
+                className="space-y-3"
+              >
+                <div className="group relative rounded-xl overflow-hidden border border-zinc-200 aspect-video bg-zinc-900 cursor-pointer">
+                  <img
+                    src={spot.image || 'https://images.unsplash.com/photo-1585320806297-9794b3e4eeae?auto=format&fit=crop&w=600&q=80'}
+                    alt="Prévia de vídeo"
+                    className="w-full h-full object-cover opacity-85 group-hover:opacity-95 transition-opacity"
+                    loading="lazy"
+                    decoding="async"
+                    referrerPolicy="no-referrer"
+                    onError={(e) => {
+                      (e.target as HTMLImageElement).src = 'https://images.unsplash.com/photo-1585320806297-9794b3e4eeae?auto=format&fit=crop&w=600&q=80';
+                    }}
+                  />
+                  <div className="absolute inset-0 bg-black/35 flex items-center justify-center">
+                    <div className="w-11 h-11 rounded-full bg-white/95 text-zinc-950 flex items-center justify-center shadow-md group-hover:scale-105 transition-transform">
+                      <span className="ml-0.5 text-xs font-bold">▶</span>
+                    </div>
+                  </div>
+                  <div className="absolute bottom-2.5 left-3 right-3 text-white text-xs font-semibold drop-shadow">
+                    Tour Guiado e Dicas em 4K · 3:42
+                  </div>
+                </div>
+                <p className="text-xs text-center text-zinc-400">
+                  Vídeos enviados pela comunidade e guias locais
+                </p>
+              </motion.div>
+            )}
+
+            {activeTab === 'Avaliações' && (
+              <motion.div
+                key="desktop-tab-avaliacoes"
+                initial={{ opacity: 0, y: 6 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.16 }}
+                className="space-y-3"
+              >
+                <div className="flex items-center justify-between p-3.5 bg-zinc-50 rounded-xl border border-zinc-200/70">
+                  <div>
+                    <span className="text-2xl font-bold text-zinc-950">{spot.rating}</span>
+                    <span className="text-xs text-zinc-500 block mt-0.5">de 5.0 estrelas</span>
+                  </div>
+                  <div className="flex flex-col items-end">
+                    <div className="flex items-center gap-0.5 text-zinc-900">
+                      {Array.from({ length: 5 }).map((_, i) => (
+                        <Star key={i} className="w-3.5 h-3.5 fill-current" />
+                      ))}
+                    </div>
+                    <span className="text-xs text-zinc-500 mt-1">
+                      {spot.reviewCount?.toLocaleString('pt-BR')} avaliações reais
+                    </span>
+                  </div>
+                </div>
+
+                {/* Review card 1 */}
+                <div className="p-3.5 bg-zinc-50 rounded-xl border border-zinc-200/70 space-y-1.5">
+                  <div className="flex items-center justify-between">
+                    <span className="font-bold text-xs text-zinc-900">Mariana Costa</span>
+                    <span className="text-[11px] text-zinc-400">Há 2 dias</span>
+                  </div>
+                  <div className="flex items-center gap-0.5 text-zinc-900">
+                    {Array.from({ length: 5 }).map((_, i) => (
+                      <Star key={i} className="w-3 h-3 fill-current" />
+                    ))}
+                  </div>
+                  <p className="text-xs text-zinc-600 leading-relaxed">
+                    Lugar espetacular! Vista incrível de Campos do Jordão e clima super agradável. Vale muito a pena a visita.
+                  </p>
+                </div>
+
+                {/* Review card 2 */}
+                <div className="p-3.5 bg-zinc-50 rounded-xl border border-zinc-200/70 space-y-1.5">
+                  <div className="flex items-center justify-between">
+                    <span className="font-bold text-xs text-zinc-900">Lucas Ferreira</span>
+                    <span className="text-[11px] text-zinc-400">Há 1 semana</span>
+                  </div>
+                  <div className="flex items-center gap-0.5 text-zinc-900">
+                    {Array.from({ length: 5 }).map((_, i) => (
+                      <Star key={i} className="w-3 h-3 fill-current" />
+                    ))}
+                  </div>
+                  <p className="text-xs text-zinc-600 leading-relaxed">
+                    Pôr do sol inesquecível. Recomendo chegar pelo menos 40 minutos antes do sol se pôr para pegar um bom lugar.
+                  </p>
+                </div>
+              </motion.div>
+            )}
+          </div>
+        </div>
+      </motion.div>
+
+      {/* Modal de Compartilhamento por QR Code */}
+      <SpotQrModal
+        isOpen={isQrModalOpen}
+        onClose={() => setIsQrModalOpen(false)}
+        spot={spot}
+      />
     </motion.div>
   );
 };

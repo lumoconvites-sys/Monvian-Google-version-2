@@ -425,23 +425,15 @@ const SwipeableStopCard: React.FC<SwipeableStopCardProps> = ({
         tabIndex={0}
         role="button"
         aria-label={`Local ${idx + 1}: ${spot?.name || 'Local'}. Deslize para a esquerda para excluir.`}
-        className={`relative z-10 py-2.5 px-4 rounded-3xl flex items-center justify-between gap-3 cursor-pointer transition-all ${
+        className={`relative z-10 py-2.5 px-4 rounded-3xl flex items-center justify-between gap-3 cursor-pointer transition-all border ${
           isSelected
-            ? isPremium
-              ? isDark
-                ? 'bg-[#1C1E24] border border-accent-gold/40 ring-1 ring-accent-gold/30 shadow-sm text-text-highlight'
-                : 'bg-white border border-accent-gold/40 ring-1 ring-accent-gold/30 shadow-sm text-canvas'
-              : isDark
-              ? 'bg-[#1C1E24] border border-white/20 ring-1 ring-white/10 shadow-sm text-text-highlight'
-              : 'bg-white border border-zinc-200 ring-1 ring-zinc-100 shadow-sm text-canvas'
-            : isPremium
-            ? isDark
-              ? 'bg-[#141519] hover:bg-[#1C1E24] border border-accent-gold/20 text-text-primary'
-              : 'bg-white hover:bg-zinc-50 border border-accent-gold/20 text-canvas shadow-inner'
-            : isDark
-            ? 'bg-[#141519] hover:bg-[#1C1E24] border border-white/5 text-text-primary'
-            : 'bg-white hover:bg-zinc-50 border border-zinc-100 text-canvas shadow-inner'
+            ? 'border-zinc-300 ring-2 ring-black/10 shadow-sm'
+            : 'border-zinc-200/80 hover:border-zinc-300 shadow-2xs'
         }`}
+        style={{
+          backgroundColor: '#fbfbfb',
+          color: '#000000',
+        }}
       >
         {/* Left: Stop Number + Compact Thumbnail */}
         <div className="flex items-center gap-2.5 min-w-0 flex-1 self-center">
@@ -504,7 +496,8 @@ const SwipeableStopCard: React.FC<SwipeableStopCardProps> = ({
             </div>
 
             <h4
-              className="text-[14px] sm:text-[15px] font-black uppercase truncate leading-tight my-1 text-zinc-900 dark:text-white"
+              className="text-[14px] sm:text-[15px] font-black uppercase truncate leading-tight my-1 text-black"
+              style={{ color: '#000000' }}
             >
               {spot?.shortName || spot?.name || `Ponto ${idx + 1}`}
             </h4>
@@ -2172,10 +2165,8 @@ export const ItinerariesView: React.FC<ItinerariesViewProps> = ({
           aria-label="Loja de Roteiros"
         >
           <Store
-            className={`w-5 h-5 stroke-[2.2] ${
-              isUserGold ? 'text-[#E6AC33]' : (isDark ? 'text-white' : 'text-black')
-            }`}
-            style={{ color: isUserGold ? '#E6AC33' : (isDark ? '#ffffff' : '#000000') }}
+            className="w-5 h-5 stroke-[2.2] text-black"
+            style={{ color: '#000000' }}
           />
         </motion.button>
       </div>
@@ -2259,9 +2250,10 @@ export const ItinerariesView: React.FC<ItinerariesViewProps> = ({
                     }}
                     className={`px-2.5 py-1 rounded-lg text-xs font-bold transition-colors cursor-pointer ${
                       selectedDayIndex === dIdx
-                        ? 'bg-white text-black shadow-md'
-                        : 'bg-white/10 text-white/80 hover:bg-white/20 border border-white/10'
+                        ? 'bg-[#ffffff] text-[#000000] shadow-md border border-black/15'
+                        : 'bg-[#ffffff] text-[#000000] hover:bg-zinc-100 border border-black/10'
                     }`}
+                    style={{ color: '#000000', backgroundColor: '#ffffff' }}
                   >
                     Dia {day.dayNumber}
                   </motion.button>
@@ -2273,7 +2265,8 @@ export const ItinerariesView: React.FC<ItinerariesViewProps> = ({
 
         {/* Desktop Stops List with Independent Scrolling */}
         <div
-          className="flex-1 overflow-y-auto p-3.5 space-y-2.5 custom-scrollbar"
+          className="flex-1 overflow-y-auto p-3.5 space-y-2.5 custom-scrollbar text-[#141414]"
+          style={{ color: '#141414' }}
           onWheel={(e) => e.stopPropagation()}
         >
           {activeSteps.length > 0 ? (
@@ -2293,11 +2286,13 @@ export const ItinerariesView: React.FC<ItinerariesViewProps> = ({
                 onClick={() => handleSelectStopOnMap(step)}
                 className={`w-full flex items-center justify-between gap-3 p-3 rounded-2xl border text-left cursor-pointer transition-colors duration-200 group relative ${
                   step.id === currentSelectedStep?.id
-                    ? isPremiumItinerary
-                      ? 'bg-[#1C1E24] border-[#E5AC33]/60 shadow-md ring-1 ring-[#FFF4A3]/30 text-white'
-                      : 'bg-white/15 border-white/40 shadow-md ring-1 ring-white/30 text-white'
-                    : 'bg-white/5 border-white/8 hover:bg-white/10 hover:border-white/15 text-white'
+                    ? 'border-zinc-300 ring-2 ring-black/10 shadow-sm'
+                    : 'border-zinc-200/80 hover:border-zinc-300 shadow-2xs'
                 }`}
+                style={{
+                  backgroundColor: '#fbfbfb',
+                  color: '#000000',
+                }}
               >
                 {/* Stop Number Badge */}
                 <div className="flex items-center gap-2.5 min-w-0 flex-1">
@@ -2337,7 +2332,10 @@ export const ItinerariesView: React.FC<ItinerariesViewProps> = ({
                       </span>
                     </div>
 
-                    <h4 className="text-[13.5px] font-bold truncate text-white leading-tight">
+                    <h4
+                      className="text-[13.5px] font-bold truncate text-[#000000] leading-tight"
+                      style={{ color: '#000000' }}
+                    >
                       {step.spot?.shortName || step.spot?.name || `Local ${idx + 1}`}
                     </h4>
 
@@ -2414,10 +2412,11 @@ export const ItinerariesView: React.FC<ItinerariesViewProps> = ({
             <button
               type="button"
               onClick={() => setIsImportModalOpen(true)}
-              className="w-full flex items-center justify-center gap-2 py-3 px-4 rounded-2xl border border-dashed border-white/20 bg-white/5 hover:bg-white/10 text-white text-xs font-bold transition-all cursor-pointer"
+              className="w-full flex items-center justify-center gap-2 py-3 px-4 rounded-2xl border border-dashed border-white/20 bg-[#e2e2e2] hover:bg-zinc-300 text-[#9e9e9e] text-xs font-bold transition-all cursor-pointer"
+              style={{ color: '#9e9e9e', backgroundColor: '#e2e2e2' }}
             >
-              <Plus className="w-4 h-4" />
-              <span>Adicionar Ponto ao Roteiro</span>
+              <Plus className="w-4 h-4 text-[#000000]" style={{ color: '#000000' }} />
+              <span style={{ color: '#464646' }}>Adicionar Ponto ao Roteiro</span>
             </button>
           </div>
         </div>
@@ -2502,11 +2501,11 @@ export const ItinerariesView: React.FC<ItinerariesViewProps> = ({
                 className="px-4 pt-0.5 pb-2 sm:pb-2.5 cursor-pointer"
               >
                 <div
-                  className={`py-2 px-3 sm:py-2.5 sm:px-3.5 rounded-[28px] flex items-center justify-between gap-3 transition-all ${
-                    isPremiumItinerary
-                      ? 'bg-white/30 dark:bg-white/15 border border-[#E5AC33]/60 ring-1.5 ring-[#FFF4A3]/40 shadow-xs text-zinc-900 dark:text-white backdrop-blur-md'
-                      : 'bg-white/30 dark:bg-white/15 border border-white/45 ring-1.5 ring-white/40 shadow-xs text-zinc-900 dark:text-white backdrop-blur-md'
-                  }`}
+                  className="py-2 px-3 sm:py-2.5 sm:px-3.5 rounded-[28px] flex items-center justify-between gap-3 transition-all border border-zinc-200/80 shadow-2xs"
+                  style={{
+                    backgroundColor: '#fbfbfb',
+                    color: '#000000',
+                  }}
                 >
                   <div className="flex items-center gap-2.5 min-w-0 flex-1 self-center">
                     <span className={`w-7 h-7 sm:w-7.5 sm:h-7.5 rounded-full text-[11px] font-black flex items-center justify-center leading-none text-center shrink-0 self-center ${

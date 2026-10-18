@@ -127,7 +127,7 @@ export function applySystemThemeColor(color: string) {
     rootEl.style.backgroundColor = color;
   }
 
-  const appShell = document.getElementById('app-root-shell');
+  const appShell = document.getElementById('monvian-main-app') || document.getElementById('app-root-shell');
   if (appShell) {
     const isDesktop = typeof window !== 'undefined' && window.matchMedia('(min-width: 768px)').matches;
     appShell.style.backgroundColor = isDesktop ? '#ffffff' : color;
