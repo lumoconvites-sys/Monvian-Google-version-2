@@ -335,7 +335,15 @@ export const SearchFilterDrawer: React.FC<SearchFilterDrawerProps> = ({
                   <div className="flex items-center gap-4 min-w-0">
                     {cat.image ? (
                       <div className="w-[50px] h-[50px] shrink-0 flex items-center justify-center group-hover:scale-110 transition-transform duration-300">
-                        <img
+                        <motion.img
+                          initial={{ opacity: 0, scale: 0.88, y: 8 }}
+                          animate={{ opacity: 1, scale: 1, y: 0 }}
+                          transition={{
+                            type: 'spring',
+                            stiffness: 380,
+                            damping: 22,
+                            delay: idx * 0.035,
+                          }}
                           src={cat.image}
                           alt={cat.name}
                           className="w-full h-full object-contain filter drop-shadow-md select-none"
@@ -396,20 +404,38 @@ export const SearchFilterDrawer: React.FC<SearchFilterDrawerProps> = ({
               </div>
             ) : (
               <div className="space-y-3.5">
-                {filteredSpots.map((spot) => (
-                  <div
+                {filteredSpots.map((spot, idx) => (
+                  <motion.div
                     key={spot.id}
                     id={`spot-result-${spot.id}`}
+                    initial={{ opacity: 0, scale: 0.88, y: 12 }}
+                    animate={{ opacity: 1, scale: 1, y: 0 }}
+                    transition={{
+                      type: 'spring',
+                      stiffness: 380,
+                      damping: 22,
+                      delay: Math.min(idx * 0.035, 0.35),
+                    }}
+                    whileHover={{ scale: 1.02, transition: { type: 'spring', stiffness: 400, damping: 18 } }}
+                    whileTap={{ scale: 0.93, transition: { type: 'spring', stiffness: 500, damping: 14 } }}
                     onClick={() => {
                       onSelectSpot(spot);
                       onClose();
                     }}
-                    className="w-full p-4.5 sm:p-5 rounded-[28px] bg-white dark:bg-[#141518] hover:bg-zinc-50 dark:hover:bg-[#1a1c21] active:scale-[0.98] border border-zinc-200 dark:border-white/5 hover:border-zinc-300 dark:hover:border-white/20 transition-all flex items-center justify-between text-left cursor-pointer group shadow-sm dark:shadow-md"
+                    className="w-full p-4.5 sm:p-5 rounded-[28px] bg-white dark:bg-[#141518] hover:bg-zinc-50 dark:hover:bg-[#1a1c21] border border-zinc-200 dark:border-white/5 hover:border-zinc-300 dark:hover:border-white/20 transition-colors flex items-center justify-between text-left cursor-pointer group shadow-sm dark:shadow-md"
                   >
                     <div className="flex items-center gap-4 sm:gap-4.5 min-w-0 flex-1">
                       {/* Thumbnail do local (68px, cantos arredondados modernos 20px) */}
                       <div className="w-[68px] h-[68px] sm:w-[72px] sm:h-[72px] rounded-[20px] overflow-hidden bg-zinc-100 dark:bg-zinc-800 shrink-0 border border-zinc-200 dark:border-white/10">
-                        <img
+                        <motion.img
+                          initial={{ opacity: 0, scale: 0.88, y: 8 }}
+                          animate={{ opacity: 1, scale: 1, y: 0 }}
+                          transition={{
+                            type: 'spring',
+                            stiffness: 380,
+                            damping: 22,
+                            delay: Math.min(idx * 0.035, 0.35),
+                          }}
                           src={getSpotImage(spot)}
                           alt={spot.name}
                           className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
@@ -442,7 +468,7 @@ export const SearchFilterDrawer: React.FC<SearchFilterDrawerProps> = ({
                         </div>
                       </div>
                     </div>
-                  </div>
+                  </motion.div>
                 ))}
               </div>
             )}

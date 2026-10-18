@@ -883,6 +883,16 @@ async function startServer() {
   // ===========================================================================
   app.get('/api/spots', async (_req: Request, res: Response) => {
     try {
+      if (supabase) {
+        const { data, error } = await supabase
+          .from('spots')
+          .select('*')
+          .eq('is_active', 1)
+          .order('name', { ascending: true });
+        if (!error && Array.isArray(data) && data.length > 0) {
+          return res.json({ success: true, spots: data.map(formatSpotRow) });
+        }
+      }
       const rows = db.prepare('SELECT * FROM spots WHERE is_active = 1 ORDER BY rating DESC, name ASC').all();
       const spots = rows.length > 0 ? rows.map(formatSpotRow) : CAMPOS_SPOTS;
       return res.json({ success: true, spots });
@@ -893,6 +903,15 @@ async function startServer() {
 
   app.get('/api/admin/spots', async (_req: Request, res: Response) => {
     try {
+      if (supabase) {
+        const { data, error } = await supabase
+          .from('spots')
+          .select('*')
+          .order('name', { ascending: true });
+        if (!error && Array.isArray(data) && data.length > 0) {
+          return res.json({ success: true, spots: data.map(formatSpotRow) });
+        }
+      }
       const rows = db.prepare('SELECT * FROM spots ORDER BY name ASC').all();
       const spots = rows.length > 0 ? rows.map(formatSpotRow) : CAMPOS_SPOTS;
       return res.json({ success: true, spots });

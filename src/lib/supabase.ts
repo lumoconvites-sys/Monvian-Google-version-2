@@ -1,19 +1,14 @@
 import { createClient } from '@supabase/supabase-js';
 
-const getEnvVar = (key: string): string => {
-  try {
-    if (typeof import.meta !== 'undefined' && (import.meta as any)?.env?.[key]) {
-      return (import.meta as any).env[key];
-    }
-  } catch {}
-  try {
-    if (typeof process !== 'undefined' && process.env?.[key]) {
-      return process.env[key] as string;
-    }
-  } catch {}
-  return '';
-};
+// Static access is required so Vite compiler inlines import.meta.env in client builds
+const rawViteUrl = typeof import.meta !== 'undefined' && import.meta.env ? import.meta.env.VITE_SUPABASE_URL : undefined;
+const rawViteKey = typeof import.meta !== 'undefined' && import.meta.env ? import.meta.env.VITE_SUPABASE_ANON_KEY : undefined;
 
+const rawNodeUrl = typeof process !== 'undefined' ? (process.env?.VITE_SUPABASE_URL || process.env?.SUPABASE_URL) : undefined;
+const rawNodeKey = typeof process !== 'undefined' ? (process.env?.VITE_SUPABASE_ANON_KEY || process.env?.SUPABASE_ANON_KEY) : undefined;
+
+const DEFAULT_SUPABASE_URL = 'https://gxyqrwebnkbgxqrfdvuj.supabase.co';
+const DEFAULT_SUPABASE_ANON_KEY = 'sb_publishable_WaPR6pa1PiAD6pCG45aeuA_LrVfs39y';
 const DEAD_HOSTS = ['hefkjmjovzpymtybyebw.supabase.co'];
 
 const sanitizeSupabaseUrl = (url?: string): string => {
@@ -26,47 +21,18 @@ const sanitizeSupabaseUrl = (url?: string): string => {
 };
 
 const resolveSupabaseCredentials = () => {
-  const candidateUrls = [
-    getEnvVar('VITE_SUPABASE_URL'),
-    getEnvVar('SUPABASE_URL'),
-    'https://gxyqrwebnkbgxqrfdvuj.supabase.co',
-  ];
+  const candidateUrl = sanitizeSupabaseUrl(rawViteUrl) || sanitizeSupabaseUrl(rawNodeUrl) || DEFAULT_SUPABASE_URL;
 
-  let resolvedUrl = '';
-  for (const candidate of candidateUrls) {
-    const cleaned = sanitizeSupabaseUrl(candidate);
-    if (cleaned) {
-      resolvedUrl = cleaned;
-      break;
-    }
-  }
+  let candidateKey = (rawViteKey || rawNodeKey || '').trim();
 
-  let resolvedKey = '';
-  if (resolvedUrl.includes('gxyqrwebnkbgxqrfdvuj')) {
-    const keyCandidates = [
-      getEnvVar('SUPABASE_ANON_KEY'),
-      getEnvVar('VITE_SUPABASE_ANON_KEY'),
-      'sb_publishable_WaPR6pa1PiAD6pCG45aeuA_LrVfs39y',
-    ];
-    for (const k of keyCandidates) {
-      if (k && k.includes('WaPR6pa1Pi')) {
-        resolvedKey = k;
-        break;
-      }
-    }
-    if (!resolvedKey) {
-      resolvedKey = 'sb_publishable_WaPR6pa1PiAD6pCG45aeuA_LrVfs39y';
-    }
-  } else {
-    resolvedKey =
-      getEnvVar('VITE_SUPABASE_ANON_KEY') ||
-      getEnvVar('SUPABASE_ANON_KEY') ||
-      'sb_publishable_WaPR6pa1PiAD6pCG45aeuA_LrVfs39y';
+  // If candidate key is invalid, missing or belongs to a dead host, use default project key
+  if (!candidateKey || candidateKey.includes('9KwMtGFOKB0zF17ozzG1rw')) {
+    candidateKey = DEFAULT_SUPABASE_ANON_KEY;
   }
 
   return {
-    url: resolvedUrl || 'https://gxyqrwebnkbgxqrfdvuj.supabase.co',
-    key: resolvedKey.trim(),
+    url: candidateUrl,
+    key: candidateKey,
   };
 };
 
@@ -85,7 +51,7 @@ export const supabase = isSupabaseConfigured
         storageKey: 'monvian_supabase_auth',
       },
     })
-  : null as any;
+  : (null as any);
 
 /**
  * Uploads a base64 image or File to Supabase Storage ('monvian-media' bucket)

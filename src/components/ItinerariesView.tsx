@@ -374,7 +374,18 @@ const SwipeableStopCard: React.FC<SwipeableStopCardProps> = ({
   };
 
   return (
-      <div
+      <motion.div
+        initial={{ opacity: 0, scale: 0.88, y: 12 }}
+        animate={{ opacity: 1, scale: 1, y: 0 }}
+        exit={{ opacity: 0, scale: 0.88, y: 10 }}
+        transition={{
+          type: 'spring',
+          stiffness: 380,
+          damping: 22,
+          delay: Math.min(idx * 0.035, 0.35),
+        }}
+        whileHover={{ scale: 1.015, transition: { type: 'spring', stiffness: 400, damping: 18 } }}
+        whileTap={{ scale: 0.96, transition: { type: 'spring', stiffness: 500, damping: 14 } }}
         className="relative w-full rounded-[28px] overflow-hidden select-none touch-pan-y transform-gpu will-change-transform"
       >
       {/* Background Swipe Area (iOS Action - Right side, neutral background) */}
@@ -399,7 +410,6 @@ const SwipeableStopCard: React.FC<SwipeableStopCardProps> = ({
       {/* Foreground Draggable Card - 100% OPAQUE to prevent any background tinting/bleeding */}
       <div
         ref={containerRef}
-        // ... (Removendo props de animação)
         onClick={(e) => {
           e.stopPropagation();
           if (isOpenRef.current) {
@@ -568,7 +578,7 @@ const SwipeableStopCard: React.FC<SwipeableStopCardProps> = ({
           </motion.button>
         </div>
       </div>
-    </div>
+    </motion.div>
   );
 };
 
@@ -1939,7 +1949,7 @@ export const ItinerariesView: React.FC<ItinerariesViewProps> = ({
         animate={{ opacity: 1, scale: 1, y: 0 }}
         exit={{ opacity: 0, scale: 0.98, y: 10 }}
         transition={{ duration: 0.32, ease: [0.16, 1, 0.3, 1] }}
-        className={`fixed inset-0 md:left-64 lg:left-72 z-40 w-full md:w-auto h-full overflow-hidden rounded-none ${isDark ? 'bg-[#000000]' : 'bg-white'} select-none`}
+        className={`fixed inset-0 md:left-[var(--desktop-sidebar-width,72px)] z-40 w-full md:w-auto h-full overflow-hidden rounded-none transition-[left] duration-200 ease-in-out ${isDark ? 'bg-[#000000]' : 'bg-white'} select-none`}
         style={{
           borderTopLeftRadius: '0px',
           borderTopRightRadius: '0px',
@@ -1985,7 +1995,7 @@ export const ItinerariesView: React.FC<ItinerariesViewProps> = ({
       animate={{ opacity: 1, scale: 1, y: 0 }}
       exit={{ opacity: 0, scale: 0.98, y: 10 }}
       transition={{ duration: 0.32, ease: [0.16, 1, 0.3, 1] }}
-      className={`fixed inset-0 md:left-64 lg:left-72 ${isEditModalOpen || isStoreOpen ? 'z-[90]' : 'z-40'} w-full md:w-auto h-full overflow-hidden rounded-t-[26px] ios-page-top-rounded ${isDark ? 'bg-black' : 'bg-white'} select-none`}
+      className={`fixed inset-0 md:left-[var(--desktop-sidebar-width,72px)] ${isEditModalOpen || isStoreOpen ? 'z-[90]' : 'z-40'} w-full md:w-auto h-full overflow-hidden rounded-t-[26px] ios-page-top-rounded transition-[left] duration-200 ease-in-out ${isDark ? 'bg-black' : 'bg-white'} select-none`}
       style={{
         borderTopLeftRadius: '26px',
         borderTopRightRadius: '26px',
@@ -2121,9 +2131,9 @@ export const ItinerariesView: React.FC<ItinerariesViewProps> = ({
         </button>
       </div>
 
-      {/* Floating Map Actions (Layers & Casinha/Store - Always above card with z-50, never covered or hidden) */}
+      {/* Floating Map Actions (Layers & Casinha/Store - Mobile only, removed on desktop per user request) */}
       <div 
-        className="absolute right-4 sm:right-6 md:top-24 md:bottom-auto z-50 pointer-events-auto transition-all duration-300 flex flex-col items-center gap-3"
+        className="md:hidden absolute right-4 sm:right-6 z-50 pointer-events-auto transition-all duration-300 flex flex-col items-center gap-3"
         style={{
           bottom: (activeSteps.length === 0 || isExpanded)
             ? 'calc(54vh + 16px)' 
@@ -2236,22 +2246,27 @@ export const ItinerariesView: React.FC<ItinerariesViewProps> = ({
             {userItinerary?.days && userItinerary.days.length > 1 && (
               <div className="flex items-center gap-1">
                 {userItinerary.days.map((day, dIdx) => (
-                  <button
+                  <motion.button
                     type="button"
                     key={day.dayNumber}
+                    initial={{ opacity: 0, scale: 0.88, y: 12 }}
+                    animate={{ opacity: 1, scale: 1, y: 0 }}
+                    transition={{ type: 'spring', stiffness: 380, damping: 22, delay: dIdx * 0.035 }}
+                    whileHover={{ scale: 1.02, transition: { type: 'spring', stiffness: 400, damping: 18 } }}
+                    whileTap={{ scale: 0.93, transition: { type: 'spring', stiffness: 500, damping: 14 } }}
                     onClick={() => {
                       setSelectedDayIndex(dIdx);
                       const firstStepOfDay = day.steps?.[0];
                       if (firstStepOfDay) setSelectedStopId(firstStepOfDay.id);
                     }}
-                    className={`px-2.5 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                    className={`px-2.5 py-1 rounded-lg text-xs font-bold transition-colors cursor-pointer ${
                       selectedDayIndex === dIdx
                         ? 'bg-white text-black shadow-md'
                         : 'bg-white/10 text-white/80 hover:bg-white/20 border border-white/10'
                     }`}
                   >
                     Dia {day.dayNumber}
-                  </button>
+                  </motion.button>
                 ))}
               </div>
             )}
@@ -2265,10 +2280,20 @@ export const ItinerariesView: React.FC<ItinerariesViewProps> = ({
         >
           {activeSteps.length > 0 ? (
             activeSteps.map((step, idx) => (
-              <div
+              <motion.div
                 key={step.id}
+                initial={{ opacity: 0, scale: 0.88, y: 12 }}
+                animate={{ opacity: 1, scale: 1, y: 0 }}
+                transition={{
+                  type: 'spring',
+                  stiffness: 380,
+                  damping: 22,
+                  delay: Math.min(idx * 0.035, 0.35),
+                }}
+                whileHover={{ scale: 1.02, transition: { type: 'spring', stiffness: 400, damping: 18 } }}
+                whileTap={{ scale: 0.93, transition: { type: 'spring', stiffness: 500, damping: 14 } }}
                 onClick={() => handleSelectStopOnMap(step)}
-                className={`w-full flex items-center justify-between gap-3 p-3 rounded-2xl border text-left cursor-pointer transition-all duration-200 group relative ${
+                className={`w-full flex items-center justify-between gap-3 p-3 rounded-2xl border text-left cursor-pointer transition-colors duration-200 group relative ${
                   step.id === currentSelectedStep?.id
                     ? isPremiumItinerary
                       ? 'bg-[#1C1E24] border-[#E5AC33]/60 shadow-md ring-1 ring-[#FFF4A3]/30 text-white'
@@ -2289,7 +2314,7 @@ export const ItinerariesView: React.FC<ItinerariesViewProps> = ({
                   {/* Thumbnail Image */}
                   {step.spot && (
                     <div className="w-12 h-12 rounded-xl overflow-hidden shrink-0 bg-zinc-800">
-                      <img
+                      <LazyImage
                         src={getSpotImage(step.spot)}
                         alt={step.spot.name}
                         className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-200"
@@ -2378,7 +2403,7 @@ export const ItinerariesView: React.FC<ItinerariesViewProps> = ({
                     <Trash2 className="w-3.5 h-3.5 stroke-[2.2]" />
                   </button>
                 </div>
-              </div>
+              </motion.div>
             ))
           ) : (
             <div className="py-12 text-center text-zinc-500 text-xs">
@@ -2468,7 +2493,13 @@ export const ItinerariesView: React.FC<ItinerariesViewProps> = ({
           <>
             {/* Collapsed state with ONE route stop: 100% visible, extra rounded and compact above nav bar */}
             {!isExpanded && currentSelectedStep && (
-              <div
+              <motion.div
+                key={`collapsed-step-${currentSelectedStep.id}`}
+                initial={{ opacity: 0, scale: 0.88, y: 12 }}
+                animate={{ opacity: 1, scale: 1, y: 0 }}
+                transition={{ type: 'spring', stiffness: 380, damping: 22 }}
+                whileHover={{ scale: 1.02, transition: { type: 'spring', stiffness: 400, damping: 18 } }}
+                whileTap={{ scale: 0.93, transition: { type: 'spring', stiffness: 500, damping: 14 } }}
                 onClick={() => setIsExpanded(true)}
                 className="px-4 pt-0.5 pb-2 sm:pb-2.5 cursor-pointer"
               >
@@ -2494,11 +2525,10 @@ export const ItinerariesView: React.FC<ItinerariesViewProps> = ({
                     </span>
                     {currentSelectedStep.spot && (
                       <div className="w-12 h-12 rounded-[16px] overflow-hidden shrink-0 bg-zinc-800 relative self-center">
-                        <img
+                        <LazyImage
                           src={getSpotImage(currentSelectedStep.spot)}
                           alt={currentSelectedStep.spot.name}
                           className="w-full h-full object-cover"
-                          referrerPolicy="no-referrer"
                           onError={(e) => {
                             (e.target as HTMLImageElement).src = getSpotFallbackImage(currentSelectedStep.spot?.name || '', currentSelectedStep.spot?.category || 'attractions');
                           }}
@@ -2536,7 +2566,7 @@ export const ItinerariesView: React.FC<ItinerariesViewProps> = ({
                     />
                   </div>
                 </div>
-              </div>
+              </motion.div>
             )}
 
             {/* Scrollable Sequential Stops List (when expanded) - Matching the exact visual identity of Foto 1 */}
@@ -2551,22 +2581,27 @@ export const ItinerariesView: React.FC<ItinerariesViewProps> = ({
                 {userItinerary?.days && userItinerary.days.length > 1 && (
                   <div className="flex items-center gap-1.5 pb-2 overflow-x-auto no-scrollbar">
                     {userItinerary.days.map((day, dIdx) => (
-                      <button
+                      <motion.button
                         type="button"
                         key={day.dayNumber}
+                        initial={{ opacity: 0, scale: 0.88, y: 12 }}
+                        animate={{ opacity: 1, scale: 1, y: 0 }}
+                        transition={{ type: 'spring', stiffness: 380, damping: 22, delay: dIdx * 0.035 }}
+                        whileHover={{ scale: 1.02, transition: { type: 'spring', stiffness: 400, damping: 18 } }}
+                        whileTap={{ scale: 0.93, transition: { type: 'spring', stiffness: 500, damping: 14 } }}
                         onClick={() => {
                           setSelectedDayIndex(dIdx);
                           const firstStepOfDay = day.steps?.[0];
                           if (firstStepOfDay) setSelectedStopId(firstStepOfDay.id);
                         }}
-                        className={`px-3 py-1 rounded-full text-xs font-bold transition-all cursor-pointer whitespace-nowrap ${
+                        className={`px-3 py-1 rounded-full text-xs font-bold transition-colors cursor-pointer whitespace-nowrap ${
                           selectedDayIndex === dIdx
                             ? 'bg-white text-black shadow-md'
                             : 'bg-white/10 text-white/80 hover:bg-white/20 border border-white/10'
                         }`}
                       >
                         Dia {day.dayNumber}
-                      </button>
+                      </motion.button>
                     ))}
                   </div>
                 )}

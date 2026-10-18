@@ -16,10 +16,25 @@ import {
   Building2
 } from 'lucide-react';
 import { AdminSpotModal } from './AdminSpotModal';
+import {
+  fetchSpotsFromSupabase,
+  toggleSpotActiveInSupabase,
+  deleteSpotFromSupabase,
+  subscribeToSpotsChanges
+} from '../../services/supabaseSpots';
 
 export const AdminServices: React.FC = () => {
-  const [services, setServices] = useState<any[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [services, setServices] = useState<any[]>(() => {
+    try {
+      const cached = localStorage.getItem('monvian_cached_spots');
+      if (cached) {
+        const parsed = JSON.parse(cached);
+        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+      }
+    } catch {}
+    return [];
+  });
+  const [loading, setLoading] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('all');
 
@@ -30,11 +45,10 @@ export const AdminServices: React.FC = () => {
 
   const fetchServices = async () => {
     try {
-      setLoading(true);
-      const res = await fetch('/api/admin/spots');
-      const data = await res.json();
-      if (data.success && Array.isArray(data.spots)) {
-        setServices(data.spots);
+      if (services.length === 0) setLoading(true);
+      const spotsData = await fetchSpotsFromSupabase();
+      if (Array.isArray(spotsData)) {
+        setServices(spotsData);
       }
     } catch (err) {
       console.error('Error fetching spots in AdminServices:', err);
@@ -45,6 +59,10 @@ export const AdminServices: React.FC = () => {
 
   useEffect(() => {
     fetchServices();
+    const unsubscribe = subscribeToSpotsChanges(() => {
+      fetchServices();
+    });
+    return () => unsubscribe();
   }, []);
 
   const showToast = (msg: string) => {
@@ -54,32 +72,27 @@ export const AdminServices: React.FC = () => {
 
   const handleToggleActive = async (id: string, e: React.MouseEvent) => {
     e.stopPropagation();
+    const item = services.find((s) => s.id === id);
+    if (!item) return;
+    const newStatus = !item.isActive;
     try {
-      const res = await fetch(`/api/admin/spots/${id}/toggle-active`, { method: 'PATCH' });
-      const data = await res.json();
-      if (data.success) {
-        setServices((prev) =>
-          prev.map((s) => (s.id === id ? { ...s, isActive: data.isActive } : s))
-        );
-        showToast(data.isActive ? 'Local/Serviço ativado no mapa.' : 'Local/Serviço pausado.');
-      }
+      await toggleSpotActiveInSupabase(id, newStatus);
+      setServices((prev) =>
+        prev.map((s) => (s.id === id ? { ...s, isActive: newStatus, is_active: newStatus ? 1 : 0 } : s))
+      );
+      showToast(newStatus ? 'Local/Serviço ativado no mapa.' : 'Local/Serviço pausado.');
     } catch (err) {
       console.error(err);
+      showToast('Erro ao atualizar status.');
     }
   };
 
   const handleDelete = async (item: any) => {
+    if (!window.confirm(`Tem certeza que deseja excluir "${item.name}"?`)) return;
     try {
-      // Optimistic UI removal
+      await deleteSpotFromSupabase(item.id);
       setServices((prev) => prev.filter((s) => s.id !== item.id));
-      const res = await fetch(`/api/admin/spots/${item.id}`, { method: 'DELETE' });
-      const data = await res.json();
-      if (data.success) {
-        showToast('Local/Serviço excluído com sucesso.');
-      } else {
-        fetchServices();
-        showToast('Erro ao excluir local.');
-      }
+      showToast('Local/Serviço excluído com sucesso.');
     } catch (err) {
       console.error(err);
       fetchServices();

@@ -25,11 +25,12 @@ export const SpotPreviewBanner: React.FC<SpotPreviewBannerProps> = ({
 
   return (
     <motion.div
-      initial={{ opacity: 0, y: 8, scale: 0.98 }}
+      initial={{ opacity: 0, y: 12, scale: 0.88 }}
       animate={{ opacity: 1, y: 0, scale: 1 }}
-      exit={{ opacity: 0, y: 8, scale: 0.98 }}
-      transition={{ duration: 0.25, ease: [0.16, 1, 0.3, 1] }}
-      whileTap={{ scale: 0.98 }}
+      exit={{ opacity: 0, y: 10, scale: 0.88 }}
+      transition={{ type: 'spring', stiffness: 380, damping: 22 }}
+      whileHover={{ scale: 1.01, transition: { type: 'spring', stiffness: 400, damping: 18 } }}
+      whileTap={{ scale: 0.96, transition: { type: 'spring', stiffness: 500, damping: 14 } }}
       onClick={() => onOpenDetails(spot)}
       style={{
         fontFamily: "-apple-system, BlinkMacSystemFont, 'SF Pro Display', 'SF Pro Text', 'Helvetica Neue', sans-serif",
@@ -42,7 +43,10 @@ export const SpotPreviewBanner: React.FC<SpotPreviewBannerProps> = ({
     >
       {/* 1. Circular Photo (44px) */}
       <div className="w-[44px] h-[44px] rounded-full overflow-hidden shrink-0 bg-zinc-200 dark:bg-zinc-800 border border-black/5 dark:border-white/10 shadow-2xs">
-        <img
+        <motion.img
+          initial={{ opacity: 0, scale: 0.88, y: 8 }}
+          animate={{ opacity: 1, scale: 1, y: 0 }}
+          transition={{ type: 'spring', stiffness: 380, damping: 22, delay: 0.03 }}
           src={spotImage}
           alt={spot.name}
           onError={() => setImgError(true)}

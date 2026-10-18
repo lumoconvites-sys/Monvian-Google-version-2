@@ -110,7 +110,7 @@ export const NavChatIcon: React.FC<IconProps> = ({ className = '', size = 25 }) 
  * 2.5. Salvos / Favoritos: Ícone de coração no padrão Apple iOS SF Symbols / Airbnb.
  * Traço fino e refinado, proporções equilibradas e preenchimento adaptativo.
  */
-export const NavSalvosIcon: React.FC<IconProps & { filled?: boolean }> = ({ className = '', size = 22, filled = false }) => {
+export const NavSalvosIcon: React.FC<IconProps & { filled?: boolean; style?: React.CSSProperties }> = ({ className = '', size = 22, filled = false, style }) => {
   return (
     <svg
       width={size}
@@ -119,12 +119,13 @@ export const NavSalvosIcon: React.FC<IconProps & { filled?: boolean }> = ({ clas
       fill={filled ? 'currentColor' : 'none'}
       xmlns="http://www.w3.org/2000/svg"
       className={className}
+      style={style}
       aria-hidden="true"
     >
       <path
-        d="M12 21.05c-.32 0-.63-.12-.87-.34-4.83-4.39-7.98-7.39-7.98-11.21 0-3.12 2.37-5.5 5.5-5.5 1.95 0 3.75 1.01 4.75 2.59 1-1.58 2.8-2.59 4.75-2.59 3.13 0 5.5 2.38 5.5 5.5 0 3.82-3.15 6.82-7.98 11.21-.24.22-.55.34-.87.34z"
+        d="M19 14c1.49-1.46 3-3.21 3-5.5A5.5 5.5 0 0 0 16.5 3c-1.76 0-3 .5-4.5 2-1.5-1.5-2.74-2-4.5-2A5.5 5.5 0 0 0 2 8.5c0 2.3 1.5 4.05 3 5.5l7 7Z"
         stroke="currentColor"
-        strokeWidth={filled ? '0' : '1.85'}
+        strokeWidth="1.9"
         strokeLinecap="round"
         strokeLinejoin="round"
       />

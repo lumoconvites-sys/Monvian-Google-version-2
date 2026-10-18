@@ -721,6 +721,116 @@ export async function syncDatabaseWithSupabase(sqliteDb: any): Promise<void> {
       }
     } catch {}
 
+    // 4. Itineraries & Categories Synchronization
+    try {
+      const { data: remoteItins }: any = await withTimeout(
+        supabase.from('itineraries').select('*'),
+        5000,
+        { data: null }
+      );
+
+      if (Array.isArray(remoteItins) && remoteItins.length > 0) {
+        const upsertItin = sqliteDb.prepare(`
+          INSERT INTO itineraries (
+            id, title, description, cover_image, days_count, categories,
+            is_active, is_recommended, is_featured, is_premium, price,
+            status, badge_text, show_badge, show_price, show_stops_count,
+            tips, sort_order, notes, usage_count
+          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+          ON CONFLICT(id) DO UPDATE SET
+            title = excluded.title,
+            description = excluded.description,
+            cover_image = excluded.cover_image,
+            days_count = excluded.days_count,
+            categories = excluded.categories,
+            is_active = excluded.is_active,
+            is_recommended = excluded.is_recommended,
+            is_featured = excluded.is_featured,
+            is_premium = excluded.is_premium,
+            price = excluded.price,
+            status = excluded.status,
+            badge_text = excluded.badge_text,
+            show_badge = excluded.show_badge,
+            show_price = excluded.show_price,
+            show_stops_count = excluded.show_stops_count,
+            tips = excluded.tips,
+            sort_order = excluded.sort_order,
+            notes = excluded.notes,
+            usage_count = excluded.usage_count,
+            updated_at = CURRENT_TIMESTAMP
+        `);
+
+        for (const it of remoteItins) {
+          upsertItin.run(
+            it.id,
+            it.title,
+            it.description || '',
+            it.cover_image || '',
+            it.days_count || 1,
+            it.categories || '[]',
+            it.is_active !== undefined ? Number(it.is_active) : 1,
+            it.is_recommended !== undefined ? Number(it.is_recommended) : 1,
+            it.is_featured !== undefined ? Number(it.is_featured) : 0,
+            it.is_premium !== undefined ? Number(it.is_premium) : 1,
+            it.price || 'R$ 14,90',
+            it.status || 'published',
+            it.badge_text || 'Premium',
+            it.show_badge !== undefined ? Number(it.show_badge) : 1,
+            it.show_price !== undefined ? Number(it.show_price) : 1,
+            it.show_stops_count !== undefined ? Number(it.show_stops_count) : 1,
+            it.tips || '',
+            Number(it.sort_order || 0),
+            it.notes || '',
+            Number(it.usage_count || 0)
+          );
+        }
+
+        // Hydrate days & steps from Supabase into SQLite
+        const [remoteDaysRes, remoteStepsRes] = await Promise.all([
+          supabase.from('itinerary_days').select('*'),
+          supabase.from('itinerary_steps').select('*'),
+        ]);
+
+        if (Array.isArray(remoteDaysRes.data) && remoteDaysRes.data.length > 0) {
+          const insertDay = sqliteDb.prepare(`
+            INSERT OR REPLACE INTO itinerary_days (id, itinerary_id, day_number, title, summary)
+            VALUES (?, ?, ?, ?, ?)
+          `);
+          for (const d of remoteDaysRes.data) {
+            insertDay.run(d.id, d.itinerary_id, d.day_number, d.title || '', d.summary || '');
+          }
+        }
+
+        if (Array.isArray(remoteStepsRes.data) && remoteStepsRes.data.length > 0) {
+          const insertStep = sqliteDb.prepare(`
+            INSERT OR REPLACE INTO itinerary_steps (
+              id, itinerary_id, day_id, spot_id, step_order, suggested_time,
+              duration_minutes, notes, custom_name, custom_description, custom_tip, custom_image
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+          `);
+          for (const s of remoteStepsRes.data) {
+            insertStep.run(
+              s.id,
+              s.itinerary_id,
+              s.day_id,
+              s.spot_id,
+              s.step_order || 1,
+              s.suggested_time || '09:00',
+              s.duration_minutes || 90,
+              s.notes || '',
+              s.custom_name || '',
+              s.custom_description || '',
+              s.custom_tip || '',
+              s.custom_image || ''
+            );
+          }
+        }
+        console.log(`[SupabaseSync] Hydrated ${remoteItins.length} itineraries from Supabase PostgreSQL.`);
+      }
+    } catch (e) {
+      console.warn('[SupabaseSync] Notice during itineraries sync:', e);
+    }
+
     console.log('[SupabaseSync] Synchronization completed.');
   } catch (err) {
     console.warn('[SupabaseSync] Non-fatal sync notice:', err);

@@ -151,7 +151,13 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({
           {/* User Profile Capsule */}
           <div className="flex items-center gap-2 pl-2 border-l border-zinc-200 dark:border-zinc-700">
             <img
-              src={currentUser?.avatar_url || '/fotoperfil.png'}
+              src={
+                currentUser?.avatar_url && currentUser.avatar_url !== '/fotoperfil.png'
+                  ? currentUser.avatar_url
+                  : (typeof window !== 'undefined' ? localStorage.getItem('monvian_local_avatar') : null) ||
+                    currentUser?.avatar_url ||
+                    '/fotoperfil.png'
+              }
               alt="Avatar"
               className="w-8 h-8 rounded-full object-cover ring-1 ring-zinc-200 dark:ring-zinc-700"
             />

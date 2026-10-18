@@ -2,6 +2,12 @@ import express from 'express';
 import { Database } from 'better-sqlite3';
 import { CAMPOS_SPOTS } from '../data/spots.js';
 import { DEFAULT_CURATED_ITINERARIES } from '../data/defaultItineraries.js';
+import {
+  saveItineraryToSupabase,
+  deleteItineraryFromSupabase,
+  toggleItineraryFeaturedInSupabase,
+  toggleItineraryStatusInSupabase,
+} from '../services/supabaseItineraries.js';
 
 // Haversine formula to calculate distance between coordinates in km
 export function calculateDistanceKm(lat1: number, lon1: number, lat2: number, lon2: number): number {
@@ -1116,6 +1122,11 @@ export function registerItineraryRoutes(
         }
       })();
 
+      // Persist authoritatively to Supabase PostgreSQL
+      saveItineraryToSupabase({ ...req.body, id }, false).catch((e) =>
+        console.warn('[ItineraryRoutes] Supabase sync itin notice:', e)
+      );
+
       logAdminAction(userId, userName, 'Criou Roteiro Turístico', title);
       res.json({ success: true, id, message: 'Roteiro criado com sucesso' });
     } catch (err: any) {
@@ -1245,6 +1256,11 @@ export function registerItineraryRoutes(
           });
         }
       })();
+
+      // Persist authoritatively to Supabase PostgreSQL
+      saveItineraryToSupabase({ ...req.body, id }, true).catch((e) =>
+        console.warn('[ItineraryRoutes] Supabase sync itin notice:', e)
+      );
 
       logAdminAction(userId, userName, 'Editou Roteiro Turístico', `ID: ${id}`);
       res.json({ success: true, message: 'Roteiro atualizado com sucesso' });
@@ -1429,6 +1445,10 @@ export function registerItineraryRoutes(
         db.prepare('DELETE FROM itinerary_days WHERE itinerary_id = ?').run(id);
         db.prepare('DELETE FROM itineraries WHERE id = ?').run(id);
       })();
+
+      deleteItineraryFromSupabase(id).catch((e) =>
+        console.warn('[ItineraryRoutes] Supabase delete itin notice:', e)
+      );
 
       logAdminAction(userId, userName, 'Excluiu Roteiro', current?.title || id);
       res.json({ success: true, message: 'Roteiro excluído' });

@@ -17,10 +17,9 @@
     <script>
       (function() {
         try {
-          var savedTheme = localStorage.getItem('monvian_theme');
-          var isDark = savedTheme !== 'light';
-          var topColor = isDark ? '#000000' : '#f4f4f5';
-          var statusStyle = 'black-translucent';
+          localStorage.setItem('monvian_theme', 'light');
+          var topColor = '#ffffff';
+          var statusStyle = 'default';
           var logoSrc = '/logocarregamento.png';
 
           var themeMetas = document.querySelectorAll('meta[name="theme-color"]');
@@ -30,15 +29,10 @@
           var statusMeta = document.getElementById('apple-status-bar-meta');
           if (statusMeta) statusMeta.setAttribute('content', statusStyle);
 
-          document.documentElement.style.backgroundColor = topColor;
-          if (document.body) document.body.style.backgroundColor = topColor;
-          if (isDark) {
-            document.documentElement.classList.add('dark');
-            document.documentElement.classList.remove('light');
-          } else {
-            document.documentElement.classList.remove('dark');
-            document.documentElement.classList.add('light'); 
-          }
+          document.documentElement.style.backgroundColor = '#ffffff';
+          if (document.body) document.body.style.backgroundColor = '#ffffff';
+          document.documentElement.classList.remove('dark');
+          document.documentElement.classList.add('light');
 
           var preloader = document.getElementById('monvian-app-preloader');
           if (preloader) preloader.style.backgroundColor = '#ffffff';
@@ -49,17 +43,31 @@
     </script>
     <script>
       (function() {
-        // Fade in/out and remove preloader after 2 seconds
-        window.addEventListener('load', function() {
-          setTimeout(function() {
-            var preloader = document.getElementById('monvian-app-preloader');
-            if (preloader) {
-              preloader.style.transition = 'opacity 0.5s ease-in-out';
+        var dismissed = false;
+        function dismissPreloader() {
+          if (dismissed) return;
+          dismissed = true;
+          var preloader = document.getElementById('monvian-app-preloader');
+          var preloaderLogo = document.getElementById('monvian-preloader-logo');
+          if (preloaderLogo) {
+            preloaderLogo.style.animation = 'monvianLogoSpringExit 0.45s cubic-bezier(0.32, 0, 0.67, 0) forwards';
+          }
+          if (preloader) {
+            setTimeout(function() {
+              preloader.style.transition = 'opacity 0.38s cubic-bezier(0.16, 1, 0.3, 1)';
               preloader.style.opacity = '0';
-              setTimeout(function() { preloader.style.display = 'none'; }, 500);
-            }
-          }, 2000);
+              setTimeout(function() {
+                preloader.style.display = 'none';
+              }, 400);
+            }, 220);
+          }
+        }
+
+        window.addEventListener('load', function() {
+          setTimeout(dismissPreloader, 1450);
         });
+        // Fallback safety timer in case load event already fired or takes longer
+        setTimeout(dismissPreloader, 2400);
       })();
     </script>
     <!-- Dynamic Viewport Height & Zoom Lock for iOS/Android Mobile Devices -->
@@ -171,17 +179,40 @@
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Dancing+Script:wght@500;600;700&family=Marck+Script&display=swap" rel="stylesheet">
   </head>
   <body>
-    <div id="root">
-      <div id="monvian-app-preloader" style="position:fixed;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;background-color:#ffffff;z-index:99999;user-select:none;-webkit-user-select:none;touch-action:none;">
-        <img id="monvian-preloader-logo" src="/logocarregamento.png" alt="Monvian" style="height:72px;width:auto;max-width:280px;object-fit:contain;" />
-      </div>
-      <style>
-        @keyframes monvianPulse {
-          0%, 100% { opacity: 0.75; transform: scale(0.98); }
-          50% { opacity: 1; transform: scale(1.02); }
-        }
-      </style>
+    <div id="monvian-app-preloader" style="position:fixed;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;background-color:#ffffff;z-index:99999;user-select:none;-webkit-user-select:none;touch-action:none;">
+      <img id="monvian-preloader-logo" src="/logocarregamento.png" alt="Monvian" style="height:72px;width:auto;max-width:280px;object-fit:contain;opacity:0;transform:translateY(12px) scale(0.88);animation:monvianLogoSpringEnter 0.58s cubic-bezier(0.22, 1.35, 0.36, 1) 0.08s forwards;will-change:transform,opacity;" />
     </div>
+    <style>
+      @keyframes monvianLogoSpringEnter {
+        0% {
+          opacity: 0;
+          transform: translateY(12px) scale(0.88);
+        }
+        68% {
+          opacity: 1;
+          transform: translateY(-2px) scale(1.03);
+        }
+        100% {
+          opacity: 1;
+          transform: translateY(0px) scale(1);
+        }
+      }
+      @keyframes monvianLogoSpringExit {
+        0% {
+          opacity: 1;
+          transform: translateY(0px) scale(1);
+        }
+        28% {
+          opacity: 1;
+          transform: translateY(-2px) scale(1.02);
+        }
+        100% {
+          opacity: 0;
+          transform: translateY(12px) scale(0.88);
+        }
+      }
+    </style>
+    <div id="root"></div>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>

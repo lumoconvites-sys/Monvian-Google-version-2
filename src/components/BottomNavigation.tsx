@@ -51,8 +51,8 @@ export const BottomNavigation: React.FC<BottomNavigationProps> = ({
   const normalizedActiveTab: TabType = (activeTab as string) === 'chat' ? 'salvos' : (activeTab as TabType);
 
   const tabs: { id: TabType; label: string }[] = [
-    { id: 'salvos', label: 'Salvos' },
     { id: 'roteiros', label: 'Roteiros' },
+    { id: 'salvos', label: 'Salvos' },
     { id: 'explorar', label: 'Explorar' },
     { id: 'buscar', label: 'Buscar' },
     { id: 'perfil', label: 'Perfil' },
@@ -266,7 +266,7 @@ export const BottomNavigation: React.FC<BottomNavigationProps> = ({
                   {/* Inside: Icons logic */}
                   {tab.id === 'explorar' && <NavAgoraIcon size={22} className="text-current" />}
                   {tab.id === 'roteiros' && <NavRoteirosIcon size={22} className="text-current" />}
-                  {tab.id === 'salvos' && <NavSalvosIcon size={22} filled={isActive} className="text-current" />}
+                  {tab.id === 'salvos' && <NavSalvosIcon size={22} className="text-current" />}
                   {tab.id === 'buscar' && <NavSearchIcon size={22} className="text-current" />}
                   {tab.id === 'perfil' && <NavProfileIcon size={22} className="text-current" />}
               </motion.div>

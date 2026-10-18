@@ -78,35 +78,40 @@ export function normalizeSpotRecord(row: any): Spot {
  * Loads spots directly from Supabase PostgreSQL (the primary source of truth).
  * Falls back safely to cached spots or initial spots if offline or unconfigured.
  */
-export async function fetchSpotsFromSupabase(): Promise<Spot[]> {
+export async function fetchSpotsFromSupabase(options?: { throwOnError?: boolean }): Promise<Spot[]> {
   try {
     if (isSupabaseConfigured && supabase) {
-      // Execute with a 6-second timeout so UI never hangs indefinitely
       const queryPromise = supabase
         .from('spots')
         .select('*')
         .order('name', { ascending: true });
 
       const timeoutPromise = new Promise<{ data: null; error: { message: string } }>((resolve) =>
-        setTimeout(() => resolve({ data: null, error: { message: 'Timeout ao conectar com Supabase' } }), 6000)
+        setTimeout(() => resolve({ data: null, error: { message: 'Tempo limite ao conectar com Supabase (10s)' } }), 10000)
       );
 
       const { data, error } = await Promise.race([queryPromise, timeoutPromise]);
 
-      if (!error && Array.isArray(data) && data.length > 0) {
+      if (error) {
+        console.error('[SupabaseSpots] Erro ao consultar spots:', error.message);
+        if (options?.throwOnError) {
+          throw new Error(`Falha ao consultar banco de dados: ${error.message}`);
+        }
+      } else if (Array.isArray(data)) {
         const normalized = data.map(normalizeSpotRecord);
         try {
           localStorage.setItem('monvian_cached_spots', JSON.stringify(normalized));
         } catch {}
         return normalized;
       }
-
-      if (error && error.message !== 'Timeout ao conectar com Supabase') {
-        console.warn('[SupabaseSpots] Erro ao consultar spots:', error.message);
-      }
+    } else if (options?.throwOnError) {
+      throw new Error('Supabase não está configurado no ambiente.');
     }
-  } catch (err) {
-    console.warn('[SupabaseSpots] Falha de rede ao consultar Supabase:', err);
+  } catch (err: any) {
+    if (options?.throwOnError) {
+      throw err;
+    }
+    console.warn('[SupabaseSpots] Falha de conexão ao consultar Supabase, usando cache local:', err);
   }
 
   // Fallback 1: Local cache in browser

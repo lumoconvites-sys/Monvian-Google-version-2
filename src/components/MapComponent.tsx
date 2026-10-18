@@ -4,7 +4,7 @@ import 'maplibre-gl/dist/maplibre-gl.css';
 import { Plus, Minus, Layers } from 'lucide-react';
 import { Spot, MapModeType } from '../types';
 import { getSpotImage, getSpotFallbackImage } from '../utils/spotImages';
-import { generateMarkerHtml } from '../utils/mapVisualIcons';
+import { generateMarkerHtml, MAP_VISUAL_ICON_CATEGORIES } from '../utils/mapVisualIcons';
 import { gpsNavigationManager } from '../services/gpsNavigation';
 import { deviceHeadingManager } from '../utils/deviceHeading';
 import { CompassIcon } from './CompassIcon';
@@ -547,8 +547,19 @@ export const MapComponent = forwardRef<MapComponentHandle, MapComponentProps>(
         innerCircle.style.backgroundColor = '#18181B';
         innerCircle.style.boxShadow = '0 2px 8px rgba(0, 0, 0, 0.4)';
 
+        const getEffectiveAvatar = (av?: string) => {
+          if (av && av !== '/fotoperfil.png') return av;
+          try {
+            const localAv = localStorage.getItem('monvian_local_avatar');
+            if (localAv && localAv.trim().length > 0) return localAv;
+            const savedUser = JSON.parse(localStorage.getItem('monvian_user') || '{}');
+            if (savedUser?.avatar_url && savedUser.avatar_url.trim().length > 0) return savedUser.avatar_url;
+          } catch {}
+          return av || '/fotoperfil.png';
+        };
+
         const avatarImg = document.createElement('img');
-        avatarImg.src = userAvatar || '/fotoperfil.png';
+        avatarImg.src = getEffectiveAvatar(userAvatar);
         avatarImg.alt = userName || 'Eu';
         avatarImg.style.width = '100%';
         avatarImg.style.height = '100%';
@@ -606,11 +617,37 @@ export const MapComponent = forwardRef<MapComponentHandle, MapComponentProps>(
       };
     }, []);
 
-    // Keep user avatar updated if userAvatar prop changes
+    // Keep user avatar updated if userAvatar prop changes or profile photo is updated
     useEffect(() => {
-      if (userAvatarImgRef.current && userAvatar) {
-        userAvatarImgRef.current.src = userAvatar;
-      }
+      const updateMarkerAvatar = (av?: string) => {
+        if (!userAvatarImgRef.current) return;
+        let resolved = av;
+        if (!resolved || resolved === '/fotoperfil.png') {
+          try {
+            const localAv = localStorage.getItem('monvian_local_avatar');
+            if (localAv && localAv.trim().length > 0) resolved = localAv;
+            else {
+              const savedUser = JSON.parse(localStorage.getItem('monvian_user') || '{}');
+              if (savedUser?.avatar_url && savedUser.avatar_url.trim().length > 0) {
+                resolved = savedUser.avatar_url;
+              }
+            }
+          } catch {}
+        }
+        if (resolved && userAvatarImgRef.current.src !== resolved) {
+          userAvatarImgRef.current.src = resolved;
+        }
+      };
+
+      updateMarkerAvatar(userAvatar);
+
+      const handleUserUpdated = (e: any) => {
+        updateMarkerAvatar(e?.detail?.avatar_url || userAvatar);
+      };
+      window.addEventListener('monvian:user_updated', handleUserUpdated);
+      return () => {
+        window.removeEventListener('monvian:user_updated', handleUserUpdated);
+      };
     }, [userAvatar]);
 
     // Sync with userCoords prop if provided externally
@@ -939,7 +976,7 @@ export const MapComponent = forwardRef<MapComponentHandle, MapComponentProps>(
     // Render static visual map icons
     const visualIconMarkersRef = useRef<maplibregl.Marker[]>([]);
 
-    useEffect(() => {
+    const renderVisualIcons = useCallback(() => {
       const map = mapRef.current;
       if (!map) return;
 
@@ -953,7 +990,9 @@ export const MapComponent = forwardRef<MapComponentHandle, MapComponentProps>(
       if (!visualIcons || !Array.isArray(visualIcons) || visualIcons.length === 0) return;
 
       visualIcons.forEach((item, iconIdx) => {
-        if (!item.latitude || !item.longitude) return;
+        const latNum = Number(item.latitude);
+        const lngNum = Number(item.longitude);
+        if (isNaN(latNum) || isNaN(lngNum)) return;
         if (item.is_active === 0 || item.is_active === false) return;
 
         const el = document.createElement('div');
@@ -995,17 +1034,41 @@ export const MapComponent = forwardRef<MapComponentHandle, MapComponentProps>(
               }
             );
           } catch (err) {}
+
+          const meta = MAP_VISUAL_ICON_CATEGORIES[item.category];
+          const label = meta?.label || 'Ponto de Referência';
+          try {
+            new maplibregl.Popup({ offset: 25, closeButton: true })
+              .setLngLat([lngNum, latNum])
+              .setHTML(`<div style="padding: 6px 10px; font-weight: bold; font-size: 13px; color: #111; font-family: sans-serif;">📍 ${label}</div>`)
+              .addTo(map);
+          } catch (err) {}
         };
 
         const marker = new maplibregl.Marker({
           element: el,
         })
-          .setLngLat([item.longitude, item.latitude])
+          .setLngLat([lngNum, latNum])
           .addTo(map);
 
         visualIconMarkersRef.current.push(marker);
       });
     }, [visualIcons]);
+
+    useEffect(() => {
+      renderVisualIcons();
+      const map = mapRef.current;
+      if (map) {
+        map.on('style.load', renderVisualIcons);
+        map.on('load', renderVisualIcons);
+      }
+      return () => {
+        if (map) {
+          map.off('style.load', renderVisualIcons);
+          map.off('load', renderVisualIcons);
+        }
+      };
+    }, [renderVisualIcons]);
 
     const handleCycleMapStyle = () => {
       const next: MapModeType =

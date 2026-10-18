@@ -12,6 +12,10 @@ import {
   persistUserToSupabase,
   persistPurchaseToSupabase,
 } from '../services/supabaseSync.js';
+import {
+  recordFinancialSaleAndCommission,
+  recordFinancialRefund,
+} from './financialRoutes.js';
 import { doc, setDoc, getDoc } from 'firebase/firestore';
 
 // Setup SQLite Purchases Table and Users Columns
@@ -52,16 +56,24 @@ export function registerStripeRoutes(
   getAuthUser: (req: express.Request) => Promise<any> | any,
   logAdminAction?: (userId: number, userName: string, action: string, details?: string) => void
 ) {
-  // Initialize Stripe client
-  const stripeSecretKey = process.env.STRIPE_SECRET_KEY || '';
-  const stripeWebhookSecret = process.env.STRIPE_WEBHOOK_SECRET || '';
-  
-  let stripeClient: Stripe | null = null;
-  if (stripeSecretKey) {
-    stripeClient = new Stripe(stripeSecretKey, {
-      apiVersion: '2024-12-18.acacia' as any,
-    });
+  // Dynamically resolve Stripe client from environment or system_settings
+  function getStripeKey(): string {
+    const envKey = (process.env.STRIPE_SECRET_KEY || '').trim();
+    if (envKey) return envKey;
+    try {
+      const row = db.prepare("SELECT value FROM system_settings WHERE key = 'stripe_secret_key'").get() as { value?: string } | undefined;
+      if (row?.value && row.value.trim()) return row.value.trim();
+    } catch {}
+    return '';
   }
+
+  function getStripeClient(): Stripe | null {
+    const key = getStripeKey();
+    if (!key) return null;
+    return new Stripe(key);
+  }
+
+  const stripeWebhookSecret = process.env.STRIPE_WEBHOOK_SECRET || '';
 
   const GOLD_PRICE_CENTS = 1990; // R$ 19,90 (1990 centavos BRL)
   const GOLD_CURRENCY = 'brl';
@@ -97,6 +109,19 @@ export function registerStripeRoutes(
         currency.toLowerCase(),
         JSON.stringify(metadataObj)
       );
+
+      // 1.5 Record sale, referral attribution & commission split (60% host / 40% Monvian)
+      recordFinancialSaleAndCommission(db, {
+        stripeSessionId,
+        stripePaymentIntentId: paymentIntentId,
+        buyerUserId: userId,
+        buyerEmail: cleanEmail,
+        referralCode: metadataObj?.referralCode || metadataObj?.ref || null,
+        hostUserId: metadataObj?.hostUserId ? parseInt(metadataObj.hostUserId, 10) : null,
+        grossAmountCents: amountTotal,
+        currency,
+        metadata: metadataObj
+      });
 
       // 2. Update user status in SQLite
       db.prepare(`
@@ -197,8 +222,9 @@ export function registerStripeRoutes(
   // 1. Check Stripe Configuration Status
   // --------------------------------------------------------------------------
   app.get('/api/stripe/config', (req, res) => {
+    const currentKey = getStripeKey();
     res.json({
-      configured: Boolean(stripeSecretKey),
+      configured: Boolean(currentKey),
       price: 'R$ 19,90',
       currency: 'BRL',
       mode: 'payment',
@@ -212,26 +238,22 @@ export function registerStripeRoutes(
   app.post('/api/stripe/create-checkout-session', async (req, res) => {
     try {
       const user = await getAuthUser(req);
-      if (!user) {
-        res.status(401).json({ error: 'Você precisa estar conectado para adquirir a Conta Elite Gold.' });
-        return;
-      }
+      const bodyEmail = typeof req.body?.email === 'string' ? req.body.email.trim().toLowerCase() : '';
+      const bodyUserId = req.body?.userId ? String(req.body.userId) : '';
+      const cleanEmail = (user?.email || user?.whatsapp || bodyEmail || '').trim().toLowerCase();
+      const userIdStr = String(user?.id || bodyUserId || 'guest');
 
-      const cleanEmail = (user.email || user.whatsapp || '').trim().toLowerCase();
-      const isGoldAdmin = isPrimaryAdmin(cleanEmail);
-      const isAlreadyGold = isGoldAdmin || user.is_gold === 1 || user.is_premium === 1 || user.plan === 'gold';
-
-      if (isAlreadyGold) {
-        res.json({
-          alreadyGold: true,
-          message: 'Sua conta já possui acesso permanente à Conta Elite Gold!'
-        });
-        return;
+      const referralCode = req.body?.referralCode || req.body?.ref || req.body?.referral_code || '';
+      let hostUserIdNum: number | null = null;
+      if (referralCode) {
+        const hp: any = db.prepare('SELECT user_id FROM host_profiles WHERE LOWER(referral_code) = ?').get(String(referralCode).trim().toLowerCase());
+        if (hp) hostUserIdNum = hp.user_id;
       }
 
       const host = req.get('host') || 'localhost:3000';
       const protocol = req.get('x-forwarded-proto') || (req.secure ? 'https' : 'http');
       const origin = process.env.APP_URL || `${protocol}://${host}`;
+      const stripeClient = getStripeClient();
 
       if (!stripeClient) {
         // Safe developer fallback if STRIPE_SECRET_KEY is not configured yet
@@ -249,6 +271,9 @@ export function registerStripeRoutes(
         return;
       }
 
+      const isValidEmail = cleanEmail.includes('@') && cleanEmail.includes('.');
+      const productImages = origin.startsWith('https://') ? [`${origin}/stripe_gold_banner.jpg`] : undefined;
+
       // Create authentic Stripe Checkout Session
       const session = await stripeClient.checkout.sessions.create({
         payment_method_types: ['card'],
@@ -260,20 +285,20 @@ export function registerStripeRoutes(
               product_data: {
                 name: 'Monvian - Conta Elite Gold',
                 description: 'Acesso permanente aos roteiros exclusivos, pontos turísticos selecionados por guias e experiências em Campos do Jordão.',
-                images: [
-                  `${origin}/monvian_gold_banner.jpg`
-                ],
+                ...(productImages ? { images: productImages } : {}),
               },
               unit_amount: GOLD_PRICE_CENTS, // R$ 19,90 (1990 centavos BRL)
             },
             quantity: 1,
           },
         ],
-        customer_email: cleanEmail,
-        client_reference_id: String(user.id),
+        ...(isValidEmail ? { customer_email: cleanEmail } : {}),
+        client_reference_id: userIdStr,
         metadata: {
-          userId: String(user.id),
-          userEmail: cleanEmail,
+          userId: userIdStr,
+          userEmail: cleanEmail || 'guest',
+          referralCode: referralCode || '',
+          hostUserId: hostUserIdNum ? String(hostUserIdNum) : '',
           plan: 'gold',
           product: 'monvians_gold_premium',
           price: '19.90'
@@ -306,6 +331,7 @@ export function registerStripeRoutes(
     const rawBody = req.rawBody || req.body;
 
     try {
+      const stripeClient = getStripeClient();
       if (stripeClient && stripeWebhookSecret && sig) {
         event = stripeClient.webhooks.constructEvent(rawBody, sig, stripeWebhookSecret);
       } else {
@@ -446,6 +472,7 @@ export function registerStripeRoutes(
       }
 
       // 3. Actively query Stripe API to confirm real payment status
+      const stripeClient = getStripeClient();
       if (stripeClient) {
         const session = await stripeClient.checkout.sessions.retrieve(sessionId);
         if (session && (session.payment_status === 'paid' || (session.status as any) === 'complete')) {

@@ -206,6 +206,13 @@ export const HostDashboard: React.FC<HostDashboardProps> = ({
   const [isBalanceLoading, setIsBalanceLoading] = useState(true);
   const [serverBalanceData, setServerBalanceData] = useState<HostDashboardProps['balanceData'] | null>(null);
 
+  // Pull-to-refresh (Instagram style) states
+  const scrollContainerRef = useRef<HTMLDivElement | null>(null);
+  const pullStartYRef = useRef<number | null>(null);
+  const isPullingRef = useRef<boolean>(false);
+  const [pullDistance, setPullDistance] = useState<number>(0);
+  const [isPullRefreshing, setIsPullRefreshing] = useState<boolean>(false);
+
   const draftTimeoutRef = useRef<any>(null);
   const lastLookedUpCepRef = useRef<string>('');
 
@@ -219,8 +226,17 @@ export const HostDashboard: React.FC<HostDashboardProps> = ({
   const referralLink = activeBalanceData?.referralLink ?? 'https://monvian.app/indique/abc123';
   const isTrackingActive = activeBalanceData?.isTrackingActive ?? false;
 
-  const userAvatar = user?.avatar_url || '/fotoperfil.png';
+  const userAvatar =
+    user?.avatar_url && user.avatar_url !== '/fotoperfil.png'
+      ? user.avatar_url
+      : (typeof window !== 'undefined' ? localStorage.getItem('monvian_local_avatar') : null) ||
+        user?.avatar_url ||
+        '/fotoperfil.png';
   const userInitial = (user?.name || 'A').trim().charAt(0).toUpperCase();
+
+  useEffect(() => {
+    setAvatarError(false);
+  }, [userAvatar, isOpen]);
 
   // Save partial progress safely to backend without marking completed
   const saveDraftToBackend = useCallback(
@@ -565,12 +581,112 @@ export const HostDashboard: React.FC<HostDashboardProps> = ({
     }
   };
 
-  const handleRefreshBalance = (e: React.MouseEvent) => {
-    e.stopPropagation();
+  const triggerPullRefresh = useCallback(async () => {
+    setIsPullRefreshing(true);
+    setPullDistance(58);
     setIsBalanceLoading(true);
+
+    try {
+      const token = localStorage.getItem('monvian_token');
+      const headers: Record<string, string> = {};
+      if (token) headers.Authorization = `Bearer ${token}`;
+      const dashRes = await fetch('/api/host/dashboard', { headers });
+      const dashData = await dashRes.json();
+      if (dashRes.ok && dashData.balanceData) {
+        setServerBalanceData(dashData.balanceData);
+      }
+    } catch {
+      // Keep existing balance data if offline
+    }
+
     setTimeout(() => {
       setIsBalanceLoading(false);
-    }, 650);
+      setIsPullRefreshing(false);
+      setPullDistance(0);
+    }, 700);
+  }, []);
+
+  const handleTouchStartPull = (e: React.TouchEvent<HTMLDivElement>) => {
+    if (isPullRefreshing) return;
+    const scrollTop = scrollContainerRef.current?.scrollTop ?? 0;
+    if (scrollTop <= 2 && e.touches.length === 1) {
+      pullStartYRef.current = e.touches[0].clientY;
+      isPullingRef.current = true;
+    } else {
+      pullStartYRef.current = null;
+      isPullingRef.current = false;
+    }
+  };
+
+  const handleTouchMovePull = (e: React.TouchEvent<HTMLDivElement>) => {
+    if (!isPullingRef.current || pullStartYRef.current === null || isPullRefreshing) return;
+    const scrollTop = scrollContainerRef.current?.scrollTop ?? 0;
+    if (scrollTop > 2) {
+      isPullingRef.current = false;
+      pullStartYRef.current = null;
+      setPullDistance(0);
+      return;
+    }
+    const deltaY = e.touches[0].clientY - pullStartYRef.current;
+    if (deltaY > 0) {
+      const damped = Math.min(92, deltaY * 0.46);
+      setPullDistance(damped);
+    } else {
+      setPullDistance(0);
+    }
+  };
+
+  const handleTouchEndPull = () => {
+    if (!isPullingRef.current || isPullRefreshing) return;
+    isPullingRef.current = false;
+    pullStartYRef.current = null;
+
+    if (pullDistance >= 48) {
+      triggerPullRefresh();
+    } else {
+      setPullDistance(0);
+    }
+  };
+
+  const handleMouseDownPull = (e: React.MouseEvent<HTMLDivElement>) => {
+    if (isPullRefreshing) return;
+    const target = e.target as HTMLElement;
+    if (target.closest('button, input, select, textarea, a')) return;
+    const scrollTop = scrollContainerRef.current?.scrollTop ?? 0;
+    if (scrollTop <= 2) {
+      pullStartYRef.current = e.clientY;
+      isPullingRef.current = true;
+    }
+  };
+
+  const handleMouseMovePull = (e: React.MouseEvent<HTMLDivElement>) => {
+    if (!isPullingRef.current || pullStartYRef.current === null || isPullRefreshing) return;
+    const scrollTop = scrollContainerRef.current?.scrollTop ?? 0;
+    if (scrollTop > 2) {
+      isPullingRef.current = false;
+      pullStartYRef.current = null;
+      setPullDistance(0);
+      return;
+    }
+    const deltaY = e.clientY - pullStartYRef.current;
+    if (deltaY > 0) {
+      const damped = Math.min(92, deltaY * 0.46);
+      setPullDistance(damped);
+    } else {
+      setPullDistance(0);
+    }
+  };
+
+  const handleMouseUpPull = () => {
+    if (!isPullingRef.current || isPullRefreshing) return;
+    isPullingRef.current = false;
+    pullStartYRef.current = null;
+
+    if (pullDistance >= 48) {
+      triggerPullRefresh();
+    } else {
+      setPullDistance(0);
+    }
   };
 
   const handleCopyLink = async () => {
@@ -639,8 +755,9 @@ export const HostDashboard: React.FC<HostDashboardProps> = ({
             exit={{ opacity: 0, scale: 0.98, y: 10 }}
             transition={{ duration: 0.26, ease: [0.16, 1, 0.3, 1] }}
             onClick={(e) => e.stopPropagation()}
-            className="relative w-full h-full md:h-[88vh] md:max-w-2xl bg-[#F7F7F9] text-zinc-950 rounded-none md:rounded-[30px] overflow-hidden flex flex-col justify-between shadow-2xl md:border md:border-black/[0.08]"
+            className="relative w-full h-full md:h-[88vh] md:max-w-2xl bg-[#ffffff] text-zinc-950 rounded-none md:rounded-[30px] overflow-hidden flex flex-col justify-between shadow-2xl md:border md:border-black/[0.08]"
             style={{
+              backgroundColor: '#ffffff',
               fontFamily:
                 "-apple-system, BlinkMacSystemFont, 'SF Pro Display', 'SF Pro Text', 'SF Pro', system-ui, sans-serif",
               willChange: 'opacity, transform',
@@ -648,13 +765,55 @@ export const HostDashboard: React.FC<HostDashboardProps> = ({
           >
             {/* Scrollable Content Container */}
             <div
-              className="flex-1 min-h-0 overflow-y-auto overscroll-contain px-5 sm:px-7 max-w-3xl mx-auto w-full flex flex-col"
+              ref={scrollContainerRef}
+              onTouchStart={handleTouchStartPull}
+              onTouchMove={handleTouchMovePull}
+              onTouchEnd={handleTouchEndPull}
+              onTouchCancel={handleTouchEndPull}
+              onMouseDown={handleMouseDownPull}
+              onMouseMove={handleMouseMovePull}
+              onMouseUp={handleMouseUpPull}
+              onMouseLeave={handleMouseUpPull}
+              className="flex-1 min-h-0 overflow-y-auto overscroll-contain px-5 sm:px-7 max-w-3xl mx-auto w-full flex flex-col bg-[#ffffff] relative"
               style={{
                 WebkitOverflowScrolling: 'touch',
                 paddingTop: 'max(calc(env(safe-area-inset-top, 0px) + 16px), 24px)',
                 paddingBottom: 'calc(env(safe-area-inset-bottom, 24px) + 96px)',
               }}
             >
+              {/* Instagram-style Pull-to-Refresh Top Indicator with the exact same RotateCw icon */}
+              <div
+                aria-live="polite"
+                className="w-full flex items-center justify-center overflow-hidden pointer-events-none shrink-0"
+                style={{
+                  height: isPullRefreshing ? 56 : pullDistance > 4 ? pullDistance : 0,
+                  opacity: isPullRefreshing ? 1 : Math.min(1, pullDistance / 38),
+                  transition: isPullingRef.current
+                    ? 'none'
+                    : 'height 0.28s cubic-bezier(0.22, 1, 0.36, 1), opacity 0.22s ease-out',
+                }}
+              >
+                <div
+                  className="w-10 h-10 rounded-full bg-white border border-[#ECECEF] shadow-[0_4px_14px_rgba(0,0,0,0.08)] flex items-center justify-center"
+                  style={{
+                    transform: `scale(${
+                      isPullRefreshing ? 1 : Math.min(1, 0.5 + (pullDistance / 52) * 0.5)
+                    })`,
+                    transition: isPullingRef.current ? 'none' : 'transform 0.24s cubic-bezier(0.22, 1, 0.36, 1)',
+                  }}
+                >
+                  <RotateCw
+                    className={`w-[25.9961px] h-[25.9961px] stroke-[2] text-zinc-900 ${
+                      isPullRefreshing || isBalanceLoading ? 'animate-spin' : ''
+                    }`}
+                    style={
+                      !isPullRefreshing && !isBalanceLoading
+                        ? { transform: `rotate(${Math.round(pullDistance * 3.6)}deg)` }
+                        : undefined
+                    }
+                  />
+                </div>
+              </div>
               {/* ============================================================ */}
               {/* STATE 1: CHECKING SESSION & ONBOARDING STATUS                */}
               {/* ============================================================ */}
@@ -715,10 +874,10 @@ export const HostDashboard: React.FC<HostDashboardProps> = ({
               {flowView === 'onboarding' && (
                 <motion.div
                   key="host-onboarding-view"
-                  initial={{ opacity: 0, y: 6 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  exit={{ opacity: 0, y: -6 }}
-                  transition={{ duration: 0.22 }}
+                  initial={{ opacity: 0, scale: 0.88, y: 12 }}
+                  animate={{ opacity: 1, scale: 1, y: 0 }}
+                  exit={{ opacity: 0, scale: 0.88, y: -6 }}
+                  transition={{ type: 'spring', stiffness: 380, damping: 22 }}
                   className="flex flex-col space-y-3.5"
                 >
                   {/* 1. CABEÇALHO — CONFIGURAR RECEBIMENTOS */}
@@ -747,7 +906,10 @@ export const HostDashboard: React.FC<HostDashboardProps> = ({
                     {/* Avatar real do usuário autenticado */}
                     <div className="w-11 h-11 rounded-full overflow-hidden border border-black/[0.08] bg-zinc-200 shrink-0 shadow-2xs">
                       {!avatarError && userAvatar ? (
-                        <img
+                        <motion.img
+                          initial={{ opacity: 0, scale: 0.88, y: 10 }}
+                          animate={{ opacity: 1, scale: 1, y: 0 }}
+                          transition={{ type: 'spring', stiffness: 380, damping: 22, delay: 0.03 }}
                           src={userAvatar}
                           alt={user?.name || 'Perfil'}
                           onError={() => setAvatarError(true)}
@@ -762,7 +924,12 @@ export const HostDashboard: React.FC<HostDashboardProps> = ({
                   </header>
 
                   {/* 2. INTRODUÇÃO CURTA E PROFISSIONAL */}
-                  <section className="bg-white rounded-[24px] border border-[#ECECEF] p-4 sm:p-5 shadow-[0_2px_10px_rgba(0,0,0,0.02)]">
+                  <motion.section
+                    initial={{ opacity: 0, scale: 0.88, y: 12 }}
+                    animate={{ opacity: 1, scale: 1, y: 0 }}
+                    transition={{ type: 'spring', stiffness: 380, damping: 22, delay: 0.035 }}
+                    className="bg-white rounded-[24px] border border-[#ECECEF] p-4 sm:p-5 shadow-[0_2px_10px_rgba(0,0,0,0.02)]"
+                  >
                     <div className="flex items-start gap-3">
                       <div className="w-9 h-9 rounded-full bg-[#F2F2F5] flex items-center justify-center shrink-0 mt-0.5">
                         <ShieldCheck className="w-[18px] h-[18px] text-zinc-950 stroke-[1.8]" />
@@ -779,10 +946,15 @@ export const HostDashboard: React.FC<HostDashboardProps> = ({
                         </p>
                       </div>
                     </div>
-                  </section>
+                  </motion.section>
 
                   {/* 3. INDICADOR DE PROGRESSO ANIMADO */}
-                  <div className="bg-white rounded-[22px] border border-[#ECECEF] px-4 py-3.5 shadow-[0_2px_10px_rgba(0,0,0,0.02)]">
+                  <motion.div
+                    initial={{ opacity: 0, scale: 0.88, y: 12 }}
+                    animate={{ opacity: 1, scale: 1, y: 0 }}
+                    transition={{ type: 'spring', stiffness: 380, damping: 22, delay: 0.07 }}
+                    className="bg-white rounded-[22px] border border-[#ECECEF] px-4 py-3.5 shadow-[0_2px_10px_rgba(0,0,0,0.02)]"
+                  >
                     <div className="flex items-center justify-between text-[12px] mb-2">
                       <span className="font-semibold text-zinc-950">
                         Etapa {currentStep} de 3 · {stepLabels[currentStep - 1].title}
@@ -821,7 +993,7 @@ export const HostDashboard: React.FC<HostDashboardProps> = ({
                         );
                       })}
                     </div>
-                  </div>
+                  </motion.div>
 
                   {/* 4. FORMULÁRIO EM ETAPAS */}
                   <AnimatePresence mode="wait">
@@ -831,10 +1003,10 @@ export const HostDashboard: React.FC<HostDashboardProps> = ({
                     {currentStep === 1 && (
                       <motion.section
                         key="step-1"
-                        initial={{ opacity: 0, x: 10 }}
-                        animate={{ opacity: 1, x: 0 }}
-                        exit={{ opacity: 0, x: -10 }}
-                        transition={{ duration: 0.2 }}
+                        initial={{ opacity: 0, scale: 0.88, y: 12 }}
+                        animate={{ opacity: 1, scale: 1, y: 0 }}
+                        exit={{ opacity: 0, scale: 0.88, y: -10 }}
+                        transition={{ type: 'spring', stiffness: 380, damping: 22, delay: 0.1 }}
                         className="bg-white rounded-[26px] border border-[#ECECEF] p-5 shadow-[0_2px_10px_rgba(0,0,0,0.02)] space-y-4"
                       >
                         <div>
@@ -1446,14 +1618,19 @@ export const HostDashboard: React.FC<HostDashboardProps> = ({
                   className="flex flex-col"
                 >
                   {/* 1. CABEÇALHO */}
-                  <header className="flex items-center justify-between gap-3 pb-4">
+                  <motion.header
+                    initial={{ opacity: 0, scale: 0.88, y: 12 }}
+                    animate={{ opacity: 1, scale: 1, y: 0 }}
+                    transition={{ type: 'spring', stiffness: 380, damping: 22, delay: 0.02 }}
+                    className="flex items-center justify-between gap-3 pb-4"
+                  >
                     <div className="flex items-center gap-3.5 min-w-0">
                       <button
                         type="button"
                         onClick={handleCloseFlow}
                         aria-label="Voltar"
                         title="Voltar"
-                        className="w-10 h-10 rounded-full bg-[#EFEFF2] hover:bg-[#E5E5EA] flex items-center justify-center text-zinc-950 transition-transform active:scale-95 cursor-pointer shrink-0"
+                        className="w-10 h-10 rounded-full bg-[#ffffff] hover:bg-[#E5E5EA] flex items-center justify-center text-zinc-950 transition-transform active:scale-95 cursor-pointer shrink-0"
                       >
                         <ArrowLeft className="w-[18px] h-[18px] stroke-[2]" />
                       </button>
@@ -1474,11 +1651,14 @@ export const HostDashboard: React.FC<HostDashboardProps> = ({
                     {/* Circular Real User Profile Photo */}
                     <div className="w-12 h-12 rounded-full overflow-hidden border border-black/[0.08] bg-zinc-200 shrink-0 shadow-2xs">
                       {!avatarError && userAvatar ? (
-                        <img
+                        <motion.img
+                          initial={{ opacity: 0, scale: 0.88, y: 10 }}
+                          animate={{ opacity: 1, scale: 1, y: 0 }}
+                          transition={{ type: 'spring', stiffness: 380, damping: 22, delay: 0.04 }}
                           src={userAvatar}
                           alt={user?.name || 'Perfil'}
                           onError={() => setAvatarError(true)}
-                          className="w-full h-full object-cover"
+                          className="w-full h-full border-[#ffffff] object-cover"
                         />
                       ) : (
                         <div className="w-full h-full bg-zinc-200 text-zinc-700 text-base font-semibold flex items-center justify-center">
@@ -1486,12 +1666,13 @@ export const HostDashboard: React.FC<HostDashboardProps> = ({
                         </div>
                       )}
                     </div>
-                  </header>
+                  </motion.header>
 
                   {justCompletedBanner && (
                     <motion.div
-                      initial={{ opacity: 0, y: -6 }}
-                      animate={{ opacity: 1, y: 0 }}
+                      initial={{ opacity: 0, scale: 0.88, y: -6 }}
+                      animate={{ opacity: 1, scale: 1, y: 0 }}
+                      transition={{ type: 'spring', stiffness: 380, damping: 22 }}
                       className="mb-3.5 bg-white rounded-[20px] border border-[#ECECEF] px-4 py-3 flex items-center gap-2.5 text-[12.5px] text-zinc-800 shadow-[0_2px_10px_rgba(0,0,0,0.02)]"
                     >
                       <CheckCircle2 className="w-4 h-4 text-zinc-950 shrink-0 stroke-[2]" />
@@ -1506,33 +1687,22 @@ export const HostDashboard: React.FC<HostDashboardProps> = ({
                     {/* ======================================================== */}
                     {/* 2. CARD PRINCIPAL — SALDO                                */}
                     {/* ======================================================== */}
-                    <section
+                    <motion.section
+                      initial={{ opacity: 0, scale: 0.88, y: 12 }}
+                      animate={{ opacity: 1, scale: 1, y: 0 }}
+                      transition={{ type: 'spring', stiffness: 380, damping: 22, delay: 0.055 }}
                       aria-label="Seu saldo"
                       className="bg-white rounded-[26px] border border-[#ECECEF] p-5 shadow-[0_2px_10px_rgba(0,0,0,0.02)]"
                     >
                       <div className="flex items-center justify-between">
                         <div className="flex items-center gap-3">
-                          <div className="w-10 h-10 rounded-full bg-[#F2F2F5] flex items-center justify-center shrink-0">
-                            <Wallet className="w-[19px] h-[19px] text-zinc-950 stroke-[1.8]" />
+                          <div className="w-10 h-10 rounded-full bg-[#ffffff] flex items-center justify-center shrink-0">
+                            <Wallet className="w-[40.9844px] h-[25.9844px] text-zinc-950 stroke-[1.8]" />
                           </div>
                           <span className="text-[14px] font-normal text-zinc-500">
                             Seu saldo
                           </span>
                         </div>
-
-                        <button
-                          type="button"
-                          onClick={handleRefreshBalance}
-                          aria-label="Atualizar saldo"
-                          title="Atualizar saldo"
-                          className="p-1.5 rounded-full hover:bg-zinc-100 text-zinc-400 hover:text-zinc-800 transition-transform active:rotate-180 duration-300 cursor-pointer"
-                        >
-                          <RotateCw
-                            className={`w-4 h-4 stroke-[2] ${
-                              isBalanceLoading ? 'animate-spin text-zinc-900' : ''
-                            }`}
-                          />
-                        </button>
                       </div>
 
                       <div className="mt-2.5 min-h-[50px] flex flex-col justify-center">
@@ -1606,18 +1776,21 @@ export const HostDashboard: React.FC<HostDashboardProps> = ({
                           </span>
                         </div>
                       </div>
-                    </section>
+                    </motion.section>
 
                     {/* ======================================================== */}
                     {/* 3. CARD — LINK DE INDICAÇÃO                              */}
                     {/* ======================================================== */}
-                    <section
+                    <motion.section
+                      initial={{ opacity: 0, scale: 0.88, y: 12 }}
+                      animate={{ opacity: 1, scale: 1, y: 0 }}
+                      transition={{ type: 'spring', stiffness: 380, damping: 22, delay: 0.09 }}
                       aria-label="Seu link de indicação"
                       className="bg-white rounded-[26px] border border-[#ECECEF] p-5 shadow-[0_2px_10px_rgba(0,0,0,0.02)]"
                     >
                       <div className="flex items-start gap-3.5">
-                        <div className="w-10 h-10 rounded-full bg-[#F2F2F5] flex items-center justify-center shrink-0">
-                          <Link2 className="w-[19px] h-[19px] text-zinc-950 stroke-[1.9] -rotate-45" />
+                        <div className="w-10 h-10 rounded-full bg-[#ffffff] flex items-center justify-center shrink-0">
+                          <Link2 className="w-[28.9844px] h-[38.9844px] text-zinc-950 stroke-[1.9] -rotate-45" />
                         </div>
                         <div className="min-w-0">
                           <h2 className="text-[15.5px] font-bold text-zinc-950 tracking-tight leading-snug">
@@ -1654,7 +1827,7 @@ export const HostDashboard: React.FC<HostDashboardProps> = ({
                           onClick={handleShareLink}
                           aria-label="Compartilhar link"
                           title="Compartilhar link"
-                          className="w-11 h-11 rounded-full bg-[#F4F4F6] hover:bg-[#EAEAEF] border border-[#EAEAEF] flex items-center justify-center shrink-0 transition-transform active:scale-95 cursor-pointer"
+                          className="w-[63.9844px] h-[53.9844px] rounded-full bg-[#ffffff] hover:bg-[#EAEAEF] border border-[#EAEAEF] flex items-center justify-center shrink-0 transition-transform active:scale-95 cursor-pointer"
                         >
                           <Share2 className="w-[18px] h-[18px] text-zinc-800 stroke-[1.8]" />
                         </button>
@@ -1668,21 +1841,24 @@ export const HostDashboard: React.FC<HostDashboardProps> = ({
                           </span>
                         </div>
                       )}
-                    </section>
+                    </motion.section>
 
                     {/* ======================================================== */}
                     {/* 4. CARD — DESEMPENHO DAS INDICAÇÕES                      */}
                     {/* ======================================================== */}
-                    <section
+                    <motion.section
+                      initial={{ opacity: 0, scale: 0.88, y: 12 }}
+                      animate={{ opacity: 1, scale: 1, y: 0 }}
+                      transition={{ type: 'spring', stiffness: 380, damping: 22, delay: 0.125 }}
                       aria-label="Desempenho das indicações"
                       className="bg-white rounded-[26px] border border-[#ECECEF] p-5 shadow-[0_2px_10px_rgba(0,0,0,0.02)]"
                     >
                       <div className="flex items-center gap-3.5">
-                        <div className="w-10 h-10 rounded-full bg-[#F2F2F5] flex items-center justify-center shrink-0">
+                        <div className="w-10 h-10 rounded-full bg-[#ffffff] flex items-center justify-center shrink-0">
                           <svg
                             viewBox="0 0 24 24"
                             fill="none"
-                            className="w-[19px] h-[19px] text-zinc-950"
+                            className="w-[98.9844px] h-[28.9844px] text-zinc-950"
                           >
                             <rect
                               x="4.5"
@@ -1792,7 +1968,7 @@ export const HostDashboard: React.FC<HostDashboardProps> = ({
                               />
                             ))}
 
-                            <path d={areaPath} fill="url(#hostGrayChartFill)" />
+                            <path d={areaPath} fill="url(#hostGrayChartFill)" className="text-[#000000] bg-[#000000]" />
 
                             <path
                               d={linePath}
@@ -1815,21 +1991,24 @@ export const HostDashboard: React.FC<HostDashboardProps> = ({
                           </svg>
                         </div>
                       </div>
-                    </section>
+                    </motion.section>
 
                     {/* ======================================================== */}
                     {/* 5. CARD — SEU PROGRAMA                                   */}
                     {/* ======================================================== */}
-                    <section
+                    <motion.section
+                      initial={{ opacity: 0, scale: 0.88, y: 12 }}
+                      animate={{ opacity: 1, scale: 1, y: 0 }}
+                      transition={{ type: 'spring', stiffness: 380, damping: 22, delay: 0.16 }}
                       aria-label="Seu programa"
                       className="bg-white rounded-[26px] border border-[#ECECEF] p-5 shadow-[0_2px_10px_rgba(0,0,0,0.02)]"
                     >
                       <div className="flex items-center gap-3.5">
-                        <div className="w-10 h-10 rounded-full bg-[#F2F2F5] flex items-center justify-center shrink-0">
+                        <div className="w-10 h-10 rounded-full bg-[#ffffff] flex items-center justify-center shrink-0">
                           <svg
                             viewBox="0 0 24 24"
                             fill="none"
-                            className="w-[20px] h-[20px] text-zinc-950"
+                            className="w-[30px] h-[40px] text-zinc-950"
                           >
                             <path
                               d="M12 2.75L14.12 4.32L16.74 4.15L17.71 6.6L20.16 7.57L19.99 10.19L21.56 12.31L19.99 14.43L20.16 17.05L17.71 18.02L16.74 20.47L14.12 20.3L12 21.87L9.88 20.3L7.26 20.47L6.29 18.02L3.84 17.05L4.01 14.43L2.44 12.31L4.01 10.19L3.84 7.57L6.29 6.6L7.26 4.15L9.88 4.32L12 2.75Z"
@@ -1874,7 +2053,7 @@ export const HostDashboard: React.FC<HostDashboardProps> = ({
                           </div>
                         </div>
                       </div>
-                    </section>
+                    </motion.section>
                   </div>
                 </motion.div>
               )}

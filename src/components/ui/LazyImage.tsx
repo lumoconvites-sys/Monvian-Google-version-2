@@ -22,11 +22,18 @@ export const LazyImage: React.FC<LazyImageProps> = ({ src, alt, className, onErr
         src={src}
         alt={alt}
         loading="lazy"
-        initial={{ opacity: 0, scale: 0.96 }}
-        animate={{ opacity: isLoaded ? 1 : 0, scale: isLoaded ? 1 : 0.96 }}
-        transition={{ duration: 0.45, ease: [0.16, 1, 0.3, 1] }}
+        initial={{ opacity: 0, scale: 0.88, y: 12 }}
+        animate={isLoaded ? { opacity: 1, scale: 1, y: 0 } : { opacity: 0, scale: 0.88, y: 12 }}
+        transition={{
+          type: 'spring',
+          stiffness: 380,
+          damping: 22,
+        }}
         onLoad={() => setIsLoaded(true)}
-        onError={onError}
+        onError={(e) => {
+          setIsLoaded(true);
+          onError?.(e);
+        }}
         className="w-full h-full object-cover"
         referrerPolicy="no-referrer"
       />

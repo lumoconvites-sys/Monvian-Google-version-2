@@ -39,13 +39,14 @@ export const WeatherModal: React.FC<WeatherModalProps> = ({
           {/* Main Weather Card with 220ms Fade + Scale Entry Animation and 4px Hover Elevation */}
           <motion.div
             id="weather-modal-card"
-            initial={{ opacity: 0, scale: 0.98, y: 8 }}
+            initial={{ opacity: 0, scale: 0.88, y: 12 }}
             animate={{ opacity: 1, scale: 1, y: 0 }}
-            exit={{ opacity: 0, scale: 0.98, y: 6 }}
+            exit={{ opacity: 0, scale: 0.88, y: 10 }}
             whileHover={{ y: -4 }}
             transition={{
-              duration: 0.22,
-              ease: [0.16, 1, 0.3, 1],
+              type: 'spring',
+              stiffness: 380,
+              damping: 22,
             }}
             onClick={(e) => e.stopPropagation()}
             style={{
@@ -108,7 +109,12 @@ export const WeatherModal: React.FC<WeatherModalProps> = ({
               </div>
 
               {/* Weather Main Block: 3D Icon + Dominant Temperature & Condition vs Right-aligned Metrics */}
-              <div className="flex items-center justify-between gap-3 mb-5">
+              <motion.div
+                initial={{ opacity: 0, scale: 0.88, y: 12 }}
+                animate={{ opacity: 1, scale: 1, y: 0 }}
+                transition={{ type: 'spring', stiffness: 380, damping: 22, delay: 0.03 }}
+                className="flex items-center justify-between gap-3 mb-5"
+              >
                 {/* Left Column: 3D Icon + Dominant Green Temperature + Condition */}
                 <div className="flex flex-col items-start min-w-0">
                   <div className="flex items-center gap-2">
@@ -197,11 +203,14 @@ export const WeatherModal: React.FC<WeatherModalProps> = ({
                     </span>
                   </div>
                 </div>
-              </div>
+              </motion.div>
 
               {/* "Dica para o Turista": Card Within a Card with Translucent White Glass & Soft Blur */}
-              <div
-                className={`rounded-2xl p-3.5 mb-5 border transition-all duration-[220ms] ${
+              <motion.div
+                initial={{ opacity: 0, scale: 0.88, y: 12 }}
+                animate={{ opacity: 1, scale: 1, y: 0 }}
+                transition={{ type: 'spring', stiffness: 380, damping: 22, delay: 0.06 }}
+                className={`rounded-2xl p-3.5 mb-5 border transition-colors duration-[220ms] ${
                   isDark
                     ? 'bg-white/[0.08] border-white/15 backdrop-blur-md shadow-[0_4px_16px_rgba(0,0,0,0.2)]'
                     : 'bg-white/65 hover:bg-white/80 border-white/70 backdrop-blur-md shadow-[0_4px_20px_rgba(0,0,0,0.04)]'
@@ -224,7 +233,7 @@ export const WeatherModal: React.FC<WeatherModalProps> = ({
                 >
                   Temperatura amena de serra durante o dia e friozinho rigoroso à noite.
                 </p>
-              </div>
+              </motion.div>
 
               {/* "Próximos Dias": Glass Button Cards for each day */}
               <div>
@@ -239,10 +248,12 @@ export const WeatherModal: React.FC<WeatherModalProps> = ({
                   {weather.forecast.map((item, idx) => (
                     <motion.div
                       key={idx}
+                      initial={{ opacity: 0, scale: 0.88, y: 12 }}
+                      animate={{ opacity: 1, scale: 1, y: 0 }}
+                      transition={{ type: 'spring', stiffness: 380, damping: 22, delay: 0.09 + idx * 0.03 }}
                       whileHover={{ scale: 1.05, y: -2 }}
-                      whileTap={{ scale: 0.96 }}
-                      transition={{ duration: 0.18, ease: 'easeOut' }}
-                      className={`flex flex-col items-center justify-center py-2.5 px-1 rounded-xl border text-center transition-all duration-[220ms] cursor-pointer ${
+                      whileTap={{ scale: 0.94 }}
+                      className={`flex flex-col items-center justify-center py-2.5 px-1 rounded-xl border text-center transition-colors duration-[220ms] cursor-pointer ${
                         isDark
                           ? 'bg-white/[0.08] hover:bg-white/[0.16] border-white/15 backdrop-blur-md text-white'
                           : 'bg-white/60 hover:bg-white/90 border-white/60 backdrop-blur-md shadow-xs text-[#1A1A1A]'

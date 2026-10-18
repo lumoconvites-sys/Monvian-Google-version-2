@@ -674,6 +674,24 @@ export function registerHostRoutes(
       }
 
       const referralCode = record.referral_code || `host${user.id}`;
+
+      // Calculate real financial balance & metrics for host
+      const commStats: any = db.prepare(`
+        SELECT
+          COALESCE(SUM(CASE WHEN status = 'available' THEN host_commission_cents ELSE 0 END), 0) as available_cents,
+          COALESCE(SUM(CASE WHEN status = 'pending' THEN host_commission_cents ELSE 0 END), 0) as pending_cents,
+          COALESCE(SUM(CASE WHEN status = 'transferred' THEN host_commission_cents ELSE 0 END), 0) as received_cents
+        FROM financial_commissions
+        WHERE host_user_id = ?
+      `).get(user.id);
+
+      const clicksCount = (db.prepare('SELECT COUNT(*) as c FROM referral_tracks WHERE host_user_id = ?').get(user.id) as any)?.c || 0;
+      const conversionsCount = (db.prepare("SELECT COUNT(*) as c FROM financial_sales WHERE host_user_id = ? AND status = 'confirmed'").get(user.id) as any)?.c || 0;
+      const conversionRateStr = clicksCount > 0 ? `${((conversionsCount / clicksCount) * 100).toFixed(1)}%` : '0,0%';
+
+      const stripeAccount: any = db.prepare('SELECT * FROM host_stripe_accounts WHERE user_id = ?').get(user.id);
+      const isStripeActive = Boolean(stripeAccount && stripeAccount.payouts_enabled === 1);
+
       return res.json({
         success: true,
         authorized: true,
@@ -685,18 +703,18 @@ export function registerHostRoutes(
           phone: record.phone,
           city: record.city,
           state: record.state,
-          stripeOnboardingStatus: record.stripe_onboarding_status,
+          stripeOnboardingStatus: isStripeActive ? 'verified' : (record.stripe_onboarding_status || 'pending_verification'),
           completedAt: record.completed_at,
         },
         balanceData: {
-          availableBalance: 'R$ 0,00',
-          receivedCommissions: 'R$ 0,00',
-          pendingCommissions: 'R$ 0,00',
-          clicks: 12,
-          conversions: 2,
-          conversionRate: '16,7%',
+          availableBalance: `R$ ${(commStats.available_cents / 100).toFixed(2).replace('.', ',')}`,
+          receivedCommissions: `R$ ${(commStats.received_cents / 100).toFixed(2).replace('.', ',')}`,
+          pendingCommissions: `R$ ${(commStats.pending_cents / 100).toFixed(2).replace('.', ',')}`,
+          clicks: clicksCount,
+          conversions: conversionsCount,
+          conversionRate: conversionRateStr,
           referralLink: `https://monvian.app/indique/${referralCode}`,
-          isTrackingActive: false,
+          isTrackingActive: isStripeActive,
         },
       });
     } catch (err: any) {

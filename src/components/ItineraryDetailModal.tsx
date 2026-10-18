@@ -102,7 +102,10 @@ export const ItineraryDetailModal: React.FC<ItineraryDetailModalProps> = ({
           >
         {/* Header with Cover */}
         <div className="relative aspect-21/9 w-full bg-zinc-900 shrink-0 overflow-hidden rounded-b-[28px]">
-          <img
+          <motion.img
+            initial={{ opacity: 0, scale: 0.88, y: 12 }}
+            animate={{ opacity: 1, scale: 1, y: 0 }}
+            transition={{ type: 'spring', stiffness: 380, damping: 22 }}
             src={itinerary.coverImage || 'https://images.unsplash.com/photo-1519501025264-65ba15a82390?auto=format&fit=crop&w=1000&q=80'}
             alt={itinerary.title}
             className="w-full h-full object-cover"
@@ -179,17 +182,22 @@ export const ItineraryDetailModal: React.FC<ItineraryDetailModalProps> = ({
         {days.length > 1 && (
           <div className="flex items-center gap-2 px-5 py-3 border-b border-zinc-200 dark:border-zinc-800 bg-zinc-50 dark:bg-[#15171c] overflow-x-auto shrink-0">
             {days.map((d, idx) => (
-              <button
+              <motion.button
                 key={idx}
+                initial={{ opacity: 0, scale: 0.88, y: 12 }}
+                animate={{ opacity: 1, scale: 1, y: 0 }}
+                transition={{ type: 'spring', stiffness: 380, damping: 22, delay: idx * 0.035 }}
+                whileHover={{ scale: 1.02, transition: { type: 'spring', stiffness: 400, damping: 18 } }}
+                whileTap={{ scale: 0.93, transition: { type: 'spring', stiffness: 500, damping: 14 } }}
                 onClick={() => setActiveDayIndex(idx)}
-                className={`px-3.5 py-1.5 rounded-full text-xs font-bold transition-all shrink-0 cursor-pointer ${
+                className={`px-3.5 py-1.5 rounded-full text-xs font-bold transition-colors shrink-0 cursor-pointer ${
                   activeDayIndex === idx
                     ? 'bg-zinc-900 text-white dark:bg-white dark:text-zinc-900 shadow-2xs'
                     : 'bg-white dark:bg-zinc-800 text-zinc-700 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-white border border-zinc-200/80 dark:border-zinc-700'
                 }`}
               >
                 Dia {d.dayNumber || idx + 1}
-              </button>
+              </motion.button>
             ))}
           </div>
         )}
@@ -198,7 +206,12 @@ export const ItineraryDetailModal: React.FC<ItineraryDetailModalProps> = ({
         <div className="flex-1 overflow-y-auto p-5 sm:p-6 space-y-6">
           {/* Day Title and Summary */}
           {currentDay && (
-            <div>
+            <motion.div
+              key={`day-summary-${activeDayIndex}`}
+              initial={{ opacity: 0, scale: 0.88, y: 12 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              transition={{ type: 'spring', stiffness: 380, damping: 22 }}
+            >
               <h3 className="text-base font-bold text-zinc-900 dark:text-white mb-1">
                 {currentDay.title || `Dia ${(currentDay.dayNumber || activeDayIndex + 1)}`}
               </h3>
@@ -207,7 +220,7 @@ export const ItineraryDetailModal: React.FC<ItineraryDetailModalProps> = ({
                   {currentDay.summary}
                 </p>
               )}
-            </div>
+            </motion.div>
           )}
 
           {/* Timeline of Steps */}
@@ -219,8 +232,16 @@ export const ItineraryDetailModal: React.FC<ItineraryDetailModalProps> = ({
                 const isVisited = visitedSteps[stepKey] || false;
 
                 return (
-                  <div
-                    key={sIdx}
+                  <motion.div
+                    key={stepKey}
+                    initial={{ opacity: 0, scale: 0.88, y: 12 }}
+                    animate={{ opacity: 1, scale: 1, y: 0 }}
+                    transition={{
+                      type: 'spring',
+                      stiffness: 380,
+                      damping: 22,
+                      delay: sIdx * 0.035,
+                    }}
                     className="relative pl-10 group"
                   >
                     {/* Timeline bullet / checkpoint */}
@@ -276,7 +297,15 @@ export const ItineraryDetailModal: React.FC<ItineraryDetailModalProps> = ({
                       {/* Spot Details */}
                       <div className="flex items-start gap-3">
                         {spot && (
-                          <img
+                          <motion.img
+                            initial={{ opacity: 0, scale: 0.88, y: 8 }}
+                            animate={{ opacity: 1, scale: 1, y: 0 }}
+                            transition={{
+                              type: 'spring',
+                              stiffness: 380,
+                              damping: 22,
+                              delay: sIdx * 0.035,
+                            }}
                             src={getSpotImage(spot)}
                             alt={spot.name}
                             className="w-16 h-16 rounded-xl object-cover shrink-0 border border-zinc-200 dark:border-zinc-800"
@@ -329,7 +358,7 @@ export const ItineraryDetailModal: React.FC<ItineraryDetailModalProps> = ({
                         </div>
                       )}
                     </div>
-                  </div>
+                  </motion.div>
                 );
               })}
             </div>

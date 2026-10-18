@@ -68,22 +68,37 @@ const welcomeCharVariants = {
 };
 
 export default function App() {
-  const [isAuthenticated, setIsAuthenticated] = useState<boolean>(true);
+  const [isAuthenticated, setIsAuthenticated] = useState<boolean>(() => {
+    try {
+      const token = localStorage.getItem('monvian_token');
+      const savedUser = localStorage.getItem('monvian_user');
+      return Boolean(token && savedUser);
+    } catch {
+      return false;
+    }
+  });
   const [user, setUser] = useState<any>(() => {
     try {
+      const localAv = localStorage.getItem('monvian_local_avatar');
       const savedUser = localStorage.getItem('monvian_user');
-      if (savedUser) return JSON.parse(savedUser);
+      if (savedUser) {
+        const parsed = JSON.parse(savedUser);
+        if (localAv && localAv.trim().length > 0) {
+          parsed.avatar_url = localAv;
+        }
+        return parsed;
+      }
     } catch (e) {}
     return {
       id: 1,
-      name: 'Visitante',
-      username: 'visitante',
-      email: 'visitante@monvians.app',
-      role: 'admin',
-      isGold: true,
-      isPremium: true,
-      is_gold: 1,
-      is_premium: 1,
+      name: '',
+      username: '',
+      email: '',
+      role: 'user',
+      isGold: false,
+      isPremium: false,
+      is_gold: 0,
+      is_premium: 0,
       avatar_url: '/fotoperfil.png',
     };
   });
@@ -96,53 +111,44 @@ export default function App() {
     return saved !== null ? JSON.parse(saved) : true;
   });
 
-  // Global Theme State: Automatically synchronized with user's native device preference (prefers-color-scheme)
-  const [theme, setTheme] = useState<'dark' | 'light'>(() => {
-    if (typeof window !== 'undefined' && window.matchMedia) {
-      return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
-    }
-    return 'light';
-  });
-
-  // Dynamic automatic listener for OS Light / Dark mode changes (iOS, Android, Desktop)
-  useEffect(() => {
-    if (typeof window === 'undefined' || !window.matchMedia) return;
-    const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)');
-    
-    const applySystemTheme = (matches: boolean) => {
-      const newTheme = matches ? 'dark' : 'light';
-      setTheme(newTheme);
-    };
-
-    applySystemTheme(mediaQuery.matches);
-
-    const handler = (e: MediaQueryListEvent) => {
-      applySystemTheme(e.matches);
-    };
-
-    if (mediaQuery.addEventListener) {
-      mediaQuery.addEventListener('change', handler);
-      return () => mediaQuery.removeEventListener('change', handler);
-    } else if ((mediaQuery as any).addListener) {
-      (mediaQuery as any).addListener(handler);
-      return () => (mediaQuery as any).removeListener(handler);
-    }
-  }, []);
+  // Global Theme State: Always light mode (Dark mode removed per user request)
+  const [theme, setTheme] = useState<'dark' | 'light'>('light');
 
   // Preload all itinerary images in background as soon as app opens, even if user is on another tab
   useEffect(() => {
     startPreloadResources();
+
+    // Referral tracking listener on mount (/indique/:code or ?ref=code)
+    try {
+      const searchParams = new URLSearchParams(window.location.search);
+      const queryRef = searchParams.get('ref') || searchParams.get('indique') || searchParams.get('referral');
+      const pathname = window.location.pathname;
+      let refCode = queryRef;
+      if (!refCode && pathname.includes('/indique/')) {
+        refCode = pathname.split('/indique/')[1]?.split('/')[0];
+      }
+      if (refCode) {
+        const cleanCode = refCode.trim().toLowerCase();
+        localStorage.setItem('monvian_referral_code', cleanCode);
+        fetch('/api/referral/track', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ code: cleanCode }),
+        }).catch(() => {});
+      }
+    } catch {}
   }, []);
 
+  // Map style mode state
+  const [mapStyle, setMapStyle] = useState<MapModeType>('animado');
 
+  // Desktop Sidebar Compact Mode: Collapsed by default (72px)
+  const [isDesktopSidebarCollapsed, setIsDesktopSidebarCollapsed] = useState<boolean>(true);
 
-  // Map style mode state: synced with theme & user selection
-  const [mapStyle, setMapStyle] = useState<MapModeType>(() => {
-    if (typeof window !== 'undefined' && window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) {
-      return 'explorar';
-    }
-    return 'animado';
-  });
+  useEffect(() => {
+    const w = isDesktopSidebarCollapsed ? '72px' : '240px';
+    document.documentElement.style.setProperty('--desktop-sidebar-width', w);
+  }, [isDesktopSidebarCollapsed]);
 
   // Accessibility: High Contrast Mode State
   const [highContrast, setHighContrast] = useState<boolean>(() => {
@@ -352,6 +358,14 @@ export default function App() {
           
           userObj.isGold = isGold;
           userObj.isPremium = isGold;
+
+          try {
+            const localAv = localStorage.getItem('monvian_local_avatar');
+            if (localAv && localAv.trim().length > 0 && (!userObj.avatar_url || userObj.avatar_url === '/fotoperfil.png')) {
+              userObj.avatar_url = localAv;
+            }
+          } catch {}
+
           setUser(userObj);
           localStorage.setItem('monvian_user', JSON.stringify(userObj));
           setIsAuthenticated(true);
@@ -363,8 +377,16 @@ export default function App() {
 
     checkSession();
 
+    const handleUserUpdated = (e: any) => {
+      if (e?.detail && isMounted) {
+        setUser((prev: any) => ({ ...(prev || {}), ...e.detail }));
+      }
+    };
+    window.addEventListener('monvian:user_updated', handleUserUpdated);
+
     return () => {
       isMounted = false;
+      window.removeEventListener('monvian:user_updated', handleUserUpdated);
     };
   }, []);
 
@@ -372,14 +394,10 @@ export default function App() {
   useEffect(() => {
     localStorage.setItem('monvian_rain_enabled', JSON.stringify(rainEnabled));
     localStorage.setItem('monvian_snow_enabled', JSON.stringify(snowEnabled));
-    localStorage.setItem('monvian_theme', theme);
+    localStorage.setItem('monvian_theme', 'light');
     localStorage.setItem('monvian_high_contrast', JSON.stringify(highContrast));
 
-    if (theme === 'dark') {
-      setMapStyle((prev) => (prev === 'animado' || prev === 'transporte' ? 'explorar' : prev));
-    } else {
-      setMapStyle('animado');
-    }
+    setMapStyle('animado');
 
     if (highContrast) {
       document.documentElement.classList.add('high-contrast');
@@ -387,13 +405,8 @@ export default function App() {
       document.documentElement.classList.remove('high-contrast');
     }
 
-    if (theme === 'dark') {
-      document.documentElement.classList.add('dark');
-      document.documentElement.classList.remove('light');
-    } else {
-      document.documentElement.classList.remove('dark');
-      document.documentElement.classList.add('light');
-    }
+    document.documentElement.classList.remove('dark');
+    document.documentElement.classList.add('light');
 
     const token = localStorage.getItem('monvian_token');
 
@@ -957,7 +970,24 @@ export default function App() {
 
   return (
     <AnimatePresence mode="wait">
-      {isAdminOpen ? (
+      {!isAuthenticated ? (
+        <motion.div
+          key="monvian-auth-screen"
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          exit={{ opacity: 0 }}
+          className="fixed inset-0 w-full h-full z-50 bg-[#f4f4f5] dark:bg-black"
+        >
+          <AuthScreen
+            onSuccess={(token, userData) => {
+              localStorage.setItem('monvian_token', token);
+              localStorage.setItem('monvian_user', JSON.stringify(userData));
+              setUser(userData);
+              setIsAuthenticated(true);
+            }}
+          />
+        </motion.div>
+      ) : isAdminOpen ? (
         <motion.div
           key="monvian-admin-screen"
           initial={{ opacity: 0 }}
@@ -985,9 +1015,7 @@ export default function App() {
           animate={{ opacity: 1, scale: 1, filter: 'blur(0px)' }}
           transition={{ duration: 0.55, ease: [0.16, 1, 0.3, 1] }}
           id="app-root-shell"
-          className={`fixed inset-0 w-full h-full overflow-hidden select-none flex transition-colors duration-300 ${
-            theme === 'dark' ? 'bg-black' : 'bg-[#f4f4f5]'
-          }`}
+          className="fixed inset-0 w-full h-full overflow-hidden select-none flex transition-colors duration-300 bg-[#ffffff]"
           style={{
             position: 'fixed',
             top: 0,
@@ -1000,7 +1028,7 @@ export default function App() {
             boxSizing: 'border-box',
             margin: 0,
             padding: 0,
-            backgroundColor: currentAdaptiveColor,
+            backgroundColor: '#ffffff',
           }}
         >
       <OfflineIndicator />
@@ -1018,6 +1046,8 @@ export default function App() {
         onOpenAdmin={() => setIsAdminOpen(true)}
         onOpenHostDashboard={() => setIsHostDashboardOpen(true)}
         isUserAdmin={isUserAdmin}
+        isCollapsed={isDesktopSidebarCollapsed}
+        onToggleCollapse={() => setIsDesktopSidebarCollapsed((prev) => !prev)}
       />
 
       <main
@@ -1142,12 +1172,10 @@ export default function App() {
                 id="weather-degrees-clean"
                 className="flex items-baseline select-none text-left drop-shadow-[0_2px_8px_rgba(0,0,0,0.6)]"
               >
-                <span className={`text-5xl sm:text-6xl font-extrabold tracking-tighter leading-none ${
+                <span className={`text-5xl sm:text-6xl font-extrabold tracking-tighter leading-none text-[#ffffff] ${
                   mapStyle === 'animado'
-                    ? 'text-white [-webkit-text-stroke:_0.6px_rgba(0,0,0,0.22)]'
-                    : theme === 'dark'
-                      ? 'text-white'
-                      : 'text-zinc-900 dark:text-white'
+                    ? '[-webkit-text-stroke:_0.6px_rgba(0,0,0,0.22)]'
+                    : ''
                 }`}>
                   {realWeather.temperature}°
                 </span>
@@ -1174,23 +1202,6 @@ export default function App() {
 
         {/* Right: Clean Header Action Icons (Identical configuration, position, size and gray color) */}
         <div className="flex items-center gap-3.5 pointer-events-auto relative">
-          {/* Theme Toggle Icon (Sol / Lua) */}
-          <button
-            id="btn-theme-toggle"
-            type="button"
-            onClick={() => setTheme((prev) => (prev === 'dark' ? 'light' : 'dark'))}
-            className="p-1 flex items-center justify-center active:scale-90 cursor-pointer group transition-all duration-200 bg-transparent border-none shadow-none text-zinc-500 dark:text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-200"
-            title={theme === 'dark' ? 'Mudar para tema claro' : 'Mudar para tema escuro'}
-          >
-            <div className="relative w-12 h-12 sm:w-13 sm:h-13 flex items-center justify-center group-hover:scale-110 transition-transform duration-300">
-              {theme === 'dark' ? (
-                <Sun className="w-8 h-8 sm:w-9 sm:h-9 text-zinc-500 dark:text-zinc-400 stroke-[2]" />
-              ) : (
-                <Moon className="w-8 h-8 sm:w-9 sm:h-9 text-zinc-500 dark:text-zinc-400 stroke-[2]" />
-              )}
-            </div>
-          </button>
-
           {/* 3D View Toggle Icon */}
           <button
             id="btn-3d-toggle"
@@ -1598,6 +1609,15 @@ export default function App() {
         onSubViewChange={() => {}}
         communityUrl={systemSettings.community_url}
         instagramUrl={systemSettings.instagram_url}
+        onLogout={() => {
+          localStorage.removeItem('monvian_token');
+          localStorage.removeItem('monvian_user');
+          localStorage.removeItem('monvian_active_itinerary');
+          localStorage.removeItem('monvian_itinerary_session');
+          setUser(null);
+          setIsAuthenticated(false);
+          setActiveTab('explorar');
+        }}
       />
 
       {/* 10.5. Host Affiliate Area (Onboarding 'Configurar recebimentos' + Authorized Dashboard) */}

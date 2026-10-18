@@ -283,7 +283,15 @@ export const AdminUsers: React.FC = () => {
                       <td className="py-4 px-6">
                         <div className="flex items-center gap-3">
                           <img
-                            src={user.avatar_url || '/fotoperfil.png'}
+                            src={
+                              user.avatar_url && user.avatar_url !== '/fotoperfil.png'
+                                ? user.avatar_url
+                                : user.role === 'admin' || user.id === 1
+                                ? (typeof window !== 'undefined' ? localStorage.getItem('monvian_local_avatar') : null) ||
+                                  user.avatar_url ||
+                                  '/fotoperfil.png'
+                                : user.avatar_url || '/fotoperfil.png'
+                            }
                             alt={user.name}
                             className="w-9 h-9 rounded-full object-cover ring-1 ring-zinc-200 dark:ring-zinc-700"
                           />
@@ -404,8 +412,22 @@ export const AdminUsers: React.FC = () => {
           <div className="w-full max-w-lg bg-white dark:bg-[#16181d] rounded-3xl p-6 shadow-2xl border border-zinc-200 dark:border-zinc-800 overflow-hidden">
             <div className="flex items-center justify-between pb-4 border-b border-zinc-100 dark:border-zinc-800 mb-5">
               <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-2xl bg-blue-50 dark:bg-blue-950/50 text-blue-600 dark:text-blue-400 font-black flex items-center justify-center">
-                  {(selectedUserDetail.name || 'U').charAt(0).toUpperCase()}
+                <div className="w-10 h-10 rounded-full overflow-hidden bg-blue-50 dark:bg-blue-950/50 text-blue-600 dark:text-blue-400 font-black flex items-center justify-center ring-1 ring-zinc-200 dark:ring-zinc-700 shrink-0">
+                  {selectedUserDetail.avatar_url || (selectedUserDetail.role === 'admin' && typeof window !== 'undefined' && localStorage.getItem('monvian_local_avatar')) ? (
+                    <img
+                      src={
+                        selectedUserDetail.avatar_url && selectedUserDetail.avatar_url !== '/fotoperfil.png'
+                          ? selectedUserDetail.avatar_url
+                          : (typeof window !== 'undefined' ? localStorage.getItem('monvian_local_avatar') : null) ||
+                            selectedUserDetail.avatar_url ||
+                            '/fotoperfil.png'
+                      }
+                      alt={selectedUserDetail.name}
+                      className="w-full h-full object-cover"
+                    />
+                  ) : (
+                    (selectedUserDetail.name || 'U').charAt(0).toUpperCase()
+                  )}
                 </div>
                 <div>
                   <h3 className="text-base font-black text-zinc-900 dark:text-white">

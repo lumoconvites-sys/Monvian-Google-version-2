@@ -23,11 +23,21 @@ import {
   Star,
   EyeOff,
   ShoppingBag,
-  Layers
+  Layers,
+  Crown
 } from 'lucide-react';
 import { Itinerary, ItineraryCategory, ItineraryStatus } from '../../types';
 import { AdminItineraryModal } from './AdminItineraryModal';
 import { AdminItineraryCategoryModal } from './AdminItineraryCategoryModal';
+import {
+  fetchItinerariesFromSupabase,
+  fetchItineraryCategoriesFromSupabase,
+  deleteItineraryFromSupabase,
+  toggleItineraryStatusInSupabase,
+  toggleItineraryFeaturedInSupabase,
+  toggleItineraryPremiumInSupabase,
+  subscribeToItinerariesChanges,
+} from '../../services/supabaseItineraries';
 
 export const AdminItineraries: React.FC = () => {
   const [activeAdminTab, setActiveAdminTab] = useState<'itineraries' | 'categories' | 'featured'>('itineraries');
@@ -56,22 +66,19 @@ export const AdminItineraries: React.FC = () => {
   const fetchData = async () => {
     try {
       setLoading(true);
-      const [itinRes, catRes] = await Promise.all([
-        fetch('/api/itineraries?all=true'),
-        fetch('/api/itinerary-categories?all=true')
+      const [itinsData, catsData] = await Promise.all([
+        fetchItinerariesFromSupabase({ all: true, throwOnError: false }),
+        fetchItineraryCategoriesFromSupabase()
       ]);
 
-      const itinData = await itinRes.json();
-      const catData = await catRes.json();
-
-      if (itinData.success && Array.isArray(itinData.itineraries)) {
-        setItineraries(itinData.itineraries);
+      if (Array.isArray(itinsData)) {
+        setItineraries(itinsData);
       }
-      if (catData.success && Array.isArray(catData.categories)) {
-        setCategories(catData.categories);
+      if (Array.isArray(catsData)) {
+        setCategories(catsData);
       }
     } catch (err: any) {
-      showToast('Erro ao carregar dados: ' + err.message, 'error');
+      showToast('Erro ao carregar dados do Supabase: ' + err.message, 'error');
     } finally {
       setLoading(false);
     }
@@ -79,6 +86,10 @@ export const AdminItineraries: React.FC = () => {
 
   useEffect(() => {
     fetchData();
+    const unsubscribe = subscribeToItinerariesChanges(() => {
+      fetchData();
+    });
+    return () => unsubscribe();
   }, []);
 
   const handleOpenCreateItinerary = () => {
@@ -119,40 +130,56 @@ export const AdminItineraries: React.FC = () => {
   };
 
   const handleToggleFeatured = async (id: string) => {
+    const current = itineraries.find(it => it.id === id);
+    const nextFeatured = !current?.isFeatured;
     try {
-      const res = await fetch(`/api/admin/itineraries/${id}/featured`, {
-        method: 'PUT'
-      });
-      const data = await res.json();
-      if (data.success) {
-        setItineraries(prev =>
-          prev.map(it => (it.id === id ? { ...it, isFeatured: data.isFeatured, isRecommended: data.isFeatured } : it))
-        );
-        showToast(data.isFeatured ? 'Roteiro adicionado aos destaques da Loja!' : 'Roteiro removido dos destaques.');
-      } else {
-        showToast(data.error || 'Erro ao alterar destaque', 'error');
-      }
+      await toggleItineraryFeaturedInSupabase(id, nextFeatured);
+      setItineraries(prev =>
+        prev.map(it => (it.id === id ? { ...it, isFeatured: nextFeatured, isRecommended: nextFeatured } : it))
+      );
+      showToast(nextFeatured ? 'Roteiro adicionado aos destaques da Loja!' : 'Roteiro removido dos destaques.');
     } catch (e: any) {
-      showToast('Erro: ' + e.message, 'error');
+      showToast('Erro ao alterar destaque no Supabase: ' + e.message, 'error');
+    }
+  };
+
+  const handleTogglePremium = async (id: string) => {
+    const current = itineraries.find(it => it.id === id);
+    const nextPremium = !current?.isPremium;
+    try {
+      await toggleItineraryPremiumInSupabase(id, nextPremium);
+      setItineraries(prev =>
+        prev.map(it =>
+          it.id === id
+            ? {
+                ...it,
+                isPremium: nextPremium,
+                price: nextPremium ? 'R$ 19,90' : 'Grátis',
+                badgeText: nextPremium ? 'ELITE GOLD' : 'Livre',
+                showBadge: nextPremium,
+              }
+            : it
+        )
+      );
+      showToast(
+        nextPremium
+          ? 'Roteiro ativado como ELITE GOLD (abre o banner Premium e envia para a Stripe)!'
+          : 'Roteiro alterado para Grátis (Acesso Livre).'
+      );
+    } catch (e: any) {
+      showToast('Erro ao alterar modo Premium: ' + e.message, 'error');
     }
   };
 
   const handleQuickStatusChange = async (id: string, newStatus: ItineraryStatus) => {
     try {
-      const res = await fetch(`/api/admin/itineraries/${id}/status`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ status: newStatus })
-      });
-      const data = await res.json();
-      if (data.success) {
-        setItineraries(prev =>
-          prev.map(it => (it.id === id ? { ...it, status: newStatus, isActive: newStatus === 'published' } : it))
-        );
-        showToast(`Status alterado para ${newStatus === 'published' ? 'Publicado' : newStatus === 'draft' ? 'Rascunho' : 'Oculto'}`);
-      }
+      await toggleItineraryStatusInSupabase(id, newStatus);
+      setItineraries(prev =>
+        prev.map(it => (it.id === id ? { ...it, status: newStatus, isActive: newStatus === 'published' } : it))
+      );
+      showToast(`Status alterado para ${newStatus === 'published' ? 'Publicado' : newStatus === 'draft' ? 'Rascunho' : 'Oculto'}`);
     } catch (e: any) {
-      showToast('Erro ao alterar status: ' + e.message, 'error');
+      showToast('Erro ao alterar status no Supabase: ' + e.message, 'error');
     }
   };
 
@@ -162,18 +189,11 @@ export const AdminItineraries: React.FC = () => {
     }
 
     try {
-      const res = await fetch(`/api/admin/itineraries/${id}`, {
-        method: 'DELETE'
-      });
-      const data = await res.json();
-      if (data.success) {
-        setItineraries(prev => prev.filter(it => it.id !== id));
-        showToast(`Roteiro "${title}" excluído.`);
-      } else {
-        showToast(data.error || 'Erro ao excluir roteiro', 'error');
-      }
+      await deleteItineraryFromSupabase(id);
+      setItineraries(prev => prev.filter(it => it.id !== id));
+      showToast(`Roteiro "${title}" excluído do Supabase.`);
     } catch (e: any) {
-      showToast('Erro ao excluir: ' + e.message, 'error');
+      showToast('Erro ao excluir no Supabase: ' + e.message, 'error');
     }
   };
 
@@ -286,7 +306,7 @@ export const AdminItineraries: React.FC = () => {
             <button
               type="button"
               onClick={handleOpenCreateCategory}
-              className="inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-[#FFFFFF] hover:bg-blue-600 text-white font-black text-xs shadow-md transition-all cursor-pointer"
+              className="inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-zinc-900 hover:bg-black text-white font-black text-xs shadow-md transition-all cursor-pointer"
             >
               <Plus className="w-4 h-4 stroke-[3]" />
               <span>+ Criar Categoria</span>
@@ -295,7 +315,7 @@ export const AdminItineraries: React.FC = () => {
             <button
               type="button"
               onClick={handleOpenCreateItinerary}
-              className="inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-[#FFFFFF] hover:bg-blue-600 text-white font-black text-xs shadow-md transition-all cursor-pointer"
+              className="inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-zinc-900 hover:bg-black text-white font-black text-xs shadow-md transition-all cursor-pointer"
             >
               <Plus className="w-4 h-4 stroke-[3]" />
               <span>+ Criar Roteiro</span>
@@ -311,7 +331,7 @@ export const AdminItineraries: React.FC = () => {
           onClick={() => setActiveAdminTab('itineraries')}
           className={`px-4 py-3 text-xs font-black border-b-2 transition-all cursor-pointer flex items-center gap-2 ${
             activeAdminTab === 'itineraries'
-              ? 'border-[#FFFFFF] text-[#FFFFFF]'
+              ? 'border-zinc-900 text-zinc-900 dark:border-white dark:text-white'
               : 'border-transparent text-zinc-500 hover:text-zinc-900 dark:text-zinc-400 dark:hover:text-white'
           }`}
         >
@@ -324,7 +344,7 @@ export const AdminItineraries: React.FC = () => {
           onClick={() => setActiveAdminTab('categories')}
           className={`px-4 py-3 text-xs font-black border-b-2 transition-all cursor-pointer flex items-center gap-2 ${
             activeAdminTab === 'categories'
-              ? 'border-[#FFFFFF] text-[#FFFFFF]'
+              ? 'border-zinc-900 text-zinc-900 dark:border-white dark:text-white'
               : 'border-transparent text-zinc-500 hover:text-zinc-900 dark:text-zinc-400 dark:hover:text-white'
           }`}
         >
@@ -337,7 +357,7 @@ export const AdminItineraries: React.FC = () => {
           onClick={() => setActiveAdminTab('featured')}
           className={`px-4 py-3 text-xs font-black border-b-2 transition-all cursor-pointer flex items-center gap-2 ${
             activeAdminTab === 'featured'
-              ? 'border-[#FFFFFF] text-[#FFFFFF]'
+              ? 'border-zinc-900 text-zinc-900 dark:border-white dark:text-white'
               : 'border-transparent text-zinc-500 hover:text-zinc-900 dark:text-zinc-400 dark:hover:text-white'
           }`}
         >
@@ -563,13 +583,23 @@ export const AdminItineraries: React.FC = () => {
                         {/* Bottom Info on Image */}
                         <div className="absolute bottom-2.5 left-2.5 right-2.5 flex items-center justify-between text-white text-[11px] font-bold">
                           <div className="flex items-center gap-1">
-                            <MapPin className="w-3.5 h-3.5 text-[#FFFFFF]" />
+                            <MapPin className="w-3.5 h-3.5 text-white" />
                             <span>{placesCount} {placesCount === 1 ? 'parada' : 'paradas'}</span>
                           </div>
 
-                          <div className="px-2 py-0.5 rounded-md bg-[#FFFFFF] text-white font-black text-xs shadow-xs">
-                            {it.price || 'R$ 14,90'}
-                          </div>
+                          <button
+                            type="button"
+                            onClick={() => handleTogglePremium(it.id)}
+                            title={it.isPremium ? 'Clique para tornar Grátis' : 'Clique para tornar Premium Elite Gold (Stripe)'}
+                            className={`px-2.5 py-1 rounded-full font-black text-[10px] uppercase tracking-wider shadow-sm flex items-center gap-1 cursor-pointer transition-transform active:scale-95 ${
+                              it.isPremium
+                                ? 'bg-amber-400 text-zinc-950 border border-amber-200'
+                                : 'bg-black/70 text-white border border-white/20 hover:bg-black/90'
+                            }`}
+                          >
+                            <Crown className={`w-3 h-3 ${it.isPremium ? 'text-zinc-950 fill-zinc-950/20' : 'text-amber-400'}`} />
+                            <span>{it.isPremium ? 'ELITE GOLD · R$ 19,90' : 'GRÁTIS (TORNAR GOLD)'}</span>
+                          </button>
                         </div>
                       </div>
 

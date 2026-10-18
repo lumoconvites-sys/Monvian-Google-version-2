@@ -40,6 +40,7 @@ interface CollectionCoverCardProps {
   isDark: boolean;
   fallbackIcon: React.ReactNode;
   onClick: () => void;
+  index?: number;
 }
 
 const CollectionCoverCard: React.FC<CollectionCoverCardProps> = ({
@@ -49,11 +50,22 @@ const CollectionCoverCard: React.FC<CollectionCoverCardProps> = ({
   isDark,
   fallbackIcon,
   onClick,
+  index = 0,
 }) => {
   return (
-    <div
+    <motion.div
+      initial={{ opacity: 0, scale: 0.88, y: 12 }}
+      animate={{ opacity: 1, scale: 1, y: 0 }}
+      transition={{
+        type: 'spring',
+        stiffness: 380,
+        damping: 22,
+        delay: index * 0.04,
+      }}
+      whileHover={{ scale: 1.02, transition: { type: 'spring', stiffness: 400, damping: 18 } }}
+      whileTap={{ scale: 0.93, transition: { type: 'spring', stiffness: 500, damping: 14 } }}
       onClick={onClick}
-      className="flex flex-col cursor-pointer group active:scale-[0.97] transition-all select-none"
+      className="flex flex-col cursor-pointer group transition-colors select-none"
     >
       <div
         className={`w-full aspect-square rounded-[28px] overflow-hidden p-0 border transition-all grid grid-cols-2 grid-rows-2 gap-[2px] shadow-sm ${
@@ -66,11 +78,19 @@ const CollectionCoverCard: React.FC<CollectionCoverCardProps> = ({
           const photo = photos[idx];
           if (photo) {
             return (
-              <div key={idx} className="w-full h-full overflow-hidden bg-zinc-900">
-                <img
+              <div key={idx} className="w-full h-full overflow-hidden bg-[#fafafc]">
+                <motion.img
+                  initial={{ opacity: 0, scale: 0.88, y: 8 }}
+                  animate={{ opacity: 1, scale: 1, y: 0 }}
+                  transition={{
+                    type: 'spring',
+                    stiffness: 380,
+                    damping: 22,
+                    delay: index * 0.04 + idx * 0.025,
+                  }}
                   src={photo}
                   alt=""
-                  className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                  className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300 bg-[#fafafc]"
                 />
               </div>
             );
@@ -78,9 +98,7 @@ const CollectionCoverCard: React.FC<CollectionCoverCardProps> = ({
           return (
             <div
               key={idx}
-              className={`w-full h-full flex items-center justify-center ${
-                isDark ? 'bg-[#222226]' : 'bg-[#D6D6DC]'
-              }`}
+              className="w-full h-full flex items-center justify-center bg-[#fafafc]"
             >
               {idx === 0 && (!photos || photos.length === 0) ? (
                 <div className="opacity-40">{fallbackIcon}</div>
@@ -97,7 +115,7 @@ const CollectionCoverCard: React.FC<CollectionCoverCardProps> = ({
           {count} {count === 1 ? 'item salvo' : 'itens salvos'}
         </p>
       </div>
-    </div>
+    </motion.div>
   );
 };
 
@@ -246,7 +264,7 @@ export const SavedView: React.FC<SavedViewProps> = ({
           animate={{ opacity: 1, scale: 1, y: 0 }}
           exit={{ opacity: 0, scale: 0.98, y: 10 }}
           transition={{ duration: 0.32, ease: [0.16, 1, 0.3, 1] }}
-          className={`fixed inset-0 md:left-64 lg:left-72 w-full md:w-auto h-full z-45 flex flex-col transition-colors duration-200 select-none overflow-hidden ${
+          className={`fixed inset-0 md:left-[var(--desktop-sidebar-width,72px)] w-full md:w-auto h-full z-45 flex flex-col transition-[left,colors] duration-200 ease-in-out select-none overflow-hidden ${
             isDark ? 'bg-black text-white' : 'bg-[#F2F2F7] text-zinc-900'
           }`}
           style={{
@@ -265,7 +283,7 @@ export const SavedView: React.FC<SavedViewProps> = ({
                   animate={{ opacity: 1, scale: 1, y: 0 }}
                   exit={{ opacity: 0, scale: 0.98, y: 10 }}
                   transition={{ duration: 0.24, ease: [0.16, 1, 0.3, 1] }}
-                  className="flex-1 flex flex-col w-full h-full overflow-y-auto overscroll-y-contain"
+                  className="flex-1 flex flex-col w-full h-full overflow-y-auto overscroll-y-contain bg-[#ffffff]"
                   style={{
                     paddingTop: 'max(calc(env(safe-area-inset-top, 0px) + 20px), 24px)',
                     paddingBottom: 'calc(max(24px, env(safe-area-inset-bottom, 0px)) + 92px)',
@@ -284,6 +302,7 @@ export const SavedView: React.FC<SavedViewProps> = ({
                   <main className="px-6 flex-1 max-w-2xl mx-auto w-full">
                     <div className="grid grid-cols-2 gap-x-4 gap-y-6">
                       <CollectionCoverCard
+                        index={0}
                         title="Roteiros salvos"
                         count={resolvedItineraries.length}
                         photos={itineraryPhotos}
@@ -292,6 +311,7 @@ export const SavedView: React.FC<SavedViewProps> = ({
                         onClick={() => handleOpenCollection('roteiros')}
                       />
                       <CollectionCoverCard
+                        index={1}
                         title="Pontos turísticos"
                         count={resolvedTouristSpots.length}
                         photos={touristSpotPhotos}
@@ -300,6 +320,7 @@ export const SavedView: React.FC<SavedViewProps> = ({
                         onClick={() => handleOpenCollection('pontos')}
                       />
                       <CollectionCoverCard
+                        index={2}
                         title="Lugares & Gastronomia"
                         count={resolvedPlaces.length}
                         photos={placePhotos}
@@ -414,11 +435,21 @@ export const SavedView: React.FC<SavedViewProps> = ({
                       /* Active List */
                       <div className="space-y-3 pb-8">
                         {activeCollection === 'roteiros'
-                          ? (currentItems as Itinerary[]).map((itinerary) => {
+                          ? (currentItems as Itinerary[]).map((itinerary, idx) => {
                               const isSelected = selectedForRemoval.has(itinerary.id);
                               return (
-                                <div
+                                <motion.div
                                   key={itinerary.id}
+                                  initial={{ opacity: 0, scale: 0.88, y: 12 }}
+                                  animate={{ opacity: 1, scale: 1, y: 0 }}
+                                  transition={{
+                                    type: 'spring',
+                                    stiffness: 380,
+                                    damping: 22,
+                                    delay: Math.min(idx * 0.035, 0.35),
+                                  }}
+                                  whileHover={{ scale: 1.02, transition: { type: 'spring', stiffness: 400, damping: 18 } }}
+                                  whileTap={{ scale: 0.93, transition: { type: 'spring', stiffness: 500, damping: 14 } }}
                                   onClick={() => {
                                     if (isEditing) {
                                       handleToggleSelect(itinerary.id);
@@ -426,7 +457,7 @@ export const SavedView: React.FC<SavedViewProps> = ({
                                       onOpenItinerary(itinerary);
                                     }
                                   }}
-                                  className={`p-3.5 rounded-2xl border transition-all flex items-center gap-3.5 cursor-pointer active:scale-[0.98] ${
+                                  className={`p-3.5 rounded-2xl border transition-colors flex items-center gap-3.5 cursor-pointer ${
                                     isSelected
                                       ? 'border-blue-500 bg-blue-500/10'
                                       : isDark
@@ -443,7 +474,15 @@ export const SavedView: React.FC<SavedViewProps> = ({
                                       )}
                                     </div>
                                   )}
-                                  <img
+                                  <motion.img
+                                    initial={{ opacity: 0, scale: 0.88, y: 8 }}
+                                    animate={{ opacity: 1, scale: 1, y: 0 }}
+                                    transition={{
+                                      type: 'spring',
+                                      stiffness: 380,
+                                      damping: 22,
+                                      delay: Math.min(idx * 0.035, 0.35),
+                                    }}
                                     src={itinerary.coverImage}
                                     alt={itinerary.title}
                                     className="w-16 h-16 rounded-xl object-cover shrink-0"
@@ -459,14 +498,24 @@ export const SavedView: React.FC<SavedViewProps> = ({
                                   {!isEditing && (
                                     <ChevronRight className="w-5 h-5 text-zinc-400 shrink-0" />
                                   )}
-                                </div>
+                                </motion.div>
                               );
                             })
-                          : (currentItems as Spot[]).map((spot) => {
+                          : (currentItems as Spot[]).map((spot, idx) => {
                               const isSelected = selectedForRemoval.has(spot.id);
                               return (
-                                <div
+                                <motion.div
                                   key={spot.id}
+                                  initial={{ opacity: 0, scale: 0.88, y: 12 }}
+                                  animate={{ opacity: 1, scale: 1, y: 0 }}
+                                  transition={{
+                                    type: 'spring',
+                                    stiffness: 380,
+                                    damping: 22,
+                                    delay: Math.min(idx * 0.035, 0.35),
+                                  }}
+                                  whileHover={{ scale: 1.02, transition: { type: 'spring', stiffness: 400, damping: 18 } }}
+                                  whileTap={{ scale: 0.93, transition: { type: 'spring', stiffness: 500, damping: 14 } }}
                                   onClick={() => {
                                     if (isEditing) {
                                       handleToggleSelect(spot.id);
@@ -474,7 +523,7 @@ export const SavedView: React.FC<SavedViewProps> = ({
                                       onOpenSpot(spot);
                                     }
                                   }}
-                                  className={`p-3.5 rounded-2xl border transition-all flex items-center gap-3.5 cursor-pointer active:scale-[0.98] ${
+                                  className={`p-3.5 rounded-2xl border transition-colors flex items-center gap-3.5 cursor-pointer ${
                                     isSelected
                                       ? 'border-blue-500 bg-blue-500/10'
                                       : isDark
@@ -491,7 +540,15 @@ export const SavedView: React.FC<SavedViewProps> = ({
                                       )}
                                     </div>
                                   )}
-                                  <img
+                                  <motion.img
+                                    initial={{ opacity: 0, scale: 0.88, y: 8 }}
+                                    animate={{ opacity: 1, scale: 1, y: 0 }}
+                                    transition={{
+                                      type: 'spring',
+                                      stiffness: 380,
+                                      damping: 22,
+                                      delay: Math.min(idx * 0.035, 0.35),
+                                    }}
                                     src={getSpotImage(spot)}
                                     alt={spot.name}
                                     className="w-16 h-16 rounded-xl object-cover shrink-0"
@@ -516,7 +573,7 @@ export const SavedView: React.FC<SavedViewProps> = ({
                                   {!isEditing && (
                                     <ChevronRight className="w-5 h-5 text-zinc-400 shrink-0" />
                                   )}
-                                </div>
+                                </motion.div>
                               );
                             })}
                       </div>

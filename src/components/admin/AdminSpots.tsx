@@ -21,8 +21,27 @@ import {
 } from '../../services/supabaseSpots';
 
 export const AdminSpots: React.FC = () => {
-  const [spots, setSpots] = useState<any[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [spots, setSpots] = useState<any[]>(() => {
+    try {
+      const cached = localStorage.getItem('monvian_cached_spots');
+      if (cached) {
+        const parsed = JSON.parse(cached);
+        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+      }
+    } catch {}
+    return [];
+  });
+  const [loading, setLoading] = useState<boolean>(() => {
+    try {
+      const cached = localStorage.getItem('monvian_cached_spots');
+      if (cached) {
+        const parsed = JSON.parse(cached);
+        if (Array.isArray(parsed) && parsed.length > 0) return false;
+      }
+    } catch {}
+    return true;
+  });
+  const [isRefreshing, setIsRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('all');
@@ -34,25 +53,33 @@ export const AdminSpots: React.FC = () => {
   // Toast
   const [toast, setToast] = useState<string | null>(null);
 
-  const fetchSpots = async () => {
+  const fetchSpots = async (isBackground = false) => {
     try {
-      setLoading(true);
+      if (!isBackground && spots.length === 0) {
+        setLoading(true);
+      }
+      setIsRefreshing(true);
       setError(null);
-      const spotsData = await fetchSpotsFromSupabase();
+      const spotsData = await fetchSpotsFromSupabase({ throwOnError: true });
       setSpots(spotsData);
     } catch (err: any) {
       console.error('[AdminSpots] Erro ao carregar pontos do Supabase:', err);
-      setError(err?.message || 'Falha ao conectar com o Supabase PostgreSQL.');
+      if (spots.length === 0) {
+        setError(err?.message || 'Falha ao conectar com o Supabase PostgreSQL.');
+      } else {
+        showToast('Aviso: Não foi possível atualizar os pontos com o Supabase.');
+      }
     } finally {
       setLoading(false);
+      setIsRefreshing(false);
     }
   };
 
   useEffect(() => {
-    fetchSpots();
+    fetchSpots(spots.length > 0);
     // Realtime subscription to live Supabase updates
     const unsubscribe = subscribeToSpotsChanges(() => {
-      fetchSpots();
+      fetchSpots(true);
     });
     return () => unsubscribe();
   }, []);
@@ -182,6 +209,15 @@ export const AdminSpots: React.FC = () => {
 
         <div className="flex items-center gap-2">
           <button
+            onClick={() => fetchSpots(false)}
+            disabled={isRefreshing}
+            className="flex items-center gap-1.5 px-3.5 py-2.5 bg-zinc-100 hover:bg-zinc-200 dark:bg-white/10 dark:hover:bg-white/15 text-zinc-700 dark:text-zinc-200 text-xs sm:text-sm font-bold rounded-xl transition-all cursor-pointer"
+            title="Atualizar lista com Supabase"
+          >
+            <RefreshCw className={`w-4 h-4 ${isRefreshing ? 'animate-spin text-blue-500' : ''}`} />
+            <span className="hidden sm:inline">Sincronizar</span>
+          </button>
+          <button
             onClick={() => {
               setSpotToEdit(null);
               setIsModalOpen(true);
@@ -232,12 +268,12 @@ export const AdminSpots: React.FC = () => {
       </div>
 
       {/* Spots Grid */}
-      {loading ? (
+      {loading && spots.length === 0 ? (
         <div className="flex flex-col items-center justify-center py-20 bg-white dark:bg-[#16181d] rounded-3xl border border-zinc-200 dark:border-zinc-800">
           <RefreshCw className="w-8 h-8 text-blue-600 animate-spin mb-3" />
           <p className="text-sm font-black text-zinc-600 dark:text-zinc-400">Carregando catálogo de pontos...</p>
         </div>
-      ) : error ? (
+      ) : error && spots.length === 0 ? (
         <div className="text-center py-16 bg-white dark:bg-[#16181d] rounded-3xl border border-red-500/20 dark:border-red-500/30 p-8">
           <AlertCircle className="w-12 h-12 text-red-500 mx-auto mb-3" />
           <h3 className="text-base font-black text-zinc-800 dark:text-zinc-200">Não foi possível carregar os pontos</h3>
@@ -385,7 +421,7 @@ export const AdminSpots: React.FC = () => {
         isOpen={isModalOpen}
         onClose={() => setIsModalOpen(false)}
         onSaveSuccess={(savedSpot) => {
-          fetchSpots();
+          fetchSpots(true);
           if (savedSpot) {
             setSelectedCategory('all');
             setSpots((prev) => {

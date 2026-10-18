@@ -103,19 +103,19 @@ export const ItineraryEditModal: React.FC<ItineraryEditModalProps> = ({
         animate={{ opacity: 1, scale: 1, y: 0 }}
         exit={{ opacity: 0, scale: 0.94, y: 15 }}
         transition={{ type: 'spring', damping: 26, stiffness: 340 }}
-        className={`w-full max-w-md rounded-[32px] p-6 max-h-[85vh] flex flex-col ${
-          isDark
-            ? 'ios-glass text-white shadow-[0_25px_70px_rgba(0,0,0,0.9)] border border-white/12'
-            : 'ios-glass-white text-zinc-900 shadow-[0_20px_50px_rgba(0,0,0,0.18)] border border-white/80'
-        }`}
+        className="w-full max-w-md rounded-[32px] p-6 max-h-[85vh] flex flex-col !bg-[#ffffff] bg-[#ffffff] text-zinc-900 shadow-[0_20px_50px_rgba(0,0,0,0.18)] border border-zinc-200/80"
+        style={{ backgroundColor: '#ffffff' }}
       >
         {/* Header */}
-        <div className="flex items-center justify-between pb-3.5 border-b border-zinc-200/80 dark:border-white/10 shrink-0">
+        <div
+          className="flex items-center justify-between pb-3.5 border-b border-zinc-200/80 dark:border-white/10 shrink-0 text-[#4f4f4f]"
+          style={{ color: '#4f4f4f' }}
+        >
           <div>
-            <h2 className="text-xl font-black tracking-tight text-zinc-900 dark:text-white">
+            <h2 className="text-xl font-black tracking-tight text-[#2d2d2d]" style={{ color: '#2d2d2d' }}>
               Editar Roteiro
             </h2>
-            <p className="text-xs font-bold text-zinc-500 dark:text-zinc-400 mt-0.5">
+            <p className="text-xs font-bold text-[#000000] mt-0.5" style={{ color: '#000000' }}>
               Reorganize a ordem dos pontos ou remova locais.
             </p>
           </div>
@@ -255,11 +255,8 @@ export const ItineraryEditModal: React.FC<ItineraryEditModalProps> = ({
                     onClose();
                     onCreateNewItinerary();
                   }}
-                  className={`py-2.5 px-3 rounded-xl font-bold text-xs transition-colors cursor-pointer ${
-                    isGoldUser
-                      ? 'text-[#F5BE38] hover:bg-[#F5BE38]/10'
-                      : 'text-white hover:bg-white/10'
-                  }`}
+                  className="py-2.5 px-3 rounded-xl font-bold text-xs transition-colors cursor-pointer !text-[#ffffff] text-[#ffffff] hover:bg-zinc-100/20"
+                  style={{ color: '#ffffff' }}
                 >
                   Criar Novo
                 </button>
@@ -267,14 +264,11 @@ export const ItineraryEditModal: React.FC<ItineraryEditModalProps> = ({
                 <button
                   type="button"
                   onClick={handleSave}
-                  className={`py-2.5 px-4 rounded-xl font-black text-xs transition-all shadow-md flex items-center gap-1.5 cursor-pointer active:scale-95 ${
-                    isGoldUser
-                      ? 'bg-metallic-gold text-[#1A1202] shadow-[#E5AC33]/40 border border-[#FFF4A3]/60 hover:opacity-95'
-                      : 'bg-white hover:bg-zinc-200 text-black shadow-white/20'
-                  }`}
+                  className="py-2.5 px-4 rounded-xl font-black text-xs transition-all shadow-md flex items-center gap-1.5 cursor-pointer active:scale-95 !bg-[#2f97ff] bg-[#2f97ff] !text-[#ffffff] text-[#ffffff] hover:opacity-95"
+                  style={{ backgroundColor: '#2f97ff', color: '#ffffff' }}
                 >
-                  <Check className="w-3.5 h-3.5 stroke-[3]" />
-                  <span>Salvar</span>
+                  <Check className="w-3.5 h-3.5 stroke-[3] !text-[#ffffff] text-[#ffffff]" style={{ color: '#ffffff' }} />
+                  <span className="!text-[#ffffff] text-[#ffffff]" style={{ color: '#ffffff' }}>Salvar</span>
                 </button>
               </div>
             </div>

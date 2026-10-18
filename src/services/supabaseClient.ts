@@ -14,48 +14,28 @@ const sanitizeSupabaseUrl = (url?: string): string => {
   return cleaned;
 };
 
+const DEFAULT_SUPABASE_URL = 'https://gxyqrwebnkbgxqrfdvuj.supabase.co';
+const DEFAULT_SUPABASE_ANON_KEY = 'sb_publishable_WaPR6pa1PiAD6pCG45aeuA_LrVfs39y';
+
 const resolveBackendCredentials = () => {
-  const candidateUrls = [
-    process.env.SUPABASE_URL,
-    process.env.VITE_SUPABASE_URL,
-    'https://gxyqrwebnkbgxqrfdvuj.supabase.co',
-  ];
+  const candidateUrl =
+    sanitizeSupabaseUrl(process.env.SUPABASE_URL) ||
+    sanitizeSupabaseUrl(process.env.VITE_SUPABASE_URL) ||
+    DEFAULT_SUPABASE_URL;
 
-  let resolvedUrl = '';
-  for (const candidate of candidateUrls) {
-    const cleaned = sanitizeSupabaseUrl(candidate);
-    if (cleaned) {
-      resolvedUrl = cleaned;
-      break;
-    }
-  }
+  let candidateKey = (
+    process.env.SUPABASE_ANON_KEY ||
+    process.env.VITE_SUPABASE_ANON_KEY ||
+    ''
+  ).trim();
 
-  let resolvedKey = '';
-  if (resolvedUrl.includes('gxyqrwebnkbgxqrfdvuj')) {
-    const keyCandidates = [
-      process.env.SUPABASE_ANON_KEY,
-      process.env.VITE_SUPABASE_ANON_KEY,
-      'sb_publishable_WaPR6pa1PiAD6pCG45aeuA_LrVfs39y',
-    ];
-    for (const k of keyCandidates) {
-      if (k && k.includes('WaPR6pa1Pi')) {
-        resolvedKey = k;
-        break;
-      }
-    }
-    if (!resolvedKey) {
-      resolvedKey = 'sb_publishable_WaPR6pa1PiAD6pCG45aeuA_LrVfs39y';
-    }
-  } else {
-    resolvedKey =
-      process.env.SUPABASE_ANON_KEY ||
-      process.env.VITE_SUPABASE_ANON_KEY ||
-      'sb_publishable_WaPR6pa1PiAD6pCG45aeuA_LrVfs39y';
+  if (!candidateKey || candidateKey.includes('9KwMtGFOKB0zF17ozzG1rw')) {
+    candidateKey = DEFAULT_SUPABASE_ANON_KEY;
   }
 
   return {
-    url: resolvedUrl || 'https://gxyqrwebnkbgxqrfdvuj.supabase.co',
-    key: resolvedKey.trim(),
+    url: candidateUrl,
+    key: candidateKey,
   };
 };
 

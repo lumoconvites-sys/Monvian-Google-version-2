@@ -126,14 +126,24 @@ export const ImportSpotFloatingModal: React.FC<ImportSpotFloatingModalProps> = (
                 <p className="text-xs mt-1">Tente pesquisar com outro termo</p>
               </div>
             ) : (
-              filteredSpots.map((spot) => {
+              filteredSpots.map((spot, idx) => {
                 const isImported = importedSpotIds.includes(spot.id);
                 const isJustImported = justImportedId === spot.id;
 
                 return (
-                  <div
+                  <motion.div
                     key={spot.id}
-                    className={`flex items-center justify-between gap-3 p-3 rounded-2xl border transition-all ${
+                    initial={{ opacity: 0, scale: 0.88, y: 12 }}
+                    animate={{ opacity: 1, scale: 1, y: 0 }}
+                    transition={{
+                      type: 'spring',
+                      stiffness: 380,
+                      damping: 22,
+                      delay: Math.min(idx * 0.035, 0.35),
+                    }}
+                    whileHover={{ scale: 1.02, transition: { type: 'spring', stiffness: 400, damping: 18 } }}
+                    whileTap={{ scale: 0.96, transition: { type: 'spring', stiffness: 500, damping: 14 } }}
+                    className={`flex items-center justify-between gap-3 p-3 rounded-2xl border transition-colors ${
                       isLight
                         ? 'bg-white/60 border-black/5 hover:bg-white/85 shadow-sm backdrop-blur-md'
                         : 'bg-white/[0.05] border-white/10 hover:bg-white/[0.09] backdrop-blur-md'
@@ -142,7 +152,15 @@ export const ImportSpotFloatingModal: React.FC<ImportSpotFloatingModalProps> = (
                     {/* Spot Avatar & Info */}
                     <div className="flex items-center gap-3 min-w-0 flex-1">
                       <div className="w-12 h-12 rounded-2xl overflow-hidden shrink-0 bg-zinc-800 relative border border-white/10">
-                        <img
+                        <motion.img
+                          initial={{ opacity: 0, scale: 0.88, y: 8 }}
+                          animate={{ opacity: 1, scale: 1, y: 0 }}
+                          transition={{
+                            type: 'spring',
+                            stiffness: 380,
+                            damping: 22,
+                            delay: Math.min(idx * 0.035, 0.35),
+                          }}
                           src={getSpotImage(spot)}
                           alt={spot.name}
                           className="w-full h-full object-cover"
@@ -200,7 +218,7 @@ export const ImportSpotFloatingModal: React.FC<ImportSpotFloatingModalProps> = (
                         </button>
                       )}
                     </div>
-                  </div>
+                  </motion.div>
                 );
               })
             )}

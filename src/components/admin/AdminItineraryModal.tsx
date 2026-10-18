@@ -23,12 +23,18 @@ import {
   RefreshCw,
   Layers,
   Layout,
+  Tag,
+  DollarSign,
+  Calendar,
+  Sparkle,
   Sun,
   Moon,
   Crown,
   Lock,
   ArrowRight
 } from 'lucide-react';
+import { fetchSpotsFromSupabase } from '../../services/supabaseSpots';
+import { saveItineraryToSupabase } from '../../services/supabaseItineraries';
 import { Spot, Itinerary, ItineraryCategory, ItineraryStatus } from '../../types';
 
 interface AdminItineraryModalProps {
@@ -121,13 +127,12 @@ export const AdminItineraryModal: React.FC<AdminItineraryModalProps> = ({
     const fetchSpots = async () => {
       try {
         setLoadingSpots(true);
-        const res = await fetch('/api/admin/spots');
-        const data = await res.json();
-        if (data.success && Array.isArray(data.spots)) {
-          setAvailableSpots(data.spots);
+        const spots = await fetchSpotsFromSupabase();
+        if (Array.isArray(spots)) {
+          setAvailableSpots(spots);
         }
       } catch (e) {
-        console.error('Error fetching spots:', e);
+        console.error('Error fetching spots in AdminItineraryModal:', e);
       } finally {
         setLoadingSpots(false);
       }
@@ -462,34 +467,23 @@ export const AdminItineraryModal: React.FC<AdminItineraryModalProps> = ({
     };
 
     try {
-      const url = itineraryToEdit ? `/api/admin/itineraries/${itineraryToEdit.id}` : '/api/admin/itineraries';
-      const method = itineraryToEdit ? 'PUT' : 'POST';
+      const fullPayload = {
+        ...payload,
+        id: itineraryToEdit?.id
+      };
 
-      const token = localStorage.getItem('monvian_auth_token') || localStorage.getItem('auth_token');
-      const headers: Record<string, string> = { 'Content-Type': 'application/json' };
-      if (token) {
-        headers['Authorization'] = `Bearer ${token}`;
-      }
+      // 1. Persist directly and authoritatively to Supabase PostgreSQL (Single Source of Truth)
+      await saveItineraryToSupabase(fullPayload, Boolean(itineraryToEdit?.id));
 
-      const res = await fetch(url, {
-        method,
-        headers,
-        body: JSON.stringify(payload)
-      });
+      try {
+        window.dispatchEvent(new CustomEvent('monvian:itineraries_updated', { detail: { updatedItineraryId: itineraryToEdit?.id } }));
+      } catch (e) {}
 
-      const data = await res.json();
-      if (data.success) {
-        try {
-          window.dispatchEvent(new CustomEvent('monvian:itineraries-updated', { detail: { updatedItineraryId: itineraryToEdit?.id } }));
-        } catch (e) {}
-
-        onSaved();
-        onClose();
-      } else {
-        setErrorMsg(data.error || 'Erro ao salvar roteiro.');
-      }
+      onSaved();
+      onClose();
     } catch (err: any) {
-      setErrorMsg('Erro de conexão: ' + err.message);
+      console.error('Error saving itinerary to Supabase:', err);
+      setErrorMsg(err.message || 'Erro ao salvar roteiro no Supabase.');
     } finally {
       setIsSubmitting(false);
     }
@@ -560,7 +554,7 @@ export const AdminItineraryModal: React.FC<AdminItineraryModalProps> = ({
             onClick={() => setActiveTab('info')}
             className={`px-3.5 py-2.5 text-xs font-bold border-b-2 transition-all cursor-pointer shrink-0 flex items-center gap-2 ${
               activeTab === 'info'
-                ? 'border-[#FFFFFF] text-[#FFFFFF]'
+                ? 'border-zinc-900 text-zinc-900 dark:border-white dark:text-white'
                 : 'border-transparent text-zinc-500 hover:text-zinc-900 dark:text-zinc-400 dark:hover:text-zinc-200'
             }`}
           >
@@ -573,7 +567,7 @@ export const AdminItineraryModal: React.FC<AdminItineraryModalProps> = ({
             onClick={() => setActiveTab('cover')}
             className={`px-3.5 py-2.5 text-xs font-bold border-b-2 transition-all cursor-pointer shrink-0 flex items-center gap-2 ${
               activeTab === 'cover'
-                ? 'border-[#FFFFFF] text-[#FFFFFF]'
+                ? 'border-zinc-900 text-zinc-900 dark:border-white dark:text-white'
                 : 'border-transparent text-zinc-500 hover:text-zinc-900 dark:text-zinc-400 dark:hover:text-zinc-200'
             }`}
           >
@@ -587,13 +581,13 @@ export const AdminItineraryModal: React.FC<AdminItineraryModalProps> = ({
             onClick={() => setActiveTab('builder')}
             className={`px-3.5 py-2.5 text-xs font-bold border-b-2 transition-all flex items-center gap-2 cursor-pointer shrink-0 ${
               activeTab === 'builder'
-                ? 'border-[#FFFFFF] text-[#FFFFFF]'
+                ? 'border-zinc-900 text-zinc-900 dark:border-white dark:text-white'
                 : 'border-transparent text-zinc-500 hover:text-zinc-900 dark:text-zinc-400 dark:hover:text-zinc-200'
             }`}
           >
             <Layers className="w-3.5 h-3.5" />
             <span>3. Paradas do Roteiro</span>
-            <span className="px-2 py-0.5 rounded-full text-[10px] bg-[#FFFFFF]/20 text-[#FFFFFF] font-black">
+            <span className="px-2 py-0.5 rounded-full text-[10px] bg-zinc-200 dark:bg-white/20 text-zinc-900 dark:text-white font-black">
               {totalPlaces}
             </span>
           </button>
@@ -603,7 +597,7 @@ export const AdminItineraryModal: React.FC<AdminItineraryModalProps> = ({
             onClick={() => setActiveTab('appearance')}
             className={`px-3.5 py-2.5 text-xs font-bold border-b-2 transition-all cursor-pointer shrink-0 flex items-center gap-2 ${
               activeTab === 'appearance'
-                ? 'border-[#FFFFFF] text-[#FFFFFF]'
+                ? 'border-zinc-900 text-zinc-900 dark:border-white dark:text-white'
                 : 'border-transparent text-zinc-500 hover:text-zinc-900 dark:text-zinc-400 dark:hover:text-zinc-200'
             }`}
           >
@@ -662,7 +656,7 @@ export const AdminItineraryModal: React.FC<AdminItineraryModalProps> = ({
                     }`}
                   >
                     <div className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 ${
-                      !isPremium ? 'bg-[#FFFFFF] text-white shadow-xs' : 'bg-zinc-200 dark:bg-zinc-800 text-zinc-500'
+                      !isPremium ? 'bg-zinc-900 text-white shadow-xs' : 'bg-zinc-200 dark:bg-zinc-800 text-zinc-500'
                     }`}>
                       <Compass className="w-5 h-5 stroke-[2.2]" />
                     </div>
@@ -684,7 +678,7 @@ export const AdminItineraryModal: React.FC<AdminItineraryModalProps> = ({
                     type="button"
                     onClick={() => {
                       setIsPremium(true);
-                      if (price === 'Grátis' || !price) setPrice('R$ 14,90');
+                      if (price === 'Grátis' || !price) setPrice('R$ 19,90');
                       if (!badgeText) setBadgeText('ELITE GOLD');
                     }}
                     className={`p-4 rounded-2xl border text-left flex items-start gap-3.5 cursor-pointer transition-all ${
@@ -943,7 +937,7 @@ export const AdminItineraryModal: React.FC<AdminItineraryModalProps> = ({
                     type="button"
                     onClick={() => coverFileInputRef.current?.click()}
                     disabled={isUploadingCover}
-                    className="mt-1 px-4 py-2 rounded-xl bg-[#FFFFFF] text-white text-xs font-bold hover:bg-blue-600 transition-colors cursor-pointer shadow-2xs"
+                    className="mt-1 px-4 py-2 rounded-xl bg-zinc-900 text-white text-xs font-bold hover:bg-black transition-colors cursor-pointer shadow-2xs"
                   >
                     {isUploadingCover ? 'Processando...' : 'Selecionar do Computador'}
                   </button>
@@ -1323,7 +1317,7 @@ export const AdminItineraryModal: React.FC<AdminItineraryModalProps> = ({
                               className={`px-3 py-1.5 rounded-xl text-xs font-black flex items-center gap-1 transition-all cursor-pointer shrink-0 shadow-2xs ${
                                 countInCurrentDay > 0
                                   ? 'bg-emerald-500 text-white hover:bg-emerald-600'
-                                  : 'bg-[#FFFFFF] text-white hover:bg-blue-600 group-hover:scale-102'
+                                  : 'bg-zinc-900 text-white hover:bg-black group-hover:scale-102'
                               }`}
                             >
                               <Plus className="w-3.5 h-3.5 stroke-[3]" />
@@ -1517,7 +1511,7 @@ export const AdminItineraryModal: React.FC<AdminItineraryModalProps> = ({
               type="button"
               disabled={isSubmitting}
               onClick={() => handleSaveWithStatus('published')}
-              className="h-11 px-5 rounded-2xl bg-[#FFFFFF] text-white text-xs font-black hover:bg-blue-600 transition-colors cursor-pointer disabled:opacity-50 shadow-xs flex items-center justify-center gap-1.5"
+              className="h-11 px-5 rounded-2xl bg-zinc-900 text-white text-xs font-black hover:bg-black transition-colors cursor-pointer disabled:opacity-50 shadow-xs flex items-center justify-center gap-1.5"
             >
               {isSubmitting ? (
                 <>

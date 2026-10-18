@@ -291,10 +291,10 @@ export function AuthScreen({ onSuccess }: AuthScreenProps) {
       animate={{ opacity: 1 }}
       exit={{ opacity: 0 }}
       transition={{ duration: 0.25 }}
-      className="fixed inset-0 z-[100] bg-[#000000] flex flex-col items-center justify-center text-white select-none overflow-y-auto"
+      className="fixed inset-0 z-[100] bg-[#ffffff] flex flex-col items-center justify-center text-zinc-900 select-none overflow-y-auto"
       style={{
         fontFamily: "'Inter', -apple-system, BlinkMacSystemFont, sans-serif",
-        backgroundColor: '#000000',
+        backgroundColor: '#ffffff',
         paddingTop: 'max(24px, env(safe-area-inset-top, 0px))',
         paddingBottom: 'max(24px, env(safe-area-inset-bottom, 0px))',
         paddingLeft: 'max(24px, env(safe-area-inset-left, 0px))',
@@ -313,16 +313,16 @@ export function AuthScreen({ onSuccess }: AuthScreenProps) {
           initial={{ scale: 0.9, opacity: 0 }}
           animate={{ scale: 1, opacity: 1 }}
           transition={{ type: 'spring', stiffness: 500, damping: 25, delay: 0.05 }}
-          className="h-20 mb-2 flex items-center justify-center"
+          className="h-20 mb-3 flex items-center justify-center"
         >
           <img 
-            src="/logomodoescuro.png" 
+            src="/logobranca.png" 
             alt="Monvian" 
-            className="h-full w-auto max-w-[290px] object-contain"
+            className="h-full w-auto max-w-[270px] object-contain"
           />
         </motion.div>
         
-        <p className="text-[13px] text-zinc-400 font-bold mb-6 tracking-wide text-center">
+        <p className="text-[13px] text-zinc-500 font-bold mb-6 tracking-wide text-center">
           Seu guia inteligente para viver<br/>Campos do Jordão.
         </p>
 
@@ -332,35 +332,35 @@ export function AuthScreen({ onSuccess }: AuthScreenProps) {
         {authMode === 'login' && (
           <form onSubmit={handleLoginSubmit} className="w-full space-y-3.5">
             <div className="relative">
-              <Mail className="absolute left-4 top-1/2 -translate-y-1/2 w-[18px] h-[18px] text-zinc-500" />
+              <Mail className="absolute left-4 top-1/2 -translate-y-1/2 w-[18px] h-[18px] text-zinc-400" />
               <input
                 id="input-login-email"
                 type="email"
                 placeholder="Seu e-mail"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
-                className="w-full pl-11 pr-5 py-4 rounded-[22px] bg-[#141518] border border-white/10 text-white placeholder:text-zinc-500 focus:outline-none focus:border-white focus:ring-1 focus:ring-white transition-all text-[15px] font-medium shadow-sm"
+                className="w-full pl-11 pr-5 py-4 rounded-[22px] bg-[#fbfbfb] border border-zinc-200 text-zinc-900 placeholder:text-zinc-400 focus:outline-none focus:border-zinc-900 focus:ring-1 focus:ring-zinc-900 transition-all text-[15px] font-medium shadow-2xs"
                 required
                 autoComplete="email"
               />
             </div>
 
             <div className="relative">
-              <Lock className="absolute left-4 top-1/2 -translate-y-1/2 w-[18px] h-[18px] text-zinc-500" />
+              <Lock className="absolute left-4 top-1/2 -translate-y-1/2 w-[18px] h-[18px] text-zinc-400" />
               <input
                 id="input-login-password"
                 type={showPassword ? 'text' : 'password'}
                 placeholder="Sua senha"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
-                className="w-full pl-11 pr-12 py-4 rounded-[22px] bg-[#141518] border border-white/10 text-white placeholder:text-zinc-500 focus:outline-none focus:border-white focus:ring-1 focus:ring-white transition-all text-[15px] font-medium shadow-sm"
+                className="w-full pl-11 pr-12 py-4 rounded-[22px] bg-[#fbfbfb] border border-zinc-200 text-zinc-900 placeholder:text-zinc-400 focus:outline-none focus:border-zinc-900 focus:ring-1 focus:ring-zinc-900 transition-all text-[15px] font-medium shadow-2xs"
                 required
                 autoComplete="current-password"
               />
               <button
                 type="button"
                 onClick={() => setShowPassword(!showPassword)}
-                className="absolute right-4 top-1/2 -translate-y-1/2 text-zinc-500 hover:text-white transition-colors cursor-pointer"
+                className="absolute right-4 top-1/2 -translate-y-1/2 text-zinc-400 hover:text-zinc-900 transition-colors cursor-pointer"
               >
                 {showPassword ? <EyeOff className="w-[18px] h-[18px]" /> : <Eye className="w-[18px] h-[18px]" />}
               </button>
@@ -370,7 +370,7 @@ export function AuthScreen({ onSuccess }: AuthScreenProps) {
               <motion.p 
                 initial={{ opacity: 0, y: -4 }}
                 animate={{ opacity: 1, y: 0 }}
-                className="text-red-400 text-xs font-semibold text-center mt-2 px-4"
+                className="text-red-500 text-xs font-semibold text-center mt-2 px-4"
               >
                 {error}
               </motion.p>
@@ -382,7 +382,7 @@ export function AuthScreen({ onSuccess }: AuthScreenProps) {
                 whileTap={{ scale: 0.98 }}
                 type="submit"
                 disabled={loading || googleLoading}
-                className="w-full py-[16px] rounded-[22px] bg-white text-black text-[15px] font-bold flex items-center justify-center gap-2 hover:bg-zinc-200 transition-all disabled:opacity-70 shadow-md cursor-pointer"
+                className="w-full py-[16px] rounded-[22px] bg-[#000000] text-[#ffffff] text-[15px] font-bold flex items-center justify-center gap-2 hover:bg-zinc-800 transition-all disabled:opacity-70 shadow-md cursor-pointer"
               >
                 {loading ? 'Entrando...' : 'Entrar →'}
               </motion.button>
@@ -391,9 +391,9 @@ export function AuthScreen({ onSuccess }: AuthScreenProps) {
             {/* Google Sign In Divider & Button */}
             <div className="pt-2 space-y-3">
               <div className="flex items-center gap-3">
-                <div className="flex-1 h-[1px] bg-white/10" />
-                <span className="text-[11px] text-zinc-500 uppercase tracking-wider font-semibold">ou</span>
-                <div className="flex-1 h-[1px] bg-white/10" />
+                <div className="flex-1 h-[1px] bg-zinc-200" />
+                <span className="text-[11px] text-zinc-400 uppercase tracking-wider font-semibold">ou</span>
+                <div className="flex-1 h-[1px] bg-zinc-200" />
               </div>
 
               <motion.button
@@ -402,7 +402,7 @@ export function AuthScreen({ onSuccess }: AuthScreenProps) {
                 type="button"
                 onClick={handleGoogleAuth}
                 disabled={googleLoading || loading}
-                className="w-full py-[14px] px-5 rounded-[22px] bg-[#1a1b1f] hover:bg-[#23242a] border border-white/15 text-white text-[14px] font-semibold flex items-center justify-center gap-3 transition-all cursor-pointer shadow-sm disabled:opacity-60"
+                className="w-full py-[14px] px-5 rounded-[22px] bg-[#fbfbfb] hover:bg-zinc-100 border border-zinc-200 text-zinc-900 text-[14px] font-semibold flex items-center justify-center gap-3 transition-all cursor-pointer shadow-2xs disabled:opacity-60"
               >
                 <svg className="w-[18px] h-[18px] shrink-0" viewBox="0 0 24 24">
                   <path
@@ -422,7 +422,7 @@ export function AuthScreen({ onSuccess }: AuthScreenProps) {
                     d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z"
                   />
                 </svg>
-                <span>{googleLoading ? 'Conectando Google...' : 'Entrar com Google / Gmail'}</span>
+                <span style={{ color: '#767676' }}>{googleLoading ? 'Conectando Google...' : 'Entrar com Google / Gmail'}</span>
               </motion.button>
             </div>
           </form>
@@ -435,14 +435,14 @@ export function AuthScreen({ onSuccess }: AuthScreenProps) {
           <form onSubmit={handleRegisterSubmit} className="w-full space-y-3.5">
             {/* Nome Completo */}
             <div className="relative">
-              <User className="absolute left-4 top-1/2 -translate-y-1/2 w-[18px] h-[18px] text-zinc-500" />
+              <User className="absolute left-4 top-1/2 -translate-y-1/2 w-[18px] h-[18px] text-zinc-400" />
               <input
                 id="input-register-name"
                 type="text"
                 placeholder="Seu nome completo"
                 value={name}
                 onChange={(e) => setName(e.target.value)}
-                className="w-full pl-11 pr-5 py-4 rounded-[22px] bg-[#141518] border border-white/10 text-white placeholder:text-zinc-500 focus:outline-none focus:border-white focus:ring-1 focus:ring-white transition-all text-[15px] font-medium shadow-sm"
+                className="w-full pl-11 pr-5 py-4 rounded-[22px] bg-[#fbfbfb] border border-zinc-200 text-zinc-900 placeholder:text-zinc-400 focus:outline-none focus:border-zinc-900 focus:ring-1 focus:ring-zinc-900 transition-all text-[15px] font-medium shadow-2xs"
                 required
                 autoComplete="name"
               />
@@ -451,7 +451,7 @@ export function AuthScreen({ onSuccess }: AuthScreenProps) {
             {/* Nome de Usuário (@username) com validação em tempo real */}
             <div>
               <div className="relative">
-                <AtSign className="absolute left-4 top-1/2 -translate-y-1/2 w-[18px] h-[18px] text-zinc-500" />
+                <AtSign className="absolute left-4 top-1/2 -translate-y-1/2 w-[18px] h-[18px] text-zinc-400" />
                 <input
                   id="input-register-username"
                   type="text"
@@ -461,12 +461,12 @@ export function AuthScreen({ onSuccess }: AuthScreenProps) {
                     const cleanVal = e.target.value.replace(/[^a-zA-Z0-9_]/g, '');
                     setUsername(cleanVal);
                   }}
-                  className={`w-full pl-11 pr-11 py-4 rounded-[22px] bg-[#141518] border text-white placeholder:text-zinc-500 focus:outline-none transition-all text-[15px] font-medium shadow-sm ${
+                  className={`w-full pl-11 pr-11 py-4 rounded-[22px] bg-[#fbfbfb] border text-zinc-900 placeholder:text-zinc-400 focus:outline-none transition-all text-[15px] font-medium shadow-2xs ${
                     usernameStatus === 'available'
                       ? 'border-emerald-500/70 focus:border-emerald-400 focus:ring-1 focus:ring-emerald-400'
                       : usernameStatus === 'unavailable'
                       ? 'border-rose-500/70 focus:border-rose-400 focus:ring-1 focus:ring-rose-400'
-                      : 'border-white/10 focus:border-white focus:ring-1 focus:ring-white'
+                      : 'border-zinc-200 focus:border-zinc-900 focus:ring-1 focus:ring-zinc-900'
                   }`}
                   required
                   autoCapitalize="none"
@@ -478,52 +478,52 @@ export function AuthScreen({ onSuccess }: AuthScreenProps) {
                     <Loader2 className="w-4 h-4 text-zinc-400 animate-spin" />
                   )}
                   {usernameStatus === 'available' && (
-                    <div className="w-5 h-5 rounded-full bg-emerald-500/20 text-emerald-400 flex items-center justify-center">
+                    <div className="w-5 h-5 rounded-full bg-emerald-500/20 text-emerald-600 flex items-center justify-center">
                       <Check className="w-3.5 h-3.5 stroke-[2.5]" />
                     </div>
                   )}
                   {usernameStatus === 'unavailable' && (
-                    <div className="w-5 h-5 rounded-full bg-rose-500/20 text-rose-400 flex items-center justify-center">
+                    <div className="w-5 h-5 rounded-full bg-rose-500/20 text-rose-500 flex items-center justify-center">
                       <X className="w-3.5 h-3.5 stroke-[2.5]" />
                     </div>
                   )}
                 </div>
               </div>
               {usernameStatus === 'available' && (
-                <p className="text-[12px] text-emerald-400 font-semibold px-3 mt-1.5 flex items-center gap-1">
+                <p className="text-[12px] text-emerald-600 font-semibold px-3 mt-1.5 flex items-center gap-1">
                   <span>Nome de usuário disponível</span>
                 </p>
               )}
               {usernameStatus === 'unavailable' && usernameError && (
-                <p className="text-[12px] text-rose-400 font-semibold px-3 mt-1.5 flex items-center gap-1">
+                <p className="text-[12px] text-rose-500 font-semibold px-3 mt-1.5 flex items-center gap-1">
                   <span>{usernameError}</span>
                 </p>
               )}
             </div>
 
             <div className="relative">
-              <Mail className="absolute left-4 top-1/2 -translate-y-1/2 w-[18px] h-[18px] text-zinc-500" />
+              <Mail className="absolute left-4 top-1/2 -translate-y-1/2 w-[18px] h-[18px] text-zinc-400" />
               <input
                 id="input-register-email"
                 type="email"
                 placeholder="Seu e-mail"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
-                className="w-full pl-11 pr-5 py-4 rounded-[22px] bg-[#141518] border border-white/10 text-white placeholder:text-zinc-500 focus:outline-none focus:border-white focus:ring-1 focus:ring-white transition-all text-[15px] font-medium shadow-sm"
+                className="w-full pl-11 pr-5 py-4 rounded-[22px] bg-[#fbfbfb] border border-zinc-200 text-zinc-900 placeholder:text-zinc-400 focus:outline-none focus:border-zinc-900 focus:ring-1 focus:ring-zinc-900 transition-all text-[15px] font-medium shadow-2xs"
                 required
                 autoComplete="email"
               />
             </div>
 
             <div className="relative">
-              <Lock className="absolute left-4 top-1/2 -translate-y-1/2 w-[18px] h-[18px] text-zinc-500" />
+              <Lock className="absolute left-4 top-1/2 -translate-y-1/2 w-[18px] h-[18px] text-zinc-400" />
               <input
                 id="input-register-password"
                 type={showPassword ? 'text' : 'password'}
                 placeholder="Crie uma senha (mínimo 6 dígitos)"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
-                className="w-full pl-11 pr-12 py-4 rounded-[22px] bg-[#141518] border border-white/10 text-white placeholder:text-zinc-500 focus:outline-none focus:border-white focus:ring-1 focus:ring-white transition-all text-[15px] font-medium shadow-sm"
+                className="w-full pl-11 pr-12 py-4 rounded-[22px] bg-[#fbfbfb] border border-zinc-200 text-zinc-900 placeholder:text-zinc-400 focus:outline-none focus:border-zinc-900 focus:ring-1 focus:ring-zinc-900 transition-all text-[15px] font-medium shadow-2xs"
                 required
                 minLength={6}
                 autoComplete="new-password"
@@ -531,7 +531,7 @@ export function AuthScreen({ onSuccess }: AuthScreenProps) {
               <button
                 type="button"
                 onClick={() => setShowPassword(!showPassword)}
-                className="absolute right-4 top-1/2 -translate-y-1/2 text-zinc-500 hover:text-white transition-colors cursor-pointer"
+                className="absolute right-4 top-1/2 -translate-y-1/2 text-zinc-400 hover:text-zinc-900 transition-colors cursor-pointer"
               >
                 {showPassword ? <EyeOff className="w-[18px] h-[18px]" /> : <Eye className="w-[18px] h-[18px]" />}
               </button>
@@ -541,7 +541,7 @@ export function AuthScreen({ onSuccess }: AuthScreenProps) {
               <motion.p 
                 initial={{ opacity: 0, y: -4 }}
                 animate={{ opacity: 1, y: 0 }}
-                className="text-red-400 text-xs font-semibold text-center mt-2 px-4"
+                className="text-red-500 text-xs font-semibold text-center mt-2 px-4"
               >
                 {error}
               </motion.p>
@@ -553,7 +553,7 @@ export function AuthScreen({ onSuccess }: AuthScreenProps) {
                 whileTap={{ scale: 0.98 }}
                 type="submit"
                 disabled={loading || googleLoading}
-                className="w-full py-[16px] rounded-[22px] bg-white text-zinc-900 text-[15px] font-bold flex items-center justify-center gap-2 hover:bg-zinc-100 transition-all disabled:opacity-70 shadow-md cursor-pointer"
+                className="w-full py-[16px] rounded-[22px] bg-[#000000] text-[#ffffff] text-[15px] font-bold flex items-center justify-center gap-2 hover:bg-zinc-800 transition-all disabled:opacity-70 shadow-md cursor-pointer"
               >
                 {loading ? 'Cadastrando...' : 'Criar Conta →'}
               </motion.button>
@@ -562,9 +562,9 @@ export function AuthScreen({ onSuccess }: AuthScreenProps) {
             {/* Google Sign In Option */}
             <div className="pt-2 space-y-3">
               <div className="flex items-center gap-3">
-                <div className="flex-1 h-[1px] bg-white/10" />
-                <span className="text-[11px] text-zinc-500 uppercase tracking-wider font-semibold">ou cadastro rápido</span>
-                <div className="flex-1 h-[1px] bg-white/10" />
+                <div className="flex-1 h-[1px] bg-zinc-200" />
+                <span className="text-[11px] text-zinc-400 uppercase tracking-wider font-semibold">ou cadastro rápido</span>
+                <div className="flex-1 h-[1px] bg-zinc-200" />
               </div>
 
               <motion.button
@@ -573,7 +573,7 @@ export function AuthScreen({ onSuccess }: AuthScreenProps) {
                 type="button"
                 onClick={handleGoogleAuth}
                 disabled={googleLoading || loading}
-                className="w-full py-[14px] px-5 rounded-[22px] bg-[#1a1b1f] hover:bg-[#23242a] border border-white/15 text-white text-[14px] font-semibold flex items-center justify-center gap-3 transition-all cursor-pointer shadow-sm disabled:opacity-60"
+                className="w-full py-[14px] px-5 rounded-[22px] bg-[#fbfbfb] hover:bg-zinc-100 border border-zinc-200 text-zinc-900 text-[14px] font-semibold flex items-center justify-center gap-3 transition-all cursor-pointer shadow-2xs disabled:opacity-60"
               >
                 <svg className="w-[18px] h-[18px] shrink-0" viewBox="0 0 24 24">
                   <path
@@ -593,14 +593,14 @@ export function AuthScreen({ onSuccess }: AuthScreenProps) {
                     d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z"
                   />
                 </svg>
-                <span>{googleLoading ? 'Conectando...' : 'Cadastrar com Google / Gmail'}</span>
+                <span style={{ color: '#515151' }}>{googleLoading ? 'Conectando...' : 'Cadastrar com Google / Gmail'}</span>
               </motion.button>
             </div>
           </form>
         )}
 
         {/* Footer Navigation Switcher */}
-        <div className="mt-8 text-[13px] text-zinc-400 font-semibold flex items-center gap-1.5">
+        <div className="mt-8 text-[13px] font-semibold flex items-center gap-1.5" style={{ color: '#ababab' }}>
           {authMode === 'login' ? (
             <>
               Não possui uma conta?
@@ -610,7 +610,7 @@ export function AuthScreen({ onSuccess }: AuthScreenProps) {
                   setAuthMode('register');
                   setError('');
                 }} 
-                className="text-white font-bold hover:underline cursor-pointer"
+                className="text-zinc-900 font-bold hover:underline cursor-pointer"
               >
                 Criar conta →
               </button>
@@ -624,7 +624,7 @@ export function AuthScreen({ onSuccess }: AuthScreenProps) {
                   setAuthMode('login');
                   setError('');
                 }} 
-                className="text-white font-bold hover:underline cursor-pointer"
+                className="text-zinc-900 font-bold hover:underline cursor-pointer"
               >
                 Entrar →
               </button>

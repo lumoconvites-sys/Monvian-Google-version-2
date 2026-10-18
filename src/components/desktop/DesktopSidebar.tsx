@@ -1,6 +1,17 @@
-import React from 'react';
-import { Compass, Route, Bookmark, User, Shield, Sun, Moon, Settings, ChevronRight, Sparkles } from 'lucide-react';
-import { Weather3DIcon } from '../Weather3DIcon';
+import React, { useState } from 'react';
+import {
+  Compass,
+  Route,
+  Bookmark,
+  User,
+  Shield,
+  Settings,
+  ChevronRight,
+  ChevronLeft,
+  Search,
+  PanelLeftClose,
+  PanelLeft,
+} from 'lucide-react';
 
 interface DesktopSidebarProps {
   activeTab: string;
@@ -19,6 +30,8 @@ interface DesktopSidebarProps {
   onOpenAdmin?: () => void;
   onOpenHostDashboard?: () => void;
   isUserAdmin?: boolean;
+  isCollapsed?: boolean;
+  onToggleCollapse?: () => void;
 }
 
 export const DesktopSidebar: React.FC<DesktopSidebarProps> = ({
@@ -26,208 +39,298 @@ export const DesktopSidebar: React.FC<DesktopSidebarProps> = ({
   onChangeTab,
   unreadCount = 0,
   theme,
-  onToggleTheme,
   realWeather,
   onOpenWeatherModal,
   user,
   onOpenAdmin,
   onOpenHostDashboard,
   isUserAdmin,
+  isCollapsed: controlledIsCollapsed,
+  onToggleCollapse,
 }) => {
-  const isDark = theme === 'dark';
+  // Collapsed by default as requested (64-76px), expandable to 220-250px
+  const [internalCollapsed, setInternalCollapsed] = useState<boolean>(true);
+  const isCollapsed = controlledIsCollapsed !== undefined ? controlledIsCollapsed : internalCollapsed;
+
+  const handleToggle = () => {
+    if (onToggleCollapse) {
+      onToggleCollapse();
+    } else {
+      setInternalCollapsed((prev) => !prev);
+    }
+  };
 
   const navItems = [
-    { id: 'salvos', label: 'Salvos', icon: Bookmark, badge: unreadCount },
     { id: 'roteiros', label: 'Roteiros', icon: Route },
+    { id: 'salvos', label: 'Salvos', icon: Bookmark, badge: unreadCount },
     { id: 'explorar', label: 'Explorar', icon: Compass },
+    { id: 'buscar', label: 'Buscar', icon: Search },
     { id: 'perfil', label: 'Perfil', icon: User },
   ];
-
-  const isGoldUser = Boolean(
-    user?.isGold || user?.is_gold === 1 || user?.isPremium || user?.is_premium === 1
-  );
 
   const displayUsername = user?.username ? `@${user.username}` : '@monvians';
   const displayName = user?.name || 'mariomeloz';
 
   return (
     <aside
-      className="hidden md:flex flex-col justify-between w-64 lg:w-72 h-full bg-[#090A0D] border-r border-white/[0.08] z-40 select-none shrink-0"
+      className={`hidden md:flex flex-col justify-between h-full bg-white border-r border-zinc-200/90 z-40 select-none shrink-0 transition-[width] duration-200 ease-in-out ${
+        isCollapsed ? 'w-[72px]' : 'w-[250px]'
+      }`}
       style={{
         fontFamily: "-apple-system, BlinkMacSystemFont, 'SF Pro Display', 'SF Pro Text', system-ui, sans-serif",
       }}
+      aria-label="Menu principal desktop"
     >
-      <div className="p-5 lg:p-6 space-y-7">
-        {/* Brand Header (Stylized Golden 'M' matching uploaded image) */}
-        <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-2xl bg-gradient-to-br from-[#1C1A14] to-[#0E0D0B] border border-amber-500/30 flex items-center justify-center shrink-0 shadow-[0_2px_12px_rgba(230,172,51,0.15)]">
-            <svg
-              viewBox="0 0 24 24"
-              fill="none"
-              className="w-6 h-6"
+      <div className={`space-y-6 ${isCollapsed ? 'p-3' : 'p-5'}`}>
+        {/* Brand Header: logocarregamento.png (+40% horizontal) when expanded, minilogo.png when collapsed */}
+        <div className={`flex items-center ${isCollapsed ? 'flex-col gap-3 justify-center' : 'justify-between'}`}>
+          {isCollapsed ? (
+            /* Collapsed state: shows minilogo.png */
+            <div
+              onClick={handleToggle}
+              className="flex items-center justify-center cursor-pointer group"
+              title="Expandir menu"
             >
-              <path
-                d="M4 19L8.5 5L12 13L15.5 5L20 19H16.8L15.5 13.5L12 20L8.5 13.5L7.2 19H4Z"
-                fill="url(#goldGradientBrand)"
+              <img
+                src="/minilogo.png"
+                alt="Monvian"
+                className="w-9 h-9 rounded-xl object-contain shadow-xs group-hover:scale-105 transition-transform duration-200"
               />
-              <defs>
-                <linearGradient id="goldGradientBrand" x1="4" y1="5" x2="20" y2="19" gradientUnits="userSpaceOnUse">
-                  <stop stopColor="#FFE07A" />
-                  <stop offset="0.45" stopColor="#E5AC33" />
-                  <stop offset="1" stopColor="#B37C12" />
-                </linearGradient>
-              </defs>
-            </svg>
-          </div>
-          <div className="min-w-0">
-            <div className="flex items-center gap-1.5">
-              <h1 className="text-base font-bold tracking-tight text-white leading-none">
-                Monvian
-              </h1>
-              {isGoldUser && (
-                <span className="px-1.5 py-0.5 rounded-full text-[9px] font-black uppercase tracking-wider bg-amber-500/15 text-amber-400 border border-amber-500/30">
-                  Gold
-                </span>
-              )}
             </div>
-            <p className="text-[11px] font-medium text-zinc-400 tracking-tight mt-1 truncate">
-              Campos do Jordão
-            </p>
-          </div>
-        </div>
-
-        {/* Navigation Items (Matching uploaded image golden pill styling) */}
-        <nav className="space-y-1.5">
-          {navItems.map((item) => {
-            const Icon = item.icon;
-            const isActive = activeTab === item.id;
-            return (
-              <button
-                key={item.id}
-                onClick={() => onChangeTab(item.id)}
-                className={`w-full flex items-center justify-between px-3.5 py-3 rounded-2xl text-[14px] font-semibold transition-all duration-200 cursor-pointer group ${
-                  isActive
-                    ? 'bg-gradient-to-r from-amber-500/12 via-amber-500/5 to-transparent border border-amber-500/40 text-white shadow-[0_0_18px_rgba(230,172,51,0.12)]'
-                    : 'text-zinc-400 hover:text-white hover:bg-white/[0.04] border border-transparent'
-                }`}
-              >
-                <div className="flex items-center gap-3">
-                  <div className={`w-7 h-7 rounded-full flex items-center justify-center transition-colors ${
-                    isActive ? 'bg-amber-500/20 text-amber-300' : 'text-zinc-400 group-hover:text-white'
-                  }`}>
-                    <Icon className="w-[18px] h-[18px] stroke-[2.2]" />
-                  </div>
-                  <span>{item.label}</span>
-                </div>
-
-                {item.id === 'salvos' && (
-                  <span className="w-2 h-2 rounded-full bg-amber-400 shadow-[0_0_8px_rgba(251,191,36,0.8)]" />
-                )}
-              </button>
-            );
-          })}
-
-          {onOpenHostDashboard && (
-            <div className="pt-2">
-              <button
-                onClick={onOpenHostDashboard}
-                className="w-full flex items-center justify-between px-3.5 py-2.5 rounded-2xl text-[13px] font-medium text-zinc-300 hover:text-white hover:bg-white/[0.04] border border-white/[0.06] transition-all cursor-pointer"
-              >
-                <div className="flex items-center gap-3">
-                  <User className="w-4 h-4 stroke-[1.8] text-zinc-300" />
-                  <span>Área do anfitrião</span>
-                </div>
-                <ChevronRight className="w-3.5 h-3.5 text-zinc-500" />
-              </button>
+          ) : (
+            /* Expanded state: shows logocarregamento.png (+40% horizontally) */
+            <div className="flex items-center min-w-0 flex-1 pr-3 overflow-visible animate-fadeIn">
+              <img
+                src="/logocarregamento.png"
+                alt="Monvian"
+                className="h-[34px] w-auto max-w-none select-none transition-transform duration-200"
+                style={{
+                  transform: 'scaleX(1.4)',
+                  transformOrigin: 'left center',
+                }}
+              />
             </div>
           )}
 
+          {/* Discreet Toggle Button */}
+          <button
+            type="button"
+            onClick={handleToggle}
+            className={`p-1.5 rounded-xl text-zinc-400 hover:text-black hover:bg-zinc-100 transition-colors cursor-pointer group relative ${
+              isCollapsed ? 'w-8 h-8 flex items-center justify-center' : ''
+            }`}
+            title={isCollapsed ? 'Expandir menu' : 'Recolher menu'}
+            aria-label={isCollapsed ? 'Expandir barra lateral' : 'Recolher barra lateral'}
+          >
+            {isCollapsed ? (
+              <PanelLeft className="w-4 h-4 stroke-[2]" />
+            ) : (
+              <PanelLeftClose className="w-4 h-4 stroke-[2]" />
+            )}
+
+            {/* Tooltip when collapsed */}
+            {isCollapsed && (
+              <div className="absolute left-[calc(100%+12px)] top-1/2 -translate-y-1/2 px-2.5 py-1 rounded-md bg-zinc-900 text-white text-[11px] font-medium tracking-tight shadow-xl opacity-0 pointer-events-none group-hover:opacity-100 transition-opacity duration-150 z-50 whitespace-nowrap">
+                Expandir menu
+              </div>
+            )}
+          </button>
+        </div>
+
+        {/* Navigation Items */}
+        <nav className="space-y-1.5" aria-label="Navegação">
+          {navItems.map((item) => {
+            const Icon = item.icon;
+            const isActive = activeTab === item.id;
+
+            return (
+              <div key={item.id} className="relative group">
+                <button
+                  type="button"
+                  onClick={() => onChangeTab(item.id)}
+                  className={`w-full flex items-center transition-all duration-200 cursor-pointer ${
+                    isCollapsed
+                      ? 'w-11 h-11 mx-auto justify-center rounded-2xl'
+                      : 'justify-between px-3.5 py-2.5 rounded-2xl text-[14px] font-semibold'
+                  } ${
+                    isActive
+                      ? 'bg-[#f3f3f3] text-black border border-zinc-200/80 shadow-xs'
+                      : 'text-zinc-600 hover:text-black hover:bg-zinc-100 border border-transparent'
+                  }`}
+                  aria-label={item.label}
+                  aria-current={isActive ? 'page' : undefined}
+                >
+                  <div className={`flex items-center ${isCollapsed ? 'justify-center' : 'gap-3'}`}>
+                    <div
+                      className={`flex items-center justify-center transition-colors ${
+                        isCollapsed
+                          ? 'w-6 h-6'
+                          : isActive
+                            ? 'w-7 h-7 rounded-full bg-[#d9d9d9] text-black'
+                            : 'w-7 h-7 rounded-full text-zinc-500 group-hover:text-black'
+                      }`}
+                    >
+                      <Icon className="w-[18px] h-[18px] stroke-[2.2]" style={{ color: '#000000' }} />
+                    </div>
+
+                    {!isCollapsed && (
+                      <span className="truncate" style={{ color: '#000000' }}>
+                        {item.label}
+                      </span>
+                    )}
+                  </div>
+
+                  {/* Salvos / Unread indicator dot */}
+                  {item.id === 'salvos' && (
+                    <span
+                      className={`rounded-full bg-[#0095fe] shadow-[0_0_8px_rgba(0,149,254,0.6)] ${
+                        isCollapsed ? 'absolute top-2 right-2 w-2 h-2' : 'w-2 h-2'
+                      }`}
+                      style={{ backgroundColor: '#0095fe' }}
+                    />
+                  )}
+                </button>
+
+                {/* macOS Style Discrete Tooltip on Hover (When Collapsed) */}
+                {isCollapsed && (
+                  <div className="absolute left-[calc(100%+12px)] top-1/2 -translate-y-1/2 px-2.5 py-1 rounded-md bg-zinc-900 text-white text-xs font-medium tracking-tight shadow-xl opacity-0 pointer-events-none group-hover:opacity-100 transition-opacity duration-150 z-50 whitespace-nowrap">
+                    {item.label}
+                  </div>
+                )}
+              </div>
+            );
+          })}
+
+          {/* Host Dashboard Link */}
+          {onOpenHostDashboard && (
+            <div className={`pt-2 ${isCollapsed ? 'flex justify-center' : ''}`}>
+              <div className="relative group w-full">
+                <button
+                  type="button"
+                  onClick={onOpenHostDashboard}
+                  className={`flex items-center transition-all cursor-pointer ${
+                    isCollapsed
+                      ? 'w-11 h-11 mx-auto justify-center rounded-2xl text-black hover:bg-zinc-100 border border-transparent hover:border-zinc-200'
+                      : 'w-full justify-between px-3.5 py-2.5 rounded-2xl text-[13px] font-medium text-black hover:bg-zinc-100 border border-zinc-200'
+                  }`}
+                  aria-label="Área do anfitrião"
+                >
+                  <div className={`flex items-center ${isCollapsed ? 'justify-center' : 'gap-3'}`}>
+                    <User className="w-4 h-4 stroke-[2]" style={{ color: '#000000' }} />
+                    {!isCollapsed && <span style={{ color: '#000000' }}>Área do anfitrião</span>}
+                  </div>
+                  {!isCollapsed && <ChevronRight className="w-3.5 h-3.5 text-zinc-400" />}
+                </button>
+
+                {isCollapsed && (
+                  <div className="absolute left-[calc(100%+12px)] top-1/2 -translate-y-1/2 px-2.5 py-1 rounded-md bg-zinc-900 text-white text-xs font-medium tracking-tight shadow-xl opacity-0 pointer-events-none group-hover:opacity-100 transition-opacity duration-150 z-50 whitespace-nowrap">
+                    Área do anfitrião
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+
+          {/* Admin Panel Link */}
           {isUserAdmin && (
-            <div className="pt-1">
-              <button
-                onClick={onOpenAdmin}
-                className="w-full flex items-center gap-3 px-3.5 py-2.5 rounded-2xl text-[13px] font-semibold text-amber-400 hover:text-amber-300 hover:bg-amber-400/10 border border-amber-400/20 transition-all cursor-pointer"
-              >
-                <Shield className="w-4 h-4 stroke-[2.2]" />
-                <span>Painel Admin</span>
-              </button>
+            <div className={`pt-1 ${isCollapsed ? 'flex justify-center' : ''}`}>
+              <div className="relative group w-full">
+                <button
+                  type="button"
+                  onClick={onOpenAdmin}
+                  className={`flex items-center transition-all cursor-pointer ${
+                    isCollapsed
+                      ? 'w-11 h-11 mx-auto justify-center rounded-2xl text-[#0069ff] hover:bg-blue-50 border border-transparent hover:border-blue-200'
+                      : 'w-full gap-3 px-3.5 py-2.5 rounded-2xl text-[13px] font-semibold text-[#008dff] hover:bg-blue-50 border border-blue-200'
+                  }`}
+                  aria-label="Painel Admin"
+                >
+                  <Shield className="w-4 h-4 stroke-[2.2]" style={{ color: '#0069ff' }} />
+                  {!isCollapsed && <span style={{ color: '#008dff' }}>Painel Admin</span>}
+                </button>
+
+                {isCollapsed && (
+                  <div className="absolute left-[calc(100%+12px)] top-1/2 -translate-y-1/2 px-2.5 py-1 rounded-md bg-zinc-900 text-white text-xs font-medium tracking-tight shadow-xl opacity-0 pointer-events-none group-hover:opacity-100 transition-opacity duration-150 z-50 whitespace-nowrap">
+                    Painel Admin
+                  </div>
+                )}
+              </div>
             </div>
           )}
         </nav>
       </div>
 
-      {/* Footer: Weather Card Widget & User Profile Card Widget (Matching Image) */}
-      <div className="p-4 lg:p-5 border-t border-white/[0.08] space-y-2.5">
-        {/* Weather Card Widget */}
-        <div
-          onClick={onOpenWeatherModal}
-          className="w-full p-3 rounded-2xl bg-[#12141A] border border-white/[0.06] hover:border-white/15 flex items-center justify-between cursor-pointer transition-all group"
-          title="Ver previsão do tempo"
-        >
-          <div className="flex items-center gap-2.5 min-w-0">
-            <div className="w-8 h-8 rounded-xl bg-amber-500/10 flex items-center justify-center shrink-0">
-              {realWeather ? (
-                <Weather3DIcon
-                  weatherCode={realWeather.weatherCode}
-                  isDay={realWeather.isDay}
-                  className="w-7 h-7"
-                />
-              ) : (
-                <Sun className="w-4 h-4 text-amber-400" />
-              )}
-            </div>
-            <div className="min-w-0">
-              <p className="text-xs font-bold text-white tracking-tight">
-                {realWeather ? `${realWeather.temperature}°C` : '19°C'}
-              </p>
-              <p className="text-[10px] text-zinc-400 font-medium truncate max-w-[130px]">
-                {realWeather?.condition || 'Tempo nublado'}
-              </p>
-            </div>
-          </div>
-          <ChevronRight className="w-4 h-4 text-zinc-500 group-hover:text-white transition-colors shrink-0" />
-        </div>
-
-        {/* User Profile Card Widget */}
-        <div className="w-full p-3 rounded-2xl bg-[#12141A] border border-white/[0.06] hover:border-white/15 flex items-center justify-between transition-all">
+      {/* Footer Section */}
+      <div
+        className={`border-t border-zinc-200/90 bg-white ${
+          isCollapsed ? 'p-3 flex flex-col items-center' : 'p-4 lg:p-5'
+        }`}
+        style={{ backgroundColor: '#ffffff' }}
+      >
+        {/* User Profile Widget */}
+        <div className="relative group w-full flex justify-center">
           <div
             onClick={() => onChangeTab('perfil')}
-            className="flex items-center gap-2.5 min-w-0 cursor-pointer group flex-1 mr-2"
+            className={`transition-all cursor-pointer ${
+              isCollapsed
+                ? 'w-10 h-10 rounded-full flex items-center justify-center'
+                : 'w-full p-2.5 rounded-2xl bg-white border border-zinc-200 hover:border-zinc-300 flex items-center justify-between shadow-2xs'
+            }`}
+            role="button"
+            tabIndex={0}
+            title={displayName}
           >
-            <img
-              src={user?.avatar_url || '/fotoperfil.png'}
-              alt={displayName}
-              className="w-9 h-9 rounded-full object-cover border border-white/10 shrink-0 group-hover:ring-1 group-hover:ring-amber-400/50 transition-all"
-              onError={(e) => {
-                (e.currentTarget as HTMLImageElement).src = '/fotoperfil.png';
-              }}
-            />
-            <div className="min-w-0">
-              <p className="text-xs font-bold text-white truncate group-hover:text-amber-300 transition-colors">
-                {displayName}
-              </p>
-              <p className="text-[10px] text-zinc-400 truncate">
-                {displayUsername}
-              </p>
+            <div className={`flex items-center ${isCollapsed ? 'justify-center' : 'gap-2.5 min-w-0 flex-1 mr-2'}`}>
+              <img
+                src={
+                  user?.avatar_url && user.avatar_url !== '/fotoperfil.png'
+                    ? user.avatar_url
+                    : (typeof window !== 'undefined' ? localStorage.getItem('monvian_local_avatar') : null) ||
+                      user?.avatar_url ||
+                      '/fotoperfil.png'
+                }
+                alt={displayName}
+                className="w-9 h-9 rounded-full object-cover border border-zinc-200 shrink-0 group-hover:ring-2 group-hover:ring-amber-500/50 transition-all"
+                onError={(e) => {
+                  (e.currentTarget as HTMLImageElement).src = '/fotoperfil.png';
+                }}
+              />
+
+              {!isCollapsed && (
+                <div className="min-w-0">
+                  <p className="text-xs font-bold text-black truncate group-hover:text-amber-600 transition-colors" style={{ color: '#000000' }}>
+                    {displayName}
+                  </p>
+                  <p className="text-[10px] text-zinc-500 truncate">
+                    {displayUsername}
+                  </p>
+                </div>
+              )}
             </div>
+
+            {!isCollapsed && (
+              <div className="flex items-center gap-1 shrink-0">
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onChangeTab('perfil');
+                  }}
+                  className="p-1 rounded-lg text-zinc-400 hover:text-black hover:bg-zinc-100 transition-colors cursor-pointer"
+                  title="Configurações do Perfil"
+                  aria-label="Configurações"
+                >
+                  <Settings className="w-4 h-4 stroke-[2]" />
+                </button>
+              </div>
+            )}
           </div>
 
-          <div className="flex items-center gap-1 shrink-0">
-            <button
-              onClick={() => onChangeTab('perfil')}
-              className="p-1.5 rounded-lg text-zinc-400 hover:text-white hover:bg-white/[0.08] transition-colors cursor-pointer"
-              title="Configurações do Perfil"
-            >
-              <Settings className="w-4 h-4 stroke-[2]" />
-            </button>
-            <button
-              onClick={onToggleTheme}
-              className="p-1.5 rounded-lg text-zinc-400 hover:text-white hover:bg-white/[0.08] transition-colors cursor-pointer"
-              title={isDark ? 'Tema Claro' : 'Tema Escuro'}
-            >
-              {isDark ? <Sun className="w-3.5 h-3.5 text-amber-300" /> : <Moon className="w-3.5 h-3.5" />}
-            </button>
-          </div>
+          {isCollapsed && (
+            <div className="absolute left-[calc(100%+12px)] top-1/2 -translate-y-1/2 px-2.5 py-1 rounded-md bg-zinc-900 text-white text-xs font-medium tracking-tight shadow-xl opacity-0 pointer-events-none group-hover:opacity-100 transition-opacity duration-150 z-50 whitespace-nowrap">
+              {displayName} ({displayUsername})
+            </div>
+          )}
         </div>
       </div>
     </aside>

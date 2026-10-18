@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { createPortal } from 'react-dom';
 import { ChevronLeft, Bell, Heart, MessageCircle, UserPlus, Eye, CheckCheck, Loader2 } from 'lucide-react';
+import { motion } from 'motion/react';
 
 export interface SocialNotification {
   id: string;
@@ -106,8 +107,11 @@ export const NotificationsModal: React.FC<NotificationsModalProps> = ({
   };
 
   const modalContent = (
-    <div
+    <motion.div
       id="notifications-fullscreen-view"
+      initial={{ opacity: 0, scale: 0.96, y: 12 }}
+      animate={{ opacity: 1, scale: 1, y: 0 }}
+      transition={{ type: 'spring', stiffness: 380, damping: 24 }}
       onClick={(e) => e.stopPropagation()}
       className={`fixed inset-0 z-[150] flex flex-col ${
         isDark ? 'bg-[#000000] text-white' : 'bg-[#ffffff] text-black'
@@ -182,7 +186,12 @@ export const NotificationsModal: React.FC<NotificationsModalProps> = ({
 
         {/* Empty State: Centered directly in the middle of the screen matching reference */}
         {!isLoading && notifications.length === 0 && (
-          <div className="flex-1 flex flex-col items-center justify-center text-center px-6 -mt-16 select-none">
+          <motion.div
+            initial={{ opacity: 0, scale: 0.88, y: 12 }}
+            animate={{ opacity: 1, scale: 1, y: 0 }}
+            transition={{ type: 'spring', stiffness: 380, damping: 22, delay: 0.04 }}
+            className="flex-1 flex flex-col items-center justify-center text-center px-6 -mt-16 select-none"
+          >
             {/* Bell Icon matching reference */}
             <Bell
               className={`w-11 h-11 stroke-[1.6] mb-5 ${
@@ -204,7 +213,7 @@ export const NotificationsModal: React.FC<NotificationsModalProps> = ({
               Não há nada aqui (por enquanto).<br />
               Avisaremos assim que houver novidades.
             </p>
-          </div>
+          </motion.div>
         )}
 
         {/* Scrollable Notifications List (when notifications exist) */}
@@ -225,9 +234,10 @@ export const NotificationsModal: React.FC<NotificationsModalProps> = ({
                   <span className="w-1.5 h-1.5 rounded-full bg-[#FF3B30]" />
                 </div>
                 <div className="divide-y divide-transparent">
-                  {unread.map((item) => (
+                  {unread.map((item, idx) => (
                     <NotificationRow
                       key={item.id}
+                      index={idx}
                       item={item}
                       isDark={isDark}
                       isFollowing={!!followingMap[item.sender_id]}
@@ -247,9 +257,10 @@ export const NotificationsModal: React.FC<NotificationsModalProps> = ({
                   Últimos 7 dias
                 </h2>
                 <div className="divide-y divide-transparent">
-                  {last7Days.map((item) => (
+                  {last7Days.map((item, idx) => (
                     <NotificationRow
                       key={item.id}
+                      index={idx}
                       item={item}
                       isDark={isDark}
                       isFollowing={!!followingMap[item.sender_id]}
@@ -269,9 +280,10 @@ export const NotificationsModal: React.FC<NotificationsModalProps> = ({
                   Últimos 30 dias
                 </h2>
                 <div className="divide-y divide-transparent">
-                  {last30Days.map((item) => (
+                  {last30Days.map((item, idx) => (
                     <NotificationRow
                       key={item.id}
+                      index={idx}
                       item={item}
                       isDark={isDark}
                       isFollowing={!!followingMap[item.sender_id]}
@@ -291,9 +303,10 @@ export const NotificationsModal: React.FC<NotificationsModalProps> = ({
                   Anteriores
                 </h2>
                 <div className="divide-y divide-transparent">
-                  {older.map((item) => (
+                  {older.map((item, idx) => (
                     <NotificationRow
                       key={item.id}
+                      index={idx}
                       item={item}
                       isDark={isDark}
                       isFollowing={!!followingMap[item.sender_id]}
@@ -307,7 +320,7 @@ export const NotificationsModal: React.FC<NotificationsModalProps> = ({
             )}
           </div>
         )}
-      </div>
+      </motion.div>
   );
 
   if (typeof document !== 'undefined') {
@@ -319,6 +332,7 @@ export const NotificationsModal: React.FC<NotificationsModalProps> = ({
 
 interface NotificationRowProps {
   item: SocialNotification;
+  index?: number;
   isDark?: boolean;
   isFollowing: boolean;
   onToggleFollow: (e: React.MouseEvent) => void;
@@ -328,6 +342,7 @@ interface NotificationRowProps {
 
 const NotificationRow: React.FC<NotificationRowProps> = ({
   item,
+  index = 0,
   isDark = true,
   isFollowing,
   onToggleFollow,
@@ -337,7 +352,11 @@ const NotificationRow: React.FC<NotificationRowProps> = ({
   const isUnread = item.is_read === 0;
 
   return (
-    <div
+    <motion.div
+      initial={{ opacity: 0, scale: 0.88, y: 12 }}
+      animate={{ opacity: 1, scale: 1, y: 0 }}
+      transition={{ type: 'spring', stiffness: 380, damping: 22, delay: index * 0.035 }}
+      whileTap={{ scale: 0.97, transition: { type: 'spring', stiffness: 500, damping: 14 } }}
       onClick={onClick}
       className={`w-full flex items-center justify-between gap-3 px-4 py-3 transition-colors cursor-pointer select-none active:bg-white/[0.04] ${
         isUnread
@@ -348,7 +367,10 @@ const NotificationRow: React.FC<NotificationRowProps> = ({
       {/* Left: Avatar with optional sub-badge */}
       <div className="flex items-center gap-3.5 flex-1 min-w-0">
         <div className="relative shrink-0">
-          <img
+          <motion.img
+            initial={{ opacity: 0, scale: 0.88, y: 8 }}
+            animate={{ opacity: 1, scale: 1, y: 0 }}
+            transition={{ type: 'spring', stiffness: 380, damping: 22, delay: index * 0.035 + 0.02 }}
             src={item.sender_photo || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&w=200&q=80'}
             alt={item.sender_name}
             className={`w-12 h-12 rounded-full object-cover border ${isDark ? 'border-white/10' : 'border-zinc-200'}`}
@@ -408,7 +430,10 @@ const NotificationRow: React.FC<NotificationRowProps> = ({
       <div className="shrink-0 flex items-center pl-1">
         {item.post_image ? (
           <div className={`w-11 h-14 rounded-md overflow-hidden border ${isDark ? 'border-white/10 bg-zinc-900' : 'border-zinc-200 bg-zinc-100'} shadow-xs shrink-0`}>
-            <img
+            <motion.img
+              initial={{ opacity: 0, scale: 0.88, y: 8 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              transition={{ type: 'spring', stiffness: 380, damping: 22, delay: index * 0.035 + 0.03 }}
               src={item.post_image}
               alt="Publicação"
               className="w-full h-full object-cover"
@@ -428,6 +453,6 @@ const NotificationRow: React.FC<NotificationRowProps> = ({
           </button>
         ) : null}
       </div>
-    </div>
+    </motion.div>
   );
 };

@@ -86,19 +86,9 @@ export const ItineraryStoreDetailModal: React.FC<ItineraryStoreDetailModalProps>
       return {};
     }
   })();
-  const currentUserEmail = (currentUserObj.email || currentUserObj.whatsapp || '').trim().toLowerCase();
-  const isGoldAdmin = ['empresariomario@gmail.com', 'marioempresario@gmail.com', 'marioyesk@gmail.com'].includes(currentUserEmail);
-  const isPremiumUser = isGoldAdmin || Boolean(currentUserObj.isGold || currentUserObj.is_gold === 1 || currentUserObj.isPremium || currentUserObj.is_premium === 1);
-  const isLivreItinerary = 
-    itinerary.id === 'roteiro-classico-2-dias' ||
-    itinerary.id?.startsWith('roteiro-classico') ||
-    itinerary.id === 'roteiro-bate-volta-essencial' ||
-    itinerary.badgeText?.toLowerCase() === 'livre' ||
-    itinerary.price === 'R$ 0' ||
-    itinerary.price === 'Grátis' ||
-    itinerary.isPremium === false;
-
-  const isGoldItinerary = !isLivreItinerary && Boolean(itinerary.isPremium || (itinerary as any).isGold || (itinerary as any).is_gold);
+  const isGoldItinerary = Boolean(itinerary.isPremium || (itinerary as any).isGold || (itinerary as any).is_gold);
+  const isLivreItinerary = !isGoldItinerary;
+  const isPremiumUser = false;
   const totalStops =
     itinerary.placesCount ||
     itinerary.days.reduce((acc, d) => acc + d.steps.length, 0);
@@ -111,7 +101,7 @@ export const ItineraryStoreDetailModal: React.FC<ItineraryStoreDetailModalProps>
     .map(cat => TAG_TRANSLATIONS[cat.toLowerCase()] || cat.toUpperCase());
 
   const handleAdd = async () => {
-    if (!isLivreItinerary && itinerary.isPremium && !isPremiumUser) {
+    if (isGoldItinerary) {
       setIsPremiumModalOpen(true);
       return;
     }
@@ -170,7 +160,10 @@ export const ItineraryStoreDetailModal: React.FC<ItineraryStoreDetailModalProps>
             
             {/* 1. HERO / FOTO DE CAPA (FULL BLEED, BORDAS ARREDONDADAS NO TOPO) */}
             <div className="relative w-full h-72 sm:h-80 shrink-0 overflow-hidden bg-zinc-900 rounded-t-[26px]">
-              <img
+              <motion.img
+                initial={{ opacity: 0, scale: 0.88, y: 12 }}
+                animate={{ opacity: 1, scale: 1, y: 0 }}
+                transition={{ type: 'spring', stiffness: 380, damping: 22 }}
                 src={itinerary.coverImage}
                 alt={itinerary.title}
                 className="w-full h-full object-cover rounded-t-[26px]"
@@ -206,10 +199,15 @@ export const ItineraryStoreDetailModal: React.FC<ItineraryStoreDetailModalProps>
                 {/* Direita: Badge Conta Gold / Livre + Botão Fechar [X] */}
                 <div className="flex items-center gap-1.5">
                   {isGoldItinerary ? (
-                    <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-metallic-gold text-[#1A1202] text-[9.5px] font-black uppercase tracking-wider shadow-xs border border-[#FFF4A3]/60">
-                      <Crown className="w-3 h-3 stroke-[2.4] text-[#1A1202]" />
-                      <span>{itinerary.badgeText && itinerary.badgeText.toUpperCase() !== 'PREMIUM' ? itinerary.badgeText : 'ELITE GOLD'}</span>
-                    </span>
+                    <button
+                      type="button"
+                      onClick={() => setIsPremiumModalOpen(true)}
+                      className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-metallic-gold text-[#1A1202] text-[10px] font-black uppercase tracking-wider shadow-md border border-[#FFF4A3]/70 cursor-pointer transition-transform active:scale-95"
+                      title="Roteiro Exclusivo Elite Gold"
+                    >
+                      <Crown className="w-3.5 h-3.5 stroke-[2.4] text-[#1A1202] fill-[#1A1202]/20" />
+                      <span>{itinerary.badgeText && itinerary.badgeText.toUpperCase() !== 'PREMIUM' && itinerary.badgeText.toUpperCase() !== 'LIVRE' ? itinerary.badgeText : 'ELITE GOLD'}</span>
+                    </button>
                   ) : (
                     <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-black/40 backdrop-blur-md text-white text-[9.5px] font-black uppercase tracking-wider shadow-xs border border-white/20">
                       <span>{itinerary.badgeText || 'ACESSO LIVRE'}</span>
@@ -254,12 +252,29 @@ export const ItineraryStoreDetailModal: React.FC<ItineraryStoreDetailModalProps>
               )}
 
               {/* 3. TÍTULO E DESCRIÇÃO CURTA */}
-              <div className="space-y-1">
-                <h1 className={`text-2xl sm:text-3xl font-black tracking-tight leading-tight ${
-                  isLight ? 'text-zinc-900' : 'text-white'
-                }`}>
-                  {itinerary.title}
-                </h1>
+              <motion.div
+                initial={{ opacity: 0, scale: 0.88, y: 12 }}
+                animate={{ opacity: 1, scale: 1, y: 0 }}
+                transition={{ type: 'spring', stiffness: 380, damping: 22, delay: 0.03 }}
+                className="space-y-1"
+              >
+                <div className="flex items-center gap-2.5">
+                  {isGoldItinerary && (
+                    <button
+                      type="button"
+                      onClick={() => setIsPremiumModalOpen(true)}
+                      className="inline-flex items-center justify-center w-8 h-8 rounded-full bg-metallic-gold text-[#1A1202] shadow-sm border border-[#FFF4A3]/70 shrink-0 cursor-pointer transition-transform active:scale-95"
+                      title="Roteiro Elite Gold"
+                    >
+                      <Crown className="w-4 h-4 stroke-[2.4] text-[#1A1202] fill-[#1A1202]/20" />
+                    </button>
+                  )}
+                  <h1 className={`text-2xl sm:text-3xl font-black tracking-tight leading-tight ${
+                    isLight ? 'text-zinc-900' : 'text-white'
+                  }`}>
+                    {itinerary.title}
+                  </h1>
+                </div>
 
                 {isValidContent(itinerary.description) && (
                   <p className={`text-xs sm:text-sm leading-relaxed font-normal ${
@@ -268,12 +283,17 @@ export const ItineraryStoreDetailModal: React.FC<ItineraryStoreDetailModalProps>
                     {itinerary.description}
                   </p>
                 )}
-              </div>
+              </motion.div>
 
               {/* 4. INFORMAÇÕES PRINCIPAIS (LINHA ÚNICA, MINIMALISTA) */}
-              <div className={`flex items-center gap-2 py-2.5 border-y text-xs font-semibold ${
-                isLight ? 'border-zinc-100 text-zinc-600' : 'border-white/10 text-zinc-400'
-              }`}>
+              <motion.div
+                initial={{ opacity: 0, scale: 0.88, y: 12 }}
+                animate={{ opacity: 1, scale: 1, y: 0 }}
+                transition={{ type: 'spring', stiffness: 380, damping: 22, delay: 0.06 }}
+                className={`flex items-center gap-2 py-2.5 border-y text-xs font-semibold ${
+                  isLight ? 'border-zinc-100 text-zinc-600' : 'border-white/10 text-zinc-400'
+                }`}
+              >
                 <span className="flex items-center gap-1.5">
                   <Clock className={`w-3.5 h-3.5 shrink-0 ${isGoldItinerary ? 'text-[#E5AC33] dark:text-[#FDE073] drop-shadow-[0_0_8px_rgba(229,172,51,0.5)]' : (isLight ? 'text-black' : 'text-white')}`} />
                   <span>{itinerary.daysCount} {itinerary.daysCount === 1 ? 'dia' : 'dias'}</span>
@@ -288,15 +308,20 @@ export const ItineraryStoreDetailModal: React.FC<ItineraryStoreDetailModalProps>
                   <Compass className={`w-3.5 h-3.5 shrink-0 ${isGoldItinerary ? 'text-[#E5AC33] dark:text-[#FDE073] drop-shadow-[0_0_8px_rgba(229,172,51,0.5)]' : (isLight ? 'text-black' : 'text-white')}`} />
                   <span>Ritmo otimizado</span>
                 </span>
-              </div>
+              </motion.div>
 
               {/* 5. DICAS DO GUIA (COMPACTO E SEM CAIXAS VAZIAS) */}
               {isValidContent(itinerary.tips || itinerary.notes) && (
-                <div className={`p-3.5 rounded-2xl border flex items-start gap-2.5 ${
-                  isLight
-                    ? 'bg-zinc-50 border-zinc-200/70 text-zinc-800'
-                    : 'bg-[#15171c] border-white/10 text-zinc-200'
-                }`}>
+                <motion.div
+                  initial={{ opacity: 0, scale: 0.88, y: 12 }}
+                  animate={{ opacity: 1, scale: 1, y: 0 }}
+                  transition={{ type: 'spring', stiffness: 380, damping: 22, delay: 0.09 }}
+                  className={`p-3.5 rounded-2xl border flex items-start gap-2.5 ${
+                    isLight
+                      ? 'bg-zinc-50 border-zinc-200/70 text-zinc-800'
+                      : 'bg-[#15171c] border-white/10 text-zinc-200'
+                  }`}
+                >
                   <Lightbulb className={`w-4 h-4 shrink-0 mt-0.5 ${isGoldItinerary ? 'text-[#E5AC33] dark:text-[#FDE073] drop-shadow-[0_0_8px_rgba(229,172,51,0.6)]' : (isLight ? 'text-black' : 'text-white')}`} />
                   <div className="space-y-0.5 text-xs">
                     <span className="font-bold block text-zinc-900 dark:text-white">
@@ -308,7 +333,7 @@ export const ItineraryStoreDetailModal: React.FC<ItineraryStoreDetailModalProps>
                       {itinerary.tips || itinerary.notes}
                     </p>
                   </div>
-                </div>
+                </motion.div>
               )}
 
               {/* 6. DIAS DO ROTEIRO (NAVEGAÇÃO SIMPLES) */}
@@ -318,11 +343,16 @@ export const ItineraryStoreDetailModal: React.FC<ItineraryStoreDetailModalProps>
                     {itinerary.days.map((d, idx) => {
                       const isSelected = activeDayIndex === idx;
                       return (
-                        <button
+                        <motion.button
                           key={d.id || idx}
                           type="button"
+                          initial={{ opacity: 0, scale: 0.88, y: 12 }}
+                          animate={{ opacity: 1, scale: 1, y: 0 }}
+                          transition={{ type: 'spring', stiffness: 380, damping: 22, delay: idx * 0.035 }}
+                          whileHover={{ scale: 1.02, transition: { type: 'spring', stiffness: 400, damping: 18 } }}
+                          whileTap={{ scale: 0.93, transition: { type: 'spring', stiffness: 500, damping: 14 } }}
                           onClick={() => setActiveDayIndex(idx)}
-                          className={`px-4 py-1.5 rounded-full text-xs font-bold transition-all cursor-pointer shrink-0 border ${
+                          className={`px-4 py-1.5 rounded-full text-xs font-bold transition-colors cursor-pointer shrink-0 border ${
                             isSelected
                               ? isGoldItinerary
                                 ? 'bg-metallic-gold text-[#1A1202] border-[#FFF4A3]/70 shadow-md shadow-[#E5AC33]/30 font-black'
@@ -333,7 +363,7 @@ export const ItineraryStoreDetailModal: React.FC<ItineraryStoreDetailModalProps>
                           }`}
                         >
                           Dia {d.dayNumber || idx + 1}
-                        </button>
+                        </motion.button>
                       );
                     })}
                   </div>
@@ -382,14 +412,24 @@ export const ItineraryStoreDetailModal: React.FC<ItineraryStoreDetailModalProps>
                     const isBlurred = !isLivreItinerary && !isPremiumUser && idx >= 2;
 
                     return (
-                      <div
-                        key={step.id || idx}
+                      <motion.div
+                        key={`${activeDayIndex}-${step.id || idx}`}
+                        initial={{ opacity: 0, scale: 0.88, y: 12 }}
+                        animate={{ opacity: 1, scale: 1, y: 0 }}
+                        transition={{
+                          type: 'spring',
+                          stiffness: 380,
+                          damping: 22,
+                          delay: idx * 0.035,
+                        }}
+                        whileHover={{ scale: 1.01, transition: { type: 'spring', stiffness: 400, damping: 18 } }}
+                        whileTap={{ scale: 0.96, transition: { type: 'spring', stiffness: 500, damping: 14 } }}
                         onClick={() => {
                           if (isBlurred) {
                             handleAdd();
                           }
                         }}
-                        className={`relative overflow-hidden p-3 rounded-2xl border flex items-center gap-3 transition-all ${
+                        className={`relative overflow-hidden p-3 rounded-2xl border flex items-center gap-3 transition-colors ${
                           isBlurred ? 'cursor-pointer' : ''
                         } ${
                           isLight
@@ -412,7 +452,15 @@ export const ItineraryStoreDetailModal: React.FC<ItineraryStoreDetailModalProps>
 
                           {/* Foto da parada */}
                           <div className="w-14 h-14 rounded-xl overflow-hidden shrink-0 bg-zinc-800 border border-zinc-200/40 dark:border-white/10">
-                            <img
+                            <motion.img
+                              initial={{ opacity: 0, scale: 0.88, y: 10 }}
+                              animate={{ opacity: 1, scale: 1, y: 0 }}
+                              transition={{
+                                type: 'spring',
+                                stiffness: 380,
+                                damping: 22,
+                                delay: idx * 0.035,
+                              }}
                               src={spotImg}
                               alt={spotName}
                               className="w-full h-full object-cover"
@@ -473,7 +521,7 @@ export const ItineraryStoreDetailModal: React.FC<ItineraryStoreDetailModalProps>
                             </div>
                           </div>
                         )}
-                      </div>
+                      </motion.div>
                     );
                   })}
                 </div>
