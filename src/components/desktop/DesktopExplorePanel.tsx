@@ -44,7 +44,7 @@ export const DesktopExplorePanel: React.FC<DesktopExplorePanelProps> = ({
     <div
       className="hidden md:flex flex-col w-[380px] lg:w-[410px] xl:w-[430px] h-full bg-white border-r border-zinc-200 z-20 select-none shrink-0 overflow-hidden text-zinc-900"
       style={{
-        fontFamily: "-apple-system, BlinkMacSystemFont, 'SF Pro Display', 'SF Pro Text', system-ui, sans-serif",
+        fontFamily: "'Inter', sans-serif",
         backgroundColor: '#ffffff',
       }}
     >

@@ -470,15 +470,7 @@ export default function App() {
   };
 
   const fetchVisualIcons = async () => {
-    try {
-      const res = await fetch('/api/map-visual-icons');
-      const data = await res.json();
-      if (data.success && Array.isArray(data.icons)) {
-        setMapVisualIcons(data.icons);
-      }
-    } catch (e) {
-      console.warn('Using offline visual icons fallback', e);
-    }
+    setMapVisualIcons([]);
   };
 
   const fetchSettings = async () => {
@@ -1013,8 +1005,8 @@ export default function App() {
           key="monvian-main-app"
           initial={{ opacity: 0, scale: 0.98, filter: 'blur(6px)' }}
           animate={{ opacity: 1, scale: 1, filter: 'blur(0px)' }}
-          id="monvian-main-app"
-          data-shell="app-root-shell"
+          transition={{ duration: 0.55, ease: [0.16, 1, 0.3, 1] }}
+          id="app-root-shell"
           className={`fixed inset-0 w-full h-full overflow-hidden select-none flex transition-colors duration-300 ${
             theme === 'dark' ? 'bg-black md:bg-[#ffffff]' : 'bg-[#ffffff]'
           }`}

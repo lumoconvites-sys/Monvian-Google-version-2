@@ -117,7 +117,7 @@ export const NotificationsModal: React.FC<NotificationsModalProps> = ({
         isDark ? 'bg-[#000000] text-white' : 'bg-[#ffffff] text-black'
       } select-none overflow-hidden rounded-none pointer-events-auto`}
       style={{
-        fontFamily: "'Inter', -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'SF Pro Text', sans-serif",
+        fontFamily: "'Inter', sans-serif",
         backgroundColor: isDark ? '#000000' : '#ffffff',
         height: '100dvh',
         width: '100vw',

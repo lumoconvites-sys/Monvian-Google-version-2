@@ -33,7 +33,7 @@ export const SpotPreviewBanner: React.FC<SpotPreviewBannerProps> = ({
       whileTap={{ scale: 0.96, transition: { type: 'spring', stiffness: 500, damping: 14 } }}
       onClick={() => onOpenDetails(spot)}
       style={{
-        fontFamily: "-apple-system, BlinkMacSystemFont, 'SF Pro Display', 'SF Pro Text', 'Helvetica Neue', sans-serif",
+        fontFamily: "'Inter', sans-serif",
       }}
       className={`fixed bottom-[88px] left-3.5 right-3.5 sm:left-auto sm:right-6 sm:w-[380px] z-40 h-[80px] px-3.5 py-3 rounded-[24px] border backdrop-blur-2xl shadow-lg flex items-center justify-between gap-3 select-none cursor-pointer pointer-events-auto transition-colors ${
         isDark

@@ -77,7 +77,7 @@ export const DesktopSidebar: React.FC<DesktopSidebarProps> = ({
         isCollapsed ? 'w-[72px]' : 'w-[250px]'
       }`}
       style={{
-        fontFamily: "-apple-system, BlinkMacSystemFont, 'SF Pro Display', 'SF Pro Text', system-ui, sans-serif",
+        fontFamily: "'Inter', sans-serif",
       }}
       aria-label="Menu principal desktop"
     >

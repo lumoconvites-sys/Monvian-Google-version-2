@@ -758,8 +758,7 @@ export const HostDashboard: React.FC<HostDashboardProps> = ({
             className="relative w-full h-full md:h-[88vh] md:max-w-2xl bg-[#ffffff] text-zinc-950 rounded-none md:rounded-[30px] overflow-hidden flex flex-col justify-between shadow-2xl md:border md:border-black/[0.08]"
             style={{
               backgroundColor: '#ffffff',
-              fontFamily:
-                "-apple-system, BlinkMacSystemFont, 'SF Pro Display', 'SF Pro Text', 'SF Pro', system-ui, sans-serif",
+              fontFamily: "'Inter', sans-serif",
               willChange: 'opacity, transform',
             }}
           >

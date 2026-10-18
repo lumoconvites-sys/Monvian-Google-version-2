@@ -3,7 +3,7 @@
 @custom-variant dark (&:where(.dark, .dark *));
 
 @theme {
-  --font-sans: 'SF Pro Display', 'SF Pro Text', -apple-system, BlinkMacSystemFont, system-ui, sans-serif;
+  --font-sans: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
   
   --color-canvas: #000000;
   --color-canvas-light: #F4F4F5;
@@ -29,7 +29,7 @@
 
 @layer base {
   :root {
-    font-family: var(--font-sans) !important;
+    font-family: 'Inter', var(--font-sans), sans-serif !important;
     letter-spacing: -0.015em;
     line-height: 1.5;
     --app-height: 100dvh;
@@ -103,8 +103,8 @@
   html.light #root {
     background-color: #f4f4f5 !important;
   }
-  *, body, button, input, select, textarea, div, span, p, label {
-    font-family: var(--font-sans);
+  *, *::before, *::after, html, body, #root, button, input, select, textarea, div, span, p, label, a, strong, b, em, i, li, ul, ol, section, main, aside, header, footer, nav, article {
+    font-family: 'Inter', var(--font-sans), sans-serif !important;
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
   }
@@ -113,12 +113,12 @@
     opacity: 0.85;
   }
 
-  /* Headings & Titles: 'Inter' / SF Pro (700 bold), #F5F2EA na cor dos títulos no tema escuro, kerning refinado */
+  /* Headings & Titles: 'Inter' */
   h1, h2, h3, h4, h5, h6,
   .font-title,
   .title-heading,
   .heading-title {
-    font-family: var(--font-sans);
+    font-family: 'Inter', var(--font-sans), sans-serif !important;
     letter-spacing: -0.02em;
     line-height: 1.25;
   }

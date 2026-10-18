@@ -223,16 +223,16 @@ export const TripNotesModal: React.FC<TripNotesModalProps> = ({
               </svg>
             </div>
 
-            {/* Subtitle: "A Suíça Brasileira" in handwriting script */}
+            {/* Subtitle: "A Suíça Brasileira" */}
             <p
               className="text-[19px] sm:text-[21px] font-bold text-[#5E4730] mt-0.5 leading-none"
-              style={{ fontFamily: "'Dancing Script', 'Marck Script', cursive" }}
+              style={{ fontFamily: "'Inter', sans-serif" }}
             >
               A Suíça Brasileira
             </p>
           </div>
 
-          {/* Writing Area: Typing transforms into authentic cursive handwriting ("letra de mão") */}
+          {/* Writing Area */}
           <div className="relative flex-1 w-full p-4 sm:p-5 pt-3 flex flex-col overflow-hidden">
             {/* Subtle left margin guide rule */}
             <div className="absolute top-3 bottom-3 left-4 sm:left-5 w-px bg-amber-800/12 pointer-events-none" />
@@ -245,7 +245,7 @@ export const TripNotesModal: React.FC<TripNotesModalProps> = ({
               placeholder="Escreva uma anotação sobre sua viagem..."
               className="w-full flex-1 bg-transparent text-[#261C14] placeholder:text-[#8C7A68] font-semibold outline-none z-10 relative pl-3 sm:pl-4 selection:bg-[#DECDB2] selection:text-[#1F1A15] border-none"
               style={{
-                fontFamily: "'Dancing Script', 'Marck Script', cursive",
+                fontFamily: "'Inter', sans-serif",
                 fontSize: '22px',
                 lineHeight: '34px',
                 letterSpacing: '0.01em',

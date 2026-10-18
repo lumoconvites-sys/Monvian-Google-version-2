@@ -498,7 +498,7 @@ export const AdminItineraryModal: React.FC<AdminItineraryModalProps> = ({
     <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/80 backdrop-blur-md animate-in fade-in duration-200">
       <div 
         className="bg-white dark:bg-[#121418] border border-zinc-200 dark:border-zinc-800 rounded-3xl w-full max-w-5xl max-h-[94vh] flex flex-col shadow-2xl overflow-hidden"
-        style={{ fontFamily: "'Inter', -apple-system, BlinkMacSystemFont, 'SF Pro Display', sans-serif" }}
+        style={{ fontFamily: "'Inter', sans-serif" }}
       >
         
         {/* 1. Top Modal Header */}

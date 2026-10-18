@@ -365,7 +365,10 @@ export const SearchFilterDrawer: React.FC<SearchFilterDrawerProps> = ({
                       <h3 className="text-base font-black text-zinc-900 dark:text-white tracking-tight leading-tight group-hover:text-zinc-600 dark:group-hover:text-zinc-300 transition-colors">
                         {cat.name}
                       </h3>
-                      <p className="text-xs text-zinc-400 font-black mt-0.5 tracking-tight">
+                      <p 
+                        className="text-xs text-zinc-400 font-normal mt-0.5 tracking-tight"
+                        style={{ fontWeight: 'normal' }}
+                      >
                         {cat.countLabel}
                       </p>
                     </div>

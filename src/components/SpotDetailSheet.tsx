@@ -528,7 +528,7 @@ export const SpotDetailSheet: React.FC<SpotDetailSheetProps> = ({
         onClick={(e) => e.stopPropagation()}
         className="hidden md:flex flex-col lg:flex-row w-full max-w-[960px] lg:max-w-[1080px] xl:max-w-[1180px] 2xl:max-w-[1260px] md:max-h-[88vh] lg:h-[min(680px,85vh)] xl:h-[min(730px,85vh)] bg-white text-zinc-950 rounded-[24px] border border-zinc-200/90 shadow-[0_20px_60px_rgba(0,0,0,0.18)] overflow-hidden cursor-default z-[110]"
         style={{
-          fontFamily: "-apple-system, BlinkMacSystemFont, 'SF Pro Display', 'SF Pro Text', system-ui, sans-serif",
+          fontFamily: "'Inter', sans-serif",
           backgroundColor: '#ffffff',
         }}
       >

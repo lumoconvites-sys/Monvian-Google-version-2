@@ -433,7 +433,7 @@ export const AirbnbItineraryExplorer: React.FC<AirbnbItineraryExplorerProps> = (
         isDark ? 'bg-[#000000] text-white' : 'bg-[#ffffff] text-zinc-900'
       }`}
       style={{
-        fontFamily: "'Inter', -apple-system, BlinkMacSystemFont, 'SF Pro Display', sans-serif",
+        fontFamily: "'Inter', sans-serif",
         WebkitOverflowScrolling: 'touch',
         touchAction: 'pan-y',
         borderTopLeftRadius: '26px',

@@ -9,9 +9,7 @@ import {
   Check, 
   X, 
   Loader2, 
-  ChevronDown,
-  ChevronLeft,
-  ChevronRight
+  ChevronDown
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { googleSignIn, setCachedAccessToken } from '../lib/firebase';
@@ -402,64 +400,18 @@ export function AuthScreen({ onSuccess }: AuthScreenProps) {
       }}
     >
       {/* =========================================================================
-          LAYER 1: CINEMATIC LANDING PAGE (Sits behind the login curtain from start)
+          LAYER 1: BACKGROUND (Fundo Branco Puro, sem imagens e sem sombras)
          ========================================================================= */}
       <div 
-        className="fixed inset-0 z-0 pointer-events-none overflow-hidden"
-        aria-hidden={scrollProgress < 0.05}
-      >
-        {/* Real Campos do Jordão Photograph */}
-        <img 
-          src="/paisagens.png" 
-          onError={(e) => {
-            (e.currentTarget as HTMLImageElement).src = '/paisagens.jpeg';
-          }}
-          alt="Paisagem cinematográfica de Campos do Jordão" 
-          className="w-full h-full object-cover object-center select-none transform-gpu will-change-transform"
-          style={{
-            transform: `scale(${1 + scrollProgress * 0.04})`,
-            transition: 'transform 0.15s ease-out',
-          }}
-          loading="eager"
-          decoding="async"
-        />
-
-        {/* EXTREMIDADE SUPERIOR: Degradê vertical de branco para transparente + desfoque gradual suave */}
-        <div 
-          className="absolute inset-x-0 top-0 h-44 sm:h-64 pointer-events-none z-10"
-          style={{
-            background: 'linear-gradient(to bottom, #ffffff 0%, rgba(255, 255, 255, 0.88) 30%, rgba(255, 255, 255, 0.45) 65%, transparent 100%)',
-          }}
-        />
-        <div 
-          className="absolute inset-x-0 top-0 h-32 sm:h-44 pointer-events-none z-10 backdrop-blur-md"
-          style={{
-            maskImage: 'linear-gradient(to bottom, rgba(0,0,0,1) 0%, rgba(0,0,0,0.5) 50%, rgba(0,0,0,0) 100%)',
-            WebkitMaskImage: 'linear-gradient(to bottom, rgba(0,0,0,1) 0%, rgba(0,0,0,0.5) 50%, rgba(0,0,0,0) 100%)',
-          }}
-        />
-
-        {/* EXTREMIDADE INFERIOR: Degradê de transparente para preto + sombra ambiental discreta + desfoque suave */}
-        <div 
-          className="absolute inset-x-0 bottom-0 h-[70vh] sm:h-[620px] pointer-events-none z-10"
-          style={{
-            background: 'linear-gradient(to top, rgba(0, 0, 0, 0.94) 0%, rgba(0, 0, 0, 0.72) 48%, rgba(0, 0, 0, 0.22) 80%, transparent 100%)',
-          }}
-        />
-        <div 
-          className="absolute inset-x-0 bottom-0 h-24 pointer-events-none z-10 backdrop-blur-[2.5px]"
-          style={{
-            maskImage: 'linear-gradient(to top, rgba(0,0,0,0.7) 0%, rgba(0,0,0,0) 100%)',
-            WebkitMaskImage: 'linear-gradient(to top, rgba(0,0,0,0.7) 0%, rgba(0,0,0,0) 100%)',
-          }}
-        />
-      </div>
+        className="fixed inset-0 z-0 bg-[#ffffff] pointer-events-none"
+        aria-hidden="true"
+      />
 
       {/* =========================================================================
           LAYER 2: TELA INICIAL (Fundo Branco Puro, 100% Idêntica, Sobe ao Deslizar)
          ========================================================================= */}
       <section 
-        className="relative z-20 w-full min-h-[100dvh] bg-[#ffffff] flex flex-col items-center justify-center text-zinc-900 shadow-xl border border-zinc-200/80 rounded-[30px] overflow-hidden"
+        className="relative z-20 w-full min-h-[100dvh] bg-[#ffffff] flex flex-col items-center justify-center text-zinc-900 border border-zinc-200/80 rounded-[30px] overflow-hidden"
         style={{
           borderWidth: '1px',
           borderRadius: '30px',
@@ -489,7 +441,14 @@ export function AuthScreen({ onSuccess }: AuthScreenProps) {
             />
           </motion.div>
           
-          <p className="text-[13px] text-zinc-500 font-bold mb-6 tracking-wide text-center">
+          <p 
+            className="text-[13px] text-zinc-500 font-bold mb-6 tracking-wide text-center"
+            style={{
+              fontFamily: "'Inter', sans-serif",
+              fontWeight: 'bold',
+              fontStyle: 'normal',
+            }}
+          >
             Seu guia inteligente para viver<br/>Campos do Jordão.
           </p>
 
@@ -507,6 +466,7 @@ export function AuthScreen({ onSuccess }: AuthScreenProps) {
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   className="w-full pl-11 pr-5 py-4 rounded-[22px] bg-[#fbfbfb] border border-zinc-200 text-zinc-900 placeholder:text-zinc-400 focus:outline-none focus:border-zinc-900 focus:ring-1 focus:ring-zinc-900 transition-all text-[15px] font-medium shadow-2xs"
+                  style={{ fontFamily: "'Inter', sans-serif" }}
                   required
                   autoComplete="email"
                 />
@@ -521,6 +481,7 @@ export function AuthScreen({ onSuccess }: AuthScreenProps) {
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   className="w-full pl-11 pr-12 py-4 rounded-[22px] bg-[#fbfbfb] border border-zinc-200 text-zinc-900 placeholder:text-zinc-400 focus:outline-none focus:border-zinc-900 focus:ring-1 focus:ring-zinc-900 transition-all text-[15px] font-medium shadow-2xs"
+                  style={{ fontFamily: "'Inter', sans-serif" }}
                   required
                   autoComplete="current-password"
                 />
@@ -551,6 +512,7 @@ export function AuthScreen({ onSuccess }: AuthScreenProps) {
                   type="submit"
                   disabled={loading || googleLoading}
                   className="w-full py-[16px] rounded-[22px] bg-[#000000] text-[#ffffff] text-[15px] font-bold flex items-center justify-center gap-2 hover:bg-zinc-800 transition-all disabled:opacity-70 shadow-md cursor-pointer"
+                  style={{ fontFamily: "'Inter', sans-serif" }}
                 >
                   {loading ? 'Entrando...' : 'Entrar →'}
                 </motion.button>
@@ -560,7 +522,12 @@ export function AuthScreen({ onSuccess }: AuthScreenProps) {
               <div className="pt-2 space-y-3">
                 <div className="flex items-center gap-3">
                   <div className="flex-1 h-[1px] bg-zinc-200" />
-                  <span className="text-[11px] text-zinc-400 uppercase tracking-wider font-semibold">ou</span>
+                  <span 
+                    className="text-[11px] text-zinc-400 uppercase tracking-wider font-semibold"
+                    style={{ fontFamily: "'Inter', sans-serif" }}
+                  >
+                    ou
+                  </span>
                   <div className="flex-1 h-[1px] bg-zinc-200" />
                 </div>
 
@@ -590,7 +557,9 @@ export function AuthScreen({ onSuccess }: AuthScreenProps) {
                       d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z"
                     />
                   </svg>
-                  <span style={{ color: '#767676' }}>{googleLoading ? 'Conectando Google...' : 'Entrar com Google / Gmail'}</span>
+                  <span style={{ color: '#767676', fontFamily: "'Inter', sans-serif" }}>
+                    {googleLoading ? 'Conectando Google...' : 'Entrar com Google / Gmail'}
+                  </span>
                 </motion.button>
               </div>
             </form>
@@ -769,7 +738,10 @@ export function AuthScreen({ onSuccess }: AuthScreenProps) {
           )}
 
           {/* Footer Navigation Switcher */}
-          <div className="mt-8 text-[13px] font-semibold flex items-center gap-1.5" style={{ color: '#ababab' }}>
+          <div 
+            className="mt-8 text-[13px] font-semibold flex items-center gap-1.5" 
+            style={{ color: '#ababab', fontFamily: "'Inter', sans-serif" }}
+          >
             {authMode === 'login' ? (
               <>
                 Não possui uma conta?
@@ -780,6 +752,7 @@ export function AuthScreen({ onSuccess }: AuthScreenProps) {
                     setError('');
                   }} 
                   className="text-zinc-900 font-bold hover:underline cursor-pointer"
+                  style={{ fontFamily: "'Inter', sans-serif" }}
                 >
                   Criar conta →
                 </button>
@@ -794,6 +767,7 @@ export function AuthScreen({ onSuccess }: AuthScreenProps) {
                     setError('');
                   }} 
                   className="text-zinc-900 font-bold hover:underline cursor-pointer"
+                  style={{ fontFamily: "'Inter', sans-serif" }}
                 >
                   Entrar →
                 </button>
@@ -816,12 +790,12 @@ export function AuthScreen({ onSuccess }: AuthScreenProps) {
       </section>
 
       {/* =========================================================================
-          LAYER 3: LANDING PAGE CONTENT (Revealed as the login curtain scrolls up)
+          LAYER 3: LANDING PAGE CONTENT (Fundo Branco, Textos Pretos, Sem Sombras)
          ========================================================================= */}
       <section 
-        className="relative z-10 w-full min-h-[100dvh] flex flex-col justify-center text-white overflow-hidden pointer-events-auto"
+        className="relative z-10 w-full min-h-[100dvh] bg-[#ffffff] flex flex-col justify-center text-black overflow-hidden pointer-events-auto"
         style={{
-          fontFamily: "-apple-system, BlinkMacSystemFont, 'SF Pro Display', 'SF Pro Text', 'SF Pro', system-ui, sans-serif",
+          fontFamily: "'Inter', sans-serif",
           paddingTop: 'max(80px, calc(env(safe-area-inset-top, 0px) + 60px))',
           paddingBottom: 'max(60px, calc(env(safe-area-inset-bottom, 0px) + 40px))',
           paddingLeft: 'max(20px, env(safe-area-inset-left, 0px))',
@@ -831,7 +805,7 @@ export function AuthScreen({ onSuccess }: AuthScreenProps) {
         <div 
           className="max-w-4xl w-full mx-auto flex flex-col justify-center my-auto -translate-y-6 sm:-translate-y-10 md:-translate-y-14 transition-all duration-300 ease-out"
           style={{
-            fontFamily: "-apple-system, BlinkMacSystemFont, 'SF Pro Display', 'SF Pro Text', 'SF Pro', system-ui, sans-serif",
+            fontFamily: "'Inter', sans-serif",
             opacity: Math.max(0, Math.min(1, (scrollProgress - 0.15) / 0.5)),
             transform: `translateY(${-24 + (1 - Math.max(0, Math.min(1, (scrollProgress - 0.15) / 0.5))) * 24}px)`,
           }}
@@ -839,19 +813,29 @@ export function AuthScreen({ onSuccess }: AuthScreenProps) {
           {/* Header Title & Subtitle */}
           <div className="text-left mb-4 sm:mb-6">
             <h2 
-              className="text-2xl sm:text-3xl md:text-4xl lg:text-[42px] font-extrabold text-white tracking-tight leading-tight drop-shadow-[0_2px_16px_rgba(0,0,0,0.7)]"
+              className="text-2xl sm:text-3xl md:text-4xl lg:text-[42px] font-normal text-left text-black tracking-tight"
               style={{
-                fontFamily: "-apple-system, BlinkMacSystemFont, 'SF Pro Display', 'SF Pro Text', 'SF Pro', system-ui, sans-serif",
+                fontFamily: "'Inter', sans-serif",
                 letterSpacing: '-0.025em',
+                fontStyle: 'normal',
+                fontWeight: 'normal',
+                textDecorationLine: 'none',
+                textAlign: 'left',
+                lineHeight: '30px',
+                color: '#000000',
               }}
             >
               Campos do Jordão do seu jeito.
             </h2>
             <p 
-              className="text-sm sm:text-base md:text-lg text-white/90 font-medium mt-1.5 max-w-xl leading-relaxed drop-shadow-[0_1px_8px_rgba(0,0,0,0.65)]"
+              className="text-sm sm:text-base md:text-lg text-black font-normal text-left mt-2 max-w-xl leading-relaxed"
               style={{
-                fontFamily: "-apple-system, BlinkMacSystemFont, 'SF Pro Text', 'SF Pro', -apple-system, system-ui, sans-serif",
+                fontFamily: "'Inter', sans-serif",
                 letterSpacing: '-0.01em',
+                color: '#000000',
+                textAlign: 'left',
+                fontWeight: 'normal',
+                fontStyle: 'normal',
               }}
             >
               Descubra lugares, experiências e caminhos que valem a viagem.
@@ -860,7 +844,7 @@ export function AuthScreen({ onSuccess }: AuthScreenProps) {
 
           {/* Single Image Carousel (Occupies full former 4-card area) */}
           <div 
-            className="relative w-full h-56 sm:h-64 md:h-72 lg:h-80 rounded-[24px] sm:rounded-[28px] overflow-hidden border border-white/20 bg-black/50 shadow-[0_16px_40px_rgba(0,0,0,0.5)] select-none cursor-grab active:cursor-grabbing group"
+            className="relative w-full h-56 sm:h-64 md:h-72 lg:h-80 rounded-[24px] sm:rounded-[28px] overflow-hidden border border-zinc-200/90 bg-zinc-100 select-none cursor-grab active:cursor-grabbing"
           >
             <motion.div
               drag="x"
@@ -924,25 +908,25 @@ export function AuthScreen({ onSuccess }: AuthScreenProps) {
                     <span 
                       className="text-[10px] sm:text-[11px] font-bold uppercase tracking-wider text-white/70 block mb-0.5"
                       style={{
-                        fontFamily: "-apple-system, BlinkMacSystemFont, 'SF Pro Text', 'SF Pro', system-ui, sans-serif",
+                        fontFamily: "'Inter', sans-serif",
                         letterSpacing: '0.08em',
                       }}
                     >
                       Destaques de Campos do Jordão
                     </span>
                     <h3 
-                      className="text-lg sm:text-xl md:text-2xl font-bold text-white tracking-tight leading-tight drop-shadow-md"
+                      className="text-lg sm:text-xl md:text-2xl font-bold text-white tracking-tight leading-tight"
                       style={{
-                        fontFamily: "-apple-system, BlinkMacSystemFont, 'SF Pro Display', 'SF Pro Text', 'SF Pro', system-ui, sans-serif",
+                        fontFamily: "'Inter', sans-serif",
                         letterSpacing: '-0.02em',
                       }}
                     >
                       {LANDING_SLIDES[currentSlideIndex].title}
                     </h3>
                     <p 
-                      className="text-xs sm:text-[13px] text-white/85 font-medium mt-0.5 drop-shadow-sm truncate"
+                      className="text-xs sm:text-[13px] text-white/85 font-medium mt-0.5 truncate"
                       style={{
-                        fontFamily: "-apple-system, BlinkMacSystemFont, 'SF Pro Text', 'SF Pro', system-ui, sans-serif",
+                        fontFamily: "'Inter', sans-serif",
                       }}
                     >
                       {LANDING_SLIDES[currentSlideIndex].subtitle}
@@ -951,55 +935,31 @@ export function AuthScreen({ onSuccess }: AuthScreenProps) {
                 </motion.div>
               </AnimatePresence>
             </motion.div>
+          </div>
 
-            {/* Subtle Desktop Chevron Controls */}
-            <button
-              type="button"
-              onClick={(e) => {
-                e.stopPropagation();
-                goToPrevSlide();
-              }}
-              aria-label="Foto anterior"
-              className="absolute left-3 top-1/2 -translate-y-1/2 z-20 w-8 h-8 rounded-full bg-black/35 backdrop-blur-md border border-white/15 text-white flex items-center justify-center opacity-0 group-hover:opacity-100 hover:bg-black/60 transition-all cursor-pointer pointer-events-auto"
-            >
-              <ChevronLeft className="w-4 h-4" />
-            </button>
-            <button
-              type="button"
-              onClick={(e) => {
-                e.stopPropagation();
-                goToNextSlide();
-              }}
-              aria-label="Próxima foto"
-              className="absolute right-3 top-1/2 -translate-y-1/2 z-20 w-8 h-8 rounded-full bg-black/35 backdrop-blur-md border border-white/15 text-white flex items-center justify-center opacity-0 group-hover:opacity-100 hover:bg-black/60 transition-all cursor-pointer pointer-events-auto"
-            >
-              <ChevronRight className="w-4 h-4" />
-            </button>
-
-            {/* Position Indicators (Discreet iOS dots at bottom-right) */}
-            <div className="absolute bottom-4 right-4 sm:bottom-5 sm:right-6 z-20 flex items-center gap-1.5 px-2.5 py-1.5 rounded-full bg-black/40 backdrop-blur-md border border-white/10 pointer-events-auto">
-              {LANDING_SLIDES.map((slide, idx) => {
-                const isActive = idx === currentSlideIndex;
-                return (
-                  <button
-                    key={slide.id}
-                    type="button"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      setSlideDirection(idx > currentSlideIndex ? 1 : -1);
-                      setCurrentSlideIndex(idx);
-                      resetSlideTimer();
-                    }}
-                    aria-label={`Ir para ${slide.title}`}
-                    className={`transition-all duration-300 rounded-full cursor-pointer ${
-                      isActive 
-                        ? 'w-5 h-1.5 bg-white shadow-xs' 
-                        : 'w-1.5 h-1.5 bg-white/40 hover:bg-white/75'
-                    }`}
-                  />
-                );
-              })}
-            </div>
+          {/* Position Indicators (Bolinhas alinhadas embaixo das fotos) */}
+          <div className="mt-4 flex items-center justify-center gap-2 py-1">
+            {LANDING_SLIDES.map((slide, idx) => {
+              const isActive = idx === currentSlideIndex;
+              return (
+                <button
+                  key={slide.id}
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setSlideDirection(idx > currentSlideIndex ? 1 : -1);
+                    setCurrentSlideIndex(idx);
+                    resetSlideTimer();
+                  }}
+                  aria-label={`Ir para foto ${idx + 1}: ${slide.title}`}
+                  className={`transition-all duration-300 rounded-full cursor-pointer ${
+                    isActive 
+                      ? 'w-6 h-2 bg-black' 
+                      : 'w-2 h-2 bg-zinc-300 hover:bg-zinc-400'
+                  }`}
+                />
+              );
+            })}
           </div>
         </div>
       </section>

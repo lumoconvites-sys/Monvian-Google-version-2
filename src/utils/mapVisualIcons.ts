@@ -60,7 +60,7 @@ export const MAP_VISUAL_ICON_CATEGORIES: Record<string, MapVisualIconMeta> = {
     bgColor: '#0284C7', // Sky / Royal Blue
     iconName: 'Parking',
     svgInner: `
-      <text x="12" y="17.5" text-anchor="middle" font-family="-apple-system, BlinkMacSystemFont, 'SF Pro Display', Roboto, sans-serif" font-weight="900" font-size="16" fill="white">P</text>
+      <text x="12" y="17.5" text-anchor="middle" font-family="'Inter', sans-serif" font-weight="900" font-size="16" fill="white">P</text>
     `
   },
   market: {

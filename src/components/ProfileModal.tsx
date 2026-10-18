@@ -430,7 +430,7 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
               : 'bg-[#F2F2F7] text-zinc-900 md:border-black/10'
           }`}
           style={{
-            fontFamily: "'SF Pro Display', 'SF Pro Text', -apple-system, BlinkMacSystemFont, sans-serif",
+            fontFamily: "'Inter', sans-serif",
             borderTopLeftRadius: '30px',
             borderTopRightRadius: '30px',
             overflow: 'hidden',
@@ -484,18 +484,6 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
                 <Bell className="w-5 h-5 stroke-[2]" />
               </button>
             )}
-
-            <button
-              type="button"
-              onClick={onClose}
-              className={`w-10 h-10 rounded-full flex items-center justify-center transition-colors cursor-pointer ${
-                isDark ? 'bg-white/10 hover:bg-white/15 text-white' : 'bg-white hover:bg-zinc-100 text-zinc-900 shadow-2xs'
-              }`}
-              title="Fechar"
-              aria-label="Fechar"
-            >
-              <X className="w-5 h-5 stroke-[2.2]" />
-            </button>
           </div>
         </div>
 
@@ -591,7 +579,7 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
                   }`}
                 >
                   <div className="flex justify-end">
-                    <span className="px-2 py-0.5 rounded-full bg-zinc-900 text-[#ffffff] dark:bg-white dark:text-[#ffffff] border-[#008eff] text-[9px] font-bold uppercase tracking-wider">
+                    <span className="px-2 py-0.5 rounded-full bg-[#0079ff] text-[#ffffff] border-[#008eff] text-[9px] font-bold uppercase tracking-wider" style={{ backgroundColor: '#0079ff' }}>
                       NOVO
                     </span>
                   </div>
@@ -625,7 +613,7 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
                   }`}
                 >
                   <div className="flex justify-end">
-                    <span className="px-2 py-0.5 rounded-full bg-zinc-900 text-white dark:bg-white dark:text-zinc-900 text-[9px] font-bold uppercase tracking-wider">
+                    <span className="px-2 py-0.5 rounded-full bg-[#0079ff] text-white text-[9px] font-bold uppercase tracking-wider" style={{ backgroundColor: '#0079ff' }}>
                       NOVO
                     </span>
                   </div>
@@ -732,7 +720,7 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
                   <div className="flex items-center gap-3.5 min-w-0">
                     <div className="relative flex items-center justify-center shrink-0 text-zinc-950 dark:text-white">
                       <Settings className="w-7 h-7 stroke-[1.8]" />
-                      <span className="absolute -top-0.5 -right-0.5 w-2.5 h-2.5 rounded-full bg-[#FF3B30] ring-2 ring-[#1C1C1E] dark:ring-[#1C1C1E] text-[#ffffff]" />
+                      <span className="absolute -top-0.5 -right-0.5 w-2.5 h-2.5 rounded-full bg-[#0079ff] ring-2 ring-[#1C1C1E] dark:ring-[#1C1C1E] text-[#280000]" style={{ backgroundColor: '#0079ff', color: '#280000' }} />
                     </div>
                     <h3 className="text-[15px] font-semibold text-zinc-950 dark:text-white tracking-tight">
                       Configurações da conta

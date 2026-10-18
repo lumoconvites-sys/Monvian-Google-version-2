@@ -270,7 +270,7 @@ export const SavedView: React.FC<SavedViewProps> = ({
             isDark ? 'bg-black text-white' : 'bg-[#F2F2F7] md:bg-[#ffffff] text-zinc-900'
           }`}
           style={{
-            fontFamily: "'SF Pro Display', 'SF Pro Text', -apple-system, BlinkMacSystemFont, sans-serif",
+            fontFamily: "'Inter', sans-serif",
             isolation: 'isolate',
             willChange: 'opacity, transform',
           }}

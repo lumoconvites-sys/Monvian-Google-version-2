@@ -353,7 +353,7 @@ export const CreateStoryModal: React.FC<CreateStoryModalProps> = ({
         style={{
           height: '100dvh',
           width: '100vw',
-          fontFamily: "'Inter', -apple-system, BlinkMacSystemFont, 'SF Pro Text', sans-serif",
+          fontFamily: "'Inter', sans-serif",
           borderTopLeftRadius: '26px',
           borderTopRightRadius: '26px',
           overflow: 'hidden',

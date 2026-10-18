@@ -986,8 +986,7 @@ export const MapComponent = forwardRef<MapComponentHandle, MapComponentProps>(
         } catch (e) {}
       });
       visualIconMarkersRef.current = [];
-
-      if (!visualIcons || !Array.isArray(visualIcons) || visualIcons.length === 0) return;
+      return;
 
       visualIcons.forEach((item, iconIdx) => {
         const latNum = Number(item.latitude);
