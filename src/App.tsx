@@ -146,7 +146,7 @@ export default function App() {
   const [isDesktopSidebarCollapsed, setIsDesktopSidebarCollapsed] = useState<boolean>(true);
 
   useEffect(() => {
-    const w = isDesktopSidebarCollapsed ? '72px' : '240px';
+    const w = isDesktopSidebarCollapsed ? '72px' : '250px';
     document.documentElement.style.setProperty('--desktop-sidebar-width', w);
   }, [isDesktopSidebarCollapsed]);
 
@@ -1015,7 +1015,9 @@ export default function App() {
           animate={{ opacity: 1, scale: 1, filter: 'blur(0px)' }}
           transition={{ duration: 0.55, ease: [0.16, 1, 0.3, 1] }}
           id="app-root-shell"
-          className="fixed inset-0 w-full h-full overflow-hidden select-none flex transition-colors duration-300 bg-[#ffffff]"
+          className={`fixed inset-0 w-full h-full overflow-hidden select-none flex transition-colors duration-300 ${
+            theme === 'dark' ? 'bg-black md:bg-[#ffffff]' : 'bg-[#ffffff]'
+          }`}
           style={{
             position: 'fixed',
             top: 0,
@@ -1028,7 +1030,12 @@ export default function App() {
             boxSizing: 'border-box',
             margin: 0,
             padding: 0,
-            backgroundColor: '#ffffff',
+            backgroundColor:
+              typeof window !== 'undefined' && window.matchMedia('(min-width: 768px)').matches
+                ? '#ffffff'
+                : theme === 'dark'
+                  ? currentAdaptiveColor
+                  : '#ffffff',
           }}
         >
       <OfflineIndicator />

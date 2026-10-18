@@ -1022,5 +1022,12 @@ html:not(.dark) .ios-glass-white,
   isolation: isolate;
 }
 
+@media (min-width: 768px) {
+  .ios-page-top-rounded.md\:rounded-none {
+    border-top-left-radius: 0px !important;
+    border-top-right-radius: 0px !important;
+  }
+}
+
 
 

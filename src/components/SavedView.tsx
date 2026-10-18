@@ -78,7 +78,7 @@ const CollectionCoverCard: React.FC<CollectionCoverCardProps> = ({
           const photo = photos[idx];
           if (photo) {
             return (
-              <div key={idx} className="w-full h-full overflow-hidden bg-[#fafafc]">
+              <div key={idx} className={`w-full h-full overflow-hidden ${isDark ? 'bg-[#202024]' : 'bg-[#F2F2F7]'} md:bg-[#fafafc]`}>
                 <motion.img
                   initial={{ opacity: 0, scale: 0.88, y: 8 }}
                   animate={{ opacity: 1, scale: 1, y: 0 }}
@@ -90,7 +90,7 @@ const CollectionCoverCard: React.FC<CollectionCoverCardProps> = ({
                   }}
                   src={photo}
                   alt=""
-                  className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300 bg-[#fafafc]"
+                  className={`w-full h-full object-cover group-hover:scale-105 transition-transform duration-300 ${isDark ? 'bg-[#202024]' : 'bg-[#F2F2F7]'} md:bg-[#fafafc]`}
                 />
               </div>
             );
@@ -98,7 +98,9 @@ const CollectionCoverCard: React.FC<CollectionCoverCardProps> = ({
           return (
             <div
               key={idx}
-              className="w-full h-full flex items-center justify-center bg-[#fafafc]"
+              className={`w-full h-full flex items-center justify-center ${
+                isDark ? 'bg-[#202024]' : 'bg-[#F2F2F7]'
+              } md:bg-[#fafafc]`}
             >
               {idx === 0 && (!photos || photos.length === 0) ? (
                 <div className="opacity-40">{fallbackIcon}</div>
@@ -264,8 +266,8 @@ export const SavedView: React.FC<SavedViewProps> = ({
           animate={{ opacity: 1, scale: 1, y: 0 }}
           exit={{ opacity: 0, scale: 0.98, y: 10 }}
           transition={{ duration: 0.32, ease: [0.16, 1, 0.3, 1] }}
-          className={`fixed inset-0 md:left-[var(--desktop-sidebar-width,72px)] w-full md:w-auto h-full z-45 flex flex-col transition-[left,colors] duration-200 ease-in-out select-none overflow-hidden ${
-            isDark ? 'bg-black text-white' : 'bg-[#F2F2F7] text-zinc-900'
+          className={`fixed inset-0 md:left-[var(--desktop-sidebar-width,72px)] w-full md:w-auto h-full z-45 flex flex-col transition-[left,colors] duration-200 ease-in-out select-none overflow-hidden rounded-t-[26px] md:rounded-none ios-page-top-rounded ${
+            isDark ? 'bg-black text-white' : 'bg-[#F2F2F7] md:bg-[#ffffff] text-zinc-900'
           }`}
           style={{
             fontFamily: "'SF Pro Display', 'SF Pro Text', -apple-system, BlinkMacSystemFont, sans-serif",
@@ -283,7 +285,7 @@ export const SavedView: React.FC<SavedViewProps> = ({
                   animate={{ opacity: 1, scale: 1, y: 0 }}
                   exit={{ opacity: 0, scale: 0.98, y: 10 }}
                   transition={{ duration: 0.24, ease: [0.16, 1, 0.3, 1] }}
-                  className="flex-1 flex flex-col w-full h-full overflow-y-auto overscroll-y-contain bg-[#ffffff]"
+                  className="flex-1 flex flex-col w-full h-full overflow-y-auto overscroll-y-contain md:bg-[#ffffff]"
                   style={{
                     paddingTop: 'max(calc(env(safe-area-inset-top, 0px) + 20px), 24px)',
                     paddingBottom: 'calc(max(24px, env(safe-area-inset-bottom, 0px)) + 92px)',

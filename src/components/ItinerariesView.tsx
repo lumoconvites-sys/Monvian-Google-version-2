@@ -1949,10 +1949,8 @@ export const ItinerariesView: React.FC<ItinerariesViewProps> = ({
         animate={{ opacity: 1, scale: 1, y: 0 }}
         exit={{ opacity: 0, scale: 0.98, y: 10 }}
         transition={{ duration: 0.32, ease: [0.16, 1, 0.3, 1] }}
-        className={`fixed inset-0 md:left-[var(--desktop-sidebar-width,72px)] z-40 w-full md:w-auto h-full overflow-hidden rounded-none transition-[left] duration-200 ease-in-out ${isDark ? 'bg-[#000000]' : 'bg-white'} select-none`}
+        className={`fixed inset-0 md:left-[var(--desktop-sidebar-width,72px)] z-40 w-full md:w-auto h-full overflow-hidden rounded-t-[26px] md:rounded-none ios-page-top-rounded transition-[left] duration-200 ease-in-out ${isDark ? 'bg-[#000000]' : 'bg-white'} select-none`}
         style={{
-          borderTopLeftRadius: '0px',
-          borderTopRightRadius: '0px',
           overflow: 'hidden',
           WebkitMaskImage: '-webkit-radial-gradient(white, black)',
           isolation: 'isolate',

@@ -647,7 +647,7 @@ export const AirbnbItineraryExplorer: React.FC<AirbnbItineraryExplorerProps> = (
               </p>
             </div>
 
-            <div className="grid grid-cols-2 min-[540px]:grid-cols-3 sm:grid-cols-4 md:grid-cols-4 lg:grid-cols-4 gap-3 sm:gap-4 md:gap-4.5 pt-1">
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-x-3 gap-y-5 sm:gap-x-4 sm:gap-y-6 md:gap-4.5 pt-1">
               {activeExpandedSectionData.items.map((itin, idx) => (
                 <AirbnbItineraryCardItem
                   key={itin.id}
@@ -693,7 +693,7 @@ export const AirbnbItineraryExplorer: React.FC<AirbnbItineraryExplorerProps> = (
                 </button>
               </div>
 
-              <div className="grid grid-cols-2 min-[540px]:grid-cols-3 sm:grid-cols-4 md:grid-cols-4 lg:grid-cols-4 gap-3 sm:gap-4 md:gap-4.5">
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-x-3 gap-y-5 sm:gap-x-4 sm:gap-y-6 md:gap-4.5">
                 {filteredItineraries.map((itin, idx) => (
                   <AirbnbItineraryCardItem
                     key={itin.id}
@@ -710,7 +710,7 @@ export const AirbnbItineraryExplorer: React.FC<AirbnbItineraryExplorerProps> = (
             </div>
           )
         ) : selectedCategory !== 'all' ? (
-          /* Filtered Category Grid (4 cards per line on desktop/tablet, compact on mobile) */
+          /* Filtered Category Grid (2 cards per line on mobile, 4 cards per line on desktop) */
           filteredItineraries.length === 0 ? (
             <div className={`text-center py-20 px-6 space-y-2 ${isDark ? 'text-zinc-400' : 'text-zinc-500'}`}>
               <Compass className="w-10 h-10 mx-auto mb-2 opacity-50 stroke-[1.8]" />
@@ -744,8 +744,8 @@ export const AirbnbItineraryExplorer: React.FC<AirbnbItineraryExplorerProps> = (
                 </span>
               </div>
 
-              {/* 4-per-line Grid for category areas */}
-              <div className="grid grid-cols-2 min-[540px]:grid-cols-3 sm:grid-cols-4 md:grid-cols-4 lg:grid-cols-4 gap-3 sm:gap-4 md:gap-4.5 pt-0.5">
+              {/* 2-per-line on mobile, 4-per-line on desktop */}
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-x-3 gap-y-5 sm:gap-x-4 sm:gap-y-6 md:gap-4.5 pt-0.5">
                 {filteredItineraries.map((itin, idx) => (
                   <AirbnbItineraryCardItem
                     key={itin.id}
@@ -762,7 +762,7 @@ export const AirbnbItineraryExplorer: React.FC<AirbnbItineraryExplorerProps> = (
             </motion.div>
           )
         ) : (
-          /* Default Airbnb Sections with Standard Horizontal Carousels: 4 CARDS VISIBLE PER LINE */
+          /* Default Airbnb Sections with Standard Horizontal Carousels: 2 PER LINE ON MOBILE, 4 PER LINE ON DESKTOP */
           sections.map((section, sectionIdx) => (
             <motion.section
               key={section.id}
@@ -774,11 +774,11 @@ export const AirbnbItineraryExplorer: React.FC<AirbnbItineraryExplorerProps> = (
                 damping: 22,
                 delay: sectionIdx * 0.04,
               }}
-              className="space-y-2.5"
+              className="space-y-3 md:space-y-2.5"
             >
               {/* Section Header: Title & Navigation Controls */}
-              <div className="flex items-center justify-between px-4 sm:px-6 md:px-7">
-                <h3 className={`text-[16px] sm:text-[18px] font-bold tracking-tight ${
+              <div className="flex items-center justify-between px-6 sm:px-7">
+                <h3 className={`text-[17px] sm:text-[18px] font-bold tracking-tight ${
                   isDark ? 'text-white' : 'text-zinc-900'
                 }`}>
                   {section.title}
@@ -823,14 +823,14 @@ export const AirbnbItineraryExplorer: React.FC<AirbnbItineraryExplorerProps> = (
                 )}
               </div>
 
-              {/* Horizontal Carousel: 4 cards visible per line on desktop / tablet, compact on mobile */}
+              {/* Horizontal Carousel: 2 cards per line on mobile, 4 cards per line on desktop */}
               <div className="w-full">
                 <div
                   ref={(el) => {
                     carouselRefs.current[section.id] = el;
                   }}
                   onScroll={() => updateScrollState(section.id)}
-                  className="flex gap-2.5 sm:gap-3.5 md:gap-4 overflow-x-auto no-scrollbar pb-1 scroll-smooth px-4 sm:px-6 md:px-7"
+                  className="flex gap-3 sm:gap-4 md:gap-4 overflow-x-auto no-scrollbar pb-1 scroll-smooth px-6 sm:px-7"
                   style={{
                     touchAction: 'pan-x pan-y',
                     WebkitOverflowScrolling: 'touch',
@@ -839,7 +839,7 @@ export const AirbnbItineraryExplorer: React.FC<AirbnbItineraryExplorerProps> = (
                   {section.items.map((itin, itemIdx) => (
                     <div
                       key={itin.id}
-                      className="shrink-0 w-[calc((100%-20px)/2.2)] min-[540px]:w-[calc((100%-28px)/3.2)] sm:w-[calc((100%-36px)/4)] md:w-[calc((100%-48px)/4)] lg:w-[calc((100%-48px)/4)]"
+                      className="shrink-0 w-[calc((100%-12px)/2)] sm:w-[calc((100%-16px)/2)] md:w-[calc((100%-48px)/4)]"
                       style={{
                         touchAction: 'pan-x pan-y',
                       }}
@@ -950,16 +950,16 @@ const AirbnbItineraryCardItem: React.FC<AirbnbItineraryCardItemProps> = ({
       style={{ touchAction: 'pan-x pan-y' }}
       className="group flex flex-col cursor-pointer select-none"
     >
-      {/* 1. PHOTOGRAPH: Compact Aspect Ratio with Sleek 16px Rounded Corners */}
+      {/* 1. PHOTOGRAPH: Original aspect-[1.05/1.12] rounded-3xl on Mobile, Compact aspect-[16/11] rounded-2xl on Desktop */}
       <div 
         style={{ touchAction: 'pan-x pan-y' }}
-        className={`relative w-full aspect-[16/11] rounded-2xl overflow-hidden shadow-xs shrink-0 ${
+        className={`relative w-full aspect-[1.05/1.12] md:aspect-[16/11] rounded-3xl md:rounded-2xl overflow-hidden shadow-xs shrink-0 ${
           isDark ? 'bg-zinc-900' : 'bg-zinc-100'
         }`}
       >
         {!imageLoaded && (
           <div className={`absolute inset-0 flex items-center justify-center animate-pulse ${isDark ? 'bg-zinc-800' : 'bg-zinc-200'}`}>
-            <div className={`w-5 h-5 rounded-full border-2 border-t-transparent animate-spin ${isDark ? 'border-white/60' : 'border-zinc-700'}`} />
+            <div className={`w-6 h-6 md:w-5 md:h-5 rounded-full border-2 border-t-transparent animate-spin ${isDark ? 'border-white/60' : 'border-zinc-700'}`} />
           </div>
         )}
         <motion.img
@@ -984,15 +984,15 @@ const AirbnbItineraryCardItem: React.FC<AirbnbItineraryCardItemProps> = ({
           }}
         />
 
-        {/* Top-Right Heart Button (Compact & Elegant) */}
+        {/* Top-Right Heart Button (Original size on Mobile, Compact on Desktop) */}
         <button
           type="button"
           onClick={handleFavoriteClick}
-          className="absolute top-2 right-2 w-7 h-7 sm:w-8 sm:h-8 rounded-full flex items-center justify-center transition-transform hover:scale-110 active:scale-90 cursor-pointer z-10 bg-black/30 backdrop-blur-xs"
+          className="absolute top-2.5 right-2.5 md:top-2 md:right-2 w-9 h-9 md:w-8 md:h-8 rounded-full flex items-center justify-center transition-transform hover:scale-110 active:scale-90 cursor-pointer z-10 bg-black/30 md:backdrop-blur-xs"
           title={isFavorite ? 'Remover dos favoritos' : 'Salvar nos favoritos'}
         >
           <Heart
-            className={`w-3.5 h-3.5 sm:w-4 sm:h-4 transition-colors duration-200 ${
+            className={`w-5 h-5 md:w-4 md:h-4 transition-colors duration-200 ${
               isFavorite
                 ? 'fill-rose-500 text-rose-500 stroke-[2]'
                 : 'fill-black/35 text-white stroke-[2]'
@@ -1019,7 +1019,7 @@ const AirbnbItineraryCardItem: React.FC<AirbnbItineraryCardItemProps> = ({
                 }}
                 className="absolute pointer-events-none z-30 text-rose-500"
               >
-                <Heart className="w-4 h-4 fill-rose-500 text-rose-500" />
+                <Heart className="w-5 h-5 md:w-4 md:h-4 fill-rose-500 text-rose-500" />
               </motion.div>
             ))}
           </AnimatePresence>
@@ -1027,25 +1027,25 @@ const AirbnbItineraryCardItem: React.FC<AirbnbItineraryCardItemProps> = ({
 
         {/* Top-Left Discreet Badge (Active Route Only) */}
         {isActiveRoute ? (
-          <div className="absolute top-2 left-2 px-2 py-0.5 rounded-full bg-text-highlight text-canvas text-[8.5px] font-bold uppercase tracking-wider shadow-xs flex items-center gap-1 z-10">
-            <Check className="w-2.5 h-2.5 stroke-[3] text-canvas" />
+          <div className="absolute top-2.5 left-2.5 md:top-2 md:left-2 px-2.5 py-1 md:px-2 md:py-0.5 rounded-full bg-text-highlight text-canvas text-[9px] md:text-[8.5px] font-bold uppercase tracking-wider shadow-xs flex items-center gap-1 z-10">
+            <Check className="w-3 h-3 md:w-2.5 md:h-2.5 stroke-[3] text-canvas" />
             <span>ATIVO</span>
           </div>
         ) : null}
       </div>
 
-      {/* 2. INFORMATION: Compact Hierarchy */}
-      <div className="flex flex-col gap-0.5 pt-2 px-0.5">
-        <div className="flex items-center justify-between gap-1.5">
-          <h3 className={`text-[13px] sm:text-[14px] font-bold tracking-tight truncate leading-tight ${isDark ? 'text-text-primary' : 'text-zinc-900'}`}>
+      {/* 2. INFORMATION: Original Hierarchy on Mobile, Compact on Desktop */}
+      <div className="flex flex-col gap-0.5 pt-2.5 md:pt-2 px-0.5">
+        <div className="flex items-center justify-between gap-2 md:gap-1.5">
+          <h3 className={`text-[15px] md:text-[14px] font-bold tracking-tight truncate leading-tight ${isDark ? 'text-text-primary' : 'text-zinc-900'}`}>
             {itinerary.title}
           </h3>
-          <div className={`flex items-center gap-0.5 text-[11px] sm:text-xs font-bold shrink-0 ${isDark ? 'text-text-primary' : 'text-zinc-900'}`}>
-            <Star className="w-3 h-3 sm:w-3.5 sm:h-3.5 fill-accent-gold text-accent-gold" />
+          <div className={`flex items-center gap-1 md:gap-0.5 text-xs font-bold shrink-0 ${isDark ? 'text-text-primary' : 'text-zinc-900'}`}>
+            <Star className="w-3.5 h-3.5 fill-accent-gold text-accent-gold" />
             <span>{rating}</span>
           </div>
         </div>
-        <p className={`text-[11px] sm:text-xs font-medium truncate ${isDark ? 'text-text-secondary' : 'text-zinc-500'}`}>
+        <p className={`text-[13px] md:text-xs font-medium truncate ${isDark ? 'text-text-secondary' : 'text-zinc-500'}`}>
           {itinerary.daysCount} dias · {itinerary.days?.reduce((acc, d) => acc + (d.steps?.length || 0), 0) || 0} pontos
         </p>
       </div>

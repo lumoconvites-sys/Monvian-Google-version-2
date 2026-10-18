@@ -129,6 +129,7 @@ export function applySystemThemeColor(color: string) {
 
   const appShell = document.getElementById('app-root-shell');
   if (appShell) {
-    appShell.style.backgroundColor = '#ffffff';
+    const isDesktop = typeof window !== 'undefined' && window.matchMedia('(min-width: 768px)').matches;
+    appShell.style.backgroundColor = isDesktop ? '#ffffff' : color;
   }
 }
