@@ -19,6 +19,8 @@
         "high_contrast": { "type": "number", "description": "High contrast preference" },
         "onboarding_completed": { "type": "number", "description": "Onboarding completed flag" },
         "onboarding_step": { "type": "number", "description": "Current onboarding step" },
+        "location_permission_granted": { "type": "number", "description": "Whether location permission was granted (0 or 1)" },
+        "motion_permission_granted": { "type": "number", "description": "Whether motion/orientation permission was granted (0 or 1)" },
         "last_access": { "type": "string", "description": "Timestamp of last access" },
         "created_at": { "type": "string", "description": "Creation timestamp" }
       },
@@ -336,12 +338,28 @@
         "updated_at": { "type": "string", "description": "ISO timestamp of last update" }
       },
       "required": ["user_id", "user_email", "status", "onboarding_completed"]
+    },
+    "UserPermission": {
+      "title": "UserPermission",
+      "description": "Persistent location and motion sensor permission grant state",
+      "type": "object",
+      "properties": {
+        "location_permission_granted": { "type": "number", "description": "Location permission granted flag (0 or 1)" },
+        "motion_permission_granted": { "type": "number", "description": "Motion permission granted flag (0 or 1)" },
+        "last_lng": { "type": "number", "description": "Last granted longitude" },
+        "last_lat": { "type": "number", "description": "Last granted latitude" },
+        "updated_at": { "type": "string", "description": "ISO timestamp of last update" }
+      }
     }
   },
   "firestore": {
     "/users/{email}": {
       "schema": "User",
       "description": "Persistent users indexed by clean email"
+    },
+    "/user_permissions/{key}": {
+      "schema": "UserPermission",
+      "description": "Persistent location and motion permissions indexed by user email or global_device"
     },
     "/host_profiles/{email}": {
       "schema": "HostProfile",

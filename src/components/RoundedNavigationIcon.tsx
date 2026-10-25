@@ -4,14 +4,16 @@ export interface RoundedNavigationIconProps {
   className?: string;
   isGold?: boolean;
   size?: number;
+  style?: React.CSSProperties;
 }
 
 export const RoundedNavigationIcon: React.FC<RoundedNavigationIconProps> = ({
   className = 'w-5 h-5',
   isGold = false,
   size = 24,
+  style,
 }) => {
-  const fillColor = isGold ? '#E5AC33' : '#000000';
+  const fillColor = isGold ? '#E5AC33' : 'currentColor';
 
   return (
     <svg
@@ -21,6 +23,7 @@ export const RoundedNavigationIcon: React.FC<RoundedNavigationIconProps> = ({
       fill="none"
       xmlns="http://www.w3.org/2000/svg"
       className={className}
+      style={style}
       aria-hidden="true"
     >
       <path

@@ -60,8 +60,8 @@ export function normalizeItineraryRecord(
     daysCount: Number(row.days_count ?? row.daysCount ?? (days.length > 0 ? days.length : 1)),
     categories: parsedCategories,
     isActive: row.is_active !== undefined ? Number(row.is_active) === 1 : row.isActive !== false,
-    isRecommended: row.is_recommended !== undefined ? Number(row.is_recommended) === 1 : true,
-    isFeatured: row.is_featured !== undefined ? Number(row.is_featured) === 1 : (row.is_recommended ? 1 : 0) === 1,
+    isRecommended: row.is_recommended !== undefined ? Number(row.is_recommended) === 1 : Boolean(row.isRecommended),
+    isFeatured: row.is_featured !== undefined ? Number(row.is_featured) === 1 : (row.is_recommended !== undefined ? Number(row.is_recommended) === 1 : Boolean(row.isFeatured)),
     isPremium: isPrem,
     price: isPrem ? (row.price && row.price !== 'Grátis' && row.price !== 'R$ 0' ? row.price : 'R$ 19,90') : 'Grátis',
     status: row.status || (Number(row.is_active) === 1 ? 'published' : 'draft'),
@@ -78,16 +78,44 @@ export function normalizeItineraryRecord(
 }
 
 /**
+ * Helper to race a Supabase query against a timeout and catch network aborts safely
+ */
+async function safeSupabaseQuery<T = any>(
+  promiseLike: PromiseLike<{ data: T | null; error: any }>,
+  timeoutMs = 4000
+): Promise<{ data: T | null; error: any }> {
+  let timer: any = null;
+  const timeoutPromise = new Promise<{ data: null; error: { message: string } }>((resolve) => {
+    timer = setTimeout(() => {
+      resolve({ data: null, error: { message: 'Timeout querying Supabase' } });
+    }, timeoutMs);
+  });
+
+  const queryPromise = Promise.resolve(promiseLike).catch((err: any) => ({
+    data: null,
+    error: { message: err?.message || 'Network request failed' },
+  }));
+
+  try {
+    return await Promise.race([queryPromise, timeoutPromise]);
+  } finally {
+    if (timer) clearTimeout(timer);
+  }
+}
+
+/**
  * Fetches all categories for itineraries from Supabase.
  * If Supabase is empty, seeds the initial categories.
  */
 export async function fetchItineraryCategoriesFromSupabase(): Promise<ItineraryCategory[]> {
   try {
     if (isSupabaseConfigured && supabase) {
-      const { data, error } = await supabase
-        .from('itinerary_categories')
-        .select('*')
-        .order('sort_order', { ascending: true });
+      const { data, error } = await safeSupabaseQuery(
+        supabase
+          .from('itinerary_categories')
+          .select('*')
+          .order('sort_order', { ascending: true })
+      );
 
       if (!error && Array.isArray(data) && data.length > 0) {
         const normalized = data.map((c: any) => ({
@@ -110,11 +138,25 @@ export async function fetchItineraryCategoriesFromSupabase(): Promise<ItineraryC
         return INITIAL_STORE_CATEGORIES;
       }
     }
-  } catch (err) {
-    console.warn('[SupabaseItineraries] Fallback on categories query:', err);
-  }
+  } catch {}
 
-  // Cache fallback
+  // Fallback 1: Same-origin API
+  try {
+    if (typeof window !== 'undefined') {
+      const res = await fetch('/api/itinerary-categories');
+      if (res.ok) {
+        const json = await res.json();
+        if (Array.isArray(json?.categories) && json.categories.length > 0) {
+          try {
+            localStorage.setItem(CACHE_KEY_ITINERARY_CATEGORIES, JSON.stringify(json.categories));
+          } catch {}
+          return json.categories;
+        }
+      }
+    }
+  } catch {}
+
+  // Fallback 2: Cache
   try {
     const cached = localStorage.getItem(CACHE_KEY_ITINERARY_CATEGORIES);
     if (cached) {
@@ -140,11 +182,8 @@ export async function seedCategoriesIntoSupabase(): Promise<void> {
       sort_order: c.sortOrder || 0,
       is_active: c.isActive !== false ? 1 : 0,
     }));
-    await supabase.from('itinerary_categories').upsert(payload, { onConflict: 'id' });
-    console.log('[SupabaseItineraries] Seeded default categories into Supabase.');
-  } catch (e) {
-    console.warn('[SupabaseItineraries] Seed categories notice:', e);
-  }
+    await safeSupabaseQuery(supabase.from('itinerary_categories').upsert(payload, { onConflict: 'id' }));
+  } catch {}
 }
 
 /**
@@ -162,25 +201,20 @@ export async function fetchItinerariesFromSupabase(options?: {
         query = query.eq('is_active', 1);
       }
 
-      const { data: rawItins, error: itinsErr } = await query;
-      if (itinsErr) {
-        console.error('[SupabaseItineraries] Error fetching itineraries:', itinsErr);
-        if (options?.throwOnError) throw new Error(itinsErr.message);
-      }
+      const { data: rawItins, error: itinsErr } = await safeSupabaseQuery(query, 4500);
 
-      if (Array.isArray(rawItins)) {
+      if (!itinsErr && Array.isArray(rawItins)) {
         if (rawItins.length === 0) {
           // If Supabase table is empty, seed initial curated itineraries
-          console.log('[SupabaseItineraries] Supabase itineraries table is empty. Seeding defaults...');
           await seedItinerariesIntoSupabase();
           return DEFAULT_CURATED_ITINERARIES;
         }
 
         // Fetch days, steps, and spots in parallel for complete hydration
         const [daysRes, stepsRes, spotsRes] = await Promise.all([
-          supabase.from('itinerary_days').select('*').order('day_number', { ascending: true }),
-          supabase.from('itinerary_steps').select('*').order('step_order', { ascending: true }),
-          supabase.from('spots').select('id, name, short_name, category, category_label, lat, lng, image, description'),
+          safeSupabaseQuery(supabase.from('itinerary_days').select('*').order('day_number', { ascending: true })),
+          safeSupabaseQuery(supabase.from('itinerary_steps').select('*').order('step_order', { ascending: true })),
+          safeSupabaseQuery(supabase.from('spots').select('id, name, short_name, category, category_label, lat, lng, image, description')),
         ]);
 
         const allDays = Array.isArray(daysRes.data) ? daysRes.data : [];
@@ -249,6 +283,43 @@ export async function fetchItinerariesFromSupabase(options?: {
           return normalizeItineraryRecord(row, itinDays);
         });
 
+        // One-time cleanup for legacy seeded default itineraries that all had is_featured=1 / is_recommended=1
+        try {
+          const cleanupKey = 'monvian_cleanup_default_featured_v2';
+          if (typeof window !== 'undefined' && !localStorage.getItem(cleanupKey)) {
+            const defaultIds = new Set(DEFAULT_CURATED_ITINERARIES.map((d) => d.id));
+            const secondaryDefaultIds = new Set(
+              DEFAULT_CURATED_ITINERARIES.filter((d) => !d.isFeatured).map((d) => d.id)
+            );
+            const hasCustomFeatured = normalizedItins.some(
+              (it) => !defaultIds.has(it.id) && (it.isFeatured || it.isRecommended)
+            );
+            const idsToUnfeature = normalizedItins
+              .filter((it) =>
+                (it.isFeatured || it.isRecommended) &&
+                (hasCustomFeatured ? defaultIds.has(it.id) : secondaryDefaultIds.has(it.id))
+              )
+              .map((it) => it.id);
+
+            if (idsToUnfeature.length > 0) {
+              idsToUnfeature.forEach((id) => {
+                const target = normalizedItins.find((it) => it.id === id);
+                if (target) {
+                  target.isFeatured = false;
+                  target.isRecommended = false;
+                }
+              });
+              safeSupabaseQuery(
+                supabase
+                  .from('itineraries')
+                  .update({ is_featured: 0, is_recommended: 0 })
+                  .in('id', idsToUnfeature)
+              ).catch(() => {});
+            }
+            localStorage.setItem(cleanupKey, '1');
+          }
+        } catch {}
+
         try {
           localStorage.setItem(CACHE_KEY_ITINERARIES, JSON.stringify(normalizedItins));
         } catch {}
@@ -258,10 +329,29 @@ export async function fetchItinerariesFromSupabase(options?: {
     }
   } catch (err: any) {
     if (options?.throwOnError) throw err;
-    console.warn('[SupabaseItineraries] Fallback on fetchItineraries:', err);
   }
 
-  // Fallback 1: LocalStorage Cache
+  // Fallback 1: Same-origin backend API (/api/itineraries) — resilient to Safari cross-origin Load failed
+  try {
+    if (typeof window !== 'undefined') {
+      const apiUrl = options?.all ? '/api/itineraries?all=true' : '/api/itineraries';
+      const res = await fetch(apiUrl);
+      if (res.ok) {
+        const json = await res.json();
+        if (Array.isArray(json?.itineraries) && json.itineraries.length > 0) {
+          const normalizedFromApi = json.itineraries.map((it: any) =>
+            normalizeItineraryRecord(it, Array.isArray(it.days) ? it.days : [])
+          );
+          try {
+            localStorage.setItem(CACHE_KEY_ITINERARIES, JSON.stringify(normalizedFromApi));
+          } catch {}
+          return normalizedFromApi;
+        }
+      }
+    }
+  } catch {}
+
+  // Fallback 2: LocalStorage Cache
   try {
     const cached = localStorage.getItem(CACHE_KEY_ITINERARIES);
     if (cached) {
@@ -270,7 +360,7 @@ export async function fetchItinerariesFromSupabase(options?: {
     }
   } catch {}
 
-  // Fallback 2: Bundled DEFAULT_CURATED_ITINERARIES
+  // Fallback 3: Bundled DEFAULT_CURATED_ITINERARIES
   return DEFAULT_CURATED_ITINERARIES;
 }
 

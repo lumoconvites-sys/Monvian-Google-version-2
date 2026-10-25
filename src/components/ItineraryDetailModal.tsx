@@ -1,6 +1,6 @@
-import React, { useState } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import {
-  X,
+  ChevronLeft,
   Calendar,
   Clock,
   MapPin,
@@ -41,6 +41,51 @@ export const ItineraryDetailModal: React.FC<ItineraryDetailModalProps> = ({
   const [activeDayIndex, setActiveDayIndex] = useState(0);
   const [visitedSteps, setVisitedSteps] = useState<Record<string, boolean>>({});
   const [copyFeedback, setCopyFeedback] = useState(false);
+  const scrollRef = useRef<HTMLDivElement | null>(null);
+  const heroImgRef = useRef<HTMLImageElement | null>(null);
+
+  // Smooth scroll-driven blur & scale effect (native iOS fluid feel)
+  const handleScroll = (e: React.UIEvent<HTMLDivElement>) => {
+    const scrollTop = e.currentTarget.scrollTop;
+    if (!heroImgRef.current) return;
+
+    // As user scrolls down and the card climbs over the sticky hero photo:
+    // progress smoothly scales from 0 (top) to 1 (when card has covered 220px).
+    const progress = Math.min(1, Math.max(0, scrollTop / 220));
+    const blurPx = progress * 16;
+    const scale = 1.04 + progress * 0.04;
+    const brightness = 1 - progress * 0.12;
+
+    if (progress <= 0.002) {
+      heroImgRef.current.style.filter = 'none';
+      heroImgRef.current.style.transform = 'scale(1.04) translateZ(0)';
+      heroImgRef.current.style.webkitTransform = 'scale(1.04) translateZ(0)';
+    } else {
+      heroImgRef.current.style.filter = `blur(${blurPx.toFixed(1)}px) brightness(${brightness.toFixed(2)})`;
+      heroImgRef.current.style.transform = `scale(${scale.toFixed(3)}) translateZ(0)`;
+      heroImgRef.current.style.webkitTransform = `scale(${scale.toFixed(3)}) translateZ(0)`;
+    }
+  };
+
+  useEffect(() => {
+    if (scrollRef.current) {
+      scrollRef.current.scrollTop = 0;
+    }
+    if (heroImgRef.current) {
+      heroImgRef.current.style.filter = 'none';
+      heroImgRef.current.style.transform = 'scale(1.04) translateZ(0)';
+      heroImgRef.current.style.webkitTransform = 'scale(1.04) translateZ(0)';
+    }
+  }, [itinerary?.id, isOpen]);
+
+  // Immediately close modal when user clicks any option on the navigation bar
+  useEffect(() => {
+    const handleCloseAll = () => {
+      onClose();
+    };
+    window.addEventListener('monvian-close-modals', handleCloseAll);
+    return () => window.removeEventListener('monvian-close-modals', handleCloseAll);
+  }, [onClose]);
 
   if (!isOpen || !itinerary) return null;
 
@@ -90,7 +135,7 @@ export const ItineraryDetailModal: React.FC<ItineraryDetailModalProps> = ({
             exit={{ opacity: 0, scale: 0.98, y: 10 }}
             transition={{ duration: 0.24, ease: [0.16, 1, 0.3, 1] }}
             onClick={(e) => e.stopPropagation()}
-            className="relative z-10 bg-white dark:bg-[#000000] border-t sm:border border-zinc-200 dark:border-zinc-800 rounded-t-[26px] sm:rounded-[26px] w-full max-w-2xl max-h-[92vh] flex flex-col shadow-2xl overflow-hidden origin-bottom sm:origin-center transform-gpu ios-page-top-rounded"
+            className="relative z-10 bg-white dark:bg-[#000000] border-t sm:border border-zinc-200 dark:border-[#262626] rounded-t-[26px] sm:rounded-[26px] w-full max-w-2xl max-h-[92vh] flex flex-col shadow-2xl overflow-hidden origin-bottom sm:origin-center transform-gpu ios-page-top-rounded"
             style={{
               paddingBottom: 'max(16px, env(safe-area-inset-bottom, 0px))',
               willChange: 'transform, opacity',
@@ -100,110 +145,148 @@ export const ItineraryDetailModal: React.FC<ItineraryDetailModalProps> = ({
               WebkitMaskImage: '-webkit-radial-gradient(white, black)',
             }}
           >
-        {/* Header with Cover */}
-        <div className="relative aspect-21/9 w-full bg-zinc-900 shrink-0 overflow-hidden rounded-b-[28px]">
-          <motion.img
-            initial={{ opacity: 0, scale: 0.88, y: 12 }}
-            animate={{ opacity: 1, scale: 1, y: 0 }}
-            transition={{ type: 'spring', stiffness: 380, damping: 22 }}
-            src={itinerary.coverImage || 'https://images.unsplash.com/photo-1519501025264-65ba15a82390?auto=format&fit=crop&w=1000&q=80'}
-            alt={itinerary.title}
-            className="w-full h-full object-cover"
-            referrerPolicy="no-referrer"
-            onError={(e) => {
-              (e.target as HTMLImageElement).src =
-                'https://images.unsplash.com/photo-1519501025264-65ba15a82390?auto=format&fit=crop&w=1000&q=80';
+        {/* Scrollable Body com blur dinâmico ao rolar */}
+        <div
+          ref={scrollRef}
+          onScroll={handleScroll}
+          className="flex-1 overflow-y-auto overscroll-contain"
+          style={{
+            WebkitOverflowScrolling: 'touch',
+          }}
+        >
+          {/* Header with Cover - Sticky Hero com blur dinâmico */}
+          <div
+            style={{
+              position: 'sticky',
+              top: 0,
+              overflow: 'clip',
+              WebkitMaskImage: '-webkit-radial-gradient(white, black)',
+              isolation: 'isolate',
+              transform: 'translateZ(0)',
+              WebkitTransform: 'translateZ(0)',
             }}
-          />
-          <div className="absolute inset-0 bg-gradient-to-t from-black/85 via-black/40 to-transparent" />
+            className="sticky top-0 aspect-21/9 sm:h-72 w-full bg-zinc-900 shrink-0 overflow-hidden z-0 pointer-events-none"
+          >
+            <motion.div
+              initial={{ opacity: 0, scale: 0.96 }}
+              animate={{ opacity: 1, scale: 1 }}
+              transition={{ duration: 0.35, ease: [0.22, 1, 0.36, 1] }}
+              className="w-full h-full relative"
+            >
+              <img
+                ref={heroImgRef}
+                src={itinerary.coverImage || 'https://images.unsplash.com/photo-1519501025264-65ba15a82390?auto=format&fit=crop&w=1000&q=80'}
+                alt={itinerary.title}
+                style={{
+                  filter: 'none',
+                  transform: 'scale(1.04) translateZ(0)',
+                  WebkitTransform: 'scale(1.04) translateZ(0)',
+                  willChange: 'filter, transform',
+                }}
+                className="w-full h-full object-cover pointer-events-none transform-gpu transition-[filter,transform] duration-75 ease-out"
+                referrerPolicy="no-referrer"
+                loading="eager"
+                onError={(e) => {
+                  (e.target as HTMLImageElement).src =
+                    'https://images.unsplash.com/photo-1519501025264-65ba15a82390?auto=format&fit=crop&w=1000&q=80';
+                }}
+              />
+            </motion.div>
+            <div className="absolute inset-0 bg-gradient-to-t from-black/85 via-black/40 to-transparent pointer-events-none" />
 
-          {/* Top Bar Actions */}
-          <div className="absolute top-4 left-4 right-4 flex items-center justify-between">
-            <span className="px-3 py-1 rounded-full text-xs font-bold bg-black/60 backdrop-blur-md text-white border border-white/10 flex items-center gap-1.5">
-              <Calendar className="w-3.5 h-3.5 text-zinc-300" />
-              <span>{itinerary.daysCount} {itinerary.daysCount === 1 ? 'Dia' : 'Dias'}</span>
-            </span>
+            {/* Top Bar Actions */}
+            <div className="absolute top-4 left-4 right-4 flex items-center justify-between z-10 pointer-events-auto">
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={onClose}
+                  className="w-9 h-9 rounded-full bg-black/60 backdrop-blur-md text-white border border-white/10 flex items-center justify-center hover:bg-black/80 active:scale-90 transition-transform cursor-pointer shadow-md"
+                  title="Voltar"
+                  aria-label="Voltar"
+                >
+                  <ChevronLeft className="w-5 h-5 -ml-0.5" />
+                </button>
 
-            <div className="flex items-center gap-2">
-              <button
-                type="button"
-                onClick={() => onSaveItinerary?.(itinerary)}
-                className="w-9 h-9 rounded-full bg-black/60 backdrop-blur-md text-white border border-white/10 flex items-center justify-center hover:bg-black/80 active:scale-90 transition-transform cursor-pointer"
-                title={isSaved ? 'Remover dos salvos' : 'Salvar roteiro'}
-              >
-                <Heart className={`w-4 h-4 ${isSaved ? 'fill-rose-500 text-rose-500' : 'text-white'}`} />
-              </button>
+                <span className="px-3 py-1 rounded-full text-xs font-bold bg-black/60 backdrop-blur-md text-white border border-white/10 flex items-center gap-1.5">
+                  <Calendar className="w-3.5 h-3.5 text-zinc-300" />
+                  <span>{itinerary.daysCount} {itinerary.daysCount === 1 ? 'Dia' : 'Dias'}</span>
+                </span>
+              </div>
 
-              <button
-                onClick={handleShare}
-                className="w-9 h-9 rounded-full bg-black/60 backdrop-blur-md text-white border border-white/10 flex items-center justify-center hover:bg-black/80 transition-colors cursor-pointer"
-                title="Compartilhar roteiro"
-              >
-                <Share2 className="w-4 h-4" />
-              </button>
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => onSaveItinerary?.(itinerary)}
+                  className="w-9 h-9 rounded-full bg-black/60 backdrop-blur-md text-white border border-white/10 flex items-center justify-center hover:bg-black/80 active:scale-90 transition-transform cursor-pointer"
+                  title={isSaved ? 'Remover dos salvos' : 'Salvar roteiro'}
+                >
+                  <Heart className={`w-4 h-4 ${isSaved ? 'fill-rose-500 text-rose-500' : 'text-white'}`} />
+                </button>
 
-              <button
-                onClick={onClose}
-                className="w-9 h-9 rounded-full bg-black/60 backdrop-blur-md text-white border border-white/10 flex items-center justify-center hover:bg-black/80 transition-colors cursor-pointer"
-                title="Fechar"
-              >
-                <X className="w-4 h-4" />
-              </button>
+                <button
+                  onClick={handleShare}
+                  className="w-9 h-9 rounded-full bg-black/60 backdrop-blur-md text-white border border-white/10 flex items-center justify-center hover:bg-black/80 transition-colors cursor-pointer"
+                  title="Compartilhar roteiro"
+                >
+                  <Share2 className="w-4 h-4" />
+                </button>
+              </div>
+            </div>
+
+            {/* Title & Stats over Cover */}
+            <div className="absolute bottom-4 left-4 right-4 text-white pointer-events-none">
+              <h2 className="text-lg sm:text-xl font-black leading-tight drop-shadow-sm mb-1.5">
+                {itinerary.title}
+              </h2>
+              <div className="flex items-center gap-3 text-xs text-zinc-200 font-medium">
+                <span className="flex items-center gap-1">
+                  <MapPin className="w-3.5 h-3.5 text-zinc-300" />
+                  {totalPlaces} {totalPlaces === 1 ? 'parada' : 'paradas'}
+                </span>
+                <span>•</span>
+                <span className="flex items-center gap-1">
+                  <Users className="w-3.5 h-3.5 text-zinc-300" />
+                  {(itinerary.usageCount || 0).toLocaleString()} turistas já usaram
+                </span>
+              </div>
             </div>
           </div>
 
-          {/* Title & Stats over Cover */}
-          <div className="absolute bottom-4 left-4 right-4 text-white">
-            <h2 className="text-lg sm:text-xl font-black leading-tight drop-shadow-sm mb-1.5">
-              {itinerary.title}
-            </h2>
-            <div className="flex items-center gap-3 text-xs text-zinc-200 font-medium">
-              <span className="flex items-center gap-1">
-                <MapPin className="w-3.5 h-3.5 text-zinc-300" />
-                {totalPlaces} {totalPlaces === 1 ? 'parada' : 'paradas'}
-              </span>
-              <span>•</span>
-              <span className="flex items-center gap-1">
-                <Users className="w-3.5 h-3.5 text-zinc-300" />
-                {(itinerary.usageCount || 0).toLocaleString()} turistas já usaram
-              </span>
+          {/* Copy toast feedback */}
+          {copyFeedback && (
+            <div className="bg-zinc-900 text-white text-xs font-medium text-center py-1.5 animate-in fade-in">
+              Link copiado para a área de transferência!
             </div>
-          </div>
-        </div>
+          )}
 
-        {/* Copy toast feedback */}
-        {copyFeedback && (
-          <div className="bg-zinc-900 text-white text-xs font-medium text-center py-1.5 animate-in fade-in">
-            Link copiado para a área de transferência!
-          </div>
-        )}
+          {/* Main Content Body - Card que sobe tampando a foto com blur progressivo */}
+          <div className="relative -mt-6 z-10 bg-white dark:bg-[#000000] border-t border-zinc-200/80 dark:border-[#262626] rounded-t-[32px] sm:rounded-t-[36px] shadow-[0_-8px_32px_rgba(0,0,0,0.18)] min-h-[calc(100%-8rem)] pb-12">
+            {/* Day Selector Tabs (if more than 1 day) */}
+            {days.length > 1 && (
+              <div className="flex items-center gap-2 px-5 py-3 border-b border-zinc-200 dark:border-[#262626] bg-zinc-50 dark:bg-[#000000] rounded-t-[32px] sm:rounded-t-[36px] overflow-x-auto shrink-0">
+                {days.map((d, idx) => (
+                  <motion.button
+                    key={idx}
+                    initial={{ opacity: 0, scale: 0.88, y: 12 }}
+                    animate={{ opacity: 1, scale: 1, y: 0 }}
+                    transition={{ type: 'spring', stiffness: 380, damping: 22, delay: idx * 0.035 }}
+                    whileHover={{ scale: 1.02, transition: { type: 'spring', stiffness: 400, damping: 18 } }}
+                    whileTap={{ scale: 0.93, transition: { type: 'spring', stiffness: 500, damping: 14 } }}
+                    onClick={() => setActiveDayIndex(idx)}
+                    className={`px-3.5 py-1.5 rounded-full text-xs font-bold transition-colors shrink-0 cursor-pointer ${
+                      activeDayIndex === idx
+                        ? 'bg-zinc-900 text-white dark:bg-white dark:text-zinc-900 shadow-2xs'
+                        : 'bg-white dark:bg-[#000000] text-zinc-700 dark:text-[#A1A1AA] hover:text-zinc-900 dark:hover:text-white border border-zinc-200/80 dark:border-[#262626]'
+                    }`}
+                  >
+                    Dia {d.dayNumber || idx + 1}
+                  </motion.button>
+                ))}
+              </div>
+            )}
 
-        {/* Day Selector Tabs (if more than 1 day) */}
-        {days.length > 1 && (
-          <div className="flex items-center gap-2 px-5 py-3 border-b border-zinc-200 dark:border-zinc-800 bg-zinc-50 dark:bg-[#15171c] overflow-x-auto shrink-0">
-            {days.map((d, idx) => (
-              <motion.button
-                key={idx}
-                initial={{ opacity: 0, scale: 0.88, y: 12 }}
-                animate={{ opacity: 1, scale: 1, y: 0 }}
-                transition={{ type: 'spring', stiffness: 380, damping: 22, delay: idx * 0.035 }}
-                whileHover={{ scale: 1.02, transition: { type: 'spring', stiffness: 400, damping: 18 } }}
-                whileTap={{ scale: 0.93, transition: { type: 'spring', stiffness: 500, damping: 14 } }}
-                onClick={() => setActiveDayIndex(idx)}
-                className={`px-3.5 py-1.5 rounded-full text-xs font-bold transition-colors shrink-0 cursor-pointer ${
-                  activeDayIndex === idx
-                    ? 'bg-zinc-900 text-white dark:bg-white dark:text-zinc-900 shadow-2xs'
-                    : 'bg-white dark:bg-zinc-800 text-zinc-700 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-white border border-zinc-200/80 dark:border-zinc-700'
-                }`}
-              >
-                Dia {d.dayNumber || idx + 1}
-              </motion.button>
-            ))}
-          </div>
-        )}
-
-        {/* Scrollable Content */}
-        <div className="flex-1 overflow-y-auto p-5 sm:p-6 space-y-6">
+            {/* Scrollable Content */}
+            <div className="p-5 sm:p-6 space-y-6">
           {/* Day Title and Summary */}
           {currentDay && (
             <motion.div
@@ -251,7 +334,7 @@ export const ItineraryDetailModal: React.FC<ItineraryDetailModalProps> = ({
                       className={`absolute left-1.5 top-3.5 -translate-x-1/2 w-6 h-6 rounded-full flex items-center justify-center transition-all cursor-pointer z-10 ${
                         isVisited
                           ? ''
-                          : 'bg-white dark:bg-[#121418] border-2 border-zinc-300 dark:border-zinc-700 text-zinc-400 group-hover:border-zinc-500'
+                          : 'bg-white dark:bg-[#000000] border-2 border-zinc-300 dark:border-[#262626] text-zinc-400 group-hover:border-zinc-500'
                       }`}
                       title={isVisited ? 'Marcar como não visitado' : 'Marcar como visitado'}
                     >
@@ -268,8 +351,8 @@ export const ItineraryDetailModal: React.FC<ItineraryDetailModalProps> = ({
                     <div
                       className={`p-4 rounded-2xl border transition-all ${
                         isVisited
-                          ? 'bg-zinc-50/80 dark:bg-zinc-900/40 border-zinc-200/60 dark:border-zinc-800/60 opacity-75'
-                          : 'bg-white dark:bg-[#181a20] border-zinc-200 dark:border-zinc-800 shadow-2xs hover:border-zinc-300 dark:hover:border-zinc-700'
+                          ? 'bg-zinc-50/80 dark:bg-[#000000] border-zinc-200/60 dark:border-[#262626] opacity-75'
+                          : 'bg-white dark:bg-[#000000] border-zinc-200 dark:border-[#262626] shadow-2xs hover:border-zinc-300 dark:hover:border-white/30'
                       }`}
                     >
                       {/* Time and Duration badges */}
@@ -297,23 +380,40 @@ export const ItineraryDetailModal: React.FC<ItineraryDetailModalProps> = ({
                       {/* Spot Details */}
                       <div className="flex items-start gap-3">
                         {spot && (
-                          <motion.img
-                            initial={{ opacity: 0, scale: 0.88, y: 8 }}
-                            animate={{ opacity: 1, scale: 1, y: 0 }}
-                            transition={{
-                              type: 'spring',
-                              stiffness: 380,
-                              damping: 22,
-                              delay: sIdx * 0.035,
+                          <div
+                            style={{
+                              overflow: 'clip',
+                              clipPath: 'inset(0 round 12px)',
+                              WebkitClipPath: 'inset(0 round 12px)',
+                              WebkitMaskImage: '-webkit-radial-gradient(white, black)',
+                              isolation: 'isolate',
+                              transform: 'translateZ(0)',
+                              WebkitTransform: 'translateZ(0)',
                             }}
-                            src={getSpotImage(spot)}
-                            alt={spot.name}
-                            className="w-16 h-16 rounded-xl object-cover shrink-0 border border-zinc-200 dark:border-zinc-800"
-                            referrerPolicy="no-referrer"
-                            onError={(e) => {
-                              (e.target as HTMLImageElement).src = getSpotFallbackImage(spot.name, spot.category);
-                            }}
-                          />
+                            className="w-16 h-16 rounded-xl overflow-hidden shrink-0 border border-zinc-200 dark:border-zinc-800 bg-zinc-800"
+                          >
+                            <motion.img
+                              initial={{ opacity: 0, scale: 1, y: 0 }}
+                              animate={{ opacity: 1, scale: 1, y: 0 }}
+                              transition={{
+                                duration: 0.22,
+                                ease: [0.22, 1, 0.36, 1],
+                                delay: sIdx * 0.035,
+                              }}
+                              style={{
+                                backfaceVisibility: 'hidden',
+                                WebkitBackfaceVisibility: 'hidden',
+                                transform: 'translateZ(0)',
+                              }}
+                              src={getSpotImage(spot)}
+                              alt={spot.name}
+                              className="w-full h-full object-cover rounded-[inherit]"
+                              referrerPolicy="no-referrer"
+                              onError={(e) => {
+                                (e.target as HTMLImageElement).src = getSpotFallbackImage(spot.name, spot.category);
+                              }}
+                            />
+                          </div>
                         )}
 
                         <div className="flex-1 min-w-0">
@@ -370,7 +470,7 @@ export const ItineraryDetailModal: React.FC<ItineraryDetailModalProps> = ({
 
           {/* Important general notes */}
           {itinerary.notes && (
-            <div className="p-4 rounded-2xl bg-zinc-50 dark:bg-[#181a20] border border-zinc-200 dark:border-zinc-800 space-y-1">
+            <div className="p-4 rounded-2xl bg-zinc-50 dark:bg-[#000000] border border-zinc-200 dark:border-[#262626] space-y-1">
               <div className="flex items-center gap-1.5 text-xs font-bold text-zinc-900 dark:text-white">
                 <Info className="w-3.5 h-3.5 text-zinc-500" />
                 <span>Dicas para este Roteiro</span>
@@ -380,10 +480,12 @@ export const ItineraryDetailModal: React.FC<ItineraryDetailModalProps> = ({
               </p>
             </div>
           )}
+            </div>
+          </div>
         </div>
 
         {/* Footer CTAs */}
-        <div className="p-4 sm:p-5 border-t border-zinc-200 dark:border-zinc-800 bg-white dark:bg-[#121418] flex items-center justify-between gap-3 shrink-0">
+        <div className="p-4 sm:p-5 border-t border-zinc-200 dark:border-[#262626] bg-white dark:bg-[#000000] flex items-center justify-between gap-3 shrink-0">
           <button
             type="button"
             onClick={onClose}

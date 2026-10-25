@@ -163,20 +163,20 @@ export const UserSearchModal: React.FC<UserSearchModalProps> = ({
               />
             </button>
 
-            {/* Input with Magnifier */}
-            <div className={`flex-1 flex items-center gap-2.5 px-3.5 py-2.5 rounded-[20px] border transition-all ${
+            {/* Input with Magnifier (WhatsApp iOS style) */}
+            <div className={`flex-1 flex items-center gap-2.5 px-3.5 h-[42px] rounded-full transition-colors ${
               isDark
-                ? 'bg-[#141518] border-white/10 text-white focus-within:border-white/25 focus-within:bg-[#1a1b1f]'
-                : 'bg-zinc-100 border-zinc-200 text-zinc-900 focus-within:border-zinc-300 focus-within:bg-zinc-50'
+                ? 'bg-[#202124] text-white'
+                : 'bg-[#f0f2f5] text-[#111b21]'
             }`}>
-              <Search className="w-4 h-4 text-zinc-400 shrink-0 stroke-[2.2]" />
+              <Search className="w-[18px] h-[18px] text-[#8696a0] dark:text-[#8e8e93] shrink-0 stroke-[2]" />
               <input
                 ref={inputRef}
                 type="text"
                 placeholder="Pesquisar pessoas, @username..."
                 value={query}
                 onChange={(e) => handleQueryChange(e.target.value)}
-                className="w-full bg-transparent text-[14.5px] font-medium focus:outline-none placeholder:text-zinc-500"
+                className="w-full bg-transparent text-[15px] font-normal focus:outline-none placeholder-[#8696a0] dark:placeholder-[#8e8e93]"
                 autoCapitalize="none"
                 autoCorrect="off"
                 spellCheck={false}
@@ -185,10 +185,10 @@ export const UserSearchModal: React.FC<UserSearchModalProps> = ({
                 <button
                   type="button"
                   onClick={() => handleQueryChange('')}
-                  className="p-1 text-zinc-400 hover:text-white cursor-pointer"
+                  className="w-4 h-4 rounded-full bg-[#8696a0]/30 hover:bg-[#8696a0]/50 text-[#111b21] dark:text-white flex items-center justify-center cursor-pointer transition-colors"
                   title="Limpar"
                 >
-                  <X className="w-4 h-4" />
+                  <X className="w-2.5 h-2.5 stroke-[2.5]" />
                 </button>
               )}
             </div>

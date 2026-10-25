@@ -79,7 +79,7 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({
 
   return (
     <div
-      className="h-screen h-[100dvh] w-full bg-[#f8fafc] dark:bg-[#0c0d10] text-zinc-900 dark:text-zinc-100 flex flex-col font-sans antialiased overflow-hidden rounded-t-[26px] ios-page-top-rounded"
+      className="h-screen h-[100dvh] w-full bg-[#f8fafc] dark:bg-[#000000] text-zinc-900 dark:text-zinc-100 flex flex-col font-sans antialiased overflow-hidden rounded-t-[26px] ios-page-top-rounded"
       style={{
         borderTopLeftRadius: '26px',
         borderTopRightRadius: '26px',
@@ -90,7 +90,7 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({
     >
       {/* Top Header Bar */}
       <header
-        className="shrink-0 z-40 bg-white dark:bg-[#121418] border-b border-zinc-200/80 dark:border-zinc-800 px-4 sm:px-6 py-3 flex items-center justify-between shadow-2xs rounded-t-[26px]"
+        className="shrink-0 z-40 bg-white dark:bg-[#000000] border-b border-zinc-200/80 dark:border-[#262626] px-4 sm:px-6 py-3 flex items-center justify-between shadow-2xs rounded-t-[26px]"
         style={{
           paddingTop: 'max(12px, env(safe-area-inset-top, 0px))',
           paddingLeft: 'max(16px, env(safe-area-inset-left, 0px))',
@@ -174,7 +174,7 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({
       {/* Main Container: Sidebar + Content */}
       <div className="flex-1 flex min-h-0 overflow-hidden">
         {/* Desktop Sidebar (Matching screenshot layout) */}
-        <aside className="hidden md:flex w-64 bg-white dark:bg-[#121418] border-r border-zinc-200/80 dark:border-zinc-800 flex-col justify-between shrink-0 p-4 overflow-y-auto">
+        <aside className="hidden md:flex w-64 bg-white dark:bg-[#000000] border-r border-zinc-200/80 dark:border-[#262626] flex-col justify-between shrink-0 p-4 overflow-y-auto">
           <div className="space-y-6">
             {/* Logo */}
             <div className="px-3 py-2 flex items-center gap-2.5">
@@ -252,7 +252,7 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({
               onClick={() => setIsMobileMenuOpen(false)}
             />
             <div 
-              className="relative w-72 max-w-[80vw] bg-white dark:bg-[#121418] h-full flex flex-col justify-between shadow-2xl z-10 animate-in slide-in-from-left duration-200"
+              className="relative w-72 max-w-[80vw] bg-white dark:bg-[#000000] border-r dark:border-[#262626] h-full flex flex-col justify-between shadow-2xl z-10 animate-in slide-in-from-left duration-200"
               style={{
                 paddingTop: 'max(24px, calc(env(safe-area-inset-top, 0px) + 16px))',
                 paddingBottom: 'max(24px, calc(env(safe-area-inset-bottom, 0px) + 16px))',

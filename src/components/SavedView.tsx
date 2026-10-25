@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import {
   ChevronLeft,
@@ -43,7 +43,84 @@ interface CollectionCoverCardProps {
   index?: number;
 }
 
-const CollectionCoverCard: React.FC<CollectionCoverCardProps> = ({
+const CELL_CORNER_CLASSES: Record<number, string> = {
+  0: 'rounded-tl-[27px]',
+  1: 'rounded-tr-[27px]',
+  2: 'rounded-bl-[27px]',
+  3: 'rounded-br-[27px]',
+};
+
+const CELL_CLIP_PATHS: Record<number, string> = {
+  0: 'inset(0 round 27px 0 0 0)',
+  1: 'inset(0 round 0 27px 0 0)',
+  2: 'inset(0 round 0 0 0 27px)',
+  3: 'inset(0 round 0 0 27px 0)',
+};
+
+const loadedSavedPhotoCache = new Set<string>();
+
+const TranslucentSavedPhoto: React.FC<{
+  src: string;
+  alt?: string;
+  className?: string;
+  style?: React.CSSProperties;
+  isDark?: boolean;
+}> = React.memo(({ src, alt = '', className = '', style, isDark = false }) => {
+  const [loaded, setLoaded] = useState<boolean>(() => loadedSavedPhotoCache.has(src));
+  const imgRef = useRef<HTMLImageElement | null>(null);
+
+  useEffect(() => {
+    if (loadedSavedPhotoCache.has(src)) {
+      setLoaded(true);
+      return;
+    }
+    if (imgRef.current && imgRef.current.complete && imgRef.current.naturalWidth > 0) {
+      loadedSavedPhotoCache.add(src);
+      setLoaded(true);
+    } else {
+      setLoaded(false);
+    }
+  }, [src]);
+
+  const handleLoad = () => {
+    if (src) loadedSavedPhotoCache.add(src);
+    setLoaded(true);
+  };
+
+  return (
+    <>
+      {!loaded && (
+        <div
+          className={`absolute inset-0 pointer-events-none transition-opacity duration-200 ${
+            isDark ? 'bg-white/[0.08]' : 'bg-zinc-200/75'
+          }`}
+          style={style}
+        />
+      )}
+      <img
+        ref={imgRef}
+        src={src}
+        alt={alt}
+        draggable={false}
+        decoding="async"
+        loading="eager"
+        onLoad={handleLoad}
+        onError={handleLoad}
+        className={`${className} transition-opacity duration-200 ease-out ${
+          loaded ? 'opacity-100' : 'opacity-0'
+        }`}
+        style={{
+          ...style,
+          transform: 'translate3d(0, 0, 0)',
+          backfaceVisibility: 'hidden',
+          WebkitBackfaceVisibility: 'hidden',
+        }}
+      />
+    </>
+  );
+});
+
+const CollectionCoverCard: React.FC<CollectionCoverCardProps> = React.memo(({
   title,
   count,
   photos,
@@ -54,43 +131,46 @@ const CollectionCoverCard: React.FC<CollectionCoverCardProps> = ({
 }) => {
   return (
     <motion.div
-      initial={{ opacity: 0, scale: 0.88, y: 12 }}
-      animate={{ opacity: 1, scale: 1, y: 0 }}
+      initial={{ opacity: 0, y: 8 }}
+      animate={{ opacity: 1, y: 0 }}
       transition={{
-        type: 'spring',
-        stiffness: 380,
-        damping: 22,
-        delay: index * 0.04,
+        duration: 0.22,
+        ease: [0.22, 1, 0.36, 1],
+        delay: index * 0.025,
       }}
-      whileHover={{ scale: 1.02, transition: { type: 'spring', stiffness: 400, damping: 18 } }}
-      whileTap={{ scale: 0.93, transition: { type: 'spring', stiffness: 500, damping: 14 } }}
       onClick={onClick}
-      className="flex flex-col cursor-pointer group transition-colors select-none"
+      className="flex flex-col cursor-pointer group select-none active:scale-[0.97] transition-transform duration-150 ease-out transform-gpu"
     >
       <div
-        className={`w-full aspect-square rounded-[28px] overflow-hidden p-0 border transition-all grid grid-cols-2 grid-rows-2 gap-[2px] shadow-sm ${
+        className={`relative w-full aspect-square rounded-[28px] overflow-hidden p-0 border transition-colors grid grid-cols-2 grid-rows-2 gap-[2px] shadow-xs ${
           isDark
-            ? 'bg-[#18181A] border-white/10 group-hover:border-white/20'
+            ? 'bg-[#000000] border-[#262626] group-hover:border-white/25'
             : 'bg-[#E5E5EA] border-black/5 group-hover:border-black/10'
         }`}
+        style={{
+          transform: 'translate3d(0, 0, 0)',
+          backfaceVisibility: 'hidden',
+          WebkitBackfaceVisibility: 'hidden',
+        }}
       >
         {[0, 1, 2, 3].map((idx) => {
           const photo = photos[idx];
+          const cornerClass = CELL_CORNER_CLASSES[idx] || '';
           if (photo) {
             return (
-              <div key={idx} className={`w-full h-full overflow-hidden ${isDark ? 'bg-[#202024]' : 'bg-[#F2F2F7]'} md:bg-[#fafafc]`}>
-                <motion.img
-                  initial={{ opacity: 0, scale: 0.88, y: 8 }}
-                  animate={{ opacity: 1, scale: 1, y: 0 }}
-                  transition={{
-                    type: 'spring',
-                    stiffness: 380,
-                    damping: 22,
-                    delay: index * 0.04 + idx * 0.025,
-                  }}
+              <div
+                key={idx}
+                className={`relative w-full h-full overflow-hidden ${cornerClass} ${
+                  isDark ? 'bg-[#0a0a0c]' : 'bg-[#F2F2F7] md:bg-[#fafafc]'
+                }`}
+              >
+                <TranslucentSavedPhoto
                   src={photo}
                   alt=""
-                  className={`w-full h-full object-cover group-hover:scale-105 transition-transform duration-300 ${isDark ? 'bg-[#202024]' : 'bg-[#F2F2F7]'} md:bg-[#fafafc]`}
+                  isDark={isDark}
+                  className={`block w-full h-full object-cover object-center ${cornerClass} ${
+                    isDark ? 'bg-[#0a0a0c]' : 'bg-[#F2F2F7] md:bg-[#fafafc]'
+                  }`}
                 />
               </div>
             );
@@ -98,9 +178,9 @@ const CollectionCoverCard: React.FC<CollectionCoverCardProps> = ({
           return (
             <div
               key={idx}
-              className={`w-full h-full flex items-center justify-center ${
-                isDark ? 'bg-[#202024]' : 'bg-[#F2F2F7]'
-              } md:bg-[#fafafc]`}
+              className={`relative w-full h-full overflow-hidden ${cornerClass} flex items-center justify-center ${
+                isDark ? 'bg-[#0a0a0c]' : 'bg-[#F2F2F7] md:bg-[#fafafc]'
+              }`}
             >
               {idx === 0 && (!photos || photos.length === 0) ? (
                 <div className="opacity-40">{fallbackIcon}</div>
@@ -119,7 +199,7 @@ const CollectionCoverCard: React.FC<CollectionCoverCardProps> = ({
       </div>
     </motion.div>
   );
-};
+});
 
 export const SavedView: React.FC<SavedViewProps> = ({
   isOpen,
@@ -189,6 +269,20 @@ export const SavedView: React.FC<SavedViewProps> = ({
       .filter(Boolean)
       .slice(0, 4);
   }, [resolvedPlaces]);
+
+  // Pre-warm cover images in background so entering Salvos/Curtidos has zero decode lag
+  useEffect(() => {
+    const allCoverUrls = [...itineraryPhotos, ...touristSpotPhotos, ...placePhotos];
+    allCoverUrls.forEach((url) => {
+      if (!url || loadedSavedPhotoCache.has(url)) return;
+      const img = new Image();
+      img.decoding = 'async';
+      img.onload = () => {
+        loadedSavedPhotoCache.add(url);
+      };
+      img.src = url;
+    });
+  }, [itineraryPhotos, touristSpotPhotos, placePhotos]);
 
   const handleOpenCollection = (col: SavedCollectionType) => {
     setActiveCollection(col);
@@ -262,34 +356,38 @@ export const SavedView: React.FC<SavedViewProps> = ({
       {isOpen && (
         <motion.div
           id="saved-view-root"
-          initial={{ opacity: 0, scale: 0.98, y: 12 }}
-          animate={{ opacity: 1, scale: 1, y: 0 }}
-          exit={{ opacity: 0, scale: 0.98, y: 10 }}
-          transition={{ duration: 0.32, ease: [0.16, 1, 0.3, 1] }}
-          className={`fixed inset-0 md:left-[var(--desktop-sidebar-width,72px)] w-full md:w-auto h-full z-45 flex flex-col transition-[left,colors] duration-200 ease-in-out select-none overflow-hidden rounded-t-[26px] md:rounded-none ios-page-top-rounded ${
-            isDark ? 'bg-black text-white' : 'bg-[#F2F2F7] md:bg-[#ffffff] text-zinc-900'
+          initial={{ opacity: 0, y: 8 }}
+          animate={{ opacity: 1, y: 0 }}
+          exit={{ opacity: 0, y: 4 }}
+          transition={{ duration: 0.2, ease: [0.22, 1, 0.36, 1] }}
+          className={`fixed inset-0 md:left-[var(--desktop-sidebar-width,72px)] w-full md:w-auto h-full z-45 flex flex-col select-none overflow-hidden rounded-t-[26px] md:rounded-none ios-page-top-rounded transform-gpu ${
+            isDark ? 'bg-black text-white' : 'bg-[#ffffff] text-zinc-900'
           }`}
           style={{
             fontFamily: "'Inter', sans-serif",
-            isolation: 'isolate',
+            backgroundColor: isDark ? '#000000' : '#ffffff',
             willChange: 'opacity, transform',
+            backfaceVisibility: 'hidden',
+            WebkitBackfaceVisibility: 'hidden',
           }}
         >
-          <div className="w-full h-full">
-            <AnimatePresence mode="wait">
+          <div className={`w-full h-full ${isDark ? 'bg-black' : 'bg-[#ffffff]'}`}>
+            <AnimatePresence mode="wait" initial={false}>
               {!activeCollection ? (
                 /* MAIN OVERVIEW: 2x2 COLLECTIONS GRID */
                 <motion.div
                   key="saved-overview"
-                  initial={{ opacity: 0, scale: 0.98, y: 12 }}
-                  animate={{ opacity: 1, scale: 1, y: 0 }}
-                  exit={{ opacity: 0, scale: 0.98, y: 10 }}
-                  transition={{ duration: 0.24, ease: [0.16, 1, 0.3, 1] }}
-                  className="flex-1 flex flex-col w-full h-full overflow-y-auto overscroll-y-contain md:bg-[#ffffff]"
+                  initial={{ opacity: 0, y: 6 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: -4 }}
+                  transition={{ duration: 0.16, ease: [0.22, 1, 0.36, 1] }}
+                  className={`flex-1 flex flex-col w-full h-full overflow-y-auto overscroll-y-contain ${
+                    isDark ? 'bg-black' : 'bg-[#ffffff]'
+                  }`}
                   style={{
+                    backgroundColor: isDark ? '#000000' : '#ffffff',
                     paddingTop: 'max(calc(env(safe-area-inset-top, 0px) + 20px), 24px)',
-                    paddingBottom: 'calc(max(24px, env(safe-area-inset-bottom, 0px)) + 92px)',
-                    willChange: 'opacity, transform',
+                    paddingBottom: 'calc(max(24px, env(safe-area-inset-bottom, 0px)) + 116px)',
                   }}
                 >
                   <header className="px-6 pb-6 pt-3 shrink-0">
@@ -337,12 +435,15 @@ export const SavedView: React.FC<SavedViewProps> = ({
                 /* COLLECTION DRILL-DOWN LIST VIEW */
                 <motion.div
                   key={`saved-detail-${activeCollection}`}
-                  initial={{ opacity: 0, scale: 0.98, y: 12 }}
-                  animate={{ opacity: 1, scale: 1, y: 0 }}
-                  exit={{ opacity: 0, scale: 0.98, y: 10 }}
-                  transition={{ duration: 0.24, ease: [0.16, 1, 0.3, 1] }}
-                  className="flex-1 flex flex-col w-full h-full overflow-hidden"
+                  initial={{ opacity: 0, y: 6 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: -4 }}
+                  transition={{ duration: 0.16, ease: [0.22, 1, 0.36, 1] }}
+                  className={`flex-1 flex flex-col w-full h-full overflow-hidden ${
+                    isDark ? 'bg-black' : 'bg-[#ffffff]'
+                  }`}
                   style={{
+                    backgroundColor: isDark ? '#000000' : '#ffffff',
                     paddingTop: 'max(calc(env(safe-area-inset-top, 0px) + 12px), 16px)',
                     paddingBottom: isEditing
                       ? 'calc(max(24px, env(safe-area-inset-bottom, 0px)) + 140px)'
@@ -356,7 +457,7 @@ export const SavedView: React.FC<SavedViewProps> = ({
                       onClick={handleBackToMain}
                       className={`w-10 h-10 rounded-full border flex items-center justify-center active:scale-95 transition-all shadow-xs cursor-pointer ${
                         isDark
-                          ? 'bg-zinc-900 border-white/10 text-white hover:bg-zinc-800'
+                          ? 'bg-[#000000] border-[#262626] text-white hover:border-white/30'
                           : 'bg-white border-black/10 text-zinc-900 hover:bg-zinc-50'
                       }`}
                       title="Voltar"
@@ -385,7 +486,7 @@ export const SavedView: React.FC<SavedViewProps> = ({
                           isEditing
                             ? 'bg-blue-600 text-white font-bold'
                             : isDark
-                            ? 'bg-zinc-800 text-zinc-100 hover:bg-zinc-700'
+                            ? 'bg-[#000000] border border-[#262626] text-zinc-100 hover:border-white/30'
                             : 'bg-zinc-200 text-zinc-900 hover:bg-zinc-300'
                         }`}
                       >
@@ -403,7 +504,7 @@ export const SavedView: React.FC<SavedViewProps> = ({
                       <div className="py-20 flex flex-col items-center justify-center text-center px-4">
                         <div
                           className={`w-18 h-18 rounded-full flex items-center justify-center mb-4 ${
-                            isDark ? 'bg-zinc-900 text-zinc-400' : 'bg-zinc-200 text-zinc-600'
+                            isDark ? 'bg-[#000000] border border-[#262626] text-zinc-400' : 'bg-zinc-200 text-zinc-600'
                           }`}
                         >
                           {activeCollection === 'roteiros' ? (
@@ -442,16 +543,13 @@ export const SavedView: React.FC<SavedViewProps> = ({
                               return (
                                 <motion.div
                                   key={itinerary.id}
-                                  initial={{ opacity: 0, scale: 0.88, y: 12 }}
-                                  animate={{ opacity: 1, scale: 1, y: 0 }}
+                                  initial={{ opacity: 0, y: 6 }}
+                                  animate={{ opacity: 1, y: 0 }}
                                   transition={{
-                                    type: 'spring',
-                                    stiffness: 380,
-                                    damping: 22,
-                                    delay: Math.min(idx * 0.035, 0.35),
+                                    duration: 0.18,
+                                    ease: [0.22, 1, 0.36, 1],
+                                    delay: Math.min(idx * 0.02, 0.2),
                                   }}
-                                  whileHover={{ scale: 1.02, transition: { type: 'spring', stiffness: 400, damping: 18 } }}
-                                  whileTap={{ scale: 0.93, transition: { type: 'spring', stiffness: 500, damping: 14 } }}
                                   onClick={() => {
                                     if (isEditing) {
                                       handleToggleSelect(itinerary.id);
@@ -459,11 +557,11 @@ export const SavedView: React.FC<SavedViewProps> = ({
                                       onOpenItinerary(itinerary);
                                     }
                                   }}
-                                  className={`p-3.5 rounded-2xl border transition-colors flex items-center gap-3.5 cursor-pointer ${
+                                  className={`p-3.5 rounded-2xl border transition-all duration-150 active:scale-[0.98] transform-gpu flex items-center gap-3.5 cursor-pointer ${
                                     isSelected
                                       ? 'border-blue-500 bg-blue-500/10'
                                       : isDark
-                                      ? 'bg-zinc-900/80 border-white/10 hover:bg-zinc-800/80'
+                                      ? 'bg-[#000000] border-[#262626] hover:border-white/25'
                                       : 'bg-white border-black/5 hover:bg-zinc-50'
                                   }`}
                                 >
@@ -476,19 +574,14 @@ export const SavedView: React.FC<SavedViewProps> = ({
                                       )}
                                     </div>
                                   )}
-                                  <motion.img
-                                    initial={{ opacity: 0, scale: 0.88, y: 8 }}
-                                    animate={{ opacity: 1, scale: 1, y: 0 }}
-                                    transition={{
-                                      type: 'spring',
-                                      stiffness: 380,
-                                      damping: 22,
-                                      delay: Math.min(idx * 0.035, 0.35),
-                                    }}
-                                    src={itinerary.coverImage}
-                                    alt={itinerary.title}
-                                    className="w-16 h-16 rounded-xl object-cover shrink-0"
-                                  />
+                                  <div className="w-16 h-16 rounded-xl overflow-hidden shrink-0 relative transform-gpu">
+                                    <TranslucentSavedPhoto
+                                      src={itinerary.coverImage}
+                                      alt={itinerary.title}
+                                      isDark={isDark}
+                                      className="block w-full h-full rounded-xl object-cover object-center"
+                                    />
+                                  </div>
                                   <div className="flex-1 min-w-0">
                                     <h4 className="text-[15px] font-bold truncate">
                                       {itinerary.title}
@@ -508,16 +601,13 @@ export const SavedView: React.FC<SavedViewProps> = ({
                               return (
                                 <motion.div
                                   key={spot.id}
-                                  initial={{ opacity: 0, scale: 0.88, y: 12 }}
-                                  animate={{ opacity: 1, scale: 1, y: 0 }}
+                                  initial={{ opacity: 0, y: 6 }}
+                                  animate={{ opacity: 1, y: 0 }}
                                   transition={{
-                                    type: 'spring',
-                                    stiffness: 380,
-                                    damping: 22,
-                                    delay: Math.min(idx * 0.035, 0.35),
+                                    duration: 0.18,
+                                    ease: [0.22, 1, 0.36, 1],
+                                    delay: Math.min(idx * 0.02, 0.2),
                                   }}
-                                  whileHover={{ scale: 1.02, transition: { type: 'spring', stiffness: 400, damping: 18 } }}
-                                  whileTap={{ scale: 0.93, transition: { type: 'spring', stiffness: 500, damping: 14 } }}
                                   onClick={() => {
                                     if (isEditing) {
                                       handleToggleSelect(spot.id);
@@ -525,11 +615,11 @@ export const SavedView: React.FC<SavedViewProps> = ({
                                       onOpenSpot(spot);
                                     }
                                   }}
-                                  className={`p-3.5 rounded-2xl border transition-colors flex items-center gap-3.5 cursor-pointer ${
+                                  className={`p-3.5 rounded-2xl border transition-all duration-150 active:scale-[0.98] transform-gpu flex items-center gap-3.5 cursor-pointer ${
                                     isSelected
                                       ? 'border-blue-500 bg-blue-500/10'
                                       : isDark
-                                      ? 'bg-zinc-900/80 border-white/10 hover:bg-zinc-800/80'
+                                      ? 'bg-[#000000] border-[#262626] hover:border-white/25'
                                       : 'bg-white border-black/5 hover:bg-zinc-50'
                                   }`}
                                 >
@@ -542,19 +632,14 @@ export const SavedView: React.FC<SavedViewProps> = ({
                                       )}
                                     </div>
                                   )}
-                                  <motion.img
-                                    initial={{ opacity: 0, scale: 0.88, y: 8 }}
-                                    animate={{ opacity: 1, scale: 1, y: 0 }}
-                                    transition={{
-                                      type: 'spring',
-                                      stiffness: 380,
-                                      damping: 22,
-                                      delay: Math.min(idx * 0.035, 0.35),
-                                    }}
-                                    src={getSpotImage(spot)}
-                                    alt={spot.name}
-                                    className="w-16 h-16 rounded-xl object-cover shrink-0"
-                                  />
+                                  <div className="w-16 h-16 rounded-xl overflow-hidden shrink-0 relative transform-gpu">
+                                    <TranslucentSavedPhoto
+                                      src={getSpotImage(spot)}
+                                      alt={spot.name}
+                                      isDark={isDark}
+                                      className="block w-full h-full rounded-xl object-cover object-center"
+                                    />
+                                  </div>
                                   <div className="flex-1 min-w-0">
                                     <h4 className="text-[15px] font-bold truncate">
                                       {spot.name}
@@ -584,7 +669,7 @@ export const SavedView: React.FC<SavedViewProps> = ({
 
                   {/* Batch Edit Action Footer */}
                   {isEditing && currentItems.length > 0 && (
-                    <div className="fixed bottom-24 left-4 right-4 max-w-md mx-auto z-50 flex items-center justify-between gap-3 p-3.5 rounded-2xl bg-zinc-950/90 dark:bg-zinc-900/95 backdrop-blur-xl border border-white/15 shadow-2xl">
+                    <div className="fixed bottom-24 left-4 right-4 max-w-md mx-auto z-50 flex items-center justify-between gap-3 p-3.5 rounded-2xl bg-[#000000] border border-[#262626] shadow-2xl">
                       <button
                         onClick={handleToggleSelectAll}
                         className="text-xs font-bold text-zinc-300 hover:text-white px-2 py-1 cursor-pointer"

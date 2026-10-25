@@ -71,22 +71,22 @@ export const ImportSpotFloatingModal: React.FC<ImportSpotFloatingModalProps> = (
             className={`relative w-full max-w-lg max-h-[85vh] rounded-[36px] overflow-hidden flex flex-col shadow-2xl border cursor-auto ${
               isLight
                 ? 'bg-white/80 border-white/70 text-zinc-900 shadow-[0_25px_70px_rgba(0,0,0,0.16)] ring-1 ring-black/5'
-                : 'bg-[#1c1c1e]/80 border-white/20 text-white shadow-[0_30px_90px_rgba(0,0,0,0.9)] ring-1 ring-white/10'
+                : 'bg-[#000000] border-[#262626] text-white shadow-[0_30px_90px_rgba(0,0,0,0.9)]'
             }`}
             style={{
               fontFamily: "'Inter', -apple-system, BlinkMacSystemFont, sans-serif",
-              WebkitBackdropFilter: 'blur(25px) saturate(180%)',
-              backdropFilter: 'blur(25px) saturate(180%)',
+              WebkitBackdropFilter: isLight ? 'blur(25px) saturate(180%)' : undefined,
+              backdropFilter: isLight ? 'blur(25px) saturate(180%)' : undefined,
               willChange: 'transform, opacity',
               transform: 'translateZ(0)',
             }}
           >
           {/* Minimal Top Bar with Search & Close */}
-          <div className="p-4 sm:p-5 pb-3 flex items-center gap-3 border-b border-black/[0.06] dark:border-white/10 shrink-0">
+          <div className="p-4 sm:p-5 pb-3 flex items-center gap-3 border-b border-black/[0.06] dark:border-[#262626] shrink-0">
             <div className={`relative flex items-center flex-1 rounded-2xl border px-3.5 py-2.5 transition-all ${
               isLight
                 ? 'bg-black/[0.04] border-black/5 text-zinc-900 focus-within:border-black/30'
-                : 'bg-white/[0.08] border-white/15 text-white focus-within:border-white/40'
+                : 'bg-[#000000] border-[#262626] text-white focus-within:border-white/40'
             }`}>
               <Search className="w-4 h-4 text-zinc-400 shrink-0 mr-2.5" />
               <input
@@ -146,24 +146,39 @@ export const ImportSpotFloatingModal: React.FC<ImportSpotFloatingModalProps> = (
                     className={`flex items-center justify-between gap-3 p-3 rounded-2xl border transition-colors ${
                       isLight
                         ? 'bg-white/60 border-black/5 hover:bg-white/85 shadow-sm backdrop-blur-md'
-                        : 'bg-white/[0.05] border-white/10 hover:bg-white/[0.09] backdrop-blur-md'
+                        : 'bg-[#000000] border-[#262626] hover:border-white/25'
                     }`}
                   >
                     {/* Spot Avatar & Info */}
                     <div className="flex items-center gap-3 min-w-0 flex-1">
-                      <div className="w-12 h-12 rounded-2xl overflow-hidden shrink-0 bg-zinc-800 relative border border-white/10">
+                      <div
+                        style={{
+                          overflow: 'clip',
+                          clipPath: 'inset(0 round 16px)',
+                          WebkitClipPath: 'inset(0 round 16px)',
+                          WebkitMaskImage: '-webkit-radial-gradient(white, black)',
+                          isolation: 'isolate',
+                          transform: 'translateZ(0)',
+                          WebkitTransform: 'translateZ(0)',
+                        }}
+                        className="w-12 h-12 rounded-2xl overflow-hidden shrink-0 bg-zinc-800 relative border border-white/10"
+                      >
                         <motion.img
-                          initial={{ opacity: 0, scale: 0.88, y: 8 }}
+                          initial={{ opacity: 0, scale: 1, y: 0 }}
                           animate={{ opacity: 1, scale: 1, y: 0 }}
                           transition={{
-                            type: 'spring',
-                            stiffness: 380,
-                            damping: 22,
+                            duration: 0.22,
+                            ease: [0.22, 1, 0.36, 1],
                             delay: Math.min(idx * 0.035, 0.35),
+                          }}
+                          style={{
+                            backfaceVisibility: 'hidden',
+                            WebkitBackfaceVisibility: 'hidden',
+                            transform: 'translateZ(0)',
                           }}
                           src={getSpotImage(spot)}
                           alt={spot.name}
-                          className="w-full h-full object-cover"
+                          className="w-full h-full object-cover rounded-[inherit]"
                           loading="lazy"
                           onError={(e) => {
                             (e.target as HTMLImageElement).src = getSpotFallbackImage(spot.name, spot.category);

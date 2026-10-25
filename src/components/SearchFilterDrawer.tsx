@@ -209,17 +209,17 @@ export const SearchFilterDrawer: React.FC<SearchFilterDrawerProps> = ({
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
-          transition={{ duration: 0.28, ease: [0.16, 1, 0.3, 1] }}
+          transition={{ duration: 0.18, ease: [0.22, 1, 0.36, 1] }}
           onClick={onClose}
-          className="fixed inset-0 z-45 flex flex-col justify-end md:justify-center md:items-center md:p-6 select-none overflow-hidden transition-colors duration-300 md:bg-black/50"
+          className="fixed inset-0 z-45 flex flex-col justify-end md:justify-center md:items-center md:p-6 select-none overflow-hidden transition-colors duration-200 md:bg-black/50"
         >
           <motion.div
-            initial={{ opacity: 0, scale: 0.98, y: 12 }}
-            animate={{ opacity: 1, scale: 1, y: 0 }}
-            exit={{ opacity: 0, scale: 0.98, y: 10 }}
-            transition={{ duration: 0.32, ease: [0.16, 1, 0.3, 1] }}
+            initial={{ opacity: 0, y: 8 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: 6 }}
+            transition={{ duration: 0.18, ease: [0.22, 1, 0.36, 1] }}
             onClick={(e) => e.stopPropagation()}
-            className="relative w-full h-full md:h-[88vh] md:max-w-2xl bg-white dark:bg-[#000000] text-zinc-900 dark:text-white rounded-none overflow-hidden flex flex-col justify-between shadow-2xl md:border md:border-black/10 md:dark:border-white/15"
+            className="relative w-full h-full md:h-[88vh] md:max-w-2xl bg-white dark:bg-[#000000] text-zinc-900 dark:text-white rounded-none overflow-hidden flex flex-col justify-between shadow-2xl md:border md:border-black/10 md:dark:border-[#262626]"
             style={{
               fontFamily: "'Inter', -apple-system, BlinkMacSystemFont, sans-serif",
               borderTopLeftRadius: '0px',
@@ -269,11 +269,11 @@ export const SearchFilterDrawer: React.FC<SearchFilterDrawerProps> = ({
           paddingBottom: 'calc(env(safe-area-inset-bottom, 16px) + 90px)',
         }}
       >
-        {/* Barra de busca exibida apenas na tela inicial de categorias ou busca por texto */}
+        {/* Barra de busca exibida apenas na tela inicial de categorias ou busca por texto (Design idêntico ao WhatsApp iOS em ambos os temas) */}
         {!selectedCategory && (
-          <div className="mt-2 mb-5">
-            <div className="relative flex items-center bg-white dark:bg-[#131417] border border-zinc-200 dark:border-white/10 rounded-full px-4 py-3.5 shadow-xl focus-within:border-zinc-300 dark:focus-within:border-white/25 transition-all">
-              <Search className="w-4 h-4 text-zinc-400 shrink-0 mr-3 stroke-[2.2]" />
+          <div className="mt-1 mb-4">
+            <div className="relative flex items-center h-[42px] bg-[#f0f2f5] dark:bg-[#202124] rounded-full px-3.5 transition-colors duration-150">
+              <Search className="w-[18px] h-[18px] text-[#8696a0] dark:text-[#8e8e93] shrink-0 mr-2.5 stroke-[2]" />
               <input
                 ref={searchInputRef}
                 id="search-by-name-input"
@@ -281,25 +281,26 @@ export const SearchFilterDrawer: React.FC<SearchFilterDrawerProps> = ({
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 placeholder="Buscar pelo nome..."
-                className="flex-1 bg-transparent text-sm text-zinc-900 dark:text-white placeholder-zinc-500 focus:outline-none"
+                className="flex-1 bg-transparent text-[15px] font-normal text-[#111b21] dark:text-white placeholder-[#8696a0] dark:placeholder-[#8e8e93] focus:outline-none"
               />
               {searchQuery && (
                 <button
                   type="button"
                   id="btn-clear-search"
                   onClick={() => setSearchQuery('')}
-                  className="w-5 h-5 rounded-full bg-zinc-200 dark:bg-white/10 hover:bg-zinc-300 dark:hover:bg-white/20 text-zinc-500 dark:text-zinc-400 flex items-center justify-center ml-2 cursor-pointer active:scale-90"
+                  className="w-4 h-4 rounded-full bg-[#8696a0]/30 hover:bg-[#8696a0]/50 text-[#111b21] dark:text-white flex items-center justify-center ml-2 cursor-pointer active:scale-90 transition-colors"
+                  title="Limpar busca"
                 >
-                  <X className="w-3 h-3" />
+                  <X className="w-2.5 h-2.5 stroke-[2.5]" />
                 </button>
               )}
               <button
                 type="button"
                 onClick={handleVoiceSearch}
-                className={`p-1.5 rounded-full ml-1.5 transition-all cursor-pointer active:scale-95 ${
+                className={`p-1.5 rounded-full ml-1 transition-all cursor-pointer active:scale-95 ${
                   isListening
                     ? 'bg-rose-500 text-white animate-pulse'
-                    : 'text-zinc-400 hover:text-zinc-600 dark:hover:text-white'
+                    : 'text-[#8696a0] dark:text-[#8e8e93] hover:text-[#111b21] dark:hover:text-white'
                 }`}
                 title="Busca por voz"
               >
@@ -329,7 +330,7 @@ export const SearchFilterDrawer: React.FC<SearchFilterDrawerProps> = ({
                   whileHover={{ scale: 1.02, transition: { type: 'spring', stiffness: 400, damping: 18 } }}
                   whileTap={{ scale: 0.93, transition: { type: 'spring', stiffness: 500, damping: 14 } }}
                   onClick={() => setSelectedCategory(cat)}
-                  className="w-full p-4 rounded-3xl bg-white dark:bg-[#141518] hover:bg-zinc-50 dark:hover:bg-[#1a1c21] border border-zinc-200 dark:border-white/5 hover:border-zinc-300 dark:hover:border-white/15 transition-colors flex items-center justify-between text-left cursor-pointer group shadow-sm hover:shadow-md"
+                  className="w-full p-4 rounded-3xl bg-white dark:bg-[#000000] hover:bg-zinc-50 dark:hover:border-white/25 border border-zinc-200 dark:border-[#262626] hover:border-zinc-300 transition-colors flex items-center justify-between text-left cursor-pointer group shadow-sm hover:shadow-md"
                 >
                   {/* Left: Rounded Square Icon Box OR Floating Image Asset + Titles (+50% larger icons) */}
                   <div className="flex items-center gap-4 min-w-0">
@@ -356,7 +357,7 @@ export const SearchFilterDrawer: React.FC<SearchFilterDrawerProps> = ({
                         />
                       </div>
                     ) : (
-                      <div className="w-11 h-11 rounded-2xl bg-zinc-100 dark:bg-[#202227] flex items-center justify-center text-zinc-700 dark:text-white shrink-0 shadow-xs border border-zinc-200/50 dark:border-white/5 group-hover:scale-105 transition-transform">
+                      <div className="w-11 h-11 rounded-2xl bg-zinc-100 dark:bg-[#000000] flex items-center justify-center text-zinc-700 dark:text-white shrink-0 shadow-xs border border-zinc-200/50 dark:border-[#262626] group-hover:scale-105 transition-transform">
                         {Icon && <Icon className="w-5 h-5 stroke-[1.8]" />}
                       </div>
                     )}
@@ -425,11 +426,11 @@ export const SearchFilterDrawer: React.FC<SearchFilterDrawerProps> = ({
                       onSelectSpot(spot);
                       onClose();
                     }}
-                    className="w-full p-4.5 sm:p-5 rounded-[28px] bg-white dark:bg-[#141518] hover:bg-zinc-50 dark:hover:bg-[#1a1c21] border border-zinc-200 dark:border-white/5 hover:border-zinc-300 dark:hover:border-white/20 transition-colors flex items-center justify-between text-left cursor-pointer group shadow-sm dark:shadow-md"
+                    className="w-full p-4.5 sm:p-5 rounded-[28px] bg-white dark:bg-[#000000] hover:bg-zinc-50 dark:hover:border-white/25 border border-zinc-200 dark:border-[#262626] hover:border-zinc-300 transition-colors flex items-center justify-between text-left cursor-pointer group shadow-sm dark:shadow-md"
                   >
                     <div className="flex items-center gap-4 sm:gap-4.5 min-w-0 flex-1">
                       {/* Thumbnail do local (68px, cantos arredondados modernos 20px) */}
-                      <div className="w-[68px] h-[68px] sm:w-[72px] sm:h-[72px] rounded-[20px] overflow-hidden bg-zinc-100 dark:bg-zinc-800 shrink-0 border border-zinc-200 dark:border-white/10">
+                      <div className="w-[68px] h-[68px] sm:w-[72px] sm:h-[72px] rounded-[20px] overflow-hidden bg-zinc-100 dark:bg-zinc-900 shrink-0 border border-zinc-200 dark:border-[#262626]">
                         <motion.img
                           initial={{ opacity: 0, scale: 0.88, y: 8 }}
                           animate={{ opacity: 1, scale: 1, y: 0 }}

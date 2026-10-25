@@ -221,3 +221,31 @@ self.addEventListener('fetch', (event) => {
     })
   );
 });
+
+// Handle native iOS / Web notification click to open the corresponding tourist spot details
+self.addEventListener('notificationclick', (event) => {
+  event.notification.close();
+
+  const data = event.notification.data || {};
+  const spotId = data.spotId || '';
+  const targetUrl = data.url || (spotId ? `/?spot=${encodeURIComponent(spotId)}` : '/');
+
+  event.waitUntil(
+    self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then((clientList) => {
+      for (const client of clientList) {
+        if ('focus' in client) {
+          client.focus();
+          client.postMessage({
+            type: 'MONVIAN_NOTIFICATION_CLICK',
+            spotId,
+          });
+          return;
+        }
+      }
+      if (self.clients.openWindow) {
+        return self.clients.openWindow(targetUrl);
+      }
+    })
+  );
+});
+

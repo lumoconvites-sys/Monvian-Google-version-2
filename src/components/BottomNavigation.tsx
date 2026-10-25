@@ -1,6 +1,6 @@
-import React, { useState, useRef, useEffect, useLayoutEffect } from 'react';
-import { motion, AnimatePresence } from 'motion/react';
-import { NavAgoraIcon, NavChatIcon, NavSalvosIcon, NavSearchIcon, NavProfileIcon, NavRoteirosIcon } from './NavIcons';
+import React, { useState, useRef, memo } from 'react';
+import { motion } from 'motion/react';
+import { NavAgoraIcon, NavSalvosIcon, NavSearchIcon, NavProfileIcon, NavRoteirosIcon } from './NavIcons';
 
 export type TabType = 'explorar' | 'roteiros' | 'salvos' | 'buscar' | 'perfil';
 
@@ -13,149 +13,55 @@ export interface BottomNavigationProps {
   theme?: 'dark' | 'light';
 }
 
-export const BottomNavigation: React.FC<BottomNavigationProps> = ({
+const TABS: { id: TabType; label: string }[] = [
+  { id: 'roteiros', label: 'Roteiros' },
+  { id: 'salvos', label: 'Salvos' },
+  { id: 'explorar', label: 'Explorar' },
+  { id: 'buscar', label: 'Buscar' },
+  { id: 'perfil', label: 'Perfil' },
+];
+
+export const BottomNavigation: React.FC<BottomNavigationProps> = memo(({
   activeTab,
   onChangeTab,
-  unreadCount = 0,
   isBlurred = false,
-  forceWhiteUI = false,
-  theme = 'dark',
+  theme = 'light',
 }) => {
-  const isDark = theme !== 'light' && !forceWhiteUI;
-  const isUserGold = Boolean(
-    (() => {
-      try {
-        const u = JSON.parse(localStorage.getItem('monvian_user') || '{}');
-        const cleanEmail = (u.email || u.whatsapp || '').trim().toLowerCase();
-        const isGoldAdmin = ['empresariomario@gmail.com', 'marioempresario@gmail.com', 'marioyesk@gmail.com'].includes(cleanEmail);
-        return isGoldAdmin || Boolean(u.isGold || u.is_gold === 1 || u.isPremium || u.is_premium === 1);
-      } catch {
-        return false;
-      }
-    })()
-  );
+  const isDark = theme === 'dark';
   const [pulseAnimation, setPulseAnimation] = useState<number>(0);
-  const [isDragging, setIsDragging] = useState<boolean>(false);
-  const [dragOffset, setDragOffset] = useState<number>(0);
 
-  const containerRef = useRef<HTMLDivElement | null>(null);
-  const tabRefs = useRef<(HTMLButtonElement | null)[]>([]);
-  const [tabRects, setTabRects] = useState<{ left: number; width: number; center: number }[]>([]);
-
-  const startXRef = useRef<number>(0);
+  const pointerDownPosRef = useRef<{ x: number; y: number } | null>(null);
   const dragStartTimeRef = useRef<number>(0);
-  const pointerDownPosRef = useRef<{ x: number; y: number }>({ x: 0, y: 0 });
-  const hasMovedRef = useRef<boolean>(false);
 
   // Remapeia 'chat' antigo para 'salvos' caso persista no estado anterior
   const normalizedActiveTab: TabType = (activeTab as string) === 'chat' ? 'salvos' : (activeTab as TabType);
-
-  const tabs: { id: TabType; label: string }[] = [
-    { id: 'roteiros', label: 'Roteiros' },
-    { id: 'salvos', label: 'Salvos' },
-    { id: 'explorar', label: 'Explorar' },
-    { id: 'buscar', label: 'Buscar' },
-    { id: 'perfil', label: 'Perfil' },
-  ];
-
-  const activeIndex = tabs.findIndex((t) => t.id === normalizedActiveTab);
-
-
-  const updateTabRects = () => {
-    if (!containerRef.current) return;
-    const containerRect = containerRef.current.getBoundingClientRect();
-    const rects = tabRefs.current.map((el) => {
-      if (!el) return { left: 0, width: 0, center: 0 };
-      const rect = el.getBoundingClientRect();
-      const left = rect.left - containerRect.left;
-      return { left, width: rect.width, center: left + rect.width / 2 };
-    });
-    setTabRects(rects);
-  };
-
-  useLayoutEffect(() => {
-    updateTabRects();
-    window.addEventListener('resize', updateTabRects);
-    return () => window.removeEventListener('resize', updateTabRects);
-  }, []);
-
-  useEffect(() => {
-    updateTabRects();
-  }, [activeTab]);
-
-  const activeRect = tabRects[activeIndex] || { left: 0, width: 58, center: 29 };
-  const currentPillCenterX = activeRect.center + (isDragging ? dragOffset : 0);
-
-  // Identify preview tab during drag
-  const previewIndex = tabRects.reduce((closestIdx, rect, idx) => {
-    const dist = Math.abs(rect.center - currentPillCenterX);
-    const closestDist = Math.abs(tabRects[closestIdx].center - currentPillCenterX);
-    return dist < closestDist ? idx : closestIdx;
-  }, activeIndex);
+  const activeIndex = Math.max(0, TABS.findIndex((t) => t.id === normalizedActiveTab));
 
   const handlePointerDown = (e: React.PointerEvent) => {
-    // Only engage drag logic on touch devices to prevent interfering with mouse clicks on desktop
     if (e.pointerType === 'mouse') return;
-    e.stopPropagation();
     pointerDownPosRef.current = { x: e.clientX, y: e.clientY };
-    startXRef.current = e.clientX;
-    dragStartTimeRef.current = Date.now();
-    hasMovedRef.current = false;
-    setIsDragging(true);
-  };
-
-  const handlePointerMove = (e: React.PointerEvent) => {
-    if (!isDragging || e.pointerType === 'mouse') return;
-    e.stopPropagation();
-
-    const dx = Math.abs(e.clientX - pointerDownPosRef.current.x);
-    const dy = Math.abs(e.clientY - pointerDownPosRef.current.y);
-    if (dx > 12) {
-      hasMovedRef.current = true;
-    }
-
-    if (hasMovedRef.current) {
-      const deltaX = e.clientX - startXRef.current;
-      const minOffset = tabRefs.current[0] ? tabRefs.current[0].getBoundingClientRect().left - activeRect.left - 20 : -180;
-      const maxOffset = tabRefs.current[tabs.length - 1] ? tabRefs.current[tabs.length - 1].getBoundingClientRect().left - activeRect.left + 20 : 180;
-      const clamped = Math.max(minOffset, Math.min(maxOffset, deltaX));
-      setDragOffset(clamped);
-    }
+    dragStartTimeRef.current = performance.now();
   };
 
   const handlePointerUp = (e: React.PointerEvent) => {
-    if (!isDragging) return;
-    setIsDragging(false);
+    if (!pointerDownPosRef.current || e.pointerType === 'mouse') return;
+    const dx = e.clientX - pointerDownPosRef.current.x;
+    const dy = Math.abs(e.clientY - pointerDownPosRef.current.y);
+    const dt = performance.now() - dragStartTimeRef.current;
+    pointerDownPosRef.current = null;
 
-    if (!hasMovedRef.current) {
-      setDragOffset(0);
-      return;
-    }
-
-    const dt = Date.now() - dragStartTimeRef.current;
-    const velocity = dt > 0 ? dragOffset / dt : 0;
-
-    let targetIndex = activeIndex;
-    if (velocity > 0.4 && dragOffset > 15) {
-      targetIndex = Math.min(tabs.length - 1, activeIndex + 1);
-    } else if (velocity < -0.4 && dragOffset < -15) {
-      targetIndex = Math.max(0, activeIndex - 1);
-    } else {
-      const finalCenterX = activeRect.center + dragOffset;
-      targetIndex = tabRects.reduce((closestIdx, rect, idx) => {
-        const dist = Math.abs(rect.center - finalCenterX);
-        const closestDist = Math.abs(tabRects[closestIdx].center - finalCenterX);
-        return dist < closestDist ? idx : closestIdx;
-      }, activeIndex);
-    }
-
-    setDragOffset(0);
-    const targetTab = tabs[targetIndex].id;
-    if (targetTab !== activeTab) {
-      if (targetTab === 'explorar') {
-        setPulseAnimation((prev) => prev + 360);
+    // Fast horizontal swipe gesture across the bar
+    if (Math.abs(dx) > 42 && dy < 36 && dt < 450) {
+      const targetIndex = dx > 0
+        ? Math.min(TABS.length - 1, activeIndex + 1)
+        : Math.max(0, activeIndex - 1);
+      const targetTab = TABS[targetIndex]?.id;
+      if (targetTab && targetTab !== normalizedActiveTab) {
+        if (targetTab === 'explorar') {
+          setPulseAnimation((prev) => prev + 360);
+        }
+        onChangeTab(targetTab);
       }
-      onChangeTab(targetTab);
     }
   };
 
@@ -163,127 +69,118 @@ export const BottomNavigation: React.FC<BottomNavigationProps> = ({
     if (tabId === 'explorar') {
       setPulseAnimation((prev) => prev + 360);
     }
+    // Always trigger onChangeTab so clicking any tab immediately closes
+    // all open detail sheets, modals, and switches views seamlessly
     onChangeTab(tabId);
   };
 
-  const isRoteirosPage = activeTab === 'roteiros';
-
   return (
-    <>
-      <nav
-        id="bottom-floating-navigation"
-        aria-label="Navegação Principal"
-        className={`fixed inset-x-0 bottom-0 z-50 flex justify-center select-none font-['Inter'] px-3 pointer-events-none transition-[filter,opacity,transform] duration-200 ease-out ${
-          isBlurred
-            ? 'filter blur-sm opacity-35 scale-[0.98]'
-            : 'filter-none opacity-100 scale-100'
+    <nav
+      id="bottom-floating-navigation"
+      aria-label="Navegação Principal"
+      className={`fixed inset-x-0 bottom-0 z-[250] flex justify-center select-none px-4 pointer-events-none transition-[opacity,transform,filter] duration-[200ms] ease-out ${
+        isBlurred
+          ? 'opacity-40 scale-[0.98] blur-[6px] [&_*]:!pointer-events-none'
+          : 'opacity-100 scale-100 blur-0'
+      }`}
+      onPointerDown={handlePointerDown}
+      onPointerUp={handlePointerUp}
+      onPointerCancel={() => { pointerDownPosRef.current = null; }}
+      style={{
+        touchAction: 'manipulation',
+        position: 'fixed',
+        bottom: 0,
+        left: 0,
+        right: 0,
+        margin: 0,
+        paddingLeft: '16px',
+        paddingRight: '16px',
+        paddingBottom:
+          activeTab === 'chat'
+            ? 'max(8px, calc(env(safe-area-inset-bottom, 0px) + 8px))'
+            : 'max(18px, calc(env(safe-area-inset-bottom, 0px) + 12px))',
+        transform: 'translateZ(0)',
+        WebkitTransform: 'translateZ(0)',
+      }}
+    >
+      {/* Capsule matching the exact color, border, and glass finish of the map control icons */}
+      <div
+        className={`w-full max-w-[326px] sm:max-w-[342px] h-[62px] sm:h-[64px] p-[5.5px] pointer-events-auto relative rounded-full backdrop-blur-md border transition-colors duration-200 ${
+          isDark
+            ? 'bg-zinc-900/90 border-white/10 shadow-[0_6px_20px_rgba(0,0,0,0.22)]'
+            : 'bg-white/90 border-zinc-200/80 shadow-[0_6px_20px_rgba(0,0,0,0.22)]'
         }`}
-        onPointerDown={handlePointerDown}
-        onPointerMove={handlePointerMove}
-        onPointerUp={handlePointerUp}
-        onPointerCancel={handlePointerUp}
         style={{
-          touchAction: 'none',
-          position: 'fixed',
-          bottom: 0,
-          left: 0,
-          right: 0,
-          margin: 0,
-          paddingLeft: '16px',
-          paddingRight: '16px',
-          paddingBottom:
-            activeTab === 'chat'
-              ? 'max(6px, calc(env(safe-area-inset-bottom, 0px) + 6px))'
-              : 'max(22px, calc(env(safe-area-inset-bottom, 0px) + 16px))',
+          transform: 'translateZ(0)',
+          WebkitTransform: 'translateZ(0)',
         }}
       >
-        {/* Bottom Navigation Bar (White background, gray icons) */}
-        <div
-          ref={containerRef}
-          className="w-full max-w-[430px] sm:max-w-[460px] pointer-events-auto flex items-center justify-around px-2 sm:px-3 py-1.5 relative overflow-hidden rounded-full bg-white dark:bg-[#121316] text-zinc-900 dark:text-white border border-black/10 dark:border-white/10 shadow-[0_12px_40px_rgba(0,0,0,0.15)] dark:shadow-[0_16px_50px_rgba(0,0,0,0.6)] transition-all duration-300"
-        >
-        {tabs.map((tab, idx) => {
-          const isActive = activeTab === tab.id;
-          const isPreviewHovered = isDragging && previewIndex === idx;
-
-          // Crisp active vs clean gray inactive icons
-          const activeColorClass = isDark
-            ? 'text-white scale-100 opacity-100 font-semibold'
-            : 'text-zinc-950 scale-100 opacity-100 font-semibold';
-
-          const inactiveColorClass = 'text-zinc-500 dark:text-zinc-400 opacity-90 font-medium hover:text-zinc-700 dark:hover:text-zinc-200';
-
-          const labelActiveColor = isDark
-            ? 'font-medium text-white'
-            : 'font-medium text-zinc-950';
-
-          const labelInactiveColor = 'font-medium text-zinc-500 dark:text-zinc-400';
-
-          return (
-            <motion.button
-              key={tab.id}
-              ref={(el) => { tabRefs.current[idx] = el; }}
-              id={`nav-btn-${tab.id}`}
-              type="button"
-              onClick={() => handleTabClick(tab.id)}
-              title={tab.label}
-              whileTap={{ scale: 0.94 }}
-              transition={{ type: 'spring', stiffness: 400, damping: 25 }}
-              className={`relative flex flex-col items-center justify-center w-[60px] sm:w-[68px] h-[48px] sm:h-[50px] rounded-full cursor-pointer z-10 select-none ${
-                isRoteirosPage
-                  ? isDark
-                    ? 'hover:bg-white/10'
-                    : 'hover:bg-black/5'
-                  : isDark
-                    ? 'hover:bg-white/5'
-                    : 'hover:bg-black/5'
+        {/* Inner track with 5 uniform slots and hardware-accelerated sliding selection capsule */}
+        <div className="relative w-full h-full grid grid-cols-5 items-center">
+          {/* Active Option Selection Capsule */}
+          <div
+            aria-hidden="true"
+            className="absolute inset-y-0 left-0 w-1/5 pointer-events-none z-0 transition-transform duration-[180ms] ease-[cubic-bezier(0.22,1,0.36,1)] motion-reduce:transition-none"
+            style={{
+              transform: `translate3d(${activeIndex * 100}%, 0, 0)`,
+              WebkitTransform: `translate3d(${activeIndex * 100}%, 0, 0)`,
+              willChange: 'transform',
+            }}
+          >
+            <div
+              className={`w-full h-full rounded-full transition-colors duration-200 ${
+                isDark ? 'bg-white/10 border border-white/10' : 'bg-[#EBEBEF]'
               }`}
-            >
-              {/* iOS Active Tab Indicator Pill */}
-              {isActive && (
+            />
+          </div>
+
+          {TABS.map((tab) => {
+            const isActive = normalizedActiveTab === tab.id;
+
+            return (
+              <button
+                key={tab.id}
+                id={`nav-btn-${tab.id}`}
+                type="button"
+                onClick={() => handleTabClick(tab.id)}
+                aria-label={tab.label}
+                aria-current={isActive ? 'page' : undefined}
+                className={`relative z-10 w-full h-full min-h-[44px] min-w-[44px] rounded-full flex items-center justify-center cursor-pointer select-none active:scale-[0.94] transition-[transform,color,opacity] duration-[180ms] ease-[cubic-bezier(0.22,1,0.36,1)] motion-reduce:transition-none focus:outline-none focus-visible:ring-2 ${
+                  isDark
+                    ? isActive
+                      ? 'text-[#FFFFFF] opacity-100 focus-visible:ring-white/30'
+                      : 'text-[#FFFFFF] opacity-75 hover:opacity-100 focus-visible:ring-white/30'
+                    : isActive
+                      ? 'text-[#000000] opacity-100 focus-visible:ring-black/20'
+                      : 'text-[#000000] opacity-70 hover:opacity-100 focus-visible:ring-black/20'
+                }`}
+                style={{
+                  color: isDark ? '#FFFFFF' : '#000000',
+                  WebkitTapHighlightColor: 'transparent',
+                  touchAction: 'manipulation',
+                }}
+              >
                 <motion.div
-                  layoutId="activeNavPill"
-                  className={`absolute inset-0.5 rounded-full pointer-events-none -z-10 ${
-                    isDark
-                      ? 'bg-white/[0.13] shadow-[inset_0_1px_1px_rgba(255,255,255,0.12)]'
-                      : 'bg-black/[0.08] shadow-[inset_0_1px_1px_rgba(0,0,0,0.06)]'
-                  }`}
-                  transition={{ type: 'spring', stiffness: 420, damping: 32 }}
-                />
-              )}
-
-              {/* Icon logic stays the same but cleaner */}
-              <motion.div
-                initial={false}
-                animate={{ 
-                  scale: isActive ? 1.05 : 1,
-                  rotate: tab.id === 'explorar' ? pulseAnimation : 0,
-                  color: isActive ? (isDark ? '#ffffff' : '#000000') : (isDark ? '#a1a1aa' : '#71717a')
-                }}
-                transition={{ duration: 0.4, ease: "easeInOut" }}
-                className="w-6.5 h-6.5 flex items-center justify-center mb-0.5"
-              >
-                  {/* Inside: Icons logic */}
-                  {tab.id === 'explorar' && <NavAgoraIcon size={22} className="text-current" />}
-                  {tab.id === 'roteiros' && <NavRoteirosIcon size={22} className="text-current" />}
-                  {tab.id === 'salvos' && <NavSalvosIcon size={22} className="text-current" />}
-                  {tab.id === 'buscar' && <NavSearchIcon size={22} className="text-current" />}
-                  {tab.id === 'perfil' && <NavProfileIcon size={22} className="text-current" />}
-              </motion.div>
-
-              <motion.span
-                animate={{ 
-                  color: isActive ? (isDark ? '#ffffff' : '#000000') : (isDark ? '#a1a1aa' : '#71717a')
-                }}
-                className="font-['Inter'] text-[11px] leading-tight tracking-tight select-none"
-              >
-                {tab.label}
-              </motion.span>
-            </motion.button>
-          );
-        })}
+                  initial={false}
+                  animate={{
+                    rotate: tab.id === 'explorar' ? pulseAnimation : 0,
+                  }}
+                  transition={{ duration: 0.2, ease: [0.22, 1, 0.36, 1] }}
+                  className="w-[24px] h-[24px] flex items-center justify-center shrink-0"
+                >
+                  {tab.id === 'roteiros' && <NavRoteirosIcon size={24} className="text-current" />}
+                  {tab.id === 'salvos' && <NavSalvosIcon size={24} className="text-current" />}
+                  {tab.id === 'explorar' && <NavAgoraIcon size={24} className="text-current" />}
+                  {tab.id === 'buscar' && <NavSearchIcon size={24} className="text-current" />}
+                  {tab.id === 'perfil' && <NavProfileIcon size={24} className="text-current" />}
+                </motion.div>
+              </button>
+            );
+          })}
+        </div>
       </div>
     </nav>
-  </>
   );
-};
+});
+
+

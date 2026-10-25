@@ -71,13 +71,18 @@ export const DesktopSidebar: React.FC<DesktopSidebarProps> = ({
   const displayUsername = user?.username ? `@${user.username}` : '@monvians';
   const displayName = user?.name || 'mariomeloz';
 
+  const isDark = theme === 'dark';
+
   return (
     <aside
-      className={`hidden md:flex flex-col justify-between h-full bg-white border-r border-zinc-200/90 z-40 select-none shrink-0 transition-[width] duration-200 ease-in-out ${
+      className={`hidden md:flex flex-col justify-between h-full border-r z-40 select-none shrink-0 transition-[width,background-color,border-color] duration-200 ease-in-out ${
+        isDark ? 'bg-[#000000] border-[#262626]' : 'bg-white border-zinc-200/90'
+      } ${
         isCollapsed ? 'w-[72px]' : 'w-[250px]'
       }`}
       style={{
         fontFamily: "'Inter', sans-serif",
+        backgroundColor: isDark ? '#000000' : '#ffffff',
       }}
       aria-label="Menu principal desktop"
     >
@@ -101,7 +106,7 @@ export const DesktopSidebar: React.FC<DesktopSidebarProps> = ({
             /* Expanded state: shows logocarregamento.png (+40% horizontally) */
             <div className="flex items-center min-w-0 flex-1 pr-3 overflow-visible animate-fadeIn">
               <img
-                src="/logocarregamento.png"
+                src={isDark ? '/logomodoescuro.png' : '/logocarregamento.png'}
                 alt="Monvian"
                 className="h-[34px] w-auto max-w-none select-none transition-transform duration-200"
                 style={{
@@ -116,7 +121,11 @@ export const DesktopSidebar: React.FC<DesktopSidebarProps> = ({
           <button
             type="button"
             onClick={handleToggle}
-            className={`p-1.5 rounded-xl text-zinc-400 hover:text-black hover:bg-zinc-100 transition-colors cursor-pointer group relative ${
+            className={`p-1.5 rounded-xl transition-colors cursor-pointer group relative ${
+              isDark
+                ? 'text-[#A1A1AA] hover:text-white hover:bg-white/10'
+                : 'text-zinc-400 hover:text-black hover:bg-zinc-100'
+            } ${
               isCollapsed ? 'w-8 h-8 flex items-center justify-center' : ''
             }`}
             title={isCollapsed ? 'Expandir menu' : 'Recolher menu'}
@@ -153,7 +162,11 @@ export const DesktopSidebar: React.FC<DesktopSidebarProps> = ({
                       ? 'w-11 h-11 mx-auto justify-center rounded-2xl'
                       : 'justify-between px-3.5 py-2.5 rounded-2xl text-[14px] font-semibold'
                   } ${
-                    isActive
+                    isDark
+                      ? isActive
+                        ? 'bg-[#161618] text-white border border-[#262626] shadow-xs'
+                        : 'text-[#A1A1AA] hover:text-white hover:bg-white/5 border border-transparent'
+                      : isActive
                       ? 'bg-[#f3f3f3] text-black border border-zinc-200/80 shadow-xs'
                       : 'text-zinc-600 hover:text-black hover:bg-zinc-100 border border-transparent'
                   }`}
@@ -165,16 +178,26 @@ export const DesktopSidebar: React.FC<DesktopSidebarProps> = ({
                       className={`flex items-center justify-center transition-colors ${
                         isCollapsed
                           ? 'w-6 h-6'
-                          : isActive
+                          : isDark
+                            ? isActive
+                              ? 'w-7 h-7 rounded-full bg-[#262626] text-white'
+                              : 'w-7 h-7 rounded-full text-[#A1A1AA] group-hover:text-white'
+                            : isActive
                             ? 'w-7 h-7 rounded-full bg-[#d9d9d9] text-black'
                             : 'w-7 h-7 rounded-full text-zinc-500 group-hover:text-black'
                       }`}
                     >
-                      <Icon className="w-[18px] h-[18px] stroke-[2.2]" style={{ color: '#000000' }} />
+                      <Icon
+                        className="w-[18px] h-[18px] stroke-[2.2]"
+                        style={{ color: isDark ? (isActive ? '#FFFFFF' : '#A1A1AA') : '#000000' }}
+                      />
                     </div>
 
                     {!isCollapsed && (
-                      <span className="truncate" style={{ color: '#000000' }}>
+                      <span
+                        className="truncate"
+                        style={{ color: isDark ? (isActive ? '#FFFFFF' : '#A1A1AA') : '#000000' }}
+                      >
                         {item.label}
                       </span>
                     )}
@@ -210,14 +233,18 @@ export const DesktopSidebar: React.FC<DesktopSidebarProps> = ({
                   onClick={onOpenHostDashboard}
                   className={`flex items-center transition-all cursor-pointer ${
                     isCollapsed
-                      ? 'w-11 h-11 mx-auto justify-center rounded-2xl text-black hover:bg-zinc-100 border border-transparent hover:border-zinc-200'
+                      ? isDark
+                        ? 'w-11 h-11 mx-auto justify-center rounded-2xl text-white hover:bg-white/10 border border-transparent hover:border-[#262626]'
+                        : 'w-11 h-11 mx-auto justify-center rounded-2xl text-black hover:bg-zinc-100 border border-transparent hover:border-zinc-200'
+                      : isDark
+                      ? 'w-full justify-between px-3.5 py-2.5 rounded-2xl text-[13px] font-medium text-white hover:border-white/30 border border-[#262626]'
                       : 'w-full justify-between px-3.5 py-2.5 rounded-2xl text-[13px] font-medium text-black hover:bg-zinc-100 border border-zinc-200'
                   }`}
                   aria-label="Área do anfitrião"
                 >
                   <div className={`flex items-center ${isCollapsed ? 'justify-center' : 'gap-3'}`}>
-                    <User className="w-4 h-4 stroke-[2]" style={{ color: '#000000' }} />
-                    {!isCollapsed && <span style={{ color: '#000000' }}>Área do anfitrião</span>}
+                    <User className="w-4 h-4 stroke-[2]" style={{ color: isDark ? '#FFFFFF' : '#000000' }} />
+                    {!isCollapsed && <span style={{ color: isDark ? '#FFFFFF' : '#000000' }}>Área do anfitrião</span>}
                   </div>
                   {!isCollapsed && <ChevronRight className="w-3.5 h-3.5 text-zinc-400" />}
                 </button>
@@ -262,10 +289,12 @@ export const DesktopSidebar: React.FC<DesktopSidebarProps> = ({
 
       {/* Footer Section */}
       <div
-        className={`border-t border-zinc-200/90 bg-white ${
+        className={`border-t ${
+          isDark ? 'border-[#262626] bg-[#000000]' : 'border-zinc-200/90 bg-white'
+        } ${
           isCollapsed ? 'p-3 flex flex-col items-center' : 'p-4 lg:p-5'
         }`}
-        style={{ backgroundColor: '#ffffff' }}
+        style={{ backgroundColor: isDark ? '#000000' : '#ffffff' }}
       >
         {/* User Profile Widget */}
         <div className="relative group w-full flex justify-center">
@@ -274,6 +303,8 @@ export const DesktopSidebar: React.FC<DesktopSidebarProps> = ({
             className={`transition-all cursor-pointer ${
               isCollapsed
                 ? 'w-10 h-10 rounded-full flex items-center justify-center'
+                : isDark
+                ? 'w-full p-2.5 rounded-2xl bg-[#000000] border border-[#262626] hover:border-white/30 flex items-center justify-between shadow-2xs'
                 : 'w-full p-2.5 rounded-2xl bg-white border border-zinc-200 hover:border-zinc-300 flex items-center justify-between shadow-2xs'
             }`}
             role="button"
@@ -290,7 +321,9 @@ export const DesktopSidebar: React.FC<DesktopSidebarProps> = ({
                       '/fotoperfil.png'
                 }
                 alt={displayName}
-                className="w-9 h-9 rounded-full object-cover border border-zinc-200 shrink-0 group-hover:ring-2 group-hover:ring-amber-500/50 transition-all"
+                className={`w-9 h-9 rounded-full object-cover border shrink-0 group-hover:ring-2 group-hover:ring-amber-500/50 transition-all ${
+                  isDark ? 'border-[#262626]' : 'border-zinc-200'
+                }`}
                 onError={(e) => {
                   (e.currentTarget as HTMLImageElement).src = '/fotoperfil.png';
                 }}
@@ -298,7 +331,12 @@ export const DesktopSidebar: React.FC<DesktopSidebarProps> = ({
 
               {!isCollapsed && (
                 <div className="min-w-0">
-                  <p className="text-xs font-bold text-black truncate group-hover:text-amber-600 transition-colors" style={{ color: '#000000' }}>
+                  <p
+                    className={`text-xs font-bold truncate group-hover:text-amber-600 transition-colors ${
+                      isDark ? 'text-white' : 'text-black'
+                    }`}
+                    style={{ color: isDark ? '#FFFFFF' : '#000000' }}
+                  >
                     {displayName}
                   </p>
                   <p className="text-[10px] text-zinc-500 truncate">
@@ -316,7 +354,11 @@ export const DesktopSidebar: React.FC<DesktopSidebarProps> = ({
                     e.stopPropagation();
                     onChangeTab('perfil');
                   }}
-                  className="p-1 rounded-lg text-zinc-400 hover:text-black hover:bg-zinc-100 transition-colors cursor-pointer"
+                  className={`p-1 rounded-lg transition-colors cursor-pointer ${
+                    isDark
+                      ? 'text-[#A1A1AA] hover:text-white hover:bg-white/10'
+                      : 'text-zinc-400 hover:text-black hover:bg-zinc-100'
+                  }`}
                   title="Configurações do Perfil"
                   aria-label="Configurações"
                 >

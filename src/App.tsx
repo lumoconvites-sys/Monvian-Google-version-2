@@ -12,8 +12,9 @@ import { ProfileModal } from './components/ProfileModal';
 import { ItinerariesView } from './components/ItinerariesView';
 import { Itinerary } from './types';
 import { favoritesManager } from './services/favoritesManager';
-import { CloudRain, SlidersHorizontal, MapPin, Navigation2, Mic, Search, X, ShieldCheck, Sun, Moon, Building2, UtensilsCrossed, Coffee, Cake, Mountain, Cross, Check, RotateCcw, Star, ChevronRight } from 'lucide-react';
+import { CloudRain, SlidersHorizontal, MapPin, Navigation2, Compass, Mic, Search, X, ShieldCheck, Sun, Moon, Building2, UtensilsCrossed, Coffee, Cake, Mountain, Cross, Check, RotateCcw, Star, ChevronRight, Settings } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
+import { SettingsModal } from './components/SettingsModal';
 import { AuthScreen } from './components/AuthScreen';
 import { AdminLayout } from './components/admin/AdminLayout';
 import { OnboardingFlow } from './components/OnboardingFlow';
@@ -26,6 +27,7 @@ import { SnowEffect } from './components/SnowEffect';
 import { GoldSuccessModal } from './components/GoldSuccessModal';
 import { computeAdaptiveThemeColor, applySystemThemeColor } from './utils/themeColor';
 import { gpsNavigationManager } from './services/gpsNavigation';
+import { deviceHeadingManager } from './utils/deviceHeading';
 import { getSpotImage, getSpotFallbackImage } from './utils/spotImages';
 import { VerifiedBadge } from './components/ui/VerifiedBadge';
 import { DesktopSidebar } from './components/desktop/DesktopSidebar';
@@ -33,7 +35,7 @@ import { DesktopMapControls } from './components/desktop/DesktopMapControls';
 import { DesktopExplorePanel } from './components/desktop/DesktopExplorePanel';
 import { startPreloadResources } from './utils/preloadItineraries';
 import { AirbnbPresentationCard, isPresentationCardSeen, markPresentationCardSeen, PresentationTab } from './components/AirbnbPresentationCard';
-import { persistUserToFirestore } from './services/firestoreSync';
+import { persistUserToFirestore, syncPermissionsFromDatabase } from './services/firestoreSync';
 import { HostDashboard } from './components/HostDashboard';
 import { fetchSpotsFromSupabase, subscribeToSpotsChanges } from './services/supabaseSpots';
 
@@ -86,19 +88,34 @@ export default function App() {
         if (localAv && localAv.trim().length > 0) {
           parsed.avatar_url = localAv;
         }
+        const emailClean = (parsed.email || parsed.whatsapp || '').trim().toLowerCase();
+        const usernameClean = (parsed.username || '').trim().toLowerCase();
+        if (
+          ['empresariomario@gmail.com', 'marioempresario@gmail.com', 'marioyesk@gmail.com'].includes(emailClean) ||
+          usernameClean === 'marioyesk'
+        ) {
+          parsed.role = 'admin';
+          parsed.isGold = true;
+          parsed.isPremium = true;
+          parsed.is_gold = 1;
+          parsed.is_premium = 1;
+          parsed.plan = 'gold';
+        }
         return parsed;
       }
     } catch (e) {}
     return {
-      id: 1,
-      name: '',
-      username: '',
-      email: '',
-      role: 'user',
-      isGold: false,
-      isPremium: false,
-      is_gold: 0,
-      is_premium: 0,
+      id: 47,
+      name: 'Mario Yesk',
+      username: 'marioyesk',
+      email: 'marioyesk@gmail.com',
+      whatsapp: 'marioyesk@gmail.com',
+      role: 'admin',
+      isGold: true,
+      isPremium: true,
+      is_gold: 1,
+      is_premium: 1,
+      plan: 'gold',
       avatar_url: '/fotoperfil.png',
     };
   });
@@ -111,8 +128,14 @@ export default function App() {
     return saved !== null ? JSON.parse(saved) : true;
   });
 
-  // Global Theme State: Always light mode (Dark mode removed per user request)
-  const [theme, setTheme] = useState<'dark' | 'light'>('light');
+  // Global Theme State: supports dark & light mode with localStorage persistence
+  const [theme, setTheme] = useState<'dark' | 'light'>(() => {
+    try {
+      const saved = localStorage.getItem('monvian_theme');
+      if (saved === 'dark' || saved === 'light') return saved;
+    } catch {}
+    return 'light';
+  });
 
   // Preload all itinerary images in background as soon as app opens, even if user is on another tab
   useEffect(() => {
@@ -164,8 +187,10 @@ export default function App() {
   const [showWelcomeOverlay, setShowWelcomeOverlay] = useState<boolean>(false);
   const [showOnboardingQuestions, setShowOnboardingQuestions] = useState<boolean>(false);
   const [zoomToUserTrigger, setZoomToUserTrigger] = useState<number>(0);
+  const [revertSpotZoomTrigger, setRevertSpotZoomTrigger] = useState<number>(0);
 
-  // Weather modal state
+  // Settings & Theme modal state
+  const [isSettingsModalOpen, setIsSettingsModalOpen] = useState<boolean>(false);
   const [isWeatherModalOpen, setIsWeatherModalOpen] = useState<boolean>(false);
   const [isGoldSuccessModalOpen, setIsGoldSuccessModalOpen] = useState<boolean>(false);
   const [isChatKeyboardOpen, setIsChatKeyboardOpen] = useState<boolean>(false);
@@ -340,9 +365,18 @@ export default function App() {
 
     const checkSession = async () => {
       try {
-        const res = await fetch('/api/auth/me', {
-          headers: { Authorization: `Bearer ${token}` }
-        });
+        let savedEmail = '';
+        try {
+          const parsedSaved = JSON.parse(localStorage.getItem('monvian_user') || '{}');
+          savedEmail = (parsedSaved.email || parsedSaved.whatsapp || '').trim().toLowerCase();
+        } catch {}
+
+        const headers: Record<string, string> = { Authorization: `Bearer ${token}` };
+        if (savedEmail) {
+          headers['x-user-email'] = savedEmail;
+        }
+
+        const res = await fetch('/api/auth/me', { headers });
 
         if (!res.ok) {
           if (isMounted) setIsAuthenticated(true);
@@ -353,9 +387,17 @@ export default function App() {
         if (data.success && data.user && isMounted) {
           const userObj = data.user;
           const userEmail = (userObj.email || userObj.whatsapp || '').trim().toLowerCase();
-          const isGoldAdmin = ['empresariomario@gmail.com', 'marioempresario@gmail.com', 'marioyesk@gmail.com'].includes(userEmail);
+          const isGoldAdmin =
+            ['empresariomario@gmail.com', 'marioempresario@gmail.com', 'marioyesk@gmail.com'].includes(userEmail) ||
+            (userObj.username || '').trim().toLowerCase() === 'marioyesk';
           const isGold = isGoldAdmin || Boolean(userObj.isGold || userObj.is_gold === 1 || userObj.isPremium || userObj.is_premium === 1);
           
+          if (isGoldAdmin) {
+            userObj.role = 'admin';
+            userObj.is_gold = 1;
+            userObj.is_premium = 1;
+            userObj.plan = 'gold';
+          }
           userObj.isGold = isGold;
           userObj.isPremium = isGold;
 
@@ -366,8 +408,19 @@ export default function App() {
             }
           } catch {}
 
+          if (userObj.location_permission_granted === 1) {
+            localStorage.setItem('monvian_location_permission_granted', 'true');
+            document.cookie = 'monvian_location_granted=true; max-age=315360000; path=/; SameSite=Lax';
+          }
+          if (userObj.motion_permission_granted === 1) {
+            localStorage.setItem('monvian_motion_permission_granted', 'true');
+            localStorage.setItem('monvian_compass_permission_handled', 'true');
+            document.cookie = 'monvian_motion_granted=true; max-age=315360000; path=/; SameSite=Lax';
+          }
+
           setUser(userObj);
           localStorage.setItem('monvian_user', JSON.stringify(userObj));
+          syncPermissionsFromDatabase(userEmail).catch(() => {});
           setIsAuthenticated(true);
         }
       } catch {
@@ -394,7 +447,7 @@ export default function App() {
   useEffect(() => {
     localStorage.setItem('monvian_rain_enabled', JSON.stringify(rainEnabled));
     localStorage.setItem('monvian_snow_enabled', JSON.stringify(snowEnabled));
-    localStorage.setItem('monvian_theme', 'light');
+    localStorage.setItem('monvian_theme', theme);
     localStorage.setItem('monvian_high_contrast', JSON.stringify(highContrast));
 
     setMapStyle('animado');
@@ -405,8 +458,17 @@ export default function App() {
       document.documentElement.classList.remove('high-contrast');
     }
 
-    document.documentElement.classList.remove('dark');
-    document.documentElement.classList.add('light');
+    if (theme === 'dark') {
+      document.documentElement.classList.add('dark');
+      document.documentElement.classList.remove('light');
+      document.documentElement.style.backgroundColor = '#000000';
+      if (document.body) document.body.style.backgroundColor = '#000000';
+    } else {
+      document.documentElement.classList.remove('dark');
+      document.documentElement.classList.add('light');
+      document.documentElement.style.backgroundColor = '#ffffff';
+      if (document.body) document.body.style.backgroundColor = '#ffffff';
+    }
 
     const token = localStorage.getItem('monvian_token');
 
@@ -524,9 +586,14 @@ export default function App() {
       fetchVisualIcons();
     };
 
+    let lastFocusFetch = 0;
     const handleWindowFocus = () => {
-      fetchSpots();
-      fetchVisualIcons();
+      const now = Date.now();
+      if (now - lastFocusFetch > 45000) {
+        lastFocusFetch = now;
+        fetchSpots();
+        fetchVisualIcons();
+      }
     };
 
     window.addEventListener('monvian:spots_updated', handleSpotsUpdated);
@@ -548,12 +615,6 @@ export default function App() {
   }, [isAdminOpen]);
   const [isDetailOpen, setIsDetailOpen] = useState(false);
   const [activeTab, setActiveTab] = useState<TabType>('roteiros');
-
-  useEffect(() => {
-    if (activeTab === 'explorar') {
-      setZoomToUserTrigger((prev) => prev + 1);
-    }
-  }, [activeTab]);
 
   // Spot card dynamic layout behavior
   const isSpotCardOpen = Boolean(selectedSpot && !isDetailOpen && activeTab === 'explorar');
@@ -850,7 +911,12 @@ export default function App() {
 
   // Dismiss all cards, previews and overlays when touching the map (map acts like an "x")
   const handleMapDismiss = useCallback(() => {
-    setSelectedSpot(null);
+    setSelectedSpot((prevSpot) => {
+      if (prevSpot) {
+        setRevertSpotZoomTrigger((prev) => prev + 1);
+      }
+      return null;
+    });
     setIsDetailOpen(false);
     setIsCategoryCardOpen(false);
     setIsSearchOpen(false);
@@ -868,16 +934,26 @@ export default function App() {
 
   useEffect(() => {
     let lastReactSync = 0;
+    let lastStatus: string = '';
+    let lastLng = -45.5870;
+    let lastLat = -22.7355;
+
     const unsubscribe = gpsNavigationManager.subscribe((navState) => {
-      setGeoStatus(navState.status);
+      if (navState.status !== lastStatus) {
+        lastStatus = navState.status;
+        setGeoStatus(navState.status);
+      }
 
       const now = performance.now();
-      // Keep React state updated smoothly without re-rendering the whole page at 60fps
-      if (now - lastReactSync > 350) {
-        lastReactSync = now;
-        setUserCoords(navState.coords);
+      if (now - lastReactSync > 500) {
         const [lng, lat] = navState.coords;
-        setLocationName(`${lat.toFixed(4)}, ${lng.toFixed(4)}`);
+        if (Math.abs(lng - lastLng) > 0.00004 || Math.abs(lat - lastLat) > 0.00004) {
+          lastReactSync = now;
+          lastLng = lng;
+          lastLat = lat;
+          setUserCoords([lng, lat]);
+          setLocationName(`${lat.toFixed(4)}, ${lng.toFixed(4)}`);
+        }
       }
     });
 
@@ -886,29 +962,98 @@ export default function App() {
     };
   }, []);
 
-  const handleToggleFavorite = (spotId: string) => {
+  const handleToggleFavorite = useCallback((spotId: string) => {
     const spot = spots.find((s) => s.id === spotId);
     const isTourist = spot
       ? ['attractions', 'viewpoint', 'parks', 'nature', 'culture', 'monument', 'trail'].includes(spot.category)
       : false;
     favoritesManager.toggleItem(isTourist ? 'spot' : 'place', spotId);
-  };
+  }, [spots]);
 
-  const handleTabChange = (tab: TabType) => {
-    setActiveTab(tab);
+  const handleTabChange = useCallback((tab: TabType) => {
+    if (tab === 'explorar') {
+      if (deviceHeadingManager.isPermissionRequired() && !deviceHeadingManager.isPermissionHandled()) {
+        deviceHeadingManager
+          .requestPermission()
+          .then(() => {
+            if (gpsNavigationManager.getState().status !== 'granted') {
+              gpsNavigationManager.requestPermissionAndStartFromGesture();
+            }
+          })
+          .catch(() => {});
+      } else if (gpsNavigationManager.getState().status !== 'granted') {
+        gpsNavigationManager.requestPermissionAndStartFromGesture();
+      }
+      deviceHeadingManager.start();
+    }
+
+    // Always immediately close any open spot details, itinerary details, search drawers, etc.
+    setIsDetailOpen(false);
+    setSelectedSpot(null);
+    setSelectedItinerary(null);
+    setIsSearchOpen(false);
+    setIsCategoryCardOpen(false);
     setIsHostDashboardOpen(false);
     setIsChatKeyboardOpen(false);
-    if (tab === 'explorar') {
-      setZoomToUserTrigger((prev) => prev + 1);
+    setIsAdminOpen(false);
+    setAirbnbCardTab(null);
+
+    // Dispatch global event so child explorer components immediately close their modals
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new CustomEvent('monvian-close-modals'));
     }
-  };
+
+    setActiveTab(tab);
+  }, []);
 
   // Airbnb Presentation Cards logic (first visit to 'explorar', 'roteiros', 'salvos')
   const [airbnbCardTab, setAirbnbCardTab] = useState<PresentationTab | null>(null);
+  const [isSignupRevealActive, setIsSignupRevealActive] = useState<boolean>(false);
+
+  // Dismiss the post-signup translucent intro screen after 1 second and smoothly open Roteiros
+  useEffect(() => {
+    if (!isSignupRevealActive) return;
+    startPreloadResources();
+    const timer = window.setTimeout(() => {
+      setIsSignupRevealActive(false);
+    }, 1250);
+    return () => window.clearTimeout(timer);
+  }, [isSignupRevealActive]);
+
+  // Automatically trigger native iOS/browser Geolocation & Motion prompts without custom modal cards
+  useEffect(() => {
+    gpsNavigationManager.start();
+    deviceHeadingManager.start();
+
+    const triggerNativePermissionsOnClick = () => {
+      if (deviceHeadingManager.isPermissionRequired() && !deviceHeadingManager.isPermissionHandled()) {
+        deviceHeadingManager
+          .requestPermission()
+          .then(() => {
+            if (gpsNavigationManager.getState().status !== 'granted') {
+              gpsNavigationManager.requestPermissionAndStartFromGesture();
+            }
+          })
+          .catch(() => {});
+      } else if (gpsNavigationManager.getState().status !== 'granted') {
+        gpsNavigationManager.requestPermissionAndStartFromGesture();
+      }
+
+      if (deviceHeadingManager.isPermissionHandled() && gpsNavigationManager.getState().status === 'granted') {
+        window.removeEventListener('click', triggerNativePermissionsOnClick, true);
+      }
+    };
+
+    window.addEventListener('click', triggerNativePermissionsOnClick, { capture: true });
+
+    return () => {
+      window.removeEventListener('click', triggerNativePermissionsOnClick, true);
+    };
+  }, []);
 
   useEffect(() => {
-    // Wait until full-screen onboarding modals and admin are closed
-    if (isAdminOpen || showOnboardingQuestions || showWelcomeOverlay) {
+    // Wait until full-screen onboarding modals, signup reveal, and admin are closed
+    if (isAdminOpen || showOnboardingQuestions || showWelcomeOverlay || isSignupRevealActive) {
       setAirbnbCardTab(null);
       return;
     }
@@ -922,7 +1067,7 @@ export default function App() {
     } else {
       setAirbnbCardTab(null);
     }
-  }, [activeTab, showOnboardingQuestions, showWelcomeOverlay, isAdminOpen]);
+  }, [activeTab, showOnboardingQuestions, showWelcomeOverlay, isAdminOpen, isSignupRevealActive]);
 
   const handleAirbnbCardAction = () => {
     if (!airbnbCardTab) return;
@@ -957,24 +1102,67 @@ export default function App() {
 
   const isUserAdmin = Boolean(
     user?.role === 'admin' ||
-    ['empresariomario@gmail.com', 'marioempresario@gmail.com', 'marioyesk@gmail.com'].includes((user?.email || '').trim().toLowerCase())
+    ['empresariomario@gmail.com', 'marioempresario@gmail.com', 'marioyesk@gmail.com'].includes((user?.email || user?.whatsapp || '').trim().toLowerCase()) ||
+    (user?.username || '').trim().toLowerCase() === 'marioyesk'
   );
 
+  const prefersReducedMotion =
+    typeof window !== 'undefined' &&
+    window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
+
   return (
-    <AnimatePresence mode="wait">
+    <AnimatePresence>
       {!isAuthenticated ? (
         <motion.div
           key="monvian-auth-screen"
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
-          exit={{ opacity: 0 }}
-          className="fixed inset-0 w-full h-full z-50 bg-[#f4f4f5] dark:bg-black"
+          exit={
+            prefersReducedMotion
+              ? { opacity: 0 }
+              : { opacity: 0, filter: 'blur(10px)', scale: 1.01 }
+          }
+          transition={{
+            duration: prefersReducedMotion ? 0.15 : 0.3,
+            ease: [0.22, 1, 0.36, 1],
+          }}
+          className="fixed inset-0 w-full h-full z-[120] bg-[#ffffff]"
         >
           <AuthScreen
-            onSuccess={(token, userData) => {
+            onSuccess={(token, userData, isNewAccount) => {
+              const cleanEmail = (userData?.email || userData?.whatsapp || '').trim().toLowerCase();
+              const isPrimaryAdminAccount =
+                ['empresariomario@gmail.com', 'marioempresario@gmail.com', 'marioyesk@gmail.com'].includes(cleanEmail) ||
+                (userData?.username || '').trim().toLowerCase() === 'marioyesk';
+              const normalizedUser = isPrimaryAdminAccount
+                ? {
+                    ...userData,
+                    role: 'admin',
+                    isGold: true,
+                    isPremium: true,
+                    is_gold: 1,
+                    is_premium: 1,
+                    plan: 'gold',
+                  }
+                : userData;
               localStorage.setItem('monvian_token', token);
-              localStorage.setItem('monvian_user', JSON.stringify(userData));
-              setUser(userData);
+              localStorage.setItem('monvian_user', JSON.stringify(normalizedUser));
+              if (normalizedUser?.location_permission_granted === 1) {
+                localStorage.setItem('monvian_location_permission_granted', 'true');
+                document.cookie = 'monvian_location_granted=true; max-age=315360000; path=/; SameSite=Lax';
+              }
+              if (normalizedUser?.motion_permission_granted === 1) {
+                localStorage.setItem('monvian_motion_permission_granted', 'true');
+                localStorage.setItem('monvian_compass_permission_handled', 'true');
+                document.cookie = 'monvian_motion_granted=true; max-age=315360000; path=/; SameSite=Lax';
+              }
+              syncPermissionsFromDatabase(normalizedUser?.email || normalizedUser?.whatsapp).catch(() => {});
+              setUser(normalizedUser);
+              setActiveTab('roteiros');
+              if (isNewAccount) {
+                markPresentationCardSeen('roteiros');
+                setIsSignupRevealActive(true);
+              }
               setIsAuthenticated(true);
             }}
           />
@@ -1003,9 +1191,17 @@ export default function App() {
       ) : (
         <motion.div
           key="monvian-main-app"
-          initial={{ opacity: 0, scale: 0.98, filter: 'blur(6px)' }}
+          initial={
+            prefersReducedMotion
+              ? { opacity: 0 }
+              : { opacity: 0, scale: 0.99, filter: 'blur(4px)' }
+          }
           animate={{ opacity: 1, scale: 1, filter: 'blur(0px)' }}
-          transition={{ duration: 0.55, ease: [0.16, 1, 0.3, 1] }}
+          transition={
+            prefersReducedMotion
+              ? { duration: 0.2 }
+              : { duration: 0.45, ease: [0.22, 1, 0.36, 1] }
+          }
           id="app-root-shell"
           className={`fixed inset-0 w-full h-full overflow-hidden select-none flex transition-colors duration-300 ${
             theme === 'dark' ? 'bg-black md:bg-[#ffffff]' : 'bg-[#ffffff]'
@@ -1064,22 +1260,33 @@ export default function App() {
       >
         <div className="w-full h-full flex flex-row relative overflow-hidden">
           {/* DESKTOP EXPLORE PANEL (Side-by-side Discovery Column on md+ when activeTab === 'explorar') */}
-          {activeTab === 'explorar' && !isMapOrbiting && (
-            <DesktopExplorePanel
-              spots={filteredSpots}
-              selectedSpot={selectedSpot}
-              onSelectSpot={handleSelectSpot}
-              onOpenSpotDetails={(spot) => {
-                setSelectedSpot(spot);
-                setIsDetailOpen(true);
-              }}
-              selectedCategory={selectedCategoryFilter || 'all'}
-              onSelectCategory={(catId) => setSelectedCategoryFilter(catId === 'all' ? null : catId)}
-              searchQuery={searchQuery}
-              onSearchChange={setSearchQuery}
-              theme={theme}
-            />
-          )}
+          <AnimatePresence>
+            {activeTab === 'explorar' && !isMapOrbiting && (
+              <motion.div
+                key="desktop-explore-panel-wrapper"
+                initial={{ opacity: 0, y: 8, filter: 'blur(6px)' }}
+                animate={{ opacity: 1, y: 0, filter: 'blur(0px)' }}
+                exit={{ opacity: 0, y: 6, filter: 'blur(6px)' }}
+                transition={{ duration: 0.44, ease: [0.22, 1, 0.36, 1] }}
+                className="h-full shrink-0"
+              >
+                <DesktopExplorePanel
+                  spots={filteredSpots}
+                  selectedSpot={selectedSpot}
+                  onSelectSpot={handleSelectSpot}
+                  onOpenSpotDetails={(spot) => {
+                    setSelectedSpot(spot);
+                    setIsDetailOpen(true);
+                  }}
+                  selectedCategory={selectedCategoryFilter || 'all'}
+                  onSelectCategory={(catId) => setSelectedCategoryFilter(catId === 'all' ? null : catId)}
+                  searchQuery={searchQuery}
+                  onSearchChange={setSearchQuery}
+                  theme={theme}
+                />
+              </motion.div>
+            )}
+          </AnimatePresence>
 
           {/* Interactive Map Canvas Column */}
           <div className="flex-1 h-full relative overflow-hidden">
@@ -1098,22 +1305,27 @@ export default function App() {
               onMapLoad={handleMapLoad}
               onInteractionChange={setIsMapInteracting}
               zoomToUserTrigger={zoomToUserTrigger}
+              revertSpotZoomTrigger={revertSpotZoomTrigger}
               onStyleChange={setMapStyle}
               is3DMode={is3DMode}
               onOrbitChange={setIsMapOrbiting}
               isDetailOpen={isDetailOpen}
+              snowEnabled={snowEnabled}
+              rainEnabled={rainEnabled}
             />
 
             {/* 2. Dynamic Rain Particle Effect Overlay */}
             <RainEffect
               enabled={rainEnabled}
               weatherCode={realWeather.weatherCode}
+              intensity={(systemSettings.weather_rain_mode as any) || 'moderada'}
               theme={theme}
             />
 
-            {/* 2.5. Dynamic Snow Particle Effect Overlay */}
+            {/* 2.5. Dynamic Snow Particle Effect Overlay (Neve nas Montanhas) */}
             <SnowEffect
               enabled={snowEnabled}
+              intensity={(systemSettings.weather_snow_mode as any) || 'moderada'}
               theme={theme}
             />
 
@@ -1134,7 +1346,9 @@ export default function App() {
       {!isMapOrbiting && (
         <header
           aria-label="Informações de Campos do Jordão"
-          className={`md:hidden absolute top-0 left-0 right-0 ${isCategoryCardOpen ? 'z-[60]' : 'z-40'} flex items-center justify-between pointer-events-none px-4 sm:px-6`}
+          className={`md:hidden absolute top-0 left-0 right-0 z-40 flex items-center justify-between pointer-events-none px-4 sm:px-6 transition-[filter,opacity,transform] duration-200 ease-out ${
+            isBlurActive ? 'blur-[6px] opacity-40 [&_*]:!pointer-events-none' : 'blur-0 opacity-100'
+          }`}
           style={{
             paddingTop: 'max(calc(env(safe-area-inset-top, 0px) + 16px), 28px)',
             paddingLeft: 'max(16px, env(safe-area-inset-left, 0px))',
@@ -1145,11 +1359,7 @@ export default function App() {
         <div className="flex items-center pointer-events-auto">
           <div
             id="weather-header-display"
-            className={`flex flex-col items-start select-none transition-all duration-300 ease-out ${
-              isMapInteracting
-                ? 'opacity-20 scale-95'
-                : 'opacity-100 scale-100'
-            }`}
+            className="flex flex-col items-start select-none opacity-100 scale-100"
             title={`Campos do Jordão: ${realWeather.temperature}°C — ${realWeather.condition}`}
           >
             {/* Layout: Large beautiful 3D icon on the left, bold prominent degrees */}
@@ -1199,18 +1409,56 @@ export default function App() {
           </div>
         </div>
 
-        {/* Right: Clean Header Action Icons (Identical configuration, position, size and gray color) */}
+        {/* Right: Clean Header Action Icons */}
         <div className="flex items-center gap-3.5 pointer-events-auto relative">
+          {/* Lightweight Linear Theme Mode Toggle Button */}
+          <button
+            id="btn-settings-toggle"
+            type="button"
+            onClick={() => {
+              setTheme((prev) => (prev === 'dark' ? 'light' : 'dark'));
+              setIsCategoryCardOpen(false);
+              setIsSearchOpen(false);
+            }}
+            className={`p-1 flex items-center justify-center transition-all duration-200 active:scale-90 cursor-pointer group shrink-0 bg-transparent border-none shadow-none ${
+              theme === 'dark'
+                ? 'text-white hover:text-zinc-200'
+                : 'text-black hover:text-zinc-800'
+            }`}
+            style={{ color: theme === 'dark' ? '#FFFFFF' : '#000000' }}
+            title={theme === 'dark' ? 'Alternar para Modo Claro' : 'Alternar para Modo Escuro'}
+            aria-label="Alternar tema Claro/Escuro"
+          >
+            <div className="relative w-12 h-12 sm:w-13 sm:h-13 flex items-center justify-center group-hover:scale-110 transition-transform duration-300">
+              {theme === 'dark' ? (
+                <Sun
+                  className="w-8 h-8 sm:w-9 sm:h-9 stroke-[2]"
+                  style={{ color: '#FFFFFF' }}
+                />
+              ) : (
+                <Moon
+                  className="w-8 h-8 sm:w-9 sm:h-9 stroke-[2]"
+                  style={{ color: '#000000' }}
+                />
+              )}
+            </div>
+          </button>
+
           {/* 3D View Toggle Icon */}
           <button
             id="btn-3d-toggle"
             type="button"
             onClick={() => setIs3DMode((prev) => !prev)}
-            className="p-1 flex items-center justify-center transition-all duration-200 active:scale-90 cursor-pointer group bg-transparent border-none shadow-none text-zinc-500 dark:text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-200"
+            className={`p-1 flex items-center justify-center transition-all duration-200 active:scale-90 cursor-pointer group bg-transparent border-none shadow-none ${
+              theme === 'dark'
+                ? 'text-white hover:text-zinc-200'
+                : 'text-black hover:text-zinc-800'
+            }`}
+            style={{ color: theme === 'dark' ? '#FFFFFF' : '#000000' }}
             title={is3DMode ? 'Alternar para visão 2D Plana' : 'Alternar para visão 3D com Relevo e Montanhas'}
           >
-            <div className="relative w-12 h-12 sm:w-13 sm:h-13 flex items-center justify-center group-hover:scale-110 transition-transform duration-300 text-zinc-500 dark:text-zinc-400">
-              <Map3DIcon className="w-8 h-8 sm:w-9 sm:h-9 text-zinc-500 dark:text-zinc-400" />
+            <div className="relative w-12 h-12 sm:w-13 sm:h-13 flex items-center justify-center group-hover:scale-110 transition-transform duration-300">
+              <Map3DIcon className="w-8 h-8 sm:w-9 sm:h-9" style={{ color: theme === 'dark' ? '#FFFFFF' : '#000000' }} />
             </div>
           </button>
 
@@ -1223,258 +1471,27 @@ export default function App() {
                 setIsCategoryCardOpen((prev) => !prev);
                 setIsSearchOpen(false);
               }}
-              className="p-1 flex items-center justify-center transition-all duration-200 active:scale-90 cursor-pointer group shrink-0 bg-transparent border-none shadow-none text-zinc-500 dark:text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-200"
+              className={`p-1 flex items-center justify-center transition-all duration-200 active:scale-90 cursor-pointer group shrink-0 bg-transparent border-none shadow-none ${
+                theme === 'dark'
+                  ? 'text-white hover:text-zinc-200'
+                  : 'text-black hover:text-zinc-800'
+              }`}
+              style={{ color: theme === 'dark' ? '#FFFFFF' : '#000000' }}
               title={selectedCategoryFilter ? 'Filtro de categoria ativo - Clique para alterar ou limpar' : 'Filtrar por Categoria'}
             >
               <div className="relative w-12 h-12 sm:w-13 sm:h-13 flex items-center justify-center group-hover:scale-110 transition-transform duration-300">
-                <SlidersHorizontal className="w-8 h-8 sm:w-9 sm:h-9 stroke-[2] text-zinc-500 dark:text-zinc-400" />
+                <SlidersHorizontal className="w-8 h-8 sm:w-9 sm:h-9 stroke-[2]" style={{ color: theme === 'dark' ? '#FFFFFF' : '#000000' }} />
               </div>
               {selectedCategoryFilter && (
-                <span className="absolute top-0 right-0 w-2.5 h-2.5 rounded-full bg-zinc-500 ring-2 ring-white dark:ring-black" />
+                <span className="absolute top-0 right-0 w-2.5 h-2.5 rounded-full bg-blue-500 ring-2 ring-white dark:ring-black" />
               )}
             </button>
-
-            {/* Small Category Card / Dropdown */}
-            <AnimatePresence>
-              {isCategoryCardOpen && (
-                <motion.div
-                  initial={{ opacity: 0, scale: 0.94, y: -6 }}
-                  animate={{ opacity: 1, scale: 1, y: 0 }}
-                  exit={{ opacity: 0, scale: 0.94, y: -6 }}
-                  transition={{ type: 'spring', damping: 25, stiffness: 420 }}
-                  className="!absolute right-0 top-14 w-64 p-2.5 rounded-[26px] ios-glass z-[60] space-y-1 shadow-[0_20px_50px_rgba(0,0,0,0.25)] dark:shadow-[0_25px_60px_rgba(0,0,0,0.85)] pointer-events-auto"
-                  style={{ position: 'absolute' }}
-                >
-                  <div className="flex items-center justify-between px-3 py-2 border-b border-zinc-900/10 dark:border-white/10">
-                    <span className="text-[11px] font-black text-zinc-400 dark:text-zinc-400 uppercase tracking-wider">
-                      Categorias
-                    </span>
-                    {selectedCategoryFilter && (
-                      <button
-                        onClick={() => {
-                          setSelectedCategoryFilter(null);
-                          setIsCategoryCardOpen(false);
-                        }}
-                        className="text-[11px] font-black text-zinc-700 dark:text-white hover:underline cursor-pointer flex items-center gap-1"
-                      >
-                        <RotateCcw className="w-3 h-3" />
-                        Limpar
-                      </button>
-                    )}
-                  </div>
-
-                  {[
-                    { id: 'hotels', label: 'Hotéis e Pousadas', image: '/hotel.png' },
-                    { id: 'restaurants', label: 'Restaurantes', image: '/restaurante.png' },
-                    { id: 'cafes', label: 'Cafés', image: '/cafe.png' },
-                    { id: 'sweets', label: 'Chocolates & Doces', image: '/doce.png' },
-                    { id: 'attractions', label: 'Atrações & Parques', image: '/atracoes.png' },
-                    { id: 'pharmacies', label: 'Farmácias', image: '/medicacao.png' },
-                  ].map((cat) => {
-                    const CategoryIcon = 'icon' in cat ? (cat.icon as React.ComponentType<{ className?: string }>) : null;
-                    const isSelected = selectedCategoryFilter === cat.id;
-
-                    return (
-                      <button
-                        key={cat.id}
-                        onClick={() => {
-                          setSelectedCategoryFilter(isSelected ? null : cat.id);
-                          setIsCategoryCardOpen(false);
-                        }}
-                        className={`w-full px-3 py-2.5 rounded-2xl active:scale-[0.98] text-xs font-black flex items-center justify-between gap-2.5 transition-all text-left cursor-pointer group ${
-                          isSelected
-                            ? 'bg-white/20 text-zinc-950 dark:text-white font-extrabold'
-                            : 'hover:bg-zinc-900/5 dark:hover:bg-white/10 text-zinc-800 dark:text-zinc-200'
-                        }`}
-                      >
-                        <div className="flex items-center gap-2.5 min-w-0">
-                          {'image' in cat && cat.image ? (
-                            <div className="w-10.5 h-10.5 shrink-0 flex items-center justify-center group-hover:scale-110 transition-transform">
-                              <img
-                                src={cat.image}
-                                alt={cat.label}
-                                className="w-full h-full object-contain select-none"
-                                onError={(e) => {
-                                  const target = e.currentTarget;
-                                  if (!target.src.endsWith('.png.png') && target.src.endsWith('.png')) {
-                                    target.src = target.src + '.png';
-                                  }
-                                }}
-                              />
-                            </div>
-                          ) : (
-                            <div className={`w-10.5 h-10.5 rounded-xl flex items-center justify-center shrink-0 group-hover:scale-105 transition-transform ${
-                              isSelected
-                                ? 'bg-white text-zinc-950 shadow-sm'
-                                : 'bg-zinc-900/5 dark:bg-white/10 text-zinc-700 dark:text-white'
-                            }`}>
-                              {CategoryIcon && <CategoryIcon className="w-4 h-4 stroke-[2]" />}
-                            </div>
-                          )}
-                          <span className="truncate">{cat.label}</span>
-                        </div>
-                        {isSelected && (
-                          <Check className="w-4 h-4 text-zinc-950 dark:text-white shrink-0 stroke-[2.5]" />
-                        )}
-                      </button>
-                    );
-                  })}
-                </motion.div>
-              )}
-            </AnimatePresence>
           </div>
         </div>
       </header>
       )}
 
-      {/* Fullscreen Blur Backdrop for Filters & Search (Smooth iOS symmetric fade) */}
-      <AnimatePresence>
-        {isBlurActive && (
-          <motion.div
-            id="global-blur-backdrop"
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            transition={{ duration: 0.22, ease: [0.32, 0.72, 0, 1] }}
-            className="fixed inset-0 z-[55] bg-black/25 dark:bg-black/55 backdrop-blur-md cursor-pointer pointer-events-auto"
-            onClick={() => {
-              setIsCategoryCardOpen(false);
-              setIsSearchOpen(false);
-            }}
-          />
-        )}
-      </AnimatePresence>
-
-      {/* Floating Search Bar and Results (Opened by circular search button, floats prominently above blur) */}
-      <AnimatePresence>
-        {isSearchOpen && (
-          <motion.div
-            initial={{ opacity: 0, y: -10, scale: 0.98 }}
-            animate={{ opacity: 1, y: 0, scale: 1 }}
-            exit={{ opacity: 0, y: -10, scale: 0.98 }}
-            transition={{ type: 'spring', stiffness: 500, damping: 30 }}
-            className="fixed left-1/2 -translate-x-1/2 z-[60] w-[94%] max-w-md pointer-events-auto flex flex-col"
-            style={{
-              top: 'max(calc(env(safe-area-inset-top, 0px) + 76px), 88px)',
-            }}
-          >
-            {/* Search Input Bar */}
-            <div className="flex items-center gap-2.5 px-4 py-2.5 rounded-full ios-glass shadow-[0_12px_36px_rgba(0,0,0,0.25)] dark:shadow-[0_16px_40px_rgba(0,0,0,0.7)] border border-white/30 dark:border-white/15 transition-all">
-              <Search className="w-4 h-4 text-zinc-400 dark:text-zinc-400 shrink-0" />
-              <input
-                autoFocus
-                type="text"
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                placeholder={isListening ? 'Ouvindo... Fale o local' : 'O que você quer encontrar?'}
-                className="w-full bg-transparent border-none outline-none text-sm text-zinc-900 dark:text-white placeholder-zinc-400 dark:placeholder-zinc-500 font-bold"
-              />
-              {searchQuery && (
-                <button
-                  onClick={() => setSearchQuery('')}
-                  className="p-1 rounded-full hover:bg-zinc-200/60 dark:hover:bg-white/10 text-zinc-400 hover:text-zinc-700 dark:hover:text-white transition-colors cursor-pointer"
-                  title="Limpar pesquisa"
-                >
-                  <X className="w-4 h-4" />
-                </button>
-              )}
-              <button
-                onClick={handleVoiceSearch}
-                className={`p-1.5 rounded-full transition-all cursor-pointer ${
-                  isListening
-                    ? 'bg-rose-500 text-white animate-pulse shadow-lg'
-                    : 'bg-zinc-100 dark:bg-white/10 hover:bg-zinc-200 dark:hover:bg-white/20 text-zinc-700 dark:text-zinc-200'
-                }`}
-                title="Pesquisar por voz"
-              >
-                <Mic className="w-3.5 h-3.5" />
-              </button>
-              <button
-                onClick={() => {
-                  setIsSearchOpen(false);
-                  setSearchQuery('');
-                }}
-                className="ml-1 px-2.5 py-1 rounded-full bg-zinc-900/5 dark:bg-white/10 hover:bg-zinc-900/10 dark:hover:bg-white/20 text-[11px] font-bold text-zinc-600 dark:text-zinc-300 transition-colors cursor-pointer shrink-0"
-              >
-                Fechar
-              </button>
-            </div>
-
-            {/* Results appearing underneath the search bar */}
-            <div className="mt-2.5 w-full max-h-[56vh] overflow-y-auto scrollbar-none rounded-[26px] ios-glass p-2 shadow-[0_20px_50px_rgba(0,0,0,0.3)] dark:shadow-[0_25px_60px_rgba(0,0,0,0.85)] border border-white/25 dark:border-white/15 flex flex-col gap-1">
-              <div className="px-3 pt-2 pb-2 text-[11px] font-bold text-zinc-400 dark:text-zinc-400 uppercase tracking-wider border-b border-zinc-200/50 dark:border-white/5">
-                <span>{searchQuery.trim() ? `Locais encontrados (${searchResults.length})` : 'Sugestões em destaque'}</span>
-              </div>
-
-              {searchResults.length > 0 ? (
-                <div className="flex flex-col gap-1 pt-1">
-                  {searchResults.map((spot) => (
-                    <button
-                      key={spot.id}
-                      onClick={() => {
-                        handleSelectSpot(spot);
-                        setIsSearchOpen(false);
-                      }}
-                      className="w-full flex items-center gap-3 p-2.5 rounded-2xl hover:bg-zinc-900/5 dark:hover:bg-white/5 active:scale-[0.98] transition-all text-left cursor-pointer group"
-                    >
-                      <img
-                        src={getSpotImage(spot)}
-                        alt={spot.name}
-                        className="w-12 h-12 rounded-xl object-cover shrink-0 border border-black/5 dark:border-white/10 shadow-xs group-hover:scale-105 transition-transform"
-                        referrerPolicy="no-referrer"
-                        loading="lazy"
-                        onError={(e) => {
-                          (e.target as HTMLImageElement).src = getSpotFallbackImage(spot.name, spot.category);
-                        }}
-                      />
-                      <div className="flex-1 min-w-0">
-                        {/* Name row: Name followed by verified badge + Rating */}
-                        <div className="flex items-center gap-1.5 mb-0.5 min-w-0">
-                          <span className="text-[13.5px] font-bold text-zinc-900 dark:text-white truncate">
-                            {spot.name}
-                          </span>
-                          <VerifiedBadge className="w-3.5 h-3.5 shrink-0" />
-                          {spot.rating && (
-                            <div className="flex items-center gap-0.5 px-1.5 py-0.5 rounded-md bg-amber-500/15 text-amber-600 dark:text-amber-400 text-[10px] font-black shrink-0 ml-auto">
-                              <Star className="w-2.5 h-2.5 fill-current" />
-                              <span>{spot.rating.toFixed(1)}</span>
-                            </div>
-                          )}
-                        </div>
-                        {/* Subtitle row: Category • Address - NO BLUE, clean, single line, aligned */}
-                        <div className="flex items-center gap-1.5 text-xs text-zinc-500 dark:text-zinc-400 min-w-0">
-                          <span className="font-semibold text-zinc-700 dark:text-zinc-300 truncate max-w-[130px] sm:max-w-none">
-                            {spot.categoryLabel}
-                          </span>
-                          <span className="text-zinc-300 dark:text-zinc-600 shrink-0">•</span>
-                          <span className="truncate text-zinc-400 dark:text-zinc-500">
-                            {spot.address || 'Campos do Jordão'}
-                          </span>
-                        </div>
-                      </div>
-                      <ChevronRight className="w-4 h-4 text-zinc-400 dark:text-zinc-500 group-hover:text-zinc-900 dark:group-hover:text-white group-hover:translate-x-0.5 transition-all shrink-0 ml-0.5" />
-                    </button>
-                  ))}
-                </div>
-              ) : (
-                <div className="py-7 px-4 text-center flex flex-col items-center justify-center">
-                  <div className="w-10 h-10 rounded-full bg-zinc-500/10 flex items-center justify-center text-zinc-400 mb-2">
-                    <MapPin className="w-5 h-5" />
-                  </div>
-                  <p className="text-sm font-bold text-zinc-800 dark:text-zinc-200">
-                    Nenhum local encontrado
-                  </p>
-                  <p className="text-xs text-zinc-500 dark:text-zinc-400 mt-1 max-w-[260px]">
-                    Não encontramos resultados para "{searchQuery}". Tente pesquisar por hotéis, restaurantes ou atrações.
-                  </p>
-                </div>
-              )}
-            </div>
-          </motion.div>
-        )}
-      </AnimatePresence>
-
-      {/* 4. Bottom Floating Navigation Pill moved to root level */}
+      {/* 4. Bottom Floating Navigation Pill and Global Blur Overlays rendered at root level */}
 
       {/* 5. Mini Banner Preview (occupies the space freed by the retracted search bar when a spot is opened) */}
       <AnimatePresence>
@@ -1485,6 +1502,7 @@ export default function App() {
             theme={theme}
             onClose={() => {
               setSelectedSpot(null);
+              setRevertSpotZoomTrigger((prev) => prev + 1);
             }}
             onOpenDetails={(spot) => {
               setSelectedSpot(spot);
@@ -1500,7 +1518,11 @@ export default function App() {
           <SpotDetailSheet
             key={`spot-detail-${selectedSpot.id}`}
             spot={selectedSpot}
-            onClose={() => setIsDetailOpen(false)}
+            onClose={() => {
+              setIsDetailOpen(false);
+              setSelectedSpot(null);
+              setRevertSpotZoomTrigger((prev) => prev + 1);
+            }}
             onNavigateTo={(spot) => {
               setSelectedSpot(spot);
               setIsDetailOpen(false);
@@ -1527,15 +1549,27 @@ export default function App() {
       />
 
       {/* 8.5. Itineraries & Route Planning (Tab: 'roteiros') */}
-      <AnimatePresence mode="wait">
+      <AnimatePresence>
         {activeTab === 'roteiros' && (
-          <ItinerariesView
-            key="itineraries-view"
-            isOpen={true}
-            onClose={() => setActiveTab('explorar')}
-            theme={theme}
-            spots={spots}
-          />
+          <motion.div
+            key="itineraries-view-reveal-wrapper"
+            initial={false}
+            animate={
+              isSignupRevealActive
+                ? { opacity: 0, scale: 0.99 }
+                : { opacity: 1, scale: 1 }
+            }
+            transition={{ duration: 0.5, ease: [0.22, 1, 0.36, 1] }}
+            className={`fixed inset-0 z-40 ${isSignupRevealActive ? 'pointer-events-none' : ''}`}
+          >
+            <ItinerariesView
+              key="itineraries-view"
+              isOpen={true}
+              onClose={() => setActiveTab('explorar')}
+              theme={theme}
+              spots={spots}
+            />
+          </motion.div>
         )}
       </AnimatePresence>
 
@@ -1575,6 +1609,8 @@ export default function App() {
           />
         )}
       </AnimatePresence>
+
+
 
       {/* 10. Profile & Favorites (Tab: 'perfil') */}
       <ProfileModal
@@ -1774,6 +1810,287 @@ export default function App() {
         />
       </div>
     )}
+
+    {/* 4.5. Root-Level Fullscreen Blur Backdrop for Filters & Search (Covers map, header icons, and BottomNavigation) */}
+    <AnimatePresence>
+      {isBlurActive && (
+        <motion.div
+          id="global-blur-backdrop"
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          exit={{ opacity: 0 }}
+          transition={{ duration: 0.2, ease: [0.22, 1, 0.36, 1] }}
+          className="fixed inset-0 z-[60] bg-black/25 dark:bg-black/55 backdrop-blur-md cursor-pointer pointer-events-auto"
+          style={{ WebkitBackdropFilter: 'blur(12px)' }}
+          onClick={() => {
+            setIsCategoryCardOpen(false);
+            setIsSearchOpen(false);
+          }}
+        />
+      )}
+    </AnimatePresence>
+
+    {/* 4.6. Small Category Card / Dropdown (Floats crisply above global blur backdrop) */}
+    <AnimatePresence>
+      {isCategoryCardOpen && !isMapOrbiting && (
+        <motion.div
+          initial={{ opacity: 0, scale: 0.94, y: -6 }}
+          animate={{ opacity: 1, scale: 1, y: 0 }}
+          exit={{ opacity: 0, scale: 0.94, y: -6 }}
+          transition={{ type: 'spring', damping: 25, stiffness: 420 }}
+          className="md:hidden fixed right-4 sm:right-6 w-64 p-2.5 rounded-[26px] ios-glass z-[70] space-y-1 shadow-[0_20px_50px_rgba(0,0,0,0.25)] dark:shadow-[0_25px_60px_rgba(0,0,0,0.85)] pointer-events-auto"
+          style={{
+            top: 'max(calc(env(safe-area-inset-top, 0px) + 74px), 86px)',
+          }}
+        >
+          <div className="flex items-center justify-between px-3 py-2 border-b border-zinc-900/10 dark:border-white/10">
+            <span className="text-[11px] font-black text-zinc-400 dark:text-zinc-400 uppercase tracking-wider">
+              Categorias
+            </span>
+            {selectedCategoryFilter && (
+              <button
+                onClick={() => {
+                  setSelectedCategoryFilter(null);
+                  setIsCategoryCardOpen(false);
+                }}
+                className="text-[11px] font-black text-zinc-700 dark:text-white hover:underline cursor-pointer flex items-center gap-1"
+              >
+                <RotateCcw className="w-3 h-3" />
+                Limpar
+              </button>
+            )}
+          </div>
+
+          {[
+            { id: 'hotels', label: 'Hotéis e Pousadas', image: '/hotel.png' },
+            { id: 'restaurants', label: 'Restaurantes', image: '/restaurante.png' },
+            { id: 'cafes', label: 'Cafés', image: '/cafe.png' },
+            { id: 'sweets', label: 'Chocolates & Doces', image: '/doce.png' },
+            { id: 'attractions', label: 'Atrações & Parques', image: '/atracoes.png' },
+            { id: 'pharmacies', label: 'Farmácias', image: '/medicacao.png' },
+          ].map((cat) => {
+            const CategoryIcon = 'icon' in cat ? (cat.icon as React.ComponentType<{ className?: string }>) : null;
+            const isSelected = selectedCategoryFilter === cat.id;
+
+            return (
+              <button
+                key={cat.id}
+                onClick={() => {
+                  setSelectedCategoryFilter(isSelected ? null : cat.id);
+                  setIsCategoryCardOpen(false);
+                }}
+                className={`w-full px-3 py-2.5 rounded-2xl active:scale-[0.98] text-xs font-black flex items-center justify-between gap-2.5 transition-all text-left cursor-pointer group ${
+                  isSelected
+                    ? 'bg-white/20 text-zinc-950 dark:text-white font-extrabold'
+                    : 'hover:bg-zinc-900/5 dark:hover:bg-white/10 text-zinc-800 dark:text-zinc-200'
+                }`}
+              >
+                <div className="flex items-center gap-2.5 min-w-0">
+                  {'image' in cat && cat.image ? (
+                    <div className="w-10.5 h-10.5 shrink-0 flex items-center justify-center group-hover:scale-110 transition-transform">
+                      <img
+                        src={cat.image}
+                        alt={cat.label}
+                        className="w-full h-full object-contain select-none"
+                        onError={(e) => {
+                          const target = e.currentTarget;
+                          if (!target.src.endsWith('.png.png') && target.src.endsWith('.png')) {
+                            target.src = target.src + '.png';
+                          }
+                        }}
+                      />
+                    </div>
+                  ) : (
+                    <div className={`w-10.5 h-10.5 rounded-xl flex items-center justify-center shrink-0 group-hover:scale-105 transition-transform ${
+                      isSelected
+                        ? 'bg-white text-zinc-950 shadow-sm'
+                        : 'bg-zinc-900/5 dark:bg-white/10 text-zinc-700 dark:text-white'
+                    }`}>
+                      {CategoryIcon && <CategoryIcon className="w-4 h-4 stroke-[2]" />}
+                    </div>
+                  )}
+                  <span className="truncate">{cat.label}</span>
+                </div>
+                {isSelected && (
+                  <Check className="w-4 h-4 text-zinc-950 dark:text-white shrink-0 stroke-[2.5]" />
+                )}
+              </button>
+            );
+          })}
+        </motion.div>
+      )}
+    </AnimatePresence>
+
+    {/* 4.7. Floating Search Bar and Results (Floats prominently above blur) */}
+    <AnimatePresence>
+      {isSearchOpen && (
+        <motion.div
+          initial={{ opacity: 0, y: -10, scale: 0.98 }}
+          animate={{ opacity: 1, y: 0, scale: 1 }}
+          exit={{ opacity: 0, y: -10, scale: 0.98 }}
+          transition={{ type: 'spring', stiffness: 500, damping: 30 }}
+          className="fixed left-1/2 -translate-x-1/2 z-[70] w-[94%] max-w-md pointer-events-auto flex flex-col"
+          style={{
+            top: 'max(calc(env(safe-area-inset-top, 0px) + 76px), 88px)',
+          }}
+        >
+          {/* Search Input Bar (WhatsApp iOS style) */}
+          <div className="flex items-center gap-2 h-[42px] px-3.5 rounded-full bg-[#f0f2f5] dark:bg-[#202124] shadow-[0_4px_16px_rgba(0,0,0,0.1)] dark:shadow-[0_8px_24px_rgba(0,0,0,0.5)] transition-all">
+            <Search className="w-[18px] h-[18px] text-[#8696a0] dark:text-[#8e8e93] shrink-0 mr-1 stroke-[2]" />
+            <input
+              autoFocus
+              type="text"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              placeholder={isListening ? 'Ouvindo... Fale o local' : 'Buscar locais ou atrações...'}
+              className="w-full bg-transparent border-none outline-none text-[15px] font-normal text-[#111b21] dark:text-white placeholder-[#8696a0] dark:placeholder-[#8e8e93]"
+            />
+            {searchQuery && (
+              <button
+                onClick={() => setSearchQuery('')}
+                className="w-4 h-4 rounded-full bg-[#8696a0]/30 hover:bg-[#8696a0]/50 text-[#111b21] dark:text-white flex items-center justify-center transition-colors cursor-pointer"
+                title="Limpar pesquisa"
+              >
+                <X className="w-2.5 h-2.5 stroke-[2.5]" />
+              </button>
+            )}
+            <button
+              onClick={handleVoiceSearch}
+              className={`p-1.5 rounded-full transition-all cursor-pointer ${
+                isListening
+                  ? 'bg-rose-500 text-white animate-pulse'
+                  : 'text-[#8696a0] dark:text-[#8e8e93] hover:text-[#111b21] dark:hover:text-white'
+              }`}
+              title="Pesquisar por voz"
+            >
+              <Mic className="w-4 h-4" />
+            </button>
+            <button
+              onClick={() => {
+                setIsSearchOpen(false);
+                setSearchQuery('');
+              }}
+              className="ml-1 px-2.5 py-1 rounded-full bg-black/5 dark:bg-white/10 hover:bg-black/10 dark:hover:bg-white/20 text-[12px] font-medium text-zinc-600 dark:text-zinc-300 transition-colors cursor-pointer shrink-0"
+            >
+              Fechar
+            </button>
+          </div>
+
+          {/* Results appearing underneath the search bar */}
+          <div className="mt-2.5 w-full max-h-[56vh] overflow-y-auto scrollbar-none rounded-[26px] ios-glass p-2 shadow-[0_20px_50px_rgba(0,0,0,0.3)] dark:shadow-[0_25px_60px_rgba(0,0,0,0.85)] border border-white/25 dark:border-white/15 flex flex-col gap-1">
+            <div className="px-3 pt-2 pb-2 text-[11px] font-bold text-zinc-400 dark:text-zinc-400 uppercase tracking-wider border-b border-zinc-200/50 dark:border-white/5">
+              <span>{searchQuery.trim() ? `Locais encontrados (${searchResults.length})` : 'Sugestões em destaque'}</span>
+            </div>
+
+            {searchResults.length > 0 ? (
+              <div className="flex flex-col gap-1 pt-1">
+                {searchResults.map((spot) => (
+                  <button
+                    key={spot.id}
+                    onClick={() => {
+                      handleSelectSpot(spot);
+                      setIsSearchOpen(false);
+                    }}
+                    className="w-full flex items-center gap-3 p-2.5 rounded-2xl hover:bg-zinc-900/5 dark:hover:bg-white/5 active:scale-[0.98] transition-all text-left cursor-pointer group"
+                  >
+                    <img
+                      src={getSpotImage(spot)}
+                      alt={spot.name}
+                      className="w-12 h-12 rounded-xl object-cover shrink-0 border border-black/5 dark:border-white/10 shadow-xs group-hover:scale-105 transition-transform"
+                      referrerPolicy="no-referrer"
+                      loading="lazy"
+                      onError={(e) => {
+                        (e.target as HTMLImageElement).src = getSpotFallbackImage(spot.name, spot.category);
+                      }}
+                    />
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-1.5 mb-0.5 min-w-0">
+                        <span className="text-[13.5px] font-bold text-zinc-900 dark:text-white truncate">
+                          {spot.name}
+                        </span>
+                        <VerifiedBadge className="w-3.5 h-3.5 shrink-0" />
+                        {spot.rating && (
+                          <div className="flex items-center gap-0.5 px-1.5 py-0.5 rounded-md bg-amber-500/15 text-amber-600 dark:text-amber-400 text-[10px] font-black shrink-0 ml-auto">
+                            <Star className="w-2.5 h-2.5 fill-current" />
+                            <span>{spot.rating.toFixed(1)}</span>
+                          </div>
+                        )}
+                      </div>
+                      <div className="flex items-center gap-1.5 text-xs text-zinc-500 dark:text-zinc-400 min-w-0">
+                        <span className="font-semibold text-zinc-700 dark:text-zinc-300 truncate max-w-[130px] sm:max-w-none">
+                          {spot.categoryLabel}
+                        </span>
+                        <span className="text-zinc-300 dark:text-zinc-600 shrink-0">•</span>
+                        <span className="truncate text-zinc-400 dark:text-zinc-500">
+                          {spot.address || 'Campos do Jordão'}
+                        </span>
+                      </div>
+                    </div>
+                    <ChevronRight className="w-4 h-4 text-zinc-400 dark:text-zinc-500 group-hover:text-zinc-900 dark:group-hover:text-white group-hover:translate-x-0.5 transition-all shrink-0 ml-0.5" />
+                  </button>
+                ))}
+              </div>
+            ) : (
+              <div className="py-7 px-4 text-center flex flex-col items-center justify-center">
+                <div className="w-10 h-10 rounded-full bg-zinc-500/10 flex items-center justify-center text-zinc-400 mb-2">
+                  <MapPin className="w-5 h-5" />
+                </div>
+                <p className="text-sm font-bold text-zinc-800 dark:text-zinc-200">
+                  Nenhum local encontrado
+                </p>
+                <p className="text-xs text-zinc-500 dark:text-zinc-400 mt-1 max-w-[260px]">
+                  Não encontramos resultados para "{searchQuery}". Tente pesquisar por hotéis, restaurantes ou atrações.
+                </p>
+              </div>
+            )}
+          </div>
+        </motion.div>
+      )}
+    </AnimatePresence>
+
+    {/* 5. Post-Signup Translucent Intro Overlay ("Vamos começar..." / "Escolha seu roteiro preferido...") */}
+    <AnimatePresence>
+      {isSignupRevealActive && (
+        <motion.div
+          key="signup-roteiros-depth-veil"
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          exit={{
+            opacity: 0,
+            backdropFilter: 'blur(0px)',
+            transition: { duration: 0.55, ease: [0.22, 1, 0.36, 1] },
+          }}
+          transition={{ duration: 0.25, ease: [0.22, 1, 0.36, 1] }}
+          onClick={() => setIsSignupRevealActive(false)}
+          style={{
+            WebkitBackdropFilter: 'blur(28px)',
+            fontFamily: "'Inter', -apple-system, BlinkMacSystemFont, sans-serif",
+          }}
+          className="fixed inset-0 z-[220] bg-black/70 backdrop-blur-2xl flex flex-col items-center justify-center px-6 text-center select-none"
+        >
+          <motion.div
+            initial={{ opacity: 0, y: 10, scale: 0.98, filter: 'blur(4px)' }}
+            animate={{ opacity: 1, y: 0, scale: 1, filter: 'blur(0px)' }}
+            exit={{
+              opacity: 0,
+              y: -8,
+              scale: 0.985,
+              filter: 'blur(6px)',
+              transition: { duration: 0.45, ease: [0.22, 1, 0.36, 1] },
+            }}
+            transition={{ duration: 0.35, ease: [0.22, 1, 0.36, 1] }}
+            className="flex flex-col items-center max-w-sm mx-auto space-y-2.5"
+          >
+            <h2 className="text-[28px] sm:text-[32px] font-bold tracking-tight text-white leading-tight">
+              Vamos começar...
+            </h2>
+            <p className="text-[16px] sm:text-[18px] font-normal tracking-tight text-zinc-300 leading-snug">
+              Escolha seu roteiro preferido...
+            </p>
+          </motion.div>
+        </motion.div>
+      )}
+    </AnimatePresence>
   </motion.div>
   )}
   </AnimatePresence>

@@ -216,35 +216,34 @@ const getMapStyle = (
     };
   }
 
-  // Dark mode fallback (without Mapbox token): Clean dark slate map using OSM tiles
+  // Dark mode fallback (without Mapbox token): CartoDB Dark Matter high-DPI tiles
   return {
     version: 8,
     projection: { type: 'globe' } as any,
     sources: {
-      'osm-base': {
+      'carto-dark': {
         type: 'raster',
         tiles: [
-          'https://a.tile.openstreetmap.org/{z}/{x}/{y}.png',
-          'https://b.tile.openstreetmap.org/{z}/{x}/{y}.png',
-          'https://c.tile.openstreetmap.org/{z}/{x}/{y}.png',
+          'https://a.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}@2x.png',
+          'https://b.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}@2x.png',
+          'https://c.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}@2x.png',
         ],
         tileSize: 256,
-        attribution: '&copy; OpenStreetMap contributors',
+        attribution: '&copy; OpenStreetMap contributors &copy; CARTO',
       },
     },
     layers: [
       {
-        id: 'osm-base-layer',
+        id: 'carto-dark-layer',
         type: 'raster',
-        source: 'osm-base',
+        source: 'carto-dark',
         minzoom: 0,
         maxzoom: 20,
         paint: {
-          'raster-contrast': 0.35,
-          'raster-brightness-min': 0.05,
-          'raster-brightness-max': 0.3,
-          'raster-saturation': -0.95,
-          'raster-hue-rotate': 180,
+          'raster-contrast': 0.05,
+          'raster-brightness-min': 0.0,
+          'raster-brightness-max': 1.0,
+          'raster-saturation': 0.0,
         },
       },
     ],
@@ -266,16 +265,10 @@ interface SwipeableStopCardProps {
 
 const OPEN_OFFSET_LEFT = -84;
 const getShortDisplayTitle = (title: string): string => {
-  if (!title) return 'Roteiro';
+  if (!title) return 'Meu Roteiro';
   const cleaned = title.replace(/\s*\([^)]*\)/g, '').trim();
-  const words = cleaned.split(/\s+/);
-  if (words.length >= 2 && words[0].toLowerCase() === 'roteiro') {
-    return words[1];
-  }
-  if (words.length >= 2) {
-    return words[1];
-  }
-  return words[0] || cleaned;
+  if (cleaned.length <= 22) return cleaned;
+  return cleaned.slice(0, 20).trim() + '...';
 };
 const SPRING_IOS = { type: 'spring' as const, stiffness: 440, damping: 36, mass: 0.8 };
 const SPRING_LAYOUT = { type: 'spring' as const, stiffness: 520, damping: 38, mass: 0.6 };
@@ -426,13 +419,17 @@ const SwipeableStopCard: React.FC<SwipeableStopCardProps> = ({
         role="button"
         aria-label={`Local ${idx + 1}: ${spot?.name || 'Local'}. Deslize para a esquerda para excluir.`}
         className={`relative z-10 py-2.5 px-4 rounded-3xl flex items-center justify-between gap-3 cursor-pointer transition-all border ${
-          isSelected
+          isDark
+            ? isSelected
+              ? 'border-white/40 ring-1 ring-white/20 shadow-sm'
+              : 'border-white/10 hover:border-white/30'
+            : isSelected
             ? 'border-zinc-300 ring-2 ring-black/10 shadow-sm'
             : 'border-zinc-200/80 hover:border-zinc-300 shadow-2xs'
         }`}
         style={{
-          backgroundColor: '#fbfbfb',
-          color: '#000000',
+          backgroundColor: isDark ? '#1C1C1E' : '#FFFFFF',
+          color: isDark ? '#FFFFFF' : '#000000',
         }}
       >
         {/* Left: Stop Number + Compact Thumbnail */}
@@ -443,14 +440,16 @@ const SwipeableStopCard: React.FC<SwipeableStopCardProps> = ({
                 isSelected
                   ? isPremium
                     ? 'bg-metallic-gold text-[#1A1202] shadow-md shadow-[#E5AC33]/40'
-                    : 'bg-white text-black shadow-md shadow-white/20 ring-2 ring-white scale-105'
+                    : isDark
+                    ? 'bg-white text-black shadow-md'
+                    : 'bg-black text-white shadow-md'
                   : isDark
                   ? isPremium
                     ? 'bg-zinc-800 text-[#F5BE38] dark:text-[#FDE073] border border-[#E5AC33]/45'
                     : 'bg-white text-black border border-white/40'
                   : isPremium
                   ? 'bg-white/30 text-[#B88214] border border-[#E5AC33]/55'
-                  : 'bg-white text-black border border-white shadow-2xs'
+                  : 'bg-black text-white border border-black shadow-2xs'
               }`}
             >
               {String(idx + 1).padStart(2, '0')}
@@ -459,6 +458,15 @@ const SwipeableStopCard: React.FC<SwipeableStopCardProps> = ({
 
           {spot && (
             <div
+              style={{
+                overflow: 'clip',
+                clipPath: 'inset(0 round 16px)',
+                WebkitClipPath: 'inset(0 round 16px)',
+                WebkitMaskImage: '-webkit-radial-gradient(white, black)',
+                isolation: 'isolate',
+                transform: 'translateZ(0)',
+                WebkitTransform: 'translateZ(0)',
+              }}
               className="w-12 h-12 sm:w-13 sm:h-13 rounded-[16px] overflow-hidden shrink-0 bg-zinc-800 relative select-none self-center hover:opacity-90 active:scale-98 transition-all"
             >
               <LazyImage
@@ -496,8 +504,10 @@ const SwipeableStopCard: React.FC<SwipeableStopCardProps> = ({
             </div>
 
             <h4
-              className="text-[14px] sm:text-[15px] font-black uppercase truncate leading-tight my-1 text-black"
-              style={{ color: '#000000' }}
+              className={`text-[14px] sm:text-[15px] font-black uppercase truncate leading-tight my-1 ${
+                isDark ? 'text-white' : 'text-black'
+              }`}
+              style={{ color: isDark ? '#FFFFFF' : '#000000' }}
             >
               {spot?.shortName || spot?.name || `Ponto ${idx + 1}`}
             </h4>
@@ -643,26 +653,8 @@ export const ItinerariesView: React.FC<ItinerariesViewProps> = ({
   // Selected day index for multi-day itineraries
   const [selectedDayIndex, setSelectedDayIndex] = useState(0);
 
-  // Active view mode: 'explore' (Airbnb Exploration Screen) or 'map' (Interactive Map)
-  // Se a pessoa já tiver um roteiro escolhido/salvo, mantém o roteiro carregado na tela ('map') até ela clicar em loja de roteiros
-  const [itineraryViewMode, setItineraryViewMode] = useState<'explore' | 'map'>(() => {
-    try {
-      const cached = localStorage.getItem('monvian_active_itinerary');
-      if (cached) {
-        const parsed = JSON.parse(cached);
-        if (
-          parsed &&
-          (parsed.id || parsed.title) &&
-          Array.isArray(parsed.days) &&
-          parsed.days.length > 0 &&
-          parsed.days.some((d: any) => Array.isArray(d.steps) && d.steps.length > 0)
-        ) {
-          return 'map';
-        }
-      }
-    } catch (e) {}
-    return 'explore';
-  });
+  // Active view mode: 'explore' (Roteiros Discovery Screen) or 'map' (Interactive Map)
+  const [itineraryViewMode, setItineraryViewMode] = useState<'explore' | 'map'>('explore');
 
   // Loja de Roteiros Premium Modal state
   const [isStoreOpen, setIsStoreOpen] = useState(false);
@@ -790,103 +782,87 @@ export const ItinerariesView: React.FC<ItinerariesViewProps> = ({
   };
 
   const handleApplyStoreItinerary = async (storeItin: Itinerary) => {
-    let appliedItinerary: Itinerary | null = null;
-
-    try {
-      const res = await fetch(`/api/itineraries/${storeItin.id}/clone-to-user`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'x-session-id': sessionId
-        },
-        body: JSON.stringify({ sessionId, itinerary: storeItin })
-      });
-      const data = await res.json();
-      if (data.success && data.userItinerary) {
-        appliedItinerary = data.userItinerary;
-      }
-    } catch (e) {
-      console.warn('Backend clone notice, applying client fallback:', e);
-    }
-
-    // Instant client-side fallback if backend route was unavailable or returned non-success
-    if (!appliedItinerary) {
-      const userItinId = 'user-itin-' + Date.now();
-      const availableSpots = spots || CAMPOS_SPOTS;
-      const clonedDays = (storeItin.days || []).map((d, dIdx) => ({
-        id: `${userItinId}-d-${dIdx + 1}`,
-        itineraryId: userItinId,
-        dayNumber: d.dayNumber || dIdx + 1,
-        title: d.title || `Dia ${dIdx + 1}`,
-        summary: d.summary || '',
-        steps: (d.steps || []).map((s, sIdx) => {
-          const foundSpot = s.spot || availableSpots.find((sp) => sp.id === s.spotId);
-          return {
-            ...s,
-            id: `${userItinId}-d-${dIdx + 1}-s-${sIdx + 1}`,
-            itineraryId: userItinId,
-            dayId: `${userItinId}-d-${dIdx + 1}`,
-            dayNumber: d.dayNumber || dIdx + 1,
-            stepOrder: sIdx + 1,
-            spot: foundSpot || s.spot
-          };
-        })
-      }));
-
-      const isStoreLivre = 
-        storeItin.id === 'roteiro-classico-2-dias' ||
-        storeItin.id?.startsWith('roteiro-classico') ||
-        storeItin.id === 'roteiro-bate-volta-essencial' ||
-        storeItin.badgeText?.toLowerCase() === 'livre' ||
-        storeItin.price === 'R$ 0' ||
-        storeItin.price === 'Grátis' ||
-        storeItin.isPremium === false;
-
-      appliedItinerary = {
-        ...storeItin,
-        id: userItinId,
-        days: clonedDays,
-        isPremium: isStoreLivre ? false : Boolean(storeItin.isPremium),
-        badgeText: isStoreLivre ? 'Livre' : (storeItin.badgeText || ''),
-      };
-    } else {
-      const isStoreLivre = 
-        storeItin.id === 'roteiro-classico-2-dias' ||
-        storeItin.id?.startsWith('roteiro-classico') ||
-        storeItin.id === 'roteiro-bate-volta-essencial' ||
-        storeItin.badgeText?.toLowerCase() === 'livre' ||
-        storeItin.price === 'R$ 0' ||
-        storeItin.price === 'Grátis' ||
-        appliedItinerary.isPremium === false;
-
-      if (isStoreLivre) {
-        appliedItinerary = {
-          ...appliedItinerary,
-          isPremium: false,
-          badgeText: 'Livre',
+    const userItinId = 'user-itin-' + Date.now();
+    const availableSpots = spots || CAMPOS_SPOTS;
+    const clonedDays = (storeItin.days || []).map((d, dIdx) => ({
+      id: `${userItinId}-d-${dIdx + 1}`,
+      itineraryId: userItinId,
+      dayNumber: d.dayNumber || dIdx + 1,
+      title: d.title || `Dia ${dIdx + 1}`,
+      summary: d.summary || '',
+      steps: (d.steps || []).map((s, sIdx) => {
+        const foundSpot = s.spot || availableSpots.find((sp) => sp.id === s.spotId);
+        return {
+          ...s,
+          id: `${userItinId}-d-${dIdx + 1}-s-${sIdx + 1}`,
+          itineraryId: userItinId,
+          dayId: `${userItinId}-d-${dIdx + 1}`,
+          dayNumber: d.dayNumber || dIdx + 1,
+          stepOrder: sIdx + 1,
+          spot: foundSpot || s.spot
         };
-      }
-    }
+      })
+    }));
 
+    const isStoreLivre = 
+      storeItin.id === 'roteiro-classico-2-dias' ||
+      storeItin.id?.startsWith('roteiro-classico') ||
+      storeItin.id === 'roteiro-bate-volta-essencial' ||
+      storeItin.badgeText?.toLowerCase() === 'livre' ||
+      storeItin.price === 'R$ 0' ||
+      storeItin.price === 'Grátis' ||
+      storeItin.isPremium === false;
+
+    const optimisticItinerary: Itinerary = {
+      ...storeItin,
+      id: userItinId,
+      days: clonedDays,
+      isPremium: isStoreLivre ? false : Boolean(storeItin.isPremium),
+      badgeText: isStoreLivre ? 'Livre' : (storeItin.badgeText || ''),
+    };
+
+    // 1. Update UI immediately (0ms perceived latency)
     userHasExplicitlyOpenedStoreRef.current = false;
     setIsStoreOpen(false);
     setIsExpanded(false);
     setSelectedDayIndex(0);
-    setUserItinerary(appliedItinerary);
+    setUserItinerary(optimisticItinerary);
 
     try {
-      localStorage.setItem('monvian_active_itinerary', JSON.stringify(appliedItinerary));
+      localStorage.setItem('monvian_active_itinerary', JSON.stringify(optimisticItinerary));
     } catch (e) {}
 
-    const firstStep = appliedItinerary.days?.[0]?.steps?.[0];
+    const firstStep = optimisticItinerary.days?.[0]?.steps?.[0];
     if (firstStep) {
       setSelectedStopId(firstStep.id);
     }
 
-    // Apple style feedback
     setStoreToast('Roteiro carregado com sucesso!');
     setTimeout(() => setStoreToast(null), 3000);
     setItineraryViewMode('map');
+
+    // 2. Sync to backend asynchronously in the background without blocking UI
+    fetch(`/api/itineraries/${storeItin.id}/clone-to-user`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-session-id': sessionId
+      },
+      body: JSON.stringify({ sessionId, itinerary: storeItin })
+    })
+      .then((res) => res.json())
+      .then((data) => {
+        if (data?.success && data?.userItinerary) {
+          const synced: Itinerary = isStoreLivre
+            ? { ...data.userItinerary, isPremium: false, badgeText: 'Livre' }
+            : data.userItinerary;
+          setUserItinerary(synced);
+          try {
+            localStorage.setItem('monvian_active_itinerary', JSON.stringify(synced));
+          } catch (e) {}
+        }
+      })
+      .catch(() => {});
   };
 
   // Notes Modal state & persistent trip notes
@@ -973,13 +949,10 @@ export const ItinerariesView: React.FC<ItinerariesViewProps> = ({
             setUserItinerary(enriched);
             localStorage.setItem('monvian_active_itinerary', JSON.stringify(enriched));
 
-            // Se o usuário possui um roteiro com locais e não abriu explicitamente a loja nesta sessão, mantém o roteiro carregado na tela ('map')
             if (
-              !userHasExplicitlyOpenedStoreRef.current &&
               enriched.days &&
               enriched.days.some((d: any) => Array.isArray(d.steps) && d.steps.length > 0)
             ) {
-              setItineraryViewMode('map');
               const firstStep = enriched.days?.[0]?.steps?.[0];
               if (firstStep?.id) {
                 setSelectedStopId((curr) => curr || firstStep.id);
@@ -1938,10 +1911,10 @@ export const ItinerariesView: React.FC<ItinerariesViewProps> = ({
   if (itineraryViewMode === 'explore') {
     return (
       <motion.div
-        initial={{ opacity: 0, scale: 0.98, y: 12 }}
-        animate={{ opacity: 1, scale: 1, y: 0 }}
-        exit={{ opacity: 0, scale: 0.98, y: 10 }}
-        transition={{ duration: 0.32, ease: [0.16, 1, 0.3, 1] }}
+        initial={{ opacity: 0, y: 6 }}
+        animate={{ opacity: 1, y: 0 }}
+        exit={{ opacity: 0, y: 4 }}
+        transition={{ duration: 0.18, ease: [0.22, 1, 0.36, 1] }}
         className={`fixed inset-0 md:left-[var(--desktop-sidebar-width,72px)] z-40 w-full md:w-auto h-full overflow-hidden rounded-t-[26px] md:rounded-none ios-page-top-rounded transition-[left] duration-200 ease-in-out ${isDark ? 'bg-[#000000]' : 'bg-white'} select-none`}
         style={{
           overflow: 'hidden',
@@ -1982,10 +1955,10 @@ export const ItinerariesView: React.FC<ItinerariesViewProps> = ({
   // -------------------------------------------------------------
   return (
     <motion.div
-      initial={{ opacity: 0, scale: 0.98, y: 12 }}
-      animate={{ opacity: 1, scale: 1, y: 0 }}
-      exit={{ opacity: 0, scale: 0.98, y: 10 }}
-      transition={{ duration: 0.32, ease: [0.16, 1, 0.3, 1] }}
+      initial={{ opacity: 0, y: 6 }}
+      animate={{ opacity: 1, y: 0 }}
+      exit={{ opacity: 0, y: 4 }}
+      transition={{ duration: 0.18, ease: [0.22, 1, 0.36, 1] }}
       className={`fixed inset-0 md:left-[var(--desktop-sidebar-width,72px)] ${isEditModalOpen || isStoreOpen ? 'z-[90]' : 'z-40'} w-full md:w-auto h-full overflow-hidden rounded-t-[26px] ios-page-top-rounded transition-[left] duration-200 ease-in-out ${isDark ? 'bg-black' : 'bg-white'} select-none`}
       style={{
         borderTopLeftRadius: '26px',
@@ -2028,28 +2001,38 @@ export const ItinerariesView: React.FC<ItinerariesViewProps> = ({
               setItineraryViewMode('explore');
             }}
             type="button"
-            className={`w-12 h-12 rounded-full flex items-center justify-center transition-transform active:scale-95 cursor-pointer shrink-0 bg-white dark:bg-zinc-900 border border-zinc-200/80 dark:border-white/15 ${
-              isDark ? 'text-white' : 'text-black'
+            className={`w-12 h-12 rounded-full flex items-center justify-center transition-transform active:scale-95 cursor-pointer shrink-0 border ${
+              isDark
+                ? 'bg-[#121214] border-white/10 text-white'
+                : 'bg-white border-zinc-200/80 text-black'
             } shadow-[0_2px_12px_rgba(0,0,0,0.06)]`}
+            style={{
+              backgroundColor: isDark ? '#121214' : '#FFFFFF',
+              color: isDark ? '#FFFFFF' : '#000000',
+            }}
             title="Loja de Roteiros"
             aria-label="Loja de Roteiros"
           >
             <ChevronLeft
-              className={`w-6 h-6 stroke-[2.2] ${isDark ? 'text-white' : 'text-black'}`}
-              style={{ color: isDark ? '#ffffff' : '#000000' }}
+              className="w-6 h-6 stroke-[2.2]"
+              style={{ color: isDark ? '#FFFFFF' : '#000000' }}
             />
           </button>
         </div>
 
-        {/* Dynamic Island Style Pill (Solid white surface) */}
+        {/* Dynamic Island Style Pill */}
         <div
-          className="h-12 px-4 sm:px-5 rounded-full pointer-events-auto flex items-center gap-2.5 sm:gap-3 text-xs sm:text-sm font-bold max-w-[calc(100vw-128px)] sm:max-w-none transition-all duration-200 bg-white dark:bg-zinc-900 border border-zinc-200/80 dark:border-white/15 text-zinc-900 dark:text-white shadow-[0_4px_20px_rgba(0,0,0,0.08)]"
+          className={`h-12 px-4 sm:px-5 rounded-full pointer-events-auto flex items-center gap-2.5 sm:gap-3 text-xs sm:text-sm font-bold max-w-[calc(100vw-128px)] sm:max-w-none transition-all duration-200 border shadow-[0_4px_20px_rgba(0,0,0,0.08)] ${
+            isDark
+              ? 'bg-[#121214] border-white/10 text-white'
+              : 'bg-white border-zinc-200/80 text-black'
+          }`}
+          style={{
+            backgroundColor: isDark ? '#121214' : '#FFFFFF',
+            color: isDark ? '#FFFFFF' : '#000000',
+          }}
         >
-          <RoundedNavigationIcon isGold={isPremiumItinerary} className={`w-[26px] h-[26px] sm:w-[28px] sm:h-[28px] shrink-0 ${
-            isPremiumItinerary
-              ? ''
-              : (isDark ? 'text-white' : 'text-black')
-          }`} size={28} />
+          <RoundedNavigationIcon isGold={isPremiumItinerary} className="w-[26px] h-[26px] sm:w-[28px] sm:h-[28px] shrink-0" style={{ color: isPremiumItinerary ? undefined : (isDark ? '#FFFFFF' : '#000000') }} size={28} />
 
           {isEditingTitle ? (
             <form
@@ -2105,7 +2088,7 @@ export const ItinerariesView: React.FC<ItinerariesViewProps> = ({
           )}
         </div>
 
-        {/* Action button to open edit modal (Solid surface) */}
+        {/* Action button to open edit modal */}
         <button
           onClick={() => {
             if (userItinerary) {
@@ -2115,10 +2098,18 @@ export const ItinerariesView: React.FC<ItinerariesViewProps> = ({
             }
           }}
           type="button"
-          className="w-12 h-12 rounded-full flex items-center justify-center pointer-events-auto transition-transform active:scale-95 cursor-pointer shrink-0 bg-white dark:bg-zinc-900 border border-zinc-200/80 dark:border-white/15 text-zinc-900 dark:text-white shadow-[0_2px_12px_rgba(0,0,0,0.06)]"
+          className={`w-12 h-12 rounded-full flex items-center justify-center pointer-events-auto transition-transform active:scale-95 cursor-pointer shrink-0 border ${
+            isDark
+              ? 'bg-[#121214] border-white/10 text-white'
+              : 'bg-white border-zinc-200/80 text-black'
+          } shadow-[0_2px_12px_rgba(0,0,0,0.06)]`}
+          style={{
+            backgroundColor: isDark ? '#121214' : '#FFFFFF',
+            color: isDark ? '#FFFFFF' : '#000000',
+          }}
           title="Opções do roteiro"
         >
-          <SlidersHorizontal className="w-5 h-5 text-current" />
+          <SlidersHorizontal className="w-5 h-5" style={{ color: isDark ? '#FFFFFF' : '#000000' }} />
         </button>
       </div>
 
@@ -2131,21 +2122,27 @@ export const ItinerariesView: React.FC<ItinerariesViewProps> = ({
             : 'calc(max(265px, calc(env(safe-area-inset-bottom, 0px) + 165px)))',
         }}
       >
-        {/* Toggle between Satélite and Escuro / Claro (Solid white surface) */}
+        {/* Toggle between Satélite and Escuro / Claro */}
         <motion.button
           whileTap={{ scale: 0.90 }}
           whileHover={{ scale: 1.05 }}
           type="button"
           onClick={handleToggleMapStyle}
-          className={`w-[45px] h-[45px] rounded-full flex items-center justify-center cursor-pointer transition-all duration-200 bg-white dark:bg-zinc-900 border border-zinc-200/80 dark:border-white/15 ${
-            isDark ? 'text-white' : 'text-black'
+          className={`w-[45px] h-[45px] rounded-full flex items-center justify-center cursor-pointer transition-all duration-200 border ${
+            isDark
+              ? 'bg-[#121214] border-white/10 text-white'
+              : 'bg-white border-zinc-200/80 text-black'
           } shadow-[0_4px_16px_rgba(0,0,0,0.08)]`}
+          style={{
+            backgroundColor: isDark ? '#121214' : '#FFFFFF',
+            color: isDark ? '#FFFFFF' : '#000000',
+          }}
           title={itineraryMapStyle === 'satelite' ? 'Modo Satélite Ativo (Toque para alternar)' : 'Alternar satélite / mapa'}
           aria-label="Alternar satélite / mapa"
         >
           <Layers
-            className={`w-5 h-5 stroke-[2.2] ${isDark ? 'text-white' : 'text-black'}`}
-            style={{ color: isDark ? '#ffffff' : '#000000' }}
+            className="w-5 h-5 stroke-[2.2]"
+            style={{ color: isDark ? '#FFFFFF' : '#000000' }}
           />
         </motion.button>
 
@@ -2158,15 +2155,21 @@ export const ItinerariesView: React.FC<ItinerariesViewProps> = ({
             userHasExplicitlyOpenedStoreRef.current = true;
             setItineraryViewMode('explore');
           }}
-          className={`w-[45px] h-[45px] rounded-full flex items-center justify-center cursor-pointer transition-all duration-200 bg-white dark:bg-zinc-900 border border-zinc-200/80 dark:border-white/15 shadow-[0_4px_16px_rgba(0,0,0,0.08)] ${
-            isDark ? 'text-white' : 'text-black'
-          }`}
+          className={`w-[45px] h-[45px] rounded-full flex items-center justify-center cursor-pointer transition-all duration-200 border ${
+            isDark
+              ? 'bg-[#121214] border-white/10 text-white'
+              : 'bg-white border-zinc-200/80 text-black'
+          } shadow-[0_4px_16px_rgba(0,0,0,0.08)]`}
+          style={{
+            backgroundColor: isDark ? '#121214' : '#FFFFFF',
+            color: isDark ? '#FFFFFF' : '#000000',
+          }}
           title="Loja de Roteiros"
           aria-label="Loja de Roteiros"
         >
           <Store
-            className="w-5 h-5 stroke-[2.2] text-black"
-            style={{ color: '#000000' }}
+            className="w-5 h-5 stroke-[2.2]"
+            style={{ color: isDark ? '#FFFFFF' : '#000000' }}
           />
         </motion.button>
       </div>
@@ -2174,11 +2177,11 @@ export const ItinerariesView: React.FC<ItinerariesViewProps> = ({
       {/* 4-A. DESKTOP ITINERARY SIDE PANEL (Hidden on mobile, desktop-native vertical layout) */}
       <aside
         aria-label="Roteiro de Viagem"
-        className="hidden md:flex flex-col absolute top-5 bottom-5 left-5 w-96 lg:w-[420px] z-30 rounded-[28px] overflow-hidden border bg-white dark:bg-zinc-900 border-zinc-200/80 dark:border-white/10 shadow-[0_12px_40px_rgba(0,0,0,0.12)] pointer-events-auto select-none transition-colors duration-200 text-zinc-900 dark:text-white"
+        className="hidden md:flex flex-col absolute top-5 bottom-5 left-5 w-96 lg:w-[420px] z-30 rounded-[28px] overflow-hidden border bg-white dark:bg-[#000000] border-zinc-200/80 dark:border-[#262626] shadow-[0_12px_40px_rgba(0,0,0,0.12)] pointer-events-auto select-none transition-colors duration-200 text-zinc-900 dark:text-white"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Desktop Panel Header */}
-        <div className="p-4 lg:p-5 pb-3 border-b border-black/10 dark:border-white/10 shrink-0">
+        <div className="p-4 lg:p-5 pb-3 border-b border-black/10 dark:border-[#262626] shrink-0">
           <div className="flex items-center justify-between gap-2 mb-2">
             <div className="flex items-center gap-2.5 min-w-0">
               <RoundedNavigationIcon
@@ -2249,11 +2252,18 @@ export const ItinerariesView: React.FC<ItinerariesViewProps> = ({
                       if (firstStepOfDay) setSelectedStopId(firstStepOfDay.id);
                     }}
                     className={`px-2.5 py-1 rounded-lg text-xs font-bold transition-colors cursor-pointer ${
-                      selectedDayIndex === dIdx
+                      isDark
+                        ? selectedDayIndex === dIdx
+                          ? 'bg-white text-black shadow-md border border-white'
+                          : 'bg-[#000000] text-[#A1A1AA] hover:text-white border border-[#262626]'
+                        : selectedDayIndex === dIdx
                         ? 'bg-[#ffffff] text-[#000000] shadow-md border border-black/15'
                         : 'bg-[#ffffff] text-[#000000] hover:bg-zinc-100 border border-black/10'
                     }`}
-                    style={{ color: '#000000', backgroundColor: '#ffffff' }}
+                    style={{
+                      color: isDark ? (selectedDayIndex === dIdx ? '#000000' : '#FFFFFF') : '#000000',
+                      backgroundColor: isDark ? (selectedDayIndex === dIdx ? '#FFFFFF' : '#000000') : '#ffffff',
+                    }}
                   >
                     Dia {day.dayNumber}
                   </motion.button>
@@ -2265,8 +2275,8 @@ export const ItinerariesView: React.FC<ItinerariesViewProps> = ({
 
         {/* Desktop Stops List with Independent Scrolling */}
         <div
-          className="flex-1 overflow-y-auto p-3.5 space-y-2.5 custom-scrollbar text-[#141414]"
-          style={{ color: '#141414' }}
+          className={`flex-1 overflow-y-auto p-3.5 space-y-2.5 custom-scrollbar ${isDark ? 'text-white' : 'text-[#141414]'}`}
+          style={{ color: isDark ? '#FFFFFF' : '#141414' }}
           onWheel={(e) => e.stopPropagation()}
         >
           {activeSteps.length > 0 ? (
@@ -2285,13 +2295,17 @@ export const ItinerariesView: React.FC<ItinerariesViewProps> = ({
                 whileTap={{ scale: 0.93, transition: { type: 'spring', stiffness: 500, damping: 14 } }}
                 onClick={() => handleSelectStopOnMap(step)}
                 className={`w-full flex items-center justify-between gap-3 p-3 rounded-2xl border text-left cursor-pointer transition-colors duration-200 group relative ${
-                  step.id === currentSelectedStep?.id
+                  isDark
+                    ? step.id === currentSelectedStep?.id
+                      ? 'border-white/40 ring-1 ring-white/20 shadow-sm'
+                      : 'border-[#262626] hover:border-white/30'
+                    : step.id === currentSelectedStep?.id
                     ? 'border-zinc-300 ring-2 ring-black/10 shadow-sm'
                     : 'border-zinc-200/80 hover:border-zinc-300 shadow-2xs'
                 }`}
                 style={{
-                  backgroundColor: '#fbfbfb',
-                  color: '#000000',
+                  backgroundColor: isDark ? '#000000' : '#fbfbfb',
+                  color: isDark ? '#FFFFFF' : '#000000',
                 }}
               >
                 {/* Stop Number Badge */}
@@ -2306,7 +2320,18 @@ export const ItinerariesView: React.FC<ItinerariesViewProps> = ({
 
                   {/* Thumbnail Image */}
                   {step.spot && (
-                    <div className="w-12 h-12 rounded-xl overflow-hidden shrink-0 bg-zinc-800">
+                    <div
+                      style={{
+                        overflow: 'clip',
+                        clipPath: 'inset(0 round 12px)',
+                        WebkitClipPath: 'inset(0 round 12px)',
+                        WebkitMaskImage: '-webkit-radial-gradient(white, black)',
+                        isolation: 'isolate',
+                        transform: 'translateZ(0)',
+                        WebkitTransform: 'translateZ(0)',
+                      }}
+                      className="w-12 h-12 rounded-xl overflow-hidden shrink-0 bg-zinc-800"
+                    >
                       <LazyImage
                         src={getSpotImage(step.spot)}
                         alt={step.spot.name}
@@ -2333,8 +2358,10 @@ export const ItinerariesView: React.FC<ItinerariesViewProps> = ({
                     </div>
 
                     <h4
-                      className="text-[13.5px] font-bold truncate text-[#000000] leading-tight"
-                      style={{ color: '#000000' }}
+                      className={`text-[13.5px] font-bold truncate leading-tight ${
+                        isDark ? 'text-white' : 'text-[#000000]'
+                      }`}
+                      style={{ color: isDark ? '#FFFFFF' : '#000000' }}
                     >
                       {step.spot?.shortName || step.spot?.name || `Local ${idx + 1}`}
                     </h4>
@@ -2412,11 +2439,21 @@ export const ItinerariesView: React.FC<ItinerariesViewProps> = ({
             <button
               type="button"
               onClick={() => setIsImportModalOpen(true)}
-              className="w-full flex items-center justify-center gap-2 py-3 px-4 rounded-2xl border border-dashed border-white/20 bg-[#e2e2e2] hover:bg-zinc-300 text-[#9e9e9e] text-xs font-bold transition-all cursor-pointer"
-              style={{ color: '#9e9e9e', backgroundColor: '#e2e2e2' }}
+              className={`w-full flex items-center justify-center gap-2 py-3 px-4 rounded-2xl border border-dashed text-xs font-bold transition-all cursor-pointer ${
+                isDark
+                  ? 'border-[#262626] bg-[#000000] hover:border-white/30 text-white'
+                  : 'border-white/20 bg-[#e2e2e2] hover:bg-zinc-300 text-[#9e9e9e]'
+              }`}
+              style={{
+                color: isDark ? '#FFFFFF' : '#9e9e9e',
+                backgroundColor: isDark ? '#000000' : '#e2e2e2',
+              }}
             >
-              <Plus className="w-4 h-4 text-[#000000]" style={{ color: '#000000' }} />
-              <span style={{ color: '#464646' }}>Adicionar Ponto ao Roteiro</span>
+              <Plus
+                className={`w-4 h-4 ${isDark ? 'text-white' : 'text-[#000000]'}`}
+                style={{ color: isDark ? '#FFFFFF' : '#000000' }}
+              />
+              <span style={{ color: isDark ? '#A1A1AA' : '#464646' }}>Adicionar Ponto ao Roteiro</span>
             </button>
           </div>
         </div>
@@ -2443,8 +2480,14 @@ export const ItinerariesView: React.FC<ItinerariesViewProps> = ({
             setIsExpanded(true);
           }
         }}
-        className="md:hidden !absolute inset-x-0 bottom-0 z-40 max-w-3xl mx-auto rounded-t-[32px] sm:rounded-t-[36px] overflow-hidden flex flex-col pointer-events-auto transition-colors duration-200 border-x-0 sm:border-x bg-white dark:bg-zinc-900 border-t border-zinc-200/80 dark:border-white/10 shadow-[0_-4px_24px_rgba(0,0,0,0.08)] text-zinc-900 dark:text-white"
+        className={`md:hidden !absolute inset-x-0 bottom-0 z-40 max-w-3xl mx-auto rounded-t-[32px] sm:rounded-t-[36px] overflow-hidden flex flex-col pointer-events-auto transition-colors duration-200 border-x-0 sm:border-x border-t shadow-[0_-4px_24px_rgba(0,0,0,0.08)] ${
+          isDark
+            ? 'bg-[#121214] border-white/10 text-white'
+            : 'bg-[#FFFFFF] border-zinc-200/80 text-black'
+        }`}
         style={{
+          backgroundColor: isDark ? '#121214' : '#FFFFFF',
+          color: isDark ? '#FFFFFF' : '#000000',
           position: 'absolute',
           bottom: 0,
           maxHeight: activeSteps.length === 0 ? '52vh' : (isExpanded ? '52vh' : 'auto'),
@@ -2475,7 +2518,7 @@ export const ItinerariesView: React.FC<ItinerariesViewProps> = ({
               whileHover={{ scale: 1.04 }}
               type="button"
               onClick={() => setIsImportModalOpen(true)}
-              className="w-14 h-14 rounded-full flex items-center justify-center cursor-pointer transition-all duration-200 active:scale-95 bg-white dark:bg-zinc-900 border border-zinc-200/80 dark:border-white/15 text-zinc-900 dark:text-white shadow-[0_4px_16px_rgba(0,0,0,0.08)]"
+              className="w-14 h-14 rounded-full flex items-center justify-center cursor-pointer transition-all duration-200 active:scale-95 bg-white dark:bg-[#000000] border border-zinc-200/80 dark:border-[#262626] text-zinc-900 dark:text-white shadow-[0_4px_16px_rgba(0,0,0,0.08)]"
               title="Adicionar ponto ao roteiro"
               aria-label="Adicionar local ao roteiro"
             >
@@ -2501,17 +2544,21 @@ export const ItinerariesView: React.FC<ItinerariesViewProps> = ({
                 className="px-4 pt-0.5 pb-2 sm:pb-2.5 cursor-pointer"
               >
                 <div
-                  className="py-2 px-3 sm:py-2.5 sm:px-3.5 rounded-[28px] flex items-center justify-between gap-3 transition-all border border-zinc-200/80 shadow-2xs"
+                  className={`py-2 px-3 sm:py-2.5 sm:px-3.5 rounded-[28px] flex items-center justify-between gap-3 transition-all border ${
+                    isDark ? 'border-white/10' : 'border-zinc-200/80 shadow-2xs'
+                  }`}
                   style={{
-                    backgroundColor: '#fbfbfb',
-                    color: '#000000',
+                    backgroundColor: isDark ? '#1C1C1E' : '#FFFFFF',
+                    color: isDark ? '#FFFFFF' : '#000000',
                   }}
                 >
                   <div className="flex items-center gap-2.5 min-w-0 flex-1 self-center">
                     <span className={`w-7 h-7 sm:w-7.5 sm:h-7.5 rounded-full text-[11px] font-black flex items-center justify-center leading-none text-center shrink-0 self-center ${
                       isPremiumItinerary
                         ? 'bg-metallic-gold text-[#1A1202] shadow-md shadow-[#E5AC33]/40'
-                        : 'bg-white text-black shadow-md shadow-white/20'
+                        : isDark
+                        ? 'bg-white text-black shadow-md'
+                        : 'bg-black text-white shadow-md'
                     }`}>
                       {String(
                         Math.max(
@@ -2521,7 +2568,18 @@ export const ItinerariesView: React.FC<ItinerariesViewProps> = ({
                       ).padStart(2, '0')}
                     </span>
                     {currentSelectedStep.spot && (
-                      <div className="w-12 h-12 rounded-[16px] overflow-hidden shrink-0 bg-zinc-800 relative self-center">
+                      <div
+                        style={{
+                          overflow: 'clip',
+                          clipPath: 'inset(0 round 16px)',
+                          WebkitClipPath: 'inset(0 round 16px)',
+                          WebkitMaskImage: '-webkit-radial-gradient(white, black)',
+                          isolation: 'isolate',
+                          transform: 'translateZ(0)',
+                          WebkitTransform: 'translateZ(0)',
+                        }}
+                        className="w-12 h-12 rounded-[16px] overflow-hidden shrink-0 bg-zinc-800 relative self-center"
+                      >
                         <LazyImage
                           src={getSpotImage(currentSelectedStep.spot)}
                           alt={currentSelectedStep.spot.name}

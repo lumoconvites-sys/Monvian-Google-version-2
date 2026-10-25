@@ -164,9 +164,11 @@ function validateBirthDate(dateStr: string): string | null {
 export const HostDashboard: React.FC<HostDashboardProps> = ({
   isOpen,
   onClose,
+  theme = 'light',
   user,
   balanceData: propBalanceData,
 }) => {
+  const isDark = theme === 'dark';
   // Flow states: 'checking' -> 'onboarding' | 'dashboard' | 'unauthenticated'
   const [flowView, setFlowView] = useState<'checking' | 'onboarding' | 'dashboard' | 'unauthenticated'>('checking');
   const [currentStep, setCurrentStep] = useState<1 | 2 | 3>(1);
@@ -755,9 +757,9 @@ export const HostDashboard: React.FC<HostDashboardProps> = ({
             exit={{ opacity: 0, scale: 0.98, y: 10 }}
             transition={{ duration: 0.26, ease: [0.16, 1, 0.3, 1] }}
             onClick={(e) => e.stopPropagation()}
-            className="relative w-full h-full md:h-[88vh] md:max-w-2xl bg-[#ffffff] text-zinc-950 rounded-none md:rounded-[30px] overflow-hidden flex flex-col justify-between shadow-2xl md:border md:border-black/[0.08]"
+            className="relative w-full h-full md:h-[88vh] md:max-w-2xl bg-[#ffffff] dark:bg-[#000000] text-zinc-950 dark:text-white rounded-none md:rounded-[30px] overflow-hidden flex flex-col justify-between shadow-2xl md:border md:border-black/[0.08] md:dark:border-[#262626]"
             style={{
-              backgroundColor: '#ffffff',
+              backgroundColor: isDark ? '#000000' : '#ffffff',
               fontFamily: "'Inter', sans-serif",
               willChange: 'opacity, transform',
             }}
@@ -773,8 +775,9 @@ export const HostDashboard: React.FC<HostDashboardProps> = ({
               onMouseMove={handleMouseMovePull}
               onMouseUp={handleMouseUpPull}
               onMouseLeave={handleMouseUpPull}
-              className="flex-1 min-h-0 overflow-y-auto overscroll-contain px-5 sm:px-7 max-w-3xl mx-auto w-full flex flex-col bg-[#ffffff] relative"
+              className="flex-1 min-h-0 overflow-y-auto overscroll-contain px-5 sm:px-7 max-w-3xl mx-auto w-full flex flex-col bg-[#ffffff] dark:bg-[#000000] relative [&_section]:dark:bg-[#000000] [&_section]:dark:border-[#262626] [&_h1]:dark:text-white [&_h2]:dark:text-white [&_h3]:dark:text-white [&_label]:dark:text-zinc-200 [&_input]:dark:bg-[#000000] [&_input]:dark:border-[#262626] [&_input]:dark:text-white [&_select]:dark:bg-[#000000] [&_select]:dark:border-[#262626] [&_select]:dark:text-white"
               style={{
+                backgroundColor: isDark ? '#000000' : '#ffffff',
                 WebkitOverflowScrolling: 'touch',
                 paddingTop: 'max(calc(env(safe-area-inset-top, 0px) + 16px), 24px)',
                 paddingBottom: 'calc(env(safe-area-inset-bottom, 24px) + 96px)',
@@ -1629,16 +1632,16 @@ export const HostDashboard: React.FC<HostDashboardProps> = ({
                         onClick={handleCloseFlow}
                         aria-label="Voltar"
                         title="Voltar"
-                        className="w-10 h-10 rounded-full bg-[#ffffff] hover:bg-[#E5E5EA] flex items-center justify-center text-zinc-950 transition-transform active:scale-95 cursor-pointer shrink-0"
+                        className="w-10 h-10 rounded-full bg-[#ffffff] dark:bg-[#000000] dark:border dark:border-[#262626] hover:bg-[#E5E5EA] dark:hover:border-white/30 flex items-center justify-center text-zinc-950 dark:text-white transition-transform active:scale-95 cursor-pointer shrink-0"
                       >
                         <ArrowLeft className="w-[18px] h-[18px] stroke-[2]" />
                       </button>
 
                       <div className="min-w-0">
-                        <p className="text-[13px] font-normal text-zinc-500 leading-tight">
+                        <p className="text-[13px] font-normal text-zinc-500 dark:text-[#A1A1AA] leading-tight">
                           Olá, Anfitrião
                         </p>
-                        <h1 className="text-[22px] sm:text-[24px] font-bold text-zinc-950 tracking-tight leading-tight">
+                        <h1 className="text-[22px] sm:text-[24px] font-bold text-zinc-950 dark:text-white tracking-tight leading-tight">
                           Área do anfitrião
                         </h1>
                         <p className="text-[12.5px] font-normal text-zinc-500 mt-0.5 leading-snug">
@@ -1695,10 +1698,10 @@ export const HostDashboard: React.FC<HostDashboardProps> = ({
                     >
                       <div className="flex items-center justify-between">
                         <div className="flex items-center gap-3">
-                          <div className="w-10 h-10 rounded-full bg-[#ffffff] flex items-center justify-center shrink-0">
-                            <Wallet className="w-[40.9844px] h-[25.9844px] text-zinc-950 stroke-[1.8]" />
+                          <div className="w-10 h-10 rounded-full bg-[#ffffff] dark:bg-[#000000] flex items-center justify-center shrink-0">
+                            <Wallet className="w-[40.9844px] h-[25.9844px] text-zinc-950 dark:text-white stroke-[1.8]" />
                           </div>
-                          <span className="text-[14px] font-normal text-zinc-500">
+                          <span className="text-[14px] font-normal text-zinc-500 dark:text-[#A1A1AA]">
                             Seu saldo
                           </span>
                         </div>
@@ -1707,7 +1710,7 @@ export const HostDashboard: React.FC<HostDashboardProps> = ({
                       <div className="mt-2.5 min-h-[50px] flex flex-col justify-center">
                         {isBalanceLoading ? (
                           <div className="py-1">
-                            <div className="h-9 w-44 rounded-xl animate-pulse bg-gradient-to-r from-zinc-200 via-zinc-100 to-zinc-200" />
+                            <div className="h-9 w-44 rounded-xl animate-pulse bg-gradient-to-r from-zinc-200 via-zinc-100 to-zinc-200 dark:from-zinc-800 dark:via-zinc-900 dark:to-zinc-800" />
                           </div>
                         ) : (
                           <motion.div
@@ -1718,33 +1721,33 @@ export const HostDashboard: React.FC<HostDashboardProps> = ({
                               stiffness: 380,
                               damping: 24,
                             }}
-                            className="text-[34px] sm:text-[36px] font-bold text-zinc-950 tracking-tight leading-none tabular-nums"
+                            className="text-[34px] sm:text-[36px] font-bold text-zinc-950 dark:text-white tracking-tight leading-none tabular-nums"
                           >
                             {availableBalance}
                           </motion.div>
                         )}
 
-                        <div className="mt-2 flex items-center gap-1.5 text-[12.5px] text-zinc-500">
-                          <Info className="w-3.5 h-3.5 text-zinc-500 shrink-0 stroke-[1.8]" />
+                        <div className="mt-2 flex items-center gap-1.5 text-[12.5px] text-zinc-500 dark:text-[#A1A1AA]">
+                          <Info className="w-3.5 h-3.5 text-zinc-500 dark:text-[#A1A1AA] shrink-0 stroke-[1.8]" />
                           <span>Disponível para saque</span>
                         </div>
                       </div>
 
-                      <div className="border-t border-[#F0F0F3] my-4" />
+                      <div className="border-t border-[#F0F0F3] dark:border-[#262626] my-4" />
 
-                      <div className="grid grid-cols-2 divide-x divide-[#F0F0F3]">
+                      <div className="grid grid-cols-2 divide-x divide-[#F0F0F3] dark:divide-[#262626]">
                         <div className="pr-3 sm:pr-4">
-                          <span className="text-[12px] text-zinc-500 block">
+                          <span className="text-[12px] text-zinc-500 dark:text-[#A1A1AA] block">
                             Comissões recebidas
                           </span>
                           {isBalanceLoading ? (
-                            <div className="h-5 w-20 rounded-md animate-pulse mt-1 bg-zinc-200" />
+                            <div className="h-5 w-20 rounded-md animate-pulse mt-1 bg-zinc-200 dark:bg-zinc-800" />
                           ) : (
                             <motion.span
                               initial={{ opacity: 0, y: 2 }}
                               animate={{ opacity: 1, y: 0 }}
                               transition={{ delay: 0.05 }}
-                              className="text-[17px] font-bold text-zinc-950 tracking-tight mt-0.5 block tabular-nums"
+                              className="text-[17px] font-bold text-zinc-950 dark:text-white tracking-tight mt-0.5 block tabular-nums"
                             >
                               {receivedCommissions}
                             </motion.span>
@@ -1755,17 +1758,17 @@ export const HostDashboard: React.FC<HostDashboardProps> = ({
                         </div>
 
                         <div className="pl-3 sm:pl-4">
-                          <span className="text-[12px] text-zinc-500 block">
+                          <span className="text-[12px] text-zinc-500 dark:text-[#A1A1AA] block">
                             Comissões pendentes
                           </span>
                           {isBalanceLoading ? (
-                            <div className="h-5 w-20 rounded-md animate-pulse mt-1 bg-zinc-200" />
+                            <div className="h-5 w-20 rounded-md animate-pulse mt-1 bg-zinc-200 dark:bg-zinc-800" />
                           ) : (
                             <motion.span
                               initial={{ opacity: 0, y: 2 }}
                               animate={{ opacity: 1, y: 0 }}
                               transition={{ delay: 0.1 }}
-                              className="text-[17px] font-bold text-zinc-950 tracking-tight mt-0.5 block tabular-nums"
+                              className="text-[17px] font-bold text-zinc-950 dark:text-white tracking-tight mt-0.5 block tabular-nums"
                             >
                               {pendingCommissions}
                             </motion.span>
@@ -1788,22 +1791,22 @@ export const HostDashboard: React.FC<HostDashboardProps> = ({
                       className="bg-white rounded-[26px] border border-[#ECECEF] p-5 shadow-[0_2px_10px_rgba(0,0,0,0.02)]"
                     >
                       <div className="flex items-start gap-3.5">
-                        <div className="w-10 h-10 rounded-full bg-[#ffffff] flex items-center justify-center shrink-0">
-                          <Link2 className="w-[28.9844px] h-[38.9844px] text-zinc-950 stroke-[1.9] -rotate-45" />
+                        <div className="w-10 h-10 rounded-full bg-[#ffffff] dark:bg-[#000000] flex items-center justify-center shrink-0">
+                          <Link2 className="w-[28.9844px] h-[38.9844px] text-zinc-950 dark:text-white stroke-[1.9] -rotate-45" />
                         </div>
                         <div className="min-w-0">
-                          <h2 className="text-[15.5px] font-bold text-zinc-950 tracking-tight leading-snug">
+                          <h2 className="text-[15.5px] font-bold text-zinc-950 dark:text-white tracking-tight leading-snug">
                             Seu link de indicação
                           </h2>
-                          <p className="text-[12.5px] text-zinc-500 leading-relaxed mt-0.5">
+                          <p className="text-[12.5px] text-zinc-500 dark:text-[#A1A1AA] leading-relaxed mt-0.5">
                             Compartilhe seu link exclusivo e ajude mais pessoas a descobrirem o Monvians.
                           </p>
                         </div>
                       </div>
 
                       <div className="mt-4 flex items-center gap-2.5">
-                        <div className="flex-1 h-11 rounded-full bg-[#F4F4F6] border border-[#EAEAEF] pl-4 pr-1.5 flex items-center justify-between gap-2 min-w-0">
-                          <span className="text-[13px] text-zinc-800 truncate">
+                        <div className="flex-1 h-11 rounded-full bg-[#F4F4F6] dark:bg-[#000000] border border-[#EAEAEF] dark:border-[#262626] pl-4 pr-1.5 flex items-center justify-between gap-2 min-w-0">
+                          <span className="text-[13px] text-zinc-800 dark:text-zinc-200 truncate">
                             {referralLink}
                           </span>
                           <button
@@ -1811,12 +1814,12 @@ export const HostDashboard: React.FC<HostDashboardProps> = ({
                             onClick={handleCopyLink}
                             aria-label="Copiar link"
                             title="Copiar link"
-                            className="w-8 h-8 rounded-full bg-[#EAEAEF]/90 hover:bg-[#E2E2E8] flex items-center justify-center shrink-0 transition-transform active:scale-95 cursor-pointer"
+                            className="w-8 h-8 rounded-full bg-[#EAEAEF]/90 dark:bg-white/10 hover:bg-[#E2E2E8] dark:hover:bg-white/20 flex items-center justify-center shrink-0 transition-transform active:scale-95 cursor-pointer"
                           >
                             {copied ? (
-                              <Check className="w-4 h-4 text-zinc-950 stroke-[2]" />
+                              <Check className="w-4 h-4 text-zinc-950 dark:text-white stroke-[2]" />
                             ) : (
-                              <Copy className="w-4 h-4 text-zinc-800 stroke-[1.8]" />
+                              <Copy className="w-4 h-4 text-zinc-800 dark:text-zinc-200 stroke-[1.8]" />
                             )}
                           </button>
                         </div>
@@ -1826,9 +1829,9 @@ export const HostDashboard: React.FC<HostDashboardProps> = ({
                           onClick={handleShareLink}
                           aria-label="Compartilhar link"
                           title="Compartilhar link"
-                          className="w-[63.9844px] h-[53.9844px] rounded-full bg-[#ffffff] hover:bg-[#EAEAEF] border border-[#EAEAEF] flex items-center justify-center shrink-0 transition-transform active:scale-95 cursor-pointer"
+                          className="w-[63.9844px] h-[53.9844px] rounded-full bg-[#ffffff] dark:bg-[#000000] hover:bg-[#EAEAEF] dark:hover:border-white/30 border border-[#EAEAEF] dark:border-[#262626] flex items-center justify-center shrink-0 transition-transform active:scale-95 cursor-pointer"
                         >
-                          <Share2 className="w-[18px] h-[18px] text-zinc-800 stroke-[1.8]" />
+                          <Share2 className="w-[18px] h-[18px] text-zinc-800 dark:text-white stroke-[1.8]" />
                         </button>
                       </div>
 
@@ -1853,11 +1856,11 @@ export const HostDashboard: React.FC<HostDashboardProps> = ({
                       className="bg-white rounded-[26px] border border-[#ECECEF] p-5 shadow-[0_2px_10px_rgba(0,0,0,0.02)]"
                     >
                       <div className="flex items-center gap-3.5">
-                        <div className="w-10 h-10 rounded-full bg-[#ffffff] flex items-center justify-center shrink-0">
+                        <div className="w-10 h-10 rounded-full bg-[#ffffff] dark:bg-[#000000] flex items-center justify-center shrink-0">
                           <svg
                             viewBox="0 0 24 24"
                             fill="none"
-                            className="w-[98.9844px] h-[28.9844px] text-zinc-950"
+                            className="w-[98.9844px] h-[28.9844px] text-zinc-950 dark:text-white"
                           >
                             <rect
                               x="4.5"
@@ -1888,36 +1891,36 @@ export const HostDashboard: React.FC<HostDashboardProps> = ({
                             />
                           </svg>
                         </div>
-                        <h2 className="text-[15.5px] font-bold text-zinc-950 tracking-tight">
+                        <h2 className="text-[15.5px] font-bold text-zinc-950 dark:text-white tracking-tight">
                           Desempenho das indicações
                         </h2>
                       </div>
 
                       {/* Three Metrics Aligned Horizontally */}
-                      <div className="mt-4 grid grid-cols-3 divide-x divide-[#F0F0F3]">
+                      <div className="mt-4 grid grid-cols-3 divide-x divide-[#F0F0F3] dark:divide-[#262626]">
                         <div className="pr-2 sm:pr-4 min-w-0">
-                          <span className="text-[20px] sm:text-[22px] font-bold text-zinc-950 tracking-tight leading-tight block tabular-nums">
+                          <span className="text-[20px] sm:text-[22px] font-bold text-zinc-950 dark:text-white tracking-tight leading-tight block tabular-nums">
                             {clicks}
                           </span>
-                          <span className="text-[11.5px] text-zinc-500 mt-0.5 block truncate">
+                          <span className="text-[11.5px] text-zinc-500 dark:text-[#A1A1AA] mt-0.5 block truncate">
                             Total de cliques
                           </span>
                         </div>
 
                         <div className="px-2.5 sm:px-4 min-w-0">
-                          <span className="text-[20px] sm:text-[22px] font-bold text-zinc-950 tracking-tight leading-tight block tabular-nums">
+                          <span className="text-[20px] sm:text-[22px] font-bold text-zinc-950 dark:text-white tracking-tight leading-tight block tabular-nums">
                             {conversions}
                           </span>
-                          <span className="text-[11.5px] text-zinc-500 mt-0.5 block truncate">
+                          <span className="text-[11.5px] text-zinc-500 dark:text-[#A1A1AA] mt-0.5 block truncate">
                             Conversões
                           </span>
                         </div>
 
                         <div className="pl-2.5 sm:pl-4 min-w-0">
-                          <span className="text-[20px] sm:text-[22px] font-bold text-zinc-950 tracking-tight leading-tight block tabular-nums">
+                          <span className="text-[20px] sm:text-[22px] font-bold text-zinc-950 dark:text-white tracking-tight leading-tight block tabular-nums">
                             {conversionRate}
                           </span>
-                          <span className="text-[11.5px] text-zinc-500 mt-0.5 block truncate">
+                          <span className="text-[11.5px] text-zinc-500 dark:text-[#A1A1AA] mt-0.5 block truncate">
                             Taxa de conversão
                           </span>
                         </div>
@@ -2003,11 +2006,11 @@ export const HostDashboard: React.FC<HostDashboardProps> = ({
                       className="bg-white rounded-[26px] border border-[#ECECEF] p-5 shadow-[0_2px_10px_rgba(0,0,0,0.02)]"
                     >
                       <div className="flex items-center gap-3.5">
-                        <div className="w-10 h-10 rounded-full bg-[#ffffff] flex items-center justify-center shrink-0">
+                        <div className="w-10 h-10 rounded-full bg-[#ffffff] dark:bg-[#000000] flex items-center justify-center shrink-0">
                           <svg
                             viewBox="0 0 24 24"
                             fill="none"
-                            className="w-[30px] h-[40px] text-zinc-950"
+                            className="w-[30px] h-[40px] text-zinc-950 dark:text-white"
                           >
                             <path
                               d="M12 2.75L14.12 4.32L16.74 4.15L17.71 6.6L20.16 7.57L19.99 10.19L21.56 12.31L19.99 14.43L20.16 17.05L17.71 18.02L16.74 20.47L14.12 20.3L12 21.87L9.88 20.3L7.26 20.47L6.29 18.02L3.84 17.05L4.01 14.43L2.44 12.31L4.01 10.19L3.84 7.57L6.29 6.6L7.26 4.15L9.88 4.32L12 2.75Z"
@@ -2025,28 +2028,28 @@ export const HostDashboard: React.FC<HostDashboardProps> = ({
                             />
                           </svg>
                         </div>
-                        <h2 className="text-[15.5px] font-bold text-zinc-950 tracking-tight">
+                        <h2 className="text-[15.5px] font-bold text-zinc-950 dark:text-white tracking-tight">
                           Seu programa
                         </h2>
                       </div>
 
                       <div className="mt-3.5 grid grid-cols-12 items-center">
-                        <div className="col-span-5 pr-3 border-r border-[#F0F0F3]">
-                          <span className="text-[12px] text-zinc-500 block leading-snug">
+                        <div className="col-span-5 pr-3 border-r border-[#F0F0F3] dark:border-[#262626]">
+                          <span className="text-[12px] text-zinc-500 dark:text-[#A1A1AA] block leading-snug">
                             Comissão por venda
                           </span>
-                          <span className="text-[28px] sm:text-[32px] font-bold text-zinc-950 tracking-tight leading-none mt-1.5 block tabular-nums">
+                          <span className="text-[28px] sm:text-[32px] font-bold text-zinc-950 dark:text-white tracking-tight leading-none mt-1.5 block tabular-nums">
                             60%
                           </span>
                         </div>
 
                         <div className="col-span-7 pl-4 space-y-2.5">
-                          <p className="text-[12px] text-zinc-500 leading-relaxed">
+                          <p className="text-[12px] text-zinc-500 dark:text-[#A1A1AA] leading-relaxed">
                             Receba comissão pelas vendas elegíveis realizadas por meio do seu link de indicação.
                           </p>
                           <div className="flex items-center gap-2 pt-0.5">
-                            <ShoppingBag className="w-4 h-4 text-zinc-800 shrink-0 stroke-[1.8]" />
-                            <span className="text-[12px] font-medium text-zinc-700">
+                            <ShoppingBag className="w-4 h-4 text-zinc-800 dark:text-zinc-200 shrink-0 stroke-[1.8]" />
+                            <span className="text-[12px] font-medium text-zinc-700 dark:text-zinc-200">
                               Acesso Premium — R$ 29,90
                             </span>
                           </div>

@@ -28,11 +28,36 @@
 }
 
 @layer base {
-  :root {
+  :root,
+  html.light {
     font-family: 'Inter', var(--font-sans), sans-serif !important;
     letter-spacing: -0.015em;
     line-height: 1.5;
     --app-height: 100dvh;
+    --bg-primary: #ffffff;
+    --bg-secondary: #ffffff;
+    --bg-card: #ffffff;
+    --bg-modal: #ffffff;
+    --bg-nav: #ffffff;
+    --bg-input: #fafafa;
+    --text-primary: #09090b;
+    --text-secondary: #71717a;
+    --border-color: #e4e4e7;
+    --icon-active: #09090b;
+    --icon-inactive: #71717a;
+  }
+  html.dark {
+    --bg-primary: #000000;
+    --bg-secondary: #000000;
+    --bg-card: #000000;
+    --bg-modal: #000000;
+    --bg-nav: #000000;
+    --bg-input: #000000;
+    --text-primary: #ffffff;
+    --text-secondary: #a1a1aa;
+    --border-color: #262626;
+    --icon-active: #ffffff;
+    --icon-inactive: #a1a1aa;
   }
   html {
     width: 100%;
@@ -50,8 +75,8 @@
     touch-action: manipulation;
     -webkit-text-size-adjust: 100%;
     text-size-adjust: 100%;
-    background-color: #000000;
-    transition: background-color 0.25s ease;
+    background-color: var(--bg-primary);
+    transition: background-color 0.2s ease, color 0.2s ease;
   }
   body {
     width: 100%;
@@ -69,8 +94,9 @@
     touch-action: manipulation;
     -webkit-text-size-adjust: 100%;
     text-size-adjust: 100%;
-    background-color: #000000;
-    transition: background-color 0.25s ease;
+    background-color: var(--bg-primary);
+    color: var(--text-primary);
+    transition: background-color 0.2s ease, color 0.2s ease;
   }
   #root {
     width: 100%;
@@ -89,8 +115,8 @@
     min-height: calc(100dvh + env(safe-area-inset-bottom, 0px));
     height: calc(100dvh + env(safe-area-inset-bottom, 0px));
     overflow: hidden;
-    background-color: #000000;
-    transition: background-color 0.25s ease;
+    background-color: var(--bg-primary);
+    transition: background-color 0.2s ease, color 0.2s ease;
   }
   html.dark,
   html.dark body,
@@ -101,7 +127,7 @@
   html.light,
   html.light body,
   html.light #root {
-    background-color: #f4f4f5 !important;
+    background-color: #ffffff !important;
   }
   *, *::before, *::after, html, body, #root, button, input, select, textarea, div, span, p, label, a, strong, b, em, i, li, ul, ol, section, main, aside, header, footer, nav, article {
     font-family: 'Inter', var(--font-sans), sans-serif !important;
@@ -109,7 +135,7 @@
     -moz-osx-font-smoothing: grayscale;
   }
   input::placeholder, textarea::placeholder {
-    color: #9A9894 !important;
+    color: #A1A1AA !important;
     opacity: 0.85;
   }
 
@@ -127,22 +153,22 @@
   .dark .font-title,
   .dark .title-heading,
   .dark .heading-title {
-    color: #F5F2EA;
+    color: #FFFFFF;
   }
 
-  /* Descrições secundárias: #9A9894, espaçamento entre linhas refinado */
+  /* Descrições secundárias: #A1A1AA em modo escuro */
   .text-secondary-desc,
   .desc-secondary,
   .text-secondary,
   .dark .text-secondary-desc {
-    color: #9A9894;
+    color: #A1A1AA;
     letter-spacing: -0.012em;
     line-height: 1.5;
   }
 
   .dark .text-zinc-400,
   .dark .text-zinc-500 {
-    color: #9A9894;
+    color: #A1A1AA;
   }
 
   /* Destaques em #FFFFFF (Apple System Blue) */

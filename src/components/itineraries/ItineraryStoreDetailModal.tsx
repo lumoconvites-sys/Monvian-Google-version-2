@@ -1,7 +1,6 @@
-import React, { useState } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import {
-  X,
   ChevronLeft,
   Clock,
   MapPin,
@@ -75,6 +74,51 @@ export const ItineraryStoreDetailModal: React.FC<ItineraryStoreDetailModalProps>
   const [isApplying, setIsApplying] = useState(false);
   const [activeDayIndex, setActiveDayIndex] = useState(0);
   const [isPremiumModalOpen, setIsPremiumModalOpen] = useState(false);
+  const scrollRef = useRef<HTMLDivElement | null>(null);
+  const heroImgRef = useRef<HTMLImageElement | null>(null);
+
+  // Smooth scroll-driven blur & scale effect (native iOS fluid feel)
+  const handleScroll = (e: React.UIEvent<HTMLDivElement>) => {
+    const scrollTop = e.currentTarget.scrollTop;
+    if (!heroImgRef.current) return;
+
+    // As user scrolls down and the card climbs over the sticky hero photo:
+    // progress smoothly scales from 0 (top) to 1 (when card has covered 220px).
+    const progress = Math.min(1, Math.max(0, scrollTop / 220));
+    const blurPx = progress * 16;
+    const scale = 1.04 + progress * 0.04;
+    const brightness = 1 - progress * 0.12;
+
+    if (progress <= 0.002) {
+      heroImgRef.current.style.filter = 'none';
+      heroImgRef.current.style.transform = 'scale(1.04) translateZ(0)';
+      heroImgRef.current.style.webkitTransform = 'scale(1.04) translateZ(0)';
+    } else {
+      heroImgRef.current.style.filter = `blur(${blurPx.toFixed(1)}px) brightness(${brightness.toFixed(2)})`;
+      heroImgRef.current.style.transform = `scale(${scale.toFixed(3)}) translateZ(0)`;
+      heroImgRef.current.style.webkitTransform = `scale(${scale.toFixed(3)}) translateZ(0)`;
+    }
+  };
+
+  useEffect(() => {
+    if (scrollRef.current) {
+      scrollRef.current.scrollTop = 0;
+    }
+    if (heroImgRef.current) {
+      heroImgRef.current.style.filter = 'none';
+      heroImgRef.current.style.transform = 'scale(1.04) translateZ(0)';
+      heroImgRef.current.style.webkitTransform = 'scale(1.04) translateZ(0)';
+    }
+  }, [itinerary?.id, isOpen]);
+
+  // Immediately close modal when user clicks any option on the navigation bar
+  useEffect(() => {
+    const handleCloseAll = () => {
+      onClose();
+    };
+    window.addEventListener('monvian-close-modals', handleCloseAll);
+    return () => window.removeEventListener('monvian-close-modals', handleCloseAll);
+  }, [onClose]);
 
   if (!itinerary) return null;
 
@@ -126,7 +170,7 @@ export const ItineraryStoreDetailModal: React.FC<ItineraryStoreDetailModalProps>
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
-          transition={{ duration: 0.22, ease: 'easeOut' }}
+          transition={{ duration: 0.18, ease: 'easeOut' }}
           className={`fixed inset-0 z-[200] flex flex-col backdrop-blur-md transition-colors duration-200 ${
             isLight ? 'bg-black/40' : 'bg-black/85'
           }`}
@@ -139,8 +183,8 @@ export const ItineraryStoreDetailModal: React.FC<ItineraryStoreDetailModalProps>
             animate={{ x: '0%' }}
             exit={{ x: '100%' }}
             transition={{
-              duration: 0.26,
-              ease: [0.16, 1, 0.3, 1]
+              duration: 0.2,
+              ease: [0.22, 1, 0.36, 1]
             }}
             className={`relative w-full h-full flex flex-col max-w-xl mx-auto overflow-hidden transition-colors duration-200 rounded-t-[26px] ios-page-top-rounded ${
               isLight ? 'bg-white text-zinc-900' : 'bg-[#000000] text-white'
@@ -155,24 +199,53 @@ export const ItineraryStoreDetailModal: React.FC<ItineraryStoreDetailModalProps>
               WebkitMaskImage: '-webkit-radial-gradient(white, black)',
             }}
           >
-          {/* Scrollable Body */}
-          <div className="flex-1 overflow-y-auto overscroll-contain pb-36 rounded-t-[26px]">
+          {/* Scrollable Body com blur dinâmico ao rolar */}
+          <div 
+            ref={scrollRef}
+            onScroll={handleScroll}
+            className="flex-1 overflow-y-auto overscroll-contain pb-36 rounded-t-[26px]"
+            style={{
+              WebkitOverflowScrolling: 'touch',
+            }}
+          >
             
-            {/* 1. HERO / FOTO DE CAPA (FULL BLEED, BORDAS ARREDONDADAS NO TOPO) */}
-            <div className="relative w-full h-72 sm:h-80 shrink-0 overflow-hidden bg-zinc-900 rounded-t-[26px]">
-              <motion.img
-                initial={{ opacity: 0, scale: 0.88, y: 12 }}
-                animate={{ opacity: 1, scale: 1, y: 0 }}
-                transition={{ type: 'spring', stiffness: 380, damping: 22 }}
-                src={itinerary.coverImage}
-                alt={itinerary.title}
-                className="w-full h-full object-cover rounded-t-[26px]"
-                referrerPolicy="no-referrer"
-                loading="eager"
-                onError={(e) => {
-                  (e.target as HTMLImageElement).src = 'https://images.unsplash.com/photo-1506744038136-46273834b3fb?auto=format&fit=crop&w=1000&q=80';
-                }}
-              />
+            {/* 1. HERO / FOTO DE CAPA (FOTO FIXA NO TOPO - STICKY HERO COM BLUR DINÂMICO) */}
+            <div
+              style={{
+                position: 'sticky',
+                top: 0,
+                overflow: 'clip',
+                WebkitMaskImage: '-webkit-radial-gradient(white, black)',
+                isolation: 'isolate',
+                transform: 'translateZ(0)',
+                WebkitTransform: 'translateZ(0)',
+              }}
+              className="sticky top-0 w-full h-72 sm:h-80 shrink-0 overflow-hidden bg-zinc-900 rounded-t-[26px] z-0 pointer-events-none"
+            >
+              <motion.div
+                initial={{ opacity: 0, scale: 0.96 }}
+                animate={{ opacity: 1, scale: 1 }}
+                transition={{ duration: 0.35, ease: [0.22, 1, 0.36, 1] }}
+                className="w-full h-full relative"
+              >
+                <img
+                  ref={heroImgRef}
+                  src={itinerary.coverImage}
+                  alt={itinerary.title}
+                  style={{
+                    filter: 'none',
+                    transform: 'scale(1.04) translateZ(0)',
+                    WebkitTransform: 'scale(1.04) translateZ(0)',
+                    willChange: 'filter, transform',
+                  }}
+                  className="w-full h-full object-cover rounded-t-[26px] pointer-events-none transform-gpu transition-[filter,transform] duration-75 ease-out"
+                  referrerPolicy="no-referrer"
+                  loading="eager"
+                  onError={(e) => {
+                    (e.target as HTMLImageElement).src = 'https://images.unsplash.com/photo-1506744038136-46273834b3fb?auto=format&fit=crop&w=1000&q=80';
+                  }}
+                />
+              </motion.div>
               
               {/* Degradê sutil na parte inferior para legibilidade */}
               <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-black/15 to-transparent pointer-events-none" />
@@ -184,20 +257,20 @@ export const ItineraryStoreDetailModal: React.FC<ItineraryStoreDetailModalProps>
                   paddingTop: 'max(calc(env(safe-area-inset-top, 0px) + 12px), 14px)'
                 }}
               >
-                {/* Botão Voltar (Compacto & Translúcido) */}
+                {/* Botão Voltar */}
                 <motion.button
                   whileTap={{ scale: 0.88 }}
                   type="button"
                   onClick={onClose}
-                  className="w-[30px] h-[30px] rounded-full bg-black/30 backdrop-blur-md border border-white/20 text-white flex items-center justify-center shadow-xs cursor-pointer transition-all hover:bg-black/50"
+                  className="w-10 h-10 rounded-full bg-white/90 dark:bg-[#000000]/80 backdrop-blur-md border border-zinc-200/80 dark:border-[#262626] text-black dark:text-white flex items-center justify-center shadow-md cursor-pointer transition-opacity active:opacity-80"
                   title="Voltar"
                   aria-label="Voltar"
                 >
-                  <ChevronLeft className="w-4 h-4 stroke-[2.2] -ml-0.5" />
+                  <ChevronLeft className="w-5 h-5 -ml-0.5" />
                 </motion.button>
 
-                {/* Direita: Badge Conta Gold / Livre + Botão Fechar [X] */}
-                <div className="flex items-center gap-1.5">
+                {/* Direita: Badge Conta Gold / Livre (Sem botão X redundante) */}
+                <div className="flex items-center gap-2">
                   {isGoldItinerary ? (
                     <button
                       type="button"
@@ -213,17 +286,6 @@ export const ItineraryStoreDetailModal: React.FC<ItineraryStoreDetailModalProps>
                       <span>{itinerary.badgeText || 'ACESSO LIVRE'}</span>
                     </span>
                   )}
-
-                  <motion.button
-                    whileTap={{ scale: 0.88 }}
-                    type="button"
-                    onClick={onClose}
-                    className="w-[30px] h-[30px] rounded-full bg-black/30 backdrop-blur-md border border-white/20 text-white flex items-center justify-center shadow-xs cursor-pointer transition-all hover:bg-black/50"
-                    title="Fechar"
-                    aria-label="Fechar"
-                  >
-                    <X className="w-3.5 h-3.5 stroke-[2.2]" />
-                  </motion.button>
                 </div>
               </div>
             </div>
@@ -232,7 +294,7 @@ export const ItineraryStoreDetailModal: React.FC<ItineraryStoreDetailModalProps>
             <div className={`relative -mt-6 z-10 rounded-t-[32px] sm:rounded-t-[36px] px-5 pt-6 pb-6 space-y-4 transition-colors duration-200 min-h-[calc(100%-15rem)] ${
               isLight
                 ? 'bg-white text-zinc-900 shadow-[0_-8px_32px_rgba(0,0,0,0.08)]'
-                : 'bg-[#141518] text-white border-t border-white/10 shadow-[0_-8px_32px_rgba(0,0,0,0.5)]'
+                : 'bg-[#000000] text-white border-t border-[#262626] shadow-[0_-8px_32px_rgba(0,0,0,0.5)]'
             }`}>
               
               {/* 2. TAGS (MÁXIMO 3, LIMPAS E SEM POLUIÇÃO) */}
@@ -240,7 +302,9 @@ export const ItineraryStoreDetailModal: React.FC<ItineraryStoreDetailModalProps>
                 <div className="flex items-center gap-1.5 flex-wrap">
                   {visibleTags.map((tag, idx) => (
                     <React.Fragment key={idx}>
-                      <span className="text-[10px] font-black uppercase tracking-wider text-[#C28514] dark:text-[#FDE073]">
+                      <span className={`text-[10px] font-black uppercase tracking-wider ${
+                        isLight ? 'text-zinc-500' : 'text-zinc-400'
+                      }`}>
                         {tag}
                       </span>
                       {idx < visibleTags.length - 1 && (
@@ -295,17 +359,17 @@ export const ItineraryStoreDetailModal: React.FC<ItineraryStoreDetailModalProps>
                 }`}
               >
                 <span className="flex items-center gap-1.5">
-                  <Clock className={`w-3.5 h-3.5 shrink-0 ${isGoldItinerary ? 'text-[#E5AC33] dark:text-[#FDE073] drop-shadow-[0_0_8px_rgba(229,172,51,0.5)]' : (isLight ? 'text-black' : 'text-white')}`} />
+                  <Clock className={`w-3.5 h-3.5 shrink-0 ${isLight ? 'text-black' : 'text-white'}`} />
                   <span>{itinerary.daysCount} {itinerary.daysCount === 1 ? 'dia' : 'dias'}</span>
                 </span>
                 <span className="opacity-30">·</span>
                 <span className="flex items-center gap-1.5">
-                  <MapPin className={`w-3.5 h-3.5 shrink-0 ${isGoldItinerary ? 'text-[#E5AC33] dark:text-[#FDE073] drop-shadow-[0_0_8px_rgba(229,172,51,0.5)]' : (isLight ? 'text-black' : 'text-white')}`} />
+                  <MapPin className={`w-3.5 h-3.5 shrink-0 ${isLight ? 'text-black' : 'text-white'}`} />
                   <span>{totalStops} {totalStops === 1 ? 'parada' : 'paradas'}</span>
                 </span>
                 <span className="opacity-30">·</span>
                 <span className="flex items-center gap-1.5">
-                  <Compass className={`w-3.5 h-3.5 shrink-0 ${isGoldItinerary ? 'text-[#E5AC33] dark:text-[#FDE073] drop-shadow-[0_0_8px_rgba(229,172,51,0.5)]' : (isLight ? 'text-black' : 'text-white')}`} />
+                  <Compass className={`w-3.5 h-3.5 shrink-0 ${isLight ? 'text-black' : 'text-white'}`} />
                   <span>Ritmo otimizado</span>
                 </span>
               </motion.div>
@@ -319,10 +383,10 @@ export const ItineraryStoreDetailModal: React.FC<ItineraryStoreDetailModalProps>
                   className={`p-3.5 rounded-2xl border flex items-start gap-2.5 ${
                     isLight
                       ? 'bg-zinc-50 border-zinc-200/70 text-zinc-800'
-                      : 'bg-[#15171c] border-white/10 text-zinc-200'
+                      : 'bg-[#000000] border-[#262626] text-zinc-200'
                   }`}
                 >
-                  <Lightbulb className={`w-4 h-4 shrink-0 mt-0.5 ${isGoldItinerary ? 'text-[#E5AC33] dark:text-[#FDE073] drop-shadow-[0_0_8px_rgba(229,172,51,0.6)]' : (isLight ? 'text-black' : 'text-white')}`} />
+                  <Lightbulb className={`w-4 h-4 shrink-0 mt-0.5 ${isLight ? 'text-black' : 'text-white'}`} />
                   <div className="space-y-0.5 text-xs">
                     <span className="font-bold block text-zinc-900 dark:text-white">
                       Dicas do guia
@@ -359,7 +423,7 @@ export const ItineraryStoreDetailModal: React.FC<ItineraryStoreDetailModalProps>
                                 : isLight ? 'bg-black text-white border-black shadow-2xs' : 'bg-white text-black border-white shadow-2xs'
                               : isLight
                               ? 'bg-zinc-100 text-zinc-600 border-zinc-200/80 hover:bg-zinc-200'
-                              : 'bg-zinc-900 text-zinc-400 border-white/10 hover:text-white'
+                              : 'bg-[#000000] text-[#A1A1AA] border-[#262626] hover:text-white'
                           }`}
                         >
                           Dia {d.dayNumber || idx + 1}
@@ -414,16 +478,14 @@ export const ItineraryStoreDetailModal: React.FC<ItineraryStoreDetailModalProps>
                     return (
                       <motion.div
                         key={`${activeDayIndex}-${step.id || idx}`}
-                        initial={{ opacity: 0, scale: 0.88, y: 12 }}
-                        animate={{ opacity: 1, scale: 1, y: 0 }}
+                        initial={{ opacity: 0, y: 6 }}
+                        animate={{ opacity: 1, y: 0 }}
                         transition={{
-                          type: 'spring',
-                          stiffness: 380,
-                          damping: 22,
-                          delay: idx * 0.035,
+                          duration: 0.18,
+                          ease: [0.22, 1, 0.36, 1],
+                          delay: Math.min(idx * 0.02, 0.12),
                         }}
-                        whileHover={{ scale: 1.01, transition: { type: 'spring', stiffness: 400, damping: 18 } }}
-                        whileTap={{ scale: 0.96, transition: { type: 'spring', stiffness: 500, damping: 14 } }}
+                        whileTap={{ scale: 0.97, transition: { duration: 0.12, ease: 'easeOut' } }}
                         onClick={() => {
                           if (isBlurred) {
                             handleAdd();
@@ -434,7 +496,7 @@ export const ItineraryStoreDetailModal: React.FC<ItineraryStoreDetailModalProps>
                         } ${
                           isLight
                             ? 'bg-white border-zinc-200/80 shadow-2xs'
-                            : 'bg-[#15171c] border-white/10'
+                            : 'bg-[#000000] border-[#262626]'
                         }`}
                       >
                         {/* Conteúdo com efeito embaçado para paradas a partir da terceira */}
@@ -451,19 +513,34 @@ export const ItineraryStoreDetailModal: React.FC<ItineraryStoreDetailModalProps>
                           </div>
 
                           {/* Foto da parada */}
-                          <div className="w-14 h-14 rounded-xl overflow-hidden shrink-0 bg-zinc-800 border border-zinc-200/40 dark:border-white/10">
+                          <div
+                            style={{
+                              overflow: 'clip',
+                              clipPath: 'inset(0 round 12px)',
+                              WebkitClipPath: 'inset(0 round 12px)',
+                              WebkitMaskImage: '-webkit-radial-gradient(white, black)',
+                              isolation: 'isolate',
+                              transform: 'translateZ(0)',
+                              WebkitTransform: 'translateZ(0)',
+                            }}
+                            className="w-14 h-14 rounded-xl overflow-hidden shrink-0 bg-zinc-800 border border-zinc-200/40 dark:border-white/10"
+                          >
                             <motion.img
-                              initial={{ opacity: 0, scale: 0.88, y: 10 }}
-                              animate={{ opacity: 1, scale: 1, y: 0 }}
+                              initial={{ opacity: 0, filter: 'blur(6px)' }}
+                              animate={{ opacity: 1, filter: 'blur(0px)' }}
                               transition={{
-                                type: 'spring',
-                                stiffness: 380,
-                                damping: 22,
-                                delay: idx * 0.035,
+                                duration: 0.42,
+                                ease: [0.22, 1, 0.36, 1],
+                                delay: Math.min(idx * 0.035, 0.25),
+                              }}
+                              style={{
+                                backfaceVisibility: 'hidden',
+                                WebkitBackfaceVisibility: 'hidden',
+                                transform: 'translateZ(0)',
                               }}
                               src={spotImg}
                               alt={spotName}
-                              className="w-full h-full object-cover"
+                              className="w-full h-full object-cover rounded-[inherit]"
                               loading="eager"
                               referrerPolicy="no-referrer"
                               onError={(e) => {
@@ -535,7 +612,7 @@ export const ItineraryStoreDetailModal: React.FC<ItineraryStoreDetailModalProps>
             className={`absolute bottom-0 inset-x-0 z-50 px-5 py-3.5 border-t backdrop-blur-xl transition-colors duration-200 ${
               isLight
                 ? 'bg-white/95 border-zinc-200/90 shadow-[0_-8px_24px_rgba(0,0,0,0.06)]'
-                : 'bg-black/95 border-white/10 shadow-[0_-8px_24px_rgba(0,0,0,0.5)]'
+                : 'bg-[#000000] border-[#262626] shadow-[0_-8px_24px_rgba(0,0,0,0.5)]'
             }`}
             style={{
               paddingBottom: 'max(calc(env(safe-area-inset-bottom, 0px) + 16px), 20px)'

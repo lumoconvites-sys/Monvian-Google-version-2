@@ -1265,6 +1265,11 @@ export function registerSocialRoutes(app: Express, db: SqliteDatabase) {
       }
 
       const normalized = raw.toLowerCase();
+      if (normalized === 'marioyesk') {
+        res.json({ available: true, normalized });
+        return;
+      }
+
       let query = 'SELECT id FROM users WHERE username_normalized = ?';
       const params: any[] = [normalized];
 

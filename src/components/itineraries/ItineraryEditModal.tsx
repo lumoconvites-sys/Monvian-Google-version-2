@@ -103,19 +103,29 @@ export const ItineraryEditModal: React.FC<ItineraryEditModalProps> = ({
         animate={{ opacity: 1, scale: 1, y: 0 }}
         exit={{ opacity: 0, scale: 0.94, y: 15 }}
         transition={{ type: 'spring', damping: 26, stiffness: 340 }}
-        className="w-full max-w-md rounded-[32px] p-6 max-h-[85vh] flex flex-col !bg-[#ffffff] bg-[#ffffff] text-zinc-900 shadow-[0_20px_50px_rgba(0,0,0,0.18)] border border-zinc-200/80"
-        style={{ backgroundColor: '#ffffff' }}
+        className={`w-full max-w-md rounded-[32px] p-6 max-h-[85vh] flex flex-col shadow-[0_20px_50px_rgba(0,0,0,0.18)] border ${
+          isDark
+            ? 'bg-[#000000] text-white border-[#262626]'
+            : '!bg-[#ffffff] bg-[#ffffff] text-zinc-900 border-zinc-200/80'
+        }`}
+        style={{ backgroundColor: isDark ? '#000000' : '#ffffff' }}
       >
         {/* Header */}
         <div
-          className="flex items-center justify-between pb-3.5 border-b border-zinc-200/80 dark:border-white/10 shrink-0 text-[#4f4f4f]"
-          style={{ color: '#4f4f4f' }}
+          className="flex items-center justify-between pb-3.5 border-b border-zinc-200/80 dark:border-[#262626] shrink-0"
+          style={{ color: isDark ? '#FFFFFF' : '#4f4f4f' }}
         >
           <div>
-            <h2 className="text-xl font-black tracking-tight text-[#2d2d2d]" style={{ color: '#2d2d2d' }}>
+            <h2
+              className={`text-xl font-black tracking-tight ${isDark ? 'text-white' : 'text-[#2d2d2d]'}`}
+              style={{ color: isDark ? '#FFFFFF' : '#2d2d2d' }}
+            >
               Editar Roteiro
             </h2>
-            <p className="text-xs font-bold text-[#000000] mt-0.5" style={{ color: '#000000' }}>
+            <p
+              className={`text-xs font-bold mt-0.5 ${isDark ? 'text-[#A1A1AA]' : 'text-[#000000]'}`}
+              style={{ color: isDark ? '#A1A1AA' : '#000000' }}
+            >
               Reorganize a ordem dos pontos ou remova locais.
             </p>
           </div>
@@ -135,7 +145,7 @@ export const ItineraryEditModal: React.FC<ItineraryEditModalProps> = ({
               key={step.id}
               className={`p-3 sm:p-3.5 rounded-[22px] flex items-center justify-between gap-3 transition-colors ${
                 isDark
-                  ? 'bg-zinc-800/60 border border-white/6 hover:border-white/15'
+                  ? 'bg-[#000000] border border-[#262626] hover:border-white/25'
                   : 'ios-glass-btn-white hover:bg-white/90 shadow-xs'
               }`}
             >
@@ -255,8 +265,12 @@ export const ItineraryEditModal: React.FC<ItineraryEditModalProps> = ({
                     onClose();
                     onCreateNewItinerary();
                   }}
-                  className="py-2.5 px-3 rounded-xl font-bold text-xs transition-colors cursor-pointer !text-[#ffffff] text-[#ffffff] hover:bg-zinc-100/20"
-                  style={{ color: '#ffffff' }}
+                  className={`py-2.5 px-3 rounded-xl font-bold text-xs transition-colors cursor-pointer ${
+                    isDark
+                      ? 'text-white hover:bg-white/10 border border-[#262626]'
+                      : '!text-[#000000] text-[#000000] hover:bg-zinc-100 border border-zinc-200'
+                  }`}
+                  style={{ color: isDark ? '#ffffff' : '#000000' }}
                 >
                   Criar Novo
                 </button>

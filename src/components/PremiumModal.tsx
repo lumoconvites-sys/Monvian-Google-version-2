@@ -162,7 +162,7 @@ export const PremiumModal: React.FC<PremiumModalProps> = ({
           className={`relative w-full max-w-[370px] sm:max-w-[390px] rounded-[36px] overflow-hidden transition-colors ${
             isLight
               ? 'bg-white text-zinc-900 border border-zinc-200/90 shadow-[0_25px_70px_rgba(0,0,0,0.18)]'
-              : 'bg-[#0C0D10] text-white border border-white/10 shadow-[0_25px_80px_rgba(0,0,0,0.9)]'
+              : 'bg-[#000000] text-white border border-[#262626] shadow-[0_25px_80px_rgba(0,0,0,0.9)]'
           }`}
         >
           {/* Top Banner Image with Smooth Fade to Card Background */}
@@ -179,7 +179,7 @@ export const PremiumModal: React.FC<PremiumModalProps> = ({
             <div className={`absolute inset-0 ${
               isLight
                 ? 'bg-gradient-to-b from-black/15 via-white/20 to-white'
-                : 'bg-gradient-to-b from-black/25 via-black/40 to-[#0C0D10]'
+                : 'bg-gradient-to-b from-black/25 via-black/40 to-[#000000]'
             }`} />
 
             {/* Close Button [ × ] */}
@@ -252,7 +252,7 @@ export const PremiumModal: React.FC<PremiumModalProps> = ({
 
             {/* Extremely Discreet Divider Line */}
             <div className={`w-full h-px my-4 ${
-              isLight ? 'bg-zinc-200/80' : 'bg-white/[0.08]'
+              isLight ? 'bg-zinc-200/80' : 'bg-[#262626]'
             }`} />
 
             {/* Price Section */}

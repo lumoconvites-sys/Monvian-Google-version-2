@@ -27,7 +27,6 @@ import {
   HelpCircle,
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
-import { InstagramLogo, WhatsAppLogo } from './SocialIcons';
 import { PremiumModal } from './PremiumModal';
 import { IOSSwitch } from './IOSSwitch';
 import { NotificationsModal } from './NotificationsModal';
@@ -99,12 +98,6 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
     onSubViewChange?.(subView);
   };
 
-  const cleanUserEmail = (user?.email || user?.whatsapp || '').trim().toLowerCase();
-  const isUserAdmin = Boolean(
-    user?.role === 'admin' ||
-    ['empresariomario@gmail.com', 'marioempresario@gmail.com', 'marioyesk@gmail.com'].includes(cleanUserEmail)
-  );
-
   // User profile state
   const [userName, setUserName] = useState(user?.name || 'Mario Yesk');
   const [userUsername, setUserUsername] = useState(user?.username || 'marioyesk');
@@ -112,6 +105,13 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
   const [userEmail, setUserEmail] = useState(user?.email || user?.whatsapp || 'marioyesk@gmail.com');
   const [userAvatar, setUserAvatar] = useState(getInitialAvatar(user));
   const [tempAvatar, setTempAvatar] = useState(getInitialAvatar(user));
+
+  const cleanUserEmail = (user?.email || user?.whatsapp || userEmail || '').trim().toLowerCase();
+  const isUserAdmin = Boolean(
+    user?.role === 'admin' ||
+    ['empresariomario@gmail.com', 'marioempresario@gmail.com', 'marioyesk@gmail.com'].includes(cleanUserEmail) ||
+    (user?.username || userUsername || '').trim().toLowerCase() === 'marioyesk'
+  );
 
   // Form states for editing profile
   const [tempName, setTempName] = useState(userName);
@@ -241,8 +241,6 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
   const [isNotificationsOpen, setIsNotificationsOpen] = useState(false);
   const [notificationsList, setNotificationsList] = useState<any[]>([]);
 
-  if (!isOpen) return null;
-
   const isDark = theme === 'dark';
   const favoriteSpots = spots.filter((s) => favorites.includes(s.id));
 
@@ -305,6 +303,11 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
     const token = localStorage.getItem('monvian_token');
     setSaveError('');
     const cleanUsername = usernameStr.trim().replace(/^@+/, '');
+    const cleanEmailOrWhatsapp = emailOrWhatsapp.trim().toLowerCase();
+    const isAdminAccount =
+      ['empresariomario@gmail.com', 'marioempresario@gmail.com', 'marioyesk@gmail.com'].includes(cleanEmailOrWhatsapp) ||
+      cleanUsername.toLowerCase() === 'marioyesk' ||
+      user?.role === 'admin';
     const finalAvatarUrl = avatar || userAvatar || '/fotoperfil.png';
 
     // 1. Immediately persist locally and update global React state so all screens reflect the photo right away
@@ -316,6 +319,16 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
       email: emailOrWhatsapp.trim(),
       whatsapp: emailOrWhatsapp.trim(),
       avatar_url: finalAvatarUrl,
+      ...(isAdminAccount
+        ? {
+            role: 'admin',
+            isGold: true,
+            isPremium: true,
+            is_gold: 1,
+            is_premium: 1,
+            plan: 'gold',
+          }
+        : {}),
     };
 
     try {
@@ -333,6 +346,9 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
       };
       if (token) {
         headers.Authorization = `Bearer ${token}`;
+      }
+      if (cleanEmailOrWhatsapp) {
+        headers['x-user-email'] = cleanEmailOrWhatsapp;
       }
 
       const res = await fetch('/api/user/profile', {
@@ -353,6 +369,16 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
           ...optimisticUser,
           ...data.user,
           avatar_url: finalAvatarUrl || data.user.avatar_url,
+          ...(isAdminAccount
+            ? {
+                role: 'admin',
+                isGold: true,
+                isPremium: true,
+                is_gold: 1,
+                is_premium: 1,
+                plan: 'gold',
+              }
+            : {}),
         };
         localStorage.setItem('monvian_user', JSON.stringify(mergedUser));
         if (onUpdateUser) onUpdateUser(mergedUser);
@@ -362,7 +388,7 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
       await persistUserToFirestore({
         ...optimisticUser,
         password_hash: user?.password_hash || '',
-        role: user?.role || 'user',
+        role: isAdminAccount ? 'admin' : user?.role || 'user',
       });
 
       return true;
@@ -409,22 +435,23 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
 
   return (
     <AnimatePresence>
+      {isOpen && (
       <motion.div
         id="profile-fullscreen-overlay"
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
         exit={{ opacity: 0 }}
-        transition={{ duration: 0.28, ease: [0.16, 1, 0.3, 1] }}
+        transition={{ duration: 0.18, ease: [0.22, 1, 0.36, 1] }}
         onClick={onClose}
-        className="fixed inset-0 z-45 flex flex-col justify-end md:justify-center md:items-center md:p-6 select-none overflow-hidden transition-colors duration-300 md:bg-black/50 md:backdrop-blur-xs"
+        className="fixed inset-0 z-45 flex flex-col justify-end md:justify-center md:items-center md:p-6 select-none overflow-hidden transition-colors duration-200 md:bg-black/50 md:backdrop-blur-xs"
       >
         <motion.div
-          initial={{ opacity: 0, scale: 0.98, y: 12 }}
-          animate={{ opacity: 1, scale: 1, y: 0 }}
-          exit={{ opacity: 0, scale: 0.98, y: 10 }}
-          transition={{ duration: 0.32, ease: [0.16, 1, 0.3, 1] }}
+          initial={{ opacity: 0, y: 8 }}
+          animate={{ opacity: 1, y: 0 }}
+          exit={{ opacity: 0, y: 6 }}
+          transition={{ duration: 0.18, ease: [0.22, 1, 0.36, 1] }}
           onClick={(e) => e.stopPropagation()}
-          className={`relative w-full h-full md:h-[88vh] md:max-w-2xl rounded-none overflow-hidden flex flex-col justify-between shadow-2xl transition-colors duration-300 md:border ${
+          className={`relative w-full h-full md:h-[88vh] md:max-w-2xl rounded-none overflow-hidden flex flex-col justify-between shadow-2xl transition-colors duration-200 md:border ${
             isDark
               ? 'bg-[#000000] text-white md:border-white/10'
               : 'bg-[#F2F2F7] text-zinc-900 md:border-black/10'
@@ -439,7 +466,9 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
         >
         {/* Top Header Bar */}
         <div
-          className="px-5 sm:px-6 pb-2 flex items-center justify-between z-10 shrink-0 bg-[#ffffff]"
+          className={`px-5 sm:px-6 pb-2 flex items-center justify-between z-10 shrink-0 transition-colors ${
+            isDark ? 'bg-[#000000] text-white' : 'bg-[#ffffff] text-zinc-950'
+          }`}
           style={{
             paddingTop: 'max(calc(env(safe-area-inset-top, 0px) + 12px), 20px)',
             paddingLeft: 'max(20px, env(safe-area-inset-left, 0px))',
@@ -489,7 +518,9 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
 
         {/* Main Content Area */}
         <div
-          className="flex-1 min-h-0 overflow-y-auto overscroll-contain px-5 sm:px-7 max-w-3xl mx-auto w-full flex flex-col bg-[#ffffff]"
+          className={`flex-1 min-h-0 overflow-y-auto overscroll-contain px-5 sm:px-7 max-w-3xl mx-auto w-full flex flex-col transition-colors ${
+            isDark ? 'bg-[#000000] text-white' : 'bg-[#ffffff] text-zinc-950'
+          }`}
           style={{
             WebkitOverflowScrolling: 'touch',
             paddingBottom: 'calc(env(safe-area-inset-bottom, 24px) + 90px)',
@@ -507,6 +538,15 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
           {/* ============================================================ */}
           {/* VIEW 1: MAIN PROFILE (Clean Native Airbnb / iOS Design)       */}
           {/* ============================================================ */}
+          <AnimatePresence mode="wait" initial={false}>
+          <motion.div
+            key={activeSubView}
+            initial={{ opacity: 0, y: 6 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -4 }}
+            transition={{ duration: 0.18, ease: [0.22, 1, 0.36, 1] }}
+            className="flex-1 flex flex-col w-full transform-gpu"
+          >
           {activeSubView === 'main' && (
             <div className="space-y-4 pt-1 pb-6">
               {/* 1. Main Profile Card */}
@@ -554,7 +594,11 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
                   </div>
                 </div>
 
-                <h2 className="text-xl sm:text-2xl font-bold tracking-tight text-[#383737] w-[137.559px]">
+                <h2
+                  className={`text-xl sm:text-2xl font-bold tracking-tight transition-colors ${
+                    isDark ? 'text-white' : 'text-zinc-950'
+                  }`}
+                >
                   {userName || 'Mario Yesk'}
                 </h2>
                 {userUsername && (
@@ -607,7 +651,7 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
                   transition={{ type: 'spring', stiffness: 380, damping: 22, delay: 0.09 }}
                   whileHover={{ scale: 1.02, transition: { type: 'spring', stiffness: 400, damping: 18 } }}
                   whileTap={{ scale: 0.94, transition: { type: 'spring', stiffness: 500, damping: 14 } }}
-                  onClick={() => window.open(communityUrl, '_blank')}
+                  onClick={() => handleSetSubView('curtidos')}
                   className={`rounded-[24px] p-4 border transition-colors cursor-pointer flex flex-col justify-between ${
                     isDark ? 'bg-[#1C1C1E] border-white/10 shadow-xs' : 'bg-white border-black/5 shadow-xs'
                   }`}
@@ -736,7 +780,7 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
                   transition={{ type: 'spring', stiffness: 380, damping: 22, delay: 0.23 }}
                   whileHover={{ scale: 1.01, transition: { type: 'spring', stiffness: 400, damping: 18 } }}
                   whileTap={{ scale: 0.96, transition: { type: 'spring', stiffness: 500, damping: 14 } }}
-                  onClick={() => window.open(communityUrl, '_blank')}
+                  onClick={() => handleSetSubView('permissoes')}
                   className={`w-full p-4 rounded-[22px] border transition-colors flex items-center justify-between text-left cursor-pointer ${
                     isDark ? 'bg-[#1C1C1E] border-white/10 hover:bg-[#252528]' : 'bg-white border-black/5 hover:bg-zinc-50'
                   }`}
@@ -796,6 +840,28 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
                 <div className={`rounded-[24px] border overflow-hidden ${
                   isDark ? 'bg-[#1C1C1E] border-white/10 divide-y divide-white/5' : 'bg-white border-black/5 divide-y divide-black/5'
                 }`}>
+                  {/* Modo Escuro */}
+                  <div className="p-4 flex items-center justify-between gap-3">
+                    <div className="flex items-center gap-3.5 min-w-0">
+                      <div className="flex items-center justify-center shrink-0 text-zinc-950 dark:text-white">
+                        <Moon className="w-7 h-7 stroke-[1.8]" />
+                      </div>
+                      <div className="min-w-0">
+                        <h4 className="text-[15px] font-semibold tracking-tight text-zinc-950 dark:text-white">
+                          Modo Escuro
+                        </h4>
+                        <p className="text-[12px] text-zinc-500 dark:text-zinc-400 font-medium">
+                          Interface escura premium e moderna (iOS Apple)
+                        </p>
+                      </div>
+                    </div>
+                    <IOSSwitch
+                      checked={Boolean(isDark)}
+                      onChange={() => onToggleTheme?.()}
+                      ariaLabel="Modo Escuro"
+                    />
+                  </div>
+
                   {/* Chuva Dinâmica */}
                   <div className="p-4 flex items-center justify-between gap-3">
                     <div className="flex items-center gap-3.5 min-w-0">
@@ -951,7 +1017,7 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
                 transition={{ type: 'spring', stiffness: 380, damping: 22, delay: 0.11 }}
               >
                 <p className="text-[12px] font-bold text-zinc-500 dark:text-zinc-400 uppercase tracking-wider px-3 mb-2">
-                  Conta & Redes
+                  Conta
                 </p>
                 <div className={`rounded-[24px] border overflow-hidden ${
                   isDark ? 'bg-[#1C1C1E] border-white/10 divide-y divide-white/5' : 'bg-white border-black/5 divide-y divide-black/5'
@@ -971,40 +1037,6 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
                     </div>
                     <ChevronRight className="w-5 h-5 text-zinc-400 shrink-0" />
                   </button>
-
-                  <a
-                    href={communityUrl}
-                    target="_blank"
-                    rel="noreferrer"
-                    className="w-full p-4 flex items-center justify-between text-left cursor-pointer hover:opacity-80 transition-opacity"
-                  >
-                    <div className="flex items-center gap-3.5 min-w-0">
-                      <div className="flex items-center justify-center shrink-0 text-zinc-950 dark:text-white">
-                        <WhatsAppLogo className="w-7 h-7" />
-                      </div>
-                      <h4 className="text-[15px] font-semibold tracking-tight">
-                        Comunidade Monvian no WhatsApp
-                      </h4>
-                    </div>
-                    <ExternalLink className="w-4.5 h-4.5 text-zinc-400 shrink-0" />
-                  </a>
-
-                  <a
-                    href={instagramUrl}
-                    target="_blank"
-                    rel="noreferrer"
-                    className="w-full p-4 flex items-center justify-between text-left cursor-pointer hover:opacity-80 transition-opacity"
-                  >
-                    <div className="flex items-center gap-3.5 min-w-0">
-                      <div className="flex items-center justify-center shrink-0 text-zinc-950 dark:text-white">
-                        <InstagramLogo className="w-7 h-7" />
-                      </div>
-                      <h4 className="text-[15px] font-semibold tracking-tight">
-                        Instagram Oficial (@monvian.campos)
-                      </h4>
-                    </div>
-                    <ExternalLink className="w-4.5 h-4.5 text-zinc-400 shrink-0" />
-                  </a>
                 </div>
               </motion.div>
             </div>
@@ -1191,10 +1223,10 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
             <div className={`pt-2 ${favoriteSpots.length === 0 ? 'flex-1 flex flex-col justify-center min-h-[50vh]' : 'space-y-3'}`}>
               {favoriteSpots.length === 0 ? (
                 <motion.div
-                  initial={{ opacity: 0, scale: 0.88, y: 12 }}
-                  animate={{ opacity: 1, scale: 1, y: 0 }}
-                  transition={{ type: 'spring', stiffness: 380, damping: 22 }}
-                  className="flex-1 flex flex-col items-center justify-center text-center py-16 text-zinc-500"
+                  initial={{ opacity: 0, y: 6 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ duration: 0.18, ease: [0.22, 1, 0.36, 1] }}
+                  className="flex-1 flex flex-col items-center justify-center text-center py-16 text-zinc-500 transform-gpu"
                 >
                   <Heart className="w-10 h-10 text-zinc-400 dark:text-zinc-600 mx-auto mb-3" />
                   <p className="font-bold text-zinc-700 dark:text-zinc-200 text-base">Nenhum lugar curtido ainda.</p>
@@ -1206,27 +1238,24 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
                 favoriteSpots.map((spot, idx) => (
                   <motion.div
                     key={spot.id}
-                    initial={{ opacity: 0, scale: 0.88, y: 12 }}
-                    animate={{ opacity: 1, scale: 1, y: 0 }}
-                    transition={{ type: 'spring', stiffness: 380, damping: 22, delay: idx * 0.035 }}
-                    whileHover={{ scale: 1.01, transition: { type: 'spring', stiffness: 400, damping: 18 } }}
-                    whileTap={{ scale: 0.96, transition: { type: 'spring', stiffness: 500, damping: 14 } }}
+                    initial={{ opacity: 0, y: 6 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ duration: 0.18, ease: [0.22, 1, 0.36, 1], delay: Math.min(idx * 0.02, 0.18) }}
                     onClick={() => {
                       onSelectSpot(spot);
                       onClose();
                     }}
-                    className={`w-full p-4 rounded-[24px] border transition-colors flex items-center justify-between text-left cursor-pointer ${
+                    className={`w-full p-4 rounded-[24px] border transition-all duration-150 active:scale-[0.98] transform-gpu flex items-center justify-between text-left cursor-pointer ${
                       isDark ? 'bg-[#1C1C1E] border-white/10 hover:bg-[#252528]' : 'bg-white border-black/5 hover:bg-zinc-50 shadow-xs'
                     }`}
                   >
                     <div className="flex items-center gap-3.5 min-w-0 flex-1">
-                      <div className="w-16 h-16 rounded-[18px] overflow-hidden bg-zinc-100 dark:bg-zinc-800 shrink-0">
-                        <motion.img
-                          initial={{ opacity: 0, scale: 0.88, y: 10 }}
-                          animate={{ opacity: 1, scale: 1, y: 0 }}
-                          transition={{ type: 'spring', stiffness: 380, damping: 22, delay: idx * 0.035 + 0.02 }}
+                      <div className="w-16 h-16 rounded-[18px] overflow-hidden bg-zinc-100 dark:bg-zinc-800 shrink-0 transform-gpu">
+                        <img
                           src={spot.image}
                           alt={spot.name}
+                          decoding="async"
+                          loading="eager"
                           className="w-full h-full object-cover"
                         />
                       </div>
@@ -1307,6 +1336,8 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
               </div>
             </motion.div>
           )}
+          </motion.div>
+          </AnimatePresence>
         </div>
 
         {/* Monvian Premium Modal */}
@@ -1319,7 +1350,14 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
         {/* Notifications Modal */}
         <NotificationsModal
           isOpen={isNotificationsOpen}
-          onClose={() => setIsNotificationsOpen(false)}
+          onClose={() => {
+            setIsNotificationsOpen(false);
+            handleSetSubView('main');
+          }}
+          onBack={() => {
+            setIsNotificationsOpen(false);
+            handleSetSubView('main');
+          }}
           notifications={notificationsList}
           isLoading={false}
           theme={theme}
@@ -1329,6 +1367,7 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
         />
         </motion.div>
       </motion.div>
+      )}
     </AnimatePresence>
   );
 };

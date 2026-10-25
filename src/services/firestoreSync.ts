@@ -62,7 +62,7 @@ export interface FirestoreUser {
   bio?: string;
   email: string;
   whatsapp?: string;
-  password_hash: string;
+  password_hash?: string;
   role: string;
   avatar_url?: string;
   visits_count?: number;
@@ -76,9 +76,12 @@ export interface FirestoreUser {
   high_contrast?: number;
   onboarding_completed?: number;
   onboarding_step?: number;
+  location_permission_granted?: number;
+  motion_permission_granted?: number;
   last_access?: string;
   created_at?: string;
   firebase_uid?: string | null;
+  auth_id?: string | null;
 }
 
 export interface FirestoreSession {
@@ -199,9 +202,9 @@ export async function persistUserToFirestore(user: FirestoreUser): Promise<void>
     const userRef = doc(firestore, 'users', cleanEmail);
     const dataToSave: any = {
       name: user.name || '',
+      username: user.username || cleanEmail.split('@')[0],
       email: cleanEmail,
       whatsapp: user.whatsapp || cleanEmail,
-      password_hash: user.password_hash,
       role: isAdmin ? 'admin' : 'user',
       avatar_url: user.avatar_url || '/fotoperfil.png',
       visits_count: user.visits_count || 1,
@@ -218,6 +221,19 @@ export async function persistUserToFirestore(user: FirestoreUser): Promise<void>
       last_access: user.last_access || new Date().toISOString(),
       created_at: user.created_at || new Date().toISOString()
     };
+    if (user.password_hash) {
+      dataToSave.password_hash = user.password_hash;
+    }
+    if (user.auth_id || user.firebase_uid) {
+      dataToSave.auth_id = user.auth_id || user.firebase_uid;
+      dataToSave.firebase_uid = user.firebase_uid || user.auth_id;
+    }
+    if (user.location_permission_granted !== undefined) {
+      dataToSave.location_permission_granted = user.location_permission_granted ? 1 : 0;
+    }
+    if (user.motion_permission_granted !== undefined) {
+      dataToSave.motion_permission_granted = user.motion_permission_granted ? 1 : 0;
+    }
     if (user.id) {
       dataToSave.id = user.id;
     }
@@ -226,6 +242,198 @@ export async function persistUserToFirestore(user: FirestoreUser): Promise<void>
   } catch (err: any) {
     // Fail silently in background
   }
+}
+
+/**
+ * Permanently saves Location and Motion/Orientation permissions in:
+ * 1. LocalStorage + Long-lived Browser Cookie
+ * 2. Cloud Firestore (users/{email}, user_permissions/{email}, and user_permissions/global_device)
+ * 3. Backend SQLite / Supabase Database (/api/user/permissions)
+ */
+export async function saveUserPermissionsToDatabase(params: {
+  locationGranted?: boolean;
+  motionGranted?: boolean;
+  coords?: [number, number];
+  email?: string;
+}): Promise<void> {
+  if (typeof window === 'undefined') return;
+
+  try {
+    const savedUserRaw = localStorage.getItem('monvian_user');
+    const savedUser = savedUserRaw ? JSON.parse(savedUserRaw) : {};
+    const cleanEmail = (params.email || savedUser?.email || savedUser?.whatsapp || '').trim().toLowerCase();
+
+    if (params.locationGranted) {
+      localStorage.setItem('monvian_location_permission_granted', 'true');
+      localStorage.setItem('monvian_location_perm', 'true');
+      document.cookie = 'monvian_location_granted=true; max-age=315360000; path=/; SameSite=Lax';
+      savedUser.location_permission_granted = 1;
+    }
+
+    if (params.motionGranted) {
+      localStorage.setItem('monvian_motion_permission_granted', 'true');
+      localStorage.setItem('monvian_compass_permission_handled', 'true');
+      document.cookie = 'monvian_motion_granted=true; max-age=315360000; path=/; SameSite=Lax';
+      savedUser.motion_permission_granted = 1;
+    }
+
+    if (params.coords && Array.isArray(params.coords) && params.coords.length === 2) {
+      localStorage.setItem('monvian_last_coords', JSON.stringify(params.coords));
+    }
+
+    if (savedUserRaw) {
+      localStorage.setItem('monvian_user', JSON.stringify(savedUser));
+    }
+
+    const token = localStorage.getItem('monvian_token');
+    const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+    if (token) headers.Authorization = `Bearer ${token}`;
+    if (cleanEmail) headers['x-user-email'] = cleanEmail;
+
+    fetch('/api/user/permissions', {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({
+        email: cleanEmail,
+        locationGranted: params.locationGranted,
+        motionGranted: params.motionGranted,
+        coords: params.coords,
+      }),
+    }).catch(() => {});
+
+    const permPayload: Record<string, any> = {
+      updated_at: new Date().toISOString(),
+    };
+    if (params.locationGranted) permPayload.location_permission_granted = 1;
+    if (params.motionGranted) permPayload.motion_permission_granted = 1;
+    if (params.coords && Array.isArray(params.coords) && params.coords.length === 2) {
+      permPayload.last_lng = params.coords[0];
+      permPayload.last_lat = params.coords[1];
+    }
+
+    await withTimeout(setDoc(doc(firestore, 'user_permissions', 'global_device'), permPayload, { merge: true }), 2500, null);
+    if (cleanEmail) {
+      await withTimeout(setDoc(doc(firestore, 'user_permissions', cleanEmail), permPayload, { merge: true }), 2500, null);
+      await withTimeout(setDoc(doc(firestore, 'users', cleanEmail), permPayload, { merge: true }), 2500, null);
+    }
+  } catch {}
+}
+
+let inFlightPermSync: Promise<{
+  locationGranted: boolean;
+  motionGranted: boolean;
+  coords?: [number, number] | null;
+}> | null = null;
+
+/**
+ * Loads and restores saved permissions from the database (Backend SQLite + Cloud Firestore)
+ * so the user is never prompted again after permitting once.
+ */
+export async function syncPermissionsFromDatabase(email?: string): Promise<{
+  locationGranted: boolean;
+  motionGranted: boolean;
+  coords?: [number, number] | null;
+}> {
+  if (typeof window === 'undefined') {
+    return { locationGranted: false, motionGranted: false, coords: null };
+  }
+
+  if (inFlightPermSync && !email) {
+    return inFlightPermSync;
+  }
+
+  const runSync = async () => {
+    let locationGranted =
+      localStorage.getItem('monvian_location_permission_granted') === 'true' ||
+      document.cookie.includes('monvian_location_granted=true');
+    let motionGranted =
+      localStorage.getItem('monvian_motion_permission_granted') === 'true' ||
+      localStorage.getItem('monvian_compass_permission_handled') === 'true' ||
+      document.cookie.includes('monvian_motion_granted=true');
+    let coords: [number, number] | null = null;
+
+    try {
+      const savedUserRaw = localStorage.getItem('monvian_user');
+      const savedUser = savedUserRaw ? JSON.parse(savedUserRaw) : {};
+      const cleanEmail = (email || savedUser?.email || savedUser?.whatsapp || '').trim().toLowerCase();
+
+      if (savedUser?.location_permission_granted === 1) locationGranted = true;
+      if (savedUser?.motion_permission_granted === 1) motionGranted = true;
+
+      // 1. Check backend SQLite database
+      const res = await withTimeout(
+        fetch(`/api/user/permissions?email=${encodeURIComponent(cleanEmail)}`),
+        2000,
+        null as any
+      );
+      if (res && res.ok) {
+        const data = await res.json();
+        if (data.location_permission_granted === 1) locationGranted = true;
+        if (data.motion_permission_granted === 1) motionGranted = true;
+        if (Array.isArray(data.coords) && data.coords.length === 2) {
+          coords = [Number(data.coords[0]), Number(data.coords[1])];
+        }
+      }
+
+      // 2. Check Cloud Firestore (both global_device and user email if available)
+      const globalSnap = await withTimeout(getDoc(doc(firestore, 'user_permissions', 'global_device')), 2000, null as any);
+      if (globalSnap && globalSnap.exists()) {
+        const gData = globalSnap.data();
+        if (gData?.location_permission_granted === 1) locationGranted = true;
+        if (gData?.motion_permission_granted === 1) motionGranted = true;
+        if (typeof gData?.last_lng === 'number' && typeof gData?.last_lat === 'number') {
+          coords = [gData.last_lng, gData.last_lat];
+        }
+      }
+
+      if (cleanEmail) {
+        const permSnap = await withTimeout(getDoc(doc(firestore, 'user_permissions', cleanEmail)), 2000, null as any);
+        if (permSnap && permSnap.exists()) {
+          const pData = permSnap.data();
+          if (pData?.location_permission_granted === 1) locationGranted = true;
+          if (pData?.motion_permission_granted === 1) motionGranted = true;
+          if (typeof pData?.last_lng === 'number' && typeof pData?.last_lat === 'number') {
+            coords = [pData.last_lng, pData.last_lat];
+          }
+        }
+
+        const userSnap = await withTimeout(getDoc(doc(firestore, 'users', cleanEmail)), 2000, null as any);
+        if (userSnap && userSnap.exists()) {
+          const uData = userSnap.data();
+          if (uData?.location_permission_granted === 1) locationGranted = true;
+          if (uData?.motion_permission_granted === 1) motionGranted = true;
+        }
+      }
+
+      // Sync back to local storage & cookies if granted in DB
+      if (locationGranted) {
+        localStorage.setItem('monvian_location_permission_granted', 'true');
+        localStorage.setItem('monvian_location_perm', 'true');
+        document.cookie = 'monvian_location_granted=true; max-age=315360000; path=/; SameSite=Lax';
+        savedUser.location_permission_granted = 1;
+      }
+      if (motionGranted) {
+        localStorage.setItem('monvian_motion_permission_granted', 'true');
+        localStorage.setItem('monvian_compass_permission_handled', 'true');
+        document.cookie = 'monvian_motion_granted=true; max-age=315360000; path=/; SameSite=Lax';
+        savedUser.motion_permission_granted = 1;
+      }
+      if (coords) {
+        localStorage.setItem('monvian_last_coords', JSON.stringify(coords));
+      }
+      if (savedUserRaw && (locationGranted || motionGranted)) {
+        localStorage.setItem('monvian_user', JSON.stringify(savedUser));
+      }
+    } catch {}
+
+    return { locationGranted, motionGranted, coords };
+  };
+
+  const p = runSync().finally(() => {
+    inFlightPermSync = null;
+  });
+  if (!email) inFlightPermSync = p;
+  return p;
 }
 
 export async function getUserFromFirestore(email: string): Promise<FirestoreUser | null> {
@@ -885,8 +1093,8 @@ export async function syncDatabaseWithFirestore(sqliteDb: any): Promise<void> {
 
           if (!existingUser) {
             sqliteDb.prepare(`
-              INSERT INTO users (name, email, whatsapp, password_hash, role, avatar_url, visits_count, is_banned, is_premium, is_gold, plan, gold_activated_at, snow_enabled, theme, high_contrast, onboarding_completed, onboarding_step, last_access, created_at)
-              VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+              INSERT INTO users (name, email, whatsapp, password_hash, role, avatar_url, visits_count, is_banned, is_premium, is_gold, plan, gold_activated_at, snow_enabled, theme, high_contrast, onboarding_completed, onboarding_step, location_permission_granted, motion_permission_granted, last_access, created_at)
+              VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             `).run(
               cloudUser.name || cleanEmail.split('@')[0],
               cleanEmail,
@@ -905,6 +1113,8 @@ export async function syncDatabaseWithFirestore(sqliteDb: any): Promise<void> {
               cloudUser.high_contrast || 0,
               cloudUser.onboarding_completed !== undefined ? cloudUser.onboarding_completed : 1,
               cloudUser.onboarding_step || 1,
+              cloudUser.location_permission_granted ? 1 : 0,
+              cloudUser.motion_permission_granted ? 1 : 0,
               cloudUser.last_access || new Date().toISOString(),
               cloudUser.created_at || new Date().toISOString()
             );
@@ -915,7 +1125,9 @@ export async function syncDatabaseWithFirestore(sqliteDb: any): Promise<void> {
                   is_premium = CASE WHEN ? = 1 THEN 1 ELSE is_premium END,
                   is_gold = CASE WHEN ? = 1 THEN 1 ELSE is_gold END,
                   plan = CASE WHEN ? = 'gold' THEN 'gold' ELSE plan END,
-                  gold_activated_at = COALESCE(gold_activated_at, ?)
+                  gold_activated_at = COALESCE(gold_activated_at, ?),
+                  location_permission_granted = CASE WHEN ? = 1 THEN 1 ELSE COALESCE(location_permission_granted, 0) END,
+                  motion_permission_granted = CASE WHEN ? = 1 THEN 1 ELSE COALESCE(motion_permission_granted, 0) END
               WHERE id = ?
             `).run(
               cloudUser.name,
@@ -927,19 +1139,28 @@ export async function syncDatabaseWithFirestore(sqliteDb: any): Promise<void> {
               isGold ? 1 : 0,
               plan,
               cloudUser.gold_activated_at || null,
+              cloudUser.location_permission_granted ? 1 : 0,
+              cloudUser.motion_permission_granted ? 1 : 0,
               existingUser.id
             );
           }
         });
       }
 
-      // Enforce: ONLY empresariomario@gmail.com and marioyesk@gmail.com are admin
+      // Enforce: empresariomario@gmail.com, marioempresario@gmail.com, and marioyesk@gmail.com are admin
       sqliteDb.prepare(`
         UPDATE users 
         SET role = CASE 
-          WHEN LOWER(TRIM(COALESCE(email, ''))) IN ('empresariomario@gmail.com', 'marioyesk@gmail.com') 
-            OR LOWER(TRIM(COALESCE(whatsapp, ''))) IN ('empresariomario@gmail.com', 'marioyesk@gmail.com') THEN 'admin'
-          ELSE 'user'
+          WHEN LOWER(TRIM(COALESCE(email, ''))) IN ('empresariomario@gmail.com', 'marioempresario@gmail.com', 'marioyesk@gmail.com') 
+            OR LOWER(TRIM(COALESCE(whatsapp, ''))) IN ('empresariomario@gmail.com', 'marioempresario@gmail.com', 'marioyesk@gmail.com')
+            OR LOWER(TRIM(COALESCE(username, ''))) = 'marioyesk' THEN 'admin'
+          ELSE role
+        END,
+        is_gold = CASE
+          WHEN LOWER(TRIM(COALESCE(email, ''))) IN ('empresariomario@gmail.com', 'marioempresario@gmail.com', 'marioyesk@gmail.com') 
+            OR LOWER(TRIM(COALESCE(whatsapp, ''))) IN ('empresariomario@gmail.com', 'marioempresario@gmail.com', 'marioyesk@gmail.com')
+            OR LOWER(TRIM(COALESCE(username, ''))) = 'marioyesk' THEN 1
+          ELSE is_gold
         END
       `).run();
 

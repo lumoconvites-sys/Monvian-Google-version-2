@@ -3,18 +3,15 @@ import React from 'react';
 interface IconProps {
   className?: string;
   size?: number;
+  filled?: boolean;
+  style?: React.CSSProperties;
 }
 
 /**
- * 1. Explorar: Símbolo de exploração moderno, sofisticado e minimalista.
- * Combina um horizonte orbital suave e uma estrela voyager de descoberta de 4 pontas
- * com curvas aerodinâmicas e ponto focal central.
- * Substitui a antiga bússola com agulha / rosa dos ventos tradicional.
- */
-/**
  * 1. Explorar (antigo Agora): Bússola minimalista no padrão Apple iOS SF Symbols.
+ * Espessura de traço uniforme (2.15) e proporções equilibradas para 28–30px.
  */
-export const NavAgoraIcon: React.FC<IconProps> = ({ className = '', size = 24 }) => {
+export const NavAgoraIcon: React.FC<IconProps> = ({ className = '', size = 28, style }) => {
   return (
     <svg
       width={size}
@@ -23,18 +20,30 @@ export const NavAgoraIcon: React.FC<IconProps> = ({ className = '', size = 24 })
       fill="none"
       xmlns="http://www.w3.org/2000/svg"
       className={className}
+      style={style}
       aria-hidden="true"
     >
-      <circle cx="12" cy="12" r="9" stroke="currentColor" strokeWidth="2" />
+      <circle
+        cx="12"
+        cy="12"
+        r="9"
+        stroke="currentColor"
+        strokeWidth="2.15"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
       <path
-        d="M16 8L13.2 13.2L8 16L10.8 10.8L16 8Z"
+        d="M15.8 8.2L13.3 13.3L8.2 15.8L10.7 10.7L15.8 8.2Z"
         fill="currentColor"
+        stroke="currentColor"
+        strokeWidth="1.2"
+        strokeLinejoin="round"
       />
     </svg>
   );
 };
 
-export const NavExploreIcon: React.FC<IconProps> = ({ className = '', size = 25 }) => {
+export const NavExploreIcon: React.FC<IconProps> = ({ className = '', size = 28, style }) => {
   return (
     <svg
       width={size}
@@ -43,40 +52,33 @@ export const NavExploreIcon: React.FC<IconProps> = ({ className = '', size = 25 
       fill="none"
       xmlns="http://www.w3.org/2000/svg"
       className={className}
+      style={style}
       aria-hidden="true"
     >
-      {/* Anel guia de horizonte sutil */}
       <circle
         cx="12"
         cy="12"
         r="9.5"
         stroke="currentColor"
-        strokeWidth="1.9"
+        strokeWidth="2.15"
         strokeLinecap="round"
         opacity="0.32"
       />
-      {/* Estrela de Descoberta / Farol Voyager com curvas geométricas suaves */}
       <path
         d="M12 3.6C12 8.2 15.8 12 20.4 12C15.8 12 12 15.8 12 20.4C12 15.8 8.2 12 3.6 12C8.2 12 12 8.2 12 3.6Z"
         stroke="currentColor"
-        strokeWidth="1.9"
+        strokeWidth="2.15"
         strokeLinejoin="round"
         strokeLinecap="round"
         fill="currentColor"
         fillOpacity="0.16"
       />
-      {/* Núcleo focal do ponto de interesse */}
       <circle cx="12" cy="12" r="1.6" fill="currentColor" />
     </svg>
   );
 };
 
-/**
- * 2. Chat: Balão de conversa moderno, minimalista e expressivo.
- * Sem foto ou avatar de personagem, com cantos arredondados iOS e
- * detalhes internos que transmitem assistência inteligente.
- */
-export const NavChatIcon: React.FC<IconProps> = ({ className = '', size = 25 }) => {
+export const NavChatIcon: React.FC<IconProps> = ({ className = '', size = 28, style }) => {
   return (
     <svg
       width={size}
@@ -85,17 +87,16 @@ export const NavChatIcon: React.FC<IconProps> = ({ className = '', size = 25 }) 
       fill="none"
       xmlns="http://www.w3.org/2000/svg"
       className={className}
+      style={style}
       aria-hidden="true"
     >
-      {/* Balão de diálogo com cantos arredondados contínuos */}
       <path
         d="M6.8 18C4.7 18 3 16.3 3 14.2V8.8C3 6.7 4.7 5 6.8 5H17.2C19.3 5 21 6.7 21 8.8V14.2C21 16.3 19.3 18 17.2 18H13.2L8.9 21.2C8.35 21.6 7.6 21.25 7.6 20.6V18H6.8Z"
         stroke="currentColor"
-        strokeWidth="1.9"
+        strokeWidth="2.15"
         strokeLinecap="round"
         strokeLinejoin="round"
       />
-      {/* Detalhe interno de inteligência / assistente turístico */}
       <circle cx="7.8" cy="11.5" r="1.15" fill="currentColor" />
       <path
         d="M12 8.6C12 10.1 13.1 11.2 14.6 11.2C13.1 11.2 12 12.3 12 13.8C12 12.3 10.9 11.2 9.4 11.2C10.9 11.2 12 10.1 12 8.6Z"
@@ -107,10 +108,15 @@ export const NavChatIcon: React.FC<IconProps> = ({ className = '', size = 25 }) 
 };
 
 /**
- * 2.5. Salvos / Favoritos: Ícone de coração no padrão Apple iOS SF Symbols / Airbnb.
- * Traço fino e refinado, proporções equilibradas e preenchimento adaptativo.
+ * 2. Salvos / Favoritos: Ícone de coração no padrão Apple iOS SF Symbols.
+ * Espessura de traço uniforme (2.15) e proporções equilibradas para 28–30px.
  */
-export const NavSalvosIcon: React.FC<IconProps & { filled?: boolean; style?: React.CSSProperties }> = ({ className = '', size = 22, filled = false, style }) => {
+export const NavSalvosIcon: React.FC<IconProps> = ({
+  className = '',
+  size = 28,
+  filled = false,
+  style,
+}) => {
   return (
     <svg
       width={size}
@@ -125,7 +131,7 @@ export const NavSalvosIcon: React.FC<IconProps & { filled?: boolean; style?: Rea
       <path
         d="M19 14c1.49-1.46 3-3.21 3-5.5A5.5 5.5 0 0 0 16.5 3c-1.76 0-3 .5-4.5 2-1.5-1.5-2.74-2-4.5-2A5.5 5.5 0 0 0 2 8.5c0 2.3 1.5 4.05 3 5.5l7 7Z"
         stroke="currentColor"
-        strokeWidth="1.9"
+        strokeWidth="2.15"
         strokeLinecap="round"
         strokeLinejoin="round"
       />
@@ -133,7 +139,7 @@ export const NavSalvosIcon: React.FC<IconProps & { filled?: boolean; style?: Rea
   );
 };
 
-export const NavPostsIcon: React.FC<IconProps> = ({ className = '', size = 23 }) => {
+export const NavPostsIcon: React.FC<IconProps> = ({ className = '', size = 28, style }) => {
   return (
     <svg
       width={size}
@@ -142,6 +148,7 @@ export const NavPostsIcon: React.FC<IconProps> = ({ className = '', size = 23 })
       fill="none"
       xmlns="http://www.w3.org/2000/svg"
       className={className}
+      style={style}
       aria-hidden="true"
     >
       <rect
@@ -151,7 +158,7 @@ export const NavPostsIcon: React.FC<IconProps> = ({ className = '', size = 23 })
         height="17"
         rx="4.5"
         stroke="currentColor"
-        strokeWidth="1.9"
+        strokeWidth="2.15"
         strokeLinecap="round"
         strokeLinejoin="round"
       />
@@ -159,7 +166,7 @@ export const NavPostsIcon: React.FC<IconProps> = ({ className = '', size = 23 })
       <path
         d="M20.5 15.5L15.5 10.8C15.1 10.4 14.4 10.4 14 10.8L4 20"
         stroke="currentColor"
-        strokeWidth="1.9"
+        strokeWidth="2.15"
         strokeLinecap="round"
         strokeLinejoin="round"
       />
@@ -167,12 +174,10 @@ export const NavPostsIcon: React.FC<IconProps> = ({ className = '', size = 23 })
   );
 };
 
-
 /**
- * 3. Buscar: Lupa redesenhada refinada, com traços uniformes e proporções
- * equilibradas no padrão premium do iOS.
+ * 3. Buscar: Lupa refinada com traço uniforme (2.15) e proporções equilibradas para 28–30px.
  */
-export const NavSearchIcon: React.FC<IconProps> = ({ className = '', size = 24 }) => {
+export const NavSearchIcon: React.FC<IconProps> = ({ className = '', size = 28, style }) => {
   return (
     <svg
       width={size}
@@ -181,22 +186,21 @@ export const NavSearchIcon: React.FC<IconProps> = ({ className = '', size = 24 }
       fill="none"
       xmlns="http://www.w3.org/2000/svg"
       className={className}
+      style={style}
       aria-hidden="true"
     >
-      {/* Lente circular perfeitamente balanceada */}
       <circle
-        cx="10.5"
-        cy="10.5"
-        r="6.5"
+        cx="10.8"
+        cy="10.8"
+        r="6.8"
         stroke="currentColor"
-        strokeWidth="1.9"
+        strokeWidth="2.15"
         strokeLinecap="round"
       />
-      {/* Haste a 45 graus com ponta arredondada */}
       <path
-        d="M15.3 15.3L20.2 20.2"
+        d="M15.8 15.8L20.4 20.4"
         stroke="currentColor"
-        strokeWidth="1.9"
+        strokeWidth="2.15"
         strokeLinecap="round"
       />
     </svg>
@@ -204,10 +208,9 @@ export const NavSearchIcon: React.FC<IconProps> = ({ className = '', size = 24 }
 };
 
 /**
- * 4. Perfil: Usuário em traços geométricos limpos, elegantes e minimalistas,
- * mantendo a mesma espessura e harmonia do sistema.
+ * 4. Perfil: Silhueta geométrica limpa e moderna com traço uniforme (2.15).
  */
-export const NavProfileIcon: React.FC<IconProps> = ({ className = '', size = 24 }) => {
+export const NavProfileIcon: React.FC<IconProps> = ({ className = '', size = 28, style }) => {
   return (
     <svg
       width={size}
@@ -216,22 +219,21 @@ export const NavProfileIcon: React.FC<IconProps> = ({ className = '', size = 24 
       fill="none"
       xmlns="http://www.w3.org/2000/svg"
       className={className}
+      style={style}
       aria-hidden="true"
     >
-      {/* Cabeça */}
       <circle
         cx="12"
         cy="7.5"
-        r="3.75"
+        r="3.85"
         stroke="currentColor"
-        strokeWidth="1.9"
+        strokeWidth="2.15"
         strokeLinecap="round"
       />
-      {/* Ombros / Tronco */}
       <path
-        d="M5 19.5C5 15.9 8.1 13 12 13C15.9 13 19 15.9 19 19.5"
+        d="M4.8 19.5C4.8 15.85 8 13.1 12 13.1C16 13.1 19.2 15.85 19.2 19.5"
         stroke="currentColor"
-        strokeWidth="1.9"
+        strokeWidth="2.15"
         strokeLinecap="round"
       />
     </svg>
@@ -239,9 +241,9 @@ export const NavProfileIcon: React.FC<IconProps> = ({ className = '', size = 24 
 };
 
 /**
- * 5. Roteiros: Linha de rota minimalista e elegante conectando dois pontos no padrão iOS.
+ * 5. Roteiros: Linha de rota minimalista conectando dois pontos no padrão iOS com traço uniforme (2.15).
  */
-export const NavRoteirosIcon: React.FC<IconProps> = ({ className = '', size = 24 }) => {
+export const NavRoteirosIcon: React.FC<IconProps> = ({ className = '', size = 28, style }) => {
   return (
     <svg
       width={size}
@@ -250,17 +252,19 @@ export const NavRoteirosIcon: React.FC<IconProps> = ({ className = '', size = 24
       fill="none"
       xmlns="http://www.w3.org/2000/svg"
       className={className}
+      style={style}
       aria-hidden="true"
     >
       <path
         d="M6 18C6 11.5 18 12.5 18 6"
         stroke="currentColor"
-        strokeWidth="2.2"
+        strokeWidth="2.15"
         strokeLinecap="round"
       />
-      <circle cx="6" cy="18" r="2.8" fill="currentColor" />
-      <circle cx="18" cy="6" r="2.8" fill="currentColor" />
+      <circle cx="6" cy="18" r="2.75" fill="currentColor" />
+      <circle cx="18" cy="6" r="2.75" fill="currentColor" />
     </svg>
   );
 };
+
 

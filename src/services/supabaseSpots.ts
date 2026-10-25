@@ -1,6 +1,7 @@
 import { supabase, isSupabaseConfigured } from '../lib/supabase';
 import { Spot } from '../types';
 import { CAMPOS_SPOTS } from '../data/spots';
+import { getSpotImage } from '../utils/spotImages';
 
 /**
  * Normalizes a database row from Supabase 'spots' into a frontend Spot model
@@ -19,10 +20,15 @@ export function normalizeSpotRecord(row: any): Spot {
     }
   }
 
-  const primaryImage =
-    row.image ||
-    (parsedGallery.length > 0 ? parsedGallery[0] : '') ||
-    'https://images.unsplash.com/photo-1585320806297-9794b3e4eeae?auto=format&fit=crop&w=600&q=80';
+  const rawDbImage = row.image || (parsedGallery.length > 0 ? parsedGallery[0] : '');
+  const primaryImage = getSpotImage({
+    id: String(row.id || ''),
+    name: String(row.name || ''),
+    shortName: String(row.short_name || row.shortName || row.name || ''),
+    category: row.category || 'attractions',
+    image: rawDbImage,
+    gallery: parsedGallery,
+  });
 
   if (parsedGallery.length === 0 && primaryImage) {
     parsedGallery = [primaryImage];
@@ -81,40 +87,61 @@ export function normalizeSpotRecord(row: any): Spot {
 export async function fetchSpotsFromSupabase(options?: { throwOnError?: boolean }): Promise<Spot[]> {
   try {
     if (isSupabaseConfigured && supabase) {
-      const queryPromise = supabase
-        .from('spots')
-        .select('*')
-        .order('name', { ascending: true });
+      let timer: any = null;
+      const timeoutPromise = new Promise<{ data: null; error: { message: string } }>((resolve) => {
+        timer = setTimeout(() => {
+          resolve({ data: null, error: { message: 'Tempo limite ao consultar Supabase (3.5s)' } });
+        }, 3500);
+      });
 
-      const timeoutPromise = new Promise<{ data: null; error: { message: string } }>((resolve) =>
-        setTimeout(() => resolve({ data: null, error: { message: 'Tempo limite ao conectar com Supabase (10s)' } }), 10000)
-      );
+      const queryPromise = Promise.resolve(
+        supabase
+          .from('spots')
+          .select('*')
+          .order('name', { ascending: true })
+      ).catch((queryErr: any) => ({
+        data: null,
+        error: { message: queryErr?.message || 'Erro de conexão' },
+      }));
 
-      const { data, error } = await Promise.race([queryPromise, timeoutPromise]);
+      const { data, error } = await Promise.race([
+        queryPromise.then((res) => {
+          if (timer) clearTimeout(timer);
+          return res;
+        }),
+        timeoutPromise,
+      ]);
 
-      if (error) {
-        console.error('[SupabaseSpots] Erro ao consultar spots:', error.message);
-        if (options?.throwOnError) {
-          throw new Error(`Falha ao consultar banco de dados: ${error.message}`);
-        }
-      } else if (Array.isArray(data)) {
+      if (timer) clearTimeout(timer);
+
+      if (!error && Array.isArray(data) && data.length > 0) {
         const normalized = data.map(normalizeSpotRecord);
         try {
           localStorage.setItem('monvian_cached_spots', JSON.stringify(normalized));
         } catch {}
         return normalized;
       }
-    } else if (options?.throwOnError) {
-      throw new Error('Supabase não está configurado no ambiente.');
     }
-  } catch (err: any) {
-    if (options?.throwOnError) {
-      throw err;
-    }
-    console.warn('[SupabaseSpots] Falha de conexão ao consultar Supabase, usando cache local:', err);
-  }
+  } catch {}
 
-  // Fallback 1: Local cache in browser
+  // Fallback 1: Same-origin backend API (/api/spots)
+  try {
+    if (typeof window !== 'undefined') {
+      const res = await fetch('/api/spots');
+      if (res.ok) {
+        const json = await res.json();
+        if (Array.isArray(json?.spots) && json.spots.length > 0) {
+          const normalized = json.spots.map(normalizeSpotRecord);
+          try {
+            localStorage.setItem('monvian_cached_spots', JSON.stringify(normalized));
+          } catch {}
+          return normalized;
+        }
+      }
+    }
+  } catch {}
+
+  // Fallback 2: Local cache in browser
   try {
     const cached = localStorage.getItem('monvian_cached_spots');
     if (cached) {
@@ -125,7 +152,7 @@ export async function fetchSpotsFromSupabase(options?: { throwOnError?: boolean 
     }
   } catch {}
 
-  // Fallback 2: Bundled CAMPOS_SPOTS
+  // Fallback 3: Bundled CAMPOS_SPOTS
   return CAMPOS_SPOTS.map(normalizeSpotRecord);
 }
 

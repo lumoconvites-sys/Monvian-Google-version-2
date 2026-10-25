@@ -110,10 +110,14 @@ export const AdminDashboard: React.FC<{ onNavigateTo: (tab: string) => void }> =
         setData(json.metrics);
         if (json.metrics.effects) {
           if (json.metrics.effects.rainMode) {
-            setRainMode(json.metrics.effects.rainMode);
+            const isOff = json.metrics.effects.rainMode === 'off';
+            setRainMode(isOff ? 'auto' : json.metrics.effects.rainMode);
+            setRainEnabled(!isOff);
           }
           if (json.metrics.effects.snowMode) {
-            setSnowMode(json.metrics.effects.snowMode);
+            const isOff = json.metrics.effects.snowMode === 'off';
+            setSnowMode(isOff ? 'fraca' : json.metrics.effects.snowMode);
+            setSnowEnabled(!isOff);
           }
         }
       }

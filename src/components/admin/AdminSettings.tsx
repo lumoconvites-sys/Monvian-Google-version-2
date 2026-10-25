@@ -4,13 +4,11 @@ import {
   Save,
   CheckCircle2,
   AlertCircle,
-  ExternalLink,
   Phone,
   AppWindow,
   ShieldCheck,
   RefreshCw
 } from 'lucide-react';
-import { InstagramLogo, WhatsAppLogo } from '../SocialIcons';
 
 export const AdminSettings: React.FC = () => {
   const [settings, setSettings] = useState<Record<string, string>>({
@@ -107,65 +105,8 @@ export const AdminSettings: React.FC = () => {
           </div>
         )}
 
-        {/* Setting 1: Community URL */}
+        {/* Setting: Phone */}
         <div className="space-y-2">
-           <div className="flex items-center justify-between">
-             <label className="text-xs font-black text-zinc-800 dark:text-zinc-200 flex items-center gap-2">
-               <WhatsAppLogo className="w-4 h-4" />
-               Link da Comunidade (WhatsApp / Grupo VIP)
-             </label>
-             {settings.community_url && (
-               <a
-                 href={settings.community_url}
-                 target="_blank"
-                 rel="noreferrer"
-                 className="text-[11px] text-blue-600 dark:text-blue-400 hover:underline flex items-center gap-1"
-               >
-                 Testar link <ExternalLink className="w-3 h-3" />
-               </a>
-             )}
-           </div>
-           <input
-             type="url"
-             value={settings.community_url || ''}
-             onChange={(e) => setSettings({ ...settings, community_url: e.target.value })}
-             placeholder="https://chat.whatsapp.com/..."
-             className="w-full px-4 py-2.5 bg-zinc-50 dark:bg-zinc-900/80 border border-zinc-200 dark:border-zinc-700 rounded-xl text-sm text-zinc-900 dark:text-white focus:outline-none focus:border-blue-500 focus:bg-white dark:focus:bg-zinc-900 transition-all font-mono text-xs"
-           />
-           <p className="text-[11px] text-zinc-400 dark:text-zinc-500">
-             Este link é acionado quando os usuários clicam no botão da Comunidade no aplicativo.
-           </p>
-         </div>
-
-         {/* Setting 2: Instagram */}
-         <div className="space-y-2 pt-4 border-t border-zinc-100 dark:border-zinc-800">
-           <div className="flex items-center justify-between">
-             <label className="text-xs font-black text-zinc-800 dark:text-zinc-200 flex items-center gap-2">
-               <InstagramLogo className="w-4 h-4" />
-               Perfil Oficial do Instagram
-             </label>
-            {settings.instagram_url && (
-              <a
-                href={settings.instagram_url}
-                target="_blank"
-                rel="noreferrer"
-                className="text-[11px] text-blue-600 dark:text-blue-400 hover:underline flex items-center gap-1"
-              >
-                Abrir perfil <ExternalLink className="w-3 h-3" />
-              </a>
-            )}
-          </div>
-          <input
-            type="url"
-            value={settings.instagram_url || ''}
-            onChange={(e) => setSettings({ ...settings, instagram_url: e.target.value })}
-            placeholder="https://instagram.com/monvian.campos"
-            className="w-full px-4 py-2.5 bg-zinc-50 dark:bg-zinc-900/80 border border-zinc-200 dark:border-zinc-700 rounded-xl text-sm text-zinc-900 dark:text-white focus:outline-none focus:border-blue-500 focus:bg-white dark:focus:bg-zinc-900 transition-all font-mono text-xs"
-          />
-        </div>
-
-        {/* Setting 3: Phone */}
-        <div className="space-y-2 pt-4 border-t border-zinc-100 dark:border-zinc-800">
           <label className="text-xs font-black text-zinc-800 dark:text-zinc-200 flex items-center gap-2">
             <Phone className="w-4 h-4 text-blue-600 dark:text-blue-400" />
             Telefone / WhatsApp de Suporte
