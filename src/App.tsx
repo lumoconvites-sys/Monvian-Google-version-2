@@ -38,6 +38,7 @@ import { AirbnbPresentationCard, isPresentationCardSeen, markPresentationCardSee
 import { persistUserToFirestore, syncPermissionsFromDatabase } from './services/firestoreSync';
 import { HostDashboard } from './components/HostDashboard';
 import { fetchSpotsFromSupabase, subscribeToSpotsChanges } from './services/supabaseSpots';
+import { broadcastPlatanosWalletUpdate, getAuthHeaders } from './hooks/usePlatanos';
 
 const welcomeContainerVariants = {
   hidden: { opacity: 0 },
@@ -201,6 +202,53 @@ export default function App() {
     const params = new URLSearchParams(window.location.search);
     const payment = params.get('payment');
     const sessionId = params.get('session_id');
+
+    const platanosPayment = params.get('platanos_payment');
+    const packageIdParam = params.get('package_id');
+
+    if (platanosPayment === 'success' && sessionId) {
+      fetch(`/api/platanos/verify-session?session_id=${encodeURIComponent(sessionId)}`, {
+        headers: getAuthHeaders(),
+      })
+        .then((res) => res.json())
+        .then((data) => {
+          if (data?.wallet) {
+            broadcastPlatanosWalletUpdate(data.wallet);
+          } else {
+            broadcastPlatanosWalletUpdate();
+          }
+          setActiveTab('roteiros');
+          setTimeout(() => {
+            window.dispatchEvent(
+              new CustomEvent('monvian:open_platanos_wallet', { detail: { tab: 'history' } })
+            );
+          }, 250);
+        })
+        .catch((err) => {
+          console.error('Error verifying Plátanos Stripe session:', err);
+        })
+        .finally(() => {
+          const cleanUrl = window.location.pathname;
+          window.history.replaceState({}, document.title, cleanUrl);
+        });
+      return;
+    } else if (platanosPayment === 'cancelled') {
+      fetch('/api/platanos/cancel-order', {
+        method: 'POST',
+        headers: getAuthHeaders(),
+        body: JSON.stringify({ sessionId, packageId: packageIdParam }),
+      })
+        .then((res) => res.json())
+        .then((data) => {
+          if (data?.wallet) broadcastPlatanosWalletUpdate(data.wallet);
+        })
+        .catch(() => {})
+        .finally(() => {
+          const cleanUrl = window.location.pathname;
+          window.history.replaceState({}, document.title, cleanUrl);
+        });
+      return;
+    }
 
     if (payment === 'success' && sessionId) {
       const token = localStorage.getItem('monvian_token');
@@ -963,12 +1011,8 @@ export default function App() {
   }, []);
 
   const handleToggleFavorite = useCallback((spotId: string) => {
-    const spot = spots.find((s) => s.id === spotId);
-    const isTourist = spot
-      ? ['attractions', 'viewpoint', 'parks', 'nature', 'culture', 'monument', 'trail'].includes(spot.category)
-      : false;
-    favoritesManager.toggleItem(isTourist ? 'spot' : 'place', spotId);
-  }, [spots]);
+    favoritesManager.toggleSpot(spotId);
+  }, []);
 
   const handleTabChange = useCallback((tab: TabType) => {
     if (tab === 'explorar') {

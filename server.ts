@@ -9,6 +9,7 @@ import { registerItineraryRoutes, setupItineraryDatabase } from './src/server/it
 import { registerSocialRoutes, setupSocialDatabase } from './src/server/socialRoutes.js';
 import { registerStoryRoutes, setupStoriesDatabase } from './src/server/storyRoutes.js';
 import { registerStripeRoutes, setupStripeDatabase } from './src/server/stripeRoutes.js';
+import { registerPlatanosRoutes, setupPlatanosDatabase } from './src/server/platanosRoutes.js';
 import { registerHostRoutes, setupHostDatabase } from './src/server/hostRoutes.js';
 import { CAMPOS_SPOTS } from './src/data/spots.js';
 import { supabase, supabaseAnonClient } from './src/services/supabaseClient.js';
@@ -124,6 +125,7 @@ try { setupItineraryDatabase(db); } catch {}
 try { setupSocialDatabase(db); } catch {}
 try { setupStoriesDatabase(db); } catch {}
 try { setupStripeDatabase(db); } catch {}
+try { setupPlatanosDatabase(db); } catch {}
 try { setupHostDatabase(db); } catch {}
 
 // Seed initial spots into SQLite if empty so CRUD operations work on real DB rows
@@ -392,7 +394,14 @@ async function startServer() {
     }
     next();
   });
-  app.use(express.json({ limit: '25mb' }));
+  app.use(
+    express.json({
+      limit: '25mb',
+      verify: (req: any, _res, buf) => {
+        req.rawBody = buf;
+      },
+    })
+  );
   app.use(express.urlencoded({ extended: true, limit: '25mb' }));
 
   // Trigger bidirectional sync with Supabase PostgreSQL and Firestore on startup
@@ -410,6 +419,7 @@ async function startServer() {
   registerSocialRoutes(app, db);
   registerStoryRoutes(app, db);
   registerStripeRoutes(app, db, (req) => resolveAuthenticatedUser(req));
+  registerPlatanosRoutes(app, db, (req) => resolveAuthenticatedUser(req), (req) => isRequestAdmin(req));
   registerHostRoutes(app, db, (req) => resolveAuthenticatedUser(req));
 
   // ===========================================================================
@@ -2075,7 +2085,11 @@ async function startServer() {
   // --- Vite Dev Server Middleware or Static Production ---
   if (!isProd) {
     const vite = await createViteServer({
-      server: { middlewareMode: true },
+      server: {
+        middlewareMode: true,
+        hmr: false,
+        watch: null,
+      },
       appType: 'spa',
     });
     app.use(vite.middlewares);

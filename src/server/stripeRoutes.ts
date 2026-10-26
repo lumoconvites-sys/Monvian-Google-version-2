@@ -16,6 +16,7 @@ import {
   recordFinancialSaleAndCommission,
   recordFinancialRefund,
 } from './financialRoutes.js';
+import { handlePlatanosStripeWebhookEvent } from './platanosRoutes.js';
 import { doc, setDoc, getDoc } from 'firebase/firestore';
 
 // Setup SQLite Purchases Table and Users Columns
@@ -345,6 +346,13 @@ export function registerStripeRoutes(
     }
 
     try {
+      // First check if this Stripe event belongs to a Plátanos virtual currency order
+      const platanosRes = handlePlatanosStripeWebhookEvent(db, event);
+      if (platanosRes.handled) {
+        res.json({ received: true, platanos: true, ...platanosRes });
+        return;
+      }
+
       if (event.type === 'checkout.session.completed') {
         const session = event.data.object as Stripe.Checkout.Session;
 

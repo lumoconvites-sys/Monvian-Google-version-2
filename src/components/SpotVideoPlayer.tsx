@@ -35,9 +35,10 @@ export const SpotVideoPlayer: React.FC<SpotVideoPlayerProps> = ({
   onVideoUploaded,
 }) => {
   const [videos, setVideos] = useState<SpotVideo[]>([]);
+  const [isLoadingVideos, setIsLoadingVideos] = useState(true);
   const [currentIndex, setCurrentIndex] = useState(0);
   const [isPlaying, setIsPlaying] = useState(true);
-  const [isMuted, setIsMuted] = useState(true);
+  const [isMuted, setIsMuted] = useState(false);
   const [showCenterIcon, setShowCenterIcon] = useState<'play' | 'pause' | null>(null);
   const [progress, setProgress] = useState(0);
   const [duration, setDuration] = useState(0);
@@ -65,10 +66,12 @@ export const SpotVideoPlayer: React.FC<SpotVideoPlayerProps> = ({
   // 1. Fetch videos from Cloud Firestore + cache
   useEffect(() => {
     let isCancelled = false;
+    setIsLoadingVideos(true);
 
     fetchSpotVideos(spotId, spotName, spotCategory).then((fetched) => {
       if (isCancelled) return;
       setVideos(fetched);
+      setIsLoadingVideos(false);
 
       // Check saved position to resume where left off
       const savedPos = getVideoPlaybackPosition(spotId);
@@ -93,6 +96,7 @@ export const SpotVideoPlayer: React.FC<SpotVideoPlayerProps> = ({
     if (!video || !currentVideo) return;
 
     video.playbackRate = 1.2;
+    video.volume = 1.0;
 
     const savedPos = getVideoPlaybackPosition(spotId);
     if (savedPos && savedPos.videoId === currentVideo.id && savedPos.currentTime > 0) {
@@ -271,15 +275,15 @@ export const SpotVideoPlayer: React.FC<SpotVideoPlayerProps> = ({
       </div>
 
       {/* Natural Aspect-Ratio Video Container (Preserves Exact Format Uploaded by User) */}
-      <div 
-        onClick={handleTogglePlay}
-        className="group relative w-full rounded-2xl sm:rounded-3xl overflow-hidden bg-zinc-950/90 border border-zinc-200/80 dark:border-white/10 backdrop-blur-xl shadow-2xl cursor-pointer select-none transition-all duration-300 flex items-center justify-center min-h-[220px]"
-        style={{
-          transform: 'translateZ(0)',
-          WebkitTransform: 'translateZ(0)',
-        }}
-      >
-        {currentVideo ? (
+      {currentVideo ? (
+        <div 
+          onClick={handleTogglePlay}
+          className="group relative w-full rounded-2xl sm:rounded-3xl overflow-hidden bg-zinc-950/90 border border-zinc-200/80 dark:border-white/10 backdrop-blur-xl shadow-2xl cursor-pointer select-none transition-all duration-300 flex items-center justify-center min-h-[220px]"
+          style={{
+            transform: 'translateZ(0)',
+            WebkitTransform: 'translateZ(0)',
+          }}
+        >
           <video
             ref={videoRef}
             key={currentVideo.id}
@@ -297,68 +301,61 @@ export const SpotVideoPlayer: React.FC<SpotVideoPlayerProps> = ({
             }}
             className="w-full h-auto max-h-[68vh] object-contain transform-gpu pointer-events-none block mx-auto"
           />
-        ) : (
-          <div className="w-full py-16 flex flex-col items-center justify-center text-zinc-500 gap-2">
-            <Film className="w-8 h-8 animate-pulse text-zinc-400" />
-            <span className="text-xs font-semibold">Carregando vídeos da nuvem...</span>
-          </div>
-        )}
 
-        {/* Translucent Top Header Overlay */}
-        <div className="absolute top-0 inset-x-0 p-3.5 sm:p-4 bg-gradient-to-b from-black/75 via-black/35 to-transparent flex items-center justify-between pointer-events-auto">
-          <div className="flex items-center gap-2">
-            {/* Speed Badge (1.2x) */}
-            <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-white/20 dark:bg-black/60 backdrop-blur-md border border-white/20 text-[11px] font-black tracking-wider text-white shadow-xs">
-              <Sparkles className="w-3 h-3 text-[#38bdf8]" />
-              <span>1.2x</span>
-            </span>
-
-            {/* Video Counter Pill */}
-            {videos.length > 0 && (
-              <span className="text-[11px] font-medium text-white/90 drop-shadow-sm bg-black/40 px-2.5 py-1 rounded-full border border-white/10 backdrop-blur-md">
-                Vídeo {currentIndex + 1} de {videos.length}
+          {/* Translucent Top Header Overlay */}
+          <div className="absolute top-0 inset-x-0 p-3.5 sm:p-4 bg-gradient-to-b from-black/75 via-black/35 to-transparent flex items-center justify-between pointer-events-auto">
+            <div className="flex items-center gap-2">
+              {/* Speed Badge (1.2x) */}
+              <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-white/20 dark:bg-black/60 backdrop-blur-md border border-white/20 text-[11px] font-black tracking-wider text-white shadow-xs">
+                <Sparkles className="w-3 h-3 text-[#38bdf8]" />
+                <span>1.2x</span>
               </span>
+
+              {/* Video Counter Pill */}
+              {videos.length > 0 && (
+                <span className="text-[11px] font-medium text-white/90 drop-shadow-sm bg-black/40 px-2.5 py-1 rounded-full border border-white/10 backdrop-blur-md">
+                  Vídeo {currentIndex + 1} de {videos.length}
+                </span>
+              )}
+            </div>
+
+            <div className="flex items-center gap-2">
+              {/* Audio Mute/Unmute */}
+              <button
+                type="button"
+                onClick={toggleMute}
+                className="w-8 h-8 rounded-full bg-black/50 backdrop-blur-md border border-white/15 text-white flex items-center justify-center hover:bg-black/70 active:scale-95 transition-all cursor-pointer shadow-sm"
+                title={isMuted ? 'Ativar som' : 'Desativar som'}
+                aria-label={isMuted ? 'Ativar som' : 'Desativar som'}
+              >
+                {isMuted ? <VolumeX className="w-4 h-4 text-white/90" /> : <Volume2 className="w-4 h-4 text-white" />}
+              </button>
+            </div>
+          </div>
+
+          {/* Center Feedback Icon on Click (Pause / Play) */}
+          <AnimatePresence>
+            {showCenterIcon && (
+              <motion.div
+                initial={{ opacity: 0, scale: 0.7 }}
+                animate={{ opacity: 1, scale: 1 }}
+                exit={{ opacity: 0, scale: 0.85 }}
+                transition={{ duration: 0.18 }}
+                className="absolute inset-0 flex items-center justify-center pointer-events-none"
+              >
+                <div className="w-16 h-16 rounded-full bg-black/60 backdrop-blur-xl border border-white/20 flex items-center justify-center text-white shadow-2xl">
+                  {showCenterIcon === 'pause' ? (
+                    <Pause className="w-7 h-7 fill-white text-white" />
+                  ) : (
+                    <Play className="w-7 h-7 fill-white text-white ml-1" />
+                  )}
+                </div>
+              </motion.div>
             )}
-          </div>
+          </AnimatePresence>
 
-          <div className="flex items-center gap-2">
-            {/* Audio Mute/Unmute */}
-            <button
-              type="button"
-              onClick={toggleMute}
-              className="w-8 h-8 rounded-full bg-black/50 backdrop-blur-md border border-white/15 text-white flex items-center justify-center hover:bg-black/70 active:scale-95 transition-all cursor-pointer shadow-sm"
-              title={isMuted ? 'Ativar som' : 'Desativar som'}
-              aria-label={isMuted ? 'Ativar som' : 'Desativar som'}
-            >
-              {isMuted ? <VolumeX className="w-4 h-4 text-white/90" /> : <Volume2 className="w-4 h-4 text-white" />}
-            </button>
-          </div>
-        </div>
-
-        {/* Center Feedback Icon on Click (Pause / Play) */}
-        <AnimatePresence>
-          {showCenterIcon && (
-            <motion.div
-              initial={{ opacity: 0, scale: 0.7 }}
-              animate={{ opacity: 1, scale: 1 }}
-              exit={{ opacity: 0, scale: 0.85 }}
-              transition={{ duration: 0.18 }}
-              className="absolute inset-0 flex items-center justify-center pointer-events-none"
-            >
-              <div className="w-16 h-16 rounded-full bg-black/60 backdrop-blur-xl border border-white/20 flex items-center justify-center text-white shadow-2xl">
-                {showCenterIcon === 'pause' ? (
-                  <Pause className="w-7 h-7 fill-white text-white" />
-                ) : (
-                  <Play className="w-7 h-7 fill-white text-white ml-1" />
-                )}
-              </div>
-            </motion.div>
-          )}
-        </AnimatePresence>
-
-        {/* Bottom Translucent Info & Progress Bar */}
-        <div className="absolute bottom-0 inset-x-0 p-3.5 sm:p-4 bg-gradient-to-t from-black/85 via-black/45 to-transparent flex flex-col gap-2">
-          {currentVideo && (
+          {/* Bottom Translucent Info & Progress Bar */}
+          <div className="absolute bottom-0 inset-x-0 p-3.5 sm:p-4 bg-gradient-to-t from-black/85 via-black/45 to-transparent flex flex-col gap-2">
             <div className="flex items-end justify-between gap-3 text-white">
               <div className="min-w-0">
                 <h4 className="text-sm sm:text-base font-bold tracking-tight truncate drop-shadow-md">
@@ -369,24 +366,35 @@ export const SpotVideoPlayer: React.FC<SpotVideoPlayerProps> = ({
                     <User className="w-3 h-3 text-zinc-300" />
                     <span>{currentVideo.authorName}</span>
                   </span>
-                  <span>•</span>
-                  <span>Reprodução Contínua</span>
                 </div>
               </div>
             </div>
-          )}
 
-          {/* Slim Progress Bar */}
-          <div className="w-full h-1 bg-white/20 rounded-full overflow-hidden backdrop-blur-xs">
-            <div 
-              className="h-full bg-white transition-all duration-150 ease-linear rounded-full"
-              style={{
-                width: duration > 0 ? `${(progress / duration) * 100}%` : '0%'
-              }}
-            />
+            {/* Slim Progress Bar */}
+            <div className="w-full h-1 bg-white/20 rounded-full overflow-hidden backdrop-blur-xs">
+              <div 
+                className="h-full bg-white transition-all duration-150 ease-linear rounded-full"
+                style={{
+                  width: duration > 0 ? `${(progress / duration) * 100}%` : '0%'
+                }}
+              />
+            </div>
           </div>
         </div>
-      </div>
+      ) : !isLoadingVideos ? (
+        <div
+          onClick={() => setIsUploadModalOpen(true)}
+          className="w-full py-12 px-6 rounded-2xl bg-zinc-50 dark:bg-[#121214] border border-zinc-200/80 dark:border-[#262626] flex flex-col items-center justify-center text-center gap-2.5 cursor-pointer hover:opacity-90 transition-opacity"
+        >
+          <Film className="w-7 h-7 text-zinc-400" />
+          <p className="text-xs font-semibold text-zinc-700 dark:text-zinc-300">
+            Nenhum vídeo enviado para este local ainda
+          </p>
+          <span className="text-[11px] text-zinc-500 dark:text-zinc-400">
+            Toque em Enviar Vídeo para compartilhar sua experiência
+          </span>
+        </div>
+      ) : null}
 
       {/* iOS-Style Translucent Upload Video Modal */}
       <AnimatePresence>

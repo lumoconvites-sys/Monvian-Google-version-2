@@ -234,6 +234,7 @@ export function setupItineraryDatabase(db: any) {
   try { db.exec(`ALTER TABLE itineraries ADD COLUMN show_stops_count INTEGER DEFAULT 1;`); } catch (e) {}
   try { db.exec(`ALTER TABLE itineraries ADD COLUMN tips TEXT DEFAULT '';`); } catch (e) {}
   try { db.exec(`ALTER TABLE itineraries ADD COLUMN sort_order INTEGER DEFAULT 0;`); } catch (e) {}
+  try { db.exec(`ALTER TABLE itineraries ADD COLUMN platanos_price INTEGER DEFAULT 15;`); } catch (e) {}
 
   try { db.exec(`ALTER TABLE itinerary_steps ADD COLUMN custom_name TEXT DEFAULT '';`); } catch (e) {}
   try { db.exec(`ALTER TABLE itinerary_steps ADD COLUMN custom_description TEXT DEFAULT '';`); } catch (e) {}
@@ -706,6 +707,10 @@ export function registerItineraryRoutes(
       isFeatured: (itineraryRow.is_featured === 1) || (itineraryRow.is_recommended === 1),
       isPremium: itineraryRow.is_premium !== undefined && itineraryRow.is_premium !== null ? itineraryRow.is_premium === 1 : true,
       price: itineraryRow.price || 'R$ 14,90',
+      platanosPrice:
+        (itineraryRow.is_premium !== undefined && itineraryRow.is_premium !== null ? itineraryRow.is_premium === 1 : true)
+          ? (itineraryRow.platanos_price && Number(itineraryRow.platanos_price) > 0 ? Number(itineraryRow.platanos_price) : 15)
+          : 0,
       status,
       badgeText: itineraryRow.badge_text || 'Premium',
       showBadge: itineraryRow.show_badge !== undefined && itineraryRow.show_badge !== null ? itineraryRow.show_badge === 1 : true,
@@ -1053,14 +1058,19 @@ export function registerItineraryRoutes(
       const finalActive = finalStatus === 'published' ? 1 : 0;
       const finalFeatured = isFeatured !== undefined ? (isFeatured ? 1 : 0) : (isRecommended ? 1 : 0);
 
+      const isPremBool = isPremium !== undefined ? Boolean(isPremium) : true;
+      const platanosPriceNum = isPremBool
+        ? (req.body.platanosPrice && Number(req.body.platanosPrice) > 0 ? Number(req.body.platanosPrice) : 15)
+        : 0;
+
       db.transaction(() => {
         db.prepare(`
           INSERT INTO itineraries (
             id, title, description, cover_image, days_count, categories,
-            is_active, is_recommended, is_featured, is_premium, price,
+            is_active, is_recommended, is_featured, is_premium, price, platanos_price,
             status, badge_text, show_badge, show_price, show_stops_count,
             tips, sort_order, notes, usage_count
-          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0)
+          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0)
         `).run(
           id,
           title,
@@ -1071,8 +1081,9 @@ export function registerItineraryRoutes(
           finalActive,
           finalFeatured,
           finalFeatured,
-          isPremium !== undefined ? (isPremium ? 1 : 0) : 1,
-          price || 'R$ 14,90',
+          isPremBool ? 1 : 0,
+          price || (isPremBool ? `${platanosPriceNum} Plátanos` : 'Grátis'),
+          platanosPriceNum,
           finalStatus,
           badgeText || 'Premium',
           showBadge !== undefined ? (showBadge ? 1 : 0) : 1,
@@ -1169,6 +1180,11 @@ export function registerItineraryRoutes(
       const finalActive = finalStatus !== undefined ? (finalStatus === 'published' ? 1 : 0) : (isActive !== undefined ? (isActive ? 1 : 0) : undefined);
       const finalFeatured = isFeatured !== undefined ? (isFeatured ? 1 : 0) : (isRecommended !== undefined ? (isRecommended ? 1 : 0) : undefined);
 
+      const platanosPriceParam =
+        req.body.platanosPrice !== undefined && req.body.platanosPrice !== null
+          ? Number(req.body.platanosPrice)
+          : null;
+
       db.transaction(() => {
         db.prepare(`
           UPDATE itineraries SET
@@ -1182,6 +1198,7 @@ export function registerItineraryRoutes(
             is_featured = COALESCE(?, is_featured),
             is_premium = COALESCE(?, is_premium),
             price = COALESCE(?, price),
+            platanos_price = COALESCE(?, platanos_price),
             status = COALESCE(?, status),
             badge_text = COALESCE(?, badge_text),
             show_badge = COALESCE(?, show_badge),
@@ -1203,6 +1220,7 @@ export function registerItineraryRoutes(
           finalFeatured,
           isPremium !== undefined ? (isPremium ? 1 : 0) : null,
           price,
+          platanosPriceParam,
           finalStatus,
           badgeText,
           showBadge !== undefined ? (showBadge ? 1 : 0) : null,

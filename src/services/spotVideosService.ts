@@ -22,51 +22,17 @@ export interface SpotVideo {
   source: 'upload' | 'community' | 'curated';
 }
 
-// High-speed, mobile-optimized scenic sample video streams for Campos do Jordão
-const CURATED_DEFAULT_VIDEOS: Record<string, SpotVideo[]> = {
-  default: [
-    {
-      id: 'curated-default-1',
-      spotId: 'default',
-      title: 'Vista Panorâmica da Serra da Mantiqueira',
-      videoUrl: 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerBlazes.mp4',
-      thumbnailUrl: 'https://images.unsplash.com/photo-1506744038136-46273834b3fb?auto=format&fit=crop&w=600&q=80',
-      authorName: 'Guia Local Campos',
-      createdAt: '2026-01-10T14:30:00Z',
-      likesCount: 142,
-      duration: 15,
-      source: 'curated',
-    },
-    {
-      id: 'curated-default-2',
-      spotId: 'default',
-      title: 'Passeio pelas araucárias e clima de montanha',
-      videoUrl: 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerEscapes.mp4',
-      thumbnailUrl: 'https://images.unsplash.com/photo-1519681393784-d120267933ba?auto=format&fit=crop&w=600&q=80',
-      authorName: 'Mariana Silva • Exploradora',
-      createdAt: '2026-02-14T09:15:00Z',
-      likesCount: 98,
-      duration: 15,
-      source: 'community',
-    },
-    {
-      id: 'curated-default-3',
-      spotId: 'default',
-      title: 'Charme europeu e atmosfera de inverno',
-      videoUrl: 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerJoyBlazes.mp4',
-      thumbnailUrl: 'https://images.unsplash.com/photo-1542314831-068cd1dbfeeb?auto=format&fit=crop&w=600&q=80',
-      authorName: 'Lucas Oliveira',
-      createdAt: '2026-03-01T18:20:00Z',
-      likesCount: 215,
-      duration: 15,
-      source: 'community',
-    },
-  ],
-};
-
 // IndexedDB Helper for local video cache and ultra-fast playback
 const DB_NAME = 'monvian_videos_db';
 const STORE_NAME = 'spot_video_blobs';
+
+function isLegacyCuratedVideo(v: SpotVideo): boolean {
+  if (!v) return true;
+  if (v.source === 'curated') return true;
+  if (typeof v.id === 'string' && v.id.includes('-curated-')) return true;
+  if (typeof v.videoUrl === 'string' && v.videoUrl.includes('commondatastorage.googleapis.com')) return true;
+  return false;
+}
 
 function openVideoDb(): Promise<IDBDatabase | null> {
   if (typeof window === 'undefined' || !window.indexedDB) return Promise.resolve(null);
@@ -131,12 +97,12 @@ export async function getLocalVideoBlobUrl(id: string): Promise<string | null> {
 
 /**
  * Fetch all community and uploaded videos for a specific spot from Cloud Firestore.
- * Merges with curated defaults to guarantee a continuous, high-definition playlist.
+ * Returns only real uploaded videos (empty array if the spot has no videos).
  */
 export async function fetchSpotVideos(
   spotId: string, 
-  spotName: string = '', 
-  spotCategory: string = ''
+  _spotName: string = '', 
+  _spotCategory: string = ''
 ): Promise<SpotVideo[]> {
   const localCacheKey = `monvian_spot_videos_${spotId}`;
   let localVideos: SpotVideo[] = [];
@@ -144,7 +110,10 @@ export async function fetchSpotVideos(
   try {
     const cached = localStorage.getItem(localCacheKey);
     if (cached) {
-      localVideos = JSON.parse(cached);
+      const parsed = JSON.parse(cached);
+      if (Array.isArray(parsed)) {
+        localVideos = parsed.filter((v) => !isLegacyCuratedVideo(v));
+      }
     }
   } catch {}
 
@@ -157,13 +126,14 @@ export async function fetchSpotVideos(
 
     snapshot.forEach((docSnap) => {
       const data = docSnap.data() as SpotVideo;
-      cloudVideos.push({
-        ...data,
-        id: docSnap.id,
-      });
+      if (!isLegacyCuratedVideo(data)) {
+        cloudVideos.push({
+          ...data,
+          id: docSnap.id,
+        });
+      }
     });
   } catch (err) {
-    // If offline or Firestore error, gracefully fallback
     console.warn('[SpotVideos] Cloud fetch fallback:', err);
   }
 
@@ -178,21 +148,20 @@ export async function fetchSpotVideos(
     if (!map.has(v.id)) map.set(v.id, v);
   });
 
-  // 3. Fallback curated video seeds tailored to the spot
-  const curatedSeeds = CURATED_DEFAULT_VIDEOS.default.map((v, i) => ({
-    ...v,
-    id: `${spotId}-curated-${i + 1}`,
-    spotId,
-    title: i === 0 ? `${spotName || 'Ponto Turístico'} em 4K` : v.title,
-  }));
+  const merged = Array.from(map.values());
 
-  curatedSeeds.forEach((v) => {
-    if (!map.has(v.id)) map.set(v.id, v);
-  });
+  // Refresh any local IndexedDB blob URLs if available
+  const finalVideos: SpotVideo[] = [];
+  for (const vid of merged) {
+    const freshBlobUrl = await getLocalVideoBlobUrl(vid.id);
+    if (freshBlobUrl) {
+      finalVideos.push({ ...vid, videoUrl: freshBlobUrl });
+    } else if (vid.videoUrl && !vid.videoUrl.startsWith('blob:')) {
+      finalVideos.push(vid);
+    }
+  }
 
-  const finalVideos = Array.from(map.values());
-
-  // Cache locally
+  // Update cleaned cache locally
   try {
     localStorage.setItem(localCacheKey, JSON.stringify(finalVideos));
   } catch {}

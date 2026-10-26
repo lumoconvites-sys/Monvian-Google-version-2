@@ -2,20 +2,22 @@
 export interface SavedFavoritesState {
   itineraries: string[];
   spots: string[];
-  places: string[];
+  places: string[]; // Stores "Removidos da lista" IDs (spots or itineraries removed from lists)
 }
 
 const STORAGE_KEYS = {
   ITINERARIES: 'monvian_saved_itineraries',
+  LEGACY_ITINERARY_FAVS: 'monvian_itinerary_favs',
   SPOTS: 'monvian_saved_spots',
-  PLACES: 'monvian_saved_places',
+  PLACES: 'monvian_removed_items',
+  LEGACY_PLACES: 'monvian_saved_places',
   LEGACY_FAVORITES: 'monvian_favorites',
 };
 
 const DEFAULT_INITIAL_FAVORITES: SavedFavoritesState = {
   itineraries: ['roteiro-classico-2-dias'],
   spots: ['itapeva', 'amantikir'],
-  places: ['baden-baden'],
+  places: [],
 };
 
 function readStorageList(key: string, defaultFallback: string[]): string[] {
@@ -51,20 +53,30 @@ class FavoritesManager {
   }
 
   private loadLocalState(): SavedFavoritesState {
-    const itineraries = readStorageList(STORAGE_KEYS.ITINERARIES, DEFAULT_INITIAL_FAVORITES.itineraries);
+    const savedItins = readStorageList(STORAGE_KEYS.ITINERARIES, DEFAULT_INITIAL_FAVORITES.itineraries);
+    const legacyItinFavs = readStorageList(STORAGE_KEYS.LEGACY_ITINERARY_FAVS, []);
+    const mergedItineraries = Array.from(new Set([...legacyItinFavs, ...savedItins]));
+
     const spots = readStorageList(STORAGE_KEYS.SPOTS, DEFAULT_INITIAL_FAVORITES.spots);
-    const places = readStorageList(STORAGE_KEYS.PLACES, DEFAULT_INITIAL_FAVORITES.places);
+    const removedItems = readStorageList(STORAGE_KEYS.PLACES, DEFAULT_INITIAL_FAVORITES.places);
+
+    // Persist merged itineraries if legacy favs existed
+    if (legacyItinFavs.length > 0) {
+      writeStorageList(STORAGE_KEYS.ITINERARIES, mergedItineraries);
+      writeStorageList(STORAGE_KEYS.LEGACY_ITINERARY_FAVS, mergedItineraries);
+    }
 
     return {
-      itineraries: Array.from(new Set(itineraries)),
+      itineraries: mergedItineraries,
       spots: Array.from(new Set(spots)),
-      places: Array.from(new Set(places)),
+      places: Array.from(new Set(removedItems)),
     };
   }
 
   private handleStorageEvent = (e: StorageEvent) => {
     if (
       e.key === STORAGE_KEYS.ITINERARIES ||
+      e.key === STORAGE_KEYS.LEGACY_ITINERARY_FAVS ||
       e.key === STORAGE_KEYS.SPOTS ||
       e.key === STORAGE_KEYS.PLACES
     ) {
@@ -93,9 +105,8 @@ class FavoritesManager {
   }
 
   private syncLegacyStorage() {
-    // Keep legacy single favorites array in sync for backward compatibility
-    const combined = Array.from(new Set([...this.state.spots, ...this.state.places]));
-    writeStorageList(STORAGE_KEYS.LEGACY_FAVORITES, combined);
+    writeStorageList(STORAGE_KEYS.LEGACY_FAVORITES, this.state.spots);
+    writeStorageList(STORAGE_KEYS.LEGACY_ITINERARY_FAVS, this.state.itineraries);
   }
 
   private persistLocal() {
@@ -114,13 +125,10 @@ class FavoritesManager {
   }
 
   public getFavorites(): string[] {
-    return Array.from(new Set([...this.state.spots, ...this.state.places]));
+    return [...this.state.spots];
   }
 
   public toggleFavorite(id: string): boolean {
-    if (this.state.places.includes(id)) {
-      return this.togglePlace(id);
-    }
     return this.toggleSpot(id);
   }
 
@@ -144,15 +152,29 @@ class FavoritesManager {
   }
 
   public isSpotOrPlaceSaved(id: string): boolean {
-    return this.isSpotSaved(id) || this.isPlaceSaved(id);
+    return this.isSpotSaved(id);
+  }
+
+  public addRemovedItem(id: string): void {
+    if (!id) return;
+    if (!this.state.places.includes(id)) {
+      this.state.places = [id, ...this.state.places];
+      this.persistLocal();
+      this.notify();
+      this.syncToServer('place', id, true);
+    }
   }
 
   public toggleItinerary(id: string): boolean {
     const exists = this.state.itineraries.includes(id);
     if (exists) {
       this.state.itineraries = this.state.itineraries.filter((item) => item !== id);
+      if (!this.state.places.includes(id)) {
+        this.state.places = [id, ...this.state.places];
+      }
     } else {
       this.state.itineraries = [id, ...this.state.itineraries];
+      this.state.places = this.state.places.filter((item) => item !== id);
     }
     this.persistLocal();
     this.notify();
@@ -164,8 +186,12 @@ class FavoritesManager {
     const exists = this.state.spots.includes(id);
     if (exists) {
       this.state.spots = this.state.spots.filter((item) => item !== id);
+      if (!this.state.places.includes(id)) {
+        this.state.places = [id, ...this.state.places];
+      }
     } else {
       this.state.spots = [id, ...this.state.spots];
+      this.state.places = this.state.places.filter((item) => item !== id);
     }
     this.persistLocal();
     this.notify();
@@ -205,9 +231,27 @@ class FavoritesManager {
       items.filter((i) => i.type === 'place').map((i) => i.id)
     );
 
-    this.state.itineraries = this.state.itineraries.filter((id) => !itineraryIdsToRemove.has(id));
-    this.state.spots = this.state.spots.filter((id) => !spotIdsToRemove.has(id));
-    this.state.places = this.state.places.filter((id) => !placeIdsToRemove.has(id));
+    if (itineraryIdsToRemove.size > 0) {
+      this.state.itineraries = this.state.itineraries.filter((id) => !itineraryIdsToRemove.has(id));
+      itineraryIdsToRemove.forEach((id) => {
+        if (!this.state.places.includes(id)) {
+          this.state.places = [id, ...this.state.places];
+        }
+      });
+    }
+
+    if (spotIdsToRemove.size > 0) {
+      this.state.spots = this.state.spots.filter((id) => !spotIdsToRemove.has(id));
+      spotIdsToRemove.forEach((id) => {
+        if (!this.state.places.includes(id)) {
+          this.state.places = [id, ...this.state.places];
+        }
+      });
+    }
+
+    if (placeIdsToRemove.size > 0) {
+      this.state.places = this.state.places.filter((id) => !placeIdsToRemove.has(id));
+    }
 
     this.persistLocal();
     this.notify();
@@ -236,12 +280,9 @@ class FavoritesManager {
         if (data.success && data.favorites) {
           const sItin = Array.isArray(data.favorites.itineraries) ? data.favorites.itineraries : [];
           const sSpots = Array.isArray(data.favorites.spots) ? data.favorites.spots : [];
-          const sPlaces = Array.isArray(data.favorites.places) ? data.favorites.places : [];
 
-          // Merge server with local without duplicate IDs
           this.state.itineraries = Array.from(new Set([...this.state.itineraries, ...sItin]));
           this.state.spots = Array.from(new Set([...this.state.spots, ...sSpots]));
-          this.state.places = Array.from(new Set([...this.state.places, ...sPlaces]));
 
           this.persistLocal();
           this.notify();

@@ -221,6 +221,7 @@ export interface Itinerary {
   isFeatured?: boolean;
   isPremium?: boolean;
   price?: string;
+  platanosPrice?: number;
   status?: ItineraryStatus;
   badgeText?: string;
   showBadge?: boolean;
@@ -234,6 +235,74 @@ export interface Itinerary {
   placesCount?: number;
   createdAt?: string;
   updatedAt?: string;
+}
+
+export interface PlatanoPackage {
+  id: string;
+  platanos: number;
+  priceCents: number;
+  priceBRL: string;
+  badge?: string;
+  isBestValue?: boolean;
+  isActive: boolean;
+  sortOrder: number;
+}
+
+export type PlatanoTransactionType =
+  | 'credit_purchase'
+  | 'debit_itinerary'
+  | 'refund_debit'
+  | 'admin_adjustment';
+
+export type PlatanoTransactionStatus =
+  | 'completed'
+  | 'pending'
+  | 'cancelled'
+  | 'failed'
+  | 'refunded';
+
+export interface PlatanoTransaction {
+  id: string;
+  userId: number;
+  userEmail: string;
+  type: PlatanoTransactionType;
+  amount: number;
+  balanceBefore: number;
+  balanceAfter: number;
+  status: PlatanoTransactionStatus;
+  description: string;
+  referenceType?: string;
+  referenceId?: string;
+  createdAt: string;
+}
+
+export interface PlatanoStripeOrder {
+  id: string;
+  userId: number;
+  userEmail: string;
+  packageId: string;
+  platanosAmount: number;
+  amountCents: number;
+  currency: string;
+  stripeSessionId: string;
+  stripePaymentIntentId?: string | null;
+  status: 'pending' | 'paid' | 'cancelled' | 'failed' | 'refunded';
+  credited: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface PlatanoWalletData {
+  userId: number;
+  userEmail: string;
+  balance: number;
+  totalCredited: number;
+  totalSpent: number;
+  unlockedItineraryIds: string[];
+  transactions: PlatanoTransaction[];
+  orders: PlatanoStripeOrder[];
+  packages: PlatanoPackage[];
+  itineraryPrices: Record<string, number>;
 }
 
 export interface UserItinerary {
@@ -270,4 +339,3 @@ export interface ItineraryPreferences {
   prioritizeFood: boolean;
   prioritizeAttractions: boolean;
 }
-

@@ -16,6 +16,21 @@
     <link rel="apple-touch-icon" sizes="180x180" href="/loogo.png" />
     <script>
       (function() {
+        window.addEventListener('unhandledrejection', function(event) {
+          var reason = event && event.reason;
+          var msg = (reason && (reason.message || String(reason))) || '';
+          var stack = (reason && reason.stack) || '';
+          if (msg.indexOf('WebSocket') !== -1 || stack.indexOf('@vite/client') !== -1) {
+            event.preventDefault();
+          }
+        });
+        window.addEventListener('error', function(event) {
+          var filename = (event && event.filename) || '';
+          var msg = (event && event.message) || '';
+          if (filename.indexOf('@vite/client') !== -1 || msg.indexOf('WebSocket') !== -1) {
+            event.preventDefault();
+          }
+        }, true);
         try {
           var savedTheme = localStorage.getItem('monvian_theme');
           var isDark = savedTheme === 'dark';

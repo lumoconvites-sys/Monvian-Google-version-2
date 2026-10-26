@@ -14,12 +14,14 @@ import {
   CheckCircle2,
   Circle,
   FolderHeart,
-  ChevronRight
+  ChevronRight,
+  RotateCcw
 } from 'lucide-react';
 import { Spot, Itinerary } from '../types';
 import { DEFAULT_CURATED_ITINERARIES } from '../data/defaultItineraries';
 import { useFavorites } from '../hooks/useFavorites';
 import { getSpotImage } from '../utils/spotImages';
+import { fetchItinerariesFromSupabase } from '../services/supabaseItineraries';
 
 export type SavedCollectionType = 'roteiros' | 'pontos' | 'lugares';
 
@@ -214,6 +216,8 @@ export const SavedView: React.FC<SavedViewProps> = ({
     savedItineraries,
     savedSpots,
     savedPlaces,
+    toggleItinerary,
+    toggleSpot,
     removeBatch,
   } = useFavorites();
 
@@ -221,21 +225,65 @@ export const SavedView: React.FC<SavedViewProps> = ({
   const [isEditing, setIsEditing] = useState<boolean>(false);
   const [selectedForRemoval, setSelectedForRemoval] = useState<Set<string>>(new Set());
 
+  const [cachedStoreItineraries, setCachedStoreItineraries] = useState<Itinerary[]>(() => {
+    try {
+      const raw = localStorage.getItem('monvian_itineraries_store_cache_v6');
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+      }
+    } catch {}
+    return DEFAULT_CURATED_ITINERARIES;
+  });
+
+  useEffect(() => {
+    if (!isOpen) return;
+    try {
+      const raw = localStorage.getItem('monvian_itineraries_store_cache_v6');
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          setCachedStoreItineraries(parsed);
+        }
+      }
+    } catch {}
+
+    fetchItinerariesFromSupabase()
+      .then((data) => {
+        if (Array.isArray(data) && data.length > 0) {
+          setCachedStoreItineraries(data);
+        }
+      })
+      .catch(() => {});
+  }, [isOpen]);
+
+  const findItineraryById = (id: string): Itinerary | null => {
+    const fromStore = cachedStoreItineraries.find((it) => it.id === id);
+    if (fromStore) return fromStore;
+    const fromCurated = DEFAULT_CURATED_ITINERARIES.find((it) => it.id === id);
+    if (fromCurated) return fromCurated;
+    try {
+      const rawCustom = localStorage.getItem(`monvian_user_itinerary_${id}`);
+      if (rawCustom) return JSON.parse(rawCustom);
+      const rawActive = localStorage.getItem('monvian_active_itinerary');
+      if (rawActive) {
+        const parsedActive = JSON.parse(rawActive);
+        if (parsedActive && parsedActive.id === id) return parsedActive;
+      }
+    } catch {}
+    return null;
+  };
+
   const resolvedItineraries = useMemo(() => {
     const list: Itinerary[] = [];
     for (const id of savedItineraries) {
-      const found = DEFAULT_CURATED_ITINERARIES.find((it) => it.id === id);
+      const found = findItineraryById(id);
       if (found) {
         list.push(found);
-      } else {
-        try {
-          const rawCustom = localStorage.getItem(`monvian_user_itinerary_${id}`);
-          if (rawCustom) list.push(JSON.parse(rawCustom));
-        } catch (e) {}
       }
     }
     return list;
-  }, [savedItineraries]);
+  }, [savedItineraries, cachedStoreItineraries]);
 
   const resolvedTouristSpots = useMemo(() => {
     return savedSpots
@@ -243,11 +291,22 @@ export const SavedView: React.FC<SavedViewProps> = ({
       .filter((s): s is Spot => Boolean(s));
   }, [savedSpots, spots]);
 
+  // "Removidos da lista" can contain removed tourist spots or removed itineraries
   const resolvedPlaces = useMemo(() => {
-    return savedPlaces
-      .map((id) => spots.find((s) => s.id === id))
-      .filter((s): s is Spot => Boolean(s));
-  }, [savedPlaces, spots]);
+    const items: Array<{ itemType: 'spot'; data: Spot } | { itemType: 'itinerary'; data: Itinerary }> = [];
+    for (const id of savedPlaces) {
+      const foundSpot = spots.find((s) => s.id === id);
+      if (foundSpot) {
+        items.push({ itemType: 'spot', data: foundSpot });
+        continue;
+      }
+      const foundItin = findItineraryById(id);
+      if (foundItin) {
+        items.push({ itemType: 'itinerary', data: foundItin });
+      }
+    }
+    return items;
+  }, [savedPlaces, spots, cachedStoreItineraries]);
 
   const itineraryPhotos = useMemo(() => {
     return resolvedItineraries
@@ -265,7 +324,9 @@ export const SavedView: React.FC<SavedViewProps> = ({
 
   const placePhotos = useMemo(() => {
     return resolvedPlaces
-      .map((s) => getSpotImage(s))
+      .map((entry) =>
+        entry.itemType === 'spot' ? getSpotImage(entry.data) : entry.data.coverImage
+      )
       .filter(Boolean)
       .slice(0, 4);
   }, [resolvedPlaces]);
@@ -343,7 +404,7 @@ export const SavedView: React.FC<SavedViewProps> = ({
   }, [activeCollection, resolvedItineraries, resolvedTouristSpots, resolvedPlaces]);
 
   const handleToggleSelectAll = () => {
-    const allIds = currentItems.map((item: any) => item.id);
+    const allIds = currentItems.map((item: any) => item.data ? item.data.id : item.id);
     if (selectedForRemoval.size === allIds.length) {
       setSelectedForRemoval(new Set());
     } else {
@@ -421,11 +482,11 @@ export const SavedView: React.FC<SavedViewProps> = ({
                       />
                       <CollectionCoverCard
                         index={2}
-                        title="Lugares & Gastronomia"
+                        title="Removidos da lista"
                         count={resolvedPlaces.length}
                         photos={placePhotos}
                         isDark={isDark}
-                        fallbackIcon={<UtensilsCrossed className="w-10 h-10 text-zinc-400 stroke-[1.5]" />}
+                        fallbackIcon={<Trash2 className="w-10 h-10 text-zinc-400 stroke-[1.5]" />}
                         onClick={() => handleOpenCollection('lugares')}
                       />
                     </div>
@@ -471,7 +532,7 @@ export const SavedView: React.FC<SavedViewProps> = ({
                           ? 'Roteiros salvos'
                           : activeCollection === 'pontos'
                           ? 'Pontos turísticos'
-                          : 'Lugares & Gastronomia'}
+                          : 'Removidos da lista'}
                       </h2>
                     </div>
 
@@ -512,14 +573,18 @@ export const SavedView: React.FC<SavedViewProps> = ({
                           ) : activeCollection === 'pontos' ? (
                             <MapPin className="w-8 h-8 stroke-[1.5]" />
                           ) : (
-                            <UtensilsCrossed className="w-8 h-8 stroke-[1.5]" />
+                            <Trash2 className="w-8 h-8 stroke-[1.5]" />
                           )}
                         </div>
-                        <h3 className="text-lg font-bold">Nenhum item salvo</h3>
+                        <h3 className="text-lg font-bold">
+                          {activeCollection === 'lugares' ? 'Nenhum item removido' : 'Nenhum item salvo'}
+                        </h3>
                         <p className="text-sm text-zinc-500 max-w-xs mt-1">
                           {activeCollection === 'roteiros'
-                            ? 'Explore roteiros selecionados de Campos do Jordão e guarde os que mais gostar.'
-                            : 'Toque no ícone de coração nos locais do mapa para adicioná-los aos seus salvos.'}
+                            ? 'Explore roteiros selecionados de Campos do Jordão e curta os que mais gostar.'
+                            : activeCollection === 'pontos'
+                            ? 'Toque no ícone de coração nos pontos turísticos do mapa para adicioná-los aqui.'
+                            : 'Itens removidos de roteiros ou descurtidos aparecerão nesta lista.'}
                         </p>
                         <button
                           onClick={() => {
@@ -596,7 +661,8 @@ export const SavedView: React.FC<SavedViewProps> = ({
                                 </motion.div>
                               );
                             })
-                          : (currentItems as Spot[]).map((spot, idx) => {
+                          : activeCollection === 'pontos'
+                          ? (currentItems as Spot[]).map((spot, idx) => {
                               const isSelected = selectedForRemoval.has(spot.id);
                               return (
                                 <motion.div
@@ -659,6 +725,95 @@ export const SavedView: React.FC<SavedViewProps> = ({
                                   </div>
                                   {!isEditing && (
                                     <ChevronRight className="w-5 h-5 text-zinc-400 shrink-0" />
+                                  )}
+                                </motion.div>
+                              );
+                            })
+                          : (currentItems as Array<{ itemType: 'spot'; data: Spot } | { itemType: 'itinerary'; data: Itinerary }>).map((entry, idx) => {
+                              const itemId = entry.data.id;
+                              const isSelected = selectedForRemoval.has(itemId);
+                              const isSpotEntry = entry.itemType === 'spot';
+                              const imgSrc = isSpotEntry
+                                ? getSpotImage(entry.data)
+                                : entry.data.coverImage;
+                              const title = isSpotEntry ? entry.data.name : entry.data.title;
+                              const subtitle = isSpotEntry
+                                ? entry.data.categoryLabel || entry.data.category
+                                : `${entry.data.daysCount || entry.data.days?.length || 1} dias · Roteiro`;
+
+                              return (
+                                <motion.div
+                                  key={itemId}
+                                  initial={{ opacity: 0, y: 6 }}
+                                  animate={{ opacity: 1, y: 0 }}
+                                  transition={{
+                                    duration: 0.18,
+                                    ease: [0.22, 1, 0.36, 1],
+                                    delay: Math.min(idx * 0.02, 0.2),
+                                  }}
+                                  onClick={() => {
+                                    if (isEditing) {
+                                      handleToggleSelect(itemId);
+                                    } else if (isSpotEntry) {
+                                      onOpenSpot(entry.data);
+                                    } else {
+                                      onOpenItinerary(entry.data);
+                                    }
+                                  }}
+                                  className={`p-3.5 rounded-2xl border transition-all duration-150 active:scale-[0.98] transform-gpu flex items-center gap-3.5 cursor-pointer ${
+                                    isSelected
+                                      ? 'border-blue-500 bg-blue-500/10'
+                                      : isDark
+                                      ? 'bg-[#000000] border-[#262626] hover:border-white/25'
+                                      : 'bg-white border-black/5 hover:bg-zinc-50'
+                                  }`}
+                                >
+                                  {isEditing && (
+                                    <div className="shrink-0 text-blue-500">
+                                      {isSelected ? (
+                                        <CheckCircle2 className="w-5 h-5 fill-blue-500 text-white" />
+                                      ) : (
+                                        <Circle className="w-5 h-5 text-zinc-400" />
+                                      )}
+                                    </div>
+                                  )}
+                                  <div className="w-16 h-16 rounded-xl overflow-hidden shrink-0 relative transform-gpu">
+                                    <TranslucentSavedPhoto
+                                      src={imgSrc}
+                                      alt={title}
+                                      isDark={isDark}
+                                      className="block w-full h-full rounded-xl object-cover object-center"
+                                    />
+                                  </div>
+                                  <div className="flex-1 min-w-0">
+                                    <h4 className="text-[15px] font-bold truncate">
+                                      {title}
+                                    </h4>
+                                    <p className="text-xs text-zinc-500 dark:text-zinc-400 font-medium mt-0.5 truncate">
+                                      {subtitle}
+                                    </p>
+                                  </div>
+                                  {!isEditing && (
+                                    <button
+                                      type="button"
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        if (isSpotEntry) {
+                                          toggleSpot(itemId);
+                                        } else {
+                                          toggleItinerary(itemId);
+                                        }
+                                      }}
+                                      className={`px-3 py-1.5 rounded-full text-xs font-semibold flex items-center gap-1.5 transition-all active:scale-95 cursor-pointer shrink-0 ${
+                                        isDark
+                                          ? 'bg-white/10 hover:bg-white/20 text-white'
+                                          : 'bg-zinc-100 hover:bg-zinc-200 text-zinc-900'
+                                      }`}
+                                      title="Restaurar para salvos"
+                                    >
+                                      <RotateCcw className="w-3.5 h-3.5" />
+                                      <span>Restaurar</span>
+                                    </button>
                                   )}
                                 </motion.div>
                               );

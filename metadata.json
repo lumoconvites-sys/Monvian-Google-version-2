@@ -1,5 +1,5 @@
 {
-  "name": "Monvian",
+  "name": "Monvians",
   "description": "Seu guia inteligente para viver Campos do Jordão.",
   "requestFramePermissions": ["geolocation"],
   "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]

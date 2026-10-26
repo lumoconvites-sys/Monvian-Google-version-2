@@ -8,17 +8,24 @@ import {
   Lightbulb,
   Lock,
   Crown,
+  Heart,
+  Plus,
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { Itinerary } from '../../types';
 import { PremiumModal } from '../PremiumModal';
 import { getSpotImage, getSpotFallbackImage } from '../../utils/spotImages';
+import { useFavorites } from '../../hooks/useFavorites';
+import { usePlatanos } from '../../hooks/usePlatanos';
+import { PlatanoLeafIcon, PlatanoUnlockToast } from '../platanos/PlatanoLeafIcon';
+import { PlatanoPurchaseConfirmModal } from '../platanos/PlatanoPurchaseConfirmModal';
 
 interface ItineraryStoreDetailModalProps {
   itinerary: Itinerary | null;
   isOpen: boolean;
   onClose: () => void;
   onApplyItinerary: (itinerary: Itinerary) => Promise<void>;
+  onOpenWalletTopUp?: () => void;
   theme?: 'dark' | 'light';
 }
 
@@ -69,11 +76,19 @@ export const ItineraryStoreDetailModal: React.FC<ItineraryStoreDetailModalProps>
   isOpen,
   onClose,
   onApplyItinerary,
+  onOpenWalletTopUp,
   theme = 'dark',
 }) => {
   const [isApplying, setIsApplying] = useState(false);
   const [activeDayIndex, setActiveDayIndex] = useState(0);
   const [isPremiumModalOpen, setIsPremiumModalOpen] = useState(false);
+  const [isConfirmModalOpen, setIsConfirmModalOpen] = useState(false);
+  const [unlockToast, setUnlockToast] = useState<{ visible: boolean; title: string; subtitle?: string }>({
+    visible: false,
+    title: '',
+  });
+  const { isItinerarySaved, toggleItinerary } = useFavorites();
+  const { getItineraryPlatanoPrice, isItineraryUnlocked } = usePlatanos();
   const scrollRef = useRef<HTMLDivElement | null>(null);
   const heroImgRef = useRef<HTMLImageElement | null>(null);
 
@@ -120,39 +135,46 @@ export const ItineraryStoreDetailModal: React.FC<ItineraryStoreDetailModalProps>
     return () => window.removeEventListener('monvian-close-modals', handleCloseAll);
   }, [onClose]);
 
-  if (!itinerary) return null;
+  const lastItineraryRef = useRef<Itinerary | null>(itinerary);
+  if (itinerary) {
+    lastItineraryRef.current = itinerary;
+  }
+  const activeItinerary = itinerary || lastItineraryRef.current;
 
   const isLight = theme === 'light';
-  const currentUserObj = (() => {
-    try {
-      return JSON.parse(localStorage.getItem('monvian_user') || '{}');
-    } catch (e) {
-      return {};
-    }
-  })();
-  const isGoldItinerary = Boolean(itinerary.isPremium || (itinerary as any).isGold || (itinerary as any).is_gold);
+  const isGoldItinerary = Boolean(
+    activeItinerary &&
+      (activeItinerary.isPremium || (activeItinerary as any).isGold || (activeItinerary as any).is_gold) &&
+      activeItinerary.badgeText?.toLowerCase() !== 'livre'
+  );
   const isLivreItinerary = !isGoldItinerary;
-  const isPremiumUser = false;
-  const totalStops =
-    itinerary.placesCount ||
-    itinerary.days.reduce((acc, d) => acc + d.steps.length, 0);
-  const currentDay = itinerary.days[activeDayIndex] || itinerary.days[0];
+  const isUnlockedByPlatanos = activeItinerary ? isItineraryUnlocked(activeItinerary.id) : false;
+  const isPremiumUser = isUnlockedByPlatanos;
+  const platanoPrice = activeItinerary ? getItineraryPlatanoPrice(activeItinerary) : 15;
+  const totalStops = activeItinerary
+    ? activeItinerary.placesCount ||
+      activeItinerary.days.reduce((acc, d) => acc + d.steps.length, 0)
+    : 0;
+  const currentDay = activeItinerary
+    ? activeItinerary.days[activeDayIndex] || activeItinerary.days[0]
+    : undefined;
 
   // Limit visible tags to max 3
-  const visibleTags = (itinerary.categories || [])
+  const visibleTags = (activeItinerary?.categories || [])
     .filter(cat => isValidContent(cat))
     .slice(0, 3)
     .map(cat => TAG_TRANSLATIONS[cat.toLowerCase()] || cat.toUpperCase());
 
   const handleAdd = async () => {
-    if (isGoldItinerary) {
-      setIsPremiumModalOpen(true);
+    if (!activeItinerary) return;
+    if (isGoldItinerary && !isUnlockedByPlatanos) {
+      setIsConfirmModalOpen(true);
       return;
     }
 
     try {
       setIsApplying(true);
-      await onApplyItinerary(itinerary);
+      await onApplyItinerary(activeItinerary);
     } catch (e) {
       console.error(e);
     } finally {
@@ -163,40 +185,53 @@ export const ItineraryStoreDetailModal: React.FC<ItineraryStoreDetailModalProps>
   const daySubtitle = currentDay ? cleanDayTitle(currentDay.title || '', currentDay.dayNumber || activeDayIndex + 1) : '';
 
   const modalContent = (
-    <AnimatePresence mode="wait">
-      {isOpen && (
-        <motion.div
-          key="itinerary-detail-backdrop"
+    <>
+      <AnimatePresence>
+        {isOpen && activeItinerary && (
+          <motion.div
+            key="itinerary-detail-backdrop"
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
-          transition={{ duration: 0.18, ease: 'easeOut' }}
-          className={`fixed inset-0 z-[200] flex flex-col backdrop-blur-md transition-colors duration-200 ${
-            isLight ? 'bg-black/40' : 'bg-black/85'
+          transition={{ duration: 0.24, ease: [0.22, 1, 0.36, 1] }}
+          className={`fixed inset-0 z-[200] flex flex-col backdrop-blur-xl ${
+            isLight ? 'bg-black/35' : 'bg-black/60'
           }`}
-          style={{ fontFamily: "'Inter', -apple-system, BlinkMacSystemFont, sans-serif", willChange: 'opacity' }}
+          style={{
+            fontFamily: "'Inter', -apple-system, BlinkMacSystemFont, sans-serif",
+            willChange: 'opacity',
+            transform: 'translate3d(0, 0, 0)',
+            WebkitTransform: 'translate3d(0, 0, 0)',
+            backfaceVisibility: 'hidden',
+            WebkitBackfaceVisibility: 'hidden',
+          }}
         >
-          {/* Fullscreen Mobile View Container */}
+          {/* Fullscreen Translucent Mobile Card Container (120fps GPU Composited) */}
           <motion.div
-            key="itinerary-detail-content"
-            initial={{ x: '100%' }}
-            animate={{ x: '0%' }}
-            exit={{ x: '100%' }}
+            key={`itinerary-detail-content-${activeItinerary.id}`}
+            initial={{ opacity: 0, scale: 0.94, y: 26 }}
+            animate={{ opacity: 1, scale: 1, y: 0 }}
+            exit={{ opacity: 0, scale: 0.96, y: 18 }}
             transition={{
-              duration: 0.2,
-              ease: [0.22, 1, 0.36, 1]
+              type: 'spring',
+              stiffness: 380,
+              damping: 32,
+              mass: 0.72,
             }}
-            className={`relative w-full h-full flex flex-col max-w-xl mx-auto overflow-hidden transition-colors duration-200 rounded-t-[26px] ios-page-top-rounded ${
-              isLight ? 'bg-white text-zinc-900' : 'bg-[#000000] text-white'
+            className={`relative w-full h-full flex flex-col max-w-xl mx-auto overflow-hidden rounded-t-[26px] ios-page-top-rounded backdrop-blur-2xl ${
+              isLight
+                ? 'bg-white/88 text-zinc-900'
+                : 'bg-[#000000]/82 text-white'
             }`}
             style={{
-              transform: 'translateZ(0)',
-              WebkitTransform: 'translateZ(0)',
+              transform: 'translate3d(0, 0, 0)',
+              WebkitTransform: 'translate3d(0, 0, 0)',
+              backfaceVisibility: 'hidden',
+              WebkitBackfaceVisibility: 'hidden',
               willChange: 'transform, opacity',
               borderTopLeftRadius: '26px',
               borderTopRightRadius: '26px',
               overflow: 'hidden',
-              WebkitMaskImage: '-webkit-radial-gradient(white, black)',
             }}
           >
           {/* Scrollable Body com blur dinâmico ao rolar */}
@@ -206,6 +241,8 @@ export const ItineraryStoreDetailModal: React.FC<ItineraryStoreDetailModalProps>
             className="flex-1 overflow-y-auto overscroll-contain pb-36 rounded-t-[26px]"
             style={{
               WebkitOverflowScrolling: 'touch',
+              transform: 'translate3d(0, 0, 0)',
+              WebkitTransform: 'translate3d(0, 0, 0)',
             }}
           >
             
@@ -215,37 +252,34 @@ export const ItineraryStoreDetailModal: React.FC<ItineraryStoreDetailModalProps>
                 position: 'sticky',
                 top: 0,
                 overflow: 'clip',
-                WebkitMaskImage: '-webkit-radial-gradient(white, black)',
                 isolation: 'isolate',
-                transform: 'translateZ(0)',
-                WebkitTransform: 'translateZ(0)',
+                transform: 'translate3d(0, 0, 0)',
+                WebkitTransform: 'translate3d(0, 0, 0)',
               }}
               className="sticky top-0 w-full h-72 sm:h-80 shrink-0 overflow-hidden bg-zinc-900 rounded-t-[26px] z-0 pointer-events-none"
             >
-              <motion.div
-                initial={{ opacity: 0, scale: 0.96 }}
-                animate={{ opacity: 1, scale: 1 }}
-                transition={{ duration: 0.35, ease: [0.22, 1, 0.36, 1] }}
-                className="w-full h-full relative"
-              >
+              <div className="w-full h-full relative">
                 <img
                   ref={heroImgRef}
-                  src={itinerary.coverImage}
-                  alt={itinerary.title}
+                  src={activeItinerary.coverImage}
+                  alt={activeItinerary.title}
+                  decoding="async"
                   style={{
                     filter: 'none',
-                    transform: 'scale(1.04) translateZ(0)',
-                    WebkitTransform: 'scale(1.04) translateZ(0)',
-                    willChange: 'filter, transform',
+                    transform: 'scale(1.04) translate3d(0, 0, 0)',
+                    WebkitTransform: 'scale(1.04) translate3d(0, 0, 0)',
+                    willChange: 'transform',
+                    backfaceVisibility: 'hidden',
+                    WebkitBackfaceVisibility: 'hidden',
                   }}
-                  className="w-full h-full object-cover rounded-t-[26px] pointer-events-none transform-gpu transition-[filter,transform] duration-75 ease-out"
+                  className="w-full h-full object-cover rounded-t-[26px] pointer-events-none transform-gpu"
                   referrerPolicy="no-referrer"
                   loading="eager"
                   onError={(e) => {
                     (e.target as HTMLImageElement).src = 'https://images.unsplash.com/photo-1506744038136-46273834b3fb?auto=format&fit=crop&w=1000&q=80';
                   }}
                 />
-              </motion.div>
+              </div>
               
               {/* Degradê sutil na parte inferior para legibilidade */}
               <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-black/15 to-transparent pointer-events-none" />
@@ -262,40 +296,80 @@ export const ItineraryStoreDetailModal: React.FC<ItineraryStoreDetailModalProps>
                   whileTap={{ scale: 0.88 }}
                   type="button"
                   onClick={onClose}
-                  className="w-10 h-10 rounded-full bg-white/90 dark:bg-[#000000]/80 backdrop-blur-md border border-zinc-200/80 dark:border-[#262626] text-black dark:text-white flex items-center justify-center shadow-md cursor-pointer transition-opacity active:opacity-80"
+                  className="w-10 h-10 rounded-full bg-white/90 dark:bg-[#000000]/75 backdrop-blur-md border border-zinc-200/80 dark:border-white/10 text-black dark:text-white flex items-center justify-center shadow-md cursor-pointer transition-opacity active:opacity-80"
                   title="Voltar"
                   aria-label="Voltar"
                 >
                   <ChevronLeft className="w-5 h-5 -ml-0.5" />
                 </motion.button>
 
-                {/* Direita: Badge Conta Gold / Livre (Sem botão X redundante) */}
+                {/* Direita: Badge Conta Gold / Livre + Botão Curtir Roteiro */}
                 <div className="flex items-center gap-2">
                   {isGoldItinerary ? (
                     <button
                       type="button"
-                      onClick={() => setIsPremiumModalOpen(true)}
-                      className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-metallic-gold text-[#1A1202] text-[10px] font-black uppercase tracking-wider shadow-md border border-[#FFF4A3]/70 cursor-pointer transition-transform active:scale-95"
-                      title="Roteiro Exclusivo Elite Gold"
+                      onClick={() => {
+                        if (!isUnlockedByPlatanos) {
+                          setIsConfirmModalOpen(true);
+                        }
+                      }}
+                      className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-black/70 backdrop-blur-md text-white text-[11px] font-bold tracking-tight shadow-md border border-[#D9A84E]/50 cursor-pointer transition-transform active:scale-95"
+                      title="Roteiro Exclusivo com Plátanos"
                     >
-                      <Crown className="w-3.5 h-3.5 stroke-[2.4] text-[#1A1202] fill-[#1A1202]/20" />
-                      <span>{itinerary.badgeText && itinerary.badgeText.toUpperCase() !== 'PREMIUM' && itinerary.badgeText.toUpperCase() !== 'LIVRE' ? itinerary.badgeText : 'ELITE GOLD'}</span>
+                      <PlatanoLeafIcon className="w-3.5 h-3.5" variant="gold" />
+                      <span className="tabular-nums">
+                        {isUnlockedByPlatanos
+                          ? 'Liberado'
+                          : `${platanoPrice}`}
+                      </span>
                     </button>
                   ) : (
                     <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-black/40 backdrop-blur-md text-white text-[9.5px] font-black uppercase tracking-wider shadow-xs border border-white/20">
-                      <span>{itinerary.badgeText || 'ACESSO LIVRE'}</span>
+                      <span>{activeItinerary.badgeText || 'ACESSO LIVRE'}</span>
                     </span>
                   )}
+
+                  <motion.button
+                    whileTap={{ scale: 0.88 }}
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      toggleItinerary(activeItinerary.id);
+                    }}
+                    className="w-10 h-10 rounded-full bg-white/90 dark:bg-[#000000]/75 backdrop-blur-md border border-zinc-200/80 dark:border-white/10 text-black dark:text-white flex items-center justify-center shadow-md cursor-pointer transition-opacity active:opacity-80"
+                    title={isItinerarySaved(activeItinerary.id) ? 'Remover dos salvos' : 'Salvar roteiro'}
+                    aria-label={isItinerarySaved(activeItinerary.id) ? 'Remover dos salvos' : 'Salvar roteiro'}
+                  >
+                    <Heart
+                      className={`w-5 h-5 transition-colors ${
+                        isItinerarySaved(activeItinerary.id)
+                          ? 'fill-rose-500 text-rose-500 stroke-[2]'
+                          : 'fill-transparent stroke-[2]'
+                      }`}
+                    />
+                  </motion.button>
                 </div>
               </div>
             </div>
 
-            {/* CONTEÚDO PRINCIPAL COMO CARD COM BORDAS SUPERIORES ARREDONDADAS */}
-            <div className={`relative -mt-6 z-10 rounded-t-[32px] sm:rounded-t-[36px] px-5 pt-6 pb-6 space-y-4 transition-colors duration-200 min-h-[calc(100%-15rem)] ${
-              isLight
-                ? 'bg-white text-zinc-900 shadow-[0_-8px_32px_rgba(0,0,0,0.08)]'
-                : 'bg-[#000000] text-white border-t border-[#262626] shadow-[0_-8px_32px_rgba(0,0,0,0.5)]'
-            }`}>
+            {/* CONTEÚDO PRINCIPAL COMO CARD TRANSLÚCIDO COM BORDAS SUPERIORES ARREDONDADAS */}
+            <motion.div
+              initial={{ opacity: 0, y: 14 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.24, ease: [0.22, 1, 0.36, 1], delay: 0.015 }}
+              style={{
+                transform: 'translate3d(0, 0, 0)',
+                WebkitTransform: 'translate3d(0, 0, 0)',
+                backfaceVisibility: 'hidden',
+                WebkitBackfaceVisibility: 'hidden',
+                willChange: 'transform, opacity',
+              }}
+              className={`relative -mt-6 z-10 rounded-t-[32px] sm:rounded-t-[36px] px-5 pt-6 pb-6 space-y-4 backdrop-blur-2xl min-h-[calc(100%-15rem)] ${
+                isLight
+                  ? 'bg-white/92 text-zinc-900 border-t border-black/5 shadow-[0_-8px_32px_rgba(0,0,0,0.08)]'
+                  : 'bg-[#000000]/90 text-white border-t border-white/10 shadow-[0_-8px_32px_rgba(0,0,0,0.5)]'
+              }`}
+            >
               
               {/* 2. TAGS (MÁXIMO 3, LIMPAS E SEM POLUIÇÃO) */}
               {visibleTags.length > 0 && (
@@ -316,12 +390,7 @@ export const ItineraryStoreDetailModal: React.FC<ItineraryStoreDetailModalProps>
               )}
 
               {/* 3. TÍTULO E DESCRIÇÃO CURTA */}
-              <motion.div
-                initial={{ opacity: 0, scale: 0.88, y: 12 }}
-                animate={{ opacity: 1, scale: 1, y: 0 }}
-                transition={{ type: 'spring', stiffness: 380, damping: 22, delay: 0.03 }}
-                className="space-y-1"
-              >
+              <div className="space-y-1">
                 <div className="flex items-center gap-2.5">
                   {isGoldItinerary && (
                     <button
@@ -336,31 +405,28 @@ export const ItineraryStoreDetailModal: React.FC<ItineraryStoreDetailModalProps>
                   <h1 className={`text-2xl sm:text-3xl font-black tracking-tight leading-tight ${
                     isLight ? 'text-zinc-900' : 'text-white'
                   }`}>
-                    {itinerary.title}
+                    {activeItinerary.title}
                   </h1>
                 </div>
 
-                {isValidContent(itinerary.description) && (
+                {isValidContent(activeItinerary.description) && (
                   <p className={`text-xs sm:text-sm leading-relaxed font-normal ${
                     isLight ? 'text-zinc-600' : 'text-zinc-400'
                   }`}>
-                    {itinerary.description}
+                    {activeItinerary.description}
                   </p>
                 )}
-              </motion.div>
+              </div>
 
               {/* 4. INFORMAÇÕES PRINCIPAIS (LINHA ÚNICA, MINIMALISTA) */}
-              <motion.div
-                initial={{ opacity: 0, scale: 0.88, y: 12 }}
-                animate={{ opacity: 1, scale: 1, y: 0 }}
-                transition={{ type: 'spring', stiffness: 380, damping: 22, delay: 0.06 }}
+              <div
                 className={`flex items-center gap-2 py-2.5 border-y text-xs font-semibold ${
                   isLight ? 'border-zinc-100 text-zinc-600' : 'border-white/10 text-zinc-400'
                 }`}
               >
                 <span className="flex items-center gap-1.5">
                   <Clock className={`w-3.5 h-3.5 shrink-0 ${isLight ? 'text-black' : 'text-white'}`} />
-                  <span>{itinerary.daysCount} {itinerary.daysCount === 1 ? 'dia' : 'dias'}</span>
+                  <span>{activeItinerary.daysCount} {activeItinerary.daysCount === 1 ? 'dia' : 'dias'}</span>
                 </span>
                 <span className="opacity-30">·</span>
                 <span className="flex items-center gap-1.5">
@@ -372,18 +438,15 @@ export const ItineraryStoreDetailModal: React.FC<ItineraryStoreDetailModalProps>
                   <Compass className={`w-3.5 h-3.5 shrink-0 ${isLight ? 'text-black' : 'text-white'}`} />
                   <span>Ritmo otimizado</span>
                 </span>
-              </motion.div>
+              </div>
 
               {/* 5. DICAS DO GUIA (COMPACTO E SEM CAIXAS VAZIAS) */}
-              {isValidContent(itinerary.tips || itinerary.notes) && (
-                <motion.div
-                  initial={{ opacity: 0, scale: 0.88, y: 12 }}
-                  animate={{ opacity: 1, scale: 1, y: 0 }}
-                  transition={{ type: 'spring', stiffness: 380, damping: 22, delay: 0.09 }}
+              {isValidContent(activeItinerary.tips || activeItinerary.notes) && (
+                <div
                   className={`p-3.5 rounded-2xl border flex items-start gap-2.5 ${
                     isLight
-                      ? 'bg-zinc-50 border-zinc-200/70 text-zinc-800'
-                      : 'bg-[#000000] border-[#262626] text-zinc-200'
+                      ? 'bg-zinc-50/80 border-zinc-200/70 text-zinc-800'
+                      : 'bg-white/[0.03] border-white/10 text-zinc-200'
                   }`}
                 >
                   <Lightbulb className={`w-4 h-4 shrink-0 mt-0.5 ${isLight ? 'text-black' : 'text-white'}`} />
@@ -394,40 +457,35 @@ export const ItineraryStoreDetailModal: React.FC<ItineraryStoreDetailModalProps>
                     <p className={`leading-relaxed ${
                       isLight ? 'text-zinc-600' : 'text-zinc-400'
                     }`}>
-                      {itinerary.tips || itinerary.notes}
+                      {activeItinerary.tips || activeItinerary.notes}
                     </p>
                   </div>
-                </motion.div>
+                </div>
               )}
 
               {/* 6. DIAS DO ROTEIRO (NAVEGAÇÃO SIMPLES) */}
               <div className="pt-2 space-y-2">
-                {itinerary.days.length > 1 && (
+                {activeItinerary.days.length > 1 && (
                   <div className="flex items-center gap-2 overflow-x-auto no-scrollbar pb-1">
-                    {itinerary.days.map((d, idx) => {
+                    {activeItinerary.days.map((d, idx) => {
                       const isSelected = activeDayIndex === idx;
                       return (
-                        <motion.button
+                        <button
                           key={d.id || idx}
                           type="button"
-                          initial={{ opacity: 0, scale: 0.88, y: 12 }}
-                          animate={{ opacity: 1, scale: 1, y: 0 }}
-                          transition={{ type: 'spring', stiffness: 380, damping: 22, delay: idx * 0.035 }}
-                          whileHover={{ scale: 1.02, transition: { type: 'spring', stiffness: 400, damping: 18 } }}
-                          whileTap={{ scale: 0.93, transition: { type: 'spring', stiffness: 500, damping: 14 } }}
                           onClick={() => setActiveDayIndex(idx)}
-                          className={`px-4 py-1.5 rounded-full text-xs font-bold transition-colors cursor-pointer shrink-0 border ${
+                          className={`px-4 py-1.5 rounded-full text-xs font-bold transition-transform active:scale-95 cursor-pointer shrink-0 border ${
                             isSelected
                               ? isGoldItinerary
                                 ? 'bg-metallic-gold text-[#1A1202] border-[#FFF4A3]/70 shadow-md shadow-[#E5AC33]/30 font-black'
                                 : isLight ? 'bg-black text-white border-black shadow-2xs' : 'bg-white text-black border-white shadow-2xs'
                               : isLight
                               ? 'bg-zinc-100 text-zinc-600 border-zinc-200/80 hover:bg-zinc-200'
-                              : 'bg-[#000000] text-[#A1A1AA] border-[#262626] hover:text-white'
+                              : 'bg-white/[0.04] text-[#A1A1AA] border-white/10 hover:text-white'
                           }`}
                         >
                           Dia {d.dayNumber || idx + 1}
-                        </motion.button>
+                        </button>
                       );
                     })}
                   </div>
@@ -470,37 +528,29 @@ export const ItineraryStoreDetailModal: React.FC<ItineraryStoreDetailModalProps>
                       id: spot?.id,
                       name: spotName,
                       category: spotCategory,
-                      image: step.customImage || spot?.image || itinerary.coverImage,
+                      image: step.customImage || spot?.image || activeItinerary.coverImage,
                     });
                     const descriptionText = step.customDescription || step.notes || spot?.description || spot?.touristTip;
                     const isBlurred = !isLivreItinerary && !isPremiumUser && idx >= 2;
 
                     return (
-                      <motion.div
+                      <div
                         key={`${activeDayIndex}-${step.id || idx}`}
-                        initial={{ opacity: 0, y: 6 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        transition={{
-                          duration: 0.18,
-                          ease: [0.22, 1, 0.36, 1],
-                          delay: Math.min(idx * 0.02, 0.12),
-                        }}
-                        whileTap={{ scale: 0.97, transition: { duration: 0.12, ease: 'easeOut' } }}
                         onClick={() => {
                           if (isBlurred) {
                             handleAdd();
                           }
                         }}
-                        className={`relative overflow-hidden p-3 rounded-2xl border flex items-center gap-3 transition-colors ${
+                        className={`relative overflow-hidden p-3 rounded-2xl border flex items-center gap-3 transition-transform active:scale-[0.98] ${
                           isBlurred ? 'cursor-pointer' : ''
                         } ${
                           isLight
-                            ? 'bg-white border-zinc-200/80 shadow-2xs'
-                            : 'bg-[#000000] border-[#262626]'
+                            ? 'bg-white/90 border-zinc-200/80 shadow-2xs'
+                            : 'bg-white/[0.03] border-white/10'
                         }`}
                       >
                         {/* Conteúdo com efeito embaçado para paradas a partir da terceira */}
-                        <div className={`flex items-center gap-3 w-full transition-all ${
+                        <div className={`flex items-center gap-3 w-full ${
                           isBlurred ? 'filter blur-[5.5px] select-none pointer-events-none opacity-45 dark:opacity-35' : ''
                         }`}>
                           {/* Número da parada */}
@@ -513,34 +563,12 @@ export const ItineraryStoreDetailModal: React.FC<ItineraryStoreDetailModalProps>
                           </div>
 
                           {/* Foto da parada */}
-                          <div
-                            style={{
-                              overflow: 'clip',
-                              clipPath: 'inset(0 round 12px)',
-                              WebkitClipPath: 'inset(0 round 12px)',
-                              WebkitMaskImage: '-webkit-radial-gradient(white, black)',
-                              isolation: 'isolate',
-                              transform: 'translateZ(0)',
-                              WebkitTransform: 'translateZ(0)',
-                            }}
-                            className="w-14 h-14 rounded-xl overflow-hidden shrink-0 bg-zinc-800 border border-zinc-200/40 dark:border-white/10"
-                          >
-                            <motion.img
-                              initial={{ opacity: 0, filter: 'blur(6px)' }}
-                              animate={{ opacity: 1, filter: 'blur(0px)' }}
-                              transition={{
-                                duration: 0.42,
-                                ease: [0.22, 1, 0.36, 1],
-                                delay: Math.min(idx * 0.035, 0.25),
-                              }}
-                              style={{
-                                backfaceVisibility: 'hidden',
-                                WebkitBackfaceVisibility: 'hidden',
-                                transform: 'translateZ(0)',
-                              }}
+                          <div className="w-14 h-14 rounded-xl overflow-hidden shrink-0 bg-zinc-800 border border-zinc-200/40 dark:border-white/10">
+                            <img
                               src={spotImg}
                               alt={spotName}
-                              className="w-full h-full object-cover rounded-[inherit]"
+                              decoding="async"
+                              className="w-full h-full object-cover"
                               loading="eager"
                               referrerPolicy="no-referrer"
                               onError={(e) => {
@@ -585,37 +613,41 @@ export const ItineraryStoreDetailModal: React.FC<ItineraryStoreDetailModalProps>
                         {/* Selo elegante sobreposto nas paradas embaçadas para gerar curiosidade e exclusividade */}
                         {isBlurred && (
                           <div
-                            onClick={() => setIsPremiumModalOpen(true)}
+                            onClick={() => setIsConfirmModalOpen(true)}
                             className="absolute inset-0 flex items-center justify-center px-4 cursor-pointer"
                           >
                             <div className={`px-3 py-1.5 rounded-full flex items-center gap-1.5 border shadow-sm backdrop-blur-md transition-transform hover:scale-105 active:scale-95 ${
                               isLight
-                                ? 'bg-white/95 border-[#E5AC33]/45 text-zinc-800 shadow-[0_2px_10px_rgba(230,172,51,0.2)]'
-                                : 'bg-[#181a20]/95 border-[#E5AC33]/40 text-[#FDE073] shadow-[0_2px_10px_rgba(0,0,0,0.4)]'
+                                ? 'bg-white/95 border-[#D9A84E]/45 text-zinc-800 shadow-[0_2px_10px_rgba(217,168,78,0.2)]'
+                                : 'bg-[#181a20]/95 border-[#D9A84E]/40 text-[#F5D78E] shadow-[0_2px_10px_rgba(0,0,0,0.4)]'
                             }`}>
-                              <Lock className="w-3 h-3 text-[#F5BE38] stroke-[2.2]" />
-                              <span className="text-[10.5px] font-bold tracking-tight">Exclusivo no roteiro</span>
+                              <PlatanoLeafIcon className="w-3.5 h-3.5" variant="gold" />
+                              <span className="text-[10.5px] font-bold tracking-tight">
+                                Liberar com {platanoPrice} Plátanos
+                              </span>
                             </div>
                           </div>
                         )}
-                      </motion.div>
+                      </div>
                     );
                   })}
                 </div>
               </div>
 
-            </div>
+            </motion.div>
           </div>
 
           {/* 11. BARRA DE AÇÃO FIXA INFERIOR COM SAFE AREA */}
           <div
-            className={`absolute bottom-0 inset-x-0 z-50 px-5 py-3.5 border-t backdrop-blur-xl transition-colors duration-200 ${
+            className={`absolute bottom-0 inset-x-0 z-50 px-5 py-3.5 border-t backdrop-blur-2xl ${
               isLight
-                ? 'bg-white/95 border-zinc-200/90 shadow-[0_-8px_24px_rgba(0,0,0,0.06)]'
-                : 'bg-[#000000] border-[#262626] shadow-[0_-8px_24px_rgba(0,0,0,0.5)]'
+                ? 'bg-white/85 border-zinc-200/80 shadow-[0_-8px_24px_rgba(0,0,0,0.06)]'
+                : 'bg-[#000000]/80 border-white/10 shadow-[0_-8px_24px_rgba(0,0,0,0.5)]'
             }`}
             style={{
-              paddingBottom: 'max(calc(env(safe-area-inset-bottom, 0px) + 16px), 20px)'
+              paddingBottom: 'max(calc(env(safe-area-inset-bottom, 0px) + 16px), 20px)',
+              transform: 'translate3d(0, 0, 0)',
+              WebkitTransform: 'translate3d(0, 0, 0)',
             }}
           >
             <div className="max-w-md mx-auto">
@@ -624,7 +656,9 @@ export const ItineraryStoreDetailModal: React.FC<ItineraryStoreDetailModalProps>
                 type="button"
                 disabled={isApplying}
                 onClick={handleAdd}
-                className="w-full h-12 rounded-2xl font-black text-sm flex items-center justify-center gap-2 transition-all cursor-pointer disabled:opacity-60 bg-[#22c55e] hover:bg-[#16a34a] text-white shadow-lg shadow-[#22c55e]/25 active:opacity-90"
+                className="w-full h-12 rounded-2xl font-bold text-sm flex items-center justify-center gap-2 transition-all cursor-pointer disabled:opacity-60 bg-[#22c55e] hover:bg-[#16a34a] text-white shadow-lg shadow-[#22c55e]/25 active:opacity-90"
+                title="Adicionar roteiro"
+                aria-label="Adicionar roteiro"
               >
                 {isApplying ? (
                   <div className="flex items-center gap-2">
@@ -632,7 +666,10 @@ export const ItineraryStoreDetailModal: React.FC<ItineraryStoreDetailModalProps>
                     <span>Adicionando...</span>
                   </div>
                 ) : (
-                  <span>Adicionar</span>
+                  <>
+                    <Plus className="w-5 h-5 stroke-[2.6]" />
+                    <span>Adicionar</span>
+                  </>
                 )}
               </motion.button>
             </div>
@@ -640,7 +677,43 @@ export const ItineraryStoreDetailModal: React.FC<ItineraryStoreDetailModalProps>
 
         </motion.div>
       </motion.div>
-      )}
+        )}
+      </AnimatePresence>
+
+      {/* Plátanos Purchase Confirmation Modal */}
+      <PlatanoPurchaseConfirmModal
+        itinerary={activeItinerary}
+        isOpen={isConfirmModalOpen}
+        onClose={() => setIsConfirmModalOpen(false)}
+        onOpenWalletTopUp={() => {
+          setIsConfirmModalOpen(false);
+          if (onOpenWalletTopUp) {
+            onOpenWalletTopUp();
+          } else {
+            window.dispatchEvent(new CustomEvent('monvian:open_platanos_wallet', { detail: { tab: 'topup' } }));
+          }
+        }}
+        onConfirmSuccess={(unlockedItin, res) => {
+          setIsConfirmModalOpen(false);
+          setUnlockToast({
+            visible: true,
+            title: `Roteiro adicionado: ${unlockedItin.title}`,
+            subtitle: res.alreadyUnlocked
+              ? 'Roteiro já liberado na sua conta'
+              : `-${res.charged} Plátanos · Saldo restante: ${res.balanceAfter} Plátanos`,
+          });
+        }}
+        theme={theme}
+      />
+
+      {/* Leaf Unlock Animation Toast */}
+      <PlatanoUnlockToast
+        visible={unlockToast.visible}
+        title={unlockToast.title}
+        subtitle={unlockToast.subtitle}
+        theme={theme}
+        onDone={() => setUnlockToast((prev) => ({ ...prev, visible: false }))}
+      />
 
       {/* Monvian Premium Access Modal */}
       <PremiumModal
@@ -648,7 +721,7 @@ export const ItineraryStoreDetailModal: React.FC<ItineraryStoreDetailModalProps>
         onClose={() => setIsPremiumModalOpen(false)}
         theme={theme}
       />
-    </AnimatePresence>
+    </>
   );
 
   if (typeof document !== 'undefined') {

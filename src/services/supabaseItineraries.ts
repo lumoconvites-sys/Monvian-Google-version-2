@@ -63,7 +63,12 @@ export function normalizeItineraryRecord(
     isRecommended: row.is_recommended !== undefined ? Number(row.is_recommended) === 1 : Boolean(row.isRecommended),
     isFeatured: row.is_featured !== undefined ? Number(row.is_featured) === 1 : (row.is_recommended !== undefined ? Number(row.is_recommended) === 1 : Boolean(row.isFeatured)),
     isPremium: isPrem,
-    price: isPrem ? (row.price && row.price !== 'Grátis' && row.price !== 'R$ 0' ? row.price : 'R$ 19,90') : 'Grátis',
+    price: isPrem ? (row.price && row.price !== 'Grátis' && row.price !== 'R$ 0' ? row.price : '15 Plátanos') : 'Grátis',
+    platanosPrice: isPrem
+      ? Number(row.platanos_price ?? row.platanosPrice ?? 15) > 0
+        ? Number(row.platanos_price ?? row.platanosPrice ?? 15)
+        : 15
+      : 0,
     status: row.status || (Number(row.is_active) === 1 ? 'published' : 'draft'),
     badgeText: badge,
     showBadge: row.show_badge !== undefined ? Number(row.show_badge) === 1 : true,

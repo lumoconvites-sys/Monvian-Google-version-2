@@ -44,10 +44,10 @@ export const SpotPreviewBanner: React.FC<SpotPreviewBannerProps> = ({
           transform: 'translateZ(0)',
           WebkitTransform: 'translateZ(0)',
         }}
-        className={`w-full max-w-[326px] sm:max-w-[342px] h-[72px] px-3.5 py-2.5 rounded-[24px] border backdrop-blur-2xl flex items-center justify-between gap-3 select-none cursor-pointer pointer-events-auto transition-colors duration-200 ${
+        className={`w-full max-w-[326px] sm:max-w-[342px] h-[72px] px-3.5 py-2.5 rounded-[24px] border backdrop-blur-xl flex items-center justify-between gap-3 select-none cursor-pointer pointer-events-auto transition-colors duration-200 ${
           isDark
-            ? 'bg-[#000000] border-[#262626] text-white shadow-[0_12px_32px_rgba(0,0,0,0.75)]'
-            : 'bg-white border-black/[0.08] text-zinc-950 shadow-[0_10px_28px_rgba(0,0,0,0.12)]'
+            ? 'bg-zinc-900/90 border-white/10 text-white shadow-[0_12px_32px_rgba(0,0,0,0.75)]'
+            : 'bg-white/90 border-zinc-200/80 text-zinc-950 shadow-[0_10px_28px_rgba(0,0,0,0.12)]'
         }`}
       >
         {/* 1. Circular Photo (44px) */}

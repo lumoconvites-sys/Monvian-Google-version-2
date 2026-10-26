@@ -11,7 +11,9 @@ import {
   Globe,
   QrCode,
   Play,
-  Pause
+  Pause,
+  Volume2,
+  VolumeX
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { SpotQrModal } from './SpotQrModal';
@@ -67,6 +69,7 @@ export const SpotDetailSheet: React.FC<SpotDetailSheetProps> = ({
   const [showHeroVideo, setShowHeroVideo] = useState(false);
   const [isTranslucentSwap, setIsTranslucentSwap] = useState(false);
   const [isHeroPaused, setIsHeroPaused] = useState(false);
+  const [isHeroMuted, setIsHeroMuted] = useState(false);
   const [heroTapFeedback, setHeroTapFeedback] = useState<'play' | 'pause' | null>(null);
   const tapFeedbackTimerRef = useRef<number | null>(null);
   const pendingResumeTimeRef = useRef<number | null>(null);
@@ -82,21 +85,32 @@ export const SpotDetailSheet: React.FC<SpotDetailSheetProps> = ({
     }
   }, [spot?.id, currentHeroVideo]);
 
-  // Load spot videos and start the 1-second timer to swap photo -> translucent video
+  // Load spot videos and start the 1-second timer to swap photo -> translucent video ONLY if the spot has videos
   useEffect(() => {
     if (!spot?.id) return;
     let isMounted = true;
+    let swapStageTimer: number | null = null;
+    let clearSwapOverlayTimer: number | null = null;
+    const mountedAt = Date.now();
 
     setShowHeroVideo(false);
     setIsTranslucentSwap(false);
     setIsHeroPaused(false);
+    setHeroVideos([]);
 
     fetchSpotVideos(spot.id, spot.name, spot.category).then((list) => {
       if (!isMounted) return;
       setHeroVideos(list);
 
+      // If this tourist spot has no uploaded videos, load nothing and keep the cover photo
+      if (!list || list.length === 0) {
+        setShowHeroVideo(false);
+        setIsTranslucentSwap(false);
+        return;
+      }
+
       const saved = getVideoPlaybackPosition(spot.id);
-      if (saved && list.length > 0) {
+      if (saved) {
         const foundIdx = list.findIndex((v) => v.id === saved.videoId);
         if (foundIdx !== -1) {
           setCurrentHeroVideoIndex(foundIdx);
@@ -109,24 +123,27 @@ export const SpotDetailSheet: React.FC<SpotDetailSheetProps> = ({
         setCurrentHeroVideoIndex(0);
         pendingResumeTimeRef.current = 0;
       }
+
+      // Keep photo for 1 second, then trigger translucent transition & load video
+      const elapsed = Date.now() - mountedAt;
+      const remainingDelay = Math.max(0, 1000 - elapsed);
+
+      swapStageTimer = window.setTimeout(() => {
+        if (!isMounted) return;
+        setIsTranslucentSwap(true);
+        setShowHeroVideo(true);
+      }, remainingDelay);
+
+      clearSwapOverlayTimer = window.setTimeout(() => {
+        if (!isMounted) return;
+        setIsTranslucentSwap(false);
+      }, remainingDelay + 650);
     });
-
-    // Keep photo for 1 second, then trigger translucent transition & load video
-    const swapStageTimer = window.setTimeout(() => {
-      if (!isMounted) return;
-      setIsTranslucentSwap(true);
-      setShowHeroVideo(true);
-    }, 1000);
-
-    const clearSwapOverlayTimer = window.setTimeout(() => {
-      if (!isMounted) return;
-      setIsTranslucentSwap(false);
-    }, 1650);
 
     return () => {
       isMounted = false;
-      window.clearTimeout(swapStageTimer);
-      window.clearTimeout(clearSwapOverlayTimer);
+      if (swapStageTimer !== null) window.clearTimeout(swapStageTimer);
+      if (clearSwapOverlayTimer !== null) window.clearTimeout(clearSwapOverlayTimer);
       persistHeroPlaybackPosition();
     };
   }, [spot?.id, spot?.name, spot?.category]);
@@ -147,12 +164,14 @@ export const SpotDetailSheet: React.FC<SpotDetailSheetProps> = ({
     };
   }, [persistHeroPlaybackPosition]);
 
-  // Enforce 1.2x speed and resume time when video source loads
+  // Enforce 1.2x speed, audio, and resume time when video source loads
   const handleHeroVideoLoadedMetadata = () => {
     const vid = heroVideoRef.current;
     if (!vid) return;
     vid.playbackRate = 1.2;
     vid.defaultPlaybackRate = 1.2;
+    vid.muted = isHeroMuted;
+    vid.volume = 1.0;
 
     if (pendingResumeTimeRef.current && pendingResumeTimeRef.current > 0.2) {
       if (
@@ -166,32 +185,55 @@ export const SpotDetailSheet: React.FC<SpotDetailSheetProps> = ({
     }
 
     if (!isHeroPaused) {
-      vid.play().catch(() => {});
+      const playPromise = vid.play();
+      if (playPromise !== undefined) {
+        playPromise.catch(() => {
+          vid.muted = true;
+          setIsHeroMuted(true);
+          vid.play().catch(() => {});
+        });
+      }
     }
   };
 
-  // Infinite playlist advancement with translucent transition
+  // Advance playlist or return cover photo to the card once video playback finishes
   const handleHeroVideoEnded = () => {
-    if (heroVideos.length === 0 || !spot?.id) return;
-    const nextIdx = (currentHeroVideoIndex + 1) % heroVideos.length;
-    const nextVid = heroVideos[nextIdx];
-    if (nextVid) {
-      saveVideoPlaybackPosition(spot.id, nextVid.id, 0);
+    if (heroVideos.length === 0 || !spot?.id) {
+      setShowHeroVideo(false);
+      return;
     }
-    pendingResumeTimeRef.current = 0;
 
-    setIsTranslucentSwap(true);
-    window.setTimeout(() => {
-      setIsTranslucentSwap(false);
-    }, 520);
+    const nextIdx = currentHeroVideoIndex + 1;
 
-    if (nextIdx === currentHeroVideoIndex && heroVideoRef.current) {
-      heroVideoRef.current.currentTime = 0;
-      heroVideoRef.current.playbackRate = 1.2;
-      heroVideoRef.current.play().catch(() => {});
-    } else {
+    if (nextIdx < heroVideos.length) {
+      const nextVid = heroVideos[nextIdx];
+      if (nextVid) {
+        saveVideoPlaybackPosition(spot.id, nextVid.id, 0);
+      }
+      pendingResumeTimeRef.current = 0;
+
+      setIsTranslucentSwap(true);
+      window.setTimeout(() => {
+        setIsTranslucentSwap(false);
+      }, 520);
+
       setCurrentHeroVideoIndex(nextIdx);
       setIsHeroPaused(false);
+    } else {
+      // Video finished: return the cover photo to the card
+      if (heroVideos[0]) {
+        saveVideoPlaybackPosition(spot.id, heroVideos[0].id, 0);
+      }
+      pendingResumeTimeRef.current = 0;
+
+      setIsTranslucentSwap(true);
+      setShowHeroVideo(false);
+      setIsHeroPaused(false);
+      setCurrentHeroVideoIndex(0);
+
+      window.setTimeout(() => {
+        setIsTranslucentSwap(false);
+      }, 520);
     }
   };
 
@@ -207,6 +249,8 @@ export const SpotDetailSheet: React.FC<SpotDetailSheetProps> = ({
 
     if (vid.paused) {
       vid.playbackRate = 1.2;
+      vid.muted = isHeroMuted;
+      vid.volume = 1.0;
       vid.play().catch(() => {});
       setIsHeroPaused(false);
       setHeroTapFeedback('play');
@@ -220,6 +264,19 @@ export const SpotDetailSheet: React.FC<SpotDetailSheetProps> = ({
     tapFeedbackTimerRef.current = window.setTimeout(() => {
       setHeroTapFeedback(null);
     }, 650);
+  };
+
+  const handleToggleHeroMute = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    const vid = heroVideoRef.current;
+    const nextMuted = !isHeroMuted;
+    setIsHeroMuted(nextMuted);
+    if (vid) {
+      vid.muted = nextMuted;
+      if (!nextMuted) {
+        vid.volume = 1.0;
+      }
+    }
   };
 
   // Smooth scroll-driven blur & scale effect (native iOS fluid feel)
@@ -484,7 +541,7 @@ export const SpotDetailSheet: React.FC<SpotDetailSheetProps> = ({
                   transition={{ duration: 0.65, ease: [0.16, 1, 0.3, 1] }}
                   className="absolute inset-0 w-full h-full object-cover pointer-events-none"
                   playsInline
-                  muted
+                  muted={isHeroMuted}
                   autoPlay
                   onLoadedMetadata={handleHeroVideoLoadedMetadata}
                   onPlay={(e) => {
@@ -494,6 +551,10 @@ export const SpotDetailSheet: React.FC<SpotDetailSheetProps> = ({
                     persistHeroPlaybackPosition();
                   }}
                   onEnded={handleHeroVideoEnded}
+                  onError={() => {
+                    setShowHeroVideo(false);
+                    setIsTranslucentSwap(false);
+                  }}
                 />
               )}
 
@@ -511,6 +572,22 @@ export const SpotDetailSheet: React.FC<SpotDetailSheetProps> = ({
                 )}
               </AnimatePresence>
             </div>
+
+            {/* Discreet iOS Audio Toggle on Mobile Hero Video */}
+            {!isDesktop && showHeroVideo && currentHeroVideo && (
+              <button
+                type="button"
+                onClick={handleToggleHeroMute}
+                aria-label={isHeroMuted ? 'Ativar áudio' : 'Silenciar áudio'}
+                className="absolute bottom-11 right-4 z-20 w-9 h-9 rounded-full bg-black/45 hover:bg-black/65 backdrop-blur-md border border-white/15 flex items-center justify-center text-white transition-all active:scale-90 cursor-pointer"
+              >
+                {isHeroMuted ? (
+                  <VolumeX className="w-4 h-4 text-white/90" />
+                ) : (
+                  <Volume2 className="w-4 h-4 text-white" />
+                )}
+              </button>
+            )}
 
             {/* Single-Tap Pause/Play Translucent Indicator */}
             <AnimatePresence>
@@ -893,7 +970,7 @@ export const SpotDetailSheet: React.FC<SpotDetailSheetProps> = ({
                 transition={{ duration: 0.65, ease: [0.16, 1, 0.3, 1] }}
                 className="absolute inset-0 w-full h-full object-cover pointer-events-none"
                 playsInline
-                muted
+                muted={isHeroMuted}
                 autoPlay
                 onLoadedMetadata={handleHeroVideoLoadedMetadata}
                 onPlay={(e) => {
@@ -903,7 +980,27 @@ export const SpotDetailSheet: React.FC<SpotDetailSheetProps> = ({
                   persistHeroPlaybackPosition();
                 }}
                 onEnded={handleHeroVideoEnded}
+                onError={() => {
+                  setShowHeroVideo(false);
+                  setIsTranslucentSwap(false);
+                }}
               />
+            )}
+
+            {/* Discreet iOS Audio Toggle on Desktop Hero Video */}
+            {isDesktop && showHeroVideo && currentHeroVideo && (
+              <button
+                type="button"
+                onClick={handleToggleHeroMute}
+                aria-label={isHeroMuted ? 'Ativar áudio' : 'Silenciar áudio'}
+                className="absolute bottom-3.5 right-3.5 z-20 w-9 h-9 rounded-full bg-black/45 hover:bg-black/65 backdrop-blur-md border border-white/15 flex items-center justify-center text-white transition-all active:scale-90 cursor-pointer"
+              >
+                {isHeroMuted ? (
+                  <VolumeX className="w-4 h-4 text-white/90" />
+                ) : (
+                  <Volume2 className="w-4 h-4 text-white" />
+                )}
+              </button>
             )}
 
             {/* Translucent Glass Swap Veil on Desktop */}

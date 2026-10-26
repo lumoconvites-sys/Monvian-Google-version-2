@@ -272,7 +272,10 @@ export const SearchFilterDrawer: React.FC<SearchFilterDrawerProps> = ({
         {/* Barra de busca exibida apenas na tela inicial de categorias ou busca por texto (Design idêntico ao WhatsApp iOS em ambos os temas) */}
         {!selectedCategory && (
           <div className="mt-1 mb-4">
-            <div className="relative flex items-center h-[42px] bg-[#f0f2f5] dark:bg-[#202124] rounded-full px-3.5 transition-colors duration-150">
+            <div
+              style={{ width: '343.008px', height: '51.9922px' }}
+              className="relative flex items-center bg-[#f0f2f5] dark:bg-[#202124] rounded-full px-3.5 transition-colors duration-150"
+            >
               <Search className="w-[18px] h-[18px] text-[#8696a0] dark:text-[#8e8e93] shrink-0 mr-2.5 stroke-[2]" />
               <input
                 ref={searchInputRef}
@@ -291,7 +294,7 @@ export const SearchFilterDrawer: React.FC<SearchFilterDrawerProps> = ({
                   className="w-4 h-4 rounded-full bg-[#8696a0]/30 hover:bg-[#8696a0]/50 text-[#111b21] dark:text-white flex items-center justify-center ml-2 cursor-pointer active:scale-90 transition-colors"
                   title="Limpar busca"
                 >
-                  <X className="w-2.5 h-2.5 stroke-[2.5]" />
+                  <X className="stroke-[2.5]" style={{ width: '23.9961px', height: '25.9962px' }} />
                 </button>
               )}
               <button
@@ -304,7 +307,7 @@ export const SearchFilterDrawer: React.FC<SearchFilterDrawerProps> = ({
                 }`}
                 title="Busca por voz"
               >
-                <Mic className="w-4 h-4" />
+                <Mic style={{ width: '23.9961px', height: '25.9962px' }} />
               </button>
             </div>
           </div>

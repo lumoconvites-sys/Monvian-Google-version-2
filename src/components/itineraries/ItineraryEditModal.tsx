@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { ArrowUp, ArrowDown, X, Check, AlertTriangle, Plus, Clock } from 'lucide-react';
+import { Play, X, Check, AlertTriangle, Plus, Clock } from 'lucide-react';
 import { Itinerary, ItineraryStep, Spot } from '../../types';
 
 interface ItineraryEditModalProps {
@@ -46,6 +46,22 @@ export const ItineraryEditModal: React.FC<ItineraryEditModalProps> = ({
   const [confirmDelete, setConfirmDelete] = useState(false);
 
   if (!isOpen) return null;
+
+  const openDirectionsMap = (spotTarget?: Spot | { name?: string; address?: string; lat?: number; lng?: number; mapsUrl?: string }) => {
+    if (!spotTarget) return;
+    const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) || 
+      (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+    
+    const destination = spotTarget.lat && spotTarget.lng 
+      ? `${spotTarget.lat},${spotTarget.lng}` 
+      : encodeURIComponent(spotTarget.address ? `${spotTarget.name}, ${spotTarget.address}` : `${spotTarget.name} Campos do Jordão`);
+
+    if (isIOS) {
+      window.open(`https://maps.apple.com/?daddr=${destination}&dirflg=d`, '_blank');
+    } else {
+      window.open(`https://www.google.com/maps/dir/?api=1&destination=${destination}`, '_blank');
+    }
+  };
 
   const handleMoveUp = (index: number) => {
     if (index <= 0) return;
@@ -172,39 +188,18 @@ export const ItineraryEditModal: React.FC<ItineraryEditModalProps> = ({
                 </div>
               </div>
 
-              {/* Action buttons: Up, Down, Remove */}
-              <div className="flex items-center gap-1 shrink-0">
-                <button
+              {/* Action buttons: Round Play Button + Remove */}
+              <div className="flex items-center gap-1.5 shrink-0">
+                <motion.button
                   type="button"
-                  onClick={() => handleMoveUp(idx)}
-                  disabled={idx === 0}
-                  className={`w-7 h-7 rounded-lg flex items-center justify-center transition-all ${
-                    idx === 0
-                      ? 'opacity-20 cursor-not-allowed'
-                      : isDark
-                      ? 'hover:bg-white/10 active:scale-95 text-zinc-300'
-                      : 'hover:bg-zinc-200 active:scale-95 text-zinc-700'
-                  }`}
-                  title="Mover para cima"
+                  whileTap={{ scale: 0.9 }}
+                  onClick={() => openDirectionsMap(step.spot)}
+                  className="w-8 h-8 rounded-full bg-white text-zinc-900 shadow-sm flex items-center justify-center hover:bg-zinc-100 transition-all cursor-pointer"
+                  title="Abrir rota no Maps"
+                  aria-label="Abrir rota no Maps"
                 >
-                  <ArrowUp className="w-4 h-4 stroke-[2.2]" />
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() => handleMoveDown(idx)}
-                  disabled={idx === steps.length - 1}
-                  className={`w-7 h-7 rounded-lg flex items-center justify-center transition-all ${
-                    idx === steps.length - 1
-                      ? 'opacity-20 cursor-not-allowed'
-                      : isDark
-                      ? 'hover:bg-white/10 active:scale-95 text-zinc-300'
-                      : 'hover:bg-zinc-200 active:scale-95 text-zinc-700'
-                  }`}
-                  title="Mover para baixo"
-                >
-                  <ArrowDown className="w-4 h-4 stroke-[2.2]" />
-                </button>
+                  <Play className="w-3.5 h-3.5 fill-zinc-900 text-zinc-900 ml-0.5" />
+                </motion.button>
 
                 <button
                   type="button"

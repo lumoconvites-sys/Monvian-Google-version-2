@@ -21,6 +21,7 @@ import {
   Mic,
   Navigation,
   Notebook,
+  Play,
   Plus,
   RotateCcw,
   SlidersHorizontal,
@@ -46,6 +47,7 @@ import { PlusActionMenuModal } from './itineraries/PlusActionMenuModal';
 import { ImportSpotFloatingModal } from './itineraries/ImportSpotFloatingModal';
 import { TripNotesModal } from './itineraries/TripNotesModal';
 import { LazyImage } from './ui/LazyImage';
+import { favoritesManager } from '../services/favoritesManager';
 
 interface ItinerariesViewProps {
   isOpen: boolean;
@@ -262,6 +264,22 @@ interface SwipeableStopCardProps {
   onMoveUp?: (index: number) => void;
   onMoveDown?: (index: number) => void;
 }
+
+const openDirectionsMap = (spotTarget?: Spot | { name?: string; address?: string; lat?: number; lng?: number; mapsUrl?: string }) => {
+  if (!spotTarget) return;
+  const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) || 
+    (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+  
+  const destination = spotTarget.lat && spotTarget.lng 
+    ? `${spotTarget.lat},${spotTarget.lng}` 
+    : encodeURIComponent(spotTarget.address ? `${spotTarget.name}, ${spotTarget.address}` : `${spotTarget.name} Campos do Jordão`);
+
+  if (isIOS) {
+    window.open(`https://maps.apple.com/?daddr=${destination}&dirflg=d`, '_blank');
+  } else {
+    window.open(`https://www.google.com/maps/dir/?api=1&destination=${destination}`, '_blank');
+  }
+};
 
 const OPEN_OFFSET_LEFT = -84;
 const getShortDisplayTitle = (title: string): string => {
@@ -525,59 +543,23 @@ const SwipeableStopCard: React.FC<SwipeableStopCardProps> = ({
           </div>
         </div>
 
-        {/* Right Action: Reorder Arrows (↑ and ↓) as shown in IMG_7287 */}
+        {/* Right Action: Round Play Button to open map directions */}
         <div
-          className="flex items-center gap-1 sm:gap-1.5 shrink-0 self-center z-10 pl-1"
+          className="flex items-center gap-1.5 shrink-0 self-center z-10 pl-1"
           onClick={(e) => e.stopPropagation()}
         >
           <motion.button
             type="button"
-            disabled={idx === 0}
-            whileTap={idx === 0 ? {} : { scale: 0.82 }}
+            whileTap={{ scale: 0.9 }}
             onClick={(e) => {
               e.stopPropagation();
-              if (idx > 0 && onMoveUp) {
-                onMoveUp(idx);
-              }
+              openDirectionsMap(spot);
             }}
-            className={`w-7 h-8 sm:w-8 sm:h-8.5 rounded-lg flex items-center justify-center transition-colors ${
-              idx === 0
-                ? isDark
-                  ? 'text-zinc-600/50 cursor-not-allowed'
-                  : 'text-zinc-300 cursor-not-allowed'
-                : isDark
-                ? 'text-zinc-200 hover:text-white hover:bg-white/10 active:bg-white/15 cursor-pointer'
-                : 'text-zinc-800 hover:text-black hover:bg-zinc-100 active:bg-zinc-200 cursor-pointer'
-            }`}
-            title={idx === 0 ? 'Primeiro local' : 'Mover para cima'}
-            aria-label="Mover local para cima"
+            className="w-9 h-9 rounded-full bg-white text-zinc-900 shadow-md flex items-center justify-center hover:bg-zinc-100 active:scale-95 transition-all cursor-pointer"
+            title="Abrir rota no Maps"
+            aria-label="Abrir rota no Maps"
           >
-            <ArrowUp className="w-4.5 h-4.5 stroke-[2.2]" />
-          </motion.button>
-
-          <motion.button
-            type="button"
-            disabled={idx === totalSteps - 1}
-            whileTap={idx === totalSteps - 1 ? {} : { scale: 0.82 }}
-            onClick={(e) => {
-              e.stopPropagation();
-              if (idx < totalSteps - 1 && onMoveDown) {
-                onMoveDown(idx);
-              }
-            }}
-            className={`w-7 h-8 sm:w-8 sm:h-8.5 rounded-lg flex items-center justify-center transition-colors ${
-              idx === totalSteps - 1
-                ? isDark
-                  ? 'text-zinc-600/50 cursor-not-allowed'
-                  : 'text-zinc-300 cursor-not-allowed'
-                : isDark
-                ? 'text-zinc-200 hover:text-white hover:bg-white/10 active:bg-white/15 cursor-pointer'
-                : 'text-zinc-800 hover:text-black hover:bg-zinc-100 active:bg-zinc-200 cursor-pointer'
-            }`}
-            title={idx === totalSteps - 1 ? 'Último local' : 'Mover para baixo'}
-            aria-label="Mover local para baixo"
-          >
-            <ArrowDown className="w-4.5 h-4.5 stroke-[2.2]" />
+            <Play className="w-4 h-4 fill-zinc-900 text-zinc-900 ml-0.5" />
           </motion.button>
         </div>
       </div>
@@ -1121,6 +1103,24 @@ export const ItinerariesView: React.FC<ItinerariesViewProps> = ({
 
   // Save edited itinerary (reordered stops or removed stops)
   const handleSaveEditedItinerary = async (updated: Itinerary) => {
+    if (userItinerary) {
+      const oldSpotIds = new Set(
+        (userItinerary.days || []).flatMap((d) =>
+          (d.steps || []).map((s) => s.spotId || s.spot?.id).filter(Boolean)
+        )
+      );
+      const newSpotIds = new Set(
+        (updated.days || []).flatMap((d) =>
+          (d.steps || []).map((s) => s.spotId || s.spot?.id).filter(Boolean)
+        )
+      );
+      oldSpotIds.forEach((spotId) => {
+        if (spotId && !newSpotIds.has(spotId)) {
+          favoritesManager.addRemovedItem(spotId);
+        }
+      });
+    }
+
     setUserItinerary(updated);
     localStorage.setItem('monvian_active_itinerary', JSON.stringify(updated));
 
@@ -1153,6 +1153,17 @@ export const ItinerariesView: React.FC<ItinerariesViewProps> = ({
   // Remove individual stop via swipe or accessible action
   const handleDeleteStep = async (stepId: string) => {
     if (!userItinerary) return;
+
+    (userItinerary.days || []).forEach((day) => {
+      (day.steps || []).forEach((s) => {
+        if (s.id === stepId) {
+          const removedSpotId = s.spotId || s.spot?.id;
+          if (removedSpotId) {
+            favoritesManager.addRemovedItem(removedSpotId);
+          }
+        }
+      });
+    });
 
     const updatedDays = (userItinerary.days || []).map((day) => {
       const filtered = (day.steps || []).filter((s) => s.id !== stepId);
@@ -2378,41 +2389,21 @@ export const ItinerariesView: React.FC<ItinerariesViewProps> = ({
                   </div>
                 </div>
 
-                {/* Right Actions: Reorder Arrows (Up/Down) & Delete */}
-                <div className="flex items-center gap-1 shrink-0">
-                  <button
+                {/* Right Action: Round Play Button to open map directions & Delete */}
+                <div className="flex items-center gap-1.5 shrink-0" onClick={(e) => e.stopPropagation()}>
+                  <motion.button
                     type="button"
+                    whileTap={{ scale: 0.9 }}
                     onClick={(e) => {
                       e.stopPropagation();
-                      handleMoveStepUp(idx);
+                      openDirectionsMap(step.spot);
                     }}
-                    disabled={idx === 0}
-                    className={`w-7 h-7 rounded-lg flex items-center justify-center transition-colors cursor-pointer ${
-                      idx === 0
-                        ? 'opacity-30 cursor-not-allowed text-zinc-600'
-                        : 'bg-white/10 hover:bg-white/20 text-white'
-                    }`}
-                    title="Mover local para cima"
+                    className="w-8 h-8 rounded-full bg-white text-zinc-900 shadow-sm flex items-center justify-center hover:bg-zinc-100 transition-all cursor-pointer"
+                    title="Abrir rota no Maps"
+                    aria-label="Abrir rota no Maps"
                   >
-                    <ArrowUp className="w-3.5 h-3.5 stroke-[2.2]" />
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      handleMoveStepDown(idx);
-                    }}
-                    disabled={idx === activeSteps.length - 1}
-                    className={`w-7 h-7 rounded-lg flex items-center justify-center transition-colors cursor-pointer ${
-                      idx === activeSteps.length - 1
-                        ? 'opacity-30 cursor-not-allowed text-zinc-600'
-                        : 'bg-white/10 hover:bg-white/20 text-white'
-                    }`}
-                    title="Mover local para baixo"
-                  >
-                    <ArrowDown className="w-3.5 h-3.5 stroke-[2.2]" />
-                  </button>
+                    <Play className="w-3.5 h-3.5 fill-zinc-900 text-zinc-900 ml-0.5" />
+                  </motion.button>
 
                   <button
                     type="button"

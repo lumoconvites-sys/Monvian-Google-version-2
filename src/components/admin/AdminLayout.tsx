@@ -26,6 +26,8 @@ import { AdminSettings } from './AdminSettings';
 import { AdminCleanup } from './AdminCleanup';
 import { AdminItineraries } from './AdminItineraries';
 import { AdminServices } from './AdminServices';
+import { AdminPlatanos } from './AdminPlatanos';
+import { PlatanoLeafIcon } from '../platanos/PlatanoLeafIcon';
 import { AffiliateHostDashboard } from '../affiliate/AffiliateHostDashboard';
 
 interface AdminLayoutProps {
@@ -67,6 +69,7 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({
 
   const NAV_ITEMS = [
     { id: 'dashboard', label: 'Visão Geral', icon: LayoutDashboard },
+    { id: 'platanos', label: 'Plátanos (Moeda)', icon: PlatanoLeafIcon },
     { id: 'spots', label: 'Pontos Turísticos', icon: MapPin },
     { id: 'itineraries', label: 'Roteiros', icon: Route },
     { id: 'services', label: 'Locais e Serviços', icon: Store },
@@ -340,6 +343,7 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({
               className="w-full"
             >
               {activeTab === 'dashboard' && <AdminDashboard onNavigateTo={(tab) => setActiveTab(tab)} />}
+              {activeTab === 'platanos' && <AdminPlatanos currentUser={currentUser} />}
               {activeTab === 'spots' && <AdminSpots />}
               {activeTab === 'itineraries' && <AdminItineraries />}
               {activeTab === 'services' && <AdminServices />}
