@@ -1,6 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import {
   ChevronLeft,
+  ArrowLeft,
   Calendar,
   Clock,
   MapPin,
@@ -200,11 +201,11 @@ export const ItineraryDetailModal: React.FC<ItineraryDetailModalProps> = ({
                 <button
                   type="button"
                   onClick={onClose}
-                  className="w-9 h-9 rounded-full bg-black/60 backdrop-blur-md text-white border border-white/10 flex items-center justify-center hover:bg-black/80 active:scale-90 transition-transform cursor-pointer shadow-md"
+                  className="w-9 h-9 flex items-center justify-center text-white cursor-pointer active:opacity-75 transition-opacity"
                   title="Voltar"
                   aria-label="Voltar"
                 >
-                  <ChevronLeft className="w-5 h-5 -ml-0.5" />
+                  <ArrowLeft className="w-6 h-6 stroke-[2.4]" />
                 </button>
 
                 <span className="px-3 py-1 rounded-full text-xs font-bold bg-black/60 backdrop-blur-md text-white border border-white/10 flex items-center gap-1.5">

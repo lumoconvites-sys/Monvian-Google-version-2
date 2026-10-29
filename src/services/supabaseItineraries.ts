@@ -45,18 +45,19 @@ export function normalizeItineraryRecord(
 
   const isPrem = hasExplicitPremium;
   const badge = isPrem
-    ? row.badge_text && row.badge_text.toLowerCase() !== 'livre'
+    ? row.badge_text && row.badge_text.toLowerCase() !== 'grátis'
       ? row.badge_text
-      : row.badgeText && row.badgeText.toLowerCase() !== 'livre'
+      : row.badgeText && row.badgeText.toLowerCase() !== 'grátis'
         ? row.badgeText
         : 'ELITE GOLD'
-    : 'Livre';
+    : 'Grátis';
 
   return {
     id: String(row.id),
     title: String(row.title || 'Roteiro Sem Título'),
     description: String(row.description || ''),
     coverImage: row.cover_image || row.coverImage || 'https://images.unsplash.com/photo-1585320806297-9794b3e4eeae?auto=format&fit=crop&w=1000&q=80',
+    videoUrl: row.video_url || row.videoUrl || undefined,
     daysCount: Number(row.days_count ?? row.daysCount ?? (days.length > 0 ? days.length : 1)),
     categories: parsedCategories,
     isActive: row.is_active !== undefined ? Number(row.is_active) === 1 : row.isActive !== false,
@@ -411,7 +412,7 @@ export async function saveItineraryToSupabase(payload: any, isEdit: boolean): Pr
     is_premium: payload.isPremium !== undefined ? (payload.isPremium ? 1 : 0) : 1,
     price: payload.price || 'R$ 14,90',
     status,
-    badge_text: payload.badgeText || (payload.isPremium ? 'Premium' : 'Livre'),
+    badge_text: payload.badgeText || (payload.isPremium ? 'Premium' : 'Grátis'),
     show_badge: payload.showBadge !== undefined ? (payload.showBadge ? 1 : 0) : 1,
     show_price: payload.showPrice !== undefined ? (payload.showPrice ? 1 : 0) : 1,
     show_stops_count: payload.showStopsCount !== undefined ? (payload.showStopsCount ? 1 : 0) : 1,
@@ -634,7 +635,7 @@ export async function toggleItineraryPremiumInSupabase(
 
   const val = isPremium ? 1 : 0;
   const price = isPremium ? 'R$ 19,90' : 'Grátis';
-  const badgeText = isPremium ? 'ELITE GOLD' : 'Livre';
+  const badgeText = isPremium ? 'ELITE GOLD' : 'Grátis';
 
   if (isSupabaseConfigured && supabase) {
     const { error } = await supabase
@@ -693,7 +694,7 @@ export async function seedItinerariesIntoSupabase(): Promise<void> {
         is_premium: itin.isPremium ? 1 : 0,
         price: itin.price || 'R$ 14,90',
         status: itin.status || 'published',
-        badge_text: itin.badgeText || (itin.isPremium ? 'Premium' : 'Livre'),
+        badge_text: itin.badgeText || (itin.isPremium ? 'Premium' : 'Grátis'),
         show_badge: itin.showBadge ? 1 : 0,
         show_price: itin.showPrice ? 1 : 0,
         show_stops_count: itin.showStopsCount ? 1 : 0,
@@ -753,7 +754,10 @@ export async function seedItinerariesIntoSupabase(): Promise<void> {
  * Realtime and local events subscriber for itineraries
  */
 export function subscribeToItinerariesChanges(onUpdate: () => void): () => void {
-  const handleLocalEvent = () => onUpdate();
+  const handleLocalEvent = () => {
+    clearItinerariesPageCache();
+    onUpdate();
+  };
   if (typeof window !== 'undefined') {
     window.addEventListener('monvian:itineraries_updated', handleLocalEvent);
   }
@@ -766,7 +770,10 @@ export function subscribeToItinerariesChanges(onUpdate: () => void): () => void 
         .on(
           'postgres_changes',
           { event: '*', schema: 'public', table: 'itineraries' },
-          () => onUpdate()
+          () => {
+            clearItinerariesPageCache();
+            onUpdate();
+          }
         )
         .subscribe();
     }
@@ -783,3 +790,617 @@ export function subscribeToItinerariesChanges(onUpdate: () => void): () => void 
     }
   };
 }
+
+// ============================================================================
+// PROGRESSIVE PAGINATION ENGINE (Cursor / Range + Scoped Hydration + Caching)
+// ============================================================================
+
+export interface PaginatedItinerariesParams {
+  limit: number;
+  cursor?: string | null;
+  offset?: number;
+  category?: string;
+  durationFilter?: 'all' | '1day' | 'multiday' | 'free';
+  searchQuery?: string;
+  excludeIds?: string[];
+  includeFeaturedBanner?: boolean;
+  forceRefresh?: boolean;
+}
+
+export interface PaginatedItinerariesResult {
+  itineraries: Itinerary[];
+  featuredItinerary: Itinerary | null;
+  hasMore: boolean;
+  nextCursor: string | null;
+  nextOffset: number;
+  totalMatching?: number;
+}
+
+const PAGE_CACHE_TTL_MS = 2 * 60 * 1000; // 2 minutes valid page cache
+const paginatedPageCache = new Map<string, { timestamp: number; data: PaginatedItinerariesResult }>();
+const inFlightPaginatedRequests = new Map<string, Promise<PaginatedItinerariesResult>>();
+
+export function clearItinerariesPageCache(): void {
+  paginatedPageCache.clear();
+}
+
+function normalizeToken(val: string): string {
+  return String(val || '')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .trim();
+}
+
+export function matchesItineraryFilter(
+  itin: Itinerary,
+  category = 'all',
+  durationFilter: 'all' | '1day' | 'multiday' | 'free' = 'all',
+  searchQuery = ''
+): boolean {
+  // 1. Category Filter
+  if (category && category !== 'all') {
+    const cat = normalizeToken(category);
+    if (cat === 'destaque' || cat === 'destaques' || cat === 'popular') {
+      if (!itin.isFeatured && !itin.isRecommended) return false;
+    } else {
+      const itinCats = (itin.categories || []).map(normalizeToken);
+      const normTitle = normalizeToken(itin.title || '');
+
+      if (cat === 'natureza' || cat === 'nature') {
+        const ok =
+          itinCats.some((c) => ['nature', 'natureza', 'ecotourism', 'ecoturismo'].includes(c)) ||
+          normTitle.includes('natureza');
+        if (!ok) return false;
+      } else if (cat === 'romantico' || cat === 'romantic') {
+        const ok =
+          itinCats.some((c) => ['romantic', 'romantico', 'casais', 'casal', 'romance'].includes(c)) ||
+          normTitle.includes('romantic') ||
+          normTitle.includes('casal') ||
+          normTitle.includes('casais');
+        if (!ok) return false;
+      } else if (cat === 'gastronomia' || cat === 'gastronomy') {
+        const ok =
+          itinCats.some((c) =>
+            ['gastronomy', 'gastronomia', 'sweets', 'cafes', 'culinaria', 'fondue'].includes(c)
+          ) ||
+          normTitle.includes('gastronom') ||
+          normTitle.includes('fondue');
+        if (!ok) return false;
+      } else if (cat === 'aventura' || cat === 'adventure') {
+        const ok =
+          itinCats.some((c) => ['adventure', 'aventura', 'trilhas', 'radical', 'esportes'].includes(c)) ||
+          normTitle.includes('aventur') ||
+          normTitle.includes('trilha');
+        if (!ok) return false;
+      } else if (cat === 'familia' || cat === 'family') {
+        const ok =
+          itinCats.some((c) => ['family', 'familia', 'kids', 'criancas'].includes(c)) ||
+          normTitle.includes('familia');
+        if (!ok) return false;
+      } else if (cat === 'terror') {
+        const ok =
+          itinCats.some((c) => ['terror', 'assombrado', 'misterio', 'sobrenatural'].includes(c)) ||
+          normTitle.includes('terror');
+        if (!ok) return false;
+      } else if (!itinCats.includes(cat) && !normTitle.includes(cat)) {
+        return false;
+      }
+    }
+  }
+
+  // 2. Duration / Type Filter
+  if (durationFilter === '1day' && itin.daysCount !== 1) return false;
+  if (durationFilter === 'multiday' && (itin.daysCount || 1) < 2) return false;
+  if (durationFilter === 'free') {
+    const isFree =
+      !itin.isPremium ||
+      itin.badgeText?.toLowerCase() === 'grátis' ||
+      itin.price === 'R$ 0' ||
+      itin.price === 'Grátis';
+    if (!isFree) return false;
+  }
+
+  // 3. Search Query Filter
+  const q = normalizeToken(searchQuery);
+  if (q) {
+    const matchesTitle = normalizeToken(itin.title).includes(q);
+    const matchesDesc = normalizeToken(itin.description || '').includes(q);
+    const matchesCat = (itin.categories || []).some((c) => normalizeToken(c).includes(q));
+    const matchesSpots = (itin.days || []).some((d) =>
+      (d.steps || []).some(
+        (s) =>
+          normalizeToken(s.spot?.name || '').includes(q) ||
+          normalizeToken(s.spotName || '').includes(q) ||
+          normalizeToken(s.customName || '').includes(q)
+      )
+    );
+    if (!matchesTitle && !matchesDesc && !matchesCat && !matchesSpots) return false;
+  }
+
+  return true;
+}
+
+/**
+ * Hydrates ONLY the given batch of raw itinerary rows by querying `itinerary_days`,
+ * `itinerary_steps`, and `spots` scoped strictly to the batch's IDs.
+ */
+async function hydrateItineraryBatchFromSupabase(batchRows: any[]): Promise<Itinerary[]> {
+  if (!supabase || batchRows.length === 0) return [];
+
+  const batchIds = batchRows.map((r) => String(r.id));
+
+  const [daysRes, stepsRes] = await Promise.all([
+    safeSupabaseQuery(
+      supabase
+        .from('itinerary_days')
+        .select('*')
+        .in('itinerary_id', batchIds)
+        .order('day_number', { ascending: true })
+    ),
+    safeSupabaseQuery(
+      supabase
+        .from('itinerary_steps')
+        .select('*')
+        .in('itinerary_id', batchIds)
+        .order('step_order', { ascending: true })
+    ),
+  ]);
+
+  const batchDays = Array.isArray(daysRes.data) ? daysRes.data : [];
+  const batchSteps = Array.isArray(stepsRes.data) ? stepsRes.data : [];
+
+  const spotIds = Array.from(
+    new Set(batchSteps.map((st: any) => st.spot_id).filter(Boolean))
+  );
+
+  const spotsMap = new Map<string, any>();
+  if (spotIds.length > 0) {
+    const spotsRes = await safeSupabaseQuery(
+      supabase
+        .from('spots')
+        .select('id, name, short_name, category, category_label, lat, lng, image, description')
+        .in('id', spotIds)
+    );
+    const batchSpots = Array.isArray(spotsRes.data) ? spotsRes.data : [];
+    for (const s of batchSpots) {
+      spotsMap.set(s.id, s);
+    }
+  }
+
+  const stepsByDay = new Map<string, ItineraryStep[]>();
+  for (const st of batchSteps) {
+    const dayId = st.day_id;
+    if (!stepsByDay.has(dayId)) stepsByDay.set(dayId, []);
+    const spotData = spotsMap.get(st.spot_id);
+
+    stepsByDay.get(dayId)!.push({
+      id: String(st.id),
+      itineraryId: String(st.itinerary_id),
+      dayId: String(st.day_id),
+      spotId: String(st.spot_id),
+      stepOrder: Number(st.step_order || 1),
+      suggestedTime: st.suggested_time || '09:00',
+      durationMinutes: Number(st.duration_minutes || 90),
+      notes: st.notes || '',
+      customName: st.custom_name || '',
+      customDescription: st.custom_description || '',
+      customTip: st.custom_tip || '',
+      customImage: st.custom_image || '',
+      spot: spotData
+        ? {
+            id: spotData.id,
+            name: spotData.name,
+            category: spotData.category,
+            categoryLabel: spotData.category_label,
+            lat: Number(spotData.lat),
+            lng: Number(spotData.lng),
+            image: spotData.image,
+            description: spotData.description,
+          }
+        : undefined,
+    });
+  }
+
+  const daysByItin = new Map<string, ItineraryDay[]>();
+  for (const d of batchDays) {
+    const itinId = d.itinerary_id;
+    if (!daysByItin.has(itinId)) daysByItin.set(itinId, []);
+    const daySteps = stepsByDay.get(d.id) || [];
+
+    daysByItin.get(itinId)!.push({
+      id: String(d.id),
+      itineraryId: String(d.itinerary_id),
+      dayNumber: Number(d.day_number || 1),
+      title: d.title || `Dia ${d.day_number}`,
+      summary: d.summary || '',
+      steps: daySteps,
+    });
+  }
+
+  return batchRows.map((row: any) => {
+    const itinDays = daysByItin.get(row.id) || [];
+    return normalizeItineraryRecord(row, itinDays);
+  });
+}
+
+function paginateItinerariesArray(
+  sourceList: Itinerary[],
+  params: PaginatedItinerariesParams
+): PaginatedItinerariesResult {
+  const limit = Math.max(1, Math.min(24, params.limit || 4));
+  const category = params.category || 'all';
+  const durationFilter = params.durationFilter || 'all';
+  const searchQuery = params.searchQuery || '';
+  const cursor = params.cursor || null;
+  const offset = Math.max(0, params.offset || 0);
+  const excludeIds = new Set(params.excludeIds || []);
+
+  // Deterministic ordering by sortOrder ASC, id ASC
+  const sorted = [...sourceList]
+    .filter((i) => i.isActive !== false)
+    .sort((a, b) => {
+      const sA = Number(a.sortOrder || 0);
+      const sB = Number(b.sortOrder || 0);
+      if (sA !== sB) return sA - sB;
+      return String(a.id).localeCompare(String(b.id));
+    });
+
+  const matching = sorted.filter((itin) =>
+    matchesItineraryFilter(itin, category, durationFilter, searchQuery)
+  );
+
+  let featuredItinerary: Itinerary | null = null;
+  if (params.includeFeaturedBanner && !searchQuery.trim()) {
+    featuredItinerary = matching.find((i) => i.isFeatured || i.isRecommended) || matching[0] || null;
+    if (featuredItinerary) {
+      excludeIds.add(featuredItinerary.id);
+    }
+  }
+
+  const discoveryPool = matching.filter((i) => {
+    if (excludeIds.has(i.id)) return false;
+    if (
+      featuredItinerary &&
+      i.title.trim().toLowerCase() === featuredItinerary.title.trim().toLowerCase()
+    ) {
+      return false;
+    }
+    return true;
+  });
+
+  let startIndex = offset;
+  if (cursor) {
+    const [cursorSortStr, cursorId] = cursor.split('|');
+    const cursorSort = Number(cursorSortStr);
+    const exactIdx = discoveryPool.findIndex((i) => i.id === cursorId);
+    if (exactIdx >= 0) {
+      startIndex = exactIdx + 1;
+    } else if (!Number.isNaN(cursorSort)) {
+      const nextIdx = discoveryPool.findIndex((i) => {
+        const s = Number(i.sortOrder || 0);
+        return s > cursorSort || (s === cursorSort && String(i.id) > (cursorId || ''));
+      });
+      startIndex = nextIdx >= 0 ? nextIdx : discoveryPool.length;
+    }
+  }
+
+  const pageItems = discoveryPool.slice(startIndex, startIndex + limit);
+  const hasMore = startIndex + pageItems.length < discoveryPool.length;
+  const lastItem = pageItems[pageItems.length - 1];
+  const nextCursor =
+    hasMore && lastItem ? `${Number(lastItem.sortOrder || 0)}|${lastItem.id}` : null;
+  const nextOffset = startIndex + pageItems.length;
+
+  return {
+    itineraries: pageItems,
+    featuredItinerary,
+    hasMore,
+    nextCursor,
+    nextOffset,
+    totalMatching: discoveryPool.length,
+  };
+}
+
+/**
+ * Fetches a paginated batch of itineraries with cursor/offset support,
+ * DB-level filtering, scoped batch hydration, in-flight deduplication, and page caching.
+ */
+export async function fetchPaginatedItinerariesFromSupabase(
+  params: PaginatedItinerariesParams
+): Promise<PaginatedItinerariesResult> {
+  const limit = Math.max(1, Math.min(24, params.limit || 4));
+  const category = (params.category || 'all').trim();
+  const durationFilter = params.durationFilter || 'all';
+  const searchQuery = (params.searchQuery || '').trim();
+  const cursor = params.cursor || null;
+  const offset = Math.max(0, params.offset || 0);
+  const excludeKey = (params.excludeIds || []).slice().sort().join(',');
+  const includeFeatured = Boolean(params.includeFeaturedBanner);
+
+  const cacheKey = `${category}|${durationFilter}|${searchQuery.toLowerCase()}|${cursor || ''}|${offset}|${limit}|${excludeKey}|${includeFeatured ? '1' : '0'}`;
+
+  if (!params.forceRefresh) {
+    const cachedPage = paginatedPageCache.get(cacheKey);
+    if (cachedPage && Date.now() - cachedPage.timestamp < PAGE_CACHE_TTL_MS) {
+      return cachedPage.data;
+    }
+  }
+
+  const existingInFlight = inFlightPaginatedRequests.get(cacheKey);
+  if (existingInFlight) {
+    return existingInFlight;
+  }
+
+  const executeQuery = async (): Promise<PaginatedItinerariesResult> => {
+    // 1. Primary Path: Direct Supabase PostgreSQL Paginated Query + Scoped Hydration
+    if (isSupabaseConfigured && supabase) {
+      try {
+        let baseQuery = supabase
+          .from('itineraries')
+          .select('*')
+          .eq('is_active', 1)
+          .order('sort_order', { ascending: true })
+          .order('id', { ascending: true });
+
+        // Push down filters to Supabase PostgreSQL where applicable
+        const catNorm = normalizeToken(category);
+        if (catNorm === 'destaque' || catNorm === 'popular') {
+          baseQuery = baseQuery.or('is_featured.eq.1,is_recommended.eq.1');
+        }
+        if (durationFilter === '1day') {
+          baseQuery = baseQuery.eq('days_count', 1);
+        } else if (durationFilter === 'multiday') {
+          baseQuery = baseQuery.gte('days_count', 2);
+        } else if (durationFilter === 'free') {
+          baseQuery = baseQuery.eq('is_premium', 0);
+        }
+
+        // If no complex client-side category synonym or spot-nested search is required,
+        // use direct cursor/range pagination in PostgreSQL
+        const canUseDirectSqlRange =
+          (catNorm === 'all' || catNorm === 'destaque' || catNorm === 'popular') &&
+          !searchQuery;
+
+        if (canUseDirectSqlRange) {
+          let featuredItinerary: Itinerary | null = null;
+          const excludeIds = new Set(params.excludeIds || []);
+
+          if (includeFeatured && (catNorm === 'all' || catNorm === 'destaque')) {
+            const { data: featRows } = await safeSupabaseQuery(
+              supabase
+                .from('itineraries')
+                .select('*')
+                .eq('is_active', 1)
+                .or('is_featured.eq.1,is_recommended.eq.1')
+                .order('sort_order', { ascending: true })
+                .order('id', { ascending: true })
+                .limit(1),
+              3500
+            );
+            if (Array.isArray(featRows) && featRows.length > 0) {
+              const hydratedFeat = await hydrateItineraryBatchFromSupabase([featRows[0]]);
+              featuredItinerary = hydratedFeat[0] || null;
+              if (featuredItinerary) {
+                excludeIds.add(featuredItinerary.id);
+              }
+            }
+          }
+
+          let pageQuery = supabase
+            .from('itineraries')
+            .select('*')
+            .eq('is_active', 1);
+
+          if (catNorm === 'destaque' || catNorm === 'popular') {
+            pageQuery = pageQuery.or('is_featured.eq.1,is_recommended.eq.1');
+          }
+          if (durationFilter === '1day') {
+            pageQuery = pageQuery.eq('days_count', 1);
+          } else if (durationFilter === 'multiday') {
+            pageQuery = pageQuery.gte('days_count', 2);
+          } else if (durationFilter === 'free') {
+            pageQuery = pageQuery.eq('is_premium', 0);
+          }
+
+          if (excludeIds.size > 0) {
+            const excludeList = Array.from(excludeIds)
+              .map((id) => `"${String(id).replace(/"/g, '')}"`)
+              .join(',');
+            pageQuery = pageQuery.not('id', 'in', `(${excludeList})`);
+          }
+
+          if (cursor) {
+            const [cursorSortStr, cursorId] = cursor.split('|');
+            const cursorSort = Number(cursorSortStr);
+            if (!Number.isNaN(cursorSort) && cursorId) {
+              pageQuery = pageQuery.or(
+                `sort_order.gt.${cursorSort},and(sort_order.eq.${cursorSort},id.gt.${cursorId})`
+              );
+            }
+            pageQuery = pageQuery
+              .order('sort_order', { ascending: true })
+              .order('id', { ascending: true })
+              .limit(limit + 1);
+          } else {
+            pageQuery = pageQuery
+              .order('sort_order', { ascending: true })
+              .order('id', { ascending: true })
+              .range(offset, offset + limit);
+          }
+
+          const { data: rawPageRows, error: pageErr } = await safeSupabaseQuery(pageQuery, 4000);
+
+          if (!pageErr && Array.isArray(rawPageRows)) {
+            if (rawPageRows.length === 0 && offset === 0 && !cursor && !featuredItinerary && catNorm === 'all' && durationFilter === 'all') {
+              // Table is completely empty -> seed defaults once
+              await seedItinerariesIntoSupabase();
+              const seededResult = paginateItinerariesArray(DEFAULT_CURATED_ITINERARIES, params);
+              paginatedPageCache.set(cacheKey, { timestamp: Date.now(), data: seededResult });
+              return seededResult;
+            }
+
+            const hasMore = rawPageRows.length > limit;
+            const slicedRows = rawPageRows.slice(0, limit);
+            const hydratedBatch = await hydrateItineraryBatchFromSupabase(slicedRows);
+            const lastItem = hydratedBatch[hydratedBatch.length - 1];
+            const nextCursor =
+              hasMore && lastItem ? `${Number(lastItem.sortOrder || 0)}|${lastItem.id}` : null;
+            const nextOffset = offset + hydratedBatch.length;
+
+            const result: PaginatedItinerariesResult = {
+              itineraries: hydratedBatch,
+              featuredItinerary,
+              hasMore,
+              nextCursor,
+              nextOffset,
+            };
+            paginatedPageCache.set(cacheKey, { timestamp: Date.now(), data: result });
+            return result;
+          }
+        } else {
+          // Filtered category or search query: fetch lightweight itinerary metadata rows,
+          // filter before hydration, then hydrate ONLY the current page's slice!
+          const { data: rawMetaRows, error: metaErr } = await safeSupabaseQuery(baseQuery, 4000);
+          if (!metaErr && Array.isArray(rawMetaRows) && rawMetaRows.length > 0) {
+            const lightweightItins = rawMetaRows.map((r: any) => normalizeItineraryRecord(r, []));
+            const matchingLight = lightweightItins.filter((it) =>
+              matchesItineraryFilter(it, category, durationFilter, searchQuery)
+            );
+
+            const excludeIds = new Set(params.excludeIds || []);
+            let featuredItinerary: Itinerary | null = null;
+            if (
+              includeFeatured &&
+              !searchQuery &&
+              (catNorm === 'all' || catNorm === 'destaque')
+            ) {
+              const featLight = matchingLight.find((i) => i.isFeatured || i.isRecommended);
+              if (featLight) {
+                const featRaw = rawMetaRows.find((r: any) => String(r.id) === featLight.id);
+                if (featRaw) {
+                  const hydratedFeat = await hydrateItineraryBatchFromSupabase([featRaw]);
+                  featuredItinerary = hydratedFeat[0] || null;
+                }
+                excludeIds.add(featLight.id);
+              }
+            }
+
+            const discoveryLight = matchingLight.filter((i) => !excludeIds.has(i.id));
+            let startIndex = offset;
+            if (cursor) {
+              const [cursorSortStr, cursorId] = cursor.split('|');
+              const cursorSort = Number(cursorSortStr);
+              const exactIdx = discoveryLight.findIndex((i) => i.id === cursorId);
+              if (exactIdx >= 0) {
+                startIndex = exactIdx + 1;
+              } else if (!Number.isNaN(cursorSort)) {
+                const nextIdx = discoveryLight.findIndex((i) => {
+                  const s = Number(i.sortOrder || 0);
+                  return s > cursorSort || (s === cursorSort && String(i.id) > (cursorId || ''));
+                });
+                startIndex = nextIdx >= 0 ? nextIdx : discoveryLight.length;
+              }
+            }
+
+            const sliceLight = discoveryLight.slice(startIndex, startIndex + limit);
+            const sliceIds = new Set(sliceLight.map((i) => i.id));
+            const rawSliceRows = rawMetaRows.filter((r: any) => sliceIds.has(String(r.id)));
+            const hydratedBatch = await hydrateItineraryBatchFromSupabase(rawSliceRows);
+
+            const hasMore = startIndex + hydratedBatch.length < discoveryLight.length;
+            const lastItem = hydratedBatch[hydratedBatch.length - 1];
+            const nextCursor =
+              hasMore && lastItem ? `${Number(lastItem.sortOrder || 0)}|${lastItem.id}` : null;
+            const nextOffset = startIndex + hydratedBatch.length;
+
+            const result: PaginatedItinerariesResult = {
+              itineraries: hydratedBatch,
+              featuredItinerary,
+              hasMore,
+              nextCursor,
+              nextOffset,
+              totalMatching: discoveryLight.length,
+            };
+            paginatedPageCache.set(cacheKey, { timestamp: Date.now(), data: result });
+            return result;
+          }
+        }
+      } catch (err) {
+        console.warn('[SupabaseItineraries] Paginated Supabase query notice, trying API fallback:', err);
+      }
+    }
+
+    // 2. Fallback 1: Same-Origin Backend API (/api/itineraries?paginated=true&...)
+    if (typeof window !== 'undefined') {
+      try {
+        const qs = new URLSearchParams({
+          paginated: 'true',
+          limit: String(limit),
+          offset: String(offset),
+          category,
+          duration: durationFilter,
+        });
+        if (cursor) qs.set('cursor', cursor);
+        if (searchQuery) qs.set('search', searchQuery);
+        if (includeFeatured) qs.set('includeFeaturedBanner', 'true');
+        if (params.excludeIds && params.excludeIds.length > 0) {
+          qs.set('excludeIds', params.excludeIds.join(','));
+        }
+
+        const res = await fetch(`/api/itineraries?${qs.toString()}`);
+        if (res.ok) {
+          const json = await res.json();
+          if (Array.isArray(json?.itineraries)) {
+            const normalizedBatch = json.itineraries.map((it: any) =>
+              normalizeItineraryRecord(it, Array.isArray(it.days) ? it.days : [])
+            );
+            const normalizedFeatured = json.featuredItinerary
+              ? normalizeItineraryRecord(
+                  json.featuredItinerary,
+                  Array.isArray(json.featuredItinerary.days) ? json.featuredItinerary.days : []
+                )
+              : null;
+
+            const result: PaginatedItinerariesResult = {
+              itineraries: normalizedBatch,
+              featuredItinerary: normalizedFeatured,
+              hasMore: Boolean(json.hasMore),
+              nextCursor: json.nextCursor || null,
+              nextOffset: Number(json.nextOffset ?? offset + normalizedBatch.length),
+              totalMatching: json.totalMatching,
+            };
+            paginatedPageCache.set(cacheKey, { timestamp: Date.now(), data: result });
+            return result;
+          }
+        }
+      } catch (apiErr) {
+        console.warn('[SupabaseItineraries] Paginated API fallback notice:', apiErr);
+      }
+    }
+
+    // 3. Fallback 2: LocalStorage Cache or Curated Default Itineraries
+    let fallbackList: Itinerary[] = DEFAULT_CURATED_ITINERARIES;
+    try {
+      const cached = localStorage.getItem(CACHE_KEY_ITINERARIES);
+      if (cached) {
+        const parsed = JSON.parse(cached);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          fallbackList = parsed;
+        }
+      }
+    } catch {}
+
+    const fallbackResult = paginateItinerariesArray(fallbackList, params);
+    paginatedPageCache.set(cacheKey, { timestamp: Date.now(), data: fallbackResult });
+    return fallbackResult;
+  };
+
+  const requestPromise = executeQuery().finally(() => {
+    inFlightPaginatedRequests.delete(cacheKey);
+  });
+
+  inFlightPaginatedRequests.set(cacheKey, requestPromise);
+  return requestPromise;
+}
+

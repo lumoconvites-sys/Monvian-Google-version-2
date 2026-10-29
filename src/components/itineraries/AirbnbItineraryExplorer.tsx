@@ -2,55 +2,83 @@ import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react'
 import {
   Search,
   ChevronLeft,
+  ArrowLeft,
   Heart,
   Star,
   Compass,
   X,
   Check,
-  SlidersHorizontal,
   ArrowRight,
   MapPin,
-  Plus,
+  RotateCcw,
+  AlertCircle,
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { Itinerary, ItineraryCategory } from '../../types';
 import { ItineraryStoreDetailModal } from './ItineraryStoreDetailModal';
 import { PremiumModal } from '../PremiumModal';
-import { DEFAULT_CURATED_ITINERARIES } from '../../data/defaultItineraries';
-import { preloadImage, extractAllItineraryImageUrls } from '../../utils/preloadItineraries';
+import { preloadImage } from '../../utils/preloadItineraries';
 import {
-  fetchItinerariesFromSupabase,
+  fetchPaginatedItinerariesFromSupabase,
   fetchItineraryCategoriesFromSupabase,
   subscribeToItinerariesChanges,
+  clearItinerariesPageCache,
+  matchesItineraryFilter,
 } from '../../services/supabaseItineraries';
 import { useFavorites } from '../../hooks/useFavorites';
 import { usePlatanos } from '../../hooks/usePlatanos';
 import { PlatanoLeafIcon, PlatanoUnlockToast } from '../platanos/PlatanoLeafIcon';
 import { PlatanosWalletModal } from '../platanos/PlatanosWalletModal';
 import { PlatanoPurchaseConfirmModal } from '../platanos/PlatanoPurchaseConfirmModal';
+import { DEFAULT_CURATED_ITINERARIES } from '../../data/defaultItineraries';
 
-// Fast in-memory cache for instant hydration
-let memoryItinerariesCache: Itinerary[] | null = null;
+// Fast in-memory cache for categories
 let memoryCategoriesCache: ItineraryCategory[] | null = null;
-
-const CACHE_KEY_ITINS = 'monvian_itineraries_store_cache_v6';
 const CACHE_KEY_CATS = 'monvian_itinerary_categories_cache_v6';
 
-function getInitialItineraries(): Itinerary[] {
-  if (memoryItinerariesCache && memoryItinerariesCache.length > 0) {
-    return memoryItinerariesCache;
-  }
+function getKnownItinerariesPool(): Itinerary[] {
   try {
-    const stored = localStorage.getItem(CACHE_KEY_ITINS);
-    if (stored) {
-      const parsed = JSON.parse(stored);
+    const cached = localStorage.getItem('monvian_itineraries_cache');
+    if (cached) {
+      const parsed: Itinerary[] = JSON.parse(cached);
       if (Array.isArray(parsed) && parsed.length > 0) {
-        memoryItinerariesCache = parsed;
         return parsed;
       }
     }
-  } catch (e) {}
+  } catch {}
   return DEFAULT_CURATED_ITINERARIES;
+}
+
+export function getItinerariesForCategory(
+  category: string,
+  durationFilter: 'all' | '1day' | 'multiday' | 'free' = 'all',
+  searchQuery = ''
+): { featured: Itinerary | null; list: Itinerary[] } {
+  const pool = getKnownItinerariesPool().filter((i) => i.isActive !== false);
+  const matching = pool.filter((i) =>
+    matchesItineraryFilter(i, category, durationFilter, searchQuery)
+  );
+
+  if (matching.length === 0) {
+    return { featured: null, list: [] };
+  }
+
+  // Pick the featured banner for this category:
+  // For 'all' or 'destaque', prioritize isFeatured || isRecommended
+  let featured: Itinerary | null = null;
+  if (!searchQuery) {
+    const topFeat = matching.find((i) => i.isFeatured || i.isRecommended);
+    featured = topFeat || matching[0] || null;
+  }
+
+  const list = featured
+    ? matching.filter((i) => i.id !== featured!.id)
+    : matching;
+
+  return {
+    featured,
+    list: list.slice(0, 6),
+  };
 }
 
 function getInitialCategories(): ItineraryCategory[] {
@@ -68,6 +96,32 @@ function getInitialCategories(): ItineraryCategory[] {
     }
   } catch (e) {}
   return [];
+}
+
+/**
+ * Computes optimal batch size based on available viewport dimensions
+ * so only visible content + a small scroll margin is loaded initially.
+ */
+function computeOptimalBatchSize(isInitialLoad: boolean): number {
+  if (typeof window === 'undefined') return 3;
+  const width = window.innerWidth;
+  const height = window.innerHeight;
+
+  // Desktop 3-column grid
+  if (width >= 1024) {
+    return isInitialLoad ? 6 : 6;
+  }
+  // Tablet 2-column grid
+  if (width >= 640) {
+    return isInitialLoad ? 4 : 4;
+  }
+  // Mobile single-column: each card is ~245px tall; header+search+categories+featured ~410px
+  if (isInitialLoad) {
+    if (height < 740) return 2;
+    if (height < 900) return 3;
+    return 4;
+  }
+  return 3;
 }
 
 export interface AirbnbItineraryExplorerProps {
@@ -152,16 +206,146 @@ const CategoryPhotoThumbnail: React.FC<{
   );
 });
 
+interface FeaturedItineraryBannerProps {
+  itinerary: Itinerary;
+  category: string;
+  isDark: boolean;
+  isFavorite: boolean;
+  stopsCount: number;
+  onToggleFavorite: (e: React.MouseEvent) => void;
+  onOpenDetail: (itin: Itinerary) => void;
+}
+
+const FeaturedItineraryBanner: React.FC<FeaturedItineraryBannerProps> = ({
+  itinerary,
+  category,
+  isDark,
+  isFavorite,
+  stopsCount,
+  onToggleFavorite,
+  onOpenDetail,
+}) => {
+  const [imgSrc, setImgSrc] = useState(itinerary.coverImage);
+
+  useEffect(() => {
+    setImgSrc(itinerary.coverImage);
+  }, [itinerary.coverImage]);
+
+  return (
+    <div
+      className="px-5"
+      style={{ backgroundColor: isDark ? '#000000' : '#ffffff' }}
+    >
+      <motion.div
+        key={`featured-${itinerary.id}-${category}`}
+        initial={{ opacity: 0, filter: 'blur(14px)', y: 22, scale: 0.985 }}
+        animate={{ opacity: 1, filter: 'blur(0px)', y: 0, scale: 1 }}
+        transition={{
+          duration: 0.9,
+          ease: [0.16, 1, 0.3, 1],
+          delay: 0.04,
+        }}
+        style={{
+          transform: 'translate3d(0, 0, 0)',
+          WebkitTransform: 'translate3d(0, 0, 0)',
+          willChange: 'transform, opacity, filter',
+          backfaceVisibility: 'hidden',
+          WebkitBackfaceVisibility: 'hidden',
+        }}
+        onClick={() => onOpenDetail(itinerary)}
+        className={`group relative w-full h-[220px] sm:h-[240px] rounded-[28px] overflow-hidden cursor-pointer select-none shadow-md border backdrop-blur-md ${
+          isDark ? 'bg-zinc-900 border-white/10' : 'bg-zinc-200 border-black/5'
+        }`}
+      >
+        <img
+          src={imgSrc}
+          alt={itinerary.title}
+          loading="eager"
+          decoding="async"
+          onError={() => {
+            if (imgSrc !== '/placeholder.jpg') {
+              setImgSrc('/placeholder.jpg');
+            }
+          }}
+          className="absolute inset-0 w-full h-full object-cover group-hover:scale-105 transition-transform duration-700 ease-out"
+        />
+
+        {/* Discreet Dark Gradient Overlay on Left & Bottom for Text Legibility */}
+        <div className="absolute inset-0 bg-gradient-to-r from-black/85 via-black/45 to-black/15 pointer-events-none" />
+        <div className="absolute inset-0 bg-gradient-to-t from-black/85 via-black/25 to-black/5 pointer-events-none" />
+
+        {/* Banner Content Aligned Left */}
+        <div className="relative z-10 h-full p-5 flex flex-col justify-between items-start">
+          {/* Top Row: Highlight Badge + Heart Button */}
+          <div className="w-full flex items-center justify-between">
+            <span className="px-2.5 py-1 rounded-md bg-black/40 backdrop-blur-md border border-white/10 text-white/90 text-[10px] font-bold uppercase tracking-wider leading-none">
+              {itinerary.isFeatured ? 'Destaque' : 'Recomendado'}
+            </span>
+
+            {/* Heart Favorite Button */}
+            <button
+              type="button"
+              onClick={onToggleFavorite}
+              className="w-8 h-8 flex items-center justify-center transition-transform hover:scale-110 active:scale-90 cursor-pointer"
+              title={isFavorite ? 'Remover dos favoritos' : 'Salvar nos favoritos'}
+              aria-label={isFavorite ? 'Remover dos favoritos' : 'Salvar nos favoritos'}
+            >
+              <Heart
+                className={`w-7 h-7 transition-colors drop-shadow-[0_2px_6px_rgba(0,0,0,0.45)] ${
+                  isFavorite
+                    ? 'fill-rose-500 text-rose-500 stroke-[2]'
+                    : 'fill-black/30 text-white stroke-[2]'
+                }`}
+              />
+            </button>
+          </div>
+
+          {/* Middle Title & Summary + Bottom CTA Button */}
+          <div className="w-full max-w-[88%] sm:max-w-[78%]">
+            <h2 className="text-[19px] sm:text-[22px] font-bold text-white leading-tight tracking-tight line-clamp-2 drop-shadow-sm">
+              {itinerary.title}
+            </h2>
+            <p className="text-[11.5px] sm:text-[12.5px] text-white/85 font-medium line-clamp-1 mt-1 drop-shadow-xs">
+              {itinerary.daysCount} {itinerary.daysCount === 1 ? 'dia' : 'dias'}
+              {stopsCount > 0 ? ` · ${stopsCount} paradas` : ''} ·{' '}
+              {itinerary.description}
+            </p>
+
+            <div className="mt-3 flex items-center gap-2">
+              <span className="px-4 py-2 rounded-full bg-white text-zinc-900 text-[12px] font-semibold inline-flex items-center gap-1.5 shadow-md group-hover:bg-zinc-100 transition-colors">
+                <span>Ver roteiro</span>
+                <ArrowRight className="w-3.5 h-3.5 stroke-[2.4]" />
+              </span>
+            </div>
+          </div>
+        </div>
+      </motion.div>
+    </div>
+  );
+};
+
 export const AirbnbItineraryExplorer: React.FC<AirbnbItineraryExplorerProps> = ({
   onSelectItinerary,
   onOpenMap,
   theme = 'dark',
   activeItineraryId,
 }) => {
-  const [itineraries, setItineraries] = useState<Itinerary[]>(getInitialItineraries);
+  const initialItinerariesData = useMemo(() => getItinerariesForCategory('all', 'all', ''), []);
+  const [itineraries, setItineraries] = useState<Itinerary[]>(initialItinerariesData.list);
+  const [featuredBannerItinerary, setFeaturedBannerItinerary] = useState<Itinerary | null>(initialItinerariesData.featured);
   const [categories, setCategories] = useState<ItineraryCategory[]>(getInitialCategories);
-  const [loading, setLoading] = useState<boolean>(() => itineraries.length === 0);
+
+  // Progressive pagination states - starts false because initial cache/defaults are hydrated instantly
+  const [loading, setLoading] = useState<boolean>(false);
+  const isFirstMountRef = useRef<boolean>(true);
+  const [loadingMore, setLoadingMore] = useState<boolean>(false);
+  const [hasMore, setHasMore] = useState<boolean>(true);
+  const [initialError, setInitialError] = useState<string | null>(null);
+  const [loadMoreError, setLoadMoreError] = useState<string | null>(null);
+  const [totalMatching, setTotalMatching] = useState<number | undefined>(undefined);
+
   const [searchQuery, setSearchQuery] = useState('');
+  const [debouncedSearchQuery, setDebouncedSearchQuery] = useState('');
   const [isSearchFocused, setIsSearchFocused] = useState(false);
   const [selectedCategory, setSelectedCategory] = useState<string>('all');
   const [durationFilter, setDurationFilter] = useState<'all' | '1day' | 'multiday' | 'free'>('all');
@@ -186,19 +370,46 @@ export const AirbnbItineraryExplorer: React.FC<AirbnbItineraryExplorerProps> = (
 
   const [isCategorySwitching, setIsCategorySwitching] = useState(false);
 
+  const scrollContainerRef = useRef<HTMLDivElement | null>(null);
+  const loadMoreSentinelRef = useRef<HTMLDivElement | null>(null);
   const searchInputRef = useRef<HTMLInputElement>(null);
   const categorySwitchTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
+  // Pagination cursor/offset & concurrency refs
+  const nextCursorRef = useRef<string | null>(null);
+  const nextOffsetRef = useRef<number>(0);
+  const isFetchingRef = useRef<boolean>(false);
+  const queryGenerationRef = useRef<number>(0);
+  const featuredIdRef = useRef<string | null>(null);
+
+  // Debounce search input (240ms) to avoid firing DB queries on every keystroke
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedSearchQuery(searchQuery.trim());
+    }, 240);
+    return () => clearTimeout(timer);
+  }, [searchQuery]);
+
   const handleSelectCategory = useCallback((catId: string) => {
+    if (catId === selectedCategory) return;
     if (categorySwitchTimerRef.current) {
       clearTimeout(categorySwitchTimerRef.current);
     }
     setIsCategorySwitching(true);
     setSelectedCategory(catId);
+
+    // INSTANT (0ms) SYNCHRONOUS HYDRATION:
+    // Update both featured banner and itineraries immediately for this specific category.
+    // This physically prevents any flash of cards or banners from other categories!
+    const localData = getItinerariesForCategory(catId, durationFilter, debouncedSearchQuery);
+    setFeaturedBannerItinerary(localData.featured);
+    featuredIdRef.current = localData.featured?.id || null;
+    setItineraries(localData.list);
+
     categorySwitchTimerRef.current = setTimeout(() => {
       setIsCategorySwitching(false);
-    }, 320);
-  }, []);
+    }, 240);
+  }, [selectedCategory, durationFilter, debouncedSearchQuery]);
 
   useEffect(() => {
     return () => {
@@ -237,52 +448,201 @@ export const AirbnbItineraryExplorer: React.FC<AirbnbItineraryExplorerProps> = (
     toggleItinerary(itinId);
   }, [toggleItinerary]);
 
-  // Load store data with instant cache and background revalidation
-  const loadStoreData = async (silent = false) => {
-    try {
-      if (!silent && itineraries.length === 0) {
+  // Load categories once in background
+  useEffect(() => {
+    let mounted = true;
+    fetchItineraryCategoriesFromSupabase()
+      .then((catsData) => {
+        if (!mounted) return;
+        if (Array.isArray(catsData) && catsData.length > 0) {
+          setCategories(catsData);
+          memoryCategoriesCache = catsData;
+          try {
+            localStorage.setItem(CACHE_KEY_CATS, JSON.stringify(catsData));
+          } catch {}
+        }
+      })
+      .catch(() => {});
+    return () => {
+      mounted = false;
+    };
+  }, []);
+
+  // Load initial page of itineraries whenever filter/category/search changes
+  const loadInitialBatch = useCallback(
+    async (options?: { silent?: boolean; forceRefresh?: boolean }) => {
+      const currentGen = ++queryGenerationRef.current;
+      isFetchingRef.current = true;
+
+      if (!options?.silent) {
         setLoading(true);
       }
+      setInitialError(null);
+      setLoadMoreError(null);
+      setLoadingMore(false);
 
-      const [itinsData, catsData] = await Promise.all([
-        fetchItinerariesFromSupabase().catch(() => null),
-        fetchItineraryCategoriesFromSupabase().catch(() => null),
-      ]);
+      const initialBatchSize = computeOptimalBatchSize(true);
+      const shouldIncludeFeatured = !debouncedSearchQuery;
 
-      if (Array.isArray(itinsData) && itinsData.length > 0) {
-        setItineraries(itinsData);
-        memoryItinerariesCache = itinsData;
-        try {
-          localStorage.setItem(CACHE_KEY_ITINS, JSON.stringify(itinsData));
-        } catch (e) {}
+      try {
+        const result = await fetchPaginatedItinerariesFromSupabase({
+          limit: initialBatchSize,
+          cursor: null,
+          offset: 0,
+          category: selectedCategory,
+          durationFilter,
+          searchQuery: debouncedSearchQuery,
+          includeFeaturedBanner: shouldIncludeFeatured,
+          forceRefresh: options?.forceRefresh,
+        });
 
-        const freshImageUrls = extractAllItineraryImageUrls(itinsData);
-        freshImageUrls.forEach((u) => preloadImage(u, 'high'));
+        // Ignore stale response if user switched category/search while request was in flight
+        if (currentGen !== queryGenerationRef.current) return;
+
+        // Double check that featuredItinerary strictly belongs to this selectedCategory
+        let validatedFeatured = result.featuredItinerary || null;
+        if (
+          validatedFeatured &&
+          !matchesItineraryFilter(validatedFeatured, selectedCategory, durationFilter, debouncedSearchQuery)
+        ) {
+          validatedFeatured = null;
+        }
+
+        // Strictly filter itineraries to guarantee zero cross-category contamination
+        const validatedItineraries = (result.itineraries || []).filter((item) =>
+          matchesItineraryFilter(item, selectedCategory, durationFilter, debouncedSearchQuery)
+        );
+
+        setFeaturedBannerItinerary(validatedFeatured);
+        featuredIdRef.current = validatedFeatured?.id || null;
+
+        if (validatedFeatured?.coverImage) {
+          preloadImage(validatedFeatured.coverImage, 'high');
+        }
+
+        setItineraries(validatedItineraries);
+        setHasMore(result.hasMore);
+        setTotalMatching(result.totalMatching);
+        nextCursorRef.current = result.nextCursor;
+        nextOffsetRef.current = result.nextOffset;
+      } catch (err: any) {
+        if (currentGen !== queryGenerationRef.current) return;
+        console.warn('[Roteiros] Erro ao carregar lote inicial:', err);
+        setInitialError('Não foi possível carregar os roteiros. Verifique sua conexão e tente novamente.');
+      } finally {
+        if (currentGen === queryGenerationRef.current) {
+          setLoading(false);
+          isFetchingRef.current = false;
+        }
       }
+    },
+    [selectedCategory, durationFilter, debouncedSearchQuery]
+  );
 
-      if (Array.isArray(catsData) && catsData.length > 0) {
-        setCategories(catsData);
-        memoryCategoriesCache = catsData;
-        try {
-          localStorage.setItem(CACHE_KEY_CATS, JSON.stringify(catsData));
-        } catch (e) {}
-      }
-    } catch (e) {
-      console.warn('Network issue fetching store data, using curated local data:', e);
-    } finally {
-      setLoading(false);
-    }
-  };
-
+  // Trigger initial paginated load when category, duration, or debounced search changes
   useEffect(() => {
-    const hasCached = itineraries.length > 0;
-    loadStoreData(hasCached);
+    if (isFirstMountRef.current) {
+      isFirstMountRef.current = false;
+      loadInitialBatch({ silent: true });
+    } else {
+      loadInitialBatch();
+    }
+  }, [loadInitialBatch]);
 
+  // Subscribe to realtime / admin itinerary updates
+  useEffect(() => {
     const unsubscribe = subscribeToItinerariesChanges(() => {
-      loadStoreData(true);
+      clearItinerariesPageCache();
+      loadInitialBatch({ silent: true, forceRefresh: true });
     });
     return () => unsubscribe();
-  }, []);
+  }, [loadInitialBatch]);
+
+  // Load next batch of itineraries on scroll (Infinite Scroll)
+  const loadMoreItineraries = useCallback(
+    async (isManualRetry = false) => {
+      if (isFetchingRef.current || loading || loadingMore || !hasMore) return;
+      if (loadMoreError && !isManualRetry) return;
+
+      const currentGen = queryGenerationRef.current;
+      isFetchingRef.current = true;
+      setLoadingMore(true);
+      setLoadMoreError(null);
+
+      const nextBatchSize = computeOptimalBatchSize(false);
+
+      try {
+        const excludeIds = featuredIdRef.current ? [featuredIdRef.current] : [];
+        const result = await fetchPaginatedItinerariesFromSupabase({
+          limit: nextBatchSize,
+          cursor: nextCursorRef.current,
+          offset: nextOffsetRef.current,
+          category: selectedCategory,
+          durationFilter,
+          searchQuery: debouncedSearchQuery,
+          excludeIds,
+          includeFeaturedBanner: false,
+        });
+
+        // Ignore if filter changed while fetching
+        if (currentGen !== queryGenerationRef.current) return;
+
+        // Ensure newly fetched items strictly match the selected category
+        const strictlyMatchingIncoming = (result.itineraries || []).filter((item) =>
+          matchesItineraryFilter(item, selectedCategory, durationFilter, debouncedSearchQuery)
+        );
+
+        setItineraries((prev) => {
+          const existingIds = new Set(prev.map((item) => item.id));
+          if (featuredIdRef.current) existingIds.add(featuredIdRef.current);
+          const uniqueIncoming = strictlyMatchingIncoming.filter(
+            (item) => !existingIds.has(item.id)
+          );
+          return uniqueIncoming.length > 0 ? [...prev, ...uniqueIncoming] : prev;
+        });
+
+        setHasMore(result.hasMore && strictlyMatchingIncoming.length > 0);
+        nextCursorRef.current = result.nextCursor;
+        nextOffsetRef.current = result.nextOffset;
+      } catch (err: any) {
+        if (currentGen !== queryGenerationRef.current) return;
+        console.warn('[Roteiros] Erro ao carregar mais roteiros:', err);
+        setLoadMoreError('Falha ao carregar mais roteiros.');
+      } finally {
+        if (currentGen === queryGenerationRef.current) {
+          setLoadingMore(false);
+          isFetchingRef.current = false;
+        }
+      }
+    },
+    [loading, loadingMore, hasMore, loadMoreError, selectedCategory, durationFilter, debouncedSearchQuery]
+  );
+
+  // IntersectionObserver for automatic Infinite Scroll when user nears bottom of loaded list
+  useEffect(() => {
+    const sentinel = loadMoreSentinelRef.current;
+    const scrollRoot = scrollContainerRef.current;
+    if (!sentinel || !hasMore || loading) return;
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        const first = entries[0];
+        if (first && first.isIntersecting && !isFetchingRef.current && !loadMoreError) {
+          loadMoreItineraries(false);
+        }
+      },
+      {
+        root: scrollRoot || null,
+        rootMargin: '0px 0px 340px 0px',
+        threshold: 0.01,
+      }
+    );
+
+    observer.observe(sentinel);
+    return () => {
+      observer.disconnect();
+    };
+  }, [hasMore, loading, loadMoreError, loadMoreItineraries, itineraries.length]);
 
   // Curated Categories using the original 3D icons at the exact same size as the mini photos
   const photoCategories = useMemo<PhotoCategoryItem[]>(() => {
@@ -385,150 +745,33 @@ export const AirbnbItineraryExplorer: React.FC<AirbnbItineraryExplorerProps> = (
     return base;
   }, [categories]);
 
-  // Real-time filtering
-  const filteredItineraries = useMemo(() => {
-    let result = itineraries;
-
-    const normalizeToken = (val: string) =>
-      val
-        .normalize('NFD')
-        .replace(/[\u0300-\u036f]/g, '')
-        .toLowerCase()
-        .trim();
-
-    // 1. Category Filter
-    if (selectedCategory && selectedCategory !== 'all') {
-      const cat = normalizeToken(selectedCategory);
-
-      result = result.filter((itin) => {
-        if (cat === 'destaque') {
-          return Boolean(itin.isFeatured || itin.isRecommended);
-        }
-
-        const itinCats = (itin.categories || []).map(normalizeToken);
-        const normTitle = normalizeToken(itin.title || '');
-
-        if (cat === 'natureza' || cat === 'nature') {
-          return (
-            itinCats.some((c) =>
-              ['nature', 'natureza', 'ecotourism', 'ecoturismo'].includes(c)
-            ) || normTitle.includes('natureza')
-          );
-        }
-
-        if (cat === 'romantico' || cat === 'romantic') {
-          return (
-            itinCats.some((c) =>
-              ['romantic', 'romantico', 'casais', 'casal', 'romance'].includes(c)
-            ) ||
-            normTitle.includes('romantic') ||
-            normTitle.includes('casal') ||
-            normTitle.includes('casais')
-          );
-        }
-
-        if (cat === 'gastronomia' || cat === 'gastronomy') {
-          return (
-            itinCats.some((c) =>
-              ['gastronomy', 'gastronomia', 'sweets', 'cafes', 'culinaria', 'fondue'].includes(c)
-            ) ||
-            normTitle.includes('gastronom') ||
-            normTitle.includes('fondue')
-          );
-        }
-
-        if (cat === 'aventura' || cat === 'adventure') {
-          return (
-            itinCats.some((c) =>
-              ['adventure', 'aventura', 'trilhas', 'radical', 'esportes'].includes(c)
-            ) ||
-            normTitle.includes('aventur') ||
-            normTitle.includes('trilha')
-          );
-        }
-
-        if (cat === 'familia' || cat === 'family') {
-          return (
-            itinCats.some((c) =>
-              ['family', 'familia', 'kids', 'criancas'].includes(c)
-            ) || normTitle.includes('familia')
-          );
-        }
-
-        if (cat === 'terror') {
-          return (
-            itinCats.some((c) =>
-              ['terror', 'assombrado', 'misterio', 'sobrenatural'].includes(c)
-            ) || normTitle.includes('terror')
-          );
-        }
-
-        return itinCats.includes(cat) || normTitle.includes(cat);
-      });
-    }
-
-    // 2. Duration / Type Filter
-    if (durationFilter === '1day') {
-      result = result.filter((itin) => itin.daysCount === 1);
-    } else if (durationFilter === 'multiday') {
-      result = result.filter((itin) => (itin.daysCount || 1) >= 2);
-    } else if (durationFilter === 'free') {
-      result = result.filter(
-        (itin) =>
-          !itin.isPremium ||
-          itin.badgeText?.toLowerCase() === 'livre' ||
-          itin.price === 'R$ 0' ||
-          itin.price === 'Grátis'
-      );
-    }
-
-    // 3. Search Query Filter
-    const q = searchQuery.toLowerCase().trim();
-    if (q) {
-      result = result.filter((itin) => {
-        const matchesTitle = itin.title.toLowerCase().includes(q);
-        const matchesDesc = itin.description?.toLowerCase().includes(q);
-        const matchesCat = (itin.categories || []).some((c) => c.toLowerCase().includes(q));
-        const matchesSpots = (itin.days || []).some((d) =>
-          (d.steps || []).some(
-            (s) =>
-              s.spot?.name?.toLowerCase().includes(q) ||
-              s.spotName?.toLowerCase().includes(q)
-          )
-        );
-        return matchesTitle || matchesDesc || matchesCat || matchesSpots;
-      });
-    }
-
-    return result;
-  }, [itineraries, selectedCategory, durationFilter, searchQuery]);
-
-  // Featured Itinerary for Main Banner (Section 4 of spec)
-  // Shown on 'all' (Todos) and 'destaque' (Destaques)
-  const featuredBannerItinerary = useMemo<Itinerary | null>(() => {
-    if (selectedCategory !== 'all' && selectedCategory !== 'destaque') {
+  // Strict Category-Guarded Featured Banner
+  const validFeaturedBanner = useMemo(() => {
+    if (!featuredBannerItinerary) return null;
+    if (debouncedSearchQuery) return null;
+    if (!matchesItineraryFilter(featuredBannerItinerary, selectedCategory, durationFilter, debouncedSearchQuery)) {
       return null;
     }
-    if (filteredItineraries.length > 0) {
-      return filteredItineraries.find((i) => i.isFeatured || i.isRecommended) || null;
-    }
-    return null;
-  }, [filteredItineraries, selectedCategory]);
+    return featuredBannerItinerary;
+  }, [featuredBannerItinerary, selectedCategory, durationFilter, debouncedSearchQuery]);
 
-  // Discovery Itineraries List for Section 5 ("Roteiros para descobrir")
-  // Excludes only the single itinerary already shown in the top featured banner so all other itineraries appear
-  const discoveryItineraries = useMemo<Itinerary[]>(() => {
-    return filteredItineraries.filter((i) => {
+  // Strict Category-Guarded Discovery Itineraries List for Section 5 ("Roteiros para descobrir")
+  const displayItineraries = useMemo<Itinerary[]>(() => {
+    return itineraries.filter((i) => {
+      // Must strictly match active category filter
+      if (!matchesItineraryFilter(i, selectedCategory, durationFilter, debouncedSearchQuery)) {
+        return false;
+      }
       if (
-        featuredBannerItinerary &&
-        (i.id === featuredBannerItinerary.id ||
-          i.title.trim().toLowerCase() === featuredBannerItinerary.title.trim().toLowerCase())
+        validFeaturedBanner &&
+        (i.id === validFeaturedBanner.id ||
+          i.title.trim().toLowerCase() === validFeaturedBanner.title.trim().toLowerCase())
       ) {
         return false;
       }
       return true;
     });
-  }, [filteredItineraries, featuredBannerItinerary]);
+  }, [itineraries, validFeaturedBanner, selectedCategory, durationFilter, debouncedSearchQuery]);
 
   const handleOpenDetail = useCallback((itin: Itinerary) => {
     setSelectedItinerary(itin);
@@ -546,15 +789,16 @@ export const AirbnbItineraryExplorer: React.FC<AirbnbItineraryExplorerProps> = (
   const isDark = theme === 'dark';
 
   const featuredStopsCount = useMemo(() => {
-    if (!featuredBannerItinerary?.days) return 0;
-    return featuredBannerItinerary.days.reduce(
+    if (!validFeaturedBanner?.days) return 0;
+    return validFeaturedBanner.days.reduce(
       (acc, d) => acc + (d.steps?.length || 0),
       0
     );
-  }, [featuredBannerItinerary]);
+  }, [validFeaturedBanner]);
 
   return (
     <div
+      ref={scrollContainerRef}
       id="airbnb-itinerary-scroll-container"
       className={`relative w-full h-full overflow-y-auto overscroll-y-contain select-none transition-colors duration-200 rounded-t-[26px] ${
         isDark ? 'bg-[#000000] text-white' : 'bg-[#ffffff] text-zinc-900'
@@ -587,15 +831,11 @@ export const AirbnbItineraryExplorer: React.FC<AirbnbItineraryExplorerProps> = (
               <button
                 type="button"
                 onClick={() => setShowAllItineraries(false)}
-                className={`w-9 h-9 rounded-full flex items-center justify-center transition-colors cursor-pointer shrink-0 border ${
-                  isDark
-                    ? 'bg-[#161618] border-white/10 text-white hover:border-white/25'
-                    : 'bg-white border-zinc-200/90 text-zinc-900 hover:bg-zinc-100'
-                }`}
+                className="w-9 h-9 flex items-center justify-center text-white cursor-pointer active:scale-90 transition-transform bg-transparent border-none shadow-none outline-none"
                 title="Voltar"
                 aria-label="Voltar"
               >
-                <ChevronLeft className="w-4 h-4 stroke-[2.2]" />
+                <ArrowLeft className="w-6 h-6 stroke-[2.4] text-white" />
               </button>
             )}
             <h1
@@ -607,22 +847,17 @@ export const AirbnbItineraryExplorer: React.FC<AirbnbItineraryExplorerProps> = (
             </h1>
           </div>
 
-          {/* Right Action: Compact Plátanos Balance + Active Map Route if any */}
+          {/* Right Action: Back arrow without background to map + Compact Plátanos Balance */}
           <div className="flex items-center gap-2">
-            {activeItineraryId && onOpenMap ? (
+            {onOpenMap ? (
               <button
                 type="button"
                 onClick={onOpenMap}
-                className={`h-9 px-3 rounded-full flex items-center gap-1.5 text-xs font-semibold transition-all cursor-pointer border shadow-2xs ${
-                  isDark
-                    ? 'bg-[#161618] border-white/15 text-white hover:bg-white/10'
-                    : 'bg-white border-zinc-200/90 text-zinc-900 hover:bg-zinc-50'
-                }`}
-                title="Voltar ao mapa do roteiro ativo"
-                aria-label="Voltar ao mapa do roteiro ativo"
+                className="w-9 h-9 flex items-center justify-center text-white cursor-pointer active:scale-90 transition-transform bg-transparent border-none shadow-none outline-none"
+                title="Voltar ao mapa"
+                aria-label="Voltar ao mapa"
               >
-                <MapPin className="w-3.5 h-3.5 stroke-[2.2]" />
-                <span className="hidden sm:inline">Meu roteiro</span>
+                <ArrowLeft className="w-6 h-6 stroke-[2.4] text-white" />
               </button>
             ) : null}
 
@@ -775,18 +1010,90 @@ export const AirbnbItineraryExplorer: React.FC<AirbnbItineraryExplorerProps> = (
               : 'opacity-100 blur-0 scale-100'
           }`}
         >
-        {loading && itineraries.length === 0 ? (
-          <div className="py-24 flex flex-col items-center justify-center space-y-3">
-            <div
-              className={`w-8 h-8 rounded-full border-2 border-t-transparent animate-spin ${
-                isDark ? 'border-white/70' : 'border-zinc-800'
-              }`}
-            />
-            <p className={`text-xs font-medium ${isDark ? 'text-zinc-400' : 'text-zinc-500'}`}>
-              Carregando roteiros...
+        {loading && displayItineraries.length === 0 && !validFeaturedBanner ? (
+          /* Initial Progressive Loading State with Apple iOS Translucent Glass Frost Effect */
+          <motion.div
+            initial={{ opacity: 0, filter: 'blur(10px)' }}
+            animate={{ opacity: 1, filter: 'blur(0px)' }}
+            transition={{ duration: 0.3, ease: [0.22, 1, 0.36, 1] }}
+            className="px-5 space-y-5"
+            aria-busy="true"
+            aria-live="polite"
+          >
+            {!debouncedSearchQuery && (
+              <div
+                className={`relative w-full h-[192px] sm:h-[216px] rounded-[28px] overflow-hidden backdrop-blur-2xl border shadow-[0_8px_32px_rgba(0,0,0,0.25)] flex flex-col justify-end p-5 transition-colors ${
+                  isDark
+                    ? 'bg-white/[0.04] border-white/10'
+                    : 'bg-black/[0.03] border-black/10'
+                }`}
+              >
+                <div className="absolute inset-0 bg-gradient-to-tr from-black/40 via-transparent to-white/[0.03] pointer-events-none" />
+                <div className="relative z-10 space-y-2">
+                  <div className={`h-4 w-28 rounded-full animate-pulse ${isDark ? 'bg-white/15' : 'bg-black/10'}`} />
+                  <div className={`h-6 w-3/4 rounded-xl animate-pulse ${isDark ? 'bg-white/20' : 'bg-black/15'}`} />
+                  <div className={`h-3.5 w-1/2 rounded-full animate-pulse ${isDark ? 'bg-white/15' : 'bg-black/10'}`} />
+                </div>
+              </div>
+            )}
+            <div className="space-y-3">
+              <div className={`h-4 w-40 rounded-full animate-pulse ${isDark ? 'bg-white/15' : 'bg-black/10'}`} />
+              <div className="flex flex-col gap-5 sm:grid sm:grid-cols-2 lg:grid-cols-3">
+                {[0, 1].map((skeletonIdx) => (
+                  <div key={skeletonIdx} className="flex flex-col gap-2.5">
+                    <div
+                      className={`w-full h-[182px] sm:h-[196px] rounded-[26px] overflow-hidden backdrop-blur-xl border shadow-xs flex flex-col justify-end p-4 transition-colors ${
+                        isDark
+                          ? 'bg-white/[0.03] border-white/[0.08]'
+                          : 'bg-black/[0.025] border-black/10'
+                      }`}
+                    >
+                      <div className="space-y-2">
+                        <div className={`h-3.5 w-20 rounded-full animate-pulse ${isDark ? 'bg-white/15' : 'bg-black/10'}`} />
+                        <div className={`h-5 w-4/5 rounded-xl animate-pulse ${isDark ? 'bg-white/20' : 'bg-black/15'}`} />
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+            <div className="py-2 flex items-center justify-center gap-2">
+              <div
+                className={`w-4 h-4 rounded-full border-2 border-t-transparent animate-spin ${
+                  isDark ? 'border-white/70' : 'border-zinc-800'
+                }`}
+              />
+              <span className={`text-xs font-medium ${isDark ? 'text-zinc-400' : 'text-zinc-500'}`}>
+                Carregando roteiros...
+              </span>
+            </div>
+          </motion.div>
+        ) : initialError && displayItineraries.length === 0 && !validFeaturedBanner ? (
+          /* Initial Connection Error State */
+          <div
+            className={`text-center py-16 px-6 space-y-3 ${
+              isDark ? 'text-zinc-400' : 'text-zinc-500'
+            }`}
+          >
+            <AlertCircle className="w-10 h-10 mx-auto mb-1 opacity-60 stroke-[1.8]" />
+            <p className={`text-base font-bold ${isDark ? 'text-white' : 'text-zinc-900'}`}>
+              Erro de conexão
             </p>
+            <p className="text-xs max-w-xs mx-auto leading-relaxed">
+              {initialError}
+            </p>
+            <button
+              type="button"
+              onClick={() => loadInitialBatch({ forceRefresh: true })}
+              className={`mt-2 px-4 py-2 rounded-full text-xs font-semibold inline-flex items-center gap-1.5 cursor-pointer active:scale-95 transition-transform ${
+                isDark ? 'bg-white text-black' : 'bg-zinc-900 text-white'
+              }`}
+            >
+              <RotateCcw className="w-3.5 h-3.5 stroke-[2.2]" />
+              <span>Tentar novamente</span>
+            </button>
           </div>
-        ) : filteredItineraries.length === 0 ? (
+        ) : displayItineraries.length === 0 && !validFeaturedBanner ? (
           /* Empty State when search or filter matches 0 items */
           <div
             className={`text-center py-16 px-6 space-y-2.5 ${
@@ -815,132 +1122,64 @@ export const AirbnbItineraryExplorer: React.FC<AirbnbItineraryExplorerProps> = (
             </button>
           </div>
         ) : (
-          <>
-            {/* 4. ROTEIRO EM DESTAQUE — BANNER PRINCIPAL (Fidelidade ao card "The Marble Suite, Leeds") */}
-            {featuredBannerItinerary && !searchQuery.trim() && (
-              <div className="px-5" style={{ backgroundColor: isDark ? '#000000' : '#ffffff' }}>
-                <motion.div
-                  key={`featured-${featuredBannerItinerary.id}`}
-                  initial={{ opacity: 0, y: 6 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ duration: 0.22, ease: [0.22, 1, 0.36, 1] }}
-                  onClick={() => handleOpenDetail(featuredBannerItinerary)}
-                  className={`group relative w-full h-[192px] sm:h-[216px] rounded-[24px] overflow-hidden cursor-pointer select-none shadow-sm border ${
-                    isDark ? 'bg-zinc-900 border-white/10' : 'bg-zinc-200 border-black/5'
-                  }`}
-                >
-                  {/* Full-bleed Photograph */}
-                  <img
-                    src={featuredBannerItinerary.coverImage}
-                    alt={featuredBannerItinerary.title}
-                    loading="eager"
-                    decoding="async"
-                    referrerPolicy="no-referrer"
-                    onError={(e) => {
-                      (e.target as HTMLImageElement).src =
-                        'https://images.unsplash.com/photo-1585320806297-9794b3e4eeae?auto=format&fit=crop&w=1000&q=80';
-                    }}
-                    className="absolute inset-0 w-full h-full object-cover transition-transform duration-500 group-hover:scale-103 pointer-events-none"
-                  />
-
-                  {/* Discreet Dark Gradient Overlay on Left & Bottom for Text Legibility */}
-                  <div className="absolute inset-0 bg-gradient-to-r from-black/80 via-black/45 to-black/10 pointer-events-none" />
-                  <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/15 to-transparent pointer-events-none" />
-
-                  {/* Banner Content Aligned Left */}
-                  <div className="relative z-10 h-full p-5 flex flex-col justify-between items-start">
-                    {/* Top Row: Highlight Badge + Heart Button */}
-                    <div className="w-full flex items-center justify-between">
-                      <span className="px-2.5 py-1 rounded-md bg-black/35 backdrop-blur-xs border border-white/15 text-white/95 text-[9.5px] font-bold uppercase tracking-widest leading-none">
-                        ROTEIRO EM DESTAQUE
-                      </span>
-                      <button
-                        type="button"
-                        onClick={(e) => handleToggleFavorite(featuredBannerItinerary.id, e)}
-                        className="w-8 h-8 flex items-center justify-center transition-transform hover:scale-110 active:scale-90 cursor-pointer"
-                        title={favorites.includes(featuredBannerItinerary.id) ? 'Remover dos favoritos' : 'Salvar nos favoritos'}
-                        aria-label={favorites.includes(featuredBannerItinerary.id) ? 'Remover dos favoritos' : 'Salvar nos favoritos'}
-                      >
-                        <Heart
-                          className={`w-7 h-7 transition-colors drop-shadow-[0_2px_6px_rgba(0,0,0,0.45)] ${
-                            favorites.includes(featuredBannerItinerary.id)
-                              ? 'fill-rose-500 text-rose-500 stroke-[2]'
-                              : 'fill-black/30 text-white stroke-[2]'
-                          }`}
-                        />
-                      </button>
-                    </div>
-
-                    {/* Middle Title & Summary + Bottom CTA Button */}
-                    <div className="w-full max-w-[88%] sm:max-w-[78%]">
-                      <h2 className="text-[19px] sm:text-[22px] font-bold text-white leading-tight tracking-tight line-clamp-2">
-                        {featuredBannerItinerary.title}
-                      </h2>
-                      <p className="text-[11.5px] sm:text-[12.5px] text-white/85 font-medium line-clamp-1 mt-1">
-                        {featuredBannerItinerary.daysCount}{' '}
-                        {featuredBannerItinerary.daysCount === 1 ? 'dia' : 'dias'}
-                        {featuredStopsCount > 0 ? ` · ${featuredStopsCount} paradas` : ''} ·{' '}
-                        {featuredBannerItinerary.description}
-                      </p>
-
-                      <div className="mt-3 flex items-center gap-2 flex-wrap">
-                        <button
-                          type="button"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            handleOpenDetail(featuredBannerItinerary);
-                          }}
-                          className="px-4 py-2 rounded-full bg-white text-zinc-900 text-[12px] font-semibold inline-flex items-center gap-1.5 shadow-sm hover:bg-zinc-100 active:scale-95 transition-all cursor-pointer"
-                        >
-                          <span>Ver roteiro</span>
-                          <ArrowRight className="w-3.5 h-3.5 stroke-[2.4]" />
-                        </button>
-
-                        {featuredBannerItinerary.isPremium &&
-                          featuredBannerItinerary.badgeText?.toLowerCase() !== 'livre' &&
-                          !isItineraryUnlocked(featuredBannerItinerary.id) && (
-                            <button
-                              type="button"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                setConfirmPurchaseItin(featuredBannerItinerary);
-                              }}
-                              className="w-9 h-9 rounded-full bg-black/65 backdrop-blur-md border border-[#D9A84E]/40 text-white flex items-center justify-center hover:bg-black/80 active:scale-95 transition-all cursor-pointer shadow-md"
-                              title="Adicionar roteiro"
-                              aria-label="Adicionar roteiro"
-                            >
-                              <Plus className="w-4 h-4 stroke-[2.6] text-[#D9A84E]" />
-                            </button>
-                          )}
-                      </div>
-                    </div>
-                  </div>
-                </motion.div>
-              </div>
+          <motion.div
+            key={`itineraries-reveal-${selectedCategory}-${durationFilter}-${debouncedSearchQuery}`}
+            initial={{ opacity: 0, filter: 'blur(14px)', y: 14 }}
+            animate={{ opacity: 1, filter: 'blur(0px)', y: 0 }}
+            transition={{
+              duration: 0.85,
+              ease: [0.16, 1, 0.3, 1],
+            }}
+            style={{
+              transform: 'translate3d(0, 0, 0)',
+              WebkitTransform: 'translate3d(0, 0, 0)',
+              willChange: 'transform, opacity, filter',
+            }}
+            className="space-y-6"
+          >
+            {/* 4. ROTEIRO EM DESTAQUE — BANNER */}
+            {validFeaturedBanner && (
+              <FeaturedItineraryBanner
+                itinerary={validFeaturedBanner}
+                category={selectedCategory}
+                isDark={isDark}
+                isFavorite={favorites.includes(validFeaturedBanner.id)}
+                stopsCount={featuredStopsCount}
+                onToggleFavorite={(e) => handleToggleFavorite(validFeaturedBanner.id, e)}
+                onOpenDetail={handleOpenDetail}
+              />
             )}
 
             {/* 5. SEÇÃO DE ROTEIROS ABAIXO DO BANNER ("Roteiros para descobrir") */}
-            {(searchQuery.trim() ? filteredItineraries : discoveryItineraries).length > 0 && (
+            {displayItineraries.length > 0 && (
               <section className="space-y-3">
-                <div className="px-5 flex items-center justify-between">
+                <motion.div
+                  initial={{ opacity: 0, y: 14, filter: 'blur(8px)' }}
+                  animate={{ opacity: 1, y: 0, filter: 'blur(0px)' }}
+                  transition={{
+                    duration: 0.75,
+                    ease: [0.16, 1, 0.3, 1],
+                    delay: 0.12,
+                  }}
+                  className="px-5 flex items-center justify-between"
+                >
                   <h3
                     className={`text-[18px] sm:text-[19px] font-bold tracking-tight ${
                       isDark ? 'text-white' : 'text-zinc-900'
                     }`}
                   >
-                    {searchQuery.trim()
-                      ? `Resultados (${filteredItineraries.length})`
+                    {debouncedSearchQuery
+                      ? `Resultados (${totalMatching ?? displayItineraries.length})`
                       : selectedCategory !== 'all'
                         ? `Roteiros · ${photoCategories.find((c) => c.id === selectedCategory)?.name || 'Para descobrir'}`
                         : 'Roteiros para descobrir'}
                   </h3>
-                </div>
+                </motion.div>
 
                 {/* 6. CARDS FOTOGRÁFICOS DE ROTEIROS EM LISTA VERTICAL (Deslizar para baixo) */}
                 <div className="px-5 flex flex-col gap-5 sm:grid sm:grid-cols-2 lg:grid-cols-3" style={{ backgroundColor: isDark ? '#000000' : '#ffffff' }}>
-                  {(searchQuery.trim() ? filteredItineraries : discoveryItineraries).map(
-                    (itin, idx) => (
-                      <HorizontalReferenceItineraryCard
+                  {displayItineraries.map((itin, idx) => (
+                    <HorizontalReferenceItineraryCard
                         key={itin.id}
                         index={idx}
                         itinerary={itin}
@@ -948,7 +1187,7 @@ export const AirbnbItineraryExplorer: React.FC<AirbnbItineraryExplorerProps> = (
                         onToggleFavorite={(e) => handleToggleFavorite(itin.id, e)}
                         onClick={() => handleOpenDetail(itin)}
                         onQuickAdd={
-                          itin.isPremium && itin.badgeText?.toLowerCase() !== 'livre'
+                          itin.isPremium && itin.badgeText?.toLowerCase() !== 'grátis'
                             ? () => {
                                 if (isItineraryUnlocked(itin.id)) {
                                   handleOpenDetail(itin);
@@ -966,9 +1205,74 @@ export const AirbnbItineraryExplorer: React.FC<AirbnbItineraryExplorerProps> = (
                     )
                   )}
                 </div>
+
+                {/* 7. INFINITE SCROLL SENTINEL & PROGRESSIVE LOADING FOOTER STATES */}
+                <div className="px-5 pt-2">
+                  {/* Intersection Observer Sentinel */}
+                  {hasMore && !loadMoreError && (
+                    <div
+                      ref={loadMoreSentinelRef}
+                      className="w-full h-3 pointer-events-none"
+                      aria-hidden="true"
+                    />
+                  )}
+
+                  {/* Additional Batch Loading Indicator */}
+                  {loadingMore && (
+                    <div
+                      className="py-4 flex items-center justify-center gap-2.5"
+                      role="status"
+                      aria-live="polite"
+                    >
+                      <div
+                        className={`w-4 h-4 rounded-full border-2 border-t-transparent animate-spin ${
+                          isDark ? 'border-white/70' : 'border-zinc-800'
+                        }`}
+                      />
+                      <span
+                        className={`text-xs font-medium tracking-tight ${
+                          isDark ? 'text-zinc-400' : 'text-zinc-500'
+                        }`}
+                      >
+                        Carregando mais roteiros...
+                      </span>
+                    </div>
+                  )}
+
+                  {/* Pagination Error State (preserves already loaded itineraries) */}
+                  {loadMoreError && !loadingMore && (
+                    <div
+                      className={`my-2 p-3.5 rounded-2xl border flex items-center justify-between gap-3 ${
+                        isDark
+                          ? 'bg-zinc-900/90 border-white/10 text-zinc-300'
+                          : 'bg-zinc-50 border-zinc-200 text-zinc-700'
+                      }`}
+                    >
+                      <div className="flex items-center gap-2 min-w-0">
+                        <AlertCircle className="w-4 h-4 shrink-0 text-amber-400" />
+                        <span className="text-xs font-medium truncate">
+                          {loadMoreError}
+                        </span>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => loadMoreItineraries(true)}
+                        className={`px-3 py-1.5 rounded-full text-xs font-semibold shrink-0 inline-flex items-center gap-1.5 cursor-pointer active:scale-95 transition-transform ${
+                          isDark
+                            ? 'bg-white text-black hover:bg-zinc-200'
+                            : 'bg-zinc-900 text-white hover:bg-zinc-800'
+                        }`}
+                      >
+                        <RotateCcw className="w-3 h-3 stroke-[2.2]" />
+                        <span>Tentar novamente</span>
+                      </button>
+                    </div>
+                  )}
+
+                </div>
               </section>
             )}
-          </>
+          </motion.div>
         )}
         </div>
       </div>
@@ -1087,7 +1391,7 @@ const HorizontalReferenceItineraryCard: React.FC<HorizontalReferenceItineraryCar
       }, [itinerary.days]);
 
       const isPremiumCard = Boolean(
-        itinerary.isPremium && itinerary.badgeText?.toLowerCase() !== 'livre'
+        itinerary.isPremium && itinerary.badgeText?.toLowerCase() !== 'grátis'
       );
 
       const badgeLabel = useMemo(() => {
@@ -1103,35 +1407,45 @@ const HorizontalReferenceItineraryCard: React.FC<HorizontalReferenceItineraryCar
       return (
         <motion.div
           onClick={onClick}
-          initial={{ opacity: 0, y: 6 }}
-          animate={{ opacity: 1, y: 0 }}
+          initial={{ opacity: 0, filter: 'blur(16px)', y: 22, scale: 0.985 }}
+          animate={{ opacity: 1, filter: 'blur(0px)', y: 0, scale: 1 }}
           transition={{
-            duration: 0.2,
-            ease: [0.22, 1, 0.36, 1],
-            delay: Math.min((index % 6) * 0.03, 0.12),
+            duration: 0.85,
+            ease: [0.16, 1, 0.3, 1],
+            delay: 0.12 + Math.min((index % 6) * 0.09, 0.54),
+          }}
+          style={{
+            transform: 'translate3d(0, 0, 0)',
+            WebkitTransform: 'translate3d(0, 0, 0)',
+            willChange: 'transform, opacity, filter',
+            backfaceVisibility: 'hidden',
+            WebkitBackfaceVisibility: 'hidden',
           }}
           whileTap={{ scale: 0.98 }}
           className="group flex flex-col cursor-pointer select-none"
         >
-          {/* 1. HORIZONTAL RECTANGULAR PHOTOGRAPH (Proporção horizontal fiel à referência) */}
+          {/* 1. HORIZONTAL RECTANGULAR PHOTOGRAPH (Proporção horizontal fiel à referência + Dimensões reservadas) */}
           <div
-            className={`relative w-full h-[182px] sm:h-[196px] rounded-[22px] overflow-hidden shadow-xs border ${
+            className={`relative w-full h-[182px] sm:h-[196px] rounded-[26px] overflow-hidden shadow-xs border backdrop-blur-md ${
               isDark ? 'bg-zinc-900 border-white/10' : 'bg-zinc-100 border-black/5'
             }`}
           >
-            {!imageLoaded && (
-              <div
-                className={`absolute inset-0 animate-pulse ${
-                  isDark ? 'bg-white/5' : 'bg-zinc-200'
-                }`}
-              />
-            )}
+            {/* Translucent glass shimmer before image resolves */}
+            <div
+              className={`absolute inset-0 transition-opacity duration-700 pointer-events-none ${
+                imageLoaded ? 'opacity-0' : 'opacity-100'
+              } ${isDark ? 'bg-white/[0.04] backdrop-blur-md' : 'bg-black/[0.03] backdrop-blur-sm'}`}
+            >
+              <div className="absolute inset-0 bg-gradient-to-tr from-black/40 via-white/[0.02] to-transparent" />
+            </div>
 
             <img
               src={itinerary.coverImage}
               alt={itinerary.title}
+              width={800}
+              height={392}
               draggable={false}
-              loading={index < 3 ? 'eager' : 'lazy'}
+              loading={index < 2 ? 'eager' : 'lazy'}
               decoding="async"
               referrerPolicy="no-referrer"
               onLoad={() => setImageLoaded(true)}
@@ -1140,7 +1454,9 @@ const HorizontalReferenceItineraryCard: React.FC<HorizontalReferenceItineraryCar
                 (e.target as HTMLImageElement).src =
                   'https://images.unsplash.com/photo-1506744038136-46273834b3fb?auto=format&fit=crop&w=800&q=80';
               }}
-              className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-103 pointer-events-none select-none"
+              className={`w-full h-full object-cover transition-all duration-700 ease-out group-hover:scale-103 pointer-events-none select-none ${
+                imageLoaded ? 'opacity-100 filter-none' : 'opacity-0 filter blur-[8px]'
+              }`}
             />
 
             {/* Top-Left Pill Badge on Image */}
@@ -1212,34 +1528,6 @@ const HorizontalReferenceItineraryCard: React.FC<HorizontalReferenceItineraryCar
                 {stopsCount > 0 ? ` · ${stopsCount} paradas` : ''} ·{' '}
                 {itinerary.description || 'Experiência completa em Campos do Jordão'}
               </p>
-
-              {/* Minimalist "+" button on each premium itinerary */}
-              {isPremiumCard && onQuickAdd && (
-                <button
-                  type="button"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    onQuickAdd();
-                  }}
-                  className={`w-8 h-8 rounded-full flex items-center justify-center shrink-0 transition-all cursor-pointer active:scale-95 border shadow-2xs ${
-                    isUnlocked
-                      ? isDark
-                        ? 'bg-emerald-500/15 border-emerald-500/30 text-emerald-400'
-                        : 'bg-emerald-50 border-emerald-200 text-emerald-700'
-                      : isDark
-                        ? 'bg-[#141417] border-[#D9A84E]/40 text-[#D9A84E] hover:border-[#D9A84E]'
-                        : 'bg-zinc-900 border-zinc-900 text-white hover:bg-zinc-800'
-                  }`}
-                  title={isUnlocked ? 'Abrir roteiro' : 'Adicionar roteiro'}
-                  aria-label={isUnlocked ? 'Abrir roteiro' : 'Adicionar roteiro'}
-                >
-                  {isUnlocked ? (
-                    <Check className="w-3.5 h-3.5 stroke-[2.8]" />
-                  ) : (
-                    <Plus className="w-3.5 h-3.5 stroke-[2.8]" />
-                  )}
-                </button>
-              )}
             </div>
           </div>
         </motion.div>

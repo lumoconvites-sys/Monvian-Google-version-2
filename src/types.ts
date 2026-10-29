@@ -214,6 +214,7 @@ export interface Itinerary {
   title: string;
   description: string;
   coverImage: string;
+  videoUrl?: string;
   daysCount: number;
   categories: string[];
   isActive: boolean;

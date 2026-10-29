@@ -44,7 +44,7 @@ const PRICES: Record<string, string> = {
   'tarundu': 'R$ 45 / entrada no parque',
   'horto-florestal': 'R$ 19 / pessoa',
   'bosque-silencio': 'R$ 30 / entrada',
-  'vila-capivari': 'R$ 0 / Acesso livre',
+  'vila-capivari': 'R$ 0 / Acesso Grátis',
   'villa-fenix': 'Faixa R$ 50 — R$ 110',
   'chateau-suisse': 'Faixa R$ 120 — R$ 220',
   'parque-cerejeiras': 'R$ 30 / pessoa',

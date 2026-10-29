@@ -2082,8 +2082,13 @@ async function startServer() {
     }
   });
 
+  // --- Serve Static Assets from /public (videos, images, audio) with Range streaming support ---
+  const publicDir = path.resolve(process.cwd(), 'public');
+  app.use(express.static(publicDir));
+
   // --- Vite Dev Server Middleware or Static Production ---
   if (!isProd) {
+    process.env.DISABLE_HMR = 'true';
     const vite = await createViteServer({
       server: {
         middlewareMode: true,

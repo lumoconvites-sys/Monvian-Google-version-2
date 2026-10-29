@@ -2,6 +2,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import {
   ChevronLeft,
+  ArrowLeft,
   Clock,
   MapPin,
   Compass,
@@ -145,7 +146,7 @@ export const ItineraryStoreDetailModal: React.FC<ItineraryStoreDetailModalProps>
   const isGoldItinerary = Boolean(
     activeItinerary &&
       (activeItinerary.isPremium || (activeItinerary as any).isGold || (activeItinerary as any).is_gold) &&
-      activeItinerary.badgeText?.toLowerCase() !== 'livre'
+      activeItinerary.badgeText?.toLowerCase() !== 'grátis'
   );
   const isLivreItinerary = !isGoldItinerary;
   const isUnlockedByPlatanos = activeItinerary ? isItineraryUnlocked(activeItinerary.id) : false;
@@ -218,7 +219,7 @@ export const ItineraryStoreDetailModal: React.FC<ItineraryStoreDetailModalProps>
               damping: 32,
               mass: 0.72,
             }}
-            className={`relative w-full h-full flex flex-col max-w-xl mx-auto overflow-hidden rounded-t-[26px] ios-page-top-rounded backdrop-blur-2xl ${
+            className={`relative w-full h-full flex flex-col max-w-xl mx-auto overflow-hidden rounded-t-[30px] ios-page-top-rounded backdrop-blur-2xl ${
               isLight
                 ? 'bg-white/88 text-zinc-900'
                 : 'bg-[#000000]/82 text-white'
@@ -229,8 +230,8 @@ export const ItineraryStoreDetailModal: React.FC<ItineraryStoreDetailModalProps>
               backfaceVisibility: 'hidden',
               WebkitBackfaceVisibility: 'hidden',
               willChange: 'transform, opacity',
-              borderTopLeftRadius: '26px',
-              borderTopRightRadius: '26px',
+              borderTopLeftRadius: '30px',
+              borderTopRightRadius: '30px',
               overflow: 'hidden',
             }}
           >
@@ -238,7 +239,7 @@ export const ItineraryStoreDetailModal: React.FC<ItineraryStoreDetailModalProps>
           <div 
             ref={scrollRef}
             onScroll={handleScroll}
-            className="flex-1 overflow-y-auto overscroll-contain pb-36 rounded-t-[26px]"
+            className="flex-1 overflow-y-auto overscroll-contain pb-36 rounded-t-[30px]"
             style={{
               WebkitOverflowScrolling: 'touch',
               transform: 'translate3d(0, 0, 0)',
@@ -256,7 +257,7 @@ export const ItineraryStoreDetailModal: React.FC<ItineraryStoreDetailModalProps>
                 transform: 'translate3d(0, 0, 0)',
                 WebkitTransform: 'translate3d(0, 0, 0)',
               }}
-              className="sticky top-0 w-full h-72 sm:h-80 shrink-0 overflow-hidden bg-zinc-900 rounded-t-[26px] z-0 pointer-events-none"
+              className="sticky top-0 w-full h-72 sm:h-80 shrink-0 overflow-hidden bg-zinc-900 rounded-t-[30px] z-0 pointer-events-none"
             >
               <div className="w-full h-full relative">
                 <img
@@ -272,7 +273,7 @@ export const ItineraryStoreDetailModal: React.FC<ItineraryStoreDetailModalProps>
                     backfaceVisibility: 'hidden',
                     WebkitBackfaceVisibility: 'hidden',
                   }}
-                  className="w-full h-full object-cover rounded-t-[26px] pointer-events-none transform-gpu"
+                  className="w-full h-full object-cover rounded-t-[30px] pointer-events-none transform-gpu"
                   referrerPolicy="no-referrer"
                   loading="eager"
                   onError={(e) => {
@@ -293,14 +294,14 @@ export const ItineraryStoreDetailModal: React.FC<ItineraryStoreDetailModalProps>
               >
                 {/* Botão Voltar */}
                 <motion.button
-                  whileTap={{ scale: 0.88 }}
+                  whileTap={{ scale: 0.85 }}
                   type="button"
                   onClick={onClose}
-                  className="w-10 h-10 rounded-full bg-white/90 dark:bg-[#000000]/75 backdrop-blur-md border border-zinc-200/80 dark:border-white/10 text-black dark:text-white flex items-center justify-center shadow-md cursor-pointer transition-opacity active:opacity-80"
+                  className="w-9 h-9 flex items-center justify-center text-white cursor-pointer active:opacity-75 transition-opacity"
                   title="Voltar"
                   aria-label="Voltar"
                 >
-                  <ChevronLeft className="w-5 h-5 -ml-0.5" />
+                  <ArrowLeft className="w-6 h-6 stroke-[2.4]" />
                 </motion.button>
 
                 {/* Direita: Badge Conta Gold / Livre + Botão Curtir Roteiro */}
@@ -325,7 +326,7 @@ export const ItineraryStoreDetailModal: React.FC<ItineraryStoreDetailModalProps>
                     </button>
                   ) : (
                     <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-black/40 backdrop-blur-md text-white text-[9.5px] font-black uppercase tracking-wider shadow-xs border border-white/20">
-                      <span>{activeItinerary.badgeText || 'ACESSO LIVRE'}</span>
+                      <span>{activeItinerary.badgeText || 'ACESSO GRÁTIS'}</span>
                     </span>
                   )}
 
@@ -563,7 +564,7 @@ export const ItineraryStoreDetailModal: React.FC<ItineraryStoreDetailModalProps>
                           </div>
 
                           {/* Foto da parada */}
-                          <div className="w-14 h-14 rounded-xl overflow-hidden shrink-0 bg-zinc-800 border border-zinc-200/40 dark:border-white/10">
+                          <div className="w-14 h-14 rounded-[15px] overflow-hidden shrink-0 bg-zinc-800 border border-zinc-200/40 dark:border-white/10">
                             <img
                               src={spotImg}
                               alt={spotName}
@@ -666,10 +667,7 @@ export const ItineraryStoreDetailModal: React.FC<ItineraryStoreDetailModalProps>
                     <span>Adicionando...</span>
                   </div>
                 ) : (
-                  <>
-                    <Plus className="w-5 h-5 stroke-[2.6]" />
-                    <span>Adicionar</span>
-                  </>
+                  <span>Adicionar</span>
                 )}
               </motion.button>
             </div>

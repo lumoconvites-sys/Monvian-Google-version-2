@@ -615,12 +615,12 @@ export const ItinerariesView: React.FC<ItinerariesViewProps> = ({
             parsed.id === 'roteiro-classico-2-dias' ||
             parsed.id?.startsWith('roteiro-classico') ||
             parsed.id === 'roteiro-bate-volta-essencial' ||
-            parsed.badgeText?.toLowerCase() === 'livre' ||
+            parsed.badgeText?.toLowerCase() === 'grátis' ||
             parsed.price === 'R$ 0' ||
             parsed.price === 'Grátis';
           if (isLivre) {
             parsed.isPremium = false;
-            parsed.badgeText = 'Livre';
+            parsed.badgeText = 'Grátis';
           }
           return parsed;
         }
@@ -790,7 +790,7 @@ export const ItinerariesView: React.FC<ItinerariesViewProps> = ({
       storeItin.id === 'roteiro-classico-2-dias' ||
       storeItin.id?.startsWith('roteiro-classico') ||
       storeItin.id === 'roteiro-bate-volta-essencial' ||
-      storeItin.badgeText?.toLowerCase() === 'livre' ||
+      storeItin.badgeText?.toLowerCase() === 'grátis' ||
       storeItin.price === 'R$ 0' ||
       storeItin.price === 'Grátis' ||
       storeItin.isPremium === false;
@@ -800,7 +800,7 @@ export const ItinerariesView: React.FC<ItinerariesViewProps> = ({
       id: userItinId,
       days: clonedDays,
       isPremium: isStoreLivre ? false : Boolean(storeItin.isPremium),
-      badgeText: isStoreLivre ? 'Livre' : (storeItin.badgeText || ''),
+      badgeText: isStoreLivre ? 'Grátis' : (storeItin.badgeText || ''),
     };
 
     // 1. Update UI immediately (0ms perceived latency)
@@ -836,7 +836,7 @@ export const ItinerariesView: React.FC<ItinerariesViewProps> = ({
       .then((data) => {
         if (data?.success && data?.userItinerary) {
           const synced: Itinerary = isStoreLivre
-            ? { ...data.userItinerary, isPremium: false, badgeText: 'Livre' }
+            ? { ...data.userItinerary, isPremium: false, badgeText: 'Grátis' }
             : data.userItinerary;
           setUserItinerary(synced);
           try {
@@ -912,14 +912,14 @@ export const ItinerariesView: React.FC<ItinerariesViewProps> = ({
               first.id === 'roteiro-classico-2-dias' ||
               first.id?.startsWith('roteiro-classico') ||
               first.id === 'roteiro-bate-volta-essencial' ||
-              first.badgeText?.toLowerCase() === 'livre' ||
+              first.badgeText?.toLowerCase() === 'grátis' ||
               first.price === 'R$ 0' ||
               first.price === 'Grátis';
 
             const enriched: Itinerary = {
               ...first,
               isPremium: isLivre ? false : Boolean(first.isPremium),
-              badgeText: isLivre ? 'Livre' : (first.badgeText || ''),
+              badgeText: isLivre ? 'Grátis' : (first.badgeText || ''),
               days: (first.days || []).map((day: ItineraryDay) => ({
                 ...day,
                 steps: (day.steps || []).map((step: ItineraryStep) => ({
@@ -1309,7 +1309,7 @@ export const ItinerariesView: React.FC<ItinerariesViewProps> = ({
       userItinerary.id === 'roteiro-classico-2-dias' ||
       userItinerary.id?.startsWith('roteiro-classico') ||
       userItinerary.id === 'roteiro-bate-volta-essencial' ||
-      userItinerary.badgeText?.toLowerCase() === 'livre' ||
+      userItinerary.badgeText?.toLowerCase() === 'grátis' ||
       userItinerary.price === 'R$ 0' ||
       userItinerary.price === 'Grátis' ||
       userItinerary.isPremium === false;
@@ -1922,10 +1922,10 @@ export const ItinerariesView: React.FC<ItinerariesViewProps> = ({
   if (itineraryViewMode === 'explore') {
     return (
       <motion.div
-        initial={{ opacity: 0, y: 6 }}
-        animate={{ opacity: 1, y: 0 }}
-        exit={{ opacity: 0, y: 4 }}
-        transition={{ duration: 0.18, ease: [0.22, 1, 0.36, 1] }}
+        initial={{ opacity: 0, filter: 'blur(10px)', y: 10 }}
+        animate={{ opacity: 1, filter: 'blur(0px)', y: 0 }}
+        exit={{ opacity: 0, filter: 'blur(6px)', y: 6 }}
+        transition={{ duration: 0.65, ease: [0.16, 1, 0.3, 1] }}
         className={`fixed inset-0 md:left-[var(--desktop-sidebar-width,72px)] z-40 w-full md:w-auto h-full overflow-hidden rounded-t-[26px] md:rounded-none ios-page-top-rounded transition-[left] duration-200 ease-in-out ${isDark ? 'bg-[#000000]' : 'bg-white'} select-none`}
         style={{
           overflow: 'hidden',
@@ -2012,21 +2012,12 @@ export const ItinerariesView: React.FC<ItinerariesViewProps> = ({
               setItineraryViewMode('explore');
             }}
             type="button"
-            className={`w-12 h-12 rounded-full flex items-center justify-center transition-transform active:scale-95 cursor-pointer shrink-0 border ${
-              isDark
-                ? 'bg-[#121214] border-white/10 text-white'
-                : 'bg-white border-zinc-200/80 text-black'
-            } shadow-[0_2px_12px_rgba(0,0,0,0.06)]`}
-            style={{
-              backgroundColor: isDark ? '#121214' : '#FFFFFF',
-              color: isDark ? '#FFFFFF' : '#000000',
-            }}
+            className="w-10 h-10 flex items-center justify-center transition-transform active:scale-90 cursor-pointer shrink-0 bg-transparent border-none shadow-none text-white outline-none"
             title="Loja de Roteiros"
             aria-label="Loja de Roteiros"
           >
-            <ChevronLeft
-              className="w-6 h-6 stroke-[2.2]"
-              style={{ color: isDark ? '#FFFFFF' : '#000000' }}
+            <ArrowLeft
+              className="w-6 h-6 stroke-[2.4] text-white"
             />
           </button>
         </div>

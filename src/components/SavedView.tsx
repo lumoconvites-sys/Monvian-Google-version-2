@@ -480,15 +480,6 @@ export const SavedView: React.FC<SavedViewProps> = ({
                         fallbackIcon={<MapPin className="w-10 h-10 text-zinc-400 stroke-[1.5]" />}
                         onClick={() => handleOpenCollection('pontos')}
                       />
-                      <CollectionCoverCard
-                        index={2}
-                        title="Removidos da lista"
-                        count={resolvedPlaces.length}
-                        photos={placePhotos}
-                        isDark={isDark}
-                        fallbackIcon={<Trash2 className="w-10 h-10 text-zinc-400 stroke-[1.5]" />}
-                        onClick={() => handleOpenCollection('lugares')}
-                      />
                     </div>
                   </main>
                 </motion.div>

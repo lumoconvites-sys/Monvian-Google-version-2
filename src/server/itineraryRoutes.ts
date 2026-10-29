@@ -246,7 +246,7 @@ export function setupItineraryDatabase(db: any) {
     db.exec(`UPDATE itineraries SET status = 'published' WHERE status IS NULL OR status = '';`);
     db.exec(`UPDATE itineraries SET price = 'R$ 14,90' WHERE price IS NULL OR price = '';`);
     db.exec(`UPDATE itineraries SET is_featured = 1 WHERE is_recommended = 1;`);
-    db.exec(`UPDATE itineraries SET is_premium = 0, badge_text = 'Livre', price = 'R$ 0' WHERE id = 'roteiro-classico-2-dias' OR badge_text = 'Livre';`);
+    db.exec(`UPDATE itineraries SET is_premium = 0, badge_text = 'Grátis', price = 'R$ 0' WHERE id = 'roteiro-classico-2-dias' OR badge_text = 'Livre' OR badge_text = 'Grátis';`);
     db.exec(`UPDATE itineraries SET is_premium = 0, badge_text = '1 Dia', price = 'R$ 0' WHERE id = 'roteiro-bate-volta-essencial';`);
   } catch (e) {}
 
@@ -847,34 +847,235 @@ export function registerItineraryRoutes(
   // CURATED ITINERARIES & STORE API
   // ==========================================
 
-  // List all curated itineraries (User Store view vs Admin All view)
+  // Helper to check if a raw itinerary row matches category/duration/search before expensive hydration
+  const normalizeFilterToken = (val: string) =>
+    String(val || '')
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .toLowerCase()
+      .trim();
+
+  const rowMatchesFilters = (
+    row: any,
+    categoryFilter?: string,
+    durationFilter?: string,
+    searchFilter?: string
+  ): boolean => {
+    let rowCats: string[] = [];
+    try {
+      const parsed = JSON.parse(row.categories || '[]');
+      if (Array.isArray(parsed)) rowCats = parsed.map(normalizeFilterToken);
+    } catch {
+      rowCats = String(row.categories || '')
+        .split(',')
+        .map(normalizeFilterToken)
+        .filter(Boolean);
+    }
+
+    const normTitle = normalizeFilterToken(row.title || '');
+    const normDesc = normalizeFilterToken(row.description || '');
+    const isFeat = Number(row.is_featured) === 1 || Number(row.is_recommended) === 1;
+    const daysCount = Number(row.days_count || 1);
+    const isPrem = row.is_premium !== undefined && row.is_premium !== null ? Number(row.is_premium) === 1 : true;
+
+    // 1. Category Filter
+    if (categoryFilter && categoryFilter !== 'all' && categoryFilter !== 'todos') {
+      const cat = normalizeFilterToken(categoryFilter);
+      if (cat === 'destaque' || cat === 'popular' || cat === 'mais-procurados') {
+        if (!isFeat) return false;
+      } else if (cat === '1day' || cat === '1-dia' || cat === '1dia') {
+        if (daysCount !== 1) return false;
+      } else if (cat === '2days' || cat === '2-dias' || cat === '2dias') {
+        if (daysCount !== 2) return false;
+      } else if (cat === 'natureza' || cat === 'nature') {
+        const match =
+          rowCats.some((c) => ['nature', 'natureza', 'ecotourism', 'ecoturismo'].includes(c)) ||
+          normTitle.includes('natureza');
+        if (!match) return false;
+      } else if (cat === 'romantico' || cat === 'romantic' || cat === 'casais') {
+        const match =
+          rowCats.some((c) => ['romantic', 'romantico', 'casais', 'casal', 'romance'].includes(c)) ||
+          normTitle.includes('romantic') ||
+          normTitle.includes('casal') ||
+          normTitle.includes('casais');
+        if (!match) return false;
+      } else if (cat === 'gastronomia' || cat === 'gastronomy') {
+        const match =
+          rowCats.some((c) =>
+            ['gastronomy', 'gastronomia', 'sweets', 'cafes', 'culinaria', 'fondue'].includes(c)
+          ) ||
+          normTitle.includes('gastronom') ||
+          normTitle.includes('fondue');
+        if (!match) return false;
+      } else if (cat === 'aventura' || cat === 'adventure') {
+        const match =
+          rowCats.some((c) => ['adventure', 'aventura', 'trilhas', 'radical', 'esportes'].includes(c)) ||
+          normTitle.includes('aventur') ||
+          normTitle.includes('trilha');
+        if (!match) return false;
+      } else if (cat === 'familia' || cat === 'family') {
+        const match =
+          rowCats.some((c) => ['family', 'familia', 'kids', 'criancas'].includes(c)) ||
+          normTitle.includes('familia');
+        if (!match) return false;
+      } else if (cat === 'terror') {
+        const match =
+          rowCats.some((c) => ['terror', 'assombrado', 'misterio', 'sobrenatural'].includes(c)) ||
+          normTitle.includes('terror');
+        if (!match) return false;
+      } else {
+        const match = rowCats.includes(cat) || rowCats.some((c) => c.includes(cat)) || normTitle.includes(cat);
+        if (!match) return false;
+      }
+    }
+
+    // 2. Duration / Type Filter
+    if (durationFilter && durationFilter !== 'all') {
+      if (durationFilter === '1day' && daysCount !== 1) return false;
+      if (durationFilter === 'multiday' && daysCount < 2) return false;
+      if (durationFilter === 'free') {
+        const isFree =
+          !isPrem ||
+          String(row.badge_text || '').toLowerCase() === 'grátis' ||
+          row.price === 'R$ 0' ||
+          row.price === 'Grátis';
+        if (!isFree) return false;
+      }
+    }
+
+    // 3. Search Query Filter
+    if (searchFilter && searchFilter.trim()) {
+      const q = normalizeFilterToken(searchFilter);
+      const matchesMeta =
+        normTitle.includes(q) ||
+        normDesc.includes(q) ||
+        rowCats.some((c) => c.includes(q));
+
+      if (!matchesMeta) {
+        // Check if any spot in this itinerary matches the search query
+        const spotMatch = db
+          .prepare(
+            `SELECT 1 FROM itinerary_steps st
+             LEFT JOIN spots sp ON sp.id = st.spot_id
+             WHERE st.itinerary_id = ?
+               AND (LOWER(COALESCE(sp.name, '')) LIKE ? OR LOWER(COALESCE(st.custom_name, '')) LIKE ?)
+             LIMIT 1`
+          )
+          .get(row.id, `%${q}%`, `%${q}%`);
+        if (!spotMatch) return false;
+      }
+    }
+
+    return true;
+  };
+
+  // List curated itineraries (Supports both Cursor/Offset Pagination and full Admin view)
   app.get('/api/itineraries', (req, res) => {
     try {
       const includeInactive = req.query.all === 'true';
-      const categoryFilter = req.query.category as string;
+      const categoryFilter = (req.query.category as string) || 'all';
+      const durationFilter = (req.query.duration as string) || 'all';
+      const searchFilter = (req.query.search as string) || '';
       const featuredOnly = req.query.featured === 'true';
+      const isPaginated = req.query.paginated === 'true' || req.query.limit !== undefined;
 
+      // Consistent deterministic ordering: sort_order ASC, id ASC
       const sql = includeInactive
-        ? 'SELECT * FROM itineraries ORDER BY is_featured DESC, sort_order ASC, created_at DESC'
-        : "SELECT * FROM itineraries WHERE is_active = 1 AND (status = 'published' OR status IS NULL) ORDER BY is_featured DESC, sort_order ASC, usage_count DESC";
-      
-      const rows = db.prepare(sql).all() as any[];
-      let itineraries = rows.map(hydrateItinerary);
+        ? 'SELECT * FROM itineraries ORDER BY sort_order ASC, id ASC'
+        : "SELECT * FROM itineraries WHERE is_active = 1 AND (status = 'published' OR status IS NULL) ORDER BY sort_order ASC, id ASC";
 
+      const allRows = db.prepare(sql).all() as any[];
+
+      if (!isPaginated) {
+        let filteredRows = allRows.filter((r) =>
+          rowMatchesFilters(r, categoryFilter, durationFilter, searchFilter)
+        );
+        if (featuredOnly) {
+          filteredRows = filteredRows.filter(
+            (r) => Number(r.is_featured) === 1 || Number(r.is_recommended) === 1
+          );
+        }
+        const itineraries = filteredRows.map(hydrateItinerary);
+        res.json({ success: true, itineraries });
+        return;
+      }
+
+      // Paginated execution path: filter lightweight rows first, then hydrate ONLY the current batch
+      const limit = Math.max(1, Math.min(24, Number(req.query.limit) || 4));
+      const cursor = typeof req.query.cursor === 'string' && req.query.cursor.trim() ? req.query.cursor.trim() : null;
+      const offset = Math.max(0, Number(req.query.offset) || 0);
+      const includeFeaturedBanner = req.query.includeFeaturedBanner === 'true';
+      const excludeIdsRaw = typeof req.query.excludeIds === 'string' ? req.query.excludeIds : '';
+      const excludeIds = new Set(
+        excludeIdsRaw
+          .split(',')
+          .map((s) => s.trim())
+          .filter(Boolean)
+      );
+
+      let matchingRows = allRows.filter((r) =>
+        rowMatchesFilters(r, categoryFilter, durationFilter, searchFilter)
+      );
       if (featuredOnly) {
-        itineraries = itineraries.filter(i => i.isFeatured);
+        matchingRows = matchingRows.filter(
+          (r) => Number(r.is_featured) === 1 || Number(r.is_recommended) === 1
+        );
       }
 
-      if (categoryFilter && categoryFilter !== 'all' && categoryFilter !== 'todos') {
-        itineraries = itineraries.filter(i => {
-          if (categoryFilter === '1day' || categoryFilter === '1-dia' || categoryFilter === '1dia') return i.daysCount === 1;
-          if (categoryFilter === '2days' || categoryFilter === '2-dias' || categoryFilter === '2dias') return i.daysCount === 2;
-          if (categoryFilter === 'popular' || categoryFilter === 'mais-procurados') return i.isFeatured || i.isRecommended;
-          return i.categories.includes(categoryFilter) || i.categories.some(c => c.toLowerCase().includes(categoryFilter.toLowerCase()));
-        });
+      // Identify featured banner itinerary if requested (for 'all' or 'destaque' without search)
+      let featuredItinerary: any = null;
+      if (
+        includeFeaturedBanner &&
+        !searchFilter.trim() &&
+        (categoryFilter === 'all' || categoryFilter === 'destaque')
+      ) {
+        const featuredRow = matchingRows.find(
+          (r) => Number(r.is_featured) === 1 || Number(r.is_recommended) === 1
+        );
+        if (featuredRow) {
+          featuredItinerary = hydrateItinerary(featuredRow);
+          excludeIds.add(String(featuredRow.id));
+        }
       }
 
-      res.json({ success: true, itineraries });
+      const discoveryRows = matchingRows.filter((r) => !excludeIds.has(String(r.id)));
+      const totalMatching = discoveryRows.length;
+
+      let startIndex = offset;
+      if (cursor) {
+        const [cursorSortStr, cursorId] = cursor.split('|');
+        const cursorSort = Number(cursorSortStr);
+        const foundIdx = discoveryRows.findIndex((r) => String(r.id) === cursorId);
+        if (foundIdx >= 0) {
+          startIndex = foundIdx + 1;
+        } else if (!Number.isNaN(cursorSort)) {
+          const afterCursorIdx = discoveryRows.findIndex((r) => {
+            const rSort = Number(r.sort_order || 0);
+            return rSort > cursorSort || (rSort === cursorSort && String(r.id) > (cursorId || ''));
+          });
+          startIndex = afterCursorIdx >= 0 ? afterCursorIdx : discoveryRows.length;
+        }
+      }
+
+      const batchRows = discoveryRows.slice(startIndex, startIndex + limit);
+      const hasMore = startIndex + batchRows.length < discoveryRows.length;
+      const lastRow = batchRows[batchRows.length - 1];
+      const nextCursor =
+        hasMore && lastRow ? `${Number(lastRow.sort_order || 0)}|${lastRow.id}` : null;
+      const nextOffset = startIndex + batchRows.length;
+
+      // Hydrate ONLY the rows in this page batch
+      const itineraries = batchRows.map(hydrateItinerary);
+
+      res.json({
+        success: true,
+        itineraries,
+        featuredItinerary,
+        hasMore,
+        nextCursor,
+        nextOffset,
+        totalMatching,
+      });
     } catch (err: any) {
       res.status(500).json({ error: 'Erro ao buscar roteiros: ' + err.message });
     }

@@ -1,4 +1,6 @@
 node_modules/
+dist/
+.aistudio/
 coverage/
 .DS_Store
 *.log
@@ -6,3 +8,8 @@ coverage/
 !.env.example
 bun.lock
 bun.lockb
+*.sqlite*
+*.db
+*.corrupt_backup
+
+

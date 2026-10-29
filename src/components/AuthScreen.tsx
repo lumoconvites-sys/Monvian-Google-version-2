@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useMemo } from 'react';
+import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import {
   Eye,
   EyeOff,
@@ -7,6 +7,10 @@ import {
   Loader2,
   ChevronDown,
   ChevronLeft,
+  Play,
+  Pause,
+  Volume2,
+  VolumeX,
 } from 'lucide-react';
 import { motion, AnimatePresence, useReducedMotion } from 'motion/react';
 import { auth, createUserWithEmailAndPassword, googleSignIn, setCachedAccessToken } from '../lib/firebase';
@@ -17,36 +21,8 @@ interface AuthScreenProps {
   onSuccess: (token: string, user: any, isNewAccount?: boolean) => void;
 }
 
-const LANDING_SLIDES = [
-  {
-    id: 'pontos-turisticos',
-    title: 'Pontos turísticos',
-    subtitle: 'Mirantes, parques e paisagens de tirar o fôlego',
-    image: 'https://images.unsplash.com/photo-1506744038136-46273834b3fb?auto=format&fit=crop&w=1200&q=80',
-    fallback: '/atracoes.png',
-  },
-  {
-    id: 'restaurantes',
-    title: 'Restaurantes',
-    subtitle: 'Fondues, chocolates e gastronomia da montanha',
-    image: 'https://images.unsplash.com/photo-1517248135467-4c7edcad34c4?auto=format&fit=crop&w=1200&q=80',
-    fallback: '/gastrom.png',
-  },
-  {
-    id: 'hospedagens',
-    title: 'Hospedagens',
-    subtitle: 'Chalés charmosos, resorts e pousadas acolhedoras',
-    image: 'https://images.unsplash.com/photo-1566073771259-6a8506099945?auto=format&fit=crop&w=1200&q=80',
-    fallback: '/hotel.png',
-  },
-  {
-    id: 'passeios',
-    title: 'Passeios',
-    subtitle: 'Trilhas, teleférico, passeios a cavalo e aventura',
-    image: 'https://images.unsplash.com/photo-1469854523086-cc02fe5d8800?auto=format&fit=crop&w=1200&q=80',
-    fallback: '/aventure.png',
-  },
-];
+const LANDING_VIDEO_MP4 = '/assets/aistudio/landing_video.mp4?v=4';
+const LANDING_VIDEO_POSTER = '/assets/aistudio/landing_video_poster.jpg?v=3';
 
 /**
  * Validates email format, accurately recognizing @gmail.com and all valid domains
@@ -206,43 +182,86 @@ export function AuthScreen({ onSuccess }: AuthScreenProps) {
 
   const scrollToLanding = () => {
     if (!scrollContainerRef.current) return;
-    const clientHeight = scrollContainerRef.current.clientHeight;
-    scrollContainerRef.current.scrollTo({
-      top: clientHeight,
-      behavior: 'smooth',
-    });
+    const landingEl = document.getElementById('landing-content-section');
+    if (landingEl) {
+      landingEl.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    } else {
+      const clientHeight = scrollContainerRef.current.clientHeight;
+      scrollContainerRef.current.scrollTo({
+        top: clientHeight * 0.75,
+        behavior: 'smooth',
+      });
+    }
   };
 
-  // Carousel State & Automatic Advance
-  const [currentSlideIndex, setCurrentSlideIndex] = useState(0);
-  const [slideDirection, setSlideDirection] = useState(1);
-  const slideTimerRef = useRef<any>(null);
+  // Landing Video Player State & Controls (Manual click-to-play with sound)
+  const landingVideoRef = useRef<HTMLVideoElement | null>(null);
+  const landingVideoContainerRef = useRef<HTMLDivElement | null>(null);
+  const [isLandingVideoPlaying, setIsLandingVideoPlaying] = useState<boolean>(false);
+  const [isLandingVideoMuted, setIsLandingVideoMuted] = useState<boolean>(false);
 
-  const resetSlideTimer = () => {
-    if (slideTimerRef.current) clearInterval(slideTimerRef.current);
-    slideTimerRef.current = setInterval(() => {
-      setSlideDirection(1);
-      setCurrentSlideIndex((prev) => (prev + 1) % LANDING_SLIDES.length);
-    }, 4500);
-  };
-
+  // Pause video if user scrolls completely away while playing
   useEffect(() => {
-    resetSlideTimer();
-    return () => {
-      if (slideTimerRef.current) clearInterval(slideTimerRef.current);
-    };
+    const video = landingVideoRef.current;
+    const container = landingVideoContainerRef.current;
+    if (!video || !container) return;
+
+    video.defaultMuted = false;
+    video.volume = 1.0;
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        const entry = entries[0];
+        if (entry && !entry.isIntersecting && !video.paused) {
+          video.pause();
+          setIsLandingVideoPlaying(false);
+        }
+      },
+      {
+        threshold: [0],
+      }
+    );
+
+    observer.observe(container);
+    return () => observer.disconnect();
   }, []);
 
-  const goToNextSlide = () => {
-    setSlideDirection(1);
-    setCurrentSlideIndex((prev) => (prev + 1) % LANDING_SLIDES.length);
-    resetSlideTimer();
+  // Single tap / click toggles play/pause with sound
+  const handleToggleLandingVideoPlay = async () => {
+    const video = landingVideoRef.current;
+    if (!video) return;
+
+    if (video.paused) {
+      try {
+        video.muted = isLandingVideoMuted;
+        video.volume = 1.0;
+        await video.play();
+        setIsLandingVideoPlaying(true);
+      } catch {
+        // Fallback if device blocks audio on play
+        try {
+          video.muted = true;
+          setIsLandingVideoMuted(true);
+          await video.play();
+          setIsLandingVideoPlaying(true);
+        } catch {}
+      }
+    } else {
+      video.pause();
+      setIsLandingVideoPlaying(false);
+    }
   };
 
-  const goToPrevSlide = () => {
-    setSlideDirection(-1);
-    setCurrentSlideIndex((prev) => (prev - 1 + LANDING_SLIDES.length) % LANDING_SLIDES.length);
-    resetSlideTimer();
+  const handleToggleLandingVideoMute = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    const video = landingVideoRef.current;
+    if (!video) return;
+    const nextMuted = !isLandingVideoMuted;
+    video.muted = nextMuted;
+    if (!nextMuted) {
+      video.volume = 1.0;
+    }
+    setIsLandingVideoMuted(nextMuted);
   };
 
   // Step Validations
@@ -512,14 +531,14 @@ export function AuthScreen({ onSuccess }: AuthScreenProps) {
     <div
       ref={scrollContainerRef}
       onScroll={handleScroll}
-      className="fixed inset-0 z-[100] bg-[#ffffff] select-none overflow-y-auto overscroll-y-contain scroll-smooth"
+      className="fixed inset-0 z-[100] bg-[#000000] text-white select-none overflow-y-auto overscroll-y-contain scroll-smooth"
       style={{
         fontFamily: "'Inter', -apple-system, BlinkMacSystemFont, sans-serif",
         WebkitOverflowScrolling: 'touch',
       }}
     >
       {/* =========================================================================
-          PROGRESSIVE 3-STEP REGISTRATION FLOW (Nome -> E-mail -> Senha)
+          PROGRESSIVE 3-STEP REGISTRATION FLOW (Modo Escuro — Nome -> E-mail -> Senha)
          ========================================================================= */}
       <AnimatePresence>
         {authMode === 'register' && (
@@ -529,9 +548,9 @@ export function AuthScreen({ onSuccess }: AuthScreenProps) {
             animate={shouldReduceMotion ? { opacity: 1 } : { opacity: 1, filter: 'blur(0px)' }}
             exit={shouldReduceMotion ? { opacity: 0 } : { opacity: 0, filter: 'blur(8px)' }}
             transition={{ duration: shouldReduceMotion ? 0.2 : 0.45, ease: [0.22, 1, 0.36, 1] }}
-            className="fixed inset-0 z-[110] bg-[#ffffff] text-zinc-950 flex flex-col justify-between overflow-y-auto overscroll-y-contain"
+            className="fixed inset-0 z-[110] bg-[#000000] text-white flex flex-col justify-between overflow-y-auto overscroll-y-contain"
             style={{
-              backgroundColor: '#ffffff',
+              backgroundColor: '#000000',
               paddingTop: 'max(20px, env(safe-area-inset-top, 0px))',
               paddingBottom: 'max(24px, env(safe-area-inset-bottom, 0px))',
               paddingLeft: 'max(24px, env(safe-area-inset-left, 0px))',
@@ -546,7 +565,7 @@ export function AuthScreen({ onSuccess }: AuthScreenProps) {
                 onClick={handleStepBack}
                 disabled={loading}
                 aria-label="Voltar"
-                className="w-10 h-10 -ml-2 rounded-full flex items-center justify-center text-zinc-900 hover:bg-zinc-100 active:scale-95 transition-all cursor-pointer disabled:opacity-40"
+                className="w-10 h-10 -ml-2 rounded-full flex items-center justify-center text-white hover:bg-white/10 active:scale-95 transition-all cursor-pointer disabled:opacity-40"
               >
                 <ChevronLeft className="w-6 h-6 stroke-[2.2]" />
               </button>
@@ -564,10 +583,10 @@ export function AuthScreen({ onSuccess }: AuthScreenProps) {
                       key={step}
                       className={`w-2 h-2 rounded-full transition-all duration-300 ${
                         isActive
-                          ? 'bg-zinc-950 scale-110'
+                          ? 'bg-white scale-110'
                           : isCompleted
-                          ? 'bg-zinc-400'
-                          : 'bg-zinc-200'
+                          ? 'bg-zinc-500'
+                          : 'bg-zinc-800'
                       }`}
                     />
                   );
@@ -602,7 +621,7 @@ export function AuthScreen({ onSuccess }: AuthScreenProps) {
                   >
                     <h1
                       id="register-step1-title"
-                      className="text-[26px] sm:text-[28px] font-bold tracking-tight text-zinc-950 leading-[1.2] mb-6 text-left"
+                      className="text-[26px] sm:text-[28px] font-bold tracking-tight text-white leading-[1.2] mb-6 text-left"
                     >
                       Vamos começar, qual é seu nome?
                     </h1>
@@ -625,7 +644,7 @@ export function AuthScreen({ onSuccess }: AuthScreenProps) {
                         }}
                         autoComplete="name"
                         autoCapitalize="words"
-                        className="w-full px-5 py-4 rounded-[20px] bg-[#fafafa] border border-zinc-200 text-zinc-950 placeholder:text-zinc-400 focus:outline-none focus:bg-[#ffffff] focus:border-zinc-900 focus:ring-1 focus:ring-zinc-900 transition-all text-[16px] font-medium"
+                        className="w-full px-5 py-4 rounded-[20px] bg-[#141416] border border-white/12 text-white placeholder:text-zinc-500 focus:outline-none focus:bg-[#1c1c1f] focus:border-white focus:ring-1 focus:ring-white/80 transition-all text-[16px] font-medium"
                       />
 
                       <AnimatePresence>
@@ -634,7 +653,7 @@ export function AuthScreen({ onSuccess }: AuthScreenProps) {
                             initial={{ opacity: 0, y: -4 }}
                             animate={{ opacity: 1, y: 0 }}
                             exit={{ opacity: 0, y: -4 }}
-                            className="text-[13px] text-zinc-500 font-medium mt-2.5 px-1"
+                            className="text-[13px] text-zinc-400 font-medium mt-2.5 px-1"
                           >
                             Digite pelo menos 2 caracteres para continuar.
                           </motion.p>
@@ -656,7 +675,7 @@ export function AuthScreen({ onSuccess }: AuthScreenProps) {
                   >
                     <h1
                       id="register-step2-title"
-                      className="text-[26px] sm:text-[28px] font-bold tracking-tight text-zinc-950 leading-[1.2] mb-6 text-left"
+                      className="text-[26px] sm:text-[28px] font-bold tracking-tight text-white leading-[1.2] mb-6 text-left"
                     >
                       Forneça seu e-mail para continuar
                     </h1>
@@ -682,7 +701,7 @@ export function AuthScreen({ onSuccess }: AuthScreenProps) {
                         autoCapitalize="none"
                         autoCorrect="off"
                         spellCheck={false}
-                        className="w-full px-5 py-4 rounded-[20px] bg-[#fafafa] border border-zinc-200 text-zinc-950 placeholder:text-zinc-400 focus:outline-none focus:bg-[#ffffff] focus:border-zinc-900 focus:ring-1 focus:ring-zinc-900 transition-all text-[16px] font-medium"
+                        className="w-full px-5 py-4 rounded-[20px] bg-[#141416] border border-white/12 text-white placeholder:text-zinc-500 focus:outline-none focus:bg-[#1c1c1f] focus:border-white focus:ring-1 focus:ring-white/80 transition-all text-[16px] font-medium"
                       />
 
                       <AnimatePresence>
@@ -693,7 +712,7 @@ export function AuthScreen({ onSuccess }: AuthScreenProps) {
                               initial={{ opacity: 0, y: -4 }}
                               animate={{ opacity: 1, y: 0 }}
                               exit={{ opacity: 0, y: -4 }}
-                              className="text-[13px] text-zinc-500 font-medium mt-2.5 px-1"
+                              className="text-[13px] text-zinc-400 font-medium mt-2.5 px-1"
                             >
                               {emailValidation.reason || 'Informe um endereço de e-mail válido.'}
                             </motion.p>
@@ -715,7 +734,7 @@ export function AuthScreen({ onSuccess }: AuthScreenProps) {
                   >
                     <h1
                       id="register-step3-title"
-                      className="text-[26px] sm:text-[28px] font-bold tracking-tight text-zinc-950 leading-[1.2] mb-6 text-left"
+                      className="text-[26px] sm:text-[28px] font-bold tracking-tight text-white leading-[1.2] mb-6 text-left"
                     >
                       Crie sua senha
                     </h1>
@@ -740,13 +759,13 @@ export function AuthScreen({ onSuccess }: AuthScreenProps) {
                           }}
                           disabled={loading}
                           autoComplete="new-password"
-                          className="w-full pl-5 pr-12 py-4 rounded-[20px] bg-[#fafafa] border border-zinc-200 text-zinc-950 placeholder:text-zinc-400 focus:outline-none focus:bg-[#ffffff] focus:border-zinc-900 focus:ring-1 focus:ring-zinc-900 transition-all text-[16px] font-medium disabled:opacity-60"
+                          className="w-full pl-5 pr-12 py-4 rounded-[20px] bg-[#141416] border border-white/12 text-white placeholder:text-zinc-500 focus:outline-none focus:bg-[#1c1c1f] focus:border-white focus:ring-1 focus:ring-white/80 transition-all text-[16px] font-medium disabled:opacity-60"
                         />
                         <button
                           type="button"
                           onClick={() => setShowRegisterPassword((prev) => !prev)}
                           tabIndex={-1}
-                          className="absolute right-4 top-1/2 -translate-y-1/2 text-zinc-400 hover:text-zinc-900 transition-colors cursor-pointer p-1"
+                          className="absolute right-4 top-1/2 -translate-y-1/2 text-zinc-400 hover:text-white transition-colors cursor-pointer p-1"
                           aria-label={showRegisterPassword ? 'Ocultar senha' : 'Visualizar senha'}
                         >
                           {showRegisterPassword ? (
@@ -775,13 +794,13 @@ export function AuthScreen({ onSuccess }: AuthScreenProps) {
                           }}
                           disabled={loading}
                           autoComplete="new-password"
-                          className="w-full pl-5 pr-12 py-4 rounded-[20px] bg-[#fafafa] border border-zinc-200 text-zinc-950 placeholder:text-zinc-400 focus:outline-none focus:bg-[#ffffff] focus:border-zinc-900 focus:ring-1 focus:ring-zinc-900 transition-all text-[16px] font-medium disabled:opacity-60"
+                          className="w-full pl-5 pr-12 py-4 rounded-[20px] bg-[#141416] border border-white/12 text-white placeholder:text-zinc-500 focus:outline-none focus:bg-[#1c1c1f] focus:border-white focus:ring-1 focus:ring-white/80 transition-all text-[16px] font-medium disabled:opacity-60"
                         />
                         <button
                           type="button"
                           onClick={() => setShowConfirmPassword((prev) => !prev)}
                           tabIndex={-1}
-                          className="absolute right-4 top-1/2 -translate-y-1/2 text-zinc-400 hover:text-zinc-900 transition-colors cursor-pointer p-1"
+                          className="absolute right-4 top-1/2 -translate-y-1/2 text-zinc-400 hover:text-white transition-colors cursor-pointer p-1"
                           aria-label={showConfirmPassword ? 'Ocultar confirmação de senha' : 'Visualizar confirmação de senha'}
                         >
                           {showConfirmPassword ? (
@@ -801,7 +820,7 @@ export function AuthScreen({ onSuccess }: AuthScreenProps) {
                               initial={{ opacity: 0, y: -4 }}
                               animate={{ opacity: 1, y: 0 }}
                               exit={{ opacity: 0, y: -4 }}
-                              className="text-[13px] text-red-600 font-medium leading-snug"
+                              className="text-[13px] text-red-400 font-medium leading-snug"
                             >
                               <span>{error}</span>
                               {error.toLowerCase().includes('e-mail') && (
@@ -811,7 +830,7 @@ export function AuthScreen({ onSuccess }: AuthScreenProps) {
                                     setError('');
                                     setRegisterStep(2);
                                   }}
-                                  className="ml-2 underline font-semibold text-zinc-900 hover:text-black cursor-pointer"
+                                  className="ml-2 underline font-semibold text-white hover:text-zinc-200 cursor-pointer"
                                 >
                                   Alterar e-mail
                                 </button>
@@ -825,7 +844,7 @@ export function AuthScreen({ onSuccess }: AuthScreenProps) {
                               initial={{ opacity: 0, y: -4 }}
                               animate={{ opacity: 1, y: 0 }}
                               exit={{ opacity: 0, y: -4 }}
-                              className="text-[13px] text-zinc-500 font-medium"
+                              className="text-[13px] text-zinc-400 font-medium"
                             >
                               A senha deve ter pelo menos 6 caracteres.
                             </motion.p>
@@ -837,7 +856,7 @@ export function AuthScreen({ onSuccess }: AuthScreenProps) {
                               initial={{ opacity: 0, y: -4 }}
                               animate={{ opacity: 1, y: 0 }}
                               exit={{ opacity: 0, y: -4 }}
-                              className="text-[13px] text-red-500 font-medium"
+                              className="text-[13px] text-red-400 font-medium"
                             >
                               As senhas não coincidem.
                             </motion.p>
@@ -859,7 +878,7 @@ export function AuthScreen({ onSuccess }: AuthScreenProps) {
                   whileTap={isNameValid ? { scale: 0.98 } : undefined}
                   onClick={() => handleStep1Continue()}
                   disabled={!isNameValid}
-                  className="w-full min-h-[54px] py-4 rounded-[22px] bg-[#000000] text-[#ffffff] text-[16px] font-semibold flex items-center justify-center transition-all cursor-pointer disabled:opacity-25 disabled:cursor-not-allowed"
+                  className="w-full min-h-[54px] py-4 rounded-[22px] bg-[#ffffff] text-[#000000] text-[16px] font-semibold flex items-center justify-center transition-all cursor-pointer disabled:opacity-25 disabled:cursor-not-allowed"
                 >
                   Continuar
                 </motion.button>
@@ -872,7 +891,7 @@ export function AuthScreen({ onSuccess }: AuthScreenProps) {
                   whileTap={isEmailValid ? { scale: 0.98 } : undefined}
                   onClick={() => handleStep2Continue()}
                   disabled={!isEmailValid}
-                  className="w-full min-h-[54px] py-4 rounded-[22px] bg-[#000000] text-[#ffffff] text-[16px] font-semibold flex items-center justify-center transition-all cursor-pointer disabled:opacity-25 disabled:cursor-not-allowed"
+                  className="w-full min-h-[54px] py-4 rounded-[22px] bg-[#ffffff] text-[#000000] text-[16px] font-semibold flex items-center justify-center transition-all cursor-pointer disabled:opacity-25 disabled:cursor-not-allowed"
                 >
                   Continuar
                 </motion.button>
@@ -885,11 +904,11 @@ export function AuthScreen({ onSuccess }: AuthScreenProps) {
                   whileTap={isStep3Valid && !loading ? { scale: 0.98 } : undefined}
                   onClick={(e) => handleRegisterSubmit(e as any)}
                   disabled={!isStep3Valid || loading}
-                  className="w-full min-h-[54px] py-4 rounded-[22px] bg-[#000000] text-[#ffffff] text-[16px] font-semibold flex items-center justify-center gap-2 transition-all cursor-pointer disabled:opacity-25 disabled:cursor-not-allowed"
+                  className="w-full min-h-[54px] py-4 rounded-[22px] bg-[#ffffff] text-[#000000] text-[16px] font-semibold flex items-center justify-center gap-2 transition-all cursor-pointer disabled:opacity-25 disabled:cursor-not-allowed"
                 >
                   {loading ? (
                     <>
-                      <Loader2 className="w-4 h-4 animate-spin text-white" />
+                      <Loader2 className="w-4 h-4 animate-spin text-black" />
                       <span>Criando conta...</span>
                     </>
                   ) : (
@@ -903,49 +922,48 @@ export function AuthScreen({ onSuccess }: AuthScreenProps) {
       </AnimatePresence>
 
       {/* =========================================================================
-          LAYER 1: BACKGROUND (Fundo Branco Puro, sem imagens e sem sombras)
+          LAYER 1: BACKGROUND (Fundo Preto Puro — Modo Escuro)
          ========================================================================= */}
       <div
-        className="fixed inset-0 z-0 bg-[#ffffff] pointer-events-none"
+        className="fixed inset-0 z-0 bg-[#000000] pointer-events-none"
         aria-hidden="true"
       />
 
       {/* =========================================================================
-          LAYER 2: TELA INICIAL DE LOGIN (Fundo Branco Puro, Sobe ao Deslizar)
+          TELA DE LOGIN & APRESENTAÇÃO (Modo Escuro iOS — Fundo Preto, Elementos Brancos)
          ========================================================================= */}
       <section
-        className="relative z-20 w-full min-h-[100dvh] bg-[#ffffff] flex flex-col items-center justify-center text-zinc-900 border border-zinc-200/80 rounded-[30px] overflow-hidden"
+        id="auth-main-section"
+        className="relative z-10 w-full min-h-screen bg-[#000000] flex flex-col items-center justify-start text-white pt-6 sm:pt-8 pb-16 px-4 sm:px-6 pointer-events-auto"
         style={{
-          borderWidth: '1px',
-          borderRadius: '30px',
-          paddingTop: 'max(24px, env(safe-area-inset-top, 0px))',
-          paddingBottom: 'max(24px, env(safe-area-inset-bottom, 0px))',
-          paddingLeft: 'max(24px, env(safe-area-inset-left, 0px))',
-          paddingRight: 'max(24px, env(safe-area-inset-right, 0px))',
+          fontFamily: "'Inter', sans-serif",
+          paddingTop: 'max(20px, calc(env(safe-area-inset-top, 0px) + 12px))',
+          paddingBottom: 'max(40px, calc(env(safe-area-inset-bottom, 0px) + 24px))',
         }}
       >
         <motion.div
-          initial={{ y: 15, scale: 0.96 }}
-          animate={{ y: 0, scale: 1 }}
+          initial={{ y: 15, scale: 0.98, opacity: 0 }}
+          animate={{ y: 0, scale: 1, opacity: 1 }}
           transition={{ type: 'spring', stiffness: 450, damping: 30 }}
-          className="w-full max-w-sm flex flex-col items-center py-6"
+          className="w-full max-w-sm sm:max-w-md flex flex-col items-center py-1"
         >
-          {/* Logo Monvian */}
+          {/* 1. Logo Monvian (Branca no Modo Escuro) */}
           <motion.div
             initial={{ scale: 0.9, opacity: 0 }}
             animate={{ scale: 1, opacity: 1 }}
             transition={{ type: 'spring', stiffness: 500, damping: 25, delay: 0.05 }}
-            className="h-20 mb-3 flex items-center justify-center"
+            className="h-16 sm:h-20 mb-2.5 flex items-center justify-center"
           >
             <img
               src="/logobranca.png"
               alt="Monvian"
-              className="h-full w-auto max-w-[270px] object-contain"
+              className="h-full w-auto max-w-[260px] sm:max-w-[280px] object-contain brightness-0 invert"
             />
           </motion.div>
 
+          {/* 2. Descrição */}
           <p
-            className="text-[13px] text-zinc-500 font-bold mb-6 tracking-wide text-center"
+            className="text-[13px] sm:text-[14px] text-zinc-400 font-bold mb-4 tracking-wide text-center leading-snug"
             style={{
               fontFamily: "'Inter', sans-serif",
               fontWeight: 'bold',
@@ -955,8 +973,75 @@ export function AuthScreen({ onSuccess }: AuthScreenProps) {
             Seu guia inteligente para viver<br />Campos do Jordão.
           </p>
 
+          {/* 3. Video Player Container (Inicia pausado com botão Play branco pulsante no centro) */}
+          <div
+            ref={landingVideoContainerRef}
+            onClick={handleToggleLandingVideoPlay}
+            className="relative w-full h-56 sm:h-64 md:h-72 rounded-[36px] sm:rounded-[40px] overflow-hidden border border-white/15 bg-black select-none cursor-pointer shadow-[0_8px_30px_rgba(0,0,0,0.6)] group mb-6"
+          >
+            {/* The Video with poster frame and optimized MP4 source */}
+            <video
+              ref={landingVideoRef}
+              src={LANDING_VIDEO_MP4}
+              poster={LANDING_VIDEO_POSTER}
+              playsInline
+              webkit-playsinline="true"
+              loop
+              muted={isLandingVideoMuted}
+              preload="auto"
+              onPlay={() => setIsLandingVideoPlaying(true)}
+              onPause={() => setIsLandingVideoPlaying(false)}
+              className="w-full h-full object-cover object-center pointer-events-none select-none"
+            >
+              <source src={LANDING_VIDEO_MP4} type="video/mp4" />
+            </video>
+
+            {/* Top Right: Standalone Medium White Sound Icon (sem fundo) */}
+            <div className="absolute top-4 right-4 z-20 pointer-events-auto">
+              <button
+                type="button"
+                onClick={handleToggleLandingVideoMute}
+                className="p-1.5 text-white cursor-pointer active:scale-90 transition-transform flex items-center justify-center focus:outline-none"
+                title={isLandingVideoMuted ? 'Ativar som' : 'Desativar som'}
+                aria-label={isLandingVideoMuted ? 'Ativar som' : 'Desativar som'}
+              >
+                {isLandingVideoMuted ? (
+                  <VolumeX className="w-6 h-6 text-white drop-shadow-[0_1px_4px_rgba(0,0,0,0.7)]" strokeWidth={2} />
+                ) : (
+                  <Volume2 className="w-6 h-6 text-white drop-shadow-[0_1px_4px_rgba(0,0,0,0.7)]" strokeWidth={2} />
+                )}
+              </button>
+            </div>
+
+            {/* Center: Standalone White Pulsing Play Icon (mesmo padrão do ícone de som, maior e pulsando) */}
+            <AnimatePresence>
+              {!isLandingVideoPlaying && (
+                <motion.div
+                  key="pulsing-play-icon"
+                  initial={{ opacity: 0, scale: 0.85 }}
+                  animate={{
+                    opacity: [0.85, 1, 0.85],
+                    scale: [1, 1.18, 1],
+                  }}
+                  exit={{ opacity: 0, scale: 1.25, transition: { duration: 0.18 } }}
+                  transition={{
+                    duration: 1.5,
+                    repeat: Infinity,
+                    ease: 'easeInOut',
+                  }}
+                  className="absolute inset-0 m-auto flex items-center justify-center z-10 pointer-events-none"
+                >
+                  <Play
+                    className="w-14 h-14 text-white drop-shadow-[0_2px_8px_rgba(0,0,0,0.75)] ml-1"
+                    strokeWidth={2}
+                  />
+                </motion.div>
+              )}
+            </AnimatePresence>
+          </div>
+
           {/* ---------------------------------------------------- */}
-          {/* MODE: LOGIN                                          */}
+          {/* MODE: LOGIN (Modo Escuro — Elementos Brancos)        */}
           {/* ---------------------------------------------------- */}
           <form onSubmit={handleLoginSubmit} className="w-full space-y-3.5">
             <div className="relative">
@@ -967,7 +1052,7 @@ export function AuthScreen({ onSuccess }: AuthScreenProps) {
                 placeholder="Seu e-mail"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
-                className="w-full pl-11 pr-5 py-4 rounded-[22px] bg-[#fbfbfb] border border-zinc-200 text-zinc-900 placeholder:text-zinc-400 focus:outline-none focus:border-zinc-900 focus:ring-1 focus:ring-zinc-900 transition-all text-[15px] font-medium shadow-2xs"
+                className="w-full pl-11 pr-5 py-4 rounded-[22px] bg-[#141416] border border-white/12 text-white placeholder:text-zinc-500 focus:outline-none focus:bg-[#1c1c1f] focus:border-white focus:ring-1 focus:ring-white/80 transition-all text-[15px] font-medium"
                 style={{ fontFamily: "'Inter', sans-serif" }}
                 required
                 autoComplete="email"
@@ -982,7 +1067,7 @@ export function AuthScreen({ onSuccess }: AuthScreenProps) {
                 placeholder="Sua senha"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
-                className="w-full pl-11 pr-12 py-4 rounded-[22px] bg-[#fbfbfb] border border-zinc-200 text-zinc-900 placeholder:text-zinc-400 focus:outline-none focus:border-zinc-900 focus:ring-1 focus:ring-zinc-900 transition-all text-[15px] font-medium shadow-2xs"
+                className="w-full pl-11 pr-12 py-4 rounded-[22px] bg-[#141416] border border-white/12 text-white placeholder:text-zinc-500 focus:outline-none focus:bg-[#1c1c1f] focus:border-white focus:ring-1 focus:ring-white/80 transition-all text-[15px] font-medium"
                 style={{ fontFamily: "'Inter', sans-serif" }}
                 required
                 autoComplete="current-password"
@@ -990,7 +1075,7 @@ export function AuthScreen({ onSuccess }: AuthScreenProps) {
               <button
                 type="button"
                 onClick={() => setShowPassword(!showPassword)}
-                className="absolute right-4 top-1/2 -translate-y-1/2 text-zinc-400 hover:text-zinc-900 transition-colors cursor-pointer"
+                className="absolute right-4 top-1/2 -translate-y-1/2 text-zinc-400 hover:text-white transition-colors cursor-pointer"
                 aria-label={showPassword ? 'Ocultar senha' : 'Ver senha'}
               >
                 {showPassword ? <EyeOff className="w-[18px] h-[18px]" /> : <Eye className="w-[18px] h-[18px]" />}
@@ -1001,7 +1086,7 @@ export function AuthScreen({ onSuccess }: AuthScreenProps) {
               <motion.p
                 initial={{ opacity: 0, y: -4 }}
                 animate={{ opacity: 1, y: 0 }}
-                className="text-red-500 text-xs font-semibold text-center mt-2 px-4"
+                className="text-red-400 text-xs font-semibold text-center mt-2 px-4"
               >
                 {error}
               </motion.p>
@@ -1013,7 +1098,7 @@ export function AuthScreen({ onSuccess }: AuthScreenProps) {
                 whileTap={{ scale: 0.98 }}
                 type="submit"
                 disabled={loading || googleLoading}
-                className="w-full py-[16px] rounded-[22px] bg-[#000000] text-[#ffffff] text-[15px] font-bold flex items-center justify-center gap-2 hover:bg-zinc-800 transition-all disabled:opacity-70 shadow-md cursor-pointer"
+                className="w-full py-[16px] rounded-[22px] bg-[#ffffff] text-[#000000] text-[15px] font-bold flex items-center justify-center gap-2 hover:bg-zinc-200 transition-all disabled:opacity-70 shadow-[0_4px_20px_rgba(255,255,255,0.1)] cursor-pointer"
                 style={{ fontFamily: "'Inter', sans-serif" }}
               >
                 {loading ? 'Entrando...' : 'Entrar →'}
@@ -1023,14 +1108,14 @@ export function AuthScreen({ onSuccess }: AuthScreenProps) {
             {/* Google Sign In Divider & Button */}
             <div className="pt-2 space-y-3">
               <div className="flex items-center gap-3">
-                <div className="flex-1 h-[1px] bg-zinc-200" />
+                <div className="flex-1 h-[1px] bg-white/12" />
                 <span
-                  className="text-[11px] text-zinc-400 uppercase tracking-wider font-semibold"
+                  className="text-[11px] text-zinc-500 uppercase tracking-wider font-semibold"
                   style={{ fontFamily: "'Inter', sans-serif" }}
                 >
                   ou
                 </span>
-                <div className="flex-1 h-[1px] bg-zinc-200" />
+                <div className="flex-1 h-[1px] bg-white/12" />
               </div>
 
               <motion.button
@@ -1039,7 +1124,7 @@ export function AuthScreen({ onSuccess }: AuthScreenProps) {
                 type="button"
                 onClick={handleGoogleAuth}
                 disabled={googleLoading || loading}
-                className="w-full py-[14px] px-5 rounded-[22px] bg-[#fbfbfb] hover:bg-zinc-100 border border-zinc-200 text-zinc-900 text-[14px] font-semibold flex items-center justify-center gap-3 transition-all cursor-pointer shadow-2xs disabled:opacity-60"
+                className="w-full py-[14px] px-5 rounded-[22px] bg-[#141416] hover:bg-[#1f1f23] border border-white/12 text-white text-[14px] font-semibold flex items-center justify-center gap-3 transition-all cursor-pointer disabled:opacity-60"
               >
                 <svg className="w-[18px] h-[18px] shrink-0" viewBox="0 0 24 24">
                   <path
@@ -1059,7 +1144,7 @@ export function AuthScreen({ onSuccess }: AuthScreenProps) {
                     d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z"
                   />
                 </svg>
-                <span style={{ color: '#767676', fontFamily: "'Inter', sans-serif" }}>
+                <span className="text-zinc-200" style={{ fontFamily: "'Inter', sans-serif" }}>
                   {googleLoading ? 'Conectando Google...' : 'Entrar com Google / Gmail'}
                 </span>
               </motion.button>
@@ -1068,202 +1153,65 @@ export function AuthScreen({ onSuccess }: AuthScreenProps) {
 
           {/* Footer Navigation Switcher */}
           <div
-            className="mt-8 text-[13px] font-semibold flex items-center gap-1.5"
-            style={{ color: '#ababab', fontFamily: "'Inter', sans-serif" }}
+            className="mt-8 text-[13px] font-semibold flex items-center gap-1.5 text-zinc-500"
+            style={{ fontFamily: "'Inter', sans-serif" }}
           >
             Não possui uma conta?
             <button
               id="btn-open-register-flow"
               type="button"
               onClick={handleStartRegisterFlow}
-              className="text-zinc-900 font-bold hover:underline cursor-pointer"
+              className="text-white font-bold hover:underline cursor-pointer"
               style={{ fontFamily: "'Inter', sans-serif" }}
             >
               Criar nova conta →
             </button>
           </div>
         </motion.div>
-
-        {/* Subtle, discreet swipe-up cue at the bottom of the login screen */}
-        <div
-          onClick={scrollToLanding}
-          className="w-full flex flex-col items-center justify-center pt-2 pb-1 text-zinc-400 hover:text-zinc-600 transition-colors cursor-pointer"
-          title="Deslize para explorar Campos do Jordão"
-        >
-          <span className="text-[11px] font-medium tracking-wide text-zinc-400">
-            Deslize para explorar
-          </span>
-          <ChevronDown className="w-4 h-4 text-zinc-400 animate-bounce mt-0.5" />
-        </div>
       </section>
 
       {/* =========================================================================
-          LAYER 3: LANDING PAGE CONTENT (Fundo Branco, Textos Pretos, Sem Sombras)
+          SEÇÃO INFERIOR AO ROLAR PARA CIMA — HEADLINE + IPHONE MAPA
          ========================================================================= */}
       <section
-        className="relative z-10 w-full min-h-[100dvh] bg-[#ffffff] flex flex-col justify-center text-black overflow-hidden pointer-events-auto"
+        id="landing-content-section"
+        className="relative z-10 w-full bg-[#000000] flex flex-col items-center justify-center pt-8 pb-20 px-4 sm:px-6 pointer-events-auto overflow-hidden"
         style={{
-          fontFamily: "'Inter', sans-serif",
-          paddingTop: 'max(80px, calc(env(safe-area-inset-top, 0px) + 60px))',
-          paddingBottom: 'max(60px, calc(env(safe-area-inset-bottom, 0px) + 40px))',
-          paddingLeft: 'max(20px, env(safe-area-inset-left, 0px))',
-          paddingRight: 'max(20px, env(safe-area-inset-right, 0px))',
+          fontFamily: "'Inter', -apple-system, BlinkMacSystemFont, sans-serif",
+          paddingBottom: 'max(56px, calc(env(safe-area-inset-bottom, 0px) + 40px))',
         }}
       >
-        <div
-          className="max-w-4xl w-full mx-auto flex flex-col justify-center my-auto -translate-y-6 sm:-translate-y-10 md:-translate-y-14 transition-all duration-300 ease-out"
-          style={{
-            fontFamily: "'Inter', sans-serif",
-            opacity: Math.max(0, Math.min(1, (scrollProgress - 0.15) / 0.5)),
-            transform: `translateY(${-24 + (1 - Math.max(0, Math.min(1, (scrollProgress - 0.15) / 0.5))) * 24}px)`,
-          }}
+        <motion.div
+          initial={
+            shouldReduceMotion
+              ? { opacity: 0 }
+              : { opacity: 0, y: 36, filter: 'blur(12px)' }
+          }
+          whileInView={
+            shouldReduceMotion
+              ? { opacity: 1 }
+              : { opacity: 1, y: 0, filter: 'blur(0px)' }
+          }
+          viewport={{ once: false, amount: 0.15 }}
+          transition={{ duration: 0.75, ease: [0.22, 1, 0.36, 1] }}
+          className="w-full max-w-md flex flex-col items-center"
         >
-          {/* Header Title & Subtitle */}
-          <div className="text-left mb-4 sm:mb-6">
-            <h2
-              className="text-2xl sm:text-3xl md:text-4xl lg:text-[42px] font-normal text-left text-black tracking-tight"
-              style={{
-                fontFamily: "'Inter', sans-serif",
-                letterSpacing: '-0.025em',
-                fontStyle: 'normal',
-                fontWeight: 'normal',
-                textDecorationLine: 'none',
-                textAlign: 'left',
-                lineHeight: '30px',
-                color: '#000000',
-              }}
-            >
-              Campos do Jordão do seu jeito.
-            </h2>
-            <p
-              className="text-sm sm:text-base md:text-lg text-black font-normal text-left mt-2 max-w-xl leading-relaxed"
-              style={{
-                fontFamily: "'Inter', sans-serif",
-                letterSpacing: '-0.01em',
-                color: '#000000',
-                textAlign: 'left',
-                fontWeight: 'normal',
-                fontStyle: 'normal',
-              }}
-            >
-              Descubra lugares, experiências e caminhos que valem a viagem.
-            </p>
-          </div>
+          {/* Headline em cima da foto em branco */}
+          <h2
+            className="text-white text-center text-[24px] sm:text-[28px] font-bold tracking-[-0.025em] leading-[1.2] mb-6 px-2"
+            style={{ fontFamily: "'Inter', -apple-system, BlinkMacSystemFont, sans-serif" }}
+          >
+            Campos do Jordão na palma da mão.
+          </h2>
 
-          {/* Single Image Carousel */}
-          <div className="relative w-full h-56 sm:h-64 md:h-72 lg:h-80 rounded-[24px] sm:rounded-[28px] overflow-hidden border border-zinc-200/90 bg-zinc-100 select-none cursor-grab active:cursor-grabbing">
-            <motion.div
-              drag="x"
-              dragConstraints={{ left: 0, right: 0 }}
-              dragElastic={0.2}
-              onDragEnd={(_e, info) => {
-                if (info.offset.x < -35 || info.velocity.x < -180) {
-                  goToNextSlide();
-                } else if (info.offset.x > 35 || info.velocity.x > 180) {
-                  goToPrevSlide();
-                }
-              }}
-              className="w-full h-full relative"
-            >
-              <AnimatePresence initial={false} custom={slideDirection} mode="popLayout">
-                <motion.div
-                  key={LANDING_SLIDES[currentSlideIndex].id}
-                  custom={slideDirection}
-                  variants={{
-                    enter: (dir: number) => ({
-                      x: dir > 0 ? '100%' : '-100%',
-                      opacity: 0,
-                    }),
-                    center: {
-                      x: 0,
-                      opacity: 1,
-                    },
-                    exit: (dir: number) => ({
-                      x: dir > 0 ? '-100%' : '100%',
-                      opacity: 0,
-                    }),
-                  }}
-                  initial="enter"
-                  animate="center"
-                  exit="exit"
-                  transition={{
-                    x: { type: 'spring', stiffness: 320, damping: 32 },
-                    opacity: { duration: 0.28 },
-                  }}
-                  className="absolute inset-0 w-full h-full"
-                >
-                  <img
-                    src={LANDING_SLIDES[currentSlideIndex].image}
-                    alt={LANDING_SLIDES[currentSlideIndex].title}
-                    onError={(e) => {
-                      (e.currentTarget as HTMLImageElement).src = LANDING_SLIDES[currentSlideIndex].fallback;
-                    }}
-                    className="w-full h-full object-cover object-center pointer-events-none select-none"
-                    draggable={false}
-                    loading="eager"
-                  />
-
-                  <div className="absolute inset-x-0 top-0 h-16 bg-gradient-to-b from-black/35 to-transparent pointer-events-none" />
-                  <div className="absolute inset-x-0 bottom-0 h-36 bg-gradient-to-t from-black/90 via-black/45 to-transparent pointer-events-none" />
-
-                  <div className="absolute bottom-4 left-4 sm:bottom-5 sm:left-6 right-28 pointer-events-none text-left">
-                    <span
-                      className="text-[10px] sm:text-[11px] font-bold uppercase tracking-wider text-white/70 block mb-0.5"
-                      style={{
-                        fontFamily: "'Inter', sans-serif",
-                        letterSpacing: '0.08em',
-                      }}
-                    >
-                      Destaques de Campos do Jordão
-                    </span>
-                    <h3
-                      className="text-lg sm:text-xl md:text-2xl font-bold text-white tracking-tight leading-tight"
-                      style={{
-                        fontFamily: "'Inter', sans-serif",
-                        letterSpacing: '-0.02em',
-                      }}
-                    >
-                      {LANDING_SLIDES[currentSlideIndex].title}
-                    </h3>
-                    <p
-                      className="text-xs sm:text-[13px] text-white/85 font-medium mt-0.5 truncate"
-                      style={{
-                        fontFamily: "'Inter', sans-serif",
-                      }}
-                    >
-                      {LANDING_SLIDES[currentSlideIndex].subtitle}
-                    </p>
-                  </div>
-                </motion.div>
-              </AnimatePresence>
-            </motion.div>
-          </div>
-
-          {/* Position Indicators */}
-          <div className="mt-4 flex items-center justify-center gap-2 py-1">
-            {LANDING_SLIDES.map((slide, idx) => {
-              const isActive = idx === currentSlideIndex;
-              return (
-                <button
-                  key={slide.id}
-                  type="button"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    setSlideDirection(idx > currentSlideIndex ? 1 : -1);
-                    setCurrentSlideIndex(idx);
-                    resetSlideTimer();
-                  }}
-                  aria-label={`Ir para foto ${idx + 1}: ${slide.title}`}
-                  className={`transition-all duration-300 rounded-full cursor-pointer ${
-                    isActive
-                      ? 'w-6 h-2 bg-black'
-                      : 'w-2 h-2 bg-zinc-300 hover:bg-zinc-400'
-                  }`}
-                />
-              );
-            })}
-          </div>
-        </div>
+          {/* Imagem original enviada pelo usuário */}
+          <img
+            src="/assets/aistudio/84204A7F-587D-4FE6-8202-91B404BEC897_0b769b7b.png"
+            alt="Campos do Jordão na palma da mão"
+            loading="lazy"
+            className="w-full max-w-[360px] sm:max-w-[400px] h-auto object-contain select-none pointer-events-none"
+          />
+        </motion.div>
       </section>
     </div>
   );

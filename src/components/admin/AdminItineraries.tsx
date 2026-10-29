@@ -155,7 +155,7 @@ export const AdminItineraries: React.FC = () => {
                 ...it,
                 isPremium: nextPremium,
                 price: nextPremium ? 'R$ 19,90' : 'Grátis',
-                badgeText: nextPremium ? 'ELITE GOLD' : 'Livre',
+                badgeText: nextPremium ? 'ELITE GOLD' : 'Grátis',
                 showBadge: nextPremium,
               }
             : it
