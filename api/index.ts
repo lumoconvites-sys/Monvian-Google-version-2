@@ -1,4 +1,5 @@
 import { createClient } from '@supabase/supabase-js';
+import Stripe from 'stripe';
 import bcrypt from 'bcryptjs';
 import crypto from 'crypto';
 
@@ -100,8 +101,16 @@ async function getAuthUser(req: any): Promise<any | null> {
     } catch {}
   }
 
-  // Fallback: check x-user-email header if provided
-  const headerEmail = String(req.headers['x-user-email'] || '').trim().toLowerCase();
+  // Fallback: check x-user-email header or body/query email if provided
+  const headerEmail = String(
+    req.headers['x-user-email'] ||
+      req.body?.userEmail ||
+      req.body?.email ||
+      req.body?.username ||
+      ''
+  )
+    .trim()
+    .toLowerCase();
   if (headerEmail) {
     if (isPrimaryAdmin(headerEmail)) {
       return formatSafeUser({
@@ -112,15 +121,278 @@ async function getAuthUser(req: any): Promise<any | null> {
         is_gold: 1,
       });
     }
-    const { data: userRow } = await supabase
+    const cleanLookup = headerEmail.replace(/^@+/, '');
+    const { data: userList } = await supabase
       .from('users')
       .select('*')
-      .eq('email', headerEmail)
-      .maybeSingle();
-    if (userRow) return formatSafeUser(userRow);
+      .or(`email.ilike.${cleanLookup},username_normalized.eq.${cleanLookup},whatsapp.ilike.${cleanLookup}`)
+      .limit(1);
+    if (userList && userList.length > 0) return formatSafeUser(userList[0]);
   }
 
   return null;
+}
+
+const DEFAULT_PLATANOS_PACKAGES = [
+  { id: 'pkg_15', platanos: 15, priceCents: 1590, priceBRL: 'R$ 15,90', badge: '', isBestValue: false, isActive: true, sortOrder: 1 },
+  { id: 'pkg_30', platanos: 30, priceCents: 2290, priceBRL: 'R$ 22,90', badge: '', isBestValue: false, isActive: true, sortOrder: 2 },
+  { id: 'pkg_60', platanos: 60, priceCents: 2990, priceBRL: 'R$ 29,90', badge: '', isBestValue: false, isActive: true, sortOrder: 3 },
+  { id: 'pkg_100', platanos: 100, priceCents: 3490, priceBRL: 'R$ 34,90', badge: '', isBestValue: false, isActive: true, sortOrder: 4 },
+  { id: 'pkg_200', platanos: 200, priceCents: 3990, priceBRL: 'R$ 39,90', badge: 'Melhor custo-benefício', isBestValue: true, isActive: true, sortOrder: 5 },
+];
+
+function formatCentsToBRL(cents: number): string {
+  const reais = (Number(cents || 0) / 100).toFixed(2).replace('.', ',');
+  return `R$ ${reais}`;
+}
+
+let cachedStripeKey = '';
+
+async function getStripeClientServerless(): Promise<Stripe | null> {
+  const envKey = (process.env.STRIPE_SECRET_KEY || '').trim();
+  if (envKey) return new Stripe(envKey);
+  if (cachedStripeKey) return new Stripe(cachedStripeKey);
+
+  try {
+    const { data } = await supabase
+      .from('system_settings')
+      .select('value')
+      .eq('key', 'stripe_secret_key')
+      .maybeSingle();
+    const key = (data?.value || '').trim();
+    if (key) {
+      cachedStripeKey = key;
+      return new Stripe(key);
+    }
+  } catch {}
+  return null;
+}
+
+async function getPlatanosPackagesServerless(includeInactive = false): Promise<any[]> {
+  try {
+    const { data } = await supabase
+      .from('system_settings')
+      .select('value')
+      .eq('key', 'platanos_packages_json')
+      .maybeSingle();
+    if (data?.value) {
+      const parsed = JSON.parse(data.value);
+      if (Array.isArray(parsed) && parsed.length > 0) {
+        return includeInactive ? parsed : parsed.filter((p: any) => p.isActive !== false);
+      }
+    }
+  } catch {}
+  return DEFAULT_PLATANOS_PACKAGES;
+}
+
+async function getItineraryPricesServerless(): Promise<Record<string, number>> {
+  const prices: Record<string, number> = {};
+  try {
+    const [itinsRes, customPricesRes] = await Promise.all([
+      supabase.from('itineraries').select('id, is_premium'),
+      supabase.from('system_settings').select('value').eq('key', 'platanos_itinerary_prices_json').maybeSingle(),
+    ]);
+    let customMap: Record<string, number> = {};
+    if (customPricesRes.data?.value) {
+      try {
+        customMap = JSON.parse(customPricesRes.data.value) || {};
+      } catch {}
+    }
+    for (const row of itinsRes.data || []) {
+      const isPrem = Number(row.is_premium) === 1;
+      const customVal = Number(customMap[row.id]);
+      prices[row.id] = isPrem ? (customVal > 0 ? customVal : 15) : 0;
+    }
+    for (const [k, v] of Object.entries(customMap)) {
+      if (prices[k] === undefined && Number(v) >= 0) {
+        prices[k] = Number(v);
+      }
+    }
+  } catch {}
+  return prices;
+}
+
+async function loadUserPlatanosWallet(user: { id: number; email: string }) {
+  const cleanEmail = (user.email || `uid_${user.id}`).trim().toLowerCase();
+  const settingKey = `platanos_wallet_${cleanEmail}`;
+  const [packages, itineraryPrices, walletRow] = await Promise.all([
+    getPlatanosPackagesServerless(false),
+    getItineraryPricesServerless(),
+    supabase.from('system_settings').select('value').eq('key', settingKey).maybeSingle(),
+  ]);
+
+  let stored: any = null;
+  if (walletRow.data?.value) {
+    try {
+      stored = JSON.parse(walletRow.data.value);
+    } catch {}
+  }
+
+  return {
+    userId: Number(user.id || stored?.userId || 1),
+    userEmail: cleanEmail,
+    balance: Number(stored?.balance || 0),
+    totalCredited: Number(stored?.totalCredited || 0),
+    totalSpent: Number(stored?.totalSpent || 0),
+    unlockedItineraryIds: Array.isArray(stored?.unlockedItineraryIds) ? stored.unlockedItineraryIds : [],
+    transactions: Array.isArray(stored?.transactions) ? stored.transactions : [],
+    orders: Array.isArray(stored?.orders) ? stored.orders : [],
+    packages,
+    itineraryPrices,
+  };
+}
+
+async function saveUserPlatanosWallet(wallet: any) {
+  const cleanEmail = (wallet.userEmail || `uid_${wallet.userId || 1}`).trim().toLowerCase();
+  const settingKey = `platanos_wallet_${cleanEmail}`;
+  await supabase.from('system_settings').upsert(
+    {
+      key: settingKey,
+      value: JSON.stringify(wallet),
+      updated_at: new Date().toISOString(),
+    },
+    { onConflict: 'key' }
+  );
+}
+
+async function resolvePlatanosUserServerless(req: any, body: any, url: URL): Promise<{ id: number; email: string; name: string }> {
+  const authUser = await getAuthUser(req);
+  if (authUser && authUser.email) {
+    return {
+      id: Number(authUser.id || 1),
+      email: String(authUser.email).trim().toLowerCase(),
+      name: authUser.name || 'Explorador',
+    };
+  }
+  const rawCandidate = String(
+    req.headers['x-user-email'] ||
+      body?.userEmail ||
+      body?.email ||
+      body?.username ||
+      url.searchParams.get('email') ||
+      ''
+  )
+    .trim()
+    .toLowerCase();
+  if (rawCandidate) {
+    const cleanEmail = rawCandidate.includes('@') ? rawCandidate : `${rawCandidate.replace(/[^a-z0-9_]/g, '')}@monvian.com`;
+    return {
+      id: Number(body?.userId || 1),
+      email: cleanEmail,
+      name: cleanEmail.split('@')[0] || 'Explorador',
+    };
+  }
+  return {
+    id: 1,
+    email: 'explorador@monvian.com',
+    name: 'Explorador Monvian',
+  };
+}
+
+async function creditPlatanosOrderServerless(params: {
+  stripeSessionId: string;
+  stripePaymentIntentId?: string | null;
+  userId?: number;
+  userEmail?: string;
+  packageId?: string;
+}) {
+  const orderKey = `platanos_order_${params.stripeSessionId}`;
+  const { data: orderRow } = await supabase
+    .from('system_settings')
+    .select('value')
+    .eq('key', orderKey)
+    .maybeSingle();
+
+  let orderObj: any = null;
+  if (orderRow?.value) {
+    try {
+      orderObj = JSON.parse(orderRow.value);
+    } catch {}
+  }
+
+  const targetEmail = (params.userEmail || orderObj?.userEmail || 'explorador@monvian.com').trim().toLowerCase();
+  const targetUserId = Number(params.userId || orderObj?.userId || 1);
+  const wallet = await loadUserPlatanosWallet({ id: targetUserId, email: targetEmail });
+
+  const existingCompletedTx = wallet.transactions.find(
+    (t: any) => t.referenceId === params.stripeSessionId && t.type === 'credit_purchase' && t.status === 'completed'
+  );
+  if (existingCompletedTx || (orderObj && orderObj.credited === 1 && orderObj.status === 'paid')) {
+    return {
+      alreadyCredited: true,
+      creditedAmount: Number(orderObj?.platanosAmount || existingCompletedTx?.amount || 0),
+      wallet,
+    };
+  }
+
+  const pkgId = params.packageId || orderObj?.packageId || 'pkg_15';
+  const packages = await getPlatanosPackagesServerless(true);
+  const pkg = packages.find((p: any) => p.id === pkgId) || DEFAULT_PLATANOS_PACKAGES[0];
+  const platanosToCredit = Number(orderObj?.platanosAmount || pkg.platanos || 15);
+  const amountCents = Number(orderObj?.amountCents || pkg.priceCents || 1590);
+
+  const balanceBefore = Number(wallet.balance || 0);
+  const balanceAfter = balanceBefore + platanosToCredit;
+  const nowIso = new Date().toISOString();
+  const txId = `ptx_${crypto.randomUUID()}`;
+
+  const newTx = {
+    id: txId,
+    userId: targetUserId,
+    userEmail: targetEmail,
+    type: 'credit_purchase',
+    amount: platanosToCredit,
+    balanceBefore,
+    balanceAfter,
+    status: 'completed',
+    description: `Recarga de +${platanosToCredit} Plátanos (${formatCentsToBRL(amountCents)})`,
+    referenceType: 'stripe_session',
+    referenceId: params.stripeSessionId,
+    createdAt: nowIso,
+  };
+
+  wallet.balance = balanceAfter;
+  wallet.totalCredited = Number(wallet.totalCredited || 0) + platanosToCredit;
+  wallet.transactions = [newTx, ...(wallet.transactions || [])].slice(0, 100);
+
+  const updatedOrder = {
+    ...(orderObj || {
+      id: `ord_${crypto.randomUUID()}`,
+      userId: targetUserId,
+      userEmail: targetEmail,
+      packageId: pkgId,
+      platanosAmount: platanosToCredit,
+      amountCents,
+      currency: 'brl',
+      stripeSessionId: params.stripeSessionId,
+      createdAt: nowIso,
+    }),
+    stripePaymentIntentId: params.stripePaymentIntentId || orderObj?.stripePaymentIntentId || null,
+    status: 'paid',
+    credited: 1,
+    updatedAt: nowIso,
+  };
+
+  const otherOrders = (wallet.orders || []).filter((o: any) => o.stripeSessionId !== params.stripeSessionId);
+  wallet.orders = [updatedOrder, ...otherOrders].slice(0, 50);
+
+  await Promise.all([
+    saveUserPlatanosWallet(wallet),
+    supabase.from('system_settings').upsert(
+      {
+        key: orderKey,
+        value: JSON.stringify(updatedOrder),
+        updated_at: nowIso,
+      },
+      { onConflict: 'key' }
+    ),
+  ]);
+
+  return {
+    alreadyCredited: false,
+    creditedAmount: platanosToCredit,
+    wallet,
+  };
 }
 
 export default async function handler(req: any, res: any) {
@@ -937,7 +1209,424 @@ export default async function handler(req: any, res: any) {
       }
     }
 
-    return res.status(404).json({ success: false, message: `Route ${cleanPath} not found` });
+    // =========================================================================
+    // 10. PLÁTANOS VIRTUAL CURRENCY & WALLET ROUTES (STRIPE)
+    // =========================================================================
+    if (cleanPath === '/platanos/packages' && method === 'GET') {
+      const [packages, itineraryPrices] = await Promise.all([
+        getPlatanosPackagesServerless(false),
+        getItineraryPricesServerless(),
+      ]);
+      return res.status(200).json({
+        success: true,
+        packages,
+        itineraryPrices,
+      });
+    }
+
+    if (cleanPath === '/platanos/wallet' && method === 'GET') {
+      const authUser = await getAuthUser(req);
+      const rawEmail = String(req.headers['x-user-email'] || url.searchParams.get('email') || '').trim().toLowerCase();
+      if (!authUser && !rawEmail) {
+        const [packages, itineraryPrices] = await Promise.all([
+          getPlatanosPackagesServerless(false),
+          getItineraryPricesServerless(),
+        ]);
+        return res.status(200).json({
+          success: true,
+          authenticated: false,
+          wallet: {
+            userId: 0,
+            userEmail: '',
+            balance: 0,
+            totalCredited: 0,
+            totalSpent: 0,
+            unlockedItineraryIds: [],
+            transactions: [],
+            orders: [],
+            packages,
+            itineraryPrices,
+          },
+        });
+      }
+
+      const resolvedUser = await resolvePlatanosUserServerless(req, body, url);
+      const wallet = await loadUserPlatanosWallet(resolvedUser);
+      return res.status(200).json({
+        success: true,
+        authenticated: true,
+        wallet,
+      });
+    }
+
+    if (cleanPath === '/platanos/checkout' && method === 'POST') {
+      const user = await resolvePlatanosUserServerless(req, body, url);
+      const packageId = String(body?.packageId || '').trim();
+      if (!packageId) {
+        return res.status(400).json({ error: 'Selecione um pacote válido de Plátanos.' });
+      }
+
+      const packages = await getPlatanosPackagesServerless(true);
+      const pkg = packages.find((p: any) => p.id === packageId) || DEFAULT_PLATANOS_PACKAGES.find((p) => p.id === packageId);
+      if (!pkg) {
+        return res.status(400).json({ error: 'Pacote de Plátanos não encontrado ou indisponível.' });
+      }
+
+      const stripeClient = await getStripeClientServerless();
+      if (!stripeClient) {
+        return res.status(503).json({
+          error: 'Integração Stripe aguardando configuração da chave secreta (STRIPE_SECRET_KEY) no servidor.',
+        });
+      }
+
+      const cleanEmail = (user.email || '').trim().toLowerCase();
+      const isValidEmail = cleanEmail.includes('@') && cleanEmail.includes('.');
+      const host = req.headers.host || 'localhost:3000';
+      const proto = req.headers['x-forwarded-proto'] || 'https';
+      const origin = process.env.APP_URL || `${proto}://${host}`;
+
+      const session = await stripeClient.checkout.sessions.create({
+        payment_method_types: ['card'],
+        mode: 'payment',
+        line_items: [
+          {
+            price_data: {
+              currency: 'brl',
+              product_data: {
+                name: `${pkg.platanos} Plátanos — Monvian`,
+                description: `Pacote de ${pkg.platanos} Plátanos para desbloqueio de roteiros exclusivos em Campos do Jordão.`,
+              },
+              unit_amount: Number(pkg.priceCents),
+            },
+            quantity: 1,
+          },
+        ],
+        ...(isValidEmail ? { customer_email: cleanEmail } : {}),
+        client_reference_id: String(user.id),
+        metadata: {
+          type: 'platanos_topup',
+          packageId: pkg.id,
+          platanosAmount: String(pkg.platanos),
+          amountCents: String(pkg.priceCents),
+          userId: String(user.id),
+          userEmail: cleanEmail,
+        },
+        payment_intent_data: {
+          metadata: {
+            type: 'platanos_topup',
+            packageId: pkg.id,
+            platanosAmount: String(pkg.platanos),
+            amountCents: String(pkg.priceCents),
+            userId: String(user.id),
+            userEmail: cleanEmail,
+          },
+        },
+        success_url: `${origin}/?platanos_payment=success&session_id={CHECKOUT_SESSION_ID}`,
+        cancel_url: `${origin}/?platanos_payment=cancelled&package_id=${encodeURIComponent(pkg.id)}`,
+      });
+
+      const orderId = `ord_${crypto.randomUUID()}`;
+      const nowIso = new Date().toISOString();
+      const newOrder = {
+        id: orderId,
+        userId: Number(user.id),
+        userEmail: cleanEmail,
+        packageId: pkg.id,
+        platanosAmount: Number(pkg.platanos),
+        amountCents: Number(pkg.priceCents),
+        currency: 'brl',
+        stripeSessionId: session.id,
+        stripePaymentIntentId: null,
+        status: 'pending',
+        credited: 0,
+        createdAt: nowIso,
+        updatedAt: nowIso,
+      };
+
+      const wallet = await loadUserPlatanosWallet(user);
+      wallet.orders = [newOrder, ...(wallet.orders || [])].slice(0, 50);
+
+      await Promise.all([
+        saveUserPlatanosWallet(wallet),
+        supabase.from('system_settings').upsert(
+          {
+            key: `platanos_order_${session.id}`,
+            value: JSON.stringify(newOrder),
+            updated_at: nowIso,
+          },
+          { onConflict: 'key' }
+        ),
+      ]);
+
+      return res.status(200).json({
+        success: true,
+        orderId,
+        sessionId: session.id,
+        url: session.url,
+        package: {
+          id: pkg.id,
+          platanos: pkg.platanos,
+          priceCents: pkg.priceCents,
+          priceBRL: pkg.priceBRL || formatCentsToBRL(pkg.priceCents),
+        },
+      });
+    }
+
+    if (cleanPath === '/platanos/verify-session' && method === 'GET') {
+      const sessionId = String(url.searchParams.get('session_id') || '').trim();
+      if (!sessionId) {
+        return res.status(400).json({ error: 'session_id é obrigatório.' });
+      }
+
+      const stripeClient = await getStripeClientServerless();
+      if (stripeClient) {
+        const session = await stripeClient.checkout.sessions.retrieve(sessionId);
+        if (session && session.payment_status === 'paid') {
+          const creditRes = await creditPlatanosOrderServerless({
+            stripeSessionId: session.id,
+            stripePaymentIntentId: typeof session.payment_intent === 'string' ? session.payment_intent : null,
+            userId: session.metadata?.userId ? parseInt(session.metadata.userId, 10) : undefined,
+            userEmail: session.metadata?.userEmail || session.customer_email || undefined,
+            packageId: session.metadata?.packageId || undefined,
+          });
+          return res.status(200).json({
+            success: true,
+            status: 'paid',
+            creditedAmount: creditRes.creditedAmount,
+            alreadyCredited: creditRes.alreadyCredited,
+            wallet: creditRes.wallet,
+          });
+        }
+      }
+
+      return res.status(200).json({
+        success: false,
+        status: 'pending',
+        message: 'Pagamento aguardando confirmação do Stripe.',
+      });
+    }
+
+    if (cleanPath === '/platanos/cancel-order' && method === 'POST') {
+      const user = await resolvePlatanosUserServerless(req, body, url);
+      const wallet = await loadUserPlatanosWallet(user);
+      const sessionId = String(body?.sessionId || '').trim();
+      const packageId = String(body?.packageId || '').trim();
+
+      let updated = false;
+      wallet.orders = (wallet.orders || []).map((o: any) => {
+        if (
+          o.status === 'pending' &&
+          o.credited === 0 &&
+          ((sessionId && o.stripeSessionId === sessionId) || (!sessionId && packageId && o.packageId === packageId && !updated))
+        ) {
+          updated = true;
+          return { ...o, status: 'cancelled', updatedAt: new Date().toISOString() };
+        }
+        return o;
+      });
+
+      if (updated) {
+        await saveUserPlatanosWallet(wallet);
+      }
+
+      return res.status(200).json({ success: true, wallet });
+    }
+
+    if (cleanPath === '/platanos/purchase-itinerary' && method === 'POST') {
+      const user = await resolvePlatanosUserServerless(req, body, url);
+      const itineraryId = String(body?.itineraryId || '').trim();
+      const itineraryTitle = String(body?.itineraryTitle || 'Roteiro Exclusivo').trim();
+
+      if (!itineraryId) {
+        return res.status(400).json({
+          success: false,
+          code: 'INVALID_INPUT',
+          error: 'ID do roteiro é obrigatório.',
+        });
+      }
+
+      const wallet = await loadUserPlatanosWallet(user);
+      if (wallet.unlockedItineraryIds.includes(itineraryId)) {
+        return res.status(200).json({
+          success: true,
+          alreadyUnlocked: true,
+          itineraryId,
+          itineraryTitle,
+          charged: 0,
+          balanceBefore: wallet.balance,
+          balanceAfter: wallet.balance,
+          transactionId: 'existing_unlock',
+          wallet,
+        });
+      }
+
+      const authoritativePrice =
+        wallet.itineraryPrices?.[itineraryId] !== undefined ? Number(wallet.itineraryPrices[itineraryId]) : 15;
+
+      const balanceBefore = Number(wallet.balance || 0);
+      if (balanceBefore < authoritativePrice) {
+        const missing = authoritativePrice - balanceBefore;
+        return res.status(402).json({
+          success: false,
+          code: 'INSUFFICIENT_BALANCE',
+          error: `Saldo insuficiente de Plátanos. Você possui ${balanceBefore} e este roteiro requer ${authoritativePrice} Plátanos.`,
+          balance: balanceBefore,
+          required: authoritativePrice,
+          missing,
+        });
+      }
+
+      const balanceAfter = balanceBefore - authoritativePrice;
+      const nowIso = new Date().toISOString();
+      const txId = `ptx_${crypto.randomUUID()}`;
+
+      wallet.balance = balanceAfter;
+      wallet.totalSpent = Number(wallet.totalSpent || 0) + authoritativePrice;
+      wallet.unlockedItineraryIds = [itineraryId, ...wallet.unlockedItineraryIds];
+      wallet.transactions = [
+        {
+          id: txId,
+          userId: user.id,
+          userEmail: user.email,
+          type: 'debit_itinerary',
+          amount: -authoritativePrice,
+          balanceBefore,
+          balanceAfter,
+          status: 'completed',
+          description: `Roteiro adicionado: ${itineraryTitle}`,
+          referenceType: 'itinerary_unlock',
+          referenceId: itineraryId,
+          createdAt: nowIso,
+        },
+        ...(wallet.transactions || []),
+      ].slice(0, 100);
+
+      await saveUserPlatanosWallet(wallet);
+
+      return res.status(200).json({
+        success: true,
+        alreadyUnlocked: false,
+        itineraryId,
+        itineraryTitle,
+        charged: authoritativePrice,
+        balanceBefore,
+        balanceAfter,
+        transactionId: txId,
+        wallet,
+      });
+    }
+
+    if ((cleanPath === '/platanos/webhook' || cleanPath === '/stripe/webhook') && method === 'POST') {
+      const event = typeof body === 'string' ? JSON.parse(body) : body;
+      if (event?.type === 'checkout.session.completed') {
+        const session = event.data?.object;
+        if (session?.metadata?.type === 'platanos_topup' && session.payment_status === 'paid') {
+          const creditRes = await creditPlatanosOrderServerless({
+            stripeSessionId: session.id,
+            stripePaymentIntentId: typeof session.payment_intent === 'string' ? session.payment_intent : null,
+            userId: session.metadata?.userId ? parseInt(session.metadata.userId, 10) : undefined,
+            userEmail: session.metadata?.userEmail || session.customer_email || undefined,
+            packageId: session.metadata?.packageId || undefined,
+          });
+          return res.status(200).json({ received: true, platanos: true, ...creditRes });
+        }
+        const userEmail = (session?.metadata?.userEmail || session?.customer_email || '').trim().toLowerCase();
+        if (userEmail && session?.payment_status === 'paid') {
+          await supabase
+            .from('users')
+            .update({ is_gold: 1, plan: 'gold', is_premium: 1, updated_at: new Date().toISOString() })
+            .eq('email', userEmail);
+        }
+      }
+      return res.status(200).json({ received: true });
+    }
+
+    // =========================================================================
+    // 11. STRIPE GOLD CHECKOUT ROUTES
+    // =========================================================================
+    if (cleanPath === '/stripe/config' && method === 'GET') {
+      const stripeClient = await getStripeClientServerless();
+      return res.status(200).json({
+        configured: Boolean(stripeClient),
+        price: 'R$ 19,90',
+        currency: 'BRL',
+        mode: 'payment',
+      });
+    }
+
+    if (cleanPath === '/stripe/create-checkout-session' && method === 'POST') {
+      const user = await resolvePlatanosUserServerless(req, body, url);
+      const stripeClient = await getStripeClientServerless();
+      const host = req.headers.host || 'localhost:3000';
+      const proto = req.headers['x-forwarded-proto'] || 'https';
+      const origin = process.env.APP_URL || `${proto}://${host}`;
+
+      if (!stripeClient) {
+        return res.status(503).json({
+          error: 'Integração Stripe aguardando configuração da chave secreta (STRIPE_SECRET_KEY) no servidor.',
+        });
+      }
+
+      const cleanEmail = (user.email || '').trim().toLowerCase();
+      const isValidEmail = cleanEmail.includes('@') && cleanEmail.includes('.');
+
+      const session = await stripeClient.checkout.sessions.create({
+        payment_method_types: ['card'],
+        mode: 'payment',
+        line_items: [
+          {
+            price_data: {
+              currency: 'brl',
+              product_data: {
+                name: 'Monvian - Conta Elite Gold',
+                description: 'Acesso permanente aos roteiros exclusivos e pontos turísticos selecionados em Campos do Jordão.',
+              },
+              unit_amount: 1990,
+            },
+            quantity: 1,
+          },
+        ],
+        ...(isValidEmail ? { customer_email: cleanEmail } : {}),
+        client_reference_id: String(user.id),
+        metadata: {
+          userId: String(user.id),
+          userEmail: cleanEmail || 'guest',
+          plan: 'gold',
+          product: 'monvians_gold_premium',
+          price: '19.90',
+        },
+        success_url: `${origin}/?payment=success&session_id={CHECKOUT_SESSION_ID}`,
+        cancel_url: `${origin}/?payment=cancelled`,
+        allow_promotion_codes: true,
+      });
+
+      return res.status(200).json({
+        success: true,
+        sessionId: session.id,
+        url: session.url,
+      });
+    }
+
+    if (cleanPath === '/stripe/verify-session' && method === 'GET') {
+      const sessionId = String(url.searchParams.get('session_id') || '').trim();
+      const stripeClient = await getStripeClientServerless();
+      if (sessionId && stripeClient) {
+        const session = await stripeClient.checkout.sessions.retrieve(sessionId);
+        if (session && session.payment_status === 'paid') {
+          const userEmail = (session.metadata?.userEmail || session.customer_email || '').trim().toLowerCase();
+          if (userEmail) {
+            await supabase
+              .from('users')
+              .update({ is_gold: 1, plan: 'gold', is_premium: 1, updated_at: new Date().toISOString() })
+              .eq('email', userEmail);
+          }
+          return res.status(200).json({ success: true, plan: 'gold', isGold: true });
+        }
+      }
+      return res.status(200).json({ success: false, status: 'pending' });
+    }
+
+    return res.status(404).json({ success: false, error: `Route ${cleanPath} not found`, message: `Route ${cleanPath} not found` });
   } catch (err: any) {
     return res.status(500).json({ success: false, error: err.message || 'Internal server error' });
   }

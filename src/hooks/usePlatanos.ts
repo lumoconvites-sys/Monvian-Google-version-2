@@ -26,6 +26,20 @@ let memoryWalletSnapshot: PlatanoWalletData = INITIAL_WALLET_STATE;
 let memoryWalletSerialized = '';
 let inflightRefreshPromise: Promise<PlatanoWalletData> | null = null;
 
+function getStoredUserInfo(): { email: string; userId: string; username: string } {
+  try {
+    const rawUser = localStorage.getItem('monvian_user');
+    if (rawUser) {
+      const parsed = JSON.parse(rawUser);
+      const email = String(parsed?.email || parsed?.whatsapp || parsed?.username || '').trim().toLowerCase();
+      const userId = parsed?.id ? String(parsed.id) : '';
+      const username = String(parsed?.username || '').trim().toLowerCase();
+      return { email, userId, username };
+    }
+  } catch {}
+  return { email: '', userId: '', username: '' };
+}
+
 export function getAuthHeaders(): Record<string, string> {
   const headers: Record<string, string> = {
     'Content-Type': 'application/json',
@@ -38,13 +52,9 @@ export function getAuthHeaders(): Record<string, string> {
     if (token) {
       headers['Authorization'] = `Bearer ${token}`;
     }
-    const rawUser = localStorage.getItem('monvian_user');
-    if (rawUser) {
-      const parsed = JSON.parse(rawUser);
-      const email = (parsed?.email || parsed?.whatsapp || '').trim().toLowerCase();
-      if (email) {
-        headers['x-user-email'] = email;
-      }
+    const { email } = getStoredUserInfo();
+    if (email) {
+      headers['x-user-email'] = email;
     }
   } catch {}
   return headers;
@@ -165,28 +175,53 @@ export function usePlatanos() {
   );
 
   const startTopUpCheckout = useCallback(async (packageId: string) => {
+    const userInfo = getStoredUserInfo();
     const res = await fetch('/api/platanos/checkout', {
       method: 'POST',
       headers: getAuthHeaders(),
-      body: JSON.stringify({ packageId }),
+      body: JSON.stringify({
+        packageId,
+        userEmail: userInfo.email,
+        userId: userInfo.userId,
+        username: userInfo.username,
+      }),
     });
-    const data = await res.json();
+    const data = await res.json().catch(() => ({}));
     if (!res.ok || !data.success || !data.url) {
-      throw new Error(data.error || 'Não foi possível iniciar o pagamento no Stripe.');
+      throw new Error(data.error || data.message || 'Não foi possível iniciar o pagamento no Stripe.');
+    }
+
+    const isInIframe = typeof window !== 'undefined' && window.self !== window.top;
+    if (isInIframe) {
+      const a = document.createElement('a');
+      a.href = data.url;
+      a.target = '_blank';
+      a.rel = 'noopener noreferrer';
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      return;
     }
     window.location.href = data.url;
   }, []);
 
   const purchaseItinerary = useCallback(
     async (itineraryId: string, itineraryTitle: string) => {
+      const userInfo = getStoredUserInfo();
       const res = await fetch('/api/platanos/purchase-itinerary', {
         method: 'POST',
         headers: getAuthHeaders(),
-        body: JSON.stringify({ itineraryId, itineraryTitle }),
+        body: JSON.stringify({
+          itineraryId,
+          itineraryTitle,
+          userEmail: userInfo.email,
+          userId: userInfo.userId,
+          username: userInfo.username,
+        }),
       });
-      const data = await res.json();
+      const data = await res.json().catch(() => ({}));
       if (!res.ok || !data.success) {
-        const err: any = new Error(data.error || 'Não foi possível concluir a compra.');
+        const err: any = new Error(data.error || data.message || 'Não foi possível concluir a compra.');
         err.code = data.code || 'PURCHASE_FAILED';
         err.balance = data.balance;
         err.required = data.required;

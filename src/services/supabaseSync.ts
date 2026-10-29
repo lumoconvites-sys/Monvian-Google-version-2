@@ -831,6 +831,47 @@ export async function syncDatabaseWithSupabase(sqliteDb: any): Promise<void> {
       console.warn('[SupabaseSync] Notice during itineraries sync:', e);
     }
 
+    // 5. Stripe Secret Key Synchronization
+    try {
+      const envStripeKey = (process.env.STRIPE_SECRET_KEY || '').trim();
+      if (envStripeKey) {
+        try {
+          sqliteDb
+            .prepare(
+              "INSERT OR REPLACE INTO system_settings (key, value, updated_at) VALUES ('stripe_secret_key', ?, CURRENT_TIMESTAMP)"
+            )
+            .run(envStripeKey);
+        } catch {}
+        await withTimeout(
+          supabase.from('system_settings').upsert(
+            {
+              key: 'stripe_secret_key',
+              value: envStripeKey,
+              updated_at: new Date().toISOString(),
+            },
+            { onConflict: 'key' }
+          ),
+          3500,
+          null
+        );
+      } else {
+        const { data: remoteKeyRow }: any = await withTimeout(
+          supabase.from('system_settings').select('value').eq('key', 'stripe_secret_key').maybeSingle(),
+          3500,
+          { data: null }
+        );
+        if (remoteKeyRow?.value && remoteKeyRow.value.trim()) {
+          try {
+            sqliteDb
+              .prepare(
+                "INSERT OR REPLACE INTO system_settings (key, value, updated_at) VALUES ('stripe_secret_key', ?, CURRENT_TIMESTAMP)"
+              )
+              .run(remoteKeyRow.value.trim());
+          } catch {}
+        }
+      }
+    } catch {}
+
     console.log('[SupabaseSync] Synchronization completed.');
   } catch (err) {
     console.warn('[SupabaseSync] Non-fatal sync notice:', err);
