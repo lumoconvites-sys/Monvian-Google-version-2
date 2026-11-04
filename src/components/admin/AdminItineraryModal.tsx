@@ -452,16 +452,16 @@ export const AdminItineraryModal: React.FC<AdminItineraryModalProps> = ({
       coverImage: coverImage.trim() || (itineraryToEdit ? itineraryToEdit.coverImage : COVER_PRESETS[0].url),
       daysCount,
       categories: selectedCategories,
-      price: isPremium ? (price.trim() || 'R$ 14,90') : 'Grátis',
+      price: 'Grátis',
       status: chosenStatus,
       isActive: chosenStatus === 'published',
       isFeatured,
       isRecommended: isFeatured,
-      isPremium,
-      badgeText: isPremium ? (badgeText.trim() || 'ELITE GOLD') : '',
-      showPrice,
+      isPremium: false,
+      badgeText: '',
+      showPrice: false,
       showStopsCount,
-      showBadge: isPremium ? showBadge : false,
+      showBadge: false,
       notes: tips.trim(),
       days
     };
@@ -504,12 +504,8 @@ export const AdminItineraryModal: React.FC<AdminItineraryModalProps> = ({
         {/* 1. Top Modal Header */}
         <div className="px-5 py-3.5 sm:py-4 border-b border-zinc-200 dark:border-zinc-800 flex items-center justify-between bg-zinc-50 dark:bg-[#17191e] shrink-0">
           <div className="flex items-center gap-3">
-            <div className={`w-10 h-10 rounded-2xl flex items-center justify-center border shrink-0 ${
-              isPremium 
-                ? 'bg-amber-500/15 text-amber-500 border-amber-500/30' 
-                : 'bg-[#FFFFFF]/15 text-[#FFFFFF] border-[#FFFFFF]/30'
-            }`}>
-              {isPremium ? <Crown className="w-5 h-5 stroke-[2.2]" /> : <Compass className="w-5 h-5 stroke-[2.2]" />}
+            <div className="w-10 h-10 rounded-2xl flex items-center justify-center border shrink-0 bg-[#FFFFFF]/15 text-[#FFFFFF] border-[#FFFFFF]/30">
+              <Compass className="w-5 h-5 stroke-[2.2]" />
             </div>
             <div>
               <div className="flex items-center gap-2">
@@ -525,16 +521,9 @@ export const AdminItineraryModal: React.FC<AdminItineraryModalProps> = ({
                 }`}>
                   {status === 'published' ? 'Publicado' : status === 'draft' ? 'Rascunho' : 'Oculto'}
                 </span>
-                <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider ${
-                  isPremium
-                    ? 'bg-amber-500/20 text-amber-600 dark:text-amber-400 border border-amber-500/30'
-                    : 'bg-blue-500/20 text-blue-600 dark:text-blue-400 border border-blue-500/30'
-                }`}>
-                  {isPremium ? 'Conta Gold' : 'Grátis'}
-                </span>
               </div>
               <p className="text-xs text-zinc-500 dark:text-zinc-400 font-semibold mt-0.5">
-                {totalPlaces} {totalPlaces === 1 ? 'parada' : 'paradas'} · {daysCount} {daysCount === 1 ? 'dia' : 'dias'} · {isPremium ? price : 'Acesso Livre'}
+                {totalPlaces} {totalPlaces === 1 ? 'parada' : 'paradas'} · {daysCount} {daysCount === 1 ? 'dia' : 'dias'}
               </p>
             </div>
           </div>
@@ -633,110 +622,6 @@ export const AdminItineraryModal: React.FC<AdminItineraryModalProps> = ({
                   className="w-full px-4 py-3 bg-zinc-50 dark:bg-[#181a20] border border-zinc-300 dark:border-zinc-700 rounded-2xl text-sm text-zinc-900 dark:text-white font-bold focus:outline-hidden focus:border-[#FFFFFF] shadow-2xs"
                 />
               </div>
-
-              {/* 2. Tipo de Acesso: ROTEIRO GRÁTIS vs CONTA GOLD */}
-              <div className="space-y-2">
-                <label className="block text-xs font-black text-zinc-700 dark:text-zinc-300">
-                  Modelo de Acesso do Roteiro *
-                </label>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                  
-                  {/* Option A: Grátis */}
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setIsPremium(false);
-                      setPrice('Grátis');
-                      setBadgeText('');
-                    }}
-                    className={`p-4 rounded-2xl border text-left flex items-start gap-3.5 cursor-pointer transition-all ${
-                      !isPremium
-                        ? 'border-[#FFFFFF] bg-blue-50/50 dark:bg-blue-950/20 text-zinc-900 dark:text-white ring-2 ring-[#FFFFFF]/30 shadow-xs'
-                        : 'border-zinc-200 dark:border-zinc-800 bg-zinc-50 dark:bg-[#181a20] text-zinc-600 dark:text-zinc-400 hover:border-zinc-300 dark:hover:border-zinc-700'
-                    }`}
-                  >
-                    <div className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 ${
-                      !isPremium ? 'bg-zinc-900 text-white shadow-xs' : 'bg-zinc-200 dark:bg-zinc-800 text-zinc-500'
-                    }`}>
-                      <Compass className="w-5 h-5 stroke-[2.2]" />
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center justify-between">
-                        <span className="text-sm font-black text-zinc-900 dark:text-white">Roteiro Grátis</span>
-                        <span className="text-[10px] font-black uppercase px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 border border-emerald-500/30">
-                          Acesso Livre
-                        </span>
-                      </div>
-                      <p className="text-xs text-zinc-500 dark:text-zinc-400 font-medium mt-1 leading-relaxed">
-                        Aberto para todos os turistas no app sem necessidade de assinatura ou pagamento.
-                      </p>
-                    </div>
-                  </button>
-
-                  {/* Option B: Elite Gold */}
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setIsPremium(true);
-                      if (price === 'Grátis' || !price) setPrice('R$ 19,90');
-                      if (!badgeText) setBadgeText('ELITE GOLD');
-                    }}
-                    className={`p-4 rounded-2xl border text-left flex items-start gap-3.5 cursor-pointer transition-all ${
-                      isPremium
-                        ? 'border-amber-500 bg-amber-50/60 dark:bg-amber-950/20 text-zinc-900 dark:text-white ring-2 ring-amber-500/30 shadow-xs'
-                        : 'border-zinc-200 dark:border-zinc-800 bg-zinc-50 dark:bg-[#181a20] text-zinc-600 dark:text-zinc-400 hover:border-zinc-300 dark:hover:border-zinc-700'
-                    }`}
-                  >
-                    <div className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 ${
-                      isPremium ? 'bg-metallic-gold text-[#1A1202] shadow-xs' : 'bg-zinc-200 dark:bg-zinc-800 text-zinc-500'
-                    }`}>
-                      <Crown className="w-5 h-5 stroke-[2.2]" />
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center justify-between">
-                        <span className="text-sm font-black text-zinc-900 dark:text-white">Roteiro Elite Gold</span>
-                        <span className="text-[10px] font-black uppercase px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-600 dark:text-amber-400 border border-amber-500/30">
-                          Elite Exclusivo
-                        </span>
-                      </div>
-                      <p className="text-xs text-zinc-500 dark:text-zinc-400 font-medium mt-1 leading-relaxed">
-                        Exclusivo para assinantes Elite Gold com borda dourada, brilho e selo oficial.
-                      </p>
-                    </div>
-                  </button>
-
-                </div>
-              </div>
-
-              {/* Sub-settings if Elite Gold is chosen */}
-              {isPremium && (
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 p-4 rounded-2xl bg-amber-500/10 border border-amber-500/30">
-                  <div>
-                    <label className="block text-xs font-black text-zinc-800 dark:text-zinc-200 mb-1.5">
-                      Preço de Venda / Referência
-                    </label>
-                    <input
-                      type="text"
-                      value={price}
-                      onChange={e => setPrice(e.target.value)}
-                      placeholder="Ex: R$ 14,90"
-                      className="w-full px-3.5 py-2.5 bg-white dark:bg-[#181a20] border border-amber-500/40 rounded-xl text-sm text-zinc-900 dark:text-white font-bold focus:outline-hidden focus:border-amber-500"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-xs font-black text-zinc-800 dark:text-zinc-200 mb-1.5">
-                      Texto do Selo Elite Gold
-                    </label>
-                    <input
-                      type="text"
-                      value={badgeText}
-                      onChange={e => setBadgeText(e.target.value)}
-                      placeholder="ELITE GOLD"
-                      className="w-full px-3.5 py-2.5 bg-white dark:bg-[#181a20] border border-amber-500/40 rounded-xl text-sm text-zinc-900 dark:text-white font-bold focus:outline-hidden focus:border-amber-500 uppercase"
-                    />
-                  </div>
-                </div>
-              )}
 
               {/* Status de Publicação */}
               <div>
@@ -1378,16 +1263,6 @@ export const AdminItineraryModal: React.FC<AdminItineraryModalProps> = ({
                     </h3>
 
                     <div className="flex items-center justify-between pt-1">
-                      <span className="text-xs font-semibold text-zinc-700 dark:text-zinc-300">Mostrar Preço / Acesso</span>
-                      <input
-                        type="checkbox"
-                        checked={showPrice}
-                        onChange={e => setShowPrice(e.target.checked)}
-                        className="w-4 h-4 accent-[#FFFFFF] cursor-pointer"
-                      />
-                    </div>
-
-                    <div className="flex items-center justify-between">
                       <span className="text-xs font-semibold text-zinc-700 dark:text-zinc-300">Mostrar Contagem de Paradas</span>
                       <input
                         type="checkbox"
@@ -1431,54 +1306,32 @@ export const AdminItineraryModal: React.FC<AdminItineraryModalProps> = ({
                       ? 'bg-[#f4f4f6] border-zinc-300 text-zinc-900'
                       : 'bg-[#000000] border-zinc-800 text-white'
                   }`}>
-                    {isPremium && isFeatured ? (
-                      /* Gold Featured Card Preview */
-                      <div className="gold-featured-card-wrapper w-full">
-                        <div className="gold-sheen-overlay" />
-                        <div className={`gold-featured-card-inner p-3.5 flex flex-col space-y-2.5 ${previewTheme === 'light' ? 'light' : ''}`}>
-                          <div className="aspect-16/9 rounded-xl overflow-hidden relative bg-zinc-900 border border-[#F5BE38]/40">
-                            {coverImage && <img src={coverImage} alt="Preview" className="w-full h-full object-cover" />}
-                            <div className="absolute top-2 left-2 px-2.5 py-0.5 rounded-full bg-black/80 backdrop-blur-md border border-[#FFF4A3]/70 flex items-center gap-1 text-[9.5px] font-black uppercase text-metallic-gold">
-                              <Crown className="w-3 h-3 text-[#F5BE38]" />
-                              <span>{badgeText || 'CONTA GOLD'}</span>
-                            </div>
+                    <div className={`rounded-2xl p-3.5 border transition-all ${
+                      previewTheme === 'light'
+                        ? 'bg-white border-zinc-200 shadow-sm text-zinc-900'
+                        : 'bg-[#121418] border-white/10 text-white'
+                    }`}>
+                      <div className="aspect-16/9 rounded-xl overflow-hidden relative mb-2.5 bg-zinc-800">
+                        {coverImage ? (
+                          <img src={coverImage} alt="Preview" className="w-full h-full object-cover" />
+                        ) : (
+                          <div className="w-full h-full flex items-center justify-center text-zinc-600 text-xs">
+                            Sem imagem
                           </div>
-                          <div className="space-y-1">
-                            <h4 className="text-sm font-black tracking-tight">{title || 'Título do Roteiro'}</h4>
-                            <p className="text-[11px] text-zinc-400 font-semibold">{daysCount} dias · {totalPlaces} paradas</p>
-                          </div>
-                        </div>
+                        )}
                       </div>
-                    ) : (
-                      /* Standard Clean Free Card Preview */
-                      <div className={`rounded-2xl p-3.5 border transition-all ${
-                        previewTheme === 'light'
-                          ? 'bg-white border-zinc-200 shadow-sm text-zinc-900'
-                          : 'bg-[#121418] border-white/10 text-white'
-                      }`}>
-                        <div className="aspect-16/9 rounded-xl overflow-hidden relative mb-2.5 bg-zinc-800">
-                          {coverImage ? (
-                            <img src={coverImage} alt="Preview" className="w-full h-full object-cover" />
-                          ) : (
-                            <div className="w-full h-full flex items-center justify-center text-zinc-600 text-xs">
-                              Sem imagem
-                            </div>
-                          )}
+                      <div className="space-y-1">
+                        <div className="flex items-center justify-between text-[11px] text-zinc-400">
+                          <span>{daysCount} {daysCount === 1 ? 'dia' : 'dias'} · {totalPlaces} {totalPlaces === 1 ? 'parada' : 'paradas'}</span>
                         </div>
-                        <div className="space-y-1">
-                          <div className="flex items-center justify-between text-[11px] text-zinc-400">
-                            <span>{daysCount} {daysCount === 1 ? 'dia' : 'dias'} · {totalPlaces} {totalPlaces === 1 ? 'parada' : 'paradas'}</span>
-                            <span className="font-bold text-[#FFFFFF]">{isPremium ? price : 'Grátis'}</span>
-                          </div>
-                          <h4 className="text-sm font-black tracking-tight line-clamp-1">
-                            {title || 'Título do Roteiro'}
-                          </h4>
-                          <p className="text-xs text-zinc-500 line-clamp-2">
-                            {description || 'Descrição do roteiro que será exibida para os viajantes...'}
-                          </p>
-                        </div>
+                        <h4 className="text-sm font-black tracking-tight line-clamp-1">
+                          {title || 'Título do Roteiro'}
+                        </h4>
+                        <p className="text-xs text-zinc-500 line-clamp-2">
+                          {description || 'Descrição do roteiro que será exibida para os viajantes...'}
+                        </p>
                       </div>
-                    )}
+                    </div>
                   </div>
                 </div>
 

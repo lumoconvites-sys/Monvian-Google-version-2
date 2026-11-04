@@ -18,6 +18,9 @@
     "paths": {
       "@/*": [
         "./*"
+      ],
+      "expo-glass-effect": [
+        "./src/lib/expo-glass-effect.tsx"
       ]
     },
     "allowImportingTsExtensions": true,

@@ -114,7 +114,7 @@ export const BudgetStep: React.FC<BudgetStepProps> = ({
           id="btn-itinerary-budget-continue"
           type="button"
           onClick={handleContinue}
-          className="w-full py-3.5 sm:py-4 px-6 rounded-2xl bg-white hover:bg-zinc-200 active:scale-[0.98] text-black font-black text-base transition-all shadow-lg shadow-black/20 flex items-center justify-center gap-2 cursor-pointer"
+          className="w-full py-3.5 sm:py-4 px-6 rounded-full expo-liquid-glass-btn text-black dark:text-white border border-black/5 active:scale-95 font-bold text-base transition-all shadow-sm flex items-center justify-center gap-2 cursor-pointer hover:bg-zinc-50"
         >
           Continuar
         </button>

@@ -5,11 +5,6 @@ import {
   X,
   ArrowUpRight,
   ArrowDownLeft,
-  Clock,
-  CheckCircle2,
-  XCircle,
-  RotateCcw,
-  ShieldCheck,
   AlertCircle,
 } from 'lucide-react';
 import { PlatanoLeafIcon } from './PlatanoLeafIcon';
@@ -40,57 +35,28 @@ function formatDateTimePtBR(raw?: string): string {
   }
 }
 
-function getStatusBadge(status: PlatanoTransaction['status'], isDark: boolean) {
+function getStatusLabel(status: PlatanoTransaction['status']): string {
   switch (status) {
     case 'completed':
-      return {
-        label: 'Confirmado',
-        icon: CheckCircle2,
-        className: isDark
-          ? 'bg-emerald-500/15 text-emerald-400 border-emerald-500/25'
-          : 'bg-emerald-50 text-emerald-700 border-emerald-200',
-      };
+      return 'Confirmado';
     case 'pending':
-      return {
-        label: 'Pendente',
-        icon: Clock,
-        className: isDark
-          ? 'bg-amber-500/15 text-amber-300 border-amber-500/25'
-          : 'bg-amber-50 text-amber-700 border-amber-200',
-      };
+      return 'Pendente';
     case 'cancelled':
-      return {
-        label: 'Cancelado',
-        icon: XCircle,
-        className: isDark
-          ? 'bg-zinc-500/15 text-zinc-400 border-zinc-500/25'
-          : 'bg-zinc-100 text-zinc-600 border-zinc-200',
-      };
+      return 'Cancelado';
     case 'failed':
-      return {
-        label: 'Recusado',
-        icon: AlertCircle,
-        className: isDark
-          ? 'bg-rose-500/15 text-rose-400 border-rose-500/25'
-          : 'bg-rose-50 text-rose-700 border-rose-200',
-      };
+      return 'Recusado';
     case 'refunded':
-      return {
-        label: 'Reembolsado',
-        icon: RotateCcw,
-        className: isDark
-          ? 'bg-amber-500/15 text-amber-300 border-amber-500/25'
-          : 'bg-amber-50 text-amber-700 border-amber-200',
-      };
+      return 'Reembolsado';
     default:
-      return {
-        label: status,
-        icon: Clock,
-        className: isDark
-          ? 'bg-white/10 text-zinc-300 border-white/15'
-          : 'bg-zinc-100 text-zinc-700 border-zinc-200',
-      };
+      return status;
   }
+}
+
+function getPackageDescription(platanos: number): string {
+  const routesCount = Math.max(1, Math.floor(platanos / 15));
+  return routesCount === 1
+    ? 'Libera até 1 roteiro premium'
+    : `Libera até ${routesCount} roteiros premium`;
 }
 
 export const PlatanosWalletModal: React.FC<PlatanosWalletModalProps> = ({
@@ -101,7 +67,6 @@ export const PlatanosWalletModal: React.FC<PlatanosWalletModalProps> = ({
 }) => {
   const { wallet, refreshWallet, startTopUpCheckout } = usePlatanos();
   const [activeTab, setActiveTab] = useState<'topup' | 'history'>(initialTab);
-  const [selectedPkgId, setSelectedPkgId] = useState<string>('pkg_200');
   const [checkoutLoadingId, setCheckoutLoadingId] = useState<string | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
@@ -111,10 +76,9 @@ export const PlatanosWalletModal: React.FC<PlatanosWalletModalProps> = ({
     if (!isOpen) return;
     setActiveTab(initialTab);
     setErrorMessage(null);
-    // Defer background revalidation until after the iOS sheet entrance animation completes
     const timer = setTimeout(() => {
       refreshWallet();
-    }, 280);
+    }, 260);
     return () => clearTimeout(timer);
   }, [isOpen, initialTab, refreshWallet]);
 
@@ -137,6 +101,8 @@ export const PlatanosWalletModal: React.FC<PlatanosWalletModalProps> = ({
 
   if (typeof document === 'undefined') return null;
 
+  const unlockedCount = wallet.unlockedItineraryIds.length;
+
   return createPortal(
     <AnimatePresence>
       {isOpen && (
@@ -147,9 +113,10 @@ export const PlatanosWalletModal: React.FC<PlatanosWalletModalProps> = ({
           exit={{ opacity: 0 }}
           transition={{ duration: 0.18, ease: 'easeOut' }}
           onClick={onClose}
-          className="fixed inset-0 z-[320] flex items-end sm:items-center justify-center bg-black/65"
+          className="fixed inset-0 z-[320] flex items-end sm:items-center justify-center bg-black/70 backdrop-blur-[2px]"
           style={{
-            fontFamily: "'Inter', -apple-system, BlinkMacSystemFont, sans-serif",
+            fontFamily:
+              '-apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro Text", "Inter", sans-serif',
             willChange: 'opacity',
           }}
         >
@@ -163,10 +130,10 @@ export const PlatanosWalletModal: React.FC<PlatanosWalletModalProps> = ({
               ease: [0.32, 0.72, 0, 1],
             }}
             onClick={(e) => e.stopPropagation()}
-            className={`relative w-full max-w-md max-h-[90dvh] flex flex-col rounded-t-[28px] sm:rounded-[28px] overflow-hidden border transform-gpu ${
+            className={`relative w-full max-w-md max-h-[88dvh] flex flex-col rounded-t-[28px] sm:rounded-[28px] overflow-hidden border-t sm:border transform-gpu ${
               isDark
-                ? 'bg-[#0B0B0D] text-white border-white/10 shadow-[0_-12px_40px_rgba(0,0,0,0.75)]'
-                : 'bg-white text-zinc-900 border-zinc-200/90 shadow-[0_-12px_40px_rgba(0,0,0,0.12)]'
+                ? 'bg-[#000000] text-[#FFFFFF] border-[#262626]'
+                : 'bg-[#FFFFFF] text-[#000000] border-[#E5E5EA]'
             }`}
             style={{
               paddingBottom: 'max(env(safe-area-inset-bottom, 0px), 16px)',
@@ -181,29 +148,20 @@ export const PlatanosWalletModal: React.FC<PlatanosWalletModalProps> = ({
             <div className="pt-2.5 pb-1 flex justify-center shrink-0">
               <div
                 className={`w-9 h-1 rounded-full ${
-                  isDark ? 'bg-white/20' : 'bg-zinc-300'
+                  isDark ? 'bg-[#262626]' : 'bg-[#E5E5EA]'
                 }`}
               />
             </div>
 
-            {/* Top Header */}
-            <div className="px-5 pt-2 pb-3 flex items-center justify-between shrink-0">
-              <div className="flex items-center gap-2">
-                <div className="w-8 h-8 rounded-full bg-[#D9A84E]/15 border border-[#D9A84E]/35 flex items-center justify-center">
-                  <PlatanoLeafIcon className="w-4 h-4" variant="gold" />
-                </div>
-                <div>
-                  <h2 className="text-[17px] font-bold tracking-tight leading-tight">
-                    Carteira de Plátanos
-                  </h2>
-                  <p
-                    className={`text-[11.5px] font-medium ${
-                      isDark ? 'text-zinc-400' : 'text-zinc-500'
-                    }`}
-                  >
-                    Moeda oficial para roteiros exclusivos
-                  </p>
-                </div>
+            {/* Minimalist Header: Carteira / Seus Plátanos + Discreet Close Button */}
+            <div className="px-6 pt-2 pb-4 flex items-start justify-between shrink-0">
+              <div>
+                <span className="text-[12px] font-medium tracking-tight text-[#8E8E93] block">
+                  Carteira
+                </span>
+                <h2 className="text-[22px] font-semibold tracking-[-0.02em] leading-tight mt-0.5">
+                  Seus Plátanos
+                </h2>
               </div>
 
               <button
@@ -211,112 +169,97 @@ export const PlatanosWalletModal: React.FC<PlatanosWalletModalProps> = ({
                 onClick={onClose}
                 className={`w-8 h-8 rounded-full flex items-center justify-center transition-colors cursor-pointer ${
                   isDark
-                    ? 'bg-white/10 text-zinc-300 hover:bg-white/15'
-                    : 'bg-zinc-100 text-zinc-700 hover:bg-zinc-200'
+                    ? 'bg-[#111111] text-[#8E8E93] hover:text-[#FFFFFF]'
+                    : 'bg-[#F5F5F7] text-[#8E8E93] hover:text-[#000000]'
                 }`}
                 aria-label="Fechar carteira"
               >
-                <X className="w-4 h-4 stroke-[2.2]" />
+                <X className="w-4 h-4 stroke-[2]" />
               </button>
             </div>
 
-            {/* Balance Card */}
-            <div className="px-5 pb-3 shrink-0">
-              <div
-                className={`p-4 rounded-[22px] border flex items-center justify-between ${
-                  isDark
-                    ? 'bg-[#141417] border-white/10'
-                    : 'bg-zinc-50 border-zinc-200/80'
-                }`}
-              >
-                <div>
-                  <span
-                    className={`text-[11px] font-semibold uppercase tracking-wider block ${
-                      isDark ? 'text-zinc-400' : 'text-zinc-500'
-                    }`}
-                  >
-                    Saldo disponível
+            {/* Prominent Real Balance (No Heavy Bordered Card) + Unlocked Premium Itineraries */}
+            <div className="px-6 pb-5 shrink-0">
+              <div className="flex items-baseline gap-2.5">
+                <span className="text-[40px] font-bold tracking-[-0.03em] leading-none tabular-nums">
+                  {wallet.balance}
+                </span>
+                <div className="flex items-center gap-1.5 text-[#8E8E93]">
+                  <PlatanoLeafIcon className="w-4 h-4 shrink-0" variant="monochrome" />
+                  <span className="text-[15px] font-medium tracking-tight">
+                    {wallet.balance === 1 ? 'Plátano disponível' : 'Plátanos disponíveis'}
                   </span>
-                  <div className="flex items-center gap-2 mt-1">
-                    <PlatanoLeafIcon className="w-6 h-6 shrink-0" variant="gold" />
-                    <span className="text-[26px] font-bold tracking-tight leading-none tabular-nums">
-                      {wallet.balance}
-                    </span>
-                  </div>
                 </div>
-
-                {activeTab === 'history' ? (
-                  <button
-                    type="button"
-                    onClick={() => setActiveTab('topup')}
-                    className="px-3.5 py-2 rounded-full bg-[#D9A84E] text-[#141109] text-xs font-bold tracking-tight cursor-pointer active:scale-95 transition-transform"
-                  >
-                    Recarregar
-                  </button>
-                ) : (
-                  <div className="text-right">
-                    <span
-                      className={`text-[11px] font-medium block ${
-                        isDark ? 'text-zinc-400' : 'text-zinc-500'
-                      }`}
-                    >
-                      Roteiros liberados
-                    </span>
-                    <span className="text-sm font-bold text-[#D9A84E] tabular-nums">
-                      {wallet.unlockedItineraryIds.length}
-                    </span>
-                  </div>
-                )}
               </div>
+              <p className="mt-1.5 text-[13px] font-normal text-[#8E8E93] tabular-nums">
+                {unlockedCount}{' '}
+                {unlockedCount === 1
+                  ? 'roteiro premium liberado'
+                  : 'roteiros premium liberados'}
+              </p>
             </div>
 
-            {/* Segmented Control (Recarregar / Histórico) */}
-            <div className="px-5 pb-3 shrink-0">
-              <div
-                className={`grid grid-cols-2 p-1 rounded-2xl border ${
-                  isDark
-                    ? 'bg-[#141417] border-white/10'
-                    : 'bg-zinc-100 border-zinc-200/70'
+            {/* Compact Text Tabs with Discreet Bottom Line */}
+            <div
+              className={`px-6 border-b flex items-center gap-6 shrink-0 ${
+                isDark ? 'border-[#262626]' : 'border-[#E5E5EA]'
+              }`}
+            >
+              <button
+                type="button"
+                onClick={() => setActiveTab('topup')}
+                className={`relative pb-3 text-[14px] font-medium tracking-tight transition-colors cursor-pointer ${
+                  activeTab === 'topup'
+                    ? isDark
+                      ? 'text-[#FFFFFF]'
+                      : 'text-[#000000]'
+                    : 'text-[#8E8E93]'
                 }`}
               >
-                <button
-                  type="button"
-                  onClick={() => setActiveTab('topup')}
-                  className={`py-2 rounded-xl text-xs font-semibold transition-colors cursor-pointer ${
-                    activeTab === 'topup'
-                      ? isDark
-                        ? 'bg-[#222227] text-white shadow-xs'
-                        : 'bg-white text-zinc-900 shadow-xs'
-                      : isDark
-                        ? 'text-zinc-400 hover:text-zinc-200'
-                        : 'text-zinc-500 hover:text-zinc-800'
-                  }`}
-                >
-                  Recarregar Plátanos
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setActiveTab('history')}
-                  className={`py-2 rounded-xl text-xs font-semibold transition-colors cursor-pointer ${
-                    activeTab === 'history'
-                      ? isDark
-                        ? 'bg-[#222227] text-white shadow-xs'
-                        : 'bg-white text-zinc-900 shadow-xs'
-                      : isDark
-                        ? 'text-zinc-400 hover:text-zinc-200'
-                        : 'text-zinc-500 hover:text-zinc-800'
-                  }`}
-                >
-                  Histórico ({wallet.transactions.length})
-                </button>
-              </div>
+                Comprar Plátanos
+                {activeTab === 'topup' && (
+                  <span
+                    className={`absolute bottom-0 inset-x-0 h-[1.5px] rounded-full ${
+                      isDark ? 'bg-[#FFFFFF]' : 'bg-[#000000]'
+                    }`}
+                  />
+                )}
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setActiveTab('history')}
+                className={`relative pb-3 text-[14px] font-medium tracking-tight transition-colors cursor-pointer tabular-nums ${
+                  activeTab === 'history'
+                    ? isDark
+                      ? 'text-[#FFFFFF]'
+                      : 'text-[#000000]'
+                    : 'text-[#8E8E93]'
+                }`}
+              >
+                Histórico
+                {wallet.transactions.length > 0 ? ` (${wallet.transactions.length})` : ''}
+                {activeTab === 'history' && (
+                  <span
+                    className={`absolute bottom-0 inset-x-0 h-[1.5px] rounded-full ${
+                      isDark ? 'bg-[#FFFFFF]' : 'bg-[#000000]'
+                    }`}
+                  />
+                )}
+              </button>
             </div>
 
             {/* Error Alert if any */}
             {errorMessage && (
-              <div className="px-5 pb-3 shrink-0">
-                <div className="p-3 rounded-2xl bg-rose-500/15 border border-rose-500/30 text-rose-300 text-xs font-medium flex items-center gap-2">
-                  <AlertCircle className="w-4 h-4 shrink-0 text-rose-400" />
+              <div className="px-6 pt-3 shrink-0">
+                <div
+                  className={`p-3 rounded-xl border text-xs font-normal flex items-center gap-2 ${
+                    isDark
+                      ? 'bg-[#111111] border-[#262626] text-[#FFFFFF]'
+                      : 'bg-[#F5F5F7] border-[#E5E5EA] text-[#000000]'
+                  }`}
+                >
+                  <AlertCircle className="w-4 h-4 shrink-0 text-[#8E8E93]" />
                   <span>{errorMessage}</span>
                 </div>
               </div>
@@ -324,205 +267,123 @@ export const PlatanosWalletModal: React.FC<PlatanosWalletModalProps> = ({
 
             {/* Scrollable Body */}
             <div
-              className="flex-1 overflow-y-auto px-5 pb-4 space-y-2.5 overscroll-contain"
+              className="flex-1 overflow-y-auto px-6 pb-4 overscroll-contain"
               style={{ WebkitOverflowScrolling: 'touch' }}
             >
               {activeTab === 'topup' ? (
-                <>
-                  <p
-                    className={`text-xs font-medium pb-1 ${
-                      isDark ? 'text-zinc-400' : 'text-zinc-500'
+                <div>
+                  {/* Uniform Vertical List of the 5 Packages */}
+                  <div
+                    className={`divide-y ${
+                      isDark ? 'divide-[#262626]' : 'divide-[#E5E5EA]'
                     }`}
                   >
-                    Escolha um pacote fechado para adicionar Plátanos à sua carteira. O saldo não expira.
-                  </p>
+                    {wallet.packages.map((pkg) => {
+                      const isBest = Boolean(pkg.isBestValue || pkg.platanos === 200);
+                      const isProcessing = checkoutLoadingId === pkg.id;
 
-                  {wallet.packages.map((pkg) => {
-                    const isBest = Boolean(pkg.isBestValue || pkg.platanos === 200);
-                    const isSelected = selectedPkgId === pkg.id;
-                    const isProcessing = checkoutLoadingId === pkg.id;
-
-                    return (
-                      <div
-                        key={pkg.id}
-                        onClick={() => setSelectedPkgId(pkg.id)}
-                        className={`relative p-3.5 rounded-[20px] border transition-colors cursor-pointer flex items-center justify-between gap-3 ${
-                          isBest
-                            ? isDark
-                              ? 'bg-[#171612] border-[#D9A84E]/55'
-                              : 'bg-[#FAF6EC] border-[#D9A84E]/60'
-                            : isSelected
-                              ? isDark
-                                ? 'bg-[#18181C] border-white/25'
-                                : 'bg-zinc-50 border-zinc-400'
-                              : isDark
-                                ? 'bg-[#141417] border-white/10 hover:border-white/20'
-                                : 'bg-white border-zinc-200/90 hover:border-zinc-300'
-                        }`}
-                      >
-                        <div className="flex items-center gap-3 min-w-0">
-                          <div
-                            className={`w-10 h-10 rounded-2xl flex items-center justify-center shrink-0 border ${
-                              isBest
-                                ? 'bg-[#D9A84E]/20 border-[#D9A84E]/45'
-                                : isDark
-                                  ? 'bg-white/5 border-white/10'
-                                  : 'bg-zinc-100 border-zinc-200/80'
-                            }`}
-                          >
-                            <PlatanoLeafIcon className="w-5 h-5" variant="gold" />
-                          </div>
-
+                      return (
+                        <div
+                          key={pkg.id}
+                          className="py-4 flex items-center justify-between gap-4"
+                        >
                           <div className="min-w-0">
                             <div className="flex items-center gap-2 flex-wrap">
-                              <span className="text-[15px] font-bold tracking-tight tabular-nums">
-                                {pkg.platanos}
+                              <span className="text-[16px] font-semibold tracking-tight tabular-nums">
+                                {pkg.platanos} Plátanos
                               </span>
-                              {(pkg.badge || isBest) && (
-                                <span className="px-2 py-0.5 rounded-full bg-[#D9A84E]/20 border border-[#D9A84E]/40 text-[#D9A84E] text-[10px] font-bold tracking-tight">
-                                  {pkg.badge || 'Melhor custo-benefício'}
+                              {isBest && (
+                                <span
+                                  className={`px-2 py-0.5 rounded-md text-[11px] font-medium tracking-tight border ${
+                                    isDark
+                                      ? 'bg-[#111111] text-[#8E8E93] border-[#262626]'
+                                      : 'bg-[#F5F5F7] text-[#8E8E93] border-[#E5E5EA]'
+                                  }`}
+                                >
+                                  Melhor valor
                                 </span>
                               )}
                             </div>
-                            <span
-                              className={`text-[11.5px] font-medium block ${
-                                isDark ? 'text-zinc-400' : 'text-zinc-500'
-                              }`}
-                            >
-                              Libera até {Math.floor(pkg.platanos / 15)}{' '}
-                              {Math.floor(pkg.platanos / 15) === 1
-                                ? 'roteiro premium'
-                                : 'roteiros premium'}
+                            <span className="text-[13px] font-normal text-[#8E8E93] block mt-0.5">
+                              {getPackageDescription(pkg.platanos)}
                             </span>
                           </div>
+
+                          <button
+                            type="button"
+                            disabled={Boolean(checkoutLoadingId)}
+                            onClick={() => handleCheckout(pkg)}
+                            className={`h-9 px-4 rounded-full text-[13px] font-semibold tracking-tight tabular-nums shrink-0 transition-transform duration-150 cursor-pointer active:scale-95 disabled:opacity-50 ${
+                              isDark
+                                ? 'bg-[#FFFFFF] text-[#000000] hover:bg-white/90'
+                                : 'bg-[#000000] text-[#FFFFFF] hover:bg-black/90'
+                            }`}
+                          >
+                            {isProcessing ? 'Abrindo...' : pkg.priceBRL}
+                          </button>
                         </div>
-
-                        <button
-                          type="button"
-                          disabled={Boolean(checkoutLoadingId)}
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            handleCheckout(pkg);
-                          }}
-                          className={`px-4 py-2 rounded-full text-xs font-bold tracking-tight shrink-0 transition-transform duration-150 cursor-pointer active:scale-95 disabled:opacity-60 ${
-                            isBest
-                              ? 'bg-[#D9A84E] text-[#141109] hover:bg-[#e3b55a]'
-                              : isDark
-                                ? 'bg-white text-zinc-900 hover:bg-zinc-200'
-                                : 'bg-zinc-900 text-white hover:bg-zinc-800'
-                          }`}
-                        >
-                          {isProcessing ? 'Abrindo...' : pkg.priceBRL}
-                        </button>
-                      </div>
-                    );
-                  })}
-
-                  <div
-                    className={`pt-2 flex items-center justify-center gap-1.5 text-[11px] font-medium ${
-                      isDark ? 'text-zinc-500' : 'text-zinc-400'
-                    }`}
-                  >
-                    <ShieldCheck className="w-3.5 h-3.5 text-[#D9A84E]" />
-                    <span>Pagamento seguro processado pelo Stripe</span>
+                      );
+                    })}
                   </div>
-                </>
+
+                  <p className="pt-4 text-center text-[11.5px] font-normal text-[#8E8E93]">
+                    Pagamento seguro processado via Stripe · O saldo não expira
+                  </p>
+                </div>
               ) : wallet.transactions.length === 0 ? (
-                <div className="py-12 text-center space-y-2">
-                  <div className="w-11 h-11 rounded-full bg-[#D9A84E]/10 border border-[#D9A84E]/25 flex items-center justify-center mx-auto">
-                    <PlatanoLeafIcon className="w-5 h-5" variant="gold" />
-                  </div>
-                  <p className="text-sm font-semibold">Nenhuma movimentação ainda</p>
-                  <p
-                    className={`text-xs max-w-xs mx-auto ${
-                      isDark ? 'text-zinc-400' : 'text-zinc-500'
-                    }`}
-                  >
-                    Suas recargas de Plátanos e roteiros adicionados aparecerão aqui em tempo real.
+                <div className="py-14 text-center space-y-1.5">
+                  <p className="text-[14px] font-medium">Nenhuma movimentação ainda</p>
+                  <p className="text-[12.5px] text-[#8E8E93] max-w-xs mx-auto">
+                    Suas compras de Plátanos e roteiros liberados aparecerão aqui.
                   </p>
                 </div>
               ) : (
-                <div className="space-y-2">
+                <div
+                  className={`divide-y ${
+                    isDark ? 'divide-[#262626]' : 'divide-[#E5E5EA]'
+                  }`}
+                >
                   {wallet.transactions.map((tx) => {
                     const isCredit = tx.amount > 0;
-                    const isZeroStatus = tx.amount === 0;
-                    const badge = getStatusBadge(tx.status, isDark);
-                    const StatusIcon = badge.icon;
+                    const statusText = getStatusLabel(tx.status);
 
                     return (
                       <div
                         key={tx.id}
-                        className={`p-3.5 rounded-2xl border flex items-center justify-between gap-3 ${
-                          isDark
-                            ? 'bg-[#141417] border-white/10'
-                            : 'bg-zinc-50 border-zinc-200/80'
-                        }`}
+                        className="py-3.5 flex items-center justify-between gap-3"
                       >
                         <div className="flex items-start gap-3 min-w-0">
                           <div
-                            className={`w-8 h-8 rounded-full flex items-center justify-center shrink-0 mt-0.5 ${
-                              isZeroStatus
-                                ? isDark
-                                  ? 'bg-white/5 text-zinc-400'
-                                  : 'bg-zinc-200/70 text-zinc-600'
-                                : isCredit
-                                  ? 'bg-emerald-500/15 text-emerald-400'
-                                  : 'bg-[#D9A84E]/15 text-[#D9A84E]'
+                            className={`w-7 h-7 rounded-full flex items-center justify-center shrink-0 mt-0.5 border ${
+                              isDark
+                                ? 'bg-[#111111] border-[#262626] text-[#8E8E93]'
+                                : 'bg-[#F5F5F7] border-[#E5E5EA] text-[#8E8E93]'
                             }`}
                           >
                             {isCredit ? (
-                              <ArrowDownLeft className="w-4 h-4 stroke-[2.2]" />
+                              <ArrowDownLeft className="w-3.5 h-3.5 stroke-[2]" />
                             ) : (
-                              <ArrowUpRight className="w-4 h-4 stroke-[2.2]" />
+                              <ArrowUpRight className="w-3.5 h-3.5 stroke-[2]" />
                             )}
                           </div>
 
                           <div className="min-w-0">
-                            <p className="text-xs font-semibold leading-snug truncate">
+                            <p className="text-[13.5px] font-medium leading-snug truncate">
                               {tx.description}
                             </p>
-                            <div className="flex items-center gap-2 mt-1 flex-wrap">
-                              <span
-                                className={`text-[10.5px] font-medium ${
-                                  isDark ? 'text-zinc-500' : 'text-zinc-400'
-                                }`}
-                              >
-                                {formatDateTimePtBR(tx.createdAt)}
-                              </span>
-                              <span
-                                className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md text-[10px] font-semibold border ${badge.className}`}
-                              >
-                                <StatusIcon className="w-2.5 h-2.5" />
-                                {badge.label}
-                              </span>
+                            <div className="flex items-center gap-1.5 mt-0.5 text-[11.5px] text-[#8E8E93]">
+                              <span>{formatDateTimePtBR(tx.createdAt)}</span>
+                              <span>·</span>
+                              <span>{statusText}</span>
                             </div>
                           </div>
                         </div>
 
                         <div className="text-right shrink-0">
-                          <div
-                            className={`text-xs font-bold flex items-center justify-end gap-1 tabular-nums ${
-                              isZeroStatus
-                                ? isDark
-                                  ? 'text-zinc-400'
-                                  : 'text-zinc-500'
-                                : isCredit
-                                  ? 'text-emerald-400'
-                                  : isDark
-                                    ? 'text-white'
-                                    : 'text-zinc-900'
-                            }`}
-                          >
-                            <span>
-                              {tx.amount > 0 ? `+${tx.amount}` : tx.amount}
-                            </span>
-                            <PlatanoLeafIcon className="w-3.5 h-3.5" variant="gold" />
+                          <div className="text-[13.5px] font-semibold tabular-nums">
+                            {tx.amount > 0 ? `+${tx.amount}` : tx.amount}
                           </div>
-                          <span
-                            className={`text-[10px] font-medium block mt-0.5 tabular-nums ${
-                              isDark ? 'text-zinc-500' : 'text-zinc-400'
-                            }`}
-                          >
+                          <span className="text-[11px] font-normal text-[#8E8E93] block tabular-nums">
                             Saldo: {tx.balanceAfter}
                           </span>
                         </div>

@@ -158,6 +158,7 @@ export async function deleteSessionFromSupabase(token: string): Promise<void> {
 export async function persistSpotToSupabase(spot: any): Promise<void> {
   if (!supabase || !spot?.id) return;
   try {
+    const isStarBool = Boolean(spot.is_star === 1 || spot.is_star === true || spot.isStar === true || spot.badge === 'Estrela');
     const payload = {
       id: String(spot.id),
       name: String(spot.name || ''),
@@ -179,8 +180,8 @@ export async function persistSpotToSupabase(spot: any): Promise<void> {
       price: spot.price || '',
       popular_times: spot.popular_times || '',
       visitors_today: Number(spot.visitors_today || 0),
-      badge: spot.badge || '',
-      highlighted: spot.highlighted ? 1 : 0,
+      badge: isStarBool ? 'Estrela' : (spot.badge === 'Estrela' ? '' : (spot.badge || '')),
+      highlighted: spot.highlighted || isStarBool ? 1 : 0,
       is_active: spot.is_active !== undefined ? Number(spot.is_active) : spot.isActive !== false ? 1 : 0,
       is_verified: spot.is_verified !== undefined ? Number(spot.is_verified) : spot.isVerified !== false ? 1 : 0,
       website: spot.website || '',
@@ -514,8 +515,8 @@ export async function syncDatabaseWithSupabase(sqliteDb: any): Promise<void> {
               id, name, short_name, tag_label, category, category_label,
               lat, lng, image, gallery, description, tourist_tip,
               rating, review_count, hours, address, price_range, price,
-              available_for_itinerary, duration_minutes, tags, maps_url, is_active
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+              available_for_itinerary, duration_minutes, tags, maps_url, is_active, is_star, badge
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             ON CONFLICT(id) DO UPDATE SET
               name = excluded.name,
               short_name = excluded.short_name,
@@ -538,11 +539,14 @@ export async function syncDatabaseWithSupabase(sqliteDb: any): Promise<void> {
               duration_minutes = excluded.duration_minutes,
               tags = excluded.tags,
               maps_url = excluded.maps_url,
-              is_active = excluded.is_active
+              is_active = excluded.is_active,
+              is_star = CASE WHEN excluded.is_star = 1 THEN 1 ELSE spots.is_star END,
+              badge = COALESCE(NULLIF(excluded.badge, ''), spots.badge)
           `);
 
           for (const s of remoteSpots) {
             if (s && s.id && s.name) {
+              const remoteIsStar = s.is_star === 1 || s.is_star === true || s.badge === 'Estrela' ? 1 : 0;
               upsertSpot.run(
                 s.id,
                 s.name,
@@ -566,7 +570,9 @@ export async function syncDatabaseWithSupabase(sqliteDb: any): Promise<void> {
                 Number(s.duration_minutes || 90),
                 s.tags || '',
                 s.maps_url || '',
-                s.is_active !== undefined ? Number(s.is_active) : 1
+                s.is_active !== undefined ? Number(s.is_active) : 1,
+                remoteIsStar,
+                s.badge || (remoteIsStar ? 'Estrela' : '')
               );
             }
           }

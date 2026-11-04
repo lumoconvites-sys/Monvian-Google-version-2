@@ -31,6 +31,10 @@ import { PremiumModal } from './PremiumModal';
 import { IOSSwitch } from './IOSSwitch';
 import { NotificationsModal } from './NotificationsModal';
 import { persistUserToFirestore } from '../services/firestoreSync';
+import {
+  HelpAndLegalView,
+  HelpLegalPageId,
+} from './HelpAndLegalSection';
 
 interface ProfileModalProps {
   isOpen: boolean;
@@ -49,14 +53,19 @@ interface ProfileModalProps {
   user: any;
   onUpdateUser?: (updatedUser: any) => void;
   onOpenAdmin?: () => void;
-  onOpenHostDashboard?: () => void;
   onSubViewChange?: (subView: SubView) => void;
   communityUrl?: string;
   instagramUrl?: string;
   onLogout?: () => void;
 }
 
-type SubView = 'main' | 'edit-profile' | 'curtidos' | 'permissoes' | 'logout-confirm';
+type SubView =
+  | 'main'
+  | 'edit-profile'
+  | 'curtidos'
+  | 'permissoes'
+  | 'ajuda-informacoes'
+  | 'logout-confirm';
 
 export const ProfileModal: React.FC<ProfileModalProps> = ({
   isOpen,
@@ -75,7 +84,6 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
   user,
   onUpdateUser,
   onOpenAdmin,
-  onOpenHostDashboard,
   onSubViewChange,
   communityUrl = 'https://chat.whatsapp.com/invite/monvian-campos',
   instagramUrl = 'https://instagram.com/monvian.campos',
@@ -93,9 +101,18 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
   };
 
   const [activeSubView, setActiveSubView] = useState<SubView>('main');
+  const [helpLegalPage, setHelpLegalPage] = useState<HelpLegalPageId>('hub');
+  const [helpReturnView, setHelpReturnView] = useState<'main' | 'permissoes'>('main');
+
   const handleSetSubView = (subView: SubView) => {
     setActiveSubView(subView);
     onSubViewChange?.(subView);
+  };
+
+  const openHelpLegalPage = (page: HelpLegalPageId, fromView: 'main' | 'permissoes' = 'main') => {
+    setHelpReturnView(fromView);
+    setHelpLegalPage(page);
+    handleSetSubView('ajuda-informacoes');
   };
 
   // User profile state
@@ -241,7 +258,7 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
   const [isNotificationsOpen, setIsNotificationsOpen] = useState(false);
   const [notificationsList, setNotificationsList] = useState<any[]>([]);
 
-  const isDark = theme === 'dark';
+  const isDark = false;
   const favoriteSpots = spots.filter((s) => favorites.includes(s.id));
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -451,20 +468,19 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
           exit={{ opacity: 0, y: 6 }}
           transition={{ duration: 0.18, ease: [0.22, 1, 0.36, 1] }}
           onClick={(e) => e.stopPropagation()}
-          className={`relative w-full h-full md:h-[88vh] md:max-w-2xl rounded-none overflow-hidden flex flex-col justify-between shadow-2xl transition-colors duration-200 md:border ${
+          className={`relative w-full h-full md:h-[88vh] md:max-w-2xl rounded-none md:rounded-[30px] overflow-hidden flex flex-col justify-between shadow-2xl transition-colors duration-200 md:border ${
             isDark
               ? 'bg-[#000000] text-white md:border-white/10'
-              : 'bg-[#F2F2F7] text-zinc-900 md:border-black/10'
+              : 'bg-[#ffffff] text-zinc-950 md:border-black/10'
           }`}
           style={{
-            fontFamily: "'Inter', sans-serif",
-            borderTopLeftRadius: '30px',
-            borderTopRightRadius: '30px',
+            fontFamily: '-apple-system, BlinkMacSystemFont, "SF Pro Text", "SF Pro Display", "Inter", sans-serif',
             overflow: 'hidden',
             willChange: 'opacity, transform',
           }}
         >
         {/* Top Header Bar */}
+        {activeSubView !== 'ajuda-informacoes' && (
         <div
           className={`px-5 sm:px-6 pb-2 flex items-center justify-between z-10 shrink-0 transition-colors ${
             isDark ? 'bg-[#000000] text-white' : 'bg-[#ffffff] text-zinc-950'
@@ -505,7 +521,7 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
                 type="button"
                 onClick={() => setIsNotificationsOpen(true)}
                 className={`w-10 h-10 rounded-full flex items-center justify-center transition-colors cursor-pointer ${
-                  isDark ? 'bg-white/10 hover:bg-white/15 text-white' : 'bg-white hover:bg-zinc-100 text-zinc-900 shadow-2xs'
+                  isDark ? 'bg-white/10 hover:bg-white/15 text-white' : 'bg-[#F2F2F7] hover:bg-[#E5E5EA] text-zinc-900 shadow-2xs'
                 }`}
                 title="Notificações"
                 aria-label="Notificações"
@@ -515,15 +531,21 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
             )}
           </div>
         </div>
+        )}
 
         {/* Main Content Area */}
         <div
           className={`flex-1 min-h-0 overflow-y-auto overscroll-contain px-5 sm:px-7 max-w-3xl mx-auto w-full flex flex-col transition-colors ${
-            isDark ? 'bg-[#000000] text-white' : 'bg-[#ffffff] text-zinc-950'
-          }`}
+            isDark
+              ? 'bg-[#000000] text-white'
+              : 'bg-[#ffffff] text-zinc-950'
+          } ${activeSubView === 'ajuda-informacoes' ? 'pt-1 sm:pt-2' : ''}`}
           style={{
             WebkitOverflowScrolling: 'touch',
-            paddingBottom: 'calc(env(safe-area-inset-bottom, 24px) + 90px)',
+            paddingBottom:
+              activeSubView === 'ajuda-informacoes'
+                ? 'calc(env(safe-area-inset-bottom, 24px) + 140px)'
+                : 'calc(env(safe-area-inset-bottom, 24px) + 90px)',
           }}
         >
           {/* Hidden File Input for Avatar Upload */}
@@ -570,7 +592,7 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
                 className={`w-full p-5 sm:p-6 rounded-[28px] border transition-colors cursor-pointer group flex flex-col items-center text-center ${
                   isDark
                     ? 'bg-[#1C1C1E] border-white/10 shadow-xs'
-                    : 'bg-white border-black/5 shadow-xs'
+                    : 'bg-[#F2F2F7] border-black/5 shadow-xs'
                 }`}
               >
                 <div className="relative mb-3">
@@ -619,7 +641,7 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
                   whileTap={{ scale: 0.94, transition: { type: 'spring', stiffness: 500, damping: 14 } }}
                   onClick={() => handleSetSubView('curtidos')}
                   className={`rounded-[24px] p-4 border transition-colors cursor-pointer flex flex-col justify-between ${
-                    isDark ? 'bg-[#1C1C1E] border-white/10 shadow-xs' : 'bg-white border-black/5 shadow-xs'
+                    isDark ? 'bg-[#1C1C1E] border-white/10 shadow-xs' : 'bg-[#F2F2F7] border-black/5 shadow-xs'
                   }`}
                 >
                   <div className="flex justify-end">
@@ -653,7 +675,7 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
                   whileTap={{ scale: 0.94, transition: { type: 'spring', stiffness: 500, damping: 14 } }}
                   onClick={() => handleSetSubView('curtidos')}
                   className={`rounded-[24px] p-4 border transition-colors cursor-pointer flex flex-col justify-between ${
-                    isDark ? 'bg-[#1C1C1E] border-white/10 shadow-xs' : 'bg-white border-black/5 shadow-xs'
+                    isDark ? 'bg-[#1C1C1E] border-white/10 shadow-xs' : 'bg-[#F2F2F7] border-black/5 shadow-xs'
                   }`}
                 >
                   <div className="flex justify-end">
@@ -679,44 +701,6 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
                 </motion.div>
               </div>
 
-              {/* 3. Horizontal Promotional Card ("Torne-se um anfitrião" -> Área do anfitrião) */}
-              <motion.div
-                initial={{ opacity: 0, scale: 0.88, y: 12 }}
-                animate={{ opacity: 1, scale: 1, y: 0 }}
-                transition={{ type: 'spring', stiffness: 380, damping: 22, delay: 0.125 }}
-                whileHover={{ scale: 1.01, transition: { type: 'spring', stiffness: 400, damping: 18 } }}
-                whileTap={{ scale: 0.96, transition: { type: 'spring', stiffness: 500, damping: 14 } }}
-                onClick={() => {
-                  if (onOpenHostDashboard) {
-                    onOpenHostDashboard();
-                  } else {
-                    setIsPremiumModalOpen(true);
-                  }
-                }}
-                className={`rounded-[24px] p-4 border transition-colors cursor-pointer flex items-center gap-3.5 ${
-                  isDark ? 'bg-[#1C1C1E] border-white/10 shadow-xs' : 'bg-white border-black/5 shadow-xs'
-                }`}
-              >
-                <div className="shrink-0 flex items-center justify-center w-12 h-12">
-                  <motion.img
-                    initial={{ opacity: 0, scale: 0.88, y: 10 }}
-                    animate={{ opacity: 1, scale: 1, y: 0 }}
-                    transition={{ type: 'spring', stiffness: 380, damping: 22, delay: 0.145 }}
-                    src="/anfitriao.png"
-                    alt="Torne-se um anfitrião"
-                    className="h-14 w-auto object-contain"
-                  />
-                </div>
-                <div className="min-w-0 flex-1">
-                  <h3 className="text-[15px] font-bold tracking-tight leading-tight">
-                    Área do anfitrião
-                  </h3>
-                  <p className="text-xs text-zinc-500 dark:text-zinc-400 font-medium mt-0.5 leading-snug">
-                    Acompanhe suas indicações e seus ganhos no Monvians.
-                  </p>
-                </div>
-                <ChevronRight className="w-5 h-5 text-zinc-400 shrink-0" />
-              </motion.div>
 
               {/* 4. Options List */}
               <div className="space-y-2.5 pt-1">
@@ -733,7 +717,7 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
                       onOpenAdmin?.();
                     }}
                     className={`w-full p-4 rounded-[22px] border transition-colors flex items-center justify-between text-left cursor-pointer ${
-                      isDark ? 'bg-[#1C1C1E] border-white/10 hover:bg-[#252528]' : 'bg-white border-black/5 hover:bg-zinc-50'
+                      isDark ? 'bg-[#1C1C1E] border-white/10 hover:bg-[#252528]' : 'bg-[#F2F2F7] border-black/5 hover:bg-[#E5E5EA]/80'
                     }`}
                   >
                     <div className="flex items-center gap-3.5 min-w-0">
@@ -758,13 +742,13 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
                   whileTap={{ scale: 0.96, transition: { type: 'spring', stiffness: 500, damping: 14 } }}
                   onClick={() => handleSetSubView('permissoes')}
                   className={`w-full p-4 rounded-[22px] border transition-colors flex items-center justify-between text-left cursor-pointer ${
-                    isDark ? 'bg-[#1C1C1E] border-white/10 hover:bg-[#252528]' : 'bg-white border-black/5 hover:bg-zinc-50'
+                    isDark ? 'bg-[#1C1C1E] border-white/10 hover:bg-[#252528]' : 'bg-[#F2F2F7] border-black/5 hover:bg-[#E5E5EA]/80'
                   }`}
                 >
                   <div className="flex items-center gap-3.5 min-w-0">
                     <div className="relative flex items-center justify-center shrink-0 text-zinc-950 dark:text-white">
                       <Settings className="w-7 h-7 stroke-[1.8]" />
-                      <span className="absolute -top-0.5 -right-0.5 w-2.5 h-2.5 rounded-full bg-[#0079ff] ring-2 ring-[#1C1C1E] dark:ring-[#1C1C1E] text-[#280000]" style={{ backgroundColor: '#0079ff', color: '#280000' }} />
+                      <span className={`absolute -top-0.5 -right-0.5 w-2.5 h-2.5 rounded-full bg-[#0079ff] ring-2 ${isDark ? 'ring-[#1C1C1E]' : 'ring-[#F2F2F7]'}`} style={{ backgroundColor: '#0079ff' }} />
                     </div>
                     <h3 className="text-[15px] font-semibold text-zinc-950 dark:text-white tracking-tight">
                       Configurações da conta
@@ -780,9 +764,9 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
                   transition={{ type: 'spring', stiffness: 380, damping: 22, delay: 0.23 }}
                   whileHover={{ scale: 1.01, transition: { type: 'spring', stiffness: 400, damping: 18 } }}
                   whileTap={{ scale: 0.96, transition: { type: 'spring', stiffness: 500, damping: 14 } }}
-                  onClick={() => handleSetSubView('permissoes')}
+                  onClick={() => openHelpLegalPage('hub', 'main')}
                   className={`w-full p-4 rounded-[22px] border transition-colors flex items-center justify-between text-left cursor-pointer ${
-                    isDark ? 'bg-[#1C1C1E] border-white/10 hover:bg-[#252528]' : 'bg-white border-black/5 hover:bg-zinc-50'
+                    isDark ? 'bg-[#1C1C1E] border-white/10 hover:bg-[#252528]' : 'bg-[#F2F2F7] border-black/5 hover:bg-[#E5E5EA]/80'
                   }`}
                 >
                   <div className="flex items-center gap-3.5 min-w-0">
@@ -790,7 +774,7 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
                       <Star className="w-7 h-7 stroke-[1.8]" />
                     </div>
                     <h3 className="text-[15px] font-semibold text-zinc-950 dark:text-white tracking-tight">
-                      Obtenha ajuda
+                      Ajuda e informações
                     </h3>
                   </div>
                   <ChevronRight className="w-5 h-5 text-zinc-400 shrink-0" />
@@ -806,7 +790,7 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
                   whileTap={{ scale: 0.96, transition: { type: 'spring', stiffness: 500, damping: 14 } }}
                   onClick={() => handleSetSubView('logout-confirm')}
                   className={`w-full p-4 rounded-[22px] border transition-colors flex items-center justify-between text-left cursor-pointer ${
-                    isDark ? 'bg-[#1C1C1E] border-white/10 hover:bg-[#252528]' : 'bg-white border-black/5 hover:bg-zinc-50'
+                    isDark ? 'bg-[#1C1C1E] border-white/10 hover:bg-[#252528]' : 'bg-[#F2F2F7] border-black/5 hover:bg-[#E5E5EA]/80'
                   }`}
                 >
                   <div className="flex items-center gap-3.5 min-w-0">
@@ -838,7 +822,7 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
                   Preferências & Efeitos
                 </p>
                 <div className={`rounded-[24px] border overflow-hidden ${
-                  isDark ? 'bg-[#1C1C1E] border-white/10 divide-y divide-white/5' : 'bg-white border-black/5 divide-y divide-black/5'
+                  isDark ? 'bg-[#1C1C1E] border-white/10 divide-y divide-white/5' : 'bg-[#F2F2F7] border-black/5 divide-y divide-black/5'
                 }`}>
                   {/* Modo Escuro */}
                   <div className="p-4 flex items-center justify-between gap-3">
@@ -1037,8 +1021,52 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
                     </div>
                     <ChevronRight className="w-5 h-5 text-zinc-400 shrink-0" />
                   </button>
+
+                  <button
+                    type="button"
+                    onClick={() => openHelpLegalPage('hub', 'permissoes')}
+                    className="w-full p-4 flex items-center justify-between text-left cursor-pointer hover:opacity-80 transition-opacity"
+                  >
+                    <div className="flex items-center gap-3.5 min-w-0">
+                      <div className="flex items-center justify-center shrink-0 text-zinc-950 dark:text-white">
+                        <Star className="w-7 h-7 stroke-[1.8]" />
+                      </div>
+                      <div className="min-w-0">
+                        <h4 className="text-[15px] font-semibold tracking-tight">
+                          Ajuda e informações
+                        </h4>
+                        <p className="text-[12px] text-zinc-500 dark:text-zinc-400 font-medium truncate">
+                          Suporte, privacidade, termos e exclusão de conta
+                        </p>
+                      </div>
+                    </div>
+                    <ChevronRight className="w-5 h-5 text-zinc-400 shrink-0" />
+                  </button>
                 </div>
               </motion.div>
+            </div>
+          )}
+
+          {/* ============================================================ */}
+          {/* VIEW 2.5: AJUDA E INFORMAÇÕES (CENTRAL, PRIVACIDADE & LEGAL) */}
+          {/* ============================================================ */}
+          {activeSubView === 'ajuda-informacoes' && (
+            <div className="py-1 pb-8">
+              <HelpAndLegalView
+                activePage={helpLegalPage}
+                onNavigate={(page) => setHelpLegalPage(page)}
+                onBackToProfile={() => handleSetSubView(helpReturnView)}
+                user={user}
+                onUpdateUser={onUpdateUser}
+                theme={theme}
+                onAccountDeleted={() => {
+                  if (onLogout) {
+                    onLogout();
+                  } else {
+                    window.location.reload();
+                  }
+                }}
+              />
             </div>
           )}
 
@@ -1198,17 +1226,17 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
                   <button
                     type="button"
                     onClick={() => handleSetSubView('main')}
-                    className={`flex-1 py-3 rounded-full text-sm font-bold transition-all cursor-pointer ${
-                      isDark ? 'bg-white/10 hover:bg-white/15 text-white' : 'bg-zinc-200 hover:bg-zinc-300 text-zinc-800'
+                    className={`flex-1 py-3 rounded-full text-sm font-bold transition-all active:scale-95 cursor-pointer ${
+                      isDark ? 'bg-white/10 hover:bg-white/15 text-white' : 'expo-liquid-glass-btn text-black border border-black/5 hover:bg-zinc-50 shadow-xs'
                     }`}
                   >
                     Cancelar
                   </button>
                   <button
                     type="submit"
-                    className="flex-1 py-3 rounded-full bg-zinc-900 dark:bg-white text-white dark:text-zinc-900 hover:opacity-90 text-sm font-bold transition-all cursor-pointer shadow-lg flex items-center justify-center gap-1.5"
+                    className="flex-1 py-3 rounded-full expo-liquid-glass-btn text-black dark:bg-white dark:text-zinc-900 border border-black/5 hover:bg-zinc-50 text-sm font-bold transition-all active:scale-95 cursor-pointer shadow-sm flex items-center justify-center gap-1.5"
                   >
-                    {saveToast ? <Check className="w-4 h-4" /> : null}
+                    {saveToast ? <Check className="w-4 h-4 text-black dark:text-black" /> : null}
                     <span>{saveToast ? 'Salvo!' : 'Salvar alterações'}</span>
                   </button>
                 </motion.div>

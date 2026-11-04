@@ -43,12 +43,117 @@ export const SpotDetailSheet: React.FC<SpotDetailSheetProps> = ({
   onNavigateTo,
   isFavorite,
   onToggleFavorite,
+  onUpdateSpot,
 }) => {
   const [activeTab, setActiveTab] = useState('Sobre');
   const [isQrModalOpen, setIsQrModalOpen] = useState(false);
   const scrollRef = useRef<HTMLDivElement | null>(null);
   const heroMediaWrapperRef = useRef<HTMLDivElement | null>(null);
   const heroVideoRef = useRef<HTMLVideoElement | null>(null);
+
+  // Live Rating & Reviews state synced with database
+  const [liveRating, setLiveRating] = useState<number>(Number(spot?.rating ?? 5.0));
+  const [liveReviewCount, setLiveReviewCount] = useState<number>(Number(spot?.reviewCount ?? 120));
+  const [reviewsList, setReviewsList] = useState<any[]>([]);
+  const [userRatingInput, setUserRatingInput] = useState<number>(5);
+  const [userCommentInput, setUserCommentInput] = useState<string>('');
+  const [isSubmittingReview, setIsSubmittingReview] = useState<boolean>(false);
+  const [reviewSubmittedMsg, setReviewSubmittedMsg] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!spot?.id) return;
+    setLiveRating(Number(spot.rating ?? 5.0));
+    setLiveReviewCount(Number(spot.reviewCount ?? 120));
+    setReviewSubmittedMsg(null);
+
+    let active = true;
+    fetch(`/api/spots/${encodeURIComponent(spot.id)}/reviews`)
+      .then((res) => res.json())
+      .then((data) => {
+        if (!active || !data?.success) return;
+        if (typeof data.rating === 'number' && !isNaN(data.rating)) {
+          setLiveRating(data.rating);
+        }
+        if (typeof data.reviewCount === 'number' && !isNaN(data.reviewCount)) {
+          setLiveReviewCount(data.reviewCount);
+        }
+        if (Array.isArray(data.reviews)) {
+          setReviewsList(data.reviews);
+        }
+      })
+      .catch(() => {});
+
+    return () => {
+      active = false;
+    };
+  }, [spot?.id, spot?.rating, spot?.reviewCount]);
+
+  const handleSubmitReview = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!spot?.id || isSubmittingReview) return;
+    setIsSubmittingReview(true);
+    setReviewSubmittedMsg(null);
+
+    try {
+      let userName = 'Visitante Monvian';
+      let userId: string | undefined = undefined;
+      try {
+        const rawUser = localStorage.getItem('monvian_user');
+        if (rawUser) {
+          const parsed = JSON.parse(rawUser);
+          if (parsed?.name || parsed?.username) userName = parsed.name || parsed.username;
+          if (parsed?.id) userId = String(parsed.id);
+        }
+      } catch {}
+
+      const token = localStorage.getItem('monvian_token');
+      const res = await fetch(`/api/spots/${encodeURIComponent(spot.id)}/reviews`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+        body: JSON.stringify({
+          rating: userRatingInput,
+          comment: userCommentInput.trim() || (userRatingInput === 5 ? 'Experiência impecável em Campos do Jordão!' : 'Muito bom, recomendo a visita.'),
+          userName,
+          userId,
+        }),
+      });
+
+      const data = await res.json();
+      if (data?.success) {
+        const nextRating = Number(data.rating ?? userRatingInput);
+        const nextCount = Number(data.reviewCount ?? liveReviewCount + 1);
+        setLiveRating(nextRating);
+        setLiveReviewCount(nextCount);
+        if (Array.isArray(data.reviews)) {
+          setReviewsList(data.reviews);
+        }
+        setUserCommentInput('');
+        setReviewSubmittedMsg(
+          `Avaliação registrada com sucesso! Média atual: ${nextRating.toFixed(1)}.`
+        );
+
+        const updatedSpotObj: Spot = data.spot || {
+          ...spot,
+          rating: nextRating,
+          reviewCount: nextCount,
+        };
+        if (onUpdateSpot) {
+          onUpdateSpot(updatedSpotObj);
+        }
+        window.dispatchEvent(
+          new CustomEvent('monvian:spots_updated', {
+            detail: { spot: updatedSpotObj },
+          })
+        );
+      }
+    } catch {
+    } finally {
+      setIsSubmittingReview(false);
+    }
+  };
 
   // Track viewport mode so only one <video> instance mounts & plays at a time
   const [isDesktop, setIsDesktop] = useState<boolean>(() =>
@@ -430,7 +535,7 @@ export const SpotDetailSheet: React.FC<SpotDetailSheetProps> = ({
               persistHeroPlaybackPosition();
               onClose();
             }} 
-            className="w-10 h-10 rounded-full bg-white/90 dark:bg-[#000000]/80 backdrop-blur-md flex items-center justify-center border border-zinc-200/80 dark:border-[#262626] text-black dark:text-white shadow-md cursor-pointer pointer-events-auto active:opacity-80 transition-opacity"
+            className="w-10 h-10 rounded-full expo-liquid-glass-btn flex items-center justify-center text-black dark:text-white cursor-pointer pointer-events-auto active:opacity-80 transition-opacity"
             title="Voltar"
             aria-label="Voltar para o mapa"
           >
@@ -447,7 +552,7 @@ export const SpotDetailSheet: React.FC<SpotDetailSheetProps> = ({
                 e.stopPropagation();
                 setIsQrModalOpen(true);
               }}
-              className="w-10 h-10 rounded-full bg-white/90 dark:bg-[#000000]/80 backdrop-blur-md flex items-center justify-center border border-zinc-200/80 dark:border-[#262626] text-zinc-900 dark:text-white shadow-md cursor-pointer hover:bg-zinc-100 dark:hover:bg-white/20 transition-colors"
+              className="w-10 h-10 rounded-full expo-liquid-glass-btn flex items-center justify-center text-zinc-900 dark:text-white cursor-pointer transition-colors"
               title="Gerar QR Code deste local"
               aria-label="Gerar QR Code deste local"
             >
@@ -460,7 +565,7 @@ export const SpotDetailSheet: React.FC<SpotDetailSheetProps> = ({
                 e.stopPropagation();
                 handleShare();
               }}
-              className="w-10 h-10 rounded-full bg-white/90 dark:bg-[#000000]/80 backdrop-blur-md flex items-center justify-center border border-zinc-200/80 dark:border-[#262626] text-zinc-900 dark:text-white shadow-md cursor-pointer active:opacity-80 transition-opacity"
+              className="w-10 h-10 rounded-full expo-liquid-glass-btn flex items-center justify-center text-zinc-900 dark:text-white cursor-pointer active:opacity-80 transition-opacity"
               title="Compartilhar"
               aria-label="Compartilhar"
             >
@@ -473,7 +578,7 @@ export const SpotDetailSheet: React.FC<SpotDetailSheetProps> = ({
                 e.stopPropagation();
                 onToggleFavorite(spot.id);
               }} 
-              className="w-10 h-10 rounded-full bg-white/90 dark:bg-[#000000]/80 backdrop-blur-md flex items-center justify-center border border-zinc-200/80 dark:border-[#262626] text-zinc-900 dark:text-white shadow-md cursor-pointer active:opacity-80 transition-opacity"
+              className="w-10 h-10 rounded-full expo-liquid-glass-btn flex items-center justify-center text-zinc-900 dark:text-white cursor-pointer active:opacity-80 transition-opacity"
               title={isFavorite ? 'Remover dos favoritos' : 'Adicionar aos favoritos'}
               aria-label={isFavorite ? 'Remover dos favoritos' : 'Adicionar aos favoritos'}
             >
@@ -646,8 +751,8 @@ export const SpotDetailSheet: React.FC<SpotDetailSheetProps> = ({
             >
               <div className="flex items-center gap-1 bg-zinc-100 dark:bg-[#000000] dark:border dark:border-[#262626] px-3 py-1.5 rounded-full">
                 <Star className={`w-4 h-4 ${isGoldUser ? 'fill-[#F5BE38] text-[#F5BE38]' : 'fill-zinc-900 text-zinc-900 dark:fill-white dark:text-white'}`} />
-                <span className="font-semibold text-zinc-900 dark:text-[#FFFFFF]">{spot.rating}</span>
-                <span className="text-[#9A9894] font-semibold">({spot.reviewCount})</span>
+                <span className="font-semibold text-zinc-900 dark:text-[#FFFFFF]">{Number(liveRating).toFixed(1)}</span>
+                <span className="text-[#9A9894] font-semibold">({liveReviewCount})</span>
               </div>
               <div className="flex items-center gap-1.5 bg-zinc-100 dark:bg-[#000000] dark:border dark:border-[#262626] px-3 py-1.5 rounded-full">
                 <MapPin className={`w-4 h-4 ${isGoldUser ? 'text-[#F5BE38]' : 'text-zinc-900 dark:text-white'}`} />
@@ -659,21 +764,21 @@ export const SpotDetailSheet: React.FC<SpotDetailSheetProps> = ({
               </div>
             </motion.div>
 
-            {/* Action Buttons Row - Apple Maps iOS Aesthetic */}
+            {/* Action Buttons Row - Apple Maps iOS Liquid Glass Aesthetic */}
             <motion.div
               initial={{ opacity: 0, scale: 0.88, y: 12 }}
               animate={{ opacity: 1, scale: 1, y: 0 }}
               transition={{ type: 'spring', stiffness: 380, damping: 22, delay: 0.085 }}
               className="grid grid-cols-3 gap-3 mb-8"
             >
-              <motion.button 
+              <motion.button
                 whileHover={{ scale: 1.02, transition: { type: 'spring', stiffness: 400, damping: 18 } }}
                 whileTap={{ scale: 0.94, transition: { type: 'spring', stiffness: 500, damping: 14 } }}
                 onClick={() => openDirectionsMap(spot)}
-                className={`rounded-2xl py-3 px-3 flex items-center justify-center gap-2 transition-all cursor-pointer shadow-sm font-bold active:opacity-90 bg-[#ffffff] dark:bg-[#000000] border border-zinc-200/80 dark:border-[#262626] ${
+                className={`rounded-full py-3 px-3 flex items-center justify-center gap-2 transition-all cursor-pointer font-bold active:opacity-90 expo-liquid-glass-btn border border-black/5 ${
                   isGoldUser
-                    ? 'text-[#1A1202] dark:text-[#FDE073] border-[#FFF4A3]/60 shadow-[0_4px_16px_rgba(230,172,51,0.4)]'
-                    : 'text-[#000000] dark:text-white hover:bg-zinc-100 dark:hover:border-white/30'
+                    ? 'text-[#1A1202] dark:text-[#FDE073] shadow-[0_4px_16px_rgba(230,172,51,0.4)]'
+                    : 'text-[#000000] dark:text-white'
                 }`}
                 title="Traçar Rota no GPS"
               >
@@ -685,7 +790,7 @@ export const SpotDetailSheet: React.FC<SpotDetailSheetProps> = ({
                 whileHover={{ scale: 1.02, transition: { type: 'spring', stiffness: 400, damping: 18 } }}
                 whileTap={{ scale: 0.94, transition: { type: 'spring', stiffness: 500, damping: 14 } }}
                 href={phoneHref}
-                className="bg-[#ffffff] hover:bg-zinc-200 dark:bg-[#000000] dark:hover:border-white/30 border border-zinc-200/80 dark:border-[#262626] text-zinc-900 dark:text-white rounded-2xl py-3 px-3 flex items-center justify-center gap-2 transition-colors cursor-pointer font-bold active:opacity-90"
+                className="expo-liquid-glass-btn text-zinc-900 dark:text-white rounded-full py-3 px-3 flex items-center justify-center gap-2 transition-colors cursor-pointer font-bold active:opacity-90 border border-black/5"
                 title="Ligar para o estabelecimento"
               >
                 <Phone className="w-4 h-4 shrink-0" />
@@ -698,7 +803,7 @@ export const SpotDetailSheet: React.FC<SpotDetailSheetProps> = ({
                 href={websiteHref}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="bg-[#ffffff] hover:bg-zinc-200 dark:bg-[#000000] dark:hover:border-white/30 border border-zinc-200/80 dark:border-[#262626] text-zinc-900 dark:text-white rounded-2xl py-3 px-3 flex items-center justify-center gap-2 transition-colors cursor-pointer font-bold active:opacity-90"
+                className="expo-liquid-glass-btn text-zinc-900 dark:text-white rounded-full py-3 px-3 flex items-center justify-center gap-2 transition-colors cursor-pointer font-bold active:opacity-90 border border-black/5"
                 title="Acessar Website"
               >
                 <Globe className="w-4 h-4 shrink-0" />
@@ -863,60 +968,134 @@ export const SpotDetailSheet: React.FC<SpotDetailSheetProps> = ({
                 >
                   <div className="flex items-center justify-between p-4 bg-zinc-50 dark:bg-[#000000] rounded-2xl border border-zinc-100 dark:border-[#262626]">
                     <div>
-                      <span className="text-3xl font-black text-zinc-900 dark:text-white">{spot.rating}</span>
+                      <span className="text-3xl font-black text-zinc-900 dark:text-white">{Number(liveRating).toFixed(1)}</span>
                       <span className="text-xs text-zinc-400 block mt-0.5">de 5.0 estrelas</span>
                     </div>
                     <div className="flex flex-col items-end">
                       <div className="flex text-[#F2B900]">
                         {Array.from({ length: 5 }).map((_, i) => (
-                          <Star key={i} className="w-4 h-4 fill-current" />
+                          <Star
+                            key={i}
+                            className={`w-4 h-4 ${i < Math.round(liveRating) ? 'fill-current' : 'text-zinc-300 dark:text-zinc-700'}`}
+                          />
                         ))}
                       </div>
-                      <span className="text-xs text-zinc-500 dark:text-zinc-400 mt-1">{spot.reviewCount} avaliações reais</span>
+                      <span className="text-xs text-zinc-500 dark:text-zinc-400 mt-1">{liveReviewCount} avaliações reais</span>
                     </div>
                   </div>
 
-                  {/* Review card 1 */}
-                  <motion.div
-                    initial={{ opacity: 0, scale: 0.88, y: 12 }}
-                    animate={{ opacity: 1, scale: 1, y: 0 }}
-                    transition={{ type: 'spring', stiffness: 380, damping: 22, delay: 0.04 }}
-                    className="p-4 bg-zinc-50 dark:bg-[#000000] rounded-2xl border border-zinc-100 dark:border-[#262626] space-y-2"
+                  {/* Interactive iOS Rating Submission Card */}
+                  <form
+                    onSubmit={handleSubmitReview}
+                    className="p-4 bg-zinc-50 dark:bg-[#000000] rounded-2xl border border-zinc-100 dark:border-[#262626] space-y-3"
                   >
                     <div className="flex items-center justify-between">
-                      <span className="font-black text-xs text-zinc-900 dark:text-white">Mariana Costa</span>
-                      <span className="text-[11px] text-zinc-400">Há 2 dias</span>
+                      <span className="text-xs font-bold text-zinc-900 dark:text-white">
+                        Avaliar este ponto turístico
+                      </span>
+                      <div className="flex items-center gap-1">
+                        {[1, 2, 3, 4, 5].map((starVal) => (
+                          <button
+                            key={starVal}
+                            type="button"
+                            onClick={() => setUserRatingInput(starVal)}
+                            className="p-1 cursor-pointer transition-transform active:scale-90"
+                            aria-label={`${starVal} estrelas`}
+                          >
+                            <Star
+                              className={`w-5 h-5 transition-colors ${
+                                starVal <= userRatingInput
+                                  ? 'fill-[#F2B900] text-[#F2B900]'
+                                  : 'text-zinc-300 dark:text-zinc-700'
+                              }`}
+                            />
+                          </button>
+                        ))}
+                      </div>
                     </div>
-                    <div className="flex text-[#F2B900]">
-                      {Array.from({ length: 5 }).map((_, i) => (
-                        <Star key={i} className="w-3 h-3 fill-current" />
-                      ))}
-                    </div>
-                    <p className="text-xs text-zinc-600 dark:text-zinc-300 leading-relaxed">
-                      Lugar espetacular! Vista incrível de Campos do Jordão e clima super agradável. Vale muito a pena a visita.
-                    </p>
-                  </motion.div>
 
-                  {/* Review card 2 */}
-                  <motion.div
-                    initial={{ opacity: 0, scale: 0.88, y: 12 }}
-                    animate={{ opacity: 1, scale: 1, y: 0 }}
-                    transition={{ type: 'spring', stiffness: 380, damping: 22, delay: 0.08 }}
-                    className="p-4 bg-zinc-50 dark:bg-[#000000] rounded-2xl border border-zinc-100 dark:border-[#262626] space-y-2"
-                  >
-                    <div className="flex items-center justify-between">
-                      <span className="font-black text-xs text-zinc-900 dark:text-white">Lucas Ferreira</span>
-                      <span className="text-[11px] text-zinc-400">Há 1 semana</span>
+                    <input
+                      type="text"
+                      value={userCommentInput}
+                      onChange={(e) => setUserCommentInput(e.target.value)}
+                      placeholder="Conte como foi sua experiência (opcional)..."
+                      className="w-full px-3.5 py-2.5 rounded-xl bg-white dark:bg-[#0A0A0C] border border-zinc-200 dark:border-[#262626] text-xs text-zinc-900 dark:text-white focus:outline-none focus:border-zinc-400 dark:focus:border-white/40"
+                    />
+
+                    <div className="flex items-center justify-between gap-2">
+                      {reviewSubmittedMsg ? (
+                        <span className="text-[11px] text-zinc-500 dark:text-zinc-400 font-medium">
+                          {reviewSubmittedMsg}
+                        </span>
+                      ) : (
+                        <span className="text-[11px] text-zinc-400">
+                          Nota {userRatingInput}.0 selecionada
+                        </span>
+                      )}
+                      <button
+                        type="submit"
+                        disabled={isSubmittingReview}
+                        className="px-4 py-2 rounded-full expo-liquid-glass-btn text-black dark:bg-white dark:text-black text-xs font-bold transition-transform active:scale-95 disabled:opacity-50 cursor-pointer shrink-0 border border-black/5 shadow-xs"
+                      >
+                        {isSubmittingReview ? 'Salvando...' : 'Publicar avaliação'}
+                      </button>
                     </div>
-                    <div className="flex text-[#F2B900]">
-                      {Array.from({ length: 5 }).map((_, i) => (
-                        <Star key={i} className="w-3 h-3 fill-current" />
-                      ))}
-                    </div>
-                    <p className="text-xs text-zinc-600 dark:text-zinc-300 leading-relaxed">
-                      Pôr do sol inesquecível. Recomendo chegar pelo menos 40 minutos antes do sol se pôr para pegar um bom lugar.
-                    </p>
-                  </motion.div>
+                  </form>
+
+                  {/* Dynamic Reviews List */}
+                  {(reviewsList.length > 0
+                    ? reviewsList
+                    : [
+                        {
+                          id: 'default-1',
+                          user_name: 'Mariana Costa',
+                          rating: 5,
+                          comment:
+                            'Lugar espetacular! Vista incrível de Campos do Jordão e clima super agradável. Vale muito a pena a visita.',
+                          created_at: 'Há 2 dias',
+                        },
+                        {
+                          id: 'default-2',
+                          user_name: 'Lucas Ferreira',
+                          rating: 5,
+                          comment:
+                            'Pôr do sol inesquecível. Recomendo chegar pelo menos 40 minutos antes do sol se pôr para pegar um bom lugar.',
+                          created_at: 'Há 1 semana',
+                        },
+                      ]
+                  ).map((rev, idx) => (
+                    <motion.div
+                      key={rev.id || idx}
+                      initial={{ opacity: 0, scale: 0.88, y: 12 }}
+                      animate={{ opacity: 1, scale: 1, y: 0 }}
+                      transition={{ type: 'spring', stiffness: 380, damping: 22, delay: 0.03 * Math.min(idx, 4) }}
+                      className="p-4 bg-zinc-50 dark:bg-[#000000] rounded-2xl border border-zinc-100 dark:border-[#262626] space-y-2"
+                    >
+                      <div className="flex items-center justify-between">
+                        <span className="font-black text-xs text-zinc-900 dark:text-white">
+                          {rev.user_name || 'Visitante'}
+                        </span>
+                        <span className="text-[11px] text-zinc-400">
+                          {rev.created_at && String(rev.created_at).startsWith('Há')
+                            ? rev.created_at
+                            : 'Recente'}
+                        </span>
+                      </div>
+                      <div className="flex text-[#F2B900]">
+                        {Array.from({ length: 5 }).map((_, i) => (
+                          <Star
+                            key={i}
+                            className={`w-3 h-3 ${
+                              i < Number(rev.rating ?? 5) ? 'fill-current' : 'text-zinc-300 dark:text-zinc-700'
+                            }`}
+                          />
+                        ))}
+                      </div>
+                      <p className="text-xs text-zinc-600 dark:text-zinc-300 leading-relaxed">
+                        {rev.comment}
+                      </p>
+                    </motion.div>
+                  ))}
                 </motion.div>
               )}
             </div>
@@ -1051,11 +1230,11 @@ export const SpotDetailSheet: React.FC<SpotDetailSheetProps> = ({
                   persistHeroPlaybackPosition();
                   onClose();
                 }}
-                className="w-10 h-10 rounded-full bg-white/95 hover:bg-white text-zinc-900 border border-black/10 shadow-sm flex items-center justify-center transition-transform active:scale-95 cursor-pointer"
+                className="w-10 h-10 rounded-full expo-liquid-glass-btn text-zinc-900 dark:text-white flex items-center justify-center transition-transform active:scale-95 cursor-pointer"
                 title="Voltar"
                 aria-label="Voltar para o mapa"
               >
-                <ArrowLeft className="w-5 h-5 text-zinc-900" />
+                <ArrowLeft className="w-5 h-5 text-zinc-900 dark:text-white" />
               </button>
             </div>
 
@@ -1067,11 +1246,11 @@ export const SpotDetailSheet: React.FC<SpotDetailSheetProps> = ({
                   e.stopPropagation();
                   setIsQrModalOpen(true);
                 }}
-                className="w-10 h-10 rounded-full bg-white/95 hover:bg-white text-zinc-900 border border-black/10 shadow-sm flex items-center justify-center transition-transform active:scale-95 cursor-pointer"
+                className="w-10 h-10 rounded-full expo-liquid-glass-btn text-zinc-900 dark:text-white flex items-center justify-center transition-transform active:scale-95 cursor-pointer"
                 title="Gerar QR Code deste local"
                 aria-label="QR Code"
               >
-                <QrCode className="w-5 h-5 text-zinc-900" />
+                <QrCode className="w-5 h-5 text-zinc-900 dark:text-white" />
               </button>
               <button
                 type="button"
@@ -1079,11 +1258,11 @@ export const SpotDetailSheet: React.FC<SpotDetailSheetProps> = ({
                   e.stopPropagation();
                   handleShare();
                 }}
-                className="w-10 h-10 rounded-full bg-white/95 hover:bg-white text-zinc-900 border border-black/10 shadow-sm flex items-center justify-center transition-transform active:scale-95 cursor-pointer"
+                className="w-10 h-10 rounded-full expo-liquid-glass-btn text-zinc-900 dark:text-white flex items-center justify-center transition-transform active:scale-95 cursor-pointer"
                 title="Compartilhar"
                 aria-label="Compartilhar"
               >
-                <Share2 className="w-5 h-5 text-zinc-900" />
+                <Share2 className="w-5 h-5 text-zinc-900 dark:text-white" />
               </button>
               <button
                 type="button"
@@ -1091,13 +1270,13 @@ export const SpotDetailSheet: React.FC<SpotDetailSheetProps> = ({
                   e.stopPropagation();
                   onToggleFavorite(spot.id);
                 }}
-                className="w-10 h-10 rounded-full bg-white/95 hover:bg-white text-zinc-900 border border-black/10 shadow-sm flex items-center justify-center transition-transform active:scale-95 cursor-pointer"
+                className="w-10 h-10 rounded-full expo-liquid-glass-btn text-zinc-900 dark:text-white flex items-center justify-center transition-transform active:scale-95 cursor-pointer"
                 title={isFavorite ? 'Remover dos favoritos' : 'Adicionar aos favoritos'}
                 aria-label="Favoritar"
               >
                 <Heart
                   className={`w-5 h-5 transition-colors ${
-                    isFavorite ? 'fill-red-500 text-red-500' : 'text-zinc-900'
+                    isFavorite ? 'fill-red-500 text-red-500' : 'text-zinc-900 dark:text-white'
                   }`}
                 />
               </button>
@@ -1138,12 +1317,10 @@ export const SpotDetailSheet: React.FC<SpotDetailSheetProps> = ({
             {spot.rating !== undefined && (
               <div className="flex items-center gap-1">
                 <Star className="w-4 h-4 fill-zinc-950 text-zinc-950 dark:fill-white dark:text-white shrink-0" />
-                <span className="font-bold text-zinc-950 dark:text-white">{spot.rating}</span>
-                {spot.reviewCount !== undefined && (
-                  <span className="text-zinc-500 dark:text-[#A1A1AA] font-medium">
-                    ({spot.reviewCount.toLocaleString('pt-BR')} avaliações)
-                  </span>
-                )}
+                <span className="font-bold text-zinc-950 dark:text-white">{Number(liveRating).toFixed(1)}</span>
+                <span className="text-zinc-500 dark:text-[#A1A1AA] font-medium">
+                  ({liveReviewCount.toLocaleString('pt-BR')} avaliações)
+                </span>
               </div>
             )}
             {spot.rating !== undefined && <span className="text-zinc-300 dark:text-zinc-700" aria-hidden="true">·</span>}
@@ -1166,10 +1343,10 @@ export const SpotDetailSheet: React.FC<SpotDetailSheetProps> = ({
               <button
                 type="button"
                 onClick={() => openDirectionsMap(spot)}
-                className="flex-1 h-10 px-4 rounded-xl bg-zinc-950 hover:bg-zinc-800 dark:bg-white dark:hover:bg-zinc-200 text-white dark:text-black text-xs lg:text-[13px] font-semibold flex items-center justify-center gap-2 transition-colors cursor-pointer shadow-2xs"
+                className="flex-1 h-10 px-4 rounded-full expo-liquid-glass-btn text-black dark:text-white text-xs lg:text-[13px] font-bold flex items-center justify-center gap-2 transition-colors cursor-pointer border border-black/5 shadow-sm"
                 title="Traçar rota até este local"
               >
-                <RoundedNavigationIcon isGold={false} className="w-4 h-4 shrink-0 text-white dark:text-black [&_polygon]:text-white dark:[&_polygon]:text-black" size={15} />
+                <RoundedNavigationIcon isGold={false} className="w-4 h-4 shrink-0 text-black dark:text-white [&_polygon]:text-black dark:[&_polygon]:text-white" size={15} />
                 <span className="truncate">Como chegar</span>
               </button>
             )}
@@ -1177,10 +1354,10 @@ export const SpotDetailSheet: React.FC<SpotDetailSheetProps> = ({
             {phoneHref && (
               <a
                 href={phoneHref}
-                className="h-10 px-4 rounded-xl bg-zinc-100 hover:bg-zinc-200/80 dark:bg-[#000000] dark:hover:border-white/30 text-zinc-900 dark:text-white border border-zinc-200/80 dark:border-[#262626] text-xs lg:text-[13px] font-semibold flex items-center justify-center gap-1.5 transition-colors cursor-pointer shrink-0"
+                className="h-10 px-4 rounded-full expo-liquid-glass-btn text-black dark:text-white text-xs lg:text-[13px] font-bold flex items-center justify-center gap-1.5 transition-colors cursor-pointer shrink-0 border border-black/5 shadow-sm"
                 title="Ligar para o local"
               >
-                <Phone className="w-3.5 h-3.5 text-zinc-700 dark:text-white shrink-0" />
+                <Phone className="w-3.5 h-3.5 text-black dark:text-white shrink-0" />
                 <span>Ligar</span>
               </a>
             )}
@@ -1190,10 +1367,10 @@ export const SpotDetailSheet: React.FC<SpotDetailSheetProps> = ({
                 href={websiteHref}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="h-10 px-4 rounded-xl bg-zinc-100 hover:bg-zinc-200/80 dark:bg-[#000000] dark:hover:border-white/30 text-zinc-900 dark:text-white border border-zinc-200/80 dark:border-[#262626] text-xs lg:text-[13px] font-semibold flex items-center justify-center gap-1.5 transition-colors cursor-pointer shrink-0"
+                className="h-10 px-4 rounded-full expo-liquid-glass-btn text-black dark:text-white text-xs lg:text-[13px] font-bold flex items-center justify-center gap-1.5 transition-colors cursor-pointer shrink-0 border border-black/5 shadow-sm"
                 title="Acessar site oficial"
               >
-                <Globe className="w-3.5 h-3.5 text-zinc-700 dark:text-white shrink-0" />
+                <Globe className="w-3.5 h-3.5 text-black dark:text-white shrink-0" />
                 <span>Site</span>
               </a>
             )}
@@ -1349,52 +1526,131 @@ export const SpotDetailSheet: React.FC<SpotDetailSheetProps> = ({
               >
                 <div className="flex items-center justify-between p-3.5 bg-zinc-50 dark:bg-[#000000] rounded-xl border border-zinc-200/70 dark:border-[#262626]">
                   <div>
-                    <span className="text-2xl font-bold text-zinc-950 dark:text-white">{spot.rating}</span>
+                    <span className="text-2xl font-bold text-zinc-950 dark:text-white">{Number(liveRating).toFixed(1)}</span>
                     <span className="text-xs text-zinc-500 dark:text-[#A1A1AA] block mt-0.5">de 5.0 estrelas</span>
                   </div>
                   <div className="flex flex-col items-end">
                     <div className="flex items-center gap-0.5 text-zinc-900 dark:text-[#F2B900]">
                       {Array.from({ length: 5 }).map((_, i) => (
-                        <Star key={i} className="w-3.5 h-3.5 fill-current" />
+                        <Star
+                          key={i}
+                          className={`w-3.5 h-3.5 ${i < Math.round(liveRating) ? 'fill-current' : 'text-zinc-300 dark:text-zinc-700'}`}
+                        />
                       ))}
                     </div>
                     <span className="text-xs text-zinc-500 dark:text-[#A1A1AA] mt-1">
-                      {spot.reviewCount?.toLocaleString('pt-BR')} avaliações reais
+                      {liveReviewCount.toLocaleString('pt-BR')} avaliações reais
                     </span>
                   </div>
                 </div>
 
-                {/* Review card 1 */}
-                <div className="p-3.5 bg-zinc-50 dark:bg-[#000000] rounded-xl border border-zinc-200/70 dark:border-[#262626] space-y-1.5">
+                {/* Desktop Interactive Rating Card */}
+                <form
+                  onSubmit={handleSubmitReview}
+                  className="p-3.5 bg-zinc-50 dark:bg-[#000000] rounded-xl border border-zinc-200/70 dark:border-[#262626] space-y-2.5"
+                >
                   <div className="flex items-center justify-between">
-                    <span className="font-bold text-xs text-zinc-900 dark:text-white">Mariana Costa</span>
-                    <span className="text-[11px] text-zinc-400">Há 2 dias</span>
+                    <span className="text-xs font-bold text-zinc-900 dark:text-white">
+                      Avaliar este ponto turístico
+                    </span>
+                    <div className="flex items-center gap-1">
+                      {[1, 2, 3, 4, 5].map((starVal) => (
+                        <button
+                          key={starVal}
+                          type="button"
+                          onClick={() => setUserRatingInput(starVal)}
+                          className="p-0.5 cursor-pointer transition-transform active:scale-90"
+                        >
+                          <Star
+                            className={`w-4 h-4 transition-colors ${
+                              starVal <= userRatingInput
+                                ? 'fill-[#F2B900] text-[#F2B900]'
+                                : 'text-zinc-300 dark:text-zinc-700'
+                            }`}
+                          />
+                        </button>
+                      ))}
+                    </div>
                   </div>
-                  <div className="flex items-center gap-0.5 text-zinc-900 dark:text-[#F2B900]">
-                    {Array.from({ length: 5 }).map((_, i) => (
-                      <Star key={i} className="w-3 h-3 fill-current" />
-                    ))}
-                  </div>
-                  <p className="text-xs text-zinc-600 dark:text-zinc-300 leading-relaxed">
-                    Lugar espetacular! Vista incrível de Campos do Jordão e clima super agradável. Vale muito a pena a visita.
-                  </p>
-                </div>
 
-                {/* Review card 2 */}
-                <div className="p-3.5 bg-zinc-50 dark:bg-[#000000] rounded-xl border border-zinc-200/70 dark:border-[#262626] space-y-1.5">
-                  <div className="flex items-center justify-between">
-                    <span className="font-bold text-xs text-zinc-900 dark:text-white">Lucas Ferreira</span>
-                    <span className="text-[11px] text-zinc-400">Há 1 semana</span>
+                  <input
+                    type="text"
+                    value={userCommentInput}
+                    onChange={(e) => setUserCommentInput(e.target.value)}
+                    placeholder="Conte como foi sua experiência (opcional)..."
+                    className="w-full px-3 py-2 rounded-lg bg-white dark:bg-[#0A0A0C] border border-zinc-200 dark:border-[#262626] text-xs text-zinc-900 dark:text-white focus:outline-none focus:border-zinc-400 dark:focus:border-white/40"
+                  />
+
+                  <div className="flex items-center justify-between gap-2">
+                    {reviewSubmittedMsg ? (
+                      <span className="text-[11px] text-zinc-500 dark:text-zinc-400 font-medium">
+                        {reviewSubmittedMsg}
+                      </span>
+                    ) : (
+                      <span className="text-[11px] text-zinc-400">
+                        Nota {userRatingInput}.0 selecionada
+                      </span>
+                    )}
+                    <button
+                      type="submit"
+                      disabled={isSubmittingReview}
+                      className="px-4 py-2 rounded-full expo-liquid-glass-btn text-black dark:bg-white dark:text-black text-xs font-bold transition-transform active:scale-95 disabled:opacity-50 cursor-pointer shrink-0 border border-black/5 shadow-xs"
+                    >
+                      {isSubmittingReview ? 'Salvando...' : 'Publicar avaliação'}
+                    </button>
                   </div>
-                  <div className="flex items-center gap-0.5 text-zinc-900 dark:text-[#F2B900]">
-                    {Array.from({ length: 5 }).map((_, i) => (
-                      <Star key={i} className="w-3 h-3 fill-current" />
-                    ))}
+                </form>
+
+                {(reviewsList.length > 0
+                  ? reviewsList
+                  : [
+                      {
+                        id: 'default-1',
+                        user_name: 'Mariana Costa',
+                        rating: 5,
+                        comment:
+                          'Lugar espetacular! Vista incrível de Campos do Jordão e clima super agradável. Vale muito a pena a visita.',
+                        created_at: 'Há 2 dias',
+                      },
+                      {
+                        id: 'default-2',
+                        user_name: 'Lucas Ferreira',
+                        rating: 5,
+                        comment:
+                          'Pôr do sol inesquecível. Recomendo chegar pelo menos 40 minutos antes do sol se pôr para pegar um bom lugar.',
+                        created_at: 'Há 1 semana',
+                      },
+                    ]
+                ).map((rev, idx) => (
+                  <div
+                    key={rev.id || idx}
+                    className="p-3.5 bg-zinc-50 dark:bg-[#000000] rounded-xl border border-zinc-200/70 dark:border-[#262626] space-y-1.5"
+                  >
+                    <div className="flex items-center justify-between">
+                      <span className="font-bold text-xs text-zinc-900 dark:text-white">
+                        {rev.user_name || 'Visitante'}
+                      </span>
+                      <span className="text-[11px] text-zinc-400">
+                        {rev.created_at && String(rev.created_at).startsWith('Há')
+                          ? rev.created_at
+                          : 'Recente'}
+                      </span>
+                    </div>
+                    <div className="flex items-center gap-0.5 text-zinc-900 dark:text-[#F2B900]">
+                      {Array.from({ length: 5 }).map((_, i) => (
+                        <Star
+                          key={i}
+                          className={`w-3 h-3 ${
+                            i < Number(rev.rating ?? 5) ? 'fill-current' : 'text-zinc-300 dark:text-zinc-700'
+                          }`}
+                        />
+                      ))}
+                    </div>
+                    <p className="text-xs text-zinc-600 dark:text-zinc-300 leading-relaxed">
+                      {rev.comment}
+                    </p>
                   </div>
-                  <p className="text-xs text-zinc-600 dark:text-zinc-300 leading-relaxed">
-                    Pôr do sol inesquecível. Recomendo chegar pelo menos 40 minutos antes do sol se pôr para pegar um bom lugar.
-                  </p>
-                </div>
+                ))}
               </motion.div>
             )}
           </div>

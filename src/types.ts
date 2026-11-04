@@ -55,6 +55,9 @@ export interface Spot {
   website?: string;
   phone?: string;
   isActive?: boolean;
+  is_active?: number | boolean;
+  isStar?: boolean;
+  is_star?: number | boolean;
 }
 
 export interface WeatherInfo {

@@ -770,6 +770,38 @@ export function isPrimaryAdmin(email?: string | null): boolean {
   return PRIMARY_ADMIN_EMAILS.includes(clean);
 }
 
+/**
+ * Sanitizes any value into a valid SQLite3 binding (number, string, bigint, Buffer, or null).
+ * Prevents "TypeError: SQLite3 can only bind numbers, strings, bigints, buffers, and null"
+ * caused by booleans, undefined values, Firestore Timestamp objects, or complex structures.
+ */
+function toSqliteParam(val: any): string | number | bigint | Buffer | null {
+  if (val === undefined || val === null) return null;
+  if (typeof val === 'boolean') return val ? 1 : 0;
+  if (typeof val === 'number') return isNaN(val) ? null : val;
+  if (typeof val === 'string') return val;
+  if (typeof val === 'bigint') return val;
+  if (Buffer.isBuffer(val)) return val;
+  if (typeof val === 'object') {
+    if (typeof val.toDate === 'function') {
+      try {
+        return val.toDate().toISOString();
+      } catch {
+        return null;
+      }
+    }
+    if (typeof val.seconds === 'number') {
+      return new Date(val.seconds * 1000).toISOString();
+    }
+    try {
+      return JSON.stringify(val);
+    } catch {
+      return null;
+    }
+  }
+  return String(val);
+}
+
 export async function syncDatabaseWithFirestore(sqliteDb: any): Promise<void> {
   console.log('[FirestoreSync] Starting durable sync: Cloud Firestore is the absolute authority...');
   
@@ -804,7 +836,7 @@ export async function syncDatabaseWithFirestore(sqliteDb: any): Promise<void> {
           const data = docSnap.data();
           if (data && data.key && data.key !== '_health') {
             foundCloudKeys.add(data.key);
-            upsertSetting.run(data.key, String(data.value || ''));
+            upsertSetting.run(String(data.key), String(data.value ?? ''));
           }
         });
       }
@@ -826,7 +858,11 @@ export async function syncDatabaseWithFirestore(sqliteDb: any): Promise<void> {
     // 2. MAP VISUAL ICONS (Firmly anchored to GPS, Firestore Authority)
     // ----------------------------------------------------
     try {
+      try { sqliteDb.exec(`ALTER TABLE map_visual_icons ADD COLUMN icon TEXT;`); } catch (e) {}
       try { sqliteDb.exec(`ALTER TABLE map_visual_icons ADD COLUMN color TEXT;`); } catch (e) {}
+      try { sqliteDb.exec(`ALTER TABLE map_visual_icons ADD COLUMN is_active INTEGER DEFAULT 1;`); } catch (e) {}
+      try { sqliteDb.exec(`ALTER TABLE map_visual_icons ADD COLUMN created_at DATETIME DEFAULT CURRENT_TIMESTAMP;`); } catch (e) {}
+      try { sqliteDb.exec(`ALTER TABLE map_visual_icons ADD COLUMN updated_at DATETIME DEFAULT CURRENT_TIMESTAMP;`); } catch (e) {}
 
       const iconsSnap = await withTimeout(getDocs(collection(firestore, 'map_visual_icons')), 6000, null as any);
       const upsertIcon = sqliteDb.prepare(`
@@ -848,18 +884,18 @@ export async function syncDatabaseWithFirestore(sqliteDb: any): Promise<void> {
 
         iconsSnap.forEach((docSnap: any) => {
           const icon = docSnap.data() as FirestoreMapVisualIcon;
-          if (icon && icon.id && icon.category && !isNaN(icon.latitude) && !isNaN(icon.longitude)) {
+          if (icon && icon.id && icon.category && !isNaN(Number(icon.latitude)) && !isNaN(Number(icon.longitude))) {
             validIconIds.add(icon.id);
             upsertIcon.run(
-              icon.id,
-              icon.category,
-              icon.icon || icon.category,
+              toSqliteParam(icon.id),
+              toSqliteParam(icon.category),
+              toSqliteParam(icon.icon || icon.category),
               Number(icon.latitude),
               Number(icon.longitude),
-              icon.color || null,
-              icon.is_active !== undefined ? Number(icon.is_active) : 1,
-              icon.created_at || new Date().toISOString(),
-              icon.updated_at || new Date().toISOString()
+              toSqliteParam(icon.color || null),
+              icon.is_active !== undefined ? (icon.is_active ? 1 : 0) : 1,
+              toSqliteParam(icon.created_at || new Date().toISOString()),
+              toSqliteParam(icon.updated_at || new Date().toISOString())
             );
           }
         });
@@ -880,6 +916,25 @@ export async function syncDatabaseWithFirestore(sqliteDb: any): Promise<void> {
     // 3. SPOTS (Tourist Spots / Points of Interest - Firestore Authority)
     // ----------------------------------------------------
     try {
+      try { sqliteDb.exec(`ALTER TABLE spots ADD COLUMN popular_times TEXT;`); } catch (e) {}
+      try { sqliteDb.exec(`ALTER TABLE spots ADD COLUMN visitors_today INTEGER DEFAULT 0;`); } catch (e) {}
+      try { sqliteDb.exec(`ALTER TABLE spots ADD COLUMN badge TEXT;`); } catch (e) {}
+      try { sqliteDb.exec(`ALTER TABLE spots ADD COLUMN highlighted INTEGER DEFAULT 0;`); } catch (e) {}
+      try { sqliteDb.exec(`ALTER TABLE spots ADD COLUMN is_verified INTEGER DEFAULT 1;`); } catch (e) {}
+      try { sqliteDb.exec(`ALTER TABLE spots ADD COLUMN website TEXT;`); } catch (e) {}
+      try { sqliteDb.exec(`ALTER TABLE spots ADD COLUMN phone TEXT;`); } catch (e) {}
+      try { sqliteDb.exec(`ALTER TABLE spots ADD COLUMN updated_at DATETIME DEFAULT CURRENT_TIMESTAMP;`); } catch (e) {}
+      try { sqliteDb.exec(`ALTER TABLE spots ADD COLUMN short_name TEXT;`); } catch (e) {}
+      try { sqliteDb.exec(`ALTER TABLE spots ADD COLUMN tag_label TEXT;`); } catch (e) {}
+      try { sqliteDb.exec(`ALTER TABLE spots ADD COLUMN category_label TEXT;`); } catch (e) {}
+      try { sqliteDb.exec(`ALTER TABLE spots ADD COLUMN price_range TEXT;`); } catch (e) {}
+      try { sqliteDb.exec(`ALTER TABLE spots ADD COLUMN price TEXT;`); } catch (e) {}
+      try { sqliteDb.exec(`ALTER TABLE spots ADD COLUMN available_for_itinerary INTEGER DEFAULT 1;`); } catch (e) {}
+      try { sqliteDb.exec(`ALTER TABLE spots ADD COLUMN duration_minutes INTEGER DEFAULT 90;`); } catch (e) {}
+      try { sqliteDb.exec(`ALTER TABLE spots ADD COLUMN tags TEXT;`); } catch (e) {}
+      try { sqliteDb.exec(`ALTER TABLE spots ADD COLUMN maps_url TEXT;`); } catch (e) {}
+      try { sqliteDb.exec(`ALTER TABLE spots ADD COLUMN is_active INTEGER DEFAULT 1;`); } catch (e) {}
+
       const spotsSnap = await withTimeout(getDocs(collection(firestore, 'spots')), 7000, null as any);
       
       const upsertSpot = sqliteDb.prepare(`
@@ -931,37 +986,37 @@ export async function syncDatabaseWithFirestore(sqliteDb: any): Promise<void> {
 
         spotsSnap.forEach((docSnap: any) => {
           const s = docSnap.data() as FirestoreSpot;
-          if (s && s.id && s.name && !isNaN(s.lat) && !isNaN(s.lng)) {
+          if (s && s.id && s.name && !isNaN(Number(s.lat)) && !isNaN(Number(s.lng))) {
             validSpotIds.add(s.id);
             upsertSpot.run(
-              s.id,
-              s.name,
-              s.short_name || s.name,
-              s.tag_label || s.name,
-              s.category || 'culture',
-              s.category_label || s.category,
+              toSqliteParam(s.id),
+              toSqliteParam(s.name),
+              toSqliteParam(s.short_name || s.name),
+              toSqliteParam(s.tag_label || s.name),
+              toSqliteParam(s.category || 'culture'),
+              toSqliteParam(s.category_label || s.category),
               Number(s.lat),
               Number(s.lng),
-              s.image || '',
-              s.gallery || '[]',
-              s.description || '',
-              s.tourist_tip || '',
+              toSqliteParam(s.image || ''),
+              toSqliteParam(typeof s.gallery === 'string' ? s.gallery : JSON.stringify(s.gallery || [])),
+              toSqliteParam(s.description || ''),
+              toSqliteParam(s.tourist_tip || ''),
               Number(s.rating || 4.5),
               Number(s.review_count || 0),
-              s.hours || '',
-              s.address || '',
-              s.price_range || '$$',
-              s.popular_times || '',
+              toSqliteParam(s.hours || ''),
+              toSqliteParam(s.address || ''),
+              toSqliteParam(s.price_range || '$$'),
+              toSqliteParam(typeof s.popular_times === 'object' ? JSON.stringify(s.popular_times) : (s.popular_times || '')),
               Number(s.visitors_today || 0),
-              s.badge || '',
+              toSqliteParam(s.badge || ''),
               Number(s.highlighted || 0),
-              Number(s.is_active !== undefined ? s.is_active : 1),
-              Number(s.is_verified !== undefined ? s.is_verified : 1),
-              s.website || '',
-              s.phone || '',
-              s.maps_url || '',
-              s.created_at || new Date().toISOString(),
-              s.updated_at || new Date().toISOString()
+              Number(s.is_active !== undefined ? (s.is_active ? 1 : 0) : 1),
+              Number(s.is_verified !== undefined ? (s.is_verified ? 1 : 0) : 1),
+              toSqliteParam(s.website || ''),
+              toSqliteParam(s.phone || ''),
+              toSqliteParam(s.maps_url || ''),
+              toSqliteParam(s.created_at || new Date().toISOString()),
+              toSqliteParam(s.updated_at || new Date().toISOString())
             );
           }
         });
@@ -1044,19 +1099,19 @@ export async function syncDatabaseWithFirestore(sqliteDb: any): Promise<void> {
           if (ev && ev.id && ev.name) {
             validEventIds.add(ev.id);
             upsertEvent.run(
-              ev.id,
-              ev.name,
-              ev.description || '',
-              ev.image || '',
-              ev.category || 'Geral',
-              ev.date || '',
-              ev.time || '',
-              ev.address || '',
+              toSqliteParam(ev.id),
+              toSqliteParam(ev.name),
+              toSqliteParam(ev.description || ''),
+              toSqliteParam(ev.image || ''),
+              toSqliteParam(ev.category || 'Geral'),
+              toSqliteParam(ev.date || ''),
+              toSqliteParam(ev.time || ''),
+              toSqliteParam(ev.address || ''),
               Number(ev.lat || -22.7290),
               Number(ev.lng || -45.5830),
-              ev.status || 'active',
+              toSqliteParam(ev.status || 'active'),
               ev.highlighted ? 1 : 0,
-              ev.created_at || new Date().toISOString()
+              toSqliteParam(ev.created_at || new Date().toISOString())
             );
           }
         });
@@ -1077,68 +1132,103 @@ export async function syncDatabaseWithFirestore(sqliteDb: any): Promise<void> {
     // 5. USERS (Profiles, credentials, roles)
     // ----------------------------------------------------
     try {
+      try { sqliteDb.exec(`ALTER TABLE users ADD COLUMN username_normalized TEXT;`); } catch (e) {}
+      try { sqliteDb.exec(`ALTER TABLE users ADD COLUMN username TEXT;`); } catch (e) {}
+      try { sqliteDb.exec(`ALTER TABLE users ADD COLUMN bio TEXT DEFAULT '';`); } catch (e) {}
+      try { sqliteDb.exec(`ALTER TABLE users ADD COLUMN role TEXT DEFAULT 'user';`); } catch (e) {}
+      try { sqliteDb.exec(`ALTER TABLE users ADD COLUMN avatar_url TEXT;`); } catch (e) {}
+      try { sqliteDb.exec(`ALTER TABLE users ADD COLUMN visits_count INTEGER DEFAULT 1;`); } catch (e) {}
+      try { sqliteDb.exec(`ALTER TABLE users ADD COLUMN is_banned INTEGER DEFAULT 0;`); } catch (e) {}
+      try { sqliteDb.exec(`ALTER TABLE users ADD COLUMN is_premium INTEGER DEFAULT 0;`); } catch (e) {}
+      try { sqliteDb.exec(`ALTER TABLE users ADD COLUMN is_gold INTEGER DEFAULT 0;`); } catch (e) {}
+      try { sqliteDb.exec(`ALTER TABLE users ADD COLUMN plan TEXT DEFAULT 'beta';`); } catch (e) {}
+      try { sqliteDb.exec(`ALTER TABLE users ADD COLUMN gold_activated_at DATETIME;`); } catch (e) {}
+      try { sqliteDb.exec(`ALTER TABLE users ADD COLUMN snow_enabled INTEGER DEFAULT 0;`); } catch (e) {}
+      try { sqliteDb.exec(`ALTER TABLE users ADD COLUMN rain_enabled INTEGER DEFAULT 0;`); } catch (e) {}
+      try { sqliteDb.exec(`ALTER TABLE users ADD COLUMN theme TEXT DEFAULT 'light';`); } catch (e) {}
+      try { sqliteDb.exec(`ALTER TABLE users ADD COLUMN high_contrast INTEGER DEFAULT 0;`); } catch (e) {}
+      try { sqliteDb.exec(`ALTER TABLE users ADD COLUMN onboarding_completed INTEGER DEFAULT 1;`); } catch (e) {}
+      try { sqliteDb.exec(`ALTER TABLE users ADD COLUMN onboarding_step INTEGER DEFAULT 1;`); } catch (e) {}
+      try { sqliteDb.exec(`ALTER TABLE users ADD COLUMN location_permission_granted INTEGER DEFAULT 0;`); } catch (e) {}
+      try { sqliteDb.exec(`ALTER TABLE users ADD COLUMN motion_permission_granted INTEGER DEFAULT 0;`); } catch (e) {}
+      try { sqliteDb.exec(`ALTER TABLE users ADD COLUMN last_access DATETIME DEFAULT CURRENT_TIMESTAMP;`); } catch (e) {}
+      try { sqliteDb.exec(`ALTER TABLE users ADD COLUMN auth_id TEXT;`); } catch (e) {}
+      try {
+        sqliteDb.exec(`
+          UPDATE users 
+          SET username_normalized = LOWER(REPLACE(COALESCE(username, name, email, 'user'), ' ', ''))
+          WHERE username_normalized IS NULL OR username_normalized = '';
+        `);
+      } catch (e) {}
+
       const usersSnap = await withTimeout(getDocs(collection(firestore, 'users')), 5000, null as any);
       if (usersSnap && !usersSnap.empty) {
         usersSnap.forEach((docSnap: any) => {
           const cloudUser = docSnap.data() as FirestoreUser;
-          if (!cloudUser.email || !cloudUser.password_hash) return;
+          if (!cloudUser || !cloudUser.email || !cloudUser.password_hash) return;
 
-          const cleanEmail = cloudUser.email.trim().toLowerCase();
-          const targetRole = isPrimaryAdmin(cleanEmail) ? 'admin' : 'user';
+          const cleanEmail = String(cloudUser.email).trim().toLowerCase();
+          const targetRole = isPrimaryAdmin(cleanEmail) ? 'admin' : (cloudUser.role ? String(cloudUser.role) : 'user');
 
-          const existingUser = sqliteDb.prepare('SELECT id FROM users WHERE LOWER(email) = ? OR LOWER(whatsapp) = ?').get(cleanEmail, cleanEmail);
+          const existingUser = sqliteDb.prepare('SELECT id, name FROM users WHERE LOWER(email) = ? OR LOWER(whatsapp) = ?').get(cleanEmail, cleanEmail) as any;
 
-          const isGold = isPrimaryAdmin(cleanEmail) || cloudUser.is_gold === 1 || cloudUser.plan === 'gold';
-          const plan = isGold ? 'gold' : (cloudUser.plan || 'beta');
+          const isGold = isPrimaryAdmin(cleanEmail) || cloudUser.is_gold === 1 || Boolean(cloudUser.is_gold) || cloudUser.plan === 'gold';
+          const plan = isGold ? 'gold' : (cloudUser.plan ? String(cloudUser.plan) : 'beta');
+          const normUsername = (cloudUser.username_normalized || cloudUser.username || cleanEmail.split('@')[0]).toLowerCase();
 
           if (!existingUser) {
             sqliteDb.prepare(`
-              INSERT INTO users (name, email, whatsapp, password_hash, role, avatar_url, visits_count, is_banned, is_premium, is_gold, plan, gold_activated_at, snow_enabled, theme, high_contrast, onboarding_completed, onboarding_step, location_permission_granted, motion_permission_granted, last_access, created_at)
-              VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+              INSERT INTO users (name, username, username_normalized, email, whatsapp, password_hash, role, avatar_url, visits_count, is_banned, is_premium, is_gold, plan, gold_activated_at, snow_enabled, theme, high_contrast, onboarding_completed, onboarding_step, location_permission_granted, motion_permission_granted, last_access, created_at)
+              VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             `).run(
-              cloudUser.name || cleanEmail.split('@')[0],
+              toSqliteParam(cloudUser.name || cleanEmail.split('@')[0]),
+              toSqliteParam(cloudUser.username || cleanEmail.split('@')[0]),
+              toSqliteParam(normUsername),
               cleanEmail,
-              cloudUser.whatsapp || cleanEmail,
-              cloudUser.password_hash,
+              toSqliteParam(cloudUser.whatsapp || cleanEmail),
+              toSqliteParam(cloudUser.password_hash),
               targetRole,
-              cloudUser.avatar_url || '/fotoperfil.png',
-              cloudUser.visits_count || 1,
-              cloudUser.is_banned || 0,
+              toSqliteParam(cloudUser.avatar_url || '/fotoperfil.png'),
+              toSqliteParam(cloudUser.visits_count || 1),
+              cloudUser.is_banned ? 1 : 0,
               isGold ? 1 : 0,
               isGold ? 1 : 0,
               plan,
-              cloudUser.gold_activated_at || null,
-              cloudUser.snow_enabled || 0,
-              cloudUser.theme || 'light',
-              cloudUser.high_contrast || 0,
-              cloudUser.onboarding_completed !== undefined ? cloudUser.onboarding_completed : 1,
-              cloudUser.onboarding_step || 1,
+              toSqliteParam(cloudUser.gold_activated_at || null),
+              cloudUser.snow_enabled ? 1 : 0,
+              toSqliteParam(cloudUser.theme || 'light'),
+              cloudUser.high_contrast ? 1 : 0,
+              cloudUser.onboarding_completed !== undefined ? (cloudUser.onboarding_completed ? 1 : 0) : 1,
+              Number(cloudUser.onboarding_step || 1),
               cloudUser.location_permission_granted ? 1 : 0,
               cloudUser.motion_permission_granted ? 1 : 0,
-              cloudUser.last_access || new Date().toISOString(),
-              cloudUser.created_at || new Date().toISOString()
+              toSqliteParam(cloudUser.last_access || new Date().toISOString()),
+              toSqliteParam(cloudUser.created_at || new Date().toISOString())
             );
           } else {
             sqliteDb.prepare(`
               UPDATE users 
-              SET name = ?, password_hash = ?, role = ?, avatar_url = ?, is_banned = ?,
+              SET name = ?, username = COALESCE(?, username), username_normalized = COALESCE(?, username_normalized),
+                  password_hash = ?, role = ?, avatar_url = ?, is_banned = ?,
                   is_premium = CASE WHEN ? = 1 THEN 1 ELSE is_premium END,
                   is_gold = CASE WHEN ? = 1 THEN 1 ELSE is_gold END,
                   plan = CASE WHEN ? = 'gold' THEN 'gold' ELSE plan END,
-                  gold_activated_at = COALESCE(gold_activated_at, ?),
+                  gold_activated_at = COALESCE(?, gold_activated_at),
                   location_permission_granted = CASE WHEN ? = 1 THEN 1 ELSE COALESCE(location_permission_granted, 0) END,
                   motion_permission_granted = CASE WHEN ? = 1 THEN 1 ELSE COALESCE(motion_permission_granted, 0) END
               WHERE id = ?
             `).run(
-              cloudUser.name,
-              cloudUser.password_hash,
+              toSqliteParam(cloudUser.name || existingUser.name || cleanEmail.split('@')[0]),
+              toSqliteParam(cloudUser.username || null),
+              toSqliteParam(normUsername),
+              toSqliteParam(cloudUser.password_hash),
               targetRole,
-              cloudUser.avatar_url || '/fotoperfil.png',
-              cloudUser.is_banned || 0,
+              toSqliteParam(cloudUser.avatar_url || '/fotoperfil.png'),
+              cloudUser.is_banned ? 1 : 0,
               isGold ? 1 : 0,
               isGold ? 1 : 0,
               plan,
-              cloudUser.gold_activated_at || null,
+              toSqliteParam(cloudUser.gold_activated_at || null),
               cloudUser.location_permission_granted ? 1 : 0,
               cloudUser.motion_permission_granted ? 1 : 0,
               existingUser.id
@@ -1177,3 +1267,63 @@ export async function syncDatabaseWithFirestore(sqliteDb: any): Promise<void> {
     console.error('[FirestoreSync] Error during database synchronization:', err?.message || err);
   }
 }
+
+export async function persistPrivacyRequestToFirestore(reqItem: {
+  id: string;
+  protocol: string;
+  user_id?: string | number | null;
+  user_email: string;
+  user_name?: string;
+  request_type: string;
+  details?: string;
+  status: string;
+  created_at: string;
+}): Promise<void> {
+  try {
+    const ref = doc(firestore, 'privacy_requests', reqItem.id);
+    await withTimeout(setDoc(ref, reqItem, { merge: true }), 2500, null);
+  } catch {}
+}
+
+export async function persistSupportTicketToFirestore(ticket: {
+  id: string;
+  protocol: string;
+  user_id?: string | number | null;
+  user_name: string;
+  user_email: string;
+  category: string;
+  subject: string;
+  message: string;
+  status: string;
+  created_at: string;
+}): Promise<void> {
+  try {
+    const ref = doc(firestore, 'support_tickets', ticket.id);
+    await withTimeout(setDoc(ref, ticket, { merge: true }), 2500, null);
+  } catch {}
+}
+
+export async function deleteUserAccountFromFirestore(email: string, deletionLog?: {
+  id: string;
+  protocol: string;
+  account_ref_hash: string;
+  reason?: string;
+  deleted_at: string;
+  legal_basis: string;
+}): Promise<void> {
+  const cleanEmail = (email || '').trim().toLowerCase();
+  try {
+    if (cleanEmail) {
+      await withTimeout(deleteDoc(doc(firestore, 'users', cleanEmail)), 2500, null);
+      await withTimeout(deleteDoc(doc(firestore, 'user_permissions', cleanEmail)), 2500, null);
+    }
+    if (deletionLog) {
+      await withTimeout(
+        setDoc(doc(firestore, 'account_deletion_logs', deletionLog.id), deletionLog),
+        2500,
+        null
+      );
+    }
+  } catch {}
+}
+

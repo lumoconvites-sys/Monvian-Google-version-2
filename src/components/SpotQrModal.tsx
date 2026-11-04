@@ -131,7 +131,7 @@ export const SpotQrModal: React.FC<SpotQrModalProps> = ({ isOpen, onClose, spot 
               <button
                 type="button"
                 onClick={handleCopyLink}
-                className="w-full h-11 rounded-xl bg-white/10 hover:bg-white/15 border border-white/10 text-white text-xs font-semibold flex items-center justify-center gap-2 transition-colors active:scale-98 cursor-pointer"
+                className="w-full h-11 rounded-full bg-white/10 hover:bg-white/15 border border-white/10 text-white text-xs font-bold flex items-center justify-center gap-2 transition-all active:scale-95 cursor-pointer"
               >
                 {copied ? (
                   <>
@@ -149,7 +149,7 @@ export const SpotQrModal: React.FC<SpotQrModalProps> = ({ isOpen, onClose, spot 
               <button
                 type="button"
                 onClick={handleOpenRoute}
-                className="w-full h-11 rounded-xl bg-white text-black hover:bg-zinc-200 text-xs font-bold flex items-center justify-center gap-2 transition-colors active:scale-98 cursor-pointer"
+                className="w-full h-11 rounded-full bg-white text-black hover:bg-zinc-200 text-xs font-bold flex items-center justify-center gap-2 transition-all active:scale-95 cursor-pointer shadow-sm"
               >
                 <Navigation className="w-3.5 h-3.5 stroke-[2.2]" />
                 <span>Abrir no GPS</span>

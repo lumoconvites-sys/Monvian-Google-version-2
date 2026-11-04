@@ -43,17 +43,22 @@ import { generateCustomItinerary } from './itineraries/routeGenerator';
 import { RoundedNavigationIcon } from './RoundedNavigationIcon';
 import { ItineraryStoreModal } from './itineraries/ItineraryStoreModal';
 import { AirbnbItineraryExplorer } from './itineraries/AirbnbItineraryExplorer';
+import { PostSignupOnboardingFlow } from './itineraries/PostSignupOnboardingFlow';
 import { PlusActionMenuModal } from './itineraries/PlusActionMenuModal';
 import { ImportSpotFloatingModal } from './itineraries/ImportSpotFloatingModal';
 import { TripNotesModal } from './itineraries/TripNotesModal';
 import { LazyImage } from './ui/LazyImage';
 import { favoritesManager } from '../services/favoritesManager';
+import { DEFAULT_CURATED_ITINERARIES } from '../data/defaultItineraries';
 
 interface ItinerariesViewProps {
   isOpen: boolean;
   onClose: () => void;
   theme?: 'dark' | 'light';
   spots?: Spot[];
+  isOnboardingSelection?: boolean;
+  isOnboardingRevealReady?: boolean;
+  onCompleteOnboardingSelection?: (selectedItins: Itinerary[], chosenInvestment: string) => void;
 }
 
 const MAPBOX_TOKEN = (import.meta.env.VITE_MAPBOX_ACCESS_TOKEN || '').trim();
@@ -571,7 +576,10 @@ export const ItinerariesView: React.FC<ItinerariesViewProps> = ({
   isOpen,
   onClose,
   theme = 'light',
-  spots = CAMPOS_SPOTS
+  spots = CAMPOS_SPOTS,
+  isOnboardingSelection = false,
+  isOnboardingRevealReady = true,
+  onCompleteOnboardingSelection,
 }) => {
   const isDark = theme === 'dark';
 
@@ -596,8 +604,11 @@ export const ItinerariesView: React.FC<ItinerariesViewProps> = ({
   const [peopleCount, setPeopleCount] = useState<number>(2);
   const [budget, setBudget] = useState<string>('300-600');
 
-  // User explicitly opened the store in this active session
+  // User explicitly opened the store or modified the itinerary in this active session
   const userHasExplicitlyOpenedStoreRef = useRef(false);
+  const hasUserModifiedItineraryRef = useRef(false);
+  const spotsRef = useRef(spots);
+  spotsRef.current = spots;
 
   // Current active user itinerary
   const [userItinerary, setUserItinerary] = useState<Itinerary | null>(() => {
@@ -637,6 +648,12 @@ export const ItinerariesView: React.FC<ItinerariesViewProps> = ({
 
   // Active view mode: 'explore' (Roteiros Discovery Screen) or 'map' (Interactive Map)
   const [itineraryViewMode, setItineraryViewMode] = useState<'explore' | 'map'>('explore');
+
+  useEffect(() => {
+    if (isOnboardingSelection) {
+      setItineraryViewMode('explore');
+    }
+  }, [isOnboardingSelection]);
 
   // Loja de Roteiros Premium Modal state
   const [isStoreOpen, setIsStoreOpen] = useState(false);
@@ -763,10 +780,25 @@ export const ItinerariesView: React.FC<ItinerariesViewProps> = ({
     }
   };
 
-  const handleApplyStoreItinerary = async (storeItin: Itinerary) => {
+  const handleApplyStoreItinerary = async (
+    storeItin: Itinerary,
+    options?: { fromOnboardingSelection?: boolean }
+  ) => {
     const userItinId = 'user-itin-' + Date.now();
     const availableSpots = spots || CAMPOS_SPOTS;
-    const clonedDays = (storeItin.days || []).map((d, dIdx) => ({
+
+    const hasValidSourceDays =
+      Array.isArray(storeItin.days) &&
+      storeItin.days.some((d) => Array.isArray(d.steps) && d.steps.length > 0);
+    const fallbackTemplate =
+      DEFAULT_CURATED_ITINERARIES.find(
+        (def) =>
+          def.id === storeItin.id ||
+          def.title.trim().toLowerCase() === (storeItin.title || '').trim().toLowerCase()
+      ) || DEFAULT_CURATED_ITINERARIES[0];
+    const sourceDays = hasValidSourceDays ? storeItin.days : fallbackTemplate?.days || [];
+
+    const clonedDays = sourceDays.map((d, dIdx) => ({
       id: `${userItinId}-d-${dIdx + 1}`,
       itineraryId: userItinId,
       dayNumber: d.dayNumber || dIdx + 1,
@@ -781,12 +813,12 @@ export const ItinerariesView: React.FC<ItinerariesViewProps> = ({
           dayId: `${userItinId}-d-${dIdx + 1}`,
           dayNumber: d.dayNumber || dIdx + 1,
           stepOrder: sIdx + 1,
-          spot: foundSpot || s.spot
+          spot: foundSpot || s.spot,
         };
-      })
+      }),
     }));
 
-    const isStoreLivre = 
+    const isStoreLivre =
       storeItin.id === 'roteiro-classico-2-dias' ||
       storeItin.id?.startsWith('roteiro-classico') ||
       storeItin.id === 'roteiro-bate-volta-essencial' ||
@@ -800,13 +832,14 @@ export const ItinerariesView: React.FC<ItinerariesViewProps> = ({
       id: userItinId,
       days: clonedDays,
       isPremium: isStoreLivre ? false : Boolean(storeItin.isPremium),
-      badgeText: isStoreLivre ? 'Grátis' : (storeItin.badgeText || ''),
+      badgeText: isStoreLivre ? 'Grátis' : storeItin.badgeText || '',
     };
 
-    // 1. Update UI immediately (0ms perceived latency)
+    // 1. Update UI immediately (0ms perceived latency) and lock against stale background overwrites
+    hasUserModifiedItineraryRef.current = true;
     userHasExplicitlyOpenedStoreRef.current = false;
     setIsStoreOpen(false);
-    setIsExpanded(false);
+    setIsExpanded(options?.fromOnboardingSelection ? true : false);
     setSelectedDayIndex(0);
     setUserItinerary(optimisticItinerary);
 
@@ -819,32 +852,24 @@ export const ItinerariesView: React.FC<ItinerariesViewProps> = ({
       setSelectedStopId(firstStep.id);
     }
 
-    setStoreToast('Roteiro carregado com sucesso!');
-    setTimeout(() => setStoreToast(null), 3000);
+    if (options?.fromOnboardingSelection) {
+      onCompleteOnboardingSelection?.([optimisticItinerary], 'Prefiro não informar');
+    } else {
+      setStoreToast('Roteiro carregado com sucesso!');
+      setTimeout(() => setStoreToast(null), 3000);
+    }
+
     setItineraryViewMode('map');
 
-    // 2. Sync to backend asynchronously in the background without blocking UI
+    // 2. Sync to backend asynchronously in the background WITHOUT triggering a second UI state update
     fetch(`/api/itineraries/${storeItin.id}/clone-to-user`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'x-session-id': sessionId
+        'x-session-id': sessionId,
       },
-      body: JSON.stringify({ sessionId, itinerary: storeItin })
-    })
-      .then((res) => res.json())
-      .then((data) => {
-        if (data?.success && data?.userItinerary) {
-          const synced: Itinerary = isStoreLivre
-            ? { ...data.userItinerary, isPremium: false, badgeText: 'Grátis' }
-            : data.userItinerary;
-          setUserItinerary(synced);
-          try {
-            localStorage.setItem('monvian_active_itinerary', JSON.stringify(synced));
-          } catch (e) {}
-        }
-      })
-      .catch(() => {});
+      body: JSON.stringify({ sessionId, itinerary: optimisticItinerary }),
+    }).catch(() => {});
   };
 
   // Notes Modal state & persistent trip notes
@@ -882,9 +907,16 @@ export const ItinerariesView: React.FC<ItinerariesViewProps> = ({
     return null;
   });
 
+  // Keep refs for selectedStopId and isExpanded so renderRouteAndMarkers stays stable
+  const isExpandedRef = useRef(isExpanded);
+  isExpandedRef.current = isExpanded;
+  const selectedStopIdRef = useRef(selectedStopId);
+  selectedStopIdRef.current = selectedStopId;
+
   // Map references
   const mapContainerRef = useRef<HTMLDivElement | null>(null);
   const mapRef = useRef<maplibregl.Map | null>(null);
+  const isMapLoadedRef = useRef<boolean>(false);
   const markerRecordsRef = useRef<Array<{
     stepId: string;
     marker: maplibregl.Marker;
@@ -894,53 +926,64 @@ export const ItinerariesView: React.FC<ItinerariesViewProps> = ({
     arrowEl?: HTMLElement | null;
     pulseEl: HTMLElement | null;
   }>>([]);
-  const renderRouteAndMarkersRef = useRef<((shouldFitBounds?: boolean, overrideSteps?: ItineraryStep[], overrideSelectedId?: string | null) => void) | null>(null);
+  const renderRouteAndMarkersRef = useRef<((shouldFitBounds?: boolean, overrideSteps?: ItineraryStep[], overrideSelectedId?: string | null, instantFit?: boolean) => void) | null>(null);
 
-  // Fetch saved user itinerary or draft on startup
+  // Fetch saved user itinerary or draft on startup (only once per session, never overwriting active local state)
   useEffect(() => {
     let isMounted = true;
+    const hasInitialLocalItinerary = Boolean(userItinerary && userItinerary.days && userItinerary.days.length > 0);
+
     const fetchSavedState = async () => {
       try {
-        const res = await fetch('/api/user-itineraries', {
-          headers: { 'x-session-id': sessionId }
-        });
-        if (res.ok) {
-          const data = await res.json();
-          if (isMounted && data.success && Array.isArray(data.itineraries) && data.itineraries.length > 0) {
-            const first = data.itineraries[0];
-            const isLivre =
-              first.id === 'roteiro-classico-2-dias' ||
-              first.id?.startsWith('roteiro-classico') ||
-              first.id === 'roteiro-bate-volta-essencial' ||
-              first.badgeText?.toLowerCase() === 'grátis' ||
-              first.price === 'R$ 0' ||
-              first.price === 'Grátis';
-
-            const enriched: Itinerary = {
-              ...first,
-              isPremium: isLivre ? false : Boolean(first.isPremium),
-              badgeText: isLivre ? 'Grátis' : (first.badgeText || ''),
-              days: (first.days || []).map((day: ItineraryDay) => ({
-                ...day,
-                steps: (day.steps || []).map((step: ItineraryStep) => ({
-                  ...step,
-                  spot: spots.find(s => s.id === step.spotId) || step.spot
-                }))
-              }))
-            };
-            setUserItinerary(enriched);
-            localStorage.setItem('monvian_active_itinerary', JSON.stringify(enriched));
-
+        if (!hasInitialLocalItinerary && !hasUserModifiedItineraryRef.current) {
+          const res = await fetch('/api/user-itineraries', {
+            headers: { 'x-session-id': sessionId }
+          });
+          if (res.ok) {
+            const data = await res.json();
             if (
-              enriched.days &&
-              enriched.days.some((d: any) => Array.isArray(d.steps) && d.steps.length > 0)
+              isMounted &&
+              !hasUserModifiedItineraryRef.current &&
+              data.success &&
+              Array.isArray(data.itineraries) &&
+              data.itineraries.length > 0
             ) {
-              const firstStep = enriched.days?.[0]?.steps?.[0];
-              if (firstStep?.id) {
-                setSelectedStopId((curr) => curr || firstStep.id);
+              const first = data.itineraries[0];
+              const isLivre =
+                first.id === 'roteiro-classico-2-dias' ||
+                first.id?.startsWith('roteiro-classico') ||
+                first.id === 'roteiro-bate-volta-essencial' ||
+                first.badgeText?.toLowerCase() === 'grátis' ||
+                first.price === 'R$ 0' ||
+                first.price === 'Grátis';
+
+              const currentSpots = spotsRef.current || CAMPOS_SPOTS;
+              const enriched: Itinerary = {
+                ...first,
+                isPremium: isLivre ? false : Boolean(first.isPremium),
+                badgeText: isLivre ? 'Grátis' : (first.badgeText || ''),
+                days: (first.days || []).map((day: ItineraryDay) => ({
+                  ...day,
+                  steps: (day.steps || []).map((step: ItineraryStep) => ({
+                    ...step,
+                    spot: currentSpots.find(s => s.id === step.spotId) || step.spot
+                  }))
+                }))
+              };
+              setUserItinerary(enriched);
+              localStorage.setItem('monvian_active_itinerary', JSON.stringify(enriched));
+
+              if (
+                enriched.days &&
+                enriched.days.some((d: any) => Array.isArray(d.steps) && d.steps.length > 0)
+              ) {
+                const firstStep = enriched.days?.[0]?.steps?.[0];
+                if (firstStep?.id) {
+                  setSelectedStopId((curr) => curr || firstStep.id);
+                }
               }
+              return;
             }
-            return;
           }
         }
 
@@ -968,7 +1011,7 @@ export const ItinerariesView: React.FC<ItinerariesViewProps> = ({
     return () => {
       isMounted = false;
     };
-  }, [sessionId, spots]);
+  }, [sessionId]);
 
   // Save draft step changes to backend database
   const saveDraftToDatabase = async (updates: Partial<{ tripDate: string; peopleCount: number; adultsCount: number; childrenCount: number; budget: string }>) => {
@@ -1300,27 +1343,8 @@ export const ItinerariesView: React.FC<ItinerariesViewProps> = ({
     }
   }, [userItinerary]);
 
-  // Check if current active user itinerary should render in gold theme - STRICTLY for Gold subscribers on Gold itineraries
-  const isPremiumItinerary = useMemo(() => {
-    if (!userItinerary) return false;
-
-    // Check if the current itinerary is a free / livre itinerary
-    const isLivre =
-      userItinerary.id === 'roteiro-classico-2-dias' ||
-      userItinerary.id?.startsWith('roteiro-classico') ||
-      userItinerary.id === 'roteiro-bate-volta-essencial' ||
-      userItinerary.badgeText?.toLowerCase() === 'grátis' ||
-      userItinerary.price === 'R$ 0' ||
-      userItinerary.price === 'Grátis' ||
-      userItinerary.isPremium === false;
-
-    if (isLivre) {
-      return false;
-    }
-
-    // Only render gold if user is gold AND the itinerary itself is premium
-    return Boolean(isUserGold && userItinerary.isPremium);
-  }, [isUserGold, userItinerary]);
+  // All itineraries are 100% free and render in the clean default theme
+  const isPremiumItinerary = false;
 
   // Reorder steps up / down directly from the order arrows on cards (matching IMG_7287)
   const handleMoveStepUp = async (index: number) => {
@@ -1540,7 +1564,7 @@ export const ItinerariesView: React.FC<ItinerariesViewProps> = ({
   }, [isDark, isPremiumItinerary]);
 
   // Update Route Polyline and Markers efficiently with strictly synchronized numbering
-  const renderRouteAndMarkers = useCallback((shouldFitBounds = false, overrideSteps?: ItineraryStep[], overrideSelectedId?: string | null) => {
+  const renderRouteAndMarkers = useCallback((shouldFitBounds = false, overrideSteps?: ItineraryStep[], overrideSelectedId?: string | null, instantFit = false) => {
     const map = mapRef.current;
     if (!map) return;
 
@@ -1550,7 +1574,7 @@ export const ItinerariesView: React.FC<ItinerariesViewProps> = ({
       (s) => s.spot && typeof s.spot.lat === 'number' && typeof s.spot.lng === 'number'
     );
     const coordinates: [number, number][] = validSteps.map((s) => [s.spot!.lng, s.spot!.lat]);
-    const targetSelectedId = overrideSelectedId !== undefined ? overrideSelectedId : selectedStopId;
+    const targetSelectedId = overrideSelectedId !== undefined ? overrideSelectedId : selectedStopIdRef.current;
     const isPremium = isPremiumItinerary;
     const routeColor = isPremium ? '#E5AC33' : '#FFFFFF';
 
@@ -1740,8 +1764,9 @@ export const ItinerariesView: React.FC<ItinerariesViewProps> = ({
 
     // 3. Fit camera bounds only when explicitly requested (e.g. initial load or stop deletion)
     if (shouldFitBounds && coordinates.length > 0) {
+      const animDuration = instantFit ? 0 : 600;
       if (coordinates.length === 1) {
-        const verticalOffset = isExpanded
+        const verticalOffset = isExpandedRef.current
           ? -Math.round(window.innerHeight * 0.20)
           : -Math.round(window.innerHeight * 0.08);
         map.easeTo({
@@ -1750,7 +1775,7 @@ export const ItinerariesView: React.FC<ItinerariesViewProps> = ({
           pitch: 52,
           bearing: -13,
           offset: [0, verticalOffset],
-          duration: 600,
+          duration: animDuration,
         });
       } else {
         const bounds = new maplibregl.LngLatBounds();
@@ -1766,20 +1791,22 @@ export const ItinerariesView: React.FC<ItinerariesViewProps> = ({
           pitch: 52,
           bearing: -13,
           maxZoom: 15.2,
-          duration: 600,
+          duration: animDuration,
         });
       }
     }
-  }, [activeSteps, selectedStopId, isDark, isPremiumItinerary, syncMarkerHighlight, isExpanded]);
+  }, [activeSteps, isDark, isPremiumItinerary, syncMarkerHighlight]);
 
   // Keep renderRouteAndMarkers ref continuously in sync for instant callers
   useEffect(() => {
     renderRouteAndMarkersRef.current = renderRouteAndMarkers;
   }, [renderRouteAndMarkers]);
 
-  // Initialize MapLibre GL map when tab is open and in map mode
+  // Initialize MapLibre GL map ONCE when tab is open and in map mode
   useEffect(() => {
     if (!isOpen || itineraryViewMode !== 'map' || !mapContainerRef.current) return;
+
+    isMapLoadedRef.current = false;
 
     // Clean up any stale markers before initializing map
     markerRecordsRef.current.forEach((rec) => {
@@ -1808,43 +1835,29 @@ export const ItinerariesView: React.FC<ItinerariesViewProps> = ({
     } as any);
 
     mapRef.current = map;
+    let hasInitializedRoute = false;
 
     const onMapReady = () => {
-      if (mapRef.current !== map) return;
+      if (mapRef.current !== map || hasInitializedRoute) return;
+      hasInitializedRoute = true;
+      isMapLoadedRef.current = true;
       try {
         map.resize();
       } catch (e) {}
-      renderRouteAndMarkers(true);
-      // Secondary check to guarantee fit bounds after layout finishes
-      setTimeout(() => {
-        if (mapRef.current === map) {
-          try {
-            map.resize();
-          } catch (e) {}
-          renderRouteAndMarkers(true);
-        }
-      }, 250);
+      renderRouteAndMarkersRef.current?.(true, undefined, undefined, true);
     };
 
     if (map.loaded() && map.isStyleLoaded()) {
       onMapReady();
     } else {
       map.once('load', onMapReady);
-      map.once('styledata', () => {
-        if (mapRef.current === map) {
-          try {
-            map.resize();
-          } catch (e) {}
-          renderRouteAndMarkers(true);
-        }
-      });
     }
 
     const safetyTimer = setTimeout(() => {
-      if (mapRef.current === map) {
+      if (mapRef.current === map && !hasInitializedRoute) {
         onMapReady();
       }
-    }, 500);
+    }, 600);
 
     // When clicking anywhere on the map, collapse the sheet so only 20% is visible
     map.on('click', () => {
@@ -1853,6 +1866,7 @@ export const ItinerariesView: React.FC<ItinerariesViewProps> = ({
 
     return () => {
       clearTimeout(safetyTimer);
+      isMapLoadedRef.current = false;
       markerRecordsRef.current.forEach((rec) => {
         try {
           rec.marker.remove();
@@ -1867,21 +1881,24 @@ export const ItinerariesView: React.FC<ItinerariesViewProps> = ({
         mapRef.current = null;
       }
     };
-  }, [isOpen, itineraryViewMode, userItinerary?.id, itineraryMapStyle, theme]);
+  }, [isOpen, itineraryViewMode, itineraryMapStyle, theme]);
 
   const prevItinIdRef = useRef<string | null>(userItinerary?.id || null);
   const prevDayIndexRef = useRef<number>(selectedDayIndex);
 
-  // When active steps change or map finishes loading
+  // When active steps or selected day change after map is loaded
   useEffect(() => {
-    if (mapRef.current) {
-      const isNewItinOrDay =
-        userItinerary?.id !== prevItinIdRef.current ||
-        selectedDayIndex !== prevDayIndexRef.current;
+    if (!mapRef.current || !isMapLoadedRef.current) {
       prevItinIdRef.current = userItinerary?.id || null;
       prevDayIndexRef.current = selectedDayIndex;
-      renderRouteAndMarkers(isNewItinOrDay);
+      return;
     }
+    const isNewItinOrDay =
+      userItinerary?.id !== prevItinIdRef.current ||
+      selectedDayIndex !== prevDayIndexRef.current;
+    prevItinIdRef.current = userItinerary?.id || null;
+    prevDayIndexRef.current = selectedDayIndex;
+    renderRouteAndMarkers(isNewItinOrDay);
   }, [activeSteps, userItinerary?.id, selectedDayIndex, renderRouteAndMarkers]);
 
   // Marker highlight sync on stop selection
@@ -1916,6 +1933,19 @@ export const ItinerariesView: React.FC<ItinerariesViewProps> = ({
 
   if (!isOpen) return null;
 
+  if (isOnboardingSelection) {
+    return (
+      <PostSignupOnboardingFlow
+        onComplete={(selectedItins, investment) => {
+          if (selectedItins.length > 0) {
+            handleApplyStoreItinerary(selectedItins[0], { fromOnboardingSelection: true });
+          }
+          onCompleteOnboardingSelection?.(selectedItins, investment);
+        }}
+      />
+    );
+  }
+
   // -------------------------------------------------------------
   // EXPLORE MODE: Full-page Airbnb Itinerary Discovery Screen
   // -------------------------------------------------------------
@@ -1926,7 +1956,9 @@ export const ItinerariesView: React.FC<ItinerariesViewProps> = ({
         animate={{ opacity: 1, filter: 'blur(0px)', y: 0 }}
         exit={{ opacity: 0, filter: 'blur(6px)', y: 6 }}
         transition={{ duration: 0.65, ease: [0.16, 1, 0.3, 1] }}
-        className={`fixed inset-0 md:left-[var(--desktop-sidebar-width,72px)] z-40 w-full md:w-auto h-full overflow-hidden rounded-t-[26px] md:rounded-none ios-page-top-rounded transition-[left] duration-200 ease-in-out ${isDark ? 'bg-[#000000]' : 'bg-white'} select-none`}
+        className={`fixed inset-0 ${
+          isOnboardingSelection ? 'md:left-0 bg-[#FFFFFF]' : `md:left-[var(--desktop-sidebar-width,72px)] ${isDark ? 'bg-[#000000]' : 'bg-white'}`
+        } z-40 w-full md:w-auto h-full overflow-hidden rounded-t-[26px] md:rounded-none ios-page-top-rounded transition-[left] duration-200 ease-in-out select-none`}
         style={{
           overflow: 'hidden',
           WebkitMaskImage: '-webkit-radial-gradient(white, black)',
@@ -1937,13 +1969,15 @@ export const ItinerariesView: React.FC<ItinerariesViewProps> = ({
         <AirbnbItineraryExplorer
           onSelectItinerary={handleApplyStoreItinerary}
           onOpenMap={() => setItineraryViewMode('map')}
-          theme={theme}
+          theme={isOnboardingSelection ? 'light' : theme}
           activeItineraryId={userItinerary?.id}
+          isOnboardingSelection={isOnboardingSelection}
+          isOnboardingRevealReady={isOnboardingRevealReady}
         />
 
         {/* Global Toast */}
         <AnimatePresence>
-          {storeToast && (
+          {storeToast && !isOnboardingSelection && (
             <motion.div
               initial={{ opacity: 0, y: -20, scale: 0.95 }}
               animate={{ opacity: 1, y: 0, scale: 1 }}

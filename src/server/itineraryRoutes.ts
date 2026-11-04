@@ -216,10 +216,18 @@ export function setupItineraryDatabase(db: any) {
   }
 
   // Migrations for spots and drafts table
+  try { db.exec(`ALTER TABLE spots ADD COLUMN popular_times TEXT;`); } catch (e) {}
+  try { db.exec(`ALTER TABLE spots ADD COLUMN visitors_today INTEGER DEFAULT 0;`); } catch (e) {}
+  try { db.exec(`ALTER TABLE spots ADD COLUMN badge TEXT;`); } catch (e) {}
+  try { db.exec(`ALTER TABLE spots ADD COLUMN highlighted INTEGER DEFAULT 0;`); } catch (e) {}
+  try { db.exec(`ALTER TABLE spots ADD COLUMN is_verified INTEGER DEFAULT 1;`); } catch (e) {}
+  try { db.exec(`ALTER TABLE spots ADD COLUMN website TEXT;`); } catch (e) {}
+  try { db.exec(`ALTER TABLE spots ADD COLUMN phone TEXT;`); } catch (e) {}
   try { db.exec(`ALTER TABLE spots ADD COLUMN available_for_itinerary INTEGER DEFAULT 1;`); } catch (e) {}
   try { db.exec(`ALTER TABLE spots ADD COLUMN duration_minutes INTEGER DEFAULT 90;`); } catch (e) {}
   try { db.exec(`ALTER TABLE spots ADD COLUMN tags TEXT DEFAULT '';`); } catch (e) {}
   try { db.exec(`ALTER TABLE spots ADD COLUMN price TEXT DEFAULT '';`); } catch (e) {}
+  try { db.exec(`ALTER TABLE spots ADD COLUMN maps_url TEXT;`); } catch (e) {}
   try { db.exec(`ALTER TABLE itinerary_drafts ADD COLUMN adults_count INTEGER DEFAULT 2;`); } catch (e) {}
   try { db.exec(`ALTER TABLE itinerary_drafts ADD COLUMN children_count INTEGER DEFAULT 0;`); } catch (e) {}
 

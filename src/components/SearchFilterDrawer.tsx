@@ -201,6 +201,8 @@ export const SearchFilterDrawer: React.FC<SearchFilterDrawerProps> = ({
     });
   }, [spots, searchQuery, selectedCategory]);
 
+  const isDark = theme === 'dark';
+
   return (
     <AnimatePresence>
       {isOpen && (
@@ -219,21 +221,24 @@ export const SearchFilterDrawer: React.FC<SearchFilterDrawerProps> = ({
             exit={{ opacity: 0, y: 6 }}
             transition={{ duration: 0.18, ease: [0.22, 1, 0.36, 1] }}
             onClick={(e) => e.stopPropagation()}
-            className="relative w-full h-full md:h-[88vh] md:max-w-2xl bg-white dark:bg-[#000000] text-zinc-900 dark:text-white rounded-none overflow-hidden flex flex-col justify-between shadow-2xl md:border md:border-black/10 md:dark:border-[#262626]"
+            className={`relative w-full h-full md:h-[88vh] md:max-w-2xl rounded-none md:rounded-[30px] overflow-hidden flex flex-col justify-between shadow-2xl transition-colors duration-200 md:border ${
+              isDark
+                ? 'bg-[#000000] text-white md:border-white/10'
+                : 'bg-[#ffffff] text-zinc-950 md:border-black/10'
+            }`}
             style={{
-              fontFamily: "'Inter', -apple-system, BlinkMacSystemFont, sans-serif",
-              borderTopLeftRadius: '0px',
-              borderTopRightRadius: '0px',
+              fontFamily: "'Inter', sans-serif",
               overflow: 'hidden',
-              WebkitMaskImage: '-webkit-radial-gradient(white, black)',
               willChange: 'opacity, transform',
             }}
           >
       {/* Top Header Bar */}
       <div
-        className="px-5 sm:px-6 pb-3 flex items-center justify-between z-10 shrink-0"
+        className={`px-5 sm:px-6 pb-2 flex items-center justify-between z-10 shrink-0 transition-colors ${
+          isDark ? 'bg-[#000000] text-white' : 'bg-[#ffffff] text-zinc-950'
+        }`}
         style={{
-          paddingTop: 'max(calc(env(safe-area-inset-top, 0px) + 16px), 24px)',
+          paddingTop: 'max(calc(env(safe-area-inset-top, 0px) + 12px), 20px)',
           paddingLeft: 'max(20px, env(safe-area-inset-left, 0px))',
           paddingRight: 'max(20px, env(safe-area-inset-right, 0px))',
         }}
@@ -244,39 +249,45 @@ export const SearchFilterDrawer: React.FC<SearchFilterDrawerProps> = ({
               whileTap={{ scale: 0.95 }}
               id="btn-back-categories"
               onClick={() => setSelectedCategory(null)}
-              className="w-10 h-10 rounded-full bg-zinc-200/80 dark:bg-white/10 hover:bg-zinc-300 dark:hover:bg-white/20 text-black dark:text-white flex items-center justify-center transition-all cursor-pointer mr-1"
+              className={`w-10 h-10 rounded-full expo-liquid-glass-btn flex items-center justify-center transition-all cursor-pointer mr-1 ${
+                isDark ? 'text-white' : 'text-zinc-950'
+              }`}
               title="Voltar às categorias"
             >
               <ArrowLeft
-                className="w-5 h-5 stroke-[2.2] text-black dark:text-white"
+                className={`w-5 h-5 stroke-[2.2] ${isDark ? 'text-white' : 'text-zinc-950'}`}
               />
             </motion.button>
           ) : null}
 
-          <h1 className="text-2xl sm:text-[28px] font-black text-zinc-900 dark:text-white tracking-tight">
+          <h1 className={`text-2xl sm:text-[28px] font-bold tracking-tight ${
+            isDark ? 'text-white' : 'text-zinc-950'
+          }`}>
             {selectedCategory ? selectedCategory.name : 'Buscar'}
           </h1>
         </div>
-
-        {/* Mantém cabeçalho limpo sem botão X conforme padrão da segunda imagem */}
       </div>
 
       {/* Main Content Area */}
       <div
-        className="flex-1 overflow-y-auto px-4 sm:px-6 w-full"
+        className={`flex-1 min-h-0 overflow-y-auto overscroll-contain px-5 sm:px-7 max-w-3xl mx-auto w-full flex flex-col transition-colors ${
+          isDark ? 'bg-[#000000] text-white' : 'bg-[#ffffff] text-zinc-950'
+        }`}
         style={{
           WebkitOverflowScrolling: 'touch',
-          paddingBottom: 'calc(env(safe-area-inset-bottom, 16px) + 90px)',
+          paddingBottom: 'calc(env(safe-area-inset-bottom, 24px) + 90px)',
         }}
       >
-        {/* Barra de busca exibida apenas na tela inicial de categorias ou busca por texto (Design idêntico ao WhatsApp iOS em ambos os temas) */}
+        {/* Barra de busca exibida apenas na tela inicial de categorias ou busca por texto */}
         {!selectedCategory && (
           <div className="mt-1 mb-4">
             <div
-              style={{ width: '343.008px', height: '51.9922px' }}
-              className="relative flex items-center bg-[#f0f2f5] dark:bg-[#202124] rounded-full px-3.5 transition-colors duration-150"
+              style={{ height: '52px' }}
+              className="w-full relative flex items-center rounded-full px-4 expo-liquid-glass-bar transition-colors duration-150"
             >
-              <Search className="w-[18px] h-[18px] text-[#8696a0] dark:text-[#8e8e93] shrink-0 mr-2.5 stroke-[2]" />
+              <Search className={`w-[18px] h-[18px] shrink-0 mr-2.5 stroke-[2] ${
+                isDark ? 'text-[#8e8e93]' : 'text-zinc-500'
+              }`} />
               <input
                 ref={searchInputRef}
                 id="search-by-name-input"
@@ -284,17 +295,23 @@ export const SearchFilterDrawer: React.FC<SearchFilterDrawerProps> = ({
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 placeholder="Buscar pelo nome..."
-                className="flex-1 bg-transparent text-[15px] font-normal text-[#111b21] dark:text-white placeholder-[#8696a0] dark:placeholder-[#8e8e93] focus:outline-none"
+                className={`flex-1 bg-transparent text-[15px] font-normal focus:outline-none ${
+                  isDark
+                    ? 'text-white placeholder-[#8e8e93]'
+                    : 'text-zinc-950 placeholder-zinc-500'
+                }`}
               />
               {searchQuery && (
                 <button
                   type="button"
                   id="btn-clear-search"
                   onClick={() => setSearchQuery('')}
-                  className="w-4 h-4 rounded-full bg-[#8696a0]/30 hover:bg-[#8696a0]/50 text-[#111b21] dark:text-white flex items-center justify-center ml-2 cursor-pointer active:scale-90 transition-colors"
+                  className={`w-5 h-5 rounded-full expo-liquid-glass-btn flex items-center justify-center ml-2 cursor-pointer active:scale-90 transition-colors ${
+                    isDark ? 'text-white' : 'text-zinc-900'
+                  }`}
                   title="Limpar busca"
                 >
-                  <X className="stroke-[2.5]" style={{ width: '23.9961px', height: '25.9962px' }} />
+                  <X className="w-3.5 h-3.5 stroke-[2.5]" />
                 </button>
               )}
               <button
@@ -303,11 +320,13 @@ export const SearchFilterDrawer: React.FC<SearchFilterDrawerProps> = ({
                 className={`p-1.5 rounded-full ml-1 transition-all cursor-pointer active:scale-95 ${
                   isListening
                     ? 'bg-rose-500 text-white animate-pulse'
-                    : 'text-[#8696a0] dark:text-[#8e8e93] hover:text-[#111b21] dark:hover:text-white'
+                    : isDark
+                      ? 'text-[#8e8e93] hover:text-white'
+                      : 'text-zinc-500 hover:text-zinc-950'
                 }`}
                 title="Busca por voz"
               >
-                <Mic style={{ width: '23.9961px', height: '25.9962px' }} />
+                <Mic style={{ width: '22px', height: '22px' }} />
               </button>
             </div>
           </div>
@@ -315,7 +334,7 @@ export const SearchFilterDrawer: React.FC<SearchFilterDrawerProps> = ({
 
         {/* VIEW 1: Categorias Principais (quando nenhuma categoria ou busca foi acionada) */}
         {!searchQuery && !selectedCategory && (
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pb-6">
             {SEARCH_CATEGORIES.map((cat, idx) => {
               const Icon = cat.icon;
               return (
@@ -330,15 +349,19 @@ export const SearchFilterDrawer: React.FC<SearchFilterDrawerProps> = ({
                     damping: 22,
                     delay: idx * 0.035,
                   }}
-                  whileHover={{ scale: 1.02, transition: { type: 'spring', stiffness: 400, damping: 18 } }}
-                  whileTap={{ scale: 0.93, transition: { type: 'spring', stiffness: 500, damping: 14 } }}
+                  whileHover={{ scale: 1.01, transition: { type: 'spring', stiffness: 400, damping: 18 } }}
+                  whileTap={{ scale: 0.96, transition: { type: 'spring', stiffness: 500, damping: 14 } }}
                   onClick={() => setSelectedCategory(cat)}
-                  className="w-full p-4 rounded-3xl bg-white dark:bg-[#000000] hover:bg-zinc-50 dark:hover:border-white/25 border border-zinc-200 dark:border-[#262626] hover:border-zinc-300 transition-colors flex items-center justify-between text-left cursor-pointer group shadow-sm hover:shadow-md"
+                  className={`w-full p-4 rounded-[24px] border transition-colors flex items-center justify-between text-left cursor-pointer group shadow-xs ${
+                    isDark
+                      ? 'bg-[#1C1C1E] hover:bg-[#252528] border-white/10'
+                      : 'bg-[#F2F2F7] hover:bg-[#E5E5EA]/80 border-black/5'
+                  }`}
                 >
-                  {/* Left: Rounded Square Icon Box OR Floating Image Asset + Titles (+50% larger icons) */}
+                  {/* Left: Rounded Square Icon Box OR Floating Image Asset + Titles */}
                   <div className="flex items-center gap-4 min-w-0">
                     {cat.image ? (
-                      <div className="w-[50px] h-[50px] shrink-0 flex items-center justify-center group-hover:scale-110 transition-transform duration-300">
+                      <div className="w-[50px] h-[50px] shrink-0 flex items-center justify-center group-hover:scale-105 transition-transform duration-300">
                         <motion.img
                           initial={{ opacity: 0, scale: 0.88, y: 8 }}
                           animate={{ opacity: 1, scale: 1, y: 0 }}
@@ -360,40 +383,45 @@ export const SearchFilterDrawer: React.FC<SearchFilterDrawerProps> = ({
                         />
                       </div>
                     ) : (
-                      <div className="w-11 h-11 rounded-2xl bg-zinc-100 dark:bg-[#000000] flex items-center justify-center text-zinc-700 dark:text-white shrink-0 shadow-xs border border-zinc-200/50 dark:border-[#262626] group-hover:scale-105 transition-transform">
+                      <div className={`w-11 h-11 rounded-2xl flex items-center justify-center shrink-0 border group-hover:scale-105 transition-transform ${
+                        isDark
+                          ? 'bg-white/5 text-white border-white/10'
+                          : 'bg-white text-zinc-900 border-black/5'
+                      }`}>
                         {Icon && <Icon className="w-5 h-5 stroke-[1.8]" />}
                       </div>
                     )}
 
                     <div className="min-w-0">
-                      <h3 className="text-base font-black text-zinc-900 dark:text-white tracking-tight leading-tight group-hover:text-zinc-600 dark:group-hover:text-zinc-300 transition-colors">
+                      <h3 className={`text-[15px] sm:text-base font-bold tracking-tight leading-tight transition-colors ${
+                        isDark ? 'text-white' : 'text-zinc-950'
+                      }`}>
                         {cat.name}
                       </h3>
-                      <p 
-                        className="text-xs text-zinc-400 font-normal mt-0.5 tracking-tight"
-                        style={{ fontWeight: 'normal' }}
-                      >
+                      <p className={`text-xs font-medium mt-0.5 leading-snug ${
+                        isDark ? 'text-zinc-400' : 'text-zinc-500'
+                      }`}>
                         {cat.countLabel}
                       </p>
                     </div>
                   </div>
 
                   {/* Right: Thin Chevron Arrow */}
-                  <div className="text-zinc-500 group-hover:text-zinc-300 transition-colors shrink-0 ml-2">
-                    <ChevronRight className="w-5 h-5 stroke-[2]" />
-                  </div>
+                  <ChevronRight className="w-5 h-5 text-zinc-400 shrink-0 ml-2" />
                 </motion.button>
               );
             })}
           </div>
         )}
 
-        {/* VIEW 2: Lista de Locais da Categoria Selecionada ou Busca por Nome (Estilo idêntico à segunda imagem) */}
+        {/* VIEW 2: Lista de Locais da Categoria Selecionada ou Busca por Nome */}
         {(searchQuery || selectedCategory) && (
-          <div className="pt-2">
+          <div className="pt-2 pb-6">
             {/* Se estiver buscando por texto no topo, mostra contador discreto; na categoria limpa não polui a tela */}
             {searchQuery && !selectedCategory && (
-              <div className="flex items-center justify-between px-1 text-xs text-zinc-500 dark:text-zinc-400 mb-2">
+              <div className={`flex items-center justify-between px-1 text-xs mb-2 ${
+                isDark ? 'text-zinc-400' : 'text-zinc-500'
+              }`}>
                 <span>
                   {filteredSpots.length}{' '}
                   {filteredSpots.length === 1 ? 'local encontrado' : 'locais encontrados'}
@@ -405,12 +433,16 @@ export const SearchFilterDrawer: React.FC<SearchFilterDrawerProps> = ({
               <div 
                 className="py-14 text-center text-zinc-500 text-sm flex flex-col items-center justify-center"
               >
-                <SlidersHorizontal className="w-8 h-8 text-zinc-400 dark:text-zinc-600 mb-2 stroke-[1.5]" />
-                <p className="text-zinc-600 dark:text-zinc-400 font-bold">Nenhum local encontrado em Campos do Jordão.</p>
-                <p className="text-xs text-zinc-400 dark:text-zinc-600 mt-1">Toque na seta para voltar às categorias.</p>
+                <SlidersHorizontal className={`w-8 h-8 mb-2 stroke-[1.5] ${
+                  isDark ? 'text-zinc-600' : 'text-zinc-400'
+                }`} />
+                <p className={`font-bold ${isDark ? 'text-zinc-400' : 'text-zinc-600'}`}>
+                  Nenhum local encontrado em Campos do Jordão.
+                </p>
+                <p className="text-xs text-zinc-500 mt-1">Toque na seta para voltar às categorias.</p>
               </div>
             ) : (
-              <div className="space-y-3.5">
+              <div className="space-y-3">
                 {filteredSpots.map((spot, idx) => (
                   <motion.div
                     key={spot.id}
@@ -423,17 +455,23 @@ export const SearchFilterDrawer: React.FC<SearchFilterDrawerProps> = ({
                       damping: 22,
                       delay: Math.min(idx * 0.035, 0.35),
                     }}
-                    whileHover={{ scale: 1.02, transition: { type: 'spring', stiffness: 400, damping: 18 } }}
-                    whileTap={{ scale: 0.93, transition: { type: 'spring', stiffness: 500, damping: 14 } }}
+                    whileHover={{ scale: 1.01, transition: { type: 'spring', stiffness: 400, damping: 18 } }}
+                    whileTap={{ scale: 0.96, transition: { type: 'spring', stiffness: 500, damping: 14 } }}
                     onClick={() => {
                       onSelectSpot(spot);
                       onClose();
                     }}
-                    className="w-full p-4.5 sm:p-5 rounded-[28px] bg-white dark:bg-[#000000] hover:bg-zinc-50 dark:hover:border-white/25 border border-zinc-200 dark:border-[#262626] hover:border-zinc-300 transition-colors flex items-center justify-between text-left cursor-pointer group shadow-sm dark:shadow-md"
+                    className={`w-full p-4 sm:p-4.5 rounded-[24px] border transition-colors flex items-center justify-between text-left cursor-pointer group shadow-xs ${
+                      isDark
+                        ? 'bg-[#1C1C1E] hover:bg-[#252528] border-white/10'
+                        : 'bg-[#F2F2F7] hover:bg-[#E5E5EA]/80 border-black/5'
+                    }`}
                   >
                     <div className="flex items-center gap-4 sm:gap-4.5 min-w-0 flex-1">
                       {/* Thumbnail do local (68px, cantos arredondados modernos 20px) */}
-                      <div className="w-[68px] h-[68px] sm:w-[72px] sm:h-[72px] rounded-[20px] overflow-hidden bg-zinc-100 dark:bg-zinc-900 shrink-0 border border-zinc-200 dark:border-[#262626]">
+                      <div className={`w-[68px] h-[68px] sm:w-[72px] sm:h-[72px] rounded-[20px] overflow-hidden shrink-0 border ${
+                        isDark ? 'bg-zinc-900 border-white/10' : 'bg-zinc-200 border-black/5'
+                      }`}>
                         <motion.img
                           initial={{ opacity: 0, scale: 0.88, y: 8 }}
                           animate={{ opacity: 1, scale: 1, y: 0 }}
@@ -457,15 +495,21 @@ export const SearchFilterDrawer: React.FC<SearchFilterDrawerProps> = ({
                       {/* Informações: Título, Categoria e Linha com Estrela Dourada + Cidade */}
                       <div className="min-w-0 flex-1">
                         <div className="flex items-center gap-1.5">
-                          <h4 className="text-[16.5px] sm:text-[17px] font-bold text-zinc-900 dark:text-white tracking-tight truncate group-hover:text-zinc-600 dark:group-hover:text-zinc-300 transition-colors">
+                          <h4 className={`text-[16px] sm:text-[17px] font-bold tracking-tight truncate transition-colors ${
+                            isDark ? 'text-white' : 'text-zinc-950'
+                          }`}>
                             {spot.name}
                           </h4>
                           <VerifiedBadge className="w-3.5 h-3.5 shrink-0" />
                         </div>
-                        <p className="text-[13.5px] text-zinc-500 dark:text-zinc-400 font-medium truncate mt-0.5">
+                        <p className={`text-[13px] font-medium truncate mt-0.5 ${
+                          isDark ? 'text-zinc-400' : 'text-zinc-500'
+                        }`}>
                           {spot.categoryLabel}
                         </p>
-                        <div className="flex items-center gap-2 text-[12.5px] text-zinc-500 dark:text-zinc-400 mt-1.5">
+                        <div className={`flex items-center gap-2 text-[12.5px] mt-1.5 ${
+                          isDark ? 'text-zinc-400' : 'text-zinc-500'
+                        }`}>
                           <span className="flex items-center gap-1 text-amber-500 dark:text-amber-400 font-bold">
                             <Star className="w-3.5 h-3.5 fill-amber-500 text-amber-500 dark:fill-amber-400 dark:text-amber-400" />
                             {spot.rating || 4.8}
@@ -475,6 +519,8 @@ export const SearchFilterDrawer: React.FC<SearchFilterDrawerProps> = ({
                         </div>
                       </div>
                     </div>
+
+                    <ChevronRight className="w-5 h-5 text-zinc-400 shrink-0 ml-2" />
                   </motion.div>
                 ))}
               </div>

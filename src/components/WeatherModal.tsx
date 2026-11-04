@@ -3,7 +3,7 @@ import { WeatherInfo } from '../types';
 import { CloudRain, Wind, Droplets, Thermometer, X } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { Weather3DIcon } from './Weather3DIcon';
-import weatherBlueHourImg from '../assets/images/weather_blue_hour_1789934570996.jpg';
+const weatherBlueHourImg = '/weather_blue_hour.jpg';
 
 interface WeatherModalProps {
   weather: WeatherInfo;

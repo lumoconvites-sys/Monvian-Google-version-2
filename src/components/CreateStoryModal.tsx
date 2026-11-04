@@ -428,7 +428,7 @@ export const CreateStoryModal: React.FC<CreateStoryModalProps> = ({
             <button
               type="button"
               onClick={() => setStep('gallery_picker')}
-              className="w-full py-4 px-5 rounded-2xl bg-white text-black text-[14.5px] font-bold active:scale-[0.98] transition-all flex items-center justify-center gap-2.5 cursor-pointer shadow-xl"
+              className="w-full py-4 px-5 rounded-full bg-white text-black text-[14.5px] font-bold active:scale-[0.98] transition-all flex items-center justify-center gap-2.5 cursor-pointer shadow-xl"
             >
               <ImageIcon className="w-5 h-5 stroke-[2.2]" />
               <span>Escolher da Galeria (Foto ou Vídeo)</span>
@@ -438,7 +438,7 @@ export const CreateStoryModal: React.FC<CreateStoryModalProps> = ({
             <button
               type="button"
               onClick={() => cameraInputRef.current?.click()}
-              className="w-full py-4 px-5 rounded-2xl bg-[#181818] hover:bg-[#202020] text-white text-[14.5px] font-bold active:scale-[0.98] transition-all flex items-center justify-center gap-2.5 cursor-pointer border border-white/10"
+              className="w-full py-4 px-5 rounded-full bg-[#181818] hover:bg-[#202020] text-white text-[14.5px] font-bold active:scale-[0.98] transition-all flex items-center justify-center gap-2.5 cursor-pointer border border-white/10"
             >
               <Camera className="w-5 h-5 stroke-[2.2]" />
               <span>Câmera</span>

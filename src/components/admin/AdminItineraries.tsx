@@ -586,20 +586,6 @@ export const AdminItineraries: React.FC = () => {
                             <MapPin className="w-3.5 h-3.5 text-white" />
                             <span>{placesCount} {placesCount === 1 ? 'parada' : 'paradas'}</span>
                           </div>
-
-                          <button
-                            type="button"
-                            onClick={() => handleTogglePremium(it.id)}
-                            title={it.isPremium ? 'Clique para tornar Grátis' : 'Clique para tornar Premium Elite Gold (Stripe)'}
-                            className={`px-2.5 py-1 rounded-full font-black text-[10px] uppercase tracking-wider shadow-sm flex items-center gap-1 cursor-pointer transition-transform active:scale-95 ${
-                              it.isPremium
-                                ? 'bg-amber-400 text-zinc-950 border border-amber-200'
-                                : 'bg-black/70 text-white border border-white/20 hover:bg-black/90'
-                            }`}
-                          >
-                            <Crown className={`w-3 h-3 ${it.isPremium ? 'text-zinc-950 fill-zinc-950/20' : 'text-amber-400'}`} />
-                            <span>{it.isPremium ? 'ELITE GOLD · R$ 19,90' : 'GRÁTIS (TORNAR GOLD)'}</span>
-                          </button>
                         </div>
                       </div>
 
@@ -797,7 +783,7 @@ export const AdminItineraries: React.FC = () => {
                         {it.title}
                       </h4>
                       <p className="text-[11px] text-zinc-500 font-bold">
-                        {it.price || 'R$ 14,90'} · {it.daysCount} {it.daysCount === 1 ? 'dia' : 'dias'}
+                        {it.daysCount} {it.daysCount === 1 ? 'dia' : 'dias'}
                       </p>
                     </div>
                   </div>

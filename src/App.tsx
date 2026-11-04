@@ -36,9 +36,9 @@ import { DesktopExplorePanel } from './components/desktop/DesktopExplorePanel';
 import { startPreloadResources } from './utils/preloadItineraries';
 import { AirbnbPresentationCard, isPresentationCardSeen, markPresentationCardSeen, PresentationTab } from './components/AirbnbPresentationCard';
 import { persistUserToFirestore, syncPermissionsFromDatabase } from './services/firestoreSync';
-import { HostDashboard } from './components/HostDashboard';
 import { fetchSpotsFromSupabase, subscribeToSpotsChanges } from './services/supabaseSpots';
 import { broadcastPlatanosWalletUpdate, getAuthHeaders } from './hooks/usePlatanos';
+import { SignupIntroSequence, SignupIntroStage } from './components/SignupIntroSequence';
 
 const welcomeContainerVariants = {
   hidden: { opacity: 0 },
@@ -125,18 +125,22 @@ export default function App() {
     return saved !== null ? JSON.parse(saved) : false;
   });
   const [rainEnabled, setRainEnabled] = useState<boolean>(() => {
-    const saved = localStorage.getItem('monvian_rain_enabled');
-    return saved !== null ? JSON.parse(saved) : true;
+    const saved = localStorage.getItem('monvian_rain_user_enabled');
+    return saved !== null ? JSON.parse(saved) : false;
   });
 
-  // Global Theme State: supports dark & light mode with localStorage persistence
-  const [theme, setTheme] = useState<'dark' | 'light'>(() => {
-    try {
-      const saved = localStorage.getItem('monvian_theme');
-      if (saved === 'dark' || saved === 'light') return saved;
-    } catch {}
-    return 'light';
-  });
+  // Global Theme State: light mode exclusively
+  const [theme, setTheme] = useState<'dark' | 'light'>('light');
+
+  // Ensure DOM is locked to pure iOS light mode on mount
+  useEffect(() => {
+    localStorage.setItem('monvian_theme', 'light');
+    document.documentElement.classList.remove('dark');
+    document.documentElement.classList.add('light');
+    document.documentElement.style.colorScheme = 'light';
+    document.documentElement.style.backgroundColor = '#ffffff';
+    if (document.body) document.body.style.backgroundColor = '#ffffff';
+  }, []);
 
   // Preload all itinerary images in background as soon as app opens, even if user is on another tab
   useEffect(() => {
@@ -493,9 +497,9 @@ export default function App() {
 
   // Save settings on change to localStorage and backend database
   useEffect(() => {
-    localStorage.setItem('monvian_rain_enabled', JSON.stringify(rainEnabled));
+    localStorage.setItem('monvian_rain_user_enabled', JSON.stringify(rainEnabled));
     localStorage.setItem('monvian_snow_enabled', JSON.stringify(snowEnabled));
-    localStorage.setItem('monvian_theme', theme);
+    localStorage.setItem('monvian_theme', 'light');
     localStorage.setItem('monvian_high_contrast', JSON.stringify(highContrast));
 
     setMapStyle('animado');
@@ -506,17 +510,11 @@ export default function App() {
       document.documentElement.classList.remove('high-contrast');
     }
 
-    if (theme === 'dark') {
-      document.documentElement.classList.add('dark');
-      document.documentElement.classList.remove('light');
-      document.documentElement.style.backgroundColor = '#000000';
-      if (document.body) document.body.style.backgroundColor = '#000000';
-    } else {
-      document.documentElement.classList.remove('dark');
-      document.documentElement.classList.add('light');
-      document.documentElement.style.backgroundColor = '#ffffff';
-      if (document.body) document.body.style.backgroundColor = '#ffffff';
-    }
+    document.documentElement.classList.remove('dark');
+    document.documentElement.classList.add('light');
+    document.documentElement.style.colorScheme = 'light';
+    document.documentElement.style.backgroundColor = '#ffffff';
+    if (document.body) document.body.style.backgroundColor = '#ffffff';
 
     const token = localStorage.getItem('monvian_token');
 
@@ -551,19 +549,6 @@ export default function App() {
   });
   const [mapVisualIcons, setMapVisualIcons] = useState<MapVisualIcon[]>([]);
   const [isAdminOpen, setIsAdminOpen] = useState(false);
-  const [isHostDashboardOpen, setIsHostDashboardOpen] = useState<boolean>(() => {
-    if (typeof window === 'undefined') return false;
-    const p = window.location.pathname.toLowerCase();
-    const q = new URLSearchParams(window.location.search);
-    return (
-      p === '/anfitriao' ||
-      p === '/area-do-anfitriao' ||
-      p === '/dashboard-anfitriao' ||
-      p === '/host' ||
-      q.get('view') === 'anfitriao' ||
-      q.get('anfitriao') === '1'
-    );
-  });
   const [systemSettings, setSystemSettings] = useState<Record<string, string>>({});
   const [selectedSpot, setSelectedSpot] = useState<Spot | null>(null);
   const [is3DMode, setIs3DMode] = useState<boolean>(false);
@@ -608,13 +593,16 @@ export default function App() {
         setSpots((prev) => {
           const exists = prev.some((s) => s.id === updated.id);
           const next = exists
-            ? prev.map((s) => (s.id === updated.id ? updated : s))
+            ? prev.map((s) => (s.id === updated.id ? { ...s, ...updated } : s))
             : [updated, ...prev];
           try {
             localStorage.setItem('monvian_cached_spots', JSON.stringify(next));
           } catch (err) {}
           return next;
         });
+        setSelectedSpot((prev) =>
+          prev && prev.id === updated.id ? { ...prev, ...updated } : prev
+        );
       }
       fetchSpots();
     };
@@ -655,11 +643,13 @@ export default function App() {
     };
   }, []);
 
+  const wasAdminOpenRef = useRef(false);
   useEffect(() => {
-    if (!isAdminOpen) {
+    if (wasAdminOpenRef.current && !isAdminOpen) {
       fetchSpots();
       fetchVisualIcons();
     }
+    wasAdminOpenRef.current = isAdminOpen;
   }, [isAdminOpen]);
   const [isDetailOpen, setIsDetailOpen] = useState(false);
   const [activeTab, setActiveTab] = useState<TabType>('roteiros');
@@ -803,13 +793,26 @@ export default function App() {
     condition: string;
     isDay: boolean;
     weatherCode: number;
+    isRaining: boolean;
+    rainIntensity: 'none' | 'fraca' | 'moderada' | 'forte';
+    hasLightning: boolean;
+    precipitationMm: number;
   }>(() => {
     try {
       const cached = localStorage.getItem('monvian_cached_weather');
       if (cached) {
         const parsed = JSON.parse(cached);
         if (typeof parsed.temperature === 'number' && parsed.condition) {
-          return parsed;
+          return {
+            temperature: parsed.temperature,
+            condition: parsed.condition,
+            isDay: parsed.isDay ?? true,
+            weatherCode: parsed.weatherCode ?? 2,
+            isRaining: Boolean(parsed.isRaining),
+            rainIntensity: parsed.rainIntensity || 'none',
+            hasLightning: Boolean(parsed.hasLightning),
+            precipitationMm: Number(parsed.precipitationMm || 0),
+          };
         }
       }
     } catch {}
@@ -818,6 +821,10 @@ export default function App() {
       condition: 'Parcialmente nublado',
       isDay: true,
       weatherCode: 2,
+      isRaining: false,
+      rainIntensity: 'none',
+      hasLightning: false,
+      precipitationMm: 0,
     };
   });
 
@@ -827,10 +834,10 @@ export default function App() {
     const fetchWeather = async () => {
       try {
         const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 4000);
+        const timeoutId = setTimeout(() => controller.abort(), 5000);
 
         const res = await fetch(
-          'https://api.open-meteo.com/v1/forecast?latitude=-22.7394&longitude=-45.5914&current=temperature_2m,relative_humidity_2m,is_day,weather_code&timezone=America%2FSao_Paulo',
+          'https://api.open-meteo.com/v1/forecast?latitude=-22.7394&longitude=-45.5914&current=temperature_2m,relative_humidity_2m,is_day,weather_code,precipitation,rain,showers&timezone=America%2FSao_Paulo',
           { signal: controller.signal, cache: 'no-cache' }
         );
         clearTimeout(timeoutId);
@@ -838,39 +845,70 @@ export default function App() {
         const data = await res.json();
         if (data && data.current && isSubscribed) {
           const temp = Math.round(data.current.temperature_2m);
-          const wcode = data.current.weather_code;
+          const wcode = Number(data.current.weather_code ?? 0);
           const isDay = data.current.is_day !== 0;
+          const precip = Number(data.current.precipitation ?? 0);
+          const rainMm = Number(data.current.rain ?? 0);
+          const showersMm = Number(data.current.showers ?? 0);
+          const totalRainMm = Math.max(precip, rainMm + showersMm);
 
           let cond = isDay ? 'Parcialmente nublado' : 'Céu parcialmente encoberto';
+          let isRainingNow = false;
+          let rainIntensity: 'none' | 'fraca' | 'moderada' | 'forte' = 'none';
+          let hasLightning = false;
 
           if (wcode === 0) {
             cond = isDay ? 'Céu limpo' : 'Céu estrelado';
           } else if (wcode === 1) {
             cond = isDay ? 'Ensolarado' : 'Noite de céu limpo';
           } else if (wcode === 2) {
-            cond = isDay ? 'Parcialmente nublado' : 'Parcialmente nublado';
+            cond = 'Parcialmente nublado';
           } else if (wcode === 3) {
             cond = 'Tempo nublado';
           } else if (wcode === 45 || wcode === 48) {
             cond = 'Nevoeiro na serra';
-          } else if (wcode >= 51 && wcode <= 55) {
-            cond = 'Garoa fraca';
-          } else if (wcode === 56 || wcode === 57) {
-            cond = 'Garoa gélida';
-          } else if (wcode === 61 || wcode === 63) {
+          } else if (wcode >= 51 && wcode <= 57) {
+            cond = wcode <= 55 ? 'Chuva leve' : 'Garoa gélida';
+            isRainingNow = true;
+            rainIntensity = 'fraca';
+          } else if (wcode === 61 || wcode === 80) {
+            cond = 'Chuva leve';
+            isRainingNow = true;
+            rainIntensity = 'fraca';
+          } else if (wcode === 63 || wcode === 66 || wcode === 81) {
             cond = 'Chuva moderada';
-          } else if (wcode === 65) {
+            isRainingNow = true;
+            rainIntensity = 'moderada';
+          } else if (wcode === 65 || wcode === 67 || wcode === 82) {
             cond = 'Chuva forte';
-          } else if (wcode === 66 || wcode === 67) {
-            cond = 'Chuva congelante';
+            isRainingNow = true;
+            rainIntensity = 'forte';
+            hasLightning = true;
           } else if (wcode >= 71 && wcode <= 77) {
             cond = 'Frio de serra / Geada';
-          } else if (wcode >= 80 && wcode <= 82) {
-            cond = 'Pancadas de chuva';
           } else if (wcode >= 85 && wcode <= 86) {
             cond = 'Pancadas de neve';
           } else if (wcode >= 95) {
             cond = 'Tempestade com raios';
+            isRainingNow = true;
+            rainIntensity = 'forte';
+            hasLightning = true;
+          }
+
+          // Refine with real measured precipitation (mm) in Campos do Jordão
+          if (totalRainMm > 0) {
+            isRainingNow = true;
+            if (totalRainMm >= 4.0 || wcode >= 95 || wcode === 65 || wcode === 82) {
+              rainIntensity = 'forte';
+              hasLightning = true;
+              if (wcode < 51) cond = 'Chuva forte com raios';
+            } else if (totalRainMm >= 1.2 || wcode === 63 || wcode === 81) {
+              if (rainIntensity !== 'forte') rainIntensity = 'moderada';
+              if (wcode < 51) cond = 'Chuva moderada';
+            } else if (rainIntensity === 'none') {
+              rainIntensity = 'fraca';
+              if (wcode < 51) cond = 'Chuva leve';
+            }
           }
 
           const newWeather = {
@@ -878,6 +916,10 @@ export default function App() {
             condition: cond,
             isDay,
             weatherCode: wcode,
+            isRaining: isRainingNow,
+            rainIntensity,
+            hasLightning,
+            precipitationMm: totalRainMm,
           };
 
           setRealWeather(newWeather);
@@ -889,8 +931,8 @@ export default function App() {
     };
 
     fetchWeather();
-    // Fast polling every 2.5 minutes + on window focus
-    const interval = setInterval(fetchWeather, 2.5 * 60 * 1000);
+    // Fast polling every 2 minutes + on window focus or when user toggles rainEnabled
+    const interval = setInterval(fetchWeather, 2 * 60 * 1000);
     const onFocus = () => fetchWeather();
     window.addEventListener('focus', onFocus);
 
@@ -899,7 +941,7 @@ export default function App() {
       clearInterval(interval);
       window.removeEventListener('focus', onFocus);
     };
-  }, []);
+  }, [rainEnabled]);
 
   const filteredSpots = useMemo(() => {
     return spots.filter(spot => {
@@ -1037,7 +1079,6 @@ export default function App() {
     setSelectedItinerary(null);
     setIsSearchOpen(false);
     setIsCategoryCardOpen(false);
-    setIsHostDashboardOpen(false);
     setIsChatKeyboardOpen(false);
     setIsAdminOpen(false);
     setAirbnbCardTab(null);
@@ -1050,19 +1091,27 @@ export default function App() {
     setActiveTab(tab);
   }, []);
 
-  // Airbnb Presentation Cards logic (first visit to 'explorar', 'roteiros', 'salvos')
   const [airbnbCardTab, setAirbnbCardTab] = useState<PresentationTab | null>(null);
-  const [isSignupRevealActive, setIsSignupRevealActive] = useState<boolean>(false);
+  const [signupIntroStage, setSignupIntroStage] = useState<SignupIntroStage>('idle');
+  const [isOnboardingItinerarySelection, setIsOnboardingItinerarySelection] = useState<boolean>(false);
+  const [isUserLocationSpotlightActive, setIsUserLocationSpotlightActive] = useState<boolean>(false);
+  const hasExecutedSignupIntroRef = useRef<boolean>(false);
+  const isSignupRevealActive = signupIntroStage !== 'idle';
+  const isOnboardingRevealReady = signupIntroStage === 'revealing' || signupIntroStage === 'idle';
 
-  // Dismiss the post-signup translucent intro screen after 1 second and smoothly open Roteiros
   useEffect(() => {
-    if (!isSignupRevealActive) return;
-    startPreloadResources();
+    if (!isUserLocationSpotlightActive) return;
     const timer = window.setTimeout(() => {
-      setIsSignupRevealActive(false);
-    }, 1250);
+      setIsUserLocationSpotlightActive(false);
+    }, 3000);
     return () => window.clearTimeout(timer);
-  }, [isSignupRevealActive]);
+  }, [isUserLocationSpotlightActive]);
+
+  useEffect(() => {
+    if (signupIntroStage === 'white') {
+      startPreloadResources();
+    }
+  }, [signupIntroStage]);
 
   // Automatically trigger native iOS/browser Geolocation & Motion prompts without custom modal cards
   useEffect(() => {
@@ -1096,8 +1145,14 @@ export default function App() {
   }, []);
 
   useEffect(() => {
-    // Wait until full-screen onboarding modals, signup reveal, and admin are closed
-    if (isAdminOpen || showOnboardingQuestions || showWelcomeOverlay || isSignupRevealActive) {
+    // Wait until full-screen onboarding modals, signup reveal, onboarding itinerary selection, and admin are closed
+    if (
+      isAdminOpen ||
+      showOnboardingQuestions ||
+      showWelcomeOverlay ||
+      isSignupRevealActive ||
+      isOnboardingItinerarySelection
+    ) {
       setAirbnbCardTab(null);
       return;
     }
@@ -1111,7 +1166,14 @@ export default function App() {
     } else {
       setAirbnbCardTab(null);
     }
-  }, [activeTab, showOnboardingQuestions, showWelcomeOverlay, isAdminOpen, isSignupRevealActive]);
+  }, [
+    activeTab,
+    showOnboardingQuestions,
+    showWelcomeOverlay,
+    isAdminOpen,
+    isSignupRevealActive,
+    isOnboardingItinerarySelection,
+  ]);
 
   const handleAirbnbCardAction = () => {
     if (!airbnbCardTab) return;
@@ -1155,16 +1217,23 @@ export default function App() {
     window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
 
   return (
-    <AnimatePresence>
+    <>
+      <SignupIntroSequence
+        stage={signupIntroStage}
+        onAdvanceStage={setSignupIntroStage}
+      />
+      <AnimatePresence>
       {!isAuthenticated ? (
         <motion.div
           key="monvian-auth-screen"
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           exit={
-            prefersReducedMotion
-              ? { opacity: 0 }
-              : { opacity: 0, filter: 'blur(10px)', scale: 1.01 }
+            isSignupRevealActive
+              ? { opacity: 1, transition: { duration: 0 } }
+              : prefersReducedMotion
+                ? { opacity: 0 }
+                : { opacity: 0, filter: 'blur(10px)', scale: 1.01 }
           }
           transition={{
             duration: prefersReducedMotion ? 0.15 : 0.3,
@@ -1203,9 +1272,11 @@ export default function App() {
               syncPermissionsFromDatabase(normalizedUser?.email || normalizedUser?.whatsapp).catch(() => {});
               setUser(normalizedUser);
               setActiveTab('roteiros');
-              if (isNewAccount) {
+              if (isNewAccount && !hasExecutedSignupIntroRef.current) {
+                hasExecutedSignupIntroRef.current = true;
                 markPresentationCardSeen('roteiros');
-                setIsSignupRevealActive(true);
+                setIsOnboardingItinerarySelection(true);
+                setSignupIntroStage('white');
               }
               setIsAuthenticated(true);
             }}
@@ -1236,19 +1307,27 @@ export default function App() {
         <motion.div
           key="monvian-main-app"
           initial={
-            prefersReducedMotion
-              ? { opacity: 0 }
-              : { opacity: 0, scale: 0.99, filter: 'blur(4px)' }
+            isSignupRevealActive
+              ? false
+              : prefersReducedMotion
+                ? { opacity: 0 }
+                : { opacity: 0 }
           }
-          animate={{ opacity: 1, scale: 1, filter: 'blur(0px)' }}
+          animate={{ opacity: 1 }}
           transition={
-            prefersReducedMotion
-              ? { duration: 0.2 }
-              : { duration: 0.45, ease: [0.22, 1, 0.36, 1] }
+            isSignupRevealActive
+              ? { duration: 0 }
+              : prefersReducedMotion
+                ? { duration: 0.2 }
+                : { duration: 0.45, ease: [0.22, 1, 0.36, 1] }
           }
           id="app-root-shell"
           className={`fixed inset-0 w-full h-full overflow-hidden select-none flex transition-colors duration-300 ${
-            theme === 'dark' ? 'bg-black md:bg-[#ffffff]' : 'bg-[#ffffff]'
+            isOnboardingItinerarySelection
+              ? 'bg-[#ffffff]'
+              : theme === 'dark'
+                ? 'bg-black md:bg-[#ffffff]'
+                : 'bg-[#ffffff]'
           }`}
           style={{
             position: 'fixed',
@@ -1263,31 +1342,35 @@ export default function App() {
             margin: 0,
             padding: 0,
             backgroundColor:
-              typeof window !== 'undefined' && window.matchMedia('(min-width: 768px)').matches
+              isOnboardingItinerarySelection ||
+              (typeof window !== 'undefined' && window.matchMedia('(min-width: 768px)').matches)
                 ? '#ffffff'
                 : theme === 'dark'
                   ? currentAdaptiveColor
                   : '#ffffff',
+            pointerEvents:
+              signupIntroStage === 'white' || signupIntroStage === 'video' ? 'none' : undefined,
           }}
         >
       <OfflineIndicator />
 
-      {/* Desktop Left Sidebar (Only visible on md+ >= 768px, elegant native desktop vertical menu) */}
-      <DesktopSidebar
-        activeTab={activeTab}
-        onChangeTab={handleTabChange}
-        unreadCount={2}
-        theme={theme}
-        onToggleTheme={() => setTheme((prev) => (prev === 'dark' ? 'light' : 'dark'))}
-        realWeather={realWeather}
-        onOpenWeatherModal={() => {}}
-        user={user}
-        onOpenAdmin={() => setIsAdminOpen(true)}
-        onOpenHostDashboard={() => setIsHostDashboardOpen(true)}
-        isUserAdmin={isUserAdmin}
-        isCollapsed={isDesktopSidebarCollapsed}
-        onToggleCollapse={() => setIsDesktopSidebarCollapsed((prev) => !prev)}
-      />
+      {/* Desktop Left Sidebar (Only visible on md+ >= 768px, hidden during exclusive post-signup itinerary selection & spotlight) */}
+      {!isOnboardingItinerarySelection && !isUserLocationSpotlightActive && (
+        <DesktopSidebar
+          activeTab={activeTab}
+          onChangeTab={handleTabChange}
+          unreadCount={2}
+          theme={theme}
+          onToggleTheme={() => {}}
+          realWeather={realWeather}
+          onOpenWeatherModal={() => {}}
+          user={user}
+          onOpenAdmin={() => setIsAdminOpen(true)}
+          isUserAdmin={isUserAdmin}
+          isCollapsed={isDesktopSidebarCollapsed}
+          onToggleCollapse={() => setIsDesktopSidebarCollapsed((prev) => !prev)}
+        />
+      )}
 
       <main
         id="main-app-content"
@@ -1305,7 +1388,7 @@ export default function App() {
         <div className="w-full h-full flex flex-row relative overflow-hidden">
           {/* DESKTOP EXPLORE PANEL (Side-by-side Discovery Column on md+ when activeTab === 'explorar') */}
           <AnimatePresence>
-            {activeTab === 'explorar' && !isMapOrbiting && (
+            {activeTab === 'explorar' && !isMapOrbiting && !isUserLocationSpotlightActive && (
               <motion.div
                 key="desktop-explore-panel-wrapper"
                 initial={{ opacity: 0, y: 8, filter: 'blur(6px)' }}
@@ -1355,14 +1438,16 @@ export default function App() {
               onOrbitChange={setIsMapOrbiting}
               isDetailOpen={isDetailOpen}
               snowEnabled={snowEnabled}
-              rainEnabled={rainEnabled}
+              rainEnabled={Boolean(rainEnabled && realWeather.isRaining)}
+              isSpotlightActive={isUserLocationSpotlightActive}
             />
 
-            {/* 2. Dynamic Rain Particle Effect Overlay */}
+            {/* 2. Dynamic Rain Particle Effect Overlay (Only active when user enabled AND actually raining in Campos do Jordão) */}
             <RainEffect
-              enabled={rainEnabled}
+              enabled={Boolean(rainEnabled && realWeather.isRaining)}
               weatherCode={realWeather.weatherCode}
-              intensity={(systemSettings.weather_rain_mode as any) || 'moderada'}
+              intensity={realWeather.rainIntensity === 'none' ? 'fraca' : realWeather.rainIntensity}
+              hasLightning={realWeather.hasLightning}
               theme={theme}
             />
 
@@ -1374,7 +1459,7 @@ export default function App() {
             />
 
             {/* DESKTOP MAP FLOATING CONTROLS (Top-Right Apple Style) */}
-            {!isMapOrbiting && (
+            {!isMapOrbiting && !isUserLocationSpotlightActive && (
               <DesktopMapControls
                 currentMode={mapStyle}
                 onChangeMode={setMapStyle}
@@ -1386,8 +1471,8 @@ export default function App() {
           </div>
         </div>
 
-      {/* 3. Top Floating Header Bar (MOBILE ONLY: md:hidden) */}
-      {!isMapOrbiting && (
+      {/* 3. Top Floating Header Bar (MOBILE ONLY: md:hidden, hidden during spotlight presentation) */}
+      {!isMapOrbiting && !isUserLocationSpotlightActive && (
         <header
           aria-label="Informações de Campos do Jordão"
           className={`md:hidden absolute top-0 left-0 right-0 z-40 flex items-center justify-between pointer-events-none px-4 sm:px-6 transition-[filter,opacity,transform] duration-200 ease-out ${
@@ -1453,47 +1538,15 @@ export default function App() {
           </div>
         </div>
 
-        {/* Right: Clean Header Action Icons */}
-        <div className="flex items-center gap-3.5 pointer-events-auto relative">
-          {/* Lightweight Linear Theme Mode Toggle Button */}
-          <button
-            id="btn-settings-toggle"
-            type="button"
-            onClick={() => {
-              setTheme((prev) => (prev === 'dark' ? 'light' : 'dark'));
-              setIsCategoryCardOpen(false);
-              setIsSearchOpen(false);
-            }}
-            className={`p-1 flex items-center justify-center transition-all duration-200 active:scale-90 cursor-pointer group shrink-0 bg-transparent border-none shadow-none ${
-              theme === 'dark'
-                ? 'text-white hover:text-zinc-200'
-                : 'text-black hover:text-zinc-800'
-            }`}
-            style={{ color: theme === 'dark' ? '#FFFFFF' : '#000000' }}
-            title={theme === 'dark' ? 'Alternar para Modo Claro' : 'Alternar para Modo Escuro'}
-            aria-label="Alternar tema Claro/Escuro"
-          >
-            <div className="relative w-12 h-12 sm:w-13 sm:h-13 flex items-center justify-center group-hover:scale-110 transition-transform duration-300">
-              {theme === 'dark' ? (
-                <Sun
-                  className="w-8 h-8 sm:w-9 sm:h-9 stroke-[2]"
-                  style={{ color: '#FFFFFF' }}
-                />
-              ) : (
-                <Moon
-                  className="w-8 h-8 sm:w-9 sm:h-9 stroke-[2]"
-                  style={{ color: '#000000' }}
-                />
-              )}
-            </div>
-          </button>
+        {/* Right: Clean Header Action Icons with iOS Liquid Glass Buttons */}
+        <div className="flex items-center gap-2.5 pointer-events-auto relative">
 
           {/* 3D View Toggle Icon */}
           <button
             id="btn-3d-toggle"
             type="button"
             onClick={() => setIs3DMode((prev) => !prev)}
-            className={`p-1 flex items-center justify-center transition-all duration-200 active:scale-90 cursor-pointer group bg-transparent border-none shadow-none ${
+            className={`w-11 h-11 sm:w-12 sm:h-12 rounded-full expo-liquid-glass-btn flex items-center justify-center transition-all duration-200 active:scale-90 cursor-pointer group shrink-0 ${
               theme === 'dark'
                 ? 'text-white hover:text-zinc-200'
                 : 'text-black hover:text-zinc-800'
@@ -1501,8 +1554,8 @@ export default function App() {
             style={{ color: theme === 'dark' ? '#FFFFFF' : '#000000' }}
             title={is3DMode ? 'Alternar para visão 2D Plana' : 'Alternar para visão 3D com Relevo e Montanhas'}
           >
-            <div className="relative w-12 h-12 sm:w-13 sm:h-13 flex items-center justify-center group-hover:scale-110 transition-transform duration-300">
-              <Map3DIcon className="w-8 h-8 sm:w-9 sm:h-9" style={{ color: theme === 'dark' ? '#FFFFFF' : '#000000' }} />
+            <div className="relative flex items-center justify-center group-hover:scale-105 transition-transform duration-300">
+              <Map3DIcon className="w-6 h-6 sm:w-7 sm:h-7" style={{ color: theme === 'dark' ? '#FFFFFF' : '#000000' }} />
             </div>
           </button>
 
@@ -1515,7 +1568,7 @@ export default function App() {
                 setIsCategoryCardOpen((prev) => !prev);
                 setIsSearchOpen(false);
               }}
-              className={`p-1 flex items-center justify-center transition-all duration-200 active:scale-90 cursor-pointer group shrink-0 bg-transparent border-none shadow-none ${
+              className={`w-11 h-11 sm:w-12 sm:h-12 rounded-full expo-liquid-glass-btn flex items-center justify-center transition-all duration-200 active:scale-90 cursor-pointer group shrink-0 ${
                 theme === 'dark'
                   ? 'text-white hover:text-zinc-200'
                   : 'text-black hover:text-zinc-800'
@@ -1523,8 +1576,8 @@ export default function App() {
               style={{ color: theme === 'dark' ? '#FFFFFF' : '#000000' }}
               title={selectedCategoryFilter ? 'Filtro de categoria ativo - Clique para alterar ou limpar' : 'Filtrar por Categoria'}
             >
-              <div className="relative w-12 h-12 sm:w-13 sm:h-13 flex items-center justify-center group-hover:scale-110 transition-transform duration-300">
-                <SlidersHorizontal className="w-8 h-8 sm:w-9 sm:h-9 stroke-[2]" style={{ color: theme === 'dark' ? '#FFFFFF' : '#000000' }} />
+              <div className="relative flex items-center justify-center group-hover:scale-105 transition-transform duration-300">
+                <SlidersHorizontal className="w-5 h-5 sm:w-6 sm:h-6 stroke-[2]" style={{ color: theme === 'dark' ? '#FFFFFF' : '#000000' }} />
               </div>
               {selectedCategoryFilter && (
                 <span className="absolute top-0 right-0 w-2.5 h-2.5 rounded-full bg-blue-500 ring-2 ring-white dark:ring-black" />
@@ -1586,6 +1639,7 @@ export default function App() {
         isOpen={activeTab === 'buscar'}
         onClose={() => setActiveTab('explorar')}
         spots={spots}
+        theme={theme}
         onSelectSpot={(spot) => {
           handleSelectSpot(spot);
           setActiveTab('explorar');
@@ -1598,13 +1652,9 @@ export default function App() {
           <motion.div
             key="itineraries-view-reveal-wrapper"
             initial={false}
-            animate={
-              isSignupRevealActive
-                ? { opacity: 0, scale: 0.99 }
-                : { opacity: 1, scale: 1 }
-            }
+            animate={{ opacity: 1, scale: 1 }}
             transition={{ duration: 0.5, ease: [0.22, 1, 0.36, 1] }}
-            className={`fixed inset-0 z-40 ${isSignupRevealActive ? 'pointer-events-none' : ''}`}
+            className="fixed inset-0 z-40"
           >
             <ItinerariesView
               key="itineraries-view"
@@ -1612,6 +1662,24 @@ export default function App() {
               onClose={() => setActiveTab('explorar')}
               theme={theme}
               spots={spots}
+              isOnboardingSelection={isOnboardingItinerarySelection}
+              isOnboardingRevealReady={isOnboardingRevealReady}
+              onCompleteOnboardingSelection={(selectedItins, chosenInvestment) => {
+                setIsOnboardingItinerarySelection(false);
+                try {
+                  localStorage.setItem(
+                    'monvian_selected_onboarding_itineraries',
+                    JSON.stringify(selectedItins.map((i) => i.id))
+                  );
+                  localStorage.setItem('monvian_trip_budget', chosenInvestment);
+                  if (selectedItins.length > 0) {
+                    localStorage.setItem('monvian_active_itinerary', JSON.stringify(selectedItins[0]));
+                    setSelectedItinerary(selectedItins[0]);
+                  }
+                } catch {}
+                setActiveTab('explorar');
+                setIsUserLocationSpotlightActive(true);
+              }}
             />
           </motion.div>
         )}
@@ -1671,7 +1739,7 @@ export default function App() {
         snowEnabled={snowEnabled}
         onToggleSnow={() => setSnowEnabled(!snowEnabled)}
         theme={theme}
-        onToggleTheme={() => setTheme((prev) => (prev === 'dark' ? 'light' : 'dark'))}
+        onToggleTheme={() => {}}
         highContrast={highContrast}
         onToggleHighContrast={() => setHighContrast((prev) => !prev)}
         user={user}
@@ -1682,9 +1750,6 @@ export default function App() {
           setActiveTab('explorar');
           setIsAdminOpen(true);
         }}
-        onOpenHostDashboard={() => {
-          setIsHostDashboardOpen(true);
-        }}
         onSubViewChange={() => {}}
         communityUrl={systemSettings.community_url}
         instagramUrl={systemSettings.instagram_url}
@@ -1693,32 +1758,13 @@ export default function App() {
           localStorage.removeItem('monvian_user');
           localStorage.removeItem('monvian_active_itinerary');
           localStorage.removeItem('monvian_itinerary_session');
+          hasExecutedSignupIntroRef.current = false;
+          setIsOnboardingItinerarySelection(false);
+          setSignupIntroStage('idle');
           setUser(null);
           setIsAuthenticated(false);
           setActiveTab('explorar');
         }}
-      />
-
-      {/* 10.5. Host Affiliate Area (Onboarding 'Configurar recebimentos' + Authorized Dashboard) */}
-      <HostDashboard
-        isOpen={isHostDashboardOpen}
-        onClose={() => {
-          setIsHostDashboardOpen(false);
-          if (typeof window !== 'undefined') {
-            const p = window.location.pathname.toLowerCase();
-            if (
-              p === '/anfitriao' ||
-              p === '/area-do-anfitriao' ||
-              p === '/dashboard-anfitriao' ||
-              p === '/host'
-            ) {
-              window.history.replaceState({}, document.title, '/');
-            }
-          }
-        }}
-        theme={theme}
-        onToggleTheme={() => setTheme((prev) => (prev === 'dark' ? 'light' : 'dark'))}
-        user={user}
       />
 
 
@@ -1841,8 +1887,8 @@ export default function App() {
       theme={theme}
     />
 
-    {/* 4. Bottom Navigation Pill rendered at root level (Visible ONLY on mobile) */}
-    {!isMapOrbiting && (
+    {/* 4. Bottom Navigation Pill rendered at root level (Visible ONLY on mobile, hidden during exclusive post-signup itinerary selection & spotlight presentation) */}
+    {!isMapOrbiting && !isOnboardingItinerarySelection && !isUserLocationSpotlightActive && (
       <div className={`md:hidden transition-opacity duration-150 ${isChatKeyboardOpen ? 'opacity-0 pointer-events-none' : 'opacity-100 pointer-events-auto'}`}>
         <BottomNavigation
           activeTab={activeTab}
@@ -1854,6 +1900,31 @@ export default function App() {
         />
       </div>
     )}
+
+    {/* 4.1. Translucent Spotlight Presentation on User Location (Exactly 3 seconds upon entering the map) */}
+    <AnimatePresence>
+      {isUserLocationSpotlightActive && (
+        <motion.div
+          key="user-location-spotlight-backdrop"
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          exit={{ opacity: 0 }}
+          transition={{ duration: 0.5, ease: [0.22, 1, 0.36, 1] }}
+          className="fixed inset-0 z-[115] pointer-events-none flex items-center justify-center overflow-hidden"
+          style={{
+            backgroundColor: 'rgba(0, 0, 0, 0.62)',
+            backdropFilter: 'blur(7px)',
+            WebkitBackdropFilter: 'blur(7px)',
+            maskImage:
+              'radial-gradient(circle 85px at 50% 50%, transparent 0%, transparent 60px, black 110px)',
+            WebkitMaskImage:
+              'radial-gradient(circle 85px at 50% 50%, transparent 0%, transparent 60px, black 110px)',
+          }}
+        >
+          <div className="w-[124px] h-[124px] rounded-full border border-white/35 animate-pulse shadow-[0_0_24px_rgba(255,255,255,0.25)] pointer-events-none" />
+        </motion.div>
+      )}
+    </AnimatePresence>
 
     {/* 4.5. Root-Level Fullscreen Blur Backdrop for Filters & Search (Covers map, header icons, and BottomNavigation) */}
     <AnimatePresence>
@@ -1882,7 +1953,7 @@ export default function App() {
           animate={{ opacity: 1, scale: 1, y: 0 }}
           exit={{ opacity: 0, scale: 0.94, y: -6 }}
           transition={{ type: 'spring', damping: 25, stiffness: 420 }}
-          className="md:hidden fixed right-4 sm:right-6 w-64 p-2.5 rounded-[26px] ios-glass z-[70] space-y-1 shadow-[0_20px_50px_rgba(0,0,0,0.25)] dark:shadow-[0_25px_60px_rgba(0,0,0,0.85)] pointer-events-auto"
+          className="md:hidden fixed right-4 sm:right-6 w-64 p-2.5 rounded-[26px] expo-liquid-glass-bar z-[70] space-y-1 pointer-events-auto"
           style={{
             top: 'max(calc(env(safe-area-inset-top, 0px) + 74px), 86px)',
           }}
@@ -1925,7 +1996,7 @@ export default function App() {
                 }}
                 className={`w-full px-3 py-2.5 rounded-2xl active:scale-[0.98] text-xs font-black flex items-center justify-between gap-2.5 transition-all text-left cursor-pointer group ${
                   isSelected
-                    ? 'bg-white/20 text-zinc-950 dark:text-white font-extrabold'
+                    ? 'expo-liquid-glass-pill text-zinc-950 dark:text-white font-extrabold'
                     : 'hover:bg-zinc-900/5 dark:hover:bg-white/10 text-zinc-800 dark:text-zinc-200'
                 }`}
               >
@@ -1978,8 +2049,8 @@ export default function App() {
             top: 'max(calc(env(safe-area-inset-top, 0px) + 76px), 88px)',
           }}
         >
-          {/* Search Input Bar (WhatsApp iOS style) */}
-          <div className="flex items-center gap-2 h-[42px] px-3.5 rounded-full bg-[#f0f2f5] dark:bg-[#202124] shadow-[0_4px_16px_rgba(0,0,0,0.1)] dark:shadow-[0_8px_24px_rgba(0,0,0,0.5)] transition-all">
+          {/* Search Input Bar (iOS Liquid Glass style) */}
+          <div className="flex items-center gap-2 h-[44px] px-3.5 rounded-full expo-liquid-glass-bar transition-all">
             <Search className="w-[18px] h-[18px] text-[#8696a0] dark:text-[#8e8e93] shrink-0 mr-1 stroke-[2]" />
             <input
               autoFocus
@@ -1992,7 +2063,7 @@ export default function App() {
             {searchQuery && (
               <button
                 onClick={() => setSearchQuery('')}
-                className="w-4 h-4 rounded-full bg-[#8696a0]/30 hover:bg-[#8696a0]/50 text-[#111b21] dark:text-white flex items-center justify-center transition-colors cursor-pointer"
+                className="w-4 h-4 rounded-full expo-liquid-glass-btn text-[#111b21] dark:text-white flex items-center justify-center transition-colors cursor-pointer"
                 title="Limpar pesquisa"
               >
                 <X className="w-2.5 h-2.5 stroke-[2.5]" />
@@ -2014,14 +2085,14 @@ export default function App() {
                 setIsSearchOpen(false);
                 setSearchQuery('');
               }}
-              className="ml-1 px-2.5 py-1 rounded-full bg-black/5 dark:bg-white/10 hover:bg-black/10 dark:hover:bg-white/20 text-[12px] font-medium text-zinc-600 dark:text-zinc-300 transition-colors cursor-pointer shrink-0"
+              className="ml-1 px-2.5 py-1 rounded-full expo-liquid-glass-btn text-[12px] font-medium text-zinc-700 dark:text-zinc-200 transition-colors cursor-pointer shrink-0"
             >
               Fechar
             </button>
           </div>
 
           {/* Results appearing underneath the search bar */}
-          <div className="mt-2.5 w-full max-h-[56vh] overflow-y-auto scrollbar-none rounded-[26px] ios-glass p-2 shadow-[0_20px_50px_rgba(0,0,0,0.3)] dark:shadow-[0_25px_60px_rgba(0,0,0,0.85)] border border-white/25 dark:border-white/15 flex flex-col gap-1">
+          <div className="mt-2.5 w-full max-h-[56vh] overflow-y-auto scrollbar-none rounded-[26px] expo-liquid-glass-bar p-2 flex flex-col gap-1">
             <div className="px-3 pt-2 pb-2 text-[11px] font-bold text-zinc-400 dark:text-zinc-400 uppercase tracking-wider border-b border-zinc-200/50 dark:border-white/5">
               <span>{searchQuery.trim() ? `Locais encontrados (${searchResults.length})` : 'Sugestões em destaque'}</span>
             </div>
@@ -2092,51 +2163,9 @@ export default function App() {
       )}
     </AnimatePresence>
 
-    {/* 5. Post-Signup Translucent Intro Overlay ("Vamos começar..." / "Escolha seu roteiro preferido...") */}
-    <AnimatePresence>
-      {isSignupRevealActive && (
-        <motion.div
-          key="signup-roteiros-depth-veil"
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          exit={{
-            opacity: 0,
-            backdropFilter: 'blur(0px)',
-            transition: { duration: 0.55, ease: [0.22, 1, 0.36, 1] },
-          }}
-          transition={{ duration: 0.25, ease: [0.22, 1, 0.36, 1] }}
-          onClick={() => setIsSignupRevealActive(false)}
-          style={{
-            WebkitBackdropFilter: 'blur(28px)',
-            fontFamily: "'Inter', -apple-system, BlinkMacSystemFont, sans-serif",
-          }}
-          className="fixed inset-0 z-[220] bg-black/70 backdrop-blur-2xl flex flex-col items-center justify-center px-6 text-center select-none"
-        >
-          <motion.div
-            initial={{ opacity: 0, y: 10, scale: 0.98, filter: 'blur(4px)' }}
-            animate={{ opacity: 1, y: 0, scale: 1, filter: 'blur(0px)' }}
-            exit={{
-              opacity: 0,
-              y: -8,
-              scale: 0.985,
-              filter: 'blur(6px)',
-              transition: { duration: 0.45, ease: [0.22, 1, 0.36, 1] },
-            }}
-            transition={{ duration: 0.35, ease: [0.22, 1, 0.36, 1] }}
-            className="flex flex-col items-center max-w-sm mx-auto space-y-2.5"
-          >
-            <h2 className="text-[28px] sm:text-[32px] font-bold tracking-tight text-white leading-tight">
-              Vamos começar...
-            </h2>
-            <p className="text-[16px] sm:text-[18px] font-normal tracking-tight text-zinc-300 leading-snug">
-              Escolha seu roteiro preferido...
-            </p>
-          </motion.div>
-        </motion.div>
-      )}
-    </AnimatePresence>
   </motion.div>
   )}
   </AnimatePresence>
+  </>
   );
 }

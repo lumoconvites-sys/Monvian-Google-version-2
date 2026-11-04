@@ -41,7 +41,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
   onToggleHighContrast,
   onOpenAccountSettings,
 }) => {
-  const isDark = theme === 'dark';
+  const isDark = false;
 
   return (
     <AnimatePresence>
@@ -112,119 +112,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
 
             {/* Body */}
             <div className="flex-1 overflow-y-auto px-5 py-4 space-y-4">
-              {/* SECTION: MODO ESCURO */}
-              <div>
-                <div className="flex items-center justify-between px-2 mb-2">
-                  <span className="text-[11px] font-bold uppercase tracking-wider text-zinc-500 dark:text-zinc-400">
-                    Aparência
-                  </span>
-                  <span
-                    className={`text-[11px] font-semibold px-2 py-0.5 rounded-full ${
-                      isDark
-                        ? 'bg-blue-500/15 text-blue-400'
-                        : 'bg-zinc-200 text-zinc-700'
-                    }`}
-                  >
-                    {isDark ? 'Modo Escuro Ativo' : 'Modo Claro'}
-                  </span>
-                </div>
-
-                {/* Main Toggle Row */}
-                <div
-                  className={`rounded-2xl p-4 border flex items-center justify-between transition-colors ${
-                    isDark
-                      ? 'bg-[#1C1C1E] border-white/10'
-                      : 'bg-white border-black/5 shadow-2xs'
-                  }`}
-                >
-                  <div className="flex items-center gap-3.5 min-w-0">
-                    <div
-                      className={`w-11 h-11 rounded-2xl flex items-center justify-center shrink-0 transition-colors ${
-                        isDark
-                          ? 'bg-blue-500/20 text-blue-400'
-                          : 'bg-zinc-100 text-zinc-700'
-                      }`}
-                    >
-                      {isDark ? (
-                        <Moon className="w-6 h-6 stroke-[2]" />
-                      ) : (
-                        <Sun className="w-6 h-6 stroke-[2]" />
-                      )}
-                    </div>
-                    <div className="min-w-0">
-                      <h3 className="text-[15px] font-bold tracking-tight">
-                        Modo Escuro
-                      </h3>
-                      <p className="text-xs text-zinc-500 dark:text-zinc-400 font-medium truncate">
-                        Tons escuros e sofisticados (iOS Apple)
-                      </p>
-                    </div>
-                  </div>
-                  <IOSSwitch
-                    id="switch-dark-mode"
-                    checked={isDark}
-                    onChange={() => onToggleTheme()}
-                    ariaLabel="Ativar ou desativar modo escuro"
-                  />
-                </div>
-
-                {/* Visual Theme Selector Pills */}
-                <div className="grid grid-cols-2 gap-2.5 mt-2.5">
-                  {/* Claro */}
-                  <button
-                    type="button"
-                    onClick={() => {
-                      if (isDark) onToggleTheme();
-                    }}
-                    className={`p-3 rounded-2xl border text-left transition-all active:scale-[0.98] cursor-pointer flex items-center justify-between ${
-                      !isDark
-                        ? 'bg-white border-blue-500 ring-2 ring-blue-500/30 shadow-xs'
-                        : 'bg-[#1C1C1E] border-white/5 opacity-70 hover:opacity-100'
-                    }`}
-                  >
-                    <div className="flex items-center gap-2.5">
-                      <div className="w-7 h-7 rounded-full bg-zinc-100 border border-zinc-200 flex items-center justify-center text-amber-500">
-                        <Sun className="w-4 h-4 stroke-[2.2]" />
-                      </div>
-                      <span className="text-xs font-bold text-zinc-900 dark:text-zinc-200">
-                        Modo Claro
-                      </span>
-                    </div>
-                    {!isDark && (
-                      <span className="w-5 h-5 rounded-full bg-blue-500 text-white flex items-center justify-center">
-                        <Check className="w-3.5 h-3.5 stroke-[3]" />
-                      </span>
-                    )}
-                  </button>
-
-                  {/* Escuro */}
-                  <button
-                    type="button"
-                    onClick={() => {
-                      if (!isDark) onToggleTheme();
-                    }}
-                    className={`p-3 rounded-2xl border text-left transition-all active:scale-[0.98] cursor-pointer flex items-center justify-between ${
-                      isDark
-                        ? 'bg-[#1C1C1E] border-blue-500 ring-2 ring-blue-500/40 text-white shadow-xs'
-                        : 'bg-white border-black/5 opacity-70 hover:opacity-100'
-                    }`}
-                  >
-                    <div className="flex items-center gap-2.5">
-                      <div className="w-7 h-7 rounded-full bg-zinc-900 border border-zinc-700 flex items-center justify-center text-blue-400">
-                        <Moon className="w-4 h-4 stroke-[2.2]" />
-                      </div>
-                      <span className="text-xs font-bold text-zinc-900 dark:text-white">
-                        Modo Escuro
-                      </span>
-                    </div>
-                    {isDark && (
-                      <span className="w-5 h-5 rounded-full bg-blue-500 text-white flex items-center justify-center">
-                        <Check className="w-3.5 h-3.5 stroke-[3]" />
-                      </span>
-                    )}
-                  </button>
-                </div>
-              </div>
+              {/* SECTION: EFEITOS VISUAIS */}
 
               {/* SECTION: EFEITOS VISUAIS */}
               <div>

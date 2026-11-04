@@ -195,9 +195,9 @@ export const NotificationsModal: React.FC<NotificationsModalProps> = ({
               type="button"
               onClick={onMarkAllAsRead}
               title="Marcar todas como lidas"
-              className={`text-xs font-semibold ${
-                isDark ? 'text-zinc-400 hover:text-white' : 'text-zinc-600 hover:text-black'
-              } transition-colors cursor-pointer px-2.5 py-1 rounded-full bg-zinc-100 dark:bg-white/10 shrink-0`}
+              className={`text-xs font-bold transition-all active:scale-95 cursor-pointer px-3 py-1 rounded-full border border-black/5 shrink-0 ${
+                isDark ? 'text-zinc-400 hover:text-white bg-white/10' : 'expo-liquid-glass-btn text-black hover:bg-zinc-50 shadow-xs'
+              }`}
             >
               Limpar
             </button>

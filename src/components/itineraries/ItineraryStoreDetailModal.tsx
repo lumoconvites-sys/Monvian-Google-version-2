@@ -7,19 +7,13 @@ import {
   MapPin,
   Compass,
   Lightbulb,
-  Lock,
-  Crown,
   Heart,
-  Plus,
+  Play,
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { Itinerary } from '../../types';
-import { PremiumModal } from '../PremiumModal';
 import { getSpotImage, getSpotFallbackImage } from '../../utils/spotImages';
 import { useFavorites } from '../../hooks/useFavorites';
-import { usePlatanos } from '../../hooks/usePlatanos';
-import { PlatanoLeafIcon, PlatanoUnlockToast } from '../platanos/PlatanoLeafIcon';
-import { PlatanoPurchaseConfirmModal } from '../platanos/PlatanoPurchaseConfirmModal';
 
 interface ItineraryStoreDetailModalProps {
   itinerary: Itinerary | null;
@@ -77,19 +71,11 @@ export const ItineraryStoreDetailModal: React.FC<ItineraryStoreDetailModalProps>
   isOpen,
   onClose,
   onApplyItinerary,
-  onOpenWalletTopUp,
   theme = 'dark',
 }) => {
   const [isApplying, setIsApplying] = useState(false);
   const [activeDayIndex, setActiveDayIndex] = useState(0);
-  const [isPremiumModalOpen, setIsPremiumModalOpen] = useState(false);
-  const [isConfirmModalOpen, setIsConfirmModalOpen] = useState(false);
-  const [unlockToast, setUnlockToast] = useState<{ visible: boolean; title: string; subtitle?: string }>({
-    visible: false,
-    title: '',
-  });
   const { isItinerarySaved, toggleItinerary } = useFavorites();
-  const { getItineraryPlatanoPrice, isItineraryUnlocked } = usePlatanos();
   const scrollRef = useRef<HTMLDivElement | null>(null);
   const heroImgRef = useRef<HTMLImageElement | null>(null);
 
@@ -143,15 +129,6 @@ export const ItineraryStoreDetailModal: React.FC<ItineraryStoreDetailModalProps>
   const activeItinerary = itinerary || lastItineraryRef.current;
 
   const isLight = theme === 'light';
-  const isGoldItinerary = Boolean(
-    activeItinerary &&
-      (activeItinerary.isPremium || (activeItinerary as any).isGold || (activeItinerary as any).is_gold) &&
-      activeItinerary.badgeText?.toLowerCase() !== 'grátis'
-  );
-  const isLivreItinerary = !isGoldItinerary;
-  const isUnlockedByPlatanos = activeItinerary ? isItineraryUnlocked(activeItinerary.id) : false;
-  const isPremiumUser = isUnlockedByPlatanos;
-  const platanoPrice = activeItinerary ? getItineraryPlatanoPrice(activeItinerary) : 15;
   const totalStops = activeItinerary
     ? activeItinerary.placesCount ||
       activeItinerary.days.reduce((acc, d) => acc + d.steps.length, 0)
@@ -168,10 +145,6 @@ export const ItineraryStoreDetailModal: React.FC<ItineraryStoreDetailModalProps>
 
   const handleAdd = async () => {
     if (!activeItinerary) return;
-    if (isGoldItinerary && !isUnlockedByPlatanos) {
-      setIsConfirmModalOpen(true);
-      return;
-    }
 
     try {
       setIsApplying(true);
@@ -304,32 +277,8 @@ export const ItineraryStoreDetailModal: React.FC<ItineraryStoreDetailModalProps>
                   <ArrowLeft className="w-6 h-6 stroke-[2.4]" />
                 </motion.button>
 
-                {/* Direita: Badge Conta Gold / Livre + Botão Curtir Roteiro */}
+                {/* Direita: Botão Curtir Roteiro */}
                 <div className="flex items-center gap-2">
-                  {isGoldItinerary ? (
-                    <button
-                      type="button"
-                      onClick={() => {
-                        if (!isUnlockedByPlatanos) {
-                          setIsConfirmModalOpen(true);
-                        }
-                      }}
-                      className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-black/70 backdrop-blur-md text-white text-[11px] font-bold tracking-tight shadow-md border border-[#D9A84E]/50 cursor-pointer transition-transform active:scale-95"
-                      title="Roteiro Exclusivo com Plátanos"
-                    >
-                      <PlatanoLeafIcon className="w-3.5 h-3.5" variant="gold" />
-                      <span className="tabular-nums">
-                        {isUnlockedByPlatanos
-                          ? 'Liberado'
-                          : `${platanoPrice}`}
-                      </span>
-                    </button>
-                  ) : (
-                    <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-black/40 backdrop-blur-md text-white text-[9.5px] font-black uppercase tracking-wider shadow-xs border border-white/20">
-                      <span>{activeItinerary.badgeText || 'ACESSO GRÁTIS'}</span>
-                    </span>
-                  )}
-
                   <motion.button
                     whileTap={{ scale: 0.88 }}
                     type="button"
@@ -337,15 +286,15 @@ export const ItineraryStoreDetailModal: React.FC<ItineraryStoreDetailModalProps>
                       e.stopPropagation();
                       toggleItinerary(activeItinerary.id);
                     }}
-                    className="w-10 h-10 rounded-full bg-white/90 dark:bg-[#000000]/75 backdrop-blur-md border border-zinc-200/80 dark:border-white/10 text-black dark:text-white flex items-center justify-center shadow-md cursor-pointer transition-opacity active:opacity-80"
+                    className="w-10 h-10 flex items-center justify-center cursor-pointer transition-transform hover:scale-110 active:scale-90 bg-transparent border-none shadow-none outline-none"
                     title={isItinerarySaved(activeItinerary.id) ? 'Remover dos salvos' : 'Salvar roteiro'}
                     aria-label={isItinerarySaved(activeItinerary.id) ? 'Remover dos salvos' : 'Salvar roteiro'}
                   >
                     <Heart
-                      className={`w-5 h-5 transition-colors ${
+                      className={`w-8 h-8 transition-all stroke-none drop-shadow-[0_2px_8px_rgba(0,0,0,0.6)] ${
                         isItinerarySaved(activeItinerary.id)
-                          ? 'fill-rose-500 text-rose-500 stroke-[2]'
-                          : 'fill-transparent stroke-[2]'
+                          ? 'fill-rose-500 text-rose-500'
+                          : 'fill-white/90 text-white/90'
                       }`}
                     />
                   </motion.button>
@@ -393,16 +342,6 @@ export const ItineraryStoreDetailModal: React.FC<ItineraryStoreDetailModalProps>
               {/* 3. TÍTULO E DESCRIÇÃO CURTA */}
               <div className="space-y-1">
                 <div className="flex items-center gap-2.5">
-                  {isGoldItinerary && (
-                    <button
-                      type="button"
-                      onClick={() => setIsPremiumModalOpen(true)}
-                      className="inline-flex items-center justify-center w-8 h-8 rounded-full bg-metallic-gold text-[#1A1202] shadow-sm border border-[#FFF4A3]/70 shrink-0 cursor-pointer transition-transform active:scale-95"
-                      title="Roteiro Elite Gold"
-                    >
-                      <Crown className="w-4 h-4 stroke-[2.4] text-[#1A1202] fill-[#1A1202]/20" />
-                    </button>
-                  )}
                   <h1 className={`text-2xl sm:text-3xl font-black tracking-tight leading-tight ${
                     isLight ? 'text-zinc-900' : 'text-white'
                   }`}>
@@ -475,14 +414,12 @@ export const ItineraryStoreDetailModal: React.FC<ItineraryStoreDetailModalProps>
                           key={d.id || idx}
                           type="button"
                           onClick={() => setActiveDayIndex(idx)}
-                          className={`px-4 py-1.5 rounded-full text-xs font-bold transition-transform active:scale-95 cursor-pointer shrink-0 border ${
+                          className={`px-4 py-1.5 rounded-full text-xs font-bold transition-transform active:scale-95 cursor-pointer shrink-0 ${
                             isSelected
-                              ? isGoldItinerary
-                                ? 'bg-metallic-gold text-[#1A1202] border-[#FFF4A3]/70 shadow-md shadow-[#E5AC33]/30 font-black'
-                                : isLight ? 'bg-black text-white border-black shadow-2xs' : 'bg-white text-black border-white shadow-2xs'
+                              ? isLight ? 'expo-liquid-glass-btn text-black font-extrabold border border-black/15 shadow-sm' : 'bg-white text-black border border-white shadow-2xs'
                               : isLight
-                              ? 'bg-zinc-100 text-zinc-600 border-zinc-200/80 hover:bg-zinc-200'
-                              : 'bg-white/[0.04] text-[#A1A1AA] border-white/10 hover:text-white'
+                              ? 'expo-liquid-glass-btn text-zinc-600 hover:text-black opacity-80'
+                              : 'expo-liquid-glass-btn text-[#A1A1AA] hover:text-white'
                           }`}
                         >
                           Dia {d.dayNumber || idx + 1}
@@ -532,33 +469,20 @@ export const ItineraryStoreDetailModal: React.FC<ItineraryStoreDetailModalProps>
                       image: step.customImage || spot?.image || activeItinerary.coverImage,
                     });
                     const descriptionText = step.customDescription || step.notes || spot?.description || spot?.touristTip;
-                    const isBlurred = !isLivreItinerary && !isPremiumUser && idx >= 2;
 
                     return (
                       <div
                         key={`${activeDayIndex}-${step.id || idx}`}
-                        onClick={() => {
-                          if (isBlurred) {
-                            handleAdd();
-                          }
-                        }}
                         className={`relative overflow-hidden p-3 rounded-2xl border flex items-center gap-3 transition-transform active:scale-[0.98] ${
-                          isBlurred ? 'cursor-pointer' : ''
-                        } ${
                           isLight
                             ? 'bg-white/90 border-zinc-200/80 shadow-2xs'
                             : 'bg-white/[0.03] border-white/10'
                         }`}
                       >
-                        {/* Conteúdo com efeito embaçado para paradas a partir da terceira */}
-                        <div className={`flex items-center gap-3 w-full ${
-                          isBlurred ? 'filter blur-[5.5px] select-none pointer-events-none opacity-45 dark:opacity-35' : ''
-                        }`}>
+                        <div className="flex items-center gap-3 w-full">
                           {/* Número da parada */}
                           <div className={`w-6 h-6 rounded-full flex items-center justify-center shrink-0 font-bold text-[11px] ${
-                            isGoldItinerary
-                              ? 'bg-metallic-gold text-[#1A1202] font-black shadow-xs shadow-[#E5AC33]/25 border border-[#FFF4A3]/60'
-                              : isLight ? 'bg-black/10 text-black' : 'bg-white/15 text-white'
+                            isLight ? 'bg-black/10 text-black' : 'bg-white/15 text-white'
                           }`}>
                             {stepNumber}
                           </div>
@@ -582,7 +506,7 @@ export const ItineraryStoreDetailModal: React.FC<ItineraryStoreDetailModalProps>
                           <div className="flex-1 min-w-0">
                             <div className="flex items-center justify-between gap-1">
                               <span className={`text-[10px] font-bold uppercase tracking-wider truncate ${
-                                isGoldItinerary ? 'text-[#E5AC33] dark:text-[#FDE073] drop-shadow-[0_0_6px_rgba(229,172,51,0.3)]' : (isLight ? 'text-black' : 'text-white')
+                                isLight ? 'text-black' : 'text-white'
                               }`}>
                                 {spotCategory}
                               </span>
@@ -610,25 +534,6 @@ export const ItineraryStoreDetailModal: React.FC<ItineraryStoreDetailModalProps>
                             )}
                           </div>
                         </div>
-
-                        {/* Selo elegante sobreposto nas paradas embaçadas para gerar curiosidade e exclusividade */}
-                        {isBlurred && (
-                          <div
-                            onClick={() => setIsConfirmModalOpen(true)}
-                            className="absolute inset-0 flex items-center justify-center px-4 cursor-pointer"
-                          >
-                            <div className={`px-3 py-1.5 rounded-full flex items-center gap-1.5 border shadow-sm backdrop-blur-md transition-transform hover:scale-105 active:scale-95 ${
-                              isLight
-                                ? 'bg-white/95 border-[#D9A84E]/45 text-zinc-800 shadow-[0_2px_10px_rgba(217,168,78,0.2)]'
-                                : 'bg-[#181a20]/95 border-[#D9A84E]/40 text-[#F5D78E] shadow-[0_2px_10px_rgba(0,0,0,0.4)]'
-                            }`}>
-                              <PlatanoLeafIcon className="w-3.5 h-3.5" variant="gold" />
-                              <span className="text-[10.5px] font-bold tracking-tight">
-                                Liberar com {platanoPrice} Plátanos
-                              </span>
-                            </div>
-                          </div>
-                        )}
                       </div>
                     );
                   })}
@@ -640,11 +545,7 @@ export const ItineraryStoreDetailModal: React.FC<ItineraryStoreDetailModalProps>
 
           {/* 11. BARRA DE AÇÃO FIXA INFERIOR COM SAFE AREA */}
           <div
-            className={`absolute bottom-0 inset-x-0 z-50 px-5 py-3.5 border-t backdrop-blur-2xl ${
-              isLight
-                ? 'bg-white/85 border-zinc-200/80 shadow-[0_-8px_24px_rgba(0,0,0,0.06)]'
-                : 'bg-[#000000]/80 border-white/10 shadow-[0_-8px_24px_rgba(0,0,0,0.5)]'
-            }`}
+            className="absolute bottom-0 inset-x-0 z-50 px-5 py-3.5 expo-liquid-glass-bar"
             style={{
               paddingBottom: 'max(calc(env(safe-area-inset-bottom, 0px) + 16px), 20px)',
               transform: 'translate3d(0, 0, 0)',
@@ -657,17 +558,17 @@ export const ItineraryStoreDetailModal: React.FC<ItineraryStoreDetailModalProps>
                 type="button"
                 disabled={isApplying}
                 onClick={handleAdd}
-                className="w-full h-12 rounded-2xl font-bold text-sm flex items-center justify-center gap-2 transition-all cursor-pointer disabled:opacity-60 bg-[#22c55e] hover:bg-[#16a34a] text-white shadow-lg shadow-[#22c55e]/25 active:opacity-90"
-                title="Adicionar roteiro"
-                aria-label="Adicionar roteiro"
+                className="w-full h-12 rounded-full font-bold text-sm flex items-center justify-center gap-2 transition-all cursor-pointer disabled:opacity-60 expo-liquid-glass-btn text-black dark:text-white shadow-md border border-black/5 hover:bg-zinc-50 active:scale-95"
+                title="Iniciar roteiro"
+                aria-label="Iniciar roteiro"
               >
                 {isApplying ? (
                   <div className="flex items-center gap-2">
                     <div className="w-4 h-4 border-2 border-current border-t-transparent rounded-full animate-spin" />
-                    <span>Adicionando...</span>
+                    <span>Iniciando...</span>
                   </div>
                 ) : (
-                  <span>Adicionar</span>
+                  <Play className="w-5 h-5 fill-current text-current ml-0.5" />
                 )}
               </motion.button>
             </div>
@@ -677,48 +578,6 @@ export const ItineraryStoreDetailModal: React.FC<ItineraryStoreDetailModalProps>
       </motion.div>
         )}
       </AnimatePresence>
-
-      {/* Plátanos Purchase Confirmation Modal */}
-      <PlatanoPurchaseConfirmModal
-        itinerary={activeItinerary}
-        isOpen={isConfirmModalOpen}
-        onClose={() => setIsConfirmModalOpen(false)}
-        onOpenWalletTopUp={() => {
-          setIsConfirmModalOpen(false);
-          if (onOpenWalletTopUp) {
-            onOpenWalletTopUp();
-          } else {
-            window.dispatchEvent(new CustomEvent('monvian:open_platanos_wallet', { detail: { tab: 'topup' } }));
-          }
-        }}
-        onConfirmSuccess={(unlockedItin, res) => {
-          setIsConfirmModalOpen(false);
-          setUnlockToast({
-            visible: true,
-            title: `Roteiro adicionado: ${unlockedItin.title}`,
-            subtitle: res.alreadyUnlocked
-              ? 'Roteiro já liberado na sua conta'
-              : `-${res.charged} Plátanos · Saldo restante: ${res.balanceAfter} Plátanos`,
-          });
-        }}
-        theme={theme}
-      />
-
-      {/* Leaf Unlock Animation Toast */}
-      <PlatanoUnlockToast
-        visible={unlockToast.visible}
-        title={unlockToast.title}
-        subtitle={unlockToast.subtitle}
-        theme={theme}
-        onDone={() => setUnlockToast((prev) => ({ ...prev, visible: false }))}
-      />
-
-      {/* Monvian Premium Access Modal */}
-      <PremiumModal
-        isOpen={isPremiumModalOpen}
-        onClose={() => setIsPremiumModalOpen(false)}
-        theme={theme}
-      />
     </>
   );
 

@@ -9,6 +9,7 @@ export default defineConfig(() => {
     resolve: {
       alias: {
         '@': path.resolve(__dirname, '.'),
+        'expo-glass-effect': path.resolve(__dirname, './src/lib/expo-glass-effect.tsx'),
       },
     },
     server: {
@@ -31,9 +32,6 @@ export default defineConfig(() => {
             }
             if (id.includes('node_modules/maplibre-gl')) {
               return 'vendor-maplibre';
-            }
-            if (id.includes('node_modules/mapbox-gl')) {
-              return 'vendor-mapbox';
             }
             if (id.includes('node_modules/three')) {
               return 'vendor-three';

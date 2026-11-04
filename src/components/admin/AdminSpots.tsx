@@ -17,6 +17,7 @@ import {
   deleteSpotFromSupabase,
   toggleSpotActiveInSupabase,
   toggleSpotVerifiedInSupabase,
+  toggleSpotStarInSupabase,
   subscribeToSpotsChanges
 } from '../../services/supabaseSpots';
 
@@ -103,6 +104,30 @@ export const AdminSpots: React.FC = () => {
     } catch (err: any) {
       console.error(err);
       showToast('Erro ao atualizar status do ponto no Supabase.');
+    }
+  };
+
+  const handleToggleStar = async (spot: any, e: React.MouseEvent) => {
+    e.stopPropagation();
+    const currentIsStar = Boolean(spot.isStar || spot.is_star === 1 || spot.is_star === true || spot.badge === 'Estrela');
+    const nextIsStar = !currentIsStar;
+    try {
+      setSpots((prev) =>
+        prev.map((s) =>
+          s.id === spot.id
+            ? { ...s, isStar: nextIsStar, is_star: nextIsStar ? 1 : 0, badge: nextIsStar ? 'Estrela' : '' }
+            : s
+        )
+      );
+      await toggleSpotStarInSupabase(spot, nextIsStar);
+      showToast(
+        nextIsStar
+          ? `"${spot.name}" ativado como Estrela amarela no mapa!`
+          : `"${spot.name}" voltou ao marcador circular padrão.`
+      );
+    } catch (err: any) {
+      console.error(err);
+      showToast('Erro ao atualizar opção Estrela.');
     }
   };
 
@@ -308,111 +333,143 @@ export const AdminSpots: React.FC = () => {
         </div>
       ) : (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
-          {filteredSpots.map((spot) => (
-            <div
-              key={spot.id}
-              className="bg-white dark:bg-[#16181d] rounded-2xl border border-zinc-200/90 dark:border-zinc-800/90 shadow-xs hover:shadow-md transition-all overflow-hidden flex flex-col group"
-            >
-              {/* Card Image Banner */}
-              <div className="relative h-44 w-full bg-zinc-100 dark:bg-zinc-800 overflow-hidden">
-                <img
-                  src={spot.image}
-                  alt={spot.name}
-                  className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
-                />
+          {filteredSpots.map((spot) => {
+            const isStarSpot = Boolean(
+              spot.isStar || spot.is_star === 1 || spot.is_star === true || spot.badge === 'Estrela'
+            );
+            return (
+              <div
+                key={spot.id}
+                className={`bg-white dark:bg-[#16181d] rounded-2xl border shadow-xs hover:shadow-md transition-all overflow-hidden flex flex-col group ${
+                  isStarSpot
+                    ? 'border-[#FFD60A] ring-1 ring-[#FFD60A]/40'
+                    : 'border-zinc-200/90 dark:border-zinc-800/90'
+                }`}
+              >
+                {/* Card Image Banner */}
+                <div className="relative h-44 w-full bg-zinc-100 dark:bg-zinc-800 overflow-hidden">
+                  <img
+                    src={spot.image}
+                    alt={spot.name}
+                    className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                  />
 
-                {/* Status Switch and Verified Badge on Image */}
-                <div className="absolute top-3 left-3 right-3 flex items-center justify-between pointer-events-auto">
-                  {/* Verified Badge */}
-                  {spot.isVerified ? (
-                    <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-blue-600/90 backdrop-blur-md text-white text-[10px] font-black uppercase shadow-sm">
-                      <CheckCircle2 className="w-3 h-3" />
-                      VERIFICADO
-                    </span>
-                  ) : (
-                    <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-zinc-800/80 backdrop-blur-md text-white text-[10px] font-black">
-                      PADRÃO
-                    </span>
-                  )}
+                  {/* Status Switch and Star / Verified Badge on Image */}
+                  <div className="absolute top-3 left-3 right-3 flex items-center justify-between pointer-events-auto">
+                    <div className="flex items-center gap-1.5">
+                      {isStarSpot ? (
+                        <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-[#FFD60A] text-black text-[10px] font-black uppercase shadow-md">
+                          <Star className="w-3 h-3 fill-black text-black" />
+                          ESTRELA
+                        </span>
+                      ) : spot.isVerified ? (
+                        <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-blue-600/90 backdrop-blur-md text-white text-[10px] font-black uppercase shadow-sm">
+                          <CheckCircle2 className="w-3 h-3" />
+                          VERIFICADO
+                        </span>
+                      ) : (
+                        <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-zinc-800/80 backdrop-blur-md text-white text-[10px] font-black">
+                          PADRÃO
+                        </span>
+                      )}
+                    </div>
 
-                  {/* Active Toggle Switch */}
-                  <div className="flex items-center gap-1.5 bg-black/50 backdrop-blur-md px-2 py-1 rounded-full">
-                    <span className="text-[10px] font-black text-white uppercase">
-                      {spot.isActive ? 'Ativo' : 'Pausado'}
-                    </span>
-                    <button
-                      type="button"
-                      onClick={(e) => handleToggleActive(spot.id, e)}
-                      className={`relative inline-flex h-4 w-8 shrink-0 cursor-pointer rounded-full border border-transparent transition-colors duration-200 ease-in-out ${
-                        spot.isActive ? 'bg-blue-600' : 'bg-zinc-500'
-                      }`}
-                    >
-                      <span
-                        className={`pointer-events-none inline-block h-3 w-3 transform rounded-full bg-white shadow-sm ring-0 transition duration-200 ease-in-out mt-0.5 ${
-                          spot.isActive ? 'translate-x-4' : 'translate-x-0.5'
+                    {/* Active Toggle Switch */}
+                    <div className="flex items-center gap-1.5 bg-black/50 backdrop-blur-md px-2 py-1 rounded-full">
+                      <span className="text-[10px] font-black text-white uppercase">
+                        {spot.isActive ? 'Ativo' : 'Pausado'}
+                      </span>
+                      <button
+                        type="button"
+                        onClick={(e) => handleToggleActive(spot.id, e)}
+                        className={`relative inline-flex h-4 w-8 shrink-0 cursor-pointer rounded-full border border-transparent transition-colors duration-200 ease-in-out ${
+                          spot.isActive ? 'bg-blue-600' : 'bg-zinc-500'
                         }`}
-                      />
-                    </button>
+                      >
+                        <span
+                          className={`pointer-events-none inline-block h-3 w-3 transform rounded-full bg-white shadow-sm ring-0 transition duration-200 ease-in-out mt-0.5 ${
+                            spot.isActive ? 'translate-x-4' : 'translate-x-0.5'
+                          }`}
+                        />
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Category pill on bottom left of image */}
+                  <div className="absolute bottom-3 left-3">
+                    <span className="text-[10px] font-black uppercase tracking-wider text-white bg-black/60 backdrop-blur-md px-2.5 py-1 rounded-lg">
+                      {spot.categoryLabel || spot.category}
+                    </span>
+                  </div>
+
+                  {/* Rating on bottom right */}
+                  <div className="absolute bottom-3 right-3 bg-black/60 backdrop-blur-md px-2 py-1 rounded-lg flex items-center gap-1 text-white text-xs font-black">
+                    <Star className="w-3 h-3 text-amber-400 fill-amber-400" />
+                    <span>{spot.rating?.toFixed(1) || '4.8'}</span>
                   </div>
                 </div>
 
-                {/* Category pill on bottom left of image */}
-                <div className="absolute bottom-3 left-3">
-                  <span className="text-[10px] font-black uppercase tracking-wider text-white bg-black/60 backdrop-blur-md px-2.5 py-1 rounded-lg">
-                    {spot.categoryLabel || spot.category}
-                  </span>
-                </div>
+                {/* Card Body */}
+                <div className="p-4 flex-1 flex flex-col justify-between">
+                  <div>
+                    <h3 className="text-base font-black text-zinc-900 dark:text-white group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors line-clamp-1">
+                      {spot.name}
+                    </h3>
+                    <p className="text-xs text-zinc-500 dark:text-zinc-400 mt-1 line-clamp-2 leading-relaxed">
+                      {spot.description || 'Ponto turístico localizado nas montanhas de Campos do Jordão.'}
+                    </p>
+                  </div>
 
-                {/* Rating on bottom right */}
-                <div className="absolute bottom-3 right-3 bg-black/60 backdrop-blur-md px-2 py-1 rounded-lg flex items-center gap-1 text-white text-xs font-black">
-                  <Star className="w-3 h-3 text-amber-400 fill-amber-400" />
-                  <span>{spot.rating?.toFixed(1) || '4.8'}</span>
+                  {/* Address & Actions */}
+                  <div className="mt-4 pt-3 border-t border-zinc-100 dark:border-zinc-800 flex items-center justify-between gap-2">
+                    <div className="flex items-center gap-1 text-[11px] text-zinc-400 dark:text-zinc-500 truncate max-w-[120px]">
+                      <MapPin className="w-3.5 h-3.5 shrink-0 text-blue-500" />
+                      <span className="truncate">{spot.address || 'Campos do Jordão'}</span>
+                    </div>
+
+                    <div className="flex items-center gap-1.5">
+                      <button
+                        type="button"
+                        onClick={(e) => handleToggleStar(spot, e)}
+                        className={`px-2.5 py-1.5 rounded-lg text-[11px] font-black inline-flex items-center gap-1 transition-all cursor-pointer ${
+                          isStarSpot
+                            ? 'bg-[#FFD60A] text-black shadow-sm'
+                            : 'bg-zinc-100 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-300 hover:bg-[#FFD60A]/20 hover:text-amber-500'
+                        }`}
+                        title="Destacar como Estrela amarela no mapa"
+                      >
+                        <Star
+                          className={`w-3.5 h-3.5 ${
+                            isStarSpot ? 'fill-black text-black' : 'text-amber-400'
+                          }`}
+                        />
+                        <span>Estrela</span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setSpotToEdit(spot);
+                          setIsModalOpen(true);
+                        }}
+                        className="p-1.5 rounded-lg text-zinc-600 dark:text-zinc-300 hover:text-blue-600 dark:hover:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/30 transition-colors cursor-pointer"
+                        title="Editar Ponto"
+                      >
+                        <Edit className="w-4 h-4" />
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleDelete(spot)}
+                        className="p-1.5 rounded-lg text-zinc-600 dark:text-zinc-300 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/30 transition-colors cursor-pointer"
+                        title="Excluir Ponto"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                    </div>
+                  </div>
                 </div>
               </div>
-
-              {/* Card Body */}
-              <div className="p-4 flex-1 flex flex-col justify-between">
-                <div>
-                  <h3 className="text-base font-black text-zinc-900 dark:text-white group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors line-clamp-1">
-                    {spot.name}
-                  </h3>
-                  <p className="text-xs text-zinc-500 dark:text-zinc-400 mt-1 line-clamp-2 leading-relaxed">
-                    {spot.description || 'Ponto turístico localizado nas montanhas de Campos do Jordão.'}
-                  </p>
-                </div>
-
-                {/* Address & Actions */}
-                <div className="mt-4 pt-3 border-t border-zinc-100 dark:border-zinc-800 flex items-center justify-between">
-                  <div className="flex items-center gap-1 text-[11px] text-zinc-400 dark:text-zinc-500 truncate max-w-[140px]">
-                    <MapPin className="w-3.5 h-3.5 shrink-0 text-blue-500" />
-                    <span className="truncate">{spot.address || 'Campos do Jordão'}</span>
-                  </div>
-
-                  <div className="flex items-center gap-1.5">
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setSpotToEdit(spot);
-                        setIsModalOpen(true);
-                      }}
-                      className="p-1.5 rounded-lg text-zinc-600 dark:text-zinc-300 hover:text-blue-600 dark:hover:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/30 transition-colors cursor-pointer"
-                      title="Editar Ponto"
-                    >
-                      <Edit className="w-4 h-4" />
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => handleDelete(spot)}
-                      className="p-1.5 rounded-lg text-zinc-600 dark:text-zinc-300 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/30 transition-colors cursor-pointer"
-                      title="Excluir Ponto"
-                    >
-                      <Trash2 className="w-4 h-4" />
-                    </button>
-                  </div>
-                </div>
-              </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
       )}
 

@@ -1,7 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import * as maplibregl from 'maplibre-gl';
 import 'maplibre-gl/dist/maplibre-gl.css';
-import { Search, MapPin, Navigation, ZoomIn, ZoomOut, Compass } from 'lucide-react';
+import { Search, MapPin, ZoomIn, ZoomOut, Compass, Layers } from 'lucide-react';
 import { playPinTapSound } from '../../utils/sound';
 
 interface AdminMapPickerProps {
@@ -10,6 +10,66 @@ interface AdminMapPickerProps {
   onChange: (lat: number, lng: number, addressSuggestion?: string) => void;
   address?: string;
 }
+
+const SATELLITE_MAP_STYLE: maplibregl.StyleSpecification = {
+  version: 8,
+  sources: {
+    'esri-satellite': {
+      type: 'raster',
+      tiles: [
+        'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
+      ],
+      tileSize: 256,
+      attribution: '&copy; Esri &copy; DigitalGlobe, GeoEye, Earthstar Geographics',
+    },
+    'esri-labels': {
+      type: 'raster',
+      tiles: [
+        'https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Boundaries_and_Places/MapServer/tile/{z}/{y}/{x}',
+      ],
+      tileSize: 256,
+    },
+  },
+  layers: [
+    {
+      id: 'esri-satellite-layer',
+      type: 'raster',
+      source: 'esri-satellite',
+      minzoom: 0,
+      maxzoom: 20,
+    },
+    {
+      id: 'esri-labels-layer',
+      type: 'raster',
+      source: 'esri-labels',
+      minzoom: 0,
+      maxzoom: 20,
+    },
+  ],
+};
+
+const STREETS_MAP_STYLE: maplibregl.StyleSpecification = {
+  version: 8,
+  sources: {
+    'esri-street': {
+      type: 'raster',
+      tiles: [
+        'https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/{z}/{y}/{x}',
+      ],
+      tileSize: 256,
+      attribution: '&copy; Esri &copy; OpenStreetMap contributors',
+    },
+  },
+  layers: [
+    {
+      id: 'esri-street-layer',
+      type: 'raster',
+      source: 'esri-street',
+      minzoom: 0,
+      maxzoom: 20,
+    },
+  ],
+};
 
 export const AdminMapPicker: React.FC<AdminMapPickerProps> = ({
   lat,
@@ -22,33 +82,11 @@ export const AdminMapPicker: React.FC<AdminMapPickerProps> = ({
   const markerRef = useRef<maplibregl.Marker | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [isSearching, setIsSearching] = useState(false);
+  const [mapMode, setMapMode] = useState<'satelite' | 'ruas'>('satelite');
   const [currentCoords, setCurrentCoords] = useState<{ lat: number; lng: number }>({
     lat: lat || -22.7394,
     lng: lng || -45.5913,
   });
-
-  const MAP_STYLE: maplibregl.StyleSpecification = {
-    version: 8,
-    sources: {
-      'esri-street': {
-        type: 'raster',
-        tiles: [
-          'https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/{z}/{y}/{x}',
-        ],
-        tileSize: 256,
-        attribution: '&copy; Esri &copy; OpenStreetMap contributors',
-      },
-    },
-    layers: [
-      {
-        id: 'esri-street-layer',
-        type: 'raster',
-        source: 'esri-street',
-        minzoom: 0,
-        maxzoom: 20,
-      },
-    ],
-  };
 
   useEffect(() => {
     if (!mapContainer.current || mapRef.current) return;
@@ -58,7 +96,7 @@ export const AdminMapPicker: React.FC<AdminMapPickerProps> = ({
 
     const map = new maplibregl.Map({
       container: mapContainer.current,
-      style: MAP_STYLE,
+      style: SATELLITE_MAP_STYLE,
       center: [initialLng, initialLat],
       zoom: 14,
       attributionControl: false,
@@ -74,7 +112,7 @@ export const AdminMapPicker: React.FC<AdminMapPickerProps> = ({
     el.style.cursor = 'grab';
     el.innerHTML = `
       <div style="position:relative; width:100%; height:100%; display:flex; align-items:center; justify-content:center;">
-        <div style="position:absolute; width:14px; height:14px; background:#0066ff; border-radius:50%; box-shadow:0 0 0 4px white, 0 4px 12px rgba(0,102,255,0.5);"></div>
+        <div style="position:absolute; width:16px; height:16px; background:#0066ff; border-radius:50%; box-shadow:0 0 0 4px white, 0 4px 12px rgba(0,102,255,0.6);"></div>
         <div style="position:absolute; bottom:-4px; width:6px; height:6px; background:#0066ff; border-radius:50%;"></div>
       </div>
     `;
@@ -124,6 +162,13 @@ export const AdminMapPicker: React.FC<AdminMapPickerProps> = ({
       }
     }
   }, [lat, lng]);
+
+  const toggleMapMode = () => {
+    if (!mapRef.current) return;
+    const nextMode = mapMode === 'satelite' ? 'ruas' : 'satelite';
+    mapRef.current.setStyle(nextMode === 'satelite' ? SATELLITE_MAP_STYLE : STREETS_MAP_STYLE);
+    setMapMode(nextMode);
+  };
 
   const handleSearch = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -196,21 +241,21 @@ export const AdminMapPicker: React.FC<AdminMapPickerProps> = ({
           <button
             type="button"
             onClick={() => handlePresetLocation(-22.7340, -45.5910)}
-            className="text-[11px] px-2.5 py-1.5 bg-zinc-100 hover:bg-zinc-200 text-zinc-700 rounded-lg whitespace-nowrap transition-colors"
+            className="text-[11px] px-2.5 py-1.5 bg-zinc-100 hover:bg-zinc-200 text-zinc-700 rounded-lg whitespace-nowrap transition-colors cursor-pointer"
           >
             Capivari
           </button>
           <button
             type="button"
             onClick={() => handlePresetLocation(-22.7420, -45.5960)}
-            className="text-[11px] px-2.5 py-1.5 bg-zinc-100 hover:bg-zinc-200 text-zinc-700 rounded-lg whitespace-nowrap transition-colors"
+            className="text-[11px] px-2.5 py-1.5 bg-zinc-100 hover:bg-zinc-200 text-zinc-700 rounded-lg whitespace-nowrap transition-colors cursor-pointer"
           >
             Abernéssia
           </button>
           <button
             type="button"
             onClick={() => handlePresetLocation(-22.7661, -45.6125)}
-            className="text-[11px] px-2.5 py-1.5 bg-zinc-100 hover:bg-zinc-200 text-zinc-700 rounded-lg whitespace-nowrap transition-colors"
+            className="text-[11px] px-2.5 py-1.5 bg-zinc-100 hover:bg-zinc-200 text-zinc-700 rounded-lg whitespace-nowrap transition-colors cursor-pointer"
           >
             Gavião Gonzaga
           </button>
@@ -223,6 +268,15 @@ export const AdminMapPicker: React.FC<AdminMapPickerProps> = ({
 
         {/* Map Controls */}
         <div className="absolute top-2.5 right-2.5 flex flex-col gap-1.5 z-10">
+          <button
+            type="button"
+            onClick={toggleMapMode}
+            className="h-8 px-2.5 bg-white/95 hover:bg-white text-zinc-800 text-xs font-black rounded-lg shadow-md flex items-center gap-1.5 border border-zinc-200/80 transition-all cursor-pointer"
+            title={`Alternar estilo do mapa (Atual: ${mapMode === 'satelite' ? 'Satélite' : 'Ruas'})`}
+          >
+            <Layers className="w-3.5 h-3.5 text-blue-600" />
+            <span>{mapMode === 'satelite' ? 'Satélite' : 'Ruas'}</span>
+          </button>
           <button
             type="button"
             onClick={() => mapRef.current?.zoomIn()}
@@ -299,3 +353,4 @@ export const AdminMapPicker: React.FC<AdminMapPickerProps> = ({
     </div>
   );
 };
+

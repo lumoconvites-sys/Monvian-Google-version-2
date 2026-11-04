@@ -62,6 +62,7 @@ export const AdminSpotModal: React.FC<AdminSpotModalProps> = ({
     price: 'Entrada Franca',
     maps_url: '',
     is_active: 1,
+    is_star: 0,
   });
 
   const [newGalleryUrl, setNewGalleryUrl] = useState('');
@@ -86,6 +87,13 @@ export const AdminSpotModal: React.FC<AdminSpotModalProps> = ({
           parsedGallery = spotToEdit.gallery.split(',').map((s: string) => s.trim()).filter(Boolean);
         }
       }
+      const editIsStar =
+        spotToEdit.is_star !== undefined && spotToEdit.is_star !== null
+          ? Number(spotToEdit.is_star) === 1 || spotToEdit.is_star === true
+          : spotToEdit.isStar !== undefined
+            ? Boolean(spotToEdit.isStar)
+            : spotToEdit.badge === 'Estrela';
+
       setFormData({
         id: spotToEdit.id || '',
         name: spotToEdit.name || '',
@@ -111,6 +119,7 @@ export const AdminSpotModal: React.FC<AdminSpotModalProps> = ({
         price: spotToEdit.price || 'Entrada Franca',
         maps_url: spotToEdit.maps_url || spotToEdit.mapsUrl || '',
         is_active: spotToEdit.is_active !== undefined ? Number(spotToEdit.is_active) : spotToEdit.isActive === false ? 0 : 1,
+        is_star: editIsStar ? 1 : 0,
       });
     } else {
       setFormData({
@@ -134,6 +143,7 @@ export const AdminSpotModal: React.FC<AdminSpotModalProps> = ({
         price: 'Entrada Franca',
         maps_url: '',
         is_active: 1,
+        is_star: 0,
       });
     }
   }, [spotToEdit, isOpen]);
@@ -253,6 +263,8 @@ export const AdminSpotModal: React.FC<AdminSpotModalProps> = ({
             ? [formData.image]
             : [];
 
+      const isStarBool = formData.is_star === 1;
+
       const payload = {
         ...formData,
         id: spotId,
@@ -271,9 +283,13 @@ export const AdminSpotModal: React.FC<AdminSpotModalProps> = ({
         priceRange: formData.price_range,
         mapsUrl: formData.maps_url,
         isActive: formData.is_active === 1,
+        isStar: isStarBool,
+        is_star: isStarBool ? 1 : 0,
+        badge: isStarBool ? 'Estrela' : '',
+        highlighted: isStarBool,
       };
 
-      // Persist directly and authoritatively to Supabase PostgreSQL (Single Source of Truth)
+      // Persist directly and authoritatively to SQLite + Supabase PostgreSQL
       const savedSpot = await saveSpotToSupabase(payload, Boolean(spotToEdit?.id));
 
       // Best-effort secondary sync to Firestore if configured
@@ -281,6 +297,8 @@ export const AdminSpotModal: React.FC<AdminSpotModalProps> = ({
         persistSpotToFirestore({
           ...savedSpot,
           gallery: JSON.stringify(finalGallery),
+          is_star: isStarBool ? 1 : 0,
+          isStar: isStarBool,
         }).catch(() => {});
       } catch {}
 
@@ -288,7 +306,7 @@ export const AdminSpotModal: React.FC<AdminSpotModalProps> = ({
       onClose();
     } catch (err: any) {
       console.error('Error saving spot:', err);
-      setErrorMsg(err.message || 'Erro ao salvar ponto turístico no Supabase.');
+      setErrorMsg(err.message || 'Erro ao salvar ponto turístico.');
     } finally {
       setSaving(false);
     }
@@ -305,7 +323,7 @@ export const AdminSpotModal: React.FC<AdminSpotModalProps> = ({
                 {spotToEdit ? `Editar: ${spotToEdit.name}` : 'Novo Ponto Turístico'}
               </h3>
               <p className="text-xs text-zinc-400">
-                Sincronizado em tempo real com Supabase PostgreSQL e Mapa Interativo
+                Sincronizado em tempo real com o Mapa Interativo
               </p>
             </div>
             <button
@@ -324,6 +342,70 @@ export const AdminSpotModal: React.FC<AdminSpotModalProps> = ({
                 {errorMsg}
               </div>
             )}
+
+            {/* Opção "Estrela" — Ponto Mais Famoso no Mapa (Estrela Amarela Pulsante com Foto) */}
+            <div
+              onClick={() =>
+                setFormData((prev) => ({ ...prev, is_star: prev.is_star === 1 ? 0 : 1 }))
+              }
+              role="button"
+              tabIndex={0}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' || e.key === ' ') {
+                  e.preventDefault();
+                  setFormData((prev) => ({ ...prev, is_star: prev.is_star === 1 ? 0 : 1 }));
+                }
+              }}
+              className={`p-4 rounded-2xl border transition-all duration-200 cursor-pointer select-none flex items-center justify-between gap-4 ${
+                formData.is_star === 1
+                  ? 'bg-[#FFD60A]/12 border-[#FFD60A] shadow-[0_0_24px_rgba(255,214,10,0.18)]'
+                  : 'bg-zinc-950/90 border-white/10 hover:border-white/25'
+              }`}
+            >
+              <div className="flex items-center gap-3.5 min-w-0">
+                <div
+                  className={`w-12 h-12 rounded-2xl flex items-center justify-center shrink-0 transition-all ${
+                    formData.is_star === 1
+                      ? 'bg-[#FFD60A] text-black shadow-[0_0_16px_rgba(255,214,10,0.65)] monvian-star-pulse'
+                      : 'bg-zinc-900 border border-white/10 text-zinc-400'
+                  }`}
+                >
+                  <Star
+                    className={`w-6 h-6 ${
+                      formData.is_star === 1 ? 'fill-black text-black' : 'text-zinc-400'
+                    }`}
+                  />
+                </div>
+                <div className="min-w-0">
+                  <div className="flex items-center gap-2">
+                    <span className="text-sm font-black text-white tracking-tight">
+                      Estrela
+                    </span>
+                    {formData.is_star === 1 && (
+                      <span className="px-2 py-0.5 rounded-full bg-[#FFD60A] text-black text-[10px] font-black uppercase tracking-wider">
+                        Ativado no Mapa
+                      </span>
+                    )}
+                  </div>
+                  <p className="text-xs text-zinc-400 mt-0.5 leading-snug">
+                    Destacar como ponto famoso: aparece automaticamente como uma estrela amarela pulsante com a foto no meio no mapa.
+                  </p>
+                </div>
+              </div>
+
+              {/* iOS-style switch */}
+              <div
+                className={`relative inline-flex h-7 w-12 shrink-0 items-center rounded-full transition-colors duration-200 ${
+                  formData.is_star === 1 ? 'bg-[#FFD60A]' : 'bg-zinc-700'
+                }`}
+              >
+                <span
+                  className={`inline-block h-5 w-5 transform rounded-full bg-white shadow-md transition-transform duration-200 ${
+                    formData.is_star === 1 ? 'translate-x-6' : 'translate-x-1'
+                  }`}
+                />
+              </div>
+            </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="sm:col-span-2">

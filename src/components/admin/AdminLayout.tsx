@@ -26,9 +26,6 @@ import { AdminSettings } from './AdminSettings';
 import { AdminCleanup } from './AdminCleanup';
 import { AdminItineraries } from './AdminItineraries';
 import { AdminServices } from './AdminServices';
-import { AdminPlatanos } from './AdminPlatanos';
-import { PlatanoLeafIcon } from '../platanos/PlatanoLeafIcon';
-import { AffiliateHostDashboard } from '../affiliate/AffiliateHostDashboard';
 
 interface AdminLayoutProps {
   currentUser: any;
@@ -69,13 +66,11 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({
 
   const NAV_ITEMS = [
     { id: 'dashboard', label: 'Visão Geral', icon: LayoutDashboard },
-    { id: 'platanos', label: 'Plátanos (Moeda)', icon: PlatanoLeafIcon },
     { id: 'spots', label: 'Pontos Turísticos', icon: MapPin },
     { id: 'itineraries', label: 'Roteiros', icon: Route },
     { id: 'services', label: 'Locais e Serviços', icon: Store },
     { id: 'users', label: 'Usuários & Comunidade', icon: Users },
     { id: 'events', label: 'Eventos no Mapa', icon: Calendar },
-    { id: 'affiliate_host', label: 'Área Anfitrião (Prévia)', icon: Sparkles },
     { id: 'settings', label: 'Configurações', icon: Settings },
     { id: 'cleanup', label: 'Limpeza do Sistema', icon: Sparkles },
   ];
@@ -343,20 +338,11 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({
               className="w-full"
             >
               {activeTab === 'dashboard' && <AdminDashboard onNavigateTo={(tab) => setActiveTab(tab)} />}
-              {activeTab === 'platanos' && <AdminPlatanos currentUser={currentUser} />}
               {activeTab === 'spots' && <AdminSpots />}
               {activeTab === 'itineraries' && <AdminItineraries />}
               {activeTab === 'services' && <AdminServices />}
               {activeTab === 'users' && <AdminUsers />}
               {activeTab === 'events' && <AdminEvents />}
-              {activeTab === 'affiliate_host' && (
-                <AffiliateHostDashboard
-                  isOpen={true}
-                  onClose={() => setActiveTab('dashboard')}
-                  theme="dark"
-                  user={currentUser}
-                />
-              )}
               {activeTab === 'settings' && <AdminSettings />}
               {activeTab === 'cleanup' && <AdminCleanup />}
             </motion.div>

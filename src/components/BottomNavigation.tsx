@@ -1,5 +1,6 @@
 import React, { useState, useRef, memo } from 'react';
 import { motion } from 'motion/react';
+import { GlassView } from 'expo-glass-effect';
 import { NavAgoraIcon, NavSalvosIcon, NavSearchIcon, NavProfileIcon, NavRoteirosIcon } from './NavIcons';
 
 export type TabType = 'explorar' | 'roteiros' | 'salvos' | 'buscar' | 'perfil';
@@ -103,20 +104,19 @@ export const BottomNavigation: React.FC<BottomNavigationProps> = memo(({
         WebkitTransform: 'translateZ(0)',
       }}
     >
-      {/* Capsule matching the exact color, border, and glass finish of the map control icons */}
-      <div
-        className={`w-full max-w-[326px] sm:max-w-[342px] h-[62px] sm:h-[64px] p-[5.5px] pointer-events-auto relative rounded-full backdrop-blur-md border transition-colors duration-200 ${
-          isDark
-            ? 'bg-zinc-900/90 border-white/10 shadow-[0_6px_20px_rgba(0,0,0,0.22)]'
-            : 'bg-white/90 border-zinc-200/80 shadow-[0_6px_20px_rgba(0,0,0,0.22)]'
-        }`}
+      {/* Capsule with expo-glass-effect iOS Liquid Glass finish */}
+      <GlassView
+        variant="bar"
+        glassEffectStyle="regular"
+        isInteractive
+        className="w-full max-w-[326px] sm:max-w-[342px] h-[62px] sm:h-[64px] p-[5.5px] pointer-events-auto relative rounded-full"
         style={{
           transform: 'translateZ(0)',
           WebkitTransform: 'translateZ(0)',
         }}
       >
         {/* Inner track with 5 uniform slots and hardware-accelerated sliding selection capsule */}
-        <div className="relative w-full h-full grid grid-cols-5 items-center">
+        <div className="relative w-full h-full grid grid-cols-5 items-center z-10">
           {/* Active Option Selection Capsule */}
           <div
             aria-hidden="true"
@@ -127,10 +127,10 @@ export const BottomNavigation: React.FC<BottomNavigationProps> = memo(({
               willChange: 'transform',
             }}
           >
-            <div
-              className={`w-full h-full rounded-full transition-colors duration-200 ${
-                isDark ? 'bg-white/10 border border-white/10' : 'bg-[#EBEBEF]'
-              }`}
+            <GlassView
+              variant="pill"
+              glassEffectStyle="regular"
+              className="w-full h-full rounded-full"
             />
           </div>
 
@@ -178,7 +178,7 @@ export const BottomNavigation: React.FC<BottomNavigationProps> = memo(({
             );
           })}
         </div>
-      </div>
+      </GlassView>
     </nav>
   );
 });

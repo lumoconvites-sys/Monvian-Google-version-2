@@ -61,9 +61,9 @@ export const InstallAppOption: React.FC = () => {
               </div>
             </div>
           </div>
-          <div className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-2xl bg-white text-zinc-950 text-xs font-black shadow-xs shrink-0">
+          <div className="flex items-center gap-1.5 px-4 py-2 rounded-full expo-liquid-glass-btn text-black text-xs font-bold shadow-xs border border-black/5 shrink-0">
             <span>Instalar</span>
-            <ChevronRight className="w-4 h-4 text-zinc-950" />
+            <ChevronRight className="w-4 h-4 text-black" />
           </div>
         </button>
       )}
@@ -127,7 +127,7 @@ export const InstallAppOption: React.FC = () => {
               <button
                 type="button"
                 onClick={() => setShowIOSGuide(false)}
-                className="w-full py-3 px-4 rounded-2xl bg-white text-zinc-950 font-black text-sm shadow-md hover:bg-zinc-100 transition-colors cursor-pointer text-center"
+                className="w-full py-3.5 px-5 rounded-full expo-liquid-glass-btn text-black font-bold text-sm shadow-sm border border-black/5 hover:bg-zinc-50 active:scale-95 transition-all cursor-pointer text-center"
               >
                 Entendi
               </button>
@@ -170,7 +170,7 @@ export const InstallAppOption: React.FC = () => {
               <button
                 type="button"
                 onClick={() => setShowBrowserGuide(false)}
-                className="w-full py-3 px-4 rounded-2xl bg-white text-zinc-950 hover:bg-zinc-100 font-black text-sm shadow-md transition-all cursor-pointer text-center"
+                className="w-full py-3.5 px-5 rounded-full expo-liquid-glass-btn text-black font-bold text-sm shadow-sm border border-black/5 hover:bg-zinc-50 active:scale-95 transition-all cursor-pointer text-center"
               >
                 Fechar
               </button>

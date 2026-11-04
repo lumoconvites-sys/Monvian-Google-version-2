@@ -12,13 +12,14 @@ import {
   MapPin,
   RotateCcw,
   AlertCircle,
+  Play,
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { Itinerary, ItineraryCategory } from '../../types';
 import { ItineraryStoreDetailModal } from './ItineraryStoreDetailModal';
-import { PremiumModal } from '../PremiumModal';
 import { preloadImage } from '../../utils/preloadItineraries';
 import {
+  fetchItinerariesFromSupabase,
   fetchPaginatedItinerariesFromSupabase,
   fetchItineraryCategoriesFromSupabase,
   subscribeToItinerariesChanges,
@@ -26,11 +27,8 @@ import {
   matchesItineraryFilter,
 } from '../../services/supabaseItineraries';
 import { useFavorites } from '../../hooks/useFavorites';
-import { usePlatanos } from '../../hooks/usePlatanos';
-import { PlatanoLeafIcon, PlatanoUnlockToast } from '../platanos/PlatanoLeafIcon';
-import { PlatanosWalletModal } from '../platanos/PlatanosWalletModal';
-import { PlatanoPurchaseConfirmModal } from '../platanos/PlatanoPurchaseConfirmModal';
 import { DEFAULT_CURATED_ITINERARIES } from '../../data/defaultItineraries';
+import { triggerHapticFeedback } from '../../utils/haptics';
 
 // Fast in-memory cache for categories
 let memoryCategoriesCache: ItineraryCategory[] | null = null;
@@ -38,11 +36,20 @@ const CACHE_KEY_CATS = 'monvian_itinerary_categories_cache_v6';
 
 function getKnownItinerariesPool(): Itinerary[] {
   try {
-    const cached = localStorage.getItem('monvian_itineraries_cache');
+    const cached =
+      localStorage.getItem('monvian_cached_itineraries') ||
+      localStorage.getItem('monvian_itineraries_cache');
     if (cached) {
       const parsed: Itinerary[] = JSON.parse(cached);
       if (Array.isArray(parsed) && parsed.length > 0) {
-        return parsed;
+        const existingIds = new Set(parsed.map((i) => i.id));
+        const merged = [...parsed];
+        for (const def of DEFAULT_CURATED_ITINERARIES) {
+          if (!existingIds.has(def.id)) {
+            merged.push(def);
+          }
+        }
+        return merged;
       }
     }
   } catch {}
@@ -125,10 +132,15 @@ function computeOptimalBatchSize(isInitialLoad: boolean): number {
 }
 
 export interface AirbnbItineraryExplorerProps {
-  onSelectItinerary: (itinerary: Itinerary) => Promise<void> | void;
+  onSelectItinerary: (
+    itinerary: Itinerary,
+    options?: { fromOnboardingSelection?: boolean }
+  ) => Promise<void> | void;
   onOpenMap?: () => void;
   theme?: 'dark' | 'light';
   activeItineraryId?: string | null;
+  isOnboardingSelection?: boolean;
+  isOnboardingRevealReady?: boolean;
 }
 
 interface PhotoCategoryItem {
@@ -226,6 +238,7 @@ const FeaturedItineraryBanner: React.FC<FeaturedItineraryBannerProps> = ({
   onOpenDetail,
 }) => {
   const [imgSrc, setImgSrc] = useState(itinerary.coverImage);
+  const [hatTapCount, setHatTapCount] = useState(0);
 
   useEffect(() => {
     setImgSrc(itinerary.coverImage);
@@ -253,69 +266,143 @@ const FeaturedItineraryBanner: React.FC<FeaturedItineraryBannerProps> = ({
           WebkitBackfaceVisibility: 'hidden',
         }}
         onClick={() => onOpenDetail(itinerary)}
-        className={`group relative w-full h-[220px] sm:h-[240px] rounded-[28px] overflow-hidden cursor-pointer select-none shadow-md border backdrop-blur-md ${
-          isDark ? 'bg-zinc-900 border-white/10' : 'bg-zinc-200 border-black/5'
-        }`}
+        className="group relative w-full h-[220px] sm:h-[240px] cursor-pointer select-none"
       >
-        <img
-          src={imgSrc}
-          alt={itinerary.title}
-          loading="eager"
-          decoding="async"
-          onError={() => {
-            if (imgSrc !== '/placeholder.jpg') {
-              setImgSrc('/placeholder.jpg');
-            }
+        {/* Touca de Natal exclusiva do Roteiro em Destaque com animação de entrada e interação ao toque */}
+        <motion.img
+          key={`hat-${itinerary.id}-${category}-${hatTapCount}`}
+          src="/assets/aistudio/IMG_9114_2aef8105.png"
+          alt="Gorro de Natal"
+          draggable={false}
+          onClick={(e) => {
+            e.stopPropagation();
+            triggerHapticFeedback(15);
+            setHatTapCount((prev) => prev + 1);
           }}
-          className="absolute inset-0 w-full h-full object-cover group-hover:scale-105 transition-transform duration-700 ease-out"
+          initial={
+            hatTapCount === 0
+              ? { opacity: 0, x: -16, y: -32, scale: 0.55, rotate: -52 }
+              : { opacity: 1, x: 0, y: 0, scale: 1, rotate: -28 }
+          }
+          animate={
+            hatTapCount === 0
+              ? {
+                  opacity: 1,
+                  x: 0,
+                  y: [null, 3, -2, 0],
+                  scale: [null, 1.08, 0.97, 1],
+                  rotate: [null, -20, -32, -28],
+                }
+              : {
+                  opacity: 1,
+                  x: [0, -3, 3, -1, 0],
+                  y: [0, -10, 2, -3, 0],
+                  scale: [1, 1.18, 0.93, 1.05, 1],
+                  rotate: [-28, -12, -38, -22, -28],
+                }
+          }
+          transition={
+            hatTapCount === 0
+              ? {
+                  duration: 0.72,
+                  delay: 0.16,
+                  ease: [0.22, 1, 0.36, 1],
+                }
+              : {
+                  duration: 0.52,
+                  ease: [0.22, 1, 0.36, 1],
+                }
+          }
+          whileHover={{ scale: 1.08, rotate: -22 }}
+          whileTap={{ scale: 0.9, rotate: -36 }}
+          style={{
+            transformOrigin: '55% 75%',
+            WebkitTapHighlightColor: 'transparent',
+          }}
+          className="absolute -top-[28px] -left-[10px] w-[70px] h-[60px] object-contain pointer-events-auto cursor-pointer select-none z-30 drop-shadow-[0_4px_8px_rgba(0,0,0,0.45)]"
         />
 
-        {/* Discreet Dark Gradient Overlay on Left & Bottom for Text Legibility */}
-        <div className="absolute inset-0 bg-gradient-to-r from-black/85 via-black/45 to-black/15 pointer-events-none" />
-        <div className="absolute inset-0 bg-gradient-to-t from-black/85 via-black/25 to-black/5 pointer-events-none" />
+        <div
+          className={`relative w-full h-full rounded-[28px] overflow-hidden shadow-md border backdrop-blur-md ${
+            isDark ? 'bg-zinc-900 border-white/10' : 'bg-zinc-200 border-black/5'
+          }`}
+        >
+          <img
+            src={imgSrc}
+            alt={itinerary.title}
+            loading="eager"
+            decoding="async"
+            onError={() => {
+              if (imgSrc !== '/placeholder.jpg') {
+                setImgSrc('/placeholder.jpg');
+              }
+            }}
+            className="absolute inset-0 w-full h-full object-cover group-hover:scale-105 transition-transform duration-700 ease-out"
+          />
 
-        {/* Banner Content Aligned Left */}
-        <div className="relative z-10 h-full p-5 flex flex-col justify-between items-start">
-          {/* Top Row: Highlight Badge + Heart Button */}
-          <div className="w-full flex items-center justify-between">
-            <span className="px-2.5 py-1 rounded-md bg-black/40 backdrop-blur-md border border-white/10 text-white/90 text-[10px] font-bold uppercase tracking-wider leading-none">
-              {itinerary.isFeatured ? 'Destaque' : 'Recomendado'}
-            </span>
+          {/* Discreet Dark Gradient Overlay on Left & Bottom for Text Legibility */}
+          <div className="absolute inset-0 bg-gradient-to-r from-black/85 via-black/45 to-black/15 pointer-events-none" />
+          <div className="absolute inset-0 bg-gradient-to-t from-black/85 via-black/25 to-black/5 pointer-events-none" />
 
-            {/* Heart Favorite Button */}
-            <button
-              type="button"
-              onClick={onToggleFavorite}
-              className="w-8 h-8 flex items-center justify-center transition-transform hover:scale-110 active:scale-90 cursor-pointer"
-              title={isFavorite ? 'Remover dos favoritos' : 'Salvar nos favoritos'}
-              aria-label={isFavorite ? 'Remover dos favoritos' : 'Salvar nos favoritos'}
-            >
-              <Heart
-                className={`w-7 h-7 transition-colors drop-shadow-[0_2px_6px_rgba(0,0,0,0.45)] ${
-                  isFavorite
-                    ? 'fill-rose-500 text-rose-500 stroke-[2]'
-                    : 'fill-black/30 text-white stroke-[2]'
-                }`}
-              />
-            </button>
-          </div>
-
-          {/* Middle Title & Summary + Bottom CTA Button */}
-          <div className="w-full max-w-[88%] sm:max-w-[78%]">
-            <h2 className="text-[19px] sm:text-[22px] font-bold text-white leading-tight tracking-tight line-clamp-2 drop-shadow-sm">
-              {itinerary.title}
-            </h2>
-            <p className="text-[11.5px] sm:text-[12.5px] text-white/85 font-medium line-clamp-1 mt-1 drop-shadow-xs">
-              {itinerary.daysCount} {itinerary.daysCount === 1 ? 'dia' : 'dias'}
-              {stopsCount > 0 ? ` · ${stopsCount} paradas` : ''} ·{' '}
-              {itinerary.description}
-            </p>
-
-            <div className="mt-3 flex items-center gap-2">
-              <span className="px-4 py-2 rounded-full bg-white text-zinc-900 text-[12px] font-semibold inline-flex items-center gap-1.5 shadow-md group-hover:bg-zinc-100 transition-colors">
-                <span>Ver roteiro</span>
-                <ArrowRight className="w-3.5 h-3.5 stroke-[2.4]" />
+          {/* Banner Content Aligned Left */}
+          <div className="relative z-10 h-full p-5 flex flex-col justify-between items-start">
+            {/* Top Row: Highlight Badge + Heart Button */}
+            <div className="w-full flex items-center justify-between">
+              <span className="ml-[2px] mt-[7px] pt-[10px] text-white font-bold uppercase tracking-widest text-[11px] drop-shadow-[0_1.5px_3px_rgba(0,0,0,0.8)] leading-none">
+                {itinerary.isFeatured ? 'Destaque' : 'Recomendado'}
               </span>
+
+              {/* Heart Favorite Button */}
+              <button
+                type="button"
+                onClick={onToggleFavorite}
+                className="w-9 h-9 flex items-center justify-center transition-transform hover:scale-110 active:scale-90 cursor-pointer"
+                title={isFavorite ? 'Remover dos favoritos' : 'Salvar nos favoritos'}
+                aria-label={isFavorite ? 'Remover dos favoritos' : 'Salvar nos favoritos'}
+              >
+                <Heart
+                  className={`w-8 h-8 transition-all drop-shadow-[0_2px_8px_rgba(0,0,0,0.55)] stroke-none ${
+                    isFavorite
+                      ? 'fill-rose-500 text-rose-500'
+                      : 'fill-white/90 text-white/90'
+                  }`}
+                />
+              </button>
+            </div>
+
+            {/* Middle Title & Summary + Bottom CTA Button & 5 Stars */}
+            <div className="w-full">
+              <div className="max-w-[88%] sm:max-w-[78%]">
+                <h2 className="text-[19px] sm:text-[22px] font-bold text-white leading-tight tracking-tight line-clamp-2 drop-shadow-sm">
+                  {itinerary.title}
+                </h2>
+                <p className="text-[11.5px] sm:text-[12.5px] text-white/85 font-medium line-clamp-1 mt-1 drop-shadow-xs">
+                  {itinerary.daysCount} {itinerary.daysCount === 1 ? 'dia' : 'dias'}
+                  {stopsCount > 0 ? ` · ${stopsCount} paradas` : ''} ·{' '}
+                  {itinerary.description}
+                </p>
+              </div>
+
+              {/* Bottom Row: CTA Button on Left + 5 Rating Stars on Right */}
+              <div className="mt-3 w-full flex items-center justify-between gap-2">
+                <span className="px-4 py-2 rounded-full expo-liquid-glass-btn expo-liquid-glass-clear text-white text-[12px] font-semibold inline-flex items-center gap-1.5 transition-all shrink-0">
+                  <span>Ver roteiro</span>
+                  <ArrowRight className="w-3.5 h-3.5 stroke-[2.4]" />
+                </span>
+
+                {/* 5 Estrelas de Avaliação Maiores */}
+                <div
+                  className="flex items-center gap-1 sm:gap-1.5 shrink-0"
+                  aria-label="Avaliação 5 estrelas"
+                >
+                  {[0, 1, 2, 3, 4].map((starIdx) => (
+                    <Star
+                      key={starIdx}
+                      className="w-4 h-4 sm:w-[18px] sm:h-[18px] fill-amber-400 text-amber-400 drop-shadow-[0_1.5px_4px_rgba(0,0,0,0.8)]"
+                    />
+                  ))}
+                </div>
+              </div>
             </div>
           </div>
         </div>
@@ -329,11 +416,38 @@ export const AirbnbItineraryExplorer: React.FC<AirbnbItineraryExplorerProps> = (
   onOpenMap,
   theme = 'dark',
   activeItineraryId,
+  isOnboardingSelection = false,
+  isOnboardingRevealReady = true,
 }) => {
   const initialItinerariesData = useMemo(() => getItinerariesForCategory('all', 'all', ''), []);
   const [itineraries, setItineraries] = useState<Itinerary[]>(initialItinerariesData.list);
   const [featuredBannerItinerary, setFeaturedBannerItinerary] = useState<Itinerary | null>(initialItinerariesData.featured);
   const [categories, setCategories] = useState<ItineraryCategory[]>(getInitialCategories);
+  const [onboardingPool, setOnboardingPool] = useState<Itinerary[]>(() =>
+    getKnownItinerariesPool().filter((i) => i.isActive !== false)
+  );
+
+  useEffect(() => {
+    if (!isOnboardingSelection) return;
+    let mounted = true;
+    fetchItinerariesFromSupabase()
+      .then((fetched) => {
+        if (!mounted || !Array.isArray(fetched) || fetched.length === 0) return;
+        const activeFetched = fetched.filter((i) => i.isActive !== false);
+        const existingIds = new Set(activeFetched.map((i) => i.id));
+        const combined = [...activeFetched];
+        for (const def of DEFAULT_CURATED_ITINERARIES) {
+          if (def.isActive !== false && !existingIds.has(def.id)) {
+            combined.push(def);
+          }
+        }
+        setOnboardingPool(combined);
+      })
+      .catch(() => {});
+    return () => {
+      mounted = false;
+    };
+  }, [isOnboardingSelection]);
 
   // Progressive pagination states - starts false because initial cache/defaults are hydrated instantly
   const [loading, setLoading] = useState<boolean>(false);
@@ -353,20 +467,7 @@ export const AirbnbItineraryExplorer: React.FC<AirbnbItineraryExplorerProps> = (
   const [showAllItineraries, setShowAllItineraries] = useState(false);
   const [selectedItinerary, setSelectedItinerary] = useState<Itinerary | null>(null);
   const [isDetailOpen, setIsDetailOpen] = useState(false);
-  const [isPremiumModalOpen, setIsPremiumModalOpen] = useState(false);
-  const [isWalletModalOpen, setIsWalletModalOpen] = useState(false);
-  const [walletInitialTab, setWalletInitialTab] = useState<'topup' | 'history'>('topup');
-  const [confirmPurchaseItin, setConfirmPurchaseItin] = useState<Itinerary | null>(null);
-  const [unlockToast, setUnlockToast] = useState<{ visible: boolean; title: string; subtitle?: string }>({
-    visible: false,
-    title: '',
-  });
   const { savedItineraries: favorites, toggleItinerary } = useFavorites();
-  const {
-    wallet,
-    getItineraryPlatanoPrice,
-    isItineraryUnlocked,
-  } = usePlatanos();
 
   const [isCategorySwitching, setIsCategorySwitching] = useState(false);
 
@@ -424,21 +525,11 @@ export const AirbnbItineraryExplorer: React.FC<AirbnbItineraryExplorerProps> = (
     const handleCloseAll = () => {
       setIsDetailOpen(false);
       setSelectedItinerary(null);
-      setIsPremiumModalOpen(false);
       setIsFilterOpen(false);
-      setIsWalletModalOpen(false);
-      setConfirmPurchaseItin(null);
-    };
-    const handleOpenWalletEvent = (e: Event) => {
-      const custom = e as CustomEvent<{ tab?: 'topup' | 'history' }>;
-      setWalletInitialTab(custom.detail?.tab || 'topup');
-      setIsWalletModalOpen(true);
     };
     window.addEventListener('monvian-close-modals', handleCloseAll);
-    window.addEventListener('monvian:open_platanos_wallet', handleOpenWalletEvent);
     return () => {
       window.removeEventListener('monvian-close-modals', handleCloseAll);
-      window.removeEventListener('monvian:open_platanos_wallet', handleOpenWalletEvent);
     };
   }, []);
 
@@ -796,6 +887,139 @@ export const AirbnbItineraryExplorer: React.FC<AirbnbItineraryExplorerProps> = (
     );
   }, [validFeaturedBanner]);
 
+  const onboardingAllItineraries = useMemo<Itinerary[]>(() => {
+    const map = new Map<string, Itinerary>();
+    for (const item of onboardingPool) {
+      if (item.isActive !== false && !map.has(item.id)) {
+        map.set(item.id, item);
+      }
+    }
+    if (featuredBannerItinerary && featuredBannerItinerary.isActive !== false && !map.has(featuredBannerItinerary.id)) {
+      map.set(featuredBannerItinerary.id, featuredBannerItinerary);
+    }
+    for (const item of itineraries) {
+      if (item.isActive !== false && !map.has(item.id)) {
+        map.set(item.id, item);
+      }
+    }
+    for (const def of DEFAULT_CURATED_ITINERARIES) {
+      if (def.isActive !== false && !map.has(def.id)) {
+        map.set(def.id, def);
+      }
+    }
+    return Array.from(map.values());
+  }, [onboardingPool, featuredBannerItinerary, itineraries]);
+
+  if (isOnboardingSelection) {
+    return (
+      <motion.div
+        id="onboarding-itinerary-selection-screen"
+        initial={{ opacity: 0, filter: 'blur(8px)' }}
+        animate={
+          isOnboardingRevealReady
+            ? { opacity: 1, filter: 'blur(0px)' }
+            : { opacity: 0, filter: 'blur(8px)' }
+        }
+        transition={{
+          duration: 0.65,
+          ease: [0.22, 1, 0.36, 1],
+        }}
+        className="relative w-full h-full overflow-y-auto overscroll-y-contain bg-[#FFFFFF] text-[#111111] select-none"
+        style={{
+          fontFamily: "-apple-system, BlinkMacSystemFont, 'SF Pro Display', 'SF Pro Text', sans-serif",
+          WebkitOverflowScrolling: 'touch',
+          touchAction: 'pan-y',
+          backgroundColor: '#FFFFFF',
+        }}
+      >
+        <div
+          className="w-full max-w-2xl mx-auto px-6 pb-20"
+          style={{
+            paddingTop: 'max(calc(env(safe-area-inset-top, 0px) + 32px), 48px)',
+          }}
+        >
+          <motion.h1
+            initial={{ opacity: 0, y: 8, filter: 'blur(6px)' }}
+            animate={
+              isOnboardingRevealReady
+                ? { opacity: 1, y: 0, filter: 'blur(0px)' }
+                : { opacity: 0, y: 8, filter: 'blur(6px)' }
+            }
+            transition={{
+              duration: 0.6,
+              ease: [0.22, 1, 0.36, 1],
+              delay: 0.04,
+            }}
+            className="text-center text-[24px] sm:text-[28px] font-bold tracking-[-0.025em] text-[#111111] leading-tight mb-8"
+          >
+            Selecione o melhor roteiro
+          </motion.h1>
+
+          <div className="flex flex-col gap-7">
+            {onboardingAllItineraries.map((itin, idx) => (
+              <motion.div
+                key={itin.id}
+                onClick={() => {
+                  triggerHapticFeedback(12);
+                  onSelectItinerary(itin, { fromOnboardingSelection: true });
+                }}
+                initial={{ opacity: 0, y: 12, filter: 'blur(8px)' }}
+                animate={
+                  isOnboardingRevealReady
+                    ? { opacity: 1, y: 0, filter: 'blur(0px)' }
+                    : { opacity: 0, y: 12, filter: 'blur(8px)' }
+                }
+                transition={{
+                  duration: 0.65,
+                  ease: [0.22, 1, 0.36, 1],
+                  delay: 0.1 + idx * 0.065,
+                }}
+                whileTap={{ scale: 0.985 }}
+                className="group flex flex-col cursor-pointer select-none"
+              >
+                <div className="relative w-full h-[204px] sm:h-[228px] rounded-[24px] overflow-hidden bg-zinc-100 border border-black/[0.06]">
+                  <img
+                    src={itin.coverImage}
+                    alt={itin.title}
+                    width={800}
+                    height={456}
+                    draggable={false}
+                    loading="eager"
+                    decoding="async"
+                    referrerPolicy="no-referrer"
+                    onError={(e) => {
+                      (e.target as HTMLImageElement).src =
+                        'https://images.unsplash.com/photo-1506744038136-46273834b3fb?auto=format&fit=crop&w=800&q=80';
+                    }}
+                    className="w-full h-full object-cover transition-transform duration-500 ease-out group-hover:scale-[1.02] pointer-events-none select-none"
+                  />
+                </div>
+
+                <div className="pt-3 px-1 flex items-center justify-between gap-3">
+                  <h2 className="text-[16px] sm:text-[17px] font-semibold tracking-[-0.015em] text-[#111111] leading-snug truncate">
+                    {itin.title}
+                  </h2>
+
+                  <div
+                    className="flex items-center gap-0.5 shrink-0"
+                    aria-label="Avaliação 5 estrelas"
+                  >
+                    {[0, 1, 2, 3, 4].map((starIdx) => (
+                      <Star
+                        key={starIdx}
+                        className="w-3.5 h-3.5 sm:w-4 sm:h-4 fill-amber-400 text-amber-400"
+                      />
+                    ))}
+                  </div>
+                </div>
+              </motion.div>
+            ))}
+          </div>
+        </div>
+      </motion.div>
+    );
+  }
+
   return (
     <div
       ref={scrollContainerRef}
@@ -847,40 +1071,19 @@ export const AirbnbItineraryExplorer: React.FC<AirbnbItineraryExplorerProps> = (
             </h1>
           </div>
 
-          {/* Right Action: Back arrow without background to map + Compact Plátanos Balance */}
+          {/* Right Action: Play button with black background to open map */}
           <div className="flex items-center gap-2">
             {onOpenMap ? (
               <button
                 type="button"
                 onClick={onOpenMap}
-                className="w-9 h-9 flex items-center justify-center text-white cursor-pointer active:scale-90 transition-transform bg-transparent border-none shadow-none outline-none"
-                title="Voltar ao mapa"
-                aria-label="Voltar ao mapa"
+                className="w-9 h-9 rounded-full bg-black flex items-center justify-center text-white cursor-pointer active:scale-90 transition-transform border border-white/10 shadow-none outline-none"
+                title="Abrir roteiro no mapa"
+                aria-label="Abrir roteiro no mapa"
               >
-                <ArrowLeft className="w-6 h-6 stroke-[2.4] text-white" />
+                <Play className="w-4 h-4 fill-white text-white ml-0.5" />
               </button>
             ) : null}
-
-            <button
-              type="button"
-              id="btn-platanos-wallet-header"
-              onClick={() => {
-                setWalletInitialTab('topup');
-                setIsWalletModalOpen(true);
-              }}
-              className={`h-9 px-3 rounded-full flex items-center gap-1.5 text-xs font-semibold transition-transform duration-150 cursor-pointer border active:scale-95 ${
-                isDark
-                  ? 'bg-[#141417] border-[#D9A84E]/35 text-white hover:border-[#D9A84E]/60 shadow-[0_2px_10px_rgba(0,0,0,0.35)]'
-                  : 'bg-white border-[#D9A84E]/45 text-zinc-900 hover:bg-zinc-50 shadow-[0_2px_8px_rgba(0,0,0,0.05)]'
-              }`}
-              title="Abrir carteira de Plátanos"
-              aria-label="Abrir carteira de Plátanos"
-            >
-              <PlatanoLeafIcon className="w-4 h-4 shrink-0" variant="gold" />
-              <span className="font-bold tracking-tight tabular-nums">
-                {wallet.balance}
-              </span>
-            </button>
           </div>
         </div>
 
@@ -892,10 +1095,8 @@ export const AirbnbItineraryExplorer: React.FC<AirbnbItineraryExplorerProps> = (
               setTimeout(() => searchInputRef.current?.focus(), 40);
             }}
             style={{ paddingLeft: '24px', marginLeft: '0px', marginTop: '19px', paddingTop: '4px', paddingRight: '10px', marginRight: '3px' }}
-            className={`relative flex items-center justify-between w-full min-h-[48px] rounded-full px-4 py-1.5 transition-all border cursor-pointer ${
-              isDark
-                ? 'bg-[#151518] text-white border-white/10 shadow-[0_2px_12px_rgba(0,0,0,0.35)]'
-                : 'bg-white text-zinc-900 border-zinc-200/90 shadow-[0_2px_10px_rgba(0,0,0,0.04)]'
+            className={`relative flex items-center justify-between w-full min-h-[48px] rounded-full px-4 py-1.5 transition-all expo-liquid-glass-bar cursor-pointer ${
+              isDark ? 'text-white' : 'text-zinc-900'
             }`}
           >
             {/* Left: Magnifying Glass + Single-Line Text or Active Input */}
@@ -951,10 +1152,8 @@ export const AirbnbItineraryExplorer: React.FC<AirbnbItineraryExplorerProps> = (
                     setSearchQuery('');
                     searchInputRef.current?.focus();
                   }}
-                  className={`w-7 h-7 rounded-full flex items-center justify-center transition-colors cursor-pointer ${
-                    isDark
-                      ? 'bg-white/10 hover:bg-white/20 text-zinc-300'
-                      : 'bg-zinc-100 hover:bg-zinc-200 text-zinc-700'
+                  className={`w-7 h-7 rounded-full expo-liquid-glass-btn flex items-center justify-center transition-colors cursor-pointer ${
+                    isDark ? 'text-zinc-300' : 'text-zinc-700'
                   }`}
                   title="Limpar pesquisa"
                 >
@@ -1001,7 +1200,7 @@ export const AirbnbItineraryExplorer: React.FC<AirbnbItineraryExplorerProps> = (
       {/* =====================================================================
           CONTEÚDO PRINCIPAL: BANNER DE DESTAQUE + ROTEIROS PARA DESCOBRIR
          ===================================================================== */}
-      <div className="relative pt-1 pb-44 max-w-5xl mx-auto">
+      <div className="relative pt-3 pb-44 max-w-5xl mx-auto">
         <div
           style={{ backgroundColor: isDark ? '#000000' : '#ffffff' }}
           className={`space-y-5 transition-all duration-300 ease-out ${
@@ -1085,11 +1284,11 @@ export const AirbnbItineraryExplorer: React.FC<AirbnbItineraryExplorerProps> = (
             <button
               type="button"
               onClick={() => loadInitialBatch({ forceRefresh: true })}
-              className={`mt-2 px-4 py-2 rounded-full text-xs font-semibold inline-flex items-center gap-1.5 cursor-pointer active:scale-95 transition-transform ${
-                isDark ? 'bg-white text-black' : 'bg-zinc-900 text-white'
+              className={`mt-2 px-5 py-2.5 rounded-full text-xs font-bold inline-flex items-center gap-1.5 cursor-pointer active:scale-95 transition-all shadow-xs border ${
+                isDark ? 'bg-white text-black border-transparent' : 'expo-liquid-glass-btn text-black border-black/5 hover:bg-zinc-50'
               }`}
             >
-              <RotateCcw className="w-3.5 h-3.5 stroke-[2.2]" />
+              <RotateCcw className="w-3.5 h-3.5 stroke-[2.2] text-current" />
               <span>Tentar novamente</span>
             </button>
           </div>
@@ -1114,8 +1313,8 @@ export const AirbnbItineraryExplorer: React.FC<AirbnbItineraryExplorerProps> = (
                 setDurationFilter('all');
                 setSearchQuery('');
               }}
-              className={`mt-2 px-4 py-2 rounded-full text-xs font-semibold cursor-pointer ${
-                isDark ? 'bg-white text-black' : 'bg-zinc-900 text-white'
+              className={`mt-2 px-5 py-2.5 rounded-full text-xs font-bold cursor-pointer active:scale-95 transition-all shadow-xs border ${
+                isDark ? 'bg-white text-black border-transparent' : 'expo-liquid-glass-btn text-black border-black/5 hover:bg-zinc-50'
               }`}
             >
               Ver todos os roteiros
@@ -1180,30 +1379,16 @@ export const AirbnbItineraryExplorer: React.FC<AirbnbItineraryExplorerProps> = (
                 <div className="px-5 flex flex-col gap-5 sm:grid sm:grid-cols-2 lg:grid-cols-3" style={{ backgroundColor: isDark ? '#000000' : '#ffffff' }}>
                   {displayItineraries.map((itin, idx) => (
                     <HorizontalReferenceItineraryCard
-                        key={itin.id}
-                        index={idx}
-                        itinerary={itin}
-                        isFavorite={favorites.includes(itin.id)}
-                        onToggleFavorite={(e) => handleToggleFavorite(itin.id, e)}
-                        onClick={() => handleOpenDetail(itin)}
-                        onQuickAdd={
-                          itin.isPremium && itin.badgeText?.toLowerCase() !== 'grátis'
-                            ? () => {
-                                if (isItineraryUnlocked(itin.id)) {
-                                  handleOpenDetail(itin);
-                                } else {
-                                  setConfirmPurchaseItin(itin);
-                                }
-                              }
-                            : undefined
-                        }
-                        platanoPrice={getItineraryPlatanoPrice(itin)}
-                        isUnlocked={isItineraryUnlocked(itin.id)}
-                        isActiveRoute={itin.id === activeItineraryId}
-                        isDark={isDark}
-                      />
-                    )
-                  )}
+                      key={itin.id}
+                      index={idx}
+                      itinerary={itin}
+                      isFavorite={favorites.includes(itin.id)}
+                      onToggleFavorite={(e) => handleToggleFavorite(itin.id, e)}
+                      onClick={() => handleOpenDetail(itin)}
+                      isActiveRoute={itin.id === activeItineraryId}
+                      isDark={isDark}
+                    />
+                  ))}
                 </div>
 
                 {/* 7. INFINITE SCROLL SENTINEL & PROGRESSIVE LOADING FOOTER STATES */}
@@ -1257,13 +1442,13 @@ export const AirbnbItineraryExplorer: React.FC<AirbnbItineraryExplorerProps> = (
                       <button
                         type="button"
                         onClick={() => loadMoreItineraries(true)}
-                        className={`px-3 py-1.5 rounded-full text-xs font-semibold shrink-0 inline-flex items-center gap-1.5 cursor-pointer active:scale-95 transition-transform ${
+                        className={`px-4 py-2 rounded-full text-xs font-bold shrink-0 inline-flex items-center gap-1.5 cursor-pointer active:scale-95 transition-all shadow-xs border ${
                           isDark
-                            ? 'bg-white text-black hover:bg-zinc-200'
-                            : 'bg-zinc-900 text-white hover:bg-zinc-800'
+                            ? 'bg-white text-black hover:bg-zinc-200 border-transparent'
+                            : 'expo-liquid-glass-btn text-black border-black/5 hover:bg-zinc-50'
                         }`}
                       >
-                        <RotateCcw className="w-3 h-3 stroke-[2.2]" />
+                        <RotateCcw className="w-3 h-3 stroke-[2.2] text-current" />
                         <span>Tentar novamente</span>
                       </button>
                     </div>
@@ -1283,65 +1468,7 @@ export const AirbnbItineraryExplorer: React.FC<AirbnbItineraryExplorerProps> = (
         isOpen={isDetailOpen}
         onClose={() => setIsDetailOpen(false)}
         onApplyItinerary={handleApplyFromDetail}
-        onOpenWalletTopUp={() => {
-          setWalletInitialTab('topup');
-          setIsWalletModalOpen(true);
-        }}
         theme={theme}
-      />
-
-      {/* Plátanos Wallet Modal */}
-      <PlatanosWalletModal
-        isOpen={isWalletModalOpen}
-        onClose={() => setIsWalletModalOpen(false)}
-        theme={theme}
-        initialTab={walletInitialTab}
-      />
-
-      {/* Plátanos Purchase Confirmation Modal */}
-      <PlatanoPurchaseConfirmModal
-        itinerary={confirmPurchaseItin}
-        isOpen={Boolean(confirmPurchaseItin)}
-        onClose={() => setConfirmPurchaseItin(null)}
-        onOpenWalletTopUp={() => {
-          setWalletInitialTab('topup');
-          setIsWalletModalOpen(true);
-        }}
-        onConfirmSuccess={(unlockedItin, res) => {
-          setConfirmPurchaseItin(null);
-          setUnlockToast({
-            visible: true,
-            title: `Roteiro liberado: ${unlockedItin.title}`,
-            subtitle: res.alreadyUnlocked
-              ? 'Este roteiro já faz parte da sua coleção'
-              : `-${res.charged} Plátanos · Saldo atual: ${res.balanceAfter} Plátanos`,
-          });
-          setSelectedItinerary(unlockedItin);
-          setIsDetailOpen(true);
-        }}
-        theme={theme}
-      />
-
-      {/* Leaf Unlock Animation Toast */}
-      <PlatanoUnlockToast
-        visible={unlockToast.visible}
-        title={unlockToast.title}
-        subtitle={unlockToast.subtitle}
-        theme={theme}
-        onDone={() => setUnlockToast((prev) => ({ ...prev, visible: false }))}
-      />
-
-      {/* Monvian Elite Gold Banner / Stripe Paywall Modal */}
-      <PremiumModal
-        isOpen={isPremiumModalOpen}
-        onClose={() => setIsPremiumModalOpen(false)}
-        theme={theme}
-        onUnlock={() => {
-          setIsPremiumModalOpen(false);
-          if (selectedItinerary) {
-            setIsDetailOpen(true);
-          }
-        }}
       />
     </div>
   );
@@ -1356,9 +1483,6 @@ interface HorizontalReferenceItineraryCardProps {
   isFavorite: boolean;
   onToggleFavorite: (e: React.MouseEvent) => void;
   onClick: () => void;
-  onQuickAdd?: () => void;
-  platanoPrice?: number;
-  isUnlocked?: boolean;
   isActiveRoute?: boolean;
   isDark?: boolean;
 }
@@ -1371,9 +1495,6 @@ const HorizontalReferenceItineraryCard: React.FC<HorizontalReferenceItineraryCar
       isFavorite,
       onToggleFavorite,
       onClick,
-      onQuickAdd,
-      platanoPrice = 15,
-      isUnlocked = false,
       isActiveRoute = false,
       isDark = true,
     }) => {
@@ -1389,18 +1510,6 @@ const HorizontalReferenceItineraryCard: React.FC<HorizontalReferenceItineraryCar
         if (!itinerary.days) return 0;
         return itinerary.days.reduce((acc, d) => acc + (d.steps?.length || 0), 0);
       }, [itinerary.days]);
-
-      const isPremiumCard = Boolean(
-        itinerary.isPremium && itinerary.badgeText?.toLowerCase() !== 'grátis'
-      );
-
-      const badgeLabel = useMemo(() => {
-        if (isActiveRoute) return 'Roteiro ativo';
-        if (isUnlocked) return 'Adquirido';
-        if (itinerary.badgeText && itinerary.badgeText.trim()) return itinerary.badgeText;
-        if (itinerary.isFeatured || itinerary.isRecommended) return 'Favorito dos viajantes';
-        return 'Recomendado';
-      }, [isActiveRoute, isUnlocked, itinerary.badgeText, itinerary.isFeatured, itinerary.isRecommended]);
 
       const [imageLoaded, setImageLoaded] = useState(false);
 
@@ -1459,21 +1568,13 @@ const HorizontalReferenceItineraryCard: React.FC<HorizontalReferenceItineraryCar
               }`}
             />
 
-            {/* Top-Left Pill Badge on Image */}
-            <div className="absolute top-3 left-3 px-2.5 py-1 rounded-full bg-white/95 backdrop-blur-xs text-zinc-900 text-[11px] font-semibold shadow-xs flex items-center gap-1 z-10">
-              {isActiveRoute || isUnlocked ? (
+            {/* Active Route Indicator Only (no price badges) */}
+            {isActiveRoute && (
+              <div className="absolute top-3 left-3 px-2.5 py-1 rounded-full bg-white/95 backdrop-blur-xs text-zinc-900 text-[11px] font-semibold shadow-xs flex items-center gap-1 z-10">
                 <Check className="w-3 h-3 stroke-[2.8] text-emerald-600" />
-              ) : isPremiumCard ? (
-                <PlatanoLeafIcon className="w-3.5 h-3.5" variant="gold" />
-              ) : (
-                <Star className="w-3 h-3 fill-zinc-900 text-zinc-900" />
-              )}
-              <span className="tabular-nums">
-                {isPremiumCard && !isUnlocked && !isActiveRoute
-                  ? `${platanoPrice}`
-                  : badgeLabel}
-              </span>
-            </div>
+                <span>Roteiro ativo</span>
+              </div>
+            )}
 
             {/* Top-Right Favorite Heart Button on Image */}
             <button
@@ -1482,15 +1583,15 @@ const HorizontalReferenceItineraryCard: React.FC<HorizontalReferenceItineraryCar
                 e.stopPropagation();
                 onToggleFavorite(e);
               }}
-              className="absolute top-3 right-3 w-8 h-8 flex items-center justify-center transition-transform hover:scale-110 active:scale-90 cursor-pointer z-10"
+              className="absolute top-3 right-3 w-9 h-9 flex items-center justify-center transition-transform hover:scale-110 active:scale-90 cursor-pointer z-10"
               title={isFavorite ? 'Remover dos favoritos' : 'Salvar nos favoritos'}
               aria-label={isFavorite ? 'Remover dos favoritos' : 'Salvar nos favoritos'}
             >
               <Heart
-                className={`w-7 h-7 transition-colors drop-shadow-[0_2px_6px_rgba(0,0,0,0.45)] ${
+                className={`w-8 h-8 transition-all drop-shadow-[0_2px_8px_rgba(0,0,0,0.55)] stroke-none ${
                   isFavorite
-                    ? 'fill-rose-500 text-rose-500 stroke-[2]'
-                    : 'fill-black/30 text-white stroke-[2]'
+                    ? 'fill-rose-500 text-rose-500'
+                    : 'fill-white/90 text-white/90'
                 }`}
               />
             </button>

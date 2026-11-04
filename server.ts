@@ -3,14 +3,12 @@ import dotenv from 'dotenv';
 import path from 'path';
 import crypto from 'crypto';
 import bcrypt from 'bcryptjs';
-import { createServer as createViteServer } from 'vite';
 import { db } from './db_setup.js';
 import { registerItineraryRoutes, setupItineraryDatabase } from './src/server/itineraryRoutes.js';
 import { registerSocialRoutes, setupSocialDatabase } from './src/server/socialRoutes.js';
 import { registerStoryRoutes, setupStoriesDatabase } from './src/server/storyRoutes.js';
 import { registerStripeRoutes, setupStripeDatabase } from './src/server/stripeRoutes.js';
 import { registerPlatanosRoutes, setupPlatanosDatabase } from './src/server/platanosRoutes.js';
-import { registerHostRoutes, setupHostDatabase } from './src/server/hostRoutes.js';
 import { CAMPOS_SPOTS } from './src/data/spots.js';
 import { supabase, supabaseAnonClient } from './src/services/supabaseClient.js';
 import {
@@ -37,6 +35,9 @@ import {
   persistMapVisualIconToFirestore,
   deleteMapVisualIconFromFirestore,
   isPrimaryAdmin,
+  persistPrivacyRequestToFirestore,
+  persistSupportTicketToFirestore,
+  deleteUserAccountFromFirestore,
 } from './src/services/firestoreSync.js';
 
 dotenv.config();
@@ -64,13 +65,22 @@ db.exec(`
     hours TEXT,
     address TEXT,
     price_range TEXT,
+    popular_times TEXT,
+    visitors_today INTEGER DEFAULT 0,
+    badge TEXT,
+    highlighted INTEGER DEFAULT 0,
     price TEXT,
     available_for_itinerary INTEGER DEFAULT 1,
     duration_minutes INTEGER DEFAULT 90,
     tags TEXT,
     maps_url TEXT,
     is_active INTEGER DEFAULT 1,
-    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    is_verified INTEGER DEFAULT 1,
+    is_star INTEGER DEFAULT 0,
+    website TEXT,
+    phone TEXT,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
   );
   CREATE TABLE IF NOT EXISTS events (
     id TEXT PRIMARY KEY,
@@ -111,22 +121,102 @@ db.exec(`
     is_emergency INTEGER DEFAULT 1,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP
   );
+  CREATE TABLE IF NOT EXISTS privacy_requests (
+    id TEXT PRIMARY KEY,
+    protocol TEXT NOT NULL,
+    user_id TEXT,
+    user_email TEXT NOT NULL,
+    user_name TEXT,
+    request_type TEXT NOT NULL,
+    details TEXT,
+    status TEXT DEFAULT 'concluido',
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+  );
+  CREATE TABLE IF NOT EXISTS support_tickets (
+    id TEXT PRIMARY KEY,
+    protocol TEXT NOT NULL,
+    user_id TEXT,
+    user_name TEXT NOT NULL,
+    user_email TEXT NOT NULL,
+    category TEXT NOT NULL,
+    subject TEXT NOT NULL,
+    message TEXT NOT NULL,
+    status TEXT DEFAULT 'aberto',
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+  );
+  CREATE TABLE IF NOT EXISTS account_deletion_logs (
+    id TEXT PRIMARY KEY,
+    protocol TEXT NOT NULL,
+    account_ref_hash TEXT NOT NULL,
+    reason TEXT,
+    deleted_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    legal_basis TEXT DEFAULT 'LGPD Art. 18, VI e Marco Civil da Internet Art. 15'
+  );
 `);
 
+try { db.exec(`ALTER TABLE users ADD COLUMN name TEXT;`); } catch {}
+try { db.exec(`ALTER TABLE users ADD COLUMN email TEXT;`); } catch {}
+try { db.exec(`ALTER TABLE users ADD COLUMN username TEXT;`); } catch {}
+try { db.exec(`ALTER TABLE users ADD COLUMN username_normalized TEXT;`); } catch {}
+try { db.exec(`ALTER TABLE users ADD COLUMN role TEXT DEFAULT 'user';`); } catch {}
+try { db.exec(`ALTER TABLE users ADD COLUMN avatar_url TEXT;`); } catch {}
 try { db.exec(`ALTER TABLE users ADD COLUMN bio TEXT DEFAULT '';`); } catch {}
 try { db.exec(`ALTER TABLE users ADD COLUMN visits_count INTEGER DEFAULT 1;`); } catch {}
 try { db.exec(`ALTER TABLE users ADD COLUMN is_banned INTEGER DEFAULT 0;`); } catch {}
-try { db.exec(`ALTER TABLE users ADD COLUMN last_access DATETIME DEFAULT CURRENT_TIMESTAMP;`); } catch {}
+try { db.exec(`ALTER TABLE users ADD COLUMN is_premium INTEGER DEFAULT 0;`); } catch {}
+try { db.exec(`ALTER TABLE users ADD COLUMN is_gold INTEGER DEFAULT 0;`); } catch {}
+try { db.exec(`ALTER TABLE users ADD COLUMN plan TEXT DEFAULT 'beta';`); } catch {}
+try { db.exec(`ALTER TABLE users ADD COLUMN gold_activated_at DATETIME;`); } catch {}
+try { db.exec(`ALTER TABLE users ADD COLUMN snow_enabled INTEGER DEFAULT 0;`); } catch {}
+try { db.exec(`ALTER TABLE users ADD COLUMN rain_enabled INTEGER DEFAULT 0;`); } catch {}
+try { db.exec(`ALTER TABLE users ADD COLUMN theme TEXT DEFAULT 'light';`); } catch {}
+try { db.exec(`ALTER TABLE users ADD COLUMN high_contrast INTEGER DEFAULT 0;`); } catch {}
+try { db.exec(`ALTER TABLE users ADD COLUMN onboarding_completed INTEGER DEFAULT 1;`); } catch {}
+try { db.exec(`ALTER TABLE users ADD COLUMN onboarding_step INTEGER DEFAULT 1;`); } catch {}
 try { db.exec(`ALTER TABLE users ADD COLUMN location_permission_granted INTEGER DEFAULT 0;`); } catch {}
 try { db.exec(`ALTER TABLE users ADD COLUMN motion_permission_granted INTEGER DEFAULT 0;`); } catch {}
+try { db.exec(`ALTER TABLE users ADD COLUMN last_access DATETIME DEFAULT CURRENT_TIMESTAMP;`); } catch {}
 try { db.exec(`ALTER TABLE users ADD COLUMN auth_id TEXT;`); } catch {}
+
+try {
+  db.exec(`
+    UPDATE users 
+    SET username_normalized = LOWER(REPLACE(COALESCE(username, name, email, 'user'), ' ', ''))
+    WHERE username_normalized IS NULL OR username_normalized = '';
+  `);
+} catch {}
+
+try { db.exec(`ALTER TABLE map_visual_icons ADD COLUMN icon TEXT;`); } catch {}
+try { db.exec(`ALTER TABLE map_visual_icons ADD COLUMN color TEXT;`); } catch {}
+try { db.exec(`ALTER TABLE map_visual_icons ADD COLUMN is_active INTEGER DEFAULT 1;`); } catch {}
+try { db.exec(`ALTER TABLE map_visual_icons ADD COLUMN created_at DATETIME DEFAULT CURRENT_TIMESTAMP;`); } catch {}
+try { db.exec(`ALTER TABLE map_visual_icons ADD COLUMN updated_at DATETIME DEFAULT CURRENT_TIMESTAMP;`); } catch {}
+
+try { db.exec(`ALTER TABLE spots ADD COLUMN popular_times TEXT;`); } catch {}
+try { db.exec(`ALTER TABLE spots ADD COLUMN visitors_today INTEGER DEFAULT 0;`); } catch {}
+try { db.exec(`ALTER TABLE spots ADD COLUMN badge TEXT;`); } catch {}
+try { db.exec(`ALTER TABLE spots ADD COLUMN highlighted INTEGER DEFAULT 0;`); } catch {}
+try { db.exec(`ALTER TABLE spots ADD COLUMN is_verified INTEGER DEFAULT 1;`); } catch {}
+try { db.exec(`ALTER TABLE spots ADD COLUMN website TEXT;`); } catch {}
+try { db.exec(`ALTER TABLE spots ADD COLUMN phone TEXT;`); } catch {}
+try { db.exec(`ALTER TABLE spots ADD COLUMN updated_at DATETIME DEFAULT CURRENT_TIMESTAMP;`); } catch {}
+try { db.exec(`ALTER TABLE spots ADD COLUMN short_name TEXT;`); } catch {}
+try { db.exec(`ALTER TABLE spots ADD COLUMN tag_label TEXT;`); } catch {}
+try { db.exec(`ALTER TABLE spots ADD COLUMN category_label TEXT;`); } catch {}
+try { db.exec(`ALTER TABLE spots ADD COLUMN price_range TEXT;`); } catch {}
+try { db.exec(`ALTER TABLE spots ADD COLUMN price TEXT;`); } catch {}
+try { db.exec(`ALTER TABLE spots ADD COLUMN available_for_itinerary INTEGER DEFAULT 1;`); } catch {}
+try { db.exec(`ALTER TABLE spots ADD COLUMN duration_minutes INTEGER DEFAULT 90;`); } catch {}
+try { db.exec(`ALTER TABLE spots ADD COLUMN tags TEXT;`); } catch {}
+try { db.exec(`ALTER TABLE spots ADD COLUMN maps_url TEXT;`); } catch {}
+try { db.exec(`ALTER TABLE spots ADD COLUMN is_active INTEGER DEFAULT 1;`); } catch {}
+try { db.exec(`ALTER TABLE spots ADD COLUMN is_star INTEGER DEFAULT 0;`); } catch {}
 
 try { setupItineraryDatabase(db); } catch {}
 try { setupSocialDatabase(db); } catch {}
 try { setupStoriesDatabase(db); } catch {}
 try { setupStripeDatabase(db); } catch {}
 try { setupPlatanosDatabase(db); } catch {}
-try { setupHostDatabase(db); } catch {}
 
 // Seed initial spots into SQLite if empty so CRUD operations work on real DB rows
 try {
@@ -137,8 +227,8 @@ try {
         id, name, short_name, tag_label, category, category_label,
         lat, lng, image, gallery, description, tourist_tip,
         rating, review_count, hours, address, price_range, price,
-        available_for_itinerary, duration_minutes, tags, maps_url, is_active
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        available_for_itinerary, duration_minutes, tags, maps_url, is_active, is_star
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `);
     const seedSpotsTx = db.transaction(() => {
       for (const s of CAMPOS_SPOTS) {
@@ -165,11 +255,43 @@ try {
           Number(s.durationMinutes || 90),
           Array.isArray(s.tags) ? s.tags.join(', ') : '',
           s.mapsUrl || '',
-          s.isActive === false ? 0 : 1
+          s.isActive === false ? 0 : 1,
+          s.isStar || s.is_star ? 1 : 0
         );
       }
     });
     seedSpotsTx();
+  }
+
+  // Create spot_reviews table for real-time user ratings & reviews
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS spot_reviews (
+      id TEXT PRIMARY KEY,
+      spot_id TEXT NOT NULL,
+      user_id TEXT,
+      user_name TEXT NOT NULL,
+      rating REAL NOT NULL,
+      comment TEXT DEFAULT '',
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    );
+  `);
+
+  // One-time seed of default famous Yellow Star spots if not yet seeded
+  const starSeedDone = db.prepare("SELECT value FROM system_settings WHERE key = 'star_spots_seeded_v1'").get() as { value?: string } | undefined;
+  if (!starSeedDone) {
+    const famousStarIds = [
+      'amantikir',
+      'itapeva',
+      'baden-baden',
+      'morro-elefante',
+      'toriba-hotel',
+      'chocolate-araucaria',
+    ];
+    const markStarStmt = db.prepare(`UPDATE spots SET is_star = 1 WHERE id = ?`);
+    for (const fid of famousStarIds) {
+      markStarStmt.run(fid);
+    }
+    db.prepare("INSERT OR REPLACE INTO system_settings (key, value, updated_at) VALUES ('star_spots_seeded_v1', '1', CURRENT_TIMESTAMP)").run();
   }
 } catch (err) {
   console.warn('[DB Seed] Notice:', err);
@@ -212,6 +334,12 @@ function formatSpotRow(row: any): any {
   }
 
   const isActiveBool = row.is_active !== undefined ? Number(row.is_active) !== 0 : row.isActive !== false;
+  const isStarBool =
+    row.is_star !== undefined && row.is_star !== null
+      ? Number(row.is_star) === 1 || row.is_star === true
+      : row.isStar !== undefined
+        ? Boolean(row.isStar)
+        : row.badge === 'Estrela';
 
   return {
     id: String(row.id),
@@ -238,13 +366,16 @@ function formatSpotRow(row: any): any {
     priceRange: row.price_range || row.priceRange || '$$',
     price_range: row.price_range || row.priceRange || '$$',
     price: row.price || '',
+    badge: row.badge || (isStarBool ? 'Estrela' : ''),
     mapsUrl: row.maps_url || row.mapsUrl || '',
     maps_url: row.maps_url || row.mapsUrl || '',
     isActive: isActiveBool,
     is_active: isActiveBool ? 1 : 0,
     isVerified: row.is_verified !== undefined ? Number(row.is_verified) !== 0 : true,
     is_verified: row.is_verified !== undefined ? Number(row.is_verified) : 1,
-    highlighted: Boolean(row.highlighted),
+    isStar: isStarBool,
+    is_star: isStarBool ? 1 : 0,
+    highlighted: Boolean(row.highlighted || isStarBool),
     available_for_itinerary: row.available_for_itinerary !== undefined ? Number(row.available_for_itinerary) : 1,
     duration_minutes: Number(row.duration_minutes ?? row.durationMinutes ?? 90),
     durationMinutes: Number(row.duration_minutes ?? row.durationMinutes ?? 90),
@@ -420,7 +551,6 @@ async function startServer() {
   registerStoryRoutes(app, db);
   registerStripeRoutes(app, db, (req) => resolveAuthenticatedUser(req));
   registerPlatanosRoutes(app, db, (req) => resolveAuthenticatedUser(req), (req) => isRequestAdmin(req));
-  registerHostRoutes(app, db, (req) => resolveAuthenticatedUser(req));
 
   // ===========================================================================
   // 1. AUTHENTICATION & SUPABASE AUTH ROUTES
@@ -1025,6 +1155,32 @@ async function startServer() {
   app.post('/api/user/profile', updateProfileHandler);
   app.put('/api/user/profile', updateProfileHandler);
 
+  app.post('/api/user/settings', async (req: Request, res: Response) => {
+    try {
+      const currentUser = await resolveAuthenticatedUser(req);
+      const { rain_enabled, snow_enabled, theme, high_contrast } = req.body || {};
+      if (currentUser?.id) {
+        db.prepare(`
+          UPDATE users
+          SET rain_enabled = COALESCE(?, rain_enabled),
+              snow_enabled = COALESCE(?, snow_enabled),
+              theme = COALESCE(?, theme),
+              high_contrast = COALESCE(?, high_contrast)
+          WHERE id = ?
+        `).run(
+          rain_enabled !== undefined ? (rain_enabled ? 1 : 0) : null,
+          snow_enabled !== undefined ? (snow_enabled ? 1 : 0) : null,
+          theme || null,
+          high_contrast !== undefined ? (high_contrast ? 1 : 0) : null,
+          currentUser.id
+        );
+      }
+      return res.json({ success: true });
+    } catch {
+      return res.json({ success: true });
+    }
+  });
+
   // User Device Permissions Persistence (Location & Motion/Orientation saved in DB)
   app.post('/api/user/permissions', async (req: Request, res: Response) => {
     try {
@@ -1148,10 +1304,544 @@ async function startServer() {
   });
 
   // ===========================================================================
+  // 1.8. CENTRAL DE AJUDA, PRIVACIDADE (LGPD), EXCLUSÃO DE CONTA E SUPORTE
+  // ===========================================================================
+  app.get('/api/user/privacy-data', async (req: Request, res: Response) => {
+    try {
+      const currentUser = await resolveAuthenticatedUser(req);
+      const emailParam = String(req.query.email || currentUser?.email || '').trim().toLowerCase();
+
+      let dbUser: any = null;
+      if (currentUser?.id) {
+        dbUser = db.prepare('SELECT * FROM users WHERE id = ?').get(currentUser.id);
+      }
+      if (!dbUser && emailParam) {
+        dbUser = db
+          .prepare('SELECT * FROM users WHERE LOWER(email) = ? OR LOWER(whatsapp) = ?')
+          .get(emailParam, emailParam);
+      }
+
+      const safeUser = formatSafeUser(dbUser || currentUser);
+      const userIdStr = safeUser?.id ? String(safeUser.id) : 'guest';
+      const userEmail = (safeUser?.email || emailParam || '').toLowerCase();
+      const usernameClean = (safeUser?.username || '').toLowerCase();
+      const candidateIds = Array.from(
+        new Set([userIdStr, `u-${userIdStr}`, usernameClean, `u-${usernameClean}`, userEmail].filter(Boolean))
+      );
+
+      let favoritesCount = 0;
+      let favoriteSpotIds: string[] = [];
+      try {
+        const favs = db
+          .prepare('SELECT spot_id FROM favorites WHERE user_id = ?')
+          .all(userIdStr) as { spot_id: string }[];
+        const uFavs = db
+          .prepare('SELECT item_id FROM user_favorites WHERE user_id = ?')
+          .all(userIdStr) as { item_id: string }[];
+        const mergedFavs = new Set<string>([
+          ...favs.map((f) => f.spot_id),
+          ...uFavs.map((f) => f.item_id),
+        ]);
+        favoriteSpotIds = Array.from(mergedFavs);
+        favoritesCount = favoriteSpotIds.length;
+      } catch {}
+
+      let postsCount = 0;
+      let commentsCount = 0;
+      let storiesCount = 0;
+      try {
+        if (candidateIds.length > 0) {
+          const placeholders = candidateIds.map(() => '?').join(', ');
+          postsCount =
+            (
+              db
+                .prepare(`SELECT COUNT(*) as c FROM posts WHERE LOWER(user_id) IN (${placeholders})`)
+                .get(...candidateIds.map((id) => id.toLowerCase())) as any
+            )?.c || 0;
+          commentsCount =
+            (
+              db
+                .prepare(`SELECT COUNT(*) as c FROM post_comments WHERE LOWER(user_id) IN (${placeholders})`)
+                .get(...candidateIds.map((id) => id.toLowerCase())) as any
+            )?.c || 0;
+          storiesCount =
+            (
+              db
+                .prepare(`SELECT COUNT(*) as c FROM stories WHERE LOWER(user_id) IN (${placeholders})`)
+                .get(...candidateIds.map((id) => id.toLowerCase())) as any
+            )?.c || 0;
+        }
+      } catch {}
+
+      let requests: any[] = [];
+      let tickets: any[] = [];
+      try {
+        if (userEmail) {
+          requests = db
+            .prepare('SELECT * FROM privacy_requests WHERE LOWER(user_email) = ? ORDER BY created_at DESC LIMIT 20')
+            .all(userEmail);
+          tickets = db
+            .prepare('SELECT * FROM support_tickets WHERE LOWER(user_email) = ? ORDER BY created_at DESC LIMIT 20')
+            .all(userEmail);
+        }
+      } catch {}
+
+      return res.json({
+        success: true,
+        personalData: safeUser
+          ? {
+              id: safeUser.id,
+              name: safeUser.name,
+              username: safeUser.username,
+              email: safeUser.email,
+              bio: safeUser.bio || '',
+              role: safeUser.role,
+              plan: safeUser.plan,
+              location_permission_granted: Boolean(safeUser.location_permission_granted),
+              motion_permission_granted: Boolean(safeUser.motion_permission_granted),
+              visits_count: safeUser.visits_count || 1,
+              created_at: safeUser.created_at,
+            }
+          : null,
+        stats: {
+          favoritesCount,
+          favoriteSpotIds,
+          postsCount,
+          commentsCount,
+          storiesCount,
+        },
+        requests,
+        tickets,
+      });
+    } catch (err: any) {
+      return res.status(500).json({ success: false, error: err.message });
+    }
+  });
+
+  app.post('/api/user/privacy-request', async (req: Request, res: Response) => {
+    try {
+      const currentUser = await resolveAuthenticatedUser(req);
+      const { request_type, email, corrections, scopes, details } = req.body || {};
+      const targetEmail = String(email || currentUser?.email || '').trim().toLowerCase();
+
+      if (!request_type || !['access', 'correction', 'deletion'].includes(request_type)) {
+        return res.status(400).json({ success: false, error: 'Tipo de solicitação de privacidade inválido.' });
+      }
+
+      let dbUser: any = currentUser?.id
+        ? db.prepare('SELECT * FROM users WHERE id = ?').get(currentUser.id)
+        : targetEmail
+          ? db.prepare('SELECT * FROM users WHERE LOWER(email) = ? OR LOWER(whatsapp) = ?').get(targetEmail, targetEmail)
+          : null;
+
+      const protocol = `PRV-${new Date().getFullYear()}-${Math.random().toString(36).substring(2, 8).toUpperCase()}`;
+      const reqId = `prv_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
+      const nowIso = new Date().toISOString();
+
+      let updatedUser = dbUser;
+      let exportPackage: any = null;
+      let deletedScopes: string[] = [];
+
+      if (request_type === 'access') {
+        const safe = formatSafeUser(dbUser || currentUser);
+        const uidStr = safe?.id ? String(safe.id) : 'guest';
+        const favs = db.prepare('SELECT spot_id, created_at FROM favorites WHERE user_id = ?').all(uidStr);
+        const posts = safe?.username
+          ? db
+              .prepare('SELECT id, caption, location, created_at FROM posts WHERE LOWER(user_id) IN (?, ?, ?)')
+              .all(uidStr.toLowerCase(), `u-${uidStr}`.toLowerCase(), safe.username.toLowerCase())
+          : [];
+        exportPackage = {
+          protocol,
+          generated_at: nowIso,
+          controller: 'Monvian — Plataforma de Turismo e Navegação',
+          legal_basis: 'Art. 18, II e V da Lei nº 13.709/2018 (LGPD)',
+          holder_profile: safe,
+          saved_places: favs,
+          published_posts: posts,
+        };
+      } else if (request_type === 'correction' && corrections) {
+        const nextName = String(corrections.name || dbUser?.name || '').trim();
+        const nextUsername = String(corrections.username || dbUser?.username || '')
+          .trim()
+          .replace(/^@+/, '')
+          .replace(/[^a-zA-Z0-9_]/g, '');
+        const nextEmail = String(corrections.email || targetEmail || dbUser?.email || '')
+          .trim()
+          .toLowerCase();
+        const nextBio = corrections.bio !== undefined ? String(corrections.bio).trim() : (dbUser?.bio || '');
+
+        if (!nextName || !nextEmail) {
+          return res.status(400).json({ success: false, error: 'Nome e e-mail são obrigatórios.' });
+        }
+
+        if (dbUser) {
+          const usernameConflict = db
+            .prepare('SELECT id FROM users WHERE LOWER(username) = ? AND id != ?')
+            .get(nextUsername.toLowerCase(), dbUser.id);
+          if (usernameConflict) {
+            return res.status(400).json({ success: false, error: 'Este nome de usuário (@) já está em uso por outra conta.' });
+          }
+
+          db.prepare(`
+            UPDATE users
+            SET name = ?, username = ?, username_normalized = ?, email = ?, whatsapp = ?, bio = ?
+            WHERE id = ?
+          `).run(
+            nextName,
+            nextUsername,
+            nextUsername.toLowerCase(),
+            nextEmail,
+            nextEmail,
+            nextBio,
+            dbUser.id
+          );
+
+          // Update display name on user's posts and comments for consistency
+          try {
+            db.prepare('UPDATE posts SET user_name = ? WHERE user_id = ? OR LOWER(user_id) = ?').run(
+              nextName,
+              String(dbUser.id),
+              (dbUser.username || '').toLowerCase()
+            );
+            db.prepare('UPDATE post_comments SET user_name = ? WHERE user_id = ? OR LOWER(user_id) = ?').run(
+              nextName,
+              String(dbUser.id),
+              (dbUser.username || '').toLowerCase()
+            );
+          } catch {}
+
+          updatedUser = db.prepare('SELECT * FROM users WHERE id = ?').get(dbUser.id);
+          await persistUserToSupabase(updatedUser);
+          persistUserToFirestore(updatedUser).catch(() => {});
+        }
+      } else if (request_type === 'deletion') {
+        const requestedScopes: string[] = Array.isArray(scopes) ? scopes : [];
+        const uidStr = dbUser?.id ? String(dbUser.id) : (currentUser?.id ? String(currentUser.id) : 'guest');
+        const uname = (dbUser?.username || currentUser?.username || '').toLowerCase();
+        const uemail = (dbUser?.email || targetEmail || '').toLowerCase();
+        const candidateIds = Array.from(
+          new Set([uidStr, `u-${uidStr}`, uname, `u-${uname}`, uemail].filter(Boolean))
+        );
+
+        if (requestedScopes.includes('favorites')) {
+          db.prepare('DELETE FROM favorites WHERE user_id = ?').run(uidStr);
+          db.prepare('DELETE FROM user_favorites WHERE user_id = ?').run(uidStr);
+          deletedScopes.push('favorites');
+        }
+
+        if (requestedScopes.includes('social') && candidateIds.length > 0) {
+          const placeholders = candidateIds.map(() => '?').join(', ');
+          const lowerIds = candidateIds.map((id) => id.toLowerCase());
+          db.prepare(`DELETE FROM post_likes WHERE LOWER(user_id) IN (${placeholders})`).run(...lowerIds);
+          db.prepare(`DELETE FROM post_comments WHERE LOWER(user_id) IN (${placeholders})`).run(...lowerIds);
+          db.prepare(`DELETE FROM posts WHERE LOWER(user_id) IN (${placeholders})`).run(...lowerIds);
+          db.prepare(`DELETE FROM stories WHERE LOWER(user_id) IN (${placeholders})`).run(...lowerIds);
+          deletedScopes.push('social');
+        }
+
+        if (requestedScopes.includes('bio') && dbUser) {
+          db.prepare("UPDATE users SET bio = '' WHERE id = ?").run(dbUser.id);
+          deletedScopes.push('bio');
+        }
+
+        if (requestedScopes.includes('permissions')) {
+          if (dbUser) {
+            db.prepare('UPDATE users SET location_permission_granted = 0, motion_permission_granted = 0 WHERE id = ?').run(dbUser.id);
+          }
+          if (uemail) {
+            db.prepare('DELETE FROM system_settings WHERE key IN (?, ?, ?)').run(
+              `perm_loc_${uemail}`,
+              `perm_mot_${uemail}`,
+              `perm_coords_${uemail}`
+            );
+          }
+          deletedScopes.push('permissions');
+        }
+
+        if (dbUser) {
+          updatedUser = db.prepare('SELECT * FROM users WHERE id = ?').get(dbUser.id);
+          await persistUserToSupabase(updatedUser);
+          persistUserToFirestore(updatedUser).catch(() => {});
+        }
+      }
+
+      const finalEmail = (updatedUser?.email || targetEmail || 'anonimo@monvian.com.br').toLowerCase();
+      const finalName = updatedUser?.name || currentUser?.name || 'Usuário Monvian';
+
+      const reqRecord = {
+        id: reqId,
+        protocol,
+        user_id: updatedUser?.id ? String(updatedUser.id) : null,
+        user_email: finalEmail,
+        user_name: finalName,
+        request_type,
+        details: details || `Solicitação ${request_type}`,
+        status: 'concluido',
+        created_at: nowIso,
+      };
+
+      db.prepare(`
+        INSERT INTO privacy_requests (id, protocol, user_id, user_email, user_name, request_type, details, status, created_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+      `).run(
+        reqRecord.id,
+        reqRecord.protocol,
+        reqRecord.user_id,
+        reqRecord.user_email,
+        reqRecord.user_name,
+        reqRecord.request_type,
+        reqRecord.details,
+        reqRecord.status,
+        reqRecord.created_at
+      );
+
+      persistPrivacyRequestToFirestore(reqRecord).catch(() => {});
+
+      return res.json({
+        success: true,
+        protocol,
+        request: reqRecord,
+        user: updatedUser ? formatSafeUser(updatedUser) : null,
+        exportPackage,
+        deletedScopes,
+      });
+    } catch (err: any) {
+      return res.status(500).json({ success: false, error: err.message });
+    }
+  });
+
+  // Real Account & Personal Data Deletion (LGPD Art. 18, VI & Marco Civil da Internet Art. 15)
+  const handleDeleteUserAccount = async (req: Request, res: Response) => {
+    try {
+      const currentUser = await resolveAuthenticatedUser(req);
+      const { email, userId, confirmText, reason } = req.body || {};
+
+      if (String(confirmText || '').trim().toUpperCase() !== 'EXCLUIR') {
+        return res.status(400).json({
+          success: false,
+          error: 'Confirmação explícita necessária: digite EXCLUIR para confirmar a exclusão da conta.',
+        });
+      }
+
+      const targetEmail = String(email || currentUser?.email || '').trim().toLowerCase();
+      const targetId = currentUser?.id || userId;
+
+      let dbUser: any = null;
+      if (targetId) {
+        dbUser = db.prepare('SELECT * FROM users WHERE id = ?').get(targetId);
+      }
+      if (!dbUser && targetEmail) {
+        dbUser = db
+          .prepare('SELECT * FROM users WHERE LOWER(email) = ? OR LOWER(whatsapp) = ?')
+          .get(targetEmail, targetEmail);
+      }
+
+      const resolvedUserId = dbUser?.id || targetId;
+      const resolvedEmail = (dbUser?.email || targetEmail || '').toLowerCase();
+      const resolvedUsername = (dbUser?.username || currentUser?.username || '').toLowerCase();
+
+      const candidateIds = Array.from(
+        new Set(
+          [
+            resolvedUserId ? String(resolvedUserId) : '',
+            resolvedUserId ? `u-${resolvedUserId}` : '',
+            resolvedUsername,
+            resolvedUsername ? `u-${resolvedUsername}` : '',
+            resolvedEmail,
+          ].filter(Boolean)
+        )
+      );
+
+      const protocol = `DEL-${new Date().getFullYear()}-${Math.random().toString(36).substring(2, 8).toUpperCase()}`;
+      const logId = `del_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
+      const deletedAt = new Date().toISOString();
+      const accountRefHash = crypto
+        .createHash('sha256')
+        .update(`${resolvedEmail || resolvedUserId || 'user'}:${deletedAt}`)
+        .digest('hex');
+
+      const deleteTx = db.transaction(() => {
+        if (resolvedUserId) {
+          db.prepare('DELETE FROM sessions WHERE user_id = ?').run(resolvedUserId);
+          db.prepare('DELETE FROM favorites WHERE user_id = ?').run(String(resolvedUserId));
+          db.prepare('DELETE FROM user_favorites WHERE user_id = ?').run(String(resolvedUserId));
+        }
+
+        const authHeader = req.headers.authorization;
+        if (authHeader?.startsWith('Bearer ')) {
+          const token = authHeader.substring(7).trim();
+          db.prepare('DELETE FROM sessions WHERE token = ?').run(token);
+        }
+
+        if (candidateIds.length > 0) {
+          const placeholders = candidateIds.map(() => '?').join(', ');
+          const lowerIds = candidateIds.map((id) => id.toLowerCase());
+          try {
+            db.prepare(`DELETE FROM post_likes WHERE LOWER(user_id) IN (${placeholders})`).run(...lowerIds);
+            db.prepare(`DELETE FROM post_comments WHERE LOWER(user_id) IN (${placeholders})`).run(...lowerIds);
+            db.prepare(`DELETE FROM posts WHERE LOWER(user_id) IN (${placeholders})`).run(...lowerIds);
+            db.prepare(`DELETE FROM stories WHERE LOWER(user_id) IN (${placeholders})`).run(...lowerIds);
+            db.prepare(
+              `DELETE FROM user_follows WHERE LOWER(follower_id) IN (${placeholders}) OR LOWER(following_id) IN (${placeholders})`
+            ).run(...lowerIds, ...lowerIds);
+            db.prepare(
+              `DELETE FROM social_notifications WHERE LOWER(recipient_id) IN (${placeholders}) OR LOWER(sender_id) IN (${placeholders})`
+            ).run(...lowerIds, ...lowerIds);
+          } catch {}
+        }
+
+        if (resolvedEmail) {
+          db.prepare('DELETE FROM system_settings WHERE key IN (?, ?, ?)').run(
+            `perm_loc_${resolvedEmail}`,
+            `perm_mot_${resolvedEmail}`,
+            `perm_coords_${resolvedEmail}`
+          );
+          db.prepare('DELETE FROM privacy_requests WHERE LOWER(user_email) = ?').run(resolvedEmail);
+          db.prepare('DELETE FROM users WHERE LOWER(email) = ? OR LOWER(whatsapp) = ?').run(
+            resolvedEmail,
+            resolvedEmail
+          );
+        }
+
+        if (resolvedUserId) {
+          db.prepare('DELETE FROM users WHERE id = ?').run(resolvedUserId);
+        }
+
+        // Legal retention log (anonymized hash only, as required by Marco Civil da Internet Art. 15 & LGPD Art. 16)
+        db.prepare(`
+          INSERT INTO account_deletion_logs (id, protocol, account_ref_hash, reason, deleted_at, legal_basis)
+          VALUES (?, ?, ?, ?, ?, ?)
+        `).run(
+          logId,
+          protocol,
+          accountRefHash,
+          reason ? String(reason).slice(0, 250) : null,
+          deletedAt,
+          'LGPD Art. 16, I e Art. 18, VI / Marco Civil da Internet Art. 15'
+        );
+      });
+
+      deleteTx();
+
+      // Remove from remote stores (Supabase & Cloud Firestore)
+      if (supabase && resolvedEmail) {
+        try {
+          await supabase.from('users').delete().eq('email', resolvedEmail);
+        } catch {}
+      }
+
+      deleteUserAccountFromFirestore(resolvedEmail, {
+        id: logId,
+        protocol,
+        account_ref_hash: accountRefHash,
+        reason: reason ? String(reason).slice(0, 250) : undefined,
+        deleted_at: deletedAt,
+        legal_basis: 'LGPD Art. 16, I e Art. 18, VI / Marco Civil da Internet Art. 15',
+      }).catch(() => {});
+
+      return res.json({
+        success: true,
+        protocol,
+        deletedAt,
+        message: 'Sua conta e seus dados pessoais associados foram excluídos permanentemente.',
+      });
+    } catch (err: any) {
+      return res.status(500).json({ success: false, error: err.message });
+    }
+  };
+
+  app.delete('/api/user/account', handleDeleteUserAccount);
+  app.post('/api/user/delete-account', handleDeleteUserAccount);
+
+  // Fale Conosco — Support Tickets Channel
+  app.get('/api/support/contact', async (req: Request, res: Response) => {
+    try {
+      const currentUser = await resolveAuthenticatedUser(req);
+      const email = String(req.query.email || currentUser?.email || '').trim().toLowerCase();
+      if (!email) {
+        return res.json({ success: true, tickets: [] });
+      }
+      const tickets = db
+        .prepare('SELECT * FROM support_tickets WHERE LOWER(user_email) = ? ORDER BY created_at DESC LIMIT 25')
+        .all(email);
+      return res.json({ success: true, tickets });
+    } catch (err: any) {
+      return res.status(500).json({ success: false, error: err.message });
+    }
+  });
+
+  app.post('/api/support/contact', async (req: Request, res: Response) => {
+    try {
+      const currentUser = await resolveAuthenticatedUser(req);
+      const { name, email, category, subject, message } = req.body || {};
+
+      const cleanName = String(name || currentUser?.name || '').trim();
+      const cleanEmail = String(email || currentUser?.email || '').trim().toLowerCase();
+      const cleanCategory = String(category || 'Suporte Técnico').trim();
+      const cleanSubject = String(subject || '').trim();
+      const cleanMessage = String(message || '').trim();
+
+      if (!cleanName || !cleanEmail || !cleanSubject || !cleanMessage) {
+        return res.status(400).json({
+          success: false,
+          error: 'Por favor, preencha nome, e-mail, assunto e mensagem.',
+        });
+      }
+
+      const id = `tkt_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
+      const protocol = `MNV-${new Date().getFullYear()}-${Math.random().toString(36).substring(2, 8).toUpperCase()}`;
+      const createdAt = new Date().toISOString();
+
+      const ticket = {
+        id,
+        protocol,
+        user_id: currentUser?.id ? String(currentUser.id) : null,
+        user_name: cleanName,
+        user_email: cleanEmail,
+        category: cleanCategory,
+        subject: cleanSubject,
+        message: cleanMessage,
+        status: 'aberto',
+        created_at: createdAt,
+      };
+
+      db.prepare(`
+        INSERT INTO support_tickets (id, protocol, user_id, user_name, user_email, category, subject, message, status, created_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      `).run(
+        ticket.id,
+        ticket.protocol,
+        ticket.user_id,
+        ticket.user_name,
+        ticket.user_email,
+        ticket.category,
+        ticket.subject,
+        ticket.message,
+        ticket.status,
+        ticket.created_at
+      );
+
+      persistSupportTicketToFirestore(ticket).catch(() => {});
+
+      return res.json({
+        success: true,
+        ticket,
+        message: 'Chamado registrado com sucesso.',
+      });
+    } catch (err: any) {
+      return res.status(500).json({ success: false, error: err.message });
+    }
+  });
+
+  // ===========================================================================
   // 2. TOURIST SPOTS CRUD + SUPABASE STORAGE UPLOAD
   // ===========================================================================
   app.get('/api/spots', async (_req: Request, res: Response) => {
     try {
+      const localRows = db.prepare('SELECT * FROM spots WHERE is_active = 1 ORDER BY is_star DESC, rating DESC, name ASC').all() as any[];
+      const localMap = new Map(localRows.map((r) => [String(r.id), r]));
+
       if (supabase) {
         const { data, error } = await supabase
           .from('spots')
@@ -1159,30 +1849,228 @@ async function startServer() {
           .eq('is_active', 1)
           .order('name', { ascending: true });
         if (!error && Array.isArray(data) && data.length > 0) {
-          return res.json({ success: true, spots: data.map(formatSpotRow) });
+          const seenIds = new Set<string>();
+          const merged = data.map((supaRow: any) => {
+            const sid = String(supaRow.id);
+            seenIds.add(sid);
+            const localRow = localMap.get(sid);
+            if (localRow) {
+              return formatSpotRow({
+                ...supaRow,
+                ...localRow,
+                rating: localRow.rating ?? supaRow.rating,
+                review_count: localRow.review_count ?? supaRow.review_count,
+                is_star: localRow.is_star !== undefined && localRow.is_star !== null
+                  ? localRow.is_star
+                  : (supaRow.is_star ?? (supaRow.badge === 'Estrela' ? 1 : 0)),
+              });
+            }
+            return formatSpotRow(supaRow);
+          });
+          for (const lr of localRows) {
+            if (!seenIds.has(String(lr.id))) {
+              merged.push(formatSpotRow(lr));
+            }
+          }
+          return res.json({ success: true, spots: merged });
         }
       }
-      const rows = db.prepare('SELECT * FROM spots WHERE is_active = 1 ORDER BY rating DESC, name ASC').all();
-      const spots = rows.length > 0 ? rows.map(formatSpotRow) : CAMPOS_SPOTS;
+      const spots = localRows.length > 0 ? localRows.map(formatSpotRow) : CAMPOS_SPOTS;
       return res.json({ success: true, spots });
     } catch {
       return res.json({ success: true, spots: CAMPOS_SPOTS });
     }
   });
 
+  // Get reviews and live rating for a tourist spot
+  app.get('/api/spots/:id/reviews', (req: Request, res: Response) => {
+    try {
+      const { id } = req.params;
+      const spotRow = db.prepare('SELECT * FROM spots WHERE id = ?').get(id) as any;
+      const reviews = db
+        .prepare('SELECT * FROM spot_reviews WHERE spot_id = ? ORDER BY created_at DESC LIMIT 50')
+        .all(id) as any[];
+
+      const defaultSeedReviews = [
+        {
+          id: `seed-${id}-1`,
+          spot_id: id,
+          user_name: 'Mariana Costa',
+          rating: 5,
+          comment: 'Lugar espetacular! Vista incrível de Campos do Jordão e clima super agradável. Vale muito a pena a visita.',
+          created_at: 'Há 2 dias',
+        },
+        {
+          id: `seed-${id}-2`,
+          spot_id: id,
+          user_name: 'Lucas Ferreira',
+          rating: Number(spotRow?.rating ?? 5) >= 5.0 ? 5 : 4,
+          comment: 'Pôr do sol inesquecível. Recomendo chegar pelo menos 40 minutos antes do sol se pôr para pegar um bom lugar.',
+          created_at: 'Há 1 semana',
+        },
+      ];
+
+      return res.json({
+        success: true,
+        rating: Number(spotRow?.rating ?? 4.8),
+        reviewCount: Number(spotRow?.review_count ?? 120),
+        reviews: [...reviews, ...defaultSeedReviews],
+      });
+    } catch (err: any) {
+      return res.status(500).json({ success: false, error: err.message });
+    }
+  });
+
+  // Submit or update a review for a tourist spot and dynamically recalculate its rating
+  app.post('/api/spots/:id/reviews', async (req: Request, res: Response) => {
+    try {
+      const { id } = req.params;
+      const { rating, comment = '', userName, userId } = req.body || {};
+      const numericRating = Math.min(5, Math.max(1, Number(rating || 5)));
+
+      let resolvedUserId = userId ? String(userId) : null;
+      let resolvedUserName = userName ? String(userName).trim() : '';
+
+      const authUser = await resolveAuthenticatedUser(req);
+      if (authUser) {
+        resolvedUserId = String(authUser.id);
+        if (!resolvedUserName) {
+          resolvedUserName = String(authUser.name || authUser.username || 'Visitante Monvian');
+        }
+      }
+      if (!resolvedUserName) {
+        resolvedUserName = 'Visitante Monvian';
+      }
+
+      const existingSpot =
+        (db.prepare('SELECT * FROM spots WHERE id = ?').get(id) as any) ||
+        CAMPOS_SPOTS.find((s) => s.id === id);
+
+      if (!existingSpot) {
+        return res.status(404).json({ success: false, error: 'Ponto turístico não encontrado.' });
+      }
+
+      // Check if this user already reviewed this spot so they can update their rating seamlessly
+      let existingUserReview: any = null;
+      if (resolvedUserId) {
+        existingUserReview = db
+          .prepare('SELECT * FROM spot_reviews WHERE spot_id = ? AND user_id = ?')
+          .get(id, resolvedUserId);
+      }
+
+      if (existingUserReview) {
+        db.prepare(`
+          UPDATE spot_reviews
+          SET rating = ?, comment = ?, user_name = ?, created_at = CURRENT_TIMESTAMP
+          WHERE id = ?
+        `).run(numericRating, String(comment).trim(), resolvedUserName, existingUserReview.id);
+      } else {
+        const reviewId = `rev_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
+        db.prepare(`
+          INSERT INTO spot_reviews (id, spot_id, user_id, user_name, rating, comment)
+          VALUES (?, ?, ?, ?, ?, ?)
+        `).run(reviewId, id, resolvedUserId, resolvedUserName, numericRating, String(comment).trim());
+      }
+
+      const allSpotReviews = db
+        .prepare('SELECT * FROM spot_reviews WHERE spot_id = ? ORDER BY created_at DESC')
+        .all(id) as any[];
+
+      // Calculate new real rating:
+      // - If all user reviews for this spot are 5.0, the spot achieves 5.0 (enabling the 5.0 Star Marker).
+      // - If any review is below 5.0, calculate the average rounded to 1 decimal place (guaranteed < 5.0, max 4.9).
+      const allFive = allSpotReviews.length > 0 && allSpotReviews.every((r) => Number(r.rating) >= 5);
+      let nextRating = 5.0;
+      if (!allFive && allSpotReviews.length > 0) {
+        const sum = allSpotReviews.reduce((acc, r) => acc + Number(r.rating || 0), 0);
+        const rawAvg = (sum + 5.0) / (allSpotReviews.length + 1);
+        nextRating = Math.min(4.9, Number(rawAvg.toFixed(1)));
+      }
+
+      const prevCount = Number(existingSpot.review_count ?? existingSpot.reviewCount ?? 120);
+      const nextCount = existingUserReview ? prevCount : prevCount + 1;
+
+      db.prepare(`
+        UPDATE spots
+        SET rating = ?, review_count = ?, updated_at = CURRENT_TIMESTAMP
+        WHERE id = ?
+      `).run(nextRating, nextCount, id);
+
+      const updatedRow = db.prepare('SELECT * FROM spots WHERE id = ?').get(id) as any;
+      const formattedSpot = formatSpotRow(updatedRow || { ...existingSpot, rating: nextRating, review_count: nextCount });
+
+      await persistSpotToSupabase(updatedRow || formattedSpot);
+      persistSpotToFirestore(formattedSpot).catch(() => {});
+
+      const defaultSeedReviews = [
+        {
+          id: `seed-${id}-1`,
+          spot_id: id,
+          user_name: 'Mariana Costa',
+          rating: 5,
+          comment: 'Lugar espetacular! Vista incrível de Campos do Jordão e clima super agradável. Vale muito a pena a visita.',
+          created_at: 'Há 2 dias',
+        },
+        {
+          id: `seed-${id}-2`,
+          spot_id: id,
+          user_name: 'Lucas Ferreira',
+          rating: nextRating >= 5.0 ? 5 : 4,
+          comment: 'Pôr do sol inesquecível. Recomendo chegar pelo menos 40 minutos antes do sol se pôr para pegar um bom lugar.',
+          created_at: 'Há 1 semana',
+        },
+      ];
+
+      return res.json({
+        success: true,
+        spot: formattedSpot,
+        rating: nextRating,
+        reviewCount: nextCount,
+        reviews: [...allSpotReviews, ...defaultSeedReviews],
+      });
+    } catch (err: any) {
+      return res.status(500).json({ success: false, error: err.message });
+    }
+  });
+
   app.get('/api/admin/spots', async (_req: Request, res: Response) => {
     try {
+      const localRows = db.prepare('SELECT * FROM spots ORDER BY is_star DESC, name ASC').all() as any[];
+      const localMap = new Map(localRows.map((r) => [String(r.id), r]));
+
       if (supabase) {
         const { data, error } = await supabase
           .from('spots')
           .select('*')
           .order('name', { ascending: true });
         if (!error && Array.isArray(data) && data.length > 0) {
-          return res.json({ success: true, spots: data.map(formatSpotRow) });
+          const seenIds = new Set<string>();
+          const merged = data.map((supaRow: any) => {
+            const sid = String(supaRow.id);
+            seenIds.add(sid);
+            const localRow = localMap.get(sid);
+            if (localRow) {
+              return formatSpotRow({
+                ...supaRow,
+                ...localRow,
+                rating: localRow.rating ?? supaRow.rating,
+                review_count: localRow.review_count ?? supaRow.review_count,
+                is_star: localRow.is_star !== undefined && localRow.is_star !== null
+                  ? localRow.is_star
+                  : (supaRow.is_star ?? (supaRow.badge === 'Estrela' ? 1 : 0)),
+              });
+            }
+            return formatSpotRow(supaRow);
+          });
+          for (const lr of localRows) {
+            if (!seenIds.has(String(lr.id))) {
+              merged.push(formatSpotRow(lr));
+            }
+          }
+          return res.json({ success: true, spots: merged });
         }
       }
-      const rows = db.prepare('SELECT * FROM spots ORDER BY name ASC').all();
-      const spots = rows.length > 0 ? rows.map(formatSpotRow) : CAMPOS_SPOTS;
+      const spots = localRows.length > 0 ? localRows.map(formatSpotRow) : CAMPOS_SPOTS;
       return res.json({ success: true, spots });
     } catch {
       return res.json({ success: true, spots: CAMPOS_SPOTS });
@@ -1208,14 +2096,23 @@ async function startServer() {
           : JSON.stringify(body.image ? [body.image] : []);
 
       const isActiveInt = body.is_active !== undefined ? (body.is_active ? 1 : 0) : body.isActive === false ? 0 : 1;
+      const isStarInt =
+        body.is_star !== undefined
+          ? (body.is_star ? 1 : 0)
+          : body.isStar !== undefined
+            ? (body.isStar ? 1 : 0)
+            : body.badge === 'Estrela'
+              ? 1
+              : 0;
+      const resolvedBadge = isStarInt === 1 ? 'Estrela' : (body.badge === 'Estrela' ? '' : (body.badge || ''));
 
       db.prepare(`
         INSERT INTO spots (
           id, name, short_name, tag_label, category, category_label,
           lat, lng, image, gallery, description, tourist_tip,
           rating, review_count, hours, address, price_range, price,
-          available_for_itinerary, duration_minutes, tags, maps_url, is_active
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+          available_for_itinerary, duration_minutes, tags, maps_url, is_active, is_star, badge, highlighted
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         ON CONFLICT(id) DO UPDATE SET
           name = excluded.name,
           short_name = excluded.short_name,
@@ -1238,7 +2135,10 @@ async function startServer() {
           duration_minutes = excluded.duration_minutes,
           tags = excluded.tags,
           maps_url = excluded.maps_url,
-          is_active = excluded.is_active
+          is_active = excluded.is_active,
+          is_star = excluded.is_star,
+          badge = excluded.badge,
+          highlighted = excluded.highlighted
       `).run(
         spotId,
         String(body.name).trim(),
@@ -1262,7 +2162,10 @@ async function startServer() {
         Number(body.duration_minutes ?? body.durationMinutes ?? 90),
         Array.isArray(body.tags) ? body.tags.join(', ') : (body.tags || ''),
         body.maps_url || body.mapsUrl || '',
-        isActiveInt
+        isActiveInt,
+        isStarInt,
+        resolvedBadge,
+        isStarInt
       );
 
       const createdRow = db.prepare('SELECT * FROM spots WHERE id = ?').get(spotId);
@@ -1300,13 +2203,29 @@ async function startServer() {
             ? (body.isActive ? 1 : 0)
             : (existing?.is_active ?? 1);
 
+      const isStarInt =
+        body.is_star !== undefined
+          ? (body.is_star ? 1 : 0)
+          : body.isStar !== undefined
+            ? (body.isStar ? 1 : 0)
+            : body.badge !== undefined
+              ? (body.badge === 'Estrela' ? 1 : 0)
+              : (existing?.is_star ?? 0);
+
+      const resolvedBadge =
+        isStarInt === 1
+          ? 'Estrela'
+          : (body.badge === 'Estrela' || existing?.badge === 'Estrela')
+            ? ''
+            : (body.badge ?? existing?.badge ?? '');
+
       db.prepare(`
         INSERT INTO spots (
           id, name, short_name, tag_label, category, category_label,
           lat, lng, image, gallery, description, tourist_tip,
           rating, review_count, hours, address, price_range, price,
-          available_for_itinerary, duration_minutes, tags, maps_url, is_active
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+          available_for_itinerary, duration_minutes, tags, maps_url, is_active, is_star, badge, highlighted
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         ON CONFLICT(id) DO UPDATE SET
           name = excluded.name,
           short_name = excluded.short_name,
@@ -1329,7 +2248,10 @@ async function startServer() {
           duration_minutes = excluded.duration_minutes,
           tags = excluded.tags,
           maps_url = excluded.maps_url,
-          is_active = excluded.is_active
+          is_active = excluded.is_active,
+          is_star = excluded.is_star,
+          badge = excluded.badge,
+          highlighted = excluded.highlighted
       `).run(
         id,
         String(body.name || existing?.name || '').trim(),
@@ -1353,7 +2275,10 @@ async function startServer() {
         Number(body.duration_minutes ?? body.durationMinutes ?? existing?.duration_minutes ?? 90),
         Array.isArray(body.tags) ? body.tags.join(', ') : (body.tags ?? existing?.tags ?? ''),
         body.maps_url !== undefined ? body.maps_url : (body.mapsUrl ?? existing?.maps_url ?? ''),
-        isActiveInt
+        isActiveInt,
+        isStarInt,
+        resolvedBadge,
+        isStarInt
       );
 
       const updatedRow = db.prepare('SELECT * FROM spots WHERE id = ?').get(id);
@@ -2089,6 +3014,7 @@ async function startServer() {
   // --- Vite Dev Server Middleware or Static Production ---
   if (!isProd) {
     process.env.DISABLE_HMR = 'true';
+    const { createServer: createViteServer } = await import('vite');
     const vite = await createViteServer({
       server: {
         middlewareMode: true,

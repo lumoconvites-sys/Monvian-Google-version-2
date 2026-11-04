@@ -218,15 +218,19 @@ export const ItineraryDetailModal: React.FC<ItineraryDetailModalProps> = ({
                 <button
                   type="button"
                   onClick={() => onSaveItinerary?.(itinerary)}
-                  className="w-9 h-9 rounded-full bg-black/60 backdrop-blur-md text-white border border-white/10 flex items-center justify-center hover:bg-black/80 active:scale-90 transition-transform cursor-pointer"
+                  className="w-9 h-9 flex items-center justify-center hover:scale-110 active:scale-90 transition-transform cursor-pointer bg-transparent border-none shadow-none outline-none"
                   title={isSaved ? 'Remover dos salvos' : 'Salvar roteiro'}
                 >
-                  <Heart className={`w-4 h-4 ${isSaved ? 'fill-rose-500 text-rose-500' : 'text-white'}`} />
+                  <Heart
+                    className={`w-8 h-8 transition-all stroke-none drop-shadow-[0_2px_8px_rgba(0,0,0,0.6)] ${
+                      isSaved ? 'fill-rose-500 text-rose-500' : 'fill-white/90 text-white/90'
+                    }`}
+                  />
                 </button>
 
                 <button
                   onClick={handleShare}
-                  className="w-9 h-9 rounded-full bg-black/60 backdrop-blur-md text-white border border-white/10 flex items-center justify-center hover:bg-black/80 transition-colors cursor-pointer"
+                  className="w-9 h-9 rounded-full expo-liquid-glass-btn expo-liquid-glass-clear text-white flex items-center justify-center transition-colors cursor-pointer"
                   title="Compartilhar roteiro"
                 >
                   <Share2 className="w-4 h-4" />
@@ -277,7 +281,7 @@ export const ItineraryDetailModal: React.FC<ItineraryDetailModalProps> = ({
                     className={`px-3.5 py-1.5 rounded-full text-xs font-bold transition-colors shrink-0 cursor-pointer ${
                       activeDayIndex === idx
                         ? 'bg-zinc-900 text-white dark:bg-white dark:text-zinc-900 shadow-2xs'
-                        : 'bg-white dark:bg-[#000000] text-zinc-700 dark:text-[#A1A1AA] hover:text-zinc-900 dark:hover:text-white border border-zinc-200/80 dark:border-[#262626]'
+                        : 'expo-liquid-glass-btn text-zinc-700 dark:text-[#A1A1AA] hover:text-zinc-900 dark:hover:text-white'
                     }`}
                   >
                     Dia {d.dayNumber || idx + 1}
@@ -486,11 +490,11 @@ export const ItineraryDetailModal: React.FC<ItineraryDetailModalProps> = ({
         </div>
 
         {/* Footer CTAs */}
-        <div className="p-4 sm:p-5 border-t border-zinc-200 dark:border-[#262626] bg-white dark:bg-[#000000] flex items-center justify-between gap-3 shrink-0">
+        <div className="p-4 sm:p-5 expo-liquid-glass-bar flex items-center justify-between gap-3 shrink-0">
           <button
             type="button"
             onClick={onClose}
-            className="px-4 py-2.5 rounded-xl text-xs font-semibold text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-white transition-colors cursor-pointer"
+            className="px-5 py-2.5 rounded-full expo-liquid-glass-btn text-xs font-bold text-black dark:text-white hover:bg-zinc-50 border border-black/5 shadow-xs transition-all active:scale-95 cursor-pointer"
           >
             Fechar
           </button>
@@ -499,13 +503,13 @@ export const ItineraryDetailModal: React.FC<ItineraryDetailModalProps> = ({
             <button
               type="button"
               onClick={() => onSaveItinerary(itinerary)}
-              className={`px-5 py-2.5 rounded-xl text-xs font-bold flex items-center gap-2 transition-all cursor-pointer shadow-sm ${
+              className={`px-5 py-2.5 rounded-full text-xs font-bold flex items-center gap-2 transition-all cursor-pointer shadow-sm border border-black/5 active:scale-95 ${
                 isSaved
-                  ? 'bg-zinc-100 dark:bg-zinc-800 text-zinc-900 dark:text-white border border-zinc-300 dark:border-zinc-700'
-                  : 'bg-zinc-900 text-white dark:bg-white dark:text-zinc-900 hover:opacity-90'
+                  ? 'expo-liquid-glass-btn text-black dark:text-white'
+                  : 'expo-liquid-glass-btn text-black dark:bg-white dark:text-zinc-900 hover:bg-zinc-50'
               }`}
             >
-              {isSaved ? <BookmarkCheck className="w-4 h-4 text-white" /> : <Bookmark className="w-4 h-4" />}
+              {isSaved ? <BookmarkCheck className="w-4 h-4 text-current" /> : <Bookmark className="w-4 h-4 text-current" />}
               <span>{isSaved ? 'Roteiro Salvo' : 'Salvar nos Meus Roteiros'}</span>
             </button>
           )}

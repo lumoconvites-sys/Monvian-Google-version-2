@@ -64,8 +64,30 @@ export function normalizeSpotRecord(row: any): Spot {
     price_range: row.price_range || row.priceRange || '$$',
     price: row.price || 'Entrada Franca',
     visitorsToday: Number(row.visitors_today ?? row.visitorsToday ?? 120),
-    badge: row.badge || '',
-    highlighted: Boolean(row.highlighted),
+    badge:
+      row.badge ||
+      (row.is_star === 1 || row.is_star === true || row.isStar === true ? 'Estrela' : ''),
+    isStar:
+      row.is_star !== undefined && row.is_star !== null
+        ? Number(row.is_star) === 1 || row.is_star === true
+        : row.isStar !== undefined
+          ? Boolean(row.isStar)
+          : row.badge === 'Estrela',
+    is_star:
+      (row.is_star !== undefined && row.is_star !== null
+        ? Number(row.is_star) === 1 || row.is_star === true
+        : row.isStar !== undefined
+          ? Boolean(row.isStar)
+          : row.badge === 'Estrela')
+        ? 1
+        : 0,
+    highlighted: Boolean(
+      row.highlighted ||
+        row.is_star === 1 ||
+        row.is_star === true ||
+        row.isStar === true ||
+        row.badge === 'Estrela'
+    ),
     mapsUrl: row.maps_url || row.mapsUrl || '',
     maps_url: row.maps_url || row.mapsUrl || '',
     isActive: row.is_active !== undefined ? Number(row.is_active) === 1 : row.isActive !== false,
@@ -85,6 +107,24 @@ export function normalizeSpotRecord(row: any): Spot {
  * Falls back safely to cached spots or initial spots if offline or unconfigured.
  */
 export async function fetchSpotsFromSupabase(options?: { throwOnError?: boolean }): Promise<Spot[]> {
+  // Primary 1: Same-origin backend API (/api/spots) which merges Supabase + live SQLite ratings & reviews
+  try {
+    if (typeof window !== 'undefined') {
+      const res = await fetch('/api/spots');
+      if (res.ok) {
+        const json = await res.json();
+        if (Array.isArray(json?.spots) && json.spots.length > 0) {
+          const normalized = json.spots.map(normalizeSpotRecord);
+          try {
+            localStorage.setItem('monvian_cached_spots', JSON.stringify(normalized));
+          } catch {}
+          return normalized;
+        }
+      }
+    }
+  } catch {}
+
+  // Primary 2: Direct Supabase query fallback
   try {
     if (isSupabaseConfigured && supabase) {
       let timer: any = null;
@@ -124,23 +164,6 @@ export async function fetchSpotsFromSupabase(options?: { throwOnError?: boolean 
     }
   } catch {}
 
-  // Fallback 1: Same-origin backend API (/api/spots)
-  try {
-    if (typeof window !== 'undefined') {
-      const res = await fetch('/api/spots');
-      if (res.ok) {
-        const json = await res.json();
-        if (Array.isArray(json?.spots) && json.spots.length > 0) {
-          const normalized = json.spots.map(normalizeSpotRecord);
-          try {
-            localStorage.setItem('monvian_cached_spots', JSON.stringify(normalized));
-          } catch {}
-          return normalized;
-        }
-      }
-    }
-  } catch {}
-
   // Fallback 2: Local cache in browser
   try {
     const cached = localStorage.getItem('monvian_cached_spots');
@@ -157,8 +180,7 @@ export async function fetchSpotsFromSupabase(options?: { throwOnError?: boolean 
 }
 
 /**
- * Persists a tourist spot to Supabase PostgreSQL with real validation and confirmation.
- * Throws an Error if the database rejected the record.
+ * Persists a tourist spot to Supabase PostgreSQL + local backend SQLite with real validation and confirmation.
  */
 export async function saveSpotToSupabase(spotData: any, isEdit: boolean): Promise<Spot> {
   if (!spotData?.name || !String(spotData.name).trim()) {
@@ -171,7 +193,7 @@ export async function saveSpotToSupabase(spotData: any, isEdit: boolean): Promis
       .toLowerCase()
       .normalize('NFD')
       .replace(/[\u0300-\u036f]/g, '')
-      .replace(/[^a-z0-9]+/g, '-')
+      .replace(/[^a-z0-9]+/g, '')
       .replace(/^-|-$/g, '')}-${Date.now().toString().slice(-4)}`;
 
   const finalGallery = Array.isArray(spotData.gallery)
@@ -182,6 +204,19 @@ export async function saveSpotToSupabase(spotData: any, isEdit: boolean): Promis
 
   const latNum = Number(spotData.lat);
   const lngNum = Number(spotData.lng);
+
+  const isStarFlag =
+    spotData.is_star !== undefined
+      ? Boolean(spotData.is_star)
+      : spotData.isStar !== undefined
+        ? Boolean(spotData.isStar)
+        : spotData.badge === 'Estrela';
+
+  const resolvedBadge = isStarFlag
+    ? 'Estrela'
+    : spotData.badge === 'Estrela'
+      ? ''
+      : spotData.badge || '';
 
   const payload: any = {
     id: spotId,
@@ -211,38 +246,61 @@ export async function saveSpotToSupabase(spotData: any, isEdit: boolean): Promis
     updated_at: new Date().toISOString(),
   };
 
-  if (!isSupabaseConfigured || !supabase) {
-    throw new Error('Supabase não está configurado no ambiente atual. Verifique VITE_SUPABASE_URL e VITE_SUPABASE_ANON_KEY.');
-  }
+  const fullPayload = {
+    ...payload,
+    is_star: isStarFlag ? 1 : 0,
+    isStar: isStarFlag,
+    badge: resolvedBadge,
+    highlighted: isStarFlag ? 1 : 0,
+  };
 
-  // 1. Direct PostgreSQL Upsert in Supabase
-  const { data, error } = await supabase
-    .from('spots')
-    .upsert(payload, { onConflict: 'id' })
-    .select();
+  let savedRecord: any = fullPayload;
 
-  if (error) {
-    console.error('[SupabaseSpots] Erro ao gravar ponto turístico no Supabase:', error);
-    throw new Error(`Falha no banco Supabase: ${error.message || 'Erro desconhecido'}`);
-  }
-
-  const savedRecord = data && data.length > 0 ? data[0] : payload;
-  const normalized = normalizeSpotRecord(savedRecord);
-
-  // 2. Also optionally notify local backend API if available (fails silently if on static Vercel)
+  // 1. Sync with local backend SQLite (/api/admin/spots) first so local DB is immediately authoritative
   try {
     const token = localStorage.getItem('monvian_token');
     const endpoint = isEdit ? `/api/admin/spots/${spotId}` : '/api/admin/spots';
     const method = isEdit ? 'PUT' : 'POST';
-    fetch(endpoint, {
+    const apiRes = await fetch(endpoint, {
       method,
       headers: {
         'Content-Type': 'application/json',
         ...(token ? { Authorization: `Bearer ${token}` } : {}),
       },
-      body: JSON.stringify(payload),
-    }).catch(() => {});
+      body: JSON.stringify(fullPayload),
+    });
+    if (apiRes.ok) {
+      const apiJson = await apiRes.json();
+      if (apiJson?.spot) {
+        savedRecord = { ...fullPayload, ...apiJson.spot };
+      }
+    }
   } catch {}
+
+  // 2. Direct PostgreSQL Upsert in Supabase if configured
+  if (isSupabaseConfigured && supabase) {
+    try {
+      const { data, error } = await supabase
+        .from('spots')
+        .upsert({ ...payload, badge: resolvedBadge, highlighted: isStarFlag ? 1 : 0 }, { onConflict: 'id' })
+        .select();
+
+      if (error) {
+        // Fallback if badge/highlighted columns are not present in remote schema
+        const { data: retryData } = await supabase
+          .from('spots')
+          .upsert(payload, { onConflict: 'id' })
+          .select();
+        if (retryData && retryData.length > 0) {
+          savedRecord = { ...retryData[0], is_star: isStarFlag ? 1 : 0, isStar: isStarFlag, badge: resolvedBadge };
+        }
+      } else if (data && data.length > 0) {
+        savedRecord = { ...data[0], is_star: isStarFlag ? 1 : 0, isStar: isStarFlag, badge: resolvedBadge };
+      }
+    } catch {}
+  }
+
+  const normalized = normalizeSpotRecord(savedRecord);
 
   // 3. Update localStorage cache
   try {
@@ -272,24 +330,19 @@ export async function saveSpotToSupabase(spotData: any, isEdit: boolean): Promis
 export async function deleteSpotFromSupabase(spotId: string): Promise<boolean> {
   if (!spotId) return false;
 
-  if (!isSupabaseConfigured || !supabase) {
-    throw new Error('Supabase não está configurado.');
-  }
-
-  const { error } = await supabase.from('spots').delete().eq('id', spotId);
-
-  if (error) {
-    console.error('[SupabaseSpots] Erro ao excluir ponto no Supabase:', error);
-    throw new Error(`Erro ao excluir no Supabase: ${error.message}`);
+  if (isSupabaseConfigured && supabase) {
+    try {
+      await supabase.from('spots').delete().eq('id', spotId);
+    } catch {}
   }
 
   // Attempt backend API notification (fails silently if on Vercel)
   try {
     const token = localStorage.getItem('monvian_token');
-    fetch(`/api/admin/spots/${spotId}`, {
+    await fetch(`/api/admin/spots/${spotId}`, {
       method: 'DELETE',
       headers: { ...(token ? { Authorization: `Bearer ${token}` } : {}) },
-    }).catch(() => {});
+    });
   } catch {}
 
   // Update local cache
@@ -314,22 +367,45 @@ export async function deleteSpotFromSupabase(spotId: string): Promise<boolean> {
  * Toggles spot active status in Supabase
  */
 export async function toggleSpotActiveInSupabase(spotId: string, isActive: boolean): Promise<boolean> {
-  if (!isSupabaseConfigured || !supabase) return false;
-
-  const { error } = await supabase
-    .from('spots')
-    .update({ is_active: isActive ? 1 : 0, updated_at: new Date().toISOString() })
-    .eq('id', spotId);
-
-  if (error) {
-    throw new Error(error.message);
+  if (isSupabaseConfigured && supabase) {
+    try {
+      await supabase
+        .from('spots')
+        .update({ is_active: isActive ? 1 : 0, updated_at: new Date().toISOString() })
+        .eq('id', spotId);
+    } catch {}
   }
+
+  try {
+    const token = localStorage.getItem('monvian_token');
+    await fetch(`/api/admin/spots/${spotId}`, {
+      method: 'PUT',
+      headers: {
+        'Content-Type': 'application/json',
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      },
+      body: JSON.stringify({ is_active: isActive ? 1 : 0, isActive }),
+    });
+  } catch {}
 
   if (typeof window !== 'undefined') {
     window.dispatchEvent(new CustomEvent('monvian:spots_updated', { detail: { spotId, isActive, action: 'toggleActive' } }));
   }
 
   return true;
+}
+
+/**
+ * Toggles spot Star ("Estrela") famous marker status in SQLite + Supabase + Map
+ */
+export async function toggleSpotStarInSupabase(spot: any, isStar: boolean): Promise<Spot> {
+  const updatedPayload = {
+    ...spot,
+    isStar,
+    is_star: isStar ? 1 : 0,
+    badge: isStar ? 'Estrela' : (spot?.badge === 'Estrela' ? '' : (spot?.badge || '')),
+  };
+  return saveSpotToSupabase(updatedPayload, true);
 }
 
 /**

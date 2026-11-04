@@ -584,6 +584,19 @@ export function setupSocialDatabase(db: SqliteDatabase) {
   // Ensure user_username column exists in posts
   try { db.exec(`ALTER TABLE posts ADD COLUMN user_username TEXT;`); } catch (e) {}
 
+  // Ensure users table has all required columns for creators seed and user profiles
+  try { db.exec(`ALTER TABLE users ADD COLUMN username TEXT;`); } catch (e) {}
+  try { db.exec(`ALTER TABLE users ADD COLUMN username_normalized TEXT;`); } catch (e) {}
+  try { db.exec(`ALTER TABLE users ADD COLUMN bio TEXT DEFAULT '';`); } catch (e) {}
+  try { db.exec(`ALTER TABLE users ADD COLUMN avatar_url TEXT;`); } catch (e) {}
+  try {
+    db.exec(`
+      UPDATE users 
+      SET username_normalized = LOWER(REPLACE(COALESCE(username, name, email, 'user'), ' ', ''))
+      WHERE username_normalized IS NULL OR username_normalized = '';
+    `);
+  } catch (e) {}
+
   // Seed real creators into users table and backfill user_username in posts
   try {
     const SEED_CAMPOS_CREATORS = [

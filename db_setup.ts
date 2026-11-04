@@ -23,23 +23,36 @@ db.exec(`
   );
 `);
 
+try { db.exec(`ALTER TABLE users ADD COLUMN name TEXT;`); } catch (e) {}
+try { db.exec(`ALTER TABLE users ADD COLUMN email TEXT;`); } catch (e) {}
+try { db.exec(`ALTER TABLE users ADD COLUMN username TEXT;`); } catch (e) {}
+try { db.exec(`ALTER TABLE users ADD COLUMN username_normalized TEXT;`); } catch (e) {}
+try { db.exec(`ALTER TABLE users ADD COLUMN role TEXT DEFAULT 'user';`); } catch (e) {}
+try { db.exec(`ALTER TABLE users ADD COLUMN avatar_url TEXT;`); } catch (e) {}
+try { db.exec(`ALTER TABLE users ADD COLUMN bio TEXT DEFAULT '';`); } catch (e) {}
+try { db.exec(`ALTER TABLE users ADD COLUMN visits_count INTEGER DEFAULT 1;`); } catch (e) {}
+try { db.exec(`ALTER TABLE users ADD COLUMN is_banned INTEGER DEFAULT 0;`); } catch (e) {}
+try { db.exec(`ALTER TABLE users ADD COLUMN is_premium INTEGER DEFAULT 0;`); } catch (e) {}
+try { db.exec(`ALTER TABLE users ADD COLUMN is_gold INTEGER DEFAULT 0;`); } catch (e) {}
+try { db.exec(`ALTER TABLE users ADD COLUMN plan TEXT DEFAULT 'beta';`); } catch (e) {}
+try { db.exec(`ALTER TABLE users ADD COLUMN gold_activated_at DATETIME;`); } catch (e) {}
+try { db.exec(`ALTER TABLE users ADD COLUMN snow_enabled INTEGER DEFAULT 0;`); } catch (e) {}
+try { db.exec(`ALTER TABLE users ADD COLUMN rain_enabled INTEGER DEFAULT 0;`); } catch (e) {}
+try { db.exec(`ALTER TABLE users ADD COLUMN theme TEXT DEFAULT 'light';`); } catch (e) {}
+try { db.exec(`ALTER TABLE users ADD COLUMN high_contrast INTEGER DEFAULT 0;`); } catch (e) {}
+try { db.exec(`ALTER TABLE users ADD COLUMN onboarding_completed INTEGER DEFAULT 1;`); } catch (e) {}
+try { db.exec(`ALTER TABLE users ADD COLUMN onboarding_step INTEGER DEFAULT 1;`); } catch (e) {}
+try { db.exec(`ALTER TABLE users ADD COLUMN location_permission_granted INTEGER DEFAULT 0;`); } catch (e) {}
+try { db.exec(`ALTER TABLE users ADD COLUMN motion_permission_granted INTEGER DEFAULT 0;`); } catch (e) {}
+try { db.exec(`ALTER TABLE users ADD COLUMN last_access DATETIME DEFAULT CURRENT_TIMESTAMP;`); } catch (e) {}
+try { db.exec(`ALTER TABLE users ADD COLUMN auth_id TEXT;`); } catch (e) {}
+
 try {
-  db.exec(`ALTER TABLE users ADD COLUMN name TEXT;`);
-} catch (e) {}
-try {
-  db.exec(`ALTER TABLE users ADD COLUMN email TEXT;`);
-} catch (e) {}
-try {
-  db.exec(`ALTER TABLE users ADD COLUMN username TEXT;`);
-} catch (e) {}
-try {
-  db.exec(`ALTER TABLE users ADD COLUMN role TEXT DEFAULT 'user';`);
-} catch (e) {}
-try {
-  db.exec(`ALTER TABLE users ADD COLUMN avatar_url TEXT;`);
-} catch (e) {}
-try {
-  db.exec(`ALTER TABLE users ADD COLUMN is_gold INTEGER DEFAULT 0;`);
+  db.exec(`
+    UPDATE users 
+    SET username_normalized = LOWER(REPLACE(COALESCE(username, name, email, 'user'), ' ', ''))
+    WHERE username_normalized IS NULL OR username_normalized = '';
+  `);
 } catch (e) {}
 
 db.exec(`
@@ -54,6 +67,7 @@ db.exec(`
   CREATE TABLE IF NOT EXISTS map_visual_icons (
     id TEXT PRIMARY KEY,
     category TEXT NOT NULL,
+    icon TEXT,
     latitude REAL NOT NULL,
     longitude REAL NOT NULL,
     color TEXT,
@@ -61,7 +75,67 @@ db.exec(`
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
   );
+
+  CREATE TABLE IF NOT EXISTS spots (
+    id TEXT PRIMARY KEY,
+    name TEXT NOT NULL,
+    short_name TEXT,
+    tag_label TEXT,
+    category TEXT NOT NULL DEFAULT 'attractions',
+    category_label TEXT,
+    lat REAL NOT NULL,
+    lng REAL NOT NULL,
+    image TEXT,
+    gallery TEXT,
+    description TEXT,
+    tourist_tip TEXT,
+    rating REAL DEFAULT 4.8,
+    review_count INTEGER DEFAULT 0,
+    hours TEXT,
+    address TEXT,
+    price_range TEXT,
+    popular_times TEXT,
+    visitors_today INTEGER DEFAULT 0,
+    badge TEXT,
+    highlighted INTEGER DEFAULT 0,
+    is_active INTEGER DEFAULT 1,
+    is_verified INTEGER DEFAULT 1,
+    website TEXT,
+    phone TEXT,
+    available_for_itinerary INTEGER DEFAULT 1,
+    duration_minutes INTEGER DEFAULT 90,
+    tags TEXT,
+    price TEXT,
+    maps_url TEXT,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+  );
 `);
+
+try { db.exec(`ALTER TABLE map_visual_icons ADD COLUMN icon TEXT;`); } catch (e) {}
+try { db.exec(`ALTER TABLE map_visual_icons ADD COLUMN color TEXT;`); } catch (e) {}
+try { db.exec(`ALTER TABLE map_visual_icons ADD COLUMN is_active INTEGER DEFAULT 1;`); } catch (e) {}
+try { db.exec(`ALTER TABLE map_visual_icons ADD COLUMN created_at DATETIME DEFAULT CURRENT_TIMESTAMP;`); } catch (e) {}
+try { db.exec(`ALTER TABLE map_visual_icons ADD COLUMN updated_at DATETIME DEFAULT CURRENT_TIMESTAMP;`); } catch (e) {}
+
+try { db.exec(`ALTER TABLE spots ADD COLUMN popular_times TEXT;`); } catch (e) {}
+try { db.exec(`ALTER TABLE spots ADD COLUMN visitors_today INTEGER DEFAULT 0;`); } catch (e) {}
+try { db.exec(`ALTER TABLE spots ADD COLUMN badge TEXT;`); } catch (e) {}
+try { db.exec(`ALTER TABLE spots ADD COLUMN highlighted INTEGER DEFAULT 0;`); } catch (e) {}
+try { db.exec(`ALTER TABLE spots ADD COLUMN is_verified INTEGER DEFAULT 1;`); } catch (e) {}
+try { db.exec(`ALTER TABLE spots ADD COLUMN website TEXT;`); } catch (e) {}
+try { db.exec(`ALTER TABLE spots ADD COLUMN phone TEXT;`); } catch (e) {}
+try { db.exec(`ALTER TABLE spots ADD COLUMN updated_at DATETIME DEFAULT CURRENT_TIMESTAMP;`); } catch (e) {}
+try { db.exec(`ALTER TABLE spots ADD COLUMN short_name TEXT;`); } catch (e) {}
+try { db.exec(`ALTER TABLE spots ADD COLUMN tag_label TEXT;`); } catch (e) {}
+try { db.exec(`ALTER TABLE spots ADD COLUMN category_label TEXT;`); } catch (e) {}
+try { db.exec(`ALTER TABLE spots ADD COLUMN price_range TEXT;`); } catch (e) {}
+try { db.exec(`ALTER TABLE spots ADD COLUMN price TEXT;`); } catch (e) {}
+try { db.exec(`ALTER TABLE spots ADD COLUMN available_for_itinerary INTEGER DEFAULT 1;`); } catch (e) {}
+try { db.exec(`ALTER TABLE spots ADD COLUMN duration_minutes INTEGER DEFAULT 90;`); } catch (e) {}
+try { db.exec(`ALTER TABLE spots ADD COLUMN tags TEXT;`); } catch (e) {}
+try { db.exec(`ALTER TABLE spots ADD COLUMN maps_url TEXT;`); } catch (e) {}
+try { db.exec(`ALTER TABLE spots ADD COLUMN is_active INTEGER DEFAULT 1;`); } catch (e) {}
 
 // Seed default visual icons if empty
 try {

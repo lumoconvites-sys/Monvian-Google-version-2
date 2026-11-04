@@ -331,7 +331,7 @@ export const TinderDiscoveryStep: React.FC<TinderDiscoveryStepProps> = ({
             </p>
             <button
               onClick={handleGenerateNow}
-              className="mt-6 py-4 px-8 rounded-2xl bg-white hover:bg-zinc-200 active:scale-95 text-black font-black text-base shadow-xl shadow-black/20 flex items-center gap-2 cursor-pointer transition-all"
+              className="mt-6 py-4 px-8 rounded-full expo-liquid-glass-btn text-black dark:text-white border border-black/5 active:scale-95 font-bold text-base shadow-sm flex items-center gap-2 cursor-pointer transition-all hover:bg-zinc-50"
             >
               <span>Gerar Roteiro Agora</span>
             </button>

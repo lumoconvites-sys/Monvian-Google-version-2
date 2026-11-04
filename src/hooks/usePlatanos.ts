@@ -6,7 +6,7 @@ const DEFAULT_PACKAGES: PlatanoPackage[] = [
   { id: 'pkg_30', platanos: 30, priceCents: 2290, priceBRL: 'R$ 22,90', badge: '', isBestValue: false, isActive: true, sortOrder: 2 },
   { id: 'pkg_60', platanos: 60, priceCents: 2990, priceBRL: 'R$ 29,90', badge: '', isBestValue: false, isActive: true, sortOrder: 3 },
   { id: 'pkg_100', platanos: 100, priceCents: 3490, priceBRL: 'R$ 34,90', badge: '', isBestValue: false, isActive: true, sortOrder: 4 },
-  { id: 'pkg_200', platanos: 200, priceCents: 3990, priceBRL: 'R$ 39,90', badge: 'Melhor custo-benefício', isBestValue: true, isActive: true, sortOrder: 5 },
+  { id: 'pkg_200', platanos: 200, priceCents: 3990, priceBRL: 'R$ 39,90', badge: 'Melhor valor', isBestValue: true, isActive: true, sortOrder: 5 },
 ];
 
 const INITIAL_WALLET_STATE: PlatanoWalletData = {
@@ -144,34 +144,17 @@ export function usePlatanos() {
   }, [refreshWallet]);
 
   const getItineraryPlatanoPrice = useCallback(
-    (itinerary?: Itinerary | null): number => {
-      if (!itinerary) return 0;
-      const isPrem = Boolean(
-        itinerary.isPremium ||
-          (itinerary as any).isGold ||
-          (itinerary as any).is_gold
-      );
-      if (!isPrem || itinerary.badgeText?.toLowerCase() === 'livre') {
-        return 0;
-      }
-      const mapped = wallet.itineraryPrices?.[itinerary.id];
-      if (typeof mapped === 'number' && mapped > 0) {
-        return mapped;
-      }
-      if (typeof itinerary.platanosPrice === 'number' && itinerary.platanosPrice > 0) {
-        return itinerary.platanosPrice;
-      }
-      return 15;
+    (_itinerary?: Itinerary | null): number => {
+      return 0;
     },
-    [wallet.itineraryPrices]
+    []
   );
 
   const isItineraryUnlocked = useCallback(
-    (itineraryId?: string | null): boolean => {
-      if (!itineraryId) return false;
-      return wallet.unlockedItineraryIds.includes(itineraryId);
+    (_itineraryId?: string | null): boolean => {
+      return true;
     },
-    [wallet.unlockedItineraryIds]
+    []
   );
 
   const startTopUpCheckout = useCallback(async (packageId: string) => {

@@ -36,22 +36,6 @@ export function normalizeItineraryRecord(
     }
   }
 
-  const hasExplicitPremium =
-    row.is_premium !== undefined && row.is_premium !== null
-      ? Number(row.is_premium) === 1 || row.is_premium === true
-      : row.isPremium !== undefined
-        ? Boolean(row.isPremium)
-        : false;
-
-  const isPrem = hasExplicitPremium;
-  const badge = isPrem
-    ? row.badge_text && row.badge_text.toLowerCase() !== 'grátis'
-      ? row.badge_text
-      : row.badgeText && row.badgeText.toLowerCase() !== 'grátis'
-        ? row.badgeText
-        : 'ELITE GOLD'
-    : 'Grátis';
-
   return {
     id: String(row.id),
     title: String(row.title || 'Roteiro Sem Título'),
@@ -63,17 +47,13 @@ export function normalizeItineraryRecord(
     isActive: row.is_active !== undefined ? Number(row.is_active) === 1 : row.isActive !== false,
     isRecommended: row.is_recommended !== undefined ? Number(row.is_recommended) === 1 : Boolean(row.isRecommended),
     isFeatured: row.is_featured !== undefined ? Number(row.is_featured) === 1 : (row.is_recommended !== undefined ? Number(row.is_recommended) === 1 : Boolean(row.isFeatured)),
-    isPremium: isPrem,
-    price: isPrem ? (row.price && row.price !== 'Grátis' && row.price !== 'R$ 0' ? row.price : '15 Plátanos') : 'Grátis',
-    platanosPrice: isPrem
-      ? Number(row.platanos_price ?? row.platanosPrice ?? 15) > 0
-        ? Number(row.platanos_price ?? row.platanosPrice ?? 15)
-        : 15
-      : 0,
+    isPremium: false,
+    price: 'Grátis',
+    platanosPrice: 0,
     status: row.status || (Number(row.is_active) === 1 ? 'published' : 'draft'),
-    badgeText: badge,
-    showBadge: row.show_badge !== undefined ? Number(row.show_badge) === 1 : true,
-    showPrice: row.show_price !== undefined ? Number(row.show_price) === 1 : true,
+    badgeText: '',
+    showBadge: false,
+    showPrice: false,
     showStopsCount: row.show_stops_count !== undefined ? Number(row.show_stops_count) === 1 : true,
     tips: row.tips || row.notes || '',
     sortOrder: Number(row.sort_order ?? row.sortOrder ?? 0),
@@ -409,12 +389,12 @@ export async function saveItineraryToSupabase(payload: any, isEdit: boolean): Pr
     is_active: isActive,
     is_recommended: isFeatured,
     is_featured: isFeatured,
-    is_premium: payload.isPremium !== undefined ? (payload.isPremium ? 1 : 0) : 1,
-    price: payload.price || 'R$ 14,90',
+    is_premium: 0,
+    price: 'Grátis',
     status,
-    badge_text: payload.badgeText || (payload.isPremium ? 'Premium' : 'Grátis'),
-    show_badge: payload.showBadge !== undefined ? (payload.showBadge ? 1 : 0) : 1,
-    show_price: payload.showPrice !== undefined ? (payload.showPrice ? 1 : 0) : 1,
+    badge_text: 'Grátis',
+    show_badge: 0,
+    show_price: 0,
     show_stops_count: payload.showStopsCount !== undefined ? (payload.showStopsCount ? 1 : 0) : 1,
     tips: payload.tips || payload.notes || '',
     sort_order: Number(payload.sortOrder ?? payload.sort_order ?? 0),

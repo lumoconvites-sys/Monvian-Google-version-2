@@ -28,7 +28,6 @@ interface DesktopSidebarProps {
   onOpenWeatherModal?: () => void;
   user?: any;
   onOpenAdmin?: () => void;
-  onOpenHostDashboard?: () => void;
   isUserAdmin?: boolean;
   isCollapsed?: boolean;
   onToggleCollapse?: () => void;
@@ -43,7 +42,6 @@ export const DesktopSidebar: React.FC<DesktopSidebarProps> = ({
   onOpenWeatherModal,
   user,
   onOpenAdmin,
-  onOpenHostDashboard,
   isUserAdmin,
   isCollapsed: controlledIsCollapsed,
   onToggleCollapse,
@@ -71,7 +69,7 @@ export const DesktopSidebar: React.FC<DesktopSidebarProps> = ({
   const displayUsername = user?.username ? `@${user.username}` : '@monvians';
   const displayName = user?.name || 'mariomeloz';
 
-  const isDark = theme === 'dark';
+  const isDark = false;
 
   return (
     <aside
@@ -103,17 +101,30 @@ export const DesktopSidebar: React.FC<DesktopSidebarProps> = ({
               />
             </div>
           ) : (
-            /* Expanded state: shows logocarregamento.png (+40% horizontally) */
+            /* Expanded state: shows logomodoescuro.png in dark mode, minilogo.png in light mode */
             <div className="flex items-center min-w-0 flex-1 pr-3 overflow-visible animate-fadeIn">
-              <img
-                src={isDark ? '/logomodoescuro.png' : '/logocarregamento.png'}
-                alt="Monvian"
-                className="h-[34px] w-auto max-w-none select-none transition-transform duration-200"
-                style={{
-                  transform: 'scaleX(1.4)',
-                  transformOrigin: 'left center',
-                }}
-              />
+              {isDark ? (
+                <img
+                  src="/logomodoescuro.png"
+                  alt="Monvian"
+                  className="h-[34px] w-auto max-w-none select-none transition-transform duration-200"
+                  style={{
+                    transform: 'scaleX(1.4)',
+                    transformOrigin: 'left center',
+                  }}
+                />
+              ) : (
+                <div className="flex items-center gap-2.5 select-none">
+                  <img
+                    src="/minilogo.png"
+                    alt="Monvian"
+                    className="h-8 w-8 object-contain shrink-0"
+                  />
+                  <span className="text-[20px] font-black text-zinc-900 tracking-tight">
+                    Monvian
+                  </span>
+                </div>
+              )}
             </div>
           )}
 
@@ -224,39 +235,7 @@ export const DesktopSidebar: React.FC<DesktopSidebarProps> = ({
             );
           })}
 
-          {/* Host Dashboard Link */}
-          {onOpenHostDashboard && (
-            <div className={`pt-2 ${isCollapsed ? 'flex justify-center' : ''}`}>
-              <div className="relative group w-full">
-                <button
-                  type="button"
-                  onClick={onOpenHostDashboard}
-                  className={`flex items-center transition-all cursor-pointer ${
-                    isCollapsed
-                      ? isDark
-                        ? 'w-11 h-11 mx-auto justify-center rounded-2xl text-white hover:bg-white/10 border border-transparent hover:border-[#262626]'
-                        : 'w-11 h-11 mx-auto justify-center rounded-2xl text-black hover:bg-zinc-100 border border-transparent hover:border-zinc-200'
-                      : isDark
-                      ? 'w-full justify-between px-3.5 py-2.5 rounded-2xl text-[13px] font-medium text-white hover:border-white/30 border border-[#262626]'
-                      : 'w-full justify-between px-3.5 py-2.5 rounded-2xl text-[13px] font-medium text-black hover:bg-zinc-100 border border-zinc-200'
-                  }`}
-                  aria-label="Área do anfitrião"
-                >
-                  <div className={`flex items-center ${isCollapsed ? 'justify-center' : 'gap-3'}`}>
-                    <User className="w-4 h-4 stroke-[2]" style={{ color: isDark ? '#FFFFFF' : '#000000' }} />
-                    {!isCollapsed && <span style={{ color: isDark ? '#FFFFFF' : '#000000' }}>Área do anfitrião</span>}
-                  </div>
-                  {!isCollapsed && <ChevronRight className="w-3.5 h-3.5 text-zinc-400" />}
-                </button>
 
-                {isCollapsed && (
-                  <div className="absolute left-[calc(100%+12px)] top-1/2 -translate-y-1/2 px-2.5 py-1 rounded-md bg-zinc-900 text-white text-xs font-medium tracking-tight shadow-xl opacity-0 pointer-events-none group-hover:opacity-100 transition-opacity duration-150 z-50 whitespace-nowrap">
-                    Área do anfitrião
-                  </div>
-                )}
-              </div>
-            </div>
-          )}
 
           {/* Admin Panel Link */}
           {isUserAdmin && (
