@@ -82,6 +82,7 @@ export interface FirestoreUser {
   created_at?: string;
   firebase_uid?: string | null;
   auth_id?: string | null;
+  welcome_card_seen?: number;
 }
 
 export interface FirestoreSession {
@@ -234,6 +235,9 @@ export async function persistUserToFirestore(user: FirestoreUser): Promise<void>
     if (user.motion_permission_granted !== undefined) {
       dataToSave.motion_permission_granted = user.motion_permission_granted ? 1 : 0;
     }
+    if (user.welcome_card_seen !== undefined) {
+      dataToSave.welcome_card_seen = user.welcome_card_seen ? 1 : 0;
+    }
     if (user.id) {
       dataToSave.id = user.id;
     }
@@ -241,6 +245,52 @@ export async function persistUserToFirestore(user: FirestoreUser): Promise<void>
     await withTimeout(setDoc(userRef, dataToSave, { merge: true }), 2500, null);
   } catch (err: any) {
     // Fail silently in background
+  }
+}
+
+/**
+ * Permanently registers that the first-access welcome card was presented to the authenticated user.
+ * Syncs to SQLite server API, Firestore, and Supabase.
+ */
+export async function markWelcomeCardSeen(cleanEmail: string, token?: string): Promise<void> {
+  const email = (cleanEmail || '').trim().toLowerCase();
+  if (!email && !token) return;
+
+  // 1. Update SQLite via backend endpoint
+  try {
+    const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+    const savedToken = token || localStorage.getItem('monvian_token');
+    if (savedToken) {
+      headers['Authorization'] = `Bearer ${savedToken}`;
+    }
+    await fetch('/api/auth/welcome-seen', {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({ email })
+    }).catch(() => {});
+  } catch {}
+
+  // 2. Update Firestore document
+  if (email) {
+    try {
+      const userRef = doc(firestore, 'users', email);
+      await withTimeout(
+        setDoc(userRef, { welcome_card_seen: 1, updated_at: new Date().toISOString() }, { merge: true }),
+        2500,
+        null
+      );
+    } catch {}
+  }
+
+  // 3. Update Supabase table
+  if (email && supabase) {
+    try {
+      await withTimeout(
+        Promise.resolve(supabase.from('users').update({ welcome_card_seen: 1 }).eq('email', email)),
+        2500,
+        null
+      );
+    } catch {}
   }
 }
 

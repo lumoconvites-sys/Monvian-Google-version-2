@@ -361,14 +361,14 @@ export const MapComponent = forwardRef<MapComponentHandle, MapComponentProps>(
           rootEl.style.pointerEvents = 'none';
           rootEl.style.zIndex = '40';
 
-          // 1. Minimalist Circular iOS Blue Radar + Subtle Perimeter Arc (No triangular cone)
+          // 1. Lanterna azul simples de orientação (Apple Maps / iOS Compass Flashlight Beam)
           const beamWrapper = document.createElement('div');
           beamWrapper.className = 'monvian-user-heading-beam';
           beamWrapper.style.position = 'absolute';
           beamWrapper.style.top = '27px'; // Exact center of the 54px outer avatar ring
           beamWrapper.style.left = '50%';
-          beamWrapper.style.width = '148px';
-          beamWrapper.style.height = '148px';
+          beamWrapper.style.width = '160px';
+          beamWrapper.style.height = '160px';
           const initialHeading = deviceHeadingManager.getCurrentHeading() || 0;
           const initialMapBearing = map.getBearing() || 0;
           const initialBeamAngle = (initialHeading - initialMapBearing + 360) % 360;
@@ -378,33 +378,20 @@ export const MapComponent = forwardRef<MapComponentHandle, MapComponentProps>(
           beamWrapper.style.zIndex = '1';
           beamWrapper.style.willChange = 'transform';
           beamWrapper.innerHTML = `
-            <svg viewBox="0 0 148 148" width="100%" height="100%" style="overflow: visible;">
+            <svg viewBox="0 0 160 160" width="100%" height="100%" style="overflow: visible;">
               <defs>
-                <radialGradient id="monvianSoftRadarAmbient" cx="50%" cy="50%" r="50%">
-                  <stop offset="0%" stop-color="#007AFF" stop-opacity="0.22" />
-                  <stop offset="58%" stop-color="#007AFF" stop-opacity="0.08" />
+                <radialGradient id="monvianAppleFlashlightBeam" cx="50%" cy="50%" r="50%">
+                  <stop offset="0%" stop-color="#007AFF" stop-opacity="0.45" />
+                  <stop offset="35%" stop-color="#007AFF" stop-opacity="0.25" />
+                  <stop offset="70%" stop-color="#007AFF" stop-opacity="0.08" />
                   <stop offset="100%" stop-color="#007AFF" stop-opacity="0" />
                 </radialGradient>
-                <linearGradient id="monvianIosBlueArc" x1="0%" y1="0%" x2="100%" y2="0%">
-                  <stop offset="0%" stop-color="#007AFF" stop-opacity="0.15" />
-                  <stop offset="50%" stop-color="#007AFF" stop-opacity="0.95" />
-                  <stop offset="100%" stop-color="#007AFF" stop-opacity="0.15" />
-                </linearGradient>
               </defs>
-              <!-- Soft ambient circular glow -->
-              <circle cx="74" cy="74" r="64" fill="url(#monvianSoftRadarAmbient)" />
-              <!-- Expanding Radar Wave 1 -->
-              <circle cx="74" cy="74" r="28" fill="none" stroke="#007AFF" stroke-width="1.2" stroke-opacity="0.32">
-                <animate attributeName="r" values="27;66" dur="3.2s" repeatCount="indefinite" />
-                <animate attributeName="stroke-opacity" values="0.38;0" dur="3.2s" repeatCount="indefinite" />
-              </circle>
-              <!-- Expanding Radar Wave 2 (staggered) -->
-              <circle cx="74" cy="74" r="28" fill="none" stroke="#007AFF" stroke-width="1.2" stroke-opacity="0.24">
-                <animate attributeName="r" values="27;66" dur="3.2s" begin="1.6s" repeatCount="indefinite" />
-                <animate attributeName="stroke-opacity" values="0.32;0" dur="3.2s" begin="1.6s" repeatCount="indefinite" />
-              </circle>
-              <!-- Sleek iOS Blue directional arc hugging the outer ring -->
-              <path d="M 50 58 A 29 29 0 0 1 98 58" fill="none" stroke="url(#monvianIosBlueArc)" stroke-width="3" stroke-linecap="round" />
+              <!-- Lanterna azul simples de orientação (cone frontal projetado a partir do centro) -->
+              <path
+                d="M 80 80 L 40 10 A 80 80 0 0 1 120 10 Z"
+                fill="url(#monvianAppleFlashlightBeam)"
+              />
             </svg>
           `;
           userBeamRef.current = beamWrapper;
@@ -1153,23 +1140,7 @@ export const MapComponent = forwardRef<MapComponentHandle, MapComponentProps>(
           radarWrap.style.zIndex = '55';
 
           radarWrap.innerHTML = `
-            <div style="
-              position: absolute;
-              inset: -8px;
-              border-radius: 9999px;
-              background: radial-gradient(circle, rgba(0, 122, 255, 0.20) 0%, rgba(0, 122, 255, 0.07) 58%, rgba(0, 122, 255, 0) 76%);
-              border: 1px solid rgba(0, 122, 255, 0.24);
-              animation: monvian-ios-radar-wave 3.4s cubic-bezier(0.16, 1, 0.3, 1) infinite;
-            "></div>
             <svg viewBox="0 0 56 56" style="position:absolute;inset:0;width:100%;height:100%;transform:rotate(-90deg);overflow:visible;">
-              <circle
-                cx="28"
-                cy="28"
-                r="${radius}"
-                fill="none"
-                stroke="rgba(255,255,255,0.55)"
-                stroke-width="2.5"
-              />
               <circle
                 class="monvian-spot-proximity-arc"
                 cx="28"
@@ -1181,21 +1152,9 @@ export const MapComponent = forwardRef<MapComponentHandle, MapComponentProps>(
                 stroke-linecap="round"
                 stroke-dasharray="${circumference}"
                 stroke-dashoffset="${circumference * (1 - Math.max(0.18, Math.min(1, progress)))}"
-                style="transition: stroke-dashoffset 320ms cubic-bezier(0.22, 1, 0.36, 1); filter: drop-shadow(0 0 4px rgba(0, 122, 255, 0.45));"
+                style="transition: stroke-dashoffset 320ms cubic-bezier(0.22, 1, 0.36, 1);"
               />
             </svg>
-            <div style="
-              position: absolute;
-              left: 50%;
-              bottom: -2px;
-              transform: translateX(-50%);
-              width: 10px;
-              height: 10px;
-              border-radius: 9999px;
-              background: #007AFF;
-              border: 2px solid #FFFFFF;
-              box-shadow: 0 0 8px rgba(0, 122, 255, 0.75), 0 1px 3px rgba(0, 0, 0, 0.22);
-            "></div>
           `;
           rec.containerEl.appendChild(radarWrap);
         } else {
@@ -1250,25 +1209,16 @@ export const MapComponent = forwardRef<MapComponentHandle, MapComponentProps>(
         ringWrap.innerHTML = `
           <svg viewBox="0 0 56 56" style="width:100%;height:100%;transform:rotate(-90deg);overflow:visible;">
             <circle
-              cx="28"
-              cy="28"
-              r="${radius}"
-              fill="none"
-              stroke="rgba(255,255,255,0.65)"
-              stroke-width="3"
-            />
-            <circle
               class="xp-ring-progress-circle"
               cx="28"
               cy="28"
               r="${radius}"
               fill="none"
               stroke="#007AFF"
-              stroke-width="3.5"
+              stroke-width="3"
               stroke-linecap="round"
               stroke-dasharray="${circumference}"
               stroke-dashoffset="${circumference}"
-              style="filter: drop-shadow(0 0 6px rgba(0, 122, 255, 0.65));"
             />
           </svg>
         `;

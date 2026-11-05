@@ -614,7 +614,7 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
                 }`}
               >
                 <div className="relative mb-3">
-                  <div className={`w-32 h-32 sm:w-[136px] sm:h-[136px] rounded-full overflow-hidden shadow-md border-2 ${
+                  <div className={`w-[102px] h-[102px] sm:w-[108px] sm:h-[108px] rounded-full overflow-hidden shadow-md border-2 ${
                     isDark ? 'bg-zinc-800 border-zinc-700' : 'bg-zinc-100 border-white'
                   }`}>
                     {userAvatar && !userAvatar.endsWith('fotoperfil.png') ? (
@@ -1047,7 +1047,7 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
                   {/* Avatar Selector and Preview */}
                   <div className="flex flex-col items-center justify-center pb-2 pt-1">
                     <div className="relative group">
-                      <div className={`w-[116px] h-[116px] rounded-full overflow-hidden border-2 shadow-lg relative ${
+                      <div className={`w-[92px] h-[92px] rounded-full overflow-hidden border-2 shadow-lg relative ${
                         isDark ? 'bg-zinc-800 border-zinc-700' : 'bg-zinc-100 border-white'
                       }`}>
                         <motion.img

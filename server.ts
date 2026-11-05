@@ -178,6 +178,7 @@ try { db.exec(`ALTER TABLE users ADD COLUMN location_permission_granted INTEGER 
 try { db.exec(`ALTER TABLE users ADD COLUMN motion_permission_granted INTEGER DEFAULT 0;`); } catch {}
 try { db.exec(`ALTER TABLE users ADD COLUMN last_access DATETIME DEFAULT CURRENT_TIMESTAMP;`); } catch {}
 try { db.exec(`ALTER TABLE users ADD COLUMN auth_id TEXT;`); } catch {}
+try { db.exec(`ALTER TABLE users ADD COLUMN welcome_card_seen INTEGER DEFAULT 0;`); } catch {}
 
 try {
   db.exec(`
@@ -468,6 +469,7 @@ function formatSafeUser(user: any) {
     is_banned: user.is_banned || 0,
     location_permission_granted: user.location_permission_granted ? 1 : 0,
     motion_permission_granted: user.motion_permission_granted ? 1 : 0,
+    welcome_card_seen: user.welcome_card_seen ? 1 : 0,
     created_at: user.created_at || new Date().toISOString(),
   };
 }
@@ -1110,6 +1112,42 @@ async function startServer() {
       return res.status(500).json({ success: false, error: err.message });
     }
   });
+
+  // Permanently record that user has seen the first-access welcome journey card
+  app.post('/api/auth/welcome-seen', async (req: Request, res: Response) => {
+    try {
+      const currentUser = await resolveAuthenticatedUser(req);
+      const email = ((req.body?.email || currentUser?.email || req.body?.identifier || '') as string).trim().toLowerCase();
+
+      if (!currentUser && !email) {
+        return res.status(401).json({ success: false, error: 'Não autenticado' });
+      }
+
+      if (currentUser?.id) {
+        db.prepare('UPDATE users SET welcome_card_seen = 1 WHERE id = ?').run(currentUser.id);
+      } else if (email) {
+        db.prepare('UPDATE users SET welcome_card_seen = 1 WHERE LOWER(email) = ? OR LOWER(whatsapp) = ?').run(email, email);
+      }
+
+      if (email && supabaseAnonClient) {
+        try {
+          await supabaseAnonClient
+            .from('users')
+            .update({ welcome_card_seen: 1 })
+            .or(`email.eq.${email},whatsapp.eq.${email}`);
+        } catch {}
+      }
+
+      const updated = currentUser?.id
+        ? db.prepare('SELECT * FROM users WHERE id = ?').get(currentUser.id)
+        : db.prepare('SELECT * FROM users WHERE LOWER(email) = ? OR LOWER(whatsapp) = ?').get(email, email);
+
+      return res.json({ success: true, user: formatSafeUser(updated) });
+    } catch (err: any) {
+      return res.status(500).json({ success: false, error: err.message });
+    }
+  });
+
 
   // User Profile Update (Preserves role & Gold status from DB, never trusting client role input)
   const updateProfileHandler = async (req: Request, res: Response) => {

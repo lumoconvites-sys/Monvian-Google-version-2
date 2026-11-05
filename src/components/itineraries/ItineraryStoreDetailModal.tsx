@@ -538,27 +538,50 @@ export const ItineraryStoreDetailModal: React.FC<ItineraryStoreDetailModalProps>
                     );
                   })}
                 </div>
+
+                {/* Espaçamento generoso para que todas as paradas rolem livremente acima do botão Play flutuante */}
+                <div
+                  aria-hidden="true"
+                  className="w-full shrink-0 select-none pointer-events-none"
+                  style={{
+                    height: 'max(calc(env(safe-area-inset-bottom, 0px) + 90px), 110px)',
+                  }}
+                />
               </div>
 
             </motion.div>
           </div>
 
-          {/* 11. BARRA DE AÇÃO FIXA INFERIOR COM SAFE AREA */}
+          {/* 11. BOTÃO DE AÇÃO FLUTUANTE (100% FLUTUANTE, SEM PLACA BRANCA OU CONTAINER RETANGULAR ATRÁS) */}
           <div
-            className="absolute bottom-0 inset-x-0 z-50 px-5 py-3.5 expo-liquid-glass-bar"
+            className="absolute bottom-0 inset-x-0 z-30 px-5 flex justify-center pointer-events-none select-none bg-transparent border-none shadow-none"
             style={{
               paddingBottom: 'max(calc(env(safe-area-inset-bottom, 0px) + 16px), 20px)',
               transform: 'translate3d(0, 0, 0)',
               WebkitTransform: 'translate3d(0, 0, 0)',
             }}
           >
-            <div className="max-w-md mx-auto">
+            <div className="w-full max-w-md pointer-events-auto">
               <motion.button
                 whileTap={{ scale: 0.97 }}
                 type="button"
                 disabled={isApplying}
                 onClick={handleAdd}
-                className="w-full h-12 rounded-full font-bold text-sm flex items-center justify-center gap-2 transition-all cursor-pointer disabled:opacity-60 expo-liquid-glass-btn text-black dark:text-white shadow-md border border-black/5 hover:bg-zinc-50 active:scale-95"
+                style={{
+                  fontFamily:
+                    '-apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro Text", "Helvetica Neue", sans-serif',
+                  backgroundColor: isLight
+                    ? 'rgba(255, 255, 255, 0.82)'
+                    : 'rgba(28, 28, 30, 0.82)',
+                  backdropFilter: 'blur(24px) saturate(190%)',
+                  WebkitBackdropFilter: 'blur(24px) saturate(190%)',
+                  border: isLight
+                    ? '1px solid rgba(255, 255, 255, 0.85)'
+                    : '1px solid rgba(255, 255, 255, 0.15)',
+                  boxShadow:
+                    '0 8px 32px rgba(0, 0, 0, 0.12), inset 0 1px 0 rgba(255, 255, 255, 0.9)',
+                }}
+                className="w-full h-12 rounded-full font-bold text-sm flex items-center justify-center gap-2 transition-transform cursor-pointer disabled:opacity-60 text-black dark:text-white active:scale-95"
                 title="Iniciar roteiro"
                 aria-label="Iniciar roteiro"
               >

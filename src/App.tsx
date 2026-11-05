@@ -35,10 +35,11 @@ import { DesktopMapControls } from './components/desktop/DesktopMapControls';
 import { DesktopExplorePanel } from './components/desktop/DesktopExplorePanel';
 import { startPreloadResources } from './utils/preloadItineraries';
 import { AirbnbPresentationCard, isPresentationCardSeen, markPresentationCardSeen, PresentationTab } from './components/AirbnbPresentationCard';
-import { persistUserToFirestore, syncPermissionsFromDatabase } from './services/firestoreSync';
+import { persistUserToFirestore, syncPermissionsFromDatabase, markWelcomeCardSeen } from './services/firestoreSync';
 import { fetchSpotsFromSupabase, subscribeToSpotsChanges } from './services/supabaseSpots';
 import { broadcastPlatanosWalletUpdate, getAuthHeaders } from './hooks/usePlatanos';
 import { SignupIntroSequence, SignupIntroStage } from './components/SignupIntroSequence';
+import { WelcomeJourneyModal } from './components/WelcomeJourneyModal';
 import { XpRewardNotificationOverlay } from './components/XpRewardNotificationOverlay';
 import { FloatingEventCard } from './components/FloatingEventCard';
 
@@ -1085,11 +1086,26 @@ export default function App() {
 
   const [airbnbCardTab, setAirbnbCardTab] = useState<PresentationTab | null>(null);
   const [signupIntroStage, setSignupIntroStage] = useState<SignupIntroStage>('idle');
+  const [isWelcomeJourneyOpen, setIsWelcomeJourneyOpen] = useState<boolean>(false);
+  const [pendingWelcomeJourney, setPendingWelcomeJourney] = useState<boolean>(false);
   const [isOnboardingItinerarySelection, setIsOnboardingItinerarySelection] = useState<boolean>(false);
   const [isUserLocationSpotlightActive, setIsUserLocationSpotlightActive] = useState<boolean>(false);
   const hasExecutedSignupIntroRef = useRef<boolean>(false);
   const isSignupRevealActive = signupIntroStage !== 'idle';
   const isOnboardingRevealReady = signupIntroStage === 'revealing' || signupIntroStage === 'idle';
+
+  // Triggers the first-access welcome journey card when the app enters the real tela de roteiro
+  useEffect(() => {
+    if (
+      pendingWelcomeJourney &&
+      signupIntroStage === 'idle' &&
+      activeTab === 'roteiros' &&
+      !isOnboardingItinerarySelection
+    ) {
+      setIsWelcomeJourneyOpen(true);
+      setPendingWelcomeJourney(false);
+    }
+  }, [pendingWelcomeJourney, signupIntroStage, activeTab, isOnboardingItinerarySelection]);
 
   useEffect(() => {
     if (!isUserLocationSpotlightActive) return;
@@ -1214,6 +1230,10 @@ export default function App() {
         stage={signupIntroStage}
         onAdvanceStage={setSignupIntroStage}
       />
+      <WelcomeJourneyModal
+        isOpen={isWelcomeJourneyOpen}
+        onFinish={() => setIsWelcomeJourneyOpen(false)}
+      />
       <AnimatePresence>
       {!isAuthenticated ? (
         <motion.div
@@ -1264,11 +1284,18 @@ export default function App() {
               syncPermissionsFromDatabase(normalizedUser?.email || normalizedUser?.whatsapp).catch(() => {});
               setUser(normalizedUser);
               setActiveTab('roteiros');
+
+              const shouldShowWelcome = Boolean(isNewAccount && userData?.welcome_card_seen !== 1);
+              if (shouldShowWelcome) {
+                setPendingWelcomeJourney(true);
+                markWelcomeCardSeen(cleanEmail, token).catch(() => {});
+              }
+
               if (isNewAccount && !hasExecutedSignupIntroRef.current) {
                 hasExecutedSignupIntroRef.current = true;
                 markPresentationCardSeen('roteiros');
-                setIsOnboardingItinerarySelection(true);
-                setSignupIntroStage('white');
+                setIsOnboardingItinerarySelection(false);
+                setSignupIntroStage('idle');
               }
               setIsAuthenticated(true);
             }}
@@ -1669,8 +1696,8 @@ export default function App() {
                     setSelectedItinerary(selectedItins[0]);
                   }
                 } catch {}
-                setActiveTab('explorar');
-                setIsUserLocationSpotlightActive(true);
+                setActiveTab('roteiros');
+                setIsUserLocationSpotlightActive(false);
               }}
             />
           </motion.div>
@@ -1894,23 +1921,17 @@ export default function App() {
       onActiveChange={setHasActiveMapEvents}
     />
 
-    {/* Monvian iOS Minimalist Floating Discovery Card & Expansion Overlay */}
+    {/* Monvian iOS Expansion & Coins Burst Reward Overlay */}
     <XpRewardNotificationOverlay
       visible={
         activeTab === 'explorar' &&
-        !isSpotCardOpen &&
-        !isDetailOpen &&
         !isMapOrbiting &&
-        !isOnboardingItinerarySelection &&
-        !isSearchOpen &&
-        !isCategoryCardOpen
+        !isOnboardingItinerarySelection
       }
-      suppressCard={hasActiveMapEvents}
-      onSelectSpot={handleSelectSpot}
     />
 
-    {/* 4. Bottom Navigation Pill rendered at root level (Visible ONLY on mobile, hidden during exclusive post-signup itinerary selection & spotlight presentation) */}
-    {!isMapOrbiting && !isOnboardingItinerarySelection && (
+    {/* 4. Bottom Navigation Pill rendered at root level (Visible ONLY on mobile, hidden during detail sheet, exclusive post-signup itinerary selection & spotlight presentation) */}
+    {!isMapOrbiting && !isOnboardingItinerarySelection && !isDetailOpen && (
       <div className={`md:hidden transition-opacity duration-150 ${isChatKeyboardOpen ? 'opacity-0 pointer-events-none' : 'opacity-100 pointer-events-auto'}`}>
         <BottomNavigation
           activeTab={activeTab}

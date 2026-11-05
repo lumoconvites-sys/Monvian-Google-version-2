@@ -15,19 +15,95 @@
     <link rel="apple-touch-icon" sizes="180x180" href="/loogo.png" />
     <script>
       (function() {
+        // Prevent @vite/client WebSocket closed without opened error in AI Studio iFrame environment
+        try {
+          var RealWebSocket = window.WebSocket;
+          if (RealWebSocket) {
+            window.WebSocket = function(url, protocols) {
+              var isHmr = false;
+              try {
+                if (protocols === 'vite-hmr' || (Array.isArray(protocols) && protocols.indexOf('vite-hmr') !== -1)) {
+                  isHmr = true;
+                }
+                if (typeof url === 'string' && (url.indexOf('vite-hmr') !== -1 || url.indexOf('/@vite') !== -1)) {
+                  isHmr = true;
+                }
+              } catch (e) {}
+
+              if (isHmr) {
+                var listeners = {};
+                var fakeWs = {
+                  readyState: 1, // WebSocket.OPEN
+                  binaryType: 'blob',
+                  protocol: 'vite-hmr',
+                  url: String(url),
+                  extensions: '',
+                  bufferedAmount: 0,
+                  send: function() {},
+                  close: function() {},
+                  addEventListener: function(type, fn) {
+                    if (!listeners[type]) listeners[type] = [];
+                    listeners[type].push(fn);
+                    if (type === 'open') {
+                      setTimeout(function() {
+                        try { fn({ type: 'open', target: fakeWs }); } catch (err) {}
+                      }, 0);
+                    }
+                  },
+                  removeEventListener: function(type, fn) {
+                    if (listeners[type]) {
+                      listeners[type] = listeners[type].filter(function(cb) { return cb !== fn; });
+                    }
+                  },
+                  dispatchEvent: function(event) {
+                    var fns = listeners[event && event.type];
+                    if (fns) {
+                      fns.forEach(function(fn) {
+                        try { fn(event); } catch (err) {}
+                      });
+                    }
+                    return true;
+                  }
+                };
+                return fakeWs;
+              }
+              return new RealWebSocket(url, protocols);
+            };
+            window.WebSocket.prototype = RealWebSocket.prototype;
+            window.WebSocket.CONNECTING = 0;
+            window.WebSocket.OPEN = 1;
+            window.WebSocket.CLOSING = 2;
+            window.WebSocket.CLOSED = 3;
+          }
+        } catch (e) {}
+
         window.addEventListener('unhandledrejection', function(event) {
           var reason = event && event.reason;
           var msg = (reason && (reason.message || String(reason))) || '';
           var stack = (reason && reason.stack) || '';
-          if (msg.indexOf('WebSocket') !== -1 || stack.indexOf('@vite/client') !== -1) {
+          if (
+            msg.indexOf('WebSocket') !== -1 ||
+            stack.indexOf('@vite/client') !== -1 ||
+            stack.indexOf('vite-hmr') !== -1
+          ) {
             event.preventDefault();
+            if (typeof event.stopImmediatePropagation === 'function') {
+              event.stopImmediatePropagation();
+            }
           }
         });
         window.addEventListener('error', function(event) {
           var filename = (event && event.filename) || '';
           var msg = (event && event.message) || '';
-          if (filename.indexOf('@vite/client') !== -1 || msg.indexOf('WebSocket') !== -1) {
+          if (
+            filename.indexOf('@vite/client') !== -1 ||
+            msg.indexOf('WebSocket') !== -1 ||
+            filename.indexOf('vite-hmr') !== -1
+          ) {
             event.preventDefault();
+            if (typeof event.stopImmediatePropagation === 'function') {
+              event.stopImmediatePropagation();
+            }
           }
         }, true);
         function applyLightMode() {

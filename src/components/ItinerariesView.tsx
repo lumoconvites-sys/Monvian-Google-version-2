@@ -2477,169 +2477,197 @@ export const ItinerariesView: React.FC<ItinerariesViewProps> = ({
       </aside>
 
       {/* 4-B. Bottom Sheet with Route Stops and Actions (MOBILE ONLY - Hidden on Desktop) */}
-      <motion.div
-        layout
-        transition={qrSpringTransition}
-        drag={activeSteps.length > 0 ? "y" : false}
-        dragConstraints={{ top: 0, bottom: 0 }}
-        dragElastic={{ top: 0.08, bottom: 0.3 }}
-        onDragEnd={(_e, info) => {
-          if (activeSteps.length === 0) return;
-          if (info.offset.y > 40 || info.velocity.y > 100) {
-            setIsExpanded(false);
-          } else if (info.offset.y < -40 || info.velocity.y < -100) {
-            setIsExpanded(true);
-          }
-        }}
-        onClick={(e) => {
-          if (activeSteps.length > 0 && !isExpanded) {
-            e.stopPropagation();
-            setIsExpanded(true);
-          }
-        }}
-        className={`md:hidden !absolute inset-x-0 bottom-0 z-40 max-w-3xl mx-auto rounded-t-[32px] sm:rounded-t-[36px] overflow-hidden flex flex-col pointer-events-auto transition-colors duration-200 border-x-0 sm:border-x border-t shadow-[0_-4px_24px_rgba(0,0,0,0.08)] ${
-          isDark
-            ? 'bg-[#121214] border-white/10 text-white'
-            : 'bg-[#FFFFFF] border-zinc-200/80 text-black'
-        }`}
-        style={{
-          backgroundColor: isDark ? '#121214' : '#FFFFFF',
-          color: isDark ? '#FFFFFF' : '#000000',
-          position: 'absolute',
-          bottom: 0,
-          maxHeight: activeSteps.length === 0 ? '52vh' : (isExpanded ? '52vh' : 'auto'),
-          height: activeSteps.length === 0 ? '52vh' : (isExpanded ? '52vh' : 'auto'),
-          paddingBottom: activeSteps.length === 0 ? '0px' : (isExpanded ? '0px' : 'max(calc(env(safe-area-inset-bottom, 0px) + 82px), 98px)'),
-        }}
-      >
-        {/* Drag handle */}
-        <div
-          onClick={(e) => {
-            e.stopPropagation();
-            if (activeSteps.length > 0) {
-              setIsExpanded(!isExpanded);
-            }
-          }}
-          className={`w-full pt-2.5 pb-1 flex items-center justify-center touch-none shrink-0 ${
-            activeSteps.length > 0 ? 'cursor-grab active:cursor-grabbing' : 'cursor-default pointer-events-none'
-          }`}
-        >
-          <div className="w-9 h-1 rounded-full bg-zinc-400/60 dark:bg-zinc-600/60" />
-        </div>
-
-        {/* State A: When NO route spots exist (activeSteps.length === 0) -> Render ONLY ONE "+" button perfectly centered in the Card */}
-        {activeSteps.length === 0 ? (
-          <div className="flex-1 flex flex-col items-center justify-center px-4 pt-2 pb-[max(76px,calc(env(safe-area-inset-bottom,0px)+64px))] my-auto">
-            <motion.button
-              whileTap={{ scale: 0.95 }}
-              whileHover={{ scale: 1.04 }}
-              type="button"
-              onClick={() => setIsImportModalOpen(true)}
-              className="w-14 h-14 rounded-full flex items-center justify-center cursor-pointer transition-all duration-200 active:scale-95 bg-white dark:bg-[#000000] border border-zinc-200/80 dark:border-[#262626] text-zinc-900 dark:text-white shadow-[0_4px_16px_rgba(0,0,0,0.08)]"
-              title="Adicionar ponto ao roteiro"
-              aria-label="Adicionar local ao roteiro"
-            >
-              <Plus className="w-6 h-6 stroke-[2.4] text-current" />
-            </motion.button>
-            <span className="text-[11px] sm:text-[12px] font-black uppercase tracking-wider text-zinc-800 dark:text-zinc-200 mt-2.5 select-none">
-              Adicionar Local
-            </span>
-          </div>
-        ) : (
-          /* State B: When route spots exist (activeSteps.length > 0) */
-          <>
-            {/* Collapsed state with ONE route stop: 100% visible, extra rounded and compact above nav bar */}
-            {!isExpanded && currentSelectedStep && (
-              <motion.div
-                key={`collapsed-step-${currentSelectedStep.id}`}
-                initial={{ opacity: 0, scale: 0.88, y: 12 }}
-                animate={{ opacity: 1, scale: 1, y: 0 }}
-                transition={{ type: 'spring', stiffness: 380, damping: 22 }}
-                whileHover={{ scale: 1.02, transition: { type: 'spring', stiffness: 400, damping: 18 } }}
-                whileTap={{ scale: 0.93, transition: { type: 'spring', stiffness: 500, damping: 14 } }}
-                onClick={() => setIsExpanded(true)}
-                className="px-4 pt-0.5 pb-2 sm:pb-2.5 cursor-pointer"
+      {/* 4-B. Bottom Sheet with Route Stops and Actions (MOBILE ONLY - Hidden on Desktop) */}
+      <AnimatePresence mode="wait">
+        {!isExpanded ? (
+          /* Collapsed State: FLOATING CARD WITH NO WHITE CONTAINER BEHIND (Pointers pass through to map) */
+          <motion.div
+            key="itinerary-collapsed-floating-card-container"
+            initial={{ opacity: 0, y: 12, scale: 0.96 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: 12, scale: 0.96 }}
+            transition={qrSpringTransition}
+            className="md:hidden fixed inset-x-0 z-40 flex justify-center px-4 pointer-events-none select-none"
+            style={{
+              bottom: 'max(76px, calc(env(safe-area-inset-bottom, 0px) + 72px))',
+            }}
+          >
+            {activeSteps.length === 0 ? (
+              /* State A: When NO route spots exist -> Render a sleek floating add card */
+              <div
+                onClick={() => setIsImportModalOpen(true)}
+                style={{
+                  backgroundColor: isDark ? 'rgba(28, 28, 30, 0.88)' : 'rgba(255, 255, 255, 0.88)',
+                  backdropFilter: 'blur(24px) saturate(190%)',
+                  WebkitBackdropFilter: 'blur(24px) saturate(190%)',
+                }}
+                className={`w-full max-w-[326px] sm:max-w-[342px] py-2.5 px-4 rounded-[28px] flex items-center justify-center gap-3 border pointer-events-auto cursor-pointer shadow-[0_8px_24px_rgba(0,0,0,0.10)] transition-transform active:scale-95 ${
+                  isDark ? 'border-white/15 text-white' : 'border-zinc-200/80 text-black'
+                }`}
               >
-                <div
-                  className={`py-2 px-3 sm:py-2.5 sm:px-3.5 rounded-[28px] flex items-center justify-between gap-3 transition-all border ${
-                    isDark ? 'border-white/10' : 'border-zinc-200/80 shadow-2xs'
-                  }`}
-                  style={{
-                    backgroundColor: isDark ? '#1C1C1E' : '#FFFFFF',
-                    color: isDark ? '#FFFFFF' : '#000000',
-                  }}
-                >
-                  <div className="flex items-center gap-2.5 min-w-0 flex-1 self-center">
-                    <span className={`w-7 h-7 sm:w-7.5 sm:h-7.5 rounded-full text-[11px] font-black flex items-center justify-center leading-none text-center shrink-0 self-center ${
+                <div className="w-8 h-8 rounded-full flex items-center justify-center bg-black dark:bg-white text-white dark:text-black">
+                  <Plus className="w-4 h-4 stroke-[2.4]" />
+                </div>
+                <span className="text-[12px] font-black uppercase tracking-wider select-none">
+                  Adicionar Local ao Roteiro
+                </span>
+              </div>
+            ) : currentSelectedStep ? (
+              /* State B: When route spots exist -> Floating stop card with Apple iOS liquid glass aesthetics */
+              <motion.div
+                key={`collapsed-floating-card-${currentSelectedStep.id}`}
+                whileHover={{ scale: 1.015, transition: { type: 'spring', stiffness: 400, damping: 18 } }}
+                whileTap={{ scale: 0.96, transition: { type: 'spring', stiffness: 500, damping: 14 } }}
+                drag="y"
+                dragConstraints={{ top: 0, bottom: 0 }}
+                dragElastic={{ top: 0.2, bottom: 0.05 }}
+                onDragEnd={(_e, info) => {
+                  if (info.offset.y < -30 || info.velocity.y < -120) {
+                    setIsExpanded(true);
+                  }
+                }}
+                onClick={() => setIsExpanded(true)}
+                style={{
+                  backgroundColor: isDark ? 'rgba(28, 28, 30, 0.88)' : 'rgba(255, 255, 255, 0.88)',
+                  backdropFilter: 'blur(24px) saturate(190%)',
+                  WebkitBackdropFilter: 'blur(24px) saturate(190%)',
+                }}
+                className={`w-full max-w-[326px] sm:max-w-[342px] py-2 px-3 sm:py-2.5 sm:px-3.5 rounded-[28px] flex items-center justify-between gap-3 transition-all border pointer-events-auto cursor-pointer shadow-[0_8px_24px_rgba(0,0,0,0.10)] ${
+                  isDark ? 'border-white/15 text-white' : 'border-zinc-200/80 text-black'
+                }`}
+              >
+                <div className="flex items-center gap-2.5 min-w-0 flex-1 self-center">
+                  <span
+                    className={`w-7 h-7 sm:w-7.5 sm:h-7.5 rounded-full text-[11px] font-black flex items-center justify-center leading-none text-center shrink-0 self-center ${
                       isPremiumItinerary
                         ? 'bg-metallic-gold text-[#1A1202] shadow-md shadow-[#E5AC33]/40'
                         : isDark
                         ? 'bg-white text-black shadow-md'
                         : 'bg-black text-white shadow-md'
-                    }`}>
-                      {String(
-                        Math.max(
-                          1,
-                          activeSteps.findIndex((s) => s.id === currentSelectedStep.id) + 1
-                        )
-                      ).padStart(2, '0')}
-                    </span>
-                    {currentSelectedStep.spot && (
-                      <div
-                        style={{
-                          overflow: 'clip',
-                          clipPath: 'inset(0 round 16px)',
-                          WebkitClipPath: 'inset(0 round 16px)',
-                          WebkitMaskImage: '-webkit-radial-gradient(white, black)',
-                          isolation: 'isolate',
-                          transform: 'translateZ(0)',
-                          WebkitTransform: 'translateZ(0)',
+                    }`}
+                  >
+                    {String(
+                      Math.max(
+                        1,
+                        activeSteps.findIndex((s) => s.id === currentSelectedStep.id) + 1
+                      )
+                    ).padStart(2, '0')}
+                  </span>
+                  {currentSelectedStep.spot && (
+                    <div
+                      style={{
+                        overflow: 'clip',
+                        clipPath: 'inset(0 round 16px)',
+                        WebkitClipPath: 'inset(0 round 16px)',
+                        WebkitMaskImage: '-webkit-radial-gradient(white, black)',
+                        isolation: 'isolate',
+                        transform: 'translateZ(0)',
+                        WebkitTransform: 'translateZ(0)',
+                      }}
+                      className="w-12 h-12 rounded-[16px] overflow-hidden shrink-0 bg-zinc-800 relative self-center"
+                    >
+                      <LazyImage
+                        src={getSpotImage(currentSelectedStep.spot)}
+                        alt={currentSelectedStep.spot.name}
+                        className="w-full h-full object-cover"
+                        onError={(e) => {
+                          (e.target as HTMLImageElement).src = getSpotFallbackImage(
+                            currentSelectedStep.spot?.name || '',
+                            currentSelectedStep.spot?.category || 'attractions'
+                          );
                         }}
-                        className="w-12 h-12 rounded-[16px] overflow-hidden shrink-0 bg-zinc-800 relative self-center"
-                      >
-                        <LazyImage
-                          src={getSpotImage(currentSelectedStep.spot)}
-                          alt={currentSelectedStep.spot.name}
-                          className="w-full h-full object-cover"
-                          onError={(e) => {
-                            (e.target as HTMLImageElement).src = getSpotFallbackImage(currentSelectedStep.spot?.name || '', currentSelectedStep.spot?.category || 'attractions');
-                          }}
-                        />
-                      </div>
-                    )}
-                    <div className="min-w-0 flex-1 flex flex-col justify-center self-center py-0.5">
-                      <div className="flex items-center gap-1.5 flex-nowrap leading-none">
-                        <span className={`inline-flex items-center gap-1 text-[10.5px] font-bold leading-none ${
-                          isPremiumItinerary ? 'text-[#C28514] dark:text-[#FDE073]' : 'text-zinc-400'
-                        }`}>
-                          <Clock className="w-3 h-3 shrink-0 text-zinc-400" />
-                          <span>{currentSelectedStep.suggestedTime || '09:30'}</span>
-                        </span>
-                        <span className="text-zinc-300 dark:text-zinc-600 font-bold leading-none">·</span>
-                        <span className="text-[9.5px] font-black uppercase tracking-wider text-zinc-400 dark:text-zinc-500 truncate max-w-[130px] leading-none">
-                          {currentSelectedStep.spot?.categoryLabel || 'ATRAÇÃO / TURÍSTICO'}
-                        </span>
-                      </div>
-                      <h4 className="text-[14px] sm:text-[15px] font-black uppercase truncate leading-tight my-1 text-zinc-900 dark:text-white">
-                        {currentSelectedStep.spot?.name}
-                      </h4>
-                      <p className="text-[10.5px] font-bold text-zinc-400 truncate leading-none flex items-center gap-1">
-                        <RoundedNavigationIcon isGold={isPremiumItinerary} className={`w-3 h-3 shrink-0 ${isPremiumItinerary ? '' : (isDark ? 'text-white' : 'text-black')}`} size={12} />
-                        <span>{currentSelectedStep.durationToNextMin ? `${currentSelectedStep.durationToNextMin} min até o próximo ponto` : 'Local planejado do roteiro'}</span>
-                      </p>
+                      />
                     </div>
-                  </div>
-                  <div className={`w-8 h-8 rounded-full flex items-center justify-center shrink-0 self-center ${
-                    isDark ? 'bg-zinc-800/60 text-zinc-300' : 'bg-black/5 text-black'
-                  }`}>
-                    <ChevronRight
-                      className={`w-4 h-4 stroke-[2.2] ${isDark ? 'text-zinc-300' : 'text-black'}`}
-                      style={{ color: isDark ? undefined : '#000000' }}
-                    />
+                  )}
+                  <div className="min-w-0 flex-1 flex flex-col justify-center self-center py-0.5">
+                    <div className="flex items-center gap-1.5 flex-nowrap leading-none">
+                      <span
+                        className={`inline-flex items-center gap-1 text-[10.5px] font-bold leading-none ${
+                          isPremiumItinerary ? 'text-[#C28514] dark:text-[#FDE073]' : 'text-zinc-400'
+                        }`}
+                      >
+                        <Clock className="w-3 h-3 shrink-0 text-zinc-400" />
+                        <span>{currentSelectedStep.suggestedTime || '09:30'}</span>
+                      </span>
+                      <span className="text-zinc-300 dark:text-zinc-600 font-bold leading-none">·</span>
+                      <span className="text-[9.5px] font-black uppercase tracking-wider text-zinc-400 dark:text-zinc-500 truncate max-w-[130px] leading-none">
+                        {currentSelectedStep.spot?.categoryLabel || 'ATRAÇÃO / TURÍSTICO'}
+                      </span>
+                    </div>
+                    <h4 className="text-[14px] sm:text-[15px] font-black uppercase truncate leading-tight my-1 text-zinc-900 dark:text-white">
+                      {currentSelectedStep.spot?.name}
+                    </h4>
+                    <p className="text-[10.5px] font-bold text-zinc-400 truncate leading-none flex items-center gap-1">
+                      <RoundedNavigationIcon
+                        isGold={isPremiumItinerary}
+                        className={`w-3 h-3 shrink-0 ${
+                          isPremiumItinerary ? '' : isDark ? 'text-white' : 'text-black'
+                        }`}
+                        size={12}
+                      />
+                      <span>
+                        {currentSelectedStep.durationToNextMin
+                          ? `${currentSelectedStep.durationToNextMin} min até o próximo ponto`
+                          : 'Local planejado do roteiro'}
+                      </span>
+                    </p>
                   </div>
                 </div>
+                <div
+                  className={`w-8 h-8 rounded-full flex items-center justify-center shrink-0 self-center ${
+                    isDark ? 'bg-zinc-800/60 text-zinc-300' : 'bg-black/5 text-black'
+                  }`}
+                >
+                  <ChevronRight
+                    className={`w-4 h-4 stroke-[2.2] ${isDark ? 'text-zinc-300' : 'text-black'}`}
+                    style={{ color: isDark ? undefined : '#000000' }}
+                  />
+                </div>
               </motion.div>
-            )}
+            ) : null}
+          </motion.div>
+        ) : (
+          /* Expanded State: FULL BOTTOM DRAWER WITH SCROLLABLE STOPS */
+          <motion.div
+            key="itinerary-expanded-drawer"
+            layout
+            initial={{ opacity: 0, y: 120 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: 120 }}
+            transition={qrSpringTransition}
+            drag="y"
+            dragConstraints={{ top: 0, bottom: 0 }}
+            dragElastic={{ top: 0.05, bottom: 0.3 }}
+            onDragEnd={(_e, info) => {
+              if (info.offset.y > 50 || info.velocity.y > 140) {
+                setIsExpanded(false);
+              }
+            }}
+            className={`md:hidden !absolute inset-x-0 bottom-0 z-40 max-w-3xl mx-auto rounded-t-[32px] sm:rounded-t-[36px] overflow-hidden flex flex-col pointer-events-auto transition-colors duration-200 border-x-0 sm:border-x border-t shadow-[0_-4px_28px_rgba(0,0,0,0.12)] ${
+              isDark
+                ? 'bg-[#121214] border-white/10 text-white'
+                : 'bg-[#FFFFFF] border-zinc-200/80 text-black'
+            }`}
+            style={{
+              backgroundColor: isDark ? '#121214' : '#FFFFFF',
+              color: isDark ? '#FFFFFF' : '#000000',
+              position: 'absolute',
+              bottom: 0,
+              maxHeight: '52vh',
+              height: '52vh',
+              paddingBottom: 'max(calc(env(safe-area-inset-bottom, 0px) + 82px), 98px)',
+            }}
+          >
+            {/* Drag handle */}
+            <div
+              onClick={(e) => {
+                e.stopPropagation();
+                setIsExpanded(false);
+              }}
+              className="w-full pt-2.5 pb-1 flex items-center justify-center touch-none shrink-0 cursor-grab active:cursor-grabbing"
+            >
+              <div className="w-9 h-1 rounded-full bg-zinc-400/60 dark:bg-zinc-600/60" />
+            </div>
 
             {/* Scrollable Sequential Stops List (when expanded) - Matching the exact visual identity of Foto 1 */}
             {isExpanded && (
@@ -2717,9 +2745,9 @@ export const ItinerariesView: React.FC<ItinerariesViewProps> = ({
                 <div className="h-4" />
               </div>
             )}
-          </>
+          </motion.div>
         )}
-      </motion.div>
+      </AnimatePresence>
 
       {/* 5. Edit Itinerary Modal */}
       {isEditModalOpen && (
