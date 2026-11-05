@@ -12,6 +12,7 @@ import { triggerHapticFeedback } from '../utils/haptics';
 
 interface XpRewardNotificationOverlayProps {
   visible?: boolean;
+  suppressCard?: boolean;
   onSelectSpot?: (spot: Spot) => void;
 }
 
@@ -107,6 +108,7 @@ function formatDistanceLabel(meters: number): string {
 
 export const XpRewardNotificationOverlay: React.FC<XpRewardNotificationOverlayProps> = ({
   visible = true,
+  suppressCard = false,
   onSelectSpot,
 }) => {
   const [proximity, setProximity] = useState<XpProximityUpdateDetail | null>(() =>
@@ -235,7 +237,9 @@ export const XpRewardNotificationOverlay: React.FC<XpRewardNotificationOverlayPr
   const circumference = 2 * Math.PI * radius;
   const dashOffset = circumference * (1 - clampedProgress);
 
-  const showFloatingCard = Boolean(visible && (proximity || activeExpansion) && displayName);
+  const showFloatingCard = Boolean(
+    visible && (!suppressCard || activeExpansion) && (proximity || activeExpansion) && displayName
+  );
 
   return (
     <div className="fixed inset-0 pointer-events-none z-[120] overflow-hidden select-none">

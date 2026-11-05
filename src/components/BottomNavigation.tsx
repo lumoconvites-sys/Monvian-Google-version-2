@@ -103,6 +103,7 @@ export const BottomNavigation: React.FC<BottomNavigationProps> = memo(({
     >
       {/* Capsule with expo-glass-effect iOS Liquid Glass finish */}
       <GlassView
+        id="bottom-navigation-capsule"
         variant="bar"
         glassEffectStyle="regular"
         isInteractive

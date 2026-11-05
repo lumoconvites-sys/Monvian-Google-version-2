@@ -70,7 +70,7 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({
     { id: 'itineraries', label: 'Roteiros', icon: Route },
     { id: 'services', label: 'Locais e Serviços', icon: Store },
     { id: 'users', label: 'Usuários & Comunidade', icon: Users },
-    { id: 'events', label: 'Eventos no Mapa', icon: Calendar },
+    { id: 'events', label: 'Eventos', icon: Calendar },
     { id: 'settings', label: 'Configurações', icon: Settings },
     { id: 'cleanup', label: 'Limpeza do Sistema', icon: Sparkles },
   ];

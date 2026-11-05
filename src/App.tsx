@@ -40,6 +40,7 @@ import { fetchSpotsFromSupabase, subscribeToSpotsChanges } from './services/supa
 import { broadcastPlatanosWalletUpdate, getAuthHeaders } from './hooks/usePlatanos';
 import { SignupIntroSequence, SignupIntroStage } from './components/SignupIntroSequence';
 import { XpRewardNotificationOverlay } from './components/XpRewardNotificationOverlay';
+import { FloatingEventCard } from './components/FloatingEventCard';
 
 const welcomeContainerVariants = {
   hidden: { opacity: 0 },
@@ -542,6 +543,7 @@ export default function App() {
   const [systemSettings, setSystemSettings] = useState<Record<string, string>>({});
   const [selectedSpot, setSelectedSpot] = useState<Spot | null>(null);
   const [is3DMode, setIs3DMode] = useState<boolean>(false);
+  const [hasActiveMapEvents, setHasActiveMapEvents] = useState<boolean>(false);
 
   const fetchSpots = async () => {
     try {
@@ -1878,6 +1880,20 @@ export default function App() {
       theme={theme}
     />
 
+    {/* Monvian iOS Minimalist Floating Event Card (Synced to BottomNavigation exact width) */}
+    <FloatingEventCard
+      visible={
+        activeTab === 'explorar' &&
+        !isSpotCardOpen &&
+        !isDetailOpen &&
+        !isMapOrbiting &&
+        !isOnboardingItinerarySelection &&
+        !isSearchOpen &&
+        !isCategoryCardOpen
+      }
+      onActiveChange={setHasActiveMapEvents}
+    />
+
     {/* Monvian iOS Minimalist Floating Discovery Card & Expansion Overlay */}
     <XpRewardNotificationOverlay
       visible={
@@ -1889,6 +1905,7 @@ export default function App() {
         !isSearchOpen &&
         !isCategoryCardOpen
       }
+      suppressCard={hasActiveMapEvents}
       onSelectSpot={handleSelectSpot}
     />
 

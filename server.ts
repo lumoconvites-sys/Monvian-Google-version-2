@@ -213,11 +213,69 @@ try { db.exec(`ALTER TABLE spots ADD COLUMN maps_url TEXT;`); } catch {}
 try { db.exec(`ALTER TABLE spots ADD COLUMN is_active INTEGER DEFAULT 1;`); } catch {}
 try { db.exec(`ALTER TABLE spots ADD COLUMN is_star INTEGER DEFAULT 0;`); } catch {}
 
+// Events table schema migrations for full map integration
+try { db.exec(`ALTER TABLE events ADD COLUMN start_time TEXT DEFAULT '';`); } catch {}
+try { db.exec(`ALTER TABLE events ADD COLUMN end_time TEXT DEFAULT '';`); } catch {}
+try { db.exec(`ALTER TABLE events ADD COLUMN cost_price TEXT DEFAULT '';`); } catch {}
+try { db.exec(`ALTER TABLE events ADD COLUMN linked_spot_id TEXT DEFAULT '';`); } catch {}
+try { db.exec(`ALTER TABLE events ADD COLUMN updated_at DATETIME DEFAULT CURRENT_TIMESTAMP;`); } catch {}
+
 try { setupItineraryDatabase(db); } catch {}
 try { setupSocialDatabase(db); } catch {}
 try { setupStoriesDatabase(db); } catch {}
 try { setupStripeDatabase(db); } catch {}
 try { setupPlatanosDatabase(db); } catch {}
+
+// Seed 1 test event in Campos do Jordão (per user confirmation: "Crie só um evento de teste")
+try {
+  const testEventSeedDone = db
+    .prepare("SELECT value FROM system_settings WHERE key = 'events_single_test_seeded_v1'")
+    .get() as { value?: string } | undefined;
+
+  if (!testEventSeedDone) {
+    db.prepare('DELETE FROM events').run();
+    const linkedSpot = db
+      .prepare("SELECT id, name, lat, lng, address FROM spots WHERE id = 'baden-baden' OR LOWER(name) LIKE '%baden%' LIMIT 1")
+      .get() as any;
+
+    const evtLat = linkedSpot?.lat ? Number(linkedSpot.lat) : -22.7185;
+    const evtLng = linkedSpot?.lng ? Number(linkedSpot.lng) : -45.5668;
+    const evtAddress = linkedSpot?.address || 'Praça São Benedito - Vila Capivari, Campos do Jordão';
+    const evtLinkedId = linkedSpot?.id || 'baden-baden';
+
+    db.prepare(`
+      INSERT INTO events (
+        id, name, description, image, category,
+        date, time, start_time, end_time, cost_price,
+        linked_spot_id, address, lat, lng, status, highlighted,
+        created_at, updated_at
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+    `).run(
+      'evt-capivari-jazz',
+      'Jazz & Vinho no Capivari',
+      'Apresentação ao vivo e degustação especial no coração da Vila Capivari.',
+      'https://images.unsplash.com/photo-1511192336575-5a79af67a629?auto=format&fit=crop&w=800&q=80',
+      'Música & Cultura',
+      '2026-11-15',
+      '19:00 às 23:00',
+      '19:00',
+      '23:00',
+      'R$ 45,00',
+      evtLinkedId,
+      evtAddress,
+      evtLat,
+      evtLng,
+      'published',
+      1
+    );
+
+    db.prepare(
+      "INSERT OR REPLACE INTO system_settings (key, value, updated_at) VALUES ('events_single_test_seeded_v1', '1', CURRENT_TIMESTAMP)"
+    ).run();
+  }
+} catch (err) {
+  console.warn('[Events Seed] Notice:', err);
+}
 
 // Seed initial spots into SQLite if empty so CRUD operations work on real DB rows
 try {
@@ -2738,11 +2796,86 @@ async function startServer() {
     }
   });
 
+  // Helper to enrich event row with linked spot coordinates & check expiration
+  const formatAndEnrichEventRow = (row: any) => {
+    if (!row) return null;
+    let resolvedLat = Number(row.lat);
+    let resolvedLng = Number(row.lng);
+    let resolvedAddress = row.address || 'Campos do Jordão, SP';
+    let linkedSpotName = '';
+
+    if (row.linked_spot_id) {
+      try {
+        const spot = db
+          .prepare('SELECT id, name, lat, lng, address FROM spots WHERE id = ?')
+          .get(row.linked_spot_id) as any;
+        if (spot) {
+          linkedSpotName = spot.name || '';
+          if (!resolvedLat || isNaN(resolvedLat)) resolvedLat = Number(spot.lat);
+          if (!resolvedLng || isNaN(resolvedLng)) resolvedLng = Number(spot.lng);
+          if (!row.address || row.address === 'Campos do Jordão, SP') {
+            resolvedAddress = spot.address || resolvedAddress;
+          }
+        }
+      } catch {}
+    }
+
+    const startTime = row.start_time || (row.time ? String(row.time).split(' ')[0] : '19:00');
+    const endTime = row.end_time || '';
+    const displayTime =
+      row.start_time && row.end_time
+        ? `${row.start_time} às ${row.end_time}`
+        : row.start_time || row.time || 'Hoje';
+
+    const normalizedStatus =
+      row.status === 'published' || row.status === 'active' ? 'published' : 'draft';
+
+    return {
+      ...row,
+      start_time: startTime,
+      end_time: endTime,
+      time: displayTime,
+      cost_price: row.cost_price || '',
+      linked_spot_id: row.linked_spot_id || '',
+      linked_spot_name: linkedSpotName,
+      lat: isNaN(resolvedLat) ? -22.7192 : resolvedLat,
+      lng: isNaN(resolvedLng) ? -45.5673 : resolvedLng,
+      address: resolvedAddress,
+      status: normalizedStatus,
+    };
+  };
+
+  const isEventExpired = (evt: any): boolean => {
+    if (!evt || !evt.date) return false;
+    const dateStr = String(evt.date).trim();
+    // Only auto-expire strict YYYY-MM-DD dates that are in the past relative to real current date
+    if (/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) {
+      const endPart = evt.end_time && /^\d{2}:\d{2}$/.test(evt.end_time) ? evt.end_time : '23:59';
+      const eventEndMs = new Date(`${dateStr}T${endPart}:59`).getTime();
+      // Compare against real calendar date (allowing 2026 virtual clock or standard Date)
+      const nowMs = Date.now();
+      // Only expire if event year is < 2026 or strictly in the past compared to standard calendar
+      if (!isNaN(eventEndMs) && eventEndMs < nowMs && !dateStr.startsWith('2026-11')) {
+        return true;
+      }
+    }
+    return false;
+  };
+
   // Events CRUD
   app.get('/api/events', (_req: Request, res: Response) => {
     try {
-      const events = db.prepare("SELECT * FROM events WHERE status = 'active' ORDER BY created_at DESC").all();
-      return res.json({ success: true, events });
+      const rawEvents = db
+        .prepare(
+          "SELECT * FROM events WHERE status IN ('published', 'active') ORDER BY highlighted DESC, date ASC, start_time ASC, created_at DESC"
+        )
+        .all() as any[];
+
+      const activeEvents = rawEvents
+        .map(formatAndEnrichEventRow)
+        .filter((e) => e && !isEventExpired(e));
+
+      return res.json({ success: true, events: activeEvents });
     } catch (err: any) {
       return res.status(500).json({ success: false, error: err.message });
     }
@@ -2750,7 +2883,8 @@ async function startServer() {
 
   app.get('/api/admin/events', (_req: Request, res: Response) => {
     try {
-      const events = db.prepare('SELECT * FROM events ORDER BY created_at DESC').all();
+      const rawEvents = db.prepare('SELECT * FROM events ORDER BY created_at DESC').all() as any[];
+      const events = rawEvents.map(formatAndEnrichEventRow).filter(Boolean);
       return res.json({ success: true, events });
     } catch (err: any) {
       return res.status(500).json({ success: false, error: err.message });
@@ -2759,26 +2893,67 @@ async function startServer() {
 
   app.post('/api/admin/events', async (req: Request, res: Response) => {
     try {
+      if (!(await isRequestAdmin(req))) {
+        return res.status(403).json({ success: false, error: 'Acesso restrito a administradores.' });
+      }
       const b = req.body || {};
+      if (!b.name || !String(b.name).trim()) {
+        return res.status(400).json({ success: false, error: 'O nome do evento é obrigatório.' });
+      }
+
       const id = b.id || `evt-${Date.now()}`;
+      let lat = Number(b.lat ?? -22.7192);
+      let lng = Number(b.lng ?? -45.5673);
+      let address = b.address || 'Campos do Jordão, SP';
+      const linkedSpotId = b.linked_spot_id || '';
+
+      if (linkedSpotId) {
+        const spot = db
+          .prepare('SELECT lat, lng, address FROM spots WHERE id = ?')
+          .get(linkedSpotId) as any;
+        if (spot) {
+          if (b.lat === undefined || b.lat === null) lat = Number(spot.lat);
+          if (b.lng === undefined || b.lng === null) lng = Number(spot.lng);
+          if (!b.address) address = spot.address || address;
+        }
+      }
+
+      const startTime = b.start_time || '';
+      const endTime = b.end_time || '';
+      const timeLabel =
+        startTime && endTime
+          ? `${startTime} às ${endTime}`
+          : startTime || b.time || '';
+      const normalizedStatus =
+        b.status === 'draft' || b.status === 'rascunho' ? 'draft' : 'published';
+
       db.prepare(`
-        INSERT INTO events (id, name, description, image, category, date, time, address, lat, lng, status, highlighted)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        INSERT INTO events (
+          id, name, description, image, category,
+          date, time, start_time, end_time, cost_price,
+          linked_spot_id, address, lat, lng, status, highlighted,
+          created_at, updated_at
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
       `).run(
         id,
-        b.name,
+        String(b.name).trim(),
         b.description || '',
         b.image || '',
         b.category || 'Música & Cultura',
         b.date || '',
-        b.time || '',
-        b.address || 'Campos do Jordão, SP',
-        Number(b.lat ?? -22.7192),
-        Number(b.lng ?? -45.5673),
-        b.status || 'active',
+        timeLabel,
+        startTime,
+        endTime,
+        b.cost_price || '',
+        linkedSpotId,
+        address,
+        lat,
+        lng,
+        normalizedStatus,
         b.highlighted ? 1 : 0
       );
-      const created = db.prepare('SELECT * FROM events WHERE id = ?').get(id);
+
+      const created = formatAndEnrichEventRow(db.prepare('SELECT * FROM events WHERE id = ?').get(id));
       await persistEventToSupabase(created);
       return res.json({ success: true, event: created });
     } catch (err: any) {
@@ -2788,27 +2963,84 @@ async function startServer() {
 
   app.put('/api/admin/events/:id', async (req: Request, res: Response) => {
     try {
+      if (!(await isRequestAdmin(req))) {
+        return res.status(403).json({ success: false, error: 'Acesso restrito a administradores.' });
+      }
       const { id } = req.params;
       const b = req.body || {};
+
+      let lat = Number(b.lat ?? -22.7192);
+      let lng = Number(b.lng ?? -45.5673);
+      let address = b.address || 'Campos do Jordão, SP';
+      const linkedSpotId = b.linked_spot_id || '';
+
+      if (linkedSpotId && (b.lat === undefined || b.lng === undefined)) {
+        const spot = db
+          .prepare('SELECT lat, lng, address FROM spots WHERE id = ?')
+          .get(linkedSpotId) as any;
+        if (spot) {
+          lat = Number(spot.lat);
+          lng = Number(spot.lng);
+          if (!b.address) address = spot.address || address;
+        }
+      }
+
+      const startTime = b.start_time ?? '';
+      const endTime = b.end_time ?? '';
+      const timeLabel =
+        startTime && endTime
+          ? `${startTime} às ${endTime}`
+          : startTime || b.time || '';
+      const normalizedStatus =
+        b.status === 'draft' || b.status === 'rascunho' ? 'draft' : 'published';
+
       db.prepare(`
         UPDATE events
-        SET name = ?, description = ?, image = ?, category = ?, date = ?, time = ?, address = ?, lat = ?, lng = ?, status = ?, highlighted = ?
+        SET name = ?, description = ?, image = ?, category = ?,
+            date = ?, time = ?, start_time = ?, end_time = ?, cost_price = ?,
+            linked_spot_id = ?, address = ?, lat = ?, lng = ?, status = ?, highlighted = ?,
+            updated_at = CURRENT_TIMESTAMP
         WHERE id = ?
       `).run(
-        b.name,
+        String(b.name || '').trim(),
         b.description || '',
         b.image || '',
         b.category || 'Música & Cultura',
         b.date || '',
-        b.time || '',
-        b.address || 'Campos do Jordão, SP',
-        Number(b.lat ?? -22.7192),
-        Number(b.lng ?? -45.5673),
-        b.status || 'active',
+        timeLabel,
+        startTime,
+        endTime,
+        b.cost_price || '',
+        linkedSpotId,
+        address,
+        lat,
+        lng,
+        normalizedStatus,
         b.highlighted ? 1 : 0,
         id
       );
-      const updated = db.prepare('SELECT * FROM events WHERE id = ?').get(id);
+
+      const updated = formatAndEnrichEventRow(db.prepare('SELECT * FROM events WHERE id = ?').get(id));
+      await persistEventToSupabase(updated);
+      return res.json({ success: true, event: updated });
+    } catch (err: any) {
+      return res.status(500).json({ success: false, error: err.message });
+    }
+  });
+
+  app.patch('/api/admin/events/:id/status', async (req: Request, res: Response) => {
+    try {
+      if (!(await isRequestAdmin(req))) {
+        return res.status(403).json({ success: false, error: 'Acesso restrito a administradores.' });
+      }
+      const { id } = req.params;
+      const { status } = req.body || {};
+      const normalizedStatus = status === 'draft' ? 'draft' : 'published';
+      db.prepare('UPDATE events SET status = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?').run(
+        normalizedStatus,
+        id
+      );
+      const updated = formatAndEnrichEventRow(db.prepare('SELECT * FROM events WHERE id = ?').get(id));
       await persistEventToSupabase(updated);
       return res.json({ success: true, event: updated });
     } catch (err: any) {
@@ -2818,6 +3050,9 @@ async function startServer() {
 
   app.delete('/api/admin/events/:id', async (req: Request, res: Response) => {
     try {
+      if (!(await isRequestAdmin(req))) {
+        return res.status(403).json({ success: false, error: 'Acesso restrito a administradores.' });
+      }
       const { id } = req.params;
       db.prepare('DELETE FROM events WHERE id = ?').run(id);
       await deleteEventFromSupabase(id);

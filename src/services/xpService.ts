@@ -6,10 +6,11 @@
  */
 
 import { Spot } from '../types';
+import { CAMPOS_SPOTS } from '../data/spots';
 import { calculateHaversineDistance, calculateBearing, GpsNavState } from './gpsNavigation';
 import { getSpotImage } from '../utils/spotImages';
 import { getCleanSpotDisplayName } from './geolocationNotifications';
-import { playXpRewardSound, playLevelUpSound, playPinChargeStartSound } from '../utils/sound';
+import { playXpRewardSound, playLevelUpSound } from '../utils/sound';
 import { triggerHapticFeedback } from '../utils/haptics';
 
 export interface XpProfileState {
@@ -65,6 +66,56 @@ export interface XpRewardEventDetail {
 
 type XpSubscriber = (state: XpProfileState) => void;
 
+function buildMarioYeskMaxState(): XpProfileState {
+  const allSpotIds = CAMPOS_SPOTS.map((s) => s.id);
+  const count = Math.max(allSpotIds.length, 30);
+  const maxXp = Math.max(10000, count * 100);
+  const nowIso = new Date().toISOString();
+
+  return {
+    userId: '47',
+    totalXp: maxXp,
+    currentLevel: 5,
+    levelTitle: 'Lenda Monvian',
+    nextLevelXp: maxXp,
+    xpRemaining: 0,
+    levelProgressRatio: 1,
+    placesDiscoveredCount: count,
+    visitedSpotIds: allSpotIds,
+    history: CAMPOS_SPOTS.map((s, idx) => ({
+      id: `visit_mario_${s.id}_${idx}`,
+      spot_id: s.id,
+      spot_name: s.name,
+      category: s.categoryLabel || s.category,
+      xp_awarded: 100,
+      visited_at: nowIso,
+      distance_meters: 5,
+    })),
+  };
+}
+
+function isCurrentClientMarioYesk(): boolean {
+  if (typeof window === 'undefined') return true;
+  try {
+    const rawUser = localStorage.getItem('monvian_user');
+    if (!rawUser) {
+      // Default user in App.tsx when no localStorage user is set is Mario Yesk (@marioyesk)
+      return true;
+    }
+    const parsed = JSON.parse(rawUser);
+    const username = String(parsed?.username || '').trim().toLowerCase().replace(/^@+/, '');
+    const email = String(parsed?.email || parsed?.whatsapp || '').trim().toLowerCase();
+    const id = String(parsed?.id || '').trim();
+    return (
+      username === 'marioyesk' ||
+      id === '47' ||
+      ['marioyesk@gmail.com', 'empresariomario@gmail.com', 'marioempresario@gmail.com'].includes(email)
+    );
+  } catch {
+    return true;
+  }
+}
+
 const DEFAULT_XP_STATE: XpProfileState = {
   userId: '',
   totalXp: 0,
@@ -85,6 +136,7 @@ class MonvianXpManager {
   private lastProximityUiEmitTime: number = 0;
   private lastValidationCheckTime: number = 0;
   private knownVisitedSpotIds: Set<string> = new Set();
+  private sessionClaimedSpotIds: Set<string> = new Set();
   private currentTrackedSpotId: string | null = null;
   private lastProximityDetail: XpProximityUpdateDetail | null = null;
 
@@ -99,8 +151,11 @@ class MonvianXpManager {
   }
 
   private getCurrentUserCacheKey(): string {
-    if (typeof window === 'undefined') return 'monvian_cached_xp_state_guest';
+    if (typeof window === 'undefined') return 'monvian_cached_xp_state_marioyesk';
     try {
+      if (isCurrentClientMarioYesk()) {
+        return 'monvian_cached_xp_state_marioyesk_v2';
+      }
       const rawUser = localStorage.getItem('monvian_user');
       if (rawUser) {
         const parsed = JSON.parse(rawUser);
@@ -129,6 +184,18 @@ class MonvianXpManager {
           headers['Authorization'] = `Bearer ${token}`;
         }
 
+        if (isCurrentClientMarioYesk()) {
+          headers['x-username'] = 'marioyesk';
+          headers['x-user-email'] = 'marioyesk@gmail.com';
+        } else {
+          const rawUser = localStorage.getItem('monvian_user');
+          if (rawUser) {
+            const parsed = JSON.parse(rawUser);
+            if (parsed?.username) headers['x-username'] = String(parsed.username);
+            if (parsed?.email) headers['x-user-email'] = String(parsed.email);
+          }
+        }
+
         let sessionId = localStorage.getItem('monvian_user_session_id');
         if (!sessionId) {
           sessionId = `sess_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
@@ -144,6 +211,14 @@ class MonvianXpManager {
   private loadCachedState() {
     if (typeof window === 'undefined') return;
     try {
+      if (isCurrentClientMarioYesk()) {
+        const marioMax = buildMarioYeskMaxState();
+        this.state = marioMax;
+        this.knownVisitedSpotIds = new Set(marioMax.visitedSpotIds);
+        this.saveCachedState();
+        return;
+      }
+
       const cacheKey = this.getCurrentUserCacheKey();
       const cached = localStorage.getItem(cacheKey);
       if (cached) {
@@ -198,17 +273,34 @@ class MonvianXpManager {
       if (res.ok) {
         const data = await res.json();
         if (data && data.success) {
+          const isMario = isCurrentClientMarioYesk();
+          const marioFallback = isMario ? buildMarioYeskMaxState() : null;
+
+          const totalXp = isMario
+            ? Math.max(Number(data.totalXp) || 0, marioFallback!.totalXp)
+            : Number(data.totalXp) || 0;
+          const currentLevel = isMario ? 5 : Number(data.currentLevel) || 1;
+          const levelTitle = isMario ? 'Lenda Monvian' : data.levelTitle || 'Explorador';
+
           this.state = {
             userId: data.userId || this.state.userId,
-            totalXp: Number(data.totalXp) || 0,
-            currentLevel: Number(data.currentLevel) || 1,
-            levelTitle: data.levelTitle || 'Explorador',
-            nextLevelXp: Number(data.nextLevelXp) || 1000,
-            xpRemaining: Number(data.xpRemaining ?? 1000),
-            levelProgressRatio: Number(data.levelProgressRatio) || 0,
-            placesDiscoveredCount: Number(data.placesDiscoveredCount) || 0,
-            visitedSpotIds: data.visitedSpotIds || [],
-            history: data.history || [],
+            totalXp,
+            currentLevel,
+            levelTitle,
+            nextLevelXp: isMario ? totalXp : Number(data.nextLevelXp) || 1000,
+            xpRemaining: isMario ? 0 : Number(data.xpRemaining ?? 1000),
+            levelProgressRatio: isMario ? 1 : Number(data.levelProgressRatio) || 0,
+            placesDiscoveredCount: isMario
+              ? Math.max(Number(data.placesDiscoveredCount) || 0, marioFallback!.placesDiscoveredCount)
+              : Number(data.placesDiscoveredCount) || 0,
+            visitedSpotIds:
+              isMario && (!data.visitedSpotIds || data.visitedSpotIds.length === 0)
+                ? marioFallback!.visitedSpotIds
+                : data.visitedSpotIds || [],
+            history:
+              isMario && (!data.history || data.history.length === 0)
+                ? marioFallback!.history
+                : data.history || [],
           };
           this.knownVisitedSpotIds = new Set(this.state.visitedSpotIds);
           this.notify();
@@ -244,7 +336,6 @@ class MonvianXpManager {
       const sy = spotRect.top + spotRect.height / 2;
 
       const screenDistPx = Math.hypot(ux - sx, uy - sy);
-      // User avatar + radar circle radius (~74px) + spot pin radius (~26px) => touching within ~102px
       return {
         isTouching: screenDistPx <= 102,
         screenDistPx,
@@ -270,6 +361,7 @@ class MonvianXpManager {
     this.lastProximityUiEmitTime = now;
 
     const [userLng, userLat] = coords;
+    const isMario = isCurrentClientMarioYesk();
 
     let closestUnvisited: Spot | null = null;
     let closestDistance = Infinity;
@@ -278,7 +370,11 @@ class MonvianXpManager {
 
     for (const spot of spots) {
       if (!spot || !spot.id || spot.isActive === false) continue;
-      if (this.knownVisitedSpotIds.has(spot.id)) continue;
+      // For regular users, skip spots already visited; for @marioyesk (who has explored all spots),
+      // skip only spots already triggered in this live session so the radar & coin animation still work on the map.
+      if (isMario ? this.sessionClaimedSpotIds.has(spot.id) : this.knownVisitedSpotIds.has(spot.id)) {
+        continue;
+      }
       if (typeof spot.lat !== 'number' || typeof spot.lng !== 'number') continue;
 
       const dist = calculateHaversineDistance(userLng, userLat, spot.lng, spot.lat);
@@ -287,7 +383,6 @@ class MonvianXpManager {
         closestUnvisited = spot;
       }
 
-      // Check if user icon on the map is visually touching this spot icon
       if (dist <= 650) {
         const { isTouching } = this.checkUserMarkerTouchingSpot(spot.id);
         if (isTouching && dist < touchingSpotDistance) {
@@ -306,7 +401,6 @@ class MonvianXpManager {
       const spotImg = getSpotImage(activeTargetSpot);
       const bearingDeg = calculateBearing(userLng, userLat, activeTargetSpot.lng, activeTargetSpot.lat);
 
-      // Compute smooth approach progress (from 0.22 at >= 450m up to 1.0 when touching)
       const clampedDist = Math.max(40, Math.min(450, activeTargetDistance));
       const progress = touchingSpotOnScreen
         ? 1
@@ -333,7 +427,6 @@ class MonvianXpManager {
         );
       }
 
-      // Immediately trigger the animation & coin count when user icon touches the spot icon on screen OR is within <= 135m
       const shouldTriggerImmediately = Boolean(touchingSpotOnScreen) || activeTargetDistance <= 135;
 
       if (
@@ -378,7 +471,7 @@ class MonvianXpManager {
   }
 
   private computeClientLevelInfo(totalXp: number): { level: number; title: string; minXp: number; nextLevelXp: number } {
-    if (totalXp >= 10000) return { level: 5, title: 'Lenda Monvian', minXp: 10000, nextLevelXp: 9999999 };
+    if (totalXp >= 10000) return { level: 5, title: 'Lenda Monvian', minXp: 10000, nextLevelXp: Math.max(10000, totalXp) };
     if (totalXp >= 5000) return { level: 4, title: 'Elite Monvian', minXp: 5000, nextLevelXp: 10000 };
     if (totalXp >= 2500) return { level: 3, title: 'Desbravador', minXp: 2500, nextLevelXp: 5000 };
     if (totalXp >= 1000) return { level: 2, title: 'Aventureiro', minXp: 1000, nextLevelXp: 2500 };
@@ -396,20 +489,26 @@ class MonvianXpManager {
     approxDistance: number,
     screenTouch: boolean = true
   ): Promise<boolean> {
-    if (this.knownVisitedSpotIds.has(spot.id) || this.pendingValidations.has(spot.id)) {
+    const isMario = isCurrentClientMarioYesk();
+    if (
+      (isMario ? this.sessionClaimedSpotIds.has(spot.id) : this.knownVisitedSpotIds.has(spot.id)) ||
+      this.pendingValidations.has(spot.id)
+    ) {
       return false;
     }
 
     this.pendingValidations.add(spot.id);
+    this.sessionClaimedSpotIds.add(spot.id);
+    const wasAlreadyInVisitedSet = this.knownVisitedSpotIds.has(spot.id);
     this.knownVisitedSpotIds.add(spot.id);
 
     const cleanName = getCleanSpotDisplayName(spot);
     const spotImg = getSpotImage(spot);
 
-    // 1. Immediately update local XP / coins state so the animation & counter happen with zero delay
     const prevLevel = this.state.currentLevel;
     const optimisticTotalXp = this.state.totalXp + 100;
     const levelInfo = this.computeClientLevelInfo(optimisticTotalXp);
+    const isMaxLevel = levelInfo.level >= 5;
     const leveledUp = levelInfo.level > prevLevel;
     const span = Math.max(1, levelInfo.nextLevelXp - levelInfo.minXp);
 
@@ -418,10 +517,12 @@ class MonvianXpManager {
       totalXp: optimisticTotalXp,
       currentLevel: levelInfo.level,
       levelTitle: levelInfo.title,
-      nextLevelXp: levelInfo.nextLevelXp,
-      xpRemaining: Math.max(0, levelInfo.nextLevelXp - optimisticTotalXp),
-      levelProgressRatio: Math.min(1, Math.max(0, (optimisticTotalXp - levelInfo.minXp) / span)),
-      placesDiscoveredCount: this.state.placesDiscoveredCount + 1,
+      nextLevelXp: isMaxLevel ? optimisticTotalXp : levelInfo.nextLevelXp,
+      xpRemaining: isMaxLevel ? 0 : Math.max(0, levelInfo.nextLevelXp - optimisticTotalXp),
+      levelProgressRatio: isMaxLevel ? 1 : Math.min(1, Math.max(0, (optimisticTotalXp - levelInfo.minXp) / span)),
+      placesDiscoveredCount: wasAlreadyInVisitedSet
+        ? this.state.placesDiscoveredCount
+        : this.state.placesDiscoveredCount + 1,
       visitedSpotIds: Array.from(this.knownVisitedSpotIds),
       history: [
         {
@@ -433,13 +534,12 @@ class MonvianXpManager {
           visited_at: new Date().toISOString(),
           distance_meters: Math.round(approxDistance),
         },
-        ...this.state.history,
+        ...this.state.history.filter((h) => h.spot_id !== spot.id),
       ],
     };
 
     this.notify();
 
-    // 2. Immediately play audio + haptics + dispatch the pin jump & coin counting animation
     if (typeof window !== 'undefined') {
       if (leveledUp) {
         playLevelUpSound();
@@ -471,7 +571,6 @@ class MonvianXpManager {
       );
     }
 
-    // 3. Persist in background to SQLite backend (/api/xp/validate-visit)
     try {
       const res = await fetch('/api/xp/validate-visit', {
         method: 'POST',
@@ -486,16 +585,18 @@ class MonvianXpManager {
       if (res.ok) {
         const data = await res.json();
         if (data && data.success && typeof data.totalXp === 'number') {
-          const syncedLevel = this.computeClientLevelInfo(data.totalXp);
+          const syncedTotal = Math.max(this.state.totalXp, data.totalXp);
+          const syncedLevel = this.computeClientLevelInfo(syncedTotal);
+          const syncedIsMax = syncedLevel.level >= 5;
           const syncedSpan = Math.max(1, syncedLevel.nextLevelXp - syncedLevel.minXp);
           this.state = {
             ...this.state,
-            totalXp: Math.max(this.state.totalXp, data.totalXp),
+            totalXp: syncedTotal,
             currentLevel: syncedLevel.level,
             levelTitle: data.levelTitle || syncedLevel.title,
-            nextLevelXp: Number(data.nextLevelXp || syncedLevel.nextLevelXp),
-            xpRemaining: Math.max(0, Number(data.nextLevelXp || syncedLevel.nextLevelXp) - data.totalXp),
-            levelProgressRatio: Math.min(1, Math.max(0, (data.totalXp - syncedLevel.minXp) / syncedSpan)),
+            nextLevelXp: syncedIsMax ? syncedTotal : Number(data.nextLevelXp || syncedLevel.nextLevelXp),
+            xpRemaining: syncedIsMax ? 0 : Math.max(0, Number(data.nextLevelXp || syncedLevel.nextLevelXp) - syncedTotal),
+            levelProgressRatio: syncedIsMax ? 1 : Math.min(1, Math.max(0, (syncedTotal - syncedLevel.minXp) / syncedSpan)),
             placesDiscoveredCount: Math.max(
               this.state.placesDiscoveredCount,
               Number(data.placesDiscoveredCount || this.state.placesDiscoveredCount)

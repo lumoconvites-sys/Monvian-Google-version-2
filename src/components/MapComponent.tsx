@@ -1375,6 +1375,153 @@ export const MapComponent = forwardRef<MapComponentHandle, MapComponentProps>(
       };
     }, []);
 
+    // Listen for Event Card Play / Tap interaction: fly to event coordinates & temporarily highlight marker
+    useEffect(() => {
+      let tempEventMarker: maplibregl.Marker | null = null;
+      let highlightCleanupTimer: number | null = null;
+
+      const handleFocusMapEvent = (e: any) => {
+        const evt = e?.detail;
+        const map = mapRef.current;
+        if (!evt || !map) return;
+
+        if (highlightCleanupTimer) {
+          window.clearTimeout(highlightCleanupTimer);
+          highlightCleanupTimer = null;
+        }
+        if (tempEventMarker) {
+          try {
+            tempEventMarker.remove();
+          } catch {}
+          tempEventMarker = null;
+        }
+
+        // Resolve linked spot if available
+        const linkedSpotId = evt.linked_spot_id || evt.linkedSpotId;
+        const matchedRec = linkedSpotId
+          ? markerRecordsRef.current.find((r) => r.spotId === linkedSpotId)
+          : markerRecordsRef.current.find(
+              (r) =>
+                Math.abs(r.lat - Number(evt.lat)) < 0.00025 &&
+                Math.abs(r.lng - Number(evt.lng)) < 0.00025
+            );
+
+        const targetLat = matchedRec ? matchedRec.lat : Number(evt.lat);
+        const targetLng = matchedRec ? matchedRec.lng : Number(evt.lng);
+        if (isNaN(targetLat) || isNaN(targetLng)) return;
+
+        setFollowMode(false);
+        triggerHapticFeedback(12);
+
+        map.easeTo({
+          center: [targetLng, targetLat],
+          zoom: 16.3,
+          pitch: is3DModeRef.current ? 60 : 32,
+          bearing: is3DModeRef.current ? -20 : 0,
+          duration: 850,
+          easing: (t) => 1 - Math.pow(1 - t, 3),
+        });
+
+        if (matchedRec) {
+          const prevZ = matchedRec.containerEl.style.zIndex;
+          const prevTransform = matchedRec.containerEl.style.transform;
+          matchedRec.containerEl.style.zIndex = '220';
+          matchedRec.containerEl.style.transform = 'scale(1.28)';
+
+          const haloEl = document.createElement('div');
+          haloEl.className = 'monvian-event-temp-halo';
+          haloEl.style.position = 'absolute';
+          haloEl.style.inset = '-10px';
+          haloEl.style.borderRadius = '9999px';
+          haloEl.style.border = '2.5px solid #007AFF';
+          haloEl.style.background =
+            'radial-gradient(circle, rgba(0, 122, 255, 0.24) 0%, rgba(0, 122, 255, 0) 72%)';
+          haloEl.style.boxShadow = '0 0 18px rgba(0, 122, 255, 0.55)';
+          haloEl.style.pointerEvents = 'none';
+          haloEl.style.animation =
+            'monvian-ios-radar-wave 2.1s cubic-bezier(0.16, 1, 0.3, 1) infinite';
+          matchedRec.containerEl.appendChild(haloEl);
+
+          try {
+            matchedRec.pulseScaleWrapEl.animate(
+              [
+                { transform: 'scale(1)' },
+                { transform: 'scale(1.18)', offset: 0.4 },
+                { transform: 'scale(1)' },
+              ],
+              { duration: 540, easing: 'cubic-bezier(0.22, 1, 0.36, 1)' }
+            );
+          } catch {}
+
+          highlightCleanupTimer = window.setTimeout(() => {
+            try {
+              haloEl.remove();
+              matchedRec.containerEl.style.zIndex = prevZ || '20';
+              matchedRec.containerEl.style.transform = prevTransform || 'scale(0.96)';
+            } catch {}
+          }, 3600);
+        } else {
+          // Independent event location: create temporary highlighted circular event marker
+          const el = document.createElement('div');
+          el.style.width = '52px';
+          el.style.height = '52px';
+          el.style.position = 'relative';
+          el.style.display = 'flex';
+          el.style.alignItems = 'center';
+          el.style.justifyContent = 'center';
+          el.style.zIndex = '220';
+          const imgUrl =
+            evt.image ||
+            'https://images.unsplash.com/photo-1511192336575-5a79af67a629?auto=format&fit=crop&w=400&q=80';
+          el.innerHTML = `
+            <div style="
+              position: absolute;
+              inset: -8px;
+              border-radius: 9999px;
+              border: 2.5px solid #007AFF;
+              background: radial-gradient(circle, rgba(0, 122, 255, 0.26) 0%, rgba(0, 122, 255, 0) 72%);
+              animation: monvian-ios-radar-wave 2.1s cubic-bezier(0.16, 1, 0.3, 1) infinite;
+              pointer-events: none;
+            "></div>
+            <div style="
+              width: 46px;
+              height: 46px;
+              border-radius: 9999px;
+              overflow: hidden;
+              border: 3px solid #FFFFFF;
+              background: #18181B;
+              box-shadow: 0 10px 24px rgba(0, 0, 0, 0.38), 0 0 0 2px rgba(0, 122, 255, 0.85);
+            ">
+              <img src="${imgUrl}" alt="${evt.name || 'Evento'}" style="width:100%;height:100%;object-fit:cover;display:block;" referrerpolicy="no-referrer" />
+            </div>
+          `;
+          tempEventMarker = new maplibregl.Marker({ element: el })
+            .setLngLat([targetLng, targetLat])
+            .addTo(map);
+
+          highlightCleanupTimer = window.setTimeout(() => {
+            if (tempEventMarker) {
+              try {
+                tempEventMarker.remove();
+              } catch {}
+              tempEventMarker = null;
+            }
+          }, 4500);
+        }
+      };
+
+      window.addEventListener('monvian:focus_map_event', handleFocusMapEvent);
+      return () => {
+        window.removeEventListener('monvian:focus_map_event', handleFocusMapEvent);
+        if (highlightCleanupTimer) window.clearTimeout(highlightCleanupTimer);
+        if (tempEventMarker) {
+          try {
+            tempEventMarker.remove();
+          } catch {}
+        }
+      };
+    }, [setFollowMode]);
+
     // Create and update spot markers incrementally (rebuilds a marker immediately if its "Estrela" status changes)
     const syncSpotMarkers = useCallback(() => {
       const map = mapRef.current;

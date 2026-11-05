@@ -23,6 +23,8 @@ export const ProfileXpProgressBar: React.FC<ProfileXpProgressBarProps> = ({ isDa
     placesDiscoveredCount,
   } = xpState;
 
+  const isMaxLevel = currentLevel >= 5;
+
   // Level progress percentage for the current level tier
   const tierMin =
     currentLevel === 1
@@ -34,16 +36,17 @@ export const ProfileXpProgressBar: React.FC<ProfileXpProgressBarProps> = ({ isDa
       : currentLevel === 4
       ? 5000
       : 10000;
-  const tierGoal = nextLevelXp || 1000;
+  const tierGoal = isMaxLevel ? Math.max(10000, totalXp) : nextLevelXp || 1000;
   const currentLevelProgress = Math.max(0, totalXp - tierMin);
   const currentLevelSpan = Math.max(1, tierGoal - tierMin);
-  const rawPercentage = (currentLevelProgress / currentLevelSpan) * 100;
+  const rawPercentage = isMaxLevel ? 100 : (currentLevelProgress / currentLevelSpan) * 100;
 
   // Ensure that when totalXp > 0 (e.g. 100 XP), the bar visibly rises and shows a clear blue progress fill
-  const fillPercentage =
-    totalXp <= 0
-      ? 0
-      : Math.min(100, Math.max(10, rawPercentage));
+  const fillPercentage = isMaxLevel
+    ? 100
+    : totalXp <= 0
+    ? 0
+    : Math.min(100, Math.max(10, rawPercentage));
 
   return (
     <div className="w-full">
@@ -59,7 +62,7 @@ export const ProfileXpProgressBar: React.FC<ProfileXpProgressBarProps> = ({ isDa
         }`}
         style={{
           boxShadow: isDark
-            ? '0 4px 6px -1px rgba(0,0,0,0.5), 0 2px 4px -1px rgba(0,0,0,0.3), inset 0 1px 0 rgba(255,255,255,0.05)'
+            ? '0 4px 6px -1px rgba(0,0,0,0.5), 0 2px 4px -1px rgba(0,0,0,0.3), inset 0 1px 0 rgba(0,0,0,0.05)'
             : '0 8px 24px rgba(0,0,0,0.08), 0 2px 4px rgba(0,0,0,0.04), inset 0 2px 0 rgba(255,255,255,1)',
           borderBottom: isDark ? '4px solid #000' : '4px solid #e4e4e7',
         }}
@@ -89,7 +92,7 @@ export const ProfileXpProgressBar: React.FC<ProfileXpProgressBarProps> = ({ isDa
             >
               {totalXp.toLocaleString()}{' '}
               <span className="text-zinc-400 font-semibold text-[11.5px]">
-                / {tierGoal.toLocaleString()} XP
+                {isMaxLevel ? 'XP · MÁX' : `/ ${tierGoal.toLocaleString()} XP`}
               </span>
             </span>
           </div>
@@ -130,9 +133,9 @@ export const ProfileXpProgressBar: React.FC<ProfileXpProgressBarProps> = ({ isDa
             {placesDiscoveredCount === 1 ? 'lugar descoberto' : 'lugares descobertos'}
           </span>
           <span>
-            {xpRemaining > 0
-              ? `Faltam ${xpRemaining} XP para o próximo nível`
-              : 'Nível máximo atingido!'}
+            {isMaxLevel || xpRemaining <= 0
+              ? 'Todos os pontos explorados · Nível máximo!'
+              : `Faltam ${xpRemaining} XP para o próximo nível`}
           </span>
         </div>
       </motion.div>
