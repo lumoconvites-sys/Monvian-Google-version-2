@@ -733,6 +733,9 @@ export const MapComponent = forwardRef<MapComponentHandle, MapComponentProps>(
             const beamAngle = (rawHeading - bearing + 360) % 360;
             userBeamRef.current.style.transform = `translate(-50%, -50%) rotate(${beamAngle.toFixed(1)}deg)`;
           }
+          if (spotsRef.current && spotsRef.current.length > 0) {
+            monvianXpManager.evaluateProximity(gpsNavigationManager.getState(), spotsRef.current).catch(() => {});
+          }
         };
 
         deviceHeadingManager.setMapBearing(map.getBearing());
@@ -1324,17 +1327,18 @@ export const MapComponent = forwardRef<MapComponentHandle, MapComponentProps>(
         cleanupSpotDiscoveryNodes(detail.spotId);
         rec.containerEl.style.zIndex = '180';
 
-        // 1. Minimalist iOS discovery scale pulse on the pin
+        // 1. Immediate elastic vertical jump + scale pulse on the discovered spot pin
         try {
           rec.pulseScaleWrapEl.animate(
             [
-              { transform: 'scale(1.08)' },
-              { transform: 'scale(1.22)', offset: 0.38 },
-              { transform: 'scale(0.97)', offset: 0.75 },
-              { transform: 'scale(1)' },
+              { transform: 'translateY(0px) scale(1.06)' },
+              { transform: 'translateY(-26px) scale(1.28)', offset: 0.36 },
+              { transform: 'translateY(3px) scale(0.94)', offset: 0.72 },
+              { transform: 'translateY(-5px) scale(1.04)', offset: 0.88 },
+              { transform: 'translateY(0px) scale(1)' },
             ],
             {
-              duration: 680,
+              duration: 720,
               easing: 'cubic-bezier(0.22, 1, 0.36, 1)',
               fill: 'forwards',
             }

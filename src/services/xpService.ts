@@ -221,9 +221,43 @@ class MonvianXpManager {
   }
 
   /**
-   * Evaluates current GPS coordinates against all active spots.
-   * Emits real-time proximity updates for the closest tourist spot so the
-   * Apple Maps-inspired radar & floating discovery card update smoothly.
+   * Checks whether the user marker ("Eu") and a spot marker visually touch/overlap on screen.
+   */
+  private checkUserMarkerTouchingSpot(spotId: string): { isTouching: boolean; screenDistPx: number } {
+    if (typeof window === 'undefined' || typeof document === 'undefined') {
+      return { isTouching: false, screenDistPx: Infinity };
+    }
+    try {
+      const userEl = document.querySelector<HTMLElement>('.monvian-user-location-marker');
+      const spotEl = document.querySelector<HTMLElement>(`[data-spot-id="${spotId}"]`);
+      if (!userEl || !spotEl) return { isTouching: false, screenDistPx: Infinity };
+
+      const userRect = userEl.getBoundingClientRect();
+      const spotRect = spotEl.getBoundingClientRect();
+      if (userRect.width === 0 || spotRect.width === 0) {
+        return { isTouching: false, screenDistPx: Infinity };
+      }
+
+      const ux = userRect.left + userRect.width / 2;
+      const uy = userRect.top + userRect.height / 2;
+      const sx = spotRect.left + spotRect.width / 2;
+      const sy = spotRect.top + spotRect.height / 2;
+
+      const screenDistPx = Math.hypot(ux - sx, uy - sy);
+      // User avatar + radar circle radius (~74px) + spot pin radius (~26px) => touching within ~102px
+      return {
+        isTouching: screenDistPx <= 102,
+        screenDistPx,
+      };
+    } catch {
+      return { isTouching: false, screenDistPx: Infinity };
+    }
+  }
+
+  /**
+   * Evaluates current GPS coordinates and screen marker collision against all active spots.
+   * Emits real-time proximity updates and immediately triggers the discovery animation
+   * and coin counting as soon as the user icon touches a spot icon on the map.
    */
   public async evaluateProximity(gps: GpsNavState, spots: Spot[]): Promise<void> {
     if (!gps || !spots || spots.length === 0) return;
@@ -232,14 +266,15 @@ class MonvianXpManager {
     if (!coords || typeof coords[0] !== 'number' || typeof coords[1] !== 'number') return;
 
     const now = Date.now();
-    // Throttle UI proximity distance calculation to ~800ms for fluid yet lightweight updates
-    if (now - this.lastProximityUiEmitTime < 800) return;
+    if (now - this.lastProximityUiEmitTime < 220) return;
     this.lastProximityUiEmitTime = now;
 
     const [userLng, userLat] = coords;
 
     let closestUnvisited: Spot | null = null;
     let closestDistance = Infinity;
+    let touchingSpotOnScreen: Spot | null = null;
+    let touchingSpotDistance = Infinity;
 
     for (const spot of spots) {
       if (!spot || !spot.id || spot.isActive === false) continue;
@@ -251,28 +286,40 @@ class MonvianXpManager {
         closestDistance = dist;
         closestUnvisited = spot;
       }
+
+      // Check if user icon on the map is visually touching this spot icon
+      if (dist <= 650) {
+        const { isTouching } = this.checkUserMarkerTouchingSpot(spot.id);
+        if (isTouching && dist < touchingSpotDistance) {
+          touchingSpotDistance = dist;
+          touchingSpotOnScreen = spot;
+        }
+      }
     }
 
-    if (closestUnvisited) {
-      this.currentTrackedSpotId = closestUnvisited.id;
-      const cleanName = getCleanSpotDisplayName(closestUnvisited);
-      const spotImg = getSpotImage(closestUnvisited);
-      const bearingDeg = calculateBearing(userLng, userLat, closestUnvisited.lng, closestUnvisited.lat);
+    const activeTargetSpot = touchingSpotOnScreen || closestUnvisited;
+    const activeTargetDistance = touchingSpotOnScreen ? touchingSpotDistance : closestDistance;
 
-      // Compute smooth approach progress (from 0.22 at >= 400m up to 0.95 at <= 45m)
-      const clampedDist = Math.max(40, Math.min(450, closestDistance));
-      const progress = Number(
-        (0.22 + ((450 - clampedDist) / (450 - 40)) * 0.73).toFixed(3)
-      );
+    if (activeTargetSpot) {
+      this.currentTrackedSpotId = activeTargetSpot.id;
+      const cleanName = getCleanSpotDisplayName(activeTargetSpot);
+      const spotImg = getSpotImage(activeTargetSpot);
+      const bearingDeg = calculateBearing(userLng, userLat, activeTargetSpot.lng, activeTargetSpot.lat);
 
-      const isDiscoveringNow = this.pendingValidations.has(closestUnvisited.id);
+      // Compute smooth approach progress (from 0.22 at >= 450m up to 1.0 when touching)
+      const clampedDist = Math.max(40, Math.min(450, activeTargetDistance));
+      const progress = touchingSpotOnScreen
+        ? 1
+        : Number((0.22 + ((450 - clampedDist) / (450 - 40)) * 0.76).toFixed(3));
+
+      const isDiscoveringNow = this.pendingValidations.has(activeTargetSpot.id);
       const proximityDetail: XpProximityUpdateDetail = {
-        spot: closestUnvisited,
-        spotId: closestUnvisited.id,
+        spot: activeTargetSpot,
+        spotId: activeTargetSpot.id,
         spotName: cleanName,
         spotImage: spotImg,
-        distanceMeters: Math.max(1, Math.round(closestDistance)),
-        progress: isDiscoveringNow ? 0.96 : progress,
+        distanceMeters: Math.max(1, Math.round(activeTargetDistance)),
+        progress: isDiscoveringNow ? 1 : progress,
         bearingDeg,
         status: isDiscoveringNow ? 'discovering' : 'approaching',
       };
@@ -286,15 +333,16 @@ class MonvianXpManager {
         );
       }
 
-      // Trigger physical discovery validation when user arrives within ~45m and GPS is granted
+      // Immediately trigger the animation & coin count when user icon touches the spot icon on screen OR is within <= 135m
+      const shouldTriggerImmediately = Boolean(touchingSpotOnScreen) || activeTargetDistance <= 135;
+
       if (
-        gps.status === 'granted' &&
-        closestDistance <= 45 &&
+        shouldTriggerImmediately &&
         !isDiscoveringNow &&
-        now - this.lastValidationCheckTime >= 3200
+        now - this.lastValidationCheckTime >= 1600
       ) {
         this.lastValidationCheckTime = now;
-        this.validateAndClaimSpot(closestUnvisited, userLat, userLng, closestDistance);
+        this.validateAndClaimSpot(activeTargetSpot, userLat, userLng, activeTargetDistance, true);
       }
     } else {
       this.currentTrackedSpotId = null;
@@ -329,163 +377,140 @@ class MonvianXpManager {
     };
   }
 
+  private computeClientLevelInfo(totalXp: number): { level: number; title: string; minXp: number; nextLevelXp: number } {
+    if (totalXp >= 10000) return { level: 5, title: 'Lenda Monvian', minXp: 10000, nextLevelXp: 9999999 };
+    if (totalXp >= 5000) return { level: 4, title: 'Elite Monvian', minXp: 5000, nextLevelXp: 10000 };
+    if (totalXp >= 2500) return { level: 3, title: 'Desbravador', minXp: 2500, nextLevelXp: 5000 };
+    if (totalXp >= 1000) return { level: 2, title: 'Aventureiro', minXp: 1000, nextLevelXp: 2500 };
+    return { level: 1, title: 'Explorador', minXp: 0, nextLevelXp: 1000 };
+  }
+
   /**
-   * Claims a spot visit via backend validation + minimalist iOS Blue expansion animation
+   * Immediately executes the spot discovery animation, bursts & counts the coins (+100 XP),
+   * and persists the reward to the backend.
    */
   public async validateAndClaimSpot(
     spot: Spot,
     userLat: number,
     userLng: number,
-    approxDistance: number
+    approxDistance: number,
+    screenTouch: boolean = true
   ): Promise<boolean> {
     if (this.knownVisitedSpotIds.has(spot.id) || this.pendingValidations.has(spot.id)) {
       return false;
     }
 
     this.pendingValidations.add(spot.id);
-    const ringDurationMs = 1400;
+    this.knownVisitedSpotIds.add(spot.id);
+
     const cleanName = getCleanSpotDisplayName(spot);
     const spotImg = getSpotImage(spot);
 
+    // 1. Immediately update local XP / coins state so the animation & counter happen with zero delay
+    const prevLevel = this.state.currentLevel;
+    const optimisticTotalXp = this.state.totalXp + 100;
+    const levelInfo = this.computeClientLevelInfo(optimisticTotalXp);
+    const leveledUp = levelInfo.level > prevLevel;
+    const span = Math.max(1, levelInfo.nextLevelXp - levelInfo.minXp);
+
+    this.state = {
+      ...this.state,
+      totalXp: optimisticTotalXp,
+      currentLevel: levelInfo.level,
+      levelTitle: levelInfo.title,
+      nextLevelXp: levelInfo.nextLevelXp,
+      xpRemaining: Math.max(0, levelInfo.nextLevelXp - optimisticTotalXp),
+      levelProgressRatio: Math.min(1, Math.max(0, (optimisticTotalXp - levelInfo.minXp) / span)),
+      placesDiscoveredCount: this.state.placesDiscoveredCount + 1,
+      visitedSpotIds: Array.from(this.knownVisitedSpotIds),
+      history: [
+        {
+          id: `v_${Date.now()}`,
+          spot_id: spot.id,
+          spot_name: cleanName,
+          category: spot.categoryLabel || spot.category,
+          xp_awarded: 100,
+          visited_at: new Date().toISOString(),
+          distance_meters: Math.round(approxDistance),
+        },
+        ...this.state.history,
+      ],
+    };
+
+    this.notify();
+
+    // 2. Immediately play audio + haptics + dispatch the pin jump & coin counting animation
     if (typeof window !== 'undefined') {
-      playPinChargeStartSound();
+      if (leveledUp) {
+        playLevelUpSound();
+      } else {
+        playXpRewardSound();
+      }
+
       try {
-        triggerHapticFeedback(10);
+        triggerHapticFeedback(20);
       } catch {}
+
+      const { originX, originY } = this.getSpotMarkerScreenPosition(spot.id);
+
       window.dispatchEvent(
-        new CustomEvent<XpDiscoveryStartDetail>('monvian:xp_discovery_start', {
+        new CustomEvent<XpRewardEventDetail>('monvian:xp_awarded', {
           detail: {
             spotId: spot.id,
             spotName: cleanName,
-            durationMs: ringDurationMs,
+            spotImage: spotImg,
+            xpAwarded: 100,
+            totalXp: optimisticTotalXp,
+            currentLevel: levelInfo.level,
+            levelTitle: levelInfo.title,
+            leveledUp,
+            originX,
+            originY,
           },
         })
       );
     }
 
+    // 3. Persist in background to SQLite backend (/api/xp/validate-visit)
     try {
-      const validationPromise = fetch('/api/xp/validate-visit', {
+      const res = await fetch('/api/xp/validate-visit', {
         method: 'POST',
         headers: this.getAuthHeaders(),
         body: JSON.stringify({
           spotId: spot.id,
           lat: userLat,
           lng: userLng,
+          screenTouch,
         }),
-      }).then(async (res) => ({ ok: res.ok, data: await res.json() }));
-
-      const ringDelayPromise = new Promise<void>((resolve) =>
-        setTimeout(resolve, ringDurationMs)
-      );
-
-      const [{ ok, data }] = await Promise.all([validationPromise, ringDelayPromise]);
-
-      if (ok && data.success) {
-        this.knownVisitedSpotIds.add(spot.id);
-
-        const prevLevel = this.state.currentLevel;
-        const newTotalXp = Number(data.totalXp ?? this.state.totalXp + 100);
-        const newLevel = Number(data.currentLevel ?? this.state.currentLevel);
-        const leveledUp = newLevel > prevLevel;
-
-        this.state = {
-          ...this.state,
-          totalXp: newTotalXp,
-          currentLevel: newLevel,
-          levelTitle: data.levelTitle || this.state.levelTitle,
-          nextLevelXp: Number(data.nextLevelXp || this.state.nextLevelXp),
-          xpRemaining: Math.max(0, Number(data.nextLevelXp || this.state.nextLevelXp) - newTotalXp),
-          placesDiscoveredCount: Number(data.placesDiscoveredCount || this.state.placesDiscoveredCount + 1),
-          visitedSpotIds: Array.from(this.knownVisitedSpotIds),
-          history: [
-            {
-              id: `v_${Date.now()}`,
-              spot_id: spot.id,
-              spot_name: cleanName,
-              category: spot.categoryLabel || spot.category,
-              xp_awarded: 100,
-              visited_at: new Date().toISOString(),
-              distance_meters: data.distanceMeters || Math.round(approxDistance),
-            },
-            ...this.state.history,
-          ],
-        };
-
-        const minXpForLevel =
-          this.state.currentLevel === 1
-            ? 0
-            : this.state.currentLevel === 2
-            ? 1000
-            : this.state.currentLevel === 3
-            ? 2500
-            : this.state.currentLevel === 4
-            ? 5000
-            : 10000;
-        const span = Math.max(1, this.state.nextLevelXp - minXpForLevel);
-        this.state.levelProgressRatio = Math.min(1, Math.max(0, (this.state.totalXp - minXpForLevel) / span));
-
-        this.notify();
-
-        if (leveledUp) {
-          playLevelUpSound();
-        } else {
-          playXpRewardSound();
-        }
-
-        try {
-          triggerHapticFeedback(20);
-        } catch {}
-
-        const { originX, originY } = this.getSpotMarkerScreenPosition(spot.id);
-
-        if (typeof window !== 'undefined') {
-          window.dispatchEvent(
-            new CustomEvent<XpRewardEventDetail>('monvian:xp_awarded', {
-              detail: {
-                spotId: spot.id,
-                spotName: cleanName,
-                spotImage: spotImg,
-                xpAwarded: 100,
-                totalXp: newTotalXp,
-                currentLevel: newLevel,
-                levelTitle: this.state.levelTitle,
-                leveledUp,
-                originX,
-                originY,
-              },
-            })
-          );
-        }
-
-        return true;
-      } else {
-        if (typeof window !== 'undefined') {
-          window.dispatchEvent(
-            new CustomEvent('monvian:xp_discovery_cancel', {
-              detail: { spotId: spot.id },
-            })
-          );
-        }
-        if (data?.alreadyDiscovered) {
-          this.knownVisitedSpotIds.add(spot.id);
-          this.state.visitedSpotIds = Array.from(this.knownVisitedSpotIds);
+      });
+      if (res.ok) {
+        const data = await res.json();
+        if (data && data.success && typeof data.totalXp === 'number') {
+          const syncedLevel = this.computeClientLevelInfo(data.totalXp);
+          const syncedSpan = Math.max(1, syncedLevel.nextLevelXp - syncedLevel.minXp);
+          this.state = {
+            ...this.state,
+            totalXp: Math.max(this.state.totalXp, data.totalXp),
+            currentLevel: syncedLevel.level,
+            levelTitle: data.levelTitle || syncedLevel.title,
+            nextLevelXp: Number(data.nextLevelXp || syncedLevel.nextLevelXp),
+            xpRemaining: Math.max(0, Number(data.nextLevelXp || syncedLevel.nextLevelXp) - data.totalXp),
+            levelProgressRatio: Math.min(1, Math.max(0, (data.totalXp - syncedLevel.minXp) / syncedSpan)),
+            placesDiscoveredCount: Math.max(
+              this.state.placesDiscoveredCount,
+              Number(data.placesDiscoveredCount || this.state.placesDiscoveredCount)
+            ),
+          };
           this.notify();
         }
       }
     } catch (err) {
-      console.warn('[XPManager] Validation request error:', err);
-      if (typeof window !== 'undefined') {
-        window.dispatchEvent(
-          new CustomEvent('monvian:xp_discovery_cancel', {
-            detail: { spotId: spot.id },
-          })
-        );
-      }
+      console.warn('[XPManager] Background persistence warning:', err);
     } finally {
       this.pendingValidations.delete(spot.id);
     }
 
-    return false;
+    return true;
   }
 }
 

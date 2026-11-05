@@ -221,17 +221,18 @@ export function registerXpRoutes(
 
       // Compute precise Haversine distance in meters
       const distanceMeters = calculateHaversineDistance(lng, lat, spotLng, spotLat);
+      const isScreenTouch = Boolean(req.body?.screenTouch);
 
-      // Proximity threshold: approximately 40 meters (with small GPS drift tolerance up to 60m if accuracy is reported)
-      const MAX_PROXIMITY_METERS = 55; // covers ~40m + minor satellite fluctuation indoors/under trees
+      // Proximity threshold: allow validation when user icon touches spot icon on map or within 450m
+      const MAX_PROXIMITY_METERS = isScreenTouch ? 2500 : 450;
 
       if (distanceMeters > MAX_PROXIMITY_METERS) {
         return res.status(400).json({
           success: false,
           tooFar: true,
-          message: `Você está a ${Math.round(distanceMeters)}m do local. Aproxime-se a menos de 40m para validar sua visita!`,
+          message: `Você está a ${Math.round(distanceMeters)}m do local. Aproxime-se para validar sua visita!`,
           distanceMeters: Math.round(distanceMeters * 10) / 10,
-          requiredDistanceMeters: 40,
+          requiredDistanceMeters: 150,
         });
       }
 
