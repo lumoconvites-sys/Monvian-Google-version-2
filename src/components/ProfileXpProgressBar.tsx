@@ -35,8 +35,14 @@ export const ProfileXpProgressBar: React.FC<ProfileXpProgressBarProps> = ({ isDa
         className={`w-full p-4 sm:p-4.5 rounded-[24px] border transition-all shadow-xs ${
           isDark
             ? 'bg-[#1C1C1E] border-white/10'
-            : 'bg-[#fefefe] border-black/5 shadow-[0_2px_12px_rgba(0,0,0,0.03)]'
+            : 'bg-[#fefefe] border-white'
         }`}
+        style={{
+          boxShadow: isDark 
+            ? '0 4px 6px -1px rgba(0,0,0,0.5), 0 2px 4px -1px rgba(0,0,0,0.3), inset 0 1px 0 rgba(255,255,255,0.05)'
+            : '0 8px 24px rgba(0,0,0,0.08), 0 2px 4px rgba(0,0,0,0.04), inset 0 2px 0 rgba(255,255,255,1)',
+          borderBottom: isDark ? '4px solid #000' : '4px solid #e4e4e7'
+        }}
       >
         {/* Top Row: Level Title on Left + Current XP / Goal on Right */}
         <div className="flex items-center justify-between gap-2 mb-2.5">

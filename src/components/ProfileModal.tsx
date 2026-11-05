@@ -93,13 +93,26 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
 }) => {
   const getInitialAvatar = (u: any) => {
     try {
-      const localAv = typeof window !== 'undefined' ? localStorage.getItem('monvian_local_avatar') : null;
-      if (localAv && localAv.trim().length > 0) return localAv;
-      if (u?.avatar_url && u.avatar_url.trim().length > 0) return u.avatar_url;
-      const savedUser = typeof window !== 'undefined' ? JSON.parse(localStorage.getItem('monvian_user') || '{}') : null;
-      if (savedUser?.avatar_url && savedUser.avatar_url.trim().length > 0) return savedUser.avatar_url;
+      const email = (u?.email || u?.whatsapp || '').trim().toLowerCase();
+      const username = (u?.username || '').trim().toLowerCase();
+      const isMario =
+        ['empresariomario@gmail.com', 'marioempresario@gmail.com', 'marioyesk@gmail.com'].includes(email) ||
+        username === 'marioyesk';
+
+      if (u?.avatar_url && u.avatar_url.trim().length > 0) {
+        if (!isMario && (u.avatar_url === '/fotoperfil.png' || u.avatar_url.endsWith('fotoperfil.png'))) {
+          return null;
+        }
+        return u.avatar_url;
+      }
+      const userKey = u?.id || email;
+      if (userKey) {
+        const scopedAv = typeof window !== 'undefined' ? localStorage.getItem(`monvian_user_avatar_${userKey}`) : null;
+        if (scopedAv && scopedAv.trim().length > 0) return scopedAv;
+      }
+      if (isMario) return '/fotoperfil.png';
     } catch {}
-    return '/fotoperfil.png';
+    return null;
   };
 
   const [activeSubView, setActiveSubView] = useState<SubView>('main');
@@ -327,7 +340,7 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
       ['empresariomario@gmail.com', 'marioempresario@gmail.com', 'marioyesk@gmail.com'].includes(cleanEmailOrWhatsapp) ||
       cleanUsername.toLowerCase() === 'marioyesk' ||
       user?.role === 'admin';
-    const finalAvatarUrl = avatar || userAvatar || '/fotoperfil.png';
+    const finalAvatarUrl = avatar || userAvatar || (isAdminAccount ? '/fotoperfil.png' : null);
 
     // 1. Immediately persist locally and update global React state so all screens reflect the photo right away
     const optimisticUser = {
@@ -352,7 +365,10 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
 
     try {
       if (finalAvatarUrl && finalAvatarUrl !== '/fotoperfil.png') {
-        localStorage.setItem('monvian_local_avatar', finalAvatarUrl);
+        const userKey = optimisticUser.id || optimisticUser.email;
+        if (userKey) {
+          localStorage.setItem(`monvian_user_avatar_${userKey}`, finalAvatarUrl);
+        }
       }
       localStorage.setItem('monvian_user', JSON.stringify(optimisticUser));
       if (onUpdateUser) onUpdateUser(optimisticUser);
@@ -1294,6 +1310,7 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
                   onClick={() => {
                     localStorage.removeItem('monvian_token');
                     localStorage.removeItem('monvian_user');
+                    localStorage.removeItem('monvian_local_avatar');
                     localStorage.removeItem('monvian_active_itinerary');
                     localStorage.removeItem('monvian_itinerary_session');
                     if (onLogout) {

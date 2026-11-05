@@ -438,13 +438,18 @@ export const MapComponent = forwardRef<MapComponentHandle, MapComponentProps>(
           const getEffectiveAvatar = (av?: string) => {
             if (av && av !== '/fotoperfil.png') return av;
             try {
-              const localAv = localStorage.getItem('monvian_local_avatar');
-              if (localAv && localAv.trim().length > 0) return localAv;
               const savedUser = JSON.parse(localStorage.getItem('monvian_user') || '{}');
-              if (savedUser?.avatar_url && savedUser.avatar_url.trim().length > 0)
-                return savedUser.avatar_url;
+              const email = (savedUser?.email || savedUser?.whatsapp || '').toLowerCase();
+              const username = (savedUser?.username || '').toLowerCase();
+              const isMario = ['empresariomario@gmail.com', 'marioempresario@gmail.com', 'marioyesk@gmail.com'].includes(email) || username === 'marioyesk';
+              if (savedUser?.avatar_url && savedUser.avatar_url.trim().length > 0) {
+                if (savedUser.avatar_url !== '/fotoperfil.png' || isMario) {
+                  return savedUser.avatar_url;
+                }
+              }
+              if (isMario) return '/fotoperfil.png';
             } catch {}
-            return av || '/fotoperfil.png';
+            return '/loogo.png';
           };
 
           const avatarImg = document.createElement('img');
@@ -752,13 +757,18 @@ export const MapComponent = forwardRef<MapComponentHandle, MapComponentProps>(
         let resolved = av;
         if (!resolved || resolved === '/fotoperfil.png') {
           try {
-            const localAv = localStorage.getItem('monvian_local_avatar');
-            if (localAv && localAv.trim().length > 0) resolved = localAv;
-            else {
-              const savedUser = JSON.parse(localStorage.getItem('monvian_user') || '{}');
-              if (savedUser?.avatar_url && savedUser.avatar_url.trim().length > 0) {
+            const savedUser = JSON.parse(localStorage.getItem('monvian_user') || '{}');
+            const email = (savedUser?.email || savedUser?.whatsapp || '').toLowerCase();
+            const username = (savedUser?.username || '').toLowerCase();
+            const isMario = ['empresariomario@gmail.com', 'marioempresario@gmail.com', 'marioyesk@gmail.com'].includes(email) || username === 'marioyesk';
+            if (savedUser?.avatar_url && savedUser.avatar_url.trim().length > 0) {
+              if (savedUser.avatar_url !== '/fotoperfil.png' || isMario) {
                 resolved = savedUser.avatar_url;
               }
+            } else if (isMario) {
+              resolved = '/fotoperfil.png';
+            } else {
+              resolved = '/loogo.png';
             }
           } catch {}
         }

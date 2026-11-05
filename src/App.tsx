@@ -83,13 +83,9 @@ export default function App() {
   });
   const [user, setUser] = useState<any>(() => {
     try {
-      const localAv = localStorage.getItem('monvian_local_avatar');
       const savedUser = localStorage.getItem('monvian_user');
       if (savedUser) {
         const parsed = JSON.parse(savedUser);
-        if (localAv && localAv.trim().length > 0) {
-          parsed.avatar_url = localAv;
-        }
         const emailClean = (parsed.email || parsed.whatsapp || '').trim().toLowerCase();
         const usernameClean = (parsed.username || '').trim().toLowerCase();
         if (
@@ -453,13 +449,6 @@ export default function App() {
           }
           userObj.isGold = isGold;
           userObj.isPremium = isGold;
-
-          try {
-            const localAv = localStorage.getItem('monvian_local_avatar');
-            if (localAv && localAv.trim().length > 0 && (!userObj.avatar_url || userObj.avatar_url === '/fotoperfil.png')) {
-              userObj.avatar_url = localAv;
-            }
-          } catch {}
 
           if (userObj.location_permission_granted === 1) {
             localStorage.setItem('monvian_location_permission_granted', 'true');
@@ -1757,6 +1746,7 @@ export default function App() {
         onLogout={() => {
           localStorage.removeItem('monvian_token');
           localStorage.removeItem('monvian_user');
+          localStorage.removeItem('monvian_local_avatar');
           localStorage.removeItem('monvian_active_itinerary');
           localStorage.removeItem('monvian_itinerary_session');
           hasExecutedSignupIntroRef.current = false;

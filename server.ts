@@ -684,7 +684,7 @@ async function startServer() {
               data: {
                 full_name: rawName,
                 username: cleanUsername,
-                avatar_url: avatar_url || '/fotoperfil.png',
+                avatar_url: avatar_url || null,
               },
             },
           });
@@ -714,7 +714,7 @@ async function startServer() {
           rawEmail,
           rawEmail,
           hash,
-          avatar_url || '/fotoperfil.png',
+          avatar_url || null,
           role,
           isGold,
           authId

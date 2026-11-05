@@ -543,6 +543,9 @@ export function AuthScreen({ onSuccess }: AuthScreenProps) {
 
         localStorage.setItem('monvian_token', data.token);
         localStorage.setItem('monvian_user', JSON.stringify(data.user));
+        try {
+          localStorage.removeItem('monvian_local_avatar');
+        } catch {}
 
         try {
           sessionStorage.removeItem('monvian_signup_draft_name');

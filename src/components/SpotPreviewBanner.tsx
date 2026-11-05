@@ -31,7 +31,7 @@ export const SpotPreviewBanner: React.FC<SpotPreviewBannerProps> = ({
       transition={{ type: 'spring', stiffness: 380, damping: 24 }}
       className="fixed inset-x-0 z-40 flex justify-center px-4 pointer-events-none select-none"
       style={{
-        bottom: 'max(88px, calc(env(safe-area-inset-bottom, 0px) + 84px))',
+        bottom: 'max(74px, calc(env(safe-area-inset-bottom, 0px) + 70px))',
       }}
     >
       {/* Horizontal size identical to BottomNavigation: w-full max-w-[326px] sm:max-w-[342px] */}
