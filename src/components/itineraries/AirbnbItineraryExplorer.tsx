@@ -4,7 +4,6 @@ import {
   ChevronLeft,
   ArrowLeft,
   Heart,
-  Star,
   Compass,
   X,
   Check,
@@ -29,8 +28,6 @@ import {
 import { useFavorites } from '../../hooks/useFavorites';
 import { DEFAULT_CURATED_ITINERARIES } from '../../data/defaultItineraries';
 import { triggerHapticFeedback } from '../../utils/haptics';
-import { MonvianIOSWidget } from '../widget/MonvianIOSWidget';
-import { getKnownItinerariesList, syncWidgetWithItinerary } from '../../services/widgetSyncService';
 
 // Fast in-memory cache for categories
 let memoryCategoriesCache: ItineraryCategory[] | null = null;
@@ -325,7 +322,7 @@ const FeaturedItineraryBanner: React.FC<FeaturedItineraryBannerProps> = ({
         />
 
         <div
-          className={`relative w-full h-full rounded-[28px] overflow-hidden shadow-md border backdrop-blur-md ${
+          className={`relative w-full h-full rounded-[34px] overflow-hidden shadow-md border backdrop-blur-md ${
             isDark ? 'bg-zinc-900 border-white/10' : 'bg-zinc-200 border-black/5'
           }`}
         >
@@ -385,25 +382,12 @@ const FeaturedItineraryBanner: React.FC<FeaturedItineraryBannerProps> = ({
                 </p>
               </div>
 
-              {/* Bottom Row: CTA Button on Left + 5 Rating Stars on Right */}
+              {/* Bottom Row: CTA Button */}
               <div className="mt-3 w-full flex items-center justify-between gap-2">
                 <span className="px-4 py-2 rounded-full expo-liquid-glass-btn expo-liquid-glass-clear text-white text-[12px] font-semibold inline-flex items-center gap-1.5 transition-all shrink-0">
                   <span>Ver roteiro</span>
                   <ArrowRight className="w-3.5 h-3.5 stroke-[2.4]" />
                 </span>
-
-                {/* 5 Estrelas de Avaliação Maiores */}
-                <div
-                  className="flex items-center gap-1 sm:gap-1.5 shrink-0"
-                  aria-label="Avaliação 5 estrelas"
-                >
-                  {[0, 1, 2, 3, 4].map((starIdx) => (
-                    <Star
-                      key={starIdx}
-                      className="w-4 h-4 sm:w-[18px] sm:h-[18px] fill-amber-400 text-amber-400 drop-shadow-[0_1.5px_4px_rgba(0,0,0,0.8)]"
-                    />
-                  ))}
-                </div>
               </div>
             </div>
           </div>
@@ -979,7 +963,7 @@ export const AirbnbItineraryExplorer: React.FC<AirbnbItineraryExplorerProps> = (
                 whileTap={{ scale: 0.985 }}
                 className="group flex flex-col cursor-pointer select-none"
               >
-                <div className="relative w-full h-[204px] sm:h-[228px] rounded-[24px] overflow-hidden bg-zinc-100 border border-black/[0.06]">
+                <div className="relative w-full h-[204px] sm:h-[228px] rounded-[34px] overflow-hidden bg-zinc-100 border border-black/[0.06]">
                   <img
                     src={itin.coverImage}
                     alt={itin.title}
@@ -1001,18 +985,6 @@ export const AirbnbItineraryExplorer: React.FC<AirbnbItineraryExplorerProps> = (
                   <h2 className="text-[16px] sm:text-[17px] font-semibold tracking-[-0.015em] text-[#111111] leading-snug truncate">
                     {itin.title}
                   </h2>
-
-                  <div
-                    className="flex items-center gap-0.5 shrink-0"
-                    aria-label="Avaliação 5 estrelas"
-                  >
-                    {[0, 1, 2, 3, 4].map((starIdx) => (
-                      <Star
-                        key={starIdx}
-                        className="w-3.5 h-3.5 sm:w-4 sm:h-4 fill-amber-400 text-amber-400"
-                      />
-                    ))}
-                  </div>
                 </div>
               </motion.div>
             ))}
@@ -1351,32 +1323,6 @@ export const AirbnbItineraryExplorer: React.FC<AirbnbItineraryExplorerProps> = (
               />
             )}
 
-            {/* 4.5. WIDGET DINÂMICO DO MONVIAN PARA IPHONE (Large Widget 2x2) */}
-            {!debouncedSearchQuery && selectedCategory === 'all' && (
-              <div className="px-5 pt-1">
-                <MonvianIOSWidget
-                  showControlsBar={true}
-                  onActivateItinerary={(itinId, spotId) => {
-                    const allKnown = getKnownItinerariesList();
-                    const found =
-                      allKnown.find((i) => i.id === itinId) ||
-                      itineraries.find((i) => i.id === itinId) ||
-                      validFeaturedBanner ||
-                      DEFAULT_CURATED_ITINERARIES[0];
-                    if (found) {
-                      syncWidgetWithItinerary(found);
-                      if (spotId) {
-                        try {
-                          sessionStorage.setItem('monvian_widget_focus_spot', spotId);
-                        } catch {}
-                      }
-                      onSelectItinerary(found);
-                    }
-                  }}
-                />
-              </div>
-            )}
-
             {/* 5. SEÇÃO DE ROTEIROS ABAIXO DO BANNER ("Roteiros para descobrir") */}
             {displayItineraries.length > 0 && (
               <section className="space-y-3">
@@ -1563,7 +1509,7 @@ const HorizontalReferenceItineraryCard: React.FC<HorizontalReferenceItineraryCar
         >
           {/* 1. HORIZONTAL RECTANGULAR PHOTOGRAPH (Proporção horizontal fiel à referência + Dimensões reservadas) */}
           <div
-            className={`relative w-full h-[182px] sm:h-[196px] rounded-[26px] overflow-hidden shadow-xs border backdrop-blur-md ${
+            className={`relative w-full h-[182px] sm:h-[196px] rounded-[34px] overflow-hidden shadow-xs border backdrop-blur-md ${
               isDark ? 'bg-zinc-900 border-white/10' : 'bg-zinc-100 border-black/5'
             }`}
           >
@@ -1635,16 +1581,6 @@ const HorizontalReferenceItineraryCard: React.FC<HorizontalReferenceItineraryCar
               >
                 {itinerary.title}
               </h4>
-              <div className="flex items-center gap-2 shrink-0">
-                <div
-                  className={`flex items-center gap-1 text-[12.5px] font-semibold ${
-                    isDark ? 'text-white' : 'text-zinc-900'
-                  }`}
-                >
-                  <Star className="w-3.5 h-3.5 fill-amber-400 text-amber-400" />
-                  <span>{rating}</span>
-                </div>
-              </div>
             </div>
 
             <div className="flex items-center justify-between gap-2">

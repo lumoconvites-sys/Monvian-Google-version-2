@@ -64,7 +64,7 @@ const LANDING_SECTIONS: LandingFeatureSection[] = [
     badge: 'Explore a cidade',
     title: 'Descubra lugares\nque valem a viagem.',
     description: 'Encontre pontos turísticos, restaurantes e experiências incríveis em Campos do Jordão.',
-    thumbnail: '/natureza.png',
+    thumbnail: '/assets/aistudio/image-8o5EpiaaH2g4RjLkY6SFje6UGDIApP_154a99d0.png',
     pinPosition: { left: '34.8%', top: '22.8%' },
     pinPhoto: '/assets/aistudio/pin_photo_1.png',
     pinLabel: 'Vila Capivari',

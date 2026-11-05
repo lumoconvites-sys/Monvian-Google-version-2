@@ -28,6 +28,7 @@ import {
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { PremiumModal } from './PremiumModal';
+import { ProfileXpProgressBar } from './ProfileXpProgressBar';
 import { IOSSwitch } from './IOSSwitch';
 import { NotificationsModal } from './NotificationsModal';
 import { persistUserToFirestore } from '../services/firestoreSync';
@@ -521,7 +522,7 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
                 type="button"
                 onClick={() => setIsNotificationsOpen(true)}
                 className={`w-10 h-10 rounded-full flex items-center justify-center transition-colors cursor-pointer ${
-                  isDark ? 'bg-white/10 hover:bg-white/15 text-white' : 'bg-[#F2F2F7] hover:bg-[#E5E5EA] text-zinc-900 shadow-2xs'
+                  isDark ? 'bg-white/10 hover:bg-white/15 text-white' : 'bg-[#fefefe] hover:bg-[#E5E5EA] text-zinc-900 shadow-2xs'
                 }`}
                 title="Notificações"
                 aria-label="Notificações"
@@ -592,7 +593,7 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
                 className={`w-full p-5 sm:p-6 rounded-[28px] border transition-colors cursor-pointer group flex flex-col items-center text-center ${
                   isDark
                     ? 'bg-[#1C1C1E] border-white/10 shadow-xs'
-                    : 'bg-[#F2F2F7] border-black/5 shadow-xs'
+                    : 'bg-[#fefefe] border-black/5 shadow-xs'
                 }`}
               >
                 <div className="relative mb-3">
@@ -630,6 +631,9 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
                 )}
               </motion.div>
 
+              {/* 1.5. Barra de Progresso Monvian XP por Exploração */}
+              <ProfileXpProgressBar isDark={isDark} />
+
               {/* 2. Feature Cards Grid (Viagens anteriores & Conexões) */}
               <div className="grid grid-cols-2 gap-3 sm:gap-3.5">
                 {/* Viagens anteriores */}
@@ -641,7 +645,7 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
                   whileTap={{ scale: 0.94, transition: { type: 'spring', stiffness: 500, damping: 14 } }}
                   onClick={() => handleSetSubView('curtidos')}
                   className={`rounded-[24px] p-4 border transition-colors cursor-pointer flex flex-col justify-between ${
-                    isDark ? 'bg-[#1C1C1E] border-white/10 shadow-xs' : 'bg-[#F2F2F7] border-black/5 shadow-xs'
+                    isDark ? 'bg-[#1C1C1E] border-white/10 shadow-xs' : 'bg-[#fefefe] border-black/5 shadow-xs'
                   }`}
                 >
                   <div className="flex justify-end">
@@ -675,7 +679,7 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
                   whileTap={{ scale: 0.94, transition: { type: 'spring', stiffness: 500, damping: 14 } }}
                   onClick={() => handleSetSubView('curtidos')}
                   className={`rounded-[24px] p-4 border transition-colors cursor-pointer flex flex-col justify-between ${
-                    isDark ? 'bg-[#1C1C1E] border-white/10 shadow-xs' : 'bg-[#F2F2F7] border-black/5 shadow-xs'
+                    isDark ? 'bg-[#1C1C1E] border-white/10 shadow-xs' : 'bg-[#fefefe] border-black/5 shadow-xs'
                   }`}
                 >
                   <div className="flex justify-end">
@@ -717,7 +721,7 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
                       onOpenAdmin?.();
                     }}
                     className={`w-full p-4 rounded-[22px] border transition-colors flex items-center justify-between text-left cursor-pointer ${
-                      isDark ? 'bg-[#1C1C1E] border-white/10 hover:bg-[#252528]' : 'bg-[#F2F2F7] border-black/5 hover:bg-[#E5E5EA]/80'
+                      isDark ? 'bg-[#1C1C1E] border-white/10 hover:bg-[#252528]' : 'bg-[#fefefe] border-black/5 hover:bg-[#E5E5EA]/80'
                     }`}
                   >
                     <div className="flex items-center gap-3.5 min-w-0">
@@ -742,13 +746,13 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
                   whileTap={{ scale: 0.96, transition: { type: 'spring', stiffness: 500, damping: 14 } }}
                   onClick={() => handleSetSubView('permissoes')}
                   className={`w-full p-4 rounded-[22px] border transition-colors flex items-center justify-between text-left cursor-pointer ${
-                    isDark ? 'bg-[#1C1C1E] border-white/10 hover:bg-[#252528]' : 'bg-[#F2F2F7] border-black/5 hover:bg-[#E5E5EA]/80'
+                    isDark ? 'bg-[#1C1C1E] border-white/10 hover:bg-[#252528]' : 'bg-[#fefefe] border-black/5 hover:bg-[#E5E5EA]/80'
                   }`}
                 >
                   <div className="flex items-center gap-3.5 min-w-0">
                     <div className="relative flex items-center justify-center shrink-0 text-zinc-950 dark:text-white">
                       <Settings className="w-7 h-7 stroke-[1.8]" />
-                      <span className={`absolute -top-0.5 -right-0.5 w-2.5 h-2.5 rounded-full bg-[#0079ff] ring-2 ${isDark ? 'ring-[#1C1C1E]' : 'ring-[#F2F2F7]'}`} style={{ backgroundColor: '#0079ff' }} />
+                      <span className={`absolute -top-0.5 -right-0.5 w-2.5 h-2.5 rounded-full bg-[#0079ff] ring-2 ${isDark ? 'ring-[#1C1C1E]' : 'ring-[#fefefe]'}`} style={{ backgroundColor: '#0079ff' }} />
                     </div>
                     <h3 className="text-[15px] font-semibold text-zinc-950 dark:text-white tracking-tight">
                       Configurações da conta
@@ -766,7 +770,7 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
                   whileTap={{ scale: 0.96, transition: { type: 'spring', stiffness: 500, damping: 14 } }}
                   onClick={() => openHelpLegalPage('hub', 'main')}
                   className={`w-full p-4 rounded-[22px] border transition-colors flex items-center justify-between text-left cursor-pointer ${
-                    isDark ? 'bg-[#1C1C1E] border-white/10 hover:bg-[#252528]' : 'bg-[#F2F2F7] border-black/5 hover:bg-[#E5E5EA]/80'
+                    isDark ? 'bg-[#1C1C1E] border-white/10 hover:bg-[#252528]' : 'bg-[#fefefe] border-black/5 hover:bg-[#E5E5EA]/80'
                   }`}
                 >
                   <div className="flex items-center gap-3.5 min-w-0">
@@ -790,7 +794,7 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
                   whileTap={{ scale: 0.96, transition: { type: 'spring', stiffness: 500, damping: 14 } }}
                   onClick={() => handleSetSubView('logout-confirm')}
                   className={`w-full p-4 rounded-[22px] border transition-colors flex items-center justify-between text-left cursor-pointer ${
-                    isDark ? 'bg-[#1C1C1E] border-white/10 hover:bg-[#252528]' : 'bg-[#F2F2F7] border-black/5 hover:bg-[#E5E5EA]/80'
+                    isDark ? 'bg-[#1C1C1E] border-white/10 hover:bg-[#252528]' : 'bg-[#fefefe] border-black/5 hover:bg-[#E5E5EA]/80'
                   }`}
                 >
                   <div className="flex items-center gap-3.5 min-w-0">
@@ -822,7 +826,7 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
                   Preferências & Efeitos
                 </p>
                 <div className={`rounded-[24px] border overflow-hidden ${
-                  isDark ? 'bg-[#1C1C1E] border-white/10 divide-y divide-white/5' : 'bg-[#F2F2F7] border-black/5 divide-y divide-black/5'
+                  isDark ? 'bg-[#1C1C1E] border-white/10 divide-y divide-white/5' : 'bg-[#fefefe] border-black/5 divide-y divide-black/5'
                 }`}>
                   {/* Chuva Dinâmica */}
                   <div className="p-4 flex items-center justify-between gap-3">

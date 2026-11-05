@@ -96,7 +96,7 @@ export const BottomNavigation: React.FC<BottomNavigationProps> = memo(({
         margin: 0,
         paddingLeft: '16px',
         paddingRight: '16px',
-        paddingBottom: '0px',
+        paddingBottom: '10px',
         transform: 'translateZ(0)',
         WebkitTransform: 'translateZ(0)',
       }}

@@ -70,7 +70,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
             className={`w-full md:max-w-md rounded-t-[32px] md:rounded-[32px] overflow-hidden flex flex-col shadow-2xl border ${
               isDark
                 ? 'bg-[#121214] text-white border-white/10'
-                : 'bg-[#F2F2F7] text-zinc-900 border-black/10'
+                : 'bg-[#fefefe] text-zinc-900 border-black/10'
             }`}
             style={{
               maxHeight: 'min(86vh, 640px)',

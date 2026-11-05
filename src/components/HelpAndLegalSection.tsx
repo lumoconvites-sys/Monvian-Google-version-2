@@ -302,7 +302,7 @@ export const HelpAndLegalInlineSection: React.FC<InlineMenuProps> = ({ onSelectP
       </div>
 
       <div className={`rounded-[22px] border overflow-hidden ${
-        isDark ? 'bg-[#1C1C1E] border-white/10 divide-y divide-white/8' : 'bg-[#F2F2F7] border-black/5 divide-y divide-black/5'
+        isDark ? 'bg-[#1C1C1E] border-white/10 divide-y divide-white/8' : 'bg-[#fefefe] border-black/5 divide-y divide-black/5'
       }`}>
         {HELP_LEGAL_ITEMS.map((item) => (
           <button
@@ -312,7 +312,7 @@ export const HelpAndLegalInlineSection: React.FC<InlineMenuProps> = ({ onSelectP
             className={`w-full px-4 py-3.5 flex items-center justify-between gap-3 text-left transition-colors cursor-pointer ${
               isDark
                 ? 'bg-[#1C1C1E] hover:bg-[#252528] active:bg-[#2C2C2E]'
-                : 'bg-[#F2F2F7] hover:bg-[#E5E5EA] active:bg-[#DCDCE2]'
+                : 'bg-[#fefefe] hover:bg-[#E5E5EA] active:bg-[#DCDCE2]'
             }`}
           >
             <div className="min-w-0 flex-1">
@@ -827,7 +827,7 @@ export const HelpAndLegalView: React.FC<HelpAndLegalViewProps> = ({
                 <div className={`rounded-[22px] border overflow-hidden ${
                   isDark
                     ? 'border-white/10 bg-[#1C1C1E] divide-y divide-white/8'
-                    : 'border-black/5 bg-[#F2F2F7] divide-y divide-black/5'
+                    : 'border-black/5 bg-[#fefefe] divide-y divide-black/5'
                 }`}>
                   {HELP_LEGAL_ITEMS.map((item) => (
                     <button
@@ -837,7 +837,7 @@ export const HelpAndLegalView: React.FC<HelpAndLegalViewProps> = ({
                       className={`w-full px-4 py-3.5 flex items-center justify-between gap-3 text-left transition-colors cursor-pointer ${
                         isDark
                           ? 'bg-[#1C1C1E] hover:bg-[#252528] active:bg-[#2C2C2E]'
-                          : 'bg-[#F2F2F7] hover:bg-[#E5E5EA] active:bg-[#DCDCE2]'
+                          : 'bg-[#fefefe] hover:bg-[#E5E5EA] active:bg-[#DCDCE2]'
                       }`}
                     >
                       <div className="min-w-0 flex-1">
@@ -892,7 +892,7 @@ export const HelpAndLegalView: React.FC<HelpAndLegalViewProps> = ({
                     className={`w-full px-3.5 py-2.5 rounded-xl border text-[14px] transition-colors focus:outline-none ${
                       isDark
                         ? 'bg-[#1C1C1E] border-white/10 text-white placeholder-zinc-500 focus:border-white/25'
-                        : 'bg-[#F2F2F7] border-black/5 text-zinc-900 placeholder:text-zinc-400 focus:border-[#0066FF] focus:bg-white'
+                        : 'bg-[#fefefe] border-black/5 text-zinc-900 placeholder:text-zinc-400 focus:border-[#0066FF] focus:bg-white'
                     }`}
                   />
                 </div>
@@ -913,7 +913,7 @@ export const HelpAndLegalView: React.FC<HelpAndLegalViewProps> = ({
                               : 'expo-liquid-glass-btn text-black font-bold shadow-xs border-black/10'
                             : isDark
                               ? 'bg-[#1C1C1E] text-zinc-400 border-white/10 hover:bg-[#252528] hover:text-white'
-                              : 'bg-[#F2F2F7] text-zinc-600 border-black/5 hover:bg-[#E5E5EA]'
+                              : 'bg-[#fefefe] text-zinc-600 border-black/5 hover:bg-[#E5E5EA]'
                         }`}
                       >
                         {category}
@@ -926,7 +926,7 @@ export const HelpAndLegalView: React.FC<HelpAndLegalViewProps> = ({
                 <div className={`rounded-[22px] border overflow-hidden ${
                   isDark
                     ? 'border-white/10 bg-[#1C1C1E] divide-y divide-white/8'
-                    : 'border-black/5 bg-[#F2F2F7] divide-y divide-black/5'
+                    : 'border-black/5 bg-[#fefefe] divide-y divide-black/5'
                 }`}>
                   {filteredFaqs.length === 0 ? (
                     <div className="p-6 text-center">
@@ -941,7 +941,7 @@ export const HelpAndLegalView: React.FC<HelpAndLegalViewProps> = ({
                     filteredFaqs.map((faq) => {
                       const isOpen = openFaqId === faq.id;
                       return (
-                        <div key={faq.id} className={isDark ? 'bg-[#1C1C1E]' : 'bg-[#F2F2F7]'}>
+                        <div key={faq.id} className={isDark ? 'bg-[#1C1C1E]' : 'bg-[#fefefe]'}>
                           <button
                             type="button"
                             onClick={() => setOpenFaqId(isOpen ? null : faq.id)}
@@ -996,7 +996,7 @@ export const HelpAndLegalView: React.FC<HelpAndLegalViewProps> = ({
                 <div className={`p-4 rounded-[22px] border flex items-center justify-between gap-3 ${
                   isDark
                     ? 'bg-[#1C1C1E] border-white/10'
-                    : 'bg-[#F2F2F7] border-black/5'
+                    : 'bg-[#fefefe] border-black/5'
                 }`}>
                   <div>
                     <p className={`text-[13.5px] font-semibold ${isDark ? 'text-white' : 'text-zinc-900'}`}>
@@ -1043,7 +1043,7 @@ export const HelpAndLegalView: React.FC<HelpAndLegalViewProps> = ({
                     <section
                       key={section.number}
                       className={`p-4 rounded-[20px] border space-y-2 ${
-                        isDark ? 'bg-[#1C1C1E] border-white/10' : 'bg-[#F2F2F7] border-black/5'
+                        isDark ? 'bg-[#1C1C1E] border-white/10' : 'bg-[#fefefe] border-black/5'
                       }`}
                     >
                       <div className="flex items-baseline gap-2">
@@ -1069,7 +1069,7 @@ export const HelpAndLegalView: React.FC<HelpAndLegalViewProps> = ({
                 </div>
 
                 <div className={`p-4 rounded-[20px] border flex flex-col sm:flex-row sm:items-center justify-between gap-3 ${
-                  isDark ? 'bg-[#1C1C1E] border-white/10' : 'bg-[#F2F2F7] border-black/5'
+                  isDark ? 'bg-[#1C1C1E] border-white/10' : 'bg-[#fefefe] border-black/5'
                 }`}>
                   <div>
                     <p className={`text-[13.5px] font-semibold ${isDark ? 'text-white' : 'text-zinc-900'}`}>
@@ -1116,7 +1116,7 @@ export const HelpAndLegalView: React.FC<HelpAndLegalViewProps> = ({
                     <section
                       key={section.number}
                       className={`p-4 rounded-[20px] border space-y-2 ${
-                        isDark ? 'bg-[#1C1C1E] border-white/10' : 'bg-[#F2F2F7] border-black/5'
+                        isDark ? 'bg-[#1C1C1E] border-white/10' : 'bg-[#fefefe] border-black/5'
                       }`}
                     >
                       <div className="flex items-baseline gap-2">
@@ -1164,7 +1164,7 @@ export const HelpAndLegalView: React.FC<HelpAndLegalViewProps> = ({
                         ? 'bg-red-500/10 border-red-500/30 text-red-500'
                         : isDark
                           ? 'bg-[#1C1C1E] border-white/15 text-white'
-                          : 'bg-[#F2F2F7] border-black/10 text-zinc-900'
+                          : 'bg-[#fefefe] border-black/10 text-zinc-900'
                     }`}
                   >
                     <p className="font-semibold">{privacyFeedback.text}</p>
@@ -1178,7 +1178,7 @@ export const HelpAndLegalView: React.FC<HelpAndLegalViewProps> = ({
 
                 {/* 4.1 Acesso e Portabilidade */}
                 <div className={`p-4 rounded-[20px] border space-y-3 ${
-                  isDark ? 'border-white/10 bg-[#1C1C1E]' : 'border-black/5 bg-[#F2F2F7]'
+                  isDark ? 'border-white/10 bg-[#1C1C1E]' : 'border-black/5 bg-[#fefefe]'
                 }`}>
                   <div className="flex items-start justify-between gap-3">
                     <div>
@@ -1258,7 +1258,7 @@ export const HelpAndLegalView: React.FC<HelpAndLegalViewProps> = ({
                 <form
                   onSubmit={handleCorrectionSubmit}
                   className={`p-4 rounded-[20px] border space-y-3 ${
-                    isDark ? 'border-white/10 bg-[#1C1C1E]' : 'border-black/5 bg-[#F2F2F7]'
+                    isDark ? 'border-white/10 bg-[#1C1C1E]' : 'border-black/5 bg-[#fefefe]'
                   }`}
                 >
                   <div>
@@ -1363,7 +1363,7 @@ export const HelpAndLegalView: React.FC<HelpAndLegalViewProps> = ({
 
                 {/* 4.3 Exclusão de Dados Específicos */}
                 <div className={`p-4 rounded-[20px] border space-y-3 ${
-                  isDark ? 'border-white/10 bg-[#1C1C1E]' : 'border-black/5 bg-[#F2F2F7]'
+                  isDark ? 'border-white/10 bg-[#1C1C1E]' : 'border-black/5 bg-[#fefefe]'
                 }`}>
                   <div>
                     <h3 className={`text-[14.5px] font-semibold ${isDark ? 'text-white' : 'text-zinc-900'}`}>
@@ -1462,7 +1462,7 @@ export const HelpAndLegalView: React.FC<HelpAndLegalViewProps> = ({
                 {/* Histórico de Solicitações de Privacidade */}
                 {Array.isArray(privacyData?.requests) && privacyData.requests.length > 0 && (
                   <div className={`p-4 rounded-[20px] border space-y-2.5 ${
-                    isDark ? 'border-white/10 bg-[#1C1C1E]' : 'border-black/5 bg-[#F2F2F7]'
+                    isDark ? 'border-white/10 bg-[#1C1C1E]' : 'border-black/5 bg-[#fefefe]'
                   }`}>
                     <h4 className={`text-[13px] font-semibold ${isDark ? 'text-white' : 'text-zinc-900'}`}>
                       Histórico de solicitações registradas
@@ -1506,7 +1506,7 @@ export const HelpAndLegalView: React.FC<HelpAndLegalViewProps> = ({
                 </div>
 
                 <div className={`p-4 rounded-[20px] border space-y-3 ${
-                  isDark ? 'bg-[#1C1C1E] border-white/10' : 'bg-[#F2F2F7] border-black/5'
+                  isDark ? 'bg-[#1C1C1E] border-white/10' : 'bg-[#fefefe] border-black/5'
                 }`}>
                   <h3 className={`text-[14px] font-semibold ${isDark ? 'text-white' : 'text-zinc-900'}`}>
                     O que será permanentemente excluído:
@@ -1531,7 +1531,7 @@ export const HelpAndLegalView: React.FC<HelpAndLegalViewProps> = ({
                 <form
                   onSubmit={handleExecuteAccountDeletion}
                   className={`p-4 rounded-[20px] border space-y-3.5 ${
-                    isDark ? 'border-white/10 bg-[#1C1C1E]' : 'border-black/5 bg-[#F2F2F7]'
+                    isDark ? 'border-white/10 bg-[#1C1C1E]' : 'border-black/5 bg-[#fefefe]'
                   }`}
                 >
                   <div>
@@ -1630,7 +1630,7 @@ export const HelpAndLegalView: React.FC<HelpAndLegalViewProps> = ({
                   <div className={`p-4 rounded-[20px] border space-y-1 ${
                     isDark
                       ? 'bg-[#1C1C1E] border-white/15'
-                      : 'bg-[#F2F2F7] border-black/10'
+                      : 'bg-[#fefefe] border-black/10'
                   }`}>
                     <p className={`text-[14px] font-semibold ${isDark ? 'text-white' : 'text-zinc-900'}`}>
                       Atendimento registrado com sucesso
@@ -1647,7 +1647,7 @@ export const HelpAndLegalView: React.FC<HelpAndLegalViewProps> = ({
                 <form
                   onSubmit={handleSendSupportTicket}
                   className={`p-4 rounded-[20px] border space-y-3.5 ${
-                    isDark ? 'border-white/10 bg-[#1C1C1E]' : 'border-black/5 bg-[#F2F2F7]'
+                    isDark ? 'border-white/10 bg-[#1C1C1E]' : 'border-black/5 bg-[#fefefe]'
                   }`}
                 >
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
@@ -1767,7 +1767,7 @@ export const HelpAndLegalView: React.FC<HelpAndLegalViewProps> = ({
                 {/* Histórico de chamados enviados */}
                 {userTickets.length > 0 && (
                   <div className={`p-4 rounded-[20px] border space-y-2.5 ${
-                    isDark ? 'bg-[#1C1C1E] border-white/10' : 'bg-[#F2F2F7] border-black/5'
+                    isDark ? 'bg-[#1C1C1E] border-white/10' : 'bg-[#fefefe] border-black/5'
                   }`}>
                     <h3 className={`text-[13.5px] font-semibold ${isDark ? 'text-white' : 'text-zinc-900'}`}>
                       Seus chamados recentes
@@ -1795,7 +1795,7 @@ export const HelpAndLegalView: React.FC<HelpAndLegalViewProps> = ({
                 )}
 
                 <div className={`p-4 rounded-[20px] border space-y-1 text-[12.5px] ${
-                  isDark ? 'bg-[#1C1C1E] border-white/10 text-zinc-400' : 'bg-[#F2F2F7] border-black/5 text-[#686B73]'
+                  isDark ? 'bg-[#1C1C1E] border-white/10 text-zinc-400' : 'bg-[#fefefe] border-black/5 text-[#686B73]'
                 }`}>
                   <p className={`font-semibold ${isDark ? 'text-white' : 'text-zinc-900'}`}>Canais diretos de atendimento</p>
                   <p>E-mail de suporte e privacidade: suporte@monvian.com.br</p>
@@ -1819,7 +1819,7 @@ export const HelpAndLegalView: React.FC<HelpAndLegalViewProps> = ({
                 </div>
 
                 <div className={`p-4 rounded-[20px] border space-y-3 text-[13px] leading-relaxed ${
-                  isDark ? 'bg-[#1C1C1E] border-white/10 text-zinc-400' : 'bg-[#F2F2F7] border-black/5 text-zinc-600'
+                  isDark ? 'bg-[#1C1C1E] border-white/10 text-zinc-400' : 'bg-[#fefefe] border-black/5 text-zinc-600'
                 }`}>
                   <p>
                     O <strong className={`font-semibold ${isDark ? 'text-white' : 'text-zinc-950'}`}>Monvian</strong> foi desenvolvido para oferecer aos visitantes e moradores de Campos do Jordão uma experiência de descoberta urbana e natural clara, precisa e integrada ao ecossistema iOS.
@@ -1830,7 +1830,7 @@ export const HelpAndLegalView: React.FC<HelpAndLegalViewProps> = ({
                 </div>
 
                 <div className={`rounded-[20px] border divide-y text-[13px] ${
-                  isDark ? 'border-white/10 bg-[#1C1C1E] divide-white/8' : 'border-black/5 bg-[#F2F2F7] divide-black/5'
+                  isDark ? 'border-white/10 bg-[#1C1C1E] divide-white/8' : 'border-black/5 bg-[#fefefe] divide-black/5'
                 }`}>
                   <div className="px-4 py-3 flex items-center justify-between">
                     <span className={isDark ? 'text-zinc-400' : 'text-zinc-500'}>Aplicativo</span>

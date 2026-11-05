@@ -163,7 +163,7 @@ const CollectionCoverCard: React.FC<CollectionCoverCardProps> = React.memo(({
               <div
                 key={idx}
                 className={`relative w-full h-full overflow-hidden ${cornerClass} ${
-                  isDark ? 'bg-[#0a0a0c]' : 'bg-[#F2F2F7] md:bg-[#fafafc]'
+                  isDark ? 'bg-[#0a0a0c]' : 'bg-[#fefefe] md:bg-[#fafafc]'
                 }`}
               >
                 <TranslucentSavedPhoto
@@ -171,7 +171,7 @@ const CollectionCoverCard: React.FC<CollectionCoverCardProps> = React.memo(({
                   alt=""
                   isDark={isDark}
                   className={`block w-full h-full object-cover object-center ${cornerClass} ${
-                    isDark ? 'bg-[#0a0a0c]' : 'bg-[#F2F2F7] md:bg-[#fafafc]'
+                    isDark ? 'bg-[#0a0a0c]' : 'bg-[#fefefe] md:bg-[#fafafc]'
                   }`}
                 />
               </div>
@@ -181,7 +181,7 @@ const CollectionCoverCard: React.FC<CollectionCoverCardProps> = React.memo(({
             <div
               key={idx}
               className={`relative w-full h-full overflow-hidden ${cornerClass} flex items-center justify-center ${
-                isDark ? 'bg-[#0a0a0c]' : 'bg-[#F2F2F7] md:bg-[#fafafc]'
+                isDark ? 'bg-[#0a0a0c]' : 'bg-[#fefefe] md:bg-[#fafafc]'
               }`}
             >
               {idx === 0 && (!photos || photos.length === 0) ? (

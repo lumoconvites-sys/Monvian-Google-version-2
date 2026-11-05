@@ -50,7 +50,6 @@ import { TripNotesModal } from './itineraries/TripNotesModal';
 import { LazyImage } from './ui/LazyImage';
 import { favoritesManager } from '../services/favoritesManager';
 import { DEFAULT_CURATED_ITINERARIES } from '../data/defaultItineraries';
-import { getKnownItinerariesList, syncWidgetWithItinerary } from '../services/widgetSyncService';
 
 interface ItinerariesViewProps {
   isOpen: boolean;
@@ -848,25 +847,8 @@ export const ItinerariesView: React.FC<ItinerariesViewProps> = ({
       localStorage.setItem('monvian_active_itinerary', JSON.stringify(optimisticItinerary));
     } catch (e) {}
 
-    syncWidgetWithItinerary(optimisticItinerary);
-
-    let focusedSpotId: string | null = null;
-    try {
-      focusedSpotId = sessionStorage.getItem('monvian_widget_focus_spot');
-      if (focusedSpotId) sessionStorage.removeItem('monvian_widget_focus_spot');
-    } catch {}
-
     const allDaySteps = optimisticItinerary.days?.[0]?.steps || [];
-    const matchedFocusStep = focusedSpotId
-      ? allDaySteps.find(
-          (st) =>
-            st.spotId === focusedSpotId ||
-            st.spot?.id === focusedSpotId ||
-            (st.spot?.id && focusedSpotId && st.spot.id.includes(focusedSpotId))
-        )
-      : null;
-
-    const targetStep = matchedFocusStep || allDaySteps[0];
+    const targetStep = allDaySteps[0];
     if (targetStep) {
       setSelectedStopId(targetStep.id);
     }
@@ -911,51 +893,6 @@ export const ItinerariesView: React.FC<ItinerariesViewProps> = ({
   // Rename title inline
   const [isEditingTitle, setIsEditingTitle] = useState(false);
   const [editedTitle, setEditedTitle] = useState('');
-
-  // Keep iOS Dynamic Widget continuously synced whenever userItinerary or spots change
-  useEffect(() => {
-    if (userItinerary) {
-      syncWidgetWithItinerary(userItinerary);
-    }
-  }, [userItinerary, spots]);
-
-  // Listen to widget tap events to open the selected itinerary & spot in Roteiros
-  useEffect(() => {
-    const handleOpenWidgetItinerary = (e: any) => {
-      const targetItinId = e?.detail?.itineraryId;
-      const targetSpotId = e?.detail?.spotId;
-      if (targetSpotId) {
-        try {
-          sessionStorage.setItem('monvian_widget_focus_spot', targetSpotId);
-        } catch {}
-      }
-      if (userItinerary && (!targetItinId || userItinerary.id === targetItinId)) {
-        setItineraryViewMode('map');
-        setIsExpanded(true);
-        if (targetSpotId) {
-          const steps = userItinerary.days?.[0]?.steps || [];
-          const matched = steps.find(
-            (s) => s.spotId === targetSpotId || s.spot?.id === targetSpotId
-          );
-          if (matched) setSelectedStopId(matched.id);
-        }
-        return;
-      }
-      const allKnown = getKnownItinerariesList();
-      const found =
-        allKnown.find((i) => i.id === targetItinId) ||
-        userItinerary ||
-        DEFAULT_CURATED_ITINERARIES[0];
-      if (found) {
-        handleApplyStoreItinerary(found);
-      }
-    };
-
-    window.addEventListener('monvian:open_widget_itinerary', handleOpenWidgetItinerary);
-    return () => {
-      window.removeEventListener('monvian:open_widget_itinerary', handleOpenWidgetItinerary);
-    };
-  }, [userItinerary]);
 
   // Bottom Sheet expansion state: false = compact (inteiro e compacto acima da barra), true = 50% split
   const [isExpanded, setIsExpanded] = useState(true);

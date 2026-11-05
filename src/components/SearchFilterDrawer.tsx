@@ -355,7 +355,7 @@ export const SearchFilterDrawer: React.FC<SearchFilterDrawerProps> = ({
                   className={`w-full p-4 rounded-[24px] border transition-colors flex items-center justify-between text-left cursor-pointer group shadow-xs ${
                     isDark
                       ? 'bg-[#1C1C1E] hover:bg-[#252528] border-white/10'
-                      : 'bg-[#F2F2F7] hover:bg-[#E5E5EA]/80 border-black/5'
+                      : 'bg-[#fefefe] hover:bg-[#E5E5EA]/80 border-black/5'
                   }`}
                 >
                   {/* Left: Rounded Square Icon Box OR Floating Image Asset + Titles */}
@@ -464,7 +464,7 @@ export const SearchFilterDrawer: React.FC<SearchFilterDrawerProps> = ({
                     className={`w-full p-4 sm:p-4.5 rounded-[24px] border transition-colors flex items-center justify-between text-left cursor-pointer group shadow-xs ${
                       isDark
                         ? 'bg-[#1C1C1E] hover:bg-[#252528] border-white/10'
-                        : 'bg-[#F2F2F7] hover:bg-[#E5E5EA]/80 border-black/5'
+                        : 'bg-[#fefefe] hover:bg-[#E5E5EA]/80 border-black/5'
                     }`}
                   >
                     <div className="flex items-center gap-4 sm:gap-4.5 min-w-0 flex-1">

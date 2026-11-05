@@ -6,6 +6,7 @@ import { Spot, MapModeType } from '../types';
 import { getSpotImage, getSpotFallbackImage } from '../utils/spotImages';
 import { generateMarkerHtml, MAP_VISUAL_ICON_CATEGORIES } from '../utils/mapVisualIcons';
 import { gpsNavigationManager } from '../services/gpsNavigation';
+import { monvianXpManager } from '../services/xpService';
 import { deviceHeadingManager } from '../utils/deviceHeading';
 import { triggerHapticFeedback } from '../utils/haptics';
 import { CompassIcon } from './CompassIcon';
@@ -827,9 +828,13 @@ export const MapComponent = forwardRef<MapComponentHandle, MapComponentProps>(
             center: navState.coords,
             zoom: 14.8,
             pitch: is3DModeRef.current ? 60 : 0,
-            bearing: is3DModeRef.current ? -20 : 0,
             duration: 750,
           });
+        }
+
+        // Check physical proximity against spots for Monvian XP exploration rewards (<= 40m)
+        if (spotsRef.current && spotsRef.current.length > 0) {
+          monvianXpManager.evaluateProximity(navState, spotsRef.current).catch(() => {});
         }
       });
 

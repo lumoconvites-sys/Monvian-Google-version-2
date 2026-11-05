@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { Star, X } from 'lucide-react';
+import { X } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { Itinerary } from '../../types';
 import { DEFAULT_CURATED_ITINERARIES } from '../../data/defaultItineraries';
@@ -166,7 +166,7 @@ export const PostSignupOnboardingFlow: React.FC<PostSignupOnboardingFlowProps> =
                       className="group flex flex-col cursor-pointer select-none"
                     >
                       <div
-                        className={`relative w-full h-[204px] sm:h-[228px] rounded-[24px] overflow-hidden bg-zinc-100 transition-all duration-300 ${
+                        className={`relative w-full h-[204px] sm:h-[228px] rounded-[34px] overflow-hidden bg-zinc-100 transition-all duration-300 ${
                           isSelected
                             ? 'ring-2 ring-black/70 shadow-md'
                             : 'border border-black/[0.06]'
@@ -209,18 +209,6 @@ export const PostSignupOnboardingFlow: React.FC<PostSignupOnboardingFlowProps> =
                         <h2 className="text-[16px] sm:text-[17px] font-semibold tracking-[-0.015em] text-[#111111] leading-snug truncate">
                           {itin.title}
                         </h2>
-
-                        <div
-                          className="flex items-center gap-0.5 shrink-0"
-                          aria-label="Avaliação 5 estrelas"
-                        >
-                          {[0, 1, 2, 3, 4].map((starIdx) => (
-                            <Star
-                              key={starIdx}
-                              className="w-3.5 h-3.5 sm:w-4 sm:h-4 fill-amber-400 text-amber-400"
-                            />
-                          ))}
-                        </div>
                       </div>
                     </motion.div>
                   );

@@ -9,6 +9,7 @@ import { registerSocialRoutes, setupSocialDatabase } from './src/server/socialRo
 import { registerStoryRoutes, setupStoriesDatabase } from './src/server/storyRoutes.js';
 import { registerStripeRoutes, setupStripeDatabase } from './src/server/stripeRoutes.js';
 import { registerPlatanosRoutes, setupPlatanosDatabase } from './src/server/platanosRoutes.js';
+import { registerXpRoutes } from './src/server/xpRoutes.js';
 import { CAMPOS_SPOTS } from './src/data/spots.js';
 import { supabase, supabaseAnonClient } from './src/services/supabaseClient.js';
 import {
@@ -551,6 +552,7 @@ async function startServer() {
   registerStoryRoutes(app, db);
   registerStripeRoutes(app, db, (req) => resolveAuthenticatedUser(req));
   registerPlatanosRoutes(app, db, (req) => resolveAuthenticatedUser(req), (req) => isRequestAdmin(req));
+  registerXpRoutes(app, db, (req) => resolveAuthenticatedUser(req));
 
   // ===========================================================================
   // 1. AUTHENTICATION & SUPABASE AUTH ROUTES
