@@ -79,7 +79,7 @@ export const BottomNavigation: React.FC<BottomNavigationProps> = memo(({
     <nav
       id="bottom-floating-navigation"
       aria-label="Navegação Principal"
-      className={`fixed inset-x-0 bottom-0 z-[250] flex justify-center select-none px-4 pointer-events-none transition-[opacity,transform,filter] duration-[200ms] ease-out ${
+      className={`fixed inset-x-0 bottom-0 z-[250] flex justify-center select-none px-4 pointer-events-none transition-[opacity,filter] duration-300 ease-out ${
         isBlurred
           ? 'opacity-40 scale-[0.98] blur-[6px] [&_*]:!pointer-events-none'
           : 'opacity-100 scale-100 blur-0'
@@ -96,7 +96,7 @@ export const BottomNavigation: React.FC<BottomNavigationProps> = memo(({
         margin: 0,
         paddingLeft: '16px',
         paddingRight: '16px',
-        paddingBottom: '10px',
+        paddingBottom: 'max(10px, env(safe-area-inset-bottom, 10px))',
         transform: 'translateZ(0)',
         WebkitTransform: 'translateZ(0)',
       }}

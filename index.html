@@ -138,77 +138,44 @@
           dismissed = true;
           var preloader = document.getElementById('monvian-app-preloader');
           var video = document.getElementById('monvian-preloader-video');
-          var rootEl = document.getElementById('root');
 
-          // 1. Logo fades out smoothly after the video finishes
+          // 1. Video fades out smoothly
           if (video) {
             try { video.pause(); } catch (e) {}
-            video.style.transition = 'opacity 0.48s cubic-bezier(0.22, 1, 0.36, 1), filter 0.48s cubic-bezier(0.22, 1, 0.36, 1), transform 0.48s cubic-bezier(0.22, 1, 0.36, 1)';
+            video.style.transition = 'opacity 0.4s ease-out';
             video.style.opacity = '0';
-            video.style.filter = 'blur(6px)';
-            video.style.transform = 'scale(1.44)';
           }
 
-          // 2. App appears with a translucent frosted-glass transition
+          // 2. Preloader fades out seamlessly revealing the app underneath without shifting elements
           if (preloader) {
+            preloader.style.transition = 'opacity 0.5s cubic-bezier(0.22, 1, 0.36, 1)';
+            preloader.style.opacity = '0';
+            preloader.style.pointerEvents = 'none';
+
             setTimeout(function() {
-              // Shift solid background into a translucent glass veil over the app
-              preloader.style.transition =
-                'background-color 0.68s cubic-bezier(0.16, 1, 0.3, 1), ' +
-                'backdrop-filter 0.68s cubic-bezier(0.16, 1, 0.3, 1), ' +
-                '-webkit-backdrop-filter 0.68s cubic-bezier(0.16, 1, 0.3, 1), ' +
-                'opacity 0.68s cubic-bezier(0.16, 1, 0.3, 1)';
-              preloader.style.backgroundColor = 'rgba(255, 255, 255, 0.22)';
-              preloader.style.backdropFilter = 'blur(0px) saturate(100%)';
-              preloader.style.webkitBackdropFilter = 'blur(0px) saturate(100%)';
-              preloader.style.opacity = '0';
-
-              if (rootEl) {
-                rootEl.style.transition =
-                  'filter 0.68s cubic-bezier(0.16, 1, 0.3, 1), ' +
-                  'opacity 0.68s cubic-bezier(0.16, 1, 0.3, 1), ' +
-                  'transform 0.68s cubic-bezier(0.16, 1, 0.3, 1)';
-                rootEl.style.filter = 'blur(0px)';
-                rootEl.style.opacity = '1';
-                rootEl.style.transform = 'scale(1)';
-              }
-
-              setTimeout(function() {
-                preloader.style.display = 'none';
-                if (rootEl) {
-                  rootEl.style.filter = '';
-                  rootEl.style.transform = '';
-                  rootEl.style.transition = '';
-                }
-              }, 700);
-            }, 340);
+              preloader.style.display = 'none';
+            }, 520);
           }
         }
 
         function initVideoPreloader() {
           var video = document.getElementById('monvian-preloader-video');
-          var rootEl = document.getElementById('root');
-          if (rootEl) {
-            rootEl.style.filter = 'blur(16px)';
-            rootEl.style.opacity = '0.82';
-            rootEl.style.transform = 'scale(0.985)';
-          }
           if (video) {
             video.addEventListener('ended', function() {
               dismissPreloader();
             });
             video.addEventListener('error', function() {
-              setTimeout(dismissPreloader, 800);
+              setTimeout(dismissPreloader, 600);
             });
             var p = video.play();
             if (p && typeof p.catch === 'function') {
               p.catch(function() {
-                setTimeout(dismissPreloader, 2200);
+                setTimeout(dismissPreloader, 1800);
               });
             }
           }
-          // Safety fallback after video duration (2.68s)
-          setTimeout(dismissPreloader, 3050);
+          // Safety fallback
+          setTimeout(dismissPreloader, 2800);
         }
 
         if (document.readyState === 'loading') {

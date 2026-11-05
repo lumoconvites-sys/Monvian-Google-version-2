@@ -67,8 +67,7 @@
     height: 100%;
     min-height: 100%;
     min-height: -webkit-fill-available;
-    min-height: calc(100dvh + env(safe-area-inset-bottom, 0px));
-    height: calc(100dvh + env(safe-area-inset-bottom, 0px));
+    height: 100dvh;
     overflow: hidden;
     overscroll-behavior: none;
     -webkit-tap-highlight-color: transparent;
@@ -86,8 +85,7 @@
     height: 100%;
     min-height: 100%;
     min-height: -webkit-fill-available;
-    min-height: calc(100dvh + env(safe-area-inset-bottom, 0px));
-    height: calc(100dvh + env(safe-area-inset-bottom, 0px));
+    height: 100dvh;
     overflow: hidden;
     overscroll-behavior: none;
     -webkit-tap-highlight-color: transparent;
@@ -112,8 +110,7 @@
     height: 100%;
     min-height: 100%;
     min-height: -webkit-fill-available;
-    min-height: calc(100dvh + env(safe-area-inset-bottom, 0px));
-    height: calc(100dvh + env(safe-area-inset-bottom, 0px));
+    height: 100dvh;
     overflow: hidden;
     background-color: var(--bg-primary);
     transition: background-color 0.2s ease, color 0.2s ease;
@@ -1027,8 +1024,10 @@ html:not(.dark) .expo-liquid-glass-clear:hover,
   margin: 0px !important;
   padding-left: 16px !important;
   padding-right: 16px !important;
-  padding-bottom: 10px !important;
+  padding-bottom: max(10px, env(safe-area-inset-bottom, 10px)) !important;
   z-index: 250 !important;
+  transform: translateZ(0) !important;
+  -webkit-transform: translateZ(0) !important;
 }
 
 /* Map Saturation & Color Boost (+40% Verde Mais Saturado e Relevo Vibrante) */

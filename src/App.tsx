@@ -1356,7 +1356,7 @@ export default function App() {
             right: 0,
             width: '100%',
             height: '100%',
-            minHeight: 'calc(100dvh + env(safe-area-inset-bottom, 0px))',
+            minHeight: '100%',
             boxSizing: 'border-box',
             margin: 0,
             padding: 0,
@@ -1932,7 +1932,7 @@ export default function App() {
 
     {/* 4. Bottom Navigation Pill rendered at root level (Visible ONLY on mobile, hidden during detail sheet, exclusive post-signup itinerary selection & spotlight presentation) */}
     {!isMapOrbiting && !isOnboardingItinerarySelection && !isDetailOpen && (
-      <div className={`md:hidden transition-opacity duration-150 ${isChatKeyboardOpen ? 'opacity-0 pointer-events-none' : 'opacity-100 pointer-events-auto'}`}>
+      <div className={`md:hidden transition-opacity duration-300 ease-out ${isChatKeyboardOpen ? 'opacity-0 pointer-events-none' : 'opacity-100 pointer-events-auto'}`}>
         <BottomNavigation
           activeTab={activeTab}
           onChangeTab={handleTabChange}
