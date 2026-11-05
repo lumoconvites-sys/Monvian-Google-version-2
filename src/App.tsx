@@ -1878,11 +1878,22 @@ export default function App() {
       theme={theme}
     />
 
-    {/* Monvian XP +100 Floating Discovery Notification */}
-    <XpRewardNotificationOverlay />
+    {/* Monvian iOS Minimalist Floating Discovery Card & Expansion Overlay */}
+    <XpRewardNotificationOverlay
+      visible={
+        activeTab === 'explorar' &&
+        !isSpotCardOpen &&
+        !isDetailOpen &&
+        !isMapOrbiting &&
+        !isOnboardingItinerarySelection &&
+        !isSearchOpen &&
+        !isCategoryCardOpen
+      }
+      onSelectSpot={handleSelectSpot}
+    />
 
     {/* 4. Bottom Navigation Pill rendered at root level (Visible ONLY on mobile, hidden during exclusive post-signup itinerary selection & spotlight presentation) */}
-    {!isMapOrbiting && !isOnboardingItinerarySelection && !isUserLocationSpotlightActive && (
+    {!isMapOrbiting && !isOnboardingItinerarySelection && (
       <div className={`md:hidden transition-opacity duration-150 ${isChatKeyboardOpen ? 'opacity-0 pointer-events-none' : 'opacity-100 pointer-events-auto'}`}>
         <BottomNavigation
           activeTab={activeTab}
@@ -1895,7 +1906,7 @@ export default function App() {
       </div>
     )}
 
-    {/* 4.1. Translucent Spotlight Presentation on User Location (Exactly 3 seconds upon entering the map) */}
+    {/* 4.1. Minimalist iOS Radar Presentation on User Location (Map stays 100% visible without darkening) */}
     <AnimatePresence>
       {isUserLocationSpotlightActive && (
         <motion.div
@@ -1904,18 +1915,9 @@ export default function App() {
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
           transition={{ duration: 0.5, ease: [0.22, 1, 0.36, 1] }}
-          className="fixed inset-0 z-[115] pointer-events-none flex items-center justify-center overflow-hidden"
-          style={{
-            backgroundColor: 'rgba(0, 0, 0, 0.62)',
-            backdropFilter: 'blur(7px)',
-            WebkitBackdropFilter: 'blur(7px)',
-            maskImage:
-              'radial-gradient(circle 85px at 50% 50%, transparent 0%, transparent 60px, black 110px)',
-            WebkitMaskImage:
-              'radial-gradient(circle 85px at 50% 50%, transparent 0%, transparent 60px, black 110px)',
-          }}
+          className="fixed inset-0 z-[42] pointer-events-none flex items-center justify-center overflow-hidden"
         >
-          <div className="w-[124px] h-[124px] rounded-full border border-white/35 animate-pulse shadow-[0_0_24px_rgba(255,255,255,0.25)] pointer-events-none" />
+          <div className="w-[132px] h-[132px] rounded-full border border-[#007AFF]/30 animate-pulse shadow-[0_0_24px_rgba(0,122,255,0.18)] pointer-events-none" />
         </motion.div>
       )}
     </AnimatePresence>

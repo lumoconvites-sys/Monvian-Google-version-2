@@ -361,14 +361,14 @@ export const MapComponent = forwardRef<MapComponentHandle, MapComponentProps>(
           rootEl.style.pointerEvents = 'none';
           rootEl.style.zIndex = '40';
 
-          // 1. Directional Blue Flashlight Cone ("Lanterna Azul" - Apple Maps iOS Compass Beam)
+          // 1. Minimalist Circular iOS Blue Radar + Subtle Perimeter Arc (No triangular cone)
           const beamWrapper = document.createElement('div');
           beamWrapper.className = 'monvian-user-heading-beam';
           beamWrapper.style.position = 'absolute';
           beamWrapper.style.top = '27px'; // Exact center of the 54px outer avatar ring
           beamWrapper.style.left = '50%';
-          beamWrapper.style.width = '196px';
-          beamWrapper.style.height = '196px';
+          beamWrapper.style.width = '148px';
+          beamWrapper.style.height = '148px';
           const initialHeading = deviceHeadingManager.getCurrentHeading() || 0;
           const initialMapBearing = map.getBearing() || 0;
           const initialBeamAngle = (initialHeading - initialMapBearing + 360) % 360;
@@ -378,28 +378,38 @@ export const MapComponent = forwardRef<MapComponentHandle, MapComponentProps>(
           beamWrapper.style.zIndex = '1';
           beamWrapper.style.willChange = 'transform';
           beamWrapper.innerHTML = `
-            <svg viewBox="0 0 200 200" width="100%" height="100%" style="overflow: visible; filter: drop-shadow(0 0 12px rgba(0, 122, 255, 0.45));">
+            <svg viewBox="0 0 148 148" width="100%" height="100%" style="overflow: visible;">
               <defs>
-                <linearGradient id="monvianBlueFlashlightGrad" x1="100" y1="100" x2="100" y2="4" gradientUnits="userSpaceOnUse">
-                  <stop offset="0%" stop-color="#007AFF" stop-opacity="0.86" />
-                  <stop offset="28%" stop-color="#0A84FF" stop-opacity="0.56" />
-                  <stop offset="68%" stop-color="#38BDF8" stop-opacity="0.22" />
-                  <stop offset="100%" stop-color="#38BDF8" stop-opacity="0" />
-                </linearGradient>
-                <linearGradient id="monvianBlueFlashlightCore" x1="100" y1="100" x2="100" y2="16" gradientUnits="userSpaceOnUse">
-                  <stop offset="0%" stop-color="#60A5FA" stop-opacity="0.72" />
-                  <stop offset="55%" stop-color="#007AFF" stop-opacity="0.32" />
+                <radialGradient id="monvianSoftRadarAmbient" cx="50%" cy="50%" r="50%">
+                  <stop offset="0%" stop-color="#007AFF" stop-opacity="0.22" />
+                  <stop offset="58%" stop-color="#007AFF" stop-opacity="0.08" />
                   <stop offset="100%" stop-color="#007AFF" stop-opacity="0" />
+                </radialGradient>
+                <linearGradient id="monvianIosBlueArc" x1="0%" y1="0%" x2="100%" y2="0%">
+                  <stop offset="0%" stop-color="#007AFF" stop-opacity="0.15" />
+                  <stop offset="50%" stop-color="#007AFF" stop-opacity="0.95" />
+                  <stop offset="100%" stop-color="#007AFF" stop-opacity="0.15" />
                 </linearGradient>
               </defs>
-              <path d="M 100 100 L 36 10 A 110 110 0 0 1 164 10 Z" fill="url(#monvianBlueFlashlightGrad)" />
-              <path d="M 100 100 L 60 18 A 92 92 0 0 1 140 18 Z" fill="url(#monvianBlueFlashlightCore)" />
-              <path d="M 100 63 L 92 75 L 108 75 Z" fill="#FFFFFF" fill-opacity="0.95" />
+              <!-- Soft ambient circular glow -->
+              <circle cx="74" cy="74" r="64" fill="url(#monvianSoftRadarAmbient)" />
+              <!-- Expanding Radar Wave 1 -->
+              <circle cx="74" cy="74" r="28" fill="none" stroke="#007AFF" stroke-width="1.2" stroke-opacity="0.32">
+                <animate attributeName="r" values="27;66" dur="3.2s" repeatCount="indefinite" />
+                <animate attributeName="stroke-opacity" values="0.38;0" dur="3.2s" repeatCount="indefinite" />
+              </circle>
+              <!-- Expanding Radar Wave 2 (staggered) -->
+              <circle cx="74" cy="74" r="28" fill="none" stroke="#007AFF" stroke-width="1.2" stroke-opacity="0.24">
+                <animate attributeName="r" values="27;66" dur="3.2s" begin="1.6s" repeatCount="indefinite" />
+                <animate attributeName="stroke-opacity" values="0.32;0" dur="3.2s" begin="1.6s" repeatCount="indefinite" />
+              </circle>
+              <!-- Sleek iOS Blue directional arc hugging the outer ring -->
+              <path d="M 50 58 A 29 29 0 0 1 98 58" fill="none" stroke="url(#monvianIosBlueArc)" stroke-width="3" stroke-linecap="round" />
             </svg>
           `;
           userBeamRef.current = beamWrapper;
 
-          // 2. Center 3D Avatar Circle + Outer Translucent Ring + "Eu" Pill
+          // 2. Center 3D Avatar Circle + Outer Translucent Ring + Small Blue Indicator Dot + "Eu" Pill
           const centerStack = document.createElement('div');
           centerStack.style.position = 'relative';
           centerStack.style.display = 'flex';
@@ -410,20 +420,19 @@ export const MapComponent = forwardRef<MapComponentHandle, MapComponentProps>(
           centerStack.style.pointerEvents = 'auto';
           centerStack.style.cursor = 'pointer';
 
-          // Outer 3D Ring (Círculo 3D translúcido ao redor da foto)
+          // Outer 3D Ring (Círculo translúcido azul suave ao redor da foto)
           const outerRing = document.createElement('div');
           outerRing.style.position = 'relative';
           outerRing.style.width = '54px';
           outerRing.style.height = '54px';
           outerRing.style.borderRadius = '9999px';
-          outerRing.style.background = 'rgba(0, 122, 255, 0.20)';
-          outerRing.style.border = '1.5px solid rgba(59, 130, 246, 0.45)';
+          outerRing.style.background = 'rgba(0, 122, 255, 0.14)';
+          outerRing.style.border = '1.5px solid rgba(0, 122, 255, 0.35)';
           outerRing.style.boxShadow =
-            '0 8px 24px rgba(0, 0, 0, 0.5), 0 0 20px rgba(0, 122, 255, 0.42)';
+            '0 6px 20px rgba(0, 0, 0, 0.18), 0 0 16px rgba(0, 122, 255, 0.25)';
           outerRing.style.display = 'flex';
           outerRing.style.alignItems = 'center';
           outerRing.style.justifyContent = 'center';
-          outerRing.style.backdropFilter = 'blur(4px)';
 
           // Inner Avatar Circle with White Border
           const innerCircle = document.createElement('div');
@@ -433,7 +442,7 @@ export const MapComponent = forwardRef<MapComponentHandle, MapComponentProps>(
           innerCircle.style.border = '2.5px solid #FFFFFF';
           innerCircle.style.overflow = 'hidden';
           innerCircle.style.backgroundColor = '#18181B';
-          innerCircle.style.boxShadow = '0 2px 8px rgba(0, 0, 0, 0.4)';
+          innerCircle.style.boxShadow = '0 2px 8px rgba(0, 0, 0, 0.28)';
 
           const getEffectiveAvatar = (av?: string) => {
             if (av && av !== '/fotoperfil.png') return av;
@@ -462,30 +471,41 @@ export const MapComponent = forwardRef<MapComponentHandle, MapComponentProps>(
           avatarImg.style.display = 'block';
           avatarImg.style.pointerEvents = 'none';
           avatarImg.onerror = () => {
-            avatarImg.src =
-              'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=200&q=80';
+            avatarImg.src = '/loogo.png';
           };
           userAvatarImgRef.current = avatarImg;
 
           innerCircle.appendChild(avatarImg);
           outerRing.appendChild(innerCircle);
 
-          // "Eu" Pill Badge below the avatar
+          // Small glowing iOS Blue circle right above "Eu" (matching the reference design)
+          const blueDotIndicator = document.createElement('div');
+          blueDotIndicator.style.width = '10px';
+          blueDotIndicator.style.height = '10px';
+          blueDotIndicator.style.borderRadius = '9999px';
+          blueDotIndicator.style.backgroundColor = '#007AFF';
+          blueDotIndicator.style.border = '2px solid #FFFFFF';
+          blueDotIndicator.style.marginTop = '-6px';
+          blueDotIndicator.style.zIndex = '4';
+          blueDotIndicator.style.boxShadow = '0 0 8px rgba(0, 122, 255, 0.65)';
+
+          // "Eu" Pill Badge below the blue dot
           const euBadge = document.createElement('div');
           euBadge.textContent = 'Eu';
-          euBadge.style.marginTop = '-4px';
+          euBadge.style.marginTop = '1px';
           euBadge.style.padding = '1.5px 10px';
           euBadge.style.borderRadius = '9999px';
-          euBadge.style.backgroundColor = 'rgba(10, 10, 14, 0.92)';
+          euBadge.style.backgroundColor = 'rgba(18, 18, 22, 0.92)';
           euBadge.style.color = '#FFFFFF';
           euBadge.style.fontSize = '11px';
-          euBadge.style.fontWeight = '800';
-          euBadge.style.letterSpacing = '0.01em';
+          euBadge.style.fontWeight = '700';
+          euBadge.style.letterSpacing = '-0.01em';
           euBadge.style.lineHeight = '1.25';
           euBadge.style.border = '1px solid rgba(255, 255, 255, 0.16)';
-          euBadge.style.boxShadow = '0 4px 10px rgba(0, 0, 0, 0.5)';
+          euBadge.style.boxShadow = '0 4px 10px rgba(0, 0, 0, 0.35)';
 
           centerStack.appendChild(outerRing);
+          centerStack.appendChild(blueDotIndicator);
           centerStack.appendChild(euBadge);
           rootEl.appendChild(beamWrapper);
           rootEl.appendChild(centerStack);
@@ -1087,15 +1107,113 @@ export const MapComponent = forwardRef<MapComponentHandle, MapComponentProps>(
       });
     }, []);
 
-    // Listen for Monvian XP Discovery choreography: 1.5s progress ring around pin -> elastic pin jump
+    // Listen for Monvian iOS Minimalist Discovery Indicator & Radar on Tourist Spot Markers
     useEffect(() => {
-      const cleanupRing = (spotId: string) => {
+      let activeProximitySpotId: string | null = null;
+
+      const cleanupSpotDiscoveryNodes = (spotId: string) => {
         const rec = markerRecordsRef.current.find((r) => r.spotId === spotId);
         if (!rec) return;
         const existingRing = rec.containerEl.querySelector('.monvian-xp-charge-ring');
         if (existingRing) {
           existingRing.remove();
         }
+        const existingRadar = rec.containerEl.querySelector('.monvian-spot-radar-wrap');
+        if (existingRadar) {
+          existingRadar.remove();
+        }
+      };
+
+      const ensureSpotRadarIndicator = (spotId: string, progress: number) => {
+        // If target spot changed, clean up previous spot's radar indicator
+        if (activeProximitySpotId && activeProximitySpotId !== spotId) {
+          cleanupSpotDiscoveryNodes(activeProximitySpotId);
+        }
+        activeProximitySpotId = spotId;
+
+        const rec = markerRecordsRef.current.find((r) => r.spotId === spotId);
+        if (!rec) return;
+
+        let radarWrap = rec.containerEl.querySelector<HTMLDivElement>('.monvian-spot-radar-wrap');
+        const radius = 24;
+        const circumference = 2 * Math.PI * radius;
+
+        if (!radarWrap) {
+          radarWrap = document.createElement('div');
+          radarWrap.className = 'monvian-spot-radar-wrap';
+          radarWrap.style.position = 'absolute';
+          radarWrap.style.width = '56px';
+          radarWrap.style.height = '56px';
+          radarWrap.style.top = '-7px';
+          radarWrap.style.left = '-7px';
+          radarWrap.style.pointerEvents = 'none';
+          radarWrap.style.zIndex = '55';
+
+          radarWrap.innerHTML = `
+            <div style="
+              position: absolute;
+              inset: -8px;
+              border-radius: 9999px;
+              background: radial-gradient(circle, rgba(0, 122, 255, 0.20) 0%, rgba(0, 122, 255, 0.07) 58%, rgba(0, 122, 255, 0) 76%);
+              border: 1px solid rgba(0, 122, 255, 0.24);
+              animation: monvian-ios-radar-wave 3.4s cubic-bezier(0.16, 1, 0.3, 1) infinite;
+            "></div>
+            <svg viewBox="0 0 56 56" style="position:absolute;inset:0;width:100%;height:100%;transform:rotate(-90deg);overflow:visible;">
+              <circle
+                cx="28"
+                cy="28"
+                r="${radius}"
+                fill="none"
+                stroke="rgba(255,255,255,0.55)"
+                stroke-width="2.5"
+              />
+              <circle
+                class="monvian-spot-proximity-arc"
+                cx="28"
+                cy="28"
+                r="${radius}"
+                fill="none"
+                stroke="#007AFF"
+                stroke-width="3"
+                stroke-linecap="round"
+                stroke-dasharray="${circumference}"
+                stroke-dashoffset="${circumference * (1 - Math.max(0.18, Math.min(1, progress)))}"
+                style="transition: stroke-dashoffset 320ms cubic-bezier(0.22, 1, 0.36, 1); filter: drop-shadow(0 0 4px rgba(0, 122, 255, 0.45));"
+              />
+            </svg>
+            <div style="
+              position: absolute;
+              left: 50%;
+              bottom: -2px;
+              transform: translateX(-50%);
+              width: 10px;
+              height: 10px;
+              border-radius: 9999px;
+              background: #007AFF;
+              border: 2px solid #FFFFFF;
+              box-shadow: 0 0 8px rgba(0, 122, 255, 0.75), 0 1px 3px rgba(0, 0, 0, 0.22);
+            "></div>
+          `;
+          rec.containerEl.appendChild(radarWrap);
+        } else {
+          const arcEl = radarWrap.querySelector<SVGCircleElement>('.monvian-spot-proximity-arc');
+          if (arcEl) {
+            const clamped = Math.max(0.18, Math.min(1, progress));
+            arcEl.style.strokeDashoffset = `${circumference * (1 - clamped)}`;
+          }
+        }
+      };
+
+      const handleProximityUpdate = (e: any) => {
+        const detail = e?.detail;
+        if (!detail || !detail.spotId) {
+          if (activeProximitySpotId) {
+            cleanupSpotDiscoveryNodes(activeProximitySpotId);
+            activeProximitySpotId = null;
+          }
+          return;
+        }
+        ensureSpotRadarIndicator(detail.spotId, typeof detail.progress === 'number' ? detail.progress : 0.35);
       };
 
       const handleDiscoveryStart = (e: any) => {
@@ -1104,54 +1222,50 @@ export const MapComponent = forwardRef<MapComponentHandle, MapComponentProps>(
         const rec = markerRecordsRef.current.find((r) => r.spotId === detail.spotId);
         if (!rec) return;
 
-        cleanupRing(detail.spotId);
+        ensureSpotRadarIndicator(detail.spotId, 0.92);
+
+        const existingRing = rec.containerEl.querySelector('.monvian-xp-charge-ring');
+        if (existingRing) existingRing.remove();
 
         const durationMs = detail.durationMs || 1500;
         rec.containerEl.style.zIndex = '150';
 
-        // Create circular SVG progress ring around the pin (58x58 wrapping the 42x42 marker)
+        // Minimalist iOS Blue circular progress ring around the pin (56x56 wrapping the 42x42 marker)
         const ringWrap = document.createElement('div');
         ringWrap.className = 'monvian-xp-charge-ring';
         ringWrap.style.position = 'absolute';
-        ringWrap.style.width = '58px';
-        ringWrap.style.height = '58px';
-        ringWrap.style.top = '-8px';
-        ringWrap.style.left = '-8px';
+        ringWrap.style.width = '56px';
+        ringWrap.style.height = '56px';
+        ringWrap.style.top = '-7px';
+        ringWrap.style.left = '-7px';
         ringWrap.style.pointerEvents = 'none';
         ringWrap.style.zIndex = '60';
 
-        const radius = 25;
+        const radius = 24;
         const circumference = 2 * Math.PI * radius;
 
         ringWrap.innerHTML = `
-          <svg viewBox="0 0 58 58" style="width:100%;height:100%;transform:rotate(-90deg);overflow:visible;">
-            <defs>
-              <linearGradient id="xp-ring-grad-${detail.spotId}" x1="0%" y1="0%" x2="100%" y2="100%">
-                <stop offset="0%" stop-color="#FDE047" />
-                <stop offset="50%" stop-color="#F59E0B" />
-                <stop offset="100%" stop-color="#0066FF" />
-              </linearGradient>
-            </defs>
+          <svg viewBox="0 0 56 56" style="width:100%;height:100%;transform:rotate(-90deg);overflow:visible;">
             <circle
-              cx="29"
-              cy="29"
+              cx="28"
+              cy="28"
               r="${radius}"
               fill="none"
-              stroke="rgba(255,255,255,0.45)"
-              stroke-width="3.5"
+              stroke="rgba(255,255,255,0.65)"
+              stroke-width="3"
             />
             <circle
               class="xp-ring-progress-circle"
-              cx="29"
-              cy="29"
+              cx="28"
+              cy="28"
               r="${radius}"
               fill="none"
-              stroke="url(#xp-ring-grad-${detail.spotId})"
-              stroke-width="4"
+              stroke="#007AFF"
+              stroke-width="3.5"
               stroke-linecap="round"
               stroke-dasharray="${circumference}"
               stroke-dashoffset="${circumference}"
-              style="filter: drop-shadow(0 0 6px rgba(245, 158, 11, 0.85));"
+              style="filter: drop-shadow(0 0 6px rgba(0, 122, 255, 0.65));"
             />
           </svg>
         `;
@@ -1175,13 +1289,13 @@ export const MapComponent = forwardRef<MapComponentHandle, MapComponentProps>(
           } catch {}
         }
 
-        // Subtle charging scale pulse on the pin itself
+        // Smooth, subtle iOS elevation scale on the pin
         try {
           rec.pulseScaleWrapEl.animate(
             [
               { transform: 'scale(1)' },
-              { transform: 'scale(1.12)', offset: 0.5 },
-              { transform: 'scale(1.16)' },
+              { transform: 'scale(1.08)', offset: 0.6 },
+              { transform: 'scale(1.10)' },
             ],
             {
               duration: durationMs,
@@ -1195,7 +1309,10 @@ export const MapComponent = forwardRef<MapComponentHandle, MapComponentProps>(
       const handleDiscoveryCancel = (e: any) => {
         const spotId = e?.detail?.spotId;
         if (!spotId) return;
-        cleanupRing(spotId);
+        const rec = markerRecordsRef.current.find((r) => r.spotId === spotId);
+        if (!rec) return;
+        const existingRing = rec.containerEl.querySelector('.monvian-xp-charge-ring');
+        if (existingRing) existingRing.remove();
       };
 
       const handleXpAwarded = (e: any) => {
@@ -1204,48 +1321,50 @@ export const MapComponent = forwardRef<MapComponentHandle, MapComponentProps>(
         const rec = markerRecordsRef.current.find((r) => r.spotId === detail.spotId);
         if (!rec) return;
 
-        cleanupRing(detail.spotId);
+        cleanupSpotDiscoveryNodes(detail.spotId);
         rec.containerEl.style.zIndex = '180';
 
-        // 1. Elastic vertical jump of the pin on the map
+        // 1. Minimalist iOS discovery scale pulse on the pin
         try {
           rec.pulseScaleWrapEl.animate(
             [
-              { transform: 'translateY(0px) scale(1.12)' },
-              { transform: 'translateY(-30px) scale(1.36)', offset: 0.34 },
-              { transform: 'translateY(4px) scale(0.92)', offset: 0.68 },
-              { transform: 'translateY(-7px) scale(1.06)', offset: 0.86 },
-              { transform: 'translateY(0px) scale(1)' },
+              { transform: 'scale(1.08)' },
+              { transform: 'scale(1.22)', offset: 0.38 },
+              { transform: 'scale(0.97)', offset: 0.75 },
+              { transform: 'scale(1)' },
             ],
             {
-              duration: 720,
+              duration: 680,
               easing: 'cubic-bezier(0.22, 1, 0.36, 1)',
               fill: 'forwards',
             }
           );
         } catch {}
 
-        // 2. Golden halo burst on the jumping pin
+        // 2. Clean iOS Blue + White circular expansion wave around the discovered spot
         try {
-          rec.rippleEl.style.border = '2.5px solid #F59E0B';
-          rec.rippleEl.style.boxShadow = '0 0 18px rgba(245, 158, 11, 0.9)';
+          rec.rippleEl.style.border = '2px solid #007AFF';
+          rec.rippleEl.style.background = 'radial-gradient(circle, rgba(0, 122, 255, 0.22) 0%, rgba(0, 122, 255, 0) 70%)';
+          rec.rippleEl.style.boxShadow = '0 0 16px rgba(0, 122, 255, 0.55)';
           rec.rippleEl.animate(
             [
-              { transform: 'scale(1)', opacity: 1 },
-              { transform: 'scale(2.35)', opacity: 0 },
+              { transform: 'scale(1)', opacity: 0.95 },
+              { transform: 'scale(2.45)', opacity: 0 },
             ],
             {
-              duration: 650,
+              duration: 780,
               easing: 'cubic-bezier(0.16, 1, 0.3, 1)',
             }
           );
         } catch {}
       };
 
+      window.addEventListener('monvian:xp_proximity_update', handleProximityUpdate);
       window.addEventListener('monvian:xp_discovery_start', handleDiscoveryStart);
       window.addEventListener('monvian:xp_discovery_cancel', handleDiscoveryCancel);
       window.addEventListener('monvian:xp_awarded', handleXpAwarded);
       return () => {
+        window.removeEventListener('monvian:xp_proximity_update', handleProximityUpdate);
         window.removeEventListener('monvian:xp_discovery_start', handleDiscoveryStart);
         window.removeEventListener('monvian:xp_discovery_cancel', handleDiscoveryCancel);
         window.removeEventListener('monvian:xp_awarded', handleXpAwarded);
@@ -1578,6 +1697,9 @@ export const MapComponent = forwardRef<MapComponentHandle, MapComponentProps>(
       });
 
       syncMarkerHighlight(currentSelectedId);
+      try {
+        monvianXpManager.evaluateProximity(gpsNavigationManager.getState(), spotsRef.current);
+      } catch {}
     }, [syncMarkerHighlight, setFollowMode, triggerPinTapFeedback, buildRoundedStarPath, isFiveStarSpot]);
 
     useEffect(() => {
