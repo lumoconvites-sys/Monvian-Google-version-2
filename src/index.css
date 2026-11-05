@@ -1083,8 +1083,8 @@ html:not(.dark) .expo-liquid-glass-clear:hover,
   margin: 0px !important;
   padding-left: 16px !important;
   padding-right: 16px !important;
-  padding-bottom: max(22px, calc(env(safe-area-inset-bottom, 0px) + 16px)) !important;
-  z-index: 50 !important;
+  padding-bottom: 0px !important;
+  z-index: 250 !important;
 }
 
 /* Map Saturation & Color Boost (+40% Verde Mais Saturado e Relevo Vibrante) */

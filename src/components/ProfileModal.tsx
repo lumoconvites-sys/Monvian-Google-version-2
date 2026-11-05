@@ -824,28 +824,6 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
                 <div className={`rounded-[24px] border overflow-hidden ${
                   isDark ? 'bg-[#1C1C1E] border-white/10 divide-y divide-white/5' : 'bg-[#F2F2F7] border-black/5 divide-y divide-black/5'
                 }`}>
-                  {/* Modo Escuro */}
-                  <div className="p-4 flex items-center justify-between gap-3">
-                    <div className="flex items-center gap-3.5 min-w-0">
-                      <div className="flex items-center justify-center shrink-0 text-zinc-950 dark:text-white">
-                        <Moon className="w-7 h-7 stroke-[1.8]" />
-                      </div>
-                      <div className="min-w-0">
-                        <h4 className="text-[15px] font-semibold tracking-tight text-zinc-950 dark:text-white">
-                          Modo Escuro
-                        </h4>
-                        <p className="text-[12px] text-zinc-500 dark:text-zinc-400 font-medium">
-                          Interface escura premium e moderna (iOS Apple)
-                        </p>
-                      </div>
-                    </div>
-                    <IOSSwitch
-                      checked={Boolean(isDark)}
-                      onChange={() => onToggleTheme?.()}
-                      ariaLabel="Modo Escuro"
-                    />
-                  </div>
-
                   {/* Chuva Dinâmica */}
                   <div className="p-4 flex items-center justify-between gap-3">
                     <div className="flex items-center gap-3.5 min-w-0">
@@ -889,28 +867,6 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
                       ariaLabel="Neve das montanhas"
                     />
                   </div>
-
-                  {/* Alto Contraste */}
-                  <div className="p-4 flex items-center justify-between gap-3">
-                    <div className="flex items-center gap-3.5 min-w-0">
-                      <div className="flex items-center justify-center shrink-0 text-zinc-950 dark:text-white">
-                        <Sliders className="w-7 h-7 stroke-[1.8]" />
-                      </div>
-                      <div className="min-w-0">
-                        <h4 className="text-[15px] font-semibold tracking-tight">
-                          Alto Contraste
-                        </h4>
-                        <p className="text-[12px] text-zinc-500 dark:text-zinc-400 font-medium">
-                          Aumenta o contraste visual da interface
-                        </p>
-                      </div>
-                    </div>
-                    <IOSSwitch
-                      checked={Boolean(highContrast)}
-                      onChange={() => onToggleHighContrast?.()}
-                      ariaLabel="Alto contraste"
-                    />
-                  </div>
                 </div>
               </motion.div>
 
@@ -945,28 +901,6 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
                       checked={locationPerm}
                       onChange={handleToggleLocation}
                       ariaLabel="Localização GPS"
-                    />
-                  </div>
-
-                  {/* Alertas de Proximidade */}
-                  <div className="p-4 flex items-center justify-between gap-3">
-                    <div className="flex items-center gap-3.5 min-w-0">
-                      <div className="flex items-center justify-center shrink-0 text-zinc-950 dark:text-white">
-                        <Bell className="w-7 h-7 stroke-[1.8]" />
-                      </div>
-                      <div className="min-w-0">
-                        <h4 className="text-[15px] font-semibold tracking-tight">
-                          Alertas por Proximidade
-                        </h4>
-                        <p className="text-[12px] text-zinc-500 dark:text-zinc-400 font-medium">
-                          Avisos quando estiver perto de atrações
-                        </p>
-                      </div>
-                    </div>
-                    <IOSSwitch
-                      checked={proximityAlerts}
-                      onChange={handleToggleProximity}
-                      ariaLabel="Alertas por proximidade"
                     />
                   </div>
 

@@ -165,26 +165,6 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                       ariaLabel="Neve das montanhas"
                     />
                   </div>
-
-                  {/* Alto Contraste */}
-                  <div className="p-3.5 flex items-center justify-between gap-3">
-                    <div className="flex items-center gap-3 min-w-0">
-                      <Sliders className="w-5 h-5 text-zinc-500 dark:text-zinc-400 shrink-0 stroke-[2]" />
-                      <div className="min-w-0">
-                        <h4 className="text-sm font-semibold tracking-tight">
-                          Alto Contraste
-                        </h4>
-                        <p className="text-[11px] text-zinc-500 dark:text-zinc-400">
-                          Aumenta o contraste visual
-                        </p>
-                      </div>
-                    </div>
-                    <IOSSwitch
-                      checked={Boolean(highContrast)}
-                      onChange={() => onToggleHighContrast?.()}
-                      ariaLabel="Alto contraste"
-                    />
-                  </div>
                 </div>
               </div>
 

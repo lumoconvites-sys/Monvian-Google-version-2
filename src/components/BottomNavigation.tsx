@@ -96,10 +96,7 @@ export const BottomNavigation: React.FC<BottomNavigationProps> = memo(({
         margin: 0,
         paddingLeft: '16px',
         paddingRight: '16px',
-        paddingBottom:
-          activeTab === 'chat'
-            ? 'max(8px, calc(env(safe-area-inset-bottom, 0px) + 8px))'
-            : 'max(18px, calc(env(safe-area-inset-bottom, 0px) + 12px))',
+        paddingBottom: '0px',
         transform: 'translateZ(0)',
         WebkitTransform: 'translateZ(0)',
       }}
