@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { X } from 'lucide-react';
+import { X, Play } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { Itinerary } from '../../types';
 import { DEFAULT_CURATED_ITINERARIES } from '../../data/defaultItineraries';
@@ -206,9 +206,18 @@ export const PostSignupOnboardingFlow: React.FC<PostSignupOnboardingFlowProps> =
                       </div>
 
                       <div className="pt-3 px-1 flex items-center justify-between gap-3">
-                        <h2 className="text-[16px] sm:text-[17px] font-semibold tracking-[-0.015em] text-[#111111] leading-snug truncate">
+                        <h2 className="text-[16px] sm:text-[17px] font-semibold tracking-[-0.015em] text-[#111111] leading-snug truncate flex-1">
                           {itin.title}
                         </h2>
+                        <div
+                          className="flex items-center gap-1 shrink-0 text-[#111111]"
+                          title={`${((5000 + (Math.abs((itin.id || itin.title).split('').reduce((acc, c, i) => acc + c.charCodeAt(0) * (i + 1) * 31, 0)) % 8001)) / 1000).toFixed(1).replace('.0', '')} mil visualizações`}
+                        >
+                          <Play className="w-3 h-3 fill-black text-black" />
+                          <span className="text-[12px] font-semibold tracking-tight text-[#111111]">
+                            {`${((5000 + (Math.abs((itin.id || itin.title).split('').reduce((acc, c, i) => acc + c.charCodeAt(0) * (i + 1) * 31, 0)) % 8001)) / 1000).toFixed(1).replace('.0', '')} mil`}
+                          </span>
+                        </div>
                       </div>
                     </motion.div>
                   );

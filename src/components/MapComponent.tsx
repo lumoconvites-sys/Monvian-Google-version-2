@@ -978,14 +978,9 @@ export const MapComponent = forwardRef<MapComponentHandle, MapComponentProps>(
       []
     );
 
-    // Check if a tourist spot is marked with the "Estrela" option (famous spot)
-    const isFiveStarSpot = useCallback((spot: Spot): boolean => {
-      if (!spot) return false;
-      if (spot.isStar !== undefined) return Boolean(spot.isStar);
-      if ((spot as any).is_star !== undefined && (spot as any).is_star !== null) {
-        return Number((spot as any).is_star) === 1 || (spot as any).is_star === true;
-      }
-      return spot.badge === 'Estrela';
+    // Spots marker configuration: all spots render in normal clean circular configuration
+    const isFiveStarSpot = useCallback((_spot: Spot): boolean => {
+      return false;
     }, []);
 
     const markerRecordsRef = useRef<{

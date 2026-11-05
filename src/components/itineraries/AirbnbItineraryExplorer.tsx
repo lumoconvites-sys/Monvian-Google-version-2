@@ -55,6 +55,20 @@ function getKnownItinerariesPool(): Itinerary[] {
   return DEFAULT_CURATED_ITINERARIES;
 }
 
+export function formatItineraryViewsCount(idOrTitle: string): string {
+  const hash = (idOrTitle || 'itin')
+    .split('')
+    .reduce((acc, char, i) => acc + char.charCodeAt(0) * (i + 1) * 31, 0);
+  // deterministic value between 5,000 and 13,000 (5k a 13k plays)
+  const views = 5000 + (Math.abs(hash) % 8001);
+  if (views >= 10000) {
+    const k = (views / 1000).toFixed(1).replace('.0', '');
+    return `${k} mil`;
+  }
+  const k = (views / 1000).toFixed(1).replace('.0', '');
+  return `${k} mil`;
+}
+
 export function getItinerariesForCategory(
   category: string,
   durationFilter: 'all' | '1day' | 'multiday' | 'free' = 'all',
@@ -982,9 +996,18 @@ export const AirbnbItineraryExplorer: React.FC<AirbnbItineraryExplorerProps> = (
                 </div>
 
                 <div className="pt-3 px-1 flex items-center justify-between gap-3">
-                  <h2 className="text-[16px] sm:text-[17px] font-semibold tracking-[-0.015em] text-[#111111] leading-snug truncate">
+                  <h2 className="text-[16px] sm:text-[17px] font-semibold tracking-[-0.015em] text-[#111111] leading-snug truncate flex-1">
                     {itin.title}
                   </h2>
+                  <div
+                    className="flex items-center gap-1 shrink-0 text-[#111111]"
+                    title={`${formatItineraryViewsCount(itin.id || itin.title)} visualizações`}
+                  >
+                    <Play className="w-3 h-3 fill-black text-black" />
+                    <span className="text-[12px] font-semibold tracking-tight text-[#111111]">
+                      {formatItineraryViewsCount(itin.id || itin.title)}
+                    </span>
+                  </div>
                 </div>
               </motion.div>
             ))}
@@ -1575,12 +1598,21 @@ const HorizontalReferenceItineraryCard: React.FC<HorizontalReferenceItineraryCar
           <div className="pt-2.5 px-1 flex flex-col gap-1">
             <div className="flex items-center justify-between gap-2">
               <h4
-                className={`text-[15px] font-bold tracking-tight truncate leading-snug ${
+                className={`text-[15px] font-bold tracking-tight truncate leading-snug flex-1 ${
                   isDark ? 'text-white' : 'text-zinc-900'
                 }`}
               >
                 {itinerary.title}
               </h4>
+              <div
+                className="flex items-center gap-1 shrink-0 text-zinc-900 dark:text-zinc-100"
+                title={`${formatItineraryViewsCount(itinerary.id || itinerary.title)} visualizações`}
+              >
+                <Play className="w-3 h-3 fill-black text-black dark:fill-white dark:text-white" />
+                <span className="text-[12px] font-semibold tracking-tight text-zinc-800 dark:text-zinc-200">
+                  {formatItineraryViewsCount(itinerary.id || itinerary.title)}
+                </span>
+              </div>
             </div>
 
             <div className="flex items-center justify-between gap-2">

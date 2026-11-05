@@ -25,6 +25,7 @@ import {
   ExternalLink,
   Sparkles,
   HelpCircle,
+  Lock,
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { PremiumModal } from './PremiumModal';
@@ -597,7 +598,7 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
                 }`}
               >
                 <div className="relative mb-3">
-                  <div className={`w-24 h-24 sm:w-26 sm:h-26 rounded-full overflow-hidden shadow-md border-2 ${
+                  <div className={`w-32 h-32 sm:w-[136px] sm:h-[136px] rounded-full overflow-hidden shadow-md border-2 ${
                     isDark ? 'bg-zinc-800 border-zinc-700' : 'bg-zinc-100 border-white'
                   }`}>
                     {userAvatar && !userAvatar.endsWith('fotoperfil.png') ? (
@@ -634,17 +635,17 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
               {/* 1.5. Barra de Progresso Monvian XP por Exploração */}
               <ProfileXpProgressBar isDark={isDark} />
 
-              {/* 2. Feature Cards Grid (Viagens anteriores & Conexões) */}
+              {/* 2. Feature Cards Grid (Viagens & Conexões) */}
               <div className="grid grid-cols-2 gap-3 sm:gap-3.5">
-                {/* Viagens anteriores */}
+                {/* Viagens */}
                 <motion.div
                   initial={{ opacity: 0, scale: 0.88, y: 12 }}
                   animate={{ opacity: 1, scale: 1, y: 0 }}
                   transition={{ type: 'spring', stiffness: 380, damping: 22, delay: 0.055 }}
-                  whileHover={{ scale: 1.02, transition: { type: 'spring', stiffness: 400, damping: 18 } }}
-                  whileTap={{ scale: 0.94, transition: { type: 'spring', stiffness: 500, damping: 14 } }}
-                  onClick={() => handleSetSubView('curtidos')}
-                  className={`rounded-[24px] p-4 border transition-colors cursor-pointer flex flex-col justify-between ${
+                  onClick={(e) => {
+                    e.stopPropagation();
+                  }}
+                  className={`rounded-[24px] p-4 border transition-colors cursor-default flex flex-col justify-between ${
                     isDark ? 'bg-[#1C1C1E] border-white/10 shadow-xs' : 'bg-[#fefefe] border-black/5 shadow-xs'
                   }`}
                 >
@@ -659,14 +660,17 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
                       animate={{ opacity: 1, scale: 1, y: 0 }}
                       transition={{ type: 'spring', stiffness: 380, damping: 22, delay: 0.075 }}
                       src="/lugares.png"
-                      alt="Viagens anteriores"
+                      alt="Viagens"
                       className="h-[64px] w-auto object-contain"
                     />
                   </div>
                   <div>
-                    <h3 className="text-[15px] font-bold tracking-tight leading-snug">
-                      Viagens anteriores
-                    </h3>
+                    <div className="flex items-center justify-between">
+                      <h3 className="text-[15px] font-bold tracking-tight leading-snug">
+                        Viagens
+                      </h3>
+                      <Lock className="w-3.5 h-3.5 text-zinc-400 dark:text-zinc-500" />
+                    </div>
                   </div>
                 </motion.div>
 
@@ -677,7 +681,9 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
                   transition={{ type: 'spring', stiffness: 380, damping: 22, delay: 0.09 }}
                   whileHover={{ scale: 1.02, transition: { type: 'spring', stiffness: 400, damping: 18 } }}
                   whileTap={{ scale: 0.94, transition: { type: 'spring', stiffness: 500, damping: 14 } }}
-                  onClick={() => handleSetSubView('curtidos')}
+                  onClick={() => {
+                    window.open('https://chat.whatsapp.com/BS2Fu5Kws5qE8iaWHWrbCY?s=cl&p=i&mlu=4&ilr=4&iam=2', '_blank');
+                  }}
                   className={`rounded-[24px] p-4 border transition-colors cursor-pointer flex flex-col justify-between ${
                     isDark ? 'bg-[#1C1C1E] border-white/10 shadow-xs' : 'bg-[#fefefe] border-black/5 shadow-xs'
                   }`}
@@ -1025,7 +1031,7 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
                   {/* Avatar Selector and Preview */}
                   <div className="flex flex-col items-center justify-center pb-2 pt-1">
                     <div className="relative group">
-                      <div className={`w-24 h-24 rounded-full overflow-hidden border-2 shadow-lg relative ${
+                      <div className={`w-[116px] h-[116px] rounded-full overflow-hidden border-2 shadow-lg relative ${
                         isDark ? 'bg-zinc-800 border-zinc-700' : 'bg-zinc-100 border-white'
                       }`}>
                         <motion.img
@@ -1051,14 +1057,6 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
                         <Camera className="w-4 h-4 stroke-[2.5]" />
                       </button>
                     </div>
-                    <button
-                      type="button"
-                      onClick={() => fileInputRef.current?.click()}
-                      className="mt-3 text-xs font-bold text-zinc-900 dark:text-white hover:underline flex items-center gap-1.5 cursor-pointer"
-                    >
-                      <Upload className="w-3.5 h-3.5" />
-                      <span>Escolher foto do dispositivo</span>
-                    </button>
                   </div>
 
                   {/* Nome de Exibição */}
@@ -1085,7 +1083,7 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
                         Nome de usuário
                       </label>
                     </div>
-                    <div className="relative">
+                    <div className="relative flex items-center">
                       <div className="absolute left-3.5 top-1/2 -translate-y-1/2 text-zinc-400 font-bold text-sm pointer-events-none select-none">
                         @
                       </div>
@@ -1097,7 +1095,7 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
                           const clean = e.target.value.replace(/^@+/, '').replace(/[^a-zA-Z0-9_]/g, '');
                           setTempUsername(clean);
                         }}
-                        className={`w-full pl-8 pr-4 py-3 rounded-2xl border text-sm font-medium focus:outline-none transition-colors ${
+                        className={`w-full pl-8 pr-11 py-3 rounded-2xl border text-sm font-medium focus:outline-none transition-colors ${
                           isDark ? 'bg-zinc-900 border-white/10 text-white focus:border-white/30' : 'bg-zinc-50 border-black/10 text-zinc-900 focus:border-black/30'
                         }`}
                         required
@@ -1105,14 +1103,23 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
                         autoCorrect="off"
                         spellCheck={false}
                       />
+                      {/* Status indicator icon at the end of the input bar */}
+                      <div className="absolute right-3.5 top-1/2 -translate-y-1/2 flex items-center justify-center pointer-events-none">
+                        {usernameStatus === 'checking' && (
+                          <Loader2 className="w-4 h-4 text-zinc-400 animate-spin" />
+                        )}
+                        {usernameStatus === 'available' && (
+                          <div className="w-5 h-5 rounded-full bg-blue-500 text-white flex items-center justify-center shadow-xs">
+                            <Check className="w-3 h-3 stroke-[3]" />
+                          </div>
+                        )}
+                        {usernameStatus === 'unavailable' && (
+                          <div className="w-5 h-5 rounded-full bg-rose-500 text-white flex items-center justify-center shadow-xs">
+                            <X className="w-3 h-3 stroke-[3]" />
+                          </div>
+                        )}
+                      </div>
                     </div>
-                    {usernameFeedback && (
-                      <p className={`text-[11.5px] font-semibold mt-1 px-1 ${
-                        usernameStatus === 'available' ? 'text-emerald-500' : 'text-rose-500'
-                      }`}>
-                        {usernameFeedback}
-                      </p>
-                    )}
                   </div>
 
                   {/* Biografia */}

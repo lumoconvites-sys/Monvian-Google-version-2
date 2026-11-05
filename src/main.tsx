@@ -38,7 +38,7 @@ function RootGate() {
     return (
       <div className="fixed inset-0 z-[99999] w-screen h-screen bg-black flex items-center justify-center overflow-hidden select-none">
         <img
-          src="/assets/aistudio/WhatsApp_Image_2026-11-02_at_14.03.35_9e8d7daa.jpeg"
+          src="/assets/aistudio/Experi_ncia_exclusiva_para_iPhone_1b92f668.png"
           alt="Uma experiência feita para iPhone"
           className="w-full h-full object-contain object-center bg-black pointer-events-none"
           draggable={false}
