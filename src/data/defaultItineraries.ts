@@ -378,6 +378,31 @@ export const DEFAULT_CURATED_ITINERARIES: Itinerary[] = [
               image: 'https://images.unsplash.com/photo-1432405972618-c60b0225b8f9?auto=format&fit=crop&w=800&q=80',
               description: 'Quedas artificiais canalizadas com pontes de madeira e artesanato.'
             }
+          },
+          {
+            id: 'roteiro-natureza-aventura-dia-1-3',
+            itineraryId: 'roteiro-natureza-aventura',
+            dayId: 'roteiro-natureza-aventura-dia-1',
+            dayNumber: 1,
+            spotId: 'bosque-silencio',
+            stepOrder: 3,
+            suggestedTime: '16:00',
+            durationMinutes: 90,
+            notes: 'Trilhas entre araucárias centenárias e natureza preservada.',
+            customName: 'Bosque do Silêncio',
+            customDescription: 'Trilhas entre araucárias centenárias e natureza preservada.',
+            customTip: '',
+            customImage: 'https://images.unsplash.com/photo-1448375240586-882707db888b?auto=format&fit=crop&w=800&q=80',
+            spot: {
+              id: 'bosque-silencio',
+              name: 'Bosque do Silêncio',
+              category: 'parks',
+              categoryLabel: 'Ecoturismo & Trilhas',
+              lat: -22.7440,
+              lng: -45.5780,
+              image: 'https://images.unsplash.com/photo-1448375240586-882707db888b?auto=format&fit=crop&w=800&q=80',
+              description: 'Trilhas ecológicas e araucárias centenárias na Serra da Mantiqueira.'
+            }
           }
         ]
       }
@@ -460,6 +485,31 @@ export const DEFAULT_CURATED_ITINERARIES: Itinerary[] = [
               image: 'https://images.unsplash.com/photo-1513836279014-a89f7a76ae86?auto=format&fit=crop&w=800&q=80',
               description: 'Coração turístico com teleférico, pedalinhos e roda gigante.'
             }
+          },
+          {
+            id: 'roteiro-gastronomia-chocolates-dia-1-3',
+            itineraryId: 'roteiro-gastronomia-chocolates',
+            dayId: 'roteiro-gastronomia-chocolates-dia-1',
+            dayNumber: 1,
+            spotId: 'chocolate-araucaria',
+            stepOrder: 3,
+            suggestedTime: '17:00',
+            durationMinutes: 60,
+            notes: 'Degustação na tradicional fábrica de chocolates artesanais.',
+            customName: 'Fábrica de Chocolate Araucária',
+            customDescription: 'Degustação na tradicional fábrica de chocolates artesanais.',
+            customTip: '',
+            customImage: 'https://images.unsplash.com/photo-1511381939415-e44015466834?auto=format&fit=crop&w=800&q=80',
+            spot: {
+              id: 'chocolate-araucaria',
+              name: 'Fábrica de Chocolate Araucária',
+              category: 'sweets',
+              categoryLabel: 'Chocolates & Doces',
+              lat: -22.7315,
+              lng: -45.5895,
+              image: 'https://images.unsplash.com/photo-1511381939415-e44015466834?auto=format&fit=crop&w=800&q=80',
+              description: 'Tradição em chocolates artesanais e chocolate quente na serra.'
+            }
           }
         ]
       }
@@ -502,9 +552,9 @@ export const DEFAULT_CURATED_ITINERARIES: Itinerary[] = [
             stepOrder: 1,
             suggestedTime: '08:30',
             durationMinutes: 30,
-            notes: 'Foto tradicional de boas-vindas no Portal da Cidade.',
+            notes: 'Início da sua aventura no cartão-postal de chegada.',
             customName: 'Portal de Campos do Jordão',
-            customDescription: 'Foto tradicional de boas-vindas no Portal da Cidade.',
+            customDescription: 'Início da sua aventura',
             customTip: '',
             customImage: 'https://images.unsplash.com/photo-1519501025264-65ba15a82390?auto=format&fit=crop&w=800&q=80',
             spot: {
@@ -515,7 +565,7 @@ export const DEFAULT_CURATED_ITINERARIES: Itinerary[] = [
               lat: -22.7831,
               lng: -45.6312,
               image: 'https://images.unsplash.com/photo-1519501025264-65ba15a82390?auto=format&fit=crop&w=800&q=80',
-              description: 'Entrada monumental em estilo alpino tradicional.'
+              description: 'Início da sua aventura'
             }
           },
           {
@@ -523,24 +573,49 @@ export const DEFAULT_CURATED_ITINERARIES: Itinerary[] = [
             itineraryId: 'roteiro-bate-volta-essencial',
             dayId: 'roteiro-bate-volta-essencial-dia-1',
             dayNumber: 1,
-            spotId: 'parque-capivari',
+            spotId: 'villa-fenix',
             stepOrder: 2,
             suggestedTime: '11:00',
             durationMinutes: 120,
-            notes: 'Passeio completo pela Vila Capivari e almoço.',
-            customName: 'PARQUE CAPIVARI',
-            customDescription: 'Passeio completo pela Vila Capivari e almoço.',
+            notes: 'O coração da cidade com arquitetura alpina e gastronomia.',
+            customName: 'Vila Capivari',
+            customDescription: 'O coração da cidade',
+            customTip: '',
+            customImage: 'https://images.unsplash.com/photo-1555396273-367ea4eb4db5?auto=format&fit=crop&w=800&q=80',
+            spot: {
+              id: 'villa-fenix',
+              name: 'Vila Capivari',
+              category: 'gastronomy',
+              categoryLabel: 'Vila Gastronômica',
+              lat: -22.7380,
+              lng: -45.5890,
+              image: 'https://images.unsplash.com/photo-1555396273-367ea4eb4db5?auto=format&fit=crop&w=800&q=80',
+              description: 'O coração da cidade'
+            }
+          },
+          {
+            id: 'roteiro-bate-volta-essencial-dia-1-3',
+            itineraryId: 'roteiro-bate-volta-essencial',
+            dayId: 'roteiro-bate-volta-essencial-dia-1',
+            dayNumber: 1,
+            spotId: 'parque-capivari',
+            stepOrder: 3,
+            suggestedTime: '14:30',
+            durationMinutes: 120,
+            notes: 'Diversão para todos com roda-gigante, teleférico e lago.',
+            customName: 'Parque Capivari',
+            customDescription: 'Diversão para todos',
             customTip: '',
             customImage: 'https://images.unsplash.com/photo-1513836279014-a89f7a76ae86?auto=format&fit=crop&w=800&q=80',
             spot: {
               id: 'parque-capivari',
-              name: 'PARQUE CAPIVARI',
+              name: 'Parque Capivari',
               category: 'parks',
               categoryLabel: 'Atração / Turístico',
               lat: -22.7303,
               lng: -45.5898,
               image: 'https://images.unsplash.com/photo-1513836279014-a89f7a76ae86?auto=format&fit=crop&w=800&q=80',
-              description: 'Coração turístico com teleférico, pedalinhos e roda gigante.'
+              description: 'Diversão para todos'
             }
           }
         ]

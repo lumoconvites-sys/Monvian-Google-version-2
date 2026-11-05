@@ -39,6 +39,8 @@ import { persistUserToFirestore, syncPermissionsFromDatabase } from './services/
 import { fetchSpotsFromSupabase, subscribeToSpotsChanges } from './services/supabaseSpots';
 import { broadcastPlatanosWalletUpdate, getAuthHeaders } from './hooks/usePlatanos';
 import { SignupIntroSequence, SignupIntroStage } from './components/SignupIntroSequence';
+import { MonvianIOSWidget } from './components/widget/MonvianIOSWidget';
+import { getKnownItinerariesList, syncWidgetWithItinerary } from './services/widgetSyncService';
 
 const welcomeContainerVariants = {
   hidden: { opacity: 0 },
@@ -603,6 +605,7 @@ export default function App() {
         setSelectedSpot((prev) =>
           prev && prev.id === updated.id ? { ...prev, ...updated } : prev
         );
+        syncWidgetWithItinerary();
       }
       fetchSpots();
     };
@@ -708,11 +711,50 @@ export default function App() {
     applySystemThemeColor(currentAdaptiveColor);
   }, [currentAdaptiveColor]);
 
-  // Handle URL deep link (e.g. from QR Code scan: ?spot=spotId)
-  useEffect(() => {
-    if (spots.length === 0) return;
+  // Dedicated standalone iOS Widget preview mode (?view=widget or /widget)
+  const [isDedicatedWidgetView, setIsDedicatedWidgetView] = useState<boolean>(() => {
+    if (typeof window === 'undefined') return false;
     try {
       const params = new URLSearchParams(window.location.search);
+      return params.get('view') === 'widget' || window.location.pathname === '/widget';
+    } catch {
+      return false;
+    }
+  });
+
+  // Handle URL deep link from QR Code (?spot=spotId) or iOS Home Screen Widget (?widget_itinerary=...&widget_spot=...)
+  useEffect(() => {
+    try {
+      const params = new URLSearchParams(window.location.search);
+      const widgetItinParam = params.get('widget_itinerary');
+      const widgetSpotParam = params.get('widget_spot');
+
+      if (widgetItinParam) {
+        if (widgetSpotParam) {
+          sessionStorage.setItem('monvian_widget_focus_spot', widgetSpotParam);
+        }
+        const allKnown = getKnownItinerariesList();
+        const matchedItin = allKnown.find((i) => i.id === widgetItinParam);
+        if (matchedItin) {
+          localStorage.setItem('monvian_active_itinerary', JSON.stringify(matchedItin));
+          syncWidgetWithItinerary(matchedItin);
+        }
+        setIsDedicatedWidgetView(false);
+        setActiveTab('roteiros');
+        setTimeout(() => {
+          window.dispatchEvent(
+            new CustomEvent('monvian:open_widget_itinerary', {
+              detail: {
+                itineraryId: widgetItinParam,
+                spotId: widgetSpotParam || null,
+              },
+            })
+          );
+        }, 120);
+        return;
+      }
+
+      if (spots.length === 0) return;
       const spotParam = params.get('spot');
       if (spotParam) {
         const found = spots.find(
@@ -726,9 +768,38 @@ export default function App() {
         }
       }
     } catch (e) {
-      console.warn('Error processing spot param from URL:', e);
+      console.warn('Error processing deep link param from URL:', e);
     }
   }, [spots]);
+
+  // Listen globally for widget activation events to switch to the Roteiros tab
+  useEffect(() => {
+    const handleOpenFromWidget = (e: any) => {
+      const itinId = e?.detail?.itineraryId;
+      const spotId = e?.detail?.spotId;
+      if (spotId) {
+        try {
+          sessionStorage.setItem('monvian_widget_focus_spot', spotId);
+        } catch {}
+      }
+      if (itinId) {
+        const allKnown = getKnownItinerariesList();
+        const found = allKnown.find((i) => i.id === itinId);
+        if (found) {
+          try {
+            localStorage.setItem('monvian_active_itinerary', JSON.stringify(found));
+          } catch {}
+        }
+      }
+      setIsDedicatedWidgetView(false);
+      setActiveTab('roteiros');
+    };
+
+    window.addEventListener('monvian:open_widget_itinerary', handleOpenFromWidget);
+    return () => {
+      window.removeEventListener('monvian:open_widget_itinerary', handleOpenFromWidget);
+    };
+  }, []);
 
   // Keep URL query parameter in sync with currently viewed spot
   useEffect(() => {
@@ -1216,6 +1287,45 @@ export default function App() {
     typeof window !== 'undefined' &&
     window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
 
+  if (isDedicatedWidgetView) {
+    return (
+      <div
+        className="fixed inset-0 w-full h-full bg-[#F5F5F7] flex flex-col items-center justify-center p-6 overflow-y-auto select-none"
+        style={{
+          fontFamily: "-apple-system, BlinkMacSystemFont, 'SF Pro Display', 'SF Pro Text', sans-serif",
+        }}
+      >
+        <MonvianIOSWidget
+          showControlsBar={true}
+          onActivateItinerary={(itinId, spotId) => {
+            if (spotId) {
+              try {
+                sessionStorage.setItem('monvian_widget_focus_spot', spotId);
+              } catch {}
+            }
+            const allKnown = getKnownItinerariesList();
+            const found = allKnown.find((i) => i.id === itinId);
+            if (found) {
+              try {
+                localStorage.setItem('monvian_active_itinerary', JSON.stringify(found));
+              } catch {}
+              syncWidgetWithItinerary(found);
+            }
+            setIsDedicatedWidgetView(false);
+            setActiveTab('roteiros');
+            setTimeout(() => {
+              window.dispatchEvent(
+                new CustomEvent('monvian:open_widget_itinerary', {
+                  detail: { itineraryId: itinId, spotId: spotId || null },
+                })
+              );
+            }, 80);
+          }}
+        />
+      </div>
+    );
+  }
+
   return (
     <>
       <SignupIntroSequence
@@ -1629,6 +1739,7 @@ export default function App() {
             onUpdateSpot={(updatedSpot) => {
               setSpots((prev) => prev.map((s) => (s.id === updatedSpot.id ? updatedSpot : s)));
               setSelectedSpot(updatedSpot);
+              syncWidgetWithItinerary();
             }}
           />
         )}

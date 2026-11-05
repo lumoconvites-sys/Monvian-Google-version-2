@@ -29,6 +29,8 @@ import {
 import { useFavorites } from '../../hooks/useFavorites';
 import { DEFAULT_CURATED_ITINERARIES } from '../../data/defaultItineraries';
 import { triggerHapticFeedback } from '../../utils/haptics';
+import { MonvianIOSWidget } from '../widget/MonvianIOSWidget';
+import { getKnownItinerariesList, syncWidgetWithItinerary } from '../../services/widgetSyncService';
 
 // Fast in-memory cache for categories
 let memoryCategoriesCache: ItineraryCategory[] | null = null;
@@ -1347,6 +1349,32 @@ export const AirbnbItineraryExplorer: React.FC<AirbnbItineraryExplorerProps> = (
                 onToggleFavorite={(e) => handleToggleFavorite(validFeaturedBanner.id, e)}
                 onOpenDetail={handleOpenDetail}
               />
+            )}
+
+            {/* 4.5. WIDGET DINÂMICO DO MONVIAN PARA IPHONE (Large Widget 2x2) */}
+            {!debouncedSearchQuery && selectedCategory === 'all' && (
+              <div className="px-5 pt-1">
+                <MonvianIOSWidget
+                  showControlsBar={true}
+                  onActivateItinerary={(itinId, spotId) => {
+                    const allKnown = getKnownItinerariesList();
+                    const found =
+                      allKnown.find((i) => i.id === itinId) ||
+                      itineraries.find((i) => i.id === itinId) ||
+                      validFeaturedBanner ||
+                      DEFAULT_CURATED_ITINERARIES[0];
+                    if (found) {
+                      syncWidgetWithItinerary(found);
+                      if (spotId) {
+                        try {
+                          sessionStorage.setItem('monvian_widget_focus_spot', spotId);
+                        } catch {}
+                      }
+                      onSelectItinerary(found);
+                    }
+                  }}
+                />
+              </div>
             )}
 
             {/* 5. SEÇÃO DE ROTEIROS ABAIXO DO BANNER ("Roteiros para descobrir") */}
