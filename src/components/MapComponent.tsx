@@ -1087,6 +1087,171 @@ export const MapComponent = forwardRef<MapComponentHandle, MapComponentProps>(
       });
     }, []);
 
+    // Listen for Monvian XP Discovery choreography: 1.5s progress ring around pin -> elastic pin jump
+    useEffect(() => {
+      const cleanupRing = (spotId: string) => {
+        const rec = markerRecordsRef.current.find((r) => r.spotId === spotId);
+        if (!rec) return;
+        const existingRing = rec.containerEl.querySelector('.monvian-xp-charge-ring');
+        if (existingRing) {
+          existingRing.remove();
+        }
+      };
+
+      const handleDiscoveryStart = (e: any) => {
+        const detail = e?.detail;
+        if (!detail || !detail.spotId) return;
+        const rec = markerRecordsRef.current.find((r) => r.spotId === detail.spotId);
+        if (!rec) return;
+
+        cleanupRing(detail.spotId);
+
+        const durationMs = detail.durationMs || 1500;
+        rec.containerEl.style.zIndex = '150';
+
+        // Create circular SVG progress ring around the pin (58x58 wrapping the 42x42 marker)
+        const ringWrap = document.createElement('div');
+        ringWrap.className = 'monvian-xp-charge-ring';
+        ringWrap.style.position = 'absolute';
+        ringWrap.style.width = '58px';
+        ringWrap.style.height = '58px';
+        ringWrap.style.top = '-8px';
+        ringWrap.style.left = '-8px';
+        ringWrap.style.pointerEvents = 'none';
+        ringWrap.style.zIndex = '60';
+
+        const radius = 25;
+        const circumference = 2 * Math.PI * radius;
+
+        ringWrap.innerHTML = `
+          <svg viewBox="0 0 58 58" style="width:100%;height:100%;transform:rotate(-90deg);overflow:visible;">
+            <defs>
+              <linearGradient id="xp-ring-grad-${detail.spotId}" x1="0%" y1="0%" x2="100%" y2="100%">
+                <stop offset="0%" stop-color="#FDE047" />
+                <stop offset="50%" stop-color="#F59E0B" />
+                <stop offset="100%" stop-color="#0066FF" />
+              </linearGradient>
+            </defs>
+            <circle
+              cx="29"
+              cy="29"
+              r="${radius}"
+              fill="none"
+              stroke="rgba(255,255,255,0.45)"
+              stroke-width="3.5"
+            />
+            <circle
+              class="xp-ring-progress-circle"
+              cx="29"
+              cy="29"
+              r="${radius}"
+              fill="none"
+              stroke="url(#xp-ring-grad-${detail.spotId})"
+              stroke-width="4"
+              stroke-linecap="round"
+              stroke-dasharray="${circumference}"
+              stroke-dashoffset="${circumference}"
+              style="filter: drop-shadow(0 0 6px rgba(245, 158, 11, 0.85));"
+            />
+          </svg>
+        `;
+
+        rec.containerEl.appendChild(ringWrap);
+
+        const circleEl = ringWrap.querySelector<SVGCircleElement>('.xp-ring-progress-circle');
+        if (circleEl) {
+          try {
+            circleEl.animate(
+              [
+                { strokeDashoffset: `${circumference}` },
+                { strokeDashoffset: '0' },
+              ],
+              {
+                duration: durationMs,
+                easing: 'cubic-bezier(0.25, 0.8, 0.25, 1)',
+                fill: 'forwards',
+              }
+            );
+          } catch {}
+        }
+
+        // Subtle charging scale pulse on the pin itself
+        try {
+          rec.pulseScaleWrapEl.animate(
+            [
+              { transform: 'scale(1)' },
+              { transform: 'scale(1.12)', offset: 0.5 },
+              { transform: 'scale(1.16)' },
+            ],
+            {
+              duration: durationMs,
+              easing: 'ease-in-out',
+              fill: 'forwards',
+            }
+          );
+        } catch {}
+      };
+
+      const handleDiscoveryCancel = (e: any) => {
+        const spotId = e?.detail?.spotId;
+        if (!spotId) return;
+        cleanupRing(spotId);
+      };
+
+      const handleXpAwarded = (e: any) => {
+        const detail = e?.detail;
+        if (!detail || !detail.spotId) return;
+        const rec = markerRecordsRef.current.find((r) => r.spotId === detail.spotId);
+        if (!rec) return;
+
+        cleanupRing(detail.spotId);
+        rec.containerEl.style.zIndex = '180';
+
+        // 1. Elastic vertical jump of the pin on the map
+        try {
+          rec.pulseScaleWrapEl.animate(
+            [
+              { transform: 'translateY(0px) scale(1.12)' },
+              { transform: 'translateY(-30px) scale(1.36)', offset: 0.34 },
+              { transform: 'translateY(4px) scale(0.92)', offset: 0.68 },
+              { transform: 'translateY(-7px) scale(1.06)', offset: 0.86 },
+              { transform: 'translateY(0px) scale(1)' },
+            ],
+            {
+              duration: 720,
+              easing: 'cubic-bezier(0.22, 1, 0.36, 1)',
+              fill: 'forwards',
+            }
+          );
+        } catch {}
+
+        // 2. Golden halo burst on the jumping pin
+        try {
+          rec.rippleEl.style.border = '2.5px solid #F59E0B';
+          rec.rippleEl.style.boxShadow = '0 0 18px rgba(245, 158, 11, 0.9)';
+          rec.rippleEl.animate(
+            [
+              { transform: 'scale(1)', opacity: 1 },
+              { transform: 'scale(2.35)', opacity: 0 },
+            ],
+            {
+              duration: 650,
+              easing: 'cubic-bezier(0.16, 1, 0.3, 1)',
+            }
+          );
+        } catch {}
+      };
+
+      window.addEventListener('monvian:xp_discovery_start', handleDiscoveryStart);
+      window.addEventListener('monvian:xp_discovery_cancel', handleDiscoveryCancel);
+      window.addEventListener('monvian:xp_awarded', handleXpAwarded);
+      return () => {
+        window.removeEventListener('monvian:xp_discovery_start', handleDiscoveryStart);
+        window.removeEventListener('monvian:xp_discovery_cancel', handleDiscoveryCancel);
+        window.removeEventListener('monvian:xp_awarded', handleXpAwarded);
+      };
+    }, []);
+
     // Create and update spot markers incrementally (rebuilds a marker immediately if its "Estrela" status changes)
     const syncSpotMarkers = useCallback(() => {
       const map = mapRef.current;
@@ -1153,6 +1318,7 @@ export const MapComponent = forwardRef<MapComponentHandle, MapComponentProps>(
 
         const el = document.createElement('div');
         el.className = 'monvian-explore-marker group cursor-pointer select-none';
+        el.setAttribute('data-spot-id', spot.id);
 
         const containerEl = document.createElement('div');
         containerEl.style.position = 'relative';

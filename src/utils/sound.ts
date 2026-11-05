@@ -1,8 +1,8 @@
 /**
-  * sound.ts
-  * iOS-style Web Audio synthesizer for Monvian interactive feedback.
-  * Plays subtle, pleasant, harmonic micro-tones respecting user mute preferences.
-  */
+ * sound.ts
+ * iOS-style Web Audio synthesizer for Monvian interactive feedback.
+ * Plays metallic coin cascade and harmonic achievement chimes respecting user mute preferences.
+ */
 
 let audioCtx: AudioContext | null = null;
 
@@ -36,8 +36,72 @@ function isSoundAllowed(): boolean {
 }
 
 /**
- * Short, pleasant, harmonic celebration chime when +100 XP is awarded upon discovering a location.
- * Two soft ascending bells (E6 -> A6) with gentle decay.
+ * Subtle rising harmonic tone played while the 1.5s progress ring charges around a map pin.
+ */
+export function playPinChargeStartSound() {
+  if (!isSoundAllowed()) return;
+  try {
+    const ctx = getAudioContext();
+    if (!ctx) return;
+
+    const now = ctx.currentTime;
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+
+    osc.type = 'sine';
+    osc.frequency.setValueAtTime(523.25, now); // C5
+    osc.frequency.exponentialRampToValueAtTime(783.99, now + 1.35); // G5
+
+    gain.gain.setValueAtTime(0.001, now);
+    gain.gain.linearRampToValueAtTime(0.045, now + 0.2);
+    gain.gain.exponentialRampToValueAtTime(0.001, now + 1.4);
+
+    osc.connect(gain);
+    gain.connect(ctx.destination);
+    osc.start(now);
+    osc.stop(now + 1.45);
+  } catch {}
+}
+
+/**
+ * Helper to synthesize a single crisp metallic coin clink at a scheduled offset.
+ */
+function scheduleMetallicCoinClink(ctx: AudioContext, startTime: number, baseFreq: number, volume: number = 0.14) {
+  // Primary metallic bell partial
+  const osc1 = ctx.createOscillator();
+  const gain1 = ctx.createGain();
+  osc1.type = 'sine';
+  osc1.frequency.setValueAtTime(baseFreq, startTime);
+  osc1.frequency.exponentialRampToValueAtTime(baseFreq * 1.015, startTime + 0.04);
+
+  gain1.gain.setValueAtTime(0.001, startTime);
+  gain1.gain.exponentialRampToValueAtTime(volume, startTime + 0.008);
+  gain1.gain.exponentialRampToValueAtTime(0.001, startTime + 0.22);
+
+  osc1.connect(gain1);
+  gain1.connect(ctx.destination);
+  osc1.start(startTime);
+  osc1.stop(startTime + 0.24);
+
+  // High metallic overtone (inharmonic ratio ~2.41x for realistic gold coin ring)
+  const osc2 = ctx.createOscillator();
+  const gain2 = ctx.createGain();
+  osc2.type = 'triangle';
+  osc2.frequency.setValueAtTime(baseFreq * 2.41, startTime);
+
+  gain2.gain.setValueAtTime(0.001, startTime);
+  gain2.gain.exponentialRampToValueAtTime(volume * 0.55, startTime + 0.005);
+  gain2.gain.exponentialRampToValueAtTime(0.001, startTime + 0.11);
+
+  osc2.connect(gain2);
+  gain2.connect(ctx.destination);
+  osc2.start(startTime);
+  osc2.stop(startTime + 0.13);
+}
+
+/**
+ * Cascading metallic coin burst sound followed by a warm iOS achievement chime
+ * when the pin jumps and coins fly to the Profile icon.
  */
 export function playXpRewardSound() {
   if (!isSoundAllowed()) return;
@@ -47,59 +111,66 @@ export function playXpRewardSound() {
 
     const now = ctx.currentTime;
 
-    // First harmonic bell note (E6 ~ 1318.5 Hz)
-    const osc1 = ctx.createOscillator();
-    const gain1 = ctx.createGain();
-    osc1.type = 'sine';
-    osc1.frequency.setValueAtTime(1318.5, now);
-    gain1.gain.setValueAtTime(0.001, now);
-    gain1.gain.exponentialRampToValueAtTime(0.18, now + 0.03);
-    gain1.gain.exponentialRampToValueAtTime(0.001, now + 0.38);
-    osc1.connect(gain1);
-    gain1.connect(ctx.destination);
-    osc1.start(now);
-    osc1.stop(now + 0.4);
+    // 1. Pin jump pop (low-mid warm thump + upward pitch)
+    const popOsc = ctx.createOscillator();
+    const popGain = ctx.createGain();
+    popOsc.type = 'sine';
+    popOsc.frequency.setValueAtTime(240, now);
+    popOsc.frequency.exponentialRampToValueAtTime(620, now + 0.11);
+    popGain.gain.setValueAtTime(0.001, now);
+    popGain.gain.exponentialRampToValueAtTime(0.18, now + 0.02);
+    popGain.gain.exponentialRampToValueAtTime(0.001, now + 0.13);
+    popOsc.connect(popGain);
+    popGain.connect(ctx.destination);
+    popOsc.start(now);
+    popOsc.stop(now + 0.14);
 
-    // Second chime note (A6 ~ 1760 Hz, +5 semitones higher, octave harmonic)
-    const osc2 = ctx.createOscillator();
-    const gain2 = ctx.createGain();
-    osc2.type = 'sine';
-    osc2.frequency.setValueAtTime(1760.0, now + 0.1);
-    gain2.gain.setValueAtTime(0.001, now + 0.1);
-    gain2.gain.exponentialRampToValueAtTime(0.22, now + 0.14);
-    gain2.gain.exponentialRampToValueAtTime(0.001, now + 0.65);
-    osc2.connect(gain2);
-    gain2.connect(ctx.destination);
-    osc2.start(now + 0.1);
-    osc2.stop(now + 0.7);
+    // 2. Cascading metallic coins (7 rapid shimmering coin clinks as they burst and land)
+    const coinFrequencies = [1975.5, 2217.4, 2489.0, 2637.0, 2959.9, 3135.9, 3520.0];
+    coinFrequencies.forEach((freq, idx) => {
+      const offset = 0.06 + idx * 0.068;
+      scheduleMetallicCoinClink(ctx, now + offset, freq, 0.13);
+    });
 
-    // Soft sparkle harmonic (C#7 ~ 2217 Hz)
-    const osc3 = ctx.createOscillator();
-    const gain3 = ctx.createGain();
-    osc3.type = 'triangle';
-    osc3.frequency.setValueAtTime(2217.4, now + 0.18);
-    gain3.gain.setValueAtTime(0.001, now + 0.18);
-    gain3.gain.exponentialRampToValueAtTime(0.12, now + 0.22);
-    gain3.gain.exponentialRampToValueAtTime(0.001, now + 0.55);
-    osc3.connect(gain3);
-    gain3.connect(ctx.destination);
-    osc3.start(now + 0.18);
-    osc3.stop(now + 0.6);
-  } catch (err) {
+    // 3. Final Achievement Chime when coins reach the Profile icon (~0.58s in)
+    const chimeStart = now + 0.56;
+    const chimeNotes = [
+      { freq: 1318.5, delay: 0, dur: 0.45, vol: 0.16 }, // E6
+      { freq: 1661.2, delay: 0.07, dur: 0.5, vol: 0.16 }, // G#6
+      { freq: 1975.5, delay: 0.14, dur: 0.65, vol: 0.2 }, // B6
+      { freq: 2637.0, delay: 0.22, dur: 0.8, vol: 0.22 }, // E7
+    ];
+
+    chimeNotes.forEach((n) => {
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      const t = chimeStart + n.delay;
+      osc.type = 'sine';
+      osc.frequency.setValueAtTime(n.freq, t);
+      gain.gain.setValueAtTime(0.001, t);
+      gain.gain.exponentialRampToValueAtTime(n.vol, t + 0.025);
+      gain.gain.exponentialRampToValueAtTime(0.001, t + n.dur);
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      osc.start(t);
+      osc.stop(t + n.dur + 0.05);
+    });
+  } catch {
     // Graceful fallback if device audio is restricted
   }
 }
 
 /**
- * Level up fanfare: 3-note ascending chord with warm shimmer
+ * Level up fanfare: metallic coin cascade + 4-note ascending chord with warm shimmer
  */
 export function playLevelUpSound() {
   if (!isSoundAllowed()) return;
   try {
+    playXpRewardSound();
     const ctx = getAudioContext();
     if (!ctx) return;
 
-    const now = ctx.currentTime;
+    const now = ctx.currentTime + 0.85;
     const notes = [1046.5, 1318.5, 1567.98, 2093.0]; // C6, E6, G6, C7
     notes.forEach((freq, idx) => {
       const osc = ctx.createOscillator();
