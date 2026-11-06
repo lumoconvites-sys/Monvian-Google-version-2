@@ -96,21 +96,11 @@ export const BottomNavigation: React.FC<BottomNavigationProps> = memo(({
         margin: 0,
         paddingLeft: '16px',
         paddingRight: '16px',
-        paddingBottom: 'max(calc(env(safe-area-inset-bottom, 0px) + 8px), 16px)',
+        paddingBottom: '10px',
         transform: 'translateZ(0)',
         WebkitTransform: 'translateZ(0)',
       }}
     >
-      {/* Ambient iOS Bottom Gradient Fade to prevent sharp text clipping beneath the floating bar */}
-      <div
-        aria-hidden="true"
-        className={`pointer-events-none absolute inset-x-0 bottom-0 h-32 sm:h-36 -z-10 transition-opacity duration-200 ${
-          isDark
-            ? 'bg-gradient-to-t from-black via-black/85 to-transparent'
-            : 'bg-gradient-to-t from-white via-white/85 to-transparent'
-        }`}
-      />
-
       {/* Capsule with expo-glass-effect iOS Liquid Glass finish */}
       <GlassView
         id="bottom-navigation-capsule"

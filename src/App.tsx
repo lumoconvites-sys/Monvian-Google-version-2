@@ -1051,7 +1051,6 @@ export default function App() {
 
   const handleTabChange = useCallback((tab: TabType) => {
     if (tab === 'explorar') {
-      setZoomToUserTrigger((prev) => prev + 1);
       if (deviceHeadingManager.isPermissionRequired() && !deviceHeadingManager.isPermissionHandled()) {
         deviceHeadingManager
           .requestPermission()
@@ -1084,17 +1083,6 @@ export default function App() {
 
     setActiveTab(tab);
   }, []);
-
-  // Toda vez que o usuário sair do mapa e ir pra outra aba, quando voltar o zoom retorna no ícone dele
-  const prevActiveTabForZoomRef = useRef<TabType>(activeTab);
-  useEffect(() => {
-    const prev = prevActiveTabForZoomRef.current;
-    prevActiveTabForZoomRef.current = activeTab;
-
-    if (prev !== 'explorar' && activeTab === 'explorar') {
-      setZoomToUserTrigger((prev) => prev + 1);
-    }
-  }, [activeTab]);
 
   const [airbnbCardTab, setAirbnbCardTab] = useState<PresentationTab | null>(null);
   const [signupIntroStage, setSignupIntroStage] = useState<SignupIntroStage>('idle');
@@ -1471,7 +1459,6 @@ export default function App() {
               snowEnabled={snowEnabled}
               rainEnabled={Boolean(rainEnabled && realWeather.isRaining)}
               isSpotlightActive={isUserLocationSpotlightActive}
-              activeTab={activeTab}
             />
 
             {/* 2. Dynamic Rain Particle Effect Overlay (Only active when user enabled AND actually raining in Campos do Jordão) */}

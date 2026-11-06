@@ -47,7 +47,6 @@ interface MapComponentProps {
   snowEnabled?: boolean;
   rainEnabled?: boolean;
   isSpotlightActive?: boolean;
-  activeTab?: string;
 }
 
 const getMapboxToken = (): string => {
@@ -277,7 +276,6 @@ export const MapComponent = forwardRef<MapComponentHandle, MapComponentProps>(
       snowEnabled = false,
       rainEnabled = false,
       isSpotlightActive = false,
-      activeTab,
     },
     ref
   ) => {
@@ -527,7 +525,7 @@ export const MapComponent = forwardRef<MapComponentHandle, MapComponentProps>(
     );
 
     const centerOnUserLocation = useCallback(
-      (activateSensors: boolean = true, toggleCompassMode: boolean = false, targetZoom: number = 15.6) => {
+      (activateSensors: boolean = true, toggleCompassMode: boolean = false) => {
         if (activateSensors) {
           deviceHeadingManager
             .requestPermission()
@@ -560,13 +558,12 @@ export const MapComponent = forwardRef<MapComponentHandle, MapComponentProps>(
           ensureUserMarker(mapRef.current);
           userMarkerRef.current?.setLngLat(targetCoords);
 
-          mapRef.current.resize();
           mapRef.current.easeTo({
             center: targetCoords,
-            zoom: targetZoom,
+            zoom: Math.max(mapRef.current.getZoom(), 15.6),
             pitch: is3DModeRef.current ? 60 : 0,
             bearing: is3DModeRef.current ? -20 : 0,
-            duration: 700,
+            duration: 650,
           });
         }
       },
@@ -869,25 +866,9 @@ export const MapComponent = forwardRef<MapComponentHandle, MapComponentProps>(
     // Trigger zoom to user only when explicitly requested
     useEffect(() => {
       if (zoomToUserTrigger && zoomToUserTrigger > 0) {
-        centerOnUserLocation(false, false, 15.6);
+        centerOnUserLocation(false, false);
       }
     }, [zoomToUserTrigger, centerOnUserLocation]);
-
-    // Toda vez que o usuário sair do mapa e ir pra outra aba, quando ele voltar o zoom retorna no ícone dele
-    const prevActiveTabRef = useRef<string | undefined>(activeTab);
-    useEffect(() => {
-      const prev = prevActiveTabRef.current;
-      prevActiveTabRef.current = activeTab;
-
-      if (prev && prev !== 'explorar' && activeTab === 'explorar') {
-        const timer = window.setTimeout(() => {
-          if (mapRef.current) {
-            centerOnUserLocation(false, false, 15.6);
-          }
-        }, 100);
-        return () => window.clearTimeout(timer);
-      }
-    }, [activeTab, centerOnUserLocation]);
 
     // Focus camera on user marker with high spotlight zoom and hide other markers during spotlight presentation
     useEffect(() => {
