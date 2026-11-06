@@ -1041,6 +1041,7 @@ export const AirbnbItineraryExplorer: React.FC<AirbnbItineraryExplorerProps> = (
         }`}
         style={{
           paddingTop: 'max(calc(env(safe-area-inset-top, 0px) + 12px), 16px)',
+          paddingBottom: 'max(calc(env(safe-area-inset-bottom, 0px) + 110px), 130px)',
           borderTopLeftRadius: '26px',
           borderTopRightRadius: '26px',
         }}
@@ -1456,6 +1457,15 @@ export const AirbnbItineraryExplorer: React.FC<AirbnbItineraryExplorerProps> = (
             )}
           </motion.div>
         )}
+
+        {/* Bottom clearance spacer ensuring all cards and buttons scroll completely clear of the floating navigation bar */}
+        <div
+          aria-hidden="true"
+          className="w-full pointer-events-none"
+          style={{
+            height: 'max(calc(env(safe-area-inset-bottom, 0px) + 24px), 36px)',
+          }}
+        />
         </div>
       </div>
 
