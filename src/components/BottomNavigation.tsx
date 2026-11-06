@@ -1,4 +1,4 @@
-import React, { useState, useRef, memo } from 'react';
+import React, { useState, useEffect, useRef, memo } from 'react';
 import { motion } from 'motion/react';
 import { GlassView } from 'expo-glass-effect';
 import { NavAgoraIcon, NavSalvosIcon, NavSearchIcon, NavProfileIcon, NavRoteirosIcon } from './NavIcons';
@@ -30,6 +30,15 @@ export const BottomNavigation: React.FC<BottomNavigationProps> = memo(({
 }) => {
   const isDark = theme === 'dark';
   const [pulseAnimation, setPulseAnimation] = useState<number>(0);
+
+  const [hasEntered, setHasEntered] = useState<boolean>(false);
+
+  useEffect(() => {
+    const timer = window.setTimeout(() => {
+      setHasEntered(true);
+    }, 950);
+    return () => window.clearTimeout(timer);
+  }, []);
 
   const pointerDownPosRef = useRef<{ x: number; y: number } | null>(null);
   const dragStartTimeRef = useRef<number>(0);
@@ -76,14 +85,29 @@ export const BottomNavigation: React.FC<BottomNavigationProps> = memo(({
   };
 
   return (
-    <nav
+    <motion.nav
       id="bottom-floating-navigation"
       aria-label="Navegação Principal"
-      className={`fixed inset-x-0 bottom-0 z-[250] flex justify-center select-none px-4 pointer-events-none transition-[opacity,transform,filter] duration-[200ms] ease-out ${
-        isBlurred
-          ? 'opacity-40 scale-[0.98] blur-[6px] [&_*]:!pointer-events-none'
-          : 'opacity-100 scale-100 blur-0'
-      }`}
+      initial={{ opacity: 0, y: 46, scale: 0.92 }}
+      animate={{
+        opacity: isBlurred ? 0.4 : 1,
+        y: 0,
+        scale: isBlurred ? 0.98 : 1,
+        filter: isBlurred ? 'blur(6px)' : 'blur(0px)',
+      }}
+      transition={
+        !hasEntered
+          ? {
+              duration: 0.8,
+              delay: 0.2,
+              ease: [0.16, 1, 0.3, 1], // Curva suave Apple iOS
+            }
+          : {
+              duration: 0.2,
+              ease: 'easeOut',
+            }
+      }
+      className="fixed inset-x-0 bottom-0 z-[250] flex justify-center select-none px-4 pointer-events-none"
       onPointerDown={handlePointerDown}
       onPointerUp={handlePointerUp}
       onPointerCancel={() => { pointerDownPosRef.current = null; }}
@@ -177,7 +201,7 @@ export const BottomNavigation: React.FC<BottomNavigationProps> = memo(({
           })}
         </div>
       </GlassView>
-    </nav>
+    </motion.nav>
   );
 });
 
