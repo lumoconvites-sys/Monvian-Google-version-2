@@ -15,95 +15,19 @@
     <link rel="apple-touch-icon" sizes="180x180" href="/loogo.png" />
     <script>
       (function() {
-        // Prevent @vite/client WebSocket closed without opened error in AI Studio iFrame environment
-        try {
-          var RealWebSocket = window.WebSocket;
-          if (RealWebSocket) {
-            window.WebSocket = function(url, protocols) {
-              var isHmr = false;
-              try {
-                if (protocols === 'vite-hmr' || (Array.isArray(protocols) && protocols.indexOf('vite-hmr') !== -1)) {
-                  isHmr = true;
-                }
-                if (typeof url === 'string' && (url.indexOf('vite-hmr') !== -1 || url.indexOf('/@vite') !== -1)) {
-                  isHmr = true;
-                }
-              } catch (e) {}
-
-              if (isHmr) {
-                var listeners = {};
-                var fakeWs = {
-                  readyState: 1, // WebSocket.OPEN
-                  binaryType: 'blob',
-                  protocol: 'vite-hmr',
-                  url: String(url),
-                  extensions: '',
-                  bufferedAmount: 0,
-                  send: function() {},
-                  close: function() {},
-                  addEventListener: function(type, fn) {
-                    if (!listeners[type]) listeners[type] = [];
-                    listeners[type].push(fn);
-                    if (type === 'open') {
-                      setTimeout(function() {
-                        try { fn({ type: 'open', target: fakeWs }); } catch (err) {}
-                      }, 0);
-                    }
-                  },
-                  removeEventListener: function(type, fn) {
-                    if (listeners[type]) {
-                      listeners[type] = listeners[type].filter(function(cb) { return cb !== fn; });
-                    }
-                  },
-                  dispatchEvent: function(event) {
-                    var fns = listeners[event && event.type];
-                    if (fns) {
-                      fns.forEach(function(fn) {
-                        try { fn(event); } catch (err) {}
-                      });
-                    }
-                    return true;
-                  }
-                };
-                return fakeWs;
-              }
-              return new RealWebSocket(url, protocols);
-            };
-            window.WebSocket.prototype = RealWebSocket.prototype;
-            window.WebSocket.CONNECTING = 0;
-            window.WebSocket.OPEN = 1;
-            window.WebSocket.CLOSING = 2;
-            window.WebSocket.CLOSED = 3;
-          }
-        } catch (e) {}
-
         window.addEventListener('unhandledrejection', function(event) {
           var reason = event && event.reason;
           var msg = (reason && (reason.message || String(reason))) || '';
           var stack = (reason && reason.stack) || '';
-          if (
-            msg.indexOf('WebSocket') !== -1 ||
-            stack.indexOf('@vite/client') !== -1 ||
-            stack.indexOf('vite-hmr') !== -1
-          ) {
+          if (msg.indexOf('WebSocket') !== -1 || stack.indexOf('@vite/client') !== -1) {
             event.preventDefault();
-            if (typeof event.stopImmediatePropagation === 'function') {
-              event.stopImmediatePropagation();
-            }
           }
         });
         window.addEventListener('error', function(event) {
           var filename = (event && event.filename) || '';
           var msg = (event && event.message) || '';
-          if (
-            filename.indexOf('@vite/client') !== -1 ||
-            msg.indexOf('WebSocket') !== -1 ||
-            filename.indexOf('vite-hmr') !== -1
-          ) {
+          if (filename.indexOf('@vite/client') !== -1 || msg.indexOf('WebSocket') !== -1) {
             event.preventDefault();
-            if (typeof event.stopImmediatePropagation === 'function') {
-              event.stopImmediatePropagation();
-            }
           }
         }, true);
         function applyLightMode() {
@@ -138,44 +62,77 @@
           dismissed = true;
           var preloader = document.getElementById('monvian-app-preloader');
           var video = document.getElementById('monvian-preloader-video');
+          var rootEl = document.getElementById('root');
 
-          // 1. Video fades out smoothly
+          // 1. Logo fades out smoothly after the video finishes
           if (video) {
             try { video.pause(); } catch (e) {}
-            video.style.transition = 'opacity 0.4s ease-out';
+            video.style.transition = 'opacity 0.48s cubic-bezier(0.22, 1, 0.36, 1), filter 0.48s cubic-bezier(0.22, 1, 0.36, 1), transform 0.48s cubic-bezier(0.22, 1, 0.36, 1)';
             video.style.opacity = '0';
+            video.style.filter = 'blur(6px)';
+            video.style.transform = 'scale(1.44)';
           }
 
-          // 2. Preloader fades out seamlessly revealing the app underneath without shifting elements
+          // 2. App appears with a translucent frosted-glass transition
           if (preloader) {
-            preloader.style.transition = 'opacity 0.5s cubic-bezier(0.22, 1, 0.36, 1)';
-            preloader.style.opacity = '0';
-            preloader.style.pointerEvents = 'none';
-
             setTimeout(function() {
-              preloader.style.display = 'none';
-            }, 520);
+              // Shift solid background into a translucent glass veil over the app
+              preloader.style.transition =
+                'background-color 0.68s cubic-bezier(0.16, 1, 0.3, 1), ' +
+                'backdrop-filter 0.68s cubic-bezier(0.16, 1, 0.3, 1), ' +
+                '-webkit-backdrop-filter 0.68s cubic-bezier(0.16, 1, 0.3, 1), ' +
+                'opacity 0.68s cubic-bezier(0.16, 1, 0.3, 1)';
+              preloader.style.backgroundColor = 'rgba(255, 255, 255, 0.22)';
+              preloader.style.backdropFilter = 'blur(0px) saturate(100%)';
+              preloader.style.webkitBackdropFilter = 'blur(0px) saturate(100%)';
+              preloader.style.opacity = '0';
+
+              if (rootEl) {
+                rootEl.style.transition =
+                  'filter 0.68s cubic-bezier(0.16, 1, 0.3, 1), ' +
+                  'opacity 0.68s cubic-bezier(0.16, 1, 0.3, 1), ' +
+                  'transform 0.68s cubic-bezier(0.16, 1, 0.3, 1)';
+                rootEl.style.filter = 'blur(0px)';
+                rootEl.style.opacity = '1';
+                rootEl.style.transform = 'scale(1)';
+              }
+
+              setTimeout(function() {
+                preloader.style.display = 'none';
+                if (rootEl) {
+                  rootEl.style.filter = '';
+                  rootEl.style.transform = '';
+                  rootEl.style.transition = '';
+                }
+              }, 700);
+            }, 340);
           }
         }
 
         function initVideoPreloader() {
           var video = document.getElementById('monvian-preloader-video');
+          var rootEl = document.getElementById('root');
+          if (rootEl) {
+            rootEl.style.filter = 'blur(16px)';
+            rootEl.style.opacity = '0.82';
+            rootEl.style.transform = 'scale(0.985)';
+          }
           if (video) {
             video.addEventListener('ended', function() {
               dismissPreloader();
             });
             video.addEventListener('error', function() {
-              setTimeout(dismissPreloader, 600);
+              setTimeout(dismissPreloader, 800);
             });
             var p = video.play();
             if (p && typeof p.catch === 'function') {
               p.catch(function() {
-                setTimeout(dismissPreloader, 1800);
+                setTimeout(dismissPreloader, 2200);
               });
             }
           }
-          // Safety fallback
-          setTimeout(dismissPreloader, 2800);
+          // Safety fallback after video duration (2.68s)
+          setTimeout(dismissPreloader, 3050);
         }
 
         if (document.readyState === 'loading') {
