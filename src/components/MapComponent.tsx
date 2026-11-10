@@ -1984,6 +1984,45 @@ export const MapComponent = forwardRef<MapComponentHandle, MapComponentProps>(
       };
     }, [renderVisualIcons]);
 
+    // Keep MapLibre canvas continuously synchronized with container dimensions across iOS safe areas, orientation changes, and keyboard transitions
+    useEffect(() => {
+      const container = mapContainerRef.current;
+      if (!container) return;
+
+      const handleResize = () => {
+        try {
+          mapRef.current?.resize();
+        } catch {}
+      };
+
+      handleResize();
+      const rafId = requestAnimationFrame(handleResize);
+      const t1 = window.setTimeout(handleResize, 100);
+      const t2 = window.setTimeout(handleResize, 350);
+
+      let observer: ResizeObserver | null = null;
+      if (typeof ResizeObserver !== 'undefined') {
+        observer = new ResizeObserver(() => {
+          handleResize();
+        });
+        observer.observe(container);
+      }
+
+      window.addEventListener('resize', handleResize, { passive: true });
+      window.addEventListener('orientationchange', handleResize, { passive: true });
+      window.visualViewport?.addEventListener('resize', handleResize, { passive: true });
+
+      return () => {
+        cancelAnimationFrame(rafId);
+        window.clearTimeout(t1);
+        window.clearTimeout(t2);
+        observer?.disconnect();
+        window.removeEventListener('resize', handleResize);
+        window.removeEventListener('orientationchange', handleResize);
+        window.visualViewport?.removeEventListener('resize', handleResize);
+      };
+    }, []);
+
     const handleCycleMapStyle = () => {
       const next: MapModeType = currentMode === 'satelite' ? 'explorar' : 'satelite';
       setCurrentMode(next);

@@ -335,8 +335,16 @@ export default function App() {
         if (h && h > 0) {
           document.documentElement.style.setProperty('--app-height', `${h}px`);
         }
-        if (typeof window !== 'undefined' && window.scrollTo) {
+        if (
+          typeof window !== 'undefined' &&
+          !document.body.classList.contains('is-login-screen') &&
+          !document.documentElement.classList.contains('is-login-screen')
+        ) {
           window.scrollTo(0, 0);
+          document.documentElement.scrollTop = 0;
+          document.body.scrollTop = 0;
+          const rootEl = document.getElementById('root');
+          if (rootEl) rootEl.scrollTop = 0;
         }
       } catch (e) {}
     };
@@ -361,6 +369,7 @@ export default function App() {
 
     if (window.visualViewport) {
       window.visualViewport.addEventListener('resize', updateAppHeight, { passive: true });
+      window.visualViewport.addEventListener('scroll', updateAppHeight, { passive: true });
     }
 
     if (window.screen?.orientation) {
@@ -383,6 +392,7 @@ export default function App() {
       window.removeEventListener('pageshow', updateAppHeight);
       if (window.visualViewport) {
         window.visualViewport.removeEventListener('resize', updateAppHeight);
+        window.visualViewport.removeEventListener('scroll', updateAppHeight);
       }
       if (window.screen?.orientation) {
         window.screen.orientation.removeEventListener('change', handleOrientation);
@@ -391,6 +401,31 @@ export default function App() {
       document.removeEventListener('visibilitychange', handleVisibility);
     };
   }, []);
+
+  // Ensure iOS keyboard and scroll offsets from login/landing never leave a bottom gap when entering the main app
+  useEffect(() => {
+    if (!isAuthenticated) return;
+    const resetViewportPosition = () => {
+      try {
+        document.documentElement.classList.remove('is-login-screen');
+        document.body.classList.remove('is-login-screen');
+        window.scrollTo(0, 0);
+        document.documentElement.scrollTop = 0;
+        document.body.scrollTop = 0;
+        const rootEl = document.getElementById('root');
+        if (rootEl) rootEl.scrollTop = 0;
+      } catch {}
+    };
+    resetViewportPosition();
+    const rafId = requestAnimationFrame(resetViewportPosition);
+    const t1 = window.setTimeout(resetViewportPosition, 100);
+    const t2 = window.setTimeout(resetViewportPosition, 350);
+    return () => {
+      cancelAnimationFrame(rafId);
+      window.clearTimeout(t1);
+      window.clearTimeout(t2);
+    };
+  }, [isAuthenticated]);
 
   const handleToggleWeather = useCallback(() => {
     setIsWeatherModalOpen((prev) => !prev);
@@ -1510,6 +1545,16 @@ export default function App() {
                 markPresentationCardSeen('explorar');
                 markPresentationCardSeen('roteiros');
               }
+              try {
+                (document.activeElement as HTMLElement | null)?.blur?.();
+                document.documentElement.classList.remove('is-login-screen');
+                document.body.classList.remove('is-login-screen');
+                window.scrollTo(0, 0);
+                document.documentElement.scrollTop = 0;
+                document.body.scrollTop = 0;
+                const rootEl = document.getElementById('root');
+                if (rootEl) rootEl.scrollTop = 0;
+              } catch {}
               setIsAuthenticated(true);
             }}
           />
@@ -1569,7 +1614,7 @@ export default function App() {
             right: 0,
             width: '100%',
             height: '100%',
-            minHeight: 'calc(100dvh + env(safe-area-inset-bottom, 0px))',
+            minHeight: '100%',
             boxSizing: 'border-box',
             margin: 0,
             padding: 0,
@@ -1606,10 +1651,13 @@ export default function App() {
 
       <main
         id="main-app-content"
-        className={`relative flex-1 w-full h-[100dvh] overflow-hidden select-none transition-all duration-300 rounded-t-[26px] md:rounded-none ios-page-top-rounded ${
+        className={`relative flex-1 w-full h-full min-h-full overflow-hidden select-none transition-all duration-300 rounded-t-[26px] md:rounded-none ios-page-top-rounded ${
           theme === 'dark' ? 'bg-black' : 'bg-zinc-50'
         }`}
         style={{
+          width: '100%',
+          height: '100%',
+          minHeight: '100%',
           boxSizing: 'border-box',
           margin: 0,
           padding: 0,

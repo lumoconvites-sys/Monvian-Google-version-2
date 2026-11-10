@@ -2627,7 +2627,7 @@ export const ItinerariesView: React.FC<ItinerariesViewProps> = ({
             transition={qrSpringTransition}
             className="md:hidden fixed inset-x-0 z-40 flex justify-center px-4 pointer-events-none select-none"
             style={{
-              bottom: 'max(76px, calc(env(safe-area-inset-bottom, 0px) + 72px))',
+              bottom: '84px',
             }}
           >
             {activeSteps.length === 0 ? (
@@ -2793,7 +2793,7 @@ export const ItinerariesView: React.FC<ItinerariesViewProps> = ({
               bottom: 0,
               maxHeight: '52vh',
               height: '52vh',
-              paddingBottom: 'max(calc(env(safe-area-inset-bottom, 0px) + 82px), 98px)',
+              paddingBottom: '74px',
             }}
           >
             {/* Drag handle */}
@@ -2812,7 +2812,7 @@ export const ItinerariesView: React.FC<ItinerariesViewProps> = ({
               <div
                 className="flex-1 overflow-y-auto px-4 sm:px-5 py-1.5 space-y-2"
                 style={{
-                  paddingBottom: 'max(calc(env(safe-area-inset-bottom, 0px) + 88px), 108px)',
+                  paddingBottom: '16px',
                   WebkitOverflowScrolling: 'touch',
                 }}
               >

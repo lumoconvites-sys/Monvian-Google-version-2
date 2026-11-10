@@ -2,6 +2,7 @@ import React, { useEffect, useRef, useState, useCallback } from 'react';
 import { ArrowRight, ChevronDown, Clock, MapPin, Mountain, Utensils, X } from 'lucide-react';
 import { motion, AnimatePresence, useReducedMotion } from 'motion/react';
 import gsap from 'gsap';
+import { HeroAirplane3D } from './HeroAirplane3D';
 
 export interface LandingHighlightItem {
   id: string;
@@ -1027,12 +1028,12 @@ export const CinematicLandingView: React.FC<CinematicLandingViewProps> = ({
           </motion.div>
         </div>
 
-        {/* 5. ELEMENTO PRINCIPAL: ILHA 3D ORIGINAL DE CAMPOS DO JORDÃO (100% COMPLETA E SEM CORTES) */}
+        {/* 5. ELEMENTO PRINCIPAL: ILHA 3D ORIGINAL DE CAMPOS DO JORDÃO (z-[24]) */}
         <div
           ref={parallaxIslandRef}
           className="absolute inset-0 pointer-events-none z-[24] flex items-center justify-center will-change-transform"
         >
-          <div className="relative w-full flex items-center justify-center translate-y-[9vh] sm:translate-y-[8vh] md:translate-y-[8.5vh]">
+          <div className="relative w-full flex items-center justify-center translate-y-[13.5vh] sm:translate-y-[12vh] md:translate-y-[11vh]">
             <motion.div
               initial={
                 prefersReducedMotion
@@ -1063,7 +1064,7 @@ export const CinematicLandingView: React.FC<CinematicLandingViewProps> = ({
                 }}
                 className="monvian-anim-float relative w-full flex items-center justify-center will-change-transform"
               >
-                {/* Maquete 3D Original de Campos do Jordão — 100% COMPLETA, SEM MÁSCARA CORTANDO A BASE */}
+                {/* Maquete 3D Original de Campos do Jordão */}
                 <div ref={islandScrollWrapRef} className="w-full will-change-transform">
                   <picture className="w-full block">
                     <source
@@ -1072,7 +1073,7 @@ export const CinematicLandingView: React.FC<CinematicLandingViewProps> = ({
                     />
                     <img
                       src="/assets/aistudio/monvian_island_3d.png"
-                      alt="Maquete tridimensional de Campos do Jordão com igreja europeia, roda-gigante do Parque Capivari, chalés alpinos, estradas sinuosas e araucárias"
+                      alt="Maquete tridimensional de Campos do Jordão"
                       width={1347}
                       height={879}
                       fetchPriority="high"
@@ -1086,9 +1087,7 @@ export const CinematicLandingView: React.FC<CinematicLandingViewProps> = ({
                   </picture>
                 </div>
 
-                {/* CAMADA DE NUVENS DE TRANSIÇÃO DE SCROLL:
-                    Fica 100% invisível e abaixo da ilha no estado inicial (scrollTop = 0) para a figura 3D aparecer por completo,
-                    sobe cobrindo a ilha ao rolar e depois se dissolve no branco puro sem deixar bordas */}
+                {/* CAMADA DE NUVENS DE TRANSIÇÃO DE SCROLL */}
                 <div
                   ref={islandBottomCloudBedRef}
                   style={{ opacity: 0 }}
@@ -1116,6 +1115,11 @@ export const CinematicLandingView: React.FC<CinematicLandingViewProps> = ({
               </div>
             </motion.div>
           </div>
+        </div>
+
+        {/* 5.5. AVIÃO 3D CINEMATOGRÁFICO MONVIAN — Voando por CIMA da maquete 3D flutuante de Campos do Jordão (z-[28] > z-[24]) */}
+        <div className="absolute inset-0 pointer-events-none z-[28] overflow-hidden" aria-hidden="true">
+          <HeroAirplane3D />
         </div>
 
         {/* 6. GRUPO 3 — NUVENS FRONTAIS DE TRANSIÇÃO (Invisíveis no topo para a figura 3D aparecer 100% completa; sobem ao rolar e dissolvem no branco) */}
@@ -1178,8 +1182,8 @@ export const CinematicLandingView: React.FC<CinematicLandingViewProps> = ({
         <div
           className="relative z-[85] w-full h-full max-w-[1280px] mx-auto px-5 sm:px-8 flex flex-col justify-between pointer-events-none"
           style={{
-            paddingTop: 'max(84px, calc(env(safe-area-inset-top, 0px) + 74px))',
-            paddingBottom: 'max(20px, calc(env(safe-area-inset-bottom, 0px) + 14px))',
+            paddingTop: 'max(136px, calc(env(safe-area-inset-top, 0px) + 124px))',
+            paddingBottom: 'max(24px, calc(env(safe-area-inset-bottom, 0px) + 16px))',
           }}
         >
           {/* Topo do Hero: Logo original Monvian + Título Principal + Subtítulo */}

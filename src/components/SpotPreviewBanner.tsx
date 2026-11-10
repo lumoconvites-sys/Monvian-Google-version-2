@@ -25,16 +25,16 @@ export const SpotPreviewBanner: React.FC<SpotPreviewBannerProps> = ({
 
   return (
     <motion.div
-      initial={{ opacity: 0, y: 14, scale: 0.96 }}
+      initial={{ opacity: 0, y: 14, scale: 0.97 }}
       animate={{ opacity: 1, y: 0, scale: 1 }}
-      exit={{ opacity: 0, y: 10, scale: 0.96 }}
-      transition={{ type: 'spring', stiffness: 380, damping: 24 }}
-      className="fixed inset-x-0 z-40 flex justify-center px-4 pointer-events-none select-none"
+      exit={{ opacity: 0, y: 12, scale: 0.97 }}
+      transition={{ duration: 0.34, ease: [0.22, 1, 0.36, 1] }}
+      className="md:hidden fixed inset-x-0 z-[245] flex justify-center px-4 pointer-events-none select-none"
       style={{
-        bottom: 'max(74px, calc(env(safe-area-inset-bottom, 0px) + 70px))',
+        bottom: '84px',
       }}
     >
-      {/* Horizontal size identical to BottomNavigation: w-full max-w-[326px] sm:max-w-[342px] */}
+      {/* Horizontal size identical to BottomNavigation and FloatingEventCard: w-full max-w-[326px] sm:max-w-[342px] */}
       <motion.div
         whileHover={{ scale: 1.01, transition: { type: 'spring', stiffness: 400, damping: 18 } }}
         whileTap={{ scale: 0.96, transition: { type: 'spring', stiffness: 500, damping: 14 } }}
@@ -44,7 +44,7 @@ export const SpotPreviewBanner: React.FC<SpotPreviewBannerProps> = ({
           transform: 'translateZ(0)',
           WebkitTransform: 'translateZ(0)',
         }}
-        className={`w-full max-w-[326px] sm:max-w-[342px] h-[72px] px-3.5 py-2.5 rounded-[24px] expo-liquid-glass-bar flex items-center justify-between gap-3 select-none cursor-pointer pointer-events-auto ${
+        className={`w-full max-w-[326px] sm:max-w-[342px] h-[72px] px-3.5 py-2.5 rounded-[28px] expo-liquid-glass-bar flex items-center justify-between gap-3 select-none cursor-pointer pointer-events-auto ${
           isDark ? 'text-white' : 'text-zinc-950'
         }`}
       >

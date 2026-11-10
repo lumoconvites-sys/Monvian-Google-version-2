@@ -188,7 +188,7 @@ export const FloatingEventCard: React.FC<FloatingEventCardProps> = ({
           exit={{ opacity: 0, y: 12, scale: 0.97 }}
           transition={{ duration: 0.34, ease: [0.22, 1, 0.36, 1] }}
           style={{
-            bottom: 'calc(64px + 10px)',
+            bottom: '84px',
           }}
           className="md:hidden fixed inset-x-0 z-[245] flex justify-center px-4 select-none pointer-events-none"
         >
