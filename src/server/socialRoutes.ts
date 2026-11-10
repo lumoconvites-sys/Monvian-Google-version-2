@@ -1,9 +1,9 @@
-import { Database as SqliteDatabase } from 'better-sqlite3';
-import { Express, Request, Response } from 'express';
+import type { Database as SqliteDatabase } from 'better-sqlite3';
+import type { Express, Request, Response } from 'express';
 import path from 'path';
 import fs from 'fs';
 import crypto from 'crypto';
-import { firestore } from '../services/firestoreSync';
+import { firestore } from '../services/firestoreSync.ts';
 import { doc, setDoc, deleteDoc, getDoc, updateDoc, increment } from 'firebase/firestore';
 
 export interface PostEntity {

@@ -910,113 +910,6 @@ export const AirbnbItineraryExplorer: React.FC<AirbnbItineraryExplorerProps> = (
     return Array.from(map.values());
   }, [onboardingPool, featuredBannerItinerary, itineraries]);
 
-  if (isOnboardingSelection) {
-    return (
-      <motion.div
-        id="onboarding-itinerary-selection-screen"
-        initial={{ opacity: 0, filter: 'blur(8px)' }}
-        animate={
-          isOnboardingRevealReady
-            ? { opacity: 1, filter: 'blur(0px)' }
-            : { opacity: 0, filter: 'blur(8px)' }
-        }
-        transition={{
-          duration: 0.65,
-          ease: [0.22, 1, 0.36, 1],
-        }}
-        className="relative w-full h-full overflow-y-auto overscroll-y-contain bg-[#FFFFFF] text-[#111111] select-none"
-        style={{
-          fontFamily: "-apple-system, BlinkMacSystemFont, 'SF Pro Display', 'SF Pro Text', sans-serif",
-          WebkitOverflowScrolling: 'touch',
-          touchAction: 'pan-y',
-          backgroundColor: '#FFFFFF',
-        }}
-      >
-        <div
-          className="w-full max-w-2xl mx-auto px-6 pb-20"
-          style={{
-            paddingTop: 'max(calc(env(safe-area-inset-top, 0px) + 32px), 48px)',
-          }}
-        >
-          <motion.h1
-            initial={{ opacity: 0, y: 8, filter: 'blur(6px)' }}
-            animate={
-              isOnboardingRevealReady
-                ? { opacity: 1, y: 0, filter: 'blur(0px)' }
-                : { opacity: 0, y: 8, filter: 'blur(6px)' }
-            }
-            transition={{
-              duration: 0.6,
-              ease: [0.22, 1, 0.36, 1],
-              delay: 0.04,
-            }}
-            className="text-center text-[24px] sm:text-[28px] font-bold tracking-[-0.025em] text-[#111111] leading-tight mb-8"
-          >
-            Selecione o melhor roteiro
-          </motion.h1>
-
-          <div className="flex flex-col gap-7">
-            {onboardingAllItineraries.map((itin, idx) => (
-              <motion.div
-                key={itin.id}
-                onClick={() => {
-                  triggerHapticFeedback(12);
-                  onSelectItinerary(itin, { fromOnboardingSelection: true });
-                }}
-                initial={{ opacity: 0, y: 12, filter: 'blur(8px)' }}
-                animate={
-                  isOnboardingRevealReady
-                    ? { opacity: 1, y: 0, filter: 'blur(0px)' }
-                    : { opacity: 0, y: 12, filter: 'blur(8px)' }
-                }
-                transition={{
-                  duration: 0.65,
-                  ease: [0.22, 1, 0.36, 1],
-                  delay: 0.1 + idx * 0.065,
-                }}
-                whileTap={{ scale: 0.985 }}
-                className="group flex flex-col cursor-pointer select-none"
-              >
-                <div className="relative w-full h-[204px] sm:h-[228px] rounded-[34px] overflow-hidden bg-zinc-100 border border-black/[0.06]">
-                  <img
-                    src={itin.coverImage}
-                    alt={itin.title}
-                    width={800}
-                    height={456}
-                    draggable={false}
-                    loading="eager"
-                    decoding="async"
-                    referrerPolicy="no-referrer"
-                    onError={(e) => {
-                      (e.target as HTMLImageElement).src =
-                        'https://images.unsplash.com/photo-1506744038136-46273834b3fb?auto=format&fit=crop&w=800&q=80';
-                    }}
-                    className="w-full h-full object-cover transition-transform duration-500 ease-out group-hover:scale-[1.02] pointer-events-none select-none"
-                  />
-                </div>
-
-                <div className="pt-3 px-1 flex items-center justify-between gap-3">
-                  <h2 className="text-[16px] sm:text-[17px] font-semibold tracking-[-0.015em] text-[#111111] leading-snug truncate flex-1">
-                    {itin.title}
-                  </h2>
-                  <div
-                    className="flex items-center gap-1 shrink-0 text-[#111111]"
-                    title={`${formatItineraryViewsCount(itin.id || itin.title)} visualizações`}
-                  >
-                    <Play className="w-3 h-3 fill-black text-black" />
-                    <span className="text-[12px] font-semibold tracking-tight text-[#111111]">
-                      {formatItineraryViewsCount(itin.id || itin.title)}
-                    </span>
-                  </div>
-                </div>
-              </motion.div>
-            ))}
-          </div>
-        </div>
-      </motion.div>
-    );
-  }
-
   return (
     <div
       ref={scrollContainerRef}
@@ -1382,6 +1275,7 @@ export const AirbnbItineraryExplorer: React.FC<AirbnbItineraryExplorerProps> = (
                       isFavorite={favorites.includes(itin.id)}
                       onToggleFavorite={(e) => handleToggleFavorite(itin.id, e)}
                       onClick={() => handleOpenDetail(itin)}
+                      onDirectPlay={() => onSelectItinerary(itin)}
                       isActiveRoute={itin.id === activeItineraryId}
                       isDark={isDark}
                     />
@@ -1480,6 +1374,7 @@ interface HorizontalReferenceItineraryCardProps {
   isFavorite: boolean;
   onToggleFavorite: (e: React.MouseEvent) => void;
   onClick: () => void;
+  onDirectPlay?: () => void;
   isActiveRoute?: boolean;
   isDark?: boolean;
 }
@@ -1492,6 +1387,7 @@ const HorizontalReferenceItineraryCard: React.FC<HorizontalReferenceItineraryCar
       isFavorite,
       onToggleFavorite,
       onClick,
+      onDirectPlay,
       isActiveRoute = false,
       isDark = true,
     }) => {
@@ -1604,15 +1500,26 @@ const HorizontalReferenceItineraryCard: React.FC<HorizontalReferenceItineraryCar
               >
                 {itinerary.title}
               </h4>
-              <div
-                className="flex items-center gap-1 shrink-0 text-zinc-900 dark:text-zinc-100"
-                title={`${formatItineraryViewsCount(itinerary.id || itinerary.title)} visualizações`}
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  triggerHapticFeedback(14);
+                  if (onDirectPlay) {
+                    onDirectPlay();
+                  } else {
+                    onClick();
+                  }
+                }}
+                className="flex items-center gap-1.5 shrink-0 px-2.5 py-1 rounded-full bg-black/5 dark:bg-white/10 hover:bg-black/10 dark:hover:bg-white/15 active:scale-95 transition-all text-zinc-900 dark:text-zinc-100 cursor-pointer"
+                title="Abrir roteiro no mapa"
+                aria-label="Abrir roteiro no mapa"
               >
                 <Play className="w-3 h-3 fill-black text-black dark:fill-white dark:text-white" />
                 <span className="text-[12px] font-semibold tracking-tight text-zinc-800 dark:text-zinc-200">
                   {formatItineraryViewsCount(itinerary.id || itinerary.title)}
                 </span>
-              </div>
+              </button>
             </div>
 
             <div className="flex items-center justify-between gap-2">

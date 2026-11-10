@@ -1,5 +1,5 @@
-import { supabase, supabaseAnonClient } from './supabaseClient.js';
-import { isPrimaryAdmin } from './firestoreSync.js';
+import { supabase, supabaseAnonClient } from './supabaseClient.ts';
+import { isPrimaryAdmin } from './firestoreSync.ts';
 
 /**
  * Helper to execute a Supabase promise with a safe timeout so server routes never hang
@@ -149,6 +149,20 @@ export async function deleteSessionFromSupabase(token: string): Promise<void> {
   try {
     await withTimeout(supabase.from('sessions').delete().eq('token', token), 3000, null);
   } catch {}
+}
+
+export async function getSessionFromSupabase(token: string): Promise<{ token: string; user_id: number } | null> {
+  if (!supabase || !token) return null;
+  try {
+    const { data } = await withTimeout(
+      supabase.from('sessions').select('token, user_id').eq('token', token).maybeSingle(),
+      3000,
+      { data: null }
+    );
+    return data || null;
+  } catch {
+    return null;
+  }
 }
 
 // =============================================================================

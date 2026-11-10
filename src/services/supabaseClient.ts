@@ -1,7 +1,14 @@
-import { createClient, SupabaseClient } from '@supabase/supabase-js';
-import dotenv from 'dotenv';
+import { createClient } from '@supabase/supabase-js';
+import type { SupabaseClient } from '@supabase/supabase-js';
 
-dotenv.config();
+const getEnvVar = (key: string): string | undefined => {
+  try {
+    if (typeof process !== 'undefined' && process.env && process.env[key]) {
+      return process.env[key];
+    }
+  } catch {}
+  return undefined;
+};
 
 const DEAD_HOSTS = ['hefkjmjovzpymtybyebw.supabase.co'];
 
@@ -19,13 +26,13 @@ const DEFAULT_SUPABASE_ANON_KEY = 'sb_publishable_WaPR6pa1PiAD6pCG45aeuA_LrVfs39
 
 const resolveBackendCredentials = () => {
   const candidateUrl =
-    sanitizeSupabaseUrl(process.env.SUPABASE_URL) ||
-    sanitizeSupabaseUrl(process.env.VITE_SUPABASE_URL) ||
+    sanitizeSupabaseUrl(getEnvVar('SUPABASE_URL')) ||
+    sanitizeSupabaseUrl(getEnvVar('VITE_SUPABASE_URL')) ||
     DEFAULT_SUPABASE_URL;
 
   let candidateKey = (
-    process.env.SUPABASE_ANON_KEY ||
-    process.env.VITE_SUPABASE_ANON_KEY ||
+    getEnvVar('SUPABASE_ANON_KEY') ||
+    getEnvVar('VITE_SUPABASE_ANON_KEY') ||
     ''
   ).trim();
 
@@ -44,7 +51,7 @@ export const supabaseUrl = resolvedBackend.url;
 export const supabaseAnonKey = resolvedBackend.key;
 
 export const supabaseServiceKey = (
-  process.env.SUPABASE_SERVICE_ROLE_KEY || supabaseAnonKey
+  getEnvVar('SUPABASE_SERVICE_ROLE_KEY') || supabaseAnonKey
 ).trim();
 
 export const supabase: SupabaseClient | null =

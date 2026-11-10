@@ -149,6 +149,7 @@ export const ItineraryStoreDetailModal: React.FC<ItineraryStoreDetailModalProps>
     try {
       setIsApplying(true);
       await onApplyItinerary(activeItinerary);
+      onClose();
     } catch (e) {
       console.error(e);
     } finally {

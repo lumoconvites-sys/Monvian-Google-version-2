@@ -1,13 +1,14 @@
-import express, { Request, Response } from 'express';
+import express from 'express';
+import type { Request, Response } from 'express';
 import Stripe from 'stripe';
-import Database from 'better-sqlite3';
+import type Database from 'better-sqlite3';
 import crypto from 'crypto';
 import { doc, setDoc, getDoc } from 'firebase/firestore';
-import { firestore } from '../services/firestoreSync.js';
+import { firestore } from '../services/firestoreSync.ts';
 import {
   persistPurchaseToSupabase,
   persistUserToSupabase,
-} from '../services/supabaseSync.js';
+} from '../services/supabaseSync.ts';
 
 /**
  * Setup Financial Database Tables (Idempotent SQLite Schema)

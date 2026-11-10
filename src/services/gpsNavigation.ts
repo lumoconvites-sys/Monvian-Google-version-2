@@ -5,7 +5,7 @@
  * stale/inaccurate coordinate filtering, 60fps marker interpolation, and automatic recovery.
  */
 
-import { saveUserPermissionsToDatabase, syncPermissionsFromDatabase } from './firestoreSync';
+import { saveUserPermissionsToDatabase, syncPermissionsFromDatabase } from './firestoreSync.ts';
 
 export interface GpsRawFix {
   lng: number;
@@ -290,6 +290,12 @@ class GpsNavigationManager {
     if (typeof window === 'undefined' || !('geolocation' in navigator)) return;
 
     try {
+      const token = localStorage.getItem('monvian_token');
+      const savedUser = localStorage.getItem('monvian_user');
+      if (!token || !savedUser) return;
+    } catch {}
+
+    try {
       localStorage.setItem('monvian_location_perm', 'true');
       localStorage.setItem('monvian_location_permission_granted', 'true');
     } catch {}
@@ -327,6 +333,15 @@ class GpsNavigationManager {
    */
   public resetSession(): void {
     if (typeof window === 'undefined') return;
+
+    // Never request browser geolocation when user is not logged in
+    try {
+      const token = localStorage.getItem('monvian_token');
+      const savedUser = localStorage.getItem('monvian_user');
+      if (!token || !savedUser) {
+        return;
+      }
+    } catch {}
 
     // Step 1: Check state of the location service used by the app
     if (!('geolocation' in navigator)) {
@@ -374,6 +389,12 @@ class GpsNavigationManager {
    */
   public start(): void {
     if (typeof window === 'undefined') return;
+
+    try {
+      const token = localStorage.getItem('monvian_token');
+      const savedUser = localStorage.getItem('monvian_user');
+      if (!token || !savedUser) return;
+    } catch {}
 
     if (!this.hasBootResetExecuted) {
       this.resetSessionOnBoot();

@@ -1,13 +1,13 @@
 import express from 'express';
-import { Database } from 'better-sqlite3';
-import { CAMPOS_SPOTS } from '../data/spots.js';
-import { DEFAULT_CURATED_ITINERARIES } from '../data/defaultItineraries.js';
+import type { Database } from 'better-sqlite3';
+import { CAMPOS_SPOTS } from '../data/spots.ts';
+import { DEFAULT_CURATED_ITINERARIES } from '../data/defaultItineraries.ts';
 import {
   saveItineraryToSupabase,
   deleteItineraryFromSupabase,
   toggleItineraryFeaturedInSupabase,
   toggleItineraryStatusInSupabase,
-} from '../services/supabaseItineraries.js';
+} from '../services/supabaseItineraries.ts';
 
 // Haversine formula to calculate distance between coordinates in km
 export function calculateDistanceKm(lat1: number, lon1: number, lat2: number, lon2: number): number {

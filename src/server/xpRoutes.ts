@@ -1,6 +1,6 @@
-import { Request, Response, Express } from 'express';
-import { Database as SqliteDatabase } from 'better-sqlite3';
-import { calculateHaversineDistance } from '../services/gpsNavigation.js';
+import type { Request, Response, Express } from 'express';
+import type { Database as SqliteDatabase } from 'better-sqlite3';
+import { calculateHaversineDistance } from '../services/gpsNavigation.ts';
 
 export interface XpLevelInfo {
   level: number;
@@ -51,60 +51,32 @@ function isMarioYeskIdentity(userId?: string | null, userObj?: any | null, req?:
   );
 }
 
-export function ensureMarioYeskMaxExplorerLevel(db: SqliteDatabase, targetUserId: string = '47') {
+export function ensureMarioYeskMaxExplorerLevel(db: SqliteDatabase, _targetUserId: string = '47') {
   try {
-    const allSpots = db
-      .prepare('SELECT id, name, category_label, category, lat, lng FROM spots WHERE is_active = 1')
-      .all() as any[];
+    // Clean up any synthetic or out-of-range visits (> 60m) so XP and coins only count when physically at the registered spot
+    db.prepare(`DELETE FROM user_spot_visits WHERE id LIKE 'visit_mario_%' OR distance_meters > 60`).run();
 
-    const spotsCount = Math.max(allSpots.length, 30);
-    const maxXp = Math.max(10000, spotsCount * 100);
-    const maxLevel = XP_LEVELS[XP_LEVELS.length - 1].level;
-
-    const marioUserIds = Array.from(
-      new Set([targetUserId, '47', 'marioyesk', 'marioyesk@gmail.com', 'empresariomario@gmail.com'])
+    // Recalculate each user's XP progress strictly from real physical visits at registered spots
+    const users = db.prepare(`SELECT user_id FROM user_xp_progress`).all() as Array<{ user_id: string }>;
+    const countStmt = db.prepare(
+      `SELECT COUNT(*) as cnt, COALESCE(SUM(xp_awarded), 0) as totalXp FROM user_spot_visits WHERE user_id = ?`
+    );
+    const updateStmt = db.prepare(
+      `UPDATE user_xp_progress SET total_xp = ?, current_level = ?, places_discovered_count = ?, updated_at = CURRENT_TIMESTAMP WHERE user_id = ?`
     );
 
-    const upsertProgress = db.prepare(`
-      INSERT INTO user_xp_progress (user_id, total_xp, current_level, places_discovered_count, updated_at)
-      VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP)
-      ON CONFLICT(user_id) DO UPDATE SET
-        total_xp = MAX(total_xp, excluded.total_xp),
-        current_level = excluded.current_level,
-        places_discovered_count = MAX(places_discovered_count, excluded.places_discovered_count),
-        updated_at = CURRENT_TIMESTAMP
-    `);
-
-    const insertVisit = db.prepare(`
-      INSERT OR IGNORE INTO user_spot_visits (
-        id, user_id, spot_id, spot_name, category, xp_awarded,
-        user_lat, user_lng, spot_lat, spot_lng, distance_meters
-      ) VALUES (?, ?, ?, ?, ?, 100, ?, ?, ?, ?, 5.0)
-    `);
-
     const tx = db.transaction(() => {
-      for (const uid of marioUserIds) {
-        upsertProgress.run(uid, maxXp, maxLevel, allSpots.length || spotsCount);
-        for (const spot of allSpots) {
-          const visitId = `visit_mario_${uid}_${spot.id}`;
-          insertVisit.run(
-            visitId,
-            uid,
-            spot.id,
-            spot.name || 'Ponto Turístico',
-            spot.category_label || spot.category || 'Atração',
-            Number(spot.lat) || -22.7192,
-            Number(spot.lng) || -45.5673,
-            Number(spot.lat) || -22.7192,
-            Number(spot.lng) || -45.5673
-          );
-        }
+      for (const u of users) {
+        const row = countStmt.get(u.user_id) as { cnt: number; totalXp: number } | undefined;
+        const totalXp = Number(row?.totalXp || 0);
+        const cnt = Number(row?.cnt || 0);
+        const lvl = computeLevelFromXp(totalXp).level;
+        updateStmt.run(totalXp, lvl, cnt, u.user_id);
       }
     });
-
     tx();
   } catch (err) {
-    console.warn('[XPSetup] Failed to seed @marioyesk max explorer level:', err);
+    console.warn('[XPSetup] Failed to reconcile physical XP progress:', err);
   }
 }
 
@@ -198,12 +170,7 @@ export function registerXpRoutes(
         return res.status(401).json({ error: 'Usuário não autenticado ou sessão ausente' });
       }
 
-      const { userId, userObj } = userIdent;
-      const isMario = isMarioYeskIdentity(userId, userObj, req);
-
-      if (isMario) {
-        ensureMarioYeskMaxExplorerLevel(db, userId);
-      }
+      const { userId } = userIdent;
 
       // 1. Fetch or create progress row
       let progress = db
@@ -270,7 +237,7 @@ export function registerXpRoutes(
 
   /**
    * POST /api/xp/validate-visit
-   * Validates GPS proximity to a spot and awards +100 XP securely
+   * Validates physical GPS presence at the registered tourist spot (<= 50m) and awards +100 XP securely
    */
   app.post('/api/xp/validate-visit', async (req: Request, res: Response) => {
     try {
@@ -323,18 +290,17 @@ export function registerXpRoutes(
 
       // Compute precise Haversine distance in meters
       const distanceMeters = calculateHaversineDistance(lng, lat, spotLng, spotLat);
-      const isScreenTouch = Boolean(req.body?.screenTouch);
 
-      // Proximity threshold: allow validation when user icon touches spot icon on map or within 450m
-      const MAX_PROXIMITY_METERS = isScreenTouch ? 2500 : 450;
+      // Strict physical presence threshold: user must be physically at the registered tourist spot (<= 50 meters)
+      const MAX_PROXIMITY_METERS = 50;
 
       if (distanceMeters > MAX_PROXIMITY_METERS) {
         return res.status(400).json({
           success: false,
           tooFar: true,
-          message: `Você está a ${Math.round(distanceMeters)}m do local. Aproxime-se para validar sua visita!`,
+          message: `Você está a ${Math.round(distanceMeters)}m do local. As moedas e o XP só contam quando você estiver presencialmente no ponto turístico!`,
           distanceMeters: Math.round(distanceMeters * 10) / 10,
-          requiredDistanceMeters: 150,
+          requiredDistanceMeters: MAX_PROXIMITY_METERS,
         });
       }
 

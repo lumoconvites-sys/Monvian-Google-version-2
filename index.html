@@ -133,82 +133,84 @@
     <script>
       (function() {
         var dismissed = false;
+        function hasAuthenticatedSession() {
+          try {
+            var token = localStorage.getItem('monvian_token');
+            var user = localStorage.getItem('monvian_user');
+            return Boolean(token && user);
+          } catch (e) {
+            return false;
+          }
+        }
+
+        function hidePreloaderImmediately() {
+          dismissed = true;
+          var preloader = document.getElementById('monvian-app-preloader');
+          var video = document.getElementById('monvian-preloader-video');
+          if (video) {
+            try { video.pause(); } catch (e) {}
+          }
+          if (preloader) {
+            preloader.style.display = 'none';
+            preloader.style.opacity = '0';
+            preloader.style.pointerEvents = 'none';
+          }
+        }
+
         function dismissPreloader() {
           if (dismissed) return;
           dismissed = true;
           var preloader = document.getElementById('monvian-app-preloader');
           var video = document.getElementById('monvian-preloader-video');
-          var rootEl = document.getElementById('root');
 
-          // 1. Logo fades out smoothly after the video finishes
+          // 1. Video fades out smoothly
           if (video) {
             try { video.pause(); } catch (e) {}
-            video.style.transition = 'opacity 0.48s cubic-bezier(0.22, 1, 0.36, 1), filter 0.48s cubic-bezier(0.22, 1, 0.36, 1), transform 0.48s cubic-bezier(0.22, 1, 0.36, 1)';
+            video.style.transition = 'opacity 0.4s ease-out';
             video.style.opacity = '0';
-            video.style.filter = 'blur(6px)';
-            video.style.transform = 'scale(1.44)';
           }
 
-          // 2. App appears with a translucent frosted-glass transition
+          // 2. Preloader fades out seamlessly revealing the app underneath without shifting elements
           if (preloader) {
+            preloader.style.transition = 'opacity 0.5s cubic-bezier(0.22, 1, 0.36, 1)';
+            preloader.style.opacity = '0';
+            preloader.style.pointerEvents = 'none';
+
             setTimeout(function() {
-              // Shift solid background into a translucent glass veil over the app
-              preloader.style.transition =
-                'background-color 0.68s cubic-bezier(0.16, 1, 0.3, 1), ' +
-                'backdrop-filter 0.68s cubic-bezier(0.16, 1, 0.3, 1), ' +
-                '-webkit-backdrop-filter 0.68s cubic-bezier(0.16, 1, 0.3, 1), ' +
-                'opacity 0.68s cubic-bezier(0.16, 1, 0.3, 1)';
-              preloader.style.backgroundColor = 'rgba(255, 255, 255, 0.22)';
-              preloader.style.backdropFilter = 'blur(0px) saturate(100%)';
-              preloader.style.webkitBackdropFilter = 'blur(0px) saturate(100%)';
-              preloader.style.opacity = '0';
-
-              if (rootEl) {
-                rootEl.style.transition =
-                  'filter 0.68s cubic-bezier(0.16, 1, 0.3, 1), ' +
-                  'opacity 0.68s cubic-bezier(0.16, 1, 0.3, 1), ' +
-                  'transform 0.68s cubic-bezier(0.16, 1, 0.3, 1)';
-                rootEl.style.filter = 'blur(0px)';
-                rootEl.style.opacity = '1';
-                rootEl.style.transform = 'scale(1)';
-              }
-
-              setTimeout(function() {
-                preloader.style.display = 'none';
-                if (rootEl) {
-                  rootEl.style.filter = '';
-                  rootEl.style.transform = '';
-                  rootEl.style.transition = '';
-                }
-              }, 700);
-            }, 340);
+              preloader.style.display = 'none';
+            }, 520);
           }
         }
 
         function initVideoPreloader() {
-          var video = document.getElementById('monvian-preloader-video');
-          var rootEl = document.getElementById('root');
-          if (rootEl) {
-            rootEl.style.filter = 'blur(16px)';
-            rootEl.style.opacity = '0.82';
-            rootEl.style.transform = 'scale(0.985)';
+          // Never show the Monvian logo loading screen on the Login / Landing screen
+          if (!hasAuthenticatedSession()) {
+            hidePreloaderImmediately();
+            return;
           }
+
+          var preloader = document.getElementById('monvian-app-preloader');
+          if (preloader) {
+            preloader.style.display = 'flex';
+          }
+
+          var video = document.getElementById('monvian-preloader-video');
           if (video) {
             video.addEventListener('ended', function() {
               dismissPreloader();
             });
             video.addEventListener('error', function() {
-              setTimeout(dismissPreloader, 800);
+              setTimeout(dismissPreloader, 600);
             });
             var p = video.play();
             if (p && typeof p.catch === 'function') {
               p.catch(function() {
-                setTimeout(dismissPreloader, 2200);
+                setTimeout(dismissPreloader, 1800);
               });
             }
           }
-          // Safety fallback after video duration (2.68s)
-          setTimeout(dismissPreloader, 3050);
+          // Safety fallback
+          setTimeout(dismissPreloader, 2800);
         }
 
         if (document.readyState === 'loading') {
@@ -257,36 +259,47 @@
           if (document.visibilityState === 'visible') updateAppHeight();
         }, { passive: true });
 
-        // Helper: Check if touch/event target is inside the interactive map
-        function isInsideMap(target) {
+        // Helper: Check if touch/event target is inside the interactive map or login screen
+        function isZoomAllowed(target) {
           if (!target) return false;
           if (target.nodeType === 3) target = target.parentElement; // handle text nodes
-          return !!(target && target.closest && target.closest('.maplibregl-map, .maplibregl-canvas-container, .maplibregl-canvas, #map, [data-map-container]'));
+          // 1. Interactive map
+          if (target && target.closest && target.closest('.maplibregl-map, .maplibregl-canvas-container, .maplibregl-canvas, #map, [data-map-container]')) {
+            return true;
+          }
+          // 2. Login & Auth screens
+          if (target && target.closest && target.closest('#auth-main-section, [data-allow-zoom="true"], .auth-login-screen, #input-login-email, #input-login-password, .login-zoom-container')) {
+            return true;
+          }
+          if (document.body && (document.body.classList.contains('is-login-screen') || document.documentElement.classList.contains('is-login-screen'))) {
+            return true;
+          }
+          return false;
         }
 
-        // Prevent pinch gesture zoom on iOS Safari outside map
+        // Prevent pinch gesture zoom on iOS Safari outside map and login screen
         document.addEventListener('gesturestart', function(e) {
-          if (!isInsideMap(e.target)) {
+          if (!isZoomAllowed(e.target)) {
             e.preventDefault();
           }
         }, { passive: false });
 
         document.addEventListener('gesturechange', function(e) {
-          if (!isInsideMap(e.target)) {
+          if (!isZoomAllowed(e.target)) {
             e.preventDefault();
           }
         }, { passive: false });
 
         document.addEventListener('gestureend', function(e) {
-          if (!isInsideMap(e.target)) {
+          if (!isZoomAllowed(e.target)) {
             e.preventDefault();
           }
         }, { passive: false });
 
-        // Prevent multi-touch pinch on body/elements outside map
+        // Prevent multi-touch pinch on body/elements outside map and login screen
         document.addEventListener('touchstart', function(e) {
           if (e.touches && e.touches.length > 1) {
-            if (!isInsideMap(e.target)) {
+            if (!isZoomAllowed(e.target)) {
               e.preventDefault();
             }
           }
@@ -294,23 +307,25 @@
 
         document.addEventListener('touchmove', function(e) {
           if (e.touches && e.touches.length > 1) {
-            if (!isInsideMap(e.target)) {
+            if (!isZoomAllowed(e.target)) {
               e.preventDefault();
             }
           }
         }, { passive: false });
 
-        // Prevent Ctrl + Mouse Wheel zoom on UI elements outside map
+        // Prevent Ctrl + Mouse Wheel zoom on UI elements outside map and login screen
         document.addEventListener('wheel', function(e) {
-          if (e.ctrlKey && !isInsideMap(e.target)) {
+          if (e.ctrlKey && !isZoomAllowed(e.target)) {
             e.preventDefault();
           }
         }, { passive: false });
 
-        // Prevent keyboard zoom shortcuts (Ctrl/Cmd + +/-/0)
+        // Prevent keyboard zoom shortcuts (Ctrl/Cmd + +/-/0) outside map and login screen
         document.addEventListener('keydown', function(e) {
           if ((e.ctrlKey || e.metaKey) && (e.key === '+' || e.key === '-' || e.key === '=' || e.key === '0')) {
-            e.preventDefault();
+            if (!isZoomAllowed(e.target)) {
+              e.preventDefault();
+            }
           }
         });
       })();
@@ -321,13 +336,13 @@
     <meta property="og:description" content="Seu guia inteligente para viver Campos do Jordão." />
     <meta property="og:type" content="website" />
     <meta name="twitter:card" content="summary_large_image" />
-    <!-- Inter Font Family -->
+    <!-- Inter & Cursive Font Families -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:ital,opsz,wght@0,14..32,100..900;1,14..32,100..900&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:ital,opsz,wght@0,14..32,100..900;1,14..32,100..900&family=Alex+Brush&family=Caveat:wght@500;600;700&family=Dancing+Script:wght@500;600;700&display=swap" rel="stylesheet">
   </head>
   <body>
-    <div id="monvian-app-preloader" style="position:fixed;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;background-color:#ffffff;backdrop-filter:blur(28px) saturate(180%);-webkit-backdrop-filter:blur(28px) saturate(180%);overflow:hidden;z-index:99999;user-select:none;-webkit-user-select:none;touch-action:none;">
+    <div id="monvian-app-preloader" style="position:fixed;inset:0;display:none;flex-direction:column;align-items:center;justify-content:center;background-color:#ffffff;backdrop-filter:blur(28px) saturate(180%);-webkit-backdrop-filter:blur(28px) saturate(180%);overflow:hidden;z-index:99999;user-select:none;-webkit-user-select:none;touch-action:none;">
       <video
         id="monvian-preloader-video"
         autoplay

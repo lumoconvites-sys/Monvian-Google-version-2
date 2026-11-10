@@ -131,10 +131,10 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
   };
 
   // User profile state
-  const [userName, setUserName] = useState(user?.name || 'Mario Yesk');
-  const [userUsername, setUserUsername] = useState(user?.username || 'marioyesk');
+  const [userName, setUserName] = useState(user?.name || '');
+  const [userUsername, setUserUsername] = useState(user?.username || '');
   const [userBio, setUserBio] = useState(user?.bio || '');
-  const [userEmail, setUserEmail] = useState(user?.email || user?.whatsapp || 'marioyesk@gmail.com');
+  const [userEmail, setUserEmail] = useState(user?.email || user?.whatsapp || '');
   const [userAvatar, setUserAvatar] = useState(getInitialAvatar(user));
   const [tempAvatar, setTempAvatar] = useState(getInitialAvatar(user));
 
@@ -160,17 +160,29 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
 
   useEffect(() => {
     if (user) {
-      setUserName(user.name || 'Mario Yesk');
-      setUserUsername(user.username || 'marioyesk');
+      setUserName(user.name || '');
+      setUserUsername(user.username || '');
       setUserBio(user.bio || '');
-      setUserEmail(user.email || user.whatsapp || 'marioyesk@gmail.com');
+      setUserEmail(user.email || user.whatsapp || '');
       const av = getInitialAvatar(user);
       setUserAvatar(av);
       setTempAvatar(av);
-      setTempName(user.name || 'Mario Yesk');
-      setTempUsername(user.username || 'marioyesk');
+      setTempName(user.name || '');
+      setTempUsername(user.username || '');
       setTempBio(user.bio || '');
-      setTempEmail(user.email || user.whatsapp || 'marioyesk@gmail.com');
+      setTempEmail(user.email || user.whatsapp || '');
+    } else {
+      setUserName('');
+      setUserUsername('');
+      setUserBio('');
+      setUserEmail('');
+      setUserAvatar(null);
+      setTempAvatar(null);
+      setTempName('');
+      setTempUsername('');
+      setTempBio('');
+      setTempEmail('');
+      setActiveSubView('main');
     }
   }, [user]);
 
@@ -1308,11 +1320,7 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
                 <button
                   type="button"
                   onClick={() => {
-                    localStorage.removeItem('monvian_token');
-                    localStorage.removeItem('monvian_user');
-                    localStorage.removeItem('monvian_local_avatar');
-                    localStorage.removeItem('monvian_active_itinerary');
-                    localStorage.removeItem('monvian_itinerary_session');
+                    setActiveSubView('main');
                     if (onLogout) {
                       onLogout();
                     } else {

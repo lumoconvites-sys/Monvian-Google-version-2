@@ -1,17 +1,19 @@
-import express, { Request, Response } from 'express';
+import express from 'express';
+import type { Request, Response } from 'express';
 import dotenv from 'dotenv';
+import fs from 'fs';
 import path from 'path';
 import crypto from 'crypto';
 import bcrypt from 'bcryptjs';
-import { db } from './db_setup.js';
-import { registerItineraryRoutes, setupItineraryDatabase } from './src/server/itineraryRoutes.js';
-import { registerSocialRoutes, setupSocialDatabase } from './src/server/socialRoutes.js';
-import { registerStoryRoutes, setupStoriesDatabase } from './src/server/storyRoutes.js';
-import { registerStripeRoutes, setupStripeDatabase } from './src/server/stripeRoutes.js';
-import { registerPlatanosRoutes, setupPlatanosDatabase } from './src/server/platanosRoutes.js';
-import { registerXpRoutes } from './src/server/xpRoutes.js';
-import { CAMPOS_SPOTS } from './src/data/spots.js';
-import { supabase, supabaseAnonClient } from './src/services/supabaseClient.js';
+import { db } from './db_setup.ts';
+import { registerItineraryRoutes, setupItineraryDatabase } from './src/server/itineraryRoutes.ts';
+import { registerSocialRoutes, setupSocialDatabase } from './src/server/socialRoutes.ts';
+import { registerStoryRoutes, setupStoriesDatabase } from './src/server/storyRoutes.ts';
+import { registerStripeRoutes, setupStripeDatabase } from './src/server/stripeRoutes.ts';
+import { registerPlatanosRoutes, setupPlatanosDatabase } from './src/server/platanosRoutes.ts';
+import { registerXpRoutes } from './src/server/xpRoutes.ts';
+import { CAMPOS_SPOTS } from './src/data/spots.ts';
+import { supabase, supabaseAnonClient } from './src/services/supabaseClient.ts';
 import {
   syncDatabaseWithSupabase,
   verifySupabaseJwtUser,
@@ -19,6 +21,7 @@ import {
   getUserFromSupabase,
   persistSessionToSupabase,
   deleteSessionFromSupabase,
+  getSessionFromSupabase,
   persistSpotToSupabase,
   deleteSpotFromSupabase,
   persistMapVisualIconToSupabase,
@@ -27,7 +30,7 @@ import {
   deleteEventFromSupabase,
   persistSystemSettingToSupabase,
   persistFavoriteToSupabase,
-} from './src/services/supabaseSync.js';
+} from './src/services/supabaseSync.ts';
 import {
   syncDatabaseWithFirestore,
   persistUserToFirestore,
@@ -39,7 +42,7 @@ import {
   persistPrivacyRequestToFirestore,
   persistSupportTicketToFirestore,
   deleteUserAccountFromFirestore,
-} from './src/services/firestoreSync.js';
+} from './src/services/firestoreSync.ts';
 
 dotenv.config();
 
@@ -102,6 +105,10 @@ db.exec(`
     key TEXT PRIMARY KEY,
     value TEXT NOT NULL,
     updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+  );
+  CREATE TABLE IF NOT EXISTS revoked_sessions (
+    token TEXT PRIMARY KEY,
+    revoked_at DATETIME DEFAULT CURRENT_TIMESTAMP
   );
   CREATE TABLE IF NOT EXISTS user_favorites (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -474,8 +481,18 @@ function formatSafeUser(user: any) {
   };
 }
 
+function isTokenRevoked(token: string): boolean {
+  if (!token) return true;
+  try {
+    const row = db.prepare('SELECT token FROM revoked_sessions WHERE token = ?').get(token);
+    return Boolean(row);
+  } catch {
+    return false;
+  }
+}
+
 function getUserByToken(token: string) {
-  if (!token) return null;
+  if (!token || isTokenRevoked(token)) return null;
   try {
     const row = db.prepare(`
       SELECT u.*
@@ -490,12 +507,26 @@ function getUserByToken(token: string) {
   }
 }
 
-async function resolveAuthenticatedUser(req: Request): Promise<any | null> {
+async function resolveAuthenticatedUser(req: Request, strictTokenOnly = false): Promise<any | null> {
   const authHeader = req.headers.authorization;
   const token = authHeader?.startsWith('Bearer ') ? authHeader.substring(7).trim() : '';
   if (token) {
+    if (isTokenRevoked(token)) {
+      return null;
+    }
+
     const localSessionUser = getUserByToken(token);
     if (localSessionUser) return localSessionUser;
+
+    // Check if session exists in remote Supabase sessions table (survives server restarts)
+    const remoteSession = await getSessionFromSupabase(token);
+    if (remoteSession && remoteSession.user_id) {
+      const dbUser = db.prepare('SELECT * FROM users WHERE id = ?').get(remoteSession.user_id) as any;
+      if (dbUser) {
+        db.prepare('INSERT OR IGNORE INTO sessions (token, user_id) VALUES (?, ?)').run(token, dbUser.id);
+        return formatSafeUser(dbUser);
+      }
+    }
 
     // Check if token is a Supabase Auth JWT
     const jwtUser = await verifySupabaseJwtUser(token);
@@ -534,7 +565,11 @@ async function resolveAuthenticatedUser(req: Request): Promise<any | null> {
     }
   }
 
-  // Fallback header check (validated against server DB, never trusting client role claims)
+  if (strictTokenOnly) {
+    return null;
+  }
+
+  // Fallback header check for non-auth-verification routes
   const headerEmail = String(req.headers['x-user-email'] || req.body?.userEmail || req.query?.email || '')
     .trim()
     .toLowerCase();
@@ -1090,9 +1125,13 @@ async function startServer() {
   app.post('/api/auth/logout', async (req: Request, res: Response) => {
     try {
       const authHeader = req.headers.authorization;
-      if (authHeader && authHeader.startsWith('Bearer ')) {
-        const token = authHeader.substring(7);
+      const headerToken = authHeader && authHeader.startsWith('Bearer ') ? authHeader.substring(7).trim() : '';
+      const bodyToken = typeof req.body?.token === 'string' ? req.body.token.trim() : '';
+      const token = headerToken || bodyToken;
+
+      if (token) {
         db.prepare('DELETE FROM sessions WHERE token = ?').run(token);
+        db.prepare('INSERT OR REPLACE INTO revoked_sessions (token) VALUES (?)').run(token);
         await deleteSessionFromSupabase(token);
       }
       return res.json({ success: true });
@@ -1103,7 +1142,7 @@ async function startServer() {
 
   app.get('/api/auth/me', async (req: Request, res: Response) => {
     try {
-      const user = await resolveAuthenticatedUser(req);
+      const user = await resolveAuthenticatedUser(req, true);
       if (!user) {
         return res.status(401).json({ success: false, error: 'Não autenticado' });
       }
@@ -3287,7 +3326,10 @@ async function startServer() {
   app.use(express.static(publicDir));
 
   // --- Vite Dev Server Middleware or Static Production ---
-  if (!isProd) {
+  const distDir = path.resolve(process.cwd(), 'dist');
+  const distIndexHtml = path.resolve(distDir, 'index.html');
+
+  if (!isProd || !fs.existsSync(distIndexHtml)) {
     process.env.DISABLE_HMR = 'true';
     const { createServer: createViteServer } = await import('vite');
     const vite = await createViteServer({
@@ -3300,10 +3342,13 @@ async function startServer() {
     });
     app.use(vite.middlewares);
   } else {
-    const distDir = path.resolve(process.cwd(), 'dist');
     app.use(express.static(distDir));
     app.get('*', (_req: Request, res: Response) => {
-      res.sendFile(path.resolve(distDir, 'index.html'));
+      if (fs.existsSync(distIndexHtml)) {
+        res.sendFile(distIndexHtml);
+      } else {
+        res.sendFile(path.resolve(process.cwd(), 'index.html'));
+      }
     });
   }
 

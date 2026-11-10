@@ -47,6 +47,7 @@ interface MapComponentProps {
   snowEnabled?: boolean;
   rainEnabled?: boolean;
   isSpotlightActive?: boolean;
+  activeTab?: string;
 }
 
 const getMapboxToken = (): string => {
@@ -276,6 +277,7 @@ export const MapComponent = forwardRef<MapComponentHandle, MapComponentProps>(
       snowEnabled = false,
       rainEnabled = false,
       isSpotlightActive = false,
+      activeTab,
     },
     ref
   ) => {
@@ -525,7 +527,7 @@ export const MapComponent = forwardRef<MapComponentHandle, MapComponentProps>(
     );
 
     const centerOnUserLocation = useCallback(
-      (activateSensors: boolean = true, toggleCompassMode: boolean = false) => {
+      (activateSensors: boolean = true, toggleCompassMode: boolean = false, targetZoom: number = 15.6) => {
         if (activateSensors) {
           deviceHeadingManager
             .requestPermission()
@@ -558,12 +560,13 @@ export const MapComponent = forwardRef<MapComponentHandle, MapComponentProps>(
           ensureUserMarker(mapRef.current);
           userMarkerRef.current?.setLngLat(targetCoords);
 
+          mapRef.current.resize();
           mapRef.current.easeTo({
             center: targetCoords,
-            zoom: Math.max(mapRef.current.getZoom(), 15.6),
+            zoom: targetZoom,
             pitch: is3DModeRef.current ? 60 : 0,
             bearing: is3DModeRef.current ? -20 : 0,
-            duration: 650,
+            duration: 700,
           });
         }
       },
@@ -720,9 +723,6 @@ export const MapComponent = forwardRef<MapComponentHandle, MapComponentProps>(
             const beamAngle = (rawHeading - bearing + 360) % 360;
             userBeamRef.current.style.transform = `translate(-50%, -50%) rotate(${beamAngle.toFixed(1)}deg)`;
           }
-          if (spotsRef.current && spotsRef.current.length > 0) {
-            monvianXpManager.evaluateProximity(gpsNavigationManager.getState(), spotsRef.current).catch(() => {});
-          }
         };
 
         deviceHeadingManager.setMapBearing(map.getBearing());
@@ -852,8 +852,8 @@ export const MapComponent = forwardRef<MapComponentHandle, MapComponentProps>(
           });
         }
 
-        // Check physical proximity against spots for Monvian XP exploration rewards (<= 40m)
-        if (spotsRef.current && spotsRef.current.length > 0) {
+        // Check physical proximity against spots ONLY when user has a verified real GPS fix
+        if (navState.hasRealFix && navState.status === 'granted' && spotsRef.current && spotsRef.current.length > 0) {
           monvianXpManager.evaluateProximity(navState, spotsRef.current).catch(() => {});
         }
       });
@@ -866,9 +866,25 @@ export const MapComponent = forwardRef<MapComponentHandle, MapComponentProps>(
     // Trigger zoom to user only when explicitly requested
     useEffect(() => {
       if (zoomToUserTrigger && zoomToUserTrigger > 0) {
-        centerOnUserLocation(false, false);
+        centerOnUserLocation(false, false, 15.6);
       }
     }, [zoomToUserTrigger, centerOnUserLocation]);
+
+    // Toda vez que o usuário sair do mapa e ir pra outra aba, quando ele voltar o zoom retorna no ícone dele
+    const prevActiveTabRef = useRef<string | undefined>(activeTab);
+    useEffect(() => {
+      const prev = prevActiveTabRef.current;
+      prevActiveTabRef.current = activeTab;
+
+      if (prev && prev !== 'explorar' && activeTab === 'explorar') {
+        const timer = window.setTimeout(() => {
+          if (mapRef.current) {
+            centerOnUserLocation(false, false, 15.6);
+          }
+        }, 100);
+        return () => window.clearTimeout(timer);
+      }
+    }, [activeTab, centerOnUserLocation]);
 
     // Focus camera on user marker with high spotlight zoom and hide other markers during spotlight presentation
     useEffect(() => {
@@ -1798,9 +1814,6 @@ export const MapComponent = forwardRef<MapComponentHandle, MapComponentProps>(
       });
 
       syncMarkerHighlight(currentSelectedId);
-      try {
-        monvianXpManager.evaluateProximity(gpsNavigationManager.getState(), spotsRef.current);
-      } catch {}
     }, [syncMarkerHighlight, setFollowMode, triggerPinTapFeedback, buildRoundedStarPath, isFiveStarSpot]);
 
     useEffect(() => {

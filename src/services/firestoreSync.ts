@@ -8,8 +8,8 @@ import {
   collection, 
   deleteDoc
 } from 'firebase/firestore';
-import firebaseConfig from '../../firebase-applet-config.json';
-import { supabase } from '../lib/supabase';
+import firebaseConfig from '../../firebase-applet-config.json' with { type: 'json' };
+import { supabase } from '../lib/supabase.ts';
 
 // Initialize Firebase singleton for server sync
 const firebaseApp = getApps().length > 0 ? getApp() : initializeApp(firebaseConfig);
@@ -331,11 +331,10 @@ export async function saveUserPermissionsToDatabase(params: {
       localStorage.setItem('monvian_last_coords', JSON.stringify(params.coords));
     }
 
-    if (savedUserRaw) {
+    const token = localStorage.getItem('monvian_token');
+    if (savedUserRaw && token) {
       localStorage.setItem('monvian_user', JSON.stringify(savedUser));
     }
-
-    const token = localStorage.getItem('monvian_token');
     const headers: Record<string, string> = { 'Content-Type': 'application/json' };
     if (token) headers.Authorization = `Bearer ${token}`;
     if (cleanEmail) headers['x-user-email'] = cleanEmail;
@@ -471,7 +470,7 @@ export async function syncPermissionsFromDatabase(email?: string): Promise<{
       if (coords) {
         localStorage.setItem('monvian_last_coords', JSON.stringify(coords));
       }
-      if (savedUserRaw && (locationGranted || motionGranted)) {
+      if (savedUserRaw && localStorage.getItem('monvian_token') && (locationGranted || motionGranted)) {
         localStorage.setItem('monvian_user', JSON.stringify(savedUser));
       }
     } catch {}

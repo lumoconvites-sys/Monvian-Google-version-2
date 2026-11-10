@@ -6,7 +6,6 @@
  */
 
 import { Spot } from '../types';
-import { CAMPOS_SPOTS } from '../data/spots';
 import { calculateHaversineDistance, calculateBearing, GpsNavState } from './gpsNavigation';
 import { getSpotImage } from '../utils/spotImages';
 import { getCleanSpotDisplayName } from './geolocationNotifications';
@@ -66,55 +65,12 @@ export interface XpRewardEventDetail {
 
 type XpSubscriber = (state: XpProfileState) => void;
 
-function buildMarioYeskMaxState(): XpProfileState {
-  const allSpotIds = CAMPOS_SPOTS.map((s) => s.id);
-  const count = Math.max(allSpotIds.length, 30);
-  const maxXp = Math.max(10000, count * 100);
-  const nowIso = new Date().toISOString();
-
-  return {
-    userId: '47',
-    totalXp: maxXp,
-    currentLevel: 5,
-    levelTitle: 'Lenda Monvian',
-    nextLevelXp: maxXp,
-    xpRemaining: 0,
-    levelProgressRatio: 1,
-    placesDiscoveredCount: count,
-    visitedSpotIds: allSpotIds,
-    history: CAMPOS_SPOTS.map((s, idx) => ({
-      id: `visit_mario_${s.id}_${idx}`,
-      spot_id: s.id,
-      spot_name: s.name,
-      category: s.categoryLabel || s.category,
-      xp_awarded: 100,
-      visited_at: nowIso,
-      distance_meters: 5,
-    })),
-  };
-}
-
-function isCurrentClientMarioYesk(): boolean {
-  if (typeof window === 'undefined') return true;
-  try {
-    const rawUser = localStorage.getItem('monvian_user');
-    if (!rawUser) {
-      // Default user in App.tsx when no localStorage user is set is Mario Yesk (@marioyesk)
-      return true;
-    }
-    const parsed = JSON.parse(rawUser);
-    const username = String(parsed?.username || '').trim().toLowerCase().replace(/^@+/, '');
-    const email = String(parsed?.email || parsed?.whatsapp || '').trim().toLowerCase();
-    const id = String(parsed?.id || '').trim();
-    return (
-      username === 'marioyesk' ||
-      id === '47' ||
-      ['marioyesk@gmail.com', 'empresariomario@gmail.com', 'marioempresario@gmail.com'].includes(email)
-    );
-  } catch {
-    return true;
-  }
-}
+// Maximum physical distance (in meters) from the registered spot coordinates to count a visit & award coins/XP
+const MAX_PHYSICAL_VISIT_DISTANCE_METERS = 50;
+// Maximum distance (in meters) to show the "approaching" radar card when walking physically near a spot
+const MAX_APPROACHING_RADAR_METERS = 200;
+// Maximum acceptable GPS horizontal accuracy (in meters) to trust a physical check-in
+const MAX_TRUSTED_GPS_ACCURACY_METERS = 100;
 
 const DEFAULT_XP_STATE: XpProfileState = {
   userId: '',
@@ -136,7 +92,6 @@ class MonvianXpManager {
   private lastProximityUiEmitTime: number = 0;
   private lastValidationCheckTime: number = 0;
   private knownVisitedSpotIds: Set<string> = new Set();
-  private sessionClaimedSpotIds: Set<string> = new Set();
   private currentTrackedSpotId: string | null = null;
   private lastProximityDetail: XpProximityUpdateDetail | null = null;
 
@@ -151,21 +106,18 @@ class MonvianXpManager {
   }
 
   private getCurrentUserCacheKey(): string {
-    if (typeof window === 'undefined') return 'monvian_cached_xp_state_marioyesk';
+    if (typeof window === 'undefined') return 'monvian_cached_xp_state_guest';
     try {
-      if (isCurrentClientMarioYesk()) {
-        return 'monvian_cached_xp_state_marioyesk_v2';
-      }
       const rawUser = localStorage.getItem('monvian_user');
       if (rawUser) {
         const parsed = JSON.parse(rawUser);
         const key = parsed?.id || parsed?.email || parsed?.username;
-        if (key) return `monvian_cached_xp_state_${String(key).toLowerCase()}`;
+        if (key) return `monvian_cached_xp_state_v3_${String(key).toLowerCase()}`;
       }
       const sessionId = localStorage.getItem('monvian_user_session_id');
-      if (sessionId) return `monvian_cached_xp_state_${sessionId}`;
+      if (sessionId) return `monvian_cached_xp_state_v3_${sessionId}`;
     } catch {}
-    return 'monvian_cached_xp_state_guest';
+    return 'monvian_cached_xp_state_v3_guest';
   }
 
   private getAuthHeaders(): Record<string, string> {
@@ -184,16 +136,11 @@ class MonvianXpManager {
           headers['Authorization'] = `Bearer ${token}`;
         }
 
-        if (isCurrentClientMarioYesk()) {
-          headers['x-username'] = 'marioyesk';
-          headers['x-user-email'] = 'marioyesk@gmail.com';
-        } else {
-          const rawUser = localStorage.getItem('monvian_user');
-          if (rawUser) {
-            const parsed = JSON.parse(rawUser);
-            if (parsed?.username) headers['x-username'] = String(parsed.username);
-            if (parsed?.email) headers['x-user-email'] = String(parsed.email);
-          }
+        const rawUser = localStorage.getItem('monvian_user');
+        if (rawUser) {
+          const parsed = JSON.parse(rawUser);
+          if (parsed?.username) headers['x-username'] = String(parsed.username);
+          if (parsed?.email) headers['x-user-email'] = String(parsed.email);
         }
 
         let sessionId = localStorage.getItem('monvian_user_session_id');
@@ -211,14 +158,6 @@ class MonvianXpManager {
   private loadCachedState() {
     if (typeof window === 'undefined') return;
     try {
-      if (isCurrentClientMarioYesk()) {
-        const marioMax = buildMarioYeskMaxState();
-        this.state = marioMax;
-        this.knownVisitedSpotIds = new Set(marioMax.visitedSpotIds);
-        this.saveCachedState();
-        return;
-      }
-
       const cacheKey = this.getCurrentUserCacheKey();
       const cached = localStorage.getItem(cacheKey);
       if (cached) {
@@ -273,34 +212,21 @@ class MonvianXpManager {
       if (res.ok) {
         const data = await res.json();
         if (data && data.success) {
-          const isMario = isCurrentClientMarioYesk();
-          const marioFallback = isMario ? buildMarioYeskMaxState() : null;
-
-          const totalXp = isMario
-            ? Math.max(Number(data.totalXp) || 0, marioFallback!.totalXp)
-            : Number(data.totalXp) || 0;
-          const currentLevel = isMario ? 5 : Number(data.currentLevel) || 1;
-          const levelTitle = isMario ? 'Lenda Monvian' : data.levelTitle || 'Explorador';
+          const totalXp = Number(data.totalXp) || 0;
+          const currentLevel = Number(data.currentLevel) || 1;
+          const levelTitle = data.levelTitle || 'Explorador';
 
           this.state = {
             userId: data.userId || this.state.userId,
             totalXp,
             currentLevel,
             levelTitle,
-            nextLevelXp: isMario ? totalXp : Number(data.nextLevelXp) || 1000,
-            xpRemaining: isMario ? 0 : Number(data.xpRemaining ?? 1000),
-            levelProgressRatio: isMario ? 1 : Number(data.levelProgressRatio) || 0,
-            placesDiscoveredCount: isMario
-              ? Math.max(Number(data.placesDiscoveredCount) || 0, marioFallback!.placesDiscoveredCount)
-              : Number(data.placesDiscoveredCount) || 0,
-            visitedSpotIds:
-              isMario && (!data.visitedSpotIds || data.visitedSpotIds.length === 0)
-                ? marioFallback!.visitedSpotIds
-                : data.visitedSpotIds || [],
-            history:
-              isMario && (!data.history || data.history.length === 0)
-                ? marioFallback!.history
-                : data.history || [],
+            nextLevelXp: Number(data.nextLevelXp) || 1000,
+            xpRemaining: Number(data.xpRemaining ?? 1000),
+            levelProgressRatio: Number(data.levelProgressRatio) || 0,
+            placesDiscoveredCount: Number(data.placesDiscoveredCount) || 0,
+            visitedSpotIds: data.visitedSpotIds || [],
+            history: data.history || [],
           };
           this.knownVisitedSpotIds = new Set(this.state.visitedSpotIds);
           this.notify();
@@ -313,66 +239,47 @@ class MonvianXpManager {
   }
 
   /**
-   * Checks whether the user marker ("Eu") and a spot marker visually touch/overlap on screen.
-   */
-  private checkUserMarkerTouchingSpot(spotId: string): { isTouching: boolean; screenDistPx: number } {
-    if (typeof window === 'undefined' || typeof document === 'undefined') {
-      return { isTouching: false, screenDistPx: Infinity };
-    }
-    try {
-      const userEl = document.querySelector<HTMLElement>('.monvian-user-location-marker');
-      const spotEl = document.querySelector<HTMLElement>(`[data-spot-id="${spotId}"]`);
-      if (!userEl || !spotEl) return { isTouching: false, screenDistPx: Infinity };
-
-      const userRect = userEl.getBoundingClientRect();
-      const spotRect = spotEl.getBoundingClientRect();
-      if (userRect.width === 0 || spotRect.width === 0) {
-        return { isTouching: false, screenDistPx: Infinity };
-      }
-
-      const ux = userRect.left + userRect.width / 2;
-      const uy = userRect.top + userRect.height / 2;
-      const sx = spotRect.left + spotRect.width / 2;
-      const sy = spotRect.top + spotRect.height / 2;
-
-      const screenDistPx = Math.hypot(ux - sx, uy - sy);
-      return {
-        isTouching: screenDistPx <= 102,
-        screenDistPx,
-      };
-    } catch {
-      return { isTouching: false, screenDistPx: Infinity };
-    }
-  }
-
-  /**
-   * Evaluates current GPS coordinates and screen marker collision against all active spots.
-   * Emits real-time proximity updates and immediately triggers the discovery animation
-   * and coin counting as soon as the user icon touches a spot icon on the map.
+   * Evaluates real physical GPS coordinates against all registered tourist spots.
+   * Coins and XP are ONLY counted when the user has a verified real GPS fix and is physically
+   * at the registered tourist spot location (<= 50 meters).
    */
   public async evaluateProximity(gps: GpsNavState, spots: Spot[]): Promise<void> {
     if (!gps || !spots || spots.length === 0) return;
 
-    const coords = gps.interpolatedCoords || gps.coords;
+    // Strictly require a real, live GPS fix from the user's device (never award on fallback or map pan)
+    if (
+      !gps.hasRealFix ||
+      gps.status !== 'granted' ||
+      typeof gps.accuracy !== 'number' ||
+      gps.accuracy > MAX_TRUSTED_GPS_ACCURACY_METERS
+    ) {
+      if (this.currentTrackedSpotId !== null || this.lastProximityDetail !== null) {
+        this.currentTrackedSpotId = null;
+        this.lastProximityDetail = null;
+        if (typeof window !== 'undefined') {
+          window.dispatchEvent(
+            new CustomEvent('monvian:xp_proximity_update', { detail: null })
+          );
+        }
+      }
+      return;
+    }
+
+    const coords = gps.coords;
     if (!coords || typeof coords[0] !== 'number' || typeof coords[1] !== 'number') return;
 
     const now = Date.now();
-    if (now - this.lastProximityUiEmitTime < 220) return;
+    if (now - this.lastProximityUiEmitTime < 400) return;
     this.lastProximityUiEmitTime = now;
 
     const [userLng, userLat] = coords;
-    const isMario = isCurrentClientMarioYesk();
 
     let closestUnvisited: Spot | null = null;
     let closestDistance = Infinity;
-    let touchingSpotOnScreen: Spot | null = null;
-    let touchingSpotDistance = Infinity;
 
     for (const spot of spots) {
       if (!spot || !spot.id || spot.isActive === false) continue;
-      // For regular users, skip spots already visited; for @marioyesk (who has explored all spots),
-      // skip only spots already triggered in this live session so the radar & coin animation still work on the map.
-      if (isMario ? this.sessionClaimedSpotIds.has(spot.id) : this.knownVisitedSpotIds.has(spot.id)) {
+      if (this.knownVisitedSpotIds.has(spot.id)) {
         continue;
       }
       if (typeof spot.lat !== 'number' || typeof spot.lng !== 'number') continue;
@@ -382,37 +289,43 @@ class MonvianXpManager {
         closestDistance = dist;
         closestUnvisited = spot;
       }
-
-      if (dist <= 650) {
-        const { isTouching } = this.checkUserMarkerTouchingSpot(spot.id);
-        if (isTouching && dist < touchingSpotDistance) {
-          touchingSpotDistance = dist;
-          touchingSpotOnScreen = spot;
-        }
-      }
     }
 
-    const activeTargetSpot = touchingSpotOnScreen || closestUnvisited;
-    const activeTargetDistance = touchingSpotOnScreen ? touchingSpotDistance : closestDistance;
+    // Only track and show proximity radar if the user is physically within 200m of an unvisited spot
+    if (closestUnvisited && closestDistance <= MAX_APPROACHING_RADAR_METERS) {
+      this.currentTrackedSpotId = closestUnvisited.id;
+      const cleanName = getCleanSpotDisplayName(closestUnvisited);
+      const spotImg = getSpotImage(closestUnvisited);
+      const bearingDeg = calculateBearing(
+        userLng,
+        userLat,
+        closestUnvisited.lng,
+        closestUnvisited.lat
+      );
 
-    if (activeTargetSpot) {
-      this.currentTrackedSpotId = activeTargetSpot.id;
-      const cleanName = getCleanSpotDisplayName(activeTargetSpot);
-      const spotImg = getSpotImage(activeTargetSpot);
-      const bearingDeg = calculateBearing(userLng, userLat, activeTargetSpot.lng, activeTargetSpot.lat);
+      const clampedDist = Math.max(
+        MAX_PHYSICAL_VISIT_DISTANCE_METERS,
+        Math.min(MAX_APPROACHING_RADAR_METERS, closestDistance)
+      );
+      const progress =
+        closestDistance <= MAX_PHYSICAL_VISIT_DISTANCE_METERS
+          ? 1
+          : Number(
+              (
+                0.2 +
+                ((MAX_APPROACHING_RADAR_METERS - clampedDist) /
+                  (MAX_APPROACHING_RADAR_METERS - MAX_PHYSICAL_VISIT_DISTANCE_METERS)) *
+                  0.8
+              ).toFixed(3)
+            );
 
-      const clampedDist = Math.max(40, Math.min(450, activeTargetDistance));
-      const progress = touchingSpotOnScreen
-        ? 1
-        : Number((0.22 + ((450 - clampedDist) / (450 - 40)) * 0.76).toFixed(3));
-
-      const isDiscoveringNow = this.pendingValidations.has(activeTargetSpot.id);
+      const isDiscoveringNow = this.pendingValidations.has(closestUnvisited.id);
       const proximityDetail: XpProximityUpdateDetail = {
-        spot: activeTargetSpot,
-        spotId: activeTargetSpot.id,
+        spot: closestUnvisited,
+        spotId: closestUnvisited.id,
         spotName: cleanName,
         spotImage: spotImg,
-        distanceMeters: Math.max(1, Math.round(activeTargetDistance)),
+        distanceMeters: Math.max(1, Math.round(closestDistance)),
         progress: isDiscoveringNow ? 1 : progress,
         bearingDeg,
         status: isDiscoveringNow ? 'discovering' : 'approaching',
@@ -427,23 +340,24 @@ class MonvianXpManager {
         );
       }
 
-      const shouldTriggerImmediately = Boolean(touchingSpotOnScreen) || activeTargetDistance <= 135;
-
+      // Strictly trigger XP and coins ONLY when physically at the registered tourist spot (<= 50 meters)
       if (
-        shouldTriggerImmediately &&
+        closestDistance <= MAX_PHYSICAL_VISIT_DISTANCE_METERS &&
         !isDiscoveringNow &&
-        now - this.lastValidationCheckTime >= 1600
+        now - this.lastValidationCheckTime >= 2500
       ) {
         this.lastValidationCheckTime = now;
-        this.validateAndClaimSpot(activeTargetSpot, userLat, userLng, activeTargetDistance, true);
+        await this.validateAndClaimSpot(closestUnvisited, userLat, userLng, closestDistance);
       }
     } else {
-      this.currentTrackedSpotId = null;
-      this.lastProximityDetail = null;
-      if (typeof window !== 'undefined') {
-        window.dispatchEvent(
-          new CustomEvent('monvian:xp_proximity_update', { detail: null })
-        );
+      if (this.currentTrackedSpotId !== null || this.lastProximityDetail !== null) {
+        this.currentTrackedSpotId = null;
+        this.lastProximityDetail = null;
+        if (typeof window !== 'undefined') {
+          window.dispatchEvent(
+            new CustomEvent('monvian:xp_proximity_update', { detail: null })
+          );
+        }
       }
     }
   }
@@ -479,97 +393,24 @@ class MonvianXpManager {
   }
 
   /**
-   * Immediately executes the spot discovery animation, bursts & counts the coins (+100 XP),
-   * and persists the reward to the backend.
+   * Validates physical GPS presence at the registered spot with the backend first,
+   * and ONLY awards coins + 100 XP when the user is confirmed to be at the spot location (<= 50m).
    */
   public async validateAndClaimSpot(
     spot: Spot,
     userLat: number,
     userLng: number,
-    approxDistance: number,
-    screenTouch: boolean = true
+    approxDistance: number
   ): Promise<boolean> {
-    const isMario = isCurrentClientMarioYesk();
     if (
-      (isMario ? this.sessionClaimedSpotIds.has(spot.id) : this.knownVisitedSpotIds.has(spot.id)) ||
+      approxDistance > MAX_PHYSICAL_VISIT_DISTANCE_METERS ||
+      this.knownVisitedSpotIds.has(spot.id) ||
       this.pendingValidations.has(spot.id)
     ) {
       return false;
     }
 
     this.pendingValidations.add(spot.id);
-    this.sessionClaimedSpotIds.add(spot.id);
-    const wasAlreadyInVisitedSet = this.knownVisitedSpotIds.has(spot.id);
-    this.knownVisitedSpotIds.add(spot.id);
-
-    const cleanName = getCleanSpotDisplayName(spot);
-    const spotImg = getSpotImage(spot);
-
-    const prevLevel = this.state.currentLevel;
-    const optimisticTotalXp = this.state.totalXp + 100;
-    const levelInfo = this.computeClientLevelInfo(optimisticTotalXp);
-    const isMaxLevel = levelInfo.level >= 5;
-    const leveledUp = levelInfo.level > prevLevel;
-    const span = Math.max(1, levelInfo.nextLevelXp - levelInfo.minXp);
-
-    this.state = {
-      ...this.state,
-      totalXp: optimisticTotalXp,
-      currentLevel: levelInfo.level,
-      levelTitle: levelInfo.title,
-      nextLevelXp: isMaxLevel ? optimisticTotalXp : levelInfo.nextLevelXp,
-      xpRemaining: isMaxLevel ? 0 : Math.max(0, levelInfo.nextLevelXp - optimisticTotalXp),
-      levelProgressRatio: isMaxLevel ? 1 : Math.min(1, Math.max(0, (optimisticTotalXp - levelInfo.minXp) / span)),
-      placesDiscoveredCount: wasAlreadyInVisitedSet
-        ? this.state.placesDiscoveredCount
-        : this.state.placesDiscoveredCount + 1,
-      visitedSpotIds: Array.from(this.knownVisitedSpotIds),
-      history: [
-        {
-          id: `v_${Date.now()}`,
-          spot_id: spot.id,
-          spot_name: cleanName,
-          category: spot.categoryLabel || spot.category,
-          xp_awarded: 100,
-          visited_at: new Date().toISOString(),
-          distance_meters: Math.round(approxDistance),
-        },
-        ...this.state.history.filter((h) => h.spot_id !== spot.id),
-      ],
-    };
-
-    this.notify();
-
-    if (typeof window !== 'undefined') {
-      if (leveledUp) {
-        playLevelUpSound();
-      } else {
-        playXpRewardSound();
-      }
-
-      try {
-        triggerHapticFeedback(20);
-      } catch {}
-
-      const { originX, originY } = this.getSpotMarkerScreenPosition(spot.id);
-
-      window.dispatchEvent(
-        new CustomEvent<XpRewardEventDetail>('monvian:xp_awarded', {
-          detail: {
-            spotId: spot.id,
-            spotName: cleanName,
-            spotImage: spotImg,
-            xpAwarded: 100,
-            totalXp: optimisticTotalXp,
-            currentLevel: levelInfo.level,
-            levelTitle: levelInfo.title,
-            leveledUp,
-            originX,
-            originY,
-          },
-        })
-      );
-    }
 
     try {
       const res = await fetch('/api/xp/validate-visit', {
@@ -579,40 +420,105 @@ class MonvianXpManager {
           spotId: spot.id,
           lat: userLat,
           lng: userLng,
-          screenTouch,
         }),
       });
-      if (res.ok) {
-        const data = await res.json();
-        if (data && data.success && typeof data.totalXp === 'number') {
-          const syncedTotal = Math.max(this.state.totalXp, data.totalXp);
-          const syncedLevel = this.computeClientLevelInfo(syncedTotal);
-          const syncedIsMax = syncedLevel.level >= 5;
-          const syncedSpan = Math.max(1, syncedLevel.nextLevelXp - syncedLevel.minXp);
-          this.state = {
-            ...this.state,
-            totalXp: syncedTotal,
-            currentLevel: syncedLevel.level,
-            levelTitle: data.levelTitle || syncedLevel.title,
-            nextLevelXp: syncedIsMax ? syncedTotal : Number(data.nextLevelXp || syncedLevel.nextLevelXp),
-            xpRemaining: syncedIsMax ? 0 : Math.max(0, Number(data.nextLevelXp || syncedLevel.nextLevelXp) - syncedTotal),
-            levelProgressRatio: syncedIsMax ? 1 : Math.min(1, Math.max(0, (syncedTotal - syncedLevel.minXp) / syncedSpan)),
-            placesDiscoveredCount: Math.max(
-              this.state.placesDiscoveredCount,
-              Number(data.placesDiscoveredCount || this.state.placesDiscoveredCount)
-            ),
-          };
-          this.notify();
-        }
+
+      if (!res.ok) {
+        return false;
       }
+
+      const data = await res.json();
+      if (!data || !data.success) {
+        if (data?.alreadyDiscovered) {
+          this.knownVisitedSpotIds.add(spot.id);
+        }
+        return false;
+      }
+
+      // Backend confirmed the user is physically at the registered tourist spot!
+      this.knownVisitedSpotIds.add(spot.id);
+      const cleanName = getCleanSpotDisplayName(spot);
+      const spotImg = getSpotImage(spot);
+
+      const prevLevel = this.state.currentLevel;
+      const syncedTotal = typeof data.totalXp === 'number' ? data.totalXp : this.state.totalXp + 100;
+      const levelInfo = this.computeClientLevelInfo(syncedTotal);
+      const isMaxLevel = levelInfo.level >= 5;
+      const leveledUp = levelInfo.level > prevLevel;
+      const span = Math.max(1, levelInfo.nextLevelXp - levelInfo.minXp);
+
+      this.state = {
+        ...this.state,
+        totalXp: syncedTotal,
+        currentLevel: levelInfo.level,
+        levelTitle: data.levelTitle || levelInfo.title,
+        nextLevelXp: isMaxLevel ? syncedTotal : Number(data.nextLevelXp || levelInfo.nextLevelXp),
+        xpRemaining: isMaxLevel
+          ? 0
+          : Math.max(0, Number(data.nextLevelXp || levelInfo.nextLevelXp) - syncedTotal),
+        levelProgressRatio: isMaxLevel
+          ? 1
+          : Math.min(1, Math.max(0, (syncedTotal - levelInfo.minXp) / span)),
+        placesDiscoveredCount: Number(
+          data.placesDiscoveredCount || this.state.placesDiscoveredCount + 1
+        ),
+        visitedSpotIds: Array.from(this.knownVisitedSpotIds),
+        history: [
+          {
+            id: `v_${Date.now()}`,
+            spot_id: spot.id,
+            spot_name: cleanName,
+            category: spot.categoryLabel || spot.category,
+            xp_awarded: Number(data.xpAwarded) || 100,
+            visited_at: new Date().toISOString(),
+            distance_meters: Math.round(Number(data.distanceMeters ?? approxDistance)),
+          },
+          ...this.state.history.filter((h) => h.spot_id !== spot.id),
+        ],
+      };
+
+      this.notify();
+
+      if (typeof window !== 'undefined') {
+        if (leveledUp) {
+          playLevelUpSound();
+        } else {
+          playXpRewardSound();
+        }
+
+        try {
+          triggerHapticFeedback(20);
+        } catch {}
+
+        const { originX, originY } = this.getSpotMarkerScreenPosition(spot.id);
+
+        window.dispatchEvent(
+          new CustomEvent<XpRewardEventDetail>('monvian:xp_awarded', {
+            detail: {
+              spotId: spot.id,
+              spotName: cleanName,
+              spotImage: spotImg,
+              xpAwarded: Number(data.xpAwarded) || 100,
+              totalXp: syncedTotal,
+              currentLevel: levelInfo.level,
+              levelTitle: levelInfo.title,
+              leveledUp,
+              originX,
+              originY,
+            },
+          })
+        );
+      }
+
+      return true;
     } catch (err) {
-      console.warn('[XPManager] Background persistence warning:', err);
+      console.warn('[XPManager] Physical visit validation error:', err);
+      return false;
     } finally {
       this.pendingValidations.delete(spot.id);
     }
-
-    return true;
   }
 }
 
 export const monvianXpManager = new MonvianXpManager();
+

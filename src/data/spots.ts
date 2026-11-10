@@ -1,4 +1,4 @@
-import { Spot, WeatherInfo } from '../types';
+import type { Spot, WeatherInfo } from '../types.ts';
 
 export const CAMPOS_SPOTS: Spot[] = [
   {

@@ -1,6 +1,6 @@
-import { supabase, isSupabaseConfigured } from '../lib/supabase';
-import { Itinerary, ItineraryCategory, ItineraryDay, ItineraryStep, Spot } from '../types';
-import { DEFAULT_CURATED_ITINERARIES } from '../data/defaultItineraries';
+import { supabase, isSupabaseConfigured } from '../lib/supabase.ts';
+import type { Itinerary, ItineraryCategory, ItineraryDay, ItineraryStep, Spot } from '../types.ts';
+import { DEFAULT_CURATED_ITINERARIES } from '../data/defaultItineraries.ts';
 
 export const CACHE_KEY_ITINERARIES = 'monvian_cached_itineraries';
 export const CACHE_KEY_ITINERARY_CATEGORIES = 'monvian_cached_itinerary_categories';

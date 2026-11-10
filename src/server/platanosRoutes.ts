@@ -1,9 +1,9 @@
 import express from 'express';
 import Stripe from 'stripe';
-import Database from 'better-sqlite3';
+import type Database from 'better-sqlite3';
 import crypto from 'crypto';
-import { firestore, isPrimaryAdmin } from '../services/firestoreSync.js';
-import { supabase } from '../services/supabaseClient.js';
+import { firestore, isPrimaryAdmin } from '../services/firestoreSync.ts';
+import { supabase } from '../services/supabaseClient.ts';
 import { doc, setDoc } from 'firebase/firestore';
 
 export interface PlatanoPackageRow {

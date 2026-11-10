@@ -31,7 +31,11 @@ interface ItineraryDetailModalProps {
   isSaved?: boolean;
 }
 
-export const ItineraryDetailModal: React.FC<ItineraryDetailModalProps> = ({
+export const ItineraryDetailModal: React.FC<ItineraryDetailModalProps> = () => {
+  return null;
+};
+
+const _UnusedItineraryDetailModal: React.FC<ItineraryDetailModalProps> = ({
   isOpen,
   onClose,
   itinerary,

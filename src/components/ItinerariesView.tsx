@@ -31,7 +31,7 @@ import {
   Wallet,
   X
 } from 'lucide-react';
-import { Itinerary, ItineraryDay, ItineraryStep, Spot } from '../types';
+import { Itinerary, ItineraryDay, ItineraryStep, Spot, SpotCategory } from '../types';
 import { CAMPOS_SPOTS } from '../data/spots';
 import { getSpotImage, getSpotFallbackImage } from '../utils/spotImages';
 import { TripDateStep } from './itineraries/TripDateStep';
@@ -43,7 +43,6 @@ import { generateCustomItinerary } from './itineraries/routeGenerator';
 import { RoundedNavigationIcon } from './RoundedNavigationIcon';
 import { ItineraryStoreModal } from './itineraries/ItineraryStoreModal';
 import { AirbnbItineraryExplorer } from './itineraries/AirbnbItineraryExplorer';
-import { PostSignupOnboardingFlow } from './itineraries/PostSignupOnboardingFlow';
 import { PlusActionMenuModal } from './itineraries/PlusActionMenuModal';
 import { ImportSpotFloatingModal } from './itineraries/ImportSpotFloatingModal';
 import { TripNotesModal } from './itineraries/TripNotesModal';
@@ -647,13 +646,64 @@ export const ItinerariesView: React.FC<ItinerariesViewProps> = ({
   const [selectedDayIndex, setSelectedDayIndex] = useState(0);
 
   // Active view mode: 'explore' (Roteiros Discovery Screen) or 'map' (Interactive Map)
-  const [itineraryViewMode, setItineraryViewMode] = useState<'explore' | 'map'>('explore');
+  const [itineraryViewMode, setItineraryViewMode] = useState<'explore' | 'map'>(() => {
+    try {
+      const savedMode = localStorage.getItem('monvian_itinerary_view_mode');
+      const cached = localStorage.getItem('monvian_active_itinerary');
+      if (savedMode === 'map' && cached) {
+        const parsed = JSON.parse(cached);
+        if (parsed && Array.isArray(parsed.days) && parsed.days.length > 0) {
+          return 'map';
+        }
+      }
+    } catch {}
+    return 'explore';
+  });
 
   useEffect(() => {
     if (isOnboardingSelection) {
       setItineraryViewMode('explore');
+      return;
     }
-  }, [isOnboardingSelection]);
+    try {
+      localStorage.setItem('monvian_itinerary_view_mode', itineraryViewMode);
+    } catch {}
+  }, [itineraryViewMode, isOnboardingSelection]);
+
+  useEffect(() => {
+    const handleExternalItineraryApplied = (e: any) => {
+      const applied = e?.detail;
+      if (!applied || !Array.isArray(applied.days) || applied.days.length === 0) return;
+      hasUserModifiedItineraryRef.current = true;
+      userHasExplicitlyOpenedStoreRef.current = false;
+      setIsStoreOpen(false);
+      setIsExpanded(true);
+      setSelectedDayIndex(0);
+      setUserItinerary(applied);
+      const firstStep = applied.days?.[0]?.steps?.[0];
+      if (firstStep?.id) {
+        setSelectedStopId(firstStep.id);
+      }
+      try {
+        localStorage.setItem('monvian_active_itinerary', JSON.stringify(applied));
+        localStorage.setItem('monvian_itinerary_view_mode', 'map');
+      } catch {}
+      setItineraryViewMode('map');
+    };
+
+    const handleUserLoggedOut = () => {
+      setUserItinerary(null);
+      setSelectedStopId(null);
+      setItineraryViewMode('explore');
+    };
+
+    window.addEventListener('monvian:itinerary_applied', handleExternalItineraryApplied);
+    window.addEventListener('monvian:user_logged_out', handleUserLoggedOut);
+    return () => {
+      window.removeEventListener('monvian:itinerary_applied', handleExternalItineraryApplied);
+      window.removeEventListener('monvian:user_logged_out', handleUserLoggedOut);
+    };
+  }, []);
 
   // Loja de Roteiros Premium Modal state
   const [isStoreOpen, setIsStoreOpen] = useState(false);
@@ -806,6 +856,30 @@ export const ItinerariesView: React.FC<ItinerariesViewProps> = ({
       summary: d.summary || '',
       steps: (d.steps || []).map((s, sIdx) => {
         const foundSpot = s.spot || availableSpots.find((sp) => sp.id === s.spotId);
+        const lat =
+          foundSpot && typeof foundSpot.lat === 'number'
+            ? foundSpot.lat
+            : typeof s.lat === 'number'
+            ? s.lat
+            : -22.7335 + sIdx * 0.004;
+        const lng =
+          foundSpot && typeof foundSpot.lng === 'number'
+            ? foundSpot.lng
+            : typeof s.lng === 'number'
+            ? s.lng
+            : -45.5921 + sIdx * 0.003;
+        const spotWithCoords: Spot = foundSpot
+          ? ({ ...foundSpot, lat, lng } as Spot)
+          : ({
+              id: s.spotId || `spot-${sIdx + 1}`,
+              name: s.customName || s.spotName || `Parada ${sIdx + 1}`,
+              shortName: s.customName || s.spotName || `Parada ${sIdx + 1}`,
+              lat,
+              lng,
+              image: s.customImage || '',
+              category: 'attractions' as SpotCategory,
+              categoryLabel: 'Ponto Turístico',
+            } as Spot);
         return {
           ...s,
           id: `${userItinId}-d-${dIdx + 1}-s-${sIdx + 1}`,
@@ -813,7 +887,9 @@ export const ItinerariesView: React.FC<ItinerariesViewProps> = ({
           dayId: `${userItinId}-d-${dIdx + 1}`,
           dayNumber: d.dayNumber || dIdx + 1,
           stepOrder: sIdx + 1,
-          spot: foundSpot || s.spot,
+          spot: spotWithCoords,
+          lat,
+          lng,
         };
       }),
     }));
@@ -839,7 +915,7 @@ export const ItinerariesView: React.FC<ItinerariesViewProps> = ({
     hasUserModifiedItineraryRef.current = true;
     userHasExplicitlyOpenedStoreRef.current = false;
     setIsStoreOpen(false);
-    setIsExpanded(options?.fromOnboardingSelection ? true : false);
+    setIsExpanded(true);
     setSelectedDayIndex(0);
     setUserItinerary(optimisticItinerary);
 
@@ -860,7 +936,20 @@ export const ItinerariesView: React.FC<ItinerariesViewProps> = ({
       setTimeout(() => setStoreToast(null), 3000);
     }
 
+    try {
+      localStorage.setItem('monvian_itinerary_view_mode', 'map');
+    } catch (e) {}
     setItineraryViewMode('map');
+
+    // Re-render route, numerical location pins and fit map bounds immediately
+    setTimeout(() => {
+      if (mapRef.current) {
+        try {
+          mapRef.current.resize();
+        } catch (e) {}
+        renderRouteAndMarkersRef.current?.(true, allDaySteps, targetStep?.id, false);
+      }
+    }, 80);
 
     // 2. Sync to backend asynchronously in the background WITHOUT triggering a second UI state update
     fetch(`/api/itineraries/${storeItin.id}/clone-to-user`, {
@@ -924,6 +1013,7 @@ export const ItinerariesView: React.FC<ItinerariesViewProps> = ({
     el: HTMLElement;
     containerEl: HTMLElement;
     badgeEl: HTMLElement;
+    tipEl?: HTMLElement | null;
     arrowEl?: HTMLElement | null;
     pulseEl: HTMLElement | null;
   }>>([]);
@@ -1299,24 +1389,38 @@ export const ItinerariesView: React.FC<ItinerariesViewProps> = ({
     const availableSpots = spots || CAMPOS_SPOTS;
     return rawSteps.map((step, idx) => {
       const foundSpot = step.spot || availableSpots.find((sp) => sp.id === step.spotId);
-      const spotToUse = foundSpot || {
-        id: step.spotId || `spot-${idx}`,
-        name: step.spotName || step.title || 'Ponto Turístico',
-        shortName: step.spotName || 'Ponto',
-        tagLabel: 'Atração',
-        category: 'attractions',
-        categoryLabel: step.categoryLabel || 'Atração / Turística',
-        lat: step.lat || -22.734,
-        lng: step.lng || -45.591,
-        image: step.image || 'https://images.unsplash.com/photo-1585320806297-9794b3e4eeae?auto=format&fit=crop&w=600&q=80',
-        description: step.description || '',
-        touristTip: '',
-        rating: 4.8,
-        reviewCount: 120,
-        hours: '09:00 - 18:00',
-        address: 'Campos do Jordão, SP',
-        visitorsToday: 42,
-      };
+      const lat =
+        foundSpot && typeof foundSpot.lat === 'number'
+          ? foundSpot.lat
+          : typeof step.lat === 'number'
+          ? step.lat
+          : -22.734 + idx * 0.005;
+      const lng =
+        foundSpot && typeof foundSpot.lng === 'number'
+          ? foundSpot.lng
+          : typeof step.lng === 'number'
+          ? step.lng
+          : -45.591 + idx * 0.004;
+      const spotToUse: Spot = foundSpot
+        ? ({ ...foundSpot, lat, lng } as Spot)
+        : ({
+            id: step.spotId || `spot-${idx}`,
+            name: step.spotName || step.title || 'Ponto Turístico',
+            shortName: step.spotName || 'Ponto',
+            tagLabel: 'Atração',
+            category: 'attractions' as SpotCategory,
+            categoryLabel: step.categoryLabel || 'Atração / Turística',
+            lat,
+            lng,
+            image: step.image || 'https://images.unsplash.com/photo-1585320806297-9794b3e4eeae?auto=format&fit=crop&w=600&q=80',
+            description: step.description || '',
+            touristTip: '',
+            rating: 4.8,
+            reviewCount: 120,
+            hours: '09:00 - 18:00',
+            address: 'Campos do Jordão, SP',
+            visitorsToday: 42,
+          } as Spot);
 
       // Guaranteed stable, unique step ID
       const stepId = step.id || (step.spotId ? `step-${step.spotId}` : `step-item-${idx}`);
@@ -1506,6 +1610,8 @@ export const ItinerariesView: React.FC<ItinerariesViewProps> = ({
       rec.containerEl.style.transform = isSelected ? 'scale(1.22)' : 'scale(0.96)';
       rec.containerEl.style.zIndex = isSelected ? '50' : '20';
 
+      const targetTip = rec.tipEl || rec.arrowEl;
+
       if (isPremium) {
         // Luxury Metallic Gold styling for Premium Itineraries (Matching 24k polished gold leaf)
         rec.badgeEl.style.background = isSelected
@@ -1519,16 +1625,10 @@ export const ItinerariesView: React.FC<ItinerariesViewProps> = ({
           ? '0 6px 26px rgba(230, 172, 51, 0.85), 0 2px 8px rgba(0, 0, 0, 0.4)'
           : '0 2px 10px rgba(230, 172, 51, 0.25), 0 1px 4px rgba(0, 0, 0, 0.15)';
 
-        if (rec.arrowEl) {
-          rec.arrowEl.style.background = isSelected
-            ? 'linear-gradient(135deg, #B88214 0%, #E6AC33 22%, #FFF4A3 48%, #F5BE38 68%, #C98B18 88%, #9E6505 100%)'
-            : (isDark ? '#222225' : '#FFFDF7');
-          rec.arrowEl.style.borderRight = isSelected
-            ? '3px solid #FFFFFF'
-            : (isDark ? '2px solid rgba(245, 190, 56, 0.65)' : '2px solid rgba(230, 172, 51, 0.75)');
-          rec.arrowEl.style.borderBottom = isSelected
-            ? '3px solid #FFFFFF'
-            : (isDark ? '2px solid rgba(245, 190, 56, 0.65)' : '2px solid rgba(230, 172, 51, 0.75)');
+        if (targetTip) {
+          targetTip.style.borderTop = isSelected
+            ? '7px solid #FFF4A3'
+            : (isDark ? '7px solid #FDE073' : '7px solid #E6AC33');
         }
 
         if (rec.pulseEl) {
@@ -1546,14 +1646,8 @@ export const ItinerariesView: React.FC<ItinerariesViewProps> = ({
           ? '0 6px 20px rgba(0, 0, 0, 0.35), 0 0 0 2px #FFFFFF'
           : '0 3px 10px rgba(0, 0, 0, 0.25)';
 
-        if (rec.arrowEl) {
-          rec.arrowEl.style.background = '#FFFFFF';
-          rec.arrowEl.style.borderRight = isSelected
-            ? '3px solid #FFFFFF'
-            : '2px solid #FFFFFF';
-          rec.arrowEl.style.borderBottom = isSelected
-            ? '3px solid #FFFFFF'
-            : '2px solid #FFFFFF';
+        if (targetTip) {
+          targetTip.style.borderTop = '7px solid #FFFFFF';
         }
 
         if (rec.pulseEl) {
@@ -1571,9 +1665,24 @@ export const ItinerariesView: React.FC<ItinerariesViewProps> = ({
 
     // Extract coordinates from activeSteps (or override steps passed during instant reordering)
     const steps = overrideSteps || activeSteps;
-    const validSteps = steps.filter(
-      (s) => s.spot && typeof s.spot.lat === 'number' && typeof s.spot.lng === 'number'
-    );
+    const validSteps = steps
+      .filter((s) => {
+        const hasSpotCoords = s.spot && typeof s.spot.lat === 'number' && typeof s.spot.lng === 'number';
+        const hasDirectCoords = typeof s.lat === 'number' && typeof s.lng === 'number';
+        return hasSpotCoords || hasDirectCoords;
+      })
+      .map((s) => {
+        const lat = (s.spot && typeof s.spot.lat === 'number') ? s.spot.lat : (s.lat as number);
+        const lng = (s.spot && typeof s.spot.lng === 'number') ? s.spot.lng : (s.lng as number);
+        return {
+          ...s,
+          spot: {
+            ...(s.spot || {}),
+            lat,
+            lng,
+          } as any,
+        };
+      });
     const coordinates: [number, number][] = validSteps.map((s) => [s.spot!.lng, s.spot!.lat]);
     const targetSelectedId = overrideSelectedId !== undefined ? overrideSelectedId : selectedStopIdRef.current;
     const isPremium = isPremiumItinerary;
@@ -1627,7 +1736,7 @@ export const ItinerariesView: React.FC<ItinerariesViewProps> = ({
       badgeEl.style.display = 'flex';
       badgeEl.style.alignItems = 'center';
       badgeEl.style.justifyContent = 'center';
-      badgeEl.style.fontFamily = "'Inter', sans-serif";
+      badgeEl.style.fontFamily = "-apple-system, BlinkMacSystemFont, 'SF Pro Display', 'SF Pro Text', 'Inter', sans-serif";
       badgeEl.style.fontWeight = '800';
       badgeEl.style.fontSize = '14px';
       badgeEl.style.letterSpacing = '-0.02em';
@@ -1644,7 +1753,7 @@ export const ItinerariesView: React.FC<ItinerariesViewProps> = ({
           ? '0 6px 26px rgba(230, 172, 51, 0.85), 0 2px 8px rgba(0, 0, 0, 0.4)'
           : '0 2px 10px rgba(230, 172, 51, 0.25), 0 1px 4px rgba(0, 0, 0, 0.15)';
       } else {
-        // Pin da cor branca, número preto e contorno da cor branca
+        // Pin da cor branca, número preto e contorno da cor branca (iOS style)
         badgeEl.style.background = '#FFFFFF';
         badgeEl.style.color = '#000000';
         badgeEl.style.border = isSelected
@@ -1657,8 +1766,21 @@ export const ItinerariesView: React.FC<ItinerariesViewProps> = ({
       badgeEl.textContent = stepNumberFormatted;
       badgeEl.innerText = stepNumberFormatted;
 
+      // Downward location pin pointer tip
+      const tipEl = document.createElement('div');
+      tipEl.style.width = '0';
+      tipEl.style.height = '0';
+      tipEl.style.borderLeft = '6px solid transparent';
+      tipEl.style.borderRight = '6px solid transparent';
+      tipEl.style.borderTop = isPremium
+        ? (isSelected ? '7px solid #FFF4A3' : '7px solid #E6AC33')
+        : '7px solid #FFFFFF';
+      tipEl.style.marginTop = '-1px';
+      tipEl.style.filter = 'drop-shadow(0 2px 3px rgba(0, 0, 0, 0.35))';
+
       containerEl.appendChild(pulseEl);
       containerEl.appendChild(badgeEl);
+      containerEl.appendChild(tipEl);
       el.appendChild(containerEl);
 
       const currentStepId = step.id;
@@ -1667,7 +1789,7 @@ export const ItinerariesView: React.FC<ItinerariesViewProps> = ({
         handleSelectStopOnMapById(currentStepId);
       };
 
-      const marker = new maplibregl.Marker({ element: el })
+      const marker = new maplibregl.Marker({ element: el, anchor: 'bottom' })
         .setLngLat([step.spot!.lng, step.spot!.lat])
         .addTo(map);
 
@@ -1677,6 +1799,8 @@ export const ItinerariesView: React.FC<ItinerariesViewProps> = ({
         el,
         containerEl,
         badgeEl,
+        tipEl,
+        arrowEl: tipEl,
         pulseEl,
       });
     });
@@ -1934,19 +2058,6 @@ export const ItinerariesView: React.FC<ItinerariesViewProps> = ({
 
   if (!isOpen) return null;
 
-  if (isOnboardingSelection) {
-    return (
-      <PostSignupOnboardingFlow
-        onComplete={(selectedItins, investment) => {
-          if (selectedItins.length > 0) {
-            handleApplyStoreItinerary(selectedItins[0], { fromOnboardingSelection: true });
-          }
-          onCompleteOnboardingSelection?.(selectedItins, investment);
-        }}
-      />
-    );
-  }
-
   // -------------------------------------------------------------
   // EXPLORE MODE: Full-page Airbnb Itinerary Discovery Screen
   // -------------------------------------------------------------
@@ -1969,7 +2080,25 @@ export const ItinerariesView: React.FC<ItinerariesViewProps> = ({
       >
         <AirbnbItineraryExplorer
           onSelectItinerary={handleApplyStoreItinerary}
-          onOpenMap={() => setItineraryViewMode('map')}
+          onOpenMap={() => {
+            if (!userItinerary || !userItinerary.days || userItinerary.days.length === 0) {
+              handleApplyStoreItinerary(DEFAULT_CURATED_ITINERARIES[0]);
+            } else {
+              setIsExpanded(true);
+              try {
+                localStorage.setItem('monvian_itinerary_view_mode', 'map');
+              } catch (e) {}
+              setItineraryViewMode('map');
+              setTimeout(() => {
+                if (mapRef.current) {
+                  try {
+                    mapRef.current.resize();
+                  } catch (e) {}
+                  renderRouteAndMarkersRef.current?.(true);
+                }
+              }, 60);
+            }
+          }}
           theme={isOnboardingSelection ? 'light' : theme}
           activeItineraryId={userItinerary?.id}
           isOnboardingSelection={isOnboardingSelection}
@@ -2044,6 +2173,9 @@ export const ItinerariesView: React.FC<ItinerariesViewProps> = ({
           <button
             onClick={() => {
               userHasExplicitlyOpenedStoreRef.current = true;
+              try {
+                localStorage.setItem('monvian_itinerary_view_mode', 'explore');
+              } catch (e) {}
               setItineraryViewMode('explore');
             }}
             type="button"
@@ -2190,6 +2322,9 @@ export const ItinerariesView: React.FC<ItinerariesViewProps> = ({
           type="button"
           onClick={() => {
             userHasExplicitlyOpenedStoreRef.current = true;
+            try {
+              localStorage.setItem('monvian_itinerary_view_mode', 'explore');
+            } catch (e) {}
             setItineraryViewMode('explore');
           }}
           className={`w-[45px] h-[45px] rounded-full flex items-center justify-center cursor-pointer transition-all duration-200 border ${
@@ -2235,6 +2370,9 @@ export const ItinerariesView: React.FC<ItinerariesViewProps> = ({
                 type="button"
                 onClick={() => {
                   userHasExplicitlyOpenedStoreRef.current = true;
+                  try {
+                    localStorage.setItem('monvian_itinerary_view_mode', 'explore');
+                  } catch (e) {}
                   setItineraryViewMode('explore');
                 }}
                 className={`px-2.5 py-1.5 rounded-xl ${

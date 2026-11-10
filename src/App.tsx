@@ -7,7 +7,6 @@ import { SpotDetailSheet } from './components/SpotDetailSheet';
 import { SpotPreviewBanner } from './components/SpotPreviewBanner';
 import { SearchFilterDrawer } from './components/SearchFilterDrawer';
 import { SavedView } from './components/SavedView';
-import { ItineraryDetailModal } from './components/ItineraryDetailModal';
 import { ProfileModal } from './components/ProfileModal';
 import { ItinerariesView } from './components/ItinerariesView';
 import { Itinerary } from './types';
@@ -42,6 +41,8 @@ import { SignupIntroSequence, SignupIntroStage } from './components/SignupIntroS
 import { WelcomeJourneyModal } from './components/WelcomeJourneyModal';
 import { XpRewardNotificationOverlay } from './components/XpRewardNotificationOverlay';
 import { FloatingEventCard } from './components/FloatingEventCard';
+import { auth, signOut, setCachedAccessToken } from './lib/firebase';
+import { supabase } from './lib/supabase';
 
 const welcomeContainerVariants = {
   hidden: { opacity: 0 },
@@ -85,39 +86,29 @@ export default function App() {
   });
   const [user, setUser] = useState<any>(() => {
     try {
+      const token = localStorage.getItem('monvian_token');
       const savedUser = localStorage.getItem('monvian_user');
-      if (savedUser) {
+      if (token && savedUser) {
         const parsed = JSON.parse(savedUser);
-        const emailClean = (parsed.email || parsed.whatsapp || '').trim().toLowerCase();
-        const usernameClean = (parsed.username || '').trim().toLowerCase();
-        if (
-          ['empresariomario@gmail.com', 'marioempresario@gmail.com', 'marioyesk@gmail.com'].includes(emailClean) ||
-          usernameClean === 'marioyesk'
-        ) {
-          parsed.role = 'admin';
-          parsed.isGold = true;
-          parsed.isPremium = true;
-          parsed.is_gold = 1;
-          parsed.is_premium = 1;
-          parsed.plan = 'gold';
+        if (parsed && (parsed.id || parsed.email || parsed.whatsapp || parsed.username)) {
+          const emailClean = (parsed.email || parsed.whatsapp || '').trim().toLowerCase();
+          const usernameClean = (parsed.username || '').trim().toLowerCase();
+          if (
+            ['empresariomario@gmail.com', 'marioempresario@gmail.com', 'marioyesk@gmail.com'].includes(emailClean) ||
+            usernameClean === 'marioyesk'
+          ) {
+            parsed.role = 'admin';
+            parsed.isGold = true;
+            parsed.isPremium = true;
+            parsed.is_gold = 1;
+            parsed.is_premium = 1;
+            parsed.plan = 'gold';
+          }
+          return parsed;
         }
-        return parsed;
       }
     } catch (e) {}
-    return {
-      id: 47,
-      name: 'Mario Yesk',
-      username: 'marioyesk',
-      email: 'marioyesk@gmail.com',
-      whatsapp: 'marioyesk@gmail.com',
-      role: 'admin',
-      isGold: true,
-      isPremium: true,
-      is_gold: 1,
-      is_premium: 1,
-      plan: 'gold',
-      avatar_url: '/fotoperfil.png',
-    };
+    return null;
   });
   const [snowEnabled, setSnowEnabled] = useState<boolean>(() => {
     const saved = localStorage.getItem('monvian_snow_enabled');
@@ -405,10 +396,99 @@ export default function App() {
     setIsWeatherModalOpen((prev) => !prev);
   }, []);
 
+  const performFullLogout = useCallback(async () => {
+    try {
+      const token = localStorage.getItem('monvian_token');
+      // 1. Invalidate active session in backend and Supabase
+      fetch('/api/auth/logout', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+        body: JSON.stringify({ token }),
+      }).catch(() => {});
+
+      // 2. Sign out from Supabase Auth and Firebase Auth
+      supabase?.auth.signOut().catch(() => {});
+      signOut(auth).catch(() => {});
+      setCachedAccessToken(null);
+
+      // 3. Remove all local session, credential, and user-scoped data
+      const keysToRemove = [
+        'monvian_token',
+        'monvian_auth_token',
+        'auth_token',
+        'monvian_supabase_auth',
+        'monvian_user',
+        'monvian_local_avatar',
+        'monvian_active_itinerary',
+        'monvian_itinerary_view_mode',
+        'monvian_itinerary_expanded',
+        'monvian_itinerary_session',
+        'monvian_selected_onboarding_itineraries',
+        'monvian_trip_budget',
+        'monvian_trip_note_campos',
+        'monvian_user_preferences',
+        'monvian_user_session_id',
+      ];
+      keysToRemove.forEach((k) => {
+        try {
+          localStorage.removeItem(k);
+        } catch {}
+      });
+
+      try {
+        const dynamicKeys: string[] = [];
+        for (let i = 0; i < localStorage.length; i++) {
+          const k = localStorage.key(i);
+          if (
+            k &&
+            (k.startsWith('monvian_user_avatar_') ||
+              k.startsWith('monvian_user_itinerary_') ||
+              k.startsWith('monvian_cached_xp_state_') ||
+              k.startsWith('sb-') ||
+              k.startsWith('supabase.auth'))
+          ) {
+            dynamicKeys.push(k);
+          }
+        }
+        dynamicKeys.forEach((k) => localStorage.removeItem(k));
+      } catch {}
+
+      try {
+        sessionStorage.clear();
+      } catch {}
+
+      // Expire auth-related cookies
+      document.cookie = 'monvian_token=; Max-Age=0; path=/; SameSite=Lax';
+      document.cookie = 'monvian_user=; Max-Age=0; path=/; SameSite=Lax';
+    } catch {}
+
+    // 4. Reset in-memory application states and redirect to login
+    hasExecutedSignupIntroRef.current = false;
+    setIsOnboardingItinerarySelection(false);
+    setSignupIntroStage('idle');
+    setPendingWelcomeJourney(false);
+    setSelectedItinerary(null);
+    setSelectedSpot(null);
+    setIsDetailOpen(false);
+    setIsAdminOpen(false);
+    setIsSettingsModalOpen(false);
+    setUser(null);
+    setIsAuthenticated(false);
+    setActiveTab('explorar');
+    window.dispatchEvent(new CustomEvent('monvian:user_logged_out'));
+  }, []);
+
   useEffect(() => {
     const token = localStorage.getItem('monvian_token');
     if (!token) {
-      setIsAuthenticated(true);
+      try {
+        localStorage.removeItem('monvian_user');
+      } catch {}
+      setUser(null);
+      setIsAuthenticated(false);
       return;
     }
 
@@ -416,33 +496,34 @@ export default function App() {
 
     const checkSession = async () => {
       try {
-        let savedEmail = '';
-        try {
-          const parsedSaved = JSON.parse(localStorage.getItem('monvian_user') || '{}');
-          savedEmail = (parsedSaved.email || parsedSaved.whatsapp || '').trim().toLowerCase();
-        } catch {}
+        const res = await fetch('/api/auth/me', {
+          headers: { Authorization: `Bearer ${token}` },
+          cache: 'no-store',
+        });
 
-        const headers: Record<string, string> = { Authorization: `Bearer ${token}` };
-        if (savedEmail) {
-          headers['x-user-email'] = savedEmail;
-        }
-
-        const res = await fetch('/api/auth/me', { headers });
-
-        if (!res.ok) {
-          if (isMounted) setIsAuthenticated(true);
+        if (res.status === 401 || res.status === 403 || !res.ok) {
+          if (isMounted) {
+            performFullLogout();
+          }
           return;
         }
 
         const data = await res.json();
-        if (data.success && data.user && isMounted) {
+        if (!data?.success || !data?.user) {
+          if (isMounted) {
+            performFullLogout();
+          }
+          return;
+        }
+
+        if (isMounted) {
           const userObj = data.user;
           const userEmail = (userObj.email || userObj.whatsapp || '').trim().toLowerCase();
           const isGoldAdmin =
             ['empresariomario@gmail.com', 'marioempresario@gmail.com', 'marioyesk@gmail.com'].includes(userEmail) ||
             (userObj.username || '').trim().toLowerCase() === 'marioyesk';
           const isGold = isGoldAdmin || Boolean(userObj.isGold || userObj.is_gold === 1 || userObj.isPremium || userObj.is_premium === 1);
-          
+
           if (isGoldAdmin) {
             userObj.role = 'admin';
             userObj.is_gold = 1;
@@ -468,14 +549,21 @@ export default function App() {
           setIsAuthenticated(true);
         }
       } catch {
-        if (isMounted) setIsAuthenticated(true);
+        // Network error while offline: only remain authenticated if both token and valid user exist locally
+        if (isMounted) {
+          const currentToken = localStorage.getItem('monvian_token');
+          const currentSavedUser = localStorage.getItem('monvian_user');
+          if (!currentToken || !currentSavedUser) {
+            performFullLogout();
+          }
+        }
       }
     };
 
     checkSession();
 
     const handleUserUpdated = (e: any) => {
-      if (e?.detail && isMounted) {
+      if (e?.detail && isMounted && localStorage.getItem('monvian_token')) {
         setUser((prev: any) => ({ ...(prev || {}), ...e.detail }));
       }
     };
@@ -485,7 +573,7 @@ export default function App() {
       isMounted = false;
       window.removeEventListener('monvian:user_updated', handleUserUpdated);
     };
-  }, []);
+  }, [performFullLogout]);
 
   // Save settings on change to localStorage and backend database
   useEffect(() => {
@@ -628,10 +716,95 @@ export default function App() {
     window.addEventListener('monvian:spots_updated', handleSpotsUpdated);
     window.addEventListener('monvian:visual_icons_updated', handleVisualIconsUpdated);
     window.addEventListener('focus', handleWindowFocus);
+    const handleFocusMapEvent = () => {
+      setActiveTab('explorar');
+    };
+    window.addEventListener('monvian:focus_map_event', handleFocusMapEvent);
+
+    const handleApplyEventItinerary = (e: any) => {
+      const evt = e?.detail;
+      if (!evt) return;
+      try {
+        const userItinId = 'user-itin-event-' + evt.id;
+        const eventItinerary: Itinerary = {
+          id: userItinId,
+          title: evt.name,
+          description: evt.description || evt.address || 'Evento exclusivo em Campos do Jordão',
+          coverImage: evt.image || 'https://images.unsplash.com/photo-1511192336575-5a79af67a629?auto=format&fit=crop&w=900&q=80',
+          daysCount: 1,
+          categories: ['events', 'culture'],
+          isActive: true,
+          isRecommended: true,
+          isFeatured: true,
+          isPremium: false,
+          price: evt.cost_price || 'Grátis',
+          status: 'published',
+          badgeText: 'Evento',
+          showBadge: true,
+          showPrice: true,
+          showStopsCount: true,
+          usageCount: 100,
+          tips: evt.address ? `Local: ${evt.address}` : '',
+          days: [
+            {
+              id: `${userItinId}-d-1`,
+              itineraryId: userItinId,
+              dayNumber: 1,
+              title: `Dia 1: ${evt.name}`,
+              summary: evt.description || 'Programação especial do evento',
+              steps: [
+                {
+                  id: `${userItinId}-d-1-s-1`,
+                  itineraryId: userItinId,
+                  dayId: `${userItinId}-d-1`,
+                  dayNumber: 1,
+                  stepOrder: 1,
+                  suggestedTime: evt.start_time || '19:00',
+                  durationMinutes: 120,
+                  notes: evt.description || '',
+                  spotId: evt.linked_spot_id || `spot-event-${evt.id}`,
+                  spot: {
+                    id: evt.linked_spot_id || `spot-event-${evt.id}`,
+                    name: evt.name,
+                    shortName: evt.name,
+                    category: 'events' as any,
+                    categoryLabel: 'Evento / Show',
+                    lat: Number(evt.lat),
+                    lng: Number(evt.lng),
+                    image: evt.image || 'https://images.unsplash.com/photo-1511192336575-5a79af67a629?auto=format&fit=crop&w=900&q=80',
+                    description: evt.description || '',
+                    address: evt.address || 'Campos do Jordão, SP',
+                    rating: 4.9,
+                    reviewCount: 150,
+                    hours: evt.start_time ? `${evt.start_time}` : '19:00 - 23:00',
+                    visitorsToday: 88,
+                  },
+                  lat: Number(evt.lat),
+                  lng: Number(evt.lng),
+                }
+              ]
+            }
+          ]
+        };
+
+        localStorage.setItem('monvian_active_itinerary', JSON.stringify(eventItinerary));
+        localStorage.setItem('monvian_itinerary_view_mode', 'map');
+        localStorage.setItem('monvian_itinerary_expanded', 'true');
+        window.dispatchEvent(new CustomEvent('monvian:itinerary_applied', { detail: eventItinerary }));
+        setSelectedItinerary(null);
+        setActiveTab('roteiros');
+      } catch (err) {
+        console.warn('Failed to apply event as itinerary:', err);
+      }
+    };
+    window.addEventListener('monvian:apply_event_as_itinerary', handleApplyEventItinerary);
+
     return () => {
       window.removeEventListener('monvian:spots_updated', handleSpotsUpdated);
       window.removeEventListener('monvian:visual_icons_updated', handleVisualIconsUpdated);
       window.removeEventListener('focus', handleWindowFocus);
+      window.removeEventListener('monvian:focus_map_event', handleFocusMapEvent);
+      window.removeEventListener('monvian:apply_event_as_itinerary', handleApplyEventItinerary);
       unsubscribeRealtime();
     };
   }, []);
@@ -645,7 +818,7 @@ export default function App() {
     wasAdminOpenRef.current = isAdminOpen;
   }, [isAdminOpen]);
   const [isDetailOpen, setIsDetailOpen] = useState(false);
-  const [activeTab, setActiveTab] = useState<TabType>('roteiros');
+  const [activeTab, setActiveTab] = useState<TabType>('explorar');
 
   // Spot card dynamic layout behavior
   const isSpotCardOpen = Boolean(selectedSpot && !isDetailOpen && activeTab === 'explorar');
@@ -1012,10 +1185,17 @@ export default function App() {
 
   // Request or re-trigger high accuracy real geolocation
   const requestRealLocation = () => {
+    if (!isAuthenticated) return;
     gpsNavigationManager.start();
   };
 
   useEffect(() => {
+    if (!isAuthenticated) {
+      gpsNavigationManager.stop();
+      deviceHeadingManager.stop();
+      return;
+    }
+
     let lastReactSync = 0;
     let lastStatus: string = '';
     let lastLng = -45.5870;
@@ -1043,7 +1223,7 @@ export default function App() {
     return () => {
       unsubscribe();
     };
-  }, []);
+  }, [isAuthenticated]);
 
   const handleToggleFavorite = useCallback((spotId: string) => {
     favoritesManager.toggleSpot(spotId);
@@ -1051,6 +1231,7 @@ export default function App() {
 
   const handleTabChange = useCallback((tab: TabType) => {
     if (tab === 'explorar') {
+      setZoomToUserTrigger((prev) => prev + 1);
       if (deviceHeadingManager.isPermissionRequired() && !deviceHeadingManager.isPermissionHandled()) {
         deviceHeadingManager
           .requestPermission()
@@ -1083,6 +1264,17 @@ export default function App() {
 
     setActiveTab(tab);
   }, []);
+
+  // Toda vez que o usuário sair do mapa e ir pra outra aba, quando voltar o zoom retorna no ícone dele
+  const prevActiveTabForZoomRef = useRef<TabType>(activeTab);
+  useEffect(() => {
+    const prev = prevActiveTabForZoomRef.current;
+    prevActiveTabForZoomRef.current = activeTab;
+
+    if (prev !== 'explorar' && activeTab === 'explorar') {
+      setZoomToUserTrigger((prev) => prev + 1);
+    }
+  }, [activeTab]);
 
   const [airbnbCardTab, setAirbnbCardTab] = useState<PresentationTab | null>(null);
   const [signupIntroStage, setSignupIntroStage] = useState<SignupIntroStage>('idle');
@@ -1121,8 +1313,14 @@ export default function App() {
     }
   }, [signupIntroStage]);
 
-  // Automatically trigger native iOS/browser Geolocation & Motion prompts without custom modal cards
+  // Automatically trigger native iOS/browser Geolocation & Motion prompts ONLY after user is authenticated
   useEffect(() => {
+    if (!isAuthenticated) {
+      gpsNavigationManager.stop();
+      deviceHeadingManager.stop();
+      return;
+    }
+
     gpsNavigationManager.start();
     deviceHeadingManager.start();
 
@@ -1150,7 +1348,7 @@ export default function App() {
     return () => {
       window.removeEventListener('click', triggerNativePermissionsOnClick, true);
     };
-  }, []);
+  }, [isAuthenticated]);
 
   useEffect(() => {
     // Wait until full-screen onboarding modals, signup reveal, onboarding itinerary selection, and admin are closed
@@ -1270,6 +1468,23 @@ export default function App() {
                     plan: 'gold',
                   }
                 : userData;
+
+              // Ensure any residual state from a previous account is cleared before initializing the new account
+              try {
+                const prevUserRaw = localStorage.getItem('monvian_user');
+                const prevUser = prevUserRaw ? JSON.parse(prevUserRaw) : null;
+                const prevEmail = (prevUser?.email || prevUser?.whatsapp || '').trim().toLowerCase();
+                if (!prevUser || prevEmail !== cleanEmail || String(prevUser?.id) !== String(normalizedUser?.id)) {
+                  localStorage.removeItem('monvian_local_avatar');
+                  localStorage.removeItem('monvian_active_itinerary');
+                  localStorage.removeItem('monvian_itinerary_view_mode');
+                  localStorage.removeItem('monvian_itinerary_expanded');
+                  localStorage.removeItem('monvian_itinerary_session');
+                  localStorage.removeItem('monvian_trip_note_campos');
+                  setSelectedItinerary(null);
+                }
+              } catch {}
+
               localStorage.setItem('monvian_token', token);
               localStorage.setItem('monvian_user', JSON.stringify(normalizedUser));
               if (normalizedUser?.location_permission_granted === 1) {
@@ -1283,19 +1498,17 @@ export default function App() {
               }
               syncPermissionsFromDatabase(normalizedUser?.email || normalizedUser?.whatsapp).catch(() => {});
               setUser(normalizedUser);
-              setActiveTab('roteiros');
-
-              const shouldShowWelcome = Boolean(isNewAccount && userData?.welcome_card_seen !== 1);
-              if (shouldShowWelcome) {
-                setPendingWelcomeJourney(true);
+              setActiveTab('explorar');
+              setIsOnboardingItinerarySelection(false);
+              setSignupIntroStage('idle');
+              setPendingWelcomeJourney(false);
+              setIsWelcomeJourneyOpen(false);
+              setShowOnboardingQuestions(false);
+              setShowWelcomeOverlay(false);
+              if (isNewAccount) {
                 markWelcomeCardSeen(cleanEmail, token).catch(() => {});
-              }
-
-              if (isNewAccount && !hasExecutedSignupIntroRef.current) {
-                hasExecutedSignupIntroRef.current = true;
+                markPresentationCardSeen('explorar');
                 markPresentationCardSeen('roteiros');
-                setIsOnboardingItinerarySelection(false);
-                setSignupIntroStage('idle');
               }
               setIsAuthenticated(true);
             }}
@@ -1459,6 +1672,7 @@ export default function App() {
               snowEnabled={snowEnabled}
               rainEnabled={Boolean(rainEnabled && realWeather.isRaining)}
               isSpotlightActive={isUserLocationSpotlightActive}
+              activeTab={activeTab}
             />
 
             {/* 2. Dynamic Rain Particle Effect Overlay (Only active when user enabled AND actually raining in Campos do Jordão) */}
@@ -1693,7 +1907,8 @@ export default function App() {
                   localStorage.setItem('monvian_trip_budget', chosenInvestment);
                   if (selectedItins.length > 0) {
                     localStorage.setItem('monvian_active_itinerary', JSON.stringify(selectedItins[0]));
-                    setSelectedItinerary(selectedItins[0]);
+                    localStorage.setItem('monvian_itinerary_view_mode', 'map');
+                    window.dispatchEvent(new CustomEvent('monvian:itinerary_applied', { detail: selectedItins[0] }));
                   }
                 } catch {}
                 setActiveTab('roteiros');
@@ -1714,32 +1929,19 @@ export default function App() {
           setIsDetailOpen(true);
         }}
         onOpenItinerary={(itinerary) => {
-          setSelectedItinerary(itinerary);
+          try {
+            localStorage.setItem('monvian_active_itinerary', JSON.stringify(itinerary));
+            localStorage.setItem('monvian_itinerary_view_mode', 'map');
+            localStorage.setItem('monvian_itinerary_expanded', 'true');
+            window.dispatchEvent(new CustomEvent('monvian:itinerary_applied', { detail: itinerary }));
+          } catch {}
+          setSelectedItinerary(null);
+          setActiveTab('roteiros');
         }}
         onNavigateTab={(targetTab) => {
           setActiveTab(targetTab);
         }}
       />
-
-      {/* 9.5. Curated & Saved Itinerary Detail Modal */}
-      <AnimatePresence>
-        {selectedItinerary && (
-          <ItineraryDetailModal
-            isOpen={Boolean(selectedItinerary)}
-            onClose={() => setSelectedItinerary(null)}
-            itinerary={selectedItinerary}
-            onSelectSpot={(spot) => {
-              setSelectedItinerary(null);
-              setSelectedSpot(spot);
-              setIsDetailOpen(true);
-            }}
-            isSaved={selectedItinerary ? favoritesManager.isItinerarySaved(selectedItinerary.id) : false}
-            onSaveItinerary={(itinerary) => {
-              favoritesManager.toggleItinerary(itinerary.id);
-            }}
-          />
-        )}
-      </AnimatePresence>
 
 
 
@@ -1773,17 +1975,7 @@ export default function App() {
         communityUrl={systemSettings.community_url}
         instagramUrl={systemSettings.instagram_url}
         onLogout={() => {
-          localStorage.removeItem('monvian_token');
-          localStorage.removeItem('monvian_user');
-          localStorage.removeItem('monvian_local_avatar');
-          localStorage.removeItem('monvian_active_itinerary');
-          localStorage.removeItem('monvian_itinerary_session');
-          hasExecutedSignupIntroRef.current = false;
-          setIsOnboardingItinerarySelection(false);
-          setSignupIntroStage('idle');
-          setUser(null);
-          setIsAuthenticated(false);
-          setActiveTab('explorar');
+          performFullLogout();
         }}
       />
 
@@ -1799,103 +1991,6 @@ export default function App() {
         }}
       />
 
-      {/* 11. Onboarding Preferences Questionnaire on Pure Black (Appears first for new accounts) */}
-      <AnimatePresence>
-        {showOnboardingQuestions && (
-          <OnboardingQuestionsModal
-            isOpen={showOnboardingQuestions}
-            spots={spots}
-            userName={user?.name}
-            onComplete={() => {
-              setShowOnboardingQuestions(false);
-              setShowWelcomeOverlay(true);
-            }}
-            onClose={() => {
-              setShowOnboardingQuestions(false);
-              setShowWelcomeOverlay(true);
-            }}
-            theme="dark"
-          />
-        )}
-      </AnimatePresence>
-
-      {/* 12. Welcome to Campos do Jordão Translucent & Blurred Overlay (Appears after questions) */}
-      <AnimatePresence>
-        {showWelcomeOverlay && (
-          <motion.div
-            id="welcome-overlay-campos"
-            key="welcome-campos-overlay"
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ 
-              opacity: 0,
-              backdropFilter: 'blur(0px)',
-              transition: { duration: 0.5, ease: [0.32, 0.72, 0, 1] }
-            }}
-            transition={{ duration: 0.5, ease: [0.16, 1, 0.3, 1] }}
-            onClick={() => {
-              setShowWelcomeOverlay(false);
-              setZoomToUserTrigger((prev) => prev + 1);
-            }}
-            className="fixed inset-0 z-[180] bg-black/75 backdrop-blur-xl md:backdrop-blur-2xl flex flex-col items-center justify-center p-6 text-center select-none cursor-pointer"
-            style={{
-              paddingTop: 'max(32px, env(safe-area-inset-top, 0px))',
-              paddingBottom: 'max(32px, env(safe-area-inset-bottom, 0px))',
-              paddingLeft: 'max(24px, env(safe-area-inset-left, 0px))',
-              paddingRight: 'max(24px, env(safe-area-inset-right, 0px))',
-            }}
-          >
-            <motion.div
-              id="welcome-overlay-content"
-              initial={{ opacity: 0, scale: 0.94, y: 20 }}
-              animate={{ opacity: 1, scale: 1, y: 0 }}
-              exit={{ 
-                opacity: 0, 
-                scale: 1.05, 
-                y: -12,
-                filter: 'blur(12px)',
-                transition: { duration: 0.4, ease: [0.32, 0.72, 0, 1] }
-              }}
-              transition={{ type: 'spring', damping: 26, stiffness: 240, delay: 0.08 }}
-              className="flex flex-col items-center max-w-lg mx-auto pointer-events-none"
-            >
-              {/* Main Welcome Phrase - Apple Welcome Screen fluid character by character animation */}
-              <motion.h1
-                id="welcome-overlay-title"
-                variants={welcomeContainerVariants}
-                initial="hidden"
-                animate="visible"
-                className="text-3xl sm:text-5xl font-black text-white tracking-tight leading-tight drop-shadow-[0_4px_24px_rgba(0,0,0,0.7)] flex flex-wrap justify-center items-center gap-x-[0.28em] gap-y-1 text-center"
-              >
-                {welcomePhrase.split(' ').map((word, wordIdx) => (
-                  <span key={wordIdx} className="inline-block whitespace-nowrap">
-                    {Array.from(word).map((char, charIdx) => (
-                      <motion.span
-                        key={charIdx}
-                        variants={welcomeCharVariants}
-                        className="inline-block will-change-[transform,opacity,filter]"
-                      >
-                        {char}
-                      </motion.span>
-                    ))}
-                  </span>
-                ))}
-              </motion.h1>
-
-              {/* Tap to continue prompt */}
-              <motion.p
-                id="welcome-overlay-prompt"
-                initial={{ opacity: 0, y: 8 }}
-                animate={{ opacity: 0.75, y: 0 }}
-                transition={{ delay: 0.85, duration: 0.5, ease: 'easeOut' }}
-                className="text-xs sm:text-sm font-semibold tracking-wider text-zinc-300 mt-6 uppercase text-center drop-shadow"
-              >
-                Toque na tela para começar
-              </motion.p>
-            </motion.div>
-          </motion.div>
-        )}
-      </AnimatePresence>
     </main>
 
     {/* 3.8. Airbnb-Style Presentation Cards on first tab visit (Explorar, Roteiros, Salvos) */}

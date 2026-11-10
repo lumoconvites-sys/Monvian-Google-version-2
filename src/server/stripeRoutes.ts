@@ -1,22 +1,22 @@
 import express from 'express';
 import Stripe from 'stripe';
-import Database from 'better-sqlite3';
+import type Database from 'better-sqlite3';
 import crypto from 'crypto';
 import {
   persistUserToFirestore,
   getUserFromFirestore,
   firestore,
   isPrimaryAdmin
-} from '../services/firestoreSync';
+} from '../services/firestoreSync.ts';
 import {
   persistUserToSupabase,
   persistPurchaseToSupabase,
-} from '../services/supabaseSync.js';
+} from '../services/supabaseSync.ts';
 import {
   recordFinancialSaleAndCommission,
   recordFinancialRefund,
-} from './financialRoutes.js';
-import { handlePlatanosStripeWebhookEvent } from './platanosRoutes.js';
+} from './financialRoutes.ts';
+import { handlePlatanosStripeWebhookEvent } from './platanosRoutes.ts';
 import { doc, setDoc, getDoc } from 'firebase/firestore';
 
 // Setup SQLite Purchases Table and Users Columns
