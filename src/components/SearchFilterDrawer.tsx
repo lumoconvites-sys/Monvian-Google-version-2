@@ -20,6 +20,7 @@ import {
 import { motion, AnimatePresence } from 'motion/react';
 import { getSpotImage, getSpotFallbackImage } from '../utils/spotImages';
 import { VerifiedBadge } from './ui/VerifiedBadge';
+import { useIOSBackEntry } from '../services/iosNavigationManager';
 
 interface SearchFilterDrawerProps {
   isOpen: boolean;
@@ -151,7 +152,18 @@ export const SearchFilterDrawer: React.FC<SearchFilterDrawerProps> = ({
   );
   const searchInputRef = useRef<HTMLInputElement | null>(null);
 
-  // Focus input when opened or reset
+  // Register iOS Edge-Swipe Back Navigation when a category is selected inside Buscar
+  useIOSBackEntry({
+    id: `search-category:${selectedCategory?.id || 'none'}`,
+    enabled: Boolean(isOpen && selectedCategory),
+    priority: 125,
+    label: selectedCategory?.name || 'Categoria',
+    foregroundSelector: '#search-filter-panel',
+    backgroundSelector: '#app-map-layer',
+    onPop: () => setSelectedCategory(null),
+  });
+
+  // Focus input when opened on main search view
   useEffect(() => {
     if (isOpen && !selectedCategory) {
       setTimeout(() => {
@@ -159,14 +171,6 @@ export const SearchFilterDrawer: React.FC<SearchFilterDrawerProps> = ({
       }, 150);
     }
   }, [isOpen, selectedCategory]);
-
-  // Reset category on open
-  useEffect(() => {
-    if (isOpen) {
-      setSearchQuery('');
-      setSelectedCategory(null);
-    }
-  }, [isOpen]);
 
   // Calculate spots matching either search query or active category
   const filteredSpots = useMemo(() => {
@@ -216,6 +220,7 @@ export const SearchFilterDrawer: React.FC<SearchFilterDrawerProps> = ({
           className="fixed inset-0 z-45 flex flex-col justify-end md:justify-center md:items-center md:p-6 select-none overflow-hidden transition-colors duration-200 md:bg-black/50"
         >
           <motion.div
+            id="search-filter-panel"
             initial={{ opacity: 0, y: 8 }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: 6 }}

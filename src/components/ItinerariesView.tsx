@@ -49,6 +49,7 @@ import { TripNotesModal } from './itineraries/TripNotesModal';
 import { LazyImage } from './ui/LazyImage';
 import { favoritesManager } from '../services/favoritesManager';
 import { DEFAULT_CURATED_ITINERARIES } from '../data/defaultItineraries';
+import { useIOSBackEntry } from '../services/iosNavigationManager';
 
 interface ItinerariesViewProps {
   isOpen: boolean;
@@ -2056,21 +2057,97 @@ export const ItinerariesView: React.FC<ItinerariesViewProps> = ({
     handleSelectStopOnMapById(step.id);
   };
 
+  // Register iOS Edge-Swipe Back Navigation for Roteiros Map -> Listagem de Roteiros & Modals
+  useIOSBackEntry({
+    id: 'itineraries:map-to-explore',
+    enabled: Boolean(isOpen && itineraryViewMode === 'map' && !isOnboardingSelection),
+    priority: 120,
+    label: 'Mapa do Roteiro',
+    foregroundSelector: '#itinerary-map-view-container',
+    backgroundSelector: '#itinerary-explore-layer',
+    onPop: () => {
+      userHasExplicitlyOpenedStoreRef.current = true;
+      try {
+        localStorage.setItem('monvian_itinerary_view_mode', 'explore');
+      } catch (e) {}
+      setItineraryViewMode('explore');
+    },
+  });
+
+  useIOSBackEntry({
+    id: 'itineraries:edit-modal',
+    enabled: Boolean(isOpen && isEditModalOpen),
+    priority: 250,
+    label: 'Editar Roteiro',
+    foregroundSelector: '#itinerary-map-view-container',
+    backgroundSelector: '#itinerary-explore-layer',
+    onPop: () => setIsEditModalOpen(false),
+  });
+
+  useIOSBackEntry({
+    id: 'itineraries:notes-modal',
+    enabled: Boolean(isOpen && isNotesModalOpen),
+    priority: 250,
+    label: 'Anotações da Viagem',
+    foregroundSelector: '#itinerary-map-view-container',
+    backgroundSelector: '#itinerary-explore-layer',
+    onPop: () => setIsNotesModalOpen(false),
+  });
+
+  useIOSBackEntry({
+    id: 'itineraries:store-modal',
+    enabled: Boolean(isOpen && isStoreOpen),
+    priority: 250,
+    label: 'Loja de Roteiros',
+    foregroundSelector: '#itinerary-map-view-container',
+    backgroundSelector: '#itinerary-explore-layer',
+    onPop: () => setIsStoreOpen(false),
+  });
+
+  useIOSBackEntry({
+    id: 'itineraries:plus-menu',
+    enabled: Boolean(isOpen && isPlusMenuOpen),
+    priority: 250,
+    label: 'Opções de Adição',
+    foregroundSelector: '#itinerary-map-view-container',
+    backgroundSelector: '#itinerary-explore-layer',
+    onPop: () => setIsPlusMenuOpen(false),
+  });
+
+  useIOSBackEntry({
+    id: 'itineraries:import-modal',
+    enabled: Boolean(isOpen && isImportModalOpen),
+    priority: 255,
+    label: 'Adicionar Ponto ao Roteiro',
+    foregroundSelector: '#itinerary-map-view-container',
+    backgroundSelector: '#itinerary-explore-layer',
+    onPop: () => setIsImportModalOpen(false),
+  });
+
   if (!isOpen) return null;
 
-  // -------------------------------------------------------------
-  // EXPLORE MODE: Full-page Airbnb Itinerary Discovery Screen
-  // -------------------------------------------------------------
-  if (itineraryViewMode === 'explore') {
-    return (
-      <motion.div
-        initial={{ opacity: 0, filter: 'blur(10px)', y: 10 }}
-        animate={{ opacity: 1, filter: 'blur(0px)', y: 0 }}
-        exit={{ opacity: 0, filter: 'blur(6px)', y: 6 }}
-        transition={{ duration: 0.65, ease: [0.16, 1, 0.3, 1] }}
+  return (
+    <div
+      id="itineraries-root-container"
+      className="fixed inset-0 z-40 w-full h-full overflow-hidden select-none"
+    >
+      {/* -------------------------------------------------------------
+          EXPLORE LAYER: Full-page Airbnb Itinerary Discovery Screen
+          Kept mounted underneath Map Mode so filters, search & scroll
+          are 100% preserved and visible during iOS parallax back-swipe!
+          ------------------------------------------------------------- */}
+      <div
+        id="itinerary-explore-layer"
+        aria-hidden={itineraryViewMode !== 'explore'}
         className={`fixed inset-0 ${
-          isOnboardingSelection ? 'md:left-0 bg-[#FFFFFF]' : `md:left-[var(--desktop-sidebar-width,72px)] ${isDark ? 'bg-[#000000]' : 'bg-white'}`
-        } z-40 w-full md:w-auto h-full overflow-hidden rounded-t-[26px] md:rounded-none ios-page-top-rounded transition-[left] duration-200 ease-in-out select-none`}
+          isOnboardingSelection
+            ? 'md:left-0 bg-[#FFFFFF]'
+            : `md:left-[var(--desktop-sidebar-width,72px)] ${isDark ? 'bg-[#000000]' : 'bg-white'}`
+        } z-40 w-full md:w-auto h-full overflow-hidden rounded-t-[26px] md:rounded-none ios-page-top-rounded transition-[left,opacity] duration-200 ease-in-out select-none ${
+          itineraryViewMode === 'explore'
+            ? 'opacity-100 pointer-events-auto visible'
+            : 'opacity-0 pointer-events-none invisible'
+        }`}
         style={{
           overflow: 'hidden',
           WebkitMaskImage: '-webkit-radial-gradient(white, black)',
@@ -2107,7 +2184,7 @@ export const ItinerariesView: React.FC<ItinerariesViewProps> = ({
 
         {/* Global Toast */}
         <AnimatePresence>
-          {storeToast && !isOnboardingSelection && (
+          {storeToast && !isOnboardingSelection && itineraryViewMode === 'explore' && (
             <motion.div
               initial={{ opacity: 0, y: -20, scale: 0.95 }}
               animate={{ opacity: 1, y: 0, scale: 1 }}
@@ -2121,29 +2198,32 @@ export const ItinerariesView: React.FC<ItinerariesViewProps> = ({
             </motion.div>
           )}
         </AnimatePresence>
-      </motion.div>
-    );
-  }
+      </div>
 
-  // -------------------------------------------------------------
-  // VIEW MODE: Interactive Map with Route, Sequential Points & Store
-  // -------------------------------------------------------------
-  return (
-    <motion.div
-      initial={{ opacity: 0, y: 6 }}
-      animate={{ opacity: 1, y: 0 }}
-      exit={{ opacity: 0, y: 4 }}
-      transition={{ duration: 0.18, ease: [0.22, 1, 0.36, 1] }}
-      className={`fixed inset-0 md:left-[var(--desktop-sidebar-width,72px)] ${isEditModalOpen || isStoreOpen ? 'z-[90]' : 'z-40'} w-full md:w-auto h-full overflow-hidden rounded-t-[26px] ios-page-top-rounded transition-[left] duration-200 ease-in-out ${isDark ? 'bg-black' : 'bg-white'} select-none`}
-      style={{
-        borderTopLeftRadius: '26px',
-        borderTopRightRadius: '26px',
-        overflow: 'hidden',
-        WebkitMaskImage: '-webkit-radial-gradient(white, black)',
-        isolation: 'isolate',
-        willChange: 'opacity, transform',
-      }}
-    >
+      {/* -------------------------------------------------------------
+          MAP LAYER: Interactive Map with Route, Sequential Points & Store
+          ------------------------------------------------------------- */}
+      <div
+        id="itinerary-map-view-container"
+        aria-hidden={itineraryViewMode !== 'map'}
+        className={`fixed inset-0 md:left-[var(--desktop-sidebar-width,72px)] ${
+          isEditModalOpen || isStoreOpen ? 'z-[90]' : 'z-[42]'
+        } w-full md:w-auto h-full overflow-hidden rounded-t-[26px] ios-page-top-rounded transition-[left,opacity] duration-200 ease-in-out ${
+          isDark ? 'bg-black' : 'bg-white'
+        } select-none ${
+          itineraryViewMode === 'map'
+            ? 'opacity-100 pointer-events-auto visible'
+            : 'opacity-0 pointer-events-none invisible'
+        }`}
+        style={{
+          borderTopLeftRadius: '26px',
+          borderTopRightRadius: '26px',
+          overflow: 'hidden',
+          WebkitMaskImage: '-webkit-radial-gradient(white, black)',
+          isolation: 'isolate',
+          willChange: 'opacity, transform',
+        }}
+      >
       {/* 1. MapLibre GL Interactive Canvas */}
       <div
         ref={mapContainerRef}
@@ -2959,6 +3039,7 @@ export const ItinerariesView: React.FC<ItinerariesViewProps> = ({
         theme={theme}
         isGoldUser={isUserGold}
       />
-    </motion.div>
+      </div>
+    </div>
   );
 };

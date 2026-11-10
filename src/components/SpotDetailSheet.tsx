@@ -27,6 +27,7 @@ import {
   saveVideoPlaybackPosition,
   getVideoPlaybackPosition,
 } from '../services/spotVideosService';
+import { useIOSBackEntry } from '../services/iosNavigationManager';
 
 interface SpotDetailSheetProps {
   spot: Spot | null;
@@ -50,6 +51,39 @@ export const SpotDetailSheet: React.FC<SpotDetailSheetProps> = ({
   const scrollRef = useRef<HTMLDivElement | null>(null);
   const heroMediaWrapperRef = useRef<HTMLDivElement | null>(null);
   const heroVideoRef = useRef<HTMLVideoElement | null>(null);
+
+  // Register iOS Edge-Swipe Back Navigation for SpotDetailSheet and SpotQrModal
+  useIOSBackEntry({
+    id: `spot-detail:${spot?.id || 'active'}`,
+    enabled: Boolean(spot),
+    priority: 240,
+    label: spot?.name || 'Detalhes do Local',
+    getForegroundEl: () =>
+      document.getElementById('spot-detail-sheet-container') ||
+      document.getElementById('spot-detail-desktop-panel'),
+    backgroundSelector: '#main-app-content',
+    getBackdropEl: () => document.getElementById('spot-detail-sheet-backdrop'),
+    onPop: () => {
+      if (heroVideoRef.current && spot?.id && heroVideos[currentHeroVideoIndex]) {
+        saveVideoPlaybackPosition(
+          spot.id,
+          heroVideos[currentHeroVideoIndex].id,
+          heroVideoRef.current.currentTime
+        );
+      }
+      onClose();
+    },
+  });
+
+  useIOSBackEntry({
+    id: `spot-qr:${spot?.id || 'active'}`,
+    enabled: Boolean(spot && isQrModalOpen),
+    priority: 265,
+    label: 'QR Code do Local',
+    foregroundSelector: '#spot-detail-sheet-container',
+    backgroundSelector: '#main-app-content',
+    onPop: () => setIsQrModalOpen(false),
+  });
 
   // Live Rating & Reviews state synced with database
   const [liveRating, setLiveRating] = useState<number>(Number(spot?.rating ?? 5.0));

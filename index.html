@@ -2,7 +2,7 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover, interactive-widget=resizes-content" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
     <meta name="referrer" content="no-referrer" />
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="mobile-web-app-capable" content="yes" />
@@ -114,7 +114,7 @@
               meta.setAttribute('content', topColor);
             });
             var statusMeta = document.getElementById('apple-status-bar-meta');
-            if (statusMeta) statusMeta.setAttribute('content', 'default');
+            if (statusMeta) statusMeta.setAttribute('content', 'black-translucent');
 
             document.documentElement.style.backgroundColor = topColor;
             document.documentElement.style.colorScheme = 'light';
@@ -223,40 +223,116 @@
     <!-- Dynamic Viewport Height & Zoom Lock for iOS/Android Mobile Devices -->
     <script>
       (function() {
+        function isTextInputActive() {
+          try {
+            var el = document.activeElement;
+            if (!el) return false;
+            var tag = (el.tagName || '').toUpperCase();
+            return tag === 'INPUT' || tag === 'TEXTAREA' || Boolean(el.isContentEditable);
+          } catch (e) {
+            return false;
+          }
+        }
+
         function updateAppHeight() {
           try {
-            var h = (window.visualViewport && window.visualViewport.height) ||
-              window.innerHeight ||
-              (document.documentElement && document.documentElement.clientHeight) ||
-              0;
+            var isStandalone =
+              Boolean(window.navigator && window.navigator.standalone === true) ||
+              Boolean(window.matchMedia && window.matchMedia('(display-mode: standalone)').matches);
+
+            var isLandscape =
+              Boolean(window.matchMedia && window.matchMedia('(orientation: landscape)').matches) ||
+              Math.abs(Number(window.orientation) || 0) === 90 ||
+              window.innerWidth > window.innerHeight;
+
+            var screenH = 0;
+            if (window.screen && window.screen.height && window.screen.width) {
+              screenH = isLandscape
+                ? Math.min(window.screen.width, window.screen.height)
+                : Math.max(window.screen.width, window.screen.height);
+            }
+
+            var innerH = window.innerHeight || 0;
+            var clientH = (document.documentElement && document.documentElement.clientHeight) || 0;
+            var vvH = (window.visualViewport && window.visualViewport.height) || 0;
+
+            var keyboardOpen = isTextInputActive() && vvH > 0 && screenH > 0 && vvH < screenH * 0.78;
+
+            var h = 0;
+            if (keyboardOpen) {
+              h = Math.round(vvH || innerH || clientH);
+            } else if (isStandalone && screenH > 0) {
+              // In iOS PWA standalone mode, prevent WebKit cold-launch safe-area under-reporting (3/5 launches bug)
+              h = Math.round(Math.max(innerH, clientH, vvH, screenH));
+            } else {
+              var candidate = Math.max(innerH, clientH, vvH);
+              // If on iOS device where screenH is within safe-area delta (<= 110px) of candidate, use full screenH in standalone-like fullbleed
+              if (screenH > candidate && (screenH - candidate) <= 95 && /iPhone|iPod|iPad/i.test(navigator.userAgent || '') && isStandalone) {
+                h = Math.round(screenH);
+              } else {
+                h = Math.round(candidate || screenH);
+              }
+            }
 
             if (h && h > 0) {
-              document.documentElement.style.setProperty('--app-height', h + 'px');
+              var hPx = h + 'px';
+              document.documentElement.style.setProperty('--app-height', hPx);
+              document.documentElement.style.height = hPx;
+              if (document.body) {
+                document.body.style.height = hPx;
+              }
+              var rootEl = document.getElementById('root');
+              if (rootEl) {
+                rootEl.style.height = hPx;
+              }
             }
+
+            if (
+              !keyboardOpen &&
+              document.body &&
+              !document.body.classList.contains('is-login-screen') &&
+              !document.documentElement.classList.contains('is-login-screen')
+            ) {
+              if (window.scrollTo) window.scrollTo(0, 0);
+              document.documentElement.scrollTop = 0;
+              document.body.scrollTop = 0;
+            }
+
+            try {
+              window.dispatchEvent(new CustomEvent('monvian:viewport-stabilized', { detail: { height: h } }));
+            } catch (err) {}
           } catch (e) {}
         }
 
-        updateAppHeight();
-        if (window.scrollTo) window.scrollTo(0, 0);
-
-        function handleOrientation() {
+        function scheduleViewportStabilization() {
           updateAppHeight();
-          if (window.requestAnimationFrame) window.requestAnimationFrame(updateAppHeight);
+          if (window.requestAnimationFrame) {
+            window.requestAnimationFrame(updateAppHeight);
+          }
           setTimeout(updateAppHeight, 50);
           setTimeout(updateAppHeight, 150);
+          setTimeout(updateAppHeight, 300);
+          setTimeout(updateAppHeight, 600);
+          setTimeout(updateAppHeight, 1000);
         }
 
+        scheduleViewportStabilization();
+        if (window.scrollTo) window.scrollTo(0, 0);
+
         window.addEventListener('resize', updateAppHeight, { passive: true });
-        window.addEventListener('orientationchange', handleOrientation, { passive: true });
-        window.addEventListener('pageshow', updateAppHeight, { passive: true });
+        window.addEventListener('orientationchange', scheduleViewportStabilization, { passive: true });
+        window.addEventListener('pageshow', scheduleViewportStabilization, { passive: true });
+        window.addEventListener('focus', scheduleViewportStabilization, { passive: true });
+        window.addEventListener('load', scheduleViewportStabilization, { passive: true });
         if (window.visualViewport) {
           window.visualViewport.addEventListener('resize', updateAppHeight, { passive: true });
+          window.visualViewport.addEventListener('scroll', updateAppHeight, { passive: true });
         }
         if (window.screen && window.screen.orientation) {
-          window.screen.orientation.addEventListener('change', handleOrientation, { passive: true });
+          window.screen.orientation.addEventListener('change', scheduleViewportStabilization, { passive: true });
         }
         document.addEventListener('visibilitychange', function() {
-          if (document.visibilityState === 'visible') updateAppHeight();
+          if (document.visibilityState === 'visible') scheduleViewportStabilization();
         }, { passive: true });
 
         // Helper: Check if touch/event target is inside the interactive map or login screen

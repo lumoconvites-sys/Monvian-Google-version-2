@@ -1,5 +1,5 @@
 import React from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion, AnimatePresence } from 'motion/react';
 import { X, MapPin, User, Star, Infinity, ArrowRight } from 'lucide-react';
 import { createPortal } from 'react-dom';
 

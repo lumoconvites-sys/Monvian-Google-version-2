@@ -4,166 +4,6 @@ import { motion, AnimatePresence, useReducedMotion } from 'motion/react';
 import gsap from 'gsap';
 import { HeroAirplane3D } from './HeroAirplane3D';
 
-export interface LandingHighlightItem {
-  id: string;
-  name: string;
-  category: string;
-  rating: string;
-  duration: string;
-  description: string;
-  image: string;
-  badge: string;
-}
-
-export interface LandingFeatureSection {
-  id: 'explore' | 'itineraries' | 'experiences';
-  stepIndex: number;
-  badge: string;
-  title: string;
-  description: string;
-  thumbnail: string;
-  sheetSubtitle: string;
-  highlights: LandingHighlightItem[];
-}
-
-export const LANDING_SECTIONS: LandingFeatureSection[] = [
-  {
-    id: 'explore',
-    stepIndex: 0,
-    badge: 'Descubra lugares incríveis',
-    title: 'Descubra lugares\nincríveis.',
-    description: 'Encontre atrações, restaurantes e muito mais.',
-    thumbnail: '/assets/aistudio/campos_user_1.jpg',
-    sheetSubtitle:
-      'Curadoria dos lugares mais desejados da serra com avaliações reais e localização ao vivo.',
-    highlights: [
-      {
-        id: 'capivari',
-        name: 'Vila Capivari',
-        category: 'Centro Turístico',
-        rating: '5.0',
-        duration: 'Aberto agora',
-        description:
-          'O coração charmoso de Campos do Jordão, repleto de arquitetura europeia, cafés e chocolaterias artesanais.',
-        image: '/assets/aistudio/campos_thumb_1.png',
-        badge: 'Destaque 5.0',
-      },
-      {
-        id: 'baden',
-        name: 'Choperia Baden Baden',
-        category: 'Gastronomia Alemã',
-        rating: '4.9',
-        duration: 'Vila Capivari',
-        description:
-          'Tradição cervejeira e pratos típicos alpinos no ponto mais icônico da cidade.',
-        image: '/assets/aistudio/campos_thumb_3.png',
-        badge: 'Clássico da Serra',
-      },
-      {
-        id: 'amantikir',
-        name: 'Parque Amantikir',
-        category: 'Jardins & Natureza',
-        rating: '5.0',
-        duration: 'Passeio de 2h',
-        description:
-          'Mais de 700 espécies de plantas em 28 jardins inspirados em diferentes partes do mundo.',
-        image: '/assets/aistudio/campos_thumb_2.png',
-        badge: 'Estrela Monvian',
-      },
-    ],
-  },
-  {
-    id: 'itineraries',
-    stepIndex: 1,
-    badge: 'Seus roteiros',
-    title: 'Seus roteiros\nna serra.',
-    description: 'Planeje seus passeios.',
-    thumbnail: '/assets/aistudio/campos_user_2.jpg',
-    sheetSubtitle:
-      'Roteiros inteligentes planejados para casais, famílias, gastronomia e aventura na montanha.',
-    highlights: [
-      {
-        id: 'romantico',
-        name: 'Fim de Semana Romântico',
-        category: 'Roteiro de 2 Dias',
-        rating: '5.0',
-        duration: '6 paradas selecionadas',
-        description:
-          'Pôr do sol no mirante, fondue à luz de velas, passeio entre araucárias e chocolaterias.',
-        image: '/assets/aistudio/campos_thumb_2.png',
-        badge: 'Mais salvo',
-      },
-      {
-        id: 'gastronomico',
-        name: 'Sabores da Mantiqueira',
-        category: 'Roteiro Gastronômico',
-        rating: '4.9',
-        duration: 'Dia inteiro',
-        description:
-          'Das melhores cervejarias artesanais aos restaurantes premiados de truta, pinhão e fondue.',
-        image: '/assets/aistudio/campos_thumb_3.png',
-        badge: 'Curadoria Monvian',
-      },
-      {
-        id: 'express',
-        name: 'Essencial em 1 Dia',
-        category: 'Bate e Volta',
-        rating: '4.9',
-        duration: '8 horas',
-        description:
-          'Tudo o que você não pode perder em Campos do Jordão organizado na ordem ideal de deslocamento.',
-        image: '/assets/aistudio/campos_thumb_1.png',
-        badge: 'Otimizado por GPS',
-      },
-    ],
-  },
-  {
-    id: 'experiences',
-    stepIndex: 2,
-    badge: 'Novas experiências',
-    title: 'Novas experiências\nem Campos.',
-    description: 'Descubra o que fazer.',
-    thumbnail: '/assets/aistudio/campos_user_3.jpg',
-    sheetSubtitle:
-      'Viva experiências autênticas nas alturas com dicas em tempo real e navegação integrada.',
-    highlights: [
-      {
-        id: 'noite-capivari',
-        name: 'Noite Iluminada no Capivari',
-        category: 'Gastronomia & Charme',
-        rating: '5.0',
-        duration: 'Fim de tarde e noite',
-        description:
-          'Arquitetura enxaimel iluminada, restaurantes aconchegantes, lareiras e música ao vivo.',
-        image: '/assets/aistudio/campos_thumb_3.png',
-        badge: 'Imperdível 5.0',
-      },
-      {
-        id: 'itapeva',
-        name: 'Mirantes da Mantiqueira',
-        category: 'Mirante & Pôr do Sol',
-        rating: '5.0',
-        duration: '1.950m de altitude',
-        description:
-          'Decks panorâmicos sobre as montanhas com vista inesquecível para o pôr do sol na serra.',
-        image: '/assets/aistudio/campos_thumb_2.png',
-        badge: 'Pôr do Sol Único',
-      },
-      {
-        id: 'vilas',
-        name: 'Passeio pelas Vilas Alpinas',
-        category: 'Arquitetura & Cultura',
-        rating: '4.9',
-        duration: 'Manhã ou Tarde',
-        description:
-          'Caminhada fotográfica entre chalés suíços, jardins floridos e chocolaterias tradicionais.',
-        image: '/assets/aistudio/campos_thumb_1.png',
-        badge: 'Clássico de Campos',
-      },
-    ],
-  },
-];
-
 const FAQ_ITEMS = [
   {
     id: 'faq-1',
@@ -775,8 +615,10 @@ export const CinematicLandingView: React.FC<CinematicLandingViewProps> = ({
         }`}
       >
         <nav className="flex items-center justify-between gap-1 sm:gap-3 text-[12px] sm:text-[13px] font-medium tracking-[-0.01em]">
-          <button
+          <motion.button
             type="button"
+            whileTap={{ scale: 0.96 }}
+            transition={{ type: 'spring', stiffness: 520, damping: 28 }}
             onClick={() => {
               triggerHaptic();
               onStartRegister();
@@ -788,9 +630,12 @@ export const CinematicLandingView: React.FC<CinematicLandingViewProps> = ({
             }`}
           >
             Criar conta
-          </button>
-          <button
+          </motion.button>
+          <motion.button
+            id="btn-landing-top-login"
             type="button"
+            whileTap={{ scale: 0.96 }}
+            transition={{ type: 'spring', stiffness: 520, damping: 28 }}
             onClick={() => {
               triggerHaptic();
               onOpenLogin();
@@ -802,7 +647,7 @@ export const CinematicLandingView: React.FC<CinematicLandingViewProps> = ({
             }`}
           >
             Entrar
-          </button>
+          </motion.button>
           <button
             type="button"
             onClick={() => scrollToSection('roteiros')}
@@ -904,7 +749,7 @@ export const CinematicLandingView: React.FC<CinematicLandingViewProps> = ({
                     <picture>
                       <source srcSet="/assets/aistudio/cloud_volumetric_1.webp" type="image/webp" />
                       <img
-                        src="/assets/aistudio/cloud_volumetric_1.png"
+                        src="/assets/aistudio/cloud_volumetric_1.webp"
                         alt=""
                         decoding="async"
                         className="monvian-cloud-soft-mask absolute top-[15%] -left-[8%] md:left-[4%] w-[64vw] max-w-[390px] md:w-[32vw] md:max-w-[460px] opacity-72 select-none"
@@ -914,7 +759,7 @@ export const CinematicLandingView: React.FC<CinematicLandingViewProps> = ({
                     <picture>
                       <source srcSet="/assets/aistudio/cloud_volumetric_2.webp" type="image/webp" />
                       <img
-                        src="/assets/aistudio/cloud_volumetric_2.png"
+                        src="/assets/aistudio/cloud_volumetric_2.webp"
                         alt=""
                         decoding="async"
                         className="monvian-cloud-soft-mask absolute top-[19%] right-[-6%] md:right-[8%] w-[66vw] max-w-[410px] md:w-[34vw] md:max-w-[490px] opacity-68 select-none"
@@ -962,7 +807,7 @@ export const CinematicLandingView: React.FC<CinematicLandingViewProps> = ({
                     <picture>
                       <source srcSet="/assets/aistudio/cloud_volumetric_2.webp" type="image/webp" />
                       <img
-                        src="/assets/aistudio/cloud_volumetric_2.png"
+                        src="/assets/aistudio/cloud_volumetric_2.webp"
                         alt=""
                         decoding="async"
                         className="monvian-cloud-soft-mask absolute top-[35%] -left-[12%] md:left-[6%] w-[80vw] max-w-[490px] md:w-[40vw] md:max-w-[580px] opacity-90 select-none"
@@ -972,7 +817,7 @@ export const CinematicLandingView: React.FC<CinematicLandingViewProps> = ({
                     <picture>
                       <source srcSet="/assets/aistudio/cloud_volumetric_1.webp" type="image/webp" />
                       <img
-                        src="/assets/aistudio/cloud_volumetric_1.png"
+                        src="/assets/aistudio/cloud_volumetric_1.webp"
                         alt=""
                         decoding="async"
                         className="monvian-cloud-soft-mask absolute top-[38%] right-[-10%] md:right-[6%] w-[82vw] max-w-[510px] md:w-[42vw] md:max-w-[600px] opacity-90 select-none"
@@ -986,7 +831,7 @@ export const CinematicLandingView: React.FC<CinematicLandingViewProps> = ({
               <picture>
                 <source srcSet="/assets/aistudio/cloud_volumetric_3.webp" type="image/webp" />
                 <img
-                  src="/assets/aistudio/cloud_volumetric_3.png"
+                  src="/assets/aistudio/cloud_volumetric_3.webp"
                   alt=""
                   decoding="async"
                   style={{
@@ -1002,7 +847,7 @@ export const CinematicLandingView: React.FC<CinematicLandingViewProps> = ({
               <picture>
                 <source srcSet="/assets/aistudio/cloud_volumetric_3.webp" type="image/webp" />
                 <img
-                  src="/assets/aistudio/cloud_volumetric_3.png"
+                  src="/assets/aistudio/cloud_volumetric_3.webp"
                   alt=""
                   decoding="async"
                   style={{
@@ -1072,7 +917,7 @@ export const CinematicLandingView: React.FC<CinematicLandingViewProps> = ({
                       type="image/webp"
                     />
                     <img
-                      src="/assets/aistudio/monvian_island_3d.png"
+                      src="/assets/aistudio/monvian_island_3d.webp"
                       alt="Maquete tridimensional de Campos do Jordão"
                       width={1347}
                       height={879}
@@ -1105,7 +950,7 @@ export const CinematicLandingView: React.FC<CinematicLandingViewProps> = ({
                   <picture>
                     <source srcSet="/assets/aistudio/cloud_volumetric_3.webp" type="image/webp" />
                     <img
-                      src="/assets/aistudio/cloud_volumetric_3.png"
+                      src="/assets/aistudio/cloud_volumetric_3.webp"
                       alt=""
                       decoding="async"
                       className="monvian-cloud-soft-mask absolute -top-[8%] left-1/2 -translate-x-1/2 w-[96%] h-auto opacity-95 select-none"
@@ -1136,7 +981,7 @@ export const CinematicLandingView: React.FC<CinematicLandingViewProps> = ({
             <picture>
               <source srcSet="/assets/aistudio/cloud_volumetric_3.webp" type="image/webp" />
               <img
-                src="/assets/aistudio/cloud_volumetric_3.png"
+                src="/assets/aistudio/cloud_volumetric_3.webp"
                 alt=""
                 decoding="async"
                 className="monvian-cloud-soft-mask absolute top-[54%] left-1/2 -translate-x-1/2 w-[108vw] max-w-[660px] md:w-[56vw] md:max-w-[820px] opacity-95 select-none"
@@ -1735,16 +1580,19 @@ export const CinematicLandingView: React.FC<CinematicLandingViewProps> = ({
               </span>
             </motion.button>
 
-            <button
+            <motion.button
+              id="btn-landing-bottom-login"
               type="button"
+              whileTap={{ scale: 0.96 }}
+              transition={{ type: 'spring', stiffness: 520, damping: 28 }}
               onClick={() => {
                 triggerHaptic();
                 onOpenLogin();
               }}
-              className="mt-3.5 py-2 px-4 text-[15px] font-bold text-[#080808] hover:text-[#2673E8] active:opacity-70 transition-colors cursor-pointer"
+              className="mt-3.5 py-2.5 px-6 rounded-full text-[15px] font-bold text-[#080808] hover:text-[#2673E8] hover:bg-black/[0.03] active:bg-black/[0.06] transition-colors cursor-pointer select-none focus-visible:outline-2 focus-visible:outline-[#2673E8]"
             >
               Já tenho uma conta
-            </button>
+            </motion.button>
           </div>
         </div>
       </section>
