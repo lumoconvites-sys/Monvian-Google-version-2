@@ -33,7 +33,7 @@
     font-family: 'Inter', var(--font-sans), sans-serif !important;
     letter-spacing: -0.015em;
     line-height: 1.5;
-    --app-height: 100dvh;
+    --app-height: 100lvh;
     --bg-primary: #ffffff;
     --bg-secondary: #ffffff;
     --bg-card: #ffffff;
@@ -64,10 +64,16 @@
     margin: 0;
     padding: 0;
     box-sizing: border-box;
+    position: fixed;
+    inset: 0;
+    top: 0;
+    bottom: 0;
+    left: 0;
+    right: 0;
     height: 100%;
-    min-height: 100%;
+    min-height: 100dvh;
+    min-height: 100lvh;
     min-height: -webkit-fill-available;
-    height: 100dvh;
     overflow: hidden;
     overscroll-behavior: none;
     -webkit-tap-highlight-color: transparent;
@@ -82,10 +88,16 @@
     margin: 0;
     padding: 0;
     box-sizing: border-box;
+    position: fixed;
+    inset: 0;
+    top: 0;
+    bottom: 0;
+    left: 0;
+    right: 0;
     height: 100%;
-    min-height: 100%;
+    min-height: 100dvh;
+    min-height: 100lvh;
     min-height: -webkit-fill-available;
-    height: 100dvh;
     overflow: hidden;
     overscroll-behavior: none;
     -webkit-tap-highlight-color: transparent;
@@ -108,9 +120,9 @@
     left: 0;
     right: 0;
     height: 100%;
-    min-height: 100%;
+    min-height: 100dvh;
+    min-height: 100lvh;
     min-height: -webkit-fill-available;
-    height: 100dvh;
     overflow: hidden;
     background-color: var(--bg-primary);
     transition: background-color 0.2s ease, color 0.2s ease;
@@ -119,15 +131,15 @@
   body.is-login-screen {
     overflow-y: auto !important;
     overflow-x: hidden !important;
-    touch-action: pan-x pan-y pinch-zoom !important;
+    touch-action: pan-y !important;
     -webkit-overflow-scrolling: touch !important;
   }
   html.is-login-screen #root {
     overflow-y: auto !important;
-    touch-action: pan-x pan-y pinch-zoom !important;
+    touch-action: pan-y !important;
   }
   .auth-login-screen {
-    touch-action: pan-x pan-y pinch-zoom !important;
+    touch-action: pan-y !important;
   }
   html.dark,
   html.dark body,
@@ -1168,9 +1180,8 @@ html:not(.dark) .expo-liquid-glass-clear:hover,
    GLOBAL iOS TOP ROUNDED CORNER CONTAINER (20px - 28px standard)
    ======================================================== */
 .ios-page-top-rounded {
-  border-top-left-radius: 26px !important;
-  border-top-right-radius: 26px !important;
-  -webkit-mask-image: -webkit-radial-gradient(white, black);
+  border-top-left-radius: 0px !important;
+  border-top-right-radius: 0px !important;
   isolation: isolate;
 }
 
@@ -1207,3 +1218,22 @@ html:not(.dark) .expo-liquid-glass-clear:hover,
   animation: none !important;
   transform: scale3d(1, 1, 1);
 }
+
+/* ========================================================
+   iOS INTERACTIVE EDGE-SWIPE NAVIGATION SYSTEM
+   Prevents browser native swipe conflicts & exit snapback
+   ======================================================== */
+html,
+body,
+#root {
+  overscroll-behavior-x: none !important;
+}
+
+[data-ios-swiped-out="true"] {
+  opacity: 0 !important;
+  visibility: hidden !important;
+  pointer-events: none !important;
+  transform: translate3d(100vw, 0, 0) !important;
+  transition: none !important;
+}
+

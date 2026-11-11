@@ -28,6 +28,7 @@ import {
 import { useFavorites } from '../../hooks/useFavorites';
 import { DEFAULT_CURATED_ITINERARIES } from '../../data/defaultItineraries';
 import { triggerHapticFeedback } from '../../utils/haptics';
+import { useIOSBackEntry } from '../../services/iosNavigationManager';
 
 // Fast in-memory cache for categories
 let memoryCategoriesCache: ItineraryCategory[] | null = null;
@@ -869,6 +870,17 @@ export const AirbnbItineraryExplorer: React.FC<AirbnbItineraryExplorerProps> = (
     setIsDetailOpen(true);
   }, []);
 
+  // Register iOS Edge-Swipe Back Navigation when viewing "Todos os roteiros" subview
+  useIOSBackEntry({
+    id: 'itinerary-explorer:show-all',
+    enabled: Boolean(showAllItineraries),
+    priority: 115,
+    label: 'Todos os Roteiros',
+    foregroundSelector: '#airbnb-itinerary-scroll-container',
+    backgroundSelector: '#app-map-layer',
+    onPop: () => setShowAllItineraries(false),
+  });
+
   const handleApplyFromDetail = useCallback(
     async (itin: Itinerary) => {
       setIsDetailOpen(false);
@@ -914,28 +926,26 @@ export const AirbnbItineraryExplorer: React.FC<AirbnbItineraryExplorerProps> = (
     <div
       ref={scrollContainerRef}
       id="airbnb-itinerary-scroll-container"
-      className={`relative w-full h-full overflow-y-auto overscroll-y-contain select-none transition-colors duration-200 rounded-t-[26px] ${
+      className={`relative w-full h-full min-h-dvh overflow-y-auto overscroll-y-contain select-none transition-colors duration-200 ${
         isDark ? 'bg-[#000000] text-white' : 'bg-[#ffffff] text-zinc-900'
       }`}
       style={{
         fontFamily: "'Inter', -apple-system, BlinkMacSystemFont, sans-serif",
         WebkitOverflowScrolling: 'touch',
         touchAction: 'pan-y',
-        borderTopLeftRadius: '26px',
-        borderTopRightRadius: '26px',
+        height: '100%',
+        minHeight: '100dvh',
       }}
     >
       {/* =====================================================================
           1. CABEÇALHO COMPACTO + 2. BARRA DE PESQUISA + 3. CATEGORIAS FOTOGRÁFICAS
          ===================================================================== */}
       <div
-        className={`relative shrink-0 transition-colors rounded-t-[26px] max-w-5xl mx-auto ${
+        className={`relative shrink-0 transition-colors max-w-5xl mx-auto ${
           isDark ? 'bg-[#000000] text-white' : 'bg-[#ffffff] text-zinc-900'
         }`}
         style={{
           paddingTop: 'max(calc(env(safe-area-inset-top, 0px) + 12px), 16px)',
-          borderTopLeftRadius: '26px',
-          borderTopRightRadius: '26px',
         }}
       >
         {/* 1. CABEÇALHO COMPACTO */}

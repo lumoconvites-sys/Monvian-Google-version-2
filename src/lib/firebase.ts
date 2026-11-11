@@ -32,8 +32,15 @@ export const googleSignIn = async () => {
       user: result.user,
       accessToken: token
     };
-  } catch (err) {
-    // Fallback mock user for preview/offline testing
+  } catch (err: any) {
+    if (
+      err?.code === 'auth/popup-closed-by-user' ||
+      err?.code === 'auth/cancelled-popup-request' ||
+      err?.code === 'auth/user-cancelled'
+    ) {
+      throw err;
+    }
+    // Fallback mock user for preview/offline testing when popup is blocked by iframe environment
     const mockUser = {
       email: 'marioyesk@gmail.com',
       displayName: 'Mario Yesk',

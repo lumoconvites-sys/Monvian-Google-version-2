@@ -41,6 +41,8 @@ import { SignupIntroSequence, SignupIntroStage } from './components/SignupIntroS
 import { WelcomeJourneyModal } from './components/WelcomeJourneyModal';
 import { XpRewardNotificationOverlay } from './components/XpRewardNotificationOverlay';
 import { FloatingEventCard } from './components/FloatingEventCard';
+import { IOSInteractiveBackSystem } from './components/IOSInteractiveBackSystem';
+import { useIOSBackEntry, iosNavigationManager } from './services/iosNavigationManager';
 import { auth, signOut, setCachedAccessToken } from './lib/firebase';
 import { supabase } from './lib/supabase';
 
@@ -312,31 +314,83 @@ export default function App() {
 
   // Viewport real & dynamic height syncing for iOS PWA and mobile devices
   useEffect(() => {
+    const isTextInputActive = () => {
+      try {
+        const el = document.activeElement as HTMLElement | null;
+        if (!el) return false;
+        const tag = (el.tagName || '').toUpperCase();
+        return tag === 'INPUT' || tag === 'TEXTAREA' || Boolean(el.isContentEditable);
+      } catch {
+        return false;
+      }
+    };
+
     const updateAppHeight = () => {
       try {
+        const isStandaloneMode =
+          window.matchMedia('(display-mode: standalone)').matches ||
+          (window.navigator as any).standalone === true;
+
         const isLandscape =
           window.matchMedia('(orientation: landscape)').matches ||
           Math.abs(Number(window.orientation) || 0) === 90 ||
           window.innerWidth > window.innerHeight;
 
         let screenH = 0;
-        if (typeof window !== 'undefined' && window.screen && window.screen.height) {
+        if (typeof window !== 'undefined' && window.screen && window.screen.height && window.screen.width) {
           screenH = isLandscape
             ? Math.min(window.screen.width, window.screen.height)
             : Math.max(window.screen.width, window.screen.height);
         }
 
-        const h = Math.max(
-          window.innerHeight || 0,
-          document.documentElement?.clientHeight || 0,
-          screenH || 0
-        );
+        const innerH = window.innerHeight || 0;
+        const clientH = document.documentElement?.clientHeight || 0;
+        const vvH = window.visualViewport?.height || 0;
+        const keyboardOpen = isTextInputActive() && vvH > 0 && screenH > 0 && vvH < screenH * 0.78;
 
-        if (h && h > 0) {
-          document.documentElement.style.setProperty('--app-height', `${h}px`);
+        let h = 0;
+        const isIOS =
+          /iPhone|iPod|iPad/i.test(navigator.userAgent || '') ||
+          (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+        if (keyboardOpen) {
+          h = Math.round(vvH || innerH || clientH);
+        } else if (isStandaloneMode && screenH > 0) {
+          h = Math.round(Math.max(innerH, clientH, vvH, screenH));
+        } else {
+          const candidate = Math.max(innerH, clientH, vvH);
+          if (isIOS && screenH > candidate && screenH - candidate <= 130) {
+            h = Math.round(screenH);
+          } else {
+            h = Math.round(candidate || screenH);
+          }
+        }
+
+        if (keyboardOpen && h > 0) {
+          const hPx = `${h}px`;
+          document.documentElement.style.setProperty('--app-height', hPx);
+          document.documentElement.style.height = hPx;
+          if (document.body) {
+            document.body.style.height = hPx;
+          }
+          const rootEl = document.getElementById('root');
+          if (rootEl) {
+            rootEl.style.height = hPx;
+          }
+        } else {
+          const fullH = h > 0 ? `max(${h}px, 100dvh, 100lvh)` : '100lvh';
+          document.documentElement.style.setProperty('--app-height', fullH);
+          document.documentElement.style.height = '100%';
+          if (document.body) {
+            document.body.style.height = '100%';
+          }
+          const rootEl = document.getElementById('root');
+          if (rootEl) {
+            rootEl.style.height = '100%';
+          }
         }
         if (
           typeof window !== 'undefined' &&
+          !keyboardOpen &&
           !document.body.classList.contains('is-login-screen') &&
           !document.documentElement.classList.contains('is-login-screen')
         ) {
@@ -346,26 +400,30 @@ export default function App() {
           const rootEl = document.getElementById('root');
           if (rootEl) rootEl.scrollTop = 0;
         }
+        try {
+          window.dispatchEvent(new CustomEvent('monvian:viewport-stabilized', { detail: { height: h } }));
+        } catch {}
       } catch (e) {}
     };
 
-    updateAppHeight();
+    const timers: number[] = [];
+    const scheduleStabilization = () => {
+      updateAppHeight();
+      requestAnimationFrame(updateAppHeight);
+      [50, 150, 300, 600, 1000].forEach((ms) => {
+        timers.push(window.setTimeout(updateAppHeight, ms));
+      });
+    };
+
+    scheduleStabilization();
     if (typeof window !== 'undefined' && window.scrollTo) {
       window.scrollTo(0, 0);
     }
 
-    const handleOrientation = () => {
-      updateAppHeight();
-      requestAnimationFrame(updateAppHeight);
-      setTimeout(updateAppHeight, 50);
-      setTimeout(updateAppHeight, 150);
-      setTimeout(updateAppHeight, 300);
-      setTimeout(updateAppHeight, 500);
-    };
-
     window.addEventListener('resize', updateAppHeight, { passive: true });
-    window.addEventListener('orientationchange', handleOrientation, { passive: true });
-    window.addEventListener('pageshow', updateAppHeight, { passive: true });
+    window.addEventListener('orientationchange', scheduleStabilization, { passive: true });
+    window.addEventListener('pageshow', scheduleStabilization, { passive: true });
+    window.addEventListener('focus', scheduleStabilization, { passive: true });
 
     if (window.visualViewport) {
       window.visualViewport.addEventListener('resize', updateAppHeight, { passive: true });
@@ -373,31 +431,33 @@ export default function App() {
     }
 
     if (window.screen?.orientation) {
-      window.screen.orientation.addEventListener('change', handleOrientation, { passive: true });
+      window.screen.orientation.addEventListener('change', scheduleStabilization, { passive: true });
     }
 
     const mql = window.matchMedia('(display-mode: standalone)');
-    mql.addEventListener?.('change', updateAppHeight);
+    mql.addEventListener?.('change', scheduleStabilization);
 
     const handleVisibility = () => {
       if (document.visibilityState === 'visible') {
-        updateAppHeight();
+        scheduleStabilization();
       }
     };
     document.addEventListener('visibilitychange', handleVisibility, { passive: true });
 
     return () => {
+      timers.forEach((id) => window.clearTimeout(id));
       window.removeEventListener('resize', updateAppHeight);
-      window.removeEventListener('orientationchange', handleOrientation);
-      window.removeEventListener('pageshow', updateAppHeight);
+      window.removeEventListener('orientationchange', scheduleStabilization);
+      window.removeEventListener('pageshow', scheduleStabilization);
+      window.removeEventListener('focus', scheduleStabilization);
       if (window.visualViewport) {
         window.visualViewport.removeEventListener('resize', updateAppHeight);
         window.visualViewport.removeEventListener('scroll', updateAppHeight);
       }
       if (window.screen?.orientation) {
-        window.screen.orientation.removeEventListener('change', handleOrientation);
+        window.screen.orientation.removeEventListener('change', scheduleStabilization);
       }
-      mql.removeEventListener?.('change', updateAppHeight);
+      mql.removeEventListener?.('change', scheduleStabilization);
       document.removeEventListener('visibilitychange', handleVisibility);
     };
   }, []);
@@ -513,6 +573,8 @@ export default function App() {
     setUser(null);
     setIsAuthenticated(false);
     setActiveTab('explorar');
+    setTabHistory([]);
+    iosNavigationManager.resetAll();
     window.dispatchEvent(new CustomEvent('monvian:user_logged_out'));
   }, []);
 
@@ -854,6 +916,7 @@ export default function App() {
   }, [isAdminOpen]);
   const [isDetailOpen, setIsDetailOpen] = useState(false);
   const [activeTab, setActiveTab] = useState<TabType>('explorar');
+  const [tabHistory, setTabHistory] = useState<TabType[]>([]);
 
   // Spot card dynamic layout behavior
   const isSpotCardOpen = Boolean(selectedSpot && !isDetailOpen && activeTab === 'explorar');
@@ -1297,7 +1360,19 @@ export default function App() {
       window.dispatchEvent(new CustomEvent('monvian-close-modals'));
     }
 
-    setActiveTab(tab);
+    setActiveTab((prevTab) => {
+      if (prevTab !== tab) {
+        if (tab === 'explorar') {
+          setTabHistory([]);
+        } else {
+          setTabHistory((hist) => {
+            const filtered = hist.filter((t) => t !== tab);
+            return [...filtered, prevTab];
+          });
+        }
+      }
+      return tab;
+    });
   }, []);
 
   // Toda vez que o usuário sair do mapa e ir pra outra aba, quando voltar o zoom retorna no ícone dele
@@ -1320,6 +1395,85 @@ export default function App() {
   const hasExecutedSignupIntroRef = useRef<boolean>(false);
   const isSignupRevealActive = signupIntroStage !== 'idle';
   const isOnboardingRevealReady = signupIntroStage === 'revealing' || signupIntroStage === 'idle';
+
+  // Resolve foreground selector for the currently active tab
+  const activeTabForegroundSelector = useMemo(() => {
+    switch (activeTab) {
+      case 'roteiros':
+        return '#itineraries-root-container';
+      case 'salvos':
+        return '#saved-view-root';
+      case 'buscar':
+        return '#search-filter-panel';
+      case 'perfil':
+        return '#profile-modal-panel';
+      default:
+        return '#main-app-content';
+    }
+  }, [activeTab]);
+
+  // Global iOS Edge-Swipe Back Gesture: Non-map tabs -> previous tab (or 'explorar')
+  useIOSBackEntry({
+    id: `app:tab:${activeTab}`,
+    enabled:
+      isAuthenticated &&
+      !isAdminOpen &&
+      !isOnboardingItinerarySelection &&
+      activeTab !== 'explorar',
+    priority: 40,
+    label: 'Voltar',
+    foregroundSelector: activeTabForegroundSelector,
+    backgroundSelector: '#app-map-layer',
+    onPop: () => {
+      setTabHistory((hist) => {
+        if (hist.length === 0) {
+          setActiveTab('explorar');
+          return [];
+        }
+        const nextHist = [...hist];
+        const prevTab = nextHist.pop() || 'explorar';
+        setActiveTab(prevTab);
+        return nextHist;
+      });
+    },
+  });
+
+  // Global iOS Edge-Swipe Back Gesture: Spot Preview Banner on Map
+  useIOSBackEntry({
+    id: 'app:spot-preview-banner',
+    enabled:
+      isAuthenticated &&
+      !isAdminOpen &&
+      activeTab === 'explorar' &&
+      isSpotCardOpen &&
+      Boolean(selectedSpot) &&
+      !isDetailOpen,
+    priority: 160,
+    label: 'Mapa',
+    foregroundSelector: '#spot-preview-banner-card',
+    backgroundSelector: '#app-map-layer',
+    onPop: () => {
+      setSelectedSpot(null);
+      setRevertSpotZoomTrigger((prev) => prev + 1);
+    },
+  });
+
+  // Global iOS Edge-Swipe Back Gesture: Category Dropdown & Floating Search on Map
+  useIOSBackEntry({
+    id: 'app:map-overlay-controls',
+    enabled:
+      isAuthenticated &&
+      !isAdminOpen &&
+      (isCategoryCardOpen || isSearchOpen),
+    priority: 165,
+    label: 'Mapa',
+    foregroundSelector: '#global-blur-backdrop',
+    backgroundSelector: '#app-map-layer',
+    onPop: () => {
+      setIsCategoryCardOpen(false);
+      setIsSearchOpen(false);
+    },
+  });
 
   // Triggers the first-access welcome journey card when the app enters the real tela de roteiro
   useEffect(() => {
@@ -1459,6 +1613,7 @@ export default function App() {
 
   return (
     <>
+      <IOSInteractiveBackSystem />
       <SignupIntroSequence
         stage={signupIntroStage}
         onAdvanceStage={setSignupIntroStage}
@@ -1476,12 +1631,10 @@ export default function App() {
           exit={
             isSignupRevealActive
               ? { opacity: 1, transition: { duration: 0 } }
-              : prefersReducedMotion
-                ? { opacity: 0 }
-                : { opacity: 0, filter: 'blur(10px)', scale: 1.01 }
+              : { opacity: 0 }
           }
           transition={{
-            duration: prefersReducedMotion ? 0.15 : 0.3,
+            duration: prefersReducedMotion ? 0.15 : 0.32,
             ease: [0.22, 1, 0.36, 1],
           }}
           className="fixed inset-0 w-full h-full z-[120] bg-[#ffffff]"
@@ -1559,27 +1712,6 @@ export default function App() {
             }}
           />
         </motion.div>
-      ) : isAdminOpen ? (
-        <motion.div
-          key="monvian-admin-screen"
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          exit={{ opacity: 0 }}
-          className="fixed inset-0 w-full h-full"
-        >
-          <AdminLayout
-            currentUser={user}
-            onExitAdmin={() => {
-              setIsAdminOpen(false);
-              fetchSpots();
-              fetchVisualIcons();
-              fetchSettings();
-            }}
-            onLogout={() => {
-              setIsAdminOpen(false);
-            }}
-          />
-        </motion.div>
       ) : (
         <motion.div
           key="monvian-main-app"
@@ -1608,13 +1740,14 @@ export default function App() {
           }`}
           style={{
             position: 'fixed',
+            inset: 0,
             top: 0,
             bottom: 0,
             left: 0,
             right: 0,
             width: '100%',
             height: '100%',
-            minHeight: '100%',
+            minHeight: '100dvh',
             boxSizing: 'border-box',
             margin: 0,
             padding: 0,
@@ -1651,13 +1784,13 @@ export default function App() {
 
       <main
         id="main-app-content"
-        className={`relative flex-1 w-full h-full min-h-full overflow-hidden select-none transition-all duration-300 rounded-t-[26px] md:rounded-none ios-page-top-rounded ${
+        className={`relative flex-1 w-full h-full min-h-full overflow-hidden select-none transition-all duration-300 md:rounded-none ios-page-top-rounded ${
           theme === 'dark' ? 'bg-black' : 'bg-zinc-50'
         }`}
         style={{
           width: '100%',
           height: '100%',
-          minHeight: '100%',
+          minHeight: '100dvh',
           boxSizing: 'border-box',
           margin: 0,
           padding: 0,
@@ -1696,7 +1829,7 @@ export default function App() {
           </AnimatePresence>
 
           {/* Interactive Map Canvas Column */}
-          <div className="flex-1 h-full relative overflow-hidden">
+          <div id="app-map-layer" className="flex-1 h-full relative overflow-hidden">
             {/* 1. Interactive Map Engine */}
             <MapComponent
               spots={filteredSpots}
@@ -1933,9 +2066,18 @@ export default function App() {
           <motion.div
             key="itineraries-view-reveal-wrapper"
             initial={false}
-            animate={{ opacity: 1, scale: 1 }}
+            animate={{ opacity: 1 }}
             transition={{ duration: 0.5, ease: [0.22, 1, 0.36, 1] }}
-            className="fixed inset-0 z-40"
+            className="fixed inset-0 w-full h-full z-40"
+            style={{
+              top: 0,
+              bottom: 0,
+              left: 0,
+              right: 0,
+              width: '100%',
+              height: '100%',
+              minHeight: '100dvh',
+            }}
           >
             <ItinerariesView
               key="itineraries-view"
@@ -2336,6 +2478,33 @@ export default function App() {
               </div>
             )}
           </div>
+        </motion.div>
+      )}
+    </AnimatePresence>
+
+    {/* Admin Fullscreen Layer (Mounted above #app-root-shell so map & app states remain preserved underneath) */}
+    <AnimatePresence>
+      {isAdminOpen && (
+        <motion.div
+          key="monvian-admin-screen"
+          initial={{ opacity: 0, x: 18 }}
+          animate={{ opacity: 1, x: 0 }}
+          exit={{ opacity: 0, x: 18 }}
+          transition={{ duration: 0.24, ease: [0.32, 0.72, 0, 1] }}
+          className="fixed inset-0 w-full h-full z-[130]"
+        >
+          <AdminLayout
+            currentUser={user}
+            onExitAdmin={() => {
+              setIsAdminOpen(false);
+              fetchSpots();
+              fetchVisualIcons();
+              fetchSettings();
+            }}
+            onLogout={() => {
+              setIsAdminOpen(false);
+            }}
+          />
         </motion.div>
       )}
     </AnimatePresence>

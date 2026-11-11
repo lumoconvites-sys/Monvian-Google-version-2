@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
+import { Flag } from 'lucide-react';
 import { triggerHapticFeedback } from '../utils/haptics';
 import { playPinTapSound } from '../utils/sound';
 
@@ -38,7 +39,8 @@ export const FloatingEventCard: React.FC<FloatingEventCardProps> = ({
   const [slideDirection, setSlideDirection] = useState<number>(1);
   const [capsuleWidth, setCapsuleWidth] = useState<number | null>(null);
   const [isPressed, setIsPressed] = useState<boolean>(false);
-  const pointerStartXRef = useRef<number | null>(null);
+  const [isDismissed, setIsDismissed] = useState<boolean>(false);
+  const [dismissDirection, setDismissDirection] = useState<'right' | 'down'>('right');
 
   const fetchPublishedEvents = useCallback(async () => {
     try {
@@ -146,26 +148,6 @@ export const FloatingEventCard: React.FC<FloatingEventCardProps> = ({
     );
   };
 
-  const handlePointerDown = (e: React.PointerEvent) => {
-    pointerStartXRef.current = e.clientX;
-  };
-
-  const handlePointerUp = (e: React.PointerEvent) => {
-    if (pointerStartXRef.current === null) return;
-    const deltaX = e.clientX - pointerStartXRef.current;
-    pointerStartXRef.current = null;
-
-    if (Math.abs(deltaX) >= 38 && events.length > 1) {
-      triggerHapticFeedback(8);
-      if (deltaX < 0) {
-        setSlideDirection(1);
-        setCurrentIndex((prev) => (prev + 1) % events.length);
-      } else {
-        setSlideDirection(-1);
-        setCurrentIndex((prev) => (prev - 1 + events.length) % events.length);
-      }
-    }
-  };
 
   const formatTimeLine = (evt: MonvianMapEvent): string => {
     if (evt.start_time && evt.end_time) {
@@ -176,26 +158,113 @@ export const FloatingEventCard: React.FC<FloatingEventCardProps> = ({
     return 'Hoje';
   };
 
+  const [flagTopPx, setFlagTopPx] = useState<number | null>(null);
+
+  // Align the minimized event flag icon directly below the right-side map controls (+, -, compass, layers) with the same 12px (gap-3) spacing
+  useEffect(() => {
+    if (typeof window === 'undefined' || typeof document === 'undefined') return;
+
+    const updateFlagAlignment = () => {
+      const controlsEl = document.getElementById('mobile-map-right-controls');
+      if (controlsEl) {
+        const rect = controlsEl.getBoundingClientRect();
+        if (rect.height > 0) {
+          setFlagTopPx(Math.round(rect.bottom + 12));
+        }
+      }
+    };
+
+    updateFlagAlignment();
+    window.addEventListener('resize', updateFlagAlignment, { passive: true });
+    window.addEventListener('orientationchange', updateFlagAlignment, { passive: true });
+    const t1 = window.setTimeout(updateFlagAlignment, 60);
+    const t2 = window.setTimeout(updateFlagAlignment, 250);
+
+    return () => {
+      window.removeEventListener('resize', updateFlagAlignment);
+      window.removeEventListener('orientationchange', updateFlagAlignment);
+      window.clearTimeout(t1);
+      window.clearTimeout(t2);
+    };
+  }, [visible, isDismissed, events.length]);
+
   const shouldRender = Boolean(visible && activeEvent);
 
   return (
-    <AnimatePresence>
-      {shouldRender && activeEvent && (
+    <AnimatePresence mode="wait">
+      {shouldRender && activeEvent && isDismissed && (
+        <div
+          key="monvian-floating-event-flag-capsule"
+          style={{
+            top: flagTopPx !== null ? `${flagTopPx}px` : 'calc(50% + 126px)',
+            paddingRight: 'env(safe-area-inset-right, 0px)',
+          }}
+          className="md:hidden fixed right-3.5 z-[245] flex flex-col items-center select-none pointer-events-none"
+        >
+          <button
+            type="button"
+            aria-label={`Ver evento: ${activeEvent.name}`}
+            onClick={(e) => {
+              e.stopPropagation();
+              try {
+                triggerHapticFeedback(12);
+                playPinTapSound();
+              } catch {}
+              setIsDismissed(false);
+            }}
+            className="pointer-events-auto w-12 h-12 rounded-full bg-white/90 dark:bg-zinc-900/90 backdrop-blur-md border border-zinc-200/80 dark:border-white/10 shadow-[0_6px_20px_rgba(0,0,0,0.22)] flex items-center justify-center active:scale-90 transition-all cursor-pointer"
+          >
+            <Flag className="w-5 h-5 text-amber-500 fill-amber-500 stroke-[2.2]" />
+          </button>
+        </div>
+      )}
+
+      {shouldRender && activeEvent && !isDismissed && (
         <motion.div
           key="monvian-floating-event-card-wrapper"
           initial={{ opacity: 0, y: 14, scale: 0.97 }}
           animate={{ opacity: 1, y: 0, scale: 1 }}
-          exit={{ opacity: 0, y: 12, scale: 0.97 }}
-          transition={{ duration: 0.34, ease: [0.22, 1, 0.36, 1] }}
+          exit={
+            dismissDirection === 'down'
+              ? { opacity: 0, y: 110, scale: 0.86, transition: { duration: 0.28, ease: [0.32, 1, 0.23, 1] } }
+              : { opacity: 0, x: 260, scale: 0.86, transition: { duration: 0.28, ease: [0.32, 1, 0.23, 1] } }
+          }
+          transition={{ duration: 0.32, ease: [0.22, 1, 0.36, 1] }}
           style={{
             bottom: '84px',
           }}
           className="md:hidden fixed inset-x-0 z-[245] flex justify-center px-4 select-none pointer-events-none"
         >
-          <div
-            onPointerDown={handlePointerDown}
-            onPointerUp={handlePointerUp}
-            onClick={() => handleFocusEventOnMap(activeEvent)}
+          <motion.div
+            drag
+            dragConstraints={{ left: 0, top: 0, right: 0, bottom: 0 }}
+            dragElastic={{ top: 0.08, left: 0.08, right: 0.75, bottom: 0.75 }}
+            onDragEnd={(_e, info) => {
+              const isSwipeDown = info.offset.y > 35 || info.velocity.y > 180;
+              const isSwipeRight = info.offset.x > 45 || info.velocity.x > 200;
+              const isSwipeLeft = info.offset.x < -45 || info.velocity.x < -200;
+
+              if (isSwipeDown) {
+                try {
+                  triggerHapticFeedback(12);
+                } catch {}
+                setDismissDirection('down');
+                setIsDismissed(true);
+              } else if (isSwipeRight) {
+                try {
+                  triggerHapticFeedback(12);
+                } catch {}
+                setDismissDirection('right');
+                setIsDismissed(true);
+              } else if (isSwipeLeft && events.length > 1) {
+                try {
+                  triggerHapticFeedback(8);
+                } catch {}
+                setSlideDirection(1);
+                setCurrentIndex((prev) => (prev + 1) % events.length);
+              }
+            }}
+            onTap={() => handleFocusEventOnMap(activeEvent)}
             style={{
               width: capsuleWidth ? `${capsuleWidth}px` : undefined,
               fontFamily:
@@ -205,8 +274,9 @@ export const FloatingEventCard: React.FC<FloatingEventCardProps> = ({
               WebkitBackdropFilter: 'blur(24px) saturate(190%)',
               boxShadow:
                 '0 10px 28px -6px rgba(0, 0, 0, 0.10), 0 2px 6px rgba(0, 0, 0, 0.04), inset 0 1px 0 rgba(255, 255, 255, 0.92)',
+              touchAction: 'none',
             }}
-            className="w-full max-w-[326px] sm:max-w-[342px] rounded-[28px] px-3 py-2.5 border border-white/85 pointer-events-auto cursor-pointer active:scale-[0.988] transition-transform duration-200 overflow-hidden"
+            className="w-full max-w-[326px] sm:max-w-[342px] rounded-[28px] px-3 py-2.5 border border-white/85 pointer-events-auto cursor-grab active:cursor-grabbing transition-transform duration-200 overflow-hidden"
           >
             <AnimatePresence mode="wait" initial={false}>
               <motion.div
@@ -215,7 +285,7 @@ export const FloatingEventCard: React.FC<FloatingEventCardProps> = ({
                 animate={{ opacity: 1, x: 0 }}
                 exit={{ opacity: 0, x: slideDirection * -18 }}
                 transition={{ duration: 0.24, ease: [0.22, 1, 0.36, 1] }}
-                className="flex items-center justify-between gap-2.5 w-full"
+                className="flex items-center justify-between gap-2.5 w-full pointer-events-none"
               >
                 {/* Left Area: Circular Event Photo with delicate white border */}
                 <div className="w-[46px] h-[46px] rounded-full overflow-hidden shrink-0 border-[2px] border-white shadow-[0_2px_8px_rgba(0,0,0,0.08)] bg-zinc-200/70">
@@ -283,7 +353,7 @@ export const FloatingEventCard: React.FC<FloatingEventCardProps> = ({
                     boxShadow:
                       '0 2px 8px rgba(0, 0, 0, 0.07), inset 0 1px 0 rgba(255, 255, 255, 0.95)',
                   }}
-                  className={`w-[38px] h-[38px] rounded-full border border-white/90 shrink-0 flex items-center justify-center transition-transform duration-150 cursor-pointer ${
+                  className={`pointer-events-auto w-[38px] h-[38px] rounded-full border border-white/90 shrink-0 flex items-center justify-center transition-transform duration-150 cursor-pointer ${
                     isPressed ? 'scale-90 bg-white' : 'hover:scale-105 active:scale-90'
                   }`}
                 >
@@ -297,7 +367,7 @@ export const FloatingEventCard: React.FC<FloatingEventCardProps> = ({
                 </button>
               </motion.div>
             </AnimatePresence>
-          </div>
+          </motion.div>
         </motion.div>
       )}
     </AnimatePresence>

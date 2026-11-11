@@ -26,6 +26,7 @@ import { AdminSettings } from './AdminSettings';
 import { AdminCleanup } from './AdminCleanup';
 import { AdminItineraries } from './AdminItineraries';
 import { AdminServices } from './AdminServices';
+import { useIOSBackEntry } from '../../services/iosNavigationManager';
 
 interface AdminLayoutProps {
   currentUser: any;
@@ -39,8 +40,49 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({
   onLogout
 }) => {
   const [activeTab, setActiveTab] = useState<string>('dashboard');
+  const [adminTabHistory, setAdminTabHistory] = useState<string[]>([]);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [currentTime, setCurrentTime] = useState('');
+
+  const handleSelectAdminTab = React.useCallback((nextTab: string) => {
+    setActiveTab((prev) => {
+      if (prev === nextTab) return prev;
+      setAdminTabHistory((hist) => [...hist, prev]);
+      return nextTab;
+    });
+  }, []);
+
+  // Register iOS Edge-Swipe Back Gesture for internal Admin tabs
+  useIOSBackEntry({
+    id: `admin:tab:${activeTab}`,
+    enabled: adminTabHistory.length > 0,
+    priority: 175,
+    label: 'Painel ADM',
+    foregroundSelector: '#admin-main-content',
+    backgroundSelector: '#admin-layout-root',
+    onPop: () => {
+      setAdminTabHistory((hist) => {
+        if (hist.length === 0) return hist;
+        const nextHist = [...hist];
+        const prevTab = nextHist.pop() || 'dashboard';
+        setActiveTab(prevTab);
+        return nextHist;
+      });
+    },
+  });
+
+  // Register iOS Edge-Swipe Back Gesture to exit Admin back to the main app
+  useIOSBackEntry({
+    id: 'admin:root',
+    enabled: true,
+    priority: 170,
+    label: 'Voltar ao App',
+    foregroundSelector: '#admin-layout-root',
+    backgroundSelector: '#app-root-shell',
+    onPop: () => {
+      onExitAdmin();
+    },
+  });
 
   // Live Clock & Date formatted (matching screenshot: 16:35 | 12 de setembro)
   useEffect(() => {
@@ -77,6 +119,7 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({
 
   return (
     <div
+      id="admin-layout-root"
       className="h-screen h-[100dvh] w-full bg-[#f8fafc] dark:bg-[#000000] text-zinc-900 dark:text-zinc-100 flex flex-col font-sans antialiased overflow-hidden rounded-t-[26px] ios-page-top-rounded"
       style={{
         borderTopLeftRadius: '26px',
@@ -197,7 +240,7 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({
                 return (
                   <button
                     key={item.id}
-                    onClick={() => setActiveTab(item.id)}
+                    onClick={() => handleSelectAdminTab(item.id)}
                     className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-xs font-black transition-all cursor-pointer ${
                       isActive
                         ? 'bg-blue-50 dark:bg-blue-950/40 text-blue-600 dark:text-blue-400 font-black shadow-2xs'
@@ -282,7 +325,7 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({
                       <button
                         key={item.id}
                         onClick={() => {
-                          setActiveTab(item.id);
+                          handleSelectAdminTab(item.id);
                           setIsMobileMenuOpen(false);
                         }}
                         className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-xs font-black transition-all ${
@@ -323,6 +366,7 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({
 
         {/* Dynamic Content Area with Full Scroll & Safe Bottom Padding */}
         <main 
+          id="admin-main-content"
           className="flex-1 p-4 sm:p-6 lg:p-8 overflow-y-auto min-h-0 max-w-7xl mx-auto w-full"
           style={{
             paddingBottom: 'max(128px, calc(env(safe-area-inset-bottom, 0px) + 96px))',
@@ -337,7 +381,7 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({
               transition={{ duration: 0.18, ease: "easeOut" }}
               className="w-full"
             >
-              {activeTab === 'dashboard' && <AdminDashboard onNavigateTo={(tab) => setActiveTab(tab)} />}
+              {activeTab === 'dashboard' && <AdminDashboard onNavigateTo={(tab) => handleSelectAdminTab(tab)} />}
               {activeTab === 'spots' && <AdminSpots />}
               {activeTab === 'itineraries' && <AdminItineraries />}
               {activeTab === 'services' && <AdminServices />}
