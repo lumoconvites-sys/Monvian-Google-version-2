@@ -1068,6 +1068,53 @@ export const CinematicLandingView: React.FC<CinematicLandingViewProps> = ({
                 {renderMaskedWord('seu', 16, true)}{' '}
                 {renderMaskedWord('jeito.', 19)}
               </h1>
+
+              <div
+                className="max-w-[340px] sm:max-w-[400px] md:max-w-[510px] text-[14px] sm:text-[15.5px] md:text-[17px] font-normal text-[#EAF3FF] leading-[1.38] tracking-[-0.01em] drop-shadow-[0_2px_12px_rgba(15,40,74,0.3)]"
+                style={{
+                  fontFamily:
+                    "'SF Pro Text', -apple-system, BlinkMacSystemFont, sans-serif",
+                }}
+              >
+                <div className="overflow-hidden">
+                  <motion.p
+                    initial={prefersReducedMotion ? { opacity: 0 } : { y: '100%', opacity: 0 }}
+                    animate={
+                      assetsReady
+                        ? { y: '0%', opacity: 1 }
+                        : prefersReducedMotion
+                          ? { opacity: 0 }
+                          : { y: '100%', opacity: 0 }
+                    }
+                    transition={{
+                      duration: prefersReducedMotion ? 0.2 : 0.45,
+                      ease: [0.22, 1, 0.36, 1],
+                      delay: prefersReducedMotion ? 0 : 0.08,
+                    }}
+                  >
+                    Descubra lugares incríveis, explore experiências
+                  </motion.p>
+                </div>
+                <div className="overflow-hidden">
+                  <motion.p
+                    initial={prefersReducedMotion ? { opacity: 0 } : { y: '100%', opacity: 0 }}
+                    animate={
+                      assetsReady
+                        ? { y: '0%', opacity: 1 }
+                        : prefersReducedMotion
+                          ? { opacity: 0 }
+                          : { y: '100%', opacity: 0 }
+                    }
+                    transition={{
+                      duration: prefersReducedMotion ? 0.2 : 0.45,
+                      ease: [0.22, 1, 0.36, 1],
+                      delay: prefersReducedMotion ? 0 : 0.12,
+                    }}
+                  >
+                    e encontre o que fazer na cidade com a ajuda do Monvian.
+                  </motion.p>
+                </div>
+              </div>
             </div>
           </div>
 
