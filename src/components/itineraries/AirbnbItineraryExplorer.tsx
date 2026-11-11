@@ -28,7 +28,6 @@ import {
 import { useFavorites } from '../../hooks/useFavorites';
 import { DEFAULT_CURATED_ITINERARIES } from '../../data/defaultItineraries';
 import { triggerHapticFeedback } from '../../utils/haptics';
-import { useIOSBackEntry } from '../../services/iosNavigationManager';
 
 // Fast in-memory cache for categories
 let memoryCategoriesCache: ItineraryCategory[] | null = null;
@@ -869,17 +868,6 @@ export const AirbnbItineraryExplorer: React.FC<AirbnbItineraryExplorerProps> = (
     setSelectedItinerary(itin);
     setIsDetailOpen(true);
   }, []);
-
-  // Register iOS Edge-Swipe Back Navigation when viewing "Todos os roteiros" subview
-  useIOSBackEntry({
-    id: 'itinerary-explorer:show-all',
-    enabled: Boolean(showAllItineraries),
-    priority: 115,
-    label: 'Todos os Roteiros',
-    foregroundSelector: '#airbnb-itinerary-scroll-container',
-    backgroundSelector: '#app-map-layer',
-    onPop: () => setShowAllItineraries(false),
-  });
 
   const handleApplyFromDetail = useCallback(
     async (itin: Itinerary) => {

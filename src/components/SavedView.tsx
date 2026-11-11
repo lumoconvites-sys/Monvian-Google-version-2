@@ -22,7 +22,6 @@ import { DEFAULT_CURATED_ITINERARIES } from '../data/defaultItineraries';
 import { useFavorites } from '../hooks/useFavorites';
 import { getSpotImage } from '../utils/spotImages';
 import { fetchItinerariesFromSupabase } from '../services/supabaseItineraries';
-import { useIOSBackEntry } from '../services/iosNavigationManager';
 
 export type SavedCollectionType = 'roteiros' | 'pontos' | 'lugares';
 
@@ -358,22 +357,6 @@ export const SavedView: React.FC<SavedViewProps> = ({
     setSelectedForRemoval(new Set());
   };
 
-  // Register iOS Edge-Swipe Back Navigation when viewing a Saved collection
-  useIOSBackEntry({
-    id: `saved-collection:${activeCollection || 'none'}`,
-    enabled: Boolean(isOpen && activeCollection),
-    priority: 120,
-    label:
-      activeCollection === 'roteiros'
-        ? 'Roteiros salvos'
-        : activeCollection === 'pontos'
-          ? 'Pontos turísticos'
-          : 'Removidos da lista',
-    foregroundSelector: '#saved-collection-detail-view',
-    backgroundSelector: '#saved-overview-layer',
-    onPop: handleBackToMain,
-  });
-
   const handleToggleSelect = (id: string) => {
     setSelectedForRemoval((prev) => {
       const next = new Set(prev);
@@ -449,64 +432,66 @@ export const SavedView: React.FC<SavedViewProps> = ({
             WebkitBackfaceVisibility: 'hidden',
           }}
         >
-          <div className={`relative w-full h-full ${isDark ? 'bg-black' : 'bg-[#ffffff]'}`}>
-            {/* MAIN OVERVIEW: 2x2 COLLECTIONS GRID (Kept mounted underneath for iOS parallax back-swipe) */}
-            <div
-              id="saved-overview-layer"
-              className={`flex-1 flex flex-col w-full h-full overflow-y-auto overscroll-y-contain ${
-                isDark ? 'bg-black' : 'bg-[#ffffff]'
-              }`}
-              style={{
-                backgroundColor: isDark ? '#000000' : '#ffffff',
-                paddingTop: 'max(calc(env(safe-area-inset-top, 0px) + 20px), 24px)',
-                paddingBottom: 'calc(max(24px, env(safe-area-inset-bottom, 0px)) + 116px)',
-                willChange: 'transform',
-              }}
-            >
-              <header className="px-6 pb-6 pt-3 shrink-0">
-                <h1 className="text-3xl sm:text-4xl font-extrabold tracking-tight">
-                  Salvos
-                </h1>
-                <p className="text-sm text-zinc-500 font-medium mt-1">
-                  Suas coleções e lugares marcados em Campos do Jordão
-                </p>
-              </header>
+          <div className={`w-full h-full ${isDark ? 'bg-black' : 'bg-[#ffffff]'}`}>
+            <AnimatePresence mode="wait" initial={false}>
+              {!activeCollection ? (
+                /* MAIN OVERVIEW: 2x2 COLLECTIONS GRID */
+                <motion.div
+                  key="saved-overview"
+                  initial={{ opacity: 0, y: 6 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: -4 }}
+                  transition={{ duration: 0.16, ease: [0.22, 1, 0.36, 1] }}
+                  className={`flex-1 flex flex-col w-full h-full overflow-y-auto overscroll-y-contain ${
+                    isDark ? 'bg-black' : 'bg-[#ffffff]'
+                  }`}
+                  style={{
+                    backgroundColor: isDark ? '#000000' : '#ffffff',
+                    paddingTop: 'max(calc(env(safe-area-inset-top, 0px) + 20px), 24px)',
+                    paddingBottom: 'calc(max(24px, env(safe-area-inset-bottom, 0px)) + 116px)',
+                  }}
+                >
+                  <header className="px-6 pb-6 pt-3 shrink-0">
+                    <h1 className="text-3xl sm:text-4xl font-extrabold tracking-tight">
+                      Salvos
+                    </h1>
+                    <p className="text-sm text-zinc-500 font-medium mt-1">
+                      Suas coleções e lugares marcados em Campos do Jordão
+                    </p>
+                  </header>
 
-              <main className="px-6 flex-1 max-w-2xl mx-auto w-full">
-                <div className="grid grid-cols-2 gap-x-4 gap-y-6">
-                  <CollectionCoverCard
-                    index={0}
-                    title="Roteiros salvos"
-                    count={resolvedItineraries.length}
-                    photos={itineraryPhotos}
-                    isDark={isDark}
-                    fallbackIcon={<Compass className="w-10 h-10 text-zinc-400 stroke-[1.5]" />}
-                    onClick={() => handleOpenCollection('roteiros')}
-                  />
-                  <CollectionCoverCard
-                    index={1}
-                    title="Pontos turísticos"
-                    count={resolvedTouristSpots.length}
-                    photos={touristSpotPhotos}
-                    isDark={isDark}
-                    fallbackIcon={<MapPin className="w-10 h-10 text-zinc-400 stroke-[1.5]" />}
-                    onClick={() => handleOpenCollection('pontos')}
-                  />
-                </div>
-              </main>
-            </div>
-
-            <AnimatePresence initial={false}>
-              {activeCollection && (
+                  <main className="px-6 flex-1 max-w-2xl mx-auto w-full">
+                    <div className="grid grid-cols-2 gap-x-4 gap-y-6">
+                      <CollectionCoverCard
+                        index={0}
+                        title="Roteiros salvos"
+                        count={resolvedItineraries.length}
+                        photos={itineraryPhotos}
+                        isDark={isDark}
+                        fallbackIcon={<Compass className="w-10 h-10 text-zinc-400 stroke-[1.5]" />}
+                        onClick={() => handleOpenCollection('roteiros')}
+                      />
+                      <CollectionCoverCard
+                        index={1}
+                        title="Pontos turísticos"
+                        count={resolvedTouristSpots.length}
+                        photos={touristSpotPhotos}
+                        isDark={isDark}
+                        fallbackIcon={<MapPin className="w-10 h-10 text-zinc-400 stroke-[1.5]" />}
+                        onClick={() => handleOpenCollection('pontos')}
+                      />
+                    </div>
+                  </main>
+                </motion.div>
+              ) : (
                 /* COLLECTION DRILL-DOWN LIST VIEW */
                 <motion.div
-                  id="saved-collection-detail-view"
                   key={`saved-detail-${activeCollection}`}
-                  initial={{ opacity: 0, x: 24 }}
-                  animate={{ opacity: 1, x: 0 }}
-                  exit={{ opacity: 0, x: 24 }}
-                  transition={{ duration: 0.22, ease: [0.32, 0.72, 0, 1] }}
-                  className={`absolute inset-0 z-20 flex-1 flex flex-col w-full h-full overflow-hidden ${
+                  initial={{ opacity: 0, y: 6 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: -4 }}
+                  transition={{ duration: 0.16, ease: [0.22, 1, 0.36, 1] }}
+                  className={`flex-1 flex flex-col w-full h-full overflow-hidden ${
                     isDark ? 'bg-black' : 'bg-[#ffffff]'
                   }`}
                   style={{
@@ -515,7 +500,6 @@ export const SavedView: React.FC<SavedViewProps> = ({
                     paddingBottom: isEditing
                       ? 'calc(max(24px, env(safe-area-inset-bottom, 0px)) + 140px)'
                       : 'calc(max(24px, env(safe-area-inset-bottom, 0px)) + 92px)',
-                    willChange: 'transform, opacity',
                   }}
                 >
                   {/* Top Bar */}

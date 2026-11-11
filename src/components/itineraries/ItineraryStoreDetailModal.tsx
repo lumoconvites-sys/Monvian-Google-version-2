@@ -14,7 +14,6 @@ import { motion, AnimatePresence } from 'motion/react';
 import { Itinerary } from '../../types';
 import { getSpotImage, getSpotFallbackImage } from '../../utils/spotImages';
 import { useFavorites } from '../../hooks/useFavorites';
-import { useIOSBackEntry } from '../../services/iosNavigationManager';
 
 interface ItineraryStoreDetailModalProps {
   itinerary: Itinerary | null;
@@ -79,18 +78,6 @@ export const ItineraryStoreDetailModal: React.FC<ItineraryStoreDetailModalProps>
   const { isItinerarySaved, toggleItinerary } = useFavorites();
   const scrollRef = useRef<HTMLDivElement | null>(null);
   const heroImgRef = useRef<HTMLImageElement | null>(null);
-
-  // Register iOS Edge-Swipe Back Navigation for Itinerary Detail Modal
-  useIOSBackEntry({
-    id: `itinerary-store-detail:${itinerary?.id || 'active'}`,
-    enabled: Boolean(isOpen && itinerary),
-    priority: 245,
-    label: itinerary?.title || 'Detalhes do Roteiro',
-    foregroundSelector: '#itinerary-store-detail-card',
-    backgroundSelector: '#itinerary-explore-layer',
-    getBackdropEl: () => document.getElementById('itinerary-store-detail-backdrop'),
-    onPop: onClose,
-  });
 
   // Smooth scroll-driven blur & scale effect (native iOS fluid feel)
   const handleScroll = (e: React.UIEvent<HTMLDivElement>) => {
@@ -177,7 +164,6 @@ export const ItineraryStoreDetailModal: React.FC<ItineraryStoreDetailModalProps>
       <AnimatePresence>
         {isOpen && activeItinerary && (
           <motion.div
-            id="itinerary-store-detail-backdrop"
             key="itinerary-detail-backdrop"
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
@@ -197,7 +183,6 @@ export const ItineraryStoreDetailModal: React.FC<ItineraryStoreDetailModalProps>
         >
           {/* Fullscreen Translucent Mobile Card Container (120fps GPU Composited) */}
           <motion.div
-            id="itinerary-store-detail-card"
             key={`itinerary-detail-content-${activeItinerary.id}`}
             initial={{ opacity: 0, scale: 0.94, y: 26 }}
             animate={{ opacity: 1, scale: 1, y: 0 }}
@@ -228,7 +213,7 @@ export const ItineraryStoreDetailModal: React.FC<ItineraryStoreDetailModalProps>
           <div 
             ref={scrollRef}
             onScroll={handleScroll}
-            className="flex-1 overflow-y-auto overscroll-contain rounded-t-[30px]"
+            className="flex-1 overflow-y-auto overscroll-contain pb-36 rounded-t-[30px]"
             style={{
               WebkitOverflowScrolling: 'touch',
               transform: 'translate3d(0, 0, 0)',
@@ -329,11 +314,10 @@ export const ItineraryStoreDetailModal: React.FC<ItineraryStoreDetailModalProps>
                 backfaceVisibility: 'hidden',
                 WebkitBackfaceVisibility: 'hidden',
                 willChange: 'transform, opacity',
-                backgroundColor: isLight ? '#ffffff' : undefined,
               }}
-              className={`relative -mt-6 z-10 rounded-t-[32px] sm:rounded-t-[36px] px-5 pt-6 pb-0 space-y-4 backdrop-blur-2xl ${
+              className={`relative -mt-6 z-10 rounded-t-[32px] sm:rounded-t-[36px] px-5 pt-6 pb-6 space-y-4 backdrop-blur-2xl min-h-[calc(100%-15rem)] ${
                 isLight
-                  ? 'bg-[#ffffff] text-zinc-900 border-t border-black/5 shadow-[0_-8px_32px_rgba(0,0,0,0.08)]'
+                  ? 'bg-white/92 text-zinc-900 border-t border-black/5 shadow-[0_-8px_32px_rgba(0,0,0,0.08)]'
                   : 'bg-[#000000]/90 text-white border-t border-white/10 shadow-[0_-8px_32px_rgba(0,0,0,0.5)]'
               }`}
             >
@@ -556,12 +540,12 @@ export const ItineraryStoreDetailModal: React.FC<ItineraryStoreDetailModalProps>
                   })}
                 </div>
 
-                {/* Espaçamento justo para que a última parada fique alinhada perfeitamente acima do botão Play flutuante, sem espaços desnecessários */}
+                {/* Espaçamento generoso para que todas as paradas rolem livremente acima do botão Play flutuante */}
                 <div
                   aria-hidden="true"
                   className="w-full shrink-0 select-none pointer-events-none"
                   style={{
-                    height: 'max(calc(env(safe-area-inset-bottom, 0px) + 72px), 76px)',
+                    height: 'max(calc(env(safe-area-inset-bottom, 0px) + 90px), 110px)',
                   }}
                 />
               </div>

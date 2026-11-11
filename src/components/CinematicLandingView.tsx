@@ -615,10 +615,8 @@ export const CinematicLandingView: React.FC<CinematicLandingViewProps> = ({
         }`}
       >
         <nav className="flex items-center justify-between gap-1 sm:gap-3 text-[12px] sm:text-[13px] font-medium tracking-[-0.01em]">
-          <motion.button
+          <button
             type="button"
-            whileTap={{ scale: 0.96 }}
-            transition={{ type: 'spring', stiffness: 520, damping: 28 }}
             onClick={() => {
               triggerHaptic();
               onStartRegister();
@@ -630,12 +628,9 @@ export const CinematicLandingView: React.FC<CinematicLandingViewProps> = ({
             }`}
           >
             Criar conta
-          </motion.button>
-          <motion.button
-            id="btn-landing-top-login"
+          </button>
+          <button
             type="button"
-            whileTap={{ scale: 0.96 }}
-            transition={{ type: 'spring', stiffness: 520, damping: 28 }}
             onClick={() => {
               triggerHaptic();
               onOpenLogin();
@@ -647,7 +642,7 @@ export const CinematicLandingView: React.FC<CinematicLandingViewProps> = ({
             }`}
           >
             Entrar
-          </motion.button>
+          </button>
           <button
             type="button"
             onClick={() => scrollToSection('roteiros')}
@@ -1580,19 +1575,16 @@ export const CinematicLandingView: React.FC<CinematicLandingViewProps> = ({
               </span>
             </motion.button>
 
-            <motion.button
-              id="btn-landing-bottom-login"
+            <button
               type="button"
-              whileTap={{ scale: 0.96 }}
-              transition={{ type: 'spring', stiffness: 520, damping: 28 }}
               onClick={() => {
                 triggerHaptic();
                 onOpenLogin();
               }}
-              className="mt-3.5 py-2.5 px-6 rounded-full text-[15px] font-bold text-[#080808] hover:text-[#2673E8] hover:bg-black/[0.03] active:bg-black/[0.06] transition-colors cursor-pointer select-none focus-visible:outline-2 focus-visible:outline-[#2673E8]"
+              className="mt-3.5 py-2 px-4 text-[15px] font-bold text-[#080808] hover:text-[#2673E8] active:opacity-70 transition-colors cursor-pointer"
             >
               Já tenho uma conta
-            </motion.button>
+            </button>
           </div>
         </div>
       </section>

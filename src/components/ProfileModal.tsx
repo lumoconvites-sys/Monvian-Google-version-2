@@ -37,7 +37,6 @@ import {
   HelpAndLegalView,
   HelpLegalPageId,
 } from './HelpAndLegalSection';
-import { useIOSBackEntry } from '../services/iosNavigationManager';
 
 interface ProfileModalProps {
   isOpen: boolean;
@@ -286,62 +285,6 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
   const [isNotificationsOpen, setIsNotificationsOpen] = useState(false);
   const [notificationsList, setNotificationsList] = useState<any[]>([]);
 
-  // Register iOS Interactive Edge-Swipe Back Gesture for Profile subviews and modals
-  useIOSBackEntry({
-    id: `profile:help-legal:${helpLegalPage}`,
-    enabled: isOpen && activeSubView === 'ajuda-informacoes' && helpLegalPage !== 'hub',
-    priority: 130,
-    label: 'Ajuda e Informações',
-    foregroundSelector: '#profile-subview-content',
-    backgroundSelector: '#profile-modal-panel',
-    onPop: () => {
-      setHelpLegalPage('hub');
-    },
-  });
-
-  useIOSBackEntry({
-    id: `profile:subview:${activeSubView}`,
-    enabled:
-      isOpen &&
-      activeSubView !== 'main' &&
-      !(activeSubView === 'ajuda-informacoes' && helpLegalPage !== 'hub'),
-    priority: 125,
-    label: 'Perfil',
-    foregroundSelector: '#profile-subview-content',
-    backgroundSelector: '#profile-modal-panel',
-    onPop: () => {
-      if (activeSubView === 'ajuda-informacoes') {
-        handleSetSubView(helpReturnView);
-      } else {
-        handleSetSubView('main');
-      }
-    },
-  });
-
-  useIOSBackEntry({
-    id: 'profile:notifications',
-    enabled: isOpen && isNotificationsOpen,
-    priority: 245,
-    label: 'Perfil',
-    foregroundSelector: '#notifications-fullscreen-view',
-    backgroundSelector: '#profile-modal-panel',
-    onPop: () => {
-      setIsNotificationsOpen(false);
-      handleSetSubView('main');
-    },
-  });
-
-  useIOSBackEntry({
-    id: 'profile:premium',
-    enabled: isOpen && isPremiumModalOpen,
-    priority: 245,
-    label: 'Perfil',
-    foregroundSelector: '#profile-modal-panel',
-    onPop: () => {
-      setIsPremiumModalOpen(false);
-    },
-  });
-
   const isDark = false;
   const favoriteSpots = spots.filter((s) => favorites.includes(s.id));
 
@@ -550,7 +493,6 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
         className="fixed inset-0 z-45 flex flex-col justify-end md:justify-center md:items-center md:p-6 select-none overflow-hidden transition-colors duration-200 md:bg-black/50 md:backdrop-blur-xs"
       >
         <motion.div
-          id="profile-modal-panel"
           initial={{ opacity: 0, y: 8 }}
           animate={{ opacity: 1, y: 0 }}
           exit={{ opacity: 0, y: 6 }}
@@ -650,7 +592,6 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
           {/* ============================================================ */}
           <AnimatePresence mode="wait" initial={false}>
           <motion.div
-            id="profile-subview-content"
             key={activeSubView}
             initial={{ opacity: 0, y: 6 }}
             animate={{ opacity: 1, y: 0 }}

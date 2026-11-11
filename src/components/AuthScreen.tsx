@@ -7,14 +7,14 @@ import {
   Loader2,
   ChevronLeft,
   CheckCircle2,
+  ZoomIn,
+  ZoomOut,
 } from 'lucide-react';
 import { motion, AnimatePresence, useReducedMotion } from 'motion/react';
 import { auth, createUserWithEmailAndPassword, googleSignIn, setCachedAccessToken } from '../lib/firebase';
 import { supabase } from '../lib/supabase';
-import { persistUserToFirestore, syncPermissionsFromDatabase } from '../services/firestoreSync';
-import { startPreloadResources } from '../utils/preloadItineraries';
+import { persistUserToFirestore } from '../services/firestoreSync';
 import { CinematicLandingView } from './CinematicLandingView';
-import { useIOSBackEntry, iosNavigationManager } from '../services/iosNavigationManager';
 
 interface AuthScreenProps {
   onSuccess: (token: string, user: any, isNewAccount?: boolean) => void;
@@ -64,14 +64,6 @@ export function AuthScreen({ onSuccess }: AuthScreenProps) {
   const [authMode, setAuthMode] = useState<'landing' | 'login' | 'register' | 'recover'>('landing');
   const [registerStep, setRegisterStep] = useState<1 | 2 | 3>(1);
 
-  // Preload dark logo on initial mount so Login screen renders with zero decoding lag
-  useEffect(() => {
-    try {
-      const img = new Image();
-      img.src = '/assets/aistudio/monvian_logo_dark_transparent.png';
-    } catch {}
-  }, []);
-
   // Never allow the Monvian logo splash preloader to appear on the Login / Landing screen
   useEffect(() => {
     try {
@@ -88,6 +80,13 @@ export function AuthScreen({ onSuccess }: AuthScreenProps) {
         preloader.style.pointerEvents = 'none';
       }
     } catch {}
+  }, [authMode]);
+
+  // Ensure user always starts at the top of the landing page
+  useEffect(() => {
+    if (landingScrollContainerRef.current) {
+      landingScrollContainerRef.current.scrollTop = 0;
+    }
   }, [authMode]);
 
   // Progressive Registration Fields (persisted across step navigation)
@@ -126,7 +125,6 @@ export function AuthScreen({ onSuccess }: AuthScreenProps) {
   // Loading & error states
   const [loading, setLoading] = useState(false);
   const [googleLoading, setGoogleLoading] = useState(false);
-  const [isGoogleAccountPreparing, setIsGoogleAccountPreparing] = useState(false);
   const [error, setError] = useState('');
   const isSubmittingRef = useRef(false);
 
@@ -146,10 +144,23 @@ export function AuthScreen({ onSuccess }: AuthScreenProps) {
 
   useEffect(() => {
     if (authMode === 'login' || authMode === 'recover') {
+      const viewportMeta = document.querySelector('meta[name="viewport"]');
+      if (viewportMeta) {
+        viewportMeta.setAttribute(
+          'content',
+          'width=device-width, initial-scale=1.0, minimum-scale=1.0, maximum-scale=5.0, user-scalable=yes, viewport-fit=cover, interactive-widget=resizes-content'
+        );
+      }
       document.body.classList.add('is-login-screen');
       document.documentElement.classList.add('is-login-screen');
 
       return () => {
+        if (viewportMeta) {
+          viewportMeta.setAttribute(
+            'content',
+            'width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover, interactive-widget=resizes-content'
+          );
+        }
         document.body.classList.remove('is-login-screen');
         document.documentElement.classList.remove('is-login-screen');
       };
@@ -277,8 +288,6 @@ export function AuthScreen({ onSuccess }: AuthScreenProps) {
 
   const handleOpenLoginFlow = () => {
     setError('');
-    setRecoverSent(false);
-    setLoginZoom(1);
     setAuthMode('login');
   };
 
@@ -309,45 +318,6 @@ export function AuthScreen({ onSuccess }: AuthScreenProps) {
       setAuthMode('landing');
     }
   };
-
-  // Register iOS Edge-Swipe Back Navigation for Auth Screens
-  useIOSBackEntry({
-    id: 'auth:login',
-    enabled: authMode === 'login',
-    priority: 120,
-    label: 'Login',
-    foregroundSelector: '#auth-main-section',
-    backgroundSelector: '#auth-landing-layer',
-    onPop: () => {
-      setError('');
-      setLoginZoom(1);
-      setAuthMode('landing');
-    },
-  });
-
-  useIOSBackEntry({
-    id: 'auth:recover',
-    enabled: authMode === 'recover',
-    priority: 130,
-    label: 'Recuperar Senha',
-    foregroundSelector: '#auth-main-section',
-    backgroundSelector: '#auth-landing-layer',
-    onPop: () => {
-      setError('');
-      setRecoverSent(false);
-      setAuthMode('login');
-    },
-  });
-
-  useIOSBackEntry({
-    id: `auth:register-step-${registerStep}`,
-    enabled: authMode === 'register',
-    priority: 125 + registerStep,
-    label: `Cadastro Etapa ${registerStep}`,
-    foregroundSelector: '#auth-register-section',
-    backgroundSelector: '#auth-landing-layer',
-    onPop: handleStepBack,
-  });
 
   // 1. Submit Login (Supabase Auth + Backend Session)
   const handleLoginSubmit = async (e: React.FormEvent) => {
@@ -387,7 +357,6 @@ export function AuthScreen({ onSuccess }: AuthScreenProps) {
       if (res.ok && data.success && data.user) {
         localStorage.setItem('monvian_token', data.token);
         localStorage.setItem('monvian_user', JSON.stringify(data.user));
-        iosNavigationManager.clearAuthEntries();
         onSuccess(data.token, data.user, false);
       } else {
         setError(data.error || 'E-mail ou senha incorretos.');
@@ -497,7 +466,6 @@ export function AuthScreen({ onSuccess }: AuthScreenProps) {
           sessionStorage.removeItem('monvian_signup_draft_email');
         } catch {}
 
-        iosNavigationManager.clearAuthEntries();
         onSuccess(data.token, data.user, true);
       } else {
         setError(data.error || 'Não foi possível concluir o cadastro. Verifique os dados e tente novamente.');
@@ -513,23 +481,17 @@ export function AuthScreen({ onSuccess }: AuthScreenProps) {
 
   // 3. Sign In with Google
   const handleGoogleAuth = async () => {
-    if (googleLoading || isGoogleAccountPreparing || loading) return;
     setError('');
     setGoogleLoading(true);
     try {
-      // Step 1-4: Open official Google Account Selector and wait for user selection
       const authResult = await googleSignIn();
-      if (!authResult || !authResult.user) {
+      if (!authResult) {
         throw new Error('Autenticação com Google cancelada');
       }
-
-      // Step 6-7: Immediately hide the login screen and display the Monvian Full Screen Loading Screen
-      setIsGoogleAccountPreparing(true);
 
       const { user: gUser, accessToken } = authResult;
       setCachedAccessToken(accessToken);
 
-      // Step 8: Real backend authentication, session verification, user data retrieval & resource preparation
       const res = await fetch('/api/auth/google', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -540,70 +502,22 @@ export function AuthScreen({ onSuccess }: AuthScreenProps) {
         }),
       });
 
-      let data: any = null;
-      try {
-        data = await res.json();
-      } catch {
-        throw new Error('Resposta inválida do servidor ao autenticar sua conta.');
-      }
-
-      if (!res.ok || !data?.success || !data?.token || !data?.user) {
-        throw new Error(data?.error || 'Não foi possível vincular sua conta do Google. Tente novamente.');
-      }
-
-      const token: string = data.token;
-      let verifiedUser: any = data.user;
-      const isNewAccount = Boolean(data.is_new || data.user?.visits_count === 1);
-      const cleanEmail = (verifiedUser?.email || gUser.email || '').trim().toLowerCase();
-
-      // Verify active session, sync user permissions, and prepare initial resources in real time
-      const [meResult] = await Promise.allSettled([
-        fetch('/api/auth/me', {
-          headers: { Authorization: `Bearer ${token}` },
-          cache: 'no-store',
-        }).then(async (meRes) => {
-          if (meRes.ok) {
-            const meData = await meRes.json();
-            if (meData?.success && meData?.user) {
-              return meData.user;
-            }
-          }
-          return null;
-        }),
-        cleanEmail ? syncPermissionsFromDatabase(cleanEmail) : Promise.resolve(),
-        Promise.resolve().then(() => startPreloadResources()),
-      ]);
-
-      if (meResult.status === 'fulfilled' && meResult.value) {
-        verifiedUser = {
-          ...verifiedUser,
-          ...meResult.value,
-          avatar_url: verifiedUser.avatar_url || meResult.value.avatar_url || gUser.photoURL || undefined,
-        };
-      }
-
-      localStorage.setItem('monvian_token', token);
-      localStorage.setItem('monvian_user', JSON.stringify(verifiedUser));
-      iosNavigationManager.clearAuthEntries();
-
-      // Step 9: All account data and session checks are ready — transition smoothly into the app
-      onSuccess(token, verifiedUser, isNewAccount);
-    } catch (err: any) {
-      setIsGoogleAccountPreparing(false);
-      setGoogleLoading(false);
-      if (
-        err?.code === 'auth/popup-closed-by-user' ||
-        err?.code === 'auth/cancelled-popup-request' ||
-        err?.code === 'auth/user-cancelled'
-      ) {
-        setError('A seleção de conta do Google foi fechada antes de concluir.');
+      const data = await res.json();
+      if (res.ok && data.success) {
+        localStorage.setItem('monvian_token', data.token);
+        localStorage.setItem('monvian_user', JSON.stringify(data.user));
+        onSuccess(data.token, data.user, Boolean(data.is_new || data.user?.visits_count === 1));
       } else {
-        setError(
-          err?.message && !err.message.includes('fetch')
-            ? err.message
-            : 'Não foi possível conectar sua conta com o Google. Tente novamente.'
-        );
+        setError(data.error || 'Erro ao vincular conta do Google.');
       }
+    } catch (err: any) {
+      if (err.code === 'auth/popup-closed-by-user') {
+        setError('O pop-up de login foi fechado antes de concluir.');
+      } else {
+        setError('Não foi possível conectar com o Google. Tente novamente.');
+      }
+    } finally {
+      setGoogleLoading(false);
     }
   };
 
@@ -629,7 +543,7 @@ export function AuthScreen({ onSuccess }: AuthScreenProps) {
     }
   };
 
-  // Shared step transition variants (Apple-inspired translucent fade + subtle GPU motion)
+  // Shared step transition variants (Apple-inspired translucent fade + subtle blur)
   const stepMotionProps = shouldReduceMotion
     ? {
         initial: { opacity: 0 },
@@ -638,72 +552,43 @@ export function AuthScreen({ onSuccess }: AuthScreenProps) {
         transition: { duration: 0.18 },
       }
     : {
-        initial: { opacity: 0, y: 10 },
-        animate: { opacity: 1, y: 0 },
-        exit: { opacity: 0, y: -8 },
-        transition: { duration: 0.36, ease: [0.22, 1, 0.36, 1] as [number, number, number, number] },
+        initial: { opacity: 0, y: 10, filter: 'blur(6px)' },
+        animate: { opacity: 1, y: 0, filter: 'blur(0px)' },
+        exit: { opacity: 0, y: -8, filter: 'blur(6px)' },
+        transition: { duration: 0.46, ease: [0.22, 1, 0.36, 1] as [number, number, number, number] },
       };
-
-  // Dynamic, stutter-free staggered entrance variants for Login Screen elements (120Hz GPU transforms only)
-  const loginContainerVariants = {
-    hidden: { opacity: 0 },
-    visible: {
-      opacity: 1,
-      transition: {
-        staggerChildren: shouldReduceMotion ? 0 : 0.048,
-        delayChildren: shouldReduceMotion ? 0 : 0.03,
-      },
-    },
-  };
-
-  const loginItemVariants = {
-    hidden: shouldReduceMotion
-      ? { opacity: 0 }
-      : { opacity: 0, y: 14, scale: 0.985 },
-    visible: {
-      opacity: 1,
-      y: 0,
-      scale: 1,
-      transition: {
-        duration: 0.38,
-        ease: [0.22, 1, 0.36, 1] as [number, number, number, number],
-      },
-    },
-  };
 
   return (
     <div
-      className="fixed inset-0 z-[100] select-none overflow-hidden bg-[#FFFFFF] text-[#080808]"
+      ref={landingScrollContainerRef}
+      className="fixed inset-0 z-[100] select-none overflow-y-auto overscroll-y-contain transition-colors duration-300 bg-[#FFFFFF] text-[#080808]"
       style={{
         fontFamily:
           "'SF Pro Display', 'SF Pro Text', -apple-system, BlinkMacSystemFont, sans-serif",
+        WebkitOverflowScrolling: 'touch',
       }}
     >
       {/* =========================================================================
           1. EXPERIÊNCIA CINEMATOGRÁFICA DE APRESENTAÇÃO MONVIAN
-             Kept mounted underneath Login/Register so scroll position is preserved
-             with zero GSAP layout thrash and native iOS parallax on edge-swipe back!
          ========================================================================= */}
-      <div
-        id="auth-landing-layer"
-        ref={landingScrollContainerRef}
-        aria-hidden={authMode !== 'landing'}
-        className={`fixed inset-0 z-[100] overflow-y-auto overscroll-y-contain bg-[#FFFFFF] transition-opacity duration-300 ${
-          authMode === 'landing'
-            ? 'opacity-100 pointer-events-auto visible'
-            : 'opacity-0 pointer-events-none invisible'
-        }`}
-        style={{
-          WebkitOverflowScrolling: 'touch',
-          willChange: 'transform, opacity',
-        }}
-      >
-        <CinematicLandingView
-          scrollContainerRef={landingScrollContainerRef}
-          onStartRegister={handleStartRegisterFlow}
-          onOpenLogin={handleOpenLoginFlow}
-        />
-      </div>
+      <AnimatePresence mode="wait">
+        {authMode === 'landing' && (
+          <motion.div
+            key="monvian-cinematic-landing"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={shouldReduceMotion ? { opacity: 0 } : { opacity: 0, y: -10 }}
+            transition={{ duration: 0.32, ease: [0.22, 1, 0.36, 1] }}
+            className="w-full"
+          >
+            <CinematicLandingView
+              scrollContainerRef={landingScrollContainerRef}
+              onStartRegister={handleStartRegisterFlow}
+              onOpenLogin={handleOpenLoginFlow}
+            />
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {/* =========================================================================
           2. PROGRESSIVE 3-STEP REGISTRATION FLOW (Modo Branco — Nome -> E-mail -> Senha)
@@ -711,12 +596,11 @@ export function AuthScreen({ onSuccess }: AuthScreenProps) {
       <AnimatePresence>
         {authMode === 'register' && (
           <motion.div
-            id="auth-register-section"
             key="progressive-register-flow"
-            initial={shouldReduceMotion ? { opacity: 0 } : { opacity: 0, y: 14 }}
-            animate={shouldReduceMotion ? { opacity: 1 } : { opacity: 1, y: 0 }}
-            exit={shouldReduceMotion ? { opacity: 0 } : { opacity: 0, y: 10 }}
-            transition={{ duration: shouldReduceMotion ? 0.18 : 0.32, ease: [0.22, 1, 0.36, 1] }}
+            initial={shouldReduceMotion ? { opacity: 0 } : { opacity: 0, filter: 'blur(6px)' }}
+            animate={shouldReduceMotion ? { opacity: 1 } : { opacity: 1, filter: 'blur(0px)' }}
+            exit={shouldReduceMotion ? { opacity: 0 } : { opacity: 0, filter: 'blur(8px)' }}
+            transition={{ duration: shouldReduceMotion ? 0.2 : 0.45, ease: [0.22, 1, 0.36, 1] }}
             className="fixed inset-0 z-[110] bg-[#FFFFFF] text-[#080808] flex flex-col justify-between overflow-y-auto overscroll-y-contain"
             style={{
               backgroundColor: '#FFFFFF',
@@ -724,7 +608,6 @@ export function AuthScreen({ onSuccess }: AuthScreenProps) {
               paddingBottom: 'max(24px, env(safe-area-inset-bottom, 0px))',
               paddingLeft: 'max(24px, env(safe-area-inset-left, 0px))',
               paddingRight: 'max(24px, env(safe-area-inset-right, 0px))',
-              willChange: 'transform, opacity',
             }}
           >
             {/* Top Minimal Navigation Bar with Centered 3-Dot Step Indicator */}
@@ -1082,400 +965,340 @@ export function AuthScreen({ onSuccess }: AuthScreenProps) {
       </AnimatePresence>
 
       {/* =========================================================================
-          3. TELA DE LOGIN E RECUPERAÇÃO DE SENHA (Modo Branco — Entrada Suave e Dinâmica)
+          3. TELA DE LOGIN E RECUPERAÇÃO DE SENHA (Modo Branco)
          ========================================================================= */}
-      <AnimatePresence>
-        {(authMode === 'login' || authMode === 'recover') && !isGoogleAccountPreparing && (
-          <motion.section
-            id="auth-main-section"
-            key="auth-login-recover-section"
-            initial={shouldReduceMotion ? { opacity: 0 } : { opacity: 0, y: 12 }}
-            animate={shouldReduceMotion ? { opacity: 1 } : { opacity: 1, y: 0 }}
-            exit={{ opacity: 0, transition: { duration: 0.16, ease: [0.22, 1, 0.36, 1] } }}
-            transition={{ duration: shouldReduceMotion ? 0.16 : 0.28, ease: [0.22, 1, 0.36, 1] }}
-            className="auth-login-screen fixed inset-0 z-[115] w-full h-full bg-[#FFFFFF] flex flex-col items-center justify-between text-[#080808] pt-6 sm:pt-8 pb-10 px-5 sm:px-6 pointer-events-auto overflow-y-auto overscroll-y-contain"
-            style={{
-              fontFamily:
-                "'SF Pro Display', 'SF Pro Text', -apple-system, BlinkMacSystemFont, sans-serif",
-              paddingTop: 'max(20px, calc(env(safe-area-inset-top, 0px) + 12px))',
-              paddingBottom: 'max(32px, calc(env(safe-area-inset-bottom, 0px) + 20px))',
-              touchAction: 'pan-y',
-              willChange: 'transform, opacity',
-            }}
-          >
-            {/* Top Bar with Back Button */}
-            <motion.div
-              initial={shouldReduceMotion ? { opacity: 0 } : { opacity: 0, y: -8 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.32, ease: [0.22, 1, 0.36, 1] }}
-              className="w-full max-w-sm sm:max-w-md flex items-center justify-between shrink-0 mb-2"
+      {(authMode === 'login' || authMode === 'recover') && (
+        <section
+          id="auth-main-section"
+          data-allow-zoom="true"
+          onTouchStart={handlePinchTouchStart}
+          onTouchMove={handlePinchTouchMove}
+          onTouchEnd={handlePinchTouchEnd}
+          onClick={handleDoubleTapZoom}
+          className="auth-login-screen relative z-[115] w-full min-h-screen bg-[#FFFFFF] flex flex-col items-center justify-between text-[#080808] pt-6 sm:pt-8 pb-10 px-5 sm:px-6 pointer-events-auto overflow-y-auto"
+          style={{
+            fontFamily:
+              "'SF Pro Display', 'SF Pro Text', -apple-system, BlinkMacSystemFont, sans-serif",
+            paddingTop: 'max(20px, calc(env(safe-area-inset-top, 0px) + 12px))',
+            paddingBottom: 'max(32px, calc(env(safe-area-inset-bottom, 0px) + 20px))',
+            touchAction: 'pan-x pan-y pinch-zoom',
+          }}
+        >
+          {/* Top Bar with Back Button & iOS Zoom Controls */}
+          <div className="w-full max-w-sm sm:max-w-md flex items-center justify-between shrink-0 mb-2">
+            <button
+              id="btn-login-back-to-landing"
+              type="button"
+              onClick={() => {
+                setError('');
+                setRecoverSent(false);
+                setLoginZoom(1);
+                if (authMode === 'recover') {
+                  setAuthMode('login');
+                } else {
+                  setAuthMode('landing');
+                }
+              }}
+              aria-label="Voltar"
+              className="w-10 h-10 -ml-2 rounded-full flex items-center justify-center text-[#080808] hover:bg-black/5 active:scale-95 transition-all cursor-pointer"
             >
-              <button
-                id="btn-login-back-to-landing"
-                type="button"
-                onClick={() => {
-                  setError('');
-                  setRecoverSent(false);
-                  setLoginZoom(1);
-                  if (authMode === 'recover') {
-                    setAuthMode('login');
-                  } else {
-                    setAuthMode('landing');
-                  }
-                }}
-                aria-label="Voltar"
-                className="w-10 h-10 -ml-2 rounded-full flex items-center justify-center text-[#080808] hover:bg-black/5 active:scale-95 transition-all cursor-pointer"
-              >
-                <ChevronLeft className="w-6 h-6 stroke-[2.2]" />
-              </button>
-              <div className="w-10 h-10" aria-hidden="true" />
-            </motion.div>
+              <ChevronLeft className="w-6 h-6 stroke-[2.2]" />
+            </button>
 
-            <div className="w-full flex-1 flex flex-col items-center justify-center">
-              <motion.div
-                key={authMode}
-                variants={loginContainerVariants}
-                initial="hidden"
-                animate="visible"
-                className="w-full max-w-sm sm:max-w-md my-auto flex flex-col items-center py-4"
-              >
-                {/* 1. Logo Monvian Original */}
-                <motion.div
-                  variants={loginItemVariants}
-                  className="h-12 sm:h-14 mb-3 flex items-center justify-center"
+            {/* Controles de Zoom discretos e premium (estilo Apple) */}
+            <div className="flex items-center gap-1.5" data-allow-zoom="true">
+              {loginZoom > 1.05 && (
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    triggerHaptic();
+                    setLoginZoom(1);
+                  }}
+                  className="px-2.5 py-1 rounded-full bg-[#F5F7FA] border border-[#E2E6EE] text-[12px] font-semibold text-[#2673E8] hover:bg-[#EBF2FE] active:scale-95 transition-all cursor-pointer shadow-xs"
+                  title="Redefinir zoom para 100%"
                 >
-                  <img
-                    src="/assets/aistudio/monvian_logo_dark_transparent.png"
-                    alt="Monvian"
-                    decoding="sync"
-                    className="h-full w-auto max-w-[220px] object-contain select-none pointer-events-none"
-                  />
-                </motion.div>
-
-                {authMode === 'login' ? (
-                  <>
-                    <motion.p
-                      variants={loginItemVariants}
-                      className="text-[14px] sm:text-[15px] text-[#737780] font-semibold mb-8 tracking-tight text-center leading-snug"
-                      style={{
-                        fontFamily:
-                          "'SF Pro Text', -apple-system, BlinkMacSystemFont, sans-serif",
-                      }}
-                    >
-                      Seu guia inteligente para viver
-                      <br />
-                      <span className="text-[#2673E8] font-bold">Campos do Jordão.</span>
-                    </motion.p>
-
-                    {/* FORM: LOGIN */}
-                    <form onSubmit={handleLoginSubmit} className="w-full space-y-3.5">
-                      <motion.div variants={loginItemVariants} className="relative">
-                        <Mail className="absolute left-4 top-1/2 -translate-y-1/2 w-[18px] h-[18px] text-[#8E939E]" />
-                        <input
-                          id="input-login-email"
-                          type="email"
-                          placeholder="Seu e-mail"
-                          value={email}
-                          onChange={(e) => setEmail(e.target.value)}
-                          className="w-full pl-11 pr-5 py-4 rounded-[22px] bg-[#F5F7FA] border border-[#E2E6EE] text-[#080808] placeholder:text-[#8E939E] focus:outline-none focus:bg-[#FFFFFF] focus:border-[#2673E8] focus:ring-2 focus:ring-[#2673E8]/20 transition-all text-[15px] font-medium"
-                          required
-                          autoComplete="email"
-                        />
-                      </motion.div>
-
-                      <motion.div variants={loginItemVariants} className="relative">
-                        <Lock className="absolute left-4 top-1/2 -translate-y-1/2 w-[18px] h-[18px] text-[#8E939E]" />
-                        <input
-                          id="input-login-password"
-                          type={showPassword ? 'text' : 'password'}
-                          placeholder="Sua senha"
-                          value={password}
-                          onChange={(e) => setPassword(e.target.value)}
-                          className="w-full pl-11 pr-12 py-4 rounded-[22px] bg-[#F5F7FA] border border-[#E2E6EE] text-[#080808] placeholder:text-[#8E939E] focus:outline-none focus:bg-[#FFFFFF] focus:border-[#2673E8] focus:ring-2 focus:ring-[#2673E8]/20 transition-all text-[15px] font-medium"
-                          required
-                          autoComplete="current-password"
-                        />
-                        <button
-                          type="button"
-                          onClick={() => setShowPassword(!showPassword)}
-                          className="absolute right-4 top-1/2 -translate-y-1/2 text-[#737780] hover:text-[#080808] transition-colors cursor-pointer"
-                          aria-label={showPassword ? 'Ocultar senha' : 'Ver senha'}
-                        >
-                          {showPassword ? (
-                            <EyeOff className="w-[18px] h-[18px]" />
-                          ) : (
-                            <Eye className="w-[18px] h-[18px]" />
-                          )}
-                        </button>
-                      </motion.div>
-
-                      <motion.div variants={loginItemVariants} className="flex justify-end px-1">
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setError('');
-                            setRecoverEmail(email);
-                            setRecoverSent(false);
-                            setAuthMode('recover');
-                          }}
-                          className="text-[12.5px] font-semibold text-[#737780] hover:text-[#2673E8] transition-colors cursor-pointer"
-                        >
-                          Esqueci minha senha
-                        </button>
-                      </motion.div>
-
-                      {error && authMode === 'login' && (
-                        <motion.p
-                          initial={{ opacity: 0, y: -4 }}
-                          animate={{ opacity: 1, y: 0 }}
-                          className="text-red-500 text-xs font-semibold text-center mt-2 px-4"
-                        >
-                          {error}
-                        </motion.p>
-                      )}
-
-                      <motion.div variants={loginItemVariants} className="pt-1">
-                        <motion.button
-                          id="btn-login-submit"
-                          whileTap={{ scale: 0.98 }}
-                          type="submit"
-                          disabled={loading || googleLoading}
-                          className="w-full py-[16px] rounded-full expo-liquid-glass-btn text-[#080808] text-[15.5px] font-bold flex items-center justify-center gap-2 transition-all disabled:opacity-70 shadow-sm border border-black/5 hover:bg-zinc-50 active:scale-95 cursor-pointer"
-                        >
-                          {loading ? 'Entrando...' : 'Entrar →'}
-                        </motion.button>
-                      </motion.div>
-
-                      {/* Google Sign In Divider & Button */}
-                      <motion.div variants={loginItemVariants} className="pt-2 space-y-3">
-                        <div className="flex items-center gap-3">
-                          <div className="flex-1 h-[1px] bg-[#E5E8F0]" />
-                          <span className="text-[11px] text-[#8E939E] uppercase tracking-wider font-semibold">
-                            ou
-                          </span>
-                          <div className="flex-1 h-[1px] bg-[#E5E8F0]" />
-                        </div>
-
-                        <motion.button
-                          id="btn-google-signin"
-                          whileTap={{ scale: 0.98 }}
-                          type="button"
-                          onClick={handleGoogleAuth}
-                          disabled={googleLoading || loading}
-                          className="w-full py-[14px] px-5 rounded-full expo-liquid-glass-btn hover:bg-zinc-50 border border-black/5 text-[#080808] text-[14px] font-bold flex items-center justify-center gap-3 transition-all cursor-pointer disabled:opacity-60 shadow-xs active:scale-95"
-                        >
-                          <svg className="w-[18px] h-[18px] shrink-0" viewBox="0 0 24 24">
-                            <path
-                              fill="#4285F4"
-                              d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"
-                            />
-                            <path
-                              fill="#34A853"
-                              d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"
-                            />
-                            <path
-                              fill="#FBBC05"
-                              d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.63z"
-                            />
-                            <path
-                              fill="#EA4335"
-                              d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z"
-                            />
-                          </svg>
-                          <span className="text-[#080808]">
-                            {googleLoading ? 'Conectando Google...' : 'Entrar com Google / Gmail'}
-                          </span>
-                        </motion.button>
-                      </motion.div>
-                    </form>
-
-                    {/* Footer Navigation Switcher */}
-                    <motion.div
-                      variants={loginItemVariants}
-                      className="mt-8 text-[13px] font-semibold flex items-center gap-1.5 text-[#737780]"
-                    >
-                      Não possui uma conta?
-                      <button
-                        id="btn-open-register-flow"
-                        type="button"
-                        onClick={handleStartRegisterFlow}
-                        className="text-[#080808] font-bold hover:text-[#2673E8] hover:underline cursor-pointer"
-                      >
-                        Criar nova conta →
-                      </button>
-                    </motion.div>
-                  </>
-                ) : (
-                  /* FORM: RECUPERAÇÃO DE SENHA */
-                  <motion.div variants={loginItemVariants} className="w-full">
-                    <h1 className="text-[22px] font-bold text-[#080808] text-center mb-2">
-                      Recuperar acesso
-                    </h1>
-                    <p className="text-[14px] text-[#737780] text-center mb-6 leading-relaxed">
-                      Informe o e-mail da sua conta para receber as instruções de redefinição de senha.
-                    </p>
-
-                    {recoverSent ? (
-                      <div className="p-5 rounded-[24px] bg-[#F5F8FF] border border-[#DCE8FC] text-center space-y-3">
-                        <CheckCircle2 className="w-8 h-8 text-[#2673E8] mx-auto" />
-                        <p className="text-[14.5px] font-semibold text-[#080808]">
-                          Instruções enviadas para {recoverEmail}
-                        </p>
-                        <p className="text-[13px] text-[#737780]">
-                          Verifique sua caixa de entrada e a pasta de spam.
-                        </p>
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setRecoverSent(false);
-                            setAuthMode('login');
-                          }}
-                          className="mt-2 px-5 py-2.5 rounded-full bg-[#2673E8] text-white text-[13.5px] font-bold cursor-pointer"
-                        >
-                          Voltar para o login
-                        </button>
-                      </div>
-                    ) : (
-                      <form onSubmit={handleRecoverSubmit} className="space-y-4">
-                        <div className="relative">
-                          <Mail className="absolute left-4 top-1/2 -translate-y-1/2 w-[18px] h-[18px] text-[#8E939E]" />
-                          <input
-                            type="email"
-                            placeholder="Seu e-mail cadastrado"
-                            value={recoverEmail}
-                            onChange={(e) => setRecoverEmail(e.target.value)}
-                            className="w-full pl-11 pr-5 py-4 rounded-[22px] bg-[#F5F7FA] border border-[#E2E6EE] text-[#080808] placeholder:text-[#8E939E] focus:outline-none focus:bg-[#FFFFFF] focus:border-[#2673E8] focus:ring-2 focus:ring-[#2673E8]/20 transition-all text-[15px] font-medium"
-                            required
-                            autoComplete="email"
-                          />
-                        </div>
-
-                        {error && (
-                          <p className="text-red-500 text-xs font-semibold text-center px-2">
-                            {error}
-                          </p>
-                        )}
-
-                        <motion.button
-                          whileTap={{ scale: 0.98 }}
-                          type="submit"
-                          disabled={loading}
-                          className="w-full py-[16px] rounded-full expo-liquid-glass-btn text-[#080808] text-[15.5px] font-bold flex items-center justify-center gap-2 transition-all disabled:opacity-70 shadow-sm border border-black/5 hover:bg-zinc-50 active:scale-95 cursor-pointer"
-                        >
-                          {loading ? 'Enviando...' : 'Enviar instruções'}
-                        </motion.button>
-                      </form>
-                    )}
-                  </motion.div>
-                )}
-              </motion.div>
+                  {Math.round(loginZoom * 100)}% · Reset
+                </button>
+              )}
+              <div className="flex items-center bg-[#F5F7FA] border border-[#E2E6EE] rounded-full p-0.5 shadow-xs">
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    triggerHaptic();
+                    setLoginZoom((prev) => Math.max(1, Number((prev - 0.25).toFixed(2))));
+                  }}
+                  disabled={loginZoom <= 1.02}
+                  aria-label="Diminuir zoom"
+                  title="Diminuir zoom"
+                  className="w-7 h-7 rounded-full flex items-center justify-center text-[#737780] hover:text-[#080808] disabled:opacity-30 disabled:cursor-not-allowed active:scale-95 transition-all cursor-pointer"
+                >
+                  <ZoomOut className="w-3.5 h-3.5" />
+                </button>
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    triggerHaptic();
+                    setLoginZoom((prev) => (prev >= 2 ? 1 : Number((prev + 0.25).toFixed(2))));
+                  }}
+                  aria-label={loginZoom >= 2 ? 'Resetar zoom' : 'Aumentar zoom'}
+                  title={loginZoom >= 2 ? 'Resetar zoom' : 'Aumentar zoom'}
+                  className="w-7 h-7 rounded-full flex items-center justify-center text-[#737780] hover:text-[#080808] active:scale-95 transition-all cursor-pointer"
+                >
+                  <ZoomIn className="w-3.5 h-3.5" />
+                </button>
+              </div>
             </div>
+          </div>
 
-            {/* Bottom spacer */}
-            <div className="h-4 shrink-0" aria-hidden="true" />
-          </motion.section>
-        )}
-      </AnimatePresence>
-
-      {/* =========================================================================
-          4. TELA DE CARREGAMENTO EM TELA CHEIA APÓS AUTENTICAÇÃO GOOGLE
-             Exibida imediatamente após a seleção da conta Google enquanto a sessão
-             e os dados reais do usuário são validados e preparados.
-         ========================================================================= */}
-      <AnimatePresence>
-        {isGoogleAccountPreparing && (
-          <motion.div
-            id="monvian-google-loading-screen"
-            key="monvian-google-loading-screen"
-            role="status"
-            aria-live="polite"
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            transition={{ duration: shouldReduceMotion ? 0.15 : 0.26, ease: [0.22, 1, 0.36, 1] }}
-            className="fixed inset-0 z-[130] w-full h-full bg-[#FFFFFF] flex flex-col items-center justify-center select-none overflow-hidden px-6"
+          <div
+            className="w-full flex-1 flex flex-col items-center justify-center transition-transform duration-200 ease-out origin-top login-zoom-container"
             style={{
-              fontFamily:
-                "'SF Pro Display', 'SF Pro Text', -apple-system, BlinkMacSystemFont, sans-serif",
-              willChange: 'opacity',
+              transform: `scale(${loginZoom})`,
+              transformOrigin: 'top center',
             }}
           >
-            {/* Logo Original do Monvian com pulsação muito sutil */}
             <motion.div
-              initial={shouldReduceMotion ? { opacity: 0 } : { opacity: 0, scale: 0.97 }}
-              animate={
-                shouldReduceMotion
-                  ? { opacity: 1 }
-                  : { opacity: [0.92, 1, 0.92], scale: [1, 1.02, 1] }
-              }
-              transition={
-                shouldReduceMotion
-                  ? { duration: 0.2 }
-                  : {
-                      opacity: { duration: 2.2, repeat: Infinity, ease: 'easeInOut' },
-                      scale: { duration: 2.2, repeat: Infinity, ease: 'easeInOut' },
-                    }
-              }
-              className="h-12 sm:h-14 mb-7 flex items-center justify-center"
+              initial={{ y: 15, scale: 0.98, opacity: 0 }}
+              animate={{ y: 0, scale: 1, opacity: 1 }}
+              transition={{ type: 'spring', stiffness: 450, damping: 30 }}
+              className="w-full max-w-sm sm:max-w-md my-auto flex flex-col items-center py-4"
+            >
+            {/* 1. Logo Monvian Original */}
+            <motion.div
+              initial={{ scale: 0.9, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              transition={{ type: 'spring', stiffness: 500, damping: 25, delay: 0.05 }}
+              className="h-12 sm:h-14 mb-3 flex items-center justify-center"
             >
               <img
                 src="/assets/aistudio/monvian_logo_dark_transparent.png"
                 alt="Monvian"
-                decoding="sync"
                 className="h-full w-auto max-w-[220px] object-contain select-none pointer-events-none"
               />
             </motion.div>
 
-            {/* Indicador Circular de Carregamento (Loading Spinner) */}
-            <div className="relative w-6 h-6 flex items-center justify-center">
-              <motion.svg
-                viewBox="0 0 24 24"
-                className="w-6 h-6"
-                animate={{ rotate: 360 }}
-                transition={{
-                  duration: 0.85,
-                  repeat: Infinity,
-                  ease: 'linear',
-                }}
-              >
-                <circle
-                  cx="12"
-                  cy="12"
-                  r="9.5"
-                  fill="none"
-                  stroke="#E5E7EB"
-                  strokeWidth="2.2"
-                />
-                <circle
-                  cx="12"
-                  cy="12"
-                  r="9.5"
-                  fill="none"
-                  stroke="#18181B"
-                  strokeWidth="2.2"
-                  strokeLinecap="round"
-                  strokeDasharray="18 44"
-                />
-              </motion.svg>
-            </div>
+            {authMode === 'login' ? (
+              <>
+                <p
+                  className="text-[14px] sm:text-[15px] text-[#737780] font-semibold mb-8 tracking-tight text-center leading-snug"
+                  style={{
+                    fontFamily:
+                      "'SF Pro Text', -apple-system, BlinkMacSystemFont, sans-serif",
+                  }}
+                >
+                  Seu guia inteligente para viver
+                  <br />
+                  <span className="text-[#2673E8] font-bold">Campos do Jordão.</span>
+                </p>
 
-            {/* Mensagem de Carregamento */}
-            <motion.p
-              initial={{ opacity: 0, y: 4 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.28, delay: 0.04, ease: [0.22, 1, 0.36, 1] }}
-              className="mt-3.5 text-[13.5px] sm:text-[14px] font-medium text-[#737780] tracking-tight text-center"
-              style={{
-                fontFamily:
-                  "'SF Pro Text', -apple-system, BlinkMacSystemFont, sans-serif",
-              }}
-            >
-              Conectando sua conta…
-            </motion.p>
+                {/* FORM: LOGIN */}
+                <form onSubmit={handleLoginSubmit} className="w-full space-y-3.5">
+                  <div className="relative">
+                    <Mail className="absolute left-4 top-1/2 -translate-y-1/2 w-[18px] h-[18px] text-[#8E939E]" />
+                    <input
+                      id="input-login-email"
+                      type="email"
+                      placeholder="Seu e-mail"
+                      value={email}
+                      onChange={(e) => setEmail(e.target.value)}
+                      className="w-full pl-11 pr-5 py-4 rounded-[22px] bg-[#F5F7FA] border border-[#E2E6EE] text-[#080808] placeholder:text-[#8E939E] focus:outline-none focus:bg-[#FFFFFF] focus:border-[#2673E8] focus:ring-2 focus:ring-[#2673E8]/20 transition-all text-[15px] font-medium"
+                      required
+                      autoComplete="email"
+                    />
+                  </div>
+
+                  <div className="relative">
+                    <Lock className="absolute left-4 top-1/2 -translate-y-1/2 w-[18px] h-[18px] text-[#8E939E]" />
+                    <input
+                      id="input-login-password"
+                      type={showPassword ? 'text' : 'password'}
+                      placeholder="Sua senha"
+                      value={password}
+                      onChange={(e) => setPassword(e.target.value)}
+                      className="w-full pl-11 pr-12 py-4 rounded-[22px] bg-[#F5F7FA] border border-[#E2E6EE] text-[#080808] placeholder:text-[#8E939E] focus:outline-none focus:bg-[#FFFFFF] focus:border-[#2673E8] focus:ring-2 focus:ring-[#2673E8]/20 transition-all text-[15px] font-medium"
+                      required
+                      autoComplete="current-password"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowPassword(!showPassword)}
+                      className="absolute right-4 top-1/2 -translate-y-1/2 text-[#737780] hover:text-[#080808] transition-colors cursor-pointer"
+                      aria-label={showPassword ? 'Ocultar senha' : 'Ver senha'}
+                    >
+                      {showPassword ? (
+                        <EyeOff className="w-[18px] h-[18px]" />
+                      ) : (
+                        <Eye className="w-[18px] h-[18px]" />
+                      )}
+                    </button>
+                  </div>
+
+                  <div className="flex justify-end px-1">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setError('');
+                        setRecoverEmail(email);
+                        setRecoverSent(false);
+                        setAuthMode('recover');
+                      }}
+                      className="text-[12.5px] font-semibold text-[#737780] hover:text-[#2673E8] transition-colors cursor-pointer"
+                    >
+                      Esqueci minha senha
+                    </button>
+                  </div>
+
+                  {error && authMode === 'login' && (
+                    <motion.p
+                      initial={{ opacity: 0, y: -4 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      className="text-red-500 text-xs font-semibold text-center mt-2 px-4"
+                    >
+                      {error}
+                    </motion.p>
+                  )}
+
+                  <div className="pt-1">
+                    <motion.button
+                      id="btn-login-submit"
+                      whileTap={{ scale: 0.98 }}
+                      type="submit"
+                      disabled={loading || googleLoading}
+                      className="w-full py-[16px] rounded-full expo-liquid-glass-btn text-[#080808] text-[15.5px] font-bold flex items-center justify-center gap-2 transition-all disabled:opacity-70 shadow-sm border border-black/5 hover:bg-zinc-50 active:scale-95 cursor-pointer"
+                    >
+                      {loading ? 'Entrando...' : 'Entrar →'}
+                    </motion.button>
+                  </div>
+
+                  {/* Google Sign In Divider & Button */}
+                  <div className="pt-2 space-y-3">
+                    <div className="flex items-center gap-3">
+                      <div className="flex-1 h-[1px] bg-[#E5E8F0]" />
+                      <span className="text-[11px] text-[#8E939E] uppercase tracking-wider font-semibold">
+                        ou
+                      </span>
+                      <div className="flex-1 h-[1px] bg-[#E5E8F0]" />
+                    </div>
+
+                    <motion.button
+                      id="btn-google-signin"
+                      whileTap={{ scale: 0.98 }}
+                      type="button"
+                      onClick={handleGoogleAuth}
+                      disabled={googleLoading || loading}
+                      className="w-full py-[14px] px-5 rounded-full expo-liquid-glass-btn hover:bg-zinc-50 border border-black/5 text-[#080808] text-[14px] font-bold flex items-center justify-center gap-3 transition-all cursor-pointer disabled:opacity-60 shadow-xs active:scale-95"
+                    >
+                      <svg className="w-[18px] h-[18px] shrink-0" viewBox="0 0 24 24">
+                        <path
+                          fill="#4285F4"
+                          d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"
+                        />
+                        <path
+                          fill="#34A853"
+                          d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"
+                        />
+                        <path
+                          fill="#FBBC05"
+                          d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.63z"
+                        />
+                        <path
+                          fill="#EA4335"
+                          d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z"
+                        />
+                      </svg>
+                      <span className="text-[#080808]">
+                        {googleLoading ? 'Conectando Google...' : 'Entrar com Google / Gmail'}
+                      </span>
+                    </motion.button>
+                  </div>
+                </form>
+
+                {/* Footer Navigation Switcher */}
+                <div className="mt-8 text-[13px] font-semibold flex items-center gap-1.5 text-[#737780]">
+                  Não possui uma conta?
+                  <button
+                    id="btn-open-register-flow"
+                    type="button"
+                    onClick={handleStartRegisterFlow}
+                    className="text-[#080808] font-bold hover:text-[#2673E8] hover:underline cursor-pointer"
+                  >
+                    Criar nova conta →
+                  </button>
+                </div>
+              </>
+            ) : (
+              /* FORM: RECUPERAÇÃO DE SENHA */
+              <div className="w-full">
+                <h1 className="text-[22px] font-bold text-[#080808] text-center mb-2">
+                  Recuperar acesso
+                </h1>
+                <p className="text-[14px] text-[#737780] text-center mb-6 leading-relaxed">
+                  Informe o e-mail da sua conta para receber as instruções de redefinição de senha.
+                </p>
+
+                {recoverSent ? (
+                  <div className="p-5 rounded-[24px] bg-[#F5F8FF] border border-[#DCE8FC] text-center space-y-3">
+                    <CheckCircle2 className="w-8 h-8 text-[#2673E8] mx-auto" />
+                    <p className="text-[14.5px] font-semibold text-[#080808]">
+                      Instruções enviadas para {recoverEmail}
+                    </p>
+                    <p className="text-[13px] text-[#737780]">
+                      Verifique sua caixa de entrada e a pasta de spam.
+                    </p>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setRecoverSent(false);
+                        setAuthMode('login');
+                      }}
+                      className="mt-2 px-5 py-2.5 rounded-full bg-[#2673E8] text-white text-[13.5px] font-bold cursor-pointer"
+                    >
+                      Voltar para o login
+                    </button>
+                  </div>
+                ) : (
+                  <form onSubmit={handleRecoverSubmit} className="space-y-4">
+                    <div className="relative">
+                      <Mail className="absolute left-4 top-1/2 -translate-y-1/2 w-[18px] h-[18px] text-[#8E939E]" />
+                      <input
+                        type="email"
+                        placeholder="Seu e-mail cadastrado"
+                        value={recoverEmail}
+                        onChange={(e) => setRecoverEmail(e.target.value)}
+                        className="w-full pl-11 pr-5 py-4 rounded-[22px] bg-[#F5F7FA] border border-[#E2E6EE] text-[#080808] placeholder:text-[#8E939E] focus:outline-none focus:bg-[#FFFFFF] focus:border-[#2673E8] focus:ring-2 focus:ring-[#2673E8]/20 transition-all text-[15px] font-medium"
+                        required
+                        autoComplete="email"
+                      />
+                    </div>
+
+                    {error && (
+                      <p className="text-red-500 text-xs font-semibold text-center px-2">
+                        {error}
+                      </p>
+                    )}
+
+                    <motion.button
+                      whileTap={{ scale: 0.98 }}
+                      type="submit"
+                      disabled={loading}
+                      className="w-full py-[16px] rounded-full expo-liquid-glass-btn text-[#080808] text-[15.5px] font-bold flex items-center justify-center gap-2 transition-all disabled:opacity-70 shadow-sm border border-black/5 hover:bg-zinc-50 active:scale-95 cursor-pointer"
+                    >
+                      {loading ? 'Enviando...' : 'Enviar instruções'}
+                    </motion.button>
+                  </form>
+                )}
+              </div>
+            )}
           </motion.div>
-        )}
-      </AnimatePresence>
+          </div>
+
+          {/* Bottom spacer */}
+          <div className="h-4 shrink-0" aria-hidden="true" />
+        </section>
+      )}
     </div>
   );
 }
-

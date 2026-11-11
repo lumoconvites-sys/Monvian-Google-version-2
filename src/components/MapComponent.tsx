@@ -1,7 +1,7 @@
 import React, { useEffect, useRef, useImperativeHandle, forwardRef, useState, useCallback } from 'react';
 import * as maplibregl from 'maplibre-gl';
 import 'maplibre-gl/dist/maplibre-gl.css';
-import { Layers } from 'lucide-react';
+import { Plus, Minus, Layers } from 'lucide-react';
 import { Spot, MapModeType } from '../types';
 import { getSpotImage, getSpotFallbackImage } from '../utils/spotImages';
 import { generateMarkerHtml, MAP_VISUAL_ICON_CATEGORIES } from '../utils/mapVisualIcons';
@@ -467,11 +467,21 @@ export const MapComponent = forwardRef<MapComponentHandle, MapComponentProps>(
           innerCircle.appendChild(avatarImg);
           outerRing.appendChild(innerCircle);
 
-          // "Eu" Pill Badge below the avatar circle
+          // Small glowing iOS Blue circle right above "Eu" (matching the reference design)
+          const blueDotIndicator = document.createElement('div');
+          blueDotIndicator.style.width = '10px';
+          blueDotIndicator.style.height = '10px';
+          blueDotIndicator.style.borderRadius = '9999px';
+          blueDotIndicator.style.backgroundColor = '#007AFF';
+          blueDotIndicator.style.border = '2px solid #FFFFFF';
+          blueDotIndicator.style.marginTop = '-6px';
+          blueDotIndicator.style.zIndex = '4';
+          blueDotIndicator.style.boxShadow = '0 0 8px rgba(0, 122, 255, 0.65)';
+
+          // "Eu" Pill Badge below the blue dot
           const euBadge = document.createElement('div');
           euBadge.textContent = 'Eu';
-          euBadge.style.marginTop = '-4px';
-          euBadge.style.zIndex = '4';
+          euBadge.style.marginTop = '1px';
           euBadge.style.padding = '1.5px 10px';
           euBadge.style.borderRadius = '9999px';
           euBadge.style.backgroundColor = 'rgba(18, 18, 22, 0.92)';
@@ -484,6 +494,7 @@ export const MapComponent = forwardRef<MapComponentHandle, MapComponentProps>(
           euBadge.style.boxShadow = '0 4px 10px rgba(0, 0, 0, 0.35)';
 
           centerStack.appendChild(outerRing);
+          centerStack.appendChild(blueDotIndicator);
           centerStack.appendChild(euBadge);
           rootEl.appendChild(beamWrapper);
           rootEl.appendChild(centerStack);
@@ -1986,10 +1997,8 @@ export const MapComponent = forwardRef<MapComponentHandle, MapComponentProps>(
 
       handleResize();
       const rafId = requestAnimationFrame(handleResize);
-      const t1 = window.setTimeout(handleResize, 50);
-      const t2 = window.setTimeout(handleResize, 150);
-      const t3 = window.setTimeout(handleResize, 350);
-      const t4 = window.setTimeout(handleResize, 750);
+      const t1 = window.setTimeout(handleResize, 100);
+      const t2 = window.setTimeout(handleResize, 350);
 
       let observer: ResizeObserver | null = null;
       if (typeof ResizeObserver !== 'undefined') {
@@ -1999,34 +2008,17 @@ export const MapComponent = forwardRef<MapComponentHandle, MapComponentProps>(
         observer.observe(container);
       }
 
-      const handleVisibility = () => {
-        if (document.visibilityState === 'visible') {
-          handleResize();
-          window.setTimeout(handleResize, 100);
-        }
-      };
-
       window.addEventListener('resize', handleResize, { passive: true });
       window.addEventListener('orientationchange', handleResize, { passive: true });
-      window.addEventListener('pageshow', handleResize, { passive: true });
-      window.addEventListener('focus', handleResize, { passive: true });
-      window.addEventListener('monvian:viewport-stabilized', handleResize as EventListener, { passive: true });
-      document.addEventListener('visibilitychange', handleVisibility, { passive: true });
       window.visualViewport?.addEventListener('resize', handleResize, { passive: true });
 
       return () => {
         cancelAnimationFrame(rafId);
         window.clearTimeout(t1);
         window.clearTimeout(t2);
-        window.clearTimeout(t3);
-        window.clearTimeout(t4);
         observer?.disconnect();
         window.removeEventListener('resize', handleResize);
         window.removeEventListener('orientationchange', handleResize);
-        window.removeEventListener('pageshow', handleResize);
-        window.removeEventListener('focus', handleResize);
-        window.removeEventListener('monvian:viewport-stabilized', handleResize as EventListener);
-        document.removeEventListener('visibilitychange', handleVisibility);
         window.visualViewport?.removeEventListener('resize', handleResize);
       };
     }, []);
@@ -2073,14 +2065,32 @@ export const MapComponent = forwardRef<MapComponentHandle, MapComponentProps>(
           />
         )}
 
-        {/* Floating Right-Side Map Controls (Compass/Location, Layers) */}
+        {/* Floating Right-Side Map Controls (+, -, Compass/Location, Layers) */}
         <div
-          id="mobile-map-right-controls"
           className="md:hidden absolute right-3.5 top-1/2 -translate-y-1/2 z-30 flex flex-col items-center gap-3 pointer-events-auto"
           style={{
             paddingRight: 'env(safe-area-inset-right, 0px)',
           }}
         >
+          {/* Zoom In (+) */}
+          <button
+            type="button"
+            onClick={() => mapRef.current?.zoomIn({ duration: 300 })}
+            aria-label="Aproximar mapa"
+            className="w-12 h-12 rounded-full bg-white/90 dark:bg-zinc-900/90 backdrop-blur-md border border-zinc-200/80 dark:border-white/10 shadow-[0_6px_20px_rgba(0,0,0,0.22)] flex items-center justify-center text-zinc-800 dark:text-white active:scale-90 transition-all cursor-pointer"
+          >
+            <Plus className="w-5 h-5 stroke-[2.5]" />
+          </button>
+
+          {/* Zoom Out (-) */}
+          <button
+            type="button"
+            onClick={() => mapRef.current?.zoomOut({ duration: 300 })}
+            aria-label="Afastar mapa"
+            className="w-12 h-12 rounded-full bg-white/90 dark:bg-zinc-900/90 backdrop-blur-md border border-zinc-200/80 dark:border-white/10 shadow-[0_6px_20px_rgba(0,0,0,0.22)] flex items-center justify-center text-zinc-800 dark:text-white active:scale-90 transition-all cursor-pointer"
+          >
+            <Minus className="w-5 h-5 stroke-[2.5]" />
+          </button>
 
           {/* My Real-Time Location & Compass Orientation Button */}
           <button
