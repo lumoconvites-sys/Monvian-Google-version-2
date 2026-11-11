@@ -2,7 +2,6 @@ import React, { useEffect, useRef, useState, useCallback } from 'react';
 import { ArrowRight, ChevronDown, Clock, MapPin, Mountain, Utensils, X } from 'lucide-react';
 import { motion, AnimatePresence, useReducedMotion } from 'motion/react';
 import gsap from 'gsap';
-import { HeroAirplane3D } from './HeroAirplane3D';
 
 const FAQ_ITEMS = [
   {
@@ -962,11 +961,6 @@ export const CinematicLandingView: React.FC<CinematicLandingViewProps> = ({
           </div>
         </div>
 
-        {/* 5.5. AVIÃO 3D CINEMATOGRÁFICO MONVIAN — Voando por CIMA da maquete 3D flutuante de Campos do Jordão (z-[28] > z-[24]) */}
-        <div className="absolute inset-0 pointer-events-none z-[28] overflow-hidden" aria-hidden="true">
-          <HeroAirplane3D />
-        </div>
-
         {/* 6. GRUPO 3 — NUVENS FRONTAIS DE TRANSIÇÃO (Invisíveis no topo para a figura 3D aparecer 100% completa; sobem ao rolar e dissolvem no branco) */}
         <div
           ref={parallaxFrontRef}
@@ -1074,53 +1068,6 @@ export const CinematicLandingView: React.FC<CinematicLandingViewProps> = ({
                 {renderMaskedWord('seu', 16, true)}{' '}
                 {renderMaskedWord('jeito.', 19)}
               </h1>
-
-              <div
-                className="max-w-[340px] sm:max-w-[400px] md:max-w-[510px] text-[14px] sm:text-[15.5px] md:text-[17px] font-normal text-[#EAF3FF] leading-[1.38] tracking-[-0.01em] drop-shadow-[0_2px_12px_rgba(15,40,74,0.3)]"
-                style={{
-                  fontFamily:
-                    "'SF Pro Text', -apple-system, BlinkMacSystemFont, sans-serif",
-                }}
-              >
-                <div className="overflow-hidden">
-                  <motion.p
-                    initial={prefersReducedMotion ? { opacity: 0 } : { y: '100%', opacity: 0 }}
-                    animate={
-                      assetsReady
-                        ? { y: '0%', opacity: 1 }
-                        : prefersReducedMotion
-                          ? { opacity: 0 }
-                          : { y: '100%', opacity: 0 }
-                    }
-                    transition={{
-                      duration: prefersReducedMotion ? 0.2 : 0.45,
-                      ease: [0.22, 1, 0.36, 1],
-                      delay: prefersReducedMotion ? 0 : 0.08,
-                    }}
-                  >
-                    Descubra lugares incríveis, explore experiências
-                  </motion.p>
-                </div>
-                <div className="overflow-hidden">
-                  <motion.p
-                    initial={prefersReducedMotion ? { opacity: 0 } : { y: '100%', opacity: 0 }}
-                    animate={
-                      assetsReady
-                        ? { y: '0%', opacity: 1 }
-                        : prefersReducedMotion
-                          ? { opacity: 0 }
-                          : { y: '100%', opacity: 0 }
-                    }
-                    transition={{
-                      duration: prefersReducedMotion ? 0.2 : 0.45,
-                      ease: [0.22, 1, 0.36, 1],
-                      delay: prefersReducedMotion ? 0 : 0.12,
-                    }}
-                  >
-                    e encontre o que fazer na cidade com a ajuda do Monvian.
-                  </motion.p>
-                </div>
-              </div>
             </div>
           </div>
 
