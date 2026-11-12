@@ -9,6 +9,7 @@ import {
   CheckCircle2,
   Camera,
   Trash2,
+  Image as ImageIcon,
 } from 'lucide-react';
 import { motion, AnimatePresence, useReducedMotion } from 'motion/react';
 import {
@@ -985,16 +986,11 @@ export function AuthScreen({ onSuccess }: AuthScreenProps) {
               >
                 {[1, 2, 3, 4].map((step) => {
                   const isActive = registerStep === step;
-                  const isCompleted = registerStep > step;
                   return (
                     <span
                       key={step}
-                      className={`w-2 h-2 rounded-full transition-all duration-300 ${
-                        isActive
-                          ? 'bg-[#2673E8] scale-110'
-                          : isCompleted
-                            ? 'bg-[#2673E8]/45'
-                            : 'bg-[#E2E5EC]'
+                      className={`w-2 h-2 rounded-full transition-colors duration-300 ${
+                        isActive ? 'bg-[#2673E8]' : 'bg-[#C5CBD8]'
                       }`}
                     />
                   );
@@ -1248,114 +1244,130 @@ export function AuthScreen({ onSuccess }: AuthScreenProps) {
                   </motion.form>
                 )}
 
-                {/* ETAPA 4 — FOTO DE PERFIL */}
+                {/* ETAPA 4 — FOTO DE PERFIL (Visual idêntico à imagem de referência iOS) */}
                 {registerStep === 4 && (
                   <motion.div
                     key="register-step-4-avatar"
-                    {...stepMotionProps}
-                    className="w-full flex flex-col items-center"
+                    initial={shouldReduceMotion ? { opacity: 0 } : { opacity: 0, y: 10 }}
+                    animate={shouldReduceMotion ? { opacity: 1 } : { opacity: 1, y: 0 }}
+                    exit={shouldReduceMotion ? { opacity: 0 } : { opacity: 0, y: -8 }}
+                    transition={{ duration: 0.28, ease: [0.22, 1, 0.36, 1] }}
+                    className="w-full flex flex-col items-center select-none"
                   >
-                    <div className="w-full text-left mb-6">
+                    {/* Título e Descrição centralizados */}
+                    <div className="w-full text-center mt-2 sm:mt-4">
                       <h1
                         id="register-step4-title"
-                        className="text-[26px] sm:text-[28px] font-bold tracking-tight text-[#080808] leading-[1.2] mb-2"
+                        className="text-[30px] sm:text-[32px] font-bold tracking-tight text-[#000000] leading-[1.18] text-center"
+                        style={{
+                          fontFamily:
+                            "'SF Pro Display', -apple-system, BlinkMacSystemFont, sans-serif",
+                        }}
                       >
-                        Adicione uma foto de perfil
+                        Adicione uma<br />foto de perfil
                       </h1>
-                      <p className="text-[14px] sm:text-[15px] text-[#737780] font-normal leading-relaxed">
+                      <p
+                        className="mt-3.5 text-[14.5px] sm:text-[15px] text-[#8A8D95] font-normal leading-[1.38] text-center max-w-[310px] mx-auto"
+                        style={{
+                          fontFamily:
+                            "'SF Pro Text', -apple-system, BlinkMacSystemFont, sans-serif",
+                        }}
+                      >
                         Uma foto de perfil ajuda outras pessoas a reconhecerem você no Monvian.
                       </p>
                     </div>
 
-                    {/* Área circular para foto */}
-                    <div className="w-full flex flex-col items-center justify-center my-auto py-2">
-                      <input
-                        ref={avatarInputRef}
-                        type="file"
-                        accept="image/*"
-                        onChange={handleAvatarFileSelect}
-                        className="hidden"
-                      />
+                    {/* Input invisível de arquivo */}
+                    <input
+                      ref={avatarInputRef}
+                      type="file"
+                      accept="image/*"
+                      onChange={handleAvatarFileSelect}
+                      className="hidden"
+                    />
 
-                      <div className="relative group">
-                        <button
-                          type="button"
-                          onClick={() => avatarInputRef.current?.click()}
-                          disabled={isCompressingAvatar}
-                          className="relative w-36 h-36 sm:w-40 sm:h-40 rounded-full border-2 border-dashed border-[#D2D7E0] hover:border-[#2673E8] bg-[#F5F7FA] flex flex-col items-center justify-center overflow-hidden transition-all active:scale-98 shadow-xs cursor-pointer focus:outline-none"
-                        >
-                          {avatarPreview ? (
-                            <img
-                              src={avatarPreview}
-                              alt="Prévia da foto"
-                              className="w-full h-full object-cover rounded-full"
-                            />
-                          ) : (
-                            <div className="flex flex-col items-center justify-center p-4">
-                              <div className="w-12 h-12 rounded-full bg-white shadow-xs flex items-center justify-center mb-2 text-[#4A5568] group-hover:text-[#2673E8] transition-colors">
-                                <Camera className="w-6 h-6 stroke-[1.8]" />
-                              </div>
-                              <span className="text-[13px] font-medium text-[#737780] group-hover:text-[#2673E8] transition-colors">
-                                Adicionar foto
-                              </span>
-                            </div>
-                          )}
-
-                          {isCompressingAvatar && (
-                            <div className="absolute inset-0 bg-white/80 backdrop-blur-xs flex items-center justify-center">
-                              <Loader2 className="w-7 h-7 animate-spin text-[#2673E8]" />
-                            </div>
-                          )}
-                        </button>
-
-                        {avatarPreview && !isCompressingAvatar && (
-                          <button
-                            type="button"
-                            onClick={() => avatarInputRef.current?.click()}
-                            className="absolute bottom-1 right-1 w-9 h-9 rounded-full bg-[#2673E8] text-white shadow-md flex items-center justify-center hover:bg-[#1D5EC2] active:scale-95 transition-all cursor-pointer"
-                            aria-label="Substituir foto"
+                    {/* Área circular da foto de perfil */}
+                    <button
+                      type="button"
+                      onClick={() => avatarInputRef.current?.click()}
+                      disabled={isCompressingAvatar}
+                      aria-label="Selecionar foto de perfil"
+                      className="relative w-[184px] h-[184px] sm:w-[196px] sm:h-[196px] rounded-full bg-[#F0F2F7] flex items-center justify-center overflow-hidden transition-transform active:scale-[0.98] cursor-pointer focus:outline-none select-none border-0 shadow-none mt-9 sm:mt-11"
+                    >
+                      {avatarPreview ? (
+                        <motion.img
+                          initial={{ opacity: 0 }}
+                          animate={{ opacity: 1 }}
+                          transition={{ duration: 0.25 }}
+                          src={avatarPreview}
+                          alt="Foto de perfil selecionada"
+                          className="w-full h-full object-cover rounded-full select-none pointer-events-none"
+                        />
+                      ) : (
+                        <div className="flex items-center justify-center select-none pointer-events-none">
+                          <svg
+                            className="w-[50px] h-[44px] text-[#000000]"
+                            viewBox="0 0 24 21"
+                            fill="none"
+                            xmlns="http://www.w3.org/2000/svg"
+                            stroke="currentColor"
+                            strokeWidth="1.85"
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
                           >
-                            <Camera className="w-4 h-4 stroke-[2]" />
-                          </button>
-                        )}
-                      </div>
-
-                      <div className="mt-4 flex items-center gap-3">
-                        {avatarPreview ? (
-                          <>
-                            <button
-                              type="button"
-                              onClick={() => avatarInputRef.current?.click()}
-                              className="text-[13px] font-semibold text-[#2673E8] hover:underline cursor-pointer py-1"
-                            >
-                              Escolher outra foto
-                            </button>
-                            <span className="text-[#D2D7E0]">•</span>
-                            <button
-                              type="button"
-                              onClick={handleRemoveAvatar}
-                              className="text-[13px] font-semibold text-red-500 hover:underline cursor-pointer py-1"
-                            >
-                              Remover
-                            </button>
-                          </>
-                        ) : (
-                          <button
-                            type="button"
-                            onClick={() => avatarInputRef.current?.click()}
-                            className="text-[14px] font-semibold text-[#2673E8] hover:text-[#1D5EC2] transition-colors cursor-pointer py-1"
-                          >
-                            Escolher da biblioteca
-                          </button>
-                        )}
-                      </div>
-
-                      {error && (
-                        <p className="mt-3 text-[13px] text-red-500 font-medium text-center">
-                          {error}
-                        </p>
+                            <path d="M23 16.5C23 18.433 21.433 20 19.5 20H4.5C2.567 20 1 18.433 1 16.5V7.5C1 5.567 2.567 4 4.5 4H7.3C7.8 4 8.2 3.7 8.5 3.3L9.5 1.7C9.8 1.3 10.2 1 10.7 1H13.3C13.8 1 14.2 1.3 14.5 1.7L15.5 3.3C15.8 3.7 16.2 4 16.7 4H19.5C21.433 4 23 5.567 23 7.5V16.5Z" />
+                            <circle cx="12" cy="12" r="4.3" />
+                          </svg>
+                        </div>
                       )}
-                    </div>
+
+                      {isCompressingAvatar && (
+                        <div className="absolute inset-0 bg-[#F0F2F7]/80 backdrop-blur-xs flex items-center justify-center">
+                          <Loader2 className="w-8 h-8 animate-spin text-[#000000]" />
+                        </div>
+                      )}
+                    </button>
+
+                    {/* Botão de galeria horizontal */}
+                    <motion.button
+                      type="button"
+                      whileTap={{ scale: 0.98 }}
+                      onClick={() => avatarInputRef.current?.click()}
+                      disabled={isCompressingAvatar}
+                      className="w-full max-w-[245px] sm:max-w-[255px] h-[48px] sm:h-[50px] rounded-full bg-[#F0F2F7] hover:bg-[#E8ECF2] active:bg-[#E2E7EE] flex items-center justify-center gap-2.5 px-5 text-[#000000] transition-colors cursor-pointer select-none border-0 shadow-none mt-8 sm:mt-10"
+                    >
+                      <ImageIcon className="w-[19px] h-[19px] text-[#000000] stroke-[1.85]" />
+                      <span className="text-[14.5px] sm:text-[15px] font-semibold text-[#000000]">
+                        Escolher da galeria
+                      </span>
+                    </motion.button>
+
+                    {/* Opção de pular "Fazer isso depois" */}
+                    <button
+                      type="button"
+                      onClick={() => executeAccountCreation(false)}
+                      disabled={isCompressingAvatar}
+                      className="mt-4 sm:mt-5 text-[14.5px] sm:text-[15px] font-medium text-[#8A8D95] hover:text-[#000000] active:opacity-70 transition-colors cursor-pointer select-none bg-transparent border-0 p-1"
+                    >
+                      Fazer isso depois
+                    </button>
+
+                    {/* Opção sutil para remover caso já tenha foto selecionada */}
+                    {avatarPreview && !isCompressingAvatar && (
+                      <button
+                        type="button"
+                        onClick={handleRemoveAvatar}
+                        className="mt-2 text-[12.5px] font-medium text-[#8A8D95] hover:text-red-500 transition-colors cursor-pointer select-none bg-transparent border-0 underline"
+                      >
+                        Remover foto selecionada
+                      </button>
+                    )}
+
+                    {error && (
+                      <p className="mt-3 text-[13px] text-red-500 font-medium text-center">
+                        {error}
+                      </p>
+                    )}
                   </motion.div>
                 )}
               </AnimatePresence>
@@ -1403,28 +1415,16 @@ export function AuthScreen({ onSuccess }: AuthScreenProps) {
               )}
 
               {registerStep === 4 && (
-                <div className="w-full flex flex-col gap-2.5">
-                  <motion.button
-                    id="btn-register-step4-continue"
-                    type="button"
-                    whileTap={{ scale: 0.98 }}
-                    onClick={() => executeAccountCreation(true)}
-                    disabled={isCompressingAvatar}
-                    className="w-full min-h-[54px] py-4 rounded-full expo-liquid-glass-btn text-[#080808] text-[16px] font-bold flex items-center justify-center transition-all cursor-pointer shadow-sm border border-black/5 hover:bg-zinc-50 active:scale-95 disabled:opacity-60 disabled:cursor-not-allowed"
-                  >
-                    Continuar
-                  </motion.button>
-
-                  <button
-                    id="btn-register-step4-skip"
-                    type="button"
-                    onClick={() => executeAccountCreation(false)}
-                    disabled={isCompressingAvatar}
-                    className="w-full py-2.5 text-center text-[15px] font-semibold text-[#737780] hover:text-[#080808] active:scale-98 transition-colors cursor-pointer disabled:opacity-50"
-                  >
-                    Fazer isso depois
-                  </button>
-                </div>
+                <motion.button
+                  id="btn-register-step4-continue"
+                  type="button"
+                  whileTap={{ scale: 0.985 }}
+                  onClick={() => executeAccountCreation(true)}
+                  disabled={isCompressingAvatar}
+                  className="w-full h-[54px] sm:h-[56px] min-h-[54px] rounded-full bg-[#000000] hover:bg-[#1a1a1a] active:bg-[#262626] text-[#FFFFFF] text-[16px] font-semibold flex items-center justify-center transition-all cursor-pointer shadow-none border-0 select-none disabled:opacity-50"
+                >
+                  Continuar
+                </motion.button>
               )}
             </footer>
           </motion.div>
@@ -1593,62 +1593,69 @@ export function AuthScreen({ onSuccess }: AuthScreenProps) {
 
                 {authMode === 'login' ? (
                   <>
-                    <motion.p
+                    {/* Slogan com duas frases: cinza e azul */}
+                    <motion.div
                       variants={loginItemVariants}
-                      className="text-[14px] sm:text-[15px] text-[#737780] font-semibold mb-8 tracking-tight text-center leading-snug"
+                      className="text-center mb-8"
                       style={{
                         fontFamily:
                           "'SF Pro Text', -apple-system, BlinkMacSystemFont, sans-serif",
                       }}
                     >
-                      Seu guia inteligente para viver
-                      <br />
-                      <span className="text-[#2673E8] font-bold">Campos do Jordão.</span>
-                    </motion.p>
+                      <p className="text-[14.5px] sm:text-[15px] text-[#8A8D95] font-normal leading-snug">
+                        Seu guia inteligente para viver
+                      </p>
+                      <p className="text-[14.5px] sm:text-[15px] text-[#3975E8] font-bold leading-snug mt-0.5">
+                        Campos do Jordão.
+                      </p>
+                    </motion.div>
 
                     {/* FORM: LOGIN */}
                     <form onSubmit={handleLoginSubmit} className="w-full space-y-3.5">
+                      {/* Campo E-mail */}
                       <motion.div variants={loginItemVariants} className="relative">
-                        <Mail className="absolute left-4 top-1/2 -translate-y-1/2 w-[18px] h-[18px] text-[#8E939E]" />
+                        <Mail className="absolute left-5 top-1/2 -translate-y-1/2 w-[19px] h-[19px] text-[#8A8D95] stroke-[1.8]" />
                         <input
                           id="input-login-email"
                           type="email"
                           placeholder="Seu e-mail"
                           value={email}
                           onChange={(e) => setEmail(e.target.value)}
-                          className="w-full pl-11 pr-5 py-4 rounded-[22px] bg-[#F5F7FA] border border-[#E2E6EE] text-[#080808] placeholder:text-[#8E939E] focus:outline-none focus:bg-[#FFFFFF] focus:border-[#2673E8] focus:ring-2 focus:ring-[#2673E8]/20 transition-all text-[15px] font-medium"
+                          className="w-full h-[56px] pl-[52px] pr-5 rounded-[26px] bg-[#F3F4F7] border border-[#E5E7EB]/70 text-[#000000] placeholder:text-[#9CA3AF] focus:outline-none focus:bg-[#FFFFFF] focus:border-[#3975E8] focus:ring-2 focus:ring-[#3975E8]/15 transition-all text-[15px] font-normal"
                           required
                           autoComplete="email"
                         />
                       </motion.div>
 
+                      {/* Campo Senha */}
                       <motion.div variants={loginItemVariants} className="relative">
-                        <Lock className="absolute left-4 top-1/2 -translate-y-1/2 w-[18px] h-[18px] text-[#8E939E]" />
+                        <Lock className="absolute left-5 top-1/2 -translate-y-1/2 w-[19px] h-[19px] text-[#8A8D95] stroke-[1.8]" />
                         <input
                           id="input-login-password"
                           type={showPassword ? 'text' : 'password'}
                           placeholder="Sua senha"
                           value={password}
                           onChange={(e) => setPassword(e.target.value)}
-                          className="w-full pl-11 pr-12 py-4 rounded-[22px] bg-[#F5F7FA] border border-[#E2E6EE] text-[#080808] placeholder:text-[#8E939E] focus:outline-none focus:bg-[#FFFFFF] focus:border-[#2673E8] focus:ring-2 focus:ring-[#2673E8]/20 transition-all text-[15px] font-medium"
+                          className="w-full h-[56px] pl-[52px] pr-12 rounded-[26px] bg-[#F3F4F7] border border-[#E5E7EB]/70 text-[#000000] placeholder:text-[#9CA3AF] focus:outline-none focus:bg-[#FFFFFF] focus:border-[#3975E8] focus:ring-2 focus:ring-[#3975E8]/15 transition-all text-[15px] font-normal"
                           required
                           autoComplete="current-password"
                         />
                         <button
                           type="button"
                           onClick={() => setShowPassword(!showPassword)}
-                          className="absolute right-4 top-1/2 -translate-y-1/2 text-[#737780] hover:text-[#080808] transition-colors cursor-pointer"
+                          className="absolute right-4 top-1/2 -translate-y-1/2 p-1 text-[#8A8D95] hover:text-[#000000] transition-colors cursor-pointer"
                           aria-label={showPassword ? 'Ocultar senha' : 'Ver senha'}
                         >
                           {showPassword ? (
-                            <EyeOff className="w-[18px] h-[18px]" />
+                            <EyeOff className="w-[19px] h-[19px] stroke-[1.8]" />
                           ) : (
-                            <Eye className="w-[18px] h-[18px]" />
+                            <Eye className="w-[19px] h-[19px] stroke-[1.8]" />
                           )}
                         </button>
                       </motion.div>
 
-                      <motion.div variants={loginItemVariants} className="flex justify-end px-1">
+                      {/* Esqueci minha senha alinhado à direita */}
+                      <motion.div variants={loginItemVariants} className="flex justify-end pt-0.5 pr-1">
                         <button
                           type="button"
                           onClick={() => {
@@ -1657,7 +1664,7 @@ export function AuthScreen({ onSuccess }: AuthScreenProps) {
                             setRecoverSent(false);
                             setAuthMode('recover');
                           }}
-                          className="text-[12.5px] font-semibold text-[#737780] hover:text-[#2673E8] transition-colors cursor-pointer"
+                          className="text-[13.5px] text-[#8A8D95] hover:text-[#000000] transition-colors cursor-pointer font-medium bg-transparent border-0"
                         >
                           Esqueci minha senha
                         </button>
@@ -1667,43 +1674,55 @@ export function AuthScreen({ onSuccess }: AuthScreenProps) {
                         <motion.p
                           initial={{ opacity: 0, y: -4 }}
                           animate={{ opacity: 1, y: 0 }}
-                          className="text-red-500 text-xs font-semibold text-center mt-2 px-4"
+                          className="text-red-500 text-[13px] font-medium text-center mt-2 px-2"
                         >
                           {error}
                         </motion.p>
                       )}
 
-                      <motion.div variants={loginItemVariants} className="pt-1">
+                      {/* Botão Entrar branco */}
+                      <motion.div variants={loginItemVariants} className="pt-2">
                         <motion.button
                           id="btn-login-submit"
-                          whileTap={{ scale: 0.98 }}
+                          whileTap={{ scale: 0.985 }}
                           type="submit"
                           disabled={loading || googleLoading}
-                          className="w-full py-[16px] rounded-full expo-liquid-glass-btn text-[#080808] text-[15.5px] font-bold flex items-center justify-center gap-2 transition-all disabled:opacity-70 shadow-sm border border-black/5 hover:bg-zinc-50 active:scale-95 cursor-pointer"
+                          className="w-full h-[54px] sm:h-[56px] rounded-full bg-[#FFFFFF] hover:bg-[#F9FAFB] active:bg-[#F3F4F6] text-[#000000] text-[16px] font-bold flex items-center justify-center gap-1.5 transition-all disabled:opacity-60 shadow-[0_2px_8px_rgba(0,0,0,0.06)] border border-[#E5E7EB] cursor-pointer"
                         >
-                          {loading ? 'Entrando...' : 'Entrar →'}
+                          {loading ? (
+                            <>
+                              <Loader2 className="w-4 h-4 animate-spin text-[#000000]" />
+                              <span>Entrando...</span>
+                            </>
+                          ) : (
+                            <span>Entrar →</span>
+                          )}
                         </motion.button>
                       </motion.div>
 
-                      {/* Google Sign In Divider & Button */}
-                      <motion.div variants={loginItemVariants} className="pt-2 space-y-3">
-                        <div className="flex items-center gap-3">
-                          <div className="flex-1 h-[1px] bg-[#E5E8F0]" />
-                          <span className="text-[11px] text-[#8E939E] uppercase tracking-wider font-semibold">
-                            ou
-                          </span>
-                          <div className="flex-1 h-[1px] bg-[#E5E8F0]" />
+                      {/* Separador OU */}
+                      <motion.div variants={loginItemVariants} className="relative flex items-center justify-center my-6">
+                        <div className="absolute inset-0 flex items-center">
+                          <div className="w-full border-t border-[#E5E7EB]" />
                         </div>
+                        <div className="relative bg-[#FFFFFF] px-3">
+                          <span className="text-[12px] font-semibold text-[#8A8D95] uppercase tracking-wider">
+                            OU
+                          </span>
+                        </div>
+                      </motion.div>
 
+                      {/* Botão Google branco */}
+                      <motion.div variants={loginItemVariants}>
                         <motion.button
                           id="btn-google-signin"
-                          whileTap={{ scale: 0.98 }}
+                          whileTap={{ scale: 0.985 }}
                           type="button"
                           onClick={handleGoogleAuth}
                           disabled={googleLoading || loading}
-                          className="w-full py-[14px] px-5 rounded-full expo-liquid-glass-btn hover:bg-zinc-50 border border-black/5 text-[#080808] text-[14px] font-bold flex items-center justify-center gap-3 transition-all cursor-pointer disabled:opacity-60 shadow-xs active:scale-95"
+                          className="w-full h-[54px] sm:h-[56px] px-5 rounded-full bg-[#FFFFFF] hover:bg-[#F9FAFB] active:bg-[#F3F4F6] border border-[#E5E7EB] text-[#000000] text-[15px] font-semibold flex items-center justify-center gap-3 transition-all cursor-pointer disabled:opacity-60 shadow-[0_2px_8px_rgba(0,0,0,0.06)]"
                         >
-                          <svg className="w-[18px] h-[18px] shrink-0" viewBox="0 0 24 24">
+                          <svg className="w-[19px] h-[19px] shrink-0" viewBox="0 0 24 24">
                             <path
                               fill="#4285F4"
                               d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"
@@ -1721,24 +1740,24 @@ export function AuthScreen({ onSuccess }: AuthScreenProps) {
                               d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z"
                             />
                           </svg>
-                          <span className="text-[#080808]">
+                          <span>
                             {googleLoading ? 'Conectando Google...' : 'Entrar com Google / Gmail'}
                           </span>
                         </motion.button>
                       </motion.div>
                     </form>
 
-                    {/* Footer Navigation Switcher */}
+                    {/* Criar nova conta no rodapé */}
                     <motion.div
                       variants={loginItemVariants}
-                      className="mt-8 text-[13px] font-semibold flex items-center gap-1.5 text-[#737780]"
+                      className="mt-9 text-[14px] flex items-center justify-center gap-1.5 text-center"
                     >
-                      Não possui uma conta?
+                      <span className="text-[#8A8D95] font-normal">Não possui uma conta?</span>
                       <button
                         id="btn-open-register-flow"
                         type="button"
                         onClick={handleStartRegisterFlow}
-                        className="text-[#080808] font-bold hover:text-[#2673E8] hover:underline cursor-pointer"
+                        className="text-[#000000] font-bold hover:text-[#3975E8] hover:underline cursor-pointer bg-transparent border-0 p-0"
                       >
                         Criar nova conta →
                       </button>
@@ -1747,20 +1766,20 @@ export function AuthScreen({ onSuccess }: AuthScreenProps) {
                 ) : (
                   /* FORM: RECUPERAÇÃO DE SENHA */
                   <motion.div variants={loginItemVariants} className="w-full">
-                    <h1 className="text-[22px] font-bold text-[#080808] text-center mb-2">
+                    <h1 className="text-[22px] font-bold text-[#000000] text-center mb-2">
                       Recuperar acesso
                     </h1>
-                    <p className="text-[14px] text-[#737780] text-center mb-6 leading-relaxed">
+                    <p className="text-[14px] text-[#8A8D95] text-center mb-6 leading-relaxed">
                       Informe o e-mail da sua conta para receber as instruções de redefinição de senha.
                     </p>
 
                     {recoverSent ? (
                       <div className="p-5 rounded-[24px] bg-[#F5F8FF] border border-[#DCE8FC] text-center space-y-3">
-                        <CheckCircle2 className="w-8 h-8 text-[#2673E8] mx-auto" />
-                        <p className="text-[14.5px] font-semibold text-[#080808]">
+                        <CheckCircle2 className="w-8 h-8 text-[#3975E8] mx-auto" />
+                        <p className="text-[14.5px] font-semibold text-[#000000]">
                           Instruções enviadas para {recoverEmail}
                         </p>
-                        <p className="text-[13px] text-[#737780]">
+                        <p className="text-[13px] text-[#8A8D95]">
                           Verifique sua caixa de entrada e a pasta de spam.
                         </p>
                         <button
@@ -1769,7 +1788,7 @@ export function AuthScreen({ onSuccess }: AuthScreenProps) {
                             setRecoverSent(false);
                             setAuthMode('login');
                           }}
-                          className="mt-2 px-5 py-2.5 rounded-full bg-[#2673E8] text-white text-[13.5px] font-bold cursor-pointer"
+                          className="mt-2 px-5 py-2.5 rounded-full bg-[#000000] text-white text-[13.5px] font-bold cursor-pointer"
                         >
                           Voltar para o login
                         </button>
@@ -1777,13 +1796,13 @@ export function AuthScreen({ onSuccess }: AuthScreenProps) {
                     ) : (
                       <form onSubmit={handleRecoverSubmit} className="space-y-4">
                         <div className="relative">
-                          <Mail className="absolute left-4 top-1/2 -translate-y-1/2 w-[18px] h-[18px] text-[#8E939E]" />
+                          <Mail className="absolute left-5 top-1/2 -translate-y-1/2 w-[19px] h-[19px] text-[#8A8D95] stroke-[1.8]" />
                           <input
                             type="email"
                             placeholder="Seu e-mail cadastrado"
                             value={recoverEmail}
                             onChange={(e) => setRecoverEmail(e.target.value)}
-                            className="w-full pl-11 pr-5 py-4 rounded-[22px] bg-[#F5F7FA] border border-[#E2E6EE] text-[#080808] placeholder:text-[#8E939E] focus:outline-none focus:bg-[#FFFFFF] focus:border-[#2673E8] focus:ring-2 focus:ring-[#2673E8]/20 transition-all text-[15px] font-medium"
+                            className="w-full h-[56px] pl-[52px] pr-5 rounded-[26px] bg-[#F3F4F7] border border-[#E5E7EB]/70 text-[#000000] placeholder:text-[#9CA3AF] focus:outline-none focus:bg-[#FFFFFF] focus:border-[#3975E8] focus:ring-2 focus:ring-[#3975E8]/15 transition-all text-[15px] font-normal"
                             required
                             autoComplete="email"
                           />
@@ -1796,10 +1815,10 @@ export function AuthScreen({ onSuccess }: AuthScreenProps) {
                         )}
 
                         <motion.button
-                          whileTap={{ scale: 0.98 }}
+                          whileTap={{ scale: 0.985 }}
                           type="submit"
                           disabled={loading}
-                          className="w-full py-[16px] rounded-full expo-liquid-glass-btn text-[#080808] text-[15.5px] font-bold flex items-center justify-center gap-2 transition-all disabled:opacity-70 shadow-sm border border-black/5 hover:bg-zinc-50 active:scale-95 cursor-pointer"
+                          className="w-full h-[54px] sm:h-[56px] rounded-full bg-[#FFFFFF] hover:bg-[#F9FAFB] active:bg-[#F3F4F6] text-[#000000] text-[15.5px] font-bold flex items-center justify-center gap-2 transition-all disabled:opacity-70 shadow-[0_2px_8px_rgba(0,0,0,0.06)] border border-[#E5E7EB] cursor-pointer"
                         >
                           {loading ? 'Enviando...' : 'Enviar instruções'}
                         </motion.button>
