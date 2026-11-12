@@ -9,7 +9,14 @@ import {
   CheckCircle2,
 } from 'lucide-react';
 import { motion, AnimatePresence, useReducedMotion } from 'motion/react';
-import { auth, createUserWithEmailAndPassword, googleSignIn, setCachedAccessToken } from '../lib/firebase';
+import {
+  auth,
+  createUserWithEmailAndPassword,
+  sendPasswordResetEmail,
+  googleSignIn,
+  checkGoogleRedirectResult,
+  setCachedAccessToken,
+} from '../lib/firebase';
 import { supabase } from '../lib/supabase';
 import { persistUserToFirestore, syncPermissionsFromDatabase } from '../services/firestoreSync';
 import { startPreloadResources } from '../utils/preloadItineraries';
@@ -511,6 +518,131 @@ export function AuthScreen({ onSuccess }: AuthScreenProps) {
     }
   };
 
+  const completeGoogleBackendSession = async (
+    gUser: any,
+    accessToken?: string | null,
+    idToken?: string
+  ) => {
+    setIsGoogleAccountPreparing(true);
+    setCachedAccessToken(accessToken || null);
+
+    const res = await fetch('/api/auth/google', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        email: gUser.email,
+        name: gUser.displayName || (gUser.email ? gUser.email.split('@')[0] : 'Usuário'),
+        avatar_url: gUser.photoURL || undefined,
+        google_uid: gUser.uid || undefined,
+        idToken: idToken || undefined,
+      }),
+    });
+
+    let data: any = null;
+    try {
+      data = await res.json();
+    } catch {
+      throw new Error('Resposta inválida do servidor ao autenticar sua conta.');
+    }
+
+    if (!res.ok || !data?.success || !data?.token || !data?.user) {
+      throw new Error(data?.error || 'Não foi possível vincular sua conta do Google. Tente novamente.');
+    }
+
+    const token: string = data.token;
+    let verifiedUser: any = data.user;
+    const isNewAccount = Boolean(data.isNewUser || data.is_new || data.user?.visits_count === 1);
+    const cleanEmail = (verifiedUser?.email || gUser.email || '').trim().toLowerCase();
+
+    const [meResult] = await Promise.allSettled([
+      fetch('/api/auth/me', {
+        headers: {
+          Authorization: `Bearer ${token}`,
+          ...(cleanEmail ? { 'x-user-email': cleanEmail } : {}),
+        },
+        cache: 'no-store',
+      }).then(async (meRes) => {
+        if (meRes.ok) {
+          const meData = await meRes.json();
+          if (meData?.success && meData?.user) {
+            return meData.user;
+          }
+        }
+        return null;
+      }),
+      cleanEmail ? syncPermissionsFromDatabase(cleanEmail) : Promise.resolve(),
+      Promise.resolve().then(() => startPreloadResources()),
+    ]);
+
+    if (meResult.status === 'fulfilled' && meResult.value) {
+      verifiedUser = {
+        ...verifiedUser,
+        ...meResult.value,
+        avatar_url: verifiedUser.avatar_url || meResult.value.avatar_url || gUser.photoURL || undefined,
+      };
+    }
+
+    persistUserToFirestore({
+      ...verifiedUser,
+      auth_id: verifiedUser.auth_id || gUser.uid || `usr_${verifiedUser.id}`,
+      firebase_uid: gUser.uid || null,
+    }).catch(() => {});
+
+    localStorage.setItem('monvian_token', token);
+    localStorage.setItem('monvian_user', JSON.stringify(verifiedUser));
+    iosNavigationManager.clearAuthEntries();
+
+    onSuccess(token, verifiedUser, isNewAccount);
+  };
+
+  // Handle return from Google OAuth full-page redirect on mobile browsers
+  useEffect(() => {
+    let active = true;
+    const hadPendingRedirect = (() => {
+      try {
+        return sessionStorage.getItem('monvian_google_redirect_pending') === '1';
+      } catch {
+        return false;
+      }
+    })();
+
+    if (hadPendingRedirect) {
+      setGoogleLoading(true);
+      setIsGoogleAccountPreparing(true);
+    }
+
+    checkGoogleRedirectResult()
+      .then(async (redirectResult) => {
+        try {
+          sessionStorage.removeItem('monvian_google_redirect_pending');
+        } catch {}
+        if (!active) return;
+        if (redirectResult?.user?.email) {
+          await completeGoogleBackendSession(
+            redirectResult.user,
+            redirectResult.accessToken,
+            redirectResult.idToken
+          );
+        } else if (hadPendingRedirect) {
+          setIsGoogleAccountPreparing(false);
+          setGoogleLoading(false);
+        }
+      })
+      .catch((err) => {
+        try {
+          sessionStorage.removeItem('monvian_google_redirect_pending');
+        } catch {}
+        if (!active) return;
+        setIsGoogleAccountPreparing(false);
+        setGoogleLoading(false);
+        if (err?.message) setError(err.message);
+      });
+
+    return () => {
+      active = false;
+    };
+  }, []);
+
   // 3. Sign In with Google
   const handleGoogleAuth = async () => {
     if (googleLoading || isGoogleAccountPreparing || loading) return;
@@ -519,75 +651,19 @@ export function AuthScreen({ onSuccess }: AuthScreenProps) {
     try {
       // Step 1-4: Open official Google Account Selector and wait for user selection
       const authResult = await googleSignIn();
+      if (authResult?.redirecting) {
+        return;
+      }
       if (!authResult || !authResult.user) {
         throw new Error('Autenticação com Google cancelada');
       }
 
-      // Step 6-7: Immediately hide the login screen and display the Monvian Full Screen Loading Screen
-      setIsGoogleAccountPreparing(true);
-
-      const { user: gUser, accessToken } = authResult;
-      setCachedAccessToken(accessToken);
-
-      // Step 8: Real backend authentication, session verification, user data retrieval & resource preparation
-      const res = await fetch('/api/auth/google', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          email: gUser.email,
-          name: gUser.displayName || (gUser.email ? gUser.email.split('@')[0] : 'Usuário'),
-          avatar_url: gUser.photoURL || undefined,
-        }),
-      });
-
-      let data: any = null;
-      try {
-        data = await res.json();
-      } catch {
-        throw new Error('Resposta inválida do servidor ao autenticar sua conta.');
-      }
-
-      if (!res.ok || !data?.success || !data?.token || !data?.user) {
-        throw new Error(data?.error || 'Não foi possível vincular sua conta do Google. Tente novamente.');
-      }
-
-      const token: string = data.token;
-      let verifiedUser: any = data.user;
-      const isNewAccount = Boolean(data.is_new || data.user?.visits_count === 1);
-      const cleanEmail = (verifiedUser?.email || gUser.email || '').trim().toLowerCase();
-
-      // Verify active session, sync user permissions, and prepare initial resources in real time
-      const [meResult] = await Promise.allSettled([
-        fetch('/api/auth/me', {
-          headers: { Authorization: `Bearer ${token}` },
-          cache: 'no-store',
-        }).then(async (meRes) => {
-          if (meRes.ok) {
-            const meData = await meRes.json();
-            if (meData?.success && meData?.user) {
-              return meData.user;
-            }
-          }
-          return null;
-        }),
-        cleanEmail ? syncPermissionsFromDatabase(cleanEmail) : Promise.resolve(),
-        Promise.resolve().then(() => startPreloadResources()),
-      ]);
-
-      if (meResult.status === 'fulfilled' && meResult.value) {
-        verifiedUser = {
-          ...verifiedUser,
-          ...meResult.value,
-          avatar_url: verifiedUser.avatar_url || meResult.value.avatar_url || gUser.photoURL || undefined,
-        };
-      }
-
-      localStorage.setItem('monvian_token', token);
-      localStorage.setItem('monvian_user', JSON.stringify(verifiedUser));
-      iosNavigationManager.clearAuthEntries();
-
-      // Step 9: All account data and session checks are ready — transition smoothly into the app
-      onSuccess(token, verifiedUser, isNewAccount);
+      // Step 6-9: Complete backend session & transition into app
+      await completeGoogleBackendSession(
+        authResult.user,
+        authResult.accessToken,
+        authResult.idToken
+      );
     } catch (err: any) {
       setIsGoogleAccountPreparing(false);
       setGoogleLoading(false);
@@ -618,9 +694,15 @@ export function AuthScreen({ onSuccess }: AuthScreenProps) {
     }
     setLoading(true);
     try {
-      if (supabase) {
-        await supabase.auth.resetPasswordForEmail(clean).catch(() => {});
-      }
+      await Promise.allSettled([
+        fetch('/api/auth/recover-password', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email: clean }),
+        }),
+        supabase ? supabase.auth.resetPasswordForEmail(clean) : Promise.resolve(),
+        sendPasswordResetEmail(auth, clean),
+      ]);
       setRecoverSent(true);
     } catch {
       setError('Não foi possível enviar o link agora. Tente novamente.');

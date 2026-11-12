@@ -593,13 +593,34 @@ export default function App() {
 
     const checkSession = async () => {
       try {
+        let savedEmail = '';
+        try {
+          const savedRaw = localStorage.getItem('monvian_user');
+          if (savedRaw) {
+            const parsed = JSON.parse(savedRaw);
+            savedEmail = String(parsed?.email || parsed?.whatsapp || '').trim().toLowerCase();
+          }
+        } catch {}
+
         const res = await fetch('/api/auth/me', {
-          headers: { Authorization: `Bearer ${token}` },
+          headers: {
+            Authorization: `Bearer ${token}`,
+            ...(savedEmail ? { 'x-user-email': savedEmail } : {}),
+          },
           cache: 'no-store',
         });
 
-        if (res.status === 401 || res.status === 403 || !res.ok) {
+        if (res.status === 401 || res.status === 403) {
           if (isMounted) {
+            performFullLogout();
+          }
+          return;
+        }
+
+        if (!res.ok) {
+          // On transient 5xx serverless cold start, keep cached session if valid local user exists
+          const currentSavedUser = localStorage.getItem('monvian_user');
+          if (!currentSavedUser && isMounted) {
             performFullLogout();
           }
           return;

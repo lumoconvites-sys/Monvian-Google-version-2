@@ -442,6 +442,8 @@ export const SavedView: React.FC<SavedViewProps> = ({
             isDark ? 'bg-black text-white' : 'bg-[#ffffff] text-zinc-900'
           }`}
           style={{
+            height: 'var(--app-height, 100dvh)',
+            minHeight: 'var(--app-height, 100dvh)',
             fontFamily: "'Inter', sans-serif",
             backgroundColor: isDark ? '#000000' : '#ffffff',
             willChange: 'opacity, transform',

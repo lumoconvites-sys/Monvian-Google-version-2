@@ -268,8 +268,8 @@
               h = Math.round(Math.max(innerH, clientH, vvH, screenH));
             } else {
               var candidate = Math.max(innerH, clientH, vvH);
-              // On iOS devices where screenH is within safe-area / toolbar delta of candidate, use full screenH
-              if (isIOS && screenH > candidate && (screenH - candidate) <= 130) {
+              // On iOS devices where screenH is within safe-area delta of candidate, use full screenH
+              if (isIOS && screenH > candidate && (screenH - candidate) <= 64) {
                 h = Math.round(screenH);
               } else {
                 h = Math.round(candidate || screenH);
@@ -280,23 +280,34 @@
               var hPx = h + 'px';
               document.documentElement.style.setProperty('--app-height', hPx);
               document.documentElement.style.height = hPx;
+              document.documentElement.style.minHeight = hPx;
               if (document.body) {
                 document.body.style.height = hPx;
+                document.body.style.minHeight = hPx;
               }
               var rootEl = document.getElementById('root');
               if (rootEl) {
                 rootEl.style.height = hPx;
+                rootEl.style.minHeight = hPx;
               }
             } else {
-              var fullH = h > 0 ? 'max(' + h + 'px, 100dvh, 100lvh)' : '100lvh';
+              var fullH = h > 0
+                ? 'max(' + h + 'px, 100dvh, calc(100% + env(safe-area-inset-bottom, 0px)))'
+                : 'max(100dvh, calc(100% + env(safe-area-inset-bottom, 0px)))';
+              if (isStandalone && h > 0) {
+                fullH = 'max(' + h + 'px, 100dvh, 100lvh, calc(100% + env(safe-area-inset-bottom, 0px)))';
+              }
               document.documentElement.style.setProperty('--app-height', fullH);
-              document.documentElement.style.height = '100%';
+              document.documentElement.style.height = fullH;
+              document.documentElement.style.minHeight = fullH;
               if (document.body) {
-                document.body.style.height = '100%';
+                document.body.style.height = fullH;
+                document.body.style.minHeight = fullH;
               }
               var rootElReset = document.getElementById('root');
               if (rootElReset) {
-                rootElReset.style.height = '100%';
+                rootElReset.style.height = fullH;
+                rootElReset.style.minHeight = fullH;
               }
             }
 

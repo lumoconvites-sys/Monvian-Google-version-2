@@ -50,9 +50,29 @@ const resolvedBackend = resolveBackendCredentials();
 export const supabaseUrl = resolvedBackend.url;
 export const supabaseAnonKey = resolvedBackend.key;
 
-export const supabaseServiceKey = (
-  getEnvVar('SUPABASE_SERVICE_ROLE_KEY') || supabaseAnonKey
-).trim();
+const resolveValidServiceKey = (anonKey: string): string => {
+  const rawServiceKey = (getEnvVar('SUPABASE_SERVICE_ROLE_KEY') || '').trim();
+  if (!rawServiceKey || rawServiceKey.includes('9KwMtGFOKB0zF17ozzG1rw')) {
+    return anonKey;
+  }
+  // Verify JWT payload ref matches active project 'gxyqrwebnkbgxqrfdvuj' if it is a JWT
+  if (rawServiceKey.startsWith('eyJ')) {
+    try {
+      const parts = rawServiceKey.split('.');
+      if (parts.length === 3) {
+        const payload = JSON.parse(Buffer.from(parts[1], 'base64').toString('utf8'));
+        if (payload?.ref && payload.ref !== 'gxyqrwebnkbgxqrfdvuj') {
+          return anonKey;
+        }
+      }
+    } catch {
+      return anonKey;
+    }
+  }
+  return rawServiceKey;
+};
+
+export const supabaseServiceKey = resolveValidServiceKey(supabaseAnonKey);
 
 export const supabase: SupabaseClient | null =
   supabaseUrl && supabaseServiceKey

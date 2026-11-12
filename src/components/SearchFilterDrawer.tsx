@@ -218,6 +218,10 @@ export const SearchFilterDrawer: React.FC<SearchFilterDrawerProps> = ({
           transition={{ duration: 0.18, ease: [0.22, 1, 0.36, 1] }}
           onClick={onClose}
           className="fixed inset-0 z-45 flex flex-col justify-end md:justify-center md:items-center md:p-6 select-none overflow-hidden transition-colors duration-200 md:bg-black/50"
+          style={{
+            height: 'var(--app-height, 100dvh)',
+            minHeight: 'var(--app-height, 100dvh)',
+          }}
         >
           <motion.div
             id="search-filter-panel"

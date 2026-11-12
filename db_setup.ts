@@ -1,10 +1,26 @@
 import Database from 'better-sqlite3';
 import path from 'path';
 
-const dbPath = path.resolve(process.cwd(), 'database.sqlite');
-export const db = new Database(dbPath);
+function createSafeDatabase() {
+  const candidates = process.env.VERCEL
+    ? ['/tmp/database.sqlite', ':memory:']
+    : [path.resolve(process.cwd(), 'database.sqlite'), '/tmp/database.sqlite', ':memory:'];
 
-db.pragma('journal_mode = WAL');
+  for (const candidate of candidates) {
+    try {
+      const instance = new Database(candidate);
+      if (candidate !== ':memory:') {
+        instance.pragma('journal_mode = WAL');
+      }
+      return instance;
+    } catch {
+      // Try next candidate path if filesystem is read-only
+    }
+  }
+  return new Database(':memory:');
+}
+
+export const db = createSafeDatabase();
 
 db.exec(`
   CREATE TABLE IF NOT EXISTS users (

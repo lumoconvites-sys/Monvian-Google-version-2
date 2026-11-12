@@ -933,8 +933,8 @@ export const AirbnbItineraryExplorer: React.FC<AirbnbItineraryExplorerProps> = (
         fontFamily: "'Inter', -apple-system, BlinkMacSystemFont, sans-serif",
         WebkitOverflowScrolling: 'touch',
         touchAction: 'pan-y',
-        height: '100%',
-        minHeight: '100dvh',
+        height: 'var(--app-height, 100dvh)',
+        minHeight: 'var(--app-height, 100dvh)',
       }}
     >
       {/* =====================================================================

@@ -9,7 +9,11 @@
       "destination": "/api/index"
     },
     {
-      "source": "/((?!api/|assets/|public/|favicon|.*\\..*).*)",
+      "source": "/auth/(.*)",
+      "destination": "/api/index"
+    },
+    {
+      "source": "/((?!api/|auth/|assets/|public/|favicon|.*\\..*).*)",
       "destination": "/index.html"
     }
   ],

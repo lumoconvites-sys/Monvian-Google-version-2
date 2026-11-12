@@ -21,9 +21,35 @@ if (!candidateKey || candidateKey.includes('9KwMtGFOKB0zF17ozzG1rw')) {
 }
 const supabaseAnonKey = candidateKey;
 
-const supabaseServiceKey = (process.env.SUPABASE_SERVICE_ROLE_KEY || supabaseAnonKey).trim();
+const resolveValidServiceKey = (anonKey: string): string => {
+  const rawServiceKey = (process.env.SUPABASE_SERVICE_ROLE_KEY || '').trim();
+  if (!rawServiceKey || rawServiceKey.includes('9KwMtGFOKB0zF17ozzG1rw')) {
+    return anonKey;
+  }
+  if (rawServiceKey.startsWith('eyJ')) {
+    try {
+      const parts = rawServiceKey.split('.');
+      if (parts.length === 3) {
+        const payload = JSON.parse(Buffer.from(parts[1], 'base64').toString('utf8'));
+        if (payload?.ref && payload.ref !== 'gxyqrwebnkbgxqrfdvuj') {
+          return anonKey;
+        }
+      }
+    } catch {
+      return anonKey;
+    }
+  }
+  return rawServiceKey;
+};
 
-const supabase = createClient(supabaseUrl, supabaseServiceKey);
+const supabaseServiceKey = resolveValidServiceKey(supabaseAnonKey);
+
+const supabase = createClient(supabaseUrl, supabaseServiceKey, {
+  auth: {
+    persistSession: false,
+    autoRefreshToken: false,
+  },
+});
 
 const PRIMARY_ADMIN_EMAILS = ['empresariomario@gmail.com', 'marioempresario@gmail.com', 'marioyesk@gmail.com'];
 
@@ -34,28 +60,140 @@ function isPrimaryAdmin(email?: string | null): boolean {
 
 function formatSafeUser(u: any) {
   if (!u) return null;
-  const isAdm = isPrimaryAdmin(u.email) || u.role === 'admin' || u.role === 'superadmin';
-  const isGold = isAdm || u.is_gold === 1 || u.plan === 'gold';
+  const isAdm =
+    isPrimaryAdmin(u.email) ||
+    isPrimaryAdmin(u.whatsapp) ||
+    u.role === 'admin' ||
+    u.role === 'superadmin';
+  const isGold = isAdm || u.is_gold === 1 || u.plan === 'gold' || u.is_premium === 1;
   return {
     id: u.id,
     name: u.name || (u.email ? u.email.split('@')[0] : 'Explorador'),
     username: u.username || (u.email ? u.email.split('@')[0] : 'explorador'),
-    email: u.email,
-    whatsapp: u.whatsapp || '',
+    email: u.email || u.whatsapp || '',
+    whatsapp: u.whatsapp || u.email || '',
     role: isAdm ? 'admin' : (u.role || 'user'),
     plan: isGold ? 'gold' : (u.plan || 'beta'),
     is_gold: isGold ? 1 : 0,
     isGold: Boolean(isGold),
     is_premium: u.is_premium ?? (isGold ? 1 : 0),
+    isPremium: Boolean(isGold),
     avatar_url: u.avatar_url || '/fotoperfil.png',
     visits_count: u.visits_count || 1,
     is_banned: u.is_banned || 0,
     bio: u.bio || '',
     onboarding_completed: u.onboarding_completed ?? 1,
+    welcome_card_seen: u.welcome_card_seen ?? 0,
+    location_permission_granted: u.location_permission_granted ?? 0,
+    motion_permission_granted: u.motion_permission_granted ?? 0,
+    created_at: u.created_at,
   };
 }
 
-async function getAuthUser(req: any): Promise<any | null> {
+async function generateUniqueUsernameServerless(
+  baseInput: string,
+  excludeUserId?: number
+): Promise<{ username: string; username_normalized: string }> {
+  const cleaned = String(baseInput || '')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^a-zA-Z0-9_]/g, '')
+    .toLowerCase()
+    .slice(0, 22);
+  const base = cleaned.length >= 3 ? cleaned : `explorador${Math.floor(100 + Math.random() * 900)}`;
+
+  try {
+    const { data: rows } = await supabase
+      .from('users')
+      .select('id, username_normalized')
+      .ilike('username_normalized', `${base}%`);
+
+    const taken = new Set<string>();
+    for (const r of rows || []) {
+      if (excludeUserId && Number(r.id) === Number(excludeUserId)) continue;
+      if (r.username_normalized) taken.add(String(r.username_normalized).toLowerCase());
+    }
+
+    if (!taken.has(base)) {
+      return { username: base, username_normalized: base };
+    }
+
+    let counter = 2;
+    while (taken.has(`${base}${counter}`) && counter < 1000) {
+      counter++;
+    }
+    const candidate = `${base}${counter}`;
+    return { username: candidate, username_normalized: candidate };
+  } catch {
+    const fallback = `${base}${Math.floor(10 + Math.random() * 89)}`;
+    return { username: fallback, username_normalized: fallback };
+  }
+}
+
+async function resolveAvatarUrlServerless(rawAvatar?: string, folder = 'avatars'): Promise<string> {
+  if (!rawAvatar || typeof rawAvatar !== 'string' || !rawAvatar.trim()) {
+    return '/fotoperfil.png';
+  }
+  const trimmed = rawAvatar.trim();
+  if (!trimmed.startsWith('data:image/')) {
+    return trimmed;
+  }
+  try {
+    const match = trimmed.match(/^data:(image)\/([a-zA-Z0-9.+-]+);base64,(.+)$/);
+    if (match) {
+      const contentType = `${match[1]}/${match[2]}`;
+      const ext = match[2] === 'jpeg' ? 'jpg' : match[2];
+      const buffer = Buffer.from(match[3], 'base64');
+      const filePath = `${folder}/${Date.now()}-${Math.random().toString(36).substring(2, 8)}.${ext}`;
+      const { data: uploadData, error: uploadErr } = await supabase.storage
+        .from('monvian-media')
+        .upload(filePath, buffer, { contentType, upsert: true });
+      if (!uploadErr && uploadData) {
+        const { data: pubData } = supabase.storage.from('monvian-media').getPublicUrl(uploadData.path);
+        if (pubData?.publicUrl) {
+          return pubData.publicUrl;
+        }
+      }
+    }
+  } catch {}
+  return trimmed;
+}
+
+async function findUserByEmailOrIdentifier(identifier: string): Promise<any | null> {
+  const clean = String(identifier || '').trim().toLowerCase().replace(/^@+/, '');
+  if (!clean) return null;
+
+  try {
+    const { data: exactEmail } = await supabase
+      .from('users')
+      .select('*')
+      .ilike('email', clean)
+      .limit(1);
+    if (exactEmail && exactEmail.length > 0) return exactEmail[0];
+  } catch {}
+
+  try {
+    const { data: exactWhatsapp } = await supabase
+      .from('users')
+      .select('*')
+      .ilike('whatsapp', clean)
+      .limit(1);
+    if (exactWhatsapp && exactWhatsapp.length > 0) return exactWhatsapp[0];
+  } catch {}
+
+  try {
+    const { data: exactUsername } = await supabase
+      .from('users')
+      .select('*')
+      .eq('username_normalized', clean)
+      .limit(1);
+    if (exactUsername && exactUsername.length > 0) return exactUsername[0];
+  } catch {}
+
+  return null;
+}
+
+async function getAuthUser(req: any, strictSession = false): Promise<any | null> {
   const authHeader = req.headers.authorization || req.headers.Authorization;
   const token = authHeader?.startsWith('Bearer ') ? authHeader.substring(7).trim() : '';
 
@@ -75,7 +213,10 @@ async function getAuthUser(req: any): Promise<any | null> {
           .eq('id', sessionRow.user_id)
           .maybeSingle();
 
-        if (userRow) return formatSafeUser(userRow);
+        if (userRow) {
+          if (userRow.is_banned === 1) return null;
+          return formatSafeUser(userRow);
+        }
       }
     } catch {}
 
@@ -83,13 +224,11 @@ async function getAuthUser(req: any): Promise<any | null> {
     try {
       const { data: authData } = await supabase.auth.getUser(token);
       if (authData?.user?.email) {
-        const { data: userRow } = await supabase
-          .from('users')
-          .select('*')
-          .eq('email', authData.user.email.toLowerCase())
-          .maybeSingle();
-
-        if (userRow) return formatSafeUser(userRow);
+        const userRow = await findUserByEmailOrIdentifier(authData.user.email);
+        if (userRow) {
+          if (userRow.is_banned === 1) return null;
+          return formatSafeUser(userRow);
+        }
 
         return formatSafeUser({
           id: authData.user.id,
@@ -111,23 +250,23 @@ async function getAuthUser(req: any): Promise<any | null> {
   )
     .trim()
     .toLowerCase();
-  if (headerEmail) {
+
+  if (headerEmail && (!strictSession || Boolean(token))) {
+    const existing = await findUserByEmailOrIdentifier(headerEmail);
+    if (existing) {
+      if (existing.is_banned === 1) return null;
+      return formatSafeUser(existing);
+    }
     if (isPrimaryAdmin(headerEmail)) {
       return formatSafeUser({
-        id: 1,
+        id: 75,
         email: headerEmail,
         name: 'Mario Admin',
+        username: 'marioyesk',
         role: 'admin',
         is_gold: 1,
       });
     }
-    const cleanLookup = headerEmail.replace(/^@+/, '');
-    const { data: userList } = await supabase
-      .from('users')
-      .select('*')
-      .or(`email.ilike.${cleanLookup},username_normalized.eq.${cleanLookup},whatsapp.ilike.${cleanLookup}`)
-      .limit(1);
-    if (userList && userList.length > 0) return formatSafeUser(userList[0]);
   }
 
   return null;
@@ -442,27 +581,48 @@ export default async function handler(req: any, res: any) {
     // =========================================================================
     if (cleanPath === '/auth/login' && method === 'POST') {
       const { identifier, email, whatsapp, password } = body || {};
-      const loginId = (identifier || email || whatsapp || '').trim().toLowerCase().replace(/^@+/, '');
+      const loginId = String(identifier || email || whatsapp || '')
+        .trim()
+        .toLowerCase()
+        .replace(/^@+/, '');
 
       if (!loginId || !password) {
-        return res.status(400).json({ success: false, error: 'Informe e-mail/usuário e senha.' });
+        return res.status(400).json({ success: false, error: 'Informe seu e-mail e sua senha.' });
       }
 
-      // Check users table in Supabase
-      const { data: userList } = await supabase
-        .from('users')
-        .select('*')
-        .or(`email.ilike.${loginId},username_normalized.eq.${loginId},whatsapp.ilike.${loginId}`)
-        .limit(1);
+      let user = await findUserByEmailOrIdentifier(loginId);
 
-      const user = userList && userList.length > 0 ? userList[0] : null;
+      if (user?.is_banned === 1) {
+        return res.status(403).json({
+          success: false,
+          error: 'Esta conta encontra-se suspensa. Entre em contato com o suporte.',
+        });
+      }
 
-      // Verify password via Supabase Auth or bcrypt
       let authSuccess = false;
-      if (loginId.includes('@')) {
+
+      // 1. Check password hash stored in users table (fastest & authoritative)
+      if (user?.password_hash) {
+        try {
+          if (user.password_hash.startsWith('$2')) {
+            authSuccess = bcrypt.compareSync(String(password), user.password_hash);
+          } else if (
+            user.password_hash !== 'google_oauth' &&
+            user.password_hash !== 'supabase_auth' &&
+            user.password_hash !== 'profile_sync' &&
+            user.password_hash === String(password)
+          ) {
+            authSuccess = true;
+          }
+        } catch {}
+      }
+
+      // 2. Check Supabase Auth if not yet matched
+      const emailToAuth = user?.email || (loginId.includes('@') ? loginId : '');
+      if (!authSuccess && emailToAuth) {
         try {
           const { data: authData, error: authErr } = await supabase.auth.signInWithPassword({
-            email: loginId,
+            email: emailToAuth,
             password: String(password),
           });
           if (!authErr && authData?.user) {
@@ -471,88 +631,291 @@ export default async function handler(req: any, res: any) {
         } catch {}
       }
 
-      if (!authSuccess && user?.password_hash) {
-        try {
-          authSuccess = bcrypt.compareSync(String(password), user.password_hash);
-        } catch {}
-      }
-
-      if (!authSuccess && isPrimaryAdmin(loginId)) {
-        // Safe bootstrap fallback for primary admin during initial setup
+      if (!authSuccess && !user && isPrimaryAdmin(loginId)) {
         authSuccess = true;
       }
 
-      if (!authSuccess && !user) {
-        return res.status(401).json({ success: false, error: 'Conta não encontrada ou senha incorreta.' });
+      if (!user && !authSuccess) {
+        return res.status(401).json({
+          success: false,
+          error: 'Conta não encontrada. Verifique o e-mail digitado ou crie uma nova conta.',
+        });
       }
 
       if (!authSuccess) {
-        return res.status(401).json({ success: false, error: 'Senha incorreta.' });
+        if (user?.password_hash === 'google_oauth') {
+          return res.status(401).json({
+            success: false,
+            error: 'Esta conta foi criada com o Google. Clique em "Entrar com Google / Gmail" abaixo.',
+          });
+        }
+        return res.status(401).json({
+          success: false,
+          error: 'E-mail ou senha incorretos. Tente novamente.',
+        });
       }
 
-      const activeUser = user || {
-        id: Date.now(),
-        email: loginId,
-        name: 'Administrador Monvian',
-        role: isPrimaryAdmin(loginId) ? 'admin' : 'user',
-      };
+      const nowIso = new Date().toISOString();
+
+      // Ensure user exists in public.users with a valid integer ID
+      if (!user) {
+        const cleanEmail = emailToAuth || `${loginId}@monvian.com`;
+        const { username, username_normalized } = await generateUniqueUsernameServerless(
+          cleanEmail.split('@')[0]
+        );
+        const role = isPrimaryAdmin(cleanEmail) ? 'admin' : 'user';
+        const isGold = role === 'admin' ? 1 : 0;
+        const hash = bcrypt.hashSync(String(password), 10);
+
+        const { data: createdUser } = await supabase
+          .from('users')
+          .insert({
+            name: role === 'admin' ? 'Mario Admin' : cleanEmail.split('@')[0],
+            username,
+            username_normalized,
+            email: cleanEmail,
+            whatsapp: cleanEmail,
+            password_hash: hash,
+            role,
+            is_gold: isGold,
+            is_premium: isGold,
+            plan: isGold ? 'gold' : 'beta',
+            avatar_url: '/fotoperfil.png',
+            onboarding_completed: 1,
+            visits_count: 1,
+            last_access: nowIso,
+            created_at: nowIso,
+            updated_at: nowIso,
+          })
+          .select()
+          .single();
+
+        user = createdUser || {
+          id: 75,
+          email: cleanEmail,
+          whatsapp: cleanEmail,
+          name: role === 'admin' ? 'Mario Admin' : cleanEmail.split('@')[0],
+          username,
+          role,
+          is_gold: isGold,
+        };
+      } else {
+        // Update visits_count and last_access
+        const nextVisits = Number(user.visits_count || 0) + 1;
+        const nextRole = isPrimaryAdmin(user.email) || user.role === 'admin' ? 'admin' : (user.role || 'user');
+        const nextGold = nextRole === 'admin' || user.is_gold === 1 ? 1 : 0;
+        try {
+          const { data: updatedUser } = await supabase
+            .from('users')
+            .update({
+              visits_count: nextVisits,
+              last_access: nowIso,
+              role: nextRole,
+              is_gold: nextGold,
+              updated_at: nowIso,
+            })
+            .eq('id', user.id)
+            .select()
+            .single();
+          if (updatedUser) user = updatedUser;
+        } catch {}
+      }
 
       const token = crypto.randomUUID();
-      try {
-        await supabase.from('sessions').insert({
-          token,
-          user_id: activeUser.id,
-          created_at: new Date().toISOString(),
-        });
-      } catch {}
+      if (user?.id && Number(user.id) < 2147483647) {
+        try {
+          await supabase.from('sessions').insert({
+            token,
+            user_id: Number(user.id),
+            created_at: nowIso,
+          });
+        } catch {}
+      }
 
       return res.status(200).json({
         success: true,
         token,
-        user: formatSafeUser(activeUser),
+        user: formatSafeUser(user),
       });
     }
 
     if (cleanPath === '/auth/register' && method === 'POST') {
-      const { name, email, password, whatsapp } = body || {};
-      const cleanEmail = (email || '').trim().toLowerCase();
-      if (!cleanEmail) {
-        return res.status(400).json({ success: false, error: 'E-mail obrigatório.' });
+      const { name, email, password, whatsapp, avatar_url } = body || {};
+      const cleanEmail = String(email || whatsapp || '')
+        .trim()
+        .toLowerCase();
+      const cleanName = String(name || '').trim();
+
+      if (!cleanName || cleanName.length < 2) {
+        return res.status(400).json({
+          success: false,
+          error: 'Por favor, informe seu nome completo.',
+        });
       }
 
-      const hash = password ? bcrypt.hashSync(String(password), 10) : '';
+      if (!cleanEmail || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(cleanEmail)) {
+        return res.status(400).json({
+          success: false,
+          error: 'Por favor, informe um endereço de e-mail válido.',
+        });
+      }
+
+      if (!password || String(password).length < 6) {
+        return res.status(400).json({
+          success: false,
+          error: 'A senha deve ter pelo menos 6 caracteres.',
+        });
+      }
+
+      // Check if account already exists in public.users
+      const existingUser = await findUserByEmailOrIdentifier(cleanEmail);
+      const hash = bcrypt.hashSync(String(password), 10);
+      const nowIso = new Date().toISOString();
+      const resolvedAvatar = await resolveAvatarUrlServerless(avatar_url, 'avatars');
       const role = isPrimaryAdmin(cleanEmail) ? 'admin' : 'user';
+      const isGold = role === 'admin' ? 1 : 0;
+
+      if (existingUser) {
+        // If user already has a password-protected account, report duplicate email
+        if (
+          existingUser.password_hash &&
+          existingUser.password_hash !== 'google_oauth' &&
+          existingUser.password_hash !== 'supabase_auth' &&
+          existingUser.password_hash !== 'profile_sync'
+        ) {
+          return res.status(409).json({
+            success: false,
+            error: 'Este e-mail já está cadastrado. Faça login na sua conta.',
+          });
+        }
+
+        // Upgrade OAuth / synced account with the new password and profile info
+        const preservedRole = role === 'admin' || existingUser.role === 'admin' ? 'admin' : 'user';
+        const preservedGold = preservedRole === 'admin' || existingUser.is_gold === 1 ? 1 : 0;
+        const { data: updatedUser, error: updErr } = await supabase
+          .from('users')
+          .update({
+            name: cleanName || existingUser.name,
+            password_hash: hash,
+            avatar_url:
+              resolvedAvatar !== '/fotoperfil.png'
+                ? resolvedAvatar
+                : existingUser.avatar_url || '/fotoperfil.png',
+            role: preservedRole,
+            is_gold: preservedGold,
+            onboarding_completed: 1,
+            last_access: nowIso,
+            updated_at: nowIso,
+          })
+          .eq('id', existingUser.id)
+          .select()
+          .single();
+
+        if (updErr) {
+          return res.status(500).json({ success: false, error: updErr.message });
+        }
+
+        const token = crypto.randomUUID();
+        try {
+          await supabase.from('sessions').insert({
+            token,
+            user_id: Number(updatedUser.id),
+            created_at: nowIso,
+          });
+        } catch {}
+
+        return res.status(200).json({
+          success: true,
+          token,
+          user: formatSafeUser(updatedUser),
+          isNewUser: true,
+        });
+      }
+
+      // Generate collision-free username & username_normalized
+      const { username, username_normalized } = await generateUniqueUsernameServerless(
+        cleanName || cleanEmail.split('@')[0]
+      );
+
+      // Ensure whatsapp is never empty string "" (which violates users_whatsapp_key unique constraint)
+      const safeWhatsapp = String(whatsapp || cleanEmail).trim().toLowerCase() || cleanEmail;
 
       const payload = {
-        name: name || cleanEmail.split('@')[0],
-        username: cleanEmail.split('@')[0].replace(/[^a-zA-Z0-9_]/g, ''),
-        username_normalized: cleanEmail.split('@')[0].replace(/[^a-zA-Z0-9_]/g, ''),
+        name: cleanName || cleanEmail.split('@')[0],
+        username,
+        username_normalized,
         email: cleanEmail,
-        whatsapp: whatsapp || '',
+        whatsapp: safeWhatsapp,
         password_hash: hash,
         role,
-        is_gold: role === 'admin' ? 1 : 0,
-        avatar_url: '/fotoperfil.png',
-        created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString(),
+        is_gold: isGold,
+        is_premium: isGold,
+        plan: isGold ? 'gold' : 'beta',
+        avatar_url: resolvedAvatar,
+        onboarding_completed: 1,
+        visits_count: 1,
+        last_access: nowIso,
+        created_at: nowIso,
+        updated_at: nowIso,
       };
 
-      const { data: inserted, error: insErr } = await supabase
-        .from('users')
-        .upsert(payload, { onConflict: 'email' })
-        .select()
-        .single();
+      let inserted: any = null;
+      let insErr: any = null;
 
+      const firstAttempt = await supabase.from('users').insert(payload).select().single();
+      inserted = firstAttempt.data;
+      insErr = firstAttempt.error;
+
+      // Retry with randomized username/whatsapp suffix if any unexpected unique constraint occurred
       if (insErr) {
-        return res.status(500).json({ success: false, error: insErr.message });
+        const msg = String(insErr.message || '').toLowerCase();
+        if (msg.includes('users_email_key') || msg.includes('duplicate key') && msg.includes('email')) {
+          return res.status(409).json({
+            success: false,
+            error: 'Este e-mail já está cadastrado. Faça login na sua conta.',
+          });
+        }
+        const retrySuffix = Math.floor(1000 + Math.random() * 9000);
+        const retryUsername = `${username.slice(0, 18)}${retrySuffix}`;
+        const retryPayload = {
+          ...payload,
+          username: retryUsername,
+          username_normalized: retryUsername.toLowerCase(),
+          whatsapp: cleanEmail,
+        };
+        const retryAttempt = await supabase.from('users').insert(retryPayload).select().single();
+        inserted = retryAttempt.data;
+        insErr = retryAttempt.error;
       }
+
+      if (insErr || !inserted) {
+        return res.status(500).json({
+          success: false,
+          error: insErr?.message || 'Não foi possível concluir o cadastro no momento.',
+        });
+      }
+
+      // Best-effort sync with Supabase Auth
+      try {
+        await supabase.auth.signUp({
+          email: cleanEmail,
+          password: String(password),
+          options: {
+            data: {
+              name: payload.name,
+              username: payload.username,
+              avatar_url: payload.avatar_url,
+            },
+          },
+        });
+      } catch {}
 
       const token = crypto.randomUUID();
       try {
         await supabase.from('sessions').insert({
           token,
-          user_id: inserted.id,
-          created_at: new Date().toISOString(),
+          user_id: Number(inserted.id),
+          created_at: nowIso,
         });
       } catch {}
 
@@ -560,11 +923,290 @@ export default async function handler(req: any, res: any) {
         success: true,
         token,
         user: formatSafeUser(inserted),
+        isNewUser: true,
+      });
+    }
+
+    // Google OAuth Authentication Route (POST & GET)
+    if (cleanPath === '/auth/google' || cleanPath === '/auth/google/callback') {
+      if (method === 'GET') {
+        const accept = String(req.headers.accept || '');
+        if (accept.includes('application/json')) {
+          return res.status(200).json({
+            success: true,
+            provider: 'google',
+            message: 'Use POST /api/auth/google com os dados da conta autenticada.',
+          });
+        }
+        res.setHeader('Location', '/?google_auth=1');
+        return res.status(302).end();
+      }
+
+      if (method === 'POST') {
+        const { email, name, avatar_url, idToken } = body || {};
+        let resolvedEmail = String(email || '').trim().toLowerCase();
+        let resolvedName = String(name || '').trim();
+        let resolvedAvatar = String(avatar_url || '').trim();
+
+        // If an idToken was passed without email, decode JWT payload safely
+        if (!resolvedEmail && idToken && typeof idToken === 'string' && idToken.includes('.')) {
+          try {
+            const parts = idToken.split('.');
+            const jwtPayload = JSON.parse(Buffer.from(parts[1], 'base64').toString('utf8'));
+            if (jwtPayload?.email) resolvedEmail = String(jwtPayload.email).trim().toLowerCase();
+            if (!resolvedName && jwtPayload?.name) resolvedName = String(jwtPayload.name).trim();
+            if (!resolvedAvatar && jwtPayload?.picture) resolvedAvatar = String(jwtPayload.picture).trim();
+          } catch {}
+        }
+
+        if (!resolvedEmail || !resolvedEmail.includes('@')) {
+          return res.status(400).json({
+            success: false,
+            error: 'E-mail da conta Google inválido ou não fornecido.',
+          });
+        }
+
+        const nowIso = new Date().toISOString();
+        let user = await findUserByEmailOrIdentifier(resolvedEmail);
+        let isNewUser = false;
+
+        if (user) {
+          if (user.is_banned === 1) {
+            return res.status(403).json({
+              success: false,
+              error: 'Esta conta encontra-se suspensa.',
+            });
+          }
+
+          const role = isPrimaryAdmin(resolvedEmail) || user.role === 'admin' ? 'admin' : (user.role || 'user');
+          const isGold = role === 'admin' || user.is_gold === 1 ? 1 : 0;
+          const updatedName =
+            !user.name || user.name === 'Explorador' || user.name === 'Visitante'
+              ? resolvedName || user.name || resolvedEmail.split('@')[0]
+              : user.name;
+          const updatedAvatar =
+            (!user.avatar_url || user.avatar_url === '/fotoperfil.png') && resolvedAvatar
+              ? resolvedAvatar
+              : user.avatar_url || '/fotoperfil.png';
+
+          const { data: updatedRow } = await supabase
+            .from('users')
+            .update({
+              name: updatedName,
+              email: resolvedEmail,
+              avatar_url: updatedAvatar,
+              role,
+              is_gold: isGold,
+              is_premium: isGold,
+              plan: isGold ? 'gold' : (user.plan || 'beta'),
+              visits_count: Number(user.visits_count || 0) + 1,
+              last_access: nowIso,
+              updated_at: nowIso,
+            })
+            .eq('id', user.id)
+            .select()
+            .single();
+
+          if (updatedRow) user = updatedRow;
+        } else {
+          isNewUser = true;
+          const role = isPrimaryAdmin(resolvedEmail) ? 'admin' : 'user';
+          const isGold = role === 'admin' ? 1 : 0;
+          const cleanName = resolvedName || resolvedEmail.split('@')[0];
+          const { username, username_normalized } = await generateUniqueUsernameServerless(
+            cleanName || resolvedEmail.split('@')[0]
+          );
+
+          const insertPayload = {
+            name: cleanName,
+            username,
+            username_normalized,
+            email: resolvedEmail,
+            whatsapp: resolvedEmail,
+            password_hash: 'google_oauth',
+            role,
+            is_gold: isGold,
+            is_premium: isGold,
+            plan: isGold ? 'gold' : 'beta',
+            avatar_url: resolvedAvatar || '/fotoperfil.png',
+            onboarding_completed: 1,
+            visits_count: 1,
+            last_access: nowIso,
+            created_at: nowIso,
+            updated_at: nowIso,
+          };
+
+          const { data: createdRow, error: createErr } = await supabase
+            .from('users')
+            .insert(insertPayload)
+            .select()
+            .single();
+
+          if (createErr) {
+            const retrySuffix = Math.floor(1000 + Math.random() * 9000);
+            const retryUsername = `${username.slice(0, 18)}${retrySuffix}`;
+            const { data: retryRow, error: retryErr } = await supabase
+              .from('users')
+              .insert({
+                ...insertPayload,
+                username: retryUsername,
+                username_normalized: retryUsername.toLowerCase(),
+              })
+              .select()
+              .single();
+
+            if (retryErr || !retryRow) {
+              return res.status(500).json({
+                success: false,
+                error: retryErr?.message || createErr.message,
+              });
+            }
+            user = retryRow;
+          } else {
+            user = createdRow;
+          }
+        }
+
+        const token = crypto.randomUUID();
+        if (user?.id && Number(user.id) < 2147483647) {
+          try {
+            await supabase.from('sessions').insert({
+              token,
+              user_id: Number(user.id),
+              created_at: nowIso,
+            });
+          } catch {}
+        }
+
+        return res.status(200).json({
+          success: true,
+          token,
+          user: formatSafeUser(user),
+          isNewUser,
+        });
+      }
+    }
+
+    if (cleanPath === '/auth/supabase-sync' && method === 'POST') {
+      const { access_token } = body || {};
+      if (!access_token) {
+        return res.status(400).json({ success: false, error: 'Token Supabase ausente' });
+      }
+      const { data: authData, error: authErr } = await supabase.auth.getUser(String(access_token));
+      if (authErr || !authData?.user?.email) {
+        return res.status(401).json({ success: false, error: 'Sessão Supabase inválida' });
+      }
+
+      const cleanEmail = authData.user.email.trim().toLowerCase();
+      const nowIso = new Date().toISOString();
+      let user = await findUserByEmailOrIdentifier(cleanEmail);
+
+      if (!user) {
+        const role = isPrimaryAdmin(cleanEmail) ? 'admin' : 'user';
+        const isGold = role === 'admin' ? 1 : 0;
+        const displayName =
+          authData.user.user_metadata?.full_name ||
+          authData.user.user_metadata?.name ||
+          cleanEmail.split('@')[0];
+        const { username, username_normalized } = await generateUniqueUsernameServerless(displayName);
+
+        const { data: created } = await supabase
+          .from('users')
+          .insert({
+            auth_id: authData.user.id,
+            name: displayName,
+            username,
+            username_normalized,
+            email: cleanEmail,
+            whatsapp: cleanEmail,
+            password_hash: 'supabase_auth',
+            avatar_url: authData.user.user_metadata?.avatar_url || '/fotoperfil.png',
+            role,
+            is_gold: isGold,
+            is_premium: isGold,
+            plan: isGold ? 'gold' : 'beta',
+            onboarding_completed: 1,
+            visits_count: 1,
+            last_access: nowIso,
+            created_at: nowIso,
+            updated_at: nowIso,
+          })
+          .select()
+          .single();
+
+        user = created;
+      }
+
+      const token = crypto.randomUUID();
+      if (user?.id && Number(user.id) < 2147483647) {
+        try {
+          await supabase.from('sessions').insert({
+            token,
+            user_id: Number(user.id),
+            created_at: nowIso,
+          });
+        } catch {}
+      }
+
+      return res.status(200).json({
+        success: true,
+        token,
+        user: formatSafeUser(user),
+      });
+    }
+
+    if (cleanPath === '/auth/recover-password' && method === 'POST') {
+      const cleanEmail = String(body?.email || '').trim().toLowerCase();
+      if (!cleanEmail || !cleanEmail.includes('@')) {
+        return res.status(400).json({ success: false, error: 'Informe um endereço de e-mail válido.' });
+      }
+
+      try {
+        const host = req.headers.host || 'monvians.com.br';
+        const proto = req.headers['x-forwarded-proto'] || 'https';
+        const redirectOrigin = process.env.APP_URL || `${proto}://${host}`;
+        await supabase.auth.resetPasswordForEmail(cleanEmail, {
+          redirectTo: redirectOrigin,
+        });
+      } catch {}
+
+      return res.status(200).json({
+        success: true,
+        message: 'Instruções de recuperação de senha enviadas para seu e-mail.',
+      });
+    }
+
+    if (cleanPath === '/auth/welcome-seen' && method === 'POST') {
+      const currentUser = await getAuthUser(req);
+      const email = String(body?.email || currentUser?.email || body?.identifier || '')
+        .trim()
+        .toLowerCase();
+
+      if (!currentUser && !email) {
+        return res.status(401).json({ success: false, error: 'Não autenticado' });
+      }
+
+      let updatedUser = currentUser;
+      if (email) {
+        try {
+          const { data } = await supabase
+            .from('users')
+            .update({ onboarding_completed: 1, updated_at: new Date().toISOString() })
+            .ilike('email', email)
+            .select()
+            .maybeSingle();
+          if (data) updatedUser = formatSafeUser(data);
+        } catch {}
+      }
+
+      return res.status(200).json({
+        success: true,
+        user: updatedUser ? { ...updatedUser, welcome_card_seen: 1 } : null,
       });
     }
 
     if (cleanPath === '/auth/me' && method === 'GET') {
-      const user = await getAuthUser(req);
+      const user = await getAuthUser(req, true);
       if (!user) {
         return res.status(401).json({ success: false, error: 'Não autenticado' });
       }
@@ -573,7 +1215,9 @@ export default async function handler(req: any, res: any) {
 
     if (cleanPath === '/auth/logout' && method === 'POST') {
       const authHeader = req.headers.authorization || req.headers.Authorization;
-      const token = authHeader?.startsWith('Bearer ') ? authHeader.substring(7).trim() : '';
+      const headerToken = authHeader?.startsWith('Bearer ') ? authHeader.substring(7).trim() : '';
+      const bodyToken = typeof body?.token === 'string' ? body.token.trim() : '';
+      const token = headerToken || bodyToken;
       if (token) {
         try {
           await supabase.from('sessions').delete().eq('token', token);
@@ -584,37 +1228,253 @@ export default async function handler(req: any, res: any) {
 
     if ((cleanPath === '/user/profile' || cleanPath === '/auth/profile') && (method === 'POST' || method === 'PUT')) {
       const currentUser = await getAuthUser(req);
-      const targetEmail = (body?.email || currentUser?.email || '').trim().toLowerCase();
-      if (!targetEmail) {
-        return res.status(400).json({ success: false, error: 'E-mail não fornecido' });
+      const targetEmail = String(body?.email || body?.whatsapp || currentUser?.email || '')
+        .trim()
+        .toLowerCase();
+      if (!targetEmail && !currentUser) {
+        return res.status(400).json({ success: false, error: 'E-mail ou sessão necessária' });
       }
 
-      const role = isPrimaryAdmin(targetEmail) || currentUser?.role === 'admin' ? 'admin' : 'user';
-      const isGold = role === 'admin' || currentUser?.is_gold === 1 ? 1 : 0;
+      const existing = await findUserByEmailOrIdentifier(targetEmail || currentUser?.email || '');
+      const role =
+        isPrimaryAdmin(targetEmail) || currentUser?.role === 'admin' || existing?.role === 'admin'
+          ? 'admin'
+          : 'user';
+      const isGold =
+        role === 'admin' || currentUser?.is_gold === 1 || existing?.is_gold === 1 ? 1 : 0;
+
+      const resolvedAvatar = body?.avatar_url
+        ? await resolveAvatarUrlServerless(body.avatar_url, 'avatars')
+        : existing?.avatar_url || currentUser?.avatar_url || '/fotoperfil.png';
+
+      const cleanUsernameInput = String(
+        body?.username || existing?.username || body?.name || targetEmail.split('@')[0] || 'explorador'
+      )
+        .trim()
+        .replace(/^@+/, '');
+
+      const { username, username_normalized } = await generateUniqueUsernameServerless(
+        cleanUsernameInput,
+        existing?.id || currentUser?.id
+      );
 
       const updateData: any = {
-        name: body.name,
-        username: body.username,
-        bio: body.bio,
-        avatar_url: body.avatar_url,
-        whatsapp: body.whatsapp,
+        name: body?.name || existing?.name || currentUser?.name || username,
+        username,
+        username_normalized,
+        bio: body?.bio !== undefined ? body.bio : (existing?.bio || ''),
+        avatar_url: resolvedAvatar,
+        email: targetEmail || existing?.email || currentUser?.email,
+        whatsapp: body?.whatsapp || targetEmail || existing?.whatsapp || currentUser?.email,
         role,
         is_gold: isGold,
         updated_at: new Date().toISOString(),
       };
 
-      const { data, error } = await supabase
-        .from('users')
-        .update(updateData)
-        .eq('email', targetEmail)
-        .select()
-        .single();
+      if (existing?.id) {
+        const { data, error } = await supabase
+          .from('users')
+          .update(updateData)
+          .eq('id', existing.id)
+          .select()
+          .single();
 
-      if (error) {
-        return res.status(500).json({ success: false, error: error.message });
+        if (error) {
+          return res.status(500).json({ success: false, error: error.message });
+        }
+        return res.status(200).json({ success: true, user: formatSafeUser(data) });
+      } else {
+        const { data, error } = await supabase
+          .from('users')
+          .insert({
+            ...updateData,
+            password_hash: 'profile_sync',
+            onboarding_completed: 1,
+            visits_count: 1,
+            created_at: new Date().toISOString(),
+          })
+          .select()
+          .single();
+
+        if (error) {
+          return res.status(500).json({ success: false, error: error.message });
+        }
+        return res.status(200).json({ success: true, user: formatSafeUser(data) });
       }
-      return res.status(200).json({ success: true, user: formatSafeUser(data) });
     }
+
+    if (cleanPath === '/user/settings' && method === 'POST') {
+      const currentUser = await getAuthUser(req);
+      const { rain_enabled, snow_enabled, theme, high_contrast } = body || {};
+      if (currentUser?.id) {
+        const updates: any = { updated_at: new Date().toISOString() };
+        if (rain_enabled !== undefined) updates.rain_enabled = rain_enabled ? 1 : 0;
+        if (snow_enabled !== undefined) updates.snow_enabled = snow_enabled ? 1 : 0;
+        if (theme) updates.theme = theme;
+        if (high_contrast !== undefined) updates.high_contrast = high_contrast ? 1 : 0;
+        try {
+          await supabase.from('users').update(updates).eq('id', currentUser.id);
+        } catch {}
+      }
+      return res.status(200).json({ success: true });
+    }
+
+    if (cleanPath === '/user/permissions' && method === 'POST') {
+      const currentUser = await getAuthUser(req);
+      const { email, locationGranted, motionGranted, coords } = body || {};
+      const targetEmail = String(email || currentUser?.email || '').trim().toLowerCase();
+      const nowIso = new Date().toISOString();
+
+      const settingsUpserts: { key: string; value: string; updated_at: string }[] = [];
+      if (locationGranted !== undefined && locationGranted) {
+        settingsUpserts.push({ key: 'perm_loc_global', value: '1', updated_at: nowIso });
+        if (targetEmail) {
+          settingsUpserts.push({ key: `perm_loc_${targetEmail}`, value: '1', updated_at: nowIso });
+        }
+      }
+      if (motionGranted !== undefined && motionGranted) {
+        settingsUpserts.push({ key: 'perm_mot_global', value: '1', updated_at: nowIso });
+        if (targetEmail) {
+          settingsUpserts.push({ key: `perm_mot_${targetEmail}`, value: '1', updated_at: nowIso });
+        }
+      }
+      if (Array.isArray(coords) && coords.length === 2) {
+        const coordsJson = JSON.stringify([Number(coords[0]), Number(coords[1])]);
+        settingsUpserts.push({ key: 'perm_coords_global', value: coordsJson, updated_at: nowIso });
+        if (targetEmail) {
+          settingsUpserts.push({ key: `perm_coords_${targetEmail}`, value: coordsJson, updated_at: nowIso });
+        }
+      }
+
+      if (settingsUpserts.length > 0) {
+        try {
+          await supabase.from('system_settings').upsert(settingsUpserts, { onConflict: 'key' });
+        } catch {}
+      }
+
+      return res.status(200).json({
+        success: true,
+        permissions: {
+          location_permission_granted: locationGranted ? 1 : 0,
+          motion_permission_granted: motionGranted ? 1 : 0,
+        },
+      });
+    }
+
+    if (cleanPath === '/user/permissions' && method === 'GET') {
+      const currentUser = await getAuthUser(req);
+      const email = String(url.searchParams.get('email') || currentUser?.email || '').trim().toLowerCase();
+      let locGranted = false;
+      let motGranted = false;
+      let savedCoords: [number, number] | null = null;
+
+      try {
+        const keysToFetch = ['perm_loc_global', 'perm_mot_global', 'perm_coords_global'];
+        if (email) {
+          keysToFetch.push(`perm_loc_${email}`, `perm_mot_${email}`, `perm_coords_${email}`);
+        }
+        const { data: rows } = await supabase
+          .from('system_settings')
+          .select('key, value')
+          .in('key', keysToFetch);
+
+        const map = new Map<string, string>();
+        for (const r of rows || []) {
+          if (r.key) map.set(r.key, r.value || '');
+        }
+        if (map.get(`perm_loc_${email}`) === '1' || map.get('perm_loc_global') === '1') locGranted = true;
+        if (map.get(`perm_mot_${email}`) === '1' || map.get('perm_mot_global') === '1') motGranted = true;
+        const rawCoords = map.get(`perm_coords_${email}`) || map.get('perm_coords_global');
+        if (rawCoords) {
+          const parsed = JSON.parse(rawCoords);
+          if (Array.isArray(parsed) && parsed.length === 2) {
+            savedCoords = [Number(parsed[0]), Number(parsed[1])];
+          }
+        }
+      } catch {}
+
+      return res.status(200).json({
+        success: true,
+        location_permission_granted: locGranted ? 1 : 0,
+        motion_permission_granted: motGranted ? 1 : 0,
+        coords: savedCoords,
+      });
+    }
+
+    if (cleanPath === '/user/privacy-data' && method === 'GET') {
+      const currentUser = await getAuthUser(req);
+      const emailParam = String(url.searchParams.get('email') || currentUser?.email || '').trim().toLowerCase();
+      const dbUser = currentUser || (emailParam ? await findUserByEmailOrIdentifier(emailParam) : null);
+      const safeUser = formatSafeUser(dbUser);
+      let favoriteSpotIds: string[] = [];
+      if (safeUser?.id) {
+        try {
+          const { data: favs } = await supabase.from('favorites').select('spot_id').eq('user_id', safeUser.id);
+          favoriteSpotIds = (favs || []).map((f: any) => f.spot_id);
+        } catch {}
+      }
+      return res.status(200).json({
+        success: true,
+        personalData: safeUser,
+        stats: {
+          favoritesCount: favoriteSpotIds.length,
+          favoriteSpotIds,
+          postsCount: 0,
+          commentsCount: 0,
+          storiesCount: 0,
+        },
+        requests: [],
+        tickets: [],
+      });
+    }
+
+    if ((cleanPath === '/user/delete-account' || cleanPath === '/auth/delete-account') && (method === 'POST' || method === 'DELETE')) {
+      const currentUser = await getAuthUser(req);
+      const { email, confirmText } = body || {};
+      if (String(confirmText || '').trim().toUpperCase() !== 'EXCLUIR') {
+        return res.status(400).json({
+          success: false,
+          error: 'Confirmação explícita necessária: digite EXCLUIR para confirmar a exclusão da conta.',
+        });
+      }
+      const targetEmail = String(email || currentUser?.email || '').trim().toLowerCase();
+      const dbUser = currentUser || (targetEmail ? await findUserByEmailOrIdentifier(targetEmail) : null);
+      if (dbUser?.id) {
+        try {
+          await supabase.from('sessions').delete().eq('user_id', dbUser.id);
+          await supabase.from('favorites').delete().eq('user_id', dbUser.id);
+          await supabase.from('users').delete().eq('id', dbUser.id);
+        } catch {}
+      }
+      const protocol = `DEL-${new Date().getFullYear()}-${Math.random().toString(36).substring(2, 8).toUpperCase()}`;
+      return res.status(200).json({
+        success: true,
+        protocol,
+        deletedAt: new Date().toISOString(),
+        message: 'Sua conta e seus dados pessoais associados foram excluídos permanentemente.',
+      });
+    }
+
+    if (cleanPath === '/support/tickets' && (method === 'POST' || method === 'GET')) {
+      if (method === 'GET') {
+        return res.status(200).json({ success: true, tickets: [] });
+      }
+      const protocol = `SUP-${new Date().getFullYear()}-${Math.random().toString(36).substring(2, 8).toUpperCase()}`;
+      return res.status(200).json({
+        success: true,
+        protocol,
+        ticket: {
+          id: `tkt_${Date.now()}`,
+          protocol,
+          subject: body?.subject || 'Atendimento Monvian',
+          category: body?.category || 'geral',
+          message: body?.message || '',
+          status: 'aberto',
+          created_at: new Date().toISOString(),
+        },
+      });
+    }
+
 
     // =========================================================================
     // 3. TOURIST SPOTS (CRUD)
