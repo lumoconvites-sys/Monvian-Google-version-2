@@ -842,7 +842,8 @@ export const PublicationsView: React.FC<PublicationsViewProps> = ({
       style={{
         fontFamily: "'Inter', -apple-system, BlinkMacSystemFont, sans-serif",
         backgroundColor: isDark ? '#000000' : '#ffffff',
-        height: '100dvh',
+        height: 'var(--app-height, 100dvh)',
+        minHeight: 'var(--app-height, 100dvh)',
         width: '100vw',
         borderTopLeftRadius: '26px',
         borderTopRightRadius: '26px',

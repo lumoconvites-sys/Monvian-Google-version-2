@@ -120,8 +120,10 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({
   return (
     <div
       id="admin-layout-root"
-      className="h-screen h-[100dvh] w-full bg-[#f8fafc] dark:bg-[#000000] text-zinc-900 dark:text-zinc-100 flex flex-col font-sans antialiased overflow-hidden rounded-t-[26px] ios-page-top-rounded"
+      className="w-full bg-[#f8fafc] dark:bg-[#000000] text-zinc-900 dark:text-zinc-100 flex flex-col font-sans antialiased overflow-hidden rounded-t-[26px] ios-page-top-rounded"
       style={{
+        height: 'var(--app-height, 100dvh)',
+        minHeight: 'var(--app-height, 100dvh)',
         borderTopLeftRadius: '26px',
         borderTopRightRadius: '26px',
         overflow: 'hidden',

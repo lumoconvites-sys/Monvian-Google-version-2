@@ -767,7 +767,8 @@ export const StoryViewerModal: React.FC<StoryViewerModalProps> = ({
     <div
       className="fixed inset-0 z-60 bg-black text-white flex items-center justify-center select-none overflow-hidden"
       style={{
-        height: '100dvh',
+        height: 'var(--app-height, 100dvh)',
+        minHeight: 'var(--app-height, 100dvh)',
         width: '100vw',
         touchAction: 'none',
         fontFamily: "'Inter', -apple-system, BlinkMacSystemFont, sans-serif",

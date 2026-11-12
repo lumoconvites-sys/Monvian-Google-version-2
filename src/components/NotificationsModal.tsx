@@ -150,7 +150,8 @@ export const NotificationsModal: React.FC<NotificationsModalProps> = ({
         fontFamily:
           "-apple-system, BlinkMacSystemFont, 'SF Pro Text', 'SF Pro Display', 'Inter', sans-serif",
         backgroundColor: isDark ? '#000000' : '#ffffff',
-        height: '100dvh',
+        height: 'var(--app-height, 100dvh)',
+        minHeight: 'var(--app-height, 100dvh)',
         width: '100vw',
         borderTopLeftRadius: '0px',
         borderTopRightRadius: '0px',

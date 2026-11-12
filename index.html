@@ -234,16 +234,47 @@
           }
         }
 
+        var lastViewportMetaRefreshAt = 0;
+
+        function refreshIOSViewportMetaIfNeeded(isIOS, isStandalone, innerH, screenH) {
+          try {
+            if (!isIOS || screenH <= 0 || innerH <= 0) return;
+            var delta = screenH - innerH;
+            if ((isStandalone || delta <= 105) && delta > 2) {
+              var now = Date.now();
+              if (now - lastViewportMetaRefreshAt > 250) {
+                lastViewportMetaRefreshAt = now;
+                var vpMeta = document.querySelector('meta[name="viewport"]');
+                if (vpMeta) {
+                  vpMeta.setAttribute(
+                    'content',
+                    'width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover'
+                  );
+                }
+              }
+            }
+          } catch (e) {}
+        }
+
         function updateAppHeight() {
           try {
             var isStandalone =
               Boolean(window.navigator && window.navigator.standalone === true) ||
-              Boolean(window.matchMedia && window.matchMedia('(display-mode: standalone)').matches);
+              Boolean(window.matchMedia && window.matchMedia('(display-mode: standalone)').matches) ||
+              Boolean(window.matchMedia && window.matchMedia('(display-mode: fullscreen)').matches);
 
-            var isLandscape =
-              Boolean(window.matchMedia && window.matchMedia('(orientation: landscape)').matches) ||
-              Math.abs(Number(window.orientation) || 0) === 90 ||
-              window.innerWidth > window.innerHeight;
+            var isIOS =
+              /iPhone|iPod|iPad/i.test(navigator.userAgent || '') ||
+              (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+
+            var isLandscape = false;
+            if (window.screen && window.screen.orientation && typeof window.screen.orientation.angle === 'number') {
+              isLandscape = Math.abs(window.screen.orientation.angle) === 90;
+            } else if (typeof window.orientation === 'number') {
+              isLandscape = Math.abs(Number(window.orientation)) === 90;
+            } else if (window.matchMedia) {
+              isLandscape = window.matchMedia('(orientation: landscape)').matches;
+            }
 
             var screenH = 0;
             if (window.screen && window.screen.height && window.screen.width) {
@@ -255,22 +286,23 @@
             var innerH = window.innerHeight || 0;
             var clientH = (document.documentElement && document.documentElement.clientHeight) || 0;
             var vvH = (window.visualViewport && window.visualViewport.height) || 0;
+            var vvOffsetTop = (window.visualViewport && window.visualViewport.offsetTop) || 0;
 
             var keyboardOpen = isTextInputActive() && vvH > 0 && screenH > 0 && vvH < screenH * 0.78;
 
             var h = 0;
-            var isIOS = /iPhone|iPod|iPad/i.test(navigator.userAgent || '') ||
-              (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
             if (keyboardOpen) {
               h = Math.round(vvH || innerH || clientH);
             } else if (isStandalone && screenH > 0) {
               // In iOS PWA standalone mode, prevent WebKit cold-launch safe-area under-reporting
-              h = Math.round(Math.max(innerH, clientH, vvH, screenH));
+              h = Math.round(Math.max(innerH, clientH, vvH + vvOffsetTop, screenH));
+              refreshIOSViewportMetaIfNeeded(isIOS, true, innerH, screenH);
             } else {
-              var candidate = Math.max(innerH, clientH, vvH);
+              var candidate = Math.max(innerH, clientH, Math.round(vvH + vvOffsetTop));
               // On iOS devices where screenH is within safe-area delta of candidate, use full screenH
-              if (isIOS && screenH > candidate && (screenH - candidate) <= 130) {
+              if (isIOS && screenH > candidate && (screenH - candidate) <= 105) {
                 h = Math.round(screenH);
+                refreshIOSViewportMetaIfNeeded(isIOS, false, innerH, screenH);
               } else {
                 h = Math.round(candidate || screenH);
               }
@@ -279,6 +311,7 @@
             if (keyboardOpen && h > 0) {
               var hPx = h + 'px';
               document.documentElement.style.setProperty('--app-height', hPx);
+              document.documentElement.style.setProperty('--app-height-px', hPx);
               document.documentElement.style.height = hPx;
               document.documentElement.style.minHeight = hPx;
               if (document.body) {
@@ -291,9 +324,10 @@
                 rootEl.style.minHeight = hPx;
               }
             } else {
-              var fullH = h > 0
-                ? 'max(' + h + 'px, 100dvh, 100lvh, calc(100% + env(safe-area-inset-top, 0px) + env(safe-area-inset-bottom, 0px)))'
-                : 'max(100dvh, 100lvh, calc(100% + env(safe-area-inset-top, 0px) + env(safe-area-inset-bottom, 0px)))';
+              var fullH = h > 0 ? 'max(' + h + 'px, 100dvh)' : '100dvh';
+              if (h > 0) {
+                document.documentElement.style.setProperty('--app-height-px', h + 'px');
+              }
               document.documentElement.style.setProperty('--app-height', fullH);
               document.documentElement.style.height = fullH;
               document.documentElement.style.minHeight = fullH;
@@ -305,6 +339,11 @@
               if (rootElReset) {
                 rootElReset.style.height = fullH;
                 rootElReset.style.minHeight = fullH;
+              }
+              var preloaderEl = document.getElementById('monvian-app-preloader');
+              if (preloaderEl) {
+                preloaderEl.style.height = fullH;
+                preloaderEl.style.minHeight = fullH;
               }
             }
 
@@ -337,6 +376,9 @@
           setTimeout(updateAppHeight, 1000);
         }
 
+        window.__monvianUpdateViewportHeight = updateAppHeight;
+        window.__monvianScheduleViewportStabilization = scheduleViewportStabilization;
+
         scheduleViewportStabilization();
         if (window.scrollTo) window.scrollTo(0, 0);
 
@@ -345,6 +387,7 @@
         window.addEventListener('pageshow', scheduleViewportStabilization, { passive: true });
         window.addEventListener('focus', scheduleViewportStabilization, { passive: true });
         window.addEventListener('load', scheduleViewportStabilization, { passive: true });
+        document.addEventListener('DOMContentLoaded', scheduleViewportStabilization, { passive: true });
         if (window.visualViewport) {
           window.visualViewport.addEventListener('resize', updateAppHeight, { passive: true });
           window.visualViewport.addEventListener('scroll', updateAppHeight, { passive: true });
@@ -439,7 +482,7 @@
     <link href="https://fonts.googleapis.com/css2?family=Inter:ital,opsz,wght@0,14..32,100..900;1,14..32,100..900&family=Alex+Brush&family=Caveat:wght@500;600;700&family=Dancing+Script:wght@500;600;700&display=swap" rel="stylesheet">
   </head>
   <body>
-    <div id="monvian-app-preloader" style="position:fixed;inset:0;display:none;flex-direction:column;align-items:center;justify-content:center;background-color:#ffffff;backdrop-filter:blur(28px) saturate(180%);-webkit-backdrop-filter:blur(28px) saturate(180%);overflow:hidden;z-index:99999;user-select:none;-webkit-user-select:none;touch-action:none;">
+    <div id="monvian-app-preloader" style="position:fixed;inset:0;width:100%;height:var(--app-height,100dvh);min-height:var(--app-height,100dvh);display:none;flex-direction:column;align-items:center;justify-content:center;background-color:#ffffff;backdrop-filter:blur(28px) saturate(180%);-webkit-backdrop-filter:blur(28px) saturate(180%);overflow:hidden;z-index:99999;user-select:none;-webkit-user-select:none;touch-action:none;">
       <video
         id="monvian-preloader-video"
         autoplay

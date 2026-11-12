@@ -7,6 +7,8 @@ import {
   Loader2,
   ChevronLeft,
   CheckCircle2,
+  Camera,
+  Trash2,
 } from 'lucide-react';
 import { motion, AnimatePresence, useReducedMotion } from 'motion/react';
 import {
@@ -69,7 +71,7 @@ export function AuthScreen({ onSuccess }: AuthScreenProps) {
 
   // Application starts on the Cinematic Landing Page
   const [authMode, setAuthMode] = useState<'landing' | 'login' | 'register' | 'recover'>('landing');
-  const [registerStep, setRegisterStep] = useState<1 | 2 | 3>(1);
+  const [registerStep, setRegisterStep] = useState<1 | 2 | 3 | 4>(1);
 
   // Preload dark logo on initial mount so Login screen renders with zero decoding lag
   useEffect(() => {
@@ -122,6 +124,17 @@ export function AuthScreen({ onSuccess }: AuthScreenProps) {
   const [emailTouched, setEmailTouched] = useState(false);
   const [passwordTouched, setPasswordTouched] = useState(false);
   const [confirmTouched, setConfirmTouched] = useState(false);
+
+  // Etapa 2 de Cadastro — Foto de Perfil
+  const [avatarPreview, setAvatarPreview] = useState<string | null>(null);
+  const [avatarBase64, setAvatarBase64] = useState<string | null>(null);
+  const [isCompressingAvatar, setIsCompressingAvatar] = useState(false);
+  const avatarInputRef = useRef<HTMLInputElement>(null);
+
+  // Etapa 3 de Cadastro — Tela de Carregamento Animado com Etapas Reais
+  const [isAccountCreating, setIsAccountCreating] = useState(false);
+  const [creationProgress, setCreationProgress] = useState(0);
+  const [creationMessage, setCreationMessage] = useState('Criando sua conta…');
 
   // Login & Password Recovery Fields
   const [email, setEmail] = useState('');
@@ -210,45 +223,6 @@ export function AuthScreen({ onSuccess }: AuthScreenProps) {
   const registerEmailInputRef = useRef<HTMLInputElement>(null);
   const registerPasswordInputRef = useRef<HTMLInputElement>(null);
 
-  // Track virtual keyboard open state (via input focus + iOS visualViewport)
-  const [isInputFocused, setIsInputFocused] = useState(false);
-  const [, setIsViewportKeyboardOpen] = useState(false);
-  const blurTimeoutRef = useRef<number | null>(null);
-
-  const handleRegisterInputFocus = () => {
-    if (blurTimeoutRef.current) {
-      window.clearTimeout(blurTimeoutRef.current);
-      blurTimeoutRef.current = null;
-    }
-    setIsInputFocused(true);
-  };
-
-  const handleRegisterInputBlur = () => {
-    if (blurTimeoutRef.current) {
-      window.clearTimeout(blurTimeoutRef.current);
-    }
-    blurTimeoutRef.current = window.setTimeout(() => {
-      setIsInputFocused(false);
-    }, 120);
-  };
-
-  useEffect(() => {
-    if (typeof window === 'undefined' || !window.visualViewport) return;
-    const vv = window.visualViewport;
-    const handleViewportResize = () => {
-      const heightDiff = window.innerHeight - vv.height;
-      setIsViewportKeyboardOpen(heightDiff > 110);
-    };
-    vv.addEventListener('resize', handleViewportResize);
-    handleViewportResize();
-    return () => {
-      vv.removeEventListener('resize', handleViewportResize);
-      if (blurTimeoutRef.current) window.clearTimeout(blurTimeoutRef.current);
-    };
-  }, []);
-
-  const isKeyboardOpen = isInputFocused;
-
   // Save draft name & email temporarily during the signup flow
   useEffect(() => {
     try {
@@ -262,11 +236,6 @@ export function AuthScreen({ onSuccess }: AuthScreenProps) {
     } catch {}
   }, [registerEmail]);
 
-  // Reset input focus state on step transition so the bar stays centered until clicked
-  useEffect(() => {
-    setIsInputFocused(false);
-  }, [authMode, registerStep]);
-
   // Step Validations
   const isNameValid = useMemo(() => name.trim().length >= 2, [name]);
   const emailValidation = useMemo(() => validateEmailFormat(registerEmail), [registerEmail]);
@@ -279,6 +248,8 @@ export function AuthScreen({ onSuccess }: AuthScreenProps) {
   const handleStartRegisterFlow = () => {
     setError('');
     setRegisterStep(1);
+    setAvatarPreview(null);
+    setAvatarBase64(null);
     setAuthMode('register');
   };
 
@@ -305,10 +276,44 @@ export function AuthScreen({ onSuccess }: AuthScreenProps) {
     setRegisterStep(3);
   };
 
-  const handleStepBack = () => {
-    if (loading) return;
+  const handleStep3Continue = (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
+    setPasswordTouched(true);
+    setConfirmTouched(true);
     setError('');
-    if (registerStep === 3) {
+
+    const cleanName = name.trim();
+    const cleanEmail = registerEmail.trim().toLowerCase();
+
+    if (cleanName.length < 2) {
+      setRegisterStep(1);
+      return;
+    }
+
+    if (!validateEmailFormat(cleanEmail).valid) {
+      setRegisterStep(2);
+      return;
+    }
+
+    if (registerPassword.length < 6) {
+      setError('A senha deve ter pelo menos 6 caracteres.');
+      return;
+    }
+
+    if (registerPassword !== confirmPassword) {
+      setError('As senhas não coincidem.');
+      return;
+    }
+
+    setRegisterStep(4);
+  };
+
+  const handleStepBack = () => {
+    if (loading || isAccountCreating) return;
+    setError('');
+    if (registerStep === 4) {
+      setRegisterStep(3);
+    } else if (registerStep === 3) {
       setRegisterStep(2);
     } else if (registerStep === 2) {
       setRegisterStep(1);
@@ -348,7 +353,7 @@ export function AuthScreen({ onSuccess }: AuthScreenProps) {
 
   useIOSBackEntry({
     id: `auth:register-step-${registerStep}`,
-    enabled: authMode === 'register',
+    enabled: authMode === 'register' && !isAccountCreating,
     priority: 125 + registerStep,
     label: `Cadastro Etapa ${registerStep}`,
     foregroundSelector: '#auth-register-section',
@@ -406,14 +411,82 @@ export function AuthScreen({ onSuccess }: AuthScreenProps) {
     }
   };
 
-  // 2. Submit Progressive Registration (Step 3 -> Real Auth + Database Persistence -> Roteiros)
-  const handleRegisterSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setPasswordTouched(true);
-    setConfirmTouched(true);
-    setError('');
+  // Avatar handling for Step 4
+  const handleAvatarFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
 
-    if (isSubmittingRef.current || loading) return;
+    if (!file.type.startsWith('image/')) {
+      setError('Por favor, selecione um arquivo de imagem.');
+      return;
+    }
+
+    setError('');
+    setIsCompressingAvatar(true);
+
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      const img = new Image();
+      img.onload = () => {
+        try {
+          const canvas = document.createElement('canvas');
+          const MAX_DIM = 400;
+          let width = img.width;
+          let height = img.height;
+
+          if (width > height) {
+            if (width > MAX_DIM) {
+              height = Math.round((height * MAX_DIM) / width);
+              width = MAX_DIM;
+            }
+          } else {
+            if (height > MAX_DIM) {
+              width = Math.round((width * MAX_DIM) / height);
+              height = MAX_DIM;
+            }
+          }
+
+          canvas.width = width;
+          canvas.height = height;
+          const ctx = canvas.getContext('2d');
+          if (ctx) {
+            ctx.drawImage(img, 0, 0, width, height);
+            const compressed = canvas.toDataURL('image/jpeg', 0.88);
+            setAvatarPreview(compressed);
+            setAvatarBase64(compressed);
+          }
+        } catch (err) {
+          console.error('Erro ao processar imagem:', err);
+          setError('Não foi possível processar a imagem. Tente outra foto.');
+        } finally {
+          setIsCompressingAvatar(false);
+        }
+      };
+      img.onerror = () => {
+        setIsCompressingAvatar(false);
+        setError('Erro ao carregar a imagem selecionada.');
+      };
+      img.src = event.target?.result as string;
+    };
+    reader.onerror = () => {
+      setIsCompressingAvatar(false);
+      setError('Erro ao ler a imagem.');
+    };
+    reader.readAsDataURL(file);
+  };
+
+  const handleRemoveAvatar = () => {
+    setAvatarPreview(null);
+    setAvatarBase64(null);
+    if (avatarInputRef.current) {
+      avatarInputRef.current.value = '';
+    }
+  };
+
+  // 2. Submit Progressive Registration com Acompanhamento Real das 5 Etapas
+  const executeAccountCreation = async (withAvatar: boolean) => {
+    if (isSubmittingRef.current || isAccountCreating) return;
+    setError('');
 
     const cleanName = name.trim();
     const cleanEmail = registerEmail.trim().toLowerCase();
@@ -428,20 +501,21 @@ export function AuthScreen({ onSuccess }: AuthScreenProps) {
       return;
     }
 
-    if (registerPassword.length < 6) {
-      setError('A senha deve ter pelo menos 6 caracteres.');
-      return;
-    }
-
-    if (registerPassword !== confirmPassword) {
-      setError('As senhas não coincidem.');
+    if (registerPassword.length < 6 || registerPassword !== confirmPassword) {
+      setRegisterStep(3);
       return;
     }
 
     isSubmittingRef.current = true;
-    setLoading(true);
+    setIsAccountCreating(true);
+
+    const pace = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
     try {
+      // 1. “Criando sua conta…” -> registrar o usuário no sistema de autenticação
+      setCreationMessage('Criando sua conta…');
+      setCreationProgress(20);
+
       let supabaseAuthId: string | null = null;
       let firebaseUid: string | null = null;
 
@@ -457,7 +531,9 @@ export function AuthScreen({ onSuccess }: AuthScreenProps) {
             },
           });
           supabaseAuthId = supaSignUp?.user?.id || null;
-        } catch {}
+        } catch (e) {
+          console.warn('Supabase auth signup notice:', e);
+        }
       }
 
       try {
@@ -468,7 +544,17 @@ export function AuthScreen({ onSuccess }: AuthScreenProps) {
         if (fbCred && 'user' in fbCred && fbCred.user?.uid) {
           firebaseUid = fbCred.user.uid;
         }
-      } catch {}
+      } catch (e) {
+        console.warn('Firebase auth signup notice:', e);
+      }
+
+      await pace(350);
+
+      // 2. “Adicionando suas informações…” -> salvar nome, e-mail, etc. no banco via API
+      setCreationMessage('Adicionando suas informações…');
+      setCreationProgress(45);
+
+      const chosenAvatar = withAvatar && avatarBase64 ? avatarBase64 : undefined;
 
       const res = await fetch('/api/auth/register', {
         method: 'POST',
@@ -479,42 +565,91 @@ export function AuthScreen({ onSuccess }: AuthScreenProps) {
           name: cleanName,
           email: cleanEmail,
           password: registerPassword,
+          avatar_url: chosenAvatar,
         }),
       });
+
       const data = await res.json();
 
-      if (res.ok && data.success && data.user) {
+      if (!res.ok || !data.success || !data.user) {
+        throw new Error(data.error || 'Não foi possível concluir o cadastro. Verifique os dados e tente novamente.');
+      }
+
+      await pace(350);
+
+      // 3. “Preparando seu perfil…” -> salvar a foto no armazenamento e vincular à conta
+      setCreationMessage('Preparando seu perfil…');
+      setCreationProgress(70);
+
+      const userObj = data.user;
+      const finalAvatar = chosenAvatar || userObj.avatar_url || '/fotoperfil.png';
+
+      await Promise.allSettled([
         persistUserToFirestore({
-          ...data.user,
+          ...userObj,
           name: cleanName,
           email: cleanEmail,
-          auth_id: data.user.auth_id || supabaseAuthId || firebaseUid || `usr_${data.user.id}`,
-          firebase_uid: firebaseUid || data.user.auth_id || null,
-          role: data.user.role || 'user',
-        }).catch(() => {});
+          avatar_url: finalAvatar,
+          auth_id: userObj.auth_id || supabaseAuthId || firebaseUid || `usr_${userObj.id}`,
+          firebase_uid: firebaseUid || userObj.auth_id || null,
+          role: userObj.role || 'user',
+        }),
+        (async () => {
+          if (chosenAvatar) {
+            try {
+              localStorage.setItem('monvian_local_avatar', chosenAvatar);
+            } catch {}
+          } else {
+            try {
+              localStorage.removeItem('monvian_local_avatar');
+            } catch {}
+          }
+        })(),
+      ]);
 
-        localStorage.setItem('monvian_token', data.token);
-        localStorage.setItem('monvian_user', JSON.stringify(data.user));
-        try {
-          localStorage.removeItem('monvian_local_avatar');
-        } catch {}
+      localStorage.setItem('monvian_token', data.token);
+      localStorage.setItem('monvian_user', JSON.stringify({ ...userObj, avatar_url: finalAvatar }));
 
-        try {
-          sessionStorage.removeItem('monvian_signup_draft_name');
-          sessionStorage.removeItem('monvian_signup_draft_email');
-        } catch {}
+      try {
+        sessionStorage.removeItem('monvian_signup_draft_name');
+        sessionStorage.removeItem('monvian_signup_draft_email');
+      } catch {}
 
-        iosNavigationManager.clearAuthEntries();
-        onSuccess(data.token, data.user, true);
-      } else {
-        setError(data.error || 'Não foi possível concluir o cadastro. Verifique os dados e tente novamente.');
-        isSubmittingRef.current = false;
-        setLoading(false);
-      }
-    } catch {
-      setError('Erro de conexão ao criar sua conta. Seus dados foram mantidos, tente novamente.');
+      await pace(350);
+
+      // 4. “Buscando roteiros para você…” -> carregar os dados de roteiros disponíveis
+      setCreationMessage('Buscando roteiros para você…');
+      setCreationProgress(88);
+
+      await Promise.allSettled([
+        startPreloadResources(),
+        fetch('/api/itineraries').catch(() => null),
+        fetch('/api/spots').catch(() => null),
+      ]);
+
+      await pace(400);
+
+      // 5. “Quase tudo pronto…” -> finalizar a preparação da sessão
+      setCreationMessage('Quase tudo pronto…');
+      setCreationProgress(100);
+
+      await pace(450);
+
+      iosNavigationManager.clearAuthEntries();
+      onSuccess(data.token, { ...userObj, avatar_url: finalAvatar }, true);
+    } catch (err: any) {
+      console.error('Account creation error:', err);
+      setIsAccountCreating(false);
       isSubmittingRef.current = false;
-      setLoading(false);
+      const errorMsg = err?.message || 'Erro de conexão ao criar sua conta. Tente novamente.';
+      setError(errorMsg);
+      if (
+        errorMsg.toLowerCase().includes('e-mail') ||
+        errorMsg.toLowerCase().includes('cadastrado') ||
+        errorMsg.toLowerCase().includes('já existe')
+      ) {
+        setRegisterStep(2);
+      }
     }
   };
 
@@ -762,8 +897,8 @@ export function AuthScreen({ onSuccess }: AuthScreenProps) {
         left: 0,
         right: 0,
         width: '100%',
-        height: 'var(--app-height, 100lvh)',
-        minHeight: 'var(--app-height, 100lvh)',
+        height: 'var(--app-height, 100dvh)',
+        minHeight: 'var(--app-height, 100dvh)',
         fontFamily:
           "'SF Pro Display', 'SF Pro Text', -apple-system, BlinkMacSystemFont, sans-serif",
       }}
@@ -788,8 +923,8 @@ export function AuthScreen({ onSuccess }: AuthScreenProps) {
           left: 0,
           right: 0,
           width: '100%',
-          height: 'var(--app-height, 100lvh)',
-          minHeight: 'var(--app-height, 100lvh)',
+          height: 'var(--app-height, 100dvh)',
+          minHeight: 'var(--app-height, 100dvh)',
           WebkitOverflowScrolling: 'touch',
           willChange: 'transform, opacity',
         }}
@@ -820,8 +955,8 @@ export function AuthScreen({ onSuccess }: AuthScreenProps) {
               left: 0,
               right: 0,
               width: '100%',
-              height: 'var(--app-height, 100lvh)',
-              minHeight: 'var(--app-height, 100lvh)',
+              height: 'var(--app-height, 100dvh)',
+              minHeight: 'var(--app-height, 100dvh)',
               backgroundColor: '#FFFFFF',
               paddingTop: 'max(20px, env(safe-area-inset-top, 0px))',
               paddingBottom: 'max(24px, env(safe-area-inset-bottom, 0px))',
@@ -843,12 +978,12 @@ export function AuthScreen({ onSuccess }: AuthScreenProps) {
                 <ChevronLeft className="w-6 h-6 stroke-[2.2]" />
               </button>
 
-              {/* 3 Bolinhas no meio da parte superior */}
+              {/* 4 Bolinhas no meio da parte superior */}
               <div
-                aria-label={`Etapa ${registerStep} de 3`}
+                aria-label={`Etapa ${registerStep} de 4`}
                 className="absolute left-1/2 -translate-x-1/2 flex items-center gap-2"
               >
-                {[1, 2, 3].map((step) => {
+                {[1, 2, 3, 4].map((step) => {
                   const isActive = registerStep === step;
                   const isCompleted = registerStep > step;
                   return (
@@ -870,16 +1005,7 @@ export function AuthScreen({ onSuccess }: AuthScreenProps) {
             </header>
 
             {/* Center Content Area */}
-            <motion.main
-              animate={{
-                y: isKeyboardOpen ? (registerStep === 3 ? -115 : -95) : 0,
-              }}
-              transition={{
-                duration: shouldReduceMotion ? 0.15 : 0.34,
-                ease: [0.22, 1, 0.36, 1],
-              }}
-              className="w-full max-w-sm mx-auto my-auto py-8 flex flex-col justify-center"
-            >
+            <main className="w-full max-w-sm mx-auto my-auto py-8 flex flex-col justify-center">
               <AnimatePresence mode="wait">
                 {/* ETAPA 1 — NOME */}
                 {registerStep === 1 && (
@@ -907,10 +1033,8 @@ export function AuthScreen({ onSuccess }: AuthScreenProps) {
                           setName(e.target.value);
                           if (error) setError('');
                         }}
-                        onFocus={handleRegisterInputFocus}
                         onBlur={() => {
                           setNameTouched(true);
-                          handleRegisterInputBlur();
                         }}
                         autoComplete="name"
                         autoCapitalize="words"
@@ -960,10 +1084,8 @@ export function AuthScreen({ onSuccess }: AuthScreenProps) {
                           setRegisterEmail(e.target.value);
                           if (error) setError('');
                         }}
-                        onFocus={handleRegisterInputFocus}
                         onBlur={() => {
                           setEmailTouched(true);
-                          handleRegisterInputBlur();
                         }}
                         autoComplete="email"
                         autoCapitalize="none"
@@ -994,7 +1116,7 @@ export function AuthScreen({ onSuccess }: AuthScreenProps) {
                 {registerStep === 3 && (
                   <motion.form
                     key="register-step-3-password"
-                    onSubmit={handleRegisterSubmit}
+                    onSubmit={handleStep3Continue}
                     {...stepMotionProps}
                     className="w-full flex flex-col"
                   >
@@ -1017,10 +1139,8 @@ export function AuthScreen({ onSuccess }: AuthScreenProps) {
                             setRegisterPassword(e.target.value);
                             if (error) setError('');
                           }}
-                          onFocus={handleRegisterInputFocus}
                           onBlur={() => {
                             setPasswordTouched(true);
-                            handleRegisterInputBlur();
                           }}
                           disabled={loading}
                           autoComplete="new-password"
@@ -1051,10 +1171,8 @@ export function AuthScreen({ onSuccess }: AuthScreenProps) {
                             setConfirmPassword(e.target.value);
                             if (error) setError('');
                           }}
-                          onFocus={handleRegisterInputFocus}
                           onBlur={() => {
                             setConfirmTouched(true);
-                            handleRegisterInputBlur();
                           }}
                           disabled={loading}
                           autoComplete="new-password"
@@ -1129,8 +1247,119 @@ export function AuthScreen({ onSuccess }: AuthScreenProps) {
                     </div>
                   </motion.form>
                 )}
+
+                {/* ETAPA 4 — FOTO DE PERFIL */}
+                {registerStep === 4 && (
+                  <motion.div
+                    key="register-step-4-avatar"
+                    {...stepMotionProps}
+                    className="w-full flex flex-col items-center"
+                  >
+                    <div className="w-full text-left mb-6">
+                      <h1
+                        id="register-step4-title"
+                        className="text-[26px] sm:text-[28px] font-bold tracking-tight text-[#080808] leading-[1.2] mb-2"
+                      >
+                        Adicione uma foto de perfil
+                      </h1>
+                      <p className="text-[14px] sm:text-[15px] text-[#737780] font-normal leading-relaxed">
+                        Uma foto de perfil ajuda outras pessoas a reconhecerem você no Monvian.
+                      </p>
+                    </div>
+
+                    {/* Área circular para foto */}
+                    <div className="w-full flex flex-col items-center justify-center my-auto py-2">
+                      <input
+                        ref={avatarInputRef}
+                        type="file"
+                        accept="image/*"
+                        onChange={handleAvatarFileSelect}
+                        className="hidden"
+                      />
+
+                      <div className="relative group">
+                        <button
+                          type="button"
+                          onClick={() => avatarInputRef.current?.click()}
+                          disabled={isCompressingAvatar}
+                          className="relative w-36 h-36 sm:w-40 sm:h-40 rounded-full border-2 border-dashed border-[#D2D7E0] hover:border-[#2673E8] bg-[#F5F7FA] flex flex-col items-center justify-center overflow-hidden transition-all active:scale-98 shadow-xs cursor-pointer focus:outline-none"
+                        >
+                          {avatarPreview ? (
+                            <img
+                              src={avatarPreview}
+                              alt="Prévia da foto"
+                              className="w-full h-full object-cover rounded-full"
+                            />
+                          ) : (
+                            <div className="flex flex-col items-center justify-center p-4">
+                              <div className="w-12 h-12 rounded-full bg-white shadow-xs flex items-center justify-center mb-2 text-[#4A5568] group-hover:text-[#2673E8] transition-colors">
+                                <Camera className="w-6 h-6 stroke-[1.8]" />
+                              </div>
+                              <span className="text-[13px] font-medium text-[#737780] group-hover:text-[#2673E8] transition-colors">
+                                Adicionar foto
+                              </span>
+                            </div>
+                          )}
+
+                          {isCompressingAvatar && (
+                            <div className="absolute inset-0 bg-white/80 backdrop-blur-xs flex items-center justify-center">
+                              <Loader2 className="w-7 h-7 animate-spin text-[#2673E8]" />
+                            </div>
+                          )}
+                        </button>
+
+                        {avatarPreview && !isCompressingAvatar && (
+                          <button
+                            type="button"
+                            onClick={() => avatarInputRef.current?.click()}
+                            className="absolute bottom-1 right-1 w-9 h-9 rounded-full bg-[#2673E8] text-white shadow-md flex items-center justify-center hover:bg-[#1D5EC2] active:scale-95 transition-all cursor-pointer"
+                            aria-label="Substituir foto"
+                          >
+                            <Camera className="w-4 h-4 stroke-[2]" />
+                          </button>
+                        )}
+                      </div>
+
+                      <div className="mt-4 flex items-center gap-3">
+                        {avatarPreview ? (
+                          <>
+                            <button
+                              type="button"
+                              onClick={() => avatarInputRef.current?.click()}
+                              className="text-[13px] font-semibold text-[#2673E8] hover:underline cursor-pointer py-1"
+                            >
+                              Escolher outra foto
+                            </button>
+                            <span className="text-[#D2D7E0]">•</span>
+                            <button
+                              type="button"
+                              onClick={handleRemoveAvatar}
+                              className="text-[13px] font-semibold text-red-500 hover:underline cursor-pointer py-1"
+                            >
+                              Remover
+                            </button>
+                          </>
+                        ) : (
+                          <button
+                            type="button"
+                            onClick={() => avatarInputRef.current?.click()}
+                            className="text-[14px] font-semibold text-[#2673E8] hover:text-[#1D5EC2] transition-colors cursor-pointer py-1"
+                          >
+                            Escolher da biblioteca
+                          </button>
+                        )}
+                      </div>
+
+                      {error && (
+                        <p className="mt-3 text-[13px] text-red-500 font-medium text-center">
+                          {error}
+                        </p>
+                      )}
+                    </div>
+                  </motion.div>
+                )}
               </AnimatePresence>
-            </motion.main>
+            </main>
 
             {/* Bottom Primary Action Area */}
             <footer className="w-full max-w-sm mx-auto pb-4 pt-2 shrink-0">
@@ -1162,24 +1391,124 @@ export function AuthScreen({ onSuccess }: AuthScreenProps) {
 
               {registerStep === 3 && (
                 <motion.button
-                  id="btn-register-submit"
+                  id="btn-register-step3-continue"
                   type="button"
-                  whileTap={isStep3Valid && !loading ? { scale: 0.98 } : undefined}
-                  onClick={(e) => handleRegisterSubmit(e as any)}
-                  disabled={!isStep3Valid || loading}
-                  className="w-full min-h-[54px] py-4 rounded-full expo-liquid-glass-btn text-[#080808] text-[16px] font-bold flex items-center justify-center gap-2 transition-all cursor-pointer shadow-sm border border-black/5 hover:bg-zinc-50 active:scale-95 disabled:bg-[#EAEEF5] disabled:text-[#9CA3AF] disabled:shadow-none disabled:border-transparent disabled:cursor-not-allowed"
+                  whileTap={isStep3Valid ? { scale: 0.98 } : undefined}
+                  onClick={() => handleStep3Continue()}
+                  disabled={!isStep3Valid}
+                  className="w-full min-h-[54px] py-4 rounded-full expo-liquid-glass-btn text-[#080808] text-[16px] font-bold flex items-center justify-center transition-all cursor-pointer shadow-sm border border-black/5 hover:bg-zinc-50 active:scale-95 disabled:bg-[#EAEEF5] disabled:text-[#9CA3AF] disabled:shadow-none disabled:border-transparent disabled:cursor-not-allowed"
                 >
-                  {loading ? (
-                    <>
-                      <Loader2 className="w-4 h-4 animate-spin text-[#080808]" />
-                      <span>Criando conta...</span>
-                    </>
-                  ) : (
-                    <span>Criar conta</span>
-                  )}
+                  Continuar
                 </motion.button>
               )}
+
+              {registerStep === 4 && (
+                <div className="w-full flex flex-col gap-2.5">
+                  <motion.button
+                    id="btn-register-step4-continue"
+                    type="button"
+                    whileTap={{ scale: 0.98 }}
+                    onClick={() => executeAccountCreation(true)}
+                    disabled={isCompressingAvatar}
+                    className="w-full min-h-[54px] py-4 rounded-full expo-liquid-glass-btn text-[#080808] text-[16px] font-bold flex items-center justify-center transition-all cursor-pointer shadow-sm border border-black/5 hover:bg-zinc-50 active:scale-95 disabled:opacity-60 disabled:cursor-not-allowed"
+                  >
+                    Continuar
+                  </motion.button>
+
+                  <button
+                    id="btn-register-step4-skip"
+                    type="button"
+                    onClick={() => executeAccountCreation(false)}
+                    disabled={isCompressingAvatar}
+                    className="w-full py-2.5 text-center text-[15px] font-semibold text-[#737780] hover:text-[#080808] active:scale-98 transition-colors cursor-pointer disabled:opacity-50"
+                  >
+                    Fazer isso depois
+                  </button>
+                </div>
+              )}
             </footer>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* =========================================================================
+          TERCEIRA ETAPA — CRIAÇÃO DA CONTA E CARREGAMENTO ANIMADO
+          Identidade Monvian (Logo oficial, respiração suave, indicador real das 5 etapas)
+         ========================================================================= */}
+      <AnimatePresence>
+        {isAccountCreating && (
+          <motion.div
+            id="account-creation-loading-screen"
+            key="account-creation-loading"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.32, ease: [0.22, 1, 0.36, 1] }}
+            className="fixed inset-0 z-[200] bg-[#FFFFFF] flex flex-col items-center justify-center px-6 pointer-events-auto"
+            style={{
+              top: 0,
+              bottom: 0,
+              left: 0,
+              right: 0,
+              width: '100%',
+              height: 'var(--app-height, 100dvh)',
+              minHeight: 'var(--app-height, 100dvh)',
+              fontFamily:
+                "'SF Pro Display', 'SF Pro Text', -apple-system, BlinkMacSystemFont, sans-serif",
+            }}
+          >
+            <div className="w-full max-w-xs flex flex-col items-center text-center">
+              {/* Logo do Monvians com animação sutil e elegante */}
+              <motion.div
+                animate={{
+                  scale: [1, 1.025, 1],
+                  opacity: [0.92, 1, 0.92],
+                }}
+                transition={{
+                  duration: 2.8,
+                  repeat: Infinity,
+                  ease: 'easeInOut',
+                }}
+                className="h-12 sm:h-14 mb-8 flex items-center justify-center"
+              >
+                <img
+                  src="/assets/aistudio/monvian_logo_dark_transparent.png"
+                  alt="Monvian"
+                  decoding="sync"
+                  className="h-full w-auto max-w-[210px] object-contain select-none pointer-events-none"
+                />
+              </motion.div>
+
+              {/* Indicador visual de progresso animado */}
+              <div className="w-full max-w-[220px] h-[3px] bg-[#E8EDF5] rounded-full overflow-hidden mb-6 relative">
+                <motion.div
+                  className="h-full bg-[#2673E8] rounded-full"
+                  initial={{ width: '0%' }}
+                  animate={{ width: `${creationProgress}%` }}
+                  transition={{ duration: 0.45, ease: [0.22, 1, 0.36, 1] }}
+                />
+              </div>
+
+              {/* Transições suaves entre as 5 mensagens solicitadas */}
+              <div className="min-h-[32px] flex items-center justify-center">
+                <AnimatePresence mode="wait">
+                  <motion.p
+                    key={creationMessage}
+                    initial={{ opacity: 0, y: 5 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, y: -5 }}
+                    transition={{ duration: 0.3, ease: [0.22, 1, 0.36, 1] }}
+                    className="text-[15px] font-semibold text-[#080808] tracking-tight text-center"
+                  >
+                    {creationMessage}
+                  </motion.p>
+                </AnimatePresence>
+              </div>
+
+              <p className="text-[12px] text-[#8E939E] font-medium mt-1.5 text-center">
+                Configurando sua experiência
+              </p>
+            </div>
           </motion.div>
         )}
       </AnimatePresence>
@@ -1203,8 +1532,8 @@ export function AuthScreen({ onSuccess }: AuthScreenProps) {
               left: 0,
               right: 0,
               width: '100%',
-              height: 'var(--app-height, 100lvh)',
-              minHeight: 'var(--app-height, 100lvh)',
+              height: 'var(--app-height, 100dvh)',
+              minHeight: 'var(--app-height, 100dvh)',
               fontFamily:
                 "'SF Pro Display', 'SF Pro Text', -apple-system, BlinkMacSystemFont, sans-serif",
               paddingTop: 'max(20px, calc(env(safe-area-inset-top, 0px) + 12px))',

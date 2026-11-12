@@ -327,14 +327,25 @@ export default function App() {
 
     const updateAppHeight = () => {
       try {
+        const globalUpdater = (window as any).__monvianUpdateViewportHeight;
+        if (typeof globalUpdater === 'function') {
+          globalUpdater();
+          return;
+        }
+
         const isStandaloneMode =
           window.matchMedia('(display-mode: standalone)').matches ||
+          window.matchMedia('(display-mode: fullscreen)').matches ||
           (window.navigator as any).standalone === true;
 
-        const isLandscape =
-          window.matchMedia('(orientation: landscape)').matches ||
-          Math.abs(Number(window.orientation) || 0) === 90 ||
-          window.innerWidth > window.innerHeight;
+        let isLandscape = false;
+        if (window.screen?.orientation && typeof window.screen.orientation.angle === 'number') {
+          isLandscape = Math.abs(window.screen.orientation.angle) === 90;
+        } else if (typeof window.orientation === 'number') {
+          isLandscape = Math.abs(Number(window.orientation)) === 90;
+        } else if (window.matchMedia) {
+          isLandscape = window.matchMedia('(orientation: landscape)').matches;
+        }
 
         let screenH = 0;
         if (typeof window !== 'undefined' && window.screen && window.screen.height && window.screen.width) {
@@ -346,6 +357,7 @@ export default function App() {
         const innerH = window.innerHeight || 0;
         const clientH = document.documentElement?.clientHeight || 0;
         const vvH = window.visualViewport?.height || 0;
+        const vvOffsetTop = window.visualViewport?.offsetTop || 0;
         const keyboardOpen = isTextInputActive() && vvH > 0 && screenH > 0 && vvH < screenH * 0.78;
 
         let h = 0;
@@ -355,10 +367,10 @@ export default function App() {
         if (keyboardOpen) {
           h = Math.round(vvH || innerH || clientH);
         } else if (isStandaloneMode && screenH > 0) {
-          h = Math.round(Math.max(innerH, clientH, vvH, screenH));
+          h = Math.round(Math.max(innerH, clientH, vvH + vvOffsetTop, screenH));
         } else {
-          const candidate = Math.max(innerH, clientH, vvH);
-          if (isIOS && screenH > candidate && screenH - candidate <= 130) {
+          const candidate = Math.max(innerH, clientH, Math.round(vvH + vvOffsetTop));
+          if (isIOS && screenH > candidate && screenH - candidate <= 105) {
             h = Math.round(screenH);
           } else {
             h = Math.round(candidate || screenH);
@@ -368,6 +380,7 @@ export default function App() {
         if (keyboardOpen && h > 0) {
           const hPx = `${h}px`;
           document.documentElement.style.setProperty('--app-height', hPx);
+          document.documentElement.style.setProperty('--app-height-px', hPx);
           document.documentElement.style.height = hPx;
           document.documentElement.style.minHeight = hPx;
           if (document.body) {
@@ -380,10 +393,10 @@ export default function App() {
             rootEl.style.minHeight = hPx;
           }
         } else {
-          const fullH =
-            h > 0
-              ? `max(${h}px, 100dvh, 100lvh, calc(100% + env(safe-area-inset-top, 0px) + env(safe-area-inset-bottom, 0px)))`
-              : 'max(100dvh, 100lvh, calc(100% + env(safe-area-inset-top, 0px) + env(safe-area-inset-bottom, 0px)))';
+          const fullH = h > 0 ? `max(${h}px, 100dvh)` : '100dvh';
+          if (h > 0) {
+            document.documentElement.style.setProperty('--app-height-px', `${h}px`);
+          }
           document.documentElement.style.setProperty('--app-height', fullH);
           document.documentElement.style.height = fullH;
           document.documentElement.style.minHeight = fullH;
@@ -1674,8 +1687,8 @@ export default function App() {
             left: 0,
             right: 0,
             width: '100%',
-            height: 'var(--app-height, 100lvh)',
-            minHeight: 'var(--app-height, 100lvh)',
+            height: 'var(--app-height, 100dvh)',
+            minHeight: 'var(--app-height, 100dvh)',
           }}
         >
           <AuthScreen
@@ -1785,8 +1798,8 @@ export default function App() {
             left: 0,
             right: 0,
             width: '100%',
-            height: 'var(--app-height, 100lvh)',
-            minHeight: 'var(--app-height, 100lvh)',
+            height: 'var(--app-height, 100dvh)',
+            minHeight: 'var(--app-height, 100dvh)',
             boxSizing: 'border-box',
             margin: 0,
             padding: 0,
@@ -1828,8 +1841,8 @@ export default function App() {
         }`}
         style={{
           width: '100%',
-          height: 'var(--app-height, 100lvh)',
-          minHeight: 'var(--app-height, 100lvh)',
+          height: 'var(--app-height, 100dvh)',
+          minHeight: 'var(--app-height, 100dvh)',
           boxSizing: 'border-box',
           margin: 0,
           padding: 0,
@@ -2114,8 +2127,8 @@ export default function App() {
               left: 0,
               right: 0,
               width: '100%',
-              height: 'var(--app-height, 100lvh)',
-              minHeight: 'var(--app-height, 100lvh)',
+              height: 'var(--app-height, 100dvh)',
+              minHeight: 'var(--app-height, 100dvh)',
             }}
           >
             <ItinerariesView
@@ -2537,8 +2550,8 @@ export default function App() {
             left: 0,
             right: 0,
             width: '100%',
-            height: 'var(--app-height, 100lvh)',
-            minHeight: 'var(--app-height, 100lvh)',
+            height: 'var(--app-height, 100dvh)',
+            minHeight: 'var(--app-height, 100dvh)',
           }}
         >
           <AdminLayout

@@ -351,7 +351,8 @@ export const CreateStoryModal: React.FC<CreateStoryModalProps> = ({
         transition={{ type: 'spring', damping: 32, stiffness: 360, mass: 0.75 }}
         className="fixed inset-0 z-55 flex flex-col bg-black text-white select-none overflow-hidden transform-gpu will-change-transform rounded-t-[26px] ios-page-top-rounded"
         style={{
-          height: '100dvh',
+          height: 'var(--app-height, 100dvh)',
+          minHeight: 'var(--app-height, 100dvh)',
           width: '100vw',
           fontFamily: "'Inter', sans-serif",
           borderTopLeftRadius: '26px',

@@ -680,8 +680,8 @@ export const CinematicLandingView: React.FC<CinematicLandingViewProps> = ({
         aria-label="Apresentação principal Monvian — Campos do Jordão"
         className="relative z-[70] w-full min-h-[640px] flex flex-col justify-between bg-[#FFFFFF] overflow-hidden"
         style={{
-          height: 'var(--app-height, 100lvh)',
-          minHeight: 'max(640px, var(--app-height, 100lvh))',
+          height: 'var(--app-height, 100dvh)',
+          minHeight: 'max(640px, var(--app-height, 100dvh))',
         }}
       >
         {/* 1. CÉU TRIDIMENSIONAL MULTICAMADAS (Termina em branco puro #FFFFFF muito antes da base para zero corte horizontal) */}

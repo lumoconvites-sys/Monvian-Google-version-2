@@ -756,7 +756,7 @@ export const SpotDetailSheet: React.FC<SpotDetailSheetProps> = ({
 
           {/* Main Content Body - Card branco que sobe tampando a foto */}
           <div 
-            className="relative z-10 -mt-8 bg-white dark:bg-[#000000] dark:border-t dark:border-[#262626] rounded-t-[32px] px-5 sm:px-6 pt-6 pb-32 flex flex-col min-h-[calc(100vh-60px)] shadow-[0_-12px_36px_rgba(0,0,0,0.18)]"
+            className="relative z-10 -mt-8 bg-white dark:bg-[#000000] dark:border-t dark:border-[#262626] rounded-t-[32px] px-5 sm:px-6 pt-6 pb-32 flex flex-col min-h-[calc(var(--app-height,100dvh)-60px)] shadow-[0_-12px_36px_rgba(0,0,0,0.18)]"
             style={{
               transform: 'translateZ(0)',
               WebkitTransform: 'translateZ(0)',
