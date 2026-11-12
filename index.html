@@ -269,7 +269,7 @@
             } else {
               var candidate = Math.max(innerH, clientH, vvH);
               // On iOS devices where screenH is within safe-area delta of candidate, use full screenH
-              if (isIOS && screenH > candidate && (screenH - candidate) <= 64) {
+              if (isIOS && screenH > candidate && (screenH - candidate) <= 130) {
                 h = Math.round(screenH);
               } else {
                 h = Math.round(candidate || screenH);
@@ -292,11 +292,8 @@
               }
             } else {
               var fullH = h > 0
-                ? 'max(' + h + 'px, 100dvh, calc(100% + env(safe-area-inset-bottom, 0px)))'
-                : 'max(100dvh, calc(100% + env(safe-area-inset-bottom, 0px)))';
-              if (isStandalone && h > 0) {
-                fullH = 'max(' + h + 'px, 100dvh, 100lvh, calc(100% + env(safe-area-inset-bottom, 0px)))';
-              }
+                ? 'max(' + h + 'px, 100dvh, 100lvh, calc(100% + env(safe-area-inset-top, 0px) + env(safe-area-inset-bottom, 0px)))'
+                : 'max(100dvh, 100lvh, calc(100% + env(safe-area-inset-top, 0px) + env(safe-area-inset-bottom, 0px)))';
               document.documentElement.style.setProperty('--app-height', fullH);
               document.documentElement.style.height = fullH;
               document.documentElement.style.minHeight = fullH;

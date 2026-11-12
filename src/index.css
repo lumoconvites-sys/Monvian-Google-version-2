@@ -33,7 +33,7 @@
     font-family: 'Inter', var(--font-sans), sans-serif !important;
     letter-spacing: -0.015em;
     line-height: 1.5;
-    --app-height: max(100dvh, calc(100% + env(safe-area-inset-bottom, 0px)));
+    --app-height: max(100dvh, 100lvh, calc(100% + env(safe-area-inset-top, 0px) + env(safe-area-inset-bottom, 0px)));
     --bg-primary: #ffffff;
     --bg-secondary: #ffffff;
     --bg-card: #ffffff;
@@ -72,8 +72,9 @@
     right: 0;
     min-height: -webkit-fill-available;
     min-height: 100dvh;
-    min-height: var(--app-height, 100dvh);
-    height: var(--app-height, 100dvh);
+    min-height: 100lvh;
+    min-height: var(--app-height, 100lvh);
+    height: var(--app-height, 100lvh);
     overflow: hidden;
     overscroll-behavior: none;
     -webkit-tap-highlight-color: transparent;
@@ -96,8 +97,9 @@
     right: 0;
     min-height: -webkit-fill-available;
     min-height: 100dvh;
-    min-height: var(--app-height, 100dvh);
-    height: var(--app-height, 100dvh);
+    min-height: 100lvh;
+    min-height: var(--app-height, 100lvh);
+    height: var(--app-height, 100lvh);
     overflow: hidden;
     overscroll-behavior: none;
     -webkit-tap-highlight-color: transparent;
@@ -121,8 +123,9 @@
     right: 0;
     min-height: -webkit-fill-available;
     min-height: 100dvh;
-    min-height: var(--app-height, 100dvh);
-    height: var(--app-height, 100dvh);
+    min-height: 100lvh;
+    min-height: var(--app-height, 100lvh);
+    height: var(--app-height, 100lvh);
     overflow: hidden;
     background-color: var(--bg-primary);
     transition: background-color 0.2s ease, color 0.2s ease;

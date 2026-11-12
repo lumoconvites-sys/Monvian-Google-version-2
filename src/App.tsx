@@ -369,23 +369,32 @@ export default function App() {
           const hPx = `${h}px`;
           document.documentElement.style.setProperty('--app-height', hPx);
           document.documentElement.style.height = hPx;
+          document.documentElement.style.minHeight = hPx;
           if (document.body) {
             document.body.style.height = hPx;
+            document.body.style.minHeight = hPx;
           }
           const rootEl = document.getElementById('root');
           if (rootEl) {
             rootEl.style.height = hPx;
+            rootEl.style.minHeight = hPx;
           }
         } else {
-          const fullH = h > 0 ? `max(${h}px, 100dvh, 100lvh)` : '100lvh';
+          const fullH =
+            h > 0
+              ? `max(${h}px, 100dvh, 100lvh, calc(100% + env(safe-area-inset-top, 0px) + env(safe-area-inset-bottom, 0px)))`
+              : 'max(100dvh, 100lvh, calc(100% + env(safe-area-inset-top, 0px) + env(safe-area-inset-bottom, 0px)))';
           document.documentElement.style.setProperty('--app-height', fullH);
-          document.documentElement.style.height = '100%';
+          document.documentElement.style.height = fullH;
+          document.documentElement.style.minHeight = fullH;
           if (document.body) {
-            document.body.style.height = '100%';
+            document.body.style.height = fullH;
+            document.body.style.minHeight = fullH;
           }
           const rootEl = document.getElementById('root');
           if (rootEl) {
-            rootEl.style.height = '100%';
+            rootEl.style.height = fullH;
+            rootEl.style.minHeight = fullH;
           }
         }
         if (
@@ -1658,7 +1667,16 @@ export default function App() {
             duration: prefersReducedMotion ? 0.15 : 0.32,
             ease: [0.22, 1, 0.36, 1],
           }}
-          className="fixed inset-0 w-full h-full z-[120] bg-[#ffffff]"
+          className="fixed inset-0 w-full z-[120] bg-[#ffffff]"
+          style={{
+            top: 0,
+            bottom: 0,
+            left: 0,
+            right: 0,
+            width: '100%',
+            height: 'var(--app-height, 100lvh)',
+            minHeight: 'var(--app-height, 100lvh)',
+          }}
         >
           <AuthScreen
             onSuccess={(token, userData, isNewAccount) => {
@@ -1767,8 +1785,8 @@ export default function App() {
             left: 0,
             right: 0,
             width: '100%',
-            height: '100%',
-            minHeight: '100dvh',
+            height: 'var(--app-height, 100lvh)',
+            minHeight: 'var(--app-height, 100lvh)',
             boxSizing: 'border-box',
             margin: 0,
             padding: 0,
@@ -1810,8 +1828,8 @@ export default function App() {
         }`}
         style={{
           width: '100%',
-          height: '100%',
-          minHeight: '100dvh',
+          height: 'var(--app-height, 100lvh)',
+          minHeight: 'var(--app-height, 100lvh)',
           boxSizing: 'border-box',
           margin: 0,
           padding: 0,
@@ -2089,15 +2107,15 @@ export default function App() {
             initial={false}
             animate={{ opacity: 1 }}
             transition={{ duration: 0.5, ease: [0.22, 1, 0.36, 1] }}
-            className="fixed inset-0 w-full h-full z-40"
+            className="fixed inset-0 w-full z-40"
             style={{
               top: 0,
               bottom: 0,
               left: 0,
               right: 0,
               width: '100%',
-              height: '100%',
-              minHeight: '100dvh',
+              height: 'var(--app-height, 100lvh)',
+              minHeight: 'var(--app-height, 100lvh)',
             }}
           >
             <ItinerariesView
@@ -2512,7 +2530,16 @@ export default function App() {
           animate={{ opacity: 1, x: 0 }}
           exit={{ opacity: 0, x: 18 }}
           transition={{ duration: 0.24, ease: [0.32, 0.72, 0, 1] }}
-          className="fixed inset-0 w-full h-full z-[130]"
+          className="fixed inset-0 w-full z-[130]"
+          style={{
+            top: 0,
+            bottom: 0,
+            left: 0,
+            right: 0,
+            width: '100%',
+            height: 'var(--app-height, 100lvh)',
+            minHeight: 'var(--app-height, 100lvh)',
+          }}
         >
           <AdminLayout
             currentUser={user}

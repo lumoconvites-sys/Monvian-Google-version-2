@@ -678,7 +678,11 @@ export const CinematicLandingView: React.FC<CinematicLandingViewProps> = ({
       <section
         ref={heroSectionRef}
         aria-label="Apresentação principal Monvian — Campos do Jordão"
-        className="relative z-[70] w-full h-[100svh] min-h-[640px] flex flex-col justify-between bg-[#FFFFFF] overflow-hidden"
+        className="relative z-[70] w-full min-h-[640px] flex flex-col justify-between bg-[#FFFFFF] overflow-hidden"
+        style={{
+          height: 'var(--app-height, 100lvh)',
+          minHeight: 'max(640px, var(--app-height, 100lvh))',
+        }}
       >
         {/* 1. CÉU TRIDIMENSIONAL MULTICAMADAS (Termina em branco puro #FFFFFF muito antes da base para zero corte horizontal) */}
         <div
@@ -1545,7 +1549,12 @@ export const CinematicLandingView: React.FC<CinematicLandingViewProps> = ({
       </section>
 
       {/* Rodapé Absoluto Monvian */}
-      <footer className="w-full bg-[#FFFFFF] pt-3 pb-8 sm:pb-10 text-center select-none">
+      <footer
+        className="w-full bg-[#FFFFFF] pt-3 text-center select-none"
+        style={{
+          paddingBottom: 'max(36px, calc(env(safe-area-inset-bottom, 0px) + 24px))',
+        }}
+      >
         <p
           className="text-[12px] sm:text-[13px] font-normal text-[#8A8F99] tracking-[-0.01em]"
           style={{

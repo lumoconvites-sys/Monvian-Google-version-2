@@ -757,6 +757,13 @@ export function AuthScreen({ onSuccess }: AuthScreenProps) {
     <div
       className="fixed inset-0 z-[100] select-none overflow-hidden bg-[#FFFFFF] text-[#080808]"
       style={{
+        top: 0,
+        bottom: 0,
+        left: 0,
+        right: 0,
+        width: '100%',
+        height: 'var(--app-height, 100lvh)',
+        minHeight: 'var(--app-height, 100lvh)',
         fontFamily:
           "'SF Pro Display', 'SF Pro Text', -apple-system, BlinkMacSystemFont, sans-serif",
       }}
@@ -776,6 +783,13 @@ export function AuthScreen({ onSuccess }: AuthScreenProps) {
             : 'opacity-0 pointer-events-none invisible'
         }`}
         style={{
+          top: 0,
+          bottom: 0,
+          left: 0,
+          right: 0,
+          width: '100%',
+          height: 'var(--app-height, 100lvh)',
+          minHeight: 'var(--app-height, 100lvh)',
           WebkitOverflowScrolling: 'touch',
           willChange: 'transform, opacity',
         }}
@@ -801,6 +815,13 @@ export function AuthScreen({ onSuccess }: AuthScreenProps) {
             transition={{ duration: shouldReduceMotion ? 0.18 : 0.32, ease: [0.22, 1, 0.36, 1] }}
             className="fixed inset-0 z-[110] bg-[#FFFFFF] text-[#080808] flex flex-col justify-between overflow-y-auto overscroll-y-contain"
             style={{
+              top: 0,
+              bottom: 0,
+              left: 0,
+              right: 0,
+              width: '100%',
+              height: 'var(--app-height, 100lvh)',
+              minHeight: 'var(--app-height, 100lvh)',
               backgroundColor: '#FFFFFF',
               paddingTop: 'max(20px, env(safe-area-inset-top, 0px))',
               paddingBottom: 'max(24px, env(safe-area-inset-bottom, 0px))',
@@ -1175,8 +1196,15 @@ export function AuthScreen({ onSuccess }: AuthScreenProps) {
             animate={shouldReduceMotion ? { opacity: 1 } : { opacity: 1, y: 0 }}
             exit={{ opacity: 0, transition: { duration: 0.16, ease: [0.22, 1, 0.36, 1] } }}
             transition={{ duration: shouldReduceMotion ? 0.16 : 0.28, ease: [0.22, 1, 0.36, 1] }}
-            className="auth-login-screen fixed inset-0 z-[115] w-full h-full bg-[#FFFFFF] flex flex-col items-center justify-between text-[#080808] pt-6 sm:pt-8 pb-10 px-5 sm:px-6 pointer-events-auto overflow-y-auto overscroll-y-contain"
+            className="auth-login-screen fixed inset-0 z-[115] w-full bg-[#FFFFFF] flex flex-col items-center justify-between text-[#080808] pt-6 sm:pt-8 pb-10 px-5 sm:px-6 pointer-events-auto overflow-y-auto overscroll-y-contain"
             style={{
+              top: 0,
+              bottom: 0,
+              left: 0,
+              right: 0,
+              width: '100%',
+              height: 'var(--app-height, 100lvh)',
+              minHeight: 'var(--app-height, 100lvh)',
               fontFamily:
                 "'SF Pro Display', 'SF Pro Text', -apple-system, BlinkMacSystemFont, sans-serif",
               paddingTop: 'max(20px, calc(env(safe-area-inset-top, 0px) + 12px))',
