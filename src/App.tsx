@@ -358,18 +358,15 @@ export default function App() {
         const clientH = document.documentElement?.clientHeight || 0;
         const vvH = window.visualViewport?.height || 0;
         const vvOffsetTop = window.visualViewport?.offsetTop || 0;
-        const keyboardOpen = isTextInputActive() && vvH > 0 && screenH > 0 && vvH < screenH * 0.78;
 
         let h = 0;
         const isIOS =
           /iPhone|iPod|iPad/i.test(navigator.userAgent || '') ||
           (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
-        if (keyboardOpen) {
-          h = Math.round(vvH || innerH || clientH);
-        } else if (isStandaloneMode && screenH > 0) {
-          h = Math.round(Math.max(innerH, clientH, vvH + vvOffsetTop, screenH));
+        if (isStandaloneMode && screenH > 0) {
+          h = Math.round(Math.max(innerH, clientH, screenH));
         } else {
-          const candidate = Math.max(innerH, clientH, Math.round(vvH + vvOffsetTop));
+          const candidate = Math.max(innerH, clientH);
           if (isIOS && screenH > candidate && screenH - candidate <= 105) {
             h = Math.round(screenH);
           } else {
@@ -377,42 +374,25 @@ export default function App() {
           }
         }
 
-        if (keyboardOpen && h > 0) {
-          const hPx = `${h}px`;
-          document.documentElement.style.setProperty('--app-height', hPx);
-          document.documentElement.style.setProperty('--app-height-px', hPx);
-          document.documentElement.style.height = hPx;
-          document.documentElement.style.minHeight = hPx;
-          if (document.body) {
-            document.body.style.height = hPx;
-            document.body.style.minHeight = hPx;
-          }
-          const rootEl = document.getElementById('root');
-          if (rootEl) {
-            rootEl.style.height = hPx;
-            rootEl.style.minHeight = hPx;
-          }
-        } else {
-          const fullH = h > 0 ? `max(${h}px, 100dvh)` : '100dvh';
-          if (h > 0) {
-            document.documentElement.style.setProperty('--app-height-px', `${h}px`);
-          }
-          document.documentElement.style.setProperty('--app-height', fullH);
-          document.documentElement.style.height = fullH;
-          document.documentElement.style.minHeight = fullH;
-          if (document.body) {
-            document.body.style.height = fullH;
-            document.body.style.minHeight = fullH;
-          }
-          const rootEl = document.getElementById('root');
-          if (rootEl) {
-            rootEl.style.height = fullH;
-            rootEl.style.minHeight = fullH;
-          }
+        const fullH = h > 0 ? `max(${h}px, 100dvh)` : '100dvh';
+        if (h > 0) {
+          document.documentElement.style.setProperty('--app-height-px', `${h}px`);
         }
+        document.documentElement.style.setProperty('--app-height', fullH);
+        document.documentElement.style.height = fullH;
+        document.documentElement.style.minHeight = fullH;
+        if (document.body) {
+          document.body.style.height = fullH;
+          document.body.style.minHeight = fullH;
+        }
+        const rootEl = document.getElementById('root');
+        if (rootEl) {
+          rootEl.style.height = fullH;
+          rootEl.style.minHeight = fullH;
+        }
+
         if (
           typeof window !== 'undefined' &&
-          !keyboardOpen &&
           !document.body.classList.contains('is-login-screen') &&
           !document.documentElement.classList.contains('is-login-screen')
         ) {

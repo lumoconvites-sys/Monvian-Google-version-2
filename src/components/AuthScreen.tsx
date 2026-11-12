@@ -237,6 +237,67 @@ export function AuthScreen({ onSuccess }: AuthScreenProps) {
     } catch {}
   }, [registerEmail]);
 
+  // Viewport and keyboard tracking to keep typing input centered in visible area
+  const [viewportHeight, setViewportHeight] = useState<number>(() => {
+    if (typeof window !== 'undefined' && window.visualViewport) {
+      return window.visualViewport.height;
+    }
+    return typeof window !== 'undefined' ? window.innerHeight : 800;
+  });
+  const [isKeyboardOpen, setIsKeyboardOpen] = useState(false);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+
+    const updateViewportState = () => {
+      const vv = window.visualViewport;
+      const screenH = window.screen?.height || window.innerHeight;
+      const currentH = vv ? vv.height : window.innerHeight;
+      setViewportHeight(currentH);
+      const keyboardActive = currentH < screenH * 0.78;
+      setIsKeyboardOpen(keyboardActive);
+
+      // Keep scroll locked at (0, 0) for progressive register steps 1, 2, 3 so iOS cannot scroll the view away
+      if (authMode === 'register' && registerStep < 4) {
+        if (window.scrollY !== 0 || window.scrollX !== 0) {
+          window.scrollTo(0, 0);
+        }
+        const regSection = document.getElementById('auth-register-section');
+        if (regSection && regSection.scrollTop !== 0) {
+          regSection.scrollTop = 0;
+        }
+      }
+    };
+
+    updateViewportState();
+
+    if (window.visualViewport) {
+      window.visualViewport.addEventListener('resize', updateViewportState);
+      window.visualViewport.addEventListener('scroll', updateViewportState);
+    }
+    window.addEventListener('resize', updateViewportState);
+    window.addEventListener('scroll', updateViewportState, { passive: true });
+
+    return () => {
+      if (window.visualViewport) {
+        window.visualViewport.removeEventListener('resize', updateViewportState);
+        window.visualViewport.removeEventListener('scroll', updateViewportState);
+      }
+      window.removeEventListener('resize', updateViewportState);
+      window.removeEventListener('scroll', updateViewportState);
+    };
+  }, [authMode, registerStep]);
+
+  const handleRegisterInputFocus = () => {
+    if (typeof window !== 'undefined') {
+      window.scrollTo({ top: 0, left: 0, behavior: 'instant' as ScrollBehavior });
+      const regSection = document.getElementById('auth-register-section');
+      if (regSection) {
+        regSection.scrollTop = 0;
+      }
+    }
+  };
+
   // Step Validations
   const isNameValid = useMemo(() => name.trim().length >= 2, [name]);
   const emailValidation = useMemo(() => validateEmailFormat(registerEmail), [registerEmail]);
@@ -949,7 +1010,9 @@ export function AuthScreen({ onSuccess }: AuthScreenProps) {
             animate={shouldReduceMotion ? { opacity: 1 } : { opacity: 1, y: 0 }}
             exit={shouldReduceMotion ? { opacity: 0 } : { opacity: 0, y: 10 }}
             transition={{ duration: shouldReduceMotion ? 0.18 : 0.32, ease: [0.22, 1, 0.36, 1] }}
-            className="fixed inset-0 z-[110] bg-[#FFFFFF] text-[#080808] flex flex-col justify-between overflow-y-auto overscroll-y-contain"
+            className={`fixed inset-0 z-[110] bg-[#FFFFFF] text-[#080808] flex flex-col justify-between ${
+              registerStep === 4 ? 'overflow-y-auto overscroll-y-contain' : 'overflow-hidden'
+            }`}
             style={{
               top: 0,
               bottom: 0,
@@ -1000,8 +1063,22 @@ export function AuthScreen({ onSuccess }: AuthScreenProps) {
               <div className="w-10 h-10" aria-hidden="true" />
             </header>
 
-            {/* Center Content Area */}
-            <main className="w-full max-w-sm mx-auto my-auto py-8 flex flex-col justify-center">
+            {/* Center Content Area: stays vertically centered in visible area above virtual keyboard */}
+            <main
+              className={`w-full max-w-sm mx-auto flex flex-col justify-center transition-all duration-200 ${
+                isKeyboardOpen && registerStep < 4
+                  ? 'my-0 pt-4 pb-2'
+                  : 'my-auto py-8'
+              }`}
+              style={
+                isKeyboardOpen && registerStep < 4 && viewportHeight > 0
+                  ? {
+                      minHeight: `calc(${viewportHeight}px - max(20px, env(safe-area-inset-top, 0px)) - 70px)`,
+                      maxHeight: `calc(${viewportHeight}px - max(20px, env(safe-area-inset-top, 0px)) - 70px)`,
+                    }
+                  : undefined
+              }
+            >
               <AnimatePresence mode="wait">
                 {/* ETAPA 1 — NOME */}
                 {registerStep === 1 && (
@@ -1029,6 +1106,7 @@ export function AuthScreen({ onSuccess }: AuthScreenProps) {
                           setName(e.target.value);
                           if (error) setError('');
                         }}
+                        onFocus={handleRegisterInputFocus}
                         onBlur={() => {
                           setNameTouched(true);
                         }}
@@ -1080,6 +1158,7 @@ export function AuthScreen({ onSuccess }: AuthScreenProps) {
                           setRegisterEmail(e.target.value);
                           if (error) setError('');
                         }}
+                        onFocus={handleRegisterInputFocus}
                         onBlur={() => {
                           setEmailTouched(true);
                         }}
@@ -1135,6 +1214,7 @@ export function AuthScreen({ onSuccess }: AuthScreenProps) {
                             setRegisterPassword(e.target.value);
                             if (error) setError('');
                           }}
+                          onFocus={handleRegisterInputFocus}
                           onBlur={() => {
                             setPasswordTouched(true);
                           }}
@@ -1167,6 +1247,7 @@ export function AuthScreen({ onSuccess }: AuthScreenProps) {
                             setConfirmPassword(e.target.value);
                             if (error) setError('');
                           }}
+                          onFocus={handleRegisterInputFocus}
                           onBlur={() => {
                             setConfirmTouched(true);
                           }}
@@ -1374,7 +1455,11 @@ export function AuthScreen({ onSuccess }: AuthScreenProps) {
             </main>
 
             {/* Bottom Primary Action Area */}
-            <footer className="w-full max-w-sm mx-auto pb-4 pt-2 shrink-0">
+            <footer
+              className={`w-full max-w-sm mx-auto pb-4 pt-2 shrink-0 transition-opacity duration-200 ${
+                isKeyboardOpen && registerStep < 4 ? 'opacity-0 pointer-events-none' : 'opacity-100'
+              }`}
+            >
               {registerStep === 1 && (
                 <motion.button
                   id="btn-register-step1-continue"

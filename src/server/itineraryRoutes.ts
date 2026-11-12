@@ -886,6 +886,20 @@ export function registerItineraryRoutes(
     const daysCount = Number(row.days_count || 1);
     const isPrem = row.is_premium !== undefined && row.is_premium !== null ? Number(row.is_premium) === 1 : true;
 
+    // Regra estrita: O roteiro "Romântico" (itin-093850-ialh) não deve aparecer na área "todos",
+    // aparecendo APENAS na área "destaques" (com estrela)
+    const isExclusivelyDestaqueItinerary =
+      String(row.id) === 'itin-093850-ialh' ||
+      (normTitle === 'romantico' && normDesc.includes('desfrute de um fim de semana'));
+
+    const effectiveCat = categoryFilter ? normalizeFilterToken(categoryFilter) : 'all';
+
+    if (isExclusivelyDestaqueItinerary) {
+      if (effectiveCat !== 'destaque' && effectiveCat !== 'destaques') {
+        return false;
+      }
+    }
+
     // 1. Category Filter
     if (categoryFilter && categoryFilter !== 'all' && categoryFilter !== 'todos') {
       const cat = normalizeFilterToken(categoryFilter);

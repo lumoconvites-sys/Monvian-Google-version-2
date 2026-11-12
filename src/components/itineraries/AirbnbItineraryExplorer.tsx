@@ -84,21 +84,10 @@ export function getItinerariesForCategory(
     return { featured: null, list: [] };
   }
 
-  // Pick the featured banner for this category:
-  // For 'all' or 'destaque', prioritize isFeatured || isRecommended
-  let featured: Itinerary | null = null;
-  if (!searchQuery) {
-    const topFeat = matching.find((i) => i.isFeatured || i.isRecommended);
-    featured = topFeat || matching[0] || null;
-  }
-
-  const list = featured
-    ? matching.filter((i) => i.id !== featured!.id)
-    : matching;
-
+  // Todos os roteiros são apresentados como roteiros normais (mesma forma, cantos arredondados, sem botões)
   return {
-    featured,
-    list: list.slice(0, 6),
+    featured: null,
+    list: matching.slice(0, 6),
   };
 }
 
@@ -422,7 +411,7 @@ export const AirbnbItineraryExplorer: React.FC<AirbnbItineraryExplorerProps> = (
 }) => {
   const initialItinerariesData = useMemo(() => getItinerariesForCategory('all', 'all', ''), []);
   const [itineraries, setItineraries] = useState<Itinerary[]>(initialItinerariesData.list);
-  const [featuredBannerItinerary, setFeaturedBannerItinerary] = useState<Itinerary | null>(initialItinerariesData.featured);
+  const [featuredBannerItinerary, setFeaturedBannerItinerary] = useState<Itinerary | null>(null);
   const [categories, setCategories] = useState<ItineraryCategory[]>(getInitialCategories);
   const [onboardingPool, setOnboardingPool] = useState<Itinerary[]>(() =>
     getKnownItinerariesPool().filter((i) => i.isActive !== false)
@@ -504,8 +493,8 @@ export const AirbnbItineraryExplorer: React.FC<AirbnbItineraryExplorerProps> = (
     // Update both featured banner and itineraries immediately for this specific category.
     // This physically prevents any flash of cards or banners from other categories!
     const localData = getItinerariesForCategory(catId, durationFilter, debouncedSearchQuery);
-    setFeaturedBannerItinerary(localData.featured);
-    featuredIdRef.current = localData.featured?.id || null;
+    setFeaturedBannerItinerary(null);
+    featuredIdRef.current = null;
     setItineraries(localData.list);
 
     categorySwitchTimerRef.current = setTimeout(() => {
@@ -574,7 +563,7 @@ export const AirbnbItineraryExplorer: React.FC<AirbnbItineraryExplorerProps> = (
       setLoadingMore(false);
 
       const initialBatchSize = computeOptimalBatchSize(true);
-      const shouldIncludeFeatured = !debouncedSearchQuery;
+      const shouldIncludeFeatured = false;
 
       try {
         const result = await fetchPaginatedItinerariesFromSupabase({
@@ -584,33 +573,20 @@ export const AirbnbItineraryExplorer: React.FC<AirbnbItineraryExplorerProps> = (
           category: selectedCategory,
           durationFilter,
           searchQuery: debouncedSearchQuery,
-          includeFeaturedBanner: shouldIncludeFeatured,
+          includeFeaturedBanner: false,
           forceRefresh: options?.forceRefresh,
         });
 
         // Ignore stale response if user switched category/search while request was in flight
         if (currentGen !== queryGenerationRef.current) return;
 
-        // Double check that featuredItinerary strictly belongs to this selectedCategory
-        let validatedFeatured = result.featuredItinerary || null;
-        if (
-          validatedFeatured &&
-          !matchesItineraryFilter(validatedFeatured, selectedCategory, durationFilter, debouncedSearchQuery)
-        ) {
-          validatedFeatured = null;
-        }
-
         // Strictly filter itineraries to guarantee zero cross-category contamination
         const validatedItineraries = (result.itineraries || []).filter((item) =>
           matchesItineraryFilter(item, selectedCategory, durationFilter, debouncedSearchQuery)
         );
 
-        setFeaturedBannerItinerary(validatedFeatured);
-        featuredIdRef.current = validatedFeatured?.id || null;
-
-        if (validatedFeatured?.coverImage) {
-          preloadImage(validatedFeatured.coverImage, 'high');
-        }
+        setFeaturedBannerItinerary(null);
+        featuredIdRef.current = null;
 
         setItineraries(validatedItineraries);
         setHasMore(result.hasMore);
@@ -837,33 +813,19 @@ export const AirbnbItineraryExplorer: React.FC<AirbnbItineraryExplorerProps> = (
     return base;
   }, [categories]);
 
-  // Strict Category-Guarded Featured Banner
-  const validFeaturedBanner = useMemo(() => {
-    if (!featuredBannerItinerary) return null;
-    if (debouncedSearchQuery) return null;
-    if (!matchesItineraryFilter(featuredBannerItinerary, selectedCategory, durationFilter, debouncedSearchQuery)) {
-      return null;
-    }
-    return featuredBannerItinerary;
-  }, [featuredBannerItinerary, selectedCategory, durationFilter, debouncedSearchQuery]);
+  // Roteiros são exibidos uniformemente como cards normais (mesma forma, cantos arredondados, sem botões)
+  const validFeaturedBanner = null;
 
-  // Strict Category-Guarded Discovery Itineraries List for Section 5 ("Roteiros para descobrir")
+  // Strict Category-Guarded Discovery Itineraries List
   const displayItineraries = useMemo<Itinerary[]>(() => {
     return itineraries.filter((i) => {
       // Must strictly match active category filter
       if (!matchesItineraryFilter(i, selectedCategory, durationFilter, debouncedSearchQuery)) {
         return false;
       }
-      if (
-        validFeaturedBanner &&
-        (i.id === validFeaturedBanner.id ||
-          i.title.trim().toLowerCase() === validFeaturedBanner.title.trim().toLowerCase())
-      ) {
-        return false;
-      }
       return true;
     });
-  }, [itineraries, validFeaturedBanner, selectedCategory, durationFilter, debouncedSearchQuery]);
+  }, [itineraries, selectedCategory, durationFilter, debouncedSearchQuery]);
 
   const handleOpenDetail = useCallback((itin: Itinerary) => {
     setSelectedItinerary(itin);

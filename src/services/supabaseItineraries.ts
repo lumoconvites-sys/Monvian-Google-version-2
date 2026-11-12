@@ -818,6 +818,22 @@ export function matchesItineraryFilter(
   durationFilter: 'all' | '1day' | 'multiday' | 'free' = 'all',
   searchQuery = ''
 ): boolean {
+  const normTitle = normalizeToken(itin.title || '');
+  const normDesc = normalizeToken(itin.description || '');
+  const cat = normalizeToken(category || 'all');
+
+  // Regra estrita: O roteiro "Romântico" (itin-093850-ialh) não deve aparecer na área "todos",
+  // aparecendo APENAS na área "destaques" (com estrela)
+  const isExclusiveDestaqueItinerary =
+    itin.id === 'itin-093850-ialh' ||
+    (normTitle === 'romantico' && normDesc.includes('desfrute de um fim de semana'));
+
+  if (isExclusiveDestaqueItinerary) {
+    if (cat !== 'destaque' && cat !== 'destaques') {
+      return false;
+    }
+  }
+
   // 1. Category Filter
   if (category && category !== 'all') {
     const cat = normalizeToken(category);
