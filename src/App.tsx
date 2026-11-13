@@ -43,8 +43,14 @@ import { XpRewardNotificationOverlay } from './components/XpRewardNotificationOv
 import { FloatingEventCard } from './components/FloatingEventCard';
 import { IOSInteractiveBackSystem } from './components/IOSInteractiveBackSystem';
 import { useIOSBackEntry, iosNavigationManager } from './services/iosNavigationManager';
-import { auth, signOut, setCachedAccessToken } from './lib/firebase';
+import { auth, signOut, setCachedAccessToken, waitForFirebaseAuthUser, getFreshFirebaseIdToken } from './lib/firebase';
 import { supabase } from './lib/supabase';
+import {
+  savePersistentSession,
+  loadPersistentSession,
+  clearPersistentSession,
+  hasSyncSessionToken,
+} from './utils/persistentAuthStorage';
 
 const welcomeContainerVariants = {
   hidden: { opacity: 0 },
@@ -76,16 +82,32 @@ const welcomeCharVariants = {
   },
 };
 
+const normalizeAppUser = (rawUser: any) => {
+  if (!rawUser) return null;
+  const parsed = { ...rawUser };
+  const emailClean = (parsed.email || parsed.whatsapp || '').trim().toLowerCase();
+  const usernameClean = (parsed.username || '').trim().toLowerCase();
+  const isGoldAdmin =
+    ['empresariomario@gmail.com', 'marioempresario@gmail.com', 'marioyesk@gmail.com'].includes(emailClean) ||
+    usernameClean === 'marioyesk';
+  const isGold =
+    isGoldAdmin ||
+    Boolean(parsed.isGold || parsed.is_gold === 1 || parsed.isPremium || parsed.is_premium === 1 || parsed.plan === 'gold');
+  if (isGoldAdmin) {
+    parsed.role = 'admin';
+    parsed.is_gold = 1;
+    parsed.is_premium = 1;
+    parsed.plan = 'gold';
+  }
+  parsed.isGold = isGold;
+  parsed.isPremium = isGold;
+  return parsed;
+};
+
 export default function App() {
-  const [isAuthenticated, setIsAuthenticated] = useState<boolean>(() => {
-    try {
-      const token = localStorage.getItem('monvian_token');
-      const savedUser = localStorage.getItem('monvian_user');
-      return Boolean(token && savedUser);
-    } catch {
-      return false;
-    }
-  });
+  const [isAuthenticated, setIsAuthenticated] = useState<boolean>(() => hasSyncSessionToken());
+  const [isAuthChecking, setIsAuthChecking] = useState<boolean>(() => !hasSyncSessionToken());
+  const manualLogoutRef = useRef<boolean>(false);
   const [user, setUser] = useState<any>(() => {
     try {
       const token = localStorage.getItem('monvian_token');
@@ -93,23 +115,10 @@ export default function App() {
       if (token && savedUser) {
         const parsed = JSON.parse(savedUser);
         if (parsed && (parsed.id || parsed.email || parsed.whatsapp || parsed.username)) {
-          const emailClean = (parsed.email || parsed.whatsapp || '').trim().toLowerCase();
-          const usernameClean = (parsed.username || '').trim().toLowerCase();
-          if (
-            ['empresariomario@gmail.com', 'marioempresario@gmail.com', 'marioyesk@gmail.com'].includes(emailClean) ||
-            usernameClean === 'marioyesk'
-          ) {
-            parsed.role = 'admin';
-            parsed.isGold = true;
-            parsed.isPremium = true;
-            parsed.is_gold = 1;
-            parsed.is_premium = 1;
-            parsed.plan = 'gold';
-          }
-          return parsed;
+          return normalizeAppUser(parsed);
         }
       }
-    } catch (e) {}
+    } catch {}
     return null;
   });
   const [snowEnabled, setSnowEnabled] = useState<boolean>(() => {
@@ -266,6 +275,9 @@ export default function App() {
               localStorage.setItem('monvian_user', JSON.stringify(updated));
               localStorage.setItem('monvian_is_gold', 'true');
               localStorage.setItem('monvian_is_premium', 'true');
+              if (token) {
+                savePersistentSession(token, updated).catch(() => {});
+              }
               return updated;
             });
             setIsGoldSuccessModalOpen(true);
@@ -494,72 +506,31 @@ export default function App() {
   }, []);
 
   const performFullLogout = useCallback(async () => {
+    manualLogoutRef.current = true;
     try {
-      const token = localStorage.getItem('monvian_token');
+      const stored = await loadPersistentSession().catch(() => null);
+      const token = stored?.token || localStorage.getItem('monvian_token');
+
       // 1. Invalidate active session in backend and Supabase
-      fetch('/api/auth/logout', {
+      await fetch('/api/auth/logout', {
         method: 'POST',
+        credentials: 'include',
         headers: {
           'Content-Type': 'application/json',
           ...(token ? { Authorization: `Bearer ${token}` } : {}),
         },
-        body: JSON.stringify({ token }),
+        body: JSON.stringify({ token: token || undefined }),
       }).catch(() => {});
 
       // 2. Sign out from Supabase Auth and Firebase Auth
-      supabase?.auth.signOut().catch(() => {});
-      signOut(auth).catch(() => {});
+      await Promise.allSettled([
+        supabase ? supabase.auth.signOut() : Promise.resolve(),
+        signOut(auth),
+      ]);
       setCachedAccessToken(null);
 
-      // 3. Remove all local session, credential, and user-scoped data
-      const keysToRemove = [
-        'monvian_token',
-        'monvian_auth_token',
-        'auth_token',
-        'monvian_supabase_auth',
-        'monvian_user',
-        'monvian_local_avatar',
-        'monvian_active_itinerary',
-        'monvian_itinerary_view_mode',
-        'monvian_itinerary_expanded',
-        'monvian_itinerary_session',
-        'monvian_selected_onboarding_itineraries',
-        'monvian_trip_budget',
-        'monvian_trip_note_campos',
-        'monvian_user_preferences',
-        'monvian_user_session_id',
-      ];
-      keysToRemove.forEach((k) => {
-        try {
-          localStorage.removeItem(k);
-        } catch {}
-      });
-
-      try {
-        const dynamicKeys: string[] = [];
-        for (let i = 0; i < localStorage.length; i++) {
-          const k = localStorage.key(i);
-          if (
-            k &&
-            (k.startsWith('monvian_user_avatar_') ||
-              k.startsWith('monvian_user_itinerary_') ||
-              k.startsWith('monvian_cached_xp_state_') ||
-              k.startsWith('sb-') ||
-              k.startsWith('supabase.auth'))
-          ) {
-            dynamicKeys.push(k);
-          }
-        }
-        dynamicKeys.forEach((k) => localStorage.removeItem(k));
-      } catch {}
-
-      try {
-        sessionStorage.clear();
-      } catch {}
-
-      // Expire auth-related cookies
-      document.cookie = 'monvian_token=; Max-Age=0; path=/; SameSite=Lax';
-      document.cookie = 'monvian_user=; Max-Age=0; path=/; SameSite=Lax';
+      // 3. Remove all IndexedDB, localStorage, sessionStorage, and cookie credentials
+      await clearPersistentSession();
     } catch {}
 
     // 4. Reset in-memory application states and redirect to login
@@ -573,6 +544,7 @@ export default function App() {
     setIsAdminOpen(false);
     setIsSettingsModalOpen(false);
     setUser(null);
+    setIsAuthChecking(false);
     setIsAuthenticated(false);
     setActiveTab('explorar');
     setTabHistory([]);
@@ -581,116 +553,243 @@ export default function App() {
   }, []);
 
   useEffect(() => {
-    const token = localStorage.getItem('monvian_token');
-    if (!token) {
-      try {
-        localStorage.removeItem('monvian_user');
-      } catch {}
-      setUser(null);
-      setIsAuthenticated(false);
-      return;
-    }
-
     let isMounted = true;
 
-    const checkSession = async () => {
-      try {
-        let savedEmail = '';
+    const applyAuthenticatedUser = async (token: string, rawUser: any) => {
+      const normalized = normalizeAppUser(rawUser);
+      if (!normalized) return;
+
+      if (normalized.location_permission_granted === 1) {
         try {
-          const savedRaw = localStorage.getItem('monvian_user');
-          if (savedRaw) {
-            const parsed = JSON.parse(savedRaw);
-            savedEmail = String(parsed?.email || parsed?.whatsapp || '').trim().toLowerCase();
+          localStorage.setItem('monvian_location_permission_granted', 'true');
+          document.cookie = 'monvian_location_granted=true; max-age=315360000; path=/; SameSite=Lax';
+        } catch {}
+      }
+      if (normalized.motion_permission_granted === 1) {
+        try {
+          localStorage.setItem('monvian_motion_permission_granted', 'true');
+          localStorage.setItem('monvian_compass_permission_handled', 'true');
+          document.cookie = 'monvian_motion_granted=true; max-age=315360000; path=/; SameSite=Lax';
+        } catch {}
+      }
+
+      await savePersistentSession(token, normalized);
+      if (!isMounted) return;
+
+      const userEmail = (normalized.email || normalized.whatsapp || '').trim().toLowerCase();
+      if (userEmail) {
+        syncPermissionsFromDatabase(userEmail).catch(() => {});
+      }
+      setUser(normalized);
+      setIsAuthenticated(true);
+      setIsAuthChecking(false);
+    };
+
+    const restoreFromOfficialProviders = async (): Promise<{ token: string; user: any } | null> => {
+      if (manualLogoutRef.current) return null;
+
+      // 1. Try official Supabase Auth (backed by IndexedDB adapter + automatic refresh_token renewal)
+      if (supabase) {
+        try {
+          const { data: sessionData } = await supabase.auth.getSession();
+          let supaAccessToken = sessionData?.session?.access_token || null;
+
+          if (sessionData?.session?.expires_at && sessionData.session.expires_at * 1000 < Date.now() + 60_000) {
+            try {
+              const { data: refreshed } = await supabase.auth.refreshSession();
+              if (refreshed?.session?.access_token) {
+                supaAccessToken = refreshed.session.access_token;
+              }
+            } catch {}
+          }
+
+          if (supaAccessToken) {
+            const syncRes = await fetch('/api/auth/supabase-sync', {
+              method: 'POST',
+              credentials: 'include',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ access_token: supaAccessToken }),
+            });
+            if (syncRes.ok) {
+              const syncData = await syncRes.json();
+              if (syncData?.success && syncData?.token && syncData?.user) {
+                return { token: syncData.token, user: syncData.user };
+              }
+            }
           }
         } catch {}
+      }
+
+      // 2. Try official Firebase Auth IndexedDB persistence (waits cleanly for hydration)
+      try {
+        const fbUser = await waitForFirebaseAuthUser(2500);
+        if (fbUser?.email && !manualLogoutRef.current) {
+          const idToken = await getFreshFirebaseIdToken(false);
+          const googleRes = await fetch('/api/auth/google', {
+            method: 'POST',
+            credentials: 'include',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              email: fbUser.email,
+              name: fbUser.displayName || fbUser.email.split('@')[0],
+              avatar_url: fbUser.photoURL || undefined,
+              google_uid: fbUser.uid || undefined,
+              idToken: idToken || undefined,
+            }),
+          });
+          if (googleRes.ok) {
+            const googleData = await googleRes.json();
+            if (googleData?.success && googleData?.token && googleData?.user) {
+              return { token: googleData.token, user: googleData.user };
+            }
+          }
+        }
+      } catch {}
+
+      return null;
+    };
+
+    const bootstrapSession = async () => {
+      try {
+        const stored = await loadPersistentSession();
+
+        if (!isMounted) return;
+
+        if (!stored?.token) {
+          // Wait for official Firebase IndexedDB & Supabase IndexedDB sessions before concluding logged-out
+          const restored = await restoreFromOfficialProviders();
+          if (restored && isMounted && !manualLogoutRef.current) {
+            await applyAuthenticatedUser(restored.token, restored.user);
+            return;
+          }
+          if (isMounted) {
+            setUser(null);
+            setIsAuthenticated(false);
+          }
+          return;
+        }
+
+        // If restored from IndexedDB or cookie when localStorage was empty, enter app immediately while verifying
+        if (stored.user && isMounted) {
+          setUser(normalizeAppUser(stored.user));
+          setIsAuthenticated(true);
+          setIsAuthChecking(false);
+        }
+
+        const savedEmail = String(stored.user?.email || stored.user?.whatsapp || '').trim().toLowerCase();
 
         const res = await fetch('/api/auth/me', {
+          credentials: 'include',
           headers: {
-            Authorization: `Bearer ${token}`,
+            Authorization: `Bearer ${stored.token}`,
             ...(savedEmail ? { 'x-user-email': savedEmail } : {}),
           },
           cache: 'no-store',
         });
 
         if (res.status === 401 || res.status === 403) {
+          // Token was rejected or expired: attempt silent official provider renewal before logging out
+          const restored = await restoreFromOfficialProviders();
+          if (restored && isMounted && !manualLogoutRef.current) {
+            await applyAuthenticatedUser(restored.token, restored.user);
+            return;
+          }
           if (isMounted) {
-            performFullLogout();
+            await performFullLogout();
           }
           return;
         }
 
         if (!res.ok) {
-          // On transient 5xx serverless cold start, keep cached session if valid local user exists
-          const currentSavedUser = localStorage.getItem('monvian_user');
-          if (!currentSavedUser && isMounted) {
-            performFullLogout();
+          // On transient 5xx cold start, preserve cached IndexedDB/localStorage session if valid user exists
+          if (!stored.user && isMounted) {
+            await performFullLogout();
           }
           return;
         }
 
         const data = await res.json();
         if (!data?.success || !data?.user) {
+          const restored = await restoreFromOfficialProviders();
+          if (restored && isMounted && !manualLogoutRef.current) {
+            await applyAuthenticatedUser(restored.token, restored.user);
+            return;
+          }
           if (isMounted) {
-            performFullLogout();
+            await performFullLogout();
           }
           return;
         }
 
-        if (isMounted) {
-          const userObj = data.user;
-          const userEmail = (userObj.email || userObj.whatsapp || '').trim().toLowerCase();
-          const isGoldAdmin =
-            ['empresariomario@gmail.com', 'marioempresario@gmail.com', 'marioyesk@gmail.com'].includes(userEmail) ||
-            (userObj.username || '').trim().toLowerCase() === 'marioyesk';
-          const isGold = isGoldAdmin || Boolean(userObj.isGold || userObj.is_gold === 1 || userObj.isPremium || userObj.is_premium === 1);
-
-          if (isGoldAdmin) {
-            userObj.role = 'admin';
-            userObj.is_gold = 1;
-            userObj.is_premium = 1;
-            userObj.plan = 'gold';
-          }
-          userObj.isGold = isGold;
-          userObj.isPremium = isGold;
-
-          if (userObj.location_permission_granted === 1) {
-            localStorage.setItem('monvian_location_permission_granted', 'true');
-            document.cookie = 'monvian_location_granted=true; max-age=315360000; path=/; SameSite=Lax';
-          }
-          if (userObj.motion_permission_granted === 1) {
-            localStorage.setItem('monvian_motion_permission_granted', 'true');
-            localStorage.setItem('monvian_compass_permission_handled', 'true');
-            document.cookie = 'monvian_motion_granted=true; max-age=315360000; path=/; SameSite=Lax';
-          }
-
-          setUser(userObj);
-          localStorage.setItem('monvian_user', JSON.stringify(userObj));
-          syncPermissionsFromDatabase(userEmail).catch(() => {});
-          setIsAuthenticated(true);
+        if (isMounted && !manualLogoutRef.current) {
+          const activeToken = data.refreshedToken || stored.token;
+          await applyAuthenticatedUser(activeToken, data.user);
         }
       } catch {
-        // Network error while offline: only remain authenticated if both token and valid user exist locally
+        // Offline or transient network failure: preserve persisted IndexedDB/localStorage session cleanly
         if (isMounted) {
-          const currentToken = localStorage.getItem('monvian_token');
-          const currentSavedUser = localStorage.getItem('monvian_user');
-          if (!currentToken || !currentSavedUser) {
-            performFullLogout();
+          const fallback = await loadPersistentSession().catch(() => null);
+          if (fallback?.token && fallback?.user) {
+            setUser(normalizeAppUser(fallback.user));
+            setIsAuthenticated(true);
+          } else {
+            setUser(null);
+            setIsAuthenticated(false);
           }
+        }
+      } finally {
+        if (isMounted) {
+          setIsAuthChecking(false);
         }
       }
     };
 
-    checkSession();
+    bootstrapSession();
+
+    // Single coordinated Supabase auth state listener (handles silent refresh updates without duplicate listeners)
+    const supaSub = supabase
+      ? supabase.auth.onAuthStateChange((event: string, session: any) => {
+          if (!isMounted || manualLogoutRef.current) return;
+          if (event === 'TOKEN_REFRESHED' && session?.access_token) {
+            // Backend persistent token remains active; optionally refresh backend mirror silently if token missing
+            loadPersistentSession().then((curr) => {
+              if (!curr?.token && session?.access_token && isMounted && !manualLogoutRef.current) {
+                fetch('/api/auth/supabase-sync', {
+                  method: 'POST',
+                  credentials: 'include',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({ access_token: session.access_token }),
+                })
+                  .then((r) => (r.ok ? r.json() : null))
+                  .then((d) => {
+                    if (d?.success && d?.token && d?.user && isMounted && !manualLogoutRef.current) {
+                      applyAuthenticatedUser(d.token, d.user);
+                    }
+                  })
+                  .catch(() => {});
+              }
+            });
+          }
+        })
+      : null;
 
     const handleUserUpdated = (e: any) => {
-      if (e?.detail && isMounted && localStorage.getItem('monvian_token')) {
-        setUser((prev: any) => ({ ...(prev || {}), ...e.detail }));
+      if (e?.detail && isMounted && !manualLogoutRef.current) {
+        const activeToken = localStorage.getItem('monvian_token');
+        if (activeToken) {
+          setUser((prev: any) => {
+            const merged = normalizeAppUser({ ...(prev || {}), ...e.detail });
+            savePersistentSession(activeToken, merged).catch(() => {});
+            return merged;
+          });
+        }
       }
     };
     window.addEventListener('monvian:user_updated', handleUserUpdated);
 
     return () => {
       isMounted = false;
+      supaSub?.data?.subscription?.unsubscribe?.();
       window.removeEventListener('monvian:user_updated', handleUserUpdated);
     };
   }, [performFullLogout]);
@@ -1116,21 +1215,30 @@ export default function App() {
   });
 
   useEffect(() => {
+    if (!isAuthenticated || activeTab !== 'explorar') return;
     let isSubscribed = true;
+    let activeController: AbortController | null = null;
+    let timeoutId: number | null = null;
 
     const fetchWeather = async () => {
       try {
+        activeController?.abort();
         const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 5000);
+        activeController = controller;
+        if (timeoutId) window.clearTimeout(timeoutId);
+        timeoutId = window.setTimeout(() => controller.abort(), 5000);
 
         const res = await fetch(
           'https://api.open-meteo.com/v1/forecast?latitude=-22.7394&longitude=-45.5914&current=temperature_2m,relative_humidity_2m,is_day,weather_code,precipitation,rain,showers&timezone=America%2FSao_Paulo',
           { signal: controller.signal, cache: 'no-cache' }
         );
-        clearTimeout(timeoutId);
+        if (timeoutId) {
+          window.clearTimeout(timeoutId);
+          timeoutId = null;
+        }
 
         const data = await res.json();
-        if (data && data.current && isSubscribed) {
+        if (data && data.current && isSubscribed && !controller.signal.aborted) {
           const temp = Math.round(data.current.temperature_2m);
           const wcode = Number(data.current.weather_code ?? 0);
           const isDay = data.current.is_day !== 0;
@@ -1218,17 +1326,19 @@ export default function App() {
     };
 
     fetchWeather();
-    // Fast polling every 2 minutes + on window focus or when user toggles rainEnabled
+    // Fast polling every 2 minutes + on window focus only while Explorar (map) is active
     const interval = setInterval(fetchWeather, 2 * 60 * 1000);
     const onFocus = () => fetchWeather();
     window.addEventListener('focus', onFocus);
 
     return () => {
       isSubscribed = false;
+      activeController?.abort();
+      if (timeoutId) window.clearTimeout(timeoutId);
       clearInterval(interval);
       window.removeEventListener('focus', onFocus);
     };
-  }, [rainEnabled]);
+  }, [rainEnabled, isAuthenticated, activeTab]);
 
   const filteredSpots = useMemo(() => {
     return spots.filter(spot => {
@@ -1311,7 +1421,7 @@ export default function App() {
   };
 
   useEffect(() => {
-    if (!isAuthenticated) {
+    if (!isAuthenticated || activeTab !== 'explorar') {
       gpsNavigationManager.stop();
       deviceHeadingManager.stop();
       return;
@@ -1344,7 +1454,7 @@ export default function App() {
     return () => {
       unsubscribe();
     };
-  }, [isAuthenticated]);
+  }, [isAuthenticated, activeTab]);
 
   const handleToggleFavorite = useCallback((spotId: string) => {
     favoritesManager.toggleSpot(spotId);
@@ -1366,6 +1476,9 @@ export default function App() {
         gpsNavigationManager.requestPermissionAndStartFromGesture();
       }
       deviceHeadingManager.start();
+    } else {
+      gpsNavigationManager.stop();
+      deviceHeadingManager.stop();
     }
 
     // Always immediately close any open spot details, itinerary details, search drawers, etc.
@@ -1525,9 +1638,9 @@ export default function App() {
     }
   }, [signupIntroStage]);
 
-  // Automatically trigger native iOS/browser Geolocation & Motion prompts ONLY after user is authenticated
+  // Automatically trigger native iOS/browser Geolocation & Motion prompts ONLY while Explorar map is active
   useEffect(() => {
-    if (!isAuthenticated) {
+    if (!isAuthenticated || activeTab !== 'explorar') {
       gpsNavigationManager.stop();
       deviceHeadingManager.stop();
       return;
@@ -1559,8 +1672,10 @@ export default function App() {
 
     return () => {
       window.removeEventListener('click', triggerNativePermissionsOnClick, true);
+      gpsNavigationManager.stop();
+      deviceHeadingManager.stop();
     };
-  }, [isAuthenticated]);
+  }, [isAuthenticated, activeTab]);
 
   useEffect(() => {
     // Wait until full-screen onboarding modals, signup reveal, onboarding itinerary selection, and admin are closed
@@ -1646,7 +1761,23 @@ export default function App() {
         onFinish={() => setIsWelcomeJourneyOpen(false)}
       />
       <AnimatePresence>
-      {!isAuthenticated ? (
+      {isAuthChecking && !isAuthenticated ? (
+        <div
+          key="monvian-auth-checking"
+          className="fixed inset-0 w-full z-[130] bg-[#FFFFFF] flex items-center justify-center"
+          style={{
+            top: 0,
+            bottom: 0,
+            left: 0,
+            right: 0,
+            width: '100%',
+            height: 'var(--app-height, 100dvh)',
+            minHeight: 'var(--app-height, 100dvh)',
+          }}
+        >
+          <div className="w-7 h-7 rounded-full border-2 border-[#E5E7EB] border-t-[#080808] animate-spin" />
+        </div>
+      ) : !isAuthenticated ? (
         <motion.div
           key="monvian-auth-screen"
           initial={{ opacity: 0 }}
@@ -1673,21 +1804,9 @@ export default function App() {
         >
           <AuthScreen
             onSuccess={(token, userData, isNewAccount) => {
+              manualLogoutRef.current = false;
               const cleanEmail = (userData?.email || userData?.whatsapp || '').trim().toLowerCase();
-              const isPrimaryAdminAccount =
-                ['empresariomario@gmail.com', 'marioempresario@gmail.com', 'marioyesk@gmail.com'].includes(cleanEmail) ||
-                (userData?.username || '').trim().toLowerCase() === 'marioyesk';
-              const normalizedUser = isPrimaryAdminAccount
-                ? {
-                    ...userData,
-                    role: 'admin',
-                    isGold: true,
-                    isPremium: true,
-                    is_gold: 1,
-                    is_premium: 1,
-                    plan: 'gold',
-                  }
-                : userData;
+              const normalizedUser = normalizeAppUser(userData);
 
               // Ensure any residual state from a previous account is cleared before initializing the new account
               try {
@@ -1705,8 +1824,7 @@ export default function App() {
                 }
               } catch {}
 
-              localStorage.setItem('monvian_token', token);
-              localStorage.setItem('monvian_user', JSON.stringify(normalizedUser));
+              savePersistentSession(token, normalizedUser).catch(() => {});
               if (normalizedUser?.location_permission_granted === 1) {
                 localStorage.setItem('monvian_location_permission_granted', 'true');
                 document.cookie = 'monvian_location_granted=true; max-age=315360000; path=/; SameSite=Lax';
@@ -1740,6 +1858,7 @@ export default function App() {
                 const rootEl = document.getElementById('root');
                 if (rootEl) rootEl.scrollTop = 0;
               } catch {}
+              setIsAuthChecking(false);
               setIsAuthenticated(true);
             }}
           />
@@ -1860,7 +1979,8 @@ export default function App() {
             )}
           </AnimatePresence>
 
-          {/* Interactive Map Canvas Column */}
+          {/* Interactive Map Canvas Column (Mounted ONLY when Explorar tab is active) */}
+          {activeTab === 'explorar' && (
           <div id="app-map-layer" className="flex-1 h-full relative overflow-hidden">
             {/* 1. Interactive Map Engine */}
             <MapComponent
@@ -1878,6 +1998,8 @@ export default function App() {
               onInteractionChange={setIsMapInteracting}
               zoomToUserTrigger={zoomToUserTrigger}
               revertSpotZoomTrigger={revertSpotZoomTrigger}
+              mapMode={mapStyle === 'satelite' ? 'satelite' : 'explorar'}
+              onMapModeChange={setMapStyle}
               onStyleChange={setMapStyle}
               is3DMode={is3DMode}
               onOrbitChange={setIsMapOrbiting}
@@ -1915,10 +2037,11 @@ export default function App() {
               />
             )}
           </div>
+          )}
         </div>
 
-      {/* 3. Top Floating Header Bar (MOBILE ONLY: md:hidden, hidden during spotlight presentation) */}
-      {!isMapOrbiting && !isUserLocationSpotlightActive && (
+      {/* 3. Top Floating Header Bar (MOBILE ONLY: md:hidden, mounted only on Explorar tab) */}
+      {activeTab === 'explorar' && !isMapOrbiting && !isUserLocationSpotlightActive && (
         <header
           aria-label="Informações de Campos do Jordão"
           className={`md:hidden absolute top-0 left-0 right-0 z-40 flex items-center justify-between pointer-events-none px-4 sm:px-6 transition-[filter,opacity,transform] duration-200 ease-out ${
@@ -2038,7 +2161,7 @@ export default function App() {
 
       {/* 5. Mini Banner Preview (occupies the space freed by the retracted search bar when a spot is opened) */}
       <AnimatePresence>
-        {isSpotCardOpen && selectedSpot && (
+        {activeTab === 'explorar' && isSpotCardOpen && selectedSpot && (
           <SpotPreviewBanner
             key={`preview-${selectedSpot.id}`}
             spot={selectedSpot}
@@ -2080,127 +2203,128 @@ export default function App() {
         )}
       </AnimatePresence>
 
-      {/* 7. Search & Discovery Drawer (Tab: 'buscar') */}
-      <SearchFilterDrawer
-        isOpen={activeTab === 'buscar'}
-        onClose={() => setActiveTab('explorar')}
-        spots={spots}
-        theme={theme}
-        onSelectSpot={(spot) => {
-          handleSelectSpot(spot);
-          setActiveTab('explorar');
-        }}
-      />
+      {/* 7. Search & Discovery Drawer (Mounted ONLY when Tab === 'buscar') */}
+      {activeTab === 'buscar' && (
+        <SearchFilterDrawer
+          isOpen={true}
+          onClose={() => setActiveTab('explorar')}
+          spots={spots}
+          theme={theme}
+          onSelectSpot={(spot) => {
+            handleSelectSpot(spot);
+            setActiveTab('explorar');
+          }}
+        />
+      )}
 
-      {/* 8.5. Itineraries & Route Planning (Tab: 'roteiros') */}
-      <AnimatePresence>
-        {activeTab === 'roteiros' && (
-          <motion.div
-            key="itineraries-view-reveal-wrapper"
-            initial={false}
-            animate={{ opacity: 1 }}
-            transition={{ duration: 0.5, ease: [0.22, 1, 0.36, 1] }}
-            className="fixed inset-0 w-full z-40"
-            style={{
-              top: 0,
-              bottom: 0,
-              left: 0,
-              right: 0,
-              width: '100%',
-              height: 'var(--app-height, 100dvh)',
-              minHeight: 'var(--app-height, 100dvh)',
+      {/* 8.5. Itineraries & Route Planning (Mounted ONLY when Tab === 'roteiros') */}
+      {activeTab === 'roteiros' && (
+        <motion.div
+          key="itineraries-view-reveal-wrapper"
+          initial={false}
+          animate={{ opacity: 1 }}
+          transition={{ duration: 0.5, ease: [0.22, 1, 0.36, 1] }}
+          className="fixed inset-0 w-full z-40"
+          style={{
+            top: 0,
+            bottom: 0,
+            left: 0,
+            right: 0,
+            width: '100%',
+            height: 'var(--app-height, 100dvh)',
+            minHeight: 'var(--app-height, 100dvh)',
+          }}
+        >
+          <ItinerariesView
+            key="itineraries-view"
+            isOpen={true}
+            onClose={() => setActiveTab('explorar')}
+            theme={theme}
+            spots={spots}
+            isOnboardingSelection={isOnboardingItinerarySelection}
+            isOnboardingRevealReady={isOnboardingRevealReady}
+            onCompleteOnboardingSelection={(selectedItins, chosenInvestment) => {
+              setIsOnboardingItinerarySelection(false);
+              try {
+                localStorage.setItem(
+                  'monvian_selected_onboarding_itineraries',
+                  JSON.stringify(selectedItins.map((i) => i.id))
+                );
+                localStorage.setItem('monvian_trip_budget', chosenInvestment);
+                if (selectedItins.length > 0) {
+                  localStorage.setItem('monvian_active_itinerary', JSON.stringify(selectedItins[0]));
+                  localStorage.setItem('monvian_itinerary_view_mode', 'map');
+                  window.dispatchEvent(new CustomEvent('monvian:itinerary_applied', { detail: selectedItins[0] }));
+                }
+              } catch {}
+              setActiveTab('roteiros');
+              setIsUserLocationSpotlightActive(false);
             }}
-          >
-            <ItinerariesView
-              key="itineraries-view"
-              isOpen={true}
-              onClose={() => setActiveTab('explorar')}
-              theme={theme}
-              spots={spots}
-              isOnboardingSelection={isOnboardingItinerarySelection}
-              isOnboardingRevealReady={isOnboardingRevealReady}
-              onCompleteOnboardingSelection={(selectedItins, chosenInvestment) => {
-                setIsOnboardingItinerarySelection(false);
-                try {
-                  localStorage.setItem(
-                    'monvian_selected_onboarding_itineraries',
-                    JSON.stringify(selectedItins.map((i) => i.id))
-                  );
-                  localStorage.setItem('monvian_trip_budget', chosenInvestment);
-                  if (selectedItins.length > 0) {
-                    localStorage.setItem('monvian_active_itinerary', JSON.stringify(selectedItins[0]));
-                    localStorage.setItem('monvian_itinerary_view_mode', 'map');
-                    window.dispatchEvent(new CustomEvent('monvian:itinerary_applied', { detail: selectedItins[0] }));
-                  }
-                } catch {}
-                setActiveTab('roteiros');
-                setIsUserLocationSpotlightActive(false);
-              }}
-            />
-          </motion.div>
-        )}
-      </AnimatePresence>
+          />
+        </motion.div>
+      )}
 
-      {/* 9. Saved / Favorites Wishlists (Tab: 'salvos', Airbnb-inspired) */}
-      <SavedView
-        isOpen={activeTab === 'salvos' || activeTab === ('chat' as any)}
-        theme={theme}
-        spots={spots}
-        onOpenSpot={(spot) => {
-          setSelectedSpot(spot);
-          setIsDetailOpen(true);
-        }}
-        onOpenItinerary={(itinerary) => {
-          try {
-            localStorage.setItem('monvian_active_itinerary', JSON.stringify(itinerary));
-            localStorage.setItem('monvian_itinerary_view_mode', 'map');
-            localStorage.setItem('monvian_itinerary_expanded', 'true');
-            window.dispatchEvent(new CustomEvent('monvian:itinerary_applied', { detail: itinerary }));
-          } catch {}
-          setSelectedItinerary(null);
-          setActiveTab('roteiros');
-        }}
-        onNavigateTab={(targetTab) => {
-          setActiveTab(targetTab);
-        }}
-      />
+      {/* 9. Saved / Favorites Wishlists (Mounted ONLY when Tab === 'salvos') */}
+      {(activeTab === 'salvos' || activeTab === ('chat' as any)) && (
+        <SavedView
+          isOpen={true}
+          theme={theme}
+          spots={spots}
+          onOpenSpot={(spot) => {
+            setSelectedSpot(spot);
+            setIsDetailOpen(true);
+          }}
+          onOpenItinerary={(itinerary) => {
+            try {
+              localStorage.setItem('monvian_active_itinerary', JSON.stringify(itinerary));
+              localStorage.setItem('monvian_itinerary_view_mode', 'map');
+              localStorage.setItem('monvian_itinerary_expanded', 'true');
+              window.dispatchEvent(new CustomEvent('monvian:itinerary_applied', { detail: itinerary }));
+            } catch {}
+            setSelectedItinerary(null);
+            setActiveTab('roteiros');
+          }}
+          onNavigateTab={(targetTab) => {
+            setActiveTab(targetTab);
+          }}
+        />
+      )}
 
-
-
-      {/* 10. Profile & Favorites (Tab: 'perfil') */}
-      <ProfileModal
-        isOpen={activeTab === 'perfil'}
-        onClose={() => setActiveTab('explorar')}
-        favorites={favorites}
-        spots={spots}
-        onSelectSpot={(spot) => {
-          handleSelectSpot(spot);
-          setActiveTab('explorar');
-        }}
-        rainEnabled={rainEnabled}
-        onToggleRain={() => setRainEnabled(!rainEnabled)}
-        snowEnabled={snowEnabled}
-        onToggleSnow={() => setSnowEnabled(!snowEnabled)}
-        theme={theme}
-        onToggleTheme={() => {}}
-        highContrast={highContrast}
-        onToggleHighContrast={() => setHighContrast((prev) => !prev)}
-        user={user}
-        onUpdateUser={(updatedUser) => {
-          setUser(updatedUser);
-        }}
-        onOpenAdmin={() => {
-          setActiveTab('explorar');
-          setIsAdminOpen(true);
-        }}
-        onSubViewChange={() => {}}
-        communityUrl={systemSettings.community_url}
-        instagramUrl={systemSettings.instagram_url}
-        onLogout={() => {
-          performFullLogout();
-        }}
-      />
-
+      {/* 10. Profile & Favorites (Mounted ONLY when Tab === 'perfil') */}
+      {activeTab === 'perfil' && (
+        <ProfileModal
+          isOpen={true}
+          onClose={() => setActiveTab('explorar')}
+          favorites={favorites}
+          spots={spots}
+          onSelectSpot={(spot) => {
+            handleSelectSpot(spot);
+            setActiveTab('explorar');
+          }}
+          rainEnabled={rainEnabled}
+          onToggleRain={() => setRainEnabled(!rainEnabled)}
+          snowEnabled={snowEnabled}
+          onToggleSnow={() => setSnowEnabled(!snowEnabled)}
+          theme={theme}
+          onToggleTheme={() => {}}
+          highContrast={highContrast}
+          onToggleHighContrast={() => setHighContrast((prev) => !prev)}
+          user={user}
+          onUpdateUser={(updatedUser) => {
+            setUser(updatedUser);
+          }}
+          onOpenAdmin={() => {
+            setActiveTab('explorar');
+            setIsAdminOpen(true);
+          }}
+          onSubViewChange={() => {}}
+          communityUrl={systemSettings.community_url}
+          instagramUrl={systemSettings.instagram_url}
+          onLogout={() => {
+            performFullLogout();
+          }}
+        />
+      )}
 
       {/* 10.6 Gold Success Celebration Modal */}
       <GoldSuccessModal
@@ -2224,28 +2348,26 @@ export default function App() {
       theme={theme}
     />
 
-    {/* Monvian iOS Minimalist Floating Event Card (Synced to BottomNavigation exact width) */}
-    <FloatingEventCard
-      visible={
-        activeTab === 'explorar' &&
-        !isSpotCardOpen &&
-        !isDetailOpen &&
-        !isMapOrbiting &&
-        !isOnboardingItinerarySelection &&
-        !isSearchOpen &&
-        !isCategoryCardOpen
-      }
-      onActiveChange={setHasActiveMapEvents}
-    />
+    {/* Monvian iOS Minimalist Floating Event Card (Mounted ONLY while Explorar map is active) */}
+    {activeTab === 'explorar' &&
+      !isSpotCardOpen &&
+      !isDetailOpen &&
+      !isMapOrbiting &&
+      !isOnboardingItinerarySelection &&
+      !isSearchOpen &&
+      !isCategoryCardOpen && (
+        <FloatingEventCard
+          visible={true}
+          onActiveChange={setHasActiveMapEvents}
+        />
+      )}
 
-    {/* Monvian iOS Expansion & Coins Burst Reward Overlay */}
-    <XpRewardNotificationOverlay
-      visible={
-        activeTab === 'explorar' &&
-        !isMapOrbiting &&
-        !isOnboardingItinerarySelection
-      }
-    />
+    {/* Monvian iOS Expansion & Coins Burst Reward Overlay (Mounted ONLY while Explorar map is active) */}
+    {activeTab === 'explorar' &&
+      !isMapOrbiting &&
+      !isOnboardingItinerarySelection && (
+        <XpRewardNotificationOverlay visible={true} />
+      )}
 
     {/* 4. Bottom Navigation Pill rendered at root level (Visible ONLY on mobile, hidden during detail sheet, exclusive post-signup itinerary selection & spotlight presentation) */}
     {!isMapOrbiting && !isOnboardingItinerarySelection && !isDetailOpen && (
@@ -2279,7 +2401,7 @@ export default function App() {
 
     {/* 4.5. Root-Level Fullscreen Blur Backdrop for Filters & Search (Covers map, header icons, and BottomNavigation) */}
     <AnimatePresence>
-      {isBlurActive && (
+      {activeTab === 'explorar' && isBlurActive && (
         <motion.div
           id="global-blur-backdrop"
           initial={{ opacity: 0 }}
@@ -2298,7 +2420,7 @@ export default function App() {
 
     {/* 4.6. Small Category Card / Dropdown (Floats crisply above global blur backdrop) */}
     <AnimatePresence>
-      {isCategoryCardOpen && !isMapOrbiting && (
+      {activeTab === 'explorar' && isCategoryCardOpen && !isMapOrbiting && (
         <motion.div
           initial={{ opacity: 0, scale: 0.94, y: -6 }}
           animate={{ opacity: 1, scale: 1, y: 0 }}
@@ -2389,7 +2511,7 @@ export default function App() {
 
     {/* 4.7. Floating Search Bar and Results (Floats prominently above blur) */}
     <AnimatePresence>
-      {isSearchOpen && (
+      {activeTab === 'explorar' && isSearchOpen && (
         <motion.div
           initial={{ opacity: 0, y: -10, scale: 0.98 }}
           animate={{ opacity: 1, y: 0, scale: 1 }}

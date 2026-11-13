@@ -822,11 +822,13 @@ export function matchesItineraryFilter(
   const normDesc = normalizeToken(itin.description || '');
   const cat = normalizeToken(category || 'all');
 
-  // Regra estrita: O roteiro "Romântico" (itin-093850-ialh) não deve aparecer na área "todos",
+  // Regra estrita: O roteiro "Romântico" (itin-093850-ialh / roteiro-romantico-montanhas) não deve aparecer na área "todos",
   // aparecendo APENAS na área "destaques" (com estrela)
   const isExclusiveDestaqueItinerary =
     itin.id === 'itin-093850-ialh' ||
-    (normTitle === 'romantico' && normDesc.includes('desfrute de um fim de semana'));
+    itin.id === 'roteiro-romantico-montanhas' ||
+    normTitle === 'romantico' ||
+    (normTitle.includes('romantico') && (normDesc.includes('desfrute') || itin.isFeatured));
 
   if (isExclusiveDestaqueItinerary) {
     if (cat !== 'destaque' && cat !== 'destaques') {
@@ -838,7 +840,7 @@ export function matchesItineraryFilter(
   if (category && category !== 'all') {
     const cat = normalizeToken(category);
     if (cat === 'destaque' || cat === 'destaques' || cat === 'popular') {
-      if (!itin.isFeatured && !itin.isRecommended) return false;
+      if (!itin.isFeatured && !itin.isRecommended && !isExclusiveDestaqueItinerary) return false;
     } else {
       const itinCats = (itin.categories || []).map(normalizeToken);
       const normTitle = normalizeToken(itin.title || '');

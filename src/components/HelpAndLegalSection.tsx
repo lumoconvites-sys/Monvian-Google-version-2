@@ -1,7 +1,19 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { ChevronLeft, ChevronRight, ChevronDown } from 'lucide-react';
+import {
+  ChevronLeft,
+  ChevronRight,
+  ChevronDown,
+  HelpCircle,
+  ShieldCheck,
+  FileText,
+  Lock,
+  Trash2,
+  Headphones,
+  Info,
+} from 'lucide-react';
 import { getAuthHeaders } from '../hooks/usePlatanos';
+import { clearPersistentSession } from '../utils/persistentAuthStorage';
 
 export type HelpLegalPageId =
   | 'hub'
@@ -24,40 +36,61 @@ export const HELP_LEGAL_ITEMS: HelpLegalMenuItem[] = [
   {
     id: 'central-de-ajuda',
     title: 'Central de ajuda',
-    subtitle: 'Perguntas frequentes organizadas por categorias',
+    subtitle: 'Perguntas frequentes organizadas por categorias.',
   },
   {
     id: 'politica-de-privacidade',
     title: 'Política de privacidade',
-    subtitle: 'Como coletamos, utilizamos e protegemos seus dados',
+    subtitle: 'Como coletamos, utilizamos e protegemos seus dados.',
   },
   {
     id: 'termos-de-uso',
     title: 'Termos de uso',
-    subtitle: 'Regras e condições de utilização da plataforma',
+    subtitle: 'Regras e condições de utilização da plataforma.',
   },
   {
     id: 'gerenciar-privacidade',
     title: 'Gerenciar privacidade e dados pessoais',
-    subtitle: 'Acesso, correção e exclusão de dados pessoais',
+    subtitle: 'Acesso, correção e exclusão de dados pessoais.',
   },
   {
     id: 'excluir-minha-conta',
     title: 'Excluir minha conta',
-    subtitle: 'Encerramento permanente da conta e dados associados',
+    subtitle: 'Encerramento permanente da conta e dos dados associados.',
     destructive: true,
   },
   {
     id: 'fale-conosco',
     title: 'Fale conosco',
-    subtitle: 'Canal oficial de suporte e atendimento ao usuário',
+    subtitle: 'Canal oficial de suporte e atendimento ao usuário.',
   },
   {
     id: 'sobre-o-monvian',
     title: 'Sobre o Monvian',
-    subtitle: 'Informações institucionais, versão e conformidade legal',
+    subtitle: 'Informações institucionais, versão e conformidade.',
   },
 ];
+
+export const getIconForItem = (id: Exclude<HelpLegalPageId, 'hub'>) => {
+  switch (id) {
+    case 'central-de-ajuda':
+      return <HelpCircle className="w-5 h-5 stroke-[1.9]" />;
+    case 'politica-de-privacidade':
+      return <ShieldCheck className="w-5 h-5 stroke-[1.9]" />;
+    case 'termos-de-uso':
+      return <FileText className="w-5 h-5 stroke-[1.9]" />;
+    case 'gerenciar-privacidade':
+      return <Lock className="w-5 h-5 stroke-[1.9]" />;
+    case 'excluir-minha-conta':
+      return <Trash2 className="w-5 h-5 stroke-[1.9]" />;
+    case 'fale-conosco':
+      return <Headphones className="w-5 h-5 stroke-[1.9]" />;
+    case 'sobre-o-monvian':
+      return <Info className="w-5 h-5 stroke-[1.9]" />;
+    default:
+      return <Info className="w-5 h-5 stroke-[1.9]" />;
+  }
+};
 
 interface FAQItem {
   id: string;
@@ -682,7 +715,7 @@ export const HelpAndLegalView: React.FC<HelpAndLegalViewProps> = ({
         throw new Error(data.error || 'Não foi possível excluir a conta neste momento.');
       }
 
-      // Clear all local session & user data
+      // Clear all local & IndexedDB session & user data
       const keysToClear = [
         'monvian_token',
         'monvian_user',
@@ -696,6 +729,7 @@ export const HelpAndLegalView: React.FC<HelpAndLegalViewProps> = ({
         'monvian_last_coords',
       ];
       keysToClear.forEach((k) => localStorage.removeItem(k));
+      await clearPersistentSession();
 
       onAccountDeleted();
     } catch (err: any) {
@@ -761,46 +795,40 @@ export const HelpAndLegalView: React.FC<HelpAndLegalViewProps> = ({
 
   return (
     <div
-      className={`w-full min-h-full flex flex-col overflow-hidden transition-colors ${
-        isDark ? 'bg-[#000000] text-white' : 'bg-white text-zinc-950'
-      }`}
+      className="w-full min-h-full flex flex-col overflow-hidden bg-[#FFFFFF] text-[#000000]"
       style={{
-        fontFamily: '-apple-system, BlinkMacSystemFont, "SF Pro Text", "SF Pro Display", "Inter", sans-serif',
+        fontFamily:
+          '-apple-system, BlinkMacSystemFont, "SF Pro Text", "SF Pro Display", "Inter", sans-serif',
       }}
     >
-      {/* Top Navigation Bar (iOS Minimalist Header) */}
+      {/* 1. Cabeçalho de navegação (Padrão nativo iOS: Seta + Perfil, Título centralizado, Linha divisória fina) */}
       <div
-        className={`sticky top-0 z-20 px-1 py-3 flex items-center justify-between transition-colors ${
-          isDark
-            ? 'bg-[#000000]/90 backdrop-blur-xl border-b border-white/10 text-white'
-            : 'bg-white/95 backdrop-blur-xl border-b border-black/5 text-zinc-950'
-        }`}
+        className="sticky top-0 z-30 w-full px-4 sm:px-6 py-3.5 flex items-center justify-between border-b border-[#E5E7EB] bg-[#FFFFFF]/95 backdrop-blur-xl text-[#000000]"
         style={{
-          paddingTop: 'max(calc(env(safe-area-inset-top, 0px) + 6px), 12px)',
+          paddingTop: 'max(calc(env(safe-area-inset-top, 0px) + 8px), 14px)',
         }}
       >
         <button
           type="button"
           onClick={handleBack}
-          className={`inline-flex items-center gap-1.5 text-[15px] font-medium active:opacity-70 transition-all cursor-pointer py-1 pr-2 ${
-            isDark ? 'text-white hover:text-zinc-300' : 'text-zinc-950 hover:text-zinc-600'
-          }`}
+          className="inline-flex items-center gap-0.5 text-[16px] font-normal text-[#000000] hover:opacity-75 active:opacity-50 transition-opacity cursor-pointer py-1 pr-2 z-10 -ml-1 select-none"
+          aria-label={activePage === 'hub' ? 'Voltar para Perfil' : 'Voltar'}
         >
-          <ChevronLeft className="w-5 h-5 stroke-[2.2]" />
-          <span>{activePage === 'hub' ? 'Perfil' : 'Voltar'}</span>
+          <ChevronLeft className="w-5 h-5 stroke-[2.4] text-[#000000]" />
+          <span className="text-[16px] text-[#000000] font-normal tracking-tight">
+            {activePage === 'hub' ? 'Perfil' : 'Voltar'}
+          </span>
         </button>
 
-        <h2 className={`text-[15px] font-semibold tracking-tight truncate max-w-[60%] text-center ${
-          isDark ? 'text-white' : 'text-zinc-950'
-        }`}>
+        <h2 className="text-[16px] font-semibold text-[#000000] tracking-tight truncate max-w-[55%] text-center absolute left-1/2 -translate-x-1/2 pointer-events-none">
           {pageHeaderTitle[activePage]}
         </h2>
 
-        <div className="w-16" />
+        <div className="w-16" aria-hidden="true" />
       </div>
 
       {/* Animated Page Body with safe bottom padding for floating navigation */}
-      <div className="flex-1 pt-3 pb-32 max-w-2xl w-full mx-auto">
+      <div className="flex-1 w-full max-w-2xl mx-auto px-4 sm:px-6 pt-2 pb-32">
         <AnimatePresence mode="wait">
           <motion.div
             key={activePage}
@@ -808,62 +836,71 @@ export const HelpAndLegalView: React.FC<HelpAndLegalViewProps> = ({
             animate={{ opacity: 1, x: 0 }}
             exit={{ opacity: 0, x: activePage === 'hub' ? 8 : -10 }}
             transition={{ duration: 0.18, ease: [0.22, 1, 0.36, 1] }}
-            className="space-y-4"
+            className="w-full space-y-4"
           >
             {/* ============================================================ */}
             {/* HUB: AJUDA E INFORMAÇÕES                                     */}
             {/* ============================================================ */}
             {activePage === 'hub' && (
-              <div className="space-y-4">
-                <div className="px-1">
-                  <h1 className={`text-[22px] font-bold tracking-tight ${isDark ? 'text-white' : 'text-zinc-950'}`}>
-                    Ajuda e informações
-                  </h1>
-                  <p className={`text-[13px] mt-0.5 leading-relaxed ${isDark ? 'text-zinc-400' : 'text-[#686B73]'}`}>
+              <div className="space-y-6 pt-1">
+                {/* 2. Apresentação da página (apenas descrição, sem título repetido) */}
+                <div className="pt-2 pb-1">
+                  <p className="text-[14.5px] sm:text-[15px] text-[#8A8D95] mt-0.5 leading-relaxed">
                     Suporte ao visitante, diretrizes de uso, controle de dados pessoais e informações institucionais do Monvian.
                   </p>
                 </div>
 
-                <div className={`rounded-[22px] border overflow-hidden ${
-                  isDark
-                    ? 'border-white/10 bg-[#1C1C1E] divide-y divide-white/8'
-                    : 'border-black/5 bg-[#fefefe] divide-y divide-black/5'
-                }`}>
-                  {HELP_LEGAL_ITEMS.map((item) => (
-                    <button
-                      key={item.id}
-                      type="button"
-                      onClick={() => onNavigate(item.id)}
-                      className={`w-full px-4 py-3.5 flex items-center justify-between gap-3 text-left transition-colors cursor-pointer ${
-                        isDark
-                          ? 'bg-[#1C1C1E] hover:bg-[#252528] active:bg-[#2C2C2E]'
-                          : 'bg-[#fefefe] hover:bg-[#E5E5EA] active:bg-[#DCDCE2]'
-                      }`}
-                    >
-                      <div className="min-w-0 flex-1">
-                        <p
-                          className={`text-[15.5px] font-semibold tracking-tight truncate ${
-                            item.destructive
-                              ? 'text-red-500'
-                              : isDark
-                                ? 'text-white'
-                                : 'text-zinc-900'
-                          }`}
-                        >
-                          {item.title}
-                        </p>
-                        <p className={`text-[12.5px] mt-0.5 leading-snug truncate ${isDark ? 'text-zinc-400' : 'text-[#686B73]'}`}>
-                          {item.subtitle}
-                        </p>
-                      </div>
-                      <ChevronRight className={`w-4 h-4 shrink-0 ${isDark ? 'text-zinc-500' : 'text-zinc-400'}`} />
-                    </button>
-                  ))}
+                {/* 3. Organização das opções: lista vertical com cantos arredondados, divisórias sutis e ícones discretos */}
+                <div className="rounded-[26px] border border-[#E5E7EB] bg-[#FFFFFF] divide-y divide-[#F1F3F5] overflow-hidden shadow-xs">
+                  {HELP_LEGAL_ITEMS.map((item) => {
+                    const iconNode = getIconForItem(item.id);
+                    return (
+                      <button
+                        key={item.id}
+                        type="button"
+                        onClick={() => onNavigate(item.id)}
+                        className="w-full px-4 py-4 sm:px-5 sm:py-4 flex items-center justify-between gap-3.5 text-left transition-colors cursor-pointer bg-[#FFFFFF] hover:bg-[#F9FAFB] active:bg-[#F3F4F6]"
+                      >
+                        <div className="flex items-center gap-3.5 min-w-0 flex-1">
+                          {/* Ícone discreto em círculo suave */}
+                          <div
+                            className={`w-10 h-10 rounded-full flex items-center justify-center shrink-0 ${
+                              item.destructive
+                                ? 'bg-red-50 text-red-600'
+                                : 'bg-[#F3F4F6] text-[#000000]'
+                            }`}
+                          >
+                            {iconNode}
+                          </div>
+
+                          <div className="min-w-0 flex-1">
+                            <p
+                              className={`text-[15.5px] font-semibold tracking-tight truncate ${
+                                item.destructive ? 'text-red-600' : 'text-[#000000]'
+                              }`}
+                            >
+                              {item.title}
+                            </p>
+                            <p className="text-[13px] text-[#8A8D95] font-normal leading-snug truncate mt-0.5">
+                              {item.subtitle}
+                            </p>
+                          </div>
+                        </div>
+
+                        <ChevronRight className="w-4 h-4 text-[#C7C7CC] shrink-0" />
+                      </button>
+                    );
+                  })}
                 </div>
 
-                <div className={`pt-1 px-1 flex items-center justify-between text-[11.5px] ${isDark ? 'text-zinc-500' : 'text-zinc-400'}`}>
-                  <span>Monvian Campos do Jordão</span>
-                  <span>Conformidade LGPD • Lei nº 13.709/2018</span>
+                {/* 4. Rodapé institucional */}
+                <div className="pt-4 pb-12 text-center space-y-1 select-none">
+                  <p className="text-[13px] font-medium text-[#8A8D95]">
+                    Monvian Campos do Jordão
+                  </p>
+                  <p className="text-[11.5px] text-[#A0A3AB]">
+                    Conformidade LGPD • Lei nº 13.709/2018
+                  </p>
                 </div>
               </div>
             )}

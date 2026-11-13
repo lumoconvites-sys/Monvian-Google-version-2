@@ -101,7 +101,8 @@ class IOSNavigationManager {
       } else {
         // Prevent browser from accidentally leaving the authenticated app onto an external or login page
         const isAuthenticated = Boolean(
-          localStorage.getItem('monvian_token') && localStorage.getItem('monvian_user')
+          (localStorage.getItem('monvian_token') && localStorage.getItem('monvian_user')) ||
+            document.cookie.includes('monvian_token=')
         );
         if (isAuthenticated && (!e.state || !e.state.monvianNavRoot)) {
           try {

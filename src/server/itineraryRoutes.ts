@@ -886,11 +886,13 @@ export function registerItineraryRoutes(
     const daysCount = Number(row.days_count || 1);
     const isPrem = row.is_premium !== undefined && row.is_premium !== null ? Number(row.is_premium) === 1 : true;
 
-    // Regra estrita: O roteiro "Romântico" (itin-093850-ialh) não deve aparecer na área "todos",
+    // Regra estrita: O roteiro "Romântico" (itin-093850-ialh / roteiro-romantico-montanhas) não deve aparecer na área "todos",
     // aparecendo APENAS na área "destaques" (com estrela)
     const isExclusivelyDestaqueItinerary =
       String(row.id) === 'itin-093850-ialh' ||
-      (normTitle === 'romantico' && normDesc.includes('desfrute de um fim de semana'));
+      String(row.id) === 'roteiro-romantico-montanhas' ||
+      normTitle === 'romantico' ||
+      (normTitle.includes('romantico') && (normDesc.includes('desfrute') || isFeat));
 
     const effectiveCat = categoryFilter ? normalizeFilterToken(categoryFilter) : 'all';
 
@@ -903,8 +905,8 @@ export function registerItineraryRoutes(
     // 1. Category Filter
     if (categoryFilter && categoryFilter !== 'all' && categoryFilter !== 'todos') {
       const cat = normalizeFilterToken(categoryFilter);
-      if (cat === 'destaque' || cat === 'popular' || cat === 'mais-procurados') {
-        if (!isFeat) return false;
+      if (cat === 'destaque' || cat === 'destaques' || cat === 'popular' || cat === 'mais-procurados') {
+        if (!isFeat && !isExclusivelyDestaqueItinerary) return false;
       } else if (cat === '1day' || cat === '1-dia' || cat === '1dia') {
         if (daysCount !== 1) return false;
       } else if (cat === '2days' || cat === '2-dias' || cat === '2dias') {

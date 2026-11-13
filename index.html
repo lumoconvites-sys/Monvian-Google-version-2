@@ -137,7 +137,8 @@
           try {
             var token = localStorage.getItem('monvian_token');
             var user = localStorage.getItem('monvian_user');
-            return Boolean(token && user);
+            if (token && user) return true;
+            return document.cookie.indexOf('monvian_token=') !== -1;
           } catch (e) {
             return false;
           }

@@ -1,6 +1,14 @@
-import { initializeApp, getApps, getApp } from 'firebase/app';
+import { initializeApp, getApps, getApp, type FirebaseApp } from 'firebase/app';
+import 'firebase/auth';
 import {
   getAuth,
+  initializeAuth,
+  setPersistence,
+  indexedDBLocalPersistence,
+  browserLocalPersistence,
+  browserSessionPersistence,
+  browserPopupRedirectResolver,
+  onAuthStateChanged,
   GoogleAuthProvider,
   signInWithPopup,
   signInWithRedirect,
@@ -9,6 +17,8 @@ import {
   signInWithEmailAndPassword,
   sendPasswordResetEmail,
   signOut,
+  type Auth,
+  type User,
 } from 'firebase/auth';
 import firebaseAppletConfig from '../../firebase-applet-config.json';
 
@@ -38,8 +48,35 @@ const firebaseConfig = {
   appId: sanitizeFirebaseValue(import.meta.env.VITE_FIREBASE_APP_ID, firebaseAppletConfig.appId),
 };
 
-const app = getApps().length > 0 ? getApp() : initializeApp(firebaseConfig);
-export const auth = getAuth(app);
+const app: FirebaseApp = getApps().length > 0 ? getApp() : initializeApp(firebaseConfig);
+
+function initAuthInstance(primaryApp: FirebaseApp): Auth {
+  let instance: Auth;
+  try {
+    instance = initializeAuth(primaryApp, {
+      popupRedirectResolver: browserPopupRedirectResolver,
+      persistence: [
+        indexedDBLocalPersistence,
+        browserLocalPersistence,
+        browserSessionPersistence,
+      ],
+    });
+  } catch {
+    try {
+      instance = getAuth(primaryApp);
+      setPersistence(instance, indexedDBLocalPersistence).catch(() => {
+        setPersistence(instance, browserLocalPersistence).catch(() => {});
+      });
+    } catch {
+      const existingFallback = getApps().find((a) => a.name === 'monvian-auth');
+      const authApp = existingFallback || initializeApp(firebaseConfig, 'monvian-auth');
+      instance = getAuth(authApp);
+    }
+  }
+  return instance;
+}
+
+export const auth: Auth = initAuthInstance(app);
 export const googleProvider = new GoogleAuthProvider();
 googleProvider.addScope('email');
 googleProvider.addScope('profile');
@@ -55,11 +92,104 @@ export const setCachedAccessToken = (token: string | null | undefined) => {
 
 export const getCachedAccessToken = (): string | null => cachedAccessToken;
 
+/**
+ * Waits cleanly for Firebase Auth IndexedDB persistence to hydrate on cold start.
+ * Prevents interpreting an unhydrated session as logged-out.
+ */
+export async function waitForFirebaseAuthUser(timeoutMs = 2500): Promise<User | null> {
+  if (typeof window === 'undefined') return null;
+
+  try {
+    if (typeof (auth as any).authStateReady === 'function') {
+      await Promise.race([
+        (auth as any).authStateReady(),
+        new Promise<void>((resolve) => setTimeout(resolve, timeoutMs)),
+      ]);
+      if (auth.currentUser) return auth.currentUser;
+    }
+  } catch {}
+
+  if (auth.currentUser) return auth.currentUser;
+
+  return new Promise<User | null>((resolve) => {
+    let settled = false;
+    let unsubscribe = () => {};
+    const timer = window.setTimeout(() => {
+      if (!settled) {
+        settled = true;
+        try {
+          unsubscribe();
+        } catch {}
+        resolve(auth.currentUser || null);
+      }
+    }, timeoutMs);
+
+    try {
+      unsubscribe = onAuthStateChanged(auth, (fbUser) => {
+        if (!settled) {
+          settled = true;
+          window.clearTimeout(timer);
+          try {
+            unsubscribe();
+          } catch {}
+          resolve(fbUser || null);
+        }
+      });
+    } catch {
+      if (!settled) {
+        settled = true;
+        window.clearTimeout(timer);
+        resolve(null);
+      }
+    }
+  });
+}
+
+export async function getFreshFirebaseIdToken(forceRefresh = false): Promise<string | null> {
+  try {
+    const fbUser = auth.currentUser || (await waitForFirebaseAuthUser(1500));
+    if (!fbUser) return null;
+    return await fbUser.getIdToken(forceRefresh);
+  } catch {
+    return null;
+  }
+}
+
+export async function ensureFirebaseEmailSession(email: string, password: string): Promise<string | null> {
+  if (!email || !password) return null;
+  const cleanEmail = email.trim().toLowerCase();
+  try {
+    await setPersistence(auth, indexedDBLocalPersistence).catch(() => {});
+    const cred = await Promise.race([
+      signInWithEmailAndPassword(auth, cleanEmail, password),
+      new Promise<null>((resolve) => setTimeout(() => resolve(null), 1800)),
+    ]);
+    if (cred && 'user' in cred && cred.user?.uid) {
+      return cred.user.uid;
+    }
+  } catch (err: any) {
+    const code = String(err?.code || '');
+    if (code === 'auth/user-not-found') {
+      try {
+        const created = await Promise.race([
+          createUserWithEmailAndPassword(auth, cleanEmail, password),
+          new Promise<null>((resolve) => setTimeout(() => resolve(null), 1800)),
+        ]);
+        if (created && 'user' in created && created.user?.uid) {
+          return created.user.uid;
+        }
+      } catch {}
+    }
+  }
+  return null;
+}
+
 export {
   createUserWithEmailAndPassword,
   signInWithEmailAndPassword,
   sendPasswordResetEmail,
   signOut,
+  onAuthStateChanged,
 };
 
 export const checkGoogleRedirectResult = async (): Promise<{

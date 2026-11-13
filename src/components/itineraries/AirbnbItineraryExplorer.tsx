@@ -401,6 +401,24 @@ const FeaturedItineraryBanner: React.FC<FeaturedItineraryBannerProps> = ({
   );
 };
 
+let cachedExplorerFilters = {
+  searchQuery: '',
+  selectedCategory: 'all',
+  durationFilter: 'all' as 'all' | '1day' | 'multiday' | 'free',
+  showAllItineraries: false,
+};
+
+if (typeof window !== 'undefined') {
+  window.addEventListener('monvian:user_logged_out', () => {
+    cachedExplorerFilters = {
+      searchQuery: '',
+      selectedCategory: 'all',
+      durationFilter: 'all',
+      showAllItineraries: false,
+    };
+  });
+}
+
 export const AirbnbItineraryExplorer: React.FC<AirbnbItineraryExplorerProps> = ({
   onSelectItinerary,
   onOpenMap,
@@ -409,7 +427,15 @@ export const AirbnbItineraryExplorer: React.FC<AirbnbItineraryExplorerProps> = (
   isOnboardingSelection = false,
   isOnboardingRevealReady = true,
 }) => {
-  const initialItinerariesData = useMemo(() => getItinerariesForCategory('all', 'all', ''), []);
+  const initialItinerariesData = useMemo(
+    () =>
+      getItinerariesForCategory(
+        cachedExplorerFilters.selectedCategory,
+        cachedExplorerFilters.durationFilter,
+        cachedExplorerFilters.searchQuery.trim()
+      ),
+    []
+  );
   const [itineraries, setItineraries] = useState<Itinerary[]>(initialItinerariesData.list);
   const [featuredBannerItinerary, setFeaturedBannerItinerary] = useState<Itinerary | null>(null);
   const [categories, setCategories] = useState<ItineraryCategory[]>(getInitialCategories);
@@ -448,16 +474,33 @@ export const AirbnbItineraryExplorer: React.FC<AirbnbItineraryExplorerProps> = (
   const [loadMoreError, setLoadMoreError] = useState<string | null>(null);
   const [totalMatching, setTotalMatching] = useState<number | undefined>(undefined);
 
-  const [searchQuery, setSearchQuery] = useState('');
-  const [debouncedSearchQuery, setDebouncedSearchQuery] = useState('');
+  const [searchQuery, setSearchQuery] = useState(() => cachedExplorerFilters.searchQuery);
+  const [debouncedSearchQuery, setDebouncedSearchQuery] = useState(() =>
+    cachedExplorerFilters.searchQuery.trim()
+  );
   const [isSearchFocused, setIsSearchFocused] = useState(false);
-  const [selectedCategory, setSelectedCategory] = useState<string>('all');
-  const [durationFilter, setDurationFilter] = useState<'all' | '1day' | 'multiday' | 'free'>('all');
+  const [selectedCategory, setSelectedCategory] = useState<string>(
+    () => cachedExplorerFilters.selectedCategory
+  );
+  const [durationFilter, setDurationFilter] = useState<'all' | '1day' | 'multiday' | 'free'>(
+    () => cachedExplorerFilters.durationFilter
+  );
   const [isFilterOpen, setIsFilterOpen] = useState(false);
-  const [showAllItineraries, setShowAllItineraries] = useState(false);
+  const [showAllItineraries, setShowAllItineraries] = useState(
+    () => cachedExplorerFilters.showAllItineraries
+  );
   const [selectedItinerary, setSelectedItinerary] = useState<Itinerary | null>(null);
   const [isDetailOpen, setIsDetailOpen] = useState(false);
   const { savedItineraries: favorites, toggleItinerary } = useFavorites();
+
+  useEffect(() => {
+    cachedExplorerFilters = {
+      searchQuery,
+      selectedCategory,
+      durationFilter,
+      showAllItineraries,
+    };
+  }, [searchQuery, selectedCategory, durationFilter, showAllItineraries]);
 
   const [isCategorySwitching, setIsCategorySwitching] = useState(false);
 
@@ -504,6 +547,8 @@ export const AirbnbItineraryExplorer: React.FC<AirbnbItineraryExplorerProps> = (
 
   useEffect(() => {
     return () => {
+      queryGenerationRef.current += 1;
+      isFetchingRef.current = false;
       if (categorySwitchTimerRef.current) {
         clearTimeout(categorySwitchTimerRef.current);
       }

@@ -107,27 +107,66 @@ const SEARCH_CATEGORIES: CategoryConfig[] = [
   },
 ];
 
-export const SearchFilterDrawer: React.FC<SearchFilterDrawerProps> = ({
+let cachedSearchQuery = '';
+let cachedSelectedSearchCategoryId: string | null = null;
+
+if (typeof window !== 'undefined') {
+  window.addEventListener('monvian:user_logged_out', () => {
+    cachedSearchQuery = '';
+    cachedSelectedSearchCategoryId = null;
+  });
+}
+
+export const SearchFilterDrawer: React.FC<SearchFilterDrawerProps> = React.memo(({
   isOpen,
   onClose,
   spots,
   onSelectSpot,
   theme = 'dark',
 }) => {
-  const [searchQuery, setSearchQuery] = useState('');
-  const [selectedCategory, setSelectedCategory] = useState<CategoryConfig | null>(null);
+  const [searchQuery, setSearchQuery] = useState(() => cachedSearchQuery);
+  const [selectedCategory, setSelectedCategory] = useState<CategoryConfig | null>(() =>
+    cachedSelectedSearchCategoryId
+      ? SEARCH_CATEGORIES.find((c) => c.id === cachedSelectedSearchCategoryId) || null
+      : null
+  );
   const [isListening, setIsListening] = useState(false);
+  const recognitionRef = useRef<any>(null);
+
+  useEffect(() => {
+    cachedSearchQuery = searchQuery;
+  }, [searchQuery]);
+
+  useEffect(() => {
+    cachedSelectedSearchCategoryId = selectedCategory?.id || null;
+  }, [selectedCategory]);
+
+  useEffect(() => {
+    return () => {
+      try {
+        recognitionRef.current?.abort?.();
+      } catch {}
+      recognitionRef.current = null;
+    };
+  }, []);
 
   const handleVoiceSearch = () => {
     if (!('webkitSpeechRecognition' in window || 'SpeechRecognition' in window)) {
       return;
     }
     try {
+      try {
+        recognitionRef.current?.abort?.();
+      } catch {}
       const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
       const recognition = new SpeechRecognition();
+      recognitionRef.current = recognition;
       recognition.lang = 'pt-BR';
       recognition.onstart = () => setIsListening(true);
-      recognition.onend = () => setIsListening(false);
+      recognition.onend = () => {
+        setIsListening(false);
+        recognitionRef.current = null;
+      };
       recognition.onresult = (event: any) => {
         const transcript = event.results[0][0].transcript;
         setSearchQuery(transcript);
@@ -135,6 +174,7 @@ export const SearchFilterDrawer: React.FC<SearchFilterDrawerProps> = ({
       recognition.start();
     } catch {
       setIsListening(false);
+      recognitionRef.current = null;
     }
   };
 
@@ -166,9 +206,10 @@ export const SearchFilterDrawer: React.FC<SearchFilterDrawerProps> = ({
   // Focus input when opened on main search view
   useEffect(() => {
     if (isOpen && !selectedCategory) {
-      setTimeout(() => {
+      const timer = window.setTimeout(() => {
         searchInputRef.current?.focus();
       }, 150);
+      return () => window.clearTimeout(timer);
     }
   }, [isOpen, selectedCategory]);
 
@@ -230,7 +271,7 @@ export const SearchFilterDrawer: React.FC<SearchFilterDrawerProps> = ({
             exit={{ opacity: 0, y: 6 }}
             transition={{ duration: 0.18, ease: [0.22, 1, 0.36, 1] }}
             onClick={(e) => e.stopPropagation()}
-            className={`relative w-full h-full md:h-[88vh] md:max-w-2xl rounded-none md:rounded-[30px] overflow-hidden flex flex-col justify-between shadow-2xl transition-colors duration-200 md:border ${
+            className={`relative w-full h-full md:h-[88vh] md:max-w-2xl rounded-none md:rounded-[30px] overflow-hidden flex flex-col justify-between shadow-2xl transition-colors duration-200 md:border ios-pushed-page ${
               isDark
                 ? 'bg-[#000000] text-white md:border-white/10'
                 : 'bg-[#ffffff] text-zinc-950 md:border-black/10'
@@ -542,4 +583,4 @@ export const SearchFilterDrawer: React.FC<SearchFilterDrawerProps> = ({
       )}
     </AnimatePresence>
   );
-};
+});

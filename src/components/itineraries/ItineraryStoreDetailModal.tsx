@@ -208,7 +208,7 @@ export const ItineraryStoreDetailModal: React.FC<ItineraryStoreDetailModalProps>
               damping: 32,
               mass: 0.72,
             }}
-            className={`relative w-full h-full flex flex-col max-w-xl mx-auto overflow-hidden rounded-t-[30px] ios-page-top-rounded backdrop-blur-2xl ${
+            className={`relative w-full h-full flex flex-col max-w-xl mx-auto overflow-hidden backdrop-blur-2xl ios-pushed-page ${
               isLight
                 ? 'bg-white/88 text-zinc-900'
                 : 'bg-[#000000]/82 text-white'

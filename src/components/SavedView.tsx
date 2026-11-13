@@ -204,7 +204,14 @@ const CollectionCoverCard: React.FC<CollectionCoverCardProps> = React.memo(({
   );
 });
 
-export const SavedView: React.FC<SavedViewProps> = ({
+let cachedActiveSavedCollection: SavedCollectionType | null = null;
+if (typeof window !== 'undefined') {
+  window.addEventListener('monvian:user_logged_out', () => {
+    cachedActiveSavedCollection = null;
+  });
+}
+
+export const SavedView: React.FC<SavedViewProps> = React.memo(({
   isOpen,
   theme = 'dark',
   spots,
@@ -222,9 +229,15 @@ export const SavedView: React.FC<SavedViewProps> = ({
     removeBatch,
   } = useFavorites();
 
-  const [activeCollection, setActiveCollection] = useState<SavedCollectionType | null>(null);
+  const [activeCollection, setActiveCollection] = useState<SavedCollectionType | null>(
+    () => cachedActiveSavedCollection
+  );
   const [isEditing, setIsEditing] = useState<boolean>(false);
   const [selectedForRemoval, setSelectedForRemoval] = useState<Set<string>>(new Set());
+
+  useEffect(() => {
+    cachedActiveSavedCollection = activeCollection;
+  }, [activeCollection]);
 
   const [cachedStoreItineraries, setCachedStoreItineraries] = useState<Itinerary[]>(() => {
     try {
@@ -239,6 +252,7 @@ export const SavedView: React.FC<SavedViewProps> = ({
 
   useEffect(() => {
     if (!isOpen) return;
+    let isMounted = true;
     try {
       const raw = localStorage.getItem('monvian_itineraries_store_cache_v6');
       if (raw) {
@@ -251,11 +265,15 @@ export const SavedView: React.FC<SavedViewProps> = ({
 
     fetchItinerariesFromSupabase()
       .then((data) => {
-        if (Array.isArray(data) && data.length > 0) {
+        if (isMounted && Array.isArray(data) && data.length > 0) {
           setCachedStoreItineraries(data);
         }
       })
       .catch(() => {});
+
+    return () => {
+      isMounted = false;
+    };
   }, [isOpen]);
 
   const findItineraryById = (id: string): Itinerary | null => {
@@ -438,7 +456,7 @@ export const SavedView: React.FC<SavedViewProps> = ({
           animate={{ opacity: 1, y: 0 }}
           exit={{ opacity: 0, y: 4 }}
           transition={{ duration: 0.2, ease: [0.22, 1, 0.36, 1] }}
-          className={`fixed inset-0 md:left-[var(--desktop-sidebar-width,72px)] w-full md:w-auto h-full z-45 flex flex-col select-none overflow-hidden rounded-t-[26px] md:rounded-none ios-page-top-rounded transform-gpu ${
+          className={`fixed inset-0 md:left-[var(--desktop-sidebar-width,72px)] w-full md:w-auto h-full z-45 flex flex-col select-none overflow-hidden transform-gpu ios-pushed-page ${
             isDark ? 'bg-black text-white' : 'bg-[#ffffff] text-zinc-900'
           }`}
           style={{
@@ -864,4 +882,4 @@ export const SavedView: React.FC<SavedViewProps> = ({
       )}
     </AnimatePresence>
   );
-};
+});

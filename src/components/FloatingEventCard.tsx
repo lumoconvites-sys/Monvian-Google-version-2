@@ -30,31 +30,58 @@ interface FloatingEventCardProps {
 const DEFAULT_EVENT_IMAGE =
   'https://images.unsplash.com/photo-1511192336575-5a79af67a629?auto=format&fit=crop&w=900&q=80';
 
+let cachedFloatingEvents: MonvianMapEvent[] = [];
+let cachedFloatingIndex = 0;
+let cachedFloatingIsDismissed = false;
+
+if (typeof window !== 'undefined') {
+  window.addEventListener('monvian:user_logged_out', () => {
+    cachedFloatingEvents = [];
+    cachedFloatingIndex = 0;
+    cachedFloatingIsDismissed = false;
+  });
+}
+
 export const FloatingEventCard: React.FC<FloatingEventCardProps> = ({
   visible = true,
   onActiveChange,
 }) => {
-  const [events, setEvents] = useState<MonvianMapEvent[]>([]);
-  const [currentIndex, setCurrentIndex] = useState<number>(0);
+  const [events, setEvents] = useState<MonvianMapEvent[]>(() => cachedFloatingEvents);
+  const [currentIndex, setCurrentIndex] = useState<number>(() => cachedFloatingIndex);
   const [slideDirection, setSlideDirection] = useState<number>(1);
   const [capsuleWidth, setCapsuleWidth] = useState<number | null>(null);
   const [isPressed, setIsPressed] = useState<boolean>(false);
-  const [isDismissed, setIsDismissed] = useState<boolean>(false);
+  const [isDismissed, setIsDismissed] = useState<boolean>(() => cachedFloatingIsDismissed);
   const [dismissDirection, setDismissDirection] = useState<'right' | 'down'>('right');
+  const fetchAbortRef = useRef<AbortController | null>(null);
+
+  useEffect(() => {
+    cachedFloatingIndex = currentIndex;
+  }, [currentIndex]);
+
+  useEffect(() => {
+    cachedFloatingIsDismissed = isDismissed;
+  }, [isDismissed]);
 
   const fetchPublishedEvents = useCallback(async () => {
+    fetchAbortRef.current?.abort();
+    const controller = new AbortController();
+    fetchAbortRef.current = controller;
     try {
-      const res = await fetch('/api/events');
-      if (!res.ok) return;
+      const res = await fetch('/api/events', { signal: controller.signal });
+      if (!res.ok || controller.signal.aborted) return;
       const data = await res.json();
-      if (data && data.success && Array.isArray(data.events)) {
+      if (!controller.signal.aborted && data && data.success && Array.isArray(data.events)) {
+        cachedFloatingEvents = data.events;
         setEvents(data.events);
         setCurrentIndex((prev) =>
           data.events.length > 0 ? Math.min(prev, data.events.length - 1) : 0
         );
       }
-    } catch (err) {
-      console.warn('[FloatingEventCard] Failed to fetch published events:', err);
+    } catch (err: any) {
+      if (err?.name !== 'AbortError') {
+        console.warn('[FloatingEventCard] Failed to fetch published events:', err);
+      }
     }
   }, []);
 
@@ -66,6 +93,8 @@ export const FloatingEventCard: React.FC<FloatingEventCardProps> = ({
     window.addEventListener('monvian:events_updated', handleEventsUpdated);
     window.addEventListener('focus', handleEventsUpdated);
     return () => {
+      fetchAbortRef.current?.abort();
+      fetchAbortRef.current = null;
       window.removeEventListener('monvian:events_updated', handleEventsUpdated);
       window.removeEventListener('focus', handleEventsUpdated);
     };

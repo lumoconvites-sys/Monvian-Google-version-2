@@ -252,6 +252,9 @@ class GpsNavigationManager {
 
     return () => {
       this.listeners.delete(listener);
+      if (this.listeners.size === 0) {
+        this.stop();
+      }
     };
   }
 

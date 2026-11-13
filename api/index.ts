@@ -193,12 +193,182 @@ async function findUserByEmailOrIdentifier(identifier: string): Promise<any | nu
   return null;
 }
 
+const SESSION_SIGNING_SECRET =
+  process.env.SESSION_SECRET ||
+  process.env.JWT_SECRET ||
+  'monvian-persistent-session-hmac-secret-2026-v1';
+const SESSION_TTL_MS = 365 * 24 * 60 * 60 * 1000;
+const TOKEN_REFRESH_THRESHOLD_MS = 7 * 24 * 60 * 60 * 1000;
+const inMemoryRevokedTokenHashes = new Set<string>();
+
+function hashSessionToken(token: string): string {
+  return crypto.createHash('sha256').update(token).digest('hex').slice(0, 48);
+}
+
+function signPersistentSessionToken(user: {
+  id: number | string;
+  email?: string | null;
+  whatsapp?: string | null;
+  role?: string | null;
+}): string {
+  const cleanEmail = String(user.email || user.whatsapp || '')
+    .trim()
+    .toLowerCase();
+  const now = Date.now();
+  const payloadObj = {
+    uid: user.id,
+    email: cleanEmail,
+    role: isPrimaryAdmin(cleanEmail) || user.role === 'admin' ? 'admin' : 'user',
+    iat: now,
+    exp: now + SESSION_TTL_MS,
+    jti: crypto.randomUUID(),
+  };
+  const payloadB64 = Buffer.from(JSON.stringify(payloadObj), 'utf8').toString('base64url');
+  const sigB64 = crypto
+    .createHmac('sha256', SESSION_SIGNING_SECRET)
+    .update(payloadB64)
+    .digest('base64url');
+  return `mvn1.${payloadB64}.${sigB64}`;
+}
+
+function verifySignedSessionToken(token: string): {
+  uid: number | string;
+  email: string;
+  role: string;
+  iat: number;
+  exp: number;
+  jti: string;
+} | null {
+  if (!token || !token.startsWith('mvn1.')) return null;
+  const parts = token.split('.');
+  if (parts.length !== 3) return null;
+  const [, payloadB64, sigB64] = parts;
+  if (!payloadB64 || !sigB64) return null;
+
+  try {
+    const expectedSig = crypto
+      .createHmac('sha256', SESSION_SIGNING_SECRET)
+      .update(payloadB64)
+      .digest();
+    const providedSig = Buffer.from(sigB64, 'base64url');
+    if (expectedSig.length !== providedSig.length) return null;
+    if (!crypto.timingSafeEqual(expectedSig, providedSig)) return null;
+
+    const payload = JSON.parse(Buffer.from(payloadB64, 'base64url').toString('utf8'));
+    if (!payload || !payload.exp || Number(payload.exp) <= Date.now()) return null;
+    return {
+      uid: payload.uid,
+      email: String(payload.email || '').trim().toLowerCase(),
+      role: String(payload.role || 'user'),
+      iat: Number(payload.iat || 0),
+      exp: Number(payload.exp || 0),
+      jti: String(payload.jti || ''),
+    };
+  } catch {
+    return null;
+  }
+}
+
+function extractRequestToken(req: any): string {
+  const authHeader = req.headers?.authorization || req.headers?.Authorization;
+  if (authHeader && typeof authHeader === 'string' && authHeader.startsWith('Bearer ')) {
+    const t = authHeader.substring(7).trim();
+    if (t) return t;
+  }
+  const cookieHeader = req.headers?.cookie;
+  if (cookieHeader && typeof cookieHeader === 'string') {
+    const match = cookieHeader.match(/(?:^|;\s*)monvian_token=([^;]+)/);
+    if (match && match[1]) {
+      try {
+        return decodeURIComponent(match[1]).trim();
+      } catch {
+        return match[1].trim();
+      }
+    }
+  }
+  return '';
+}
+
+function setPersistentSessionCookie(req: any, res: any, token: string): void {
+  try {
+    const proto = req?.headers?.['x-forwarded-proto'] || '';
+    const isHttps = proto === 'https' || process.env.VERCEL === '1' || process.env.NODE_ENV === 'production';
+    const secureFlag = isHttps ? '; Secure' : '';
+    res.setHeader(
+      'Set-Cookie',
+      `monvian_token=${encodeURIComponent(token)}; Max-Age=31536000; Path=/; SameSite=Lax${secureFlag}`
+    );
+  } catch {}
+}
+
+function clearPersistentSessionCookie(req: any, res: any): void {
+  try {
+    const proto = req?.headers?.['x-forwarded-proto'] || '';
+    const isHttps = proto === 'https' || process.env.VERCEL === '1' || process.env.NODE_ENV === 'production';
+    const secureFlag = isHttps ? '; Secure' : '';
+    res.setHeader(
+      'Set-Cookie',
+      `monvian_token=; Max-Age=0; Path=/; SameSite=Lax${secureFlag}`
+    );
+  } catch {}
+}
+
+async function isTokenRevokedServerless(token: string): Promise<boolean> {
+  if (!token) return true;
+  const tokenHash = hashSessionToken(token);
+  if (inMemoryRevokedTokenHashes.has(tokenHash)) return true;
+  try {
+    const { data } = await supabase
+      .from('system_settings')
+      .select('value')
+      .eq('key', `revoked_token:${tokenHash}`)
+      .maybeSingle();
+    if (data) {
+      inMemoryRevokedTokenHashes.add(tokenHash);
+      return true;
+    }
+  } catch {}
+  return false;
+}
+
 async function getAuthUser(req: any, strictSession = false): Promise<any | null> {
-  const authHeader = req.headers.authorization || req.headers.Authorization;
-  const token = authHeader?.startsWith('Bearer ') ? authHeader.substring(7).trim() : '';
+  const token = extractRequestToken(req);
 
   if (token) {
-    // 1. Check sessions table in Supabase
+    if (await isTokenRevokedServerless(token)) {
+      return null;
+    }
+
+    // 1. Verify cryptographically signed persistent token (survives cold starts & DB session misses)
+    const signed = verifySignedSessionToken(token);
+    if (signed) {
+      let userRow: any = null;
+      if (signed.email) {
+        userRow = await findUserByEmailOrIdentifier(signed.email);
+      }
+      if (!userRow && signed.uid && Number(signed.uid) < 2147483647) {
+        try {
+          const { data } = await supabase.from('users').select('*').eq('id', signed.uid).maybeSingle();
+          if (data) userRow = data;
+        } catch {}
+      }
+      if (userRow) {
+        if (userRow.is_banned === 1 && !isPrimaryAdmin(userRow.email)) return null;
+        return formatSafeUser(userRow);
+      }
+      if (signed.email && isPrimaryAdmin(signed.email)) {
+        return formatSafeUser({
+          id: signed.uid || 75,
+          email: signed.email,
+          name: 'Mario Admin',
+          username: 'marioyesk',
+          role: 'admin',
+          is_gold: 1,
+        });
+      }
+    }
+
+    // 2. Check sessions table in Supabase
     try {
       const { data: sessionRow } = await supabase
         .from('sessions')
@@ -214,19 +384,19 @@ async function getAuthUser(req: any, strictSession = false): Promise<any | null>
           .maybeSingle();
 
         if (userRow) {
-          if (userRow.is_banned === 1) return null;
+          if (userRow.is_banned === 1 && !isPrimaryAdmin(userRow.email)) return null;
           return formatSafeUser(userRow);
         }
       }
     } catch {}
 
-    // 2. Check Supabase Auth JWT
+    // 3. Check Supabase Auth JWT
     try {
       const { data: authData } = await supabase.auth.getUser(token);
       if (authData?.user?.email) {
         const userRow = await findUserByEmailOrIdentifier(authData.user.email);
         if (userRow) {
-          if (userRow.is_banned === 1) return null;
+          if (userRow.is_banned === 1 && !isPrimaryAdmin(userRow.email)) return null;
           return formatSafeUser(userRow);
         }
 
@@ -240,7 +410,11 @@ async function getAuthUser(req: any, strictSession = false): Promise<any | null>
     } catch {}
   }
 
-  // Fallback: check x-user-email header or body/query email if provided
+  if (strictSession) {
+    return null;
+  }
+
+  // Fallback: check x-user-email header or body/query email if provided (non-strict legacy routes only)
   const headerEmail = String(
     req.headers['x-user-email'] ||
       req.body?.userEmail ||
@@ -251,7 +425,7 @@ async function getAuthUser(req: any, strictSession = false): Promise<any | null>
     .trim()
     .toLowerCase();
 
-  if (headerEmail && (!strictSession || Boolean(token))) {
+  if (headerEmail) {
     const existing = await findUserByEmailOrIdentifier(headerEmail);
     if (existing) {
       if (existing.is_banned === 1) return null;
@@ -721,7 +895,7 @@ export default async function handler(req: any, res: any) {
         } catch {}
       }
 
-      const token = crypto.randomUUID();
+      const token = signPersistentSessionToken(user);
       if (user?.id && Number(user.id) < 2147483647) {
         try {
           await supabase.from('sessions').insert({
@@ -731,6 +905,8 @@ export default async function handler(req: any, res: any) {
           });
         } catch {}
       }
+
+      setPersistentSessionCookie(req, res, token);
 
       return res.status(200).json({
         success: true,
@@ -815,14 +991,18 @@ export default async function handler(req: any, res: any) {
           return res.status(500).json({ success: false, error: updErr.message });
         }
 
-        const token = crypto.randomUUID();
-        try {
-          await supabase.from('sessions').insert({
-            token,
-            user_id: Number(updatedUser.id),
-            created_at: nowIso,
-          });
-        } catch {}
+        const token = signPersistentSessionToken(updatedUser);
+        if (updatedUser?.id && Number(updatedUser.id) < 2147483647) {
+          try {
+            await supabase.from('sessions').insert({
+              token,
+              user_id: Number(updatedUser.id),
+              created_at: nowIso,
+            });
+          } catch {}
+        }
+
+        setPersistentSessionCookie(req, res, token);
 
         return res.status(200).json({
           success: true,
@@ -910,14 +1090,18 @@ export default async function handler(req: any, res: any) {
         });
       } catch {}
 
-      const token = crypto.randomUUID();
-      try {
-        await supabase.from('sessions').insert({
-          token,
-          user_id: Number(inserted.id),
-          created_at: nowIso,
-        });
-      } catch {}
+      const token = signPersistentSessionToken(inserted);
+      if (inserted?.id && Number(inserted.id) < 2147483647) {
+        try {
+          await supabase.from('sessions').insert({
+            token,
+            user_id: Number(inserted.id),
+            created_at: nowIso,
+          });
+        } catch {}
+      }
+
+      setPersistentSessionCookie(req, res, token);
 
       return res.status(200).json({
         success: true,
@@ -1067,7 +1251,7 @@ export default async function handler(req: any, res: any) {
           }
         }
 
-        const token = crypto.randomUUID();
+        const token = signPersistentSessionToken(user);
         if (user?.id && Number(user.id) < 2147483647) {
           try {
             await supabase.from('sessions').insert({
@@ -1077,6 +1261,8 @@ export default async function handler(req: any, res: any) {
             });
           } catch {}
         }
+
+        setPersistentSessionCookie(req, res, token);
 
         return res.status(200).json({
           success: true,
@@ -1137,7 +1323,7 @@ export default async function handler(req: any, res: any) {
         user = created;
       }
 
-      const token = crypto.randomUUID();
+      const token = signPersistentSessionToken(user);
       if (user?.id && Number(user.id) < 2147483647) {
         try {
           await supabase.from('sessions').insert({
@@ -1147,6 +1333,8 @@ export default async function handler(req: any, res: any) {
           });
         } catch {}
       }
+
+      setPersistentSessionCookie(req, res, token);
 
       return res.status(200).json({
         success: true,
@@ -1210,19 +1398,53 @@ export default async function handler(req: any, res: any) {
       if (!user) {
         return res.status(401).json({ success: false, error: 'Não autenticado' });
       }
-      return res.status(200).json({ success: true, user });
+      const currentToken = extractRequestToken(req);
+      let refreshedToken: string | undefined;
+      const signed = currentToken ? verifySignedSessionToken(currentToken) : null;
+      if (!signed || Date.now() - signed.iat > TOKEN_REFRESH_THRESHOLD_MS) {
+        refreshedToken = signPersistentSessionToken(user);
+        if (user?.id && Number(user.id) < 2147483647) {
+          try {
+            await supabase.from('sessions').insert({
+              token: refreshedToken,
+              user_id: Number(user.id),
+              created_at: new Date().toISOString(),
+            });
+          } catch {}
+        }
+        setPersistentSessionCookie(req, res, refreshedToken);
+      }
+      return res.status(200).json({
+        success: true,
+        user,
+        ...(refreshedToken ? { refreshedToken } : {}),
+      });
     }
 
     if (cleanPath === '/auth/logout' && method === 'POST') {
-      const authHeader = req.headers.authorization || req.headers.Authorization;
-      const headerToken = authHeader?.startsWith('Bearer ') ? authHeader.substring(7).trim() : '';
+      const requestToken = extractRequestToken(req);
       const bodyToken = typeof body?.token === 'string' ? body.token.trim() : '';
-      const token = headerToken || bodyToken;
-      if (token) {
+      const tokens = Array.from(new Set([requestToken, bodyToken].filter(Boolean)));
+      for (const token of tokens) {
+        const tokenHash = hashSessionToken(token);
+        inMemoryRevokedTokenHashes.add(tokenHash);
         try {
           await supabase.from('sessions').delete().eq('token', token);
         } catch {}
+        try {
+          await supabase
+            .from('system_settings')
+            .upsert(
+              {
+                key: `revoked_token:${tokenHash}`,
+                value: new Date().toISOString(),
+                updated_at: new Date().toISOString(),
+              },
+              { onConflict: 'key' }
+            );
+        } catch {}
       }
+      clearPersistentSessionCookie(req, res);
       return res.status(200).json({ success: true });
     }
 

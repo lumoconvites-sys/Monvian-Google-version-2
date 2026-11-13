@@ -1,7 +1,9 @@
 import React, { useEffect, useRef, useState, useCallback } from 'react';
-import { ArrowRight, ChevronDown, Clock, MapPin, Mountain, Utensils, X } from 'lucide-react';
+import { ArrowRight, ChevronDown } from 'lucide-react';
 import { motion, AnimatePresence, useReducedMotion } from 'motion/react';
 import gsap from 'gsap';
+import { OnboardingShowcaseCarousel } from './OnboardingShowcaseCarousel';
+import { LoginSocialProofSection } from './LoginSocialProofSection';
 
 const FAQ_ITEMS = [
   {
@@ -24,26 +26,6 @@ const FAQ_ITEMS = [
   },
 ];
 
-const CARD_1_SLIDES = [
-  '/assets/aistudio/card_slide_1_1.jpg',
-  '/assets/aistudio/card_slide_1_2.jpg',
-  '/assets/aistudio/card_slide_1_3.jpg',
-  '/assets/aistudio/card_slide_1_4.jpg',
-];
-
-const CARD_2_SLIDES = [
-  '/assets/aistudio/card_slide_2_1.jpg',
-  '/assets/aistudio/card_slide_2_2.jpg',
-  '/assets/aistudio/card_slide_2_3.jpg',
-  '/assets/aistudio/card_slide_2_4.jpg',
-];
-
-const CARD_3_SLIDES = [
-  '/assets/aistudio/card_slide_3_1.jpg',
-  '/assets/aistudio/card_slide_3_2.jpg',
-  '/assets/aistudio/card_slide_3_3.jpg',
-  '/assets/aistudio/card_slide_3_4.jpg',
-];
 
 interface CinematicLandingViewProps {
   scrollContainerRef: React.RefObject<HTMLDivElement | null>;
@@ -51,15 +33,11 @@ interface CinematicLandingViewProps {
   onOpenLogin: () => void;
 }
 
-export const CinematicLandingView: React.FC<CinematicLandingViewProps> = ({
-  scrollContainerRef,
-  onStartRegister,
-  onOpenLogin,
-}) => {
-  const prefersReducedMotion = useReducedMotion();
-
-  // Transição suave das fotos e contador persistente de usuários (+3 a +5 aleatório a cada 3s estilo YouTube)
-  const [photoSlideIndex, setPhotoSlideIndex] = useState(0);
+const HeroUsersCounter = React.memo(function HeroUsersCounter({
+  prefersReducedMotion,
+}: {
+  prefersReducedMotion: boolean | null;
+}) {
   const [userCount, setUserCount] = useState<number>(() => {
     try {
       const saved = localStorage.getItem('monvian_social_user_count');
@@ -75,9 +53,8 @@ export const CinematicLandingView: React.FC<CinematicLandingViewProps> = ({
 
   useEffect(() => {
     const timer = setInterval(() => {
-      setPhotoSlideIndex((prev) => (prev + 1) % 4);
       setUserCount((prev) => {
-        const randomStep = Math.floor(Math.random() * 3) + 3; // Aleatório entre 3, 4 e 5
+        const randomStep = Math.floor(Math.random() * 3) + 3;
         const next = prev + randomStep;
         try {
           localStorage.setItem('monvian_social_user_count', String(next));
@@ -87,6 +64,143 @@ export const CinematicLandingView: React.FC<CinematicLandingViewProps> = ({
     }, 3000);
     return () => clearInterval(timer);
   }, []);
+
+  return (
+    <motion.div
+      initial={prefersReducedMotion ? { opacity: 1 } : { opacity: 0, y: 8 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{
+        duration: prefersReducedMotion ? 0.15 : 0.35,
+        ease: [0.22, 1, 0.36, 1],
+        delay: prefersReducedMotion ? 0 : 0.08,
+      }}
+      className="relative z-[95] flex items-center justify-center gap-5 sm:gap-6 select-none"
+      aria-label={`${userCount.toLocaleString('pt-BR')} Usuários no Monvian`}
+    >
+      <div className="relative z-[95] flex items-center -space-x-2.5 shrink-0">
+        {[
+          {
+            src: '/assets/aistudio/social_user_1.jpg',
+            alt: 'Usuário Monvian 1',
+            zIndex: 'z-[3]',
+          },
+          {
+            src: '/assets/aistudio/social_user_2.jpg',
+            alt: 'Usuária Monvian 2',
+            zIndex: 'z-[2]',
+          },
+          {
+            src: '/assets/aistudio/social_user_3.jpg',
+            alt: 'Usuário Monvian 3',
+            zIndex: 'z-[1]',
+          },
+        ].map((avatar) => (
+          <div
+            key={avatar.src}
+            className={`relative ${avatar.zIndex} w-[42px] h-[42px] sm:w-[44px] sm:h-[44px] rounded-full border-[2.5px] border-white shadow-[0_6px_16px_rgba(14,42,79,0.22)] overflow-hidden bg-white shrink-0`}
+          >
+            <img
+              src={avatar.src}
+              alt={avatar.alt}
+              width={44}
+              height={44}
+              decoding="async"
+              draggable={false}
+              referrerPolicy="no-referrer"
+              className="w-full h-full object-cover block select-none pointer-events-none"
+            />
+          </div>
+        ))}
+      </div>
+
+      <div
+        className="relative z-[95] w-[1.5px] h-[38px] sm:h-[40px] bg-[#080808]/20 rounded-full shrink-0"
+        aria-hidden="true"
+      />
+
+      <div className="relative z-[95] flex flex-col items-start justify-center text-left">
+        <span
+          className="inline-flex items-center text-[25px] sm:text-[27px] font-bold text-[#000000] leading-[1.06] tracking-[-0.02em] tabular-nums"
+          style={{
+            fontFamily:
+              "'SF Pro Display', -apple-system, BlinkMacSystemFont, sans-serif",
+          }}
+        >
+          {userCount
+            .toLocaleString('pt-BR')
+            .split('')
+            .map((char, idx) => {
+              if (char === '.') {
+                return (
+                  <span key={`sep-${idx}`} className="inline-block px-[0.5px]">
+                    .
+                  </span>
+                );
+              }
+              return (
+                <span
+                  key={`digit-slot-${idx}`}
+                  className="relative inline-flex flex-col items-center justify-center overflow-hidden h-[1.14em] -my-[0.04em]"
+                >
+                  <AnimatePresence mode="popLayout" initial={false}>
+                    <motion.span
+                      key={`pos-${idx}-val-${char}`}
+                      initial={
+                        prefersReducedMotion
+                          ? { opacity: 1, y: '0%' }
+                          : { y: '100%', opacity: 0.25 }
+                      }
+                      animate={
+                        prefersReducedMotion
+                          ? { opacity: 1, y: '0%' }
+                          : {
+                              y: ['100%', '-22%', '0%'],
+                              opacity: [0.25, 1, 1],
+                            }
+                      }
+                      exit={
+                        prefersReducedMotion
+                          ? { opacity: 0 }
+                          : {
+                              y: '-100%',
+                              opacity: 0,
+                              transition: { duration: 0.24, ease: [0.4, 0, 0.2, 1] },
+                            }
+                      }
+                      transition={{
+                        duration: 0.62,
+                        times: [0, 0.62, 1],
+                        ease: [0.22, 1, 0.36, 1],
+                      }}
+                      className="inline-block tabular-nums will-change-transform"
+                    >
+                      {char}
+                    </motion.span>
+                  </AnimatePresence>
+                </span>
+              );
+            })}
+        </span>
+        <span
+          className="text-[14.5px] sm:text-[15.5px] font-medium text-[#000000] leading-[1.2] tracking-[-0.01em] mt-0.5"
+          style={{
+            fontFamily:
+              "'SF Pro Text', -apple-system, BlinkMacSystemFont, sans-serif",
+          }}
+        >
+          Usuários
+        </span>
+      </div>
+    </motion.div>
+  );
+});
+
+export const CinematicLandingView: React.FC<CinematicLandingViewProps> = ({
+  scrollContainerRef,
+  onStartRegister,
+  onOpenLogin,
+}) => {
+  const prefersReducedMotion = useReducedMotion();
 
   // Asset readiness for orchestrated entrance animation (starts true for zero blank screen)
   const [assetsReady, setAssetsReady] = useState(true);
@@ -100,10 +214,8 @@ export const CinematicLandingView: React.FC<CinematicLandingViewProps> = ({
     }
   }, [scrollContainerRef]);
 
-  // Navigation bar states
-  const [navVisible, setNavVisible] = useState(true);
-  const [navLightTheme, setNavLightTheme] = useState(false);
-  const lastScrollTopRef = useRef(0);
+  // Navigation bar ref & scroll tracking (zero React re-renders during scroll)
+  const navHeaderRef = useRef<HTMLElement | null>(null);
 
   // FAQ state
   const [openFaqId, setOpenFaqId] = useState<string | null>('faq-1');
@@ -221,14 +333,14 @@ export const CinematicLandingView: React.FC<CinematicLandingViewProps> = ({
       if (parallaxFarRef.current) {
         parallaxFarRef.current.style.transform = `translate3d(${(ix * 8).toFixed(2)}px, ${(iy * 6).toFixed(2)}px, 0)`;
       }
-      if (parallaxMidRef.current) {
-        parallaxMidRef.current.style.transform = `translate3d(${(ix * 14).toFixed(2)}px, ${(iy * 10).toFixed(2)}px, 0)`;
-      }
       if (parallaxIslandRef.current) {
         parallaxIslandRef.current.style.transform = `translate3d(${(ix * 20).toFixed(2)}px, ${(iy * 14).toFixed(2)}px, 0)`;
       }
+      if (parallaxMidRef.current) {
+        parallaxMidRef.current.style.transform = `translate3d(${(ix * 24).toFixed(2)}px, ${(iy * 17).toFixed(2)}px, 0)`;
+      }
       if (parallaxFrontRef.current) {
-        parallaxFrontRef.current.style.transform = `translate3d(${(ix * 26).toFixed(2)}px, ${(iy * 18).toFixed(2)}px, 0)`;
+        parallaxFrontRef.current.style.transform = `translate3d(${(ix * 28).toFixed(2)}px, ${(iy * 20).toFixed(2)}px, 0)`;
       }
 
       if (Math.abs(targetX - currentX) > 0.001 || Math.abs(targetY - currentY) > 0.001) {
@@ -335,7 +447,6 @@ export const CinematicLandingView: React.FC<CinematicLandingViewProps> = ({
             y: -95,
             scale: 0.78,
             opacity: 0,
-            filter: 'blur(9px)',
             duration: 0.62,
             ease: 'power1.inOut',
           },
@@ -406,6 +517,8 @@ export const CinematicLandingView: React.FC<CinematicLandingViewProps> = ({
     }
 
     let rafScrollId: number | null = null;
+    let lastProgress = -1;
+    let lastNavLight = false;
 
     const syncScroll = () => {
       rafScrollId = null;
@@ -416,35 +529,19 @@ export const CinematicLandingView: React.FC<CinematicLandingViewProps> = ({
       const transitionDistance = Math.max(280, viewportHeight * 0.6);
       const progress = Math.max(0, Math.min(1, scrollTop / transitionDistance));
 
-      tl.progress(progress);
-
-      // Update floating navbar visibility & adaptive theme
-      const delta = scrollTop - lastScrollTopRef.current;
-      if (scrollTop < 32) {
-        setNavVisible(true);
-      } else if (delta > 6) {
-        setNavVisible(false);
-      } else if (delta < -5) {
-        setNavVisible(true);
-      }
-      lastScrollTopRef.current = scrollTop;
-
-      setNavLightTheme(scrollTop > viewportHeight * 0.36);
-
-      // Seamless pure-white cloud parting for the lower presentation section (#como-funciona):
-      const sectionStart = viewportHeight * 0.12;
-      const sectionEnd = viewportHeight * 0.60;
-      const sectionReveal = prefersReducedMotion
-        ? 1
-        : Math.max(0, Math.min(1, (scrollTop - sectionStart) / Math.max(1, sectionEnd - sectionStart)));
-
-      if (presentationContentRef.current) {
-        presentationContentRef.current.style.opacity = '1';
-        presentationContentRef.current.style.transform = 'none';
+      if (Math.abs(progress - lastProgress) > 0.0004) {
+        lastProgress = progress;
+        tl.progress(progress);
       }
 
-      if (sectionCloudVeilRef.current) {
-        sectionCloudVeilRef.current.style.display = 'none';
+      // Keep navbar permanently fixed at the top; only adapt translucent glass theme between sky hero and light sections
+      const navEl = navHeaderRef.current;
+      const nextLight = scrollTop > viewportHeight * 0.36;
+      if (nextLight !== lastNavLight) {
+        lastNavLight = nextLight;
+        if (navEl) {
+          navEl.setAttribute('data-nav-theme', nextLight ? 'light' : 'dark');
+        }
       }
     };
 
@@ -576,101 +673,153 @@ export const CinematicLandingView: React.FC<CinematicLandingViewProps> = ({
           -webkit-mask-image: radial-gradient(ellipse 50% 44% at 50% 50%, rgba(0,0,0,1) 38%, rgba(0,0,0,0.65) 68%, rgba(0,0,0,0) 96%);
           mask-image: radial-gradient(ellipse 50% 44% at 50% 50%, rgba(0,0,0,1) 38%, rgba(0,0,0,0.65) 68%, rgba(0,0,0,0) 96%);
         }
+        .monvian-floating-nav {
+          border-radius: 999px;
+          backdrop-filter: blur(25px) saturate(180%);
+          -webkit-backdrop-filter: blur(25px) saturate(180%);
+          transform: translate3d(0, 0, 0);
+          overflow: hidden;
+          transition: background 0.28s ease, border-color 0.28s ease, color 0.24s ease, box-shadow 0.28s ease;
+          contain: layout style;
+        }
+        .monvian-floating-nav::before {
+          content: '';
+          position: absolute;
+          inset: 0;
+          border-radius: 999px;
+          padding: 1.25px;
+          background: linear-gradient(
+            135deg,
+            rgba(255, 255, 255, 0.94) 0%,
+            rgba(255, 255, 255, 0.36) 24%,
+            rgba(255, 255, 255, 0.72) 50%,
+            rgba(255, 255, 255, 0.32) 76%,
+            rgba(255, 255, 255, 0.96) 100%
+          );
+          -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+          -webkit-mask-composite: xor;
+          mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+          mask-composite: exclude;
+          pointer-events: none;
+          z-index: 2;
+        }
+        .monvian-floating-nav::after {
+          content: '';
+          position: absolute;
+          inset: 0;
+          border-radius: 999px;
+          background:
+            radial-gradient(28% 120% at 4% 52%, rgba(255, 255, 255, 0.44) 0%, rgba(255, 255, 255, 0.12) 48%, rgba(255, 255, 255, 0) 85%),
+            radial-gradient(28% 120% at 96% 48%, rgba(255, 255, 255, 0.46) 0%, rgba(255, 255, 255, 0.12) 48%, rgba(255, 255, 255, 0) 85%),
+            linear-gradient(180deg, rgba(255, 255, 255, 0.32) 0%, rgba(255, 255, 255, 0.04) 26%, rgba(255, 255, 255, 0) 62%, rgba(255, 255, 255, 0.16) 100%);
+          pointer-events: none;
+          z-index: 1;
+        }
+        .monvian-floating-nav > nav {
+          position: relative;
+          z-index: 3;
+        }
+        .monvian-floating-nav[data-nav-theme='dark'] {
+          background: linear-gradient(
+            180deg,
+            rgba(255, 255, 255, 0.18) 0%,
+            rgba(255, 255, 255, 0.07) 52%,
+            rgba(255, 255, 255, 0.14) 100%
+          );
+          border-color: rgba(255, 255, 255, 0.34);
+          color: rgba(255, 255, 255, 0.98);
+          text-shadow: 0 1px 2px rgba(8, 22, 46, 0.18);
+          box-shadow:
+            0 12px 30px rgba(10, 28, 56, 0.18),
+            0 3px 10px rgba(0, 0, 0, 0.08),
+            inset 0 1.5px 2px rgba(255, 255, 255, 0.65),
+            inset 0 -1.5px 3px rgba(255, 255, 255, 0.28),
+            inset 10px 0 16px -8px rgba(255, 255, 255, 0.38),
+            inset -10px 0 16px -8px rgba(255, 255, 255, 0.38);
+        }
+        .monvian-floating-nav[data-nav-theme='light'] {
+          background: linear-gradient(
+            180deg,
+            rgba(255, 255, 255, 0.56) 0%,
+            rgba(244, 247, 254, 0.36) 52%,
+            rgba(255, 255, 255, 0.50) 100%
+          );
+          border-color: rgba(255, 255, 255, 0.72);
+          color: rgba(8, 8, 8, 0.90);
+          text-shadow: none;
+          box-shadow:
+            0 0 0 0.5px rgba(8, 8, 8, 0.06),
+            0 10px 28px rgba(15, 23, 42, 0.09),
+            0 2px 8px rgba(15, 23, 42, 0.05),
+            inset 0 1.5px 2px rgba(255, 255, 255, 0.92),
+            inset 0 -1.5px 3px rgba(255, 255, 255, 0.55),
+            inset 10px 0 16px -8px rgba(255, 255, 255, 0.62),
+            inset -10px 0 16px -8px rgba(255, 255, 255, 0.62);
+        }
+        .monvian-floating-nav[data-nav-theme='light'] button:hover {
+          color: #2673E8;
+        }
         @media (prefers-reduced-motion: reduce) {
           .monvian-anim-float,
           .monvian-anim-cloud {
             animation: none !important;
           }
+          .monvian-floating-nav {
+            transition: background 0.16s ease, color 0.16s ease;
+          }
         }
       `}</style>
 
       {/* =========================================================================
-          PARTE 5 — BARRA DE NAVEGAÇÃO TRANSLÚCIDA FLUTUANTE NO TOPO
+          PARTE 5 — BARRA DE NAVEGAÇÃO LIQUID GLASS FIXA NO TOPO (ESTILO iOS)
          ========================================================================= */}
-      <motion.header
+      <header
+        ref={navHeaderRef}
         aria-label="Navegação de apresentação Monvian"
-        initial={prefersReducedMotion ? { opacity: 0 } : { opacity: 0, y: -18 }}
-        animate={
-          assetsReady
-            ? {
-                opacity: navVisible ? 1 : 0,
-                y: navVisible ? 0 : -72,
-              }
-            : { opacity: 0, y: -18 }
-        }
-        transition={{
-          duration: prefersReducedMotion ? 0.18 : 0.4,
-          ease: [0.22, 1, 0.36, 1],
-          delay: prefersReducedMotion ? 0 : 0.05,
-        }}
-        onFocusCapture={() => setNavVisible(true)}
+        data-nav-theme="dark"
         style={{
           top: 'max(12px, calc(env(safe-area-inset-top, 0px) + 8px))',
         }}
-        className={`fixed left-4 right-4 z-[125] max-w-[400px] md:max-w-[520px] mx-auto pointer-events-auto transition-colors duration-300 rounded-full px-3.5 sm:px-5 py-2 backdrop-blur-xl border ${
-          navLightTheme
-            ? 'bg-white/88 border-black/[0.08] text-[#080808] shadow-[0_8px_28px_rgba(8,8,8,0.08)]'
-            : 'bg-white/[0.15] border-white/[0.24] text-white shadow-[0_10px_32px_rgba(12,35,68,0.18)]'
-        }`}
+        className="monvian-floating-nav fixed left-4 right-4 z-[125] max-w-[400px] md:max-w-[520px] mx-auto pointer-events-auto rounded-[999px] px-3.5 sm:px-5 py-2 border"
       >
         <nav className="flex items-center justify-between gap-1 sm:gap-3 text-[12px] sm:text-[13px] font-medium tracking-[-0.01em]">
-          <motion.button
+          <button
             type="button"
-            whileTap={{ scale: 0.96 }}
-            transition={{ type: 'spring', stiffness: 520, damping: 28 }}
             onClick={() => {
               triggerHaptic();
               onStartRegister();
             }}
-            className={`px-2 py-1 rounded-full transition-colors whitespace-nowrap shrink-0 cursor-pointer focus-visible:outline-2 focus-visible:outline-[#2673E8] ${
-              navLightTheme
-                ? 'text-[#080808]/85 hover:text-[#2673E8]'
-                : 'text-white/95 hover:text-white'
-            }`}
+            className="px-2 py-1 rounded-full transition-transform duration-150 active:scale-[0.96] whitespace-nowrap shrink-0 cursor-pointer focus-visible:outline-2 focus-visible:outline-[#2673E8]"
           >
             Criar conta
-          </motion.button>
-          <motion.button
+          </button>
+          <button
             id="btn-landing-top-login"
             type="button"
-            whileTap={{ scale: 0.96 }}
-            transition={{ type: 'spring', stiffness: 520, damping: 28 }}
             onClick={() => {
               triggerHaptic();
               onOpenLogin();
             }}
-            className={`px-2 py-1 rounded-full transition-colors whitespace-nowrap shrink-0 cursor-pointer focus-visible:outline-2 focus-visible:outline-[#2673E8] ${
-              navLightTheme
-                ? 'text-[#080808]/85 hover:text-[#2673E8]'
-                : 'text-white/95 hover:text-white'
-            }`}
+            className="px-2 py-1 rounded-full transition-transform duration-150 active:scale-[0.96] whitespace-nowrap shrink-0 cursor-pointer focus-visible:outline-2 focus-visible:outline-[#2673E8]"
           >
             Entrar
-          </motion.button>
+          </button>
           <button
             type="button"
             onClick={() => scrollToSection('roteiros')}
-            className={`px-2 py-1 rounded-full transition-colors whitespace-nowrap shrink-0 cursor-pointer focus-visible:outline-2 focus-visible:outline-[#2673E8] ${
-              navLightTheme
-                ? 'text-[#080808]/85 hover:text-[#2673E8]'
-                : 'text-white/95 hover:text-white'
-            }`}
+            className="px-2 py-1 rounded-full transition-transform duration-150 active:scale-[0.96] whitespace-nowrap shrink-0 cursor-pointer focus-visible:outline-2 focus-visible:outline-[#2673E8]"
           >
             Roteiros
           </button>
           <button
             type="button"
             onClick={() => scrollToSection('duvidas')}
-            className={`px-2 py-1 rounded-full transition-colors whitespace-nowrap shrink-0 cursor-pointer focus-visible:outline-2 focus-visible:outline-[#2673E8] ${
-              navLightTheme
-                ? 'text-[#080808]/85 hover:text-[#2673E8]'
-                : 'text-white/95 hover:text-white'
-            }`}
+            className="px-2 py-1 rounded-full transition-transform duration-150 active:scale-[0.96] whitespace-nowrap shrink-0 cursor-pointer focus-visible:outline-2 focus-visible:outline-[#2673E8]"
           >
             Dúvidas
           </button>
         </nav>
-      </motion.header>
+      </header>
 
       {/* =========================================================================
           HERO CINEMATOGRÁFICO (100svh) — ILHA 3D 100% VISÍVEL POR COMPLETO
@@ -775,17 +924,32 @@ export const CinematicLandingView: React.FC<CinematicLandingViewProps> = ({
           </motion.div>
         </div>
 
-        {/* 4. GRUPO 2 — NUVENS INTERMEDIÁRIAS ATRÁS DA ILHA (z-[18] < z-[24], movendo-se lentamente para a direita) */}
+        {/* 4. BRILHO ATMOSFÉRICO CENTRAL ATRÁS DA ILHA (z-[18] < z-[24]) */}
+        <div
+          className="absolute inset-0 pointer-events-none z-[18]"
+          aria-hidden="true"
+        >
+          <div
+            className="absolute left-1/2 top-[56%] -translate-x-1/2 -translate-y-1/2 w-[92vw] max-w-[780px] h-[34vh] rounded-full pointer-events-none"
+            style={{
+              background:
+                'radial-gradient(ellipse at center, rgba(255, 255, 255, 0.88) 0%, rgba(255, 255, 255, 0.55) 48%, rgba(255, 255, 255, 0) 78%)',
+              filter: 'blur(16px)',
+            }}
+          />
+        </div>
+
+        {/* 4.5. GRUPO 2 — NUVENS INTERMEDIÁRIAS PASSANDO POR CIMA DA ILHA 3D (z-[28] > z-[24], movendo-se lentamente para a direita) */}
         <div
           ref={parallaxMidRef}
-          className="absolute inset-0 pointer-events-none z-[18] will-change-transform"
+          className="absolute inset-0 pointer-events-none z-[28] will-change-transform"
           aria-hidden="true"
         >
           <motion.div
             initial={{ opacity: 0, y: 24, scale: 0.96 }}
             animate={
               assetsReady
-                ? { opacity: 0.92, y: 0, scale: 1 }
+                ? { opacity: 0.86, y: 0, scale: 1 }
                 : { opacity: 0, y: 24, scale: 0.96 }
             }
             transition={{
@@ -813,7 +977,7 @@ export const CinematicLandingView: React.FC<CinematicLandingViewProps> = ({
                         src="/assets/aistudio/cloud_volumetric_2.webp"
                         alt=""
                         decoding="async"
-                        className="monvian-cloud-soft-mask absolute top-[35%] -left-[12%] md:left-[6%] w-[80vw] max-w-[490px] md:w-[40vw] md:max-w-[580px] opacity-90 select-none"
+                        className="monvian-cloud-soft-mask absolute top-[35%] -left-[12%] md:left-[6%] w-[80vw] max-w-[490px] md:w-[40vw] md:max-w-[580px] opacity-80 select-none"
                       />
                     </picture>
 
@@ -823,14 +987,14 @@ export const CinematicLandingView: React.FC<CinematicLandingViewProps> = ({
                         src="/assets/aistudio/cloud_volumetric_1.webp"
                         alt=""
                         decoding="async"
-                        className="monvian-cloud-soft-mask absolute top-[38%] right-[-10%] md:right-[6%] w-[82vw] max-w-[510px] md:w-[42vw] md:max-w-[600px] opacity-90 select-none"
+                        className="monvian-cloud-soft-mask absolute top-[38%] right-[-10%] md:right-[6%] w-[82vw] max-w-[510px] md:w-[42vw] md:max-w-[600px] opacity-80 select-none"
                       />
                     </picture>
                   </div>
                 ))}
               </div>
 
-              {/* Nuvens volumétricas atrás da base da ilha (z-[18], atrás da ilha z-[24], movendo-se para a direita) */}
+              {/* Nuvens volumétricas passando por cima do mapa 3D flutuante (z-[28] > z-[24], movendo-se para a direita) */}
               <picture>
                 <source srcSet="/assets/aistudio/cloud_volumetric_3.webp" type="image/webp" />
                 <img
@@ -843,7 +1007,7 @@ export const CinematicLandingView: React.FC<CinematicLandingViewProps> = ({
                         ? 'monvianCloudCenterDriftRight 14s linear infinite'
                         : 'none',
                   }}
-                  className="monvian-anim-cloud monvian-cloud-soft-mask absolute top-[48%] left-1/2 w-[104vw] max-w-[640px] md:w-[54vw] md:max-w-[780px] opacity-90 select-none"
+                  className="monvian-anim-cloud monvian-cloud-soft-mask absolute top-[48%] left-1/2 w-[104vw] max-w-[640px] md:w-[54vw] md:max-w-[780px] opacity-75 select-none"
                 />
               </picture>
 
@@ -859,19 +1023,9 @@ export const CinematicLandingView: React.FC<CinematicLandingViewProps> = ({
                         ? 'monvianCloudCenterDriftRight 14s linear -7s infinite'
                         : 'none',
                   }}
-                  className="monvian-anim-cloud monvian-cloud-soft-mask absolute top-[49%] left-1/2 w-[104vw] max-w-[640px] md:w-[54vw] md:max-w-[780px] opacity-85 select-none"
+                  className="monvian-anim-cloud monvian-cloud-soft-mask absolute top-[52%] left-1/2 w-[104vw] max-w-[640px] md:w-[54vw] md:max-w-[780px] opacity-72 select-none"
                 />
               </picture>
-
-              {/* Brilho atmosférico central atrás da ilha */}
-              <div
-                className="absolute left-1/2 top-[56%] -translate-x-1/2 -translate-y-1/2 w-[92vw] max-w-[780px] h-[34vh] rounded-full pointer-events-none"
-                style={{
-                  background:
-                    'radial-gradient(ellipse at center, rgba(255, 255, 255, 0.88) 0%, rgba(255, 255, 255, 0.55) 48%, rgba(255, 255, 255, 0) 78%)',
-                  filter: 'blur(16px)',
-                }}
-              />
             </div>
           </motion.div>
         </div>
@@ -1045,9 +1199,9 @@ export const CinematicLandingView: React.FC<CinematicLandingViewProps> = ({
                 <img
                   src="/assets/aistudio/monvian_logo_white_transparent.png"
                   alt="Monvian"
-                  width={286}
-                  height={94}
-                  className="h-[34px] sm:h-[38px] md:h-[44px] w-auto object-contain select-none drop-shadow-[0_4px_16px_rgba(12,35,68,0.28)]"
+                  width={429}
+                  height={141}
+                  className="h-[51px] sm:h-[57px] md:h-[66px] w-auto object-contain select-none drop-shadow-[0_4px_16px_rgba(12,35,68,0.28)]"
                 />
               </motion.div>
             </div>
@@ -1080,135 +1234,7 @@ export const CinematicLandingView: React.FC<CinematicLandingViewProps> = ({
             ref={heroCtaWrapRef}
             className="relative z-[95] w-full max-w-[380px] sm:max-w-[420px] mx-auto flex flex-col items-center pb-[6.5vh] sm:pb-[5vh] pointer-events-auto will-change-transform"
           >
-            <motion.div
-              initial={prefersReducedMotion ? { opacity: 1 } : { opacity: 0, y: 8 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{
-                duration: prefersReducedMotion ? 0.15 : 0.35,
-                ease: [0.22, 1, 0.36, 1],
-                delay: prefersReducedMotion ? 0 : 0.08,
-              }}
-              className="relative z-[95] flex items-center justify-center gap-5 sm:gap-6 select-none"
-              aria-label={`${userCount.toLocaleString('pt-BR')} Usuários no Monvian`}
-            >
-              {/* 3 fotos de perfil circulares sobrepostas em camadas (nítidas e acima das nuvens) */}
-              <div className="relative z-[95] flex items-center -space-x-2.5 shrink-0">
-                {[
-                  {
-                    src: '/assets/aistudio/social_user_1.jpg',
-                    alt: 'Usuário Monvian 1',
-                    zIndex: 'z-[3]',
-                  },
-                  {
-                    src: '/assets/aistudio/social_user_2.jpg',
-                    alt: 'Usuária Monvian 2',
-                    zIndex: 'z-[2]',
-                  },
-                  {
-                    src: '/assets/aistudio/social_user_3.jpg',
-                    alt: 'Usuário Monvian 3',
-                    zIndex: 'z-[1]',
-                  },
-                ].map((avatar) => (
-                  <div
-                    key={avatar.src}
-                    className={`relative ${avatar.zIndex} w-[42px] h-[42px] sm:w-[44px] sm:h-[44px] rounded-full border-[2.5px] border-white shadow-[0_6px_16px_rgba(14,42,79,0.22)] overflow-hidden bg-white shrink-0`}
-                  >
-                    <img
-                      src={avatar.src}
-                      alt={avatar.alt}
-                      width={44}
-                      height={44}
-                      decoding="async"
-                      draggable={false}
-                      referrerPolicy="no-referrer"
-                      className="w-full h-full object-cover block select-none pointer-events-none"
-                    />
-                  </div>
-                ))}
-              </div>
-
-              {/* Divisor vertical discreto e visível */}
-              <div
-                className="relative z-[95] w-[1.5px] h-[38px] sm:h-[40px] bg-[#080808]/20 rounded-full shrink-0"
-                aria-hidden="true"
-              />
-
-              {/* Número de usuários com animação estilo inscritos do YouTube (+5 a cada 3s, sobe e volta para baixo) e "Usuários" abaixo */}
-              <div className="relative z-[95] flex flex-col items-start justify-center text-left">
-                <span
-                  className="inline-flex items-center text-[25px] sm:text-[27px] font-bold text-[#000000] leading-[1.06] tracking-[-0.02em] tabular-nums"
-                  style={{
-                    fontFamily:
-                      "'SF Pro Display', -apple-system, BlinkMacSystemFont, sans-serif",
-                  }}
-                >
-                  {userCount
-                    .toLocaleString('pt-BR')
-                    .split('')
-                    .map((char, idx) => {
-                      if (char === '.') {
-                        return (
-                          <span key={`sep-${idx}`} className="inline-block px-[0.5px]">
-                            .
-                          </span>
-                        );
-                      }
-                      return (
-                        <span
-                          key={`digit-slot-${idx}`}
-                          className="relative inline-flex flex-col items-center justify-center overflow-hidden h-[1.14em] -my-[0.04em]"
-                        >
-                          <AnimatePresence mode="popLayout" initial={false}>
-                            <motion.span
-                              key={`pos-${idx}-val-${char}`}
-                              initial={
-                                prefersReducedMotion
-                                  ? { opacity: 1, y: '0%' }
-                                  : { y: '100%', opacity: 0.25 }
-                              }
-                              animate={
-                                prefersReducedMotion
-                                  ? { opacity: 1, y: '0%' }
-                                  : {
-                                      y: ['100%', '-22%', '0%'],
-                                      opacity: [0.25, 1, 1],
-                                    }
-                              }
-                              exit={
-                                prefersReducedMotion
-                                  ? { opacity: 0 }
-                                  : {
-                                      y: '-100%',
-                                      opacity: 0,
-                                      transition: { duration: 0.24, ease: [0.4, 0, 0.2, 1] },
-                                    }
-                              }
-                              transition={{
-                                duration: 0.62,
-                                times: [0, 0.62, 1],
-                                ease: [0.22, 1, 0.36, 1],
-                              }}
-                              className="inline-block tabular-nums will-change-transform"
-                            >
-                              {char}
-                            </motion.span>
-                          </AnimatePresence>
-                        </span>
-                      );
-                    })}
-                </span>
-                <span
-                  className="text-[14.5px] sm:text-[15.5px] font-medium text-[#000000] leading-[1.2] tracking-[-0.01em] mt-0.5"
-                  style={{
-                    fontFamily:
-                      "'SF Pro Text', -apple-system, BlinkMacSystemFont, sans-serif",
-                  }}
-                >
-                  Usuários
-                </span>
-              </div>
-            </motion.div>
+            <HeroUsersCounter prefersReducedMotion={prefersReducedMotion} />
           </div>
         </div>
       </section>
@@ -1222,230 +1248,63 @@ export const CinematicLandingView: React.FC<CinematicLandingViewProps> = ({
         id="como-funciona"
         ref={presentationSectionRef}
         aria-labelledby="monvian-presentation-heading"
-        className="relative z-[80] w-full pt-8 sm:pt-12 pb-20 px-5 sm:px-8 bg-[#FFFFFF]"
+        className="relative z-[80] w-full pt-8 sm:pt-12 pb-10 sm:pb-12 bg-[#FFFFFF]"
       >
         {/* Conteúdo editorial e minimalista */}
         <div
           ref={presentationContentRef}
-          className="relative z-[82] w-full max-w-[430px] md:max-w-[760px] mx-auto will-change-transform"
+          className="relative z-[82] w-full"
         >
           {/* Cabeçalho Editorial da Segunda Seção */}
-          <motion.div
-            initial={prefersReducedMotion ? { opacity: 1 } : { opacity: 0, y: 14 }}
-            whileInView={{ opacity: 1, y: 0 }}
-            viewport={{ once: true, margin: '-40px' }}
-            transition={{ duration: 0.52, ease: [0.22, 1, 0.36, 1] }}
-            className="text-center max-w-[540px] mx-auto mb-6 sm:mb-8"
-          >
-            <h2
-              id="monvian-presentation-heading"
-              className="text-[28px] sm:text-[34px] md:text-[40px] font-extrabold tracking-[-0.032em] leading-[1.1] text-[#080808]"
-              style={{
-                fontFamily:
-                  "'SF Pro Display', -apple-system, BlinkMacSystemFont, sans-serif",
-                textWrap: 'balance',
-                color: '#080808',
-              }}
-            >
-              Visite lugares <span className="text-[#2673E8]" style={{ color: '#2673E8' }}>incríveis</span>
-              <br />
-              <span style={{ color: '#080808' }}>da cidade.</span>
-            </h2>
-
-            <p
-              className="mt-2.5 text-[15px] sm:text-[16.5px] font-medium text-[#737780] leading-[1.36] max-w-[340px] sm:max-w-[420px] mx-auto"
-              style={{
-                fontFamily:
-                  "'SF Pro Text', -apple-system, BlinkMacSystemFont, sans-serif",
-                color: '#737780',
-              }}
-            >
-              Tudo o que você precisa para aproveitar
-              <br />
-              sua viagem, em um só lugar.
-            </p>
-          </motion.div>
-
-          {/* Blocos Visuais Modernos com Fotografias Reais de Campos do Jordão */}
-          <div className="flex flex-col gap-3.5 sm:gap-4">
-            {/* Bloco Principal Superior — Descubra lugares incríveis */}
+          <div className="w-full max-w-[430px] md:max-w-[760px] mx-auto px-5 sm:px-8">
             <motion.div
-              id="experiencias"
-              initial={prefersReducedMotion ? { opacity: 1 } : { opacity: 0, y: 16 }}
+              initial={prefersReducedMotion ? { opacity: 1 } : { opacity: 0, y: 14 }}
               whileInView={{ opacity: 1, y: 0 }}
-              viewport={{ once: true, margin: '-30px' }}
-              transition={{ duration: 0.5, ease: [0.22, 1, 0.36, 1] }}
+              viewport={{ once: true, margin: '-40px' }}
+              transition={{ duration: 0.52, ease: [0.22, 1, 0.36, 1] }}
+              className="text-center max-w-[540px] mx-auto mb-6 sm:mb-8"
             >
-              <button
-                id="landing-card-explore"
-                type="button"
-                aria-label="Descubra lugares incríveis — Encontre atrações, restaurantes e muito mais."
-                onClick={() => {
-                  triggerHaptic();
-                  onStartRegister();
+              <h2
+                id="monvian-presentation-heading"
+                className="text-[28px] sm:text-[34px] md:text-[40px] font-extrabold tracking-[-0.032em] leading-[1.1] text-[#080808]"
+                style={{
+                  fontFamily:
+                    "'SF Pro Display', -apple-system, BlinkMacSystemFont, sans-serif",
+                  textWrap: 'balance',
+                  color: '#080808',
                 }}
-                className="group relative w-full block rounded-[24px] sm:rounded-[28px] overflow-hidden bg-white border-2 border-white ring-1 ring-white/60 shadow-[0_8px_24px_rgba(15,23,42,0.06)] cursor-pointer focus-visible:outline-2 focus-visible:outline-[#2673E8] active:scale-[0.99] transition-transform duration-200"
               >
-                <div className="relative w-full aspect-[16/7.8] sm:aspect-[16/7] overflow-hidden">
-                  {CARD_1_SLIDES.map((src, idx) => (
-                    <img
-                      key={src}
-                      src={src}
-                      alt="Descubra lugares incríveis"
-                      loading={idx === 0 ? 'eager' : 'lazy'}
-                      decoding="async"
-                      className={`absolute inset-0 w-full h-full object-cover select-none pointer-events-none transition-all duration-1000 ease-in-out group-hover:scale-[1.03] ${
-                        idx === photoSlideIndex
-                          ? 'opacity-100 scale-100 z-[1]'
-                          : 'opacity-0 scale-[1.02] z-0'
-                      }`}
-                    />
-                  ))}
-                  {/* Gradiente escuro inferior suave para legibilidade editorial */}
-                  <div className="absolute inset-0 bg-gradient-to-t from-black/85 via-black/35 to-transparent pointer-events-none z-[5]" />
+                Visite lugares <span className="text-[#2673E8]" style={{ color: '#2673E8' }}>incríveis</span>
+                <br />
+                <span style={{ color: '#080808' }}>da cidade.</span>
+              </h2>
 
-                  {/* Textos e ícone elegantes no canto inferior esquerdo */}
-                  <div className="absolute inset-x-0 bottom-0 p-3.5 sm:p-5 flex flex-col justify-end text-left pointer-events-none z-[10]">
-                    <div className="flex items-center gap-2 mb-1">
-                      <span className="w-5 h-5 rounded-full bg-white flex items-center justify-center shadow-sm shrink-0">
-                        <MapPin className="w-3.5 h-3.5 fill-[#2673E8] text-[#2673E8]" />
-                      </span>
-                      <span className="text-[16px] sm:text-[18.5px] font-bold text-white tracking-[-0.015em] leading-tight drop-shadow-[0_2px_8px_rgba(0,0,0,0.6)]">
-                        Descubra lugares incríveis
-                      </span>
-                    </div>
-                    <p className="text-[12.5px] sm:text-[13.5px] text-[#E0E4EC] font-medium leading-tight pl-7 drop-shadow-[0_1px_4px_rgba(0,0,0,0.6)]">
-                      Encontre atrações, restaurantes e muito mais.
-                    </p>
-                  </div>
-                </div>
-              </button>
+              <p
+                className="mt-2.5 text-[15px] sm:text-[16.5px] font-medium text-[#737780] leading-[1.36] max-w-[340px] sm:max-w-[420px] mx-auto"
+                style={{
+                  fontFamily:
+                    "'SF Pro Text', -apple-system, BlinkMacSystemFont, sans-serif",
+                  color: '#737780',
+                }}
+              >
+                Tudo o que você precisa para aproveitar
+                <br />
+                sua viagem, em um só lugar.
+              </p>
             </motion.div>
-
-            {/* Linha Inferior em Duas Colunas — Seus roteiros & Novas experiências */}
-            <div className="grid grid-cols-2 gap-3 sm:gap-4">
-              <motion.div
-                id="roteiros"
-                initial={prefersReducedMotion ? { opacity: 1 } : { opacity: 0, y: 16 }}
-                whileInView={{ opacity: 1, y: 0 }}
-                viewport={{ once: true, margin: '-30px' }}
-                transition={{ duration: 0.5, delay: 0.06, ease: [0.22, 1, 0.36, 1] }}
-              >
-                <button
-                  id="landing-card-itineraries"
-                  type="button"
-                  aria-label="Seus roteiros — Planeje seus passeios."
-                  onClick={() => {
-                    triggerHaptic();
-                    onStartRegister();
-                  }}
-                  className="group relative w-full block rounded-[22px] sm:rounded-[26px] overflow-hidden bg-white border-2 border-white ring-1 ring-white/60 shadow-[0_8px_24px_rgba(15,23,42,0.06)] cursor-pointer focus-visible:outline-2 focus-visible:outline-[#2673E8] active:scale-[0.985] transition-transform duration-200"
-                >
-                  <div className="relative w-full aspect-[4/3] sm:aspect-[1.25/1] overflow-hidden">
-                    {CARD_2_SLIDES.map((src, idx) => (
-                      <img
-                        key={src}
-                        src={src}
-                        alt="Seus roteiros"
-                        loading={idx === 0 ? 'eager' : 'lazy'}
-                        decoding="async"
-                        className={`absolute inset-0 w-full h-full object-cover select-none pointer-events-none transition-all duration-1000 ease-in-out group-hover:scale-[1.03] ${
-                          idx === photoSlideIndex
-                            ? 'opacity-100 scale-100 z-[1]'
-                            : 'opacity-0 scale-[1.02] z-0'
-                        }`}
-                      />
-                    ))}
-                    <div className="absolute inset-0 bg-gradient-to-t from-black/85 via-black/35 to-transparent pointer-events-none z-[5]" />
-
-                    <div className="absolute inset-x-0 bottom-0 p-3 sm:p-4 flex flex-col justify-end text-left pointer-events-none z-[10]">
-                      <div className="flex items-center gap-1.5 mb-0.5">
-                        <Mountain className="w-4 h-4 text-white stroke-[2.3] shrink-0 drop-shadow-[0_1px_4px_rgba(0,0,0,0.6)]" />
-                        <span className="text-[14px] sm:text-[16px] font-bold text-white tracking-[-0.015em] leading-tight drop-shadow-[0_2px_8px_rgba(0,0,0,0.6)]">
-                          Seus roteiros
-                        </span>
-                      </div>
-                      <p className="text-[11.5px] sm:text-[12.5px] text-[#E0E4EC] font-medium leading-tight pl-5.5 drop-shadow-[0_1px_4px_rgba(0,0,0,0.6)]">
-                        Planeje seus passeios.
-                      </p>
-                    </div>
-                  </div>
-                </button>
-              </motion.div>
-
-              <motion.div
-                id="momentos"
-                initial={prefersReducedMotion ? { opacity: 1 } : { opacity: 0, y: 16 }}
-                whileInView={{ opacity: 1, y: 0 }}
-                viewport={{ once: true, margin: '-30px' }}
-                transition={{ duration: 0.5, delay: 0.12, ease: [0.22, 1, 0.36, 1] }}
-              >
-                <button
-                  id="landing-card-experiences"
-                  type="button"
-                  aria-label="Novas experiências — Descubra o que fazer."
-                  onClick={() => {
-                    triggerHaptic();
-                    onStartRegister();
-                  }}
-                  className="group relative w-full block rounded-[22px] sm:rounded-[26px] overflow-hidden bg-white border-2 border-white ring-1 ring-white/60 shadow-[0_8px_24px_rgba(15,23,42,0.06)] cursor-pointer focus-visible:outline-2 focus-visible:outline-[#2673E8] active:scale-[0.985] transition-transform duration-200"
-                >
-                  <div className="relative w-full aspect-[4/3] sm:aspect-[1.25/1] overflow-hidden">
-                    {CARD_3_SLIDES.map((src, idx) => (
-                      <img
-                        key={src}
-                        src={src}
-                        alt="Novas experiências"
-                        loading={idx === 0 ? 'eager' : 'lazy'}
-                        decoding="async"
-                        className={`absolute inset-0 w-full h-full object-cover select-none pointer-events-none transition-all duration-1000 ease-in-out group-hover:scale-[1.03] ${
-                          idx === photoSlideIndex
-                            ? 'opacity-100 scale-100 z-[1]'
-                            : 'opacity-0 scale-[1.02] z-0'
-                        }`}
-                      />
-                    ))}
-                    <div className="absolute inset-0 bg-gradient-to-t from-black/85 via-black/35 to-transparent pointer-events-none z-[5]" />
-
-                    <div className="absolute inset-x-0 bottom-0 p-3 sm:p-4 flex flex-col justify-end text-left pointer-events-none z-[10]">
-                      <div className="flex items-center gap-1.5 mb-0.5">
-                        <Utensils className="w-4 h-4 text-white stroke-[2.3] shrink-0 drop-shadow-[0_1px_4px_rgba(0,0,0,0.6)]" />
-                        <span className="text-[14px] sm:text-[16px] font-bold text-white tracking-[-0.015em] leading-tight drop-shadow-[0_2px_8px_rgba(0,0,0,0.6)]">
-                          Novas experiências
-                        </span>
-                      </div>
-                      <p className="text-[11.5px] sm:text-[12.5px] text-[#E0E4EC] font-medium leading-tight pl-5.5 drop-shadow-[0_1px_4px_rgba(0,0,0,0.6)]">
-                        Descubra o que fazer.
-                      </p>
-                    </div>
-                  </div>
-                </button>
-              </motion.div>
-            </div>
-
-            {/* Indicador sutil e moderno de fotos estilo iOS */}
-            <div className="flex items-center justify-center gap-1.5 pt-3 pb-1" aria-hidden="true">
-              {CARD_1_SLIDES.map((_, idx) => (
-                <button
-                  key={idx}
-                  type="button"
-                  onClick={() => setPhotoSlideIndex(idx)}
-                  className={`h-1.5 rounded-full transition-all duration-300 ${
-                    idx === photoSlideIndex
-                      ? 'w-7 bg-[#2673E8]'
-                      : 'w-2.5 bg-[#DDE2EB] hover:bg-[#CBD5E1]'
-                  }`}
-                  aria-label={`Foto ${idx + 1}`}
-                />
-              ))}
-            </div>
           </div>
 
-          {/* Seção "Dúvidas" (Âncora #duvidas da navegação superior) */}
-          <div
-            id="duvidas"
-            className="mt-12 md:mt-20 max-w-[680px] mx-auto pt-4 sm:pt-6"
-          >
+          {/* Vitrine Visual Contínua de Destinos Turísticos */}
+          <div className="w-full">
+            <OnboardingShowcaseCarousel />
+          </div>
+
+          <div className="w-full max-w-[430px] md:max-w-[760px] mx-auto px-5 sm:px-8">
+            {/* Seção "Dúvidas" (Âncora #duvidas da navegação superior) */}
+            <div
+              id="duvidas"
+              className="mt-12 md:mt-20 max-w-[680px] mx-auto pt-4 sm:pt-6"
+            >
             <h3
               className="text-center text-[22px] sm:text-[26px] font-bold tracking-[-0.025em] text-[#080808] mb-5"
               style={{
@@ -1499,12 +1358,7 @@ export const CinematicLandingView: React.FC<CinematicLandingViewProps> = ({
           </div>
 
           {/* Conversão Final na Base da Página */}
-          <div
-            className="mt-10 md:mt-14 max-w-[400px] mx-auto flex flex-col items-center text-center"
-            style={{
-              paddingBottom: 'max(16px, env(safe-area-inset-bottom, 0px))',
-            }}
-          >
+          <div className="mt-10 md:mt-14 max-w-[400px] mx-auto flex flex-col items-center text-center">
             <img
               src="/assets/aistudio/monvian_logo_dark_transparent.png"
               alt="Monvian"
@@ -1544,6 +1398,12 @@ export const CinematicLandingView: React.FC<CinematicLandingViewProps> = ({
             >
               Já tenho uma conta
             </motion.button>
+            </div>
+          </div>
+
+          {/* Seção de Provas Sociais ("Quem vive, recomenda.") abaixo do CTA */}
+          <div className="w-full mt-10 sm:mt-14">
+            <LoginSocialProofSection />
           </div>
         </div>
       </section>

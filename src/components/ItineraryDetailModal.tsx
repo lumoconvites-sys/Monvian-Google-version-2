@@ -140,12 +140,12 @@ const _UnusedItineraryDetailModal: React.FC<ItineraryDetailModalProps> = ({
             exit={{ opacity: 0, scale: 0.98, y: 10 }}
             transition={{ duration: 0.24, ease: [0.16, 1, 0.3, 1] }}
             onClick={(e) => e.stopPropagation()}
-            className="relative z-10 bg-white dark:bg-[#000000] border-t sm:border border-zinc-200 dark:border-[#262626] rounded-t-[26px] sm:rounded-[26px] w-full max-w-2xl max-h-[92vh] flex flex-col shadow-2xl overflow-hidden origin-bottom sm:origin-center transform-gpu ios-page-top-rounded"
+            className="relative z-10 bg-white dark:bg-[#000000] border-t sm:border border-zinc-200 dark:border-[#262626] rounded-none w-full max-w-2xl max-h-[92vh] flex flex-col shadow-2xl overflow-hidden origin-bottom sm:origin-center transform-gpu ios-page-top-rounded"
             style={{
               paddingBottom: 'max(16px, env(safe-area-inset-bottom, 0px))',
               willChange: 'transform, opacity',
-              borderTopLeftRadius: '26px',
-              borderTopRightRadius: '26px',
+              borderTopLeftRadius: '0px',
+              borderTopRightRadius: '0px',
               overflow: 'hidden',
               WebkitMaskImage: '-webkit-radial-gradient(white, black)',
             }}
@@ -269,10 +269,10 @@ const _UnusedItineraryDetailModal: React.FC<ItineraryDetailModalProps> = ({
           )}
 
           {/* Main Content Body - Card que sobe tampando a foto com blur progressivo */}
-          <div className="relative -mt-6 z-10 bg-white dark:bg-[#000000] border-t border-zinc-200/80 dark:border-[#262626] rounded-t-[32px] sm:rounded-t-[36px] shadow-[0_-8px_32px_rgba(0,0,0,0.18)] min-h-[calc(100%-8rem)] pb-12">
+          <div className="relative -mt-6 z-10 bg-white dark:bg-[#000000] border-t border-zinc-200/80 dark:border-[#262626] rounded-none shadow-[0_-8px_32px_rgba(0,0,0,0.18)] min-h-[calc(100%-8rem)] pb-12">
             {/* Day Selector Tabs (if more than 1 day) */}
             {days.length > 1 && (
-              <div className="flex items-center gap-2 px-5 py-3 border-b border-zinc-200 dark:border-[#262626] bg-zinc-50 dark:bg-[#000000] rounded-t-[32px] sm:rounded-t-[36px] overflow-x-auto shrink-0">
+              <div className="flex items-center gap-2 px-5 py-3 border-b border-zinc-200 dark:border-[#262626] bg-zinc-50 dark:bg-[#000000] rounded-none overflow-x-auto shrink-0">
                 {days.map((d, idx) => (
                   <motion.button
                     key={idx}

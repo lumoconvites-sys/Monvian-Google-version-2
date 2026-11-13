@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
+import React, { useState, useEffect, useRef, useMemo, useCallback, memo } from 'react';
 import * as maplibregl from 'maplibre-gl';
 import 'maplibre-gl/dist/maplibre-gl.css';
 import { getCachedGeoData, isWithinCamposRadius } from '../utils/geoCache';
@@ -572,7 +572,7 @@ const SwipeableStopCard: React.FC<SwipeableStopCardProps> = ({
   );
 };
 
-export const ItinerariesView: React.FC<ItinerariesViewProps> = ({
+export const ItinerariesView: React.FC<ItinerariesViewProps> = memo(({
   isOpen,
   onClose,
   theme = 'light',
@@ -609,6 +609,26 @@ export const ItinerariesView: React.FC<ItinerariesViewProps> = ({
   const hasUserModifiedItineraryRef = useRef(false);
   const spotsRef = useRef(spots);
   spotsRef.current = spots;
+  const isMountedRef = useRef(true);
+  const timersRef = useRef<number[]>([]);
+
+  const scheduleTimeout = useCallback((fn: () => void, ms: number) => {
+    const id = window.setTimeout(() => {
+      timersRef.current = timersRef.current.filter((t) => t !== id);
+      if (isMountedRef.current) fn();
+    }, ms);
+    timersRef.current.push(id);
+    return id;
+  }, []);
+
+  useEffect(() => {
+    isMountedRef.current = true;
+    return () => {
+      isMountedRef.current = false;
+      timersRef.current.forEach((id) => window.clearTimeout(id));
+      timersRef.current = [];
+    };
+  }, []);
 
   // Current active user itinerary
   const [userItinerary, setUserItinerary] = useState<Itinerary | null>(() => {
@@ -726,7 +746,7 @@ export const ItinerariesView: React.FC<ItinerariesViewProps> = ({
       localStorage.setItem('monvian_itinerary_map_style', next);
     } catch (e) {}
     setStoreToast(next === 'satelite' ? 'Satélite HD (40% Mais Claro)' : 'Mapa Noturno / Escuro');
-    setTimeout(() => setStoreToast(null), 2500);
+    scheduleTimeout(() => setStoreToast(null), 2500);
   };
 
   // Plus menu & Import spot floating modal states
@@ -807,13 +827,13 @@ export const ItinerariesView: React.FC<ItinerariesViewProps> = ({
         duration: 800,
       });
     }
-    setTimeout(() => {
+    scheduleTimeout(() => {
       if (mapRef.current) {
         renderRouteAndMarkers(true);
       }
     }, 150);
     setStoreToast(`Local "${spot.name}" adicionado ao roteiro!`);
-    setTimeout(() => {
+    scheduleTimeout(() => {
       setStoreToast(null);
     }, 2800);
 
@@ -934,7 +954,7 @@ export const ItinerariesView: React.FC<ItinerariesViewProps> = ({
       onCompleteOnboardingSelection?.([optimisticItinerary], 'Prefiro não informar');
     } else {
       setStoreToast('Roteiro carregado com sucesso!');
-      setTimeout(() => setStoreToast(null), 3000);
+      scheduleTimeout(() => setStoreToast(null), 3000);
     }
 
     try {
@@ -943,7 +963,7 @@ export const ItinerariesView: React.FC<ItinerariesViewProps> = ({
     setItineraryViewMode('map');
 
     // Re-render route, numerical location pins and fit map bounds immediately
-    setTimeout(() => {
+    scheduleTimeout(() => {
       if (mapRef.current) {
         try {
           mapRef.current.resize();
@@ -1023,18 +1043,21 @@ export const ItinerariesView: React.FC<ItinerariesViewProps> = ({
   // Fetch saved user itinerary or draft on startup (only once per session, never overwriting active local state)
   useEffect(() => {
     let isMounted = true;
+    const controller = new AbortController();
     const hasInitialLocalItinerary = Boolean(userItinerary && userItinerary.days && userItinerary.days.length > 0);
 
     const fetchSavedState = async () => {
       try {
         if (!hasInitialLocalItinerary && !hasUserModifiedItineraryRef.current) {
           const res = await fetch('/api/user-itineraries', {
-            headers: { 'x-session-id': sessionId }
+            headers: { 'x-session-id': sessionId },
+            signal: controller.signal,
           });
           if (res.ok) {
             const data = await res.json();
             if (
               isMounted &&
+              !controller.signal.aborted &&
               !hasUserModifiedItineraryRef.current &&
               data.success &&
               Array.isArray(data.itineraries) &&
@@ -1081,11 +1104,12 @@ export const ItinerariesView: React.FC<ItinerariesViewProps> = ({
 
         // Check if there was an in-progress draft
         const draftRes = await fetch('/api/user-itineraries/draft', {
-          headers: { 'x-session-id': sessionId }
+          headers: { 'x-session-id': sessionId },
+          signal: controller.signal,
         });
         if (draftRes.ok) {
           const draftData = await draftRes.json();
-          if (isMounted && draftData.success && draftData.draft) {
+          if (isMounted && !controller.signal.aborted && draftData.success && draftData.draft) {
             const d = draftData.draft;
             if (d.tripDate) setTripDate(d.tripDate);
             if (d.adultsCount !== undefined) setAdultsCount(d.adultsCount);
@@ -1102,6 +1126,7 @@ export const ItinerariesView: React.FC<ItinerariesViewProps> = ({
     fetchSavedState();
     return () => {
       isMounted = false;
+      controller.abort();
     };
   }, [sessionId]);
 
@@ -1201,14 +1226,14 @@ export const ItinerariesView: React.FC<ItinerariesViewProps> = ({
       }).catch(() => {});
 
       // Short aesthetic timeout for Apple-style reveal
-      setTimeout(() => {
+      scheduleTimeout(() => {
         setUserItinerary(generated);
         localStorage.setItem('monvian_active_itinerary', JSON.stringify(generated));
         setWizardStep('date'); // Reset for next time
       }, 1000);
     } catch (err) {
       console.error('Error generating itinerary:', err);
-      setWizardStep('tinder');
+      if (isMountedRef.current) setWizardStep('tinder');
     }
   };
 
@@ -2129,7 +2154,7 @@ export const ItinerariesView: React.FC<ItinerariesViewProps> = ({
   return (
     <div
       id="itineraries-root-container"
-      className="fixed inset-0 z-40 w-full h-full overflow-hidden select-none"
+      className="fixed inset-0 z-40 w-full h-full overflow-hidden select-none ios-pushed-page"
       style={{
         top: 0,
         bottom: 0,
@@ -2142,21 +2167,17 @@ export const ItinerariesView: React.FC<ItinerariesViewProps> = ({
     >
       {/* -------------------------------------------------------------
           EXPLORE LAYER: Full-page Airbnb Itinerary Discovery Screen
-          Kept mounted underneath Map Mode so filters, search & scroll
-          are 100% preserved and visible during iOS parallax back-swipe!
+          Unmounted cleanly when viewing Map Mode so filters & infinite
+          scroll listeners/requests do not run in the background!
           ------------------------------------------------------------- */}
+      {itineraryViewMode === 'explore' && (
       <div
         id="itinerary-explore-layer"
-        aria-hidden={itineraryViewMode !== 'explore'}
         className={`fixed inset-0 ${
           isOnboardingSelection
             ? 'md:left-0 bg-[#FFFFFF]'
             : `md:left-[var(--desktop-sidebar-width,72px)] ${isDark ? 'bg-[#000000]' : 'bg-white'}`
-        } z-40 w-full md:w-auto h-full overflow-hidden transition-[left,opacity] duration-200 ease-in-out select-none ${
-          itineraryViewMode === 'explore'
-            ? 'opacity-100 pointer-events-auto visible'
-            : 'opacity-0 pointer-events-none invisible'
-        }`}
+        } z-40 w-full md:w-auto h-full overflow-hidden transition-[left,opacity] duration-200 ease-in-out select-none ios-pushed-page`}
         style={{
           top: 0,
           bottom: 0,
@@ -2179,7 +2200,7 @@ export const ItinerariesView: React.FC<ItinerariesViewProps> = ({
                 localStorage.setItem('monvian_itinerary_view_mode', 'map');
               } catch (e) {}
               setItineraryViewMode('map');
-              setTimeout(() => {
+              scheduleTimeout(() => {
                 if (mapRef.current) {
                   try {
                     mapRef.current.resize();
@@ -2197,7 +2218,7 @@ export const ItinerariesView: React.FC<ItinerariesViewProps> = ({
 
         {/* Global Toast */}
         <AnimatePresence>
-          {storeToast && !isOnboardingSelection && itineraryViewMode === 'explore' && (
+          {storeToast && !isOnboardingSelection && (
             <motion.div
               initial={{ opacity: 0, y: -20, scale: 0.95 }}
               animate={{ opacity: 1, y: 0, scale: 1 }}
@@ -2212,22 +2233,20 @@ export const ItinerariesView: React.FC<ItinerariesViewProps> = ({
           )}
         </AnimatePresence>
       </div>
+      )}
 
       {/* -------------------------------------------------------------
           MAP LAYER: Interactive Map with Route, Sequential Points & Store
+          Unmounted cleanly when in Explore Mode so MapLibre WebGL frees memory!
           ------------------------------------------------------------- */}
+      {itineraryViewMode === 'map' && (
       <div
         id="itinerary-map-view-container"
-        aria-hidden={itineraryViewMode !== 'map'}
         className={`fixed inset-0 md:left-[var(--desktop-sidebar-width,72px)] ${
           isEditModalOpen || isStoreOpen ? 'z-[90]' : 'z-[42]'
         } w-full md:w-auto h-full overflow-hidden transition-[left,opacity] duration-200 ease-in-out ${
           isDark ? 'bg-black' : 'bg-white'
-        } select-none ${
-          itineraryViewMode === 'map'
-            ? 'opacity-100 pointer-events-auto visible'
-            : 'opacity-0 pointer-events-none invisible'
-        }`}
+        } select-none`}
         style={{
           top: 0,
           bottom: 0,
@@ -2879,7 +2898,7 @@ export const ItinerariesView: React.FC<ItinerariesViewProps> = ({
                 setIsExpanded(false);
               }
             }}
-            className={`md:hidden !absolute inset-x-0 bottom-0 z-40 max-w-3xl mx-auto rounded-t-[32px] sm:rounded-t-[36px] overflow-hidden flex flex-col pointer-events-auto transition-colors duration-200 border-x-0 sm:border-x border-t shadow-[0_-4px_28px_rgba(0,0,0,0.12)] ${
+            className={`md:hidden !absolute inset-x-0 bottom-0 z-40 max-w-3xl mx-auto rounded-none overflow-hidden flex flex-col pointer-events-auto transition-colors duration-200 border-x-0 sm:border-x border-t shadow-[0_-4px_28px_rgba(0,0,0,0.12)] ${
               isDark
                 ? 'bg-[#121214] border-white/10 text-white'
                 : 'bg-[#FFFFFF] border-zinc-200/80 text-black'
@@ -3058,6 +3077,7 @@ export const ItinerariesView: React.FC<ItinerariesViewProps> = ({
         isGoldUser={isUserGold}
       />
       </div>
+      )}
     </div>
   );
-};
+});

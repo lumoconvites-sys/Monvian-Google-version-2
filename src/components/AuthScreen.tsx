@@ -19,12 +19,14 @@ import {
   googleSignIn,
   checkGoogleRedirectResult,
   setCachedAccessToken,
+  ensureFirebaseEmailSession,
 } from '../lib/firebase';
 import { supabase } from '../lib/supabase';
 import { persistUserToFirestore, syncPermissionsFromDatabase } from '../services/firestoreSync';
 import { startPreloadResources } from '../utils/preloadItineraries';
 import { CinematicLandingView } from './CinematicLandingView';
 import { useIOSBackEntry, iosNavigationManager } from '../services/iosNavigationManager';
+import { savePersistentSession } from '../utils/persistentAuthStorage';
 
 interface AuthScreenProps {
   onSuccess: (token: string, user: any, isNewAccount?: boolean) => void;
@@ -459,8 +461,11 @@ export function AuthScreen({ onSuccess }: AuthScreenProps) {
       const data = await res.json();
 
       if (res.ok && data.success && data.user) {
-        localStorage.setItem('monvian_token', data.token);
-        localStorage.setItem('monvian_user', JSON.stringify(data.user));
+        const cleanIdentifier = email.trim().toLowerCase();
+        if (cleanIdentifier.includes('@')) {
+          ensureFirebaseEmailSession(cleanIdentifier, password).catch(() => {});
+        }
+        await savePersistentSession(data.token, data.user);
         iosNavigationManager.clearAuthEntries();
         onSuccess(data.token, data.user, false);
       } else {
@@ -669,8 +674,8 @@ export function AuthScreen({ onSuccess }: AuthScreenProps) {
         })(),
       ]);
 
-      localStorage.setItem('monvian_token', data.token);
-      localStorage.setItem('monvian_user', JSON.stringify({ ...userObj, avatar_url: finalAvatar }));
+      const finalUserPayload = { ...userObj, avatar_url: finalAvatar };
+      await savePersistentSession(data.token, finalUserPayload);
 
       try {
         sessionStorage.removeItem('monvian_signup_draft_name');
@@ -785,8 +790,7 @@ export function AuthScreen({ onSuccess }: AuthScreenProps) {
       firebase_uid: gUser.uid || null,
     }).catch(() => {});
 
-    localStorage.setItem('monvian_token', token);
-    localStorage.setItem('monvian_user', JSON.stringify(verifiedUser));
+    await savePersistentSession(token, verifiedUser);
     iosNavigationManager.clearAuthEntries();
 
     onSuccess(token, verifiedUser, isNewAccount);
@@ -988,7 +992,7 @@ export function AuthScreen({ onSuccess }: AuthScreenProps) {
           height: 'var(--app-height, 100dvh)',
           minHeight: 'var(--app-height, 100dvh)',
           WebkitOverflowScrolling: 'touch',
-          willChange: 'transform, opacity',
+          willChange: 'opacity',
         }}
       >
         <CinematicLandingView
@@ -1010,7 +1014,7 @@ export function AuthScreen({ onSuccess }: AuthScreenProps) {
             animate={shouldReduceMotion ? { opacity: 1 } : { opacity: 1, y: 0 }}
             exit={shouldReduceMotion ? { opacity: 0 } : { opacity: 0, y: 10 }}
             transition={{ duration: shouldReduceMotion ? 0.18 : 0.32, ease: [0.22, 1, 0.36, 1] }}
-            className={`fixed inset-0 z-[110] bg-[#FFFFFF] text-[#080808] flex flex-col justify-between ${
+            className={`fixed inset-0 z-[110] bg-[#FFFFFF] text-[#080808] flex flex-col justify-between ios-pushed-page ${
               registerStep === 4 ? 'overflow-y-auto overscroll-y-contain' : 'overflow-hidden'
             }`}
             style={{
@@ -1610,7 +1614,7 @@ export function AuthScreen({ onSuccess }: AuthScreenProps) {
             animate={shouldReduceMotion ? { opacity: 1 } : { opacity: 1, y: 0 }}
             exit={{ opacity: 0, transition: { duration: 0.16, ease: [0.22, 1, 0.36, 1] } }}
             transition={{ duration: shouldReduceMotion ? 0.16 : 0.28, ease: [0.22, 1, 0.36, 1] }}
-            className="auth-login-screen fixed inset-0 z-[115] w-full bg-[#FFFFFF] flex flex-col items-center justify-between text-[#080808] pt-6 sm:pt-8 pb-10 px-5 sm:px-6 pointer-events-auto overflow-y-auto overscroll-y-contain"
+            className="auth-login-screen fixed inset-0 z-[115] w-full bg-[#FFFFFF] flex flex-col items-center justify-between text-[#080808] pt-6 sm:pt-8 pb-10 px-5 sm:px-6 pointer-events-auto overflow-y-auto overflow-x-hidden overscroll-y-contain"
             style={{
               top: 0,
               bottom: 0,

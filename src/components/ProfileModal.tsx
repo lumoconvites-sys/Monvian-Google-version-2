@@ -70,7 +70,7 @@ type SubView =
   | 'ajuda-informacoes'
   | 'logout-confirm';
 
-export const ProfileModal: React.FC<ProfileModalProps> = ({
+export const ProfileModal: React.FC<ProfileModalProps> = React.memo(({
   isOpen,
   onClose,
   favorites,
@@ -158,6 +158,19 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
   const [isUploading, setIsUploading] = useState(false);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const checkUsernameTimerRef = useRef<any>(null);
+  const saveToastTimerRef = useRef<number | null>(null);
+  const checkUsernameAbortRef = useRef<AbortController | null>(null);
+  const isMountedRef = useRef(true);
+
+  useEffect(() => {
+    isMountedRef.current = true;
+    return () => {
+      isMountedRef.current = false;
+      if (checkUsernameTimerRef.current) clearTimeout(checkUsernameTimerRef.current);
+      if (saveToastTimerRef.current) window.clearTimeout(saveToastTimerRef.current);
+      checkUsernameAbortRef.current?.abort();
+    };
+  }, []);
 
   useEffect(() => {
     if (user) {
@@ -220,11 +233,18 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
     setUsernameFeedback('Verificando...');
 
     if (checkUsernameTimerRef.current) clearTimeout(checkUsernameTimerRef.current);
+    checkUsernameAbortRef.current?.abort();
     checkUsernameTimerRef.current = setTimeout(async () => {
+      const controller = new AbortController();
+      checkUsernameAbortRef.current = controller;
       try {
         const userIdParam = user?.id ? `&currentUserId=${encodeURIComponent(user.id)}` : '';
-        const res = await fetch(`/api/users/check-username?username=${encodeURIComponent(clean)}${userIdParam}`);
+        const res = await fetch(
+          `/api/users/check-username?username=${encodeURIComponent(clean)}${userIdParam}`,
+          { signal: controller.signal }
+        );
         const data = await res.json();
+        if (!isMountedRef.current || controller.signal.aborted) return;
         if (data.available) {
           setUsernameStatus('available');
           setUsernameFeedback('Nome de usuário disponível');
@@ -232,7 +252,8 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
           setUsernameStatus('unavailable');
           setUsernameFeedback('Nome de usuário indisponível');
         }
-      } catch {
+      } catch (err: any) {
+        if (err?.name === 'AbortError' || !isMountedRef.current) return;
         setUsernameStatus('idle');
         setUsernameFeedback('');
       }
@@ -240,6 +261,7 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
 
     return () => {
       if (checkUsernameTimerRef.current) clearTimeout(checkUsernameTimerRef.current);
+      checkUsernameAbortRef.current?.abort();
     };
   }, [tempUsername, activeSubView, user]);
 
@@ -523,6 +545,7 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
     const finalBio = tempBio.trim();
 
     await saveProfileToBackend(finalName, cleanUsername, finalBio, finalEmail, finalAvatar);
+    if (!isMountedRef.current) return;
 
     setUserName(finalName);
     setUserUsername(cleanUsername);
@@ -531,7 +554,9 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
     setUserAvatar(finalAvatar);
 
     setSaveToast(true);
-    setTimeout(() => {
+    if (saveToastTimerRef.current) window.clearTimeout(saveToastTimerRef.current);
+    saveToastTimerRef.current = window.setTimeout(() => {
+      if (!isMountedRef.current) return;
       setSaveToast(false);
       handleSetSubView('main');
     }, 600);
@@ -560,7 +585,7 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
           exit={{ opacity: 0, y: 6 }}
           transition={{ duration: 0.18, ease: [0.22, 1, 0.36, 1] }}
           onClick={(e) => e.stopPropagation()}
-          className={`relative w-full h-full md:h-[88vh] md:max-w-2xl rounded-none md:rounded-[30px] overflow-hidden flex flex-col justify-between shadow-2xl transition-colors duration-200 md:border ${
+          className={`relative w-full h-full md:h-[88vh] md:max-w-2xl rounded-none md:rounded-[30px] overflow-hidden flex flex-col justify-between shadow-2xl transition-colors duration-200 md:border ios-pushed-page ${
             isDark
               ? 'bg-[#000000] text-white md:border-white/10'
               : 'bg-[#ffffff] text-zinc-950 md:border-black/10'
@@ -627,11 +652,11 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
 
         {/* Main Content Area */}
         <div
-          className={`flex-1 min-h-0 overflow-y-auto overscroll-contain px-5 sm:px-7 max-w-3xl mx-auto w-full flex flex-col transition-colors ${
+          className={`flex-1 min-h-0 overflow-y-auto overscroll-contain max-w-3xl mx-auto w-full flex flex-col transition-colors ${
             isDark
               ? 'bg-[#000000] text-white'
               : 'bg-[#ffffff] text-zinc-950'
-          } ${activeSubView === 'ajuda-informacoes' ? 'pt-1 sm:pt-2' : ''}`}
+          } ${activeSubView === 'ajuda-informacoes' ? 'px-0 pt-0' : 'px-5 sm:px-7'}`}
           style={{
             WebkitOverflowScrolling: 'touch',
             paddingBottom:
@@ -1431,5 +1456,5 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
       )}
     </AnimatePresence>
   );
-};
+});
 export default ProfileModal;

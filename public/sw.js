@@ -1,7 +1,7 @@
 // Monvian PWA Service Worker - Offline Caching Engine for Spots & Assets
-const STATIC_CACHE = 'monvian-static-v5';
-const API_CACHE = 'monvian-api-v5';
-const IMAGES_CACHE = 'monvian-images-v5';
+const STATIC_CACHE = 'monvian-static-v6';
+const API_CACHE = 'monvian-api-v6';
+const IMAGES_CACHE = 'monvian-images-v6';
 
 const PRECACHE_ASSETS = [
   '/',
@@ -47,6 +47,20 @@ self.addEventListener('fetch', (event) => {
 
   // Skip non-GET requests (mutations like POST, PUT, DELETE must go straight to server)
   if (request.method !== 'GET') {
+    return;
+  }
+
+  // Never intercept or cache authenticated requests or auth provider domains (Supabase, Firebase, Google OAuth)
+  if (
+    request.headers.has('Authorization') ||
+    request.headers.has('apikey') ||
+    url.pathname.startsWith('/api/auth/') ||
+    url.hostname.includes('supabase.co') ||
+    url.hostname.includes('googleapis.com') ||
+    url.hostname.includes('firebaseapp.com') ||
+    url.hostname.includes('firebaseio.com') ||
+    url.hostname.includes('accounts.google.com')
+  ) {
     return;
   }
 

@@ -229,7 +229,7 @@ const OrbitalPublishLoader: React.FC<OrbitalPublishLoaderProps> = ({ photos }) =
   );
 };
 
-export const PublicationsView: React.FC<PublicationsViewProps> = ({
+export const PublicationsView: React.FC<PublicationsViewProps> = React.memo(({
   isOpen,
   onClose,
   theme = 'dark',
@@ -1889,4 +1889,4 @@ export const PublicationsView: React.FC<PublicationsViewProps> = ({
       )}
     </div>
   );
-};
+});

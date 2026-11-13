@@ -95,6 +95,9 @@ class DeviceHeadingManager {
 
     return () => {
       this.listeners.delete(listener);
+      if (this.listeners.size === 0) {
+        this.stop();
+      }
     };
   }
 
@@ -208,12 +211,15 @@ class DeviceHeadingManager {
     this.requestPromise = (async () => {
       try {
         const res = await (DeviceOrientationEvent as any).requestPermission();
+        if (!this.isListening) {
+          return false;
+        }
         if (res === 'granted') {
           this.sessionPermissionGranted = true;
           this.markPermissionHandled();
           this.removeGestureActivationListeners();
           this.reattachListeners();
-          if (!this.animFrameId) {
+          if (!this.animFrameId && this.isListening) {
             this.lastAnimTime = 0;
             this.animFrameId = requestAnimationFrame(this.animationLoop);
           }

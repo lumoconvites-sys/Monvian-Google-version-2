@@ -177,6 +177,7 @@ export const IOSInteractiveBackSystem: React.FC = () => {
         underlayRef.current.style.display = 'none';
         underlayRef.current.style.transition = 'none';
         underlayRef.current.style.transform = 'translate3d(0, 0, 0)';
+        underlayRef.current.style.backgroundColor = '';
         underlayRef.current.innerHTML = '';
       }
 
@@ -231,9 +232,18 @@ export const IOSInteractiveBackSystem: React.FC = () => {
         const snapshotHtml = iosNavigationManager.getLatestSnapshot();
         if (underlayRef.current) {
           if (snapshotHtml) {
+            underlayRef.current.style.backgroundColor = '';
             underlayRef.current.innerHTML = snapshotHtml;
           } else {
-            prepareUnderlayClone(document.getElementById('app-map-layer'));
+            const mapLayerEl = document.getElementById('app-map-layer');
+            if (mapLayerEl) {
+              underlayRef.current.style.backgroundColor = '';
+              prepareUnderlayClone(mapLayerEl);
+            } else {
+              underlayRef.current.innerHTML = '';
+              const isDarkTheme = document.documentElement.classList.contains('dark');
+              underlayRef.current.style.backgroundColor = isDarkTheme ? '#000000' : '#f4f4f5';
+            }
           }
           underlayRef.current.style.display = 'block';
           underlayRef.current.style.transition = 'none';

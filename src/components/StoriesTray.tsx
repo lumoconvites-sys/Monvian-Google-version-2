@@ -13,7 +13,7 @@ interface StoriesTrayProps {
   onOpenUserStory: (userId: string) => void;
 }
 
-export const StoriesTray: React.FC<StoriesTrayProps> = ({
+export const StoriesTray: React.FC<StoriesTrayProps> = React.memo(({
   trayUsers,
   myStory,
   currentUser,
@@ -207,4 +207,4 @@ export const StoriesTray: React.FC<StoriesTrayProps> = ({
       </div>
     </div>
   );
-};
+});

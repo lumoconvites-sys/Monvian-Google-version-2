@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useImperativeHandle, forwardRef, useState, useCallback } from 'react';
+import React, { useEffect, useRef, useImperativeHandle, forwardRef, useState, useCallback, memo } from 'react';
 import * as maplibregl from 'maplibre-gl';
 import 'maplibre-gl/dist/maplibre-gl.css';
 import { Layers } from 'lucide-react';
@@ -254,8 +254,9 @@ function normalizeCoords(
   return fallback;
 }
 
-export const MapComponent = forwardRef<MapComponentHandle, MapComponentProps>(
-  (
+export const MapComponent = memo(
+  forwardRef<MapComponentHandle, MapComponentProps>(
+    (
     {
       spots,
       selectedSpot,
@@ -659,6 +660,18 @@ export const MapComponent = forwardRef<MapComponentHandle, MapComponentProps>(
               });
             }
           }
+          if (selectedSpotRef.current && selectedSpotRef.current.lng && selectedSpotRef.current.lat) {
+            const isMobile = window.innerWidth < 768;
+            const verticalOffset = isMobile ? -Math.round(window.innerHeight * 0.12) : 0;
+            map.easeTo({
+              center: [selectedSpotRef.current.lng, selectedSpotRef.current.lat],
+              zoom: 15.5,
+              pitch: is3DModeRef.current ? 60 : 35,
+              bearing: is3DModeRef.current ? -20 : 0,
+              offset: [0, verticalOffset],
+              duration: 500,
+            });
+          }
           if (onMapLoad) onMapLoad();
         });
 
@@ -917,7 +930,7 @@ export const MapComponent = forwardRef<MapComponentHandle, MapComponentProps>(
       }
     }, [isSpotlightActive, ensureUserMarker]);
 
-    // Cleanup on unmount
+    // Cleanup on unmount: destroy MapLibre instance, markers, and DOM refs completely
     useEffect(() => {
       return () => {
         if (userMarkerRef.current) {
@@ -927,7 +940,11 @@ export const MapComponent = forwardRef<MapComponentHandle, MapComponentProps>(
           userMarkerRef.current = null;
         }
         userMarkerMapRef.current = null;
+        userAvatarImgRef.current = null;
         userBeamRef.current = null;
+        compassIconWrapperRef.current = null;
+        previousCameraStateRef.current = null;
+
         markerRecordsRef.current.forEach((rec) => {
           try {
             rec.marker.remove();
@@ -935,8 +952,18 @@ export const MapComponent = forwardRef<MapComponentHandle, MapComponentProps>(
         });
         markerRecordsRef.current = [];
         animatedSpotIdsRef.current.clear();
+
+        visualIconMarkersRef.current.forEach((m) => {
+          try {
+            m.remove();
+          } catch (e) {}
+        });
+        visualIconMarkersRef.current = [];
+
         if (mapRef.current) {
-          mapRef.current.remove();
+          try {
+            mapRef.current.remove();
+          } catch (e) {}
           mapRef.current = null;
         }
       };
@@ -2119,4 +2146,5 @@ export const MapComponent = forwardRef<MapComponentHandle, MapComponentProps>(
       </div>
     );
   }
+)
 );

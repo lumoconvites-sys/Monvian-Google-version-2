@@ -8,7 +8,7 @@ interface LazyImageProps {
   onError?: (e: React.SyntheticEvent<HTMLImageElement, Event>) => void;
 }
 
-export const LazyImage: React.FC<LazyImageProps> = ({ src, alt, className, onError }) => {
+export const LazyImage: React.FC<LazyImageProps> = React.memo(({ src, alt, className, onError }) => {
   const [isLoaded, setIsLoaded] = useState(false);
   const imgRef = useRef<HTMLImageElement | null>(null);
 
@@ -61,5 +61,5 @@ export const LazyImage: React.FC<LazyImageProps> = ({ src, alt, className, onErr
       />
     </div>
   );
-};
+});
 

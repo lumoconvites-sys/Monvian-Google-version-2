@@ -96,12 +96,19 @@ export const XpRewardNotificationOverlay: React.FC<XpRewardNotificationOverlayPr
 }) => {
   const [activeExpansion, setActiveExpansion] = useState<ActiveExpansionState | null>(null);
   const [countedCoins, setCountedCoins] = useState<number>(0);
+  const timersRef = React.useRef<number[]>([]);
 
   useEffect(() => {
+    const clearAllTimers = () => {
+      timersRef.current.forEach((id) => window.clearTimeout(id));
+      timersRef.current = [];
+    };
+
     const handleReward = (e: CustomEvent<XpRewardEventDetail>) => {
       const detail = e.detail;
       if (!detail) return;
 
+      clearAllTimers();
       setCountedCoins(12);
 
       const pinCoords = resolvePinCoordinates(detail.spotId, detail.originX, detail.originY);
@@ -119,7 +126,6 @@ export const XpRewardNotificationOverlay: React.FC<XpRewardNotificationOverlayPr
 
       setActiveExpansion(expansionState);
 
-      const timers: number[] = [];
       // Step-by-step coin counter as each coin lands
       for (let i = 0; i < COIN_COUNT; i++) {
         const stepMs = 140 + i * 75;
@@ -133,21 +139,18 @@ export const XpRewardNotificationOverlay: React.FC<XpRewardNotificationOverlayPr
             } catch {}
           }
         }, stepMs);
-        timers.push(t);
+        timersRef.current.push(t);
       }
 
       const cleanupTimer = window.setTimeout(() => {
         setActiveExpansion((prev) => (prev?.id === expansionState.id ? null : prev));
       }, 2500);
-      timers.push(cleanupTimer);
-
-      return () => {
-        timers.forEach((id) => window.clearTimeout(id));
-      };
+      timersRef.current.push(cleanupTimer);
     };
 
     window.addEventListener('monvian:xp_awarded' as any, handleReward);
     return () => {
+      clearAllTimers();
       window.removeEventListener('monvian:xp_awarded' as any, handleReward);
     };
   }, []);

@@ -481,14 +481,175 @@ function formatSafeUser(user: any) {
   };
 }
 
+const SESSION_SIGNING_SECRET =
+  process.env.SESSION_SECRET ||
+  process.env.JWT_SECRET ||
+  'monvian-persistent-session-hmac-secret-2026-v1';
+const SESSION_TTL_MS = 365 * 24 * 60 * 60 * 1000;
+const TOKEN_REFRESH_THRESHOLD_MS = 7 * 24 * 60 * 60 * 1000;
+const inMemoryRevokedTokenHashes = new Set<string>();
+
+function hashSessionToken(token: string): string {
+  return crypto.createHash('sha256').update(token).digest('hex').slice(0, 48);
+}
+
+function signPersistentSessionToken(user: {
+  id: number | string;
+  email?: string | null;
+  whatsapp?: string | null;
+  role?: string | null;
+}): string {
+  const cleanEmail = String(user.email || user.whatsapp || '')
+    .trim()
+    .toLowerCase();
+  const now = Date.now();
+  const payloadObj = {
+    uid: user.id,
+    email: cleanEmail,
+    role: isPrimaryAdmin(cleanEmail) || user.role === 'admin' ? 'admin' : 'user',
+    iat: now,
+    exp: now + SESSION_TTL_MS,
+    jti: crypto.randomUUID(),
+  };
+  const payloadB64 = Buffer.from(JSON.stringify(payloadObj), 'utf8').toString('base64url');
+  const sigB64 = crypto
+    .createHmac('sha256', SESSION_SIGNING_SECRET)
+    .update(payloadB64)
+    .digest('base64url');
+  return `mvn1.${payloadB64}.${sigB64}`;
+}
+
+function verifySignedSessionToken(token: string): {
+  uid: number | string;
+  email: string;
+  role: string;
+  iat: number;
+  exp: number;
+  jti: string;
+} | null {
+  if (!token || !token.startsWith('mvn1.')) return null;
+  const parts = token.split('.');
+  if (parts.length !== 3) return null;
+  const [, payloadB64, sigB64] = parts;
+  if (!payloadB64 || !sigB64) return null;
+
+  try {
+    const expectedSig = crypto
+      .createHmac('sha256', SESSION_SIGNING_SECRET)
+      .update(payloadB64)
+      .digest();
+    const providedSig = Buffer.from(sigB64, 'base64url');
+    if (expectedSig.length !== providedSig.length) return null;
+    if (!crypto.timingSafeEqual(expectedSig, providedSig)) return null;
+
+    const payload = JSON.parse(Buffer.from(payloadB64, 'base64url').toString('utf8'));
+    if (!payload || !payload.exp || Number(payload.exp) <= Date.now()) return null;
+    return {
+      uid: payload.uid,
+      email: String(payload.email || '').trim().toLowerCase(),
+      role: String(payload.role || 'user'),
+      iat: Number(payload.iat || 0),
+      exp: Number(payload.exp || 0),
+      jti: String(payload.jti || ''),
+    };
+  } catch {
+    return null;
+  }
+}
+
+function extractRequestToken(req: Request): string {
+  const authHeader = req.headers.authorization;
+  if (authHeader && authHeader.startsWith('Bearer ')) {
+    const t = authHeader.substring(7).trim();
+    if (t) return t;
+  }
+  const cookieHeader = req.headers.cookie;
+  if (cookieHeader && typeof cookieHeader === 'string') {
+    const match = cookieHeader.match(/(?:^|;\s*)monvian_token=([^;]+)/);
+    if (match && match[1]) {
+      try {
+        return decodeURIComponent(match[1]).trim();
+      } catch {
+        return match[1].trim();
+      }
+    }
+  }
+  return '';
+}
+
+function setPersistentSessionCookie(req: Request, res: Response, token: string): void {
+  try {
+    const isHttps =
+      req.secure ||
+      req.headers['x-forwarded-proto'] === 'https' ||
+      process.env.NODE_ENV === 'production';
+    const secureFlag = isHttps ? '; Secure' : '';
+    res.setHeader(
+      'Set-Cookie',
+      `monvian_token=${encodeURIComponent(token)}; Max-Age=31536000; Path=/; SameSite=Lax${secureFlag}`
+    );
+  } catch {}
+}
+
+function clearPersistentSessionCookie(req: Request, res: Response): void {
+  try {
+    const isHttps =
+      req.secure ||
+      req.headers['x-forwarded-proto'] === 'https' ||
+      process.env.NODE_ENV === 'production';
+    const secureFlag = isHttps ? '; Secure' : '';
+    res.setHeader(
+      'Set-Cookie',
+      `monvian_token=; Max-Age=0; Path=/; SameSite=Lax${secureFlag}`
+    );
+  } catch {}
+}
+
 function isTokenRevoked(token: string): boolean {
   if (!token) return true;
+  const tokenHash = hashSessionToken(token);
+  if (inMemoryRevokedTokenHashes.has(tokenHash)) return true;
   try {
     const row = db.prepare('SELECT token FROM revoked_sessions WHERE token = ?').get(token);
-    return Boolean(row);
+    if (row) {
+      inMemoryRevokedTokenHashes.add(tokenHash);
+      return true;
+    }
+    const settingRow = db
+      .prepare('SELECT value FROM system_settings WHERE key = ?')
+      .get(`revoked_token:${tokenHash}`);
+    if (settingRow) {
+      inMemoryRevokedTokenHashes.add(tokenHash);
+      return true;
+    }
+    return false;
   } catch {
     return false;
   }
+}
+
+async function isTokenRevokedAsync(token: string): Promise<boolean> {
+  if (isTokenRevoked(token)) return true;
+  if (!supabase) return false;
+  try {
+    const tokenHash = hashSessionToken(token);
+    const { data } = await Promise.race([
+      supabase
+        .from('system_settings')
+        .select('value')
+        .eq('key', `revoked_token:${tokenHash}`)
+        .maybeSingle(),
+      new Promise<any>((resolve) => setTimeout(() => resolve({ data: null }), 1500)),
+    ]);
+    if (data) {
+      inMemoryRevokedTokenHashes.add(tokenHash);
+      try {
+        db.prepare('INSERT OR REPLACE INTO revoked_sessions (token) VALUES (?)').run(token);
+      } catch {}
+      return true;
+    }
+  } catch {}
+  return false;
 }
 
 function getUserByToken(token: string) {
@@ -500,29 +661,95 @@ function getUserByToken(token: string) {
       JOIN users u ON u.id = s.user_id
       WHERE s.token = ?
     `).get(token) as any;
-    if (!row) return null;
-    return formatSafeUser(row);
-  } catch {
-    return null;
+    if (row) return formatSafeUser(row);
+  } catch {}
+
+  const signed = verifySignedSessionToken(token);
+  if (signed) {
+    try {
+      let dbUser: any = null;
+      if (signed.email) {
+        dbUser = db
+          .prepare('SELECT * FROM users WHERE LOWER(email) = ? OR LOWER(whatsapp) = ?')
+          .get(signed.email, signed.email);
+      }
+      if (!dbUser && signed.uid) {
+        dbUser = db.prepare('SELECT * FROM users WHERE id = ?').get(signed.uid);
+      }
+      if (dbUser && dbUser.is_banned !== 1) {
+        db.prepare('INSERT OR IGNORE INTO sessions (token, user_id) VALUES (?, ?)').run(token, dbUser.id);
+        return formatSafeUser(dbUser);
+      }
+    } catch {}
   }
+
+  return null;
 }
 
 async function resolveAuthenticatedUser(req: Request, strictTokenOnly = false): Promise<any | null> {
-  const authHeader = req.headers.authorization;
-  const token = authHeader?.startsWith('Bearer ') ? authHeader.substring(7).trim() : '';
+  const token = extractRequestToken(req);
   if (token) {
-    if (isTokenRevoked(token)) {
+    if (await isTokenRevokedAsync(token)) {
       return null;
     }
 
     const localSessionUser = getUserByToken(token);
     if (localSessionUser) return localSessionUser;
 
+    // Verify cryptographically signed persistent token even if local SQLite reset
+    const signed = verifySignedSessionToken(token);
+    if (signed) {
+      let dbUser: any = null;
+      if (signed.email) {
+        dbUser = db
+          .prepare('SELECT * FROM users WHERE LOWER(email) = ? OR LOWER(whatsapp) = ?')
+          .get(signed.email, signed.email);
+      }
+      if (!dbUser && signed.uid) {
+        dbUser = db.prepare('SELECT * FROM users WHERE id = ?').get(signed.uid);
+      }
+      if (!dbUser && signed.email) {
+        const remoteUser = await getUserFromSupabase(signed.email);
+        if (remoteUser && remoteUser.email) {
+          if (remoteUser.is_banned === 1 && !isPrimaryAdmin(remoteUser.email)) {
+            return null;
+          }
+          const role = isPrimaryAdmin(remoteUser.email) || remoteUser.role === 'admin' ? 'admin' : 'user';
+          const isGold = role === 'admin' || remoteUser.is_gold === 1 ? 1 : 0;
+          const ins = db
+            .prepare(`
+              INSERT INTO users (name, username, email, whatsapp, password_hash, role, avatar_url, is_gold)
+              VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+            `)
+            .run(
+              remoteUser.name || remoteUser.email.split('@')[0],
+              remoteUser.username || remoteUser.email.split('@')[0],
+              remoteUser.email.toLowerCase(),
+              remoteUser.whatsapp || remoteUser.email.toLowerCase(),
+              remoteUser.password_hash || '',
+              role,
+              remoteUser.avatar_url || '/fotoperfil.png',
+              isGold
+            );
+          dbUser = db.prepare('SELECT * FROM users WHERE id = ?').get(ins.lastInsertRowid);
+        }
+      }
+      if (dbUser) {
+        if (dbUser.is_banned === 1 && !isPrimaryAdmin(dbUser.email)) {
+          return null;
+        }
+        try {
+          db.prepare('INSERT OR IGNORE INTO sessions (token, user_id) VALUES (?, ?)').run(token, dbUser.id);
+        } catch {}
+        return formatSafeUser(dbUser);
+      }
+    }
+
     // Check if session exists in remote Supabase sessions table (survives server restarts)
     const remoteSession = await getSessionFromSupabase(token);
     if (remoteSession && remoteSession.user_id) {
       const dbUser = db.prepare('SELECT * FROM users WHERE id = ?').get(remoteSession.user_id) as any;
-      if (dbUser) {
+      if (dbUser && (dbUser.is_banned !== 1 || isPrimaryAdmin(dbUser.email))) {
         db.prepare('INSERT OR IGNORE INTO sessions (token, user_id) VALUES (?, ?)').run(token, dbUser.id);
         return formatSafeUser(dbUser);
       }
@@ -816,8 +1043,6 @@ async function startServer() {
         );
 
       const userId = Number(insert.lastInsertRowid);
-      const token = crypto.randomUUID();
-      db.prepare('INSERT INTO sessions (token, user_id) VALUES (?, ?)').run(token, userId);
 
       const userRecord = {
         id: userId,
@@ -835,10 +1060,15 @@ async function startServer() {
         last_access: nowIso,
       };
 
+      const token = signPersistentSessionToken(userRecord);
+      db.prepare('INSERT INTO sessions (token, user_id) VALUES (?, ?)').run(token, userId);
+
       // Persist to Supabase PostgreSQL & Firestore
       await persistUserToSupabase(userRecord);
       await persistSessionToSupabase(token, userId);
       await persistUserToFirestore(userRecord).catch(() => {});
+
+      setPersistentSessionCookie(req, res, token);
 
       return res.json({
         success: true,
@@ -973,11 +1203,13 @@ async function startServer() {
 
       db.prepare('UPDATE users SET visits_count = COALESCE(visits_count, 0) + 1, last_access = CURRENT_TIMESTAMP WHERE id = ?').run(user.id);
 
-      const token = crypto.randomUUID();
+      const token = signPersistentSessionToken(user);
       db.prepare('INSERT INTO sessions (token, user_id) VALUES (?, ?)').run(token, user.id);
 
       await persistUserToSupabase(user);
       await persistSessionToSupabase(token, user.id);
+
+      setPersistentSessionCookie(req, res, token);
 
       return res.json({
         success: true,
@@ -1039,11 +1271,13 @@ async function startServer() {
         user.is_gold = 1;
       }
 
-      const token = crypto.randomUUID();
+      const token = signPersistentSessionToken(user);
       db.prepare('INSERT INTO sessions (token, user_id) VALUES (?, ?)').run(token, user.id);
 
       await persistUserToSupabase({ ...user, auth_id: supabase_auth_id || null });
       await persistSessionToSupabase(token, user.id);
+
+      setPersistentSessionCookie(req, res, token);
 
       return res.json({ success: true, token, user: formatSafeUser(user), is_new: isNew });
     } catch (err: any) {
@@ -1089,11 +1323,13 @@ async function startServer() {
         user = db.prepare('SELECT * FROM users WHERE id = ?').get(ins.lastInsertRowid);
       }
 
-      const token = crypto.randomUUID();
+      const token = signPersistentSessionToken(user);
       db.prepare('INSERT INTO sessions (token, user_id) VALUES (?, ?)').run(token, user.id);
 
       await persistUserToSupabase({ ...user, auth_id: jwtUser.authId });
       await persistSessionToSupabase(token, user.id);
+
+      setPersistentSessionCookie(req, res, token);
 
       return res.json({ success: true, token, user: formatSafeUser(user) });
     } catch (err: any) {
@@ -1124,18 +1360,34 @@ async function startServer() {
 
   app.post('/api/auth/logout', async (req: Request, res: Response) => {
     try {
-      const authHeader = req.headers.authorization;
-      const headerToken = authHeader && authHeader.startsWith('Bearer ') ? authHeader.substring(7).trim() : '';
+      const requestToken = extractRequestToken(req);
       const bodyToken = typeof req.body?.token === 'string' ? req.body.token.trim() : '';
-      const token = headerToken || bodyToken;
+      const tokens = Array.from(new Set([requestToken, bodyToken].filter(Boolean)));
 
-      if (token) {
+      for (const token of tokens) {
+        const tokenHash = hashSessionToken(token);
+        inMemoryRevokedTokenHashes.add(tokenHash);
         db.prepare('DELETE FROM sessions WHERE token = ?').run(token);
         db.prepare('INSERT OR REPLACE INTO revoked_sessions (token) VALUES (?)').run(token);
+        db.prepare(
+          'INSERT OR REPLACE INTO system_settings (key, value, updated_at) VALUES (?, ?, CURRENT_TIMESTAMP)'
+        ).run(`revoked_token:${tokenHash}`, new Date().toISOString());
         await deleteSessionFromSupabase(token);
+        if (supabase) {
+          try {
+            await supabase
+              .from('system_settings')
+              .upsert(
+                { key: `revoked_token:${tokenHash}`, value: new Date().toISOString(), updated_at: new Date().toISOString() },
+                { onConflict: 'key' }
+              );
+          } catch {}
+        }
       }
+      clearPersistentSessionCookie(req, res);
       return res.json({ success: true });
     } catch {
+      clearPersistentSessionCookie(req, res);
       return res.json({ success: true });
     }
   });
@@ -1146,7 +1398,24 @@ async function startServer() {
       if (!user) {
         return res.status(401).json({ success: false, error: 'Não autenticado' });
       }
-      return res.json({ success: true, user });
+
+      const currentToken = extractRequestToken(req);
+      let refreshedToken: string | undefined;
+      const signed = currentToken ? verifySignedSessionToken(currentToken) : null;
+      if (!signed || Date.now() - signed.iat > TOKEN_REFRESH_THRESHOLD_MS) {
+        refreshedToken = signPersistentSessionToken(user);
+        try {
+          db.prepare('INSERT OR IGNORE INTO sessions (token, user_id) VALUES (?, ?)').run(refreshedToken, user.id);
+        } catch {}
+        persistSessionToSupabase(refreshedToken, Number(user.id)).catch(() => {});
+        setPersistentSessionCookie(req, res, refreshedToken);
+      }
+
+      return res.json({
+        success: true,
+        user,
+        ...(refreshedToken ? { refreshedToken } : {}),
+      });
     } catch (err: any) {
       return res.status(500).json({ success: false, error: err.message });
     }

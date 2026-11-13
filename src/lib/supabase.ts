@@ -1,4 +1,5 @@
 import { createClient } from '@supabase/supabase-js';
+import { createSupabaseIndexedDBStorage } from '../utils/persistentAuthStorage';
 
 // Static access is required so Vite compiler inlines import.meta.env in client builds
 const rawViteUrl = typeof import.meta !== 'undefined' && import.meta.env ? import.meta.env.VITE_SUPABASE_URL : undefined;
@@ -42,6 +43,8 @@ export const supabaseAnonKey = resolved.key;
 
 export const isSupabaseConfigured = Boolean(supabaseUrl && supabaseAnonKey);
 
+const authStorage = typeof window !== 'undefined' ? createSupabaseIndexedDBStorage() : undefined;
+
 export const supabase = isSupabaseConfigured
   ? createClient(supabaseUrl, supabaseAnonKey, {
       auth: {
@@ -49,6 +52,7 @@ export const supabase = isSupabaseConfigured
         autoRefreshToken: true,
         detectSessionInUrl: true,
         storageKey: 'monvian_supabase_auth',
+        ...(authStorage ? { storage: authStorage } : {}),
       },
     })
   : (null as any);
