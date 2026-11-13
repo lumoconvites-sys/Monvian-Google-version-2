@@ -10,7 +10,6 @@ import {
   Settings,
   LogOut,
   ChevronRight,
-  ArrowLeft,
   Star,
   MapPin,
   Check,
@@ -27,6 +26,7 @@ import {
   HelpCircle,
   Lock,
 } from 'lucide-react';
+import { AppleBackButton } from './ui/AppleBackButton';
 import { motion, AnimatePresence } from 'motion/react';
 import { PremiumModal } from './PremiumModal';
 import { ProfileXpProgressBar } from './ProfileXpProgressBar';
@@ -610,17 +610,12 @@ export const ProfileModal: React.FC<ProfileModalProps> = React.memo(({
         >
           <div className="flex items-center gap-3">
             {activeSubView !== 'main' ? (
-              <button
-                type="button"
+              <AppleBackButton
+                theme={isDark ? 'dark' : 'light'}
                 onClick={() => handleSetSubView('main')}
-                className={`w-10 h-10 rounded-full flex items-center justify-center transition-all active:scale-95 cursor-pointer ${
-                  isDark ? 'bg-white/10 hover:bg-white/15 text-white' : 'bg-black/5 hover:bg-black/10 text-black'
-                }`}
                 title="Voltar"
                 aria-label="Voltar"
-              >
-                <ArrowLeft className="w-5 h-5 stroke-[2.2]" />
-              </button>
+              />
             ) : null}
 
             <h1 className="text-2xl sm:text-[28px] font-bold tracking-tight">
@@ -854,7 +849,6 @@ export const ProfileModal: React.FC<ProfileModalProps> = React.memo(({
                         Painel ADM
                       </h3>
                     </div>
-                    <ChevronRight className="w-5 h-5 text-zinc-400 shrink-0" />
                   </motion.button>
                 )}
 
@@ -880,7 +874,6 @@ export const ProfileModal: React.FC<ProfileModalProps> = React.memo(({
                       Configurações da conta
                     </h3>
                   </div>
-                  <ChevronRight className="w-5 h-5 text-zinc-400 shrink-0" />
                 </motion.button>
 
                 <motion.button
@@ -903,7 +896,6 @@ export const ProfileModal: React.FC<ProfileModalProps> = React.memo(({
                       Ajuda e informações
                     </h3>
                   </div>
-                  <ChevronRight className="w-5 h-5 text-zinc-400 shrink-0" />
                 </motion.button>
 
                 {/* Sair da conta */}
@@ -927,7 +919,6 @@ export const ProfileModal: React.FC<ProfileModalProps> = React.memo(({
                       Sair da conta
                     </h3>
                   </div>
-                  <ChevronRight className="w-5 h-5 text-zinc-400 shrink-0" />
                 </motion.button>
               </div>
             </div>
@@ -1079,7 +1070,6 @@ export const ProfileModal: React.FC<ProfileModalProps> = React.memo(({
                         Editar Perfil e Foto
                       </h4>
                     </div>
-                    <ChevronRight className="w-5 h-5 text-zinc-400 shrink-0" />
                   </button>
 
                   <button
@@ -1100,7 +1090,6 @@ export const ProfileModal: React.FC<ProfileModalProps> = React.memo(({
                         </p>
                       </div>
                     </div>
-                    <ChevronRight className="w-5 h-5 text-zinc-400 shrink-0" />
                   </button>
                 </div>
               </motion.div>

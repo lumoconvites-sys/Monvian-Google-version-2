@@ -1,8 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import {
-  ArrowLeft,
-  ChevronLeft,
   Heart,
   MessageCircle,
   UserCheck,
@@ -18,6 +16,7 @@ import {
 } from 'lucide-react';
 import { FollowersListModal } from './FollowersListModal';
 import { VerifiedBadge } from './ui/VerifiedBadge';
+import { AppleBackButton } from './ui/AppleBackButton';
 
 const getCurrentUserPhoto = () => {
   try {
@@ -217,19 +216,12 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
                 borderTopRightRadius: '26px',
               }}
             >
-              <button
-                type="button"
+              <AppleBackButton
+                theme={isDark ? 'dark' : 'light'}
                 onClick={onClose}
-                className={`w-9 h-9 rounded-full flex items-center justify-center transition-all cursor-pointer ${
-                  isDark ? 'bg-white/10 hover:bg-white/15 text-white' : 'bg-zinc-100 hover:bg-zinc-200 text-black'
-                }`}
                 title="Voltar"
-              >
-                <ArrowLeft
-                  className={`w-5 h-5 stroke-[2.2] ${isDark ? 'text-white' : 'text-black'}`}
-                  style={{ color: isDark ? '#ffffff' : '#000000' }}
-                />
-              </button>
+                aria-label="Voltar"
+              />
 
               <div className="flex flex-col items-center">
                 <span className="text-[16px] sm:text-[17px] font-bold tracking-tight">
@@ -237,7 +229,7 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
                 </span>
               </div>
 
-              <div className="w-9 h-9" aria-hidden="true" />
+              <div className="w-11 h-11" aria-hidden="true" />
             </div>
 
             {/* Scrollable Profile Body */}
@@ -653,20 +645,17 @@ const PostFullscreenPage: React.FC<PostFullscreenPageProps> = ({
         className="sticky top-0 z-40 bg-black/95 backdrop-blur-md border-b border-white/10 px-3 py-2.5 flex items-center justify-between"
         style={{ paddingTop: 'max(calc(env(safe-area-inset-top, 0px) + 8px), 14px)' }}
       >
-        <button
-          type="button"
+        <AppleBackButton
+          theme="dark"
           onClick={onClose}
-          className="p-1 -ml-1 text-white hover:text-zinc-300 active:scale-95 transition-all cursor-pointer flex items-center"
           aria-label="Voltar"
-        >
-          <ChevronLeft className="w-6 h-6 stroke-[2.4]" />
-        </button>
+        />
 
         <span className="text-[15px] font-bold tracking-tight text-white uppercase">
           Publicações
         </span>
 
-        <div className="w-6" />
+        <div className="w-11" />
       </div>
 
       {/* 2. POST HEADER */}

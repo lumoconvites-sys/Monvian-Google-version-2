@@ -1,7 +1,6 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { Spot } from '../types';
 import { 
-  ArrowLeft,
   Share2,
   Heart,
   Star,
@@ -20,6 +19,7 @@ import { SpotQrModal } from './SpotQrModal';
 import { RoundedNavigationIcon } from './RoundedNavigationIcon';
 import { getSpotImage, getSpotFallbackImage } from '../utils/spotImages';
 import { VerifiedBadge } from './ui/VerifiedBadge';
+import { AppleBackButton } from './ui/AppleBackButton';
 import { SpotVideoPlayer } from './SpotVideoPlayer';
 import {
   SpotVideo,
@@ -667,22 +667,17 @@ export const SpotDetailSheet: React.FC<SpotDetailSheetProps> = React.memo(({
             right: 'max(16px, env(safe-area-inset-right, 0px))',
           }}
         >
-          <motion.button 
-            whileTap={{ scale: 0.88 }}
-            type="button"
+          <AppleBackButton
+            theme="auto"
             onClick={(e) => {
               e.stopPropagation();
               persistHeroPlaybackPosition();
               onClose();
-            }} 
-            className="w-10 h-10 rounded-full expo-liquid-glass-btn flex items-center justify-center text-black dark:text-white cursor-pointer pointer-events-auto active:opacity-80 transition-opacity"
+            }}
+            className="pointer-events-auto"
             title="Voltar"
             aria-label="Voltar para o mapa"
-          >
-            <ArrowLeft
-              className="w-5 h-5 text-black dark:text-white"
-            />
-          </motion.button>
+          />
 
           <div className="flex items-center gap-2 pointer-events-auto">
             <motion.button 
@@ -1363,19 +1358,16 @@ export const SpotDetailSheet: React.FC<SpotDetailSheetProps> = React.memo(({
 
             {/* Top-Left: Back Button */}
             <div className="absolute top-3.5 left-3.5 z-20">
-              <button
-                type="button"
+              <AppleBackButton
+                theme="auto"
                 onClick={(e) => {
                   e.stopPropagation();
                   persistHeroPlaybackPosition();
                   onClose();
                 }}
-                className="w-10 h-10 rounded-full expo-liquid-glass-btn text-zinc-900 dark:text-white flex items-center justify-center transition-transform active:scale-95 cursor-pointer"
                 title="Voltar"
                 aria-label="Voltar para o mapa"
-              >
-                <ArrowLeft className="w-5 h-5 text-zinc-900 dark:text-white" />
-              </button>
+              />
             </div>
 
             {/* Top-Right: Discreet Floating Controls (QR Code, Share, Favorite) */}

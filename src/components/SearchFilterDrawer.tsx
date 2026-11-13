@@ -13,13 +13,13 @@ import {
   Cross,
   Star,
   MapPin,
-  ArrowLeft,
   SlidersHorizontal,
   Mic,
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { getSpotImage, getSpotFallbackImage } from '../utils/spotImages';
 import { VerifiedBadge } from './ui/VerifiedBadge';
+import { AppleBackButton } from './ui/AppleBackButton';
 import { useIOSBackEntry } from '../services/iosNavigationManager';
 
 interface SearchFilterDrawerProps {
@@ -295,19 +295,14 @@ export const SearchFilterDrawer: React.FC<SearchFilterDrawerProps> = React.memo(
       >
         <div className="flex items-center gap-3">
           {selectedCategory ? (
-            <motion.button
-              whileTap={{ scale: 0.95 }}
+            <AppleBackButton
               id="btn-back-categories"
+              theme={isDark ? 'dark' : 'light'}
               onClick={() => setSelectedCategory(null)}
-              className={`w-10 h-10 rounded-full expo-liquid-glass-btn flex items-center justify-center transition-all cursor-pointer mr-1 ${
-                isDark ? 'text-white' : 'text-zinc-950'
-              }`}
               title="Voltar às categorias"
-            >
-              <ArrowLeft
-                className={`w-5 h-5 stroke-[2.2] ${isDark ? 'text-white' : 'text-zinc-950'}`}
-              />
-            </motion.button>
+              aria-label="Voltar às categorias"
+              className="mr-1"
+            />
           ) : null}
 
           <h1 className={`text-2xl sm:text-[28px] font-bold tracking-tight ${
@@ -455,9 +450,6 @@ export const SearchFilterDrawer: React.FC<SearchFilterDrawerProps> = React.memo(
                       </p>
                     </div>
                   </div>
-
-                  {/* Right: Thin Chevron Arrow */}
-                  <ChevronRight className="w-5 h-5 text-zinc-400 shrink-0 ml-2" />
                 </motion.button>
               );
             })}
@@ -569,8 +561,6 @@ export const SearchFilterDrawer: React.FC<SearchFilterDrawerProps> = React.memo(
                         </div>
                       </div>
                     </div>
-
-                    <ChevronRight className="w-5 h-5 text-zinc-400 shrink-0 ml-2" />
                   </motion.div>
                 ))}
               </div>

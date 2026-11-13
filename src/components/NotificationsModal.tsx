@@ -1,7 +1,8 @@
 import React from 'react';
 import { createPortal } from 'react-dom';
-import { ChevronLeft, Bell, Loader2 } from 'lucide-react';
+import { Bell, Loader2 } from 'lucide-react';
 import { motion } from 'motion/react';
+import { AppleBackButton } from './ui/AppleBackButton';
 import { Spot } from '../types';
 import {
   formatArrivalTitle,
@@ -168,20 +169,14 @@ export const NotificationsModal: React.FC<NotificationsModalProps> = ({
         }}
       >
         <div className="flex items-center justify-between pb-3 relative z-50">
-          <button
+          <AppleBackButton
             id="btn-back-notifications"
-            type="button"
+            theme={isDark ? 'dark' : 'light'}
             onClick={handleBack}
             title="Voltar ao Perfil"
             aria-label="Voltar para o perfil"
-            className={`relative z-50 w-11 h-11 rounded-full ${
-              isDark
-                ? 'bg-white/[0.12] hover:bg-white/[0.20] text-white border-white/15'
-                : 'bg-zinc-100 hover:bg-zinc-200 text-zinc-900 border-zinc-200/80'
-            } active:scale-90 flex items-center justify-center transition-all cursor-pointer border shadow-sm shrink-0 pointer-events-auto`}
-          >
-            <ChevronLeft className="w-5 h-5 stroke-[2.6] pointer-events-none" />
-          </button>
+            className="relative z-50 pointer-events-auto"
+          />
 
           <h1
             className={`text-2xl sm:text-3xl font-bold tracking-tight text-center flex-1 mx-2 ${

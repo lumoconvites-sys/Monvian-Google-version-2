@@ -5,12 +5,12 @@ import {
   Mail,
   Lock,
   Loader2,
-  ChevronLeft,
   CheckCircle2,
   Camera,
   Trash2,
   Image as ImageIcon,
 } from 'lucide-react';
+import { AppleBackButton } from './ui/AppleBackButton';
 import { motion, AnimatePresence, useReducedMotion } from 'motion/react';
 import {
   auth,
@@ -1035,16 +1035,13 @@ export function AuthScreen({ onSuccess }: AuthScreenProps) {
           >
             {/* Top Minimal Navigation Bar with Centered 3-Dot Step Indicator */}
             <header className="relative w-full max-w-sm mx-auto pt-2 flex items-center justify-between shrink-0">
-              <button
+              <AppleBackButton
                 id="btn-register-back"
-                type="button"
+                theme="light"
                 onClick={handleStepBack}
                 disabled={loading}
                 aria-label="Voltar"
-                className="w-10 h-10 -ml-2 rounded-full flex items-center justify-center text-[#080808] hover:bg-black/5 active:scale-95 transition-all cursor-pointer disabled:opacity-40"
-              >
-                <ChevronLeft className="w-6 h-6 stroke-[2.2]" />
-              </button>
+              />
 
               {/* 4 Bolinhas no meio da parte superior */}
               <div
@@ -1638,9 +1635,9 @@ export function AuthScreen({ onSuccess }: AuthScreenProps) {
               transition={{ duration: 0.32, ease: [0.22, 1, 0.36, 1] }}
               className="w-full max-w-sm sm:max-w-md flex items-center justify-between shrink-0 mb-2"
             >
-              <button
+              <AppleBackButton
                 id="btn-login-back-to-landing"
-                type="button"
+                theme="light"
                 onClick={() => {
                   setError('');
                   setRecoverSent(false);
@@ -1652,11 +1649,8 @@ export function AuthScreen({ onSuccess }: AuthScreenProps) {
                   }
                 }}
                 aria-label="Voltar"
-                className="w-10 h-10 -ml-2 rounded-full flex items-center justify-center text-[#080808] hover:bg-black/5 active:scale-95 transition-all cursor-pointer"
-              >
-                <ChevronLeft className="w-6 h-6 stroke-[2.2]" />
-              </button>
-              <div className="w-10 h-10" aria-hidden="true" />
+              />
+              <div className="w-11 h-11" aria-hidden="true" />
             </motion.div>
 
             <div className="w-full flex-1 flex flex-col items-center justify-center">

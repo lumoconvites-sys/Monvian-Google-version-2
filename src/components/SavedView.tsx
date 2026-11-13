@@ -17,6 +17,7 @@ import {
   ChevronRight,
   RotateCcw
 } from 'lucide-react';
+import { AppleBackButton } from './ui/AppleBackButton';
 import { Spot, Itinerary } from '../types';
 import { DEFAULT_CURATED_ITINERARIES } from '../data/defaultItineraries';
 import { useFavorites } from '../hooks/useFavorites';
@@ -540,18 +541,12 @@ export const SavedView: React.FC<SavedViewProps> = React.memo(({
                 >
                   {/* Top Bar */}
                   <header className="px-5 sm:px-6 pb-4 pt-1 flex items-center justify-between gap-3 shrink-0">
-                    <button
-                      type="button"
+                    <AppleBackButton
+                      theme={isDark ? 'dark' : 'light'}
                       onClick={handleBackToMain}
-                      className={`w-10 h-10 rounded-full border flex items-center justify-center active:scale-95 transition-all shadow-xs cursor-pointer ${
-                        isDark
-                          ? 'bg-[#000000] border-[#262626] text-white hover:border-white/30'
-                          : 'bg-white border-black/10 text-zinc-900 hover:bg-zinc-50'
-                      }`}
                       title="Voltar"
-                    >
-                      <ChevronLeft className="w-5 h-5 -translate-x-0.5" />
-                    </button>
+                      aria-label="Voltar"
+                    />
 
                     <div className="flex-1 min-w-0 px-2 text-center">
                       <h2 className="text-xl font-bold tracking-tight truncate">
@@ -682,9 +677,6 @@ export const SavedView: React.FC<SavedViewProps> = React.memo(({
                                       {(itinerary as any).duration || `${itinerary.daysCount || itinerary.days?.length || 1} dias`} · {itinerary.categories?.[0] || 'Campos do Jordão'}
                                     </p>
                                   </div>
-                                  {!isEditing && (
-                                    <ChevronRight className="w-5 h-5 text-zinc-400 shrink-0" />
-                                  )}
                                 </motion.div>
                               );
                             })
@@ -750,9 +742,6 @@ export const SavedView: React.FC<SavedViewProps> = React.memo(({
                                       )}
                                     </div>
                                   </div>
-                                  {!isEditing && (
-                                    <ChevronRight className="w-5 h-5 text-zinc-400 shrink-0" />
-                                  )}
                                 </motion.div>
                               );
                             })

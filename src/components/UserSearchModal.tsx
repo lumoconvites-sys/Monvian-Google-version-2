@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { Search, X, ArrowLeft, UserCheck, UserPlus, Loader2, Sparkles, Compass } from 'lucide-react';
+import { Search, X, UserCheck, UserPlus, Loader2, Sparkles, Compass } from 'lucide-react';
+import { AppleBackButton } from './ui/AppleBackButton';
 
 export interface SearchUserItem {
   id: string;
@@ -148,20 +149,12 @@ export const UserSearchModal: React.FC<UserSearchModalProps> = ({
         >
           {/* Search Header Bar (Instagram Style) */}
           <div className="px-4 pb-3 flex items-center gap-2.5 shrink-0 border-b border-white/[0.08] dark:border-white/[0.08]">
-            {/* Back button */}
-            <button
-              type="button"
+            <AppleBackButton
+              theme={isDark ? 'dark' : 'light'}
               onClick={onClose}
-              className={`p-2 rounded-full cursor-pointer transition-colors ${
-                isDark ? 'hover:bg-white/10 text-white' : 'hover:bg-zinc-100 text-black'
-              }`}
               title="Voltar"
-            >
-              <ArrowLeft
-                className={`w-5 h-5 stroke-[2.2] ${isDark ? 'text-white' : 'text-black'}`}
-                style={{ color: isDark ? '#ffffff' : '#000000' }}
-              />
-            </button>
+              aria-label="Voltar"
+            />
 
             {/* Input with Magnifier (WhatsApp iOS style) */}
             <div className={`flex-1 flex items-center gap-2.5 px-3.5 h-[42px] rounded-full transition-colors ${

@@ -582,11 +582,6 @@ export const SpotPreviewBanner: React.FC<SpotPreviewBannerProps> = ({
 
             {/* 3. Right Side Controls */}
             <div className="flex items-center gap-1.5 shrink-0">
-              <ChevronRight
-                className={`w-4 h-4 transition-transform ${
-                  isDark ? 'text-zinc-500' : 'text-zinc-400'
-                }`}
-              />
 
               <button
                 type="button"

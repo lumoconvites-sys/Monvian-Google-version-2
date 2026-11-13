@@ -911,6 +911,65 @@ html:not(.dark) .expo-liquid-glass-clear:hover,
   border-color: rgba(255, 255, 255, 0.46) !important;
 }
 
+/* ============================================================ */
+/* APPLE CIRCULAR BACK BUTTON — LIGHT (WHITE) & DARK GLASS      */
+/* ============================================================ */
+
+.apple-back-btn {
+  backdrop-filter: blur(20px) saturate(180%);
+  -webkit-backdrop-filter: blur(20px) saturate(180%);
+  transition: background 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease, transform 0.15s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.apple-back-btn-light,
+html:not(.dark) .apple-back-btn-auto {
+  background: rgba(242, 242, 247, 0.9);
+  border: 1px solid rgba(0, 0, 0, 0.07);
+  box-shadow:
+    0 2px 10px rgba(0, 0, 0, 0.06),
+    0 1px 2px rgba(0, 0, 0, 0.04),
+    inset 0 1.5px 1px rgba(255, 255, 255, 0.95),
+    inset 0 -1px 1px rgba(0, 0, 0, 0.03);
+  color: #000000;
+}
+
+.apple-back-btn-light:hover,
+html:not(.dark) .apple-back-btn-auto:hover {
+  background: rgba(235, 235, 242, 0.96);
+  border-color: rgba(0, 0, 0, 0.11);
+}
+
+.apple-back-btn-dark,
+.dark .apple-back-btn-auto {
+  background: rgba(44, 44, 46, 0.76);
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  box-shadow:
+    0 4px 14px rgba(0, 0, 0, 0.32),
+    inset 0 1px 0.5px rgba(255, 255, 255, 0.22),
+    inset 0 -1px 0.5px rgba(255, 255, 255, 0.06);
+  color: #ffffff;
+}
+
+.apple-back-btn-dark:hover,
+.dark .apple-back-btn-auto:hover {
+  background: rgba(58, 58, 60, 0.84);
+  border-color: rgba(255, 255, 255, 0.24);
+}
+
+.apple-back-btn-overlay {
+  background: rgba(28, 28, 30, 0.54);
+  border: 1px solid rgba(255, 255, 255, 0.24);
+  box-shadow:
+    0 4px 16px rgba(0, 0, 0, 0.28),
+    inset 0 1px 0.5px rgba(255, 255, 255, 0.32);
+  color: #ffffff;
+}
+
+.apple-back-btn-overlay:hover {
+  background: rgba(44, 44, 46, 0.68);
+  border-color: rgba(255, 255, 255, 0.34);
+}
+
 /* Tactile animation when touching map pins (ultra subtle micro-tap) */
 @keyframes pinTapBounce {
   0% {

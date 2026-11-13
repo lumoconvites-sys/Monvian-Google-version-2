@@ -1,7 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
 import {
-  ChevronLeft,
-  ArrowLeft,
   Calendar,
   Clock,
   MapPin,
@@ -21,6 +19,7 @@ import { motion, AnimatePresence } from 'motion/react';
 import { Itinerary, Spot } from '../types';
 import { Checkmark3DBadge } from './Checkmark3DBadge';
 import { getSpotImage, getSpotFallbackImage } from '../utils/spotImages';
+import { AppleBackButton } from './ui/AppleBackButton';
 
 interface ItineraryDetailModalProps {
   isOpen: boolean;
@@ -202,15 +201,12 @@ const _UnusedItineraryDetailModal: React.FC<ItineraryDetailModalProps> = ({
             {/* Top Bar Actions */}
             <div className="absolute top-4 left-4 right-4 flex items-center justify-between z-10 pointer-events-auto">
               <div className="flex items-center gap-2">
-                <button
-                  type="button"
+                <AppleBackButton
+                  theme="overlay"
                   onClick={onClose}
-                  className="w-9 h-9 flex items-center justify-center text-white cursor-pointer active:opacity-75 transition-opacity"
                   title="Voltar"
                   aria-label="Voltar"
-                >
-                  <ArrowLeft className="w-6 h-6 stroke-[2.4]" />
-                </button>
+                />
 
                 <span className="px-3 py-1 rounded-full text-xs font-bold bg-black/60 backdrop-blur-md text-white border border-white/10 flex items-center gap-1.5">
                   <Calendar className="w-3.5 h-3.5 text-zinc-300" />

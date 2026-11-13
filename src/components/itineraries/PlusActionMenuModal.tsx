@@ -105,7 +105,6 @@ export const PlusActionMenuModal: React.FC<PlusActionMenuModalProps> = ({
                 </span>
               </div>
             </div>
-            <ChevronRight className="w-4 h-4 text-zinc-400 group-hover:translate-x-0.5 transition-transform shrink-0 ml-2" />
           </motion.button>
 
           {/* Action Option 2: Adicionar Novo Local (Abre Card Flutuante de Pontos) */}
@@ -138,7 +137,6 @@ export const PlusActionMenuModal: React.FC<PlusActionMenuModalProps> = ({
                 </span>
               </div>
             </div>
-            <ChevronRight className="w-4 h-4 text-zinc-400 group-hover:translate-x-0.5 transition-transform shrink-0 ml-2" />
           </motion.button>
         </motion.div>
       </motion.div>

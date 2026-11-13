@@ -1,8 +1,6 @@
 import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import {
   Search,
-  ChevronLeft,
-  ArrowLeft,
   Heart,
   Compass,
   X,
@@ -17,6 +15,7 @@ import { motion, AnimatePresence } from 'motion/react';
 import { Itinerary, ItineraryCategory } from '../../types';
 import { ItineraryStoreDetailModal } from './ItineraryStoreDetailModal';
 import { preloadImage } from '../../utils/preloadItineraries';
+import { AppleBackButton } from '../ui/AppleBackButton';
 import {
   fetchItinerariesFromSupabase,
   fetchPaginatedItinerariesFromSupabase,
@@ -959,15 +958,12 @@ export const AirbnbItineraryExplorer: React.FC<AirbnbItineraryExplorerProps> = (
         <div className="px-5 pb-1 flex items-center justify-between">
           <div className="flex items-center gap-2.5">
             {showAllItineraries && (
-              <button
-                type="button"
+              <AppleBackButton
+                theme={isDark ? 'dark' : 'light'}
                 onClick={() => setShowAllItineraries(false)}
-                className="w-9 h-9 flex items-center justify-center text-white cursor-pointer active:scale-90 transition-transform bg-transparent border-none shadow-none outline-none"
                 title="Voltar"
                 aria-label="Voltar"
-              >
-                <ArrowLeft className="w-6 h-6 stroke-[2.4] text-white" />
-              </button>
+              />
             )}
             <h1
               className={`text-[26px] sm:text-[28px] font-bold tracking-tight leading-none ${

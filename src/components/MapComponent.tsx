@@ -1,6 +1,7 @@
 import React, { useEffect, useRef, useImperativeHandle, forwardRef, useState, useCallback, memo } from 'react';
 import * as maplibregl from 'maplibre-gl';
 import 'maplibre-gl/dist/maplibre-gl.css';
+import { animate } from 'motion/react';
 import { Layers } from 'lucide-react';
 import { Spot, MapModeType } from '../types';
 import { getSpotImage, getSpotFallbackImage } from '../utils/spotImages';
@@ -9,6 +10,11 @@ import { gpsNavigationManager } from '../services/gpsNavigation';
 import { monvianXpManager } from '../services/xpService';
 import { deviceHeadingManager } from '../utils/deviceHeading';
 import { triggerHapticFeedback } from '../utils/haptics';
+import {
+  prefetchSpotClickSound,
+  unlockSpotClickSound,
+  playSpotClickSound,
+} from '../utils/soundEffects';
 import { CompassIcon } from './CompassIcon';
 
 export type { MapModeType };
@@ -763,6 +769,11 @@ export const MapComponent = memo(
       };
     }, [ensureUserMarker]);
 
+    // Ensure spot click sound is pre-fetched & pre-unlocked whenever the map mounts
+    useEffect(() => {
+      prefetchSpotClickSound();
+    }, []);
+
     // Keep user avatar updated if userAvatar prop changes or profile photo is updated
     useEffect(() => {
       const updateMarkerAvatar = (av?: string) => {
@@ -1048,51 +1059,100 @@ export const MapComponent = memo(
       badgeEl: HTMLDivElement;
       pulseEl: HTMLDivElement;
       rippleEl: HTMLDivElement;
+      secondaryRippleEl: HTMLDivElement;
       imgEl: HTMLImageElement;
       lat: number;
       lng: number;
       imgUrl: string;
     }[]>([]);
     const animatedSpotIdsRef = useRef<Set<string>>(new Set());
+    const activeMarkerAnimationsRef = useRef<WeakMap<HTMLElement, { stop?: () => void }>>(
+      new WeakMap()
+    );
+
+    const runMotionAnimation = useCallback(
+      (
+        el: HTMLElement,
+        keyframes: Record<string, any>,
+        options: Record<string, any>
+      ) => {
+        const prev = activeMarkerAnimationsRef.current.get(el);
+        if (prev?.stop) {
+          try {
+            prev.stop();
+          } catch {}
+        }
+        try {
+          const controls = animate(el, keyframes, options);
+          activeMarkerAnimationsRef.current.set(el, controls);
+        } catch {}
+      },
+      []
+    );
+
+    const animateMarkerPress = useCallback(
+      (badgeEl: HTMLDivElement, isPressed: boolean) => {
+        runMotionAnimation(
+          badgeEl,
+          { scale: isPressed ? 0.92 : 1 },
+          {
+            duration: isPressed ? 0.08 : 0.16,
+            ease: [0.22, 1, 0.36, 1],
+          }
+        );
+      },
+      [runMotionAnimation]
+    );
 
     const selectedSpotRef = useRef<Spot | null>(selectedSpot);
     useEffect(() => {
       selectedSpotRef.current = selectedSpot;
     }, [selectedSpot]);
 
-    // Trigger short haptic feedback + subtle scale micro-animation & expanding ring on pin tap
+    // Trigger short haptic feedback + Framer Motion scale expansion & dual concentric ripple synchronized with instant click SFX
     const triggerPinTapFeedback = useCallback(
-      (badgeEl: HTMLDivElement, rippleEl: HTMLDivElement) => {
+      (
+        badgeEl: HTMLDivElement,
+        rippleEl: HTMLDivElement,
+        secondaryRippleEl?: HTMLDivElement
+      ) => {
         triggerHapticFeedback(15);
 
-        try {
-          badgeEl.animate(
-            [
-              { transform: 'scale(1)' },
-              { transform: 'scale(1.14)', offset: 0.38 },
-              { transform: 'scale(1)' },
-            ],
-            {
-              duration: 320,
-              easing: 'cubic-bezier(0.22, 1, 0.36, 1)',
-            }
-          );
-        } catch {}
+        // Scale expansion peaked right at the ~95ms click sound transient, then settles crisply
+        runMotionAnimation(
+          badgeEl,
+          { scale: [0.94, 1.24, 1] },
+          {
+            duration: 0.34,
+            times: [0, 0.28, 1],
+            ease: [0.22, 1, 0.36, 1],
+          }
+        );
 
-        try {
-          rippleEl.animate(
-            [
-              { transform: 'scale(1)', opacity: 0.85 },
-              { transform: 'scale(1.65)', opacity: 0 },
-            ],
+        // Primary outer ripple wave starting immediately at t=0ms with audio transient
+        runMotionAnimation(
+          rippleEl,
+          { scale: [0.95, 2.15], opacity: [0.92, 0] },
+          {
+            duration: 0.45,
+            ease: [0.16, 1, 0.3, 1],
+          }
+        );
+
+        // Secondary crisp inner ripple echo
+        if (secondaryRippleEl) {
+          runMotionAnimation(
+            secondaryRippleEl,
+            { scale: [0.9, 1.65], opacity: [0.7, 0] },
             {
-              duration: 420,
-              easing: 'cubic-bezier(0.16, 1, 0.3, 1)',
+              duration: 0.36,
+              delay: 0.035,
+              ease: [0.16, 1, 0.3, 1],
             }
           );
-        } catch {}
+        }
       },
-      []
+      [runMotionAnimation]
     );
 
     // Synchronize marker highlights smoothly without destroying DOM nodes
@@ -1571,6 +1631,7 @@ export const MapComponent = memo(
 
         const el = document.createElement('div');
         el.className = 'monvian-explore-marker group cursor-pointer select-none';
+        el.style.touchAction = 'manipulation';
         el.setAttribute('data-spot-id', spot.id);
 
         const containerEl = document.createElement('div');
@@ -1625,7 +1686,7 @@ export const MapComponent = memo(
           : 'radial-gradient(circle, rgba(255, 255, 255, 0.7) 0%, rgba(255, 255, 255, 0.22) 55%, transparent 75%)';
         pulseEl.style.display = isSelected ? 'block' : 'none';
 
-        // Discrete visual expansion ring around the marker (triggered on tap)
+        // Primary visual expansion ripple around the marker (synchronized with instant click SFX)
         const rippleEl = document.createElement('div');
         rippleEl.style.position = 'absolute';
         rippleEl.style.width = `${markerSize}px`;
@@ -1636,12 +1697,32 @@ export const MapComponent = memo(
         rippleEl.style.pointerEvents = 'none';
         rippleEl.style.zIndex = '-1';
         rippleEl.style.opacity = '0';
+        rippleEl.style.willChange = 'transform, opacity';
         rippleEl.style.border = isStar
-          ? '1.5px solid rgba(255, 214, 10, 0.9)'
-          : '1.5px solid rgba(255, 255, 255, 0.8)';
+          ? '2px solid rgba(255, 214, 10, 0.95)'
+          : '2px solid rgba(255, 255, 255, 0.92)';
+        rippleEl.style.backgroundColor = isStar
+          ? 'rgba(255, 214, 10, 0.22)'
+          : 'rgba(255, 255, 255, 0.18)';
         rippleEl.style.boxShadow = isStar
-          ? '0 0 12px rgba(255, 214, 10, 0.55)'
-          : '0 0 10px rgba(255, 255, 255, 0.35)';
+          ? '0 0 14px rgba(255, 214, 10, 0.55)'
+          : '0 0 12px rgba(255, 255, 255, 0.4)';
+
+        // Secondary concentric ripple echo for liquid iOS tactile depth
+        const secondaryRippleEl = document.createElement('div');
+        secondaryRippleEl.style.position = 'absolute';
+        secondaryRippleEl.style.width = `${markerSize}px`;
+        secondaryRippleEl.style.height = `${markerSize}px`;
+        secondaryRippleEl.style.top = '0';
+        secondaryRippleEl.style.left = '0';
+        secondaryRippleEl.style.borderRadius = '9999px';
+        secondaryRippleEl.style.pointerEvents = 'none';
+        secondaryRippleEl.style.zIndex = '-1';
+        secondaryRippleEl.style.opacity = '0';
+        secondaryRippleEl.style.willChange = 'transform, opacity';
+        secondaryRippleEl.style.border = isStar
+          ? '1.5px solid rgba(255, 214, 10, 0.78)'
+          : '1.5px solid rgba(255, 255, 255, 0.72)';
 
         // Wrapper that carries the continuous 2.5s 1.0 -> 1.06 pulse animation for "Estrela" markers
         const pulseScaleWrapEl = document.createElement('div');
@@ -1662,6 +1743,7 @@ export const MapComponent = memo(
         badgeEl.style.display = 'flex';
         badgeEl.style.alignItems = 'center';
         badgeEl.style.justifyContent = 'center';
+        badgeEl.style.willChange = 'transform';
 
         const imgEl = document.createElement('img');
         imgEl.src = imgUrl;
@@ -1770,6 +1852,7 @@ export const MapComponent = memo(
         pulseScaleWrapEl.appendChild(badgeEl);
         containerEl.appendChild(pulseEl);
         containerEl.appendChild(rippleEl);
+        containerEl.appendChild(secondaryRippleEl);
         containerEl.appendChild(pulseScaleWrapEl);
         el.appendChild(containerEl);
 
@@ -1779,14 +1862,28 @@ export const MapComponent = memo(
         el.onpointerdown = (e) => {
           pointerStartPos = { x: e.clientX, y: e.clientY };
           pointerMovedDuringTap = false;
+          unlockSpotClickSound();
+          animateMarkerPress(badgeEl, true);
         };
 
         el.onpointermove = (e) => {
           if (!pointerStartPos) return;
           const dx = e.clientX - pointerStartPos.x;
           const dy = e.clientY - pointerStartPos.y;
-          if (dx * dx + dy * dy > 64) {
+          if (dx * dx + dy * dy > 64 && !pointerMovedDuringTap) {
             pointerMovedDuringTap = true;
+            animateMarkerPress(badgeEl, false);
+          }
+        };
+
+        el.onpointercancel = () => {
+          pointerStartPos = null;
+          animateMarkerPress(badgeEl, false);
+        };
+
+        el.onpointerleave = () => {
+          if (pointerStartPos && !pointerMovedDuringTap) {
+            animateMarkerPress(badgeEl, false);
           }
         };
 
@@ -1806,6 +1903,7 @@ export const MapComponent = memo(
           badgeEl,
           pulseEl,
           rippleEl,
+          secondaryRippleEl,
           imgEl,
           lat,
           lng,
@@ -1814,15 +1912,18 @@ export const MapComponent = memo(
 
         el.onclick = (e) => {
           e.stopPropagation();
+          pointerStartPos = null;
           if (
             pointerMovedDuringTap ||
             isMapGestureActiveRef.current ||
             performance.now() - lastMapGestureTimeRef.current < 80
           ) {
             pointerMovedDuringTap = false;
+            animateMarkerPress(badgeEl, false);
             return;
           }
-          triggerPinTapFeedback(badgeEl, rippleEl);
+          playSpotClickSound();
+          triggerPinTapFeedback(badgeEl, rippleEl, secondaryRippleEl);
           setFollowMode(false);
           onSelectSpotRef.current(record.spot);
         };
@@ -1831,7 +1932,7 @@ export const MapComponent = memo(
       });
 
       syncMarkerHighlight(currentSelectedId);
-    }, [syncMarkerHighlight, setFollowMode, triggerPinTapFeedback, buildRoundedStarPath, isFiveStarSpot]);
+    }, [syncMarkerHighlight, setFollowMode, triggerPinTapFeedback, animateMarkerPress, buildRoundedStarPath, isFiveStarSpot]);
 
     useEffect(() => {
       spotsRef.current = spots;

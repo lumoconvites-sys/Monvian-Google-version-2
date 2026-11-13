@@ -1,7 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import {
-  ChevronLeft,
   ChevronRight,
   ChevronDown,
   HelpCircle,
@@ -14,6 +13,7 @@ import {
 } from 'lucide-react';
 import { getAuthHeaders } from '../hooks/usePlatanos';
 import { clearPersistentSession } from '../utils/persistentAuthStorage';
+import { AppleBackButton } from './ui/AppleBackButton';
 
 export type HelpLegalPageId =
   | 'hub'
@@ -360,7 +360,6 @@ export const HelpAndLegalInlineSection: React.FC<InlineMenuProps> = ({ onSelectP
                 {item.subtitle}
               </p>
             </div>
-            <ChevronRight className={`w-4 h-4 shrink-0 ${isDark ? 'text-zinc-500' : 'text-zinc-400'}`} />
           </button>
         ))}
       </div>
@@ -808,23 +807,19 @@ export const HelpAndLegalView: React.FC<HelpAndLegalViewProps> = ({
           paddingTop: 'max(calc(env(safe-area-inset-top, 0px) + 8px), 14px)',
         }}
       >
-        <button
-          type="button"
+        <AppleBackButton
+          theme="light"
           onClick={handleBack}
-          className="inline-flex items-center gap-0.5 text-[16px] font-normal text-[#000000] hover:opacity-75 active:opacity-50 transition-opacity cursor-pointer py-1 pr-2 z-10 -ml-1 select-none"
           aria-label={activePage === 'hub' ? 'Voltar para Perfil' : 'Voltar'}
-        >
-          <ChevronLeft className="w-5 h-5 stroke-[2.4] text-[#000000]" />
-          <span className="text-[16px] text-[#000000] font-normal tracking-tight">
-            {activePage === 'hub' ? 'Perfil' : 'Voltar'}
-          </span>
-        </button>
+          title={activePage === 'hub' ? 'Voltar para Perfil' : 'Voltar'}
+          className="z-10"
+        />
 
         <h2 className="text-[16px] font-semibold text-[#000000] tracking-tight truncate max-w-[55%] text-center absolute left-1/2 -translate-x-1/2 pointer-events-none">
           {pageHeaderTitle[activePage]}
         </h2>
 
-        <div className="w-16" aria-hidden="true" />
+        <div className="w-11" aria-hidden="true" />
       </div>
 
       {/* Animated Page Body with safe bottom padding for floating navigation */}
@@ -886,8 +881,6 @@ export const HelpAndLegalView: React.FC<HelpAndLegalViewProps> = ({
                             </p>
                           </div>
                         </div>
-
-                        <ChevronRight className="w-4 h-4 text-[#C7C7CC] shrink-0" />
                       </button>
                     );
                   })}

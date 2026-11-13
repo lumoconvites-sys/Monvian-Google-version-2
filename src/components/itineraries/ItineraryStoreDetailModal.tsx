@@ -1,8 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import {
-  ChevronLeft,
-  ArrowLeft,
   Clock,
   MapPin,
   Compass,
@@ -15,6 +13,7 @@ import { Itinerary } from '../../types';
 import { getSpotImage, getSpotFallbackImage } from '../../utils/spotImages';
 import { useFavorites } from '../../hooks/useFavorites';
 import { useIOSBackEntry } from '../../services/iosNavigationManager';
+import { AppleBackButton } from '../ui/AppleBackButton';
 
 interface ItineraryStoreDetailModalProps {
   itinerary: Itinerary | null;
@@ -282,16 +281,12 @@ export const ItineraryStoreDetailModal: React.FC<ItineraryStoreDetailModalProps>
                 }}
               >
                 {/* Botão Voltar */}
-                <motion.button
-                  whileTap={{ scale: 0.85 }}
-                  type="button"
+                <AppleBackButton
+                  theme="overlay"
                   onClick={onClose}
-                  className="w-9 h-9 flex items-center justify-center text-white cursor-pointer active:opacity-75 transition-opacity"
                   title="Voltar"
                   aria-label="Voltar"
-                >
-                  <ArrowLeft className="w-6 h-6 stroke-[2.4]" />
-                </motion.button>
+                />
 
                 {/* Direita: Botão Curtir Roteiro */}
                 <div className="flex items-center gap-2">

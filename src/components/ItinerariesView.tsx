@@ -3,9 +3,9 @@ import * as maplibregl from 'maplibre-gl';
 import 'maplibre-gl/dist/maplibre-gl.css';
 import { getCachedGeoData, isWithinCamposRadius } from '../utils/geoCache';
 import { motion, AnimatePresence, useMotionValue, useTransform, animate } from 'motion/react';
+import { AppleBackButton } from './ui/AppleBackButton';
 import {
   ArrowDown,
-  ArrowLeft,
   ArrowUp,
   Check,
   ChevronDown,
@@ -2287,7 +2287,8 @@ export const ItinerariesView: React.FC<ItinerariesViewProps> = memo(({
       >
         {/* Left: Back Button to Airbnb Explorer / Loja de Roteiros */}
         <div className="flex items-center gap-2 pointer-events-auto shrink-0">
-          <button
+          <AppleBackButton
+            theme={isDark ? 'dark' : 'light'}
             onClick={() => {
               userHasExplicitlyOpenedStoreRef.current = true;
               try {
@@ -2295,15 +2296,9 @@ export const ItinerariesView: React.FC<ItinerariesViewProps> = memo(({
               } catch (e) {}
               setItineraryViewMode('explore');
             }}
-            type="button"
-            className="w-10 h-10 flex items-center justify-center transition-transform active:scale-90 cursor-pointer shrink-0 bg-transparent border-none shadow-none text-white outline-none"
             title="Loja de Roteiros"
             aria-label="Loja de Roteiros"
-          >
-            <ArrowLeft
-              className="w-6 h-6 stroke-[2.4] text-white"
-            />
-          </button>
+          />
         </div>
 
         {/* Dynamic Island Style Pill */}
@@ -2868,16 +2863,6 @@ export const ItinerariesView: React.FC<ItinerariesViewProps> = memo(({
                     </p>
                   </div>
                 </div>
-                <div
-                  className={`w-8 h-8 rounded-full flex items-center justify-center shrink-0 self-center ${
-                    isDark ? 'bg-zinc-800/60 text-zinc-300' : 'bg-black/5 text-black'
-                  }`}
-                >
-                  <ChevronRight
-                    className={`w-4 h-4 stroke-[2.2] ${isDark ? 'text-zinc-300' : 'text-black'}`}
-                    style={{ color: isDark ? undefined : '#000000' }}
-                  />
-                </div>
               </motion.div>
             ) : null}
           </motion.div>
@@ -2898,10 +2883,10 @@ export const ItinerariesView: React.FC<ItinerariesViewProps> = memo(({
                 setIsExpanded(false);
               }
             }}
-            className={`md:hidden !absolute inset-x-0 bottom-0 z-40 max-w-3xl mx-auto rounded-none overflow-hidden flex flex-col pointer-events-auto transition-colors duration-200 border-x-0 sm:border-x border-t shadow-[0_-4px_28px_rgba(0,0,0,0.12)] ${
+            className={`md:hidden !absolute inset-x-0 bottom-0 z-40 max-w-3xl mx-auto rounded-t-[32px] overflow-hidden flex flex-col pointer-events-auto transition-colors duration-200 border-x-0 sm:border-x border-t shadow-[0_-10px_34px_rgba(0,0,0,0.16)] ${
               isDark
-                ? 'bg-[#121214] border-white/10 text-white'
-                : 'bg-[#FFFFFF] border-zinc-200/80 text-black'
+                ? 'bg-[#121214] border-white/12 text-white'
+                : 'bg-[#FFFFFF] border-black/[0.06] text-black'
             }`}
             style={{
               backgroundColor: isDark ? '#121214' : '#FFFFFF',
@@ -2911,6 +2896,11 @@ export const ItinerariesView: React.FC<ItinerariesViewProps> = memo(({
               maxHeight: '52vh',
               height: '52vh',
               paddingBottom: '74px',
+              borderTopLeftRadius: '32px',
+              borderTopRightRadius: '32px',
+              borderBottomLeftRadius: '0px',
+              borderBottomRightRadius: '0px',
+              WebkitMaskImage: '-webkit-radial-gradient(white, black)',
             }}
           >
             {/* Drag handle */}
@@ -2919,9 +2909,9 @@ export const ItinerariesView: React.FC<ItinerariesViewProps> = memo(({
                 e.stopPropagation();
                 setIsExpanded(false);
               }}
-              className="w-full pt-2.5 pb-1 flex items-center justify-center touch-none shrink-0 cursor-grab active:cursor-grabbing"
+              className="w-full pt-3 pb-1.5 flex items-center justify-center touch-none shrink-0 cursor-grab active:cursor-grabbing"
             >
-              <div className="w-9 h-1 rounded-full bg-zinc-400/60 dark:bg-zinc-600/60" />
+              <div className="w-10 h-1.5 rounded-full bg-zinc-300/90 dark:bg-zinc-600/80" />
             </div>
 
             {/* Scrollable Sequential Stops List (when expanded) - Matching the exact visual identity of Foto 1 */}

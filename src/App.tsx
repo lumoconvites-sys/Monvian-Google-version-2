@@ -2120,7 +2120,7 @@ export default function App() {
             title={is3DMode ? 'Alternar para visão 2D Plana' : 'Alternar para visão 3D com Relevo e Montanhas'}
           >
             <div className="relative flex items-center justify-center group-hover:scale-105 transition-transform duration-300">
-              <Map3DIcon className="w-6 h-6 sm:w-7 sm:h-7" style={{ color: theme === 'dark' ? '#FFFFFF' : '#000000' }} />
+              <Map3DIcon className="w-[30px] h-[30px] sm:w-[36px] sm:h-[36px]" />
             </div>
           </button>
 
@@ -2613,7 +2613,6 @@ export default function App() {
                         </span>
                       </div>
                     </div>
-                    <ChevronRight className="w-4 h-4 text-zinc-400 dark:text-zinc-500 group-hover:text-zinc-900 dark:group-hover:text-white group-hover:translate-x-0.5 transition-all shrink-0 ml-0.5" />
                   </button>
                 ))}
               </div>

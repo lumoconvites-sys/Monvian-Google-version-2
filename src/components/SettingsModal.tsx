@@ -193,7 +193,6 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                       </p>
                     </div>
                   </div>
-                  <ChevronRight className="w-4 h-4 text-zinc-400" />
                 </button>
               )}
             </div>
