@@ -58,6 +58,8 @@ export interface Spot {
   is_active?: number | boolean;
   isStar?: boolean;
   is_star?: number | boolean;
+  isVerified?: boolean;
+  is_verified?: number | boolean;
 }
 
 export interface WeatherInfo {

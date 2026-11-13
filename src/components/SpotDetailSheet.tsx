@@ -15,7 +15,7 @@ import {
   Volume2,
   VolumeX
 } from 'lucide-react';
-import { motion, AnimatePresence } from 'motion/react';
+import { motion, AnimatePresence, useMotionValue, useTransform, animate } from 'motion/react';
 import { SpotQrModal } from './SpotQrModal';
 import { RoundedNavigationIcon } from './RoundedNavigationIcon';
 import { getSpotImage, getSpotFallbackImage } from '../utils/spotImages';
@@ -49,8 +49,12 @@ export const SpotDetailSheet: React.FC<SpotDetailSheetProps> = React.memo(({
   const [activeTab, setActiveTab] = useState('Sobre');
   const [isQrModalOpen, setIsQrModalOpen] = useState(false);
   const scrollRef = useRef<HTMLDivElement | null>(null);
+  const mobileSheetRef = useRef<HTMLDivElement | null>(null);
   const heroMediaWrapperRef = useRef<HTMLDivElement | null>(null);
   const heroVideoRef = useRef<HTMLVideoElement | null>(null);
+  const pullDownY = useMotionValue(0);
+  const pullDownScale = useTransform(pullDownY, [0, 380], [1, 0.94]);
+  const pullDownRadius = useTransform(pullDownY, [0, 120], [0, 28]);
 
   // Register iOS Edge-Swipe Back Navigation for SpotDetailSheet and SpotQrModal
   useIOSBackEntry({
@@ -462,6 +466,98 @@ export const SpotDetailSheet: React.FC<SpotDetailSheetProps> = React.memo(({
     return () => window.removeEventListener('monvian-close-modals', handleCloseAll);
   }, [onClose, persistHeroPlaybackPosition]);
 
+  // Smooth native iOS pull-down-to-dismiss gesture on mobile when scrolled to top
+  useEffect(() => {
+    pullDownY.set(0);
+    if (isDesktop || !spot) return;
+    const container = mobileSheetRef.current;
+    if (!container) return;
+
+    let startX = 0;
+    let startY = 0;
+    let startTime = 0;
+    let isCandidate = false;
+    let isPulling = false;
+    let currentDragY = 0;
+
+    const onTouchStart = (e: TouchEvent) => {
+      if (e.touches.length !== 1) return;
+      const touch = e.touches[0];
+      // Leave left-edge zone free for iOS edge-swipe back navigation
+      if (touch.clientX < 28) {
+        isCandidate = false;
+        isPulling = false;
+        return;
+      }
+      const scrollTop = scrollRef.current ? scrollRef.current.scrollTop : 0;
+      startX = touch.clientX;
+      startY = touch.clientY;
+      startTime = performance.now();
+      isCandidate = scrollTop <= 2;
+      isPulling = false;
+      currentDragY = 0;
+    };
+
+    const onTouchMove = (e: TouchEvent) => {
+      if (!isCandidate || e.touches.length !== 1) return;
+      const touch = e.touches[0];
+      const dx = touch.clientX - startX;
+      const dy = touch.clientY - startY;
+
+      if (!isPulling) {
+        if (dy > 10 && dy > Math.abs(dx) * 1.2) {
+          isPulling = true;
+        } else if (Math.abs(dx) > 10 || dy < -8) {
+          isCandidate = false;
+          return;
+        } else {
+          return;
+        }
+      }
+
+      if (e.cancelable) {
+        e.preventDefault();
+      }
+      currentDragY = Math.max(0, dy * 0.88);
+      pullDownY.set(currentDragY);
+    };
+
+    const onTouchEnd = () => {
+      if (!isPulling) {
+        isCandidate = false;
+        return;
+      }
+      const elapsed = Math.max(16, performance.now() - startTime);
+      const velocityY = currentDragY / elapsed; // px/ms
+
+      isCandidate = false;
+      isPulling = false;
+
+      if (currentDragY > 95 || (currentDragY > 40 && velocityY > 0.42)) {
+        persistHeroPlaybackPosition();
+        onClose();
+      } else {
+        animate(pullDownY, 0, {
+          type: 'spring',
+          stiffness: 420,
+          damping: 36,
+        });
+      }
+    };
+
+    container.addEventListener('touchstart', onTouchStart, { passive: true });
+    container.addEventListener('touchmove', onTouchMove, { passive: false });
+    container.addEventListener('touchend', onTouchEnd, { passive: true });
+    container.addEventListener('touchcancel', onTouchEnd, { passive: true });
+
+    return () => {
+      container.removeEventListener('touchstart', onTouchStart);
+      container.removeEventListener('touchmove', onTouchMove);
+      container.removeEventListener('touchend', onTouchEnd);
+      container.removeEventListener('touchcancel', onTouchEnd);
+    };
+  }, [isDesktop, spot?.id, onClose, persistHeroPlaybackPosition, pullDownY]);
+
   const isGoldUser = Boolean(
     (() => {
       try {
@@ -530,28 +626,38 @@ export const SpotDetailSheet: React.FC<SpotDetailSheetProps> = React.memo(({
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       exit={{ opacity: 0 }}
-      transition={{ duration: 0.2, ease: 'easeOut' }}
+      transition={{ duration: 0.34, ease: [0.22, 1, 0.36, 1] }}
       onClick={() => {
         persistHeroPlaybackPosition();
         onClose();
       }}
-      className="fixed inset-0 z-[110] bg-black/60 md:bg-black/45 backdrop-blur-md md:backdrop-blur-xs flex flex-col justify-end md:justify-center md:items-center md:pl-[calc(var(--desktop-sidebar-width,72px)+24px)] md:pr-6 md:py-6 select-none cursor-pointer"
+      className="fixed inset-0 z-[260] bg-black/60 md:bg-black/45 backdrop-blur-md md:backdrop-blur-xs flex flex-col justify-end md:justify-center md:items-center md:pl-[calc(var(--desktop-sidebar-width,72px)+24px)] md:pr-6 md:py-6 select-none cursor-pointer"
     >
       {/* =====================================================================
           1. MOBILE VIEW (< 768px): PRESERVED 100% INTACT
          ===================================================================== */}
       <motion.div
         id="spot-detail-sheet-container"
-        initial={{ opacity: 0, scale: 0.98, y: 12 }}
-        animate={{ opacity: 1, scale: 1, y: 0 }}
-        exit={{ opacity: 0, scale: 0.98, y: 10 }}
-        transition={{ duration: 0.24, ease: [0.16, 1, 0.3, 1] }}
+        initial={{ opacity: 0.92, y: '100%' }}
+        animate={{ opacity: 1, y: '0%' }}
+        exit={{ opacity: 0, y: '100%' }}
+        transition={{ duration: 0.34, ease: [0.32, 0.72, 0, 1] }}
         onClick={(e) => e.stopPropagation()}
-        className="md:hidden relative w-full h-full bg-white dark:bg-[#000000] text-zinc-900 dark:text-white flex flex-col z-[110] transform-gpu overflow-hidden ios-pushed-page"
+        className="md:hidden relative w-full h-full flex flex-col z-[260] transform-gpu overflow-hidden ios-pushed-page"
         style={{
           willChange: 'transform, opacity',
         }}
       >
+        <motion.div
+          ref={mobileSheetRef}
+          style={{
+            y: pullDownY,
+            scale: pullDownScale,
+            borderTopLeftRadius: pullDownRadius,
+            borderTopRightRadius: pullDownRadius,
+          }}
+          className="relative w-full h-full bg-white dark:bg-[#000000] text-zinc-900 dark:text-white flex flex-col overflow-hidden"
+        >
         {/* Floating Top Bar Controls (Mobile) */}
         <div
           className="absolute left-0 right-0 z-30 flex items-center justify-between pointer-events-none px-4"
@@ -1147,7 +1253,7 @@ export const SpotDetailSheet: React.FC<SpotDetailSheetProps> = React.memo(({
         exit={{ opacity: 0, scale: 0.97, y: 8 }}
         transition={{ duration: 0.2, ease: [0.16, 1, 0.3, 1] }}
         onClick={(e) => e.stopPropagation()}
-        className="hidden md:flex flex-col lg:flex-row w-full max-w-[960px] lg:max-w-[1080px] xl:max-w-[1180px] 2xl:max-w-[1260px] md:max-h-[88vh] lg:h-[min(680px,85vh)] xl:h-[min(730px,85vh)] bg-white dark:bg-[#000000] text-zinc-950 dark:text-white rounded-[24px] border border-zinc-200/90 dark:border-[#262626] shadow-[0_20px_60px_rgba(0,0,0,0.18)] overflow-hidden cursor-default z-[110]"
+        className="hidden md:flex flex-col lg:flex-row w-full max-w-[960px] lg:max-w-[1080px] xl:max-w-[1180px] 2xl:max-w-[1260px] md:max-h-[88vh] lg:h-[min(680px,85vh)] xl:h-[min(730px,85vh)] bg-white dark:bg-[#000000] text-zinc-950 dark:text-white rounded-[24px] border border-zinc-200/90 dark:border-[#262626] shadow-[0_20px_60px_rgba(0,0,0,0.18)] overflow-hidden cursor-default z-[260]"
         style={{
           fontFamily: "'Inter', sans-serif",
         }}
@@ -1689,6 +1795,7 @@ export const SpotDetailSheet: React.FC<SpotDetailSheetProps> = React.memo(({
             )}
           </div>
         </div>
+        </motion.div>
       </motion.div>
 
       {/* Modal de Compartilhamento por QR Code */}

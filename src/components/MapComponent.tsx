@@ -268,6 +268,7 @@ export const MapComponent = memo(
       userAvatar,
       userName,
       is3DMode = false,
+      isDetailOpen = false,
       mapMode = 'explorar',
       onMapModeChange,
       onMapLoad,
@@ -1864,7 +1865,7 @@ export const MapComponent = memo(
 
         setFollowMode(false);
         const isMobile = window.innerWidth < 768;
-        const verticalOffset = isMobile ? -Math.round(window.innerHeight * 0.12) : 0;
+        const verticalOffset = isMobile ? -Math.round(window.innerHeight * 0.24) : 0;
 
         mapRef.current.easeTo({
           center: [selectedSpot.lng, selectedSpot.lat],
@@ -1874,6 +1875,8 @@ export const MapComponent = memo(
           offset: [0, verticalOffset],
           duration: 700,
         });
+      } else {
+        previousCameraStateRef.current = null;
       }
     }, [selectedSpot, syncMarkerHighlight, setFollowMode]);
 
@@ -2103,7 +2106,9 @@ export const MapComponent = memo(
         {/* Floating Right-Side Map Controls (Compass/Location, Layers) */}
         <div
           id="mobile-map-right-controls"
-          className="md:hidden absolute right-3.5 top-1/2 -translate-y-1/2 z-30 flex flex-col items-center gap-3 pointer-events-auto"
+          className={`md:hidden absolute right-3.5 -translate-y-1/2 z-30 flex flex-col items-center gap-3 pointer-events-auto transition-[top] duration-300 ease-out ${
+            selectedSpot && !isDetailOpen ? 'top-[calc(50%-98px)]' : 'top-1/2'
+          }`}
           style={{
             paddingRight: 'env(safe-area-inset-right, 0px)',
           }}

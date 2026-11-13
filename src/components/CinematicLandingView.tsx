@@ -586,7 +586,7 @@ export const CinematicLandingView: React.FC<CinematicLandingViewProps> = ({
       <span
         className={`inline-block whitespace-nowrap ${
           isAccent
-            ? 'text-[#4389F5] drop-shadow-[0_2px_18px_rgba(38,115,232,0.45)]'
+            ? 'text-[#75D58A] drop-shadow-[0_2px_18px_rgba(117,213,138,0.35)]'
             : 'text-[#FFFFFF]'
         }`}
       >
@@ -659,10 +659,10 @@ export const CinematicLandingView: React.FC<CinematicLandingViewProps> = ({
             opacity: 0;
           }
           15% {
-            opacity: 0.9;
+            opacity: 0.36;
           }
           85% {
-            opacity: 0.9;
+            opacity: 0.36;
           }
           100% {
             transform: translate3d(-18%, 0px, 0) scale(1.1);
@@ -670,6 +670,7 @@ export const CinematicLandingView: React.FC<CinematicLandingViewProps> = ({
           }
         }
         .monvian-cloud-soft-mask {
+          filter: brightness(1.14) contrast(1.1);
           -webkit-mask-image: radial-gradient(ellipse 50% 44% at 50% 50%, rgba(0,0,0,1) 38%, rgba(0,0,0,0.65) 68%, rgba(0,0,0,0) 96%);
           mask-image: radial-gradient(ellipse 50% 44% at 50% 50%, rgba(0,0,0,1) 38%, rgba(0,0,0,0.65) 68%, rgba(0,0,0,0) 96%);
         }
@@ -854,7 +855,7 @@ export const CinematicLandingView: React.FC<CinematicLandingViewProps> = ({
               className="w-full h-full relative will-change-transform"
               style={{
                 background:
-                  'linear-gradient(180deg, #1F518A 0%, #2B66A3 16%, #3A78B4 34%, #6F9EC9 52%, #B8D5F5 68%, #EAF3FF 80%, #F7FAFF 88%, #FFFFFF 94%, #FFFFFF 100%)',
+                  'linear-gradient(180deg, #0D67C5 0%, #177EE0 18%, #2E95F0 36%, #62B6FA 53%, #9BD5FE 68%, #D6EEFF 80%, #F2F9FF 88%, #FFFFFF 94%, #FFFFFF 100%)',
               }}
             >
               {/* Brilho Solar Radial e Iluminação Atmosférica */}
@@ -863,7 +864,7 @@ export const CinematicLandingView: React.FC<CinematicLandingViewProps> = ({
                 className="absolute inset-0 will-change-transform"
                 style={{
                   background:
-                    'radial-gradient(circle at 62% 28%, rgba(255, 249, 235, 0.44) 0%, rgba(234, 217, 194, 0.22) 28%, rgba(184, 213, 245, 0.12) 54%, rgba(43, 102, 163, 0) 78%), radial-gradient(ellipse 95% 42% at 50% 62%, rgba(255, 255, 255, 0.85) 0%, rgba(234, 243, 255, 0.45) 54%, rgba(184, 213, 245, 0) 100%)',
+                    'radial-gradient(circle at 58% 24%, rgba(255, 255, 255, 0.26) 0%, rgba(186, 226, 255, 0.14) 34%, rgba(23, 126, 224, 0) 70%), radial-gradient(ellipse 88% 36% at 50% 68%, rgba(255, 255, 255, 0.52) 0%, rgba(226, 244, 255, 0.22) 55%, rgba(255, 255, 255, 0) 100%)',
                 }}
               />
             </div>
@@ -933,7 +934,7 @@ export const CinematicLandingView: React.FC<CinematicLandingViewProps> = ({
             className="absolute left-1/2 top-[56%] -translate-x-1/2 -translate-y-1/2 w-[92vw] max-w-[780px] h-[34vh] rounded-full pointer-events-none"
             style={{
               background:
-                'radial-gradient(ellipse at center, rgba(255, 255, 255, 0.88) 0%, rgba(255, 255, 255, 0.55) 48%, rgba(255, 255, 255, 0) 78%)',
+                'radial-gradient(ellipse at center, rgba(255, 255, 255, 0.42) 0%, rgba(230, 245, 255, 0.20) 50%, rgba(255, 255, 255, 0) 78%)',
               filter: 'blur(16px)',
             }}
           />
@@ -977,7 +978,7 @@ export const CinematicLandingView: React.FC<CinematicLandingViewProps> = ({
                         src="/assets/aistudio/cloud_volumetric_2.webp"
                         alt=""
                         decoding="async"
-                        className="monvian-cloud-soft-mask absolute top-[35%] -left-[12%] md:left-[6%] w-[80vw] max-w-[490px] md:w-[40vw] md:max-w-[580px] opacity-80 select-none"
+                        className="monvian-cloud-soft-mask absolute top-[35%] -left-[12%] md:left-[6%] w-[80vw] max-w-[490px] md:w-[40vw] md:max-w-[580px] opacity-55 select-none"
                       />
                     </picture>
 
@@ -987,7 +988,7 @@ export const CinematicLandingView: React.FC<CinematicLandingViewProps> = ({
                         src="/assets/aistudio/cloud_volumetric_1.webp"
                         alt=""
                         decoding="async"
-                        className="monvian-cloud-soft-mask absolute top-[38%] right-[-10%] md:right-[6%] w-[82vw] max-w-[510px] md:w-[42vw] md:max-w-[600px] opacity-80 select-none"
+                        className="monvian-cloud-soft-mask absolute top-[38%] right-[-10%] md:right-[6%] w-[82vw] max-w-[510px] md:w-[42vw] md:max-w-[600px] opacity-55 select-none"
                       />
                     </picture>
                   </div>
@@ -1007,7 +1008,7 @@ export const CinematicLandingView: React.FC<CinematicLandingViewProps> = ({
                         ? 'monvianCloudCenterDriftRight 14s linear infinite'
                         : 'none',
                   }}
-                  className="monvian-anim-cloud monvian-cloud-soft-mask absolute top-[48%] left-1/2 w-[104vw] max-w-[640px] md:w-[54vw] md:max-w-[780px] opacity-75 select-none"
+                  className="monvian-anim-cloud monvian-cloud-soft-mask absolute top-[48%] left-1/2 w-[104vw] max-w-[640px] md:w-[54vw] md:max-w-[780px] opacity-30 select-none"
                 />
               </picture>
 
@@ -1023,7 +1024,7 @@ export const CinematicLandingView: React.FC<CinematicLandingViewProps> = ({
                         ? 'monvianCloudCenterDriftRight 14s linear -7s infinite'
                         : 'none',
                   }}
-                  className="monvian-anim-cloud monvian-cloud-soft-mask absolute top-[52%] left-1/2 w-[104vw] max-w-[640px] md:w-[54vw] md:max-w-[780px] opacity-72 select-none"
+                  className="monvian-anim-cloud monvian-cloud-soft-mask absolute top-[52%] left-1/2 w-[104vw] max-w-[640px] md:w-[54vw] md:max-w-[780px] opacity-25 select-none"
                 />
               </picture>
             </div>
@@ -1082,7 +1083,8 @@ export const CinematicLandingView: React.FC<CinematicLandingViewProps> = ({
                       decoding="async"
                       draggable={false}
                       style={{
-                        filter: 'drop-shadow(0 20px 30px rgba(18, 48, 89, 0.22))',
+                        filter:
+                          'brightness(1.01) contrast(1.15) saturate(1.36) drop-shadow(0 24px 34px rgba(10, 44, 96, 0.26))',
                       }}
                       className="w-full h-auto block object-contain select-none"
                     />

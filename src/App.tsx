@@ -194,6 +194,7 @@ export default function App() {
   const [showOnboardingQuestions, setShowOnboardingQuestions] = useState<boolean>(false);
   const [zoomToUserTrigger, setZoomToUserTrigger] = useState<number>(0);
   const [revertSpotZoomTrigger, setRevertSpotZoomTrigger] = useState<number>(0);
+  const [spotPreviewMode, setSpotPreviewMode] = useState<'card' | 'bar'>('card');
 
   // Settings & Theme modal state
   const [isSettingsModalOpen, setIsSettingsModalOpen] = useState<boolean>(false);
@@ -1393,17 +1394,13 @@ export default function App() {
 
   const handleSelectSpot = useCallback((spot: Spot | null) => {
     setSelectedSpot(spot);
+    setSpotPreviewMode('card');
     setIsDetailOpen(false);
   }, []);
 
-  // Dismiss all cards, previews and overlays when touching the map (map acts like an "x")
+  // Dismiss all cards, previews and overlays when touching the map without altering current zoom or camera position
   const handleMapDismiss = useCallback(() => {
-    setSelectedSpot((prevSpot) => {
-      if (prevSpot) {
-        setRevertSpotZoomTrigger((prev) => prev + 1);
-      }
-      return null;
-    });
+    setSelectedSpot(null);
     setIsDetailOpen(false);
     setIsCategoryCardOpen(false);
     setIsSearchOpen(false);
@@ -1590,7 +1587,6 @@ export default function App() {
     backgroundSelector: '#app-map-layer',
     onPop: () => {
       setSelectedSpot(null);
-      setRevertSpotZoomTrigger((prev) => prev + 1);
     },
   });
 
@@ -2159,16 +2155,18 @@ export default function App() {
 
       {/* 4. Bottom Floating Navigation Pill and Global Blur Overlays rendered at root level */}
 
-      {/* 5. Mini Banner Preview (occupies the space freed by the retracted search bar when a spot is opened) */}
+      {/* 5. Floating Establishment Bottom Sheet Preview */}
       <AnimatePresence>
         {activeTab === 'explorar' && isSpotCardOpen && selectedSpot && (
           <SpotPreviewBanner
-            key={`preview-${selectedSpot.id}`}
+            key="spot-preview-sheet"
             spot={selectedSpot}
+            userCoords={userCoords}
+            viewMode={spotPreviewMode}
+            onViewModeChange={setSpotPreviewMode}
             theme={theme}
             onClose={() => {
               setSelectedSpot(null);
-              setRevertSpotZoomTrigger((prev) => prev + 1);
             }}
             onOpenDetails={(spot) => {
               setSelectedSpot(spot);
@@ -2186,8 +2184,9 @@ export default function App() {
             spot={selectedSpot}
             onClose={() => {
               setIsDetailOpen(false);
-              setSelectedSpot(null);
-              setRevertSpotZoomTrigger((prev) => prev + 1);
+              if (activeTab !== 'explorar') {
+                setSelectedSpot(null);
+              }
             }}
             onNavigateTo={(spot) => {
               setSelectedSpot(spot);
