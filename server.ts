@@ -96,8 +96,28 @@ async function verifyFirebaseIdTokenServer(
   }
 }
 
-const PORT = Number(process.env.PORT) || 3000;
 const isProd = process.env.NODE_ENV === 'production';
+
+function resolveServerPort(): number {
+  const portFlagIdx = process.argv.findIndex((a) => a === '--port' || a === '-p');
+  if (portFlagIdx !== -1 && process.argv[portFlagIdx + 1]) {
+    const cliPort = Number(process.argv[portFlagIdx + 1]);
+    if (!Number.isNaN(cliPort) && cliPort > 0) return cliPort;
+  }
+  const eqArg = process.argv.find((a) => a.startsWith('--port='));
+  if (eqArg) {
+    const cliPort = Number(eqArg.split('=')[1]);
+    if (!Number.isNaN(cliPort) && cliPort > 0) return cliPort;
+  }
+  const envPort = Number(process.env.PORT);
+  const nginxPort = Number(process.env.NGINX_PORT) || 8080;
+  if (!Number.isNaN(envPort) && envPort > 0 && (envPort !== nginxPort || isProd)) {
+    return envPort;
+  }
+  return Number(process.env.DEFAULT_APP_PORT) || 3000;
+}
+
+const PORT = resolveServerPort();
 
 // Ensure core and auxiliary tables exist in SQLite
 db.exec(`
@@ -936,9 +956,14 @@ async function startServer() {
     }
   });
 
-  // Trigger bidirectional sync with Supabase PostgreSQL and Firestore on startup
-  syncDatabaseWithSupabase(db).catch((err) => console.warn('[SupabaseBootSync]', err));
-  syncDatabaseWithFirestore(db).catch((err) => console.warn('[FirestoreBootSync]', err));
+  app.get('/api/health', (_req: Request, res: Response) => {
+    res.json({
+      status: 'healthy',
+      service: 'monvian-api',
+      port: PORT,
+      timestamp: new Date().toISOString(),
+    });
+  });
 
   const getAuthUserSync = (req: Request) => {
     const authHeader = req.headers.authorization;
@@ -3792,6 +3817,14 @@ async function startServer() {
 
   app.listen(PORT, '0.0.0.0', () => {
     console.log(`Server listening on port ${PORT}`);
+    // Run heavy cloud database syncs asynchronously after port 3000 is open so dev server readiness is immediate
+    setTimeout(() => {
+      syncDatabaseWithSupabase(db)
+        .catch((err) => console.warn('[SupabaseBootSync]', err))
+        .finally(() => {
+          syncDatabaseWithFirestore(db).catch((err) => console.warn('[FirestoreBootSync]', err));
+        });
+    }, 1000);
   });
 }
 

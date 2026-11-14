@@ -669,6 +669,16 @@ export const CinematicLandingView: React.FC<CinematicLandingViewProps> = ({
             opacity: 0;
           }
         }
+        .monvian-hero-foreground {
+          padding-top: max(136px, calc(env(safe-area-inset-top, 0px) + 124px));
+          padding-bottom: max(24px, calc(env(safe-area-inset-bottom, 0px) + 16px));
+        }
+        @media (min-width: 1024px) {
+          .monvian-hero-foreground {
+            padding-top: 84px;
+            padding-bottom: 24px;
+          }
+        }
         .monvian-cloud-soft-mask {
           filter: brightness(1.14) contrast(1.1);
           -webkit-mask-image: radial-gradient(ellipse 50% 44% at 50% 50%, rgba(0,0,0,1) 38%, rgba(0,0,0,0.65) 68%, rgba(0,0,0,0) 96%);
@@ -931,11 +941,20 @@ export const CinematicLandingView: React.FC<CinematicLandingViewProps> = ({
           aria-hidden="true"
         >
           <div
-            className="absolute left-1/2 top-[56%] -translate-x-1/2 -translate-y-1/2 w-[92vw] max-w-[780px] h-[34vh] rounded-full pointer-events-none"
+            className="absolute left-1/2 lg:left-[71%] top-[56%] lg:top-[50%] -translate-x-1/2 -translate-y-1/2 w-[92vw] max-w-[780px] h-[34vh] lg:h-[46vh] rounded-full pointer-events-none"
             style={{
               background:
                 'radial-gradient(ellipse at center, rgba(255, 255, 255, 0.42) 0%, rgba(230, 245, 255, 0.20) 50%, rgba(255, 255, 255, 0) 78%)',
               filter: 'blur(16px)',
+            }}
+          />
+          {/* Bruma volumétrica suave nos cantos inferiores no Desktop para emoldurar a ilha entre nuvens */}
+          <div
+            className="hidden lg:block absolute inset-x-[-6%] -bottom-[8%] h-[28vh] pointer-events-none"
+            style={{
+              background:
+                'radial-gradient(ellipse 36% 65% at 10% 85%, rgba(255,255,255,0.92) 0%, rgba(255,255,255,0) 75%), radial-gradient(ellipse 40% 65% at 88% 85%, rgba(255,255,255,0.92) 0%, rgba(255,255,255,0) 75%)',
+              filter: 'blur(14px)',
             }}
           />
         </div>
@@ -1036,60 +1055,63 @@ export const CinematicLandingView: React.FC<CinematicLandingViewProps> = ({
           ref={parallaxIslandRef}
           className="absolute inset-0 pointer-events-none z-[24] flex items-center justify-center will-change-transform"
         >
-          <div className="relative w-full flex items-center justify-center translate-y-[13.5vh] sm:translate-y-[12vh] md:translate-y-[11vh]">
-            <motion.div
-              initial={
-                prefersReducedMotion
-                  ? { opacity: 0 }
-                  : { opacity: 0, y: 40, scale: 0.94, rotate: -1.1 }
-              }
-              animate={
-                assetsReady
-                  ? { opacity: 1, y: 0, scale: 1, rotate: 0 }
-                  : prefersReducedMotion
-                    ? { opacity: 0 }
-                    : { opacity: 0, y: 40, scale: 0.94, rotate: -1.1 }
-              }
-              transition={{
-                duration: prefersReducedMotion ? 0.2 : 0.6,
-                ease: [0.22, 1, 0.36, 1],
-                delay: prefersReducedMotion ? 0 : 0.05,
-              }}
-              className="relative w-[92vw] max-w-[425px] sm:max-w-[475px] md:w-[46vw] md:max-w-[650px] lg:max-w-[700px] flex items-center justify-center"
-            >
-              {/* Continuous 7.5s subtle floating wrapper */}
-              <div
-                style={{
-                  animation:
-                    isHeroInView && !prefersReducedMotion
-                      ? 'monvianIslandFloat 7.5s ease-in-out infinite'
-                      : 'none',
-                }}
-                className="monvian-anim-float relative w-full flex items-center justify-center will-change-transform"
-              >
-                {/* Maquete 3D Original de Campos do Jordão */}
-                <div ref={islandScrollWrapRef} className="w-full will-change-transform">
-                  <picture className="w-full block">
-                    <source
-                      srcSet="/assets/aistudio/monvian_island_3d.webp"
-                      type="image/webp"
-                    />
-                    <img
-                      src="/assets/aistudio/monvian_island_3d.webp"
-                      alt="Maquete tridimensional de Campos do Jordão"
-                      width={1347}
-                      height={879}
-                      fetchPriority="high"
-                      decoding="async"
-                      draggable={false}
-                      style={{
-                        filter:
-                          'brightness(1.01) contrast(1.08) saturate(0.95) drop-shadow(0 24px 34px rgba(10, 44, 96, 0.22))',
-                      }}
-                      className="w-full h-auto block object-contain select-none"
-                    />
-                  </picture>
-                </div>
+          <div className="monvian-hero-foreground w-full h-full max-w-[1360px] mx-auto px-5 sm:px-8 lg:px-12 xl:px-16 flex flex-col justify-between">
+            <div className="w-full flex-1 flex items-center justify-center lg:justify-start">
+              <div className="hidden lg:block lg:w-[45%] shrink-0" aria-hidden="true" />
+              <div className="relative w-full lg:w-[55%] flex items-center justify-center lg:justify-end translate-y-[13.5vh] sm:translate-y-[12vh] md:translate-y-[11vh] lg:translate-y-0">
+                <motion.div
+                  initial={
+                    prefersReducedMotion
+                      ? { opacity: 0 }
+                      : { opacity: 0, y: 40, scale: 0.94, rotate: -1.1 }
+                  }
+                  animate={
+                    assetsReady
+                      ? { opacity: 1, y: 0, scale: 1, rotate: 0 }
+                      : prefersReducedMotion
+                        ? { opacity: 0 }
+                        : { opacity: 0, y: 40, scale: 0.94, rotate: -1.1 }
+                  }
+                  transition={{
+                    duration: prefersReducedMotion ? 0.2 : 0.6,
+                    ease: [0.22, 1, 0.36, 1],
+                    delay: prefersReducedMotion ? 0 : 0.05,
+                  }}
+                  className="relative w-[92vw] max-w-[425px] sm:max-w-[475px] md:w-[52vw] md:max-w-[600px] lg:w-full lg:max-w-[740px] xl:max-w-[820px] 2xl:max-w-[860px] flex items-center justify-center"
+                >
+                  {/* Continuous 7.5s subtle floating wrapper */}
+                  <div
+                    style={{
+                      animation:
+                        isHeroInView && !prefersReducedMotion
+                          ? 'monvianIslandFloat 7.5s ease-in-out infinite'
+                          : 'none',
+                    }}
+                    className="monvian-anim-float relative w-full flex items-center justify-center will-change-transform"
+                  >
+                    {/* Maquete 3D Original de Campos do Jordão */}
+                    <div ref={islandScrollWrapRef} className="w-full will-change-transform">
+                      <picture className="w-full block">
+                        <source
+                          srcSet="/assets/aistudio/monvian_island_3d.webp"
+                          type="image/webp"
+                        />
+                        <img
+                          src="/assets/aistudio/monvian_island_3d.webp"
+                          alt="Maquete tridimensional de Campos do Jordão"
+                          width={1347}
+                          height={879}
+                          fetchPriority="high"
+                          decoding="async"
+                          draggable={false}
+                          style={{
+                            filter:
+                              'brightness(1.01) contrast(1.08) saturate(0.95) drop-shadow(0 24px 34px rgba(10, 44, 96, 0.22))',
+                          }}
+                          className="w-full h-auto lg:max-h-[63vh] xl:max-h-[67vh] block object-contain select-none"
+                        />
+                      </picture>
+                    </div>
 
                 {/* CAMADA DE NUVENS DE TRANSIÇÃO DE SCROLL */}
                 <div
@@ -1118,6 +1140,9 @@ export const CinematicLandingView: React.FC<CinematicLandingViewProps> = ({
                 </div>
               </div>
             </motion.div>
+          </div>
+            </div>
+            <div className="hidden lg:block lg:h-[68px] xl:h-[76px] shrink-0" aria-hidden="true" />
           </div>
         </div>
 
@@ -1177,64 +1202,116 @@ export const CinematicLandingView: React.FC<CinematicLandingViewProps> = ({
           />
         </div>
 
-        {/* 7. COMPOSIÇÃO DO HERO: LOGO, TÍTULO PRINCIPAL E SUBTÍTULO NO TOPO E PROVA SOCIAL NA BASE (ACIMA DAS NUVENS) */}
+        {/* 7. COMPOSIÇÃO DO HERO: NO DESKTOP, COLUNA ESQUERDA (45%) + ILHA 3D À DIREITA (55%) + INDICADOR DE USUÁRIOS CENTRALIZADO NA BASE */}
         <div
-          className="relative z-[85] w-full h-full max-w-[1280px] mx-auto px-5 sm:px-8 flex flex-col justify-between pointer-events-none"
-          style={{
-            paddingTop: 'max(136px, calc(env(safe-area-inset-top, 0px) + 124px))',
-            paddingBottom: 'max(24px, calc(env(safe-area-inset-bottom, 0px) + 16px))',
-          }}
+          className="monvian-hero-foreground relative z-[85] w-full h-full max-w-[1360px] mx-auto px-5 sm:px-8 lg:px-12 xl:px-16 flex flex-col justify-between pointer-events-none"
         >
-          {/* Topo do Hero: Logo original Monvian + Título Principal + Subtítulo */}
-          <div className="w-full max-w-[430px] md:max-w-[680px] mx-auto flex flex-col items-center text-center">
-            <div ref={heroLogoWrapRef} className="will-change-transform">
-              <motion.div
-                initial={prefersReducedMotion ? { opacity: 0 } : { opacity: 0, y: 8 }}
-                animate={assetsReady ? { opacity: 1, y: 0 } : { opacity: 0, y: 8 }}
-                transition={{
-                  duration: prefersReducedMotion ? 0.2 : 0.45,
-                  ease: [0.22, 1, 0.36, 1],
-                  delay: prefersReducedMotion ? 0 : 0.02,
-                }}
-                className="mb-3 sm:mb-3.5 flex items-center justify-center"
+          {/* Área Principal do Hero (Vertical no Mobile; Duas Colunas 45% / 55% centralizadas verticalmente no Desktop) */}
+          <div className="w-full flex-1 flex flex-col lg:flex-row items-center lg:items-center justify-start lg:justify-between">
+            {/* LADO ESQUERDO (45% no Desktop): Logo, Título, Descrição e Botões de Conversão */}
+            <div className="w-full max-w-[430px] md:max-w-[680px] lg:max-w-none lg:w-[45%] mx-auto lg:mx-0 flex flex-col items-center lg:items-start text-center lg:text-left lg:pr-6">
+              <div ref={heroLogoWrapRef} className="will-change-transform">
+                <motion.div
+                  initial={prefersReducedMotion ? { opacity: 0 } : { opacity: 0, y: 8 }}
+                  animate={assetsReady ? { opacity: 1, y: 0 } : { opacity: 0, y: 8 }}
+                  transition={{
+                    duration: prefersReducedMotion ? 0.2 : 0.45,
+                    ease: [0.22, 1, 0.36, 1],
+                    delay: prefersReducedMotion ? 0 : 0.02,
+                  }}
+                  className="mb-3 sm:mb-3.5 lg:mb-5 flex items-center justify-center lg:justify-start"
+                >
+                  <img
+                    src="/assets/aistudio/monvian_logo_white_transparent.png"
+                    alt="Monvian"
+                    width={429}
+                    height={141}
+                    className="h-[51px] sm:h-[57px] md:h-[64px] lg:h-[70px] xl:h-[78px] w-auto object-contain select-none drop-shadow-[0_4px_16px_rgba(12,35,68,0.28)]"
+                  />
+                </motion.div>
+              </div>
+
+              <div
+                ref={heroTextWrapRef}
+                className="w-full flex flex-col items-center lg:items-start will-change-transform"
               >
-                <img
-                  src="/assets/aistudio/monvian_logo_white_transparent.png"
-                  alt="Monvian"
-                  width={429}
-                  height={141}
-                  className="h-[51px] sm:h-[57px] md:h-[66px] w-auto object-contain select-none drop-shadow-[0_4px_16px_rgba(12,35,68,0.28)]"
-                />
-              </motion.div>
+                <h1
+                  className="text-center lg:text-left text-[32px] sm:text-[40px] md:text-[48px] lg:text-[46px] xl:text-[54px] 2xl:text-[58px] font-extrabold tracking-[-0.032em] leading-[1.06] lg:leading-[1.04] text-white mb-2.5 sm:mb-3.5 lg:mb-4 drop-shadow-[0_6px_24px_rgba(14,42,79,0.28)]"
+                  style={{
+                    fontFamily:
+                      "'SF Pro Display', -apple-system, BlinkMacSystemFont, sans-serif",
+                    textWrap: 'balance',
+                  }}
+                >
+                  {renderMaskedWord('Campos', 0)}{' '}
+                  {renderMaskedWord('do', 6)}{' '}
+                  {renderMaskedWord('Jordão', 8)}
+                  <br />
+                  {renderMaskedWord('do', 14)}{' '}
+                  {renderMaskedWord('seu', 16, true)}{' '}
+                  {renderMaskedWord('jeito.', 19, true)}
+                </h1>
+
+                <motion.p
+                  initial={prefersReducedMotion ? { opacity: 0 } : { opacity: 0, y: 10 }}
+                  animate={assetsReady ? { opacity: 1, y: 0 } : { opacity: 0, y: 10 }}
+                  transition={{
+                    duration: prefersReducedMotion ? 0.2 : 0.48,
+                    ease: [0.22, 1, 0.36, 1],
+                    delay: prefersReducedMotion ? 0 : 0.14,
+                  }}
+                  className="hidden lg:block text-left text-[17px] xl:text-[19px] font-normal text-white/95 leading-[1.42] tracking-[-0.01em] max-w-[440px] drop-shadow-[0_2px_12px_rgba(12,35,68,0.22)]"
+                  style={{
+                    fontFamily:
+                      "'SF Pro Text', -apple-system, BlinkMacSystemFont, sans-serif",
+                  }}
+                >
+                  Descubra, explore e compartilhe
+                  <br />
+                  os melhores lugares da cidade.
+                </motion.p>
+
+                <motion.div
+                  initial={prefersReducedMotion ? { opacity: 0 } : { opacity: 0, y: 12 }}
+                  animate={assetsReady ? { opacity: 1, y: 0 } : { opacity: 0, y: 12 }}
+                  transition={{
+                    duration: prefersReducedMotion ? 0.2 : 0.48,
+                    ease: [0.22, 1, 0.36, 1],
+                    delay: prefersReducedMotion ? 0 : 0.2,
+                  }}
+                  className="hidden lg:flex items-center gap-3.5 mt-7 xl:mt-8 pointer-events-auto"
+                >
+                  <button
+                    type="button"
+                    onClick={() => {
+                      triggerHaptic();
+                      onStartRegister();
+                    }}
+                    className="min-h-[48px] px-8 py-3 rounded-full bg-white hover:bg-[#F3F6FB] active:scale-[0.98] text-[#080808] text-[15px] xl:text-[15.5px] font-bold tracking-[-0.01em] shadow-[0_12px_28px_rgba(10,36,76,0.18)] transition-all duration-150 whitespace-nowrap shrink-0 cursor-pointer focus-visible:outline-2 focus-visible:outline-white"
+                  >
+                    Criar conta
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => scrollToSection('roteiros')}
+                    className="group min-h-[48px] px-7 py-3 rounded-full border border-white/80 bg-[#ffffff] active:scale-[0.98] backdrop-blur-md text-white text-[15px] xl:text-[15.5px] font-semibold tracking-[-0.01em] shadow-[0_8px_22px_rgba(10,36,76,0.12)] transition-all duration-150 inline-flex items-center gap-2.5 whitespace-nowrap shrink-0 cursor-pointer focus-visible:outline-2 focus-visible:outline-white"
+                  >
+                    <span className="text-[#000000]">Explorar roteiros</span>
+                    <ArrowRight className="w-[17px] h-[17px] stroke-[2] text-white transition-transform duration-200 group-hover:translate-x-0.5" />
+                  </button>
+                </motion.div>
+              </div>
             </div>
 
-            <div
-              ref={heroTextWrapRef}
-              className="w-full flex flex-col items-center will-change-transform"
-            >
-              <h1
-                className="text-center text-[32px] sm:text-[40px] md:text-[54px] font-extrabold tracking-[-0.032em] leading-[1.06] text-white mb-2.5 sm:mb-3.5 drop-shadow-[0_6px_24px_rgba(14,42,79,0.28)]"
-                style={{
-                  fontFamily:
-                    "'SF Pro Display', -apple-system, BlinkMacSystemFont, sans-serif",
-                  textWrap: 'balance',
-                }}
-              >
-                {renderMaskedWord('Campos', 0)}{' '}
-                {renderMaskedWord('do', 6)}{' '}
-                {renderMaskedWord('Jordão', 8)}
-                <br />
-                {renderMaskedWord('do', 14)}{' '}
-                {renderMaskedWord('seu', 16, true)}{' '}
-                {renderMaskedWord('jeito.', 19)}
-              </h1>
-            </div>
+            {/* Espaçador reservado no Desktop (55%) para a Ilha 3D sem sobreposição */}
+            <div className="hidden lg:block lg:w-[55%] shrink-0 pointer-events-none" aria-hidden="true" />
           </div>
 
-          {/* Base do Hero: Seção de Prova Social Minimalista e Nativa (100% acima das nuvens) */}
+          {/* Base do Hero: Indicador de Usuários 100% Centralizado Horizontalmente */}
           <div
             ref={heroCtaWrapRef}
-            className="relative z-[95] w-full max-w-[380px] sm:max-w-[420px] mx-auto flex flex-col items-center pb-[6.5vh] sm:pb-[5vh] pointer-events-auto will-change-transform"
+            className="relative z-[95] w-full flex justify-center pb-[6.5vh] sm:pb-[5vh] lg:pb-2 xl:pb-3 pointer-events-auto shrink-0 will-change-transform"
           >
             <HeroUsersCounter prefersReducedMotion={prefersReducedMotion} />
           </div>

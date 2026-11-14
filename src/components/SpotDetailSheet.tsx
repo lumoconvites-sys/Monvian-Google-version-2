@@ -855,9 +855,9 @@ export const SpotDetailSheet: React.FC<SpotDetailSheetProps> = React.memo(({
             <div className="absolute inset-x-0 top-0 h-28 bg-gradient-to-b from-black/50 via-black/20 to-transparent pointer-events-none" />
           </div>
 
-          {/* Main Content Body - Card branco que sobe tampando a foto */}
+          {/* Main Content Body - Card branco com bordas superiores arredondadas estilo Roteiros */}
           <div 
-            className="relative z-10 -mt-8 bg-white dark:bg-[#000000] dark:border-t dark:border-[#262626] rounded-none px-5 sm:px-6 pt-6 pb-32 flex flex-col min-h-[calc(var(--app-height,100dvh)-60px)] shadow-[0_-12px_36px_rgba(0,0,0,0.18)]"
+            className="relative z-10 -mt-6 bg-white dark:bg-[#000000] border-t border-black/5 dark:border-[#262626] rounded-t-[32px] sm:rounded-t-[36px] rounded-b-none px-5 sm:px-6 pt-6 pb-32 flex flex-col min-h-[calc(var(--app-height,100dvh)-60px)] shadow-[0_-8px_32px_rgba(0,0,0,0.08)] dark:shadow-[0_-12px_36px_rgba(0,0,0,0.5)]"
             style={{
               transform: 'translateZ(0)',
               WebkitTransform: 'translateZ(0)',

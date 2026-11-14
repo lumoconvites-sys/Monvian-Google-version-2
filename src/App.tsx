@@ -1434,9 +1434,14 @@ export default function App() {
     setIsDetailOpen(false);
   }, []);
 
-  // Dismiss all cards, previews and overlays when touching the map without altering current zoom or camera position
+  // Dismiss all cards, previews and overlays when touching the map and restore previous zoom/camera if a spot was selected
   const handleMapDismiss = useCallback(() => {
-    setSelectedSpot(null);
+    setSelectedSpot((prev) => {
+      if (prev) {
+        setRevertSpotZoomTrigger((t) => t + 1);
+      }
+      return null;
+    });
     setIsDetailOpen(false);
     setIsCategoryCardOpen(false);
     setIsSearchOpen(false);
@@ -1622,6 +1627,7 @@ export default function App() {
     foregroundSelector: '#spot-preview-banner-card',
     backgroundSelector: '#app-map-layer',
     onPop: () => {
+      setRevertSpotZoomTrigger((t) => t + 1);
       setSelectedSpot(null);
     },
   });
@@ -2213,6 +2219,7 @@ export default function App() {
             onViewModeChange={setSpotPreviewMode}
             theme={theme}
             onClose={() => {
+              setRevertSpotZoomTrigger((t) => t + 1);
               setSelectedSpot(null);
             }}
             onOpenDetails={(spot) => {

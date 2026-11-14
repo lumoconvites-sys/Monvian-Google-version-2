@@ -348,6 +348,28 @@ export const MapComponent = memo(
       }
     }, []);
 
+    const previousCameraStateRef = useRef<{
+      center: [number, number];
+      zoom: number;
+      pitch: number;
+      bearing: number;
+    } | null>(null);
+
+    const restorePreviousSpotCamera = useCallback(() => {
+      if (!mapRef.current || !previousCameraStateRef.current) return false;
+      const savedCamera = previousCameraStateRef.current;
+      previousCameraStateRef.current = null;
+      mapRef.current.easeTo({
+        center: savedCamera.center,
+        zoom: savedCamera.zoom,
+        pitch: savedCamera.pitch,
+        bearing: savedCamera.bearing,
+        offset: [0, 0],
+        duration: 700,
+      });
+      return true;
+    }, []);
+
     // Ensure the 3D User Location Marker ("Eu" + Avatar + Blue Flashlight Beam) exists and is attached to the active map
     const ensureUserMarker = useCallback(
       (targetMap?: maplibregl.Map | null) => {
@@ -554,6 +576,7 @@ export const MapComponent = memo(
           CAMPOS_CENTER;
 
         if (mapRef.current) {
+          previousCameraStateRef.current = null;
           ensureUserMarker(mapRef.current);
           userMarkerRef.current?.setLngLat(targetCoords);
 
@@ -649,6 +672,9 @@ export const MapComponent = memo(
         ensureUserMarker(map);
 
         map.on('click', () => {
+          if (selectedSpotRef.current || previousCameraStateRef.current) {
+            restorePreviousSpotCamera();
+          }
           if (onMapClickRef.current) onMapClickRef.current();
         });
 
@@ -1922,6 +1948,15 @@ export const MapComponent = memo(
             animateMarkerPress(badgeEl, false);
             return;
           }
+          if (!selectedSpotRef.current && !previousCameraStateRef.current && mapRef.current) {
+            const currentCenter = mapRef.current.getCenter();
+            previousCameraStateRef.current = {
+              center: [currentCenter.lng, currentCenter.lat],
+              zoom: mapRef.current.getZoom(),
+              pitch: mapRef.current.getPitch(),
+              bearing: mapRef.current.getBearing(),
+            };
+          }
           playSpotClickSound();
           triggerPinTapFeedback(badgeEl, rippleEl, secondaryRippleEl);
           setFollowMode(false);
@@ -1939,14 +1974,7 @@ export const MapComponent = memo(
       syncSpotMarkers();
     }, [spots, syncSpotMarkers]);
 
-    const previousCameraStateRef = useRef<{
-      center: [number, number];
-      zoom: number;
-      pitch: number;
-      bearing: number;
-    } | null>(null);
-
-    // Update marker highlight and camera zoom smoothly when a tourist spot is selected
+    // Update marker highlight and camera zoom smoothly when a tourist spot is selected, and restore camera when deselected
     useEffect(() => {
       syncMarkerHighlight(selectedSpot?.id);
 
@@ -1976,37 +2004,16 @@ export const MapComponent = memo(
           offset: [0, verticalOffset],
           duration: 700,
         });
-      } else {
-        previousCameraStateRef.current = null;
+      } else if (previousCameraStateRef.current) {
+        restorePreviousSpotCamera();
       }
-    }, [selectedSpot, syncMarkerHighlight, setFollowMode]);
+    }, [selectedSpot, syncMarkerHighlight, setFollowMode, restorePreviousSpotCamera]);
 
     // Return zoom and camera to the exact zoom/position before clicking the spot when closing or clicking the map
     useEffect(() => {
       if (!revertSpotZoomTrigger || revertSpotZoomTrigger === 0 || !mapRef.current) return;
-
-      const savedCamera = previousCameraStateRef.current;
-      previousCameraStateRef.current = null;
-
-      if (savedCamera) {
-        mapRef.current.easeTo({
-          center: savedCamera.center,
-          zoom: savedCamera.zoom,
-          pitch: savedCamera.pitch,
-          bearing: savedCamera.bearing,
-          offset: [0, 0],
-          duration: 700,
-        });
-      } else {
-        mapRef.current.easeTo({
-          zoom: mapRef.current.getZoom(),
-          pitch: is3DModeRef.current ? 60 : 0,
-          bearing: is3DModeRef.current ? -20 : 0,
-          offset: [0, 0],
-          duration: 700,
-        });
-      }
-    }, [revertSpotZoomTrigger]);
+      restorePreviousSpotCamera();
+    }, [revertSpotZoomTrigger, restorePreviousSpotCamera]);
 
     // Render static visual map icons
     const visualIconMarkersRef = useRef<maplibregl.Marker[]>([]);

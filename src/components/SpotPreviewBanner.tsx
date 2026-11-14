@@ -281,7 +281,7 @@ export const SpotPreviewBanner: React.FC<SpotPreviewBannerProps> = ({
           ? { duration: 0.15 }
           : { type: 'spring', stiffness: 360, damping: 32, mass: 0.88 }
       }
-      className="md:hidden fixed inset-x-0 z-[245] flex justify-center px-2.5 sm:px-3.5 pointer-events-none select-none"
+      className="md:hidden fixed inset-x-0 z-[245] flex justify-center px-4 pointer-events-none select-none"
       style={{
         bottom: '84px',
       }}
@@ -317,7 +317,7 @@ export const SpotPreviewBanner: React.FC<SpotPreviewBannerProps> = ({
               transform: 'translateZ(0)',
               WebkitTransform: 'translateZ(0)',
             }}
-            className={`relative w-full max-w-[440px] rounded-[32px] pointer-events-auto overflow-hidden ${
+            className={`relative w-full max-w-[326px] sm:max-w-[342px] rounded-[32px] pointer-events-auto overflow-hidden ${
               isDark
                 ? 'bg-[#000000] text-white border border-[#262626] shadow-[0_14px_38px_rgba(0,0,0,0.72)]'
                 : 'bg-[#FFFFFF] text-zinc-950 border border-black/[0.06] shadow-[0_10px_34px_rgba(0,0,0,0.11),0_2px_8px_rgba(0,0,0,0.04)]'
@@ -417,19 +417,19 @@ export const SpotPreviewBanner: React.FC<SpotPreviewBannerProps> = ({
                     onOpenDetails(spot);
                   }}
                   aria-label={`Tempo estimado: ${durationLabel} de você`}
-                  className={`h-[54px] px-2 rounded-[18px] border flex items-center justify-center gap-2 transition-transform active:scale-[0.97] cursor-pointer ${
+                  className={`h-[52px] px-1.5 rounded-[18px] border flex items-center justify-center gap-1.5 transition-transform active:scale-[0.97] cursor-pointer ${
                     isDark
                       ? 'bg-[#141416] border-[#262626] text-white'
                       : 'bg-white border-black/[0.07] text-zinc-950 shadow-[0_2px_10px_rgba(0,0,0,0.04)]'
                   }`}
                 >
-                  <Clock className="w-[18px] h-[18px] stroke-[2] shrink-0" />
+                  <Clock className="w-[16px] h-[16px] stroke-[2] shrink-0" />
                   <div className="flex flex-col items-start leading-tight text-left min-w-0">
-                    <span className="text-[12.5px] font-semibold tracking-tight truncate">
+                    <span className="text-[12px] font-semibold tracking-tight truncate">
                       {durationLabel}
                     </span>
                     <span
-                      className={`text-[10.5px] font-normal truncate ${
+                      className={`text-[10px] font-normal truncate ${
                         isDark ? 'text-zinc-400' : 'text-zinc-500'
                       }`}
                     >
@@ -443,14 +443,14 @@ export const SpotPreviewBanner: React.FC<SpotPreviewBannerProps> = ({
                   type="button"
                   onClick={handleOpenDirections}
                   aria-label={`Traçar rota para ${spot.name}`}
-                  className={`h-[54px] px-2 rounded-[18px] border flex flex-col items-center justify-center gap-0.5 transition-transform active:scale-[0.97] cursor-pointer ${
+                  className={`h-[52px] px-1.5 rounded-[18px] border flex flex-col items-center justify-center gap-0.5 transition-transform active:scale-[0.97] cursor-pointer ${
                     isDark
                       ? 'bg-[#141416] border-[#262626] text-[#0A84FF]'
                       : 'bg-white border-black/[0.07] text-[#007AFF] shadow-[0_2px_10px_rgba(0,0,0,0.04)]'
                   }`}
                 >
-                  <Navigation className="w-[17px] h-[17px] stroke-[2]" />
-                  <span className="text-[12px] font-medium tracking-tight leading-tight">
+                  <Navigation className="w-[16px] h-[16px] stroke-[2]" />
+                  <span className="text-[11px] sm:text-[11.5px] font-medium tracking-tight leading-tight whitespace-nowrap">
                     Rotas
                   </span>
                 </button>
@@ -460,7 +460,7 @@ export const SpotPreviewBanner: React.FC<SpotPreviewBannerProps> = ({
                   type="button"
                   onClick={handleShare}
                   aria-label={`Compartilhar ${spot.name}`}
-                  className={`h-[54px] px-2 rounded-[18px] border flex flex-col items-center justify-center gap-0.5 transition-transform active:scale-[0.97] cursor-pointer ${
+                  className={`h-[52px] px-1.5 rounded-[18px] border flex flex-col items-center justify-center gap-0.5 transition-transform active:scale-[0.97] cursor-pointer ${
                     isDark
                       ? 'bg-[#141416] border-[#262626] text-white'
                       : 'bg-white border-black/[0.07] text-zinc-950 shadow-[0_2px_10px_rgba(0,0,0,0.04)]'
@@ -468,15 +468,15 @@ export const SpotPreviewBanner: React.FC<SpotPreviewBannerProps> = ({
                 >
                   {isCopied ? (
                     <>
-                      <Check className="w-[17px] h-[17px] stroke-[2.2] text-emerald-500" />
-                      <span className="text-[12px] font-medium tracking-tight leading-tight text-emerald-500">
+                      <Check className="w-[16px] h-[16px] stroke-[2.2] text-emerald-500" />
+                      <span className="text-[11px] sm:text-[11.5px] font-medium tracking-tight leading-tight whitespace-nowrap text-emerald-500">
                         Copiado
                       </span>
                     </>
                   ) : (
                     <>
-                      <Share className="w-[17px] h-[17px] stroke-[2]" />
-                      <span className="text-[12px] font-medium tracking-tight leading-tight">
+                      <Share className="w-[16px] h-[16px] stroke-[2]" />
+                      <span className="text-[11px] sm:text-[11.5px] font-medium tracking-tight leading-tight whitespace-nowrap">
                         Compartilhar
                       </span>
                     </>
