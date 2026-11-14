@@ -2,7 +2,6 @@ import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react'
 import {
   Search,
   Heart,
-  Compass,
   X,
   Check,
   ArrowRight,
@@ -1227,30 +1226,34 @@ export const AirbnbItineraryExplorer: React.FC<AirbnbItineraryExplorerProps> = (
         ) : displayItineraries.length === 0 && !validFeaturedBanner ? (
           /* Empty State when search or filter matches 0 items */
           <div
-            className={`text-center py-16 px-6 space-y-2.5 ${
-              isDark ? 'text-zinc-400' : 'text-zinc-500'
-            }`}
+            className="w-full min-h-[calc(var(--app-height,100dvh)-380px)] flex items-center justify-center bg-[#FFFFFF]"
+            aria-label="Nenhum roteiro encontrado"
           >
-            <Compass className="w-10 h-10 mx-auto mb-1 opacity-50 stroke-[1.8]" />
-            <p className={`text-base font-bold ${isDark ? 'text-white' : 'text-zinc-900'}`}>
-              Nenhum roteiro encontrado
-            </p>
-            <p className="text-xs max-w-xs mx-auto">
-              Não encontramos resultados para os filtros atuais. Tente buscar outro termo ou limpar os filtros.
-            </p>
-            <button
-              type="button"
-              onClick={() => {
-                handleSelectCategory('all');
-                setDurationFilter('all');
-                setSearchQuery('');
-              }}
-              className={`mt-2 px-5 py-2.5 rounded-full text-xs font-bold cursor-pointer active:scale-95 transition-all shadow-xs border ${
-                isDark ? 'bg-white text-black border-transparent' : 'expo-liquid-glass-btn text-black border-black/5 hover:bg-zinc-50'
-              }`}
+            <svg
+              width="38"
+              height="38"
+              viewBox="0 0 24 24"
+              fill="none"
+              xmlns="http://www.w3.org/2000/svg"
+              aria-hidden="true"
+              className="shrink-0"
             >
-              Ver todos os roteiros
-            </button>
+              <circle
+                cx="12"
+                cy="12"
+                r="10"
+                stroke="#AEAEB2"
+                strokeWidth="1.4"
+              />
+              <path
+                d="M9.6 9.35C9.88 8.12 10.92 7.35 12.16 7.35C13.55 7.35 14.62 8.24 14.62 9.52C14.62 10.52 14.04 11.14 13.08 11.72C12.34 12.17 12.02 12.64 12.02 13.42V13.9"
+                stroke="#AEAEB2"
+                strokeWidth="1.4"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              />
+              <circle cx="12.02" cy="16.85" r="0.85" fill="#AEAEB2" />
+            </svg>
           </div>
         ) : (
           <motion.div
