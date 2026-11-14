@@ -43,8 +43,58 @@ import {
   persistSupportTicketToFirestore,
   deleteUserAccountFromFirestore,
 } from './src/services/firestoreSync.ts';
+import firebaseAppletConfig from './firebase-applet-config.json' with { type: 'json' };
 
 dotenv.config();
+
+function sanitizeBackendAuthError(err: any, fallback = 'Não foi possível conectar. Tente novamente.'): string {
+  const raw = String(err?.message || err || '').trim();
+  const lower = raw.toLowerCase();
+  if (!raw) return fallback;
+  if (
+    lower.includes('invalid api key') ||
+    lower.includes('api-key-not-valid') ||
+    lower.includes('jwt') ||
+    lower.includes('fetch') ||
+    lower.includes('timeout') ||
+    lower.includes('econn')
+  ) {
+    console.error('[Monvian Server Auth Diagnostic]', raw);
+    return 'Não foi possível conectar. Tente novamente.';
+  }
+  return raw;
+}
+
+async function verifyFirebaseIdTokenServer(
+  idToken?: string
+): Promise<{ uid: string; email: string; name?: string; avatarUrl?: string } | null> {
+  if (!idToken || typeof idToken !== 'string' || idToken.length < 40) return null;
+  const apiKey = String((firebaseAppletConfig as any)?.apiKey || '').trim();
+  if (!apiKey) return null;
+
+  try {
+    const resp = await fetch(
+      `https://identitytoolkit.googleapis.com/v1/accounts:lookup?key=${encodeURIComponent(apiKey)}`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ idToken }),
+      }
+    );
+    if (!resp.ok) return null;
+    const json: any = await resp.json();
+    const fbUser = Array.isArray(json?.users) ? json.users[0] : null;
+    if (!fbUser?.email) return null;
+    return {
+      uid: String(fbUser.localId || ''),
+      email: String(fbUser.email).trim().toLowerCase(),
+      name: fbUser.displayName ? String(fbUser.displayName).trim() : undefined,
+      avatarUrl: fbUser.photoUrl ? String(fbUser.photoUrl).trim() : undefined,
+    };
+  } catch {
+    return null;
+  }
+}
 
 const PORT = Number(process.env.PORT) || 3000;
 const isProd = process.env.NODE_ENV === 'production';
@@ -858,6 +908,34 @@ async function startServer() {
   );
   app.use(express.urlencoded({ extended: true, limit: '25mb' }));
 
+  // Reverse-proxy Firebase Hosting Auth helpers (/__/auth/* and /__/firebase/*) so same-origin links work seamlessly
+  app.use(['/__/auth', '/__/firebase'], async (req: Request, res: Response) => {
+    try {
+      const targetUrl = `https://${(firebaseAppletConfig as any).authDomain || 'inspired-nirvana-5dtd0.firebaseapp.com'}${req.originalUrl}`;
+      const forwardHeaders: Record<string, string> = {};
+      if (req.headers['content-type']) forwardHeaders['content-type'] = String(req.headers['content-type']);
+      if (req.headers['accept']) forwardHeaders['accept'] = String(req.headers['accept']);
+      if (req.headers['user-agent']) forwardHeaders['user-agent'] = String(req.headers['user-agent']);
+
+      const upstreamRes = await fetch(targetUrl, {
+        method: req.method,
+        headers: forwardHeaders,
+        body: req.method !== 'GET' && req.method !== 'HEAD' && (req as any).rawBody ? (req as any).rawBody : undefined,
+        redirect: 'manual',
+      });
+
+      const location = upstreamRes.headers.get('location');
+      if (location) res.setHeader('location', location);
+      const contentType = upstreamRes.headers.get('content-type');
+      if (contentType) res.setHeader('content-type', contentType);
+
+      const buf = Buffer.from(await upstreamRes.arrayBuffer());
+      res.status(upstreamRes.status).send(buf);
+    } catch {
+      res.status(502).send('Auth proxy unavailable');
+    }
+  });
+
   // Trigger bidirectional sync with Supabase PostgreSQL and Firestore on startup
   syncDatabaseWithSupabase(db).catch((err) => console.warn('[SupabaseBootSync]', err));
   syncDatabaseWithFirestore(db).catch((err) => console.warn('[FirestoreBootSync]', err));
@@ -944,7 +1022,7 @@ async function startServer() {
           `).run(rawName || existing.name || 'Mario Yesk', hash, authId, existing.id);
 
           const updatedAdmin = db.prepare('SELECT * FROM users WHERE id = ?').get(existing.id) as any;
-          const token = crypto.randomUUID();
+          const token = signPersistentSessionToken(updatedAdmin);
           db.prepare('INSERT INTO sessions (token, user_id) VALUES (?, ?)').run(token, existing.id);
 
           await persistUserToSupabase({ ...updatedAdmin, role: 'admin', is_gold: 1 });
@@ -956,20 +1034,29 @@ async function startServer() {
             last_access: nowIso,
           }).catch(() => {});
 
+          setPersistentSessionCookie(req, res, token);
+
           return res.json({
             success: true,
             token,
             user: formatSafeUser({ ...updatedAdmin, role: 'admin', is_gold: 1 }),
           });
         }
-        return res.status(400).json({ success: false, error: 'Este e-mail já está cadastrado. Faça login.' });
+        return res.status(409).json({ success: false, error: 'Este e-mail já possui uma conta.' });
       }
 
       // Check remote Supabase to avoid duplicates across environments
       if (!isPrimaryAdmin(rawEmail)) {
         const remoteExisting = await getUserFromSupabase(rawEmail);
         if (remoteExisting && remoteExisting.email) {
-          return res.status(400).json({ success: false, error: 'Este e-mail já está cadastrado. Faça login.' });
+          if (
+            remoteExisting.password_hash &&
+            remoteExisting.password_hash !== 'google_oauth' &&
+            remoteExisting.password_hash !== 'supabase_auth' &&
+            remoteExisting.password_hash !== 'profile_sync'
+          ) {
+            return res.status(409).json({ success: false, error: 'Este e-mail já possui uma conta.' });
+          }
         }
       }
 
@@ -1076,36 +1163,41 @@ async function startServer() {
         user: formatSafeUser(userRecord),
       });
     } catch (err: any) {
-      return res.status(500).json({ success: false, error: err.message || 'Erro ao criar conta' });
+      return res.status(500).json({ success: false, error: sanitizeBackendAuthError(err, 'Não foi possível concluir seu cadastro. Tente novamente.') });
     }
   });
 
   app.post('/api/auth/login', async (req: Request, res: Response) => {
     try {
-      const { identifier, email, whatsapp, password } = req.body;
+      const { identifier, email, whatsapp, password, firebase_id_token, firebase_uid } = req.body;
       const loginId = (identifier || email || whatsapp || '').trim().toLowerCase().replace(/^@+/, '');
 
-      if (!loginId || !password) {
-        return res.status(400).json({ success: false, error: 'Informe seu e-mail/usuário e senha.' });
+      if (!loginId || (!password && !firebase_id_token)) {
+        return res.status(400).json({ success: false, error: 'Informe seu e-mail e senha.' });
       }
+
+      const verifiedFirebase = firebase_id_token
+        ? await verifyFirebaseIdTokenServer(firebase_id_token)
+        : null;
+      const effectiveLookup = verifiedFirebase?.email || loginId;
 
       let user = db
         .prepare(`
           SELECT * FROM users
           WHERE LOWER(email) = ? OR LOWER(whatsapp) = ? OR LOWER(username) = ?
         `)
-        .get(loginId, loginId, loginId) as any;
+        .get(effectiveLookup, effectiveLookup, effectiveLookup) as any;
 
       // If not in local SQLite yet, check Supabase PostgreSQL
       if (!user) {
-        const remoteUser = await getUserFromSupabase(loginId);
+        const remoteUser = await getUserFromSupabase(effectiveLookup);
         if (remoteUser && remoteUser.email) {
           const role = isPrimaryAdmin(remoteUser.email) || remoteUser.role === 'admin' ? 'admin' : 'user';
           const isGold = role === 'admin' || remoteUser.is_gold === 1 ? 1 : 0;
           const ins = db
             .prepare(`
-              INSERT INTO users (name, username, email, whatsapp, password_hash, role, avatar_url, is_gold)
-              VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+              INSERT INTO users (name, username, email, whatsapp, password_hash, role, avatar_url, is_gold, auth_id)
+              VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
             `)
             .run(
               remoteUser.name || remoteUser.email.split('@')[0],
@@ -1115,17 +1207,43 @@ async function startServer() {
               remoteUser.password_hash || '',
               role,
               remoteUser.avatar_url || '/fotoperfil.png',
-              isGold
+              isGold,
+              verifiedFirebase?.uid || firebase_uid || remoteUser.auth_id || null
             );
           user = db.prepare('SELECT * FROM users WHERE id = ?').get(ins.lastInsertRowid);
         }
       }
 
-      // Also verify against Supabase Auth if email login (skip blocking wait for primary admin accounts)
-      let supabaseAuthVerified = false;
-      const isPrimaryLogin = isPrimaryAdmin(loginId) || isPrimaryAdmin(user?.email) || loginId === 'marioyesk';
-      if (!isPrimaryLogin && supabaseAnonClient && (loginId.includes('@') || user?.email)) {
-        const targetEmail = user?.email || loginId;
+      // If authenticated directly via Firebase Auth and account wasn't in local SQLite yet, provision it safely
+      if (!user && verifiedFirebase?.email) {
+        const role = isPrimaryAdmin(verifiedFirebase.email) ? 'admin' : 'user';
+        const isGold = role === 'admin' ? 1 : 0;
+        const hash = password ? bcrypt.hashSync(String(password), 10) : bcrypt.hashSync(crypto.randomUUID(), 10);
+        const baseUsername = verifiedFirebase.email.split('@')[0].replace(/[^a-zA-Z0-9_]/g, '').toLowerCase() || 'viajante';
+        const ins = db
+          .prepare(`
+            INSERT INTO users (name, username, email, whatsapp, password_hash, role, avatar_url, is_gold, auth_id)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+          `)
+          .run(
+            verifiedFirebase.name || baseUsername,
+            `${baseUsername}${Math.floor(100 + Math.random() * 899)}`,
+            verifiedFirebase.email,
+            verifiedFirebase.email,
+            hash,
+            role,
+            verifiedFirebase.avatarUrl || '/fotoperfil.png',
+            isGold,
+            verifiedFirebase.uid || firebase_uid || null
+          );
+        user = db.prepare('SELECT * FROM users WHERE id = ?').get(ins.lastInsertRowid);
+      }
+
+      // Also verify against Supabase Auth if email login for legacy accounts (skip blocking wait for primary admin accounts)
+      let supabaseAuthVerified = Boolean(verifiedFirebase?.email);
+      const isPrimaryLogin = isPrimaryAdmin(effectiveLookup) || isPrimaryAdmin(user?.email) || effectiveLookup === 'marioyesk';
+      if (!supabaseAuthVerified && !isPrimaryLogin && supabaseAnonClient && (effectiveLookup.includes('@') || user?.email) && password) {
+        const targetEmail = user?.email || effectiveLookup;
         try {
           const { data: authData, error: authErr } = await supabaseAnonClient.auth.signInWithPassword({
             email: targetEmail,
@@ -1160,7 +1278,7 @@ async function startServer() {
 
       if (!user && (isPrimaryAdmin(loginId) || loginId === 'marioyesk')) {
         const adminEmail = loginId.includes('@') ? loginId : 'marioyesk@gmail.com';
-        const hash = bcrypt.hashSync(String(password), 10);
+        const hash = bcrypt.hashSync(String(password || crypto.randomUUID()), 10);
         const ins = db
           .prepare(`
             INSERT INTO users (name, username, email, whatsapp, password_hash, role, avatar_url, is_gold)
@@ -1171,7 +1289,7 @@ async function startServer() {
       }
 
       if (!user) {
-        return res.status(401).json({ success: false, error: 'Conta não encontrada. Verifique seus dados ou crie uma conta.' });
+        return res.status(401).json({ success: false, error: 'E-mail ou senha incorretos.' });
       }
 
       if (user.is_banned === 1 && !isPrimaryAdmin(user.email)) {
@@ -1181,9 +1299,9 @@ async function startServer() {
       const isAdminAccount = isPrimaryAdmin(user.email) || isPrimaryAdmin(loginId) || loginId === 'marioyesk';
       let validPassword =
         supabaseAuthVerified ||
-        (user.password_hash && bcrypt.compareSync(String(password), user.password_hash));
+        (password && user.password_hash && bcrypt.compareSync(String(password), user.password_hash));
 
-      if (!validPassword && isAdminAccount) {
+      if (!validPassword && isAdminAccount && password) {
         const newHash = bcrypt.hashSync(String(password), 10);
         db.prepare("UPDATE users SET password_hash = ?, role = 'admin', is_gold = 1 WHERE id = ?").run(newHash, user.id);
         user.password_hash = newHash;
@@ -1191,7 +1309,7 @@ async function startServer() {
       }
 
       if (!validPassword) {
-        return res.status(401).json({ success: false, error: 'Senha incorreta. Tente novamente.' });
+        return res.status(401).json({ success: false, error: 'E-mail ou senha incorretos.' });
       }
 
       // Ensure primary admin role is preserved
@@ -1199,6 +1317,13 @@ async function startServer() {
         db.prepare("UPDATE users SET role = 'admin', is_gold = 1 WHERE id = ?").run(user.id);
         user.role = 'admin';
         user.is_gold = 1;
+      }
+
+      if (verifiedFirebase?.uid && !user.auth_id) {
+        try {
+          db.prepare('UPDATE users SET auth_id = ? WHERE id = ?').run(verifiedFirebase.uid, user.id);
+          user.auth_id = verifiedFirebase.uid;
+        } catch {}
       }
 
       db.prepare('UPDATE users SET visits_count = COALESCE(visits_count, 0) + 1, last_access = CURRENT_TIMESTAMP WHERE id = ?').run(user.id);
@@ -1217,18 +1342,32 @@ async function startServer() {
         user: formatSafeUser(user),
       });
     } catch (err: any) {
-      return res.status(500).json({ success: false, error: err.message });
+      return res.status(500).json({ success: false, error: sanitizeBackendAuthError(err, 'Não foi possível conectar. Tente novamente.') });
     }
   });
 
   app.post('/api/auth/google', async (req: Request, res: Response) => {
     try {
-      const { email, name, avatar_url, supabase_auth_id } = req.body;
-      if (!email) {
-        return res.status(400).json({ success: false, error: 'Email não fornecido pelo Google' });
+      const { email, name, avatar_url, supabase_auth_id, google_uid, idToken } = req.body;
+      let cleanEmail = String(email || '').trim().toLowerCase();
+      let resolvedName = String(name || '').trim();
+      let resolvedAvatar = String(avatar_url || '').trim();
+      let resolvedUid = String(google_uid || supabase_auth_id || '').trim();
+
+      if (idToken && typeof idToken === 'string') {
+        const verified = await verifyFirebaseIdTokenServer(idToken);
+        if (verified?.email) {
+          cleanEmail = verified.email;
+          if (!resolvedName && verified.name) resolvedName = verified.name;
+          if (!resolvedAvatar && verified.avatarUrl) resolvedAvatar = verified.avatarUrl;
+          if (verified.uid) resolvedUid = verified.uid;
+        }
       }
 
-      const cleanEmail = email.trim().toLowerCase();
+      if (!cleanEmail || !cleanEmail.includes('@')) {
+        return res.status(400).json({ success: false, error: 'Não foi possível entrar com Google. Tente novamente.' });
+      }
+
       let user = db.prepare('SELECT * FROM users WHERE LOWER(email) = ? OR LOWER(whatsapp) = ?').get(cleanEmail, cleanEmail) as any;
       let isNew = false;
 
@@ -1238,17 +1377,18 @@ async function startServer() {
           const role = isPrimaryAdmin(cleanEmail) || remoteUser.role === 'admin' ? 'admin' : 'user';
           const isGold = role === 'admin' || remoteUser.is_gold === 1 ? 1 : 0;
           const insert = db.prepare(`
-            INSERT INTO users (name, username, email, whatsapp, password_hash, avatar_url, role, is_gold)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+            INSERT INTO users (name, username, email, whatsapp, password_hash, avatar_url, role, is_gold, auth_id)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
           `).run(
-            remoteUser.name || name || cleanEmail.split('@')[0],
+            remoteUser.name || resolvedName || cleanEmail.split('@')[0],
             remoteUser.username || cleanEmail.split('@')[0],
             cleanEmail,
             cleanEmail,
             remoteUser.password_hash || bcrypt.hashSync(crypto.randomUUID(), 10),
-            avatar_url || remoteUser.avatar_url || '/fotoperfil.png',
+            resolvedAvatar || remoteUser.avatar_url || '/fotoperfil.png',
             role,
-            isGold
+            isGold,
+            resolvedUid || remoteUser.auth_id || null
           );
           user = db.prepare('SELECT * FROM users WHERE id = ?').get(insert.lastInsertRowid);
         } else {
@@ -1258,9 +1398,9 @@ async function startServer() {
           const role = isPrimaryAdmin(cleanEmail) ? 'admin' : 'user';
           const isGold = role === 'admin' ? 1 : 0;
           const insert = db.prepare(`
-            INSERT INTO users (name, username, email, whatsapp, password_hash, avatar_url, role, is_gold)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-          `).run(name || username, username, cleanEmail, cleanEmail, dummyHash, avatar_url || '/fotoperfil.png', role, isGold);
+            INSERT INTO users (name, username, email, whatsapp, password_hash, avatar_url, role, is_gold, auth_id)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+          `).run(resolvedName || username, username, cleanEmail, cleanEmail, dummyHash, resolvedAvatar || '/fotoperfil.png', role, isGold, resolvedUid || null);
           user = db.prepare('SELECT * FROM users WHERE id = ?').get(insert.lastInsertRowid);
         }
       }
@@ -1274,14 +1414,43 @@ async function startServer() {
       const token = signPersistentSessionToken(user);
       db.prepare('INSERT INTO sessions (token, user_id) VALUES (?, ?)').run(token, user.id);
 
-      await persistUserToSupabase({ ...user, auth_id: supabase_auth_id || null });
+      await persistUserToSupabase({ ...user, auth_id: resolvedUid || user.auth_id || null });
       await persistSessionToSupabase(token, user.id);
 
       setPersistentSessionCookie(req, res, token);
 
       return res.json({ success: true, token, user: formatSafeUser(user), is_new: isNew });
     } catch (err: any) {
-      return res.status(500).json({ success: false, error: err.message });
+      return res.status(500).json({ success: false, error: sanitizeBackendAuthError(err, 'Não foi possível entrar com Google. Tente novamente.') });
+    }
+  });
+
+  app.post('/api/auth/sync-password', async (req: Request, res: Response) => {
+    try {
+      const { firebase_id_token, new_password } = req.body || {};
+      if (!firebase_id_token || !new_password || String(new_password).length < 6) {
+        return res.status(400).json({ success: false, error: 'Dados inválidos para atualização de senha.' });
+      }
+      const verified = await verifyFirebaseIdTokenServer(firebase_id_token);
+      if (!verified?.email) {
+        return res.status(401).json({ success: false, error: 'Sessão de redefinição inválida ou expirada.' });
+      }
+      const existing = db
+        .prepare('SELECT * FROM users WHERE LOWER(email) = ? OR LOWER(whatsapp) = ?')
+        .get(verified.email, verified.email) as any;
+      const hash = bcrypt.hashSync(String(new_password), 10);
+      if (existing) {
+        db.prepare('UPDATE users SET password_hash = ?, auth_id = COALESCE(auth_id, ?) WHERE id = ?').run(
+          hash,
+          verified.uid || null,
+          existing.id
+        );
+        const updated = db.prepare('SELECT * FROM users WHERE id = ?').get(existing.id) as any;
+        await persistUserToSupabase({ ...updated, password_hash: hash });
+      }
+      return res.json({ success: true });
+    } catch (err: any) {
+      return res.status(500).json({ success: false, error: sanitizeBackendAuthError(err) });
     }
   });
 

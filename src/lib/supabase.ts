@@ -8,6 +8,7 @@ const rawViteKey = typeof import.meta !== 'undefined' && import.meta.env ? impor
 const rawNodeUrl = typeof process !== 'undefined' ? (process.env?.VITE_SUPABASE_URL || process.env?.SUPABASE_URL) : undefined;
 const rawNodeKey = typeof process !== 'undefined' ? (process.env?.VITE_SUPABASE_ANON_KEY || process.env?.SUPABASE_ANON_KEY) : undefined;
 
+const ACTIVE_PROJECT_REF = 'gxyqrwebnkbgxqrfdvuj';
 const DEFAULT_SUPABASE_URL = 'https://gxyqrwebnkbgxqrfdvuj.supabase.co';
 const DEFAULT_SUPABASE_ANON_KEY = 'sb_publishable_WaPR6pa1PiAD6pCG45aeuA_LrVfs39y';
 const DEAD_HOSTS = ['hefkjmjovzpymtybyebw.supabase.co'];
@@ -21,13 +22,35 @@ const sanitizeSupabaseUrl = (url?: string): string => {
   return cleaned;
 };
 
+const isKeyValidForActiveProject = (key: string, url: string): boolean => {
+  if (!key || key.includes('9KwMtGFOKB0zF17ozzG1rw')) return false;
+  if (!url.includes(ACTIVE_PROJECT_REF)) return true;
+
+  if (key.startsWith('eyJ')) {
+    try {
+      const parts = key.split('.');
+      if (parts.length === 3) {
+        const jsonStr =
+          typeof atob === 'function'
+            ? atob(parts[1].replace(/-/g, '+').replace(/_/g, '/'))
+            : Buffer.from(parts[1], 'base64').toString('utf8');
+        const payload = JSON.parse(jsonStr);
+        return payload?.ref === ACTIVE_PROJECT_REF;
+      }
+    } catch {
+      return false;
+    }
+  }
+
+  return key === DEFAULT_SUPABASE_ANON_KEY;
+};
+
 const resolveSupabaseCredentials = () => {
   const candidateUrl = sanitizeSupabaseUrl(rawViteUrl) || sanitizeSupabaseUrl(rawNodeUrl) || DEFAULT_SUPABASE_URL;
 
   let candidateKey = (rawViteKey || rawNodeKey || '').trim();
 
-  // If candidate key is invalid, missing or belongs to a dead host, use default project key
-  if (!candidateKey || candidateKey.includes('9KwMtGFOKB0zF17ozzG1rw')) {
+  if (!isKeyValidForActiveProject(candidateKey, candidateUrl)) {
     candidateKey = DEFAULT_SUPABASE_ANON_KEY;
   }
 
@@ -50,7 +73,7 @@ export const supabase = isSupabaseConfigured
       auth: {
         persistSession: true,
         autoRefreshToken: true,
-        detectSessionInUrl: true,
+        detectSessionInUrl: false,
         storageKey: 'monvian_supabase_auth',
         ...(authStorage ? { storage: authStorage } : {}),
       },

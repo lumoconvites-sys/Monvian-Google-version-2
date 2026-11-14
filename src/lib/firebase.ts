@@ -16,44 +16,63 @@ import {
   createUserWithEmailAndPassword,
   signInWithEmailAndPassword,
   sendPasswordResetEmail,
+  verifyPasswordResetCode,
+  confirmPasswordReset,
+  applyActionCode,
+  updateProfile,
   signOut,
   type Auth,
   type User,
+  type ActionCodeSettings,
 } from 'firebase/auth';
 import firebaseAppletConfig from '../../firebase-applet-config.json';
 
-const sanitizeFirebaseValue = (val: string | undefined, fallback: string): string => {
-  const cleaned = (val || '').trim();
-  if (
-    !cleaned ||
-    cleaned.includes('AIzaSyMockKeyForDevOnly') ||
-    cleaned.includes('mock-app') ||
-    cleaned === '123456789' ||
-    cleaned === '1:123456789:web:abcdef'
-  ) {
-    return fallback;
+/**
+ * Only permit VITE_FIREBASE_* env vars if they strictly match the official
+ * project in firebase-applet-config.json (prevents stale/mismatched deployment env vars
+ * from causing Invalid API key or cross-project errors).
+ */
+function buildValidatedFirebaseConfig() {
+  const envProjectId = (import.meta.env.VITE_FIREBASE_PROJECT_ID || '').trim();
+  const envApiKey = (import.meta.env.VITE_FIREBASE_API_KEY || '').trim();
+  const envAppId = (import.meta.env.VITE_FIREBASE_APP_ID || '').trim();
+  const envAuthDomain = (import.meta.env.VITE_FIREBASE_AUTH_DOMAIN || '').trim();
+  const envStorageBucket = (import.meta.env.VITE_FIREBASE_STORAGE_BUCKET || '').trim();
+  const envSenderId = (import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID || '').trim();
+
+  const hasValidEnvMatch =
+    Boolean(envProjectId && envProjectId === firebaseAppletConfig.projectId) &&
+    Boolean(envApiKey && envApiKey.startsWith('AIza') && !envApiKey.includes('Mock'));
+
+  if (!hasValidEnvMatch) {
+    return {
+      apiKey: firebaseAppletConfig.apiKey,
+      authDomain: firebaseAppletConfig.authDomain,
+      projectId: firebaseAppletConfig.projectId,
+      storageBucket: firebaseAppletConfig.storageBucket,
+      messagingSenderId: firebaseAppletConfig.messagingSenderId,
+      appId: firebaseAppletConfig.appId,
+    };
   }
-  return cleaned;
-};
 
-const firebaseConfig = {
-  apiKey: sanitizeFirebaseValue(import.meta.env.VITE_FIREBASE_API_KEY, firebaseAppletConfig.apiKey),
-  authDomain: sanitizeFirebaseValue(import.meta.env.VITE_FIREBASE_AUTH_DOMAIN, firebaseAppletConfig.authDomain),
-  projectId: sanitizeFirebaseValue(import.meta.env.VITE_FIREBASE_PROJECT_ID, firebaseAppletConfig.projectId),
-  storageBucket: sanitizeFirebaseValue(import.meta.env.VITE_FIREBASE_STORAGE_BUCKET, firebaseAppletConfig.storageBucket),
-  messagingSenderId: sanitizeFirebaseValue(
-    import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID,
-    firebaseAppletConfig.messagingSenderId
-  ),
-  appId: sanitizeFirebaseValue(import.meta.env.VITE_FIREBASE_APP_ID, firebaseAppletConfig.appId),
-};
+  return {
+    apiKey: envApiKey,
+    authDomain: envAuthDomain || firebaseAppletConfig.authDomain,
+    projectId: firebaseAppletConfig.projectId,
+    storageBucket: envStorageBucket || firebaseAppletConfig.storageBucket,
+    messagingSenderId: envSenderId || firebaseAppletConfig.messagingSenderId,
+    appId: envAppId && envAppId.startsWith('1:') ? envAppId : firebaseAppletConfig.appId,
+  };
+}
 
+export const firebaseConfig = buildValidatedFirebaseConfig();
+
+// Share single [DEFAULT] FirebaseApp across Auth and Firestore
 const app: FirebaseApp = getApps().length > 0 ? getApp() : initializeApp(firebaseConfig);
 
 function initAuthInstance(primaryApp: FirebaseApp): Auth {
-  let instance: Auth;
   try {
-    instance = initializeAuth(primaryApp, {
+    return initializeAuth(primaryApp, {
       popupRedirectResolver: browserPopupRedirectResolver,
       persistence: [
         indexedDBLocalPersistence,
@@ -62,21 +81,17 @@ function initAuthInstance(primaryApp: FirebaseApp): Auth {
       ],
     });
   } catch {
-    try {
-      instance = getAuth(primaryApp);
-      setPersistence(instance, indexedDBLocalPersistence).catch(() => {
-        setPersistence(instance, browserLocalPersistence).catch(() => {});
-      });
-    } catch {
-      const existingFallback = getApps().find((a) => a.name === 'monvian-auth');
-      const authApp = existingFallback || initializeApp(firebaseConfig, 'monvian-auth');
-      instance = getAuth(authApp);
-    }
+    const instance = getAuth(primaryApp);
+    setPersistence(instance, indexedDBLocalPersistence).catch(() => {
+      setPersistence(instance, browserLocalPersistence).catch(() => {});
+    });
+    return instance;
   }
-  return instance;
 }
 
 export const auth: Auth = initAuthInstance(app);
+auth.languageCode = 'pt-BR';
+
 export const googleProvider = new GoogleAuthProvider();
 googleProvider.addScope('email');
 googleProvider.addScope('profile');
@@ -94,9 +109,8 @@ export const getCachedAccessToken = (): string | null => cachedAccessToken;
 
 /**
  * Waits cleanly for Firebase Auth IndexedDB persistence to hydrate on cold start.
- * Prevents interpreting an unhydrated session as logged-out.
  */
-export async function waitForFirebaseAuthUser(timeoutMs = 2500): Promise<User | null> {
+export async function waitForFirebaseAuthUser(timeoutMs = 3000): Promise<User | null> {
   if (typeof window === 'undefined') return null;
 
   try {
@@ -155,77 +169,162 @@ export async function getFreshFirebaseIdToken(forceRefresh = false): Promise<str
   }
 }
 
+/**
+ * Official Firebase Email/Password Registration
+ */
+export async function signUpWithFirebaseEmail(
+  name: string,
+  email: string,
+  password: string
+): Promise<{ user: User; uid: string; idToken: string }> {
+  const cleanEmail = email.trim().toLowerCase();
+  const cleanName = name.trim();
+  await setPersistence(auth, indexedDBLocalPersistence).catch(() => {});
+  const cred = await createUserWithEmailAndPassword(auth, cleanEmail, password);
+  if (cleanName) {
+    await updateProfile(cred.user, { displayName: cleanName }).catch(() => {});
+  }
+  const idToken = await cred.user.getIdToken();
+  return {
+    user: cred.user,
+    uid: cred.user.uid,
+    idToken,
+  };
+}
+
+/**
+ * Official Firebase Email/Password Login
+ */
+export async function signInWithFirebaseEmail(
+  email: string,
+  password: string
+): Promise<{ user: User; uid: string; idToken: string }> {
+  const cleanEmail = email.trim().toLowerCase();
+  await setPersistence(auth, indexedDBLocalPersistence).catch(() => {});
+  const cred = await signInWithEmailAndPassword(auth, cleanEmail, password);
+  const idToken = await cred.user.getIdToken();
+  return {
+    user: cred.user,
+    uid: cred.user.uid,
+    idToken,
+  };
+}
+
+/**
+ * Links an already-verified existing DB account into Firebase Auth seamlessly when Email/Password is enabled.
+ */
 export async function ensureFirebaseEmailSession(email: string, password: string): Promise<string | null> {
   if (!email || !password) return null;
   const cleanEmail = email.trim().toLowerCase();
   try {
     await setPersistence(auth, indexedDBLocalPersistence).catch(() => {});
-    const cred = await Promise.race([
-      signInWithEmailAndPassword(auth, cleanEmail, password),
-      new Promise<null>((resolve) => setTimeout(() => resolve(null), 1800)),
-    ]);
-    if (cred && 'user' in cred && cred.user?.uid) {
-      return cred.user.uid;
-    }
+    const cred = await signInWithEmailAndPassword(auth, cleanEmail, password);
+    return cred.user?.uid || null;
   } catch (err: any) {
     const code = String(err?.code || '');
-    if (code === 'auth/user-not-found') {
+    if (code === 'auth/user-not-found' || code === 'auth/invalid-credential') {
       try {
-        const created = await Promise.race([
-          createUserWithEmailAndPassword(auth, cleanEmail, password),
-          new Promise<null>((resolve) => setTimeout(() => resolve(null), 1800)),
-        ]);
-        if (created && 'user' in created && created.user?.uid) {
-          return created.user.uid;
-        }
-      } catch {}
+        const created = await createUserWithEmailAndPassword(auth, cleanEmail, password);
+        return created.user?.uid || null;
+      } catch {
+        return null;
+      }
     }
+    return null;
   }
-  return null;
+}
+
+/**
+ * Official Firebase Password Reset Email with safe ActionCodeSettings for current origin
+ */
+export async function sendFirebasePasswordReset(email: string): Promise<void> {
+  const cleanEmail = email.trim().toLowerCase();
+  const origin =
+    typeof window !== 'undefined' && window.location?.origin?.startsWith('http')
+      ? window.location.origin
+      : 'https://monvians.com.br';
+
+  const actionCodeSettings: ActionCodeSettings = {
+    url: `${origin}/?authAction=passwordReset`,
+    handleCodeInApp: true,
+  };
+
+  try {
+    await sendPasswordResetEmail(auth, cleanEmail, actionCodeSettings);
+  } catch (err: any) {
+    const code = String(err?.code || '');
+    // If current preview domain isn't listed as authorized continue-uri in Console yet,
+    // retry using default project link or official domain so the email still goes through cleanly.
+    if (code === 'auth/unauthorized-continue-uri' || code === 'auth/invalid-continue-uri') {
+      await sendPasswordResetEmail(auth, cleanEmail, {
+        url: 'https://monvians.com.br/?authAction=passwordReset',
+        handleCodeInApp: false,
+      });
+      return;
+    }
+    throw err;
+  }
+}
+
+export async function verifyFirebaseResetCode(oobCode: string): Promise<string> {
+  return await verifyPasswordResetCode(auth, oobCode);
+}
+
+export async function confirmFirebasePasswordReset(oobCode: string, newPassword: string): Promise<void> {
+  await confirmPasswordReset(auth, oobCode, newPassword);
+}
+
+export async function applyFirebaseActionCode(oobCode: string): Promise<void> {
+  await applyActionCode(auth, oobCode);
 }
 
 export {
   createUserWithEmailAndPassword,
   signInWithEmailAndPassword,
   sendPasswordResetEmail,
+  verifyPasswordResetCode,
+  confirmPasswordReset,
   signOut,
   onAuthStateChanged,
 };
 
 export const checkGoogleRedirectResult = async (): Promise<{
-  user: any;
+  user: User;
   accessToken?: string | null;
   idToken?: string;
 } | null> => {
-  try {
-    const result = await getRedirectResult(auth);
-    if (result?.user?.email) {
-      const credential = GoogleAuthProvider.credentialFromResult(result);
-      const accessToken = credential?.accessToken || null;
-      let idToken = '';
-      try {
-        idToken = await result.user.getIdToken();
-      } catch {}
-      setCachedAccessToken(accessToken);
-      return {
-        user: result.user,
-        accessToken,
-        idToken,
-      };
-    }
-  } catch (err) {
-    console.warn('Google redirect check warning:', err);
+  const result = await getRedirectResult(auth);
+  if (result?.user?.email) {
+    const credential = GoogleAuthProvider.credentialFromResult(result);
+    const accessToken = credential?.accessToken || null;
+    let idToken = '';
+    try {
+      idToken = await result.user.getIdToken();
+    } catch {}
+    setCachedAccessToken(accessToken);
+    return {
+      user: result.user,
+      accessToken,
+      idToken,
+    };
   }
   return null;
 };
 
+/**
+ * Initiates official Firebase Google OAuth.
+ * IMPORTANT: Calls signInWithPopup synchronously within the user click call stack so
+ * iOS Safari & desktop browsers allow the Google chooser without popup-blocker errors.
+ * Never falls back to fake/mock users and never triggers cross-origin redirect on unauthorized domains.
+ */
 export const googleSignIn = async (): Promise<{
-  user: any;
+  user: User | null;
   accessToken?: string | null;
   idToken?: string;
   redirecting?: boolean;
 }> => {
   try {
+    // Must stay synchronous inside click call-stack (no await before signInWithPopup)
     const result = await signInWithPopup(auth, googleProvider);
     const credential = GoogleAuthProvider.credentialFromResult(result);
     const accessToken = credential?.accessToken || null;
@@ -241,14 +340,23 @@ export const googleSignIn = async (): Promise<{
     };
   } catch (error: any) {
     const code = String(error?.code || '');
-    const msg = String(error?.message || '');
 
-    // User explicitly closed the popup window
-    if (code === 'auth/popup-closed-by-user' || code === 'auth/cancelled-popup-request' || code === 'auth/user-cancelled') {
+    // User closed Google chooser intentionally
+    if (
+      code === 'auth/popup-closed-by-user' ||
+      code === 'auth/cancelled-popup-request' ||
+      code === 'auth/user-cancelled'
+    ) {
       throw error;
     }
 
-    // Mobile browsers or strict popup blockers: fall back to full-page redirect flow
+    // Do NOT trigger signInWithRedirect on unauthorized domains (it opens firebaseapp.com/__/auth/handler
+    // which immediately shows "The requested action is invalid.")
+    if (code === 'auth/unauthorized-domain') {
+      throw error;
+    }
+
+    // Only when popup itself is strictly blocked by browser, fall back to redirect flow
     if (code === 'auth/popup-blocked') {
       try {
         sessionStorage.setItem('monvian_google_redirect_pending', '1');
@@ -257,27 +365,6 @@ export const googleSignIn = async (): Promise<{
       return {
         user: null,
         redirecting: true,
-      };
-    }
-
-    // Fallback for restricted preview iframe or unconfigured preview branch domain
-    if (
-      code === 'auth/api-key-not-valid.-please-pass-a-valid-api-key.' ||
-      msg.includes('api-key-not-valid') ||
-      code === 'auth/network-request-failed' ||
-      code === 'auth/internal-error' ||
-      code === 'auth/unauthorized-domain' ||
-      code === 'auth/operation-not-supported-in-this-environment'
-    ) {
-      console.warn('Firebase Auth environment fallback triggered:', code);
-      return {
-        user: {
-          uid: 'google-admin-' + Date.now(),
-          displayName: 'Mario Admin',
-          email: 'marioyesk@gmail.com',
-          photoURL: '/fotoperfil.png',
-        },
-        accessToken: null,
       };
     }
 

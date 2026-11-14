@@ -105,8 +105,22 @@ const normalizeAppUser = (rawUser: any) => {
 };
 
 export default function App() {
-  const [isAuthenticated, setIsAuthenticated] = useState<boolean>(() => hasSyncSessionToken());
-  const [isAuthChecking, setIsAuthChecking] = useState<boolean>(() => !hasSyncSessionToken());
+  const [pendingResetOobCode, setPendingResetOobCode] = useState<string | null>(() => {
+    if (typeof window === 'undefined') return null;
+    try {
+      const params = new URLSearchParams(window.location.search);
+      if (params.get('mode') === 'resetPassword' && params.get('oobCode')) {
+        return params.get('oobCode');
+      }
+    } catch {}
+    return null;
+  });
+  const [isAuthenticated, setIsAuthenticated] = useState<boolean>(
+    () => !pendingResetOobCode && hasSyncSessionToken()
+  );
+  const [isAuthChecking, setIsAuthChecking] = useState<boolean>(
+    () => !pendingResetOobCode && !hasSyncSessionToken()
+  );
   const manualLogoutRef = useRef<boolean>(false);
   const [user, setUser] = useState<any>(() => {
     try {
@@ -651,6 +665,10 @@ export default function App() {
     };
 
     const bootstrapSession = async () => {
+      if (pendingResetOobCode) {
+        if (isMounted) setIsAuthChecking(false);
+        return;
+      }
       try {
         const stored = await loadPersistentSession();
 
@@ -1757,7 +1775,7 @@ export default function App() {
         onFinish={() => setIsWelcomeJourneyOpen(false)}
       />
       <AnimatePresence>
-      {isAuthChecking && !isAuthenticated ? (
+      {isAuthChecking && !isAuthenticated && !pendingResetOobCode ? (
         <div
           key="monvian-auth-checking"
           className="fixed inset-0 w-full z-[130] bg-[#FFFFFF] flex items-center justify-center"
@@ -1773,7 +1791,7 @@ export default function App() {
         >
           <div className="w-7 h-7 rounded-full border-2 border-[#E5E7EB] border-t-[#080808] animate-spin" />
         </div>
-      ) : !isAuthenticated ? (
+      ) : !isAuthenticated || pendingResetOobCode ? (
         <motion.div
           key="monvian-auth-screen"
           initial={{ opacity: 0 }}
@@ -1799,7 +1817,13 @@ export default function App() {
           }}
         >
           <AuthScreen
+            initialResetOobCode={pendingResetOobCode}
+            onResetHandled={() => {
+              setPendingResetOobCode(null);
+              clearPersistentSession().catch(() => {});
+            }}
             onSuccess={(token, userData, isNewAccount) => {
+              setPendingResetOobCode(null);
               manualLogoutRef.current = false;
               const cleanEmail = (userData?.email || userData?.whatsapp || '').trim().toLowerCase();
               const normalizedUser = normalizeAppUser(userData);

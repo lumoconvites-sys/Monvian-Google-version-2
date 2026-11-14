@@ -2,6 +2,11 @@ import { createClient } from '@supabase/supabase-js';
 import Stripe from 'stripe';
 import bcrypt from 'bcryptjs';
 import crypto from 'crypto';
+import firebaseAppletConfig from '../firebase-applet-config.json' with { type: 'json' };
+
+const ACTIVE_PROJECT_REF = 'gxyqrwebnkbgxqrfdvuj';
+const DEFAULT_SUPABASE_URL = 'https://gxyqrwebnkbgxqrfdvuj.supabase.co';
+const DEFAULT_SUPABASE_ANON_KEY = 'sb_publishable_WaPR6pa1PiAD6pCG45aeuA_LrVfs39y';
 
 const sanitizeSupabaseUrl = (url?: string): string => {
   if (!url) return '';
@@ -12,32 +17,37 @@ const sanitizeSupabaseUrl = (url?: string): string => {
   return cleaned;
 };
 
+const isKeyValidForActiveProject = (key: string, url: string): boolean => {
+  if (!key || key.includes('9KwMtGFOKB0zF17ozzG1rw')) return false;
+  if (!url.includes(ACTIVE_PROJECT_REF)) return true;
+
+  if (key.startsWith('eyJ')) {
+    try {
+      const parts = key.split('.');
+      if (parts.length === 3) {
+        const payload = JSON.parse(Buffer.from(parts[1], 'base64').toString('utf8'));
+        return payload?.ref === ACTIVE_PROJECT_REF;
+      }
+    } catch {
+      return false;
+    }
+  }
+  return key === DEFAULT_SUPABASE_ANON_KEY || key.startsWith('sb_secret_');
+};
+
 const rawUrl = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL || '';
-const supabaseUrl = sanitizeSupabaseUrl(rawUrl) || 'https://gxyqrwebnkbgxqrfdvuj.supabase.co';
+const supabaseUrl = sanitizeSupabaseUrl(rawUrl) || DEFAULT_SUPABASE_URL;
 
 let candidateKey = (process.env.SUPABASE_ANON_KEY || process.env.VITE_SUPABASE_ANON_KEY || '').trim();
-if (!candidateKey || candidateKey.includes('9KwMtGFOKB0zF17ozzG1rw')) {
-  candidateKey = 'sb_publishable_WaPR6pa1PiAD6pCG45aeuA_LrVfs39y';
+if (!isKeyValidForActiveProject(candidateKey, supabaseUrl)) {
+  candidateKey = DEFAULT_SUPABASE_ANON_KEY;
 }
 const supabaseAnonKey = candidateKey;
 
 const resolveValidServiceKey = (anonKey: string): string => {
   const rawServiceKey = (process.env.SUPABASE_SERVICE_ROLE_KEY || '').trim();
-  if (!rawServiceKey || rawServiceKey.includes('9KwMtGFOKB0zF17ozzG1rw')) {
+  if (!rawServiceKey || !isKeyValidForActiveProject(rawServiceKey, supabaseUrl)) {
     return anonKey;
-  }
-  if (rawServiceKey.startsWith('eyJ')) {
-    try {
-      const parts = rawServiceKey.split('.');
-      if (parts.length === 3) {
-        const payload = JSON.parse(Buffer.from(parts[1], 'base64').toString('utf8'));
-        if (payload?.ref && payload.ref !== 'gxyqrwebnkbgxqrfdvuj') {
-          return anonKey;
-        }
-      }
-    } catch {
-      return anonKey;
-    }
   }
   return rawServiceKey;
 };
@@ -50,6 +60,55 @@ const supabase = createClient(supabaseUrl, supabaseServiceKey, {
     autoRefreshToken: false,
   },
 });
+
+function sanitizeBackendAuthError(err: any, fallback = 'Não foi possível conectar. Tente novamente.'): string {
+  const raw = String(err?.message || err || '').trim();
+  const lower = raw.toLowerCase();
+  if (!raw) return fallback;
+  if (
+    lower.includes('invalid api key') ||
+    lower.includes('api-key-not-valid') ||
+    lower.includes('jwt') ||
+    lower.includes('fetch') ||
+    lower.includes('timeout') ||
+    lower.includes('econn')
+  ) {
+    console.error('[Monvian API Auth Diagnostic]', raw);
+    return 'Não foi possível conectar. Tente novamente.';
+  }
+  return raw;
+}
+
+async function verifyFirebaseIdTokenServerless(
+  idToken?: string
+): Promise<{ uid: string; email: string; name?: string; avatarUrl?: string } | null> {
+  if (!idToken || typeof idToken !== 'string' || idToken.length < 40) return null;
+  const apiKey = String((firebaseAppletConfig as any)?.apiKey || '').trim();
+  if (!apiKey) return null;
+
+  try {
+    const resp = await fetch(
+      `https://identitytoolkit.googleapis.com/v1/accounts:lookup?key=${encodeURIComponent(apiKey)}`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ idToken }),
+      }
+    );
+    if (!resp.ok) return null;
+    const json: any = await resp.json();
+    const fbUser = Array.isArray(json?.users) ? json.users[0] : null;
+    if (!fbUser?.email) return null;
+    return {
+      uid: String(fbUser.localId || ''),
+      email: String(fbUser.email).trim().toLowerCase(),
+      name: fbUser.displayName ? String(fbUser.displayName).trim() : undefined,
+      avatarUrl: fbUser.photoUrl ? String(fbUser.photoUrl).trim() : undefined,
+    };
+  } catch {
+    return null;
+  }
+}
 
 const PRIMARY_ADMIN_EMAILS = ['empresariomario@gmail.com', 'marioempresario@gmail.com', 'marioyesk@gmail.com'];
 
@@ -754,29 +813,36 @@ export default async function handler(req: any, res: any) {
     // 2. AUTHENTICATION & USER PROFILE
     // =========================================================================
     if (cleanPath === '/auth/login' && method === 'POST') {
-      const { identifier, email, whatsapp, password } = body || {};
+      const { identifier, email, whatsapp, password, firebase_id_token, firebase_uid } = body || {};
       const loginId = String(identifier || email || whatsapp || '')
         .trim()
         .toLowerCase()
         .replace(/^@+/, '');
 
-      if (!loginId || !password) {
+      if (!loginId || (!password && !firebase_id_token)) {
         return res.status(400).json({ success: false, error: 'Informe seu e-mail e sua senha.' });
       }
 
-      let user = await findUserByEmailOrIdentifier(loginId);
+      const verifiedFirebase = firebase_id_token
+        ? await verifyFirebaseIdTokenServerless(firebase_id_token)
+        : null;
 
-      if (user?.is_banned === 1) {
+      let user = await findUserByEmailOrIdentifier(verifiedFirebase?.email || loginId);
+
+      if (user?.is_banned === 1 && !isPrimaryAdmin(user.email)) {
         return res.status(403).json({
           success: false,
           error: 'Esta conta encontra-se suspensa. Entre em contato com o suporte.',
         });
       }
 
-      let authSuccess = false;
+      let authSuccess = Boolean(
+        verifiedFirebase?.email &&
+          (!loginId.includes('@') || verifiedFirebase.email === loginId)
+      );
 
-      // 1. Check password hash stored in users table (fastest & authoritative)
-      if (user?.password_hash) {
+      // 1. Check password hash stored in users table (for existing legacy accounts)
+      if (!authSuccess && user?.password_hash && password) {
         try {
           if (user.password_hash.startsWith('$2')) {
             authSuccess = bcrypt.compareSync(String(password), user.password_hash);
@@ -791,9 +857,9 @@ export default async function handler(req: any, res: any) {
         } catch {}
       }
 
-      // 2. Check Supabase Auth if not yet matched
+      // 2. Check Supabase Auth only if needed for legacy accounts without local hash
       const emailToAuth = user?.email || (loginId.includes('@') ? loginId : '');
-      if (!authSuccess && emailToAuth) {
+      if (!authSuccess && emailToAuth && password) {
         try {
           const { data: authData, error: authErr } = await supabase.auth.signInWithPassword({
             email: emailToAuth,
@@ -812,7 +878,7 @@ export default async function handler(req: any, res: any) {
       if (!user && !authSuccess) {
         return res.status(401).json({
           success: false,
-          error: 'Conta não encontrada. Verifique o e-mail digitado ou crie uma nova conta.',
+          error: 'E-mail ou senha incorretos.',
         });
       }
 
@@ -825,8 +891,18 @@ export default async function handler(req: any, res: any) {
         }
         return res.status(401).json({
           success: false,
-          error: 'E-mail ou senha incorretos. Tente novamente.',
+          error: 'E-mail ou senha incorretos.',
         });
+      }
+
+      if (verifiedFirebase?.uid && user && !user.auth_id) {
+        try {
+          await supabase.from('users').update({ auth_id: verifiedFirebase.uid }).eq('id', user.id);
+        } catch {}
+      } else if (firebase_uid && user && !user.auth_id) {
+        try {
+          await supabase.from('users').update({ auth_id: String(firebase_uid) }).eq('id', user.id);
+        } catch {}
       }
 
       const nowIso = new Date().toISOString();
@@ -988,7 +1064,10 @@ export default async function handler(req: any, res: any) {
           .single();
 
         if (updErr) {
-          return res.status(500).json({ success: false, error: updErr.message });
+          return res.status(500).json({
+            success: false,
+            error: sanitizeBackendAuthError(updErr, 'Não foi possível concluir seu cadastro. Tente novamente.'),
+          });
         }
 
         const token = signPersistentSessionToken(updatedUser);
@@ -1020,7 +1099,7 @@ export default async function handler(req: any, res: any) {
       // Ensure whatsapp is never empty string "" (which violates users_whatsapp_key unique constraint)
       const safeWhatsapp = String(whatsapp || cleanEmail).trim().toLowerCase() || cleanEmail;
 
-      const payload = {
+      const payload: any = {
         name: cleanName || cleanEmail.split('@')[0],
         username,
         username_normalized,
@@ -1038,6 +1117,9 @@ export default async function handler(req: any, res: any) {
         created_at: nowIso,
         updated_at: nowIso,
       };
+      if (body?.firebase_uid || body?.supabase_auth_id) {
+        payload.auth_id = String(body.firebase_uid || body.supabase_auth_id);
+      }
 
       let inserted: any = null;
       let insErr: any = null;
@@ -1049,10 +1131,10 @@ export default async function handler(req: any, res: any) {
       // Retry with randomized username/whatsapp suffix if any unexpected unique constraint occurred
       if (insErr) {
         const msg = String(insErr.message || '').toLowerCase();
-        if (msg.includes('users_email_key') || msg.includes('duplicate key') && msg.includes('email')) {
+        if (msg.includes('users_email_key') || (msg.includes('duplicate key') && msg.includes('email'))) {
           return res.status(409).json({
             success: false,
-            error: 'Este e-mail já está cadastrado. Faça login na sua conta.',
+            error: 'Este e-mail já possui uma conta.',
           });
         }
         const retrySuffix = Math.floor(1000 + Math.random() * 9000);
@@ -1071,24 +1153,9 @@ export default async function handler(req: any, res: any) {
       if (insErr || !inserted) {
         return res.status(500).json({
           success: false,
-          error: insErr?.message || 'Não foi possível concluir o cadastro no momento.',
+          error: sanitizeBackendAuthError(insErr, 'Não foi possível concluir o cadastro no momento.'),
         });
       }
-
-      // Best-effort sync with Supabase Auth
-      try {
-        await supabase.auth.signUp({
-          email: cleanEmail,
-          password: String(password),
-          options: {
-            data: {
-              name: payload.name,
-              username: payload.username,
-              avatar_url: payload.avatar_url,
-            },
-          },
-        });
-      } catch {}
 
       const token = signPersistentSessionToken(inserted);
       if (inserted?.id && Number(inserted.id) < 2147483647) {
@@ -1127,26 +1194,35 @@ export default async function handler(req: any, res: any) {
       }
 
       if (method === 'POST') {
-        const { email, name, avatar_url, idToken } = body || {};
+        const { email, name, avatar_url, idToken, google_uid } = body || {};
         let resolvedEmail = String(email || '').trim().toLowerCase();
         let resolvedName = String(name || '').trim();
         let resolvedAvatar = String(avatar_url || '').trim();
+        let resolvedUid = String(google_uid || '').trim();
 
-        // If an idToken was passed without email, decode JWT payload safely
-        if (!resolvedEmail && idToken && typeof idToken === 'string' && idToken.includes('.')) {
-          try {
-            const parts = idToken.split('.');
-            const jwtPayload = JSON.parse(Buffer.from(parts[1], 'base64').toString('utf8'));
-            if (jwtPayload?.email) resolvedEmail = String(jwtPayload.email).trim().toLowerCase();
-            if (!resolvedName && jwtPayload?.name) resolvedName = String(jwtPayload.name).trim();
-            if (!resolvedAvatar && jwtPayload?.picture) resolvedAvatar = String(jwtPayload.picture).trim();
-          } catch {}
+        // Verify Firebase ID Token via Identity Toolkit when provided
+        if (idToken && typeof idToken === 'string') {
+          const verified = await verifyFirebaseIdTokenServerless(idToken);
+          if (verified?.email) {
+            resolvedEmail = verified.email;
+            if (!resolvedName && verified.name) resolvedName = verified.name;
+            if (!resolvedAvatar && verified.avatarUrl) resolvedAvatar = verified.avatarUrl;
+            if (verified.uid) resolvedUid = verified.uid;
+          } else if (!resolvedEmail && idToken.includes('.')) {
+            try {
+              const parts = idToken.split('.');
+              const jwtPayload = JSON.parse(Buffer.from(parts[1], 'base64').toString('utf8'));
+              if (jwtPayload?.email) resolvedEmail = String(jwtPayload.email).trim().toLowerCase();
+              if (!resolvedName && jwtPayload?.name) resolvedName = String(jwtPayload.name).trim();
+              if (!resolvedAvatar && jwtPayload?.picture) resolvedAvatar = String(jwtPayload.picture).trim();
+            } catch {}
+          }
         }
 
         if (!resolvedEmail || !resolvedEmail.includes('@')) {
           return res.status(400).json({
             success: false,
-            error: 'E-mail da conta Google inválido ou não fornecido.',
+            error: 'Não foi possível entrar com Google. Tente novamente.',
           });
         }
 
@@ -1155,7 +1231,7 @@ export default async function handler(req: any, res: any) {
         let isNewUser = false;
 
         if (user) {
-          if (user.is_banned === 1) {
+          if (user.is_banned === 1 && !isPrimaryAdmin(user.email)) {
             return res.status(403).json({
               success: false,
               error: 'Esta conta encontra-se suspensa.',
@@ -1179,6 +1255,7 @@ export default async function handler(req: any, res: any) {
               name: updatedName,
               email: resolvedEmail,
               avatar_url: updatedAvatar,
+              auth_id: user.auth_id || resolvedUid || undefined,
               role,
               is_gold: isGold,
               is_premium: isGold,
@@ -1201,7 +1278,7 @@ export default async function handler(req: any, res: any) {
             cleanName || resolvedEmail.split('@')[0]
           );
 
-          const insertPayload = {
+          const insertPayload: any = {
             name: cleanName,
             username,
             username_normalized,
@@ -1219,6 +1296,7 @@ export default async function handler(req: any, res: any) {
             created_at: nowIso,
             updated_at: nowIso,
           };
+          if (resolvedUid) insertPayload.auth_id = resolvedUid;
 
           const { data: createdRow, error: createErr } = await supabase
             .from('users')
@@ -1242,7 +1320,7 @@ export default async function handler(req: any, res: any) {
             if (retryErr || !retryRow) {
               return res.status(500).json({
                 success: false,
-                error: retryErr?.message || createErr.message,
+                error: sanitizeBackendAuthError(retryErr || createErr, 'Não foi possível entrar com Google. Tente novamente.'),
               });
             }
             user = retryRow;
@@ -1271,6 +1349,30 @@ export default async function handler(req: any, res: any) {
           isNewUser,
         });
       }
+    }
+
+    if (cleanPath === '/auth/sync-password' && method === 'POST') {
+      const { firebase_id_token, new_password } = body || {};
+      if (!firebase_id_token || !new_password || String(new_password).length < 6) {
+        return res.status(400).json({ success: false, error: 'Dados inválidos para atualização de senha.' });
+      }
+      const verified = await verifyFirebaseIdTokenServerless(firebase_id_token);
+      if (!verified?.email) {
+        return res.status(401).json({ success: false, error: 'Sessão de redefinição inválida ou expirada.' });
+      }
+      const existing = await findUserByEmailOrIdentifier(verified.email);
+      if (existing) {
+        const hash = bcrypt.hashSync(String(new_password), 10);
+        await supabase
+          .from('users')
+          .update({
+            password_hash: hash,
+            auth_id: existing.auth_id || verified.uid || undefined,
+            updated_at: new Date().toISOString(),
+          })
+          .eq('id', existing.id);
+      }
+      return res.status(200).json({ success: true });
     }
 
     if (cleanPath === '/auth/supabase-sync' && method === 'POST') {
@@ -2710,6 +2812,6 @@ export default async function handler(req: any, res: any) {
 
     return res.status(404).json({ success: false, error: `Route ${cleanPath} not found`, message: `Route ${cleanPath} not found` });
   } catch (err: any) {
-    return res.status(500).json({ success: false, error: err.message || 'Internal server error' });
+    return res.status(500).json({ success: false, error: sanitizeBackendAuthError(err, 'Erro interno ao processar sua solicitação.') });
   }
 }

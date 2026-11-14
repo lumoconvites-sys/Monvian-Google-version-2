@@ -5,6 +5,14 @@
   "framework": "vite",
   "rewrites": [
     {
+      "source": "/__/auth/(.*)",
+      "destination": "https://inspired-nirvana-5dtd0.firebaseapp.com/__/auth/$1"
+    },
+    {
+      "source": "/__/firebase/(.*)",
+      "destination": "https://inspired-nirvana-5dtd0.firebaseapp.com/__/firebase/$1"
+    },
+    {
       "source": "/api/(.*)",
       "destination": "/api/index"
     },
@@ -13,7 +21,7 @@
       "destination": "/api/index"
     },
     {
-      "source": "/((?!api/|auth/|assets/|public/|favicon|.*\\..*).*)",
+      "source": "/((?!api/|auth/|__/|assets/|public/|favicon|.*\\..*).*)",
       "destination": "/index.html"
     }
   ],

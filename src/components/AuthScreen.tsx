@@ -14,14 +14,19 @@ import { AppleBackButton } from './ui/AppleBackButton';
 import { motion, AnimatePresence, useReducedMotion } from 'motion/react';
 import {
   auth,
-  createUserWithEmailAndPassword,
-  sendPasswordResetEmail,
+  signUpWithFirebaseEmail,
+  signInWithFirebaseEmail,
+  sendFirebasePasswordReset,
+  verifyFirebaseResetCode,
+  confirmFirebasePasswordReset,
+  applyFirebaseActionCode,
   googleSignIn,
   checkGoogleRedirectResult,
   setCachedAccessToken,
   ensureFirebaseEmailSession,
+  signOut,
 } from '../lib/firebase';
-import { supabase } from '../lib/supabase';
+import { mapAuthErrorToUserMessage } from '../utils/authErrorMessages';
 import { persistUserToFirestore, syncPermissionsFromDatabase } from '../services/firestoreSync';
 import { startPreloadResources } from '../utils/preloadItineraries';
 import { CinematicLandingView } from './CinematicLandingView';
@@ -30,6 +35,8 @@ import { savePersistentSession } from '../utils/persistentAuthStorage';
 
 interface AuthScreenProps {
   onSuccess: (token: string, user: any, isNewAccount?: boolean) => void;
+  initialResetOobCode?: string | null;
+  onResetHandled?: () => void;
 }
 
 /**
@@ -66,15 +73,42 @@ function validateEmailFormat(rawEmail: string): { valid: boolean; reason?: strin
   return { valid: true };
 }
 
-export function AuthScreen({ onSuccess }: AuthScreenProps) {
+export function AuthScreen({ onSuccess, initialResetOobCode, onResetHandled }: AuthScreenProps) {
   const shouldReduceMotion = useReducedMotion();
 
   // Scroll container ref for the cinematic landing page stage
   const landingScrollContainerRef = useRef<HTMLDivElement | null>(null);
 
-  // Application starts on the Cinematic Landing Page
-  const [authMode, setAuthMode] = useState<'landing' | 'login' | 'register' | 'recover'>('landing');
+  // Detect Firebase Action URL (?mode=resetPassword&oobCode=... or ?mode=verifyEmail&oobCode=...)
+  const detectedResetCode = useMemo(() => {
+    if (initialResetOobCode) return initialResetOobCode;
+    if (typeof window === 'undefined') return null;
+    try {
+      const params = new URLSearchParams(window.location.search);
+      const mode = params.get('mode');
+      const oobCode = params.get('oobCode');
+      if (mode === 'resetPassword' && oobCode) {
+        return oobCode;
+      }
+    } catch {}
+    return null;
+  }, [initialResetOobCode]);
+
+  // Application starts on the Cinematic Landing Page (or directly on resetPassword if coming from recovery link)
+  const [authMode, setAuthMode] = useState<'landing' | 'login' | 'register' | 'recover' | 'resetPassword'>(
+    () => (detectedResetCode ? 'resetPassword' : 'landing')
+  );
   const [registerStep, setRegisterStep] = useState<1 | 2 | 3 | 4>(1);
+
+  // In-app Password Reset (?mode=resetPassword&oobCode=...) state
+  const [resetOobCode, setResetOobCode] = useState<string | null>(() => detectedResetCode);
+  const [resetTargetEmail, setResetTargetEmail] = useState<string>('');
+  const [resetCodeStatus, setResetCodeStatus] = useState<'checking' | 'valid' | 'invalid' | 'done'>(
+    () => (detectedResetCode ? 'checking' : 'valid')
+  );
+  const [resetNewPassword, setResetNewPassword] = useState('');
+  const [resetConfirmPassword, setResetConfirmPassword] = useState('');
+  const [showResetPassword, setShowResetPassword] = useState(false);
 
   // Preload dark logo on initial mount so Login screen renders with zero decoding lag
   useEffect(() => {
@@ -168,7 +202,7 @@ export function AuthScreen({ onSuccess }: AuthScreenProps) {
   };
 
   useEffect(() => {
-    if (authMode === 'login' || authMode === 'recover') {
+    if (authMode === 'login' || authMode === 'recover' || authMode === 'resetPassword') {
       document.body.classList.add('is-login-screen');
       document.documentElement.classList.add('is-login-screen');
 
@@ -178,6 +212,41 @@ export function AuthScreen({ onSuccess }: AuthScreenProps) {
       };
     }
   }, [authMode]);
+
+  // Verify incoming Firebase oobCode on mount (password reset or email verification)
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const params = new URLSearchParams(window.location.search);
+    const mode = params.get('mode');
+    const code = initialResetOobCode || params.get('oobCode');
+
+    if ((mode === 'resetPassword' || initialResetOobCode) && code) {
+      setResetOobCode(code);
+      setAuthMode('resetPassword');
+      setResetCodeStatus('checking');
+      setError('');
+      verifyFirebaseResetCode(code)
+        .then((verifiedEmail) => {
+          setResetTargetEmail(verifiedEmail || '');
+          setResetCodeStatus('valid');
+        })
+        .catch((err) => {
+          setResetCodeStatus('invalid');
+          setError(mapAuthErrorToUserMessage(err, 'resetPassword'));
+        });
+      return;
+    }
+
+    if (mode === 'verifyEmail' && code) {
+      applyFirebaseActionCode(code)
+        .catch(() => {})
+        .finally(() => {
+          try {
+            window.history.replaceState({}, document.title, window.location.pathname);
+          } catch {}
+        });
+    }
+  }, [initialResetOobCode]);
 
   const handlePinchTouchStart = (e: React.TouchEvent) => {
     if (e.touches.length === 2) {
@@ -425,54 +494,77 @@ export function AuthScreen({ onSuccess }: AuthScreenProps) {
     onPop: handleStepBack,
   });
 
-  // 1. Submit Login (Supabase Auth + Backend Session)
+  // 1. Submit Login (Official Firebase Auth + Legacy DB Migration + Persistent Session)
   const handleLoginSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
 
-    if (!email.trim() || !password) {
+    const cleanIdentifier = email.trim().toLowerCase();
+    if (!cleanIdentifier || !password) {
       setError('Informe seu e-mail e senha.');
+      return;
+    }
+
+    if (cleanIdentifier.includes('@') && !validateEmailFormat(cleanIdentifier).valid) {
+      setError('Informe um endereço de e-mail válido.');
       return;
     }
 
     setLoading(true);
     try {
-      let supabaseAuthId: string | null = null;
-      if (supabase && email.includes('@')) {
+      let firebaseUid: string | null = null;
+      let firebaseIdToken: string | null = null;
+      let firebaseLoginError: any = null;
+
+      // Authenticate via official Firebase Authentication when identifier is an email
+      if (cleanIdentifier.includes('@')) {
         try {
-          const { data: supaAuth } = await supabase.auth.signInWithPassword({
-            email: email.trim().toLowerCase(),
-            password,
-          });
-          supabaseAuthId = supaAuth?.user?.id || null;
-        } catch {}
+          const fbRes = await signInWithFirebaseEmail(cleanIdentifier, password);
+          firebaseUid = fbRes.uid;
+          firebaseIdToken = fbRes.idToken;
+        } catch (fbErr: any) {
+          firebaseLoginError = fbErr;
+          const fbCode = String(fbErr?.code || '');
+          // Immediately fail on non-recoverable errors like rate limits or disabled accounts
+          if (fbCode === 'auth/too-many-requests' || fbCode === 'auth/user-disabled') {
+            setError(mapAuthErrorToUserMessage(fbErr, 'login'));
+            return;
+          }
+        }
       }
 
       const res = await fetch('/api/auth/login', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          email: email.trim().toLowerCase(),
-          identifier: email.trim().toLowerCase(),
+          email: cleanIdentifier,
+          identifier: cleanIdentifier,
           password,
-          supabase_auth_id: supabaseAuthId,
+          firebase_uid: firebaseUid,
+          firebase_id_token: firebaseIdToken,
         }),
       });
       const data = await res.json();
 
       if (res.ok && data.success && data.user) {
-        const cleanIdentifier = email.trim().toLowerCase();
-        if (cleanIdentifier.includes('@')) {
+        // If authenticated via existing DB credentials and Firebase account was not linked yet, enroll silently
+        if (!firebaseUid && cleanIdentifier.includes('@')) {
           ensureFirebaseEmailSession(cleanIdentifier, password).catch(() => {});
         }
         await savePersistentSession(data.token, data.user);
         iosNavigationManager.clearAuthEntries();
         onSuccess(data.token, data.user, false);
       } else {
-        setError(data.error || 'E-mail ou senha incorretos.');
+        const mapped = mapAuthErrorToUserMessage(
+          firebaseLoginError && !data?.error?.includes('Google')
+            ? { code: firebaseLoginError.code, message: data?.error || firebaseLoginError.message }
+            : { message: data?.error || 'E-mail ou senha incorretos.' },
+          'login'
+        );
+        setError(mapped);
       }
-    } catch {
-      setError('Erro de conexão ao servidor. Tente novamente.');
+    } catch (err) {
+      setError(mapAuthErrorToUserMessage(err, 'login'));
     } finally {
       setLoading(false);
     }
@@ -579,45 +671,17 @@ export function AuthScreen({ onSuccess }: AuthScreenProps) {
     const pace = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
     try {
-      // 1. “Criando sua conta…” -> registrar o usuário no sistema de autenticação
+      // 1. “Criando sua conta…” -> registrar o usuário no Firebase Authentication oficial
       setCreationMessage('Criando sua conta…');
       setCreationProgress(20);
 
-      let supabaseAuthId: string | null = null;
-      let firebaseUid: string | null = null;
+      const fbSignUp = await signUpWithFirebaseEmail(cleanName, cleanEmail, registerPassword);
+      const firebaseUid = fbSignUp.uid;
+      const firebaseIdToken = fbSignUp.idToken;
 
-      if (supabase) {
-        try {
-          const { data: supaSignUp } = await supabase.auth.signUp({
-            email: cleanEmail,
-            password: registerPassword,
-            options: {
-              data: {
-                full_name: cleanName,
-              },
-            },
-          });
-          supabaseAuthId = supaSignUp?.user?.id || null;
-        } catch (e) {
-          console.warn('Supabase auth signup notice:', e);
-        }
-      }
+      await pace(300);
 
-      try {
-        const fbCred = await Promise.race([
-          createUserWithEmailAndPassword(auth, cleanEmail, registerPassword),
-          new Promise<null>((resolve) => setTimeout(() => resolve(null), 1800)),
-        ]);
-        if (fbCred && 'user' in fbCred && fbCred.user?.uid) {
-          firebaseUid = fbCred.user.uid;
-        }
-      } catch (e) {
-        console.warn('Firebase auth signup notice:', e);
-      }
-
-      await pace(350);
-
-      // 2. “Adicionando suas informações…” -> salvar nome, e-mail, etc. no banco via API
+      // 2. “Adicionando suas informações…” -> salvar perfil vinculado ao UID no banco via API
       setCreationMessage('Adicionando suas informações…');
       setCreationProgress(45);
 
@@ -627,8 +691,8 @@ export function AuthScreen({ onSuccess }: AuthScreenProps) {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          supabase_auth_id: supabaseAuthId,
           firebase_uid: firebaseUid,
+          firebase_id_token: firebaseIdToken,
           name: cleanName,
           email: cleanEmail,
           password: registerPassword,
@@ -639,10 +703,12 @@ export function AuthScreen({ onSuccess }: AuthScreenProps) {
       const data = await res.json();
 
       if (!res.ok || !data.success || !data.user) {
-        throw new Error(data.error || 'Não foi possível concluir o cadastro. Verifique os dados e tente novamente.');
+        const errObj = new Error(data?.error || 'Não foi possível concluir o cadastro.');
+        (errObj as any).status = res.status;
+        throw errObj;
       }
 
-      await pace(350);
+      await pace(300);
 
       // 3. “Preparando seu perfil…” -> salvar a foto no armazenamento e vincular à conta
       setCreationMessage('Preparando seu perfil…');
@@ -657,8 +723,8 @@ export function AuthScreen({ onSuccess }: AuthScreenProps) {
           name: cleanName,
           email: cleanEmail,
           avatar_url: finalAvatar,
-          auth_id: userObj.auth_id || supabaseAuthId || firebaseUid || `usr_${userObj.id}`,
-          firebase_uid: firebaseUid || userObj.auth_id || null,
+          auth_id: userObj.auth_id || firebaseUid,
+          firebase_uid: firebaseUid,
           role: userObj.role || 'user',
         }),
         (async () => {
@@ -682,7 +748,7 @@ export function AuthScreen({ onSuccess }: AuthScreenProps) {
         sessionStorage.removeItem('monvian_signup_draft_email');
       } catch {}
 
-      await pace(350);
+      await pace(300);
 
       // 4. “Buscando roteiros para você…” -> carregar os dados de roteiros disponíveis
       setCreationMessage('Buscando roteiros para você…');
@@ -694,28 +760,37 @@ export function AuthScreen({ onSuccess }: AuthScreenProps) {
         fetch('/api/spots').catch(() => null),
       ]);
 
-      await pace(400);
+      await pace(350);
 
       // 5. “Quase tudo pronto…” -> finalizar a preparação da sessão
       setCreationMessage('Quase tudo pronto…');
       setCreationProgress(100);
 
-      await pace(450);
+      await pace(400);
 
       iosNavigationManager.clearAuthEntries();
       onSuccess(data.token, { ...userObj, avatar_url: finalAvatar }, true);
     } catch (err: any) {
-      console.error('Account creation error:', err);
       setIsAccountCreating(false);
       isSubmittingRef.current = false;
-      const errorMsg = err?.message || 'Erro de conexão ao criar sua conta. Tente novamente.';
-      setError(errorMsg);
+      // Clean up partial Firebase Auth state if backend registration rejected (e.g. duplicate pre-existing DB email)
+      if (auth.currentUser) {
+        signOut(auth).catch(() => {});
+      }
+      const friendlyMsg = mapAuthErrorToUserMessage(err, 'register');
+      setError(friendlyMsg);
+
+      const errCode = String(err?.code || '');
       if (
-        errorMsg.toLowerCase().includes('e-mail') ||
-        errorMsg.toLowerCase().includes('cadastrado') ||
-        errorMsg.toLowerCase().includes('já existe')
+        errCode === 'auth/email-already-in-use' ||
+        errCode === 'auth/invalid-email' ||
+        friendlyMsg.toLowerCase().includes('e-mail')
       ) {
         setRegisterStep(2);
+      } else if (errCode === 'auth/weak-password' || friendlyMsg.toLowerCase().includes('senha')) {
+        setRegisterStep(3);
+      } else {
+        setRegisterStep(3);
       }
     }
   };
@@ -836,7 +911,8 @@ export function AuthScreen({ onSuccess }: AuthScreenProps) {
         if (!active) return;
         setIsGoogleAccountPreparing(false);
         setGoogleLoading(false);
-        if (err?.message) setError(err.message);
+        setAuthMode('login');
+        setError(mapAuthErrorToUserMessage(err, 'google'));
       });
 
     return () => {
@@ -850,7 +926,7 @@ export function AuthScreen({ onSuccess }: AuthScreenProps) {
     setError('');
     setGoogleLoading(true);
     try {
-      // Step 1-4: Open official Google Account Selector and wait for user selection
+      // Must call googleSignIn() directly inside synchronous tap call stack for iOS Safari popup support
       const authResult = await googleSignIn();
       if (authResult?.redirecting) {
         return;
@@ -859,7 +935,6 @@ export function AuthScreen({ onSuccess }: AuthScreenProps) {
         throw new Error('Autenticação com Google cancelada');
       }
 
-      // Step 6-9: Complete backend session & transition into app
       await completeGoogleBackendSession(
         authResult.user,
         authResult.accessToken,
@@ -868,23 +943,11 @@ export function AuthScreen({ onSuccess }: AuthScreenProps) {
     } catch (err: any) {
       setIsGoogleAccountPreparing(false);
       setGoogleLoading(false);
-      if (
-        err?.code === 'auth/popup-closed-by-user' ||
-        err?.code === 'auth/cancelled-popup-request' ||
-        err?.code === 'auth/user-cancelled'
-      ) {
-        setError('A seleção de conta do Google foi fechada antes de concluir.');
-      } else {
-        setError(
-          err?.message && !err.message.includes('fetch')
-            ? err.message
-            : 'Não foi possível conectar sua conta com o Google. Tente novamente.'
-        );
-      }
+      setError(mapAuthErrorToUserMessage(err, 'google'));
     }
   };
 
-  // 4. Password Recovery Submit
+  // 4. Password Recovery Submit (Official Firebase sendPasswordResetEmail)
   const handleRecoverSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
@@ -895,18 +958,65 @@ export function AuthScreen({ onSuccess }: AuthScreenProps) {
     }
     setLoading(true);
     try {
-      await Promise.allSettled([
-        fetch('/api/auth/recover-password', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ email: clean }),
-        }),
-        supabase ? supabase.auth.resetPasswordForEmail(clean) : Promise.resolve(),
-        sendPasswordResetEmail(auth, clean),
-      ]);
+      await sendFirebasePasswordReset(clean);
       setRecoverSent(true);
-    } catch {
-      setError('Não foi possível enviar o link agora. Tente novamente.');
+    } catch (err: any) {
+      setError(mapAuthErrorToUserMessage(err, 'recover'));
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // 5. In-App Password Reset Confirmation (?mode=resetPassword&oobCode=...)
+  const handleConfirmResetPassword = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError('');
+
+    if (!resetOobCode) {
+      setResetCodeStatus('invalid');
+      setError('Este link expirou ou já foi utilizado. Solicite uma nova recuperação de senha.');
+      return;
+    }
+    if (resetNewPassword.length < 6) {
+      setError('A senha deve ter pelo menos 6 caracteres.');
+      return;
+    }
+    if (resetNewPassword !== resetConfirmPassword) {
+      setError('As senhas não coincidem.');
+      return;
+    }
+
+    setLoading(true);
+    try {
+      await confirmFirebasePasswordReset(resetOobCode, resetNewPassword);
+
+      // Sync password hash to backend DB safely if email is known
+      if (resetTargetEmail) {
+        try {
+          const fbRes = await signInWithFirebaseEmail(resetTargetEmail, resetNewPassword);
+          await fetch('/api/auth/sync-password', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              firebase_id_token: fbRes.idToken,
+              new_password: resetNewPassword,
+            }),
+          }).catch(() => {});
+          setEmail(resetTargetEmail);
+        } catch {}
+      }
+
+      try {
+        window.history.replaceState({}, document.title, window.location.pathname);
+      } catch {}
+
+      setResetCodeStatus('done');
+    } catch (err: any) {
+      const msg = mapAuthErrorToUserMessage(err, 'resetPassword');
+      setError(msg);
+      if (String(err?.code || '').includes('action-code')) {
+        setResetCodeStatus('invalid');
+      }
     } finally {
       setLoading(false);
     }
@@ -1603,7 +1713,7 @@ export function AuthScreen({ onSuccess }: AuthScreenProps) {
           3. TELA DE LOGIN E RECUPERAÇÃO DE SENHA (Modo Branco — Entrada Suave e Dinâmica)
          ========================================================================= */}
       <AnimatePresence>
-        {(authMode === 'login' || authMode === 'recover') && !isGoogleAccountPreparing && (
+        {(authMode === 'login' || authMode === 'recover' || authMode === 'resetPassword') && !isGoogleAccountPreparing && (
           <motion.section
             id="auth-main-section"
             key="auth-login-recover-section"
@@ -1642,7 +1752,13 @@ export function AuthScreen({ onSuccess }: AuthScreenProps) {
                   setError('');
                   setRecoverSent(false);
                   setLoginZoom(1);
-                  if (authMode === 'recover') {
+                  if (authMode === 'recover' || authMode === 'resetPassword') {
+                    try {
+                      window.history.replaceState({}, document.title, window.location.pathname);
+                    } catch {}
+                    if (authMode === 'resetPassword') {
+                      onResetHandled?.();
+                    }
                     setAuthMode('login');
                   } else {
                     setAuthMode('landing');
@@ -1846,6 +1962,136 @@ export function AuthScreen({ onSuccess }: AuthScreenProps) {
                       </button>
                     </motion.div>
                   </>
+                ) : authMode === 'resetPassword' ? (
+                  /* FORM: REDEFINIÇÃO DE SENHA VIA LINK DO E-MAIL */
+                  <motion.div variants={loginItemVariants} className="w-full">
+                    <h1 className="text-[22px] font-bold text-[#000000] text-center mb-2">
+                      Criar nova senha
+                    </h1>
+
+                    {resetCodeStatus === 'checking' ? (
+                      <div className="py-10 flex flex-col items-center justify-center gap-3">
+                        <Loader2 className="w-7 h-7 animate-spin text-[#000000]" />
+                        <p className="text-[14px] text-[#8A8D95]">Validando link de recuperação…</p>
+                      </div>
+                    ) : resetCodeStatus === 'done' ? (
+                      <div className="p-5 rounded-[24px] bg-[#F5F8FF] border border-[#DCE8FC] text-center space-y-3 mt-4">
+                        <CheckCircle2 className="w-8 h-8 text-[#3975E8] mx-auto" />
+                        <p className="text-[15px] font-semibold text-[#000000]">
+                          Senha redefinida com sucesso!
+                        </p>
+                        <p className="text-[13px] text-[#8A8D95]">
+                          Sua nova senha já está ativa. Entre na sua conta para continuar.
+                        </p>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setError('');
+                            setPassword('');
+                            onResetHandled?.();
+                            setAuthMode('login');
+                          }}
+                          className="mt-2 px-6 py-3 rounded-full bg-[#000000] text-white text-[14px] font-bold cursor-pointer"
+                        >
+                          Ir para o login
+                        </button>
+                      </div>
+                    ) : resetCodeStatus === 'invalid' ? (
+                      <div className="p-5 rounded-[24px] bg-[#FFF5F5] border border-[#FED7D7] text-center space-y-3 mt-4">
+                        <p className="text-[14.5px] font-semibold text-[#000000]">
+                          Link expirado ou inválido
+                        </p>
+                        <p className="text-[13px] text-[#737780]">
+                          {error || 'Este link expirou ou já foi utilizado. Solicite uma nova recuperação de senha.'}
+                        </p>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            try {
+                              window.history.replaceState({}, document.title, window.location.pathname);
+                            } catch {}
+                            onResetHandled?.();
+                            setError('');
+                            setRecoverSent(false);
+                            setAuthMode('recover');
+                          }}
+                          className="mt-2 px-6 py-3 rounded-full bg-[#000000] text-white text-[14px] font-bold cursor-pointer"
+                        >
+                          Solicitar novo link
+                        </button>
+                      </div>
+                    ) : (
+                      <>
+                        {resetTargetEmail && (
+                          <p className="text-[13.5px] text-[#8A8D95] text-center mb-6">
+                            Conta: <span className="text-[#000000] font-medium">{resetTargetEmail}</span>
+                          </p>
+                        )}
+                        <form onSubmit={handleConfirmResetPassword} className="space-y-3.5">
+                          <div className="relative">
+                            <Lock className="absolute left-5 top-1/2 -translate-y-1/2 w-[19px] h-[19px] text-[#8A8D95] stroke-[1.8]" />
+                            <input
+                              id="input-reset-new-password"
+                              type={showResetPassword ? 'text' : 'password'}
+                              placeholder="Nova senha (mín. 6 caracteres)"
+                              value={resetNewPassword}
+                              onChange={(e) => {
+                                setResetNewPassword(e.target.value);
+                                if (error) setError('');
+                              }}
+                              className="w-full h-[56px] pl-[52px] pr-12 rounded-[26px] bg-[#F3F4F7] border border-[#E5E7EB]/70 text-[#000000] placeholder:text-[#9CA3AF] focus:outline-none focus:bg-[#FFFFFF] focus:border-[#3975E8] focus:ring-2 focus:ring-[#3975E8]/15 transition-all text-[15px] font-normal"
+                              required
+                              autoComplete="new-password"
+                            />
+                            <button
+                              type="button"
+                              onClick={() => setShowResetPassword((p) => !p)}
+                              className="absolute right-4 top-1/2 -translate-y-1/2 p-1 text-[#8A8D95] hover:text-[#000000] transition-colors cursor-pointer"
+                              aria-label={showResetPassword ? 'Ocultar senha' : 'Ver senha'}
+                            >
+                              {showResetPassword ? (
+                                <EyeOff className="w-[19px] h-[19px] stroke-[1.8]" />
+                              ) : (
+                                <Eye className="w-[19px] h-[19px] stroke-[1.8]" />
+                              )}
+                            </button>
+                          </div>
+
+                          <div className="relative">
+                            <Lock className="absolute left-5 top-1/2 -translate-y-1/2 w-[19px] h-[19px] text-[#8A8D95] stroke-[1.8]" />
+                            <input
+                              id="input-reset-confirm-password"
+                              type={showResetPassword ? 'text' : 'password'}
+                              placeholder="Confirmar nova senha"
+                              value={resetConfirmPassword}
+                              onChange={(e) => {
+                                setResetConfirmPassword(e.target.value);
+                                if (error) setError('');
+                              }}
+                              className="w-full h-[56px] pl-[52px] pr-5 rounded-[26px] bg-[#F3F4F7] border border-[#E5E7EB]/70 text-[#000000] placeholder:text-[#9CA3AF] focus:outline-none focus:bg-[#FFFFFF] focus:border-[#3975E8] focus:ring-2 focus:ring-[#3975E8]/15 transition-all text-[15px] font-normal"
+                              required
+                              autoComplete="new-password"
+                            />
+                          </div>
+
+                          {error && (
+                            <p className="text-red-500 text-xs font-semibold text-center px-2">
+                              {error}
+                            </p>
+                          )}
+
+                          <motion.button
+                            whileTap={{ scale: 0.985 }}
+                            type="submit"
+                            disabled={loading}
+                            className="w-full h-[54px] sm:h-[56px] rounded-full bg-[#FFFFFF] hover:bg-[#F9FAFB] active:bg-[#F3F4F6] text-[#000000] text-[15.5px] font-bold flex items-center justify-center gap-2 transition-all disabled:opacity-70 shadow-[0_2px_8px_rgba(0,0,0,0.06)] border border-[#E5E7EB] cursor-pointer"
+                          >
+                            {loading ? 'Salvando...' : 'Redefinir senha'}
+                          </motion.button>
+                        </form>
+                      </>
+                    )}
+                  </motion.div>
                 ) : (
                   /* FORM: RECUPERAÇÃO DE SENHA */
                   <motion.div variants={loginItemVariants} className="w-full">
