@@ -290,7 +290,7 @@ export async function dispatchNativePlatformNotification(
     body: item.title,
     icon: item.imageUrl,
     image: item.imageUrl,
-    badge: '/loogo.png',
+    badge: '/notification-badge.png',
     tag: `monvians-arrival-${item.spotId}`,
     renotify: false,
     silent: false,

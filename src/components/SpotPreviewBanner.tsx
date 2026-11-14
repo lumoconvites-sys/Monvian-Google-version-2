@@ -4,14 +4,14 @@ import {
   Star,
   Clock,
   Navigation,
-  Share,
-  ChevronRight,
   Check,
   X,
 } from 'lucide-react';
-import { Spot } from '../types';
+import { Itinerary, ItineraryStep, Spot } from '../types';
 import { VerifiedBadge } from './ui/VerifiedBadge';
+import { NavRoteirosIcon } from './NavIcons';
 import { getSpotImage, getSpotFallbackImage } from '../utils/spotImages';
+import { triggerHapticFeedback } from '../utils/haptics';
 
 interface SpotPreviewBannerProps {
   spot: Spot;
@@ -20,7 +20,44 @@ interface SpotPreviewBannerProps {
   onViewModeChange?: (mode: 'card' | 'bar') => void;
   onClose: () => void;
   onOpenDetails: (spot: Spot) => void;
+  onOpenItineraryTab?: () => void;
   theme?: 'dark' | 'light';
+}
+
+function isSpotInsideItinerary(itinerary: Itinerary | null | undefined, spotId: string): boolean {
+  if (!itinerary || !Array.isArray(itinerary.days)) return false;
+  return itinerary.days.some(
+    (day) =>
+      Array.isArray(day.steps) &&
+      day.steps.some((step) => step.spotId === spotId || step.spot?.id === spotId)
+  );
+}
+
+function readStoredActiveItinerary(): Itinerary | null {
+  try {
+    const raw = localStorage.getItem('monvian_active_itinerary');
+    if (!raw) return null;
+    const parsed = JSON.parse(raw);
+    if (parsed && Array.isArray(parsed.days) && parsed.days.length > 0) {
+      return parsed as Itinerary;
+    }
+  } catch {
+    // Ignore storage parse errors
+  }
+  return null;
+}
+
+function getOrCreateItinerarySessionId(): string {
+  try {
+    let sid = localStorage.getItem('monvian_itinerary_session');
+    if (!sid) {
+      sid = 'session-' + Date.now() + '-' + Math.random().toString(36).substring(2, 8);
+      localStorage.setItem('monvian_itinerary_session', sid);
+    }
+    return sid;
+  } catch {
+    return 'session-' + Date.now();
+  }
 }
 
 function calculateHaversineKm(
@@ -110,13 +147,16 @@ export const SpotPreviewBanner: React.FC<SpotPreviewBannerProps> = ({
   onViewModeChange,
   onClose,
   onOpenDetails,
+  onOpenItineraryTab,
   theme = 'light',
 }) => {
   const shouldReduceMotion = useReducedMotion();
   const [imgError, setImgError] = useState(false);
   const [internalViewMode, setInternalViewMode] = useState<'card' | 'bar'>('card');
-  const [isCopied, setIsCopied] = useState(false);
-  const copiedTimerRef = useRef<number | null>(null);
+  const [isInItinerary, setIsInItinerary] = useState<boolean>(() =>
+    isSpotInsideItinerary(readStoredActiveItinerary(), spot.id)
+  );
+  const didDragRef = useRef(false);
   const prevSpotIdRef = useRef<string>(spot.id);
   const isDark = theme === 'dark';
 
@@ -133,7 +173,7 @@ export const SpotPreviewBanner: React.FC<SpotPreviewBannerProps> = ({
     if (prevSpotIdRef.current !== spot.id) {
       prevSpotIdRef.current = spot.id;
       setImgError(false);
-      setIsCopied(false);
+      setIsInItinerary(isSpotInsideItinerary(readStoredActiveItinerary(), spot.id));
       setInternalViewMode('card');
       if (onViewModeChange) {
         onViewModeChange('card');
@@ -142,12 +182,19 @@ export const SpotPreviewBanner: React.FC<SpotPreviewBannerProps> = ({
   }, [spot.id, onViewModeChange]);
 
   useEffect(() => {
-    return () => {
-      if (copiedTimerRef.current !== null) {
-        window.clearTimeout(copiedTimerRef.current);
-      }
+    const syncItineraryMembership = () => {
+      setIsInItinerary(isSpotInsideItinerary(readStoredActiveItinerary(), spot.id));
     };
-  }, []);
+    const handleLoggedOut = () => {
+      setIsInItinerary(false);
+    };
+    window.addEventListener('monvian:itinerary_applied', syncItineraryMembership);
+    window.addEventListener('monvian:user_logged_out', handleLoggedOut);
+    return () => {
+      window.removeEventListener('monvian:itinerary_applied', syncItineraryMembership);
+      window.removeEventListener('monvian:user_logged_out', handleLoggedOut);
+    };
+  }, [spot.id]);
 
   const spotImage = useMemo(() => {
     if (imgError) {
@@ -197,45 +244,162 @@ export const SpotPreviewBanner: React.FC<SpotPreviewBannerProps> = ({
     document.body.removeChild(link);
   };
 
-  const handleShare = async (e: React.MouseEvent) => {
+  const handleAddOrCreateItinerary = (e: React.MouseEvent) => {
     e.stopPropagation();
-    const shareTitle = spot.name;
-    const shareText = `Confira ${spot.name} em ${cityState}`;
-    const shareUrl = typeof window !== 'undefined' ? window.location.href : '';
+    triggerHapticFeedback(15);
 
-    if (typeof navigator !== 'undefined' && typeof navigator.share === 'function') {
-      try {
-        await navigator.share({
-          title: shareTitle,
-          text: shareText,
-          url: shareUrl,
-        });
-        return;
-      } catch (err: any) {
-        if (err?.name === 'AbortError') return;
-      }
+    const existing = readStoredActiveItinerary();
+
+    if (existing && isSpotInsideItinerary(existing, spot.id)) {
+      setIsInItinerary(true);
+      onOpenItineraryTab?.();
+      return;
     }
 
-    if (typeof navigator !== 'undefined' && navigator.clipboard?.writeText) {
+    const currentSteps = existing?.days?.[0]?.steps || [];
+    const nextOrder = currentSteps.length + 1;
+    const lastTime = currentSteps[currentSteps.length - 1]?.suggestedTime || '09:30';
+    const [hStr, mStr] = lastTime.split(':');
+    const h = Number(hStr);
+    const m = Number(mStr);
+    const nextHour = Number.isFinite(h) ? (h + 1) % 24 : 10;
+    const formattedTime = `${String(nextHour).padStart(2, '0')}:${String(
+      Number.isFinite(m) ? m : 30
+    ).padStart(2, '0')}`;
+
+    const resolvedImage = getSpotImage(spot);
+    const newStep: ItineraryStep = {
+      id: `step-imp-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
+      spotId: spot.id,
+      title: spot.name,
+      spotName: spot.name,
+      category: spot.categoryLabel || spot.category || 'Atração',
+      categoryLabel: spot.categoryLabel || 'Atração / Turística',
+      description: spot.description || spot.address || '',
+      suggestedTime: currentSteps.length === 0 ? '09:30' : formattedTime,
+      durationMinutes: 90,
+      travelTimeFromPrev: '15 min até o próximo ponto',
+      image: resolvedImage,
+      lat: spot.lat,
+      lng: spot.lng,
+      stepOrder: nextOrder,
+      spot: { ...spot, image: spot.image || resolvedImage },
+    };
+
+    const sessionId = getOrCreateItinerarySessionId();
+
+    if (existing) {
+      const updatedDays = existing.days.map((day, idx) =>
+        idx === 0
+          ? {
+              ...day,
+              steps: [...(day.steps || []), newStep],
+            }
+          : day
+      );
+
+      const updated: Itinerary = {
+        ...existing,
+        days: updatedDays,
+      };
+
       try {
-        await navigator.clipboard.writeText(`${shareTitle} — ${shareUrl}`);
-        setIsCopied(true);
-        if (copiedTimerRef.current !== null) {
-          window.clearTimeout(copiedTimerRef.current);
-        }
-        copiedTimerRef.current = window.setTimeout(() => {
-          setIsCopied(false);
-        }, 2000);
+        localStorage.setItem('monvian_active_itinerary', JSON.stringify(updated));
+        localStorage.setItem('monvian_itinerary_view_mode', 'map');
+        localStorage.setItem('monvian_itinerary_expanded', 'true');
       } catch {
-        // Ignore clipboard errors gracefully
+        // Ignore storage errors
       }
+
+      window.dispatchEvent(new CustomEvent('monvian:itinerary_applied', { detail: updated }));
+
+      if (existing.id) {
+        fetch(`/api/user-itineraries/${existing.id}`, {
+          method: 'PUT',
+          headers: {
+            'Content-Type': 'application/json',
+            'x-session-id': sessionId,
+          },
+          body: JSON.stringify(updated),
+        }).catch(() => {});
+      }
+    } else {
+      const tempId = `user-itin-${Date.now()}`;
+      const created: Itinerary = {
+        id: tempId,
+        title: 'Meu Roteiro em Campos',
+        description: 'Roteiro personalizado de Campos do Jordão',
+        coverImage: resolvedImage,
+        daysCount: 1,
+        categories: ['Roteiro'],
+        isActive: true,
+        isRecommended: false,
+        usageCount: 1,
+        days: [
+          {
+            id: 'day-1',
+            title: 'Dia 1',
+            dayNumber: 1,
+            theme: 'Dia 1',
+            steps: [newStep],
+          },
+        ],
+      };
+
+      try {
+        localStorage.setItem('monvian_active_itinerary', JSON.stringify(created));
+        localStorage.setItem('monvian_itinerary_view_mode', 'map');
+        localStorage.setItem('monvian_itinerary_expanded', 'true');
+      } catch {
+        // Ignore storage errors
+      }
+
+      window.dispatchEvent(new CustomEvent('monvian:itinerary_applied', { detail: created }));
+
+      fetch('/api/user-itineraries', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-session-id': sessionId,
+        },
+        body: JSON.stringify({
+          title: created.title,
+          description: created.description,
+          coverImage: created.coverImage,
+          daysCount: created.daysCount,
+          days: created.days,
+        }),
+      })
+        .then((res) => (res.ok ? res.json() : null))
+        .then((data) => {
+          if (data?.success && data?.id) {
+            const latest = readStoredActiveItinerary();
+            if (latest && latest.id === tempId) {
+              const synced: Itinerary = { ...latest, id: data.id };
+              try {
+                localStorage.setItem('monvian_active_itinerary', JSON.stringify(synced));
+              } catch {}
+            }
+          }
+        })
+        .catch(() => {});
     }
+
+    setIsInItinerary(true);
+  };
+
+  const handleCardDragStart = () => {
+    didDragRef.current = true;
   };
 
   const handleCardDragEnd = (
     _event: MouseEvent | TouchEvent | PointerEvent,
     info: PanInfo
   ) => {
+    window.setTimeout(() => {
+      didDragRef.current = false;
+    }, 120);
+
     const offsetY = info.offset.y;
     const velocityY = info.velocity.y;
 
@@ -281,9 +445,11 @@ export const SpotPreviewBanner: React.FC<SpotPreviewBannerProps> = ({
           ? { duration: 0.15 }
           : { type: 'spring', stiffness: 360, damping: 32, mass: 0.88 }
       }
-      className="md:hidden fixed inset-x-0 z-[245] flex justify-center px-4 pointer-events-none select-none"
+      className="md:hidden fixed inset-x-0 z-[245] flex justify-center px-3.5 sm:px-4 pointer-events-none select-none"
       style={{
-        bottom: '84px',
+        bottom: 'calc(env(safe-area-inset-bottom, 0px) + 86px)',
+        fontFamily:
+          "'SF Pro Display', 'SF Pro Text', -apple-system, BlinkMacSystemFont, sans-serif",
       }}
     >
       <AnimatePresence mode="wait" initial={false}>
@@ -294,6 +460,7 @@ export const SpotPreviewBanner: React.FC<SpotPreviewBannerProps> = ({
             dragConstraints={{ top: 0, bottom: 0 }}
             dragElastic={{ top: 0.36, bottom: 0.48 }}
             dragMomentum={false}
+            onDragStart={handleCardDragStart}
             onDragEnd={handleCardDragEnd}
             initial={
               shouldReduceMotion
@@ -311,20 +478,24 @@ export const SpotPreviewBanner: React.FC<SpotPreviewBannerProps> = ({
                 : { opacity: 0, y: 22, scale: 0.96 }
             }
             transition={{ duration: 0.24, ease: [0.22, 1, 0.36, 1] }}
-            onClick={(e) => e.stopPropagation()}
+            onClick={(e) => {
+              e.stopPropagation();
+              if (didDragRef.current) return;
+              onOpenDetails(spot);
+            }}
             style={{
               touchAction: 'none',
               transform: 'translateZ(0)',
               WebkitTransform: 'translateZ(0)',
             }}
-            className={`relative w-full max-w-[326px] sm:max-w-[342px] rounded-[32px] pointer-events-auto overflow-hidden ${
+            className={`relative w-full max-w-[396px] rounded-[34px] pointer-events-auto cursor-pointer ${
               isDark
-                ? 'bg-[#000000] text-white border border-[#262626] shadow-[0_14px_38px_rgba(0,0,0,0.72)]'
-                : 'bg-[#FFFFFF] text-zinc-950 border border-black/[0.06] shadow-[0_10px_34px_rgba(0,0,0,0.11),0_2px_8px_rgba(0,0,0,0.04)]'
+                ? 'bg-[#141416] text-white border border-white/10 shadow-[0_14px_40px_rgba(0,0,0,0.65)]'
+                : 'bg-[#FFFFFF] text-[#000000] border border-black/[0.04] shadow-[0_12px_38px_rgba(0,0,0,0.10),0_2px_10px_rgba(0,0,0,0.04)]'
             }`}
           >
-            {/* Minimalist Top Drag Handle */}
-            <div className="flex items-center justify-center pt-2.5 pb-1">
+            {/* Top Drag Handle */}
+            <div className="flex items-center justify-center pt-2.5 pb-0.5">
               <button
                 type="button"
                 onClick={(e) => {
@@ -336,21 +507,21 @@ export const SpotPreviewBanner: React.FC<SpotPreviewBannerProps> = ({
               >
                 <span
                   className={`w-10 h-[4px] rounded-full transition-colors ${
-                    isDark ? 'bg-zinc-700' : 'bg-zinc-300'
+                    isDark ? 'bg-zinc-700' : 'bg-[#C7C7CC]'
                   }`}
                 />
               </button>
             </div>
 
-            {/* Card Content */}
-            <div className="px-4 pb-4 pt-1.5 flex flex-col gap-3.5">
-              {/* Header: Square Photo + Clean Metadata */}
-              <div className="flex items-center gap-3.5">
+            {/* Card Inner Content */}
+            <div className="px-[18px] pb-[18px] pt-2 flex flex-col gap-3.5">
+              {/* Header: Square Photo (Left) + Name, Verification, Rating & City (Right) */}
+              <div className="flex items-center gap-3.5 min-w-0">
                 <div
-                  className={`w-[78px] h-[78px] sm:w-[82px] sm:h-[82px] rounded-[20px] overflow-hidden shrink-0 border ${
+                  className={`w-[96px] h-[96px] min-[380px]:w-[108px] min-[380px]:h-[108px] sm:w-[115px] sm:h-[115px] rounded-[20px] overflow-hidden shrink-0 border ${
                     isDark
                       ? 'bg-zinc-900 border-white/10'
-                      : 'bg-zinc-100 border-black/[0.06]'
+                      : 'bg-zinc-100 border-black/[0.05]'
                   }`}
                 >
                   <img
@@ -366,29 +537,29 @@ export const SpotPreviewBanner: React.FC<SpotPreviewBannerProps> = ({
                   {/* Establishment Name + Verified Badge */}
                   <div className="flex items-center gap-1.5 min-w-0">
                     <h3
-                      className={`text-[18px] sm:text-[19px] font-bold tracking-[-0.02em] truncate leading-tight ${
-                        isDark ? 'text-white' : 'text-zinc-950'
+                      className={`text-[18px] min-[380px]:text-[20px] font-bold tracking-[-0.022em] truncate leading-tight ${
+                        isDark ? 'text-white' : 'text-[#000000]'
                       }`}
                     >
                       {spot.name}
                     </h3>
                     {isVerified && (
-                      <VerifiedBadge className="w-[17px] h-[17px] shrink-0" />
+                      <VerifiedBadge className="w-[18px] h-[18px] shrink-0" />
                     )}
                   </div>
 
                   {/* Rating Star + Score + City & State */}
-                  <div className="flex items-center gap-1.5 mt-1.5 text-[13px] leading-tight min-w-0">
+                  <div className="flex items-center gap-1.5 mt-1.5 text-[13px] sm:text-[13.5px] leading-tight min-w-0">
                     <div className="flex items-center gap-1 shrink-0 font-semibold">
-                      <Star className="w-3.5 h-3.5 fill-amber-400 text-amber-400" />
-                      <span className={isDark ? 'text-amber-400' : 'text-amber-600'}>
+                      <Star className="w-[14px] h-[14px] fill-[#FFCC00] text-[#FFCC00]" />
+                      <span className={isDark ? 'text-[#FFD60A]' : 'text-[#E09F00]'}>
                         {ratingValue.toFixed(1)}
                       </span>
                     </div>
-                    <span className={isDark ? 'text-zinc-600' : 'text-zinc-400'}>•</span>
+                    <span className={isDark ? 'text-zinc-600' : 'text-[#AEAEB2]'}>•</span>
                     <span
                       className={`truncate font-normal ${
-                        isDark ? 'text-zinc-400' : 'text-zinc-600'
+                        isDark ? 'text-zinc-400' : 'text-[#6E6E73]'
                       }`}
                     >
                       {cityState}
@@ -397,109 +568,90 @@ export const SpotPreviewBanner: React.FC<SpotPreviewBannerProps> = ({
                 </div>
               </div>
 
-              {/* Concise Description */}
+              {/* Concise 2-Line Description */}
               <p
-                className={`text-[13.5px] sm:text-[14px] leading-[1.45] tracking-[-0.01em] line-clamp-2 ${
-                  isDark ? 'text-zinc-300' : 'text-zinc-700'
+                className={`text-[13.5px] sm:text-[14px] leading-[1.42] tracking-[-0.01em] line-clamp-2 ${
+                  isDark ? 'text-zinc-300' : 'text-[#48484A]'
                 }`}
               >
                 {spot.description ||
                   'Um dos destinos mais apreciados de Campos do Jordão para explorar e aproveitar com tranquilidade.'}
               </p>
 
-              {/* 3 Horizontal Quick Action Buttons */}
-              <div className="grid grid-cols-3 gap-2">
-                {/* 1. Estimated Travel Time */}
+              {/* 3 Compact Horizontal Pill Buttons */}
+              <div className="relative grid grid-cols-3 gap-2.5 pt-0.5">
+                {/* Button 1 — Rotas (Solid Black Pill) */}
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    handleOpenDirections(e);
+                  }}
+                  aria-label={`Traçar rota para ${spot.name}`}
+                  className={`h-[44px] px-3 rounded-full flex items-center justify-center gap-1.5 transition-transform active:scale-[0.97] cursor-pointer ${
+                    isDark
+                      ? 'bg-white text-black hover:bg-zinc-200'
+                      : 'bg-[#000000] text-white hover:bg-[#1C1C1E]'
+                  }`}
+                >
+                  <Navigation className="w-[15px] h-[15px] fill-current stroke-[1.8] shrink-0" />
+                  <span className="text-[13.5px] font-semibold tracking-[-0.01em] whitespace-nowrap">
+                    Rotas
+                  </span>
+                </button>
+
+                {/* Button 2 — Travel Time (Light Gray Pill) */}
                 <button
                   type="button"
                   onClick={(e) => {
                     e.stopPropagation();
                     onOpenDetails(spot);
                   }}
-                  aria-label={`Tempo estimado: ${durationLabel} de você`}
-                  className={`h-[52px] px-1.5 rounded-[18px] border flex items-center justify-center gap-1.5 transition-transform active:scale-[0.97] cursor-pointer ${
+                  aria-label={`Tempo estimado de deslocamento: ${durationLabel}`}
+                  className={`h-[44px] px-3 rounded-full flex items-center justify-center gap-1.5 transition-transform active:scale-[0.97] cursor-pointer ${
                     isDark
-                      ? 'bg-[#141416] border-[#262626] text-white'
-                      : 'bg-white border-black/[0.07] text-zinc-950 shadow-[0_2px_10px_rgba(0,0,0,0.04)]'
+                      ? 'bg-[#2C2C2E] text-white hover:bg-[#3A3A3C]'
+                      : 'bg-[#F2F2F5] text-[#000000] hover:bg-[#E7E7EC]'
                   }`}
                 >
-                  <Clock className="w-[16px] h-[16px] stroke-[2] shrink-0" />
-                  <div className="flex flex-col items-start leading-tight text-left min-w-0">
-                    <span className="text-[12px] font-semibold tracking-tight truncate">
-                      {durationLabel}
-                    </span>
-                    <span
-                      className={`text-[10px] font-normal truncate ${
-                        isDark ? 'text-zinc-400' : 'text-zinc-500'
-                      }`}
-                    >
-                      de você
-                    </span>
-                  </div>
-                </button>
-
-                {/* 2. Directions / Routes */}
-                <button
-                  type="button"
-                  onClick={handleOpenDirections}
-                  aria-label={`Traçar rota para ${spot.name}`}
-                  className={`h-[52px] px-1.5 rounded-[18px] border flex flex-col items-center justify-center gap-0.5 transition-transform active:scale-[0.97] cursor-pointer ${
-                    isDark
-                      ? 'bg-[#141416] border-[#262626] text-[#0A84FF]'
-                      : 'bg-white border-black/[0.07] text-[#007AFF] shadow-[0_2px_10px_rgba(0,0,0,0.04)]'
-                  }`}
-                >
-                  <Navigation className="w-[16px] h-[16px] stroke-[2]" />
-                  <span className="text-[11px] sm:text-[11.5px] font-medium tracking-tight leading-tight whitespace-nowrap">
-                    Rotas
+                  <Clock className="w-[15.5px] h-[15.5px] stroke-[2] shrink-0" />
+                  <span className="text-[13.5px] font-semibold tracking-[-0.01em] whitespace-nowrap tabular-nums">
+                    {durationLabel}
                   </span>
                 </button>
 
-                {/* 3. Share */}
+                {/* Button 3 — Roteiro (Light Gray Pill) */}
                 <button
                   type="button"
-                  onClick={handleShare}
-                  aria-label={`Compartilhar ${spot.name}`}
-                  className={`h-[52px] px-1.5 rounded-[18px] border flex flex-col items-center justify-center gap-0.5 transition-transform active:scale-[0.97] cursor-pointer ${
+                  onClick={handleAddOrCreateItinerary}
+                  aria-label={
+                    isInItinerary
+                      ? `${spot.name} adicionado ao roteiro`
+                      : `Adicionar ${spot.name} ao roteiro`
+                  }
+                  className={`h-[44px] px-2.5 rounded-full flex items-center justify-center gap-1 transition-transform active:scale-[0.97] cursor-pointer ${
                     isDark
-                      ? 'bg-[#141416] border-[#262626] text-white'
-                      : 'bg-white border-black/[0.07] text-zinc-950 shadow-[0_2px_10px_rgba(0,0,0,0.04)]'
+                      ? 'bg-[#2C2C2E] text-white hover:bg-[#3A3A3C]'
+                      : 'bg-[#F2F2F5] text-[#000000] hover:bg-[#E7E7EC]'
                   }`}
                 >
-                  {isCopied ? (
+                  {isInItinerary ? (
                     <>
-                      <Check className="w-[16px] h-[16px] stroke-[2.2] text-emerald-500" />
-                      <span className="text-[11px] sm:text-[11.5px] font-medium tracking-tight leading-tight whitespace-nowrap text-emerald-500">
-                        Copiado
+                      <Check className="w-[14.5px] h-[14.5px] stroke-[2.5] text-emerald-600 dark:text-emerald-400 shrink-0" />
+                      <span className="text-[12.5px] min-[390px]:text-[13.5px] font-semibold tracking-[-0.01em] whitespace-nowrap">
+                        No roteiro
                       </span>
                     </>
                   ) : (
                     <>
-                      <Share className="w-[16px] h-[16px] stroke-[2]" />
-                      <span className="text-[11px] sm:text-[11.5px] font-medium tracking-tight leading-tight whitespace-nowrap">
-                        Compartilhar
+                      <NavRoteirosIcon size={15} className="shrink-0" />
+                      <span className="text-[13.5px] font-semibold tracking-[-0.01em] whitespace-nowrap">
+                        Roteiro
                       </span>
                     </>
                   )}
                 </button>
               </div>
-
-              {/* Bottom Wide CTA Button */}
-              <button
-                type="button"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  onOpenDetails(spot);
-                }}
-                className={`w-full h-[46px] rounded-[18px] flex items-center justify-center gap-1.5 font-semibold text-[15px] tracking-[-0.01em] transition-all active:scale-[0.985] cursor-pointer ${
-                  isDark
-                    ? 'bg-[#1C1C1E] hover:bg-[#252528] text-white'
-                    : 'bg-[#F2F2F5] hover:bg-[#E7E7EC] text-zinc-950'
-                }`}
-              >
-                <span>Ver detalhes</span>
-                <ChevronRight className="w-4 h-4 stroke-[2.2]" />
-              </button>
             </div>
           </motion.div>
         ) : (

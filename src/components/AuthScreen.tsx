@@ -1058,32 +1058,6 @@ export function AuthScreen({
         transition: { duration: 0.36, ease: [0.22, 1, 0.36, 1] as [number, number, number, number] },
       };
 
-  // Dynamic, stutter-free staggered entrance variants for Login Screen elements (120Hz GPU transforms only)
-  const loginContainerVariants = {
-    hidden: { opacity: 0 },
-    visible: {
-      opacity: 1,
-      transition: {
-        staggerChildren: shouldReduceMotion ? 0 : 0.048,
-        delayChildren: shouldReduceMotion ? 0 : 0.03,
-      },
-    },
-  };
-
-  const loginItemVariants = {
-    hidden: shouldReduceMotion
-      ? { opacity: 0 }
-      : { opacity: 0, y: 14, scale: 0.985 },
-    visible: {
-      opacity: 1,
-      y: 0,
-      scale: 1,
-      transition: {
-        duration: 0.38,
-        ease: [0.22, 1, 0.36, 1] as [number, number, number, number],
-      },
-    },
-  };
 
   return (
     <div
@@ -1731,430 +1705,336 @@ export function AuthScreen({
       </AnimatePresence>
 
       {/* =========================================================================
-          3. TELA DE LOGIN E RECUPERAÇÃO DE SENHA (Modo Branco — Entrada Suave e Dinâmica)
+          3. TELA DE LOGIN E RECUPERAÇÃO DE SENHA (Modo Branco — Sem animação de entrada)
          ========================================================================= */}
-      <AnimatePresence>
-        {(authMode === 'login' || authMode === 'recover' || authMode === 'resetPassword') && !isGoogleAccountPreparing && (
-          <motion.section
-            id="auth-main-section"
-            key="auth-login-recover-section"
-            initial={shouldReduceMotion ? { opacity: 0 } : { opacity: 0, y: 12 }}
-            animate={shouldReduceMotion ? { opacity: 1 } : { opacity: 1, y: 0 }}
-            exit={{ opacity: 0, transition: { duration: 0.16, ease: [0.22, 1, 0.36, 1] } }}
-            transition={{ duration: shouldReduceMotion ? 0.16 : 0.28, ease: [0.22, 1, 0.36, 1] }}
-            className="auth-login-screen fixed inset-0 z-[115] w-full bg-[#FFFFFF] flex flex-col items-center justify-between text-[#080808] pt-6 sm:pt-8 pb-10 px-5 sm:px-6 pointer-events-auto overflow-y-auto overflow-x-hidden overscroll-y-contain"
-            style={{
-              top: 0,
-              bottom: 0,
-              left: 0,
-              right: 0,
-              width: '100%',
-              height: 'var(--app-height, 100dvh)',
-              minHeight: 'var(--app-height, 100dvh)',
-              fontFamily:
-                "'SF Pro Display', 'SF Pro Text', -apple-system, BlinkMacSystemFont, sans-serif",
-              paddingTop: 'max(20px, calc(env(safe-area-inset-top, 0px) + 12px))',
-              paddingBottom: 'max(32px, calc(env(safe-area-inset-bottom, 0px) + 20px))',
-              touchAction: 'pan-y',
-              willChange: 'transform, opacity',
-            }}
-          >
-            {/* Top Bar with Back Button */}
-            <motion.div
-              initial={shouldReduceMotion ? { opacity: 0 } : { opacity: 0, y: -8 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.32, ease: [0.22, 1, 0.36, 1] }}
-              className="w-full max-w-sm sm:max-w-md flex items-center justify-between shrink-0 mb-2"
-            >
-              <AppleBackButton
-                id="btn-login-back-to-landing"
-                theme="light"
-                onClick={() => {
-                  setError('');
-                  setRecoverSent(false);
-                  setLoginZoom(1);
-                  if (authMode === 'recover' || authMode === 'resetPassword') {
-                    try {
-                      window.history.replaceState({}, document.title, window.location.pathname);
-                    } catch {}
-                    if (authMode === 'resetPassword') {
-                      onResetHandled?.();
-                    }
-                    setAuthMode('login');
-                  } else {
-                    setAuthMode('landing');
+      {(authMode === 'login' || authMode === 'recover' || authMode === 'resetPassword') && !isGoogleAccountPreparing && (
+        <section
+          id="auth-main-section"
+          className="auth-login-screen fixed inset-0 z-[115] w-full bg-[#FFFFFF] flex flex-col items-center justify-between text-[#080808] pt-6 sm:pt-8 pb-10 px-5 sm:px-6 pointer-events-auto overflow-y-auto overflow-x-hidden overscroll-y-contain"
+          style={{
+            top: 0,
+            bottom: 0,
+            left: 0,
+            right: 0,
+            width: '100%',
+            height: 'var(--app-height, 100dvh)',
+            minHeight: 'var(--app-height, 100dvh)',
+            fontFamily:
+              "'SF Pro Display', 'SF Pro Text', -apple-system, BlinkMacSystemFont, sans-serif",
+            paddingTop: 'max(20px, calc(env(safe-area-inset-top, 0px) + 12px))',
+            paddingBottom: 'max(32px, calc(env(safe-area-inset-bottom, 0px) + 20px))',
+            touchAction: 'pan-y',
+          }}
+        >
+          {/* Top Bar with Back Button */}
+          <div className="w-full max-w-sm sm:max-w-md flex items-center justify-between shrink-0 mb-2">
+            <AppleBackButton
+              id="btn-login-back-to-landing"
+              theme="light"
+              onClick={() => {
+                setError('');
+                setRecoverSent(false);
+                setLoginZoom(1);
+                if (authMode === 'recover' || authMode === 'resetPassword') {
+                  try {
+                    window.history.replaceState({}, document.title, window.location.pathname);
+                  } catch {}
+                  if (authMode === 'resetPassword') {
+                    onResetHandled?.();
                   }
-                }}
-                aria-label="Voltar"
-              />
-              <div className="w-11 h-11" aria-hidden="true" />
-            </motion.div>
+                  setAuthMode('login');
+                } else {
+                  setAuthMode('landing');
+                }
+              }}
+              aria-label="Voltar"
+            />
+            <div className="w-11 h-11" aria-hidden="true" />
+          </div>
 
-            <div className="w-full flex-1 flex flex-col items-center justify-center">
-              <motion.div
-                key={authMode}
-                variants={loginContainerVariants}
-                initial="hidden"
-                animate="visible"
-                className="w-full max-w-sm sm:max-w-md my-auto flex flex-col items-center py-4"
-              >
-                {/* 1. Logo Monvian Original */}
-                <motion.div
-                  variants={loginItemVariants}
-                  className="h-12 sm:h-14 mb-3 flex items-center justify-center"
-                >
-                  <img
-                    src="/assets/aistudio/monvian_logo_dark_transparent.png"
-                    alt="Monvian"
-                    decoding="sync"
-                    className="h-full w-auto max-w-[220px] object-contain select-none pointer-events-none"
-                  />
-                </motion.div>
+          <div className="w-full flex-1 flex flex-col items-center justify-center">
+            <div className="w-full max-w-sm sm:max-w-md my-auto flex flex-col items-center py-4">
+              {/* 1. Logo Monvian Original */}
+              <div className="h-12 sm:h-14 mb-3 flex items-center justify-center">
+                <img
+                  src="/assets/aistudio/monvian_logo_dark_transparent.png"
+                  alt="Monvian"
+                  decoding="sync"
+                  className="h-full w-auto max-w-[220px] object-contain select-none pointer-events-none"
+                />
+              </div>
 
-                {authMode === 'login' ? (
-                  <>
-                    {/* Slogan com duas frases: cinza e azul */}
-                    <motion.div
-                      variants={loginItemVariants}
-                      className="text-center mb-8"
-                      style={{
-                        fontFamily:
-                          "'SF Pro Text', -apple-system, BlinkMacSystemFont, sans-serif",
-                      }}
-                    >
-                      <p className="text-[14.5px] sm:text-[15px] text-[#8A8D95] font-normal leading-snug">
-                        Seu guia inteligente para viver
-                      </p>
-                      <p className="text-[14.5px] sm:text-[15px] text-[#3975E8] font-bold leading-snug mt-0.5">
-                        Campos do Jordão.
-                      </p>
-                    </motion.div>
-
-                    {/* FORM: LOGIN */}
-                    <form onSubmit={handleLoginSubmit} className="w-full space-y-3.5">
-                      {/* Campo E-mail */}
-                      <motion.div variants={loginItemVariants} className="relative">
-                        <Mail className="absolute left-5 top-1/2 -translate-y-1/2 w-[19px] h-[19px] text-[#8A8D95] stroke-[1.8]" />
-                        <input
-                          id="input-login-email"
-                          type="email"
-                          placeholder="Seu e-mail"
-                          value={email}
-                          onChange={(e) => setEmail(e.target.value)}
-                          className="w-full h-[56px] pl-[52px] pr-5 rounded-[26px] bg-[#F3F4F7] border border-[#E5E7EB]/70 text-[#000000] placeholder:text-[#9CA3AF] focus:outline-none focus:bg-[#FFFFFF] focus:border-[#3975E8] focus:ring-2 focus:ring-[#3975E8]/15 transition-all text-[15px] font-normal"
-                          required
-                          autoComplete="email"
-                        />
-                      </motion.div>
-
-                      {/* Campo Senha */}
-                      <motion.div variants={loginItemVariants} className="relative">
-                        <Lock className="absolute left-5 top-1/2 -translate-y-1/2 w-[19px] h-[19px] text-[#8A8D95] stroke-[1.8]" />
-                        <input
-                          id="input-login-password"
-                          type={showPassword ? 'text' : 'password'}
-                          placeholder="Sua senha"
-                          value={password}
-                          onChange={(e) => setPassword(e.target.value)}
-                          className="w-full h-[56px] pl-[52px] pr-12 rounded-[26px] bg-[#F3F4F7] border border-[#E5E7EB]/70 text-[#000000] placeholder:text-[#9CA3AF] focus:outline-none focus:bg-[#FFFFFF] focus:border-[#3975E8] focus:ring-2 focus:ring-[#3975E8]/15 transition-all text-[15px] font-normal"
-                          required
-                          autoComplete="current-password"
-                        />
-                        <button
-                          type="button"
-                          onClick={() => setShowPassword(!showPassword)}
-                          className="absolute right-4 top-1/2 -translate-y-1/2 p-1 text-[#8A8D95] hover:text-[#000000] transition-colors cursor-pointer"
-                          aria-label={showPassword ? 'Ocultar senha' : 'Ver senha'}
-                        >
-                          {showPassword ? (
-                            <EyeOff className="w-[19px] h-[19px] stroke-[1.8]" />
-                          ) : (
-                            <Eye className="w-[19px] h-[19px] stroke-[1.8]" />
-                          )}
-                        </button>
-                      </motion.div>
-
-                      {/* Esqueci minha senha alinhado à direita */}
-                      <motion.div variants={loginItemVariants} className="flex justify-end pt-0.5 pr-1">
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setError('');
-                            setRecoverEmail(email);
-                            setRecoverSent(false);
-                            setAuthMode('recover');
-                          }}
-                          className="text-[13.5px] text-[#8A8D95] hover:text-[#000000] transition-colors cursor-pointer font-medium bg-transparent border-0"
-                        >
-                          Esqueci minha senha
-                        </button>
-                      </motion.div>
-
-                      {error && authMode === 'login' && (
-                        <motion.p
-                          initial={{ opacity: 0, y: -4 }}
-                          animate={{ opacity: 1, y: 0 }}
-                          className="text-red-500 text-[13px] font-medium text-center mt-2 px-2"
-                        >
-                          {error}
-                        </motion.p>
-                      )}
-
-                      {/* Botão Entrar branco */}
-                      <motion.div variants={loginItemVariants} className="pt-2">
-                        <motion.button
-                          id="btn-login-submit"
-                          whileTap={{ scale: 0.985 }}
-                          type="submit"
-                          disabled={loading || googleLoading}
-                          className="w-full h-[54px] sm:h-[56px] rounded-full bg-[#FFFFFF] hover:bg-[#F9FAFB] active:bg-[#F3F4F6] text-[#000000] text-[16px] font-bold flex items-center justify-center gap-1.5 transition-all disabled:opacity-60 shadow-[0_2px_8px_rgba(0,0,0,0.06)] border border-[#E5E7EB] cursor-pointer"
-                        >
-                          {loading ? (
-                            <>
-                              <Loader2 className="w-4 h-4 animate-spin text-[#000000]" />
-                              <span>Entrando...</span>
-                            </>
-                          ) : (
-                            <span>Entrar →</span>
-                          )}
-                        </motion.button>
-                      </motion.div>
-
-                      {/* Separador OU */}
-                      <motion.div variants={loginItemVariants} className="relative flex items-center justify-center my-6">
-                        <div className="absolute inset-0 flex items-center">
-                          <div className="w-full border-t border-[#E5E7EB]" />
-                        </div>
-                        <div className="relative bg-[#FFFFFF] px-3">
-                          <span className="text-[12px] font-semibold text-[#8A8D95] uppercase tracking-wider">
-                            OU
-                          </span>
-                        </div>
-                      </motion.div>
-
-                      {/* Botão Google branco */}
-                      <motion.div variants={loginItemVariants}>
-                        <motion.button
-                          id="btn-google-signin"
-                          whileTap={{ scale: 0.985 }}
-                          type="button"
-                          onClick={handleGoogleAuth}
-                          disabled={googleLoading || loading}
-                          className="w-full h-[54px] sm:h-[56px] px-5 rounded-full bg-[#FFFFFF] hover:bg-[#F9FAFB] active:bg-[#F3F4F6] border border-[#E5E7EB] text-[#000000] text-[15px] font-semibold flex items-center justify-center gap-3 transition-all cursor-pointer disabled:opacity-60 shadow-[0_2px_8px_rgba(0,0,0,0.06)]"
-                        >
-                          <svg className="w-[19px] h-[19px] shrink-0" viewBox="0 0 24 24">
-                            <path
-                              fill="#4285F4"
-                              d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"
-                            />
-                            <path
-                              fill="#34A853"
-                              d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"
-                            />
-                            <path
-                              fill="#FBBC05"
-                              d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.63z"
-                            />
-                            <path
-                              fill="#EA4335"
-                              d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z"
-                            />
-                          </svg>
-                          <span>
-                            {googleLoading ? 'Conectando Google...' : 'Entrar com Google / Gmail'}
-                          </span>
-                        </motion.button>
-                      </motion.div>
-                    </form>
-
-                    {/* Criar nova conta no rodapé */}
-                    <motion.div
-                      variants={loginItemVariants}
-                      className="mt-9 text-[14px] flex items-center justify-center gap-1.5 text-center"
-                    >
-                      <span className="text-[#8A8D95] font-normal">Não possui uma conta?</span>
-                      <button
-                        id="btn-open-register-flow"
-                        type="button"
-                        onClick={handleStartRegisterFlow}
-                        className="text-[#000000] font-bold hover:text-[#3975E8] hover:underline cursor-pointer bg-transparent border-0 p-0"
-                      >
-                        Criar nova conta →
-                      </button>
-                    </motion.div>
-                  </>
-                ) : authMode === 'resetPassword' ? (
-                  /* FORM: REDEFINIÇÃO DE SENHA VIA LINK DO E-MAIL */
-                  <motion.div variants={loginItemVariants} className="w-full">
-                    <h1 className="text-[22px] font-bold text-[#000000] text-center mb-2">
-                      Criar nova senha
-                    </h1>
-
-                    {resetCodeStatus === 'checking' ? (
-                      <div className="py-10 flex flex-col items-center justify-center gap-3">
-                        <Loader2 className="w-7 h-7 animate-spin text-[#000000]" />
-                        <p className="text-[14px] text-[#8A8D95]">Validando link de recuperação…</p>
-                      </div>
-                    ) : resetCodeStatus === 'done' ? (
-                      <div className="p-5 rounded-[24px] bg-[#F5F8FF] border border-[#DCE8FC] text-center space-y-3 mt-4">
-                        <CheckCircle2 className="w-8 h-8 text-[#3975E8] mx-auto" />
-                        <p className="text-[15px] font-semibold text-[#000000]">
-                          Senha redefinida com sucesso!
-                        </p>
-                        <p className="text-[13px] text-[#8A8D95]">
-                          Sua nova senha já está ativa. Entre na sua conta para continuar.
-                        </p>
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setError('');
-                            setPassword('');
-                            onResetHandled?.();
-                            setAuthMode('login');
-                          }}
-                          className="mt-2 px-6 py-3 rounded-full bg-[#000000] text-white text-[14px] font-bold cursor-pointer"
-                        >
-                          Ir para o login
-                        </button>
-                      </div>
-                    ) : resetCodeStatus === 'invalid' ? (
-                      <div className="p-5 rounded-[24px] bg-[#FFF5F5] border border-[#FED7D7] text-center space-y-3 mt-4">
-                        <p className="text-[14.5px] font-semibold text-[#000000]">
-                          Link expirado ou inválido
-                        </p>
-                        <p className="text-[13px] text-[#737780]">
-                          {error || 'Este link expirou ou já foi utilizado. Solicite uma nova recuperação de senha.'}
-                        </p>
-                        <button
-                          type="button"
-                          onClick={() => {
-                            try {
-                              window.history.replaceState({}, document.title, window.location.pathname);
-                            } catch {}
-                            onResetHandled?.();
-                            setError('');
-                            setRecoverSent(false);
-                            setAuthMode('recover');
-                          }}
-                          className="mt-2 px-6 py-3 rounded-full bg-[#000000] text-white text-[14px] font-bold cursor-pointer"
-                        >
-                          Solicitar novo link
-                        </button>
-                      </div>
-                    ) : (
-                      <>
-                        {resetTargetEmail && (
-                          <p className="text-[13.5px] text-[#8A8D95] text-center mb-6">
-                            Conta: <span className="text-[#000000] font-medium">{resetTargetEmail}</span>
-                          </p>
-                        )}
-                        <form onSubmit={handleConfirmResetPassword} className="space-y-3.5">
-                          <div className="relative">
-                            <Lock className="absolute left-5 top-1/2 -translate-y-1/2 w-[19px] h-[19px] text-[#8A8D95] stroke-[1.8]" />
-                            <input
-                              id="input-reset-new-password"
-                              type={showResetPassword ? 'text' : 'password'}
-                              placeholder="Nova senha (mín. 6 caracteres)"
-                              value={resetNewPassword}
-                              onChange={(e) => {
-                                setResetNewPassword(e.target.value);
-                                if (error) setError('');
-                              }}
-                              className="w-full h-[56px] pl-[52px] pr-12 rounded-[26px] bg-[#F3F4F7] border border-[#E5E7EB]/70 text-[#000000] placeholder:text-[#9CA3AF] focus:outline-none focus:bg-[#FFFFFF] focus:border-[#3975E8] focus:ring-2 focus:ring-[#3975E8]/15 transition-all text-[15px] font-normal"
-                              required
-                              autoComplete="new-password"
-                            />
-                            <button
-                              type="button"
-                              onClick={() => setShowResetPassword((p) => !p)}
-                              className="absolute right-4 top-1/2 -translate-y-1/2 p-1 text-[#8A8D95] hover:text-[#000000] transition-colors cursor-pointer"
-                              aria-label={showResetPassword ? 'Ocultar senha' : 'Ver senha'}
-                            >
-                              {showResetPassword ? (
-                                <EyeOff className="w-[19px] h-[19px] stroke-[1.8]" />
-                              ) : (
-                                <Eye className="w-[19px] h-[19px] stroke-[1.8]" />
-                              )}
-                            </button>
-                          </div>
-
-                          <div className="relative">
-                            <Lock className="absolute left-5 top-1/2 -translate-y-1/2 w-[19px] h-[19px] text-[#8A8D95] stroke-[1.8]" />
-                            <input
-                              id="input-reset-confirm-password"
-                              type={showResetPassword ? 'text' : 'password'}
-                              placeholder="Confirmar nova senha"
-                              value={resetConfirmPassword}
-                              onChange={(e) => {
-                                setResetConfirmPassword(e.target.value);
-                                if (error) setError('');
-                              }}
-                              className="w-full h-[56px] pl-[52px] pr-5 rounded-[26px] bg-[#F3F4F7] border border-[#E5E7EB]/70 text-[#000000] placeholder:text-[#9CA3AF] focus:outline-none focus:bg-[#FFFFFF] focus:border-[#3975E8] focus:ring-2 focus:ring-[#3975E8]/15 transition-all text-[15px] font-normal"
-                              required
-                              autoComplete="new-password"
-                            />
-                          </div>
-
-                          {error && (
-                            <p className="text-red-500 text-xs font-semibold text-center px-2">
-                              {error}
-                            </p>
-                          )}
-
-                          <motion.button
-                            whileTap={{ scale: 0.985 }}
-                            type="submit"
-                            disabled={loading}
-                            className="w-full h-[54px] sm:h-[56px] rounded-full bg-[#FFFFFF] hover:bg-[#F9FAFB] active:bg-[#F3F4F6] text-[#000000] text-[15.5px] font-bold flex items-center justify-center gap-2 transition-all disabled:opacity-70 shadow-[0_2px_8px_rgba(0,0,0,0.06)] border border-[#E5E7EB] cursor-pointer"
-                          >
-                            {loading ? 'Salvando...' : 'Redefinir senha'}
-                          </motion.button>
-                        </form>
-                      </>
-                    )}
-                  </motion.div>
-                ) : (
-                  /* FORM: RECUPERAÇÃO DE SENHA */
-                  <motion.div variants={loginItemVariants} className="w-full">
-                    <h1 className="text-[22px] font-bold text-[#000000] text-center mb-2">
-                      Recuperar acesso
-                    </h1>
-                    <p className="text-[14px] text-[#8A8D95] text-center mb-6 leading-relaxed">
-                      Informe o e-mail da sua conta para receber as instruções de redefinição de senha.
+              {authMode === 'login' ? (
+                <>
+                  {/* Slogan com duas frases: cinza e azul */}
+                  <div
+                    className="text-center mb-8"
+                    style={{
+                      fontFamily:
+                        "'SF Pro Text', -apple-system, BlinkMacSystemFont, sans-serif",
+                    }}
+                  >
+                    <p className="text-[14.5px] sm:text-[15px] text-[#8A8D95] font-normal leading-snug">
+                      Seu guia inteligente para viver
                     </p>
+                    <p className="text-[14.5px] sm:text-[15px] text-[#3975E8] font-bold leading-snug mt-0.5">
+                      Campos do Jordão.
+                    </p>
+                  </div>
 
-                    {recoverSent ? (
-                      <div className="p-5 rounded-[24px] bg-[#F5F8FF] border border-[#DCE8FC] text-center space-y-3">
-                        <CheckCircle2 className="w-8 h-8 text-[#3975E8] mx-auto" />
-                        <p className="text-[14.5px] font-semibold text-[#000000]">
-                          Instruções enviadas para {recoverEmail}
-                        </p>
-                        <p className="text-[13px] text-[#8A8D95]">
-                          Verifique sua caixa de entrada e a pasta de spam.
-                        </p>
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setRecoverSent(false);
-                            setAuthMode('login');
-                          }}
-                          className="mt-2 px-5 py-2.5 rounded-full bg-[#000000] text-white text-[13.5px] font-bold cursor-pointer"
-                        >
-                          Voltar para o login
-                        </button>
+                  {/* FORM: LOGIN */}
+                  <form onSubmit={handleLoginSubmit} className="w-full space-y-3.5">
+                    {/* Campo E-mail */}
+                    <div className="relative">
+                      <Mail className="absolute left-5 top-1/2 -translate-y-1/2 w-[19px] h-[19px] text-[#8A8D95] stroke-[1.8]" />
+                      <input
+                        id="input-login-email"
+                        type="email"
+                        placeholder="Seu e-mail"
+                        value={email}
+                        onChange={(e) => setEmail(e.target.value)}
+                        className="w-full h-[56px] pl-[52px] pr-5 rounded-[26px] bg-[#F3F4F7] border border-[#E5E7EB]/70 text-[#000000] placeholder:text-[#9CA3AF] focus:outline-none focus:bg-[#FFFFFF] focus:border-[#3975E8] focus:ring-2 focus:ring-[#3975E8]/15 text-[15px] font-normal"
+                        required
+                        autoComplete="email"
+                      />
+                    </div>
+
+                    {/* Campo Senha */}
+                    <div className="relative">
+                      <Lock className="absolute left-5 top-1/2 -translate-y-1/2 w-[19px] h-[19px] text-[#8A8D95] stroke-[1.8]" />
+                      <input
+                        id="input-login-password"
+                        type={showPassword ? 'text' : 'password'}
+                        placeholder="Sua senha"
+                        value={password}
+                        onChange={(e) => setPassword(e.target.value)}
+                        className="w-full h-[56px] pl-[52px] pr-12 rounded-[26px] bg-[#F3F4F7] border border-[#E5E7EB]/70 text-[#000000] placeholder:text-[#9CA3AF] focus:outline-none focus:bg-[#FFFFFF] focus:border-[#3975E8] focus:ring-2 focus:ring-[#3975E8]/15 text-[15px] font-normal"
+                        required
+                        autoComplete="current-password"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setShowPassword(!showPassword)}
+                        className="absolute right-4 top-1/2 -translate-y-1/2 p-1 text-[#8A8D95] hover:text-[#000000] cursor-pointer"
+                        aria-label={showPassword ? 'Ocultar senha' : 'Ver senha'}
+                      >
+                        {showPassword ? (
+                          <EyeOff className="w-[19px] h-[19px] stroke-[1.8]" />
+                        ) : (
+                          <Eye className="w-[19px] h-[19px] stroke-[1.8]" />
+                        )}
+                      </button>
+                    </div>
+
+                    {/* Esqueci minha senha alinhado à direita */}
+                    <div className="flex justify-end pt-0.5 pr-1">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setError('');
+                          setRecoverEmail(email);
+                          setRecoverSent(false);
+                          setAuthMode('recover');
+                        }}
+                        className="text-[13.5px] text-[#8A8D95] hover:text-[#000000] cursor-pointer font-medium bg-transparent border-0"
+                      >
+                        Esqueci minha senha
+                      </button>
+                    </div>
+
+                    {error && authMode === 'login' && (
+                      <p className="text-red-500 text-[13px] font-medium text-center mt-2 px-2">
+                        {error}
+                      </p>
+                    )}
+
+                    {/* Botão Entrar branco */}
+                    <div className="pt-2">
+                      <button
+                        id="btn-login-submit"
+                        type="submit"
+                        disabled={loading || googleLoading}
+                        className="w-full h-[54px] sm:h-[56px] rounded-full bg-[#FFFFFF] hover:bg-[#F9FAFB] active:bg-[#F3F4F6] text-[#000000] text-[16px] font-bold flex items-center justify-center gap-1.5 disabled:opacity-60 shadow-[0_2px_8px_rgba(0,0,0,0.06)] border border-[#E5E7EB] cursor-pointer"
+                      >
+                        {loading ? (
+                          <>
+                            <Loader2 className="w-4 h-4 animate-spin text-[#000000]" />
+                            <span>Entrando...</span>
+                          </>
+                        ) : (
+                          <span>Entrar →</span>
+                        )}
+                      </button>
+                    </div>
+
+                    {/* Separador OU */}
+                    <div className="relative flex items-center justify-center my-6">
+                      <div className="absolute inset-0 flex items-center">
+                        <div className="w-full border-t border-[#E5E7EB]" />
                       </div>
-                    ) : (
-                      <form onSubmit={handleRecoverSubmit} className="space-y-4">
+                      <div className="relative bg-[#FFFFFF] px-3">
+                        <span className="text-[12px] font-semibold text-[#8A8D95] uppercase tracking-wider">
+                          OU
+                        </span>
+                      </div>
+                    </div>
+
+                    {/* Botão Google branco */}
+                    <div>
+                      <button
+                        id="btn-google-signin"
+                        type="button"
+                        onClick={handleGoogleAuth}
+                        disabled={googleLoading || loading}
+                        className="w-full h-[54px] sm:h-[56px] px-5 rounded-full bg-[#FFFFFF] hover:bg-[#F9FAFB] active:bg-[#F3F4F6] border border-[#E5E7EB] text-[#000000] text-[15px] font-semibold flex items-center justify-center gap-3 cursor-pointer disabled:opacity-60 shadow-[0_2px_8px_rgba(0,0,0,0.06)]"
+                      >
+                        <svg className="w-[19px] h-[19px] shrink-0" viewBox="0 0 24 24">
+                          <path
+                            fill="#4285F4"
+                            d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"
+                          />
+                          <path
+                            fill="#34A853"
+                            d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"
+                          />
+                          <path
+                            fill="#FBBC05"
+                            d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.63z"
+                          />
+                          <path
+                            fill="#EA4335"
+                            d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z"
+                          />
+                        </svg>
+                        <span>
+                          {googleLoading ? 'Conectando Google...' : 'Entrar com Google / Gmail'}
+                        </span>
+                      </button>
+                    </div>
+                  </form>
+
+                  {/* Criar nova conta no rodapé */}
+                  <div className="mt-9 text-[14px] flex items-center justify-center gap-1.5 text-center">
+                    <span className="text-[#8A8D95] font-normal">Não possui uma conta?</span>
+                    <button
+                      id="btn-open-register-flow"
+                      type="button"
+                      onClick={handleStartRegisterFlow}
+                      className="text-[#000000] font-bold hover:text-[#3975E8] hover:underline cursor-pointer bg-transparent border-0 p-0"
+                    >
+                      Criar nova conta →
+                    </button>
+                  </div>
+                </>
+              ) : authMode === 'resetPassword' ? (
+                /* FORM: REDEFINIÇÃO DE SENHA VIA LINK DO E-MAIL */
+                <div className="w-full">
+                  <h1 className="text-[22px] font-bold text-[#000000] text-center mb-2">
+                    Criar nova senha
+                  </h1>
+
+                  {resetCodeStatus === 'checking' ? (
+                    <div className="py-10 flex flex-col items-center justify-center gap-3">
+                      <Loader2 className="w-7 h-7 animate-spin text-[#000000]" />
+                      <p className="text-[14px] text-[#8A8D95]">Validando link de recuperação…</p>
+                    </div>
+                  ) : resetCodeStatus === 'done' ? (
+                    <div className="p-5 rounded-[24px] bg-[#F5F8FF] border border-[#DCE8FC] text-center space-y-3 mt-4">
+                      <CheckCircle2 className="w-8 h-8 text-[#3975E8] mx-auto" />
+                      <p className="text-[15px] font-semibold text-[#000000]">
+                        Senha redefinida com sucesso!
+                      </p>
+                      <p className="text-[13px] text-[#8A8D95]">
+                        Sua nova senha já está ativa. Entre na sua conta para continuar.
+                      </p>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setError('');
+                          setPassword('');
+                          onResetHandled?.();
+                          setAuthMode('login');
+                        }}
+                        className="mt-2 px-6 py-3 rounded-full bg-[#000000] text-white text-[14px] font-bold cursor-pointer"
+                      >
+                        Ir para o login
+                      </button>
+                    </div>
+                  ) : resetCodeStatus === 'invalid' ? (
+                    <div className="p-5 rounded-[24px] bg-[#FFF5F5] border border-[#FED7D7] text-center space-y-3 mt-4">
+                      <p className="text-[14.5px] font-semibold text-[#000000]">
+                        Link expirado ou inválido
+                      </p>
+                      <p className="text-[13px] text-[#737780]">
+                        {error || 'Este link expirou ou já foi utilizado. Solicite uma nova recuperação de senha.'}
+                      </p>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          try {
+                            window.history.replaceState({}, document.title, window.location.pathname);
+                          } catch {}
+                          onResetHandled?.();
+                          setError('');
+                          setRecoverSent(false);
+                          setAuthMode('recover');
+                        }}
+                        className="mt-2 px-6 py-3 rounded-full bg-[#000000] text-white text-[14px] font-bold cursor-pointer"
+                      >
+                        Solicitar novo link
+                      </button>
+                    </div>
+                  ) : (
+                    <>
+                      {resetTargetEmail && (
+                        <p className="text-[13.5px] text-[#8A8D95] text-center mb-6">
+                          Conta: <span className="text-[#000000] font-medium">{resetTargetEmail}</span>
+                        </p>
+                      )}
+                      <form onSubmit={handleConfirmResetPassword} className="space-y-3.5">
                         <div className="relative">
-                          <Mail className="absolute left-5 top-1/2 -translate-y-1/2 w-[19px] h-[19px] text-[#8A8D95] stroke-[1.8]" />
+                          <Lock className="absolute left-5 top-1/2 -translate-y-1/2 w-[19px] h-[19px] text-[#8A8D95] stroke-[1.8]" />
                           <input
-                            type="email"
-                            placeholder="Seu e-mail cadastrado"
-                            value={recoverEmail}
-                            onChange={(e) => setRecoverEmail(e.target.value)}
-                            className="w-full h-[56px] pl-[52px] pr-5 rounded-[26px] bg-[#F3F4F7] border border-[#E5E7EB]/70 text-[#000000] placeholder:text-[#9CA3AF] focus:outline-none focus:bg-[#FFFFFF] focus:border-[#3975E8] focus:ring-2 focus:ring-[#3975E8]/15 transition-all text-[15px] font-normal"
+                            id="input-reset-new-password"
+                            type={showResetPassword ? 'text' : 'password'}
+                            placeholder="Nova senha (mín. 6 caracteres)"
+                            value={resetNewPassword}
+                            onChange={(e) => {
+                              setResetNewPassword(e.target.value);
+                              if (error) setError('');
+                            }}
+                            className="w-full h-[56px] pl-[52px] pr-12 rounded-[26px] bg-[#F3F4F7] border border-[#E5E7EB]/70 text-[#000000] placeholder:text-[#9CA3AF] focus:outline-none focus:bg-[#FFFFFF] focus:border-[#3975E8] focus:ring-2 focus:ring-[#3975E8]/15 text-[15px] font-normal"
                             required
-                            autoComplete="email"
+                            autoComplete="new-password"
+                          />
+                          <button
+                            type="button"
+                            onClick={() => setShowResetPassword((p) => !p)}
+                            className="absolute right-4 top-1/2 -translate-y-1/2 p-1 text-[#8A8D95] hover:text-[#000000] cursor-pointer"
+                            aria-label={showResetPassword ? 'Ocultar senha' : 'Ver senha'}
+                          >
+                            {showResetPassword ? (
+                              <EyeOff className="w-[19px] h-[19px] stroke-[1.8]" />
+                            ) : (
+                              <Eye className="w-[19px] h-[19px] stroke-[1.8]" />
+                            )}
+                          </button>
+                        </div>
+
+                        <div className="relative">
+                          <Lock className="absolute left-5 top-1/2 -translate-y-1/2 w-[19px] h-[19px] text-[#8A8D95] stroke-[1.8]" />
+                          <input
+                            id="input-reset-confirm-password"
+                            type={showResetPassword ? 'text' : 'password'}
+                            placeholder="Confirmar nova senha"
+                            value={resetConfirmPassword}
+                            onChange={(e) => {
+                              setResetConfirmPassword(e.target.value);
+                              if (error) setError('');
+                            }}
+                            className="w-full h-[56px] pl-[52px] pr-5 rounded-[26px] bg-[#F3F4F7] border border-[#E5E7EB]/70 text-[#000000] placeholder:text-[#9CA3AF] focus:outline-none focus:bg-[#FFFFFF] focus:border-[#3975E8] focus:ring-2 focus:ring-[#3975E8]/15 text-[15px] font-normal"
+                            required
+                            autoComplete="new-password"
                           />
                         </div>
 
@@ -2164,26 +2044,86 @@ export function AuthScreen({
                           </p>
                         )}
 
-                        <motion.button
-                          whileTap={{ scale: 0.985 }}
+                        <button
                           type="submit"
                           disabled={loading}
-                          className="w-full h-[54px] sm:h-[56px] rounded-full bg-[#FFFFFF] hover:bg-[#F9FAFB] active:bg-[#F3F4F6] text-[#000000] text-[15.5px] font-bold flex items-center justify-center gap-2 transition-all disabled:opacity-70 shadow-[0_2px_8px_rgba(0,0,0,0.06)] border border-[#E5E7EB] cursor-pointer"
+                          className="w-full h-[54px] sm:h-[56px] rounded-full bg-[#FFFFFF] hover:bg-[#F9FAFB] active:bg-[#F3F4F6] text-[#000000] text-[15.5px] font-bold flex items-center justify-center gap-2 disabled:opacity-70 shadow-[0_2px_8px_rgba(0,0,0,0.06)] border border-[#E5E7EB] cursor-pointer"
                         >
-                          {loading ? 'Enviando...' : 'Enviar instruções'}
-                        </motion.button>
+                          {loading ? 'Salvando...' : 'Redefinir senha'}
+                        </button>
                       </form>
-                    )}
-                  </motion.div>
-                )}
-              </motion.div>
-            </div>
+                    </>
+                  )}
+                </div>
+              ) : (
+                /* FORM: RECUPERAÇÃO DE SENHA */
+                <div className="w-full">
+                  <h1 className="text-[22px] font-bold text-[#000000] text-center mb-2">
+                    Recuperar acesso
+                  </h1>
+                  <p className="text-[14px] text-[#8A8D95] text-center mb-6 leading-relaxed">
+                    Informe o e-mail da sua conta para receber as instruções de redefinição de senha.
+                  </p>
 
-            {/* Bottom spacer */}
-            <div className="h-4 shrink-0" aria-hidden="true" />
-          </motion.section>
-        )}
-      </AnimatePresence>
+                  {recoverSent ? (
+                    <div className="p-5 rounded-[24px] bg-[#F5F8FF] border border-[#DCE8FC] text-center space-y-3">
+                      <CheckCircle2 className="w-8 h-8 text-[#3975E8] mx-auto" />
+                      <p className="text-[14.5px] font-semibold text-[#000000]">
+                        Instruções enviadas para {recoverEmail}
+                      </p>
+                      <p className="text-[13px] text-[#8A8D95]">
+                        Verifique sua caixa de entrada e a pasta de spam.
+                      </p>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setRecoverSent(false);
+                          setAuthMode('login');
+                        }}
+                        className="mt-2 px-5 py-2.5 rounded-full bg-[#000000] text-white text-[13.5px] font-bold cursor-pointer"
+                      >
+                        Voltar para o login
+                      </button>
+                    </div>
+                  ) : (
+                    <form onSubmit={handleRecoverSubmit} className="space-y-4">
+                      <div className="relative">
+                        <Mail className="absolute left-5 top-1/2 -translate-y-1/2 w-[19px] h-[19px] text-[#8A8D95] stroke-[1.8]" />
+                        <input
+                          type="email"
+                          placeholder="Seu e-mail cadastrado"
+                          value={recoverEmail}
+                          onChange={(e) => setRecoverEmail(e.target.value)}
+                          className="w-full h-[56px] pl-[52px] pr-5 rounded-[26px] bg-[#F3F4F7] border border-[#E5E7EB]/70 text-[#000000] placeholder:text-[#9CA3AF] focus:outline-none focus:bg-[#FFFFFF] focus:border-[#3975E8] focus:ring-2 focus:ring-[#3975E8]/15 text-[15px] font-normal"
+                          required
+                          autoComplete="email"
+                        />
+                      </div>
+
+                      {error && (
+                        <p className="text-red-500 text-xs font-semibold text-center px-2">
+                          {error}
+                        </p>
+                      )}
+
+                      <button
+                        type="submit"
+                        disabled={loading}
+                        className="w-full h-[54px] sm:h-[56px] rounded-full bg-[#FFFFFF] hover:bg-[#F9FAFB] active:bg-[#F3F4F6] text-[#000000] text-[15.5px] font-bold flex items-center justify-center gap-2 disabled:opacity-70 shadow-[0_2px_8px_rgba(0,0,0,0.06)] border border-[#E5E7EB] cursor-pointer"
+                      >
+                        {loading ? 'Enviando...' : 'Enviar instruções'}
+                      </button>
+                    </form>
+                  )}
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* Bottom spacer */}
+          <div className="h-4 shrink-0" aria-hidden="true" />
+        </section>
+      )}
 
       {/* =========================================================================
           4. TELA DE CARREGAMENTO EM TELA CHEIA APÓS AUTENTICAÇÃO GOOGLE

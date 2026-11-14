@@ -2226,6 +2226,7 @@ export default function App() {
               setSelectedSpot(spot);
               setIsDetailOpen(true);
             }}
+            onOpenItineraryTab={() => setActiveTab('roteiros')}
           />
         )}
       </AnimatePresence>

@@ -1,17 +1,19 @@
 // Monvian PWA Service Worker - Offline Caching Engine for Spots & Assets
-const STATIC_CACHE = 'monvian-static-v6';
+const STATIC_CACHE = 'monvian-static-v7';
 const API_CACHE = 'monvian-api-v6';
-const IMAGES_CACHE = 'monvian-images-v6';
+const IMAGES_CACHE = 'monvian-images-v7';
 
 const PRECACHE_ASSETS = [
   '/',
   '/index.html',
   '/manifest.json',
-  '/icon.svg',
-  '/logo-white.png',
+  '/apple-touch-icon.png',
+  '/pwa-192x192.png',
+  '/pwa-512x512.png',
+  '/pwa-maskable-512x512.png',
+  '/notification-badge.png',
   '/logo.png',
   '/fotoperfil.png',
-  '/guide_avatar.jpg',
   '/loogo.png'
 ];
 

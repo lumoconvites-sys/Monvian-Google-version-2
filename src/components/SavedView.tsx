@@ -45,6 +45,7 @@ interface CollectionCoverCardProps {
   fallbackIcon: React.ReactNode;
   onClick: () => void;
   index?: number;
+  shouldAnimate?: boolean;
 }
 
 const CELL_CORNER_CLASSES: Record<number, string> = {
@@ -132,16 +133,21 @@ const CollectionCoverCard: React.FC<CollectionCoverCardProps> = React.memo(({
   fallbackIcon,
   onClick,
   index = 0,
+  shouldAnimate = true,
 }) => {
   return (
     <motion.div
-      initial={{ opacity: 0, y: 8 }}
+      initial={shouldAnimate ? { opacity: 0, y: 8 } : false}
       animate={{ opacity: 1, y: 0 }}
-      transition={{
-        duration: 0.22,
-        ease: [0.22, 1, 0.36, 1],
-        delay: index * 0.025,
-      }}
+      transition={
+        shouldAnimate
+          ? {
+              duration: 0.22,
+              ease: [0.22, 1, 0.36, 1],
+              delay: index * 0.025,
+            }
+          : { duration: 0 }
+      }
       onClick={onClick}
       className="flex flex-col cursor-pointer group select-none active:scale-[0.97] transition-transform duration-150 ease-out transform-gpu"
     >
@@ -206,9 +212,11 @@ const CollectionCoverCard: React.FC<CollectionCoverCardProps> = React.memo(({
 });
 
 let cachedActiveSavedCollection: SavedCollectionType | null = null;
+let hasPlayedSavedEntranceAnimation = false;
 if (typeof window !== 'undefined') {
   window.addEventListener('monvian:user_logged_out', () => {
     cachedActiveSavedCollection = null;
+    hasPlayedSavedEntranceAnimation = false;
   });
 }
 
@@ -221,6 +229,14 @@ export const SavedView: React.FC<SavedViewProps> = React.memo(({
   onNavigateTab,
 }) => {
   const isDark = theme === 'dark';
+  const [shouldAnimateEntrance] = useState(() => !hasPlayedSavedEntranceAnimation);
+
+  useEffect(() => {
+    if (isOpen) {
+      hasPlayedSavedEntranceAnimation = true;
+    }
+  }, [isOpen]);
+
   const {
     savedItineraries,
     savedSpots,
@@ -449,14 +465,18 @@ export const SavedView: React.FC<SavedViewProps> = React.memo(({
   };
 
   return (
-    <AnimatePresence>
+    <AnimatePresence initial={shouldAnimateEntrance}>
       {isOpen && (
         <motion.div
           id="saved-view-root"
-          initial={{ opacity: 0, y: 8 }}
+          initial={shouldAnimateEntrance ? { opacity: 0, y: 8 } : false}
           animate={{ opacity: 1, y: 0 }}
           exit={{ opacity: 0, y: 4 }}
-          transition={{ duration: 0.2, ease: [0.22, 1, 0.36, 1] }}
+          transition={
+            shouldAnimateEntrance
+              ? { duration: 0.2, ease: [0.22, 1, 0.36, 1] }
+              : { duration: 0 }
+          }
           className={`fixed inset-0 md:left-[var(--desktop-sidebar-width,72px)] w-full md:w-auto h-full z-45 flex flex-col select-none overflow-hidden transform-gpu ios-pushed-page ${
             isDark ? 'bg-black text-white' : 'bg-[#ffffff] text-zinc-900'
           }`}
@@ -497,6 +517,7 @@ export const SavedView: React.FC<SavedViewProps> = React.memo(({
                 <div className="grid grid-cols-2 gap-x-4 gap-y-6">
                   <CollectionCoverCard
                     index={0}
+                    shouldAnimate={shouldAnimateEntrance}
                     title="Roteiros salvos"
                     count={resolvedItineraries.length}
                     photos={itineraryPhotos}
@@ -506,6 +527,7 @@ export const SavedView: React.FC<SavedViewProps> = React.memo(({
                   />
                   <CollectionCoverCard
                     index={1}
+                    shouldAnimate={shouldAnimateEntrance}
                     title="Pontos turísticos"
                     count={resolvedTouristSpots.length}
                     photos={touristSpotPhotos}
@@ -630,13 +652,17 @@ export const SavedView: React.FC<SavedViewProps> = React.memo(({
                               return (
                                 <motion.div
                                   key={itinerary.id}
-                                  initial={{ opacity: 0, y: 6 }}
+                                  initial={shouldAnimateEntrance ? { opacity: 0, y: 6 } : false}
                                   animate={{ opacity: 1, y: 0 }}
-                                  transition={{
-                                    duration: 0.18,
-                                    ease: [0.22, 1, 0.36, 1],
-                                    delay: Math.min(idx * 0.02, 0.2),
-                                  }}
+                                  transition={
+                                    shouldAnimateEntrance
+                                      ? {
+                                          duration: 0.18,
+                                          ease: [0.22, 1, 0.36, 1],
+                                          delay: Math.min(idx * 0.02, 0.2),
+                                        }
+                                      : { duration: 0 }
+                                  }
                                   onClick={() => {
                                     if (isEditing) {
                                       handleToggleSelect(itinerary.id);
@@ -686,13 +712,17 @@ export const SavedView: React.FC<SavedViewProps> = React.memo(({
                               return (
                                 <motion.div
                                   key={spot.id}
-                                  initial={{ opacity: 0, y: 6 }}
+                                  initial={shouldAnimateEntrance ? { opacity: 0, y: 6 } : false}
                                   animate={{ opacity: 1, y: 0 }}
-                                  transition={{
-                                    duration: 0.18,
-                                    ease: [0.22, 1, 0.36, 1],
-                                    delay: Math.min(idx * 0.02, 0.2),
-                                  }}
+                                  transition={
+                                    shouldAnimateEntrance
+                                      ? {
+                                          duration: 0.18,
+                                          ease: [0.22, 1, 0.36, 1],
+                                          delay: Math.min(idx * 0.02, 0.2),
+                                        }
+                                      : { duration: 0 }
+                                  }
                                   onClick={() => {
                                     if (isEditing) {
                                       handleToggleSelect(spot.id);
@@ -760,13 +790,17 @@ export const SavedView: React.FC<SavedViewProps> = React.memo(({
                               return (
                                 <motion.div
                                   key={itemId}
-                                  initial={{ opacity: 0, y: 6 }}
+                                  initial={shouldAnimateEntrance ? { opacity: 0, y: 6 } : false}
                                   animate={{ opacity: 1, y: 0 }}
-                                  transition={{
-                                    duration: 0.18,
-                                    ease: [0.22, 1, 0.36, 1],
-                                    delay: Math.min(idx * 0.02, 0.2),
-                                  }}
+                                  transition={
+                                    shouldAnimateEntrance
+                                      ? {
+                                          duration: 0.18,
+                                          ease: [0.22, 1, 0.36, 1],
+                                          delay: Math.min(idx * 0.02, 0.2),
+                                        }
+                                      : { duration: 0 }
+                                  }
                                   onClick={() => {
                                     if (isEditing) {
                                       handleToggleSelect(itemId);

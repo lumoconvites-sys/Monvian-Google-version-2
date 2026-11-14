@@ -32,6 +32,14 @@ import { useIOSBackEntry } from '../../services/iosNavigationManager';
 // Fast in-memory cache for categories
 let memoryCategoriesCache: ItineraryCategory[] | null = null;
 const CACHE_KEY_CATS = 'monvian_itinerary_categories_cache_v6';
+let hasPlayedExplorerEntranceAnimation = false;
+const loadedItineraryCoverCache = new Set<string>();
+
+if (typeof window !== 'undefined') {
+  window.addEventListener('monvian:user_logged_out', () => {
+    hasPlayedExplorerEntranceAnimation = false;
+  });
+}
 
 function getKnownItinerariesPool(): Itinerary[] {
   try {
@@ -228,6 +236,7 @@ interface FeaturedItineraryBannerProps {
   stopsCount: number;
   onToggleFavorite: (e: React.MouseEvent) => void;
   onOpenDetail: (itin: Itinerary) => void;
+  shouldAnimate?: boolean;
 }
 
 const FeaturedItineraryBanner: React.FC<FeaturedItineraryBannerProps> = ({
@@ -238,6 +247,7 @@ const FeaturedItineraryBanner: React.FC<FeaturedItineraryBannerProps> = ({
   stopsCount,
   onToggleFavorite,
   onOpenDetail,
+  shouldAnimate = true,
 }) => {
   const [imgSrc, setImgSrc] = useState(itinerary.coverImage);
   const [hatTapCount, setHatTapCount] = useState(0);
@@ -253,13 +263,17 @@ const FeaturedItineraryBanner: React.FC<FeaturedItineraryBannerProps> = ({
     >
       <motion.div
         key={`featured-${itinerary.id}-${category}`}
-        initial={{ opacity: 0, filter: 'blur(14px)', y: 22, scale: 0.985 }}
+        initial={shouldAnimate ? { opacity: 0, filter: 'blur(14px)', y: 22, scale: 0.985 } : false}
         animate={{ opacity: 1, filter: 'blur(0px)', y: 0, scale: 1 }}
-        transition={{
-          duration: 0.9,
-          ease: [0.16, 1, 0.3, 1],
-          delay: 0.04,
-        }}
+        transition={
+          shouldAnimate
+            ? {
+                duration: 0.9,
+                ease: [0.16, 1, 0.3, 1],
+                delay: 0.04,
+              }
+            : { duration: 0 }
+        }
         style={{
           transform: 'translate3d(0, 0, 0)',
           WebkitTransform: 'translate3d(0, 0, 0)',
@@ -283,18 +297,22 @@ const FeaturedItineraryBanner: React.FC<FeaturedItineraryBannerProps> = ({
           }}
           initial={
             hatTapCount === 0
-              ? { opacity: 0, x: -16, y: -32, scale: 0.55, rotate: -52 }
+              ? shouldAnimate
+                ? { opacity: 0, x: -16, y: -32, scale: 0.55, rotate: -52 }
+                : false
               : { opacity: 1, x: 0, y: 0, scale: 1, rotate: -28 }
           }
           animate={
             hatTapCount === 0
-              ? {
-                  opacity: 1,
-                  x: 0,
-                  y: [null, 3, -2, 0],
-                  scale: [null, 1.08, 0.97, 1],
-                  rotate: [null, -20, -32, -28],
-                }
+              ? shouldAnimate
+                ? {
+                    opacity: 1,
+                    x: 0,
+                    y: [null, 3, -2, 0],
+                    scale: [null, 1.08, 0.97, 1],
+                    rotate: [null, -20, -32, -28],
+                  }
+                : { opacity: 1, x: 0, y: 0, scale: 1, rotate: -28 }
               : {
                   opacity: 1,
                   x: [0, -3, 3, -1, 0],
@@ -305,11 +323,13 @@ const FeaturedItineraryBanner: React.FC<FeaturedItineraryBannerProps> = ({
           }
           transition={
             hatTapCount === 0
-              ? {
-                  duration: 0.72,
-                  delay: 0.16,
-                  ease: [0.22, 1, 0.36, 1],
-                }
+              ? shouldAnimate
+                ? {
+                    duration: 0.72,
+                    delay: 0.16,
+                    ease: [0.22, 1, 0.36, 1],
+                  }
+                : { duration: 0 }
               : {
                   duration: 0.52,
                   ease: [0.22, 1, 0.36, 1],
@@ -426,6 +446,11 @@ export const AirbnbItineraryExplorer: React.FC<AirbnbItineraryExplorerProps> = (
   isOnboardingSelection = false,
   isOnboardingRevealReady = true,
 }) => {
+  const [shouldAnimateEntrance] = useState(() => !hasPlayedExplorerEntranceAnimation);
+  useEffect(() => {
+    hasPlayedExplorerEntranceAnimation = true;
+  }, []);
+
   const initialItinerariesData = useMemo(
     () =>
       getItinerariesForCategory(
@@ -1115,9 +1140,13 @@ export const AirbnbItineraryExplorer: React.FC<AirbnbItineraryExplorerProps> = (
         {loading && displayItineraries.length === 0 && !validFeaturedBanner ? (
           /* Initial Progressive Loading State with Apple iOS Translucent Glass Frost Effect */
           <motion.div
-            initial={{ opacity: 0, filter: 'blur(10px)' }}
+            initial={shouldAnimateEntrance ? { opacity: 0, filter: 'blur(10px)' } : false}
             animate={{ opacity: 1, filter: 'blur(0px)' }}
-            transition={{ duration: 0.3, ease: [0.22, 1, 0.36, 1] }}
+            transition={
+              shouldAnimateEntrance
+                ? { duration: 0.3, ease: [0.22, 1, 0.36, 1] }
+                : { duration: 0 }
+            }
             className="px-5 space-y-5"
             aria-busy="true"
             aria-live="polite"
@@ -1226,12 +1255,16 @@ export const AirbnbItineraryExplorer: React.FC<AirbnbItineraryExplorerProps> = (
         ) : (
           <motion.div
             key={`itineraries-reveal-${selectedCategory}-${durationFilter}-${debouncedSearchQuery}`}
-            initial={{ opacity: 0, filter: 'blur(14px)', y: 14 }}
+            initial={shouldAnimateEntrance ? { opacity: 0, filter: 'blur(14px)', y: 14 } : false}
             animate={{ opacity: 1, filter: 'blur(0px)', y: 0 }}
-            transition={{
-              duration: 0.85,
-              ease: [0.16, 1, 0.3, 1],
-            }}
+            transition={
+              shouldAnimateEntrance
+                ? {
+                    duration: 0.85,
+                    ease: [0.16, 1, 0.3, 1],
+                  }
+                : { duration: 0 }
+            }
             style={{
               transform: 'translate3d(0, 0, 0)',
               WebkitTransform: 'translate3d(0, 0, 0)',
@@ -1249,6 +1282,7 @@ export const AirbnbItineraryExplorer: React.FC<AirbnbItineraryExplorerProps> = (
                 stopsCount={featuredStopsCount}
                 onToggleFavorite={(e) => handleToggleFavorite(validFeaturedBanner.id, e)}
                 onOpenDetail={handleOpenDetail}
+                shouldAnimate={shouldAnimateEntrance}
               />
             )}
 
@@ -1256,13 +1290,17 @@ export const AirbnbItineraryExplorer: React.FC<AirbnbItineraryExplorerProps> = (
             {displayItineraries.length > 0 && (
               <section className="space-y-3">
                 <motion.div
-                  initial={{ opacity: 0, y: 14, filter: 'blur(8px)' }}
+                  initial={shouldAnimateEntrance ? { opacity: 0, y: 14, filter: 'blur(8px)' } : false}
                   animate={{ opacity: 1, y: 0, filter: 'blur(0px)' }}
-                  transition={{
-                    duration: 0.75,
-                    ease: [0.16, 1, 0.3, 1],
-                    delay: 0.12,
-                  }}
+                  transition={
+                    shouldAnimateEntrance
+                      ? {
+                          duration: 0.75,
+                          ease: [0.16, 1, 0.3, 1],
+                          delay: 0.12,
+                        }
+                      : { duration: 0 }
+                  }
                   className="px-5 flex items-center justify-between"
                 >
                   <h3
@@ -1284,6 +1322,7 @@ export const AirbnbItineraryExplorer: React.FC<AirbnbItineraryExplorerProps> = (
                     <HorizontalReferenceItineraryCard
                       key={itin.id}
                       index={idx}
+                      shouldAnimate={shouldAnimateEntrance}
                       itinerary={itin}
                       isFavorite={favorites.includes(itin.id)}
                       onToggleFavorite={(e) => handleToggleFavorite(itin.id, e)}
@@ -1384,6 +1423,7 @@ export const AirbnbItineraryExplorer: React.FC<AirbnbItineraryExplorerProps> = (
 interface HorizontalReferenceItineraryCardProps {
   itinerary: Itinerary;
   index?: number;
+  shouldAnimate?: boolean;
   isFavorite: boolean;
   onToggleFavorite: (e: React.MouseEvent) => void;
   onClick: () => void;
@@ -1397,6 +1437,7 @@ const HorizontalReferenceItineraryCard: React.FC<HorizontalReferenceItineraryCar
     ({
       itinerary,
       index = 0,
+      shouldAnimate = true,
       isFavorite,
       onToggleFavorite,
       onClick,
@@ -1417,18 +1458,24 @@ const HorizontalReferenceItineraryCard: React.FC<HorizontalReferenceItineraryCar
         return itinerary.days.reduce((acc, d) => acc + (d.steps?.length || 0), 0);
       }, [itinerary.days]);
 
-      const [imageLoaded, setImageLoaded] = useState(false);
+      const [imageLoaded, setImageLoaded] = useState(() =>
+        loadedItineraryCoverCache.has(itinerary.coverImage)
+      );
 
       return (
         <motion.div
           onClick={onClick}
-          initial={{ opacity: 0, filter: 'blur(16px)', y: 22, scale: 0.985 }}
+          initial={shouldAnimate ? { opacity: 0, filter: 'blur(16px)', y: 22, scale: 0.985 } : false}
           animate={{ opacity: 1, filter: 'blur(0px)', y: 0, scale: 1 }}
-          transition={{
-            duration: 0.85,
-            ease: [0.16, 1, 0.3, 1],
-            delay: 0.12 + Math.min((index % 6) * 0.09, 0.54),
-          }}
+          transition={
+            shouldAnimate
+              ? {
+                  duration: 0.85,
+                  ease: [0.16, 1, 0.3, 1],
+                  delay: 0.12 + Math.min((index % 6) * 0.09, 0.54),
+                }
+              : { duration: 0 }
+          }
           style={{
             transform: 'translate3d(0, 0, 0)',
             WebkitTransform: 'translate3d(0, 0, 0)',
@@ -1463,8 +1510,12 @@ const HorizontalReferenceItineraryCard: React.FC<HorizontalReferenceItineraryCar
               loading={index < 2 ? 'eager' : 'lazy'}
               decoding="async"
               referrerPolicy="no-referrer"
-              onLoad={() => setImageLoaded(true)}
+              onLoad={() => {
+                if (itinerary.coverImage) loadedItineraryCoverCache.add(itinerary.coverImage);
+                setImageLoaded(true);
+              }}
               onError={(e) => {
+                if (itinerary.coverImage) loadedItineraryCoverCache.add(itinerary.coverImage);
                 setImageLoaded(true);
                 (e.target as HTMLImageElement).src =
                   'https://images.unsplash.com/photo-1506744038136-46273834b3fb?auto=format&fit=crop&w=800&q=80';

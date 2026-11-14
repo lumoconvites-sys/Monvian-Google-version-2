@@ -264,6 +264,7 @@ interface SwipeableStopCardProps {
   isSelected: boolean;
   isDark: boolean;
   isPremium?: boolean;
+  shouldAnimate?: boolean;
   onSelect: (step: ItineraryStep) => void;
   onDelete: (stepId: string) => void;
   onMoveUp?: (index: number) => void;
@@ -303,6 +304,7 @@ const SwipeableStopCard: React.FC<SwipeableStopCardProps> = ({
   isSelected,
   isDark,
   isPremium = false,
+  shouldAnimate = true,
   onSelect,
   onDelete,
   onMoveUp,
@@ -391,15 +393,19 @@ const SwipeableStopCard: React.FC<SwipeableStopCardProps> = ({
 
   return (
       <motion.div
-        initial={{ opacity: 0, scale: 0.88, y: 12 }}
+        initial={shouldAnimate ? { opacity: 0, scale: 0.88, y: 12 } : false}
         animate={{ opacity: 1, scale: 1, y: 0 }}
         exit={{ opacity: 0, scale: 0.88, y: 10 }}
-        transition={{
-          type: 'spring',
-          stiffness: 380,
-          damping: 22,
-          delay: Math.min(idx * 0.035, 0.35),
-        }}
+        transition={
+          shouldAnimate
+            ? {
+                type: 'spring',
+                stiffness: 380,
+                damping: 22,
+                delay: Math.min(idx * 0.035, 0.35),
+              }
+            : { duration: 0 }
+        }
         whileHover={{ scale: 1.015, transition: { type: 'spring', stiffness: 400, damping: 18 } }}
         whileTap={{ scale: 0.96, transition: { type: 'spring', stiffness: 500, damping: 14 } }}
         className="relative w-full rounded-[28px] overflow-hidden select-none touch-pan-y transform-gpu will-change-transform"
@@ -572,6 +578,13 @@ const SwipeableStopCard: React.FC<SwipeableStopCardProps> = ({
   );
 };
 
+let hasPlayedItinerariesMapEntranceAnimation = false;
+if (typeof window !== 'undefined') {
+  window.addEventListener('monvian:user_logged_out', () => {
+    hasPlayedItinerariesMapEntranceAnimation = false;
+  });
+}
+
 export const ItinerariesView: React.FC<ItinerariesViewProps> = memo(({
   isOpen,
   onClose,
@@ -582,6 +595,13 @@ export const ItinerariesView: React.FC<ItinerariesViewProps> = memo(({
   onCompleteOnboardingSelection,
 }) => {
   const isDark = theme === 'dark';
+  const [shouldAnimateEntrance] = useState(() => !hasPlayedItinerariesMapEntranceAnimation);
+
+  useEffect(() => {
+    if (isOpen) {
+      hasPlayedItinerariesMapEntranceAnimation = true;
+    }
+  }, [isOpen]);
 
   // Get or initialize persistent session ID
   const sessionId = useMemo(() => {
@@ -2528,9 +2548,13 @@ export const ItinerariesView: React.FC<ItinerariesViewProps> = memo(({
                   <motion.button
                     type="button"
                     key={day.dayNumber}
-                    initial={{ opacity: 0, scale: 0.88, y: 12 }}
+                    initial={shouldAnimateEntrance ? { opacity: 0, scale: 0.88, y: 12 } : false}
                     animate={{ opacity: 1, scale: 1, y: 0 }}
-                    transition={{ type: 'spring', stiffness: 380, damping: 22, delay: dIdx * 0.035 }}
+                    transition={
+                      shouldAnimateEntrance
+                        ? { type: 'spring', stiffness: 380, damping: 22, delay: dIdx * 0.035 }
+                        : { duration: 0 }
+                    }
                     whileHover={{ scale: 1.02, transition: { type: 'spring', stiffness: 400, damping: 18 } }}
                     whileTap={{ scale: 0.93, transition: { type: 'spring', stiffness: 500, damping: 14 } }}
                     onClick={() => {
@@ -2570,14 +2594,18 @@ export const ItinerariesView: React.FC<ItinerariesViewProps> = memo(({
             activeSteps.map((step, idx) => (
               <motion.div
                 key={step.id}
-                initial={{ opacity: 0, scale: 0.88, y: 12 }}
+                initial={shouldAnimateEntrance ? { opacity: 0, scale: 0.88, y: 12 } : false}
                 animate={{ opacity: 1, scale: 1, y: 0 }}
-                transition={{
-                  type: 'spring',
-                  stiffness: 380,
-                  damping: 22,
-                  delay: Math.min(idx * 0.035, 0.35),
-                }}
+                transition={
+                  shouldAnimateEntrance
+                    ? {
+                        type: 'spring',
+                        stiffness: 380,
+                        damping: 22,
+                        delay: Math.min(idx * 0.035, 0.35),
+                      }
+                    : { duration: 0 }
+                }
                 whileHover={{ scale: 1.02, transition: { type: 'spring', stiffness: 400, damping: 18 } }}
                 whileTap={{ scale: 0.93, transition: { type: 'spring', stiffness: 500, damping: 14 } }}
                 onClick={() => handleSelectStopOnMap(step)}
@@ -2728,15 +2756,15 @@ export const ItinerariesView: React.FC<ItinerariesViewProps> = memo(({
 
       {/* 4-B. Bottom Sheet with Route Stops and Actions (MOBILE ONLY - Hidden on Desktop) */}
       {/* 4-B. Bottom Sheet with Route Stops and Actions (MOBILE ONLY - Hidden on Desktop) */}
-      <AnimatePresence mode="wait">
+      <AnimatePresence mode="wait" initial={shouldAnimateEntrance}>
         {!isExpanded ? (
           /* Collapsed State: FLOATING CARD WITH NO WHITE CONTAINER BEHIND (Pointers pass through to map) */
           <motion.div
             key="itinerary-collapsed-floating-card-container"
-            initial={{ opacity: 0, y: 12, scale: 0.96 }}
+            initial={shouldAnimateEntrance ? { opacity: 0, y: 12, scale: 0.96 } : false}
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: 12, scale: 0.96 }}
-            transition={qrSpringTransition}
+            transition={shouldAnimateEntrance ? qrSpringTransition : { duration: 0 }}
             className="md:hidden fixed inset-x-0 z-40 flex justify-center px-4 pointer-events-none select-none"
             style={{
               bottom: '84px',
@@ -2871,10 +2899,10 @@ export const ItinerariesView: React.FC<ItinerariesViewProps> = memo(({
           <motion.div
             key="itinerary-expanded-drawer"
             layout
-            initial={{ opacity: 0, y: 120 }}
+            initial={shouldAnimateEntrance ? { opacity: 0, y: 120 } : false}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: 120 }}
-            transition={qrSpringTransition}
+            transition={shouldAnimateEntrance ? qrSpringTransition : { duration: 0 }}
             drag="y"
             dragConstraints={{ top: 0, bottom: 0 }}
             dragElastic={{ top: 0.05, bottom: 0.3 }}
@@ -2929,9 +2957,13 @@ export const ItinerariesView: React.FC<ItinerariesViewProps> = memo(({
                       <motion.button
                         type="button"
                         key={day.dayNumber}
-                        initial={{ opacity: 0, scale: 0.88, y: 12 }}
+                        initial={shouldAnimateEntrance ? { opacity: 0, scale: 0.88, y: 12 } : false}
                         animate={{ opacity: 1, scale: 1, y: 0 }}
-                        transition={{ type: 'spring', stiffness: 380, damping: 22, delay: dIdx * 0.035 }}
+                        transition={
+                          shouldAnimateEntrance
+                            ? { type: 'spring', stiffness: 380, damping: 22, delay: dIdx * 0.035 }
+                            : { duration: 0 }
+                        }
                         whileHover={{ scale: 1.02, transition: { type: 'spring', stiffness: 400, damping: 18 } }}
                         whileTap={{ scale: 0.93, transition: { type: 'spring', stiffness: 500, damping: 14 } }}
                         onClick={() => {
@@ -2950,12 +2982,13 @@ export const ItinerariesView: React.FC<ItinerariesViewProps> = memo(({
                     ))}
                   </div>
                 )}
-                <AnimatePresence mode="popLayout">
+                <AnimatePresence mode="popLayout" initial={shouldAnimateEntrance}>
                   {activeSteps.map((step, idx) => (
                     <SwipeableStopCard
                       key={step.id}
                       step={step}
                       idx={idx}
+                      shouldAnimate={shouldAnimateEntrance}
                       totalSteps={activeSteps.length}
                       isSelected={step.id === currentSelectedStep?.id}
                       isDark={isDark}

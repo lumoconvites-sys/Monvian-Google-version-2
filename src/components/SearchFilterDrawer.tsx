@@ -109,11 +109,13 @@ const SEARCH_CATEGORIES: CategoryConfig[] = [
 
 let cachedSearchQuery = '';
 let cachedSelectedSearchCategoryId: string | null = null;
+let hasPlayedSearchEntranceAnimation = false;
 
 if (typeof window !== 'undefined') {
   window.addEventListener('monvian:user_logged_out', () => {
     cachedSearchQuery = '';
     cachedSelectedSearchCategoryId = null;
+    hasPlayedSearchEntranceAnimation = false;
   });
 }
 
@@ -124,6 +126,7 @@ export const SearchFilterDrawer: React.FC<SearchFilterDrawerProps> = React.memo(
   onSelectSpot,
   theme = 'dark',
 }) => {
+  const [shouldAnimateEntrance] = useState(() => !hasPlayedSearchEntranceAnimation);
   const [searchQuery, setSearchQuery] = useState(() => cachedSearchQuery);
   const [selectedCategory, setSelectedCategory] = useState<CategoryConfig | null>(() =>
     cachedSelectedSearchCategoryId
@@ -132,6 +135,12 @@ export const SearchFilterDrawer: React.FC<SearchFilterDrawerProps> = React.memo(
   );
   const [isListening, setIsListening] = useState(false);
   const recognitionRef = useRef<any>(null);
+
+  useEffect(() => {
+    if (isOpen) {
+      hasPlayedSearchEntranceAnimation = true;
+    }
+  }, [isOpen]);
 
   useEffect(() => {
     cachedSearchQuery = searchQuery;
@@ -249,14 +258,18 @@ export const SearchFilterDrawer: React.FC<SearchFilterDrawerProps> = React.memo(
   const isDark = theme === 'dark';
 
   return (
-    <AnimatePresence>
+    <AnimatePresence initial={shouldAnimateEntrance}>
       {isOpen && (
         <motion.div
           id="search-filter-overlay"
-          initial={{ opacity: 0 }}
+          initial={shouldAnimateEntrance ? { opacity: 0 } : false}
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
-          transition={{ duration: 0.18, ease: [0.22, 1, 0.36, 1] }}
+          transition={
+            shouldAnimateEntrance
+              ? { duration: 0.18, ease: [0.22, 1, 0.36, 1] }
+              : { duration: 0 }
+          }
           onClick={onClose}
           className="fixed inset-0 z-45 flex flex-col justify-end md:justify-center md:items-center md:p-6 select-none overflow-hidden transition-colors duration-200 md:bg-black/50"
           style={{
@@ -266,10 +279,14 @@ export const SearchFilterDrawer: React.FC<SearchFilterDrawerProps> = React.memo(
         >
           <motion.div
             id="search-filter-panel"
-            initial={{ opacity: 0, y: 8 }}
+            initial={shouldAnimateEntrance ? { opacity: 0, y: 8 } : false}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: 6 }}
-            transition={{ duration: 0.18, ease: [0.22, 1, 0.36, 1] }}
+            transition={
+              shouldAnimateEntrance
+                ? { duration: 0.18, ease: [0.22, 1, 0.36, 1] }
+                : { duration: 0 }
+            }
             onClick={(e) => e.stopPropagation()}
             className={`relative w-full h-full md:h-[88vh] md:max-w-2xl rounded-none md:rounded-[30px] overflow-hidden flex flex-col justify-between shadow-2xl transition-colors duration-200 md:border ios-pushed-page ${
               isDark
@@ -386,14 +403,18 @@ export const SearchFilterDrawer: React.FC<SearchFilterDrawerProps> = React.memo(
                 <motion.button
                   key={cat.id}
                   id={`cat-card-${cat.id}`}
-                  initial={{ opacity: 0, scale: 0.88, y: 12 }}
+                  initial={shouldAnimateEntrance ? { opacity: 0, scale: 0.88, y: 12 } : false}
                   animate={{ opacity: 1, scale: 1, y: 0 }}
-                  transition={{
-                    type: 'spring',
-                    stiffness: 380,
-                    damping: 22,
-                    delay: idx * 0.035,
-                  }}
+                  transition={
+                    shouldAnimateEntrance
+                      ? {
+                          type: 'spring',
+                          stiffness: 380,
+                          damping: 22,
+                          delay: idx * 0.035,
+                        }
+                      : { duration: 0 }
+                  }
                   whileHover={{ scale: 1.01, transition: { type: 'spring', stiffness: 400, damping: 18 } }}
                   whileTap={{ scale: 0.96, transition: { type: 'spring', stiffness: 500, damping: 14 } }}
                   onClick={() => setSelectedCategory(cat)}
@@ -408,14 +429,18 @@ export const SearchFilterDrawer: React.FC<SearchFilterDrawerProps> = React.memo(
                     {cat.image ? (
                       <div className="w-[50px] h-[50px] shrink-0 flex items-center justify-center group-hover:scale-105 transition-transform duration-300">
                         <motion.img
-                          initial={{ opacity: 0, scale: 0.88, y: 8 }}
+                          initial={shouldAnimateEntrance ? { opacity: 0, scale: 0.88, y: 8 } : false}
                           animate={{ opacity: 1, scale: 1, y: 0 }}
-                          transition={{
-                            type: 'spring',
-                            stiffness: 380,
-                            damping: 22,
-                            delay: idx * 0.035,
-                          }}
+                          transition={
+                            shouldAnimateEntrance
+                              ? {
+                                  type: 'spring',
+                                  stiffness: 380,
+                                  damping: 22,
+                                  delay: idx * 0.035,
+                                }
+                              : { duration: 0 }
+                          }
                           src={cat.image}
                           alt={cat.name}
                           className="w-full h-full object-contain filter drop-shadow-md select-none"
@@ -489,14 +514,18 @@ export const SearchFilterDrawer: React.FC<SearchFilterDrawerProps> = React.memo(
                   <motion.div
                     key={spot.id}
                     id={`spot-result-${spot.id}`}
-                    initial={{ opacity: 0, scale: 0.88, y: 12 }}
+                    initial={shouldAnimateEntrance ? { opacity: 0, scale: 0.88, y: 12 } : false}
                     animate={{ opacity: 1, scale: 1, y: 0 }}
-                    transition={{
-                      type: 'spring',
-                      stiffness: 380,
-                      damping: 22,
-                      delay: Math.min(idx * 0.035, 0.35),
-                    }}
+                    transition={
+                      shouldAnimateEntrance
+                        ? {
+                            type: 'spring',
+                            stiffness: 380,
+                            damping: 22,
+                            delay: Math.min(idx * 0.035, 0.35),
+                          }
+                        : { duration: 0 }
+                    }
                     whileHover={{ scale: 1.01, transition: { type: 'spring', stiffness: 400, damping: 18 } }}
                     whileTap={{ scale: 0.96, transition: { type: 'spring', stiffness: 500, damping: 14 } }}
                     onClick={() => {
@@ -515,14 +544,18 @@ export const SearchFilterDrawer: React.FC<SearchFilterDrawerProps> = React.memo(
                         isDark ? 'bg-zinc-900 border-white/10' : 'bg-zinc-200 border-black/5'
                       }`}>
                         <motion.img
-                          initial={{ opacity: 0, scale: 0.88, y: 8 }}
+                          initial={shouldAnimateEntrance ? { opacity: 0, scale: 0.88, y: 8 } : false}
                           animate={{ opacity: 1, scale: 1, y: 0 }}
-                          transition={{
-                            type: 'spring',
-                            stiffness: 380,
-                            damping: 22,
-                            delay: Math.min(idx * 0.035, 0.35),
-                          }}
+                          transition={
+                            shouldAnimateEntrance
+                              ? {
+                                  type: 'spring',
+                                  stiffness: 380,
+                                  damping: 22,
+                                  delay: Math.min(idx * 0.035, 0.35),
+                                }
+                              : { duration: 0 }
+                          }
                           src={getSpotImage(spot)}
                           alt={spot.name}
                           className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
