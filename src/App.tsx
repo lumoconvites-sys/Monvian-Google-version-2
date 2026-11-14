@@ -49,6 +49,7 @@ import {
   savePersistentSession,
   loadPersistentSession,
   clearPersistentSession,
+  clearSyncSessionStorage,
   hasSyncSessionToken,
 } from './utils/persistentAuthStorage';
 
@@ -121,6 +122,13 @@ export default function App() {
   const [isAuthChecking, setIsAuthChecking] = useState<boolean>(
     () => !pendingResetOobCode && !hasSyncSessionToken()
   );
+  const [authInitialMode, setAuthInitialMode] = useState<'landing' | 'login'>(() => {
+    try {
+      return localStorage.getItem('monvian_manual_logout') === '1' ? 'login' : 'landing';
+    } catch {
+      return 'landing';
+    }
+  });
   const manualLogoutRef = useRef<boolean>(false);
   const [user, setUser] = useState<any>(() => {
     try {
@@ -520,35 +528,22 @@ export default function App() {
     setIsWeatherModalOpen((prev) => !prev);
   }, []);
 
-  const performFullLogout = useCallback(async () => {
+  const performFullLogout = useCallback(() => {
     manualLogoutRef.current = true;
+    let token: string | null = null;
     try {
-      const stored = await loadPersistentSession().catch(() => null);
-      const token = stored?.token || localStorage.getItem('monvian_token');
-
-      // 1. Invalidate active session in backend and Supabase
-      await fetch('/api/auth/logout', {
-        method: 'POST',
-        credentials: 'include',
-        headers: {
-          'Content-Type': 'application/json',
-          ...(token ? { Authorization: `Bearer ${token}` } : {}),
-        },
-        body: JSON.stringify({ token: token || undefined }),
-      }).catch(() => {});
-
-      // 2. Sign out from Supabase Auth and Firebase Auth
-      await Promise.allSettled([
-        supabase ? supabase.auth.signOut() : Promise.resolve(),
-        signOut(auth),
-      ]);
-      setCachedAccessToken(null);
-
-      // 3. Remove all IndexedDB, localStorage, sessionStorage, and cookie credentials
-      await clearPersistentSession();
+      token = localStorage.getItem('monvian_token');
     } catch {}
 
-    // 4. Reset in-memory application states and redirect to login
+    // 1. Immediately wipe synchronous storage & cookies and flag manual logout so refreshes never auto-restore
+    clearSyncSessionStorage({ preserveManualLogoutFlag: true });
+    try {
+      localStorage.setItem('monvian_manual_logout', '1');
+    } catch {}
+    setCachedAccessToken(null);
+
+    // 2. Immediately switch UI directly to the Login screen (never returning to the Profile tab)
+    setAuthInitialMode('login');
     hasExecutedSignupIntroRef.current = false;
     setIsOnboardingItinerarySelection(false);
     setSignupIntroStage('idle');
@@ -565,6 +560,23 @@ export default function App() {
     setTabHistory([]);
     iosNavigationManager.resetAll();
     window.dispatchEvent(new CustomEvent('monvian:user_logged_out'));
+
+    // 3. Revoke token on backend, sign out Firebase & Supabase, and clear IndexedDB asynchronously
+    void Promise.allSettled([
+      fetch('/api/auth/logout', {
+        method: 'POST',
+        credentials: 'include',
+        keepalive: true,
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+        body: JSON.stringify({ token: token || undefined }),
+      }),
+      supabase ? supabase.auth.signOut() : Promise.resolve(),
+      signOut(auth),
+      clearPersistentSession({ preserveManualLogoutFlag: true }),
+    ]);
   }, []);
 
   useEffect(() => {
@@ -601,7 +613,13 @@ export default function App() {
     };
 
     const restoreFromOfficialProviders = async (): Promise<{ token: string; user: any } | null> => {
-      if (manualLogoutRef.current) return null;
+      try {
+        if (manualLogoutRef.current || localStorage.getItem('monvian_manual_logout') === '1') {
+          return null;
+        }
+      } catch {
+        if (manualLogoutRef.current) return null;
+      }
 
       // 1. Try official Supabase Auth (backed by IndexedDB adapter + automatic refresh_token renewal)
       if (supabase) {
@@ -1817,12 +1835,17 @@ export default function App() {
           }}
         >
           <AuthScreen
+            initialAuthMode={authInitialMode}
             initialResetOobCode={pendingResetOobCode}
             onResetHandled={() => {
               setPendingResetOobCode(null);
               clearPersistentSession().catch(() => {});
             }}
             onSuccess={(token, userData, isNewAccount) => {
+              try {
+                localStorage.removeItem('monvian_manual_logout');
+              } catch {}
+              setAuthInitialMode('landing');
               setPendingResetOobCode(null);
               manualLogoutRef.current = false;
               const cleanEmail = (userData?.email || userData?.whatsapp || '').trim().toLowerCase();

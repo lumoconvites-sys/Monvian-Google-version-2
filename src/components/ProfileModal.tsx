@@ -1397,7 +1397,6 @@ export const ProfileModal: React.FC<ProfileModalProps> = React.memo(({
                 <button
                   type="button"
                   onClick={() => {
-                    setActiveSubView('main');
                     if (onLogout) {
                       onLogout();
                     } else {

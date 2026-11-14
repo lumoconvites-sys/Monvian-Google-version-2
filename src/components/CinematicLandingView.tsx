@@ -586,7 +586,7 @@ export const CinematicLandingView: React.FC<CinematicLandingViewProps> = ({
       <span
         className={`inline-block whitespace-nowrap ${
           isAccent
-            ? 'text-[#75D58A] drop-shadow-[0_2px_18px_rgba(117,213,138,0.35)]'
+            ? 'text-[#83C792] drop-shadow-[0_2px_18px_rgba(131,199,146,0.28)]'
             : 'text-[#FFFFFF]'
         }`}
       >
@@ -676,8 +676,8 @@ export const CinematicLandingView: React.FC<CinematicLandingViewProps> = ({
         }
         .monvian-floating-nav {
           border-radius: 999px;
-          backdrop-filter: blur(25px) saturate(180%);
-          -webkit-backdrop-filter: blur(25px) saturate(180%);
+          backdrop-filter: blur(25px) saturate(126%);
+          -webkit-backdrop-filter: blur(25px) saturate(126%);
           transform: translate3d(0, 0, 0);
           overflow: hidden;
           transition: background 0.28s ease, border-color 0.28s ease, color 0.24s ease, box-shadow 0.28s ease;
@@ -855,7 +855,7 @@ export const CinematicLandingView: React.FC<CinematicLandingViewProps> = ({
               className="w-full h-full relative will-change-transform"
               style={{
                 background:
-                  'linear-gradient(180deg, #0D67C5 0%, #177EE0 18%, #2E95F0 36%, #62B6FA 53%, #9BD5FE 68%, #D6EEFF 80%, #F2F9FF 88%, #FFFFFF 94%, #FFFFFF 100%)',
+                  'linear-gradient(180deg, #2968A9 0%, #357DC2 18%, #4B93D3 36%, #79B4E3 53%, #AAD2EF 68%, #DCEDF9 80%, #F4F9FD 88%, #FFFFFF 94%, #FFFFFF 100%)',
               }}
             >
               {/* Brilho Solar Radial e Iluminação Atmosférica */}
@@ -864,7 +864,7 @@ export const CinematicLandingView: React.FC<CinematicLandingViewProps> = ({
                 className="absolute inset-0 will-change-transform"
                 style={{
                   background:
-                    'radial-gradient(circle at 58% 24%, rgba(255, 255, 255, 0.26) 0%, rgba(186, 226, 255, 0.14) 34%, rgba(23, 126, 224, 0) 70%), radial-gradient(ellipse 88% 36% at 50% 68%, rgba(255, 255, 255, 0.52) 0%, rgba(226, 244, 255, 0.22) 55%, rgba(255, 255, 255, 0) 100%)',
+                    'radial-gradient(circle at 58% 24%, rgba(255, 255, 255, 0.26) 0%, rgba(202, 229, 249, 0.14) 34%, rgba(53, 125, 194, 0) 70%), radial-gradient(ellipse 88% 36% at 50% 68%, rgba(255, 255, 255, 0.52) 0%, rgba(232, 244, 252, 0.22) 55%, rgba(255, 255, 255, 0) 100%)',
                 }}
               />
             </div>
@@ -1084,7 +1084,7 @@ export const CinematicLandingView: React.FC<CinematicLandingViewProps> = ({
                       draggable={false}
                       style={{
                         filter:
-                          'brightness(1.01) contrast(1.15) saturate(1.36) drop-shadow(0 24px 34px rgba(10, 44, 96, 0.26))',
+                          'brightness(1.01) contrast(1.08) saturate(0.95) drop-shadow(0 24px 34px rgba(10, 44, 96, 0.22))',
                       }}
                       className="w-full h-auto block object-contain select-none"
                     />

@@ -262,7 +262,8 @@ export async function loadPersistentSession(): Promise<{ token: string; user: an
   return null;
 }
 
-export async function clearPersistentSession(): Promise<void> {
+export function clearSyncSessionStorage(options?: { preserveManualLogoutFlag?: boolean }): void {
+  if (typeof window === 'undefined') return;
   const keysToRemove = [
     'monvian_token',
     'monvian_auth_token',
@@ -279,6 +280,7 @@ export async function clearPersistentSession(): Promise<void> {
     'monvian_trip_note_campos',
     'monvian_user_preferences',
     'monvian_user_session_id',
+    ...(options?.preserveManualLogoutFlag ? [] : ['monvian_manual_logout']),
   ];
 
   keysToRemove.forEach((k) => {
@@ -310,6 +312,10 @@ export async function clearPersistentSession(): Promise<void> {
   } catch {}
 
   clearAuthCookies();
+}
+
+export async function clearPersistentSession(options?: { preserveManualLogoutFlag?: boolean }): Promise<void> {
+  clearSyncSessionStorage(options);
 
   await Promise.allSettled([
     idbDelete(SESSION_STORE, SESSION_RECORD_KEY),

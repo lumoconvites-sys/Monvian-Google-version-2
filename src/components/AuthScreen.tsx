@@ -36,6 +36,7 @@ import { savePersistentSession } from '../utils/persistentAuthStorage';
 interface AuthScreenProps {
   onSuccess: (token: string, user: any, isNewAccount?: boolean) => void;
   initialResetOobCode?: string | null;
+  initialAuthMode?: 'landing' | 'login';
   onResetHandled?: () => void;
 }
 
@@ -73,7 +74,12 @@ function validateEmailFormat(rawEmail: string): { valid: boolean; reason?: strin
   return { valid: true };
 }
 
-export function AuthScreen({ onSuccess, initialResetOobCode, onResetHandled }: AuthScreenProps) {
+export function AuthScreen({
+  onSuccess,
+  initialResetOobCode,
+  initialAuthMode = 'landing',
+  onResetHandled,
+}: AuthScreenProps) {
   const shouldReduceMotion = useReducedMotion();
 
   // Scroll container ref for the cinematic landing page stage
@@ -94,11 +100,26 @@ export function AuthScreen({ onSuccess, initialResetOobCode, onResetHandled }: A
     return null;
   }, [initialResetOobCode]);
 
-  // Application starts on the Cinematic Landing Page (or directly on resetPassword if coming from recovery link)
+  // Application starts on the Cinematic Landing Page (or directly on login after explicit logout, or resetPassword from recovery link)
   const [authMode, setAuthMode] = useState<'landing' | 'login' | 'register' | 'recover' | 'resetPassword'>(
-    () => (detectedResetCode ? 'resetPassword' : 'landing')
+    () => (detectedResetCode ? 'resetPassword' : initialAuthMode)
   );
   const [registerStep, setRegisterStep] = useState<1 | 2 | 3 | 4>(1);
+
+  useEffect(() => {
+    if (!detectedResetCode && initialAuthMode === 'login') {
+      setAuthMode('login');
+    }
+  }, [initialAuthMode, detectedResetCode]);
+
+  // If user just clicked logout and refreshed quickly, ensure Firebase client auth is signed out
+  useEffect(() => {
+    try {
+      if (localStorage.getItem('monvian_manual_logout') === '1') {
+        signOut(auth).catch(() => {});
+      }
+    } catch {}
+  }, []);
 
   // In-app Password Reset (?mode=resetPassword&oobCode=...) state
   const [resetOobCode, setResetOobCode] = useState<string | null>(() => detectedResetCode);
