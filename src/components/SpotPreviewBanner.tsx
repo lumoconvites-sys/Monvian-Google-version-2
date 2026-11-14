@@ -445,9 +445,8 @@ export const SpotPreviewBanner: React.FC<SpotPreviewBannerProps> = ({
           ? { duration: 0.15 }
           : { type: 'spring', stiffness: 360, damping: 32, mass: 0.88 }
       }
-      className="md:hidden fixed inset-x-0 z-[245] flex justify-center px-3.5 sm:px-4 pointer-events-none select-none"
+      className="md:hidden fixed inset-x-0 bottom-[82px] sm:bottom-[84px] z-[245] flex justify-center px-3.5 sm:px-4 pointer-events-none select-none"
       style={{
-        bottom: 'calc(env(safe-area-inset-bottom, 0px) + 86px)',
         fontFamily:
           "'SF Pro Display', 'SF Pro Text', -apple-system, BlinkMacSystemFont, sans-serif",
       }}

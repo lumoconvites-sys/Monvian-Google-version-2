@@ -74,7 +74,7 @@ const HeroUsersCounter = React.memo(function HeroUsersCounter({
         ease: [0.22, 1, 0.36, 1],
         delay: prefersReducedMotion ? 0 : 0.08,
       }}
-      className="relative z-[95] flex items-center justify-center gap-5 sm:gap-6 select-none"
+      className="relative z-[95] flex items-center justify-center gap-4 sm:gap-5 select-none"
       aria-label={`${userCount.toLocaleString('pt-BR')} Usuários no Monvian`}
     >
       <div className="relative z-[95] flex items-center -space-x-2.5 shrink-0">
@@ -97,13 +97,13 @@ const HeroUsersCounter = React.memo(function HeroUsersCounter({
         ].map((avatar) => (
           <div
             key={avatar.src}
-            className={`relative ${avatar.zIndex} w-[42px] h-[42px] sm:w-[44px] sm:h-[44px] rounded-full border-[2.5px] border-white shadow-[0_6px_16px_rgba(14,42,79,0.22)] overflow-hidden bg-white shrink-0`}
+            className={`relative ${avatar.zIndex} w-[44px] h-[44px] sm:w-[46px] sm:h-[46px] rounded-full border-[2.5px] border-white shadow-[0_6px_16px_rgba(14,42,79,0.22)] overflow-hidden bg-white shrink-0`}
           >
             <img
               src={avatar.src}
               alt={avatar.alt}
-              width={44}
-              height={44}
+              width={46}
+              height={46}
               decoding="async"
               draggable={false}
               referrerPolicy="no-referrer"
@@ -114,7 +114,7 @@ const HeroUsersCounter = React.memo(function HeroUsersCounter({
       </div>
 
       <div
-        className="relative z-[95] w-[1.5px] h-[38px] sm:h-[40px] bg-[#080808]/20 rounded-full shrink-0"
+        className="relative z-[95] w-[1.5px] h-[40px] sm:h-[42px] bg-[#080808]/20 rounded-full shrink-0"
         aria-hidden="true"
       />
 
@@ -671,12 +671,12 @@ export const CinematicLandingView: React.FC<CinematicLandingViewProps> = ({
         }
         .monvian-hero-foreground {
           padding-top: max(136px, calc(env(safe-area-inset-top, 0px) + 124px));
-          padding-bottom: max(24px, calc(env(safe-area-inset-bottom, 0px) + 16px));
+          padding-bottom: max(18px, calc(env(safe-area-inset-bottom, 0px) + 10px));
         }
         @media (min-width: 1024px) {
           .monvian-hero-foreground {
             padding-top: 84px;
-            padding-bottom: 24px;
+            padding-bottom: 20px;
           }
         }
         .monvian-cloud-soft-mask {
@@ -686,8 +686,8 @@ export const CinematicLandingView: React.FC<CinematicLandingViewProps> = ({
         }
         .monvian-floating-nav {
           border-radius: 999px;
-          backdrop-filter: blur(25px) saturate(126%);
-          -webkit-backdrop-filter: blur(25px) saturate(126%);
+          backdrop-filter: blur(25px) saturate(151%);
+          -webkit-backdrop-filter: blur(25px) saturate(151%);
           transform: translate3d(0, 0, 0);
           overflow: hidden;
           transition: background 0.28s ease, border-color 0.28s ease, color 0.24s ease, box-shadow 0.28s ease;
@@ -842,6 +842,7 @@ export const CinematicLandingView: React.FC<CinematicLandingViewProps> = ({
         style={{
           height: 'var(--app-height, 100dvh)',
           minHeight: 'max(640px, var(--app-height, 100dvh))',
+          filter: 'saturate(1.2)',
         }}
       >
         {/* 1. CÉU TRIDIMENSIONAL MULTICAMADAS (Termina em branco puro #FFFFFF muito antes da base para zero corte horizontal) */}
@@ -1311,7 +1312,7 @@ export const CinematicLandingView: React.FC<CinematicLandingViewProps> = ({
           {/* Base do Hero: Indicador de Usuários 100% Centralizado Horizontalmente */}
           <div
             ref={heroCtaWrapRef}
-            className="relative z-[95] w-full flex justify-center pb-[6.5vh] sm:pb-[5vh] lg:pb-2 xl:pb-3 pointer-events-auto shrink-0 will-change-transform"
+            className="relative z-[95] w-full flex justify-center pb-1 sm:pb-2 lg:pb-2 xl:pb-3 pointer-events-auto shrink-0 will-change-transform"
           >
             <HeroUsersCounter prefersReducedMotion={prefersReducedMotion} />
           </div>
@@ -1328,6 +1329,7 @@ export const CinematicLandingView: React.FC<CinematicLandingViewProps> = ({
         ref={presentationSectionRef}
         aria-labelledby="monvian-presentation-heading"
         className="relative z-[80] w-full pt-8 sm:pt-12 pb-10 sm:pb-12 bg-[#FFFFFF]"
+        style={{ filter: 'saturate(1.2)' }}
       >
         {/* Conteúdo editorial e minimalista */}
         <div

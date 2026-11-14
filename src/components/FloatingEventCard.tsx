@@ -222,13 +222,17 @@ export const FloatingEventCard: React.FC<FloatingEventCardProps> = ({
   return (
     <AnimatePresence mode="wait">
       {shouldRender && activeEvent && isDismissed && (
-        <div
+        <motion.div
           key="monvian-floating-event-flag-capsule"
+          initial={{ opacity: 0, scale: 0.84 }}
+          animate={{ opacity: 1, scale: 1 }}
+          exit={{ opacity: 0, scale: 0.84 }}
+          transition={{ duration: 0.24, ease: [0.22, 1, 0.36, 1] }}
           style={{
             top: flagTopPx !== null ? `${flagTopPx}px` : 'calc(50% + 126px)',
             paddingRight: 'env(safe-area-inset-right, 0px)',
           }}
-          className="md:hidden fixed right-3.5 z-[245] flex flex-col items-center select-none pointer-events-none"
+          className="md:hidden fixed right-3.5 z-[55] flex flex-col items-center select-none pointer-events-none"
         >
           <button
             type="button"
@@ -245,24 +249,26 @@ export const FloatingEventCard: React.FC<FloatingEventCardProps> = ({
           >
             <Flag className="w-5 h-5 text-amber-500 fill-amber-500 stroke-[2.2]" />
           </button>
-        </div>
+        </motion.div>
       )}
 
       {shouldRender && activeEvent && !isDismissed && (
         <motion.div
           key="monvian-floating-event-card-wrapper"
-          initial={{ opacity: 0, y: 14, scale: 0.97 }}
+          initial={{ opacity: 0, y: 14, scale: 0.96 }}
           animate={{ opacity: 1, y: 0, scale: 1 }}
           exit={
-            dismissDirection === 'down'
-              ? { opacity: 0, y: 110, scale: 0.86, transition: { duration: 0.28, ease: [0.32, 1, 0.23, 1] } }
-              : { opacity: 0, x: 260, scale: 0.86, transition: { duration: 0.28, ease: [0.32, 1, 0.23, 1] } }
+            !visible
+              ? { opacity: 0, scale: 0.92, y: 6, transition: { duration: 0.24, ease: [0.22, 1, 0.36, 1] } }
+              : dismissDirection === 'down'
+                ? { opacity: 0, y: 110, scale: 0.86, transition: { duration: 0.28, ease: [0.32, 1, 0.23, 1] } }
+                : { opacity: 0, x: 260, scale: 0.86, transition: { duration: 0.28, ease: [0.32, 1, 0.23, 1] } }
           }
-          transition={{ duration: 0.32, ease: [0.22, 1, 0.36, 1] }}
+          transition={{ duration: 0.28, ease: [0.22, 1, 0.36, 1] }}
           style={{
             bottom: '84px',
           }}
-          className="md:hidden fixed inset-x-0 z-[245] flex justify-center px-4 select-none pointer-events-none"
+          className="md:hidden fixed inset-x-0 z-[55] flex justify-center px-4 select-none pointer-events-none"
         >
           <motion.div
             drag

@@ -53,6 +53,7 @@ interface MapComponentProps {
   snowEnabled?: boolean;
   rainEnabled?: boolean;
   isSpotlightActive?: boolean;
+  isFocusMode?: boolean;
   activeTab?: string;
 }
 
@@ -285,6 +286,7 @@ export const MapComponent = memo(
       snowEnabled = false,
       rainEnabled = false,
       isSpotlightActive = false,
+      isFocusMode = false,
       activeTab,
     },
     ref
@@ -327,8 +329,11 @@ export const MapComponent = memo(
     // User location marker refs
     const userMarkerRef = useRef<maplibregl.Marker | null>(null);
     const userMarkerMapRef = useRef<maplibregl.Map | null>(null);
+    const userMarkerStackRef = useRef<HTMLDivElement | null>(null);
     const userAvatarImgRef = useRef<HTMLImageElement | null>(null);
     const userBeamRef = useRef<HTMLDivElement | null>(null);
+    const isFocusModeRef = useRef<boolean>(isFocusMode);
+    isFocusModeRef.current = isFocusMode;
     const latestUserCoordsRef = useRef<[number, number]>(
       normalizeCoords(userCoords, [-45.5908, -22.7394])
     );
@@ -408,7 +413,9 @@ export const MapComponent = memo(
           beamWrapper.style.transformOrigin = '50% 50%';
           beamWrapper.style.pointerEvents = 'none';
           beamWrapper.style.zIndex = '1';
-          beamWrapper.style.willChange = 'transform';
+          beamWrapper.style.willChange = 'transform, opacity';
+          beamWrapper.style.transition = 'opacity 0.28s cubic-bezier(0.22, 1, 0.36, 1)';
+          beamWrapper.style.opacity = isFocusModeRef.current ? '0' : '1';
           beamWrapper.innerHTML = `
             <svg viewBox="0 0 160 160" width="100%" height="100%" style="overflow: visible;">
               <defs>
@@ -436,8 +443,12 @@ export const MapComponent = memo(
           centerStack.style.alignItems = 'center';
           centerStack.style.justifyContent = 'center';
           centerStack.style.zIndex = '2';
-          centerStack.style.pointerEvents = 'auto';
+          centerStack.style.transition = 'transform 0.32s cubic-bezier(0.22, 1, 0.36, 1), opacity 0.28s cubic-bezier(0.22, 1, 0.36, 1)';
+          centerStack.style.opacity = isFocusModeRef.current ? '0' : '1';
+          centerStack.style.transform = isFocusModeRef.current ? 'scale(0.76)' : 'scale(1)';
+          centerStack.style.pointerEvents = isFocusModeRef.current ? 'none' : 'auto';
           centerStack.style.cursor = 'pointer';
+          userMarkerStackRef.current = centerStack;
 
           // Outer 3D Ring (Círculo translúcido azul suave ao redor da foto)
           const outerRing = document.createElement('div');
@@ -1183,11 +1194,22 @@ export const MapComponent = memo(
 
     // Synchronize marker highlights smoothly without destroying DOM nodes
     const syncMarkerHighlight = useCallback((activeSpotId: string | null | undefined) => {
+      const focusActive = isFocusModeRef.current;
+
       markerRecordsRef.current.forEach((rec) => {
         const isSelected = activeSpotId ? rec.spotId === activeSpotId : false;
-        rec.containerEl.style.transition = 'transform 0.4s cubic-bezier(0.34, 1.56, 0.64, 1)';
-        rec.containerEl.style.transform = isSelected ? 'scale(1.22)' : 'scale(0.96)';
+        const shouldHideMarker = focusActive && !isSelected;
+
+        rec.containerEl.style.transition =
+          'transform 0.36s cubic-bezier(0.22, 1, 0.36, 1), opacity 0.28s cubic-bezier(0.22, 1, 0.36, 1)';
+        rec.containerEl.style.opacity = shouldHideMarker ? '0' : '1';
+        rec.containerEl.style.transform = shouldHideMarker
+          ? 'scale(0.72)'
+          : isSelected
+            ? 'scale(1.22)'
+            : 'scale(0.96)';
         rec.containerEl.style.zIndex = isSelected ? '50' : '20';
+        rec.el.style.pointerEvents = shouldHideMarker ? 'none' : 'auto';
 
         if (rec.isStar) {
           if (isSelected) {
@@ -1214,6 +1236,19 @@ export const MapComponent = memo(
           rec.pulseEl.style.display = isSelected ? 'block' : 'none';
         }
       });
+
+      if (userMarkerStackRef.current) {
+        userMarkerStackRef.current.style.transition =
+          'transform 0.32s cubic-bezier(0.22, 1, 0.36, 1), opacity 0.28s cubic-bezier(0.22, 1, 0.36, 1)';
+        userMarkerStackRef.current.style.opacity = focusActive ? '0' : '1';
+        userMarkerStackRef.current.style.transform = focusActive ? 'scale(0.76)' : 'scale(1)';
+        userMarkerStackRef.current.style.pointerEvents = focusActive ? 'none' : 'auto';
+      }
+
+      if (userBeamRef.current) {
+        userBeamRef.current.style.transition = 'opacity 0.28s cubic-bezier(0.22, 1, 0.36, 1)';
+        userBeamRef.current.style.opacity = focusActive ? '0' : '1';
+      }
     }, []);
 
     // Listen for Monvian iOS Minimalist Discovery Indicator & Radar on Tourist Spot Markers
@@ -2007,7 +2042,7 @@ export const MapComponent = memo(
       } else if (previousCameraStateRef.current) {
         restorePreviousSpotCamera();
       }
-    }, [selectedSpot, syncMarkerHighlight, setFollowMode, restorePreviousSpotCamera]);
+    }, [selectedSpot, isFocusMode, syncMarkerHighlight, setFollowMode, restorePreviousSpotCamera]);
 
     // Return zoom and camera to the exact zoom/position before clicking the spot when closing or clicking the map
     useEffect(() => {
@@ -2214,8 +2249,10 @@ export const MapComponent = memo(
         {/* Floating Right-Side Map Controls (Compass/Location, Layers) */}
         <div
           id="mobile-map-right-controls"
-          className={`md:hidden absolute right-3.5 -translate-y-1/2 z-30 flex flex-col items-center gap-3 pointer-events-auto transition-[top] duration-300 ease-out ${
-            selectedSpot && !isDetailOpen ? 'top-[calc(50%-98px)]' : 'top-1/2'
+          className={`md:hidden absolute right-3.5 top-1/2 -translate-y-1/2 z-30 flex flex-col items-center gap-3 transition-[opacity,transform] duration-300 ease-[cubic-bezier(0.22,1,0.36,1)] ${
+            isFocusMode
+              ? 'opacity-0 scale-90 pointer-events-none [&_*]:!pointer-events-none'
+              : 'opacity-100 scale-100 pointer-events-auto'
           }`}
           style={{
             paddingRight: 'env(safe-area-inset-right, 0px)',

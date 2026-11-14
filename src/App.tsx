@@ -122,13 +122,7 @@ export default function App() {
   const [isAuthChecking, setIsAuthChecking] = useState<boolean>(
     () => !pendingResetOobCode && !hasSyncSessionToken()
   );
-  const [authInitialMode, setAuthInitialMode] = useState<'landing' | 'login'>(() => {
-    try {
-      return localStorage.getItem('monvian_manual_logout') === '1' ? 'login' : 'landing';
-    } catch {
-      return 'landing';
-    }
-  });
+  const [authInitialMode, setAuthInitialMode] = useState<'landing' | 'login'>('landing');
   const manualLogoutRef = useRef<boolean>(false);
   const [user, setUser] = useState<any>(() => {
     try {
@@ -528,22 +522,25 @@ export default function App() {
     setIsWeatherModalOpen((prev) => !prev);
   }, []);
 
-  const performFullLogout = useCallback(() => {
+  const performFullLogout = useCallback((options?: { redirectToLogin?: boolean }) => {
+    const shouldRedirectToLogin = Boolean(options?.redirectToLogin);
     manualLogoutRef.current = true;
     let token: string | null = null;
     try {
       token = localStorage.getItem('monvian_token');
     } catch {}
 
-    // 1. Immediately wipe synchronous storage & cookies and flag manual logout so refreshes never auto-restore
-    clearSyncSessionStorage({ preserveManualLogoutFlag: true });
-    try {
-      localStorage.setItem('monvian_manual_logout', '1');
-    } catch {}
+    // 1. Immediately wipe synchronous storage & cookies; keep manual logout guard only for explicit logouts
+    clearSyncSessionStorage({ preserveManualLogoutFlag: shouldRedirectToLogin });
+    if (shouldRedirectToLogin) {
+      try {
+        localStorage.setItem('monvian_manual_logout', '1');
+      } catch {}
+    }
     setCachedAccessToken(null);
 
-    // 2. Immediately switch UI directly to the Login screen (never returning to the Profile tab)
-    setAuthInitialMode('login');
+    // 2. Keep 'landing' as default on session expiration; open 'login' only on explicit Profile sign-out
+    setAuthInitialMode(shouldRedirectToLogin ? 'login' : 'landing');
     hasExecutedSignupIntroRef.current = false;
     setIsOnboardingItinerarySelection(false);
     setSignupIntroStage('idle');
@@ -575,7 +572,7 @@ export default function App() {
       }),
       supabase ? supabase.auth.signOut() : Promise.resolve(),
       signOut(auth),
-      clearPersistentSession({ preserveManualLogoutFlag: true }),
+      clearPersistentSession({ preserveManualLogoutFlag: shouldRedirectToLogin }),
     ]);
   }, []);
 
@@ -1427,6 +1424,13 @@ export default function App() {
   }, [spots, searchQuery]);
 
   const isBlurActive = Boolean(isCategoryCardOpen || isSearchOpen);
+  const isSpotFocusActive = Boolean(
+    activeTab === 'explorar' &&
+    isSpotCardOpen &&
+    selectedSpot &&
+    spotPreviewMode === 'card' &&
+    !isBlurActive
+  );
 
   const handleSelectSpot = useCallback((spot: Spot | null) => {
     setSelectedSpot(spot);
@@ -2056,6 +2060,7 @@ export default function App() {
               snowEnabled={snowEnabled}
               rainEnabled={Boolean(rainEnabled && realWeather.isRaining)}
               isSpotlightActive={isUserLocationSpotlightActive}
+              isFocusMode={isSpotFocusActive}
               activeTab={activeTab}
             />
 
@@ -2093,8 +2098,12 @@ export default function App() {
       {activeTab === 'explorar' && !isMapOrbiting && !isUserLocationSpotlightActive && (
         <header
           aria-label="Informações de Campos do Jordão"
-          className={`md:hidden absolute top-0 left-0 right-0 z-40 flex items-center justify-between pointer-events-none px-4 sm:px-6 transition-[filter,opacity,transform] duration-200 ease-out ${
-            isBlurActive ? 'blur-[6px] opacity-40 [&_*]:!pointer-events-none' : 'blur-0 opacity-100'
+          className={`md:hidden absolute top-0 left-0 right-0 z-40 flex items-center justify-between pointer-events-none px-4 sm:px-6 transition-[filter,opacity,transform] duration-300 ease-[cubic-bezier(0.22,1,0.36,1)] ${
+            isSpotFocusActive
+              ? 'opacity-0 scale-95 blur-[4px] [&_*]:!pointer-events-none'
+              : isBlurActive
+                ? 'blur-[6px] opacity-40 scale-100 [&_*]:!pointer-events-none'
+                : 'blur-0 opacity-100 scale-100'
           }`}
           style={{
             paddingTop: 'max(calc(env(safe-area-inset-top, 0px) + 16px), 28px)',
@@ -2206,30 +2215,7 @@ export default function App() {
       </header>
       )}
 
-      {/* 4. Bottom Floating Navigation Pill and Global Blur Overlays rendered at root level */}
-
-      {/* 5. Floating Establishment Bottom Sheet Preview */}
-      <AnimatePresence>
-        {activeTab === 'explorar' && isSpotCardOpen && selectedSpot && (
-          <SpotPreviewBanner
-            key="spot-preview-sheet"
-            spot={selectedSpot}
-            userCoords={userCoords}
-            viewMode={spotPreviewMode}
-            onViewModeChange={setSpotPreviewMode}
-            theme={theme}
-            onClose={() => {
-              setRevertSpotZoomTrigger((t) => t + 1);
-              setSelectedSpot(null);
-            }}
-            onOpenDetails={(spot) => {
-              setSelectedSpot(spot);
-              setIsDetailOpen(true);
-            }}
-            onOpenItineraryTab={() => setActiveTab('roteiros')}
-          />
-        )}
-      </AnimatePresence>
+      {/* 4. Bottom Floating Navigation Pill, Focus Mode Blur Backdrop & SpotPreviewBanner rendered at root level */}
 
       {/* 6. Spot Detail Modal / Bottom Sheet (opened ONLY when user clicks "Ver Local") */}
       <AnimatePresence>
@@ -2375,7 +2361,7 @@ export default function App() {
           communityUrl={systemSettings.community_url}
           instagramUrl={systemSettings.instagram_url}
           onLogout={() => {
-            performFullLogout();
+            performFullLogout({ redirectToLogin: true });
           }}
         />
       )}
@@ -2404,14 +2390,11 @@ export default function App() {
 
     {/* Monvian iOS Minimalist Floating Event Card (Mounted ONLY while Explorar map is active) */}
     {activeTab === 'explorar' &&
-      !isSpotCardOpen &&
       !isDetailOpen &&
       !isMapOrbiting &&
-      !isOnboardingItinerarySelection &&
-      !isSearchOpen &&
-      !isCategoryCardOpen && (
+      !isOnboardingItinerarySelection && (
         <FloatingEventCard
-          visible={true}
+          visible={!isSpotCardOpen && !isSearchOpen && !isCategoryCardOpen}
           onActiveChange={setHasActiveMapEvents}
         />
       )}
@@ -2422,6 +2405,45 @@ export default function App() {
       !isOnboardingItinerarySelection && (
         <XpRewardNotificationOverlay visible={true} />
       )}
+
+    {/* Focus Mode Fullscreen Blur Backdrop when a Spot Card is active on mobile (matches filter blur style) */}
+    <AnimatePresence>
+      {isSpotFocusActive && (
+        <motion.div
+          id="spot-focus-blur-backdrop"
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          exit={{ opacity: 0 }}
+          transition={{ duration: 0.28, ease: [0.22, 1, 0.36, 1] }}
+          onClick={handleMapDismiss}
+          className="md:hidden fixed inset-0 z-[60] bg-black/25 dark:bg-black/55 backdrop-blur-md cursor-pointer pointer-events-auto"
+          style={{ WebkitBackdropFilter: 'blur(12px)' }}
+        />
+      )}
+    </AnimatePresence>
+
+    {/* 5. Floating Establishment Bottom Sheet Preview (Crisply above focus blur backdrop) */}
+    <AnimatePresence>
+      {activeTab === 'explorar' && isSpotCardOpen && selectedSpot && (
+        <SpotPreviewBanner
+          key="spot-preview-sheet"
+          spot={selectedSpot}
+          userCoords={userCoords}
+          viewMode={spotPreviewMode}
+          onViewModeChange={setSpotPreviewMode}
+          theme={theme}
+          onClose={() => {
+            setRevertSpotZoomTrigger((t) => t + 1);
+            setSelectedSpot(null);
+          }}
+          onOpenDetails={(spot) => {
+            setSelectedSpot(spot);
+            setIsDetailOpen(true);
+          }}
+          onOpenItineraryTab={() => setActiveTab('roteiros')}
+        />
+      )}
+    </AnimatePresence>
 
     {/* 4. Bottom Navigation Pill rendered at root level (Visible ONLY on mobile, hidden during detail sheet, exclusive post-signup itinerary selection & spotlight presentation) */}
     {!isMapOrbiting && !isOnboardingItinerarySelection && !isDetailOpen && (
