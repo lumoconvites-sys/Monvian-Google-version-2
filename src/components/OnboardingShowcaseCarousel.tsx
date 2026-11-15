@@ -1,5 +1,6 @@
 import React, { memo, useEffect, useRef } from 'react';
 import { useReducedMotion } from 'motion/react';
+import { useLanguage } from '../contexts/LanguageContext';
 
 export interface ShowcaseSlideItem {
   id: string;
@@ -62,6 +63,7 @@ const ShowcaseCard = memo(function ShowcaseCard({
 }: {
   item: ShowcaseSlideItem;
 }) {
+  const { tr } = useLanguage();
   return (
     <div
       className="relative w-[252px] h-[252px] sm:w-[296px] sm:h-[296px] md:w-[320px] md:h-[320px] shrink-0 rounded-[24px] overflow-hidden bg-[#F3F4F7] text-left select-none pointer-events-none"
@@ -71,7 +73,7 @@ const ShowcaseCard = memo(function ShowcaseCard({
     >
       <img
         src={item.src}
-        alt={item.alt}
+        alt={tr(item.alt)}
         loading="eager"
         decoding="async"
         draggable={false}
@@ -92,7 +94,7 @@ const ShowcaseCard = memo(function ShowcaseCard({
               "'SF Pro Display', -apple-system, BlinkMacSystemFont, sans-serif",
           }}
         >
-          {item.title}
+          {tr(item.title)}
         </span>
         <span
           className="mt-0.5 text-[13px] sm:text-[14px] font-normal text-white/85 leading-[1.3]"
@@ -101,7 +103,7 @@ const ShowcaseCard = memo(function ShowcaseCard({
               "'SF Pro Text', -apple-system, BlinkMacSystemFont, sans-serif",
           }}
         >
-          {item.subtitle}
+          {tr(item.subtitle)}
         </span>
       </div>
     </div>
@@ -110,6 +112,7 @@ const ShowcaseCard = memo(function ShowcaseCard({
 
 export const OnboardingShowcaseCarousel = memo(function OnboardingShowcaseCarousel() {
   const prefersReducedMotion = Boolean(useReducedMotion());
+  const { tr } = useLanguage();
 
   const containerRef = useRef<HTMLDivElement | null>(null);
   const trackRef = useRef<HTMLDivElement | null>(null);
@@ -239,7 +242,7 @@ export const OnboardingShowcaseCarousel = memo(function OnboardingShowcaseCarous
     <div
       ref={containerRef}
       id="roteiros"
-      aria-label="Destaques de Campos do Jordão"
+      aria-label={tr('Destaques de Campos do Jordão')}
       className="w-full overflow-hidden select-none pointer-events-none"
       style={{
         touchAction: 'pan-y',

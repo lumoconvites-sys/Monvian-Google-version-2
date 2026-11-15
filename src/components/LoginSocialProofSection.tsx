@@ -5,6 +5,7 @@ import {
   SocialProofReview,
   distributeReviewsIntoThreeTracks,
 } from '../data/socialProofReviews';
+import { useLanguage } from '../contexts/LanguageContext';
 
 interface LoginSocialProofSectionProps {
   /**
@@ -27,10 +28,11 @@ const STAR_INDICES = [0, 1, 2, 3, 4] as const;
 const CLONE_COPIES = [0, 1, 2] as const;
 
 const FiveStarsRow = memo(function FiveStarsRow() {
+  const { tr } = useLanguage();
   return (
     <div
       className="flex items-center gap-[2px] mt-0.5"
-      aria-label="Avaliação de 5 estrelas"
+      aria-label={tr('Avaliação de 5 estrelas')}
       role="img"
     >
       {STAR_INDICES.map((star) => (
@@ -89,6 +91,7 @@ const ReviewCard = memo(function ReviewCard({
 }: {
   review: SocialProofReview;
 }) {
+  const { tr } = useLanguage();
   return (
     <article
       data-source-type={review.sourceType}
@@ -108,7 +111,7 @@ const ReviewCard = memo(function ReviewCard({
       </div>
 
       <p className="mt-2.5 text-[13px] leading-[1.45] text-[#0A0A0A] font-normal">
-        {review.comment}
+        {tr(review.comment)}
       </p>
     </article>
   );
@@ -265,6 +268,7 @@ export const LoginSocialProofSection = memo(function LoginSocialProofSection({
   reviews = DEMO_SOCIAL_PROOF_REVIEWS,
 }: LoginSocialProofSectionProps) {
   const shouldReduceMotion = Boolean(useReducedMotion());
+  const { tr } = useLanguage();
   const sectionRef = useRef<HTMLElement | null>(null);
   const [isSectionVisible, setIsSectionVisible] = useState(true);
 
@@ -306,7 +310,7 @@ export const LoginSocialProofSection = memo(function LoginSocialProofSection({
   return (
     <section
       ref={sectionRef}
-      aria-label="Avaliações de visitantes"
+      aria-label={tr('Avaliações de visitantes')}
       className="w-full bg-[#FFFFFF] pt-4 pb-2 shrink-0 overflow-hidden select-none pointer-events-none"
       style={{
         touchAction: 'pan-y',
@@ -323,7 +327,7 @@ export const LoginSocialProofSection = memo(function LoginSocialProofSection({
               "'SF Pro Display', 'SF Pro Text', -apple-system, BlinkMacSystemFont, sans-serif",
           }}
         >
-          Quem vive, recomenda.
+          {tr('Quem vive, recomenda.')}
         </h2>
       </div>
 

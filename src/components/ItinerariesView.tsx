@@ -725,7 +725,7 @@ export const ItinerariesView: React.FC<ItinerariesViewProps> = memo(({
       hasUserModifiedItineraryRef.current = true;
       userHasExplicitlyOpenedStoreRef.current = false;
       setIsStoreOpen(false);
-      setIsExpanded(true);
+      setIsExpanded((applied.days?.[0]?.steps?.length ?? 0) > 1);
       setSelectedDayIndex(0);
       setUserItinerary(applied);
       const firstStep = applied.days?.[0]?.steps?.[0];
@@ -961,11 +961,11 @@ export const ItinerariesView: React.FC<ItinerariesViewProps> = memo(({
       badgeText: isStoreLivre ? 'Grátis' : storeItin.badgeText || '',
     };
 
-    // 1. Update UI immediately (0ms perceived latency) and lock against stale background overwrites
+    const allDaySteps = optimisticItinerary.days?.[0]?.steps || [];
     hasUserModifiedItineraryRef.current = true;
     userHasExplicitlyOpenedStoreRef.current = false;
     setIsStoreOpen(false);
-    setIsExpanded(true);
+    setIsExpanded(allDaySteps.length > 1);
     setSelectedDayIndex(0);
     setUserItinerary(optimisticItinerary);
 
@@ -973,7 +973,6 @@ export const ItinerariesView: React.FC<ItinerariesViewProps> = memo(({
       localStorage.setItem('monvian_active_itinerary', JSON.stringify(optimisticItinerary));
     } catch (e) {}
 
-    const allDaySteps = optimisticItinerary.days?.[0]?.steps || [];
     const targetStep = allDaySteps[0];
     if (targetStep) {
       setSelectedStopId(targetStep.id);
@@ -1042,7 +1041,7 @@ export const ItinerariesView: React.FC<ItinerariesViewProps> = memo(({
     hasUserModifiedItineraryRef.current = true;
     userHasExplicitlyOpenedStoreRef.current = false;
     setIsStoreOpen(false);
-    setIsExpanded(true);
+    setIsExpanded(false);
     setSelectedDayIndex(0);
     setSelectedStopId(null);
     setUserItinerary(manualItinerary);
@@ -1102,8 +1101,18 @@ export const ItinerariesView: React.FC<ItinerariesViewProps> = memo(({
   const [isEditingTitle, setIsEditingTitle] = useState(false);
   const [editedTitle, setEditedTitle] = useState('');
 
-  // Bottom Sheet expansion state: false = compact (inteiro e compacto acima da barra), true = 50% split
-  const [isExpanded, setIsExpanded] = useState(true);
+  // Bottom Sheet expansion state: false = compact floating bar/card, true = 50% split (only when > 1 stop)
+  const [isExpanded, setIsExpanded] = useState<boolean>(() => {
+    try {
+      const cached = localStorage.getItem('monvian_active_itinerary');
+      if (cached) {
+        const parsed = JSON.parse(cached);
+        const stepCount = parsed?.days?.[0]?.steps?.length ?? 0;
+        return stepCount > 1;
+      }
+    } catch (e) {}
+    return false;
+  });
   const [selectedStopId, setSelectedStopId] = useState<string | null>(() => {
     try {
       const cached = localStorage.getItem('monvian_active_itinerary');
@@ -1592,6 +1601,17 @@ export const ItinerariesView: React.FC<ItinerariesViewProps> = memo(({
       };
     });
   }, [userItinerary, selectedDayIndex, spots]);
+
+  // Ensure the sheet stays collapsed to the floating bar when empty (0) or transitioning to a single stop (1)
+  const prevActiveStepsCountRef = useRef<number>(activeSteps.length);
+  useEffect(() => {
+    if (activeSteps.length === 0) {
+      setIsExpanded(false);
+    } else if (activeSteps.length === 1 && prevActiveStepsCountRef.current !== 1) {
+      setIsExpanded(false);
+    }
+    prevActiveStepsCountRef.current = activeSteps.length;
+  }, [activeSteps.length]);
 
   // Check if current logged-in user is Gold
   const isUserGold = useMemo(() => {
@@ -2327,7 +2347,11 @@ export const ItinerariesView: React.FC<ItinerariesViewProps> = memo(({
             if (!userItinerary || !userItinerary.days || userItinerary.days.length === 0) {
               handleCreateManualItinerary();
             } else {
-              setIsExpanded(true);
+              const stepCount =
+                userItinerary.days[selectedDayIndex]?.steps?.length ??
+                userItinerary.days[0]?.steps?.length ??
+                0;
+              setIsExpanded(stepCount > 1);
               try {
                 localStorage.setItem('monvian_itinerary_view_mode', 'map');
               } catch (e) {}
@@ -2875,7 +2899,7 @@ export const ItinerariesView: React.FC<ItinerariesViewProps> = memo(({
       {/* 4-B. Bottom Sheet with Route Stops and Actions (MOBILE ONLY - Hidden on Desktop) */}
       {/* 4-B. Bottom Sheet with Route Stops and Actions (MOBILE ONLY - Hidden on Desktop) */}
       <AnimatePresence mode="wait" initial={shouldAnimateEntrance}>
-        {!isExpanded ? (
+        {(!isExpanded || activeSteps.length === 0) ? (
           /* Collapsed State: FLOATING CARD WITH NO WHITE CONTAINER BEHIND (Pointers pass through to map) */
           <motion.div
             key="itinerary-collapsed-floating-card-container"

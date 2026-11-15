@@ -6,6 +6,7 @@ import { registerServiceWorker } from './utils/registerSW';
 import { ErrorBoundary } from './components/ErrorBoundary';
 import { startPreloadResources } from './utils/preloadItineraries';
 import { gpsNavigationManager } from './services/gpsNavigation';
+import { LanguageProvider } from './contexts/LanguageContext';
 
 let appInitialized = false;
 
@@ -21,7 +22,9 @@ function RootGate() {
 
   return (
     <ErrorBoundary>
-      <App />
+      <LanguageProvider>
+        <App />
+      </LanguageProvider>
     </ErrorBoundary>
   );
 }

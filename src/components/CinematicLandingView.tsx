@@ -1,9 +1,10 @@
 import React, { useEffect, useRef, useState, useCallback } from 'react';
-import { ArrowRight, ChevronDown } from 'lucide-react';
+import { ArrowRight, Check, ChevronDown } from 'lucide-react';
 import { motion, AnimatePresence, useReducedMotion } from 'motion/react';
 import gsap from 'gsap';
 import { OnboardingShowcaseCarousel } from './OnboardingShowcaseCarousel';
 import { LoginSocialProofSection } from './LoginSocialProofSection';
+import { useLanguage } from '../contexts/LanguageContext';
 
 const FAQ_ITEMS = [
   {
@@ -33,11 +34,44 @@ interface CinematicLandingViewProps {
   onOpenLogin: () => void;
 }
 
+const BrazilFlagIcon: React.FC = () => (
+  <svg viewBox="0 0 24 24" className="w-full h-full block" aria-hidden="true">
+    <circle cx="12" cy="12" r="12" fill="#009B3A" />
+    <path d="M12 4.2L20.4 12L12 19.8L3.6 12Z" fill="#FFDF00" />
+    <circle cx="12" cy="12" r="4.15" fill="#002776" />
+    <path
+      d="M8.05 11.25C10.45 10.25 13.45 10.65 15.9 12.65"
+      fill="none"
+      stroke="#FFFFFF"
+      strokeWidth="1.05"
+      strokeLinecap="round"
+    />
+  </svg>
+);
+
+const UkFlagIcon: React.FC = () => (
+  <svg viewBox="0 0 24 24" className="w-full h-full block" aria-hidden="true">
+    <defs>
+      <clipPath id="monvian-uk-flag-clip">
+        <circle cx="12" cy="12" r="12" />
+      </clipPath>
+    </defs>
+    <g clipPath="url(#monvian-uk-flag-clip)">
+      <rect width="24" height="24" fill="#012169" />
+      <path d="M0 0L24 24M24 0L0 24" stroke="#FFFFFF" strokeWidth="4.4" />
+      <path d="M0 0L24 24M24 0L0 24" stroke="#C8102E" strokeWidth="2.1" />
+      <path d="M12 0V24M0 12H24" stroke="#FFFFFF" strokeWidth="6.4" />
+      <path d="M12 0V24M0 12H24" stroke="#C8102E" strokeWidth="3.6" />
+    </g>
+  </svg>
+);
+
 const HeroUsersCounter = React.memo(function HeroUsersCounter({
   prefersReducedMotion,
 }: {
   prefersReducedMotion: boolean | null;
 }) {
+  const { isEnglish, tr } = useLanguage();
   const [userCount, setUserCount] = useState<number>(() => {
     try {
       const saved = localStorage.getItem('monvian_social_user_count');
@@ -65,6 +99,9 @@ const HeroUsersCounter = React.memo(function HeroUsersCounter({
     return () => clearInterval(timer);
   }, []);
 
+  const locale = isEnglish ? 'en-US' : 'pt-BR';
+  const formattedCount = userCount.toLocaleString(locale);
+
   return (
     <motion.div
       initial={prefersReducedMotion ? { opacity: 1 } : { opacity: 0, y: 8 }}
@@ -75,7 +112,7 @@ const HeroUsersCounter = React.memo(function HeroUsersCounter({
         delay: prefersReducedMotion ? 0 : 0.08,
       }}
       className="relative z-[95] flex items-center justify-center gap-4 sm:gap-5 select-none"
-      aria-label={`${userCount.toLocaleString('pt-BR')} Usuários no Monvian`}
+      aria-label={`${formattedCount} ${tr('Usuários')} Monvian`}
     >
       <div className="relative z-[95] flex items-center -space-x-2.5 shrink-0">
         {[
@@ -101,7 +138,7 @@ const HeroUsersCounter = React.memo(function HeroUsersCounter({
           >
             <img
               src={avatar.src}
-              alt={avatar.alt}
+              alt={tr(avatar.alt)}
               width={46}
               height={46}
               decoding="async"
@@ -126,14 +163,13 @@ const HeroUsersCounter = React.memo(function HeroUsersCounter({
               "'SF Pro Display', -apple-system, BlinkMacSystemFont, sans-serif",
           }}
         >
-          {userCount
-            .toLocaleString('pt-BR')
+          {formattedCount
             .split('')
             .map((char, idx) => {
-              if (char === '.') {
+              if (char === '.' || char === ',') {
                 return (
                   <span key={`sep-${idx}`} className="inline-block px-[0.5px]">
-                    .
+                    {char}
                   </span>
                 );
               }
@@ -188,7 +224,7 @@ const HeroUsersCounter = React.memo(function HeroUsersCounter({
               "'SF Pro Text', -apple-system, BlinkMacSystemFont, sans-serif",
           }}
         >
-          Usuários
+          {tr('Usuários')}
         </span>
       </div>
     </motion.div>
@@ -216,6 +252,34 @@ export const CinematicLandingView: React.FC<CinematicLandingViewProps> = ({
 
   // Navigation bar ref & scroll tracking (zero React re-renders during scroll)
   const navHeaderRef = useRef<HTMLElement | null>(null);
+  const langDropdownContainerRef = useRef<HTMLDivElement | null>(null);
+
+  // Language selector state synced globally with LanguageContext
+  const [isLangMenuOpen, setIsLangMenuOpen] = useState(false);
+  const { language: selectedLanguage, setLanguage, isEnglish, tr } = useLanguage();
+
+  useEffect(() => {
+    if (!isLangMenuOpen) return;
+    const handlePointerDownOutside = (e: PointerEvent) => {
+      if (
+        langDropdownContainerRef.current &&
+        !langDropdownContainerRef.current.contains(e.target as Node)
+      ) {
+        setIsLangMenuOpen(false);
+      }
+    };
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        setIsLangMenuOpen(false);
+      }
+    };
+    document.addEventListener('pointerdown', handlePointerDownOutside);
+    document.addEventListener('keydown', handleKeyDown);
+    return () => {
+      document.removeEventListener('pointerdown', handlePointerDownOutside);
+      document.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [isLangMenuOpen]);
 
   // FAQ state
   const [openFaqId, setOpenFaqId] = useState<string | null>('faq-1');
@@ -784,53 +848,134 @@ export const CinematicLandingView: React.FC<CinematicLandingViewProps> = ({
       {/* =========================================================================
           PARTE 5 — BARRA DE NAVEGAÇÃO LIQUID GLASS FIXA NO TOPO (ESTILO iOS)
          ========================================================================= */}
-      <header
-        ref={navHeaderRef}
-        aria-label="Navegação de apresentação Monvian"
-        data-nav-theme="dark"
+      <div
+        ref={langDropdownContainerRef}
+        className="fixed left-4 right-4 z-[125] max-w-[400px] md:max-w-[520px] mx-auto pointer-events-none"
         style={{
           top: 'max(12px, calc(env(safe-area-inset-top, 0px) + 8px))',
         }}
-        className="monvian-floating-nav fixed left-4 right-4 z-[125] max-w-[400px] md:max-w-[520px] mx-auto pointer-events-auto rounded-[999px] px-3.5 sm:px-5 py-2 border"
       >
-        <nav className="flex items-center justify-between gap-1 sm:gap-3 text-[12px] sm:text-[13px] font-medium tracking-[-0.01em]">
-          <button
-            type="button"
-            onClick={() => {
-              triggerHaptic();
-              onStartRegister();
-            }}
-            className="px-2 py-1 rounded-full transition-transform duration-150 active:scale-[0.96] whitespace-nowrap shrink-0 cursor-pointer focus-visible:outline-2 focus-visible:outline-[#2673E8]"
-          >
-            Criar conta
-          </button>
-          <button
-            id="btn-landing-top-login"
-            type="button"
-            onClick={() => {
-              triggerHaptic();
-              onOpenLogin();
-            }}
-            className="px-2 py-1 rounded-full transition-transform duration-150 active:scale-[0.96] whitespace-nowrap shrink-0 cursor-pointer focus-visible:outline-2 focus-visible:outline-[#2673E8]"
-          >
-            Entrar
-          </button>
-          <button
-            type="button"
-            onClick={() => scrollToSection('roteiros')}
-            className="px-2 py-1 rounded-full transition-transform duration-150 active:scale-[0.96] whitespace-nowrap shrink-0 cursor-pointer focus-visible:outline-2 focus-visible:outline-[#2673E8]"
-          >
-            Roteiros
-          </button>
-          <button
-            type="button"
-            onClick={() => scrollToSection('duvidas')}
-            className="px-2 py-1 rounded-full transition-transform duration-150 active:scale-[0.96] whitespace-nowrap shrink-0 cursor-pointer focus-visible:outline-2 focus-visible:outline-[#2673E8]"
-          >
-            Dúvidas
-          </button>
-        </nav>
-      </header>
+        <header
+          ref={navHeaderRef}
+          aria-label="Navegação de apresentação Monvian"
+          data-nav-theme="dark"
+          className="monvian-floating-nav relative w-full pointer-events-auto rounded-[999px] px-3.5 sm:px-5 py-2 border"
+        >
+          <nav className="flex items-center justify-between gap-1 sm:gap-3 text-[12px] sm:text-[13px] font-medium tracking-[-0.01em]">
+            <button
+              type="button"
+              onClick={() => {
+                triggerHaptic();
+                onStartRegister();
+              }}
+              className="px-2 py-1 rounded-full transition-transform duration-150 active:scale-[0.96] whitespace-nowrap shrink-0 cursor-pointer focus-visible:outline-2 focus-visible:outline-[#2673E8]"
+            >
+              {tr('Criar conta')}
+            </button>
+            <button
+              id="btn-landing-top-login"
+              type="button"
+              onClick={() => {
+                triggerHaptic();
+                onOpenLogin();
+              }}
+              className="px-2 py-1 rounded-full transition-transform duration-150 active:scale-[0.96] whitespace-nowrap shrink-0 cursor-pointer focus-visible:outline-2 focus-visible:outline-[#2673E8]"
+            >
+              {tr('Entrar')}
+            </button>
+            <button
+              type="button"
+              onClick={() => scrollToSection('roteiros')}
+              className="px-2 py-1 rounded-full transition-transform duration-150 active:scale-[0.96] whitespace-nowrap shrink-0 cursor-pointer focus-visible:outline-2 focus-visible:outline-[#2673E8]"
+            >
+              {tr('Roteiros')}
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                triggerHaptic();
+                setIsLangMenuOpen((prev) => !prev);
+              }}
+              aria-haspopup="menu"
+              aria-expanded={isLangMenuOpen}
+              aria-label={tr('Selecionar idioma')}
+              className="px-1.5 py-[1px] rounded-full transition-transform duration-150 active:scale-[0.96] whitespace-nowrap shrink-0 cursor-pointer inline-flex items-center gap-1.5 focus-visible:outline-2 focus-visible:outline-[#2673E8]"
+            >
+              <span className="w-[24px] h-[24px] sm:w-[25px] sm:h-[25px] rounded-full overflow-hidden shrink-0 shadow-[0_1px_4px_rgba(0,0,0,0.20)] ring-1 ring-white/45 flex items-center justify-center">
+                {selectedLanguage === 'en' ? <UkFlagIcon /> : <BrazilFlagIcon />}
+              </span>
+              <ChevronDown
+                className={`w-3.5 h-3.5 stroke-[2.4] transition-transform duration-200 ${
+                  isLangMenuOpen ? 'rotate-180' : 'rotate-0'
+                }`}
+              />
+            </button>
+          </nav>
+        </header>
+
+        <AnimatePresence>
+          {isLangMenuOpen && (
+            <motion.div
+              role="menu"
+              aria-label={tr('Idiomas disponíveis')}
+              initial={{ opacity: 0, y: -6, scale: 0.96 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              exit={{ opacity: 0, y: -6, scale: 0.96 }}
+              transition={{ duration: 0.18, ease: [0.22, 1, 0.36, 1] }}
+              style={{
+                transformOrigin: 'top right',
+                backgroundColor: 'rgba(255, 255, 255, 0.92)',
+                backdropFilter: 'blur(20px) saturate(160%)',
+                WebkitBackdropFilter: 'blur(20px) saturate(160%)',
+                fontFamily: "'SF Pro Text', -apple-system, BlinkMacSystemFont, sans-serif",
+              }}
+              className="absolute right-0 top-full mt-2 w-[178px] max-w-[calc(100vw-32px)] rounded-[18px] border border-white/85 shadow-[0_12px_32px_rgba(10,28,56,0.18),0_2px_8px_rgba(0,0,0,0.06)] overflow-hidden pointer-events-auto"
+            >
+              <button
+                type="button"
+                role="menuitemradio"
+                aria-checked={selectedLanguage === 'pt'}
+                onClick={() => {
+                  triggerHaptic();
+                  setLanguage('pt');
+                  setIsLangMenuOpen(false);
+                }}
+                className="w-full px-3.5 py-2.5 flex items-center gap-2.5 text-left text-[13.5px] font-medium text-[#111827] hover:bg-black/[0.04] active:bg-black/[0.07] transition-colors cursor-pointer"
+              >
+                <span className="w-[22px] h-[22px] rounded-full overflow-hidden shrink-0 shadow-[0_1px_3px_rgba(0,0,0,0.12)]">
+                  <BrazilFlagIcon />
+                </span>
+                <span className="flex-1 truncate" data-no-translate>Português</span>
+                {selectedLanguage === 'pt' && (
+                  <Check className="w-4 h-4 shrink-0 stroke-[2.6] text-[#007AFF]" />
+                )}
+              </button>
+
+              <div className="h-[1px] bg-black/[0.08] mx-3" aria-hidden="true" />
+
+              <button
+                type="button"
+                role="menuitemradio"
+                aria-checked={selectedLanguage === 'en'}
+                onClick={() => {
+                  triggerHaptic();
+                  setLanguage('en');
+                  setIsLangMenuOpen(false);
+                }}
+                className="w-full px-3.5 py-2.5 flex items-center gap-2.5 text-left text-[13.5px] font-medium text-[#111827] hover:bg-black/[0.04] active:bg-black/[0.07] transition-colors cursor-pointer"
+              >
+                <span className="w-[22px] h-[22px] rounded-full overflow-hidden shrink-0 shadow-[0_1px_3px_rgba(0,0,0,0.12)]">
+                  <UkFlagIcon />
+                </span>
+                <span className="flex-1 truncate" data-no-translate>English</span>
+                {selectedLanguage === 'en' && (
+                  <Check className="w-4 h-4 shrink-0 stroke-[2.6] text-[#007AFF]" />
+                )}
+              </button>
+            </motion.div>
+          )}
+        </AnimatePresence>
+      </div>
 
       {/* =========================================================================
           HERO CINEMATOGRÁFICO (100svh) — ILHA 3D 100% VISÍVEL POR COMPLETO
@@ -1237,6 +1382,7 @@ export const CinematicLandingView: React.FC<CinematicLandingViewProps> = ({
                 className="w-full flex flex-col items-center lg:items-start will-change-transform"
               >
                 <h1
+                  data-no-translate
                   className="text-center lg:text-left text-[32px] sm:text-[40px] md:text-[48px] lg:text-[46px] xl:text-[54px] 2xl:text-[58px] font-extrabold tracking-[-0.032em] leading-[1.06] lg:leading-[1.04] text-white mb-2.5 sm:mb-3.5 lg:mb-4 drop-shadow-[0_6px_24px_rgba(14,42,79,0.28)]"
                   style={{
                     fontFamily:
@@ -1244,13 +1390,26 @@ export const CinematicLandingView: React.FC<CinematicLandingViewProps> = ({
                     textWrap: 'balance',
                   }}
                 >
-                  {renderMaskedWord('Campos', 0)}{' '}
-                  {renderMaskedWord('do', 6)}{' '}
-                  {renderMaskedWord('Jordão', 8)}
-                  <br />
-                  {renderMaskedWord('do', 14)}{' '}
-                  {renderMaskedWord('seu', 16, true)}{' '}
-                  {renderMaskedWord('jeito.', 19, true)}
+                  {isEnglish ? (
+                    <>
+                      {renderMaskedWord('Campos', 0)}{' '}
+                      {renderMaskedWord('do', 6)}{' '}
+                      {renderMaskedWord('Jordão', 8)}
+                      <br />
+                      {renderMaskedWord('your', 14, true)}{' '}
+                      {renderMaskedWord('way.', 19, true)}
+                    </>
+                  ) : (
+                    <>
+                      {renderMaskedWord('Campos', 0)}{' '}
+                      {renderMaskedWord('do', 6)}{' '}
+                      {renderMaskedWord('Jordão', 8)}
+                      <br />
+                      {renderMaskedWord('do', 14)}{' '}
+                      {renderMaskedWord('seu', 16, true)}{' '}
+                      {renderMaskedWord('jeito.', 19, true)}
+                    </>
+                  )}
                 </h1>
 
                 <motion.p
@@ -1267,9 +1426,9 @@ export const CinematicLandingView: React.FC<CinematicLandingViewProps> = ({
                       "'SF Pro Text', -apple-system, BlinkMacSystemFont, sans-serif",
                   }}
                 >
-                  Descubra, explore e compartilhe
+                  {tr('Descubra, explore e compartilhe')}
                   <br />
-                  os melhores lugares da cidade.
+                  {tr('os melhores lugares da cidade.')}
                 </motion.p>
 
                 <motion.div
@@ -1290,7 +1449,7 @@ export const CinematicLandingView: React.FC<CinematicLandingViewProps> = ({
                     }}
                     className="min-h-[48px] px-8 py-3 rounded-full bg-white hover:bg-[#F3F6FB] active:scale-[0.98] text-[#080808] text-[15px] xl:text-[15.5px] font-bold tracking-[-0.01em] shadow-[0_12px_28px_rgba(10,36,76,0.18)] transition-all duration-150 whitespace-nowrap shrink-0 cursor-pointer focus-visible:outline-2 focus-visible:outline-white"
                   >
-                    Criar conta
+                    {tr('Criar conta')}
                   </button>
 
                   <button
@@ -1298,7 +1457,7 @@ export const CinematicLandingView: React.FC<CinematicLandingViewProps> = ({
                     onClick={() => scrollToSection('roteiros')}
                     className="group min-h-[48px] px-7 py-3 rounded-full border border-white/80 bg-[#ffffff] active:scale-[0.98] backdrop-blur-md text-white text-[15px] xl:text-[15.5px] font-semibold tracking-[-0.01em] shadow-[0_8px_22px_rgba(10,36,76,0.12)] transition-all duration-150 inline-flex items-center gap-2.5 whitespace-nowrap shrink-0 cursor-pointer focus-visible:outline-2 focus-visible:outline-white"
                   >
-                    <span className="text-[#000000]">Explorar roteiros</span>
+                    <span className="text-[#000000]">{tr('Explorar roteiros')}</span>
                     <ArrowRight className="w-[17px] h-[17px] stroke-[2] text-white transition-transform duration-200 group-hover:translate-x-0.5" />
                   </button>
                 </motion.div>
@@ -1347,6 +1506,7 @@ export const CinematicLandingView: React.FC<CinematicLandingViewProps> = ({
             >
               <h2
                 id="monvian-presentation-heading"
+                data-no-translate
                 className="text-[28px] sm:text-[34px] md:text-[40px] font-extrabold tracking-[-0.032em] leading-[1.1] text-[#080808]"
                 style={{
                   fontFamily:
@@ -1355,9 +1515,19 @@ export const CinematicLandingView: React.FC<CinematicLandingViewProps> = ({
                   color: '#080808',
                 }}
               >
-                Visite lugares <span className="text-[#2673E8]" style={{ color: '#2673E8' }}>incríveis</span>
-                <br />
-                <span style={{ color: '#080808' }}>da cidade.</span>
+                {isEnglish ? (
+                  <>
+                    Visit <span className="text-[#2673E8]" style={{ color: '#2673E8' }}>amazing</span> places
+                    <br />
+                    <span style={{ color: '#080808' }}>in the city.</span>
+                  </>
+                ) : (
+                  <>
+                    Visite lugares <span className="text-[#2673E8]" style={{ color: '#2673E8' }}>incríveis</span>
+                    <br />
+                    <span style={{ color: '#080808' }}>da cidade.</span>
+                  </>
+                )}
               </h2>
 
               <p
@@ -1368,9 +1538,9 @@ export const CinematicLandingView: React.FC<CinematicLandingViewProps> = ({
                   color: '#737780',
                 }}
               >
-                Tudo o que você precisa para aproveitar
+                {tr('Tudo o que você precisa para aproveitar')}
                 <br />
-                sua viagem, em um só lugar.
+                {tr('sua viagem, em um só lugar.')}
               </p>
             </motion.div>
           </div>
@@ -1393,7 +1563,7 @@ export const CinematicLandingView: React.FC<CinematicLandingViewProps> = ({
                   "'SF Pro Display', -apple-system, BlinkMacSystemFont, sans-serif",
               }}
             >
-              Dúvidas frequentes
+              {tr('Dúvidas frequentes')}
             </h3>
 
             <div className="space-y-2">
@@ -1410,7 +1580,7 @@ export const CinematicLandingView: React.FC<CinematicLandingViewProps> = ({
                       aria-expanded={isOpen}
                       className="w-full py-1.5 text-left flex items-center justify-between gap-4 text-[15.5px] sm:text-[16.5px] font-semibold text-[#080808] hover:text-[#2673E8] transition-colors cursor-pointer focus-visible:outline-2 focus-visible:outline-[#2673E8]"
                     >
-                      <span>{item.question}</span>
+                      <span>{tr(item.question)}</span>
                       <ChevronDown
                         className={`w-4 h-4 shrink-0 text-[#737780] transition-transform duration-200 ${
                           isOpen ? 'rotate-180 text-[#2673E8]' : ''
@@ -1427,7 +1597,7 @@ export const CinematicLandingView: React.FC<CinematicLandingViewProps> = ({
                           className="overflow-hidden"
                         >
                           <p className="pt-2 pb-1 text-[14px] sm:text-[14.5px] text-[#737780] leading-[1.5]">
-                            {item.answer}
+                            {tr(item.answer)}
                           </p>
                         </motion.div>
                       )}
@@ -1448,7 +1618,7 @@ export const CinematicLandingView: React.FC<CinematicLandingViewProps> = ({
               className="h-[32px] w-auto object-contain mb-4 select-none"
             />
             <p className="text-[14px] text-[#737780] mb-5">
-              Comece agora e viva Campos do Jordão do seu jeito.
+              {tr('Comece agora e viva Campos do Jordão do seu jeito.')}
             </p>
 
             <motion.button
@@ -1460,7 +1630,7 @@ export const CinematicLandingView: React.FC<CinematicLandingViewProps> = ({
               }}
               className="group w-full min-h-[56px] pl-7 pr-2.5 py-2 rounded-full bg-[#080808] hover:bg-[#181A1F] text-white text-[16.5px] font-bold tracking-[-0.015em] shadow-[0_12px_28px_rgba(8,8,8,0.14)] flex items-center justify-between gap-3 transition-all duration-200 cursor-pointer focus-visible:outline-2 focus-visible:outline-[#2673E8]"
             >
-              <span className="flex-1 text-center pl-4">Criar conta</span>
+              <span className="flex-1 text-center pl-4">{tr('Criar conta')}</span>
               <span className="w-10 h-10 rounded-full bg-white group-hover:bg-[#F2F4F8] text-[#080808] flex items-center justify-center shrink-0 shadow-sm transition-colors duration-200">
                 <ArrowRight className="w-[18px] h-[18px] stroke-[2.5] text-[#080808] transition-transform duration-200 group-hover:translate-x-0.5" />
               </span>
@@ -1477,7 +1647,7 @@ export const CinematicLandingView: React.FC<CinematicLandingViewProps> = ({
               }}
               className="mt-3.5 py-2.5 px-6 rounded-full text-[15px] font-bold text-[#080808] hover:text-[#2673E8] hover:bg-black/[0.03] active:bg-black/[0.06] transition-colors cursor-pointer select-none focus-visible:outline-2 focus-visible:outline-[#2673E8]"
             >
-              Já tenho uma conta
+              {tr('Já tenho uma conta')}
             </motion.button>
             </div>
           </div>
@@ -1504,7 +1674,7 @@ export const CinematicLandingView: React.FC<CinematicLandingViewProps> = ({
             color: '#8A8F99',
           }}
         >
-          © 2026 Monvian. Todos os direitos reservados.
+          {tr('© 2026 Monvian. Todos os direitos reservados.')}
         </p>
       </footer>
     </div>
