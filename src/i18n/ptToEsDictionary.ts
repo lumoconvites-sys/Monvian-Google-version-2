@@ -1242,11 +1242,165 @@ const PT_TO_ES_RAW: Record<string, string> = {
   'Café quente e ar puro da serra ☕❄️': 'Café caliente y aire puro de la sierra ☕❄️',
   'Luzes mágicas do Capivari à noite ✨': 'Luces mágicas de Capivari por la noche ✨',
   'Passeio imperdível no teleférico!': '¡Paseo imperdible en el teleférico!',
+
+  // Profile, XP, Explorer, Store, Supabase Live Records & All Remaining UI Strings
+  'Viagens': 'Viajes',
+  'Nível': 'Nivel',
+  'Explorador': 'Explorador',
+  'Aventureiro': 'Aventurero',
+  'Desbravador': 'Pionero',
+  'Elite Monvian': 'Élite Monvian',
+  'Lenda Monvian': 'Leyenda Monvian',
+  'Explorador da Serra': 'Explorador de la Sierra',
+  'Guia Local': 'Guía Local',
+  'Mestre da Mantiqueira': 'Maestro de la Mantiqueira',
+  'Lenda de Campos': 'Leyenda de Campos',
+  'lugar descoberto': 'lugar descubierto',
+  'lugares descobertos': 'lugares descubiertos',
+  'Nível máximo atingido na Serra!': '¡Nivel máximo alcanzado en la Sierra!',
+  'Destaques': 'Destacados',
+  'Destaque': 'Destacado',
+  'destaques': 'destacados',
+  'Recomendado': 'Recomendado',
+  'Recomendados': 'Recomendados',
+  'Mais procurados': 'Más buscados',
+  'Casais': 'Parejas',
+  'Terror': 'Terror y Misterio',
+  'Gastronomia': 'Gastronomía',
+  'Hospedagem': 'Alojamiento',
+  'Mirantes': 'Miradores',
+  'Parques': 'Parques',
+  'História': 'Historia',
+  'Noturno': 'Vida Nocturna',
+  'dia': 'día',
+  'dias': 'días',
+  '1 dia': '1 día',
+  '2 dias': '2 días',
+  '3 dias': '3 días',
+  'parada': 'parada',
+  'paradas': 'paradas',
+  'Parada': 'Parada',
+  'Paradas': 'Paradas',
+  'PARADAS': 'PARADAS',
+  'Roteiro': 'Ruta',
+  'Roteiros · Destaques': 'Rutas · Destacados',
+  'Roteiros · Para descobrir': 'Rutas · Por descubrir',
+  'Roteiros · Natureza': 'Rutas · Naturaleza',
+  'Roteiros · Romântico': 'Rutas · Romántico',
+  'Roteiros · Casais': 'Rutas · Parejas',
+  'Roteiros · Gastronomia': 'Rutas · Gastronomía',
+  'Roteiros · Terror': 'Rutas · Terror y Misterio',
+  'Roteiros · Família': 'Rutas · Familia',
+  'Roteiros · Aventura': 'Rutas · Aventura',
+  'Roteiros · Cultura': 'Rutas · Cultura',
+  'Roteiros · Recomendados': 'Rutas · Recomendados',
+  'Roteiros · Mais procurados': 'Rutas · Más buscados',
+  'Experiências e Paradas': 'Experiencias y Paradas',
+  'Dia 1: Experiências e Paradas': 'Día 1: Experiencias y Paradas',
+  'Desfrute de um fim de semana romântico em meio à natureza de Campos do Jordão. Um roteiro especial para casais que desejam desacelerar, conhecer lugares encantadores, apreciar paisagens deslumbrantes e criar momentos inesquecíveis a dois. São 6 paradas cuidadosamente selecionadas para transformar cada momento em uma experiência especial.':
+    'Disfruta de un fin de semana romántico en medio de la naturaleza de Campos do Jordão. Una ruta especial para parejas que desean desacelerar, conocer lugares encantadores, apreciar paisajes deslumbrantes y crear momentos inolvidables juntos. Son 6 paradas cuidadosamente seleccionadas para transformar cada momento en una experiencia especial.',
+  'Comece o passeio pela manhã, aproveitando a luz natural para tirar fotos e conhecer cada lugar com tranquilidade. Reserve um tempo para apreciar a paisagem, experimentar a gastronomia local e não tenha pressa entre as paradas. Minha dica é deixar o pôr do sol como um dos últimos momentos do roteiro: é o cenário perfeito para fechar o dia a dois. ❤️':
+    'Comienza el recorrido por la mañana, aprovechando la luz natural para tomar fotos y conocer cada lugar con tranquilidad. Reserva tiempo para apreciar el paisaje, probar la gastronomía local y no tengas prisa entre paradas. Mi consejo es dejar el atardecer para uno de los últimos momentos de la ruta: es el escenario perfecto para cerrar el día en pareja. ❤️',
+  'O Tarundu é um dos principais parques de aventura de Campos do Jordão, cercado por uma extensa área de natureza e belas paisagens. O espaço reúne diversas atividades ao ar livre para diferentes idades, incluindo atrações de aventura, experiências em meio à natureza e momentos de lazer para toda a família. É uma ótima opção para quem deseja fugir do roteiro tradicional e aproveitar Campos do Jordão de uma forma mais divertida e ativa.':
+    'Tarundu es uno de los principales parques de aventura de Campos do Jordão, rodeado de una extensa área natural y hermosos paisajes. El espacio reúne diversas actividades al aire libre para todas las edades, incluyendo atracciones de aventura, experiencias en la naturaleza y momentos de ocio familiar. Es una excelente opción para quienes desean salir de la ruta tradicional y disfrutar de Campos do Jordão de una forma más divertida y activa.',
+  'A Cervejaria Baden Baden é um dos destinos mais tradicionais de Campos do Jordão para quem aprecia cervejas artesanais e boa gastronomia. Com arquitetura inspirada no estilo europeu, o espaço combina um ambiente aconchegante com mesas ao ar livre, onde é possível degustar rótulos premiados enquanto aproveita o clima serrano da cidade. Além da experiência gastronômica, os visitantes podem conhecer a história da marca e participar da visita à fábrica, descobrindo como as cervejas são produzidas. É uma excelente opção para casais, grupos de amigos e turistas que desejam viver um dos passeios mais icônicos de Campos do Jordão.':
+    'La Cervecería Baden Baden es uno de los destinos más tradicionales de Campos do Jordão para quienes aprecian la cerveza artesanal y la buena gastronomía. Con arquitectura de inspiración europea, combina un ambiente acogedor con mesas al aire libre donde degustar etiquetas premiadas disfrutando del clima de montaña. Además de la experiencia gastronómica, los visitantes pueden conocer la historia de la marca y recorrer la fábrica. Es una excelente opción para parejas, amigos y turistas que buscan uno de los paseos más icónicos de Campos do Jordão.',
+  'Mirante deslumbrante com vista panorâmica para a Serra da Mantiqueira.':
+    'Mirador deslumbrante con vista panorámica hacia la Serra da Mantiqueira.',
+  'Restaurante / Gastronomia': 'Restaurante / Gastronomía',
+  'Chocolates & Doces': 'Chocolates y Dulces',
+  'Chocolataria & Doces': 'Chocolatería y Dulces',
+  'Morro': 'Mirador de Montaña',
+  'Morro do elefante': 'Morro do Elefante',
+  'PARQUE CAPIVARI': 'Parque Capivari',
+  'Parque das cerejeiras': 'Parque de los Cerezos',
+  'Ponte dos guardas chuvas': 'Puente de los Paraguas',
+  'Tirolesas, passeios a cavalo e arborismo no Tarundu.': 'Tirolesas, paseos a caballo y arborismo en Tarundu.',
+  'Passeio pelas passarelas da Ducha de Prata.': 'Paseo por las pasarelas sobre el agua en Ducha de Prata.',
+  'Foto tradicional de boas-vindas no Portal da Cidade.': 'Foto tradicional de bienvenida en el Portal de la Ciudad.',
+  'Passeio completo pela Vila Capivari e almoço.': 'Paseo completo por Vila Capivari y almuerzo.',
+  'Atividades ao ar livre no Tarundu e cachoeiras da Ducha de Prata.': 'Actividades al aire libre en Tarundu y cascadas de Ducha de Prata.',
+  'Os roteiros mais bem avaliados pelos viajantes': 'Las rutas mejor valoradas por los viajeros',
+  'Jardins, bosques, cachoeiras e mirantes': 'Jardines, bosques, cascadas y miradores',
+  'Alta gastronomia alpina, fondues e chocolates': 'Alta gastronomía alpina, fondues y chocolates',
+  'Trilhas, arvorismo e passeios radicais': 'Senderos, arborismo y aventuras al aire libre',
+  'Cafés coloniais e bistrôs acolhedores na montanha': 'Cafés coloniales y bistrós acogedores en la montaña',
+  'Ecoturismo & Aventura na Serra': 'Ecoturismo y Aventura en la Sierra',
+  'Bate-e-Volta: O Melhor de Campos em 24h': 'Ida y Vuelta: Lo Mejor de Campos en 24h',
+
+  // Auth, Profile, Modals & Remaining JSX Strings
+  'Conectando sua conta...': 'Conectando tu cuenta...',
+  'Conectando sua conta…': 'Conectando tu cuenta…',
+  'Alterar e-mail': 'Cambiar correo',
+  'Adicione uma': 'Añade una',
+  'foto de perfil': 'foto de perfil',
+  'Criar nova conta →': 'Crear nueva cuenta →',
+  'Criar nova senha': 'Crear nueva contraseña',
+  'Conta:': 'Cuenta:',
+  'Conta': 'Cuenta',
+  'Categorias': 'Categorías',
+  'Criar Story': 'Crear Historia',
+  'Compartilhe seu momento': 'Comparte tu momento',
+  'Câmera': 'Cámara',
+  'Colagem': 'Collage',
+  'Marcar Ponto em Campos': 'Etiquetar Lugar en Campos',
+  'Dispensar': 'Descartar',
+  'Canais diretos de atendimento': 'Canales directos de atención',
+  'Plataforma digital de turismo, mobilidade e experiências em Campos do Jordão.':
+    'Plataforma digital de turismo, movilidad y experiencias en Campos do Jordão.',
+  'foi desenvolvido para oferecer aos visitantes e moradores de Campos do Jordão uma experiência de descoberta urbana e natural clara, precisa e integrada ao ecossistema iOS.':
+    'fue desarrollado para ofrecer a visitantes y residentes de Campos do Jordão una experiencia de descubrimiento urbano y natural clara, precisa e integrada al ecosistema iOS.',
+  'A plataforma reúne cartografia interativa em tempo real, curadoria de gastronomia, hotelaria, cafés, parques e atrações da Serra da Mantiqueira, roteiros estruturados por perfil de viagem e a comunidade fotográfica Monviangram.':
+    'La plataforma reúne cartografía interactiva en tiempo real, curaduría de gastronomía, hotelería, cafés, parques y atracciones de la Serra da Mantiqueira, rutas estructuradas por perfil de viaje y la comunidad fotográfica Monviangram.',
+  'Aplicativo': 'Aplicación',
+  '★ Verificado': '★ Verificado',
+  'Desbloqueie o': 'Desbloquea',
+  'Permissões do Dispositivo': 'Permisos del Dispositivo',
+  'Calcular rotas e proximidade de locais': 'Calcular rutas y cercanía a lugares',
+  'Sons do Aplicativo': 'Sonidos de la Aplicación',
+  'Efeitos sonoros e confirmações': 'Efectos de sonido y confirmaciones',
+  'Deseja encerrar a sessão?': '¿Deseas cerrar la sesión?',
+  'Lugares Curtidos': 'Lugares Guardados',
+  'Salvo!': '¡Guardado!',
+  'Toque no botão + no canto superior esquerdo e compartilhe sua primeira foto em Campos do Jordão!':
+    '¡Toca el botón + en la esquina superior izquierda y comparte tu primera foto en Campos do Jordão!',
+  'Publicar Primeira Foto': 'Publicar Primera Foto',
+  'mais': 'más',
+  'Carregando mais fotos...': 'Cargando más fotos...',
+  'Você viu todas as fotos de Campos do Jordão ✨': 'Has visto todas las fotos de Campos do Jordão ✨',
+  'Respondendo a': 'Respondiendo a',
+  'Legenda': 'Descripción',
+  'selecionado': 'seleccionado',
+  'Rota': 'Ruta',
+  'Dica de quem foi': 'Consejo de visitantes',
+  'de 5.0 estrelas': 'de 5.0 estrellas',
+  'Armazenados na nuvem no formato original enviado': 'Almacenados en la nube en el formato original enviado',
+  'Seu Nome ou Perfil': 'Tu Nombre o Perfil',
+  'Expira em 24h': 'Expira en 24h',
+  '1.628m • Altitude Média': '1.628m • Altitud Media',
+  'Detalhes': 'Detalles',
+  'O que deseja fazer?': '¿Qué deseas hacer?',
+  'Criar Novo Roteiro': 'Crear Nueva Ruta',
+  'Data Escolhida': 'Fecha Elegida',
+  'Seu saldo é insuficiente para liberar este roteiro. Adicione Plátanos à sua carteira para continuar.':
+    'Tu saldo es insuficiente para desbloquear esta ruta. Añade Plátanos a tu billetera para continuar.',
+  'Lugares selecionados por guias': 'Lugares seleccionados por guías',
+  'Experiência': 'Experiencia',
+  'Vídeos': 'Videos',
+  'Aberto hoje': 'Abierto hoy',
+  'Pôr do Sol': 'Atardecer',
+  'Lugares em Destaque': 'Lugares Destacados',
+  'Aberto 24 horas': 'Abierto 24 horas',
+  'Não foi possível iniciar o pagamento no Stripe.': 'No se pudo iniciar el pago en Stripe.',
+  'Não foi possível concluir a compra.': 'No se pudo completar la compra.',
 };
+
+const normalizeLookupKeyEs = (s: string): string =>
+  s.trim().replace(/\s+/g, ' ').replace(/…/g, '...');
 
 const PT_TO_ES_LOWER = new Map<string, string>();
 for (const [pt, es] of Object.entries(PT_TO_ES_RAW)) {
-  const key = pt.trim().toLowerCase();
+  const key = normalizeLookupKeyEs(pt).toLowerCase();
   if (!PT_TO_ES_LOWER.has(key)) {
     PT_TO_ES_LOWER.set(key, es);
   }
@@ -1256,14 +1410,28 @@ const DYNAMIC_RULES_ES: Array<[RegExp, (...args: string[]) => string]> = [
   [/^Seja bem[\s-]vindo (.+)!$/i, (_m, name) => `¡Bienvenido ${name}!`],
   [/^Boas[\s-]vindas,\s*(.+)!$/i, (_m, name) => `¡Bienvenido, ${name}!`],
   [/^Olá,\s*(.+)$/i, (_m, name) => `Hola, ${name}`],
+  [/^Nível\s+(\d+)\s*[·•-]\s*(.+)$/i, (_m, lvl, title) => `Nivel ${lvl} · ${translatePtToEs(title.trim())}`],
+  [/^Nível\s+(\d+)$/i, (_m, lvl) => `Nivel ${lvl}`],
+  [/^(\d+)\s*lugar(?:es)?\s+descobertos?$/i, (_m, n) => `${n} ${Number(n) === 1 ? 'lugar descubierto' : 'lugares descubiertos'}`],
+  [/^Faltam\s+([\d.,]+)\s*XP\s+para\s+o\s+próximo\s+nível$/i, (_m, xp) => `Faltan ${xp} XP para el próximo nivel`],
+  [/^Paradas\s*\((\d+)\)$/i, (_m, n) => `Paradas (${n})`],
+  [/^Resultados\s*\((\d+)\)$/i, (_m, n) => `Resultados (${n})`],
+  [/^Roteiros\s*[·•]\s*(.+)$/i, (_m, cat) => `Rutas · ${translatePtToEs(cat.trim())}`],
+  [/^(\d+(?:[.,]\d+)?)\s*mil$/i, (_m, n) => `${n} mil`],
+  [/^(\d+)\s*paradas?$/i, (_m, n) => `${n} ${Number(n) === 1 ? 'parada' : 'paradas'}`],
+  [/^(\d+)\s*dias?$/i, (_m, n) => `${n} ${Number(n) === 1 ? 'día' : 'días'}`],
+  [/^(\d+)\s*lugar(?:es)?$/i, (_m, n) => `${n} ${Number(n) === 1 ? 'lugar' : 'lugares'}`],
+  [/^(\d+)\s*curtidas?$/i, (_m, n) => `${n} ${Number(n) === 1 ? 'me gusta' : 'me gusta'}`],
+  [/^Ver todos os (\d+) comentários$/i, (_m, n) => `Ver los ${n} comentarios`],
+  [/^Você poderá entrar novamente a qualquer momento com sua conta (.+)\.$/i, (_m, email) => `Podrás iniciar sesión nuevamente en cualquier momento con tu cuenta ${email}.`],
+  [/^Libera até (\d+) roteiros? premium$/i, (_m, n) => `Desbloquea hasta ${n} ${Number(n) === 1 ? 'ruta premium' : 'rutas premium'}`],
   [/^(\d+)\s+de\s+(\d+)$/i, (_m, a, b) => `${a} de ${b}`],
   [/^Dia (\d+):\s*(.+)$/i, (_m, d, rest) => `Día ${d}: ${translatePtToEs(rest)}`],
   [/^Dia (\d+)\s*[•·-]\s*Dia (\d+)$/i, (_m, d1, d2) => `Día ${d1} • Día ${d2}`],
   [/^Dia (\d+)$/i, (_m, d) => `Día ${d}`],
-  [/^(\d+)\s*Dia$/i, (_m, d) => `${d} Día`],
-  [/^(\d+)\s*Dias$/i, (_m, d) => `${d} Días`],
   [/^Local (\d+):\s*(.+)$/i, (_m, n, rest) => `Parada ${n}: ${translatePtToEs(rest)}`],
   [/^Local (\d+)$/i, (_m, n) => `Parada ${n}`],
+  [/^Parada (\d+)$/i, (_m, n) => `Parada ${n}`],
   [/^(.+?)\.\s*Deslize para a esquerda para excluir\.$/i, (_m, prefix) => `${translatePtToEs(prefix)}. Desliza a la izquierda para eliminar.`],
   [/^(\d+)\s*min até o próximo ponto$/i, (_m, min) => `${min} min hasta la próxima parada`],
   [/^(\d+)\s*locais planejados$/i, (_m, n) => `${n} paradas planificadas`],
@@ -1275,20 +1443,27 @@ const DYNAMIC_RULES_ES: Array<[RegExp, (...args: string[]) => string]> = [
   [/^(\d+)\s*adultos?$/i, (_m, n) => `${n} ${Number(n) === 1 ? 'adulto' : 'adultos'}`],
   [/^(\d+)\s*crianças?$/i, (_m, n) => `${n} ${Number(n) === 1 ? 'niño' : 'niños'}`],
   [/^(\d+)\s*visualizações?$/i, (_m, n) => `${n} ${Number(n) === 1 ? 'visualización' : 'visualizaciones'}`],
-  [/^(\d+)\s*publicações?$/i, (_m, n) => `${n} ${Number(n) === 1 ? 'publicación' : 'publicaciones'}`],
+  [/^(\d+)\s*visualização$/i, (_m, n) => `${n} visualización`],
+  [/^(\d+)\s*publica(?:ção|ções)$/i, (_m, n) => `${n} ${Number(n) === 1 ? 'publicación' : 'publicaciones'}`],
   [/^Ver (\d+) comentários?$/i, (_m, n) => `Ver ${n} ${Number(n) === 1 ? 'comentario' : 'comentarios'}`],
   [/^(\d+)\s*comentários?$/i, (_m, n) => `${n} ${Number(n) === 1 ? 'comentario' : 'comentarios'}`],
   [/^Há (\d+) dias?$/i, (_m, n) => `Hace ${n} ${Number(n) === 1 ? 'día' : 'días'}`],
   [/^HÁ (\d+) DIAS?$/i, (_m, n) => `HACE ${n} ${Number(n) === 1 ? 'DÍA' : 'DÍAS'}`],
+  [/^HÁ (\d+) HORAS?$/i, (_m, n) => `HACE ${n} ${Number(n) === 1 ? 'HORA' : 'HORAS'}`],
+  [/^HÁ (\d+) MIN$/i, (_m, n) => `HACE ${n} MIN`],
+  [/^há (\d+)d$/i, (_m, n) => `hace ${n}d`],
+  [/^há (\d+)h$/i, (_m, n) => `hace ${n}h`],
+  [/^há (\d+)m$/i, (_m, n) => `hace ${n}m`],
   [/^Há (\d+) semanas?$/i, (_m, n) => `Hace ${n} ${Number(n) === 1 ? 'semana' : 'semanas'}`],
   [/^Há (\d+) horas?$/i, (_m, n) => `Hace ${n} ${Number(n) === 1 ? 'hora' : 'horas'}`],
   [/^Há (\d+) min(uto)?s?$/i, (_m, n) => `Hace ${n} min`],
   [/^Instruções enviadas para (.+)$/i, (_m, email) => `Instrucciones enviadas a ${email}`],
   [/^Local "(.+)" adicionado ao roteiro!$/i, (_m, name) => `¡"${name}" añadido a la ruta!`],
   [/^Respondendo a (.+)$/i, (_m, user) => `Respondiendo a ${user}`],
-  [/^Você chegou ao (.+)$/i, (_m, place) => `Llegaste a ${place}`],
+  [/^Você chegou (?:ao|à|aos|às) (.+)$/i, (_m, place) => `Llegaste a ${place}`],
   [/^Roteiro Personalizado de (\d+) Dias em Campos do Jordão$/i, (_m, n) => `Ruta Personalizada de ${n} Días en Campos do Jordão`],
   [/^Experiência em Campos do Jordão \(1 Dia\)$/i, () => `Experiencia en Campos do Jordão (1 Día)`],
+  [/^Experiência em (.+)$/i, (_m, place) => `Experiencia en ${place}`],
   [/^Campos do Jordão:\s*(.+)$/i, (_m, cond) => `Campos do Jordão: ${translatePtToEs(cond)}`],
   [/^Todos os dias das (.+) às (.+)$/i, (_m, a, b) => `Todos los días de ${a} a ${b}`],
   [/^Aberto diariamente das (.+) às (.+)$/i, (_m, a, b) => `Abierto todos los días de ${a} a ${b}`],
@@ -1300,18 +1475,13 @@ const DYNAMIC_RULES_ES: Array<[RegExp, (...args: string[]) => string]> = [
   [/^Domingo a Quinta (.+) \| Sex e Sáb (.+)$/i, (_m, a, b) => `Dom a Jue ${a} | Vie y Sáb ${b}`],
   [/^Finais de semana e feriados das (.+) às (.+)$/i, (_m, a, b) => `Fines de semana y festivos de ${a} a ${b}`],
   [/^Temporada de Julho e Finais de Semana das (.+) às (.+)$/i, (_m, a, b) => `Temporada de julio y fines de semana de ${a} a ${b}`],
+  [/^(\d{1,2}:\d{2})\s+às\s+(\d{1,2}:\d{2})$/i, (_m, a, b) => `${a} a ${b}`],
   [/^Aberto 24 horas \((.+)\)$/i, (_m, inner) => `Abierto 24 horas (${translatePtToEs(inner)})`],
   [/^Centro de turismo:\s*(.+)$/i, (_m, h) => `Centro de turismo: ${h}`],
   [/^Atendimento aos restaurantes sob reserva$/i, () => `Restaurantes con reserva previa`],
   [/^Protocolo de registro:\s*(.+)$/i, (_m, p) => `Protocolo de registro: ${p}`],
   [/^Protocolo:\s*(.+)$/i, (_m, p) => `Protocolo: ${p}`],
   [/^Compreendo que esta operação é irreversível e que minha conta \((.+)\) e os dados associados serão excluídos\.$/i, (_m, acc) => `Comprendo que esta operación es irreversible y que mi cuenta (${acc}) y los datos asociados serán eliminados.`],
-  [/^([A-Za-zÀ-ÿ\s]+) • ([A-Za-zÀ-ÿ\s/]+)$/, (_m, a, b) => {
-    const ta = translatePtToEs(a.trim());
-    const tb = translatePtToEs(b.trim());
-    if (ta !== a.trim() || tb !== b.trim()) return `${ta} • ${tb}`;
-    return _m;
-  }],
 ];
 
 const WORD_PHRASES_ES: Array<[RegExp, string]> = [
@@ -1344,20 +1514,21 @@ export function translatePtToEs(raw: string): string {
     /^https?:\/\//i.test(trimmed) ||
     /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(trimmed) ||
     /^@[A-Za-z0-9_.]+$/.test(trimmed) ||
-    /^[0-9.,:%+\-\s°/]+$/.test(trimmed)
+    /^[0-9.,:%+\-\s°/·•()]+$/.test(trimmed)
   ) {
     return raw;
   }
 
   const lead = raw.match(/^\s*/)?.[0] ?? '';
   const trail = raw.match(/\s*$/)?.[0] ?? '';
+  const normalized = normalizeLookupKeyEs(trimmed);
 
-  const exact = PT_TO_ES_RAW[trimmed];
+  const exact = PT_TO_ES_RAW[trimmed] ?? PT_TO_ES_RAW[normalized];
   if (exact) {
     return `${lead}${exact}${trail}`;
   }
 
-  const lowerMatch = PT_TO_ES_LOWER.get(trimmed.toLowerCase());
+  const lowerMatch = PT_TO_ES_LOWER.get(normalized.toLowerCase());
   if (lowerMatch) {
     const isAllUpper =
       trimmed.length > 2 &&
@@ -1367,24 +1538,45 @@ export function translatePtToEs(raw: string): string {
   }
 
   for (const [regex, replacer] of DYNAMIC_RULES_ES) {
-    const match = trimmed.match(regex);
+    const match = normalized.match(regex);
     if (match) {
       const result = replacer(...match);
-      if (result && result !== trimmed) {
-        return `${lead}${result}${trail}`;
+      if (result && result !== normalized) {
+        const isAllUpper =
+          trimmed.length > 2 &&
+          trimmed === trimmed.toUpperCase() &&
+          trimmed !== trimmed.toLowerCase();
+        return `${lead}${isAllUpper ? result.toUpperCase() : result}${trail}`;
       }
     }
   }
 
-  if (trimmed.length <= 36) {
-    let replaced = trimmed;
+  if (/[·•]/.test(normalized)) {
+    const parts = normalized.split(/(\s*[·•]\s*)/);
+    if (parts.length > 1) {
+      let changed = false;
+      const mapped = parts.map((part) => {
+        if (!part || /^\s*[·•]\s*$/.test(part)) return part;
+        const trPart = translatePtToEs(part);
+        if (trPart !== part) changed = true;
+        return trPart;
+      });
+      if (changed) {
+        return `${lead}${mapped.join('')}${trail}`;
+      }
+    }
+  }
+
+  if (normalized.length <= 36) {
+    let replaced = normalized;
     for (const [rx, es] of WORD_PHRASES_ES) {
       replaced = replaced.replace(rx, es);
     }
-    if (replaced !== trimmed) {
+    if (replaced !== normalized) {
       return `${lead}${replaced}${trail}`;
     }
   }
 
   return raw;
 }
+

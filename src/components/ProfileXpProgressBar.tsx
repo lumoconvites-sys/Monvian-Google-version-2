@@ -80,7 +80,7 @@ export const ProfileXpProgressBar: React.FC<ProfileXpProgressBarProps> = ({ isDa
                 isDark ? 'text-white' : 'text-zinc-950'
               }`}
             >
-              Nível {currentLevel} · {levelTitle}
+              {`Nível ${currentLevel} · ${levelTitle}`}
             </span>
           </div>
 
@@ -129,8 +129,7 @@ export const ProfileXpProgressBar: React.FC<ProfileXpProgressBarProps> = ({ isDa
         {/* Bottom Micro Hint */}
         <div className="flex items-center justify-between text-[11px] font-medium text-zinc-500 dark:text-zinc-400 mt-2">
           <span>
-            {placesDiscoveredCount}{' '}
-            {placesDiscoveredCount === 1 ? 'lugar descoberto' : 'lugares descobertos'}
+            {`${placesDiscoveredCount} ${placesDiscoveredCount === 1 ? 'lugar descoberto' : 'lugares descobertos'}`}
           </span>
           <span>
             {isMaxLevel || xpRemaining <= 0

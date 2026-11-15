@@ -1242,11 +1242,165 @@ const PT_TO_JA_RAW: Record<string, string> = {
   'Café quente e ar puro da serra ☕❄️': '温かいコーヒーと澄んだ高原の空気 ☕❄️',
   'Luzes mágicas do Capivari à noite ✨': '夜のカピヴァリを彩る幻想的なイルミネーション ✨',
   'Passeio imperdível no teleférico!': 'ロープウェイは絶対外せない体験！',
+
+  // Profile, XP, Explorer, Store, Supabase Live Records & All Remaining UI Strings
+  'Viagens': '旅行',
+  'Nível': 'レベル',
+  'Explorador': 'エクスプローラー',
+  'Aventureiro': 'アドベンチャラー',
+  'Desbravador': 'パスファインダー',
+  'Elite Monvian': 'Monvian エリート',
+  'Lenda Monvian': 'Monvian レジェンド',
+  'Explorador da Serra': '高原エクスプローラー',
+  'Guia Local': 'ローカルガイド',
+  'Mestre da Mantiqueira': 'マンチケイラ・マスター',
+  'Lenda de Campos': 'カンポスのレジェンド',
+  'lugar descoberto': 'か所を発見済み',
+  'lugares descobertos': 'か所を発見済み',
+  'Nível máximo atingido na Serra!': '最高レベルに到達しました！',
+  'Destaques': '注目',
+  'Destaque': '注目',
+  'destaques': '注目',
+  'Recomendado': 'おすすめ',
+  'Recomendados': 'おすすめ',
+  'Mais procurados': '人気プラン',
+  'Casais': 'カップル',
+  'Terror': 'ミステリー＆ホラー',
+  'Gastronomia': 'グルメ',
+  'Hospedagem': '宿泊施設',
+  'Mirantes': '展望台',
+  'Parques': '公園',
+  'História': '歴史',
+  'Noturno': 'ナイトライフ',
+  'dia': '日',
+  'dias': '日間',
+  '1 dia': '1日',
+  '2 dias': '2日間',
+  '3 dias': '3日間',
+  'parada': 'スポット',
+  'paradas': 'スポット',
+  'Parada': 'スポット',
+  'Paradas': '立ち寄りスポット',
+  'PARADAS': '立ち寄りスポット',
+  'Roteiro': 'プラン',
+  'Roteiros · Destaques': 'プラン · 注目',
+  'Roteiros · Para descobrir': 'プラン · おすすめ発見',
+  'Roteiros · Natureza': 'プラン · 自然',
+  'Roteiros · Romântico': 'プラン · ロマンチック',
+  'Roteiros · Casais': 'プラン · カップル',
+  'Roteiros · Gastronomia': 'プラン · グルメ',
+  'Roteiros · Terror': 'プラン · ミステリー＆ホラー',
+  'Roteiros · Família': 'プラン · ファミリー',
+  'Roteiros · Aventura': 'プラン · アドベンチャー',
+  'Roteiros · Cultura': 'プラン · 文化・芸術',
+  'Roteiros · Recomendados': 'プラン · おすすめ',
+  'Roteiros · Mais procurados': 'プラン · 人気プラン',
+  'Experiências e Paradas': '体験と立ち寄りスポット',
+  'Dia 1: Experiências e Paradas': '1日目: 体験と立ち寄りスポット',
+  'Desfrute de um fim de semana romântico em meio à natureza de Campos do Jordão. Um roteiro especial para casais que desejam desacelerar, conhecer lugares encantadores, apreciar paisagens deslumbrantes e criar momentos inesquecíveis a dois. São 6 paradas cuidadosamente selecionadas para transformar cada momento em uma experiência especial.':
+    'カンポス・ド・ジョルドンの豊かな自然に囲まれて、ロマンチックな週末をお過ごしください。日常を離れてゆったりとした時間を過ごし、魅力的なスポットや息をのむような絶景を巡りながら、二人だけの忘れられない思い出を作るための特別プランです。すべての瞬間を特別な体験へと変える、厳選された6つのスポットをご案内します。',
+  'Comece o passeio pela manhã, aproveitando a luz natural para tirar fotos e conhecer cada lugar com tranquilidade. Reserve um tempo para apreciar a paisagem, experimentar a gastronomia local e não tenha pressa entre as paradas. Minha dica é deixar o pôr do sol como um dos últimos momentos do roteiro: é o cenário perfeito para fechar o dia a dois. ❤️':
+    '自然光できれいな写真が撮れる午前中からスタートし、各スポットをゆったりと巡るのがおすすめです。景色を眺めたり地元の美食を味わったりする時間を大切にし、移動を急がないようにしましょう。私のおすすめは、プランの締めくくりに夕日を残しておくこと。二人で一日を締めくくるのに最高のロケーションです。❤️',
+  'O Tarundu é um dos principais parques de aventura de Campos do Jordão, cercado por uma extensa área de natureza e belas paisagens. O espaço reúne diversas atividades ao ar livre para diferentes idades, incluindo atrações de aventura, experiências em meio à natureza e momentos de lazer para toda a família. É uma ótima opção para quem deseja fugir do roteiro tradicional e aproveitar Campos do Jordão de uma forma mais divertida e ativa.':
+    'タルンドゥは、広大な自然と美しい景観に囲まれたカンポス・ド・ジョルドンを代表するアドベンチャーパークです。スリル満点のアトラクションや自然体験、家族全員で楽しめるレジャーなど、幅広い世代向けの多彩なアウトドアアクティビティが揃っています。定番コースとは一味違う、アクティブで楽しい時間を過ごしたい方にぴったりのスポットです。',
+  'A Cervejaria Baden Baden é um dos destinos mais tradicionais de Campos do Jordão para quem aprecia cervejas artesanais e boa gastronomia. Com arquitetura inspirada no estilo europeu, o espaço combina um ambiente aconchegante com mesas ao ar livre, onde é possível degustar rótulos premiados enquanto aproveita o clima serrano da cidade. Além da experiência gastronômica, os visitantes podem conhecer a história da marca e participar da visita à fábrica, descobrindo como as cervejas são produzidas. É uma excelente opção para casais, grupos de amigos e turistas que desejam viver um dos passeios mais icônicos de Campos do Jordão.':
+    'バーデン・バーデン醸造所は、クラフトビールと美食を愛する人々に親しまれるカンポス・ド・ジョルドンの伝統的な名所です。ヨーロッパ風の建築が魅力の温かみある空間とオープンテラスを備え、高原の爽やかな気候の中で受賞歴のあるビールを味わえます。食事だけでなく、ブランドの歴史を学びながら醸造工程を見学できるファクトリーツアーも人気。カップルや友人同士、旅行者にとって外せない象徴的なスポットです。',
+  'Mirante deslumbrante com vista panorâmica para a Serra da Mantiqueira.':
+    'マンチケイラ山脈の大パノラマを一望する絶景展望台。',
+  'Restaurante / Gastronomia': 'レストラン・グルメ',
+  'Chocolates & Doces': 'チョコレート＆スイーツ',
+  'Chocolataria & Doces': 'ショコラトリー＆スイーツ',
+  'Morro': '展望ヒル',
+  'Morro do elefante': 'エレファンテの丘（象の丘）',
+  'PARQUE CAPIVARI': 'カピヴァリ公園',
+  'Parque das cerejeiras': '桜公園（パルケ・ダス・セレジェイラス）',
+  'Ponte dos guardas chuvas': 'アンブレラ・ブリッジ（傘の橋）',
+  'Tirolesas, passeios a cavalo e arborismo no Tarundu.': 'タルンドゥでのジップライン、乗馬、ツリートップ体験。',
+  'Passeio pelas passarelas da Ducha de Prata.': 'ドゥーシャ・デ・プラタの遊歩道デッキ散策。',
+  'Foto tradicional de boas-vindas no Portal da Cidade.': '街の玄関口「シティ・ポータル」で定番の記念撮影。',
+  'Passeio completo pela Vila Capivari e almoço.': 'ヴィラ・カピヴァリの散策とランチ。',
+  'Atividades ao ar livre no Tarundu e cachoeiras da Ducha de Prata.': 'タルンドゥでのアウトドア体験とドゥーシャ・デ・プラタの滝。',
+  'Os roteiros mais bem avaliados pelos viajantes': '旅行者から最も評価の高い人気プラン',
+  'Jardins, bosques, cachoeiras e mirantes': '庭園、森林、滝、絶景展望台',
+  'Alta gastronomia alpina, fondues e chocolates': '高原の美食、フォンデュ、クラフトチョコレート',
+  'Trilhas, arvorismo e passeios radicais': 'トレイル、ツリートップ、アクティビティ',
+  'Cafés coloniais e bistrôs acolhedores na montanha': '高原の心地よいコロニアルカフェ＆ビストロ',
+  'Ecoturismo & Aventura na Serra': '高原のエコツアー＆アドベンチャー',
+  'Bate-e-Volta: O Melhor de Campos em 24h': '日帰り満喫：24時間で巡るカンポスの魅力',
+
+  // Auth, Profile, Modals & Remaining JSX Strings
+  'Conectando sua conta...': 'アカウントに接続中...',
+  'Conectando sua conta…': 'アカウントに接続中…',
+  'Alterar e-mail': 'メールアドレスを変更',
+  'Adicione uma': 'プロフィール写真を',
+  'foto de perfil': '追加する',
+  'Criar nova conta →': '新しいアカウントを作成 →',
+  'Criar nova senha': '新しいパスワードを作成',
+  'Conta:': 'アカウント:',
+  'Conta': 'アカウント',
+  'Categorias': 'カテゴリー',
+  'Criar Story': 'ストーリーズを作成',
+  'Compartilhe seu momento': 'あなたの瞬間をシェアしよう',
+  'Câmera': 'カメラ',
+  'Colagem': 'コラージュ',
+  'Marcar Ponto em Campos': 'カンポスのスポットをタグ付け',
+  'Dispensar': '閉じる',
+  'Canais diretos de atendimento': 'サポート窓口',
+  'Plataforma digital de turismo, mobilidade e experiências em Campos do Jordão.':
+    'カンポス・ド・ジョルドンの観光・モビリティ・体験デジタルプラットフォーム。',
+  'foi desenvolvido para oferecer aos visitantes e moradores de Campos do Jordão uma experiência de descoberta urbana e natural clara, precisa e integrada ao ecossistema iOS.':
+    'は、カンポス・ド・ジョルドンを訪れる旅行者や住民の皆様に、iOSエコシステムと調和した明確で正確な街と自然の発見体験を提供するために開発されました。',
+  'A plataforma reúne cartografia interativa em tempo real, curadoria de gastronomia, hotelaria, cafés, parques e atrações da Serra da Mantiqueira, roteiros estruturados por perfil de viagem e a comunidade fotográfica Monviangram.':
+    'リアルタイムのインタラクティブマップ、マンチケイラ山脈の厳選されたグルメ・ホテル・カフェ・公園・観光地、旅のスタイル別プラン、そして写真コミュニティ「Monviangram」をひとつに統合しています。',
+  'Aplicativo': 'アプリ情報',
+  '★ Verificado': '★ 公式認証',
+  'Desbloqueie o': 'アンロック：',
+  'Permissões do Dispositivo': 'デバイスの権限',
+  'Calcular rotas e proximidade de locais': 'ルート計算と周辺スポットの検出',
+  'Sons do Aplicativo': 'アプリのサウンド',
+  'Efeitos sonoros e confirmações': '効果音と操作フィードバック',
+  'Deseja encerrar a sessão?': 'ログアウトしますか？',
+  'Lugares Curtidos': 'お気に入りスポット',
+  'Salvo!': '保存しました！',
+  'Toque no botão + no canto superior esquerdo e compartilhe sua primeira foto em Campos do Jordão!':
+    '左上の「＋」ボタンをタップして、カンポス・ド・ジョルドンでの最初の写真をシェアしましょう！',
+  'Publicar Primeira Foto': '最初の写真を投稿する',
+  'mais': '続きを読む',
+  'Carregando mais fotos...': '写真を読み込み中...',
+  'Você viu todas as fotos de Campos do Jordão ✨': 'カンポス・ド・ジョルドンのすべての投稿を見ました ✨',
+  'Respondendo a': '返信先:',
+  'Legenda': 'キャプション',
+  'selecionado': '選択済み',
+  'Rota': 'ルート',
+  'Dica de quem foi': '訪れた人のヒント',
+  'de 5.0 estrelas': '/ 5.0つ星',
+  'Armazenados na nuvem no formato original enviado': 'アップロードされたオリジナル画質でクラウドに保存されます',
+  'Seu Nome ou Perfil': 'お名前またはアカウント名',
+  'Expira em 24h': '24時間で消えます',
+  '1.628m • Altitude Média': '1,628m • 平均標高',
+  'Detalhes': '詳細',
+  'O que deseja fazer?': '何をしますか？',
+  'Criar Novo Roteiro': '新しいプランを作成',
+  'Data Escolhida': '選択された日付',
+  'Seu saldo é insuficiente para liberar este roteiro. Adicione Plátanos à sua carteira para continuar.':
+    'このプランを解放するための残高が不足しています。続行するにはウォレットにプラタノを追加してください。',
+  'Lugares selecionados por guias': 'ガイド厳選のスポット',
+  'Experiência': '体験',
+  'Vídeos': '動画',
+  'Aberto hoje': '本日営業',
+  'Pôr do Sol': 'サンセット',
+  'Lugares em Destaque': '注目のスポット',
+  'Aberto 24 horas': '24時間営業',
+  'Não foi possível iniciar o pagamento no Stripe.': 'Stripe決済を開始できませんでした。',
+  'Não foi possível concluir a compra.': '購入を完了できませんでした。',
 };
+
+const normalizeLookupKeyJa = (s: string): string =>
+  s.trim().replace(/\s+/g, ' ').replace(/…/g, '...');
 
 const PT_TO_JA_LOWER = new Map<string, string>();
 for (const [pt, ja] of Object.entries(PT_TO_JA_RAW)) {
-  const key = pt.trim().toLowerCase();
+  const key = normalizeLookupKeyJa(pt).toLowerCase();
   if (!PT_TO_JA_LOWER.has(key)) {
     PT_TO_JA_LOWER.set(key, ja);
   }
@@ -1256,14 +1410,38 @@ const DYNAMIC_RULES_JA: Array<[RegExp, (...args: string[]) => string]> = [
   [/^Seja bem[\s-]vindo (.+)!$/i, (_m, name) => `ようこそ、${name}さん！`],
   [/^Boas[\s-]vindas,\s*(.+)!$/i, (_m, name) => `ようこそ、${name}さん！`],
   [/^Olá,\s*(.+)$/i, (_m, name) => `こんにちは、${name}さん`],
+  [/^Nível\s+(\d+)\s*[·•-]\s*(.+)$/i, (_m, lvl, title) => `レベル ${lvl} · ${translatePtToJa(title.trim())}`],
+  [/^Nível\s+(\d+)$/i, (_m, lvl) => `レベル ${lvl}`],
+  [/^(\d+)\s*lugar(?:es)?\s+descobertos?$/i, (_m, n) => `発見したスポット ${n}か所`],
+  [/^Faltam\s+([\d.,]+)\s*XP\s+para\s+o\s+próximo\s+nível$/i, (_m, xp) => `次のレベルまであと ${xp} XP`],
+  [/^Paradas\s*\((\d+)\)$/i, (_m, n) => `立ち寄りスポット (${n})`],
+  [/^Resultados\s*\((\d+)\)$/i, (_m, n) => `検索結果 (${n})`],
+  [/^Roteiros\s*[·•]\s*(.+)$/i, (_m, cat) => `プラン · ${translatePtToJa(cat.trim())}`],
+  [/^(\d+(?:[.,]\d+)?)\s*mil$/i, (_m, n) => {
+    const num = parseFloat(n.replace(',', '.'));
+    if (!isNaN(num)) {
+      const total = num * 1000;
+      if (total >= 10000) {
+        return `${(total / 10000).toFixed(1).replace(/\.0$/, '')}万`;
+      }
+      return `${total.toLocaleString('ja-JP')}`;
+    }
+    return `${n}k`;
+  }],
+  [/^(\d+)\s*paradas?$/i, (_m, n) => `${n}スポット`],
+  [/^(\d+)\s*dias?$/i, (_m, n) => `${n}日`],
+  [/^(\d+)\s*lugar(?:es)?$/i, (_m, n) => `${n}か所`],
+  [/^(\d+)\s*curtidas?$/i, (_m, n) => `いいね ${n}件`],
+  [/^Ver todos os (\d+) comentários$/i, (_m, n) => `コメント${n}件をすべて見る`],
+  [/^Você poderá entrar novamente a qualquer momento com sua conta (.+)\.$/i, (_m, email) => `アカウント（${email}）でいつでも再ログインできます。`],
+  [/^Libera até (\d+) roteiros? premium$/i, (_m, n) => `プレミアムプランを最大${n}件解放`],
   [/^(\d+)\s+de\s+(\d+)$/i, (_m, a, b) => `${a} / ${b}`],
   [/^Dia (\d+):\s*(.+)$/i, (_m, d, rest) => `${d}日目: ${translatePtToJa(rest)}`],
   [/^Dia (\d+)\s*[•·-]\s*Dia (\d+)$/i, (_m, d1, d2) => `${d1}日目 • ${d2}日目`],
   [/^Dia (\d+)$/i, (_m, d) => `${d}日目`],
-  [/^(\d+)\s*Dia$/i, (_m, d) => `${d}日`],
-  [/^(\d+)\s*Dias$/i, (_m, d) => `${d}日間`],
   [/^Local (\d+):\s*(.+)$/i, (_m, n, rest) => `スポット ${n}: ${translatePtToJa(rest)}`],
   [/^Local (\d+)$/i, (_m, n) => `スポット ${n}`],
+  [/^Parada (\d+)$/i, (_m, n) => `スポット ${n}`],
   [/^(.+?)\.\s*Deslize para a esquerda para excluir\.$/i, (_m, prefix) => `${translatePtToJa(prefix)}。左にスワイプして削除。`],
   [/^(\d+)\s*min até o próximo ponto$/i, (_m, min) => `次のスポットまで約${min}分`],
   [/^(\d+)\s*locais planejados$/i, (_m, n) => `計画済みスポット ${n}か所`],
@@ -1275,20 +1453,27 @@ const DYNAMIC_RULES_JA: Array<[RegExp, (...args: string[]) => string]> = [
   [/^(\d+)\s*adultos?$/i, (_m, n) => `大人${n}人`],
   [/^(\d+)\s*crianças?$/i, (_m, n) => `子ども${n}人`],
   [/^(\d+)\s*visualizações?$/i, (_m, n) => `${n}回視聴`],
-  [/^(\d+)\s*publicações?$/i, (_m, n) => `投稿${n}件`],
+  [/^(\d+)\s*visualização$/i, (_m, n) => `${n}回視聴`],
+  [/^(\d+)\s*publica(?:ção|ções)$/i, (_m, n) => `投稿${n}件`],
   [/^Ver (\d+) comentários?$/i, (_m, n) => `コメント${n}件を表示`],
   [/^(\d+)\s*comentários?$/i, (_m, n) => `コメント${n}件`],
   [/^Há (\d+) dias?$/i, (_m, n) => `${n}日前`],
   [/^HÁ (\d+) DIAS?$/i, (_m, n) => `${n}日前`],
+  [/^HÁ (\d+) HORAS?$/i, (_m, n) => `${n}時間前`],
+  [/^HÁ (\d+) MIN$/i, (_m, n) => `${n}分前`],
+  [/^há (\d+)d$/i, (_m, n) => `${n}日前`],
+  [/^há (\d+)h$/i, (_m, n) => `${n}時間前`],
+  [/^há (\d+)m$/i, (_m, n) => `${n}分前`],
   [/^Há (\d+) semanas?$/i, (_m, n) => `${n}週間前`],
   [/^Há (\d+) horas?$/i, (_m, n) => `${n}時間前`],
   [/^Há (\d+) min(uto)?s?$/i, (_m, n) => `${n}分前`],
   [/^Instruções enviadas para (.+)$/i, (_m, email) => `${email} に案内を送信しました`],
   [/^Local "(.+)" adicionado ao roteiro!$/i, (_m, name) => `「${name}」をプランに追加しました！`],
   [/^Respondendo a (.+)$/i, (_m, user) => `${user}への返信`],
-  [/^Você chegou ao (.+)$/i, (_m, place) => `${place}に到着しました`],
+  [/^Você chegou (?:ao|à|aos|às) (.+)$/i, (_m, place) => `${place}に到着しました`],
   [/^Roteiro Personalizado de (\d+) Dias em Campos do Jordão$/i, (_m, n) => `カンポス・ド・ジョルドン ${n}日間カスタムプラン`],
   [/^Experiência em Campos do Jordão \(1 Dia\)$/i, () => `カンポス・ド・ジョルドン体験（1日）`],
+  [/^Experiência em (.+)$/i, (_m, place) => `${place}での体験`],
   [/^Campos do Jordão:\s*(.+)$/i, (_m, cond) => `カンポス・ド・ジョルドン: ${translatePtToJa(cond)}`],
   [/^Todos os dias das (.+) às (.+)$/i, (_m, a, b) => `毎日 ${a}〜${b}`],
   [/^Aberto diariamente das (.+) às (.+)$/i, (_m, a, b) => `毎日営業 ${a}〜${b}`],
@@ -1300,18 +1485,13 @@ const DYNAMIC_RULES_JA: Array<[RegExp, (...args: string[]) => string]> = [
   [/^Domingo a Quinta (.+) \| Sex e Sáb (.+)$/i, (_m, a, b) => `日〜木 ${a} | 金・土 ${b}`],
   [/^Finais de semana e feriados das (.+) às (.+)$/i, (_m, a, b) => `週末・祝日 ${a}〜${b}`],
   [/^Temporada de Julho e Finais de Semana das (.+) às (.+)$/i, (_m, a, b) => `7月シーズン・週末 ${a}〜${b}`],
+  [/^(\d{1,2}:\d{2})\s+às\s+(\d{1,2}:\d{2})$/i, (_m, a, b) => `${a}〜${b}`],
   [/^Aberto 24 horas \((.+)\)$/i, (_m, inner) => `24時間営業（${translatePtToJa(inner)}）`],
   [/^Centro de turismo:\s*(.+)$/i, (_m, h) => `観光案内所: ${h}`],
   [/^Atendimento aos restaurantes sob reserva$/i, () => `レストランは要予約`],
   [/^Protocolo de registro:\s*(.+)$/i, (_m, p) => `受付番号: ${p}`],
   [/^Protocolo:\s*(.+)$/i, (_m, p) => `受付番号: ${p}`],
   [/^Compreendo que esta operação é irreversível e que minha conta \((.+)\) e os dados associados serão excluídos\.$/i, (_m, acc) => `この操作は取り消しできず、私のアカウント（${acc}）および関連データが削除されることを理解しています。`],
-  [/^([A-Za-zÀ-ÿ\s]+) • ([A-Za-zÀ-ÿ\s/]+)$/, (_m, a, b) => {
-    const ta = translatePtToJa(a.trim());
-    const tb = translatePtToJa(b.trim());
-    if (ta !== a.trim() || tb !== b.trim()) return `${ta} • ${tb}`;
-    return _m;
-  }],
 ];
 
 const WORD_PHRASES_JA: Array<[RegExp, string]> = [
@@ -1344,43 +1524,61 @@ export function translatePtToJa(raw: string): string {
     /^https?:\/\//i.test(trimmed) ||
     /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(trimmed) ||
     /^@[A-Za-z0-9_.]+$/.test(trimmed) ||
-    /^[0-9.,:%+\-\s°/]+$/.test(trimmed)
+    /^[0-9.,:%+\-\s°/·•()]+$/.test(trimmed)
   ) {
     return raw;
   }
 
   const lead = raw.match(/^\s*/)?.[0] ?? '';
   const trail = raw.match(/\s*$/)?.[0] ?? '';
+  const normalized = normalizeLookupKeyJa(trimmed);
 
-  const exact = PT_TO_JA_RAW[trimmed];
+  const exact = PT_TO_JA_RAW[trimmed] ?? PT_TO_JA_RAW[normalized];
   if (exact) {
     return `${lead}${exact}${trail}`;
   }
 
-  const lowerMatch = PT_TO_JA_LOWER.get(trimmed.toLowerCase());
+  const lowerMatch = PT_TO_JA_LOWER.get(normalized.toLowerCase());
   if (lowerMatch) {
     return `${lead}${lowerMatch}${trail}`;
   }
 
   for (const [regex, replacer] of DYNAMIC_RULES_JA) {
-    const match = trimmed.match(regex);
+    const match = normalized.match(regex);
     if (match) {
       const result = replacer(...match);
-      if (result && result !== trimmed) {
+      if (result && result !== normalized) {
         return `${lead}${result}${trail}`;
       }
     }
   }
 
-  if (trimmed.length <= 36) {
-    let replaced = trimmed;
+  if (/[·•]/.test(normalized)) {
+    const parts = normalized.split(/(\s*[·•]\s*)/);
+    if (parts.length > 1) {
+      let changed = false;
+      const mapped = parts.map((part) => {
+        if (!part || /^\s*[·•]\s*$/.test(part)) return part;
+        const trPart = translatePtToJa(part);
+        if (trPart !== part) changed = true;
+        return trPart;
+      });
+      if (changed) {
+        return `${lead}${mapped.join('')}${trail}`;
+      }
+    }
+  }
+
+  if (normalized.length <= 36) {
+    let replaced = normalized;
     for (const [rx, ja] of WORD_PHRASES_JA) {
       replaced = replaced.replace(rx, ja);
     }
-    if (replaced !== trimmed) {
+    if (replaced !== normalized) {
       return `${lead}${replaced}${trail}`;
     }
   }
 
   return raw;
 }
+

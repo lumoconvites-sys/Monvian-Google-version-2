@@ -400,9 +400,15 @@ const FeaturedItineraryBanner: React.FC<FeaturedItineraryBannerProps> = ({
                   {itinerary.title}
                 </h2>
                 <p className="text-[11.5px] sm:text-[12.5px] text-white/85 font-medium line-clamp-1 mt-1 drop-shadow-xs">
-                  {itinerary.daysCount} {itinerary.daysCount === 1 ? 'dia' : 'dias'}
-                  {stopsCount > 0 ? ` · ${stopsCount} paradas` : ''} ·{' '}
-                  {itinerary.description}
+                  <span>{`${itinerary.daysCount} ${itinerary.daysCount === 1 ? 'dia' : 'dias'}`}</span>
+                  {stopsCount > 0 && (
+                    <>
+                      <span>{' · '}</span>
+                      <span>{`${stopsCount} ${stopsCount === 1 ? 'parada' : 'paradas'}`}</span>
+                    </>
+                  )}
+                  <span>{' · '}</span>
+                  <span>{itinerary.description}</span>
                 </p>
               </div>
 
@@ -1624,9 +1630,15 @@ const HorizontalReferenceItineraryCard: React.FC<HorizontalReferenceItineraryCar
                   isDark ? 'text-zinc-400' : 'text-zinc-500'
                 }`}
               >
-                {itinerary.daysCount} {itinerary.daysCount === 1 ? 'dia' : 'dias'}
-                {stopsCount > 0 ? ` · ${stopsCount} paradas` : ''} ·{' '}
-                {itinerary.description || 'Experiência completa em Campos do Jordão'}
+                <span>{`${itinerary.daysCount} ${itinerary.daysCount === 1 ? 'dia' : 'dias'}`}</span>
+                {stopsCount > 0 && (
+                  <>
+                    <span>{' · '}</span>
+                    <span>{`${stopsCount} ${stopsCount === 1 ? 'parada' : 'paradas'}`}</span>
+                  </>
+                )}
+                <span>{' · '}</span>
+                <span>{itinerary.description || 'Experiência completa em Campos do Jordão'}</span>
               </p>
             </div>
           </div>

@@ -1,4 +1,4 @@
-import React, { useState, useRef, memo } from 'react';
+import React, { useState, useRef, useEffect, memo } from 'react';
 import { motion } from 'motion/react';
 import { GlassView } from 'expo-glass-effect';
 import { NavAgoraIcon, NavSalvosIcon, NavSearchIcon, NavProfileIcon, NavRoteirosIcon } from './NavIcons';
@@ -29,13 +29,140 @@ export const BottomNavigation: React.FC<BottomNavigationProps> = memo(({
   forceWhiteUI = false,
 }) => {
   const [pulseAnimation, setPulseAnimation] = useState<number>(0);
+  const [isCompact, setIsCompact] = useState<boolean>(false);
 
   const pointerDownPosRef = useRef<{ x: number; y: number } | null>(null);
   const dragStartTimeRef = useRef<number>(0);
+  const lastScrollTopMapRef = useRef<WeakMap<EventTarget, number>>(new WeakMap());
+  const touchStartYRef = useRef<number | null>(null);
+  const touchLastYRef = useRef<number | null>(null);
+  const isTouchInScrollableRef = useRef<boolean>(false);
 
   // Remapeia 'chat' antigo para 'salvos' caso persista no estado anterior
   const normalizedActiveTab: TabType = (activeTab as string) === 'chat' ? 'salvos' : (activeTab as TabType);
   const activeIndex = Math.max(0, TABS.findIndex((t) => t.id === normalizedActiveTab));
+
+  // Reset to normal size whenever switching tabs
+  useEffect(() => {
+    setIsCompact(false);
+  }, [normalizedActiveTab]);
+
+  // Listen to page/container scrolling and vertical touch gestures across all screens
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+
+    const isHorizontalOnlyScroller = (el: HTMLElement): boolean => {
+      const canScrollY = el.scrollHeight > el.clientHeight + 8;
+      const canScrollX = el.scrollWidth > el.clientWidth + 8;
+      return canScrollX && !canScrollY;
+    };
+
+    const handleScrollCapture = (e: Event) => {
+      const rawTarget = e.target;
+      if (!rawTarget) return;
+
+      let el: HTMLElement | null = null;
+      if (rawTarget === document || rawTarget === window) {
+        el = (document.scrollingElement || document.documentElement) as HTMLElement;
+      } else if (rawTarget instanceof HTMLElement) {
+        el = rawTarget;
+      }
+      if (!el || isHorizontalOnlyScroller(el)) return;
+
+      const currentScrollTop = Math.max(0, el.scrollTop);
+      const prevScrollTop = lastScrollTopMapRef.current.get(el) ?? currentScrollTop;
+      const delta = currentScrollTop - prevScrollTop;
+      lastScrollTopMapRef.current.set(el, currentScrollTop);
+
+      // Ignore tiny sub-pixel jitter
+      if (Math.abs(delta) < 2.5) return;
+
+      if (currentScrollTop <= 12) {
+        setIsCompact(false);
+      } else if (delta > 3.5 && currentScrollTop > 18) {
+        // User is rolling the page upward (scrolling down through content) -> shrink bar
+        setIsCompact(true);
+      } else if (delta < -3.5) {
+        // User is sliding downward (scrolling back up) -> expand bar to normal
+        setIsCompact(false);
+      }
+    };
+
+    const findScrollableAncestor = (node: EventTarget | null): HTMLElement | null => {
+      let curr = node instanceof HTMLElement ? node : null;
+      while (curr && curr !== document.body) {
+        if (curr.id === 'bottom-floating-navigation') return null;
+        const style = window.getComputedStyle(curr);
+        const overflowY = style.overflowY;
+        if (
+          (overflowY === 'auto' || overflowY === 'scroll') &&
+          curr.scrollHeight > curr.clientHeight + 10
+        ) {
+          return curr;
+        }
+        curr = curr.parentElement;
+      }
+      return null;
+    };
+
+    const handleTouchStart = (e: TouchEvent) => {
+      if (e.touches.length !== 1) return;
+      const y = e.touches[0].clientY;
+      touchStartYRef.current = y;
+      touchLastYRef.current = y;
+      const scrollable = findScrollableAncestor(e.target);
+      isTouchInScrollableRef.current = Boolean(scrollable) || normalizedActiveTab !== 'explorar';
+    };
+
+    const handleTouchMove = (e: TouchEvent) => {
+      if (e.touches.length !== 1 || touchLastYRef.current === null || !isTouchInScrollableRef.current) {
+        return;
+      }
+      const currentY = e.touches[0].clientY;
+      const stepDeltaY = currentY - touchLastYRef.current;
+      touchLastYRef.current = currentY;
+
+      // Finger moving up (rolling page upward) -> shrink
+      if (stepDeltaY < -10) {
+        setIsCompact(true);
+      } else if (stepDeltaY > 10) {
+        // Finger sliding down -> return to normal
+        setIsCompact(false);
+      }
+    };
+
+    const handleTouchEnd = () => {
+      touchStartYRef.current = null;
+      touchLastYRef.current = null;
+      isTouchInScrollableRef.current = false;
+    };
+
+    const handleWheel = (e: WheelEvent) => {
+      const scrollable = findScrollableAncestor(e.target);
+      if (!scrollable && normalizedActiveTab === 'explorar') return;
+      if (e.deltaY > 8) {
+        setIsCompact(true);
+      } else if (e.deltaY < -8) {
+        setIsCompact(false);
+      }
+    };
+
+    window.addEventListener('scroll', handleScrollCapture, { capture: true, passive: true });
+    window.addEventListener('touchstart', handleTouchStart, { passive: true });
+    window.addEventListener('touchmove', handleTouchMove, { passive: true });
+    window.addEventListener('touchend', handleTouchEnd, { passive: true });
+    window.addEventListener('touchcancel', handleTouchEnd, { passive: true });
+    window.addEventListener('wheel', handleWheel, { passive: true });
+
+    return () => {
+      window.removeEventListener('scroll', handleScrollCapture, { capture: true });
+      window.removeEventListener('touchstart', handleTouchStart);
+      window.removeEventListener('touchmove', handleTouchMove);
+      window.removeEventListener('touchend', handleTouchEnd);
+      window.removeEventListener('touchcancel', handleTouchEnd);
+      window.removeEventListener('wheel', handleWheel);
+    };
+  }, [normalizedActiveTab]);
 
   const handlePointerDown = (e: React.PointerEvent) => {
     if (e.pointerType === 'mouse') return;
@@ -78,7 +205,8 @@ export const BottomNavigation: React.FC<BottomNavigationProps> = memo(({
     <nav
       id="bottom-floating-navigation"
       aria-label="Navegação Principal"
-      className={`fixed inset-x-0 bottom-0 z-[250] flex justify-center select-none px-4 pointer-events-none transition-[opacity,transform,filter] duration-[200ms] ease-out ${
+      data-compact={isCompact ? 'true' : 'false'}
+      className={`fixed inset-x-0 bottom-0 z-[250] flex justify-center select-none px-4 pointer-events-none transition-[opacity,transform,filter,padding] duration-[260ms] ease-[cubic-bezier(0.22,1,0.36,1)] ${
         isBlurred
           ? 'opacity-40 scale-[0.98] blur-[6px] [&_*]:!pointer-events-none'
           : 'opacity-100 scale-100 blur-0'
@@ -95,18 +223,22 @@ export const BottomNavigation: React.FC<BottomNavigationProps> = memo(({
         margin: 0,
         paddingLeft: '16px',
         paddingRight: '16px',
-        paddingBottom: '12px',
+        paddingBottom: isCompact ? '10px' : '12px',
         transform: 'translateZ(0)',
         WebkitTransform: 'translateZ(0)',
       }}
     >
-      {/* Capsule with iOS 26 Liquid Glass finish */}
+      {/* Capsule with iOS 26 Liquid Glass finish — smoothly shrinks on scroll up and restores on scroll down */}
       <GlassView
         id="bottom-navigation-capsule"
         variant="bar"
         glassEffectStyle="liquid26"
         isInteractive
-        className="w-full max-w-[326px] sm:max-w-[342px] h-[62px] sm:h-[64px] p-[5.5px] pointer-events-auto relative rounded-full"
+        className={`w-full pointer-events-auto relative rounded-full transition-[max-width,height,padding,transform] duration-[260ms] ease-[cubic-bezier(0.22,1,0.36,1)] motion-reduce:transition-none ${
+          isCompact
+            ? 'max-w-[268px] sm:max-w-[280px] h-[48px] sm:h-[50px] p-[4px]'
+            : 'max-w-[326px] sm:max-w-[342px] h-[62px] sm:h-[64px] p-[5.5px]'
+        }`}
         style={{
           transform: 'translateZ(0)',
           WebkitTransform: 'translateZ(0)',
@@ -142,7 +274,7 @@ export const BottomNavigation: React.FC<BottomNavigationProps> = memo(({
                 onClick={() => handleTabClick(tab.id)}
                 aria-label={tab.label}
                 aria-current={isActive ? 'page' : undefined}
-                className={`relative z-10 w-full h-full min-h-[44px] min-w-[44px] rounded-full flex items-center justify-center cursor-pointer select-none active:scale-[0.94] transition-[transform,color,opacity] duration-[180ms] ease-[cubic-bezier(0.22,1,0.36,1)] motion-reduce:transition-none focus:outline-none focus-visible:ring-2 ${
+                className={`relative z-10 w-full h-full rounded-full flex items-center justify-center cursor-pointer select-none active:scale-[0.94] transition-[transform,color,opacity] duration-[180ms] ease-[cubic-bezier(0.22,1,0.36,1)] motion-reduce:transition-none focus:outline-none focus-visible:ring-2 ${
                   forceWhiteUI
                     ? 'text-[#FFFFFF] focus-visible:ring-white/30'
                     : 'text-[#000000] focus-visible:ring-black/25'
@@ -159,8 +291,9 @@ export const BottomNavigation: React.FC<BottomNavigationProps> = memo(({
                   initial={false}
                   animate={{
                     rotate: tab.id === 'explorar' ? pulseAnimation : 0,
+                    scale: isCompact ? 0.84 : 1,
                   }}
-                  transition={{ duration: 0.2, ease: [0.22, 1, 0.36, 1] }}
+                  transition={{ duration: 0.24, ease: [0.22, 1, 0.36, 1] }}
                   className="w-[24px] h-[24px] flex items-center justify-center shrink-0"
                 >
                   {tab.id === 'roteiros' && <NavRoteirosIcon size={24} className="text-current" />}
@@ -177,5 +310,6 @@ export const BottomNavigation: React.FC<BottomNavigationProps> = memo(({
     </nav>
   );
 });
+
 
 

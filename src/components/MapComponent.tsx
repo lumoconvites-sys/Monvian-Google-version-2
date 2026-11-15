@@ -303,10 +303,11 @@ export const MapComponent = memo(
     const [currentMode, setCurrentMode] = useState<MapModeType>(
       mapMode === 'satelite' ? 'satelite' : 'explorar'
     );
-    const [isFollowingUser, setIsFollowingUser] = useState<boolean>(true);
-    const isFollowingUserRef = useRef<boolean>(true);
+    const [isFollowingUser, setIsFollowingUser] = useState<boolean>(false);
+    const isFollowingUserRef = useRef<boolean>(false);
     const followCameraGraceUntilRef = useRef<number>(0);
     const hasUserMovedMapRef = useRef<boolean>(false);
+    const hasFramedInitialSpotsRef = useRef<boolean>(false);
     const [isCompassTracking, setIsCompassTracking] = useState<boolean>(false);
     const isCompassTrackingRef = useRef<boolean>(false);
     const compassIconWrapperRef = useRef<HTMLDivElement | null>(null);
@@ -360,8 +361,10 @@ export const MapComponent = memo(
     const lastCenteredSessionIdRef = useRef<number>(-1);
     const prevIs3DModeRef = useRef<boolean>(is3DMode);
 
-    // Campos do Jordão Center Coordinates
+    // Campos do Jordão Center & Overview Coordinates (frames all tourist spots across the city)
     const CAMPOS_CENTER: [number, number] = [-45.5908, -22.7394];
+    const CAMPOS_OVERVIEW_CENTER: [number, number] = [-45.5765, -22.7385];
+    const CAMPOS_OVERVIEW_ZOOM: number = 11.75;
 
     const setFollowMode = useCallback((follow: boolean) => {
       isFollowingUserRef.current = follow;
@@ -673,6 +676,75 @@ export const MapComponent = memo(
       },
     }));
 
+    const frameAllSpotsOverview = useCallback(
+      (targetMap?: maplibregl.Map | null, animate: boolean = false) => {
+        const map = targetMap || mapRef.current;
+        if (!map) return;
+
+        setFollowMode(false);
+        previousCameraStateRef.current = null;
+        hasUserMovedMapRef.current = false;
+        map.resize();
+
+        const currentSpots = spotsRef.current || [];
+        const camposSpots = currentSpots.filter((s) => {
+          const lng = Number(s.lng);
+          const lat = Number(s.lat);
+          return (
+            !isNaN(lng) &&
+            !isNaN(lat) &&
+            lat >= -22.85 &&
+            lat <= -22.62 &&
+            lng >= -45.68 &&
+            lng <= -45.45
+          );
+        });
+
+        let targetCenter: [number, number] = CAMPOS_OVERVIEW_CENTER;
+        let targetZoom: number = CAMPOS_OVERVIEW_ZOOM;
+
+        if (camposSpots.length >= 2) {
+          try {
+            const bounds = new maplibregl.LngLatBounds();
+            camposSpots.forEach((s) => {
+              bounds.extend([Number(s.lng), Number(s.lat)]);
+            });
+            const cam = map.cameraForBounds(bounds, {
+              padding: { top: 130, bottom: 145, left: 48, right: 82 },
+              maxZoom: 12.1,
+            });
+            if (cam && cam.center) {
+              const c = maplibregl.LngLat.convert(cam.center);
+              targetCenter = [c.lng, c.lat];
+              targetZoom =
+                typeof cam.zoom === 'number'
+                  ? Math.min(cam.zoom, 12.1)
+                  : CAMPOS_OVERVIEW_ZOOM;
+            }
+          } catch {}
+        }
+
+        if (animate) {
+          map.easeTo({
+            center: targetCenter,
+            zoom: targetZoom,
+            pitch: is3DModeRef.current ? 60 : 0,
+            bearing: is3DModeRef.current ? -20 : 0,
+            offset: [0, 0],
+            duration: 650,
+          });
+        } else {
+          map.jumpTo({
+            center: targetCenter,
+            zoom: targetZoom,
+            pitch: is3DModeRef.current ? 60 : 0,
+            bearing: is3DModeRef.current ? -20 : 0,
+          });
+        }
+      },
+      [setFollowMode]
+    );
+
     // Synchronize mode from prop if provided (excluding dark map mode)
     useEffect(() => {
       if (mapMode) {
@@ -692,12 +764,11 @@ export const MapComponent = memo(
 
       if (!mapRef.current) {
         prevStyleKeyRef.current = styleKey;
-        const initialCoords = normalizeCoords(userCoords, CAMPOS_CENTER);
         const map = new maplibregl.Map({
           container: mapContainerRef.current,
           style: style,
-          center: initialCoords,
-          zoom: 14.5,
+          center: CAMPOS_OVERVIEW_CENTER,
+          zoom: CAMPOS_OVERVIEW_ZOOM,
           pitch: is3DModeRef.current ? 60 : 0,
           bearing: is3DModeRef.current ? -20 : 0,
           maxPitch: 75,
@@ -728,39 +799,6 @@ export const MapComponent = memo(
           if (currentGpsState.hasRealFix && currentGpsState.status === 'granted') {
             userMarkerRef.current?.setLngLat(currentGpsState.coords);
             latestUserCoordsRef.current = currentGpsState.coords;
-            if (
-              !selectedSpotRef.current &&
-              !hasUserMovedMapRef.current &&
-              !isSpotlightActiveRef.current
-            ) {
-              hasCenteredOnFirstFixRef.current = true;
-              lastCenteredSessionIdRef.current = currentGpsState.sessionId ?? 0;
-              setFollowMode(true);
-              followCameraGraceUntilRef.current = performance.now() + 750;
-              map.easeTo({
-                center: currentGpsState.coords,
-                zoom: 15.6,
-                pitch: is3DModeRef.current ? 60 : 0,
-                bearing: is3DModeRef.current ? -20 : 0,
-                duration: 650,
-              });
-            }
-          } else if (
-            !selectedSpotRef.current &&
-            !hasUserMovedMapRef.current &&
-            !isSpotlightActiveRef.current
-          ) {
-            hasCenteredOnFirstFixRef.current = false;
-            lastCenteredSessionIdRef.current = -1;
-            setFollowMode(true);
-            followCameraGraceUntilRef.current = performance.now() + 500;
-            map.easeTo({
-              center: latestUserCoordsRef.current || CAMPOS_CENTER,
-              zoom: 15.6,
-              pitch: is3DModeRef.current ? 60 : 0,
-              bearing: is3DModeRef.current ? -20 : 0,
-              duration: 650,
-            });
           }
           if (selectedSpotRef.current && selectedSpotRef.current.lng && selectedSpotRef.current.lat) {
             const isMobile = window.innerWidth < 768;
@@ -773,6 +811,8 @@ export const MapComponent = memo(
               offset: [0, verticalOffset],
               duration: 500,
             });
+          } else if (!hasUserMovedMapRef.current && !isSpotlightActiveRef.current) {
+            frameAllSpotsOverview(map, false);
           }
           if (onMapLoad) onMapLoad();
         });
@@ -982,37 +1022,9 @@ export const MapComponent = memo(
         }
 
         const now = performance.now();
-        const activeSessionId = navState.sessionId ?? 0;
-        const needsSessionCenter =
-          lastCenteredSessionIdRef.current !== activeSessionId || !hasCenteredOnFirstFixRef.current;
         const isExplorarVisible = !activeTabRef.current || activeTabRef.current === 'explorar';
 
-        // Position & zoom camera automatically on the first valid GPS fix of each session if user hasn't dragged away
         if (
-          mapRef.current &&
-          isExplorarVisible &&
-          navState.hasRealFix &&
-          navState.status === 'granted' &&
-          needsSessionCenter &&
-          !hasUserMovedMapRef.current &&
-          !selectedSpotRef.current &&
-          !isSpotlightActiveRef.current
-        ) {
-          lastCenteredSessionIdRef.current = activeSessionId;
-          hasCenteredOnFirstFixRef.current = true;
-          setFollowMode(true);
-          followCameraGraceUntilRef.current = now + 850;
-          lastFollowedLng = navState.coords[0];
-          lastFollowedLat = navState.coords[1];
-          mapRef.current.resize();
-          mapRef.current.easeTo({
-            center: navState.coords,
-            zoom: 15.6,
-            pitch: is3DModeRef.current ? 60 : 0,
-            bearing: is3DModeRef.current ? -20 : 0,
-            duration: 750,
-          });
-        } else if (
           mapRef.current &&
           isExplorarVisible &&
           isFollowingUserRef.current &&
@@ -1056,14 +1068,16 @@ export const MapComponent = memo(
       };
     }, [ensureUserMarker]);
 
-    // Trigger zoom to user only when explicitly requested
+    // Trigger overview framing all spot icons when entering or returning to the map
     useEffect(() => {
       if (zoomToUserTrigger && zoomToUserTrigger > 0) {
-        centerOnUserLocation(false, false, 15.6);
+        if (!selectedSpotRef.current && !isSpotlightActiveRef.current) {
+          frameAllSpotsOverview(mapRef.current, false);
+        }
       }
-    }, [zoomToUserTrigger, centerOnUserLocation]);
+    }, [zoomToUserTrigger, frameAllSpotsOverview]);
 
-    // Toda vez que o usuário sair do mapa e ir pra outra aba, quando ele voltar o zoom retorna no ícone dele
+    // Whenever returning from another tab to 'explorar', start with the overview showing all spot icons
     const prevActiveTabRef = useRef<string | undefined>(activeTab);
     useEffect(() => {
       const prev = prevActiveTabRef.current;
@@ -1071,13 +1085,13 @@ export const MapComponent = memo(
 
       if (prev && prev !== 'explorar' && activeTab === 'explorar') {
         const timer = window.setTimeout(() => {
-          if (mapRef.current) {
-            centerOnUserLocation(false, false, 15.6);
+          if (mapRef.current && !selectedSpotRef.current && !isSpotlightActiveRef.current) {
+            frameAllSpotsOverview(mapRef.current, false);
           }
         }, 100);
         return () => window.clearTimeout(timer);
       }
-    }, [activeTab, centerOnUserLocation]);
+    }, [activeTab, frameAllSpotsOverview]);
 
     // Focus camera on user marker with high spotlight zoom and hide other markers during spotlight presentation
     useEffect(() => {
@@ -2142,7 +2156,19 @@ export const MapComponent = memo(
     useEffect(() => {
       spotsRef.current = spots;
       syncSpotMarkers();
-    }, [spots, syncSpotMarkers]);
+      if (
+        !hasFramedInitialSpotsRef.current &&
+        spots &&
+        spots.length > 0 &&
+        mapRef.current &&
+        !selectedSpotRef.current &&
+        !hasUserMovedMapRef.current &&
+        !isSpotlightActiveRef.current
+      ) {
+        hasFramedInitialSpotsRef.current = true;
+        frameAllSpotsOverview(mapRef.current, false);
+      }
+    }, [spots, syncSpotMarkers, frameAllSpotsOverview]);
 
     // Update marker highlight and camera zoom smoothly when a tourist spot is selected, and restore camera when deselected
     useEffect(() => {

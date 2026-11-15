@@ -41,6 +41,10 @@ import { SignupIntroSequence, SignupIntroStage } from './components/SignupIntroS
 import { WelcomeJourneyModal } from './components/WelcomeJourneyModal';
 import { XpRewardNotificationOverlay } from './components/XpRewardNotificationOverlay';
 import { FloatingEventCard } from './components/FloatingEventCard';
+import {
+  MobileExploreClothingPill,
+  ClothingWeatherModal,
+} from './components/ClothingWeatherWidget';
 import { IOSInteractiveBackSystem } from './components/IOSInteractiveBackSystem';
 import { useIOSBackEntry, iosNavigationManager } from './services/iosNavigationManager';
 import { auth, signOut, setCachedAccessToken, waitForFirebaseAuthUser, getFreshFirebaseIdToken } from './lib/firebase';
@@ -2084,6 +2088,8 @@ export default function App() {
                   searchQuery={searchQuery}
                   onSearchChange={setSearchQuery}
                   theme={theme}
+                  realWeather={realWeather}
+                  onOpenClothingGuide={() => setIsWeatherModalOpen(true)}
                 />
               </motion.div>
             )}
@@ -2177,11 +2183,12 @@ export default function App() {
             paddingRight: 'max(16px, env(safe-area-inset-right, 0px))',
           }}
         >
-        {/* Left: Big Weather Temperature & Dynamic Condition (Clean display without card box) */}
+        {/* Left: Big Weather Temperature, Dynamic Condition & Clothing Recommendation Widget */}
         <div className="flex items-center pointer-events-auto">
           <div
             id="weather-header-display"
-            className="flex flex-col items-start select-none opacity-100 scale-100"
+            onClick={() => setIsWeatherModalOpen(true)}
+            className="flex flex-col items-start select-none opacity-100 scale-100 cursor-pointer"
             title={`Campos do Jordão: ${realWeather.temperature}°C — ${realWeather.condition}`}
           >
             {/* Layout: Large beautiful 3D icon on the left, bold prominent degrees */}
@@ -2230,6 +2237,15 @@ export default function App() {
                 {realWeather.condition}
               </span>
             </div>
+
+            {/* Informative Clothing Suggestion Pill based on current local temperature */}
+            <MobileExploreClothingPill
+              weather={realWeather}
+              onOpenGuide={() => setIsWeatherModalOpen(true)}
+              isSatellite={isSatelliteExplore}
+              isAnimado={mapStyle === 'animado'}
+              theme={theme}
+            />
           </div>
         </div>
 
@@ -2464,6 +2480,13 @@ export default function App() {
       onClose={handleAirbnbCardClose}
       onAction={handleAirbnbCardAction}
       theme={theme}
+    />
+
+    {/* 3.9. Clothing & Thermal Preparation Guide Modal for Campos do Jordão */}
+    <ClothingWeatherModal
+      isOpen={isWeatherModalOpen}
+      onClose={() => setIsWeatherModalOpen(false)}
+      weather={realWeather}
     />
 
     {/* Monvian iOS Minimalist Floating Event Card (Mounted ONLY while Explorar map is active) */}

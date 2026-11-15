@@ -311,10 +311,96 @@ export function AuthScreen({
     }
   };
 
-  // Refs for smooth auto-focus on step transitions
+  // Refs for smooth, immediate auto-focus and iOS keyboard activation on step transitions
+  const registerSectionRef = useRef<HTMLDivElement>(null);
+  const step1FormRef = useRef<HTMLFormElement>(null);
+  const step2FormRef = useRef<HTMLFormElement>(null);
+  const step3FormRef = useRef<HTMLFormElement>(null);
   const nameInputRef = useRef<HTMLInputElement>(null);
   const registerEmailInputRef = useRef<HTMLInputElement>(null);
   const registerPasswordInputRef = useRef<HTMLInputElement>(null);
+
+  const focusStepInputSynchronously = (targetStep: 1 | 2 | 3) => {
+    if (typeof window === 'undefined') return;
+    if (registerSectionRef.current) {
+      registerSectionRef.current.style.visibility = 'visible';
+      registerSectionRef.current.style.opacity = '1';
+      registerSectionRef.current.style.pointerEvents = 'auto';
+      registerSectionRef.current.style.zIndex = '110';
+    }
+    if (step1FormRef.current) {
+      step1FormRef.current.style.display = targetStep === 1 ? 'flex' : 'none';
+    }
+    if (step2FormRef.current) {
+      step2FormRef.current.style.display = targetStep === 2 ? 'flex' : 'none';
+    }
+    if (step3FormRef.current) {
+      step3FormRef.current.style.display = targetStep === 3 ? 'flex' : 'none';
+    }
+    const targetInput =
+      targetStep === 1
+        ? nameInputRef.current
+        : targetStep === 2
+          ? registerEmailInputRef.current
+          : registerPasswordInputRef.current;
+
+    if (targetInput && !targetInput.disabled) {
+      try {
+        targetInput.focus({ preventScroll: true });
+      } catch {
+        targetInput.focus();
+      }
+      try {
+        const len = targetInput.value.length;
+        if (targetInput.type === 'text' && len > 0) {
+          targetInput.setSelectionRange(len, len);
+        }
+      } catch {}
+    }
+  };
+
+  const blurRegisterInputs = () => {
+    nameInputRef.current?.blur();
+    registerEmailInputRef.current?.blur();
+    registerPasswordInputRef.current?.blur();
+  };
+
+  // Ensure input is focused and keyboard is active whenever entering or changing registration steps
+  useEffect(() => {
+    if (authMode !== 'register') return;
+    if (registerStep === 4) {
+      blurRegisterInputs();
+      return;
+    }
+
+    const targetStep = registerStep as 1 | 2 | 3;
+    const ensureFocus = () => {
+      const targetInput =
+        targetStep === 1
+          ? nameInputRef.current
+          : targetStep === 2
+            ? registerEmailInputRef.current
+            : registerPasswordInputRef.current;
+      if (targetInput && document.activeElement !== targetInput && !targetInput.disabled) {
+        try {
+          targetInput.focus({ preventScroll: true });
+        } catch {
+          targetInput.focus();
+        }
+      }
+    };
+
+    ensureFocus();
+    const rafId = window.requestAnimationFrame(ensureFocus);
+    const timer1 = window.setTimeout(ensureFocus, 40);
+    const timer2 = window.setTimeout(ensureFocus, 140);
+
+    return () => {
+      window.cancelAnimationFrame(rafId);
+      window.clearTimeout(timer1);
+      window.clearTimeout(timer2);
+    };
+  }, [authMode, registerStep]);
 
   // Save draft name & email temporarily during the signup flow
   useEffect(() => {
@@ -405,9 +491,11 @@ export function AuthScreen({
     setAvatarPreview(null);
     setAvatarBase64(null);
     setAuthMode('register');
+    focusStepInputSynchronously(1);
   };
 
   const handleOpenLoginFlow = () => {
+    blurRegisterInputs();
     setError('');
     setRecoverSent(false);
     setLoginZoom(1);
@@ -420,6 +508,7 @@ export function AuthScreen({
     setError('');
     if (!isNameValid) return;
     setRegisterStep(2);
+    focusStepInputSynchronously(2);
   };
 
   const handleStep2Continue = (e?: React.FormEvent) => {
@@ -428,6 +517,7 @@ export function AuthScreen({
     setError('');
     if (!isEmailValid) return;
     setRegisterStep(3);
+    focusStepInputSynchronously(3);
   };
 
   const handleStep3Continue = (e?: React.FormEvent) => {
@@ -441,11 +531,13 @@ export function AuthScreen({
 
     if (cleanName.length < 2) {
       setRegisterStep(1);
+      focusStepInputSynchronously(1);
       return;
     }
 
     if (!validateEmailFormat(cleanEmail).valid) {
       setRegisterStep(2);
+      focusStepInputSynchronously(2);
       return;
     }
 
@@ -459,6 +551,7 @@ export function AuthScreen({
       return;
     }
 
+    blurRegisterInputs();
     setRegisterStep(4);
   };
 
@@ -467,11 +560,15 @@ export function AuthScreen({
     setError('');
     if (registerStep === 4) {
       setRegisterStep(3);
+      focusStepInputSynchronously(3);
     } else if (registerStep === 3) {
       setRegisterStep(2);
+      focusStepInputSynchronously(2);
     } else if (registerStep === 2) {
       setRegisterStep(1);
+      focusStepInputSynchronously(1);
     } else {
+      blurRegisterInputs();
       setAuthMode('landing');
     }
   };
@@ -1050,22 +1147,6 @@ export function AuthScreen({
     }
   };
 
-  // Shared step transition variants (Apple-inspired translucent fade + subtle GPU motion)
-  const stepMotionProps = shouldReduceMotion
-    ? {
-        initial: { opacity: 0 },
-        animate: { opacity: 1 },
-        exit: { opacity: 0 },
-        transition: { duration: 0.18 },
-      }
-    : {
-        initial: { opacity: 0, y: 10 },
-        animate: { opacity: 1, y: 0 },
-        exit: { opacity: 0, y: -8 },
-        transition: { duration: 0.36, ease: [0.22, 1, 0.36, 1] as [number, number, number, number] },
-      };
-
-
   return (
     <div
       className="fixed inset-0 z-[100] select-none overflow-hidden bg-[#FFFFFF] text-[#080808]"
@@ -1116,529 +1197,526 @@ export function AuthScreen({
 
       {/* =========================================================================
           2. PROGRESSIVE 3-STEP REGISTRATION FLOW (Modo Branco — Nome -> E-mail -> Senha)
+             Kept mounted in DOM so iOS Safari can synchronously focus the input
+             within the user's tap gesture and open the native keyboard immediately.
          ========================================================================= */}
-      <AnimatePresence>
-        {authMode === 'register' && (
-          <motion.div
-            id="auth-register-section"
-            key="progressive-register-flow"
-            initial={shouldReduceMotion ? { opacity: 0 } : { opacity: 0, y: 14 }}
-            animate={shouldReduceMotion ? { opacity: 1 } : { opacity: 1, y: 0 }}
-            exit={shouldReduceMotion ? { opacity: 0 } : { opacity: 0, y: 10 }}
-            transition={{ duration: shouldReduceMotion ? 0.18 : 0.32, ease: [0.22, 1, 0.36, 1] }}
-            className={`fixed inset-0 z-[110] bg-[#FFFFFF] text-[#080808] flex flex-col justify-between ios-pushed-page ${
-              registerStep === 4 ? 'overflow-y-auto overscroll-y-contain' : 'overflow-hidden'
-            }`}
-            style={{
-              top: 0,
-              bottom: 0,
-              left: 0,
-              right: 0,
-              width: '100%',
-              height: 'var(--app-height, 100dvh)',
-              minHeight: 'var(--app-height, 100dvh)',
-              backgroundColor: '#FFFFFF',
-              paddingTop: 'max(20px, env(safe-area-inset-top, 0px))',
-              paddingBottom: 'max(24px, env(safe-area-inset-bottom, 0px))',
-              paddingLeft: 'max(24px, env(safe-area-inset-left, 0px))',
-              paddingRight: 'max(24px, env(safe-area-inset-right, 0px))',
-              willChange: 'transform, opacity',
-            }}
+      <div
+        ref={registerSectionRef}
+        id="auth-register-section"
+        aria-hidden={authMode !== 'register'}
+        className={`fixed inset-0 bg-[#FFFFFF] text-[#080808] flex flex-col justify-between ios-pushed-page transition-opacity duration-200 ${
+          registerStep === 4 ? 'overflow-y-auto overscroll-y-contain' : 'overflow-hidden'
+        }`}
+        style={{
+          top: 0,
+          bottom: 0,
+          left: 0,
+          right: 0,
+          width: '100%',
+          height: 'var(--app-height, 100dvh)',
+          minHeight: 'var(--app-height, 100dvh)',
+          backgroundColor: '#FFFFFF',
+          paddingTop: 'max(20px, env(safe-area-inset-top, 0px))',
+          paddingBottom: 'max(24px, env(safe-area-inset-bottom, 0px))',
+          paddingLeft: 'max(24px, env(safe-area-inset-left, 0px))',
+          paddingRight: 'max(24px, env(safe-area-inset-right, 0px))',
+          willChange: 'transform, opacity',
+          visibility: authMode === 'register' ? 'visible' : 'hidden',
+          opacity: authMode === 'register' ? 1 : 0,
+          pointerEvents: authMode === 'register' ? 'auto' : 'none',
+          zIndex: authMode === 'register' ? 110 : -10,
+        }}
+      >
+        {/* Top Minimal Navigation Bar with Centered 3-Dot Step Indicator */}
+        <header className="relative w-full max-w-sm mx-auto pt-2 flex items-center justify-between shrink-0">
+          <AppleBackButton
+            id="btn-register-back"
+            theme="light"
+            onClick={handleStepBack}
+            disabled={loading}
+            aria-label="Voltar"
+          />
+
+          {/* 4 Bolinhas no meio da parte superior */}
+          <div
+            aria-label={`Etapa ${registerStep} de 4`}
+            className="absolute left-1/2 -translate-x-1/2 flex items-center gap-2"
           >
-            {/* Top Minimal Navigation Bar with Centered 3-Dot Step Indicator */}
-            <header className="relative w-full max-w-sm mx-auto pt-2 flex items-center justify-between shrink-0">
-              <AppleBackButton
-                id="btn-register-back"
-                theme="light"
-                onClick={handleStepBack}
-                disabled={loading}
-                aria-label="Voltar"
+            {[1, 2, 3, 4].map((step) => {
+              const isActive = registerStep === step;
+              return (
+                <span
+                  key={step}
+                  className={`w-2 h-2 rounded-full transition-colors duration-300 ${
+                    isActive ? 'bg-[#2673E8]' : 'bg-[#C5CBD8]'
+                  }`}
+                />
+              );
+            })}
+          </div>
+
+          <div className="w-10 h-10" aria-hidden="true" />
+        </header>
+
+        {/* Center Content Area: stays vertically centered in visible area above virtual keyboard */}
+        <main
+          className={`w-full max-w-sm mx-auto flex flex-col justify-center transition-all duration-200 ${
+            isKeyboardOpen && registerStep < 4
+              ? 'my-0 pt-4 pb-2'
+              : 'my-auto py-8'
+          }`}
+          style={
+            isKeyboardOpen && registerStep < 4 && viewportHeight > 0
+              ? {
+                  minHeight: `calc(${viewportHeight}px - max(20px, env(safe-area-inset-top, 0px)) - 70px)`,
+                  maxHeight: `calc(${viewportHeight}px - max(20px, env(safe-area-inset-top, 0px)) - 70px)`,
+                }
+              : undefined
+          }
+        >
+          {/* ETAPA 1 — NOME */}
+          <form
+            ref={step1FormRef}
+            onSubmit={handleStep1Continue}
+            className="w-full flex-col"
+            style={{ display: registerStep === 1 ? 'flex' : 'none' }}
+          >
+            <h1
+              id="register-step1-title"
+              className="text-[26px] sm:text-[28px] font-bold tracking-tight text-[#080808] leading-[1.2] mb-6 text-left"
+            >
+              Vamos começar, qual é seu nome?
+            </h1>
+
+            <div className="w-full">
+              <input
+                ref={nameInputRef}
+                id="input-register-name"
+                type="text"
+                placeholder="Digite seu nome"
+                value={name}
+                onChange={(e) => {
+                  setName(e.target.value);
+                  if (error) setError('');
+                }}
+                onFocus={handleRegisterInputFocus}
+                onBlur={() => {
+                  setNameTouched(true);
+                }}
+                autoFocus={authMode === 'register' && registerStep === 1}
+                autoComplete="name"
+                autoCapitalize="words"
+                enterKeyHint="next"
+                className="w-full px-5 py-4 rounded-[20px] bg-[#F5F7FA] border border-[#E2E6EE] text-[#080808] placeholder:text-[#8E939E] focus:outline-none focus:bg-[#FFFFFF] focus:border-[#2673E8] focus:ring-2 focus:ring-[#2673E8]/15 transition-all text-[16px] font-medium"
               />
 
-              {/* 4 Bolinhas no meio da parte superior */}
-              <div
-                aria-label={`Etapa ${registerStep} de 4`}
-                className="absolute left-1/2 -translate-x-1/2 flex items-center gap-2"
-              >
-                {[1, 2, 3, 4].map((step) => {
-                  const isActive = registerStep === step;
-                  return (
-                    <span
-                      key={step}
-                      className={`w-2 h-2 rounded-full transition-colors duration-300 ${
-                        isActive ? 'bg-[#2673E8]' : 'bg-[#C5CBD8]'
-                      }`}
-                    />
-                  );
-                })}
-              </div>
-
-              <div className="w-10 h-10" aria-hidden="true" />
-            </header>
-
-            {/* Center Content Area: stays vertically centered in visible area above virtual keyboard */}
-            <main
-              className={`w-full max-w-sm mx-auto flex flex-col justify-center transition-all duration-200 ${
-                isKeyboardOpen && registerStep < 4
-                  ? 'my-0 pt-4 pb-2'
-                  : 'my-auto py-8'
-              }`}
-              style={
-                isKeyboardOpen && registerStep < 4 && viewportHeight > 0
-                  ? {
-                      minHeight: `calc(${viewportHeight}px - max(20px, env(safe-area-inset-top, 0px)) - 70px)`,
-                      maxHeight: `calc(${viewportHeight}px - max(20px, env(safe-area-inset-top, 0px)) - 70px)`,
-                    }
-                  : undefined
-              }
-            >
-              <AnimatePresence mode="wait">
-                {/* ETAPA 1 — NOME */}
-                {registerStep === 1 && (
-                  <motion.form
-                    key="register-step-1-name"
-                    onSubmit={handleStep1Continue}
-                    {...stepMotionProps}
-                    className="w-full flex flex-col"
+              <AnimatePresence>
+                {nameTouched && name.trim().length > 0 && !isNameValid && (
+                  <motion.p
+                    initial={{ opacity: 0, y: -4 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, y: -4 }}
+                    className="text-[13px] text-[#737780] font-medium mt-2.5 px-1"
                   >
-                    <h1
-                      id="register-step1-title"
-                      className="text-[26px] sm:text-[28px] font-bold tracking-tight text-[#080808] leading-[1.2] mb-6 text-left"
-                    >
-                      Vamos começar, qual é seu nome?
-                    </h1>
-
-                    <div className="w-full">
-                      <input
-                        ref={nameInputRef}
-                        id="input-register-name"
-                        type="text"
-                        placeholder="Digite seu nome"
-                        value={name}
-                        onChange={(e) => {
-                          setName(e.target.value);
-                          if (error) setError('');
-                        }}
-                        onFocus={handleRegisterInputFocus}
-                        onBlur={() => {
-                          setNameTouched(true);
-                        }}
-                        autoComplete="name"
-                        autoCapitalize="words"
-                        className="w-full px-5 py-4 rounded-[20px] bg-[#F5F7FA] border border-[#E2E6EE] text-[#080808] placeholder:text-[#8E939E] focus:outline-none focus:bg-[#FFFFFF] focus:border-[#2673E8] focus:ring-2 focus:ring-[#2673E8]/15 transition-all text-[16px] font-medium"
-                      />
-
-                      <AnimatePresence>
-                        {nameTouched && name.trim().length > 0 && !isNameValid && (
-                          <motion.p
-                            initial={{ opacity: 0, y: -4 }}
-                            animate={{ opacity: 1, y: 0 }}
-                            exit={{ opacity: 0, y: -4 }}
-                            className="text-[13px] text-[#737780] font-medium mt-2.5 px-1"
-                          >
-                            Digite pelo menos 2 caracteres para continuar.
-                          </motion.p>
-                        )}
-                      </AnimatePresence>
-                    </div>
-                  </motion.form>
-                )}
-
-                {/* ETAPA 2 — E-MAIL */}
-                {registerStep === 2 && (
-                  <motion.form
-                    key="register-step-2-email"
-                    onSubmit={handleStep2Continue}
-                    {...stepMotionProps}
-                    className="w-full flex flex-col"
-                  >
-                    <h1
-                      id="register-step2-title"
-                      className="text-[26px] sm:text-[28px] font-bold tracking-tight text-[#080808] leading-[1.2] mb-6 text-left"
-                    >
-                      Forneça seu e-mail para continuar
-                    </h1>
-
-                    <div className="w-full">
-                      <input
-                        ref={registerEmailInputRef}
-                        id="input-register-email"
-                        type="email"
-                        inputMode="email"
-                        placeholder="seuemail@gmail.com"
-                        value={registerEmail}
-                        onChange={(e) => {
-                          setRegisterEmail(e.target.value);
-                          if (error) setError('');
-                        }}
-                        onFocus={handleRegisterInputFocus}
-                        onBlur={() => {
-                          setEmailTouched(true);
-                        }}
-                        autoComplete="email"
-                        autoCapitalize="none"
-                        autoCorrect="off"
-                        spellCheck={false}
-                        className="w-full px-5 py-4 rounded-[20px] bg-[#F5F7FA] border border-[#E2E6EE] text-[#080808] placeholder:text-[#8E939E] focus:outline-none focus:bg-[#FFFFFF] focus:border-[#2673E8] focus:ring-2 focus:ring-[#2673E8]/15 transition-all text-[16px] font-medium"
-                      />
-
-                      <AnimatePresence>
-                        {error ? (
-                          <motion.p
-                            key="register-step2-error"
-                            initial={{ opacity: 0, y: -4 }}
-                            animate={{ opacity: 1, y: 0 }}
-                            exit={{ opacity: 0, y: -4 }}
-                            className="text-[13px] text-red-500 font-medium mt-2.5 px-1"
-                          >
-                            {error}
-                          </motion.p>
-                        ) : (emailTouched || registerEmail.includes('@')) &&
-                          registerEmail.trim().length > 0 &&
-                          !isEmailValid ? (
-                          <motion.p
-                            key="register-step2-hint"
-                            initial={{ opacity: 0, y: -4 }}
-                            animate={{ opacity: 1, y: 0 }}
-                            exit={{ opacity: 0, y: -4 }}
-                            className="text-[13px] text-[#737780] font-medium mt-2.5 px-1"
-                          >
-                            {emailValidation.reason || 'Informe um endereço de e-mail válido.'}
-                          </motion.p>
-                        ) : null}
-                      </AnimatePresence>
-                    </div>
-                  </motion.form>
-                )}
-
-                {/* ETAPA 3 — CRIAÇÃO E CONFIRMAÇÃO DE SENHA */}
-                {registerStep === 3 && (
-                  <motion.form
-                    key="register-step-3-password"
-                    onSubmit={handleStep3Continue}
-                    {...stepMotionProps}
-                    className="w-full flex flex-col"
-                  >
-                    <h1
-                      id="register-step3-title"
-                      className="text-[26px] sm:text-[28px] font-bold tracking-tight text-[#080808] leading-[1.2] mb-6 text-left"
-                    >
-                      Crie sua senha
-                    </h1>
-
-                    <div className="w-full space-y-3.5">
-                      <div className="relative">
-                        <input
-                          ref={registerPasswordInputRef}
-                          id="input-register-password"
-                          type={showRegisterPassword ? 'text' : 'password'}
-                          placeholder="Digite sua senha"
-                          value={registerPassword}
-                          onChange={(e) => {
-                            setRegisterPassword(e.target.value);
-                            if (error) setError('');
-                          }}
-                          onFocus={handleRegisterInputFocus}
-                          onBlur={() => {
-                            setPasswordTouched(true);
-                          }}
-                          disabled={loading}
-                          autoComplete="new-password"
-                          className="w-full pl-5 pr-12 py-4 rounded-[20px] bg-[#F5F7FA] border border-[#E2E6EE] text-[#080808] placeholder:text-[#8E939E] focus:outline-none focus:bg-[#FFFFFF] focus:border-[#2673E8] focus:ring-2 focus:ring-[#2673E8]/15 transition-all text-[16px] font-medium disabled:opacity-60"
-                        />
-                        <button
-                          type="button"
-                          onClick={() => setShowRegisterPassword((prev) => !prev)}
-                          tabIndex={-1}
-                          className="absolute right-4 top-1/2 -translate-y-1/2 text-[#737780] hover:text-[#080808] transition-colors cursor-pointer p-1"
-                          aria-label={showRegisterPassword ? 'Ocultar senha' : 'Visualizar senha'}
-                        >
-                          {showRegisterPassword ? (
-                            <EyeOff className="w-[18px] h-[18px]" />
-                          ) : (
-                            <Eye className="w-[18px] h-[18px]" />
-                          )}
-                        </button>
-                      </div>
-
-                      <div className="relative">
-                        <input
-                          id="input-register-confirm-password"
-                          type={showConfirmPassword ? 'text' : 'password'}
-                          placeholder="Confirme sua senha"
-                          value={confirmPassword}
-                          onChange={(e) => {
-                            setConfirmPassword(e.target.value);
-                            if (error) setError('');
-                          }}
-                          onFocus={handleRegisterInputFocus}
-                          onBlur={() => {
-                            setConfirmTouched(true);
-                          }}
-                          disabled={loading}
-                          autoComplete="new-password"
-                          className="w-full pl-5 pr-12 py-4 rounded-[20px] bg-[#F5F7FA] border border-[#E2E6EE] text-[#080808] placeholder:text-[#8E939E] focus:outline-none focus:bg-[#FFFFFF] focus:border-[#2673E8] focus:ring-2 focus:ring-[#2673E8]/15 transition-all text-[16px] font-medium disabled:opacity-60"
-                        />
-                        <button
-                          type="button"
-                          onClick={() => setShowConfirmPassword((prev) => !prev)}
-                          tabIndex={-1}
-                          className="absolute right-4 top-1/2 -translate-y-1/2 text-[#737780] hover:text-[#080808] transition-colors cursor-pointer p-1"
-                          aria-label={showConfirmPassword ? 'Ocultar confirmação de senha' : 'Visualizar confirmação de senha'}
-                        >
-                          {showConfirmPassword ? (
-                            <EyeOff className="w-[18px] h-[18px]" />
-                          ) : (
-                            <Eye className="w-[18px] h-[18px]" />
-                          )}
-                        </button>
-                      </div>
-
-                      <div className="min-h-[24px] pt-1 px-1">
-                        <AnimatePresence mode="wait">
-                          {error ? (
-                            <motion.div
-                              key="server-error"
-                              initial={{ opacity: 0, y: -4 }}
-                              animate={{ opacity: 1, y: 0 }}
-                              exit={{ opacity: 0, y: -4 }}
-                              className="text-[13px] text-red-500 font-medium leading-snug"
-                            >
-                              <span>{error}</span>
-                              {error.toLowerCase().includes('e-mail') && (
-                                <button
-                                  type="button"
-                                  onClick={() => {
-                                    setError('');
-                                    setRegisterStep(2);
-                                  }}
-                                  className="ml-2 underline font-semibold text-[#2673E8] hover:text-[#1D5EC2] cursor-pointer"
-                                >
-                                  Alterar e-mail
-                                </button>
-                              )}
-                            </motion.div>
-                          ) : (passwordTouched || registerPassword.length > 0) &&
-                            registerPassword.length > 0 &&
-                            !isPasswordLengthValid ? (
-                            <motion.p
-                              key="pwd-length-hint"
-                              initial={{ opacity: 0, y: -4 }}
-                              animate={{ opacity: 1, y: 0 }}
-                              exit={{ opacity: 0, y: -4 }}
-                              className="text-[13px] text-[#737780] font-medium"
-                            >
-                              A senha deve ter pelo menos 6 caracteres.
-                            </motion.p>
-                          ) : (confirmTouched || confirmPassword.length > 0) &&
-                            confirmPassword.length > 0 &&
-                            !doPasswordsMatch ? (
-                            <motion.p
-                              key="pwd-mismatch-hint"
-                              initial={{ opacity: 0, y: -4 }}
-                              animate={{ opacity: 1, y: 0 }}
-                              exit={{ opacity: 0, y: -4 }}
-                              className="text-[13px] text-red-500 font-medium"
-                            >
-                              As senhas não coincidem.
-                            </motion.p>
-                          ) : null}
-                        </AnimatePresence>
-                      </div>
-                    </div>
-                  </motion.form>
-                )}
-
-                {/* ETAPA 4 — FOTO DE PERFIL (Visual idêntico à imagem de referência iOS) */}
-                {registerStep === 4 && (
-                  <motion.div
-                    key="register-step-4-avatar"
-                    initial={shouldReduceMotion ? { opacity: 0 } : { opacity: 0, y: 10 }}
-                    animate={shouldReduceMotion ? { opacity: 1 } : { opacity: 1, y: 0 }}
-                    exit={shouldReduceMotion ? { opacity: 0 } : { opacity: 0, y: -8 }}
-                    transition={{ duration: 0.28, ease: [0.22, 1, 0.36, 1] }}
-                    className="w-full flex flex-col items-center select-none"
-                  >
-                    {/* Título e Descrição centralizados */}
-                    <div className="w-full text-center mt-2 sm:mt-4">
-                      <h1
-                        id="register-step4-title"
-                        className="text-[30px] sm:text-[32px] font-bold tracking-tight text-[#000000] leading-[1.18] text-center"
-                        style={{
-                          fontFamily:
-                            "'SF Pro Display', -apple-system, BlinkMacSystemFont, sans-serif",
-                        }}
-                      >
-                        Adicione uma<br />foto de perfil
-                      </h1>
-                      <p
-                        className="mt-3.5 text-[14.5px] sm:text-[15px] text-[#8A8D95] font-normal leading-[1.38] text-center max-w-[310px] mx-auto"
-                        style={{
-                          fontFamily:
-                            "'SF Pro Text', -apple-system, BlinkMacSystemFont, sans-serif",
-                        }}
-                      >
-                        Uma foto de perfil ajuda outras pessoas a reconhecerem você no Monvian.
-                      </p>
-                    </div>
-
-                    {/* Input invisível de arquivo */}
-                    <input
-                      ref={avatarInputRef}
-                      type="file"
-                      accept="image/*"
-                      onChange={handleAvatarFileSelect}
-                      className="hidden"
-                    />
-
-                    {/* Área circular da foto de perfil */}
-                    <button
-                      type="button"
-                      onClick={() => avatarInputRef.current?.click()}
-                      disabled={isCompressingAvatar}
-                      aria-label="Selecionar foto de perfil"
-                      className="relative w-[184px] h-[184px] sm:w-[196px] sm:h-[196px] rounded-full bg-[#F0F2F7] flex items-center justify-center overflow-hidden transition-transform active:scale-[0.98] cursor-pointer focus:outline-none select-none border-0 shadow-none mt-9 sm:mt-11"
-                    >
-                      {avatarPreview ? (
-                        <motion.img
-                          initial={{ opacity: 0 }}
-                          animate={{ opacity: 1 }}
-                          transition={{ duration: 0.25 }}
-                          src={avatarPreview}
-                          alt="Foto de perfil selecionada"
-                          className="w-full h-full object-cover rounded-full select-none pointer-events-none"
-                        />
-                      ) : (
-                        <div className="flex items-center justify-center select-none pointer-events-none">
-                          <svg
-                            className="w-[50px] h-[44px] text-[#000000]"
-                            viewBox="0 0 24 21"
-                            fill="none"
-                            xmlns="http://www.w3.org/2000/svg"
-                            stroke="currentColor"
-                            strokeWidth="1.85"
-                            strokeLinecap="round"
-                            strokeLinejoin="round"
-                          >
-                            <path d="M23 16.5C23 18.433 21.433 20 19.5 20H4.5C2.567 20 1 18.433 1 16.5V7.5C1 5.567 2.567 4 4.5 4H7.3C7.8 4 8.2 3.7 8.5 3.3L9.5 1.7C9.8 1.3 10.2 1 10.7 1H13.3C13.8 1 14.2 1.3 14.5 1.7L15.5 3.3C15.8 3.7 16.2 4 16.7 4H19.5C21.433 4 23 5.567 23 7.5V16.5Z" />
-                            <circle cx="12" cy="12" r="4.3" />
-                          </svg>
-                        </div>
-                      )}
-
-                      {isCompressingAvatar && (
-                        <div className="absolute inset-0 bg-[#F0F2F7]/80 backdrop-blur-xs flex items-center justify-center">
-                          <Loader2 className="w-8 h-8 animate-spin text-[#000000]" />
-                        </div>
-                      )}
-                    </button>
-
-                    {/* Botão de galeria horizontal */}
-                    <motion.button
-                      type="button"
-                      whileTap={{ scale: 0.98 }}
-                      onClick={() => avatarInputRef.current?.click()}
-                      disabled={isCompressingAvatar}
-                      className="w-full max-w-[245px] sm:max-w-[255px] h-[48px] sm:h-[50px] rounded-full bg-[#F0F2F7] hover:bg-[#E8ECF2] active:bg-[#E2E7EE] flex items-center justify-center gap-2.5 px-5 text-[#000000] transition-colors cursor-pointer select-none border-0 shadow-none mt-8 sm:mt-10"
-                    >
-                      <ImageIcon className="w-[19px] h-[19px] text-[#000000] stroke-[1.85]" />
-                      <span className="text-[14.5px] sm:text-[15px] font-semibold text-[#000000]">
-                        Escolher da galeria
-                      </span>
-                    </motion.button>
-
-                    {/* Opção de pular "Fazer isso depois" */}
-                    <button
-                      type="button"
-                      onClick={() => executeAccountCreation(false)}
-                      disabled={isCompressingAvatar}
-                      className="mt-4 sm:mt-5 text-[14.5px] sm:text-[15px] font-medium text-[#8A8D95] hover:text-[#000000] active:opacity-70 transition-colors cursor-pointer select-none bg-transparent border-0 p-1"
-                    >
-                      Fazer isso depois
-                    </button>
-
-                    {/* Opção sutil para remover caso já tenha foto selecionada */}
-                    {avatarPreview && !isCompressingAvatar && (
-                      <button
-                        type="button"
-                        onClick={handleRemoveAvatar}
-                        className="mt-2 text-[12.5px] font-medium text-[#8A8D95] hover:text-red-500 transition-colors cursor-pointer select-none bg-transparent border-0 underline"
-                      >
-                        Remover foto selecionada
-                      </button>
-                    )}
-
-                    {error && (
-                      <p className="mt-3 text-[13px] text-red-500 font-medium text-center">
-                        {error}
-                      </p>
-                    )}
-                  </motion.div>
+                    Digite pelo menos 2 caracteres para continuar.
+                  </motion.p>
                 )}
               </AnimatePresence>
-            </main>
+            </div>
+          </form>
 
-            {/* Bottom Primary Action Area */}
-            <footer
-              className={`w-full max-w-sm mx-auto pb-4 pt-2 shrink-0 transition-opacity duration-200 ${
-                isKeyboardOpen && registerStep < 4 ? 'opacity-0 pointer-events-none' : 'opacity-100'
-              }`}
+          {/* ETAPA 2 — E-MAIL */}
+          <form
+            ref={step2FormRef}
+            onSubmit={handleStep2Continue}
+            className="w-full flex-col"
+            style={{ display: registerStep === 2 ? 'flex' : 'none' }}
+          >
+            <h1
+              id="register-step2-title"
+              className="text-[26px] sm:text-[28px] font-bold tracking-tight text-[#080808] leading-[1.2] mb-6 text-left"
             >
-              {registerStep === 1 && (
-                <motion.button
-                  id="btn-register-step1-continue"
+              Forneça seu e-mail para continuar
+            </h1>
+
+            <div className="w-full">
+              <input
+                ref={registerEmailInputRef}
+                id="input-register-email"
+                type="email"
+                inputMode="email"
+                placeholder="seuemail@gmail.com"
+                value={registerEmail}
+                onChange={(e) => {
+                  setRegisterEmail(e.target.value);
+                  if (error) setError('');
+                }}
+                onFocus={handleRegisterInputFocus}
+                onBlur={() => {
+                  setEmailTouched(true);
+                }}
+                autoComplete="email"
+                autoCapitalize="none"
+                autoCorrect="off"
+                spellCheck={false}
+                enterKeyHint="next"
+                className="w-full px-5 py-4 rounded-[20px] bg-[#F5F7FA] border border-[#E2E6EE] text-[#080808] placeholder:text-[#8E939E] focus:outline-none focus:bg-[#FFFFFF] focus:border-[#2673E8] focus:ring-2 focus:ring-[#2673E8]/15 transition-all text-[16px] font-medium"
+              />
+
+              <AnimatePresence>
+                {error ? (
+                  <motion.p
+                    key="register-step2-error"
+                    initial={{ opacity: 0, y: -4 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, y: -4 }}
+                    className="text-[13px] text-red-500 font-medium mt-2.5 px-1"
+                  >
+                    {error}
+                  </motion.p>
+                ) : (emailTouched || registerEmail.includes('@')) &&
+                  registerEmail.trim().length > 0 &&
+                  !isEmailValid ? (
+                  <motion.p
+                    key="register-step2-hint"
+                    initial={{ opacity: 0, y: -4 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, y: -4 }}
+                    className="text-[13px] text-[#737780] font-medium mt-2.5 px-1"
+                  >
+                    {emailValidation.reason || 'Informe um endereço de e-mail válido.'}
+                  </motion.p>
+                ) : null}
+              </AnimatePresence>
+            </div>
+          </form>
+
+          {/* ETAPA 3 — CRIAÇÃO E CONFIRMAÇÃO DE SENHA */}
+          <form
+            ref={step3FormRef}
+            onSubmit={handleStep3Continue}
+            className="w-full flex-col"
+            style={{ display: registerStep === 3 ? 'flex' : 'none' }}
+          >
+            <h1
+              id="register-step3-title"
+              className="text-[26px] sm:text-[28px] font-bold tracking-tight text-[#080808] leading-[1.2] mb-6 text-left"
+            >
+              Crie sua senha
+            </h1>
+
+            <div className="w-full space-y-3.5">
+              <div className="relative">
+                <input
+                  ref={registerPasswordInputRef}
+                  id="input-register-password"
+                  type={showRegisterPassword ? 'text' : 'password'}
+                  placeholder="Digite sua senha"
+                  value={registerPassword}
+                  onChange={(e) => {
+                    setRegisterPassword(e.target.value);
+                    if (error) setError('');
+                  }}
+                  onFocus={handleRegisterInputFocus}
+                  onBlur={() => {
+                    setPasswordTouched(true);
+                  }}
+                  disabled={loading}
+                  autoComplete="new-password"
+                  enterKeyHint="next"
+                  className="w-full pl-5 pr-12 py-4 rounded-[20px] bg-[#F5F7FA] border border-[#E2E6EE] text-[#080808] placeholder:text-[#8E939E] focus:outline-none focus:bg-[#FFFFFF] focus:border-[#2673E8] focus:ring-2 focus:ring-[#2673E8]/15 transition-all text-[16px] font-medium disabled:opacity-60"
+                />
+                <button
                   type="button"
-                  whileTap={isNameValid ? { scale: 0.98 } : undefined}
-                  onClick={() => handleStep1Continue()}
-                  disabled={!isNameValid}
-                  className="w-full min-h-[54px] py-4 rounded-full expo-liquid-glass-btn text-[#080808] text-[16px] font-bold flex items-center justify-center transition-all cursor-pointer shadow-sm border border-black/5 hover:bg-zinc-50 active:scale-95 disabled:bg-[#EAEEF5] disabled:text-[#9CA3AF] disabled:shadow-none disabled:border-transparent disabled:cursor-not-allowed"
+                  onClick={() => setShowRegisterPassword((prev) => !prev)}
+                  tabIndex={-1}
+                  className="absolute right-4 top-1/2 -translate-y-1/2 text-[#737780] hover:text-[#080808] transition-colors cursor-pointer p-1"
+                  aria-label={showRegisterPassword ? 'Ocultar senha' : 'Visualizar senha'}
                 >
-                  Continuar
-                </motion.button>
+                  {showRegisterPassword ? (
+                    <EyeOff className="w-[18px] h-[18px]" />
+                  ) : (
+                    <Eye className="w-[18px] h-[18px]" />
+                  )}
+                </button>
+              </div>
+
+              <div className="relative">
+                <input
+                  id="input-register-confirm-password"
+                  type={showConfirmPassword ? 'text' : 'password'}
+                  placeholder="Confirme sua senha"
+                  value={confirmPassword}
+                  onChange={(e) => {
+                    setConfirmPassword(e.target.value);
+                    if (error) setError('');
+                  }}
+                  onFocus={handleRegisterInputFocus}
+                  onBlur={() => {
+                    setConfirmTouched(true);
+                  }}
+                  disabled={loading}
+                  autoComplete="new-password"
+                  enterKeyHint="done"
+                  className="w-full pl-5 pr-12 py-4 rounded-[20px] bg-[#F5F7FA] border border-[#E2E6EE] text-[#080808] placeholder:text-[#8E939E] focus:outline-none focus:bg-[#FFFFFF] focus:border-[#2673E8] focus:ring-2 focus:ring-[#2673E8]/15 transition-all text-[16px] font-medium disabled:opacity-60"
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowConfirmPassword((prev) => !prev)}
+                  tabIndex={-1}
+                  className="absolute right-4 top-1/2 -translate-y-1/2 text-[#737780] hover:text-[#080808] transition-colors cursor-pointer p-1"
+                  aria-label={showConfirmPassword ? 'Ocultar confirmação de senha' : 'Visualizar confirmação de senha'}
+                >
+                  {showConfirmPassword ? (
+                    <EyeOff className="w-[18px] h-[18px]" />
+                  ) : (
+                    <Eye className="w-[18px] h-[18px]" />
+                  )}
+                </button>
+              </div>
+
+              <div className="min-h-[24px] pt-1 px-1">
+                <AnimatePresence mode="wait">
+                  {error ? (
+                    <motion.div
+                      key="server-error"
+                      initial={{ opacity: 0, y: -4 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      exit={{ opacity: 0, y: -4 }}
+                      className="text-[13px] text-red-500 font-medium leading-snug"
+                    >
+                      <span>{error}</span>
+                      {error.toLowerCase().includes('e-mail') && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setError('');
+                            setRegisterStep(2);
+                            focusStepInputSynchronously(2);
+                          }}
+                          className="ml-2 underline font-semibold text-[#2673E8] hover:text-[#1D5EC2] cursor-pointer"
+                        >
+                          Alterar e-mail
+                        </button>
+                      )}
+                    </motion.div>
+                  ) : (passwordTouched || registerPassword.length > 0) &&
+                    registerPassword.length > 0 &&
+                    !isPasswordLengthValid ? (
+                    <motion.p
+                      key="pwd-length-hint"
+                      initial={{ opacity: 0, y: -4 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      exit={{ opacity: 0, y: -4 }}
+                      className="text-[13px] text-[#737780] font-medium"
+                    >
+                      A senha deve ter pelo menos 6 caracteres.
+                    </motion.p>
+                  ) : (confirmTouched || confirmPassword.length > 0) &&
+                    confirmPassword.length > 0 &&
+                    !doPasswordsMatch ? (
+                    <motion.p
+                      key="pwd-mismatch-hint"
+                      initial={{ opacity: 0, y: -4 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      exit={{ opacity: 0, y: -4 }}
+                      className="text-[13px] text-red-500 font-medium"
+                    >
+                      As senhas não coincidem.
+                    </motion.p>
+                  ) : null}
+                </AnimatePresence>
+              </div>
+            </div>
+          </form>
+
+          {/* ETAPA 4 — FOTO DE PERFIL (Visual idêntico à imagem de referência iOS) */}
+          {registerStep === 4 && (
+            <motion.div
+              key="register-step-4-avatar"
+              initial={shouldReduceMotion ? { opacity: 0 } : { opacity: 0, y: 10 }}
+              animate={shouldReduceMotion ? { opacity: 1 } : { opacity: 1, y: 0 }}
+              exit={shouldReduceMotion ? { opacity: 0 } : { opacity: 0, y: -8 }}
+              transition={{ duration: 0.28, ease: [0.22, 1, 0.36, 1] }}
+              className="w-full flex flex-col items-center select-none"
+            >
+              {/* Título e Descrição centralizados */}
+              <div className="w-full text-center mt-2 sm:mt-4">
+                <h1
+                  id="register-step4-title"
+                  className="text-[30px] sm:text-[32px] font-bold tracking-tight text-[#000000] leading-[1.18] text-center"
+                  style={{
+                    fontFamily:
+                      "'SF Pro Display', -apple-system, BlinkMacSystemFont, sans-serif",
+                  }}
+                >
+                  Adicione uma<br />foto de perfil
+                </h1>
+                <p
+                  className="mt-3.5 text-[14.5px] sm:text-[15px] text-[#8A8D95] font-normal leading-[1.38] text-center max-w-[310px] mx-auto"
+                  style={{
+                    fontFamily:
+                      "'SF Pro Text', -apple-system, BlinkMacSystemFont, sans-serif",
+                  }}
+                >
+                  Uma foto de perfil ajuda outras pessoas a reconhecerem você no Monvian.
+                </p>
+              </div>
+
+              {/* Input invisível de arquivo */}
+              <input
+                ref={avatarInputRef}
+                type="file"
+                accept="image/*"
+                onChange={handleAvatarFileSelect}
+                className="hidden"
+              />
+
+              {/* Área circular da foto de perfil */}
+              <button
+                type="button"
+                onClick={() => avatarInputRef.current?.click()}
+                disabled={isCompressingAvatar}
+                aria-label="Selecionar foto de perfil"
+                className="relative w-[184px] h-[184px] sm:w-[196px] sm:h-[196px] rounded-full bg-[#F0F2F7] flex items-center justify-center overflow-hidden transition-transform active:scale-[0.98] cursor-pointer focus:outline-none select-none border-0 shadow-none mt-9 sm:mt-11"
+              >
+                {avatarPreview ? (
+                  <motion.img
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    transition={{ duration: 0.25 }}
+                    src={avatarPreview}
+                    alt="Foto de perfil selecionada"
+                    className="w-full h-full object-cover rounded-full select-none pointer-events-none"
+                  />
+                ) : (
+                  <div className="flex items-center justify-center select-none pointer-events-none">
+                    <svg
+                      className="w-[50px] h-[44px] text-[#000000]"
+                      viewBox="0 0 24 21"
+                      fill="none"
+                      xmlns="http://www.w3.org/2000/svg"
+                      stroke="currentColor"
+                      strokeWidth="1.85"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                    >
+                      <path d="M23 16.5C23 18.433 21.433 20 19.5 20H4.5C2.567 20 1 18.433 1 16.5V7.5C1 5.567 2.567 4 4.5 4H7.3C7.8 4 8.2 3.7 8.5 3.3L9.5 1.7C9.8 1.3 10.2 1 10.7 1H13.3C13.8 1 14.2 1.3 14.5 1.7L15.5 3.3C15.8 3.7 16.2 4 16.7 4H19.5C21.433 4 23 5.567 23 7.5V16.5Z" />
+                      <circle cx="12" cy="12" r="4.3" />
+                    </svg>
+                  </div>
+                )}
+
+                {isCompressingAvatar && (
+                  <div className="absolute inset-0 bg-[#F0F2F7]/80 backdrop-blur-xs flex items-center justify-center">
+                    <Loader2 className="w-8 h-8 animate-spin text-[#000000]" />
+                  </div>
+                )}
+              </button>
+
+              {/* Botão de galeria horizontal */}
+              <motion.button
+                type="button"
+                whileTap={{ scale: 0.98 }}
+                onClick={() => avatarInputRef.current?.click()}
+                disabled={isCompressingAvatar}
+                className="w-full max-w-[245px] sm:max-w-[255px] h-[48px] sm:h-[50px] rounded-full bg-[#F0F2F7] hover:bg-[#E8ECF2] active:bg-[#E2E7EE] flex items-center justify-center gap-2.5 px-5 text-[#000000] transition-colors cursor-pointer select-none border-0 shadow-none mt-8 sm:mt-10"
+              >
+                <ImageIcon className="w-[19px] h-[19px] text-[#000000] stroke-[1.85]" />
+                <span className="text-[14.5px] sm:text-[15px] font-semibold text-[#000000]">
+                  Escolher da galeria
+                </span>
+              </motion.button>
+
+              {/* Opção de pular "Fazer isso depois" */}
+              <button
+                type="button"
+                onClick={() => executeAccountCreation(false)}
+                disabled={isCompressingAvatar}
+                className="mt-4 sm:mt-5 text-[14.5px] sm:text-[15px] font-medium text-[#8A8D95] hover:text-[#000000] active:opacity-70 transition-colors cursor-pointer select-none bg-transparent border-0 p-1"
+              >
+                Fazer isso depois
+              </button>
+
+              {/* Opção sutil para remover caso já tenha foto selecionada */}
+              {avatarPreview && !isCompressingAvatar && (
+                <button
+                  type="button"
+                  onClick={handleRemoveAvatar}
+                  className="mt-2 text-[12.5px] font-medium text-[#8A8D95] hover:text-red-500 transition-colors cursor-pointer select-none bg-transparent border-0 underline"
+                >
+                  Remover foto selecionada
+                </button>
               )}
 
-              {registerStep === 2 && (
-                <motion.button
-                  id="btn-register-step2-continue"
-                  type="button"
-                  whileTap={isEmailValid ? { scale: 0.98 } : undefined}
-                  onClick={() => handleStep2Continue()}
-                  disabled={!isEmailValid}
-                  className="w-full min-h-[54px] py-4 rounded-full expo-liquid-glass-btn text-[#080808] text-[16px] font-bold flex items-center justify-center transition-all cursor-pointer shadow-sm border border-black/5 hover:bg-zinc-50 active:scale-95 disabled:bg-[#EAEEF5] disabled:text-[#9CA3AF] disabled:shadow-none disabled:border-transparent disabled:cursor-not-allowed"
-                >
-                  Continuar
-                </motion.button>
+              {error && (
+                <p className="mt-3 text-[13px] text-red-500 font-medium text-center">
+                  {error}
+                </p>
               )}
+            </motion.div>
+          )}
+        </main>
 
-              {registerStep === 3 && (
-                <motion.button
-                  id="btn-register-step3-continue"
-                  type="button"
-                  whileTap={isStep3Valid ? { scale: 0.98 } : undefined}
-                  onClick={() => handleStep3Continue()}
-                  disabled={!isStep3Valid}
-                  className="w-full min-h-[54px] py-4 rounded-full expo-liquid-glass-btn text-[#080808] text-[16px] font-bold flex items-center justify-center transition-all cursor-pointer shadow-sm border border-black/5 hover:bg-zinc-50 active:scale-95 disabled:bg-[#EAEEF5] disabled:text-[#9CA3AF] disabled:shadow-none disabled:border-transparent disabled:cursor-not-allowed"
-                >
-                  Continuar
-                </motion.button>
-              )}
+        {/* Bottom Primary Action Area */}
+        <footer
+          className={`w-full max-w-sm mx-auto pb-4 pt-2 shrink-0 transition-opacity duration-200 ${
+            isKeyboardOpen && registerStep < 4 ? 'opacity-0 pointer-events-none' : 'opacity-100'
+          }`}
+        >
+          {registerStep === 1 && (
+            <motion.button
+              id="btn-register-step1-continue"
+              type="button"
+              whileTap={isNameValid ? { scale: 0.98 } : undefined}
+              onClick={() => handleStep1Continue()}
+              disabled={!isNameValid}
+              className="w-full min-h-[54px] py-4 rounded-full expo-liquid-glass-btn text-[#080808] text-[16px] font-bold flex items-center justify-center transition-all cursor-pointer shadow-sm border border-black/5 hover:bg-zinc-50 active:scale-95 disabled:bg-[#EAEEF5] disabled:text-[#9CA3AF] disabled:shadow-none disabled:border-transparent disabled:cursor-not-allowed"
+            >
+              Continuar
+            </motion.button>
+          )}
 
-              {registerStep === 4 && (
-                <motion.button
-                  id="btn-register-step4-continue"
-                  type="button"
-                  whileTap={{ scale: 0.985 }}
-                  onClick={() => executeAccountCreation(true)}
-                  disabled={isCompressingAvatar}
-                  className="w-full h-[54px] sm:h-[56px] min-h-[54px] rounded-full bg-[#000000] hover:bg-[#1a1a1a] active:bg-[#262626] text-[#FFFFFF] text-[16px] font-semibold flex items-center justify-center transition-all cursor-pointer shadow-none border-0 select-none disabled:opacity-50"
-                >
-                  Continuar
-                </motion.button>
-              )}
-            </footer>
-          </motion.div>
-        )}
-      </AnimatePresence>
+          {registerStep === 2 && (
+            <motion.button
+              id="btn-register-step2-continue"
+              type="button"
+              whileTap={isEmailValid ? { scale: 0.98 } : undefined}
+              onClick={() => handleStep2Continue()}
+              disabled={!isEmailValid}
+              className="w-full min-h-[54px] py-4 rounded-full expo-liquid-glass-btn text-[#080808] text-[16px] font-bold flex items-center justify-center transition-all cursor-pointer shadow-sm border border-black/5 hover:bg-zinc-50 active:scale-95 disabled:bg-[#EAEEF5] disabled:text-[#9CA3AF] disabled:shadow-none disabled:border-transparent disabled:cursor-not-allowed"
+            >
+              Continuar
+            </motion.button>
+          )}
+
+          {registerStep === 3 && (
+            <motion.button
+              id="btn-register-step3-continue"
+              type="button"
+              whileTap={isStep3Valid ? { scale: 0.98 } : undefined}
+              onClick={() => handleStep3Continue()}
+              disabled={!isStep3Valid}
+              className="w-full min-h-[54px] py-4 rounded-full expo-liquid-glass-btn text-[#080808] text-[16px] font-bold flex items-center justify-center transition-all cursor-pointer shadow-sm border border-black/5 hover:bg-zinc-50 active:scale-95 disabled:bg-[#EAEEF5] disabled:text-[#9CA3AF] disabled:shadow-none disabled:border-transparent disabled:cursor-not-allowed"
+            >
+              Continuar
+            </motion.button>
+          )}
+
+          {registerStep === 4 && (
+            <motion.button
+              id="btn-register-step4-continue"
+              type="button"
+              whileTap={{ scale: 0.985 }}
+              onClick={() => executeAccountCreation(true)}
+              disabled={isCompressingAvatar}
+              className="w-full h-[54px] sm:h-[56px] min-h-[54px] rounded-full bg-[#000000] hover:bg-[#1a1a1a] active:bg-[#262626] text-[#FFFFFF] text-[16px] font-semibold flex items-center justify-center transition-all cursor-pointer shadow-none border-0 select-none disabled:opacity-50"
+            >
+              Continuar
+            </motion.button>
+          )}
+        </footer>
+      </div>
 
       {/* =========================================================================
           TERCEIRA ETAPA — CRIAÇÃO DA CONTA E CARREGAMENTO ANIMADO

@@ -1,8 +1,12 @@
 import React, { useRef } from 'react';
 import { Spot } from '../../types';
-import { Star, Search, X, ChevronRight, MapPin, SlidersHorizontal, Info } from 'lucide-react';
+import { Star, Search, X, ChevronRight, MapPin } from 'lucide-react';
 import { VerifiedBadge } from '../ui/VerifiedBadge';
 import { getSpotImage, getSpotFallbackImage } from '../../utils/spotImages';
+import {
+  DesktopExploreClothingBanner,
+  RealWeatherSnapshot,
+} from '../ClothingWeatherWidget';
 
 interface DesktopExplorePanelProps {
   spots: Spot[];
@@ -14,6 +18,8 @@ interface DesktopExplorePanelProps {
   searchQuery: string;
   onSearchChange: (q: string) => void;
   theme?: 'dark' | 'light';
+  realWeather?: RealWeatherSnapshot;
+  onOpenClothingGuide?: () => void;
 }
 
 const CATEGORIES = [
@@ -36,6 +42,8 @@ export const DesktopExplorePanel: React.FC<DesktopExplorePanelProps> = ({
   searchQuery,
   onSearchChange,
   theme = 'light',
+  realWeather,
+  onOpenClothingGuide,
 }) => {
   const categoriesRef = useRef<HTMLDivElement | null>(null);
   const isDark = theme === 'dark';
@@ -48,7 +56,8 @@ export const DesktopExplorePanel: React.FC<DesktopExplorePanelProps> = ({
         isDark ? 'bg-[#000000] border-[#262626] text-white' : 'bg-white border-zinc-200 text-zinc-900'
       }`}
       style={{
-        fontFamily: "'Inter', sans-serif",
+        fontFamily:
+          '-apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro Text", sans-serif',
         backgroundColor: isDark ? '#000000' : '#ffffff',
       }}
     >
@@ -68,9 +77,19 @@ export const DesktopExplorePanel: React.FC<DesktopExplorePanelProps> = ({
             Explorar
           </h2>
           <span className="text-xs font-semibold text-zinc-500">
-            {spots.length} {spots.length === 1 ? 'local' : 'locais'}
+            <span>{spots.length}</span>{' '}
+            <span>{spots.length === 1 ? 'local' : 'locais'}</span>
           </span>
         </div>
+
+        {/* Weather & Attire Informative Widget */}
+        {realWeather && onOpenClothingGuide && (
+          <DesktopExploreClothingBanner
+            weather={realWeather}
+            onOpenGuide={onOpenClothingGuide}
+            theme={theme}
+          />
+        )}
 
         {/* Search Input */}
         <div

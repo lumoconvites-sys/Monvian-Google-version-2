@@ -500,12 +500,12 @@ export const ItineraryStoreDetailModal: React.FC<ItineraryStoreDetailModalProps>
               >
                 <span className="flex items-center gap-1.5">
                   <Clock className={`w-3.5 h-3.5 shrink-0 ${isLight ? 'text-black' : 'text-white'}`} />
-                  <span>{activeItinerary.daysCount} {activeItinerary.daysCount === 1 ? 'dia' : 'dias'}</span>
+                  <span>{`${activeItinerary.daysCount} ${activeItinerary.daysCount === 1 ? 'dia' : 'dias'}`}</span>
                 </span>
                 <span className="opacity-30">·</span>
                 <span className="flex items-center gap-1.5">
                   <MapPin className={`w-3.5 h-3.5 shrink-0 ${isLight ? 'text-black' : 'text-white'}`} />
-                  <span>{totalStops} {totalStops === 1 ? 'parada' : 'paradas'}</span>
+                  <span>{`${totalStops} ${totalStops === 1 ? 'parada' : 'paradas'}`}</span>
                 </span>
                 <span className="opacity-30">·</span>
                 <span className="flex items-center gap-1.5">
@@ -563,7 +563,7 @@ export const ItineraryStoreDetailModal: React.FC<ItineraryStoreDetailModalProps>
                               : 'expo-liquid-glass-btn text-[#A1A1AA] hover:text-white'
                           }`}
                         >
-                          Dia {d.dayNumber || idx + 1}
+                          {`Dia ${d.dayNumber || idx + 1}`}
                         </button>
                       );
                     })}
@@ -599,7 +599,7 @@ export const ItineraryStoreDetailModal: React.FC<ItineraryStoreDetailModalProps>
                   <h3 className={`text-xs font-bold uppercase tracking-wider ${
                     isLight ? 'text-zinc-500' : 'text-zinc-400'
                   }`}>
-                    Paradas ({currentDay?.steps.length || 0})
+                    {`Paradas (${currentDay?.steps.length || 0})`}
                   </h3>
                 </div>
 
