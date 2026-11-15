@@ -1,6 +1,6 @@
 import React, { forwardRef } from 'react';
 
-export type GlassStyle = 'regular' | 'clear';
+export type GlassStyle = 'regular' | 'clear' | 'liquid26';
 
 export interface GlassViewProps extends React.HTMLAttributes<HTMLDivElement> {
   /**
@@ -68,8 +68,14 @@ export const GlassView = forwardRef<HTMLElement, GlassViewProps>(
     },
     ref
   ) => {
-    const variantClass =
-      variant === 'button'
+    const isLiquid26 = glassEffectStyle === 'liquid26';
+    const variantClass = isLiquid26
+      ? variant === 'button'
+        ? 'ios26-liquid-glass'
+        : variant === 'pill'
+          ? 'ios26-liquid-glass-pill'
+          : 'ios26-liquid-glass-nav'
+      : variant === 'button'
         ? 'expo-liquid-glass-btn'
         : variant === 'pill'
           ? 'expo-liquid-glass-pill'

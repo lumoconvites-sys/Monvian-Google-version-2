@@ -249,9 +249,9 @@ export const FloatingEventCard: React.FC<FloatingEventCardProps> = ({
               } catch {}
               setIsDismissed(false);
             }}
-            className="pointer-events-auto w-12 h-12 rounded-full bg-white/90 dark:bg-zinc-900/90 backdrop-blur-md border border-zinc-200/80 dark:border-white/10 shadow-[0_6px_20px_rgba(0,0,0,0.22)] flex items-center justify-center active:scale-90 transition-all cursor-pointer"
+            className="pointer-events-auto w-12 h-12 rounded-full ios26-liquid-glass flex items-center justify-center active:scale-90 transition-all duration-200 cursor-pointer"
           >
-            <Flag className="w-5 h-5 text-amber-500 fill-amber-500 stroke-[2.2]" />
+            <Flag className="relative z-10 w-5 h-5 text-black fill-black stroke-[2.2]" />
           </button>
         </motion.div>
       )}

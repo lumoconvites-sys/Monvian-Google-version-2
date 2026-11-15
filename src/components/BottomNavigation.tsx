@@ -26,9 +26,7 @@ export const BottomNavigation: React.FC<BottomNavigationProps> = memo(({
   activeTab,
   onChangeTab,
   isBlurred = false,
-  theme = 'light',
 }) => {
-  const isDark = theme === 'dark';
   const [pulseAnimation, setPulseAnimation] = useState<number>(0);
 
   const pointerDownPosRef = useRef<{ x: number; y: number } | null>(null);
@@ -101,11 +99,11 @@ export const BottomNavigation: React.FC<BottomNavigationProps> = memo(({
         WebkitTransform: 'translateZ(0)',
       }}
     >
-      {/* Capsule with expo-glass-effect iOS Liquid Glass finish */}
+      {/* Capsule with iOS 26 Liquid Glass finish */}
       <GlassView
         id="bottom-navigation-capsule"
         variant="bar"
-        glassEffectStyle="regular"
+        glassEffectStyle="liquid26"
         isInteractive
         className="w-full max-w-[326px] sm:max-w-[342px] h-[62px] sm:h-[64px] p-[5.5px] pointer-events-auto relative rounded-full"
         style={{
@@ -127,7 +125,7 @@ export const BottomNavigation: React.FC<BottomNavigationProps> = memo(({
           >
             <GlassView
               variant="pill"
-              glassEffectStyle="regular"
+              glassEffectStyle="liquid26"
               className="w-full h-full rounded-full"
             />
           </div>
@@ -143,17 +141,11 @@ export const BottomNavigation: React.FC<BottomNavigationProps> = memo(({
                 onClick={() => handleTabClick(tab.id)}
                 aria-label={tab.label}
                 aria-current={isActive ? 'page' : undefined}
-                className={`relative z-10 w-full h-full min-h-[44px] min-w-[44px] rounded-full flex items-center justify-center cursor-pointer select-none active:scale-[0.94] transition-[transform,color,opacity] duration-[180ms] ease-[cubic-bezier(0.22,1,0.36,1)] motion-reduce:transition-none focus:outline-none focus-visible:ring-2 ${
-                  isDark
-                    ? isActive
-                      ? 'text-[#FFFFFF] opacity-100 focus-visible:ring-white/30'
-                      : 'text-[#FFFFFF] opacity-75 hover:opacity-100 focus-visible:ring-white/30'
-                    : isActive
-                      ? 'text-[#000000] opacity-100 focus-visible:ring-black/20'
-                      : 'text-[#000000] opacity-70 hover:opacity-100 focus-visible:ring-black/20'
+                className={`relative z-10 w-full h-full min-h-[44px] min-w-[44px] rounded-full flex items-center justify-center cursor-pointer select-none active:scale-[0.94] transition-[transform,color,opacity] duration-[180ms] ease-[cubic-bezier(0.22,1,0.36,1)] motion-reduce:transition-none focus:outline-none focus-visible:ring-2 text-[#000000] focus-visible:ring-black/25 ${
+                  isActive ? 'opacity-100' : 'opacity-85 hover:opacity-100'
                 }`}
                 style={{
-                  color: isDark ? '#FFFFFF' : '#000000',
+                  color: '#000000',
                   WebkitTapHighlightColor: 'transparent',
                   touchAction: 'manipulation',
                 }}

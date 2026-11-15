@@ -2400,7 +2400,7 @@ export const ItinerariesView: React.FC<ItinerariesViewProps> = memo(({
         {/* Left: Back Button to Airbnb Explorer / Loja de Roteiros */}
         <div className="flex items-center gap-2 pointer-events-auto shrink-0">
           <AppleBackButton
-            theme={isDark ? 'dark' : 'light'}
+            theme="glass"
             onClick={() => {
               userHasExplicitlyOpenedStoreRef.current = true;
               try {
@@ -2415,17 +2415,10 @@ export const ItinerariesView: React.FC<ItinerariesViewProps> = memo(({
 
         {/* Dynamic Island Style Pill */}
         <div
-          className={`h-12 px-4 sm:px-5 rounded-full pointer-events-auto flex items-center gap-2.5 sm:gap-3 text-xs sm:text-sm font-bold max-w-[calc(100vw-128px)] sm:max-w-none transition-all duration-200 border shadow-[0_4px_20px_rgba(0,0,0,0.08)] ${
-            isDark
-              ? 'bg-[#121214] border-white/10 text-white'
-              : 'bg-white border-zinc-200/80 text-black'
-          }`}
-          style={{
-            backgroundColor: isDark ? '#121214' : '#FFFFFF',
-            color: isDark ? '#FFFFFF' : '#000000',
-          }}
+          className="h-12 px-4 sm:px-5 rounded-full pointer-events-auto ios26-liquid-glass flex items-center gap-2.5 sm:gap-3 text-xs sm:text-sm font-bold max-w-[calc(100vw-128px)] sm:max-w-none transition-all duration-200 text-black"
+          style={{ color: '#000000' }}
         >
-          <RoundedNavigationIcon isGold={isPremiumItinerary} className="w-[26px] h-[26px] sm:w-[28px] sm:h-[28px] shrink-0" style={{ color: isPremiumItinerary ? undefined : (isDark ? '#FFFFFF' : '#000000') }} size={28} />
+          <RoundedNavigationIcon isGold={isPremiumItinerary} className="relative z-10 w-[26px] h-[26px] sm:w-[28px] sm:h-[28px] shrink-0" style={{ color: isPremiumItinerary ? undefined : '#000000' }} size={28} />
 
           {isEditingTitle ? (
             <form
@@ -2433,7 +2426,7 @@ export const ItinerariesView: React.FC<ItinerariesViewProps> = memo(({
                 e.preventDefault();
                 handleRenameTitle(editedTitle);
               }}
-              className="flex items-center gap-2 pointer-events-auto"
+              className="relative z-10 flex items-center gap-2 pointer-events-auto"
               onClick={(e) => e.stopPropagation()}
             >
               <input
@@ -2460,13 +2453,13 @@ export const ItinerariesView: React.FC<ItinerariesViewProps> = memo(({
               </button>
             </form>
           ) : (
-            <div className="flex items-center gap-1.5 min-w-0">
+            <div className="relative z-10 flex items-center gap-1.5 min-w-0">
               <span
                 onClick={() => {
                   setEditedTitle(userItinerary?.title || 'MEU ROTEIRO');
                   setIsEditingTitle(true);
                 }}
-                className="font-black text-sm sm:text-base tracking-tight truncate max-w-[140px] sm:max-w-[240px] cursor-pointer text-zinc-900 dark:text-white"
+                className="font-black text-sm sm:text-base tracking-tight truncate max-w-[140px] sm:max-w-[240px] cursor-pointer text-black"
                 title="Toque para editar"
               >
                 {getShortDisplayTitle(userItinerary?.title || 'MEU ROTEIRO')}
@@ -2491,18 +2484,11 @@ export const ItinerariesView: React.FC<ItinerariesViewProps> = memo(({
             }
           }}
           type="button"
-          className={`w-12 h-12 rounded-full flex items-center justify-center pointer-events-auto transition-transform active:scale-95 cursor-pointer shrink-0 border ${
-            isDark
-              ? 'bg-[#121214] border-white/10 text-white'
-              : 'bg-white border-zinc-200/80 text-black'
-          } shadow-[0_2px_12px_rgba(0,0,0,0.06)]`}
-          style={{
-            backgroundColor: isDark ? '#121214' : '#FFFFFF',
-            color: isDark ? '#FFFFFF' : '#000000',
-          }}
+          className="w-12 h-12 rounded-full ios26-liquid-glass flex items-center justify-center pointer-events-auto transition-transform active:scale-95 cursor-pointer shrink-0 text-black"
+          style={{ color: '#000000' }}
           title="Opções do roteiro"
         >
-          <SlidersHorizontal className="w-5 h-5" style={{ color: isDark ? '#FFFFFF' : '#000000' }} />
+          <SlidersHorizontal className="relative z-10 w-5 h-5" style={{ color: '#000000' }} />
         </button>
       </div>
 
@@ -2521,21 +2507,14 @@ export const ItinerariesView: React.FC<ItinerariesViewProps> = memo(({
           whileHover={{ scale: 1.05 }}
           type="button"
           onClick={handleToggleMapStyle}
-          className={`w-[45px] h-[45px] rounded-full flex items-center justify-center cursor-pointer transition-all duration-200 border ${
-            isDark
-              ? 'bg-[#121214] border-white/10 text-white'
-              : 'bg-white border-zinc-200/80 text-black'
-          } shadow-[0_4px_16px_rgba(0,0,0,0.08)]`}
-          style={{
-            backgroundColor: isDark ? '#121214' : '#FFFFFF',
-            color: isDark ? '#FFFFFF' : '#000000',
-          }}
+          className="w-[45px] h-[45px] rounded-full ios26-liquid-glass flex items-center justify-center cursor-pointer transition-all duration-200 text-black"
+          style={{ color: '#000000' }}
           title={itineraryMapStyle === 'satelite' ? 'Modo Satélite Ativo (Toque para alternar)' : 'Alternar satélite / mapa'}
           aria-label="Alternar satélite / mapa"
         >
           <Layers
-            className="w-5 h-5 stroke-[2.2]"
-            style={{ color: isDark ? '#FFFFFF' : '#000000' }}
+            className="relative z-10 w-5 h-5 stroke-[2.2]"
+            style={{ color: '#000000' }}
           />
         </motion.button>
 
@@ -2551,21 +2530,14 @@ export const ItinerariesView: React.FC<ItinerariesViewProps> = memo(({
             } catch (e) {}
             setItineraryViewMode('explore');
           }}
-          className={`w-[45px] h-[45px] rounded-full flex items-center justify-center cursor-pointer transition-all duration-200 border ${
-            isDark
-              ? 'bg-[#121214] border-white/10 text-white'
-              : 'bg-white border-zinc-200/80 text-black'
-          } shadow-[0_4px_16px_rgba(0,0,0,0.08)]`}
-          style={{
-            backgroundColor: isDark ? '#121214' : '#FFFFFF',
-            color: isDark ? '#FFFFFF' : '#000000',
-          }}
+          className="w-[45px] h-[45px] rounded-full ios26-liquid-glass flex items-center justify-center cursor-pointer transition-all duration-200 text-black"
+          style={{ color: '#000000' }}
           title="Loja de Roteiros"
           aria-label="Loja de Roteiros"
         >
           <Store
-            className="w-5 h-5 stroke-[2.2]"
-            style={{ color: isDark ? '#FFFFFF' : '#000000' }}
+            className="relative z-10 w-5 h-5 stroke-[2.2]"
+            style={{ color: '#000000' }}
           />
         </motion.button>
       </div>

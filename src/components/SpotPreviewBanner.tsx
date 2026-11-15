@@ -38,13 +38,11 @@ export const SpotPreviewBanner: React.FC<SpotPreviewBannerProps> = ({
   spot,
   onClose,
   onOpenDetails,
-  theme = 'light',
 }) => {
   const shouldReduceMotion = useReducedMotion();
   const [imgError, setImgError] = useState(false);
   const didDragRef = useRef(false);
   const prevSpotIdRef = useRef<string>(spot.id);
-  const isDark = theme === 'dark';
 
   useEffect(() => {
     if (prevSpotIdRef.current !== spot.id) {
@@ -133,20 +131,10 @@ export const SpotPreviewBanner: React.FC<SpotPreviewBannerProps> = ({
           transform: 'translateZ(0)',
           WebkitTransform: 'translateZ(0)',
         }}
-        className={`w-full max-w-[326px] sm:max-w-[342px] min-h-[76px] px-3.5 py-2.5 rounded-[30px] flex items-center gap-3 pointer-events-auto cursor-pointer ${
-          isDark
-            ? 'bg-[#141416] text-white border border-white/10 shadow-[0_14px_40px_rgba(0,0,0,0.65)]'
-            : 'bg-[#FFFFFF] text-[#000000] border border-black/[0.04] shadow-[0_12px_38px_rgba(0,0,0,0.10),0_2px_10px_rgba(0,0,0,0.04)]'
-        }`}
+        className="w-full max-w-[326px] sm:max-w-[342px] min-h-[76px] px-3.5 py-2.5 rounded-[30px] ios26-liquid-glass text-[#000000] flex items-center gap-3 pointer-events-auto cursor-pointer"
       >
         {/* 1. Circular Establishment Photo (Left) */}
-        <div
-          className={`w-[56px] h-[56px] rounded-full overflow-hidden shrink-0 border ${
-            isDark
-              ? 'bg-zinc-900 border-white/10'
-              : 'bg-zinc-100 border-black/[0.05]'
-          }`}
-        >
+        <div className="relative z-10 w-[56px] h-[56px] rounded-full overflow-hidden shrink-0 border border-white/50 bg-zinc-100/70">
           <img
             src={spotImage}
             alt={spot.name}
@@ -157,13 +145,9 @@ export const SpotPreviewBanner: React.FC<SpotPreviewBannerProps> = ({
         </div>
 
         {/* 2. Establishment Name, Verified Badge, Star Rating & Location (Right) */}
-        <div className="flex-1 min-w-0 flex flex-col justify-center">
+        <div className="relative z-10 flex-1 min-w-0 flex flex-col justify-center">
           <div className="flex items-center gap-1.5 min-w-0">
-            <h3
-              className={`text-[17px] min-[380px]:text-[18px] font-bold tracking-[-0.022em] truncate leading-tight ${
-                isDark ? 'text-white' : 'text-[#000000]'
-              }`}
-            >
+            <h3 className="text-[17px] min-[380px]:text-[18px] font-bold tracking-[-0.022em] truncate leading-tight text-[#000000]">
               {spot.name}
             </h3>
             {isVerified && (
@@ -174,16 +158,12 @@ export const SpotPreviewBanner: React.FC<SpotPreviewBannerProps> = ({
           <div className="flex items-center gap-1.5 mt-1 text-[13px] sm:text-[13.5px] leading-tight min-w-0">
             <div className="flex items-center gap-1 shrink-0 font-semibold">
               <Star className="w-[14px] h-[14px] fill-[#FFCC00] text-[#FFCC00]" />
-              <span className={isDark ? 'text-[#FFD60A]' : 'text-[#E09F00]'}>
+              <span className="text-[#C78500] font-bold">
                 {ratingValue.toFixed(1)}
               </span>
             </div>
-            <span className={isDark ? 'text-zinc-600' : 'text-[#AEAEB2]'}>•</span>
-            <span
-              className={`truncate font-normal ${
-                isDark ? 'text-zinc-400' : 'text-[#6E6E73]'
-              }`}
-            >
+            <span className="text-black/45">•</span>
+            <span className="truncate font-medium text-black/75">
               {cityState}
             </span>
           </div>

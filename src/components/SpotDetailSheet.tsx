@@ -668,7 +668,7 @@ export const SpotDetailSheet: React.FC<SpotDetailSheetProps> = React.memo(({
           }}
         >
           <AppleBackButton
-            theme="auto"
+            theme="glass"
             onClick={(e) => {
               e.stopPropagation();
               persistHeroPlaybackPosition();
@@ -687,11 +687,12 @@ export const SpotDetailSheet: React.FC<SpotDetailSheetProps> = React.memo(({
                 e.stopPropagation();
                 setIsQrModalOpen(true);
               }}
-              className="w-10 h-10 rounded-full expo-liquid-glass-btn flex items-center justify-center text-zinc-900 dark:text-white cursor-pointer transition-colors"
+              className="w-10 h-10 rounded-full ios26-liquid-glass flex items-center justify-center text-black cursor-pointer transition-colors"
+              style={{ color: '#000000' }}
               title="Gerar QR Code deste local"
               aria-label="Gerar QR Code deste local"
             >
-              <QrCode className="w-5 h-5" />
+              <QrCode className="relative z-10 w-5 h-5 text-black" />
             </motion.button>
             <motion.button 
               whileTap={{ scale: 0.88 }}
@@ -700,11 +701,12 @@ export const SpotDetailSheet: React.FC<SpotDetailSheetProps> = React.memo(({
                 e.stopPropagation();
                 handleShare();
               }}
-              className="w-10 h-10 rounded-full expo-liquid-glass-btn flex items-center justify-center text-zinc-900 dark:text-white cursor-pointer active:opacity-80 transition-opacity"
+              className="w-10 h-10 rounded-full ios26-liquid-glass flex items-center justify-center text-black cursor-pointer active:opacity-80 transition-opacity"
+              style={{ color: '#000000' }}
               title="Compartilhar"
               aria-label="Compartilhar"
             >
-              <Share2 className="w-5 h-5" />
+              <Share2 className="relative z-10 w-5 h-5 text-black" />
             </motion.button>
             <motion.button 
               whileTap={{ scale: 0.88 }}
@@ -713,11 +715,12 @@ export const SpotDetailSheet: React.FC<SpotDetailSheetProps> = React.memo(({
                 e.stopPropagation();
                 onToggleFavorite(spot.id);
               }} 
-              className="w-10 h-10 rounded-full expo-liquid-glass-btn flex items-center justify-center text-zinc-900 dark:text-white cursor-pointer active:opacity-80 transition-opacity"
+              className="w-10 h-10 rounded-full ios26-liquid-glass flex items-center justify-center text-black cursor-pointer active:opacity-80 transition-opacity"
+              style={{ color: '#000000' }}
               title={isFavorite ? 'Remover dos favoritos' : 'Adicionar aos favoritos'}
               aria-label={isFavorite ? 'Remover dos favoritos' : 'Adicionar aos favoritos'}
             >
-              <Heart className={`w-5 h-5 ${isFavorite ? 'fill-red-500 text-red-500' : 'text-zinc-900 dark:text-white'}`} />
+              <Heart className={`relative z-10 w-5 h-5 ${isFavorite ? 'fill-red-500 text-red-500' : 'text-black'}`} />
             </motion.button>
           </div>
         </div>
@@ -1359,7 +1362,7 @@ export const SpotDetailSheet: React.FC<SpotDetailSheetProps> = React.memo(({
             {/* Top-Left: Back Button */}
             <div className="absolute top-3.5 left-3.5 z-20">
               <AppleBackButton
-                theme="auto"
+                theme="glass"
                 onClick={(e) => {
                   e.stopPropagation();
                   persistHeroPlaybackPosition();
@@ -1378,11 +1381,12 @@ export const SpotDetailSheet: React.FC<SpotDetailSheetProps> = React.memo(({
                   e.stopPropagation();
                   setIsQrModalOpen(true);
                 }}
-                className="w-10 h-10 rounded-full expo-liquid-glass-btn text-zinc-900 dark:text-white flex items-center justify-center transition-transform active:scale-95 cursor-pointer"
+                className="w-10 h-10 rounded-full ios26-liquid-glass text-black flex items-center justify-center transition-transform active:scale-95 cursor-pointer"
+                style={{ color: '#000000' }}
                 title="Gerar QR Code deste local"
                 aria-label="QR Code"
               >
-                <QrCode className="w-5 h-5 text-zinc-900 dark:text-white" />
+                <QrCode className="relative z-10 w-5 h-5 text-black" />
               </button>
               <button
                 type="button"
@@ -1390,11 +1394,12 @@ export const SpotDetailSheet: React.FC<SpotDetailSheetProps> = React.memo(({
                   e.stopPropagation();
                   handleShare();
                 }}
-                className="w-10 h-10 rounded-full expo-liquid-glass-btn text-zinc-900 dark:text-white flex items-center justify-center transition-transform active:scale-95 cursor-pointer"
+                className="w-10 h-10 rounded-full ios26-liquid-glass text-black flex items-center justify-center transition-transform active:scale-95 cursor-pointer"
+                style={{ color: '#000000' }}
                 title="Compartilhar"
                 aria-label="Compartilhar"
               >
-                <Share2 className="w-5 h-5 text-zinc-900 dark:text-white" />
+                <Share2 className="relative z-10 w-5 h-5 text-black" />
               </button>
               <button
                 type="button"
@@ -1402,13 +1407,14 @@ export const SpotDetailSheet: React.FC<SpotDetailSheetProps> = React.memo(({
                   e.stopPropagation();
                   onToggleFavorite(spot.id);
                 }}
-                className="w-10 h-10 rounded-full expo-liquid-glass-btn text-zinc-900 dark:text-white flex items-center justify-center transition-transform active:scale-95 cursor-pointer"
+                className="w-10 h-10 rounded-full ios26-liquid-glass text-black flex items-center justify-center transition-transform active:scale-95 cursor-pointer"
+                style={{ color: '#000000' }}
                 title={isFavorite ? 'Remover dos favoritos' : 'Adicionar aos favoritos'}
                 aria-label="Favoritar"
               >
                 <Heart
-                  className={`w-5 h-5 transition-colors ${
-                    isFavorite ? 'fill-red-500 text-red-500' : 'text-zinc-900 dark:text-white'
+                  className={`relative z-10 w-5 h-5 transition-colors ${
+                    isFavorite ? 'fill-red-500 text-red-500' : 'text-black'
                   }`}
                 />
               </button>

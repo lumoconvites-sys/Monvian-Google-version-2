@@ -2178,12 +2178,12 @@ export default function App() {
               setHasToggled3D(true);
               setIs3DMode((prev) => !prev);
             }}
-            className="w-[53px] h-[53px] sm:w-[58px] sm:h-[58px] rounded-full bg-white border border-black/[0.06] shadow-[0_6px_20px_rgba(0,0,0,0.14)] hover:bg-zinc-50 flex items-center justify-center transition-all duration-200 active:scale-90 cursor-pointer group shrink-0"
-            style={{ backgroundColor: '#FFFFFF', color: '#111111' }}
+            className="w-[53px] h-[53px] sm:w-[58px] sm:h-[58px] rounded-full ios26-liquid-glass flex items-center justify-center transition-all duration-200 active:scale-90 cursor-pointer group shrink-0"
+            style={{ color: '#000000' }}
             aria-label={is3DMode ? 'Alternar para visualização 2D' : 'Alternar para visualização 3D'}
             title={is3DMode ? 'Alternar para visão 2D Plana' : 'Alternar para visão 3D com Relevo e Montanhas'}
           >
-            <div className="relative flex items-center justify-center group-hover:scale-105 transition-transform duration-200">
+            <div className="relative z-10 flex items-center justify-center group-hover:scale-105 transition-transform duration-200">
               <Map3DIcon mode={!hasToggled3D || is3DMode ? '3D' : '2D'} />
             </div>
           </button>
@@ -2197,19 +2197,15 @@ export default function App() {
                 setIsCategoryCardOpen((prev) => !prev);
                 setIsSearchOpen(false);
               }}
-              className={`w-[53px] h-[53px] sm:w-[58px] sm:h-[58px] rounded-full expo-liquid-glass-btn flex items-center justify-center transition-all duration-200 active:scale-90 cursor-pointer group shrink-0 ${
-                theme === 'dark'
-                  ? 'text-white hover:text-zinc-200'
-                  : 'text-black hover:text-zinc-800'
-              }`}
-              style={{ color: theme === 'dark' ? '#FFFFFF' : '#000000' }}
+              className="w-[53px] h-[53px] sm:w-[58px] sm:h-[58px] rounded-full ios26-liquid-glass text-black flex items-center justify-center transition-all duration-200 active:scale-90 cursor-pointer group shrink-0"
+              style={{ color: '#000000' }}
               title={selectedCategoryFilter ? 'Filtro de categoria ativo - Clique para alterar ou limpar' : 'Filtrar por Categoria'}
             >
-              <div className="relative flex items-center justify-center group-hover:scale-105 transition-transform duration-300">
-                <SlidersHorizontal className="w-6 h-6 sm:w-[29px] sm:h-[29px] stroke-[2]" style={{ color: theme === 'dark' ? '#FFFFFF' : '#000000' }} />
+              <div className="relative z-10 flex items-center justify-center group-hover:scale-105 transition-transform duration-300">
+                <SlidersHorizontal className="w-6 h-6 sm:w-[29px] sm:h-[29px] stroke-[2]" style={{ color: '#000000' }} />
               </div>
               {selectedCategoryFilter && (
-                <span className="absolute top-0 right-0 w-2.5 h-2.5 rounded-full bg-blue-500 ring-2 ring-white dark:ring-black" />
+                <span className="absolute top-0 right-0 z-20 w-2.5 h-2.5 rounded-full bg-blue-500 ring-2 ring-white" />
               )}
             </button>
           </div>

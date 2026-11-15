@@ -2351,22 +2351,20 @@ export const MapComponent = memo(
             type="button"
             onClick={() => centerOnUserLocation(true, true)}
             aria-label="Centralizar na minha localização e ativar bússola em tempo real"
-            className={`w-12 h-12 rounded-full backdrop-blur-md border shadow-[0_6px_20px_rgba(0,0,0,0.22)] flex items-center justify-center active:scale-90 transition-all cursor-pointer ${
+            className={`w-12 h-12 rounded-full ios26-liquid-glass flex items-center justify-center active:scale-90 transition-all duration-200 cursor-pointer ${
               isCompassTracking
-                ? 'bg-blue-500 text-white border-blue-400 ring-2 ring-blue-500/35'
+                ? 'ring-2 ring-[#007AFF]/70'
                 : isFollowingUser
-                  ? 'bg-white dark:bg-zinc-900/95 border-blue-500/40 dark:border-white/15 ring-2 ring-blue-500/20'
-                  : 'bg-white/90 dark:bg-zinc-900/90 border-zinc-200/80 dark:border-white/10'
+                  ? 'ring-2 ring-[#007AFF]/35'
+                  : ''
             }`}
+            style={{ color: '#000000' }}
           >
             <div
               ref={compassIconWrapperRef}
-              className="flex items-center justify-center will-change-transform"
+              className="relative z-10 flex items-center justify-center will-change-transform"
             >
-              <CompassIcon
-                size={24}
-                className={isCompassTracking ? '[&_path]:!fill-white [&_path]:!text-white' : ''}
-              />
+              <CompassIcon size={24} />
             </div>
           </button>
 
@@ -2376,10 +2374,10 @@ export const MapComponent = memo(
             onClick={handleCycleMapStyle}
             aria-label="Alternar camada do mapa"
             title={currentMode === 'satelite' ? 'Alternar para mapa padrão' : 'Alternar para satélite'}
-            className="w-12 h-12 rounded-full bg-white border border-black/[0.06] shadow-[0_6px_20px_rgba(0,0,0,0.16)] hover:bg-zinc-50 flex items-center justify-center text-[#111111] active:scale-90 transition-all duration-200 cursor-pointer"
-            style={{ backgroundColor: '#FFFFFF', color: '#111111' }}
+            className="w-12 h-12 rounded-full ios26-liquid-glass flex items-center justify-center text-black active:scale-90 transition-all duration-200 cursor-pointer"
+            style={{ color: '#000000' }}
           >
-            <MapLayerToggleIcon className="w-[26px] h-[26px]" />
+            <MapLayerToggleIcon className="relative z-10 w-[26px] h-[26px]" />
           </button>
         </div>
       </div>
