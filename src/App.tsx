@@ -208,6 +208,15 @@ export default function App() {
   // Welcome translucent overlay & Onboarding questionnaire on new account creation
   const [showWelcomeOverlay, setShowWelcomeOverlay] = useState<boolean>(false);
   const [showOnboardingQuestions, setShowOnboardingQuestions] = useState<boolean>(false);
+  const [airbnbCardTab, setAirbnbCardTab] = useState<PresentationTab | null>(null);
+  const [signupIntroStage, setSignupIntroStage] = useState<SignupIntroStage>('idle');
+  const [isWelcomeJourneyOpen, setIsWelcomeJourneyOpen] = useState<boolean>(false);
+  const [pendingWelcomeJourney, setPendingWelcomeJourney] = useState<boolean>(false);
+  const [isOnboardingItinerarySelection, setIsOnboardingItinerarySelection] = useState<boolean>(false);
+  const [isUserLocationSpotlightActive, setIsUserLocationSpotlightActive] = useState<boolean>(false);
+  const hasExecutedSignupIntroRef = useRef<boolean>(false);
+  const isSignupRevealActive = signupIntroStage !== 'idle';
+  const isOnboardingRevealReady = signupIntroStage === 'revealing' || signupIntroStage === 'idle';
   const [zoomToUserTrigger, setZoomToUserTrigger] = useState<number>(0);
   const [revertSpotZoomTrigger, setRevertSpotZoomTrigger] = useState<number>(0);
   const [spotPreviewMode, setSpotPreviewMode] = useState<'card' | 'bar'>('bar');
@@ -1168,8 +1177,24 @@ export default function App() {
   }, [isDetailOpen, selectedSpot]);
 
   const handleMapLoad = useCallback(() => {
-    // Map loaded callback
-  }, []);
+    if (
+      isAuthenticated &&
+      activeTab === 'explorar' &&
+      !selectedSpot &&
+      !isDetailOpen &&
+      !isUserLocationSpotlightActive &&
+      !isOnboardingItinerarySelection
+    ) {
+      setZoomToUserTrigger((prev) => prev + 1);
+    }
+  }, [
+    isAuthenticated,
+    activeTab,
+    selectedSpot,
+    isDetailOpen,
+    isUserLocationSpotlightActive,
+    isOnboardingItinerarySelection,
+  ]);
 
   const handleVoiceSearch = () => {
     const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
@@ -1447,8 +1472,12 @@ export default function App() {
   }, []);
 
   // User location state
-  const [userCoords, setUserCoords] = useState<[number, number]>([-45.5870, -22.7355]);
-  const [geoStatus, setGeoStatus] = useState<'prompt' | 'granted' | 'denied' | 'locating'>('locating');
+  const [userCoords, setUserCoords] = useState<[number, number]>(
+    () => gpsNavigationManager.getState().coords
+  );
+  const [geoStatus, setGeoStatus] = useState<'prompt' | 'granted' | 'denied' | 'locating'>(
+    () => gpsNavigationManager.getState().status
+  );
   const [locationName, setLocationName] = useState<string>('Obtendo localização...');
 
   // Request or re-trigger high accuracy real geolocation
@@ -1552,26 +1581,59 @@ export default function App() {
     });
   }, []);
 
-  // Toda vez que o usuário sair do mapa e ir pra outra aba, quando voltar o zoom retorna no ícone dele
+  // Sempre que entrar no aplicativo, carregar Explorar ou voltar de outra aba/segundo plano, dá zoom automático na localização do usuário
   const prevActiveTabForZoomRef = useRef<TabType>(activeTab);
+  const prevAuthForZoomRef = useRef<boolean>(false);
   useEffect(() => {
-    const prev = prevActiveTabForZoomRef.current;
+    const prevTab = prevActiveTabForZoomRef.current;
+    const prevAuth = prevAuthForZoomRef.current;
     prevActiveTabForZoomRef.current = activeTab;
+    prevAuthForZoomRef.current = isAuthenticated;
 
-    if (prev !== 'explorar' && activeTab === 'explorar') {
+    const justEnteredApp = !prevAuth && isAuthenticated;
+    const justReturnedToExplorar = prevTab !== 'explorar' && activeTab === 'explorar';
+
+    if (
+      isAuthenticated &&
+      activeTab === 'explorar' &&
+      (justEnteredApp || justReturnedToExplorar) &&
+      !isUserLocationSpotlightActive &&
+      !isOnboardingItinerarySelection
+    ) {
       setZoomToUserTrigger((prev) => prev + 1);
     }
-  }, [activeTab]);
+  }, [isAuthenticated, activeTab, isUserLocationSpotlightActive, isOnboardingItinerarySelection]);
 
-  const [airbnbCardTab, setAirbnbCardTab] = useState<PresentationTab | null>(null);
-  const [signupIntroStage, setSignupIntroStage] = useState<SignupIntroStage>('idle');
-  const [isWelcomeJourneyOpen, setIsWelcomeJourneyOpen] = useState<boolean>(false);
-  const [pendingWelcomeJourney, setPendingWelcomeJourney] = useState<boolean>(false);
-  const [isOnboardingItinerarySelection, setIsOnboardingItinerarySelection] = useState<boolean>(false);
-  const [isUserLocationSpotlightActive, setIsUserLocationSpotlightActive] = useState<boolean>(false);
-  const hasExecutedSignupIntroRef = useRef<boolean>(false);
-  const isSignupRevealActive = signupIntroStage !== 'idle';
-  const isOnboardingRevealReady = signupIntroStage === 'revealing' || signupIntroStage === 'idle';
+  useEffect(() => {
+    if (!isAuthenticated || activeTab !== 'explorar') return;
+
+    const handleReturnToForeground = () => {
+      if (document.visibilityState !== 'visible') return;
+      if (
+        selectedSpot ||
+        isDetailOpen ||
+        isUserLocationSpotlightActive ||
+        isOnboardingItinerarySelection
+      ) {
+        return;
+      }
+      gpsNavigationManager.refreshPositionNow();
+      setZoomToUserTrigger((prev) => prev + 1);
+    };
+
+    document.addEventListener('visibilitychange', handleReturnToForeground, { passive: true });
+    return () => {
+      document.removeEventListener('visibilitychange', handleReturnToForeground);
+    };
+  }, [
+    isAuthenticated,
+    activeTab,
+    selectedSpot,
+    isDetailOpen,
+    isUserLocationSpotlightActive,
+    isOnboardingItinerarySelection,
+  ]);
+
 
   // Resolve foreground selector for the currently active tab
   const activeTabForegroundSelector = useMemo(() => {
@@ -2500,13 +2562,13 @@ export default function App() {
           animate={{ opacity: 1, scale: 1, y: 0 }}
           exit={{ opacity: 0, scale: 0.94, y: -6 }}
           transition={{ type: 'spring', damping: 25, stiffness: 420 }}
-          className="md:hidden fixed right-4 sm:right-6 w-64 p-2.5 rounded-[26px] expo-liquid-glass-bar z-[70] space-y-1 pointer-events-auto"
+          className="md:hidden fixed right-4 sm:right-6 w-64 p-2.5 rounded-[26px] ios26-liquid-glass z-[70] space-y-1 pointer-events-auto"
           style={{
             top: 'max(calc(env(safe-area-inset-top, 0px) + 74px), 86px)',
           }}
         >
-          <div className="flex items-center justify-between px-3 py-2 border-b border-zinc-900/10 dark:border-white/10">
-            <span className="text-[11px] font-black text-zinc-400 dark:text-zinc-400 uppercase tracking-wider">
+          <div className="relative z-10 flex items-center justify-between px-3 py-2 border-b border-black/10">
+            <span className="text-[11px] font-black text-black/65 uppercase tracking-wider">
               Categorias
             </span>
             {selectedCategoryFilter && (
@@ -2515,7 +2577,7 @@ export default function App() {
                   setSelectedCategoryFilter(null);
                   setIsCategoryCardOpen(false);
                 }}
-                className="text-[11px] font-black text-zinc-700 dark:text-white hover:underline cursor-pointer flex items-center gap-1"
+                className="text-[11px] font-black text-black hover:underline cursor-pointer flex items-center gap-1"
               >
                 <RotateCcw className="w-3 h-3" />
                 Limpar
@@ -2541,10 +2603,10 @@ export default function App() {
                   setSelectedCategoryFilter(isSelected ? null : cat.id);
                   setIsCategoryCardOpen(false);
                 }}
-                className={`w-full px-3 py-2.5 rounded-2xl active:scale-[0.98] text-xs font-black flex items-center justify-between gap-2.5 transition-all text-left cursor-pointer group ${
+                className={`relative z-10 w-full px-3 py-2.5 rounded-2xl active:scale-[0.98] text-xs font-black flex items-center justify-between gap-2.5 transition-all text-left cursor-pointer group ${
                   isSelected
-                    ? 'expo-liquid-glass-pill text-zinc-950 dark:text-white font-extrabold'
-                    : 'hover:bg-zinc-900/5 dark:hover:bg-white/10 text-zinc-800 dark:text-zinc-200'
+                    ? 'ios26-liquid-glass-pill text-black font-extrabold'
+                    : 'hover:bg-white/25 text-black'
                 }`}
               >
                 <div className="flex items-center gap-2.5 min-w-0">
@@ -2565,8 +2627,8 @@ export default function App() {
                   ) : (
                     <div className={`w-10.5 h-10.5 rounded-xl flex items-center justify-center shrink-0 group-hover:scale-105 transition-transform ${
                       isSelected
-                        ? 'bg-white text-zinc-950 shadow-sm'
-                        : 'bg-zinc-900/5 dark:bg-white/10 text-zinc-700 dark:text-white'
+                        ? 'bg-white/60 text-black shadow-sm'
+                        : 'bg-white/25 text-black'
                     }`}>
                       {CategoryIcon && <CategoryIcon className="w-4 h-4 stroke-[2]" />}
                     </div>
@@ -2574,7 +2636,7 @@ export default function App() {
                   <span className="truncate">{cat.label}</span>
                 </div>
                 {isSelected && (
-                  <Check className="w-4 h-4 text-zinc-950 dark:text-white shrink-0 stroke-[2.5]" />
+                  <Check className="w-4 h-4 text-black shrink-0 stroke-[2.5]" />
                 )}
               </button>
             );

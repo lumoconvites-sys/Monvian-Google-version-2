@@ -347,6 +347,10 @@ export const MapComponent = memo(
     const userMarkerStackRef = useRef<HTMLDivElement | null>(null);
     const userAvatarImgRef = useRef<HTMLImageElement | null>(null);
     const userBeamRef = useRef<HTMLDivElement | null>(null);
+    const isSpotlightActiveRef = useRef<boolean>(isSpotlightActive);
+    isSpotlightActiveRef.current = isSpotlightActive;
+    const activeTabRef = useRef<string | undefined>(activeTab);
+    activeTabRef.current = activeTab;
     const isFocusModeRef = useRef<boolean>(isFocusMode);
     isFocusModeRef.current = isFocusMode;
     const latestUserCoordsRef = useRef<[number, number]>(
@@ -354,7 +358,7 @@ export const MapComponent = memo(
     );
     const hasCenteredOnFirstFixRef = useRef<boolean>(false);
     const lastCenteredSessionIdRef = useRef<number>(-1);
-    const lastCenteredFixRevisionRef = useRef<number>(0);
+    const prevIs3DModeRef = useRef<boolean>(is3DMode);
 
     // Campos do Jordão Center Coordinates
     const CAMPOS_CENTER: [number, number] = [-45.5908, -22.7394];
@@ -590,9 +594,14 @@ export const MapComponent = memo(
           setIsCompassTracking(nextCompass);
         }
 
+        const gpsState = gpsNavigationManager.getState();
         hasUserMovedMapRef.current = false;
-        if (gpsNavigationManager.getState().hasRealFix) {
+        if (gpsState.hasRealFix && gpsState.status === 'granted') {
           hasCenteredOnFirstFixRef.current = true;
+          lastCenteredSessionIdRef.current = gpsState.sessionId ?? 0;
+        } else {
+          hasCenteredOnFirstFixRef.current = false;
+          lastCenteredSessionIdRef.current = -1;
         }
         setFollowMode(true);
         followCameraGraceUntilRef.current = performance.now() + 750;
@@ -714,18 +723,44 @@ export const MapComponent = memo(
         map.on('load', () => {
           syncSpotMarkers();
           ensureUserMarker(map);
+          map.resize();
           const currentGpsState = gpsNavigationManager.getState();
           if (currentGpsState.hasRealFix && currentGpsState.status === 'granted') {
             userMarkerRef.current?.setLngLat(currentGpsState.coords);
-            if (!selectedSpotRef.current && !hasUserMovedMapRef.current && !hasCenteredOnFirstFixRef.current) {
+            latestUserCoordsRef.current = currentGpsState.coords;
+            if (
+              !selectedSpotRef.current &&
+              !hasUserMovedMapRef.current &&
+              !isSpotlightActiveRef.current
+            ) {
               hasCenteredOnFirstFixRef.current = true;
-              followCameraGraceUntilRef.current = performance.now() + 700;
+              lastCenteredSessionIdRef.current = currentGpsState.sessionId ?? 0;
+              setFollowMode(true);
+              followCameraGraceUntilRef.current = performance.now() + 750;
               map.easeTo({
                 center: currentGpsState.coords,
-                zoom: 14.8,
+                zoom: 15.6,
+                pitch: is3DModeRef.current ? 60 : 0,
+                bearing: is3DModeRef.current ? -20 : 0,
                 duration: 650,
               });
             }
+          } else if (
+            !selectedSpotRef.current &&
+            !hasUserMovedMapRef.current &&
+            !isSpotlightActiveRef.current
+          ) {
+            hasCenteredOnFirstFixRef.current = false;
+            lastCenteredSessionIdRef.current = -1;
+            setFollowMode(true);
+            followCameraGraceUntilRef.current = performance.now() + 500;
+            map.easeTo({
+              center: latestUserCoordsRef.current || CAMPOS_CENTER,
+              zoom: 15.6,
+              pitch: is3DModeRef.current ? 60 : 0,
+              bearing: is3DModeRef.current ? -20 : 0,
+              duration: 650,
+            });
           }
           if (selectedSpotRef.current && selectedSpotRef.current.lng && selectedSpotRef.current.lat) {
             const isMobile = window.innerWidth < 768;
@@ -905,7 +940,9 @@ export const MapComponent = memo(
 
     // Real-Time GPS Location Subscription + Camera Accompaniment
     useEffect(() => {
-      gpsNavigationManager.start();
+      if (!activeTabRef.current || activeTabRef.current === 'explorar') {
+        gpsNavigationManager.start();
+      }
       let lastMarkerLng = -999;
       let lastMarkerLat = -999;
       let lastFollowedLng = -999;
@@ -945,29 +982,39 @@ export const MapComponent = memo(
         }
 
         const now = performance.now();
+        const activeSessionId = navState.sessionId ?? 0;
+        const needsSessionCenter =
+          lastCenteredSessionIdRef.current !== activeSessionId || !hasCenteredOnFirstFixRef.current;
+        const isExplorarVisible = !activeTabRef.current || activeTabRef.current === 'explorar';
 
-        // Position camera on the first valid GPS fix at boot if user hasn't dragged away
+        // Position & zoom camera automatically on the first valid GPS fix of each session if user hasn't dragged away
         if (
           mapRef.current &&
+          isExplorarVisible &&
           navState.hasRealFix &&
           navState.status === 'granted' &&
-          !hasCenteredOnFirstFixRef.current &&
+          needsSessionCenter &&
           !hasUserMovedMapRef.current &&
           !selectedSpotRef.current &&
-          !isTransitioning3DRef.current
+          !isSpotlightActiveRef.current
         ) {
+          lastCenteredSessionIdRef.current = activeSessionId;
           hasCenteredOnFirstFixRef.current = true;
-          followCameraGraceUntilRef.current = now + 800;
+          setFollowMode(true);
+          followCameraGraceUntilRef.current = now + 850;
           lastFollowedLng = navState.coords[0];
           lastFollowedLat = navState.coords[1];
+          mapRef.current.resize();
           mapRef.current.easeTo({
             center: navState.coords,
-            zoom: 14.8,
+            zoom: 15.6,
             pitch: is3DModeRef.current ? 60 : 0,
+            bearing: is3DModeRef.current ? -20 : 0,
             duration: 750,
           });
         } else if (
           mapRef.current &&
+          isExplorarVisible &&
           isFollowingUserRef.current &&
           navState.hasRealFix &&
           navState.status === 'granted' &&
@@ -975,6 +1022,7 @@ export const MapComponent = memo(
           now > followCameraGraceUntilRef.current &&
           !isMapGestureActiveRef.current &&
           !selectedSpotRef.current &&
+          !isSpotlightActiveRef.current &&
           !isTransitioning3DRef.current &&
           !mapRef.current.isMoving()
         ) {
@@ -1112,8 +1160,11 @@ export const MapComponent = memo(
       };
     }, []);
 
-    // Update 3D mode pitch/bearing smoothly without interrupting or refreshing markers
+    // Update 3D mode pitch/bearing smoothly only when toggled after mount
     useEffect(() => {
+      if (prevIs3DModeRef.current === is3DMode) return;
+      prevIs3DModeRef.current = is3DMode;
+
       const map = mapRef.current;
       if (!map) return;
 
@@ -2351,7 +2402,7 @@ export const MapComponent = memo(
             type="button"
             onClick={() => centerOnUserLocation(true, true)}
             aria-label="Centralizar na minha localização e ativar bússola em tempo real"
-            className={`w-12 h-12 rounded-full ios26-liquid-glass flex items-center justify-center active:scale-90 transition-all duration-200 cursor-pointer ${
+            className={`w-[53px] h-[53px] sm:w-[58px] sm:h-[58px] rounded-full ios26-liquid-glass flex items-center justify-center active:scale-90 transition-all duration-200 cursor-pointer shrink-0 ${
               isCompassTracking
                 ? 'ring-2 ring-[#007AFF]/70'
                 : isFollowingUser
@@ -2364,7 +2415,7 @@ export const MapComponent = memo(
               ref={compassIconWrapperRef}
               className="relative z-10 flex items-center justify-center will-change-transform"
             >
-              <CompassIcon size={24} />
+              <CompassIcon size={28} className="w-[26px] h-[26px] sm:w-[29px] sm:h-[29px]" />
             </div>
           </button>
 
@@ -2374,10 +2425,10 @@ export const MapComponent = memo(
             onClick={handleCycleMapStyle}
             aria-label="Alternar camada do mapa"
             title={currentMode === 'satelite' ? 'Alternar para mapa padrão' : 'Alternar para satélite'}
-            className="w-12 h-12 rounded-full ios26-liquid-glass flex items-center justify-center text-black active:scale-90 transition-all duration-200 cursor-pointer"
+            className="w-[53px] h-[53px] sm:w-[58px] sm:h-[58px] rounded-full ios26-liquid-glass flex items-center justify-center text-black active:scale-90 transition-all duration-200 cursor-pointer shrink-0"
             style={{ color: '#000000' }}
           >
-            <MapLayerToggleIcon className="relative z-10 w-[26px] h-[26px]" />
+            <MapLayerToggleIcon className="relative z-10 w-[28px] h-[28px] sm:w-[31px] sm:h-[31px]" />
           </button>
         </div>
       </div>

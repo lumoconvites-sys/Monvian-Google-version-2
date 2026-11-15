@@ -1111,6 +1111,10 @@ async function startServer() {
       let authId = supabase_auth_id || firebase_uid || null;
       if (!authId && supabaseAnonClient && rawEmail.includes('@')) {
         try {
+          const safeMetaAvatar =
+            avatar_url && typeof avatar_url === 'string' && !avatar_url.startsWith('data:')
+              ? avatar_url
+              : null;
           const { data: signUpData } = await supabaseAnonClient.auth.signUp({
             email: rawEmail,
             password: String(password),
@@ -1118,7 +1122,7 @@ async function startServer() {
               data: {
                 full_name: rawName,
                 username: cleanUsername,
-                avatar_url: avatar_url || null,
+                ...(safeMetaAvatar ? { avatar_url: safeMetaAvatar } : {}),
               },
             },
           });
@@ -1175,10 +1179,12 @@ async function startServer() {
       const token = signPersistentSessionToken(userRecord);
       db.prepare('INSERT INTO sessions (token, user_id) VALUES (?, ?)').run(token, userId);
 
-      // Persist to Supabase PostgreSQL & Firestore
-      await persistUserToSupabase(userRecord);
-      await persistSessionToSupabase(token, userId);
-      await persistUserToFirestore(userRecord).catch(() => {});
+      // Persist to Supabase PostgreSQL & Firestore in parallel without delaying signup
+      await Promise.allSettled([
+        persistUserToSupabase(userRecord),
+        persistSessionToSupabase(token, userId),
+        persistUserToFirestore(userRecord),
+      ]);
 
       setPersistentSessionCookie(req, res, token);
 

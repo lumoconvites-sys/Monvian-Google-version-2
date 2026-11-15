@@ -596,8 +596,9 @@ export function AuthScreen({
     const file = e.target.files?.[0];
     if (!file) return;
 
-    if (!file.type.startsWith('image/')) {
+    if (file.type && !file.type.startsWith('image/')) {
       setError('Por favor, selecione um arquivo de imagem.');
+      e.target.value = '';
       return;
     }
 
@@ -663,7 +664,7 @@ export function AuthScreen({
     }
   };
 
-  // 2. Submit Progressive Registration com Acompanhamento Real das 5 Etapas
+  // 2. Submit Progressive Registration com Criação Imediata e Sem Retornos Indevidos
   const executeAccountCreation = async (withAvatar: boolean) => {
     if (isSubmittingRef.current || isAccountCreating) return;
     setError('');
@@ -689,22 +690,39 @@ export function AuthScreen({
     isSubmittingRef.current = true;
     setIsAccountCreating(true);
 
-    const pace = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
-
     try {
-      // 1. “Criando sua conta…” -> registrar o usuário no Firebase Authentication oficial
+      // 1. “Criando sua conta…” -> tentar vínculo no Firebase Auth sem bloquear o cadastro no backend oficial
       setCreationMessage('Criando sua conta…');
-      setCreationProgress(20);
+      setCreationProgress(25);
 
-      const fbSignUp = await signUpWithFirebaseEmail(cleanName, cleanEmail, registerPassword);
-      const firebaseUid = fbSignUp.uid;
-      const firebaseIdToken = fbSignUp.idToken;
+      let firebaseUid: string | null = null;
+      let firebaseIdToken: string | null = null;
 
-      await pace(300);
+      try {
+        const fbSignUp = await signUpWithFirebaseEmail(cleanName, cleanEmail, registerPassword);
+        firebaseUid = fbSignUp.uid;
+        firebaseIdToken = fbSignUp.idToken;
+      } catch (fbErr: any) {
+        const fbCode = String(fbErr?.code || '');
+        if (fbCode === 'auth/invalid-email' || fbCode === 'auth/weak-password') {
+          throw fbErr;
+        }
+        // Se já existir apenas no Firebase Auth (ex: tentativa anterior incompleta), tentar vincular via login silencioso;
+        // caso contrário, seguir normalmente para /api/auth/register (fonte autoritativa do banco de dados).
+        if (fbCode === 'auth/email-already-in-use') {
+          try {
+            const fbSignIn = await signInWithFirebaseEmail(cleanEmail, registerPassword);
+            firebaseUid = fbSignIn.uid;
+            firebaseIdToken = fbSignIn.idToken;
+          } catch {
+            // Segue para o backend verificar se a conta realmente existe no app
+          }
+        }
+      }
 
-      // 2. “Adicionando suas informações…” -> salvar perfil vinculado ao UID no banco via API
+      // 2. “Adicionando suas informações…” -> salvar perfil e criar sessão imediatamente via API
       setCreationMessage('Adicionando suas informações…');
-      setCreationProgress(45);
+      setCreationProgress(55);
 
       const chosenAvatar = withAvatar && avatarBase64 ? avatarBase64 : undefined;
 
@@ -721,80 +739,66 @@ export function AuthScreen({
         }),
       });
 
-      const data = await res.json();
+      let data: any = null;
+      try {
+        data = await res.json();
+      } catch {}
 
-      if (!res.ok || !data.success || !data.user) {
+      if (!res.ok || !data?.success || !data?.user || !data?.token) {
         const errObj = new Error(data?.error || 'Não foi possível concluir o cadastro.');
         (errObj as any).status = res.status;
         throw errObj;
       }
 
-      await pace(300);
-
-      // 3. “Preparando seu perfil…” -> salvar a foto no armazenamento e vincular à conta
+      // 3. “Preparando seu perfil…” -> salvar sessão persistente e foto localmente/nuvem
       setCreationMessage('Preparando seu perfil…');
-      setCreationProgress(70);
+      setCreationProgress(85);
 
       const userObj = data.user;
       const finalAvatar = chosenAvatar || userObj.avatar_url || '/fotoperfil.png';
 
-      await Promise.allSettled([
-        persistUserToFirestore({
-          ...userObj,
-          name: cleanName,
-          email: cleanEmail,
-          avatar_url: finalAvatar,
-          auth_id: userObj.auth_id || firebaseUid,
-          firebase_uid: firebaseUid,
-          role: userObj.role || 'user',
-        }),
-        (async () => {
-          if (chosenAvatar) {
-            try {
-              localStorage.setItem('monvian_local_avatar', chosenAvatar);
-            } catch {}
-          } else {
-            try {
-              localStorage.removeItem('monvian_local_avatar');
-            } catch {}
-          }
-        })(),
-      ]);
+      if (chosenAvatar) {
+        try {
+          localStorage.setItem('monvian_local_avatar', chosenAvatar);
+        } catch {}
+      } else {
+        try {
+          localStorage.removeItem('monvian_local_avatar');
+        } catch {}
+      }
 
       const finalUserPayload = { ...userObj, avatar_url: finalAvatar };
+
       await savePersistentSession(data.token, finalUserPayload);
+
+      // Persistir no Firestore e pré-carregar recursos em segundo plano sem travar a entrada do usuário
+      persistUserToFirestore({
+        ...userObj,
+        name: cleanName,
+        email: cleanEmail,
+        avatar_url: finalAvatar,
+        auth_id: userObj.auth_id || firebaseUid,
+        firebase_uid: firebaseUid,
+        role: userObj.role || 'user',
+      }).catch(() => {});
+
+      void startPreloadResources();
 
       try {
         sessionStorage.removeItem('monvian_signup_draft_name');
         sessionStorage.removeItem('monvian_signup_draft_email');
       } catch {}
 
-      await pace(300);
-
-      // 4. “Buscando roteiros para você…” -> carregar os dados de roteiros disponíveis
-      setCreationMessage('Buscando roteiros para você…');
-      setCreationProgress(88);
-
-      await Promise.allSettled([
-        startPreloadResources(),
-        fetch('/api/itineraries').catch(() => null),
-        fetch('/api/spots').catch(() => null),
-      ]);
-
-      await pace(350);
-
-      // 5. “Quase tudo pronto…” -> finalizar a preparação da sessão
+      // 4. “Quase tudo pronto…” -> concluir imediatamente
       setCreationMessage('Quase tudo pronto…');
       setCreationProgress(100);
 
-      await pace(400);
-
       iosNavigationManager.clearAuthEntries();
-      onSuccess(data.token, { ...userObj, avatar_url: finalAvatar }, true);
+      onSuccess(data.token, finalUserPayload, true);
     } catch (err: any) {
       setIsAccountCreating(false);
       isSubmittingRef.current = false;
-      // Clean up partial Firebase Auth state if backend registration rejected (e.g. duplicate pre-existing DB email)
+      // Clean up partial Firebase Auth state if backend registration rejected
       if (auth.currentUser) {
         signOut(auth).catch(() => {});
       }
@@ -802,15 +806,18 @@ export function AuthScreen({
       setError(friendlyMsg);
 
       const errCode = String(err?.code || '');
+      const status = Number((err as any)?.status || 0);
+      const lowerMsg = friendlyMsg.toLowerCase();
+
       if (
         errCode === 'auth/email-already-in-use' ||
         errCode === 'auth/invalid-email' ||
-        friendlyMsg.toLowerCase().includes('e-mail')
+        status === 409 ||
+        lowerMsg.includes('já possui uma conta') ||
+        lowerMsg.includes('e-mail válido')
       ) {
         setRegisterStep(2);
-      } else if (errCode === 'auth/weak-password' || friendlyMsg.toLowerCase().includes('senha')) {
-        setRegisterStep(3);
-      } else {
+      } else if (errCode === 'auth/weak-password' || lowerMsg.includes('caracteres')) {
         setRegisterStep(3);
       }
     }
@@ -1276,18 +1283,29 @@ export function AuthScreen({
                       />
 
                       <AnimatePresence>
-                        {(emailTouched || registerEmail.includes('@')) &&
+                        {error ? (
+                          <motion.p
+                            key="register-step2-error"
+                            initial={{ opacity: 0, y: -4 }}
+                            animate={{ opacity: 1, y: 0 }}
+                            exit={{ opacity: 0, y: -4 }}
+                            className="text-[13px] text-red-500 font-medium mt-2.5 px-1"
+                          >
+                            {error}
+                          </motion.p>
+                        ) : (emailTouched || registerEmail.includes('@')) &&
                           registerEmail.trim().length > 0 &&
-                          !isEmailValid && (
-                            <motion.p
-                              initial={{ opacity: 0, y: -4 }}
-                              animate={{ opacity: 1, y: 0 }}
-                              exit={{ opacity: 0, y: -4 }}
-                              className="text-[13px] text-[#737780] font-medium mt-2.5 px-1"
-                            >
-                              {emailValidation.reason || 'Informe um endereço de e-mail válido.'}
-                            </motion.p>
-                          )}
+                          !isEmailValid ? (
+                          <motion.p
+                            key="register-step2-hint"
+                            initial={{ opacity: 0, y: -4 }}
+                            animate={{ opacity: 1, y: 0 }}
+                            exit={{ opacity: 0, y: -4 }}
+                            className="text-[13px] text-[#737780] font-medium mt-2.5 px-1"
+                          >
+                            {emailValidation.reason || 'Informe um endereço de e-mail válido.'}
+                          </motion.p>
+                        ) : null}
                       </AnimatePresence>
                     </div>
                   </motion.form>
