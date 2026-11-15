@@ -8,7 +8,7 @@ import {
   Heart,
   Play,
 } from 'lucide-react';
-import { motion, AnimatePresence } from 'motion/react';
+import { motion, AnimatePresence, useMotionValue, useTransform, animate } from 'motion/react';
 import { Itinerary } from '../../types';
 import { getSpotImage, getSpotFallbackImage } from '../../utils/spotImages';
 import { useFavorites } from '../../hooks/useFavorites';
@@ -77,7 +77,12 @@ export const ItineraryStoreDetailModal: React.FC<ItineraryStoreDetailModalProps>
   const [activeDayIndex, setActiveDayIndex] = useState(0);
   const { isItinerarySaved, toggleItinerary } = useFavorites();
   const scrollRef = useRef<HTMLDivElement | null>(null);
+  const sheetRef = useRef<HTMLDivElement | null>(null);
   const heroImgRef = useRef<HTMLImageElement | null>(null);
+  const pullDownY = useMotionValue(0);
+  const pullDownScale = useTransform(pullDownY, [0, 380], [1, 0.94]);
+  const pullDownRadius = useTransform(pullDownY, [0, 100], [30, 32]);
+  const pullBackdropOpacity = useTransform(pullDownY, [0, 340], [1, 0.12]);
 
   // Register iOS Edge-Swipe Back Navigation for Itinerary Detail Modal
   useIOSBackEntry({
@@ -93,7 +98,8 @@ export const ItineraryStoreDetailModal: React.FC<ItineraryStoreDetailModalProps>
 
   // Smooth scroll-driven blur & scale effect (native iOS fluid feel)
   const handleScroll = (e: React.UIEvent<HTMLDivElement>) => {
-    const scrollTop = e.currentTarget.scrollTop;
+    const rawScrollTop = e.currentTarget.scrollTop;
+    const scrollTop = rawScrollTop < 0 ? 0 : rawScrollTop;
     if (!heroImgRef.current) return;
 
     // As user scrolls down and the card climbs over the sticky hero photo:
@@ -115,6 +121,7 @@ export const ItineraryStoreDetailModal: React.FC<ItineraryStoreDetailModalProps>
   };
 
   useEffect(() => {
+    pullDownY.set(0);
     if (scrollRef.current) {
       scrollRef.current.scrollTop = 0;
     }
@@ -123,7 +130,97 @@ export const ItineraryStoreDetailModal: React.FC<ItineraryStoreDetailModalProps>
       heroImgRef.current.style.transform = 'scale(1.04) translateZ(0)';
       heroImgRef.current.style.webkitTransform = 'scale(1.04) translateZ(0)';
     }
-  }, [itinerary?.id, isOpen]);
+  }, [itinerary?.id, isOpen, pullDownY]);
+
+  // Smooth native iOS pull-down-to-dismiss gesture when scrolled to top (prevents white overscroll gap)
+  useEffect(() => {
+    if (!isOpen || !itinerary) return;
+    const container = sheetRef.current;
+    if (!container) return;
+
+    let startX = 0;
+    let startY = 0;
+    let startTime = 0;
+    let isCandidate = false;
+    let isPulling = false;
+    let currentDragY = 0;
+
+    const onTouchStart = (e: TouchEvent) => {
+      if (e.touches.length !== 1) return;
+      const touch = e.touches[0];
+      // Leave left-edge zone free for iOS edge-swipe back navigation
+      if (touch.clientX < 28) {
+        isCandidate = false;
+        isPulling = false;
+        return;
+      }
+      const scrollTop = scrollRef.current ? scrollRef.current.scrollTop : 0;
+      startX = touch.clientX;
+      startY = touch.clientY;
+      startTime = performance.now();
+      isCandidate = scrollTop <= 2;
+      isPulling = false;
+      currentDragY = 0;
+    };
+
+    const onTouchMove = (e: TouchEvent) => {
+      if (!isCandidate || e.touches.length !== 1) return;
+      const touch = e.touches[0];
+      const dx = touch.clientX - startX;
+      const dy = touch.clientY - startY;
+
+      if (!isPulling) {
+        if (dy > 4 && dy > Math.abs(dx) * 1.1) {
+          isPulling = true;
+        } else if (Math.abs(dx) > 10 || dy < -6) {
+          isCandidate = false;
+          return;
+        } else {
+          return;
+        }
+      }
+
+      if (e.cancelable) {
+        e.preventDefault();
+      }
+      currentDragY = Math.max(0, dy * 0.9);
+      pullDownY.set(currentDragY);
+    };
+
+    const onTouchEnd = () => {
+      if (!isPulling) {
+        isCandidate = false;
+        return;
+      }
+      const elapsed = Math.max(16, performance.now() - startTime);
+      const velocityY = currentDragY / elapsed;
+
+      isCandidate = false;
+      isPulling = false;
+
+      if (currentDragY > 90 || (currentDragY > 36 && velocityY > 0.38)) {
+        onClose();
+      } else {
+        animate(pullDownY, 0, {
+          type: 'spring',
+          stiffness: 420,
+          damping: 36,
+        });
+      }
+    };
+
+    container.addEventListener('touchstart', onTouchStart, { passive: true });
+    container.addEventListener('touchmove', onTouchMove, { passive: false });
+    container.addEventListener('touchend', onTouchEnd, { passive: true });
+    container.addEventListener('touchcancel', onTouchEnd, { passive: true });
+
+    return () => {
+      container.removeEventListener('touchstart', onTouchStart);
+      container.removeEventListener('touchmove', onTouchMove);
+      container.removeEventListener('touchend', onTouchEnd);
+      container.removeEventListener('touchcancel', onTouchEnd);
+    };
+  }, [isOpen, itinerary?.id, onClose, pullDownY]);
 
   // Immediately close modal when user clicks any option on the navigation bar
   useEffect(() => {
@@ -178,58 +275,71 @@ export const ItineraryStoreDetailModal: React.FC<ItineraryStoreDetailModalProps>
           <motion.div
             id="itinerary-store-detail-backdrop"
             key="itinerary-detail-backdrop"
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          exit={{ opacity: 0 }}
-          transition={{ duration: 0.24, ease: [0.22, 1, 0.36, 1] }}
-          className={`fixed inset-0 z-[200] flex flex-col backdrop-blur-xl ${
-            isLight ? 'bg-black/35' : 'bg-black/60'
-          }`}
-          style={{
-            fontFamily: "'Inter', -apple-system, BlinkMacSystemFont, sans-serif",
-            willChange: 'opacity',
-            transform: 'translate3d(0, 0, 0)',
-            WebkitTransform: 'translate3d(0, 0, 0)',
-            backfaceVisibility: 'hidden',
-            WebkitBackfaceVisibility: 'hidden',
-          }}
-        >
-          {/* Fullscreen Translucent Mobile Card Container (120fps GPU Composited) */}
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.72, ease: [0.16, 1, 0.3, 1] }}
+            onClick={onClose}
+            className="fixed inset-0 z-[200] flex flex-col"
+            style={{
+              fontFamily: "'Inter', -apple-system, BlinkMacSystemFont, sans-serif",
+              willChange: 'opacity',
+              transform: 'translate3d(0, 0, 0)',
+              WebkitTransform: 'translate3d(0, 0, 0)',
+              backfaceVisibility: 'hidden',
+              WebkitBackfaceVisibility: 'hidden',
+            }}
+          >
+          {/* Dim scrim that fades dynamically when pulling card down to reveal previous page */}
+          <motion.div
+            aria-hidden="true"
+            style={{ opacity: pullBackdropOpacity }}
+            className={`absolute inset-0 pointer-events-none ${
+              isLight ? 'bg-black/28' : 'bg-black/50'
+            }`}
+          />
+          {/* Fullscreen Smooth GPU-Composited Page Container */}
           <motion.div
             id="itinerary-store-detail-card"
             key={`itinerary-detail-content-${activeItinerary.id}`}
-            initial={{ opacity: 0, scale: 0.94, y: 26 }}
-            animate={{ opacity: 1, scale: 1, y: 0 }}
-            exit={{ opacity: 0, scale: 0.96, y: 18 }}
+            initial={{ opacity: 0, y: 38, scale: 0.985 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: 26, scale: 0.99 }}
             transition={{
-              type: 'spring',
-              stiffness: 380,
-              damping: 32,
-              mass: 0.72,
+              duration: 0.86,
+              ease: [0.16, 1, 0.3, 1],
             }}
-            className={`relative w-full h-full flex flex-col max-w-xl mx-auto overflow-hidden backdrop-blur-2xl ios-pushed-page ${
-              isLight
-                ? 'bg-white/88 text-zinc-900'
-                : 'bg-[#000000]/82 text-white'
-            }`}
+            onClick={(e) => e.stopPropagation()}
+            className="relative w-full h-full flex flex-col max-w-xl mx-auto overflow-hidden bg-transparent"
             style={{
               transform: 'translate3d(0, 0, 0)',
               WebkitTransform: 'translate3d(0, 0, 0)',
               backfaceVisibility: 'hidden',
               WebkitBackfaceVisibility: 'hidden',
               willChange: 'transform, opacity',
-              borderTopLeftRadius: '30px',
-              borderTopRightRadius: '30px',
-              overflow: 'hidden',
             }}
+          >
+          <motion.div
+            ref={sheetRef}
+            style={{
+              y: pullDownY,
+              scale: pullDownScale,
+              borderTopLeftRadius: pullDownRadius,
+              borderTopRightRadius: pullDownRadius,
+              willChange: 'transform',
+            }}
+            className={`relative w-full h-full flex flex-col overflow-hidden shadow-[0_12px_40px_rgba(0,0,0,0.20)] ${
+              isLight ? 'text-zinc-900' : 'text-white'
+            }`}
           >
           {/* Scrollable Body com blur dinâmico ao rolar */}
           <div 
             ref={scrollRef}
             onScroll={handleScroll}
-            className="flex-1 overflow-y-auto overscroll-contain rounded-t-[30px]"
+            className="flex-1 overflow-y-auto overscroll-none rounded-t-[30px]"
             style={{
               WebkitOverflowScrolling: 'touch',
+              overscrollBehaviorY: 'none',
               transform: 'translate3d(0, 0, 0)',
               WebkitTransform: 'translate3d(0, 0, 0)',
             }}
@@ -247,7 +357,13 @@ export const ItineraryStoreDetailModal: React.FC<ItineraryStoreDetailModalProps>
               }}
               className="sticky top-0 w-full h-72 sm:h-80 shrink-0 overflow-hidden bg-zinc-900 rounded-t-[30px] z-0 pointer-events-none"
             >
-              <div className="w-full h-full relative">
+              <motion.div
+                initial={{ opacity: 0, scale: 1.03 }}
+                animate={{ opacity: 1, scale: 1 }}
+                transition={{ duration: 1.0, ease: [0.16, 1, 0.3, 1] }}
+                style={{ willChange: 'transform, opacity' }}
+                className="w-full h-full relative"
+              >
                 <img
                   ref={heroImgRef}
                   src={activeItinerary.coverImage}
@@ -268,7 +384,7 @@ export const ItineraryStoreDetailModal: React.FC<ItineraryStoreDetailModalProps>
                     (e.target as HTMLImageElement).src = 'https://images.unsplash.com/photo-1506744038136-46273834b3fb?auto=format&fit=crop&w=1000&q=80';
                   }}
                 />
-              </div>
+              </motion.div>
               
               {/* Degradê sutil na parte inferior para legibilidade */}
               <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-black/15 to-transparent pointer-events-none" />
@@ -313,11 +429,11 @@ export const ItineraryStoreDetailModal: React.FC<ItineraryStoreDetailModalProps>
               </div>
             </div>
 
-            {/* CONTEÚDO PRINCIPAL COMO CARD TRANSLÚCIDO COM BORDAS SUPERIORES ARREDONDADAS */}
+            {/* CONTEÚDO PRINCIPAL COM ENTRADA SUAVE E LEVE */}
             <motion.div
-              initial={{ opacity: 0, y: 14 }}
+              initial={{ opacity: 0, y: 24 }}
               animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.24, ease: [0.22, 1, 0.36, 1], delay: 0.015 }}
+              transition={{ duration: 0.88, ease: [0.16, 1, 0.3, 1], delay: 0.14 }}
               style={{
                 transform: 'translate3d(0, 0, 0)',
                 WebkitTransform: 'translate3d(0, 0, 0)',
@@ -326,14 +442,20 @@ export const ItineraryStoreDetailModal: React.FC<ItineraryStoreDetailModalProps>
                 willChange: 'transform, opacity',
                 backgroundColor: isLight ? '#ffffff' : undefined,
               }}
-              className={`relative -mt-6 z-10 rounded-t-[32px] sm:rounded-t-[36px] px-5 pt-6 pb-0 space-y-4 backdrop-blur-2xl ${
+              className={`relative -mt-6 z-10 min-h-[calc(var(--app-height,100dvh)-220px)] rounded-t-[32px] sm:rounded-t-[36px] px-5 pt-6 pb-0 space-y-4 ${
                 isLight
                   ? 'bg-[#ffffff] text-zinc-900 border-t border-black/5 shadow-[0_-8px_32px_rgba(0,0,0,0.08)]'
-                  : 'bg-[#000000]/90 text-white border-t border-white/10 shadow-[0_-8px_32px_rgba(0,0,0,0.5)]'
+                  : 'bg-[#000000] text-white border-t border-white/10 shadow-[0_-8px_32px_rgba(0,0,0,0.5)]'
               }`}
             >
               
               {/* 2. TAGS (MÁXIMO 3, LIMPAS E SEM POLUIÇÃO) */}
+              <motion.div
+                initial={{ opacity: 0, y: 12 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.78, ease: [0.16, 1, 0.3, 1], delay: 0.22 }}
+                className="space-y-3.5"
+              >
               {visibleTags.length > 0 && (
                 <div className="flex items-center gap-1.5 flex-wrap">
                   {visibleTags.map((tag, idx) => (
@@ -391,8 +513,15 @@ export const ItineraryStoreDetailModal: React.FC<ItineraryStoreDetailModalProps>
                   <span>Ritmo otimizado</span>
                 </span>
               </div>
+              </motion.div>
 
               {/* 5. DICAS DO GUIA (COMPACTO E SEM CAIXAS VAZIAS) */}
+              <motion.div
+                initial={{ opacity: 0, y: 12 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.78, ease: [0.16, 1, 0.3, 1], delay: 0.30 }}
+                className="space-y-4"
+              >
               {isValidContent(activeItinerary.tips || activeItinerary.notes) && (
                 <div
                   className={`p-3.5 rounded-2xl border flex items-start gap-2.5 ${
@@ -457,9 +586,15 @@ export const ItineraryStoreDetailModal: React.FC<ItineraryStoreDetailModalProps>
                   </p>
                 )}
               </div>
+              </motion.div>
 
               {/* 7. CONTEÚDO DAS PARADAS */}
-              <div className="pt-1 space-y-2.5">
+              <motion.div
+                initial={{ opacity: 0, y: 14 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.80, ease: [0.16, 1, 0.3, 1], delay: 0.36 }}
+                className="pt-1 space-y-2.5"
+              >
                 <div className="flex items-center justify-between">
                   <h3 className={`text-xs font-bold uppercase tracking-wider ${
                     isLight ? 'text-zinc-500' : 'text-zinc-400'
@@ -559,18 +694,22 @@ export const ItineraryStoreDetailModal: React.FC<ItineraryStoreDetailModalProps>
                     height: 'max(calc(env(safe-area-inset-bottom, 0px) + 72px), 76px)',
                   }}
                 />
-              </div>
+              </motion.div>
 
             </motion.div>
           </div>
 
           {/* 11. BOTÃO DE AÇÃO FLUTUANTE (100% FLUTUANTE, SEM PLACA BRANCA OU CONTAINER RETANGULAR ATRÁS) */}
-          <div
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.82, ease: [0.16, 1, 0.3, 1], delay: 0.38 }}
             className="absolute bottom-0 inset-x-0 z-30 px-5 flex justify-center pointer-events-none select-none bg-transparent border-none shadow-none"
             style={{
               paddingBottom: 'max(calc(env(safe-area-inset-bottom, 0px) + 16px), 20px)',
               transform: 'translate3d(0, 0, 0)',
               WebkitTransform: 'translate3d(0, 0, 0)',
+              willChange: 'transform, opacity',
             }}
           >
             <div className="w-full max-w-md pointer-events-auto">
@@ -607,8 +746,9 @@ export const ItineraryStoreDetailModal: React.FC<ItineraryStoreDetailModalProps>
                 )}
               </motion.button>
             </div>
-          </div>
+          </motion.div>
 
+        </motion.div>
         </motion.div>
       </motion.div>
         )}

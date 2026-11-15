@@ -9,6 +9,7 @@ import {
   RotateCcw,
   AlertCircle,
   Play,
+  CirclePlus,
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { Itinerary, ItineraryCategory } from '../../types';
@@ -263,21 +264,21 @@ const FeaturedItineraryBanner: React.FC<FeaturedItineraryBannerProps> = ({
     >
       <motion.div
         key={`featured-${itinerary.id}-${category}`}
-        initial={shouldAnimate ? { opacity: 0, filter: 'blur(14px)', y: 22, scale: 0.985 } : false}
-        animate={{ opacity: 1, filter: 'blur(0px)', y: 0, scale: 1 }}
+        initial={shouldAnimate ? { opacity: 0, y: 24, scale: 0.985 } : false}
+        animate={{ opacity: 1, y: 0, scale: 1 }}
         transition={
           shouldAnimate
             ? {
-                duration: 0.9,
+                duration: 0.95,
                 ease: [0.16, 1, 0.3, 1],
-                delay: 0.04,
+                delay: 0.05,
               }
             : { duration: 0 }
         }
         style={{
           transform: 'translate3d(0, 0, 0)',
           WebkitTransform: 'translate3d(0, 0, 0)',
-          willChange: 'transform, opacity, filter',
+          willChange: 'transform, opacity',
           backfaceVisibility: 'hidden',
           WebkitBackfaceVisibility: 'hidden',
         }}
@@ -345,7 +346,7 @@ const FeaturedItineraryBanner: React.FC<FeaturedItineraryBannerProps> = ({
         />
 
         <div
-          className={`relative w-full h-full rounded-[34px] overflow-hidden shadow-md border backdrop-blur-md ${
+          className={`relative w-full h-full rounded-[34px] overflow-hidden shadow-md border ${
             isDark ? 'bg-zinc-900 border-white/10' : 'bg-zinc-200 border-black/5'
           }`}
         >
@@ -1016,11 +1017,17 @@ export const AirbnbItineraryExplorer: React.FC<AirbnbItineraryExplorerProps> = (
               <button
                 type="button"
                 onClick={onCreateManualItinerary}
-                className="h-9 px-3.5 rounded-full bg-black flex items-center justify-center text-white text-[12px] sm:text-[13px] font-semibold tracking-tight whitespace-nowrap shrink-0 cursor-pointer active:scale-95 transition-transform border border-white/10 shadow-none outline-none"
+                className="h-9 px-3.5 rounded-full bg-[#fefefe] border border-white flex items-center justify-center gap-1.5 text-black text-[12px] sm:text-[13px] font-semibold tracking-tight whitespace-nowrap shrink-0 cursor-pointer active:scale-95 transition-all outline-none"
+                style={{
+                  boxShadow:
+                    '0 8px 24px rgba(0,0,0,0.08), 0 2px 4px rgba(0,0,0,0.04), inset 0 2px 0 rgba(255,255,255,1)',
+                  borderBottom: '4px solid #e4e4e7',
+                }}
                 title="Criar roteiro manualmente no mapa"
                 aria-label="Criar roteiro manualmente no mapa"
               >
-                Criar manualmente
+                <CirclePlus className="w-[15px] h-[15px] sm:w-4 sm:h-4 text-black shrink-0" strokeWidth={2} />
+                <span className="text-black leading-none">Criar manualmente</span>
               </button>
             ) : onOpenMap ? (
               <button
@@ -1152,20 +1159,20 @@ export const AirbnbItineraryExplorer: React.FC<AirbnbItineraryExplorerProps> = (
       <div className="relative pt-3 pb-44 max-w-5xl mx-auto">
         <div
           style={{ backgroundColor: isDark ? '#000000' : '#ffffff' }}
-          className={`space-y-5 transition-all duration-300 ease-out ${
+          className={`space-y-5 transition-opacity duration-500 ease-out ${
             isCategorySwitching
-              ? 'opacity-40 blur-[1.5px] scale-[0.995] pointer-events-none'
-              : 'opacity-100 blur-0 scale-100'
+              ? 'opacity-45 pointer-events-none'
+              : 'opacity-100'
           }`}
         >
         {loading && displayItineraries.length === 0 && !validFeaturedBanner ? (
-          /* Initial Progressive Loading State with Apple iOS Translucent Glass Frost Effect */
+          /* Initial Progressive Loading State */
           <motion.div
-            initial={shouldAnimateEntrance ? { opacity: 0, filter: 'blur(10px)' } : false}
-            animate={{ opacity: 1, filter: 'blur(0px)' }}
+            initial={shouldAnimateEntrance ? { opacity: 0, y: 12 } : false}
+            animate={{ opacity: 1, y: 0 }}
             transition={
               shouldAnimateEntrance
-                ? { duration: 0.3, ease: [0.22, 1, 0.36, 1] }
+                ? { duration: 0.65, ease: [0.16, 1, 0.3, 1] }
                 : { duration: 0 }
             }
             className="px-5 space-y-5"
@@ -1174,7 +1181,7 @@ export const AirbnbItineraryExplorer: React.FC<AirbnbItineraryExplorerProps> = (
           >
             {!debouncedSearchQuery && (
               <div
-                className={`relative w-full h-[192px] sm:h-[216px] rounded-[28px] overflow-hidden backdrop-blur-2xl border shadow-[0_8px_32px_rgba(0,0,0,0.25)] flex flex-col justify-end p-5 transition-colors ${
+                className={`relative w-full h-[192px] sm:h-[216px] rounded-[28px] overflow-hidden border shadow-[0_8px_32px_rgba(0,0,0,0.12)] flex flex-col justify-end p-5 transition-colors ${
                   isDark
                     ? 'bg-white/[0.04] border-white/10'
                     : 'bg-black/[0.03] border-black/10'
@@ -1194,7 +1201,7 @@ export const AirbnbItineraryExplorer: React.FC<AirbnbItineraryExplorerProps> = (
                 {[0, 1].map((skeletonIdx) => (
                   <div key={skeletonIdx} className="flex flex-col gap-2.5">
                     <div
-                      className={`w-full h-[182px] sm:h-[196px] rounded-[26px] overflow-hidden backdrop-blur-xl border shadow-xs flex flex-col justify-end p-4 transition-colors ${
+                      className={`w-full h-[182px] sm:h-[196px] rounded-[26px] overflow-hidden border shadow-xs flex flex-col justify-end p-4 transition-colors ${
                         isDark
                           ? 'bg-white/[0.03] border-white/[0.08]'
                           : 'bg-black/[0.025] border-black/10'
@@ -1280,12 +1287,12 @@ export const AirbnbItineraryExplorer: React.FC<AirbnbItineraryExplorerProps> = (
         ) : (
           <motion.div
             key={`itineraries-reveal-${selectedCategory}-${durationFilter}-${debouncedSearchQuery}`}
-            initial={shouldAnimateEntrance ? { opacity: 0, filter: 'blur(14px)', y: 14 } : false}
-            animate={{ opacity: 1, filter: 'blur(0px)', y: 0 }}
+            initial={shouldAnimateEntrance ? { opacity: 0, y: 18 } : false}
+            animate={{ opacity: 1, y: 0 }}
             transition={
               shouldAnimateEntrance
                 ? {
-                    duration: 0.85,
+                    duration: 0.90,
                     ease: [0.16, 1, 0.3, 1],
                   }
                 : { duration: 0 }
@@ -1293,7 +1300,7 @@ export const AirbnbItineraryExplorer: React.FC<AirbnbItineraryExplorerProps> = (
             style={{
               transform: 'translate3d(0, 0, 0)',
               WebkitTransform: 'translate3d(0, 0, 0)',
-              willChange: 'transform, opacity, filter',
+              willChange: 'transform, opacity',
             }}
             className="space-y-6"
           >
@@ -1315,14 +1322,14 @@ export const AirbnbItineraryExplorer: React.FC<AirbnbItineraryExplorerProps> = (
             {displayItineraries.length > 0 && (
               <section className="space-y-3">
                 <motion.div
-                  initial={shouldAnimateEntrance ? { opacity: 0, y: 14, filter: 'blur(8px)' } : false}
-                  animate={{ opacity: 1, y: 0, filter: 'blur(0px)' }}
+                  initial={shouldAnimateEntrance ? { opacity: 0, y: 14 } : false}
+                  animate={{ opacity: 1, y: 0 }}
                   transition={
                     shouldAnimateEntrance
                       ? {
-                          duration: 0.75,
+                          duration: 0.85,
                           ease: [0.16, 1, 0.3, 1],
-                          delay: 0.12,
+                          delay: 0.14,
                         }
                       : { duration: 0 }
                   }
@@ -1490,21 +1497,21 @@ const HorizontalReferenceItineraryCard: React.FC<HorizontalReferenceItineraryCar
       return (
         <motion.div
           onClick={onClick}
-          initial={shouldAnimate ? { opacity: 0, filter: 'blur(16px)', y: 22, scale: 0.985 } : false}
-          animate={{ opacity: 1, filter: 'blur(0px)', y: 0, scale: 1 }}
+          initial={shouldAnimate ? { opacity: 0, y: 22, scale: 0.985 } : false}
+          animate={{ opacity: 1, y: 0, scale: 1 }}
           transition={
             shouldAnimate
               ? {
-                  duration: 0.85,
+                  duration: 0.92,
                   ease: [0.16, 1, 0.3, 1],
-                  delay: 0.12 + Math.min((index % 6) * 0.09, 0.54),
+                  delay: 0.14 + Math.min((index % 6) * 0.08, 0.48),
                 }
               : { duration: 0 }
           }
           style={{
             transform: 'translate3d(0, 0, 0)',
             WebkitTransform: 'translate3d(0, 0, 0)',
-            willChange: 'transform, opacity, filter',
+            willChange: 'transform, opacity',
             backfaceVisibility: 'hidden',
             WebkitBackfaceVisibility: 'hidden',
           }}
@@ -1513,15 +1520,15 @@ const HorizontalReferenceItineraryCard: React.FC<HorizontalReferenceItineraryCar
         >
           {/* 1. HORIZONTAL RECTANGULAR PHOTOGRAPH (Proporção horizontal fiel à referência + Dimensões reservadas) */}
           <div
-            className={`relative w-full h-[182px] sm:h-[196px] rounded-[34px] overflow-hidden shadow-xs border backdrop-blur-md ${
+            className={`relative w-full h-[182px] sm:h-[196px] rounded-[34px] overflow-hidden shadow-xs border ${
               isDark ? 'bg-zinc-900 border-white/10' : 'bg-zinc-100 border-black/5'
             }`}
           >
-            {/* Translucent glass shimmer before image resolves */}
+            {/* Subtle shimmer before image resolves */}
             <div
               className={`absolute inset-0 transition-opacity duration-700 pointer-events-none ${
                 imageLoaded ? 'opacity-0' : 'opacity-100'
-              } ${isDark ? 'bg-white/[0.04] backdrop-blur-md' : 'bg-black/[0.03] backdrop-blur-sm'}`}
+              } ${isDark ? 'bg-white/[0.04]' : 'bg-black/[0.03]'}`}
             >
               <div className="absolute inset-0 bg-gradient-to-tr from-black/40 via-white/[0.02] to-transparent" />
             </div>

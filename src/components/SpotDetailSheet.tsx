@@ -55,6 +55,7 @@ export const SpotDetailSheet: React.FC<SpotDetailSheetProps> = React.memo(({
   const pullDownY = useMotionValue(0);
   const pullDownScale = useTransform(pullDownY, [0, 380], [1, 0.94]);
   const pullDownRadius = useTransform(pullDownY, [0, 120], [0, 28]);
+  const pullBackdropOpacity = useTransform(pullDownY, [0, 340], [1, 0.12]);
 
   // Register iOS Edge-Swipe Back Navigation for SpotDetailSheet and SpotQrModal
   useIOSBackEntry({
@@ -424,7 +425,8 @@ export const SpotDetailSheet: React.FC<SpotDetailSheetProps> = React.memo(({
 
   // Smooth scroll-driven blur & scale effect (native iOS fluid feel)
   const handleScroll = (e: React.UIEvent<HTMLDivElement>) => {
-    const scrollTop = e.currentTarget.scrollTop;
+    const rawScrollTop = e.currentTarget.scrollTop;
+    const scrollTop = rawScrollTop < 0 ? 0 : rawScrollTop;
     if (!heroMediaWrapperRef.current) return;
 
     // As user scrolls down and the white card climbs over the sticky hero media:
@@ -505,9 +507,9 @@ export const SpotDetailSheet: React.FC<SpotDetailSheetProps> = React.memo(({
       const dy = touch.clientY - startY;
 
       if (!isPulling) {
-        if (dy > 10 && dy > Math.abs(dx) * 1.2) {
+        if (dy > 4 && dy > Math.abs(dx) * 1.1) {
           isPulling = true;
-        } else if (Math.abs(dx) > 10 || dy < -8) {
+        } else if (Math.abs(dx) > 10 || dy < -6) {
           isCandidate = false;
           return;
         } else {
@@ -626,25 +628,36 @@ export const SpotDetailSheet: React.FC<SpotDetailSheetProps> = React.memo(({
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       exit={{ opacity: 0 }}
-      transition={{ duration: 0.34, ease: [0.22, 1, 0.36, 1] }}
+      transition={{ duration: 0.72, ease: [0.16, 1, 0.3, 1] }}
       onClick={() => {
         persistHeroPlaybackPosition();
         onClose();
       }}
-      className="fixed inset-0 z-[260] bg-black/60 md:bg-black/45 backdrop-blur-md md:backdrop-blur-xs flex flex-col justify-end md:justify-center md:items-center md:pl-[calc(var(--desktop-sidebar-width,72px)+24px)] md:pr-6 md:py-6 select-none cursor-pointer"
+      className="fixed inset-0 z-[260] flex flex-col justify-end md:justify-center md:items-center md:pl-[calc(var(--desktop-sidebar-width,72px)+24px)] md:pr-6 md:py-6 select-none cursor-pointer"
+      style={{ willChange: 'opacity' }}
     >
+      {/* Dim scrim that fades smoothly when pulling down to reveal the previous page */}
+      <motion.div
+        aria-hidden="true"
+        style={{ opacity: pullBackdropOpacity }}
+        className="absolute inset-0 bg-black/45 md:bg-black/40 pointer-events-none"
+      />
       {/* =====================================================================
-          1. MOBILE VIEW (< 768px): PRESERVED 100% INTACT
+          1. MOBILE VIEW (< 768px): SMOOTH WEIGHTLESS iOS ENTRANCE
          ===================================================================== */}
       <motion.div
         id="spot-detail-sheet-container"
-        initial={{ opacity: 0.92, y: '100%' }}
-        animate={{ opacity: 1, y: '0%' }}
-        exit={{ opacity: 0, y: '100%' }}
-        transition={{ duration: 0.34, ease: [0.32, 0.72, 0, 1] }}
+        initial={{ opacity: 0, y: 52, scale: 0.985 }}
+        animate={{ opacity: 1, y: 0, scale: 1 }}
+        exit={{ opacity: 0, y: 40, scale: 0.99 }}
+        transition={{ duration: 0.86, ease: [0.16, 1, 0.3, 1] }}
         onClick={(e) => e.stopPropagation()}
-        className="md:hidden relative w-full h-full flex flex-col z-[260] transform-gpu overflow-hidden ios-pushed-page"
+        className="md:hidden relative w-full h-full flex flex-col z-[260] transform-gpu overflow-hidden bg-transparent"
         style={{
+          transform: 'translate3d(0, 0, 0)',
+          WebkitTransform: 'translate3d(0, 0, 0)',
+          backfaceVisibility: 'hidden',
+          WebkitBackfaceVisibility: 'hidden',
           willChange: 'transform, opacity',
         }}
       >
@@ -656,7 +669,7 @@ export const SpotDetailSheet: React.FC<SpotDetailSheetProps> = React.memo(({
             borderTopLeftRadius: pullDownRadius,
             borderTopRightRadius: pullDownRadius,
           }}
-          className="relative w-full h-full bg-white dark:bg-[#000000] text-zinc-900 dark:text-white flex flex-col overflow-hidden"
+          className="relative w-full h-full bg-transparent text-zinc-900 dark:text-white flex flex-col overflow-hidden shadow-[0_12px_40px_rgba(0,0,0,0.20)]"
         >
         {/* Floating Top Bar Controls (Mobile) */}
         <div
@@ -729,11 +742,11 @@ export const SpotDetailSheet: React.FC<SpotDetailSheetProps> = React.memo(({
         <div
           ref={scrollRef}
           onScroll={handleScroll}
-          className="flex-1 overflow-y-auto overscroll-y-contain touch-pan-y"
+          className="flex-1 overflow-y-auto overscroll-none touch-pan-y"
           style={{
             WebkitOverflowScrolling: 'touch',
             scrollbarWidth: 'none',
-            overscrollBehaviorY: 'contain',
+            overscrollBehaviorY: 'none',
             transform: 'translateZ(0)',
           }}
         >
@@ -748,14 +761,17 @@ export const SpotDetailSheet: React.FC<SpotDetailSheetProps> = React.memo(({
               WebkitTransform: 'translateZ(0)',
             }}
           >
-            <div
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              transition={{ duration: 0.88, ease: [0.16, 1, 0.3, 1] }}
               ref={heroMediaWrapperRef}
               className="w-full h-full relative transform-gpu transition-[filter,transform] duration-75 ease-out"
               style={{
                 filter: 'none',
                 transform: 'scale(1.04) translateZ(0)',
                 WebkitTransform: 'scale(1.04) translateZ(0)',
-                willChange: 'filter, transform',
+                willChange: 'filter, transform, opacity',
               }}
             >
               {/* Base Cover Photo (stays for 1s, then cross-fades under the translucent video) */}
@@ -814,7 +830,7 @@ export const SpotDetailSheet: React.FC<SpotDetailSheetProps> = React.memo(({
                   />
                 )}
               </AnimatePresence>
-            </div>
+            </motion.div>
 
             {/* Discreet iOS Audio Toggle on Mobile Hero Video */}
             {!isDesktop && showHeroVideo && currentHeroVideo && (
@@ -859,19 +875,25 @@ export const SpotDetailSheet: React.FC<SpotDetailSheetProps> = React.memo(({
           </div>
 
           {/* Main Content Body - Card branco com bordas superiores arredondadas estilo Roteiros */}
-          <div 
+          <motion.div
+            initial={{ opacity: 0, y: 24 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.88, ease: [0.16, 1, 0.3, 1], delay: 0.14 }}
             className="relative z-10 -mt-6 bg-white dark:bg-[#000000] border-t border-black/5 dark:border-[#262626] rounded-t-[32px] sm:rounded-t-[36px] rounded-b-none px-5 sm:px-6 pt-6 pb-32 flex flex-col min-h-[calc(var(--app-height,100dvh)-60px)] shadow-[0_-8px_32px_rgba(0,0,0,0.08)] dark:shadow-[0_-12px_36px_rgba(0,0,0,0.5)]"
             style={{
-              transform: 'translateZ(0)',
-              WebkitTransform: 'translateZ(0)',
+              transform: 'translate3d(0, 0, 0)',
+              WebkitTransform: 'translate3d(0, 0, 0)',
+              backfaceVisibility: 'hidden',
+              WebkitBackfaceVisibility: 'hidden',
+              willChange: 'transform, opacity',
             }}
           >
             
             {/* Title and Badge */}
             <motion.div
-              initial={{ opacity: 0, scale: 0.88, y: 12 }}
-              animate={{ opacity: 1, scale: 1, y: 0 }}
-              transition={{ type: 'spring', stiffness: 380, damping: 22, delay: 0.025 }}
+              initial={{ opacity: 0, y: 12 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.78, ease: [0.16, 1, 0.3, 1], delay: 0.20 }}
               className="flex items-center gap-2 mb-2"
             >
               <h1 className="text-2xl sm:text-3xl font-bold tracking-tight text-[#000000] dark:text-[#FFFFFF] leading-tight">
@@ -882,9 +904,9 @@ export const SpotDetailSheet: React.FC<SpotDetailSheetProps> = React.memo(({
 
             {/* Metadata Row */}
             <motion.div
-              initial={{ opacity: 0, scale: 0.88, y: 12 }}
-              animate={{ opacity: 1, scale: 1, y: 0 }}
-              transition={{ type: 'spring', stiffness: 380, damping: 22, delay: 0.055 }}
+              initial={{ opacity: 0, y: 12 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.78, ease: [0.16, 1, 0.3, 1], delay: 0.27 }}
               className="flex items-center gap-2.5 text-xs sm:text-sm mb-6 text-zinc-600 dark:text-[#A1A1AA] flex-wrap"
             >
               <div className="flex items-center gap-1 bg-zinc-100 dark:bg-[#000000] dark:border dark:border-[#262626] px-3 py-1.5 rounded-full">
@@ -904,9 +926,9 @@ export const SpotDetailSheet: React.FC<SpotDetailSheetProps> = React.memo(({
 
             {/* Action Buttons Row - Apple Maps iOS Liquid Glass Aesthetic */}
             <motion.div
-              initial={{ opacity: 0, scale: 0.88, y: 12 }}
-              animate={{ opacity: 1, scale: 1, y: 0 }}
-              transition={{ type: 'spring', stiffness: 380, damping: 22, delay: 0.085 }}
+              initial={{ opacity: 0, y: 12 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.78, ease: [0.16, 1, 0.3, 1], delay: 0.34 }}
               className="grid grid-cols-3 gap-3 mb-8"
             >
               <motion.button
@@ -951,9 +973,9 @@ export const SpotDetailSheet: React.FC<SpotDetailSheetProps> = React.memo(({
 
             {/* Tabs Row */}
             <motion.div
-              initial={{ opacity: 0, scale: 0.88, y: 12 }}
-              animate={{ opacity: 1, scale: 1, y: 0 }}
-              transition={{ type: 'spring', stiffness: 380, damping: 22, delay: 0.115 }}
+              initial={{ opacity: 0, y: 12 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.78, ease: [0.16, 1, 0.3, 1], delay: 0.40 }}
               className="flex items-center justify-between border-b border-zinc-200 dark:border-[#262626] mb-6"
             >
               {['Sobre', 'Experiência', 'Vídeos', 'Avaliações'].map((tab) => {
@@ -970,7 +992,7 @@ export const SpotDetailSheet: React.FC<SpotDetailSheetProps> = React.memo(({
                     {isActive && (
                       <motion.div
                         layoutId="activeSpotTab"
-                        transition={{ type: 'spring', damping: 26, stiffness: 320 }}
+                        transition={{ duration: 0.35, ease: [0.16, 1, 0.3, 1] }}
                         className={`absolute bottom-0 left-0 right-0 h-[2.5px] rounded-full ${
                           isGoldUser ? 'bg-[#F5BE38]' : 'bg-zinc-950 dark:bg-white'
                         }`}
@@ -986,9 +1008,9 @@ export const SpotDetailSheet: React.FC<SpotDetailSheetProps> = React.memo(({
               {activeTab === 'Sobre' && (
                 <motion.div
                   key="tab-sobre"
-                  initial={{ opacity: 0, scale: 0.88, y: 12 }}
-                  animate={{ opacity: 1, scale: 1, y: 0 }}
-                  transition={{ type: 'spring', stiffness: 380, damping: 22 }}
+                  initial={{ opacity: 0, y: 12 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ duration: 0.74, ease: [0.16, 1, 0.3, 1], delay: 0.42 }}
                   className="space-y-5"
                 >
                   <p className="text-sm sm:text-base text-zinc-700 dark:text-zinc-300 leading-relaxed">
@@ -998,18 +1020,18 @@ export const SpotDetailSheet: React.FC<SpotDetailSheetProps> = React.memo(({
                   {/* Informações Práticas */}
                   <div className="grid grid-cols-2 gap-3">
                     <motion.div
-                      initial={{ opacity: 0, scale: 0.88, y: 12 }}
-                      animate={{ opacity: 1, scale: 1, y: 0 }}
-                      transition={{ type: 'spring', stiffness: 380, damping: 22, delay: 0.035 }}
+                      initial={{ opacity: 0, y: 10 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      transition={{ duration: 0.72, ease: [0.16, 1, 0.3, 1], delay: 0.46 }}
                       className="p-3.5 rounded-2xl bg-zinc-50 dark:bg-[#000000] border border-zinc-100 dark:border-[#262626]"
                     >
                       <span className="text-xs text-[#9A9894] font-bold block mb-1">Horário de Funcionamento</span>
                       <span className="text-sm font-bold text-zinc-900 dark:text-[#FFFFFF]">{spot.hours || "09:00 - 18:00"}</span>
                     </motion.div>
                     <motion.div
-                      initial={{ opacity: 0, scale: 0.88, y: 12 }}
-                      animate={{ opacity: 1, scale: 1, y: 0 }}
-                      transition={{ type: 'spring', stiffness: 380, damping: 22, delay: 0.07 }}
+                      initial={{ opacity: 0, y: 10 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      transition={{ duration: 0.72, ease: [0.16, 1, 0.3, 1], delay: 0.50 }}
                       className="p-3.5 rounded-2xl bg-zinc-50 dark:bg-[#000000] border border-zinc-100 dark:border-[#262626]"
                     >
                       <span className="text-xs text-[#9A9894] font-bold block mb-1">Entrada</span>
@@ -1018,11 +1040,10 @@ export const SpotDetailSheet: React.FC<SpotDetailSheetProps> = React.memo(({
                   </div>
 
                   <motion.button 
-                    initial={{ opacity: 0, scale: 0.88, y: 12 }}
-                    animate={{ opacity: 1, scale: 1, y: 0 }}
-                    transition={{ type: 'spring', stiffness: 380, damping: 22, delay: 0.1 }}
-                    whileHover={{ scale: 1.01, transition: { type: 'spring', stiffness: 400, damping: 18 } }}
-                    whileTap={{ scale: 0.96, transition: { type: 'spring', stiffness: 500, damping: 14 } }}
+                    initial={{ opacity: 0, y: 10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ duration: 0.72, ease: [0.16, 1, 0.3, 1], delay: 0.54 }}
+                    whileTap={{ scale: 0.98 }}
                     onClick={() => openDirectionsMap(spot)}
                     className={`w-full py-3.5 rounded-2xl font-bold flex items-center justify-between px-6 shadow-sm transition-colors cursor-pointer ${
                       isGoldUser
@@ -1042,9 +1063,9 @@ export const SpotDetailSheet: React.FC<SpotDetailSheetProps> = React.memo(({
               {activeTab === 'Experiência' && (
                 <motion.div
                   key="tab-experiencia"
-                  initial={{ opacity: 0, scale: 0.88, y: 12 }}
-                  animate={{ opacity: 1, scale: 1, y: 0 }}
-                  transition={{ type: 'spring', stiffness: 380, damping: 22 }}
+                  initial={{ opacity: 0, y: 10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ duration: 0.60, ease: [0.16, 1, 0.3, 1] }}
                   className="space-y-4"
                 >
                   <div className="p-4 bg-zinc-50 dark:bg-[#000000] rounded-2xl border border-zinc-100 dark:border-[#262626] space-y-3">
@@ -1066,9 +1087,9 @@ export const SpotDetailSheet: React.FC<SpotDetailSheetProps> = React.memo(({
                   </div>
 
                   <motion.div
-                    initial={{ opacity: 0, scale: 0.88, y: 12 }}
-                    animate={{ opacity: 1, scale: 1, y: 0 }}
-                    transition={{ type: 'spring', stiffness: 380, damping: 22, delay: 0.045 }}
+                    initial={{ opacity: 0, y: 10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ duration: 0.60, ease: [0.16, 1, 0.3, 1], delay: 0.08 }}
                     className="p-4 bg-zinc-50 dark:bg-[#000000] rounded-2xl border border-zinc-100 dark:border-[#262626]"
                   >
                     <h4 className="font-black text-zinc-900 dark:text-white text-xs uppercase tracking-wider mb-2">Dica de quem foi</h4>
@@ -1082,9 +1103,9 @@ export const SpotDetailSheet: React.FC<SpotDetailSheetProps> = React.memo(({
               {activeTab === 'Vídeos' && (
                 <motion.div
                   key="tab-videos"
-                  initial={{ opacity: 0, scale: 0.92, y: 10 }}
-                  animate={{ opacity: 1, scale: 1, y: 0 }}
-                  transition={{ type: 'spring', stiffness: 380, damping: 22 }}
+                  initial={{ opacity: 0, y: 10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ duration: 0.60, ease: [0.16, 1, 0.3, 1] }}
                   className="space-y-4"
                 >
                   <SpotVideoPlayer 
@@ -1099,9 +1120,9 @@ export const SpotDetailSheet: React.FC<SpotDetailSheetProps> = React.memo(({
               {activeTab === 'Avaliações' && (
                 <motion.div
                   key="tab-avaliacoes"
-                  initial={{ opacity: 0, scale: 0.88, y: 12 }}
-                  animate={{ opacity: 1, scale: 1, y: 0 }}
-                  transition={{ type: 'spring', stiffness: 380, damping: 22 }}
+                  initial={{ opacity: 0, y: 10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ duration: 0.60, ease: [0.16, 1, 0.3, 1] }}
                   className="space-y-4"
                 >
                   <div className="flex items-center justify-between p-4 bg-zinc-50 dark:bg-[#000000] rounded-2xl border border-zinc-100 dark:border-[#262626]">
@@ -1204,9 +1225,9 @@ export const SpotDetailSheet: React.FC<SpotDetailSheetProps> = React.memo(({
                   ).map((rev, idx) => (
                     <motion.div
                       key={rev.id || idx}
-                      initial={{ opacity: 0, scale: 0.88, y: 12 }}
-                      animate={{ opacity: 1, scale: 1, y: 0 }}
-                      transition={{ type: 'spring', stiffness: 380, damping: 22, delay: 0.03 * Math.min(idx, 4) }}
+                      initial={{ opacity: 0, y: 10 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      transition={{ duration: 0.56, ease: [0.16, 1, 0.3, 1], delay: 0.05 * Math.min(idx, 4) }}
                       className="p-4 bg-zinc-50 dark:bg-[#000000] rounded-2xl border border-zinc-100 dark:border-[#262626] space-y-2"
                     >
                       <div className="flex items-center justify-between">
@@ -1237,7 +1258,7 @@ export const SpotDetailSheet: React.FC<SpotDetailSheetProps> = React.memo(({
                 </motion.div>
               )}
             </div>
-          </div>
+          </motion.div>
         </div>
       </motion.div>
 
@@ -1246,14 +1267,15 @@ export const SpotDetailSheet: React.FC<SpotDetailSheetProps> = React.memo(({
          ===================================================================== */}
       <motion.div
         id="spot-detail-desktop-panel"
-        initial={{ opacity: 0, scale: 0.97, y: 8 }}
+        initial={{ opacity: 0, scale: 0.975, y: 24 }}
         animate={{ opacity: 1, scale: 1, y: 0 }}
-        exit={{ opacity: 0, scale: 0.97, y: 8 }}
-        transition={{ duration: 0.2, ease: [0.16, 1, 0.3, 1] }}
+        exit={{ opacity: 0, scale: 0.985, y: 16 }}
+        transition={{ duration: 0.82, ease: [0.16, 1, 0.3, 1] }}
         onClick={(e) => e.stopPropagation()}
         className="hidden md:flex flex-col lg:flex-row w-full max-w-[960px] lg:max-w-[1080px] xl:max-w-[1180px] 2xl:max-w-[1260px] md:max-h-[88vh] lg:h-[min(680px,85vh)] xl:h-[min(730px,85vh)] bg-white dark:bg-[#000000] text-zinc-950 dark:text-white rounded-[24px] border border-zinc-200/90 dark:border-[#262626] shadow-[0_20px_60px_rgba(0,0,0,0.18)] overflow-hidden cursor-default z-[260]"
         style={{
           fontFamily: "'Inter', sans-serif",
+          willChange: 'transform, opacity',
         }}
       >
         {/* LEFT COLUMN (56-58% on Desktop): Horizontal Media & Floating Controls */}
@@ -1547,9 +1569,9 @@ export const SpotDetailSheet: React.FC<SpotDetailSheetProps> = React.memo(({
             {activeTab === 'Sobre' && (
               <motion.div
                 key="desktop-tab-sobre"
-                initial={{ opacity: 0, y: 6 }}
+                initial={{ opacity: 0, y: 8 }}
                 animate={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.16 }}
+                transition={{ duration: 0.48, ease: [0.16, 1, 0.3, 1] }}
                 className="space-y-4"
               >
                 <p className="text-sm text-zinc-700 dark:text-zinc-300 leading-relaxed">
@@ -1601,9 +1623,9 @@ export const SpotDetailSheet: React.FC<SpotDetailSheetProps> = React.memo(({
             {activeTab === 'Experiência' && (
               <motion.div
                 key="desktop-tab-experiencia"
-                initial={{ opacity: 0, y: 6 }}
+                initial={{ opacity: 0, y: 8 }}
                 animate={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.16 }}
+                transition={{ duration: 0.48, ease: [0.16, 1, 0.3, 1] }}
                 className="space-y-3.5"
               >
                 <div className="p-4 bg-zinc-50 dark:bg-[#000000] rounded-xl border border-zinc-200/70 dark:border-[#262626] space-y-2.5">
@@ -1640,9 +1662,9 @@ export const SpotDetailSheet: React.FC<SpotDetailSheetProps> = React.memo(({
             {activeTab === 'Vídeos' && (
               <motion.div
                 key="desktop-tab-videos"
-                initial={{ opacity: 0, y: 6 }}
+                initial={{ opacity: 0, y: 8 }}
                 animate={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.16 }}
+                transition={{ duration: 0.48, ease: [0.16, 1, 0.3, 1] }}
                 className="space-y-3"
               >
                 <SpotVideoPlayer
@@ -1657,9 +1679,9 @@ export const SpotDetailSheet: React.FC<SpotDetailSheetProps> = React.memo(({
             {activeTab === 'Avaliações' && (
               <motion.div
                 key="desktop-tab-avaliacoes"
-                initial={{ opacity: 0, y: 6 }}
+                initial={{ opacity: 0, y: 8 }}
                 animate={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.16 }}
+                transition={{ duration: 0.48, ease: [0.16, 1, 0.3, 1] }}
                 className="space-y-3"
               >
                 <div className="flex items-center justify-between p-3.5 bg-zinc-50 dark:bg-[#000000] rounded-xl border border-zinc-200/70 dark:border-[#262626]">
