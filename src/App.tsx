@@ -42,7 +42,6 @@ import { WelcomeJourneyModal } from './components/WelcomeJourneyModal';
 import { XpRewardNotificationOverlay } from './components/XpRewardNotificationOverlay';
 import { FloatingEventCard } from './components/FloatingEventCard';
 import {
-  MobileExploreClothingPill,
   ClothingWeatherModal,
 } from './components/ClothingWeatherWidget';
 import { IOSInteractiveBackSystem } from './components/IOSInteractiveBackSystem';
@@ -2170,7 +2169,7 @@ export default function App() {
       {activeTab === 'explorar' && !isMapOrbiting && !isUserLocationSpotlightActive && (
         <header
           aria-label="Informações de Campos do Jordão"
-          className={`md:hidden absolute top-0 left-0 right-0 z-40 flex items-center justify-between pointer-events-none px-4 sm:px-6 transition-[filter,opacity,transform] duration-300 ease-[cubic-bezier(0.22,1,0.36,1)] ${
+          className={`md:hidden absolute top-0 left-0 right-0 z-40 flex items-start justify-between pointer-events-none px-4 sm:px-6 transition-[filter,opacity,transform] duration-300 ease-[cubic-bezier(0.22,1,0.36,1)] ${
             isSpotFocusActive
               ? 'opacity-0 scale-95 blur-[4px] [&_*]:!pointer-events-none'
               : isBlurActive
@@ -2183,7 +2182,7 @@ export default function App() {
             paddingRight: 'max(16px, env(safe-area-inset-right, 0px))',
           }}
         >
-        {/* Left: Big Weather Temperature, Dynamic Condition & Clothing Recommendation Widget */}
+        {/* Left: Big Weather Temperature & Dynamic Condition */}
         <div className="flex items-center pointer-events-auto">
           <div
             id="weather-header-display"
@@ -2237,15 +2236,6 @@ export default function App() {
                 {realWeather.condition}
               </span>
             </div>
-
-            {/* Informative Clothing Suggestion Pill based on current local temperature */}
-            <MobileExploreClothingPill
-              weather={realWeather}
-              onOpenGuide={() => setIsWeatherModalOpen(true)}
-              isSatellite={isSatelliteExplore}
-              isAnimado={mapStyle === 'animado'}
-              theme={theme}
-            />
           </div>
         </div>
 
