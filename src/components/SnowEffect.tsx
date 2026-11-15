@@ -115,42 +115,22 @@ export const SnowEffect: React.FC<SnowEffectProps> = ({
       });
     }
 
-    let isDisposed = false;
-    const isDark = theme === 'dark';
-
-    // Pre-render soft radial glow sprite once on an offscreen canvas (eliminates per-frame gradient + shadowBlur allocation)
-    const spriteSize = 32;
-    const glowSprite = document.createElement('canvas');
-    glowSprite.width = spriteSize;
-    glowSprite.height = spriteSize;
-    const sCtx = glowSprite.getContext('2d');
-    if (sCtx) {
-      const half = spriteSize / 2;
-      const grad = sCtx.createRadialGradient(half, half, 0, half, half, half);
-      if (isDark) {
-        grad.addColorStop(0, 'rgba(255, 255, 255, 1)');
-        grad.addColorStop(0.65, 'rgba(235, 248, 255, 0.8)');
-        grad.addColorStop(1, 'rgba(215, 235, 255, 0)');
-      } else {
-        grad.addColorStop(0, 'rgba(255, 255, 255, 1)');
-        grad.addColorStop(0.55, 'rgba(225, 240, 255, 0.9)');
-        grad.addColorStop(1, 'rgba(160, 195, 230, 0.35)');
-      }
-      sCtx.fillStyle = grad;
-      sCtx.beginPath();
-      sCtx.arc(half, half, half, 0, Math.PI * 2);
-      sCtx.fill();
-    }
+    const handleVisibilityChange = () => {
+      isTabVisible = !document.hidden;
+    };
+    document.addEventListener('visibilitychange', handleVisibilityChange);
 
     const render = () => {
-      if (isDisposed || !isTabVisible) {
-        animationFrameId = 0;
+      if (!isTabVisible) {
+        animationFrameId = requestAnimationFrame(render);
         return;
       }
 
       ctx.save();
       ctx.scale(dpr, dpr);
       ctx.clearRect(0, 0, width, height);
+
+      const isDark = theme === 'dark';
 
       for (let i = 0; i < flakes.length; i++) {
         const f = flakes[i];
@@ -172,14 +152,36 @@ export const SnowEffect: React.FC<SnowEffectProps> = ({
         }
 
         // Draw snowflake
+        ctx.beginPath();
+        ctx.arc(f.x, f.y, f.radius, 0, Math.PI * 2);
+
         if (f.layer === 2) {
-          ctx.globalAlpha = f.opacity;
-          const size = f.radius * 2;
-          ctx.drawImage(glowSprite, f.x - f.radius, f.y - f.radius, size, size);
-          ctx.globalAlpha = 1;
+          // Foreground fluffy flake with soft radial glow
+          const grad = ctx.createRadialGradient(f.x, f.y, 0, f.x, f.y, f.radius);
+          if (isDark) {
+            grad.addColorStop(0, `rgba(255, 255, 255, ${f.opacity})`);
+            grad.addColorStop(0.65, `rgba(235, 248, 255, ${f.opacity * 0.8})`);
+            grad.addColorStop(1, 'rgba(215, 235, 255, 0)');
+          } else {
+            // Light theme: gentle cool-toned snowflake with contrast
+            grad.addColorStop(0, `rgba(255, 255, 255, ${f.opacity})`);
+            grad.addColorStop(0.55, `rgba(225, 240, 255, ${f.opacity * 0.9})`);
+            grad.addColorStop(1, `rgba(160, 195, 230, ${f.opacity * 0.35})`);
+          }
+          ctx.fillStyle = grad;
+
+          // Shadow for contrast in light theme
+          if (!isDark) {
+            ctx.shadowColor = 'rgba(70, 110, 160, 0.35)';
+            ctx.shadowBlur = 2;
+          } else {
+            ctx.shadowColor = 'rgba(190, 230, 255, 0.4)';
+            ctx.shadowBlur = 3;
+          }
+          ctx.fill();
+          ctx.shadowBlur = 0;
         } else {
-          ctx.beginPath();
-          ctx.arc(f.x, f.y, f.radius, 0, Math.PI * 2);
+          // Midground & background dust flakes
           if (isDark) {
             ctx.fillStyle =
               f.layer === 1
@@ -199,22 +201,10 @@ export const SnowEffect: React.FC<SnowEffectProps> = ({
       animationFrameId = requestAnimationFrame(render);
     };
 
-    const handleVisibilityChange = () => {
-      isTabVisible = !document.hidden;
-      if (isTabVisible && !animationFrameId && !isDisposed) {
-        animationFrameId = requestAnimationFrame(render);
-      } else if (!isTabVisible && animationFrameId) {
-        cancelAnimationFrame(animationFrameId);
-        animationFrameId = 0;
-      }
-    };
-    document.addEventListener('visibilitychange', handleVisibilityChange);
-
     animationFrameId = requestAnimationFrame(render);
 
     return () => {
-      isDisposed = true;
-      if (animationFrameId) cancelAnimationFrame(animationFrameId);
+      cancelAnimationFrame(animationFrameId);
       window.removeEventListener('resize', resize);
       document.removeEventListener('visibilitychange', handleVisibilityChange);
     };

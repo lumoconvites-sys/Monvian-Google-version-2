@@ -201,7 +201,8 @@ export default function App() {
     return saved !== null ? JSON.parse(saved) : false;
   });
 
-  // Map orbit mode state
+  // Map interaction state for Apple iOS translucent dynamic effects
+  const [isMapInteracting, setIsMapInteracting] = useState<boolean>(false);
   const [isMapOrbiting, setIsMapOrbiting] = useState<boolean>(false);
 
   // Welcome translucent overlay & Onboarding questionnaire on new account creation
@@ -1072,15 +1073,6 @@ export default function App() {
   const [isDetailOpen, setIsDetailOpen] = useState(false);
   const [activeTab, setActiveTab] = useState<TabType>('explorar');
   const [tabHistory, setTabHistory] = useState<TabType[]>([]);
-  const [hasMountedMap, setHasMountedMap] = useState<boolean>(true);
-  const activeTabRef = useRef<TabType>(activeTab);
-  activeTabRef.current = activeTab;
-
-  useEffect(() => {
-    if (isAuthenticated && activeTab === 'explorar' && !hasMountedMap) {
-      setHasMountedMap(true);
-    }
-  }, [isAuthenticated, activeTab, hasMountedMap]);
 
   // Spot card dynamic layout behavior
   const isSpotCardOpen = Boolean(selectedSpot && !isDetailOpen && activeTab === 'explorar');
@@ -1472,6 +1464,8 @@ export default function App() {
 
   useEffect(() => {
     if (!isAuthenticated || activeTab !== 'explorar') {
+      gpsNavigationManager.stop();
+      deviceHeadingManager.stop();
       return;
     }
 
@@ -1487,9 +1481,9 @@ export default function App() {
       }
 
       const now = performance.now();
-      if (now - lastReactSync > 600) {
+      if (now - lastReactSync > 500) {
         const [lng, lat] = navState.coords;
-        if (Math.abs(lng - lastLng) > 0.00012 || Math.abs(lat - lastLat) > 0.00012) {
+        if (Math.abs(lng - lastLng) > 0.00004 || Math.abs(lat - lastLat) > 0.00004) {
           lastReactSync = now;
           lastLng = lng;
           lastLat = lat;
@@ -1510,9 +1504,7 @@ export default function App() {
 
   const handleTabChange = useCallback((tab: TabType) => {
     if (tab === 'explorar') {
-      if (activeTabRef.current === 'explorar') {
-        setZoomToUserTrigger((prev) => prev + 1);
-      }
+      setZoomToUserTrigger((prev) => prev + 1);
       if (deviceHeadingManager.isPermissionRequired() && !deviceHeadingManager.isPermissionHandled()) {
         deviceHeadingManager
           .requestPermission()
@@ -2040,13 +2032,9 @@ export default function App() {
             )}
           </AnimatePresence>
 
-          {/* Interactive Map Canvas Column (Kept mounted after first visit to avoid WebGL teardown/tile reload on tab switches) */}
-          {(hasMountedMap || activeTab === 'explorar') && (
-          <div
-            id="app-map-layer"
-            aria-hidden={activeTab !== 'explorar'}
-            className={`flex-1 h-full relative overflow-hidden ${activeTab !== 'explorar' ? 'pointer-events-none' : ''}`}
-          >
+          {/* Interactive Map Canvas Column (Mounted ONLY when Explorar tab is active) */}
+          {activeTab === 'explorar' && (
+          <div id="app-map-layer" className="flex-1 h-full relative overflow-hidden">
             {/* 1. Interactive Map Engine */}
             <MapComponent
               spots={filteredSpots}
@@ -2060,6 +2048,7 @@ export default function App() {
               userName={user?.name}
               highContrast={highContrast}
               onMapLoad={handleMapLoad}
+              onInteractionChange={setIsMapInteracting}
               zoomToUserTrigger={zoomToUserTrigger}
               revertSpotZoomTrigger={revertSpotZoomTrigger}
               mapMode={mapStyle === 'satelite' ? 'satelite' : 'explorar'}
@@ -2068,16 +2057,16 @@ export default function App() {
               is3DMode={is3DMode}
               onOrbitChange={setIsMapOrbiting}
               isDetailOpen={isDetailOpen}
-              snowEnabled={activeTab === 'explorar' && snowEnabled}
-              rainEnabled={Boolean(activeTab === 'explorar' && rainEnabled && realWeather.isRaining)}
+              snowEnabled={snowEnabled}
+              rainEnabled={Boolean(rainEnabled && realWeather.isRaining)}
               isSpotlightActive={isUserLocationSpotlightActive}
               isFocusMode={isSpotFocusActive}
               activeTab={activeTab}
             />
 
-            {/* 2. Dynamic Rain Particle Effect Overlay (Only active when Explorar is visible AND raining in Campos do Jordão) */}
+            {/* 2. Dynamic Rain Particle Effect Overlay (Only active when user enabled AND actually raining in Campos do Jordão) */}
             <RainEffect
-              enabled={Boolean(activeTab === 'explorar' && rainEnabled && realWeather.isRaining)}
+              enabled={Boolean(rainEnabled && realWeather.isRaining)}
               weatherCode={realWeather.weatherCode}
               intensity={realWeather.rainIntensity === 'none' ? 'fraca' : realWeather.rainIntensity}
               hasLightning={realWeather.hasLightning}
@@ -2086,13 +2075,13 @@ export default function App() {
 
             {/* 2.5. Dynamic Snow Particle Effect Overlay (Neve nas Montanhas) */}
             <SnowEffect
-              enabled={activeTab === 'explorar' && snowEnabled}
+              enabled={snowEnabled}
               intensity={(systemSettings.weather_snow_mode as any) || 'moderada'}
               theme={theme}
             />
 
             {/* DESKTOP MAP FLOATING CONTROLS (Top-Right Apple Style) */}
-            {activeTab === 'explorar' && !isMapOrbiting && !isUserLocationSpotlightActive && (
+            {!isMapOrbiting && !isUserLocationSpotlightActive && (
               <DesktopMapControls
                 currentMode={mapStyle}
                 onChangeMode={setMapStyle}

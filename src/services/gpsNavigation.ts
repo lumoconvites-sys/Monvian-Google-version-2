@@ -368,7 +368,9 @@ class GpsNavigationManager {
     this.state.status = 'locating';
     this.notify();
 
-    // Demand-driven animation loop starts automatically when a GPS fix triggers interpolation
+    if (this.animFrameId === null) {
+      this.startAnimationLoop();
+    }
 
     // Preserve existing permissions in background without blocking or overwriting coordinates
     syncPermissionsFromDatabase()
@@ -779,29 +781,15 @@ class GpsNavigationManager {
     };
 
     this.notify();
-
-    const needsPosInterpolation =
-      Math.abs(this.targetPoint[0] - this.currentInterpolated[0]) > 1e-7 ||
-      Math.abs(this.targetPoint[1] - this.currentInterpolated[1]) > 1e-7;
-    const needsHeadingInterpolation =
-      Math.abs(angleDiff(this.targetHeading, this.currentHeading)) > 0.25;
-    if (needsPosInterpolation || needsHeadingInterpolation || (this.state.isMoving && this.state.speed > 4)) {
-      if (this.animFrameId === null) {
-        this.startAnimationLoop();
-      }
-    }
   }
 
   /**
-   * Demand-driven 60fps RequestAnimationFrame Animation Loop
-   * Interpolates smoothly while moving/converging and sleeps automatically when settled.
+   * 60fps RequestAnimationFrame Animation Loop
+   * Smoothly interpolates coordinates and applies dead-reckoning extrapolation
    */
   private startAnimationLoop(): void {
     const frame = (now: number) => {
-      if (!this.isRunning) {
-        this.animFrameId = null;
-        return;
-      }
+      if (!this.isRunning) return;
 
       const elapsed = now - this.segmentStartTime;
       const duration = this.expectedDuration || 1000;
@@ -813,9 +801,7 @@ class GpsNavigationManager {
       let currentLng = this.startPoint[0] + (this.targetPoint[0] - this.startPoint[0]) * ease;
       let currentLat = this.startPoint[1] + (this.targetPoint[1] - this.startPoint[1]) * ease;
 
-      // Dead-reckoning extrapolation when moving (capped at 1.5s past segment end)
-      const isExtrapolating =
-        elapsed > duration && elapsed <= duration + 1550 && this.state.isMoving && this.state.speed > 4;
+      // Dead-reckoning extrapolation when moving
       if (elapsed > duration && this.state.isMoving && this.state.speed > 4) {
         const extraTimeSec = Math.min(1.5, (elapsed - duration) / 1000);
         if (extraTimeSec > 0) {
@@ -833,17 +819,13 @@ class GpsNavigationManager {
       }
 
       const angleDiffVal = Math.abs(angleDiff(this.targetHeading, this.currentHeading));
-      if (angleDiffVal > 0.25) {
-        let angleEase = 0.08;
-        if (angleDiffVal > 45) {
-          angleEase = 0.14;
-        } else if (angleDiffVal < 5) {
-          angleEase = 0.05;
-        }
-        this.currentHeading = lerpAngle(this.currentHeading, this.targetHeading, angleEase);
-      } else {
-        this.currentHeading = this.targetHeading;
+      let angleEase = 0.08;
+      if (angleDiffVal > 45) {
+        angleEase = 0.14;
+      } else if (angleDiffVal < 5) {
+        angleEase = 0.05;
       }
+      this.currentHeading = lerpAngle(this.currentHeading, this.targetHeading, angleEase);
 
       const prevLng = this.currentInterpolated[0];
       const prevLat = this.currentInterpolated[1];
@@ -863,12 +845,7 @@ class GpsNavigationManager {
         this.notify();
       }
 
-      const stillInterpolating = fraction < 1.0 || isExtrapolating || angleDiffVal > 0.25;
-      if (stillInterpolating && this.isRunning) {
-        this.animFrameId = requestAnimationFrame(frame);
-      } else {
-        this.animFrameId = null;
-      }
+      this.animFrameId = requestAnimationFrame(frame);
     };
 
     this.animFrameId = requestAnimationFrame(frame);
