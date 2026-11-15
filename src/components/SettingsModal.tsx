@@ -193,36 +193,31 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                       : 'bg-white border-black/5 divide-black/5 shadow-2xs'
                   }`}
                 >
-                  <button
-                    type="button"
-                    onClick={() => setLanguage('pt')}
-                    className="w-full p-3.5 flex items-center justify-between gap-3 text-left transition-colors hover:bg-zinc-50 active:bg-zinc-100 cursor-pointer"
-                  >
-                    <div className="flex items-center gap-3 min-w-0">
-                      <Globe className="w-5 h-5 text-zinc-600 shrink-0 stroke-[2]" />
-                      <span className="text-sm font-semibold tracking-tight" data-no-translate>
-                        Português
-                      </span>
-                    </div>
-                    {language === 'pt' && (
-                      <Check className="w-4 h-4 text-[#007AFF] stroke-[2.6] shrink-0" />
-                    )}
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setLanguage('en')}
-                    className="w-full p-3.5 flex items-center justify-between gap-3 text-left transition-colors hover:bg-zinc-50 active:bg-zinc-100 cursor-pointer"
-                  >
-                    <div className="flex items-center gap-3 min-w-0">
-                      <Globe className="w-5 h-5 text-zinc-600 shrink-0 stroke-[2]" />
-                      <span className="text-sm font-semibold tracking-tight" data-no-translate>
-                        English
-                      </span>
-                    </div>
-                    {language === 'en' && (
-                      <Check className="w-4 h-4 text-[#007AFF] stroke-[2.6] shrink-0" />
-                    )}
-                  </button>
+                  {(
+                    [
+                      { code: 'pt', label: 'Português' },
+                      { code: 'en', label: 'English' },
+                      { code: 'es', label: 'Español' },
+                      { code: 'ja', label: '日本語' },
+                    ] as const
+                  ).map((item) => (
+                    <button
+                      key={item.code}
+                      type="button"
+                      onClick={() => setLanguage(item.code)}
+                      className="w-full p-3.5 flex items-center justify-between gap-3 text-left transition-colors hover:bg-zinc-50 active:bg-zinc-100 cursor-pointer"
+                    >
+                      <div className="flex items-center gap-3 min-w-0">
+                        <Globe className="w-5 h-5 text-zinc-600 shrink-0 stroke-[2]" />
+                        <span className="text-sm font-semibold tracking-tight" data-no-translate>
+                          {item.label}
+                        </span>
+                      </div>
+                      {language === item.code && (
+                        <Check className="w-4 h-4 text-[#007AFF] stroke-[2.6] shrink-0" />
+                      )}
+                    </button>
+                  ))}
                 </div>
               </div>
 

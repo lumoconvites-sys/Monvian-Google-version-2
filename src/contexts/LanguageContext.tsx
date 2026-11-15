@@ -8,9 +8,9 @@ import React, {
   useRef,
   useState,
 } from 'react';
-import { translatePtToEn } from '../i18n/ptToEnDictionary';
+import { translateFromPt } from '../i18n/ptToEnDictionary';
 
-export type AppLanguage = 'pt' | 'en';
+export type AppLanguage = 'pt' | 'en' | 'es' | 'ja';
 
 interface LanguageContextValue {
   language: AppLanguage;
@@ -29,10 +29,14 @@ const LanguageContext = createContext<LanguageContextValue>({
   tr: (t) => t,
 });
 
+function isValidAppLanguage(val: unknown): val is AppLanguage {
+  return val === 'pt' || val === 'en' || val === 'es' || val === 'ja';
+}
+
 function readInitialLanguage(): AppLanguage {
   try {
     const saved = localStorage.getItem(STORAGE_KEY);
-    if (saved === 'en' || saved === 'pt') {
+    if (isValidAppLanguage(saved)) {
       return saved;
     }
   } catch {}
@@ -87,13 +91,14 @@ export const LanguageProvider: React.FC<{ children: React.ReactNode }> = ({ chil
   useEffect(() => {
     const handleCustomEvent = (e: Event) => {
       const detail = (e as CustomEvent<string>).detail;
-      if (detail === 'pt' || detail === 'en') {
+      if (isValidAppLanguage(detail)) {
         setLanguageState((prev) => (prev === detail ? prev : detail));
       }
     };
     const handleStorage = (e: StorageEvent) => {
-      if (e.key === STORAGE_KEY && (e.newValue === 'pt' || e.newValue === 'en')) {
-        setLanguageState((prev) => (prev === e.newValue ? prev : (e.newValue as AppLanguage)));
+      if (e.key === STORAGE_KEY && isValidAppLanguage(e.newValue)) {
+        const nextVal = e.newValue;
+        setLanguageState((prev) => (prev === nextVal ? prev : nextVal));
       }
     };
     window.addEventListener(LANGUAGE_EVENT, handleCustomEvent);
@@ -114,13 +119,13 @@ export const LanguageProvider: React.FC<{ children: React.ReactNode }> = ({ chil
       const writtenMap = lastWrittenTextMapRef.current;
       const lastWritten = writtenMap.get(node);
 
-      if (lang === 'en') {
+      if (lang !== 'pt') {
         // If React/script updated the node with fresh text, refresh stored Portuguese source
         if (lastWritten === undefined || cur !== lastWritten) {
           origMap.set(node, cur);
         }
         const sourcePt = origMap.get(node) ?? cur;
-        const translated = translatePtToEn(sourcePt);
+        const translated = translateFromPt(sourcePt, lang);
         if (translated !== cur) {
           writtenMap.set(node, translated);
           node.nodeValue = translated;
@@ -156,7 +161,7 @@ export const LanguageProvider: React.FC<{ children: React.ReactNode }> = ({ chil
         let writtenRecord = writtenAttrMap.get(el);
         const lastWritten = writtenRecord?.[attr];
 
-        if (lang === 'en') {
+        if (lang !== 'pt') {
           if (lastWritten === undefined || cur !== lastWritten) {
             if (!origRecord) {
               origRecord = {};
@@ -165,7 +170,7 @@ export const LanguageProvider: React.FC<{ children: React.ReactNode }> = ({ chil
             origRecord[attr] = cur;
           }
           const sourcePt = origRecord?.[attr] ?? cur;
-          const translated = translatePtToEn(sourcePt);
+          const translated = translateFromPt(sourcePt, lang);
 
           if (!writtenRecord) {
             writtenRecord = {};
@@ -227,10 +232,16 @@ export const LanguageProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     [applyTranslationToElementAttrs, applyTranslationToTextNode]
   );
 
-  // Sync <html lang>, run pass on mount/language change, and attach MutationObserver in English mode
+  // Sync <html lang>, run pass on mount/language change, and attach MutationObserver in non-Portuguese mode
   useLayoutEffect(() => {
     try {
-      document.documentElement.lang = language === 'en' ? 'en' : 'pt-BR';
+      const htmlLangMap: Record<AppLanguage, string> = {
+        pt: 'pt-BR',
+        en: 'en',
+        es: 'es',
+        ja: 'ja',
+      };
+      document.documentElement.lang = htmlLangMap[language] ?? 'pt-BR';
     } catch {}
 
     const root = document.body;
@@ -243,7 +254,7 @@ export const LanguageProvider: React.FC<{ children: React.ReactNode }> = ({ chil
       isApplyingRef.current = false;
     }
 
-    if (language !== 'en') {
+    if (language === 'pt') {
       return;
     }
 
@@ -264,12 +275,12 @@ export const LanguageProvider: React.FC<{ children: React.ReactNode }> = ({ chil
       try {
         for (const el of attrs) {
           if (el.isConnected) {
-            applyTranslationToElementAttrs(el, 'en');
+            applyTranslationToElementAttrs(el, language);
           }
         }
         for (const node of roots) {
           if (node.isConnected) {
-            processSubtree(node, 'en');
+            processSubtree(node, language);
           }
         }
       } finally {
@@ -324,8 +335,8 @@ export const LanguageProvider: React.FC<{ children: React.ReactNode }> = ({ chil
 
   const tr = useCallback(
     (ptText: string) => {
-      if (language === 'en') {
-        return translatePtToEn(ptText);
+      if (language !== 'pt') {
+        return translateFromPt(ptText, language);
       }
       return ptText;
     },
@@ -348,3 +359,4 @@ export const LanguageProvider: React.FC<{ children: React.ReactNode }> = ({ chil
 export function useLanguage(): LanguageContextValue {
   return useContext(LanguageContext);
 }
+

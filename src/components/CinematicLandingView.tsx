@@ -66,12 +66,43 @@ const UkFlagIcon: React.FC = () => (
   </svg>
 );
 
+const SpainFlagIcon: React.FC = () => (
+  <svg viewBox="0 0 24 24" className="w-full h-full block" aria-hidden="true">
+    <defs>
+      <clipPath id="monvian-es-flag-clip">
+        <circle cx="12" cy="12" r="12" />
+      </clipPath>
+    </defs>
+    <g clipPath="url(#monvian-es-flag-clip)">
+      <rect width="24" height="24" fill="#AA151B" />
+      <rect y="6" width="24" height="12" fill="#F1BF00" />
+      <rect x="5.4" y="9.2" width="2.8" height="5.6" rx="1.1" fill="#AA151B" />
+      <circle cx="6.8" cy="11.2" r="0.85" fill="#F1BF00" />
+    </g>
+  </svg>
+);
+
+const JapanFlagIcon: React.FC = () => (
+  <svg viewBox="0 0 24 24" className="w-full h-full block" aria-hidden="true">
+    <circle cx="12" cy="12" r="12" fill="#FFFFFF" />
+    <circle cx="12" cy="12" r="11.5" fill="none" stroke="rgba(0,0,0,0.08)" strokeWidth="1" />
+    <circle cx="12" cy="12" r="5.2" fill="#BC002D" />
+  </svg>
+);
+
+const LanguageFlagIcon: React.FC<{ lang: 'pt' | 'en' | 'es' | 'ja' }> = ({ lang }) => {
+  if (lang === 'en') return <UkFlagIcon />;
+  if (lang === 'es') return <SpainFlagIcon />;
+  if (lang === 'ja') return <JapanFlagIcon />;
+  return <BrazilFlagIcon />;
+};
+
 const HeroUsersCounter = React.memo(function HeroUsersCounter({
   prefersReducedMotion,
 }: {
   prefersReducedMotion: boolean | null;
 }) {
-  const { isEnglish, tr } = useLanguage();
+  const { language, tr } = useLanguage();
   const [userCount, setUserCount] = useState<number>(() => {
     try {
       const saved = localStorage.getItem('monvian_social_user_count');
@@ -99,8 +130,13 @@ const HeroUsersCounter = React.memo(function HeroUsersCounter({
     return () => clearInterval(timer);
   }, []);
 
-  const locale = isEnglish ? 'en-US' : 'pt-BR';
-  const formattedCount = userCount.toLocaleString(locale);
+  const localeMap: Record<'pt' | 'en' | 'es' | 'ja', string> = {
+    pt: 'pt-BR',
+    en: 'en-US',
+    es: 'es-ES',
+    ja: 'ja-JP',
+  };
+  const formattedCount = userCount.toLocaleString(localeMap[language] ?? 'pt-BR');
 
   return (
     <motion.div
@@ -902,7 +938,7 @@ export const CinematicLandingView: React.FC<CinematicLandingViewProps> = ({
               className="px-1.5 py-[1px] rounded-full transition-transform duration-150 active:scale-[0.96] whitespace-nowrap shrink-0 cursor-pointer inline-flex items-center gap-1.5 focus-visible:outline-2 focus-visible:outline-[#2673E8]"
             >
               <span className="w-[24px] h-[24px] sm:w-[25px] sm:h-[25px] rounded-full overflow-hidden shrink-0 shadow-[0_1px_4px_rgba(0,0,0,0.20)] ring-1 ring-white/45 flex items-center justify-center">
-                {selectedLanguage === 'en' ? <UkFlagIcon /> : <BrazilFlagIcon />}
+                <LanguageFlagIcon lang={selectedLanguage} />
               </span>
               <ChevronDown
                 className={`w-3.5 h-3.5 stroke-[2.4] transition-transform duration-200 ${
@@ -931,47 +967,41 @@ export const CinematicLandingView: React.FC<CinematicLandingViewProps> = ({
               }}
               className="absolute right-0 top-full mt-2 w-[178px] max-w-[calc(100vw-32px)] rounded-[18px] border border-white/85 shadow-[0_12px_32px_rgba(10,28,56,0.18),0_2px_8px_rgba(0,0,0,0.06)] overflow-hidden pointer-events-auto"
             >
-              <button
-                type="button"
-                role="menuitemradio"
-                aria-checked={selectedLanguage === 'pt'}
-                onClick={() => {
-                  triggerHaptic();
-                  setLanguage('pt');
-                  setIsLangMenuOpen(false);
-                }}
-                className="w-full px-3.5 py-2.5 flex items-center gap-2.5 text-left text-[13.5px] font-medium text-[#111827] hover:bg-black/[0.04] active:bg-black/[0.07] transition-colors cursor-pointer"
-              >
-                <span className="w-[22px] h-[22px] rounded-full overflow-hidden shrink-0 shadow-[0_1px_3px_rgba(0,0,0,0.12)]">
-                  <BrazilFlagIcon />
-                </span>
-                <span className="flex-1 truncate" data-no-translate>Português</span>
-                {selectedLanguage === 'pt' && (
-                  <Check className="w-4 h-4 shrink-0 stroke-[2.6] text-[#007AFF]" />
-                )}
-              </button>
-
-              <div className="h-[1px] bg-black/[0.08] mx-3" aria-hidden="true" />
-
-              <button
-                type="button"
-                role="menuitemradio"
-                aria-checked={selectedLanguage === 'en'}
-                onClick={() => {
-                  triggerHaptic();
-                  setLanguage('en');
-                  setIsLangMenuOpen(false);
-                }}
-                className="w-full px-3.5 py-2.5 flex items-center gap-2.5 text-left text-[13.5px] font-medium text-[#111827] hover:bg-black/[0.04] active:bg-black/[0.07] transition-colors cursor-pointer"
-              >
-                <span className="w-[22px] h-[22px] rounded-full overflow-hidden shrink-0 shadow-[0_1px_3px_rgba(0,0,0,0.12)]">
-                  <UkFlagIcon />
-                </span>
-                <span className="flex-1 truncate" data-no-translate>English</span>
-                {selectedLanguage === 'en' && (
-                  <Check className="w-4 h-4 shrink-0 stroke-[2.6] text-[#007AFF]" />
-                )}
-              </button>
+              {(
+                [
+                  { code: 'pt', label: 'Português' },
+                  { code: 'en', label: 'English' },
+                  { code: 'es', label: 'Español' },
+                  { code: 'ja', label: '日本語' },
+                ] as const
+              ).map((item, idx) => (
+                <React.Fragment key={item.code}>
+                  {idx > 0 && (
+                    <div className="h-[1px] bg-black/[0.08] mx-3" aria-hidden="true" />
+                  )}
+                  <button
+                    type="button"
+                    role="menuitemradio"
+                    aria-checked={selectedLanguage === item.code}
+                    onClick={() => {
+                      triggerHaptic();
+                      setLanguage(item.code);
+                      setIsLangMenuOpen(false);
+                    }}
+                    className="w-full px-3.5 py-2.5 flex items-center gap-2.5 text-left text-[13.5px] font-medium text-[#111827] hover:bg-black/[0.04] active:bg-black/[0.07] transition-colors cursor-pointer"
+                  >
+                    <span className="w-[22px] h-[22px] rounded-full overflow-hidden shrink-0 shadow-[0_1px_3px_rgba(0,0,0,0.12)]">
+                      <LanguageFlagIcon lang={item.code} />
+                    </span>
+                    <span className="flex-1 truncate" data-no-translate>
+                      {item.label}
+                    </span>
+                    {selectedLanguage === item.code && (
+                      <Check className="w-4 h-4 shrink-0 stroke-[2.6] text-[#007AFF]" />
+                    )}
+                  </button>
+                </React.Fragment>
+              ))}
             </motion.div>
           )}
         </AnimatePresence>
@@ -1390,7 +1420,7 @@ export const CinematicLandingView: React.FC<CinematicLandingViewProps> = ({
                     textWrap: 'balance',
                   }}
                 >
-                  {isEnglish ? (
+                  {selectedLanguage === 'en' ? (
                     <>
                       {renderMaskedWord('Campos', 0)}{' '}
                       {renderMaskedWord('do', 6)}{' '}
@@ -1398,6 +1428,24 @@ export const CinematicLandingView: React.FC<CinematicLandingViewProps> = ({
                       <br />
                       {renderMaskedWord('your', 14, true)}{' '}
                       {renderMaskedWord('way.', 19, true)}
+                    </>
+                  ) : selectedLanguage === 'es' ? (
+                    <>
+                      {renderMaskedWord('Campos', 0)}{' '}
+                      {renderMaskedWord('do', 6)}{' '}
+                      {renderMaskedWord('Jordão', 8)}
+                      <br />
+                      {renderMaskedWord('a', 14)}{' '}
+                      {renderMaskedWord('tu', 16, true)}{' '}
+                      {renderMaskedWord('manera.', 19, true)}
+                    </>
+                  ) : selectedLanguage === 'ja' ? (
+                    <>
+                      {renderMaskedWord('Campos', 0)}{' '}
+                      {renderMaskedWord('do', 6)}{' '}
+                      {renderMaskedWord('Jordão', 8)}
+                      <br />
+                      {renderMaskedWord('あなたらしく。', 14, true)}
                     </>
                   ) : (
                     <>
@@ -1515,11 +1563,23 @@ export const CinematicLandingView: React.FC<CinematicLandingViewProps> = ({
                   color: '#080808',
                 }}
               >
-                {isEnglish ? (
+                {selectedLanguage === 'en' ? (
                   <>
                     Visit <span className="text-[#2673E8]" style={{ color: '#2673E8' }}>amazing</span> places
                     <br />
                     <span style={{ color: '#080808' }}>in the city.</span>
+                  </>
+                ) : selectedLanguage === 'es' ? (
+                  <>
+                    Visita lugares <span className="text-[#2673E8]" style={{ color: '#2673E8' }}>increíbles</span>
+                    <br />
+                    <span style={{ color: '#080808' }}>de la ciudad.</span>
+                  </>
+                ) : selectedLanguage === 'ja' ? (
+                  <>
+                    街の<span className="text-[#2673E8]" style={{ color: '#2673E8' }}>素晴らしい</span>場所を
+                    <br />
+                    <span style={{ color: '#080808' }}>訪れよう。</span>
                   </>
                 ) : (
                   <>
