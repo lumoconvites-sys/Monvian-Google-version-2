@@ -1833,6 +1833,8 @@ export default function App() {
   const welcomePhrase = userFirstName ? `Seja bem vindo ${userFirstName}!` : 'Seja bem vindo a Campos do Jordão!';
 
   const isWhiteMapUI = activeTab === 'explorar' && (theme === 'light' || mapStyle === 'animado' || mapStyle === 'satelite' || mapStyle === 'transporte');
+  const isSatelliteExplore = activeTab === 'explorar' && mapStyle === 'satelite';
+  const [isRoteirosSatelliteNav, setIsRoteirosSatelliteNav] = useState(false);
 
   const [isDesktopExplorePanelOpen, setIsDesktopExplorePanelOpen] = useState<boolean>(true);
 
@@ -2217,11 +2219,13 @@ export default function App() {
               className="text-left mt-0.5 ml-1 drop-shadow-[0_1px_4px_rgba(0,0,0,0.6)]"
             >
               <span className={`block text-[13px] sm:text-[14px] font-semibold tracking-tight whitespace-nowrap ${
-                mapStyle === 'animado'
-                  ? 'text-white [-webkit-text-stroke:_0.35px_rgba(0,0,0,0.20)]'
-                  : theme === 'dark'
-                    ? 'text-white/95'
-                    : 'text-zinc-800 dark:text-zinc-200'
+                isSatelliteExplore
+                  ? 'text-white'
+                  : mapStyle === 'animado'
+                    ? 'text-white [-webkit-text-stroke:_0.35px_rgba(0,0,0,0.20)]'
+                    : theme === 'dark'
+                      ? 'text-white/95'
+                      : 'text-zinc-800 dark:text-zinc-200'
               }`}>
                 {realWeather.condition}
               </span>
@@ -2240,13 +2244,21 @@ export default function App() {
               setHasToggled3D(true);
               setIs3DMode((prev) => !prev);
             }}
-            className="w-[53px] h-[53px] sm:w-[58px] sm:h-[58px] rounded-full ios26-liquid-glass flex items-center justify-center transition-all duration-200 active:scale-90 cursor-pointer group shrink-0"
-            style={{ color: '#000000' }}
+            className={`w-[53px] h-[53px] sm:w-[58px] sm:h-[58px] rounded-full ios26-liquid-glass flex items-center justify-center transition-all duration-200 active:scale-90 cursor-pointer group shrink-0 ${
+              isSatelliteExplore ? 'text-white' : 'text-black'
+            }`}
+            style={{ color: isSatelliteExplore ? '#FFFFFF' : '#000000' }}
             aria-label={is3DMode ? 'Alternar para visualização 2D' : 'Alternar para visualização 3D'}
             title={is3DMode ? 'Alternar para visão 2D Plana' : 'Alternar para visão 3D com Relevo e Montanhas'}
           >
-            <div className="relative z-10 flex items-center justify-center group-hover:scale-105 transition-transform duration-200">
-              <Map3DIcon mode={!hasToggled3D || is3DMode ? '3D' : '2D'} />
+            <div
+              className="relative z-10 flex items-center justify-center group-hover:scale-105 transition-transform duration-200"
+              style={{ color: isSatelliteExplore ? '#FFFFFF' : '#000000' }}
+            >
+              <Map3DIcon
+                mode={!hasToggled3D || is3DMode ? '3D' : '2D'}
+                style={{ color: isSatelliteExplore ? '#FFFFFF' : '#000000' }}
+              />
             </div>
           </button>
 
@@ -2259,12 +2271,17 @@ export default function App() {
                 setIsCategoryCardOpen((prev) => !prev);
                 setIsSearchOpen(false);
               }}
-              className="w-[53px] h-[53px] sm:w-[58px] sm:h-[58px] rounded-full ios26-liquid-glass text-black flex items-center justify-center transition-all duration-200 active:scale-90 cursor-pointer group shrink-0"
-              style={{ color: '#000000' }}
+              className={`w-[53px] h-[53px] sm:w-[58px] sm:h-[58px] rounded-full ios26-liquid-glass flex items-center justify-center transition-all duration-200 active:scale-90 cursor-pointer group shrink-0 ${
+                isSatelliteExplore ? 'text-white' : 'text-black'
+              }`}
+              style={{ color: isSatelliteExplore ? '#FFFFFF' : '#000000' }}
               title={selectedCategoryFilter ? 'Filtro de categoria ativo - Clique para alterar ou limpar' : 'Filtrar por Categoria'}
             >
               <div className="relative z-10 flex items-center justify-center group-hover:scale-105 transition-transform duration-300">
-                <SlidersHorizontal className="w-6 h-6 sm:w-[29px] sm:h-[29px] stroke-[2]" style={{ color: '#000000' }} />
+                <SlidersHorizontal
+                  className="w-6 h-6 sm:w-[29px] sm:h-[29px] stroke-[2]"
+                  style={{ color: isSatelliteExplore ? '#FFFFFF' : '#000000' }}
+                />
               </div>
               {selectedCategoryFilter && (
                 <span className="absolute top-0 right-0 z-20 w-2.5 h-2.5 rounded-full bg-blue-500 ring-2 ring-white" />
@@ -2343,6 +2360,7 @@ export default function App() {
             spots={spots}
             isOnboardingSelection={isOnboardingItinerarySelection}
             isOnboardingRevealReady={isOnboardingRevealReady}
+            onSatelliteUiChange={setIsRoteirosSatelliteNav}
             onCompleteOnboardingSelection={(selectedItins, chosenInvestment) => {
               setIsOnboardingItinerarySelection(false);
               try {
@@ -2456,6 +2474,7 @@ export default function App() {
         <FloatingEventCard
           visible={!isSpotCardOpen && !isSearchOpen && !isCategoryCardOpen}
           onActiveChange={setHasActiveMapEvents}
+          isSatellite={isSatelliteExplore}
         />
       )}
 
@@ -2492,6 +2511,7 @@ export default function App() {
           viewMode={spotPreviewMode}
           onViewModeChange={setSpotPreviewMode}
           theme={theme}
+          isSatellite={isSatelliteExplore}
           onClose={() => {
             setRevertSpotZoomTrigger((t) => t + 1);
             setSelectedSpot(null);
@@ -2513,7 +2533,7 @@ export default function App() {
           onChangeTab={handleTabChange}
           unreadCount={2}
           isBlurred={isBlurActive}
-          forceWhiteUI={false}
+          forceWhiteUI={isSatelliteExplore || (activeTab === 'roteiros' && isRoteirosSatelliteNav)}
           theme={theme}
         />
       </div>
@@ -2567,8 +2587,12 @@ export default function App() {
             top: 'max(calc(env(safe-area-inset-top, 0px) + 74px), 86px)',
           }}
         >
-          <div className="relative z-10 flex items-center justify-between px-3 py-2 border-b border-black/10">
-            <span className="text-[11px] font-black text-black/65 uppercase tracking-wider">
+          <div className={`relative z-10 flex items-center justify-between px-3 py-2 border-b ${
+            isSatelliteExplore ? 'border-white/20' : 'border-black/10'
+          }`}>
+            <span className={`text-[11px] font-black uppercase tracking-wider ${
+              isSatelliteExplore ? 'text-white/75' : 'text-black/65'
+            }`}>
               Categorias
             </span>
             {selectedCategoryFilter && (
@@ -2577,7 +2601,9 @@ export default function App() {
                   setSelectedCategoryFilter(null);
                   setIsCategoryCardOpen(false);
                 }}
-                className="text-[11px] font-black text-black hover:underline cursor-pointer flex items-center gap-1"
+                className={`text-[11px] font-black hover:underline cursor-pointer flex items-center gap-1 ${
+                  isSatelliteExplore ? 'text-white' : 'text-black'
+                }`}
               >
                 <RotateCcw className="w-3 h-3" />
                 Limpar
@@ -2605,8 +2631,12 @@ export default function App() {
                 }}
                 className={`relative z-10 w-full px-3 py-2.5 rounded-2xl active:scale-[0.98] text-xs font-black flex items-center justify-between gap-2.5 transition-all text-left cursor-pointer group ${
                   isSelected
-                    ? 'ios26-liquid-glass-pill text-black font-extrabold'
-                    : 'hover:bg-white/25 text-black'
+                    ? isSatelliteExplore
+                      ? 'ios26-liquid-glass-pill text-white font-extrabold'
+                      : 'ios26-liquid-glass-pill text-black font-extrabold'
+                    : isSatelliteExplore
+                      ? 'hover:bg-white/15 text-white'
+                      : 'hover:bg-white/25 text-black'
                 }`}
               >
                 <div className="flex items-center gap-2.5 min-w-0">
@@ -2627,8 +2657,8 @@ export default function App() {
                   ) : (
                     <div className={`w-10.5 h-10.5 rounded-xl flex items-center justify-center shrink-0 group-hover:scale-105 transition-transform ${
                       isSelected
-                        ? 'bg-white/60 text-black shadow-sm'
-                        : 'bg-white/25 text-black'
+                        ? isSatelliteExplore ? 'bg-white/25 text-white shadow-sm' : 'bg-white/60 text-black shadow-sm'
+                        : isSatelliteExplore ? 'bg-white/15 text-white' : 'bg-white/25 text-black'
                     }`}>
                       {CategoryIcon && <CategoryIcon className="w-4 h-4 stroke-[2]" />}
                     </div>
@@ -2636,7 +2666,7 @@ export default function App() {
                   <span className="truncate">{cat.label}</span>
                 </div>
                 {isSelected && (
-                  <Check className="w-4 h-4 text-black shrink-0 stroke-[2.5]" />
+                  <Check className={`w-4 h-4 shrink-0 stroke-[2.5] ${isSatelliteExplore ? 'text-white' : 'text-black'}`} />
                 )}
               </button>
             );

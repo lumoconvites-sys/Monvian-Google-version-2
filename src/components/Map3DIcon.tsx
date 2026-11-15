@@ -14,7 +14,7 @@ export const Map3DIcon: React.FC<Map3DIconProps> = ({
   <span
     aria-hidden="true"
     style={{
-      color: '#000000',
+      color: 'currentColor',
       ...style,
     }}
     className={`inline-flex items-center justify-center font-bold tracking-[-0.03em] leading-none pointer-events-none select-none text-[19px] sm:text-[21px] ${className}`}

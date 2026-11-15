@@ -25,6 +25,7 @@ export interface MonvianMapEvent {
 interface FloatingEventCardProps {
   visible?: boolean;
   onActiveChange?: (hasActiveEvents: boolean) => void;
+  isSatellite?: boolean;
 }
 
 const DEFAULT_EVENT_IMAGE =
@@ -45,6 +46,7 @@ if (typeof window !== 'undefined') {
 export const FloatingEventCard: React.FC<FloatingEventCardProps> = ({
   visible = true,
   onActiveChange,
+  isSatellite = false,
 }) => {
   const [events, setEvents] = useState<MonvianMapEvent[]>(() => cachedFloatingEvents);
   const [currentIndex, setCurrentIndex] = useState<number>(() => cachedFloatingIndex);
@@ -251,7 +253,7 @@ export const FloatingEventCard: React.FC<FloatingEventCardProps> = ({
             }}
             className="pointer-events-auto w-[53px] h-[53px] sm:w-[58px] sm:h-[58px] rounded-full ios26-liquid-glass flex items-center justify-center active:scale-90 transition-all duration-200 cursor-pointer"
           >
-            <Flag className="relative z-10 w-6 h-6 sm:w-[27px] sm:h-[27px] text-black fill-black stroke-[2.2]" />
+            <Flag className={`relative z-10 w-6 h-6 sm:w-[27px] sm:h-[27px] stroke-[2.2] ${isSatellite ? 'text-white fill-white' : 'text-black fill-black'}`} />
           </button>
         </motion.div>
       )}

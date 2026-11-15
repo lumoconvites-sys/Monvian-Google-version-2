@@ -59,6 +59,7 @@ interface ItinerariesViewProps {
   isOnboardingSelection?: boolean;
   isOnboardingRevealReady?: boolean;
   onCompleteOnboardingSelection?: (selectedItins: Itinerary[], chosenInvestment: string) => void;
+  onSatelliteUiChange?: (isWhiteNav: boolean) => void;
 }
 
 const MAPBOX_TOKEN = (import.meta.env.VITE_MAPBOX_ACCESS_TOKEN || '').trim();
@@ -593,6 +594,7 @@ export const ItinerariesView: React.FC<ItinerariesViewProps> = memo(({
   isOnboardingSelection = false,
   isOnboardingRevealReady = true,
   onCompleteOnboardingSelection,
+  onSatelliteUiChange,
 }) => {
   const isDark = theme === 'dark';
   const [shouldAnimateEntrance] = useState(() => !hasPlayedItinerariesMapEntranceAnimation);
@@ -773,6 +775,8 @@ export const ItinerariesView: React.FC<ItinerariesViewProps> = memo(({
     setStoreToast(next === 'satelite' ? 'Satélite HD (40% Mais Claro)' : 'Mapa Noturno / Escuro');
     scheduleTimeout(() => setStoreToast(null), 2500);
   };
+
+  const isSatelliteMap = itineraryMapStyle === 'satelite';
 
   // Plus menu & Import spot floating modal states
   const [isPlusMenuOpen, setIsPlusMenuOpen] = useState(false);
@@ -1115,6 +1119,22 @@ export const ItinerariesView: React.FC<ItinerariesViewProps> = memo(({
   // Keep refs for selectedStopId and isExpanded so renderRouteAndMarkers stays stable
   const isExpandedRef = useRef(isExpanded);
   isExpandedRef.current = isExpanded;
+
+  // Sync BottomNavigation white icon mode when Roteiros map is in satellite mode (collapsed or dark)
+  const isSatelliteNavActive = Boolean(
+    isOpen &&
+      !isOnboardingSelection &&
+      itineraryViewMode === 'map' &&
+      isSatelliteMap &&
+      (!isExpanded || isDark)
+  );
+
+  useEffect(() => {
+    onSatelliteUiChange?.(isSatelliteNavActive);
+    return () => {
+      onSatelliteUiChange?.(false);
+    };
+  }, [isSatelliteNavActive, onSatelliteUiChange]);
   const selectedStopIdRef = useRef(selectedStopId);
   selectedStopIdRef.current = selectedStopId;
 
@@ -2401,6 +2421,7 @@ export const ItinerariesView: React.FC<ItinerariesViewProps> = memo(({
         <div className="flex items-center gap-2 pointer-events-auto shrink-0">
           <AppleBackButton
             theme="glass"
+            size="explore"
             onClick={() => {
               userHasExplicitlyOpenedStoreRef.current = true;
               try {
@@ -2408,6 +2429,8 @@ export const ItinerariesView: React.FC<ItinerariesViewProps> = memo(({
               } catch (e) {}
               setItineraryViewMode('explore');
             }}
+            className={isSatelliteMap ? '!text-white' : '!text-black'}
+            style={{ color: isSatelliteMap ? '#FFFFFF' : '#000000' }}
             title="Loja de Roteiros"
             aria-label="Loja de Roteiros"
           />
@@ -2415,10 +2438,17 @@ export const ItinerariesView: React.FC<ItinerariesViewProps> = memo(({
 
         {/* Dynamic Island Style Pill */}
         <div
-          className="h-12 px-4 sm:px-5 rounded-full pointer-events-auto ios26-liquid-glass flex items-center gap-2.5 sm:gap-3 text-xs sm:text-sm font-bold max-w-[calc(100vw-128px)] sm:max-w-none transition-all duration-200 text-black"
-          style={{ color: '#000000' }}
+          className={`h-12 px-4 sm:px-5 rounded-full pointer-events-auto ios26-liquid-glass flex items-center gap-2.5 sm:gap-3 text-xs sm:text-sm font-bold max-w-[calc(100vw-148px)] sm:max-w-none transition-all duration-200 ${
+            isSatelliteMap ? 'text-white' : 'text-black'
+          }`}
+          style={{ color: isSatelliteMap ? '#FFFFFF' : '#000000' }}
         >
-          <RoundedNavigationIcon isGold={isPremiumItinerary} className="relative z-10 w-[26px] h-[26px] sm:w-[28px] sm:h-[28px] shrink-0" style={{ color: isPremiumItinerary ? undefined : '#000000' }} size={28} />
+          <RoundedNavigationIcon
+            isGold={isPremiumItinerary}
+            className="relative z-10 w-[26px] h-[26px] sm:w-[28px] sm:h-[28px] shrink-0"
+            style={{ color: isPremiumItinerary ? undefined : (isSatelliteMap ? '#FFFFFF' : '#000000') }}
+            size={28}
+          />
 
           {isEditingTitle ? (
             <form
@@ -2459,7 +2489,10 @@ export const ItinerariesView: React.FC<ItinerariesViewProps> = memo(({
                   setEditedTitle(userItinerary?.title || 'MEU ROTEIRO');
                   setIsEditingTitle(true);
                 }}
-                className="font-black text-sm sm:text-base tracking-tight truncate max-w-[140px] sm:max-w-[240px] cursor-pointer text-black"
+                className={`font-black text-sm sm:text-base tracking-tight truncate max-w-[140px] sm:max-w-[240px] cursor-pointer ${
+                  isSatelliteMap ? 'text-white' : 'text-black'
+                }`}
+                style={{ color: isSatelliteMap ? '#FFFFFF' : '#000000' }}
                 title="Toque para editar"
               >
                 {getShortDisplayTitle(userItinerary?.title || 'MEU ROTEIRO')}
@@ -2484,17 +2517,22 @@ export const ItinerariesView: React.FC<ItinerariesViewProps> = memo(({
             }
           }}
           type="button"
-          className="w-12 h-12 rounded-full ios26-liquid-glass flex items-center justify-center pointer-events-auto transition-transform active:scale-95 cursor-pointer shrink-0 text-black"
-          style={{ color: '#000000' }}
+          className={`w-[53px] h-[53px] sm:w-[58px] sm:h-[58px] rounded-full ios26-liquid-glass flex items-center justify-center pointer-events-auto transition-all duration-200 active:scale-90 cursor-pointer shrink-0 ${
+            isSatelliteMap ? 'text-white' : 'text-black'
+          }`}
+          style={{ color: isSatelliteMap ? '#FFFFFF' : '#000000' }}
           title="Opções do roteiro"
         >
-          <SlidersHorizontal className="relative z-10 w-5 h-5" style={{ color: '#000000' }} />
+          <SlidersHorizontal
+            className="relative z-10 w-6 h-6 sm:w-[29px] sm:h-[29px] stroke-[2]"
+            style={{ color: isSatelliteMap ? '#FFFFFF' : '#000000' }}
+          />
         </button>
       </div>
 
       {/* Floating Map Actions (Layers & Casinha/Store - Mobile only, removed on desktop per user request) */}
       <div 
-        className="md:hidden absolute right-4 sm:right-6 z-50 pointer-events-auto transition-all duration-300 flex flex-col items-center gap-3"
+        className="md:hidden absolute right-3.5 sm:right-6 z-50 pointer-events-auto transition-all duration-300 flex flex-col items-center gap-3"
         style={{
           bottom: (activeSteps.length === 0 || isExpanded)
             ? 'calc(54vh + 16px)' 
@@ -2507,14 +2545,16 @@ export const ItinerariesView: React.FC<ItinerariesViewProps> = memo(({
           whileHover={{ scale: 1.05 }}
           type="button"
           onClick={handleToggleMapStyle}
-          className="w-[45px] h-[45px] rounded-full ios26-liquid-glass flex items-center justify-center cursor-pointer transition-all duration-200 text-black"
-          style={{ color: '#000000' }}
+          className={`w-[53px] h-[53px] sm:w-[58px] sm:h-[58px] rounded-full ios26-liquid-glass flex items-center justify-center cursor-pointer transition-all duration-200 shrink-0 ${
+            isSatelliteMap ? 'text-white' : 'text-black'
+          }`}
+          style={{ color: isSatelliteMap ? '#FFFFFF' : '#000000' }}
           title={itineraryMapStyle === 'satelite' ? 'Modo Satélite Ativo (Toque para alternar)' : 'Alternar satélite / mapa'}
           aria-label="Alternar satélite / mapa"
         >
           <Layers
-            className="relative z-10 w-5 h-5 stroke-[2.2]"
-            style={{ color: '#000000' }}
+            className="relative z-10 w-[26px] h-[26px] sm:w-[29px] sm:h-[29px] stroke-[2]"
+            style={{ color: isSatelliteMap ? '#FFFFFF' : '#000000' }}
           />
         </motion.button>
 
@@ -2530,14 +2570,16 @@ export const ItinerariesView: React.FC<ItinerariesViewProps> = memo(({
             } catch (e) {}
             setItineraryViewMode('explore');
           }}
-          className="w-[45px] h-[45px] rounded-full ios26-liquid-glass flex items-center justify-center cursor-pointer transition-all duration-200 text-black"
-          style={{ color: '#000000' }}
+          className={`w-[53px] h-[53px] sm:w-[58px] sm:h-[58px] rounded-full ios26-liquid-glass flex items-center justify-center cursor-pointer transition-all duration-200 shrink-0 ${
+            isSatelliteMap ? 'text-white' : 'text-black'
+          }`}
+          style={{ color: isSatelliteMap ? '#FFFFFF' : '#000000' }}
           title="Loja de Roteiros"
           aria-label="Loja de Roteiros"
         >
           <Store
-            className="relative z-10 w-5 h-5 stroke-[2.2]"
-            style={{ color: '#000000' }}
+            className="relative z-10 w-[26px] h-[26px] sm:w-[29px] sm:h-[29px] stroke-[2]"
+            style={{ color: isSatelliteMap ? '#FFFFFF' : '#000000' }}
           />
         </motion.button>
       </div>

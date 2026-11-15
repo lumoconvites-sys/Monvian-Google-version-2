@@ -26,6 +26,7 @@ export const BottomNavigation: React.FC<BottomNavigationProps> = memo(({
   activeTab,
   onChangeTab,
   isBlurred = false,
+  forceWhiteUI = false,
 }) => {
   const [pulseAnimation, setPulseAnimation] = useState<number>(0);
 
@@ -141,11 +142,15 @@ export const BottomNavigation: React.FC<BottomNavigationProps> = memo(({
                 onClick={() => handleTabClick(tab.id)}
                 aria-label={tab.label}
                 aria-current={isActive ? 'page' : undefined}
-                className={`relative z-10 w-full h-full min-h-[44px] min-w-[44px] rounded-full flex items-center justify-center cursor-pointer select-none active:scale-[0.94] transition-[transform,color,opacity] duration-[180ms] ease-[cubic-bezier(0.22,1,0.36,1)] motion-reduce:transition-none focus:outline-none focus-visible:ring-2 text-[#000000] focus-visible:ring-black/25 ${
+                className={`relative z-10 w-full h-full min-h-[44px] min-w-[44px] rounded-full flex items-center justify-center cursor-pointer select-none active:scale-[0.94] transition-[transform,color,opacity] duration-[180ms] ease-[cubic-bezier(0.22,1,0.36,1)] motion-reduce:transition-none focus:outline-none focus-visible:ring-2 ${
+                  forceWhiteUI
+                    ? 'text-[#FFFFFF] focus-visible:ring-white/30'
+                    : 'text-[#000000] focus-visible:ring-black/25'
+                } ${
                   isActive ? 'opacity-100' : 'opacity-85 hover:opacity-100'
                 }`}
                 style={{
-                  color: '#000000',
+                  color: forceWhiteUI ? '#FFFFFF' : '#000000',
                   WebkitTapHighlightColor: 'transparent',
                   touchAction: 'manipulation',
                 }}

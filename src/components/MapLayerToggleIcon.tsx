@@ -34,27 +34,27 @@ export const MapLayerToggleIcon: React.FC<MapLayerToggleIconProps> = ({
       {/* Left folded 3-panel map outline */}
       <path
         d="M 9.6 10.1 L 5.8 12.1 C 5.1 12.5 4.7 13.1 4.7 13.9 L 4.7 18.6 C 4.7 19.6 5.6 20.2 6.5 19.7 L 9.6 18.1 L 13.3 20.2"
-        stroke="#000000"
+        stroke="currentColor"
         strokeWidth="2.35"
         strokeLinecap="round"
         strokeLinejoin="round"
       />
       <path
         d="M 9.6 10.1 L 13.9 12.6 L 17.3 10.7"
-        stroke="#000000"
+        stroke="currentColor"
         strokeWidth="2.35"
         strokeLinecap="round"
         strokeLinejoin="round"
       />
       <path
         d="M 9.6 10.3 L 9.6 17.9"
-        stroke="#000000"
+        stroke="currentColor"
         strokeWidth="2.35"
         strokeLinecap="round"
       />
       <path
         d="M 13.9 12.7 L 13.9 16.5"
-        stroke="#000000"
+        stroke="currentColor"
         strokeWidth="2.35"
         strokeLinecap="round"
       />
@@ -62,7 +62,7 @@ export const MapLayerToggleIcon: React.FC<MapLayerToggleIconProps> = ({
       {/* Diagonal divider slash */}
       <path
         d="M 13.6 24.1 L 21.1 9.5"
-        stroke="#000000"
+        stroke="currentColor"
         strokeWidth="2.45"
         strokeLinecap="round"
       />
@@ -70,7 +70,7 @@ export const MapLayerToggleIcon: React.FC<MapLayerToggleIconProps> = ({
       {/* Lower-right Earth semi-globe with continent cutout */}
       <path
         d="M 20.6 13.3 L 17.1 20.1 A 5.75 5.75 0 1 0 20.6 13.3 Z"
-        fill="#000000"
+        fill="currentColor"
         mask={`url(#${maskId})`}
       />
     </svg>

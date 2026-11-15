@@ -4,7 +4,7 @@ import { ChevronLeft } from 'lucide-react';
 export interface AppleBackButtonProps
   extends React.ButtonHTMLAttributes<HTMLButtonElement> {
   theme?: 'light' | 'dark' | 'auto' | 'overlay' | 'glass';
-  size?: 'default' | 'lg';
+  size?: 'default' | 'lg' | 'explore';
 }
 
 export const AppleBackButton: React.FC<AppleBackButtonProps> = ({
@@ -27,7 +27,17 @@ export const AppleBackButton: React.FC<AppleBackButtonProps> = ({
       ? 'apple-back-btn apple-back-btn-overlay'
       : 'apple-back-btn apple-back-btn-auto';
 
-  const sizeClass = size === 'lg' ? 'w-12 h-12' : 'w-11 h-11';
+  const sizeClass =
+    size === 'explore'
+      ? 'w-[53px] h-[53px] sm:w-[58px] sm:h-[58px]'
+      : size === 'lg'
+      ? 'w-12 h-12'
+      : 'w-11 h-11';
+
+  const iconSizeClass =
+    size === 'explore'
+      ? 'w-6 h-6 sm:w-[29px] sm:h-[29px]'
+      : 'w-[24px] h-[24px]';
 
   return (
     <button
@@ -38,7 +48,7 @@ export const AppleBackButton: React.FC<AppleBackButtonProps> = ({
       {...props}
     >
       <ChevronLeft
-        className="relative z-10 w-[24px] h-[24px] -translate-x-[1px] pointer-events-none"
+        className={`relative z-10 ${iconSizeClass} -translate-x-[1px] pointer-events-none`}
         strokeWidth={2.5}
       />
     </button>
