@@ -299,17 +299,31 @@ export const SearchFilterDrawer: React.FC<SearchFilterDrawerProps> = React.memo(
               willChange: 'opacity, transform',
             }}
           >
+      {/* Main Content Area (single scroll container so scrolled items glide behind sticky translucent header) */}
+      <div
+        className={`flex-1 min-h-0 overflow-y-auto overscroll-contain w-full flex flex-col transition-colors ${
+          isDark ? 'bg-[#000000] text-white' : 'bg-[#ffffff] text-zinc-950'
+        }`}
+        style={{
+          WebkitOverflowScrolling: 'touch',
+          paddingBottom: 'calc(env(safe-area-inset-bottom, 24px) + 90px)',
+        }}
+      >
       {/* Top Header Bar */}
       <div
-        className={`px-5 sm:px-6 pb-2 flex items-center justify-between z-10 shrink-0 transition-colors ${
-          isDark ? 'bg-[#000000] text-white' : 'bg-[#ffffff] text-zinc-950'
+        className={`sticky top-0 z-20 w-full pb-2 shrink-0 transition-colors ${
+          isDark ? 'text-white' : 'text-zinc-950'
         }`}
         style={{
           paddingTop: 'max(calc(env(safe-area-inset-top, 0px) + 12px), 20px)',
           paddingLeft: 'max(20px, env(safe-area-inset-left, 0px))',
           paddingRight: 'max(20px, env(safe-area-inset-right, 0px))',
+          backgroundColor: isDark ? 'rgba(0, 0, 0, 0.40)' : 'rgba(255, 255, 255, 0.40)',
+          backdropFilter: 'blur(8px) saturate(150%)',
+          WebkitBackdropFilter: 'blur(8px) saturate(150%)',
         }}
       >
+        <div className="max-w-3xl mx-auto w-full flex items-center justify-between">
         <div className="flex items-center gap-3">
           {selectedCategory ? (
             <AppleBackButton
@@ -328,18 +342,10 @@ export const SearchFilterDrawer: React.FC<SearchFilterDrawerProps> = React.memo(
             {selectedCategory ? selectedCategory.name : 'Buscar'}
           </h1>
         </div>
+        </div>
       </div>
 
-      {/* Main Content Area */}
-      <div
-        className={`flex-1 min-h-0 overflow-y-auto overscroll-contain px-5 sm:px-7 max-w-3xl mx-auto w-full flex flex-col transition-colors ${
-          isDark ? 'bg-[#000000] text-white' : 'bg-[#ffffff] text-zinc-950'
-        }`}
-        style={{
-          WebkitOverflowScrolling: 'touch',
-          paddingBottom: 'calc(env(safe-area-inset-bottom, 24px) + 90px)',
-        }}
-      >
+      <div className="px-5 sm:px-7 max-w-3xl mx-auto w-full flex-1 flex flex-col">
         {/* Barra de busca exibida apenas na tela inicial de categorias ou busca por texto */}
         {!selectedCategory && (
           <div className="mt-1 mb-4">
@@ -600,6 +606,7 @@ export const SearchFilterDrawer: React.FC<SearchFilterDrawerProps> = React.memo(
             )}
           </div>
         )}
+      </div>
       </div>
     </motion.div>
     </motion.div>

@@ -499,12 +499,19 @@ export const SavedView: React.FC<SavedViewProps> = React.memo(({
               }`}
               style={{
                 backgroundColor: isDark ? '#000000' : '#ffffff',
-                paddingTop: 'max(calc(env(safe-area-inset-top, 0px) + 20px), 24px)',
                 paddingBottom: 'calc(max(24px, env(safe-area-inset-bottom, 0px)) + 116px)',
                 willChange: 'transform',
               }}
             >
-              <header className="px-6 pb-6 pt-3 shrink-0">
+              <header
+                className="sticky top-0 z-20 w-full px-6 pb-6 shrink-0"
+                style={{
+                  paddingTop: 'max(calc(env(safe-area-inset-top, 0px) + 32px), 36px)',
+                  backgroundColor: isDark ? 'rgba(0, 0, 0, 0.40)' : 'rgba(255, 255, 255, 0.40)',
+                  backdropFilter: 'blur(8px) saturate(150%)',
+                  WebkitBackdropFilter: 'blur(8px) saturate(150%)',
+                }}
+              >
                 <h1 className="text-3xl sm:text-4xl font-extrabold tracking-tight">
                   Salvos
                 </h1>
@@ -554,15 +561,28 @@ export const SavedView: React.FC<SavedViewProps> = React.memo(({
                   }`}
                   style={{
                     backgroundColor: isDark ? '#000000' : '#ffffff',
-                    paddingTop: 'max(calc(env(safe-area-inset-top, 0px) + 12px), 16px)',
-                    paddingBottom: isEditing
-                      ? 'calc(max(24px, env(safe-area-inset-bottom, 0px)) + 140px)'
-                      : 'calc(max(24px, env(safe-area-inset-bottom, 0px)) + 92px)',
                     willChange: 'transform, opacity',
                   }}
                 >
+                  <div
+                    className="flex-1 w-full h-full overflow-y-auto overscroll-y-contain flex flex-col"
+                    style={{
+                      WebkitOverflowScrolling: 'touch',
+                      paddingBottom: isEditing
+                        ? 'calc(max(24px, env(safe-area-inset-bottom, 0px)) + 140px)'
+                        : 'calc(max(24px, env(safe-area-inset-bottom, 0px)) + 92px)',
+                    }}
+                  >
                   {/* Top Bar */}
-                  <header className="px-5 sm:px-6 pb-4 pt-1 flex items-center justify-between gap-3 shrink-0">
+                  <header
+                    className="sticky top-0 z-20 w-full px-5 sm:px-6 pb-4 flex items-center justify-between gap-3 shrink-0"
+                    style={{
+                      paddingTop: 'max(calc(env(safe-area-inset-top, 0px) + 16px), 20px)',
+                      backgroundColor: isDark ? 'rgba(0, 0, 0, 0.40)' : 'rgba(255, 255, 255, 0.40)',
+                      backdropFilter: 'blur(8px) saturate(150%)',
+                      WebkitBackdropFilter: 'blur(8px) saturate(150%)',
+                    }}
+                  >
                     <AppleBackButton
                       theme={isDark ? 'dark' : 'light'}
                       onClick={handleBackToMain}
@@ -592,7 +612,7 @@ export const SavedView: React.FC<SavedViewProps> = React.memo(({
                             ? 'bg-blue-600 text-white font-bold'
                             : isDark
                             ? 'bg-[#000000] border border-[#262626] text-zinc-100 hover:border-white/30'
-                            : 'bg-zinc-200 text-zinc-900 hover:bg-zinc-300'
+                            : 'bg-zinc-200/80 text-zinc-900 hover:bg-zinc-300'
                         }`}
                       >
                         {isEditing ? 'Concluir' : 'Editar'}
@@ -603,7 +623,7 @@ export const SavedView: React.FC<SavedViewProps> = React.memo(({
                   </header>
 
                   {/* List Content */}
-                  <div className="flex-1 overflow-y-auto px-5 sm:px-6 overscroll-y-contain pt-1 max-w-2xl mx-auto w-full">
+                  <div className="flex-1 px-5 sm:px-6 pt-1 max-w-2xl mx-auto w-full">
                     {currentItems.length === 0 ? (
                       /* Empty State */
                       <div className="py-20 flex flex-col items-center justify-center text-center px-4">
@@ -870,6 +890,7 @@ export const SavedView: React.FC<SavedViewProps> = React.memo(({
                             })}
                       </div>
                     )}
+                  </div>
                   </div>
 
                   {/* Batch Edit Action Footer */}

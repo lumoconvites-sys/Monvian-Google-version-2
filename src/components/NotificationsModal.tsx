@@ -159,13 +159,24 @@ export const NotificationsModal: React.FC<NotificationsModalProps> = ({
         overflow: 'hidden',
       }}
     >
+      {/* Single scroll container so notification cards scroll underneath sticky blurred header */}
+      <div
+        className="flex-1 min-h-0 overflow-y-auto no-scrollbar w-full flex flex-col"
+        style={{
+          WebkitOverflowScrolling: 'touch',
+          paddingBottom: 'max(calc(env(safe-area-inset-bottom, 0px) + 28px), 36px)',
+        }}
+      >
       {/* Top Header - Apple iOS Large Title Style */}
       <div
-        className="shrink-0 w-full relative z-50 pointer-events-auto"
+        className="sticky top-0 shrink-0 w-full z-50 pointer-events-auto"
         style={{
           paddingTop: 'max(calc(env(safe-area-inset-top, 0px) + 12px), 16px)',
           paddingLeft: 'max(20px, env(safe-area-inset-left, 0px))',
           paddingRight: 'max(20px, env(safe-area-inset-right, 0px))',
+          backgroundColor: isDark ? 'rgba(0, 0, 0, 0.40)' : 'rgba(255, 255, 255, 0.40)',
+          backdropFilter: 'blur(8px) saturate(150%)',
+          WebkitBackdropFilter: 'blur(8px) saturate(150%)',
         }}
       >
         <div className="flex items-center justify-between pb-3 relative z-50">
@@ -240,10 +251,7 @@ export const NotificationsModal: React.FC<NotificationsModalProps> = ({
       {/* Compact iOS Geolocation Notifications List */}
       {notifications.length > 0 && (
         <div
-          className="flex-1 overflow-y-auto no-scrollbar w-full relative z-10 pt-3 px-4 flex flex-col items-center gap-2.5"
-          style={{
-            paddingBottom: 'max(calc(env(safe-area-inset-bottom, 0px) + 28px), 36px)',
-          }}
+          className="w-full relative z-10 pt-3 px-4 flex flex-col items-center gap-2.5"
         >
           {[...unread, ...recent].map((item, idx) => {
             const arrivalItem = toArrivalCardItem(item);
@@ -270,6 +278,7 @@ export const NotificationsModal: React.FC<NotificationsModalProps> = ({
           })}
         </div>
       )}
+      </div>
     </motion.div>
   );
 

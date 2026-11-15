@@ -2,7 +2,6 @@ import React, { useEffect, useRef, useImperativeHandle, forwardRef, useState, us
 import * as maplibregl from 'maplibre-gl';
 import 'maplibre-gl/dist/maplibre-gl.css';
 import { animate } from 'motion/react';
-import { Layers } from 'lucide-react';
 import { Spot, MapModeType } from '../types';
 import { getSpotImage, getSpotFallbackImage } from '../utils/spotImages';
 import { generateMarkerHtml, MAP_VISUAL_ICON_CATEGORIES } from '../utils/mapVisualIcons';
@@ -16,6 +15,7 @@ import {
   playSpotClickSound,
 } from '../utils/soundEffects';
 import { CompassIcon } from './CompassIcon';
+import { MapLayerToggleIcon } from './MapLayerToggleIcon';
 
 export type { MapModeType };
 
@@ -80,7 +80,6 @@ const getVectorMapStyle = (
     if (token) {
       return {
         version: 8,
-        projection: { type: 'globe' } as any,
         sources: {
           'mapbox-sat': {
             type: 'raster',
@@ -103,6 +102,7 @@ const getVectorMapStyle = (
               'raster-brightness-max': 1.0,
               'raster-contrast': 0.15,
               'raster-saturation': 0.2,
+              'raster-fade-duration': 240,
             },
           },
         ],
@@ -112,7 +112,6 @@ const getVectorMapStyle = (
     // High-Resolution Esri World Imagery + Reference Labels (Boundaries, Roads & Places)
     return {
       version: 8,
-      projection: { type: 'globe' } as any,
       sources: {
         'esri-sat': {
           type: 'raster',
@@ -143,6 +142,7 @@ const getVectorMapStyle = (
             'raster-brightness-max': 1.0,
             'raster-contrast': 0.15,
             'raster-saturation': 0.22,
+            'raster-fade-duration': 240,
           },
         },
         {
@@ -153,6 +153,7 @@ const getVectorMapStyle = (
           maxzoom: 19,
           paint: {
             'raster-opacity': 0.95,
+            'raster-fade-duration': 240,
           },
         },
       ],
@@ -164,7 +165,6 @@ const getVectorMapStyle = (
     const styleId = theme === 'dark' ? 'mapbox/dark-v11' : 'mapbox/streets-v12';
     return {
       version: 8,
-      projection: { type: 'globe' } as any,
       sources: {
         'mapbox-tiles': {
           type: 'raster',
@@ -182,6 +182,9 @@ const getVectorMapStyle = (
           source: 'mapbox-tiles',
           minzoom: 0,
           maxzoom: 22,
+          paint: {
+            'raster-fade-duration': 240,
+          },
         },
       ],
     };
@@ -191,7 +194,6 @@ const getVectorMapStyle = (
   if (theme === 'dark') {
     return {
       version: 8,
-      projection: { type: 'globe' } as any,
       sources: {
         'carto-dark': {
           type: 'raster',
@@ -212,6 +214,9 @@ const getVectorMapStyle = (
           source: 'carto-dark',
           minzoom: 0,
           maxzoom: 20,
+          paint: {
+            'raster-fade-duration': 240,
+          },
         },
       ],
     };
@@ -220,7 +225,6 @@ const getVectorMapStyle = (
   // Esri World Street Map (Light mode)
   return {
     version: 8,
-    projection: { type: 'globe' } as any,
     sources: {
       'esri-street': {
         type: 'raster',
@@ -238,6 +242,9 @@ const getVectorMapStyle = (
         source: 'esri-street',
         minzoom: 0,
         maxzoom: 20,
+        paint: {
+          'raster-fade-duration': 240,
+        },
       },
     ],
   };
@@ -296,8 +303,9 @@ export const MapComponent = memo(
     const [currentMode, setCurrentMode] = useState<MapModeType>(
       mapMode === 'satelite' ? 'satelite' : 'explorar'
     );
-    const [isFollowingUser, setIsFollowingUser] = useState<boolean>(false);
-    const isFollowingUserRef = useRef<boolean>(false);
+    const [isFollowingUser, setIsFollowingUser] = useState<boolean>(true);
+    const isFollowingUserRef = useRef<boolean>(true);
+    const followCameraGraceUntilRef = useRef<number>(0);
     const hasUserMovedMapRef = useRef<boolean>(false);
     const [isCompassTracking, setIsCompassTracking] = useState<boolean>(false);
     const isCompassTrackingRef = useRef<boolean>(false);
@@ -306,9 +314,16 @@ export const MapComponent = memo(
     const isTransitioning3DRef = useRef<boolean>(false);
     const isMapGestureActiveRef = useRef<boolean>(false);
     const lastMapGestureTimeRef = useRef<number>(0);
+    const lastInteractionStateRef = useRef<boolean>(false);
+    const prevStyleKeyRef = useRef<string>('');
     const onSelectSpotRef = useRef(onSelectSpot);
     const onMapClickRef = useRef(onMapClick);
+    const onInteractionChangeRef = useRef(onInteractionChange);
     const spotsRef = useRef<Spot[]>(spots);
+
+    useEffect(() => {
+      onInteractionChangeRef.current = onInteractionChange;
+    }, [onInteractionChange]);
 
     useEffect(() => {
       spotsRef.current = spots;
@@ -537,7 +552,7 @@ export const MapComponent = memo(
           const initialLngLat =
             gpsNavigationManager.getCurrentInterpolatedCoords() ||
             latestUserCoordsRef.current ||
-            normalizeCoords(userCoords, CAMPOS_CENTER);
+            CAMPOS_CENTER;
 
           userMarkerRef.current = new maplibregl.Marker({
             element: rootEl,
@@ -553,24 +568,20 @@ export const MapComponent = memo(
           }
         }
       },
-      [userAvatar, userName, userCoords]
+      [userAvatar, userName]
     );
 
     const centerOnUserLocation = useCallback(
       (activateSensors: boolean = true, toggleCompassMode: boolean = false, targetZoom: number = 15.6) => {
         if (activateSensors) {
-          deviceHeadingManager
-            .requestPermission()
-            .then(() => {
-              if (gpsNavigationManager.getState().status !== 'granted') {
-                gpsNavigationManager.requestPermissionAndStartFromGesture();
-              }
-            })
-            .catch(() => {});
-          deviceHeadingManager.start();
-          if (!deviceHeadingManager.isPermissionRequired()) {
+          // Request GPS synchronously inside user gesture tick so iOS Safari never drops transient activation
+          if (gpsNavigationManager.getState().status !== 'granted') {
             gpsNavigationManager.requestPermissionAndStartFromGesture();
+          } else {
+            gpsNavigationManager.refreshPositionNow();
           }
+          deviceHeadingManager.requestPermission().catch(() => {});
+          deviceHeadingManager.start();
         }
 
         if (toggleCompassMode) {
@@ -579,7 +590,12 @@ export const MapComponent = memo(
           setIsCompassTracking(nextCompass);
         }
 
+        hasUserMovedMapRef.current = false;
+        if (gpsNavigationManager.getState().hasRealFix) {
+          hasCenteredOnFirstFixRef.current = true;
+        }
         setFollowMode(true);
+        followCameraGraceUntilRef.current = performance.now() + 750;
 
         const targetCoords =
           gpsNavigationManager.getCurrentInterpolatedCoords() ||
@@ -658,13 +674,15 @@ export const MapComponent = memo(
       }
     }, [mapMode]);
 
-    // Initialize or swap map style
+    // Initialize or swap map style ONLY when mode or theme genuinely changes
     useEffect(() => {
       if (!mapContainerRef.current) return;
 
+      const styleKey = `${currentMode}:${theme}`;
       const style = getVectorMapStyle(currentMode, theme);
 
       if (!mapRef.current) {
+        prevStyleKeyRef.current = styleKey;
         const initialCoords = normalizeCoords(userCoords, CAMPOS_CENTER);
         const map = new maplibregl.Map({
           container: mapContainerRef.current,
@@ -677,6 +695,10 @@ export const MapComponent = memo(
           pitchWithRotate: true,
           touchPitch: true,
           attributionControl: false,
+          fadeDuration: 0,
+          maxTileCacheSize: 150,
+          refreshExpiredTiles: false,
+          trackResize: false,
         });
 
         mapRef.current = map;
@@ -697,6 +719,7 @@ export const MapComponent = memo(
             userMarkerRef.current?.setLngLat(currentGpsState.coords);
             if (!selectedSpotRef.current && !hasUserMovedMapRef.current && !hasCenteredOnFirstFixRef.current) {
               hasCenteredOnFirstFixRef.current = true;
+              followCameraGraceUntilRef.current = performance.now() + 700;
               map.easeTo({
                 center: currentGpsState.coords,
                 zoom: 14.8,
@@ -724,15 +747,24 @@ export const MapComponent = memo(
           ensureUserMarker(map);
         });
 
-        // Mark map as manually moved by user when panning/zooming so camera never snaps back automatically
+        // Mark map as manually moved by user when panning/dragging so camera stops auto-centering
         const onUserManualMoveStart = (e: any) => {
           if (e && e.originalEvent) {
             isMapGestureActiveRef.current = true;
             lastMapGestureTimeRef.current = performance.now();
-            hasUserMovedMapRef.current = true;
-            setFollowMode(false);
+            if (e.type === 'dragstart') {
+              if (!hasUserMovedMapRef.current) {
+                hasUserMovedMapRef.current = true;
+              }
+              if (isFollowingUserRef.current) {
+                setFollowMode(false);
+              }
+            }
           }
-          if (onInteractionChange) onInteractionChange(true);
+          if (!lastInteractionStateRef.current) {
+            lastInteractionStateRef.current = true;
+            if (onInteractionChangeRef.current) onInteractionChangeRef.current(true);
+          }
         };
 
         const onUserManualMove = (e: any) => {
@@ -747,7 +779,10 @@ export const MapComponent = memo(
             lastMapGestureTimeRef.current = performance.now();
           }
           isMapGestureActiveRef.current = false;
-          if (onInteractionChange) onInteractionChange(false);
+          if (lastInteractionStateRef.current) {
+            lastInteractionStateRef.current = false;
+            if (onInteractionChangeRef.current) onInteractionChangeRef.current(false);
+          }
         };
 
         map.on('dragstart', onUserManualMoveStart);
@@ -761,8 +796,11 @@ export const MapComponent = memo(
         map.on('moveend', onInteractionEnd);
 
         // Keep deviceHeadingManager aware of map bearing so the flashlight aligns with true heading
+        let lastBearingApplied = -999;
         const syncBeamWithMapBearing = () => {
           const bearing = map.getBearing() || 0;
+          if (Math.abs(bearing - lastBearingApplied) < 0.25) return;
+          lastBearingApplied = bearing;
           deviceHeadingManager.setMapBearing(bearing);
           if (userBeamRef.current && deviceHeadingManager.hasSensorData()) {
             const rawHeading = deviceHeadingManager.getCurrentHeading();
@@ -773,16 +811,21 @@ export const MapComponent = memo(
 
         deviceHeadingManager.setMapBearing(map.getBearing());
         map.on('rotate', syncBeamWithMapBearing);
-        map.on('move', syncBeamWithMapBearing);
-      } else {
+      } else if (prevStyleKeyRef.current !== styleKey) {
+        prevStyleKeyRef.current = styleKey;
         mapRef.current.setStyle(style);
+        ensureUserMarker(mapRef.current);
+      } else {
         ensureUserMarker(mapRef.current);
       }
     }, [currentMode, theme, ensureUserMarker]);
 
-    // Subscribe to 60fps Device Compass / 3D Orientation Heading for the Blue Flashlight ("Lanterna Azul") & Compass Icon
+    // Subscribe to Device Compass / 3D Orientation Heading for the Blue Flashlight ("Lanterna Azul") & Compass Icon
     useEffect(() => {
       deviceHeadingManager.start();
+      let lastRenderedBeamAngle = -999;
+      let lastRenderedCompassAngle = -999;
+
       const unsubscribeHeading = deviceHeadingManager.subscribe((rawHeading) => {
         if (isNaN(rawHeading)) return;
 
@@ -793,12 +836,15 @@ export const MapComponent = memo(
         const mapBearing = mapRef.current?.getBearing() || 0;
         const beamAngle = (rawHeading - mapBearing + 360) % 360;
 
-        if (userBeamRef.current) {
+        if (userBeamRef.current && Math.abs(beamAngle - lastRenderedBeamAngle) >= 0.25) {
+          lastRenderedBeamAngle = beamAngle;
           userBeamRef.current.style.transform = `translate(-50%, -50%) rotate(${beamAngle.toFixed(1)}deg)`;
         }
 
-        if (compassIconWrapperRef.current) {
-          compassIconWrapperRef.current.style.transform = `rotate(${(-rawHeading).toFixed(1)}deg)`;
+        const compassAngle = -rawHeading;
+        if (compassIconWrapperRef.current && Math.abs(compassAngle - lastRenderedCompassAngle) >= 0.25) {
+          lastRenderedCompassAngle = compassAngle;
+          compassIconWrapperRef.current.style.transform = `rotate(${compassAngle.toFixed(1)}deg)`;
         }
       });
       return () => {
@@ -857,9 +903,14 @@ export const MapComponent = memo(
       userMarkerRef.current?.setLngLat(normalized);
     }, [userCoords]);
 
-    // Real-Time 60fps GPS Location Subscription + Camera Accompaniment
+    // Real-Time GPS Location Subscription + Camera Accompaniment
     useEffect(() => {
       gpsNavigationManager.start();
+      let lastMarkerLng = -999;
+      let lastMarkerLat = -999;
+      let lastFollowedLng = -999;
+      let lastFollowedLat = -999;
+      let lastProximityCheckTime = 0;
 
       const unsubscribeGps = gpsNavigationManager.subscribe((navState) => {
         const coords = navState.interpolatedCoords || navState.coords;
@@ -867,8 +918,17 @@ export const MapComponent = memo(
 
         latestUserCoordsRef.current = coords;
 
-        // Move the 3D user marker in real time at 60fps
-        if (userMarkerRef.current) {
+        if (mapRef.current && !userMarkerRef.current) {
+          ensureUserMarker(mapRef.current);
+        }
+
+        // Move the 3D user marker whenever position delta is perceptible
+        if (
+          userMarkerRef.current &&
+          (Math.abs(coords[0] - lastMarkerLng) > 1e-7 || Math.abs(coords[1] - lastMarkerLat) > 1e-7)
+        ) {
+          lastMarkerLng = coords[0];
+          lastMarkerLat = coords[1];
           userMarkerRef.current.setLngLat(coords);
         }
 
@@ -884,7 +944,9 @@ export const MapComponent = memo(
           userBeamRef.current.style.transform = `translate(-50%, -50%) rotate(${comp.toFixed(1)}deg)`;
         }
 
-        // Only position camera on the very first initial GPS fix at boot if user hasn't touched the map
+        const now = performance.now();
+
+        // Position camera on the first valid GPS fix at boot if user hasn't dragged away
         if (
           mapRef.current &&
           navState.hasRealFix &&
@@ -895,16 +957,48 @@ export const MapComponent = memo(
           !isTransitioning3DRef.current
         ) {
           hasCenteredOnFirstFixRef.current = true;
+          followCameraGraceUntilRef.current = now + 800;
+          lastFollowedLng = navState.coords[0];
+          lastFollowedLat = navState.coords[1];
           mapRef.current.easeTo({
             center: navState.coords,
             zoom: 14.8,
             pitch: is3DModeRef.current ? 60 : 0,
             duration: 750,
           });
+        } else if (
+          mapRef.current &&
+          isFollowingUserRef.current &&
+          navState.hasRealFix &&
+          navState.status === 'granted' &&
+          hasCenteredOnFirstFixRef.current &&
+          now > followCameraGraceUntilRef.current &&
+          !isMapGestureActiveRef.current &&
+          !selectedSpotRef.current &&
+          !isTransitioning3DRef.current &&
+          !mapRef.current.isMoving()
+        ) {
+          // Continuously pan camera smoothly with interpolated real-time location while driving/walking
+          if (
+            Math.abs(coords[0] - lastFollowedLng) > 1e-6 ||
+            Math.abs(coords[1] - lastFollowedLat) > 1e-6
+          ) {
+            lastFollowedLng = coords[0];
+            lastFollowedLat = coords[1];
+            mapRef.current.setCenter(coords);
+          }
         }
 
-        // Check physical proximity against spots ONLY when user has a verified real GPS fix
-        if (navState.hasRealFix && navState.status === 'granted' && spotsRef.current && spotsRef.current.length > 0) {
+        // Throttle physical proximity evaluation (~1.2s) and skip during active map drag/zoom gestures
+        if (
+          !isMapGestureActiveRef.current &&
+          now - lastProximityCheckTime > 1200 &&
+          navState.hasRealFix &&
+          navState.status === 'granted' &&
+          spotsRef.current &&
+          spotsRef.current.length > 0
+        ) {
+          lastProximityCheckTime = now;
           monvianXpManager.evaluateProximity(navState, spotsRef.current).catch(() => {});
         }
       });
@@ -912,7 +1006,7 @@ export const MapComponent = memo(
       return () => {
         unsubscribeGps();
       };
-    }, []);
+    }, [ensureUserMarker]);
 
     // Trigger zoom to user only when explicitly requested
     useEffect(() => {
@@ -1101,6 +1195,8 @@ export const MapComponent = memo(
       lat: number;
       lng: number;
       imgUrl: string;
+      lastSelectedState?: boolean;
+      lastHiddenState?: boolean;
     }[]>([]);
     const animatedSpotIdsRef = useRef<Set<string>>(new Set());
     const activeMarkerAnimationsRef = useRef<WeakMap<HTMLElement, { stop?: () => void }>>(
@@ -1167,6 +1263,7 @@ export const MapComponent = memo(
         );
 
         // Primary outer ripple wave starting immediately at t=0ms with audio transient
+        rippleEl.style.display = 'block';
         runMotionAnimation(
           rippleEl,
           { scale: [0.95, 2.15], opacity: [0.92, 0] },
@@ -1178,6 +1275,7 @@ export const MapComponent = memo(
 
         // Secondary crisp inner ripple echo
         if (secondaryRippleEl) {
+          secondaryRippleEl.style.display = 'block';
           runMotionAnimation(
             secondaryRippleEl,
             { scale: [0.9, 1.65], opacity: [0.7, 0] },
@@ -1192,13 +1290,19 @@ export const MapComponent = memo(
       [runMotionAnimation]
     );
 
-    // Synchronize marker highlights smoothly without destroying DOM nodes
+    // Synchronize marker highlights smoothly without touching unchanged DOM nodes
     const syncMarkerHighlight = useCallback((activeSpotId: string | null | undefined) => {
       const focusActive = isFocusModeRef.current;
 
       markerRecordsRef.current.forEach((rec) => {
         const isSelected = activeSpotId ? rec.spotId === activeSpotId : false;
         const shouldHideMarker = focusActive && !isSelected;
+
+        if (rec.lastSelectedState === isSelected && rec.lastHiddenState === shouldHideMarker) {
+          return;
+        }
+        rec.lastSelectedState = isSelected;
+        rec.lastHiddenState = shouldHideMarker;
 
         rec.containerEl.style.transition =
           'transform 0.36s cubic-bezier(0.22, 1, 0.36, 1), opacity 0.28s cubic-bezier(0.22, 1, 0.36, 1)';
@@ -1701,33 +1805,12 @@ export const MapComponent = memo(
         containerEl.style.flexDirection = 'column';
         containerEl.style.alignItems = 'center';
         containerEl.style.justifyContent = 'center';
-        containerEl.style.transition = 'transform 0.4s cubic-bezier(0.34, 1.56, 0.64, 1)';
+        containerEl.style.transition =
+          'transform 0.36s cubic-bezier(0.22, 1, 0.36, 1), opacity 0.28s cubic-bezier(0.22, 1, 0.36, 1)';
         containerEl.style.transform = isSelected ? 'scale(1.22)' : 'scale(0.96)';
         containerEl.style.zIndex = isSelected ? '50' : '20';
 
-        // Spring entrance animation ONLY the very first time a spot marker is created (or when toggling star status)
-        if (!animatedSpotIdsRef.current.has(spot.id)) {
-          animatedSpotIdsRef.current.add(spot.id);
-          try {
-            containerEl.animate(
-              [
-                { transform: 'scale(0) translateY(12px)', opacity: 0 },
-                { transform: 'scale(1.18) translateY(-2px)', opacity: 1, offset: 0.68 },
-                {
-                  transform: isSelected
-                    ? 'scale(1.22) translateY(0px)'
-                    : 'scale(0.96) translateY(0px)',
-                  opacity: 1,
-                },
-              ],
-              {
-                duration: 420 + (spotIdx % 10) * 35,
-                easing: 'cubic-bezier(0.34, 1.56, 0.64, 1)',
-                fill: 'both',
-              }
-            );
-          } catch (e) {}
-        }
+        animatedSpotIdsRef.current.add(spot.id);
 
         const markerSize = isStar ? 54 : 42;
         const auraOffset = isStar ? -7 : -13;
@@ -1747,7 +1830,7 @@ export const MapComponent = memo(
           : 'radial-gradient(circle, rgba(255, 255, 255, 0.7) 0%, rgba(255, 255, 255, 0.22) 55%, transparent 75%)';
         pulseEl.style.display = isSelected ? 'block' : 'none';
 
-        // Primary visual expansion ripple around the marker (synchronized with instant click SFX)
+        // Primary visual expansion ripple around the marker (displayed only on tap)
         const rippleEl = document.createElement('div');
         rippleEl.style.position = 'absolute';
         rippleEl.style.width = `${markerSize}px`;
@@ -1758,7 +1841,7 @@ export const MapComponent = memo(
         rippleEl.style.pointerEvents = 'none';
         rippleEl.style.zIndex = '-1';
         rippleEl.style.opacity = '0';
-        rippleEl.style.willChange = 'transform, opacity';
+        rippleEl.style.display = 'none';
         rippleEl.style.border = isStar
           ? '2px solid rgba(255, 214, 10, 0.95)'
           : '2px solid rgba(255, 255, 255, 0.92)';
@@ -1780,7 +1863,7 @@ export const MapComponent = memo(
         secondaryRippleEl.style.pointerEvents = 'none';
         secondaryRippleEl.style.zIndex = '-1';
         secondaryRippleEl.style.opacity = '0';
-        secondaryRippleEl.style.willChange = 'transform, opacity';
+        secondaryRippleEl.style.display = 'none';
         secondaryRippleEl.style.border = isStar
           ? '1.5px solid rgba(255, 214, 10, 0.78)'
           : '1.5px solid rgba(255, 255, 255, 0.72)';
@@ -1804,11 +1887,12 @@ export const MapComponent = memo(
         badgeEl.style.display = 'flex';
         badgeEl.style.alignItems = 'center';
         badgeEl.style.justifyContent = 'center';
-        badgeEl.style.willChange = 'transform';
 
         const imgEl = document.createElement('img');
         imgEl.src = imgUrl;
         imgEl.alt = spot.name || 'Ponto Turístico';
+        imgEl.loading = 'lazy';
+        imgEl.decoding = 'async';
         imgEl.style.width = '100%';
         imgEl.style.height = '100%';
         imgEl.style.objectFit = 'cover';
@@ -2029,7 +2113,7 @@ export const MapComponent = memo(
 
         setFollowMode(false);
         const isMobile = window.innerWidth < 768;
-        const verticalOffset = isMobile ? -Math.round(window.innerHeight * 0.24) : 0;
+        const verticalOffset = isMobile ? -Math.round(window.innerHeight * 0.12) : 0;
 
         mapRef.current.easeTo({
           center: [selectedSpot.lng, selectedSpot.lat],
@@ -2146,61 +2230,64 @@ export const MapComponent = memo(
       };
     }, [renderVisualIcons]);
 
-    // Keep MapLibre canvas continuously synchronized with container dimensions across iOS safe areas, orientation changes, and keyboard transitions
+    // Keep MapLibre canvas synchronized with container dimensions using RAF-debounced ResizeObserver
     useEffect(() => {
       const container = mapContainerRef.current;
       if (!container) return;
 
-      const handleResize = () => {
+      let resizeRafId: number | null = null;
+      let lastWidth = 0;
+      let lastHeight = 0;
+
+      const performResize = (force: boolean = false) => {
+        resizeRafId = null;
+        if (!container || !mapRef.current) return;
+        const w = container.clientWidth;
+        const h = container.clientHeight;
+        if (w === 0 || h === 0) return;
+        if (!force && w === lastWidth && h === lastHeight) return;
+        lastWidth = w;
+        lastHeight = h;
         try {
-          mapRef.current?.resize();
+          mapRef.current.resize();
         } catch {}
       };
 
-      handleResize();
-      const rafId = requestAnimationFrame(handleResize);
-      const t1 = window.setTimeout(handleResize, 50);
-      const t2 = window.setTimeout(handleResize, 150);
-      const t3 = window.setTimeout(handleResize, 350);
-      const t4 = window.setTimeout(handleResize, 750);
+      const scheduleResize = () => {
+        if (resizeRafId !== null) return;
+        resizeRafId = requestAnimationFrame(() => performResize(false));
+      };
+
+      performResize(true);
+      const t1 = window.setTimeout(() => performResize(true), 120);
 
       let observer: ResizeObserver | null = null;
       if (typeof ResizeObserver !== 'undefined') {
         observer = new ResizeObserver(() => {
-          handleResize();
+          scheduleResize();
         });
         observer.observe(container);
       }
 
       const handleVisibility = () => {
         if (document.visibilityState === 'visible') {
-          handleResize();
-          window.setTimeout(handleResize, 100);
+          scheduleResize();
         }
       };
 
-      window.addEventListener('resize', handleResize, { passive: true });
-      window.addEventListener('orientationchange', handleResize, { passive: true });
-      window.addEventListener('pageshow', handleResize, { passive: true });
-      window.addEventListener('focus', handleResize, { passive: true });
-      window.addEventListener('monvian:viewport-stabilized', handleResize as EventListener, { passive: true });
+      window.addEventListener('resize', scheduleResize, { passive: true });
+      window.addEventListener('orientationchange', scheduleResize, { passive: true });
+      window.addEventListener('monvian:viewport-stabilized', scheduleResize as EventListener, { passive: true });
       document.addEventListener('visibilitychange', handleVisibility, { passive: true });
-      window.visualViewport?.addEventListener('resize', handleResize, { passive: true });
 
       return () => {
-        cancelAnimationFrame(rafId);
+        if (resizeRafId !== null) cancelAnimationFrame(resizeRafId);
         window.clearTimeout(t1);
-        window.clearTimeout(t2);
-        window.clearTimeout(t3);
-        window.clearTimeout(t4);
         observer?.disconnect();
-        window.removeEventListener('resize', handleResize);
-        window.removeEventListener('orientationchange', handleResize);
-        window.removeEventListener('pageshow', handleResize);
-        window.removeEventListener('focus', handleResize);
-        window.removeEventListener('monvian:viewport-stabilized', handleResize as EventListener);
+        window.removeEventListener('resize', scheduleResize);
+        window.removeEventListener('orientationchange', scheduleResize);
+        window.removeEventListener('monvian:viewport-stabilized', scheduleResize as EventListener);
         document.removeEventListener('visibilitychange', handleVisibility);
-        window.visualViewport?.removeEventListener('resize', handleResize);
       };
     }, []);
 
@@ -2288,9 +2375,11 @@ export const MapComponent = memo(
             type="button"
             onClick={handleCycleMapStyle}
             aria-label="Alternar camada do mapa"
-            className="w-12 h-12 rounded-full bg-white/90 dark:bg-zinc-900/90 backdrop-blur-md border border-zinc-200/80 dark:border-white/10 shadow-[0_6px_20px_rgba(0,0,0,0.22)] flex items-center justify-center text-zinc-800 dark:text-white active:scale-90 transition-all cursor-pointer"
+            title={currentMode === 'satelite' ? 'Alternar para mapa padrão' : 'Alternar para satélite'}
+            className="w-12 h-12 rounded-full bg-white border border-black/[0.06] shadow-[0_6px_20px_rgba(0,0,0,0.16)] hover:bg-zinc-50 flex items-center justify-center text-[#111111] active:scale-90 transition-all duration-200 cursor-pointer"
+            style={{ backgroundColor: '#FFFFFF', color: '#111111' }}
           >
-            <Layers className="w-5 h-5 stroke-[2.2]" />
+            <MapLayerToggleIcon className="w-[26px] h-[26px]" />
           </button>
         </div>
       </div>

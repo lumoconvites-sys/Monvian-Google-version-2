@@ -146,6 +146,7 @@ export interface AirbnbItineraryExplorerProps {
     options?: { fromOnboardingSelection?: boolean }
   ) => Promise<void> | void;
   onOpenMap?: () => void;
+  onCreateManualItinerary?: () => void;
   theme?: 'dark' | 'light';
   activeItineraryId?: string | null;
   isOnboardingSelection?: boolean;
@@ -440,6 +441,7 @@ if (typeof window !== 'undefined') {
 export const AirbnbItineraryExplorer: React.FC<AirbnbItineraryExplorerProps> = ({
   onSelectItinerary,
   onOpenMap,
+  onCreateManualItinerary,
   theme = 'dark',
   activeItineraryId,
   isOnboardingSelection = false,
@@ -998,9 +1000,29 @@ export const AirbnbItineraryExplorer: React.FC<AirbnbItineraryExplorerProps> = (
             </h1>
           </div>
 
-          {/* Right Action: Play button with black background to open map */}
+          {/* Right Action: Play button when active itinerary exists, or "Criar manualmente" when none */}
           <div className="flex items-center gap-2">
-            {onOpenMap ? (
+            {activeItineraryId && onOpenMap ? (
+              <button
+                type="button"
+                onClick={onOpenMap}
+                className="w-9 h-9 rounded-full bg-black flex items-center justify-center text-white cursor-pointer active:scale-90 transition-transform border border-white/10 shadow-none outline-none"
+                title="Abrir roteiro no mapa"
+                aria-label="Abrir roteiro no mapa"
+              >
+                <Play className="w-4 h-4 fill-white text-white ml-0.5" />
+              </button>
+            ) : onCreateManualItinerary ? (
+              <button
+                type="button"
+                onClick={onCreateManualItinerary}
+                className="h-9 px-3.5 rounded-full bg-black flex items-center justify-center text-white text-[12px] sm:text-[13px] font-semibold tracking-tight whitespace-nowrap shrink-0 cursor-pointer active:scale-95 transition-transform border border-white/10 shadow-none outline-none"
+                title="Criar roteiro manualmente no mapa"
+                aria-label="Criar roteiro manualmente no mapa"
+              >
+                Criar manualmente
+              </button>
+            ) : onOpenMap ? (
               <button
                 type="button"
                 onClick={onOpenMap}

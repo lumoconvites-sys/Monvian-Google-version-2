@@ -81,12 +81,20 @@ export const ImportSpotFloatingModal: React.FC<ImportSpotFloatingModalProps> = (
               transform: 'translateZ(0)',
             }}
           >
+          <div className="flex-1 overflow-y-auto no-scrollbar flex flex-col">
           {/* Minimal Top Bar with Search & Close */}
-          <div className="p-4 sm:p-5 pb-3 flex items-center gap-3 border-b border-black/[0.06] dark:border-[#262626] shrink-0">
+          <div
+            className="sticky top-0 z-20 p-4 sm:p-5 pb-3 flex items-center gap-3 border-b border-black/[0.06] dark:border-[#262626]/70 shrink-0"
+            style={{
+              backgroundColor: isLight ? 'rgba(255, 255, 255, 0.40)' : 'rgba(0, 0, 0, 0.40)',
+              backdropFilter: 'blur(8px) saturate(150%)',
+              WebkitBackdropFilter: 'blur(8px) saturate(150%)',
+            }}
+          >
             <div className={`relative flex items-center flex-1 rounded-2xl border px-3.5 py-2.5 transition-all ${
               isLight
                 ? 'bg-black/[0.04] border-black/5 text-zinc-900 focus-within:border-black/30'
-                : 'bg-[#000000] border-[#262626] text-white focus-within:border-white/40'
+                : 'bg-[#000000]/70 border-[#262626] text-white focus-within:border-white/40'
             }`}>
               <Search className="w-4 h-4 text-zinc-400 shrink-0 mr-2.5" />
               <input
@@ -119,7 +127,7 @@ export const ImportSpotFloatingModal: React.FC<ImportSpotFloatingModalProps> = (
           </div>
 
           {/* Spots List */}
-          <div className="flex-1 overflow-y-auto px-4 sm:px-5 py-4 space-y-2.5 no-scrollbar">
+          <div className="px-4 sm:px-5 py-4 space-y-2.5">
             {filteredSpots.length === 0 ? (
               <div className="text-center py-10 text-zinc-400 dark:text-zinc-500">
                 <p className="text-sm font-bold">Nenhum ponto encontrado</p>
@@ -237,6 +245,7 @@ export const ImportSpotFloatingModal: React.FC<ImportSpotFloatingModalProps> = (
                 );
               })
             )}
+          </div>
           </div>
         </motion.div>
       </motion.div>

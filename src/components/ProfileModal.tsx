@@ -596,18 +596,37 @@ export const ProfileModal: React.FC<ProfileModalProps> = React.memo(({
             willChange: 'opacity, transform',
           }}
         >
+        {/* Main Content Area (single scroll container so scrolled items glide behind sticky translucent header) */}
+        <div
+          className={`flex-1 min-h-0 overflow-y-auto overscroll-contain w-full flex flex-col transition-colors ${
+            isDark
+              ? 'bg-[#000000] text-white'
+              : 'bg-[#ffffff] text-zinc-950'
+          }`}
+          style={{
+            WebkitOverflowScrolling: 'touch',
+            paddingBottom:
+              activeSubView === 'ajuda-informacoes'
+                ? 'calc(env(safe-area-inset-bottom, 24px) + 140px)'
+                : 'calc(env(safe-area-inset-bottom, 24px) + 90px)',
+          }}
+        >
         {/* Top Header Bar */}
         {activeSubView !== 'ajuda-informacoes' && (
         <div
-          className={`px-5 sm:px-6 pb-2 flex items-center justify-between z-10 shrink-0 transition-colors ${
-            isDark ? 'bg-[#000000] text-white' : 'bg-[#ffffff] text-zinc-950'
+          className={`sticky top-0 z-20 w-full pb-2 shrink-0 transition-colors ${
+            isDark ? 'text-white' : 'text-zinc-950'
           }`}
           style={{
             paddingTop: 'max(calc(env(safe-area-inset-top, 0px) + 12px), 20px)',
             paddingLeft: 'max(20px, env(safe-area-inset-left, 0px))',
             paddingRight: 'max(20px, env(safe-area-inset-right, 0px))',
+            backgroundColor: isDark ? 'rgba(0, 0, 0, 0.40)' : 'rgba(255, 255, 255, 0.40)',
+            backdropFilter: 'blur(8px) saturate(150%)',
+            WebkitBackdropFilter: 'blur(8px) saturate(150%)',
           }}
         >
+          <div className="max-w-3xl mx-auto w-full flex items-center justify-between">
           <div className="flex items-center gap-3">
             {activeSubView !== 'main' ? (
               <AppleBackButton
@@ -632,34 +651,20 @@ export const ProfileModal: React.FC<ProfileModalProps> = React.memo(({
               <button
                 type="button"
                 onClick={() => setIsNotificationsOpen(true)}
-                className={`w-10 h-10 rounded-full flex items-center justify-center transition-colors cursor-pointer ${
-                  isDark ? 'bg-white/10 hover:bg-white/15 text-white' : 'bg-[#fefefe] hover:bg-[#E5E5EA] text-zinc-900 shadow-2xs'
+                className={`w-12 h-12 rounded-full flex items-center justify-center transition-colors cursor-pointer ${
+                  isDark ? 'bg-white/10 hover:bg-white/15 text-white' : 'bg-[#fefefe]/90 hover:bg-[#E5E5EA] text-zinc-900 shadow-2xs'
                 }`}
                 title="Notificações"
                 aria-label="Notificações"
               >
-                <Bell className="w-5 h-5 stroke-[2]" />
+                <Bell className="w-6 h-6 stroke-[2]" />
               </button>
             )}
+          </div>
           </div>
         </div>
         )}
 
-        {/* Main Content Area */}
-        <div
-          className={`flex-1 min-h-0 overflow-y-auto overscroll-contain max-w-3xl mx-auto w-full flex flex-col transition-colors ${
-            isDark
-              ? 'bg-[#000000] text-white'
-              : 'bg-[#ffffff] text-zinc-950'
-          } ${activeSubView === 'ajuda-informacoes' ? 'px-0 pt-0' : 'px-5 sm:px-7'}`}
-          style={{
-            WebkitOverflowScrolling: 'touch',
-            paddingBottom:
-              activeSubView === 'ajuda-informacoes'
-                ? 'calc(env(safe-area-inset-bottom, 24px) + 140px)'
-                : 'calc(env(safe-area-inset-bottom, 24px) + 90px)',
-          }}
-        >
           {/* Hidden File Input for Avatar Upload */}
           <input
             type="file"
@@ -669,6 +674,7 @@ export const ProfileModal: React.FC<ProfileModalProps> = React.memo(({
             className="hidden"
           />
 
+          <div className={activeSubView === 'ajuda-informacoes' ? 'w-full flex-1 flex flex-col' : 'max-w-3xl mx-auto w-full px-5 sm:px-7 flex-1 flex flex-col'}>
           {/* ============================================================ */}
           {/* VIEW 1: MAIN PROFILE (Clean Native Airbnb / iOS Design)       */}
           {/* ============================================================ */}
@@ -680,7 +686,7 @@ export const ProfileModal: React.FC<ProfileModalProps> = React.memo(({
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: -4 }}
             transition={{ duration: 0.18, ease: [0.22, 1, 0.36, 1] }}
-            className="flex-1 flex flex-col w-full transform-gpu"
+            className="flex-1 flex flex-col w-full"
           >
           {activeSubView === 'main' && (
             <div className="space-y-4 pt-1 pb-6">
@@ -709,7 +715,7 @@ export const ProfileModal: React.FC<ProfileModalProps> = React.memo(({
                 }`}
               >
                 <div className="relative mb-3">
-                  <div className={`w-[102px] h-[102px] sm:w-[108px] sm:h-[108px] rounded-full overflow-hidden shadow-md border-2 ${
+                  <div className={`w-[122px] h-[122px] sm:w-[130px] sm:h-[130px] rounded-full overflow-hidden shadow-md border-2 ${
                     isDark ? 'bg-zinc-800 border-zinc-700' : 'bg-zinc-100 border-white'
                   }`}>
                     {userAvatar && !userAvatar.endsWith('fotoperfil.png') ? (
@@ -722,7 +728,7 @@ export const ProfileModal: React.FC<ProfileModalProps> = React.memo(({
                         className="w-full h-full object-cover"
                       />
                     ) : (
-                      <div className="w-full h-full bg-[#EBE9F9] dark:bg-[#2C283C] text-[#5851DB] dark:text-[#A29BFD] text-3xl font-bold flex items-center justify-center">
+                      <div className="w-full h-full bg-[#EBE9F9] dark:bg-[#2C283C] text-[#5851DB] dark:text-[#A29BFD] text-4xl font-bold flex items-center justify-center">
                         {(userName || 'M').charAt(0).toUpperCase()}
                       </div>
                     )}
@@ -1412,6 +1418,7 @@ export const ProfileModal: React.FC<ProfileModalProps> = React.memo(({
           )}
           </motion.div>
           </AnimatePresence>
+          </div>
         </div>
 
         {/* Monvian Premium Modal */}

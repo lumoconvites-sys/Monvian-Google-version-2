@@ -77,41 +77,51 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
               paddingBottom: 'max(env(safe-area-inset-bottom, 20px), 24px)',
             }}
           >
-            {/* iOS Grabber */}
-            <div className="w-full flex justify-center pt-3 pb-1 md:hidden">
+            {/* Scrollable Body including Sticky Blurred Header */}
+            <div className="flex-1 overflow-y-auto flex flex-col">
               <div
-                className={`w-10 h-1.5 rounded-full ${
-                  isDark ? 'bg-zinc-700' : 'bg-zinc-300'
-                }`}
-              />
-            </div>
-
-            {/* Header */}
-            <div className="flex items-center justify-between px-6 pt-3 pb-3 border-b border-black/5 dark:border-white/5">
-              <div>
-                <h2 className="text-xl font-bold tracking-tight">
-                  Configurações
-                </h2>
-                <p className="text-xs text-zinc-500 dark:text-zinc-400 font-medium">
-                  Aparência e preferências do Monvian
-                </p>
-              </div>
-              <button
-                type="button"
-                onClick={onClose}
-                className={`w-9 h-9 rounded-full flex items-center justify-center transition-all active:scale-95 cursor-pointer ${
-                  isDark
-                    ? 'bg-zinc-800 text-zinc-300 hover:text-white'
-                    : 'bg-white text-zinc-600 hover:text-black shadow-xs'
-                }`}
-                aria-label="Fechar configurações"
+                className="sticky top-0 z-20 shrink-0 border-b border-black/5 dark:border-white/5"
+                style={{
+                  backgroundColor: isDark ? 'rgba(18, 18, 20, 0.40)' : 'rgba(254, 254, 254, 0.40)',
+                  backdropFilter: 'blur(8px) saturate(150%)',
+                  WebkitBackdropFilter: 'blur(8px) saturate(150%)',
+                }}
               >
-                <X className="w-5 h-5 stroke-[2.2]" />
-              </button>
-            </div>
+                {/* iOS Grabber */}
+                <div className="w-full flex justify-center pt-3 pb-1 md:hidden">
+                  <div
+                    className={`w-10 h-1.5 rounded-full ${
+                      isDark ? 'bg-zinc-700' : 'bg-zinc-300'
+                    }`}
+                  />
+                </div>
 
-            {/* Body */}
-            <div className="flex-1 overflow-y-auto px-5 py-4 space-y-4">
+                {/* Header */}
+                <div className="flex items-center justify-between px-6 pt-3 pb-3">
+                  <div>
+                    <h2 className="text-xl font-bold tracking-tight">
+                      Configurações
+                    </h2>
+                    <p className="text-xs text-zinc-500 dark:text-zinc-400 font-medium">
+                      Aparência e preferências do Monvian
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={onClose}
+                    className={`w-9 h-9 rounded-full flex items-center justify-center transition-all active:scale-95 cursor-pointer ${
+                      isDark
+                        ? 'bg-zinc-800 text-zinc-300 hover:text-white'
+                        : 'bg-white/90 text-zinc-600 hover:text-black shadow-xs'
+                    }`}
+                    aria-label="Fechar configurações"
+                  >
+                    <X className="w-5 h-5 stroke-[2.2]" />
+                  </button>
+                </div>
+              </div>
+
+              <div className="px-5 py-4 space-y-4">
               {/* SECTION: EFEITOS VISUAIS */}
 
               {/* SECTION: EFEITOS VISUAIS */}
@@ -195,6 +205,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                   </div>
                 </button>
               )}
+              </div>
             </div>
           </motion.div>
         </motion.div>

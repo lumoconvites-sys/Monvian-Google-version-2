@@ -119,17 +119,24 @@ export const ItineraryEditModal: React.FC<ItineraryEditModalProps> = ({
         animate={{ opacity: 1, scale: 1, y: 0 }}
         exit={{ opacity: 0, scale: 0.94, y: 15 }}
         transition={{ type: 'spring', damping: 26, stiffness: 340 }}
-        className={`w-full max-w-md rounded-[32px] p-6 max-h-[85vh] flex flex-col shadow-[0_20px_50px_rgba(0,0,0,0.18)] border ${
+        className={`w-full max-w-md rounded-[32px] max-h-[85vh] overflow-hidden flex flex-col shadow-[0_20px_50px_rgba(0,0,0,0.18)] border ${
           isDark
             ? 'bg-[#000000] text-white border-[#262626]'
             : '!bg-[#ffffff] bg-[#ffffff] text-zinc-900 border-zinc-200/80'
         }`}
         style={{ backgroundColor: isDark ? '#000000' : '#ffffff' }}
       >
+        {/* Scrollable Body with Sticky Translucent Blurred Header */}
+        <div className="flex-1 overflow-y-auto scrollbar-none flex flex-col">
         {/* Header */}
         <div
-          className="flex items-center justify-between pb-3.5 border-b border-zinc-200/80 dark:border-[#262626] shrink-0"
-          style={{ color: isDark ? '#FFFFFF' : '#4f4f4f' }}
+          className="sticky top-0 z-20 px-6 pt-6 pb-3.5 flex items-center justify-between border-b border-zinc-200/60 dark:border-[#262626]/70 shrink-0"
+          style={{
+            color: isDark ? '#FFFFFF' : '#4f4f4f',
+            backgroundColor: isDark ? 'rgba(0, 0, 0, 0.40)' : 'rgba(255, 255, 255, 0.40)',
+            backdropFilter: 'blur(8px) saturate(150%)',
+            WebkitBackdropFilter: 'blur(8px) saturate(150%)',
+          }}
         >
           <div>
             <h2
@@ -155,7 +162,7 @@ export const ItineraryEditModal: React.FC<ItineraryEditModalProps> = ({
         </div>
 
         {/* Steps List */}
-        <div className="flex-1 overflow-y-auto py-3 space-y-2.5 my-1 pr-0.5 scrollbar-none">
+        <div className="px-6 py-4 space-y-2.5">
           {steps.map((step, idx) => (
             <div
               key={step.id}
@@ -213,9 +220,10 @@ export const ItineraryEditModal: React.FC<ItineraryEditModalProps> = ({
             </div>
           ))}
         </div>
+        </div>
 
         {/* Delete Confirmation or Actions */}
-        <div className="pt-3.5 border-t border-zinc-200/80 dark:border-white/10 shrink-0">
+        <div className="px-6 pt-3.5 pb-6 border-t border-zinc-200/80 dark:border-white/10 shrink-0">
           {confirmDelete ? (
             <div className="p-3.5 rounded-[22px] bg-rose-500/10 border border-rose-500/20 text-rose-500 flex flex-col gap-2.5">
               <div className="flex items-center gap-2 text-xs font-bold">

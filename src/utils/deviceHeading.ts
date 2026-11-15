@@ -112,11 +112,6 @@ class DeviceHeadingManager {
     if (this.isPermissionRequired() && !this.hasReceivedSensorData) {
       this.armGestureActivationListeners();
     }
-
-    if (!this.animFrameId) {
-      this.lastAnimTime = 0;
-      this.animFrameId = requestAnimationFrame(this.animationLoop);
-    }
   }
 
   private armGestureActivationListeners() {
@@ -187,10 +182,6 @@ class DeviceHeadingManager {
     if (typeof window === 'undefined') return Promise.resolve(false);
 
     this.isListening = true;
-    if (!this.animFrameId) {
-      this.lastAnimTime = 0;
-      this.animFrameId = requestAnimationFrame(this.animationLoop);
-    }
 
     if (this.hasReceivedSensorData && this.sessionPermissionGranted) {
       this.removeGestureActivationListeners();
@@ -219,10 +210,6 @@ class DeviceHeadingManager {
           this.markPermissionHandled();
           this.removeGestureActivationListeners();
           this.reattachListeners();
-          if (!this.animFrameId && this.isListening) {
-            this.lastAnimTime = 0;
-            this.animFrameId = requestAnimationFrame(this.animationLoop);
-          }
           return true;
         }
       } catch (err) {
@@ -398,9 +385,15 @@ class DeviceHeadingManager {
       this.markPermissionHandled();
       this.removeGestureActivationListeners();
       this.emitToListeners();
-    } else {
-      this.targetHeading = normalizedHeading;
+      return;
     }
+
+    let diff = normalizedHeading - this.targetHeading;
+    while (diff < -180) diff += 360;
+    while (diff > 180) diff -= 360;
+    if (Math.abs(diff) < 0.12) return;
+
+    this.targetHeading = normalizedHeading;
 
     if (this.isListening && !this.animFrameId) {
       this.lastAnimTime = 0;
@@ -416,7 +409,7 @@ class DeviceHeadingManager {
   }
 
   private animationLoop(timestamp?: number) {
-    if (!this.isListening) {
+    if (!this.isListening || !this.hasReceivedSensorData) {
       this.animFrameId = null;
       return;
     }
@@ -425,27 +418,27 @@ class DeviceHeadingManager {
     const dt = this.lastAnimTime ? Math.min((now - this.lastAnimTime) / 1000, 0.08) : 0.016;
     this.lastAnimTime = now;
 
-    if (this.hasReceivedSensorData) {
-      // Shortest angular difference between current and target heading [-180, 180]
-      let diff = this.targetHeading - this.currentHeading;
-      while (diff < -180) diff += 360;
-      while (diff > 180) diff -= 360;
+    // Shortest angular difference between current and target heading [-180, 180]
+    let diff = this.targetHeading - this.currentHeading;
+    while (diff < -180) diff += 360;
+    while (diff > 180) diff -= 360;
 
-      const absDiff = Math.abs(diff);
+    const absDiff = Math.abs(diff);
 
-      if (absDiff > 0.02) {
-        // High-responsiveness Apple Maps style exponential smoothing
-        const lambda = absDiff > 12 ? 28 : absDiff > 2 ? 22 : 16;
-        const factor = Math.min(1, 1 - Math.exp(-lambda * dt));
-        this.currentHeading = (this.currentHeading + diff * factor + 360) % 360;
-        this.emitToListeners();
-      } else if (this.currentHeading !== this.targetHeading) {
+    if (absDiff > 0.15) {
+      // High-responsiveness Apple Maps style exponential smoothing
+      const lambda = absDiff > 12 ? 28 : absDiff > 2 ? 22 : 16;
+      const factor = Math.min(1, 1 - Math.exp(-lambda * dt));
+      this.currentHeading = (this.currentHeading + diff * factor + 360) % 360;
+      this.emitToListeners();
+      this.animFrameId = requestAnimationFrame(this.animationLoop);
+    } else {
+      if (this.currentHeading !== this.targetHeading) {
         this.currentHeading = this.targetHeading;
         this.emitToListeners();
       }
+      this.animFrameId = null;
     }
-
-    this.animFrameId = requestAnimationFrame(this.animationLoop);
   }
 
   private getCompensatedHeading(): number {

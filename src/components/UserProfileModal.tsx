@@ -205,15 +205,18 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
               WebkitMaskImage: '-webkit-radial-gradient(white, black)',
             }}
           >
+            {/* Single Scroll Container so scrolled profile content glides behind sticky blurred top bar */}
+            <div className="flex-1 overflow-y-auto no-scrollbar flex flex-col">
             {/* Top Navigation Bar */}
             <div
-              className={`px-4 sm:px-6 py-3.5 border-b flex items-center justify-between shrink-0 rounded-t-[26px] ${
-                isDark ? 'border-white/10 bg-[#000000]' : 'border-zinc-200 bg-[#ffffff]'
+              className={`sticky top-0 z-20 px-4 sm:px-6 py-3.5 border-b flex items-center justify-between shrink-0 ${
+                isDark ? 'border-white/10' : 'border-zinc-200/70'
               }`}
               style={{
                 paddingTop: 'max(calc(env(safe-area-inset-top, 0px) + 8px), 14px)',
-                borderTopLeftRadius: '26px',
-                borderTopRightRadius: '26px',
+                backgroundColor: isDark ? 'rgba(0, 0, 0, 0.40)' : 'rgba(255, 255, 255, 0.40)',
+                backdropFilter: 'blur(8px) saturate(150%)',
+                WebkitBackdropFilter: 'blur(8px) saturate(150%)',
               }}
             >
               <AppleBackButton
@@ -232,8 +235,8 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
               <div className="w-11 h-11" aria-hidden="true" />
             </div>
 
-            {/* Scrollable Profile Body */}
-            <div className="flex-1 overflow-y-auto no-scrollbar px-4 sm:px-7 py-4 space-y-6">
+            {/* Profile Body */}
+            <div className="px-4 sm:px-7 py-4 space-y-6">
               {loading ? (
                 <div className="py-24 flex flex-col items-center justify-center gap-3">
                   <Loader2 className="w-7 h-7 animate-spin text-zinc-400" />
@@ -418,6 +421,7 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
                   <p className="text-[15px] font-bold">Usuário não encontrado</p>
                 </div>
               )}
+            </div>
             </div>
           </motion.div>
         </div>
@@ -642,8 +646,13 @@ const PostFullscreenPage: React.FC<PostFullscreenPageProps> = ({
     >
       {/* 1. TOP NAVIGATION BAR */}
       <div
-        className="sticky top-0 z-40 bg-black/95 backdrop-blur-md border-b border-white/10 px-3 py-2.5 flex items-center justify-between"
-        style={{ paddingTop: 'max(calc(env(safe-area-inset-top, 0px) + 8px), 14px)' }}
+        className="sticky top-0 z-40 border-b border-white/10 px-3 py-2.5 flex items-center justify-between"
+        style={{
+          paddingTop: 'max(calc(env(safe-area-inset-top, 0px) + 8px), 14px)',
+          backgroundColor: 'rgba(0, 0, 0, 0.40)',
+          backdropFilter: 'blur(8px) saturate(150%)',
+          WebkitBackdropFilter: 'blur(8px) saturate(150%)',
+        }}
       >
         <AppleBackButton
           theme="dark"

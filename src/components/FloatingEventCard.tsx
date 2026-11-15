@@ -104,18 +104,24 @@ export const FloatingEventCard: React.FC<FloatingEventCardProps> = ({
     onActiveChange?.(events.length > 0);
   }, [events.length, onActiveChange]);
 
-  // Synchronize exact horizontal width with #bottom-navigation-capsule
+  // Synchronize exact horizontal width with #bottom-navigation-capsule (rAF-scheduled to avoid synchronous layout reflow)
   useEffect(() => {
-    if (typeof window === 'undefined' || typeof document === 'undefined') return;
+    if (typeof window === 'undefined' || typeof document === 'undefined' || !visible) return;
 
+    let rafId: number | null = null;
     const measureBottomNavWidth = () => {
-      const navCapsule = document.getElementById('bottom-navigation-capsule');
-      if (navCapsule) {
-        const rect = navCapsule.getBoundingClientRect();
-        if (rect.width > 0) {
-          setCapsuleWidth(Math.round(rect.width * 10) / 10);
+      if (rafId !== null) cancelAnimationFrame(rafId);
+      rafId = requestAnimationFrame(() => {
+        rafId = null;
+        const navCapsule = document.getElementById('bottom-navigation-capsule');
+        if (navCapsule) {
+          const rect = navCapsule.getBoundingClientRect();
+          if (rect.width > 0) {
+            const nextW = Math.round(rect.width * 10) / 10;
+            setCapsuleWidth((prev) => (prev === nextW ? prev : nextW));
+          }
         }
-      }
+      });
     };
 
     measureBottomNavWidth();
@@ -123,23 +129,18 @@ export const FloatingEventCard: React.FC<FloatingEventCardProps> = ({
     let resizeObserver: ResizeObserver | null = null;
     const navCapsule = document.getElementById('bottom-navigation-capsule');
     if (navCapsule && typeof ResizeObserver !== 'undefined') {
-      resizeObserver = new ResizeObserver(() => {
-        measureBottomNavWidth();
-      });
+      resizeObserver = new ResizeObserver(measureBottomNavWidth);
       resizeObserver.observe(navCapsule);
     }
 
     window.addEventListener('resize', measureBottomNavWidth, { passive: true });
     window.addEventListener('orientationchange', measureBottomNavWidth, { passive: true });
-    const t1 = window.setTimeout(measureBottomNavWidth, 120);
-    const t2 = window.setTimeout(measureBottomNavWidth, 450);
 
     return () => {
+      if (rafId !== null) cancelAnimationFrame(rafId);
       resizeObserver?.disconnect();
       window.removeEventListener('resize', measureBottomNavWidth);
       window.removeEventListener('orientationchange', measureBottomNavWidth);
-      window.clearTimeout(t1);
-      window.clearTimeout(t2);
     };
   }, [visible, events.length]);
 
@@ -191,29 +192,32 @@ export const FloatingEventCard: React.FC<FloatingEventCardProps> = ({
 
   // Align the minimized event flag icon directly below the right-side map controls (+, -, compass, layers) with the same 12px (gap-3) spacing
   useEffect(() => {
-    if (typeof window === 'undefined' || typeof document === 'undefined') return;
+    if (typeof window === 'undefined' || typeof document === 'undefined' || !visible || !isDismissed) return;
 
+    let rafId: number | null = null;
     const updateFlagAlignment = () => {
-      const controlsEl = document.getElementById('mobile-map-right-controls');
-      if (controlsEl) {
-        const rect = controlsEl.getBoundingClientRect();
-        if (rect.height > 0) {
-          setFlagTopPx(Math.round(rect.bottom + 12));
+      if (rafId !== null) cancelAnimationFrame(rafId);
+      rafId = requestAnimationFrame(() => {
+        rafId = null;
+        const controlsEl = document.getElementById('mobile-map-right-controls');
+        if (controlsEl) {
+          const rect = controlsEl.getBoundingClientRect();
+          if (rect.height > 0) {
+            const nextTop = Math.round(rect.bottom + 12);
+            setFlagTopPx((prev) => (prev === nextTop ? prev : nextTop));
+          }
         }
-      }
+      });
     };
 
     updateFlagAlignment();
     window.addEventListener('resize', updateFlagAlignment, { passive: true });
     window.addEventListener('orientationchange', updateFlagAlignment, { passive: true });
-    const t1 = window.setTimeout(updateFlagAlignment, 60);
-    const t2 = window.setTimeout(updateFlagAlignment, 250);
 
     return () => {
+      if (rafId !== null) cancelAnimationFrame(rafId);
       window.removeEventListener('resize', updateFlagAlignment);
       window.removeEventListener('orientationchange', updateFlagAlignment);
-      window.clearTimeout(t1);
-      window.clearTimeout(t2);
     };
   }, [visible, isDismissed, events.length]);
 

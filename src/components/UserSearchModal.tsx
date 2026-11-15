@@ -140,15 +140,24 @@ export const UserSearchModal: React.FC<UserSearchModalProps> = ({
             isDark ? 'bg-[#000000] text-white' : 'bg-[#ffffff] text-zinc-900'
           }`}
           style={{
-            paddingTop: 'max(calc(env(safe-area-inset-top, 0px) + 8px), 12px)',
             borderTopLeftRadius: '26px',
             borderTopRightRadius: '26px',
             overflow: 'hidden',
             WebkitMaskImage: '-webkit-radial-gradient(white, black)',
           }}
         >
+          {/* Single Scroll Container so scrolled users pass under sticky translucent search bar */}
+          <div className="flex-1 overflow-y-auto no-scrollbar flex flex-col">
           {/* Search Header Bar (Instagram Style) */}
-          <div className="px-4 pb-3 flex items-center gap-2.5 shrink-0 border-b border-white/[0.08] dark:border-white/[0.08]">
+          <div
+            className="sticky top-0 z-20 px-4 pb-3 flex items-center gap-2.5 shrink-0 border-b border-black/[0.06] dark:border-white/[0.08]"
+            style={{
+              paddingTop: 'max(calc(env(safe-area-inset-top, 0px) + 8px), 12px)',
+              backgroundColor: isDark ? 'rgba(0, 0, 0, 0.40)' : 'rgba(255, 255, 255, 0.40)',
+              backdropFilter: 'blur(8px) saturate(150%)',
+              WebkitBackdropFilter: 'blur(8px) saturate(150%)',
+            }}
+          >
             <AppleBackButton
               theme={isDark ? 'dark' : 'light'}
               onClick={onClose}
@@ -159,8 +168,8 @@ export const UserSearchModal: React.FC<UserSearchModalProps> = ({
             {/* Input with Magnifier (WhatsApp iOS style) */}
             <div className={`flex-1 flex items-center gap-2.5 px-3.5 h-[42px] rounded-full transition-colors ${
               isDark
-                ? 'bg-[#202124] text-white'
-                : 'bg-[#f0f2f5] text-[#111b21]'
+                ? 'bg-[#202124]/85 text-white'
+                : 'bg-[#f0f2f5]/85 text-[#111b21]'
             }`}>
               <Search className="w-[18px] h-[18px] text-[#8696a0] dark:text-[#8e8e93] shrink-0 stroke-[2]" />
               <input
@@ -190,14 +199,16 @@ export const UserSearchModal: React.FC<UserSearchModalProps> = ({
             <button
               type="button"
               onClick={onClose}
-              className="px-2 text-[14px] font-semibold text-white hover:text-zinc-300 cursor-pointer"
+              className={`px-2 text-[14px] font-semibold cursor-pointer ${
+                isDark ? 'text-white hover:text-zinc-300' : 'text-zinc-900 hover:text-zinc-600'
+              }`}
             >
               Cancelar
             </button>
           </div>
 
           {/* Search Results / Suggestions List */}
-          <div className="flex-1 overflow-y-auto no-scrollbar px-4 py-3 space-y-1">
+          <div className="px-4 py-3 space-y-1">
             {/* Section label */}
             <div className="px-2 py-1 flex items-center justify-between">
               <span className="text-[12px] font-bold text-zinc-400 uppercase tracking-wider">
@@ -296,6 +307,7 @@ export const UserSearchModal: React.FC<UserSearchModalProps> = ({
                 );
               })
             )}
+          </div>
           </div>
         </motion.div>
       </div>

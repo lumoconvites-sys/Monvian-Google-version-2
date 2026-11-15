@@ -1,16 +1,26 @@
 import React from 'react';
 
-export const Map3DIcon: React.FC<{ className?: string; style?: React.CSSProperties }> = ({
-  className = 'w-[30px] h-[30px] sm:w-[36px] sm:h-[36px]',
+interface Map3DIconProps {
+  mode?: '3D' | '2D';
+  className?: string;
+  style?: React.CSSProperties;
+}
+
+export const Map3DIcon: React.FC<Map3DIconProps> = ({
+  mode = '3D',
+  className = '',
   style,
 }) => (
-  <img
-    src="/assets/aistudio/5323926_d82d0d18.png"
-    alt="Mapa"
-    style={style}
-    draggable={false}
-    className={`object-contain pointer-events-none select-none ${className}`}
-  />
+  <span
+    aria-hidden="true"
+    style={{
+      color: '#111111',
+      ...style,
+    }}
+    className={`inline-flex items-center justify-center font-bold tracking-[-0.03em] leading-none pointer-events-none select-none text-[19px] sm:text-[21px] ${className}`}
+  >
+    {mode}
+  </span>
 );
 
 export default Map3DIcon;

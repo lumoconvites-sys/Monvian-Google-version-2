@@ -794,7 +794,7 @@ export const HelpAndLegalView: React.FC<HelpAndLegalViewProps> = ({
 
   return (
     <div
-      className="w-full min-h-full flex flex-col overflow-hidden bg-[#FFFFFF] text-[#000000]"
+      className="w-full min-h-full flex flex-col overflow-x-clip bg-[#FFFFFF] text-[#000000]"
       style={{
         fontFamily:
           '-apple-system, BlinkMacSystemFont, "SF Pro Text", "SF Pro Display", "Inter", sans-serif',
@@ -802,9 +802,12 @@ export const HelpAndLegalView: React.FC<HelpAndLegalViewProps> = ({
     >
       {/* 1. Cabeçalho de navegação (Padrão nativo iOS: Seta + Perfil, Título centralizado, Linha divisória fina) */}
       <div
-        className="sticky top-0 z-30 w-full px-4 sm:px-6 py-3.5 flex items-center justify-between border-b border-[#E5E7EB] bg-[#FFFFFF]/95 backdrop-blur-xl text-[#000000]"
+        className="sticky top-0 z-30 w-full px-4 sm:px-6 py-3.5 flex items-center justify-between border-b border-[#E5E7EB]/60 text-[#000000]"
         style={{
           paddingTop: 'max(calc(env(safe-area-inset-top, 0px) + 8px), 14px)',
+          backgroundColor: 'rgba(255, 255, 255, 0.40)',
+          backdropFilter: 'blur(8px) saturate(150%)',
+          WebkitBackdropFilter: 'blur(8px) saturate(150%)',
         }}
       >
         <AppleBackButton

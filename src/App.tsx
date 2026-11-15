@@ -210,7 +210,7 @@ export default function App() {
   const [showOnboardingQuestions, setShowOnboardingQuestions] = useState<boolean>(false);
   const [zoomToUserTrigger, setZoomToUserTrigger] = useState<number>(0);
   const [revertSpotZoomTrigger, setRevertSpotZoomTrigger] = useState<number>(0);
-  const [spotPreviewMode, setSpotPreviewMode] = useState<'card' | 'bar'>('card');
+  const [spotPreviewMode, setSpotPreviewMode] = useState<'card' | 'bar'>('bar');
 
   // Settings & Theme modal state
   const [isSettingsModalOpen, setIsSettingsModalOpen] = useState<boolean>(false);
@@ -885,6 +885,7 @@ export default function App() {
   const [systemSettings, setSystemSettings] = useState<Record<string, string>>({});
   const [selectedSpot, setSelectedSpot] = useState<Spot | null>(null);
   const [is3DMode, setIs3DMode] = useState<boolean>(false);
+  const [hasToggled3D, setHasToggled3D] = useState<boolean>(false);
   const [hasActiveMapEvents, setHasActiveMapEvents] = useState<boolean>(false);
 
   const fetchSpots = async () => {
@@ -1424,17 +1425,11 @@ export default function App() {
   }, [spots, searchQuery]);
 
   const isBlurActive = Boolean(isCategoryCardOpen || isSearchOpen);
-  const isSpotFocusActive = Boolean(
-    activeTab === 'explorar' &&
-    isSpotCardOpen &&
-    selectedSpot &&
-    spotPreviewMode === 'card' &&
-    !isBlurActive
-  );
+  const isSpotFocusActive = false;
 
   const handleSelectSpot = useCallback((spot: Spot | null) => {
     setSelectedSpot(spot);
-    setSpotPreviewMode('card');
+    setSpotPreviewMode('bar');
     setIsDetailOpen(false);
   }, []);
 
@@ -1458,8 +1453,7 @@ export default function App() {
 
   // Request or re-trigger high accuracy real geolocation
   const requestRealLocation = () => {
-    if (!isAuthenticated) return;
-    gpsNavigationManager.start();
+    gpsNavigationManager.refreshPositionNow();
   };
 
   useEffect(() => {
@@ -1470,6 +1464,7 @@ export default function App() {
     }
 
     let lastReactSync = 0;
+    let hasSyncedFirstRealFix = false;
     let lastStatus: string = '';
     let lastLng = -45.5870;
     let lastLat = -22.7355;
@@ -1481,9 +1476,17 @@ export default function App() {
       }
 
       const now = performance.now();
-      if (now - lastReactSync > 500) {
+      const shouldSyncImmediately = Boolean(navState.hasRealFix && !hasSyncedFirstRealFix);
+      if (shouldSyncImmediately || now - lastReactSync > 500) {
         const [lng, lat] = navState.coords;
-        if (Math.abs(lng - lastLng) > 0.00004 || Math.abs(lat - lastLat) > 0.00004) {
+        if (
+          shouldSyncImmediately ||
+          Math.abs(lng - lastLng) > 0.00004 ||
+          Math.abs(lat - lastLat) > 0.00004
+        ) {
+          if (navState.hasRealFix) {
+            hasSyncedFirstRealFix = true;
+          }
           lastReactSync = now;
           lastLng = lng;
           lastLat = lat;
@@ -1505,17 +1508,13 @@ export default function App() {
   const handleTabChange = useCallback((tab: TabType) => {
     if (tab === 'explorar') {
       setZoomToUserTrigger((prev) => prev + 1);
-      if (deviceHeadingManager.isPermissionRequired() && !deviceHeadingManager.isPermissionHandled()) {
-        deviceHeadingManager
-          .requestPermission()
-          .then(() => {
-            if (gpsNavigationManager.getState().status !== 'granted') {
-              gpsNavigationManager.requestPermissionAndStartFromGesture();
-            }
-          })
-          .catch(() => {});
-      } else if (gpsNavigationManager.getState().status !== 'granted') {
+      if (gpsNavigationManager.getState().status !== 'granted') {
         gpsNavigationManager.requestPermissionAndStartFromGesture();
+      } else {
+        gpsNavigationManager.refreshPositionNow();
+      }
+      if (deviceHeadingManager.isPermissionRequired() && !deviceHeadingManager.isPermissionHandled()) {
+        deviceHeadingManager.requestPermission().catch(() => {});
       }
       deviceHeadingManager.start();
     } else {
@@ -1692,17 +1691,11 @@ export default function App() {
     deviceHeadingManager.start();
 
     const triggerNativePermissionsOnClick = () => {
-      if (deviceHeadingManager.isPermissionRequired() && !deviceHeadingManager.isPermissionHandled()) {
-        deviceHeadingManager
-          .requestPermission()
-          .then(() => {
-            if (gpsNavigationManager.getState().status !== 'granted') {
-              gpsNavigationManager.requestPermissionAndStartFromGesture();
-            }
-          })
-          .catch(() => {});
-      } else if (gpsNavigationManager.getState().status !== 'granted') {
+      if (gpsNavigationManager.getState().status !== 'granted') {
         gpsNavigationManager.requestPermissionAndStartFromGesture();
+      }
+      if (deviceHeadingManager.isPermissionRequired() && !deviceHeadingManager.isPermissionHandled()) {
+        deviceHeadingManager.requestPermission().catch(() => {});
       }
 
       if (deviceHeadingManager.isPermissionHandled() && gpsNavigationManager.getState().status === 'granted') {
@@ -2032,9 +2025,16 @@ export default function App() {
             )}
           </AnimatePresence>
 
-          {/* Interactive Map Canvas Column (Mounted ONLY when Explorar tab is active) */}
-          {activeTab === 'explorar' && (
-          <div id="app-map-layer" className="flex-1 h-full relative overflow-hidden">
+          {/* Interactive Map Canvas Column (Kept warm in GPU memory so tab switches have zero WebGL rebuild lag) */}
+          <div
+            id="app-map-layer"
+            aria-hidden={activeTab !== 'explorar'}
+            className={
+              activeTab === 'explorar'
+                ? 'flex-1 h-full relative overflow-hidden'
+                : 'fixed inset-0 w-full h-full opacity-0 pointer-events-none -z-10 overflow-hidden'
+            }
+          >
             {/* 1. Interactive Map Engine */}
             <MapComponent
               spots={filteredSpots}
@@ -2048,7 +2048,6 @@ export default function App() {
               userName={user?.name}
               highContrast={highContrast}
               onMapLoad={handleMapLoad}
-              onInteractionChange={setIsMapInteracting}
               zoomToUserTrigger={zoomToUserTrigger}
               revertSpotZoomTrigger={revertSpotZoomTrigger}
               mapMode={mapStyle === 'satelite' ? 'satelite' : 'explorar'}
@@ -2065,23 +2064,27 @@ export default function App() {
             />
 
             {/* 2. Dynamic Rain Particle Effect Overlay (Only active when user enabled AND actually raining in Campos do Jordão) */}
-            <RainEffect
-              enabled={Boolean(rainEnabled && realWeather.isRaining)}
-              weatherCode={realWeather.weatherCode}
-              intensity={realWeather.rainIntensity === 'none' ? 'fraca' : realWeather.rainIntensity}
-              hasLightning={realWeather.hasLightning}
-              theme={theme}
-            />
+            {activeTab === 'explorar' && (
+              <RainEffect
+                enabled={Boolean(rainEnabled && realWeather.isRaining)}
+                weatherCode={realWeather.weatherCode}
+                intensity={realWeather.rainIntensity === 'none' ? 'fraca' : realWeather.rainIntensity}
+                hasLightning={realWeather.hasLightning}
+                theme={theme}
+              />
+            )}
 
             {/* 2.5. Dynamic Snow Particle Effect Overlay (Neve nas Montanhas) */}
-            <SnowEffect
-              enabled={snowEnabled}
-              intensity={(systemSettings.weather_snow_mode as any) || 'moderada'}
-              theme={theme}
-            />
+            {activeTab === 'explorar' && (
+              <SnowEffect
+                enabled={snowEnabled}
+                intensity={(systemSettings.weather_snow_mode as any) || 'moderada'}
+                theme={theme}
+              />
+            )}
 
             {/* DESKTOP MAP FLOATING CONTROLS (Top-Right Apple Style) */}
-            {!isMapOrbiting && !isUserLocationSpotlightActive && (
+            {activeTab === 'explorar' && !isMapOrbiting && !isUserLocationSpotlightActive && (
               <DesktopMapControls
                 currentMode={mapStyle}
                 onChangeMode={setMapStyle}
@@ -2091,7 +2094,6 @@ export default function App() {
               />
             )}
           </div>
-          )}
         </div>
 
       {/* 3. Top Floating Header Bar (MOBILE ONLY: md:hidden, mounted only on Explorar tab) */}
@@ -2172,17 +2174,17 @@ export default function App() {
           <button
             id="btn-3d-toggle"
             type="button"
-            onClick={() => setIs3DMode((prev) => !prev)}
-            className={`w-11 h-11 sm:w-12 sm:h-12 rounded-full expo-liquid-glass-btn flex items-center justify-center transition-all duration-200 active:scale-90 cursor-pointer group shrink-0 ${
-              theme === 'dark'
-                ? 'text-white hover:text-zinc-200'
-                : 'text-black hover:text-zinc-800'
-            }`}
-            style={{ color: theme === 'dark' ? '#FFFFFF' : '#000000' }}
+            onClick={() => {
+              setHasToggled3D(true);
+              setIs3DMode((prev) => !prev);
+            }}
+            className="w-[53px] h-[53px] sm:w-[58px] sm:h-[58px] rounded-full bg-white border border-black/[0.06] shadow-[0_6px_20px_rgba(0,0,0,0.14)] hover:bg-zinc-50 flex items-center justify-center transition-all duration-200 active:scale-90 cursor-pointer group shrink-0"
+            style={{ backgroundColor: '#FFFFFF', color: '#111111' }}
+            aria-label={is3DMode ? 'Alternar para visualização 2D' : 'Alternar para visualização 3D'}
             title={is3DMode ? 'Alternar para visão 2D Plana' : 'Alternar para visão 3D com Relevo e Montanhas'}
           >
-            <div className="relative flex items-center justify-center group-hover:scale-105 transition-transform duration-300">
-              <Map3DIcon className="w-[30px] h-[30px] sm:w-[36px] sm:h-[36px]" />
+            <div className="relative flex items-center justify-center group-hover:scale-105 transition-transform duration-200">
+              <Map3DIcon mode={!hasToggled3D || is3DMode ? '3D' : '2D'} />
             </div>
           </button>
 
@@ -2195,7 +2197,7 @@ export default function App() {
                 setIsCategoryCardOpen((prev) => !prev);
                 setIsSearchOpen(false);
               }}
-              className={`w-11 h-11 sm:w-12 sm:h-12 rounded-full expo-liquid-glass-btn flex items-center justify-center transition-all duration-200 active:scale-90 cursor-pointer group shrink-0 ${
+              className={`w-[53px] h-[53px] sm:w-[58px] sm:h-[58px] rounded-full expo-liquid-glass-btn flex items-center justify-center transition-all duration-200 active:scale-90 cursor-pointer group shrink-0 ${
                 theme === 'dark'
                   ? 'text-white hover:text-zinc-200'
                   : 'text-black hover:text-zinc-800'
@@ -2204,7 +2206,7 @@ export default function App() {
               title={selectedCategoryFilter ? 'Filtro de categoria ativo - Clique para alterar ou limpar' : 'Filtrar por Categoria'}
             >
               <div className="relative flex items-center justify-center group-hover:scale-105 transition-transform duration-300">
-                <SlidersHorizontal className="w-5 h-5 sm:w-6 sm:h-6 stroke-[2]" style={{ color: theme === 'dark' ? '#FFFFFF' : '#000000' }} />
+                <SlidersHorizontal className="w-6 h-6 sm:w-[29px] sm:h-[29px] stroke-[2]" style={{ color: theme === 'dark' ? '#FFFFFF' : '#000000' }} />
               </div>
               {selectedCategoryFilter && (
                 <span className="absolute top-0 right-0 w-2.5 h-2.5 rounded-full bg-blue-500 ring-2 ring-white dark:ring-black" />

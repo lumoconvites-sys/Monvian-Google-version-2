@@ -286,14 +286,9 @@ export const RainEffect: React.FC<RainEffectProps> = ({
       };
     };
 
-    const handleVisibilityChange = () => {
-      isTabVisible = !document.hidden;
-    };
-    document.addEventListener('visibilitychange', handleVisibilityChange);
-
     const render = () => {
       if (!isTabVisible) {
-        animationFrameId = requestAnimationFrame(render);
+        animationFrameId = 0;
         return;
       }
 
@@ -424,10 +419,23 @@ export const RainEffect: React.FC<RainEffectProps> = ({
       animationFrameId = requestAnimationFrame(render);
     };
 
-    animationFrameId = requestAnimationFrame(render);
+    const handleVisibilityChange = () => {
+      isTabVisible = !document.hidden;
+      if (isTabVisible && animationFrameId === 0) {
+        animationFrameId = requestAnimationFrame(render);
+      } else if (!isTabVisible && animationFrameId) {
+        cancelAnimationFrame(animationFrameId);
+        animationFrameId = 0;
+      }
+    };
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+
+    if (isTabVisible) {
+      animationFrameId = requestAnimationFrame(render);
+    }
 
     return () => {
-      cancelAnimationFrame(animationFrameId);
+      if (animationFrameId) cancelAnimationFrame(animationFrameId);
       window.removeEventListener('resize', resize);
       document.removeEventListener('visibilitychange', handleVisibilityChange);
     };

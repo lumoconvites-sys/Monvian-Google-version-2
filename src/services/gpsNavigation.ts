@@ -37,7 +37,9 @@ const COORDS_META_STORAGE_KEY = 'monvian_last_coords_meta';
 const MAX_SAVED_COORDS_AGE_MS = 10 * 60 * 1000; // 10 minutes max for initial fallback cache
 const MAX_ACCEPTABLE_ACCURACY_METERS = 2500;
 const CONTROLLED_REINIT_DELAY_MS = 180; // Short controlled interval during logo loading screen
-const DEFERRED_RETRY_INTERVAL_MS = 9000; // Retry interval if GPS is temporarily unavailable
+const DEFERRED_RETRY_INTERVAL_MS = 3500; // Retry interval if GPS is temporarily unavailable
+const WATCHDOG_INTERVAL_MS = 2200; // Continuous watchdog interval to keep moving location alive
+const MAX_CAR_EXTRAPOLATION_MS = 2200; // Dead-reckoning cap between fixes when driving fast
 
 // Convert degrees to radians and vice versa
 const toRad = (deg: number) => (deg * Math.PI) / 180;
@@ -221,22 +223,49 @@ class GpsNavigationManager {
   private isResetting: boolean = false;
   private hasBootResetExecuted: boolean = false;
   private hasPersistedPermission: boolean = isLocationPreviouslyGranted();
+  private isImmediateRequestInFlight: boolean = false;
+  private lastImmediateRequestAt: number = 0;
 
   constructor() {
     if (typeof window !== 'undefined') {
-      // Automatically re-verify and refresh location when app returns to foreground if needed
+      // Automatically re-verify and refresh location immediately when app returns to foreground
       document.addEventListener(
         'visibilitychange',
         () => {
           if (document.visibilityState === 'visible' && this.isRunning) {
             const ageSinceLastFix = Date.now() - (this.state.lastFixTime || 0);
-            if (!this.state.hasRealFix || ageSinceLastFix > 45000) {
+            if (!this.state.hasRealFix || ageSinceLastFix > 2000) {
               this.requestImmediatePositionUpdate(this.sessionId);
+            }
+            if (this.watchId === null || ageSinceLastFix > 5000) {
+              this.attachSingleWatcher(this.sessionId);
             }
           }
         },
         { passive: true }
       );
+
+      window.addEventListener(
+        'online',
+        () => {
+          if (this.isRunning) {
+            this.requestImmediatePositionUpdate(this.sessionId);
+            if (this.watchId === null) {
+              this.attachSingleWatcher(this.sessionId);
+            }
+          }
+        },
+        { passive: true }
+      );
+    }
+  }
+
+  private hasAuthToken(): boolean {
+    if (typeof window === 'undefined') return false;
+    try {
+      return Boolean(localStorage.getItem('monvian_token') && localStorage.getItem('monvian_user'));
+    } catch {
+      return false;
     }
   }
 
@@ -293,12 +322,6 @@ class GpsNavigationManager {
     if (typeof window === 'undefined' || !('geolocation' in navigator)) return;
 
     try {
-      const token = localStorage.getItem('monvian_token');
-      const savedUser = localStorage.getItem('monvian_user');
-      if (!token || !savedUser) return;
-    } catch {}
-
-    try {
       localStorage.setItem('monvian_location_perm', 'true');
       localStorage.setItem('monvian_location_permission_granted', 'true');
     } catch {}
@@ -310,6 +333,7 @@ class GpsNavigationManager {
     this.isRunning = true;
     this.isResetting = false;
     this.hasBootResetExecuted = true;
+    this.isImmediateRequestInFlight = false;
 
     this.prevRawFix = null;
     this.lastAcceptedDeviceTimestamp = 0;
@@ -324,7 +348,27 @@ class GpsNavigationManager {
     // Call getCurrentPosition & watchPosition synchronously in the same user-gesture tick
     this.requestImmediatePositionUpdate(activeSessionId);
     this.attachSingleWatcher(activeSessionId);
+    this.startWatchdog(activeSessionId);
     this.scheduleDeferredRetry(activeSessionId);
+  }
+
+  /**
+   * Requests an immediate fresh fix without tearing down smooth ongoing tracking.
+   */
+  public refreshPositionNow(): void {
+    if (typeof window === 'undefined' || !('geolocation' in navigator)) return;
+    if (!this.isRunning) {
+      this.requestPermissionAndStartFromGesture();
+      return;
+    }
+    if (this.state.status === 'denied') {
+      this.requestPermissionAndStartFromGesture();
+      return;
+    }
+    this.requestImmediatePositionUpdate(this.sessionId);
+    if (this.watchId === null) {
+      this.attachSingleWatcher(this.sessionId);
+    }
   }
 
   /**
@@ -336,15 +380,6 @@ class GpsNavigationManager {
    */
   public resetSession(): void {
     if (typeof window === 'undefined') return;
-
-    // Never request browser geolocation when user is not logged in
-    try {
-      const token = localStorage.getItem('monvian_token');
-      const savedUser = localStorage.getItem('monvian_user');
-      if (!token || !savedUser) {
-        return;
-      }
-    } catch {}
 
     // Step 1: Check state of the location service used by the app
     if (!('geolocation' in navigator)) {
@@ -360,6 +395,7 @@ class GpsNavigationManager {
     this.state.sessionId = activeSessionId;
     this.isRunning = true;
     this.isResetting = false;
+    this.isImmediateRequestInFlight = false;
 
     // Reset session fix markers so stale coordinates never masquerade as a live fix
     this.prevRawFix = null;
@@ -372,15 +408,17 @@ class GpsNavigationManager {
       this.startAnimationLoop();
     }
 
-    // Preserve existing permissions in background without blocking or overwriting coordinates
-    syncPermissionsFromDatabase()
-      .then((dbSync) => {
-        if (activeSessionId !== this.sessionId) return;
-        if (dbSync.locationGranted) {
-          this.hasPersistedPermission = true;
-        }
-      })
-      .catch(() => {});
+    // Preserve existing permissions in background only when logged in
+    if (this.hasAuthToken()) {
+      syncPermissionsFromDatabase()
+        .then((dbSync) => {
+          if (activeSessionId !== this.sessionId) return;
+          if (dbSync.locationGranted) {
+            this.hasPersistedPermission = true;
+          }
+        })
+        .catch(() => {});
+    }
 
     // Step 3: Immediately register the GPS observer + request fresh fix
     this.registerFreshGpsSession(activeSessionId);
@@ -393,21 +431,18 @@ class GpsNavigationManager {
   public start(): void {
     if (typeof window === 'undefined') return;
 
-    try {
-      const token = localStorage.getItem('monvian_token');
-      const savedUser = localStorage.getItem('monvian_user');
-      if (!token || !savedUser) return;
-    } catch {}
-
     if (!this.hasBootResetExecuted) {
       this.resetSessionOnBoot();
       return;
     }
 
     if (this.isRunning && (this.watchId !== null || this.isResetting)) {
-      // If already running but we don't have a real fix yet, trigger a non-blocking refresh
-      if (!this.state.hasRealFix) {
+      const age = Date.now() - (this.state.lastFixTime || 0);
+      if (!this.state.hasRealFix || age > 3000) {
         this.requestImmediatePositionUpdate(this.sessionId);
+      }
+      if (this.pollIntervalId === null) {
+        this.startWatchdog(this.sessionId);
       }
       return;
     }
@@ -470,6 +505,9 @@ class GpsNavigationManager {
     // Register the single continuous GPS observer synchronously
     this.attachSingleWatcher(targetSessionId);
 
+    // Keep continuous watchdog alive so fast driving / cellular handovers never stall
+    this.startWatchdog(targetSessionId);
+
     // Schedule non-blocking fallback retry in case GPS signal is temporarily unavailable at startup
     this.scheduleDeferredRetry(targetSessionId);
 
@@ -486,7 +524,9 @@ class GpsNavigationManager {
             if (targetSessionId !== this.sessionId) return;
             if (permStatus.state === 'granted') {
               this.hasPersistedPermission = true;
-              saveUserPermissionsToDatabase({ locationGranted: true }).catch(() => {});
+              if (this.hasAuthToken()) {
+                saveUserPermissionsToDatabase({ locationGranted: true }).catch(() => {});
+              }
               this.requestImmediatePositionUpdate(this.sessionId);
               this.attachSingleWatcher(this.sessionId);
             } else if (permStatus.state === 'denied') {
@@ -500,52 +540,124 @@ class GpsNavigationManager {
   }
 
   /**
-   * Requests an immediate fresh position (maximumAge: 0) with fallback if high-accuracy times out
+   * Continuous watchdog: polls fresh coordinates if watchPosition silently stalls while moving
+   * and re-attaches dropped OS watchers automatically.
+   */
+  private startWatchdog(targetSessionId: number): void {
+    if (typeof window === 'undefined') return;
+    if (this.pollIntervalId !== null) {
+      window.clearInterval(this.pollIntervalId);
+      this.pollIntervalId = null;
+    }
+
+    this.pollIntervalId = window.setInterval(() => {
+      if (targetSessionId !== this.sessionId || !this.isRunning) {
+        if (this.pollIntervalId !== null) {
+          window.clearInterval(this.pollIntervalId);
+          this.pollIntervalId = null;
+        }
+        return;
+      }
+
+      if (typeof document !== 'undefined' && document.visibilityState !== 'visible') {
+        return;
+      }
+
+      if (this.state.status === 'denied') {
+        if (typeof navigator.permissions?.query === 'function') {
+          navigator.permissions
+            .query({ name: 'geolocation' as PermissionName })
+            .then((permStatus) => {
+              if (targetSessionId !== this.sessionId || !this.isRunning) return;
+              if (permStatus.state === 'granted' || permStatus.state === 'prompt') {
+                this.state.status = 'locating';
+                this.notify();
+                this.requestImmediatePositionUpdate(targetSessionId);
+                this.attachSingleWatcher(targetSessionId);
+              }
+            })
+            .catch(() => {});
+        }
+        return;
+      }
+
+      const ageSinceLastFix = Date.now() - (this.state.lastFixTime || 0);
+      if (!this.state.hasRealFix || ageSinceLastFix > 2200) {
+        this.requestImmediatePositionUpdate(targetSessionId);
+      }
+
+      if (this.watchId === null || (this.state.hasRealFix && ageSinceLastFix > 7000)) {
+        this.attachSingleWatcher(targetSessionId);
+      }
+    }, WATCHDOG_INTERVAL_MS);
+  }
+
+  /**
+   * Requests an immediate fresh position (maximumAge: 0) with balanced-accuracy fallback
    */
   private requestImmediatePositionUpdate(targetSessionId: number): void {
     if (targetSessionId !== this.sessionId || !('geolocation' in navigator)) return;
 
+    const nowMs = Date.now();
+    if (this.isImmediateRequestInFlight && nowMs - this.lastImmediateRequestAt < 6500) {
+      return;
+    }
+
+    this.isImmediateRequestInFlight = true;
+    this.lastImmediateRequestAt = nowMs;
+
     try {
       navigator.geolocation.getCurrentPosition(
         (pos) => {
+          this.isImmediateRequestInFlight = false;
           this.handleRawFix(pos, targetSessionId);
         },
         (err) => {
-          if (targetSessionId !== this.sessionId) return;
+          if (targetSessionId !== this.sessionId) {
+            this.isImmediateRequestInFlight = false;
+            return;
+          }
           if (err.code === 1) {
+            this.isImmediateRequestInFlight = false;
             // PERMISSION_DENIED
             this.state.status = 'denied';
             this.notify();
             return;
           }
-          // If high-accuracy timed out or position unavailable indoors, try balanced accuracy once
+          // If high-accuracy timed out or position unavailable, try balanced accuracy once
           try {
             navigator.geolocation.getCurrentPosition(
               (fallbackPos) => {
+                this.isImmediateRequestInFlight = false;
                 this.handleRawFix(fallbackPos, targetSessionId);
               },
               () => {
+                this.isImmediateRequestInFlight = false;
                 this.scheduleDeferredRetry(targetSessionId);
               },
               {
                 enableHighAccuracy: false,
-                maximumAge: 15000,
-                timeout: 8000,
+                maximumAge: 3000,
+                timeout: 5000,
               }
             );
-          } catch {}
+          } catch {
+            this.isImmediateRequestInFlight = false;
+          }
         },
         {
           enableHighAccuracy: true,
           maximumAge: 0,
-          timeout: 8000,
+          timeout: 6000,
         }
       );
-    } catch {}
+    } catch {
+      this.isImmediateRequestInFlight = false;
+    }
   }
 
   /**
-   * Ensures at most one watchPosition observer is registered at any time
+   * Ensures at most one continuous watchPosition observer is registered at any time
    */
   private attachSingleWatcher(targetSessionId: number): void {
     if (targetSessionId !== this.sessionId || !('geolocation' in navigator)) return;
@@ -569,13 +681,20 @@ class GpsNavigationManager {
             this.state.status = 'denied';
             this.notify();
           } else {
+            // Clear stalled handle so watchdog/retry cleanly re-subscribes without losing tracking mid-drive
+            if (this.watchId !== null) {
+              try {
+                navigator.geolocation.clearWatch(this.watchId);
+              } catch {}
+              this.watchId = null;
+            }
             this.scheduleDeferredRetry(targetSessionId);
           }
         },
         {
           enableHighAccuracy: true,
-          maximumAge: 5000,
-          timeout: 12000,
+          maximumAge: 0,
+          timeout: 10000,
         }
       );
     } catch (e) {
@@ -585,7 +704,7 @@ class GpsNavigationManager {
   }
 
   /**
-   * If GPS is unavailable or slow during startup, keeps the app functional and retries later
+   * Keeps GPS alive across temporary signal drops / tunnels and re-attaches watcher cleanly
    */
   private scheduleDeferredRetry(targetSessionId: number): void {
     if (targetSessionId !== this.sessionId || !this.isRunning) return;
@@ -597,19 +716,24 @@ class GpsNavigationManager {
     this.retryTimerId = window.setTimeout(() => {
       this.retryTimerId = null;
       if (targetSessionId !== this.sessionId || !this.isRunning) return;
+      if (this.state.status === 'denied') return;
 
-      if (!this.state.hasRealFix) {
+      const ageSinceLastFix = Date.now() - (this.state.lastFixTime || 0);
+      if (!this.state.hasRealFix || ageSinceLastFix > 3000) {
         this.requestImmediatePositionUpdate(targetSessionId);
-        if (this.watchId === null) {
-          this.attachSingleWatcher(targetSessionId);
-        }
+      }
+      if (this.watchId === null) {
+        this.attachSingleWatcher(targetSessionId);
+      }
+      if (!this.state.hasRealFix || this.watchId === null) {
         this.scheduleDeferredRetry(targetSessionId);
       }
     }, DEFERRED_RETRY_INTERVAL_MS);
   }
 
   /**
-   * Validates incoming GPS fix and discards stale, out-of-order, or inaccurate coordinates
+   * Validates incoming GPS fix and discards invalid, severely out-of-order, or transient coarse jumps
+   * without ever permanently freezing location when accuracy degrades during fast driving.
    */
   private isValidAndFreshFix(pos: GeolocationPosition, targetSessionId: number): boolean {
     if (targetSessionId !== this.sessionId || !this.isRunning) return false;
@@ -627,15 +751,20 @@ class GpsNavigationManager {
       return true;
     }
 
-    // 1. Never allow an older device timestamp to overwrite a newer accepted fix
-    if (this.lastAcceptedDeviceTimestamp > 0 && fixTimestamp < this.lastAcceptedDeviceTimestamp) {
+    if (accuracy > MAX_ACCEPTABLE_ACCURACY_METERS) {
       return false;
     }
 
-    // 2. If we already have a reliable real fix in this session, reject sudden low-accuracy regressions
-    if (this.prevRawFix) {
+    // Reject clearly older fixes while allowing minor clock jitter between getCurrentPosition & watchPosition
+    if (this.lastAcceptedDeviceTimestamp > 0 && fixTimestamp < this.lastAcceptedDeviceTimestamp - 1500) {
+      return false;
+    }
+
+    // Only reject sudden extreme low-accuracy cell spikes briefly (< 5s since last fix) so driving handovers never lock location
+    const msSinceLastAccepted = Date.now() - (this.state.lastFixTime || 0);
+    if (this.prevRawFix && msSinceLastAccepted < 5000) {
       const prevAcc = this.prevRawFix.accuracy || 20;
-      if (prevAcc <= 80 && accuracy > Math.max(300, prevAcc * 4)) {
+      if (prevAcc <= 80 && accuracy > Math.max(800, prevAcc * 10)) {
         return false;
       }
     }
@@ -684,7 +813,7 @@ class GpsNavigationManager {
       );
     } catch {}
 
-    if (!this.hasPersistedPermission) {
+    if (!this.hasPersistedPermission && this.hasAuthToken()) {
       this.hasPersistedPermission = true;
       saveUserPermissionsToDatabase({
         locationGranted: true,
@@ -704,11 +833,11 @@ class GpsNavigationManager {
         rawLat
       );
 
-      if (dt > 0.1 && dt < 15) {
+      if (dt > 0.1 && dt < 30) {
         const rawSpeedMps = distance / dt;
         calculatedSpeedKmH = rawSpeedMps * 3.6;
 
-        if (distance > 2) {
+        if (distance > 1.5) {
           computedBearing = calculateBearing(
             this.prevRawFix.lng,
             this.prevRawFix.lat,
@@ -720,17 +849,28 @@ class GpsNavigationManager {
     }
 
     let instantSpeed = 0;
-    if (pos.coords.speed !== null && !isNaN(pos.coords.speed) && pos.coords.speed >= 0) {
-      instantSpeed = pos.coords.speed * 3.6;
+    const hasNativeSpeed =
+      pos.coords.speed !== null &&
+      typeof pos.coords.speed === 'number' &&
+      !isNaN(pos.coords.speed) &&
+      pos.coords.speed >= 0;
+
+    if (hasNativeSpeed) {
+      const nativeSpeedKmH = pos.coords.speed! * 3.6;
+      // Some mobile webviews report native speed as 0 intermittently while moving; fall back to distance/dt
+      instantSpeed =
+        nativeSpeedKmH < 1 && calculatedSpeedKmH > 5 && accuracy <= 150
+          ? calculatedSpeedKmH
+          : nativeSpeedKmH;
     } else {
       instantSpeed = calculatedSpeedKmH;
     }
 
-    if (instantSpeed > 220) {
+    if (instantSpeed > 240) {
       instantSpeed = this.state.speed;
     }
 
-    const alpha = 0.35;
+    const alpha = instantSpeed > 15 ? 0.5 : 0.35;
     const smoothedSpeed = isFirstFixOfSession
       ? instantSpeed
       : this.state.speed * (1 - alpha) + instantSpeed * alpha;
@@ -749,9 +889,9 @@ class GpsNavigationManager {
       rawLat
     );
 
-    // On first valid fix of the session or large position correction (> 100m),
-    // snap immediately to the fresh coordinate so old/fallback coords never linger
-    if (isFirstFixOfSession || distanceFromCurrentInterpolated > 100) {
+    // On first valid fix of the session or very large relocation (> 1.5km),
+    // snap immediately; otherwise smoothly interpolate even at highway driving speeds
+    if (isFirstFixOfSession || distanceFromCurrentInterpolated > 1500) {
       this.startPoint = [rawLng, rawLat];
       this.targetPoint = [rawLng, rawLat];
       this.currentInterpolated = [rawLng, rawLat];
@@ -762,14 +902,14 @@ class GpsNavigationManager {
     }
 
     this.targetHeading = targetHeading;
-    this.expectedDuration = Math.max(400, Math.min(2000, dt * 1000));
+    this.expectedDuration = Math.max(250, Math.min(1200, dt * 1000));
     this.segmentStartTime = nowTime;
 
     this.state.coords = [rawLng, rawLat];
     this.state.instantSpeed = Math.round(instantSpeed * 10) / 10;
     this.state.speed = Math.round(smoothedSpeed * 10) / 10;
-    this.state.isCarMode = false;
-    this.state.isMoving = smoothedSpeed > 3.0;
+    this.state.isCarMode = smoothedSpeed > 15 || (this.state.isCarMode && smoothedSpeed > 8);
+    this.state.isMoving = smoothedSpeed > 2.5;
 
     this.prevRawFix = {
       lng: rawLng,
@@ -781,29 +921,51 @@ class GpsNavigationManager {
     };
 
     this.notify();
+
+    if (this.isRunning && this.animFrameId === null) {
+      this.startAnimationLoop();
+    }
   }
 
   /**
    * 60fps RequestAnimationFrame Animation Loop
-   * Smoothly interpolates coordinates and applies dead-reckoning extrapolation
+   * Smoothly interpolates coordinates and applies dead-reckoning extrapolation,
+   * automatically sleeping when interpolation settles to save CPU/GPU budget for the map.
    */
   private startAnimationLoop(): void {
+    if (this.animFrameId !== null) return;
+
     const frame = (now: number) => {
-      if (!this.isRunning) return;
+      if (!this.isRunning) {
+        this.animFrameId = null;
+        return;
+      }
 
       const elapsed = now - this.segmentStartTime;
-      const duration = this.expectedDuration || 1000;
+      const duration = this.expectedDuration || 800;
       const fraction = Math.min(1.0, elapsed / duration);
 
-      // Smooth cubic ease-out for interpolation between fixes
-      const ease = 1 - Math.pow(1 - fraction, 3);
+      // Keep constant velocity when driving fast (> 8 km/h); ease-out gently when walking/stopping
+      const ease =
+        this.state.isMoving && this.state.speed > 8
+          ? fraction
+          : 1 - Math.pow(1 - fraction, 3);
 
       let currentLng = this.startPoint[0] + (this.targetPoint[0] - this.startPoint[0]) * ease;
       let currentLat = this.startPoint[1] + (this.targetPoint[1] - this.startPoint[1]) * ease;
 
-      // Dead-reckoning extrapolation when moving
-      if (elapsed > duration && this.state.isMoving && this.state.speed > 4) {
-        const extraTimeSec = Math.min(1.5, (elapsed - duration) / 1000);
+      const isExtrapolating =
+        elapsed > duration &&
+        elapsed - duration < MAX_CAR_EXTRAPOLATION_MS &&
+        this.state.isMoving &&
+        this.state.speed > 4;
+
+      // Dead-reckoning extrapolation when moving between GPS fixes
+      if (isExtrapolating) {
+        const extraTimeSec = Math.min(
+          MAX_CAR_EXTRAPOLATION_MS / 1000,
+          (elapsed - duration) / 1000
+        );
         if (extraTimeSec > 0) {
           const speedMps = this.state.speed / 3.6;
           const projectedDist = speedMps * extraTimeSec;
@@ -825,7 +987,10 @@ class GpsNavigationManager {
       } else if (angleDiffVal < 5) {
         angleEase = 0.05;
       }
-      this.currentHeading = lerpAngle(this.currentHeading, this.targetHeading, angleEase);
+      this.currentHeading =
+        angleDiffVal < 0.35
+          ? this.targetHeading
+          : lerpAngle(this.currentHeading, this.targetHeading, angleEase);
 
       const prevLng = this.currentInterpolated[0];
       const prevLat = this.currentInterpolated[1];
@@ -843,6 +1008,16 @@ class GpsNavigationManager {
 
       if (posChanged || headingChanged) {
         this.notify();
+      }
+
+      const settled =
+        fraction >= 1.0 &&
+        !isExtrapolating &&
+        Math.abs(angleDiff(this.targetHeading, this.currentHeading)) < 0.5;
+
+      if (settled) {
+        this.animFrameId = null;
+        return;
       }
 
       this.animFrameId = requestAnimationFrame(frame);

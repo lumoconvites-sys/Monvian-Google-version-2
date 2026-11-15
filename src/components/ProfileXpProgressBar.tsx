@@ -69,11 +69,11 @@ export const ProfileXpProgressBar: React.FC<ProfileXpProgressBarProps> = ({ isDa
       >
         {/* Top Row: Level Title on Left + Current XP / Goal on Right */}
         <div className="flex items-center justify-between gap-2 mb-2.5">
-          <div className="flex items-center gap-2.5 min-w-0">
+          <div className="flex items-center gap-2 min-w-0">
             <img
               src="/assets/aistudio/image-x7AMcdc77bLjrT7fLhP52TPpyoaLvY_64ba28fe.png"
               alt="Troféu"
-              className="w-11 h-11 object-contain shrink-0"
+              className="w-[22px] h-[22px] object-contain shrink-0"
             />
             <span
               className={`text-[13px] sm:text-[14px] font-bold tracking-tight truncate ${

@@ -686,14 +686,19 @@ export const ItinerariesView: React.FC<ItinerariesViewProps> = memo(({
   // Selected day index for multi-day itineraries
   const [selectedDayIndex, setSelectedDayIndex] = useState(0);
 
-  // Active view mode: 'explore' (Roteiros Discovery Screen) or 'map' (Interactive Map)
+  // Active view mode: always load 'map' if user has an active itinerary; otherwise 'explore' (Store)
   const [itineraryViewMode, setItineraryViewMode] = useState<'explore' | 'map'>(() => {
+    if (isOnboardingSelection) return 'explore';
     try {
-      const savedMode = localStorage.getItem('monvian_itinerary_view_mode');
       const cached = localStorage.getItem('monvian_active_itinerary');
-      if (savedMode === 'map' && cached) {
+      if (cached) {
         const parsed = JSON.parse(cached);
-        if (parsed && Array.isArray(parsed.days) && parsed.days.length > 0) {
+        if (
+          parsed &&
+          (parsed.id || parsed.title) &&
+          Array.isArray(parsed.days) &&
+          parsed.days.length > 0
+        ) {
           return 'map';
         }
       }
@@ -1003,6 +1008,75 @@ export const ItinerariesView: React.FC<ItinerariesViewProps> = memo(({
     }).catch(() => {});
   };
 
+  // Create an empty manual itinerary (0 pins / 0 spots) and open the Roteiros map area
+  const handleCreateManualItinerary = () => {
+    const userItinId = `manual-itin-${Date.now()}`;
+    const manualItinerary: Itinerary = {
+      id: userItinId,
+      title: 'Meu Roteiro',
+      description: 'Roteiro personalizado criado manualmente',
+      coverImage: '/hotel.png',
+      daysCount: 1,
+      categories: ['Personalizado'],
+      isActive: true,
+      isRecommended: false,
+      usageCount: 1,
+      isPremium: false,
+      badgeText: 'Grátis',
+      days: [
+        {
+          id: `${userItinId}-d-1`,
+          itineraryId: userItinId,
+          dayNumber: 1,
+          title: 'Dia 1',
+          summary: '',
+          steps: [],
+        },
+      ],
+    };
+
+    hasUserModifiedItineraryRef.current = true;
+    userHasExplicitlyOpenedStoreRef.current = false;
+    setIsStoreOpen(false);
+    setIsExpanded(true);
+    setSelectedDayIndex(0);
+    setSelectedStopId(null);
+    setUserItinerary(manualItinerary);
+
+    try {
+      localStorage.setItem('monvian_active_itinerary', JSON.stringify(manualItinerary));
+      localStorage.setItem('monvian_itinerary_view_mode', 'map');
+    } catch {}
+
+    setItineraryViewMode('map');
+
+    scheduleTimeout(() => {
+      if (mapRef.current) {
+        try {
+          mapRef.current.resize();
+        } catch {}
+        renderRouteAndMarkersRef.current?.(false, [], null, true);
+      }
+    }, 80);
+
+    fetch('/api/user-itineraries', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-session-id': sessionId,
+      },
+      body: JSON.stringify({
+        id: userItinId,
+        title: manualItinerary.title,
+        description: manualItinerary.description,
+        coverImage: manualItinerary.coverImage,
+        daysCount: manualItinerary.daysCount,
+        tripDate: tripDate || '',
+        days: manualItinerary.days,
+      }),
+    }).catch(() => {});
+  };
+
   // Notes Modal state & persistent trip notes
   const [isNotesModalOpen, setIsNotesModalOpen] = useState(false);
   const [tripNoteText, setTripNoteText] = useState<string>(() => {
@@ -1116,6 +1190,13 @@ export const ItinerariesView: React.FC<ItinerariesViewProps> = memo(({
                 if (firstStep?.id) {
                   setSelectedStopId((curr) => curr || firstStep.id);
                 }
+              }
+
+              if (!userHasExplicitlyOpenedStoreRef.current && !isOnboardingSelection) {
+                try {
+                  localStorage.setItem('monvian_itinerary_view_mode', 'map');
+                } catch {}
+                setItineraryViewMode('map');
               }
               return;
             }
@@ -1269,16 +1350,26 @@ export const ItinerariesView: React.FC<ItinerariesViewProps> = memo(({
     }
     setUserItinerary(null);
     localStorage.removeItem('monvian_active_itinerary');
+    try {
+      localStorage.setItem('monvian_itinerary_view_mode', 'explore');
+    } catch {}
     setWizardStep('date');
     setSelectedStopId(null);
+    setIsEditModalOpen(false);
+    setItineraryViewMode('explore');
   };
 
   // Create new itinerary handler
   const handleCreateNewItinerary = () => {
     setUserItinerary(null);
     localStorage.removeItem('monvian_active_itinerary');
+    try {
+      localStorage.setItem('monvian_itinerary_view_mode', 'explore');
+    } catch {}
     setWizardStep('date');
     setSelectedStopId(null);
+    setIsEditModalOpen(false);
+    setItineraryViewMode('explore');
   };
 
   // Save edited itinerary (reordered stops or removed stops)
@@ -2211,9 +2302,10 @@ export const ItinerariesView: React.FC<ItinerariesViewProps> = memo(({
       >
         <AirbnbItineraryExplorer
           onSelectItinerary={handleApplyStoreItinerary}
+          onCreateManualItinerary={isOnboardingSelection ? undefined : handleCreateManualItinerary}
           onOpenMap={() => {
             if (!userItinerary || !userItinerary.days || userItinerary.days.length === 0) {
-              handleApplyStoreItinerary(DEFAULT_CURATED_ITINERARIES[0]);
+              handleCreateManualItinerary();
             } else {
               setIsExpanded(true);
               try {
@@ -2484,8 +2576,20 @@ export const ItinerariesView: React.FC<ItinerariesViewProps> = memo(({
         className="hidden md:flex flex-col absolute top-5 bottom-5 left-5 w-96 lg:w-[420px] z-30 rounded-[28px] overflow-hidden border bg-white dark:bg-[#000000] border-zinc-200/80 dark:border-[#262626] shadow-[0_12px_40px_rgba(0,0,0,0.12)] pointer-events-auto select-none transition-colors duration-200 text-zinc-900 dark:text-white"
         onClick={(e) => e.stopPropagation()}
       >
+        {/* Unified Scroll Container so stops glide softly blurred behind sticky header */}
+        <div
+          className="flex-1 overflow-y-auto custom-scrollbar flex flex-col"
+          onWheel={(e) => e.stopPropagation()}
+        >
         {/* Desktop Panel Header */}
-        <div className="p-4 lg:p-5 pb-3 border-b border-black/10 dark:border-[#262626] shrink-0">
+        <div
+          className="sticky top-0 z-20 p-4 lg:p-5 pb-3 border-b border-black/10 dark:border-[#262626]/70 shrink-0"
+          style={{
+            backgroundColor: isDark ? 'rgba(0, 0, 0, 0.40)' : 'rgba(255, 255, 255, 0.40)',
+            backdropFilter: 'blur(8px) saturate(150%)',
+            WebkitBackdropFilter: 'blur(8px) saturate(150%)',
+          }}
+        >
           <div className="flex items-center justify-between gap-2 mb-2">
             <div className="flex items-center gap-2.5 min-w-0">
               <RoundedNavigationIcon
@@ -2584,11 +2688,10 @@ export const ItinerariesView: React.FC<ItinerariesViewProps> = memo(({
           </div>
         </div>
 
-        {/* Desktop Stops List with Independent Scrolling */}
+        {/* Desktop Stops List */}
         <div
-          className={`flex-1 overflow-y-auto p-3.5 space-y-2.5 custom-scrollbar ${isDark ? 'text-white' : 'text-[#141414]'}`}
+          className={`p-3.5 space-y-2.5 ${isDark ? 'text-white' : 'text-[#141414]'}`}
           style={{ color: isDark ? '#FFFFFF' : '#141414' }}
-          onWheel={(e) => e.stopPropagation()}
         >
           {activeSteps.length > 0 ? (
             activeSteps.map((step, idx) => (
@@ -2751,6 +2854,7 @@ export const ItinerariesView: React.FC<ItinerariesViewProps> = memo(({
               <span style={{ color: isDark ? '#A1A1AA' : '#464646' }}>Adicionar Ponto ao Roteiro</span>
             </button>
           </div>
+        </div>
         </div>
       </aside>
 
