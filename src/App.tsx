@@ -42,6 +42,7 @@ import { FirstSignupWelcomeScreen } from './components/FirstSignupWelcomeScreen'
 import { WelcomeJourneyModal } from './components/WelcomeJourneyModal';
 import { XpRewardNotificationOverlay } from './components/XpRewardNotificationOverlay';
 import { FloatingEventCard } from './components/FloatingEventCard';
+import { WhiteConfettiOverlay } from './components/WhiteConfettiOverlay';
 import {
   ClothingWeatherModal,
 } from './components/ClothingWeatherWidget';
@@ -247,6 +248,7 @@ export default function App() {
     }
   });
   const [isGlobeIntroPlaying, setIsGlobeIntroPlaying] = useState<boolean>(false);
+  const [arrivalConfettiTrigger, setArrivalConfettiTrigger] = useState<number>(0);
   const [signupIntroStage, setSignupIntroStage] = useState<SignupIntroStage>('idle');
   const [isWelcomeJourneyOpen, setIsWelcomeJourneyOpen] = useState<boolean>(false);
   const [pendingWelcomeJourney, setPendingWelcomeJourney] = useState<boolean>(false);
@@ -596,6 +598,7 @@ export default function App() {
     setShowFirstSignupWelcome(false);
     setIsGlobeIntroPending(false);
     setIsGlobeIntroPlaying(false);
+    setArrivalConfettiTrigger(0);
     setSignupIntroStage('idle');
     setPendingWelcomeJourney(false);
     setSelectedItinerary(null);
@@ -1979,6 +1982,7 @@ export default function App() {
     setIsGlobeIntroPlaying(false);
     setIsGlobeIntroPending(false);
     setExplorarEntranceTick((prev) => prev + 1);
+    setArrivalConfettiTrigger((prev) => prev + 1);
   }, []);
 
   const handleAirbnbCardAction = () => {
@@ -3157,6 +3161,14 @@ export default function App() {
         </motion.div>
       )}
     </AnimatePresence>
+
+    {/* White Confetti Burst Overlay (120fps) upon landing in Campos do Jordão */}
+    {activeTab === 'explorar' && arrivalConfettiTrigger > 0 && (
+      <WhiteConfettiOverlay
+        triggerKey={arrivalConfettiTrigger}
+        onComplete={() => setArrivalConfettiTrigger(0)}
+      />
+    )}
 
     {/* First Signup Fullscreen Liquid Glass Welcome Experience */}
     <AnimatePresence>
