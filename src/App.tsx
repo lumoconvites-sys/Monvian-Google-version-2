@@ -34,7 +34,7 @@ import { DesktopMapControls } from './components/desktop/DesktopMapControls';
 import { DesktopExplorePanel } from './components/desktop/DesktopExplorePanel';
 import { startPreloadResources } from './utils/preloadItineraries';
 import { AirbnbPresentationCard, isPresentationCardSeen, markPresentationCardSeen, PresentationTab } from './components/AirbnbPresentationCard';
-import { persistUserToFirestore, syncPermissionsFromDatabase, markWelcomeCardSeen } from './services/firestoreSync';
+import { persistUserToFirestore, syncPermissionsFromDatabase, markWelcomeCardSeen, markGlobeIntroSeen } from './services/firestoreSync';
 import { fetchSpotsFromSupabase, subscribeToSpotsChanges } from './services/supabaseSpots';
 import { broadcastPlatanosWalletUpdate, getAuthHeaders } from './hooks/usePlatanos';
 import { SignupIntroSequence, SignupIntroStage } from './components/SignupIntroSequence';
@@ -232,6 +232,21 @@ export default function App() {
       return false;
     }
   });
+  const [isGlobeIntroPending, setIsGlobeIntroPending] = useState<boolean>(() => {
+    try {
+      const savedUser = localStorage.getItem('monvian_user');
+      if (!savedUser) return false;
+      const parsed = JSON.parse(savedUser);
+      const email = String(parsed?.email || parsed?.whatsapp || '').trim().toLowerCase();
+      if (!email) return false;
+      if (parsed?.globe_intro_seen === 1) return false;
+      if (localStorage.getItem(`monvian_globe_intro_seen_${email}`) === '1') return false;
+      return localStorage.getItem(`monvian_globe_intro_pending_${email}`) === '1';
+    } catch {
+      return false;
+    }
+  });
+  const [isGlobeIntroPlaying, setIsGlobeIntroPlaying] = useState<boolean>(false);
   const [signupIntroStage, setSignupIntroStage] = useState<SignupIntroStage>('idle');
   const [isWelcomeJourneyOpen, setIsWelcomeJourneyOpen] = useState<boolean>(false);
   const [pendingWelcomeJourney, setPendingWelcomeJourney] = useState<boolean>(false);
@@ -579,6 +594,8 @@ export default function App() {
     hasExecutedSignupIntroRef.current = false;
     setIsOnboardingItinerarySelection(false);
     setShowFirstSignupWelcome(false);
+    setIsGlobeIntroPending(false);
+    setIsGlobeIntroPlaying(false);
     setSignupIntroStage('idle');
     setPendingWelcomeJourney(false);
     setSelectedItinerary(null);
@@ -654,6 +671,17 @@ export default function App() {
             localStorage.getItem(`monvian_first_welcome_pending_${userEmail}`) === '1'
           ) {
             setShowFirstSignupWelcome(true);
+          }
+          if (normalized.globe_intro_seen === 1) {
+            localStorage.setItem(`monvian_globe_intro_seen_${userEmail}`, '1');
+            localStorage.removeItem(`monvian_globe_intro_pending_${userEmail}`);
+            setIsGlobeIntroPending(false);
+            setIsGlobeIntroPlaying(false);
+          } else if (
+            localStorage.getItem(`monvian_globe_intro_seen_${userEmail}`) !== '1' &&
+            localStorage.getItem(`monvian_globe_intro_pending_${userEmail}`) === '1'
+          ) {
+            setIsGlobeIntroPending(true);
           }
         } catch {}
       }
@@ -1231,7 +1259,9 @@ export default function App() {
       !isDetailOpen &&
       !isUserLocationSpotlightActive &&
       !isOnboardingItinerarySelection &&
-      !showFirstSignupWelcome
+      !showFirstSignupWelcome &&
+      !isGlobeIntroPending &&
+      !isGlobeIntroPlaying
     ) {
       setZoomToUserTrigger((prev) => prev + 1);
     }
@@ -1243,6 +1273,8 @@ export default function App() {
     isUserLocationSpotlightActive,
     isOnboardingItinerarySelection,
     showFirstSignupWelcome,
+    isGlobeIntroPending,
+    isGlobeIntroPlaying,
   ]);
 
   const handleVoiceSearch = () => {
@@ -1648,11 +1680,13 @@ export default function App() {
       (justEnteredApp || justReturnedToExplorar) &&
       !isUserLocationSpotlightActive &&
       !isOnboardingItinerarySelection &&
-      !showFirstSignupWelcome
+      !showFirstSignupWelcome &&
+      !isGlobeIntroPending &&
+      !isGlobeIntroPlaying
     ) {
       setZoomToUserTrigger((prev) => prev + 1);
     }
-  }, [isAuthenticated, activeTab, isUserLocationSpotlightActive, isOnboardingItinerarySelection, showFirstSignupWelcome]);
+  }, [isAuthenticated, activeTab, isUserLocationSpotlightActive, isOnboardingItinerarySelection, showFirstSignupWelcome, isGlobeIntroPending, isGlobeIntroPlaying]);
 
   useEffect(() => {
     if (!isAuthenticated || activeTab !== 'explorar') return;
@@ -1832,7 +1866,9 @@ export default function App() {
       showWelcomeOverlay ||
       isSignupRevealActive ||
       isOnboardingItinerarySelection ||
-      showFirstSignupWelcome
+      showFirstSignupWelcome ||
+      isGlobeIntroPending ||
+      isGlobeIntroPlaying
     ) {
       setAirbnbCardTab(null);
       return;
@@ -1855,11 +1891,25 @@ export default function App() {
     isSignupRevealActive,
     isOnboardingItinerarySelection,
     showFirstSignupWelcome,
+    isGlobeIntroPending,
+    isGlobeIntroPlaying,
   ]);
 
   const handleDismissFirstSignupWelcome = useCallback(() => {
+    // Synchronously capture user tap gesture on iOS Safari for real device geolocation
+    try {
+      if (gpsNavigationManager.getState().status !== 'granted') {
+        gpsNavigationManager.requestPermissionAndStartFromGesture();
+      } else {
+        gpsNavigationManager.refreshPositionNow();
+      }
+      if (deviceHeadingManager.isPermissionRequired() && !deviceHeadingManager.isPermissionHandled()) {
+        deviceHeadingManager.requestPermission().catch(() => {});
+      }
+      deviceHeadingManager.start();
+    } catch {}
+
     setShowFirstSignupWelcome(false);
-    setExplorarEntranceTick((prev) => prev + 1);
     const cleanEmail = (user?.email || user?.whatsapp || '').trim().toLowerCase();
     const token = (() => {
       try {
@@ -1876,21 +1926,60 @@ export default function App() {
       }
     } catch {}
 
-    setUser((prev: any) => {
-      if (!prev) return prev;
-      const updated = { ...prev, welcome_card_seen: 1 };
-      if (token) {
-        savePersistentSession(token, updated).catch(() => {});
+    const shouldPlayGlobeFlight = Boolean(
+      isGlobeIntroPending &&
+        user?.globe_intro_seen !== 1 &&
+        (!cleanEmail || localStorage.getItem(`monvian_globe_intro_seen_${cleanEmail}`) !== '1')
+    );
+
+    if (shouldPlayGlobeFlight) {
+      try {
+        if (cleanEmail) {
+          localStorage.setItem(`monvian_globe_intro_seen_${cleanEmail}`, '1');
+          localStorage.removeItem(`monvian_globe_intro_pending_${cleanEmail}`);
+        }
+      } catch {}
+
+      setUser((prev: any) => {
+        if (!prev) return prev;
+        const updated = { ...prev, welcome_card_seen: 1, globe_intro_seen: 1 };
+        if (token) {
+          savePersistentSession(token, updated).catch(() => {});
+        }
+        return updated;
+      });
+
+      if (cleanEmail || token) {
+        markWelcomeCardSeen(cleanEmail, token).catch(() => {});
+        markGlobeIntroSeen(cleanEmail, token).catch(() => {});
       }
-      return updated;
-    });
 
-    if (cleanEmail || token) {
-      markWelcomeCardSeen(cleanEmail, token).catch(() => {});
+      setIsGlobeIntroPending(false);
+      setIsGlobeIntroPlaying(true);
+    } else {
+      setExplorarEntranceTick((prev) => prev + 1);
+      setUser((prev: any) => {
+        if (!prev) return prev;
+        const updated = { ...prev, welcome_card_seen: 1 };
+        if (token) {
+          savePersistentSession(token, updated).catch(() => {});
+        }
+        return updated;
+      });
+
+      if (cleanEmail || token) {
+        markWelcomeCardSeen(cleanEmail, token).catch(() => {});
+      }
+
+      setZoomToUserTrigger((prev) => prev + 1);
     }
+  }, [user, isGlobeIntroPending]);
 
-    setZoomToUserTrigger((prev) => prev + 1);
-  }, [user]);
+  const handleGlobeIntroComplete = useCallback(() => {
+    setIsGlobeIntroPlaying(false);
+    setIsGlobeIntroPending(false);
+    setExplorarEntranceTick((prev) => prev + 1);
+  }, []);
 
   const handleAirbnbCardAction = () => {
     if (!airbnbCardTab) return;
@@ -2068,6 +2157,23 @@ export default function App() {
                 setShowFirstSignupWelcome(false);
               }
 
+              const hasSeenGlobeIntro = Boolean(
+                normalizedUser?.globe_intro_seen === 1 ||
+                  (cleanEmail && localStorage.getItem(`monvian_globe_intro_seen_${cleanEmail}`) === '1')
+              );
+              if (isNewAccount && !hasSeenGlobeIntro) {
+                try {
+                  if (cleanEmail) {
+                    localStorage.setItem(`monvian_globe_intro_pending_${cleanEmail}`, '1');
+                  }
+                } catch {}
+                setIsGlobeIntroPending(true);
+                setIsGlobeIntroPlaying(false);
+              } else {
+                setIsGlobeIntroPending(false);
+                setIsGlobeIntroPlaying(false);
+              }
+
               if (isNewAccount) {
                 markPresentationCardSeen('explorar');
                 markPresentationCardSeen('roteiros');
@@ -2140,7 +2246,7 @@ export default function App() {
       <OfflineIndicator />
 
       {/* Desktop Left Sidebar (Only visible on md+ >= 768px, hidden during exclusive post-signup itinerary selection, welcome screen & spotlight) */}
-      {!isOnboardingItinerarySelection && !isUserLocationSpotlightActive && !showFirstSignupWelcome && (
+      {!isOnboardingItinerarySelection && !isUserLocationSpotlightActive && !showFirstSignupWelcome && !isGlobeIntroPlaying && (
         <DesktopSidebar
           activeTab={activeTab}
           onChangeTab={handleTabChange}
@@ -2176,7 +2282,7 @@ export default function App() {
         <div className="w-full h-full flex flex-row relative overflow-hidden">
           {/* DESKTOP EXPLORE PANEL (Side-by-side Discovery Column on md+ when activeTab === 'explorar') */}
           <AnimatePresence>
-            {activeTab === 'explorar' && !isMapOrbiting && !isUserLocationSpotlightActive && !showFirstSignupWelcome && (
+            {activeTab === 'explorar' && !isMapOrbiting && !isUserLocationSpotlightActive && !showFirstSignupWelcome && !isGlobeIntroPlaying && (
               <motion.div
                 key={`desktop-explore-panel-wrapper-${explorarEntranceTick}`}
                 initial={
@@ -2249,6 +2355,9 @@ export default function App() {
               isSpotlightActive={isUserLocationSpotlightActive}
               isFocusMode={isSpotFocusActive}
               activeTab={activeTab}
+              isGlobeIntroPending={isGlobeIntroPending}
+              isGlobeIntroPlaying={isGlobeIntroPlaying}
+              onGlobeIntroComplete={handleGlobeIntroComplete}
             />
 
             {/* 2. Dynamic Rain Particle Effect Overlay (Only active when user enabled AND actually raining in Campos do Jordão) */}
@@ -2272,7 +2381,7 @@ export default function App() {
             )}
 
             {/* DESKTOP MAP FLOATING CONTROLS (Top-Right Apple Style) */}
-            {activeTab === 'explorar' && !isMapOrbiting && !isUserLocationSpotlightActive && !showFirstSignupWelcome && (
+            {activeTab === 'explorar' && !isMapOrbiting && !isUserLocationSpotlightActive && !showFirstSignupWelcome && !isGlobeIntroPlaying && (
               <DesktopMapControls
                 currentMode={mapStyle}
                 onChangeMode={setMapStyle}
@@ -2286,7 +2395,7 @@ export default function App() {
 
       {/* 3. Top Floating Header Bar (MOBILE ONLY: md:hidden, mounted only on Explorar tab) */}
       <AnimatePresence>
-        {activeTab === 'explorar' && !isMapOrbiting && !isUserLocationSpotlightActive && !showFirstSignupWelcome && (
+        {activeTab === 'explorar' && !isMapOrbiting && !isUserLocationSpotlightActive && !showFirstSignupWelcome && !isGlobeIntroPlaying && (
           <motion.header
             key={`explore-mobile-header-${explorarEntranceTick}`}
             initial={
@@ -2644,7 +2753,8 @@ export default function App() {
         !isDetailOpen &&
         !isMapOrbiting &&
         !isOnboardingItinerarySelection &&
-        !showFirstSignupWelcome && (
+        !showFirstSignupWelcome &&
+        !isGlobeIntroPlaying && (
           <motion.div
             key={`explore-event-card-${explorarEntranceTick}`}
             initial={
@@ -2674,7 +2784,8 @@ export default function App() {
     {activeTab === 'explorar' &&
       !isMapOrbiting &&
       !isOnboardingItinerarySelection &&
-      !showFirstSignupWelcome && (
+      !showFirstSignupWelcome &&
+      !isGlobeIntroPlaying && (
         <XpRewardNotificationOverlay visible={true} />
       )}
 
@@ -2720,7 +2831,7 @@ export default function App() {
 
     {/* 4. Bottom Navigation Pill rendered at root level (Visible ONLY on mobile, hidden during detail sheet, exclusive post-signup welcome/itinerary selection & spotlight presentation) */}
     <AnimatePresence>
-      {!isMapOrbiting && !isOnboardingItinerarySelection && !isDetailOpen && !showFirstSignupWelcome && (
+      {!isMapOrbiting && !isOnboardingItinerarySelection && !isDetailOpen && !showFirstSignupWelcome && !isGlobeIntroPlaying && (
         <motion.div
           key={`bottom-nav-shell-${explorarEntranceTick}`}
           initial={

@@ -5,7 +5,7 @@ import { animate } from 'motion/react';
 import { Spot, MapModeType } from '../types';
 import { getSpotImage, getSpotFallbackImage } from '../utils/spotImages';
 import { generateMarkerHtml, MAP_VISUAL_ICON_CATEGORIES } from '../utils/mapVisualIcons';
-import { gpsNavigationManager } from '../services/gpsNavigation';
+import { gpsNavigationManager, calculateHaversineDistance } from '../services/gpsNavigation';
 import { monvianXpManager } from '../services/xpService';
 import { deviceHeadingManager } from '../utils/deviceHeading';
 import { triggerHapticFeedback } from '../utils/haptics';
@@ -55,6 +55,9 @@ interface MapComponentProps {
   isSpotlightActive?: boolean;
   isFocusMode?: boolean;
   activeTab?: string;
+  isGlobeIntroPending?: boolean;
+  isGlobeIntroPlaying?: boolean;
+  onGlobeIntroComplete?: () => void;
 }
 
 const getMapboxToken = (): string => {
@@ -69,17 +72,63 @@ const getMapboxToken = (): string => {
   }
 };
 
+const getCleanSpaceSky = (theme: 'dark' | 'light'): maplibregl.SkySpecification => ({
+  'sky-color': [
+    'interpolate',
+    ['linear'],
+    ['zoom'],
+    6.5,
+    '#000000',
+    9.2,
+    theme === 'dark' ? '#0b0f17' : '#dce8f5',
+  ],
+  'horizon-color': [
+    'interpolate',
+    ['linear'],
+    ['zoom'],
+    6.5,
+    '#000000',
+    9.2,
+    theme === 'dark' ? '#111827' : '#eef4fa',
+  ],
+  'fog-color': [
+    'interpolate',
+    ['linear'],
+    ['zoom'],
+    6.5,
+    '#000000',
+    9.2,
+    theme === 'dark' ? '#0b0f17' : '#edf2f7',
+  ],
+  'sky-horizon-blend': ['interpolate', ['linear'], ['zoom'], 6.5, 0, 9.2, 0.55],
+  'horizon-fog-blend': 0,
+  'fog-ground-blend': 0,
+  'atmosphere-blend': 0,
+});
+
+const getOrbitalEarthZoom = (): number => {
+  if (typeof window === 'undefined') return 1.1;
+  const minDim = Math.min(window.innerWidth || 375, window.innerHeight || 667);
+  const targetDiameterPx = Math.max(245, Math.min(minDim * 0.76, 610));
+  const computed = Math.log2(targetDiameterPx / 162.97);
+  return Number(Math.max(0.55, Math.min(2.15, computed)).toFixed(2));
+};
+
 const getVectorMapStyle = (
   mode: MapModeType,
   theme: 'dark' | 'light'
 ): maplibregl.StyleSpecification => {
   const token = getMapboxToken();
+  const globeProjection: maplibregl.ProjectionSpecification = { type: 'globe' };
+  const spaceSky = getCleanSpaceSky(theme);
 
   // 1. Satellite Mode
   if (mode === 'satelite') {
     if (token) {
       return {
         version: 8,
+        projection: globeProjection,
+        sky: spaceSky,
         sources: {
           'mapbox-sat': {
             type: 'raster',
@@ -112,6 +161,8 @@ const getVectorMapStyle = (
     // High-Resolution Esri World Imagery + Reference Labels (Boundaries, Roads & Places)
     return {
       version: 8,
+      projection: globeProjection,
+      sky: spaceSky,
       sources: {
         'esri-sat': {
           type: 'raster',
@@ -160,12 +211,65 @@ const getVectorMapStyle = (
     };
   }
 
+  // Orbital satellite base sources for realistic 3D Earth view at global/continental zoom in standard mode
+  const orbitalSatSources: Record<string, maplibregl.SourceSpecification> = {
+    'orbital-sat': {
+      type: 'raster',
+      tiles: [
+        'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
+      ],
+      tileSize: 256,
+      maxzoom: 10,
+      attribution: '&copy; Esri, Maxar',
+    },
+    'orbital-ref': {
+      type: 'raster',
+      tiles: [
+        'https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Boundaries_and_Places/MapServer/tile/{z}/{y}/{x}',
+      ],
+      tileSize: 256,
+      maxzoom: 10,
+      attribution: '&copy; Esri',
+    },
+  };
+
+  const orbitalSatLayers: maplibregl.LayerSpecification[] = [
+    {
+      id: 'orbital-sat-layer',
+      type: 'raster',
+      source: 'orbital-sat',
+      minzoom: 0,
+      maxzoom: 10,
+      paint: {
+        'raster-brightness-min': 0.2,
+        'raster-brightness-max': 1.0,
+        'raster-contrast': 0.14,
+        'raster-saturation': 0.2,
+        'raster-fade-duration': 220,
+      },
+    },
+    {
+      id: 'orbital-ref-layer',
+      type: 'raster',
+      source: 'orbital-ref',
+      minzoom: 0,
+      maxzoom: 10,
+      paint: {
+        'raster-opacity': 0.92,
+        'raster-fade-duration': 220,
+      },
+    },
+  ];
+
   // 2. Standard Streets / Dark Mode
   if (token) {
     const styleId = theme === 'dark' ? 'mapbox/dark-v11' : 'mapbox/streets-v12';
     return {
       version: 8,
+      projection: globeProjection,
+      sky: spaceSky,
       sources: {
+        ...orbitalSatSources,
         'mapbox-tiles': {
           type: 'raster',
           tiles: [
@@ -176,13 +280,15 @@ const getVectorMapStyle = (
         },
       },
       layers: [
+        ...orbitalSatLayers,
         {
           id: 'mapbox-tiles-layer',
           type: 'raster',
           source: 'mapbox-tiles',
-          minzoom: 0,
+          minzoom: 5,
           maxzoom: 22,
           paint: {
+            'raster-opacity': ['interpolate', ['linear'], ['zoom'], 6.0, 0, 8.6, 1],
             'raster-fade-duration': 240,
           },
         },
@@ -194,7 +300,10 @@ const getVectorMapStyle = (
   if (theme === 'dark') {
     return {
       version: 8,
+      projection: globeProjection,
+      sky: spaceSky,
       sources: {
+        ...orbitalSatSources,
         'carto-dark': {
           type: 'raster',
           tiles: [
@@ -208,13 +317,15 @@ const getVectorMapStyle = (
         },
       },
       layers: [
+        ...orbitalSatLayers,
         {
           id: 'carto-dark-layer',
           type: 'raster',
           source: 'carto-dark',
-          minzoom: 0,
+          minzoom: 5,
           maxzoom: 20,
           paint: {
+            'raster-opacity': ['interpolate', ['linear'], ['zoom'], 6.0, 0, 8.6, 1],
             'raster-fade-duration': 240,
           },
         },
@@ -225,7 +336,10 @@ const getVectorMapStyle = (
   // Esri World Street Map (Light mode)
   return {
     version: 8,
+    projection: globeProjection,
+    sky: spaceSky,
     sources: {
+      ...orbitalSatSources,
       'esri-street': {
         type: 'raster',
         tiles: [
@@ -236,13 +350,15 @@ const getVectorMapStyle = (
       },
     },
     layers: [
+      ...orbitalSatLayers,
       {
         id: 'esri-street-layer',
         type: 'raster',
         source: 'esri-street',
-        minzoom: 0,
+        minzoom: 5,
         maxzoom: 20,
         paint: {
+          'raster-opacity': ['interpolate', ['linear'], ['zoom'], 6.0, 0, 8.6, 1],
           'raster-fade-duration': 240,
         },
       },
@@ -295,6 +411,9 @@ export const MapComponent = memo(
       isSpotlightActive = false,
       isFocusMode = false,
       activeTab,
+      isGlobeIntroPending = false,
+      isGlobeIntroPlaying = false,
+      onGlobeIntroComplete,
     },
     ref
   ) => {
@@ -354,6 +473,19 @@ export const MapComponent = memo(
     activeTabRef.current = activeTab;
     const isFocusModeRef = useRef<boolean>(isFocusMode);
     isFocusModeRef.current = isFocusMode;
+    const isGlobeIntroPendingRef = useRef<boolean>(isGlobeIntroPending);
+    isGlobeIntroPendingRef.current = isGlobeIntroPending;
+    const isGlobeIntroPlayingRef = useRef<boolean>(isGlobeIntroPlaying);
+    isGlobeIntroPlayingRef.current = isGlobeIntroPlaying;
+    const isGlobeIntroActiveRef = useRef<boolean>(Boolean(isGlobeIntroPending || isGlobeIntroPlaying));
+    isGlobeIntroActiveRef.current = Boolean(isGlobeIntroPending || isGlobeIntroPlaying);
+    const onGlobeIntroCompleteRef = useRef(onGlobeIntroComplete);
+    onGlobeIntroCompleteRef.current = onGlobeIntroComplete;
+    const [isSpaceBackgroundActive, setIsSpaceBackgroundActive] = useState<boolean>(
+      Boolean(isGlobeIntroPending || isGlobeIntroPlaying)
+    );
+    const hasCompletedGlobeFlightRef = useRef<boolean>(false);
+    const markerZoomTierRef = useRef<'orbital' | 'regional' | 'city'>('city');
     const latestUserCoordsRef = useRef<[number, number]>(
       normalizeCoords(userCoords, [-45.5908, -22.7394])
     );
@@ -564,6 +696,7 @@ export const MapComponent = memo(
           userMarkerRef.current = new maplibregl.Marker({
             element: rootEl,
             anchor: 'center',
+            opacityWhenCovered: '0',
           })
             .setLngLat(initialLngLat)
             .addTo(map);
@@ -676,16 +809,10 @@ export const MapComponent = memo(
       },
     }));
 
-    const frameAllSpotsOverview = useCallback(
-      (targetMap?: maplibregl.Map | null, animate: boolean = false) => {
+    // Compute exact framing parameters for Campos do Jordão overview
+    const getCamposOverviewCamera = useCallback(
+      (targetMap?: maplibregl.Map | null): { center: [number, number]; zoom: number } => {
         const map = targetMap || mapRef.current;
-        if (!map) return;
-
-        setFollowMode(false);
-        previousCameraStateRef.current = null;
-        hasUserMovedMapRef.current = false;
-        map.resize();
-
         const currentSpots = spotsRef.current || [];
         const camposSpots = currentSpots.filter((s) => {
           const lng = Number(s.lng);
@@ -703,7 +830,7 @@ export const MapComponent = memo(
         let targetCenter: [number, number] = CAMPOS_OVERVIEW_CENTER;
         let targetZoom: number = CAMPOS_OVERVIEW_ZOOM;
 
-        if (camposSpots.length >= 2) {
+        if (map && camposSpots.length >= 2) {
           try {
             const bounds = new maplibregl.LngLatBounds();
             camposSpots.forEach((s) => {
@@ -724,7 +851,24 @@ export const MapComponent = memo(
           } catch {}
         }
 
-        if (animate) {
+        return { center: targetCenter, zoom: targetZoom };
+      },
+      []
+    );
+
+    const frameAllSpotsOverview = useCallback(
+      (targetMap?: maplibregl.Map | null, animateCamera: boolean = false) => {
+        const map = targetMap || mapRef.current;
+        if (!map) return;
+
+        setFollowMode(false);
+        previousCameraStateRef.current = null;
+        hasUserMovedMapRef.current = false;
+        map.resize();
+
+        const { center: targetCenter, zoom: targetZoom } = getCamposOverviewCamera(map);
+
+        if (animateCamera) {
           map.easeTo({
             center: targetCenter,
             zoom: targetZoom,
@@ -742,7 +886,7 @@ export const MapComponent = memo(
           });
         }
       },
-      [setFollowMode]
+      [setFollowMode, getCamposOverviewCamera]
     );
 
     // Synchronize mode from prop if provided (excluding dark map mode)
@@ -764,13 +908,16 @@ export const MapComponent = memo(
 
       if (!mapRef.current) {
         prevStyleKeyRef.current = styleKey;
+        const startOrbital = isGlobeIntroActiveRef.current;
         const map = new maplibregl.Map({
           container: mapContainerRef.current,
           style: style,
-          center: CAMPOS_OVERVIEW_CENTER,
-          zoom: CAMPOS_OVERVIEW_ZOOM,
-          pitch: is3DModeRef.current ? 60 : 0,
-          bearing: is3DModeRef.current ? -20 : 0,
+          center: startOrbital ? [-22, -10] : CAMPOS_OVERVIEW_CENTER,
+          zoom: startOrbital ? getOrbitalEarthZoom() : CAMPOS_OVERVIEW_ZOOM,
+          minZoom: 0.4,
+          maxZoom: 20,
+          pitch: startOrbital ? 0 : is3DModeRef.current ? 60 : 0,
+          bearing: startOrbital ? 0 : is3DModeRef.current ? -20 : 0,
           maxPitch: 75,
           pitchWithRotate: true,
           touchPitch: true,
@@ -785,13 +932,33 @@ export const MapComponent = memo(
         ensureUserMarker(map);
 
         map.on('click', () => {
+          if (isGlobeIntroPlayingRef.current) return;
           if (selectedSpotRef.current || previousCameraStateRef.current) {
             restorePreviousSpotCamera();
           }
           if (onMapClickRef.current) onMapClickRef.current();
         });
 
+        const syncSpaceAndMarkerZoomTier = () => {
+          const z = map.getZoom();
+          const shouldSpace = Boolean(
+            isGlobeIntroPendingRef.current || isGlobeIntroPlayingRef.current || z < 7.5
+          );
+          setIsSpaceBackgroundActive((prev) => (prev === shouldSpace ? prev : shouldSpace));
+
+          const nextTier: 'orbital' | 'regional' | 'city' =
+            z < 4.5 ? 'orbital' : z < 7.5 ? 'regional' : 'city';
+          if (markerZoomTierRef.current !== nextTier) {
+            markerZoomTierRef.current = nextTier;
+            syncMarkerHighlight(selectedSpotRef.current?.id);
+          }
+        };
+
         map.on('load', () => {
+          try {
+            map.setProjection({ type: 'globe' });
+            map.setSky(getCleanSpaceSky(theme));
+          } catch {}
           syncSpotMarkers();
           ensureUserMarker(map);
           map.resize();
@@ -800,7 +967,15 @@ export const MapComponent = memo(
             userMarkerRef.current?.setLngLat(currentGpsState.coords);
             latestUserCoordsRef.current = currentGpsState.coords;
           }
-          if (selectedSpotRef.current && selectedSpotRef.current.lng && selectedSpotRef.current.lat) {
+          if (isGlobeIntroActiveRef.current) {
+            // Keep orbital 3D globe framing until user completes welcome / finishes intro flight
+            map.jumpTo({
+              center: [-22, -10],
+              zoom: getOrbitalEarthZoom(),
+              pitch: 0,
+              bearing: 0,
+            });
+          } else if (selectedSpotRef.current && selectedSpotRef.current.lng && selectedSpotRef.current.lat) {
             const isMobile = window.innerWidth < 768;
             const verticalOffset = isMobile ? -Math.round(window.innerHeight * 0.12) : 0;
             map.easeTo({
@@ -814,12 +989,18 @@ export const MapComponent = memo(
           } else if (!hasUserMovedMapRef.current && !isSpotlightActiveRef.current) {
             frameAllSpotsOverview(map, false);
           }
+          syncSpaceAndMarkerZoomTier();
           if (onMapLoad) onMapLoad();
         });
 
         map.on('style.load', () => {
+          try {
+            map.setProjection({ type: 'globe' });
+            map.setSky(getCleanSpaceSky(theme));
+          } catch {}
           syncSpotMarkers();
           ensureUserMarker(map);
+          syncSpaceAndMarkerZoomTier();
         });
 
         // Mark map as manually moved by user when panning/dragging so camera stops auto-centering
@@ -847,6 +1028,7 @@ export const MapComponent = memo(
             isMapGestureActiveRef.current = true;
             lastMapGestureTimeRef.current = performance.now();
           }
+          syncSpaceAndMarkerZoomTier();
         };
 
         const onInteractionEnd = (e: any) => {
@@ -854,6 +1036,7 @@ export const MapComponent = memo(
             lastMapGestureTimeRef.current = performance.now();
           }
           isMapGestureActiveRef.current = false;
+          syncSpaceAndMarkerZoomTier();
           if (lastInteractionStateRef.current) {
             lastInteractionStateRef.current = false;
             if (onInteractionChangeRef.current) onInteractionChangeRef.current(false);
@@ -1070,6 +1253,7 @@ export const MapComponent = memo(
 
     // Trigger overview framing all spot icons when entering or returning to the map
     useEffect(() => {
+      if (isGlobeIntroActiveRef.current) return;
       if (zoomToUserTrigger && zoomToUserTrigger > 0) {
         if (!selectedSpotRef.current && !isSpotlightActiveRef.current) {
           frameAllSpotsOverview(mapRef.current, false);
@@ -1085,13 +1269,306 @@ export const MapComponent = memo(
 
       if (prev && prev !== 'explorar' && activeTab === 'explorar') {
         const timer = window.setTimeout(() => {
-          if (mapRef.current && !selectedSpotRef.current && !isSpotlightActiveRef.current) {
+          if (
+            mapRef.current &&
+            !selectedSpotRef.current &&
+            !isSpotlightActiveRef.current &&
+            !isGlobeIntroActiveRef.current
+          ) {
             frameAllSpotsOverview(mapRef.current, false);
           }
         }, 100);
         return () => window.clearTimeout(timer);
       }
     }, [activeTab, frameAllSpotsOverview]);
+
+    // Sync space backdrop state whenever intro props change
+    useEffect(() => {
+      const z = mapRef.current?.getZoom() ?? 11.75;
+      const shouldSpace = Boolean(isGlobeIntroPending || isGlobeIntroPlaying || z < 7.5);
+      setIsSpaceBackgroundActive(shouldSpace);
+      syncMarkerHighlight(selectedSpotRef.current?.id);
+    }, [isGlobeIntroPending, isGlobeIntroPlaying]);
+
+    // Choreographed Post-Signup Space-to-Location Cinematic Camera Flight (Stage A -> B -> C -> D)
+    useEffect(() => {
+      if (!isGlobeIntroPlaying) {
+        hasCompletedGlobeFlightRef.current = false;
+        return;
+      }
+      if (hasCompletedGlobeFlightRef.current) return;
+
+      const map = mapRef.current;
+      if (!map) return;
+
+      let cancelled = false;
+
+      const waitMs = (ms: number) =>
+        new Promise<void>((resolve) => {
+          const id = window.setTimeout(() => resolve(), ms);
+          if (cancelled) {
+            window.clearTimeout(id);
+            resolve();
+          }
+        });
+
+      const waitForMapReady = () =>
+        new Promise<void>((resolve) => {
+          if (cancelled || map.loaded()) {
+            resolve();
+            return;
+          }
+          let done = false;
+          const finish = () => {
+            if (done) return;
+            done = true;
+            map.off('load', finish);
+            window.clearTimeout(safetyId);
+            resolve();
+          };
+          const safetyId = window.setTimeout(finish, 1400);
+          map.on('load', finish);
+        });
+
+      const animateCamera = (
+        method: 'easeTo' | 'flyTo',
+        options: maplibregl.FlyToOptions | maplibregl.EaseToOptions
+      ) =>
+        new Promise<void>((resolve) => {
+          if (cancelled) {
+            resolve();
+            return;
+          }
+          let settled = false;
+          const durationMs = typeof options.duration === 'number' ? options.duration : 1200;
+          const onEnd = () => {
+            if (settled) return;
+            settled = true;
+            map.off('moveend', onEnd);
+            window.clearTimeout(timerId);
+            resolve();
+          };
+          const timerId = window.setTimeout(onEnd, durationMs + 180);
+          map.on('moveend', onEnd);
+          try {
+            if (method === 'flyTo') {
+              map.flyTo({ ...(options as maplibregl.FlyToOptions), essential: true });
+            } else {
+              map.easeTo({ ...(options as maplibregl.EaseToOptions), essential: true });
+            }
+          } catch {
+            onEnd();
+          }
+        });
+
+      const setInteractionsEnabled = (enabled: boolean) => {
+        const handlers = [
+          map.dragPan,
+          map.scrollZoom,
+          map.boxZoom,
+          map.dragRotate,
+          map.keyboard,
+          map.doubleClickZoom,
+          map.touchZoomRotate,
+        ];
+        handlers.forEach((h) => {
+          try {
+            if (enabled) h?.enable();
+            else h?.disable();
+          } catch {}
+        });
+      };
+
+      const runChoreographedGlobeFlight = async () => {
+        setFollowMode(false);
+        setInteractionsEnabled(false);
+
+        try {
+          const prefersReduced = Boolean(
+            typeof window !== 'undefined' &&
+              window.matchMedia?.('(prefers-reduced-motion: reduce)')?.matches
+          );
+          const orbitalZoom = getOrbitalEarthZoom();
+          const camposTarget = getCamposOverviewCamera(map);
+          const finalPitch = is3DModeRef.current ? 60 : 0;
+          const finalBearing = is3DModeRef.current ? -20 : 0;
+
+          try {
+            map.setProjection({ type: 'globe' });
+            map.setSky(getCleanSpaceSky(theme));
+          } catch {}
+
+          // Ensure Stage A orbital Earth framing before descent begins
+          if (Math.abs(map.getZoom() - orbitalZoom) > 0.35) {
+            map.jumpTo({
+              center: [-22, -10],
+              zoom: orbitalZoom,
+              pitch: 0,
+              bearing: 0,
+            });
+          }
+
+          await waitForMapReady();
+          if (cancelled) return;
+
+          // Stage A beat: clean 3D Earth centered in space
+          await waitMs(prefersReduced ? 220 : 420);
+          if (cancelled) return;
+
+          if (prefersReduced) {
+            await animateCamera('easeTo', {
+              center: camposTarget.center,
+              zoom: camposTarget.zoom,
+              pitch: finalPitch,
+              bearing: finalBearing,
+              duration: 1200,
+              easing: (t) => 1 - Math.pow(1 - t, 3),
+            });
+          } else {
+            const smoothEase = (t: number) =>
+              t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
+
+            // Stage C.1-3: Rotate gently & approach South America
+            await animateCamera('easeTo', {
+              center: [-58.5, -16.5],
+              zoom: Math.max(2.35, orbitalZoom + 1.45),
+              pitch: 10,
+              bearing: -4,
+              duration: 1350,
+              easing: smoothEase,
+            });
+            if (cancelled) return;
+
+            // Stage C.4: Approach Brazil
+            await animateCamera('easeTo', {
+              center: [-48.6, -18.5],
+              zoom: 4.4,
+              pitch: 20,
+              bearing: -8,
+              duration: 1150,
+              easing: smoothEase,
+            });
+            if (cancelled) return;
+
+            // Stage B + C.5-6: Non-blocking check of real device location fix
+            const gpsState = gpsNavigationManager.getState();
+            const hasRealUserLocation = Boolean(
+              gpsState.hasRealFix &&
+                gpsState.status === 'granted' &&
+                Array.isArray(gpsState.coords) &&
+                Number.isFinite(gpsState.coords[0]) &&
+                Number.isFinite(gpsState.coords[1])
+            );
+
+            if (hasRealUserLocation) {
+              const [userLng, userLat] = gpsState.coords;
+              latestUserCoordsRef.current = [userLng, userLat];
+              ensureUserMarker(map);
+              userMarkerRef.current?.setLngLat([userLng, userLat]);
+
+              const distKm =
+                calculateHaversineDistance(
+                  userLng,
+                  userLat,
+                  camposTarget.center[0],
+                  camposTarget.center[1]
+                ) / 1000;
+
+              if (distKm > 18) {
+                // Pass through user's identified region first, then glide smoothly to Campos do Jordão
+                const regionalZoom = distKm > 1500 ? 5.6 : distKm > 300 ? 7.6 : 9.4;
+                await animateCamera(distKm > 1500 ? 'flyTo' : 'easeTo', {
+                  center: [userLng, userLat],
+                  zoom: regionalZoom,
+                  pitch: 26,
+                  bearing: -10,
+                  curve: 1.22,
+                  duration: distKm > 1500 ? 1450 : 1150,
+                  easing: smoothEase,
+                });
+                if (cancelled) return;
+
+                await waitMs(280);
+                if (cancelled) return;
+
+                // Stage D: Smooth glide into Campos do Jordão
+                await animateCamera(distKm > 1500 ? 'flyTo' : 'easeTo', {
+                  center: camposTarget.center,
+                  zoom: camposTarget.zoom,
+                  pitch: finalPitch,
+                  bearing: finalBearing,
+                  curve: 1.18,
+                  duration: distKm > 1500 ? 1550 : 1280,
+                  easing: smoothEase,
+                });
+              } else {
+                // User is already in Campos do Jordão region: pass state -> user area -> full spot overview
+                await animateCamera('easeTo', {
+                  center: [userLng, userLat],
+                  zoom: 9.2,
+                  pitch: 26,
+                  bearing: -12,
+                  duration: 1000,
+                  easing: smoothEase,
+                });
+                if (cancelled) return;
+
+                await animateCamera('easeTo', {
+                  center: camposTarget.center,
+                  zoom: camposTarget.zoom,
+                  pitch: finalPitch,
+                  bearing: finalBearing,
+                  duration: 1180,
+                  easing: (t) => 1 - Math.pow(1 - t, 3),
+                });
+              }
+            } else {
+              // GPS denied or still acquiring: smooth São Paulo state -> Campos do Jordão approach
+              await animateCamera('easeTo', {
+                center: [-46.6, -23.15],
+                zoom: 7.2,
+                pitch: 26,
+                bearing: -10,
+                duration: 1050,
+                easing: smoothEase,
+              });
+              if (cancelled) return;
+
+              await animateCamera('easeTo', {
+                center: camposTarget.center,
+                zoom: camposTarget.zoom,
+                pitch: finalPitch,
+                bearing: finalBearing,
+                duration: 1250,
+                easing: (t) => 1 - Math.pow(1 - t, 3),
+              });
+            }
+          }
+
+          if (cancelled) return;
+
+          hasCompletedGlobeFlightRef.current = true;
+          hasFramedInitialSpotsRef.current = true;
+          hasUserMovedMapRef.current = false;
+          markerZoomTierRef.current = 'city';
+          setIsSpaceBackgroundActive(false);
+          syncMarkerHighlight(selectedSpotRef.current?.id);
+          onGlobeIntroCompleteRef.current?.();
+        } finally {
+          setInteractionsEnabled(true);
+        }
+      };
+
+      runChoreographedGlobeFlight();
+
+      return () => {
+        cancelled = true;
+        try {
+          map.stop();
+        } catch {}
+        setInteractionsEnabled(true);
+      };
+    }, [isGlobeIntroPlaying, theme, setFollowMode, ensureUserMarker, getCamposOverviewCamera]);
 
     // Focus camera on user marker with high spotlight zoom and hide other markers during spotlight presentation
     useEffect(() => {
@@ -1358,14 +1835,16 @@ export const MapComponent = memo(
     // Synchronize marker highlights smoothly without touching unchanged DOM nodes
     const syncMarkerHighlight = useCallback((activeSpotId: string | null | undefined) => {
       const focusActive = isFocusModeRef.current;
+      const zoomTier = markerZoomTierRef.current;
+      const hideForIntroFlight = Boolean(isGlobeIntroActiveRef.current && zoomTier !== 'city');
 
       markerRecordsRef.current.forEach((rec) => {
         const isSelected = activeSpotId ? rec.spotId === activeSpotId : false;
-        const shouldHideMarker = focusActive && !isSelected;
+        const shouldHideMarker = hideForIntroFlight || (focusActive && !isSelected);
 
-        if (rec.lastSelectedState === isSelected && rec.lastHiddenState === shouldHideMarker) {
-          return;
-        }
+        const zoomScale =
+          zoomTier === 'orbital' ? 0.46 : zoomTier === 'regional' ? 0.68 : 0.96;
+
         rec.lastSelectedState = isSelected;
         rec.lastHiddenState = shouldHideMarker;
 
@@ -1373,10 +1852,10 @@ export const MapComponent = memo(
           'transform 0.36s cubic-bezier(0.22, 1, 0.36, 1), opacity 0.28s cubic-bezier(0.22, 1, 0.36, 1)';
         rec.containerEl.style.opacity = shouldHideMarker ? '0' : '1';
         rec.containerEl.style.transform = shouldHideMarker
-          ? 'scale(0.72)'
+          ? 'scale(0.62)'
           : isSelected
             ? 'scale(1.22)'
-            : 'scale(0.96)';
+            : `scale(${zoomScale})`;
         rec.containerEl.style.zIndex = isSelected ? '50' : '20';
         rec.el.style.pointerEvents = shouldHideMarker ? 'none' : 'auto';
 
@@ -1407,16 +1886,19 @@ export const MapComponent = memo(
       });
 
       if (userMarkerStackRef.current) {
+        const userZoomScale = zoomTier === 'orbital' ? 0.62 : zoomTier === 'regional' ? 0.82 : 1;
         userMarkerStackRef.current.style.transition =
           'transform 0.32s cubic-bezier(0.22, 1, 0.36, 1), opacity 0.28s cubic-bezier(0.22, 1, 0.36, 1)';
         userMarkerStackRef.current.style.opacity = focusActive ? '0' : '1';
-        userMarkerStackRef.current.style.transform = focusActive ? 'scale(0.76)' : 'scale(1)';
+        userMarkerStackRef.current.style.transform = focusActive
+          ? 'scale(0.76)'
+          : `scale(${userZoomScale})`;
         userMarkerStackRef.current.style.pointerEvents = focusActive ? 'none' : 'auto';
       }
 
       if (userBeamRef.current) {
         userBeamRef.current.style.transition = 'opacity 0.28s cubic-bezier(0.22, 1, 0.36, 1)';
-        userBeamRef.current.style.opacity = focusActive ? '0' : '1';
+        userBeamRef.current.style.opacity = focusActive || zoomTier !== 'city' ? '0' : '1';
       }
     }, []);
 
@@ -1768,7 +2250,7 @@ export const MapComponent = memo(
               <img src="${imgUrl}" alt="${evt.name || 'Evento'}" style="width:100%;height:100%;object-fit:cover;display:block;" referrerpolicy="no-referrer" />
             </div>
           `;
-          tempEventMarker = new maplibregl.Marker({ element: el })
+          tempEventMarker = new maplibregl.Marker({ element: el, opacityWhenCovered: '0' })
             .setLngLat([targetLng, targetLat])
             .addTo(map);
 
@@ -2097,7 +2579,7 @@ export const MapComponent = memo(
           }
         };
 
-        const marker = new maplibregl.Marker({ element: el })
+        const marker = new maplibregl.Marker({ element: el, opacityWhenCovered: '0' })
           .setLngLat([lng, lat])
           .addTo(map);
 
@@ -2163,7 +2645,8 @@ export const MapComponent = memo(
         mapRef.current &&
         !selectedSpotRef.current &&
         !hasUserMovedMapRef.current &&
-        !isSpotlightActiveRef.current
+        !isSpotlightActiveRef.current &&
+        !isGlobeIntroActiveRef.current
       ) {
         hasFramedInitialSpotsRef.current = true;
         frameAllSpotsOverview(mapRef.current, false);
@@ -2376,7 +2859,11 @@ export const MapComponent = memo(
     };
 
     return (
-      <div className="w-full h-full relative inset-0 select-none overflow-hidden">
+      <div
+        className={`w-full h-full relative inset-0 select-none overflow-hidden ${
+          isSpaceBackgroundActive ? 'monvian-globe-space-active' : ''
+        }`}
+      >
         <div
           ref={mapContainerRef}
           className="w-full h-full absolute inset-0 select-none"
@@ -2414,7 +2901,7 @@ export const MapComponent = memo(
         <div
           id="mobile-map-right-controls"
           className={`md:hidden absolute right-3.5 top-1/2 -translate-y-1/2 z-30 flex flex-col items-center gap-3 transition-[opacity,transform] duration-300 ease-[cubic-bezier(0.22,1,0.36,1)] ${
-            isFocusMode
+            isFocusMode || isGlobeIntroPlaying
               ? 'opacity-0 scale-90 pointer-events-none [&_*]:!pointer-events-none'
               : 'opacity-100 scale-100 pointer-events-auto'
           }`}

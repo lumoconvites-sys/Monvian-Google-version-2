@@ -35,6 +35,7 @@ export interface SupabaseUserRecord {
   onboarding_completed?: number;
   onboarding_step?: number;
   welcome_card_seen?: number;
+  globe_intro_seen?: number;
   last_access?: string;
   created_at?: string;
 }
@@ -100,6 +101,9 @@ export async function persistUserToSupabase(user: SupabaseUserRecord): Promise<v
     if (user.auth_id) payload.auth_id = user.auth_id;
     if (user.welcome_card_seen !== undefined) {
       payload.welcome_card_seen = user.welcome_card_seen ? 1 : 0;
+    }
+    if (user.globe_intro_seen !== undefined) {
+      payload.globe_intro_seen = user.globe_intro_seen ? 1 : 0;
     }
 
     await withTimeout(

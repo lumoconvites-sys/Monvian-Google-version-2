@@ -83,6 +83,7 @@ export interface FirestoreUser {
   firebase_uid?: string | null;
   auth_id?: string | null;
   welcome_card_seen?: number;
+  globe_intro_seen?: number;
 }
 
 export interface FirestoreSession {
@@ -238,6 +239,9 @@ export async function persistUserToFirestore(user: FirestoreUser): Promise<void>
     if (user.welcome_card_seen !== undefined) {
       dataToSave.welcome_card_seen = user.welcome_card_seen ? 1 : 0;
     }
+    if (user.globe_intro_seen !== undefined) {
+      dataToSave.globe_intro_seen = user.globe_intro_seen ? 1 : 0;
+    }
     if (user.id) {
       dataToSave.id = user.id;
     }
@@ -287,6 +291,52 @@ export async function markWelcomeCardSeen(cleanEmail: string, token?: string): P
     try {
       await withTimeout(
         Promise.resolve(supabase.from('users').update({ welcome_card_seen: 1 }).eq('email', email)),
+        2500,
+        null
+      );
+    } catch {}
+  }
+}
+
+/**
+ * Permanently registers that the post-onboarding 3D globe cinematic intro was completed by the authenticated user.
+ * Syncs to SQLite server API, Firestore, and Supabase.
+ */
+export async function markGlobeIntroSeen(cleanEmail: string, token?: string): Promise<void> {
+  const email = (cleanEmail || '').trim().toLowerCase();
+  if (!email && !token) return;
+
+  // 1. Update SQLite via backend endpoint
+  try {
+    const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+    const savedToken = token || localStorage.getItem('monvian_token');
+    if (savedToken) {
+      headers['Authorization'] = `Bearer ${savedToken}`;
+    }
+    await fetch('/api/auth/globe-intro-seen', {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({ email })
+    }).catch(() => {});
+  } catch {}
+
+  // 2. Update Firestore document
+  if (email) {
+    try {
+      const userRef = doc(firestore, 'users', email);
+      await withTimeout(
+        setDoc(userRef, { globe_intro_seen: 1, updated_at: new Date().toISOString() }, { merge: true }),
+        2500,
+        null
+      );
+    } catch {}
+  }
+
+  // 3. Update Supabase table
+  if (email && supabase) {
+    try {
+      await withTimeout(
+        Promise.resolve(supabase.from('users').update({ globe_intro_seen: 1 }).eq('email', email)),
         2500,
         null
       );

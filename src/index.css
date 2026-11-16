@@ -554,6 +554,14 @@ html:not(.dark) .maplibregl-canvas {
   transition: filter 0.4s ease, opacity 0.4s ease;
 }
 
+/* Clean solid black space void behind 3D Earth Globe when zoomed out or during space intro */
+.monvian-globe-space-active,
+.monvian-globe-space-active .maplibregl-canvas,
+.monvian-globe-space-active .maplibregl-canvas-container {
+  background-color: #000000 !important;
+  background-image: none !important;
+}
+
 /* Confine MapLibre marker layer so markers never overlay floating UI controls */
 .maplibregl-canvas-container {
   z-index: 0;
@@ -561,6 +569,12 @@ html:not(.dark) .maplibregl-canvas {
 
 .maplibregl-marker {
   z-index: 10 !important;
+}
+
+.maplibregl-marker-covered {
+  opacity: 0 !important;
+  pointer-events: none !important;
+  cursor: default !important;
 }
 
 .spot-marker-container,

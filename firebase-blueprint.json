@@ -21,6 +21,8 @@
         "onboarding_step": { "type": "number", "description": "Current onboarding step" },
         "location_permission_granted": { "type": "number", "description": "Whether location permission was granted (0 or 1)" },
         "motion_permission_granted": { "type": "number", "description": "Whether motion/orientation permission was granted (0 or 1)" },
+        "welcome_card_seen": { "type": "number", "description": "Whether post-signup welcome screen was completed (0 or 1)" },
+        "globe_intro_seen": { "type": "number", "description": "Whether post-onboarding 3D globe intro flight was completed (0 or 1)" },
         "last_access": { "type": "string", "description": "Timestamp of last access" },
         "created_at": { "type": "string", "description": "Creation timestamp" }
       },
