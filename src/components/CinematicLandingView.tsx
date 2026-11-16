@@ -3,29 +3,9 @@ import { ArrowRight, Check, ChevronDown } from 'lucide-react';
 import { motion, AnimatePresence, useReducedMotion } from 'motion/react';
 import gsap from 'gsap';
 import { OnboardingShowcaseCarousel } from './OnboardingShowcaseCarousel';
+import { Category3DLiquidGlassCarousel } from './Category3DLiquidGlassCarousel';
 import { LoginSocialProofSection } from './LoginSocialProofSection';
 import { useLanguage } from '../contexts/LanguageContext';
-
-const FAQ_ITEMS = [
-  {
-    id: 'faq-1',
-    question: 'Como o Monvian organiza meus passeios em Campos do Jordão?',
-    answer:
-      'O Monvian reúne os melhores pontos turísticos, restaurantes, cafeterias e experiências da serra em roteiros interativos com mapa em tempo real, facilitando cada etapa da sua viagem.',
-  },
-  {
-    id: 'faq-2',
-    question: 'O aplicativo funciona durante o passeio pela cidade?',
-    answer:
-      'Sim. Ao escolher um roteiro ou explorar o mapa, você acompanha sua localização ao vivo, distância até as próximas paradas e sugestões próximas no seu iPhone.',
-  },
-  {
-    id: 'faq-3',
-    question: 'Como faço para começar a usar?',
-    answer:
-      'Basta tocar em “Criar minha conta”, informar seu nome, e-mail e senha em poucos segundos para acessar todos os roteiros e experiências de Campos do Jordão.',
-  },
-];
 
 
 interface CinematicLandingViewProps {
@@ -316,9 +296,6 @@ export const CinematicLandingView: React.FC<CinematicLandingViewProps> = ({
       document.removeEventListener('keydown', handleKeyDown);
     };
   }, [isLangMenuOpen]);
-
-  // FAQ state
-  const [openFaqId, setOpenFaqId] = useState<string | null>('faq-1');
 
   // Hero & Scroll animation refs
   const heroSectionRef = useRef<HTMLElement | null>(null);
@@ -1610,66 +1587,9 @@ export const CinematicLandingView: React.FC<CinematicLandingViewProps> = ({
             <OnboardingShowcaseCarousel />
           </div>
 
-          <div className="w-full max-w-[430px] md:max-w-[760px] mx-auto px-5 sm:px-8">
-            {/* Seção "Dúvidas" (Âncora #duvidas da navegação superior) */}
-            <div
-              id="duvidas"
-              className="mt-12 md:mt-20 max-w-[680px] mx-auto pt-4 sm:pt-6"
-            >
-            <h3
-              className="text-center text-[22px] sm:text-[26px] font-bold tracking-[-0.025em] text-[#080808] mb-5"
-              style={{
-                fontFamily:
-                  "'SF Pro Display', -apple-system, BlinkMacSystemFont, sans-serif",
-              }}
-            >
-              {tr('Dúvidas frequentes')}
-            </h3>
-
-            <div className="space-y-2">
-              {FAQ_ITEMS.map((item) => {
-                const isOpen = openFaqId === item.id;
-                return (
-                  <div key={item.id} className="py-3.5">
-                    <button
-                      type="button"
-                      onClick={() => {
-                        triggerHaptic();
-                        setOpenFaqId(isOpen ? null : item.id);
-                      }}
-                      aria-expanded={isOpen}
-                      className="w-full py-1.5 text-left flex items-center justify-between gap-4 text-[15.5px] sm:text-[16.5px] font-semibold text-[#080808] hover:text-[#2673E8] transition-colors cursor-pointer focus-visible:outline-2 focus-visible:outline-[#2673E8]"
-                    >
-                      <span>{tr(item.question)}</span>
-                      <ChevronDown
-                        className={`w-4 h-4 shrink-0 text-[#737780] transition-transform duration-200 ${
-                          isOpen ? 'rotate-180 text-[#2673E8]' : ''
-                        }`}
-                      />
-                    </button>
-                    <AnimatePresence initial={false}>
-                      {isOpen && (
-                        <motion.div
-                          initial={{ height: 0, opacity: 0 }}
-                          animate={{ height: 'auto', opacity: 1 }}
-                          exit={{ height: 0, opacity: 0 }}
-                          transition={{ duration: 0.22, ease: [0.22, 1, 0.36, 1] }}
-                          className="overflow-hidden"
-                        >
-                          <p className="pt-2 pb-1 text-[14px] sm:text-[14.5px] text-[#737780] leading-[1.5]">
-                            {tr(item.answer)}
-                          </p>
-                        </motion.div>
-                      )}
-                    </AnimatePresence>
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-
           {/* Conversão Final na Base da Página */}
-          <div className="mt-10 md:mt-14 max-w-[400px] mx-auto flex flex-col items-center text-center">
+          <div className="w-full max-w-[430px] md:max-w-[760px] mx-auto px-5 sm:px-8">
+            <div className="mt-10 md:mt-14 max-w-[400px] mx-auto flex flex-col items-center text-center">
             <img
               src="/assets/aistudio/monvian_logo_dark_transparent.png"
               alt="Monvian"
@@ -1712,7 +1632,12 @@ export const CinematicLandingView: React.FC<CinematicLandingViewProps> = ({
             </div>
           </div>
 
-          {/* Seção de Provas Sociais ("Quem vive, recomenda.") abaixo do CTA */}
+          {/* Carrossel Horizontal Automático 3D de Categorias Turísticas abaixo do botão de login */}
+          <div id="duvidas" className="w-full mt-10 sm:mt-12 md:mt-14">
+            <Category3DLiquidGlassCarousel />
+          </div>
+
+          {/* Seção de Provas Sociais ("Quem vive, recomenda.") abaixo do carrossel */}
           <div className="w-full mt-10 sm:mt-14">
             <LoginSocialProofSection />
           </div>

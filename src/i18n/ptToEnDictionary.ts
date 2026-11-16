@@ -297,6 +297,8 @@ const PT_TO_EN_RAW: Record<string, string> = {
   'Música & Esculturas': 'Music & Sculptures',
   'Música': 'Music',
   'Compras': 'Shopping',
+  'Passeios': 'Tours',
+  'Experiências': 'Experiences',
   'Vida Noturna': 'Nightlife',
   'Hotéis': 'Hotels',
   'Hotéis e Pousadas': 'Hotels & Inns',

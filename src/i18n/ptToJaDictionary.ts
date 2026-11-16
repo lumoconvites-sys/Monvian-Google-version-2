@@ -299,6 +299,8 @@ const PT_TO_JA_RAW: Record<string, string> = {
   'Música & Esculturas': '音楽＆彫刻',
   'Música': '音楽',
   'Compras': 'ショッピング',
+  'Passeios': 'ツアー',
+  'Experiências': '体験',
   'Vida Noturna': 'ナイトライフ',
   'Hotéis': 'ホテル',
   'Hotéis e Pousadas': 'ホテル＆ペンション',
