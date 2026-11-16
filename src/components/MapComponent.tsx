@@ -16,6 +16,7 @@ import {
 } from '../utils/soundEffects';
 import { CompassIcon } from './CompassIcon';
 import { MapLayerToggleIcon } from './MapLayerToggleIcon';
+import { ActiveMapRoute } from '../services/mapboxDirections';
 
 export type { MapModeType };
 
@@ -58,6 +59,7 @@ interface MapComponentProps {
   isGlobeIntroPending?: boolean;
   isGlobeIntroPlaying?: boolean;
   onGlobeIntroComplete?: () => void;
+  activeRoute?: ActiveMapRoute | null;
 }
 
 const getMapboxToken = (): string => {
@@ -414,6 +416,7 @@ export const MapComponent = memo(
       isGlobeIntroPending = false,
       isGlobeIntroPlaying = false,
       onGlobeIntroComplete,
+      activeRoute = null,
     },
     ref
   ) => {
@@ -422,6 +425,12 @@ export const MapComponent = memo(
     const [currentMode, setCurrentMode] = useState<MapModeType>(
       mapMode === 'satelite' ? 'satelite' : 'explorar'
     );
+    const currentModeRef = useRef<MapModeType>(currentMode);
+    currentModeRef.current = currentMode;
+    const activeRouteRef = useRef<ActiveMapRoute | null>(activeRoute);
+    activeRouteRef.current = activeRoute;
+    const lastRouteSpotIdRef = useRef<string | null>(null);
+    const lastFittedRouteRevRef = useRef<number>(0);
     const [isFollowingUser, setIsFollowingUser] = useState<boolean>(false);
     const isFollowingUserRef = useRef<boolean>(false);
     const followCameraGraceUntilRef = useRef<number>(0);
@@ -973,9 +982,10 @@ export const MapComponent = memo(
         map.on('load', () => {
           try {
             map.setProjection({ type: 'globe' });
-            map.setSky(getCleanSpaceSky(theme));
+            map.setSky(getCleanSpaceSky(themeRef.current));
           } catch {}
           syncSpotMarkers();
+          syncActiveRouteLayers(map);
           ensureUserMarker(map);
           map.resize();
           const currentGpsState = gpsNavigationManager.getState();
@@ -1012,9 +1022,10 @@ export const MapComponent = memo(
         map.on('style.load', () => {
           try {
             map.setProjection({ type: 'globe' });
-            map.setSky(getCleanSpaceSky(theme));
+            map.setSky(getCleanSpaceSky(themeRef.current));
           } catch {}
           syncSpotMarkers();
+          syncActiveRouteLayers(map);
           ensureUserMarker(map);
           syncSpaceAndMarkerZoomTier();
         });
@@ -2654,6 +2665,260 @@ export const MapComponent = memo(
       }
     }, [spots, syncSpotMarkers, frameAllSpotsOverview]);
 
+    // Dedicated Mapbox GeoJSON Route & Endpoint Layer Synchronization (Zero map rebuilds)
+    const syncActiveRouteLayers = useCallback((targetMap?: maplibregl.Map | null) => {
+      const map = targetMap || mapRef.current;
+      if (!map) return;
+
+      const ROUTE_SOURCE_ID = 'monvian-active-route-source';
+      const ENDPOINTS_SOURCE_ID = 'monvian-active-route-endpoints';
+      const GLOW_LAYER_ID = 'monvian-active-route-glow';
+      const CASING_LAYER_ID = 'monvian-active-route-casing';
+      const LINE_LAYER_ID = 'monvian-active-route-line';
+      const ENDPOINTS_HALO_LAYER_ID = 'monvian-active-route-endpoints-halo';
+      const ENDPOINTS_DOT_LAYER_ID = 'monvian-active-route-endpoints-dot';
+
+      const route = activeRouteRef.current;
+      const hasValidCoords = Boolean(
+        route &&
+          route.geometry &&
+          route.geometry.type === 'LineString' &&
+          Array.isArray(route.geometry.coordinates) &&
+          route.geometry.coordinates.length >= 2
+      );
+
+      const routeFeatureCollection: GeoJSON.FeatureCollection = {
+        type: 'FeatureCollection',
+        features: hasValidCoords && route
+          ? [
+              {
+                type: 'Feature',
+                properties: {
+                  spotId: route.spotId,
+                },
+                geometry: route.geometry,
+              },
+            ]
+          : [],
+      };
+
+      const endpointsFeatureCollection: GeoJSON.FeatureCollection = {
+        type: 'FeatureCollection',
+        features: hasValidCoords && route
+          ? [
+              {
+                type: 'Feature',
+                properties: { role: 'origin' },
+                geometry: {
+                  type: 'Point',
+                  coordinates:
+                    route.originSnapped || route.geometry.coordinates[0],
+                },
+              },
+              {
+                type: 'Feature',
+                properties: { role: 'destination' },
+                geometry: {
+                  type: 'Point',
+                  coordinates:
+                    route.destinationSnapped ||
+                    route.geometry.coordinates[route.geometry.coordinates.length - 1],
+                },
+              },
+            ]
+          : [],
+      };
+
+      const isDarkOrSat = themeRef.current === 'dark' || currentModeRef.current === 'satelite';
+      const casingColor = isDarkOrSat ? 'rgba(8, 16, 30, 0.94)' : '#FFFFFF';
+
+      try {
+        const existingRouteSource = map.getSource(ROUTE_SOURCE_ID) as
+          | maplibregl.GeoJSONSource
+          | undefined;
+        const existingEndpointsSource = map.getSource(ENDPOINTS_SOURCE_ID) as
+          | maplibregl.GeoJSONSource
+          | undefined;
+
+        if (existingRouteSource && existingEndpointsSource) {
+          existingRouteSource.setData(routeFeatureCollection);
+          existingEndpointsSource.setData(endpointsFeatureCollection);
+          if (map.getLayer(CASING_LAYER_ID)) {
+            map.setPaintProperty(CASING_LAYER_ID, 'line-color', casingColor);
+          }
+          return;
+        }
+
+        if (!map.isStyleLoaded()) return;
+
+        if (!existingRouteSource) {
+          map.addSource(ROUTE_SOURCE_ID, {
+            type: 'geojson',
+            data: routeFeatureCollection,
+          });
+        }
+
+        if (!existingEndpointsSource) {
+          map.addSource(ENDPOINTS_SOURCE_ID, {
+            type: 'geojson',
+            data: endpointsFeatureCollection,
+          });
+        }
+
+        if (!map.getLayer(GLOW_LAYER_ID)) {
+          map.addLayer({
+            id: GLOW_LAYER_ID,
+            type: 'line',
+            source: ROUTE_SOURCE_ID,
+            layout: { 'line-cap': 'round', 'line-join': 'round' },
+            paint: {
+              'line-color': '#007AFF',
+              'line-width': 14,
+              'line-opacity': 0.24,
+              'line-blur': 6,
+            },
+          });
+        }
+
+        if (!map.getLayer(CASING_LAYER_ID)) {
+          map.addLayer({
+            id: CASING_LAYER_ID,
+            type: 'line',
+            source: ROUTE_SOURCE_ID,
+            layout: { 'line-cap': 'round', 'line-join': 'round' },
+            paint: {
+              'line-color': casingColor,
+              'line-width': 8.5,
+              'line-opacity': 0.96,
+            },
+          });
+        }
+
+        if (!map.getLayer(LINE_LAYER_ID)) {
+          map.addLayer({
+            id: LINE_LAYER_ID,
+            type: 'line',
+            source: ROUTE_SOURCE_ID,
+            layout: { 'line-cap': 'round', 'line-join': 'round' },
+            paint: {
+              'line-color': '#007AFF',
+              'line-width': 5,
+              'line-opacity': 1,
+            },
+          });
+        }
+
+        if (!map.getLayer(ENDPOINTS_HALO_LAYER_ID)) {
+          map.addLayer({
+            id: ENDPOINTS_HALO_LAYER_ID,
+            type: 'circle',
+            source: ENDPOINTS_SOURCE_ID,
+            paint: {
+              'circle-radius': ['match', ['get', 'role'], 'destination', 10, 8],
+              'circle-color': '#FFFFFF',
+              'circle-opacity': 0.96,
+              'circle-blur': 0.05,
+            },
+          });
+        }
+
+        if (!map.getLayer(ENDPOINTS_DOT_LAYER_ID)) {
+          map.addLayer({
+            id: ENDPOINTS_DOT_LAYER_ID,
+            type: 'circle',
+            source: ENDPOINTS_SOURCE_ID,
+            paint: {
+              'circle-radius': ['match', ['get', 'role'], 'destination', 6.5, 5],
+              'circle-color': ['match', ['get', 'role'], 'destination', '#34C759', '#007AFF'],
+              'circle-opacity': 1,
+            },
+          });
+        }
+      } catch (err) {
+        console.warn('[MapComponent] Failed to sync active route layers:', err);
+      }
+    }, []);
+
+    // Render active Mapbox route and fit camera bounds cleanly when route is activated or deactivated
+    useEffect(() => {
+      activeRouteRef.current = activeRoute ?? null;
+      const map = mapRef.current;
+      if (!map) return;
+
+      syncActiveRouteLayers(map);
+      syncMarkerHighlight(selectedSpotRef.current?.id);
+
+      if (activeRoute && activeRoute.geometry?.coordinates?.length >= 2) {
+        const shouldFit =
+          lastRouteSpotIdRef.current !== activeRoute.spotId ||
+          lastFittedRouteRevRef.current !== activeRoute.fitRevision;
+
+        if (shouldFit) {
+          lastRouteSpotIdRef.current = activeRoute.spotId;
+          lastFittedRouteRevRef.current = activeRoute.fitRevision;
+          setFollowMode(false);
+
+          try {
+            const bounds = new maplibregl.LngLatBounds();
+            activeRoute.geometry.coordinates.forEach((coord) => {
+              if (Array.isArray(coord) && coord.length >= 2) {
+                bounds.extend([Number(coord[0]), Number(coord[1])]);
+              }
+            });
+            bounds.extend(activeRoute.origin);
+            bounds.extend(activeRoute.destination);
+
+            const sw = bounds.getSouthWest();
+            const ne = bounds.getNorthEast();
+            const span = Math.abs(ne.lng - sw.lng) + Math.abs(ne.lat - sw.lat);
+
+            if (span < 0.00025) {
+              const isMobile = window.innerWidth < 768;
+              const verticalOffset = isMobile ? -Math.round(window.innerHeight * 0.12) : 0;
+              map.easeTo({
+                center: activeRoute.destination,
+                zoom: 16.2,
+                pitch: 0,
+                bearing: 0,
+                offset: [0, verticalOffset],
+                duration: 800,
+              });
+            } else {
+              const isMobile = window.innerWidth < 768;
+              map.fitBounds(bounds, {
+                padding: isMobile
+                  ? { top: 112, bottom: 215, left: 48, right: 72 }
+                  : { top: 96, bottom: 96, left: 440, right: 96 },
+                pitch: 0,
+                bearing: 0,
+                maxZoom: 16.2,
+                duration: 850,
+              });
+            }
+          } catch (err) {
+            console.warn('[MapComponent] Failed to fit route bounds:', err);
+          }
+        }
+      } else if (lastRouteSpotIdRef.current !== null) {
+        lastRouteSpotIdRef.current = null;
+        lastFittedRouteRevRef.current = 0;
+
+        // If user toggled the route off while the spot card is still open, return smoothly to spot camera
+        if (selectedSpotRef.current && selectedSpotRef.current.lng && selectedSpotRef.current.lat) {
+          const isMobile = window.innerWidth < 768;
+          const verticalOffset = isMobile ? -Math.round(window.innerHeight * 0.12) : 0;
+          map.easeTo({
+            center: [selectedSpotRef.current.lng, selectedSpotRef.current.lat],
+            zoom: 15.5,
+            pitch: is3DModeRef.current ? 60 : 35,
+            bearing: is3DModeRef.current ? -20 : 0,
+            offset: [0, verticalOffset],
+            duration: 700,
+          });
+        }
+      }
+    }, [activeRoute, syncActiveRouteLayers, syncMarkerHighlight, setFollowMode]);
+
     // Update marker highlight and camera zoom smoothly when a tourist spot is selected, and restore camera when deselected
     useEffect(() => {
       syncMarkerHighlight(selectedSpot?.id);
@@ -2661,6 +2926,9 @@ export const MapComponent = memo(
       if (!mapRef.current) return;
 
       if (selectedSpot && selectedSpot.lng && selectedSpot.lat) {
+        if (activeRouteRef.current?.spotId === selectedSpot.id) {
+          return;
+        }
         // Save exact camera state (zoom, center, pitch, bearing) before zooming into the tourist spot
         if (!previousCameraStateRef.current) {
           const currentCenter = mapRef.current.getCenter();

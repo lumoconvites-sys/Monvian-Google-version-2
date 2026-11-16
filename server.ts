@@ -3936,6 +3936,121 @@ async function startServer() {
     }
   });
 
+  // Mapbox Directions API Proxy (real road-snapped GeoJSON route between user GPS and destination spot)
+  app.post('/api/mapbox/directions', async (req: Request, res: Response) => {
+    try {
+      const { origin, destination, profile } = req.body || {};
+      if (!Array.isArray(origin) || origin.length !== 2 || !Array.isArray(destination) || destination.length !== 2) {
+        return res.status(400).json({ success: false, code: 'INVALID_COORDS', error: 'Coordenadas de origem e destino inválidas.' });
+      }
+
+      const oLng = Number(origin[0]);
+      const oLat = Number(origin[1]);
+      const dLng = Number(destination[0]);
+      const dLat = Number(destination[1]);
+
+      if (
+        !Number.isFinite(oLng) || !Number.isFinite(oLat) ||
+        !Number.isFinite(dLng) || !Number.isFinite(dLat) ||
+        Math.abs(oLat) > 90 || Math.abs(dLat) > 90 ||
+        Math.abs(oLng) > 180 || Math.abs(dLng) > 180
+      ) {
+        return res.status(400).json({ success: false, code: 'INVALID_COORDS', error: 'Coordenadas fora do intervalo válido.' });
+      }
+
+      const safeProfile = profile === 'walking' ? 'walking' : profile === 'cycling' ? 'cycling' : 'driving';
+
+      const dbTokenRow = db
+        .prepare("SELECT value FROM system_settings WHERE key = 'mapbox_access_token'")
+        .get() as { value?: string } | undefined;
+
+      const mapboxToken = (
+        process.env.MAPBOX_ACCESS_TOKEN ||
+        process.env.VITE_MAPBOX_ACCESS_TOKEN ||
+        dbTokenRow?.value ||
+        String(req.headers['x-mapbox-token'] || '')
+      ).trim();
+
+      if (mapboxToken) {
+        const mbUrl =
+          `https://api.mapbox.com/directions/v5/mapbox/${safeProfile}/` +
+          `${oLng},${oLat};${dLng},${dLat}` +
+          `?alternatives=false&geometries=geojson&overview=full&steps=true&continue_straight=false&radiuses=unlimited;unlimited` +
+          `&access_token=${encodeURIComponent(mapboxToken)}`;
+
+        const mbRes = await fetch(mbUrl);
+        const mbData = (await mbRes.json().catch(() => null)) as any;
+
+        if (mbRes.ok && mbData?.code === 'Ok' && Array.isArray(mbData.routes) && mbData.routes[0]?.geometry?.coordinates?.length >= 2) {
+          const route = mbData.routes[0];
+          const waypoints = Array.isArray(mbData.waypoints) ? mbData.waypoints : [];
+          return res.json({
+            success: true,
+            provider: 'mapbox',
+            geometry: route.geometry,
+            distanceMeters: Number(route.distance) || 0,
+            durationSeconds: Number(route.duration) || 0,
+            originSnapped: waypoints[0]?.location || [oLng, oLat],
+            destinationSnapped: waypoints[1]?.location || [dLng, dLat],
+          });
+        }
+
+        // If Mapbox explicitly indicates no navigable road route, do NOT fabricate a route
+        if (mbRes.status === 422 || mbData?.code === 'NoRoute' || mbData?.code === 'NoSegment' || mbData?.code === 'InvalidInput') {
+          return res.status(404).json({
+            success: false,
+            code: mbData?.code || 'NO_ROUTE',
+            error: 'Não há rota viária disponível entre sua localização e este local.',
+          });
+        }
+
+        // If configured token is unauthorized/expired, surface clear error unless falling through is unwanted
+        if (mbRes.status === 401 || mbRes.status === 403) {
+          return res.status(502).json({
+            success: false,
+            code: 'MAPBOX_AUTH_ERROR',
+            error: 'Não foi possível validar o acesso ao serviço de rotas Mapbox.',
+          });
+        }
+      }
+
+      // Road-network fallback when no Mapbox token is configured in environment (never draws straight lines)
+      const osrmProfile = safeProfile === 'walking' ? 'foot' : safeProfile === 'cycling' ? 'bike' : 'driving';
+      const osrmUrl =
+        `https://router.project-osrm.org/route/v1/${osrmProfile}/` +
+        `${oLng},${oLat};${dLng},${dLat}?overview=full&geometries=geojson&steps=true`;
+
+      const osrmRes = await fetch(osrmUrl);
+      const osrmData = (await osrmRes.json().catch(() => null)) as any;
+
+      if (osrmRes.ok && osrmData?.code === 'Ok' && Array.isArray(osrmData.routes) && osrmData.routes[0]?.geometry?.coordinates?.length >= 2) {
+        const route = osrmData.routes[0];
+        const waypoints = Array.isArray(osrmData.waypoints) ? osrmData.waypoints : [];
+        return res.json({
+          success: true,
+          provider: 'osrm',
+          geometry: route.geometry,
+          distanceMeters: Number(route.distance) || 0,
+          durationSeconds: Number(route.duration) || 0,
+          originSnapped: waypoints[0]?.location || [oLng, oLat],
+          destinationSnapped: waypoints[1]?.location || [dLng, dLat],
+        });
+      }
+
+      return res.status(404).json({
+        success: false,
+        code: osrmData?.code || 'NO_ROUTE',
+        error: 'Não há rota viária disponível entre sua localização e este local.',
+      });
+    } catch (err: any) {
+      return res.status(500).json({
+        success: false,
+        code: 'DIRECTIONS_ERROR',
+        error: 'Não foi possível calcular a rota no momento.',
+      });
+    }
+  });
+
   // Admin Cleanup Preview & Execute
   app.get('/api/admin/cleanup/preview', (_req: Request, res: Response) => {
     try {

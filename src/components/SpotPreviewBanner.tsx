@@ -1,9 +1,10 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
-import { motion, PanInfo, useReducedMotion } from 'motion/react';
-import { Star } from 'lucide-react';
+import { motion, AnimatePresence, PanInfo, useReducedMotion } from 'motion/react';
+import { Star, Route, Loader2 } from 'lucide-react';
 import { Spot } from '../types';
 import { VerifiedBadge } from './ui/VerifiedBadge';
 import { getSpotImage, getSpotFallbackImage } from '../utils/spotImages';
+import { triggerHapticFeedback } from '../utils/haptics';
 
 interface SpotPreviewBannerProps {
   spot: Spot;
@@ -13,6 +14,10 @@ interface SpotPreviewBannerProps {
   onClose: () => void;
   onOpenDetails: (spot: Spot) => void;
   onOpenItineraryTab?: () => void;
+  onToggleRoute?: (spot: Spot) => void;
+  isRouteActive?: boolean;
+  isRouteLoading?: boolean;
+  routeError?: string | null;
   theme?: 'dark' | 'light';
   isSatellite?: boolean;
 }
@@ -39,6 +44,10 @@ export const SpotPreviewBanner: React.FC<SpotPreviewBannerProps> = ({
   spot,
   onClose,
   onOpenDetails,
+  onToggleRoute,
+  isRouteActive = false,
+  isRouteLoading = false,
+  routeError = null,
   theme = 'light',
   isSatellite = false,
 }) => {
@@ -108,7 +117,7 @@ export const SpotPreviewBanner: React.FC<SpotPreviewBannerProps> = ({
           ? { duration: 0.15 }
           : { type: 'spring', stiffness: 360, damping: 32, mass: 0.88 }
       }
-      className="md:hidden fixed inset-x-0 bottom-[82px] sm:bottom-[84px] z-[245] flex justify-center px-4 pointer-events-none select-none"
+      className="md:hidden fixed inset-x-0 bottom-[82px] sm:bottom-[84px] z-[245] flex flex-col items-center gap-2 px-4 pointer-events-none select-none"
       style={{
         paddingLeft: '16px',
         paddingRight: '16px',
@@ -116,6 +125,24 @@ export const SpotPreviewBanner: React.FC<SpotPreviewBannerProps> = ({
           "'SF Pro Display', 'SF Pro Text', -apple-system, BlinkMacSystemFont, sans-serif",
       }}
     >
+      {/* Discreet informative message when route is unavailable or permission needed */}
+      <AnimatePresence>
+        {routeError && (
+          <motion.div
+            key="spot-route-error-pill"
+            initial={{ opacity: 0, y: 8, scale: 0.96 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: 6, scale: 0.96 }}
+            transition={{ duration: 0.22, ease: [0.22, 1, 0.36, 1] }}
+            className={`px-3.5 py-1.5 rounded-full ios26-liquid-glass text-[12px] font-medium tracking-tight text-center max-w-[320px] shadow-sm ${
+              useWhiteText ? 'text-[#FFFFFF]' : 'text-[#000000]'
+            }`}
+          >
+            <span className="relative z-10">{routeError}</span>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
       <motion.div
         key={`spot-preview-compact-${spot.id}`}
         drag="y"
@@ -135,7 +162,7 @@ export const SpotPreviewBanner: React.FC<SpotPreviewBannerProps> = ({
           transform: 'translateZ(0)',
           WebkitTransform: 'translateZ(0)',
         }}
-        className={`w-full max-w-[326px] sm:max-w-[342px] min-h-[76px] px-3.5 py-2.5 rounded-[30px] ios26-liquid-glass flex items-center gap-3 pointer-events-auto cursor-pointer ${
+        className={`w-full max-w-[346px] sm:max-w-[366px] min-h-[76px] px-3.5 py-2.5 rounded-[30px] ios26-liquid-glass flex items-center gap-3 pointer-events-auto cursor-pointer ${
           useWhiteText ? 'text-[#FFFFFF]' : 'text-[#000000]'
         }`}
       >
@@ -152,7 +179,7 @@ export const SpotPreviewBanner: React.FC<SpotPreviewBannerProps> = ({
           />
         </div>
 
-        {/* 2. Establishment Name, Verified Badge, Star Rating & Location (Right) */}
+        {/* 2. Establishment Name, Verified Badge, Star Rating & Location (Center) */}
         <div className="relative z-10 flex-1 min-w-0 flex flex-col justify-center">
           <div className="flex items-center gap-1.5 min-w-0">
             <h3 className={`text-[17px] min-[380px]:text-[18px] font-bold tracking-[-0.022em] truncate leading-tight ${
@@ -178,6 +205,34 @@ export const SpotPreviewBanner: React.FC<SpotPreviewBannerProps> = ({
             </span>
           </div>
         </div>
+
+        {/* 3. Right-aligned Liquid Glass Route Button */}
+        {onToggleRoute && (
+          <button
+            type="button"
+            disabled={isRouteLoading}
+            onPointerDown={(e) => e.stopPropagation()}
+            onClick={(e) => {
+              e.stopPropagation();
+              triggerHapticFeedback(12);
+              onToggleRoute(spot);
+            }}
+            aria-label={isRouteActive ? 'Encerrar rota' : 'Traçar rota até este local'}
+            aria-pressed={isRouteActive}
+            title={isRouteActive ? 'Encerrar rota' : 'Traçar rota'}
+            className={`relative z-10 w-[46px] h-[46px] rounded-full shrink-0 flex items-center justify-center transition-all duration-200 active:scale-90 cursor-pointer disabled:cursor-wait ${
+              isRouteActive
+                ? 'bg-[#007AFF] text-[#FFFFFF] border border-white/35 shadow-[0_4px_14px_rgba(0,122,255,0.42),inset_0_1px_1px_rgba(255,255,255,0.45)]'
+                : `ios26-liquid-glass-pill ${useWhiteText ? 'text-[#FFFFFF]' : 'text-[#000000]'}`
+            }`}
+          >
+            {isRouteLoading ? (
+              <Loader2 className="w-[19px] h-[19px] stroke-[2.2] animate-spin" />
+            ) : (
+              <Route className="w-[20px] h-[20px] stroke-[2]" />
+            )}
+          </button>
+        )}
       </motion.div>
     </motion.div>
   );

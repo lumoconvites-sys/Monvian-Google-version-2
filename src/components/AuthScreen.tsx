@@ -480,6 +480,13 @@ export function AuthScreen({
   };
 
   // Step Validations
+  const formattedFirstName = useMemo(() => {
+    const trimmed = name.trim();
+    if (!trimmed) return '';
+    const firstWord = trimmed.split(/\s+/)[0] || '';
+    return firstWord.charAt(0).toUpperCase() + firstWord.slice(1);
+  }, [name]);
+
   const isNameValid = useMemo(() => name.trim().length >= 2, [name]);
   const emailValidation = useMemo(() => validateEmailFormat(registerEmail), [registerEmail]);
   const isEmailValid = emailValidation.valid;
@@ -1358,7 +1365,10 @@ export function AuthScreen({
                 isDark ? 'text-[#FFFFFF]' : 'text-[#080808]'
               }`}
             >
-              Forneça seu e-mail para continuar
+              {formattedFirstName && (
+                <span data-no-translate>{formattedFirstName}, </span>
+              )}
+              <span>Informe seu Email:</span>
             </h1>
 
             <div className="w-full">
@@ -1430,7 +1440,10 @@ export function AuthScreen({
                 isDark ? 'text-[#FFFFFF]' : 'text-[#080808]'
               }`}
             >
-              Crie sua senha
+              {formattedFirstName && (
+                <span data-no-translate>{formattedFirstName}, </span>
+              )}
+              <span>Crie sua senha:</span>
             </h1>
 
             <div className="w-full space-y-3.5">
@@ -1592,7 +1605,12 @@ export function AuthScreen({
                       "'SF Pro Display', -apple-system, BlinkMacSystemFont, sans-serif",
                   }}
                 >
-                  Adicione uma<br />foto de perfil
+                  {formattedFirstName && (
+                    <span data-no-translate>{formattedFirstName}, </span>
+                  )}
+                  <span>Adicione uma</span>
+                  <br />
+                  <span>foto de perfil</span>
                 </h1>
                 <p
                   className={`mt-3.5 text-[14.5px] sm:text-[15px] font-normal leading-[1.38] text-center max-w-[310px] mx-auto ${

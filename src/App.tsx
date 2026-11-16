@@ -25,7 +25,8 @@ import { RainEffect } from './components/RainEffect';
 import { SnowEffect } from './components/SnowEffect';
 import { GoldSuccessModal } from './components/GoldSuccessModal';
 import { computeAdaptiveThemeColor, applySystemThemeColor } from './utils/themeColor';
-import { gpsNavigationManager } from './services/gpsNavigation';
+import { gpsNavigationManager, calculateHaversineDistance } from './services/gpsNavigation';
+import { ActiveMapRoute, acquireUserGpsForRoute, fetchRealRoadRoute } from './services/mapboxDirections';
 import { deviceHeadingManager } from './utils/deviceHeading';
 import { getSpotImage, getSpotFallbackImage } from './utils/spotImages';
 import { VerifiedBadge } from './components/ui/VerifiedBadge';
@@ -988,9 +989,21 @@ export default function App() {
   const [isAdminOpen, setIsAdminOpen] = useState(false);
   const [systemSettings, setSystemSettings] = useState<Record<string, string>>({});
   const [selectedSpot, setSelectedSpot] = useState<Spot | null>(null);
+  const [activeRoute, setActiveRoute] = useState<ActiveMapRoute | null>(null);
+  const [isRouteLoading, setIsRouteLoading] = useState<boolean>(false);
+  const [routeError, setRouteError] = useState<string | null>(null);
+  const routeAbortControllerRef = useRef<AbortController | null>(null);
+  const routeErrorTimerRef = useRef<number | null>(null);
+  const routeFitCounterRef = useRef<number>(0);
+  const isBackgroundReroutingRef = useRef<boolean>(false);
+  const selectedSpotIdRef = useRef<string | null>(null);
   const [is3DMode, setIs3DMode] = useState<boolean>(false);
   const [hasToggled3D, setHasToggled3D] = useState<boolean>(false);
   const [hasActiveMapEvents, setHasActiveMapEvents] = useState<boolean>(false);
+
+  useEffect(() => {
+    selectedSpotIdRef.current = selectedSpot?.id || null;
+  }, [selectedSpot?.id]);
 
   const fetchSpots = async () => {
     try {
@@ -1013,6 +1026,11 @@ export default function App() {
       const data = await res.json();
       if (data.success && data.settings) {
         setSystemSettings(data.settings);
+        if (typeof data.settings.mapbox_access_token === 'string' && data.settings.mapbox_access_token.trim()) {
+          try {
+            localStorage.setItem('monvian_mapbox_token', data.settings.mapbox_access_token.trim());
+          } catch {}
+        }
       }
     } catch (e) {}
   };
@@ -1553,14 +1571,107 @@ export default function App() {
   const isBlurActive = Boolean(isCategoryCardOpen || isSearchOpen);
   const isSpotFocusActive = false;
 
+  const clearActiveRoute = useCallback(() => {
+    if (routeAbortControllerRef.current) {
+      routeAbortControllerRef.current.abort();
+      routeAbortControllerRef.current = null;
+    }
+    if (routeErrorTimerRef.current !== null) {
+      window.clearTimeout(routeErrorTimerRef.current);
+      routeErrorTimerRef.current = null;
+    }
+    isBackgroundReroutingRef.current = false;
+    setIsRouteLoading(false);
+    setRouteError(null);
+    setActiveRoute(null);
+  }, []);
+
+  const showDiscreetRouteError = useCallback((message: string) => {
+    if (routeErrorTimerRef.current !== null) {
+      window.clearTimeout(routeErrorTimerRef.current);
+      routeErrorTimerRef.current = null;
+    }
+    setRouteError(message);
+    routeErrorTimerRef.current = window.setTimeout(() => {
+      setRouteError(null);
+      routeErrorTimerRef.current = null;
+    }, 4500);
+  }, []);
+
+  const handleToggleSpotRoute = useCallback(async (spot: Spot) => {
+    if (activeRoute?.spotId === spot.id) {
+      clearActiveRoute();
+      return;
+    }
+
+    if (routeAbortControllerRef.current) {
+      routeAbortControllerRef.current.abort();
+    }
+    const controller = new AbortController();
+    routeAbortControllerRef.current = controller;
+
+    if (routeErrorTimerRef.current !== null) {
+      window.clearTimeout(routeErrorTimerRef.current);
+      routeErrorTimerRef.current = null;
+    }
+    setRouteError(null);
+    setIsRouteLoading(true);
+
+    try {
+      const origin = await acquireUserGpsForRoute(8000);
+      if (controller.signal.aborted || selectedSpotIdRef.current !== spot.id) {
+        return;
+      }
+
+      const destLng = Number(spot.lng);
+      const destLat = Number(spot.lat);
+      if (!Number.isFinite(destLng) || !Number.isFinite(destLat)) {
+        showDiscreetRouteError('Coordenadas indisponíveis para este local.');
+        return;
+      }
+
+      const nextFitRevision = ++routeFitCounterRef.current;
+      const route = await fetchRealRoadRoute({
+        spotId: spot.id,
+        spotName: spot.name,
+        origin,
+        destination: [destLng, destLat],
+        fitRevision: nextFitRevision,
+        signal: controller.signal,
+      });
+
+      if (controller.signal.aborted || selectedSpotIdRef.current !== spot.id) {
+        return;
+      }
+
+      setActiveRoute(route);
+    } catch (err: any) {
+      if (err?.name === 'AbortError' || controller.signal.aborted) {
+        return;
+      }
+      showDiscreetRouteError(
+        err?.message || 'Não foi possível calcular a rota no momento.'
+      );
+    } finally {
+      if (routeAbortControllerRef.current === controller) {
+        setIsRouteLoading(false);
+        routeAbortControllerRef.current = null;
+      }
+    }
+  }, [activeRoute?.spotId, clearActiveRoute, showDiscreetRouteError]);
+
   const handleSelectSpot = useCallback((spot: Spot | null) => {
+    if (!spot || (activeRoute && spot.id !== activeRoute.spotId)) {
+      clearActiveRoute();
+    }
     setSelectedSpot(spot);
     setSpotPreviewMode('bar');
     setIsDetailOpen(false);
-  }, []);
+  }, [activeRoute, clearActiveRoute]);
 
   // Dismiss all cards, previews and overlays when touching the map and restore previous zoom/camera if a spot was selected
   const handleMapDismiss = useCallback(() => {
+    clearActiveRoute();
     setSelectedSpot((prev) => {
       if (prev) {
         setRevertSpotZoomTrigger((t) => t + 1);
@@ -1570,7 +1681,7 @@ export default function App() {
     setIsDetailOpen(false);
     setIsCategoryCardOpen(false);
     setIsSearchOpen(false);
-  }, []);
+  }, [clearActiveRoute]);
 
   // User location state
   const [userCoords, setUserCoords] = useState<[number, number]>(
@@ -1631,6 +1742,56 @@ export default function App() {
     };
   }, [isAuthenticated, activeTab]);
 
+  // Smoothly recalculate the active road route when user's real GPS position moves significantly
+  useEffect(() => {
+    if (!activeRoute || activeTab !== 'explorar' || isRouteLoading || isBackgroundReroutingRef.current) {
+      return;
+    }
+
+    const navState = gpsNavigationManager.getState();
+    if (!navState.hasRealFix || navState.status !== 'granted') {
+      return;
+    }
+
+    const movedMeters = calculateHaversineDistance(
+      activeRoute.origin[0],
+      activeRoute.origin[1],
+      userCoords[0],
+      userCoords[1]
+    );
+    const elapsedMs = Date.now() - activeRoute.updatedAt;
+    if (movedMeters < 35 || elapsedMs < 6000) {
+      return;
+    }
+
+    const controller = new AbortController();
+    isBackgroundReroutingRef.current = true;
+
+    fetchRealRoadRoute({
+      spotId: activeRoute.spotId,
+      spotName: activeRoute.spotName,
+      origin: userCoords,
+      destination: activeRoute.destination,
+      fitRevision: activeRoute.fitRevision,
+      signal: controller.signal,
+    })
+      .then((updatedRoute) => {
+        if (controller.signal.aborted) return;
+        setActiveRoute((prev) =>
+          prev && prev.spotId === updatedRoute.spotId ? updatedRoute : prev
+        );
+      })
+      .catch(() => {})
+      .finally(() => {
+        isBackgroundReroutingRef.current = false;
+      });
+
+    return () => {
+      controller.abort();
+      isBackgroundReroutingRef.current = false;
+    };
+  }, [activeRoute, activeTab, userCoords, isRouteLoading]);
+
   const handleToggleFavorite = useCallback((spotId: string) => {
     favoritesManager.toggleSpot(spotId);
   }, []);
@@ -1653,6 +1814,7 @@ export default function App() {
     }
 
     // Always immediately close any open spot details, itinerary details, search drawers, etc.
+    clearActiveRoute();
     setIsDetailOpen(false);
     setSelectedSpot(null);
     setSelectedItinerary(null);
@@ -1680,7 +1842,7 @@ export default function App() {
       }
       return tab;
     });
-  }, []);
+  }, [clearActiveRoute]);
 
   // Sempre que entrar no aplicativo, carregar Explorar ou voltar de outra aba/segundo plano, dá zoom automático na localização do usuário
   const prevActiveTabForZoomRef = useRef<TabType>(activeTab);
@@ -1802,6 +1964,7 @@ export default function App() {
     foregroundSelector: '#spot-preview-banner-card',
     backgroundSelector: '#app-map-layer',
     onPop: () => {
+      clearActiveRoute();
       setRevertSpotZoomTrigger((t) => t + 1);
       setSelectedSpot(null);
     },
@@ -2393,6 +2556,7 @@ export default function App() {
               isGlobeIntroPending={isGlobeIntroPending}
               isGlobeIntroPlaying={isGlobeIntroPlaying}
               onGlobeIntroComplete={handleGlobeIntroComplete}
+              activeRoute={activeRoute}
             />
 
             {/* 2. Dynamic Rain Particle Effect Overlay (Only active when user enabled AND actually raining in Campos do Jordão) */}
@@ -2614,6 +2778,9 @@ export default function App() {
               }
             }}
             onNavigateTo={(spot) => {
+              if (activeRoute && activeRoute.spotId !== spot.id) {
+                clearActiveRoute();
+              }
               setSelectedSpot(spot);
               setIsDetailOpen(false);
             }}
@@ -2855,6 +3022,7 @@ export default function App() {
           theme={theme}
           isSatellite={isSatelliteExplore}
           onClose={() => {
+            clearActiveRoute();
             setRevertSpotZoomTrigger((t) => t + 1);
             setSelectedSpot(null);
           }}
@@ -2863,6 +3031,10 @@ export default function App() {
             setIsDetailOpen(true);
           }}
           onOpenItineraryTab={() => setActiveTab('roteiros')}
+          onToggleRoute={handleToggleSpotRoute}
+          isRouteActive={activeRoute?.spotId === selectedSpot.id}
+          isRouteLoading={isRouteLoading}
+          routeError={routeError}
         />
       )}
     </AnimatePresence>

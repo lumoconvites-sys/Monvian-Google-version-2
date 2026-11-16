@@ -392,7 +392,8 @@ export const OnboardingFlow: React.FC<OnboardingFlowProps> = ({
             transition={{ duration: 0.15 }}
             className="text-xl sm:text-2xl font-black text-white tracking-tight leading-snug"
           >
-            {currentStepTitle}
+            {displayName && <span data-no-translate>{displayName}, </span>}
+            <span>{currentStepTitle}</span>
           </motion.h1>
         </div>
       </div>
