@@ -555,11 +555,16 @@ html:not(.dark) .maplibregl-canvas {
 }
 
 /* Clean solid black space void behind 3D Earth Globe when zoomed out or during space intro */
-.monvian-globe-space-active,
-.monvian-globe-space-active .maplibregl-canvas,
-.monvian-globe-space-active .maplibregl-canvas-container {
+html .monvian-globe-space-active,
+html:not(.dark) .monvian-globe-space-active,
+html.dark .monvian-globe-space-active,
+html:not(.dark) .monvian-globe-space-active .maplibregl-canvas,
+html.dark .monvian-globe-space-active .maplibregl-canvas,
+html:not(.dark) .monvian-globe-space-active .maplibregl-canvas-container,
+html.dark .monvian-globe-space-active .maplibregl-canvas-container {
   background-color: #000000 !important;
   background-image: none !important;
+  filter: none !important;
 }
 
 /* Confine MapLibre marker layer so markers never overlay floating UI controls */

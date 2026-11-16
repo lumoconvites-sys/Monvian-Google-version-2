@@ -69,51 +69,65 @@ export const WhiteConfettiOverlay: React.FC<WhiteConfettiOverlayProps> = ({
     window.addEventListener('resize', updateCanvasSize, { passive: true });
 
     const isMobile = width < 768;
-    const totalCount = prefersReducedMotion ? 36 : isMobile ? 135 : 190;
+    const totalCount = prefersReducedMotion ? 56 : isMobile ? 285 : 380;
     const pieces: ConfettiPiece[] = new Array(totalCount);
 
     const rand = (min: number, max: number) => min + Math.random() * (max - min);
+    const heightScale = Math.max(0.88, Math.min(1.25, height / 844));
 
     for (let i = 0; i < totalCount; i++) {
-      // Split burst across: 55% central radial explosion, 22.5% left upper-mid pop, 22.5% right upper-mid pop
+      // Intensive multi-wave white confetti choreography:
+      // 42% powerful central burst, 22% bottom-left cannon, 22% bottom-right cannon, 14% crisp upper wave / snow fall
       const r = Math.random();
       let originX = width * 0.5;
       let originY = height * 0.56;
       let angle = -Math.PI / 2;
-      let speed = rand(460, 1080);
+      let speed = rand(560, 1280) * heightScale;
       let delaySec = 0;
 
       if (prefersReducedMotion) {
-        originX = rand(width * 0.1, width * 0.9);
-        originY = rand(-20, height * 0.2);
-        angle = Math.PI / 2 + rand(-0.2, 0.2);
-        speed = rand(70, 150);
-      } else if (r < 0.56) {
-        // Central radial burst fanning upward and across the entire screen
-        originX = width * rand(0.42, 0.58);
-        originY = height * rand(0.50, 0.62);
-        angle = -Math.PI / 2 + rand(-1.22, 1.22);
-        speed = rand(520, isMobile ? 1050 : 1220);
-        delaySec = rand(0, 0.08);
-      } else if (r < 0.78) {
-        // Left-side upward celebratory cannon
-        originX = width * rand(0.06, 0.20);
-        originY = height * rand(0.68, 0.80);
-        angle = -Math.PI / 2 + rand(0.15, 0.78);
-        speed = rand(580, isMobile ? 1080 : 1260);
-        delaySec = rand(0.06, 0.18);
+        originX = rand(width * 0.08, width * 0.92);
+        originY = rand(-24, height * 0.25);
+        angle = Math.PI / 2 + rand(-0.22, 0.22);
+        speed = rand(75, 165);
+      } else if (r < 0.42) {
+        // Wave 1: Intense central celebratory burst fanning 360-upper hemisphere
+        originX = width * rand(0.38, 0.62);
+        originY = height * rand(0.46, 0.62);
+        angle = -Math.PI / 2 + rand(-1.38, 1.38);
+        speed = rand(580, isMobile ? 1240 : 1440) * heightScale;
+        delaySec = rand(0, 0.07);
+      } else if (r < 0.64) {
+        // Wave 1 + secondary left-side upward cannon
+        originX = width * rand(0.03, 0.18);
+        originY = height * rand(0.64, 0.84);
+        angle = -Math.PI / 2 + rand(0.14, 0.86);
+        speed = rand(660, isMobile ? 1300 : 1500) * heightScale;
+        delaySec = i % 3 === 0 ? rand(0.18, 0.30) : rand(0.02, 0.12);
+      } else if (r < 0.86) {
+        // Wave 1 + secondary right-side upward cannon
+        originX = width * rand(0.82, 0.97);
+        originY = height * rand(0.64, 0.84);
+        angle = -Math.PI / 2 - rand(0.14, 0.86);
+        speed = rand(660, isMobile ? 1300 : 1500) * heightScale;
+        delaySec = i % 3 === 0 ? rand(0.18, 0.30) : rand(0.02, 0.12);
       } else {
-        // Right-side upward celebratory cannon
-        originX = width * rand(0.80, 0.94);
-        originY = height * rand(0.68, 0.80);
-        angle = -Math.PI / 2 - rand(0.15, 0.78);
-        speed = rand(580, isMobile ? 1080 : 1260);
-        delaySec = rand(0.06, 0.18);
+        // Wave 2: Full-width upper burst & lush cascading snow-white flutter
+        originX = width * rand(0.04, 0.96);
+        originY = rand(-28, height * 0.10);
+        angle = Math.PI / 2 + rand(-0.42, 0.42);
+        speed = rand(210, 440) * heightScale;
+        delaySec = rand(0.10, 0.48);
       }
 
-      const isRibbon = Math.random() < 0.42;
-      const w = isRibbon ? rand(9, 15) : rand(6, 10.5);
-      const h = isRibbon ? rand(3.2, 4.8) : rand(4.5, 7.5);
+      const isRibbon = Math.random() < 0.46;
+      const isLargeForeground = !prefersReducedMotion && Math.random() < 0.24;
+      const w = isRibbon
+        ? rand(isLargeForeground ? 11.5 : 8.5, isLargeForeground ? 18.5 : 14.5)
+        : rand(isLargeForeground ? 8.2 : 5.8, isLargeForeground ? 12.2 : 9.8);
+      const h = isRibbon
+        ? rand(isLargeForeground ? 4.0 : 3.0, isLargeForeground ? 5.8 : 4.5)
+        : rand(isLargeForeground ? 6.2 : 4.4, isLargeForeground ? 9.0 : 7.2);
 
       pieces[i] = {
         x: originX,
@@ -123,16 +137,16 @@ export const WhiteConfettiOverlay: React.FC<WhiteConfettiOverlayProps> = ({
         w,
         h,
         rot: rand(0, Math.PI * 2),
-        rotSpeed: rand(-6.5, 6.5),
+        rotSpeed: rand(-8.2, 8.2),
         flip: rand(0, Math.PI * 2),
-        flipSpeed: rand(7.5, 14.5),
+        flipSpeed: rand(8.5, 16.5),
         swayPhase: rand(0, Math.PI * 2),
-        swayFreq: rand(2.2, 4.4),
-        swayAmp: rand(28, 68),
-        gravity: prefersReducedMotion ? rand(140, 210) : rand(620, 880),
+        swayFreq: rand(2.4, 4.8),
+        swayAmp: rand(34, 82),
+        gravity: prefersReducedMotion ? rand(140, 210) : rand(640, 920),
         drag: rand(0.955, 0.976),
-        terminalVy: prefersReducedMotion ? rand(120, 170) : rand(210, 340),
-        baseAlpha: rand(0.86, 1.0),
+        terminalVy: prefersReducedMotion ? rand(120, 170) : rand(225, 375),
+        baseAlpha: rand(0.90, 1.0),
         tintIndex: (i % 3) as 0 | 1 | 2,
         delaySec,
         isRibbon,
@@ -143,8 +157,8 @@ export const WhiteConfettiOverlay: React.FC<WhiteConfettiOverlayProps> = ({
     let isDisposed = false;
     let startTime = performance.now();
     let lastTime = startTime;
-    const totalDurationSec = prefersReducedMotion ? 1.85 : 4.5;
-    const fadeStartSec = prefersReducedMotion ? 1.15 : 3.25;
+    const totalDurationSec = prefersReducedMotion ? 1.85 : 5.1;
+    const fadeStartSec = prefersReducedMotion ? 1.15 : 3.7;
 
     const frame = (now: number) => {
       if (isDisposed) return;

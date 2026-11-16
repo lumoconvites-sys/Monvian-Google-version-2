@@ -506,6 +506,10 @@ export const MapComponent = memo(
         setIsCompassTracking(false);
       }
     }, []);
+    const setFollowModeRef = useRef(setFollowMode);
+    setFollowModeRef.current = setFollowMode;
+    const themeRef = useRef(theme);
+    themeRef.current = theme;
 
     const previousCameraStateRef = useRef<{
       center: [number, number];
@@ -685,6 +689,7 @@ export const MapComponent = memo(
 
           centerStack.onclick = (e) => {
             e.stopPropagation();
+            if (isGlobeIntroActiveRef.current) return;
             centerOnUserLocation(true, true);
           };
 
@@ -710,6 +715,8 @@ export const MapComponent = memo(
       },
       [userAvatar, userName]
     );
+    const ensureUserMarkerRef = useRef(ensureUserMarker);
+    ensureUserMarkerRef.current = ensureUserMarker;
 
     const centerOnUserLocation = useCallback(
       (activateSensors: boolean = true, toggleCompassMode: boolean = false, targetZoom: number = 15.6) => {
@@ -855,6 +862,8 @@ export const MapComponent = memo(
       },
       []
     );
+    const getCamposOverviewCameraRef = useRef(getCamposOverviewCamera);
+    getCamposOverviewCameraRef.current = getCamposOverviewCamera;
 
     const frameAllSpotsOverview = useCallback(
       (targetMap?: maplibregl.Map | null, animateCamera: boolean = false) => {
@@ -932,7 +941,7 @@ export const MapComponent = memo(
         ensureUserMarker(map);
 
         map.on('click', () => {
-          if (isGlobeIntroPlayingRef.current) return;
+          if (isGlobeIntroActiveRef.current) return;
           if (selectedSpotRef.current || previousCameraStateRef.current) {
             restorePreviousSpotCamera();
           }
@@ -941,10 +950,17 @@ export const MapComponent = memo(
 
         const syncSpaceAndMarkerZoomTier = () => {
           const z = map.getZoom();
-          const shouldSpace = Boolean(
-            isGlobeIntroPendingRef.current || isGlobeIntroPlayingRef.current || z < 7.5
-          );
+          const shouldSpace = Boolean(isGlobeIntroPendingRef.current || z < 7.2);
           setIsSpaceBackgroundActive((prev) => (prev === shouldSpace ? prev : shouldSpace));
+
+          const userMarkerEl = userMarkerRef.current?.getElement();
+          if (userMarkerEl) {
+            const hideUserPinForOrbitalFlight = Boolean(
+              isGlobeIntroActiveRef.current && z < 4.5
+            );
+            userMarkerEl.style.transition = 'opacity 0.35s ease';
+            userMarkerEl.style.opacity = hideUserPinForOrbitalFlight ? '0' : '1';
+          }
 
           const nextTier: 'orbital' | 'regional' | 'city' =
             z < 4.5 ? 'orbital' : z < 7.5 ? 'regional' : 'city';
@@ -1284,13 +1300,22 @@ export const MapComponent = memo(
 
     // Sync space backdrop state whenever intro props change
     useEffect(() => {
-      const z = mapRef.current?.getZoom() ?? 11.75;
-      const shouldSpace = Boolean(isGlobeIntroPending || isGlobeIntroPlaying || z < 7.5);
+      const z = mapRef.current?.getZoom() ?? (isGlobeIntroPending || isGlobeIntroPlaying ? 1.1 : 11.75);
+      const shouldSpace = Boolean(isGlobeIntroPending || z < 7.2);
       setIsSpaceBackgroundActive(shouldSpace);
+
+      const userMarkerEl = userMarkerRef.current?.getElement();
+      if (userMarkerEl) {
+        const hideUserPin = Boolean((isGlobeIntroPending || isGlobeIntroPlaying) && z < 4.5);
+        userMarkerEl.style.transition = 'opacity 0.35s ease';
+        userMarkerEl.style.opacity = hideUserPin ? '0' : '1';
+      }
+
       syncMarkerHighlight(selectedSpotRef.current?.id);
     }, [isGlobeIntroPending, isGlobeIntroPlaying]);
 
     // Choreographed Post-Signup Space-to-Location Cinematic Camera Flight (Stage A -> B -> C -> D)
+    // Depends ONLY on isGlobeIntroPlaying so avatar/prop updates never interrupt or cancel mid-flight
     useEffect(() => {
       if (!isGlobeIntroPlaying) {
         hasCompletedGlobeFlightRef.current = false;
@@ -1303,31 +1328,9 @@ export const MapComponent = memo(
 
       let cancelled = false;
 
-      const waitMs = (ms: number) =>
+      const waitNextFrame = () =>
         new Promise<void>((resolve) => {
-          const id = window.setTimeout(() => resolve(), ms);
-          if (cancelled) {
-            window.clearTimeout(id);
-            resolve();
-          }
-        });
-
-      const waitForMapReady = () =>
-        new Promise<void>((resolve) => {
-          if (cancelled || map.loaded()) {
-            resolve();
-            return;
-          }
-          let done = false;
-          const finish = () => {
-            if (done) return;
-            done = true;
-            map.off('load', finish);
-            window.clearTimeout(safetyId);
-            resolve();
-          };
-          const safetyId = window.setTimeout(finish, 1400);
-          map.on('load', finish);
+          requestAnimationFrame(() => resolve());
         });
 
       const animateCamera = (
@@ -1340,7 +1343,7 @@ export const MapComponent = memo(
             return;
           }
           let settled = false;
-          const durationMs = typeof options.duration === 'number' ? options.duration : 1200;
+          const durationMs = typeof options.duration === 'number' ? options.duration : 1100;
           const onEnd = () => {
             if (settled) return;
             settled = true;
@@ -1348,7 +1351,7 @@ export const MapComponent = memo(
             window.clearTimeout(timerId);
             resolve();
           };
-          const timerId = window.setTimeout(onEnd, durationMs + 180);
+          const timerId = window.setTimeout(onEnd, durationMs + 160);
           map.on('moveend', onEnd);
           try {
             if (method === 'flyTo') {
@@ -1380,7 +1383,7 @@ export const MapComponent = memo(
       };
 
       const runChoreographedGlobeFlight = async () => {
-        setFollowMode(false);
+        setFollowModeRef.current(false);
         setInteractionsEnabled(false);
 
         try {
@@ -1389,16 +1392,16 @@ export const MapComponent = memo(
               window.matchMedia?.('(prefers-reduced-motion: reduce)')?.matches
           );
           const orbitalZoom = getOrbitalEarthZoom();
-          const camposTarget = getCamposOverviewCamera(map);
+          const camposTarget = getCamposOverviewCameraRef.current(map);
           const finalPitch = is3DModeRef.current ? 60 : 0;
           const finalBearing = is3DModeRef.current ? -20 : 0;
 
           try {
             map.setProjection({ type: 'globe' });
-            map.setSky(getCleanSpaceSky(theme));
+            map.setSky(getCleanSpaceSky(themeRef.current));
           } catch {}
 
-          // Ensure Stage A orbital Earth framing before descent begins
+          // Ensure Stage A orbital Earth framing at exact entry, then begin descent immediately
           if (Math.abs(map.getZoom() - orbitalZoom) > 0.35) {
             map.jumpTo({
               center: [-22, -10],
@@ -1408,11 +1411,7 @@ export const MapComponent = memo(
             });
           }
 
-          await waitForMapReady();
-          if (cancelled) return;
-
-          // Stage A beat: clean 3D Earth centered in space
-          await waitMs(prefersReduced ? 220 : 420);
+          await waitNextFrame();
           if (cancelled) return;
 
           if (prefersReduced) {
@@ -1421,20 +1420,20 @@ export const MapComponent = memo(
               zoom: camposTarget.zoom,
               pitch: finalPitch,
               bearing: finalBearing,
-              duration: 1200,
+              duration: 1050,
               easing: (t) => 1 - Math.pow(1 - t, 3),
             });
           } else {
             const smoothEase = (t: number) =>
               t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
 
-            // Stage C.1-3: Rotate gently & approach South America
+            // Stage C.1-3: Rotate gently & approach South America immediately
             await animateCamera('easeTo', {
               center: [-58.5, -16.5],
-              zoom: Math.max(2.35, orbitalZoom + 1.45),
+              zoom: Math.max(2.45, orbitalZoom + 1.55),
               pitch: 10,
               bearing: -4,
-              duration: 1350,
+              duration: 1180,
               easing: smoothEase,
             });
             if (cancelled) return;
@@ -1442,10 +1441,10 @@ export const MapComponent = memo(
             // Stage C.4: Approach Brazil
             await animateCamera('easeTo', {
               center: [-48.6, -18.5],
-              zoom: 4.4,
+              zoom: 4.5,
               pitch: 20,
               bearing: -8,
-              duration: 1150,
+              duration: 1040,
               easing: smoothEase,
             });
             if (cancelled) return;
@@ -1463,7 +1462,7 @@ export const MapComponent = memo(
             if (hasRealUserLocation) {
               const [userLng, userLat] = gpsState.coords;
               latestUserCoordsRef.current = [userLng, userLat];
-              ensureUserMarker(map);
+              ensureUserMarkerRef.current(map);
               userMarkerRef.current?.setLngLat([userLng, userLat]);
 
               const distKm =
@@ -1475,40 +1474,37 @@ export const MapComponent = memo(
                 ) / 1000;
 
               if (distKm > 18) {
-                // Pass through user's identified region first, then glide smoothly to Campos do Jordão
-                const regionalZoom = distKm > 1500 ? 5.6 : distKm > 300 ? 7.6 : 9.4;
+                // Pass smoothly through user's identified region, then glide continuously to Campos do Jordão
+                const regionalZoom = distKm > 1500 ? 5.8 : distKm > 300 ? 7.8 : 9.4;
                 await animateCamera(distKm > 1500 ? 'flyTo' : 'easeTo', {
                   center: [userLng, userLat],
                   zoom: regionalZoom,
                   pitch: 26,
                   bearing: -10,
-                  curve: 1.22,
-                  duration: distKm > 1500 ? 1450 : 1150,
+                  curve: 1.2,
+                  duration: distKm > 1500 ? 1280 : 1020,
                   easing: smoothEase,
                 });
                 if (cancelled) return;
 
-                await waitMs(280);
-                if (cancelled) return;
-
-                // Stage D: Smooth glide into Campos do Jordão
+                // Stage D: Smooth continuous glide into Campos do Jordão
                 await animateCamera(distKm > 1500 ? 'flyTo' : 'easeTo', {
                   center: camposTarget.center,
                   zoom: camposTarget.zoom,
                   pitch: finalPitch,
                   bearing: finalBearing,
-                  curve: 1.18,
-                  duration: distKm > 1500 ? 1550 : 1280,
+                  curve: 1.15,
+                  duration: distKm > 1500 ? 1380 : 1140,
                   easing: smoothEase,
                 });
               } else {
-                // User is already in Campos do Jordão region: pass state -> user area -> full spot overview
+                // User is already in Campos do Jordão region: state -> user area -> full spot overview
                 await animateCamera('easeTo', {
                   center: [userLng, userLat],
                   zoom: 9.2,
                   pitch: 26,
                   bearing: -12,
-                  duration: 1000,
+                  duration: 920,
                   easing: smoothEase,
                 });
                 if (cancelled) return;
@@ -1518,7 +1514,7 @@ export const MapComponent = memo(
                   zoom: camposTarget.zoom,
                   pitch: finalPitch,
                   bearing: finalBearing,
-                  duration: 1180,
+                  duration: 1080,
                   easing: (t) => 1 - Math.pow(1 - t, 3),
                 });
               }
@@ -1526,10 +1522,10 @@ export const MapComponent = memo(
               // GPS denied or still acquiring: smooth São Paulo state -> Campos do Jordão approach
               await animateCamera('easeTo', {
                 center: [-46.6, -23.15],
-                zoom: 7.2,
+                zoom: 7.4,
                 pitch: 26,
                 bearing: -10,
-                duration: 1050,
+                duration: 960,
                 easing: smoothEase,
               });
               if (cancelled) return;
@@ -1539,7 +1535,7 @@ export const MapComponent = memo(
                 zoom: camposTarget.zoom,
                 pitch: finalPitch,
                 bearing: finalBearing,
-                duration: 1250,
+                duration: 1120,
                 easing: (t) => 1 - Math.pow(1 - t, 3),
               });
             }
@@ -1552,6 +1548,10 @@ export const MapComponent = memo(
           hasUserMovedMapRef.current = false;
           markerZoomTierRef.current = 'city';
           setIsSpaceBackgroundActive(false);
+          const userMarkerEl = userMarkerRef.current?.getElement();
+          if (userMarkerEl) {
+            userMarkerEl.style.opacity = '1';
+          }
           syncMarkerHighlight(selectedSpotRef.current?.id);
           onGlobeIntroCompleteRef.current?.();
         } finally {
@@ -1568,7 +1568,7 @@ export const MapComponent = memo(
         } catch {}
         setInteractionsEnabled(true);
       };
-    }, [isGlobeIntroPlaying, theme, setFollowMode, ensureUserMarker, getCamposOverviewCamera]);
+    }, [isGlobeIntroPlaying]);
 
     // Focus camera on user marker with high spotlight zoom and hide other markers during spotlight presentation
     useEffect(() => {
@@ -1655,6 +1655,7 @@ export const MapComponent = memo(
     useEffect(() => {
       if (prevIs3DModeRef.current === is3DMode) return;
       prevIs3DModeRef.current = is3DMode;
+      if (isGlobeIntroActiveRef.current) return;
 
       const map = mapRef.current;
       if (!map) return;
@@ -2863,10 +2864,16 @@ export const MapComponent = memo(
         className={`w-full h-full relative inset-0 select-none overflow-hidden ${
           isSpaceBackgroundActive ? 'monvian-globe-space-active' : ''
         }`}
+        style={{
+          backgroundColor: isSpaceBackgroundActive ? '#000000' : undefined,
+        }}
       >
         <div
           ref={mapContainerRef}
           className="w-full h-full absolute inset-0 select-none"
+          style={{
+            backgroundColor: isSpaceBackgroundActive ? '#000000' : undefined,
+          }}
         />
 
         {/* Alpine Snow on the Mountains Relief Atmosphere (Neve nas Montanhas) */}

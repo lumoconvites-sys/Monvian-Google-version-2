@@ -1700,7 +1700,10 @@ export default function App() {
         selectedSpot ||
         isDetailOpen ||
         isUserLocationSpotlightActive ||
-        isOnboardingItinerarySelection
+        isOnboardingItinerarySelection ||
+        showFirstSignupWelcome ||
+        isGlobeIntroPending ||
+        isGlobeIntroPlaying
       ) {
         return;
       }
@@ -1719,6 +1722,9 @@ export default function App() {
     isDetailOpen,
     isUserLocationSpotlightActive,
     isOnboardingItinerarySelection,
+    showFirstSignupWelcome,
+    isGlobeIntroPending,
+    isGlobeIntroPlaying,
   ]);
 
 
@@ -1840,6 +1846,7 @@ export default function App() {
     deviceHeadingManager.start();
 
     const triggerNativePermissionsOnClick = () => {
+      if (isGlobeIntroPending || isGlobeIntroPlaying) return;
       if (gpsNavigationManager.getState().status !== 'granted') {
         gpsNavigationManager.requestPermissionAndStartFromGesture();
       }
@@ -1852,14 +1859,16 @@ export default function App() {
       }
     };
 
-    window.addEventListener('click', triggerNativePermissionsOnClick, { capture: true });
+    if (!isGlobeIntroPending && !isGlobeIntroPlaying) {
+      window.addEventListener('click', triggerNativePermissionsOnClick, { capture: true });
+    }
 
     return () => {
       window.removeEventListener('click', triggerNativePermissionsOnClick, true);
       gpsNavigationManager.stop();
       deviceHeadingManager.stop();
     };
-  }, [isAuthenticated, activeTab, showFirstSignupWelcome]);
+  }, [isAuthenticated, activeTab, showFirstSignupWelcome, isGlobeIntroPending, isGlobeIntroPlaying]);
 
   useEffect(() => {
     // Wait until full-screen onboarding modals, signup reveal, onboarding itinerary selection, first-signup welcome, and admin are closed
@@ -3161,6 +3170,31 @@ export default function App() {
         </motion.div>
       )}
     </AnimatePresence>
+
+    {/* Uninterruptible Touch & Click Shield while Globe Flight Animation is running */}
+    {isGlobeIntroPlaying && (
+      <div
+        aria-hidden="true"
+        className="fixed inset-0 z-[245] pointer-events-auto touch-none select-none bg-transparent"
+        onClick={(e) => {
+          e.preventDefault();
+          e.stopPropagation();
+        }}
+        onPointerDown={(e) => {
+          e.preventDefault();
+          e.stopPropagation();
+        }}
+        onTouchStart={(e) => {
+          e.stopPropagation();
+        }}
+        onTouchMove={(e) => {
+          e.stopPropagation();
+        }}
+        onWheel={(e) => {
+          e.stopPropagation();
+        }}
+      />
+    )}
 
     {/* White Confetti Burst Overlay (120fps) upon landing in Campos do Jordão */}
     {activeTab === 'explorar' && arrivalConfettiTrigger > 0 && (

@@ -1766,14 +1766,43 @@ export function AuthScreen({
                 />
               </motion.div>
 
-              {/* Indicador visual de progresso animado */}
-              <div className="w-full max-w-[220px] h-[3px] bg-[#E8EDF5] rounded-full overflow-hidden mb-6 relative">
-                <motion.div
-                  className="h-full bg-[#2673E8] rounded-full"
-                  initial={{ width: '0%' }}
-                  animate={{ width: `${creationProgress}%` }}
-                  transition={{ duration: 0.45, ease: [0.22, 1, 0.36, 1] }}
-                />
+              {/* Indicador circular de carregamento animado */}
+              <div
+                className="relative w-7 h-7 mb-6 flex items-center justify-center"
+                role="progressbar"
+                aria-valuemin={0}
+                aria-valuemax={100}
+                aria-valuenow={Math.round(creationProgress)}
+              >
+                <motion.svg
+                  viewBox="0 0 24 24"
+                  className="w-7 h-7"
+                  animate={{ rotate: 360 }}
+                  transition={{
+                    duration: 0.85,
+                    repeat: Infinity,
+                    ease: 'linear',
+                  }}
+                >
+                  <circle
+                    cx="12"
+                    cy="12"
+                    r="9.5"
+                    fill="none"
+                    stroke="#E5E7EB"
+                    strokeWidth="2.2"
+                  />
+                  <circle
+                    cx="12"
+                    cy="12"
+                    r="9.5"
+                    fill="none"
+                    stroke="#18181B"
+                    strokeWidth="2.2"
+                    strokeLinecap="round"
+                    strokeDasharray="19 44"
+                  />
+                </motion.svg>
               </div>
 
               {/* Transições suaves entre as 5 mensagens solicitadas */}

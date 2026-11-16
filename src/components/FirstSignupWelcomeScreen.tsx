@@ -419,7 +419,7 @@ export const FirstSignupWelcomeScreen: React.FC<FirstSignupWelcomeScreenProps> =
             </ul>
           </div>
 
-          {/* Primary Bottom Dark Liquid Glass Pill CTA */}
+          {/* Primary Bottom Dark Liquid Glass Pill CTA with Gentle Pulse */}
           <motion.div
             initial={
               prefersReducedMotion
@@ -430,16 +430,57 @@ export const FirstSignupWelcomeScreen: React.FC<FirstSignupWelcomeScreenProps> =
             transition={
               prefersReducedMotion
                 ? { duration: 0.16 }
-                : { ...iosSpring, delay: 0.72 }
+                : { ...iosSpring, delay: 0.55 }
             }
-            className="w-full max-w-[356px] mx-auto pt-2 pb-1 shrink-0"
+            className="relative w-full max-w-[356px] mx-auto pt-2 pb-1 shrink-0"
           >
-            <button
+            {/* Subtle ambient outer halo pulse (restrained adult iOS breathing) */}
+            {!prefersReducedMotion && !isClosing && (
+              <motion.span
+                aria-hidden="true"
+                initial={{ opacity: 0, scale: 0.98 }}
+                animate={{
+                  opacity: [0.10, 0.28, 0.10],
+                  scale: [0.995, 1.028, 0.995],
+                }}
+                transition={{
+                  duration: 2.35,
+                  repeat: Infinity,
+                  ease: 'easeInOut',
+                  delay: 0.9,
+                }}
+                className="pointer-events-none absolute inset-x-0 top-2 bottom-1 rounded-full"
+                style={{
+                  border: '1px solid rgba(0, 0, 0, 0.20)',
+                  boxShadow: '0 0 22px rgba(0, 0, 0, 0.14)',
+                }}
+              />
+            )}
+
+            <motion.button
               id="btn-first-welcome-start"
               type="button"
               onClick={handleDismiss}
               disabled={isClosing}
-              className="relative w-full h-[56px] sm:h-[60px] rounded-full flex items-center justify-center gap-2.5 text-[#FFFFFF] text-[17.5px] sm:text-[18.5px] font-semibold tracking-[-0.012em] cursor-pointer overflow-hidden transition-transform duration-150 active:scale-[0.98] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#000000]"
+              animate={
+                prefersReducedMotion || isClosing
+                  ? { scale: 1 }
+                  : {
+                      scale: [1, 1.022, 1],
+                    }
+              }
+              transition={
+                prefersReducedMotion || isClosing
+                  ? { duration: 0.15 }
+                  : {
+                      duration: 2.35,
+                      repeat: Infinity,
+                      ease: 'easeInOut',
+                      delay: 0.9,
+                    }
+              }
+              whileTap={prefersReducedMotion ? undefined : { scale: 0.97 }}
+              className="relative w-full h-[56px] sm:h-[60px] rounded-full flex items-center justify-center gap-2.5 text-[#FFFFFF] text-[17.5px] sm:text-[18.5px] font-semibold tracking-[-0.012em] cursor-pointer overflow-hidden focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#000000]"
               style={{
                 background:
                   'linear-gradient(180deg, rgba(36, 36, 40, 0.94) 0%, rgba(10, 10, 12, 0.98) 54%, rgba(22, 22, 26, 0.96) 100%)',
@@ -448,6 +489,7 @@ export const FirstSignupWelcomeScreen: React.FC<FirstSignupWelcomeScreenProps> =
                 border: '1px solid rgba(255, 255, 255, 0.22)',
                 boxShadow:
                   '0 14px 32px rgba(0, 0, 0, 0.24), 0 4px 12px rgba(0, 0, 0, 0.14), inset 0 1.5px 1.5px rgba(255, 255, 255, 0.36), inset 0 -1.5px 2px rgba(255, 255, 255, 0.10)',
+                willChange: 'transform',
               }}
             >
               {/* Top Liquid Glass Rim Reflection */}
@@ -461,7 +503,7 @@ export const FirstSignupWelcomeScreen: React.FC<FirstSignupWelcomeScreenProps> =
               />
               <span className="relative z-10">{tr('Começar')}</span>
               <ArrowRight className="relative z-10 w-[19px] h-[19px] stroke-[2.2]" />
-            </button>
+            </motion.button>
           </motion.div>
         </div>
       </div>
