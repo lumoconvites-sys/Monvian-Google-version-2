@@ -327,7 +327,7 @@ export const TinderDiscoveryStep: React.FC<TinderDiscoveryStepProps> = ({
               Lugares Selecionados!
             </h3>
             <p className="text-sm font-bold text-zinc-500 dark:text-zinc-400 mt-2 max-w-[280px] leading-relaxed">
-              Você escolheu {likedSpots.length} experiências para o seu roteiro inteligente em Campos do Jordão.
+              {`Você escolheu ${likedSpots.length} experiências para o seu roteiro inteligente em Campos do Jordão.`}
             </p>
             <button
               onClick={handleGenerateNow}

@@ -1391,6 +1391,133 @@ const PT_TO_EN_RAW: Record<string, string> = {
   'Aberto 24 horas': 'Open 24 hours',
   'Não foi possível iniciar o pagamento no Stripe.': 'Could not start Stripe payment.',
   'Não foi possível concluir a compra.': 'Could not complete purchase.',
+  'Sobre': 'About',
+  'avaliações reais': 'real reviews',
+  'avaliação real': 'real review',
+  'avaliações': 'reviews',
+  'avaliação': 'review',
+  'Nota 1.0 selecionada': 'Rating 1.0 selected',
+  'Nota 2.0 selecionada': 'Rating 2.0 selected',
+  'Nota 3.0 selecionada': 'Rating 3.0 selected',
+  'Nota 4.0 selecionada': 'Rating 4.0 selected',
+  'Nota 5.0 selecionada': 'Rating 5.0 selected',
+  '.0 selecionada': '.0 selected',
+  'selecionada': 'selected',
+  'Nota': 'Rating',
+  'Salvando...': 'Saving...',
+  'Visitante': 'Visitor',
+  'Visitante Monvian': 'Monvian Visitor',
+  'Visitante MONVIAN': 'MONVIAN Visitor',
+  'Visitante de Campos': 'Campos Visitor',
+  'Recente': 'Recent',
+  'Recentes ▾': 'Recent ▾',
+  'ontem': 'yesterday',
+  'Ontem': 'Yesterday',
+  'Consultar': 'Inquire',
+  'Entrada Franca': 'Free Admission',
+  'Acesso Livre': 'Free Access',
+  'Ativar som': 'Unmute sound',
+  'Desativar som': 'Mute sound',
+  'Leve um casaco quentinho, especialmente no final da tarde, pois a altitude faz a temperatura cair rapidamente!':
+    'Bring a warm jacket, especially in the late afternoon, as the altitude makes temperatures drop quickly!',
+  'Muito bom, recomendo a visita.': 'Very good, I recommend visiting.',
+  'Mais Famoso': 'Most Famous',
+  'Popular': 'Popular',
+  'Eventos & Shows': 'Events & Shows',
+  'Gastronomia & Folclore': 'Gastronomy & Folklore',
+  'Desde 1943, um dos hotéis mais tradicionais e elegantes do Brasil. Rodeado por araucárias, oferece chalés suíços, spa L\'Occitane e alta gastronomia com lareiras acesas.':
+    'Since 1943, one of Brazil’s most traditional and elegant hotels. Surrounded by araucaria pines, it offers Swiss chalets, an L’Occitane spa, and fine dining by warm fireplaces.',
+  'Reserve algumas horas para conhecer o parque com calma e aproveite para fazer as atividades ao ar livre. Vá com roupas confortáveis e consulte previamente os horários e condições das atrações que deseja experimentar.':
+    'Set aside a few hours to explore the park at an easy pace and enjoy the outdoor activities. Wear comfortable clothes and check the schedule and conditions of the attractions beforehand.',
+  'Cachoeiras refrescantes, pontes de madeira e feirinha tradicional.':
+    'Refreshing waterfalls, wooden bridges, and a traditional craft market.',
+  'Criado sob medida para casais, unindo cenários apaixonantes, café especial em bosque com araucárias e fondue romântico.':
+    'Tailor-made for couples, combining breathtaking scenery, specialty coffee in an araucaria forest, and romantic fondue.',
+  'Recomendamos fazer reserva prévia nos restaurantes de fondue nos finais de semana.':
+    'We recommend booking fondue restaurants in advance on weekends.',
+  'Campos em Família: Diversão para Todas as Idades':
+    'Family in Campos: Fun for All Ages',
+  'Parques ao ar livre com segurança, arvorismo, tirolesas, contato com animais e cenários mágicos que encantam crianças e adultos.':
+    'Safe outdoor parks, treetop courses, ziplines, animal encounters, and magical scenery that delight both kids and adults.',
+  'Programe os passeios ao ar livre com calçados confortáveis e agasalhos para as crianças.':
+    'Plan outdoor outings with comfortable footwear and warm layers for children.',
+  'Dia Romântico Exclusivo': 'Exclusive Romantic Day',
+  'Um dia aconchegante para viver momentos especiais na Serra da Mantiqueira.':
+    'A cozy day to experience special moments in the Mantiqueira Mountains.',
+  'Exploração de mirantes e fotografia panorâmica.':
+    'Viewpoint exploration and panoramic photography.',
+  'Experiência gastronômica completa com chopes nobres e chocolates artesanais.':
+    'Complete culinary experience with craft draft beers and artisanal chocolates.',
+  'Atividades recreativas dinâmicas ao ar livre com segurança total.':
+    'Dynamic outdoor recreational activities with complete safety.',
+  'Labirinto verde no Amantikir e passarelas na Ducha de Prata.':
+    'Green maze at Amantikir and wooden walkways at Ducha de Prata.',
+  'Passeio a dois pelos labirintos e jardins floridos.':
+    'Romantic stroll for two through the mazes and blooming gardens.',
+  'Chocolate quente e vista panorâmica para as montanhas no mirante.':
+    'Hot chocolate and panoramic mountain views at the lookout.',
+  'Jantar romântico com sequência de queijos e chocolates.':
+    'Romantic dinner with cheese and chocolate fondue courses.',
+  'Passarelas sobre a água e ar puro da serra.':
+    'Walkways over the water and fresh mountain air.',
+  'Mirantes e contemplação das cerejeiras.':
+    'Viewpoints and cherry blossom contemplation.',
+  'Almoço clássico com pratos alemães e chopes artesanais.':
+    'Classic lunch with German dishes and craft beers.',
+  'Passeio pelo boulevard com visita a cafés coloniais.':
+    'Stroll along the boulevard visiting traditional mountain cafes.',
+  'Chocolate quente cremoso e vista das montanhas.':
+    'Creamy hot chocolate and mountain views.',
+  'Mais de 30 atrações ao ar livre, tirolesas e passeios a cavalo.':
+    'Over 30 outdoor attractions, ziplines, and horseback riding.',
+  'Teleférico panorâmico e pedalinhos no lago central.':
+    'Panoramic cable car and paddle boats on the central lake.',
+  'Labirinto de arbustos verde e jardins de vários países.':
+    'Green hedge maze and gardens inspired by different countries.',
+  'Passarelas de madeira e tirolesa sobre as cachoeiras.':
+    'Wooden walkways and zipline over the waterfalls.',
+  'Arquitetura alpina iluminada ao cair da noite no centro do Capivari.':
+    'Illuminated Alpine architecture at nightfall in downtown Capivari.',
+  'Passeio refrescante na Ducha de Prata pelas passarelas de madeira.':
+    'Refreshing walk at Ducha de Prata along the wooden walkways.',
+  'Caminhada matinal pelo Parque da Lagoinha. O lago estava como um espelho.':
+    'Morning walk through Lagoinha Park. The lake looked like a mirror.',
+  'Serra da Mantiqueira coberta por nuvens baixas ao amanhecer.':
+    'Mantiqueira Mountains covered by low clouds at dawn.',
+  'Lojas de malhas e aconchego nas ruelas europeias do Capivari.':
+    'Knitwear shops and cozy charm in the European alleys of Capivari.',
+  'Casas enxaimel e pinheiros da Mantiqueira ao redor.':
+    'Half-timbered houses surrounded by Mantiqueira pines.',
+  'Fechando a viagem com chave de ouro: o mirante do Pico do Itapeva.':
+    'Ending the trip on a high note: the Pico do Itapeva viewpoint.',
+  'Tirada de qual mirante?': 'Taken from which viewpoint?',
+  'O melhor fondue da serra!': 'The best fondue in the mountains!',
+  'Um dos meus lugares favoritos de Campos.': 'One of my favorite places in Campos.',
+  'Uau! Que foto espetacular!': 'Wow! What a spectacular photo!',
+  'Subiu pela trilha da Ana Chata?': 'Did you hike up the Ana Chata trail?',
+  'Pediu a cerveja de trigo e o pastel de truta?': 'Did you order the wheat beer and trout pastry?',
+  'O ar puro daqui revigora qualquer um.': 'The fresh air here revitalizes everyone.',
+  'Vinhos de altitude surpreendendo sempre.': 'High-altitude wines always impressing.',
+  'Adoro o inverno rigoroso daqui!': 'I love the crisp winter here!',
+  'Apresentação ao vivo e degustação especial no coração da Vila Capivari.':
+    'Live performance and special tasting in the heart of Vila Capivari.',
+  'Atendimento móvel de urgência 24 horas em Campos do Jordão.':
+    '24-hour mobile emergency medical service in Campos do Jordão.',
+  'Resgate, salvamento em montanha e emergências.':
+    'Mountain rescue, fire department, and emergency response.',
+  'Segurança pública e policiamento turístico.':
+    'Public safety and tourist police assistance.',
+  'Pronto atendimento médico municipal 24 horas.':
+    '24-hour municipal emergency medical care.',
+  'Melhor custo-benefício': 'Best value',
+  'Visualizações': 'Views',
+  'visualizações': 'views',
+  'visualização': 'view',
+  'Parcialmente nublado': 'Partly cloudy',
+  'Tempo nublado': 'Cloudy',
+  'Nevoeiro na serra': 'Mountain fog',
+  'Pancadas de neve': 'Snow showers',
+  'Tempestade com raios': 'Thunderstorm',
 };
 
 const normalizeLookupKey = (s: string): string =>
@@ -1412,41 +1539,55 @@ const DYNAMIC_RULES: Array<[RegExp, (...args: string[]) => string]> = [
   [/^Olá,\s*(.+)$/i, (_m, name) => `Hello, ${name}`],
   [/^Nível\s+(\d+)\s*[·•-]\s*(.+)$/i, (_m, lvl, title) => `Level ${lvl} · ${translatePtToEn(title.trim())}`],
   [/^Nível\s+(\d+)$/i, (_m, lvl) => `Level ${lvl}`],
-  [/^(\d+)\s*lugar(?:es)?\s+descobertos?$/i, (_m, n) => `${n} ${Number(n) === 1 ? 'place discovered' : 'places discovered'}`],
+  [/^([\d.,]+)\s*avaliaç(?:ão|ões)\s+reais$/i, (_m, n) => `${n} real ${Number(n.replace(/[.,]/g, '')) === 1 ? 'review' : 'reviews'}`],
+  [/^\(([\d.,]+)\s*avaliaç(?:ão|ões)\)$/i, (_m, n) => `(${n} ${Number(n.replace(/[.,]/g, '')) === 1 ? 'review' : 'reviews'})`],
+  [/^([\d.,]+)\s*avaliaç(?:ão|ões)$/i, (_m, n) => `${n} ${Number(n.replace(/[.,]/g, '')) === 1 ? 'review' : 'reviews'}`],
+  [/^Nota\s+([\d.,]+)\s+selecionada$/i, (_m, n) => `Rating ${n} selected`],
+  [/^Avaliação registrada com sucesso!\s*Média atual:\s*([\d.,]+)\.?$/i, (_m, avg) => `Review submitted! Current average: ${avg}.`],
+  [/^([\d.,]+)\s*estrelas?$/i, (_m, n) => `${n} ${Number(n) === 1 ? 'star' : 'stars'}`],
+  [/^Vídeo\s+(\d+)\s+de\s+(\d+)$/i, (_m, a, b) => `Video ${a} of ${b}`],
+  [/^([\d.,]+)\s*MB\s*[•·-]\s*Clique para trocar$/i, (_m, mb) => `${mb} MB • Tap to change`],
+  [/^Ex:\s*Tour imperdível no\s+(.+)$/i, (_m, spot) => `E.g.: Must-see tour at ${spot}`],
+  [/^([\d.,]+)\s*viajantes?\s+hoje$/i, (_m, n) => `${n} travelers today`],
+  [/^([\d.,]+)\s*turistas?\s+já\s+usaram$/i, (_m, n) => `${n} travelers have used this`],
+  [/^Permanência:\s*~?(\d+)\s*min$/i, (_m, min) => `Duration: ~${min} min`],
+  [/^Você escolheu\s+(\d+)\s+experiências?\s+para\s+o\s+seu\s+roteiro\s+inteligente\s+em\s+Campos\s+do\s+Jordão\.?$/i, (_m, n) => `You selected ${n} ${Number(n) === 1 ? 'experience' : 'experiences'} for your smart itinerary in Campos do Jordão.`],
+  [/^([\d.,]+)\s*lugar(?:es)?\s+descobertos?$/i, (_m, n) => `${n} ${Number(n.replace(/[.,]/g, '')) === 1 ? 'place discovered' : 'places discovered'}`],
   [/^Faltam\s+([\d.,]+)\s*XP\s+para\s+o\s+próximo\s+nível$/i, (_m, xp) => `${xp} XP to next level`],
-  [/^Paradas\s*\((\d+)\)$/i, (_m, n) => `Stops (${n})`],
-  [/^Resultados\s*\((\d+)\)$/i, (_m, n) => `Results (${n})`],
+  [/^Paradas\s*\(([\d.,]+)\)$/i, (_m, n) => `Stops (${n})`],
+  [/^Resultados\s*\(([\d.,]+)\)$/i, (_m, n) => `Results (${n})`],
   [/^Roteiros\s*[·•]\s*(.+)$/i, (_m, cat) => `Itineraries · ${translatePtToEn(cat.trim())}`],
   [/^(\d+(?:[.,]\d+)?)\s*mil$/i, (_m, n) => `${n.replace(',', '.')}k`],
-  [/^(\d+)\s*paradas?$/i, (_m, n) => `${n} ${Number(n) === 1 ? 'stop' : 'stops'}`],
-  [/^(\d+)\s*dias?$/i, (_m, n) => `${n} ${Number(n) === 1 ? 'day' : 'days'}`],
-  [/^(\d+)\s*lugar(?:es)?$/i, (_m, n) => `${n} ${Number(n) === 1 ? 'place' : 'places'}`],
-  [/^(\d+)\s*curtidas?$/i, (_m, n) => `${n} ${Number(n) === 1 ? 'like' : 'likes'}`],
-  [/^Ver todos os (\d+) comentários$/i, (_m, n) => `View all ${n} comments`],
+  [/^([\d.,]+)\s*paradas?$/i, (_m, n) => `${n} ${Number(n.replace(/[.,]/g, '')) === 1 ? 'stop' : 'stops'}`],
+  [/^([\d.,]+)\s*dias?$/i, (_m, n) => `${n} ${Number(n.replace(/[.,]/g, '')) === 1 ? 'day' : 'days'}`],
+  [/^([\d.,]+)\s*lugar(?:es)?$/i, (_m, n) => `${n} ${Number(n.replace(/[.,]/g, '')) === 1 ? 'place' : 'places'}`],
+  [/^([\d.,]+)\s*curtidas?$/i, (_m, n) => `${n} ${Number(n.replace(/[.,]/g, '')) === 1 ? 'like' : 'likes'}`],
+  [/^Ver todos os ([\d.,]+) comentários$/i, (_m, n) => `View all ${n} comments`],
   [/^Você poderá entrar novamente a qualquer momento com sua conta (.+)\.$/i, (_m, email) => `You can sign back in anytime with your account ${email}.`],
-  [/^Libera até (\d+) roteiros? premium$/i, (_m, n) => `Unlocks up to ${n} premium ${Number(n) === 1 ? 'itinerary' : 'itineraries'}`],
+  [/^Libera até ([\d.,]+) roteiros? premium$/i, (_m, n) => `Unlocks up to ${n} premium ${Number(n) === 1 ? 'itinerary' : 'itineraries'}`],
   [/^(\d+)\s+de\s+(\d+)$/i, (_m, a, b) => `${a} of ${b}`],
   [/^Dia (\d+):\s*(.+)$/i, (_m, d, rest) => `Day ${d}: ${translatePtToEn(rest)}`],
   [/^Dia (\d+)\s*[•·-]\s*Dia (\d+)$/i, (_m, d1, d2) => `Day ${d1} • Day ${d2}`],
   [/^Dia (\d+)$/i, (_m, d) => `Day ${d}`],
+  [/^Ponto (\d+)$/i, (_m, n) => `Stop ${n}`],
   [/^Local (\d+):\s*(.+)$/i, (_m, n, rest) => `Stop ${n}: ${translatePtToEn(rest)}`],
   [/^Local (\d+)$/i, (_m, n) => `Stop ${n}`],
   [/^Parada (\d+)$/i, (_m, n) => `Stop ${n}`],
   [/^(.+?)\.\s*Deslize para a esquerda para excluir\.$/i, (_m, prefix) => `${translatePtToEn(prefix)}. Swipe left to delete.`],
-  [/^(\d+)\s*min até o próximo ponto$/i, (_m, min) => `${min} min to next stop`],
-  [/^(\d+)\s*locais planejados$/i, (_m, n) => `${n} planned spots`],
-  [/^(\d+)\s*local planejado$/i, (_m, n) => `${n} planned spot`],
-  [/^(\d+)\s*locais encontrados$/i, (_m, n) => `${n} spots found`],
-  [/^(\d+)\s*local encontrado$/i, (_m, n) => `${n} spot found`],
-  [/^(\d+)\s*opções disponíveis$/i, (_m, n) => `${n} options available`],
-  [/^(\d+)\s*opção disponível$/i, (_m, n) => `${n} option available`],
-  [/^(\d+)\s*adultos?$/i, (_m, n) => `${n} ${Number(n) === 1 ? 'adult' : 'adults'}`],
-  [/^(\d+)\s*crianças?$/i, (_m, n) => `${n} ${Number(n) === 1 ? 'child' : 'children'}`],
-  [/^(\d+)\s*visualizações?$/i, (_m, n) => `${n} ${Number(n) === 1 ? 'view' : 'views'}`],
-  [/^(\d+)\s*visualização$/i, (_m, n) => `${n} view`],
-  [/^(\d+)\s*publica(?:ção|ções)$/i, (_m, n) => `${n} ${Number(n) === 1 ? 'post' : 'posts'}`],
-  [/^Ver (\d+) comentários?$/i, (_m, n) => `View ${n} ${Number(n) === 1 ? 'comment' : 'comments'}`],
-  [/^(\d+)\s*comentários?$/i, (_m, n) => `${n} ${Number(n) === 1 ? 'comment' : 'comments'}`],
+  [/^(\d+)\s*min até o próximo (?:ponto|local)$/i, (_m, min) => `${min} min to next stop`],
+  [/^([\d.,]+)\s*locais planejados$/i, (_m, n) => `${n} planned spots`],
+  [/^([\d.,]+)\s*local planejado$/i, (_m, n) => `${n} planned spot`],
+  [/^([\d.,]+)\s*locais encontrados$/i, (_m, n) => `${n} spots found`],
+  [/^([\d.,]+)\s*local encontrado$/i, (_m, n) => `${n} spot found`],
+  [/^([\d.,]+)\s*opções disponíveis$/i, (_m, n) => `${n} options available`],
+  [/^([\d.,]+)\s*opção disponível$/i, (_m, n) => `${n} option available`],
+  [/^([\d.,]+)\s*adultos?$/i, (_m, n) => `${n} ${Number(n) === 1 ? 'adult' : 'adults'}`],
+  [/^([\d.,]+)\s*crianças?$/i, (_m, n) => `${n} ${Number(n) === 1 ? 'child' : 'children'}`],
+  [/^([\d.,]+)\s*visualizações?$/i, (_m, n) => `${n} ${Number(n.replace(/[.,]/g, '')) === 1 ? 'view' : 'views'}`],
+  [/^([\d.,]+)\s*visualização$/i, (_m, n) => `${n} view`],
+  [/^([\d.,]+)\s*publica(?:ção|ções)$/i, (_m, n) => `${n} ${Number(n.replace(/[.,]/g, '')) === 1 ? 'post' : 'posts'}`],
+  [/^Ver ([\d.,]+) comentários?$/i, (_m, n) => `View ${n} ${Number(n.replace(/[.,]/g, '')) === 1 ? 'comment' : 'comments'}`],
+  [/^([\d.,]+)\s*comentários?$/i, (_m, n) => `${n} ${Number(n.replace(/[.,]/g, '')) === 1 ? 'comment' : 'comments'}`],
   [/^Há (\d+) dias?$/i, (_m, n) => `${n} ${Number(n) === 1 ? 'day' : 'days'} ago`],
   [/^HÁ (\d+) DIAS?$/i, (_m, n) => `${n} ${Number(n) === 1 ? 'DAY' : 'DAYS'} AGO`],
   [/^HÁ (\d+) HORAS?$/i, (_m, n) => `${n} ${Number(n) === 1 ? 'HOUR' : 'HOURS'} AGO`],

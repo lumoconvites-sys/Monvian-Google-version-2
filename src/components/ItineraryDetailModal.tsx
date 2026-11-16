@@ -246,12 +246,12 @@ const _UnusedItineraryDetailModal: React.FC<ItineraryDetailModalProps> = ({
               <div className="flex items-center gap-3 text-xs text-zinc-200 font-medium">
                 <span className="flex items-center gap-1">
                   <MapPin className="w-3.5 h-3.5 text-zinc-300" />
-                  {totalPlaces} {totalPlaces === 1 ? 'parada' : 'paradas'}
+                  <span>{`${totalPlaces} ${totalPlaces === 1 ? 'parada' : 'paradas'}`}</span>
                 </span>
                 <span>•</span>
                 <span className="flex items-center gap-1">
                   <Users className="w-3.5 h-3.5 text-zinc-300" />
-                  {(itinerary.usageCount || 0).toLocaleString()} turistas já usaram
+                  <span>{`${(itinerary.usageCount || 0).toLocaleString()} turistas já usaram`}</span>
                 </span>
               </div>
             </div>
@@ -284,7 +284,7 @@ const _UnusedItineraryDetailModal: React.FC<ItineraryDetailModalProps> = ({
                         : 'expo-liquid-glass-btn text-zinc-700 dark:text-[#A1A1AA] hover:text-zinc-900 dark:hover:text-white'
                     }`}
                   >
-                    Dia {d.dayNumber || idx + 1}
+                    {`Dia ${d.dayNumber || idx + 1}`}
                   </motion.button>
                 ))}
               </div>
@@ -370,7 +370,7 @@ const _UnusedItineraryDetailModal: React.FC<ItineraryDetailModalProps> = ({
 
                           {step.durationMinutes && (
                             <span className="text-[11px] text-zinc-600 dark:text-zinc-400 font-medium">
-                              Permanência: ~{step.durationMinutes} min
+                              {`Permanência: ~${step.durationMinutes} min`}
                             </span>
                           )}
                         </div>

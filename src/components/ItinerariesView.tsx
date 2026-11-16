@@ -50,6 +50,7 @@ import { LazyImage } from './ui/LazyImage';
 import { favoritesManager } from '../services/favoritesManager';
 import { DEFAULT_CURATED_ITINERARIES } from '../data/defaultItineraries';
 import { useIOSBackEntry } from '../services/iosNavigationManager';
+import { recordItineraryPlayView } from '../services/itineraryViewsService';
 
 interface ItinerariesViewProps {
   isOpen: boolean;
@@ -545,7 +546,7 @@ const SwipeableStopCard: React.FC<SwipeableStopCardProps> = ({
             {step.durationToNextMin ? (
               <p className="text-[10.5px] font-normal text-zinc-400 dark:text-zinc-400 truncate leading-none flex items-center gap-1 pointer-events-none">
                 <RoundedNavigationIcon isGold={isPremium} className={`w-3 h-3 shrink-0 ${isPremium ? '' : (isDark ? 'text-white' : 'text-black')}`} size={12} />
-                <span>{step.durationToNextMin} min até o próximo ponto</span>
+                <span>{`${step.durationToNextMin} min até o próximo ponto`}</span>
               </p>
             ) : (
               <p className="text-[10.5px] font-normal text-zinc-400 dark:text-zinc-400 truncate leading-none pointer-events-none">
@@ -884,6 +885,7 @@ export const ItinerariesView: React.FC<ItinerariesViewProps> = memo(({
     storeItin: Itinerary,
     options?: { fromOnboardingSelection?: boolean }
   ) => {
+    recordItineraryPlayView(storeItin);
     const userItinId = 'user-itin-' + Date.now();
     const availableSpots = spots || CAMPOS_SPOTS;
 
@@ -2683,7 +2685,7 @@ export const ItinerariesView: React.FC<ItinerariesViewProps> = memo(({
 
           {/* Subheader: Stops count + Days switcher */}
           <div className="flex items-center justify-between text-xs text-zinc-400 font-semibold pt-1">
-            <span>{activeSteps.length} {activeSteps.length === 1 ? 'local' : 'locais'} planejados</span>
+            <span>{`${activeSteps.length} ${activeSteps.length === 1 ? 'local planejado' : 'locais planejados'}`}</span>
             {userItinerary?.days && userItinerary.days.length > 1 && (
               <div className="flex items-center gap-1">
                 {userItinerary.days.map((day, dIdx) => (
@@ -2718,7 +2720,7 @@ export const ItinerariesView: React.FC<ItinerariesViewProps> = memo(({
                       backgroundColor: isDark ? (selectedDayIndex === dIdx ? '#FFFFFF' : '#000000') : '#ffffff',
                     }}
                   >
-                    Dia {day.dayNumber}
+                    {`Dia ${day.dayNumber}`}
                   </motion.button>
                 ))}
               </div>
@@ -2824,7 +2826,7 @@ export const ItinerariesView: React.FC<ItinerariesViewProps> = memo(({
 
                     {step.durationToNextMin ? (
                       <p className="text-[10.5px] text-zinc-400 truncate mt-0.5">
-                        {step.durationToNextMin} min até o próximo local
+                        {`${step.durationToNextMin} min até o próximo local`}
                       </p>
                     ) : (
                       <p className="text-[10.5px] text-zinc-500 truncate mt-0.5">
@@ -3119,7 +3121,7 @@ export const ItinerariesView: React.FC<ItinerariesViewProps> = memo(({
                             : 'bg-white/10 text-white/80 hover:bg-white/20 border border-white/10'
                         }`}
                       >
-                        Dia {day.dayNumber}
+                        {`Dia ${day.dayNumber}`}
                       </motion.button>
                     ))}
                   </div>

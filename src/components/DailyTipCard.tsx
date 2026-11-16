@@ -111,7 +111,7 @@ export const DailyTipCard: React.FC<DailyTipCardProps> = ({
                   {spot.name}
                 </h2>
                 <p className="text-[11px] font-semibold text-zinc-500 dark:text-zinc-400 mt-0.5 mb-1.5">
-                  {spot.categoryLabel} · {spot.visitorsToday || 150} viajantes hoje
+                  {`${spot.categoryLabel} · ${spot.visitorsToday || 150} viajantes hoje`}
                 </p>
 
                 {/* Tourist Tip Snippet */}

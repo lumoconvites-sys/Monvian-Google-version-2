@@ -1393,6 +1393,133 @@ const PT_TO_ES_RAW: Record<string, string> = {
   'Aberto 24 horas': 'Abierto 24 horas',
   'Não foi possível iniciar o pagamento no Stripe.': 'No se pudo iniciar el pago en Stripe.',
   'Não foi possível concluir a compra.': 'No se pudo completar la compra.',
+  'Sobre': 'Acerca de',
+  'avaliações reais': 'reseñas reales',
+  'avaliação real': 'reseña real',
+  'avaliações': 'reseñas',
+  'avaliação': 'reseña',
+  'Nota 1.0 selecionada': 'Calificación 1.0 seleccionada',
+  'Nota 2.0 selecionada': 'Calificación 2.0 seleccionada',
+  'Nota 3.0 selecionada': 'Calificación 3.0 seleccionada',
+  'Nota 4.0 selecionada': 'Calificación 4.0 seleccionada',
+  'Nota 5.0 selecionada': 'Calificación 5.0 seleccionada',
+  '.0 selecionada': '.0 seleccionada',
+  'selecionada': 'seleccionada',
+  'Nota': 'Calificación',
+  'Salvando...': 'Guardando...',
+  'Visitante': 'Visitante',
+  'Visitante Monvian': 'Visitante Monvian',
+  'Visitante MONVIAN': 'Visitante MONVIAN',
+  'Visitante de Campos': 'Visitante de Campos',
+  'Recente': 'Reciente',
+  'Recentes ▾': 'Recientes ▾',
+  'ontem': 'ayer',
+  'Ontem': 'Ayer',
+  'Consultar': 'Consultar',
+  'Entrada Franca': 'Entrada Gratuita',
+  'Acesso Livre': 'Acceso Libre',
+  'Ativar som': 'Activar sonido',
+  'Desativar som': 'Silenciar sonido',
+  'Leve um casaco quentinho, especialmente no final da tarde, pois a altitude faz a temperatura cair rapidamente!':
+    '¡Lleva un abrigo cálido, especialmente al final de la tarde, ya que la altitud hace que la temperatura baje rápidamente!',
+  'Muito bom, recomendo a visita.': 'Muy bueno, recomiendo la visita.',
+  'Mais Famoso': 'Más Famoso',
+  'Popular': 'Popular',
+  'Eventos & Shows': 'Eventos y Espectáculos',
+  'Gastronomia & Folclore': 'Gastronomía y Folclore',
+  'Desde 1943, um dos hotéis mais tradicionais e elegantes do Brasil. Rodeado por araucárias, oferece chalés suíços, spa L\'Occitane e alta gastronomia com lareiras acesas.':
+    'Desde 1943, uno de los hoteles más tradicionales y elegantes de Brasil. Rodeado de araucarias, ofrece chalets suizos, spa L’Occitane y alta gastronomía junto a la chimenea.',
+  'Reserve algumas horas para conhecer o parque com calma e aproveite para fazer as atividades ao ar livre. Vá com roupas confortáveis e consulte previamente os horários e condições das atrações que deseja experimentar.':
+    'Reserva algunas horas para recorrer el parque con calma y disfrutar de las actividades al aire libre. Ve con ropa cómoda y consulta previamente los horarios y condiciones de las atracciones.',
+  'Cachoeiras refrescantes, pontes de madeira e feirinha tradicional.':
+    'Cascadas refrescantes, puentes de madera y feria artesanal tradicional.',
+  'Criado sob medida para casais, unindo cenários apaixonantes, café especial em bosque com araucárias e fondue romântico.':
+    'Creado a medida para parejas, uniendo paisajes cautivadores, café de especialidad en un bosque de araucarias y fondue romántico.',
+  'Recomendamos fazer reserva prévia nos restaurantes de fondue nos finais de semana.':
+    'Recomendamos reservar con antelación en los restaurantes de fondue durante los fines de semana.',
+  'Campos em Família: Diversão para Todas as Idades':
+    'Campos en Familia: Diversión para Todas las Edades',
+  'Parques ao ar livre com segurança, arvorismo, tirolesas, contato com animais e cenários mágicos que encantam crianças e adultos.':
+    'Parques al aire libre con seguridad, arborismo, tirolesas, contacto con animales y escenarios mágicos que encantan a niños y adultos.',
+  'Programe os passeios ao ar livre com calçados confortáveis e agasalhos para as crianças.':
+    'Programa los paseos al aire libre con calzado cómodo y abrigo para los niños.',
+  'Dia Romântico Exclusivo': 'Día Romántico Exclusivo',
+  'Um dia aconchegante para viver momentos especiais na Serra da Mantiqueira.':
+    'Un día acogedor para vivir momentos especiales en la Sierra de la Mantiqueira.',
+  'Exploração de mirantes e fotografia panorâmica.':
+    'Exploración de miradores y fotografía panorámica.',
+  'Experiência gastronômica completa com chopes nobres e chocolates artesanais.':
+    'Experiencia gastronómica completa con cervezas artesanales y chocolates finos.',
+  'Atividades recreativas dinâmicas ao ar livre com segurança total.':
+    'Actividades recreativas dinámicas al aire libre con total seguridad.',
+  'Labirinto verde no Amantikir e passarelas na Ducha de Prata.':
+    'Laberinto verde en Amantikir y pasarelas en Ducha de Prata.',
+  'Passeio a dois pelos labirintos e jardins floridos.':
+    'Paseo en pareja por los laberintos y jardines floridos.',
+  'Chocolate quente e vista panorâmica para as montanhas no mirante.':
+    'Chocolate caliente y vista panorámica de las montañas en el mirador.',
+  'Jantar romântico com sequência de queijos e chocolates.':
+    'Cena romántica con secuencia de fondue de quesos y chocolates.',
+  'Passarelas sobre a água e ar puro da serra.':
+    'Pasarelas sobre el agua y aire puro de montaña.',
+  'Mirantes e contemplação das cerejeiras.':
+    'Miradores y contemplación de los cerezos en flor.',
+  'Almoço clássico com pratos alemães e chopes artesanais.':
+    'Almuerzo clásico con platos alemanes y cervezas artesanales.',
+  'Passeio pelo boulevard com visita a cafés coloniais.':
+    'Paseo por el bulevar con visita a cafés tradicionales.',
+  'Chocolate quente cremoso e vista das montanhas.':
+    'Chocolate caliente cremoso y vista a las montañas.',
+  'Mais de 30 atrações ao ar livre, tirolesas e passeios a cavalo.':
+    'Más de 30 atracciones al aire libre, tirolesas y paseos a caballo.',
+  'Teleférico panorâmico e pedalinhos no lago central.':
+    'Teleférico panorámico y botes a pedal en el lago central.',
+  'Labirinto de arbustos verde e jardins de vários países.':
+    'Laberinto de arbustos verdes y jardines de varios países.',
+  'Passarelas de madeira e tirolesa sobre as cachoeiras.':
+    'Pasarelas de madera y tirolesa sobre las cascadas.',
+  'Arquitetura alpina iluminada ao cair da noite no centro do Capivari.':
+    'Arquitectura alpina iluminada al caer la noche en el centro de Capivari.',
+  'Passeio refrescante na Ducha de Prata pelas passarelas de madeira.':
+    'Paseo refrescante en Ducha de Prata por las pasarelas de madera.',
+  'Caminhada matinal pelo Parque da Lagoinha. O lago estava como um espelho.':
+    'Caminata matutina por el Parque da Lagoinha. El lago estaba como un espejo.',
+  'Serra da Mantiqueira coberta por nuvens baixas ao amanhecer.':
+    'Sierra de la Mantiqueira cubierta por nubes bajas al amanecer.',
+  'Lojas de malhas e aconchego nas ruelas europeias do Capivari.':
+    'Tiendas de tejidos y calidez en las callejuelas europeas de Capivari.',
+  'Casas enxaimel e pinheiros da Mantiqueira ao redor.':
+    'Casas de entramado alpino y pinos de la Mantiqueira alrededor.',
+  'Fechando a viagem com chave de ouro: o mirante do Pico do Itapeva.':
+    'Cerrando el viaje con broche de oro: el mirador del Pico do Itapeva.',
+  'Tirada de qual mirante?': '¿Tomada desde qué mirador?',
+  'O melhor fondue da serra!': '¡El mejor fondue de la sierra!',
+  'Um dos meus lugares favoritos de Campos.': 'Uno de mis lugares favoritos de Campos.',
+  'Uau! Que foto espetacular!': '¡Guau! ¡Qué foto tan espectacular!',
+  'Subiu pela trilha da Ana Chata?': '¿Subiste por el sendero de Ana Chata?',
+  'Pediu a cerveja de trigo e o pastel de truta?': '¿Pediste la cerveza de trigo y el pastel de trucha?',
+  'O ar puro daqui revigora qualquer um.': 'El aire puro de aquí revitaliza a cualquiera.',
+  'Vinhos de altitude surpreendendo sempre.': 'Vinos de altitud que siempre sorprenden.',
+  'Adoro o inverno rigoroso daqui!': '¡Me encanta el invierno de montaña de aquí!',
+  'Apresentação ao vivo e degustação especial no coração da Vila Capivari.':
+    'Presentación en vivo y degustación especial en el corazón de Vila Capivari.',
+  'Atendimento móvel de urgência 24 horas em Campos do Jordão.':
+    'Atención móvil de urgencias las 24 horas en Campos do Jordão.',
+  'Resgate, salvamento em montanha e emergências.':
+    'Rescate, salvamento en montaña y emergencias.',
+  'Segurança pública e policiamento turístico.':
+    'Seguridad pública y policía turística.',
+  'Pronto atendimento médico municipal 24 horas.':
+    'Atención médica municipal de urgencias las 24 horas.',
+  'Melhor custo-benefício': 'Mejor relación calidad-precio',
+  'Visualizações': 'Visualizaciones',
+  'visualizações': 'visualizaciones',
+  'visualização': 'visualización',
+  'Parcialmente nublado': 'Parcialmente nublado',
+  'Tempo nublado': 'Nublado',
+  'Nevoeiro na serra': 'Niebla en la sierra',
+  'Pancadas de neve': 'Chubascos de nieve',
+  'Tempestade com raios': 'Tormenta eléctrica',
 };
 
 const normalizeLookupKeyEs = (s: string): string =>
@@ -1412,41 +1539,55 @@ const DYNAMIC_RULES_ES: Array<[RegExp, (...args: string[]) => string]> = [
   [/^Olá,\s*(.+)$/i, (_m, name) => `Hola, ${name}`],
   [/^Nível\s+(\d+)\s*[·•-]\s*(.+)$/i, (_m, lvl, title) => `Nivel ${lvl} · ${translatePtToEs(title.trim())}`],
   [/^Nível\s+(\d+)$/i, (_m, lvl) => `Nivel ${lvl}`],
-  [/^(\d+)\s*lugar(?:es)?\s+descobertos?$/i, (_m, n) => `${n} ${Number(n) === 1 ? 'lugar descubierto' : 'lugares descubiertos'}`],
+  [/^([\d.,]+)\s*avaliaç(?:ão|ões)\s+reais$/i, (_m, n) => `${n} ${Number(n.replace(/[.,]/g, '')) === 1 ? 'reseña real' : 'reseñas reales'}`],
+  [/^\(([\d.,]+)\s*avaliaç(?:ão|ões)\)$/i, (_m, n) => `(${n} ${Number(n.replace(/[.,]/g, '')) === 1 ? 'reseña' : 'reseñas'})`],
+  [/^([\d.,]+)\s*avaliaç(?:ão|ões)$/i, (_m, n) => `${n} ${Number(n.replace(/[.,]/g, '')) === 1 ? 'reseña' : 'reseñas'}`],
+  [/^Nota\s+([\d.,]+)\s+selecionada$/i, (_m, n) => `Calificación ${n} seleccionada`],
+  [/^Avaliação registrada com sucesso!\s*Média atual:\s*([\d.,]+)\.?$/i, (_m, avg) => `¡Reseña registrada con éxito! Promedio actual: ${avg}.`],
+  [/^([\d.,]+)\s*estrelas?$/i, (_m, n) => `${n} ${Number(n) === 1 ? 'estrella' : 'estrellas'}`],
+  [/^Vídeo\s+(\d+)\s+de\s+(\d+)$/i, (_m, a, b) => `Video ${a} de ${b}`],
+  [/^([\d.,]+)\s*MB\s*[•·-]\s*Clique para trocar$/i, (_m, mb) => `${mb} MB • Toca para cambiar`],
+  [/^Ex:\s*Tour imperdível no\s+(.+)$/i, (_m, spot) => `Ej.: Tour imperdible en ${spot}`],
+  [/^([\d.,]+)\s*viajantes?\s+hoje$/i, (_m, n) => `${n} viajeros hoy`],
+  [/^([\d.,]+)\s*turistas?\s+já\s+usaram$/i, (_m, n) => `${n} turistas ya la usaron`],
+  [/^Permanência:\s*~?(\d+)\s*min$/i, (_m, min) => `Estancia: ~${min} min`],
+  [/^Você escolheu\s+(\d+)\s+experiências?\s+para\s+o\s+seu\s+roteiro\s+inteligente\s+em\s+Campos\s+do\s+Jordão\.?$/i, (_m, n) => `Elegiste ${n} ${Number(n) === 1 ? 'experiencia' : 'experiencias'} para tu ruta inteligente en Campos do Jordão.`],
+  [/^([\d.,]+)\s*lugar(?:es)?\s+descobertos?$/i, (_m, n) => `${n} ${Number(n.replace(/[.,]/g, '')) === 1 ? 'lugar descubierto' : 'lugares descubiertos'}`],
   [/^Faltam\s+([\d.,]+)\s*XP\s+para\s+o\s+próximo\s+nível$/i, (_m, xp) => `Faltan ${xp} XP para el próximo nivel`],
-  [/^Paradas\s*\((\d+)\)$/i, (_m, n) => `Paradas (${n})`],
-  [/^Resultados\s*\((\d+)\)$/i, (_m, n) => `Resultados (${n})`],
+  [/^Paradas\s*\(([\d.,]+)\)$/i, (_m, n) => `Paradas (${n})`],
+  [/^Resultados\s*\(([\d.,]+)\)$/i, (_m, n) => `Resultados (${n})`],
   [/^Roteiros\s*[·•]\s*(.+)$/i, (_m, cat) => `Rutas · ${translatePtToEs(cat.trim())}`],
   [/^(\d+(?:[.,]\d+)?)\s*mil$/i, (_m, n) => `${n} mil`],
-  [/^(\d+)\s*paradas?$/i, (_m, n) => `${n} ${Number(n) === 1 ? 'parada' : 'paradas'}`],
-  [/^(\d+)\s*dias?$/i, (_m, n) => `${n} ${Number(n) === 1 ? 'día' : 'días'}`],
-  [/^(\d+)\s*lugar(?:es)?$/i, (_m, n) => `${n} ${Number(n) === 1 ? 'lugar' : 'lugares'}`],
-  [/^(\d+)\s*curtidas?$/i, (_m, n) => `${n} ${Number(n) === 1 ? 'me gusta' : 'me gusta'}`],
-  [/^Ver todos os (\d+) comentários$/i, (_m, n) => `Ver los ${n} comentarios`],
+  [/^([\d.,]+)\s*paradas?$/i, (_m, n) => `${n} ${Number(n.replace(/[.,]/g, '')) === 1 ? 'parada' : 'paradas'}`],
+  [/^([\d.,]+)\s*dias?$/i, (_m, n) => `${n} ${Number(n.replace(/[.,]/g, '')) === 1 ? 'día' : 'días'}`],
+  [/^([\d.,]+)\s*lugar(?:es)?$/i, (_m, n) => `${n} ${Number(n.replace(/[.,]/g, '')) === 1 ? 'lugar' : 'lugares'}`],
+  [/^([\d.,]+)\s*curtidas?$/i, (_m, n) => `${n} ${Number(n.replace(/[.,]/g, '')) === 1 ? 'me gusta' : 'me gusta'}`],
+  [/^Ver todos os ([\d.,]+) comentários$/i, (_m, n) => `Ver los ${n} comentarios`],
   [/^Você poderá entrar novamente a qualquer momento com sua conta (.+)\.$/i, (_m, email) => `Podrás iniciar sesión nuevamente en cualquier momento con tu cuenta ${email}.`],
-  [/^Libera até (\d+) roteiros? premium$/i, (_m, n) => `Desbloquea hasta ${n} ${Number(n) === 1 ? 'ruta premium' : 'rutas premium'}`],
+  [/^Libera até ([\d.,]+) roteiros? premium$/i, (_m, n) => `Desbloquea hasta ${n} ${Number(n) === 1 ? 'ruta premium' : 'rutas premium'}`],
   [/^(\d+)\s+de\s+(\d+)$/i, (_m, a, b) => `${a} de ${b}`],
   [/^Dia (\d+):\s*(.+)$/i, (_m, d, rest) => `Día ${d}: ${translatePtToEs(rest)}`],
   [/^Dia (\d+)\s*[•·-]\s*Dia (\d+)$/i, (_m, d1, d2) => `Día ${d1} • Día ${d2}`],
   [/^Dia (\d+)$/i, (_m, d) => `Día ${d}`],
+  [/^Ponto (\d+)$/i, (_m, n) => `Parada ${n}`],
   [/^Local (\d+):\s*(.+)$/i, (_m, n, rest) => `Parada ${n}: ${translatePtToEs(rest)}`],
   [/^Local (\d+)$/i, (_m, n) => `Parada ${n}`],
   [/^Parada (\d+)$/i, (_m, n) => `Parada ${n}`],
   [/^(.+?)\.\s*Deslize para a esquerda para excluir\.$/i, (_m, prefix) => `${translatePtToEs(prefix)}. Desliza a la izquierda para eliminar.`],
-  [/^(\d+)\s*min até o próximo ponto$/i, (_m, min) => `${min} min hasta la próxima parada`],
-  [/^(\d+)\s*locais planejados$/i, (_m, n) => `${n} paradas planificadas`],
-  [/^(\d+)\s*local planejado$/i, (_m, n) => `${n} parada planificada`],
-  [/^(\d+)\s*locais encontrados$/i, (_m, n) => `${n} lugares encontrados`],
-  [/^(\d+)\s*local encontrado$/i, (_m, n) => `${n} lugar encontrado`],
-  [/^(\d+)\s*opções disponíveis$/i, (_m, n) => `${n} opciones disponibles`],
-  [/^(\d+)\s*opção disponível$/i, (_m, n) => `${n} opción disponible`],
-  [/^(\d+)\s*adultos?$/i, (_m, n) => `${n} ${Number(n) === 1 ? 'adulto' : 'adultos'}`],
-  [/^(\d+)\s*crianças?$/i, (_m, n) => `${n} ${Number(n) === 1 ? 'niño' : 'niños'}`],
-  [/^(\d+)\s*visualizações?$/i, (_m, n) => `${n} ${Number(n) === 1 ? 'visualización' : 'visualizaciones'}`],
-  [/^(\d+)\s*visualização$/i, (_m, n) => `${n} visualización`],
-  [/^(\d+)\s*publica(?:ção|ções)$/i, (_m, n) => `${n} ${Number(n) === 1 ? 'publicación' : 'publicaciones'}`],
-  [/^Ver (\d+) comentários?$/i, (_m, n) => `Ver ${n} ${Number(n) === 1 ? 'comentario' : 'comentarios'}`],
-  [/^(\d+)\s*comentários?$/i, (_m, n) => `${n} ${Number(n) === 1 ? 'comentario' : 'comentarios'}`],
+  [/^(\d+)\s*min até o próximo (?:ponto|local)$/i, (_m, min) => `${min} min hasta la próxima parada`],
+  [/^([\d.,]+)\s*locais planejados$/i, (_m, n) => `${n} paradas planificadas`],
+  [/^([\d.,]+)\s*local planejado$/i, (_m, n) => `${n} parada planificada`],
+  [/^([\d.,]+)\s*locais encontrados$/i, (_m, n) => `${n} lugares encontrados`],
+  [/^([\d.,]+)\s*local encontrado$/i, (_m, n) => `${n} lugar encontrado`],
+  [/^([\d.,]+)\s*opções disponíveis$/i, (_m, n) => `${n} opciones disponibles`],
+  [/^([\d.,]+)\s*opção disponível$/i, (_m, n) => `${n} opción disponible`],
+  [/^([\d.,]+)\s*adultos?$/i, (_m, n) => `${n} ${Number(n) === 1 ? 'adulto' : 'adultos'}`],
+  [/^([\d.,]+)\s*crianças?$/i, (_m, n) => `${n} ${Number(n) === 1 ? 'niño' : 'niños'}`],
+  [/^([\d.,]+)\s*visualizações?$/i, (_m, n) => `${n} ${Number(n.replace(/[.,]/g, '')) === 1 ? 'visualización' : 'visualizaciones'}`],
+  [/^([\d.,]+)\s*visualização$/i, (_m, n) => `${n} visualización`],
+  [/^([\d.,]+)\s*publica(?:ção|ções)$/i, (_m, n) => `${n} ${Number(n.replace(/[.,]/g, '')) === 1 ? 'publicación' : 'publicaciones'}`],
+  [/^Ver ([\d.,]+) comentários?$/i, (_m, n) => `Ver ${n} ${Number(n.replace(/[.,]/g, '')) === 1 ? 'comentario' : 'comentarios'}`],
+  [/^([\d.,]+)\s*comentários?$/i, (_m, n) => `${n} ${Number(n.replace(/[.,]/g, '')) === 1 ? 'comentario' : 'comentarios'}`],
   [/^Há (\d+) dias?$/i, (_m, n) => `Hace ${n} ${Number(n) === 1 ? 'día' : 'días'}`],
   [/^HÁ (\d+) DIAS?$/i, (_m, n) => `HACE ${n} ${Number(n) === 1 ? 'DÍA' : 'DÍAS'}`],
   [/^HÁ (\d+) HORAS?$/i, (_m, n) => `HACE ${n} ${Number(n) === 1 ? 'HORA' : 'HORAS'}`],

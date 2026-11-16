@@ -371,7 +371,7 @@ export const OnboardingFlow: React.FC<OnboardingFlowProps> = ({
           )}
 
           <span className="text-xs font-black text-zinc-400 bg-white/5 border border-white/10 px-3 py-1 rounded-full">
-            {step} de 3
+            {`${step} de 3`}
           </span>
         </div>
 

@@ -1393,6 +1393,133 @@ const PT_TO_JA_RAW: Record<string, string> = {
   'Aberto 24 horas': '24時間営業',
   'Não foi possível iniciar o pagamento no Stripe.': 'Stripe決済を開始できませんでした。',
   'Não foi possível concluir a compra.': '購入を完了できませんでした。',
+  'Sobre': '概要',
+  'avaliações reais': '件のレビュー',
+  'avaliação real': '件のレビュー',
+  'avaliações': '件のレビュー',
+  'avaliação': '件のレビュー',
+  'Nota 1.0 selecionada': '評価 1.0 を選択中',
+  'Nota 2.0 selecionada': '評価 2.0 を選択中',
+  'Nota 3.0 selecionada': '評価 3.0 を選択中',
+  'Nota 4.0 selecionada': '評価 4.0 を選択中',
+  'Nota 5.0 selecionada': '評価 5.0 を選択中',
+  '.0 selecionada': '.0 を選択中',
+  'selecionada': '選択中',
+  'Nota': '評価',
+  'Salvando...': '保存中...',
+  'Visitante': 'ゲスト',
+  'Visitante Monvian': 'Monvianゲスト',
+  'Visitante MONVIAN': 'MONVIANゲスト',
+  'Visitante de Campos': 'カンポスの旅行者',
+  'Recente': '最近',
+  'Recentes ▾': '最近 ▾',
+  'ontem': '昨日',
+  'Ontem': '昨日',
+  'Consultar': '要確認',
+  'Entrada Franca': '入場無料',
+  'Acesso Livre': '入場無料',
+  'Ativar som': '音声をオンにする',
+  'Desativar som': '音声をオフにする',
+  'Leve um casaco quentinho, especialmente no final da tarde, pois a altitude faz a temperatura cair rapidamente!':
+    '標高が高く夕方以降は急激に冷え込むため、暖かい上着をお持ちください！',
+  'Muito bom, recomendo a visita.': 'とても良く、訪問をおすすめします。',
+  'Mais Famoso': '一番人気',
+  'Popular': '人気',
+  'Eventos & Shows': 'イベント＆ショー',
+  'Gastronomia & Folclore': 'グルメ＆伝統文化',
+  'Desde 1943, um dos hotéis mais tradicionais e elegantes do Brasil. Rodeado por araucárias, oferece chalés suíços, spa L\'Occitane e alta gastronomia com lareiras acesas.':
+    '1943年創業、ブラジルで最も伝統的で優雅なホテルの一つ。アラウカリアの森に囲まれ、スイス風シャレー、ロクシタン・スパ、暖炉のある極上ダイニングを提供しています。',
+  'Reserve algumas horas para conhecer o parque com calma e aproveite para fazer as atividades ao ar livre. Vá com roupas confortáveis e consulte previamente os horários e condições das atrações que deseja experimentar.':
+    '数時間ほど余裕を持って園内をゆったり散策し、アウトドアアクティビティを楽しみましょう。動きやすい服装で訪れ、希望するアトラクションの営業時間や条件を事前にご確認ください。',
+  'Cachoeiras refrescantes, pontes de madeira e feirinha tradicional.':
+    '爽やかな滝、木の遊歩道、そして伝統的なクラフトマーケット。',
+  'Criado sob medida para casais, unindo cenários apaixonantes, café especial em bosque com araucárias e fondue romântico.':
+    'カップル向けに特別設計されたプラン。ロマンチックな絶景、アラウカリアの森でのスペシャルティコーヒー、そして極上のフォンデュを楽しめます。',
+  'Recomendamos fazer reserva prévia nos restaurantes de fondue nos finais de semana.':
+    '週末はフォンデュレストランの事前予約をおすすめします。',
+  'Campos em Família: Diversão para Todas as Idades':
+    'ファミリーで楽しむカンポス：全世代向けアクティビティ',
+  'Parques ao ar livre com segurança, arvorismo, tirolesas, contato com animais e cenários mágicos que encantam crianças e adultos.':
+    '安全なアウトドアパーク、ツリートレッキング、ジップライン、動物とのふれあいなど、子どもから大人まで楽しめる魔法のような体験。',
+  'Programe os passeios ao ar livre com calçados confortáveis e agasalhos para as crianças.':
+    '歩きやすい靴とお子様用の防寒着を準備して、アウトドア散策を計画しましょう。',
+  'Dia Romântico Exclusivo': '特別なロマンチック・デイ',
+  'Um dia aconchegante para viver momentos especiais na Serra da Mantiqueira.':
+    'マンチケイラ山脈で特別なひとときを過ごす温かな1日。',
+  'Exploração de mirantes e fotografia panorâmica.':
+    '展望台巡りとパノラマ写真撮影。',
+  'Experiência gastronômica completa com chopes nobres e chocolates artesanais.':
+    'クラフトビールと職人チョコレートを味わう本格グルメ体験。',
+  'Atividades recreativas dinâmicas ao ar livre com segurança total.':
+    '安全に配慮されたダイナミックな屋外レクリエーション。',
+  'Labirinto verde no Amantikir e passarelas na Ducha de Prata.':
+    'アマンチキールの緑の迷路とドゥーシャ・デ・プラタの遊歩道。',
+  'Passeio a dois pelos labirintos e jardins floridos.':
+    '2人で巡る迷路と花咲く庭園の散策。',
+  'Chocolate quente e vista panorâmica para as montanhas no mirante.':
+    '展望台でのホットチョコレートと山々のパノラマビュー。',
+  'Jantar romântico com sequência de queijos e chocolates.':
+    'チーズとチョコレートのフォンデュコースを楽しむロマンチックディナー。',
+  'Passarelas sobre a água e ar puro da serra.':
+    '水上の遊歩道と高原の澄んだ空気。',
+  'Mirantes e contemplação das cerejeiras.':
+    '展望台と桜の鑑賞。',
+  'Almoço clássico com pratos alemães e chopes artesanais.':
+    '伝統的なドイツ料理とクラフトビールの定番ランチ。',
+  'Passeio pelo boulevard com visita a cafés coloniais.':
+    '伝統的なカフェを訪ねる並木道の散策。',
+  'Chocolate quente cremoso e vista das montanhas.':
+    '濃厚なホットチョコレートと山々の眺め。',
+  'Mais de 30 atrações ao ar livre, tirolesas e passeios a cavalo.':
+    '30以上の屋外アトラクション、ジップライン、乗馬体験。',
+  'Teleférico panorâmico e pedalinhos no lago central.':
+    'パノラマリフトと中央湖でのペダルボート。',
+  'Labirinto de arbustos verde e jardins de vários países.':
+    '緑の生け垣の迷路と世界各国をテーマにした庭園。',
+  'Passarelas de madeira e tirolesa sobre as cachoeiras.':
+    '木製の遊歩道と滝の上を渡るジップライン。',
+  'Arquitetura alpina iluminada ao cair da noite no centro do Capivari.':
+    '夕暮れ時にライトアップされたカピヴァリ中心部のアルプス風建築。',
+  'Passeio refrescante na Ducha de Prata pelas passarelas de madeira.':
+    'ドゥーシャ・デ・プラタの木製遊歩道を巡る爽やかな散策。',
+  'Caminhada matinal pelo Parque da Lagoinha. O lago estava como um espelho.':
+    'ラゴイーニャ公園での朝の散歩。湖面が鏡のように澄んでいました。',
+  'Serra da Mantiqueira coberta por nuvens baixas ao amanhecer.':
+    '夜明けの低い雲に包まれたマンチケイラ山脈。',
+  'Lojas de malhas e aconchego nas ruelas europeias do Capivari.':
+    'カピヴァリのヨーロッパ風の路地に並ぶニットショップと温かな雰囲気。',
+  'Casas enxaimel e pinheiros da Mantiqueira ao redor.':
+    '木骨造りの家々と周囲を囲むマンチケイラの松林。',
+  'Fechando a viagem com chave de ouro: o mirante do Pico do Itapeva.':
+    '旅の締めくくりにふさわしい、イタペヴァ峰の展望台。',
+  'Tirada de qual mirante?': 'どの展望台から撮った写真ですか？',
+  'O melhor fondue da serra!': '高原で最高のフォンデュ！',
+  'Um dos meus lugares favoritos de Campos.': 'カンポスでお気に入りの場所の一つです。',
+  'Uau! Que foto espetacular!': 'わあ！なんて素晴らしい写真！',
+  'Subiu pela trilha da Ana Chata?': 'アナ・シャータのトレイルから登りましたか？',
+  'Pediu a cerveja de trigo e o pastel de truta?': '白ビールとマスのパステルは頼みましたか？',
+  'O ar puro daqui revigora qualquer um.': 'ここの澄んだ空気は誰をもリフレッシュしてくれますね。',
+  'Vinhos de altitude surpreendendo sempre.': '高地ワインはいつも驚きを与えてくれます。',
+  'Adoro o inverno rigoroso daqui!': 'ここの本格的な冬が大好きです！',
+  'Apresentação ao vivo e degustação especial no coração da Vila Capivari.':
+    'ヴィラ・カピヴァリの中心部で開催されるライブ演奏と特別テイスティング。',
+  'Atendimento móvel de urgência 24 horas em Campos do Jordão.':
+    'カンポス・ド・ジョルドンでの24時間救急医療サービス。',
+  'Resgate, salvamento em montanha e emergências.':
+    '山岳救助・消防・緊急対応。',
+  'Segurança pública e policiamento turístico.':
+    '治安維持および観光警察サポート。',
+  'Pronto atendimento médico municipal 24 horas.':
+    '24時間対応の市立救急医療センター。',
+  'Melhor custo-benefício': '一番お得',
+  'Visualizações': '閲覧数',
+  'visualizações': '回視聴',
+  'visualização': '回視聴',
+  'Parcialmente nublado': '一部曇り',
+  'Tempo nublado': '曇り',
+  'Nevoeiro na serra': '高原の霧',
+  'Pancadas de neve': 'にわか雪',
+  'Tempestade com raios': '雷雨',
 };
 
 const normalizeLookupKeyJa = (s: string): string =>
@@ -1412,10 +1539,23 @@ const DYNAMIC_RULES_JA: Array<[RegExp, (...args: string[]) => string]> = [
   [/^Olá,\s*(.+)$/i, (_m, name) => `こんにちは、${name}さん`],
   [/^Nível\s+(\d+)\s*[·•-]\s*(.+)$/i, (_m, lvl, title) => `レベル ${lvl} · ${translatePtToJa(title.trim())}`],
   [/^Nível\s+(\d+)$/i, (_m, lvl) => `レベル ${lvl}`],
-  [/^(\d+)\s*lugar(?:es)?\s+descobertos?$/i, (_m, n) => `発見したスポット ${n}か所`],
+  [/^([\d.,]+)\s*avaliaç(?:ão|ões)\s+reais$/i, (_m, n) => `${n}件のレビュー`],
+  [/^\(([\d.,]+)\s*avaliaç(?:ão|ões)\)$/i, (_m, n) => `(${n}件のレビュー)`],
+  [/^([\d.,]+)\s*avaliaç(?:ão|ões)$/i, (_m, n) => `${n}件のレビュー`],
+  [/^Nota\s+([\d.,]+)\s+selecionada$/i, (_m, n) => `評価 ${n} を選択中`],
+  [/^Avaliação registrada com sucesso!\s*Média atual:\s*([\d.,]+)\.?$/i, (_m, avg) => `レビューを投稿しました！現在の平均評価: ${avg}`],
+  [/^([\d.,]+)\s*estrelas?$/i, (_m, n) => `${n}つ星`],
+  [/^Vídeo\s+(\d+)\s+de\s+(\d+)$/i, (_m, a, b) => `動画 ${a} / ${b}`],
+  [/^([\d.,]+)\s*MB\s*[•·-]\s*Clique para trocar$/i, (_m, mb) => `${mb} MB • タップして変更`],
+  [/^Ex:\s*Tour imperdível no\s+(.+)$/i, (_m, spot) => `例: ${spot}のおすすめツアー`],
+  [/^([\d.,]+)\s*viajantes?\s+hoje$/i, (_m, n) => `本日 ${n}人が訪問`],
+  [/^([\d.,]+)\s*turistas?\s+já\s+usaram$/i, (_m, n) => `${n}人の旅行者が利用`],
+  [/^Permanência:\s*~?(\d+)\s*min$/i, (_m, min) => `滞在目安: 約${min}分`],
+  [/^Você escolheu\s+(\d+)\s+experiências?\s+para\s+o\s+seu\s+roteiro\s+inteligente\s+em\s+Campos\s+do\s+Jordão\.?$/i, (_m, n) => `カンポス・ド・ジョルドンのスマートプランに ${n}件の体験を選択しました。`],
+  [/^([\d.,]+)\s*lugar(?:es)?\s+descobertos?$/i, (_m, n) => `発見したスポット ${n}か所`],
   [/^Faltam\s+([\d.,]+)\s*XP\s+para\s+o\s+próximo\s+nível$/i, (_m, xp) => `次のレベルまであと ${xp} XP`],
-  [/^Paradas\s*\((\d+)\)$/i, (_m, n) => `立ち寄りスポット (${n})`],
-  [/^Resultados\s*\((\d+)\)$/i, (_m, n) => `検索結果 (${n})`],
+  [/^Paradas\s*\(([\d.,]+)\)$/i, (_m, n) => `立ち寄りスポット (${n})`],
+  [/^Resultados\s*\(([\d.,]+)\)$/i, (_m, n) => `検索結果 (${n})`],
   [/^Roteiros\s*[·•]\s*(.+)$/i, (_m, cat) => `プラン · ${translatePtToJa(cat.trim())}`],
   [/^(\d+(?:[.,]\d+)?)\s*mil$/i, (_m, n) => {
     const num = parseFloat(n.replace(',', '.'));
@@ -1428,35 +1568,36 @@ const DYNAMIC_RULES_JA: Array<[RegExp, (...args: string[]) => string]> = [
     }
     return `${n}k`;
   }],
-  [/^(\d+)\s*paradas?$/i, (_m, n) => `${n}スポット`],
-  [/^(\d+)\s*dias?$/i, (_m, n) => `${n}日`],
-  [/^(\d+)\s*lugar(?:es)?$/i, (_m, n) => `${n}か所`],
-  [/^(\d+)\s*curtidas?$/i, (_m, n) => `いいね ${n}件`],
-  [/^Ver todos os (\d+) comentários$/i, (_m, n) => `コメント${n}件をすべて見る`],
+  [/^([\d.,]+)\s*paradas?$/i, (_m, n) => `${n}スポット`],
+  [/^([\d.,]+)\s*dias?$/i, (_m, n) => `${n}日`],
+  [/^([\d.,]+)\s*lugar(?:es)?$/i, (_m, n) => `${n}か所`],
+  [/^([\d.,]+)\s*curtidas?$/i, (_m, n) => `いいね ${n}件`],
+  [/^Ver todos os ([\d.,]+) comentários$/i, (_m, n) => `コメント${n}件をすべて見る`],
   [/^Você poderá entrar novamente a qualquer momento com sua conta (.+)\.$/i, (_m, email) => `アカウント（${email}）でいつでも再ログインできます。`],
-  [/^Libera até (\d+) roteiros? premium$/i, (_m, n) => `プレミアムプランを最大${n}件解放`],
+  [/^Libera até ([\d.,]+) roteiros? premium$/i, (_m, n) => `プレミアムプランを最大${n}件解放`],
   [/^(\d+)\s+de\s+(\d+)$/i, (_m, a, b) => `${a} / ${b}`],
   [/^Dia (\d+):\s*(.+)$/i, (_m, d, rest) => `${d}日目: ${translatePtToJa(rest)}`],
   [/^Dia (\d+)\s*[•·-]\s*Dia (\d+)$/i, (_m, d1, d2) => `${d1}日目 • ${d2}日目`],
   [/^Dia (\d+)$/i, (_m, d) => `${d}日目`],
+  [/^Ponto (\d+)$/i, (_m, n) => `スポット ${n}`],
   [/^Local (\d+):\s*(.+)$/i, (_m, n, rest) => `スポット ${n}: ${translatePtToJa(rest)}`],
   [/^Local (\d+)$/i, (_m, n) => `スポット ${n}`],
   [/^Parada (\d+)$/i, (_m, n) => `スポット ${n}`],
   [/^(.+?)\.\s*Deslize para a esquerda para excluir\.$/i, (_m, prefix) => `${translatePtToJa(prefix)}。左にスワイプして削除。`],
-  [/^(\d+)\s*min até o próximo ponto$/i, (_m, min) => `次のスポットまで約${min}分`],
-  [/^(\d+)\s*locais planejados$/i, (_m, n) => `計画済みスポット ${n}か所`],
-  [/^(\d+)\s*local planejado$/i, (_m, n) => `計画済みスポット ${n}か所`],
-  [/^(\d+)\s*locais encontrados$/i, (_m, n) => `${n}件のスポットが見つかりました`],
-  [/^(\d+)\s*local encontrado$/i, (_m, n) => `${n}件のスポットが見つかりました`],
-  [/^(\d+)\s*opções disponíveis$/i, (_m, n) => `${n}件の候補`],
-  [/^(\d+)\s*opção disponível$/i, (_m, n) => `${n}件の候補`],
-  [/^(\d+)\s*adultos?$/i, (_m, n) => `大人${n}人`],
-  [/^(\d+)\s*crianças?$/i, (_m, n) => `子ども${n}人`],
-  [/^(\d+)\s*visualizações?$/i, (_m, n) => `${n}回視聴`],
-  [/^(\d+)\s*visualização$/i, (_m, n) => `${n}回視聴`],
-  [/^(\d+)\s*publica(?:ção|ções)$/i, (_m, n) => `投稿${n}件`],
-  [/^Ver (\d+) comentários?$/i, (_m, n) => `コメント${n}件を表示`],
-  [/^(\d+)\s*comentários?$/i, (_m, n) => `コメント${n}件`],
+  [/^(\d+)\s*min até o próximo (?:ponto|local)$/i, (_m, min) => `次のスポットまで約${min}分`],
+  [/^([\d.,]+)\s*locais planejados$/i, (_m, n) => `計画済みスポット ${n}か所`],
+  [/^([\d.,]+)\s*local planejado$/i, (_m, n) => `計画済みスポット ${n}か所`],
+  [/^([\d.,]+)\s*locais encontrados$/i, (_m, n) => `${n}件のスポットが見つかりました`],
+  [/^([\d.,]+)\s*local encontrado$/i, (_m, n) => `${n}件のスポットが見つかりました`],
+  [/^([\d.,]+)\s*opções disponíveis$/i, (_m, n) => `${n}件の候補`],
+  [/^([\d.,]+)\s*opção disponível$/i, (_m, n) => `${n}件の候補`],
+  [/^([\d.,]+)\s*adultos?$/i, (_m, n) => `大人${n}人`],
+  [/^([\d.,]+)\s*crianças?$/i, (_m, n) => `子ども${n}人`],
+  [/^([\d.,]+)\s*visualizações?$/i, (_m, n) => `${n}回視聴`],
+  [/^([\d.,]+)\s*visualização$/i, (_m, n) => `${n}回視聴`],
+  [/^([\d.,]+)\s*publica(?:ção|ções)$/i, (_m, n) => `投稿${n}件`],
+  [/^Ver ([\d.,]+) comentários?$/i, (_m, n) => `コメント${n}件を表示`],
+  [/^([\d.,]+)\s*comentários?$/i, (_m, n) => `コメント${n}件`],
   [/^Há (\d+) dias?$/i, (_m, n) => `${n}日前`],
   [/^HÁ (\d+) DIAS?$/i, (_m, n) => `${n}日前`],
   [/^HÁ (\d+) HORAS?$/i, (_m, n) => `${n}時間前`],

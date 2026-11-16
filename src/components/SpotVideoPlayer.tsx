@@ -314,7 +314,7 @@ export const SpotVideoPlayer: React.FC<SpotVideoPlayerProps> = ({
               {/* Video Counter Pill */}
               {videos.length > 0 && (
                 <span className="text-[11px] font-medium text-white/90 drop-shadow-sm bg-black/40 px-2.5 py-1 rounded-full border border-white/10 backdrop-blur-md">
-                  Vídeo {currentIndex + 1} de {videos.length}
+                  {`Vídeo ${currentIndex + 1} de ${videos.length}`}
                 </span>
               )}
             </div>
@@ -455,7 +455,7 @@ export const SpotVideoPlayer: React.FC<SpotVideoPlayerProps> = ({
                             ✓ {selectedFile.name}
                           </p>
                           <span className="text-[11px] text-zinc-500">
-                            {(selectedFile.size / (1024 * 1024)).toFixed(1)} MB • Clique para trocar
+                            {`${(selectedFile.size / (1024 * 1024)).toFixed(1)} MB • Clique para trocar`}
                           </span>
                         </div>
                       ) : (

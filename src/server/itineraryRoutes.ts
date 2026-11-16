@@ -82,6 +82,12 @@ export function setupItineraryDatabase(db: any) {
       updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
     );
 
+    CREATE TABLE IF NOT EXISTS itinerary_views (
+      itinerary_id TEXT PRIMARY KEY,
+      views_count INTEGER NOT NULL DEFAULT 0,
+      updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    );
+
     CREATE TABLE IF NOT EXISTS itinerary_days (
       id TEXT PRIMARY KEY,
       itinerary_id TEXT NOT NULL,
@@ -1238,6 +1244,47 @@ export function registerItineraryRoutes(
       res.json({ success: true });
     } catch (e) {
       res.status(500).json({ error: 'Erro ao registrar uso' });
+    }
+  });
+
+  // Get all itinerary view counts
+  app.get('/api/itineraries/views', (req, res) => {
+    try {
+      const rows = db.prepare('SELECT itinerary_id, views_count FROM itinerary_views').all() as any[];
+      const views: Record<string, number> = {};
+      for (const r of rows) {
+        views[r.itinerary_id] = r.views_count;
+      }
+      res.json({ success: true, views });
+    } catch (e) {
+      res.json({ success: true, views: {} });
+    }
+  });
+
+  // Increment view count when a user clicks play / enters an itinerary
+  app.post('/api/itineraries/:id/view', (req, res) => {
+    try {
+      const { id } = req.params;
+      db.transaction(() => {
+        // Upsert or increment in itinerary_views
+        const existing = db.prepare('SELECT views_count FROM itinerary_views WHERE itinerary_id = ?').get(id) as any;
+        const nextCount = existing ? existing.views_count + 1 : 16201;
+        db.prepare(`
+          INSERT INTO itinerary_views (itinerary_id, views_count, updated_at)
+          VALUES (?, ?, CURRENT_TIMESTAMP)
+          ON CONFLICT(itinerary_id) DO UPDATE SET
+            views_count = views_count + 1,
+            updated_at = CURRENT_TIMESTAMP
+        `).run(id, nextCount);
+
+        // Also update usage_count on itineraries table
+        db.prepare('UPDATE itineraries SET usage_count = usage_count + 1 WHERE id = ?').run(id);
+      })();
+
+      const updatedRow = db.prepare('SELECT views_count FROM itinerary_views WHERE itinerary_id = ?').get(id) as any;
+      res.json({ success: true, viewsCount: updatedRow ? updatedRow.views_count : 1 });
+    } catch (e: any) {
+      res.status(500).json({ error: 'Erro ao registrar visualização: ' + e.message });
     }
   });
 

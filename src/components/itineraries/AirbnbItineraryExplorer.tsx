@@ -63,19 +63,7 @@ function getKnownItinerariesPool(): Itinerary[] {
   return DEFAULT_CURATED_ITINERARIES;
 }
 
-export function formatItineraryViewsCount(idOrTitle: string): string {
-  const hash = (idOrTitle || 'itin')
-    .split('')
-    .reduce((acc, char, i) => acc + char.charCodeAt(0) * (i + 1) * 31, 0);
-  // deterministic value between 5,000 and 13,000 (5k a 13k plays)
-  const views = 5000 + (Math.abs(hash) % 8001);
-  if (views >= 10000) {
-    const k = (views / 1000).toFixed(1).replace('.0', '');
-    return `${k} mil`;
-  }
-  const k = (views / 1000).toFixed(1).replace('.0', '');
-  return `${k} mil`;
-}
+import { formatItineraryViewsCount, recordItineraryPlayView, useItineraryViews } from '../../services/itineraryViewsService';
 
 export function getItinerariesForCategory(
   category: string,
@@ -1607,6 +1595,7 @@ const HorizontalReferenceItineraryCard: React.FC<HorizontalReferenceItineraryCar
                 onClick={(e) => {
                   e.stopPropagation();
                   triggerHapticFeedback(14);
+                  recordItineraryPlayView(itinerary);
                   if (onDirectPlay) {
                     onDirectPlay();
                   } else {

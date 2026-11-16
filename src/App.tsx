@@ -1960,6 +1960,11 @@ export default function App() {
                 markWelcomeCardSeen(cleanEmail, token).catch(() => {});
                 markPresentationCardSeen('explorar');
                 markPresentationCardSeen('roteiros');
+                try {
+                  if (!localStorage.getItem('monvian_welcome_completed')) {
+                    setIsWelcomeJourneyOpen(true);
+                  }
+                } catch {}
               }
               try {
                 (document.activeElement as HTMLElement | null)?.blur?.();

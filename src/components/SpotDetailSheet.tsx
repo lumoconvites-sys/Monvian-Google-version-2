@@ -28,6 +28,7 @@ import {
   getVideoPlaybackPosition,
 } from '../services/spotVideosService';
 import { useIOSBackEntry } from '../services/iosNavigationManager';
+import { useLanguage } from '../contexts/LanguageContext';
 
 interface SpotDetailSheetProps {
   spot: Spot | null;
@@ -46,6 +47,7 @@ export const SpotDetailSheet: React.FC<SpotDetailSheetProps> = React.memo(({
   onToggleFavorite,
   onUpdateSpot,
 }) => {
+  const { tr } = useLanguage();
   const [activeTab, setActiveTab] = useState('Sobre');
   const [isQrModalOpen, setIsQrModalOpen] = useState(false);
   const scrollRef = useRef<HTMLDivElement | null>(null);
@@ -988,7 +990,7 @@ export const SpotDetailSheet: React.FC<SpotDetailSheetProps> = React.memo(({
                       isActive ? 'text-zinc-900 dark:text-white' : 'text-zinc-400 dark:text-zinc-500 hover:text-zinc-600 dark:hover:text-zinc-300'
                     }`}
                   >
-                    {tab}
+                    <span>{tr(tab)}</span>
                     {isActive && (
                       <motion.div
                         layoutId="activeSpotTab"
@@ -1139,7 +1141,7 @@ export const SpotDetailSheet: React.FC<SpotDetailSheetProps> = React.memo(({
                           />
                         ))}
                       </div>
-                      <span className="text-xs text-zinc-500 dark:text-zinc-400 mt-1">{liveReviewCount} avaliações reais</span>
+                      <span className="text-xs text-zinc-500 dark:text-zinc-400 mt-1">{tr(`${liveReviewCount} avaliações reais`)}</span>
                     </div>
                   </div>
 
@@ -1150,7 +1152,7 @@ export const SpotDetailSheet: React.FC<SpotDetailSheetProps> = React.memo(({
                   >
                     <div className="flex items-center justify-between">
                       <span className="text-xs font-bold text-zinc-900 dark:text-white">
-                        Avaliar este ponto turístico
+                        {tr('Avaliar este ponto turístico')}
                       </span>
                       <div className="flex items-center gap-1">
                         {[1, 2, 3, 4, 5].map((starVal) => (
@@ -1159,7 +1161,7 @@ export const SpotDetailSheet: React.FC<SpotDetailSheetProps> = React.memo(({
                             type="button"
                             onClick={() => setUserRatingInput(starVal)}
                             className="p-1 cursor-pointer transition-transform active:scale-90"
-                            aria-label={`${starVal} estrelas`}
+                            aria-label={tr(`${starVal} estrelas`)}
                           >
                             <Star
                               className={`w-5 h-5 transition-colors ${
@@ -1177,18 +1179,18 @@ export const SpotDetailSheet: React.FC<SpotDetailSheetProps> = React.memo(({
                       type="text"
                       value={userCommentInput}
                       onChange={(e) => setUserCommentInput(e.target.value)}
-                      placeholder="Conte como foi sua experiência (opcional)..."
+                      placeholder={tr('Conte como foi sua experiência (opcional)...')}
                       className="w-full px-3.5 py-2.5 rounded-xl bg-white dark:bg-[#0A0A0C] border border-zinc-200 dark:border-[#262626] text-xs text-zinc-900 dark:text-white focus:outline-none focus:border-zinc-400 dark:focus:border-white/40"
                     />
 
                     <div className="flex items-center justify-between gap-2">
                       {reviewSubmittedMsg ? (
                         <span className="text-[11px] text-zinc-500 dark:text-zinc-400 font-medium">
-                          {reviewSubmittedMsg}
+                          {tr(reviewSubmittedMsg)}
                         </span>
                       ) : (
                         <span className="text-[11px] text-zinc-400">
-                          Nota {userRatingInput}.0 selecionada
+                          {tr(`Nota ${userRatingInput}.0 selecionada`)}
                         </span>
                       )}
                       <button
@@ -1196,7 +1198,7 @@ export const SpotDetailSheet: React.FC<SpotDetailSheetProps> = React.memo(({
                         disabled={isSubmittingReview}
                         className="px-4 py-2 rounded-full expo-liquid-glass-btn text-black dark:bg-white dark:text-black text-xs font-bold transition-transform active:scale-95 disabled:opacity-50 cursor-pointer shrink-0 border border-black/5 shadow-xs"
                       >
-                        {isSubmittingReview ? 'Salvando...' : 'Publicar avaliação'}
+                        {isSubmittingReview ? tr('Salvando...') : tr('Publicar avaliação')}
                       </button>
                     </div>
                   </form>
@@ -1479,14 +1481,14 @@ export const SpotDetailSheet: React.FC<SpotDetailSheetProps> = React.memo(({
                 <Star className="w-4 h-4 fill-zinc-950 text-zinc-950 dark:fill-white dark:text-white shrink-0" />
                 <span className="font-bold text-zinc-950 dark:text-white">{Number(liveRating).toFixed(1)}</span>
                 <span className="text-zinc-500 dark:text-[#A1A1AA] font-medium">
-                  ({liveReviewCount.toLocaleString('pt-BR')} avaliações)
+                  {tr(`(${liveReviewCount.toLocaleString('pt-BR')} avaliações)`)}
                 </span>
               </div>
             )}
             {spot.rating !== undefined && <span className="text-zinc-300 dark:text-zinc-700" aria-hidden="true">·</span>}
             <div className="flex items-center gap-1.5 text-zinc-500 dark:text-[#A1A1AA] font-medium">
               <Eye className="w-4 h-4 text-zinc-400 shrink-0" />
-              <span>{views} visualizações</span>
+              <span>{tr(`${views} visualizações`)}</span>
             </div>
           </div>
 
@@ -1551,7 +1553,7 @@ export const SpotDetailSheet: React.FC<SpotDetailSheetProps> = React.memo(({
                     isActive ? 'text-zinc-950 dark:text-white' : 'text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-200'
                   }`}
                 >
-                  {tab}
+                  <span>{tr(tab)}</span>
                   {isActive && (
                     <motion.div
                       layoutId="activeSpotTabDesktop"
@@ -1699,7 +1701,7 @@ export const SpotDetailSheet: React.FC<SpotDetailSheetProps> = React.memo(({
                       ))}
                     </div>
                     <span className="text-xs text-zinc-500 dark:text-[#A1A1AA] mt-1">
-                      {liveReviewCount.toLocaleString('pt-BR')} avaliações reais
+                      {tr(`${liveReviewCount.toLocaleString('pt-BR')} avaliações reais`)}
                     </span>
                   </div>
                 </div>
@@ -1711,7 +1713,7 @@ export const SpotDetailSheet: React.FC<SpotDetailSheetProps> = React.memo(({
                 >
                   <div className="flex items-center justify-between">
                     <span className="text-xs font-bold text-zinc-900 dark:text-white">
-                      Avaliar este ponto turístico
+                      {tr('Avaliar este ponto turístico')}
                     </span>
                     <div className="flex items-center gap-1">
                       {[1, 2, 3, 4, 5].map((starVal) => (
@@ -1737,18 +1739,18 @@ export const SpotDetailSheet: React.FC<SpotDetailSheetProps> = React.memo(({
                     type="text"
                     value={userCommentInput}
                     onChange={(e) => setUserCommentInput(e.target.value)}
-                    placeholder="Conte como foi sua experiência (opcional)..."
+                    placeholder={tr('Conte como foi sua experiência (opcional)...')}
                     className="w-full px-3 py-2 rounded-lg bg-white dark:bg-[#0A0A0C] border border-zinc-200 dark:border-[#262626] text-xs text-zinc-900 dark:text-white focus:outline-none focus:border-zinc-400 dark:focus:border-white/40"
                   />
 
                   <div className="flex items-center justify-between gap-2">
                     {reviewSubmittedMsg ? (
                       <span className="text-[11px] text-zinc-500 dark:text-zinc-400 font-medium">
-                        {reviewSubmittedMsg}
+                        {tr(reviewSubmittedMsg)}
                       </span>
                     ) : (
                       <span className="text-[11px] text-zinc-400">
-                        Nota {userRatingInput}.0 selecionada
+                        {tr(`Nota ${userRatingInput}.0 selecionada`)}
                       </span>
                     )}
                     <button
@@ -1756,7 +1758,7 @@ export const SpotDetailSheet: React.FC<SpotDetailSheetProps> = React.memo(({
                       disabled={isSubmittingReview}
                       className="px-4 py-2 rounded-full expo-liquid-glass-btn text-black dark:bg-white dark:text-black text-xs font-bold transition-transform active:scale-95 disabled:opacity-50 cursor-pointer shrink-0 border border-black/5 shadow-xs"
                     >
-                      {isSubmittingReview ? 'Salvando...' : 'Publicar avaliação'}
+                      {isSubmittingReview ? tr('Salvando...') : tr('Publicar avaliação')}
                     </button>
                   </div>
                 </form>
