@@ -244,6 +244,7 @@ export default function App() {
       const parsed = JSON.parse(savedUser);
       const email = String(parsed?.email || parsed?.whatsapp || '').trim().toLowerCase();
       if (!email) return false;
+      if (parsed?.onboarding_completed === 0) return true;
       if (parsed?.welcome_card_seen === 1) return false;
       if (localStorage.getItem(`monvian_first_welcome_seen_${email}`) === '1') return false;
       return localStorage.getItem(`monvian_first_welcome_pending_${email}`) === '1';
@@ -683,7 +684,10 @@ export default function App() {
       if (userEmail) {
         syncPermissionsFromDatabase(userEmail).catch(() => {});
         try {
-          if (normalized.welcome_card_seen === 1) {
+          if (normalized.onboarding_completed === 0) {
+            localStorage.setItem(`monvian_first_welcome_pending_${userEmail}`, '1');
+            setShowFirstSignupWelcome(true);
+          } else if (normalized.welcome_card_seen === 1 || normalized.onboarding_completed === 1) {
             localStorage.setItem(`monvian_first_welcome_seen_${userEmail}`, '1');
             localStorage.removeItem(`monvian_first_welcome_pending_${userEmail}`);
             setShowFirstSignupWelcome(false);
@@ -2342,14 +2346,18 @@ export default function App() {
               setShowOnboardingQuestions(false);
               setShowWelcomeOverlay(false);
 
-              const hasSeenFirstWelcome = Boolean(
-                normalizedUser?.welcome_card_seen === 1 ||
-                  (cleanEmail && localStorage.getItem(`monvian_first_welcome_seen_${cleanEmail}`) === '1')
+              const needsSmartOnboarding = Boolean(
+                isNewAccount ||
+                  normalizedUser?.onboarding_completed === 0 ||
+                  (!normalizedUser?.welcome_card_seen &&
+                    cleanEmail &&
+                    localStorage.getItem(`monvian_first_welcome_pending_${cleanEmail}`) === '1')
               );
-              if (isNewAccount && !hasSeenFirstWelcome) {
+              if (needsSmartOnboarding) {
                 try {
                   if (cleanEmail) {
                     localStorage.setItem(`monvian_first_welcome_pending_${cleanEmail}`, '1');
+                    localStorage.removeItem(`monvian_first_welcome_seen_${cleanEmail}`);
                   }
                 } catch {}
                 setShowFirstSignupWelcome(true);
@@ -3402,13 +3410,36 @@ export default function App() {
       />
     )}
 
-    {/* First Signup Fullscreen Liquid Glass Welcome Experience */}
+    {/* Post-Registration Smart Onboarding Experience (Onboarding Inteligente) */}
     <AnimatePresence>
       {showFirstSignupWelcome && (
-        <FirstSignupWelcomeScreen
-          key="monvian-first-signup-welcome"
+        <OnboardingFlow
+          key="monvian-smart-onboarding"
+          user={user}
           theme={theme}
-          onComplete={handleDismissFirstSignupWelcome}
+          initialStep={user?.onboarding_step || 1}
+          onComplete={(updatedUser, preferences) => {
+            if (updatedUser || preferences) {
+              const token = localStorage.getItem('monvian_token');
+              setUser((prev: any) => {
+                const merged = normalizeAppUser({
+                  ...(prev || {}),
+                  ...(updatedUser || {}),
+                  ...(preferences || {}),
+                  onboarding_completed: 1,
+                  welcome_card_seen: 1,
+                });
+                try {
+                  localStorage.setItem('monvian_user', JSON.stringify(merged));
+                  if (token) {
+                    savePersistentSession(token, merged).catch(() => {});
+                  }
+                } catch {}
+                return merged;
+              });
+            }
+            handleDismissFirstSignupWelcome();
+          }}
         />
       )}
     </AnimatePresence>

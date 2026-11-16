@@ -25,6 +25,9 @@ import {
   Sparkles,
   HelpCircle,
   Lock,
+  Compass,
+  Calendar,
+  Users,
 } from 'lucide-react';
 import { AppleBackButton } from './ui/AppleBackButton';
 import { motion, AnimatePresence } from 'motion/react';
@@ -32,7 +35,16 @@ import { PremiumModal } from './PremiumModal';
 import { ProfileXpProgressBar } from './ProfileXpProgressBar';
 import { IOSSwitch } from './IOSSwitch';
 import { NotificationsModal } from './NotificationsModal';
-import { persistUserToFirestore } from '../services/firestoreSync';
+import {
+  persistUserToFirestore,
+  persistUserOnboardingToFirestore,
+} from '../services/firestoreSync';
+import {
+  CAMPOS_RELATIONSHIP_OPTIONS,
+  NEXT_TRIP_TIMING_OPTIONS,
+  INTEREST_CATEGORY_OPTIONS,
+  TRAVEL_COMPANY_OPTIONS,
+} from './OnboardingFlow';
 import {
   HelpAndLegalView,
   HelpLegalPageId,
@@ -65,6 +77,7 @@ interface ProfileModalProps {
 type SubView =
   | 'main'
   | 'edit-profile'
+  | 'traveler-profile'
   | 'curtidos'
   | 'permissoes'
   | 'ajuda-informacoes'
@@ -172,6 +185,25 @@ export const ProfileModal: React.FC<ProfileModalProps> = React.memo(({
     };
   }, []);
 
+  // Traveler Onboarding Preferences ("Meu perfil de viajante")
+  const [camposRelationship, setCamposRelationship] = useState<string>(
+    () => user?.campos_relationship || ''
+  );
+  const [nextTripTiming, setNextTripTiming] = useState<string>(
+    () => user?.next_trip_timing || ''
+  );
+  const [nextTripDate, setNextTripDate] = useState<string>(
+    () => user?.next_trip_date || ''
+  );
+  const [interestCategories, setInterestCategories] = useState<string[]>(() =>
+    Array.isArray(user?.interest_categories) ? user.interest_categories : []
+  );
+  const [travelCompany, setTravelCompany] = useState<string>(
+    () => user?.travel_company || ''
+  );
+  const [isSavingTravelerPrefs, setIsSavingTravelerPrefs] = useState<boolean>(false);
+  const [travelerSavedToast, setTravelerSavedToast] = useState<boolean>(false);
+
   useEffect(() => {
     if (user) {
       setUserName(user.name || '');
@@ -185,6 +217,13 @@ export const ProfileModal: React.FC<ProfileModalProps> = React.memo(({
       setTempUsername(user.username || '');
       setTempBio(user.bio || '');
       setTempEmail(user.email || user.whatsapp || '');
+      if (user.campos_relationship) setCamposRelationship(user.campos_relationship);
+      if (user.next_trip_timing) setNextTripTiming(user.next_trip_timing);
+      if (user.next_trip_date !== undefined) setNextTripDate(user.next_trip_date || '');
+      if (Array.isArray(user.interest_categories)) {
+        setInterestCategories(user.interest_categories);
+      }
+      if (user.travel_company) setTravelCompany(user.travel_company);
     } else {
       setUserName('');
       setUserUsername('');
@@ -196,9 +235,118 @@ export const ProfileModal: React.FC<ProfileModalProps> = React.memo(({
       setTempUsername('');
       setTempBio('');
       setTempEmail('');
+      setCamposRelationship('');
+      setNextTripTiming('');
+      setNextTripDate('');
+      setInterestCategories([]);
+      setTravelCompany('');
       setActiveSubView('main');
     }
   }, [user]);
+
+  // Fetch latest saved traveler onboarding preferences when ProfileModal opens
+  useEffect(() => {
+    if (!isOpen || !cleanUserEmail) return;
+    let active = true;
+    const token = localStorage.getItem('monvian_token');
+    const headers: Record<string, string> = {};
+    if (token) headers.Authorization = `Bearer ${token}`;
+    headers['x-user-email'] = cleanUserEmail;
+
+    fetch(`/api/user/onboarding?email=${encodeURIComponent(cleanUserEmail)}`, {
+      headers,
+      credentials: 'include',
+    })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((data) => {
+        if (!active || !data?.preferences) return;
+        const p = data.preferences;
+        if (p.campos_relationship) setCamposRelationship(p.campos_relationship);
+        if (p.next_trip_timing) setNextTripTiming(p.next_trip_timing);
+        if (p.next_trip_date !== undefined) setNextTripDate(p.next_trip_date || '');
+        if (Array.isArray(p.interest_categories)) {
+          setInterestCategories(p.interest_categories);
+        }
+        if (p.travel_company) setTravelCompany(p.travel_company);
+      })
+      .catch(() => {});
+
+    return () => {
+      active = false;
+    };
+  }, [isOpen, cleanUserEmail]);
+
+  const handleSaveTravelerPreferences = async () => {
+    if (isSavingTravelerPrefs) return;
+    setIsSavingTravelerPrefs(true);
+
+    const payload = {
+      email: cleanUserEmail,
+      campos_relationship: camposRelationship,
+      next_trip_timing: nextTripTiming,
+      next_trip_date: nextTripDate,
+      interest_categories: interestCategories,
+      travel_company: travelCompany,
+      location_preference: locationPerm ? 'granted' : 'skipped',
+      location_permission_granted: locationPerm ? 1 : 0,
+      onboarding_completed: 1,
+    };
+
+    try {
+      const optimisticUser = {
+        ...(user || {}),
+        ...payload,
+      };
+      localStorage.setItem('monvian_user', JSON.stringify(optimisticUser));
+      if (cleanUserEmail) {
+        localStorage.setItem(
+          `monvian_onboarding_prefs_${cleanUserEmail}`,
+          JSON.stringify(payload)
+        );
+      }
+      onUpdateUser?.(optimisticUser);
+      window.dispatchEvent(new CustomEvent('monvian:user_updated', { detail: optimisticUser }));
+
+      if (cleanUserEmail) {
+        persistUserOnboardingToFirestore({
+          user_id: user?.id ? String(user.id) : '',
+          user_email: cleanUserEmail,
+          ...payload,
+        }).catch(() => {});
+      }
+
+      const token = localStorage.getItem('monvian_token');
+      const headers: Record<string, string> = {
+        'Content-Type': 'application/json',
+      };
+      if (token) headers.Authorization = `Bearer ${token}`;
+      if (cleanUserEmail) headers['x-user-email'] = cleanUserEmail;
+
+      const res = await fetch('/api/user/onboarding/preferences', {
+        method: 'PUT',
+        headers,
+        credentials: 'include',
+        body: JSON.stringify(payload),
+      });
+      if (res.ok) {
+        const data = await res.json();
+        if (data?.user) {
+          const merged = { ...optimisticUser, ...data.user };
+          localStorage.setItem('monvian_user', JSON.stringify(merged));
+          onUpdateUser?.(merged);
+          window.dispatchEvent(new CustomEvent('monvian:user_updated', { detail: merged }));
+        }
+      }
+    } catch {}
+
+    setIsSavingTravelerPrefs(false);
+    setTravelerSavedToast(true);
+    window.setTimeout(() => {
+      if (isMountedRef.current) {
+        setTravelerSavedToast(false);
+      }
+    }, 1800);
+  };
 
   // Real-time verification of username availability
   useEffect(() => {
@@ -640,6 +788,7 @@ export const ProfileModal: React.FC<ProfileModalProps> = React.memo(({
             <h1 className="text-2xl sm:text-[28px] font-bold tracking-tight">
               {activeSubView === 'main' && 'Perfil'}
               {activeSubView === 'edit-profile' && 'Editar Perfil'}
+              {activeSubView === 'traveler-profile' && 'Meu perfil de viajante'}
               {activeSubView === 'curtidos' && 'Lugares Curtidos'}
               {activeSubView === 'permissoes' && 'Configurações'}
               {activeSubView === 'logout-confirm' && 'Encerrar Sessão'}
@@ -857,6 +1006,91 @@ export const ProfileModal: React.FC<ProfileModalProps> = React.memo(({
                     </div>
                   </motion.button>
                 )}
+
+                {/* Meu perfil de viajante (Onboarding Inteligente Summary & Editor) */}
+                <motion.button
+                  type="button"
+                  initial={{ opacity: 0, scale: 0.88, y: 12 }}
+                  animate={{ opacity: 1, scale: 1, y: 0 }}
+                  transition={{ type: 'spring', stiffness: 380, damping: 22, delay: 0.14 }}
+                  whileHover={{ scale: 1.01, transition: { type: 'spring', stiffness: 400, damping: 18 } }}
+                  whileTap={{ scale: 0.96, transition: { type: 'spring', stiffness: 500, damping: 14 } }}
+                  onClick={() => handleSetSubView('traveler-profile')}
+                  className={`w-full p-4 rounded-[22px] border transition-colors flex flex-col gap-3 text-left cursor-pointer ${
+                    isDark ? 'bg-[#1C1C1E] border-white/10 hover:bg-[#252528]' : 'bg-[#fefefe] border-black/5 hover:bg-[#E5E5EA]/80'
+                  }`}
+                >
+                  <div className="w-full flex items-center justify-between">
+                    <div className="flex items-center gap-3.5 min-w-0">
+                      <div className="flex items-center justify-center shrink-0 text-zinc-950 dark:text-white">
+                        <Compass className="w-7 h-7 stroke-[1.8]" />
+                      </div>
+                      <div className="min-w-0">
+                        <h3 className="text-[15px] font-semibold text-zinc-950 dark:text-white tracking-tight">
+                          Meu perfil de viajante
+                        </h3>
+                        <p className="text-[12px] text-zinc-500 dark:text-zinc-400 font-medium truncate">
+                          {camposRelationship ||
+                            travelCompany ||
+                            (interestCategories.length > 0
+                              ? `${interestCategories.length} interesses selecionados`
+                              : 'Personalize suas preferências em Campos do Jordão')}
+                        </p>
+                      </div>
+                    </div>
+                    <ChevronRight className="w-5 h-5 text-zinc-400 shrink-0" />
+                  </div>
+
+                  {(camposRelationship || travelCompany || interestCategories.length > 0) && (
+                    <div className="flex flex-wrap gap-1.5 pt-0.5">
+                      {camposRelationship && (
+                        <span
+                          className={`px-2.5 py-1 rounded-full text-[11px] font-semibold ${
+                            isDark
+                              ? 'bg-white/10 text-white'
+                              : 'bg-black/[0.06] text-zinc-900'
+                          }`}
+                        >
+                          {camposRelationship.replace(/\.$/, '')}
+                        </span>
+                      )}
+                      {travelCompany && (
+                        <span
+                          className={`px-2.5 py-1 rounded-full text-[11px] font-semibold ${
+                            isDark
+                              ? 'bg-white/10 text-white'
+                              : 'bg-black/[0.06] text-zinc-900'
+                          }`}
+                        >
+                          {travelCompany.replace(/\.$/, '')}
+                        </span>
+                      )}
+                      {interestCategories.slice(0, 2).map((interest) => (
+                        <span
+                          key={interest}
+                          className={`px-2.5 py-1 rounded-full text-[11px] font-medium ${
+                            isDark
+                              ? 'bg-white/[0.06] text-zinc-300'
+                              : 'bg-black/[0.04] text-zinc-700'
+                          }`}
+                        >
+                          {interest.replace(/\.$/, '')}
+                        </span>
+                      ))}
+                      {interestCategories.length > 2 && (
+                        <span
+                          className={`px-2 py-1 rounded-full text-[11px] font-medium ${
+                            isDark
+                              ? 'bg-white/[0.06] text-zinc-400'
+                              : 'bg-black/[0.04] text-zinc-500'
+                          }`}
+                        >
+                          +{interestCategories.length - 2}
+                        </span>
+                      )}
+                    </div>
+                  )}
+                </motion.button>
 
                 {/* Configurações da Conta -> opens 'permissoes' */}
                 <motion.button
@@ -1115,6 +1349,26 @@ export const ProfileModal: React.FC<ProfileModalProps> = React.memo(({
 
                   <button
                     type="button"
+                    onClick={() => handleSetSubView('traveler-profile')}
+                    className="w-full p-4 flex items-center justify-between text-left cursor-pointer hover:opacity-80 transition-opacity"
+                  >
+                    <div className="flex items-center gap-3.5 min-w-0">
+                      <div className="flex items-center justify-center shrink-0 text-zinc-950 dark:text-white">
+                        <Compass className="w-7 h-7 stroke-[1.8]" />
+                      </div>
+                      <div className="min-w-0">
+                        <h4 className="text-[15px] font-semibold tracking-tight">
+                          Meu perfil de viajante
+                        </h4>
+                        <p className="text-[12px] text-zinc-500 dark:text-zinc-400 font-medium truncate">
+                          Relação com Campos, próxima visita e interesses
+                        </p>
+                      </div>
+                    </div>
+                  </button>
+
+                  <button
+                    type="button"
                     onClick={() => openHelpLegalPage('hub', 'permissoes')}
                     className="w-full p-4 flex items-center justify-between text-left cursor-pointer hover:opacity-80 transition-opacity"
                   >
@@ -1336,6 +1590,217 @@ export const ProfileModal: React.FC<ProfileModalProps> = React.memo(({
                   </button>
                 </motion.div>
               </form>
+            </div>
+          )}
+
+          {/* ============================================================ */}
+          {/* VIEW 3.5: MEU PERFIL DE VIAJANTE (ONBOARDING INTELIGENTE)     */}
+          {/* ============================================================ */}
+          {activeSubView === 'traveler-profile' && (
+            <div className="space-y-6 pt-2 pb-10 max-w-xl mx-auto w-full">
+              {/* 1. Relação com Campos do Jordão */}
+              <div className="space-y-2.5">
+                <p className="text-[12px] font-bold text-zinc-500 dark:text-zinc-400 uppercase tracking-wider px-2">
+                  Sua relação com Campos do Jordão
+                </p>
+                <div className="space-y-2">
+                  {CAMPOS_RELATIONSHIP_OPTIONS.map((option) => {
+                    const Icon = option.icon;
+                    const isSelected = camposRelationship === option.value;
+                    return (
+                      <button
+                        key={option.id}
+                        type="button"
+                        onClick={() => setCamposRelationship(option.value)}
+                        className={`w-full p-4 rounded-[22px] border text-left transition-all active:scale-[0.985] cursor-pointer flex items-center justify-between gap-3 ${
+                          isSelected
+                            ? isDark
+                              ? 'bg-[#FFFFFF] text-[#080808] border-[#FFFFFF]'
+                              : 'bg-[#080808] text-[#FFFFFF] border-[#080808]'
+                            : isDark
+                              ? 'bg-[#1C1C1E] text-white border-white/10 hover:bg-[#252528]'
+                              : 'bg-white text-zinc-950 border-black/5 hover:bg-zinc-50'
+                        }`}
+                      >
+                        <div className="flex items-center gap-3 min-w-0">
+                          <Icon className="w-5 h-5 shrink-0 stroke-[1.9]" />
+                          <span className="text-[15px] font-semibold tracking-tight">
+                            {option.label}
+                          </span>
+                        </div>
+                        {isSelected && <Check className="w-4 h-4 shrink-0 stroke-[2.8]" />}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* 2. Quando pretende visitar */}
+              <div className="space-y-2.5">
+                <p className="text-[12px] font-bold text-zinc-500 dark:text-zinc-400 uppercase tracking-wider px-2">
+                  Próxima experiência em Campos
+                </p>
+                <div className="space-y-2">
+                  {NEXT_TRIP_TIMING_OPTIONS.map((option) => {
+                    const Icon = option.icon;
+                    const isSelected = nextTripTiming === option.value;
+                    return (
+                      <button
+                        key={option.id}
+                        type="button"
+                        onClick={() => setNextTripTiming(option.value)}
+                        className={`w-full p-4 rounded-[22px] border text-left transition-all active:scale-[0.985] cursor-pointer flex items-center justify-between gap-3 ${
+                          isSelected
+                            ? isDark
+                              ? 'bg-[#FFFFFF] text-[#080808] border-[#FFFFFF]'
+                              : 'bg-[#080808] text-[#FFFFFF] border-[#080808]'
+                            : isDark
+                              ? 'bg-[#1C1C1E] text-white border-white/10 hover:bg-[#252528]'
+                              : 'bg-white text-zinc-950 border-black/5 hover:bg-zinc-50'
+                        }`}
+                      >
+                        <div className="flex items-center gap-3 min-w-0">
+                          <Icon className="w-5 h-5 shrink-0 stroke-[1.9]" />
+                          <span className="text-[15px] font-semibold tracking-tight">
+                            {option.label}
+                          </span>
+                        </div>
+                        {isSelected && <Check className="w-4 h-4 shrink-0 stroke-[2.8]" />}
+                      </button>
+                    );
+                  })}
+
+                  <div
+                    className={`p-4 rounded-[22px] border flex items-center justify-between gap-3 ${
+                      isDark
+                        ? 'bg-[#1C1C1E] border-white/10'
+                        : 'bg-white border-black/5'
+                    }`}
+                  >
+                    <div className="flex items-center gap-3">
+                      <Calendar className="w-5 h-5 shrink-0 stroke-[1.9]" />
+                      <span className="text-[14.5px] font-semibold">
+                        Data planejada (opcional)
+                      </span>
+                    </div>
+                    <input
+                      type="date"
+                      value={nextTripDate}
+                      onChange={(e) => setNextTripDate(e.target.value)}
+                      className={`px-3 py-1.5 rounded-xl border text-[13.5px] font-medium focus:outline-none ${
+                        isDark
+                          ? 'bg-black border-white/15 text-white'
+                          : 'bg-zinc-50 border-black/10 text-zinc-900'
+                      }`}
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {/* 3. O que você gosta de descobrir (Interesses) */}
+              <div className="space-y-2.5">
+                <p className="text-[12px] font-bold text-zinc-500 dark:text-zinc-400 uppercase tracking-wider px-2">
+                  Seus interesses em Campos
+                </p>
+                <div className="grid grid-cols-2 gap-2.5">
+                  {INTEREST_CATEGORY_OPTIONS.map((item) => {
+                    const Icon = item.icon;
+                    const isSelected = interestCategories.includes(item.value);
+                    return (
+                      <button
+                        key={item.id}
+                        type="button"
+                        onClick={() =>
+                          setInterestCategories((prev) =>
+                            prev.includes(item.value)
+                              ? prev.filter((v) => v !== item.value)
+                              : [...prev, item.value]
+                          )
+                        }
+                        className={`p-3.5 rounded-[20px] border text-left transition-all active:scale-[0.98] cursor-pointer flex flex-col justify-between min-h-[92px] ${
+                          isSelected
+                            ? isDark
+                              ? 'bg-[#FFFFFF] text-[#080808] border-[#FFFFFF]'
+                              : 'bg-[#080808] text-[#FFFFFF] border-[#080808]'
+                            : isDark
+                              ? 'bg-[#1C1C1E] text-white border-white/10 hover:bg-[#252528]'
+                              : 'bg-white text-zinc-950 border-black/5 hover:bg-zinc-50'
+                        }`}
+                      >
+                        <div className="w-full flex items-center justify-between">
+                          <Icon className="w-5 h-5 stroke-[1.9]" />
+                          {isSelected && <Check className="w-3.5 h-3.5 stroke-[2.8]" />}
+                        </div>
+                        <span className="text-[13.5px] font-semibold leading-snug mt-2">
+                          {item.label}
+                        </span>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* 4. Com quem costuma viajar */}
+              <div className="space-y-2.5">
+                <p className="text-[12px] font-bold text-zinc-500 dark:text-zinc-400 uppercase tracking-wider px-2">
+                  Quem acompanha suas viagens
+                </p>
+                <div className="space-y-2">
+                  {TRAVEL_COMPANY_OPTIONS.map((option) => {
+                    const Icon = option.icon;
+                    const isSelected = travelCompany === option.value;
+                    return (
+                      <button
+                        key={option.id}
+                        type="button"
+                        onClick={() => setTravelCompany(option.value)}
+                        className={`w-full p-4 rounded-[22px] border text-left transition-all active:scale-[0.985] cursor-pointer flex items-center justify-between gap-3 ${
+                          isSelected
+                            ? isDark
+                              ? 'bg-[#FFFFFF] text-[#080808] border-[#FFFFFF]'
+                              : 'bg-[#080808] text-[#FFFFFF] border-[#080808]'
+                            : isDark
+                              ? 'bg-[#1C1C1E] text-white border-white/10 hover:bg-[#252528]'
+                              : 'bg-white text-zinc-950 border-black/5 hover:bg-zinc-50'
+                        }`}
+                      >
+                        <div className="flex items-center gap-3 min-w-0">
+                          <Icon className="w-5 h-5 shrink-0 stroke-[1.9]" />
+                          <span className="text-[15px] font-semibold tracking-tight">
+                            {option.label}
+                          </span>
+                        </div>
+                        {isSelected && <Check className="w-4 h-4 shrink-0 stroke-[2.8]" />}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* Save Button */}
+              <div className="pt-2">
+                <button
+                  type="button"
+                  disabled={isSavingTravelerPrefs}
+                  onClick={handleSaveTravelerPreferences}
+                  className={`w-full h-[54px] rounded-full font-semibold text-[16px] flex items-center justify-center gap-2 transition-all active:scale-[0.985] cursor-pointer ${
+                    isDark
+                      ? 'bg-[#FFFFFF] text-[#080808] hover:bg-zinc-200'
+                      : 'bg-[#080808] text-[#FFFFFF] hover:bg-zinc-900'
+                  }`}
+                >
+                  {isSavingTravelerPrefs ? (
+                    <Loader2 className="w-5 h-5 animate-spin" />
+                  ) : travelerSavedToast ? (
+                    <Check className="w-5 h-5 stroke-[2.5]" />
+                  ) : null}
+                  <span>
+                    {travelerSavedToast
+                      ? 'Preferências salvas!'
+                      : 'Salvar preferências'}
+                  </span>
+                </button>
+              </div>
             </div>
           )}
 

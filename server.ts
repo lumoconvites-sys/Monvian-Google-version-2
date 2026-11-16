@@ -44,6 +44,8 @@ import {
   deleteUserAccountFromFirestore,
   persistUserFavoritesToFirestore,
   getUserFavoritesFromFirestore,
+  persistUserOnboardingToFirestore,
+  getUserOnboardingFromFirestore,
 } from './src/services/firestoreSync.ts';
 import firebaseAppletConfig from './firebase-applet-config.json' with { type: 'json' };
 
@@ -259,6 +261,33 @@ try { db.exec(`ALTER TABLE users ADD COLUMN last_access DATETIME DEFAULT CURRENT
 try { db.exec(`ALTER TABLE users ADD COLUMN auth_id TEXT;`); } catch {}
 try { db.exec(`ALTER TABLE users ADD COLUMN welcome_card_seen INTEGER DEFAULT 0;`); } catch {}
 try { db.exec(`ALTER TABLE users ADD COLUMN globe_intro_seen INTEGER DEFAULT 0;`); } catch {}
+try { db.exec(`ALTER TABLE users ADD COLUMN campos_relationship TEXT DEFAULT '';`); } catch {}
+try { db.exec(`ALTER TABLE users ADD COLUMN next_trip_timing TEXT DEFAULT '';`); } catch {}
+try { db.exec(`ALTER TABLE users ADD COLUMN next_trip_date TEXT DEFAULT '';`); } catch {}
+try { db.exec(`ALTER TABLE users ADD COLUMN interest_categories TEXT DEFAULT '[]';`); } catch {}
+try { db.exec(`ALTER TABLE users ADD COLUMN travel_company TEXT DEFAULT '';`); } catch {}
+try { db.exec(`ALTER TABLE users ADD COLUMN location_preference TEXT DEFAULT '';`); } catch {}
+try { db.exec(`ALTER TABLE users ADD COLUMN onboarding_completed_at DATETIME;`); } catch {}
+
+try {
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS user_onboarding (
+      user_email TEXT PRIMARY KEY,
+      user_id TEXT,
+      campos_relationship TEXT DEFAULT '',
+      next_trip_timing TEXT DEFAULT '',
+      next_trip_date TEXT DEFAULT '',
+      interest_categories TEXT DEFAULT '[]',
+      travel_company TEXT DEFAULT '',
+      location_preference TEXT DEFAULT '',
+      location_permission_granted INTEGER DEFAULT 0,
+      onboarding_step INTEGER DEFAULT 1,
+      onboarding_completed INTEGER DEFAULT 0,
+      completed_at DATETIME,
+      updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    );
+  `);
+} catch {}
 
 try {
   db.exec(`
@@ -527,11 +556,66 @@ function formatSpotRow(row: any): any {
   };
 }
 
+function parseInterestCategoriesList(raw: any): string[] {
+  if (Array.isArray(raw)) {
+    return raw.map((item) => String(item || '').trim()).filter(Boolean);
+  }
+  if (typeof raw === 'string' && raw.trim()) {
+    try {
+      const parsed = JSON.parse(raw);
+      if (Array.isArray(parsed)) {
+        return parsed.map((item) => String(item || '').trim()).filter(Boolean);
+      }
+    } catch {
+      return raw
+        .split(',')
+        .map((s) => s.trim())
+        .filter(Boolean);
+    }
+  }
+  return [];
+}
+
 function formatSafeUser(user: any) {
   if (!user) return null;
   const email = (user.email || user.whatsapp || '').trim().toLowerCase();
   const isAdmin = isPrimaryAdmin(email) || user.role === 'admin';
   const isGold = isAdmin || Boolean(user.is_gold) || user.plan === 'gold';
+
+  let onboardingRow: any = null;
+  if (email) {
+    try {
+      onboardingRow = db
+        .prepare('SELECT * FROM user_onboarding WHERE LOWER(user_email) = ?')
+        .get(email);
+    } catch {}
+  }
+
+  const camposRelationship =
+    onboardingRow?.campos_relationship || user.campos_relationship || '';
+  const nextTripTiming =
+    onboardingRow?.next_trip_timing || user.next_trip_timing || '';
+  const nextTripDate =
+    onboardingRow?.next_trip_date || user.next_trip_date || '';
+  const interestCategories = parseInterestCategoriesList(
+    onboardingRow?.interest_categories || user.interest_categories
+  );
+  const travelCompany =
+    onboardingRow?.travel_company || user.travel_company || '';
+  const locationPreference =
+    onboardingRow?.location_preference || user.location_preference || '';
+
+  const onboardingCompleted =
+    onboardingRow?.onboarding_completed !== undefined
+      ? Number(onboardingRow.onboarding_completed)
+      : user.onboarding_completed !== undefined
+        ? Number(user.onboarding_completed)
+        : 1;
+  const onboardingStep =
+    onboardingRow?.onboarding_step !== undefined
+      ? Number(onboardingRow.onboarding_step || 1)
+      : Number(user.onboarding_step || 1);
+
   return {
     id: user.id,
     auth_id: user.auth_id || user.firebase_uid || (user.id ? `usr_${user.id}` : ''),
@@ -551,6 +635,14 @@ function formatSafeUser(user: any) {
     motion_permission_granted: user.motion_permission_granted ? 1 : 0,
     welcome_card_seen: user.welcome_card_seen ? 1 : 0,
     globe_intro_seen: user.globe_intro_seen ? 1 : 0,
+    onboarding_completed: onboardingCompleted ? 1 : 0,
+    onboarding_step: onboardingStep,
+    campos_relationship: camposRelationship,
+    next_trip_timing: nextTripTiming,
+    next_trip_date: nextTripDate,
+    interest_categories: interestCategories,
+    travel_company: travelCompany,
+    location_preference: locationPreference,
     created_at: user.created_at || new Date().toISOString(),
   };
 }
@@ -1147,8 +1239,8 @@ async function startServer() {
 
       const insert = db
         .prepare(`
-          INSERT INTO users (name, username, email, whatsapp, password_hash, avatar_url, role, is_gold, auth_id)
-          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+          INSERT INTO users (name, username, email, whatsapp, password_hash, avatar_url, role, is_gold, auth_id, onboarding_completed, onboarding_step)
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 0, 1)
         `)
         .run(
           rawName,
@@ -1163,6 +1255,14 @@ async function startServer() {
         );
 
       const userId = Number(insert.lastInsertRowid);
+
+      try {
+        db.prepare(`
+          INSERT OR REPLACE INTO user_onboarding (
+            user_email, user_id, onboarding_step, onboarding_completed, updated_at
+          ) VALUES (?, ?, 1, 0, ?)
+        `).run(rawEmail, String(userId), nowIso);
+      } catch {}
 
       // Guarantee brand-new accounts never inherit any orphaned favorites or social activity
       try {
@@ -1186,6 +1286,8 @@ async function startServer() {
         role,
         avatar_url: avatar_url || '/fotoperfil.png',
         is_gold: isGold,
+        onboarding_completed: 0,
+        onboarding_step: 1,
         created_at: nowIso,
         last_access: nowIso,
       };
@@ -1198,6 +1300,13 @@ async function startServer() {
         persistUserToSupabase(userRecord),
         persistSessionToSupabase(token, userId),
         persistUserToFirestore(userRecord),
+        persistUserOnboardingToFirestore({
+          user_id: String(userId),
+          user_email: rawEmail,
+          onboarding_step: 1,
+          onboarding_completed: 0,
+          updated_at: nowIso,
+        }),
       ]);
 
       setPersistentSessionCookie(req, res, token);
@@ -1447,10 +1556,17 @@ async function startServer() {
           const role = isPrimaryAdmin(cleanEmail) ? 'admin' : 'user';
           const isGold = role === 'admin' ? 1 : 0;
           const insert = db.prepare(`
-            INSERT INTO users (name, username, email, whatsapp, password_hash, avatar_url, role, is_gold, auth_id)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+            INSERT INTO users (name, username, email, whatsapp, password_hash, avatar_url, role, is_gold, auth_id, onboarding_completed, onboarding_step)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 0, 1)
           `).run(resolvedName || username, username, cleanEmail, cleanEmail, dummyHash, resolvedAvatar || '/fotoperfil.png', role, isGold, resolvedUid || null);
           user = db.prepare('SELECT * FROM users WHERE id = ?').get(insert.lastInsertRowid);
+          try {
+            db.prepare(`
+              INSERT OR REPLACE INTO user_onboarding (
+                user_email, user_id, onboarding_step, onboarding_completed, updated_at
+              ) VALUES (?, ?, 1, 0, CURRENT_TIMESTAMP)
+            `).run(cleanEmail, String(user.id));
+          } catch {}
           try {
             const uidStr = String(user.id);
             db.prepare('DELETE FROM favorites WHERE user_id = ?').run(uidStr);
@@ -1718,6 +1834,362 @@ async function startServer() {
       return res.status(500).json({ success: false, error: err.message });
     }
   });
+
+  // ===========================================================================
+  // 1.5. ONBOARDING INTELIGENTE & MEU PERFIL DE VIAJANTE
+  // ===========================================================================
+  app.get('/api/user/onboarding', async (req: Request, res: Response) => {
+    try {
+      const currentUser = await resolveAuthenticatedUser(req);
+      const emailParam = String(
+        req.query.email || currentUser?.email || req.headers['x-user-email'] || ''
+      )
+        .trim()
+        .toLowerCase();
+
+      if (!currentUser && !emailParam) {
+        return res.status(401).json({ success: false, error: 'Sessão não autenticada.' });
+      }
+
+      let dbUser: any = currentUser?.id
+        ? db.prepare('SELECT * FROM users WHERE id = ?').get(currentUser.id)
+        : emailParam
+          ? db
+              .prepare('SELECT * FROM users WHERE LOWER(email) = ? OR LOWER(whatsapp) = ?')
+              .get(emailParam, emailParam)
+          : null;
+
+      const resolvedEmail = String(
+        dbUser?.email || dbUser?.whatsapp || emailParam || currentUser?.email || ''
+      )
+        .trim()
+        .toLowerCase();
+
+      let onboardingRow: any = resolvedEmail
+        ? db
+            .prepare('SELECT * FROM user_onboarding WHERE LOWER(user_email) = ?')
+            .get(resolvedEmail)
+        : null;
+
+      // If no local onboarding data or empty preferences, check Cloud Firestore
+      const hasLocalAnswers = Boolean(
+        onboardingRow?.campos_relationship ||
+          onboardingRow?.next_trip_timing ||
+          onboardingRow?.travel_company ||
+          dbUser?.campos_relationship ||
+          dbUser?.travel_company
+      );
+
+      if (!hasLocalAnswers && resolvedEmail) {
+        const cloudOnboarding = await getUserOnboardingFromFirestore(resolvedEmail);
+        if (cloudOnboarding) {
+          const catsJson = JSON.stringify(
+            Array.isArray(cloudOnboarding.interest_categories)
+              ? cloudOnboarding.interest_categories
+              : []
+          );
+          try {
+            db.prepare(`
+              INSERT INTO user_onboarding (
+                user_email, user_id, campos_relationship, next_trip_timing, next_trip_date,
+                interest_categories, travel_company, location_preference,
+                location_permission_granted, onboarding_step, onboarding_completed,
+                completed_at, updated_at
+              ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+              ON CONFLICT(user_email) DO UPDATE SET
+                campos_relationship = CASE WHEN excluded.campos_relationship != '' THEN excluded.campos_relationship ELSE user_onboarding.campos_relationship END,
+                next_trip_timing = CASE WHEN excluded.next_trip_timing != '' THEN excluded.next_trip_timing ELSE user_onboarding.next_trip_timing END,
+                next_trip_date = CASE WHEN excluded.next_trip_date != '' THEN excluded.next_trip_date ELSE user_onboarding.next_trip_date END,
+                interest_categories = CASE WHEN excluded.interest_categories != '[]' THEN excluded.interest_categories ELSE user_onboarding.interest_categories END,
+                travel_company = CASE WHEN excluded.travel_company != '' THEN excluded.travel_company ELSE user_onboarding.travel_company END,
+                location_preference = CASE WHEN excluded.location_preference != '' THEN excluded.location_preference ELSE user_onboarding.location_preference END,
+                onboarding_step = excluded.onboarding_step,
+                onboarding_completed = excluded.onboarding_completed,
+                updated_at = excluded.updated_at
+            `).run(
+              resolvedEmail,
+              String(dbUser?.id || cloudOnboarding.user_id || ''),
+              cloudOnboarding.campos_relationship || '',
+              cloudOnboarding.next_trip_timing || '',
+              cloudOnboarding.next_trip_date || '',
+              catsJson,
+              cloudOnboarding.travel_company || '',
+              cloudOnboarding.location_preference || '',
+              cloudOnboarding.location_permission_granted ? 1 : 0,
+              Number(cloudOnboarding.onboarding_step || 1),
+              cloudOnboarding.onboarding_completed ? 1 : 0,
+              cloudOnboarding.completed_at || null,
+              cloudOnboarding.updated_at || new Date().toISOString()
+            );
+            onboardingRow = db
+              .prepare('SELECT * FROM user_onboarding WHERE LOWER(user_email) = ?')
+              .get(resolvedEmail);
+          } catch {}
+        }
+      }
+
+      const safeUser = formatSafeUser(dbUser || currentUser);
+      const preferences = {
+        campos_relationship:
+          onboardingRow?.campos_relationship || safeUser?.campos_relationship || '',
+        next_trip_timing:
+          onboardingRow?.next_trip_timing || safeUser?.next_trip_timing || '',
+        next_trip_date:
+          onboardingRow?.next_trip_date || safeUser?.next_trip_date || '',
+        interest_categories: parseInterestCategoriesList(
+          onboardingRow?.interest_categories || safeUser?.interest_categories
+        ),
+        travel_company:
+          onboardingRow?.travel_company || safeUser?.travel_company || '',
+        location_preference:
+          onboardingRow?.location_preference || safeUser?.location_preference || '',
+        location_permission_granted: Number(
+          onboardingRow?.location_permission_granted ??
+            safeUser?.location_permission_granted ??
+            0
+        ),
+        onboarding_step: Number(
+          onboardingRow?.onboarding_step ?? safeUser?.onboarding_step ?? 1
+        ),
+        onboarding_completed: Number(
+          onboardingRow?.onboarding_completed ?? safeUser?.onboarding_completed ?? 1
+        ),
+      };
+
+      return res.json({
+        success: true,
+        onboarding_completed: preferences.onboarding_completed,
+        onboarding_step: preferences.onboarding_step,
+        preferences,
+        user: safeUser,
+      });
+    } catch (err: any) {
+      return res.status(500).json({ success: false, error: err.message });
+    }
+  });
+
+  const saveOnboardingDataHandler = async (
+    req: Request,
+    res: Response,
+    markCompleteDefault: boolean
+  ) => {
+    try {
+      const currentUser = await resolveAuthenticatedUser(req);
+      const body = req.body || {};
+      const emailParam = String(
+        body.email || currentUser?.email || req.headers['x-user-email'] || ''
+      )
+        .trim()
+        .toLowerCase();
+
+      if (!currentUser && !emailParam) {
+        return res.status(401).json({ success: false, error: 'Sessão não autenticada.' });
+      }
+
+      let dbUser: any = currentUser?.id
+        ? db.prepare('SELECT * FROM users WHERE id = ?').get(currentUser.id)
+        : emailParam
+          ? db
+              .prepare('SELECT * FROM users WHERE LOWER(email) = ? OR LOWER(whatsapp) = ?')
+              .get(emailParam, emailParam)
+          : null;
+
+      const resolvedEmail = String(
+        dbUser?.email || dbUser?.whatsapp || emailParam || currentUser?.email || ''
+      )
+        .trim()
+        .toLowerCase();
+
+      if (!resolvedEmail) {
+        return res.status(400).json({ success: false, error: 'E-mail do usuário não identificado.' });
+      }
+
+      const existingRow: any = db
+        .prepare('SELECT * FROM user_onboarding WHERE LOWER(user_email) = ?')
+        .get(resolvedEmail);
+
+      const nextRelationship =
+        body.campos_relationship !== undefined
+          ? String(body.campos_relationship).trim()
+          : existingRow?.campos_relationship ?? dbUser?.campos_relationship ?? '';
+
+      const nextTripTiming =
+        body.next_trip_timing !== undefined
+          ? String(body.next_trip_timing).trim()
+          : existingRow?.next_trip_timing ?? dbUser?.next_trip_timing ?? '';
+
+      const nextTripDate =
+        body.next_trip_date !== undefined
+          ? String(body.next_trip_date).trim()
+          : existingRow?.next_trip_date ?? dbUser?.next_trip_date ?? '';
+
+      const nextInterestsList =
+        body.interest_categories !== undefined
+          ? parseInterestCategoriesList(body.interest_categories)
+          : parseInterestCategoriesList(
+              existingRow?.interest_categories ?? dbUser?.interest_categories
+            );
+      const nextInterestsJson = JSON.stringify(nextInterestsList);
+
+      const nextTravelCompany =
+        body.travel_company !== undefined
+          ? String(body.travel_company).trim()
+          : existingRow?.travel_company ?? dbUser?.travel_company ?? '';
+
+      const nextLocationPref =
+        body.location_preference !== undefined
+          ? String(body.location_preference).trim()
+          : existingRow?.location_preference ?? dbUser?.location_preference ?? '';
+
+      const nextLocGranted =
+        body.location_permission_granted !== undefined
+          ? body.location_permission_granted
+            ? 1
+            : 0
+          : nextLocationPref === 'granted'
+            ? 1
+            : Number(
+                existingRow?.location_permission_granted ??
+                  dbUser?.location_permission_granted ??
+                  0
+              );
+
+      const nextStep =
+        body.onboarding_step !== undefined
+          ? Math.max(1, Math.min(6, Number(body.onboarding_step) || 1))
+          : Number(existingRow?.onboarding_step ?? dbUser?.onboarding_step ?? 1);
+
+      const nextCompleted = markCompleteDefault
+        ? 1
+        : body.onboarding_completed !== undefined
+          ? body.onboarding_completed
+            ? 1
+            : 0
+          : Number(existingRow?.onboarding_completed ?? dbUser?.onboarding_completed ?? 0);
+
+      const nowIso = new Date().toISOString();
+      const completedAt =
+        nextCompleted === 1
+          ? existingRow?.completed_at || nowIso
+          : existingRow?.completed_at || null;
+
+      db.prepare(`
+        INSERT INTO user_onboarding (
+          user_email, user_id, campos_relationship, next_trip_timing, next_trip_date,
+          interest_categories, travel_company, location_preference,
+          location_permission_granted, onboarding_step, onboarding_completed,
+          completed_at, updated_at
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ON CONFLICT(user_email) DO UPDATE SET
+          user_id = COALESCE(excluded.user_id, user_onboarding.user_id),
+          campos_relationship = excluded.campos_relationship,
+          next_trip_timing = excluded.next_trip_timing,
+          next_trip_date = excluded.next_trip_date,
+          interest_categories = excluded.interest_categories,
+          travel_company = excluded.travel_company,
+          location_preference = excluded.location_preference,
+          location_permission_granted = excluded.location_permission_granted,
+          onboarding_step = excluded.onboarding_step,
+          onboarding_completed = excluded.onboarding_completed,
+          completed_at = COALESCE(excluded.completed_at, user_onboarding.completed_at),
+          updated_at = excluded.updated_at
+      `).run(
+        resolvedEmail,
+        dbUser?.id ? String(dbUser.id) : String(currentUser?.id || ''),
+        nextRelationship,
+        nextTripTiming,
+        nextTripDate,
+        nextInterestsJson,
+        nextTravelCompany,
+        nextLocationPref,
+        nextLocGranted,
+        nextStep,
+        nextCompleted,
+        completedAt,
+        nowIso
+      );
+
+      if (dbUser?.id) {
+        db.prepare(`
+          UPDATE users
+          SET campos_relationship = ?,
+              next_trip_timing = ?,
+              next_trip_date = ?,
+              interest_categories = ?,
+              travel_company = ?,
+              location_preference = ?,
+              location_permission_granted = CASE WHEN ? = 1 THEN 1 ELSE location_permission_granted END,
+              onboarding_step = ?,
+              onboarding_completed = ?,
+              welcome_card_seen = CASE WHEN ? = 1 THEN 1 ELSE welcome_card_seen END,
+              onboarding_completed_at = COALESCE(?, onboarding_completed_at)
+          WHERE id = ?
+        `).run(
+          nextRelationship,
+          nextTripTiming,
+          nextTripDate,
+          nextInterestsJson,
+          nextTravelCompany,
+          nextLocationPref,
+          nextLocGranted,
+          nextStep,
+          nextCompleted,
+          nextCompleted,
+          completedAt,
+          dbUser.id
+        );
+        dbUser = db.prepare('SELECT * FROM users WHERE id = ?').get(dbUser.id);
+      }
+
+      const onboardingPayload = {
+        user_id: dbUser?.id ? String(dbUser.id) : String(currentUser?.id || ''),
+        user_email: resolvedEmail,
+        campos_relationship: nextRelationship,
+        next_trip_timing: nextTripTiming,
+        next_trip_date: nextTripDate,
+        interest_categories: nextInterestsList,
+        travel_company: nextTravelCompany,
+        location_preference: nextLocationPref,
+        location_permission_granted: nextLocGranted,
+        onboarding_step: nextStep,
+        onboarding_completed: nextCompleted,
+        completed_at: completedAt || undefined,
+        updated_at: nowIso,
+      };
+
+      // Sync to Cloud Firestore and Supabase in parallel
+      await Promise.allSettled([
+        persistUserOnboardingToFirestore(onboardingPayload),
+        dbUser ? persistUserToSupabase(dbUser) : Promise.resolve(),
+        dbUser ? persistUserToFirestore(dbUser) : Promise.resolve(),
+      ]);
+
+      const safeUser = formatSafeUser(dbUser || currentUser);
+      return res.json({
+        success: true,
+        onboarding_completed: nextCompleted,
+        onboarding_step: nextStep,
+        preferences: onboardingPayload,
+        user: safeUser,
+      });
+    } catch (err: any) {
+      return res.status(500).json({ success: false, error: err.message });
+    }
+  };
+
+  app.post('/api/user/onboarding/step', (req: Request, res: Response) =>
+    saveOnboardingDataHandler(req, res, false)
+  );
+  app.post('/api/user/onboarding/complete', (req: Request, res: Response) =>
+    saveOnboardingDataHandler(req, res, true)
+  );
+  app.put('/api/user/onboarding/preferences', (req: Request, res: Response) =>
+    saveOnboardingDataHandler(req, res, true)
+  );
+  app.post('/api/user/onboarding/preferences', (req: Request, res: Response) =>
+    saveOnboardingDataHandler(req, res, true)
+  );
+
 
 
   // User Profile Update (Preserves role & Gold status from DB, never trusting client role input)

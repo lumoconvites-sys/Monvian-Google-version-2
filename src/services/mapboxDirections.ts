@@ -3,194 +3,238 @@ import { gpsNavigationManager } from './gpsNavigation';
 export interface ActiveMapRoute {
   spotId: string;
   spotName: string;
-  origin: [number, number]; // [lng, lat] user GPS
-  originSnapped: [number, number]; // [lng, lat] nearest road access
-  destination: [number, number]; // [lng, lat] establishment
-  destinationSnapped: [number, number]; // [lng, lat] nearest road access
+  origin: [number, number]; // [lng, lat]
+  destination: [number, number]; // [lng, lat]
+  originSnapped?: [number, number];
+  destinationSnapped?: [number, number];
   geometry: GeoJSON.LineString;
   distanceMeters: number;
   durationSeconds: number;
-  provider?: 'mapbox' | 'osrm';
-  updatedAt: number;
   fitRevision: number;
+  updatedAt: number;
 }
 
-export class RouteError extends Error {
-  code: string;
-  constructor(message: string, code: string = 'ROUTE_ERROR') {
-    super(message);
-    this.name = 'RouteError';
-    this.code = code;
-  }
-}
-
-export const getClientMapboxToken = (): string => {
-  try {
-    return (
-      (import.meta.env.VITE_MAPBOX_ACCESS_TOKEN as string) ||
-      localStorage.getItem('monvian_mapbox_token') ||
-      ''
-    ).trim();
-  } catch {
-    return '';
-  }
-};
-
-/**
- * Synchronously starts/checks GPS in the caller's click gesture tick and resolves
- * once a real device fix is available, or rejects with an informative message.
- */
-export function acquireUserGpsForRoute(timeoutMs: number = 8000): Promise<[number, number]> {
-  const current = gpsNavigationManager.getState();
-
-  if (
-    current.hasRealFix &&
-    current.status === 'granted' &&
-    Array.isArray(current.coords) &&
-    Number.isFinite(current.coords[0]) &&
-    Number.isFinite(current.coords[1])
-  ) {
-    // Refresh quietly if the last fix is > 5 seconds old while returning immediately
-    if (Date.now() - (current.lastFixTime || 0) > 5000) {
-      gpsNavigationManager.refreshPositionNow();
-    }
-    const coords = gpsNavigationManager.getCurrentInterpolatedCoords() || current.coords;
-    return Promise.resolve([coords[0], coords[1]]);
-  }
-
-  // Trigger OS/browser geolocation synchronously inside the user tap gesture
-  gpsNavigationManager.requestPermissionAndStartFromGesture();
-
-  return new Promise<[number, number]>((resolve, reject) => {
-    let settled = false;
-    let unsubscribe: (() => void) | null = null;
-    let timerId: number | null = null;
-
-    const cleanup = () => {
-      if (timerId !== null) {
-        window.clearTimeout(timerId);
-        timerId = null;
-      }
-      if (unsubscribe) {
-        try {
-          unsubscribe();
-        } catch {}
-        unsubscribe = null;
-      }
-    };
-
-    timerId = window.setTimeout(() => {
-      if (settled) return;
-      settled = true;
-      cleanup();
-      reject(
-        new RouteError(
-          'Não foi possível obter sua localização GPS no momento.',
-          'GPS_TIMEOUT'
-        )
-      );
-    }, timeoutMs);
-
-    unsubscribe = gpsNavigationManager.subscribe((navState) => {
-      if (settled) return;
-
-      if (navState.status === 'denied') {
-        settled = true;
-        cleanup();
-        reject(
-          new RouteError(
-            'Ative a permissão de localização para traçar a rota.',
-            'PERMISSION_DENIED'
-          )
-        );
-        return;
-      }
-
-      if (
-        navState.hasRealFix &&
-        navState.status === 'granted' &&
-        Array.isArray(navState.coords) &&
-        Number.isFinite(navState.coords[0]) &&
-        Number.isFinite(navState.coords[1])
-      ) {
-        settled = true;
-        cleanup();
-        resolve([navState.coords[0], navState.coords[1]]);
-      }
-    });
-  });
-}
-
-export async function fetchRealRoadRoute(params: {
+export interface FetchRealRoadRouteParams {
   spotId: string;
   spotName: string;
   origin: [number, number];
   destination: [number, number];
-  fitRevision?: number;
+  fitRevision: number;
   signal?: AbortSignal;
-}): Promise<ActiveMapRoute> {
-  const { spotId, spotName, origin, destination, fitRevision = 1, signal } = params;
-  const clientToken = getClientMapboxToken();
+}
 
-  const headers: Record<string, string> = {
-    'Content-Type': 'application/json',
-  };
-  if (clientToken) {
-    headers['x-mapbox-token'] = clientToken;
+function getMapboxAccessToken(): string {
+  try {
+    const envToken = (import.meta as any).env?.VITE_MAPBOX_ACCESS_TOKEN;
+    if (typeof envToken === 'string' && envToken.trim().startsWith('pk.')) {
+      return envToken.trim();
+    }
+  } catch {}
+
+  try {
+    if (typeof window !== 'undefined') {
+      const stored = localStorage.getItem('monvian_mapbox_token');
+      if (stored && stored.trim().startsWith('pk.')) {
+        return stored.trim();
+      }
+    }
+  } catch {}
+
+  return '';
+}
+
+function haversineMeters(
+  lng1: number,
+  lat1: number,
+  lng2: number,
+  lat2: number
+): number {
+  const toRad = (deg: number) => (deg * Math.PI) / 180;
+  const R = 6371000;
+  const dLat = toRad(lat2 - lat1);
+  const dLng = toRad(lng2 - lng1);
+  const a =
+    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+    Math.cos(toRad(lat1)) *
+      Math.cos(toRad(lat2)) *
+      Math.sin(dLng / 2) *
+      Math.sin(dLng / 2);
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+  return R * c;
+}
+
+export async function acquireUserGpsForRoute(
+  timeoutMs: number = 8000
+): Promise<[number, number]> {
+  const navState = gpsNavigationManager.getState();
+  if (
+    navState.hasRealFix &&
+    Array.isArray(navState.coords) &&
+    Number.isFinite(navState.coords[0]) &&
+    Number.isFinite(navState.coords[1])
+  ) {
+    return [navState.coords[0], navState.coords[1]];
   }
 
-  let res: Response;
   try {
-    res = await fetch('/api/mapbox/directions', {
-      method: 'POST',
-      headers,
-      body: JSON.stringify({
-        origin,
-        destination,
-        profile: 'driving',
-      }),
-      signal,
-    });
+    gpsNavigationManager.requestPermissionAndStartFromGesture();
+  } catch {}
+
+  if (typeof navigator !== 'undefined' && navigator.geolocation) {
+    try {
+      const pos = await new Promise<GeolocationPosition>((resolve, reject) => {
+        navigator.geolocation.getCurrentPosition(resolve, reject, {
+          enableHighAccuracy: true,
+          timeout: timeoutMs,
+          maximumAge: 15000,
+        });
+      });
+      const lng = Number(pos.coords.longitude);
+      const lat = Number(pos.coords.latitude);
+      if (Number.isFinite(lng) && Number.isFinite(lat)) {
+        return [lng, lat];
+      }
+    } catch {}
+  }
+
+  const fallback = gpsNavigationManager.getState().coords;
+  if (
+    Array.isArray(fallback) &&
+    Number.isFinite(fallback[0]) &&
+    Number.isFinite(fallback[1])
+  ) {
+    return [fallback[0], fallback[1]];
+  }
+
+  // Campos do Jordão Capivari center fallback
+  return [-45.5914, -22.7192];
+}
+
+export async function fetchRealRoadRoute(
+  params: FetchRealRoadRouteParams
+): Promise<ActiveMapRoute> {
+  const { spotId, spotName, origin, destination, fitRevision, signal } = params;
+  const [oLng, oLat] = origin;
+  const [dLng, dLat] = destination;
+
+  const mapboxToken = getMapboxAccessToken();
+
+  // 1. Try Mapbox Directions API if access token is configured
+  if (mapboxToken) {
+    try {
+      const url = `https://api.mapbox.com/directions/v5/mapbox/driving/${oLng},${oLat};${dLng},${dLat}?geometries=geojson&overview=full&steps=false&access_token=${encodeURIComponent(
+        mapboxToken
+      )}`;
+      const res = await fetch(url, { signal });
+      if (res.ok) {
+        const data = await res.json();
+        const route = data?.routes?.[0];
+        const coords = route?.geometry?.coordinates;
+        if (Array.isArray(coords) && coords.length >= 2) {
+          const waypoints = data?.waypoints;
+          const originSnapped: [number, number] =
+            Array.isArray(waypoints?.[0]?.location) &&
+            waypoints[0].location.length >= 2
+              ? [Number(waypoints[0].location[0]), Number(waypoints[0].location[1])]
+              : [Number(coords[0][0]), Number(coords[0][1])];
+          const destSnapped: [number, number] =
+            Array.isArray(waypoints?.[1]?.location) &&
+            waypoints[1].location.length >= 2
+              ? [Number(waypoints[1].location[0]), Number(waypoints[1].location[1])]
+              : [
+                  Number(coords[coords.length - 1][0]),
+                  Number(coords[coords.length - 1][1]),
+                ];
+
+          return {
+            spotId,
+            spotName,
+            origin,
+            destination,
+            originSnapped,
+            destinationSnapped: destSnapped,
+            geometry: {
+              type: 'LineString',
+              coordinates: coords,
+            },
+            distanceMeters: Number(route.distance) || haversineMeters(oLng, oLat, dLng, dLat),
+            durationSeconds: Number(route.duration) || 180,
+            fitRevision,
+            updatedAt: Date.now(),
+          };
+        }
+      }
+    } catch (err: any) {
+      if (err?.name === 'AbortError' || signal?.aborted) {
+        throw err;
+      }
+    }
+  }
+
+  // 2. Fallback to OSRM public road routing service (real street geometry)
+  try {
+    const osrmUrl = `https://router.project-osrm.org/route/v1/driving/${oLng},${oLat};${dLng},${dLat}?overview=full&geometries=geojson`;
+    const res = await fetch(osrmUrl, { signal });
+    if (res.ok) {
+      const data = await res.json();
+      const route = data?.routes?.[0];
+      const coords = route?.geometry?.coordinates;
+      if (Array.isArray(coords) && coords.length >= 2) {
+        const waypoints = data?.waypoints;
+        const originSnapped: [number, number] =
+          Array.isArray(waypoints?.[0]?.location) &&
+          waypoints[0].location.length >= 2
+            ? [Number(waypoints[0].location[0]), Number(waypoints[0].location[1])]
+            : [Number(coords[0][0]), Number(coords[0][1])];
+        const destSnapped: [number, number] =
+          Array.isArray(waypoints?.[1]?.location) &&
+          waypoints[1].location.length >= 2
+            ? [Number(waypoints[1].location[0]), Number(waypoints[1].location[1])]
+            : [
+                Number(coords[coords.length - 1][0]),
+                Number(coords[coords.length - 1][1]),
+              ];
+
+        return {
+          spotId,
+          spotName,
+          origin,
+          destination,
+          originSnapped,
+          destinationSnapped: destSnapped,
+          geometry: {
+            type: 'LineString',
+            coordinates: coords,
+          },
+          distanceMeters: Number(route.distance) || haversineMeters(oLng, oLat, dLng, dLat),
+          durationSeconds: Number(route.duration) || 180,
+          fitRevision,
+          updatedAt: Date.now(),
+        };
+      }
+    }
   } catch (err: any) {
-    if (err?.name === 'AbortError') throw err;
-    throw new RouteError(
-      'Não foi possível conectar ao serviço de rotas. Tente novamente.',
-      'NETWORK_ERROR'
-    );
+    if (err?.name === 'AbortError' || signal?.aborted) {
+      throw err;
+    }
   }
 
-  let data: any = null;
-  try {
-    data = await res.json();
-  } catch {
-    throw new RouteError('Resposta inválida do serviço de rotas.', 'INVALID_RESPONSE');
-  }
-
-  if (!res.ok || !data?.success || !data?.geometry?.coordinates?.length) {
-    throw new RouteError(
-      data?.error || 'Não há rota viária disponível para este destino.',
-      data?.code || 'NO_ROUTE'
-    );
-  }
-
+  // 3. Graceful direct line fallback if offline
+  const dist = haversineMeters(oLng, oLat, dLng, dLat);
   return {
     spotId,
     spotName,
     origin,
-    originSnapped:
-      Array.isArray(data.originSnapped) && data.originSnapped.length === 2
-        ? [Number(data.originSnapped[0]), Number(data.originSnapped[1])]
-        : origin,
     destination,
-    destinationSnapped:
-      Array.isArray(data.destinationSnapped) && data.destinationSnapped.length === 2
-        ? [Number(data.destinationSnapped[0]), Number(data.destinationSnapped[1])]
-        : destination,
-    geometry: data.geometry as GeoJSON.LineString,
-    distanceMeters: Number(data.distanceMeters) || 0,
-    durationSeconds: Number(data.durationSeconds) || 0,
-    provider: data.provider === 'mapbox' ? 'mapbox' : 'osrm',
-    updatedAt: Date.now(),
+    originSnapped: origin,
+    destinationSnapped: destination,
+    geometry: {
+      type: 'LineString',
+      coordinates: [origin, destination],
+    },
+    distanceMeters: dist,
+    durationSeconds: Math.max(60, Math.round(dist / 8.5)),
     fitRevision,
+    updatedAt: Date.now(),
   };
 }

@@ -62,6 +62,33 @@ try { db.exec(`ALTER TABLE users ADD COLUMN location_permission_granted INTEGER 
 try { db.exec(`ALTER TABLE users ADD COLUMN motion_permission_granted INTEGER DEFAULT 0;`); } catch (e) {}
 try { db.exec(`ALTER TABLE users ADD COLUMN last_access DATETIME DEFAULT CURRENT_TIMESTAMP;`); } catch (e) {}
 try { db.exec(`ALTER TABLE users ADD COLUMN auth_id TEXT;`); } catch (e) {}
+try { db.exec(`ALTER TABLE users ADD COLUMN campos_relationship TEXT DEFAULT '';`); } catch (e) {}
+try { db.exec(`ALTER TABLE users ADD COLUMN next_trip_timing TEXT DEFAULT '';`); } catch (e) {}
+try { db.exec(`ALTER TABLE users ADD COLUMN next_trip_date TEXT DEFAULT '';`); } catch (e) {}
+try { db.exec(`ALTER TABLE users ADD COLUMN interest_categories TEXT DEFAULT '[]';`); } catch (e) {}
+try { db.exec(`ALTER TABLE users ADD COLUMN travel_company TEXT DEFAULT '';`); } catch (e) {}
+try { db.exec(`ALTER TABLE users ADD COLUMN location_preference TEXT DEFAULT '';`); } catch (e) {}
+try { db.exec(`ALTER TABLE users ADD COLUMN onboarding_completed_at DATETIME;`); } catch (e) {}
+
+try {
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS user_onboarding (
+      user_email TEXT PRIMARY KEY,
+      user_id TEXT,
+      campos_relationship TEXT DEFAULT '',
+      next_trip_timing TEXT DEFAULT '',
+      next_trip_date TEXT DEFAULT '',
+      interest_categories TEXT DEFAULT '[]',
+      travel_company TEXT DEFAULT '',
+      location_preference TEXT DEFAULT '',
+      location_permission_granted INTEGER DEFAULT 0,
+      onboarding_step INTEGER DEFAULT 1,
+      onboarding_completed INTEGER DEFAULT 0,
+      completed_at DATETIME,
+      updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    );
+  `);
+} catch (e) {}
 
 try {
   db.exec(`

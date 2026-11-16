@@ -365,12 +365,37 @@
         "places": { "type": "array", "description": "Removed list item IDs" },
         "updated_at": { "type": "string", "description": "ISO timestamp of last update" }
       }
+    },
+    "UserOnboarding": {
+      "title": "UserOnboarding",
+      "description": "Smart complementary onboarding preferences and traveler profile linked to authenticated user",
+      "type": "object",
+      "properties": {
+        "user_id": { "type": "string", "description": "User numeric/string ID" },
+        "user_email": { "type": "string", "description": "Normalized user email" },
+        "campos_relationship": { "type": "string", "description": "Relationship with Campos do Jordão" },
+        "next_trip_timing": { "type": "string", "description": "Planned timing for next visit" },
+        "next_trip_date": { "type": "string", "description": "Optional ISO date for next visit" },
+        "interest_categories": { "type": "array", "description": "Selected favorite experience categories" },
+        "travel_company": { "type": "string", "description": "Who accompanies the user on trips" },
+        "location_preference": { "type": "string", "description": "Location access preference ('granted', 'skipped', 'denied')" },
+        "location_permission_granted": { "type": "number", "description": "Location permission flag (0 or 1)" },
+        "onboarding_step": { "type": "number", "description": "Current onboarding step (1 to 6)" },
+        "onboarding_completed": { "type": "number", "description": "Onboarding completion flag (0 or 1)" },
+        "completed_at": { "type": "string", "description": "ISO timestamp of completion" },
+        "updated_at": { "type": "string", "description": "ISO timestamp of last update" }
+      },
+      "required": ["user_email"]
     }
   },
   "firestore": {
     "/users/{email}": {
       "schema": "User",
       "description": "Persistent users indexed by clean email"
+    },
+    "/user_onboarding/{email}": {
+      "schema": "UserOnboarding",
+      "description": "Smart complementary onboarding preferences indexed by clean email"
     },
     "/user_favorites/{email}": {
       "schema": "UserFavorite",

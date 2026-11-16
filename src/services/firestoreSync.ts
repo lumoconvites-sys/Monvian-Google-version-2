@@ -84,6 +84,28 @@ export interface FirestoreUser {
   auth_id?: string | null;
   welcome_card_seen?: number;
   globe_intro_seen?: number;
+  campos_relationship?: string;
+  next_trip_timing?: string;
+  next_trip_date?: string;
+  interest_categories?: string[] | string;
+  travel_company?: string;
+  location_preference?: string;
+}
+
+export interface FirestoreUserOnboarding {
+  user_id?: string | number;
+  user_email: string;
+  campos_relationship?: string;
+  next_trip_timing?: string;
+  next_trip_date?: string;
+  interest_categories?: string[];
+  travel_company?: string;
+  location_preference?: string;
+  location_permission_granted?: number;
+  onboarding_step?: number;
+  onboarding_completed?: number;
+  completed_at?: string;
+  updated_at?: string;
 }
 
 export interface FirestoreSession {
@@ -242,6 +264,26 @@ export async function persistUserToFirestore(user: FirestoreUser): Promise<void>
     if (user.globe_intro_seen !== undefined) {
       dataToSave.globe_intro_seen = user.globe_intro_seen ? 1 : 0;
     }
+    if (user.campos_relationship !== undefined) {
+      dataToSave.campos_relationship = user.campos_relationship;
+    }
+    if (user.next_trip_timing !== undefined) {
+      dataToSave.next_trip_timing = user.next_trip_timing;
+    }
+    if (user.next_trip_date !== undefined) {
+      dataToSave.next_trip_date = user.next_trip_date;
+    }
+    if (user.interest_categories !== undefined) {
+      dataToSave.interest_categories = Array.isArray(user.interest_categories)
+        ? user.interest_categories
+        : user.interest_categories;
+    }
+    if (user.travel_company !== undefined) {
+      dataToSave.travel_company = user.travel_company;
+    }
+    if (user.location_preference !== undefined) {
+      dataToSave.location_preference = user.location_preference;
+    }
     if (user.id) {
       dataToSave.id = user.id;
     }
@@ -250,6 +292,130 @@ export async function persistUserToFirestore(user: FirestoreUser): Promise<void>
   } catch (err: any) {
     // Fail silently in background
   }
+}
+
+export async function persistUserOnboardingToFirestore(
+  payload: FirestoreUserOnboarding
+): Promise<void> {
+  const cleanEmail = String(payload.user_email || '').trim().toLowerCase();
+  if (!cleanEmail) return;
+  const nowIso = new Date().toISOString();
+
+  const record: Record<string, any> = {
+    user_id: payload.user_id !== undefined ? String(payload.user_id) : '',
+    user_email: cleanEmail,
+    updated_at: payload.updated_at || nowIso,
+  };
+
+  if (payload.campos_relationship !== undefined) {
+    record.campos_relationship = String(payload.campos_relationship || '');
+  }
+  if (payload.next_trip_timing !== undefined) {
+    record.next_trip_timing = String(payload.next_trip_timing || '');
+  }
+  if (payload.next_trip_date !== undefined) {
+    record.next_trip_date = String(payload.next_trip_date || '');
+  }
+  if (payload.interest_categories !== undefined) {
+    record.interest_categories = Array.isArray(payload.interest_categories)
+      ? payload.interest_categories
+      : [];
+  }
+  if (payload.travel_company !== undefined) {
+    record.travel_company = String(payload.travel_company || '');
+  }
+  if (payload.location_preference !== undefined) {
+    record.location_preference = String(payload.location_preference || '');
+  }
+  if (payload.location_permission_granted !== undefined) {
+    record.location_permission_granted = payload.location_permission_granted ? 1 : 0;
+  }
+  if (payload.onboarding_step !== undefined) {
+    record.onboarding_step = Number(payload.onboarding_step || 1);
+  }
+  if (payload.onboarding_completed !== undefined) {
+    record.onboarding_completed = payload.onboarding_completed ? 1 : 0;
+  }
+  if (payload.completed_at !== undefined) {
+    record.completed_at = payload.completed_at;
+  }
+
+  try {
+    const onboardingRef = doc(firestore, 'user_onboarding', cleanEmail);
+    const userRef = doc(firestore, 'users', cleanEmail);
+    await Promise.allSettled([
+      withTimeout(setDoc(onboardingRef, record, { merge: true }), 2500, null),
+      withTimeout(setDoc(userRef, record, { merge: true }), 2500, null),
+    ]);
+  } catch {}
+}
+
+export async function getUserOnboardingFromFirestore(
+  email?: string
+): Promise<FirestoreUserOnboarding | null> {
+  const cleanEmail = String(email || '').trim().toLowerCase();
+  if (!cleanEmail) return null;
+
+  try {
+    const onboardingRef = doc(firestore, 'user_onboarding', cleanEmail);
+    const snap = await withTimeout(getDoc(onboardingRef), 2500, null as any);
+    if (snap && snap.exists && snap.exists()) {
+      const data = snap.data() || {};
+      return {
+        user_id: data.user_id || '',
+        user_email: cleanEmail,
+        campos_relationship: data.campos_relationship || '',
+        next_trip_timing: data.next_trip_timing || '',
+        next_trip_date: data.next_trip_date || '',
+        interest_categories: Array.isArray(data.interest_categories)
+          ? data.interest_categories
+          : [],
+        travel_company: data.travel_company || '',
+        location_preference: data.location_preference || '',
+        location_permission_granted: Number(data.location_permission_granted || 0),
+        onboarding_step: Number(data.onboarding_step || 1),
+        onboarding_completed:
+          data.onboarding_completed !== undefined
+            ? Number(data.onboarding_completed)
+            : 0,
+        completed_at: data.completed_at || '',
+        updated_at: data.updated_at || '',
+      };
+    }
+
+    const userRef = doc(firestore, 'users', cleanEmail);
+    const uSnap = await withTimeout(getDoc(userRef), 2500, null as any);
+    if (uSnap && uSnap.exists && uSnap.exists()) {
+      const uData = uSnap.data() || {};
+      if (
+        uData.campos_relationship ||
+        uData.next_trip_timing ||
+        uData.travel_company ||
+        (Array.isArray(uData.interest_categories) && uData.interest_categories.length > 0)
+      ) {
+        return {
+          user_id: uData.id ? String(uData.id) : '',
+          user_email: cleanEmail,
+          campos_relationship: uData.campos_relationship || '',
+          next_trip_timing: uData.next_trip_timing || '',
+          next_trip_date: uData.next_trip_date || '',
+          interest_categories: Array.isArray(uData.interest_categories)
+            ? uData.interest_categories
+            : [],
+          travel_company: uData.travel_company || '',
+          location_preference: uData.location_preference || '',
+          location_permission_granted: Number(uData.location_permission_granted || 0),
+          onboarding_step: Number(uData.onboarding_step || 1),
+          onboarding_completed:
+            uData.onboarding_completed !== undefined
+              ? Number(uData.onboarding_completed)
+              : 1,
+          updated_at: uData.updated_at || '',
+        };
+      }
+    }
+  } catch {}
+  return null;
 }
 
 /**
@@ -1469,6 +1635,7 @@ export async function deleteUserAccountFromFirestore(email: string, deletionLog?
   try {
     if (cleanEmail) {
       await withTimeout(deleteDoc(doc(firestore, 'users', cleanEmail)), 2500, null);
+      await withTimeout(deleteDoc(doc(firestore, 'user_onboarding', cleanEmail)), 2500, null);
       await withTimeout(deleteDoc(doc(firestore, 'user_permissions', cleanEmail)), 2500, null);
       await withTimeout(deleteDoc(doc(firestore, 'user_favorites', cleanEmail)), 2500, null);
     }
