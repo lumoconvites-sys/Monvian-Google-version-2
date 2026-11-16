@@ -1352,6 +1352,61 @@ export async function persistSupportTicketToFirestore(ticket: {
   } catch {}
 }
 
+export async function persistUserFavoritesToFirestore(params: {
+  email?: string;
+  userId?: string | number;
+  itineraries: string[];
+  spots: string[];
+  places: string[];
+}): Promise<void> {
+  const cleanEmail = String(params.email || '').trim().toLowerCase();
+  const docKey = cleanEmail || (params.userId ? `uid_${params.userId}` : '');
+  if (!docKey) return;
+
+  try {
+    const ref = doc(firestore, 'user_favorites', docKey);
+    await withTimeout(
+      setDoc(
+        ref,
+        {
+          user_id: params.userId ? String(params.userId) : '',
+          user_email: cleanEmail,
+          itineraries: Array.from(new Set(params.itineraries || [])),
+          spots: Array.from(new Set(params.spots || [])),
+          places: Array.from(new Set(params.places || [])),
+          updated_at: new Date().toISOString(),
+        },
+        { merge: true }
+      ),
+      2500,
+      null
+    );
+  } catch {}
+}
+
+export async function getUserFavoritesFromFirestore(
+  email?: string,
+  userId?: string | number
+): Promise<{ itineraries: string[]; spots: string[]; places: string[] } | null> {
+  const cleanEmail = String(email || '').trim().toLowerCase();
+  const docKey = cleanEmail || (userId ? `uid_${userId}` : '');
+  if (!docKey) return null;
+
+  try {
+    const ref = doc(firestore, 'user_favorites', docKey);
+    const snap = await withTimeout(getDoc(ref), 2500, null as any);
+    if (snap && snap.exists && snap.exists()) {
+      const data = snap.data() || {};
+      return {
+        itineraries: Array.isArray(data.itineraries) ? data.itineraries : [],
+        spots: Array.isArray(data.spots) ? data.spots : [],
+        places: Array.isArray(data.places) ? data.places : [],
+      };
+    }
+  } catch {}
+  return null;
+}
+
 export async function deleteUserAccountFromFirestore(email: string, deletionLog?: {
   id: string;
   protocol: string;
@@ -1365,6 +1420,7 @@ export async function deleteUserAccountFromFirestore(email: string, deletionLog?
     if (cleanEmail) {
       await withTimeout(deleteDoc(doc(firestore, 'users', cleanEmail)), 2500, null);
       await withTimeout(deleteDoc(doc(firestore, 'user_permissions', cleanEmail)), 2500, null);
+      await withTimeout(deleteDoc(doc(firestore, 'user_favorites', cleanEmail)), 2500, null);
     }
     if (deletionLog) {
       await withTimeout(

@@ -6,6 +6,7 @@ import { CAMPOS_SPOTS } from '../data/spots';
 import { NotificationsModal, SocialNotification } from './NotificationsModal';
 import { UserSearchModal, SearchUserItem } from './UserSearchModal';
 import { UserProfileModal } from './UserProfileModal';
+import { readScopedJSON, writeScopedJSON } from '../utils/userScopedStorage';
 
 export interface Post {
   id: string;
@@ -19,6 +20,7 @@ export interface Post {
   comments_count: number;
   created_at: string;
   liked_by_me?: boolean;
+  saved_by_me?: boolean;
 }
 
 export interface Comment {
@@ -286,8 +288,10 @@ export const PublicationsView: React.FC<PublicationsViewProps> = React.memo(({
   const [unreadNotifsCount, setUnreadNotifsCount] = useState<number>(0);
   const [isLoadingNotifications, setIsLoadingNotifications] = useState<boolean>(false);
 
-  // Saved Posts (Instagram Bookmark) State
-  const [savedPosts, setSavedPosts] = useState<Record<string, boolean>>({});
+  // Saved Posts (Instagram Bookmark) State (Per-account isolated)
+  const [savedPosts, setSavedPosts] = useState<Record<string, boolean>>(() =>
+    readScopedJSON<Record<string, boolean>>('monvian_saved_posts', {})
+  );
 
   // Real User Search Modal State
   const [isSearchModalOpen, setIsSearchModalOpen] = useState<boolean>(false);
@@ -297,13 +301,9 @@ export const PublicationsView: React.FC<PublicationsViewProps> = React.memo(({
 
   // Feed Tab: Strictly 'para_voce' (tab 'seguindo' removed per specification)
   const [activeFeedTab] = useState<'para_voce'>('para_voce');
-  const [followingMap, setFollowingMap] = useState<Record<string, boolean>>(() => {
-    try {
-      return JSON.parse(localStorage.getItem('monvian_following_users') || '{}');
-    } catch {
-      return {};
-    }
-  });
+  const [followingMap, setFollowingMap] = useState<Record<string, boolean>>(() =>
+    readScopedJSON<Record<string, boolean>>('monvian_following_users', {})
+  );
 
   // Filtered displayed posts - always 'para_voce'
   const displayedPosts = useMemo(() => {
@@ -373,6 +373,20 @@ export const PublicationsView: React.FC<PublicationsViewProps> = React.memo(({
       const data = await res.json();
 
       if (data.success && Array.isArray(data.posts)) {
+        const nextSavedMap: Record<string, boolean> =
+          pageNumber === 1 || isRefresh
+            ? {}
+            : { ...readScopedJSON<Record<string, boolean>>('monvian_saved_posts', {}) };
+        (data.posts as Post[]).forEach((p) => {
+          if (p.saved_by_me) {
+            nextSavedMap[p.id] = true;
+          } else if (p.saved_by_me === false) {
+            delete nextSavedMap[p.id];
+          }
+        });
+        setSavedPosts(nextSavedMap);
+        writeScopedJSON('monvian_saved_posts', nextSavedMap);
+
         if (pageNumber === 1 || isRefresh) {
           let fetchedPosts = data.posts;
           if (isRefresh && fetchedPosts.length > 0) {
@@ -448,6 +462,61 @@ export const PublicationsView: React.FC<PublicationsViewProps> = React.memo(({
     }
   };
 
+  const fetchMyFollowing = useCallback(async () => {
+    try {
+      const token = getAuthToken();
+      if (!token) {
+        setFollowingMap({});
+        return;
+      }
+      const res = await fetch('/api/users/me/following', {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const data = await res.json();
+      if (data.success && Array.isArray(data.followingIds)) {
+        const nextMap: Record<string, boolean> = {};
+        data.followingIds.forEach((fid: string) => {
+          if (fid) nextMap[String(fid)] = true;
+        });
+        setFollowingMap(nextMap);
+        writeScopedJSON('monvian_following_users', nextMap);
+      }
+    } catch {}
+  }, []);
+
+  const handleToggleSavePost = async (postId: string) => {
+    const nextVal = !savedPosts[postId];
+    setSavedPosts((prev) => {
+      const updated = { ...prev };
+      if (nextVal) updated[postId] = true;
+      else delete updated[postId];
+      writeScopedJSON('monvian_saved_posts', updated);
+      return updated;
+    });
+
+    try {
+      const token = getAuthToken();
+      if (token) {
+        const res = await fetch(`/api/posts/${encodeURIComponent(postId)}/save`, {
+          method: 'POST',
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        const data = await res.json();
+        if (data?.success && typeof data.saved === 'boolean') {
+          setSavedPosts((prev) => {
+            const synced = { ...prev };
+            if (data.saved) synced[postId] = true;
+            else delete synced[postId];
+            writeScopedJSON('monvian_saved_posts', synced);
+            return synced;
+          });
+        }
+      }
+    } catch (err) {
+      console.warn('[PublicationsView] Error saving post:', err);
+    }
+  };
+
   // Notify parent if comments, create modal, or notification modals are open so navigation can hide
   useEffect(() => {
     onKeyboardStateChange?.(Boolean(activeCommentsPost || isCreateModalOpen || isNotificationsOpen));
@@ -458,8 +527,33 @@ export const PublicationsView: React.FC<PublicationsViewProps> = React.memo(({
     if (isOpen) {
       fetchPosts(1);
       fetchNotifications();
+      fetchMyFollowing();
     }
-  }, [isOpen, fetchPosts, fetchNotifications]);
+  }, [isOpen, fetchPosts, fetchNotifications, fetchMyFollowing]);
+
+  // Strict per-account reset on logout or account switch
+  useEffect(() => {
+    const handleAccountReset = () => {
+      setPosts([]);
+      setNotifications([]);
+      setUnreadNotifsCount(0);
+      setActiveUserSummary(null);
+      setSelectedProfileUserId(null);
+      setSavedPosts(readScopedJSON<Record<string, boolean>>('monvian_saved_posts', {}));
+      setFollowingMap(readScopedJSON<Record<string, boolean>>('monvian_following_users', {}));
+      if (isOpen) {
+        fetchPosts(1);
+        fetchNotifications();
+        fetchMyFollowing();
+      }
+    };
+    window.addEventListener('monvian:user_logged_out', handleAccountReset);
+    window.addEventListener('monvian:account_switched', handleAccountReset);
+    return () => {
+      window.removeEventListener('monvian:user_logged_out', handleAccountReset);
+      window.removeEventListener('monvian:account_switched', handleAccountReset);
+    };
+  }, [isOpen, fetchPosts, fetchNotifications, fetchMyFollowing]);
 
   // 2. Infinite Scroll Listener (loads next 15 when near bottom)
   const handleScroll = (e: React.UIEvent<HTMLDivElement>) => {
@@ -1221,7 +1315,7 @@ export const PublicationsView: React.FC<PublicationsViewProps> = React.memo(({
                 <motion.button
                   whileTap={{ scale: 0.82 }}
                   type="button"
-                  onClick={() => setSavedPosts((prev) => ({ ...prev, [post.id]: !prev[post.id] }))}
+                  onClick={() => handleToggleSavePost(post.id)}
                   className={`${
                     isDark ? 'text-white/85 hover:text-white' : 'text-zinc-900 hover:text-black'
                   } cursor-pointer`}
@@ -1579,15 +1673,39 @@ export const PublicationsView: React.FC<PublicationsViewProps> = React.memo(({
                 <motion.button
                   whileTap={{ scale: 0.94 }}
                   type="button"
-                  onClick={() => {
-                    const nextVal = !followingMap[activeUserSummary.id];
+                  onClick={async () => {
+                    const targetUserId = activeUserSummary.id;
+                    const prevVal = Boolean(followingMap[targetUserId]);
+                    const nextVal = !prevVal;
                     setFollowingMap((prev) => {
-                      const updated = { ...prev, [activeUserSummary.id]: nextVal };
-                      try {
-                        localStorage.setItem('monvian_following_users', JSON.stringify(updated));
-                      } catch {}
+                      const updated = { ...prev };
+                      if (nextVal) updated[targetUserId] = true;
+                      else delete updated[targetUserId];
+                      writeScopedJSON('monvian_following_users', updated);
                       return updated;
                     });
+                    try {
+                      const token = getAuthToken();
+                      if (token) {
+                        const res = await fetch(`/api/users/${encodeURIComponent(targetUserId)}/toggle-follow`, {
+                          method: 'POST',
+                          headers: {
+                            'Content-Type': 'application/json',
+                            Authorization: `Bearer ${token}`,
+                          },
+                        });
+                        const data = await res.json();
+                        if (data?.success && typeof data.is_following === 'boolean') {
+                          setFollowingMap((prev) => {
+                            const synced = { ...prev };
+                            if (data.is_following) synced[targetUserId] = true;
+                            else delete synced[targetUserId];
+                            writeScopedJSON('monvian_following_users', synced);
+                            return synced;
+                          });
+                        }
+                      }
+                    } catch {}
                   }}
                   className={`mb-4 px-5 py-1.5 rounded-full text-xs font-bold transition-all cursor-pointer ${
                     followingMap[activeUserSummary.id]

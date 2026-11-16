@@ -51,6 +51,13 @@ import { favoritesManager } from '../services/favoritesManager';
 import { DEFAULT_CURATED_ITINERARIES } from '../data/defaultItineraries';
 import { useIOSBackEntry } from '../services/iosNavigationManager';
 import { recordItineraryPlayView } from '../services/itineraryViewsService';
+import {
+  readScopedJSON,
+  writeScopedJSON,
+  readScopedString,
+  writeScopedString,
+  removeScopedKey,
+} from '../utils/userScopedStorage';
 
 interface ItinerariesViewProps {
   isOpen: boolean;
@@ -582,9 +589,11 @@ const SwipeableStopCard: React.FC<SwipeableStopCardProps> = ({
 
 let hasPlayedItinerariesMapEntranceAnimation = false;
 if (typeof window !== 'undefined') {
-  window.addEventListener('monvian:user_logged_out', () => {
+  const resetItinerariesEntrance = () => {
     hasPlayedItinerariesMapEntranceAnimation = false;
-  });
+  };
+  window.addEventListener('monvian:user_logged_out', resetItinerariesEntrance);
+  window.addEventListener('monvian:account_switched', resetItinerariesEntrance);
 }
 
 export const ItinerariesView: React.FC<ItinerariesViewProps> = memo(({
@@ -606,15 +615,15 @@ export const ItinerariesView: React.FC<ItinerariesViewProps> = memo(({
     }
   }, [isOpen]);
 
-  // Get or initialize persistent session ID
-  const sessionId = useMemo(() => {
-    let sid = localStorage.getItem('monvian_itinerary_session');
+  // Get or initialize persistent per-account session ID
+  const [sessionId, setSessionId] = useState<string>(() => {
+    let sid = readScopedString('monvian_itinerary_session');
     if (!sid) {
       sid = 'session-' + Date.now() + '-' + Math.random().toString(36).substring(2, 8);
-      localStorage.setItem('monvian_itinerary_session', sid);
+      writeScopedString('monvian_itinerary_session', sid);
     }
     return sid;
-  }, []);
+  });
 
   // Wizard state: 'date' | 'people' | 'budget' | 'tinder' | 'generating'
   const [wizardStep, setWizardStep] = useState<'date' | 'people' | 'budget' | 'tinder' | 'generating'>('date');
@@ -653,31 +662,28 @@ export const ItinerariesView: React.FC<ItinerariesViewProps> = memo(({
     };
   }, []);
 
-  // Current active user itinerary
+  // Current active user itinerary (Per-account isolated)
   const [userItinerary, setUserItinerary] = useState<Itinerary | null>(() => {
     try {
-      const cached = localStorage.getItem('monvian_active_itinerary');
-      if (cached) {
-        const parsed = JSON.parse(cached);
-        if (
-          parsed &&
-          (parsed.id || parsed.title) &&
-          Array.isArray(parsed.days) &&
-          parsed.days.length > 0
-        ) {
-          const isLivre =
-            parsed.id === 'roteiro-classico-2-dias' ||
-            parsed.id?.startsWith('roteiro-classico') ||
-            parsed.id === 'roteiro-bate-volta-essencial' ||
-            parsed.badgeText?.toLowerCase() === 'grátis' ||
-            parsed.price === 'R$ 0' ||
-            parsed.price === 'Grátis';
-          if (isLivre) {
-            parsed.isPremium = false;
-            parsed.badgeText = 'Grátis';
-          }
-          return parsed;
+      const parsed = readScopedJSON<Itinerary | null>('monvian_active_itinerary', null);
+      if (
+        parsed &&
+        (parsed.id || parsed.title) &&
+        Array.isArray(parsed.days) &&
+        parsed.days.length > 0
+      ) {
+        const isLivre =
+          parsed.id === 'roteiro-classico-2-dias' ||
+          parsed.id?.startsWith('roteiro-classico') ||
+          parsed.id === 'roteiro-bate-volta-essencial' ||
+          parsed.badgeText?.toLowerCase() === 'grátis' ||
+          parsed.price === 'R$ 0' ||
+          parsed.price === 'Grátis';
+        if (isLivre) {
+          parsed.isPremium = false;
+          parsed.badgeText = 'Grátis';
         }
+        return parsed;
       }
     } catch (e) {}
     return null;
@@ -693,17 +699,14 @@ export const ItinerariesView: React.FC<ItinerariesViewProps> = memo(({
   const [itineraryViewMode, setItineraryViewMode] = useState<'explore' | 'map'>(() => {
     if (isOnboardingSelection) return 'explore';
     try {
-      const cached = localStorage.getItem('monvian_active_itinerary');
-      if (cached) {
-        const parsed = JSON.parse(cached);
-        if (
-          parsed &&
-          (parsed.id || parsed.title) &&
-          Array.isArray(parsed.days) &&
-          parsed.days.length > 0
-        ) {
-          return 'map';
-        }
+      const parsed = readScopedJSON<Itinerary | null>('monvian_active_itinerary', null);
+      if (
+        parsed &&
+        (parsed.id || parsed.title) &&
+        Array.isArray(parsed.days) &&
+        parsed.days.length > 0
+      ) {
+        return 'map';
       }
     } catch {}
     return 'explore';
@@ -715,7 +718,7 @@ export const ItinerariesView: React.FC<ItinerariesViewProps> = memo(({
       return;
     }
     try {
-      localStorage.setItem('monvian_itinerary_view_mode', itineraryViewMode);
+      writeScopedString('monvian_itinerary_view_mode', itineraryViewMode);
     } catch {}
   }, [itineraryViewMode, isOnboardingSelection]);
 
@@ -734,8 +737,8 @@ export const ItinerariesView: React.FC<ItinerariesViewProps> = memo(({
         setSelectedStopId(firstStep.id);
       }
       try {
-        localStorage.setItem('monvian_active_itinerary', JSON.stringify(applied));
-        localStorage.setItem('monvian_itinerary_view_mode', 'map');
+        writeScopedJSON('monvian_active_itinerary', applied);
+        writeScopedString('monvian_itinerary_view_mode', 'map');
       } catch {}
       setItineraryViewMode('map');
     };
@@ -746,11 +749,29 @@ export const ItinerariesView: React.FC<ItinerariesViewProps> = memo(({
       setItineraryViewMode('explore');
     };
 
+    const handleAccountSwitched = (e: any) => {
+      const nextUser = e?.detail || null;
+      hasUserModifiedItineraryRef.current = false;
+      let sid = readScopedString('monvian_itinerary_session', nextUser);
+      if (!sid) {
+        sid = 'session-' + Date.now() + '-' + Math.random().toString(36).substring(2, 8);
+        writeScopedString('monvian_itinerary_session', sid, nextUser);
+      }
+      setSessionId(sid);
+      const scopedItin = readScopedJSON<Itinerary | null>('monvian_active_itinerary', null, nextUser);
+      setUserItinerary(scopedItin);
+      setSelectedStopId(scopedItin?.days?.[0]?.steps?.[0]?.id || null);
+      setItineraryViewMode(scopedItin && Array.isArray(scopedItin.days) && scopedItin.days.length > 0 ? 'map' : 'explore');
+      setTripNoteText(readScopedString('monvian_trip_note_campos', nextUser) || '');
+    };
+
     window.addEventListener('monvian:itinerary_applied', handleExternalItineraryApplied);
     window.addEventListener('monvian:user_logged_out', handleUserLoggedOut);
+    window.addEventListener('monvian:account_switched', handleAccountSwitched as EventListener);
     return () => {
       window.removeEventListener('monvian:itinerary_applied', handleExternalItineraryApplied);
       window.removeEventListener('monvian:user_logged_out', handleUserLoggedOut);
+      window.removeEventListener('monvian:account_switched', handleAccountSwitched as EventListener);
     };
   }, []);
 
@@ -868,11 +889,14 @@ export const ItinerariesView: React.FC<ItinerariesViewProps> = memo(({
     }, 2800);
 
     try {
-      localStorage.setItem('monvian_active_itinerary', JSON.stringify(updated));
+      writeScopedJSON('monvian_active_itinerary', updated);
       if (userItinerary?.id) {
         fetch(`/api/user-itineraries/${userItinerary.id}`, {
           method: 'PUT',
-          headers: { 'Content-Type': 'application/json' },
+          headers: {
+            'Content-Type': 'application/json',
+            'x-session-id': sessionId,
+          },
           body: JSON.stringify(updated),
         }).catch(() => {});
       }
@@ -972,7 +996,7 @@ export const ItinerariesView: React.FC<ItinerariesViewProps> = memo(({
     setUserItinerary(optimisticItinerary);
 
     try {
-      localStorage.setItem('monvian_active_itinerary', JSON.stringify(optimisticItinerary));
+      writeScopedJSON('monvian_active_itinerary', optimisticItinerary);
     } catch (e) {}
 
     const targetStep = allDaySteps[0];
@@ -988,7 +1012,7 @@ export const ItinerariesView: React.FC<ItinerariesViewProps> = memo(({
     }
 
     try {
-      localStorage.setItem('monvian_itinerary_view_mode', 'map');
+      writeScopedString('monvian_itinerary_view_mode', 'map');
     } catch (e) {}
     setItineraryViewMode('map');
 
@@ -1049,8 +1073,8 @@ export const ItinerariesView: React.FC<ItinerariesViewProps> = memo(({
     setUserItinerary(manualItinerary);
 
     try {
-      localStorage.setItem('monvian_active_itinerary', JSON.stringify(manualItinerary));
-      localStorage.setItem('monvian_itinerary_view_mode', 'map');
+      writeScopedJSON('monvian_active_itinerary', manualItinerary);
+      writeScopedString('monvian_itinerary_view_mode', 'map');
     } catch {}
 
     setItineraryViewMode('map');
@@ -1082,11 +1106,11 @@ export const ItinerariesView: React.FC<ItinerariesViewProps> = memo(({
     }).catch(() => {});
   };
 
-  // Notes Modal state & persistent trip notes
+  // Notes Modal state & persistent trip notes (Per-account isolated)
   const [isNotesModalOpen, setIsNotesModalOpen] = useState(false);
   const [tripNoteText, setTripNoteText] = useState<string>(() => {
     try {
-      const saved = localStorage.getItem('monvian_trip_note_campos');
+      const saved = readScopedString('monvian_trip_note_campos');
       if (saved) return saved;
     } catch (e) {}
     return '';
@@ -1095,7 +1119,7 @@ export const ItinerariesView: React.FC<ItinerariesViewProps> = memo(({
   const handleSaveTripNote = (text: string) => {
     setTripNoteText(text);
     try {
-      localStorage.setItem('monvian_trip_note_campos', text);
+      writeScopedString('monvian_trip_note_campos', text);
     } catch (e) {}
   };
 
@@ -1106,9 +1130,8 @@ export const ItinerariesView: React.FC<ItinerariesViewProps> = memo(({
   // Bottom Sheet expansion state: false = compact floating bar/card, true = 50% split (only when > 1 stop)
   const [isExpanded, setIsExpanded] = useState<boolean>(() => {
     try {
-      const cached = localStorage.getItem('monvian_active_itinerary');
-      if (cached) {
-        const parsed = JSON.parse(cached);
+      const parsed = readScopedJSON<Itinerary | null>('monvian_active_itinerary', null);
+      if (parsed) {
         const stepCount = parsed?.days?.[0]?.steps?.length ?? 0;
         return stepCount > 1;
       }
@@ -1117,9 +1140,8 @@ export const ItinerariesView: React.FC<ItinerariesViewProps> = memo(({
   });
   const [selectedStopId, setSelectedStopId] = useState<string | null>(() => {
     try {
-      const cached = localStorage.getItem('monvian_active_itinerary');
-      if (cached) {
-        const parsed = JSON.parse(cached);
+      const parsed = readScopedJSON<Itinerary | null>('monvian_active_itinerary', null);
+      if (parsed) {
         const firstStep = parsed?.days?.[0]?.steps?.[0];
         if (firstStep?.id) return firstStep.id;
       }
@@ -1211,7 +1233,7 @@ export const ItinerariesView: React.FC<ItinerariesViewProps> = memo(({
                 }))
               };
               setUserItinerary(enriched);
-              localStorage.setItem('monvian_active_itinerary', JSON.stringify(enriched));
+              writeScopedJSON('monvian_active_itinerary', enriched);
 
               if (
                 enriched.days &&
@@ -1225,7 +1247,7 @@ export const ItinerariesView: React.FC<ItinerariesViewProps> = memo(({
 
               if (!userHasExplicitlyOpenedStoreRef.current && !isOnboardingSelection) {
                 try {
-                  localStorage.setItem('monvian_itinerary_view_mode', 'map');
+                  writeScopedString('monvian_itinerary_view_mode', 'map');
                 } catch {}
                 setItineraryViewMode('map');
               }
@@ -1360,7 +1382,7 @@ export const ItinerariesView: React.FC<ItinerariesViewProps> = memo(({
       // Short aesthetic timeout for Apple-style reveal
       scheduleTimeout(() => {
         setUserItinerary(generated);
-        localStorage.setItem('monvian_active_itinerary', JSON.stringify(generated));
+        writeScopedJSON('monvian_active_itinerary', generated);
         setWizardStep('date'); // Reset for next time
       }, 1000);
     } catch (err) {
@@ -1380,9 +1402,9 @@ export const ItinerariesView: React.FC<ItinerariesViewProps> = memo(({
       } catch (e) {}
     }
     setUserItinerary(null);
-    localStorage.removeItem('monvian_active_itinerary');
+    removeScopedKey('monvian_active_itinerary');
     try {
-      localStorage.setItem('monvian_itinerary_view_mode', 'explore');
+      writeScopedString('monvian_itinerary_view_mode', 'explore');
     } catch {}
     setWizardStep('date');
     setSelectedStopId(null);
@@ -1393,9 +1415,9 @@ export const ItinerariesView: React.FC<ItinerariesViewProps> = memo(({
   // Create new itinerary handler
   const handleCreateNewItinerary = () => {
     setUserItinerary(null);
-    localStorage.removeItem('monvian_active_itinerary');
+    removeScopedKey('monvian_active_itinerary');
     try {
-      localStorage.setItem('monvian_itinerary_view_mode', 'explore');
+      writeScopedString('monvian_itinerary_view_mode', 'explore');
     } catch {}
     setWizardStep('date');
     setSelectedStopId(null);
@@ -1424,7 +1446,7 @@ export const ItinerariesView: React.FC<ItinerariesViewProps> = memo(({
     }
 
     setUserItinerary(updated);
-    localStorage.setItem('monvian_active_itinerary', JSON.stringify(updated));
+    writeScopedJSON('monvian_active_itinerary', updated);
 
     const firstStep = updated.days?.[0]?.steps?.[0];
     if (firstStep) {
@@ -1481,7 +1503,7 @@ export const ItinerariesView: React.FC<ItinerariesViewProps> = memo(({
     };
 
     setUserItinerary(updated);
-    localStorage.setItem('monvian_active_itinerary', JSON.stringify(updated));
+    writeScopedJSON('monvian_active_itinerary', updated);
 
     const nextActiveSteps = updatedDays[0]?.steps || [];
     const nextSelectedId = selectedStopId === stepId
@@ -1526,7 +1548,7 @@ export const ItinerariesView: React.FC<ItinerariesViewProps> = memo(({
       title: trimmed,
     };
     setUserItinerary(updated);
-    localStorage.setItem('monvian_active_itinerary', JSON.stringify(updated));
+    writeScopedJSON('monvian_active_itinerary', updated);
     setIsEditingTitle(false);
 
     try {
@@ -1663,7 +1685,7 @@ export const ItinerariesView: React.FC<ItinerariesViewProps> = memo(({
     };
 
     setUserItinerary(updated);
-    localStorage.setItem('monvian_active_itinerary', JSON.stringify(updated));
+    writeScopedJSON('monvian_active_itinerary', updated);
 
     if (movedStep?.id) {
       if (mapRef.current && movedStep.spot && typeof movedStep.spot.lat === 'number' && typeof movedStep.spot.lng === 'number') {
@@ -1733,7 +1755,7 @@ export const ItinerariesView: React.FC<ItinerariesViewProps> = memo(({
     };
 
     setUserItinerary(updated);
-    localStorage.setItem('monvian_active_itinerary', JSON.stringify(updated));
+    writeScopedJSON('monvian_active_itinerary', updated);
 
     if (movedStep?.id) {
       if (mapRef.current && movedStep.spot && typeof movedStep.spot.lat === 'number' && typeof movedStep.spot.lng === 'number') {
@@ -2246,7 +2268,7 @@ export const ItinerariesView: React.FC<ItinerariesViewProps> = memo(({
     onPop: () => {
       userHasExplicitlyOpenedStoreRef.current = true;
       try {
-        localStorage.setItem('monvian_itinerary_view_mode', 'explore');
+        writeScopedString('monvian_itinerary_view_mode', 'explore');
       } catch (e) {}
       setItineraryViewMode('explore');
     },
@@ -2355,7 +2377,7 @@ export const ItinerariesView: React.FC<ItinerariesViewProps> = memo(({
                 0;
               setIsExpanded(stepCount > 1);
               try {
-                localStorage.setItem('monvian_itinerary_view_mode', 'map');
+                writeScopedString('monvian_itinerary_view_mode', 'map');
               } catch (e) {}
               setItineraryViewMode('map');
               scheduleTimeout(() => {
@@ -2451,7 +2473,7 @@ export const ItinerariesView: React.FC<ItinerariesViewProps> = memo(({
             onClick={() => {
               userHasExplicitlyOpenedStoreRef.current = true;
               try {
-                localStorage.setItem('monvian_itinerary_view_mode', 'explore');
+                writeScopedString('monvian_itinerary_view_mode', 'explore');
               } catch (e) {}
               setItineraryViewMode('explore');
             }}
@@ -2592,7 +2614,7 @@ export const ItinerariesView: React.FC<ItinerariesViewProps> = memo(({
           onClick={() => {
             userHasExplicitlyOpenedStoreRef.current = true;
             try {
-              localStorage.setItem('monvian_itinerary_view_mode', 'explore');
+              writeScopedString('monvian_itinerary_view_mode', 'explore');
             } catch (e) {}
             setItineraryViewMode('explore');
           }}
@@ -2647,7 +2669,7 @@ export const ItinerariesView: React.FC<ItinerariesViewProps> = memo(({
                 onClick={() => {
                   userHasExplicitlyOpenedStoreRef.current = true;
                   try {
-                    localStorage.setItem('monvian_itinerary_view_mode', 'explore');
+                    writeScopedString('monvian_itinerary_view_mode', 'explore');
                   } catch (e) {}
                   setItineraryViewMode('explore');
                 }}

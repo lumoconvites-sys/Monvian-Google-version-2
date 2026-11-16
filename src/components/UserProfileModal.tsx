@@ -17,6 +17,7 @@ import {
 import { FollowersListModal } from './FollowersListModal';
 import { VerifiedBadge } from './ui/VerifiedBadge';
 import { AppleBackButton } from './ui/AppleBackButton';
+import { readScopedJSON, writeScopedJSON } from '../utils/userScopedStorage';
 
 const getCurrentUserPhoto = () => {
   try {
@@ -74,6 +75,7 @@ export interface UserPostSummary {
   comments_count: number;
   created_at: string;
   liked_by_me?: boolean;
+  saved_by_me?: boolean;
 }
 
 interface UserProfileModalProps {
@@ -488,11 +490,9 @@ const PostFullscreenPage: React.FC<PostFullscreenPageProps> = ({
 }) => {
   const [likesCount, setLikesCount] = useState<number>(post.likes_count || 0);
   const [isLiked, setIsLiked] = useState<boolean>(() => {
-    try {
-      const savedLikes = JSON.parse(localStorage.getItem('monvian_liked_posts') || '{}');
-      if (savedLikes[post.id] !== undefined) return Boolean(savedLikes[post.id]);
-    } catch {}
-    return Boolean(post.liked_by_me);
+    if (post.liked_by_me !== undefined) return Boolean(post.liked_by_me);
+    const savedLikes = readScopedJSON<Record<string, boolean>>('monvian_liked_posts', {});
+    return Boolean(savedLikes[post.id]);
   });
   const [commentsCount, setCommentsCount] = useState<number>(post.comments_count || 0);
   const [comments, setComments] = useState<
@@ -502,11 +502,9 @@ const PostFullscreenPage: React.FC<PostFullscreenPageProps> = ({
   const [commentInput, setCommentInput] = useState<string>('');
   const [submittingComment, setSubmittingComment] = useState<boolean>(false);
   const [isSaved, setIsSaved] = useState<boolean>(() => {
-    try {
-      const saved = JSON.parse(localStorage.getItem('monvian_saved_posts') || '{}');
-      return Boolean(saved[post.id]);
-    } catch {}
-    return false;
+    if (post.saved_by_me !== undefined) return Boolean(post.saved_by_me);
+    const saved = readScopedJSON<Record<string, boolean>>('monvian_saved_posts', {});
+    return Boolean(saved[post.id]);
   });
   const [showHeartBurst, setShowHeartBurst] = useState<boolean>(false);
   const commentInputRef = useRef<HTMLInputElement>(null);
@@ -547,10 +545,10 @@ const PostFullscreenPage: React.FC<PostFullscreenPageProps> = ({
     if (onUpdateStats) onUpdateStats(post.id, nextCount, commentsCount);
 
     try {
-      const savedLikes = JSON.parse(localStorage.getItem('monvian_liked_posts') || '{}');
+      const savedLikes = readScopedJSON<Record<string, boolean>>('monvian_liked_posts', {});
       if (nextLiked) savedLikes[post.id] = true;
       else delete savedLikes[post.id];
-      localStorage.setItem('monvian_liked_posts', JSON.stringify(savedLikes));
+      writeScopedJSON('monvian_liked_posts', savedLikes);
     } catch {}
 
     try {
@@ -576,15 +574,27 @@ const PostFullscreenPage: React.FC<PostFullscreenPageProps> = ({
     lastTapRef.current = now;
   };
 
-  const handleToggleSave = () => {
+  const handleToggleSave = async () => {
     const nextSaved = !isSaved;
     setIsSaved(nextSaved);
     try {
-      const saved = JSON.parse(localStorage.getItem('monvian_saved_posts') || '{}');
+      const saved = readScopedJSON<Record<string, boolean>>('monvian_saved_posts', {});
       if (nextSaved) saved[post.id] = true;
       else delete saved[post.id];
-      localStorage.setItem('monvian_saved_posts', JSON.stringify(saved));
+      writeScopedJSON('monvian_saved_posts', saved);
     } catch {}
+
+    try {
+      const token = localStorage.getItem('monvian_token');
+      if (token) {
+        await fetch(`/api/posts/${encodeURIComponent(post.id)}/save`, {
+          method: 'POST',
+          headers: { Authorization: `Bearer ${token}` },
+        });
+      }
+    } catch (err) {
+      console.error('Error toggling post save:', err);
+    }
   };
 
   const handleShare = async () => {

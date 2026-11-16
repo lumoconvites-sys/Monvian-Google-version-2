@@ -19,6 +19,7 @@ export interface PostEntity {
   comments_count: number;
   created_at: string;
   liked_by_me?: boolean;
+  saved_by_me?: boolean;
 }
 
 export interface CommentEntity {
@@ -500,10 +501,18 @@ export function setupSocialDatabase(db: SqliteDatabase) {
       PRIMARY KEY (follower_id, following_id)
     );
 
+    CREATE TABLE IF NOT EXISTS post_saves (
+      post_id TEXT NOT NULL,
+      user_id TEXT NOT NULL,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      PRIMARY KEY (post_id, user_id)
+    );
+
     CREATE INDEX IF NOT EXISTS idx_posts_created ON posts(created_at DESC);
     CREATE INDEX IF NOT EXISTS idx_posts_user ON posts(user_id);
     CREATE INDEX IF NOT EXISTS idx_comments_post ON post_comments(post_id, created_at ASC);
     CREATE INDEX IF NOT EXISTS idx_likes_post ON post_likes(post_id);
+    CREATE INDEX IF NOT EXISTS idx_saves_post ON post_saves(post_id, user_id);
     CREATE INDEX IF NOT EXISTS idx_notif_recipient ON social_notifications(recipient_id, created_at DESC);
     CREATE INDEX IF NOT EXISTS idx_follows_follower ON user_follows(follower_id);
     CREATE INDEX IF NOT EXISTS idx_follows_following ON user_follows(following_id);
@@ -724,13 +733,15 @@ export function registerSocialRoutes(app: Express, db: SqliteDatabase) {
           p.likes_count,
           p.comments_count,
           p.created_at,
-          CASE WHEN l.post_id IS NOT NULL THEN 1 ELSE 0 END as liked_by_me
+          CASE WHEN l.post_id IS NOT NULL THEN 1 ELSE 0 END as liked_by_me,
+          CASE WHEN ps.post_id IS NOT NULL THEN 1 ELSE 0 END as saved_by_me
         FROM posts p
         LEFT JOIN users u ON p.user_id = CAST(u.id AS TEXT) OR p.user_username = u.username_normalized
         LEFT JOIN post_likes l ON p.id = l.post_id AND l.user_id = ?
+        LEFT JOIN post_saves ps ON p.id = ps.post_id AND ps.user_id = ?
         ORDER BY p.created_at DESC
         LIMIT ? OFFSET ?
-      `).all(user.id, limit, offset) as any[];
+      `).all(user.id, user.id, limit, offset) as any[];
 
       const posts: PostEntity[] = postsRows.map((r) => ({
         id: r.id,
@@ -744,7 +755,8 @@ export function registerSocialRoutes(app: Express, db: SqliteDatabase) {
         likes_count: Number(r.likes_count || 0),
         comments_count: Number(r.comments_count || 0),
         created_at: r.created_at,
-        liked_by_me: Boolean(r.liked_by_me)
+        liked_by_me: Boolean(r.liked_by_me),
+        saved_by_me: Boolean(r.saved_by_me)
       }));
 
       const hasMore = offset + posts.length < total;
@@ -907,6 +919,39 @@ export function registerSocialRoutes(app: Express, db: SqliteDatabase) {
   });
 
   /**
+   * POST /api/posts/:id/save
+   * Toggle bookmark save for a post scoped strictly per authenticated user
+   */
+  app.post('/api/posts/:id/save', (req: Request, res: Response) => {
+    try {
+      const { id } = req.params;
+      const user = getUserFromReq(req);
+      if (!user?.id || user.id === 'visitor-anon') {
+        res.status(401).json({ success: false, error: 'Não autenticado' });
+        return;
+      }
+
+      const existingSave = db
+        .prepare('SELECT 1 FROM post_saves WHERE post_id = ? AND user_id = ?')
+        .get(id, user.id);
+
+      let saved = false;
+      if (existingSave) {
+        db.prepare('DELETE FROM post_saves WHERE post_id = ? AND user_id = ?').run(id, user.id);
+        saved = false;
+      } else {
+        db.prepare('INSERT OR IGNORE INTO post_saves (post_id, user_id) VALUES (?, ?)').run(id, user.id);
+        saved = true;
+      }
+
+      res.json({ success: true, saved });
+    } catch (err: any) {
+      console.error('[SocialRoutes] Error toggling post save:', err);
+      res.status(500).json({ success: false, error: 'Erro ao salvar publicação' });
+    }
+  });
+
+  /**
    * GET /api/posts/:id/comments
    * Retrieve comments for a post
    */
@@ -1017,95 +1062,6 @@ export function registerSocialRoutes(app: Express, db: SqliteDatabase) {
     try {
       const user = getUserFromReq(req);
       const recipientId = user.id;
-
-      // Check count of notifications for user
-      const count = (db.prepare('SELECT count(*) as count FROM social_notifications WHERE recipient_id = ?').get(recipientId) as any)?.count || 0;
-
-      // If user has no notifications yet, seed realistic initial notifications for rich user experience
-      if (count === 0) {
-        const seedNotifs = [
-          {
-            id: 'notif-seed-01',
-            sender_name: 'sophiagsl._',
-            sender_photo: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=200&q=80',
-            type: 'like',
-            post_image: 'https://images.unsplash.com/photo-1542601906990-b4d3fb778b09?auto=format&fit=crop&w=400&q=80',
-            comment_text: null,
-            time_offset: '-5 minutes',
-            is_read: 0
-          },
-          {
-            id: 'notif-seed-02',
-            sender_name: 'mariana_silva',
-            sender_photo: 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?auto=format&fit=crop&w=200&q=80',
-            type: 'comment',
-            post_image: 'https://images.unsplash.com/photo-1542601906990-b4d3fb778b09?auto=format&fit=crop&w=400&q=80',
-            comment_text: 'Que foto espetacular! Campos do Jordão é mágica.',
-            time_offset: '-28 minutes',
-            is_read: 0
-          },
-          {
-            id: 'notif-seed-03',
-            sender_name: 'raianealecrim_',
-            sender_photo: 'https://images.unsplash.com/photo-1517841905240-472988babdf9?auto=format&fit=crop&w=200&q=80',
-            type: 'follow',
-            post_image: null,
-            comment_text: null,
-            time_offset: '-2 hours',
-            is_read: 0
-          },
-          {
-            id: 'notif-seed-04',
-            sender_name: 'gabriel_serra',
-            sender_photo: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&w=200&q=80',
-            type: 'like',
-            post_image: 'https://images.unsplash.com/photo-1517248135467-4c7edcad34c4?auto=format&fit=crop&w=400&q=80',
-            comment_text: null,
-            time_offset: '-5 hours',
-            is_read: 1
-          },
-          {
-            id: 'notif-seed-05',
-            sender_name: '_silvvax',
-            sender_photo: 'https://images.unsplash.com/photo-1539571696357-5a69c17a67c6?auto=format&fit=crop&w=200&q=80',
-            type: 'comment',
-            post_image: 'https://images.unsplash.com/photo-1517248135467-4c7edcad34c4?auto=format&fit=crop&w=400&q=80',
-            comment_text: 'O friozinho do Capivari é incomparável!',
-            time_offset: '-1 day',
-            is_read: 1
-          },
-          {
-            id: 'notif-seed-06',
-            sender_name: 'beatriz_costa',
-            sender_photo: 'https://images.unsplash.com/photo-1544005313-94ddf0286df2?auto=format&fit=crop&w=200&q=80',
-            type: 'story_view',
-            post_image: null,
-            comment_text: 'e outras 8 pessoas visualizaram seu story',
-            time_offset: '-2 days',
-            is_read: 1
-          }
-        ];
-
-        const insertStmt = db.prepare(`
-          INSERT INTO social_notifications (id, recipient_id, sender_id, sender_name, sender_photo, type, post_id, post_image, comment_text, is_read, created_at)
-          VALUES (?, ?, ?, ?, ?, ?, 'sample-post', ?, ?, ?, datetime('now', ?))
-        `);
-
-        seedNotifs.forEach((n) => {
-          insertStmt.run(
-            `${n.id}-${recipientId}`,
-            recipientId,
-            `user-${n.sender_name}`,
-            n.sender_name,
-            n.sender_photo,
-            n.type,
-            n.post_image,
-            n.comment_text,
-            n.is_read,
-            n.time_offset
-          );
-        });
-      }
 
       const rows = db.prepare(`
         SELECT id, recipient_id, sender_id, sender_name, sender_photo, type, post_id, post_image, comment_text, is_read, created_at
@@ -1483,12 +1439,14 @@ export function registerSocialRoutes(app: Express, db: SqliteDatabase) {
           p.likes_count,
           p.comments_count,
           p.created_at,
-          CASE WHEN l.post_id IS NOT NULL THEN 1 ELSE 0 END as liked_by_me
+          CASE WHEN l.post_id IS NOT NULL THEN 1 ELSE 0 END as liked_by_me,
+          CASE WHEN ps.post_id IS NOT NULL THEN 1 ELSE 0 END as saved_by_me
         FROM posts p
         LEFT JOIN post_likes l ON p.id = l.post_id AND l.user_id = ?
+        LEFT JOIN post_saves ps ON p.id = ps.post_id AND ps.user_id = ?
         WHERE p.user_id = ? OR p.user_username = ? OR p.user_id = ?
         ORDER BY p.created_at DESC
-      `).all(targetUsername, currentUserId, targetIdStr, targetUsername, `u-${targetUsername}`);
+      `).all(targetUsername, currentUserId, currentUserId, targetIdStr, targetUsername, `u-${targetUsername}`);
 
       res.json({
         success: true,
@@ -1517,7 +1475,8 @@ export function registerSocialRoutes(app: Express, db: SqliteDatabase) {
           likes_count: Number(r.likes_count || 0),
           comments_count: Number(r.comments_count || 0),
           created_at: r.created_at,
-          liked_by_me: Boolean(r.liked_by_me)
+          liked_by_me: Boolean(r.liked_by_me),
+          saved_by_me: Boolean(r.saved_by_me)
         }))
       });
     } catch (err: any) {
@@ -1565,6 +1524,29 @@ export function registerSocialRoutes(app: Express, db: SqliteDatabase) {
     } catch (err: any) {
       console.error('[SocialRoutes] Error getting followers:', err);
       res.status(500).json({ success: false, error: 'Erro ao carregar seguidores' });
+    }
+  });
+
+  /**
+   * GET /api/users/me/following
+   * Return IDs of users followed by the currently authenticated user
+   */
+  app.get('/api/users/me/following', (req: Request, res: Response) => {
+    try {
+      const user = getUserFromReq(req);
+      if (!user?.id || user.id === 'visitor-anon') {
+        res.json({ success: true, followingIds: [] });
+        return;
+      }
+      const rows = db
+        .prepare('SELECT following_id FROM user_follows WHERE follower_id = ? OR follower_id = ?')
+        .all(String(user.id), user.username || String(user.id)) as { following_id: string }[];
+      res.json({
+        success: true,
+        followingIds: Array.from(new Set(rows.map((r) => String(r.following_id)))),
+      });
+    } catch {
+      res.json({ success: true, followingIds: [] });
     }
   });
 

@@ -56,6 +56,11 @@ import {
   clearSyncSessionStorage,
   hasSyncSessionToken,
 } from './utils/persistentAuthStorage';
+import {
+  writeScopedJSON,
+  writeScopedString,
+  purgeLegacyUnscopedActivityKeys,
+} from './utils/userScopedStorage';
 
 const welcomeContainerVariants = {
   hidden: { opacity: 0 },
@@ -235,6 +240,7 @@ export default function App() {
   const hasExecutedSignupIntroRef = useRef<boolean>(false);
   const isSignupRevealActive = signupIntroStage !== 'idle';
   const isOnboardingRevealReady = signupIntroStage === 'revealing' || signupIntroStage === 'idle';
+  const [explorarEntranceTick, setExplorarEntranceTick] = useState<number>(0);
   const [zoomToUserTrigger, setZoomToUserTrigger] = useState<number>(0);
   const [revertSpotZoomTrigger, setRevertSpotZoomTrigger] = useState<number>(0);
   const [spotPreviewMode, setSpotPreviewMode] = useState<'card' | 'bar'>('bar');
@@ -559,6 +565,8 @@ export default function App() {
 
     // 1. Immediately wipe synchronous storage & cookies; keep manual logout guard only for explicit logouts
     clearSyncSessionStorage({ preserveManualLogoutFlag: shouldRedirectToLogin });
+    purgeLegacyUnscopedActivityKeys();
+    favoritesManager.reset();
     if (shouldRedirectToLogin) {
       try {
         localStorage.setItem('monvian_manual_logout', '1');
@@ -625,6 +633,11 @@ export default function App() {
         } catch {}
       }
 
+      purgeLegacyUnscopedActivityKeys();
+      try {
+        localStorage.setItem('monvian_token', token);
+        localStorage.setItem('monvian_user', JSON.stringify(normalized));
+      } catch {}
       await savePersistentSession(token, normalized);
       if (!isMounted) return;
 
@@ -644,6 +657,8 @@ export default function App() {
           }
         } catch {}
       }
+      favoritesManager.setActiveAccount(normalized);
+      window.dispatchEvent(new CustomEvent('monvian:account_switched', { detail: normalized }));
       setUser(normalized);
       setIsAuthenticated(true);
       setIsAuthChecking(false);
@@ -854,6 +869,7 @@ export default function App() {
           setUser((prev: any) => {
             const merged = normalizeAppUser({ ...(prev || {}), ...e.detail });
             savePersistentSession(activeToken, merged).catch(() => {});
+            favoritesManager.setActiveAccount(merged);
             return merged;
           });
         }
@@ -1081,9 +1097,9 @@ export default function App() {
           ]
         };
 
-        localStorage.setItem('monvian_active_itinerary', JSON.stringify(eventItinerary));
-        localStorage.setItem('monvian_itinerary_view_mode', 'map');
-        localStorage.setItem('monvian_itinerary_expanded', 'true');
+        writeScopedJSON('monvian_active_itinerary', eventItinerary, user);
+        writeScopedString('monvian_itinerary_view_mode', 'map', user);
+        writeScopedString('monvian_itinerary_expanded', 'true', user);
         window.dispatchEvent(new CustomEvent('monvian:itinerary_applied', { detail: eventItinerary }));
         setSelectedItinerary(null);
         setActiveTab('roteiros');
@@ -1843,6 +1859,7 @@ export default function App() {
 
   const handleDismissFirstSignupWelcome = useCallback(() => {
     setShowFirstSignupWelcome(false);
+    setExplorarEntranceTick((prev) => prev + 1);
     const cleanEmail = (user?.email || user?.whatsapp || '').trim().toLowerCase();
     const token = (() => {
       try {
@@ -1913,6 +1930,12 @@ export default function App() {
     ['empresariomario@gmail.com', 'marioempresario@gmail.com', 'marioyesk@gmail.com'].includes((user?.email || user?.whatsapp || '').trim().toLowerCase()) ||
     (user?.username || '').trim().toLowerCase() === 'marioyesk'
   );
+
+  const accountSessionKey = user?.id
+    ? `acct-${String(user.id)}`
+    : user?.email
+      ? `acct-${String(user.email).trim().toLowerCase()}`
+      : 'anon';
 
   const prefersReducedMotion =
     typeof window !== 'undefined' &&
@@ -1988,23 +2011,28 @@ export default function App() {
               const cleanEmail = (userData?.email || userData?.whatsapp || '').trim().toLowerCase();
               const normalizedUser = normalizeAppUser(userData);
 
-              // Ensure any residual state from a previous account is cleared before initializing the new account
+              // Ensure any residual unscoped or previous account state is wiped before initializing the new account
+              purgeLegacyUnscopedActivityKeys();
               try {
                 const prevUserRaw = localStorage.getItem('monvian_user');
                 const prevUser = prevUserRaw ? JSON.parse(prevUserRaw) : null;
                 const prevEmail = (prevUser?.email || prevUser?.whatsapp || '').trim().toLowerCase();
                 if (!prevUser || prevEmail !== cleanEmail || String(prevUser?.id) !== String(normalizedUser?.id)) {
                   localStorage.removeItem('monvian_local_avatar');
-                  localStorage.removeItem('monvian_active_itinerary');
-                  localStorage.removeItem('monvian_itinerary_view_mode');
-                  localStorage.removeItem('monvian_itinerary_expanded');
-                  localStorage.removeItem('monvian_itinerary_session');
-                  localStorage.removeItem('monvian_trip_note_campos');
                   setSelectedItinerary(null);
+                  setSelectedSpot(null);
+                  setIsDetailOpen(false);
+                }
+                if (token && normalizedUser) {
+                  localStorage.setItem('monvian_token', token);
+                  localStorage.setItem('monvian_user', JSON.stringify(normalizedUser));
                 }
               } catch {}
 
               savePersistentSession(token, normalizedUser).catch(() => {});
+              favoritesManager.setActiveAccount(normalizedUser);
+              window.dispatchEvent(new CustomEvent('monvian:account_switched', { detail: normalizedUser }));
+
               if (normalizedUser?.location_permission_granted === 1) {
                 localStorage.setItem('monvian_location_permission_granted', 'true');
                 document.cookie = 'monvian_location_granted=true; max-age=315360000; path=/; SameSite=Lax';
@@ -2017,6 +2045,7 @@ export default function App() {
               syncPermissionsFromDatabase(normalizedUser?.email || normalizedUser?.whatsapp).catch(() => {});
               setUser(normalizedUser);
               setActiveTab('explorar');
+              setExplorarEntranceTick((prev) => prev + 1);
               setIsOnboardingItinerarySelection(false);
               setSignupIntroStage('idle');
               setPendingWelcomeJourney(false);
@@ -2149,11 +2178,19 @@ export default function App() {
           <AnimatePresence>
             {activeTab === 'explorar' && !isMapOrbiting && !isUserLocationSpotlightActive && !showFirstSignupWelcome && (
               <motion.div
-                key="desktop-explore-panel-wrapper"
-                initial={{ opacity: 0, y: 8, filter: 'blur(6px)' }}
-                animate={{ opacity: 1, y: 0, filter: 'blur(0px)' }}
-                exit={{ opacity: 0, y: 6, filter: 'blur(6px)' }}
-                transition={{ duration: 0.44, ease: [0.22, 1, 0.36, 1] }}
+                key={`desktop-explore-panel-wrapper-${explorarEntranceTick}`}
+                initial={
+                  prefersReducedMotion
+                    ? { opacity: 0 }
+                    : { opacity: 0, x: -16, filter: 'blur(6px)' }
+                }
+                animate={{ opacity: 1, x: 0, filter: 'blur(0px)' }}
+                exit={{ opacity: 0, x: -10, filter: 'blur(6px)' }}
+                transition={
+                  prefersReducedMotion
+                    ? { duration: 0.16 }
+                    : { type: 'spring', damping: 26, stiffness: 280, delay: 0.05 }
+                }
                 className="h-full shrink-0"
               >
                 <DesktopExplorePanel
@@ -2248,137 +2285,174 @@ export default function App() {
         </div>
 
       {/* 3. Top Floating Header Bar (MOBILE ONLY: md:hidden, mounted only on Explorar tab) */}
-      {activeTab === 'explorar' && !isMapOrbiting && !isUserLocationSpotlightActive && !showFirstSignupWelcome && (
-        <header
-          aria-label="Informações de Campos do Jordão"
-          className={`md:hidden absolute top-0 left-0 right-0 z-40 flex items-start justify-between pointer-events-none px-4 sm:px-6 transition-[filter,opacity,transform] duration-300 ease-[cubic-bezier(0.22,1,0.36,1)] ${
-            isSpotFocusActive
-              ? 'opacity-0 scale-95 blur-[4px] [&_*]:!pointer-events-none'
-              : isBlurActive
-                ? 'blur-[6px] opacity-40 scale-100 [&_*]:!pointer-events-none'
-                : 'blur-0 opacity-100 scale-100'
-          }`}
-          style={{
-            paddingTop: 'max(calc(env(safe-area-inset-top, 0px) + 16px), 28px)',
-            paddingLeft: 'max(16px, env(safe-area-inset-left, 0px))',
-            paddingRight: 'max(16px, env(safe-area-inset-right, 0px))',
-          }}
-        >
-        {/* Left: Big Weather Temperature & Dynamic Condition */}
-        <div className="flex items-center pointer-events-auto">
-          <div
-            id="weather-header-display"
-            onClick={() => setIsWeatherModalOpen(true)}
-            className="flex flex-col items-start select-none opacity-100 scale-100 cursor-pointer"
-            title={`Campos do Jordão: ${realWeather.temperature}°C — ${realWeather.condition}`}
-          >
-            {/* Layout: Large beautiful 3D icon on the left, bold prominent degrees */}
-            <div className="flex items-center gap-1.5 sm:gap-2">
-              {/* Weather 3D Icon */}
-              <div
-                id="weather-3d-icon-clean"
-                className="select-none flex items-center justify-center shrink-0 drop-shadow-md"
-              >
-                <Weather3DIcon
-                  weatherCode={realWeather.weatherCode}
-                  isDay={realWeather.isDay}
-                  className="w-14 h-14 sm:w-16 sm:h-16 lg:w-20 lg:h-20 -my-2.5"
-                />
-              </div>
-
-              {/* Temperature Degrees */}
-              <div
-                id="weather-degrees-clean"
-                className="flex items-baseline select-none text-left drop-shadow-[0_2px_8px_rgba(0,0,0,0.6)]"
-              >
-                <span className={`text-5xl sm:text-6xl font-extrabold tracking-tighter leading-none text-[#ffffff] ${
-                  mapStyle === 'animado'
-                    ? '[-webkit-text-stroke:_0.6px_rgba(0,0,0,0.22)]'
-                    : ''
-                }`}>
-                  {realWeather.temperature}°
-                </span>
-              </div>
-            </div>
-
-            {/* Condition label under the temperature */}
-            <div
-              id="weather-condition-clean"
-              className="text-left mt-0.5 ml-1 drop-shadow-[0_1px_4px_rgba(0,0,0,0.6)]"
-            >
-              <span className={`block text-[13px] sm:text-[14px] font-semibold tracking-tight whitespace-nowrap ${
-                isSatelliteExplore
-                  ? 'text-white'
-                  : mapStyle === 'animado'
-                    ? 'text-white [-webkit-text-stroke:_0.35px_rgba(0,0,0,0.20)]'
-                    : theme === 'dark'
-                      ? 'text-white/95'
-                      : 'text-zinc-800 dark:text-zinc-200'
-              }`}>
-                {realWeather.condition}
-              </span>
-            </div>
-          </div>
-        </div>
-
-        {/* Right: Clean Header Action Icons with iOS Liquid Glass Buttons */}
-        <div className="flex items-center gap-2.5 pointer-events-auto relative">
-
-          {/* 3D View Toggle Icon */}
-          <button
-            id="btn-3d-toggle"
-            type="button"
-            onClick={() => {
-              setHasToggled3D(true);
-              setIs3DMode((prev) => !prev);
+      <AnimatePresence>
+        {activeTab === 'explorar' && !isMapOrbiting && !isUserLocationSpotlightActive && !showFirstSignupWelcome && (
+          <motion.header
+            key={`explore-mobile-header-${explorarEntranceTick}`}
+            initial={
+              prefersReducedMotion
+                ? { opacity: 0 }
+                : { opacity: 0, y: -18, scale: 0.97 }
+            }
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: -10, scale: 0.97 }}
+            transition={
+              prefersReducedMotion
+                ? { duration: 0.16 }
+                : { type: 'spring', damping: 25, stiffness: 290, delay: 0.06 }
+            }
+            aria-label="Informações de Campos do Jordão"
+            className="md:hidden absolute top-0 left-0 right-0 z-40 pointer-events-none px-4 sm:px-6"
+            style={{
+              paddingTop: 'max(calc(env(safe-area-inset-top, 0px) + 16px), 28px)',
+              paddingLeft: 'max(16px, env(safe-area-inset-left, 0px))',
+              paddingRight: 'max(16px, env(safe-area-inset-right, 0px))',
             }}
-            className={`w-[53px] h-[53px] sm:w-[58px] sm:h-[58px] rounded-full ios26-liquid-glass flex items-center justify-center transition-all duration-200 active:scale-90 cursor-pointer group shrink-0 ${
-              isSatelliteExplore ? 'text-white' : 'text-black'
-            }`}
-            style={{ color: isSatelliteExplore ? '#FFFFFF' : '#000000' }}
-            aria-label={is3DMode ? 'Alternar para visualização 2D' : 'Alternar para visualização 3D'}
-            title={is3DMode ? 'Alternar para visão 2D Plana' : 'Alternar para visão 3D com Relevo e Montanhas'}
           >
             <div
-              className="relative z-10 flex items-center justify-center group-hover:scale-105 transition-transform duration-200"
-              style={{ color: isSatelliteExplore ? '#FFFFFF' : '#000000' }}
-            >
-              <Map3DIcon
-                mode={!hasToggled3D || is3DMode ? '3D' : '2D'}
-                style={{ color: isSatelliteExplore ? '#FFFFFF' : '#000000' }}
-              />
-            </div>
-          </button>
-
-          {/* Category Filter Button with Dropdown */}
-          <div className="relative shrink-0">
-            <button
-              id="btn-category-icon-toggle"
-              type="button"
-              onClick={() => {
-                setIsCategoryCardOpen((prev) => !prev);
-                setIsSearchOpen(false);
-              }}
-              className={`w-[53px] h-[53px] sm:w-[58px] sm:h-[58px] rounded-full ios26-liquid-glass flex items-center justify-center transition-all duration-200 active:scale-90 cursor-pointer group shrink-0 ${
-                isSatelliteExplore ? 'text-white' : 'text-black'
+              className={`w-full flex items-start justify-between transition-[filter,opacity,transform] duration-300 ease-[cubic-bezier(0.22,1,0.36,1)] ${
+                isSpotFocusActive
+                  ? 'opacity-0 scale-95 blur-[4px] [&_*]:!pointer-events-none'
+                  : isBlurActive
+                    ? 'blur-[6px] opacity-40 scale-100 [&_*]:!pointer-events-none'
+                    : 'blur-0 opacity-100 scale-100'
               }`}
-              style={{ color: isSatelliteExplore ? '#FFFFFF' : '#000000' }}
-              title={selectedCategoryFilter ? 'Filtro de categoria ativo - Clique para alterar ou limpar' : 'Filtrar por Categoria'}
             >
-              <div className="relative z-10 flex items-center justify-center group-hover:scale-105 transition-transform duration-300">
-                <SlidersHorizontal
-                  className="w-6 h-6 sm:w-[29px] sm:h-[29px] stroke-[2]"
+              {/* Left: Big Weather Temperature & Dynamic Condition */}
+              <motion.div
+                initial={prefersReducedMotion ? { opacity: 1 } : { opacity: 0, x: -12 }}
+                animate={{ opacity: 1, x: 0 }}
+                transition={
+                  prefersReducedMotion
+                    ? { duration: 0.14 }
+                    : { type: 'spring', damping: 24, stiffness: 280, delay: 0.08 }
+                }
+                className="flex items-center pointer-events-auto"
+              >
+                <div
+                  id="weather-header-display"
+                  onClick={() => setIsWeatherModalOpen(true)}
+                  className="flex flex-col items-start select-none opacity-100 scale-100 cursor-pointer"
+                  title={`Campos do Jordão: ${realWeather.temperature}°C — ${realWeather.condition}`}
+                >
+                  {/* Layout: Large beautiful 3D icon on the left, bold prominent degrees */}
+                  <div className="flex items-center gap-1.5 sm:gap-2">
+                    {/* Weather 3D Icon */}
+                    <div
+                      id="weather-3d-icon-clean"
+                      className="select-none flex items-center justify-center shrink-0 drop-shadow-md"
+                    >
+                      <Weather3DIcon
+                        weatherCode={realWeather.weatherCode}
+                        isDay={realWeather.isDay}
+                        className="w-14 h-14 sm:w-16 sm:h-16 lg:w-20 lg:h-20 -my-2.5"
+                      />
+                    </div>
+
+                    {/* Temperature Degrees */}
+                    <div
+                      id="weather-degrees-clean"
+                      className="flex items-baseline select-none text-left drop-shadow-[0_2px_8px_rgba(0,0,0,0.6)]"
+                    >
+                      <span className={`text-5xl sm:text-6xl font-extrabold tracking-tighter leading-none text-[#ffffff] ${
+                        mapStyle === 'animado'
+                          ? '[-webkit-text-stroke:_0.6px_rgba(0,0,0,0.22)]'
+                          : ''
+                      }`}>
+                        {realWeather.temperature}°
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* Condition label under the temperature */}
+                  <div
+                    id="weather-condition-clean"
+                    className="text-left mt-0.5 ml-1 drop-shadow-[0_1px_4px_rgba(0,0,0,0.6)]"
+                  >
+                    <span className={`block text-[13px] sm:text-[14px] font-semibold tracking-tight whitespace-nowrap ${
+                      isSatelliteExplore
+                        ? 'text-white'
+                        : mapStyle === 'animado'
+                          ? 'text-white [-webkit-text-stroke:_0.35px_rgba(0,0,0,0.20)]'
+                          : theme === 'dark'
+                            ? 'text-white/95'
+                            : 'text-zinc-800 dark:text-zinc-200'
+                    }`}>
+                      {realWeather.condition}
+                    </span>
+                  </div>
+                </div>
+              </motion.div>
+
+              {/* Right: Clean Header Action Icons with iOS Liquid Glass Buttons */}
+              <motion.div
+                initial={prefersReducedMotion ? { opacity: 1 } : { opacity: 0, x: 12, scale: 0.9 }}
+                animate={{ opacity: 1, x: 0, scale: 1 }}
+                transition={
+                  prefersReducedMotion
+                    ? { duration: 0.14 }
+                    : { type: 'spring', damping: 24, stiffness: 290, delay: 0.11 }
+                }
+                className="flex items-center gap-2.5 pointer-events-auto relative"
+              >
+
+                {/* 3D View Toggle Icon */}
+                <button
+                  id="btn-3d-toggle"
+                  type="button"
+                  onClick={() => {
+                    setHasToggled3D(true);
+                    setIs3DMode((prev) => !prev);
+                  }}
+                  className={`w-[53px] h-[53px] sm:w-[58px] sm:h-[58px] rounded-full ios26-liquid-glass flex items-center justify-center transition-all duration-200 active:scale-90 cursor-pointer group shrink-0 ${
+                    isSatelliteExplore ? 'text-white' : 'text-black'
+                  }`}
                   style={{ color: isSatelliteExplore ? '#FFFFFF' : '#000000' }}
-                />
-              </div>
-              {selectedCategoryFilter && (
-                <span className="absolute top-0 right-0 z-20 w-2.5 h-2.5 rounded-full bg-blue-500 ring-2 ring-white" />
-              )}
-            </button>
-          </div>
-        </div>
-      </header>
-      )}
+                  aria-label={is3DMode ? 'Alternar para visualização 2D' : 'Alternar para visualização 3D'}
+                  title={is3DMode ? 'Alternar para visão 2D Plana' : 'Alternar para visão 3D com Relevo e Montanhas'}
+                >
+                  <div
+                    className="relative z-10 flex items-center justify-center group-hover:scale-105 transition-transform duration-200"
+                    style={{ color: isSatelliteExplore ? '#FFFFFF' : '#000000' }}
+                  >
+                    <Map3DIcon
+                      mode={!hasToggled3D || is3DMode ? '3D' : '2D'}
+                      style={{ color: isSatelliteExplore ? '#FFFFFF' : '#000000' }}
+                    />
+                  </div>
+                </button>
+
+                {/* Category Filter Button with Dropdown */}
+                <div className="relative shrink-0">
+                  <button
+                    id="btn-category-icon-toggle"
+                    type="button"
+                    onClick={() => {
+                      setIsCategoryCardOpen((prev) => !prev);
+                      setIsSearchOpen(false);
+                    }}
+                    className={`w-[53px] h-[53px] sm:w-[58px] sm:h-[58px] rounded-full ios26-liquid-glass flex items-center justify-center transition-all duration-200 active:scale-90 cursor-pointer group shrink-0 ${
+                      isSatelliteExplore ? 'text-white' : 'text-black'
+                    }`}
+                    style={{ color: isSatelliteExplore ? '#FFFFFF' : '#000000' }}
+                    title={selectedCategoryFilter ? 'Filtro de categoria ativo - Clique para alterar ou limpar' : 'Filtrar por Categoria'}
+                  >
+                    <div className="relative z-10 flex items-center justify-center group-hover:scale-105 transition-transform duration-300">
+                      <SlidersHorizontal
+                        className="w-6 h-6 sm:w-[29px] sm:h-[29px] stroke-[2]"
+                        style={{ color: isSatelliteExplore ? '#FFFFFF' : '#000000' }}
+                      />
+                    </div>
+                    {selectedCategoryFilter && (
+                      <span className="absolute top-0 right-0 z-20 w-2.5 h-2.5 rounded-full bg-blue-500 ring-2 ring-white" />
+                    )}
+                  </button>
+                </div>
+              </motion.div>
+            </div>
+          </motion.header>
+        )}
+      </AnimatePresence>
 
       {/* 4. Bottom Floating Navigation Pill, Focus Mode Blur Backdrop & SpotPreviewBanner rendered at root level */}
 
@@ -2441,7 +2515,7 @@ export default function App() {
           }}
         >
           <ItinerariesView
-            key="itineraries-view"
+            key={`itineraries-view-${accountSessionKey}`}
             isOpen={true}
             onClose={() => setActiveTab('explorar')}
             theme={theme}
@@ -2452,14 +2526,15 @@ export default function App() {
             onCompleteOnboardingSelection={(selectedItins, chosenInvestment) => {
               setIsOnboardingItinerarySelection(false);
               try {
-                localStorage.setItem(
+                writeScopedJSON(
                   'monvian_selected_onboarding_itineraries',
-                  JSON.stringify(selectedItins.map((i) => i.id))
+                  selectedItins.map((i) => i.id),
+                  user
                 );
-                localStorage.setItem('monvian_trip_budget', chosenInvestment);
+                writeScopedString('monvian_trip_budget', chosenInvestment, user);
                 if (selectedItins.length > 0) {
-                  localStorage.setItem('monvian_active_itinerary', JSON.stringify(selectedItins[0]));
-                  localStorage.setItem('monvian_itinerary_view_mode', 'map');
+                  writeScopedJSON('monvian_active_itinerary', selectedItins[0], user);
+                  writeScopedString('monvian_itinerary_view_mode', 'map', user);
                   window.dispatchEvent(new CustomEvent('monvian:itinerary_applied', { detail: selectedItins[0] }));
                 }
               } catch {}
@@ -2473,6 +2548,7 @@ export default function App() {
       {/* 9. Saved / Favorites Wishlists (Mounted ONLY when Tab === 'salvos') */}
       {(activeTab === 'salvos' || activeTab === ('chat' as any)) && (
         <SavedView
+          key={`saved-view-${accountSessionKey}`}
           isOpen={true}
           theme={theme}
           spots={spots}
@@ -2482,9 +2558,9 @@ export default function App() {
           }}
           onOpenItinerary={(itinerary) => {
             try {
-              localStorage.setItem('monvian_active_itinerary', JSON.stringify(itinerary));
-              localStorage.setItem('monvian_itinerary_view_mode', 'map');
-              localStorage.setItem('monvian_itinerary_expanded', 'true');
+              writeScopedJSON('monvian_active_itinerary', itinerary, user);
+              writeScopedString('monvian_itinerary_view_mode', 'map', user);
+              writeScopedString('monvian_itinerary_expanded', 'true', user);
               window.dispatchEvent(new CustomEvent('monvian:itinerary_applied', { detail: itinerary }));
             } catch {}
             setSelectedItinerary(null);
@@ -2499,6 +2575,7 @@ export default function App() {
       {/* 10. Profile & Favorites (Mounted ONLY when Tab === 'perfil') */}
       {activeTab === 'perfil' && (
         <ProfileModal
+          key={`profile-modal-${accountSessionKey}`}
           isOpen={true}
           onClose={() => setActiveTab('explorar')}
           favorites={favorites}
@@ -2562,17 +2639,36 @@ export default function App() {
     />
 
     {/* Monvian iOS Minimalist Floating Event Card (Mounted ONLY while Explorar map is active) */}
-    {activeTab === 'explorar' &&
-      !isDetailOpen &&
-      !isMapOrbiting &&
-      !isOnboardingItinerarySelection &&
-      !showFirstSignupWelcome && (
-        <FloatingEventCard
-          visible={!isSpotCardOpen && !isSearchOpen && !isCategoryCardOpen}
-          onActiveChange={setHasActiveMapEvents}
-          isSatellite={isSatelliteExplore}
-        />
-      )}
+    <AnimatePresence>
+      {activeTab === 'explorar' &&
+        !isDetailOpen &&
+        !isMapOrbiting &&
+        !isOnboardingItinerarySelection &&
+        !showFirstSignupWelcome && (
+          <motion.div
+            key={`explore-event-card-${explorarEntranceTick}`}
+            initial={
+              prefersReducedMotion
+                ? { opacity: 0 }
+                : { opacity: 0, y: 24, scale: 0.94 }
+            }
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: 12, scale: 0.96 }}
+            transition={
+              prefersReducedMotion
+                ? { duration: 0.16 }
+                : { type: 'spring', damping: 24, stiffness: 280, delay: 0.14 }
+            }
+            className="fixed inset-0 pointer-events-none z-[55]"
+          >
+            <FloatingEventCard
+              visible={!isSpotCardOpen && !isSearchOpen && !isCategoryCardOpen}
+              onActiveChange={setHasActiveMapEvents}
+              isSatellite={isSatelliteExplore}
+            />
+          </motion.div>
+        )}
+    </AnimatePresence>
 
     {/* Monvian iOS Expansion & Coins Burst Reward Overlay (Mounted ONLY while Explorar map is active) */}
     {activeTab === 'explorar' &&
@@ -2623,18 +2719,35 @@ export default function App() {
     </AnimatePresence>
 
     {/* 4. Bottom Navigation Pill rendered at root level (Visible ONLY on mobile, hidden during detail sheet, exclusive post-signup welcome/itinerary selection & spotlight presentation) */}
-    {!isMapOrbiting && !isOnboardingItinerarySelection && !isDetailOpen && !showFirstSignupWelcome && (
-      <div className={`md:hidden transition-opacity duration-150 ${isChatKeyboardOpen ? 'opacity-0 pointer-events-none' : 'opacity-100 pointer-events-auto'}`}>
-        <BottomNavigation
-          activeTab={activeTab}
-          onChangeTab={handleTabChange}
-          unreadCount={2}
-          isBlurred={isBlurActive}
-          forceWhiteUI={isSatelliteExplore || (activeTab === 'roteiros' && isRoteirosSatelliteNav)}
-          theme={theme}
-        />
-      </div>
-    )}
+    <AnimatePresence>
+      {!isMapOrbiting && !isOnboardingItinerarySelection && !isDetailOpen && !showFirstSignupWelcome && (
+        <motion.div
+          key={`bottom-nav-shell-${explorarEntranceTick}`}
+          initial={
+            prefersReducedMotion
+              ? { opacity: 0 }
+              : { opacity: 0, y: 28, scale: 0.96 }
+          }
+          animate={{ opacity: 1, y: 0, scale: 1 }}
+          exit={{ opacity: 0, y: 18, scale: 0.96 }}
+          transition={
+            prefersReducedMotion
+              ? { duration: 0.16 }
+              : { type: 'spring', damping: 24, stiffness: 280, delay: 0.18 }
+          }
+          className={`md:hidden fixed inset-0 pointer-events-none z-[250] transition-opacity duration-150 ${isChatKeyboardOpen ? 'opacity-0 [&_*]:!pointer-events-none' : 'opacity-100'}`}
+        >
+          <BottomNavigation
+            activeTab={activeTab}
+            onChangeTab={handleTabChange}
+            unreadCount={2}
+            isBlurred={isBlurActive}
+            forceWhiteUI={isSatelliteExplore || (activeTab === 'roteiros' && isRoteirosSatelliteNav)}
+            theme={theme}
+          />
+        </motion.div>
+      )}
+    </AnimatePresence>
 
     {/* 4.1. Minimalist iOS Radar Presentation on User Location (Map stays 100% visible without darkening) */}
     <AnimatePresence>

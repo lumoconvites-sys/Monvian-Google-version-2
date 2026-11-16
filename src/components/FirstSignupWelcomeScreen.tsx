@@ -1,6 +1,6 @@
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useState } from 'react';
 import { motion, useReducedMotion } from 'motion/react';
-import { ArrowRight, X } from 'lucide-react';
+import { ArrowRight } from 'lucide-react';
 import { useLanguage } from '../contexts/LanguageContext';
 
 interface FirstSignupWelcomeScreenProps {
@@ -147,16 +147,6 @@ export const FirstSignupWelcomeScreen: React.FC<FirstSignupWelcomeScreenProps> =
     onComplete();
   }, [isClosing, onComplete]);
 
-  useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') {
-        handleDismiss();
-      }
-    };
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [handleDismiss]);
-
   const features = [
     {
       id: 'explore-map',
@@ -185,6 +175,7 @@ export const FirstSignupWelcomeScreen: React.FC<FirstSignupWelcomeScreenProps> =
   ];
 
   const baseEase: [number, number, number, number] = [0.22, 1, 0.36, 1];
+  const iosSpring = { type: 'spring' as const, damping: 26, stiffness: 260, mass: 0.9 };
 
   return (
     <motion.div
@@ -192,14 +183,19 @@ export const FirstSignupWelcomeScreen: React.FC<FirstSignupWelcomeScreenProps> =
       role="dialog"
       aria-modal="true"
       aria-labelledby="first-welcome-title"
-      initial={prefersReducedMotion ? { opacity: 0 } : { opacity: 0 }}
-      animate={prefersReducedMotion ? { opacity: 1 } : { opacity: 1 }}
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
       exit={
         prefersReducedMotion
           ? { opacity: 0, transition: { duration: 0.16 } }
-          : { opacity: 0, scale: 1.015, transition: { duration: 0.3, ease: baseEase } }
+          : {
+              opacity: 0,
+              scale: 1.03,
+              filter: 'blur(10px)',
+              transition: { duration: 0.38, ease: baseEase },
+            }
       }
-      transition={{ duration: prefersReducedMotion ? 0.18 : 0.42, ease: baseEase }}
+      transition={{ duration: prefersReducedMotion ? 0.18 : 0.48, ease: baseEase }}
       className="fixed inset-0 z-[260] w-full select-none overflow-hidden"
       style={{
         top: 0,
@@ -214,8 +210,11 @@ export const FirstSignupWelcomeScreen: React.FC<FirstSignupWelcomeScreenProps> =
       }}
     >
       {/* Translucent iOS 26 White-Mode Liquid Glass Fullscreen Layer over live Monvian Map */}
-      <div
+      <motion.div
         aria-hidden="true"
+        initial={prefersReducedMotion ? { opacity: 1 } : { opacity: 0 }}
+        animate={{ opacity: 1 }}
+        transition={{ duration: prefersReducedMotion ? 0.18 : 0.65, ease: baseEase }}
         className="absolute inset-0 pointer-events-none"
         style={{
           backdropFilter: 'blur(22px) saturate(145%)',
@@ -226,85 +225,105 @@ export const FirstSignupWelcomeScreen: React.FC<FirstSignupWelcomeScreenProps> =
       />
 
       {/* Subtle specular ambient sheen for Liquid Glass depth */}
-      <div
+      <motion.div
         aria-hidden="true"
+        initial={prefersReducedMotion ? { opacity: 1 } : { opacity: 0, scale: 0.92 }}
+        animate={{ opacity: 1, scale: 1 }}
+        transition={{ duration: prefersReducedMotion ? 0.18 : 0.85, ease: baseEase }}
         className="absolute inset-0 pointer-events-none"
         style={{
           background:
-            'radial-gradient(ellipse 92% 48% at 50% 16%, rgba(255, 255, 255, 0.28) 0%, rgba(255, 255, 255, 0) 75%)',
+            'radial-gradient(ellipse 92% 48% at 50% 24%, rgba(255, 255, 255, 0.32) 0%, rgba(255, 255, 255, 0) 75%)',
         }}
       />
-
-      {/* Discreet Top-Right Liquid Glass Close Button (X) */}
-      <button
-        id="btn-first-welcome-close"
-        type="button"
-        onClick={handleDismiss}
-        disabled={isClosing}
-        aria-label={tr('Fechar')}
-        className="absolute z-20 w-[40px] h-[40px] rounded-full flex items-center justify-center cursor-pointer transition-transform duration-150 active:scale-[0.92] focus-visible:outline-2 focus-visible:outline-[#000000]"
-        style={{
-          top: 'max(14px, calc(env(safe-area-inset-top, 0px) + 10px))',
-          right: 'max(18px, calc(env(safe-area-inset-right, 0px) + 16px))',
-          background:
-            'linear-gradient(145deg, rgba(255, 255, 255, 0.56) 0%, rgba(255, 255, 255, 0.26) 100%)',
-          backdropFilter: 'blur(20px) saturate(170%)',
-          WebkitBackdropFilter: 'blur(20px) saturate(170%)',
-          border: '1px solid rgba(255, 255, 255, 0.65)',
-          boxShadow:
-            '0 6px 18px rgba(0, 0, 0, 0.08), inset 0 1px 1px rgba(255, 255, 255, 0.85)',
-          color: '#000000',
-        }}
-      >
-        <X className="w-[18px] h-[18px] stroke-[2.2]" />
-      </button>
 
       {/* Main Scroll-Safe Vertical Container Respecting Safe Areas */}
       <div
         className="relative z-10 w-full h-full overflow-y-auto overscroll-y-contain no-scrollbar"
         style={{
-          paddingTop: 'max(22px, calc(env(safe-area-inset-top, 0px) + 16px))',
-          paddingBottom: 'max(22px, calc(env(safe-area-inset-bottom, 0px) + 18px))',
+          paddingTop: 'max(28px, calc(env(safe-area-inset-top, 0px) + 22px))',
+          paddingBottom: 'max(24px, calc(env(safe-area-inset-bottom, 0px) + 18px))',
           paddingLeft: 'max(24px, env(safe-area-inset-left, 0px))',
           paddingRight: 'max(24px, env(safe-area-inset-right, 0px))',
         }}
       >
         <div className="min-h-full w-full max-w-[392px] mx-auto flex flex-col justify-between gap-6 py-2">
-          {/* Top Monvian Script Logo */}
-          <motion.div
-            initial={prefersReducedMotion ? { opacity: 0 } : { opacity: 0, y: -8 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: prefersReducedMotion ? 0.15 : 0.45, ease: baseEase }}
-            className="flex justify-center pt-1 sm:pt-3 shrink-0"
-          >
-            <img
-              src="/assets/aistudio/monvian_logo_white_transparent.png"
-              alt="Monvian"
-              draggable={false}
-              className="h-[46px] sm:h-[52px] w-auto object-contain select-none pointer-events-none drop-shadow-[0_2px_10px_rgba(0,0,0,0.16)]"
-            />
-          </motion.div>
-
-          {/* Center Section: Hero Greeting + 4 Feature Highlights */}
-          <div className="flex flex-col items-center my-auto w-full">
+          {/* Center Composition: Logo lowered directly above Bem-vindo + 4 Feature Highlights */}
+          <div className="flex flex-col items-center my-auto w-full pt-4 sm:pt-6">
+            {/* Monvian Script Logo positioned cleanly just above Bem-vindo */}
             <motion.div
-              initial={prefersReducedMotion ? { opacity: 0 } : { opacity: 0, y: 12 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{
-                duration: prefersReducedMotion ? 0.15 : 0.46,
-                delay: prefersReducedMotion ? 0 : 0.06,
-                ease: baseEase,
-              }}
-              className="text-center w-full mb-7 sm:mb-9"
+              initial={
+                prefersReducedMotion
+                  ? { opacity: 0 }
+                  : { opacity: 0, y: -22, scale: 0.88, filter: 'blur(8px)' }
+              }
+              animate={{ opacity: 1, y: 0, scale: 1, filter: 'blur(0px)' }}
+              transition={
+                prefersReducedMotion
+                  ? { duration: 0.16 }
+                  : { ...iosSpring, delay: 0.10 }
+              }
+              className="flex justify-center mb-5 sm:mb-6 shrink-0"
             >
-              <h1
+              <img
+                src="/assets/aistudio/monvian_logo_white_transparent.png"
+                alt="Monvian"
+                draggable={false}
+                className="h-[46px] sm:h-[52px] w-auto object-contain select-none pointer-events-none drop-shadow-[0_2px_10px_rgba(0,0,0,0.16)]"
+              />
+            </motion.div>
+
+            {/* Hero Greeting + Hand Wave */}
+            <div className="text-center w-full mb-7 sm:mb-9">
+              <motion.h1
                 id="first-welcome-title"
+                initial={
+                  prefersReducedMotion
+                    ? { opacity: 0 }
+                    : { opacity: 0, y: 18, scale: 0.96, filter: 'blur(4px)' }
+                }
+                animate={{ opacity: 1, y: 0, scale: 1, filter: 'blur(0px)' }}
+                transition={
+                  prefersReducedMotion
+                    ? { duration: 0.16 }
+                    : { ...iosSpring, delay: 0.22 }
+                }
                 className="inline-flex items-center justify-center gap-2.5 text-[35px] sm:text-[41px] font-bold tracking-[-0.025em] text-[#000000] leading-[1.08]"
               >
                 <span>{tr('Bem-vindo')}</span>
-                <MinimalWavingHandIcon />
-              </h1>
-              <p
+                <motion.span
+                  initial={prefersReducedMotion ? { opacity: 1 } : { scale: 0.6, rotate: -18 }}
+                  animate={
+                    prefersReducedMotion
+                      ? { scale: 1, rotate: 0 }
+                      : { scale: 1, rotate: [0, -14, 12, -8, 4, 0] }
+                  }
+                  transition={
+                    prefersReducedMotion
+                      ? { duration: 0.15 }
+                      : {
+                          scale: { ...iosSpring, delay: 0.28 },
+                          rotate: { duration: 0.85, delay: 0.42, ease: baseEase },
+                        }
+                  }
+                  style={{ transformOrigin: '75% 80%', display: 'inline-flex' }}
+                >
+                  <MinimalWavingHandIcon />
+                </motion.span>
+              </motion.h1>
+
+              <motion.p
+                initial={
+                  prefersReducedMotion
+                    ? { opacity: 0 }
+                    : { opacity: 0, y: 12, filter: 'blur(3px)' }
+                }
+                animate={{ opacity: 1, y: 0, filter: 'blur(0px)' }}
+                transition={{
+                  duration: prefersReducedMotion ? 0.15 : 0.48,
+                  delay: prefersReducedMotion ? 0 : 0.30,
+                  ease: baseEase,
+                }}
                 className="mt-1.5 text-[17.5px] sm:text-[19px] font-normal tracking-[-0.012em] text-[#1D1D1F]/85 leading-[1.3]"
                 style={{
                   fontFamily:
@@ -312,79 +331,107 @@ export const FirstSignupWelcomeScreen: React.FC<FirstSignupWelcomeScreenProps> =
                 }}
               >
                 {tr('Que bom ter você por aqui!')}
-              </p>
-            </motion.div>
+              </motion.p>
+            </div>
 
-            {/* 4 Liquid Glass Icon Rows */}
+            {/* 4 Liquid Glass Icon Rows with Staggered Spring Reveal */}
             <ul className="w-full max-w-[356px] space-y-5 sm:space-y-6">
-              {features.map((item, idx) => (
-                <motion.li
-                  key={item.id}
-                  initial={prefersReducedMotion ? { opacity: 0 } : { opacity: 0, y: 14 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{
-                    duration: prefersReducedMotion ? 0.15 : 0.44,
-                    delay: prefersReducedMotion ? 0 : 0.12 + idx * 0.055,
-                    ease: baseEase,
-                  }}
-                  className="flex items-center gap-4 text-left"
-                >
-                  {/* Liquid Glass Squircle Tile */}
-                  <div
-                    className="relative w-[62px] h-[62px] sm:w-[66px] sm:h-[66px] rounded-[20px] shrink-0 flex items-center justify-center overflow-hidden"
-                    style={{
-                      background:
-                        'linear-gradient(145deg, rgba(255, 255, 255, 0.56) 0%, rgba(255, 255, 255, 0.24) 55%, rgba(255, 255, 255, 0.40) 100%)',
-                      backdropFilter: 'blur(20px) saturate(175%)',
-                      WebkitBackdropFilter: 'blur(20px) saturate(175%)',
-                      border: '1px solid rgba(255, 255, 255, 0.72)',
-                      boxShadow:
-                        '0 10px 24px rgba(0, 0, 0, 0.08), inset 0 1.5px 1.5px rgba(255, 255, 255, 0.92), inset 0 -1.5px 2px rgba(255, 255, 255, 0.34)',
-                    }}
+              {features.map((item, idx) => {
+                const rowDelay = prefersReducedMotion ? 0 : 0.36 + idx * 0.085;
+                return (
+                  <motion.li
+                    key={item.id}
+                    initial={
+                      prefersReducedMotion
+                        ? { opacity: 0 }
+                        : { opacity: 0, x: -10, y: 16 }
+                    }
+                    animate={{ opacity: 1, x: 0, y: 0 }}
+                    transition={
+                      prefersReducedMotion
+                        ? { duration: 0.15 }
+                        : { ...iosSpring, delay: rowDelay }
+                    }
+                    className="flex items-center gap-4 text-left"
                   >
-                    {/* Top specular curved glint */}
-                    <span
-                      aria-hidden="true"
-                      className="absolute inset-x-2 top-[1px] h-[1.5px] rounded-full pointer-events-none"
+                    {/* Liquid Glass Squircle Tile */}
+                    <motion.div
+                      initial={
+                        prefersReducedMotion
+                          ? { opacity: 1 }
+                          : { scale: 0.72, rotate: -6 }
+                      }
+                      animate={{ scale: 1, rotate: 0 }}
+                      transition={
+                        prefersReducedMotion
+                          ? { duration: 0.15 }
+                          : {
+                              type: 'spring',
+                              damping: 20,
+                              stiffness: 300,
+                              mass: 0.8,
+                              delay: rowDelay + 0.03,
+                            }
+                      }
+                      className="relative w-[62px] h-[62px] sm:w-[66px] sm:h-[66px] rounded-[20px] shrink-0 flex items-center justify-center overflow-hidden"
                       style={{
                         background:
-                          'linear-gradient(90deg, rgba(255,255,255,0) 0%, rgba(255,255,255,0.95) 50%, rgba(255,255,255,0) 100%)',
-                      }}
-                    />
-                    <div className="relative z-10 flex items-center justify-center">
-                      {item.icon}
-                    </div>
-                  </div>
-
-                  {/* Feature Copy */}
-                  <div className="flex-1 min-w-0">
-                    <h2 className="text-[16.5px] sm:text-[17.5px] font-bold tracking-[-0.015em] text-[#000000] leading-[1.2]">
-                      {item.title}
-                    </h2>
-                    <p
-                      className="mt-0.5 text-[13.5px] sm:text-[14.5px] font-normal text-[#1C1F24]/82 leading-[1.35]"
-                      style={{
-                        fontFamily:
-                          "'SF Pro Text', -apple-system, BlinkMacSystemFont, sans-serif",
+                          'linear-gradient(145deg, rgba(255, 255, 255, 0.56) 0%, rgba(255, 255, 255, 0.24) 55%, rgba(255, 255, 255, 0.40) 100%)',
+                        backdropFilter: 'blur(20px) saturate(175%)',
+                        WebkitBackdropFilter: 'blur(20px) saturate(175%)',
+                        border: '1px solid rgba(255, 255, 255, 0.72)',
+                        boxShadow:
+                          '0 10px 24px rgba(0, 0, 0, 0.08), inset 0 1.5px 1.5px rgba(255, 255, 255, 0.92), inset 0 -1.5px 2px rgba(255, 255, 255, 0.34)',
                       }}
                     >
-                      {item.description}
-                    </p>
-                  </div>
-                </motion.li>
-              ))}
+                      {/* Top specular curved glint */}
+                      <span
+                        aria-hidden="true"
+                        className="absolute inset-x-2 top-[1px] h-[1.5px] rounded-full pointer-events-none"
+                        style={{
+                          background:
+                            'linear-gradient(90deg, rgba(255,255,255,0) 0%, rgba(255,255,255,0.95) 50%, rgba(255,255,255,0) 100%)',
+                        }}
+                      />
+                      <div className="relative z-10 flex items-center justify-center">
+                        {item.icon}
+                      </div>
+                    </motion.div>
+
+                    {/* Feature Copy */}
+                    <div className="flex-1 min-w-0">
+                      <h2 className="text-[16.5px] sm:text-[17.5px] font-bold tracking-[-0.015em] text-[#000000] leading-[1.2]">
+                        {item.title}
+                      </h2>
+                      <p
+                        className="mt-0.5 text-[13.5px] sm:text-[14.5px] font-normal text-[#1C1F24]/82 leading-[1.35]"
+                        style={{
+                          fontFamily:
+                            "'SF Pro Text', -apple-system, BlinkMacSystemFont, sans-serif",
+                        }}
+                      >
+                        {item.description}
+                      </p>
+                    </div>
+                  </motion.li>
+                );
+              })}
             </ul>
           </div>
 
           {/* Primary Bottom Dark Liquid Glass Pill CTA */}
           <motion.div
-            initial={prefersReducedMotion ? { opacity: 0 } : { opacity: 0, y: 12 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{
-              duration: prefersReducedMotion ? 0.15 : 0.45,
-              delay: prefersReducedMotion ? 0 : 0.34,
-              ease: baseEase,
-            }}
+            initial={
+              prefersReducedMotion
+                ? { opacity: 0 }
+                : { opacity: 0, y: 26, scale: 0.95 }
+            }
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            transition={
+              prefersReducedMotion
+                ? { duration: 0.16 }
+                : { ...iosSpring, delay: 0.72 }
+            }
             className="w-full max-w-[356px] mx-auto pt-2 pb-1 shrink-0"
           >
             <button
@@ -421,3 +468,4 @@ export const FirstSignupWelcomeScreen: React.FC<FirstSignupWelcomeScreenProps> =
     </motion.div>
   );
 };
+

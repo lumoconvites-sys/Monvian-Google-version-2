@@ -42,6 +42,8 @@ import {
   persistPrivacyRequestToFirestore,
   persistSupportTicketToFirestore,
   deleteUserAccountFromFirestore,
+  persistUserFavoritesToFirestore,
+  getUserFavoritesFromFirestore,
 } from './src/services/firestoreSync.ts';
 import firebaseAppletConfig from './firebase-applet-config.json' with { type: 'json' };
 
@@ -1160,6 +1162,16 @@ async function startServer() {
 
       const userId = Number(insert.lastInsertRowid);
 
+      // Guarantee brand-new accounts never inherit any orphaned favorites or social activity
+      try {
+        const uidStr = String(userId);
+        db.prepare('DELETE FROM favorites WHERE user_id = ?').run(uidStr);
+        db.prepare('DELETE FROM user_favorites WHERE user_id = ?').run(uidStr);
+        db.prepare('DELETE FROM post_likes WHERE user_id = ?').run(uidStr);
+        try { db.prepare('DELETE FROM post_saves WHERE user_id = ?').run(uidStr); } catch {}
+        db.prepare('DELETE FROM user_follows WHERE follower_id = ?').run(uidStr);
+      } catch {}
+
       const userRecord = {
         id: userId,
         auth_id: authId,
@@ -1435,6 +1447,14 @@ async function startServer() {
             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
           `).run(resolvedName || username, username, cleanEmail, cleanEmail, dummyHash, resolvedAvatar || '/fotoperfil.png', role, isGold, resolvedUid || null);
           user = db.prepare('SELECT * FROM users WHERE id = ?').get(insert.lastInsertRowid);
+          try {
+            const uidStr = String(user.id);
+            db.prepare('DELETE FROM favorites WHERE user_id = ?').run(uidStr);
+            db.prepare('DELETE FROM user_favorites WHERE user_id = ?').run(uidStr);
+            db.prepare('DELETE FROM post_likes WHERE user_id = ?').run(uidStr);
+            try { db.prepare('DELETE FROM post_saves WHERE user_id = ?').run(uidStr); } catch {}
+            db.prepare('DELETE FROM user_follows WHERE follower_id = ?').run(uidStr);
+          } catch {}
         }
       }
 
@@ -3064,59 +3084,150 @@ async function startServer() {
   });
 
   // ===========================================================================
-  // 4. FAVORITES API (Supports both /api/favorites and /api/user/favorites)
+  // 4. FAVORITES API (Strictly Per-Account, Synced SQLite + Supabase + Firestore)
   // ===========================================================================
+  const readSqliteUserFavorites = (userId: string) => {
+    const rows = db
+      .prepare('SELECT item_type, item_id FROM user_favorites WHERE user_id = ?')
+      .all(userId) as { item_type: string; item_id: string }[];
+    const legacyRows = db
+      .prepare('SELECT spot_id FROM favorites WHERE user_id = ?')
+      .all(userId) as { spot_id: string }[];
+
+    const places = new Set<string>();
+    const spots = new Set<string>();
+    const itineraries = new Set<string>();
+
+    for (const r of rows) {
+      if (r.item_type === 'place') places.add(r.item_id);
+      else if (r.item_type === 'itinerary') itineraries.add(r.item_id);
+      else spots.add(r.item_id);
+    }
+    for (const lr of legacyRows) {
+      if (!places.has(lr.spot_id)) spots.add(lr.spot_id);
+    }
+
+    return {
+      places: Array.from(places),
+      spots: Array.from(spots),
+      itineraries: Array.from(itineraries),
+    };
+  };
+
+  const getAuthoritativeUserFavorites = async (user: any) => {
+    const userId = String(user.id);
+    const userEmail = String(user.email || user.whatsapp || '').trim().toLowerCase();
+    let snap = readSqliteUserFavorites(userId);
+
+    const hasAnyLocal =
+      snap.places.length > 0 || snap.spots.length > 0 || snap.itineraries.length > 0;
+
+    if (!hasAnyLocal && userEmail) {
+      const cloudFavs = await getUserFavoritesFromFirestore(userEmail, userId);
+      if (
+        cloudFavs &&
+        (cloudFavs.itineraries.length > 0 ||
+          cloudFavs.spots.length > 0 ||
+          cloudFavs.places.length > 0)
+      ) {
+        const tx = db.transaction(() => {
+          for (const id of cloudFavs.itineraries) {
+            db.prepare('INSERT OR IGNORE INTO user_favorites (user_id, item_type, item_id) VALUES (?, ?, ?)').run(userId, 'itinerary', id);
+          }
+          for (const id of cloudFavs.spots) {
+            db.prepare('INSERT OR IGNORE INTO user_favorites (user_id, item_type, item_id) VALUES (?, ?, ?)').run(userId, 'spot', id);
+            db.prepare('INSERT OR IGNORE INTO favorites (user_id, spot_id) VALUES (?, ?)').run(userId, id);
+          }
+          for (const id of cloudFavs.places) {
+            db.prepare('INSERT OR IGNORE INTO user_favorites (user_id, item_type, item_id) VALUES (?, ?, ?)').run(userId, 'place', id);
+          }
+        });
+        tx();
+        snap = readSqliteUserFavorites(userId);
+      }
+    }
+
+    return snap;
+  };
+
+  const applyFavoriteChange = async (
+    user: any,
+    itemType: 'itinerary' | 'spot' | 'place',
+    itemId: string,
+    isSaved: boolean
+  ) => {
+    const userId = String(user.id);
+    const userEmail = String(user.email || user.whatsapp || '').trim().toLowerCase();
+
+    if (isSaved) {
+      db.prepare('INSERT OR IGNORE INTO user_favorites (user_id, item_type, item_id) VALUES (?, ?, ?)').run(userId, itemType, itemId);
+      if (itemType === 'spot') {
+        db.prepare('INSERT OR IGNORE INTO favorites (user_id, spot_id) VALUES (?, ?)').run(userId, itemId);
+      }
+    } else {
+      db.prepare('DELETE FROM user_favorites WHERE user_id = ? AND item_type = ? AND item_id = ?').run(userId, itemType, itemId);
+      if (itemType === 'spot') {
+        db.prepare('DELETE FROM favorites WHERE user_id = ? AND spot_id = ?').run(userId, itemId);
+      }
+    }
+
+    const updatedSnap = readSqliteUserFavorites(userId);
+    await Promise.allSettled([
+      persistFavoriteToSupabase(userId, itemType, itemId, isSaved),
+      persistUserFavoritesToFirestore({
+        email: userEmail,
+        userId,
+        ...updatedSnap,
+      }),
+    ]);
+
+    return updatedSnap;
+  };
+
   app.get('/api/favorites', async (req: Request, res: Response) => {
     try {
       const user = await resolveAuthenticatedUser(req);
-      const userId = user ? String(user.id) : 'guest';
-      const rows = db.prepare('SELECT item_type, item_id FROM user_favorites WHERE user_id = ?').all(userId) as { item_type: string; item_id: string }[];
-      const legacyRows = db.prepare('SELECT spot_id FROM favorites WHERE user_id = ?').all(userId) as { spot_id: string }[];
-
-      const places = new Set<string>();
-      const spots = new Set<string>();
-      const itineraries = new Set<string>();
-
-      for (const r of rows) {
-        if (r.item_type === 'place') places.add(r.item_id);
-        else if (r.item_type === 'itinerary') itineraries.add(r.item_id);
-        else spots.add(r.item_id);
+      if (!user?.id) {
+        return res.json({
+          success: true,
+          places: [],
+          spots: [],
+          itineraries: [],
+          favorites: { places: [], spots: [], itineraries: [] },
+        });
       }
-      for (const lr of legacyRows) {
-        if (!places.has(lr.spot_id)) spots.add(lr.spot_id);
-      }
-
+      const snap = await getAuthoritativeUserFavorites(user);
       return res.json({
         success: true,
-        places: Array.from(places),
-        spots: Array.from(spots),
-        itineraries: Array.from(itineraries),
+        ...snap,
+        favorites: snap,
       });
     } catch {
-      return res.json({ success: true, places: [], spots: [], itineraries: [] });
+      return res.json({
+        success: true,
+        places: [],
+        spots: [],
+        itineraries: [],
+        favorites: { places: [], spots: [], itineraries: [] },
+      });
     }
   });
 
   app.post('/api/favorites/toggle', async (req: Request, res: Response) => {
     try {
-      const { item_type = 'spot', item_id, is_saved } = req.body;
+      const { item_type = 'spot', item_id, is_saved } = req.body || {};
       if (!item_id) return res.status(400).json({ success: false, error: 'item_id obrigatório' });
 
       const user = await resolveAuthenticatedUser(req);
-      const userId = user ? String(user.id) : 'guest';
-
-      if (is_saved) {
-        db.prepare('INSERT OR IGNORE INTO user_favorites (user_id, item_type, item_id) VALUES (?, ?, ?)').run(userId, item_type, item_id);
-        if (item_type === 'spot' || item_type === 'place') {
-          db.prepare('INSERT OR IGNORE INTO favorites (user_id, spot_id) VALUES (?, ?)').run(userId, item_id);
-        }
-      } else {
-        db.prepare('DELETE FROM user_favorites WHERE user_id = ? AND item_type = ? AND item_id = ?').run(userId, item_type, item_id);
-        db.prepare('DELETE FROM favorites WHERE user_id = ? AND spot_id = ?').run(userId, item_id);
+      if (!user?.id) {
+        return res.status(401).json({ success: false, error: 'Não autenticado' });
       }
 
-      await persistFavoriteToSupabase(userId, item_type, item_id, Boolean(is_saved));
-      return res.json({ success: true, isFavorite: Boolean(is_saved) });
+      const validType: 'itinerary' | 'spot' | 'place' =
+        item_type === 'itinerary' || item_type === 'place' ? item_type : 'spot';
+      const snap = await applyFavoriteChange(user, validType, String(item_id), Boolean(is_saved));
+
+      return res.json({ success: true, isFavorite: Boolean(is_saved), favorites: snap });
     } catch (err: any) {
       return res.status(500).json({ success: false, error: err.message });
     }
@@ -3125,32 +3236,115 @@ async function startServer() {
   app.get('/api/user/favorites', async (req: Request, res: Response) => {
     try {
       const user = await resolveAuthenticatedUser(req);
-      const userId = user ? String(user.id) : 'guest';
-      const rows = db.prepare('SELECT spot_id FROM favorites WHERE user_id = ?').all(userId) as { spot_id: string }[];
-      return res.json({ success: true, favorites: rows.map((r) => r.spot_id) });
+      if (!user?.id) {
+        return res.json({
+          success: true,
+          places: [],
+          spots: [],
+          itineraries: [],
+          favorites: { places: [], spots: [], itineraries: [] },
+        });
+      }
+      const snap = await getAuthoritativeUserFavorites(user);
+      return res.json({
+        success: true,
+        ...snap,
+        favorites: snap,
+      });
     } catch {
-      return res.json({ success: true, favorites: [] });
+      return res.json({
+        success: true,
+        places: [],
+        spots: [],
+        itineraries: [],
+        favorites: { places: [], spots: [], itineraries: [] },
+      });
     }
   });
 
   app.post('/api/user/favorites/toggle', async (req: Request, res: Response) => {
     try {
-      const { spotId } = req.body;
       const user = await resolveAuthenticatedUser(req);
-      const userId = user ? String(user.id) : 'guest';
-
-      const existing = db.prepare('SELECT id FROM favorites WHERE user_id = ? AND spot_id = ?').get(userId, spotId);
-      if (existing) {
-        db.prepare('DELETE FROM favorites WHERE user_id = ? AND spot_id = ?').run(userId, spotId);
-        db.prepare('DELETE FROM user_favorites WHERE user_id = ? AND item_id = ?').run(userId, spotId);
-        await persistFavoriteToSupabase(userId, 'spot', spotId, false);
-        return res.json({ success: true, isFavorite: false });
-      } else {
-        db.prepare('INSERT INTO favorites (user_id, spot_id) VALUES (?, ?)').run(userId, spotId);
-        db.prepare('INSERT OR IGNORE INTO user_favorites (user_id, item_type, item_id) VALUES (?, ?, ?)').run(userId, 'spot', spotId);
-        await persistFavoriteToSupabase(userId, 'spot', spotId, true);
-        return res.json({ success: true, isFavorite: true });
+      if (!user?.id) {
+        return res.status(401).json({ success: false, error: 'Não autenticado' });
       }
+      const userId = String(user.id);
+      const { item_type, item_id, is_saved, spotId } = req.body || {};
+
+      if (item_id) {
+        const validType: 'itinerary' | 'spot' | 'place' =
+          item_type === 'itinerary' || item_type === 'place' ? item_type : 'spot';
+        const nextSaved = is_saved !== undefined
+          ? Boolean(is_saved)
+          : !db
+              .prepare('SELECT 1 FROM user_favorites WHERE user_id = ? AND item_type = ? AND item_id = ?')
+              .get(userId, validType, String(item_id));
+        const snap = await applyFavoriteChange(user, validType, String(item_id), nextSaved);
+        return res.json({ success: true, isFavorite: nextSaved, favorites: snap });
+      }
+
+      if (!spotId) {
+        return res.status(400).json({ success: false, error: 'item_id obrigatório' });
+      }
+
+      const existing = db
+        .prepare('SELECT id FROM favorites WHERE user_id = ? AND spot_id = ?')
+        .get(userId, String(spotId));
+      const nextSaved = !existing;
+      const snap = await applyFavoriteChange(user, 'spot', String(spotId), nextSaved);
+      return res.json({ success: true, isFavorite: nextSaved, favorites: snap });
+    } catch (err: any) {
+      return res.status(500).json({ success: false, error: err.message });
+    }
+  });
+
+  app.post('/api/user/favorites/remove-batch', async (req: Request, res: Response) => {
+    try {
+      const user = await resolveAuthenticatedUser(req);
+      if (!user?.id) {
+        return res.status(401).json({ success: false, error: 'Não autenticado' });
+      }
+      const userId = String(user.id);
+      const userEmail = String(user.email || user.whatsapp || '').trim().toLowerCase();
+      const items = Array.isArray(req.body?.items) ? req.body.items : [];
+
+      const supabaseOps: Promise<void>[] = [];
+      const tx = db.transaction(() => {
+        for (const item of items) {
+          const itemType = item?.type;
+          const itemId = String(item?.id || '').trim();
+          if (!itemId) continue;
+
+          if (itemType === 'itinerary') {
+            db.prepare('DELETE FROM user_favorites WHERE user_id = ? AND item_type = ? AND item_id = ?').run(userId, 'itinerary', itemId);
+            db.prepare('INSERT OR IGNORE INTO user_favorites (user_id, item_type, item_id) VALUES (?, ?, ?)').run(userId, 'place', itemId);
+            supabaseOps.push(persistFavoriteToSupabase(userId, 'itinerary', itemId, false));
+            supabaseOps.push(persistFavoriteToSupabase(userId, 'place', itemId, true));
+          } else if (itemType === 'spot') {
+            db.prepare('DELETE FROM user_favorites WHERE user_id = ? AND item_type = ? AND item_id = ?').run(userId, 'spot', itemId);
+            db.prepare('DELETE FROM favorites WHERE user_id = ? AND spot_id = ?').run(userId, itemId);
+            db.prepare('INSERT OR IGNORE INTO user_favorites (user_id, item_type, item_id) VALUES (?, ?, ?)').run(userId, 'place', itemId);
+            supabaseOps.push(persistFavoriteToSupabase(userId, 'spot', itemId, false));
+            supabaseOps.push(persistFavoriteToSupabase(userId, 'place', itemId, true));
+          } else if (itemType === 'place') {
+            db.prepare('DELETE FROM user_favorites WHERE user_id = ? AND item_type = ? AND item_id = ?').run(userId, 'place', itemId);
+            supabaseOps.push(persistFavoriteToSupabase(userId, 'place', itemId, false));
+          }
+        }
+      });
+      tx();
+
+      const snap = readSqliteUserFavorites(userId);
+      await Promise.allSettled([
+        ...supabaseOps,
+        persistUserFavoritesToFirestore({
+          email: userEmail,
+          userId,
+          ...snap,
+        }),
+      ]);
+
+      return res.json({ success: true, favorites: snap });
     } catch (err: any) {
       return res.status(500).json({ success: false, error: err.message });
     }

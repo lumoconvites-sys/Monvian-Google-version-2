@@ -1,4 +1,10 @@
-// Persistent Favorites & Saved Items Service for Monvian (Airbnb-style Wishlists)
+import {
+  getActiveUserScope,
+  getScopedStorageKey,
+  purgeLegacyUnscopedActivityKeys,
+} from '../utils/userScopedStorage';
+
+// Persistent Favorites & Saved Items Service for Monvian (Strictly Per-Account Isolated)
 export interface SavedFavoritesState {
   itineraries: string[];
   spots: string[];
@@ -7,86 +13,141 @@ export interface SavedFavoritesState {
 
 const STORAGE_KEYS = {
   ITINERARIES: 'monvian_saved_itineraries',
-  LEGACY_ITINERARY_FAVS: 'monvian_itinerary_favs',
   SPOTS: 'monvian_saved_spots',
   PLACES: 'monvian_removed_items',
-  LEGACY_PLACES: 'monvian_saved_places',
-  LEGACY_FAVORITES: 'monvian_favorites',
 };
 
-const DEFAULT_INITIAL_FAVORITES: SavedFavoritesState = {
-  itineraries: ['roteiro-classico-2-dias'],
-  spots: ['itapeva', 'amantikir'],
+const EMPTY_FAVORITES: SavedFavoritesState = {
+  itineraries: [],
+  spots: [],
   places: [],
 };
 
-function readStorageList(key: string, defaultFallback: string[]): string[] {
+function readStorageList(key: string | null): string[] {
+  if (!key) return [];
   try {
     const raw = localStorage.getItem(key);
-    if (!raw) return defaultFallback;
+    if (!raw) return [];
     const parsed = JSON.parse(raw);
-    if (Array.isArray(parsed)) return parsed;
+    if (Array.isArray(parsed)) {
+      return Array.from(new Set(parsed.filter((item) => typeof item === 'string' && item.trim() !== '')));
+    }
   } catch (e) {
     console.warn(`[Favorites] Error reading ${key}:`, e);
   }
-  return defaultFallback;
+  return [];
 }
 
-function writeStorageList(key: string, list: string[]): void {
+function writeStorageList(key: string | null, list: string[]): void {
+  if (!key) return;
   try {
-    localStorage.setItem(key, JSON.stringify(list));
+    localStorage.setItem(key, JSON.stringify(Array.from(new Set(list))));
   } catch (e) {
     console.warn(`[Favorites] Error writing ${key}:`, e);
   }
 }
 
+function buildAuthHeaders(extraHeaders?: Record<string, string>): Record<string, string> {
+  const headers: Record<string, string> = { ...(extraHeaders || {}) };
+  try {
+    const token = localStorage.getItem('monvian_token');
+    if (token) headers['Authorization'] = `Bearer ${token}`;
+    const rawUser = localStorage.getItem('monvian_user');
+    if (rawUser) {
+      const parsed = JSON.parse(rawUser);
+      const cleanEmail = String(parsed?.email || parsed?.whatsapp || '').trim().toLowerCase();
+      if (cleanEmail) headers['x-user-email'] = cleanEmail;
+    }
+  } catch {}
+  return headers;
+}
+
 class FavoritesManager {
   private state: SavedFavoritesState;
+  private activeScope: string | null = null;
   private listeners: Set<() => void> = new Set();
   private isSyncing = false;
 
   constructor() {
-    this.state = this.loadLocalState();
+    if (typeof window !== 'undefined') {
+      // Remove legacy global device-wide favorite keys so accounts never mix
+      purgeLegacyUnscopedActivityKeys();
+    }
+    this.activeScope = getActiveUserScope();
+    this.state = this.loadLocalState(this.activeScope);
+
     if (typeof window !== 'undefined') {
       window.addEventListener('storage', this.handleStorageEvent);
+      window.addEventListener('monvian:user_logged_out', this.handleLogoutEvent);
+      window.addEventListener('monvian:account_switched', this.handleAccountSwitchedEvent as EventListener);
     }
   }
 
-  private loadLocalState(): SavedFavoritesState {
-    const savedItins = readStorageList(STORAGE_KEYS.ITINERARIES, DEFAULT_INITIAL_FAVORITES.itineraries);
-    const legacyItinFavs = readStorageList(STORAGE_KEYS.LEGACY_ITINERARY_FAVS, []);
-    const mergedItineraries = Array.from(new Set([...legacyItinFavs, ...savedItins]));
-
-    const spots = readStorageList(STORAGE_KEYS.SPOTS, DEFAULT_INITIAL_FAVORITES.spots);
-    const removedItems = readStorageList(STORAGE_KEYS.PLACES, DEFAULT_INITIAL_FAVORITES.places);
-
-    // Persist merged itineraries if legacy favs existed
-    if (legacyItinFavs.length > 0) {
-      writeStorageList(STORAGE_KEYS.ITINERARIES, mergedItineraries);
-      writeStorageList(STORAGE_KEYS.LEGACY_ITINERARY_FAVS, mergedItineraries);
+  private loadLocalState(scope: string | null): SavedFavoritesState {
+    if (!scope) {
+      return { itineraries: [], spots: [], places: [] };
     }
+    const itinKey = `${STORAGE_KEYS.ITINERARIES}__acct_${scope}`;
+    const spotKey = `${STORAGE_KEYS.SPOTS}__acct_${scope}`;
+    const placeKey = `${STORAGE_KEYS.PLACES}__acct_${scope}`;
 
     return {
-      itineraries: mergedItineraries,
-      spots: Array.from(new Set(spots)),
-      places: Array.from(new Set(removedItems)),
+      itineraries: readStorageList(itinKey),
+      spots: readStorageList(spotKey),
+      places: readStorageList(placeKey),
     };
   }
 
   private handleStorageEvent = (e: StorageEvent) => {
+    const scope = getActiveUserScope();
+    if (!scope) return;
     if (
-      e.key === STORAGE_KEYS.ITINERARIES ||
-      e.key === STORAGE_KEYS.LEGACY_ITINERARY_FAVS ||
-      e.key === STORAGE_KEYS.SPOTS ||
-      e.key === STORAGE_KEYS.PLACES
+      e.key &&
+      e.key.endsWith(`__acct_${scope}`) &&
+      (e.key.startsWith(STORAGE_KEYS.ITINERARIES) ||
+        e.key.startsWith(STORAGE_KEYS.SPOTS) ||
+        e.key.startsWith(STORAGE_KEYS.PLACES))
     ) {
-      this.state = this.loadLocalState();
+      this.activeScope = scope;
+      this.state = this.loadLocalState(scope);
       this.notify();
     }
   };
 
+  private handleLogoutEvent = () => {
+    this.reset();
+  };
+
+  private handleAccountSwitchedEvent = (e: CustomEvent<any>) => {
+    this.setActiveAccount(e?.detail || null);
+  };
+
+  public reset(): void {
+    purgeLegacyUnscopedActivityKeys();
+    this.activeScope = null;
+    this.isSyncing = false;
+    this.state = { ...EMPTY_FAVORITES, itineraries: [], spots: [], places: [] };
+    this.notify();
+  }
+
+  public setActiveAccount(user: any | null): void {
+    purgeLegacyUnscopedActivityKeys();
+    if (!user) {
+      this.reset();
+      return;
+    }
+    const nextScope = getActiveUserScope(user);
+    const scopeChanged = nextScope !== this.activeScope;
+    this.activeScope = nextScope;
+    if (scopeChanged) {
+      this.isSyncing = false;
+    }
+    this.state = this.loadLocalState(nextScope);
+    this.notify();
+    void this.syncWithServer(true);
+  }
+
   private notify() {
-    this.syncLegacyStorage();
     this.listeners.forEach((listener) => {
       try {
         listener();
@@ -104,19 +165,25 @@ class FavoritesManager {
     }
   }
 
-  private syncLegacyStorage() {
-    writeStorageList(STORAGE_KEYS.LEGACY_FAVORITES, this.state.spots);
-    writeStorageList(STORAGE_KEYS.LEGACY_ITINERARY_FAVS, this.state.itineraries);
+  private persistLocal() {
+    const scope = this.activeScope || getActiveUserScope();
+    if (!scope) return;
+    this.activeScope = scope;
+    writeStorageList(getScopedStorageKey(STORAGE_KEYS.ITINERARIES) || `${STORAGE_KEYS.ITINERARIES}__acct_${scope}`, this.state.itineraries);
+    writeStorageList(getScopedStorageKey(STORAGE_KEYS.SPOTS) || `${STORAGE_KEYS.SPOTS}__acct_${scope}`, this.state.spots);
+    writeStorageList(getScopedStorageKey(STORAGE_KEYS.PLACES) || `${STORAGE_KEYS.PLACES}__acct_${scope}`, this.state.places);
   }
 
-  private persistLocal() {
-    writeStorageList(STORAGE_KEYS.ITINERARIES, this.state.itineraries);
-    writeStorageList(STORAGE_KEYS.SPOTS, this.state.spots);
-    writeStorageList(STORAGE_KEYS.PLACES, this.state.places);
-    this.syncLegacyStorage();
+  private ensureScopeMatchesCurrentUser() {
+    const currentScope = getActiveUserScope();
+    if (currentScope !== this.activeScope) {
+      this.activeScope = currentScope;
+      this.state = this.loadLocalState(currentScope);
+    }
   }
 
   public getState(): SavedFavoritesState {
+    this.ensureScopeMatchesCurrentUser();
     return {
       itineraries: [...this.state.itineraries],
       spots: [...this.state.spots],
@@ -125,6 +192,7 @@ class FavoritesManager {
   }
 
   public getFavorites(): string[] {
+    this.ensureScopeMatchesCurrentUser();
     return [...this.state.spots];
   }
 
@@ -133,14 +201,17 @@ class FavoritesManager {
   }
 
   public isItinerarySaved(id: string): boolean {
+    this.ensureScopeMatchesCurrentUser();
     return this.state.itineraries.includes(id);
   }
 
   public isSpotSaved(id: string): boolean {
+    this.ensureScopeMatchesCurrentUser();
     return this.state.spots.includes(id);
   }
 
   public isPlaceSaved(id: string): boolean {
+    this.ensureScopeMatchesCurrentUser();
     return this.state.places.includes(id);
   }
 
@@ -156,7 +227,8 @@ class FavoritesManager {
   }
 
   public addRemovedItem(id: string): void {
-    if (!id) return;
+    this.ensureScopeMatchesCurrentUser();
+    if (!id || !this.activeScope) return;
     if (!this.state.places.includes(id)) {
       this.state.places = [id, ...this.state.places];
       this.persistLocal();
@@ -166,10 +238,13 @@ class FavoritesManager {
   }
 
   public toggleItinerary(id: string): boolean {
+    this.ensureScopeMatchesCurrentUser();
+    if (!id || !this.activeScope) return false;
     const exists = this.state.itineraries.includes(id);
+    const wasInPlaces = this.state.places.includes(id);
     if (exists) {
       this.state.itineraries = this.state.itineraries.filter((item) => item !== id);
-      if (!this.state.places.includes(id)) {
+      if (!wasInPlaces) {
         this.state.places = [id, ...this.state.places];
       }
     } else {
@@ -179,14 +254,22 @@ class FavoritesManager {
     this.persistLocal();
     this.notify();
     this.syncToServer('itinerary', id, !exists);
+    if (exists && !wasInPlaces) {
+      this.syncToServer('place', id, true);
+    } else if (!exists && wasInPlaces) {
+      this.syncToServer('place', id, false);
+    }
     return !exists;
   }
 
   public toggleSpot(id: string): boolean {
+    this.ensureScopeMatchesCurrentUser();
+    if (!id || !this.activeScope) return false;
     const exists = this.state.spots.includes(id);
+    const wasInPlaces = this.state.places.includes(id);
     if (exists) {
       this.state.spots = this.state.spots.filter((item) => item !== id);
-      if (!this.state.places.includes(id)) {
+      if (!wasInPlaces) {
         this.state.places = [id, ...this.state.places];
       }
     } else {
@@ -196,10 +279,17 @@ class FavoritesManager {
     this.persistLocal();
     this.notify();
     this.syncToServer('spot', id, !exists);
+    if (exists && !wasInPlaces) {
+      this.syncToServer('place', id, true);
+    } else if (!exists && wasInPlaces) {
+      this.syncToServer('place', id, false);
+    }
     return !exists;
   }
 
   public togglePlace(id: string): boolean {
+    this.ensureScopeMatchesCurrentUser();
+    if (!id || !this.activeScope) return false;
     const exists = this.state.places.includes(id);
     if (exists) {
       this.state.places = this.state.places.filter((item) => item !== id);
@@ -219,7 +309,8 @@ class FavoritesManager {
   }
 
   public removeBatch(items: Array<{ type: 'itinerary' | 'spot' | 'place'; id: string }>): void {
-    if (!items || items.length === 0) return;
+    this.ensureScopeMatchesCurrentUser();
+    if (!items || items.length === 0 || !this.activeScope) return;
 
     const itineraryIdsToRemove = new Set(
       items.filter((i) => i.type === 'itinerary').map((i) => i.id)
@@ -265,24 +356,50 @@ class FavoritesManager {
     };
   }
 
-  public async syncWithServer(): Promise<void> {
+  public async syncWithServer(forceReplace = true): Promise<void> {
     if (typeof window === 'undefined') return;
     const token = localStorage.getItem('monvian_token');
-    if (!token || this.isSyncing) return;
+    const requestScope = getActiveUserScope();
+    if (!token || !requestScope) return;
+    if (this.isSyncing && !forceReplace) return;
 
     this.isSyncing = true;
     try {
       const res = await fetch('/api/user/favorites', {
-        headers: { Authorization: `Bearer ${token}` },
+        headers: buildAuthHeaders(),
+        cache: 'no-store',
       });
       if (res.ok) {
         const data = await res.json();
-        if (data.success && data.favorites) {
-          const sItin = Array.isArray(data.favorites.itineraries) ? data.favorites.itineraries : [];
-          const sSpots = Array.isArray(data.favorites.spots) ? data.favorites.spots : [];
+        // Verify active account did not switch while request was in flight
+        const latestScope = getActiveUserScope();
+        if (!latestScope || latestScope !== requestScope) return;
 
-          this.state.itineraries = Array.from(new Set([...this.state.itineraries, ...sItin]));
-          this.state.spots = Array.from(new Set([...this.state.spots, ...sSpots]));
+        if (data.success && data.favorites) {
+          const sItin: string[] = Array.isArray(data.favorites.itineraries)
+            ? Array.from(new Set<string>(data.favorites.itineraries.filter((x: unknown): x is string => typeof x === 'string')))
+            : [];
+          const sSpots: string[] = Array.isArray(data.favorites.spots)
+            ? Array.from(new Set<string>(data.favorites.spots.filter((x: unknown): x is string => typeof x === 'string')))
+            : [];
+          const sPlaces: string[] = Array.isArray(data.favorites.places)
+            ? Array.from(new Set<string>(data.favorites.places.filter((x: unknown): x is string => typeof x === 'string')))
+            : [];
+
+          this.activeScope = latestScope;
+          if (forceReplace) {
+            this.state = {
+              itineraries: sItin,
+              spots: sSpots,
+              places: sPlaces,
+            };
+          } else {
+            this.state = {
+              itineraries: Array.from(new Set([...this.state.itineraries, ...sItin])),
+              spots: Array.from(new Set([...this.state.spots, ...sSpots])),
+              places: Array.from(new Set([...this.state.places, ...sPlaces])),
+            };
+          }
 
           this.persistLocal();
           this.notify();
@@ -298,37 +415,31 @@ class FavoritesManager {
   private async syncToServer(type: 'itinerary' | 'spot' | 'place', id: string, isSaved: boolean) {
     if (typeof window === 'undefined') return;
     const token = localStorage.getItem('monvian_token');
-    if (!token) return;
+    if (!token || !getActiveUserScope()) return;
 
     try {
       await fetch('/api/user/favorites/toggle', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`,
-        },
+        headers: buildAuthHeaders({ 'Content-Type': 'application/json' }),
         body: JSON.stringify({ item_type: type, item_id: id, is_saved: isSaved }),
       });
-    } catch (e) {
-      // Offline fallback: changes already safely preserved in localStorage
+    } catch {
+      // Offline fallback: changes already safely preserved in account-scoped localStorage
     }
   }
 
   private async syncBatchRemoveToServer(items: Array<{ type: string; id: string }>) {
     if (typeof window === 'undefined') return;
     const token = localStorage.getItem('monvian_token');
-    if (!token) return;
+    if (!token || !getActiveUserScope()) return;
 
     try {
       await fetch('/api/user/favorites/remove-batch', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`,
-        },
+        headers: buildAuthHeaders({ 'Content-Type': 'application/json' }),
         body: JSON.stringify({ items }),
       });
-    } catch (e) {}
+    } catch {}
   }
 }
 

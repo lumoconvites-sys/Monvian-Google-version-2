@@ -280,6 +280,15 @@ export function clearSyncSessionStorage(options?: { preserveManualLogoutFlag?: b
     'monvian_trip_note_campos',
     'monvian_user_preferences',
     'monvian_user_session_id',
+    'monvian_saved_itineraries',
+    'monvian_itinerary_favs',
+    'monvian_saved_spots',
+    'monvian_removed_items',
+    'monvian_saved_places',
+    'monvian_favorites',
+    'monvian_liked_posts',
+    'monvian_saved_posts',
+    'monvian_following_users',
     ...(options?.preserveManualLogoutFlag ? [] : ['monvian_manual_logout']),
   ];
 

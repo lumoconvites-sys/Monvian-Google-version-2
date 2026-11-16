@@ -24,6 +24,7 @@ import { useFavorites } from '../hooks/useFavorites';
 import { getSpotImage } from '../utils/spotImages';
 import { fetchItinerariesFromSupabase } from '../services/supabaseItineraries';
 import { useIOSBackEntry } from '../services/iosNavigationManager';
+import { readScopedJSON } from '../utils/userScopedStorage';
 
 export type SavedCollectionType = 'roteiros' | 'pontos' | 'lugares';
 
@@ -214,10 +215,12 @@ const CollectionCoverCard: React.FC<CollectionCoverCardProps> = React.memo(({
 let cachedActiveSavedCollection: SavedCollectionType | null = null;
 let hasPlayedSavedEntranceAnimation = false;
 if (typeof window !== 'undefined') {
-  window.addEventListener('monvian:user_logged_out', () => {
+  const resetSavedViewCaches = () => {
     cachedActiveSavedCollection = null;
     hasPlayedSavedEntranceAnimation = false;
-  });
+  };
+  window.addEventListener('monvian:user_logged_out', resetSavedViewCaches);
+  window.addEventListener('monvian:account_switched', resetSavedViewCaches);
 }
 
 export const SavedView: React.FC<SavedViewProps> = React.memo(({
@@ -255,6 +258,20 @@ export const SavedView: React.FC<SavedViewProps> = React.memo(({
   useEffect(() => {
     cachedActiveSavedCollection = activeCollection;
   }, [activeCollection]);
+
+  useEffect(() => {
+    const handleAccountReset = () => {
+      setActiveCollection(null);
+      setIsEditing(false);
+      setSelectedForRemoval(new Set());
+    };
+    window.addEventListener('monvian:user_logged_out', handleAccountReset);
+    window.addEventListener('monvian:account_switched', handleAccountReset);
+    return () => {
+      window.removeEventListener('monvian:user_logged_out', handleAccountReset);
+      window.removeEventListener('monvian:account_switched', handleAccountReset);
+    };
+  }, []);
 
   const [cachedStoreItineraries, setCachedStoreItineraries] = useState<Itinerary[]>(() => {
     try {
@@ -299,13 +316,10 @@ export const SavedView: React.FC<SavedViewProps> = React.memo(({
     const fromCurated = DEFAULT_CURATED_ITINERARIES.find((it) => it.id === id);
     if (fromCurated) return fromCurated;
     try {
-      const rawCustom = localStorage.getItem(`monvian_user_itinerary_${id}`);
-      if (rawCustom) return JSON.parse(rawCustom);
-      const rawActive = localStorage.getItem('monvian_active_itinerary');
-      if (rawActive) {
-        const parsedActive = JSON.parse(rawActive);
-        if (parsedActive && parsedActive.id === id) return parsedActive;
-      }
+      const custom = readScopedJSON<Itinerary | null>(`monvian_user_itinerary_${id}`, null);
+      if (custom) return custom;
+      const active = readScopedJSON<Itinerary | null>('monvian_active_itinerary', null);
+      if (active && active.id === id) return active;
     } catch {}
     return null;
   };
