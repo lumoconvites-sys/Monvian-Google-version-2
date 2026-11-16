@@ -8,7 +8,7 @@
     <meta name="mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-title" content="Monvian" />
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" id="apple-status-bar-meta" />
-    <meta name="color-scheme" content="light" />
+    <meta name="color-scheme" content="light dark" />
     <meta name="theme-color" content="#ffffff" id="theme-color-meta" />
     <link rel="manifest" href="/manifest.json" />
     <link rel="icon" type="image/png" sizes="192x192" href="/pwa-192x192.png" />
@@ -106,9 +106,11 @@
             }
           }
         }, true);
-        function applyLightMode() {
+        function applySavedTheme() {
           try {
-            var topColor = '#ffffff';
+            var saved = localStorage.getItem('monvian_theme');
+            var isDark = saved === 'dark';
+            var topColor = isDark ? '#000000' : '#ffffff';
             var themeMetas = document.querySelectorAll('meta[name="theme-color"]');
             themeMetas.forEach(function(meta) {
               meta.setAttribute('content', topColor);
@@ -117,17 +119,24 @@
             if (statusMeta) statusMeta.setAttribute('content', 'black-translucent');
 
             document.documentElement.style.backgroundColor = topColor;
-            document.documentElement.style.colorScheme = 'light';
+            document.documentElement.style.colorScheme = isDark ? 'dark' : 'light';
             if (document.body) document.body.style.backgroundColor = topColor;
-            document.documentElement.classList.remove('dark');
-            document.documentElement.classList.add('light');
-            localStorage.setItem('monvian_theme', 'light');
+            if (isDark) {
+              document.documentElement.classList.add('dark');
+              document.documentElement.classList.remove('light');
+            } else {
+              document.documentElement.classList.remove('dark');
+              document.documentElement.classList.add('light');
+            }
+            if (!saved) {
+              localStorage.setItem('monvian_theme', 'light');
+            }
 
             var preloader = document.getElementById('monvian-app-preloader');
-            if (preloader) preloader.style.backgroundColor = '#ffffff';
+            if (preloader) preloader.style.backgroundColor = topColor;
           } catch (e) {}
         }
-        applyLightMode();
+        applySavedTheme();
       })();
     </script>
     <script>
@@ -192,6 +201,10 @@
 
           var preloader = document.getElementById('monvian-app-preloader');
           if (preloader) {
+            try {
+              var savedTheme = localStorage.getItem('monvian_theme');
+              preloader.style.backgroundColor = savedTheme === 'dark' ? '#000000' : '#ffffff';
+            } catch (e) {}
             preloader.style.display = 'flex';
           }
 
@@ -498,6 +511,9 @@
       </video>
     </div>
     <style>
+      html.dark #monvian-app-preloader {
+        background-color: #000000 !important;
+      }
       @keyframes monvianLogoSpringEnter {
         0% {
           opacity: 0;

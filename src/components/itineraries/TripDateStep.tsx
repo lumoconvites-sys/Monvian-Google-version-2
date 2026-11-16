@@ -181,7 +181,7 @@ export const TripDateStep: React.FC<TripDateStepProps> = ({
       <div
         className={`w-full p-4 sm:p-5 rounded-[28px] sm:rounded-[32px] transition-all duration-200 ${
           isDark
-            ? 'bg-[#18181b]/90 backdrop-blur-2xl border border-white/12 shadow-[0_20px_50px_rgba(0,0,0,0.6)]'
+            ? 'bg-[#1C1C1E] backdrop-blur-2xl border border-white/10 shadow-[0_20px_50px_rgba(0,0,0,0.6)]'
             : 'bg-white/90 backdrop-blur-2xl border border-black/8 shadow-[0_15px_40px_rgba(0,0,0,0.08)]'
         }`}
       >
@@ -240,7 +240,9 @@ export const TripDateStep: React.FC<TripDateStepProps> = ({
                   onClick={() => handleSelectDay(item.day, item.month, item.year, item.isPast)}
                   className={`w-8 h-8 sm:w-9 sm:h-9 rounded-full flex items-center justify-center text-xs sm:text-sm font-black transition-all relative ${
                     item.isSelected
-                      ? 'bg-white text-black font-black shadow-md scale-105'
+                      ? isDark
+                        ? 'bg-white text-black font-black shadow-md scale-105'
+                        : 'bg-zinc-900 text-white font-black shadow-md scale-105'
                       : item.isPast
                       ? 'text-zinc-300 dark:text-zinc-700 cursor-not-allowed opacity-40 font-semibold'
                       : !item.isCurrentMonth
@@ -252,7 +254,7 @@ export const TripDateStep: React.FC<TripDateStepProps> = ({
                 >
                   {item.day}
                   {item.isToday && !item.isSelected && (
-                    <span className="absolute bottom-1 w-1.5 h-1.5 rounded-full bg-white dark:bg-white" />
+                    <span className="absolute bottom-1 w-1.5 h-1.5 rounded-full bg-zinc-900 dark:bg-white" />
                   )}
                 </button>
               </div>

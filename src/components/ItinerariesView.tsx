@@ -2477,8 +2477,8 @@ export const ItinerariesView: React.FC<ItinerariesViewProps> = memo(({
               } catch (e) {}
               setItineraryViewMode('explore');
             }}
-            className={isSatelliteMap ? '!text-white' : '!text-black'}
-            style={{ color: isSatelliteMap ? '#FFFFFF' : '#000000' }}
+            className={isSatelliteMap || isDark ? '!text-white' : '!text-black'}
+            style={{ color: isSatelliteMap || isDark ? '#FFFFFF' : '#000000' }}
             title="Loja de Roteiros"
             aria-label="Loja de Roteiros"
           />
@@ -2487,14 +2487,14 @@ export const ItinerariesView: React.FC<ItinerariesViewProps> = memo(({
         {/* Dynamic Island Style Pill */}
         <div
           className={`h-12 px-4 sm:px-5 rounded-full pointer-events-auto ios26-liquid-glass flex items-center gap-2.5 sm:gap-3 text-xs sm:text-sm font-bold max-w-[calc(100vw-148px)] sm:max-w-none transition-all duration-200 ${
-            isSatelliteMap ? 'text-white' : 'text-black'
+            isSatelliteMap || isDark ? 'text-white' : 'text-black'
           }`}
-          style={{ color: isSatelliteMap ? '#FFFFFF' : '#000000' }}
+          style={{ color: isSatelliteMap || isDark ? '#FFFFFF' : '#000000' }}
         >
           <RoundedNavigationIcon
             isGold={isPremiumItinerary}
             className="relative z-10 w-[26px] h-[26px] sm:w-[28px] sm:h-[28px] shrink-0"
-            style={{ color: isPremiumItinerary ? undefined : (isSatelliteMap ? '#FFFFFF' : '#000000') }}
+            style={{ color: isPremiumItinerary ? undefined : (isSatelliteMap || isDark ? '#FFFFFF' : '#000000') }}
             size={28}
           />
 
@@ -2538,9 +2538,9 @@ export const ItinerariesView: React.FC<ItinerariesViewProps> = memo(({
                   setIsEditingTitle(true);
                 }}
                 className={`font-black text-sm sm:text-base tracking-tight truncate max-w-[140px] sm:max-w-[240px] cursor-pointer ${
-                  isSatelliteMap ? 'text-white' : 'text-black'
+                  isSatelliteMap || isDark ? 'text-white' : 'text-black'
                 }`}
-                style={{ color: isSatelliteMap ? '#FFFFFF' : '#000000' }}
+                style={{ color: isSatelliteMap || isDark ? '#FFFFFF' : '#000000' }}
                 title="Toque para editar"
               >
                 {getShortDisplayTitle(userItinerary?.title || 'MEU ROTEIRO')}
@@ -2566,14 +2566,14 @@ export const ItinerariesView: React.FC<ItinerariesViewProps> = memo(({
           }}
           type="button"
           className={`w-[53px] h-[53px] sm:w-[58px] sm:h-[58px] rounded-full ios26-liquid-glass flex items-center justify-center pointer-events-auto transition-all duration-200 active:scale-90 cursor-pointer shrink-0 ${
-            isSatelliteMap ? 'text-white' : 'text-black'
+            isSatelliteMap || isDark ? 'text-white' : 'text-black'
           }`}
-          style={{ color: isSatelliteMap ? '#FFFFFF' : '#000000' }}
+          style={{ color: isSatelliteMap || isDark ? '#FFFFFF' : '#000000' }}
           title="Opções do roteiro"
         >
           <SlidersHorizontal
             className="relative z-10 w-6 h-6 sm:w-[29px] sm:h-[29px] stroke-[2]"
-            style={{ color: isSatelliteMap ? '#FFFFFF' : '#000000' }}
+            style={{ color: isSatelliteMap || isDark ? '#FFFFFF' : '#000000' }}
           />
         </button>
       </div>
@@ -2594,15 +2594,15 @@ export const ItinerariesView: React.FC<ItinerariesViewProps> = memo(({
           type="button"
           onClick={handleToggleMapStyle}
           className={`w-[53px] h-[53px] sm:w-[58px] sm:h-[58px] rounded-full ios26-liquid-glass flex items-center justify-center cursor-pointer transition-all duration-200 shrink-0 ${
-            isSatelliteMap ? 'text-white' : 'text-black'
+            isSatelliteMap || isDark ? 'text-white' : 'text-black'
           }`}
-          style={{ color: isSatelliteMap ? '#FFFFFF' : '#000000' }}
+          style={{ color: isSatelliteMap || isDark ? '#FFFFFF' : '#000000' }}
           title={itineraryMapStyle === 'satelite' ? 'Modo Satélite Ativo (Toque para alternar)' : 'Alternar satélite / mapa'}
           aria-label="Alternar satélite / mapa"
         >
           <Layers
             className="relative z-10 w-[26px] h-[26px] sm:w-[29px] sm:h-[29px] stroke-[2]"
-            style={{ color: isSatelliteMap ? '#FFFFFF' : '#000000' }}
+            style={{ color: isSatelliteMap || isDark ? '#FFFFFF' : '#000000' }}
           />
         </motion.button>
 
@@ -2619,15 +2619,15 @@ export const ItinerariesView: React.FC<ItinerariesViewProps> = memo(({
             setItineraryViewMode('explore');
           }}
           className={`w-[53px] h-[53px] sm:w-[58px] sm:h-[58px] rounded-full ios26-liquid-glass flex items-center justify-center cursor-pointer transition-all duration-200 shrink-0 ${
-            isSatelliteMap ? 'text-white' : 'text-black'
+            isSatelliteMap || isDark ? 'text-white' : 'text-black'
           }`}
-          style={{ color: isSatelliteMap ? '#FFFFFF' : '#000000' }}
+          style={{ color: isSatelliteMap || isDark ? '#FFFFFF' : '#000000' }}
           title="Loja de Roteiros"
           aria-label="Loja de Roteiros"
         >
           <Store
             className="relative z-10 w-[26px] h-[26px] sm:w-[29px] sm:h-[29px] stroke-[2]"
-            style={{ color: isSatelliteMap ? '#FFFFFF' : '#000000' }}
+            style={{ color: isSatelliteMap || isDark ? '#FFFFFF' : '#000000' }}
           />
         </motion.button>
       </div>
@@ -2901,12 +2901,12 @@ export const ItinerariesView: React.FC<ItinerariesViewProps> = memo(({
               onClick={() => setIsImportModalOpen(true)}
               className={`w-full flex items-center justify-center gap-2 py-3 px-4 rounded-2xl border border-dashed text-xs font-bold transition-all cursor-pointer ${
                 isDark
-                  ? 'border-[#262626] bg-[#000000] hover:border-white/30 text-white'
+                  ? 'border-white/15 bg-[#1C1C1E] hover:border-white/30 text-white'
                   : 'border-white/20 bg-[#e2e2e2] hover:bg-zinc-300 text-[#9e9e9e]'
               }`}
               style={{
                 color: isDark ? '#FFFFFF' : '#9e9e9e',
-                backgroundColor: isDark ? '#000000' : '#e2e2e2',
+                backgroundColor: isDark ? '#1C1C1E' : '#e2e2e2',
               }}
             >
               <Plus
@@ -3079,11 +3079,11 @@ export const ItinerariesView: React.FC<ItinerariesViewProps> = memo(({
             }}
             className={`md:hidden !absolute inset-x-0 bottom-0 z-40 max-w-3xl mx-auto rounded-t-[32px] overflow-hidden flex flex-col pointer-events-auto transition-colors duration-200 border-x-0 sm:border-x border-t shadow-[0_-10px_34px_rgba(0,0,0,0.16)] ${
               isDark
-                ? 'bg-[#121214] border-white/12 text-white'
+                ? 'bg-[#000000] border-white/10 text-white'
                 : 'bg-[#FFFFFF] border-black/[0.06] text-black'
             }`}
             style={{
-              backgroundColor: isDark ? '#121214' : '#FFFFFF',
+              backgroundColor: isDark ? '#000000' : '#FFFFFF',
               color: isDark ? '#FFFFFF' : '#000000',
               position: 'absolute',
               bottom: 0,
@@ -3139,8 +3139,12 @@ export const ItinerariesView: React.FC<ItinerariesViewProps> = memo(({
                         }}
                         className={`px-3 py-1 rounded-full text-xs font-bold transition-colors cursor-pointer whitespace-nowrap ${
                           selectedDayIndex === dIdx
-                            ? 'bg-white text-black shadow-md'
-                            : 'bg-white/10 text-white/80 hover:bg-white/20 border border-white/10'
+                            ? isDark
+                              ? 'bg-white text-black shadow-md'
+                              : 'bg-zinc-900 text-white shadow-md'
+                            : isDark
+                              ? 'bg-[#1C1C1E] text-white/80 hover:bg-white/15 border border-white/10'
+                              : 'bg-zinc-100 text-zinc-700 hover:bg-zinc-200 border border-black/5'
                         }`}
                       >
                         {`Dia ${day.dayNumber}`}
@@ -3174,7 +3178,11 @@ export const ItinerariesView: React.FC<ItinerariesViewProps> = memo(({
                     whileHover={{ scale: 1.04 }}
                     type="button"
                     onClick={() => setIsImportModalOpen(true)}
-                    className="w-11 h-11 rounded-full flex items-center justify-center cursor-pointer transition-all duration-200 active:scale-95 ios-glass border border-white text-zinc-900 dark:text-white shadow-lg"
+                    className={`w-11 h-11 rounded-full flex items-center justify-center cursor-pointer transition-all duration-200 active:scale-95 ios-glass border shadow-lg ${
+                      isDark
+                        ? 'border-white/15 text-white bg-[#1C1C1E]/80'
+                        : 'border-white text-zinc-900'
+                    }`}
                     title="Adicionar ponto turístico ao roteiro"
                     aria-label="Adicionar ponto turístico ao roteiro"
                   >

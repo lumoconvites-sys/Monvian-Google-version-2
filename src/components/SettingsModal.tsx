@@ -43,7 +43,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
   onToggleHighContrast,
   onOpenAccountSettings,
 }) => {
-  const isDark = false;
+  const isDark = theme === 'dark';
   const { language, setLanguage, tr } = useLanguage();
 
   return (
@@ -72,7 +72,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
             onClick={(e) => e.stopPropagation()}
             className={`w-full md:max-w-md rounded-t-[32px] md:rounded-[32px] overflow-hidden flex flex-col shadow-2xl border ${
               isDark
-                ? 'bg-[#121214] text-white border-white/10'
+                ? 'bg-[#000000] text-white border-white/10'
                 : 'bg-[#fefefe] text-zinc-900 border-black/10'
             }`}
             style={{
@@ -83,9 +83,9 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
             {/* Scrollable Body including Sticky Blurred Header */}
             <div className="flex-1 overflow-y-auto flex flex-col">
               <div
-                className="sticky top-0 z-20 shrink-0 border-b border-black/5 dark:border-white/5"
+                className="sticky top-0 z-20 shrink-0 border-b border-black/5 dark:border-white/10"
                 style={{
-                  backgroundColor: isDark ? 'rgba(18, 18, 20, 0.40)' : 'rgba(254, 254, 254, 0.40)',
+                  backgroundColor: isDark ? 'rgba(0, 0, 0, 0.55)' : 'rgba(254, 254, 254, 0.40)',
                   backdropFilter: 'blur(8px) saturate(150%)',
                   WebkitBackdropFilter: 'blur(8px) saturate(150%)',
                 }}
@@ -125,7 +125,38 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
               </div>
 
               <div className="px-5 py-4 space-y-4">
-              {/* SECTION: EFEITOS VISUAIS */}
+              {/* SECTION: APARÊNCIA / MODO ESCURO */}
+              <div>
+                <span className="text-[11px] font-bold uppercase tracking-wider text-zinc-500 dark:text-zinc-400 px-2 block mb-2">
+                  {tr('Aparência')}
+                </span>
+                <div
+                  className={`rounded-2xl border divide-y overflow-hidden ${
+                    isDark
+                      ? 'bg-[#1C1C1E] border-white/10 divide-white/10'
+                      : 'bg-white border-black/5 divide-black/5 shadow-2xs'
+                  }`}
+                >
+                  <div className="p-3.5 flex items-center justify-between gap-3">
+                    <div className="flex items-center gap-3 min-w-0">
+                      <Moon className="w-5 h-5 text-zinc-900 dark:text-white shrink-0 stroke-[2]" />
+                      <div className="min-w-0">
+                        <h4 className="text-sm font-semibold tracking-tight">
+                          {tr('Modo Escuro')}
+                        </h4>
+                        <p className="text-[11px] text-zinc-500 dark:text-zinc-400">
+                          {tr('Tema escuro em todo o aplicativo')}
+                        </p>
+                      </div>
+                    </div>
+                    <IOSSwitch
+                      checked={isDark}
+                      onChange={onToggleTheme}
+                      ariaLabel="Modo Escuro"
+                    />
+                  </div>
+                </div>
+              </div>
 
               {/* SECTION: EFEITOS VISUAIS */}
               <div>
@@ -205,10 +236,14 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                       key={item.code}
                       type="button"
                       onClick={() => setLanguage(item.code)}
-                      className="w-full p-3.5 flex items-center justify-between gap-3 text-left transition-colors hover:bg-zinc-50 active:bg-zinc-100 cursor-pointer"
+                      className={`w-full p-3.5 flex items-center justify-between gap-3 text-left transition-colors cursor-pointer ${
+                        isDark
+                          ? 'hover:bg-white/5 active:bg-white/10'
+                          : 'hover:bg-zinc-50 active:bg-zinc-100'
+                      }`}
                     >
                       <div className="flex items-center gap-3 min-w-0">
-                        <Globe className="w-5 h-5 text-zinc-600 shrink-0 stroke-[2]" />
+                        <Globe className={`w-5 h-5 shrink-0 stroke-[2] ${isDark ? 'text-zinc-300' : 'text-zinc-600'}`} />
                         <span className="text-sm font-semibold tracking-tight" data-no-translate>
                           {item.label}
                         </span>

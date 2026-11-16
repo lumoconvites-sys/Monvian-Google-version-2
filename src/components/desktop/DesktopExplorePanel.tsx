@@ -95,7 +95,7 @@ export const DesktopExplorePanel: React.FC<DesktopExplorePanelProps> = ({
         <div
           className={`relative flex items-center px-3.5 py-2.5 rounded-xl border transition-all ${
             isDark
-              ? 'bg-[#000000] border-[#262626] focus-within:border-white/40'
+              ? 'bg-[#1C1C1E] border-white/10 focus-within:border-white/30'
               : 'bg-[#f5f5f5] border-zinc-200 focus-within:border-zinc-400'
           }`}
         >
@@ -139,7 +139,7 @@ export const DesktopExplorePanel: React.FC<DesktopExplorePanelProps> = ({
                   isDark
                     ? isSelected
                       ? 'bg-white text-black shadow-xs'
-                      : 'bg-[#000000] text-[#A1A1AA] border border-[#262626] hover:text-white'
+                      : 'bg-[#1C1C1E] text-[#A1A1AA] border border-white/10 hover:text-white'
                     : isSelected
                     ? 'bg-zinc-900 text-white shadow-xs'
                     : 'bg-zinc-100 text-zinc-600 hover:text-zinc-900 hover:bg-zinc-200'
@@ -171,13 +171,13 @@ export const DesktopExplorePanel: React.FC<DesktopExplorePanelProps> = ({
                 className={`w-full p-3 rounded-2xl border transition-all duration-150 flex items-center gap-3.5 text-left cursor-pointer group relative ${
                   isDark
                     ? isSelected
-                      ? 'bg-[#000000] border-amber-500/80 ring-1 ring-amber-500/30 shadow-sm'
-                      : 'bg-[#000000] border-[#262626] hover:border-white/30'
+                      ? 'bg-[#1C1C1E] border-amber-500/80 ring-1 ring-amber-500/30 shadow-sm'
+                      : 'bg-[#1C1C1E] border-white/10 hover:border-white/25'
                     : isSelected
                     ? 'bg-[#ffffff] border-amber-500/80 ring-2 ring-amber-500/30 shadow-sm'
                     : 'bg-[#f5f5f5] border-zinc-200/80 hover:border-zinc-300 hover:bg-zinc-100/90'
                 }`}
-                style={{ backgroundColor: isDark ? '#000000' : (isSelected ? '#ffffff' : '#f5f5f5') }}
+                style={{ backgroundColor: isDark ? '#1C1C1E' : (isSelected ? '#ffffff' : '#f5f5f5') }}
               >
                 {/* Standardized Thumbnail Image */}
                 <div className={`w-20 h-20 rounded-xl overflow-hidden shrink-0 relative border ${
@@ -245,7 +245,7 @@ export const DesktopExplorePanel: React.FC<DesktopExplorePanelProps> = ({
                       }}
                       className={`px-2.5 py-1 rounded-md text-[11px] font-semibold border transition-colors cursor-pointer flex items-center gap-0.5 shadow-2xs ${
                         isDark
-                          ? 'bg-[#000000] border-[#262626] hover:border-white/30'
+                          ? 'bg-[#2C2C2E] border-white/10 hover:border-white/25'
                           : 'bg-white border-zinc-200/90 hover:bg-zinc-100'
                       }`}
                       title="Ver detalhes completos"

@@ -38,6 +38,7 @@ interface AuthScreenProps {
   initialResetOobCode?: string | null;
   initialAuthMode?: 'landing' | 'login';
   onResetHandled?: () => void;
+  theme?: 'dark' | 'light';
 }
 
 /**
@@ -79,7 +80,9 @@ export function AuthScreen({
   initialResetOobCode,
   initialAuthMode = 'landing',
   onResetHandled,
+  theme = 'light',
 }: AuthScreenProps) {
+  const isDark = theme === 'dark';
   const shouldReduceMotion = useReducedMotion();
 
   // Scroll container ref for the cinematic landing page stage
@@ -1149,7 +1152,9 @@ export function AuthScreen({
 
   return (
     <div
-      className="fixed inset-0 z-[100] select-none overflow-hidden bg-[#FFFFFF] text-[#080808]"
+      className={`fixed inset-0 z-[100] select-none overflow-hidden transition-colors duration-200 ${
+        isDark ? 'bg-[#000000] text-[#FFFFFF]' : 'bg-[#FFFFFF] text-[#080808]'
+      }`}
       style={{
         top: 0,
         bottom: 0,
@@ -1171,7 +1176,9 @@ export function AuthScreen({
         id="auth-landing-layer"
         ref={landingScrollContainerRef}
         aria-hidden={authMode !== 'landing'}
-        className={`fixed inset-0 z-[100] overflow-y-auto overscroll-y-contain bg-[#FFFFFF] transition-opacity duration-300 ${
+        className={`fixed inset-0 z-[100] overflow-y-auto overscroll-y-contain transition-opacity duration-300 ${
+          isDark ? 'bg-[#000000]' : 'bg-[#FFFFFF]'
+        } ${
           authMode === 'landing'
             ? 'opacity-100 pointer-events-auto visible'
             : 'opacity-0 pointer-events-none invisible'
@@ -1192,11 +1199,12 @@ export function AuthScreen({
           scrollContainerRef={landingScrollContainerRef}
           onStartRegister={handleStartRegisterFlow}
           onOpenLogin={handleOpenLoginFlow}
+          theme={theme}
         />
       </div>
 
       {/* =========================================================================
-          2. PROGRESSIVE 3-STEP REGISTRATION FLOW (Modo Branco — Nome -> E-mail -> Senha)
+          2. PROGRESSIVE 3-STEP REGISTRATION FLOW (Nome -> E-mail -> Senha -> Avatar)
              Kept mounted in DOM so iOS Safari can synchronously focus the input
              within the user's tap gesture and open the native keyboard immediately.
          ========================================================================= */}
@@ -1204,7 +1212,9 @@ export function AuthScreen({
         ref={registerSectionRef}
         id="auth-register-section"
         aria-hidden={authMode !== 'register'}
-        className={`fixed inset-0 bg-[#FFFFFF] text-[#080808] flex flex-col justify-between ios-pushed-page transition-opacity duration-200 ${
+        className={`fixed inset-0 flex flex-col justify-between ios-pushed-page transition-opacity duration-200 ${
+          isDark ? 'bg-[#000000] text-[#FFFFFF]' : 'bg-[#FFFFFF] text-[#080808]'
+        } ${
           registerStep === 4 ? 'overflow-y-auto overscroll-y-contain' : 'overflow-hidden'
         }`}
         style={{
@@ -1215,7 +1225,7 @@ export function AuthScreen({
           width: '100%',
           height: 'var(--app-height, 100dvh)',
           minHeight: 'var(--app-height, 100dvh)',
-          backgroundColor: '#FFFFFF',
+          backgroundColor: isDark ? '#000000' : '#FFFFFF',
           paddingTop: 'max(20px, env(safe-area-inset-top, 0px))',
           paddingBottom: 'max(24px, env(safe-area-inset-bottom, 0px))',
           paddingLeft: 'max(24px, env(safe-area-inset-left, 0px))',
@@ -1227,11 +1237,11 @@ export function AuthScreen({
           zIndex: authMode === 'register' ? 110 : -10,
         }}
       >
-        {/* Top Minimal Navigation Bar with Centered 3-Dot Step Indicator */}
+        {/* Top Minimal Navigation Bar with Centered 4-Dot Step Indicator */}
         <header className="relative w-full max-w-sm mx-auto pt-2 flex items-center justify-between shrink-0">
           <AppleBackButton
             id="btn-register-back"
-            theme="light"
+            theme={isDark ? 'dark' : 'light'}
             onClick={handleStepBack}
             disabled={loading}
             aria-label="Voltar"
@@ -1248,7 +1258,11 @@ export function AuthScreen({
                 <span
                   key={step}
                   className={`w-2 h-2 rounded-full transition-colors duration-300 ${
-                    isActive ? 'bg-[#2673E8]' : 'bg-[#C5CBD8]'
+                    isActive
+                      ? 'bg-[#2673E8]'
+                      : isDark
+                        ? 'bg-white/20'
+                        : 'bg-[#C5CBD8]'
                   }`}
                 />
               );
@@ -1283,7 +1297,9 @@ export function AuthScreen({
           >
             <h1
               id="register-step1-title"
-              className="text-[26px] sm:text-[28px] font-bold tracking-tight text-[#080808] leading-[1.2] mb-6 text-left"
+              className={`text-[26px] sm:text-[28px] font-bold tracking-tight leading-[1.2] mb-6 text-left ${
+                isDark ? 'text-[#FFFFFF]' : 'text-[#080808]'
+              }`}
             >
               Vamos começar, qual é seu nome?
             </h1>
@@ -1307,7 +1323,11 @@ export function AuthScreen({
                 autoComplete="name"
                 autoCapitalize="words"
                 enterKeyHint="next"
-                className="w-full px-5 py-4 rounded-[20px] bg-[#F5F7FA] border border-[#E2E6EE] text-[#080808] placeholder:text-[#8E939E] focus:outline-none focus:bg-[#FFFFFF] focus:border-[#2673E8] focus:ring-2 focus:ring-[#2673E8]/15 transition-all text-[16px] font-medium"
+                className={`w-full px-5 py-4 rounded-[20px] border focus:outline-none focus:border-[#2673E8] focus:ring-2 focus:ring-[#2673E8]/15 transition-all text-[16px] font-medium ${
+                  isDark
+                    ? 'bg-[#1C1C1E] border-white/10 text-[#FFFFFF] placeholder:text-[#71717A] focus:bg-[#1C1C1E]'
+                    : 'bg-[#F5F7FA] border-[#E2E6EE] text-[#080808] placeholder:text-[#8E939E] focus:bg-[#FFFFFF]'
+                }`}
               />
 
               <AnimatePresence>
@@ -1316,7 +1336,7 @@ export function AuthScreen({
                     initial={{ opacity: 0, y: -4 }}
                     animate={{ opacity: 1, y: 0 }}
                     exit={{ opacity: 0, y: -4 }}
-                    className="text-[13px] text-[#737780] font-medium mt-2.5 px-1"
+                    className={`text-[13px] font-medium mt-2.5 px-1 ${isDark ? 'text-[#A1A1AA]' : 'text-[#737780]'}`}
                   >
                     Digite pelo menos 2 caracteres para continuar.
                   </motion.p>
@@ -1334,7 +1354,9 @@ export function AuthScreen({
           >
             <h1
               id="register-step2-title"
-              className="text-[26px] sm:text-[28px] font-bold tracking-tight text-[#080808] leading-[1.2] mb-6 text-left"
+              className={`text-[26px] sm:text-[28px] font-bold tracking-tight leading-[1.2] mb-6 text-left ${
+                isDark ? 'text-[#FFFFFF]' : 'text-[#080808]'
+              }`}
             >
               Forneça seu e-mail para continuar
             </h1>
@@ -1360,7 +1382,11 @@ export function AuthScreen({
                 autoCorrect="off"
                 spellCheck={false}
                 enterKeyHint="next"
-                className="w-full px-5 py-4 rounded-[20px] bg-[#F5F7FA] border border-[#E2E6EE] text-[#080808] placeholder:text-[#8E939E] focus:outline-none focus:bg-[#FFFFFF] focus:border-[#2673E8] focus:ring-2 focus:ring-[#2673E8]/15 transition-all text-[16px] font-medium"
+                className={`w-full px-5 py-4 rounded-[20px] border focus:outline-none focus:border-[#2673E8] focus:ring-2 focus:ring-[#2673E8]/15 transition-all text-[16px] font-medium ${
+                  isDark
+                    ? 'bg-[#1C1C1E] border-white/10 text-[#FFFFFF] placeholder:text-[#71717A] focus:bg-[#1C1C1E]'
+                    : 'bg-[#F5F7FA] border-[#E2E6EE] text-[#080808] placeholder:text-[#8E939E] focus:bg-[#FFFFFF]'
+                }`}
               />
 
               <AnimatePresence>
@@ -1382,7 +1408,7 @@ export function AuthScreen({
                     initial={{ opacity: 0, y: -4 }}
                     animate={{ opacity: 1, y: 0 }}
                     exit={{ opacity: 0, y: -4 }}
-                    className="text-[13px] text-[#737780] font-medium mt-2.5 px-1"
+                    className={`text-[13px] font-medium mt-2.5 px-1 ${isDark ? 'text-[#A1A1AA]' : 'text-[#737780]'}`}
                   >
                     {emailValidation.reason || 'Informe um endereço de e-mail válido.'}
                   </motion.p>
@@ -1400,7 +1426,9 @@ export function AuthScreen({
           >
             <h1
               id="register-step3-title"
-              className="text-[26px] sm:text-[28px] font-bold tracking-tight text-[#080808] leading-[1.2] mb-6 text-left"
+              className={`text-[26px] sm:text-[28px] font-bold tracking-tight leading-[1.2] mb-6 text-left ${
+                isDark ? 'text-[#FFFFFF]' : 'text-[#080808]'
+              }`}
             >
               Crie sua senha
             </h1>
@@ -1424,13 +1452,19 @@ export function AuthScreen({
                   disabled={loading}
                   autoComplete="new-password"
                   enterKeyHint="next"
-                  className="w-full pl-5 pr-12 py-4 rounded-[20px] bg-[#F5F7FA] border border-[#E2E6EE] text-[#080808] placeholder:text-[#8E939E] focus:outline-none focus:bg-[#FFFFFF] focus:border-[#2673E8] focus:ring-2 focus:ring-[#2673E8]/15 transition-all text-[16px] font-medium disabled:opacity-60"
+                  className={`w-full pl-5 pr-12 py-4 rounded-[20px] border focus:outline-none focus:border-[#2673E8] focus:ring-2 focus:ring-[#2673E8]/15 transition-all text-[16px] font-medium disabled:opacity-60 ${
+                    isDark
+                      ? 'bg-[#1C1C1E] border-white/10 text-[#FFFFFF] placeholder:text-[#71717A] focus:bg-[#1C1C1E]'
+                      : 'bg-[#F5F7FA] border-[#E2E6EE] text-[#080808] placeholder:text-[#8E939E] focus:bg-[#FFFFFF]'
+                  }`}
                 />
                 <button
                   type="button"
                   onClick={() => setShowRegisterPassword((prev) => !prev)}
                   tabIndex={-1}
-                  className="absolute right-4 top-1/2 -translate-y-1/2 text-[#737780] hover:text-[#080808] transition-colors cursor-pointer p-1"
+                  className={`absolute right-4 top-1/2 -translate-y-1/2 transition-colors cursor-pointer p-1 ${
+                    isDark ? 'text-[#A1A1AA] hover:text-[#FFFFFF]' : 'text-[#737780] hover:text-[#080808]'
+                  }`}
                   aria-label={showRegisterPassword ? 'Ocultar senha' : 'Visualizar senha'}
                 >
                   {showRegisterPassword ? (
@@ -1458,13 +1492,19 @@ export function AuthScreen({
                   disabled={loading}
                   autoComplete="new-password"
                   enterKeyHint="done"
-                  className="w-full pl-5 pr-12 py-4 rounded-[20px] bg-[#F5F7FA] border border-[#E2E6EE] text-[#080808] placeholder:text-[#8E939E] focus:outline-none focus:bg-[#FFFFFF] focus:border-[#2673E8] focus:ring-2 focus:ring-[#2673E8]/15 transition-all text-[16px] font-medium disabled:opacity-60"
+                  className={`w-full pl-5 pr-12 py-4 rounded-[20px] border focus:outline-none focus:border-[#2673E8] focus:ring-2 focus:ring-[#2673E8]/15 transition-all text-[16px] font-medium disabled:opacity-60 ${
+                    isDark
+                      ? 'bg-[#1C1C1E] border-white/10 text-[#FFFFFF] placeholder:text-[#71717A] focus:bg-[#1C1C1E]'
+                      : 'bg-[#F5F7FA] border-[#E2E6EE] text-[#080808] placeholder:text-[#8E939E] focus:bg-[#FFFFFF]'
+                  }`}
                 />
                 <button
                   type="button"
                   onClick={() => setShowConfirmPassword((prev) => !prev)}
                   tabIndex={-1}
-                  className="absolute right-4 top-1/2 -translate-y-1/2 text-[#737780] hover:text-[#080808] transition-colors cursor-pointer p-1"
+                  className={`absolute right-4 top-1/2 -translate-y-1/2 transition-colors cursor-pointer p-1 ${
+                    isDark ? 'text-[#A1A1AA] hover:text-[#FFFFFF]' : 'text-[#737780] hover:text-[#080808]'
+                  }`}
                   aria-label={showConfirmPassword ? 'Ocultar confirmação de senha' : 'Visualizar confirmação de senha'}
                 >
                   {showConfirmPassword ? (
@@ -1508,7 +1548,7 @@ export function AuthScreen({
                       initial={{ opacity: 0, y: -4 }}
                       animate={{ opacity: 1, y: 0 }}
                       exit={{ opacity: 0, y: -4 }}
-                      className="text-[13px] text-[#737780] font-medium"
+                      className={`text-[13px] font-medium ${isDark ? 'text-[#A1A1AA]' : 'text-[#737780]'}`}
                     >
                       A senha deve ter pelo menos 6 caracteres.
                     </motion.p>
@@ -1530,7 +1570,7 @@ export function AuthScreen({
             </div>
           </form>
 
-          {/* ETAPA 4 — FOTO DE PERFIL (Visual idêntico à imagem de referência iOS) */}
+          {/* ETAPA 4 — FOTO DE PERFIL */}
           {registerStep === 4 && (
             <motion.div
               key="register-step-4-avatar"
@@ -1544,7 +1584,9 @@ export function AuthScreen({
               <div className="w-full text-center mt-2 sm:mt-4">
                 <h1
                   id="register-step4-title"
-                  className="text-[30px] sm:text-[32px] font-bold tracking-tight text-[#000000] leading-[1.18] text-center"
+                  className={`text-[30px] sm:text-[32px] font-bold tracking-tight leading-[1.18] text-center ${
+                    isDark ? 'text-[#FFFFFF]' : 'text-[#000000]'
+                  }`}
                   style={{
                     fontFamily:
                       "'SF Pro Display', -apple-system, BlinkMacSystemFont, sans-serif",
@@ -1553,7 +1595,9 @@ export function AuthScreen({
                   Adicione uma<br />foto de perfil
                 </h1>
                 <p
-                  className="mt-3.5 text-[14.5px] sm:text-[15px] text-[#8A8D95] font-normal leading-[1.38] text-center max-w-[310px] mx-auto"
+                  className={`mt-3.5 text-[14.5px] sm:text-[15px] font-normal leading-[1.38] text-center max-w-[310px] mx-auto ${
+                    isDark ? 'text-[#A1A1AA]' : 'text-[#8A8D95]'
+                  }`}
                   style={{
                     fontFamily:
                       "'SF Pro Text', -apple-system, BlinkMacSystemFont, sans-serif",
@@ -1578,7 +1622,9 @@ export function AuthScreen({
                 onClick={() => avatarInputRef.current?.click()}
                 disabled={isCompressingAvatar}
                 aria-label="Selecionar foto de perfil"
-                className="relative w-[184px] h-[184px] sm:w-[196px] sm:h-[196px] rounded-full bg-[#F0F2F7] flex items-center justify-center overflow-hidden transition-transform active:scale-[0.98] cursor-pointer focus:outline-none select-none border-0 shadow-none mt-9 sm:mt-11"
+                className={`relative w-[184px] h-[184px] sm:w-[196px] sm:h-[196px] rounded-full flex items-center justify-center overflow-hidden transition-transform active:scale-[0.98] cursor-pointer focus:outline-none select-none shadow-none mt-9 sm:mt-11 ${
+                  isDark ? 'bg-[#1C1C1E] border border-white/10' : 'bg-[#F0F2F7] border-0'
+                }`}
               >
                 {avatarPreview ? (
                   <motion.img
@@ -1592,7 +1638,7 @@ export function AuthScreen({
                 ) : (
                   <div className="flex items-center justify-center select-none pointer-events-none">
                     <svg
-                      className="w-[50px] h-[44px] text-[#000000]"
+                      className={`w-[50px] h-[44px] ${isDark ? 'text-[#FFFFFF]' : 'text-[#000000]'}`}
                       viewBox="0 0 24 21"
                       fill="none"
                       xmlns="http://www.w3.org/2000/svg"
@@ -1608,8 +1654,8 @@ export function AuthScreen({
                 )}
 
                 {isCompressingAvatar && (
-                  <div className="absolute inset-0 bg-[#F0F2F7]/80 backdrop-blur-xs flex items-center justify-center">
-                    <Loader2 className="w-8 h-8 animate-spin text-[#000000]" />
+                  <div className={`absolute inset-0 backdrop-blur-xs flex items-center justify-center ${isDark ? 'bg-[#1C1C1E]/80' : 'bg-[#F0F2F7]/80'}`}>
+                    <Loader2 className={`w-8 h-8 animate-spin ${isDark ? 'text-[#FFFFFF]' : 'text-[#000000]'}`} />
                   </div>
                 )}
               </button>
@@ -1620,10 +1666,14 @@ export function AuthScreen({
                 whileTap={{ scale: 0.98 }}
                 onClick={() => avatarInputRef.current?.click()}
                 disabled={isCompressingAvatar}
-                className="w-full max-w-[245px] sm:max-w-[255px] h-[48px] sm:h-[50px] rounded-full bg-[#F0F2F7] hover:bg-[#E8ECF2] active:bg-[#E2E7EE] flex items-center justify-center gap-2.5 px-5 text-[#000000] transition-colors cursor-pointer select-none border-0 shadow-none mt-8 sm:mt-10"
+                className={`w-full max-w-[245px] sm:max-w-[255px] h-[48px] sm:h-[50px] rounded-full flex items-center justify-center gap-2.5 px-5 transition-colors cursor-pointer select-none shadow-none mt-8 sm:mt-10 ${
+                  isDark
+                    ? 'bg-[#1C1C1E] hover:bg-[#2C2C2E] active:bg-[#3A3A3C] text-[#FFFFFF] border border-white/10'
+                    : 'bg-[#F0F2F7] hover:bg-[#E8ECF2] active:bg-[#E2E7EE] text-[#000000] border-0'
+                }`}
               >
-                <ImageIcon className="w-[19px] h-[19px] text-[#000000] stroke-[1.85]" />
-                <span className="text-[14.5px] sm:text-[15px] font-semibold text-[#000000]">
+                <ImageIcon className={`w-[19px] h-[19px] stroke-[1.85] ${isDark ? 'text-[#FFFFFF]' : 'text-[#000000]'}`} />
+                <span className={`text-[14.5px] sm:text-[15px] font-semibold ${isDark ? 'text-[#FFFFFF]' : 'text-[#000000]'}`}>
                   Escolher da galeria
                 </span>
               </motion.button>
@@ -1633,7 +1683,9 @@ export function AuthScreen({
                 type="button"
                 onClick={() => executeAccountCreation(false)}
                 disabled={isCompressingAvatar}
-                className="mt-4 sm:mt-5 text-[14.5px] sm:text-[15px] font-medium text-[#8A8D95] hover:text-[#000000] active:opacity-70 transition-colors cursor-pointer select-none bg-transparent border-0 p-1"
+                className={`mt-4 sm:mt-5 text-[14.5px] sm:text-[15px] font-medium active:opacity-70 transition-colors cursor-pointer select-none bg-transparent border-0 p-1 ${
+                  isDark ? 'text-[#A1A1AA] hover:text-[#FFFFFF]' : 'text-[#8A8D95] hover:text-[#000000]'
+                }`}
               >
                 Fazer isso depois
               </button>
@@ -1643,7 +1695,9 @@ export function AuthScreen({
                 <button
                   type="button"
                   onClick={handleRemoveAvatar}
-                  className="mt-2 text-[12.5px] font-medium text-[#8A8D95] hover:text-red-500 transition-colors cursor-pointer select-none bg-transparent border-0 underline"
+                  className={`mt-2 text-[12.5px] font-medium hover:text-red-500 transition-colors cursor-pointer select-none bg-transparent border-0 underline ${
+                    isDark ? 'text-[#A1A1AA]' : 'text-[#8A8D95]'
+                  }`}
                 >
                   Remover foto selecionada
                 </button>
@@ -1671,7 +1725,11 @@ export function AuthScreen({
               whileTap={isNameValid ? { scale: 0.98 } : undefined}
               onClick={() => handleStep1Continue()}
               disabled={!isNameValid}
-              className="w-full min-h-[54px] py-4 rounded-full expo-liquid-glass-btn text-[#080808] text-[16px] font-bold flex items-center justify-center transition-all cursor-pointer shadow-sm border border-black/5 hover:bg-zinc-50 active:scale-95 disabled:bg-[#EAEEF5] disabled:text-[#9CA3AF] disabled:shadow-none disabled:border-transparent disabled:cursor-not-allowed"
+              className={`w-full min-h-[54px] py-4 rounded-full expo-liquid-glass-btn text-[16px] font-bold flex items-center justify-center transition-all cursor-pointer shadow-sm border active:scale-95 disabled:shadow-none disabled:border-transparent disabled:cursor-not-allowed ${
+                isDark
+                  ? 'text-[#FFFFFF] border-white/10 disabled:bg-[#1C1C1E] disabled:text-[#52525B]'
+                  : 'text-[#080808] border-black/5 hover:bg-zinc-50 disabled:bg-[#EAEEF5] disabled:text-[#9CA3AF]'
+              }`}
             >
               Continuar
             </motion.button>
@@ -1684,7 +1742,11 @@ export function AuthScreen({
               whileTap={isEmailValid ? { scale: 0.98 } : undefined}
               onClick={() => handleStep2Continue()}
               disabled={!isEmailValid}
-              className="w-full min-h-[54px] py-4 rounded-full expo-liquid-glass-btn text-[#080808] text-[16px] font-bold flex items-center justify-center transition-all cursor-pointer shadow-sm border border-black/5 hover:bg-zinc-50 active:scale-95 disabled:bg-[#EAEEF5] disabled:text-[#9CA3AF] disabled:shadow-none disabled:border-transparent disabled:cursor-not-allowed"
+              className={`w-full min-h-[54px] py-4 rounded-full expo-liquid-glass-btn text-[16px] font-bold flex items-center justify-center transition-all cursor-pointer shadow-sm border active:scale-95 disabled:shadow-none disabled:border-transparent disabled:cursor-not-allowed ${
+                isDark
+                  ? 'text-[#FFFFFF] border-white/10 disabled:bg-[#1C1C1E] disabled:text-[#52525B]'
+                  : 'text-[#080808] border-black/5 hover:bg-zinc-50 disabled:bg-[#EAEEF5] disabled:text-[#9CA3AF]'
+              }`}
             >
               Continuar
             </motion.button>
@@ -1697,7 +1759,11 @@ export function AuthScreen({
               whileTap={isStep3Valid ? { scale: 0.98 } : undefined}
               onClick={() => handleStep3Continue()}
               disabled={!isStep3Valid}
-              className="w-full min-h-[54px] py-4 rounded-full expo-liquid-glass-btn text-[#080808] text-[16px] font-bold flex items-center justify-center transition-all cursor-pointer shadow-sm border border-black/5 hover:bg-zinc-50 active:scale-95 disabled:bg-[#EAEEF5] disabled:text-[#9CA3AF] disabled:shadow-none disabled:border-transparent disabled:cursor-not-allowed"
+              className={`w-full min-h-[54px] py-4 rounded-full expo-liquid-glass-btn text-[16px] font-bold flex items-center justify-center transition-all cursor-pointer shadow-sm border active:scale-95 disabled:shadow-none disabled:border-transparent disabled:cursor-not-allowed ${
+                isDark
+                  ? 'text-[#FFFFFF] border-white/10 disabled:bg-[#1C1C1E] disabled:text-[#52525B]'
+                  : 'text-[#080808] border-black/5 hover:bg-zinc-50 disabled:bg-[#EAEEF5] disabled:text-[#9CA3AF]'
+              }`}
             >
               Continuar
             </motion.button>
@@ -1710,7 +1776,11 @@ export function AuthScreen({
               whileTap={{ scale: 0.985 }}
               onClick={() => executeAccountCreation(true)}
               disabled={isCompressingAvatar}
-              className="w-full h-[54px] sm:h-[56px] min-h-[54px] rounded-full bg-[#000000] hover:bg-[#1a1a1a] active:bg-[#262626] text-[#FFFFFF] text-[16px] font-semibold flex items-center justify-center transition-all cursor-pointer shadow-none border-0 select-none disabled:opacity-50"
+              className={`w-full h-[54px] sm:h-[56px] min-h-[54px] rounded-full text-[16px] font-semibold flex items-center justify-center transition-all cursor-pointer shadow-none border-0 select-none disabled:opacity-50 ${
+                isDark
+                  ? 'bg-[#FFFFFF] hover:bg-zinc-200 active:bg-zinc-300 text-[#000000]'
+                  : 'bg-[#000000] hover:bg-[#1a1a1a] active:bg-[#262626] text-[#FFFFFF]'
+              }`}
             >
               Continuar
             </motion.button>
@@ -1731,7 +1801,9 @@ export function AuthScreen({
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             transition={{ duration: 0.32, ease: [0.22, 1, 0.36, 1] }}
-            className="fixed inset-0 z-[200] bg-[#FFFFFF] flex flex-col items-center justify-center px-6 pointer-events-auto"
+            className={`fixed inset-0 z-[200] flex flex-col items-center justify-center px-6 pointer-events-auto transition-colors duration-200 ${
+              isDark ? 'bg-[#000000] text-[#FFFFFF]' : 'bg-[#FFFFFF] text-[#080808]'
+            }`}
             style={{
               top: 0,
               bottom: 0,
@@ -1759,7 +1831,11 @@ export function AuthScreen({
                 className="h-12 sm:h-14 mb-8 flex items-center justify-center"
               >
                 <img
-                  src="/assets/aistudio/monvian_logo_dark_transparent.png"
+                  src={
+                    isDark
+                      ? '/assets/aistudio/monvian_logo_white_transparent.png'
+                      : '/assets/aistudio/monvian_logo_dark_transparent.png'
+                  }
                   alt="Monvian"
                   decoding="sync"
                   className="h-full w-auto max-w-[210px] object-contain select-none pointer-events-none"
@@ -1789,7 +1865,7 @@ export function AuthScreen({
                     cy="12"
                     r="9.5"
                     fill="none"
-                    stroke="#E5E7EB"
+                    stroke={isDark ? '#2C2C2E' : '#E5E7EB'}
                     strokeWidth="2.2"
                   />
                   <circle
@@ -1797,7 +1873,7 @@ export function AuthScreen({
                     cy="12"
                     r="9.5"
                     fill="none"
-                    stroke="#18181B"
+                    stroke={isDark ? '#FFFFFF' : '#18181B'}
                     strokeWidth="2.2"
                     strokeLinecap="round"
                     strokeDasharray="19 44"
@@ -1814,14 +1890,16 @@ export function AuthScreen({
                     animate={{ opacity: 1, y: 0 }}
                     exit={{ opacity: 0, y: -5 }}
                     transition={{ duration: 0.3, ease: [0.22, 1, 0.36, 1] }}
-                    className="text-[15px] font-semibold text-[#080808] tracking-tight text-center"
+                    className={`text-[15px] font-semibold tracking-tight text-center ${
+                      isDark ? 'text-[#FFFFFF]' : 'text-[#080808]'
+                    }`}
                   >
                     {creationMessage}
                   </motion.p>
                 </AnimatePresence>
               </div>
 
-              <p className="text-[12px] text-[#8E939E] font-medium mt-1.5 text-center">
+              <p className={`text-[12px] font-medium mt-1.5 text-center ${isDark ? 'text-[#A1A1AA]' : 'text-[#8E939E]'}`}>
                 Configurando sua experiência
               </p>
             </div>
@@ -1830,12 +1908,14 @@ export function AuthScreen({
       </AnimatePresence>
 
       {/* =========================================================================
-          3. TELA DE LOGIN E RECUPERAÇÃO DE SENHA (Modo Branco — Sem animação de entrada)
+          3. TELA DE LOGIN E RECUPERAÇÃO DE SENHA
          ========================================================================= */}
       {(authMode === 'login' || authMode === 'recover' || authMode === 'resetPassword') && !isGoogleAccountPreparing && (
         <section
           id="auth-main-section"
-          className="auth-login-screen fixed inset-0 z-[115] w-full bg-[#FFFFFF] flex flex-col items-center justify-between text-[#080808] pt-6 sm:pt-8 pb-10 px-5 sm:px-6 pointer-events-auto overflow-y-auto overflow-x-hidden overscroll-y-contain"
+          className={`auth-login-screen fixed inset-0 z-[115] w-full flex flex-col items-center justify-between pt-6 sm:pt-8 pb-10 px-5 sm:px-6 pointer-events-auto overflow-y-auto overflow-x-hidden overscroll-y-contain transition-colors duration-200 ${
+            isDark ? 'bg-[#000000] text-[#FFFFFF]' : 'bg-[#FFFFFF] text-[#080808]'
+          }`}
           style={{
             top: 0,
             bottom: 0,
@@ -1855,7 +1935,7 @@ export function AuthScreen({
           <div className="w-full max-w-sm sm:max-w-md flex items-center justify-between shrink-0 mb-2">
             <AppleBackButton
               id="btn-login-back-to-landing"
-              theme="light"
+              theme={isDark ? 'dark' : 'light'}
               onClick={() => {
                 setError('');
                 setRecoverSent(false);
@@ -1882,7 +1962,11 @@ export function AuthScreen({
               {/* 1. Logo Monvian Original */}
               <div className="h-12 sm:h-14 mb-3 flex items-center justify-center">
                 <img
-                  src="/assets/aistudio/monvian_logo_dark_transparent.png"
+                  src={
+                    isDark
+                      ? '/assets/aistudio/monvian_logo_white_transparent.png'
+                      : '/assets/aistudio/monvian_logo_dark_transparent.png'
+                  }
                   alt="Monvian"
                   decoding="sync"
                   className="h-full w-auto max-w-[220px] object-contain select-none pointer-events-none"
@@ -1899,7 +1983,7 @@ export function AuthScreen({
                         "'SF Pro Text', -apple-system, BlinkMacSystemFont, sans-serif",
                     }}
                   >
-                    <p className="text-[14.5px] sm:text-[15px] text-[#8A8D95] font-normal leading-snug">
+                    <p className={`text-[14.5px] sm:text-[15px] font-normal leading-snug ${isDark ? 'text-[#A1A1AA]' : 'text-[#8A8D95]'}`}>
                       Seu guia inteligente para viver
                     </p>
                     <p className="text-[14.5px] sm:text-[15px] text-[#3975E8] font-bold leading-snug mt-0.5">
@@ -1911,14 +1995,18 @@ export function AuthScreen({
                   <form onSubmit={handleLoginSubmit} className="w-full space-y-3.5">
                     {/* Campo E-mail */}
                     <div className="relative">
-                      <Mail className="absolute left-5 top-1/2 -translate-y-1/2 w-[19px] h-[19px] text-[#8A8D95] stroke-[1.8]" />
+                      <Mail className={`absolute left-5 top-1/2 -translate-y-1/2 w-[19px] h-[19px] stroke-[1.8] ${isDark ? 'text-[#A1A1AA]' : 'text-[#8A8D95]'}`} />
                       <input
                         id="input-login-email"
                         type="email"
                         placeholder="Seu e-mail"
                         value={email}
                         onChange={(e) => setEmail(e.target.value)}
-                        className="w-full h-[56px] pl-[52px] pr-5 rounded-[26px] bg-[#F3F4F7] border border-[#E5E7EB]/70 text-[#000000] placeholder:text-[#9CA3AF] focus:outline-none focus:bg-[#FFFFFF] focus:border-[#3975E8] focus:ring-2 focus:ring-[#3975E8]/15 text-[15px] font-normal"
+                        className={`w-full h-[56px] pl-[52px] pr-5 rounded-[26px] border focus:outline-none focus:border-[#3975E8] focus:ring-2 focus:ring-[#3975E8]/15 text-[15px] font-normal ${
+                          isDark
+                            ? 'bg-[#1C1C1E] border-white/10 text-[#FFFFFF] placeholder:text-[#71717A] focus:bg-[#1C1C1E]'
+                            : 'bg-[#F3F4F7] border-[#E5E7EB]/70 text-[#000000] placeholder:text-[#9CA3AF] focus:bg-[#FFFFFF]'
+                        }`}
                         required
                         autoComplete="email"
                       />
@@ -1926,21 +2014,27 @@ export function AuthScreen({
 
                     {/* Campo Senha */}
                     <div className="relative">
-                      <Lock className="absolute left-5 top-1/2 -translate-y-1/2 w-[19px] h-[19px] text-[#8A8D95] stroke-[1.8]" />
+                      <Lock className={`absolute left-5 top-1/2 -translate-y-1/2 w-[19px] h-[19px] stroke-[1.8] ${isDark ? 'text-[#A1A1AA]' : 'text-[#8A8D95]'}`} />
                       <input
                         id="input-login-password"
                         type={showPassword ? 'text' : 'password'}
                         placeholder="Sua senha"
                         value={password}
                         onChange={(e) => setPassword(e.target.value)}
-                        className="w-full h-[56px] pl-[52px] pr-12 rounded-[26px] bg-[#F3F4F7] border border-[#E5E7EB]/70 text-[#000000] placeholder:text-[#9CA3AF] focus:outline-none focus:bg-[#FFFFFF] focus:border-[#3975E8] focus:ring-2 focus:ring-[#3975E8]/15 text-[15px] font-normal"
+                        className={`w-full h-[56px] pl-[52px] pr-12 rounded-[26px] border focus:outline-none focus:border-[#3975E8] focus:ring-2 focus:ring-[#3975E8]/15 text-[15px] font-normal ${
+                          isDark
+                            ? 'bg-[#1C1C1E] border-white/10 text-[#FFFFFF] placeholder:text-[#71717A] focus:bg-[#1C1C1E]'
+                            : 'bg-[#F3F4F7] border-[#E5E7EB]/70 text-[#000000] placeholder:text-[#9CA3AF] focus:bg-[#FFFFFF]'
+                        }`}
                         required
                         autoComplete="current-password"
                       />
                       <button
                         type="button"
                         onClick={() => setShowPassword(!showPassword)}
-                        className="absolute right-4 top-1/2 -translate-y-1/2 p-1 text-[#8A8D95] hover:text-[#000000] cursor-pointer"
+                        className={`absolute right-4 top-1/2 -translate-y-1/2 p-1 cursor-pointer ${
+                          isDark ? 'text-[#A1A1AA] hover:text-[#FFFFFF]' : 'text-[#8A8D95] hover:text-[#000000]'
+                        }`}
                         aria-label={showPassword ? 'Ocultar senha' : 'Ver senha'}
                       >
                         {showPassword ? (
@@ -1961,7 +2055,9 @@ export function AuthScreen({
                           setRecoverSent(false);
                           setAuthMode('recover');
                         }}
-                        className="text-[13.5px] text-[#8A8D95] hover:text-[#000000] cursor-pointer font-medium bg-transparent border-0"
+                        className={`text-[13.5px] cursor-pointer font-medium bg-transparent border-0 ${
+                          isDark ? 'text-[#A1A1AA] hover:text-[#FFFFFF]' : 'text-[#8A8D95] hover:text-[#000000]'
+                        }`}
                       >
                         Esqueci minha senha
                       </button>
@@ -1973,13 +2069,17 @@ export function AuthScreen({
                       </p>
                     )}
 
-                    {/* Botão Entrar branco */}
+                    {/* Botão Entrar */}
                     <div className="pt-2">
                       <button
                         id="btn-login-submit"
                         type="submit"
                         disabled={loading || googleLoading}
-                        className="w-full h-[54px] sm:h-[56px] rounded-full bg-[#FFFFFF] hover:bg-[#F9FAFB] active:bg-[#F3F4F6] text-[#000000] text-[16px] font-bold flex items-center justify-center gap-1.5 disabled:opacity-60 shadow-[0_2px_8px_rgba(0,0,0,0.06)] border border-[#E5E7EB] cursor-pointer"
+                        className={`w-full h-[54px] sm:h-[56px] rounded-full text-[16px] font-bold flex items-center justify-center gap-1.5 disabled:opacity-60 border cursor-pointer transition-colors ${
+                          isDark
+                            ? 'bg-[#FFFFFF] hover:bg-zinc-200 active:bg-zinc-300 text-[#000000] border-transparent shadow-[0_6px_20px_rgba(0,0,0,0.45)]'
+                            : 'bg-[#FFFFFF] hover:bg-[#F9FAFB] active:bg-[#F3F4F6] text-[#000000] border-[#E5E7EB] shadow-[0_2px_8px_rgba(0,0,0,0.06)]'
+                        }`}
                       >
                         {loading ? (
                           <>
@@ -1995,23 +2095,27 @@ export function AuthScreen({
                     {/* Separador OU */}
                     <div className="relative flex items-center justify-center my-6">
                       <div className="absolute inset-0 flex items-center">
-                        <div className="w-full border-t border-[#E5E7EB]" />
+                        <div className={`w-full border-t ${isDark ? 'border-white/10' : 'border-[#E5E7EB]'}`} />
                       </div>
-                      <div className="relative bg-[#FFFFFF] px-3">
-                        <span className="text-[12px] font-semibold text-[#8A8D95] uppercase tracking-wider">
+                      <div className={`relative px-3 ${isDark ? 'bg-[#000000]' : 'bg-[#FFFFFF]'}`}>
+                        <span className={`text-[12px] font-semibold uppercase tracking-wider ${isDark ? 'text-[#A1A1AA]' : 'text-[#8A8D95]'}`}>
                           OU
                         </span>
                       </div>
                     </div>
 
-                    {/* Botão Google branco */}
+                    {/* Botão Google */}
                     <div>
                       <button
                         id="btn-google-signin"
                         type="button"
                         onClick={handleGoogleAuth}
                         disabled={googleLoading || loading}
-                        className="w-full h-[54px] sm:h-[56px] px-5 rounded-full bg-[#FFFFFF] hover:bg-[#F9FAFB] active:bg-[#F3F4F6] border border-[#E5E7EB] text-[#000000] text-[15px] font-semibold flex items-center justify-center gap-3 cursor-pointer disabled:opacity-60 shadow-[0_2px_8px_rgba(0,0,0,0.06)]"
+                        className={`w-full h-[54px] sm:h-[56px] px-5 rounded-full border text-[15px] font-semibold flex items-center justify-center gap-3 cursor-pointer disabled:opacity-60 transition-colors ${
+                          isDark
+                            ? 'bg-[#1C1C1E] hover:bg-[#2C2C2E] active:bg-[#3A3A3C] border-white/10 text-[#FFFFFF] shadow-[0_4px_14px_rgba(0,0,0,0.35)]'
+                            : 'bg-[#FFFFFF] hover:bg-[#F9FAFB] active:bg-[#F3F4F6] border-[#E5E7EB] text-[#000000] shadow-[0_2px_8px_rgba(0,0,0,0.06)]'
+                        }`}
                       >
                         <svg className="w-[19px] h-[19px] shrink-0" viewBox="0 0 24 24">
                           <path
@@ -2040,12 +2144,14 @@ export function AuthScreen({
 
                   {/* Criar nova conta no rodapé */}
                   <div className="mt-9 text-[14px] flex items-center justify-center gap-1.5 text-center">
-                    <span className="text-[#8A8D95] font-normal">Não possui uma conta?</span>
+                    <span className={`font-normal ${isDark ? 'text-[#A1A1AA]' : 'text-[#8A8D95]'}`}>Não possui uma conta?</span>
                     <button
                       id="btn-open-register-flow"
                       type="button"
                       onClick={handleStartRegisterFlow}
-                      className="text-[#000000] font-bold hover:text-[#3975E8] hover:underline cursor-pointer bg-transparent border-0 p-0"
+                      className={`font-bold hover:text-[#3975E8] hover:underline cursor-pointer bg-transparent border-0 p-0 ${
+                        isDark ? 'text-[#FFFFFF]' : 'text-[#000000]'
+                      }`}
                     >
                       Criar nova conta →
                     </button>
@@ -2054,22 +2160,24 @@ export function AuthScreen({
               ) : authMode === 'resetPassword' ? (
                 /* FORM: REDEFINIÇÃO DE SENHA VIA LINK DO E-MAIL */
                 <div className="w-full">
-                  <h1 className="text-[22px] font-bold text-[#000000] text-center mb-2">
+                  <h1 className={`text-[22px] font-bold text-center mb-2 ${isDark ? 'text-[#FFFFFF]' : 'text-[#000000]'}`}>
                     Criar nova senha
                   </h1>
 
                   {resetCodeStatus === 'checking' ? (
                     <div className="py-10 flex flex-col items-center justify-center gap-3">
-                      <Loader2 className="w-7 h-7 animate-spin text-[#000000]" />
-                      <p className="text-[14px] text-[#8A8D95]">Validando link de recuperação…</p>
+                      <Loader2 className={`w-7 h-7 animate-spin ${isDark ? 'text-[#FFFFFF]' : 'text-[#000000]'}`} />
+                      <p className={`text-[14px] ${isDark ? 'text-[#A1A1AA]' : 'text-[#8A8D95]'}`}>Validando link de recuperação…</p>
                     </div>
                   ) : resetCodeStatus === 'done' ? (
-                    <div className="p-5 rounded-[24px] bg-[#F5F8FF] border border-[#DCE8FC] text-center space-y-3 mt-4">
+                    <div className={`p-5 rounded-[24px] border text-center space-y-3 mt-4 ${
+                      isDark ? 'bg-[#1C1C1E] border-white/10' : 'bg-[#F5F8FF] border-[#DCE8FC]'
+                    }`}>
                       <CheckCircle2 className="w-8 h-8 text-[#3975E8] mx-auto" />
-                      <p className="text-[15px] font-semibold text-[#000000]">
+                      <p className={`text-[15px] font-semibold ${isDark ? 'text-[#FFFFFF]' : 'text-[#000000]'}`}>
                         Senha redefinida com sucesso!
                       </p>
-                      <p className="text-[13px] text-[#8A8D95]">
+                      <p className={`text-[13px] ${isDark ? 'text-[#A1A1AA]' : 'text-[#8A8D95]'}`}>
                         Sua nova senha já está ativa. Entre na sua conta para continuar.
                       </p>
                       <button
@@ -2080,17 +2188,21 @@ export function AuthScreen({
                           onResetHandled?.();
                           setAuthMode('login');
                         }}
-                        className="mt-2 px-6 py-3 rounded-full bg-[#000000] text-white text-[14px] font-bold cursor-pointer"
+                        className={`mt-2 px-6 py-3 rounded-full text-[14px] font-bold cursor-pointer ${
+                          isDark ? 'bg-[#FFFFFF] text-[#000000]' : 'bg-[#000000] text-white'
+                        }`}
                       >
                         Ir para o login
                       </button>
                     </div>
                   ) : resetCodeStatus === 'invalid' ? (
-                    <div className="p-5 rounded-[24px] bg-[#FFF5F5] border border-[#FED7D7] text-center space-y-3 mt-4">
-                      <p className="text-[14.5px] font-semibold text-[#000000]">
+                    <div className={`p-5 rounded-[24px] border text-center space-y-3 mt-4 ${
+                      isDark ? 'bg-[#1C1C1E] border-red-500/25' : 'bg-[#FFF5F5] border-[#FED7D7]'
+                    }`}>
+                      <p className={`text-[14.5px] font-semibold ${isDark ? 'text-[#FFFFFF]' : 'text-[#000000]'}`}>
                         Link expirado ou inválido
                       </p>
-                      <p className="text-[13px] text-[#737780]">
+                      <p className={`text-[13px] ${isDark ? 'text-[#A1A1AA]' : 'text-[#737780]'}`}>
                         {error || 'Este link expirou ou já foi utilizado. Solicite uma nova recuperação de senha.'}
                       </p>
                       <button
@@ -2104,7 +2216,9 @@ export function AuthScreen({
                           setRecoverSent(false);
                           setAuthMode('recover');
                         }}
-                        className="mt-2 px-6 py-3 rounded-full bg-[#000000] text-white text-[14px] font-bold cursor-pointer"
+                        className={`mt-2 px-6 py-3 rounded-full text-[14px] font-bold cursor-pointer ${
+                          isDark ? 'bg-[#FFFFFF] text-[#000000]' : 'bg-[#000000] text-white'
+                        }`}
                       >
                         Solicitar novo link
                       </button>
@@ -2112,13 +2226,13 @@ export function AuthScreen({
                   ) : (
                     <>
                       {resetTargetEmail && (
-                        <p className="text-[13.5px] text-[#8A8D95] text-center mb-6">
-                          Conta: <span className="text-[#000000] font-medium">{resetTargetEmail}</span>
+                        <p className={`text-[13.5px] text-center mb-6 ${isDark ? 'text-[#A1A1AA]' : 'text-[#8A8D95]'}`}>
+                          Conta: <span className={`font-medium ${isDark ? 'text-[#FFFFFF]' : 'text-[#000000]'}`}>{resetTargetEmail}</span>
                         </p>
                       )}
                       <form onSubmit={handleConfirmResetPassword} className="space-y-3.5">
                         <div className="relative">
-                          <Lock className="absolute left-5 top-1/2 -translate-y-1/2 w-[19px] h-[19px] text-[#8A8D95] stroke-[1.8]" />
+                          <Lock className={`absolute left-5 top-1/2 -translate-y-1/2 w-[19px] h-[19px] stroke-[1.8] ${isDark ? 'text-[#A1A1AA]' : 'text-[#8A8D95]'}`} />
                           <input
                             id="input-reset-new-password"
                             type={showResetPassword ? 'text' : 'password'}
@@ -2128,14 +2242,20 @@ export function AuthScreen({
                               setResetNewPassword(e.target.value);
                               if (error) setError('');
                             }}
-                            className="w-full h-[56px] pl-[52px] pr-12 rounded-[26px] bg-[#F3F4F7] border border-[#E5E7EB]/70 text-[#000000] placeholder:text-[#9CA3AF] focus:outline-none focus:bg-[#FFFFFF] focus:border-[#3975E8] focus:ring-2 focus:ring-[#3975E8]/15 text-[15px] font-normal"
+                            className={`w-full h-[56px] pl-[52px] pr-12 rounded-[26px] border focus:outline-none focus:border-[#3975E8] focus:ring-2 focus:ring-[#3975E8]/15 text-[15px] font-normal ${
+                              isDark
+                                ? 'bg-[#1C1C1E] border-white/10 text-[#FFFFFF] placeholder:text-[#71717A] focus:bg-[#1C1C1E]'
+                                : 'bg-[#F3F4F7] border-[#E5E7EB]/70 text-[#000000] placeholder:text-[#9CA3AF] focus:bg-[#FFFFFF]'
+                            }`}
                             required
                             autoComplete="new-password"
                           />
                           <button
                             type="button"
                             onClick={() => setShowResetPassword((p) => !p)}
-                            className="absolute right-4 top-1/2 -translate-y-1/2 p-1 text-[#8A8D95] hover:text-[#000000] cursor-pointer"
+                            className={`absolute right-4 top-1/2 -translate-y-1/2 p-1 cursor-pointer ${
+                              isDark ? 'text-[#A1A1AA] hover:text-[#FFFFFF]' : 'text-[#8A8D95] hover:text-[#000000]'
+                            }`}
                             aria-label={showResetPassword ? 'Ocultar senha' : 'Ver senha'}
                           >
                             {showResetPassword ? (
@@ -2147,7 +2267,7 @@ export function AuthScreen({
                         </div>
 
                         <div className="relative">
-                          <Lock className="absolute left-5 top-1/2 -translate-y-1/2 w-[19px] h-[19px] text-[#8A8D95] stroke-[1.8]" />
+                          <Lock className={`absolute left-5 top-1/2 -translate-y-1/2 w-[19px] h-[19px] stroke-[1.8] ${isDark ? 'text-[#A1A1AA]' : 'text-[#8A8D95]'}`} />
                           <input
                             id="input-reset-confirm-password"
                             type={showResetPassword ? 'text' : 'password'}
@@ -2157,7 +2277,11 @@ export function AuthScreen({
                               setResetConfirmPassword(e.target.value);
                               if (error) setError('');
                             }}
-                            className="w-full h-[56px] pl-[52px] pr-5 rounded-[26px] bg-[#F3F4F7] border border-[#E5E7EB]/70 text-[#000000] placeholder:text-[#9CA3AF] focus:outline-none focus:bg-[#FFFFFF] focus:border-[#3975E8] focus:ring-2 focus:ring-[#3975E8]/15 text-[15px] font-normal"
+                            className={`w-full h-[56px] pl-[52px] pr-5 rounded-[26px] border focus:outline-none focus:border-[#3975E8] focus:ring-2 focus:ring-[#3975E8]/15 text-[15px] font-normal ${
+                              isDark
+                                ? 'bg-[#1C1C1E] border-white/10 text-[#FFFFFF] placeholder:text-[#71717A] focus:bg-[#1C1C1E]'
+                                : 'bg-[#F3F4F7] border-[#E5E7EB]/70 text-[#000000] placeholder:text-[#9CA3AF] focus:bg-[#FFFFFF]'
+                            }`}
                             required
                             autoComplete="new-password"
                           />
@@ -2172,7 +2296,11 @@ export function AuthScreen({
                         <button
                           type="submit"
                           disabled={loading}
-                          className="w-full h-[54px] sm:h-[56px] rounded-full bg-[#FFFFFF] hover:bg-[#F9FAFB] active:bg-[#F3F4F6] text-[#000000] text-[15.5px] font-bold flex items-center justify-center gap-2 disabled:opacity-70 shadow-[0_2px_8px_rgba(0,0,0,0.06)] border border-[#E5E7EB] cursor-pointer"
+                          className={`w-full h-[54px] sm:h-[56px] rounded-full text-[15.5px] font-bold flex items-center justify-center gap-2 disabled:opacity-70 border cursor-pointer transition-colors ${
+                            isDark
+                              ? 'bg-[#FFFFFF] hover:bg-zinc-200 active:bg-zinc-300 text-[#000000] border-transparent shadow-[0_6px_20px_rgba(0,0,0,0.45)]'
+                              : 'bg-[#FFFFFF] hover:bg-[#F9FAFB] active:bg-[#F3F4F6] text-[#000000] border-[#E5E7EB] shadow-[0_2px_8px_rgba(0,0,0,0.06)]'
+                          }`}
                         >
                           {loading ? 'Salvando...' : 'Redefinir senha'}
                         </button>
@@ -2183,20 +2311,22 @@ export function AuthScreen({
               ) : (
                 /* FORM: RECUPERAÇÃO DE SENHA */
                 <div className="w-full">
-                  <h1 className="text-[22px] font-bold text-[#000000] text-center mb-2">
+                  <h1 className={`text-[22px] font-bold text-center mb-2 ${isDark ? 'text-[#FFFFFF]' : 'text-[#000000]'}`}>
                     Recuperar acesso
                   </h1>
-                  <p className="text-[14px] text-[#8A8D95] text-center mb-6 leading-relaxed">
+                  <p className={`text-[14px] text-center mb-6 leading-relaxed ${isDark ? 'text-[#A1A1AA]' : 'text-[#8A8D95]'}`}>
                     Informe o e-mail da sua conta para receber as instruções de redefinição de senha.
                   </p>
 
                   {recoverSent ? (
-                    <div className="p-5 rounded-[24px] bg-[#F5F8FF] border border-[#DCE8FC] text-center space-y-3">
+                    <div className={`p-5 rounded-[24px] border text-center space-y-3 ${
+                      isDark ? 'bg-[#1C1C1E] border-white/10' : 'bg-[#F5F8FF] border-[#DCE8FC]'
+                    }`}>
                       <CheckCircle2 className="w-8 h-8 text-[#3975E8] mx-auto" />
-                      <p className="text-[14.5px] font-semibold text-[#000000]">
+                      <p className={`text-[14.5px] font-semibold ${isDark ? 'text-[#FFFFFF]' : 'text-[#000000]'}`}>
                         Instruções enviadas para {recoverEmail}
                       </p>
-                      <p className="text-[13px] text-[#8A8D95]">
+                      <p className={`text-[13px] ${isDark ? 'text-[#A1A1AA]' : 'text-[#8A8D95]'}`}>
                         Verifique sua caixa de entrada e a pasta de spam.
                       </p>
                       <button
@@ -2205,7 +2335,9 @@ export function AuthScreen({
                           setRecoverSent(false);
                           setAuthMode('login');
                         }}
-                        className="mt-2 px-5 py-2.5 rounded-full bg-[#000000] text-white text-[13.5px] font-bold cursor-pointer"
+                        className={`mt-2 px-5 py-2.5 rounded-full text-[13.5px] font-bold cursor-pointer ${
+                          isDark ? 'bg-[#FFFFFF] text-[#000000]' : 'bg-[#000000] text-white'
+                        }`}
                       >
                         Voltar para o login
                       </button>
@@ -2213,13 +2345,17 @@ export function AuthScreen({
                   ) : (
                     <form onSubmit={handleRecoverSubmit} className="space-y-4">
                       <div className="relative">
-                        <Mail className="absolute left-5 top-1/2 -translate-y-1/2 w-[19px] h-[19px] text-[#8A8D95] stroke-[1.8]" />
+                        <Mail className={`absolute left-5 top-1/2 -translate-y-1/2 w-[19px] h-[19px] stroke-[1.8] ${isDark ? 'text-[#A1A1AA]' : 'text-[#8A8D95]'}`} />
                         <input
                           type="email"
                           placeholder="Seu e-mail cadastrado"
                           value={recoverEmail}
                           onChange={(e) => setRecoverEmail(e.target.value)}
-                          className="w-full h-[56px] pl-[52px] pr-5 rounded-[26px] bg-[#F3F4F7] border border-[#E5E7EB]/70 text-[#000000] placeholder:text-[#9CA3AF] focus:outline-none focus:bg-[#FFFFFF] focus:border-[#3975E8] focus:ring-2 focus:ring-[#3975E8]/15 text-[15px] font-normal"
+                          className={`w-full h-[56px] pl-[52px] pr-5 rounded-[26px] border focus:outline-none focus:border-[#3975E8] focus:ring-2 focus:ring-[#3975E8]/15 text-[15px] font-normal ${
+                            isDark
+                              ? 'bg-[#1C1C1E] border-white/10 text-[#FFFFFF] placeholder:text-[#71717A] focus:bg-[#1C1C1E]'
+                              : 'bg-[#F3F4F7] border-[#E5E7EB]/70 text-[#000000] placeholder:text-[#9CA3AF] focus:bg-[#FFFFFF]'
+                          }`}
                           required
                           autoComplete="email"
                         />
@@ -2234,7 +2370,11 @@ export function AuthScreen({
                       <button
                         type="submit"
                         disabled={loading}
-                        className="w-full h-[54px] sm:h-[56px] rounded-full bg-[#FFFFFF] hover:bg-[#F9FAFB] active:bg-[#F3F4F6] text-[#000000] text-[15.5px] font-bold flex items-center justify-center gap-2 disabled:opacity-70 shadow-[0_2px_8px_rgba(0,0,0,0.06)] border border-[#E5E7EB] cursor-pointer"
+                        className={`w-full h-[54px] sm:h-[56px] rounded-full text-[15.5px] font-bold flex items-center justify-center gap-2 disabled:opacity-70 border cursor-pointer transition-colors ${
+                          isDark
+                            ? 'bg-[#FFFFFF] hover:bg-zinc-200 active:bg-zinc-300 text-[#000000] border-transparent shadow-[0_6px_20px_rgba(0,0,0,0.45)]'
+                            : 'bg-[#FFFFFF] hover:bg-[#F9FAFB] active:bg-[#F3F4F6] text-[#000000] border-[#E5E7EB] shadow-[0_2px_8px_rgba(0,0,0,0.06)]'
+                        }`}
                       >
                         {loading ? 'Enviando...' : 'Enviar instruções'}
                       </button>
@@ -2252,8 +2392,6 @@ export function AuthScreen({
 
       {/* =========================================================================
           4. TELA DE CARREGAMENTO EM TELA CHEIA APÓS AUTENTICAÇÃO GOOGLE
-             Exibida imediatamente após a seleção da conta Google enquanto a sessão
-             e os dados reais do usuário são validados e preparados.
          ========================================================================= */}
       <AnimatePresence>
         {isGoogleAccountPreparing && (
@@ -2266,7 +2404,9 @@ export function AuthScreen({
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             transition={{ duration: shouldReduceMotion ? 0.15 : 0.26, ease: [0.22, 1, 0.36, 1] }}
-            className="fixed inset-0 z-[130] w-full h-full bg-[#FFFFFF] flex flex-col items-center justify-center select-none overflow-hidden px-6"
+            className={`fixed inset-0 z-[130] w-full h-full flex flex-col items-center justify-center select-none overflow-hidden px-6 transition-colors duration-200 ${
+              isDark ? 'bg-[#000000] text-[#FFFFFF]' : 'bg-[#FFFFFF] text-[#080808]'
+            }`}
             style={{
               fontFamily:
                 "'SF Pro Display', 'SF Pro Text', -apple-system, BlinkMacSystemFont, sans-serif",
@@ -2292,7 +2432,11 @@ export function AuthScreen({
               className="h-12 sm:h-14 mb-7 flex items-center justify-center"
             >
               <img
-                src="/assets/aistudio/monvian_logo_dark_transparent.png"
+                src={
+                  isDark
+                    ? '/assets/aistudio/monvian_logo_white_transparent.png'
+                    : '/assets/aistudio/monvian_logo_dark_transparent.png'
+                }
                 alt="Monvian"
                 decoding="sync"
                 className="h-full w-auto max-w-[220px] object-contain select-none pointer-events-none"
@@ -2316,7 +2460,7 @@ export function AuthScreen({
                   cy="12"
                   r="9.5"
                   fill="none"
-                  stroke="#E5E7EB"
+                  stroke={isDark ? '#2C2C2E' : '#E5E7EB'}
                   strokeWidth="2.2"
                 />
                 <circle
@@ -2324,7 +2468,7 @@ export function AuthScreen({
                   cy="12"
                   r="9.5"
                   fill="none"
-                  stroke="#18181B"
+                  stroke={isDark ? '#FFFFFF' : '#18181B'}
                   strokeWidth="2.2"
                   strokeLinecap="round"
                   strokeDasharray="18 44"
@@ -2337,7 +2481,9 @@ export function AuthScreen({
               initial={{ opacity: 0, y: 4 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.28, delay: 0.04, ease: [0.22, 1, 0.36, 1] }}
-              className="mt-3.5 text-[13.5px] sm:text-[14px] font-medium text-[#737780] tracking-tight text-center"
+              className={`mt-3.5 text-[13.5px] sm:text-[14px] font-medium tracking-tight text-center ${
+                isDark ? 'text-[#A1A1AA]' : 'text-[#737780]'
+              }`}
               style={{
                 fontFamily:
                   "'SF Pro Text', -apple-system, BlinkMacSystemFont, sans-serif",

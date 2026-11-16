@@ -79,14 +79,16 @@ export const PeopleStep: React.FC<PeopleStepProps> = ({
         <div
           className={`w-full p-5 sm:p-6 rounded-[26px] flex flex-col items-center justify-center transition-all duration-200 ${
             isDark
-              ? 'bg-[#18181b]/95 backdrop-blur-2xl border border-white/10 shadow-[0_15px_35px_rgba(0,0,0,0.5)]'
+              ? 'bg-[#1C1C1E] backdrop-blur-2xl border border-white/10 shadow-[0_15px_35px_rgba(0,0,0,0.5)]'
               : 'bg-white/95 backdrop-blur-2xl border border-black/8 shadow-[0_10px_30px_rgba(0,0,0,0.06)]'
           }`}
         >
           <div className="flex items-center justify-between w-full mb-3 px-1">
             <div className="flex items-center gap-2">
-              <div className="w-8 h-8 rounded-full bg-white/10 flex items-center justify-center">
-                <Users className="w-4 h-4 text-white dark:text-white" />
+              <div className={`w-8 h-8 rounded-full flex items-center justify-center ${
+                isDark ? 'bg-white/10 text-white' : 'bg-zinc-100 text-zinc-900'
+              }`}>
+                <Users className="w-4 h-4" />
               </div>
               <div className="flex flex-col text-left">
                 <span className="text-xs font-black uppercase tracking-wider text-zinc-400 dark:text-zinc-400">
@@ -149,7 +151,7 @@ export const PeopleStep: React.FC<PeopleStepProps> = ({
         <div
           className={`w-full p-5 sm:p-6 rounded-[26px] flex flex-col items-center justify-center transition-all duration-200 ${
             isDark
-              ? 'bg-[#18181b]/95 backdrop-blur-2xl border border-white/10 shadow-[0_15px_35px_rgba(0,0,0,0.5)]'
+              ? 'bg-[#1C1C1E] backdrop-blur-2xl border border-white/10 shadow-[0_15px_35px_rgba(0,0,0,0.5)]'
               : 'bg-white/95 backdrop-blur-2xl border border-black/8 shadow-[0_10px_30px_rgba(0,0,0,0.06)]'
           }`}
         >

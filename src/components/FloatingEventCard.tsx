@@ -26,6 +26,7 @@ interface FloatingEventCardProps {
   visible?: boolean;
   onActiveChange?: (hasActiveEvents: boolean) => void;
   isSatellite?: boolean;
+  theme?: 'dark' | 'light';
 }
 
 const DEFAULT_EVENT_IMAGE =
@@ -47,7 +48,9 @@ export const FloatingEventCard: React.FC<FloatingEventCardProps> = ({
   visible = true,
   onActiveChange,
   isSatellite = false,
+  theme = 'light',
 }) => {
+  const isDark = theme === 'dark';
   const [events, setEvents] = useState<MonvianMapEvent[]>(() => cachedFloatingEvents);
   const [currentIndex, setCurrentIndex] = useState<number>(() => cachedFloatingIndex);
   const [slideDirection, setSlideDirection] = useState<number>(1);
@@ -253,7 +256,7 @@ export const FloatingEventCard: React.FC<FloatingEventCardProps> = ({
             }}
             className="pointer-events-auto w-[53px] h-[53px] sm:w-[58px] sm:h-[58px] rounded-full ios26-liquid-glass flex items-center justify-center active:scale-90 transition-all duration-200 cursor-pointer"
           >
-            <Flag className={`relative z-10 w-6 h-6 sm:w-[27px] sm:h-[27px] stroke-[2.2] ${isSatellite ? 'text-white fill-white' : 'text-black fill-black'}`} />
+            <Flag className={`relative z-10 w-6 h-6 sm:w-[27px] sm:h-[27px] stroke-[2.2] ${isSatellite || isDark ? 'text-white fill-white' : 'text-black fill-black'}`} />
           </button>
         </motion.div>
       )}
@@ -310,14 +313,17 @@ export const FloatingEventCard: React.FC<FloatingEventCardProps> = ({
               width: capsuleWidth ? `${capsuleWidth}px` : undefined,
               fontFamily:
                 '-apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro Text", "Helvetica Neue", sans-serif',
-              backgroundColor: 'rgba(255, 255, 255, 0.78)',
+              backgroundColor: isDark ? 'rgba(28, 28, 30, 0.78)' : 'rgba(255, 255, 255, 0.78)',
               backdropFilter: 'blur(24px) saturate(190%)',
               WebkitBackdropFilter: 'blur(24px) saturate(190%)',
-              boxShadow:
-                '0 10px 28px -6px rgba(0, 0, 0, 0.10), 0 2px 6px rgba(0, 0, 0, 0.04), inset 0 1px 0 rgba(255, 255, 255, 0.92)',
+              boxShadow: isDark
+                ? '0 12px 30px -6px rgba(0, 0, 0, 0.55), inset 0 1px 0 rgba(255, 255, 255, 0.16)'
+                : '0 10px 28px -6px rgba(0, 0, 0, 0.10), 0 2px 6px rgba(0, 0, 0, 0.04), inset 0 1px 0 rgba(255, 255, 255, 0.92)',
               touchAction: 'none',
             }}
-            className="w-full max-w-[326px] sm:max-w-[342px] rounded-[28px] px-3 py-2.5 border border-white/85 pointer-events-auto cursor-grab active:cursor-grabbing transition-transform duration-200 overflow-hidden"
+            className={`w-full max-w-[326px] sm:max-w-[342px] rounded-[28px] px-3 py-2.5 border pointer-events-auto cursor-grab active:cursor-grabbing transition-transform duration-200 overflow-hidden ${
+              isDark ? 'border-white/15' : 'border-white/85'
+            }`}
           >
             <AnimatePresence mode="wait" initial={false}>
               <motion.div
@@ -328,8 +334,10 @@ export const FloatingEventCard: React.FC<FloatingEventCardProps> = ({
                 transition={{ duration: 0.24, ease: [0.22, 1, 0.36, 1] }}
                 className="flex items-center justify-between gap-2.5 w-full pointer-events-none"
               >
-                {/* Left Area: Circular Event Photo with delicate white border */}
-                <div className="w-[46px] h-[46px] rounded-full overflow-hidden shrink-0 border-[2px] border-white shadow-[0_2px_8px_rgba(0,0,0,0.08)] bg-zinc-200/70">
+                {/* Left Area: Circular Event Photo with delicate border */}
+                <div className={`w-[46px] h-[46px] rounded-full overflow-hidden shrink-0 border-[2px] shadow-[0_2px_8px_rgba(0,0,0,0.08)] ${
+                  isDark ? 'border-white/25 bg-zinc-800/80' : 'border-white bg-zinc-200/70'
+                }`}>
                   <img
                     src={activeEvent.image || DEFAULT_EVENT_IMAGE}
                     alt={activeEvent.name}
@@ -343,28 +351,34 @@ export const FloatingEventCard: React.FC<FloatingEventCardProps> = ({
 
                 {/* Center Area: Event Name in Bold + Event Time + Short Objective Description */}
                 <div className="flex-1 min-w-0 flex flex-col justify-center">
-                  <h4 className="text-[14.5px] font-bold text-black tracking-[-0.02em] leading-[1.18] truncate">
+                  <h4 className={`text-[14.5px] font-bold tracking-[-0.02em] leading-[1.18] truncate ${
+                    isDark ? 'text-white' : 'text-black'
+                  }`}>
                     {activeEvent.name}
                   </h4>
 
-                  <div className="flex items-center gap-1.5 mt-0.5 text-[11.5px] font-semibold text-black/65 tracking-[-0.01em] truncate">
+                  <div className={`flex items-center gap-1.5 mt-0.5 text-[11.5px] font-semibold tracking-[-0.01em] truncate ${
+                    isDark ? 'text-white/75' : 'text-black/65'
+                  }`}>
                     <span className="truncate">{formatTimeLine(activeEvent)}</span>
                     {activeEvent.cost_price && (
                       <>
-                        <span className="text-black/30">·</span>
+                        <span className={isDark ? 'text-white/35' : 'text-black/30'}>·</span>
                         <span className="truncate">{activeEvent.cost_price}</span>
                       </>
                     )}
                   </div>
 
                   {activeEvent.description && (
-                    <p className="text-[11.5px] font-normal text-black/55 tracking-[-0.01em] leading-[1.2] truncate mt-0.5">
+                    <p className={`text-[11.5px] font-normal tracking-[-0.01em] leading-[1.2] truncate mt-0.5 ${
+                      isDark ? 'text-zinc-400' : 'text-black/55'
+                    }`}>
                       {activeEvent.description}
                     </p>
                   )}
                 </div>
 
-                {/* Right Area: Circular Play Button with translucent white background & black Play icon */}
+                {/* Right Area: Circular Play Button */}
                 <button
                   type="button"
                   aria-label={`Ver ${activeEvent.name} no mapa`}
@@ -390,17 +404,20 @@ export const FloatingEventCard: React.FC<FloatingEventCardProps> = ({
                     );
                   }}
                   style={{
-                    backgroundColor: 'rgba(255, 255, 255, 0.85)',
-                    boxShadow:
-                      '0 2px 8px rgba(0, 0, 0, 0.07), inset 0 1px 0 rgba(255, 255, 255, 0.95)',
+                    backgroundColor: isDark ? 'rgba(44, 44, 46, 0.88)' : 'rgba(255, 255, 255, 0.85)',
+                    boxShadow: isDark
+                      ? '0 2px 10px rgba(0, 0, 0, 0.35), inset 0 1px 0 rgba(255, 255, 255, 0.16)'
+                      : '0 2px 8px rgba(0, 0, 0, 0.07), inset 0 1px 0 rgba(255, 255, 255, 0.95)',
                   }}
-                  className={`pointer-events-auto w-[38px] h-[38px] rounded-full border border-white/90 shrink-0 flex items-center justify-center transition-transform duration-150 cursor-pointer ${
-                    isPressed ? 'scale-90 bg-white' : 'hover:scale-105 active:scale-90'
+                  className={`pointer-events-auto w-[38px] h-[38px] rounded-full border shrink-0 flex items-center justify-center transition-transform duration-150 cursor-pointer ${
+                    isDark ? 'border-white/20' : 'border-white/90'
+                  } ${
+                    isPressed ? 'scale-90' : 'hover:scale-105 active:scale-90'
                   }`}
                 >
                   <svg
                     viewBox="0 0 20 20"
-                    className="w-[15px] h-[15px] text-black translate-x-[1px]"
+                    className={`w-[15px] h-[15px] translate-x-[1px] ${isDark ? 'text-white' : 'text-black'}`}
                     fill="currentColor"
                   >
                     <path d="M6.3 3.84A1.2 1.2 0 0 1 8.12 2.8l8.15 5.16a1.2 1.2 0 0 1 0 2.08l-8.15 5.16A1.2 1.2 0 0 1 6.3 14.16V3.84Z" />

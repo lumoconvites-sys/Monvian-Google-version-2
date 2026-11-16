@@ -384,7 +384,7 @@ export const SpotVideoPlayer: React.FC<SpotVideoPlayerProps> = ({
       ) : !isLoadingVideos ? (
         <div
           onClick={() => setIsUploadModalOpen(true)}
-          className="w-full py-12 px-6 rounded-2xl bg-zinc-50 dark:bg-[#121214] border border-zinc-200/80 dark:border-[#262626] flex flex-col items-center justify-center text-center gap-2.5 cursor-pointer hover:opacity-90 transition-opacity"
+          className="w-full py-12 px-6 rounded-2xl bg-zinc-50 dark:bg-[#1C1C1E] border border-zinc-200/80 dark:border-white/10 flex flex-col items-center justify-center text-center gap-2.5 cursor-pointer hover:opacity-90 transition-opacity"
         >
           <Film className="w-7 h-7 text-zinc-400" />
           <p className="text-xs font-semibold text-zinc-700 dark:text-zinc-300">
@@ -409,7 +409,7 @@ export const SpotVideoPlayer: React.FC<SpotVideoPlayerProps> = ({
               exit={{ opacity: 0, scale: 0.95, y: 10 }}
               transition={{ duration: 0.22, ease: [0.16, 1, 0.3, 1] }}
               onClick={(e) => e.stopPropagation()}
-              className="w-full max-w-md bg-white dark:bg-[#121214] border border-zinc-200 dark:border-[#262626] rounded-3xl p-6 shadow-2xl space-y-5 text-zinc-900 dark:text-white"
+              className="w-full max-w-md bg-white dark:bg-[#1C1C1E] border border-zinc-200 dark:border-white/10 rounded-3xl p-6 shadow-2xl space-y-5 text-zinc-900 dark:text-white"
             >
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">

@@ -52,14 +52,16 @@
   }
   html.dark {
     --bg-primary: #000000;
-    --bg-secondary: #000000;
-    --bg-card: #000000;
-    --bg-modal: #000000;
+    --bg-secondary: #1C1C1E;
+    --bg-card: #1C1C1E;
+    --bg-surface: #1C1C1E;
+    --bg-modal: #1C1C1E;
     --bg-nav: #000000;
-    --bg-input: #000000;
+    --bg-input: #1C1C1E;
     --text-primary: #ffffff;
     --text-secondary: #a1a1aa;
-    --border-color: #262626;
+    --border-color: rgba(255, 255, 255, 0.1);
+    --border-divider: rgba(255, 255, 255, 0.08);
     --icon-active: #ffffff;
     --icon-inactive: #a1a1aa;
   }
@@ -818,10 +820,16 @@ html:not(.dark) .ios-glass-white,
   backdrop-filter: none !important;
   -webkit-backdrop-filter: none !important;
 }
-.high-contrast .ios26-liquid-glass,
-.high-contrast .ios26-liquid-glass-nav,
-.high-contrast .ios26-liquid-glass-pill {
+.high-contrast:not(.dark) .ios26-liquid-glass,
+.high-contrast:not(.dark) .ios26-liquid-glass-nav,
+.high-contrast:not(.dark) .ios26-liquid-glass-pill {
   background: #ffffff !important;
+}
+.high-contrast.dark .ios26-liquid-glass,
+.high-contrast.dark .ios26-liquid-glass-nav,
+.high-contrast.dark .ios26-liquid-glass-pill {
+  background: #1C1C1E !important;
+  color: #ffffff !important;
 }
 .high-contrast .ios-glass::before,
 .high-contrast .ios-glass-nav::before,
@@ -865,9 +873,10 @@ html:not(.dark) .expo-liquid-glass-bar {
 }
 
 .dark .expo-liquid-glass-bar {
-  background: #18181b !important;
+  background: #1C1C1E !important;
   border: 1px solid rgba(255, 255, 255, 0.12) !important;
-  box-shadow: 0 10px 30px -4px rgba(0, 0, 0, 0.6) !important;
+  box-shadow: 0 10px 30px -4px rgba(0, 0, 0, 0.65) !important;
+  color: #ffffff;
 }
 
 /* Subtle top specular reflection line on Liquid Glass Bars */
@@ -893,14 +902,15 @@ html:not(.dark) .expo-liquid-glass-btn:hover {
 }
 
 .dark .expo-liquid-glass-btn {
-  background: #27272a !important;
+  background: #1C1C1E !important;
   border: 1px solid rgba(255, 255, 255, 0.14) !important;
-  box-shadow: 0 6px 18px -3px rgba(0, 0, 0, 0.5) !important;
+  box-shadow: 0 6px 18px -3px rgba(0, 0, 0, 0.55) !important;
+  color: #ffffff;
 }
 
 .dark .expo-liquid-glass-btn:hover {
-  background: #3f3f46 !important;
-  border-color: rgba(255, 255, 255, 0.2) !important;
+  background: #2C2C2E !important;
+  border-color: rgba(255, 255, 255, 0.22) !important;
 }
 
 /* 3. Solid Pill (Active selection capsule inside navigation / filter bars) */
@@ -911,9 +921,10 @@ html:not(.dark) .expo-liquid-glass-pill {
 }
 
 .dark .expo-liquid-glass-pill {
-  background: #27272a !important;
-  border: 1px solid rgba(255, 255, 255, 0.12) !important;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.35) !important;
+  background: #2C2C2E !important;
+  border: 1px solid rgba(255, 255, 255, 0.14) !important;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.4) !important;
+  color: #ffffff;
 }
 
 /* Clear style modifier (for buttons floating over dark hero imagery/banners) */
@@ -955,10 +966,8 @@ html:not(.dark) .expo-liquid-glass-clear:hover,
 
 .ios26-liquid-glass,
 html:not(.dark) .ios26-liquid-glass,
-.dark .ios26-liquid-glass,
 .ios26-liquid-glass-nav,
-html:not(.dark) .ios26-liquid-glass-nav,
-.dark .ios26-liquid-glass-nav {
+html:not(.dark) .ios26-liquid-glass-nav {
   background: rgba(255, 255, 255, 0.22) !important;
   backdrop-filter: blur(26px) saturate(180%) !important;
   -webkit-backdrop-filter: blur(26px) saturate(180%) !important;
@@ -971,6 +980,23 @@ html:not(.dark) .ios26-liquid-glass-nav,
     inset -1px 0 1px rgba(255, 255, 255, 0.28),
     inset 0 0 14px rgba(255, 255, 255, 0.14) !important;
   color: #000000;
+  isolation: isolate;
+}
+
+.dark .ios26-liquid-glass,
+.dark .ios26-liquid-glass-nav {
+  background: rgba(28, 28, 30, 0.62) !important;
+  backdrop-filter: blur(26px) saturate(180%) !important;
+  -webkit-backdrop-filter: blur(26px) saturate(180%) !important;
+  border: 1px solid rgba(255, 255, 255, 0.16) !important;
+  box-shadow:
+    0 10px 28px rgba(0, 0, 0, 0.45),
+    inset 0 1.5px 1.5px rgba(255, 255, 255, 0.20),
+    inset 0 -1.5px 2px rgba(255, 255, 255, 0.06),
+    inset 1px 0 1px rgba(255, 255, 255, 0.08),
+    inset -1px 0 1px rgba(255, 255, 255, 0.08),
+    inset 0 0 14px rgba(255, 255, 255, 0.04) !important;
+  color: #FFFFFF;
   isolation: isolate;
 }
 
@@ -990,6 +1016,17 @@ html:not(.dark) .ios26-liquid-glass-nav,
   );
   pointer-events: none;
   z-index: 0;
+}
+
+.dark .ios26-liquid-glass::before,
+.dark .ios26-liquid-glass-nav::before {
+  background: linear-gradient(
+    180deg,
+    rgba(255, 255, 255, 0.14) 0%,
+    rgba(255, 255, 255, 0.04) 30%,
+    rgba(255, 255, 255, 0) 64%,
+    rgba(255, 255, 255, 0.04) 100%
+  );
 }
 
 /* Upper curved rim specular highlight */
@@ -1012,9 +1049,18 @@ html:not(.dark) .ios26-liquid-glass-nav,
   z-index: 0;
 }
 
+.dark .ios26-liquid-glass::after,
+.dark .ios26-liquid-glass-nav::after {
+  background: linear-gradient(
+    90deg,
+    rgba(255, 255, 255, 0) 0%,
+    rgba(255, 255, 255, 0.34) 50%,
+    rgba(255, 255, 255, 0) 100%
+  );
+}
+
 .ios26-liquid-glass:hover,
-html:not(.dark) .ios26-liquid-glass:hover,
-.dark .ios26-liquid-glass:hover {
+html:not(.dark) .ios26-liquid-glass:hover {
   background: rgba(255, 255, 255, 0.28) !important;
   border-color: rgba(255, 255, 255, 0.56) !important;
   box-shadow:
@@ -1026,10 +1072,21 @@ html:not(.dark) .ios26-liquid-glass:hover,
     inset 0 0 16px rgba(255, 255, 255, 0.18) !important;
 }
 
+.dark .ios26-liquid-glass:hover {
+  background: rgba(44, 44, 46, 0.72) !important;
+  border-color: rgba(255, 255, 255, 0.24) !important;
+  box-shadow:
+    0 12px 30px rgba(0, 0, 0, 0.55),
+    inset 0 1.5px 2px rgba(255, 255, 255, 0.26),
+    inset 0 -1.5px 2px rgba(255, 255, 255, 0.08),
+    inset 1px 0 1px rgba(255, 255, 255, 0.10),
+    inset -1px 0 1px rgba(255, 255, 255, 0.10),
+    inset 0 0 16px rgba(255, 255, 255, 0.06) !important;
+}
+
 /* Inner active tab optical glass lens inside bottom navigation bar */
 .ios26-liquid-glass-pill,
-html:not(.dark) .ios26-liquid-glass-pill,
-.dark .ios26-liquid-glass-pill {
+html:not(.dark) .ios26-liquid-glass-pill {
   background: linear-gradient(
     180deg,
     rgba(255, 255, 255, 0.42) 0%,
@@ -1040,6 +1097,19 @@ html:not(.dark) .ios26-liquid-glass-pill,
     0 2px 10px rgba(0, 0, 0, 0.08),
     inset 0 1px 1.5px rgba(255, 255, 255, 0.86),
     inset 0 -1px 1px rgba(255, 255, 255, 0.22) !important;
+}
+
+.dark .ios26-liquid-glass-pill {
+  background: linear-gradient(
+    180deg,
+    rgba(255, 255, 255, 0.18) 0%,
+    rgba(255, 255, 255, 0.08) 100%
+  ) !important;
+  border: 1px solid rgba(255, 255, 255, 0.22) !important;
+  box-shadow:
+    0 2px 10px rgba(0, 0, 0, 0.35),
+    inset 0 1px 1.5px rgba(255, 255, 255, 0.26),
+    inset 0 -1px 1px rgba(255, 255, 255, 0.06) !important;
 }
 
 /* ============================================================ */

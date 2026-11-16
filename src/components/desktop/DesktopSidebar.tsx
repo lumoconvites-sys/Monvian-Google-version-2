@@ -69,12 +69,12 @@ export const DesktopSidebar: React.FC<DesktopSidebarProps> = ({
   const displayUsername = user?.username ? `@${user.username}` : '@monvians';
   const displayName = user?.name || 'mariomeloz';
 
-  const isDark = false;
+  const isDark = theme === 'dark';
 
   return (
     <aside
       className={`hidden md:flex flex-col justify-between h-full border-r z-40 select-none shrink-0 transition-[width,background-color,border-color] duration-200 ease-in-out ${
-        isDark ? 'bg-[#000000] border-[#262626]' : 'bg-white border-zinc-200/90'
+        isDark ? 'bg-[#000000] border-white/10' : 'bg-white border-zinc-200/90'
       } ${
         isCollapsed ? 'w-[72px]' : 'w-[250px]'
       }`}
@@ -175,7 +175,7 @@ export const DesktopSidebar: React.FC<DesktopSidebarProps> = ({
                   } ${
                     isDark
                       ? isActive
-                        ? 'bg-[#161618] text-white border border-[#262626] shadow-xs'
+                        ? 'bg-[#1C1C1E] text-white border border-white/10 shadow-xs'
                         : 'text-[#A1A1AA] hover:text-white hover:bg-white/5 border border-transparent'
                       : isActive
                       ? 'bg-[#f3f3f3] text-black border border-zinc-200/80 shadow-xs'
@@ -246,8 +246,12 @@ export const DesktopSidebar: React.FC<DesktopSidebarProps> = ({
                   onClick={onOpenAdmin}
                   className={`flex items-center transition-all cursor-pointer ${
                     isCollapsed
-                      ? 'w-11 h-11 mx-auto justify-center rounded-2xl text-[#0069ff] hover:bg-blue-50 border border-transparent hover:border-blue-200'
-                      : 'w-full gap-3 px-3.5 py-2.5 rounded-2xl text-[13px] font-semibold text-[#008dff] hover:bg-blue-50 border border-blue-200'
+                      ? isDark
+                        ? 'w-11 h-11 mx-auto justify-center rounded-2xl text-[#008dff] hover:bg-blue-500/15 border border-transparent hover:border-blue-500/30'
+                        : 'w-11 h-11 mx-auto justify-center rounded-2xl text-[#0069ff] hover:bg-blue-50 border border-transparent hover:border-blue-200'
+                      : isDark
+                        ? 'w-full gap-3 px-3.5 py-2.5 rounded-2xl text-[13px] font-semibold text-[#008dff] hover:bg-blue-500/15 border border-blue-500/25'
+                        : 'w-full gap-3 px-3.5 py-2.5 rounded-2xl text-[13px] font-semibold text-[#008dff] hover:bg-blue-50 border border-blue-200'
                   }`}
                   aria-label="Painel Admin"
                 >
@@ -269,7 +273,7 @@ export const DesktopSidebar: React.FC<DesktopSidebarProps> = ({
       {/* Footer Section */}
       <div
         className={`border-t ${
-          isDark ? 'border-[#262626] bg-[#000000]' : 'border-zinc-200/90 bg-white'
+          isDark ? 'border-white/10 bg-[#000000]' : 'border-zinc-200/90 bg-white'
         } ${
           isCollapsed ? 'p-3 flex flex-col items-center' : 'p-4 lg:p-5'
         }`}
@@ -283,7 +287,7 @@ export const DesktopSidebar: React.FC<DesktopSidebarProps> = ({
               isCollapsed
                 ? 'w-10 h-10 rounded-full flex items-center justify-center'
                 : isDark
-                ? 'w-full p-2.5 rounded-2xl bg-[#000000] border border-[#262626] hover:border-white/30 flex items-center justify-between shadow-2xs'
+                ? 'w-full p-2.5 rounded-2xl bg-[#1C1C1E] border border-white/10 hover:border-white/25 flex items-center justify-between shadow-2xs'
                 : 'w-full p-2.5 rounded-2xl bg-white border border-zinc-200 hover:border-zinc-300 flex items-center justify-between shadow-2xs'
             }`}
             role="button"

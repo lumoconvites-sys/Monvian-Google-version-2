@@ -12,6 +12,7 @@ interface CinematicLandingViewProps {
   scrollContainerRef: React.RefObject<HTMLDivElement | null>;
   onStartRegister: () => void;
   onOpenLogin: () => void;
+  theme?: 'dark' | 'light';
 }
 
 const BrazilFlagIcon: React.FC = () => (
@@ -79,8 +80,10 @@ const LanguageFlagIcon: React.FC<{ lang: 'pt' | 'en' | 'es' | 'ja' }> = ({ lang 
 
 const HeroUsersCounter = React.memo(function HeroUsersCounter({
   prefersReducedMotion,
+  isDark = false,
 }: {
   prefersReducedMotion: boolean | null;
+  isDark?: boolean;
 }) {
   const { language, tr } = useLanguage();
   const [userCount, setUserCount] = useState<number>(() => {
@@ -150,7 +153,9 @@ const HeroUsersCounter = React.memo(function HeroUsersCounter({
         ].map((avatar) => (
           <div
             key={avatar.src}
-            className={`relative ${avatar.zIndex} w-[44px] h-[44px] sm:w-[46px] sm:h-[46px] rounded-full border-[2.5px] border-white shadow-[0_6px_16px_rgba(14,42,79,0.22)] overflow-hidden bg-white shrink-0`}
+            className={`relative ${avatar.zIndex} w-[44px] h-[44px] sm:w-[46px] sm:h-[46px] rounded-full border-[2.5px] shadow-[0_6px_16px_rgba(14,42,79,0.22)] overflow-hidden shrink-0 ${
+              isDark ? 'border-[#000000] bg-[#1C1C1E]' : 'border-white bg-white'
+            }`}
           >
             <img
               src={avatar.src}
@@ -167,13 +172,17 @@ const HeroUsersCounter = React.memo(function HeroUsersCounter({
       </div>
 
       <div
-        className="relative z-[95] w-[1.5px] h-[40px] sm:h-[42px] bg-[#080808]/20 rounded-full shrink-0"
+        className={`relative z-[95] w-[1.5px] h-[40px] sm:h-[42px] rounded-full shrink-0 ${
+          isDark ? 'bg-white/25' : 'bg-[#080808]/20'
+        }`}
         aria-hidden="true"
       />
 
       <div className="relative z-[95] flex flex-col items-start justify-center text-left">
         <span
-          className="inline-flex items-center text-[25px] sm:text-[27px] font-bold text-[#000000] leading-[1.06] tracking-[-0.02em] tabular-nums"
+          className={`inline-flex items-center text-[25px] sm:text-[27px] font-bold leading-[1.06] tracking-[-0.02em] tabular-nums ${
+            isDark ? 'text-[#FFFFFF]' : 'text-[#000000]'
+          }`}
           style={{
             fontFamily:
               "'SF Pro Display', -apple-system, BlinkMacSystemFont, sans-serif",
@@ -234,7 +243,9 @@ const HeroUsersCounter = React.memo(function HeroUsersCounter({
             })}
         </span>
         <span
-          className="text-[14.5px] sm:text-[15.5px] font-medium text-[#000000] leading-[1.2] tracking-[-0.01em] mt-0.5"
+          className={`text-[14.5px] sm:text-[15.5px] font-medium leading-[1.2] tracking-[-0.01em] mt-0.5 ${
+            isDark ? 'text-[#FFFFFF]' : 'text-[#000000]'
+          }`}
           style={{
             fontFamily:
               "'SF Pro Text', -apple-system, BlinkMacSystemFont, sans-serif",
@@ -251,7 +262,9 @@ export const CinematicLandingView: React.FC<CinematicLandingViewProps> = ({
   scrollContainerRef,
   onStartRegister,
   onOpenLogin,
+  theme = 'light',
 }) => {
+  const isDark = theme === 'dark';
   const prefersReducedMotion = useReducedMotion();
 
   // Asset readiness for orchestrated entrance animation (starts true for zero blank screen)
@@ -611,14 +624,16 @@ export const CinematicLandingView: React.FC<CinematicLandingViewProps> = ({
         tl.progress(progress);
       }
 
-      // Keep navbar permanently fixed at the top; only adapt translucent glass theme between sky hero and light sections
+      // Keep navbar permanently fixed at the top; adapt translucent glass theme between sky hero and page surface
       const navEl = navHeaderRef.current;
-      const nextLight = scrollTop > viewportHeight * 0.36;
+      const nextLight = !isDark && scrollTop > viewportHeight * 0.36;
       if (nextLight !== lastNavLight) {
         lastNavLight = nextLight;
         if (navEl) {
           navEl.setAttribute('data-nav-theme', nextLight ? 'light' : 'dark');
         }
+      } else if (isDark && navEl && navEl.getAttribute('data-nav-theme') !== 'dark') {
+        navEl.setAttribute('data-nav-theme', 'dark');
       }
     };
 
@@ -638,7 +653,7 @@ export const CinematicLandingView: React.FC<CinematicLandingViewProps> = ({
       if (rafScrollId !== null) window.cancelAnimationFrame(rafScrollId);
       tl.kill();
     };
-  }, [scrollContainerRef, prefersReducedMotion]);
+  }, [scrollContainerRef, prefersReducedMotion, isDark]);
 
   const scrollToSection = useCallback(
     (sectionId: string) => {
@@ -705,7 +720,9 @@ export const CinematicLandingView: React.FC<CinematicLandingViewProps> = ({
 
   return (
     <div
-      className="relative w-full select-none bg-[#FFFFFF] text-[#080808] overflow-x-clip"
+      className={`relative w-full select-none overflow-x-clip transition-colors duration-200 ${
+        isDark ? 'bg-[#000000] text-[#FFFFFF]' : 'bg-[#FFFFFF] text-[#080808]'
+      }`}
       style={{
         fontFamily:
           "'SF Pro Display', 'SF Pro Text', -apple-system, BlinkMacSystemFont, sans-serif",
@@ -937,12 +954,16 @@ export const CinematicLandingView: React.FC<CinematicLandingViewProps> = ({
               transition={{ duration: 0.18, ease: [0.22, 1, 0.36, 1] }}
               style={{
                 transformOrigin: 'top right',
-                backgroundColor: 'rgba(255, 255, 255, 0.92)',
+                backgroundColor: isDark ? 'rgba(28, 28, 30, 0.94)' : 'rgba(255, 255, 255, 0.92)',
                 backdropFilter: 'blur(20px) saturate(160%)',
                 WebkitBackdropFilter: 'blur(20px) saturate(160%)',
                 fontFamily: "'SF Pro Text', -apple-system, BlinkMacSystemFont, sans-serif",
               }}
-              className="absolute right-0 top-full mt-2 w-[178px] max-w-[calc(100vw-32px)] rounded-[18px] border border-white/85 shadow-[0_12px_32px_rgba(10,28,56,0.18),0_2px_8px_rgba(0,0,0,0.06)] overflow-hidden pointer-events-auto"
+              className={`absolute right-0 top-full mt-2 w-[178px] max-w-[calc(100vw-32px)] rounded-[18px] border overflow-hidden pointer-events-auto ${
+                isDark
+                  ? 'border-white/15 shadow-[0_14px_36px_rgba(0,0,0,0.65)]'
+                  : 'border-white/85 shadow-[0_12px_32px_rgba(10,28,56,0.18),0_2px_8px_rgba(0,0,0,0.06)]'
+              }`}
             >
               {(
                 [
@@ -954,7 +975,10 @@ export const CinematicLandingView: React.FC<CinematicLandingViewProps> = ({
               ).map((item, idx) => (
                 <React.Fragment key={item.code}>
                   {idx > 0 && (
-                    <div className="h-[1px] bg-black/[0.08] mx-3" aria-hidden="true" />
+                    <div
+                      className={`h-[1px] mx-3 ${isDark ? 'bg-white/[0.08]' : 'bg-black/[0.08]'}`}
+                      aria-hidden="true"
+                    />
                   )}
                   <button
                     type="button"
@@ -965,7 +989,11 @@ export const CinematicLandingView: React.FC<CinematicLandingViewProps> = ({
                       setLanguage(item.code);
                       setIsLangMenuOpen(false);
                     }}
-                    className="w-full px-3.5 py-2.5 flex items-center gap-2.5 text-left text-[13.5px] font-medium text-[#111827] hover:bg-black/[0.04] active:bg-black/[0.07] transition-colors cursor-pointer"
+                    className={`w-full px-3.5 py-2.5 flex items-center gap-2.5 text-left text-[13.5px] font-medium transition-colors cursor-pointer ${
+                      isDark
+                        ? 'text-[#FFFFFF] hover:bg-white/[0.06] active:bg-white/[0.10]'
+                        : 'text-[#111827] hover:bg-black/[0.04] active:bg-black/[0.07]'
+                    }`}
                   >
                     <span className="w-[22px] h-[22px] rounded-full overflow-hidden shrink-0 shadow-[0_1px_3px_rgba(0,0,0,0.12)]">
                       <LanguageFlagIcon lang={item.code} />
@@ -990,14 +1018,16 @@ export const CinematicLandingView: React.FC<CinematicLandingViewProps> = ({
       <section
         ref={heroSectionRef}
         aria-label="Apresentação principal Monvian — Campos do Jordão"
-        className="relative z-[70] w-full min-h-[640px] flex flex-col justify-between bg-[#FFFFFF] overflow-hidden"
+        className={`relative z-[70] w-full min-h-[640px] flex flex-col justify-between overflow-hidden ${
+          isDark ? 'bg-[#000000]' : 'bg-[#FFFFFF]'
+        }`}
         style={{
           height: 'var(--app-height, 100dvh)',
           minHeight: 'max(640px, var(--app-height, 100dvh))',
           filter: 'saturate(1.2)',
         }}
       >
-        {/* 1. CÉU TRIDIMENSIONAL MULTICAMADAS (Termina em branco puro #FFFFFF muito antes da base para zero corte horizontal) */}
+        {/* 1. CÉU TRIDIMENSIONAL MULTICAMADAS */}
         <div
           ref={parallaxSkyRef}
           className="absolute inset-x-[-16px] top-[-24px] bottom-0 pointer-events-none will-change-transform"
@@ -1017,8 +1047,9 @@ export const CinematicLandingView: React.FC<CinematicLandingViewProps> = ({
               ref={skyLayerRef}
               className="w-full h-full relative will-change-transform"
               style={{
-                background:
-                  'linear-gradient(180deg, #2968A9 0%, #357DC2 18%, #4B93D3 36%, #79B4E3 53%, #AAD2EF 68%, #DCEDF9 80%, #F4F9FD 88%, #FFFFFF 94%, #FFFFFF 100%)',
+                background: isDark
+                  ? 'linear-gradient(180deg, #0D1E36 0%, #152D4F 22%, #1C3C66 42%, #172E4D 62%, #0C1726 78%, #04070D 89%, #000000 95%, #000000 100%)'
+                  : 'linear-gradient(180deg, #2968A9 0%, #357DC2 18%, #4B93D3 36%, #79B4E3 53%, #AAD2EF 68%, #DCEDF9 80%, #F4F9FD 88%, #FFFFFF 94%, #FFFFFF 100%)',
               }}
             >
               {/* Brilho Solar Radial e Iluminação Atmosférica */}
@@ -1026,8 +1057,9 @@ export const CinematicLandingView: React.FC<CinematicLandingViewProps> = ({
                 ref={sunGlowRef}
                 className="absolute inset-0 will-change-transform"
                 style={{
-                  background:
-                    'radial-gradient(circle at 58% 24%, rgba(255, 255, 255, 0.26) 0%, rgba(202, 229, 249, 0.14) 34%, rgba(53, 125, 194, 0) 70%), radial-gradient(ellipse 88% 36% at 50% 68%, rgba(255, 255, 255, 0.52) 0%, rgba(232, 244, 252, 0.22) 55%, rgba(255, 255, 255, 0) 100%)',
+                  background: isDark
+                    ? 'radial-gradient(circle at 58% 24%, rgba(120, 175, 240, 0.16) 0%, rgba(45, 92, 155, 0.08) 38%, rgba(0, 0, 0, 0) 72%)'
+                    : 'radial-gradient(circle at 58% 24%, rgba(255, 255, 255, 0.26) 0%, rgba(202, 229, 249, 0.14) 34%, rgba(53, 125, 194, 0) 70%), radial-gradient(ellipse 88% 36% at 50% 68%, rgba(255, 255, 255, 0.52) 0%, rgba(232, 244, 252, 0.22) 55%, rgba(255, 255, 255, 0) 100%)',
                 }}
               />
             </div>
@@ -1276,20 +1308,23 @@ export const CinematicLandingView: React.FC<CinematicLandingViewProps> = ({
                   <div
                     className="absolute inset-0 rounded-full"
                     style={{
-                      background:
-                        'radial-gradient(ellipse 62% 54% at 50% 50%, #FFFFFF 0%, rgba(255, 255, 255, 0.96) 48%, rgba(255, 255, 255, 0) 100%)',
+                      background: isDark
+                        ? 'radial-gradient(ellipse 62% 54% at 50% 50%, #000000 0%, rgba(0, 0, 0, 0.96) 48%, rgba(0, 0, 0, 0) 100%)'
+                        : 'radial-gradient(ellipse 62% 54% at 50% 50%, #FFFFFF 0%, rgba(255, 255, 255, 0.96) 48%, rgba(255, 255, 255, 0) 100%)',
                       filter: 'blur(12px)',
                     }}
                   />
-                  <picture>
-                    <source srcSet="/assets/aistudio/cloud_volumetric_3.webp" type="image/webp" />
-                    <img
-                      src="/assets/aistudio/cloud_volumetric_3.webp"
-                      alt=""
-                      decoding="async"
-                      className="monvian-cloud-soft-mask absolute -top-[8%] left-1/2 -translate-x-1/2 w-[96%] h-auto opacity-95 select-none"
-                    />
-                  </picture>
+                  {!isDark && (
+                    <picture>
+                      <source srcSet="/assets/aistudio/cloud_volumetric_3.webp" type="image/webp" />
+                      <img
+                        src="/assets/aistudio/cloud_volumetric_3.webp"
+                        alt=""
+                        decoding="async"
+                        className="monvian-cloud-soft-mask absolute -top-[8%] left-1/2 -translate-x-1/2 w-[96%] h-auto opacity-95 select-none"
+                      />
+                    </picture>
+                  )}
                 </div>
               </div>
             </motion.div>
@@ -1299,7 +1334,7 @@ export const CinematicLandingView: React.FC<CinematicLandingViewProps> = ({
           </div>
         </div>
 
-        {/* 6. GRUPO 3 — NUVENS FRONTAIS DE TRANSIÇÃO (Invisíveis no topo para a figura 3D aparecer 100% completa; sobem ao rolar e dissolvem no branco) */}
+        {/* 6. GRUPO 3 — NUVENS FRONTAIS DE TRANSIÇÃO */}
         <div
           ref={parallaxFrontRef}
           className="absolute inset-0 pointer-events-none z-[30] will-change-transform"
@@ -1316,13 +1351,15 @@ export const CinematicLandingView: React.FC<CinematicLandingViewProps> = ({
                 src="/assets/aistudio/cloud_volumetric_3.webp"
                 alt=""
                 decoding="async"
-                className="monvian-cloud-soft-mask absolute top-[54%] left-1/2 -translate-x-1/2 w-[108vw] max-w-[660px] md:w-[56vw] md:max-w-[820px] opacity-95 select-none"
+                className={`monvian-cloud-soft-mask absolute top-[54%] left-1/2 -translate-x-1/2 w-[108vw] max-w-[660px] md:w-[56vw] md:max-w-[820px] select-none ${
+                  isDark ? 'opacity-25' : 'opacity-95'
+                }`}
               />
             </picture>
           </div>
         </div>
 
-        {/* 6.5 CORTINA DE NUVENS BRANCAS PURAS (#FFFFFF) QUE SOBE DE BAIXO DURANTE O SCROLL SEM NENHUM CORTE OU SOMBRA CINZA */}
+        {/* 6.5 CORTINA DE TRANSIÇÃO QUE SOBE DE BAIXO DURANTE O SCROLL */}
         <div
           ref={risingBottomCloudsRef}
           style={{ opacity: 0 }}
@@ -1332,24 +1369,27 @@ export const CinematicLandingView: React.FC<CinematicLandingViewProps> = ({
           <div
             className="absolute inset-0"
             style={{
-              background:
-                'radial-gradient(ellipse 75% 65% at 50% 60%, #FFFFFF 0%, #FFFFFF 52%, rgba(255,255,255,0.92) 72%, rgba(255,255,255,0) 100%)',
+              background: isDark
+                ? 'radial-gradient(ellipse 75% 65% at 50% 60%, #000000 0%, #000000 52%, rgba(0,0,0,0.92) 72%, rgba(0,0,0,0) 100%)'
+                : 'radial-gradient(ellipse 75% 65% at 50% 60%, #FFFFFF 0%, #FFFFFF 52%, rgba(255,255,255,0.92) 72%, rgba(255,255,255,0) 100%)',
               filter: 'blur(16px)',
             }}
           />
           <div
             className="absolute -top-[8vh] left-[-5%] w-[65%] h-[36vh] rounded-full"
             style={{
-              background:
-                'radial-gradient(ellipse at center, #FFFFFF 0%, rgba(255,255,255,0.95) 46%, rgba(255,255,255,0) 80%)',
+              background: isDark
+                ? 'radial-gradient(ellipse at center, #000000 0%, rgba(0,0,0,0.95) 46%, rgba(0,0,0,0) 80%)'
+                : 'radial-gradient(ellipse at center, #FFFFFF 0%, rgba(255,255,255,0.95) 46%, rgba(255,255,255,0) 80%)',
               filter: 'blur(18px)',
             }}
           />
           <div
             className="absolute -top-[8vh] right-[-5%] w-[65%] h-[36vh] rounded-full"
             style={{
-              background:
-                'radial-gradient(ellipse at center, #FFFFFF 0%, rgba(255,255,255,0.95) 46%, rgba(255,255,255,0) 80%)',
+              background: isDark
+                ? 'radial-gradient(ellipse at center, #000000 0%, rgba(0,0,0,0.95) 46%, rgba(0,0,0,0) 80%)'
+                : 'radial-gradient(ellipse at center, #FFFFFF 0%, rgba(255,255,255,0.95) 46%, rgba(255,255,255,0) 80%)',
               filter: 'blur(18px)',
             }}
           />
@@ -1480,10 +1520,18 @@ export const CinematicLandingView: React.FC<CinematicLandingViewProps> = ({
                   <button
                     type="button"
                     onClick={() => scrollToSection('roteiros')}
-                    className="group min-h-[48px] px-7 py-3 rounded-full border border-white/80 bg-[#ffffff] active:scale-[0.98] backdrop-blur-md text-white text-[15px] xl:text-[15.5px] font-semibold tracking-[-0.01em] shadow-[0_8px_22px_rgba(10,36,76,0.12)] transition-all duration-150 inline-flex items-center gap-2.5 whitespace-nowrap shrink-0 cursor-pointer focus-visible:outline-2 focus-visible:outline-white"
+                    className={`group min-h-[48px] px-7 py-3 rounded-full border active:scale-[0.98] backdrop-blur-md text-[15px] xl:text-[15.5px] font-semibold tracking-[-0.01em] shadow-[0_8px_22px_rgba(10,36,76,0.12)] transition-all duration-150 inline-flex items-center gap-2.5 whitespace-nowrap shrink-0 cursor-pointer focus-visible:outline-2 focus-visible:outline-white ${
+                      isDark
+                        ? 'border-white/20 bg-[#1C1C1E] hover:bg-[#2C2C2E] text-white'
+                        : 'border-white/80 bg-[#ffffff] text-[#080808]'
+                    }`}
                   >
-                    <span className="text-[#000000]">{tr('Explorar roteiros')}</span>
-                    <ArrowRight className="w-[17px] h-[17px] stroke-[2] text-white transition-transform duration-200 group-hover:translate-x-0.5" />
+                    <span className={isDark ? 'text-white' : 'text-[#000000]'}>{tr('Explorar roteiros')}</span>
+                    <ArrowRight
+                      className={`w-[17px] h-[17px] stroke-[2] transition-transform duration-200 group-hover:translate-x-0.5 ${
+                        isDark ? 'text-white' : 'text-[#080808]'
+                      }`}
+                    />
                   </button>
                 </motion.div>
               </div>
@@ -1498,21 +1546,21 @@ export const CinematicLandingView: React.FC<CinematicLandingViewProps> = ({
             ref={heroCtaWrapRef}
             className="relative z-[95] w-full flex justify-center pb-1 sm:pb-2 lg:pb-2 xl:pb-3 pointer-events-auto shrink-0 will-change-transform"
           >
-            <HeroUsersCounter prefersReducedMotion={prefersReducedMotion} />
+            <HeroUsersCounter prefersReducedMotion={prefersReducedMotion} isDark={isDark} />
           </div>
         </div>
       </section>
 
       {/* =========================================================================
           PARTE 9 — SEÇÃO DE APRESENTAÇÃO DO MONVIAN
-          Sem overflow-hidden e sem imagens de nuvem acinzentadas sobre o branco,
-          eliminando 100% qualquer corte horizontal visível
          ========================================================================= */}
       <section
         id="como-funciona"
         ref={presentationSectionRef}
         aria-labelledby="monvian-presentation-heading"
-        className="relative z-[80] w-full pt-8 sm:pt-12 pb-10 sm:pb-12 bg-[#FFFFFF]"
+        className={`relative z-[80] w-full pt-8 sm:pt-12 pb-10 sm:pb-12 transition-colors duration-200 ${
+          isDark ? 'bg-[#000000]' : 'bg-[#FFFFFF]'
+        }`}
         style={{ filter: 'saturate(1.2)' }}
       >
         {/* Conteúdo editorial e minimalista */}
@@ -1532,47 +1580,49 @@ export const CinematicLandingView: React.FC<CinematicLandingViewProps> = ({
               <h2
                 id="monvian-presentation-heading"
                 data-no-translate
-                className="text-[28px] sm:text-[34px] md:text-[40px] font-extrabold tracking-[-0.032em] leading-[1.1] text-[#080808]"
+                className={`text-[28px] sm:text-[34px] md:text-[40px] font-extrabold tracking-[-0.032em] leading-[1.1] ${
+                  isDark ? 'text-[#FFFFFF]' : 'text-[#080808]'
+                }`}
                 style={{
                   fontFamily:
                     "'SF Pro Display', -apple-system, BlinkMacSystemFont, sans-serif",
                   textWrap: 'balance',
-                  color: '#080808',
                 }}
               >
                 {selectedLanguage === 'en' ? (
                   <>
-                    Visit <span className="text-[#2673E8]" style={{ color: '#2673E8' }}>amazing</span> places
+                    Visit <span className="text-[#2673E8]">amazing</span> places
                     <br />
-                    <span style={{ color: '#080808' }}>in the city.</span>
+                    <span>in the city.</span>
                   </>
                 ) : selectedLanguage === 'es' ? (
                   <>
-                    Visita lugares <span className="text-[#2673E8]" style={{ color: '#2673E8' }}>increíbles</span>
+                    Visita lugares <span className="text-[#2673E8]">increíbles</span>
                     <br />
-                    <span style={{ color: '#080808' }}>de la ciudad.</span>
+                    <span>de la ciudad.</span>
                   </>
                 ) : selectedLanguage === 'ja' ? (
                   <>
-                    街の<span className="text-[#2673E8]" style={{ color: '#2673E8' }}>素晴らしい</span>場所を
+                    街の<span className="text-[#2673E8]">素晴らしい</span>場所を
                     <br />
-                    <span style={{ color: '#080808' }}>訪れよう。</span>
+                    <span>訪れよう。</span>
                   </>
                 ) : (
                   <>
-                    Visite lugares <span className="text-[#2673E8]" style={{ color: '#2673E8' }}>incríveis</span>
+                    Visite lugares <span className="text-[#2673E8]">incríveis</span>
                     <br />
-                    <span style={{ color: '#080808' }}>da cidade.</span>
+                    <span>da cidade.</span>
                   </>
                 )}
               </h2>
 
               <p
-                className="mt-2.5 text-[15px] sm:text-[16.5px] font-medium text-[#737780] leading-[1.36] max-w-[340px] sm:max-w-[420px] mx-auto"
+                className={`mt-2.5 text-[15px] sm:text-[16.5px] font-medium leading-[1.36] max-w-[340px] sm:max-w-[420px] mx-auto ${
+                  isDark ? 'text-[#A1A1AA]' : 'text-[#737780]'
+                }`}
                 style={{
                   fontFamily:
                     "'SF Pro Text', -apple-system, BlinkMacSystemFont, sans-serif",
-                  color: '#737780',
                 }}
               >
                 {tr('Tudo o que você precisa para aproveitar')}
@@ -1591,13 +1641,17 @@ export const CinematicLandingView: React.FC<CinematicLandingViewProps> = ({
           <div className="w-full max-w-[430px] md:max-w-[760px] mx-auto px-5 sm:px-8">
             <div className="mt-10 md:mt-14 max-w-[400px] mx-auto flex flex-col items-center text-center">
             <img
-              src="/assets/aistudio/monvian_logo_dark_transparent.png"
+              src={
+                isDark
+                  ? '/assets/aistudio/monvian_logo_white_transparent.png'
+                  : '/assets/aistudio/monvian_logo_dark_transparent.png'
+              }
               alt="Monvian"
               loading="lazy"
               decoding="async"
               className="h-[32px] w-auto object-contain mb-4 select-none"
             />
-            <p className="text-[14px] text-[#737780] mb-5">
+            <p className={`text-[14px] mb-5 ${isDark ? 'text-[#A1A1AA]' : 'text-[#737780]'}`}>
               {tr('Comece agora e viva Campos do Jordão do seu jeito.')}
             </p>
 
@@ -1608,11 +1662,25 @@ export const CinematicLandingView: React.FC<CinematicLandingViewProps> = ({
                 triggerHaptic();
                 onStartRegister();
               }}
-              className="group w-full min-h-[56px] pl-7 pr-2.5 py-2 rounded-full bg-[#080808] hover:bg-[#181A1F] text-white text-[16.5px] font-bold tracking-[-0.015em] shadow-[0_12px_28px_rgba(8,8,8,0.14)] flex items-center justify-between gap-3 transition-all duration-200 cursor-pointer focus-visible:outline-2 focus-visible:outline-[#2673E8]"
+              className={`group w-full min-h-[56px] pl-7 pr-2.5 py-2 rounded-full text-[16.5px] font-bold tracking-[-0.015em] shadow-[0_12px_28px_rgba(8,8,8,0.14)] flex items-center justify-between gap-3 transition-all duration-200 cursor-pointer focus-visible:outline-2 focus-visible:outline-[#2673E8] ${
+                isDark
+                  ? 'bg-[#FFFFFF] hover:bg-zinc-200 text-[#000000]'
+                  : 'bg-[#080808] hover:bg-[#181A1F] text-white'
+              }`}
             >
               <span className="flex-1 text-center pl-4">{tr('Criar conta')}</span>
-              <span className="w-10 h-10 rounded-full bg-white group-hover:bg-[#F2F4F8] text-[#080808] flex items-center justify-center shrink-0 shadow-sm transition-colors duration-200">
-                <ArrowRight className="w-[18px] h-[18px] stroke-[2.5] text-[#080808] transition-transform duration-200 group-hover:translate-x-0.5" />
+              <span
+                className={`w-10 h-10 rounded-full flex items-center justify-center shrink-0 shadow-sm transition-colors duration-200 ${
+                  isDark
+                    ? 'bg-[#080808] group-hover:bg-zinc-800 text-white'
+                    : 'bg-white group-hover:bg-[#F2F4F8] text-[#080808]'
+                }`}
+              >
+                <ArrowRight
+                  className={`w-[18px] h-[18px] stroke-[2.5] transition-transform duration-200 group-hover:translate-x-0.5 ${
+                    isDark ? 'text-white' : 'text-[#080808]'
+                  }`}
+                />
               </span>
             </motion.button>
 
@@ -1625,7 +1693,11 @@ export const CinematicLandingView: React.FC<CinematicLandingViewProps> = ({
                 triggerHaptic();
                 onOpenLogin();
               }}
-              className="mt-3.5 py-2.5 px-6 rounded-full text-[15px] font-bold text-[#080808] hover:text-[#2673E8] hover:bg-black/[0.03] active:bg-black/[0.06] transition-colors cursor-pointer select-none focus-visible:outline-2 focus-visible:outline-[#2673E8]"
+              className={`mt-3.5 py-2.5 px-6 rounded-full text-[15px] font-bold transition-colors cursor-pointer select-none focus-visible:outline-2 focus-visible:outline-[#2673E8] ${
+                isDark
+                  ? 'text-[#FFFFFF] hover:text-[#3B82F6] hover:bg-white/[0.06] active:bg-white/[0.10]'
+                  : 'text-[#080808] hover:text-[#2673E8] hover:bg-black/[0.03] active:bg-black/[0.06]'
+              }`}
             >
               {tr('Já tenho uma conta')}
             </motion.button>
@@ -1634,29 +1706,32 @@ export const CinematicLandingView: React.FC<CinematicLandingViewProps> = ({
 
           {/* Carrossel Horizontal Automático 3D de Categorias Turísticas abaixo do botão de login */}
           <div id="duvidas" className="w-full mt-10 sm:mt-12 md:mt-14">
-            <Category3DLiquidGlassCarousel />
+            <Category3DLiquidGlassCarousel theme={theme} />
           </div>
 
           {/* Seção de Provas Sociais ("Quem vive, recomenda.") abaixo do carrossel */}
           <div className="w-full mt-10 sm:mt-14">
-            <LoginSocialProofSection />
+            <LoginSocialProofSection theme={theme} />
           </div>
         </div>
       </section>
 
       {/* Rodapé Absoluto Monvian */}
       <footer
-        className="w-full bg-[#FFFFFF] pt-3 text-center select-none"
+        className={`w-full pt-3 text-center select-none transition-colors duration-200 ${
+          isDark ? 'bg-[#000000]' : 'bg-[#FFFFFF]'
+        }`}
         style={{
           paddingBottom: 'max(36px, calc(env(safe-area-inset-bottom, 0px) + 24px))',
         }}
       >
         <p
-          className="text-[12px] sm:text-[13px] font-normal text-[#8A8F99] tracking-[-0.01em]"
+          className={`text-[12px] sm:text-[13px] font-normal tracking-[-0.01em] ${
+            isDark ? 'text-[#71717A]' : 'text-[#8A8F99]'
+          }`}
           style={{
             fontFamily:
               "-apple-system, BlinkMacSystemFont, 'SF Pro Text', sans-serif",
-            color: '#8A8F99',
           }}
         >
           {tr('© 2026 Monvian. Todos os direitos reservados.')}

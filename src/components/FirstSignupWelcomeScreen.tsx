@@ -5,14 +5,15 @@ import { useLanguage } from '../contexts/LanguageContext';
 
 interface FirstSignupWelcomeScreenProps {
   onComplete: () => void;
+  theme?: 'dark' | 'light';
 }
 
-const PinFeatureIcon: React.FC = () => (
+const PinFeatureIcon: React.FC<{ isDark?: boolean }> = ({ isDark = false }) => (
   <svg
     viewBox="0 0 24 24"
     fill="none"
     xmlns="http://www.w3.org/2000/svg"
-    className="w-[27px] h-[27px] text-[#000000]"
+    className={`w-[27px] h-[27px] ${isDark ? 'text-[#FFFFFF]' : 'text-[#000000]'}`}
     aria-hidden="true"
   >
     <path
@@ -24,12 +25,12 @@ const PinFeatureIcon: React.FC = () => (
   </svg>
 );
 
-const CommunityFeatureIcon: React.FC = () => (
+const CommunityFeatureIcon: React.FC<{ isDark?: boolean }> = ({ isDark = false }) => (
   <svg
     viewBox="0 0 28 24"
     fill="none"
     xmlns="http://www.w3.org/2000/svg"
-    className="w-[29px] h-[25px] text-[#000000]"
+    className={`w-[29px] h-[25px] ${isDark ? 'text-[#FFFFFF]' : 'text-[#000000]'}`}
     aria-hidden="true"
   >
     {/* Center primary person */}
@@ -53,12 +54,12 @@ const CommunityFeatureIcon: React.FC = () => (
   </svg>
 );
 
-const StarFeatureIcon: React.FC = () => (
+const StarFeatureIcon: React.FC<{ isDark?: boolean }> = ({ isDark = false }) => (
   <svg
     viewBox="0 0 24 24"
     fill="none"
     xmlns="http://www.w3.org/2000/svg"
-    className="w-[27px] h-[27px] text-[#000000]"
+    className={`w-[27px] h-[27px] ${isDark ? 'text-[#FFFFFF]' : 'text-[#000000]'}`}
     aria-hidden="true"
   >
     <path
@@ -68,12 +69,12 @@ const StarFeatureIcon: React.FC = () => (
   </svg>
 );
 
-const BellFeatureIcon: React.FC = () => (
+const BellFeatureIcon: React.FC<{ isDark?: boolean }> = ({ isDark = false }) => (
   <svg
     viewBox="0 0 24 24"
     fill="none"
     xmlns="http://www.w3.org/2000/svg"
-    className="w-[26px] h-[26px] text-[#000000]"
+    className={`w-[26px] h-[26px] ${isDark ? 'text-[#FFFFFF]' : 'text-[#000000]'}`}
     aria-hidden="true"
   >
     <path
@@ -87,12 +88,12 @@ const BellFeatureIcon: React.FC = () => (
   </svg>
 );
 
-const MinimalWavingHandIcon: React.FC = () => (
+const MinimalWavingHandIcon: React.FC<{ isDark?: boolean }> = ({ isDark = false }) => (
   <svg
     viewBox="0 0 36 36"
     fill="none"
     xmlns="http://www.w3.org/2000/svg"
-    className="w-[34px] h-[34px] sm:w-[38px] sm:h-[38px] text-[#000000] shrink-0"
+    className={`w-[34px] h-[34px] sm:w-[38px] sm:h-[38px] shrink-0 ${isDark ? 'text-[#FFFFFF]' : 'text-[#000000]'}`}
     aria-hidden="true"
   >
     {/* Minimalist motion arcs top-left & bottom-left */}
@@ -131,7 +132,9 @@ const MinimalWavingHandIcon: React.FC = () => (
 
 export const FirstSignupWelcomeScreen: React.FC<FirstSignupWelcomeScreenProps> = ({
   onComplete,
+  theme = 'light',
 }) => {
+  const isDark = theme === 'dark';
   const { tr } = useLanguage();
   const prefersReducedMotion = useReducedMotion();
   const [isClosing, setIsClosing] = useState(false);
@@ -150,25 +153,25 @@ export const FirstSignupWelcomeScreen: React.FC<FirstSignupWelcomeScreenProps> =
   const features = [
     {
       id: 'explore-map',
-      icon: <PinFeatureIcon />,
+      icon: <PinFeatureIcon isDark={isDark} />,
       title: tr('Explore o mapa'),
       description: tr('Descubra os melhores lugares em tempo real, pelo mapa da cidade.'),
     },
     {
       id: 'connect',
-      icon: <CommunityFeatureIcon />,
+      icon: <CommunityFeatureIcon isDark={isDark} />,
       title: tr('Conecte-se'),
       description: tr('Veja o que outras pessoas estão fazendo e compartilhe suas experiências.'),
     },
     {
       id: 'save-favorites',
-      icon: <StarFeatureIcon />,
+      icon: <StarFeatureIcon isDark={isDark} />,
       title: tr('Salve seus favoritos'),
       description: tr('Monte sua lista de lugares preferidos e não perca nada.'),
     },
     {
       id: 'updates',
-      icon: <BellFeatureIcon />,
+      icon: <BellFeatureIcon isDark={isDark} />,
       title: tr('Receba novidades'),
       description: tr('Fique por dentro de eventos, passeios e muito mais.'),
     },
@@ -209,7 +212,7 @@ export const FirstSignupWelcomeScreen: React.FC<FirstSignupWelcomeScreenProps> =
           "'SF Pro Display', 'SF Pro Text', -apple-system, BlinkMacSystemFont, sans-serif",
       }}
     >
-      {/* Translucent iOS 26 White-Mode Liquid Glass Fullscreen Layer over live Monvian Map */}
+      {/* Translucent iOS 26 Liquid Glass Fullscreen Layer over live Monvian Map */}
       <motion.div
         aria-hidden="true"
         initial={prefersReducedMotion ? { opacity: 1 } : { opacity: 0 }}
@@ -219,8 +222,9 @@ export const FirstSignupWelcomeScreen: React.FC<FirstSignupWelcomeScreenProps> =
         style={{
           backdropFilter: 'blur(22px) saturate(145%)',
           WebkitBackdropFilter: 'blur(22px) saturate(145%)',
-          background:
-            'linear-gradient(180deg, rgba(255, 255, 255, 0.30) 0%, rgba(255, 255, 255, 0.42) 48%, rgba(246, 248, 252, 0.54) 100%)',
+          background: isDark
+            ? 'linear-gradient(180deg, rgba(0, 0, 0, 0.52) 0%, rgba(12, 12, 14, 0.72) 48%, rgba(0, 0, 0, 0.84) 100%)'
+            : 'linear-gradient(180deg, rgba(255, 255, 255, 0.30) 0%, rgba(255, 255, 255, 0.42) 48%, rgba(246, 248, 252, 0.54) 100%)',
         }}
       />
 
@@ -232,8 +236,9 @@ export const FirstSignupWelcomeScreen: React.FC<FirstSignupWelcomeScreenProps> =
         transition={{ duration: prefersReducedMotion ? 0.18 : 0.85, ease: baseEase }}
         className="absolute inset-0 pointer-events-none"
         style={{
-          background:
-            'radial-gradient(ellipse 92% 48% at 50% 24%, rgba(255, 255, 255, 0.32) 0%, rgba(255, 255, 255, 0) 75%)',
+          background: isDark
+            ? 'radial-gradient(ellipse 92% 48% at 50% 24%, rgba(255, 255, 255, 0.08) 0%, rgba(255, 255, 255, 0) 75%)'
+            : 'radial-gradient(ellipse 92% 48% at 50% 24%, rgba(255, 255, 255, 0.32) 0%, rgba(255, 255, 255, 0) 75%)',
         }}
       />
 
@@ -288,7 +293,9 @@ export const FirstSignupWelcomeScreen: React.FC<FirstSignupWelcomeScreenProps> =
                     ? { duration: 0.16 }
                     : { ...iosSpring, delay: 0.22 }
                 }
-                className="inline-flex items-center justify-center gap-2.5 text-[35px] sm:text-[41px] font-bold tracking-[-0.025em] text-[#000000] leading-[1.08]"
+                className={`inline-flex items-center justify-center gap-2.5 text-[35px] sm:text-[41px] font-bold tracking-[-0.025em] leading-[1.08] ${
+                  isDark ? 'text-[#FFFFFF]' : 'text-[#000000]'
+                }`}
               >
                 <span>{tr('Bem-vindo')}</span>
                 <motion.span
@@ -308,7 +315,7 @@ export const FirstSignupWelcomeScreen: React.FC<FirstSignupWelcomeScreenProps> =
                   }
                   style={{ transformOrigin: '75% 80%', display: 'inline-flex' }}
                 >
-                  <MinimalWavingHandIcon />
+                  <MinimalWavingHandIcon isDark={isDark} />
                 </motion.span>
               </motion.h1>
 
@@ -324,7 +331,9 @@ export const FirstSignupWelcomeScreen: React.FC<FirstSignupWelcomeScreenProps> =
                   delay: prefersReducedMotion ? 0 : 0.30,
                   ease: baseEase,
                 }}
-                className="mt-1.5 text-[17.5px] sm:text-[19px] font-normal tracking-[-0.012em] text-[#1D1D1F]/85 leading-[1.3]"
+                className={`mt-1.5 text-[17.5px] sm:text-[19px] font-normal tracking-[-0.012em] leading-[1.3] ${
+                  isDark ? 'text-[#A1A1AA]' : 'text-[#1D1D1F]/85'
+                }`}
                 style={{
                   fontFamily:
                     "'SF Pro Text', -apple-system, BlinkMacSystemFont, sans-serif",
@@ -375,13 +384,17 @@ export const FirstSignupWelcomeScreen: React.FC<FirstSignupWelcomeScreenProps> =
                       }
                       className="relative w-[62px] h-[62px] sm:w-[66px] sm:h-[66px] rounded-[20px] shrink-0 flex items-center justify-center overflow-hidden"
                       style={{
-                        background:
-                          'linear-gradient(145deg, rgba(255, 255, 255, 0.56) 0%, rgba(255, 255, 255, 0.24) 55%, rgba(255, 255, 255, 0.40) 100%)',
+                        background: isDark
+                          ? 'linear-gradient(145deg, rgba(44, 44, 46, 0.78) 0%, rgba(28, 28, 30, 0.68) 100%)'
+                          : 'linear-gradient(145deg, rgba(255, 255, 255, 0.56) 0%, rgba(255, 255, 255, 0.24) 55%, rgba(255, 255, 255, 0.40) 100%)',
                         backdropFilter: 'blur(20px) saturate(175%)',
                         WebkitBackdropFilter: 'blur(20px) saturate(175%)',
-                        border: '1px solid rgba(255, 255, 255, 0.72)',
-                        boxShadow:
-                          '0 10px 24px rgba(0, 0, 0, 0.08), inset 0 1.5px 1.5px rgba(255, 255, 255, 0.92), inset 0 -1.5px 2px rgba(255, 255, 255, 0.34)',
+                        border: isDark
+                          ? '1px solid rgba(255, 255, 255, 0.16)'
+                          : '1px solid rgba(255, 255, 255, 0.72)',
+                        boxShadow: isDark
+                          ? '0 10px 24px rgba(0, 0, 0, 0.42), inset 0 1px 1px rgba(255, 255, 255, 0.20)'
+                          : '0 10px 24px rgba(0, 0, 0, 0.08), inset 0 1.5px 1.5px rgba(255, 255, 255, 0.92), inset 0 -1.5px 2px rgba(255, 255, 255, 0.34)',
                       }}
                     >
                       {/* Top specular curved glint */}
@@ -389,8 +402,9 @@ export const FirstSignupWelcomeScreen: React.FC<FirstSignupWelcomeScreenProps> =
                         aria-hidden="true"
                         className="absolute inset-x-2 top-[1px] h-[1.5px] rounded-full pointer-events-none"
                         style={{
-                          background:
-                            'linear-gradient(90deg, rgba(255,255,255,0) 0%, rgba(255,255,255,0.95) 50%, rgba(255,255,255,0) 100%)',
+                          background: isDark
+                            ? 'linear-gradient(90deg, rgba(255,255,255,0) 0%, rgba(255,255,255,0.34) 50%, rgba(255,255,255,0) 100%)'
+                            : 'linear-gradient(90deg, rgba(255,255,255,0) 0%, rgba(255,255,255,0.95) 50%, rgba(255,255,255,0) 100%)',
                         }}
                       />
                       <div className="relative z-10 flex items-center justify-center">
@@ -400,11 +414,17 @@ export const FirstSignupWelcomeScreen: React.FC<FirstSignupWelcomeScreenProps> =
 
                     {/* Feature Copy */}
                     <div className="flex-1 min-w-0">
-                      <h2 className="text-[16.5px] sm:text-[17.5px] font-bold tracking-[-0.015em] text-[#000000] leading-[1.2]">
+                      <h2
+                        className={`text-[16.5px] sm:text-[17.5px] font-bold tracking-[-0.015em] leading-[1.2] ${
+                          isDark ? 'text-[#FFFFFF]' : 'text-[#000000]'
+                        }`}
+                      >
                         {item.title}
                       </h2>
                       <p
-                        className="mt-0.5 text-[13.5px] sm:text-[14.5px] font-normal text-[#1C1F24]/82 leading-[1.35]"
+                        className={`mt-0.5 text-[13.5px] sm:text-[14.5px] font-normal leading-[1.35] ${
+                          isDark ? 'text-[#A1A1AA]' : 'text-[#1C1F24]/82'
+                        }`}
                         style={{
                           fontFamily:
                             "'SF Pro Text', -apple-system, BlinkMacSystemFont, sans-serif",
@@ -451,8 +471,8 @@ export const FirstSignupWelcomeScreen: React.FC<FirstSignupWelcomeScreenProps> =
                 }}
                 className="pointer-events-none absolute inset-x-0 top-2 bottom-1 rounded-full"
                 style={{
-                  border: '1px solid rgba(0, 0, 0, 0.20)',
-                  boxShadow: '0 0 22px rgba(0, 0, 0, 0.14)',
+                  border: isDark ? '1px solid rgba(255, 255, 255, 0.28)' : '1px solid rgba(0, 0, 0, 0.20)',
+                  boxShadow: isDark ? '0 0 22px rgba(255, 255, 255, 0.16)' : '0 0 22px rgba(0, 0, 0, 0.14)',
                 }}
               />
             )}
@@ -480,13 +500,16 @@ export const FirstSignupWelcomeScreen: React.FC<FirstSignupWelcomeScreenProps> =
                     }
               }
               whileTap={prefersReducedMotion ? undefined : { scale: 0.97 }}
-              className="relative w-full h-[56px] sm:h-[60px] rounded-full flex items-center justify-center gap-2.5 text-[#FFFFFF] text-[17.5px] sm:text-[18.5px] font-semibold tracking-[-0.012em] cursor-pointer overflow-hidden focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#000000]"
+              className={`relative w-full h-[56px] sm:h-[60px] rounded-full flex items-center justify-center gap-2.5 text-[#FFFFFF] text-[17.5px] sm:text-[18.5px] font-semibold tracking-[-0.012em] cursor-pointer overflow-hidden focus-visible:outline-2 focus-visible:outline-offset-2 ${
+                isDark ? 'focus-visible:outline-[#FFFFFF]' : 'focus-visible:outline-[#000000]'
+              }`}
               style={{
-                background:
-                  'linear-gradient(180deg, rgba(36, 36, 40, 0.94) 0%, rgba(10, 10, 12, 0.98) 54%, rgba(22, 22, 26, 0.96) 100%)',
+                background: isDark
+                  ? 'linear-gradient(180deg, rgba(44, 44, 46, 0.92) 0%, rgba(28, 28, 30, 0.96) 54%, rgba(36, 36, 40, 0.94) 100%)'
+                  : 'linear-gradient(180deg, rgba(36, 36, 40, 0.94) 0%, rgba(10, 10, 12, 0.98) 54%, rgba(22, 22, 26, 0.96) 100%)',
                 backdropFilter: 'blur(20px) saturate(160%)',
                 WebkitBackdropFilter: 'blur(20px) saturate(160%)',
-                border: '1px solid rgba(255, 255, 255, 0.22)',
+                border: isDark ? '1px solid rgba(255, 255, 255, 0.30)' : '1px solid rgba(255, 255, 255, 0.22)',
                 boxShadow:
                   '0 14px 32px rgba(0, 0, 0, 0.24), 0 4px 12px rgba(0, 0, 0, 0.14), inset 0 1.5px 1.5px rgba(255, 255, 255, 0.36), inset 0 -1.5px 2px rgba(255, 255, 255, 0.10)',
                 willChange: 'transform',

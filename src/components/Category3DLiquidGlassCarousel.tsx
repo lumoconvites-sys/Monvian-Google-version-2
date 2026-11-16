@@ -111,9 +111,11 @@ const cycleMsToPos = (ms: number): number => {
   return -(wrappedMs / STEP_DURATION_MS);
 };
 
-export const Category3DLiquidGlassCarousel: React.FC = memo(function Category3DLiquidGlassCarousel() {
-  const { tr } = useLanguage();
-  const prefersReducedMotion = Boolean(useReducedMotion());
+export const Category3DLiquidGlassCarousel: React.FC<{ theme?: 'dark' | 'light' }> = memo(
+  function Category3DLiquidGlassCarousel({ theme = 'light' }) {
+    const isDark = theme === 'dark';
+    const { tr } = useLanguage();
+    const prefersReducedMotion = Boolean(useReducedMotion());
 
   const containerRef = useRef<HTMLDivElement | null>(null);
   const cardRefs = useRef<(HTMLButtonElement | null)[]>([]);
@@ -563,18 +565,21 @@ export const Category3DLiquidGlassCarousel: React.FC = memo(function Category3DL
             type="button"
             onClick={() => handleCardTap(idx)}
             aria-label={tr(category.label)}
-            className="absolute left-1/2 top-[10px] w-[156px] h-[186px] sm:w-[178px] sm:h-[212px] rounded-[30px] sm:rounded-[34px] px-3 pt-2.5 pb-3.5 flex flex-col items-center justify-between text-center focus-visible:outline-2 focus-visible:outline-[#2673E8] will-change-transform cursor-pointer bg-[#FFFFFF]"
+            className={`absolute left-1/2 top-[10px] w-[156px] h-[186px] sm:w-[178px] sm:h-[212px] rounded-[30px] sm:rounded-[34px] px-3 pt-2.5 pb-3.5 flex flex-col items-center justify-between text-center focus-visible:outline-2 focus-visible:outline-[#2673E8] will-change-transform cursor-pointer ${
+              isDark ? 'bg-[#1C1C1E]' : 'bg-[#FFFFFF]'
+            }`}
             style={{
-              backgroundColor: '#FFFFFF',
-              border: '1px solid rgba(15, 23, 42, 0.045)',
-              boxShadow:
-                '0 18px 34px -14px rgba(15, 23, 42, 0.14), 0 6px 14px -6px rgba(15, 23, 42, 0.06)',
+              backgroundColor: isDark ? '#1C1C1E' : '#FFFFFF',
+              border: isDark ? '1px solid rgba(255, 255, 255, 0.10)' : '1px solid rgba(15, 23, 42, 0.045)',
+              boxShadow: isDark
+                ? '0 18px 34px -14px rgba(0, 0, 0, 0.65), 0 6px 14px -6px rgba(0, 0, 0, 0.40)'
+                : '0 18px 34px -14px rgba(15, 23, 42, 0.14), 0 6px 14px -6px rgba(15, 23, 42, 0.06)',
               transformOrigin: 'center center',
               backfaceVisibility: 'hidden',
               contain: 'layout style paint',
             }}
           >
-            {/* Transparent 3D miniature object floating directly on pure #FFFFFF card */}
+            {/* Transparent 3D miniature object floating cleanly on card surface */}
             <div className="relative w-full flex-1 flex items-center justify-center pointer-events-none">
               <img
                 src={category.image}
@@ -586,16 +591,20 @@ export const Category3DLiquidGlassCarousel: React.FC = memo(function Category3DL
                   category.objectScale || ''
                 }`}
                 style={{
-                  filter: 'drop-shadow(0 8px 14px rgba(15, 23, 42, 0.08))',
+                  filter: isDark
+                    ? 'drop-shadow(0 8px 16px rgba(0, 0, 0, 0.45))'
+                    : 'drop-shadow(0 8px 14px rgba(15, 23, 42, 0.08))',
                 }}
               />
             </div>
 
-            {/* Category Title strictly in crisp black below the 3D object */}
+            {/* Category Title below the 3D object */}
             <span
-              className="relative z-10 mt-1 text-[14.5px] sm:text-[15.5px] font-semibold tracking-[-0.02em] text-[#080808] leading-tight whitespace-nowrap"
+              className={`relative z-10 mt-1 text-[14.5px] sm:text-[15.5px] font-semibold tracking-[-0.02em] leading-tight whitespace-nowrap ${
+                isDark ? 'text-[#FFFFFF]' : 'text-[#080808]'
+              }`}
               style={{
-                color: '#080808',
+                color: isDark ? '#FFFFFF' : '#080808',
                 fontFamily:
                   "'SF Pro Display', 'SF Pro Text', -apple-system, BlinkMacSystemFont, sans-serif",
               }}
@@ -627,7 +636,11 @@ export const Category3DLiquidGlassCarousel: React.FC = memo(function Category3DL
               <span
                 className={`block rounded-full transition-all duration-300 ease-[cubic-bezier(0.22,1,0.36,1)] ${
                   isActive
-                    ? 'w-[7px] h-[7px] bg-[#080808] scale-105'
+                    ? isDark
+                      ? 'w-[7px] h-[7px] bg-[#FFFFFF] scale-105'
+                      : 'w-[7px] h-[7px] bg-[#080808] scale-105'
+                    : isDark
+                    ? 'w-[6px] h-[6px] bg-[#3A3A3C] hover:bg-[#636366]'
                     : 'w-[6px] h-[6px] bg-[#D1D5DB] hover:bg-[#9CA3AF]'
                 }`}
               />

@@ -1011,17 +1011,30 @@ export const AirbnbItineraryExplorer: React.FC<AirbnbItineraryExplorerProps> = (
               <button
                 type="button"
                 onClick={onCreateManualItinerary}
-                className="h-9 px-3.5 rounded-full bg-[#fefefe] border border-white flex items-center justify-center gap-1.5 text-black text-[12px] sm:text-[13px] font-semibold tracking-tight whitespace-nowrap shrink-0 cursor-pointer active:scale-95 transition-all outline-none"
-                style={{
-                  boxShadow:
-                    '0 8px 24px rgba(0,0,0,0.08), 0 2px 4px rgba(0,0,0,0.04), inset 0 2px 0 rgba(255,255,255,1)',
-                  borderBottom: '4px solid #e4e4e7',
-                }}
+                className={`h-9 px-3.5 rounded-full border flex items-center justify-center gap-1.5 text-[12px] sm:text-[13px] font-semibold tracking-tight whitespace-nowrap shrink-0 cursor-pointer active:scale-95 transition-all outline-none ${
+                  isDark
+                    ? 'bg-[#1C1C1E] border-white/15 text-white hover:bg-[#2C2C2E]'
+                    : 'bg-[#fefefe] border-white text-black'
+                }`}
+                style={
+                  isDark
+                    ? {
+                        boxShadow: '0 8px 24px rgba(0,0,0,0.45)',
+                      }
+                    : {
+                        boxShadow:
+                          '0 8px 24px rgba(0,0,0,0.08), 0 2px 4px rgba(0,0,0,0.04), inset 0 2px 0 rgba(255,255,255,1)',
+                        borderBottom: '4px solid #e4e4e7',
+                      }
+                }
                 title="Criar roteiro manualmente no mapa"
                 aria-label="Criar roteiro manualmente no mapa"
               >
-                <CirclePlus className="w-[15px] h-[15px] sm:w-4 sm:h-4 text-black shrink-0" strokeWidth={2} />
-                <span className="text-black leading-none">Criar manualmente</span>
+                <CirclePlus
+                  className={`w-[15px] h-[15px] sm:w-4 sm:h-4 shrink-0 ${isDark ? 'text-white' : 'text-black'}`}
+                  strokeWidth={2}
+                />
+                <span className={`leading-none ${isDark ? 'text-white' : 'text-black'}`}>Criar manualmente</span>
               </button>
             ) : onOpenMap ? (
               <button
@@ -1249,7 +1262,9 @@ export const AirbnbItineraryExplorer: React.FC<AirbnbItineraryExplorerProps> = (
         ) : displayItineraries.length === 0 && !validFeaturedBanner ? (
           /* Empty State when search or filter matches 0 items */
           <div
-            className="w-full min-h-[calc(var(--app-height,100dvh)-380px)] flex items-center justify-center bg-[#FFFFFF]"
+            className={`w-full min-h-[calc(var(--app-height,100dvh)-380px)] flex items-center justify-center ${
+              isDark ? 'bg-[#000000]' : 'bg-[#FFFFFF]'
+            }`}
             aria-label="Nenhum roteiro encontrado"
           >
             <svg
@@ -1265,17 +1280,17 @@ export const AirbnbItineraryExplorer: React.FC<AirbnbItineraryExplorerProps> = (
                 cx="12"
                 cy="12"
                 r="10"
-                stroke="#AEAEB2"
+                stroke={isDark ? '#636366' : '#AEAEB2'}
                 strokeWidth="1.4"
               />
               <path
                 d="M9.6 9.35C9.88 8.12 10.92 7.35 12.16 7.35C13.55 7.35 14.62 8.24 14.62 9.52C14.62 10.52 14.04 11.14 13.08 11.72C12.34 12.17 12.02 12.64 12.02 13.42V13.9"
-                stroke="#AEAEB2"
+                stroke={isDark ? '#636366' : '#AEAEB2'}
                 strokeWidth="1.4"
                 strokeLinecap="round"
                 strokeLinejoin="round"
               />
-              <circle cx="12.02" cy="16.85" r="0.85" fill="#AEAEB2" />
+              <circle cx="12.02" cy="16.85" r="0.85" fill={isDark ? '#636366' : '#AEAEB2'} />
             </svg>
           </div>
         ) : (

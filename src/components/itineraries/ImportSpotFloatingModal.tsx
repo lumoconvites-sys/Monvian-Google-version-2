@@ -154,7 +154,7 @@ export const ImportSpotFloatingModal: React.FC<ImportSpotFloatingModalProps> = (
                     className={`flex items-center justify-between gap-3 p-3 rounded-2xl border transition-colors ${
                       isLight
                         ? 'bg-white/60 border-black/5 hover:bg-white/85 shadow-sm backdrop-blur-md'
-                        : 'bg-[#000000] border-[#262626] hover:border-white/25'
+                        : 'bg-[#1C1C1E] border-white/10 hover:border-white/25'
                     }`}
                   >
                     {/* Spot Avatar & Info */}
@@ -199,7 +199,7 @@ export const ImportSpotFloatingModal: React.FC<ImportSpotFloatingModalProps> = (
                           {spot.name}
                         </h4>
                         <div className="flex items-center gap-2 text-xs text-zinc-500 dark:text-zinc-400 font-semibold mt-1">
-                          <span className={`flex items-center gap-0.5 font-bold ${isGoldUser ? 'text-[#F5BE38]' : 'text-white'}`}>
+                          <span className={`flex items-center gap-0.5 font-bold ${isGoldUser ? 'text-[#F5BE38]' : isLight ? 'text-zinc-900' : 'text-white'}`}>
                             <Star className="w-3 h-3 fill-current" />
                             {spot.rating}
                           </span>

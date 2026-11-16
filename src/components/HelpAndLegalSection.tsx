@@ -388,7 +388,7 @@ export const HelpAndLegalView: React.FC<HelpAndLegalViewProps> = ({
   theme,
   isDark: propIsDark,
 }) => {
-  const isDark = false;
+  const isDark = typeof propIsDark === 'boolean' ? propIsDark : theme === 'dark';
   // FAQ state
   const [selectedFaqCategory, setSelectedFaqCategory] = useState<string>('Todas');
   const [faqSearch, setFaqSearch] = useState<string>('');
@@ -794,7 +794,9 @@ export const HelpAndLegalView: React.FC<HelpAndLegalViewProps> = ({
 
   return (
     <div
-      className="w-full min-h-full flex flex-col overflow-x-clip bg-[#FFFFFF] text-[#000000]"
+      className={`w-full min-h-full flex flex-col overflow-x-clip ${
+        isDark ? 'bg-[#000000] text-[#FFFFFF]' : 'bg-[#FFFFFF] text-[#000000]'
+      }`}
       style={{
         fontFamily:
           '-apple-system, BlinkMacSystemFont, "SF Pro Text", "SF Pro Display", "Inter", sans-serif',
@@ -802,23 +804,27 @@ export const HelpAndLegalView: React.FC<HelpAndLegalViewProps> = ({
     >
       {/* 1. Cabeçalho de navegação (Padrão nativo iOS: Seta + Perfil, Título centralizado, Linha divisória fina) */}
       <div
-        className="sticky top-0 z-30 w-full px-4 sm:px-6 py-3.5 flex items-center justify-between border-b border-[#E5E7EB]/60 text-[#000000]"
+        className={`sticky top-0 z-30 w-full px-4 sm:px-6 py-3.5 flex items-center justify-between border-b ${
+          isDark ? 'border-white/10 text-[#FFFFFF]' : 'border-[#E5E7EB]/60 text-[#000000]'
+        }`}
         style={{
           paddingTop: 'max(calc(env(safe-area-inset-top, 0px) + 8px), 14px)',
-          backgroundColor: 'rgba(255, 255, 255, 0.40)',
+          backgroundColor: isDark ? 'rgba(0, 0, 0, 0.50)' : 'rgba(255, 255, 255, 0.40)',
           backdropFilter: 'blur(8px) saturate(150%)',
           WebkitBackdropFilter: 'blur(8px) saturate(150%)',
         }}
       >
         <AppleBackButton
-          theme="light"
+          theme={isDark ? 'dark' : 'light'}
           onClick={handleBack}
           aria-label={activePage === 'hub' ? 'Voltar para Perfil' : 'Voltar'}
           title={activePage === 'hub' ? 'Voltar para Perfil' : 'Voltar'}
           className="z-10"
         />
 
-        <h2 className="text-[16px] font-semibold text-[#000000] tracking-tight truncate max-w-[55%] text-center absolute left-1/2 -translate-x-1/2 pointer-events-none">
+        <h2 className={`text-[16px] font-semibold tracking-tight truncate max-w-[55%] text-center absolute left-1/2 -translate-x-1/2 pointer-events-none ${
+          isDark ? 'text-[#FFFFFF]' : 'text-[#000000]'
+        }`}>
           {pageHeaderTitle[activePage]}
         </h2>
 
@@ -843,13 +849,19 @@ export const HelpAndLegalView: React.FC<HelpAndLegalViewProps> = ({
               <div className="space-y-6 pt-1">
                 {/* 2. Apresentação da página (apenas descrição, sem título repetido) */}
                 <div className="pt-2 pb-1">
-                  <p className="text-[14.5px] sm:text-[15px] text-[#8A8D95] mt-0.5 leading-relaxed">
+                  <p className={`text-[14.5px] sm:text-[15px] mt-0.5 leading-relaxed ${
+                    isDark ? 'text-zinc-400' : 'text-[#8A8D95]'
+                  }`}>
                     Suporte ao visitante, diretrizes de uso, controle de dados pessoais e informações institucionais do Monvian.
                   </p>
                 </div>
 
                 {/* 3. Organização das opções: lista vertical com cantos arredondados, divisórias sutis e ícones discretos */}
-                <div className="rounded-[26px] border border-[#E5E7EB] bg-[#FFFFFF] divide-y divide-[#F1F3F5] overflow-hidden shadow-xs">
+                <div className={`rounded-[26px] border divide-y overflow-hidden shadow-xs ${
+                  isDark
+                    ? 'border-white/10 bg-[#1C1C1E] divide-white/10'
+                    : 'border-[#E5E7EB] bg-[#FFFFFF] divide-[#F1F3F5]'
+                }`}>
                   {HELP_LEGAL_ITEMS.map((item) => {
                     const iconNode = getIconForItem(item.id);
                     return (
@@ -857,15 +869,23 @@ export const HelpAndLegalView: React.FC<HelpAndLegalViewProps> = ({
                         key={item.id}
                         type="button"
                         onClick={() => onNavigate(item.id)}
-                        className="w-full px-4 py-4 sm:px-5 sm:py-4 flex items-center justify-between gap-3.5 text-left transition-colors cursor-pointer bg-[#FFFFFF] hover:bg-[#F9FAFB] active:bg-[#F3F4F6]"
+                        className={`w-full px-4 py-4 sm:px-5 sm:py-4 flex items-center justify-between gap-3.5 text-left transition-colors cursor-pointer ${
+                          isDark
+                            ? 'bg-[#1C1C1E] hover:bg-white/[0.04] active:bg-white/[0.08]'
+                            : 'bg-[#FFFFFF] hover:bg-[#F9FAFB] active:bg-[#F3F4F6]'
+                        }`}
                       >
                         <div className="flex items-center gap-3.5 min-w-0 flex-1">
                           {/* Ícone discreto em círculo suave */}
                           <div
                             className={`w-10 h-10 rounded-full flex items-center justify-center shrink-0 ${
                               item.destructive
-                                ? 'bg-red-50 text-red-600'
-                                : 'bg-[#F3F4F6] text-[#000000]'
+                                ? isDark
+                                  ? 'bg-red-500/15 text-red-400'
+                                  : 'bg-red-50 text-red-600'
+                                : isDark
+                                  ? 'bg-[#2C2C2E] text-white'
+                                  : 'bg-[#F3F4F6] text-[#000000]'
                             }`}
                           >
                             {iconNode}
@@ -874,12 +894,20 @@ export const HelpAndLegalView: React.FC<HelpAndLegalViewProps> = ({
                           <div className="min-w-0 flex-1">
                             <p
                               className={`text-[15.5px] font-semibold tracking-tight truncate ${
-                                item.destructive ? 'text-red-600' : 'text-[#000000]'
+                                item.destructive
+                                  ? isDark
+                                    ? 'text-red-400'
+                                    : 'text-red-600'
+                                  : isDark
+                                    ? 'text-white'
+                                    : 'text-[#000000]'
                               }`}
                             >
                               {item.title}
                             </p>
-                            <p className="text-[13px] text-[#8A8D95] font-normal leading-snug truncate mt-0.5">
+                            <p className={`text-[13px] font-normal leading-snug truncate mt-0.5 ${
+                              isDark ? 'text-zinc-400' : 'text-[#8A8D95]'
+                            }`}>
                               {item.subtitle}
                             </p>
                           </div>
@@ -891,10 +919,10 @@ export const HelpAndLegalView: React.FC<HelpAndLegalViewProps> = ({
 
                 {/* 4. Rodapé institucional */}
                 <div className="pt-4 pb-12 text-center space-y-1 select-none">
-                  <p className="text-[13px] font-medium text-[#8A8D95]">
+                  <p className={`text-[13px] font-medium ${isDark ? 'text-zinc-400' : 'text-[#8A8D95]'}`}>
                     Monvian Campos do Jordão
                   </p>
-                  <p className="text-[11.5px] text-[#A0A3AB]">
+                  <p className={`text-[11.5px] ${isDark ? 'text-zinc-500' : 'text-[#A0A3AB]'}`}>
                     Conformidade LGPD • Lei nº 13.709/2018
                   </p>
                 </div>

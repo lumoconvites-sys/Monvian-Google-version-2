@@ -18,7 +18,11 @@ export const ItineraryStoreModal: React.FC<ItineraryStoreModalProps> = ({
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-[120] w-full h-full overflow-hidden select-none bg-[#0B0C0E]">
+    <div
+      className={`fixed inset-0 z-[120] w-full h-full overflow-hidden select-none ${
+        theme === 'dark' ? 'bg-[#000000]' : 'bg-[#FFFFFF]'
+      }`}
+    >
       <AirbnbItineraryExplorer
         onSelectItinerary={async (itin) => {
           await onApplyItinerary(itin);

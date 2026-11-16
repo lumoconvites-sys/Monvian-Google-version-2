@@ -168,7 +168,7 @@ export const ItineraryEditModal: React.FC<ItineraryEditModalProps> = ({
               key={step.id}
               className={`p-3 sm:p-3.5 rounded-[22px] flex items-center justify-between gap-3 transition-colors ${
                 isDark
-                  ? 'bg-[#000000] border border-[#262626] hover:border-white/25'
+                  ? 'bg-[#1C1C1E] border border-white/10 hover:border-white/25'
                   : 'ios-glass-btn-white hover:bg-white/90 shadow-xs'
               }`}
             >
@@ -177,7 +177,9 @@ export const ItineraryEditModal: React.FC<ItineraryEditModalProps> = ({
                   <span className={`w-7 h-7 rounded-full text-xs font-black flex items-center justify-center shrink-0 shadow-sm ${
                     isGoldUser
                       ? 'bg-metallic-gold text-[#1A1202] shadow-[#E5AC33]/40 border border-[#FFF4A3]/60'
-                      : 'bg-white text-black shadow-white/20'
+                      : isDark
+                      ? 'bg-white text-black shadow-white/20'
+                      : 'bg-zinc-900 text-white shadow-black/10'
                   }`}>
                     {String(idx + 1).padStart(2, '0')}
                   </span>

@@ -5,13 +5,11 @@ import {
   MapPin,
   Compass,
   Lightbulb,
-  Heart,
   Play,
 } from 'lucide-react';
 import { motion, AnimatePresence, useMotionValue, useTransform, animate } from 'motion/react';
 import { Itinerary } from '../../types';
 import { getSpotImage, getSpotFallbackImage } from '../../utils/spotImages';
-import { useFavorites } from '../../hooks/useFavorites';
 import { useIOSBackEntry } from '../../services/iosNavigationManager';
 import { AppleBackButton } from '../ui/AppleBackButton';
 
@@ -75,7 +73,6 @@ export const ItineraryStoreDetailModal: React.FC<ItineraryStoreDetailModalProps>
 }) => {
   const [isApplying, setIsApplying] = useState(false);
   const [activeDayIndex, setActiveDayIndex] = useState(0);
-  const { isItinerarySaved, toggleItinerary } = useFavorites();
   const scrollRef = useRef<HTMLDivElement | null>(null);
   const sheetRef = useRef<HTMLDivElement | null>(null);
   const heroImgRef = useRef<HTMLImageElement | null>(null);
@@ -404,26 +401,25 @@ export const ItineraryStoreDetailModal: React.FC<ItineraryStoreDetailModalProps>
                   aria-label="Voltar"
                 />
 
-                {/* Direita: Botão Curtir Roteiro */}
+                {/* Direita: Botão Play Circular */}
                 <div className="flex items-center gap-2">
                   <motion.button
-                    whileTap={{ scale: 0.88 }}
+                    whileTap={{ scale: 0.91 }}
                     type="button"
+                    disabled={isApplying}
                     onClick={(e) => {
                       e.stopPropagation();
-                      toggleItinerary(activeItinerary.id);
+                      handleAdd();
                     }}
-                    className="w-10 h-10 flex items-center justify-center cursor-pointer transition-transform hover:scale-110 active:scale-90 bg-transparent border-none shadow-none outline-none"
-                    title={isItinerarySaved(activeItinerary.id) ? 'Remover dos salvos' : 'Salvar roteiro'}
-                    aria-label={isItinerarySaved(activeItinerary.id) ? 'Remover dos salvos' : 'Salvar roteiro'}
+                    className="apple-back-btn apple-back-btn-overlay w-11 h-11 rounded-full flex items-center justify-center shrink-0 select-none cursor-pointer transition-transform duration-150 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#007AFF] disabled:opacity-50 disabled:cursor-not-allowed"
+                    title={isApplying ? 'Iniciando...' : 'Iniciar roteiro'}
+                    aria-label={isApplying ? 'Iniciando...' : 'Iniciar roteiro'}
                   >
-                    <Heart
-                      className={`w-8 h-8 transition-all stroke-none drop-shadow-[0_2px_8px_rgba(0,0,0,0.6)] ${
-                        isItinerarySaved(activeItinerary.id)
-                          ? 'fill-rose-500 text-rose-500'
-                          : 'fill-white/90 text-white/90'
-                      }`}
-                    />
+                    {isApplying ? (
+                      <div className="w-[18px] h-[18px] border-2 border-white border-t-transparent rounded-full animate-spin" />
+                    ) : (
+                      <Play className="relative z-10 w-[19px] h-[19px] fill-current text-current translate-x-[1px] pointer-events-none" />
+                    )}
                   </motion.button>
                 </div>
               </div>
@@ -527,7 +523,7 @@ export const ItineraryStoreDetailModal: React.FC<ItineraryStoreDetailModalProps>
                   className={`p-3.5 rounded-2xl border flex items-start gap-2.5 ${
                     isLight
                       ? 'bg-zinc-50/80 border-zinc-200/70 text-zinc-800'
-                      : 'bg-white/[0.03] border-white/10 text-zinc-200'
+                      : 'bg-[#1C1C1E] border-white/10 text-zinc-200'
                   }`}
                 >
                   <Lightbulb className={`w-4 h-4 shrink-0 mt-0.5 ${isLight ? 'text-black' : 'text-white'}`} />
@@ -623,7 +619,7 @@ export const ItineraryStoreDetailModal: React.FC<ItineraryStoreDetailModalProps>
                         className={`relative overflow-hidden p-3 rounded-2xl border flex items-center gap-3 transition-transform active:scale-[0.98] ${
                           isLight
                             ? 'bg-white/90 border-zinc-200/80 shadow-2xs'
-                            : 'bg-white/[0.03] border-white/10'
+                            : 'bg-[#1C1C1E] border-white/10'
                         }`}
                       >
                         <div className="flex items-center gap-3 w-full">
@@ -686,67 +682,18 @@ export const ItineraryStoreDetailModal: React.FC<ItineraryStoreDetailModalProps>
                   })}
                 </div>
 
-                {/* Espaçamento justo para que a última parada fique alinhada perfeitamente acima do botão Play flutuante, sem espaços desnecessários */}
+                {/* Respiro inferior para safe area sem espaço vazio do botão antigo */}
                 <div
                   aria-hidden="true"
                   className="w-full shrink-0 select-none pointer-events-none"
                   style={{
-                    height: 'max(calc(env(safe-area-inset-bottom, 0px) + 72px), 76px)',
+                    height: 'max(calc(env(safe-area-inset-bottom, 0px) + 28px), 32px)',
                   }}
                 />
               </motion.div>
 
             </motion.div>
           </div>
-
-          {/* 11. BOTÃO DE AÇÃO FLUTUANTE (100% FLUTUANTE, SEM PLACA BRANCA OU CONTAINER RETANGULAR ATRÁS) */}
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.82, ease: [0.16, 1, 0.3, 1], delay: 0.38 }}
-            className="absolute bottom-0 inset-x-0 z-30 px-5 flex justify-center pointer-events-none select-none bg-transparent border-none shadow-none"
-            style={{
-              paddingBottom: 'max(calc(env(safe-area-inset-bottom, 0px) + 16px), 20px)',
-              transform: 'translate3d(0, 0, 0)',
-              WebkitTransform: 'translate3d(0, 0, 0)',
-              willChange: 'transform, opacity',
-            }}
-          >
-            <div className="w-full max-w-md pointer-events-auto">
-              <motion.button
-                whileTap={{ scale: 0.97 }}
-                type="button"
-                disabled={isApplying}
-                onClick={handleAdd}
-                style={{
-                  fontFamily:
-                    '-apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro Text", "Helvetica Neue", sans-serif',
-                  backgroundColor: isLight
-                    ? 'rgba(255, 255, 255, 0.82)'
-                    : 'rgba(28, 28, 30, 0.82)',
-                  backdropFilter: 'blur(24px) saturate(190%)',
-                  WebkitBackdropFilter: 'blur(24px) saturate(190%)',
-                  border: isLight
-                    ? '1px solid rgba(255, 255, 255, 0.85)'
-                    : '1px solid rgba(255, 255, 255, 0.15)',
-                  boxShadow:
-                    '0 8px 32px rgba(0, 0, 0, 0.12), inset 0 1px 0 rgba(255, 255, 255, 0.9)',
-                }}
-                className="w-full h-12 rounded-full font-bold text-sm flex items-center justify-center gap-2 transition-transform cursor-pointer disabled:opacity-60 text-black dark:text-white active:scale-95"
-                title="Iniciar roteiro"
-                aria-label="Iniciar roteiro"
-              >
-                {isApplying ? (
-                  <div className="flex items-center gap-2">
-                    <div className="w-4 h-4 border-2 border-current border-t-transparent rounded-full animate-spin" />
-                    <span>Iniciando...</span>
-                  </div>
-                ) : (
-                  <Play className="w-5 h-5 fill-current text-current ml-0.5" />
-                )}
-              </motion.button>
-            </div>
-          </motion.div>
 
         </motion.div>
         </motion.div>

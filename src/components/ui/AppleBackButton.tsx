@@ -18,7 +18,7 @@ export const AppleBackButton: React.FC<AppleBackButtonProps> = ({
 }) => {
   const themeClass =
     theme === 'glass'
-      ? 'ios26-liquid-glass text-black'
+      ? 'ios26-liquid-glass text-black dark:text-white'
       : theme === 'light'
       ? 'apple-back-btn apple-back-btn-light'
       : theme === 'dark'

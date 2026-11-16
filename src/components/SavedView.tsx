@@ -155,7 +155,7 @@ const CollectionCoverCard: React.FC<CollectionCoverCardProps> = React.memo(({
       <div
         className={`relative w-full aspect-square rounded-[28px] overflow-hidden p-0 border transition-colors grid grid-cols-2 grid-rows-2 gap-[2px] shadow-xs ${
           isDark
-            ? 'bg-[#000000] border-[#262626] group-hover:border-white/25'
+            ? 'bg-[#1C1C1E] border-white/10 group-hover:border-white/25'
             : 'bg-[#E5E5EA] border-black/5 group-hover:border-black/10'
         }`}
         style={{
@@ -625,7 +625,7 @@ export const SavedView: React.FC<SavedViewProps> = React.memo(({
                           isEditing
                             ? 'bg-blue-600 text-white font-bold'
                             : isDark
-                            ? 'bg-[#000000] border border-[#262626] text-zinc-100 hover:border-white/30'
+                            ? 'bg-[#1C1C1E] border border-white/10 text-zinc-100 hover:border-white/25'
                             : 'bg-zinc-200/80 text-zinc-900 hover:bg-zinc-300'
                         }`}
                       >
@@ -643,7 +643,7 @@ export const SavedView: React.FC<SavedViewProps> = React.memo(({
                       <div className="py-20 flex flex-col items-center justify-center text-center px-4">
                         <div
                           className={`w-18 h-18 rounded-full flex items-center justify-center mb-4 ${
-                            isDark ? 'bg-[#000000] border border-[#262626] text-zinc-400' : 'bg-zinc-200 text-zinc-600'
+                            isDark ? 'bg-[#1C1C1E] border border-white/10 text-zinc-400' : 'bg-zinc-200 text-zinc-600'
                           }`}
                         >
                           {activeCollection === 'roteiros' ? (
@@ -708,7 +708,7 @@ export const SavedView: React.FC<SavedViewProps> = React.memo(({
                                     isSelected
                                       ? 'border-blue-500 bg-blue-500/10'
                                       : isDark
-                                      ? 'bg-[#000000] border-[#262626] hover:border-white/25'
+                                      ? 'bg-[#1C1C1E] border-white/10 hover:border-white/25'
                                       : 'bg-white border-black/5 hover:bg-zinc-50'
                                   }`}
                                 >
@@ -768,7 +768,7 @@ export const SavedView: React.FC<SavedViewProps> = React.memo(({
                                     isSelected
                                       ? 'border-blue-500 bg-blue-500/10'
                                       : isDark
-                                      ? 'bg-[#000000] border-[#262626] hover:border-white/25'
+                                      ? 'bg-[#1C1C1E] border-white/10 hover:border-white/25'
                                       : 'bg-white border-black/5 hover:bg-zinc-50'
                                   }`}
                                 >
@@ -848,7 +848,7 @@ export const SavedView: React.FC<SavedViewProps> = React.memo(({
                                     isSelected
                                       ? 'border-blue-500 bg-blue-500/10'
                                       : isDark
-                                      ? 'bg-[#000000] border-[#262626] hover:border-white/25'
+                                      ? 'bg-[#1C1C1E] border-white/10 hover:border-white/25'
                                       : 'bg-white border-black/5 hover:bg-zinc-50'
                                   }`}
                                 >
@@ -909,10 +909,18 @@ export const SavedView: React.FC<SavedViewProps> = React.memo(({
 
                   {/* Batch Edit Action Footer */}
                   {isEditing && currentItems.length > 0 && (
-                    <div className="fixed bottom-24 left-4 right-4 max-w-md mx-auto z-50 flex items-center justify-between gap-3 p-3.5 rounded-2xl bg-[#000000] border border-[#262626] shadow-2xl">
+                    <div
+                      className={`fixed bottom-24 left-4 right-4 max-w-md mx-auto z-50 flex items-center justify-between gap-3 p-3.5 rounded-2xl border shadow-2xl ${
+                        isDark
+                          ? 'bg-[#1C1C1E] border-white/10'
+                          : 'bg-white border-black/10'
+                      }`}
+                    >
                       <button
                         onClick={handleToggleSelectAll}
-                        className="text-xs font-bold text-zinc-300 hover:text-white px-2 py-1 cursor-pointer"
+                        className={`text-xs font-bold px-2 py-1 cursor-pointer ${
+                          isDark ? 'text-zinc-300 hover:text-white' : 'text-zinc-700 hover:text-black'
+                        }`}
                       >
                         {selectedForRemoval.size === currentItems.length
                           ? 'Desmarcar todos'
@@ -924,7 +932,9 @@ export const SavedView: React.FC<SavedViewProps> = React.memo(({
                         className={`flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer ${
                           selectedForRemoval.size > 0
                             ? 'bg-rose-600 text-white active:scale-95 shadow-md'
-                            : 'bg-zinc-800 text-zinc-500 cursor-not-allowed'
+                            : isDark
+                              ? 'bg-zinc-800 text-zinc-500 cursor-not-allowed'
+                              : 'bg-zinc-200 text-zinc-400 cursor-not-allowed'
                         }`}
                       >
                         <Trash2 className="w-3.5 h-3.5" />

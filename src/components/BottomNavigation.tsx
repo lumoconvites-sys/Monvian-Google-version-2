@@ -27,7 +27,9 @@ export const BottomNavigation: React.FC<BottomNavigationProps> = memo(({
   onChangeTab,
   isBlurred = false,
   forceWhiteUI = false,
+  theme = 'light',
 }) => {
+  const useWhiteIcons = forceWhiteUI || theme === 'dark';
   const [pulseAnimation, setPulseAnimation] = useState<number>(0);
   const [isCompact, setIsCompact] = useState<boolean>(false);
 
@@ -322,14 +324,14 @@ export const BottomNavigation: React.FC<BottomNavigationProps> = memo(({
                 aria-label={tab.label}
                 aria-current={isActive ? 'page' : undefined}
                 className={`relative z-10 w-full h-full rounded-full flex items-center justify-center cursor-pointer select-none active:scale-[0.94] transition-[transform,color,opacity] duration-[220ms] ease-[cubic-bezier(0.32,0.72,0,1)] motion-reduce:transition-none focus:outline-none focus-visible:ring-2 ${
-                  forceWhiteUI
+                  useWhiteIcons
                     ? 'text-[#FFFFFF] focus-visible:ring-white/30'
                     : 'text-[#000000] focus-visible:ring-black/25'
                 } ${
                   isActive ? 'opacity-100' : 'opacity-85 hover:opacity-100'
                 }`}
                 style={{
-                  color: forceWhiteUI ? '#FFFFFF' : '#000000',
+                  color: useWhiteIcons ? '#FFFFFF' : '#000000',
                   WebkitTapHighlightColor: 'transparent',
                   touchAction: 'manipulation',
                 }}

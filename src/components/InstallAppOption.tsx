@@ -21,9 +21,9 @@ export const InstallAppOption: React.FC = () => {
     <>
       {isInstalled ? (
         // Estado: Já instalado neste dispositivo
-        <div className="p-4 rounded-3xl bg-white dark:bg-[#141518] border border-zinc-200 dark:border-white/10 flex items-center justify-between shadow-sm">
+        <div className="p-4 rounded-3xl bg-white dark:bg-[#1C1C1E] border border-zinc-200 dark:border-white/10 flex items-center justify-between shadow-sm">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-2xl bg-zinc-100 dark:bg-zinc-800 flex items-center justify-center text-zinc-900 dark:text-white">
+            <div className="w-10 h-10 rounded-2xl bg-zinc-100 dark:bg-[#2C2C2E] flex items-center justify-center text-zinc-900 dark:text-white">
               <CheckCircle2 className="w-5 h-5 stroke-[2]" />
             </div>
             <div>
@@ -46,10 +46,10 @@ export const InstallAppOption: React.FC = () => {
           id="btn-settings-install-app"
           type="button"
           onClick={handleInstall}
-          className="w-full p-4 rounded-3xl bg-white dark:bg-[#141518] hover:bg-zinc-50 dark:hover:bg-[#1a1c21] active:scale-[0.98] border border-zinc-200 dark:border-white/10 hover:border-zinc-300 dark:hover:border-white/20 transition-all flex items-center justify-between shadow-sm cursor-pointer text-left group"
+          className="w-full p-4 rounded-3xl bg-white dark:bg-[#1C1C1E] hover:bg-zinc-50 dark:hover:bg-[#252528] active:scale-[0.98] border border-zinc-200 dark:border-white/10 hover:border-zinc-300 dark:hover:border-white/20 transition-all flex items-center justify-between shadow-sm cursor-pointer text-left group"
         >
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-2xl bg-zinc-100 dark:bg-zinc-800 flex items-center justify-center text-zinc-900 dark:text-white group-hover:scale-105 transition-transform">
+            <div className="w-10 h-10 rounded-2xl bg-zinc-100 dark:bg-[#2C2C2E] flex items-center justify-center text-zinc-900 dark:text-white group-hover:scale-105 transition-transform">
               <Download className="w-5 h-5 stroke-[2]" />
             </div>
             <div>
@@ -61,9 +61,9 @@ export const InstallAppOption: React.FC = () => {
               </div>
             </div>
           </div>
-          <div className="flex items-center gap-1.5 px-4 py-2 rounded-full expo-liquid-glass-btn text-black text-xs font-bold shadow-xs border border-black/5 shrink-0">
+          <div className="flex items-center gap-1.5 px-4 py-2 rounded-full expo-liquid-glass-btn text-black dark:text-white text-xs font-bold shadow-xs border border-black/5 dark:border-white/10 shrink-0">
             <span>Instalar</span>
-            <ChevronRight className="w-4 h-4 text-black" />
+            <ChevronRight className="w-4 h-4 text-black dark:text-white" />
           </div>
         </button>
       )}
@@ -127,7 +127,7 @@ export const InstallAppOption: React.FC = () => {
               <button
                 type="button"
                 onClick={() => setShowIOSGuide(false)}
-                className="w-full py-3.5 px-5 rounded-full expo-liquid-glass-btn text-black font-bold text-sm shadow-sm border border-black/5 hover:bg-zinc-50 active:scale-95 transition-all cursor-pointer text-center"
+                className="w-full py-3.5 px-5 rounded-full expo-liquid-glass-btn text-black dark:text-white font-bold text-sm shadow-sm border border-black/5 dark:border-white/10 hover:bg-zinc-50 active:scale-95 transition-all cursor-pointer text-center"
               >
                 Entendi
               </button>
@@ -170,7 +170,7 @@ export const InstallAppOption: React.FC = () => {
               <button
                 type="button"
                 onClick={() => setShowBrowserGuide(false)}
-                className="w-full py-3.5 px-5 rounded-full expo-liquid-glass-btn text-black font-bold text-sm shadow-sm border border-black/5 hover:bg-zinc-50 active:scale-95 transition-all cursor-pointer text-center"
+                className="w-full py-3.5 px-5 rounded-full expo-liquid-glass-btn text-black dark:text-white font-bold text-sm shadow-sm border border-black/5 dark:border-white/10 hover:bg-zinc-50 active:scale-95 transition-all cursor-pointer text-center"
               >
                 Fechar
               </button>

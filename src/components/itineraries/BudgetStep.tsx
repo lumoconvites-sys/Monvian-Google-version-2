@@ -62,10 +62,10 @@ export const BudgetStep: React.FC<BudgetStepProps> = ({
               className={`w-full p-4 sm:p-4.5 rounded-[24px] flex items-center justify-between text-left transition-all active:scale-[0.99] cursor-pointer border backdrop-blur-xl ${
                 isSelected
                   ? isDark
-                    ? 'bg-[#1C1E24] border-2 border-white text-white shadow-lg'
+                    ? 'bg-[#2C2C2E] border-2 border-white text-white shadow-lg'
                     : 'bg-zinc-100 border-2 border-black text-zinc-900 shadow-sm'
                   : isDark
-                  ? 'bg-[#18181b]/80 hover:bg-[#202024]/90 border-white/10 hover:border-white/20 text-zinc-200'
+                  ? 'bg-[#1C1C1E] hover:bg-[#252528] border-white/10 hover:border-white/20 text-zinc-200'
                   : 'bg-white/80 hover:bg-white/95 border-black/8 text-zinc-800 shadow-[0_2px_8px_rgba(0,0,0,0.03)]'
               }`}
             >
@@ -73,7 +73,9 @@ export const BudgetStep: React.FC<BudgetStepProps> = ({
                 <div
                   className={`w-10 h-10 rounded-[14px] flex items-center justify-center shrink-0 transition-colors ${
                     isSelected
-                      ? 'bg-white text-black shadow-md'
+                      ? isDark
+                        ? 'bg-white text-black shadow-md'
+                        : 'bg-zinc-900 text-white shadow-md'
                       : isDark
                       ? 'bg-zinc-800/80 text-zinc-400'
                       : 'bg-zinc-100 text-zinc-600'
@@ -95,13 +97,17 @@ export const BudgetStep: React.FC<BudgetStepProps> = ({
               <div
                 className={`w-6 h-6 rounded-full flex items-center justify-center shrink-0 transition-all ${
                   isSelected
-                    ? 'bg-white text-black shadow-sm ring-2 ring-white/30'
+                    ? isDark
+                      ? 'bg-white text-black shadow-sm ring-2 ring-white/30'
+                      : 'bg-zinc-900 text-white shadow-sm ring-2 ring-black/10'
                     : isDark
                     ? 'border-2 border-zinc-700'
                     : 'border-2 border-zinc-300'
                 }`}
               >
-                {isSelected && <Check className="w-3.5 h-3.5 stroke-[3] text-black" />}
+                {isSelected && (
+                  <Check className={`w-3.5 h-3.5 stroke-[3] ${isDark ? 'text-black' : 'text-white'}`} />
+                )}
               </div>
             </button>
           );

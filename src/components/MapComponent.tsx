@@ -2923,7 +2923,7 @@ export const MapComponent = memo(
             onClick={() => centerOnUserLocation(true, true)}
             aria-label="Centralizar na minha localização e ativar bússola em tempo real"
             className={`w-[53px] h-[53px] sm:w-[58px] sm:h-[58px] rounded-full ios26-liquid-glass flex items-center justify-center active:scale-90 transition-all duration-200 cursor-pointer shrink-0 ${
-              currentMode === 'satelite' ? 'text-white' : 'text-black'
+              currentMode === 'satelite' || theme === 'dark' ? 'text-white' : 'text-black'
             } ${
               isCompassTracking
                 ? 'ring-2 ring-[#007AFF]/70'
@@ -2931,17 +2931,17 @@ export const MapComponent = memo(
                   ? 'ring-2 ring-[#007AFF]/35'
                   : ''
             }`}
-            style={{ color: currentMode === 'satelite' ? '#FFFFFF' : '#000000' }}
+            style={{ color: currentMode === 'satelite' || theme === 'dark' ? '#FFFFFF' : '#000000' }}
           >
             <div
               ref={compassIconWrapperRef}
               className="relative z-10 flex items-center justify-center will-change-transform"
-              style={{ color: currentMode === 'satelite' ? '#FFFFFF' : '#000000' }}
+              style={{ color: currentMode === 'satelite' || theme === 'dark' ? '#FFFFFF' : '#000000' }}
             >
               <CompassIcon
                 size={28}
                 className="w-[26px] h-[26px] sm:w-[29px] sm:h-[29px]"
-                style={{ color: currentMode === 'satelite' ? '#FFFFFF' : '#000000' }}
+                style={{ color: currentMode === 'satelite' || theme === 'dark' ? '#FFFFFF' : '#000000' }}
               />
             </div>
           </button>
@@ -2953,13 +2953,13 @@ export const MapComponent = memo(
             aria-label="Alternar camada do mapa"
             title={currentMode === 'satelite' ? 'Alternar para mapa padrão' : 'Alternar para satélite'}
             className={`w-[53px] h-[53px] sm:w-[58px] sm:h-[58px] rounded-full ios26-liquid-glass flex items-center justify-center active:scale-90 transition-all duration-200 cursor-pointer shrink-0 ${
-              currentMode === 'satelite' ? 'text-white' : 'text-black'
+              currentMode === 'satelite' || theme === 'dark' ? 'text-white' : 'text-black'
             }`}
-            style={{ color: currentMode === 'satelite' ? '#FFFFFF' : '#000000' }}
+            style={{ color: currentMode === 'satelite' || theme === 'dark' ? '#FFFFFF' : '#000000' }}
           >
             <MapLayerToggleIcon
               className="relative z-10 w-[28px] h-[28px] sm:w-[31px] sm:h-[31px]"
-              style={{ color: currentMode === 'satelite' ? '#FFFFFF' : '#000000' }}
+              style={{ color: currentMode === 'satelite' || theme === 'dark' ? '#FFFFFF' : '#000000' }}
             />
           </button>
         </div>

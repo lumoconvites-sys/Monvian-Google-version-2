@@ -156,18 +156,35 @@ export default function App() {
     return saved !== null ? JSON.parse(saved) : false;
   });
 
-  // Global Theme State: light mode exclusively
-  const [theme, setTheme] = useState<'dark' | 'light'>('light');
+  // Global Theme State: persisted across sessions ('light' | 'dark')
+  const [theme, setTheme] = useState<'dark' | 'light'>(() => {
+    try {
+      return localStorage.getItem('monvian_theme') === 'dark' ? 'dark' : 'light';
+    } catch {
+      return 'light';
+    }
+  });
 
-  // Ensure DOM is locked to pure iOS light mode on mount
-  useEffect(() => {
-    localStorage.setItem('monvian_theme', 'light');
-    document.documentElement.classList.remove('dark');
-    document.documentElement.classList.add('light');
-    document.documentElement.style.colorScheme = 'light';
-    document.documentElement.style.backgroundColor = '#ffffff';
-    if (document.body) document.body.style.backgroundColor = '#ffffff';
+  const handleToggleTheme = useCallback(() => {
+    setTheme((prev) => (prev === 'dark' ? 'light' : 'dark'));
   }, []);
+
+  // Sync DOM theme classes immediately on mount & change
+  useEffect(() => {
+    const isDarkTheme = theme === 'dark';
+    const bg = isDarkTheme ? '#000000' : '#ffffff';
+    try {
+      localStorage.setItem('monvian_theme', theme);
+    } catch {}
+    document.documentElement.classList.toggle('dark', isDarkTheme);
+    document.documentElement.classList.toggle('light', !isDarkTheme);
+    document.documentElement.style.colorScheme = isDarkTheme ? 'dark' : 'light';
+    document.documentElement.style.backgroundColor = bg;
+    if (document.body) document.body.style.backgroundColor = bg;
+    document.querySelectorAll('meta[name="theme-color"]').forEach((meta) => {
+      meta.setAttribute('content', bg);
+    });
+  }, [theme]);
 
   // Preload all itinerary images in background as soon as app opens, even if user is on another tab
   useEffect(() => {
@@ -919,10 +936,8 @@ export default function App() {
   useEffect(() => {
     localStorage.setItem('monvian_rain_user_enabled', JSON.stringify(rainEnabled));
     localStorage.setItem('monvian_snow_enabled', JSON.stringify(snowEnabled));
-    localStorage.setItem('monvian_theme', 'light');
+    localStorage.setItem('monvian_theme', theme);
     localStorage.setItem('monvian_high_contrast', JSON.stringify(highContrast));
-
-    setMapStyle('animado');
 
     if (highContrast) {
       document.documentElement.classList.add('high-contrast');
@@ -930,11 +945,13 @@ export default function App() {
       document.documentElement.classList.remove('high-contrast');
     }
 
-    document.documentElement.classList.remove('dark');
-    document.documentElement.classList.add('light');
-    document.documentElement.style.colorScheme = 'light';
-    document.documentElement.style.backgroundColor = '#ffffff';
-    if (document.body) document.body.style.backgroundColor = '#ffffff';
+    const isDarkTheme = theme === 'dark';
+    const bg = isDarkTheme ? '#000000' : '#ffffff';
+    document.documentElement.classList.toggle('dark', isDarkTheme);
+    document.documentElement.classList.toggle('light', !isDarkTheme);
+    document.documentElement.style.colorScheme = isDarkTheme ? 'dark' : 'light';
+    document.documentElement.style.backgroundColor = bg;
+    if (document.body) document.body.style.backgroundColor = bg;
 
     const token = localStorage.getItem('monvian_token');
 
@@ -2058,7 +2075,9 @@ export default function App() {
       {isAuthChecking && !isAuthenticated && !pendingResetOobCode ? (
         <div
           key="monvian-auth-checking"
-          className="fixed inset-0 w-full z-[130] bg-[#FFFFFF] flex items-center justify-center"
+          className={`fixed inset-0 w-full z-[130] flex items-center justify-center ${
+            theme === 'dark' ? 'bg-[#000000]' : 'bg-[#FFFFFF]'
+          }`}
           style={{
             top: 0,
             bottom: 0,
@@ -2069,7 +2088,9 @@ export default function App() {
             minHeight: 'var(--app-height, 100dvh)',
           }}
         >
-          <div className="w-7 h-7 rounded-full border-2 border-[#E5E7EB] border-t-[#080808] animate-spin" />
+          <div className={`w-7 h-7 rounded-full border-2 animate-spin ${
+            theme === 'dark' ? 'border-white/15 border-t-white' : 'border-[#E5E7EB] border-t-[#080808]'
+          }`} />
         </div>
       ) : !isAuthenticated || pendingResetOobCode ? (
         <motion.div
@@ -2085,7 +2106,9 @@ export default function App() {
             duration: prefersReducedMotion ? 0.15 : 0.32,
             ease: [0.22, 1, 0.36, 1],
           }}
-          className="fixed inset-0 w-full z-[120] bg-[#ffffff]"
+          className={`fixed inset-0 w-full z-[120] ${
+            theme === 'dark' ? 'bg-[#000000]' : 'bg-[#ffffff]'
+          }`}
           style={{
             top: 0,
             bottom: 0,
@@ -2097,6 +2120,7 @@ export default function App() {
           }}
         >
           <AuthScreen
+            theme={theme}
             initialAuthMode={authInitialMode}
             initialResetOobCode={pendingResetOobCode}
             onResetHandled={() => {
@@ -2226,11 +2250,9 @@ export default function App() {
           }
           id="app-root-shell"
           className={`fixed inset-0 w-full h-full overflow-hidden select-none flex transition-colors duration-300 ${
-            isOnboardingItinerarySelection
-              ? 'bg-[#ffffff]'
-              : theme === 'dark'
-                ? 'bg-black md:bg-[#ffffff]'
-                : 'bg-[#ffffff]'
+            theme === 'dark'
+              ? 'bg-[#000000]'
+              : 'bg-[#ffffff]'
           }`}
           style={{
             position: 'fixed',
@@ -2246,11 +2268,11 @@ export default function App() {
             margin: 0,
             padding: 0,
             backgroundColor:
-              isOnboardingItinerarySelection ||
-              (typeof window !== 'undefined' && window.matchMedia('(min-width: 768px)').matches)
-                ? '#ffffff'
-                : theme === 'dark'
-                  ? currentAdaptiveColor
+              theme === 'dark'
+                ? '#000000'
+                : isOnboardingItinerarySelection ||
+                    (typeof window !== 'undefined' && window.matchMedia('(min-width: 768px)').matches)
+                  ? '#ffffff'
                   : '#ffffff',
             pointerEvents:
               signupIntroStage === 'white' || signupIntroStage === 'video' ? 'none' : undefined,
@@ -2265,7 +2287,7 @@ export default function App() {
           onChangeTab={handleTabChange}
           unreadCount={2}
           theme={theme}
-          onToggleTheme={() => {}}
+          onToggleTheme={handleToggleTheme}
           realWeather={realWeather}
           onOpenWeatherModal={() => {}}
           user={user}
@@ -2527,19 +2549,19 @@ export default function App() {
                     setIs3DMode((prev) => !prev);
                   }}
                   className={`w-[53px] h-[53px] sm:w-[58px] sm:h-[58px] rounded-full ios26-liquid-glass flex items-center justify-center transition-all duration-200 active:scale-90 cursor-pointer group shrink-0 ${
-                    isSatelliteExplore ? 'text-white' : 'text-black'
+                    isSatelliteExplore || theme === 'dark' ? 'text-white' : 'text-black'
                   }`}
-                  style={{ color: isSatelliteExplore ? '#FFFFFF' : '#000000' }}
+                  style={{ color: isSatelliteExplore || theme === 'dark' ? '#FFFFFF' : '#000000' }}
                   aria-label={is3DMode ? 'Alternar para visualização 2D' : 'Alternar para visualização 3D'}
                   title={is3DMode ? 'Alternar para visão 2D Plana' : 'Alternar para visão 3D com Relevo e Montanhas'}
                 >
                   <div
                     className="relative z-10 flex items-center justify-center group-hover:scale-105 transition-transform duration-200"
-                    style={{ color: isSatelliteExplore ? '#FFFFFF' : '#000000' }}
+                    style={{ color: isSatelliteExplore || theme === 'dark' ? '#FFFFFF' : '#000000' }}
                   >
                     <Map3DIcon
                       mode={!hasToggled3D || is3DMode ? '3D' : '2D'}
-                      style={{ color: isSatelliteExplore ? '#FFFFFF' : '#000000' }}
+                      style={{ color: isSatelliteExplore || theme === 'dark' ? '#FFFFFF' : '#000000' }}
                     />
                   </div>
                 </button>
@@ -2554,19 +2576,19 @@ export default function App() {
                       setIsSearchOpen(false);
                     }}
                     className={`w-[53px] h-[53px] sm:w-[58px] sm:h-[58px] rounded-full ios26-liquid-glass flex items-center justify-center transition-all duration-200 active:scale-90 cursor-pointer group shrink-0 ${
-                      isSatelliteExplore ? 'text-white' : 'text-black'
+                      isSatelliteExplore || theme === 'dark' ? 'text-white' : 'text-black'
                     }`}
-                    style={{ color: isSatelliteExplore ? '#FFFFFF' : '#000000' }}
+                    style={{ color: isSatelliteExplore || theme === 'dark' ? '#FFFFFF' : '#000000' }}
                     title={selectedCategoryFilter ? 'Filtro de categoria ativo - Clique para alterar ou limpar' : 'Filtrar por Categoria'}
                   >
                     <div className="relative z-10 flex items-center justify-center group-hover:scale-105 transition-transform duration-300">
                       <SlidersHorizontal
                         className="w-6 h-6 sm:w-[29px] sm:h-[29px] stroke-[2]"
-                        style={{ color: isSatelliteExplore ? '#FFFFFF' : '#000000' }}
+                        style={{ color: isSatelliteExplore || theme === 'dark' ? '#FFFFFF' : '#000000' }}
                       />
                     </div>
                     {selectedCategoryFilter && (
-                      <span className="absolute top-0 right-0 z-20 w-2.5 h-2.5 rounded-full bg-blue-500 ring-2 ring-white" />
+                      <span className="absolute top-0 right-0 z-20 w-2.5 h-2.5 rounded-full bg-blue-500 ring-2 ring-white dark:ring-[#1C1C1E]" />
                     )}
                   </button>
                 </div>
@@ -2584,6 +2606,7 @@ export default function App() {
           <SpotDetailSheet
             key={`spot-detail-${selectedSpot.id}`}
             spot={selectedSpot}
+            theme={theme}
             onClose={() => {
               setIsDetailOpen(false);
               if (activeTab !== 'explorar') {
@@ -2711,7 +2734,7 @@ export default function App() {
           snowEnabled={snowEnabled}
           onToggleSnow={() => setSnowEnabled(!snowEnabled)}
           theme={theme}
-          onToggleTheme={() => {}}
+          onToggleTheme={handleToggleTheme}
           highContrast={highContrast}
           onToggleHighContrast={() => setHighContrast((prev) => !prev)}
           user={user}
@@ -2758,6 +2781,7 @@ export default function App() {
       isOpen={isWeatherModalOpen}
       onClose={() => setIsWeatherModalOpen(false)}
       weather={realWeather}
+      theme={theme}
     />
 
     {/* Monvian iOS Minimalist Floating Event Card (Mounted ONLY while Explorar map is active) */}
@@ -2788,6 +2812,7 @@ export default function App() {
               visible={!isSpotCardOpen && !isSearchOpen && !isCategoryCardOpen}
               onActiveChange={setHasActiveMapEvents}
               isSatellite={isSatelliteExplore}
+              theme={theme}
             />
           </motion.div>
         )}
@@ -2922,10 +2947,10 @@ export default function App() {
           }}
         >
           <div className={`relative z-10 flex items-center justify-between px-3 py-2 border-b ${
-            isSatelliteExplore ? 'border-white/20' : 'border-black/10'
+            isSatelliteExplore || theme === 'dark' ? 'border-white/15' : 'border-black/10'
           }`}>
             <span className={`text-[11px] font-black uppercase tracking-wider ${
-              isSatelliteExplore ? 'text-white/75' : 'text-black/65'
+              isSatelliteExplore || theme === 'dark' ? 'text-white/75' : 'text-black/65'
             }`}>
               Categorias
             </span>
@@ -2936,7 +2961,7 @@ export default function App() {
                   setIsCategoryCardOpen(false);
                 }}
                 className={`text-[11px] font-black hover:underline cursor-pointer flex items-center gap-1 ${
-                  isSatelliteExplore ? 'text-white' : 'text-black'
+                  isSatelliteExplore || theme === 'dark' ? 'text-white' : 'text-black'
                 }`}
               >
                 <RotateCcw className="w-3 h-3" />
@@ -2955,6 +2980,7 @@ export default function App() {
           ].map((cat) => {
             const CategoryIcon = 'icon' in cat ? (cat.icon as React.ComponentType<{ className?: string }>) : null;
             const isSelected = selectedCategoryFilter === cat.id;
+            const useDarkDropdownUi = isSatelliteExplore || theme === 'dark';
 
             return (
               <button
@@ -2965,11 +2991,11 @@ export default function App() {
                 }}
                 className={`relative z-10 w-full px-3 py-2.5 rounded-2xl active:scale-[0.98] text-xs font-black flex items-center justify-between gap-2.5 transition-all text-left cursor-pointer group ${
                   isSelected
-                    ? isSatelliteExplore
+                    ? useDarkDropdownUi
                       ? 'ios26-liquid-glass-pill text-white font-extrabold'
                       : 'ios26-liquid-glass-pill text-black font-extrabold'
-                    : isSatelliteExplore
-                      ? 'hover:bg-white/15 text-white'
+                    : useDarkDropdownUi
+                      ? 'hover:bg-white/10 text-white'
                       : 'hover:bg-white/25 text-black'
                 }`}
               >
@@ -2991,8 +3017,8 @@ export default function App() {
                   ) : (
                     <div className={`w-10.5 h-10.5 rounded-xl flex items-center justify-center shrink-0 group-hover:scale-105 transition-transform ${
                       isSelected
-                        ? isSatelliteExplore ? 'bg-white/25 text-white shadow-sm' : 'bg-white/60 text-black shadow-sm'
-                        : isSatelliteExplore ? 'bg-white/15 text-white' : 'bg-white/25 text-black'
+                        ? useDarkDropdownUi ? 'bg-white/25 text-white shadow-sm' : 'bg-white/60 text-black shadow-sm'
+                        : useDarkDropdownUi ? 'bg-white/15 text-white' : 'bg-white/25 text-black'
                     }`}>
                       {CategoryIcon && <CategoryIcon className="w-4 h-4 stroke-[2]" />}
                     </div>
@@ -3000,7 +3026,7 @@ export default function App() {
                   <span className="truncate">{cat.label}</span>
                 </div>
                 {isSelected && (
-                  <Check className={`w-4 h-4 shrink-0 stroke-[2.5] ${isSatelliteExplore ? 'text-white' : 'text-black'}`} />
+                  <Check className={`w-4 h-4 shrink-0 stroke-[2.5] ${useDarkDropdownUi ? 'text-white' : 'text-black'}`} />
                 )}
               </button>
             );
@@ -3209,6 +3235,7 @@ export default function App() {
       {showFirstSignupWelcome && (
         <FirstSignupWelcomeScreen
           key="monvian-first-signup-welcome"
+          theme={theme}
           onComplete={handleDismissFirstSignupWelcome}
         />
       )}

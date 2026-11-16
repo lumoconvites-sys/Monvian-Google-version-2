@@ -85,13 +85,15 @@ export const PlusActionMenuModal: React.FC<PlusActionMenuModalProps> = ({
             className={`w-full p-4 rounded-2xl border text-left flex items-center justify-between transition-all cursor-pointer group ${
               isLight
                 ? 'bg-white/60 hover:bg-white/85 border-black/5 hover:border-black/10 shadow-sm backdrop-blur-md'
-                : 'bg-white/[0.06] hover:bg-white/[0.12] border-white/10 hover:border-white/20 backdrop-blur-md'
+                : 'bg-[#2C2C2E]/75 hover:bg-[#2C2C2E] border-white/10 hover:border-white/20 backdrop-blur-md'
             }`}
           >
             <div className="flex items-center gap-3.5 min-w-0">
               <div className={`w-10 h-10 rounded-2xl flex items-center justify-center shrink-0 shadow-sm ${
                 isGoldUser
                   ? 'bg-metallic-gold text-[#1A1202] border border-[#FFF4A3]/70'
+                  : isLight
+                  ? 'bg-zinc-900 text-white'
                   : 'bg-white text-black'
               }`}>
                 <Compass className="w-5 h-5 stroke-[2.2]" />
@@ -117,13 +119,15 @@ export const PlusActionMenuModal: React.FC<PlusActionMenuModalProps> = ({
             className={`w-full p-4 rounded-2xl border text-left flex items-center justify-between transition-all cursor-pointer group ${
               isLight
                 ? 'bg-white/60 hover:bg-white/85 border-black/5 hover:border-black/10 shadow-sm backdrop-blur-md'
-                : 'bg-white/[0.06] hover:bg-white/[0.12] border-white/10 hover:border-white/20 backdrop-blur-md'
+                : 'bg-[#2C2C2E]/75 hover:bg-[#2C2C2E] border-white/10 hover:border-white/20 backdrop-blur-md'
             }`}
           >
             <div className="flex items-center gap-3.5 min-w-0">
               <div className={`w-10 h-10 rounded-2xl flex items-center justify-center shrink-0 shadow-sm ${
                 isGoldUser
                   ? 'bg-[#F5BE38]/20 text-[#F5BE38] border border-[#F5BE38]/40'
+                  : isLight
+                  ? 'bg-zinc-100 text-zinc-900 border border-black/10'
                   : 'bg-white/10 text-white border border-white/20'
               }`}>
                 <PlusCircle className="w-5 h-5 stroke-[2.2]" />

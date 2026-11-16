@@ -66,7 +66,7 @@ const ShowcaseCard = memo(function ShowcaseCard({
   const { tr } = useLanguage();
   return (
     <div
-      className="relative w-[252px] h-[252px] sm:w-[296px] sm:h-[296px] md:w-[320px] md:h-[320px] shrink-0 rounded-[24px] overflow-hidden bg-[#F3F4F7] text-left select-none pointer-events-none"
+      className="relative w-[252px] h-[252px] sm:w-[296px] sm:h-[296px] md:w-[320px] md:h-[320px] shrink-0 rounded-[24px] overflow-hidden bg-[#F3F4F7] dark:bg-[#1C1C1E] text-left select-none pointer-events-none"
       style={{
         contain: 'layout style paint',
       }}

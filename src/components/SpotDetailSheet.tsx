@@ -37,6 +37,7 @@ interface SpotDetailSheetProps {
   isFavorite: boolean;
   onToggleFavorite: (spotId: string) => void;
   onUpdateSpot?: (updatedSpot: Spot) => void;
+  theme?: 'dark' | 'light';
 }
 
 export const SpotDetailSheet: React.FC<SpotDetailSheetProps> = React.memo(({
@@ -702,12 +703,11 @@ export const SpotDetailSheet: React.FC<SpotDetailSheetProps> = React.memo(({
                 e.stopPropagation();
                 setIsQrModalOpen(true);
               }}
-              className="w-10 h-10 rounded-full ios26-liquid-glass flex items-center justify-center text-black cursor-pointer transition-colors"
-              style={{ color: '#000000' }}
+              className="w-10 h-10 rounded-full ios26-liquid-glass flex items-center justify-center text-black dark:text-white cursor-pointer transition-colors"
               title="Gerar QR Code deste local"
               aria-label="Gerar QR Code deste local"
             >
-              <QrCode className="relative z-10 w-5 h-5 text-black" />
+              <QrCode className="relative z-10 w-5 h-5 text-black dark:text-white" />
             </motion.button>
             <motion.button 
               whileTap={{ scale: 0.88 }}
@@ -716,12 +716,11 @@ export const SpotDetailSheet: React.FC<SpotDetailSheetProps> = React.memo(({
                 e.stopPropagation();
                 handleShare();
               }}
-              className="w-10 h-10 rounded-full ios26-liquid-glass flex items-center justify-center text-black cursor-pointer active:opacity-80 transition-opacity"
-              style={{ color: '#000000' }}
+              className="w-10 h-10 rounded-full ios26-liquid-glass flex items-center justify-center text-black dark:text-white cursor-pointer active:opacity-80 transition-opacity"
               title="Compartilhar"
               aria-label="Compartilhar"
             >
-              <Share2 className="relative z-10 w-5 h-5 text-black" />
+              <Share2 className="relative z-10 w-5 h-5 text-black dark:text-white" />
             </motion.button>
             <motion.button 
               whileTap={{ scale: 0.88 }}
@@ -730,12 +729,11 @@ export const SpotDetailSheet: React.FC<SpotDetailSheetProps> = React.memo(({
                 e.stopPropagation();
                 onToggleFavorite(spot.id);
               }} 
-              className="w-10 h-10 rounded-full ios26-liquid-glass flex items-center justify-center text-black cursor-pointer active:opacity-80 transition-opacity"
-              style={{ color: '#000000' }}
+              className="w-10 h-10 rounded-full ios26-liquid-glass flex items-center justify-center text-black dark:text-white cursor-pointer active:opacity-80 transition-opacity"
               title={isFavorite ? 'Remover dos favoritos' : 'Adicionar aos favoritos'}
               aria-label={isFavorite ? 'Remover dos favoritos' : 'Adicionar aos favoritos'}
             >
-              <Heart className={`relative z-10 w-5 h-5 ${isFavorite ? 'fill-red-500 text-red-500' : 'text-black'}`} />
+              <Heart className={`relative z-10 w-5 h-5 ${isFavorite ? 'fill-red-500 text-red-500' : 'text-black dark:text-white'}`} />
             </motion.button>
           </div>
         </div>
@@ -881,7 +879,7 @@ export const SpotDetailSheet: React.FC<SpotDetailSheetProps> = React.memo(({
             initial={{ opacity: 0, y: 24 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.88, ease: [0.16, 1, 0.3, 1], delay: 0.14 }}
-            className="relative z-10 -mt-6 bg-white dark:bg-[#000000] border-t border-black/5 dark:border-[#262626] rounded-t-[32px] sm:rounded-t-[36px] rounded-b-none px-5 sm:px-6 pt-6 pb-32 flex flex-col min-h-[calc(var(--app-height,100dvh)-60px)] shadow-[0_-8px_32px_rgba(0,0,0,0.08)] dark:shadow-[0_-12px_36px_rgba(0,0,0,0.5)]"
+            className="relative z-10 -mt-6 bg-white dark:bg-[#000000] border-t border-black/5 dark:border-white/10 rounded-t-[32px] sm:rounded-t-[36px] rounded-b-none px-5 sm:px-6 pt-6 pb-32 flex flex-col min-h-[calc(var(--app-height,100dvh)-60px)] shadow-[0_-8px_32px_rgba(0,0,0,0.08)] dark:shadow-[0_-12px_36px_rgba(0,0,0,0.5)]"
             style={{
               transform: 'translate3d(0, 0, 0)',
               WebkitTransform: 'translate3d(0, 0, 0)',
@@ -911,16 +909,16 @@ export const SpotDetailSheet: React.FC<SpotDetailSheetProps> = React.memo(({
               transition={{ duration: 0.78, ease: [0.16, 1, 0.3, 1], delay: 0.27 }}
               className="flex items-center gap-2.5 text-xs sm:text-sm mb-6 text-zinc-600 dark:text-[#A1A1AA] flex-wrap"
             >
-              <div className="flex items-center gap-1 bg-zinc-100 dark:bg-[#000000] dark:border dark:border-[#262626] px-3 py-1.5 rounded-full">
+              <div className="flex items-center gap-1 bg-zinc-100 dark:bg-[#1C1C1E] dark:border dark:border-white/10 px-3 py-1.5 rounded-full">
                 <Star className={`w-4 h-4 ${isGoldUser ? 'fill-[#F5BE38] text-[#F5BE38]' : 'fill-zinc-900 text-zinc-900 dark:fill-white dark:text-white'}`} />
                 <span className="font-semibold text-zinc-900 dark:text-[#FFFFFF]">{Number(liveRating).toFixed(1)}</span>
                 <span className="text-[#9A9894] font-semibold">({liveReviewCount})</span>
               </div>
-              <div className="flex items-center gap-1.5 bg-zinc-100 dark:bg-[#000000] dark:border dark:border-[#262626] px-3 py-1.5 rounded-full">
+              <div className="flex items-center gap-1.5 bg-zinc-100 dark:bg-[#1C1C1E] dark:border dark:border-white/10 px-3 py-1.5 rounded-full">
                 <MapPin className={`w-4 h-4 ${isGoldUser ? 'text-[#F5BE38]' : 'text-zinc-900 dark:text-white'}`} />
                 <span className="font-semibold text-zinc-700 dark:text-[#A1A1AA]">{distance}</span>
               </div>
-              <div className="flex items-center gap-1.5 bg-zinc-100 dark:bg-[#000000] dark:border dark:border-[#262626] px-3 py-1.5 rounded-full">
+              <div className="flex items-center gap-1.5 bg-zinc-100 dark:bg-[#1C1C1E] dark:border dark:border-white/10 px-3 py-1.5 rounded-full">
                 <Eye className="w-4 h-4 text-zinc-500 dark:text-[#A1A1AA]" />
                 <span className="font-semibold text-zinc-700 dark:text-[#A1A1AA]">{views}</span>
               </div>
@@ -978,7 +976,7 @@ export const SpotDetailSheet: React.FC<SpotDetailSheetProps> = React.memo(({
               initial={{ opacity: 0, y: 12 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.78, ease: [0.16, 1, 0.3, 1], delay: 0.40 }}
-              className="flex items-center justify-between border-b border-zinc-200 dark:border-[#262626] mb-6"
+              className="flex items-center justify-between border-b border-zinc-200 dark:border-white/10 mb-6"
             >
               {['Sobre', 'Experiência', 'Vídeos', 'Avaliações'].map((tab) => {
                 const isActive = activeTab === tab;
@@ -1025,7 +1023,7 @@ export const SpotDetailSheet: React.FC<SpotDetailSheetProps> = React.memo(({
                       initial={{ opacity: 0, y: 10 }}
                       animate={{ opacity: 1, y: 0 }}
                       transition={{ duration: 0.72, ease: [0.16, 1, 0.3, 1], delay: 0.46 }}
-                      className="p-3.5 rounded-2xl bg-zinc-50 dark:bg-[#000000] border border-zinc-100 dark:border-[#262626]"
+                      className="p-3.5 rounded-2xl bg-zinc-50 dark:bg-[#1C1C1E] border border-zinc-100 dark:border-white/10"
                     >
                       <span className="text-xs text-[#9A9894] font-bold block mb-1">Horário de Funcionamento</span>
                       <span className="text-sm font-bold text-zinc-900 dark:text-[#FFFFFF]">{spot.hours || "09:00 - 18:00"}</span>
@@ -1034,7 +1032,7 @@ export const SpotDetailSheet: React.FC<SpotDetailSheetProps> = React.memo(({
                       initial={{ opacity: 0, y: 10 }}
                       animate={{ opacity: 1, y: 0 }}
                       transition={{ duration: 0.72, ease: [0.16, 1, 0.3, 1], delay: 0.50 }}
-                      className="p-3.5 rounded-2xl bg-zinc-50 dark:bg-[#000000] border border-zinc-100 dark:border-[#262626]"
+                      className="p-3.5 rounded-2xl bg-zinc-50 dark:bg-[#1C1C1E] border border-zinc-100 dark:border-white/10"
                     >
                       <span className="text-xs text-[#9A9894] font-bold block mb-1">Entrada</span>
                       <span className={`text-sm font-bold ${isGoldUser ? 'text-[#F5BE38]' : 'text-zinc-900 dark:text-[#FFFFFF]'}`}>{spot.priceRange === 'Grátis' ? 'Acesso Livre' : (spot.priceRange || 'Consultar')}</span>
@@ -1070,7 +1068,7 @@ export const SpotDetailSheet: React.FC<SpotDetailSheetProps> = React.memo(({
                   transition={{ duration: 0.60, ease: [0.16, 1, 0.3, 1] }}
                   className="space-y-4"
                 >
-                  <div className="p-4 bg-zinc-50 dark:bg-[#000000] rounded-2xl border border-zinc-100 dark:border-[#262626] space-y-3">
+                  <div className="p-4 bg-zinc-50 dark:bg-[#1C1C1E] rounded-2xl border border-zinc-100 dark:border-white/10 space-y-3">
                     <h3 className="font-black text-zinc-900 dark:text-white text-sm uppercase tracking-wider">O que esperar</h3>
                     <ul className="space-y-2.5 text-sm text-zinc-600 dark:text-zinc-300">
                       <li className="flex items-start gap-2">
@@ -1092,7 +1090,7 @@ export const SpotDetailSheet: React.FC<SpotDetailSheetProps> = React.memo(({
                     initial={{ opacity: 0, y: 10 }}
                     animate={{ opacity: 1, y: 0 }}
                     transition={{ duration: 0.60, ease: [0.16, 1, 0.3, 1], delay: 0.08 }}
-                    className="p-4 bg-zinc-50 dark:bg-[#000000] rounded-2xl border border-zinc-100 dark:border-[#262626]"
+                    className="p-4 bg-zinc-50 dark:bg-[#1C1C1E] rounded-2xl border border-zinc-100 dark:border-white/10"
                   >
                     <h4 className="font-black text-zinc-900 dark:text-white text-xs uppercase tracking-wider mb-2">Dica de quem foi</h4>
                     <p className="text-sm text-zinc-600 dark:text-zinc-300 leading-relaxed">
@@ -1127,7 +1125,7 @@ export const SpotDetailSheet: React.FC<SpotDetailSheetProps> = React.memo(({
                   transition={{ duration: 0.60, ease: [0.16, 1, 0.3, 1] }}
                   className="space-y-4"
                 >
-                  <div className="flex items-center justify-between p-4 bg-zinc-50 dark:bg-[#000000] rounded-2xl border border-zinc-100 dark:border-[#262626]">
+                  <div className="flex items-center justify-between p-4 bg-zinc-50 dark:bg-[#1C1C1E] rounded-2xl border border-zinc-100 dark:border-white/10">
                     <div>
                       <span className="text-3xl font-black text-zinc-900 dark:text-white">{Number(liveRating).toFixed(1)}</span>
                       <span className="text-xs text-zinc-400 block mt-0.5">de 5.0 estrelas</span>
@@ -1148,7 +1146,7 @@ export const SpotDetailSheet: React.FC<SpotDetailSheetProps> = React.memo(({
                   {/* Interactive iOS Rating Submission Card */}
                   <form
                     onSubmit={handleSubmitReview}
-                    className="p-4 bg-zinc-50 dark:bg-[#000000] rounded-2xl border border-zinc-100 dark:border-[#262626] space-y-3"
+                    className="p-4 bg-zinc-50 dark:bg-[#1C1C1E] rounded-2xl border border-zinc-100 dark:border-white/10 space-y-3"
                   >
                     <div className="flex items-center justify-between">
                       <span className="text-xs font-bold text-zinc-900 dark:text-white">
@@ -1180,7 +1178,7 @@ export const SpotDetailSheet: React.FC<SpotDetailSheetProps> = React.memo(({
                       value={userCommentInput}
                       onChange={(e) => setUserCommentInput(e.target.value)}
                       placeholder={tr('Conte como foi sua experiência (opcional)...')}
-                      className="w-full px-3.5 py-2.5 rounded-xl bg-white dark:bg-[#0A0A0C] border border-zinc-200 dark:border-[#262626] text-xs text-zinc-900 dark:text-white focus:outline-none focus:border-zinc-400 dark:focus:border-white/40"
+                      className="w-full px-3.5 py-2.5 rounded-xl bg-white dark:bg-[#2C2C2E] border border-zinc-200 dark:border-white/10 text-xs text-zinc-900 dark:text-white focus:outline-none focus:border-zinc-400 dark:focus:border-white/40"
                     />
 
                     <div className="flex items-center justify-between gap-2">
@@ -1196,7 +1194,7 @@ export const SpotDetailSheet: React.FC<SpotDetailSheetProps> = React.memo(({
                       <button
                         type="submit"
                         disabled={isSubmittingReview}
-                        className="px-4 py-2 rounded-full expo-liquid-glass-btn text-black dark:bg-white dark:text-black text-xs font-bold transition-transform active:scale-95 disabled:opacity-50 cursor-pointer shrink-0 border border-black/5 shadow-xs"
+                        className="px-4 py-2 rounded-full expo-liquid-glass-btn text-black dark:text-white text-xs font-bold transition-transform active:scale-95 disabled:opacity-50 cursor-pointer shrink-0 border border-black/5 dark:border-white/15 shadow-xs"
                       >
                         {isSubmittingReview ? tr('Salvando...') : tr('Publicar avaliação')}
                       </button>
@@ -1230,7 +1228,7 @@ export const SpotDetailSheet: React.FC<SpotDetailSheetProps> = React.memo(({
                       initial={{ opacity: 0, y: 10 }}
                       animate={{ opacity: 1, y: 0 }}
                       transition={{ duration: 0.56, ease: [0.16, 1, 0.3, 1], delay: 0.05 * Math.min(idx, 4) }}
-                      className="p-4 bg-zinc-50 dark:bg-[#000000] rounded-2xl border border-zinc-100 dark:border-[#262626] space-y-2"
+                      className="p-4 bg-zinc-50 dark:bg-[#1C1C1E] rounded-2xl border border-zinc-100 dark:border-white/10 space-y-2"
                     >
                       <div className="flex items-center justify-between">
                         <span className="font-black text-xs text-zinc-900 dark:text-white">
@@ -1405,12 +1403,11 @@ export const SpotDetailSheet: React.FC<SpotDetailSheetProps> = React.memo(({
                   e.stopPropagation();
                   setIsQrModalOpen(true);
                 }}
-                className="w-10 h-10 rounded-full ios26-liquid-glass text-black flex items-center justify-center transition-transform active:scale-95 cursor-pointer"
-                style={{ color: '#000000' }}
+                className="w-10 h-10 rounded-full ios26-liquid-glass text-black dark:text-white flex items-center justify-center transition-transform active:scale-95 cursor-pointer"
                 title="Gerar QR Code deste local"
                 aria-label="QR Code"
               >
-                <QrCode className="relative z-10 w-5 h-5 text-black" />
+                <QrCode className="relative z-10 w-5 h-5 text-black dark:text-white" />
               </button>
               <button
                 type="button"
@@ -1418,12 +1415,11 @@ export const SpotDetailSheet: React.FC<SpotDetailSheetProps> = React.memo(({
                   e.stopPropagation();
                   handleShare();
                 }}
-                className="w-10 h-10 rounded-full ios26-liquid-glass text-black flex items-center justify-center transition-transform active:scale-95 cursor-pointer"
-                style={{ color: '#000000' }}
+                className="w-10 h-10 rounded-full ios26-liquid-glass text-black dark:text-white flex items-center justify-center transition-transform active:scale-95 cursor-pointer"
                 title="Compartilhar"
                 aria-label="Compartilhar"
               >
-                <Share2 className="relative z-10 w-5 h-5 text-black" />
+                <Share2 className="relative z-10 w-5 h-5 text-black dark:text-white" />
               </button>
               <button
                 type="button"
@@ -1431,14 +1427,13 @@ export const SpotDetailSheet: React.FC<SpotDetailSheetProps> = React.memo(({
                   e.stopPropagation();
                   onToggleFavorite(spot.id);
                 }}
-                className="w-10 h-10 rounded-full ios26-liquid-glass text-black flex items-center justify-center transition-transform active:scale-95 cursor-pointer"
-                style={{ color: '#000000' }}
+                className="w-10 h-10 rounded-full ios26-liquid-glass text-black dark:text-white flex items-center justify-center transition-transform active:scale-95 cursor-pointer"
                 title={isFavorite ? 'Remover dos favoritos' : 'Adicionar aos favoritos'}
                 aria-label="Favoritar"
               >
                 <Heart
                   className={`relative z-10 w-5 h-5 transition-colors ${
-                    isFavorite ? 'fill-red-500 text-red-500' : 'text-black'
+                    isFavorite ? 'fill-red-500 text-red-500' : 'text-black dark:text-white'
                   }`}
                 />
               </button>
@@ -1582,7 +1577,7 @@ export const SpotDetailSheet: React.FC<SpotDetailSheetProps> = React.memo(({
 
                 {/* Practical Info Grid */}
                 <div className="grid grid-cols-2 gap-3">
-                  <div className="p-3.5 rounded-xl bg-zinc-50 dark:bg-[#000000] border border-zinc-200/70 dark:border-[#262626]">
+                  <div className="p-3.5 rounded-xl bg-zinc-50 dark:bg-[#1C1C1E] border border-zinc-200/70 dark:border-white/10">
                     <span className="text-[11px] text-zinc-500 dark:text-[#A1A1AA] font-semibold block mb-1">
                       Horário de Funcionamento
                     </span>
@@ -1590,7 +1585,7 @@ export const SpotDetailSheet: React.FC<SpotDetailSheetProps> = React.memo(({
                       {spot.hours || '09:00 - 18:00'}
                     </span>
                   </div>
-                  <div className="p-3.5 rounded-xl bg-zinc-50 dark:bg-[#000000] border border-zinc-200/70 dark:border-[#262626]">
+                  <div className="p-3.5 rounded-xl bg-zinc-50 dark:bg-[#1C1C1E] border border-zinc-200/70 dark:border-white/10">
                     <span className="text-[11px] text-zinc-500 dark:text-[#A1A1AA] font-semibold block mb-1">
                       Entrada
                     </span>
@@ -1601,7 +1596,7 @@ export const SpotDetailSheet: React.FC<SpotDetailSheetProps> = React.memo(({
                 </div>
 
                 {spot.address && (
-                  <div className="p-3.5 rounded-xl bg-zinc-50 dark:bg-[#000000] border border-zinc-200/70 dark:border-[#262626] flex items-center justify-between gap-3">
+                  <div className="p-3.5 rounded-xl bg-zinc-50 dark:bg-[#1C1C1E] border border-zinc-200/70 dark:border-white/10 flex items-center justify-between gap-3">
                     <div className="min-w-0">
                       <span className="text-[11px] text-zinc-500 dark:text-[#A1A1AA] font-semibold block mb-0.5">
                         Endereço
@@ -1613,7 +1608,7 @@ export const SpotDetailSheet: React.FC<SpotDetailSheetProps> = React.memo(({
                     <button
                       type="button"
                       onClick={() => openDirectionsMap(spot)}
-                      className="px-3 py-1.5 rounded-lg bg-white hover:bg-zinc-100 dark:bg-[#000000] dark:hover:border-white/30 text-zinc-900 dark:text-white border border-zinc-200 dark:border-[#262626] text-xs font-semibold shrink-0 cursor-pointer transition-colors"
+                      className="px-3 py-1.5 rounded-lg bg-white hover:bg-zinc-100 dark:bg-[#2C2C2E] dark:hover:bg-[#3A3A3C] text-zinc-900 dark:text-white border border-zinc-200 dark:border-white/10 text-xs font-semibold shrink-0 cursor-pointer transition-colors"
                     >
                       Abrir no GPS
                     </button>
@@ -1630,7 +1625,7 @@ export const SpotDetailSheet: React.FC<SpotDetailSheetProps> = React.memo(({
                 transition={{ duration: 0.48, ease: [0.16, 1, 0.3, 1] }}
                 className="space-y-3.5"
               >
-                <div className="p-4 bg-zinc-50 dark:bg-[#000000] rounded-xl border border-zinc-200/70 dark:border-[#262626] space-y-2.5">
+                <div className="p-4 bg-zinc-50 dark:bg-[#1C1C1E] rounded-xl border border-zinc-200/70 dark:border-white/10 space-y-2.5">
                   <h3 className="font-bold text-zinc-900 dark:text-white text-xs uppercase tracking-wider">
                     O que esperar
                   </h3>
@@ -1650,7 +1645,7 @@ export const SpotDetailSheet: React.FC<SpotDetailSheetProps> = React.memo(({
                   </ul>
                 </div>
 
-                <div className="p-4 bg-zinc-50 dark:bg-[#000000] rounded-xl border border-zinc-200/70 dark:border-[#262626]">
+                <div className="p-4 bg-zinc-50 dark:bg-[#1C1C1E] rounded-xl border border-zinc-200/70 dark:border-white/10">
                   <h4 className="font-bold text-zinc-900 dark:text-white text-xs uppercase tracking-wider mb-1.5">
                     Dica de quem foi
                   </h4>
@@ -1686,7 +1681,7 @@ export const SpotDetailSheet: React.FC<SpotDetailSheetProps> = React.memo(({
                 transition={{ duration: 0.48, ease: [0.16, 1, 0.3, 1] }}
                 className="space-y-3"
               >
-                <div className="flex items-center justify-between p-3.5 bg-zinc-50 dark:bg-[#000000] rounded-xl border border-zinc-200/70 dark:border-[#262626]">
+                <div className="flex items-center justify-between p-3.5 bg-zinc-50 dark:bg-[#1C1C1E] rounded-xl border border-zinc-200/70 dark:border-white/10">
                   <div>
                     <span className="text-2xl font-bold text-zinc-950 dark:text-white">{Number(liveRating).toFixed(1)}</span>
                     <span className="text-xs text-zinc-500 dark:text-[#A1A1AA] block mt-0.5">de 5.0 estrelas</span>
@@ -1709,7 +1704,7 @@ export const SpotDetailSheet: React.FC<SpotDetailSheetProps> = React.memo(({
                 {/* Desktop Interactive Rating Card */}
                 <form
                   onSubmit={handleSubmitReview}
-                  className="p-3.5 bg-zinc-50 dark:bg-[#000000] rounded-xl border border-zinc-200/70 dark:border-[#262626] space-y-2.5"
+                  className="p-3.5 bg-zinc-50 dark:bg-[#1C1C1E] rounded-xl border border-zinc-200/70 dark:border-white/10 space-y-2.5"
                 >
                   <div className="flex items-center justify-between">
                     <span className="text-xs font-bold text-zinc-900 dark:text-white">
@@ -1740,7 +1735,7 @@ export const SpotDetailSheet: React.FC<SpotDetailSheetProps> = React.memo(({
                     value={userCommentInput}
                     onChange={(e) => setUserCommentInput(e.target.value)}
                     placeholder={tr('Conte como foi sua experiência (opcional)...')}
-                    className="w-full px-3 py-2 rounded-lg bg-white dark:bg-[#0A0A0C] border border-zinc-200 dark:border-[#262626] text-xs text-zinc-900 dark:text-white focus:outline-none focus:border-zinc-400 dark:focus:border-white/40"
+                    className="w-full px-3 py-2 rounded-lg bg-white dark:bg-[#2C2C2E] border border-zinc-200 dark:border-white/10 text-xs text-zinc-900 dark:text-white focus:outline-none focus:border-zinc-400 dark:focus:border-white/40"
                   />
 
                   <div className="flex items-center justify-between gap-2">
@@ -1756,7 +1751,7 @@ export const SpotDetailSheet: React.FC<SpotDetailSheetProps> = React.memo(({
                     <button
                       type="submit"
                       disabled={isSubmittingReview}
-                      className="px-4 py-2 rounded-full expo-liquid-glass-btn text-black dark:bg-white dark:text-black text-xs font-bold transition-transform active:scale-95 disabled:opacity-50 cursor-pointer shrink-0 border border-black/5 shadow-xs"
+                      className="px-4 py-2 rounded-full expo-liquid-glass-btn text-black dark:text-white text-xs font-bold transition-transform active:scale-95 disabled:opacity-50 cursor-pointer shrink-0 border border-black/5 dark:border-white/15 shadow-xs"
                     >
                       {isSubmittingReview ? tr('Salvando...') : tr('Publicar avaliação')}
                     </button>
@@ -1786,7 +1781,7 @@ export const SpotDetailSheet: React.FC<SpotDetailSheetProps> = React.memo(({
                 ).map((rev, idx) => (
                   <div
                     key={rev.id || idx}
-                    className="p-3.5 bg-zinc-50 dark:bg-[#000000] rounded-xl border border-zinc-200/70 dark:border-[#262626] space-y-1.5"
+                    className="p-3.5 bg-zinc-50 dark:bg-[#1C1C1E] rounded-xl border border-zinc-200/70 dark:border-white/10 space-y-1.5"
                   >
                     <div className="flex items-center justify-between">
                       <span className="font-bold text-xs text-zinc-900 dark:text-white">

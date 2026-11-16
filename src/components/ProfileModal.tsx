@@ -364,7 +364,7 @@ export const ProfileModal: React.FC<ProfileModalProps> = React.memo(({
     },
   });
 
-  const isDark = false;
+  const isDark = theme === 'dark';
   const favoriteSpots = spots.filter((s) => favorites.includes(s.id));
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -935,11 +935,46 @@ export const ProfileModal: React.FC<ProfileModalProps> = React.memo(({
           {/* ============================================================ */}
           {activeSubView === 'permissoes' && (
             <div className="space-y-5 pt-2 pb-8">
+              {/* GROUP 0: APARÊNCIA & MODO ESCURO */}
+              <motion.div
+                initial={{ opacity: 0, scale: 0.88, y: 12 }}
+                animate={{ opacity: 1, scale: 1, y: 0 }}
+                transition={{ type: 'spring', stiffness: 380, damping: 22, delay: 0.01 }}
+              >
+                <p className="text-[12px] font-bold text-zinc-500 dark:text-zinc-400 uppercase tracking-wider px-3 mb-2">
+                  Aparência
+                </p>
+                <div className={`rounded-[24px] border overflow-hidden ${
+                  isDark ? 'bg-[#1C1C1E] border-white/10 divide-y divide-white/10' : 'bg-[#fefefe] border-black/5 divide-y divide-black/5'
+                }`}>
+                  <div className="p-4 flex items-center justify-between gap-3">
+                    <div className="flex items-center gap-3.5 min-w-0">
+                      <div className="flex items-center justify-center shrink-0 text-zinc-950 dark:text-white">
+                        <Moon className="w-7 h-7 stroke-[1.8]" />
+                      </div>
+                      <div className="min-w-0">
+                        <h4 className="text-[15px] font-semibold tracking-tight">
+                          Modo Escuro
+                        </h4>
+                        <p className="text-[12px] text-zinc-500 dark:text-zinc-400 font-medium">
+                          Tema escuro em todo o aplicativo
+                        </p>
+                      </div>
+                    </div>
+                    <IOSSwitch
+                      checked={isDark}
+                      onChange={onToggleTheme}
+                      ariaLabel="Modo Escuro"
+                    />
+                  </div>
+                </div>
+              </motion.div>
+
               {/* GROUP 1: PREFERÊNCIAS & CLIMA */}
               <motion.div
                 initial={{ opacity: 0, scale: 0.88, y: 12 }}
                 animate={{ opacity: 1, scale: 1, y: 0 }}
-                transition={{ type: 'spring', stiffness: 380, damping: 22, delay: 0.02 }}
+                transition={{ type: 'spring', stiffness: 380, damping: 22, delay: 0.025 }}
               >
                 <p className="text-[12px] font-bold text-zinc-500 dark:text-zinc-400 uppercase tracking-wider px-3 mb-2">
                   Preferências & Efeitos
@@ -1290,9 +1325,13 @@ export const ProfileModal: React.FC<ProfileModalProps> = React.memo(({
                   </button>
                   <button
                     type="submit"
-                    className="flex-1 py-3 rounded-full expo-liquid-glass-btn text-black dark:bg-white dark:text-zinc-900 border border-black/5 hover:bg-zinc-50 text-sm font-bold transition-all active:scale-95 cursor-pointer shadow-sm flex items-center justify-center gap-1.5"
+                    className={`flex-1 py-3 rounded-full text-sm font-bold transition-all active:scale-95 cursor-pointer shadow-sm flex items-center justify-center gap-1.5 ${
+                      isDark
+                        ? 'bg-white text-black hover:bg-zinc-200 border border-white/10'
+                        : 'expo-liquid-glass-btn text-black border border-black/5 hover:bg-zinc-50'
+                    }`}
                   >
-                    {saveToast ? <Check className="w-4 h-4 text-black dark:text-black" /> : null}
+                    {saveToast ? <Check className={`w-4 h-4 ${isDark ? 'text-black' : 'text-black'}`} /> : null}
                     <span>{saveToast ? 'Salvo!' : 'Salvar alterações'}</span>
                   </button>
                 </motion.div>

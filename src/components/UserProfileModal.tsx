@@ -250,8 +250,8 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
                   <div className="flex items-center justify-between gap-4 pt-1">
                     {/* Big Avatar with iOS Ring */}
                     <div className="relative shrink-0">
-                      <div className="w-20 h-20 sm:w-22 sm:h-22 rounded-full p-1 bg-gradient-to-tr from-[#FFFFFF] to-[#5856D6] shadow-md">
-                        <div className="w-full h-full rounded-full overflow-hidden bg-zinc-900 border-2 border-black">
+                      <div className="w-20 h-20 sm:w-22 sm:h-22 rounded-full p-1 bg-gradient-to-tr from-[#007AFF] to-[#5856D6] shadow-md">
+                        <div className={`w-full h-full rounded-full overflow-hidden border-2 ${isDark ? 'bg-zinc-900 border-black' : 'bg-zinc-100 border-white'}`}>
                           <img
                             src={profile.avatar_url || '/fotoperfil.png'}
                             alt={profile.name}
@@ -313,7 +313,7 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
                       @{profile.username}
                     </p>
                     {profile.bio && (
-                      <p className="text-[13.5px] leading-relaxed pt-1.5 whitespace-pre-line text-zinc-300 dark:text-zinc-300">
+                      <p className={`text-[13.5px] leading-relaxed pt-1.5 whitespace-pre-line ${isDark ? 'text-zinc-300' : 'text-zinc-700'}`}>
                         {profile.bio}
                       </p>
                     )}
@@ -455,6 +455,7 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
             isFollowing={isFollowing}
             onToggleFollow={handleToggleFollow}
             onClose={() => setSelectedPost(null)}
+            isDark={isDark}
             onUpdateStats={(postId, newLikes, newComments) => {
               setPosts((prev) =>
                 prev.map((p) =>
@@ -477,6 +478,7 @@ interface PostFullscreenPageProps {
   isFollowing: boolean;
   onToggleFollow: () => void;
   onClose: () => void;
+  isDark?: boolean;
   onUpdateStats?: (postId: string, newLikes: number, newComments: number) => void;
 }
 
@@ -486,6 +488,7 @@ const PostFullscreenPage: React.FC<PostFullscreenPageProps> = ({
   isFollowing,
   onToggleFollow,
   onClose,
+  isDark = true,
   onUpdateStats,
 }) => {
   const [likesCount, setLikesCount] = useState<number>(post.likes_count || 0);
@@ -652,25 +655,29 @@ const PostFullscreenPage: React.FC<PostFullscreenPageProps> = ({
       animate={{ x: 0 }}
       exit={{ x: '100%' }}
       transition={{ type: 'spring', damping: 28, stiffness: 320 }}
-      className="fixed inset-0 z-[150] w-full h-full bg-[#000000] text-white flex flex-col overflow-y-auto select-none"
+      className={`fixed inset-0 z-[150] w-full h-full flex flex-col overflow-y-auto select-none ${
+        isDark ? 'bg-[#000000] text-white' : 'bg-[#FFFFFF] text-zinc-900'
+      }`}
     >
       {/* 1. TOP NAVIGATION BAR */}
       <div
-        className="sticky top-0 z-40 border-b border-white/10 px-3 py-2.5 flex items-center justify-between"
+        className={`sticky top-0 z-40 border-b px-3 py-2.5 flex items-center justify-between ${
+          isDark ? 'border-white/10' : 'border-zinc-200/80'
+        }`}
         style={{
           paddingTop: 'max(calc(env(safe-area-inset-top, 0px) + 8px), 14px)',
-          backgroundColor: 'rgba(0, 0, 0, 0.40)',
+          backgroundColor: isDark ? 'rgba(0, 0, 0, 0.40)' : 'rgba(255, 255, 255, 0.72)',
           backdropFilter: 'blur(8px) saturate(150%)',
           WebkitBackdropFilter: 'blur(8px) saturate(150%)',
         }}
       >
         <AppleBackButton
-          theme="dark"
+          theme={isDark ? 'dark' : 'light'}
           onClick={onClose}
           aria-label="Voltar"
         />
 
-        <span className="text-[15px] font-bold tracking-tight text-white uppercase">
+        <span className={`text-[15px] font-bold tracking-tight uppercase ${isDark ? 'text-white' : 'text-zinc-900'}`}>
           Publicações
         </span>
 
@@ -678,9 +685,9 @@ const PostFullscreenPage: React.FC<PostFullscreenPageProps> = ({
       </div>
 
       {/* 2. POST HEADER */}
-      <div className="px-3.5 py-3 flex items-center justify-between bg-black">
+      <div className={`px-3.5 py-3 flex items-center justify-between ${isDark ? 'bg-black' : 'bg-white'}`}>
         <div className="flex items-center gap-3 min-w-0">
-          <div className="w-9 h-9 rounded-full overflow-hidden bg-zinc-900 border border-white/20 shrink-0">
+          <div className={`w-9 h-9 rounded-full overflow-hidden border shrink-0 ${isDark ? 'bg-zinc-900 border-white/20' : 'bg-zinc-100 border-zinc-200'}`}>
             <img
               src={profile.avatar_url || post.user_photo}
               alt={profile.name}
@@ -689,7 +696,7 @@ const PostFullscreenPage: React.FC<PostFullscreenPageProps> = ({
           </div>
           <div className="flex flex-col min-w-0">
             <div className="flex items-center gap-1.5">
-              <span className="text-[13.5px] font-bold text-white tracking-tight truncate">
+              <span className={`text-[13.5px] font-bold tracking-tight truncate ${isDark ? 'text-white' : 'text-zinc-900'}`}>
                 {profile.username || post.user_name}
               </span>
               <VerifiedBadge className="w-3.5 h-3.5 shrink-0" />
@@ -710,8 +717,10 @@ const PostFullscreenPage: React.FC<PostFullscreenPageProps> = ({
               onClick={onToggleFollow}
               className={`px-3.5 py-1 rounded-full text-xs font-semibold transition-all cursor-pointer active:scale-95 ${
                 isFollowing
-                  ? 'bg-white/10 text-zinc-300 border border-white/20 hover:bg-white/15'
-                  : 'bg-[#FFFFFF] hover:bg-[#0066d6] text-white shadow-sm'
+                  ? isDark
+                    ? 'bg-white/10 text-zinc-300 border border-white/20 hover:bg-white/15'
+                    : 'bg-zinc-200 text-zinc-800 border border-zinc-300 hover:bg-zinc-300'
+                  : 'bg-[#007AFF] hover:bg-[#0066d6] text-white shadow-sm'
               }`}
             >
               {isFollowing ? 'Seguindo' : 'Seguir'}
@@ -720,7 +729,7 @@ const PostFullscreenPage: React.FC<PostFullscreenPageProps> = ({
 
           <button
             type="button"
-            className="p-1 text-zinc-400 hover:text-white transition-colors cursor-pointer"
+            className={`p-1 transition-colors cursor-pointer ${isDark ? 'text-zinc-400 hover:text-white' : 'text-zinc-500 hover:text-zinc-900'}`}
             aria-label="Opções"
           >
             <MoreHorizontal className="w-5 h-5" />
@@ -756,7 +765,7 @@ const PostFullscreenPage: React.FC<PostFullscreenPageProps> = ({
       </div>
 
       {/* 4. ACTIONS BAR: LIKE, COMMENT, SHARE, SAVE */}
-      <div className="px-3.5 pt-3 pb-1.5 flex items-center justify-between bg-black">
+      <div className={`px-3.5 pt-3 pb-1.5 flex items-center justify-between ${isDark ? 'bg-black' : 'bg-white'}`}>
         {/* Left: Like, Comment, Share */}
         <div className="flex items-center gap-4">
           {/* Curtis */}
@@ -764,12 +773,12 @@ const PostFullscreenPage: React.FC<PostFullscreenPageProps> = ({
             whileTap={{ scale: 0.8 }}
             type="button"
             onClick={handleToggleLike}
-            className="cursor-pointer text-white focus:outline-none"
+            className={`cursor-pointer focus:outline-none ${isDark ? 'text-white' : 'text-zinc-900'}`}
             aria-label="Curtir"
           >
             <Heart
               className={`w-6 h-6 transition-colors ${
-                isLiked ? 'fill-[#f43f5e] text-[#f43f5e]' : 'text-white'
+                isLiked ? 'fill-[#f43f5e] text-[#f43f5e]' : isDark ? 'text-white' : 'text-zinc-900'
               }`}
             />
           </motion.button>
@@ -779,7 +788,7 @@ const PostFullscreenPage: React.FC<PostFullscreenPageProps> = ({
             whileTap={{ scale: 0.85 }}
             type="button"
             onClick={() => commentInputRef.current?.focus()}
-            className="cursor-pointer text-white hover:text-zinc-300 transition-colors focus:outline-none"
+            className={`cursor-pointer transition-colors focus:outline-none ${isDark ? 'text-white hover:text-zinc-300' : 'text-zinc-900 hover:text-zinc-600'}`}
             aria-label="Comentar"
           >
             <MessageCircle className="w-6 h-6" />
@@ -790,7 +799,7 @@ const PostFullscreenPage: React.FC<PostFullscreenPageProps> = ({
             whileTap={{ scale: 0.85 }}
             type="button"
             onClick={handleShare}
-            className="cursor-pointer text-white hover:text-zinc-300 transition-colors focus:outline-none"
+            className={`cursor-pointer transition-colors focus:outline-none ${isDark ? 'text-white hover:text-zinc-300' : 'text-zinc-900 hover:text-zinc-600'}`}
             aria-label="Compartilhar"
           >
             <Share2 className="w-6 h-6" />
@@ -802,12 +811,18 @@ const PostFullscreenPage: React.FC<PostFullscreenPageProps> = ({
           whileTap={{ scale: 0.8 }}
           type="button"
           onClick={handleToggleSave}
-          className="cursor-pointer text-white focus:outline-none"
+          className={`cursor-pointer focus:outline-none ${isDark ? 'text-white' : 'text-zinc-900'}`}
           aria-label="Salvar"
         >
           <Bookmark
             className={`w-6 h-6 transition-colors ${
-              isSaved ? 'fill-white text-white' : 'text-white'
+              isSaved
+                ? isDark
+                  ? 'fill-white text-white'
+                  : 'fill-zinc-900 text-zinc-900'
+                : isDark
+                  ? 'text-white'
+                  : 'text-zinc-900'
             }`}
           />
         </motion.button>
@@ -815,7 +830,7 @@ const PostFullscreenPage: React.FC<PostFullscreenPageProps> = ({
 
       {/* 5. LIKES COUNT */}
       <div className="px-3.5 py-0.5">
-        <p className="font-bold text-[13.5px] text-white tracking-tight">
+        <p className={`font-bold text-[13.5px] tracking-tight ${isDark ? 'text-white' : 'text-zinc-900'}`}>
           {likesCount.toLocaleString()} {likesCount === 1 ? 'curtida' : 'curtidas'}
         </p>
       </div>
@@ -823,10 +838,10 @@ const PostFullscreenPage: React.FC<PostFullscreenPageProps> = ({
       {/* 6. CAPTION */}
       {post.caption && (
         <div className="px-3.5 py-1 text-[13.5px] leading-snug">
-          <strong className="text-white font-bold mr-1.5">
+          <strong className={`font-bold mr-1.5 ${isDark ? 'text-white' : 'text-zinc-900'}`}>
             {profile.username || post.user_name}
           </strong>
-          <span className="text-zinc-200">{post.caption}</span>
+          <span className={isDark ? 'text-zinc-200' : 'text-zinc-700'}>{post.caption}</span>
         </div>
       )}
 
@@ -838,7 +853,7 @@ const PostFullscreenPage: React.FC<PostFullscreenPageProps> = ({
       </div>
 
       {/* 8. COMMENTS LIST */}
-      <div className="px-3.5 py-2 border-t border-white/10 flex-1">
+      <div className={`px-3.5 py-2 border-t flex-1 ${isDark ? 'border-white/10' : 'border-zinc-200'}`}>
         <h4 className="text-[12px] font-bold text-zinc-400 uppercase tracking-wider mb-2.5">
           Comentários {comments.length > 0 && `(${comments.length})`}
         </h4>
@@ -858,11 +873,11 @@ const PostFullscreenPage: React.FC<PostFullscreenPageProps> = ({
                 <img
                   src={cmt.user_photo || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=200&q=80'}
                   alt={cmt.user_name}
-                  className="w-7 h-7 rounded-full object-cover shrink-0 border border-white/10"
+                  className={`w-7 h-7 rounded-full object-cover shrink-0 border ${isDark ? 'border-white/10' : 'border-zinc-200'}`}
                 />
                 <div className="flex-1 leading-snug">
-                  <span className="font-bold text-white mr-1.5">{cmt.user_name}</span>
-                  <span className="text-zinc-300">{cmt.text}</span>
+                  <span className={`font-bold mr-1.5 ${isDark ? 'text-white' : 'text-zinc-900'}`}>{cmt.user_name}</span>
+                  <span className={isDark ? 'text-zinc-300' : 'text-zinc-700'}>{cmt.text}</span>
                   <div className="text-[10px] text-zinc-500 pt-0.5">
                     {formatPostTimeAgo(cmt.created_at)}
                   </div>
@@ -875,13 +890,15 @@ const PostFullscreenPage: React.FC<PostFullscreenPageProps> = ({
 
       {/* 9. COMMENT INPUT BAR */}
       <div
-        className="sticky bottom-0 bg-black/95 backdrop-blur-md border-t border-white/10 px-3.5 py-2.5 flex items-center gap-2.5 z-40"
+        className={`sticky bottom-0 backdrop-blur-md border-t px-3.5 py-2.5 flex items-center gap-2.5 z-40 ${
+          isDark ? 'bg-black/95 border-white/10' : 'bg-white/95 border-zinc-200'
+        }`}
         style={{ paddingBottom: 'max(calc(env(safe-area-inset-bottom, 0px) + 12px), 16px)' }}
       >
         <img
           src={currentUserPhoto}
           alt="Você"
-          className="w-8 h-8 rounded-full object-cover shrink-0 border border-white/20"
+          className={`w-8 h-8 rounded-full object-cover shrink-0 border ${isDark ? 'border-white/20' : 'border-zinc-200'}`}
         />
         <form onSubmit={handleAddComment} className="flex-1 flex items-center gap-2">
           <input
@@ -890,15 +907,21 @@ const PostFullscreenPage: React.FC<PostFullscreenPageProps> = ({
             value={commentInput}
             onChange={(e) => setCommentInput(e.target.value)}
             placeholder="Adicione um comentário..."
-            className="flex-1 bg-zinc-900/80 border border-white/10 rounded-full px-3.5 py-2 text-xs text-white placeholder-zinc-500 focus:outline-none focus:border-white/30"
+            className={`flex-1 rounded-full px-3.5 py-2 text-xs focus:outline-none border ${
+              isDark
+                ? 'bg-[#1C1C1E] border-white/10 text-white placeholder-zinc-500 focus:border-white/30'
+                : 'bg-zinc-100 border-zinc-200 text-zinc-900 placeholder-zinc-500 focus:border-zinc-400'
+            }`}
           />
           <button
             type="submit"
             disabled={!commentInput.trim() || submittingComment}
             className={`text-xs font-bold px-3 py-2 transition-colors cursor-pointer ${
               commentInput.trim() && !submittingComment
-                ? 'text-[#FFFFFF] hover:text-zinc-300'
-                : 'text-zinc-600 cursor-not-allowed'
+                ? isDark
+                  ? 'text-[#FFFFFF] hover:text-zinc-300'
+                  : 'text-[#007AFF] hover:text-[#0066d6]'
+                : 'text-zinc-500 cursor-not-allowed'
             }`}
           >
             {submittingComment ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : 'Publicar'}

@@ -13,6 +13,7 @@ interface LoginSocialProofSectionProps {
    * mantendo os 14 itens demonstrativos apenas como fallback visual padrão.
    */
   reviews?: readonly SocialProofReview[];
+  theme?: 'dark' | 'light';
 }
 
 interface InfiniteReviewTrackProps {
@@ -21,6 +22,7 @@ interface InfiniteReviewTrackProps {
   speedPxPerSec: number;
   reduceMotion: boolean;
   isSectionVisible: boolean;
+  isDark: boolean;
 }
 
 const STAR_INDICES = [0, 1, 2, 3, 4] as const;
@@ -52,9 +54,11 @@ const FiveStarsRow = memo(function FiveStarsRow() {
 const ReviewAvatar = memo(function ReviewAvatar({
   src,
   name,
+  isDark,
 }: {
   src: string;
   name: string;
+  isDark: boolean;
 }) {
   const [failed, setFailed] = useState(false);
 
@@ -65,7 +69,11 @@ const ReviewAvatar = memo(function ReviewAvatar({
   }, [name]);
 
   return (
-    <div className="w-9 h-9 rounded-full overflow-hidden bg-[#F3F4F7] border border-[#E5E7EB]/80 shrink-0 flex items-center justify-center">
+    <div
+      className={`w-9 h-9 rounded-full overflow-hidden border shrink-0 flex items-center justify-center ${
+        isDark ? 'bg-[#2C2C2E] border-white/10' : 'bg-[#F3F4F7] border-[#E5E7EB]/80'
+      }`}
+    >
       {!failed && src ? (
         <img
           src={src}
@@ -78,7 +86,11 @@ const ReviewAvatar = memo(function ReviewAvatar({
           className="w-full h-full object-cover object-center select-none pointer-events-none"
         />
       ) : (
-        <span className="text-[11px] font-semibold text-[#52525B] select-none">
+        <span
+          className={`text-[11px] font-semibold select-none ${
+            isDark ? 'text-zinc-300' : 'text-[#52525B]'
+          }`}
+        >
           {initials}
         </span>
       )}
@@ -88,29 +100,43 @@ const ReviewAvatar = memo(function ReviewAvatar({
 
 const ReviewCard = memo(function ReviewCard({
   review,
+  isDark,
 }: {
   review: SocialProofReview;
+  isDark: boolean;
 }) {
   const { tr } = useLanguage();
   return (
     <article
       data-source-type={review.sourceType}
-      className="w-[264px] sm:w-[286px] shrink-0 rounded-[20px] bg-[#FFFFFF] border border-[#ECEEF2] px-4 py-3.5 shadow-[0_1px_4px_rgba(15,23,42,0.03)] flex flex-col justify-between select-none pointer-events-none"
+      className={`w-[264px] sm:w-[286px] shrink-0 rounded-[20px] border px-4 py-3.5 flex flex-col justify-between select-none pointer-events-none ${
+        isDark
+          ? 'bg-[#1C1C1E] border-white/10 shadow-[0_1px_4px_rgba(0,0,0,0.4)]'
+          : 'bg-[#FFFFFF] border-[#ECEEF2] shadow-[0_1px_4px_rgba(15,23,42,0.03)]'
+      }`}
       style={{
         contain: 'layout style paint',
       }}
     >
       <div className="flex items-center gap-2.5 min-w-0">
-        <ReviewAvatar src={review.avatarSrc} name={review.authorName} />
+        <ReviewAvatar src={review.avatarSrc} name={review.authorName} isDark={isDark} />
         <div className="min-w-0 flex-1">
-          <p className="text-[13.5px] font-semibold text-[#000000] leading-tight truncate">
+          <p
+            className={`text-[13.5px] font-semibold leading-tight truncate ${
+              isDark ? 'text-[#FFFFFF]' : 'text-[#000000]'
+            }`}
+          >
             {review.authorName}
           </p>
           <FiveStarsRow />
         </div>
       </div>
 
-      <p className="mt-2.5 text-[13px] leading-[1.45] text-[#0A0A0A] font-normal">
+      <p
+        className={`mt-2.5 text-[13px] leading-[1.45] font-normal ${
+          isDark ? 'text-[#E4E4E7]' : 'text-[#0A0A0A]'
+        }`}
+      >
         {tr(review.comment)}
       </p>
     </article>
@@ -123,6 +149,7 @@ const InfiniteReviewTrack = memo(function InfiniteReviewTrack({
   speedPxPerSec,
   reduceMotion,
   isSectionVisible,
+  isDark,
 }: InfiniteReviewTrackProps) {
   const trackRef = useRef<HTMLDivElement | null>(null);
   const firstGroupRef = useRef<HTMLDivElement | null>(null);
@@ -255,6 +282,7 @@ const InfiniteReviewTrack = memo(function InfiniteReviewTrack({
               <ReviewCard
                 key={`${copyIndex}-${review.id}`}
                 review={review}
+                isDark={isDark}
               />
             ))}
           </div>
@@ -266,7 +294,9 @@ const InfiniteReviewTrack = memo(function InfiniteReviewTrack({
 
 export const LoginSocialProofSection = memo(function LoginSocialProofSection({
   reviews = DEMO_SOCIAL_PROOF_REVIEWS,
+  theme = 'light',
 }: LoginSocialProofSectionProps) {
+  const isDark = theme === 'dark';
   const shouldReduceMotion = Boolean(useReducedMotion());
   const { tr } = useLanguage();
   const sectionRef = useRef<HTMLElement | null>(null);
@@ -311,7 +341,9 @@ export const LoginSocialProofSection = memo(function LoginSocialProofSection({
     <section
       ref={sectionRef}
       aria-label={tr('Avaliações de visitantes')}
-      className="w-full bg-[#FFFFFF] pt-4 pb-2 shrink-0 overflow-hidden select-none pointer-events-none"
+      className={`w-full pt-4 pb-2 shrink-0 overflow-hidden select-none pointer-events-none ${
+        isDark ? 'bg-[#000000]' : 'bg-[#FFFFFF]'
+      }`}
       style={{
         touchAction: 'pan-y',
         contain: 'layout style',
@@ -320,7 +352,9 @@ export const LoginSocialProofSection = memo(function LoginSocialProofSection({
       {/* Título exclusivo em uma única linha responsiva */}
       <div className="w-full px-4 mb-6 flex justify-center">
         <h2
-          className="text-center font-bold text-[#000000] tracking-[-0.025em] whitespace-nowrap leading-tight"
+          className={`text-center font-bold tracking-[-0.025em] whitespace-nowrap leading-tight ${
+            isDark ? 'text-[#FFFFFF]' : 'text-[#000000]'
+          }`}
           style={{
             fontSize: 'clamp(1.22rem, 5.2vw, 1.6rem)',
             fontFamily:
@@ -331,15 +365,19 @@ export const LoginSocialProofSection = memo(function LoginSocialProofSection({
         </h2>
       </div>
 
-      {/* Carrossel infinito de 3 faixas independentes com degradê branco lateral */}
+      {/* Carrossel infinito de 3 faixas independentes com degradê lateral */}
       <div className="relative w-full overflow-hidden">
         <div
           aria-hidden="true"
-          className="pointer-events-none absolute inset-y-0 left-0 w-10 sm:w-20 z-10 bg-gradient-to-r from-[#FFFFFF] via-[#FFFFFF]/85 to-transparent"
+          className={`pointer-events-none absolute inset-y-0 left-0 w-10 sm:w-20 z-10 bg-gradient-to-r to-transparent ${
+            isDark ? 'from-[#000000] via-[#000000]/85' : 'from-[#FFFFFF] via-[#FFFFFF]/85'
+          }`}
         />
         <div
           aria-hidden="true"
-          className="pointer-events-none absolute inset-y-0 right-0 w-10 sm:w-20 z-10 bg-gradient-to-l from-[#FFFFFF] via-[#FFFFFF]/85 to-transparent"
+          className={`pointer-events-none absolute inset-y-0 right-0 w-10 sm:w-20 z-10 bg-gradient-to-l to-transparent ${
+            isDark ? 'from-[#000000] via-[#000000]/85' : 'from-[#FFFFFF] via-[#FFFFFF]/85'
+          }`}
         />
 
         <div className="flex flex-col gap-3">
@@ -349,6 +387,7 @@ export const LoginSocialProofSection = memo(function LoginSocialProofSection({
             speedPxPerSec={24}
             reduceMotion={shouldReduceMotion}
             isSectionVisible={isSectionVisible}
+            isDark={isDark}
           />
           <InfiniteReviewTrack
             items={track2}
@@ -356,6 +395,7 @@ export const LoginSocialProofSection = memo(function LoginSocialProofSection({
             speedPxPerSec={20}
             reduceMotion={shouldReduceMotion}
             isSectionVisible={isSectionVisible}
+            isDark={isDark}
           />
           <InfiniteReviewTrack
             items={track3}
@@ -363,6 +403,7 @@ export const LoginSocialProofSection = memo(function LoginSocialProofSection({
             speedPxPerSec={22}
             reduceMotion={shouldReduceMotion}
             isSectionVisible={isSectionVisible}
+            isDark={isDark}
           />
         </div>
       </div>

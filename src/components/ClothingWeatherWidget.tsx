@@ -562,16 +562,19 @@ interface ClothingWeatherModalProps {
   isOpen: boolean;
   onClose: () => void;
   weather: RealWeatherSnapshot;
+  theme?: 'dark' | 'light';
 }
 
 export const ClothingWeatherModal: React.FC<ClothingWeatherModalProps> = ({
   isOpen,
   onClose,
   weather,
+  theme = 'dark',
 }) => {
   const { language, tr } = useLanguage();
   const rec = getClothingRecommendation(weather.temperature, language);
   const feelsLike = weather.temperature + rec.thermalDelta;
+  const isDark = theme === 'dark';
 
   return (
     <AnimatePresence>
@@ -583,7 +586,9 @@ export const ClothingWeatherModal: React.FC<ClothingWeatherModalProps> = ({
           exit={{ opacity: 0 }}
           transition={{ duration: 0.2, ease: [0.22, 1, 0.36, 1] }}
           onClick={onClose}
-          className="fixed inset-0 z-[85] bg-black/55 backdrop-blur-md flex items-end sm:items-center justify-center p-0 sm:p-5 select-none"
+          className={`fixed inset-0 z-[85] backdrop-blur-md flex items-end sm:items-center justify-center p-0 sm:p-5 select-none ${
+            isDark ? 'bg-black/60' : 'bg-black/35'
+          }`}
           style={{ WebkitBackdropFilter: 'blur(14px)' }}
         >
           <motion.div
@@ -596,7 +601,11 @@ export const ClothingWeatherModal: React.FC<ClothingWeatherModalProps> = ({
             exit={{ opacity: 0, y: 28, scale: 0.98 }}
             transition={{ duration: 0.24, ease: [0.22, 1, 0.36, 1] }}
             onClick={(e) => e.stopPropagation()}
-            className="w-full sm:max-w-[400px] rounded-t-[32px] sm:rounded-[32px] bg-[#121316]/95 border-t sm:border border-white/[0.11] text-white px-6 pt-4 pb-7 shadow-[0_24px_60px_rgba(0,0,0,0.55)] overflow-hidden"
+            className={`w-full sm:max-w-[400px] rounded-t-[32px] sm:rounded-[32px] border-t sm:border px-6 pt-4 pb-7 overflow-hidden ${
+              isDark
+                ? 'bg-[#1C1C1E]/95 border-white/10 text-white shadow-[0_24px_60px_rgba(0,0,0,0.65)]'
+                : 'bg-white/95 border-black/10 text-zinc-900 shadow-[0_24px_60px_rgba(0,0,0,0.18)]'
+            }`}
             style={{
               fontFamily:
                 '-apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro Text", sans-serif',
@@ -606,17 +615,17 @@ export const ClothingWeatherModal: React.FC<ClothingWeatherModalProps> = ({
             }}
           >
             {/* iOS Grabber Handle on mobile */}
-            <div className="w-9 h-1 rounded-full bg-white/20 mx-auto mb-4 sm:hidden" />
+            <div className={`w-9 h-1 rounded-full mx-auto mb-4 sm:hidden ${isDark ? 'bg-white/20' : 'bg-black/15'}`} />
 
             {/* Top Header */}
             <div className="flex items-start justify-between gap-3">
               <div>
-                <p className="text-[12px] font-medium text-[#8E939E] tracking-tight">
+                <p className={`text-[12px] font-medium tracking-tight ${isDark ? 'text-[#8E939E]' : 'text-zinc-500'}`}>
                   {rec.altitudeSubtitle}
                 </p>
                 <h2
                   id="clothing-weather-modal-title"
-                  className="text-[20px] font-bold tracking-[-0.02em] text-white mt-0.5"
+                  className={`text-[20px] font-bold tracking-[-0.02em] mt-0.5 ${isDark ? 'text-white' : 'text-zinc-900'}`}
                 >
                   {rec.modalTitle}
                 </h2>
@@ -626,14 +635,18 @@ export const ClothingWeatherModal: React.FC<ClothingWeatherModalProps> = ({
                 type="button"
                 onClick={onClose}
                 aria-label={rec.understandBtn}
-                className="w-8 h-8 rounded-full bg-white/[0.08] hover:bg-white/[0.14] active:scale-95 flex items-center justify-center text-[#A1A1AA] hover:text-white transition-all cursor-pointer shrink-0"
+                className={`w-8 h-8 rounded-full active:scale-95 flex items-center justify-center transition-all cursor-pointer shrink-0 ${
+                  isDark
+                    ? 'bg-white/[0.08] hover:bg-white/[0.14] text-[#A1A1AA] hover:text-white'
+                    : 'bg-zinc-100 hover:bg-zinc-200 text-zinc-600 hover:text-zinc-900'
+                }`}
               >
                 <X className="w-4 h-4" />
               </button>
             </div>
 
             {/* Current Weather & Thermal Summary Hero */}
-            <div className="mt-5 pb-5 border-b border-white/[0.08] flex items-center justify-between gap-4">
+            <div className={`mt-5 pb-5 border-b flex items-center justify-between gap-4 ${isDark ? 'border-white/[0.08]' : 'border-zinc-200/80'}`}>
               <div className="flex items-center gap-3">
                 <Weather3DIcon
                   weatherCode={weather.weatherCode}
@@ -642,14 +655,14 @@ export const ClothingWeatherModal: React.FC<ClothingWeatherModalProps> = ({
                 />
                 <div>
                   <div className="flex items-baseline gap-2">
-                    <span className="text-[38px] font-bold tracking-tighter leading-none tabular-nums text-white">
+                    <span className={`text-[38px] font-bold tracking-tighter leading-none tabular-nums ${isDark ? 'text-white' : 'text-zinc-900'}`}>
                       {weather.temperature}°
                     </span>
-                    <span className="text-[13px] font-medium text-[#8E939E] tabular-nums">
+                    <span className={`text-[13px] font-medium tabular-nums ${isDark ? 'text-[#8E939E]' : 'text-zinc-500'}`}>
                       {rec.feelsLikeLabel} {feelsLike}°C
                     </span>
                   </div>
-                  <p className="text-[13px] font-medium text-[#A1A1AA] mt-1">
+                  <p className={`text-[13px] font-medium mt-1 ${isDark ? 'text-[#A1A1AA]' : 'text-zinc-600'}`}>
                     {tr(weather.condition)}
                   </p>
                 </div>
@@ -658,26 +671,26 @@ export const ClothingWeatherModal: React.FC<ClothingWeatherModalProps> = ({
 
             {/* Recommendation Headline & Summary */}
             <div className="mt-5">
-              <h3 className="text-[16px] font-semibold tracking-[-0.01em] text-white">
+              <h3 className={`text-[16px] font-semibold tracking-[-0.01em] ${isDark ? 'text-white' : 'text-zinc-900'}`}>
                 {rec.headline}
               </h3>
-              <p className="text-[13.5px] text-[#9CA3AF] leading-relaxed mt-1">
+              <p className={`text-[13.5px] leading-relaxed mt-1 ${isDark ? 'text-[#9CA3AF]' : 'text-zinc-600'}`}>
                 {rec.summary}
               </p>
             </div>
 
             {/* Clean Structured Clothing Rows (Unboxed with subtle hairline dividers) */}
-            <div className="mt-5 divide-y divide-white/[0.08] border-y border-white/[0.08]">
+            <div className={`mt-5 divide-y border-y ${isDark ? 'divide-white/[0.08] border-white/[0.08]' : 'divide-zinc-200/80 border-zinc-200/80'}`}>
               {/* 1. Core Layers */}
               <div className="py-3.5 flex items-start gap-3.5">
-                <div className="w-8 h-8 rounded-full bg-[#007AFF]/15 text-[#4DA3FF] flex items-center justify-center shrink-0 mt-0.5">
+                <div className={`w-8 h-8 rounded-full flex items-center justify-center shrink-0 mt-0.5 ${isDark ? 'bg-[#007AFF]/15 text-[#4DA3FF]' : 'bg-[#007AFF]/10 text-[#007AFF]'}`}>
                   <CoatLinearIcon className="w-4 h-4" />
                 </div>
                 <div className="min-w-0 flex-1">
-                  <p className="text-[12px] font-medium text-[#8E939E]">
+                  <p className={`text-[12px] font-medium ${isDark ? 'text-[#8E939E]' : 'text-zinc-500'}`}>
                     {rec.layersLabel}
                   </p>
-                  <p className="text-[14px] font-medium text-white leading-snug mt-0.5">
+                  <p className={`text-[14px] font-medium leading-snug mt-0.5 ${isDark ? 'text-white' : 'text-zinc-900'}`}>
                     {rec.layersValue}
                   </p>
                 </div>
@@ -685,14 +698,14 @@ export const ClothingWeatherModal: React.FC<ClothingWeatherModalProps> = ({
 
               {/* 2. Accessories */}
               <div className="py-3.5 flex items-start gap-3.5">
-                <div className="w-8 h-8 rounded-full bg-[#007AFF]/15 text-[#4DA3FF] flex items-center justify-center shrink-0 mt-0.5">
+                <div className={`w-8 h-8 rounded-full flex items-center justify-center shrink-0 mt-0.5 ${isDark ? 'bg-[#007AFF]/15 text-[#4DA3FF]' : 'bg-[#007AFF]/10 text-[#007AFF]'}`}>
                   <Wind className="w-4 h-4 stroke-[1.9]" />
                 </div>
                 <div className="min-w-0 flex-1">
-                  <p className="text-[12px] font-medium text-[#8E939E]">
+                  <p className={`text-[12px] font-medium ${isDark ? 'text-[#8E939E]' : 'text-zinc-500'}`}>
                     {rec.accessoriesLabel}
                   </p>
-                  <p className="text-[14px] font-medium text-white leading-snug mt-0.5">
+                  <p className={`text-[14px] font-medium leading-snug mt-0.5 ${isDark ? 'text-white' : 'text-zinc-900'}`}>
                     {rec.accessoriesValue}
                   </p>
                 </div>
@@ -700,14 +713,14 @@ export const ClothingWeatherModal: React.FC<ClothingWeatherModalProps> = ({
 
               {/* 3. Footwear */}
               <div className="py-3.5 flex items-start gap-3.5">
-                <div className="w-8 h-8 rounded-full bg-[#007AFF]/15 text-[#4DA3FF] flex items-center justify-center shrink-0 mt-0.5">
+                <div className={`w-8 h-8 rounded-full flex items-center justify-center shrink-0 mt-0.5 ${isDark ? 'bg-[#007AFF]/15 text-[#4DA3FF]' : 'bg-[#007AFF]/10 text-[#007AFF]'}`}>
                   <ShieldCheck className="w-4 h-4 stroke-[1.9]" />
                 </div>
                 <div className="min-w-0 flex-1">
-                  <p className="text-[12px] font-medium text-[#8E939E]">
+                  <p className={`text-[12px] font-medium ${isDark ? 'text-[#8E939E]' : 'text-zinc-500'}`}>
                     {rec.footwearLabel}
                   </p>
-                  <p className="text-[14px] font-medium text-white leading-snug mt-0.5">
+                  <p className={`text-[14px] font-medium leading-snug mt-0.5 ${isDark ? 'text-white' : 'text-zinc-900'}`}>
                     {rec.footwearValue}
                   </p>
                 </div>
@@ -716,11 +729,11 @@ export const ClothingWeatherModal: React.FC<ClothingWeatherModalProps> = ({
               {/* Optional Rain Row when raining in Campos do Jordão */}
               {weather.isRaining && (
                 <div className="py-3.5 flex items-start gap-3.5">
-                  <div className="w-8 h-8 rounded-full bg-[#007AFF]/15 text-[#4DA3FF] flex items-center justify-center shrink-0 mt-0.5">
+                  <div className={`w-8 h-8 rounded-full flex items-center justify-center shrink-0 mt-0.5 ${isDark ? 'bg-[#007AFF]/15 text-[#4DA3FF]' : 'bg-[#007AFF]/10 text-[#007AFF]'}`}>
                     <CloudRain className="w-4 h-4 stroke-[1.9]" />
                   </div>
                   <div className="min-w-0 flex-1">
-                    <p className="text-[13.5px] font-medium text-white leading-snug">
+                    <p className={`text-[13.5px] font-medium leading-snug ${isDark ? 'text-white' : 'text-zinc-900'}`}>
                       {rec.rainAlert}
                     </p>
                   </div>
@@ -729,10 +742,10 @@ export const ClothingWeatherModal: React.FC<ClothingWeatherModalProps> = ({
             </div>
 
             {/* Mountain Altitude Note */}
-            <div className="mt-4 flex items-start gap-2.5 text-[#8E939E]">
-              <Thermometer className="w-4 h-4 text-[#4DA3FF] shrink-0 mt-0.5 stroke-[1.9]" />
+            <div className={`mt-4 flex items-start gap-2.5 ${isDark ? 'text-[#8E939E]' : 'text-zinc-500'}`}>
+              <Thermometer className={`w-4 h-4 shrink-0 mt-0.5 stroke-[1.9] ${isDark ? 'text-[#4DA3FF]' : 'text-[#007AFF]'}`} />
               <p className="text-[12.5px] leading-relaxed">
-                <span className="font-semibold text-white/90">{rec.altitudeTipLabel}: </span>
+                <span className={`font-semibold ${isDark ? 'text-white/90' : 'text-zinc-900'}`}>{rec.altitudeTipLabel}: </span>
                 {rec.altitudeTipValue}
               </p>
             </div>
