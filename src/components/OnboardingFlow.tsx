@@ -1,14 +1,10 @@
-import React, { useState, useEffect, useCallback, useRef } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { motion, AnimatePresence, useReducedMotion } from 'motion/react';
 import {
   Compass,
   Calendar,
   MapPin,
   Home,
-  Sparkles,
-  Clock,
-  CalendarDays,
-  HelpCircle,
   UtensilsCrossed,
   Coffee,
   Building2,
@@ -16,16 +12,19 @@ import {
   Trees,
   ShoppingBag,
   Heart,
-  FerrisWheel,
+  Camera,
   User,
   Users,
   Baby,
   Navigation,
-  Check,
   ChevronLeft,
-  ArrowRight,
-  Globe,
+  ChevronRight,
+  Pencil,
   Loader2,
+  Sparkles,
+  Clock,
+  CalendarDays,
+  HelpCircle,
 } from 'lucide-react';
 import { gpsNavigationManager } from '../services/gpsNavigation';
 import { deviceHeadingManager } from '../utils/deviceHeading';
@@ -155,7 +154,7 @@ export const INTEREST_CATEGORY_OPTIONS = [
     id: 'attractions',
     value: 'Atrações turísticas.',
     label: 'Atrações turísticas.',
-    icon: FerrisWheel,
+    icon: Camera,
   },
 ] as const;
 
@@ -204,7 +203,24 @@ interface OnboardingFlowProps {
   onComplete: (updatedUser?: any, preferences?: TravelerOnboardingPreferences) => void;
 }
 
-const TOTAL_QUESTION_STEPS = 5;
+const TOTAL_STEPS = 4;
+
+const MONTH_NAMES_PT = [
+  'Janeiro',
+  'Fevereiro',
+  'Março',
+  'Abril',
+  'Maio',
+  'Junho',
+  'Julho',
+  'Agosto',
+  'Setembro',
+  'Outubro',
+  'Novembro',
+  'Dezembro',
+];
+
+const WEEKDAYS_PT = ['Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb', 'Dom'];
 
 function triggerSubtleHaptic() {
   try {
@@ -214,232 +230,194 @@ function triggerSubtleHaptic() {
   } catch {}
 }
 
-/**
- * Interactive 3D Wireframe/Latitude-Longitude Sphere Canvas for the Final Welcome Screen
- * Pure monochrome black & white aesthetic matching Monvian iOS identity
- */
-const MonvianInteractiveGlobeVisual: React.FC<{ isDark: boolean }> = React.memo(
-  function MonvianInteractiveGlobeVisual({ isDark }) {
-    const canvasRef = useRef<HTMLCanvasElement | null>(null);
-    const rotationRef = useRef<{ yaw: number; pitch: number; velocity: number }>({
-      yaw: -0.78,
-      pitch: -0.38,
-      velocity: 0.0055,
-    });
-    const pointerRef = useRef<{ active: boolean; lastX: number; lastY: number }>({
-      active: false,
-      lastX: 0,
-      lastY: 0,
-    });
+function toIsoDateString(year: number, monthIndex: number, day: number): string {
+  const m = String(monthIndex + 1).padStart(2, '0');
+  const d = String(day).padStart(2, '0');
+  return `${year}-${m}-${d}`;
+}
 
-    useEffect(() => {
-      const canvas = canvasRef.current;
-      if (!canvas) return;
-      const ctx = canvas.getContext('2d');
-      if (!ctx) return;
-
-      let rafId = 0;
-      const size = 240;
-      const dpr = Math.min(window.devicePixelRatio || 1, 2.5);
-      canvas.width = size * dpr;
-      canvas.height = size * dpr;
-      ctx.scale(dpr, dpr);
-
-      const cx = size / 2;
-      const cy = size / 2;
-      const radius = 88;
-
-      const render = () => {
-        ctx.clearRect(0, 0, size, size);
-
-        if (!pointerRef.current.active) {
-          rotationRef.current.yaw += rotationRef.current.velocity;
-          rotationRef.current.velocity += (0.0055 - rotationRef.current.velocity) * 0.04;
-        }
-
-        const yaw = rotationRef.current.yaw;
-        const pitch = rotationRef.current.pitch;
-        const cosPitch = Math.cos(pitch);
-        const sinPitch = Math.sin(pitch);
-
-        // Subtle outer ambient halo
-        const haloGrad = ctx.createRadialGradient(cx, cy, radius * 0.55, cx, cy, radius * 1.24);
-        if (isDark) {
-          haloGrad.addColorStop(0, 'rgba(255, 255, 255, 0.08)');
-          haloGrad.addColorStop(1, 'rgba(255, 255, 255, 0)');
-        } else {
-          haloGrad.addColorStop(0, 'rgba(8, 8, 8, 0.06)');
-          haloGrad.addColorStop(1, 'rgba(8, 8, 8, 0)');
-        }
-        ctx.fillStyle = haloGrad;
-        ctx.beginPath();
-        ctx.arc(cx, cy, radius * 1.24, 0, Math.PI * 2);
-        ctx.fill();
-
-        // Main glass sphere body
-        const sphereGrad = ctx.createRadialGradient(
-          cx - radius * 0.32,
-          cy - radius * 0.34,
-          radius * 0.08,
-          cx,
-          cy,
-          radius
-        );
-        if (isDark) {
-          sphereGrad.addColorStop(0, 'rgba(48, 48, 52, 0.95)');
-          sphereGrad.addColorStop(0.65, 'rgba(22, 22, 24, 0.96)');
-          sphereGrad.addColorStop(1, 'rgba(8, 8, 10, 0.98)');
-        } else {
-          sphereGrad.addColorStop(0, 'rgba(255, 255, 255, 0.98)');
-          sphereGrad.addColorStop(0.7, 'rgba(244, 244, 246, 0.96)');
-          sphereGrad.addColorStop(1, 'rgba(228, 228, 233, 0.94)');
-        }
-        ctx.fillStyle = sphereGrad;
-        ctx.beginPath();
-        ctx.arc(cx, cy, radius, 0, Math.PI * 2);
-        ctx.fill();
-
-        // Clip inside sphere for meridians & parallels
-        ctx.save();
-        ctx.beginPath();
-        ctx.arc(cx, cy, radius, 0, Math.PI * 2);
-        ctx.clip();
-
-        const project3D = (latRad: number, lonRad: number) => {
-          const x = Math.cos(latRad) * Math.sin(lonRad + yaw);
-          const yRaw = Math.sin(latRad);
-          const zRaw = Math.cos(latRad) * Math.cos(lonRad + yaw);
-
-          const y = yRaw * cosPitch - zRaw * sinPitch;
-          const z = yRaw * sinPitch + zRaw * cosPitch;
-          return {
-            px: cx + x * radius,
-            py: cy - y * radius,
-            z,
-          };
-        };
-
-        // Draw parallels (latitude rings)
-        const latitudes = [-60, -30, 0, 30, 60];
-        latitudes.forEach((latDeg) => {
-          const latRad = (latDeg * Math.PI) / 180;
-          ctx.beginPath();
-          let started = false;
-          for (let lonDeg = 0; lonDeg <= 360; lonDeg += 6) {
-            const lonRad = (lonDeg * Math.PI) / 180;
-            const pt = project3D(latRad, lonRad);
-            if (!started) {
-              ctx.moveTo(pt.px, pt.py);
-              started = true;
-            } else {
-              ctx.lineTo(pt.px, pt.py);
-            }
-          }
-          ctx.strokeStyle = isDark
-            ? latDeg === 0
-              ? 'rgba(255,255,255,0.22)'
-              : 'rgba(255,255,255,0.11)'
-            : latDeg === 0
-              ? 'rgba(8,8,8,0.18)'
-              : 'rgba(8,8,8,0.09)';
-          ctx.lineWidth = latDeg === 0 ? 1.2 : 0.9;
-          ctx.stroke();
-        });
-
-        // Draw meridians (longitude rings)
-        for (let lonDeg = 0; lonDeg < 180; lonDeg += 30) {
-          const lonRad = (lonDeg * Math.PI) / 180;
-          ctx.beginPath();
-          let started = false;
-          for (let latDeg = 0; latDeg <= 360; latDeg += 6) {
-            const latRad = (latDeg * Math.PI) / 180;
-            const pt = project3D(latRad, lonRad);
-            if (!started) {
-              ctx.moveTo(pt.px, pt.py);
-              started = true;
-            } else {
-              ctx.lineTo(pt.px, pt.py);
-            }
-          }
-          ctx.strokeStyle = isDark ? 'rgba(255,255,255,0.12)' : 'rgba(8,8,8,0.09)';
-          ctx.lineWidth = 0.9;
-          ctx.stroke();
-        }
-
-        // Highlight Campos do Jordão marker (-22.739, -45.591) when facing front
-        const cjLat = (-22.739 * Math.PI) / 180;
-        const cjLon = (-45.591 * Math.PI) / 180;
-        const cjPt = project3D(cjLat, cjLon);
-        if (cjPt.z > -0.15) {
-          const pulse = 0.5 + 0.5 * Math.sin(performance.now() * 0.0045);
-          ctx.beginPath();
-          ctx.arc(cjPt.px, cjPt.py, 9 + pulse * 6, 0, Math.PI * 2);
-          ctx.fillStyle = isDark
-            ? `rgba(255, 255, 255, ${0.18 * (1 - pulse * 0.5)})`
-            : `rgba(8, 8, 8, ${0.14 * (1 - pulse * 0.5)})`;
-          ctx.fill();
-
-          ctx.beginPath();
-          ctx.arc(cjPt.px, cjPt.py, 4.2, 0, Math.PI * 2);
-          ctx.fillStyle = isDark ? '#FFFFFF' : '#080808';
-          ctx.fill();
-        }
-
-        ctx.restore();
-
-        // Crisp Liquid Glass Rim
-        ctx.beginPath();
-        ctx.arc(cx, cy, radius, 0, Math.PI * 2);
-        ctx.strokeStyle = isDark ? 'rgba(255, 255, 255, 0.22)' : 'rgba(8, 8, 8, 0.14)';
-        ctx.lineWidth = 1.25;
-        ctx.stroke();
-
-        rafId = requestAnimationFrame(render);
-      };
-
-      rafId = requestAnimationFrame(render);
-      return () => cancelAnimationFrame(rafId);
-    }, [isDark]);
-
-    return (
-      <div
-        className="relative flex items-center justify-center select-none touch-none cursor-grab active:cursor-grabbing"
-        onPointerDown={(e) => {
-          pointerRef.current = {
-            active: true,
-            lastX: e.clientX,
-            lastY: e.clientY,
-          };
-        }}
-        onPointerMove={(e) => {
-          if (!pointerRef.current.active) return;
-          const dx = e.clientX - pointerRef.current.lastX;
-          const dy = e.clientY - pointerRef.current.lastY;
-          rotationRef.current.yaw += dx * 0.012;
-          rotationRef.current.pitch = Math.max(
-            -0.85,
-            Math.min(0.85, rotationRef.current.pitch + dy * 0.008)
-          );
-          rotationRef.current.velocity = dx * 0.003;
-          pointerRef.current.lastX = e.clientX;
-          pointerRef.current.lastY = e.clientY;
-        }}
-        onPointerUp={() => {
-          pointerRef.current.active = false;
-        }}
-        onPointerCancel={() => {
-          pointerRef.current.active = false;
-        }}
-      >
-        <canvas
-          ref={canvasRef}
-          className="w-[220px] h-[220px] sm:w-[240px] sm:h-[240px]"
-          aria-label="Globo 3D interativo Monvian"
-        />
-      </div>
-    );
+function parseIsoDateParts(iso: string): { year: number; monthIndex: number; day: number } | null {
+  if (!iso || typeof iso !== 'string') return null;
+  const parts = iso.trim().split('-');
+  if (parts.length !== 3) return null;
+  const year = Number(parts[0]);
+  const monthIndex = Number(parts[1]) - 1;
+  const day = Number(parts[2]);
+  if (!Number.isFinite(year) || !Number.isFinite(monthIndex) || !Number.isFinite(day)) {
+    return null;
   }
-);
+  return { year, monthIndex, day };
+}
+
+function formatTripPeriodSummary(startIso: string, endIso: string): string {
+  const s = parseIsoDateParts(startIso);
+  if (!s) return '';
+  const e = parseIsoDateParts(endIso);
+  if (!e || startIso === endIso) {
+    return `${s.day} de ${MONTH_NAMES_PT[s.monthIndex]}`;
+  }
+  if (s.monthIndex === e.monthIndex && s.year === e.year) {
+    return `${s.day} a ${e.day} de ${MONTH_NAMES_PT[s.monthIndex]}`;
+  }
+  return `${s.day} de ${MONTH_NAMES_PT[s.monthIndex].slice(0, 3)} a ${e.day} de ${MONTH_NAMES_PT[e.monthIndex]}`;
+}
+
+/**
+ * Custom Monochrome 3D-Depth Category & Relationship Icons
+ * Matches the tactile sculpted monochrome icons in the reference screenshots
+ */
+const Monochrome3DCategoryIcon: React.FC<{
+  categoryId: string;
+  isDark: boolean;
+}> = ({ categoryId, isDark }) => {
+  const color = isDark ? '#FFFFFF' : '#121214';
+  const shadowFilter = isDark
+    ? 'drop-shadow(0 2px 4px rgba(0,0,0,0.55))'
+    : 'drop-shadow(0 2.5px 3.5px rgba(0,0,0,0.22))';
+
+  switch (categoryId) {
+    case 'restaurants':
+      return (
+        <svg
+          viewBox="0 0 28 28"
+          className="w-[26px] h-[26px]"
+          style={{ filter: shadowFilter }}
+          fill="none"
+        >
+          <UtensilsCrossed
+            className="w-full h-full"
+            color={color}
+            strokeWidth={2.2}
+          />
+        </svg>
+      );
+    case 'cafes':
+      return (
+        <svg
+          viewBox="0 0 28 28"
+          className="w-[26px] h-[26px]"
+          style={{ filter: shadowFilter }}
+          fill="none"
+        >
+          <path
+            d="M9.5 5.2C9.5 6.4 10.3 7.0 10.3 8.2M13.5 4.5C13.5 5.9 14.4 6.6 14.4 8.0M17.5 5.2C17.5 6.4 18.3 7.0 18.3 8.2"
+            stroke={color}
+            strokeWidth="2"
+            strokeLinecap="round"
+          />
+          <path
+            d="M6.5 10.5H19.5V16.2C19.5 19.8 16.6 22.5 13 22.5C9.4 22.5 6.5 19.8 6.5 16.2V10.5Z"
+            fill={color}
+          />
+          <path
+            d="M19.5 12H21.2C22.7 12 23.8 13.1 23.8 14.6C23.8 16.1 22.7 17.2 21.2 17.2H19.2"
+            stroke={color}
+            strokeWidth="2.3"
+            strokeLinecap="round"
+          />
+        </svg>
+      );
+    case 'hotels':
+      return (
+        <svg
+          viewBox="0 0 28 28"
+          className="w-[26px] h-[26px]"
+          style={{ filter: shadowFilter }}
+          fill="none"
+        >
+          <Building2 className="w-full h-full" color={color} strokeWidth={2.1} />
+        </svg>
+      );
+    case 'tours':
+      return (
+        <svg
+          viewBox="0 0 30 26"
+          className="w-[28px] h-[25px]"
+          style={{ filter: shadowFilter }}
+          fill="none"
+        >
+          <path d="M3 22L11.5 7.5L18.5 22H3Z" fill={color} />
+          <path d="M12.5 22L19.5 9.5L27 22H12.5Z" fill={color} fillOpacity="0.88" />
+          <path
+            d="M11.5 7.5L9.1 11.6L11.2 12.8L13.6 11.2L11.5 7.5Z"
+            fill={isDark ? '#1C1C1E' : '#FFFFFF'}
+          />
+          <path
+            d="M19.5 9.5L17.4 13.1L19.4 14.2L21.5 12.9L19.5 9.5Z"
+            fill={isDark ? '#1C1C1E' : '#FFFFFF'}
+          />
+        </svg>
+      );
+    case 'nature':
+      return (
+        <svg
+          viewBox="0 0 28 28"
+          className="w-[26px] h-[26px]"
+          style={{ filter: shadowFilter }}
+          fill="none"
+        >
+          <Trees className="w-full h-full" color={color} strokeWidth={2.1} />
+        </svg>
+      );
+    case 'shopping':
+      return (
+        <svg
+          viewBox="0 0 28 28"
+          className="w-[25px] h-[25px]"
+          style={{ filter: shadowFilter }}
+          fill="none"
+        >
+          <path
+            d="M10.2 9.5V7.8C10.2 5.7 11.9 4 14 4C16.1 4 17.8 5.7 17.8 7.8V9.5"
+            stroke={color}
+            strokeWidth="2.2"
+            strokeLinecap="round"
+          />
+          <rect
+            x="6.5"
+            y="9"
+            width="15"
+            height="14.5"
+            rx="3.2"
+            fill={color}
+          />
+        </svg>
+      );
+    case 'romantic':
+      return (
+        <svg
+          viewBox="0 0 28 28"
+          className="w-[25px] h-[25px]"
+          style={{ filter: shadowFilter }}
+          fill="none"
+        >
+          <Heart className="w-full h-full" color={color} strokeWidth={2.4} />
+        </svg>
+      );
+    case 'attractions':
+    default:
+      return (
+        <svg
+          viewBox="0 0 28 28"
+          className="w-[25px] h-[25px]"
+          style={{ filter: shadowFilter }}
+          fill="none"
+        >
+          <path
+            d="M4.5 10.5C4.5 8.84315 5.84315 7.5 7.5 7.5H9.2L10.6 5.4C10.95 4.85 11.55 4.5 12.2 4.5H15.8C16.45 4.5 17.05 4.85 17.4 5.4L18.8 7.5H20.5C22.1569 7.5 23.5 8.84315 23.5 10.5V19.5C23.5 21.1569 22.1569 22.5 20.5 22.5H7.5C5.84315 22.5 4.5 21.1569 4.5 19.5V10.5Z"
+            fill={color}
+          />
+          <circle
+            cx="14"
+            cy="14.8"
+            r="4.2"
+            fill={isDark ? '#1C1C1E' : '#FFFFFF'}
+          />
+          <circle cx="14" cy="14.8" r="2.3" fill={color} />
+        </svg>
+      );
+  }
+};
 
 export const OnboardingFlow: React.FC<OnboardingFlowProps> = ({
   user,
@@ -452,33 +430,58 @@ export const OnboardingFlow: React.FC<OnboardingFlowProps> = ({
 
   const [step, setStep] = useState<number>(() => {
     const start = Number(initialStep || user?.onboarding_step || 1);
-    return Math.max(1, Math.min(6, start));
+    return Math.max(1, Math.min(TOTAL_STEPS, start));
   });
   const [direction, setDirection] = useState<1 | -1>(1);
 
+  // Step 1: Relação com Campos do Jordão
   const [camposRelationship, setCamposRelationship] = useState<string>(
-    () => user?.campos_relationship || ''
+    () => user?.campos_relationship || 'Estou visitando a cidade.'
   );
-  const [nextTripTiming, setNextTripTiming] = useState<string>(
-    () => user?.next_trip_timing || ''
+
+  // Step 2: Data da viagem (Calendário funcional com data de chegada e partida)
+  const initialDateRange = useMemo(() => {
+    const raw = String(user?.next_trip_date || '').trim();
+    if (raw.includes('..')) {
+      const [s, e] = raw.split('..');
+      return { start: s || '', end: e || s || '' };
+    }
+    if (raw) {
+      return { start: raw, end: raw };
+    }
+    return { start: '', end: '' };
+  }, [user?.next_trip_date]);
+
+  const [arrivalDate, setArrivalDate] = useState<string>(initialDateRange.start);
+  const [departureDate, setDepartureDate] = useState<string>(initialDateRange.end);
+  const [hasNoDefinedDate, setHasNoDefinedDate] = useState<boolean>(
+    () => user?.next_trip_timing === 'Ainda não tenho uma data.'
   );
-  const [nextTripDate, setNextTripDate] = useState<string>(
-    () => user?.next_trip_date || ''
-  );
-  const [showDatePicker, setShowDatePicker] = useState<boolean>(
-    () => Boolean(user?.next_trip_date)
-  );
+
+  const [calendarMonth, setCalendarMonth] = useState<{ year: number; monthIndex: number }>(() => {
+    const parsed = parseIsoDateParts(initialDateRange.start);
+    if (parsed) {
+      return { year: parsed.year, monthIndex: parsed.monthIndex };
+    }
+    const now = new Date();
+    return { year: now.getFullYear(), monthIndex: now.getMonth() };
+  });
+
+  // Step 3: Preferências (8 categorias)
   const [interestCategories, setInterestCategories] = useState<string[]>(() =>
     Array.isArray(user?.interest_categories) ? user.interest_categories : []
   );
+
+  // Preserve travel_company if already set or edited in profile
   const [travelCompany, setTravelCompany] = useState<string>(
     () => user?.travel_company || ''
   );
+
+  // Step 4: Localização
   const [locationPreference, setLocationPreference] = useState<string>(
     () => user?.location_preference || ''
   );
   const [isRequestingLocation, setIsRequestingLocation] = useState<boolean>(false);
-  const [isCompleting, setIsCompleting] = useState<boolean>(false);
 
   const cleanEmail = String(user?.email || user?.whatsapp || '')
     .trim()
@@ -501,10 +504,27 @@ export const OnboardingFlow: React.FC<OnboardingFlowProps> = ({
         if (!isMounted || !data?.preferences) return;
         const p = data.preferences;
         if (p.campos_relationship) setCamposRelationship(p.campos_relationship);
-        if (p.next_trip_timing) setNextTripTiming(p.next_trip_timing);
         if (p.next_trip_date) {
-          setNextTripDate(p.next_trip_date);
-          setShowDatePicker(true);
+          const rawDate = String(p.next_trip_date);
+          if (rawDate.includes('..')) {
+            const [s, e] = rawDate.split('..');
+            setArrivalDate(s || '');
+            setDepartureDate(e || s || '');
+            const parsed = parseIsoDateParts(s);
+            if (parsed) {
+              setCalendarMonth({ year: parsed.year, monthIndex: parsed.monthIndex });
+            }
+          } else {
+            setArrivalDate(rawDate);
+            setDepartureDate(rawDate);
+            const parsed = parseIsoDateParts(rawDate);
+            if (parsed) {
+              setCalendarMonth({ year: parsed.year, monthIndex: parsed.monthIndex });
+            }
+          }
+        }
+        if (p.next_trip_timing === 'Ainda não tenho uma data.') {
+          setHasNoDefinedDate(true);
         }
         if (Array.isArray(p.interest_categories) && p.interest_categories.length > 0) {
           setInterestCategories(p.interest_categories);
@@ -514,7 +534,7 @@ export const OnboardingFlow: React.FC<OnboardingFlowProps> = ({
         if (
           typeof p.onboarding_step === 'number' &&
           p.onboarding_step >= 1 &&
-          p.onboarding_step <= 6 &&
+          p.onboarding_step <= TOTAL_STEPS &&
           p.onboarding_completed === 0
         ) {
           setStep(p.onboarding_step);
@@ -527,12 +547,28 @@ export const OnboardingFlow: React.FC<OnboardingFlowProps> = ({
     };
   }, [cleanEmail]);
 
+  const buildTripDateValues = useCallback(() => {
+    if (hasNoDefinedDate || !arrivalDate) {
+      return {
+        next_trip_timing: 'Ainda não tenho uma data.',
+        next_trip_date: '',
+      };
+    }
+    const end = departureDate || arrivalDate;
+    const summary = formatTripPeriodSummary(arrivalDate, end);
+    return {
+      next_trip_timing: summary,
+      next_trip_date: arrivalDate === end ? arrivalDate : `${arrivalDate}..${end}`,
+    };
+  }, [hasNoDefinedDate, arrivalDate, departureDate]);
+
   const persistStepToBackend = useCallback(
     async (
       nextStepNumber: number,
       overrides?: Partial<TravelerOnboardingPreferences>,
       markComplete: boolean = false
     ) => {
+      const tripValues = buildTripDateValues();
       const payload: TravelerOnboardingPreferences & { email?: string } = {
         email: cleanEmail,
         campos_relationship:
@@ -542,11 +578,11 @@ export const OnboardingFlow: React.FC<OnboardingFlowProps> = ({
         next_trip_timing:
           overrides?.next_trip_timing !== undefined
             ? overrides.next_trip_timing
-            : nextTripTiming,
+            : tripValues.next_trip_timing,
         next_trip_date:
           overrides?.next_trip_date !== undefined
             ? overrides.next_trip_date
-            : nextTripDate,
+            : tripValues.next_trip_date,
         interest_categories:
           overrides?.interest_categories !== undefined
             ? overrides.interest_categories
@@ -565,11 +601,10 @@ export const OnboardingFlow: React.FC<OnboardingFlowProps> = ({
             : (overrides?.location_preference || locationPreference) === 'granted'
               ? 1
               : Number(user?.location_permission_granted || 0),
-        onboarding_step: nextStepNumber,
+        onboarding_step: Math.min(TOTAL_STEPS, Math.max(1, nextStepNumber)),
         onboarding_completed: markComplete ? 1 : 0,
       };
 
-      // Save locally right away for instant resilience
       try {
         if (cleanEmail) {
           localStorage.setItem(
@@ -585,7 +620,6 @@ export const OnboardingFlow: React.FC<OnboardingFlowProps> = ({
         }
       } catch {}
 
-      // Persist to Firestore directly from client as well
       if (cleanEmail) {
         persistUserOnboardingToFirestore({
           user_id: user?.id ? String(user.id) : '',
@@ -613,8 +647,7 @@ export const OnboardingFlow: React.FC<OnboardingFlowProps> = ({
           body: JSON.stringify(payload),
         });
         if (res.ok) {
-          const data = await res.json();
-          return data;
+          return await res.json();
         }
       } catch {}
       return null;
@@ -622,8 +655,7 @@ export const OnboardingFlow: React.FC<OnboardingFlowProps> = ({
     [
       cleanEmail,
       camposRelationship,
-      nextTripTiming,
-      nextTripDate,
+      buildTripDateValues,
       interestCategories,
       travelCompany,
       locationPreference,
@@ -650,29 +682,107 @@ export const OnboardingFlow: React.FC<OnboardingFlowProps> = ({
     setStep(prev);
   }, [step]);
 
-  const isOptionalVisitTiming =
-    camposRelationship === 'Moro em Campos do Jordão.' ||
-    camposRelationship === 'Estou apenas explorando.';
+  // Complete all 4 steps of onboarding and transition immediately to original Monvian Welcome Screen
+  const finalizeFourStepOnboarding = useCallback(
+    async (locPref: 'granted' | 'skipped' | 'prompted', locGranted: boolean, coords?: [number, number]) => {
+      if (locGranted) {
+        saveUserPermissionsToDatabase({
+          locationGranted: true,
+          motionGranted: true,
+          coords,
+          email: cleanEmail,
+        }).catch(() => {});
+      }
 
-  const handleToggleInterest = (val: string) => {
-    triggerSubtleHaptic();
-    setInterestCategories((prev) =>
-      prev.includes(val) ? prev.filter((item) => item !== val) : [...prev, val]
-    );
-  };
+      const tripValues = buildTripDateValues();
+      const finalPreferences: TravelerOnboardingPreferences = {
+        campos_relationship: camposRelationship,
+        next_trip_timing: tripValues.next_trip_timing,
+        next_trip_date: tripValues.next_trip_date,
+        interest_categories: interestCategories,
+        travel_company: travelCompany,
+        location_preference: locPref,
+        location_permission_granted: locGranted ? 1 : 0,
+        onboarding_step: 4,
+        onboarding_completed: 1,
+      };
+
+      const result = await persistStepToBackend(4, finalPreferences, true);
+      const updatedUser = result?.user || {
+        ...(user || {}),
+        ...finalPreferences,
+        onboarding_completed: 1,
+      };
+
+      onComplete(updatedUser, finalPreferences);
+    },
+    [
+      cleanEmail,
+      buildTripDateValues,
+      camposRelationship,
+      interestCategories,
+      travelCompany,
+      persistStepToBackend,
+      user,
+      onComplete,
+    ]
+  );
+
+  // Automatically prompt for native iPhone Location & Motion permission upon entering Step 4 ("Descubra o que está ao seu redor.")
+  useEffect(() => {
+    if (step !== 4) return;
+    let active = true;
+
+    try {
+      gpsNavigationManager.requestPermissionAndStartFromGesture();
+      if (
+        deviceHeadingManager.isPermissionRequired() &&
+        !deviceHeadingManager.isPermissionHandled()
+      ) {
+        deviceHeadingManager.requestPermission().catch(() => {});
+      }
+      deviceHeadingManager.start();
+    } catch {}
+
+    if (typeof navigator !== 'undefined' && navigator.geolocation) {
+      navigator.geolocation.getCurrentPosition(
+        (pos) => {
+          if (!active) return;
+          const coords: [number, number] = [
+            Number(pos.coords.longitude),
+            Number(pos.coords.latitude),
+          ];
+          setLocationPreference('granted');
+          saveUserPermissionsToDatabase({
+            locationGranted: true,
+            motionGranted: true,
+            coords,
+            email: cleanEmail,
+          }).catch(() => {});
+        },
+        () => {},
+        {
+          enableHighAccuracy: true,
+          timeout: 8000,
+          maximumAge: 15000,
+        }
+      );
+    }
+
+    return () => {
+      active = false;
+    };
+  }, [step, cleanEmail]);
 
   const handleActivateLocation = async () => {
     if (isRequestingLocation) return;
     triggerSubtleHaptic();
     setIsRequestingLocation(true);
 
+    // Synchronously invoke iPhone Safari geolocation & motion permission from user tap gesture
     try {
-      // Trigger iOS Safari gesture-bound geolocation & compass permission
       gpsNavigationManager.requestPermissionAndStartFromGesture();
-      if (
-        deviceHeadingManager.isPermissionRequired() &&
-        !deviceHeadingManager.isPermissionHandled()
-      ) {
+      if (deviceHeadingManager.isPermissionRequired()) {
         deviceHeadingManager.requestPermission().catch(() => {});
       }
       deviceHeadingManager.start();
@@ -687,7 +797,7 @@ export const OnboardingFlow: React.FC<OnboardingFlowProps> = ({
           navigator.geolocation.getCurrentPosition(resolve, reject, {
             enableHighAccuracy: true,
             timeout: 7000,
-            maximumAge: 30000,
+            maximumAge: 15000,
           });
         });
         granted = true;
@@ -699,86 +809,111 @@ export const OnboardingFlow: React.FC<OnboardingFlowProps> = ({
 
     const prefValue = granted ? 'granted' : 'prompted';
     setLocationPreference(prefValue);
+    await finalizeFourStepOnboarding(prefValue, granted, coords);
+    setIsRequestingLocation(false);
+  };
 
-    if (granted) {
-      saveUserPermissionsToDatabase({
-        locationGranted: true,
-        coords,
-        email: cleanEmail,
-      }).catch(() => {});
+  const handleSkipLocation = async () => {
+    if (isRequestingLocation) return;
+    triggerSubtleHaptic();
+    setIsRequestingLocation(true);
+    setLocationPreference('skipped');
+    await finalizeFourStepOnboarding('skipped', false);
+    setIsRequestingLocation(false);
+  };
+
+  // Calendar grid helper for Step 2
+  const calendarCells = useMemo(() => {
+    const { year, monthIndex } = calendarMonth;
+    const firstDayOfMonth = new Date(year, monthIndex, 1);
+    // Convert Sunday=0..Saturday=6 into Monday=0..Sunday=6
+    const startOffset = (firstDayOfMonth.getDay() + 6) % 7;
+    const daysInMonth = new Date(year, monthIndex + 1, 0).getDate();
+
+    const cells: Array<{ day: number | null; iso: string }> = [];
+    for (let i = 0; i < startOffset; i++) {
+      cells.push({ day: null, iso: `empty-${i}` });
+    }
+    for (let d = 1; d <= daysInMonth; d++) {
+      cells.push({
+        day: d,
+        iso: toIsoDateString(year, monthIndex, d),
+      });
+    }
+    return cells;
+  }, [calendarMonth]);
+
+  const handleSelectCalendarDay = (iso: string) => {
+    triggerSubtleHaptic();
+    setHasNoDefinedDate(false);
+
+    if (!arrivalDate || (arrivalDate && departureDate && arrivalDate !== departureDate)) {
+      setArrivalDate(iso);
+      setDepartureDate(iso);
+      return;
     }
 
-    setIsRequestingLocation(false);
-    goToStep(6, {
-      location_preference: prefValue,
-      location_permission_granted: granted ? 1 : 0,
+    if (iso < arrivalDate) {
+      setArrivalDate(iso);
+      setDepartureDate(arrivalDate);
+    } else {
+      setDepartureDate(iso);
+    }
+  };
+
+  const handlePrevMonth = () => {
+    triggerSubtleHaptic();
+    setCalendarMonth((prev) => {
+      if (prev.monthIndex === 0) {
+        return { year: prev.year - 1, monthIndex: 11 };
+      }
+      return { year: prev.year, monthIndex: prev.monthIndex - 1 };
     });
   };
 
-  const handleSkipLocation = () => {
+  const handleNextMonth = () => {
     triggerSubtleHaptic();
-    setLocationPreference('skipped');
-    goToStep(6, {
-      location_preference: 'skipped',
+    setCalendarMonth((prev) => {
+      if (prev.monthIndex === 11) {
+        return { year: prev.year + 1, monthIndex: 0 };
+      }
+      return { year: prev.year, monthIndex: prev.monthIndex + 1 };
     });
   };
 
-  const handleFinishOnboarding = async () => {
-    if (isCompleting) return;
+  const handleToggleInterest = (val: string) => {
     triggerSubtleHaptic();
-    setIsCompleting(true);
-
-    const finalPreferences: TravelerOnboardingPreferences = {
-      campos_relationship: camposRelationship,
-      next_trip_timing: nextTripTiming,
-      next_trip_date: nextTripDate,
-      interest_categories: interestCategories,
-      travel_company: travelCompany,
-      location_preference: locationPreference || 'skipped',
-      location_permission_granted:
-        locationPreference === 'granted' || user?.location_permission_granted === 1
-          ? 1
-          : 0,
-      onboarding_step: 6,
-      onboarding_completed: 1,
-    };
-
-    const result = await persistStepToBackend(6, finalPreferences, true);
-    const updatedUser = result?.user || {
-      ...(user || {}),
-      ...finalPreferences,
-      onboarding_completed: 1,
-      welcome_card_seen: 1,
-    };
-
-    setIsCompleting(false);
-    onComplete(updatedUser, finalPreferences);
+    setInterestCategories((prev) =>
+      prev.includes(val) ? prev.filter((item) => item !== val) : [...prev, val]
+    );
   };
-
-  const progressFraction = Math.min(1, Math.max(0.2, step / TOTAL_QUESTION_STEPS));
 
   const slideVariants = {
     enter: (dir: number) =>
       prefersReducedMotion
         ? { opacity: 0 }
-        : { opacity: 0, x: dir > 0 ? 28 : -28, filter: 'blur(4px)' },
+        : { opacity: 0, x: dir > 0 ? 26 : -26 },
     center: {
       opacity: 1,
       x: 0,
-      filter: 'blur(0px)',
     },
     exit: (dir: number) =>
       prefersReducedMotion
         ? { opacity: 0 }
-        : { opacity: 0, x: dir > 0 ? -28 : 28, filter: 'blur(4px)' },
+        : { opacity: 0, x: dir > 0 ? -26 : 26 },
   };
+
+  const tripSummaryLabel = useMemo(() => {
+    if (hasNoDefinedDate || !arrivalDate) return '';
+    return formatTripPeriodSummary(arrivalDate, departureDate || arrivalDate);
+  }, [hasNoDefinedDate, arrivalDate, departureDate]);
 
   return (
     <motion.div
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       exit={{ opacity: 0 }}
-      transition={{ duration: 0.28, ease: [0.22, 1, 0.36, 1] }}
+      transition={{ duration: 0.26, ease: [0.22, 1, 0.36, 1] }}
       className={`fixed inset-0 z-[260] w-full flex flex-col select-none overflow-hidden ${
         isDark ? 'bg-[#000000] text-[#FFFFFF]' : 'bg-[#FFFFFF] text-[#080808]'
       }`}
@@ -789,102 +924,71 @@ export const OnboardingFlow: React.FC<OnboardingFlowProps> = ({
           "'SF Pro Display', 'SF Pro Text', -apple-system, BlinkMacSystemFont, sans-serif",
       }}
     >
-      {/* Top Navigation & Discrete Progress Header */}
+      {/* Top Bar: Circular Back Button + 4 Horizontal Progress Dots */}
       <header
-        className="w-full max-w-md mx-auto px-6 shrink-0 flex flex-col gap-3.5"
+        className="w-full max-w-md mx-auto px-6 shrink-0 flex items-center justify-between"
         style={{
-          paddingTop: 'max(calc(env(safe-area-inset-top, 0px) + 18px), 28px)',
+          paddingTop: 'max(calc(env(safe-area-inset-top, 0px) + 14px), 24px)',
+          paddingBottom: '8px',
         }}
       >
-        <div className="flex items-center justify-between min-h-[36px]">
+        <div className="w-11 h-11 flex items-center justify-start">
           {step > 1 ? (
             <button
               type="button"
               onClick={handleBack}
               aria-label="Voltar para a etapa anterior"
-              className={`w-9 h-9 rounded-full flex items-center justify-center transition-all active:scale-95 cursor-pointer border ${
+              className={`w-11 h-11 rounded-full flex items-center justify-center transition-all active:scale-95 cursor-pointer border ${
                 isDark
                   ? 'bg-[#1C1C1E] border-white/10 text-white hover:bg-[#2C2C2E]'
-                  : 'bg-[#F5F5F7] border-black/[0.06] text-[#080808] hover:bg-[#EBEBED]'
+                  : 'bg-[#F7F7F9] border-black/[0.06] text-[#080808] shadow-[0_2px_8px_rgba(0,0,0,0.04)] hover:bg-[#EFEFF2]'
               }`}
             >
               <ChevronLeft className="w-5 h-5 stroke-[2.2]" />
             </button>
           ) : (
-            <div className="w-9 h-9" />
+            <div className="w-11 h-11" />
           )}
-
-          {step <= TOTAL_QUESTION_STEPS ? (
-            <span
-              className={`text-[12px] font-semibold tracking-[0.02em] ${
-                isDark ? 'text-[#8E8E93]' : 'text-[#6E6E73]'
-              }`}
-            >
-              Etapa {step} de {TOTAL_QUESTION_STEPS}
-            </span>
-          ) : (
-            <span
-              className={`text-[12px] font-semibold tracking-[0.04em] uppercase ${
-                isDark ? 'text-[#8E8E93]' : 'text-[#6E6E73]'
-              }`}
-            >
-              Monvian
-            </span>
-          )}
-
-          <div className="w-9 h-9 flex items-center justify-end">
-            {step === 2 && isOptionalVisitTiming && (
-              <button
-                type="button"
-                onClick={() =>
-                  goToStep(3, {
-                    next_trip_timing: nextTripTiming || 'Ainda não tenho uma data.',
-                  })
-                }
-                className={`text-[13px] font-semibold transition-opacity hover:opacity-75 cursor-pointer ${
-                  isDark ? 'text-[#8E8E93]' : 'text-[#6E6E73]'
-                }`}
-              >
-                Pular
-              </button>
-            )}
-          </div>
         </div>
 
-        {/* Discrete iOS Segmented Progress Bar (Steps 1..5) */}
-        {step <= TOTAL_QUESTION_STEPS && (
-          <div className="w-full flex items-center gap-1.5" aria-hidden="true">
-            {[1, 2, 3, 4, 5].map((idx) => {
-              const isCompletedOrCurrent = idx <= step;
-              return (
-                <div
-                  key={idx}
-                  className={`h-[3px] flex-1 rounded-full overflow-hidden transition-colors duration-300 ${
-                    isDark ? 'bg-white/12' : 'bg-black/[0.08]'
-                  }`}
-                >
-                  <motion.div
-                    initial={false}
-                    animate={{
-                      width: isCompletedOrCurrent ? '100%' : '0%',
-                    }}
-                    transition={{ duration: 0.32, ease: [0.22, 1, 0.36, 1] }}
-                    className={`h-full rounded-full ${
-                      isDark ? 'bg-[#FFFFFF]' : 'bg-[#080808]'
-                    }`}
-                  />
-                </div>
-              );
-            })}
-          </div>
-        )}
+        {/* 4 Bolinhas Alinhadas Horizontalmente (Etapa atual em preto, futuras em cinza-claro) */}
+        <div
+          className="flex items-center justify-center gap-3"
+          role="progressbar"
+          aria-valuenow={step}
+          aria-valuemin={1}
+          aria-valuemax={TOTAL_STEPS}
+          aria-label={`Etapa ${step} de ${TOTAL_STEPS}`}
+        >
+          {[1, 2, 3, 4].map((dotIdx) => {
+            const isCurrent = dotIdx === step;
+            return (
+              <motion.span
+                key={dotIdx}
+                layout
+                transition={{ duration: 0.25, ease: [0.22, 1, 0.36, 1] }}
+                className={`block w-3 h-3 rounded-full transition-colors duration-300 ${
+                  isCurrent
+                    ? isDark
+                      ? 'bg-[#FFFFFF]'
+                      : 'bg-[#080808]'
+                    : isDark
+                      ? 'bg-[#2C2C2E]'
+                      : 'bg-[#E2E2E7]'
+                }`}
+              />
+            );
+          })}
+        </div>
+
+        <div className="w-11 h-11" />
       </header>
 
-      {/* Main Step Content Area */}
-      <div className="flex-1 w-full max-w-md mx-auto px-6 overflow-y-auto scrollbar-none flex flex-col justify-between py-6">
+      {/* Main Step Viewport */}
+      <div className="flex-1 w-full max-w-md mx-auto px-6 overflow-y-auto scrollbar-none flex flex-col justify-between py-4">
         <AnimatePresence mode="wait" custom={direction}>
           {/* ============================================================== */}
-          {/* TELA 1 — SUA RELAÇÃO COM CAMPOS                                */}
+          {/* TELA 1 — RELAÇÃO COM CAMPOS DO JORDÃO                          */}
           {/* ============================================================== */}
           {step === 1 && (
             <motion.div
@@ -894,24 +998,24 @@ export const OnboardingFlow: React.FC<OnboardingFlowProps> = ({
               initial="enter"
               animate="center"
               exit="exit"
-              transition={{ duration: 0.28, ease: [0.22, 1, 0.36, 1] }}
+              transition={{ duration: 0.26, ease: [0.22, 1, 0.36, 1] }}
               className="flex-1 flex flex-col justify-between gap-6"
             >
               <div className="space-y-6">
                 <div className="space-y-2.5 pt-2">
-                  <h1 className="text-[28px] sm:text-[31px] font-bold tracking-[-0.03em] leading-[1.14]">
+                  <h1 className="text-[29px] sm:text-[32px] font-bold tracking-[-0.03em] leading-[1.12]">
                     Qual é a sua relação com Campos do Jordão?
                   </h1>
                   <p
-                    className={`text-[15px] leading-relaxed font-normal ${
+                    className={`text-[15.5px] leading-[1.42] font-normal ${
                       isDark ? 'text-[#8E8E93]' : 'text-[#6E6E73]'
                     }`}
                   >
-                    Queremos conhecer você para tornar sua experiência no Monvian ainda melhor.
+                    Queremos conhecer você para tornar sua experiência ainda melhor.
                   </p>
                 </div>
 
-                <div className="space-y-3 pt-1">
+                <div className="space-y-3.5 pt-1">
                   {CAMPOS_RELATIONSHIP_OPTIONS.map((option) => {
                     const Icon = option.icon;
                     const isSelected = camposRelationship === option.value;
@@ -923,43 +1027,42 @@ export const OnboardingFlow: React.FC<OnboardingFlowProps> = ({
                           setCamposRelationship(option.value);
                           goToStep(2, { campos_relationship: option.value });
                         }}
-                        className={`w-full p-4 rounded-[22px] border text-left transition-all duration-200 active:scale-[0.985] cursor-pointer flex items-center justify-between gap-3.5 ${
-                          isSelected
-                            ? isDark
-                              ? 'bg-[#FFFFFF] text-[#080808] border-[#FFFFFF] shadow-sm'
-                              : 'bg-[#080808] text-[#FFFFFF] border-[#080808] shadow-sm'
-                            : isDark
-                              ? 'bg-[#1C1C1E] text-[#FFFFFF] border-white/10 hover:bg-[#242426]'
-                              : 'bg-[#F8F8FA] text-[#080808] border-black/[0.06] hover:bg-[#F0F0F3]'
+                        className={`w-full p-4 sm:p-4.5 rounded-[28px] border text-left transition-all duration-200 active:scale-[0.985] cursor-pointer flex items-center justify-between gap-3.5 ${
+                          isDark
+                            ? isSelected
+                              ? 'bg-[#1C1C1E] border-white/25 shadow-[0_10px_28px_-10px_rgba(0,0,0,0.65)]'
+                              : 'bg-[#141416] border-white/[0.08] hover:bg-[#1C1C1E]'
+                            : isSelected
+                              ? 'bg-[#F9F9FB] border-black/[0.09] shadow-[0_10px_26px_-10px_rgba(0,0,0,0.08)]'
+                              : 'bg-[#FBFBFD] border-black/[0.06] shadow-[0_6px_20px_-10px_rgba(0,0,0,0.05)] hover:bg-[#F5F5F8]'
                         }`}
                       >
-                        <div className="flex items-center gap-3.5 min-w-0">
+                        <div className="flex items-center gap-4 min-w-0">
+                          {/* Tactile 3D-Depth Squircle Icon Badge */}
                           <div
-                            className={`w-11 h-11 rounded-2xl flex items-center justify-center shrink-0 transition-colors ${
-                              isSelected
-                                ? isDark
-                                  ? 'bg-black/10 text-[#080808]'
-                                  : 'bg-white/15 text-[#FFFFFF]'
-                                : isDark
-                                  ? 'bg-white/[0.07] text-[#FFFFFF]'
-                                  : 'bg-black/[0.05] text-[#080808]'
+                            className={`w-[58px] h-[58px] rounded-[20px] flex items-center justify-center shrink-0 border ${
+                              isDark
+                                ? 'bg-gradient-to-b from-[#2C2C2E] to-[#1C1C1E] border-white/10 shadow-[0_6px_14px_rgba(0,0,0,0.45)]'
+                                : 'bg-gradient-to-b from-[#FFFFFF] to-[#EFEFF4] border-white shadow-[0_6px_14px_rgba(0,0,0,0.07),inset_0_1px_1px_rgba(255,255,255,0.95)]'
                             }`}
                           >
-                            <Icon className="w-5 h-5 stroke-[1.9]" />
+                            <Icon
+                              className="w-[26px] h-[26px] stroke-[2.2]"
+                              style={{
+                                filter: isDark
+                                  ? 'drop-shadow(0 2px 3px rgba(0,0,0,0.5))'
+                                  : 'drop-shadow(0 2px 3px rgba(0,0,0,0.16))',
+                              }}
+                            />
                           </div>
+
                           <div className="min-w-0">
-                            <p className="text-[16px] font-semibold tracking-[-0.015em] leading-snug">
+                            <p className="text-[16.5px] font-bold tracking-[-0.02em] leading-snug">
                               {option.label}
                             </p>
                             <p
-                              className={`text-[12.5px] mt-0.5 leading-snug ${
-                                isSelected
-                                  ? isDark
-                                    ? 'text-black/65'
-                                    : 'text-white/75'
-                                  : isDark
-                                    ? 'text-[#8E8E93]'
-                                    : 'text-[#6E6E73]'
+                              className={`text-[13.5px] mt-0.5 leading-snug ${
+                                isDark ? 'text-[#8E8E93]' : 'text-[#6E6E73]'
                               }`}
                             >
                               {option.subtitle}
@@ -967,46 +1070,38 @@ export const OnboardingFlow: React.FC<OnboardingFlowProps> = ({
                           </div>
                         </div>
 
+                        {/* Animated iOS Radio Circle */}
                         <div
-                          className={`w-6 h-6 rounded-full flex items-center justify-center shrink-0 border transition-all ${
+                          className={`w-[25px] h-[25px] rounded-full flex items-center justify-center shrink-0 transition-all ${
                             isSelected
                               ? isDark
-                                ? 'bg-[#080808] text-[#FFFFFF] border-[#080808]'
-                                : 'bg-[#FFFFFF] text-[#080808] border-[#FFFFFF]'
+                                ? 'border-[2px] border-[#FFFFFF]'
+                                : 'border-[2px] border-[#080808]'
                               : isDark
-                                ? 'border-white/20'
-                                : 'border-black/15'
+                                ? 'border-[1.6px] border-white/20'
+                                : 'border-[1.6px] border-[#D1D1D6]'
                           }`}
                         >
-                          {isSelected && <Check className="w-3.5 h-3.5 stroke-[2.8]" />}
+                          {isSelected && (
+                            <motion.span
+                              initial={{ scale: 0.4, opacity: 0 }}
+                              animate={{ scale: 1, opacity: 1 }}
+                              className={`w-[13px] h-[13px] rounded-full ${
+                                isDark ? 'bg-[#FFFFFF]' : 'bg-[#080808]'
+                              }`}
+                            />
+                          )}
                         </div>
                       </button>
                     );
                   })}
                 </div>
               </div>
-
-              {camposRelationship && (
-                <div className="pt-2">
-                  <button
-                    type="button"
-                    onClick={() => goToStep(2)}
-                    className={`w-full h-[54px] rounded-full font-semibold text-[16px] tracking-[-0.01em] flex items-center justify-center gap-2 transition-all active:scale-[0.985] cursor-pointer ${
-                      isDark
-                        ? 'bg-[#FFFFFF] text-[#080808] hover:bg-zinc-200'
-                        : 'bg-[#080808] text-[#FFFFFF] hover:bg-zinc-900'
-                    }`}
-                  >
-                    <span>Continuar</span>
-                    <ArrowRight className="w-4 h-4 stroke-[2.3]" />
-                  </button>
-                </div>
-              )}
             </motion.div>
           )}
 
           {/* ============================================================== */}
-          {/* TELA 2 — QUANDO VOCÊ PRETENDE VISITAR?                         */}
+          {/* TELA 2 — DATA DA VIAGEM (CALENDÁRIO INTERATIVO DE PERÍODO)     */}
           {/* ============================================================== */}
           {step === 2 && (
             <motion.div
@@ -1016,228 +1111,239 @@ export const OnboardingFlow: React.FC<OnboardingFlowProps> = ({
               initial="enter"
               animate="center"
               exit="exit"
-              transition={{ duration: 0.28, ease: [0.22, 1, 0.36, 1] }}
-              className="flex-1 flex flex-col justify-between gap-6"
+              transition={{ duration: 0.26, ease: [0.22, 1, 0.36, 1] }}
+              className="flex-1 flex flex-col justify-between gap-4"
             >
-              <div className="space-y-5">
-                <div className="space-y-2 pt-2">
-                  <h1 className="text-[28px] sm:text-[31px] font-bold tracking-[-0.03em] leading-[1.14]">
+              <div className="space-y-4">
+                <div className="space-y-1.5 pt-1">
+                  <h1 className="text-[28px] sm:text-[31px] font-bold tracking-[-0.03em] leading-[1.12]">
                     Quando será sua próxima experiência em Campos?
                   </h1>
-                  {isOptionalVisitTiming && (
-                    <p
-                      className={`text-[14px] leading-relaxed ${
-                        isDark ? 'text-[#8E8E93]' : 'text-[#6E6E73]'
-                      }`}
-                    >
-                      Esta etapa é opcional para você. Escolha uma opção ou pule para continuar.
-                    </p>
-                  )}
-                </div>
-
-                <div className="space-y-2.5 pt-1">
-                  {NEXT_TRIP_TIMING_OPTIONS.map((option) => {
-                    const Icon = option.icon;
-                    const isSelected = nextTripTiming === option.value;
-                    return (
-                      <button
-                        key={option.id}
-                        type="button"
-                        onClick={() => {
-                          setNextTripTiming(option.value);
-                          goToStep(3, { next_trip_timing: option.value });
-                        }}
-                        className={`w-full p-4 rounded-[22px] border text-left transition-all duration-200 active:scale-[0.985] cursor-pointer flex items-center justify-between gap-3.5 ${
-                          isSelected
-                            ? isDark
-                              ? 'bg-[#FFFFFF] text-[#080808] border-[#FFFFFF] shadow-sm'
-                              : 'bg-[#080808] text-[#FFFFFF] border-[#080808] shadow-sm'
-                            : isDark
-                              ? 'bg-[#1C1C1E] text-[#FFFFFF] border-white/10 hover:bg-[#242426]'
-                              : 'bg-[#F8F8FA] text-[#080808] border-black/[0.06] hover:bg-[#F0F0F3]'
-                        }`}
-                      >
-                        <div className="flex items-center gap-3.5 min-w-0">
-                          <div
-                            className={`w-10.5 h-10.5 rounded-2xl flex items-center justify-center shrink-0 transition-colors ${
-                              isSelected
-                                ? isDark
-                                  ? 'bg-black/10 text-[#080808]'
-                                  : 'bg-white/15 text-[#FFFFFF]'
-                                : isDark
-                                  ? 'bg-white/[0.07] text-[#FFFFFF]'
-                                  : 'bg-black/[0.05] text-[#080808]'
-                            }`}
-                          >
-                            <Icon className="w-5 h-5 stroke-[1.9]" />
-                          </div>
-                          <div className="min-w-0">
-                            <p className="text-[16px] font-semibold tracking-[-0.015em] leading-snug">
-                              {option.label}
-                            </p>
-                            <p
-                              className={`text-[12.5px] mt-0.5 leading-snug ${
-                                isSelected
-                                  ? isDark
-                                    ? 'text-black/65'
-                                    : 'text-white/75'
-                                  : isDark
-                                    ? 'text-[#8E8E93]'
-                                    : 'text-[#6E6E73]'
-                              }`}
-                            >
-                              {option.subtitle}
-                            </p>
-                          </div>
-                        </div>
-
-                        <div
-                          className={`w-6 h-6 rounded-full flex items-center justify-center shrink-0 border transition-all ${
-                            isSelected
-                              ? isDark
-                                ? 'bg-[#080808] text-[#FFFFFF] border-[#080808]'
-                                : 'bg-[#FFFFFF] text-[#080808] border-[#FFFFFF]'
-                              : isDark
-                                ? 'border-white/20'
-                                : 'border-black/15'
-                          }`}
-                        >
-                          {isSelected && <Check className="w-3.5 h-3.5 stroke-[2.8]" />}
-                        </div>
-                      </button>
-                    );
-                  })}
-
-                  {/* Optional Calendar Specific Date Selector */}
-                  <div
-                    className={`rounded-[22px] border p-4 transition-all ${
-                      showDatePicker || nextTripDate
-                        ? isDark
-                          ? 'bg-[#1C1C1E] border-white/25'
-                          : 'bg-[#F8F8FA] border-black/20'
-                        : isDark
-                          ? 'bg-[#1C1C1E]/70 border-white/10'
-                          : 'bg-[#F8F8FA]/80 border-black/[0.06]'
+                  <p
+                    className={`text-[15.5px] leading-snug font-normal ${
+                      isDark ? 'text-[#8E8E93]' : 'text-[#6E6E73]'
                     }`}
                   >
+                    Escolha o período da sua viagem.
+                  </p>
+                </div>
+
+                {/* Interactive Calendar Card */}
+                <div
+                  className={`rounded-[30px] p-5 border ${
+                    isDark
+                      ? 'bg-[#1C1C1E] border-white/10 shadow-[0_12px_30px_-10px_rgba(0,0,0,0.65)]'
+                      : 'bg-[#FBFBFD] border-black/[0.05] shadow-[0_12px_32px_-12px_rgba(0,0,0,0.07)]'
+                  }`}
+                >
+                  {/* Month Navigation Header */}
+                  <div className="flex items-center justify-between mb-4 px-1">
+                    <button
+                      type="button"
+                      onClick={handlePrevMonth}
+                      aria-label="Mês anterior"
+                      className={`w-8 h-8 rounded-full flex items-center justify-center transition-opacity hover:opacity-70 active:scale-95 cursor-pointer ${
+                        isDark ? 'text-white' : 'text-[#080808]'
+                      }`}
+                    >
+                      <ChevronLeft className="w-5 h-5 stroke-[2.2]" />
+                    </button>
+
+                    <span className="text-[16.5px] font-bold tracking-[-0.02em]">
+                      {MONTH_NAMES_PT[calendarMonth.monthIndex]} de {calendarMonth.year}
+                    </span>
+
+                    <button
+                      type="button"
+                      onClick={handleNextMonth}
+                      aria-label="Próximo mês"
+                      className={`w-8 h-8 rounded-full flex items-center justify-center transition-opacity hover:opacity-70 active:scale-95 cursor-pointer ${
+                        isDark ? 'text-white' : 'text-[#080808]'
+                      }`}
+                    >
+                      <ChevronRight className="w-5 h-5 stroke-[2.2]" />
+                    </button>
+                  </div>
+
+                  {/* Weekday Labels */}
+                  <div className="grid grid-cols-7 text-center mb-2">
+                    {WEEKDAYS_PT.map((wd) => (
+                      <span
+                        key={wd}
+                        className={`text-[12.5px] font-medium py-1 ${
+                          isDark ? 'text-[#8E8E93]' : 'text-[#8E8E93]'
+                        }`}
+                      >
+                        {wd}
+                      </span>
+                    ))}
+                  </div>
+
+                  {/* Days Grid with Continuous Period Highlight */}
+                  <div className="grid grid-cols-7 gap-y-1.5 text-center">
+                    {calendarCells.map((cell, idx) => {
+                      if (!cell.day) {
+                        return <div key={cell.iso} className="h-[40px]" />;
+                      }
+
+                      const effectiveEnd = departureDate || arrivalDate;
+                      const isRangeActive =
+                        !hasNoDefinedDate && Boolean(arrivalDate);
+                      const isStart = isRangeActive && cell.iso === arrivalDate;
+                      const isEnd = isRangeActive && cell.iso === effectiveEnd;
+                      const isInRange =
+                        isRangeActive &&
+                        cell.iso >= arrivalDate &&
+                        cell.iso <= effectiveEnd;
+                      const isSingleDay = isStart && isEnd;
+
+                      const colIndex = idx % 7;
+                      const isRowStart = colIndex === 0;
+                      const isRowEnd = colIndex === 6;
+
+                      const roundLeft = isStart || (isInRange && isRowStart);
+                      const roundRight = isEnd || (isInRange && isRowEnd);
+
+                      return (
+                        <div
+                          key={cell.iso}
+                          className="relative h-[40px] flex items-center justify-center"
+                        >
+                          {/* Continuous Pill Track across Selected Period */}
+                          {isInRange && (
+                            <div
+                              className={`absolute inset-y-[2px] inset-x-0 ${
+                                isDark ? 'bg-[#FFFFFF]' : 'bg-[#111113]'
+                              } ${
+                                isSingleDay
+                                  ? 'rounded-full mx-auto w-[38px]'
+                                  : `${roundLeft ? 'rounded-l-full left-[2px]' : ''} ${
+                                      roundRight ? 'rounded-r-full right-[2px]' : ''
+                                    }`
+                              }`}
+                            />
+                          )}
+
+                          <button
+                            type="button"
+                            onClick={() => handleSelectCalendarDay(cell.iso)}
+                            className={`relative z-10 w-[36px] h-[36px] rounded-full text-[15px] font-semibold tracking-[-0.01em] flex items-center justify-center transition-transform active:scale-90 cursor-pointer ${
+                              isInRange
+                                ? isDark
+                                  ? 'text-[#080808] font-bold'
+                                  : 'text-[#FFFFFF] font-bold'
+                                : isDark
+                                  ? 'text-[#FFFFFF] hover:bg-white/10'
+                                  : 'text-[#080808] hover:bg-black/[0.05]'
+                            }`}
+                          >
+                            {cell.day}
+                          </button>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                {/* Selected Trip Summary Card (Matches Image 3) */}
+                {tripSummaryLabel && (
+                  <motion.div
+                    initial={{ opacity: 0, y: 6 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    className={`rounded-[24px] p-3.5 px-4 border flex items-center justify-between gap-3 ${
+                      isDark
+                        ? 'bg-[#1C1C1E] border-white/10'
+                        : 'bg-[#FBFBFD] border-black/[0.06] shadow-[0_6px_18px_-8px_rgba(0,0,0,0.05)]'
+                    }`}
+                  >
+                    <div className="flex items-center gap-3.5 min-w-0">
+                      <div
+                        className={`w-[50px] h-[50px] rounded-[16px] flex items-center justify-center shrink-0 border ${
+                          isDark
+                            ? 'bg-gradient-to-b from-[#2C2C2E] to-[#1C1C1E] border-white/10'
+                            : 'bg-gradient-to-b from-[#FFFFFF] to-[#EFEFF4] border-white shadow-[0_4px_10px_rgba(0,0,0,0.07)]'
+                        }`}
+                      >
+                        <Calendar className="w-[23px] h-[23px] stroke-[2.1]" />
+                      </div>
+                      <div className="min-w-0">
+                        <p className="text-[14.5px] font-bold tracking-[-0.01em]">
+                          Sua viagem:
+                        </p>
+                        <p className="text-[15.5px] font-bold tracking-[-0.02em] truncate">
+                          {tripSummaryLabel}
+                        </p>
+                      </div>
+                    </div>
+
                     <button
                       type="button"
                       onClick={() => {
                         triggerSubtleHaptic();
-                        setShowDatePicker((prev) => !prev);
+                        setArrivalDate('');
+                        setDepartureDate('');
                       }}
-                      className="w-full flex items-center justify-between gap-3 text-left cursor-pointer"
+                      aria-label="Editar datas da viagem"
+                      className={`w-9 h-9 rounded-full flex items-center justify-center shrink-0 transition-colors cursor-pointer ${
+                        isDark
+                          ? 'bg-white/10 text-white hover:bg-white/15'
+                          : 'bg-[#F2F2F6] text-[#080808] hover:bg-[#E6E6EC]'
+                      }`}
                     >
-                      <div className="flex items-center gap-3.5">
-                        <div
-                          className={`w-10.5 h-10.5 rounded-2xl flex items-center justify-center shrink-0 ${
-                            isDark
-                              ? 'bg-white/[0.07] text-[#FFFFFF]'
-                              : 'bg-black/[0.05] text-[#080808]'
-                          }`}
-                        >
-                          <Calendar className="w-5 h-5 stroke-[1.9]" />
-                        </div>
-                        <div>
-                          <p className="text-[15px] font-semibold tracking-[-0.01em]">
-                            Selecionar data específica
-                          </p>
-                          <p
-                            className={`text-[12px] ${
-                              isDark ? 'text-[#8E8E93]' : 'text-[#6E6E73]'
-                            }`}
-                          >
-                            {nextTripDate
-                              ? `Data escolhida: ${nextTripDate.split('-').reverse().join('/')}`
-                              : 'Opcional — escolha no calendário'}
-                          </p>
-                        </div>
-                      </div>
+                      <Pencil className="w-4 h-4 stroke-[2.1]" />
                     </button>
-
-                    {(showDatePicker || nextTripDate) && (
-                      <div className="mt-3.5 pt-3 border-t border-black/5 dark:border-white/10 flex items-center gap-2.5">
-                        <input
-                          type="date"
-                          value={nextTripDate}
-                          min={new Date().toISOString().split('T')[0]}
-                          onChange={(e) => {
-                            const val = e.target.value;
-                            setNextTripDate(val);
-                            if (val && !nextTripTiming) {
-                              setNextTripTiming('Data específica planejada.');
-                            }
-                          }}
-                          className={`flex-1 px-3.5 py-2.5 rounded-xl border text-[14px] font-medium focus:outline-none ${
-                            isDark
-                              ? 'bg-[#000000] border-white/15 text-white'
-                              : 'bg-white border-black/10 text-[#080808]'
-                          }`}
-                        />
-                        {nextTripDate && (
-                          <button
-                            type="button"
-                            onClick={() =>
-                              goToStep(3, {
-                                next_trip_date: nextTripDate,
-                                next_trip_timing:
-                                  nextTripTiming || 'Data específica planejada.',
-                              })
-                            }
-                            className={`px-4 py-2.5 rounded-xl text-[13.5px] font-semibold cursor-pointer transition-all active:scale-95 ${
-                              isDark
-                                ? 'bg-[#FFFFFF] text-[#080808]'
-                                : 'bg-[#080808] text-[#FFFFFF]'
-                            }`}
-                          >
-                            Confirmar
-                          </button>
-                        )}
-                      </div>
-                    )}
-                  </div>
-                </div>
+                  </motion.div>
+                )}
               </div>
 
-              <div className="pt-2 flex flex-col gap-2.5">
-                {(nextTripTiming || nextTripDate) && (
-                  <button
-                    type="button"
-                    onClick={() => goToStep(3)}
-                    className={`w-full h-[54px] rounded-full font-semibold text-[16px] tracking-[-0.01em] flex items-center justify-center gap-2 transition-all active:scale-[0.985] cursor-pointer ${
-                      isDark
-                        ? 'bg-[#FFFFFF] text-[#080808] hover:bg-zinc-200'
-                        : 'bg-[#080808] text-[#FFFFFF] hover:bg-zinc-900'
-                    }`}
-                  >
-                    <span>Continuar</span>
-                    <ArrowRight className="w-4 h-4 stroke-[2.3]" />
-                  </button>
-                )}
+              {/* Bottom Action Buttons: "Ainda não tenho uma data" + "Próximo >" */}
+              <div className="space-y-2.5 pt-1">
+                <button
+                  type="button"
+                  onClick={() => {
+                    triggerSubtleHaptic();
+                    setHasNoDefinedDate(true);
+                    setArrivalDate('');
+                    setDepartureDate('');
+                    goToStep(3, {
+                      next_trip_timing: 'Ainda não tenho uma data.',
+                      next_trip_date: '',
+                    });
+                  }}
+                  className={`w-full h-[52px] rounded-full font-semibold text-[15.5px] tracking-[-0.01em] transition-all active:scale-[0.985] cursor-pointer border ${
+                    hasNoDefinedDate
+                      ? isDark
+                        ? 'bg-white/15 border-white/30 text-white'
+                        : 'bg-[#EFEFF4] border-black/15 text-[#080808]'
+                      : isDark
+                        ? 'bg-[#1C1C1E] border-white/10 text-white hover:bg-[#252528]'
+                        : 'bg-[#F9F9FB] border-black/[0.07] text-[#080808] hover:bg-[#F2F2F6]'
+                  }`}
+                >
+                  Ainda não tenho uma data
+                </button>
 
-                {isOptionalVisitTiming && !nextTripTiming && !nextTripDate && (
-                  <button
-                    type="button"
-                    onClick={() =>
-                      goToStep(3, {
-                        next_trip_timing: 'Ainda não tenho uma data.',
-                      })
-                    }
-                    className={`w-full h-[50px] rounded-full font-semibold text-[15px] transition-all active:scale-[0.985] cursor-pointer border ${
-                      isDark
-                        ? 'bg-[#1C1C1E] text-white border-white/10 hover:bg-[#2C2C2E]'
-                        : 'bg-[#F5F5F7] text-[#080808] border-black/[0.06] hover:bg-[#EBEBED]'
-                    }`}
-                  >
-                    Pular esta etapa
-                  </button>
-                )}
+                <button
+                  type="button"
+                  onClick={() => {
+                    const tripVals = buildTripDateValues();
+                    goToStep(3, tripVals);
+                  }}
+                  className={`w-full h-[56px] rounded-full font-semibold text-[16.5px] tracking-[-0.015em] flex items-center justify-center gap-2 transition-all active:scale-[0.985] cursor-pointer ${
+                    isDark
+                      ? 'bg-[#FFFFFF] text-[#080808] hover:bg-zinc-200'
+                      : 'bg-[#080808] text-[#FFFFFF] hover:bg-zinc-900'
+                  }`}
+                >
+                  <span>Próximo</span>
+                  <ChevronRight className="w-5 h-5 stroke-[2.4]" />
+                </button>
               </div>
             </motion.div>
           )}
 
           {/* ============================================================== */}
-          {/* TELA 3 — SEUS INTERESSES (MÚLTIPLA ESCOLHA EM GRADE)           */}
+          {/* TELA 3 — PREFERÊNCIAS (GRADE 2 COLUNAS COM ÍCONES 3D DISCRETOS) */}
           {/* ============================================================== */}
           {step === 3 && (
             <motion.div
@@ -1247,16 +1353,16 @@ export const OnboardingFlow: React.FC<OnboardingFlowProps> = ({
               initial="enter"
               animate="center"
               exit="exit"
-              transition={{ duration: 0.28, ease: [0.22, 1, 0.36, 1] }}
-              className="flex-1 flex flex-col justify-between gap-6"
+              transition={{ duration: 0.26, ease: [0.22, 1, 0.36, 1] }}
+              className="flex-1 flex flex-col justify-between gap-5"
             >
-              <div className="space-y-5">
-                <div className="space-y-2 pt-2">
-                  <h1 className="text-[28px] sm:text-[31px] font-bold tracking-[-0.03em] leading-[1.14]">
+              <div className="space-y-4">
+                <div className="space-y-2 pt-1">
+                  <h1 className="text-[29px] sm:text-[32px] font-bold tracking-[-0.03em] leading-[1.12]">
                     O que você gosta de descobrir?
                   </h1>
                   <p
-                    className={`text-[15px] leading-relaxed font-normal ${
+                    className={`text-[15.5px] leading-snug font-normal ${
                       isDark ? 'text-[#8E8E93]' : 'text-[#6E6E73]'
                     }`}
                   >
@@ -1264,56 +1370,65 @@ export const OnboardingFlow: React.FC<OnboardingFlowProps> = ({
                   </p>
                 </div>
 
-                <div className="grid grid-cols-2 gap-3 pt-1">
+                {/* 2-Column Visual Grid Matching Reference Image 4 */}
+                <div className="grid grid-cols-2 gap-3.5 pt-1">
                   {INTEREST_CATEGORY_OPTIONS.map((item) => {
-                    const Icon = item.icon;
                     const isSelected = interestCategories.includes(item.value);
                     return (
                       <button
                         key={item.id}
                         type="button"
                         onClick={() => handleToggleInterest(item.value)}
-                        className={`p-4 rounded-[22px] border text-left transition-all duration-200 active:scale-[0.97] cursor-pointer flex flex-col justify-between min-h-[112px] relative ${
-                          isSelected
-                            ? isDark
-                              ? 'bg-[#FFFFFF] text-[#080808] border-[#FFFFFF] shadow-sm'
-                              : 'bg-[#080808] text-[#FFFFFF] border-[#080808] shadow-sm'
-                            : isDark
-                              ? 'bg-[#1C1C1E] text-[#FFFFFF] border-white/10 hover:bg-[#242426]'
-                              : 'bg-[#F8F8FA] text-[#080808] border-black/[0.06] hover:bg-[#F0F0F3]'
+                        className={`p-4 rounded-[26px] border text-left transition-all duration-200 active:scale-[0.975] cursor-pointer flex flex-col justify-between min-h-[126px] ${
+                          isDark
+                            ? isSelected
+                              ? 'bg-[#1C1C1E] border-white/30 shadow-[0_8px_24px_-8px_rgba(0,0,0,0.65)]'
+                              : 'bg-[#141416] border-white/[0.08] hover:bg-[#1C1C1E]'
+                            : isSelected
+                              ? 'bg-[#F8F8FA] border-black/20 shadow-[0_10px_26px_-10px_rgba(0,0,0,0.09)]'
+                              : 'bg-[#FBFBFD] border-black/[0.06] shadow-[0_6px_18px_-8px_rgba(0,0,0,0.05)] hover:bg-[#F5F5F8]'
                         }`}
                       >
                         <div className="w-full flex items-center justify-between">
+                          {/* Circular 3D-Depth Badge */}
                           <div
-                            className={`w-10 h-10 rounded-2xl flex items-center justify-center transition-colors ${
-                              isSelected
-                                ? isDark
-                                  ? 'bg-black/10 text-[#080808]'
-                                  : 'bg-white/15 text-[#FFFFFF]'
-                                : isDark
-                                  ? 'bg-white/[0.07] text-[#FFFFFF]'
-                                  : 'bg-black/[0.05] text-[#080808]'
+                            className={`w-[52px] h-[52px] rounded-full flex items-center justify-center border ${
+                              isDark
+                                ? 'bg-gradient-to-b from-[#2C2C2E] to-[#1C1C1E] border-white/10 shadow-[0_6px_12px_rgba(0,0,0,0.45)]'
+                                : 'bg-gradient-to-b from-[#FFFFFF] to-[#EFEFF4] border-white shadow-[0_6px_14px_rgba(0,0,0,0.07),inset_0_1px_1px_rgba(255,255,255,0.95)]'
                             }`}
                           >
-                            <Icon className="w-5 h-5 stroke-[1.9]" />
+                            <Monochrome3DCategoryIcon
+                              categoryId={item.id}
+                              isDark={isDark}
+                            />
                           </div>
 
+                          {/* Selection Circle */}
                           <div
-                            className={`w-5.5 h-5.5 rounded-full flex items-center justify-center border transition-all ${
+                            className={`w-[23px] h-[23px] rounded-full flex items-center justify-center transition-all ${
                               isSelected
                                 ? isDark
-                                  ? 'bg-[#080808] text-[#FFFFFF] border-[#080808]'
-                                  : 'bg-[#FFFFFF] text-[#080808] border-[#FFFFFF]'
+                                  ? 'border-[2px] border-[#FFFFFF]'
+                                  : 'border-[2px] border-[#080808]'
                                 : isDark
-                                  ? 'border-white/20'
-                                  : 'border-black/15'
+                                  ? 'border-[1.5px] border-white/20'
+                                  : 'border-[1.5px] border-[#D1D1D6]'
                             }`}
                           >
-                            {isSelected && <Check className="w-3 h-3 stroke-[3]" />}
+                            {isSelected && (
+                              <motion.span
+                                initial={{ scale: 0.4, opacity: 0 }}
+                                animate={{ scale: 1, opacity: 1 }}
+                                className={`w-[12px] h-[12px] rounded-full ${
+                                  isDark ? 'bg-[#FFFFFF]' : 'bg-[#080808]'
+                                }`}
+                              />
+                            )}
                           </div>
                         </div>
 
-                        <p className="text-[14.5px] font-semibold tracking-[-0.015em] leading-snug mt-3">
+                        <p className="text-[15px] font-bold tracking-[-0.02em] leading-[1.22] mt-3">
                           {item.label}
                         </p>
                       </button>
@@ -1322,34 +1437,27 @@ export const OnboardingFlow: React.FC<OnboardingFlowProps> = ({
                 </div>
               </div>
 
-              <div className="pt-2">
+              <div className="pt-1">
                 <button
                   type="button"
-                  disabled={interestCategories.length === 0}
                   onClick={() =>
                     goToStep(4, { interest_categories: interestCategories })
                   }
-                  className={`w-full h-[54px] rounded-full font-semibold text-[16px] tracking-[-0.01em] flex items-center justify-center gap-2 transition-all active:scale-[0.985] cursor-pointer disabled:opacity-35 disabled:pointer-events-none ${
+                  className={`w-full h-[56px] rounded-full font-semibold text-[16.5px] tracking-[-0.015em] flex items-center justify-center gap-2 transition-all active:scale-[0.985] cursor-pointer ${
                     isDark
                       ? 'bg-[#FFFFFF] text-[#080808] hover:bg-zinc-200'
                       : 'bg-[#080808] text-[#FFFFFF] hover:bg-zinc-900'
                   }`}
                 >
-                  <span>
-                    {interestCategories.length > 0
-                      ? `Continuar (${interestCategories.length})`
-                      : 'Selecione ao menos uma opção'}
-                  </span>
-                  {interestCategories.length > 0 && (
-                    <ArrowRight className="w-4 h-4 stroke-[2.3]" />
-                  )}
+                  <span>Próximo</span>
+                  <ChevronRight className="w-5 h-5 stroke-[2.4]" />
                 </button>
               </div>
             </motion.div>
           )}
 
           {/* ============================================================== */}
-          {/* TELA 4 — COM QUEM VOCÊ COSTUMA VIAJAR?                         */}
+          {/* TELA 4 — LOCALIZAÇÃO (PEDESTAL 3D + PERMISSÃO NATIVA IPHONE)   */}
           {/* ============================================================== */}
           {step === 4 && (
             <motion.div
@@ -1359,159 +1467,81 @@ export const OnboardingFlow: React.FC<OnboardingFlowProps> = ({
               initial="enter"
               animate="center"
               exit="exit"
-              transition={{ duration: 0.28, ease: [0.22, 1, 0.36, 1] }}
-              className="flex-1 flex flex-col justify-between gap-6"
-            >
-              <div className="space-y-5">
-                <div className="space-y-2 pt-2">
-                  <h1 className="text-[28px] sm:text-[31px] font-bold tracking-[-0.03em] leading-[1.14]">
-                    Quem costuma acompanhar suas viagens?
-                  </h1>
-                </div>
-
-                <div className="space-y-2.5 pt-1">
-                  {TRAVEL_COMPANY_OPTIONS.map((option) => {
-                    const Icon = option.icon;
-                    const isSelected = travelCompany === option.value;
-                    return (
-                      <button
-                        key={option.id}
-                        type="button"
-                        onClick={() => {
-                          setTravelCompany(option.value);
-                          goToStep(5, { travel_company: option.value });
-                        }}
-                        className={`w-full p-4 rounded-[22px] border text-left transition-all duration-200 active:scale-[0.985] cursor-pointer flex items-center justify-between gap-3.5 ${
-                          isSelected
-                            ? isDark
-                              ? 'bg-[#FFFFFF] text-[#080808] border-[#FFFFFF] shadow-sm'
-                              : 'bg-[#080808] text-[#FFFFFF] border-[#080808] shadow-sm'
-                            : isDark
-                              ? 'bg-[#1C1C1E] text-[#FFFFFF] border-white/10 hover:bg-[#242426]'
-                              : 'bg-[#F8F8FA] text-[#080808] border-black/[0.06] hover:bg-[#F0F0F3]'
-                        }`}
-                      >
-                        <div className="flex items-center gap-3.5 min-w-0">
-                          <div
-                            className={`w-10.5 h-10.5 rounded-2xl flex items-center justify-center shrink-0 transition-colors ${
-                              isSelected
-                                ? isDark
-                                  ? 'bg-black/10 text-[#080808]'
-                                  : 'bg-white/15 text-[#FFFFFF]'
-                                : isDark
-                                  ? 'bg-white/[0.07] text-[#FFFFFF]'
-                                  : 'bg-black/[0.05] text-[#080808]'
-                            }`}
-                          >
-                            <Icon className="w-5 h-5 stroke-[1.9]" />
-                          </div>
-                          <div className="min-w-0">
-                            <p className="text-[16px] font-semibold tracking-[-0.015em] leading-snug">
-                              {option.label}
-                            </p>
-                            <p
-                              className={`text-[12.5px] mt-0.5 leading-snug ${
-                                isSelected
-                                  ? isDark
-                                    ? 'text-black/65'
-                                    : 'text-white/75'
-                                  : isDark
-                                    ? 'text-[#8E8E93]'
-                                    : 'text-[#6E6E73]'
-                              }`}
-                            >
-                              {option.subtitle}
-                            </p>
-                          </div>
-                        </div>
-
-                        <div
-                          className={`w-6 h-6 rounded-full flex items-center justify-center shrink-0 border transition-all ${
-                            isSelected
-                              ? isDark
-                                ? 'bg-[#080808] text-[#FFFFFF] border-[#080808]'
-                                : 'bg-[#FFFFFF] text-[#080808] border-[#FFFFFF]'
-                              : isDark
-                                ? 'border-white/20'
-                                : 'border-black/15'
-                          }`}
-                        >
-                          {isSelected && <Check className="w-3.5 h-3.5 stroke-[2.8]" />}
-                        </div>
-                      </button>
-                    );
-                  })}
-                </div>
-              </div>
-
-              {travelCompany && (
-                <div className="pt-2">
-                  <button
-                    type="button"
-                    onClick={() => goToStep(5)}
-                    className={`w-full h-[54px] rounded-full font-semibold text-[16px] tracking-[-0.01em] flex items-center justify-center gap-2 transition-all active:scale-[0.985] cursor-pointer ${
-                      isDark
-                        ? 'bg-[#FFFFFF] text-[#080808] hover:bg-zinc-200'
-                        : 'bg-[#080808] text-[#FFFFFF] hover:bg-zinc-900'
-                    }`}
-                  >
-                    <span>Continuar</span>
-                    <ArrowRight className="w-4 h-4 stroke-[2.3]" />
-                  </button>
-                </div>
-              )}
-            </motion.div>
-          )}
-
-          {/* ============================================================== */}
-          {/* TELA 5 — LOCALIZAÇÃO                                           */}
-          {/* ============================================================== */}
-          {step === 5 && (
-            <motion.div
-              key="onboarding-step-5"
-              custom={direction}
-              variants={slideVariants}
-              initial="enter"
-              animate="center"
-              exit="exit"
-              transition={{ duration: 0.28, ease: [0.22, 1, 0.36, 1] }}
+              transition={{ duration: 0.26, ease: [0.22, 1, 0.36, 1] }}
               className="flex-1 flex flex-col justify-between gap-6"
             >
               <div className="flex-1 flex flex-col items-center justify-center text-center px-2">
-                {/* Minimalist Liquid Glass Location Radar Emblem */}
-                <div className="relative flex items-center justify-center mb-8">
+                {/* 3D Sculpted Navigation Pedestal with Concentric Ripples (Matches Reference Image 1) */}
+                <div className="relative w-[220px] h-[220px] flex items-center justify-center mb-6">
+                  {/* Outer Ripple Ring */}
                   <div
-                    className={`w-36 h-36 rounded-full flex items-center justify-center border ${
+                    className={`absolute inset-0 rounded-full border ${
                       isDark
-                        ? 'bg-white/[0.03] border-white/10'
-                        : 'bg-black/[0.02] border-black/[0.06]'
+                        ? 'border-white/[0.06] bg-white/[0.01]'
+                        : 'border-black/[0.045] bg-black/[0.008]'
+                    }`}
+                  />
+                  {/* Middle Ripple Ring */}
+                  <div
+                    className={`absolute w-[174px] h-[174px] rounded-full border ${
+                      isDark
+                        ? 'border-white/[0.09] bg-white/[0.02]'
+                        : 'border-black/[0.06] bg-white/60 shadow-[0_12px_32px_-8px_rgba(0,0,0,0.06)]'
+                    }`}
+                  />
+                  {/* Elevated 3D Circular Pedestal */}
+                  <div
+                    className={`relative w-[136px] h-[136px] rounded-full flex items-center justify-center border ${
+                      isDark
+                        ? 'bg-gradient-to-b from-[#2C2C2E] to-[#18181A] border-white/15 shadow-[0_18px_36px_rgba(0,0,0,0.7),inset_0_2px_3px_rgba(255,255,255,0.15)]'
+                        : 'bg-gradient-to-b from-[#FFFFFF] via-[#F9F9FB] to-[#EAEAEF] border-white shadow-[0_18px_36px_-10px_rgba(0,0,0,0.14),0_4px_12px_rgba(0,0,0,0.05),inset_0_2px_4px_rgba(255,255,255,1)]'
                     }`}
                   >
-                    <div
-                      className={`w-24 h-24 rounded-full flex items-center justify-center border ${
-                        isDark
-                          ? 'bg-white/[0.05] border-white/15'
-                          : 'bg-black/[0.04] border-black/[0.08]'
-                      }`}
+                    {/* 3D Sculpted Black Navigation Arrow */}
+                    <svg
+                      viewBox="0 0 64 64"
+                      className="w-[68px] h-[68px]"
+                      style={{
+                        filter: isDark
+                          ? 'drop-shadow(0 8px 12px rgba(0,0,0,0.65))'
+                          : 'drop-shadow(0 8px 12px rgba(0,0,0,0.22))',
+                      }}
                     >
-                      <div
-                        className={`w-14 h-14 rounded-full flex items-center justify-center shadow-sm ${
-                          isDark
-                            ? 'bg-[#FFFFFF] text-[#080808]'
-                            : 'bg-[#080808] text-[#FFFFFF]'
-                        }`}
-                      >
-                        <Navigation className="w-6 h-6 stroke-[2.1]" />
-                      </div>
-                    </div>
+                      <defs>
+                        <linearGradient
+                          id="monvian3dNavGrad"
+                          x1="0%"
+                          y1="0%"
+                          x2="100%"
+                          y2="100%"
+                        >
+                          <stop
+                            offset="0%"
+                            stopColor={isDark ? '#FFFFFF' : '#2C2C30'}
+                          />
+                          <stop
+                            offset="55%"
+                            stopColor={isDark ? '#E5E5EA' : '#121214'}
+                          />
+                          <stop
+                            offset="100%"
+                            stopColor={isDark ? '#C7C7CC' : '#050506'}
+                          />
+                        </linearGradient>
+                      </defs>
+                      <path
+                        d="M52.8 11.2C54.1 12.5 54.4 14.5 53.6 16.2L37.4 51.4C36.5 53.3 34.4 54.3 32.4 53.7C30.5 53.1 29.2 51.4 29.0 49.4L27.3 36.7L14.6 35.0C12.6 34.8 10.9 33.5 10.3 31.6C9.7 29.6 10.7 27.5 12.6 26.6L47.8 10.4C49.5 9.6 51.5 9.9 52.8 11.2Z"
+                        fill="url(#monvian3dNavGrad)"
+                      />
+                    </svg>
                   </div>
                 </div>
 
-                <h1 className="text-[28px] sm:text-[31px] font-bold tracking-[-0.03em] leading-[1.14] max-w-[320px]">
+                <h1 className="text-[29px] sm:text-[32px] font-bold tracking-[-0.03em] leading-[1.12] max-w-[320px]">
                   Descubra o que está ao seu redor.
                 </h1>
                 <p
-                  className={`text-[15.5px] leading-relaxed font-normal mt-3 max-w-[330px] ${
+                  className={`text-[15.5px] leading-[1.45] font-normal mt-3 max-w-[330px] ${
                     isDark ? 'text-[#8E8E93]' : 'text-[#6E6E73]'
                   }`}
                 >
@@ -1524,7 +1554,7 @@ export const OnboardingFlow: React.FC<OnboardingFlowProps> = ({
                   type="button"
                   disabled={isRequestingLocation}
                   onClick={handleActivateLocation}
-                  className={`w-full h-[54px] rounded-full font-semibold text-[16px] tracking-[-0.01em] flex items-center justify-center gap-2.5 transition-all active:scale-[0.985] cursor-pointer ${
+                  className={`w-full h-[56px] rounded-full font-semibold text-[16.5px] tracking-[-0.015em] flex items-center justify-center gap-2.5 transition-all active:scale-[0.985] cursor-pointer shadow-sm ${
                     isDark
                       ? 'bg-[#FFFFFF] text-[#080808] hover:bg-zinc-200'
                       : 'bg-[#080808] text-[#FFFFFF] hover:bg-zinc-900'
@@ -1533,7 +1563,7 @@ export const OnboardingFlow: React.FC<OnboardingFlowProps> = ({
                   {isRequestingLocation ? (
                     <Loader2 className="w-5 h-5 animate-spin" />
                   ) : (
-                    <Navigation className="w-4.5 h-4.5 stroke-[2.2]" />
+                    <Navigation className="w-5 h-5 stroke-[2.2]" />
                   )}
                   <span>Ativar localização</span>
                 </button>
@@ -1542,64 +1572,13 @@ export const OnboardingFlow: React.FC<OnboardingFlowProps> = ({
                   type="button"
                   disabled={isRequestingLocation}
                   onClick={handleSkipLocation}
-                  className={`w-full h-[46px] rounded-full font-medium text-[14.5px] transition-opacity hover:opacity-80 cursor-pointer ${
-                    isDark ? 'text-[#8E8E93]' : 'text-[#6E6E73]'
+                  className={`w-full h-[54px] rounded-full font-semibold text-[16px] tracking-[-0.01em] transition-all active:scale-[0.985] cursor-pointer border ${
+                    isDark
+                      ? 'bg-[#1C1C1E] border-white/10 text-white hover:bg-[#252528]'
+                      : 'bg-[#FBFBFD] border-black/[0.08] text-[#080808] hover:bg-[#F2F2F6]'
                   }`}
                 >
                   Continuar sem localização
-                </button>
-              </div>
-            </motion.div>
-          )}
-
-          {/* ============================================================== */}
-          {/* TELA FINAL — BOAS-VINDAS COM GLOBO 3D INTERATIVO               */}
-          {/* ============================================================== */}
-          {step === 6 && (
-            <motion.div
-              key="onboarding-step-6"
-              custom={direction}
-              variants={slideVariants}
-              initial="enter"
-              animate="center"
-              exit="exit"
-              transition={{ duration: 0.34, ease: [0.22, 1, 0.36, 1] }}
-              className="flex-1 flex flex-col justify-between gap-6"
-            >
-              <div className="flex-1 flex flex-col items-center justify-center text-center px-2">
-                <div className="mb-6">
-                  <MonvianInteractiveGlobeVisual isDark={isDark} />
-                </div>
-
-                <h1 className="text-[29px] sm:text-[33px] font-bold tracking-[-0.03em] leading-[1.12] max-w-[330px]">
-                  Sua próxima experiência começa aqui.
-                </h1>
-                <p
-                  className={`text-[15.5px] leading-relaxed font-normal mt-3 max-w-[330px] ${
-                    isDark ? 'text-[#8E8E93]' : 'text-[#6E6E73]'
-                  }`}
-                >
-                  Descubra lugares, encontre experiências e conecte-se com tudo o que acontece em Campos do Jordão.
-                </p>
-              </div>
-
-              <div className="pt-2">
-                <button
-                  type="button"
-                  disabled={isCompleting}
-                  onClick={handleFinishOnboarding}
-                  className={`w-full h-[56px] rounded-full font-semibold text-[16.5px] tracking-[-0.015em] flex items-center justify-center gap-2.5 transition-all active:scale-[0.985] cursor-pointer shadow-sm ${
-                    isDark
-                      ? 'bg-[#FFFFFF] text-[#080808] hover:bg-zinc-200'
-                      : 'bg-[#080808] text-[#FFFFFF] hover:bg-zinc-900'
-                  }`}
-                >
-                  {isCompleting ? (
-                    <Loader2 className="w-5 h-5 animate-spin" />
-                  ) : (
-                    <Globe className="w-5 h-5 stroke-[2]" />
-                  )}
-                  <span>Explorar Campos</span>
                 </button>
               </div>
             </motion.div>
@@ -1611,7 +1590,7 @@ export const OnboardingFlow: React.FC<OnboardingFlowProps> = ({
       <div
         className="shrink-0"
         style={{
-          height: 'max(env(safe-area-inset-bottom, 0px), 16px)',
+          height: 'max(env(safe-area-inset-bottom, 0px), 14px)',
         }}
       />
     </motion.div>

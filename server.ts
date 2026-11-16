@@ -2056,7 +2056,7 @@ async function startServer() {
 
       const nextStep =
         body.onboarding_step !== undefined
-          ? Math.max(1, Math.min(6, Number(body.onboarding_step) || 1))
+          ? Math.max(1, Math.min(4, Number(body.onboarding_step) || 1))
           : Number(existingRow?.onboarding_step ?? dbUser?.onboarding_step ?? 1);
 
       const nextCompleted = markCompleteDefault
@@ -2121,7 +2121,6 @@ async function startServer() {
               location_permission_granted = CASE WHEN ? = 1 THEN 1 ELSE location_permission_granted END,
               onboarding_step = ?,
               onboarding_completed = ?,
-              welcome_card_seen = CASE WHEN ? = 1 THEN 1 ELSE welcome_card_seen END,
               onboarding_completed_at = COALESCE(?, onboarding_completed_at)
           WHERE id = ?
         `).run(
@@ -2133,7 +2132,6 @@ async function startServer() {
           nextLocationPref,
           nextLocGranted,
           nextStep,
-          nextCompleted,
           nextCompleted,
           completedAt,
           dbUser.id
