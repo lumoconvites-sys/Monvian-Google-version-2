@@ -1227,8 +1227,8 @@ async function startServer() {
           const isGold = role === 'admin' || remoteUser.is_gold === 1 ? 1 : 0;
           const ins = db
             .prepare(`
-              INSERT INTO users (name, username, email, whatsapp, password_hash, role, avatar_url, is_gold, auth_id)
-              VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+              INSERT INTO users (name, username, email, whatsapp, password_hash, role, avatar_url, is_gold, auth_id, welcome_card_seen)
+              VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             `)
             .run(
               remoteUser.name || remoteUser.email.split('@')[0],
@@ -1239,7 +1239,8 @@ async function startServer() {
               role,
               remoteUser.avatar_url || '/fotoperfil.png',
               isGold,
-              verifiedFirebase?.uid || firebase_uid || remoteUser.auth_id || null
+              verifiedFirebase?.uid || firebase_uid || remoteUser.auth_id || null,
+              remoteUser.welcome_card_seen ? 1 : 0
             );
           user = db.prepare('SELECT * FROM users WHERE id = ?').get(ins.lastInsertRowid);
         }
@@ -1408,8 +1409,8 @@ async function startServer() {
           const role = isPrimaryAdmin(cleanEmail) || remoteUser.role === 'admin' ? 'admin' : 'user';
           const isGold = role === 'admin' || remoteUser.is_gold === 1 ? 1 : 0;
           const insert = db.prepare(`
-            INSERT INTO users (name, username, email, whatsapp, password_hash, avatar_url, role, is_gold, auth_id)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+            INSERT INTO users (name, username, email, whatsapp, password_hash, avatar_url, role, is_gold, auth_id, welcome_card_seen)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
           `).run(
             remoteUser.name || resolvedName || cleanEmail.split('@')[0],
             remoteUser.username || cleanEmail.split('@')[0],
@@ -1419,7 +1420,8 @@ async function startServer() {
             resolvedAvatar || remoteUser.avatar_url || '/fotoperfil.png',
             role,
             isGold,
-            resolvedUid || remoteUser.auth_id || null
+            resolvedUid || remoteUser.auth_id || null,
+            remoteUser.welcome_card_seen ? 1 : 0
           );
           user = db.prepare('SELECT * FROM users WHERE id = ?').get(insert.lastInsertRowid);
         } else {
@@ -1637,9 +1639,10 @@ async function startServer() {
         db.prepare('UPDATE users SET welcome_card_seen = 1 WHERE LOWER(email) = ? OR LOWER(whatsapp) = ?').run(email, email);
       }
 
-      if (email && supabaseAnonClient) {
+      const supaClient = supabase || supabaseAnonClient;
+      if (email && supaClient) {
         try {
-          await supabaseAnonClient
+          await supaClient
             .from('users')
             .update({ welcome_card_seen: 1 })
             .or(`email.eq.${email},whatsapp.eq.${email}`);

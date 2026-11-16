@@ -38,6 +38,7 @@ import { persistUserToFirestore, syncPermissionsFromDatabase, markWelcomeCardSee
 import { fetchSpotsFromSupabase, subscribeToSpotsChanges } from './services/supabaseSpots';
 import { broadcastPlatanosWalletUpdate, getAuthHeaders } from './hooks/usePlatanos';
 import { SignupIntroSequence, SignupIntroStage } from './components/SignupIntroSequence';
+import { FirstSignupWelcomeScreen } from './components/FirstSignupWelcomeScreen';
 import { WelcomeJourneyModal } from './components/WelcomeJourneyModal';
 import { XpRewardNotificationOverlay } from './components/XpRewardNotificationOverlay';
 import { FloatingEventCard } from './components/FloatingEventCard';
@@ -212,6 +213,20 @@ export default function App() {
   const [showWelcomeOverlay, setShowWelcomeOverlay] = useState<boolean>(false);
   const [showOnboardingQuestions, setShowOnboardingQuestions] = useState<boolean>(false);
   const [airbnbCardTab, setAirbnbCardTab] = useState<PresentationTab | null>(null);
+  const [showFirstSignupWelcome, setShowFirstSignupWelcome] = useState<boolean>(() => {
+    try {
+      const savedUser = localStorage.getItem('monvian_user');
+      if (!savedUser) return false;
+      const parsed = JSON.parse(savedUser);
+      const email = String(parsed?.email || parsed?.whatsapp || '').trim().toLowerCase();
+      if (!email) return false;
+      if (parsed?.welcome_card_seen === 1) return false;
+      if (localStorage.getItem(`monvian_first_welcome_seen_${email}`) === '1') return false;
+      return localStorage.getItem(`monvian_first_welcome_pending_${email}`) === '1';
+    } catch {
+      return false;
+    }
+  });
   const [signupIntroStage, setSignupIntroStage] = useState<SignupIntroStage>('idle');
   const [isWelcomeJourneyOpen, setIsWelcomeJourneyOpen] = useState<boolean>(false);
   const [pendingWelcomeJourney, setPendingWelcomeJourney] = useState<boolean>(false);
@@ -555,6 +570,7 @@ export default function App() {
     setAuthInitialMode(shouldRedirectToLogin ? 'login' : 'landing');
     hasExecutedSignupIntroRef.current = false;
     setIsOnboardingItinerarySelection(false);
+    setShowFirstSignupWelcome(false);
     setSignupIntroStage('idle');
     setPendingWelcomeJourney(false);
     setSelectedItinerary(null);
@@ -615,6 +631,18 @@ export default function App() {
       const userEmail = (normalized.email || normalized.whatsapp || '').trim().toLowerCase();
       if (userEmail) {
         syncPermissionsFromDatabase(userEmail).catch(() => {});
+        try {
+          if (normalized.welcome_card_seen === 1) {
+            localStorage.setItem(`monvian_first_welcome_seen_${userEmail}`, '1');
+            localStorage.removeItem(`monvian_first_welcome_pending_${userEmail}`);
+            setShowFirstSignupWelcome(false);
+          } else if (
+            localStorage.getItem(`monvian_first_welcome_seen_${userEmail}`) !== '1' &&
+            localStorage.getItem(`monvian_first_welcome_pending_${userEmail}`) === '1'
+          ) {
+            setShowFirstSignupWelcome(true);
+          }
+        } catch {}
       }
       setUser(normalized);
       setIsAuthenticated(true);
@@ -1186,7 +1214,8 @@ export default function App() {
       !selectedSpot &&
       !isDetailOpen &&
       !isUserLocationSpotlightActive &&
-      !isOnboardingItinerarySelection
+      !isOnboardingItinerarySelection &&
+      !showFirstSignupWelcome
     ) {
       setZoomToUserTrigger((prev) => prev + 1);
     }
@@ -1197,6 +1226,7 @@ export default function App() {
     isDetailOpen,
     isUserLocationSpotlightActive,
     isOnboardingItinerarySelection,
+    showFirstSignupWelcome,
   ]);
 
   const handleVoiceSearch = () => {
@@ -1601,11 +1631,12 @@ export default function App() {
       activeTab === 'explorar' &&
       (justEnteredApp || justReturnedToExplorar) &&
       !isUserLocationSpotlightActive &&
-      !isOnboardingItinerarySelection
+      !isOnboardingItinerarySelection &&
+      !showFirstSignupWelcome
     ) {
       setZoomToUserTrigger((prev) => prev + 1);
     }
-  }, [isAuthenticated, activeTab, isUserLocationSpotlightActive, isOnboardingItinerarySelection]);
+  }, [isAuthenticated, activeTab, isUserLocationSpotlightActive, isOnboardingItinerarySelection, showFirstSignupWelcome]);
 
   useEffect(() => {
     if (!isAuthenticated || activeTab !== 'explorar') return;
@@ -1746,7 +1777,7 @@ export default function App() {
 
   // Automatically trigger native iOS/browser Geolocation & Motion prompts ONLY while Explorar map is active
   useEffect(() => {
-    if (!isAuthenticated || activeTab !== 'explorar') {
+    if (!isAuthenticated || activeTab !== 'explorar' || showFirstSignupWelcome) {
       gpsNavigationManager.stop();
       deviceHeadingManager.stop();
       return;
@@ -1775,16 +1806,17 @@ export default function App() {
       gpsNavigationManager.stop();
       deviceHeadingManager.stop();
     };
-  }, [isAuthenticated, activeTab]);
+  }, [isAuthenticated, activeTab, showFirstSignupWelcome]);
 
   useEffect(() => {
-    // Wait until full-screen onboarding modals, signup reveal, onboarding itinerary selection, and admin are closed
+    // Wait until full-screen onboarding modals, signup reveal, onboarding itinerary selection, first-signup welcome, and admin are closed
     if (
       isAdminOpen ||
       showOnboardingQuestions ||
       showWelcomeOverlay ||
       isSignupRevealActive ||
-      isOnboardingItinerarySelection
+      isOnboardingItinerarySelection ||
+      showFirstSignupWelcome
     ) {
       setAirbnbCardTab(null);
       return;
@@ -1806,7 +1838,42 @@ export default function App() {
     isAdminOpen,
     isSignupRevealActive,
     isOnboardingItinerarySelection,
+    showFirstSignupWelcome,
   ]);
+
+  const handleDismissFirstSignupWelcome = useCallback(() => {
+    setShowFirstSignupWelcome(false);
+    const cleanEmail = (user?.email || user?.whatsapp || '').trim().toLowerCase();
+    const token = (() => {
+      try {
+        return localStorage.getItem('monvian_token') || undefined;
+      } catch {
+        return undefined;
+      }
+    })();
+
+    try {
+      if (cleanEmail) {
+        localStorage.setItem(`monvian_first_welcome_seen_${cleanEmail}`, '1');
+        localStorage.removeItem(`monvian_first_welcome_pending_${cleanEmail}`);
+      }
+    } catch {}
+
+    setUser((prev: any) => {
+      if (!prev) return prev;
+      const updated = { ...prev, welcome_card_seen: 1 };
+      if (token) {
+        savePersistentSession(token, updated).catch(() => {});
+      }
+      return updated;
+    });
+
+    if (cleanEmail || token) {
+      markWelcomeCardSeen(cleanEmail, token).catch(() => {});
+    }
+
+    setZoomToUserTrigger((prev) => prev + 1);
+  }, [user]);
 
   const handleAirbnbCardAction = () => {
     if (!airbnbCardTab) return;
@@ -1956,15 +2023,25 @@ export default function App() {
               setIsWelcomeJourneyOpen(false);
               setShowOnboardingQuestions(false);
               setShowWelcomeOverlay(false);
-              if (isNewAccount) {
-                markWelcomeCardSeen(cleanEmail, token).catch(() => {});
-                markPresentationCardSeen('explorar');
-                markPresentationCardSeen('roteiros');
+
+              const hasSeenFirstWelcome = Boolean(
+                normalizedUser?.welcome_card_seen === 1 ||
+                  (cleanEmail && localStorage.getItem(`monvian_first_welcome_seen_${cleanEmail}`) === '1')
+              );
+              if (isNewAccount && !hasSeenFirstWelcome) {
                 try {
-                  if (!localStorage.getItem('monvian_welcome_completed')) {
-                    setIsWelcomeJourneyOpen(true);
+                  if (cleanEmail) {
+                    localStorage.setItem(`monvian_first_welcome_pending_${cleanEmail}`, '1');
                   }
                 } catch {}
+                setShowFirstSignupWelcome(true);
+              } else {
+                setShowFirstSignupWelcome(false);
+              }
+
+              if (isNewAccount) {
+                markPresentationCardSeen('explorar');
+                markPresentationCardSeen('roteiros');
               }
               try {
                 (document.activeElement as HTMLElement | null)?.blur?.();
@@ -2033,8 +2110,8 @@ export default function App() {
         >
       <OfflineIndicator />
 
-      {/* Desktop Left Sidebar (Only visible on md+ >= 768px, hidden during exclusive post-signup itinerary selection & spotlight) */}
-      {!isOnboardingItinerarySelection && !isUserLocationSpotlightActive && (
+      {/* Desktop Left Sidebar (Only visible on md+ >= 768px, hidden during exclusive post-signup itinerary selection, welcome screen & spotlight) */}
+      {!isOnboardingItinerarySelection && !isUserLocationSpotlightActive && !showFirstSignupWelcome && (
         <DesktopSidebar
           activeTab={activeTab}
           onChangeTab={handleTabChange}
@@ -2070,7 +2147,7 @@ export default function App() {
         <div className="w-full h-full flex flex-row relative overflow-hidden">
           {/* DESKTOP EXPLORE PANEL (Side-by-side Discovery Column on md+ when activeTab === 'explorar') */}
           <AnimatePresence>
-            {activeTab === 'explorar' && !isMapOrbiting && !isUserLocationSpotlightActive && (
+            {activeTab === 'explorar' && !isMapOrbiting && !isUserLocationSpotlightActive && !showFirstSignupWelcome && (
               <motion.div
                 key="desktop-explore-panel-wrapper"
                 initial={{ opacity: 0, y: 8, filter: 'blur(6px)' }}
@@ -2158,7 +2235,7 @@ export default function App() {
             )}
 
             {/* DESKTOP MAP FLOATING CONTROLS (Top-Right Apple Style) */}
-            {activeTab === 'explorar' && !isMapOrbiting && !isUserLocationSpotlightActive && (
+            {activeTab === 'explorar' && !isMapOrbiting && !isUserLocationSpotlightActive && !showFirstSignupWelcome && (
               <DesktopMapControls
                 currentMode={mapStyle}
                 onChangeMode={setMapStyle}
@@ -2171,7 +2248,7 @@ export default function App() {
         </div>
 
       {/* 3. Top Floating Header Bar (MOBILE ONLY: md:hidden, mounted only on Explorar tab) */}
-      {activeTab === 'explorar' && !isMapOrbiting && !isUserLocationSpotlightActive && (
+      {activeTab === 'explorar' && !isMapOrbiting && !isUserLocationSpotlightActive && !showFirstSignupWelcome && (
         <header
           aria-label="Informações de Campos do Jordão"
           className={`md:hidden absolute top-0 left-0 right-0 z-40 flex items-start justify-between pointer-events-none px-4 sm:px-6 transition-[filter,opacity,transform] duration-300 ease-[cubic-bezier(0.22,1,0.36,1)] ${
@@ -2488,7 +2565,8 @@ export default function App() {
     {activeTab === 'explorar' &&
       !isDetailOpen &&
       !isMapOrbiting &&
-      !isOnboardingItinerarySelection && (
+      !isOnboardingItinerarySelection &&
+      !showFirstSignupWelcome && (
         <FloatingEventCard
           visible={!isSpotCardOpen && !isSearchOpen && !isCategoryCardOpen}
           onActiveChange={setHasActiveMapEvents}
@@ -2499,7 +2577,8 @@ export default function App() {
     {/* Monvian iOS Expansion & Coins Burst Reward Overlay (Mounted ONLY while Explorar map is active) */}
     {activeTab === 'explorar' &&
       !isMapOrbiting &&
-      !isOnboardingItinerarySelection && (
+      !isOnboardingItinerarySelection &&
+      !showFirstSignupWelcome && (
         <XpRewardNotificationOverlay visible={true} />
       )}
 
@@ -2543,8 +2622,8 @@ export default function App() {
       )}
     </AnimatePresence>
 
-    {/* 4. Bottom Navigation Pill rendered at root level (Visible ONLY on mobile, hidden during detail sheet, exclusive post-signup itinerary selection & spotlight presentation) */}
-    {!isMapOrbiting && !isOnboardingItinerarySelection && !isDetailOpen && (
+    {/* 4. Bottom Navigation Pill rendered at root level (Visible ONLY on mobile, hidden during detail sheet, exclusive post-signup welcome/itinerary selection & spotlight presentation) */}
+    {!isMapOrbiting && !isOnboardingItinerarySelection && !isDetailOpen && !showFirstSignupWelcome && (
       <div className={`md:hidden transition-opacity duration-150 ${isChatKeyboardOpen ? 'opacity-0 pointer-events-none' : 'opacity-100 pointer-events-auto'}`}>
         <BottomNavigation
           activeTab={activeTab}
@@ -2852,6 +2931,16 @@ export default function App() {
             }}
           />
         </motion.div>
+      )}
+    </AnimatePresence>
+
+    {/* First Signup Fullscreen Liquid Glass Welcome Experience */}
+    <AnimatePresence>
+      {showFirstSignupWelcome && (
+        <FirstSignupWelcomeScreen
+          key="monvian-first-signup-welcome"
+          onComplete={handleDismissFirstSignupWelcome}
+        />
       )}
     </AnimatePresence>
 
