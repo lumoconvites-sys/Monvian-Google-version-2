@@ -1030,7 +1030,7 @@ export const CinematicLandingView: React.FC<CinematicLandingViewProps> = ({
         style={{
           height: 'var(--app-height, 100dvh)',
           minHeight: 'max(640px, var(--app-height, 100dvh))',
-          filter: 'saturate(1.2)',
+          filter: 'saturate(0.7)',
         }}
       >
         {/* 1. CÉU TRIDIMENSIONAL MULTICAMADAS */}

@@ -2845,9 +2845,10 @@ export default function App() {
       {activeTab === 'roteiros' && (
         <motion.div
           key="itineraries-view-reveal-wrapper"
-          initial={false}
-          animate={{ opacity: 1 }}
-          transition={{ duration: 0.5, ease: [0.22, 1, 0.36, 1] }}
+          initial={{ opacity: 0, scale: 0.96, filter: 'blur(6px)' }}
+          animate={{ opacity: 1, scale: 1, filter: 'blur(0px)' }}
+          exit={{ opacity: 0, scale: 0.96, filter: 'blur(6px)' }}
+          transition={{ duration: 0.42, ease: [0.22, 1, 0.36, 1] }}
           className="fixed inset-0 w-full z-40"
           style={{
             top: 0,
@@ -2892,66 +2893,84 @@ export default function App() {
 
       {/* 9. Saved / Favorites Wishlists (Mounted ONLY when Tab === 'salvos') */}
       {(activeTab === 'salvos' || activeTab === ('chat' as any)) && (
-        <SavedView
-          key={`saved-view-${accountSessionKey}`}
-          isOpen={true}
-          theme={theme}
-          spots={spots}
-          onOpenSpot={(spot) => {
-            setSelectedSpot(spot);
-            setIsDetailOpen(true);
-          }}
-          onOpenItinerary={(itinerary) => {
-            try {
-              writeScopedJSON('monvian_active_itinerary', itinerary, user);
-              writeScopedString('monvian_itinerary_view_mode', 'map', user);
-              writeScopedString('monvian_itinerary_expanded', 'true', user);
-              window.dispatchEvent(new CustomEvent('monvian:itinerary_applied', { detail: itinerary }));
-            } catch {}
-            setSelectedItinerary(null);
-            setActiveTab('roteiros');
-          }}
-          onNavigateTab={(targetTab) => {
-            setActiveTab(targetTab);
-          }}
-        />
+        <motion.div
+          key="saved-view-reveal-wrapper"
+          initial={{ opacity: 0, scale: 0.96, filter: 'blur(6px)' }}
+          animate={{ opacity: 1, scale: 1, filter: 'blur(0px)' }}
+          exit={{ opacity: 0, scale: 0.96, filter: 'blur(6px)' }}
+          transition={{ duration: 0.42, ease: [0.22, 1, 0.36, 1] }}
+          className="fixed inset-0 w-full z-40 bg-white dark:bg-black overflow-y-auto"
+        >
+          <SavedView
+            key={`saved-view-${accountSessionKey}`}
+            isOpen={true}
+            theme={theme}
+            spots={spots}
+            onOpenSpot={(spot) => {
+              setSelectedSpot(spot);
+              setIsDetailOpen(true);
+            }}
+            onOpenItinerary={(itinerary) => {
+              try {
+                writeScopedJSON('monvian_active_itinerary', itinerary, user);
+                writeScopedString('monvian_itinerary_view_mode', 'map', user);
+                writeScopedString('monvian_itinerary_expanded', 'true', user);
+                window.dispatchEvent(new CustomEvent('monvian:itinerary_applied', { detail: itinerary }));
+              } catch {}
+              setSelectedItinerary(null);
+              setActiveTab('roteiros');
+            }}
+            onNavigateTab={(targetTab) => {
+              setActiveTab(targetTab);
+            }}
+          />
+        </motion.div>
       )}
 
       {/* 10. Profile & Favorites (Mounted ONLY when Tab === 'perfil') */}
       {activeTab === 'perfil' && (
-        <ProfileModal
-          key={`profile-modal-${accountSessionKey}`}
-          isOpen={true}
-          onClose={() => setActiveTab('explorar')}
-          favorites={favorites}
-          spots={spots}
-          onSelectSpot={(spot) => {
-            handleSelectSpot(spot);
-            setActiveTab('explorar');
-          }}
-          rainEnabled={rainEnabled}
-          onToggleRain={() => setRainEnabled(!rainEnabled)}
-          snowEnabled={snowEnabled}
-          onToggleSnow={() => setSnowEnabled(!snowEnabled)}
-          theme={theme}
-          onToggleTheme={handleToggleTheme}
-          highContrast={highContrast}
-          onToggleHighContrast={() => setHighContrast((prev) => !prev)}
-          user={user}
-          onUpdateUser={(updatedUser) => {
-            setUser(updatedUser);
-          }}
-          onOpenAdmin={() => {
-            setActiveTab('explorar');
-            setIsAdminOpen(true);
-          }}
-          onSubViewChange={() => {}}
-          communityUrl={systemSettings.community_url}
-          instagramUrl={systemSettings.instagram_url}
-          onLogout={() => {
-            performFullLogout({ redirectToLogin: true });
-          }}
-        />
+        <motion.div
+          key="profile-view-reveal-wrapper"
+          initial={{ opacity: 0, scale: 0.96, filter: 'blur(6px)' }}
+          animate={{ opacity: 1, scale: 1, filter: 'blur(0px)' }}
+          exit={{ opacity: 0, scale: 0.96, filter: 'blur(6px)' }}
+          transition={{ duration: 0.42, ease: [0.22, 1, 0.36, 1] }}
+          className="fixed inset-0 w-full z-40 bg-white dark:bg-black overflow-y-auto"
+        >
+          <ProfileModal
+            key={`profile-modal-${accountSessionKey}`}
+            isOpen={true}
+            onClose={() => setActiveTab('explorar')}
+            favorites={favorites}
+            spots={spots}
+            onSelectSpot={(spot) => {
+              handleSelectSpot(spot);
+              setActiveTab('explorar');
+            }}
+            rainEnabled={rainEnabled}
+            onToggleRain={() => setRainEnabled(!rainEnabled)}
+            snowEnabled={snowEnabled}
+            onToggleSnow={() => setSnowEnabled(!snowEnabled)}
+            theme={theme}
+            onToggleTheme={handleToggleTheme}
+            highContrast={highContrast}
+            onToggleHighContrast={() => setHighContrast((prev) => !prev)}
+            user={user}
+            onUpdateUser={(updatedUser) => {
+              setUser(updatedUser);
+            }}
+            onOpenAdmin={() => {
+              setActiveTab('explorar');
+              setIsAdminOpen(true);
+            }}
+            onSubViewChange={() => {}}
+            communityUrl={systemSettings.community_url}
+            instagramUrl={systemSettings.instagram_url}
+            onLogout={() => {
+              performFullLogout({ redirectToLogin: true });
+            }}
+          />
+        </motion.div>
       )}
 
       {/* 10.6 Gold Success Celebration Modal */}
