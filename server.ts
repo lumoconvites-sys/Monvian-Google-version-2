@@ -1316,8 +1316,8 @@ async function startServer() {
           const isGold = role === 'admin' || remoteUser.is_gold === 1 ? 1 : 0;
           const ins = db
             .prepare(`
-              INSERT INTO users (name, username, email, whatsapp, password_hash, role, avatar_url, is_gold, auth_id, welcome_card_seen, globe_intro_seen)
-              VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+              INSERT INTO users (name, username, email, whatsapp, password_hash, role, avatar_url, is_gold, auth_id, welcome_card_seen, globe_intro_seen, onboarding_completed, onboarding_step)
+              VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             `)
             .run(
               remoteUser.name || remoteUser.email.split('@')[0],
@@ -1330,7 +1330,9 @@ async function startServer() {
               isGold,
               verifiedFirebase?.uid || firebase_uid || remoteUser.auth_id || null,
               remoteUser.welcome_card_seen ? 1 : 0,
-              remoteUser.globe_intro_seen ? 1 : 0
+              remoteUser.globe_intro_seen ? 1 : 0,
+              remoteUser.onboarding_completed === 0 ? 0 : 1,
+              remoteUser.onboarding_step || 1
             );
           user = db.prepare('SELECT * FROM users WHERE id = ?').get(ins.lastInsertRowid);
         }
@@ -1499,8 +1501,8 @@ async function startServer() {
           const role = isPrimaryAdmin(cleanEmail) || remoteUser.role === 'admin' ? 'admin' : 'user';
           const isGold = role === 'admin' || remoteUser.is_gold === 1 ? 1 : 0;
           const insert = db.prepare(`
-            INSERT INTO users (name, username, email, whatsapp, password_hash, avatar_url, role, is_gold, auth_id, welcome_card_seen, globe_intro_seen)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            INSERT INTO users (name, username, email, whatsapp, password_hash, avatar_url, role, is_gold, auth_id, welcome_card_seen, globe_intro_seen, onboarding_completed, onboarding_step)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
           `).run(
             remoteUser.name || resolvedName || cleanEmail.split('@')[0],
             remoteUser.username || cleanEmail.split('@')[0],
@@ -1512,7 +1514,9 @@ async function startServer() {
             isGold,
             resolvedUid || remoteUser.auth_id || null,
             remoteUser.welcome_card_seen ? 1 : 0,
-            remoteUser.globe_intro_seen ? 1 : 0
+            remoteUser.globe_intro_seen ? 1 : 0,
+            remoteUser.onboarding_completed === 0 ? 0 : 1,
+            remoteUser.onboarding_step || 1
           );
           user = db.prepare('SELECT * FROM users WHERE id = ?').get(insert.lastInsertRowid);
         } else {
@@ -1544,6 +1548,15 @@ async function startServer() {
         }
       }
 
+      if (!isNew && user?.id) {
+        try {
+          db.prepare(
+            'UPDATE users SET visits_count = COALESCE(visits_count, 0) + 1, last_access = CURRENT_TIMESTAMP WHERE id = ?'
+          ).run(user.id);
+          user = db.prepare('SELECT * FROM users WHERE id = ?').get(user.id);
+        } catch {}
+      }
+
       if (isPrimaryAdmin(cleanEmail) && (user.role !== 'admin' || user.is_gold !== 1)) {
         db.prepare("UPDATE users SET role = 'admin', is_gold = 1 WHERE id = ?").run(user.id);
         user.role = 'admin';
@@ -1553,12 +1566,34 @@ async function startServer() {
       const token = signPersistentSessionToken(user);
       db.prepare('INSERT INTO sessions (token, user_id) VALUES (?, ?)').run(token, user.id);
 
-      await persistUserToSupabase({ ...user, auth_id: resolvedUid || user.auth_id || null });
-      await persistSessionToSupabase(token, user.id);
+      const syncTasks: Promise<any>[] = [
+        persistUserToSupabase({ ...user, auth_id: resolvedUid || user.auth_id || null }),
+        persistSessionToSupabase(token, user.id),
+      ];
+      if (isNew) {
+        const nowIso = new Date().toISOString();
+        syncTasks.push(
+          persistUserToFirestore({ ...user, auth_id: resolvedUid || user.auth_id || null }),
+          persistUserOnboardingToFirestore({
+            user_id: String(user.id),
+            user_email: cleanEmail,
+            onboarding_step: 1,
+            onboarding_completed: 0,
+            updated_at: nowIso,
+          })
+        );
+      }
+      await Promise.allSettled(syncTasks);
 
       setPersistentSessionCookie(req, res, token);
 
-      return res.json({ success: true, token, user: formatSafeUser(user), is_new: isNew });
+      return res.json({
+        success: true,
+        token,
+        user: formatSafeUser(user),
+        is_new: isNew,
+        isNewUser: isNew,
+      });
     } catch (err: any) {
       return res.status(500).json({ success: false, error: sanitizeBackendAuthError(err, 'Não foi possível entrar com Google. Tente novamente.') });
     }

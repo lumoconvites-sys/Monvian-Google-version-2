@@ -235,7 +235,23 @@ export default function App() {
 
   // Welcome translucent overlay & Onboarding questionnaire on new account creation
   const [showWelcomeOverlay, setShowWelcomeOverlay] = useState<boolean>(false);
-  const [showOnboardingQuestions, setShowOnboardingQuestions] = useState<boolean>(false);
+  const [showOnboardingQuestions, setShowOnboardingQuestions] = useState<boolean>(() => {
+    try {
+      const token = localStorage.getItem('monvian_token');
+      const savedUser = localStorage.getItem('monvian_user');
+      if (!token || !savedUser) return false;
+      const parsed = JSON.parse(savedUser);
+      const cleanEmail = String(parsed?.email || parsed?.whatsapp || '').trim().toLowerCase();
+      if (!cleanEmail) return false;
+      if (parsed?.onboarding_completed === 0) return true;
+      return (
+        parsed?.onboarding_completed !== 1 &&
+        localStorage.getItem(`monvian_smart_onboarding_pending_${cleanEmail}`) === '1'
+      );
+    } catch {
+      return false;
+    }
+  });
   const [airbnbCardTab, setAirbnbCardTab] = useState<PresentationTab | null>(null);
   const [showFirstSignupWelcome, setShowFirstSignupWelcome] = useState<boolean>(() => {
     try {
@@ -684,7 +700,13 @@ export default function App() {
       if (userEmail) {
         syncPermissionsFromDatabase(userEmail).catch(() => {});
         try {
-          if (false) {
+          const needsSmartOnboarding = Boolean(
+            normalized.onboarding_completed === 0 ||
+              (normalized.onboarding_completed !== 1 &&
+                localStorage.getItem(`monvian_smart_onboarding_pending_${userEmail}`) === '1')
+          );
+          if (needsSmartOnboarding) {
+            localStorage.setItem(`monvian_smart_onboarding_pending_${userEmail}`, '1');
             setShowOnboardingQuestions(true);
             setShowFirstSignupWelcome(false);
           } else {
@@ -2350,15 +2372,28 @@ export default function App() {
               setShowWelcomeOverlay(false);
 
               const needsSmartOnboarding = Boolean(
-                isNewAccount ||
+                (isNewAccount && normalizedUser?.onboarding_completed !== 1) ||
                   normalizedUser?.onboarding_completed === 0 ||
-                  (cleanEmail &&
+                  (normalizedUser?.onboarding_completed !== 1 &&
+                    cleanEmail &&
                     localStorage.getItem(`monvian_smart_onboarding_pending_${cleanEmail}`) === '1')
               );
-              if (false) {
+              if (needsSmartOnboarding) {
+                try {
+                  if (cleanEmail) {
+                    localStorage.setItem(`monvian_smart_onboarding_pending_${cleanEmail}`, '1');
+                    localStorage.setItem(`monvian_first_welcome_pending_${cleanEmail}`, '1');
+                    localStorage.removeItem(`monvian_first_welcome_seen_${cleanEmail}`);
+                  }
+                } catch {}
                 setShowOnboardingQuestions(true);
                 setShowFirstSignupWelcome(false);
               } else {
+                try {
+                  if (cleanEmail) {
+                    localStorage.removeItem(`monvian_smart_onboarding_pending_${cleanEmail}`);
+                  }
+                } catch {}
                 setShowOnboardingQuestions(false);
                 const needsWelcomeCard = Boolean(
                   !normalizedUser?.welcome_card_seen &&
@@ -3457,6 +3492,16 @@ export default function App() {
 
             if (updatedUser || preferences) {
               const token = localStorage.getItem('monvian_token');
+              const mergedForCloud = normalizeAppUser({
+                ...(user || {}),
+                ...(updatedUser || {}),
+                ...(preferences || {}),
+                onboarding_step: 4,
+                onboarding_completed: 1,
+              });
+              if (mergedForCloud) {
+                persistUserToFirestore(mergedForCloud).catch(() => {});
+              }
               setUser((prev: any) => {
                 const merged = normalizeAppUser({
                   ...(prev || {}),

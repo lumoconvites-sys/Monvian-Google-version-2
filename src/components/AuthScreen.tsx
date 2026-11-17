@@ -30,6 +30,7 @@ import { mapAuthErrorToUserMessage } from '../utils/authErrorMessages';
 import { persistUserToFirestore, syncPermissionsFromDatabase } from '../services/firestoreSync';
 import { startPreloadResources } from '../utils/preloadItineraries';
 import { CinematicLandingView } from './CinematicLandingView';
+import { PersistentSiteNavbar } from './PersistentSiteNavbar';
 import { useIOSBackEntry, iosNavigationManager } from '../services/iosNavigationManager';
 import { savePersistentSession } from '../utils/persistentAuthStorage';
 
@@ -108,6 +109,8 @@ export function AuthScreen({
     () => (detectedResetCode ? 'resetPassword' : initialAuthMode)
   );
   const [registerStep, setRegisterStep] = useState<1 | 2 | 3 | 4>(1);
+  const [landingNavTheme, setLandingNavTheme] = useState<'dark' | 'light'>('dark');
+  const pendingScrollToRoteirosRef = useRef<boolean>(false);
 
   useEffect(() => {
     if (!detectedResetCode && initialAuthMode === 'login') {
@@ -497,6 +500,8 @@ export function AuthScreen({
   // Navigation Handlers
   const handleStartRegisterFlow = () => {
     setError('');
+    setRecoverSent(false);
+    setLoginZoom(1);
     setRegisterStep(1);
     setAvatarPreview(null);
     setAvatarBase64(null);
@@ -511,6 +516,48 @@ export function AuthScreen({
     setLoginZoom(1);
     setAuthMode('login');
   };
+
+  const handleOpenItinerariesFlow = () => {
+    blurRegisterInputs();
+    setError('');
+    setRecoverSent(false);
+    setLoginZoom(1);
+    if (authMode === 'landing') {
+      const scroller = landingScrollContainerRef.current;
+      const target =
+        document.getElementById('roteiros') || document.getElementById('como-funciona');
+      if (scroller && target) {
+        scroller.scrollTo({
+          top: Math.max(0, target.offsetTop - 72),
+          behavior: 'smooth',
+        });
+      } else if (target) {
+        target.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      }
+    } else {
+      pendingScrollToRoteirosRef.current = true;
+      setAuthMode('landing');
+    }
+  };
+
+  useEffect(() => {
+    if (authMode !== 'landing' || !pendingScrollToRoteirosRef.current) return;
+    pendingScrollToRoteirosRef.current = false;
+    const timer = window.setTimeout(() => {
+      const scroller = landingScrollContainerRef.current;
+      const target =
+        document.getElementById('roteiros') || document.getElementById('como-funciona');
+      if (scroller && target) {
+        scroller.scrollTo({
+          top: Math.max(0, target.offsetTop - 72),
+          behavior: 'smooth',
+        });
+      } else if (target) {
+        target.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      }
+    }, 120);
+    return () => window.clearTimeout(timer);
+  }, [authMode]);
 
   const handleStep1Continue = (e?: React.FormEvent) => {
     if (e) e.preventDefault();
@@ -884,6 +931,8 @@ export function AuthScreen({
         auth_id: userObj.auth_id || firebaseUid,
         firebase_uid: firebaseUid,
         role: userObj.role || 'user',
+        onboarding_completed: userObj.onboarding_completed ?? 0,
+        onboarding_step: userObj.onboarding_step ?? 1,
       }).catch(() => {});
 
       void startPreloadResources();
@@ -960,7 +1009,6 @@ export function AuthScreen({
 
     const token: string = data.token;
     let verifiedUser: any = data.user;
-    const isNewAccount = Boolean(data.isNewUser || data.is_new || data.user?.visits_count === 1);
     const cleanEmail = (verifiedUser?.email || gUser.email || '').trim().toLowerCase();
 
     const [meResult] = await Promise.allSettled([
@@ -991,10 +1039,18 @@ export function AuthScreen({
       };
     }
 
+    const isNewAccount = Boolean(
+      data.isNewUser ||
+        data.is_new ||
+        verifiedUser?.onboarding_completed === 0
+    );
+
     persistUserToFirestore({
       ...verifiedUser,
       auth_id: verifiedUser.auth_id || gUser.uid || `usr_${verifiedUser.id}`,
       firebase_uid: gUser.uid || null,
+      onboarding_completed: verifiedUser.onboarding_completed ?? (isNewAccount ? 0 : 1),
+      onboarding_step: verifiedUser.onboarding_step ?? 1,
     }).catch(() => {});
 
     await savePersistentSession(token, verifiedUser);
@@ -1171,6 +1227,25 @@ export function AuthScreen({
           "'SF Pro Display', 'SF Pro Text', -apple-system, BlinkMacSystemFont, sans-serif",
       }}
     >
+      {/* Barra de navegação global fixa e persistente em todo o site público / auth */}
+      {!isGoogleAccountPreparing && !isAccountCreating && (
+        <PersistentSiteNavbar
+          navTheme={
+            authMode === 'landing'
+              ? isDark
+                ? 'dark'
+                : landingNavTheme
+              : isDark
+                ? 'dark'
+                : 'light'
+          }
+          isDark={isDark}
+          onStartRegister={handleStartRegisterFlow}
+          onOpenLogin={handleOpenLoginFlow}
+          onOpenItineraries={handleOpenItinerariesFlow}
+        />
+      )}
+
       {/* =========================================================================
           1. EXPERIÊNCIA CINEMATOGRÁFICA DE APRESENTAÇÃO MONVIAN
              Kept mounted underneath Login/Register so scroll position is preserved
@@ -1205,6 +1280,7 @@ export function AuthScreen({
               scrollContainerRef={landingScrollContainerRef}
               onStartRegister={handleStartRegisterFlow}
               onOpenLogin={handleOpenLoginFlow}
+              onNavThemeChange={setLandingNavTheme}
               theme={theme}
             />
           </motion.div>
@@ -1234,7 +1310,7 @@ export function AuthScreen({
           height: 'var(--app-height, 100dvh)',
           minHeight: 'var(--app-height, 100dvh)',
           backgroundColor: isDark ? '#000000' : '#FFFFFF',
-          paddingTop: 'max(20px, env(safe-area-inset-top, 0px))',
+          paddingTop: 'calc(env(safe-area-inset-top, 0px) + 74px)',
           paddingBottom: 'max(24px, env(safe-area-inset-bottom, 0px))',
           paddingLeft: 'max(24px, env(safe-area-inset-left, 0px))',
           paddingRight: 'max(24px, env(safe-area-inset-right, 0px))',
@@ -1937,7 +2013,7 @@ export function AuthScreen({
               minHeight: 'var(--app-height, 100dvh)',
               fontFamily:
                 "'SF Pro Display', 'SF Pro Text', -apple-system, BlinkMacSystemFont, sans-serif",
-              paddingTop: 'max(20px, calc(env(safe-area-inset-top, 0px) + 12px))',
+              paddingTop: 'calc(env(safe-area-inset-top, 0px) + 74px)',
               paddingBottom: 'max(32px, calc(env(safe-area-inset-bottom, 0px) + 20px))',
               touchAction: 'pan-y',
               backdropFilter: 'blur(20px)',

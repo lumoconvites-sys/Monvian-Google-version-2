@@ -620,13 +620,13 @@ export const OnboardingFlow: React.FC<OnboardingFlowProps> = ({
         }
       } catch {}
 
-      if (cleanEmail) {
-        persistUserOnboardingToFirestore({
-          user_id: user?.id ? String(user.id) : '',
-          user_email: cleanEmail,
-          ...payload,
-        }).catch(() => {});
-      }
+      const firestorePromise = cleanEmail
+        ? persistUserOnboardingToFirestore({
+            user_id: user?.id ? String(user.id) : '',
+            user_email: cleanEmail,
+            ...payload,
+          }).catch(() => null)
+        : Promise.resolve(null);
 
       const token = localStorage.getItem('monvian_token');
       const headers: Record<string, string> = {
@@ -640,15 +640,18 @@ export const OnboardingFlow: React.FC<OnboardingFlowProps> = ({
         : '/api/user/onboarding/step';
 
       try {
-        const res = await fetch(endpoint, {
+        const backendPromise = fetch(endpoint, {
           method: 'POST',
           headers,
           credentials: 'include',
           body: JSON.stringify(payload),
-        });
-        if (res.ok) {
-          return await res.json();
+        }).then(async (res) => (res.ok ? await res.json() : null));
+
+        if (markComplete) {
+          const [, backendResult] = await Promise.all([firestorePromise, backendPromise]);
+          return backendResult;
         }
+        return await backendPromise;
       } catch {}
       return null;
     },

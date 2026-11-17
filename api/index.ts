@@ -142,6 +142,7 @@ function formatSafeUser(u: any) {
     is_banned: u.is_banned || 0,
     bio: u.bio || '',
     onboarding_completed: u.onboarding_completed ?? 1,
+    onboarding_step: u.onboarding_step ?? 1,
     welcome_card_seen: u.welcome_card_seen ?? 0,
     location_permission_granted: u.location_permission_granted ?? 0,
     motion_permission_granted: u.motion_permission_granted ?? 0,
@@ -1055,7 +1056,8 @@ export default async function handler(req: any, res: any) {
                 : existingUser.avatar_url || '/fotoperfil.png',
             role: preservedRole,
             is_gold: preservedGold,
-            onboarding_completed: 1,
+            onboarding_completed: 0,
+            onboarding_step: 1,
             last_access: nowIso,
             updated_at: nowIso,
           })
@@ -1111,7 +1113,8 @@ export default async function handler(req: any, res: any) {
         is_premium: isGold,
         plan: isGold ? 'gold' : 'beta',
         avatar_url: resolvedAvatar,
-        onboarding_completed: 1,
+        onboarding_completed: 0,
+        onboarding_step: 1,
         visits_count: 1,
         last_access: nowIso,
         created_at: nowIso,
@@ -1290,7 +1293,8 @@ export default async function handler(req: any, res: any) {
             is_premium: isGold,
             plan: isGold ? 'gold' : 'beta',
             avatar_url: resolvedAvatar || '/fotoperfil.png',
-            onboarding_completed: 1,
+            onboarding_completed: 0,
+            onboarding_step: 1,
             visits_count: 1,
             last_access: nowIso,
             created_at: nowIso,
@@ -1625,6 +1629,77 @@ export default async function handler(req: any, res: any) {
         }
         return res.status(200).json({ success: true, user: formatSafeUser(data) });
       }
+    }
+
+    if (
+      (cleanPath === '/user/onboarding/step' ||
+        cleanPath === '/user/onboarding/complete' ||
+        cleanPath === '/user/onboarding/preferences') &&
+      (method === 'POST' || method === 'PUT')
+    ) {
+      const currentUser = await getAuthUser(req);
+      const emailParam = String(req.headers['x-user-email'] || body?.email || body?.user_email || '').trim().toLowerCase();
+      const targetEmail = String(currentUser?.email || emailParam || '').trim().toLowerCase();
+      if (!targetEmail) {
+        return res.status(400).json({ success: false, error: 'E-mail do usuário não identificado.' });
+      }
+      const markComplete =
+        cleanPath === '/user/onboarding/complete' || cleanPath === '/user/onboarding/preferences' || Boolean(body?.onboarding_completed);
+      const nextStep = Math.max(1, Math.min(4, Number(body?.onboarding_step) || (markComplete ? 4 : 1)));
+      const nowIso = new Date().toISOString();
+
+      let existingPrefs: any = {};
+      try {
+        const { data: prefRow } = await supabase
+          .from('system_settings')
+          .select('value')
+          .eq('key', `onboarding_${targetEmail}`)
+          .maybeSingle();
+        if (prefRow?.value) {
+          existingPrefs = JSON.parse(prefRow.value);
+        }
+      } catch {}
+
+      const mergedPrefs = {
+        ...existingPrefs,
+        ...(body || {}),
+        user_email: targetEmail,
+        onboarding_step: nextStep,
+        onboarding_completed: markComplete ? 1 : 0,
+        updated_at: nowIso,
+      };
+
+      try {
+        await supabase.from('system_settings').upsert(
+          { key: `onboarding_${targetEmail}`, value: JSON.stringify(mergedPrefs), updated_at: nowIso },
+          { onConflict: 'key' }
+        );
+      } catch {}
+
+      let updatedUser = currentUser;
+      try {
+        const { data: userRow } = await supabase
+          .from('users')
+          .update({
+            onboarding_step: nextStep,
+            onboarding_completed: markComplete ? 1 : 0,
+            updated_at: nowIso,
+          })
+          .ilike('email', targetEmail)
+          .select()
+          .maybeSingle();
+        if (userRow) {
+          updatedUser = formatSafeUser(userRow);
+        }
+      } catch {}
+
+      return res.status(200).json({
+        success: true,
+        onboarding_completed: markComplete ? 1 : 0,
+        onboarding_step: nextStep,
+        preferences: mergedPrefs,
+        user: updatedUser,
+      });
     }
 
     if (cleanPath === '/user/settings' && method === 'POST') {

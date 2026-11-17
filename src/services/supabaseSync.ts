@@ -717,11 +717,16 @@ export async function syncDatabaseWithSupabase(sqliteDb: any): Promise<void> {
             .prepare('SELECT id FROM users WHERE LOWER(email) = ? OR LOWER(whatsapp) = ?')
             .get(cleanEmail, cleanEmail);
 
+          const onboardingCompleted = u.onboarding_completed === 0 ? 0 : 1;
+          const onboardingStep = u.onboarding_step || 1;
+          const welcomeSeen = u.welcome_card_seen ? 1 : 0;
+          const globeSeen = u.globe_intro_seen ? 1 : 0;
+
           if (!existing) {
             sqliteDb
               .prepare(`
-                INSERT INTO users (name, username, email, whatsapp, password_hash, role, avatar_url, is_gold)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                INSERT INTO users (name, username, email, whatsapp, password_hash, role, avatar_url, is_gold, onboarding_completed, onboarding_step, welcome_card_seen, globe_intro_seen)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
               `)
               .run(
                 u.name || cleanEmail.split('@')[0],
@@ -731,7 +736,11 @@ export async function syncDatabaseWithSupabase(sqliteDb: any): Promise<void> {
                 u.password_hash || 'supabase_auth',
                 role,
                 u.avatar_url || '/fotoperfil.png',
-                isGold
+                isGold,
+                onboardingCompleted,
+                onboardingStep,
+                welcomeSeen,
+                globeSeen
               );
           } else {
             sqliteDb
@@ -740,10 +749,24 @@ export async function syncDatabaseWithSupabase(sqliteDb: any): Promise<void> {
                 SET name = COALESCE(?, name),
                     role = ?,
                     avatar_url = COALESCE(?, avatar_url),
-                    is_gold = CASE WHEN ? = 1 THEN 1 ELSE is_gold END
+                    is_gold = CASE WHEN ? = 1 THEN 1 ELSE is_gold END,
+                    onboarding_completed = CASE WHEN ? = 1 THEN 1 ELSE onboarding_completed END,
+                    onboarding_step = COALESCE(?, onboarding_step),
+                    welcome_card_seen = CASE WHEN ? = 1 THEN 1 ELSE welcome_card_seen END,
+                    globe_intro_seen = CASE WHEN ? = 1 THEN 1 ELSE globe_intro_seen END
                 WHERE id = ?
               `)
-              .run(u.name, role, u.avatar_url, isGold, existing.id);
+              .run(
+                u.name,
+                role,
+                u.avatar_url,
+                isGold,
+                onboardingCompleted,
+                onboardingStep,
+                welcomeSeen,
+                globeSeen,
+                existing.id
+              );
           }
         }
       }
