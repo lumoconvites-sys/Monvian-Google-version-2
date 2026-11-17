@@ -213,57 +213,7 @@ const getVectorMapStyle = (
     };
   }
 
-  // Orbital satellite base sources for realistic 3D Earth view at global/continental zoom in standard mode
-  const orbitalSatSources: Record<string, maplibregl.SourceSpecification> = {
-    'orbital-sat': {
-      type: 'raster',
-      tiles: [
-        'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
-      ],
-      tileSize: 256,
-      maxzoom: 10,
-      attribution: '&copy; Esri, Maxar',
-    },
-    'orbital-ref': {
-      type: 'raster',
-      tiles: [
-        'https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Boundaries_and_Places/MapServer/tile/{z}/{y}/{x}',
-      ],
-      tileSize: 256,
-      maxzoom: 10,
-      attribution: '&copy; Esri',
-    },
-  };
-
-  const orbitalSatLayers: maplibregl.LayerSpecification[] = [
-    {
-      id: 'orbital-sat-layer',
-      type: 'raster',
-      source: 'orbital-sat',
-      minzoom: 0,
-      maxzoom: 10,
-      paint: {
-        'raster-brightness-min': 0.2,
-        'raster-brightness-max': 1.0,
-        'raster-contrast': 0.14,
-        'raster-saturation': 0.2,
-        'raster-fade-duration': 220,
-      },
-    },
-    {
-      id: 'orbital-ref-layer',
-      type: 'raster',
-      source: 'orbital-ref',
-      minzoom: 0,
-      maxzoom: 10,
-      paint: {
-        'raster-opacity': 0.92,
-        'raster-fade-duration': 220,
-      },
-    },
-  ];
-
-  // 2. Standard Streets / Dark Mode
+  // 2. Standard Streets / Dark Mode (consistent colors from global 3D Earth view down to Campos do Jordão)
   if (token) {
     const styleId = theme === 'dark' ? 'mapbox/dark-v11' : 'mapbox/streets-v12';
     return {
@@ -271,7 +221,6 @@ const getVectorMapStyle = (
       projection: globeProjection,
       sky: spaceSky,
       sources: {
-        ...orbitalSatSources,
         'mapbox-tiles': {
           type: 'raster',
           tiles: [
@@ -282,15 +231,14 @@ const getVectorMapStyle = (
         },
       },
       layers: [
-        ...orbitalSatLayers,
         {
           id: 'mapbox-tiles-layer',
           type: 'raster',
           source: 'mapbox-tiles',
-          minzoom: 5,
+          minzoom: 0,
           maxzoom: 22,
           paint: {
-            'raster-opacity': ['interpolate', ['linear'], ['zoom'], 6.0, 0, 8.6, 1],
+            'raster-opacity': 1,
             'raster-fade-duration': 240,
           },
         },
@@ -305,7 +253,6 @@ const getVectorMapStyle = (
       projection: globeProjection,
       sky: spaceSky,
       sources: {
-        ...orbitalSatSources,
         'carto-dark': {
           type: 'raster',
           tiles: [
@@ -319,15 +266,14 @@ const getVectorMapStyle = (
         },
       },
       layers: [
-        ...orbitalSatLayers,
         {
           id: 'carto-dark-layer',
           type: 'raster',
           source: 'carto-dark',
-          minzoom: 5,
+          minzoom: 0,
           maxzoom: 20,
           paint: {
-            'raster-opacity': ['interpolate', ['linear'], ['zoom'], 6.0, 0, 8.6, 1],
+            'raster-opacity': 1,
             'raster-fade-duration': 240,
           },
         },
@@ -341,7 +287,6 @@ const getVectorMapStyle = (
     projection: globeProjection,
     sky: spaceSky,
     sources: {
-      ...orbitalSatSources,
       'esri-street': {
         type: 'raster',
         tiles: [
@@ -352,15 +297,14 @@ const getVectorMapStyle = (
       },
     },
     layers: [
-      ...orbitalSatLayers,
       {
         id: 'esri-street-layer',
         type: 'raster',
         source: 'esri-street',
-        minzoom: 5,
+        minzoom: 0,
         maxzoom: 20,
         paint: {
-          'raster-opacity': ['interpolate', ['linear'], ['zoom'], 6.0, 0, 8.6, 1],
+          'raster-opacity': 1,
           'raster-fade-duration': 240,
         },
       },

@@ -88,10 +88,12 @@ export const PlatanosWalletModal: React.FC<PlatanosWalletModalProps> = ({
 
   const prefersReducedMotion = useReducedMotion();
   const scrollBodyRef = useRef<HTMLDivElement | null>(null);
-  const dragHeaderRef = useRef<HTMLDivElement | null>(null);
+  const [sheetEl, setSheetEl] = useState<HTMLDivElement | null>(null);
   const sheetDragY = useMotionValue(0);
-  const dragScale = useTransform(sheetDragY, [0, 320], [1, 0.965]);
-  const backdropDragOpacity = useTransform(sheetDragY, [0, 260], [1, 0.35]);
+  const backdropDragOpacity = useTransform(sheetDragY, [0, 520], [1, 0.12]);
+  const activeAnimRef = useRef<ReturnType<typeof animate> | null>(null);
+  const suppressNextClickRef = useRef(false);
+  const lastTouchTimeRef = useRef(0);
 
   // Pre-decode 3D Platanus leaf images so opening hits 120fps with zero decode hitch
   useEffect(() => {
@@ -117,6 +119,8 @@ export const PlatanosWalletModal: React.FC<PlatanosWalletModalProps> = ({
 
   useEffect(() => {
     if (!isOpen) return;
+    activeAnimRef.current?.stop();
+    activeAnimRef.current = null;
     sheetDragY.set(0);
     setActiveTab(initialTab);
     setErrorMessage(null);
@@ -133,63 +137,264 @@ export const PlatanosWalletModal: React.FC<PlatanosWalletModalProps> = ({
     return () => window.removeEventListener('monvian-close-modals', handleCloseAll);
   }, [onClose]);
 
-  // Smooth native iOS pull-down-to-dismiss on top header / grabber
+  // 1:1 120fps direct finger/pointer tracking with full positional control
   useEffect(() => {
-    if (!isOpen) return;
-    const headerEl = dragHeaderRef.current;
-    if (!headerEl) return;
+    if (!isOpen || !sheetEl) return;
 
-    let startY = 0;
-    let startTime = 0;
+    let pointerActive = false;
+    let isCandidate = false;
     let isDragging = false;
-    let currentY = 0;
+    let startX = 0;
+    let startY = 0;
+    let startSheetY = 0;
+    let startedInScrollBody = false;
+    let startedAtScrollTop = true;
+    let startedOnControl = false;
+    let samples: Array<{ y: number; t: number }> = [];
+
+    const recordSample = (y: number, t: number) => {
+      samples.push({ y, t });
+      const cutoff = t - 110;
+      while (samples.length > 2 && samples[0].t < cutoff) {
+        samples.shift();
+      }
+      if (samples.length > 6) {
+        samples.shift();
+      }
+    };
+
+    const getReleaseVelocity = (): number => {
+      if (samples.length < 2) return 0;
+      const first = samples[0];
+      const last = samples[samples.length - 1];
+      const dt = Math.max(8, last.t - first.t);
+      return (last.y - first.y) / dt; // px / ms
+    };
+
+    const beginGesture = (clientX: number, clientY: number, target: EventTarget | null) => {
+      if (clientX < 24) {
+        pointerActive = false;
+        isCandidate = false;
+        return;
+      }
+      activeAnimRef.current?.stop();
+      activeAnimRef.current = null;
+
+      const targetEl = target instanceof Element ? target : null;
+      const scrollEl = scrollBodyRef.current;
+
+      pointerActive = true;
+      isCandidate = true;
+      isDragging = false;
+      startX = clientX;
+      startY = clientY;
+      startSheetY = sheetDragY.get();
+      startedInScrollBody = Boolean(scrollEl && targetEl && scrollEl.contains(targetEl));
+      startedAtScrollTop = scrollEl ? scrollEl.scrollTop <= 1 : true;
+      startedOnControl = Boolean(
+        targetEl?.closest?.('button, a, input, select, textarea, [role="tab"]')
+      );
+      samples = [{ y: startSheetY, t: performance.now() }];
+    };
+
+    const updateGesture = (
+      clientX: number,
+      clientY: number,
+      cancelable: boolean,
+      preventDefault: () => void
+    ) => {
+      if (!pointerActive || !isCandidate) return;
+
+      const dx = clientX - startX;
+      const dy = clientY - startY;
+
+      if (!isDragging) {
+        if (startedInScrollBody) {
+          if (startSheetY > 1.5) {
+            if (Math.abs(dy) > 3 && Math.abs(dy) >= Math.abs(dx)) {
+              isDragging = true;
+            } else if (Math.abs(dx) > 12) {
+              isCandidate = false;
+              return;
+            } else {
+              return;
+            }
+          } else {
+            if (startedAtScrollTop && dy > 3 && dy > Math.abs(dx)) {
+              isDragging = true;
+            } else if (dy < -3 || Math.abs(dx) > 10) {
+              isCandidate = false;
+              return;
+            } else {
+              return;
+            }
+          }
+        } else if (startedOnControl) {
+          if (Math.abs(dy) > 5 && Math.abs(dy) >= Math.abs(dx)) {
+            isDragging = true;
+          } else if (Math.abs(dx) > 10) {
+            isCandidate = false;
+            return;
+          } else {
+            return;
+          }
+        } else {
+          if (Math.abs(dy) >= 1 && Math.abs(dy) >= Math.abs(dx) * 0.75) {
+            isDragging = true;
+          } else if (Math.abs(dx) > 14 && Math.abs(dy) < 4) {
+            isCandidate = false;
+            return;
+          } else {
+            return;
+          }
+        }
+      }
+
+      if (cancelable) {
+        preventDefault();
+      }
+      if (startedOnControl) {
+        suppressNextClickRef.current = true;
+      }
+
+      const sheetHeight = sheetEl.offsetHeight || window.innerHeight * 0.85;
+      const rawY = startSheetY + dy;
+      const nextY =
+        rawY >= 0
+          ? Math.min(sheetHeight + 36, rawY)
+          : Math.max(-28, rawY * 0.34);
+
+      sheetDragY.set(nextY);
+      recordSample(nextY, performance.now());
+    };
+
+    const finishGesture = () => {
+      if (!pointerActive) return;
+      pointerActive = false;
+      isCandidate = false;
+
+      if (!isDragging) {
+        samples = [];
+        return;
+      }
+      isDragging = false;
+
+      if (suppressNextClickRef.current) {
+        setTimeout(() => {
+          suppressNextClickRef.current = false;
+        }, 90);
+      }
+
+      const currentY = sheetDragY.get();
+      const vy = getReleaseVelocity();
+      samples = [];
+
+      const sheetHeight = sheetEl.offsetHeight || window.innerHeight * 0.85;
+      const totalDeltaY = currentY - startSheetY;
+      const maxHoldY = Math.max(120, sheetHeight - 108);
+
+      // Fast downward flick or dragged near the bottom edge -> close smoothly
+      if ((vy > 0.65 && totalDeltaY > 28) || currentY > sheetHeight * 0.72) {
+        activeAnimRef.current = animate(sheetDragY, sheetHeight + 44, {
+          duration: 0.2,
+          ease: [0.22, 1, 0.36, 1],
+        });
+        onClose();
+        return;
+      }
+
+      // Close to top resting point or pulled above -> snap cleanly to resting top (0)
+      if (currentY < 16 && vy <= 0.25) {
+        activeAnimRef.current = animate(sheetDragY, 0, {
+          type: 'spring',
+          stiffness: 520,
+          damping: 40,
+          mass: 0.65,
+        });
+        return;
+      }
+
+      // Stationary release anywhere -> stay at exact finger position with zero snap-back
+      if (Math.abs(vy) < 0.14) {
+        const clamped = Math.max(0, Math.min(maxHoldY, currentY));
+        if (clamped !== currentY) {
+          activeAnimRef.current = animate(sheetDragY, clamped, {
+            type: 'spring',
+            stiffness: 520,
+            damping: 42,
+            mass: 0.6,
+          });
+        }
+        return;
+      }
+
+      // Gentle toss -> short natural deceleration to rest at new position
+      const projected = currentY + vy * 88;
+      const targetY =
+        projected < 16 ? 0 : Math.max(16, Math.min(maxHoldY, projected));
+
+      activeAnimRef.current = animate(sheetDragY, targetY, {
+        type: 'spring',
+        stiffness: 460,
+        damping: 42,
+        mass: 0.65,
+        velocity: vy * 1000,
+      });
+    };
 
     const onTouchStart = (e: TouchEvent) => {
       if (e.touches.length !== 1) return;
-      startY = e.touches[0].clientY;
-      startTime = performance.now();
-      isDragging = true;
-      currentY = 0;
+      lastTouchTimeRef.current = performance.now();
+      const t = e.touches[0];
+      beginGesture(t.clientX, t.clientY, e.target);
     };
 
     const onTouchMove = (e: TouchEvent) => {
-      if (!isDragging || e.touches.length !== 1) return;
-      const dy = e.touches[0].clientY - startY;
-      if (dy > 0) {
-        if (e.cancelable) e.preventDefault();
-        currentY = dy * 0.88;
-        sheetDragY.set(currentY);
-      }
+      if (!pointerActive || e.touches.length !== 1) return;
+      lastTouchTimeRef.current = performance.now();
+      const t = e.touches[0];
+      updateGesture(t.clientX, t.clientY, e.cancelable, () => e.preventDefault());
     };
 
     const onTouchEnd = () => {
-      if (!isDragging) return;
-      isDragging = false;
-      const elapsed = Math.max(16, performance.now() - startTime);
-      const velocity = currentY / elapsed;
-      if (currentY > 110 || (currentY > 42 && velocity > 0.42)) {
-        onClose();
-      } else {
-        animate(sheetDragY, 0, {
-          type: 'spring',
-          stiffness: 440,
-          damping: 36,
-        });
-      }
+      lastTouchTimeRef.current = performance.now();
+      finishGesture();
     };
 
-    headerEl.addEventListener('touchstart', onTouchStart, { passive: true });
-    headerEl.addEventListener('touchmove', onTouchMove, { passive: false });
-    headerEl.addEventListener('touchend', onTouchEnd, { passive: true });
-    headerEl.addEventListener('touchcancel', onTouchEnd, { passive: true });
+    const onMouseDown = (e: MouseEvent) => {
+      if (e.button !== 0) return;
+      if (performance.now() - lastTouchTimeRef.current < 650) return;
+      beginGesture(e.clientX, e.clientY, e.target);
+    };
+
+    const onWindowMouseMove = (e: MouseEvent) => {
+      if (!pointerActive) return;
+      updateGesture(e.clientX, e.clientY, e.cancelable, () => e.preventDefault());
+    };
+
+    const onWindowMouseUp = () => {
+      if (!pointerActive) return;
+      finishGesture();
+    };
+
+    sheetEl.addEventListener('touchstart', onTouchStart, { passive: true });
+    sheetEl.addEventListener('touchmove', onTouchMove, { passive: false });
+    sheetEl.addEventListener('touchend', onTouchEnd, { passive: true });
+    sheetEl.addEventListener('touchcancel', onTouchEnd, { passive: true });
+    sheetEl.addEventListener('mousedown', onMouseDown);
+    window.addEventListener('mousemove', onWindowMouseMove);
+    window.addEventListener('mouseup', onWindowMouseUp);
 
     return () => {
-      headerEl.removeEventListener('touchstart', onTouchStart);
-      headerEl.removeEventListener('touchmove', onTouchMove);
-      headerEl.removeEventListener('touchend', onTouchEnd);
-      headerEl.removeEventListener('touchcancel', onTouchEnd);
+      sheetEl.removeEventListener('touchstart', onTouchStart);
+      sheetEl.removeEventListener('touchmove', onTouchMove);
+      sheetEl.removeEventListener('touchend', onTouchEnd);
+      sheetEl.removeEventListener('touchcancel', onTouchEnd);
+      sheetEl.removeEventListener('mousedown', onMouseDown);
+      window.removeEventListener('mousemove', onWindowMouseMove);
+      window.removeEventListener('mouseup', onWindowMouseUp);
     };
-  }, [isOpen, onClose, sheetDragY]);
+  }, [isOpen, sheetEl, onClose, sheetDragY]);
 
   const handleCheckout = async (pkg: PlatanoPackage) => {
     try {
@@ -225,7 +430,7 @@ export const PlatanosWalletModal: React.FC<PlatanosWalletModalProps> = ({
             willChange: 'opacity',
           }}
         >
-          {/* Dedicated GPU-composited scrim so blur stays stable at 120fps */}
+          {/* Dedicated GPU-composited scrim (no per-frame blur overhead at 120fps) */}
           <motion.div
             aria-hidden="true"
             style={{
@@ -234,7 +439,9 @@ export const PlatanosWalletModal: React.FC<PlatanosWalletModalProps> = ({
               WebkitTransform: 'translate3d(0,0,0)',
               willChange: 'opacity',
             }}
-            className="absolute inset-0 bg-black/44 backdrop-blur-[6px] pointer-events-none"
+            className={`absolute inset-0 pointer-events-none ${
+              isDark ? 'bg-black/62' : 'bg-black/42'
+            }`}
           />
 
           {/* Outer Motion Container: 120fps lightweight spring open & smooth float-down exit */}
@@ -254,11 +461,10 @@ export const PlatanosWalletModal: React.FC<PlatanosWalletModalProps> = ({
               prefersReducedMotion
                 ? { opacity: 0, transition: { duration: 0.16 } }
                 : {
-                    y: 108,
-                    scale: 0.96,
+                    y: 96,
                     opacity: 0,
                     transition: {
-                      duration: 0.32,
+                      duration: 0.24,
                       ease: [0.32, 0.72, 0, 1],
                     },
                   }
@@ -282,38 +488,46 @@ export const PlatanosWalletModal: React.FC<PlatanosWalletModalProps> = ({
               WebkitBackfaceVisibility: 'hidden',
             }}
           >
-            {/* Inner Drag Layer: isolated MotionValue so swipe-to-dismiss never conflicts with open/exit */}
+            {/* Inner Drag Layer: pure translate3d GPU MotionValue for 0-lag 120fps tracking */}
             <motion.div
-              className={`relative w-full max-h-[91dvh] flex flex-col rounded-t-[36px] sm:rounded-[34px] overflow-hidden transform-gpu ${
+              ref={setSheetEl}
+              onClickCapture={(e) => {
+                if (suppressNextClickRef.current) {
+                  suppressNextClickRef.current = false;
+                  e.preventDefault();
+                  e.stopPropagation();
+                }
+              }}
+              className={`relative w-full max-h-[91dvh] flex flex-col rounded-t-[36px] sm:rounded-[34px] overflow-visible transform-gpu ${
                 isDark
                   ? 'bg-[#0B0B0D] text-[#FFFFFF] border-t sm:border border-white/[0.08] shadow-[0_-14px_48px_rgba(0,0,0,0.72),0_20px_60px_rgba(0,0,0,0.85)]'
                   : 'bg-[#FFFFFF] text-[#000000] shadow-[0_-10px_40px_rgba(0,0,0,0.16),0_18px_50px_rgba(0,0,0,0.18)]'
               }`}
               style={{
                 y: sheetDragY,
-                scale: dragScale,
                 paddingBottom: 'max(env(safe-area-inset-bottom, 0px), 12px)',
                 willChange: 'transform',
                 backfaceVisibility: 'hidden',
                 WebkitBackfaceVisibility: 'hidden',
-                contain: 'layout style paint',
               }}
             >
+              {/* Clipped visual surface inside sheet so top rounded corners stay crisp */}
+              <div className="w-full flex-1 min-h-0 flex flex-col rounded-t-[36px] sm:rounded-[34px] overflow-hidden">
             {/* Top Surface with Subtle Radial Warm Depth + 3D Platanus Leaf */}
             <div
-              ref={dragHeaderRef}
-              className="relative shrink-0 overflow-hidden select-none"
+              className="relative shrink-0 overflow-hidden select-none touch-none cursor-grab active:cursor-grabbing"
               style={{
+                touchAction: 'none',
                 background: isDark
                   ? 'radial-gradient(120% 100% at 84% 32%, #1D1812 0%, #0B0B0D 66%)'
                   : 'radial-gradient(120% 100% at 84% 32%, #FAF5EC 0%, #FFFFFF 64%)',
               }}
             >
-              {/* Top Grabber Indicator (No Close X Button) */}
-              <div className="relative z-20 pt-2.5 pb-1 flex justify-center">
+              {/* Top Grabber Indicator (Generous Touch Area, No Close X Button) */}
+              <div className="relative z-20 pt-3 pb-2 flex justify-center">
                 <div
-                  className={`w-10 h-[4.5px] rounded-full ${
-                    isDark ? 'bg-[#3A3A3C]' : 'bg-[#D1D1D6]'
+                  className={`w-11 h-[5px] rounded-full ${
+                    isDark ? 'bg-[#48484A]' : 'bg-[#C7C7CC]'
                   }`}
                 />
               </div>
@@ -409,12 +623,12 @@ export const PlatanosWalletModal: React.FC<PlatanosWalletModalProps> = ({
             </div>
 
             {/* Translucent Presentation Banner */}
-            <div className="px-5 shrink-0">
+            <div className="px-5 shrink-0 touch-none select-none" style={{ touchAction: 'none' }}>
               <div
-                className={`px-4 py-2.5 rounded-[16px] backdrop-blur-md border flex items-center gap-2.5 ${
+                className={`px-4 py-2.5 rounded-[16px] border flex items-center gap-2.5 ${
                   isDark
-                    ? 'bg-[#1C1C1E]/90 border-white/[0.06]'
-                    : 'bg-[#F2F2F7]/85 border-black/[0.03]'
+                    ? 'bg-[#1C1C1E] border-white/[0.06]'
+                    : 'bg-[#F2F2F7] border-black/[0.03]'
                 }`}
               >
                 <Crown
@@ -433,7 +647,7 @@ export const PlatanosWalletModal: React.FC<PlatanosWalletModalProps> = ({
             </div>
 
             {/* Modern Segmented Control Tabs */}
-            <div className="px-5 pt-3.5 pb-3 shrink-0">
+            <div className="px-5 pt-3.5 pb-3 shrink-0 touch-none select-none" style={{ touchAction: 'none' }}>
               <div
                 role="tablist"
                 aria-label="Opções da carteira"
@@ -796,11 +1010,12 @@ export const PlatanosWalletModal: React.FC<PlatanosWalletModalProps> = ({
 
             {/* Minimalist Stripe Security Footer */}
             <div
-              className={`px-5 pt-2.5 pb-2 shrink-0 border-t flex items-center justify-center gap-1.5 ${
+              className={`px-5 pt-2.5 pb-2 shrink-0 border-t flex items-center justify-center gap-1.5 touch-none select-none ${
                 isDark
                   ? 'bg-[#0B0B0D] border-white/[0.06] text-[#8E8E93]'
                   : 'bg-[#FFFFFF] border-black/[0.04] text-[#71717A]'
               }`}
+              style={{ touchAction: 'none' }}
             >
               <span className="relative inline-flex items-center justify-center w-4 h-4 shrink-0">
                 <Shield className="w-4 h-4 stroke-[1.8]" />
@@ -810,6 +1025,14 @@ export const PlatanosWalletModal: React.FC<PlatanosWalletModalProps> = ({
                 Pagamento seguro processado via Stripe
               </span>
             </div>
+              </div>
+              {/* Bottom extension skirt so upward rubber-banding never shows a gap */}
+              <div
+                aria-hidden="true"
+                className={`sm:hidden pointer-events-none absolute inset-x-0 top-full h-24 ${
+                  isDark ? 'bg-[#0B0B0D]' : 'bg-[#FFFFFF]'
+                }`}
+              />
             </motion.div>
           </motion.div>
         </motion.div>

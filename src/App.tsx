@@ -39,6 +39,8 @@ import { persistUserToFirestore, syncPermissionsFromDatabase, markWelcomeCardSee
 import { fetchSpotsFromSupabase, subscribeToSpotsChanges } from './services/supabaseSpots';
 import { broadcastPlatanosWalletUpdate, getAuthHeaders } from './hooks/usePlatanos';
 import { PlatanosWalletModal } from './components/platanos/PlatanosWalletModal';
+import { CamposAchievementModal } from './components/CamposAchievementModal';
+import { isWithinCamposRadius } from './utils/geoCache';
 import { SignupIntroSequence, SignupIntroStage } from './components/SignupIntroSequence';
 import { FirstSignupWelcomeScreen } from './components/FirstSignupWelcomeScreen';
 import { WelcomeJourneyModal } from './components/WelcomeJourneyModal';
@@ -306,6 +308,14 @@ export default function App() {
   const [isChatKeyboardOpen, setIsChatKeyboardOpen] = useState<boolean>(false);
   const [isPlatanosWalletOpen, setIsPlatanosWalletOpen] = useState<boolean>(false);
   const [platanosWalletTab, setPlatanosWalletTab] = useState<'topup' | 'history'>('topup');
+  const [isCamposAchievementOpen, setIsCamposAchievementOpen] = useState<boolean>(() => {
+    try {
+      const params = new URLSearchParams(window.location.search);
+      return params.get('conquista') === 'campos';
+    } catch {
+      return false;
+    }
+  });
 
   useEffect(() => {
     const handleOpenWallet = (e: Event) => {
@@ -313,13 +323,19 @@ export default function App() {
       setPlatanosWalletTab(detail?.tab === 'history' ? 'history' : 'topup');
       setIsPlatanosWalletOpen(true);
     };
+    const handleOpenCamposAchievement = () => {
+      setIsCamposAchievementOpen(true);
+    };
     const handleCloseAll = () => {
       setIsPlatanosWalletOpen(false);
+      setIsCamposAchievementOpen(false);
     };
     window.addEventListener('monvian:open_platanos_wallet', handleOpenWallet);
+    window.addEventListener('monvian:open_campos_achievement', handleOpenCamposAchievement);
     window.addEventListener('monvian-close-modals', handleCloseAll);
     return () => {
       window.removeEventListener('monvian:open_platanos_wallet', handleOpenWallet);
+      window.removeEventListener('monvian:open_campos_achievement', handleOpenCamposAchievement);
       window.removeEventListener('monvian-close-modals', handleCloseAll);
     };
   }, []);
@@ -1712,6 +1728,63 @@ export default function App() {
       unsubscribe();
     };
   }, [isAuthenticated, activeTab]);
+
+  // Unlock "Eu visitei Campos do Jordão" achievement once when real GPS confirms presence in Campos do Jordão
+  useEffect(() => {
+    if (
+      !isAuthenticated ||
+      activeTab !== 'explorar' ||
+      showOnboardingQuestions ||
+      showFirstSignupWelcome ||
+      isGlobeIntroPending ||
+      isGlobeIntroPlaying ||
+      isOnboardingItinerarySelection ||
+      isWelcomeJourneyOpen ||
+      isCamposAchievementOpen
+    ) {
+      return;
+    }
+
+    const userKey = String(user?.id || user?.email || user?.whatsapp || 'default')
+      .trim()
+      .toLowerCase();
+    const storageKey = `monvian_achievement_campos_seen_${userKey}`;
+
+    try {
+      if (localStorage.getItem(storageKey) === '1') {
+        return;
+      }
+    } catch {
+      return;
+    }
+
+    const navState = gpsNavigationManager.getState();
+    if (!navState.hasRealFix || navState.status !== 'granted') {
+      return;
+    }
+
+    if (isWithinCamposRadius(navState.coords, 18)) {
+      try {
+        localStorage.setItem(storageKey, '1');
+      } catch {}
+      setIsCamposAchievementOpen(true);
+    }
+  }, [
+    isAuthenticated,
+    activeTab,
+    userCoords,
+    geoStatus,
+    user?.id,
+    user?.email,
+    user?.whatsapp,
+    showOnboardingQuestions,
+    showFirstSignupWelcome,
+    isGlobeIntroPending,
+    isGlobeIntroPlaying,
+    isOnboardingItinerarySelection,
+    isWelcomeJourneyOpen,
+    isCamposAchievementOpen,
+  ]);
 
   // Smoothly recalculate the active road route when user's real GPS position moves significantly
   useEffect(() => {
@@ -3438,6 +3511,11 @@ export default function App() {
       onClose={() => setIsPlatanosWalletOpen(false)}
       theme={theme}
       initialTab={platanosWalletTab}
+    />
+
+    <CamposAchievementModal
+      isOpen={isCamposAchievementOpen}
+      onClose={() => setIsCamposAchievementOpen(false)}
     />
 
   </motion.div>
