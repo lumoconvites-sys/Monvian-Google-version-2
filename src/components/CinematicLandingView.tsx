@@ -1030,7 +1030,7 @@ export const CinematicLandingView: React.FC<CinematicLandingViewProps> = ({
         style={{
           height: 'var(--app-height, 100dvh)',
           minHeight: 'max(640px, var(--app-height, 100dvh))',
-          filter: 'saturate(0.7)',
+          filter: 'saturate(0.9)',
         }}
       >
         {/* 1. CÉU TRIDIMENSIONAL MULTICAMADAS */}
@@ -1710,10 +1710,7 @@ export const CinematicLandingView: React.FC<CinematicLandingViewProps> = ({
             </div>
           </div>
 
-          {/* Carrossel Horizontal Automático 3D de Categorias Turísticas abaixo do botão de login */}
-          <div id="duvidas" className="w-full mt-10 sm:mt-12 md:mt-14">
-            <Category3DLiquidGlassCarousel theme={theme} />
-          </div>
+
 
           {/* Seção de Provas Sociais ("Quem vive, recomenda.") abaixo do carrossel */}
           <div className="w-full mt-10 sm:mt-14">

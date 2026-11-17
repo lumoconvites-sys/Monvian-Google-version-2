@@ -397,14 +397,6 @@ export const LoginSocialProofSection = memo(function LoginSocialProofSection({
             isSectionVisible={isSectionVisible}
             isDark={isDark}
           />
-          <InfiniteReviewTrack
-            items={track3}
-            direction="left"
-            speedPxPerSec={22}
-            reduceMotion={shouldReduceMotion}
-            isSectionVisible={isSectionVisible}
-            isDark={isDark}
-          />
         </div>
       </div>
     </section>
