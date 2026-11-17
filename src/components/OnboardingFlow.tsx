@@ -892,15 +892,17 @@ export const OnboardingFlow: React.FC<OnboardingFlowProps> = ({
     enter: (dir: number) =>
       prefersReducedMotion
         ? { opacity: 0 }
-        : { opacity: 0, x: dir > 0 ? 26 : -26 },
+        : { opacity: 0, x: dir > 0 ? 32 : -32, scale: 0.96, filter: 'blur(6px)' },
     center: {
       opacity: 1,
       x: 0,
+      scale: 1,
+      filter: 'blur(0px)',
     },
     exit: (dir: number) =>
       prefersReducedMotion
         ? { opacity: 0 }
-        : { opacity: 0, x: dir > 0 ? -26 : 26 },
+        : { opacity: 0, x: dir > 0 ? -32 : 32, scale: 0.96, filter: 'blur(6px)' },
   };
 
   const tripSummaryLabel = useMemo(() => {
@@ -910,10 +912,10 @@ export const OnboardingFlow: React.FC<OnboardingFlowProps> = ({
 
   return (
     <motion.div
-      initial={{ opacity: 0 }}
-      animate={{ opacity: 1 }}
-      exit={{ opacity: 0 }}
-      transition={{ duration: 0.26, ease: [0.22, 1, 0.36, 1] }}
+      initial={{ opacity: 0, scale: 0.98, filter: 'blur(4px)' }}
+      animate={{ opacity: 1, scale: 1, filter: 'blur(0px)' }}
+      exit={{ opacity: 0, scale: 0.98, filter: 'blur(4px)' }}
+      transition={{ duration: 0.42, ease: [0.22, 1, 0.36, 1] }}
       className={`fixed inset-0 z-[260] w-full flex flex-col select-none overflow-hidden ${
         isDark ? 'bg-[#000000] text-[#FFFFFF]' : 'bg-[#FFFFFF] text-[#080808]'
       }`}
@@ -1006,7 +1008,7 @@ export const OnboardingFlow: React.FC<OnboardingFlowProps> = ({
               initial="enter"
               animate="center"
               exit="exit"
-              transition={{ duration: 0.26, ease: [0.22, 1, 0.36, 1] }}
+              transition={{ duration: 0.42, ease: [0.22, 1, 0.36, 1] }}
               className="flex-1 flex flex-col justify-between gap-6"
             >
               <div className="space-y-6">
@@ -1119,7 +1121,7 @@ export const OnboardingFlow: React.FC<OnboardingFlowProps> = ({
               initial="enter"
               animate="center"
               exit="exit"
-              transition={{ duration: 0.26, ease: [0.22, 1, 0.36, 1] }}
+              transition={{ duration: 0.42, ease: [0.22, 1, 0.36, 1] }}
               className="flex-1 flex flex-col justify-between gap-4"
             >
               <div className="space-y-4">
@@ -1361,7 +1363,7 @@ export const OnboardingFlow: React.FC<OnboardingFlowProps> = ({
               initial="enter"
               animate="center"
               exit="exit"
-              transition={{ duration: 0.26, ease: [0.22, 1, 0.36, 1] }}
+              transition={{ duration: 0.42, ease: [0.22, 1, 0.36, 1] }}
               className="flex-1 flex flex-col justify-between gap-5"
             >
               <div className="space-y-4">
@@ -1475,7 +1477,7 @@ export const OnboardingFlow: React.FC<OnboardingFlowProps> = ({
               initial="enter"
               animate="center"
               exit="exit"
-              transition={{ duration: 0.26, ease: [0.22, 1, 0.36, 1] }}
+              transition={{ duration: 0.42, ease: [0.22, 1, 0.36, 1] }}
               className="flex-1 flex flex-col justify-between gap-6"
             >
               <div className="flex-1 flex flex-col items-center justify-center text-center px-2">

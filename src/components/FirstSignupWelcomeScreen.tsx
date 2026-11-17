@@ -232,30 +232,8 @@ export const FirstSignupWelcomeScreen: React.FC<FirstSignupWelcomeScreenProps> =
         }}
       >
         <div className="min-h-full w-full max-w-[392px] mx-auto flex flex-col justify-between gap-6 py-2">
-          {/* Center Composition: Logo lowered directly above Bem-vindo + 4 Feature Highlights */}
+          {/* Center Composition: 4 Feature Highlights */}
           <div className="flex flex-col items-center my-auto w-full pt-4 sm:pt-6">
-            {/* Monvian Script Logo positioned cleanly just above Bem-vindo */}
-            <motion.div
-              initial={
-                prefersReducedMotion
-                  ? { opacity: 0 }
-                  : { opacity: 0, y: -22, scale: 0.88, filter: 'blur(8px)' }
-              }
-              animate={{ opacity: 1, y: 0, scale: 1, filter: 'blur(0px)' }}
-              transition={
-                prefersReducedMotion
-                  ? { duration: 0.16 }
-                  : { ...iosSpring, delay: 0.10 }
-              }
-              className="flex justify-center mb-5 sm:mb-6 shrink-0"
-            >
-              <img
-                src="/assets/aistudio/monvian_logo_white_transparent.png"
-                alt="Monvian"
-                draggable={false}
-                className="h-[46px] sm:h-[52px] w-auto object-contain select-none pointer-events-none drop-shadow-[0_2px_10px_rgba(0,0,0,0.16)]"
-              />
-            </motion.div>
 
             {/* Hero Greeting + Hand Wave */}
             <div className="text-center w-full mb-7 sm:mb-9">

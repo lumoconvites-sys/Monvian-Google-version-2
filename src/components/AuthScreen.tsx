@@ -1176,36 +1176,42 @@ export function AuthScreen({
              Kept mounted underneath Login/Register so scroll position is preserved
              with zero GSAP layout thrash and native iOS parallax on edge-swipe back!
          ========================================================================= */}
-      <div
-        id="auth-landing-layer"
-        ref={landingScrollContainerRef}
-        aria-hidden={authMode !== 'landing'}
-        className={`fixed inset-0 z-[100] overflow-y-auto overscroll-y-contain transition-opacity duration-300 ${
-          isDark ? 'bg-[#000000]' : 'bg-[#FFFFFF]'
-        } ${
-          authMode === 'landing'
-            ? 'opacity-100 pointer-events-auto visible'
-            : 'opacity-0 pointer-events-none invisible'
-        }`}
-        style={{
-          top: 0,
-          bottom: 0,
-          left: 0,
-          right: 0,
-          width: '100%',
-          height: 'var(--app-height, 100dvh)',
-          minHeight: 'var(--app-height, 100dvh)',
-          WebkitOverflowScrolling: 'touch',
-          willChange: 'opacity',
-        }}
-      >
-        <CinematicLandingView
-          scrollContainerRef={landingScrollContainerRef}
-          onStartRegister={handleStartRegisterFlow}
-          onOpenLogin={handleOpenLoginFlow}
-          theme={theme}
-        />
-      </div>
+      <AnimatePresence mode="wait">
+        {authMode === 'landing' && (
+          <motion.div
+            key="auth-landing-view"
+            initial={{ opacity: 0, scale: 0.98, filter: 'blur(6px)' }}
+            animate={{ opacity: 1, scale: 1, filter: 'blur(0px)' }}
+            exit={{ opacity: 0, scale: 0.98, filter: 'blur(6px)' }}
+            transition={{ duration: 0.6, ease: [0.22, 1, 0.36, 1] }}
+            id="auth-landing-layer"
+            ref={landingScrollContainerRef}
+            className={`fixed inset-0 z-[100] overflow-y-auto overscroll-y-contain ${
+              isDark ? 'bg-[#000000]' : 'bg-[#FFFFFF]'
+            }`}
+            style={{
+              top: 0,
+              bottom: 0,
+              left: 0,
+              right: 0,
+              width: '100%',
+              height: 'var(--app-height, 100dvh)',
+              minHeight: 'var(--app-height, 100dvh)',
+              WebkitOverflowScrolling: 'touch',
+              willChange: 'opacity, transform, filter',
+              backdropFilter: 'blur(20px)',
+              WebkitBackdropFilter: 'blur(20px)',
+            }}
+          >
+            <CinematicLandingView
+              scrollContainerRef={landingScrollContainerRef}
+              onStartRegister={handleStartRegisterFlow}
+              onOpenLogin={handleOpenLoginFlow}
+              theme={theme}
+            />
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {/* =========================================================================
           2. PROGRESSIVE 3-STEP REGISTRATION FLOW (Nome -> E-mail -> Senha -> Avatar)
@@ -1925,27 +1931,35 @@ export function AuthScreen({
       {/* =========================================================================
           3. TELA DE LOGIN E RECUPERAÇÃO DE SENHA
          ========================================================================= */}
-      {(authMode === 'login' || authMode === 'recover' || authMode === 'resetPassword') && !isGoogleAccountPreparing && (
-        <section
-          id="auth-main-section"
-          className={`auth-login-screen fixed inset-0 z-[115] w-full flex flex-col items-center justify-between pt-6 sm:pt-8 pb-10 px-5 sm:px-6 pointer-events-auto overflow-y-auto overflow-x-hidden overscroll-y-contain transition-colors duration-200 ${
-            isDark ? 'bg-[#000000] text-[#FFFFFF]' : 'bg-[#FFFFFF] text-[#080808]'
-          }`}
-          style={{
-            top: 0,
-            bottom: 0,
-            left: 0,
-            right: 0,
-            width: '100%',
-            height: 'var(--app-height, 100dvh)',
-            minHeight: 'var(--app-height, 100dvh)',
-            fontFamily:
-              "'SF Pro Display', 'SF Pro Text', -apple-system, BlinkMacSystemFont, sans-serif",
-            paddingTop: 'max(20px, calc(env(safe-area-inset-top, 0px) + 12px))',
-            paddingBottom: 'max(32px, calc(env(safe-area-inset-bottom, 0px) + 20px))',
-            touchAction: 'pan-y',
-          }}
-        >
+      <AnimatePresence mode="wait">
+        {(authMode === 'login' || authMode === 'recover' || authMode === 'resetPassword') && !isGoogleAccountPreparing && (
+          <motion.section
+            key="auth-login-view"
+            initial={{ opacity: 0, scale: 1.02, filter: 'blur(6px)' }}
+            animate={{ opacity: 1, scale: 1, filter: 'blur(0px)' }}
+            exit={{ opacity: 0, scale: 1.02, filter: 'blur(6px)' }}
+            transition={{ duration: 0.6, ease: [0.22, 1, 0.36, 1] }}
+            id="auth-main-section"
+            className={`auth-login-screen fixed inset-0 z-[115] w-full flex flex-col items-center justify-between pt-6 sm:pt-8 pb-10 px-5 sm:px-6 pointer-events-auto overflow-y-auto overflow-x-hidden overscroll-y-contain ${
+              isDark ? 'bg-[#000000] text-[#FFFFFF]' : 'bg-[#FFFFFF] text-[#080808]'
+            }`}
+            style={{
+              top: 0,
+              bottom: 0,
+              left: 0,
+              right: 0,
+              width: '100%',
+              height: 'var(--app-height, 100dvh)',
+              minHeight: 'var(--app-height, 100dvh)',
+              fontFamily:
+                "'SF Pro Display', 'SF Pro Text', -apple-system, BlinkMacSystemFont, sans-serif",
+              paddingTop: 'max(20px, calc(env(safe-area-inset-top, 0px) + 12px))',
+              paddingBottom: 'max(32px, calc(env(safe-area-inset-bottom, 0px) + 20px))',
+              touchAction: 'pan-y',
+              backdropFilter: 'blur(20px)',
+              WebkitBackdropFilter: 'blur(20px)',
+            }}
+          >
           {/* Top Bar with Back Button */}
           <div className="w-full max-w-sm sm:max-w-md flex items-center justify-between shrink-0 mb-2">
             <AppleBackButton
@@ -2402,8 +2416,9 @@ export function AuthScreen({
 
           {/* Bottom spacer */}
           <div className="h-4 shrink-0" aria-hidden="true" />
-        </section>
+        </motion.section>
       )}
+    </AnimatePresence>
 
       {/* =========================================================================
           4. TELA DE CARREGAMENTO EM TELA CHEIA APÓS AUTENTICAÇÃO GOOGLE
