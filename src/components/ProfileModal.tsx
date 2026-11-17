@@ -83,49 +83,7 @@ type SubView =
   | 'ajuda-informacoes'
   | 'logout-confirm';
 
-const Responsive3DCompassIcon: React.FC<{ className?: string }> = ({ className = 'w-11 h-11' }) => (
-  <div className={`relative shrink-0 flex items-center justify-center ${className}`} style={{ filter: 'drop-shadow(0 4px 8px rgba(0, 122, 255, 0.32))' }}>
-    <svg viewBox="0 0 64 64" className="w-full h-full" fill="none">
-      <defs>
-        <radialGradient id="compassSphereProfile" cx="32" cy="24" r="28" fx="32" fy="16" gradientUnits="userSpaceOnUse">
-          <stop offset="0%" stopColor="#60A5FA" />
-          <stop offset="40%" stopColor="#2563EB" />
-          <stop offset="90%" stopColor="#1D4ED8" />
-          <stop offset="100%" stopColor="#1E3A8A" />
-        </radialGradient>
-        <linearGradient id="compassBezelProfile" x1="10" y1="10" x2="54" y2="54" gradientUnits="userSpaceOnUse">
-          <stop offset="0%" stopColor="#93C5FD" stopOpacity="0.95" />
-          <stop offset="50%" stopColor="#3B82F6" stopOpacity="0.5" />
-          <stop offset="100%" stopColor="#1E40AF" stopOpacity="0.95" />
-        </linearGradient>
-        <linearGradient id="needleRedProfile" x1="32" y1="14" x2="32" y2="32" gradientUnits="userSpaceOnUse">
-          <stop offset="0%" stopColor="#F87171" />
-          <stop offset="100%" stopColor="#DC2626" />
-        </linearGradient>
-        <linearGradient id="needleSilverProfile" x1="32" y1="32" x2="32" y2="50" gradientUnits="userSpaceOnUse">
-          <stop offset="0%" stopColor="#E2E8F0" />
-          <stop offset="100%" stopColor="#94A3B8" />
-        </linearGradient>
-        <radialGradient id="glassGlossProfile" cx="32" cy="18" r="20" fx="32" fy="12" gradientUnits="userSpaceOnUse">
-          <stop offset="0%" stopColor="#FFFFFF" stopOpacity="0.7" />
-          <stop offset="60%" stopColor="#FFFFFF" stopOpacity="0.12" />
-          <stop offset="100%" stopColor="#FFFFFF" stopOpacity="0" />
-        </radialGradient>
-      </defs>
-      <circle cx="32" cy="34" r="26" fill="#1D4ED8" fillOpacity="0.28" filter="blur(4px)" />
-      <circle cx="32" cy="32" r="26" fill="url(#compassSphereProfile)" />
-      <circle cx="32" cy="32" r="25" stroke="url(#compassBezelProfile)" strokeWidth="2" />
-      <path d="M32 10V14M32 50V54M10 32H14M50 32H54" stroke="#FFFFFF" strokeWidth="2" strokeLinecap="round" strokeOpacity="0.9" />
-      <polygon points="32,14 27,32 32,32" fill="url(#needleRedProfile)" />
-      <polygon points="32,14 37,32 32,32" fill="#B91C1C" />
-      <polygon points="32,50 27,32 32,32" fill="#CBD5E1" />
-      <polygon points="32,50 37,32 32,32" fill="url(#needleSilverProfile)" />
-      <circle cx="32" cy="32" r="3.5" fill="#F8FAFC" />
-      <circle cx="32" cy="32" r="2" fill="#3B82F6" />
-      <circle cx="32" cy="32" r="25" fill="url(#glassGlossProfile)" />
-    </svg>
-  </div>
-);
+
 
 export const ProfileModal: React.FC<ProfileModalProps> = React.memo(({
   isOpen,
@@ -1051,90 +1009,7 @@ export const ProfileModal: React.FC<ProfileModalProps> = React.memo(({
                   </motion.button>
                 )}
 
-                {/* Meu perfil de viajante (Onboarding Inteligente Summary & Editor) */}
-                <motion.button
-                  type="button"
-                  initial={{ opacity: 0, scale: 0.88, y: 12 }}
-                  animate={{ opacity: 1, scale: 1, y: 0 }}
-                  transition={{ type: 'spring', stiffness: 380, damping: 22, delay: 0.14 }}
-                  whileHover={{ scale: 1.015, y: -2 }}
-                  whileTap={{ scale: 0.985 }}
-                  onClick={() => handleSetSubView('traveler-profile')}
-                  className={`w-full p-4.5 sm:p-5 rounded-[26px] border transition-all flex flex-col gap-3.5 text-left cursor-pointer relative overflow-hidden ${
-                    isDark
-                      ? 'bg-[#1C1C1E] border-white/15 shadow-[0_12px_32px_rgba(0,0,0,0.5)]'
-                      : 'bg-gradient-to-br from-blue-50/70 via-[#fefefe] to-blue-50/30 border-blue-100/80 shadow-[0_12px_32px_-8px_rgba(0,122,255,0.14)]'
-                  }`}
-                >
-                  <div className="w-full flex items-center justify-between">
-                    <div className="flex items-center gap-4 min-w-0">
-                      <Responsive3DCompassIcon className="w-12 h-12" />
-                      <div className="min-w-0">
-                        <h3 className="text-[16px] font-bold text-zinc-950 dark:text-white tracking-tight">
-                          Meu perfil de viajante
-                        </h3>
-                        <p className="text-[12.5px] text-zinc-500 dark:text-zinc-400 font-medium truncate mt-0.5">
-                          {camposRelationship ||
-                            travelCompany ||
-                            (interestCategories.length > 0
-                              ? `${interestCategories.length} interesses selecionados`
-                              : 'Personalize suas preferências em Campos do Jordão')}
-                        </p>
-                      </div>
-                    </div>
-                    <ChevronRight className="w-5 h-5 text-zinc-400 shrink-0" />
-                  </div>
 
-                  {(camposRelationship || travelCompany || interestCategories.length > 0) && (
-                    <div className="flex flex-wrap gap-2 pt-0.5">
-                      {camposRelationship && (
-                        <span
-                          className={`px-3 py-1 rounded-full text-[11.5px] font-semibold tracking-tight ${
-                            isDark
-                              ? 'bg-white/10 text-white shadow-2xs'
-                              : 'bg-zinc-100 text-zinc-900 border border-black/5 shadow-2xs'
-                          }`}
-                        >
-                          {camposRelationship.replace(/\.$/, '')}
-                        </span>
-                      )}
-                      {travelCompany && (
-                        <span
-                          className={`px-3 py-1 rounded-full text-[11.5px] font-semibold tracking-tight ${
-                            isDark
-                              ? 'bg-white/10 text-white shadow-2xs'
-                              : 'bg-zinc-100 text-zinc-900 border border-black/5 shadow-2xs'
-                          }`}
-                        >
-                          {travelCompany.replace(/\.$/, '')}
-                        </span>
-                      )}
-                      {interestCategories.slice(0, 2).map((interest) => (
-                        <span
-                          key={interest}
-                          className={`px-3 py-1 rounded-full text-[11.5px] font-medium tracking-tight ${
-                            isDark
-                              ? 'bg-white/[0.06] text-zinc-300 shadow-2xs'
-                              : 'bg-zinc-100/90 text-zinc-700 border border-black/5 shadow-2xs'
-                          }`}
-                        >
-                          {interest.replace(/\.$/, '')}
-                        </span>
-                      ))}
-                      {interestCategories.length > 2 && (
-                        <span
-                          className={`px-2.5 py-1 rounded-full text-[11.5px] font-medium tracking-tight ${
-                            isDark
-                              ? 'bg-white/[0.06] text-zinc-400 shadow-2xs'
-                              : 'bg-zinc-100/90 text-zinc-600 border border-black/5 shadow-2xs'
-                          }`}
-                        >
-                          +{interestCategories.length - 2}
-                        </span>
-                      )}
-                    </div>
-                  )}
-                </motion.button>
 
                 {/* Configurações da Conta -> opens 'permissoes' */}
                 <motion.button

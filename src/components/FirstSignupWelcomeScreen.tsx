@@ -134,7 +134,7 @@ export const FirstSignupWelcomeScreen: React.FC<FirstSignupWelcomeScreenProps> =
   onComplete,
   theme = 'light',
 }) => {
-  const isDark = theme === 'dark';
+  const isDark = false;
   const { tr } = useLanguage();
   const prefersReducedMotion = useReducedMotion();
   const [isClosing, setIsClosing] = useState(false);
@@ -212,33 +212,12 @@ export const FirstSignupWelcomeScreen: React.FC<FirstSignupWelcomeScreenProps> =
           "'SF Pro Display', 'SF Pro Text', -apple-system, BlinkMacSystemFont, sans-serif",
       }}
     >
-      {/* Translucent iOS 26 Liquid Glass Fullscreen Layer over live Monvian Map */}
-      <motion.div
+      {/* Solid Pure White Background Layer */}
+      <div
         aria-hidden="true"
-        initial={prefersReducedMotion ? { opacity: 1 } : { opacity: 0 }}
-        animate={{ opacity: 1 }}
-        transition={{ duration: prefersReducedMotion ? 0.18 : 0.65, ease: baseEase }}
         className="absolute inset-0 pointer-events-none"
         style={{
-          backdropFilter: 'blur(22px) saturate(145%)',
-          WebkitBackdropFilter: 'blur(22px) saturate(145%)',
-          background: isDark
-            ? 'linear-gradient(180deg, rgba(0, 0, 0, 0.52) 0%, rgba(12, 12, 14, 0.72) 48%, rgba(0, 0, 0, 0.84) 100%)'
-            : 'linear-gradient(180deg, rgba(255, 255, 255, 0.30) 0%, rgba(255, 255, 255, 0.42) 48%, rgba(246, 248, 252, 0.54) 100%)',
-        }}
-      />
-
-      {/* Subtle specular ambient sheen for Liquid Glass depth */}
-      <motion.div
-        aria-hidden="true"
-        initial={prefersReducedMotion ? { opacity: 1 } : { opacity: 0, scale: 0.92 }}
-        animate={{ opacity: 1, scale: 1 }}
-        transition={{ duration: prefersReducedMotion ? 0.18 : 0.85, ease: baseEase }}
-        className="absolute inset-0 pointer-events-none"
-        style={{
-          background: isDark
-            ? 'radial-gradient(ellipse 92% 48% at 50% 24%, rgba(255, 255, 255, 0.08) 0%, rgba(255, 255, 255, 0) 75%)'
-            : 'radial-gradient(ellipse 92% 48% at 50% 24%, rgba(255, 255, 255, 0.32) 0%, rgba(255, 255, 255, 0) 75%)',
+          backgroundColor: isDark ? '#000000' : '#FFFFFF',
         }}
       />
 

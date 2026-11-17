@@ -811,19 +811,16 @@ export function AuthScreen({
         firebaseIdToken = fbSignUp.idToken;
       } catch (fbErr: any) {
         const fbCode = String(fbErr?.code || '');
+        const fbMsg = String(fbErr?.message || '').toLowerCase();
+        if (
+          fbCode === 'auth/email-already-in-use' ||
+          fbMsg.includes('email-already-in-use') ||
+          fbMsg.includes('already registered')
+        ) {
+          throw new Error('Este e-mail já está cadastrado. Utilize outro endereço de e-mail ou faça login na sua conta.');
+        }
         if (fbCode === 'auth/invalid-email' || fbCode === 'auth/weak-password') {
           throw fbErr;
-        }
-        // Se já existir apenas no Firebase Auth (ex: tentativa anterior incompleta), tentar vincular via login silencioso;
-        // caso contrário, seguir normalmente para /api/auth/register (fonte autoritativa do banco de dados).
-        if (fbCode === 'auth/email-already-in-use') {
-          try {
-            const fbSignIn = await signInWithFirebaseEmail(cleanEmail, registerPassword);
-            firebaseUid = fbSignIn.uid;
-            firebaseIdToken = fbSignIn.idToken;
-          } catch {
-            // Segue para o backend verificar se a conta realmente existe no app
-          }
         }
       }
 
