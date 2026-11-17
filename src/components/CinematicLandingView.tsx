@@ -624,9 +624,15 @@ export const CinematicLandingView: React.FC<CinematicLandingViewProps> = ({
         tl.progress(progress);
       }
 
-      // Keep navbar permanently fixed at the top; adapt translucent glass theme between sky hero and page surface
+      // Keep navbar permanently fixed at the top; adapt translucent glass theme and smooth shrink on scroll
       const navEl = navHeaderRef.current;
       const nextLight = !isDark && scrollTop > viewportHeight * 0.36;
+      if (navEl) {
+        const isScrolledDown = scrollTop > 40;
+        navEl.style.transform = isScrolledDown ? 'scale(0.95)' : 'scale(1)';
+        navEl.style.transition = 'transform 0.35s cubic-bezier(0.22, 1, 0.36, 1), background 0.28s ease, border-color 0.28s ease, color 0.24s ease, box-shadow 0.28s ease';
+      }
+
       if (nextLight !== lastNavLight) {
         lastNavLight = nextLight;
         if (navEl) {

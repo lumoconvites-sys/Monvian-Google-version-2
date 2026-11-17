@@ -51,10 +51,7 @@ export const ProfileXpProgressBar: React.FC<ProfileXpProgressBarProps> = ({ isDa
   return (
     <div className="w-full">
       {/* Main Horizontal XP Bar Card with 3D Apple iOS physical finish */}
-      <motion.div
-        initial={{ opacity: 0, scale: 0.94, y: 8 }}
-        animate={{ opacity: 1, scale: 1, y: 0 }}
-        transition={{ type: 'spring', stiffness: 380, damping: 22, delay: 0.045 }}
+      <div
         className={`w-full p-4 sm:p-4.5 rounded-[24px] border transition-all shadow-xs ${
           isDark
             ? 'bg-[#1C1C1E] border-white/10'
@@ -137,7 +134,7 @@ export const ProfileXpProgressBar: React.FC<ProfileXpProgressBarProps> = ({ isDa
               : `Faltam ${xpRemaining} XP para o próximo nível`}
           </span>
         </div>
-      </motion.div>
+      </div>
     </div>
   );
 };

@@ -1283,21 +1283,7 @@ export function AuthScreen({
         </header>
 
         {/* Center Content Area: stays vertically centered in visible area above virtual keyboard */}
-        <main
-          className={`w-full max-w-sm mx-auto flex flex-col justify-center transition-all duration-200 ${
-            isKeyboardOpen && registerStep < 4
-              ? 'my-0 pt-4 pb-2'
-              : 'my-auto py-8'
-          }`}
-          style={
-            isKeyboardOpen && registerStep < 4 && viewportHeight > 0
-              ? {
-                  minHeight: `calc(${viewportHeight}px - max(20px, env(safe-area-inset-top, 0px)) - 70px)`,
-                  maxHeight: `calc(${viewportHeight}px - max(20px, env(safe-area-inset-top, 0px)) - 70px)`,
-                }
-              : undefined
-          }
-        >
+        <main className="w-full max-w-sm mx-auto flex flex-col justify-center my-auto py-8">
           {/* ETAPA 1 — NOME */}
           <form
             ref={step1FormRef}

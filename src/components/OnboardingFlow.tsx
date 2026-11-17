@@ -929,11 +929,13 @@ export const OnboardingFlow: React.FC<OnboardingFlowProps> = ({
     >
       {/* Top Bar: Circular Back Button + 4 Horizontal Progress Dots */}
       <header
-        className="w-full max-w-md mx-auto px-6 shrink-0 flex items-center justify-between"
+        className="sticky top-0 z-50 w-full max-w-md mx-auto px-6 shrink-0 flex items-center justify-between"
         style={{
           paddingTop: 'max(calc(env(safe-area-inset-top, 0px) + 14px), 24px)',
-          paddingBottom: '8px',
-          backgroundColor: isDark ? '#000000' : '#FFFFFF',
+          paddingBottom: '12px',
+          backgroundColor: isDark ? 'rgba(0, 0, 0, 0.78)' : 'rgba(255, 255, 255, 0.82)',
+          backdropFilter: 'blur(20px) saturate(160%)',
+          WebkitBackdropFilter: 'blur(20px) saturate(160%)',
         }}
       >
         <div className="w-11 h-11 flex items-center justify-start">
