@@ -43,7 +43,6 @@ import { SignupIntroSequence, SignupIntroStage } from './components/SignupIntroS
 import { FirstSignupWelcomeScreen } from './components/FirstSignupWelcomeScreen';
 import { WelcomeJourneyModal } from './components/WelcomeJourneyModal';
 import { XpRewardNotificationOverlay } from './components/XpRewardNotificationOverlay';
-import { FloatingEventCard } from './components/FloatingEventCard';
 import { WhiteConfettiOverlay } from './components/WhiteConfettiOverlay';
 import {
   ClothingWeatherModal,
@@ -177,6 +176,7 @@ export default function App() {
     const bg = isDarkTheme ? '#000000' : '#ffffff';
     try {
       localStorage.setItem('monvian_theme', theme);
+      localStorage.setItem('monvian_theme_mode', theme);
     } catch {}
     document.documentElement.classList.toggle('dark', isDarkTheme);
     document.documentElement.classList.toggle('light', !isDarkTheme);
@@ -1055,7 +1055,6 @@ export default function App() {
   const selectedSpotIdRef = useRef<string | null>(null);
   const [is3DMode, setIs3DMode] = useState<boolean>(false);
   const [hasToggled3D, setHasToggled3D] = useState<boolean>(false);
-  const [hasActiveMapEvents, setHasActiveMapEvents] = useState<boolean>(false);
 
   useEffect(() => {
     selectedSpotIdRef.current = selectedSpot?.id || null;
@@ -1148,95 +1147,11 @@ export default function App() {
     window.addEventListener('monvian:spots_updated', handleSpotsUpdated);
     window.addEventListener('monvian:visual_icons_updated', handleVisualIconsUpdated);
     window.addEventListener('focus', handleWindowFocus);
-    const handleFocusMapEvent = () => {
-      setActiveTab('explorar');
-    };
-    window.addEventListener('monvian:focus_map_event', handleFocusMapEvent);
-
-    const handleApplyEventItinerary = (e: any) => {
-      const evt = e?.detail;
-      if (!evt) return;
-      try {
-        const userItinId = 'user-itin-event-' + evt.id;
-        const eventItinerary: Itinerary = {
-          id: userItinId,
-          title: evt.name,
-          description: evt.description || evt.address || 'Evento exclusivo em Campos do Jordão',
-          coverImage: evt.image || 'https://images.unsplash.com/photo-1511192336575-5a79af67a629?auto=format&fit=crop&w=900&q=80',
-          daysCount: 1,
-          categories: ['events', 'culture'],
-          isActive: true,
-          isRecommended: true,
-          isFeatured: true,
-          isPremium: false,
-          price: evt.cost_price || 'Grátis',
-          status: 'published',
-          badgeText: 'Evento',
-          showBadge: true,
-          showPrice: true,
-          showStopsCount: true,
-          usageCount: 100,
-          tips: evt.address ? `Local: ${evt.address}` : '',
-          days: [
-            {
-              id: `${userItinId}-d-1`,
-              itineraryId: userItinId,
-              dayNumber: 1,
-              title: `Dia 1: ${evt.name}`,
-              summary: evt.description || 'Programação especial do evento',
-              steps: [
-                {
-                  id: `${userItinId}-d-1-s-1`,
-                  itineraryId: userItinId,
-                  dayId: `${userItinId}-d-1`,
-                  dayNumber: 1,
-                  stepOrder: 1,
-                  suggestedTime: evt.start_time || '19:00',
-                  durationMinutes: 120,
-                  notes: evt.description || '',
-                  spotId: evt.linked_spot_id || `spot-event-${evt.id}`,
-                  spot: {
-                    id: evt.linked_spot_id || `spot-event-${evt.id}`,
-                    name: evt.name,
-                    shortName: evt.name,
-                    category: 'events' as any,
-                    categoryLabel: 'Evento / Show',
-                    lat: Number(evt.lat),
-                    lng: Number(evt.lng),
-                    image: evt.image || 'https://images.unsplash.com/photo-1511192336575-5a79af67a629?auto=format&fit=crop&w=900&q=80',
-                    description: evt.description || '',
-                    address: evt.address || 'Campos do Jordão, SP',
-                    rating: 4.9,
-                    reviewCount: 150,
-                    hours: evt.start_time ? `${evt.start_time}` : '19:00 - 23:00',
-                    visitorsToday: 88,
-                  },
-                  lat: Number(evt.lat),
-                  lng: Number(evt.lng),
-                }
-              ]
-            }
-          ]
-        };
-
-        writeScopedJSON('monvian_active_itinerary', eventItinerary, user);
-        writeScopedString('monvian_itinerary_view_mode', 'map', user);
-        writeScopedString('monvian_itinerary_expanded', 'true', user);
-        window.dispatchEvent(new CustomEvent('monvian:itinerary_applied', { detail: eventItinerary }));
-        setSelectedItinerary(null);
-        setActiveTab('roteiros');
-      } catch (err) {
-        console.warn('Failed to apply event as itinerary:', err);
-      }
-    };
-    window.addEventListener('monvian:apply_event_as_itinerary', handleApplyEventItinerary);
 
     return () => {
       window.removeEventListener('monvian:spots_updated', handleSpotsUpdated);
       window.removeEventListener('monvian:visual_icons_updated', handleVisualIconsUpdated);
       window.removeEventListener('focus', handleWindowFocus);
-      window.removeEventListener('monvian:focus_map_event', handleFocusMapEvent);
-      window.removeEventListener('monvian:apply_event_as_itinerary', handleApplyEventItinerary);
       unsubscribeRealtime();
     };
   }, []);
@@ -2307,9 +2222,16 @@ export default function App() {
             minHeight: 'var(--app-height, 100dvh)',
           }}
         >
-          <div className={`w-7 h-7 rounded-full border-2 animate-spin ${
-            theme === 'dark' ? 'border-white/15 border-t-white' : 'border-[#E5E7EB] border-t-[#080808]'
-          }`} />
+          {theme === 'dark' ? (
+            <img
+              src="/logomodoescuro.png"
+              alt="Monvian"
+              draggable={false}
+              className="w-[220px] max-w-[60vw] h-auto object-contain select-none pointer-events-none"
+            />
+          ) : (
+            <div className="w-7 h-7 rounded-full border-2 animate-spin border-[#E5E7EB] border-t-[#080808]" />
+          )}
         </div>
       ) : !isAuthenticated || pendingResetOobCode ? (
         <motion.div
@@ -3037,40 +2959,6 @@ export default function App() {
       weather={realWeather}
       theme={theme}
     />
-
-    {/* Monvian iOS Minimalist Floating Event Card (Mounted ONLY while Explorar map is active) */}
-    <AnimatePresence>
-      {activeTab === 'explorar' &&
-        !isDetailOpen &&
-        !isMapOrbiting &&
-        !isOnboardingItinerarySelection &&
-        !showFirstSignupWelcome &&
-        !isGlobeIntroPlaying && (
-          <motion.div
-            key={`explore-event-card-${explorarEntranceTick}`}
-            initial={
-              prefersReducedMotion
-                ? { opacity: 0 }
-                : { opacity: 0, y: 24, scale: 0.94 }
-            }
-            animate={{ opacity: 1, y: 0, scale: 1 }}
-            exit={{ opacity: 0, y: 12, scale: 0.96 }}
-            transition={
-              prefersReducedMotion
-                ? { duration: 0.16 }
-                : { type: 'spring', damping: 24, stiffness: 280, delay: 0.14 }
-            }
-            className="fixed inset-0 pointer-events-none z-[55]"
-          >
-            <FloatingEventCard
-              visible={!isSpotCardOpen && !isSearchOpen && !isCategoryCardOpen}
-              onActiveChange={setHasActiveMapEvents}
-              isSatellite={isSatelliteExplore}
-              theme={theme}
-            />
-          </motion.div>
-        )}
-    </AnimatePresence>
 
     {/* Monvian iOS Expansion & Coins Burst Reward Overlay (Mounted ONLY while Explorar map is active) */}
     {activeTab === 'explorar' &&

@@ -173,7 +173,7 @@ export const FirstSignupWelcomeScreen: React.FC<FirstSignupWelcomeScreenProps> =
       id: 'updates',
       icon: <BellFeatureIcon isDark={isDark} />,
       title: tr('Receba novidades'),
-      description: tr('Fique por dentro de eventos, passeios e muito mais.'),
+      description: tr('Fique por dentro de novidades, passeios e muito mais.'),
     },
   ];
 

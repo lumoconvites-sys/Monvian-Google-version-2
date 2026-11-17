@@ -30,9 +30,9 @@ import {
   Sun,
   Moon,
   Crown,
-  Lock,
   ArrowRight
 } from 'lucide-react';
+import { PlatanoLeafIcon } from '../platanos/PlatanoLeafIcon';
 import { fetchSpotsFromSupabase } from '../../services/supabaseSpots';
 import { saveItineraryToSupabase } from '../../services/supabaseItineraries';
 import { Spot, Itinerary, ItineraryCategory, ItineraryStatus } from '../../types';
@@ -719,7 +719,7 @@ export const AdminItineraryModal: React.FC<AdminItineraryModalProps> = ({
                         : 'border-zinc-200 dark:border-zinc-800 bg-zinc-50 dark:bg-[#181a20] text-zinc-700 dark:text-zinc-400'
                     }`}
                   >
-                    <Lock className={`w-4 h-4 shrink-0 mt-0.5 ${isPremium ? 'text-zinc-900 dark:text-white' : 'text-zinc-400'}`} />
+                    <PlatanoLeafIcon className="w-6 h-6 shrink-0 mt-0.5" variant="monochrome" />
                     <div>
                       <span className="block text-xs font-black">Pago · 15 Plátanos</span>
                       <span className="text-[11px] leading-tight opacity-80 block mt-0.5">

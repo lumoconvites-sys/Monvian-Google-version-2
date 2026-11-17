@@ -5,7 +5,6 @@ import {
   MapPin,
   Store,
   Users,
-  Calendar,
   Settings,
   Sparkles,
   Layers,
@@ -21,7 +20,6 @@ import {
 import { AdminDashboard } from './AdminDashboard';
 import { AdminSpots } from './AdminSpots';
 import { AdminUsers } from './AdminUsers';
-import { AdminEvents } from './AdminEvents';
 import { AdminSettings } from './AdminSettings';
 import { AdminCleanup } from './AdminCleanup';
 import { AdminItineraries } from './AdminItineraries';
@@ -115,7 +113,6 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({
     { id: 'platanos', label: 'Plátanos & Stripe', icon: PlatanoLeafIcon },
     { id: 'services', label: 'Locais e Serviços', icon: Store },
     { id: 'users', label: 'Usuários & Comunidade', icon: Users },
-    { id: 'events', label: 'Eventos', icon: Calendar },
     { id: 'settings', label: 'Configurações', icon: Settings },
     { id: 'cleanup', label: 'Limpeza do Sistema', icon: Sparkles },
   ];
@@ -252,7 +249,7 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({
                         : 'text-zinc-600 dark:text-zinc-400 hover:bg-zinc-50 dark:hover:bg-zinc-800/60 hover:text-zinc-900 dark:hover:text-zinc-100'
                     }`}
                   >
-                    <Icon className={`w-4 h-4 ${isActive ? 'text-blue-600 dark:text-blue-400' : 'text-zinc-400 dark:text-zinc-500'}`} />
+                    <Icon className={`${item.id === 'platanos' ? 'w-6 h-6' : 'w-4 h-4'} ${isActive ? 'text-blue-600 dark:text-blue-400' : 'text-zinc-400 dark:text-zinc-500'}`} />
                     <span>{item.label}</span>
                   </button>
                 );
@@ -339,7 +336,7 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({
                             : 'text-zinc-600 dark:text-zinc-400 hover:bg-zinc-50 dark:hover:bg-zinc-800'
                         }`}
                       >
-                        <Icon className="w-4 h-4" />
+                        <Icon className={item.id === 'platanos' ? 'w-6 h-6' : 'w-4 h-4'} />
                         <span>{item.label}</span>
                       </button>
                     );
@@ -392,7 +389,6 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({
               {activeTab === 'platanos' && <AdminPlatanos currentUser={currentUser} />}
               {activeTab === 'services' && <AdminServices />}
               {activeTab === 'users' && <AdminUsers />}
-              {activeTab === 'events' && <AdminEvents />}
               {activeTab === 'settings' && <AdminSettings />}
               {activeTab === 'cleanup' && <AdminCleanup />}
             </motion.div>

@@ -9,8 +9,7 @@ import {
   RotateCcw,
   AlertCircle,
   Play,
-  CirclePlus,
-  Lock,
+  Plus,
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { Itinerary, ItineraryCategory } from '../../types';
@@ -1032,15 +1031,15 @@ export const AirbnbItineraryExplorer: React.FC<AirbnbItineraryExplorerProps> = (
                 setWalletInitialTab('topup');
                 setIsWalletOpen(true);
               }}
-              className={`h-9 px-3 rounded-full border flex items-center justify-center gap-1.5 text-[12.5px] font-semibold tracking-tight tabular-nums shrink-0 cursor-pointer active:scale-95 transition-all outline-none ${
+              className={`h-9 px-3 rounded-full border-0 flex items-center justify-center gap-1.5 text-[12.5px] font-semibold tracking-tight tabular-nums shrink-0 cursor-pointer active:scale-95 transition-all outline-none ${
                 isDark
-                  ? 'bg-[#1C1C1E] border-white/15 text-white hover:bg-[#2C2C2E]'
-                  : 'bg-[#F5F5F7] border-black/10 text-zinc-900 hover:bg-[#E5E5EA]'
+                  ? 'bg-[#1C1C1E] text-white hover:bg-[#2C2C2E]'
+                  : 'bg-[#F5F5F7] text-zinc-900 hover:bg-[#E5E5EA]'
               }`}
               title="Sua carteira de Plátanos"
               aria-label="Sua carteira de Plátanos"
             >
-              <PlatanoLeafIcon className="w-3.5 h-3.5 shrink-0" variant="monochrome" />
+              <PlatanoLeafIcon className="w-6 h-6 shrink-0" variant="monochrome" />
               <span>{wallet.balance}</span>
             </button>
 
@@ -1058,7 +1057,7 @@ export const AirbnbItineraryExplorer: React.FC<AirbnbItineraryExplorerProps> = (
               <button
                 type="button"
                 onClick={onCreateManualItinerary}
-                className={`h-9 px-3.5 rounded-full border flex items-center justify-center gap-1.5 text-[12px] sm:text-[13px] font-semibold tracking-tight whitespace-nowrap shrink-0 cursor-pointer active:scale-95 transition-all outline-none ${
+                className={`w-9 h-9 rounded-full border flex items-center justify-center shrink-0 cursor-pointer active:scale-90 transition-all outline-none ${
                   isDark
                     ? 'bg-[#1C1C1E] border-white/15 text-white hover:bg-[#2C2C2E]'
                     : 'bg-[#fefefe] border-white text-black'
@@ -1077,11 +1076,10 @@ export const AirbnbItineraryExplorer: React.FC<AirbnbItineraryExplorerProps> = (
                 title="Criar roteiro manualmente no mapa"
                 aria-label="Criar roteiro manualmente no mapa"
               >
-                <CirclePlus
-                  className={`w-[15px] h-[15px] sm:w-4 sm:h-4 shrink-0 ${isDark ? 'text-white' : 'text-black'}`}
-                  strokeWidth={2}
+                <Plus
+                  className={`w-[18px] h-[18px] shrink-0 ${isDark ? 'text-white' : 'text-black'}`}
+                  strokeWidth={2.2}
                 />
-                <span className={`leading-none ${isDark ? 'text-white' : 'text-black'}`}>Criar manualmente</span>
               </button>
             ) : onOpenMap ? (
               <button
@@ -1679,7 +1677,7 @@ const HorizontalReferenceItineraryCard: React.FC<HorizontalReferenceItineraryCar
                   </>
                 ) : (
                   <>
-                    <PlatanoLeafIcon className="w-3 h-3 shrink-0" variant="light" />
+                    <PlatanoLeafIcon className="w-[21px] h-[21px] shrink-0" variant="light" />
                     <span>{platanoPrice} Plátanos</span>
                   </>
                 )}
@@ -1735,7 +1733,7 @@ const HorizontalReferenceItineraryCard: React.FC<HorizontalReferenceItineraryCar
               >
                 {platanoPrice > 0 && !isUnlocked ? (
                   <>
-                    <Lock className="w-3 h-3 text-zinc-900 dark:text-white" />
+                    <PlatanoLeafIcon className="w-[21px] h-[21px] shrink-0" variant="monochrome" />
                     <span className="text-[12px] font-semibold tracking-tight text-zinc-800 dark:text-zinc-200">
                       {platanoPrice}
                     </span>

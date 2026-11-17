@@ -7,58 +7,25 @@ interface PlatanoLeafIconProps {
   variant?: 'gold' | 'monochrome' | 'light' | 'dark';
 }
 
+export const PLATANO_LEAF_3D_ICON_SRC = '/assets/aistudio/IMG_0028_9f9883a6.png';
+
 /**
- * Símbolo minimalista e exclusivo dos Plátanos (Folha de Plátano / Maple da Serra da Mantiqueira)
- * Acabamento geométrico monocromático inspirado na estética nativa do iOS.
+ * Símbolo 3D oficial dos Plátanos (Folha de Plátano de Campos do Jordão)
  */
 export const PlatanoLeafIcon: React.FC<PlatanoLeafIconProps> = ({
-  className = 'w-4 h-4',
+  className = 'w-6 h-6',
   size,
-  variant = 'monochrome',
 }) => {
-  const strokeColor =
-    variant === 'light'
-      ? '#FFFFFF'
-      : variant === 'dark'
-        ? '#000000'
-        : 'currentColor';
-
-  const fillColor =
-    variant === 'light'
-      ? 'rgba(255,255,255,0.14)'
-      : variant === 'dark'
-        ? 'rgba(0,0,0,0.12)'
-        : 'currentColor';
-
   return (
-    <svg
-      width={size}
-      height={size}
-      viewBox="0 0 24 24"
-      fill="none"
-      xmlns="http://www.w3.org/2000/svg"
-      className={className}
+    <img
+      src={PLATANO_LEAF_3D_ICON_SRC}
+      alt=""
       aria-hidden="true"
-    >
-      {/* Silhueta orgânica e simétrica de folha de Plátano de Campos do Jordão */}
-      <path
-        d="M12 2.25L14.35 6.4L18.6 5.2L17.2 9.45L21.25 11.6L17.6 14.3L18.4 17.65L14.25 16.95L12 19.2L9.75 16.95L5.6 17.65L6.4 14.3L2.75 11.6L6.8 9.45L5.4 5.2L9.65 6.4L12 2.25Z"
-        fill={fillColor}
-        fillOpacity={0.14}
-        stroke={strokeColor}
-        strokeWidth="1.75"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      />
-      {/* Nervura central e caule minimalista */}
-      <path
-        d="M12 7.5V21.75M12 12.5L9.2 10.2M12 12.5L14.8 10.2"
-        stroke={strokeColor}
-        strokeWidth="1.6"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      />
-    </svg>
+      draggable={false}
+      decoding="async"
+      className={`${className} object-contain shrink-0 select-none pointer-events-none inline-block`}
+      style={size ? { width: size, height: size } : undefined}
+    />
   );
 };
 
@@ -105,13 +72,13 @@ export const PlatanoUnlockToast: React.FC<{
             }`}
           >
             <div
-              className={`w-8 h-8 rounded-full border flex items-center justify-center shrink-0 ${
+              className={`w-10 h-10 rounded-full border flex items-center justify-center shrink-0 ${
                 isDark
                   ? 'bg-[#000000] border-[#262626] text-[#FFFFFF]'
                   : 'bg-[#F5F5F7] border-[#E5E5EA] text-[#000000]'
               }`}
             >
-              <PlatanoLeafIcon className="w-4 h-4" variant="monochrome" />
+              <PlatanoLeafIcon className="w-[30px] h-[30px]" variant="monochrome" />
             </div>
             <div className="min-w-0 flex-1">
               <p className="text-[13px] font-semibold tracking-tight truncate">{title}</p>

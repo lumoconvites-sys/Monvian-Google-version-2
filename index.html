@@ -106,10 +106,24 @@
             }
           }
         }, true);
+        function isDarkThemeActive() {
+          try {
+            var savedMode = localStorage.getItem('monvian_theme_mode');
+            var saved = localStorage.getItem('monvian_theme');
+            if (savedMode === 'dark') return true;
+            if (savedMode === 'light') return false;
+            if (savedMode === 'system' && window.matchMedia) {
+              return window.matchMedia('(prefers-color-scheme: dark)').matches;
+            }
+            return saved === 'dark';
+          } catch (e) {
+            return false;
+          }
+        }
+
         function applySavedTheme() {
           try {
-            var saved = localStorage.getItem('monvian_theme');
-            var isDark = saved === 'dark';
+            var isDark = isDarkThemeActive();
             var topColor = isDark ? '#000000' : '#ffffff';
             var themeMetas = document.querySelectorAll('meta[name="theme-color"]');
             themeMetas.forEach(function(meta) {
@@ -128,14 +142,15 @@
               document.documentElement.classList.remove('dark');
               document.documentElement.classList.add('light');
             }
-            if (!saved) {
-              localStorage.setItem('monvian_theme', 'light');
+            if (!localStorage.getItem('monvian_theme')) {
+              localStorage.setItem('monvian_theme', isDark ? 'dark' : 'light');
             }
 
             var preloader = document.getElementById('monvian-app-preloader');
             if (preloader) preloader.style.backgroundColor = topColor;
           } catch (e) {}
         }
+        window.__monvianIsDarkThemeActive = isDarkThemeActive;
         applySavedTheme();
       })();
     </script>
@@ -172,12 +187,17 @@
           dismissed = true;
           var preloader = document.getElementById('monvian-app-preloader');
           var video = document.getElementById('monvian-preloader-video');
+          var darkLogo = document.getElementById('monvian-preloader-dark-logo');
 
-          // 1. Video fades out smoothly
+          // 1. Active media fades out smoothly
           if (video) {
             try { video.pause(); } catch (e) {}
             video.style.transition = 'opacity 0.4s ease-out';
             video.style.opacity = '0';
+          }
+          if (darkLogo) {
+            darkLogo.style.transition = 'opacity 0.4s ease-out, transform 0.4s ease-out';
+            darkLogo.style.opacity = '0';
           }
 
           // 2. Preloader fades out seamlessly revealing the app underneath without shifting elements
@@ -199,17 +219,37 @@
             return;
           }
 
+          var isDark =
+            (typeof window.__monvianIsDarkThemeActive === 'function' && window.__monvianIsDarkThemeActive()) ||
+            document.documentElement.classList.contains('dark');
+
           var preloader = document.getElementById('monvian-app-preloader');
+          var video = document.getElementById('monvian-preloader-video');
+          var darkLogo = document.getElementById('monvian-preloader-dark-logo');
+
           if (preloader) {
-            try {
-              var savedTheme = localStorage.getItem('monvian_theme');
-              preloader.style.backgroundColor = savedTheme === 'dark' ? '#000000' : '#ffffff';
-            } catch (e) {}
+            preloader.style.backgroundColor = isDark ? '#000000' : '#ffffff';
             preloader.style.display = 'flex';
           }
 
-          var video = document.getElementById('monvian-preloader-video');
+          if (isDark) {
+            if (video) {
+              try { video.pause(); } catch (e) {}
+              video.style.display = 'none';
+            }
+            if (darkLogo) {
+              darkLogo.style.display = 'block';
+              darkLogo.style.animation = 'monvianLogoSpringEnter 0.56s cubic-bezier(0.22, 1, 0.36, 1) forwards';
+            }
+            setTimeout(dismissPreloader, 1350);
+            return;
+          }
+
+          if (darkLogo) {
+            darkLogo.style.display = 'none';
+          }
           if (video) {
+            video.style.display = 'block';
             video.addEventListener('ended', function() {
               dismissPreloader();
             });
@@ -509,10 +549,23 @@
         <source src="/assets/aistudio/monvian_logo_splash.mp4" type="video/mp4" />
         <source src="/assets/aistudio/ScreenRecording_10-25-2026_01-01-00_1_f1d14476.mov" type="video/quicktime" />
       </video>
+      <img
+        id="monvian-preloader-dark-logo"
+        src="/logomodoescuro.png"
+        alt="Monvian"
+        draggable="false"
+        style="width:240px;max-width:64vw;height:auto;object-fit:contain;display:none;pointer-events:none;user-select:none;-webkit-user-select:none;will-change:transform,opacity;"
+      />
     </div>
     <style>
       html.dark #monvian-app-preloader {
         background-color: #000000 !important;
+      }
+      html.dark #monvian-preloader-video {
+        display: none !important;
+      }
+      html.dark #monvian-preloader-dark-logo {
+        display: block !important;
       }
       @keyframes monvianLogoSpringEnter {
         0% {

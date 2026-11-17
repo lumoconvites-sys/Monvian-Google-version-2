@@ -152,7 +152,7 @@ export const PlatanoPurchaseConfirmModal: React.FC<PlatanoPurchaseConfirmModalPr
               <div className="flex items-center justify-between text-[13px]">
                 <span className="text-[#8E8E93]">Custo do roteiro</span>
                 <span className="font-semibold flex items-center gap-1 tabular-nums">
-                  <PlatanoLeafIcon className="w-3.5 h-3.5" variant="monochrome" />
+                  <PlatanoLeafIcon className="w-[21px] h-[21px]" variant="monochrome" />
                   {alreadyUnlocked ? '0 (Já adquirido)' : `${price} Plátanos`}
                 </span>
               </div>
@@ -160,7 +160,7 @@ export const PlatanoPurchaseConfirmModal: React.FC<PlatanoPurchaseConfirmModalPr
               <div className="flex items-center justify-between text-[13px]">
                 <span className="text-[#8E8E93]">Seu saldo atual</span>
                 <span className="font-medium flex items-center gap-1 tabular-nums">
-                  <PlatanoLeafIcon className="w-3.5 h-3.5" variant="monochrome" />
+                  <PlatanoLeafIcon className="w-[21px] h-[21px]" variant="monochrome" />
                   {currentBalance} Plátanos
                 </span>
               </div>
@@ -174,7 +174,7 @@ export const PlatanoPurchaseConfirmModal: React.FC<PlatanoPurchaseConfirmModalPr
                   {hasEnoughBalance ? 'Saldo após liberar' : 'Faltam para liberar'}
                 </span>
                 <span className="font-semibold flex items-center gap-1 tabular-nums">
-                  <PlatanoLeafIcon className="w-3.5 h-3.5" variant="monochrome" />
+                  <PlatanoLeafIcon className="w-[21px] h-[21px]" variant="monochrome" />
                   {hasEnoughBalance
                     ? `${projectedBalance} Plátanos`
                     : `${price - currentBalance} Plátanos`}
@@ -262,7 +262,7 @@ export const PlatanoPurchaseConfirmModal: React.FC<PlatanoPurchaseConfirmModalPr
                         : 'bg-[#000000] text-[#FFFFFF] hover:bg-black/90'
                     }`}
                   >
-                    <PlatanoLeafIcon className="w-3.5 h-3.5" variant="monochrome" />
+                    <PlatanoLeafIcon className="w-[21px] h-[21px]" variant="monochrome" />
                     <span>Comprar Plátanos</span>
                   </button>
                 </>

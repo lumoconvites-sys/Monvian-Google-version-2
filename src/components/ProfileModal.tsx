@@ -1034,7 +1034,7 @@ export const ProfileModal: React.FC<ProfileModalProps> = React.memo(({
                 >
                   <div className="flex items-center gap-3.5 min-w-0">
                     <div className="flex items-center justify-center shrink-0 text-zinc-950 dark:text-white">
-                      <PlatanoLeafIcon className="w-7 h-7" variant="monochrome" />
+                      <PlatanoLeafIcon className="w-[42px] h-[42px]" variant="monochrome" />
                     </div>
                     <div className="min-w-0">
                       <h3 className="text-[15px] font-semibold text-zinc-950 dark:text-white tracking-tight">

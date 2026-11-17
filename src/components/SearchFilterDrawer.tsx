@@ -88,15 +88,6 @@ const SEARCH_CATEGORIES: CategoryConfig[] = [
     keywords: ['parque', 'mirante', 'teleférico', 'amantikir', 'itapeva', 'bosque', 'passeio', 'trilha', 'palácio'],
   },
   {
-    id: 'programacao',
-    name: 'Programação',
-    countLabel: 'Eventos e shows',
-    countNumber: 8,
-    image: '/programacao.png',
-    matchCategories: ['events', 'culture'],
-    keywords: ['evento', 'show', 'festival', 'música', 'concerto', 'festa', 'auditório', 'inverno'],
-  },
-  {
     id: 'farmacias',
     name: 'Farmácias',
     countLabel: '10 opções disponíveis',

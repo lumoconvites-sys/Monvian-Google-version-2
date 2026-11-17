@@ -1227,18 +1227,10 @@ export function AuthScreen({
           "'SF Pro Display', 'SF Pro Text', -apple-system, BlinkMacSystemFont, sans-serif",
       }}
     >
-      {/* Barra de navegação global fixa e persistente em todo o site público / auth */}
-      {!isGoogleAccountPreparing && !isAccountCreating && (
+      {/* Barra de navegação fixa exibida exclusivamente na página inicial (landing) */}
+      {authMode === 'landing' && !isGoogleAccountPreparing && !isAccountCreating && (
         <PersistentSiteNavbar
-          navTheme={
-            authMode === 'landing'
-              ? isDark
-                ? 'dark'
-                : landingNavTheme
-              : isDark
-                ? 'dark'
-                : 'light'
-          }
+          navTheme={isDark ? 'dark' : landingNavTheme}
           isDark={isDark}
           onStartRegister={handleStartRegisterFlow}
           onOpenLogin={handleOpenLoginFlow}
@@ -1310,7 +1302,7 @@ export function AuthScreen({
           height: 'var(--app-height, 100dvh)',
           minHeight: 'var(--app-height, 100dvh)',
           backgroundColor: isDark ? '#000000' : '#FFFFFF',
-          paddingTop: 'calc(env(safe-area-inset-top, 0px) + 74px)',
+          paddingTop: 'max(16px, calc(env(safe-area-inset-top, 0px) + 12px))',
           paddingBottom: 'max(24px, env(safe-area-inset-bottom, 0px))',
           paddingLeft: 'max(24px, env(safe-area-inset-left, 0px))',
           paddingRight: 'max(24px, env(safe-area-inset-right, 0px))',
@@ -2013,7 +2005,7 @@ export function AuthScreen({
               minHeight: 'var(--app-height, 100dvh)',
               fontFamily:
                 "'SF Pro Display', 'SF Pro Text', -apple-system, BlinkMacSystemFont, sans-serif",
-              paddingTop: 'calc(env(safe-area-inset-top, 0px) + 74px)',
+              paddingTop: 'max(16px, calc(env(safe-area-inset-top, 0px) + 12px))',
               paddingBottom: 'max(32px, calc(env(safe-area-inset-bottom, 0px) + 20px))',
               touchAction: 'pan-y',
               backdropFilter: 'blur(20px)',

@@ -6,7 +6,6 @@ import {
   Compass,
   Lightbulb,
   Play,
-  Lock,
 } from 'lucide-react';
 import { motion, AnimatePresence, useMotionValue, useTransform, animate } from 'motion/react';
 import { Itinerary } from '../../types';
@@ -443,7 +442,7 @@ export const ItineraryStoreDetailModal: React.FC<ItineraryStoreDetailModalProps>
                       <div className="w-[18px] h-[18px] border-2 border-white border-t-transparent rounded-full animate-spin" />
                     ) : requiresPurchase ? (
                       <>
-                        <Lock className="relative z-10 w-4 h-4 text-current pointer-events-none" />
+                        <PlatanoLeafIcon className="relative z-10 w-[27px] h-[27px] shrink-0 pointer-events-none" variant="monochrome" />
                         <span className="relative z-10 text-[12px] font-semibold tracking-tight tabular-nums pointer-events-none">
                           {platanoPrice}
                         </span>
@@ -536,7 +535,7 @@ export const ItineraryStoreDetailModal: React.FC<ItineraryStoreDetailModalProps>
                 </span>
                 <span className="opacity-30">·</span>
                 <span className="flex items-center gap-1.5">
-                  <PlatanoLeafIcon className={`w-3.5 h-3.5 shrink-0 ${isLight ? 'text-black' : 'text-white'}`} variant="monochrome" />
+                  <PlatanoLeafIcon className={`w-6 h-6 shrink-0 ${isLight ? 'text-black' : 'text-white'}`} variant="monochrome" />
                   <span>
                     {platanoPrice > 0
                       ? isUnlocked
