@@ -81,7 +81,7 @@ export function mapAuthErrorToUserMessage(
     msg.includes('já possui uma conta') ||
     msg.includes('já está cadastrado')
   ) {
-    return 'Este e-mail já possui uma conta.';
+    return 'Este e-mail já está cadastrado. Utilize outro endereço de e-mail ou faça login na sua conta.';
   }
 
   // Invalid email format

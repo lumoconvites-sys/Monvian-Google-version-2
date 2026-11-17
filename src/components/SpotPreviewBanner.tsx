@@ -206,33 +206,7 @@ export const SpotPreviewBanner: React.FC<SpotPreviewBannerProps> = ({
           </div>
         </div>
 
-        {/* 3. Right-aligned Liquid Glass Route Button */}
-        {onToggleRoute && (
-          <button
-            type="button"
-            disabled={isRouteLoading}
-            onPointerDown={(e) => e.stopPropagation()}
-            onClick={(e) => {
-              e.stopPropagation();
-              triggerHapticFeedback(12);
-              onToggleRoute(spot);
-            }}
-            aria-label={isRouteActive ? 'Encerrar rota' : 'Traçar rota até este local'}
-            aria-pressed={isRouteActive}
-            title={isRouteActive ? 'Encerrar rota' : 'Traçar rota'}
-            className={`relative z-10 w-[46px] h-[46px] rounded-full shrink-0 flex items-center justify-center transition-all duration-200 active:scale-90 cursor-pointer disabled:cursor-wait ${
-              isRouteActive
-                ? 'bg-[#007AFF] text-[#FFFFFF] border border-white/35 shadow-[0_4px_14px_rgba(0,122,255,0.42),inset_0_1px_1px_rgba(255,255,255,0.45)]'
-                : `ios26-liquid-glass-pill ${useWhiteText ? 'text-[#FFFFFF]' : 'text-[#000000]'}`
-            }`}
-          >
-            {isRouteLoading ? (
-              <Loader2 className="w-[19px] h-[19px] stroke-[2.2] animate-spin" />
-            ) : (
-              <Route className="w-[20px] h-[20px] stroke-[2]" />
-            )}
-          </button>
-        )}
+
       </motion.div>
     </motion.div>
   );

@@ -192,11 +192,7 @@ const CollectionCoverCard: React.FC<CollectionCoverCardProps> = React.memo(({
               className={`relative w-full h-full overflow-hidden ${cornerClass} flex items-center justify-center ${
                 isDark ? 'bg-[#0a0a0c]' : 'bg-[#fefefe] md:bg-[#fafafc]'
               }`}
-            >
-              {idx === 0 && (!photos || photos.length === 0) ? (
-                <div className="opacity-40">{fallbackIcon}</div>
-              ) : null}
-            </div>
+            />
           );
         })}
       </div>
@@ -640,42 +636,33 @@ export const SavedView: React.FC<SavedViewProps> = React.memo(({
                   <div className="flex-1 px-5 sm:px-6 pt-1 max-w-2xl mx-auto w-full">
                     {currentItems.length === 0 ? (
                       /* Empty State */
-                      <div className="py-20 flex flex-col items-center justify-center text-center px-4">
-                        <div
-                          className={`w-18 h-18 rounded-full flex items-center justify-center mb-4 ${
-                            isDark ? 'bg-[#1C1C1E] border border-white/10 text-zinc-400' : 'bg-zinc-200 text-zinc-600'
-                          }`}
-                        >
-                          {activeCollection === 'roteiros' ? (
-                            <Compass className="w-8 h-8 stroke-[1.5]" />
-                          ) : activeCollection === 'pontos' ? (
-                            <MapPin className="w-8 h-8 stroke-[1.5]" />
-                          ) : (
-                            <Trash2 className="w-8 h-8 stroke-[1.5]" />
-                          )}
+                      <div className="py-28 flex flex-col items-center justify-center text-center px-6">
+                        <div className="relative mb-5 flex flex-col items-center">
+                          <div
+                            className="w-14 h-14 flex items-center justify-center text-zinc-950 dark:text-white transform-gpu"
+                            style={{ filter: 'drop-shadow(0 6px 14px rgba(0,0,0,0.14))' }}
+                          >
+                            {activeCollection === 'roteiros' ? (
+                              <Compass className="w-11 h-11 stroke-[1.6]" />
+                            ) : activeCollection === 'pontos' ? (
+                              <MapPin className="w-11 h-11 stroke-[1.6]" />
+                            ) : (
+                              <Trash2 className="w-11 h-11 stroke-[1.6]" />
+                            )}
+                          </div>
+                          {/* Subtle elliptical ground shadow */}
+                          <div className="w-12 h-1.5 rounded-full bg-black/10 dark:bg-white/15 blur-[2px] mt-2.5" />
                         </div>
-                        <h3 className="text-lg font-bold">
+                        <h3 className="text-[19px] font-semibold text-zinc-950 dark:text-white tracking-tight">
                           {activeCollection === 'lugares' ? 'Nenhum item removido' : 'Nenhum item salvo'}
                         </h3>
-                        <p className="text-sm text-zinc-500 max-w-xs mt-1">
+                        <p className="text-[14px] text-zinc-500 dark:text-zinc-400 max-w-[280px] mt-2 leading-relaxed font-normal">
                           {activeCollection === 'roteiros'
                             ? 'Explore roteiros selecionados de Campos do Jordão e curta os que mais gostar.'
                             : activeCollection === 'pontos'
                             ? 'Toque no ícone de coração nos pontos turísticos do mapa para adicioná-los aqui.'
                             : 'Itens removidos de roteiros ou descurtidos aparecerão nesta lista.'}
                         </p>
-                        <button
-                          onClick={() => {
-                            if (activeCollection === 'roteiros') {
-                              onNavigateTab('roteiros');
-                            } else {
-                              onNavigateTab('explorar');
-                            }
-                          }}
-                          className="mt-6 px-5 py-2.5 rounded-full bg-blue-600 text-white text-xs font-bold active:scale-95 transition-all shadow-md cursor-pointer"
-                        >
-                          {activeCollection === 'roteiros' ? 'Explorar Roteiros' : 'Explorar no Mapa'}
-                        </button>
                       </div>
                     ) : (
                       /* Active List */

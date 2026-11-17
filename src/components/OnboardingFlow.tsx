@@ -920,6 +920,7 @@ export const OnboardingFlow: React.FC<OnboardingFlowProps> = ({
       style={{
         height: 'var(--app-height, 100dvh)',
         minHeight: 'var(--app-height, 100dvh)',
+        backgroundColor: isDark ? '#000000' : '#FFFFFF',
         fontFamily:
           "'SF Pro Display', 'SF Pro Text', -apple-system, BlinkMacSystemFont, sans-serif",
       }}
@@ -930,6 +931,7 @@ export const OnboardingFlow: React.FC<OnboardingFlowProps> = ({
         style={{
           paddingTop: 'max(calc(env(safe-area-inset-top, 0px) + 14px), 24px)',
           paddingBottom: '8px',
+          backgroundColor: isDark ? '#000000' : '#FFFFFF',
         }}
       >
         <div className="w-11 h-11 flex items-center justify-start">
@@ -985,7 +987,13 @@ export const OnboardingFlow: React.FC<OnboardingFlowProps> = ({
       </header>
 
       {/* Main Step Viewport */}
-      <div className="flex-1 w-full max-w-md mx-auto px-6 overflow-y-auto scrollbar-none flex flex-col justify-between py-4">
+      <div
+        className="flex-1 w-full max-w-md mx-auto px-6 overflow-y-auto scrollbar-none flex flex-col justify-between py-4"
+        style={{
+          paddingBottom: 'calc(max(24px, env(safe-area-inset-bottom, 0px)) + 28px)',
+          backgroundColor: isDark ? '#000000' : '#FFFFFF',
+        }}
+      >
         <AnimatePresence mode="wait" custom={direction}>
           {/* ============================================================== */}
           {/* TELA 1 — RELAÇÃO COM CAMPOS DO JORDÃO                          */}
@@ -1586,13 +1594,7 @@ export const OnboardingFlow: React.FC<OnboardingFlowProps> = ({
         </AnimatePresence>
       </div>
 
-      {/* Safe Area Bottom Padding */}
-      <div
-        className="shrink-0"
-        style={{
-          height: 'max(env(safe-area-inset-bottom, 0px), 14px)',
-        }}
-      />
+
     </motion.div>
   );
 };

@@ -929,22 +929,8 @@ export const SpotDetailSheet: React.FC<SpotDetailSheetProps> = React.memo(({
               initial={{ opacity: 0, y: 12 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.78, ease: [0.16, 1, 0.3, 1], delay: 0.34 }}
-              className="grid grid-cols-3 gap-3 mb-8"
+              className="grid grid-cols-2 gap-3 mb-8"
             >
-              <motion.button
-                whileHover={{ scale: 1.02, transition: { type: 'spring', stiffness: 400, damping: 18 } }}
-                whileTap={{ scale: 0.94, transition: { type: 'spring', stiffness: 500, damping: 14 } }}
-                onClick={() => openDirectionsMap(spot)}
-                className={`rounded-full py-3 px-3 flex items-center justify-center gap-2 transition-all cursor-pointer font-bold active:opacity-90 expo-liquid-glass-btn border border-black/5 ${
-                  isGoldUser
-                    ? 'text-[#1A1202] dark:text-[#FDE073] shadow-[0_4px_16px_rgba(230,172,51,0.4)]'
-                    : 'text-[#000000] dark:text-white'
-                }`}
-                title="Traçar Rota no GPS"
-              >
-                <RoundedNavigationIcon isGold={false} className="w-4 h-4 shrink-0 text-[#000000] dark:text-white [&_polygon]:text-[#000000] dark:[&_polygon]:text-white" size={16} />
-                <span className="text-sm font-bold text-[#000000] dark:text-white">Rota</span>
-              </motion.button>
 
               <motion.a 
                 whileHover={{ scale: 1.02, transition: { type: 'spring', stiffness: 400, damping: 18 } }}
@@ -1494,19 +1480,8 @@ export const SpotDetailSheet: React.FC<SpotDetailSheetProps> = React.memo(({
             </p>
           )}
 
-          {/* 6. Action Buttons Side-by-Side (Como chegar, Ligar, Site) */}
+          {/* 6. Action Buttons Side-by-Side (Ligar, Site) */}
           <div className="flex items-center gap-2.5 mt-4 shrink-0">
-            {hasDirections && (
-              <button
-                type="button"
-                onClick={() => openDirectionsMap(spot)}
-                className="flex-1 h-10 px-4 rounded-full expo-liquid-glass-btn text-black dark:text-white text-xs lg:text-[13px] font-bold flex items-center justify-center gap-2 transition-colors cursor-pointer border border-black/5 shadow-sm"
-                title="Traçar rota até este local"
-              >
-                <RoundedNavigationIcon isGold={false} className="w-4 h-4 shrink-0 text-black dark:text-white [&_polygon]:text-black dark:[&_polygon]:text-white" size={15} />
-                <span className="truncate">Como chegar</span>
-              </button>
-            )}
 
             {phoneHref && (
               <a

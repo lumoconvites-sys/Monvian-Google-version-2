@@ -1132,53 +1132,19 @@ async function startServer() {
         .get(rawEmail, rawEmail) as any;
 
       if (existing) {
-        if (isPrimaryAdmin(rawEmail)) {
-          const hash = bcrypt.hashSync(String(password), 10);
-          const nowIso = new Date().toISOString();
-          const authId = supabase_auth_id || firebase_uid || existing.auth_id || `auth_${crypto.randomUUID()}`;
-          db.prepare(`
-            UPDATE users
-            SET name = ?, password_hash = ?, role = 'admin', is_gold = 1, auth_id = ?
-            WHERE id = ?
-          `).run(rawName || existing.name || 'Mario Yesk', hash, authId, existing.id);
-
-          const updatedAdmin = db.prepare('SELECT * FROM users WHERE id = ?').get(existing.id) as any;
-          const token = signPersistentSessionToken(updatedAdmin);
-          db.prepare('INSERT INTO sessions (token, user_id) VALUES (?, ?)').run(token, existing.id);
-
-          await persistUserToSupabase({ ...updatedAdmin, role: 'admin', is_gold: 1 });
-          await persistSessionToSupabase(token, existing.id);
-          await persistUserToFirestore({
-            ...updatedAdmin,
-            role: 'admin',
-            is_gold: 1,
-            last_access: nowIso,
-          }).catch(() => {});
-
-          setPersistentSessionCookie(req, res, token);
-
-          return res.json({
-            success: true,
-            token,
-            user: formatSafeUser({ ...updatedAdmin, role: 'admin', is_gold: 1 }),
-          });
-        }
-        return res.status(409).json({ success: false, error: 'Este e-mail já possui uma conta.' });
+        return res.status(409).json({
+          success: false,
+          error: 'Este e-mail já está cadastrado. Utilize outro endereço de e-mail ou faça login na sua conta.',
+        });
       }
 
       // Check remote Supabase to avoid duplicates across environments
-      if (!isPrimaryAdmin(rawEmail)) {
-        const remoteExisting = await getUserFromSupabase(rawEmail);
-        if (remoteExisting && remoteExisting.email) {
-          if (
-            remoteExisting.password_hash &&
-            remoteExisting.password_hash !== 'google_oauth' &&
-            remoteExisting.password_hash !== 'supabase_auth' &&
-            remoteExisting.password_hash !== 'profile_sync'
-          ) {
-            return res.status(409).json({ success: false, error: 'Este e-mail já possui uma conta.' });
-          }
-        }
+      const remoteExisting = await getUserFromSupabase(rawEmail);
+      if (remoteExisting && remoteExisting.email) {
+        return res.status(409).json({
+          success: false,
+          error: 'Este e-mail já está cadastrado. Utilize outro endereço de e-mail ou faça login na sua conta.',
+        });
       }
 
       let baseUsername = (username || rawName || rawEmail.split('@')[0])
