@@ -36,6 +36,31 @@ export function normalizeItineraryRecord(
     }
   }
 
+  const isManual =
+    String(row.id || '').startsWith('manual-itin-') ||
+    String(row.id || '').startsWith('user-itin-');
+  const isFreeDefault =
+    row.id === 'roteiro-classico-2-dias' ||
+    row.id === 'roteiro-bate-volta-essencial';
+  const isPaidDefault =
+    row.id === 'roteiro-romantico-montanhas' ||
+    row.id === 'roteiro-natureza-aventura' ||
+    row.id === 'roteiro-gastronomia-chocolates';
+
+  const hasExplicitFlag = row.is_premium !== undefined && row.is_premium !== null;
+  const isPremium = isManual
+    ? false
+    : isFreeDefault
+      ? (hasExplicitFlag ? Number(row.is_premium) === 1 : false)
+      : hasExplicitFlag
+        ? (Number(row.is_premium) === 1 || (isPaidDefault && (row.price === 'R$ 0' || row.price === 'Grátis')))
+        : row.isPremium !== undefined
+          ? Boolean(row.isPremium)
+          : isPaidDefault;
+
+  const rawPlatPrice = Number(row.platanos_price ?? row.platanosPrice ?? 0);
+  const platanosPrice = isPremium ? (rawPlatPrice > 0 ? rawPlatPrice : 15) : 0;
+
   return {
     id: String(row.id),
     title: String(row.title || 'Roteiro Sem Título'),
@@ -47,13 +72,13 @@ export function normalizeItineraryRecord(
     isActive: row.is_active !== undefined ? Number(row.is_active) === 1 : row.isActive !== false,
     isRecommended: row.is_recommended !== undefined ? Number(row.is_recommended) === 1 : Boolean(row.isRecommended),
     isFeatured: row.is_featured !== undefined ? Number(row.is_featured) === 1 : (row.is_recommended !== undefined ? Number(row.is_recommended) === 1 : Boolean(row.isFeatured)),
-    isPremium: false,
-    price: 'Grátis',
-    platanosPrice: 0,
+    isPremium,
+    price: isPremium ? `${platanosPrice} Plátanos` : 'Grátis',
+    platanosPrice,
     status: row.status || (Number(row.is_active) === 1 ? 'published' : 'draft'),
-    badgeText: '',
-    showBadge: false,
-    showPrice: false,
+    badgeText: isPremium ? (row.badge_text || row.badgeText || `${platanosPrice} Plátanos`) : (row.badge_text || row.badgeText || 'Grátis'),
+    showBadge: isPremium ? (row.show_badge !== undefined ? Number(row.show_badge) === 1 : true) : false,
+    showPrice: true,
     showStopsCount: row.show_stops_count !== undefined ? Number(row.show_stops_count) === 1 : true,
     tips: row.tips || row.notes || '',
     sortOrder: Number(row.sort_order ?? row.sortOrder ?? 0),
@@ -379,6 +404,9 @@ export async function saveItineraryToSupabase(payload: any, isEdit: boolean): Pr
   const isActive = status === 'published' ? 1 : 0;
   const isFeatured = payload.isFeatured ? 1 : (payload.isRecommended ? 1 : 0);
 
+  const isPrem = Boolean(payload.isPremium);
+  const platPrice = isPrem ? (Number(payload.platanosPrice) > 0 ? Number(payload.platanosPrice) : 15) : 0;
+
   const itineraryRow: any = {
     id: itinId,
     title: String(payload.title).trim(),
@@ -389,12 +417,12 @@ export async function saveItineraryToSupabase(payload: any, isEdit: boolean): Pr
     is_active: isActive,
     is_recommended: isFeatured,
     is_featured: isFeatured,
-    is_premium: 0,
-    price: 'Grátis',
+    is_premium: isPrem ? 1 : 0,
+    price: isPrem ? `${platPrice} Plátanos` : 'Grátis',
     status,
-    badge_text: 'Grátis',
-    show_badge: 0,
-    show_price: 0,
+    badge_text: isPrem ? (payload.badgeText || `${platPrice} Plátanos`) : 'Grátis',
+    show_badge: isPrem ? 1 : 0,
+    show_price: 1,
     show_stops_count: payload.showStopsCount !== undefined ? (payload.showStopsCount ? 1 : 0) : 1,
     tips: payload.tips || payload.notes || '',
     sort_order: Number(payload.sortOrder ?? payload.sort_order ?? 0),
@@ -614,8 +642,9 @@ export async function toggleItineraryPremiumInSupabase(
   if (!id) return false;
 
   const val = isPremium ? 1 : 0;
-  const price = isPremium ? 'R$ 19,90' : 'Grátis';
-  const badgeText = isPremium ? 'ELITE GOLD' : 'Grátis';
+  const platanosPrice = isPremium ? 15 : 0;
+  const price = isPremium ? '15 Plátanos' : 'Grátis';
+  const badgeText = isPremium ? '15 Plátanos' : 'Grátis';
 
   if (isSupabaseConfigured && supabase) {
     const { error } = await supabase
@@ -637,7 +666,7 @@ export async function toggleItineraryPremiumInSupabase(
     if (cached) {
       const list: Itinerary[] = JSON.parse(cached);
       const updated = list.map((it) =>
-        it.id === id ? { ...it, isPremium, price, badgeText, showBadge: isPremium } : it
+        it.id === id ? { ...it, isPremium, platanosPrice, price, badgeText, showBadge: isPremium } : it
       );
       localStorage.setItem(CACHE_KEY_ITINERARIES, JSON.stringify(updated));
     }
@@ -672,9 +701,9 @@ export async function seedItinerariesIntoSupabase(): Promise<void> {
         is_recommended: itin.isRecommended ? 1 : 0,
         is_featured: itin.isFeatured ? 1 : 0,
         is_premium: itin.isPremium ? 1 : 0,
-        price: itin.price || 'R$ 14,90',
+        price: itin.price || (itin.isPremium ? '15 Plátanos' : 'Grátis'),
         status: itin.status || 'published',
-        badge_text: itin.badgeText || (itin.isPremium ? 'Premium' : 'Grátis'),
+        badge_text: itin.badgeText || (itin.isPremium ? '15 Plátanos' : 'Grátis'),
         show_badge: itin.showBadge ? 1 : 0,
         show_price: itin.showPrice ? 1 : 0,
         show_stops_count: itin.showStopsCount ? 1 : 0,

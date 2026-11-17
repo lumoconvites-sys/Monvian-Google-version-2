@@ -154,8 +154,9 @@ export const AdminItineraries: React.FC = () => {
             ? {
                 ...it,
                 isPremium: nextPremium,
-                price: nextPremium ? 'R$ 19,90' : 'Grátis',
-                badgeText: nextPremium ? 'ELITE GOLD' : 'Grátis',
+                platanosPrice: nextPremium ? 15 : 0,
+                price: nextPremium ? '15 Plátanos' : 'Grátis',
+                badgeText: nextPremium ? '15 Plátanos' : 'Grátis',
                 showBadge: nextPremium,
               }
             : it
@@ -163,11 +164,11 @@ export const AdminItineraries: React.FC = () => {
       );
       showToast(
         nextPremium
-          ? 'Roteiro ativado como ELITE GOLD (abre o banner Premium e envia para a Stripe)!'
+          ? 'Roteiro definido como pago (15 Plátanos)!'
           : 'Roteiro alterado para Grátis (Acesso Livre).'
       );
     } catch (e: any) {
-      showToast('Erro ao alterar modo Premium: ' + e.message, 'error');
+      showToast('Erro ao alterar acesso do roteiro: ' + e.message, 'error');
     }
   };
 

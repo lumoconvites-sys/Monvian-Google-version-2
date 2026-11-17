@@ -238,7 +238,7 @@ export function setupItineraryDatabase(db: any) {
   try { db.exec(`ALTER TABLE itinerary_drafts ADD COLUMN children_count INTEGER DEFAULT 0;`); } catch (e) {}
 
   // Migrations for Premium Itinerary Store
-  try { db.exec(`ALTER TABLE itineraries ADD COLUMN price TEXT DEFAULT 'R$ 14,90';`); } catch (e) {}
+  try { db.exec(`ALTER TABLE itineraries ADD COLUMN price TEXT DEFAULT '15 Plátanos';`); } catch (e) {}
   try { db.exec(`ALTER TABLE itineraries ADD COLUMN status TEXT DEFAULT 'published';`); } catch (e) {}
   try { db.exec(`ALTER TABLE itineraries ADD COLUMN is_featured INTEGER DEFAULT 0;`); } catch (e) {}
   try { db.exec(`ALTER TABLE itineraries ADD COLUMN is_premium INTEGER DEFAULT 1;`); } catch (e) {}
@@ -258,10 +258,10 @@ export function setupItineraryDatabase(db: any) {
   // Ensure default data consistency
   try {
     db.exec(`UPDATE itineraries SET status = 'published' WHERE status IS NULL OR status = '';`);
-    db.exec(`UPDATE itineraries SET price = 'R$ 14,90' WHERE price IS NULL OR price = '';`);
+    db.exec(`UPDATE itineraries SET price = '15 Plátanos' WHERE price IS NULL OR price = '' OR (is_premium = 1 AND price LIKE 'R$ %');`);
     db.exec(`UPDATE itineraries SET is_featured = 1 WHERE is_recommended = 1;`);
-    db.exec(`UPDATE itineraries SET is_premium = 0, badge_text = 'Grátis', price = 'R$ 0' WHERE id = 'roteiro-classico-2-dias' OR badge_text = 'Livre' OR badge_text = 'Grátis';`);
-    db.exec(`UPDATE itineraries SET is_premium = 0, badge_text = '1 Dia', price = 'R$ 0' WHERE id = 'roteiro-bate-volta-essencial';`);
+    db.exec(`UPDATE itineraries SET is_premium = 0, platanos_price = 0, badge_text = 'Grátis', price = 'Grátis' WHERE id = 'roteiro-classico-2-dias' OR badge_text = 'Livre' OR badge_text = 'Grátis';`);
+    db.exec(`UPDATE itineraries SET is_premium = 0, platanos_price = 0, badge_text = '1 Dia', price = 'Grátis' WHERE id = 'roteiro-bate-volta-essencial';`);
   } catch (e) {}
 
   // Update existing spots to be available for itineraries if null

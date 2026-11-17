@@ -10,6 +10,7 @@ import {
   AlertCircle,
   Play,
   CirclePlus,
+  Lock,
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { Itinerary, ItineraryCategory } from '../../types';
@@ -25,6 +26,10 @@ import {
   matchesItineraryFilter,
 } from '../../services/supabaseItineraries';
 import { useFavorites } from '../../hooks/useFavorites';
+import { usePlatanos } from '../../hooks/usePlatanos';
+import { PlatanosWalletModal } from '../platanos/PlatanosWalletModal';
+import { PlatanoPurchaseConfirmModal } from '../platanos/PlatanoPurchaseConfirmModal';
+import { PlatanoLeafIcon, PlatanoUnlockToast } from '../platanos/PlatanoLeafIcon';
 import { DEFAULT_CURATED_ITINERARIES } from '../../data/defaultItineraries';
 import { triggerHapticFeedback } from '../../utils/haptics';
 import { useIOSBackEntry } from '../../services/iosNavigationManager';
@@ -511,7 +516,16 @@ export const AirbnbItineraryExplorer: React.FC<AirbnbItineraryExplorerProps> = (
   );
   const [selectedItinerary, setSelectedItinerary] = useState<Itinerary | null>(null);
   const [isDetailOpen, setIsDetailOpen] = useState(false);
+  const [isWalletOpen, setIsWalletOpen] = useState(false);
+  const [walletInitialTab, setWalletInitialTab] = useState<'topup' | 'history'>('topup');
+  const [purchaseTargetItinerary, setPurchaseTargetItinerary] = useState<Itinerary | null>(null);
+  const [unlockToast, setUnlockToast] = useState<{
+    visible: boolean;
+    title: string;
+    subtitle?: string;
+  }>({ visible: false, title: '' });
   const { savedItineraries: favorites, toggleItinerary } = useFavorites();
+  const { wallet, getItineraryPlatanoPrice, isItineraryUnlocked } = usePlatanos();
 
   useEffect(() => {
     cachedExplorerFilters = {
@@ -581,6 +595,8 @@ export const AirbnbItineraryExplorer: React.FC<AirbnbItineraryExplorerProps> = (
       setIsDetailOpen(false);
       setSelectedItinerary(null);
       setIsFilterOpen(false);
+      setIsWalletOpen(false);
+      setPurchaseTargetItinerary(null);
     };
     window.addEventListener('monvian-close-modals', handleCloseAll);
     return () => {
@@ -908,12 +924,25 @@ export const AirbnbItineraryExplorer: React.FC<AirbnbItineraryExplorerProps> = (
     onPop: () => setShowAllItineraries(false),
   });
 
-  const handleApplyFromDetail = useCallback(
+  const attemptActivateItinerary = useCallback(
     async (itin: Itinerary) => {
+      const price = getItineraryPlatanoPrice(itin);
+      const unlocked = isItineraryUnlocked(itin.id, itin);
+      if (price > 0 && !unlocked) {
+        setPurchaseTargetItinerary(itin);
+        return;
+      }
       setIsDetailOpen(false);
       await onSelectItinerary(itin);
     },
-    [onSelectItinerary]
+    [getItineraryPlatanoPrice, isItineraryUnlocked, onSelectItinerary]
+  );
+
+  const handleApplyFromDetail = useCallback(
+    async (itin: Itinerary) => {
+      await attemptActivateItinerary(itin);
+    },
+    [attemptActivateItinerary]
   );
 
   const isDark = theme === 'dark';
@@ -995,8 +1024,26 @@ export const AirbnbItineraryExplorer: React.FC<AirbnbItineraryExplorerProps> = (
             </h1>
           </div>
 
-          {/* Right Action: Play button when active itinerary exists, or "Criar manualmente" when none */}
+          {/* Right Action: Plátanos Wallet Balance + Play / Create button */}
           <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => {
+                setWalletInitialTab('topup');
+                setIsWalletOpen(true);
+              }}
+              className={`h-9 px-3 rounded-full border flex items-center justify-center gap-1.5 text-[12.5px] font-semibold tracking-tight tabular-nums shrink-0 cursor-pointer active:scale-95 transition-all outline-none ${
+                isDark
+                  ? 'bg-[#1C1C1E] border-white/15 text-white hover:bg-[#2C2C2E]'
+                  : 'bg-[#F5F5F7] border-black/10 text-zinc-900 hover:bg-[#E5E5EA]'
+              }`}
+              title="Sua carteira de Plátanos"
+              aria-label="Sua carteira de Plátanos"
+            >
+              <PlatanoLeafIcon className="w-3.5 h-3.5 shrink-0" variant="monochrome" />
+              <span>{wallet.balance}</span>
+            </button>
+
             {activeItineraryId && onOpenMap ? (
               <button
                 type="button"
@@ -1368,8 +1415,10 @@ export const AirbnbItineraryExplorer: React.FC<AirbnbItineraryExplorerProps> = (
                       isFavorite={favorites.includes(itin.id)}
                       onToggleFavorite={(e) => handleToggleFavorite(itin.id, e)}
                       onClick={() => handleOpenDetail(itin)}
-                      onDirectPlay={() => onSelectItinerary(itin)}
+                      onDirectPlay={() => attemptActivateItinerary(itin)}
                       isActiveRoute={itin.id === activeItineraryId}
+                      platanoPrice={getItineraryPlatanoPrice(itin)}
+                      isUnlocked={isItineraryUnlocked(itin.id, itin)}
                       isDark={isDark}
                     />
                   ))}
@@ -1452,7 +1501,52 @@ export const AirbnbItineraryExplorer: React.FC<AirbnbItineraryExplorerProps> = (
         isOpen={isDetailOpen}
         onClose={() => setIsDetailOpen(false)}
         onApplyItinerary={handleApplyFromDetail}
+        onOpenWalletTopUp={() => {
+          setWalletInitialTab('topup');
+          setIsWalletOpen(true);
+        }}
+        platanoPrice={selectedItinerary ? getItineraryPlatanoPrice(selectedItinerary) : 0}
+        isUnlocked={selectedItinerary ? isItineraryUnlocked(selectedItinerary.id, selectedItinerary) : true}
         theme={theme}
+      />
+
+      {/* Plátanos Purchase Confirmation Sheet */}
+      <PlatanoPurchaseConfirmModal
+        itinerary={purchaseTargetItinerary}
+        isOpen={Boolean(purchaseTargetItinerary)}
+        onClose={() => setPurchaseTargetItinerary(null)}
+        onConfirmSuccess={async (purchasedItin, result) => {
+          setPurchaseTargetItinerary(null);
+          setIsDetailOpen(false);
+          setUnlockToast({
+            visible: true,
+            title: result.alreadyUnlocked ? 'Roteiro já liberado' : 'Roteiro liberado',
+            subtitle: `${purchasedItin.title} · Saldo: ${result.balanceAfter} Plátanos`,
+          });
+          await onSelectItinerary(purchasedItin);
+        }}
+        onOpenWalletTopUp={() => {
+          setWalletInitialTab('topup');
+          setIsWalletOpen(true);
+        }}
+        theme={theme}
+      />
+
+      {/* Plátanos Wallet & Stripe Packages Modal */}
+      <PlatanosWalletModal
+        isOpen={isWalletOpen}
+        onClose={() => setIsWalletOpen(false)}
+        theme={theme}
+        initialTab={walletInitialTab}
+      />
+
+      {/* Monochrome Unlock Confirmation Toast */}
+      <PlatanoUnlockToast
+        visible={unlockToast.visible}
+        title={unlockToast.title}
+        subtitle={unlockToast.subtitle}
+        theme={theme}
+        onDone={() => setUnlockToast((prev) => ({ ...prev, visible: false }))}
       />
     </div>
   );
@@ -1470,6 +1564,8 @@ interface HorizontalReferenceItineraryCardProps {
   onClick: () => void;
   onDirectPlay?: () => void;
   isActiveRoute?: boolean;
+  platanoPrice?: number;
+  isUnlocked?: boolean;
   isDark?: boolean;
 }
 
@@ -1484,6 +1580,8 @@ const HorizontalReferenceItineraryCard: React.FC<HorizontalReferenceItineraryCar
       onClick,
       onDirectPlay,
       isActiveRoute = false,
+      platanoPrice = 0,
+      isUnlocked = true,
       isDark = true,
     }) => {
       // Deterministic rating between 4.88 and 4.98
@@ -1566,13 +1664,27 @@ const HorizontalReferenceItineraryCard: React.FC<HorizontalReferenceItineraryCar
               }`}
             />
 
-            {/* Active Route Indicator Only (no price badges) */}
-            {isActiveRoute && (
+            {/* Active Route or Plátanos Cost Indicator */}
+            {isActiveRoute ? (
               <div className="absolute top-3 left-3 px-2.5 py-1 rounded-full bg-white/95 backdrop-blur-xs text-zinc-900 text-[11px] font-semibold shadow-xs flex items-center gap-1 z-10">
                 <Check className="w-3 h-3 stroke-[2.8] text-emerald-600" />
                 <span>Roteiro ativo</span>
               </div>
-            )}
+            ) : platanoPrice > 0 ? (
+              <div className="absolute top-3 left-3 px-2.5 py-1 rounded-full bg-black/70 backdrop-blur-md text-white border border-white/15 text-[11px] font-semibold flex items-center gap-1.5 z-10 tabular-nums">
+                {isUnlocked ? (
+                  <>
+                    <Check className="w-3 h-3 stroke-[2.6] text-emerald-400" />
+                    <span>Liberado</span>
+                  </>
+                ) : (
+                  <>
+                    <PlatanoLeafIcon className="w-3 h-3 shrink-0" variant="light" />
+                    <span>{platanoPrice} Plátanos</span>
+                  </>
+                )}
+              </div>
+            ) : null}
 
             {/* Top-Right Favorite Heart Button on Image */}
             <button
@@ -1617,14 +1729,25 @@ const HorizontalReferenceItineraryCard: React.FC<HorizontalReferenceItineraryCar
                     onClick();
                   }
                 }}
-                className="flex items-center gap-1.5 shrink-0 px-2.5 py-1 rounded-full bg-black/5 dark:bg-white/10 hover:bg-black/10 dark:hover:bg-white/15 active:scale-95 transition-all text-zinc-900 dark:text-zinc-100 cursor-pointer"
-                title="Abrir roteiro no mapa"
-                aria-label="Abrir roteiro no mapa"
+                className="flex items-center gap-1.5 shrink-0 px-2.5 py-1 rounded-full bg-black/5 dark:bg-white/10 hover:bg-black/10 dark:hover:bg-white/15 active:scale-95 transition-all text-zinc-900 dark:text-zinc-100 cursor-pointer tabular-nums"
+                title={platanoPrice > 0 && !isUnlocked ? `Liberar por ${platanoPrice} Plátanos` : 'Abrir roteiro no mapa'}
+                aria-label={platanoPrice > 0 && !isUnlocked ? `Liberar por ${platanoPrice} Plátanos` : 'Abrir roteiro no mapa'}
               >
-                <Play className="w-3 h-3 fill-black text-black dark:fill-white dark:text-white" />
-                <span className="text-[12px] font-semibold tracking-tight text-zinc-800 dark:text-zinc-200">
-                  {formatItineraryViewsCount(itinerary.id || itinerary.title)}
-                </span>
+                {platanoPrice > 0 && !isUnlocked ? (
+                  <>
+                    <Lock className="w-3 h-3 text-zinc-900 dark:text-white" />
+                    <span className="text-[12px] font-semibold tracking-tight text-zinc-800 dark:text-zinc-200">
+                      {platanoPrice}
+                    </span>
+                  </>
+                ) : (
+                  <>
+                    <Play className="w-3 h-3 fill-black text-black dark:fill-white dark:text-white" />
+                    <span className="text-[12px] font-semibold tracking-tight text-zinc-800 dark:text-zinc-200">
+                      {formatItineraryViewsCount(itinerary.id || itinerary.title)}
+                    </span>
+                  </>
+                )}
               </button>
             </div>
 

@@ -21,8 +21,8 @@ export const INITIAL_PLATANOS_PACKAGES: PlatanoPackageRow[] = [
   {
     id: 'pkg_15',
     platanos: 15,
-    price_cents: 1590,
-    price_brl: 'R$ 15,90',
+    price_cents: 2990,
+    price_brl: 'R$ 29,90',
     badge: '',
     is_best_value: 0,
     is_active: 1,
@@ -31,8 +31,8 @@ export const INITIAL_PLATANOS_PACKAGES: PlatanoPackageRow[] = [
   {
     id: 'pkg_30',
     platanos: 30,
-    price_cents: 2290,
-    price_brl: 'R$ 22,90',
+    price_cents: 5490,
+    price_brl: 'R$ 54,90',
     badge: '',
     is_best_value: 0,
     is_active: 1,
@@ -41,8 +41,8 @@ export const INITIAL_PLATANOS_PACKAGES: PlatanoPackageRow[] = [
   {
     id: 'pkg_60',
     platanos: 60,
-    price_cents: 2990,
-    price_brl: 'R$ 29,90',
+    price_cents: 9990,
+    price_brl: 'R$ 99,90',
     badge: '',
     is_best_value: 0,
     is_active: 1,
@@ -51,8 +51,8 @@ export const INITIAL_PLATANOS_PACKAGES: PlatanoPackageRow[] = [
   {
     id: 'pkg_100',
     platanos: 100,
-    price_cents: 3490,
-    price_brl: 'R$ 34,90',
+    price_cents: 14990,
+    price_brl: 'R$ 149,90',
     badge: '',
     is_best_value: 0,
     is_active: 1,
@@ -61,8 +61,8 @@ export const INITIAL_PLATANOS_PACKAGES: PlatanoPackageRow[] = [
   {
     id: 'pkg_200',
     platanos: 200,
-    price_cents: 3990,
-    price_brl: 'R$ 39,90',
+    price_cents: 24990,
+    price_brl: 'R$ 249,90',
     badge: 'Melhor custo-benefício',
     is_best_value: 1,
     is_active: 1,
@@ -172,8 +172,9 @@ export function setupPlatanosDatabase(db: Database.Database) {
   } catch {}
 
   try {
-    db.exec(`UPDATE itineraries SET platanos_price = 15 WHERE (platanos_price IS NULL OR platanos_price <= 0) AND is_premium = 1;`);
-    db.exec(`UPDATE itineraries SET platanos_price = 0 WHERE is_premium = 0 AND (platanos_price IS NULL OR id IN ('roteiro-classico-2-dias', 'roteiro-bate-volta-essencial'));`);
+    db.exec(`UPDATE itineraries SET is_premium = 1, platanos_price = 15, price = '15 Plátanos' WHERE id IN ('roteiro-romantico-montanhas', 'roteiro-natureza-aventura', 'roteiro-gastronomia-chocolates') AND (is_premium = 0 OR platanos_price IS NULL OR platanos_price <= 0 OR price = 'R$ 0' OR price = 'Grátis');`);
+    db.exec(`UPDATE itineraries SET platanos_price = 15, price = '15 Plátanos' WHERE is_premium = 1 AND (platanos_price IS NULL OR platanos_price <= 0 OR platanos_price != 15);`);
+    db.exec(`UPDATE itineraries SET platanos_price = 0, price = 'Grátis' WHERE is_premium = 0 AND (platanos_price IS NULL OR id IN ('roteiro-classico-2-dias', 'roteiro-bate-volta-essencial'));`);
   } catch {}
 
   // Seed default closed packages idempotently
@@ -194,6 +195,23 @@ export function setupPlatanosDatabase(db: Database.Database) {
       pkg.sort_order
     );
   }
+
+  // Upgrade legacy R$ 15,90 package pricing in existing SQLite DBs to R$ 29,90 per 15 Plátanos
+  try {
+    const legacyPkg15 = db
+      .prepare(`SELECT price_cents FROM platanos_packages WHERE id = 'pkg_15'`)
+      .get() as { price_cents?: number } | undefined;
+    if (legacyPkg15 && Number(legacyPkg15.price_cents) === 1590) {
+      const updateLegacyPkg = db.prepare(`
+        UPDATE platanos_packages
+        SET price_cents = ?, price_brl = ?, updated_at = CURRENT_TIMESTAMP
+        WHERE id = ?
+      `);
+      for (const pkg of INITIAL_PLATANOS_PACKAGES) {
+        updateLegacyPkg.run(pkg.price_cents, pkg.price_brl, pkg.id);
+      }
+    }
+  } catch {}
 }
 
 export function ensureUserWallet(db: Database.Database, userId: number, userEmail: string) {

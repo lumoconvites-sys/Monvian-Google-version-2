@@ -507,11 +507,11 @@ async function getAuthUser(req: any, strictSession = false): Promise<any | null>
 }
 
 const DEFAULT_PLATANOS_PACKAGES = [
-  { id: 'pkg_15', platanos: 15, priceCents: 1590, priceBRL: 'R$ 15,90', badge: '', isBestValue: false, isActive: true, sortOrder: 1 },
-  { id: 'pkg_30', platanos: 30, priceCents: 2290, priceBRL: 'R$ 22,90', badge: '', isBestValue: false, isActive: true, sortOrder: 2 },
-  { id: 'pkg_60', platanos: 60, priceCents: 2990, priceBRL: 'R$ 29,90', badge: '', isBestValue: false, isActive: true, sortOrder: 3 },
-  { id: 'pkg_100', platanos: 100, priceCents: 3490, priceBRL: 'R$ 34,90', badge: '', isBestValue: false, isActive: true, sortOrder: 4 },
-  { id: 'pkg_200', platanos: 200, priceCents: 3990, priceBRL: 'R$ 39,90', badge: 'Melhor custo-benefício', isBestValue: true, isActive: true, sortOrder: 5 },
+  { id: 'pkg_15', platanos: 15, priceCents: 2990, priceBRL: 'R$ 29,90', badge: '', isBestValue: false, isActive: true, sortOrder: 1 },
+  { id: 'pkg_30', platanos: 30, priceCents: 5490, priceBRL: 'R$ 54,90', badge: '', isBestValue: false, isActive: true, sortOrder: 2 },
+  { id: 'pkg_60', platanos: 60, priceCents: 9990, priceBRL: 'R$ 99,90', badge: '', isBestValue: false, isActive: true, sortOrder: 3 },
+  { id: 'pkg_100', platanos: 100, priceCents: 14990, priceBRL: 'R$ 149,90', badge: '', isBestValue: false, isActive: true, sortOrder: 4 },
+  { id: 'pkg_200', platanos: 200, priceCents: 24990, priceBRL: 'R$ 249,90', badge: 'Melhor custo-benefício', isBestValue: true, isActive: true, sortOrder: 5 },
 ];
 
 function formatCentsToBRL(cents: number): string {
@@ -551,6 +551,10 @@ async function getPlatanosPackagesServerless(includeInactive = false): Promise<a
     if (data?.value) {
       const parsed = JSON.parse(data.value);
       if (Array.isArray(parsed) && parsed.length > 0) {
+        const legacyPkg15 = parsed.find((p: any) => p.id === 'pkg_15');
+        if (legacyPkg15 && Number(legacyPkg15.priceCents) === 1590) {
+          return includeInactive ? DEFAULT_PLATANOS_PACKAGES : DEFAULT_PLATANOS_PACKAGES.filter((p) => p.isActive);
+        }
         return includeInactive ? parsed : parsed.filter((p: any) => p.isActive !== false);
       }
     }
@@ -559,10 +563,16 @@ async function getPlatanosPackagesServerless(includeInactive = false): Promise<a
 }
 
 async function getItineraryPricesServerless(): Promise<Record<string, number>> {
-  const prices: Record<string, number> = {};
+  const prices: Record<string, number> = {
+    'roteiro-classico-2-dias': 0,
+    'roteiro-bate-volta-essencial': 0,
+    'roteiro-romantico-montanhas': 15,
+    'roteiro-natureza-aventura': 15,
+    'roteiro-gastronomia-chocolates': 15,
+  };
   try {
     const [itinsRes, customPricesRes] = await Promise.all([
-      supabase.from('itineraries').select('id, is_premium'),
+      supabase.from('itineraries').select('id, is_premium, platanos_price'),
       supabase.from('system_settings').select('value').eq('key', 'platanos_itinerary_prices_json').maybeSingle(),
     ]);
     let customMap: Record<string, number> = {};
@@ -573,7 +583,7 @@ async function getItineraryPricesServerless(): Promise<Record<string, number>> {
     }
     for (const row of itinsRes.data || []) {
       const isPrem = Number(row.is_premium) === 1;
-      const customVal = Number(customMap[row.id]);
+      const customVal = Number(customMap[row.id] ?? (row as any).platanos_price ?? 0);
       prices[row.id] = isPrem ? (customVal > 0 ? customVal : 15) : 0;
     }
     for (const [k, v] of Object.entries(customMap)) {
@@ -702,7 +712,7 @@ async function creditPlatanosOrderServerless(params: {
   const packages = await getPlatanosPackagesServerless(true);
   const pkg = packages.find((p: any) => p.id === pkgId) || DEFAULT_PLATANOS_PACKAGES[0];
   const platanosToCredit = Number(orderObj?.platanosAmount || pkg.platanos || 15);
-  const amountCents = Number(orderObj?.amountCents || pkg.priceCents || 1590);
+  const amountCents = Number(orderObj?.amountCents || pkg.priceCents || 2990);
 
   const balanceBefore = Number(wallet.balance || 0);
   const balanceAfter = balanceBefore + platanosToCredit;
@@ -2719,8 +2729,16 @@ export default async function handler(req: any, res: any) {
         });
       }
 
-      const authoritativePrice =
-        wallet.itineraryPrices?.[itineraryId] !== undefined ? Number(wallet.itineraryPrices[itineraryId]) : 15;
+      const isFreeId =
+        itineraryId === 'roteiro-classico-2-dias' ||
+        itineraryId === 'roteiro-bate-volta-essencial' ||
+        itineraryId.startsWith('manual-itin-') ||
+        itineraryId.startsWith('user-itin-');
+      const authoritativePrice = isFreeId
+        ? 0
+        : wallet.itineraryPrices?.[itineraryId] !== undefined
+          ? Number(wallet.itineraryPrices[itineraryId])
+          : 15;
 
       const balanceBefore = Number(wallet.balance || 0);
       if (balanceBefore < authoritativePrice) {

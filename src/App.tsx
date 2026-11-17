@@ -38,6 +38,7 @@ import { AirbnbPresentationCard, isPresentationCardSeen, markPresentationCardSee
 import { persistUserToFirestore, syncPermissionsFromDatabase, markWelcomeCardSeen, markGlobeIntroSeen } from './services/firestoreSync';
 import { fetchSpotsFromSupabase, subscribeToSpotsChanges } from './services/supabaseSpots';
 import { broadcastPlatanosWalletUpdate, getAuthHeaders } from './hooks/usePlatanos';
+import { PlatanosWalletModal } from './components/platanos/PlatanosWalletModal';
 import { SignupIntroSequence, SignupIntroStage } from './components/SignupIntroSequence';
 import { FirstSignupWelcomeScreen } from './components/FirstSignupWelcomeScreen';
 import { WelcomeJourneyModal } from './components/WelcomeJourneyModal';
@@ -290,6 +291,7 @@ export default function App() {
   const [isOnboardingItinerarySelection, setIsOnboardingItinerarySelection] = useState<boolean>(false);
   const [isUserLocationSpotlightActive, setIsUserLocationSpotlightActive] = useState<boolean>(false);
   const hasExecutedSignupIntroRef = useRef<boolean>(false);
+  const authEpochRef = useRef<number>(0);
   const isSignupRevealActive = signupIntroStage !== 'idle';
   const isOnboardingRevealReady = signupIntroStage === 'revealing' || signupIntroStage === 'idle';
   const [explorarEntranceTick, setExplorarEntranceTick] = useState<number>(0);
@@ -302,6 +304,25 @@ export default function App() {
   const [isWeatherModalOpen, setIsWeatherModalOpen] = useState<boolean>(false);
   const [isGoldSuccessModalOpen, setIsGoldSuccessModalOpen] = useState<boolean>(false);
   const [isChatKeyboardOpen, setIsChatKeyboardOpen] = useState<boolean>(false);
+  const [isPlatanosWalletOpen, setIsPlatanosWalletOpen] = useState<boolean>(false);
+  const [platanosWalletTab, setPlatanosWalletTab] = useState<'topup' | 'history'>('topup');
+
+  useEffect(() => {
+    const handleOpenWallet = (e: Event) => {
+      const detail = (e as CustomEvent)?.detail;
+      setPlatanosWalletTab(detail?.tab === 'history' ? 'history' : 'topup');
+      setIsPlatanosWalletOpen(true);
+    };
+    const handleCloseAll = () => {
+      setIsPlatanosWalletOpen(false);
+    };
+    window.addEventListener('monvian:open_platanos_wallet', handleOpenWallet);
+    window.addEventListener('monvian-close-modals', handleCloseAll);
+    return () => {
+      window.removeEventListener('monvian:open_platanos_wallet', handleOpenWallet);
+      window.removeEventListener('monvian-close-modals', handleCloseAll);
+    };
+  }, []);
 
   // Handle Stripe Checkout return & Official Webhook / Backend Verification
   useEffect(() => {
@@ -609,6 +630,7 @@ export default function App() {
 
   const performFullLogout = useCallback((options?: { redirectToLogin?: boolean }) => {
     const shouldRedirectToLogin = Boolean(options?.redirectToLogin);
+    authEpochRef.current += 1;
     manualLogoutRef.current = true;
     let token: string | null = null;
     try {
@@ -669,8 +691,10 @@ export default function App() {
 
   useEffect(() => {
     let isMounted = true;
+    const myEpoch = authEpochRef.current;
 
     const applyAuthenticatedUser = async (token: string, rawUser: any) => {
+      if (!isMounted || myEpoch !== authEpochRef.current) return;
       const normalized = normalizeAppUser(rawUser);
       if (!normalized) return;
 
@@ -694,7 +718,7 @@ export default function App() {
         localStorage.setItem('monvian_user', JSON.stringify(normalized));
       } catch {}
       await savePersistentSession(token, normalized);
-      if (!isMounted) return;
+      if (!isMounted || myEpoch !== authEpochRef.current) return;
 
       const userEmail = (normalized.email || normalized.whatsapp || '').trim().toLowerCase();
       if (userEmail) {
@@ -736,6 +760,7 @@ export default function App() {
           }
         } catch {}
       }
+      if (!isMounted || myEpoch !== authEpochRef.current) return;
       favoritesManager.setActiveAccount(normalized);
       window.dispatchEvent(new CustomEvent('monvian:account_switched', { detail: normalized }));
       setUser(normalized);
@@ -821,24 +846,23 @@ export default function App() {
       try {
         const stored = await loadPersistentSession();
 
-        if (!isMounted) return;
+        if (!isMounted || myEpoch !== authEpochRef.current) return;
 
         if (!stored?.token) {
           // Wait for official Firebase IndexedDB & Supabase IndexedDB sessions before concluding logged-out
           const restored = await restoreFromOfficialProviders();
-          if (restored && isMounted && !manualLogoutRef.current) {
+          if (!isMounted || myEpoch !== authEpochRef.current) return;
+          if (restored && !manualLogoutRef.current) {
             await applyAuthenticatedUser(restored.token, restored.user);
             return;
           }
-          if (isMounted) {
-            setUser(null);
-            setIsAuthenticated(false);
-          }
+          setUser(null);
+          setIsAuthenticated(false);
           return;
         }
 
         // If restored from IndexedDB or cookie when localStorage was empty, enter app immediately while verifying
-        if (stored.user && isMounted) {
+        if (stored.user && isMounted && myEpoch === authEpochRef.current) {
           setUser(normalizeAppUser(stored.user));
           setIsAuthenticated(true);
           setIsAuthChecking(false);
@@ -855,48 +879,50 @@ export default function App() {
           cache: 'no-store',
         });
 
+        if (!isMounted || myEpoch !== authEpochRef.current) return;
+
         if (res.status === 401 || res.status === 403) {
           // Token was rejected or expired: attempt silent official provider renewal before logging out
           const restored = await restoreFromOfficialProviders();
-          if (restored && isMounted && !manualLogoutRef.current) {
+          if (!isMounted || myEpoch !== authEpochRef.current) return;
+          if (restored && !manualLogoutRef.current) {
             await applyAuthenticatedUser(restored.token, restored.user);
             return;
           }
-          if (isMounted) {
-            await performFullLogout();
-          }
+          await performFullLogout();
           return;
         }
 
         if (!res.ok) {
           // On transient 5xx cold start, preserve cached IndexedDB/localStorage session if valid user exists
-          if (!stored.user && isMounted) {
+          if (!stored.user && isMounted && myEpoch === authEpochRef.current) {
             await performFullLogout();
           }
           return;
         }
 
         const data = await res.json();
+        if (!isMounted || myEpoch !== authEpochRef.current) return;
         if (!data?.success || !data?.user) {
           const restored = await restoreFromOfficialProviders();
-          if (restored && isMounted && !manualLogoutRef.current) {
+          if (!isMounted || myEpoch !== authEpochRef.current) return;
+          if (restored && !manualLogoutRef.current) {
             await applyAuthenticatedUser(restored.token, restored.user);
             return;
           }
-          if (isMounted) {
-            await performFullLogout();
-          }
+          await performFullLogout();
           return;
         }
 
-        if (isMounted && !manualLogoutRef.current) {
+        if (!manualLogoutRef.current) {
           const activeToken = data.refreshedToken || stored.token;
           await applyAuthenticatedUser(activeToken, data.user);
         }
       } catch {
         // Offline or transient network failure: preserve persisted IndexedDB/localStorage session cleanly
-        if (isMounted) {
+        if (isMounted && myEpoch === authEpochRef.current) {
           const fallback = await loadPersistentSession().catch(() => null);
+          if (!isMounted || myEpoch !== authEpochRef.current) return;
           if (fallback?.token && fallback?.user) {
             setUser(normalizeAppUser(fallback.user));
             setIsAuthenticated(true);
@@ -906,7 +932,7 @@ export default function App() {
           }
         }
       } finally {
-        if (isMounted) {
+        if (isMounted && myEpoch === authEpochRef.current) {
           setIsAuthChecking(false);
         }
       }
@@ -2321,6 +2347,7 @@ export default function App() {
               clearPersistentSession().catch(() => {});
             }}
             onSuccess={(token, userData, isNewAccount) => {
+              authEpochRef.current += 1;
               try {
                 localStorage.removeItem('monvian_manual_logout');
               } catch {}
@@ -2443,13 +2470,7 @@ export default function App() {
       ) : (
         <motion.div
           key="monvian-main-app"
-          initial={
-            isSignupRevealActive
-              ? false
-              : prefersReducedMotion
-                ? { opacity: 0 }
-                : { opacity: 0 }
-          }
+          initial={false}
           animate={{ opacity: 1 }}
           transition={
             isSignupRevealActive
@@ -3105,23 +3126,16 @@ export default function App() {
       )}
     </AnimatePresence>
 
-    {/* 4. Bottom Navigation Pill rendered at root level (Visible ONLY on mobile, hidden during detail sheet, exclusive post-signup welcome/itinerary selection & spotlight presentation) */}
-    <AnimatePresence>
-      {!isMapOrbiting && !isOnboardingItinerarySelection && !isDetailOpen && !showFirstSignupWelcome && !isGlobeIntroPlaying && (
-        <motion.div
-          key={`bottom-nav-shell-${explorarEntranceTick}`}
-          initial={
-            prefersReducedMotion
-              ? { opacity: 0 }
-              : { opacity: 0, y: 28, scale: 0.96 }
-          }
-          animate={{ opacity: 1, y: 0, scale: 1 }}
-          exit={{ opacity: 0, y: 18, scale: 0.96 }}
-          transition={
-            prefersReducedMotion
-              ? { duration: 0.16 }
-              : { type: 'spring', damping: 24, stiffness: 280, delay: 0.18 }
-          }
+    {/* 4. Bottom Navigation Pill rendered at root level (Visible ONLY on mobile, hidden during detail sheet, onboarding questions, globe intro & exclusive welcome) */}
+    {!isMapOrbiting &&
+      !isOnboardingItinerarySelection &&
+      !isDetailOpen &&
+      !showOnboardingQuestions &&
+      !showFirstSignupWelcome &&
+      !isGlobeIntroPending &&
+      !isGlobeIntroPlaying && (
+        <div
+          key="bottom-nav-shell"
           className={`md:hidden fixed inset-0 pointer-events-none z-[250] transition-opacity duration-150 ${isChatKeyboardOpen ? 'opacity-0 [&_*]:!pointer-events-none' : 'opacity-100'}`}
         >
           <BottomNavigation
@@ -3132,9 +3146,8 @@ export default function App() {
             forceWhiteUI={isSatelliteExplore || (activeTab === 'roteiros' && isRoteirosSatelliteNav)}
             theme={theme}
           />
-        </motion.div>
+        </div>
       )}
-    </AnimatePresence>
 
     {/* 4.1. Minimalist iOS Radar Presentation on User Location (Map stays 100% visible without darkening) */}
     <AnimatePresence>
@@ -3531,6 +3544,13 @@ export default function App() {
         />
       ) : null}
     </AnimatePresence>
+
+    <PlatanosWalletModal
+      isOpen={isPlatanosWalletOpen}
+      onClose={() => setIsPlatanosWalletOpen(false)}
+      theme={theme}
+      initialTab={platanosWalletTab}
+    />
 
   </motion.div>
   )}

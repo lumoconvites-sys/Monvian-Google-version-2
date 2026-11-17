@@ -28,7 +28,6 @@ import {
   Store,
   Trash2,
   Users,
-  Wallet,
   X
 } from 'lucide-react';
 import { Itinerary, ItineraryDay, ItineraryStep, Spot, SpotCategory } from '../types';
@@ -1649,8 +1648,8 @@ export const ItinerariesView: React.FC<ItinerariesViewProps> = memo(({
     }
   }, [userItinerary]);
 
-  // All itineraries are 100% free and render in the clean default theme
-  const isPremiumItinerary = false;
+  // Premium itineraries use paid access styling when unlocked
+  const isPremiumItinerary = Boolean(userItinerary?.isPremium);
 
   // Reorder steps up / down directly from the order arrows on cards (matching IMG_7287)
   const handleMoveStepUp = async (index: number) => {

@@ -6,12 +6,14 @@ import {
   Compass,
   Lightbulb,
   Play,
+  Lock,
 } from 'lucide-react';
 import { motion, AnimatePresence, useMotionValue, useTransform, animate } from 'motion/react';
 import { Itinerary } from '../../types';
 import { getSpotImage, getSpotFallbackImage } from '../../utils/spotImages';
 import { useIOSBackEntry } from '../../services/iosNavigationManager';
 import { AppleBackButton } from '../ui/AppleBackButton';
+import { PlatanoLeafIcon } from '../platanos/PlatanoLeafIcon';
 
 interface ItineraryStoreDetailModalProps {
   itinerary: Itinerary | null;
@@ -19,6 +21,8 @@ interface ItineraryStoreDetailModalProps {
   onClose: () => void;
   onApplyItinerary: (itinerary: Itinerary) => Promise<void>;
   onOpenWalletTopUp?: () => void;
+  platanoPrice?: number;
+  isUnlocked?: boolean;
   theme?: 'dark' | 'light';
 }
 
@@ -69,6 +73,8 @@ export const ItineraryStoreDetailModal: React.FC<ItineraryStoreDetailModalProps>
   isOpen,
   onClose,
   onApplyItinerary,
+  platanoPrice = 0,
+  isUnlocked = true,
   theme = 'dark',
 }) => {
   const [isApplying, setIsApplying] = useState(false);
@@ -249,13 +255,17 @@ export const ItineraryStoreDetailModal: React.FC<ItineraryStoreDetailModalProps>
     .slice(0, 3)
     .map(cat => TAG_TRANSLATIONS[cat.toLowerCase()] || cat.toUpperCase());
 
+  const requiresPurchase = platanoPrice > 0 && !isUnlocked;
+
   const handleAdd = async () => {
     if (!activeItinerary) return;
 
     try {
       setIsApplying(true);
       await onApplyItinerary(activeItinerary);
-      onClose();
+      if (!requiresPurchase) {
+        onClose();
+      }
     } catch (e) {
       console.error(e);
     } finally {
@@ -401,7 +411,7 @@ export const ItineraryStoreDetailModal: React.FC<ItineraryStoreDetailModalProps>
                   aria-label="Voltar"
                 />
 
-                {/* Direita: Botão Play Circular */}
+                {/* Direita: Botão Play ou Liberar com Plátanos */}
                 <div className="flex items-center gap-2">
                   <motion.button
                     whileTap={{ scale: 0.91 }}
@@ -411,12 +421,33 @@ export const ItineraryStoreDetailModal: React.FC<ItineraryStoreDetailModalProps>
                       e.stopPropagation();
                       handleAdd();
                     }}
-                    className="apple-back-btn apple-back-btn-overlay w-11 h-11 rounded-full flex items-center justify-center shrink-0 select-none cursor-pointer transition-transform duration-150 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#007AFF] disabled:opacity-50 disabled:cursor-not-allowed"
-                    title={isApplying ? 'Iniciando...' : 'Iniciar roteiro'}
-                    aria-label={isApplying ? 'Iniciando...' : 'Iniciar roteiro'}
+                    className={`apple-back-btn apple-back-btn-overlay h-11 ${
+                      requiresPurchase ? 'px-3.5 gap-1.5' : 'w-11 justify-center'
+                    } rounded-full flex items-center shrink-0 select-none cursor-pointer transition-transform duration-150 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#007AFF] disabled:opacity-50 disabled:cursor-not-allowed`}
+                    title={
+                      isApplying
+                        ? 'Iniciando...'
+                        : requiresPurchase
+                          ? `Liberar por ${platanoPrice} Plátanos`
+                          : 'Iniciar roteiro'
+                    }
+                    aria-label={
+                      isApplying
+                        ? 'Iniciando...'
+                        : requiresPurchase
+                          ? `Liberar por ${platanoPrice} Plátanos`
+                          : 'Iniciar roteiro'
+                    }
                   >
                     {isApplying ? (
                       <div className="w-[18px] h-[18px] border-2 border-white border-t-transparent rounded-full animate-spin" />
+                    ) : requiresPurchase ? (
+                      <>
+                        <Lock className="relative z-10 w-4 h-4 text-current pointer-events-none" />
+                        <span className="relative z-10 text-[12px] font-semibold tracking-tight tabular-nums pointer-events-none">
+                          {platanoPrice}
+                        </span>
+                      </>
                     ) : (
                       <Play className="relative z-10 w-[19px] h-[19px] fill-current text-current translate-x-[1px] pointer-events-none" />
                     )}
@@ -490,7 +521,7 @@ export const ItineraryStoreDetailModal: React.FC<ItineraryStoreDetailModalProps>
 
               {/* 4. INFORMAÇÕES PRINCIPAIS (LINHA ÚNICA, MINIMALISTA) */}
               <div
-                className={`flex items-center gap-2 py-2.5 border-y text-xs font-semibold ${
+                className={`flex items-center flex-wrap gap-2 py-2.5 border-y text-xs font-semibold ${
                   isLight ? 'border-zinc-100 text-zinc-600' : 'border-white/10 text-zinc-400'
                 }`}
               >
@@ -502,6 +533,17 @@ export const ItineraryStoreDetailModal: React.FC<ItineraryStoreDetailModalProps>
                 <span className="flex items-center gap-1.5">
                   <MapPin className={`w-3.5 h-3.5 shrink-0 ${isLight ? 'text-black' : 'text-white'}`} />
                   <span>{`${totalStops} ${totalStops === 1 ? 'parada' : 'paradas'}`}</span>
+                </span>
+                <span className="opacity-30">·</span>
+                <span className="flex items-center gap-1.5">
+                  <PlatanoLeafIcon className={`w-3.5 h-3.5 shrink-0 ${isLight ? 'text-black' : 'text-white'}`} variant="monochrome" />
+                  <span>
+                    {platanoPrice > 0
+                      ? isUnlocked
+                        ? 'Liberado'
+                        : `${platanoPrice} Plátanos`
+                      : 'Grátis'}
+                  </span>
                 </span>
                 <span className="opacity-30">·</span>
                 <span className="flex items-center gap-1.5">

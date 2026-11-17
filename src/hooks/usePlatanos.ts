@@ -2,11 +2,11 @@ import { useState, useEffect, useCallback } from 'react';
 import { Itinerary, PlatanoPackage, PlatanoWalletData } from '../types';
 
 const DEFAULT_PACKAGES: PlatanoPackage[] = [
-  { id: 'pkg_15', platanos: 15, priceCents: 1590, priceBRL: 'R$ 15,90', badge: '', isBestValue: false, isActive: true, sortOrder: 1 },
-  { id: 'pkg_30', platanos: 30, priceCents: 2290, priceBRL: 'R$ 22,90', badge: '', isBestValue: false, isActive: true, sortOrder: 2 },
-  { id: 'pkg_60', platanos: 60, priceCents: 2990, priceBRL: 'R$ 29,90', badge: '', isBestValue: false, isActive: true, sortOrder: 3 },
-  { id: 'pkg_100', platanos: 100, priceCents: 3490, priceBRL: 'R$ 34,90', badge: '', isBestValue: false, isActive: true, sortOrder: 4 },
-  { id: 'pkg_200', platanos: 200, priceCents: 3990, priceBRL: 'R$ 39,90', badge: 'Melhor valor', isBestValue: true, isActive: true, sortOrder: 5 },
+  { id: 'pkg_15', platanos: 15, priceCents: 2990, priceBRL: 'R$ 29,90', badge: '', isBestValue: false, isActive: true, sortOrder: 1 },
+  { id: 'pkg_30', platanos: 30, priceCents: 5490, priceBRL: 'R$ 54,90', badge: '', isBestValue: false, isActive: true, sortOrder: 2 },
+  { id: 'pkg_60', platanos: 60, priceCents: 9990, priceBRL: 'R$ 99,90', badge: '', isBestValue: false, isActive: true, sortOrder: 3 },
+  { id: 'pkg_100', platanos: 100, priceCents: 14990, priceBRL: 'R$ 149,90', badge: '', isBestValue: false, isActive: true, sortOrder: 4 },
+  { id: 'pkg_200', platanos: 200, priceCents: 24990, priceBRL: 'R$ 249,90', badge: 'Melhor valor', isBestValue: true, isActive: true, sortOrder: 5 },
 ];
 
 const INITIAL_WALLET_STATE: PlatanoWalletData = {
@@ -144,17 +144,58 @@ export function usePlatanos() {
   }, [refreshWallet]);
 
   const getItineraryPlatanoPrice = useCallback(
-    (_itinerary?: Itinerary | null): number => {
-      return 0;
+    (itinerary?: Itinerary | null): number => {
+      if (!itinerary) return 0;
+      const id = String(itinerary.id || '');
+      if (
+        id === 'roteiro-classico-2-dias' ||
+        id === 'roteiro-bate-volta-essencial' ||
+        id.startsWith('manual-itin-') ||
+        id.startsWith('user-itin-')
+      ) {
+        return 0;
+      }
+
+      if (itinerary.isPremium === false) {
+        return 0;
+      }
+
+      const mapPrice = wallet.itineraryPrices?.[id];
+      if (typeof mapPrice === 'number' && !Number.isNaN(mapPrice)) {
+        if (mapPrice === 0 && itinerary.isPremium !== true) return 0;
+        if (mapPrice > 0) return mapPrice;
+      }
+
+      if (typeof itinerary.platanosPrice === 'number' && itinerary.platanosPrice > 0) {
+        return itinerary.platanosPrice;
+      }
+
+      return itinerary.isPremium ? 15 : 0;
     },
-    []
+    [wallet.itineraryPrices]
   );
 
   const isItineraryUnlocked = useCallback(
-    (_itineraryId?: string | null): boolean => {
-      return true;
+    (itineraryId?: string | null, itinerary?: Itinerary | null): boolean => {
+      if (!itineraryId) return true;
+      const id = String(itineraryId);
+      if (
+        id === 'roteiro-classico-2-dias' ||
+        id === 'roteiro-bate-volta-essencial' ||
+        id.startsWith('manual-itin-') ||
+        id.startsWith('user-itin-')
+      ) {
+        return true;
+      }
+      if (itinerary && getItineraryPlatanoPrice(itinerary) === 0) {
+        return true;
+      }
+      if (!itinerary && wallet.itineraryPrices?.[id] === 0) {
+        return true;
+      }
+      return wallet.unlockedItineraryIds.includes(id);
     },
-    []
+    [wallet.unlockedItineraryIds, wallet.itineraryPrices, getItineraryPlatanoPrice]
   );
 
   const startTopUpCheckout = useCallback(async (packageId: string) => {

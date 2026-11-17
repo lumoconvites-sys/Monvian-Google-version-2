@@ -26,6 +26,8 @@ import { AdminSettings } from './AdminSettings';
 import { AdminCleanup } from './AdminCleanup';
 import { AdminItineraries } from './AdminItineraries';
 import { AdminServices } from './AdminServices';
+import { AdminPlatanos } from './AdminPlatanos';
+import { PlatanoLeafIcon } from '../platanos/PlatanoLeafIcon';
 import { useIOSBackEntry } from '../../services/iosNavigationManager';
 
 interface AdminLayoutProps {
@@ -110,6 +112,7 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({
     { id: 'dashboard', label: 'Visão Geral', icon: LayoutDashboard },
     { id: 'spots', label: 'Pontos Turísticos', icon: MapPin },
     { id: 'itineraries', label: 'Roteiros', icon: Route },
+    { id: 'platanos', label: 'Plátanos & Stripe', icon: PlatanoLeafIcon },
     { id: 'services', label: 'Locais e Serviços', icon: Store },
     { id: 'users', label: 'Usuários & Comunidade', icon: Users },
     { id: 'events', label: 'Eventos', icon: Calendar },
@@ -386,6 +389,7 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({
               {activeTab === 'dashboard' && <AdminDashboard onNavigateTo={(tab) => handleSelectAdminTab(tab)} />}
               {activeTab === 'spots' && <AdminSpots />}
               {activeTab === 'itineraries' && <AdminItineraries />}
+              {activeTab === 'platanos' && <AdminPlatanos currentUser={currentUser} />}
               {activeTab === 'services' && <AdminServices />}
               {activeTab === 'users' && <AdminUsers />}
               {activeTab === 'events' && <AdminEvents />}

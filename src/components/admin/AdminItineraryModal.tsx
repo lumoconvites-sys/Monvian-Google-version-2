@@ -154,10 +154,10 @@ export const AdminItineraryModal: React.FC<AdminItineraryModalProps> = ({
       
       const hasGold = Boolean(itineraryToEdit.isPremium || (itineraryToEdit as any).isGold || (itineraryToEdit as any).is_gold);
       setIsPremium(hasGold);
-      setPrice(itineraryToEdit.price || (hasGold ? 'R$ 14,90' : 'Grátis'));
+      setPrice(itineraryToEdit.price || (hasGold ? '15 Plátanos' : 'Grátis'));
       setStatus(itineraryToEdit.status || (itineraryToEdit.isActive !== false ? 'published' : 'draft'));
       setIsFeatured(Boolean(itineraryToEdit.isFeatured || itineraryToEdit.isRecommended));
-      setBadgeText(itineraryToEdit.badgeText || (hasGold ? 'ELITE GOLD' : ''));
+      setBadgeText(itineraryToEdit.badgeText || (hasGold ? '15 Plátanos' : ''));
       setShowPrice(itineraryToEdit.showPrice !== false);
       setShowStopsCount(itineraryToEdit.showStopsCount !== false);
       setShowBadge(itineraryToEdit.showBadge !== false);
@@ -452,16 +452,17 @@ export const AdminItineraryModal: React.FC<AdminItineraryModalProps> = ({
       coverImage: coverImage.trim() || (itineraryToEdit ? itineraryToEdit.coverImage : COVER_PRESETS[0].url),
       daysCount,
       categories: selectedCategories,
-      price: 'Grátis',
+      price: isPremium ? '15 Plátanos' : 'Grátis',
+      platanosPrice: isPremium ? 15 : 0,
       status: chosenStatus,
       isActive: chosenStatus === 'published',
       isFeatured,
       isRecommended: isFeatured,
-      isPremium: false,
-      badgeText: '',
-      showPrice: false,
+      isPremium,
+      badgeText: isPremium ? '15 Plátanos' : '',
+      showPrice: true,
       showStopsCount,
-      showBadge: false,
+      showBadge: isPremium,
       notes: tips.trim(),
       days
     };
@@ -674,6 +675,56 @@ export const AdminItineraryModal: React.FC<AdminItineraryModalProps> = ({
                     <div>
                       <span className="block text-xs font-black">Oculto</span>
                       <span className="text-[11px] leading-tight opacity-80 block mt-0.5">Desativado / Arquivado</span>
+                    </div>
+                  </button>
+                </div>
+              </div>
+
+              {/* Acesso & Monetização (Grátis vs 15 Plátanos) */}
+              <div>
+                <label className="block text-xs font-black text-zinc-700 dark:text-zinc-300 mb-2">
+                  Tipo de Acesso (Plátanos)
+                </label>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setIsPremium(false);
+                      setPrice('Grátis');
+                    }}
+                    className={`p-3.5 rounded-2xl border text-left flex items-start gap-2.5 cursor-pointer transition-all ${
+                      !isPremium
+                        ? 'border-zinc-900 dark:border-white bg-zinc-100 dark:bg-white/10 text-zinc-900 dark:text-white ring-2 ring-black/10 dark:ring-white/20 shadow-2xs'
+                        : 'border-zinc-200 dark:border-zinc-800 bg-zinc-50 dark:bg-[#181a20] text-zinc-700 dark:text-zinc-400'
+                    }`}
+                  >
+                    <CheckCircle2 className={`w-4 h-4 shrink-0 mt-0.5 ${!isPremium ? 'text-emerald-500' : 'text-zinc-400'}`} />
+                    <div>
+                      <span className="block text-xs font-black">Grátis</span>
+                      <span className="text-[11px] leading-tight opacity-80 block mt-0.5">
+                        Acesso livre para todos os viajantes
+                      </span>
+                    </div>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setIsPremium(true);
+                      setPrice('15 Plátanos');
+                    }}
+                    className={`p-3.5 rounded-2xl border text-left flex items-start gap-2.5 cursor-pointer transition-all ${
+                      isPremium
+                        ? 'border-zinc-900 dark:border-white bg-zinc-100 dark:bg-white/10 text-zinc-900 dark:text-white ring-2 ring-black/10 dark:ring-white/20 shadow-2xs'
+                        : 'border-zinc-200 dark:border-zinc-800 bg-zinc-50 dark:bg-[#181a20] text-zinc-700 dark:text-zinc-400'
+                    }`}
+                  >
+                    <Lock className={`w-4 h-4 shrink-0 mt-0.5 ${isPremium ? 'text-zinc-900 dark:text-white' : 'text-zinc-400'}`} />
+                    <div>
+                      <span className="block text-xs font-black">Pago · 15 Plátanos</span>
+                      <span className="text-[11px] leading-tight opacity-80 block mt-0.5">
+                        Desbloqueado com 15 Plátanos (R$ 29,90 via Stripe)
+                      </span>
                     </div>
                   </button>
                 </div>

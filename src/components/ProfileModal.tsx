@@ -50,6 +50,8 @@ import {
   HelpLegalPageId,
 } from './HelpAndLegalSection';
 import { useIOSBackEntry } from '../services/iosNavigationManager';
+import { PlatanoLeafIcon } from './platanos/PlatanoLeafIcon';
+import { usePlatanos } from '../hooks/usePlatanos';
 
 interface ProfileModalProps {
   isOpen: boolean;
@@ -107,6 +109,7 @@ export const ProfileModal: React.FC<ProfileModalProps> = React.memo(({
   instagramUrl = 'https://instagram.com/monvian.campos',
   onLogout,
 }) => {
+  const { wallet } = usePlatanos();
   const getInitialAvatar = (u: any) => {
     try {
       const email = (u?.email || u?.whatsapp || '').trim().toLowerCase();
@@ -1010,6 +1013,40 @@ export const ProfileModal: React.FC<ProfileModalProps> = React.memo(({
                 )}
 
 
+
+                {/* Carteira de Plátanos */}
+                <motion.button
+                  type="button"
+                  initial={{ opacity: 0, scale: 0.88, y: 12 }}
+                  animate={{ opacity: 1, scale: 1, y: 0 }}
+                  transition={{ type: 'spring', stiffness: 380, damping: 22, delay: 0.175 }}
+                  whileHover={{ scale: 1.01, transition: { type: 'spring', stiffness: 400, damping: 18 } }}
+                  whileTap={{ scale: 0.96, transition: { type: 'spring', stiffness: 500, damping: 14 } }}
+                  onClick={() => {
+                    onClose();
+                    window.dispatchEvent(
+                      new CustomEvent('monvian:open_platanos_wallet', { detail: { tab: 'topup' } })
+                    );
+                  }}
+                  className={`w-full p-4 rounded-[22px] border transition-colors flex items-center justify-between text-left cursor-pointer ${
+                    isDark ? 'bg-[#1C1C1E] border-white/10 hover:bg-[#252528]' : 'bg-[#fefefe] border-black/5 hover:bg-[#E5E5EA]/80'
+                  }`}
+                >
+                  <div className="flex items-center gap-3.5 min-w-0">
+                    <div className="flex items-center justify-center shrink-0 text-zinc-950 dark:text-white">
+                      <PlatanoLeafIcon className="w-7 h-7" variant="monochrome" />
+                    </div>
+                    <div className="min-w-0">
+                      <h3 className="text-[15px] font-semibold text-zinc-950 dark:text-white tracking-tight">
+                        Plátanos & Carteira
+                      </h3>
+                      <p className="text-[12px] text-zinc-500 dark:text-zinc-400 tabular-nums">
+                        {wallet.balance} {wallet.balance === 1 ? 'Plátano disponível' : 'Plátanos disponíveis'}
+                      </p>
+                    </div>
+                  </div>
+                  <ChevronRight className="w-4 h-4 text-zinc-400 shrink-0" />
+                </motion.button>
 
                 {/* Configurações da Conta -> opens 'permissoes' */}
                 <motion.button
