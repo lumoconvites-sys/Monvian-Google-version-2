@@ -1198,9 +1198,7 @@ export function AuthScreen({
               height: 'var(--app-height, 100dvh)',
               minHeight: 'var(--app-height, 100dvh)',
               WebkitOverflowScrolling: 'touch',
-              willChange: 'opacity, transform, filter',
-              backdropFilter: 'blur(20px)',
-              WebkitBackdropFilter: 'blur(20px)',
+              willChange: 'opacity',
             }}
           >
             <CinematicLandingView

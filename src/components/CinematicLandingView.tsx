@@ -886,7 +886,7 @@ export const CinematicLandingView: React.FC<CinematicLandingViewProps> = ({
          ========================================================================= */}
       <div
         ref={langDropdownContainerRef}
-        className="fixed left-4 right-4 z-[125] max-w-[400px] md:max-w-[520px] mx-auto pointer-events-none"
+        className="fixed left-4 right-4 z-[999] max-w-[400px] md:max-w-[520px] mx-auto pointer-events-none"
         style={{
           top: 'max(12px, calc(env(safe-area-inset-top, 0px) + 8px))',
         }}
