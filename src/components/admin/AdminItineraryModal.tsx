@@ -27,8 +27,6 @@ import {
   DollarSign,
   Calendar,
   Sparkle,
-  Sun,
-  Moon,
   Crown,
   ArrowRight
 } from 'lucide-react';
@@ -91,9 +89,6 @@ export const AdminItineraryModal: React.FC<AdminItineraryModalProps> = ({
   const [isDraggingCover, setIsDraggingCover] = useState(false);
   const [showCoverUrlInput, setShowCoverUrlInput] = useState(false);
   const coverFileInputRef = useRef<HTMLInputElement>(null);
-
-  // Preview Mode inside Admin Modal
-  const [previewTheme, setPreviewTheme] = useState<'dark' | 'light'>('dark');
 
   // Days and Steps state
   const [activeDayIdx, setActiveDayIdx] = useState(0);
@@ -498,32 +493,32 @@ export const AdminItineraryModal: React.FC<AdminItineraryModalProps> = ({
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/80 backdrop-blur-md animate-in fade-in duration-200">
       <div 
-        className="bg-white dark:bg-[#121418] border border-zinc-200 dark:border-zinc-800 rounded-3xl w-full max-w-5xl max-h-[94vh] flex flex-col shadow-2xl overflow-hidden"
+        className="bg-white border border-zinc-200 rounded-3xl w-full max-w-5xl max-h-[94vh] flex flex-col shadow-2xl overflow-hidden"
         style={{ fontFamily: "'Inter', sans-serif" }}
       >
         
         {/* 1. Top Modal Header */}
-        <div className="px-5 py-3.5 sm:py-4 border-b border-zinc-200 dark:border-zinc-800 flex items-center justify-between bg-zinc-50 dark:bg-[#17191e] shrink-0">
+        <div className="px-5 py-3.5 sm:py-4 border-b border-zinc-200 flex items-center justify-between bg-zinc-50 shrink-0">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-2xl flex items-center justify-center border shrink-0 bg-[#FFFFFF]/15 text-[#FFFFFF] border-[#FFFFFF]/30">
+            <div className="w-10 h-10 rounded-2xl flex items-center justify-center border shrink-0 bg-[#2563EB]/15 text-[#2563EB] border-[#2563EB]/30">
               <Compass className="w-5 h-5 stroke-[2.2]" />
             </div>
             <div>
               <div className="flex items-center gap-2">
-                <h2 className="text-base sm:text-lg font-black text-zinc-900 dark:text-white tracking-tight">
+                <h2 className="text-base sm:text-lg font-black text-zinc-900 tracking-tight">
                   {itineraryToEdit ? 'Configurações do Roteiro' : 'Novo Roteiro Turístico'}
                 </h2>
                 <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider ${
                   status === 'published'
-                    ? 'bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 border border-emerald-500/30'
+                    ? 'bg-emerald-500/20 text-emerald-600 border border-emerald-500/30'
                     : status === 'draft'
-                    ? 'bg-amber-500/20 text-amber-600 dark:text-amber-400 border border-amber-500/30'
-                    : 'bg-zinc-500/20 text-zinc-600 dark:text-zinc-400 border border-zinc-500/30'
+                    ? 'bg-amber-500/20 text-amber-600 border border-amber-500/30'
+                    : 'bg-zinc-500/20 text-zinc-600 border border-zinc-500/30'
                 }`}>
                   {status === 'published' ? 'Publicado' : status === 'draft' ? 'Rascunho' : 'Oculto'}
                 </span>
               </div>
-              <p className="text-xs text-zinc-500 dark:text-zinc-400 font-semibold mt-0.5">
+              <p className="text-xs text-zinc-500 font-semibold mt-0.5">
                 {totalPlaces} {totalPlaces === 1 ? 'parada' : 'paradas'} · {daysCount} {daysCount === 1 ? 'dia' : 'dias'}
               </p>
             </div>
@@ -531,21 +526,21 @@ export const AdminItineraryModal: React.FC<AdminItineraryModalProps> = ({
           <button
             type="button"
             onClick={onClose}
-            className="p-2 text-zinc-500 hover:text-zinc-900 dark:text-zinc-400 dark:hover:text-white rounded-xl hover:bg-zinc-200 dark:hover:bg-zinc-800 transition-colors cursor-pointer"
+            className="p-2 text-zinc-500 hover:text-zinc-900 rounded-xl hover:bg-zinc-200 transition-colors cursor-pointer"
           >
             <X className="w-5 h-5" />
           </button>
         </div>
 
         {/* 2. Tab Navigation */}
-        <div className="flex items-center border-b border-zinc-200 dark:border-zinc-800 px-4 pt-1.5 bg-zinc-50/70 dark:bg-[#15171c] shrink-0 gap-1 sm:gap-2 overflow-x-auto no-scrollbar">
+        <div className="flex items-center border-b border-zinc-200 px-4 pt-1.5 bg-zinc-50/70 shrink-0 gap-1 sm:gap-2 overflow-x-auto no-scrollbar">
           <button
             type="button"
             onClick={() => setActiveTab('info')}
             className={`px-3.5 py-2.5 text-xs font-bold border-b-2 transition-all cursor-pointer shrink-0 flex items-center gap-2 ${
               activeTab === 'info'
-                ? 'border-zinc-900 text-zinc-900 dark:border-white dark:text-white'
-                : 'border-transparent text-zinc-500 hover:text-zinc-900 dark:text-zinc-400 dark:hover:text-zinc-200'
+                ? 'border-zinc-900 text-zinc-900'
+                : 'border-transparent text-zinc-500 hover:text-zinc-900'
             }`}
           >
             <Info className="w-3.5 h-3.5" />
@@ -557,8 +552,8 @@ export const AdminItineraryModal: React.FC<AdminItineraryModalProps> = ({
             onClick={() => setActiveTab('cover')}
             className={`px-3.5 py-2.5 text-xs font-bold border-b-2 transition-all cursor-pointer shrink-0 flex items-center gap-2 ${
               activeTab === 'cover'
-                ? 'border-zinc-900 text-zinc-900 dark:border-white dark:text-white'
-                : 'border-transparent text-zinc-500 hover:text-zinc-900 dark:text-zinc-400 dark:hover:text-zinc-200'
+                ? 'border-zinc-900 text-zinc-900'
+                : 'border-transparent text-zinc-500 hover:text-zinc-900'
             }`}
           >
             <ImageIcon className="w-3.5 h-3.5" />
@@ -571,13 +566,13 @@ export const AdminItineraryModal: React.FC<AdminItineraryModalProps> = ({
             onClick={() => setActiveTab('builder')}
             className={`px-3.5 py-2.5 text-xs font-bold border-b-2 transition-all flex items-center gap-2 cursor-pointer shrink-0 ${
               activeTab === 'builder'
-                ? 'border-zinc-900 text-zinc-900 dark:border-white dark:text-white'
-                : 'border-transparent text-zinc-500 hover:text-zinc-900 dark:text-zinc-400 dark:hover:text-zinc-200'
+                ? 'border-zinc-900 text-zinc-900'
+                : 'border-transparent text-zinc-500 hover:text-zinc-900'
             }`}
           >
             <Layers className="w-3.5 h-3.5" />
             <span>3. Paradas do Roteiro</span>
-            <span className="px-2 py-0.5 rounded-full text-[10px] bg-zinc-200 dark:bg-white/20 text-zinc-900 dark:text-white font-black">
+            <span className="px-2 py-0.5 rounded-full text-[10px] bg-zinc-200 text-zinc-900 font-black">
               {totalPlaces}
             </span>
           </button>
@@ -587,8 +582,8 @@ export const AdminItineraryModal: React.FC<AdminItineraryModalProps> = ({
             onClick={() => setActiveTab('appearance')}
             className={`px-3.5 py-2.5 text-xs font-bold border-b-2 transition-all cursor-pointer shrink-0 flex items-center gap-2 ${
               activeTab === 'appearance'
-                ? 'border-zinc-900 text-zinc-900 dark:border-white dark:text-white'
-                : 'border-transparent text-zinc-500 hover:text-zinc-900 dark:text-zinc-400 dark:hover:text-zinc-200'
+                ? 'border-zinc-900 text-zinc-900'
+                : 'border-transparent text-zinc-500 hover:text-zinc-900'
             }`}
           >
             <Layout className="w-3.5 h-3.5" />
@@ -599,7 +594,7 @@ export const AdminItineraryModal: React.FC<AdminItineraryModalProps> = ({
         {/* Form Body */}
         <div className="flex-1 overflow-y-auto p-4 sm:p-6 space-y-6">
           {errorMsg && (
-            <div className="p-3.5 bg-red-50 dark:bg-red-950/40 border border-red-200 dark:border-red-800 rounded-2xl flex items-center gap-2.5 text-xs text-red-600 dark:text-red-400 font-semibold">
+            <div className="p-3.5 bg-red-50 border border-red-200 rounded-2xl flex items-center gap-2.5 text-xs text-red-600 font-semibold">
               <AlertCircle className="w-4 h-4 shrink-0" />
               <span>{errorMsg}</span>
             </div>
@@ -611,7 +606,7 @@ export const AdminItineraryModal: React.FC<AdminItineraryModalProps> = ({
               
               {/* 1. Nome do Roteiro */}
               <div>
-                <label className="block text-xs font-black text-zinc-700 dark:text-zinc-300 mb-1.5">
+                <label className="block text-xs font-black text-zinc-700 mb-1.5">
                   Nome do Roteiro *
                 </label>
                 <input
@@ -620,13 +615,13 @@ export const AdminItineraryModal: React.FC<AdminItineraryModalProps> = ({
                   value={title}
                   onChange={e => setTitle(e.target.value)}
                   placeholder="Ex: Essência de Campos: O Clássico em 2 Dias"
-                  className="w-full px-4 py-3 bg-zinc-50 dark:bg-[#181a20] border border-zinc-300 dark:border-zinc-700 rounded-2xl text-sm text-zinc-900 dark:text-white font-bold focus:outline-hidden focus:border-[#FFFFFF] shadow-2xs"
+                  className="w-full px-4 py-3 bg-zinc-50 border border-zinc-300 rounded-2xl text-sm text-zinc-900 font-bold focus:outline-hidden focus:border-[#2563EB] shadow-2xs"
                 />
               </div>
 
               {/* Status de Publicação */}
               <div>
-                <label className="block text-xs font-black text-zinc-700 dark:text-zinc-300 mb-2">
+                <label className="block text-xs font-black text-zinc-700 mb-2">
                   Status de Publicação
                 </label>
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
@@ -635,8 +630,8 @@ export const AdminItineraryModal: React.FC<AdminItineraryModalProps> = ({
                     onClick={() => setStatus('published')}
                     className={`p-3.5 rounded-2xl border text-left flex items-start gap-2.5 cursor-pointer transition-all ${
                       status === 'published'
-                        ? 'border-emerald-500 bg-emerald-50/60 dark:bg-emerald-950/20 text-emerald-900 dark:text-emerald-300 ring-2 ring-emerald-500/20 shadow-2xs'
-                        : 'border-zinc-200 dark:border-zinc-800 bg-zinc-50 dark:bg-[#181a20] text-zinc-700 dark:text-zinc-400'
+                        ? 'border-emerald-500 bg-emerald-50/60 text-emerald-900 ring-2 ring-emerald-500/20 shadow-2xs'
+                        : 'border-zinc-200 bg-zinc-50 text-zinc-700'
                     }`}
                   >
                     <CheckCircle2 className={`w-4 h-4 shrink-0 mt-0.5 ${status === 'published' ? 'text-emerald-500' : 'text-zinc-400'}`} />
@@ -651,8 +646,8 @@ export const AdminItineraryModal: React.FC<AdminItineraryModalProps> = ({
                     onClick={() => setStatus('draft')}
                     className={`p-3.5 rounded-2xl border text-left flex items-start gap-2.5 cursor-pointer transition-all ${
                       status === 'draft'
-                        ? 'border-amber-500 bg-amber-50/60 dark:bg-amber-950/20 text-amber-900 dark:text-amber-300 ring-2 ring-amber-500/20 shadow-2xs'
-                        : 'border-zinc-200 dark:border-zinc-800 bg-zinc-50 dark:bg-[#181a20] text-zinc-700 dark:text-zinc-400'
+                        ? 'border-amber-500 bg-amber-50/60 text-amber-900 ring-2 ring-amber-500/20 shadow-2xs'
+                        : 'border-zinc-200 bg-zinc-50 text-zinc-700'
                     }`}
                   >
                     <Clock className={`w-4 h-4 shrink-0 mt-0.5 ${status === 'draft' ? 'text-amber-500' : 'text-zinc-400'}`} />
@@ -667,8 +662,8 @@ export const AdminItineraryModal: React.FC<AdminItineraryModalProps> = ({
                     onClick={() => setStatus('hidden')}
                     className={`p-3.5 rounded-2xl border text-left flex items-start gap-2.5 cursor-pointer transition-all ${
                       status === 'hidden'
-                        ? 'border-zinc-500 bg-zinc-100 dark:bg-zinc-800 text-zinc-900 dark:text-zinc-200 ring-2 ring-zinc-500/20 shadow-2xs'
-                        : 'border-zinc-200 dark:border-zinc-800 bg-zinc-50 dark:bg-[#181a20] text-zinc-700 dark:text-zinc-400'
+                        ? 'border-zinc-500 bg-zinc-100 text-zinc-900 ring-2 ring-zinc-500/20 shadow-2xs'
+                        : 'border-zinc-200 bg-zinc-50 text-zinc-700'
                     }`}
                   >
                     <EyeOff className={`w-4 h-4 shrink-0 mt-0.5 ${status === 'hidden' ? 'text-zinc-500' : 'text-zinc-400'}`} />
@@ -682,7 +677,7 @@ export const AdminItineraryModal: React.FC<AdminItineraryModalProps> = ({
 
               {/* Acesso & Monetização (Grátis vs 15 Plátanos) */}
               <div>
-                <label className="block text-xs font-black text-zinc-700 dark:text-zinc-300 mb-2">
+                <label className="block text-xs font-black text-zinc-700 mb-2">
                   Tipo de Acesso (Plátanos)
                 </label>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
@@ -694,8 +689,8 @@ export const AdminItineraryModal: React.FC<AdminItineraryModalProps> = ({
                     }}
                     className={`p-3.5 rounded-2xl border text-left flex items-start gap-2.5 cursor-pointer transition-all ${
                       !isPremium
-                        ? 'border-zinc-900 dark:border-white bg-zinc-100 dark:bg-white/10 text-zinc-900 dark:text-white ring-2 ring-black/10 dark:ring-white/20 shadow-2xs'
-                        : 'border-zinc-200 dark:border-zinc-800 bg-zinc-50 dark:bg-[#181a20] text-zinc-700 dark:text-zinc-400'
+                        ? 'border-zinc-900 bg-zinc-100 text-zinc-900 ring-2 ring-black/10 shadow-2xs'
+                        : 'border-zinc-200 bg-zinc-50 text-zinc-700'
                     }`}
                   >
                     <CheckCircle2 className={`w-4 h-4 shrink-0 mt-0.5 ${!isPremium ? 'text-emerald-500' : 'text-zinc-400'}`} />
@@ -715,8 +710,8 @@ export const AdminItineraryModal: React.FC<AdminItineraryModalProps> = ({
                     }}
                     className={`p-3.5 rounded-2xl border text-left flex items-start gap-2.5 cursor-pointer transition-all ${
                       isPremium
-                        ? 'border-zinc-900 dark:border-white bg-zinc-100 dark:bg-white/10 text-zinc-900 dark:text-white ring-2 ring-black/10 dark:ring-white/20 shadow-2xs'
-                        : 'border-zinc-200 dark:border-zinc-800 bg-zinc-50 dark:bg-[#181a20] text-zinc-700 dark:text-zinc-400'
+                        ? 'border-zinc-900 bg-zinc-100 text-zinc-900 ring-2 ring-black/10 shadow-2xs'
+                        : 'border-zinc-200 bg-zinc-50 text-zinc-700'
                     }`}
                   >
                     <PlatanoLeafIcon className="w-6 h-6 shrink-0 mt-0.5" variant="monochrome" />
@@ -733,13 +728,13 @@ export const AdminItineraryModal: React.FC<AdminItineraryModalProps> = ({
               {/* Duração & Categorias */}
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                 <div>
-                  <label className="block text-xs font-black text-zinc-700 dark:text-zinc-300 mb-1.5">
+                  <label className="block text-xs font-black text-zinc-700 mb-1.5">
                     Duração em Dias
                   </label>
                   <select
                     value={daysCount}
                     onChange={e => handleDaysCountChange(Number(e.target.value))}
-                    className="w-full px-3.5 py-3 bg-zinc-50 dark:bg-[#181a20] border border-zinc-300 dark:border-zinc-700 rounded-2xl text-sm text-zinc-900 dark:text-white font-bold focus:outline-hidden focus:border-[#FFFFFF]"
+                    className="w-full px-3.5 py-3 bg-zinc-50 border border-zinc-300 rounded-2xl text-sm text-zinc-900 font-bold focus:outline-hidden focus:border-[#2563EB]"
                   >
                     <option value={1}>1 Dia (Bate e Volta / Expresso)</option>
                     <option value={2}>2 Dias (Fim de Semana)</option>
@@ -749,7 +744,7 @@ export const AdminItineraryModal: React.FC<AdminItineraryModalProps> = ({
                 </div>
 
                 <div className="sm:col-span-2">
-                  <label className="block text-xs font-black text-zinc-700 dark:text-zinc-300 mb-1.5">
+                  <label className="block text-xs font-black text-zinc-700 mb-1.5">
                     Categorias do Roteiro (Filtros na Loja)
                   </label>
                   <div className="flex flex-wrap gap-2 pt-1 pb-1">
@@ -762,8 +757,8 @@ export const AdminItineraryModal: React.FC<AdminItineraryModalProps> = ({
                           onClick={() => toggleCategory(cat.id)}
                           className={`h-[32px] px-3.5 rounded-full text-xs transition-all duration-200 ease-out flex items-center gap-1.5 cursor-pointer select-none active:scale-[0.96] ${
                             selected
-                              ? 'bg-[#E5E5EA] dark:bg-white/20 text-zinc-900 dark:text-white border border-black/[0.06] dark:border-white/20 shadow-[inset_0_1.5px_2px_rgba(0,0,0,0.12)] font-semibold'
-                              : 'bg-white dark:bg-[#1C1C1E] text-zinc-700 dark:text-zinc-300 border border-zinc-200/90 dark:border-white/10 shadow-[0_2px_5px_-1px_rgba(0,0,0,0.07),_0_1px_2px_rgba(0,0,0,0.04)] hover:shadow-[0_3px_8px_-1px_rgba(0,0,0,0.09)]'
+                              ? 'bg-[#E5E5EA] text-zinc-900 border border-black/[0.06] shadow-[inset_0_1.5px_2px_rgba(0,0,0,0.12)] font-semibold'
+                              : 'bg-white text-zinc-700 border border-zinc-200/90 shadow-[0_2px_5px_-1px_rgba(0,0,0,0.07),_0_1px_2px_rgba(0,0,0,0.04)] hover:shadow-[0_3px_8px_-1px_rgba(0,0,0,0.09)]'
                           }`}
                         >
                           {selected && <Check className="w-3.5 h-3.5 stroke-[2.5]" />}
@@ -777,7 +772,7 @@ export const AdminItineraryModal: React.FC<AdminItineraryModalProps> = ({
 
               {/* Descrição */}
               <div>
-                <label className="block text-xs font-black text-zinc-700 dark:text-zinc-300 mb-1.5">
+                <label className="block text-xs font-black text-zinc-700 mb-1.5">
                   Descrição Completa do Roteiro
                 </label>
                 <textarea
@@ -785,14 +780,14 @@ export const AdminItineraryModal: React.FC<AdminItineraryModalProps> = ({
                   value={description}
                   onChange={e => setDescription(e.target.value)}
                   placeholder="Apresente os pontos fortes deste roteiro, o clima da experiência e o que os turistas irão desfrutar..."
-                  className="w-full px-4 py-3 bg-zinc-50 dark:bg-[#181a20] border border-zinc-300 dark:border-zinc-700 rounded-2xl text-sm text-zinc-900 dark:text-white font-medium focus:outline-hidden focus:border-[#FFFFFF] resize-none shadow-2xs"
+                  className="w-full px-4 py-3 bg-zinc-50 border border-zinc-300 rounded-2xl text-sm text-zinc-900 font-medium focus:outline-hidden focus:border-[#2563EB] resize-none shadow-2xs"
                 />
               </div>
 
               {/* Dicas */}
               <div>
-                <label className="block text-xs font-black text-zinc-700 dark:text-zinc-300 mb-1.5 flex items-center gap-1.5">
-                  <Lightbulb className="w-3.5 h-3.5 text-[#FFFFFF]" />
+                <label className="block text-xs font-black text-zinc-700 mb-1.5 flex items-center gap-1.5">
+                  <Lightbulb className="w-3.5 h-3.5 text-[#2563EB]" />
                   <span>Dicas Exclusivas do Guia Local</span>
                 </label>
                 <textarea
@@ -800,7 +795,7 @@ export const AdminItineraryModal: React.FC<AdminItineraryModalProps> = ({
                   value={tips}
                   onChange={e => setTips(e.target.value)}
                   placeholder="Dicas de vestimenta, horários de pico, reservas recomendadas, melhores mirantes..."
-                  className="w-full px-4 py-3 bg-zinc-50 dark:bg-[#181a20] border border-zinc-300 dark:border-zinc-700 rounded-2xl text-sm text-zinc-900 dark:text-white font-medium focus:outline-hidden focus:border-[#FFFFFF] resize-none shadow-2xs"
+                  className="w-full px-4 py-3 bg-zinc-50 border border-zinc-300 rounded-2xl text-sm text-zinc-900 font-medium focus:outline-hidden focus:border-[#2563EB] resize-none shadow-2xs"
                 />
               </div>
             </div>
@@ -809,18 +804,18 @@ export const AdminItineraryModal: React.FC<AdminItineraryModalProps> = ({
           {/* TAB 2: FOTO DE CAPA */}
           {activeTab === 'cover' && (
             <div className="space-y-6 animate-in fade-in duration-150">
-              <div className="bg-white dark:bg-[#15171c] border border-zinc-200/90 dark:border-zinc-800/90 rounded-3xl p-5 sm:p-6 shadow-xs space-y-5">
+              <div className="bg-white border border-zinc-200/90 rounded-3xl p-5 sm:p-6 shadow-xs space-y-5">
                 
-                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1 border-b border-zinc-100 dark:border-zinc-800/60 pb-3.5">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1 border-b border-zinc-100 pb-3.5">
                   <div>
-                    <h3 className="text-sm sm:text-base font-black text-zinc-900 dark:text-white tracking-tight">
+                    <h3 className="text-sm sm:text-base font-black text-zinc-900 tracking-tight">
                       Foto de capa
                     </h3>
-                    <p className="text-xs text-zinc-500 dark:text-zinc-400 font-medium mt-0.5">
+                    <p className="text-xs text-zinc-500 font-medium mt-0.5">
                       Escolha uma imagem de alta qualidade para representar este roteiro.
                     </p>
                   </div>
-                  <span className="text-[11px] text-zinc-400 dark:text-zinc-500 font-medium shrink-0">
+                  <span className="text-[11px] text-zinc-400 font-medium shrink-0">
                     16:9 ou 4:3 recomendado
                   </span>
                 </div>
@@ -850,11 +845,11 @@ export const AdminItineraryModal: React.FC<AdminItineraryModalProps> = ({
                   }}
                   className={`border border-dashed rounded-2xl p-4 sm:p-5 text-center transition-all flex flex-col items-center justify-center gap-2.5 ${
                     isDraggingCover
-                      ? 'border-[#FFFFFF] bg-[#FFFFFF]/10'
-                      : 'border-zinc-300/80 dark:border-zinc-700/80 bg-zinc-50/70 dark:bg-zinc-900/40 hover:border-[#FFFFFF] hover:bg-zinc-100/70 dark:hover:bg-zinc-900/70'
+                      ? 'border-[#2563EB] bg-[#2563EB]/10'
+                      : 'border-zinc-300/80 bg-zinc-50/70 hover:border-[#2563EB] hover:bg-zinc-100/70'
                   }`}
                 >
-                  <div className="w-10 h-10 rounded-full bg-[#FFFFFF]/10 text-[#FFFFFF] flex items-center justify-center shrink-0">
+                  <div className="w-10 h-10 rounded-full bg-[#2563EB]/10 text-[#2563EB] flex items-center justify-center shrink-0">
                     {isUploadingCover ? (
                       <RefreshCw className="w-5 h-5 animate-spin" />
                     ) : (
@@ -862,10 +857,10 @@ export const AdminItineraryModal: React.FC<AdminItineraryModalProps> = ({
                     )}
                   </div>
                   <div>
-                    <p className="text-xs font-black text-zinc-800 dark:text-zinc-200">
+                    <p className="text-xs font-black text-zinc-800">
                       Arraste uma foto ou faça upload do seu computador
                     </p>
-                    <p className="text-[11px] text-zinc-500 dark:text-zinc-400 mt-0.5">
+                    <p className="text-[11px] text-zinc-500 mt-0.5">
                       PNG, JPG ou WEBP até 10MB
                     </p>
                   </div>
@@ -886,13 +881,13 @@ export const AdminItineraryModal: React.FC<AdminItineraryModalProps> = ({
                 {/* Cover Preview & Presets */}
                 <div className="space-y-3 pt-2">
                   <div className="flex items-center justify-between">
-                    <span className="text-xs font-black text-zinc-700 dark:text-zinc-300">
+                    <span className="text-xs font-black text-zinc-700">
                       Imagens Sugeridas de Campos do Jordão
                     </span>
                     <button
                       type="button"
                       onClick={() => setShowCoverUrlInput(!showCoverUrlInput)}
-                      className="text-xs text-[#FFFFFF] font-bold hover:underline flex items-center gap-1 cursor-pointer"
+                      className="text-xs text-[#2563EB] font-bold hover:underline flex items-center gap-1 cursor-pointer"
                     >
                       <LinkIcon className="w-3 h-3" />
                       <span>{showCoverUrlInput ? 'Ocultar URL web' : 'Inserir URL web'}</span>
@@ -906,7 +901,7 @@ export const AdminItineraryModal: React.FC<AdminItineraryModalProps> = ({
                         value={coverImage}
                         onChange={e => setCoverImage(e.target.value)}
                         placeholder="https://images.unsplash.com/..."
-                        className="flex-1 px-3.5 py-2.5 bg-zinc-50 dark:bg-[#181a20] border border-zinc-300 dark:border-zinc-700 rounded-xl text-xs text-zinc-900 dark:text-white font-medium focus:outline-hidden focus:border-[#FFFFFF]"
+                        className="flex-1 px-3.5 py-2.5 bg-zinc-50 border border-zinc-300 rounded-xl text-xs text-zinc-900 font-medium focus:outline-hidden focus:border-[#2563EB]"
                       />
                     </div>
                   )}
@@ -921,18 +916,18 @@ export const AdminItineraryModal: React.FC<AdminItineraryModalProps> = ({
                           onClick={() => setCoverImage(preset.url)}
                           className={`text-left p-2.5 rounded-2xl border flex items-center gap-2.5 transition-all cursor-pointer ${
                             isSelected
-                              ? 'border-[#FFFFFF] bg-[#FFFFFF]/10 ring-2 ring-[#FFFFFF]'
-                              : 'border-zinc-200/90 dark:border-zinc-800 bg-zinc-50/50 dark:bg-zinc-900/40 hover:border-zinc-300 dark:hover:border-zinc-700'
+                              ? 'border-[#2563EB] bg-[#2563EB]/10 ring-2 ring-[#2563EB]'
+                              : 'border-zinc-200/90 bg-zinc-50/50 hover:border-zinc-300'
                           }`}
                         >
                           <img src={preset.url} alt={preset.label} className="w-11 h-11 rounded-xl object-cover shrink-0" />
                           <div className="overflow-hidden min-w-0">
                             <span className={`text-xs font-bold block truncate ${
-                              isSelected ? 'text-[#FFFFFF]' : 'text-zinc-800 dark:text-zinc-200'
+                              isSelected ? 'text-[#2563EB]' : 'text-zinc-800'
                             }`}>
                               {preset.label}
                             </span>
-                            <span className="text-[10px] text-zinc-400 dark:text-zinc-500">Campos do Jordão</span>
+                            <span className="text-[10px] text-zinc-400">Campos do Jordão</span>
                           </div>
                         </button>
                       );
@@ -958,8 +953,8 @@ export const AdminItineraryModal: React.FC<AdminItineraryModalProps> = ({
                       onClick={() => setActiveDayIdx(dIdx)}
                       className={`px-4 py-2 rounded-2xl text-xs font-black transition-all cursor-pointer shrink-0 border ${
                         activeDayIdx === dIdx
-                          ? 'bg-[#FFFFFF] text-white border-blue-500 shadow-sm'
-                          : 'bg-zinc-100 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-300 border-transparent hover:bg-zinc-200 dark:hover:bg-zinc-700'
+                          ? 'bg-[#2563EB] text-white border-blue-500 shadow-sm'
+                          : 'bg-zinc-100 text-zinc-600 border-transparent hover:bg-zinc-200'
                       }`}
                     >
                       Dia {d.dayNumber} ({d.steps.length} paradas)
@@ -969,7 +964,7 @@ export const AdminItineraryModal: React.FC<AdminItineraryModalProps> = ({
               )}
 
               {/* Day Details Bar */}
-              <div className="p-4 rounded-2xl bg-zinc-50 dark:bg-[#181a20] border border-zinc-200 dark:border-zinc-800 flex items-center justify-between gap-3">
+              <div className="p-4 rounded-2xl bg-zinc-50 border border-zinc-200 flex items-center justify-between gap-3">
                 <div className="flex-1 min-w-0">
                   <label className="block text-[10px] font-black uppercase text-zinc-400 tracking-wider mb-0.5">
                     Título do Dia {activeDayIdx + 1}
@@ -983,11 +978,11 @@ export const AdminItineraryModal: React.FC<AdminItineraryModalProps> = ({
                       setDays(copy);
                     }}
                     placeholder={`Dia ${activeDayIdx + 1}: O Clássico de Capivari`}
-                    className="w-full bg-transparent text-sm font-black text-zinc-900 dark:text-white outline-none"
+                    className="w-full bg-transparent text-sm font-black text-zinc-900 outline-none"
                   />
                 </div>
                 <div className="text-right shrink-0">
-                  <span className="text-xs font-black text-[#FFFFFF]">
+                  <span className="text-xs font-black text-[#2563EB]">
                     {currentDay?.steps.length || 0} {currentDay?.steps.length === 1 ? 'local adicionado' : 'locais adicionados'}
                   </span>
                 </div>
@@ -1011,16 +1006,16 @@ export const AdminItineraryModal: React.FC<AdminItineraryModalProps> = ({
                 {/* LEFT COLUMN: Current Stops List */}
                 <div className="lg:col-span-6 space-y-3">
                   <div className="flex items-center justify-between px-1">
-                    <h3 className="text-xs font-black uppercase tracking-wider text-zinc-500 dark:text-zinc-400 flex items-center gap-1.5">
-                      <Layers className="w-3.5 h-3.5 text-[#FFFFFF]" />
+                    <h3 className="text-xs font-black uppercase tracking-wider text-zinc-500 flex items-center gap-1.5">
+                      <Layers className="w-3.5 h-3.5 text-[#2563EB]" />
                       <span>Roteiro do Dia {activeDayIdx + 1} ({currentDay?.steps.length || 0})</span>
                     </h3>
                   </div>
 
                   {currentDay?.steps.length === 0 ? (
-                    <div className="p-8 rounded-3xl border border-dashed border-zinc-300 dark:border-zinc-700 text-center space-y-2.5 bg-zinc-50/50 dark:bg-zinc-900/30">
+                    <div className="p-8 rounded-3xl border border-dashed border-zinc-300 text-center space-y-2.5 bg-zinc-50/50">
                       <MapPin className="w-8 h-8 text-zinc-400 mx-auto" />
-                      <p className="text-xs font-black text-zinc-700 dark:text-zinc-300">
+                      <p className="text-xs font-black text-zinc-700">
                         Nenhuma parada no Dia {activeDayIdx + 1} ainda.
                       </p>
                       <p className="text-[11px] text-zinc-500">
@@ -1038,11 +1033,11 @@ export const AdminItineraryModal: React.FC<AdminItineraryModalProps> = ({
                         return (
                           <div
                             key={sIdx}
-                            className="p-3.5 rounded-2xl bg-zinc-50 dark:bg-[#181a20] border border-zinc-200 dark:border-zinc-800 space-y-2.5 shadow-2xs hover:border-zinc-300 dark:hover:border-zinc-700 transition-colors"
+                            className="p-3.5 rounded-2xl bg-zinc-50 border border-zinc-200 space-y-2.5 shadow-2xs hover:border-zinc-300 transition-colors"
                           >
                             <div className="flex items-center justify-between gap-2">
                               <div className="flex items-center gap-2.5 min-w-0 flex-1">
-                                <span className="w-6 h-6 rounded-full bg-[#FFFFFF] text-white font-black text-[11px] flex items-center justify-center shrink-0">
+                                <span className="w-6 h-6 rounded-full bg-[#2563EB] text-white font-black text-[11px] flex items-center justify-center shrink-0">
                                   {stepNumber}
                                 </span>
                                 
@@ -1050,16 +1045,16 @@ export const AdminItineraryModal: React.FC<AdminItineraryModalProps> = ({
                                   <img
                                     src={stepPhoto}
                                     alt={stepName}
-                                    className="w-10 h-10 rounded-xl object-cover border border-zinc-300 dark:border-zinc-700 shrink-0"
+                                    className="w-10 h-10 rounded-xl object-cover border border-zinc-300 shrink-0"
                                   />
                                 ) : (
-                                  <div className="w-10 h-10 rounded-xl bg-zinc-200 dark:bg-zinc-800 flex items-center justify-center text-zinc-500 shrink-0">
+                                  <div className="w-10 h-10 rounded-xl bg-zinc-200 flex items-center justify-center text-zinc-500 shrink-0">
                                     <Camera className="w-4 h-4" />
                                   </div>
                                 )}
 
                                 <div className="min-w-0 flex-1">
-                                  <h4 className="text-xs font-black text-zinc-900 dark:text-white truncate">
+                                  <h4 className="text-xs font-black text-zinc-900 truncate">
                                     {stepName}
                                   </h4>
                                   <span className="text-[10.5px] text-zinc-500 font-semibold block truncate">
@@ -1074,7 +1069,7 @@ export const AdminItineraryModal: React.FC<AdminItineraryModalProps> = ({
                                   type="button"
                                   disabled={sIdx === 0}
                                   onClick={() => moveStep(activeDayIdx, sIdx, 'up')}
-                                  className="p-1.5 rounded-lg bg-white dark:bg-zinc-800 text-zinc-700 dark:text-zinc-300 disabled:opacity-20 hover:bg-zinc-200 cursor-pointer shadow-2xs"
+                                  className="p-1.5 rounded-lg bg-white text-zinc-700 disabled:opacity-20 hover:bg-zinc-200 cursor-pointer shadow-2xs"
                                   title="Subir"
                                 >
                                   <ChevronUp className="w-3.5 h-3.5" />
@@ -1083,7 +1078,7 @@ export const AdminItineraryModal: React.FC<AdminItineraryModalProps> = ({
                                   type="button"
                                   disabled={sIdx === (currentDay?.steps.length || 0) - 1}
                                   onClick={() => moveStep(activeDayIdx, sIdx, 'down')}
-                                  className="p-1.5 rounded-lg bg-white dark:bg-zinc-800 text-zinc-700 dark:text-zinc-300 disabled:opacity-20 hover:bg-zinc-200 cursor-pointer shadow-2xs"
+                                  className="p-1.5 rounded-lg bg-white text-zinc-700 disabled:opacity-20 hover:bg-zinc-200 cursor-pointer shadow-2xs"
                                   title="Descer"
                                 >
                                   <ChevronDown className="w-3.5 h-3.5" />
@@ -1091,7 +1086,7 @@ export const AdminItineraryModal: React.FC<AdminItineraryModalProps> = ({
                                 <button
                                   type="button"
                                   onClick={() => removeStepFromDay(activeDayIdx, sIdx)}
-                                  className="p-1.5 rounded-lg bg-red-100 dark:bg-red-950/40 text-red-600 hover:bg-red-200 cursor-pointer ml-1"
+                                  className="p-1.5 rounded-lg bg-red-100 text-red-600 hover:bg-red-200 cursor-pointer ml-1"
                                   title="Remover"
                                 >
                                   <Trash2 className="w-3.5 h-3.5" />
@@ -1100,7 +1095,7 @@ export const AdminItineraryModal: React.FC<AdminItineraryModalProps> = ({
                             </div>
 
                             {/* Timing inputs */}
-                            <div className="grid grid-cols-2 gap-2 pt-1 border-t border-zinc-200/60 dark:border-zinc-800/60">
+                            <div className="grid grid-cols-2 gap-2 pt-1 border-t border-zinc-200/60">
                               <div>
                                 <label className="block text-[10px] font-bold text-zinc-400 mb-0.5">
                                   Horário Sugerido
@@ -1110,7 +1105,7 @@ export const AdminItineraryModal: React.FC<AdminItineraryModalProps> = ({
                                   value={step.suggestedTime}
                                   onChange={e => updateStepField(activeDayIdx, sIdx, 'suggestedTime', e.target.value)}
                                   placeholder="09:30"
-                                  className="w-full px-2.5 py-1.5 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-700 rounded-xl text-xs font-bold text-zinc-900 dark:text-white"
+                                  className="w-full px-2.5 py-1.5 bg-white border border-zinc-200 rounded-xl text-xs font-bold text-zinc-900"
                                 />
                               </div>
 
@@ -1123,7 +1118,7 @@ export const AdminItineraryModal: React.FC<AdminItineraryModalProps> = ({
                                   value={step.durationMinutes}
                                   onChange={e => updateStepField(activeDayIdx, sIdx, 'durationMinutes', Number(e.target.value))}
                                   placeholder="60"
-                                  className="w-full px-2.5 py-1.5 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-700 rounded-xl text-xs font-bold text-zinc-900 dark:text-white"
+                                  className="w-full px-2.5 py-1.5 bg-white border border-zinc-200 rounded-xl text-xs font-bold text-zinc-900"
                                 />
                               </div>
                             </div>
@@ -1137,14 +1132,14 @@ export const AdminItineraryModal: React.FC<AdminItineraryModalProps> = ({
                 {/* RIGHT COLUMN: SEARCHABLE SPOT CATALOG */}
                 <div className="lg:col-span-6 space-y-3">
                   <div className="flex items-center justify-between px-1">
-                    <h3 className="text-xs font-black uppercase tracking-wider text-zinc-500 dark:text-zinc-400 flex items-center gap-1.5">
-                      <Search className="w-3.5 h-3.5 text-[#FFFFFF]" />
+                    <h3 className="text-xs font-black uppercase tracking-wider text-zinc-500 flex items-center gap-1.5">
+                      <Search className="w-3.5 h-3.5 text-[#2563EB]" />
                       <span>Locais Turísticos Disponíveis ({filteredSpotsForBuilder.length})</span>
                     </h3>
                   </div>
 
                   {/* Search and Filters */}
-                  <div className="space-y-2 bg-zinc-50 dark:bg-[#181a20] p-3 rounded-2xl border border-zinc-200 dark:border-zinc-800">
+                  <div className="space-y-2 bg-zinc-50 p-3 rounded-2xl border border-zinc-200">
                     <div className="relative">
                       <Search className="w-4 h-4 text-zinc-400 absolute left-3 top-1/2 -translate-y-1/2" />
                       <input
@@ -1152,7 +1147,7 @@ export const AdminItineraryModal: React.FC<AdminItineraryModalProps> = ({
                         value={spotSearchQuery}
                         onChange={e => setSpotSearchQuery(e.target.value)}
                         placeholder="Buscar local por nome..."
-                        className="w-full pl-9 pr-3 py-2 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-700 rounded-xl text-xs font-bold text-zinc-900 dark:text-white outline-none focus:border-[#FFFFFF]"
+                        className="w-full pl-9 pr-3 py-2 bg-white border border-zinc-200 rounded-xl text-xs font-bold text-zinc-900 outline-none focus:border-[#2563EB]"
                       />
                       {spotSearchQuery && (
                         <button
@@ -1175,8 +1170,8 @@ export const AdminItineraryModal: React.FC<AdminItineraryModalProps> = ({
                         }}
                         className={`h-[28px] px-3 rounded-full text-[11px] font-medium shrink-0 transition-all duration-200 ease-out cursor-pointer select-none active:scale-[0.96] ${
                           spotCategoryFilter === 'all'
-                            ? 'bg-[#E5E5EA] dark:bg-white/20 text-zinc-900 dark:text-white border border-black/[0.06] dark:border-white/20 shadow-[inset_0_1.5px_2px_rgba(0,0,0,0.1)] font-semibold'
-                            : 'bg-white dark:bg-[#1C1C1E] text-zinc-700 dark:text-zinc-300 border border-zinc-200/90 dark:border-white/10 shadow-[0_1.5px_4px_rgba(0,0,0,0.06)]'
+                            ? 'bg-[#E5E5EA] text-zinc-900 border border-black/[0.06] shadow-[inset_0_1.5px_2px_rgba(0,0,0,0.1)] font-semibold'
+                            : 'bg-white text-zinc-700 border border-zinc-200/90 shadow-[0_1.5px_4px_rgba(0,0,0,0.06)]'
                         }`}
                       >
                         Todos
@@ -1191,8 +1186,8 @@ export const AdminItineraryModal: React.FC<AdminItineraryModalProps> = ({
                           }}
                           className={`h-[28px] px-3 rounded-full text-[11px] font-medium shrink-0 capitalize transition-all duration-200 ease-out cursor-pointer select-none active:scale-[0.96] ${
                             spotCategoryFilter === cat
-                              ? 'bg-[#E5E5EA] dark:bg-white/20 text-zinc-900 dark:text-white border border-black/[0.06] dark:border-white/20 shadow-[inset_0_1.5px_2px_rgba(0,0,0,0.1)] font-semibold'
-                              : 'bg-white dark:bg-[#1C1C1E] text-zinc-700 dark:text-zinc-300 border border-zinc-200/90 dark:border-white/10 shadow-[0_1.5px_4px_rgba(0,0,0,0.06)]'
+                              ? 'bg-[#E5E5EA] text-zinc-900 border border-black/[0.06] shadow-[inset_0_1.5px_2px_rgba(0,0,0,0.1)] font-semibold'
+                              : 'bg-white text-zinc-700 border border-zinc-200/90 shadow-[0_1.5px_4px_rgba(0,0,0,0.06)]'
                           }`}
                         >
                           {cat}
@@ -1218,17 +1213,17 @@ export const AdminItineraryModal: React.FC<AdminItineraryModalProps> = ({
                         return (
                           <div
                             key={spot.id}
-                            className="p-2.5 rounded-2xl bg-white dark:bg-[#181a20] border border-zinc-200 dark:border-zinc-800 flex items-center justify-between gap-3 hover:border-blue-400 dark:hover:border-blue-500 transition-all group"
+                            className="p-2.5 rounded-2xl bg-white border border-zinc-200 flex items-center justify-between gap-3 hover:border-blue-400 transition-all group"
                           >
                             <div className="flex items-center gap-2.5 min-w-0 flex-1">
                               <img
                                 src={spot.image || 'https://images.unsplash.com/photo-1585320806297-9794b3e4eeae?auto=format&fit=crop&w=300&q=80'}
                                 alt={spot.name}
-                                className="w-11 h-11 rounded-xl object-cover shrink-0 border border-black/5 dark:border-white/10"
+                                className="w-11 h-11 rounded-xl object-cover shrink-0 border border-black/5"
                                 loading="lazy"
                               />
                               <div className="min-w-0 flex-1">
-                                <h4 className="text-xs font-black text-zinc-900 dark:text-white truncate">
+                                <h4 className="text-xs font-black text-zinc-900 truncate">
                                   {spot.name}
                                 </h4>
                                 <div className="flex items-center gap-1.5 mt-0.5">
@@ -1238,7 +1233,7 @@ export const AdminItineraryModal: React.FC<AdminItineraryModalProps> = ({
                                   {spot.priceRange && (
                                     <>
                                       <span className="text-[10px] text-zinc-400">·</span>
-                                      <span className="text-[10px] font-bold text-emerald-600 dark:text-emerald-400">
+                                      <span className="text-[10px] font-bold text-emerald-600">
                                         {spot.priceRange}
                                       </span>
                                     </>
@@ -1279,13 +1274,13 @@ export const AdminItineraryModal: React.FC<AdminItineraryModalProps> = ({
                 
                 {/* Left Column: Settings */}
                 <div className="space-y-4">
-                  <div className="p-4 rounded-2xl bg-zinc-50 dark:bg-[#181a20] border border-zinc-200 dark:border-zinc-800 space-y-3">
-                    <h3 className="text-xs font-black text-zinc-900 dark:text-white uppercase tracking-wider">
+                  <div className="p-4 rounded-2xl bg-zinc-50 border border-zinc-200 space-y-3">
+                    <h3 className="text-xs font-black text-zinc-900 uppercase tracking-wider">
                       Destaque na Loja
                     </h3>
                     <div className="flex items-center justify-between">
                       <div>
-                        <span className="block text-xs font-bold text-zinc-800 dark:text-zinc-200">
+                        <span className="block text-xs font-bold text-zinc-800">
                           Roteiro em Destaque
                         </span>
                         <span className="text-[11px] text-zinc-500">
@@ -1296,7 +1291,7 @@ export const AdminItineraryModal: React.FC<AdminItineraryModalProps> = ({
                         type="button"
                         onClick={() => setIsFeatured(!isFeatured)}
                         className={`w-12 h-6.5 rounded-full transition-colors relative cursor-pointer ${
-                          isFeatured ? 'bg-[#FFFFFF]' : 'bg-zinc-300 dark:bg-zinc-700'
+                          isFeatured ? 'bg-[#2563EB]' : 'bg-zinc-300'
                         }`}
                       >
                         <span
@@ -1308,18 +1303,18 @@ export const AdminItineraryModal: React.FC<AdminItineraryModalProps> = ({
                     </div>
                   </div>
 
-                  <div className="p-4 rounded-2xl bg-zinc-50 dark:bg-[#181a20] border border-zinc-200 dark:border-zinc-800 space-y-3">
-                    <h3 className="text-xs font-black text-zinc-900 dark:text-white uppercase tracking-wider">
+                  <div className="p-4 rounded-2xl bg-zinc-50 border border-zinc-200 space-y-3">
+                    <h3 className="text-xs font-black text-zinc-900 uppercase tracking-wider">
                       Visibilidade dos Dados
                     </h3>
 
                     <div className="flex items-center justify-between pt-1">
-                      <span className="text-xs font-semibold text-zinc-700 dark:text-zinc-300">Mostrar Contagem de Paradas</span>
+                      <span className="text-xs font-semibold text-zinc-700">Mostrar Contagem de Paradas</span>
                       <input
                         type="checkbox"
                         checked={showStopsCount}
                         onChange={e => setShowStopsCount(e.target.checked)}
-                        className="w-4 h-4 accent-[#FFFFFF] cursor-pointer"
+                        className="w-4 h-4 accent-[#2563EB] cursor-pointer"
                       />
                     </div>
                   </div>
@@ -1328,54 +1323,28 @@ export const AdminItineraryModal: React.FC<AdminItineraryModalProps> = ({
                 {/* Right Column: Live Card Preview */}
                 <div className="space-y-3">
                   <div className="flex items-center justify-between">
-                    <span className="text-xs font-black text-zinc-900 dark:text-white uppercase tracking-wider">
+                    <span className="text-xs font-black text-zinc-900 uppercase tracking-wider">
                       Pré-visualização do Card na Loja
                     </span>
-                    <div className="flex items-center gap-1 bg-zinc-200 dark:bg-zinc-800 p-0.5 rounded-lg">
-                      <button
-                        type="button"
-                        onClick={() => setPreviewTheme('dark')}
-                        className={`p-1 rounded text-xs font-bold ${previewTheme === 'dark' ? 'bg-zinc-900 text-white shadow-xs' : 'text-zinc-500'}`}
-                        title="Modo Escuro"
-                      >
-                        <Moon className="w-3 h-3" />
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => setPreviewTheme('light')}
-                        className={`p-1 rounded text-xs font-bold ${previewTheme === 'light' ? 'bg-white text-zinc-900 shadow-xs' : 'text-zinc-500'}`}
-                        title="Modo Claro"
-                      >
-                        <Sun className="w-3 h-3" />
-                      </button>
-                    </div>
                   </div>
 
                   {/* Simulated Card in Shop */}
-                  <div className={`p-4 rounded-3xl border transition-colors ${
-                    previewTheme === 'light'
-                      ? 'bg-[#f4f4f6] border-zinc-300 text-zinc-900'
-                      : 'bg-[#000000] border-zinc-800 text-white'
-                  }`}>
-                    <div className={`rounded-2xl p-3.5 border transition-all ${
-                      previewTheme === 'light'
-                        ? 'bg-white border-zinc-200 shadow-sm text-zinc-900'
-                        : 'bg-[#121418] border-white/10 text-white'
-                    }`}>
-                      <div className="aspect-16/9 rounded-xl overflow-hidden relative mb-2.5 bg-zinc-800">
+                  <div className="p-4 rounded-3xl border bg-[#f4f4f6] border-zinc-200 text-zinc-900">
+                    <div className="rounded-2xl p-3.5 border bg-white border-zinc-200 shadow-sm text-zinc-900">
+                      <div className="aspect-16/9 rounded-xl overflow-hidden relative mb-2.5 bg-zinc-100">
                         {coverImage ? (
                           <img src={coverImage} alt="Preview" className="w-full h-full object-cover" />
                         ) : (
-                          <div className="w-full h-full flex items-center justify-center text-zinc-600 text-xs">
+                          <div className="w-full h-full flex items-center justify-center text-zinc-400 text-xs">
                             Sem imagem
                           </div>
                         )}
                       </div>
                       <div className="space-y-1">
-                        <div className="flex items-center justify-between text-[11px] text-zinc-400">
+                        <div className="flex items-center justify-between text-[11px] text-zinc-500">
                           <span>{daysCount} {daysCount === 1 ? 'dia' : 'dias'} · {totalPlaces} {totalPlaces === 1 ? 'parada' : 'paradas'}</span>
                         </div>
-                        <h4 className="text-sm font-black tracking-tight line-clamp-1">
+                        <h4 className="text-sm font-black tracking-tight line-clamp-1 text-zinc-900">
                           {title || 'Título do Roteiro'}
                         </h4>
                         <p className="text-xs text-zinc-500 line-clamp-2">
@@ -1392,11 +1361,11 @@ export const AdminItineraryModal: React.FC<AdminItineraryModalProps> = ({
         </div>
 
         {/* 10. Modal Footer Buttons */}
-        <div className="px-5 py-3.5 border-t border-zinc-200 dark:border-zinc-800 flex items-center justify-between bg-zinc-50/90 dark:bg-[#17191e] shrink-0">
+        <div className="px-5 py-3.5 border-t border-zinc-200 flex items-center justify-between bg-zinc-50/90 shrink-0">
           <button
             type="button"
             onClick={onClose}
-            className="h-11 px-4 text-xs font-bold text-zinc-500 hover:text-zinc-900 dark:text-zinc-400 dark:hover:text-white transition-colors cursor-pointer flex items-center justify-center rounded-xl hover:bg-zinc-100 dark:hover:bg-zinc-800"
+            className="h-11 px-4 text-xs font-bold text-zinc-500 hover:text-zinc-900 transition-colors cursor-pointer flex items-center justify-center rounded-xl hover:bg-zinc-100"
           >
             Cancelar
           </button>
@@ -1406,7 +1375,7 @@ export const AdminItineraryModal: React.FC<AdminItineraryModalProps> = ({
               type="button"
               disabled={isSubmitting}
               onClick={() => handleSaveWithStatus('draft')}
-              className="h-11 px-4 rounded-2xl border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-zinc-800 dark:text-zinc-200 text-xs font-bold hover:bg-zinc-100 dark:hover:bg-zinc-700 transition-colors cursor-pointer disabled:opacity-50 flex items-center justify-center shadow-2xs"
+              className="h-11 px-4 rounded-2xl border border-zinc-300 bg-white text-zinc-800 text-xs font-bold hover:bg-zinc-100 transition-colors cursor-pointer disabled:opacity-50 flex items-center justify-center shadow-2xs"
             >
               Salvar como Rascunho
             </button>

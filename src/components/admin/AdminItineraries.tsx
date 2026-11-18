@@ -272,12 +272,12 @@ export const AdminItineraries: React.FC = () => {
           <div
             className={`px-4 py-3 rounded-2xl shadow-xl flex items-center gap-2.5 text-xs font-bold ${
               toast.type === 'success'
-                ? 'bg-zinc-900 text-white dark:bg-white dark:text-zinc-900 border border-white/10'
+                ? 'bg-zinc-900 text-white border border-white/10'
                 : 'bg-red-600 text-white'
             }`}
           >
             {toast.type === 'success' ? (
-              <CheckCircle2 className="w-4 h-4 text-[#FFFFFF]" />
+              <CheckCircle2 className="w-4 h-4 text-blue-400" />
             ) : (
               <AlertCircle className="w-4 h-4" />
             )}
@@ -290,14 +290,14 @@ export const AdminItineraries: React.FC = () => {
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
           <div className="flex items-center gap-2">
-            <h1 className="text-xl sm:text-2xl font-black text-zinc-900 dark:text-white tracking-tight">
+            <h1 className="text-xl sm:text-2xl font-black text-zinc-900 tracking-tight">
               Loja de Roteiros
             </h1>
-            <span className="px-2.5 py-0.5 rounded-full bg-[#FFFFFF]/15 text-[#FFFFFF] text-[10px] font-black uppercase tracking-wider border border-[#FFFFFF]/25">
+            <span className="px-2.5 py-0.5 rounded-full bg-[#2563EB]/15 text-[#2563EB] text-[10px] font-black uppercase tracking-wider border border-[#2563EB]/25">
               Administração
             </span>
           </div>
-          <p className="text-xs sm:text-sm text-zinc-600 dark:text-zinc-400 font-semibold mt-0.5">
+          <p className="text-xs sm:text-sm text-zinc-600 font-semibold mt-0.5">
             Gerencie os roteiros turísticos, preços, paradas organizadas e categorias da loja do Monvian.
           </p>
         </div>
@@ -326,14 +326,14 @@ export const AdminItineraries: React.FC = () => {
       </div>
 
       {/* Admin Tab Switcher */}
-      <div className="flex items-center border-b border-zinc-200 dark:border-zinc-800 gap-2">
+      <div className="flex items-center border-b border-zinc-200 gap-2">
         <button
           type="button"
           onClick={() => setActiveAdminTab('itineraries')}
           className={`px-4 py-3 text-xs font-black border-b-2 transition-all cursor-pointer flex items-center gap-2 ${
             activeAdminTab === 'itineraries'
-              ? 'border-zinc-900 text-zinc-900 dark:border-white dark:text-white'
-              : 'border-transparent text-zinc-500 hover:text-zinc-900 dark:text-zinc-400 dark:hover:text-white'
+              ? 'border-zinc-900 text-zinc-900'
+              : 'border-transparent text-zinc-500 hover:text-zinc-900'
           }`}
         >
           <ShoppingBag className="w-4 h-4" />
@@ -345,8 +345,8 @@ export const AdminItineraries: React.FC = () => {
           onClick={() => setActiveAdminTab('categories')}
           className={`px-4 py-3 text-xs font-black border-b-2 transition-all cursor-pointer flex items-center gap-2 ${
             activeAdminTab === 'categories'
-              ? 'border-zinc-900 text-zinc-900 dark:border-white dark:text-white'
-              : 'border-transparent text-zinc-500 hover:text-zinc-900 dark:text-zinc-400 dark:hover:text-white'
+              ? 'border-zinc-900 text-zinc-900'
+              : 'border-transparent text-zinc-500 hover:text-zinc-900'
           }`}
         >
           <Tag className="w-4 h-4" />
@@ -358,8 +358,8 @@ export const AdminItineraries: React.FC = () => {
           onClick={() => setActiveAdminTab('featured')}
           className={`px-4 py-3 text-xs font-black border-b-2 transition-all cursor-pointer flex items-center gap-2 ${
             activeAdminTab === 'featured'
-              ? 'border-zinc-900 text-zinc-900 dark:border-white dark:text-white'
-              : 'border-transparent text-zinc-500 hover:text-zinc-900 dark:text-zinc-400 dark:hover:text-white'
+              ? 'border-zinc-900 text-zinc-900'
+              : 'border-transparent text-zinc-500 hover:text-zinc-900'
           }`}
         >
           <Sparkles className="w-4 h-4" />
@@ -369,12 +369,12 @@ export const AdminItineraries: React.FC = () => {
 
       {/* Metrics Cards */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
-        <div className="p-4 rounded-2xl bg-white dark:bg-[#121418] border border-zinc-200 dark:border-zinc-800 shadow-2xs">
-          <div className="text-[11px] font-black text-zinc-500 dark:text-zinc-400 uppercase tracking-wider mb-1">
+        <div className="p-4 rounded-2xl bg-white border border-zinc-200 shadow-2xs">
+          <div className="text-[11px] font-black text-zinc-500 uppercase tracking-wider mb-1">
             Roteiros Publicados
           </div>
           <div className="flex items-baseline gap-2">
-            <span className="text-2xl font-black text-emerald-600 dark:text-emerald-400">
+            <span className="text-2xl font-black text-emerald-600">
               {publishedItineraries}
             </span>
             <span className="text-xs text-zinc-500 font-semibold">
@@ -383,8 +383,8 @@ export const AdminItineraries: React.FC = () => {
           </div>
         </div>
 
-        <div className="p-4 rounded-2xl bg-white dark:bg-[#121418] border border-zinc-200 dark:border-zinc-800 shadow-2xs">
-          <div className="text-[11px] font-black text-zinc-500 dark:text-zinc-400 uppercase tracking-wider mb-1">
+        <div className="p-4 rounded-2xl bg-white border border-zinc-200 shadow-2xs">
+          <div className="text-[11px] font-black text-zinc-500 uppercase tracking-wider mb-1">
             Rascunhos / Ocultos
           </div>
           <div className="flex items-baseline gap-2">
@@ -397,12 +397,12 @@ export const AdminItineraries: React.FC = () => {
           </div>
         </div>
 
-        <div className="p-4 rounded-2xl bg-white dark:bg-[#121418] border border-zinc-200 dark:border-zinc-800 shadow-2xs">
-          <div className="text-[11px] font-black text-zinc-500 dark:text-zinc-400 uppercase tracking-wider mb-1">
+        <div className="p-4 rounded-2xl bg-white border border-zinc-200 shadow-2xs">
+          <div className="text-[11px] font-black text-zinc-500 uppercase tracking-wider mb-1">
             Roteiros em Destaque
           </div>
           <div className="flex items-baseline gap-2">
-            <span className="text-2xl font-black text-[#FFFFFF]">
+            <span className="text-2xl font-black text-[#2563EB]">
               {featuredCount}
             </span>
             <span className="text-xs text-zinc-500 font-semibold">
@@ -411,12 +411,12 @@ export const AdminItineraries: React.FC = () => {
           </div>
         </div>
 
-        <div className="p-4 rounded-2xl bg-white dark:bg-[#121418] border border-zinc-200 dark:border-zinc-800 shadow-2xs">
-          <div className="text-[11px] font-black text-zinc-500 dark:text-zinc-400 uppercase tracking-wider mb-1">
+        <div className="p-4 rounded-2xl bg-white border border-zinc-200 shadow-2xs">
+          <div className="text-[11px] font-black text-zinc-500 uppercase tracking-wider mb-1">
             Categorias Ativas
           </div>
           <div className="flex items-baseline gap-2">
-            <span className="text-2xl font-black text-zinc-900 dark:text-white">
+            <span className="text-2xl font-black text-zinc-900">
               {categories.filter(c => c.isActive).length}
             </span>
             <span className="text-xs text-zinc-500 font-semibold">
@@ -430,7 +430,7 @@ export const AdminItineraries: React.FC = () => {
       {activeAdminTab === 'itineraries' && (
         <div className="space-y-4">
           {/* Filters Bar */}
-          <div className="p-4 rounded-2xl bg-white dark:bg-[#121418] border border-zinc-200 dark:border-zinc-800 shadow-2xs space-y-3">
+          <div className="p-4 rounded-2xl bg-white border border-zinc-200 shadow-2xs space-y-3">
             <div className="flex flex-col sm:flex-row items-center gap-3">
               {/* Search */}
               <div className="relative flex-1 w-full">
@@ -440,7 +440,7 @@ export const AdminItineraries: React.FC = () => {
                   value={searchQuery}
                   onChange={e => setSearchQuery(e.target.value)}
                   placeholder="Buscar roteiro por nome, preço ou categoria..."
-                  className="w-full pl-10 pr-4 py-2 bg-zinc-50 dark:bg-[#181a20] border border-zinc-200 dark:border-zinc-700 rounded-xl text-xs text-zinc-900 dark:text-white font-semibold focus:outline-hidden focus:border-[#FFFFFF]"
+                  className="w-full pl-10 pr-4 py-2 bg-zinc-50 border border-zinc-200 rounded-xl text-xs text-zinc-900 font-semibold focus:outline-hidden focus:border-[#2563EB]"
                 />
               </div>
 
@@ -460,8 +460,8 @@ export const AdminItineraries: React.FC = () => {
                       onClick={() => setStatusFilter(s.value)}
                       className={`h-[34px] px-3.5 rounded-full text-xs font-medium whitespace-nowrap transition-all duration-200 ease-out cursor-pointer inline-flex items-center select-none active:scale-[0.96] ${
                         isSelected
-                          ? 'bg-[#E5E5EA] dark:bg-white/20 text-zinc-900 dark:text-white border border-black/[0.06] dark:border-white/20 shadow-[inset_0_1.5px_2.5px_rgba(0,0,0,0.12)] font-semibold'
-                          : 'bg-white dark:bg-[#1C1C1E] text-zinc-700 dark:text-zinc-300 border border-zinc-200/90 dark:border-white/10 shadow-[0_2px_5px_-1px_rgba(0,0,0,0.07),_0_1px_2px_rgba(0,0,0,0.04)] hover:shadow-[0_3px_8px_-1px_rgba(0,0,0,0.09)]'
+                          ? 'bg-[#E5E5EA] text-zinc-900 border border-black/[0.06] shadow-[inset_0_1.5px_2.5px_rgba(0,0,0,0.12)] font-semibold'
+                          : 'bg-white text-zinc-700 border border-zinc-200/90 shadow-[0_2px_5px_-1px_rgba(0,0,0,0.07),_0_1px_2px_rgba(0,0,0,0.04)] hover:shadow-[0_3px_8px_-1px_rgba(0,0,0,0.09)]'
                       }`}
                     >
                       {s.label}
@@ -472,7 +472,7 @@ export const AdminItineraries: React.FC = () => {
             </div>
 
             {/* Days Filters */}
-            <div className="flex items-center gap-2 pt-1.5 border-t border-zinc-100 dark:border-zinc-800/60 overflow-x-auto text-xs py-0.5">
+            <div className="flex items-center gap-2 pt-1.5 border-t border-zinc-100 overflow-x-auto text-xs py-0.5">
               <span className="text-zinc-500 font-medium shrink-0">Duração:</span>
               {[
                 { label: 'Todas as durações', value: 'all' as const },
@@ -488,8 +488,8 @@ export const AdminItineraries: React.FC = () => {
                     onClick={() => setDaysFilter(item.value)}
                     className={`h-[28px] px-3 rounded-full text-[11px] font-medium whitespace-nowrap transition-all duration-200 ease-out cursor-pointer inline-flex items-center select-none active:scale-[0.96] ${
                       isSelected
-                        ? 'bg-[#E5E5EA] dark:bg-white/20 text-zinc-900 dark:text-white border border-black/[0.06] dark:border-white/20 shadow-[inset_0_1.5px_2px_rgba(0,0,0,0.1)] font-semibold'
-                        : 'bg-white dark:bg-[#1C1C1E] text-zinc-700 dark:text-zinc-300 border border-zinc-200/90 dark:border-white/10 shadow-[0_1.5px_4px_rgba(0,0,0,0.06)]'
+                        ? 'bg-[#E5E5EA] text-zinc-900 border border-black/[0.06] shadow-[inset_0_1.5px_2px_rgba(0,0,0,0.1)] font-semibold'
+                        : 'bg-white text-zinc-700 border border-zinc-200/90 shadow-[0_1.5px_4px_rgba(0,0,0,0.06)]'
                     }`}
                   >
                     {item.label}
@@ -502,13 +502,13 @@ export const AdminItineraries: React.FC = () => {
           {/* List of Itineraries */}
           {loading ? (
             <div className="py-16 text-center">
-              <div className="inline-block w-8 h-8 border-2 border-[#FFFFFF] border-t-transparent rounded-full animate-spin mb-3" />
+              <div className="inline-block w-8 h-8 border-2 border-[#2563EB] border-t-transparent rounded-full animate-spin mb-3" />
               <p className="text-xs text-zinc-500 font-bold">Carregando roteiros...</p>
             </div>
           ) : filteredItineraries.length === 0 ? (
-            <div className="py-16 text-center border border-dashed border-zinc-300 dark:border-zinc-800 rounded-3xl bg-white dark:bg-[#121418] p-6 space-y-3">
+            <div className="py-16 text-center border border-dashed border-zinc-300 rounded-3xl bg-white p-6 space-y-3">
               <Compass className="w-10 h-10 text-zinc-400 mx-auto" />
-              <h3 className="text-sm font-black text-zinc-900 dark:text-white">
+              <h3 className="text-sm font-black text-zinc-900">
                 Nenhum roteiro encontrado
               </h3>
               <p className="text-xs text-zinc-500 max-w-sm mx-auto font-medium">
@@ -517,7 +517,7 @@ export const AdminItineraries: React.FC = () => {
               <button
                 type="button"
                 onClick={handleOpenCreateItinerary}
-                className="px-4 py-2 rounded-xl bg-[#FFFFFF] text-white text-xs font-black shadow-md cursor-pointer hover:bg-blue-600"
+                className="px-4 py-2 rounded-xl bg-[#2563EB] text-white text-xs font-black shadow-md cursor-pointer hover:bg-blue-600"
               >
                 + Criar Roteiro Agora
               </button>
@@ -532,11 +532,11 @@ export const AdminItineraries: React.FC = () => {
                 return (
                   <div
                     key={it.id}
-                    className="bg-white dark:bg-[#121418] border border-zinc-200 dark:border-zinc-800 rounded-2xl overflow-hidden shadow-2xs hover:shadow-md transition-shadow flex flex-col justify-between"
+                    className="bg-white border border-zinc-200 rounded-2xl overflow-hidden shadow-2xs hover:shadow-md transition-shadow flex flex-col justify-between"
                   >
                     <div>
                       {/* Image & Overlay Badges */}
-                      <div className="relative aspect-16/9 w-full bg-zinc-900 overflow-hidden">
+                      <div className="relative aspect-16/9 w-full bg-zinc-100 overflow-hidden">
                         <img
                           src={it.coverImage}
                           alt={it.title}
@@ -547,7 +547,7 @@ export const AdminItineraries: React.FC = () => {
                         {/* Top Badges */}
                         <div className="absolute top-2.5 left-2.5 right-2.5 flex items-center justify-between">
                           <span className="px-2.5 py-1 rounded-full text-[11px] font-black bg-black/70 backdrop-blur-md text-white border border-white/10 flex items-center gap-1">
-                            <Calendar className="w-3 h-3 text-[#FFFFFF]" />
+                            <Calendar className="w-3 h-3 text-white" />
                             <span>{it.daysCount} {it.daysCount === 1 ? 'Dia' : 'Dias'}</span>
                           </span>
 
@@ -592,10 +592,10 @@ export const AdminItineraries: React.FC = () => {
 
                       {/* Content */}
                       <div className="p-4 space-y-2">
-                        <h3 className="font-black text-sm text-zinc-900 dark:text-white line-clamp-1">
+                        <h3 className="font-black text-sm text-zinc-900 line-clamp-1">
                           {it.title}
                         </h3>
-                        <p className="text-xs text-zinc-500 dark:text-zinc-400 font-medium line-clamp-2 leading-relaxed">
+                        <p className="text-xs text-zinc-500 font-medium line-clamp-2 leading-relaxed">
                           {it.description || 'Roteiro turístico exclusivo em Campos do Jordão.'}
                         </p>
 
@@ -605,7 +605,7 @@ export const AdminItineraries: React.FC = () => {
                             {it.categories.map((cId, idx) => (
                               <span
                                 key={idx}
-                                className="px-2 py-0.5 rounded-md text-[10px] font-bold bg-zinc-100 dark:bg-zinc-800 text-zinc-700 dark:text-zinc-300"
+                                className="px-2 py-0.5 rounded-md text-[10px] font-bold bg-zinc-100 text-zinc-700"
                               >
                                 {cId}
                               </span>
@@ -616,12 +616,12 @@ export const AdminItineraries: React.FC = () => {
                     </div>
 
                     {/* Actions Footer */}
-                    <div className="px-4 py-3 border-t border-zinc-100 dark:border-zinc-800 flex items-center justify-between bg-zinc-50/50 dark:bg-[#15171d]">
+                    <div className="px-4 py-3 border-t border-zinc-100 flex items-center justify-between bg-zinc-50/50">
                       {/* Status Selector dropdown */}
                       <select
                         value={itStatus}
                         onChange={e => handleQuickStatusChange(it.id, e.target.value as ItineraryStatus)}
-                        className="text-[11px] font-bold px-2 py-1 rounded-lg bg-zinc-100 dark:bg-zinc-800 text-zinc-700 dark:text-zinc-300 border-none cursor-pointer"
+                        className="text-[11px] font-bold px-2 py-1 rounded-lg bg-zinc-100 text-zinc-700 border-none cursor-pointer"
                       >
                         <option value="published">Publicado</option>
                         <option value="draft">Rascunho</option>
@@ -632,7 +632,7 @@ export const AdminItineraries: React.FC = () => {
                         <button
                           type="button"
                           onClick={() => handleDuplicate(it.id, it.title)}
-                          className="p-1.5 text-zinc-500 hover:text-zinc-900 dark:text-zinc-400 dark:hover:text-white rounded-lg hover:bg-zinc-200 dark:hover:bg-zinc-800 transition-colors cursor-pointer"
+                          className="p-1.5 text-zinc-500 hover:text-zinc-900 rounded-lg hover:bg-zinc-200 transition-colors cursor-pointer"
                           title="Duplicar roteiro"
                         >
                           <Copy className="w-3.5 h-3.5" />
@@ -640,7 +640,7 @@ export const AdminItineraries: React.FC = () => {
                         <button
                           type="button"
                           onClick={() => handleOpenEditItinerary(it)}
-                          className="p-1.5 text-zinc-500 hover:text-zinc-900 dark:text-zinc-400 dark:hover:text-white rounded-lg hover:bg-zinc-200 dark:hover:bg-zinc-800 transition-colors cursor-pointer"
+                          className="p-1.5 text-zinc-500 hover:text-zinc-900 rounded-lg hover:bg-zinc-200 transition-colors cursor-pointer"
                           title="Editar roteiro"
                         >
                           <Edit className="w-3.5 h-3.5" />
@@ -648,7 +648,7 @@ export const AdminItineraries: React.FC = () => {
                         <button
                           type="button"
                           onClick={() => handleDeleteItinerary(it.id, it.title)}
-                          className="p-1.5 text-zinc-500 hover:text-red-500 dark:text-zinc-400 dark:hover:text-red-400 rounded-lg hover:bg-zinc-200 dark:hover:bg-zinc-800 transition-colors cursor-pointer"
+                          className="p-1.5 text-zinc-500 hover:text-red-500 rounded-lg hover:bg-zinc-200 transition-colors cursor-pointer"
                           title="Excluir roteiro"
                         >
                           <Trash2 className="w-3.5 h-3.5" />
@@ -673,34 +673,34 @@ export const AdminItineraries: React.FC = () => {
             <button
               type="button"
               onClick={handleOpenCreateCategory}
-              className="px-3.5 py-1.5 rounded-xl bg-[#FFFFFF] text-white text-xs font-black flex items-center gap-1.5 shadow-sm hover:bg-blue-600 cursor-pointer"
+              className="px-3.5 py-1.5 rounded-xl bg-[#2563EB] text-white text-xs font-black flex items-center gap-1.5 shadow-sm hover:bg-blue-600 cursor-pointer"
             >
               <Plus className="w-3.5 h-3.5 stroke-[3]" />
               <span>Nova Categoria</span>
             </button>
           </div>
 
-          <div className="bg-white dark:bg-[#121418] border border-zinc-200 dark:border-zinc-800 rounded-2xl overflow-hidden shadow-2xs">
-            <div className="divide-y divide-zinc-200 dark:divide-zinc-800">
+          <div className="bg-white border border-zinc-200 rounded-2xl overflow-hidden shadow-2xs">
+            <div className="divide-y divide-zinc-200">
               {categories.map(cat => (
                 <div
                   key={cat.id}
-                  className="p-4 flex items-center justify-between gap-4 hover:bg-zinc-50 dark:hover:bg-zinc-900/50 transition-colors"
+                  className="p-4 flex items-center justify-between gap-4 hover:bg-zinc-50 transition-colors"
                 >
                   <div className="flex items-center gap-3">
-                    <div className="w-9 h-9 rounded-xl bg-[#FFFFFF]/15 text-[#FFFFFF] flex items-center justify-center font-bold">
+                    <div className="w-9 h-9 rounded-xl bg-[#2563EB]/15 text-[#2563EB] flex items-center justify-center font-bold">
                       <Tag className="w-4 h-4" />
                     </div>
                     <div>
                       <div className="flex items-center gap-2">
-                        <span className="font-black text-sm text-zinc-900 dark:text-white">
+                        <span className="font-black text-sm text-zinc-900">
                           {cat.name}
                         </span>
                         <span className="text-[10px] font-bold text-zinc-400">
                           (id: {cat.id})
                         </span>
                         {cat.isActive ? (
-                          <span className="px-2 py-0.5 rounded-md bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 text-[10px] font-bold">
+                          <span className="px-2 py-0.5 rounded-md bg-emerald-500/15 text-emerald-600 text-[10px] font-bold">
                             Ativa na Loja
                           </span>
                         ) : (
@@ -723,7 +723,7 @@ export const AdminItineraries: React.FC = () => {
                       onClick={() => handleToggleCategoryActive(cat)}
                       className={`text-xs font-bold px-2.5 py-1 rounded-lg transition-colors cursor-pointer ${
                         cat.isActive
-                          ? 'bg-zinc-100 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-300'
+                          ? 'bg-zinc-100 text-zinc-600'
                           : 'bg-emerald-500/20 text-emerald-600'
                       }`}
                     >
@@ -732,7 +732,7 @@ export const AdminItineraries: React.FC = () => {
                     <button
                       type="button"
                       onClick={() => handleOpenEditCategory(cat)}
-                      className="p-2 text-zinc-500 hover:text-zinc-900 dark:text-zinc-400 dark:hover:text-white rounded-lg hover:bg-zinc-100 dark:hover:bg-zinc-800 cursor-pointer"
+                      className="p-2 text-zinc-500 hover:text-zinc-900 rounded-lg hover:bg-zinc-100 cursor-pointer"
                       title="Editar categoria"
                     >
                       <Edit className="w-4 h-4" />
@@ -740,7 +740,7 @@ export const AdminItineraries: React.FC = () => {
                     <button
                       type="button"
                       onClick={() => handleDeleteCategory(cat.id, cat.name)}
-                      className="p-2 text-zinc-500 hover:text-red-500 rounded-lg hover:bg-zinc-100 dark:hover:bg-zinc-800 cursor-pointer"
+                      className="p-2 text-zinc-500 hover:text-red-500 rounded-lg hover:bg-zinc-100 cursor-pointer"
                       title="Excluir categoria"
                     >
                       <Trash2 className="w-4 h-4" />
@@ -769,8 +769,8 @@ export const AdminItineraries: React.FC = () => {
                   key={it.id}
                   className={`p-3.5 rounded-2xl border transition-all flex items-center justify-between gap-3 ${
                     isFeat
-                      ? 'bg-white dark:bg-[#121418] border-[#FFFFFF] shadow-sm'
-                      : 'bg-zinc-50/70 dark:bg-zinc-900/40 border-zinc-200 dark:border-zinc-800 opacity-70'
+                      ? 'bg-white border-[#2563EB] shadow-sm'
+                      : 'bg-zinc-50/70 border-zinc-200 opacity-70'
                   }`}
                 >
                   <div className="flex items-center gap-3 min-w-0">
@@ -780,7 +780,7 @@ export const AdminItineraries: React.FC = () => {
                       className="w-12 h-12 rounded-xl object-cover shrink-0"
                     />
                     <div className="min-w-0">
-                      <h4 className="text-xs font-black text-zinc-900 dark:text-white truncate">
+                      <h4 className="text-xs font-black text-zinc-900 truncate">
                         {it.title}
                       </h4>
                       <p className="text-[11px] text-zinc-500 font-bold">
@@ -795,7 +795,7 @@ export const AdminItineraries: React.FC = () => {
                     className={`p-2 rounded-xl cursor-pointer transition-colors ${
                       isFeat
                         ? 'bg-amber-400 text-zinc-900'
-                        : 'bg-zinc-200 dark:bg-zinc-800 text-zinc-400 hover:text-white'
+                        : 'bg-zinc-200 text-zinc-400 hover:text-white'
                     }`}
                     title={isFeat ? 'Remover destaque' : 'Destacar roteiro'}
                   >

@@ -1,97 +1,119 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
+import { motion, useReducedMotion } from 'motion/react';
 import {
   Users,
   TrendingUp,
   MapPin,
   Eye,
-  Activity,
+  BarChart2,
   Star,
+  Smile,
   Clock,
   CloudRain,
   Snowflake,
   RefreshCw,
   CheckCircle,
-  ShieldCheck,
   ChevronRight,
-  Sparkles,
-  Zap
 } from 'lucide-react';
+import {
+  ADMIN_CARD_STYLE,
+  ADMIN_MOTION_EASE,
+  ADMIN_SHADOWS,
+  type AdminChartRange,
+} from './adminTheme';
+import {
+  AdminCommunityActivityChart,
+  AdminDestinationViewsChart,
+  type ActivityPoint,
+  type DestinationViewPoint,
+} from './AdminCharts';
 
-interface MetricCardProps {
+interface KpiCardProps {
+  icon: React.ComponentType<{ className?: string }>;
+  iconFilled?: boolean;
   label: string;
   value: string | number;
-  subtext: string;
-  changePercent: string;
-  trend: 'up' | 'down';
-  sparklinePath: string;
-  strokeColor: string;
-  fillColor: string;
+  description: string;
+  barGradient: string;
+  index: number;
+  reducedMotion: boolean;
 }
 
-const MetricCard: React.FC<MetricCardProps> = ({
+const KpiCard: React.FC<KpiCardProps> = ({
+  icon: Icon,
+  iconFilled = false,
   label,
   value,
-  subtext,
-  changePercent,
-  trend,
-  sparklinePath,
-  strokeColor,
-  fillColor,
+  description,
+  barGradient,
+  index,
+  reducedMotion,
 }) => {
-  const displayChange = changePercent.startsWith('+') || changePercent.startsWith('-')
-    ? changePercent
-    : (trend === 'up' && changePercent !== '0%' ? `+${changePercent}` : changePercent);
+  const [hovered, setHovered] = useState(false);
 
   return (
-    <div className="bg-white dark:bg-[#16181d] p-5 rounded-2xl border border-zinc-200/80 dark:border-zinc-800 shadow-xs hover:shadow-md transition-all flex flex-col justify-between relative overflow-hidden group">
-      <div className="flex items-start justify-between">
-        <div>
-          <span className="text-[11px] font-black tracking-wider text-zinc-500 dark:text-zinc-400 uppercase block mb-1">
-            {label}
-          </span>
-          <div className="flex items-baseline gap-2">
-            <span className="text-2xl sm:text-3xl font-black text-zinc-900 dark:text-white tracking-tight">
-              {value}
-            </span>
-            <span
-              className={`text-xs font-black px-1.5 py-0.5 rounded-md ${
-                displayChange.startsWith('+')
-                  ? 'bg-blue-50 dark:bg-blue-950/40 text-blue-600 dark:text-blue-400'
-                  : displayChange.startsWith('-')
-                  ? 'bg-rose-50 dark:bg-rose-950/40 text-rose-600 dark:text-rose-400'
-                  : 'bg-zinc-100 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-300'
-              }`}
-            >
-              {displayChange}
-            </span>
-          </div>
-          <p className="text-xs text-zinc-400 dark:text-zinc-500 mt-1 font-black">{subtext}</p>
+    <motion.div
+      initial={reducedMotion ? false : { opacity: 0, y: 12 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{
+        duration: 0.22,
+        delay: reducedMotion ? 0 : index * 0.03,
+        ease: ADMIN_MOTION_EASE,
+      }}
+      onMouseEnter={() => setHovered(true)}
+      onMouseLeave={() => setHovered(false)}
+      className="rounded-[24px] px-5 pt-5 pb-4 flex flex-col justify-between min-h-[146px]"
+      style={{
+        ...ADMIN_CARD_STYLE,
+        boxShadow: hovered ? ADMIN_SHADOWS.cardHover : ADMIN_SHADOWS.card,
+        transform: reducedMotion ? 'none' : hovered ? 'translateY(-2px)' : 'translateY(0px)',
+        transition: 'transform 220ms cubic-bezier(0.22, 1, 0.36, 1), box-shadow 220ms cubic-bezier(0.22, 1, 0.36, 1)',
+      }}
+    >
+      {/* Top Row: Circular Blue Icon + Indicator Label */}
+      <div className="flex items-center gap-3">
+        <div className="w-10 h-10 rounded-full bg-[#EBF2FF] text-[#1668FF] flex items-center justify-center shrink-0">
+          <Icon
+            className={`w-[19px] h-[19px] stroke-[2] ${iconFilled ? 'fill-[#1668FF] text-[#1668FF]' : ''}`}
+          />
         </div>
+        <span className="text-[14.5px] font-medium text-[#334155] tracking-[-0.01em] leading-snug">
+          {label}
+        </span>
       </div>
 
-      {/* Sparkline chart SVG */}
-      <div className="w-full h-10 mt-3 pt-1">
-        <svg className="w-full h-full overflow-visible" preserveAspectRatio="none" viewBox="0 0 100 30">
-          <path
-            d={sparklinePath || 'M 0 26 L 100 26'}
-            fill="none"
-            stroke={strokeColor}
-            strokeWidth="2.5"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-          />
-        </svg>
+      {/* Main Value + Subtle Description */}
+      <div className="mt-4 mb-3">
+        <div className="text-[32px] sm:text-[34px] font-bold text-[#0D1526] tracking-[-0.035em] leading-none tabular-nums">
+          {value}
+        </div>
+        <p className="text-[11.5px] font-medium text-[#7B8AA3] mt-1.5 truncate">
+          {description}
+        </p>
       </div>
-    </div>
+
+      {/* Subtle Bottom Gradient Indicator Bar (Exact match to reference) */}
+      <div
+        className="w-full h-[3.5px] rounded-full"
+        style={{ background: barGradient }}
+      />
+    </motion.div>
   );
 };
 
-export const AdminDashboard: React.FC<{ onNavigateTo: (tab: string) => void }> = ({ onNavigateTo }) => {
+export const AdminDashboard: React.FC<{ onNavigateTo: (tab: string) => void }> = ({
+  onNavigateTo,
+}) => {
+  const prefersReducedMotion = useReducedMotion() ?? false;
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [data, setData] = useState<any>(null);
 
-  // Weather & Effects
+  // Independent real period filters for the two analytical panels
+  const [activityRange, setActivityRange] = useState<AdminChartRange>('7d');
+  const [destinationRange, setDestinationRange] = useState<AdminChartRange>('7d');
+
+  // Weather & Effects (preserved real controls)
   const [rainMode, setRainMode] = useState<'fraca' | 'moderada' | 'forte' | 'auto'>('auto');
   const [rainEnabled, setRainEnabled] = useState(true);
 
@@ -101,12 +123,12 @@ export const AdminDashboard: React.FC<{ onNavigateTo: (tab: string) => void }> =
   const [savingEffects, setSavingEffects] = useState(false);
   const [toastMsg, setToastMsg] = useState('');
 
-  const fetchDashboardData = async () => {
+  const fetchDashboardData = useCallback(async () => {
     try {
       setRefreshing(true);
       const res = await fetch('/api/admin/dashboard');
       const json = await res.json();
-      if (json.success) {
+      if (json.success && json.metrics) {
         setData(json.metrics);
         if (json.metrics.effects) {
           if (json.metrics.effects.rainMode) {
@@ -122,16 +144,16 @@ export const AdminDashboard: React.FC<{ onNavigateTo: (tab: string) => void }> =
         }
       }
     } catch (err) {
-      console.error(err);
+      console.error('[AdminDashboard] Erro ao carregar métricas:', err);
     } finally {
       setLoading(false);
       setRefreshing(false);
     }
-  };
+  }, []);
 
   useEffect(() => {
     fetchDashboardData();
-  }, []);
+  }, [fetchDashboardData]);
 
   const handleUpdateEffect = async (newRainMode?: string, newSnowMode?: string) => {
     setSavingEffects(true);
@@ -156,160 +178,198 @@ export const AdminDashboard: React.FC<{ onNavigateTo: (tab: string) => void }> =
     }
   };
 
+  const defaultActivitySeries: Record<AdminChartRange, ActivityPoint[]> = {
+    '7d': data?.communityActivity?.['7d'] || [],
+    '30d': data?.communityActivity?.['30d'] || [],
+    '90d': data?.communityActivity?.['90d'] || [],
+  };
+
+  const defaultDestinationViews: Record<AdminChartRange, DestinationViewPoint[]> = {
+    '7d': data?.destinationViews?.['7d'] || [],
+    '30d': data?.destinationViews?.['30d'] || [],
+    '90d': data?.destinationViews?.['90d'] || [],
+  };
+
+  const blueBar = 'linear-gradient(90deg, #1668FF 0%, #7BB2FF 62%, #E8F1FF 100%)';
+  const violetBar = 'linear-gradient(90deg, #7C3AED 0%, #B388FF 62%, #F3EBFF 100%)';
+  const roseBar = 'linear-gradient(90deg, #F43F5E 0%, #FB7185 62%, #FFE4E9 100%)';
+  const amberBar = 'linear-gradient(90deg, #F59E0B 0%, #FBBF24 62%, #FEF3C7 100%)';
+
+  const kpiCards: Array<Omit<KpiCardProps, 'index' | 'reducedMotion'>> = [
+    {
+      icon: Users,
+      label: 'Comunidade total',
+      value: data?.totalUsers !== undefined ? Number(data.totalUsers).toLocaleString('pt-BR') : '0',
+      description: 'usuários cadastrados',
+      barGradient: blueBar,
+    },
+    {
+      icon: TrendingUp,
+      label: 'Crescimento ativo',
+      value: data?.activeUsersCount !== undefined ? Number(data.activeUsersCount).toLocaleString('pt-BR') : '0',
+      description: 'ativos nos últimos 7 dias',
+      barGradient: blueBar,
+    },
+    {
+      icon: MapPin,
+      label: 'Destinos',
+      value: data?.totalSpots !== undefined ? Number(data.totalSpots).toLocaleString('pt-BR') : '0',
+      description: 'catálogo ativo no mapa',
+      barGradient: blueBar,
+    },
+    {
+      icon: Eye,
+      label: 'Visualizações totais',
+      value: data?.viewsTotal !== undefined ? Number(data.viewsTotal).toLocaleString('pt-BR') : '0',
+      description: 'visualizações registradas',
+      barGradient: blueBar,
+    },
+    {
+      icon: BarChart2,
+      label: 'Engajamento',
+      value: data?.engagementTotal !== undefined ? Number(data.engagementTotal).toLocaleString('pt-BR') : '0',
+      description: 'interações reais no app',
+      barGradient: violetBar,
+    },
+    {
+      icon: Star,
+      iconFilled: true,
+      label: 'Avaliações',
+      value: data?.totalReviews !== undefined ? Number(data.totalReviews).toLocaleString('pt-BR') : '0',
+      description: 'avaliações publicadas',
+      barGradient: roseBar,
+    },
+    {
+      icon: Smile,
+      label: 'Satisfação',
+      value: data?.satisfactionScore ? `${data.satisfactionScore} / 5` : '0 / 5',
+      description:
+        data?.totalReviews > 0
+          ? `média de ${data.totalReviews} avaliações`
+          : 'sem avaliações registradas',
+      barGradient: blueBar,
+    },
+    {
+      icon: Clock,
+      label: 'Média de sessão',
+      value: data?.avgSessionDuration || '0m',
+      description: 'tempo estimado de uso',
+      barGradient: amberBar,
+    },
+  ];
+
   return (
-    <div className="space-y-8">
-      {/* Toast */}
+    <div className="space-y-6">
+      {/* Toast Notification */}
       {toastMsg && (
-        <div className="fixed bottom-6 right-6 z-50 bg-zinc-900 text-white text-xs font-black px-4 py-3 rounded-2xl shadow-xl flex items-center gap-2 border border-zinc-700">
-          <CheckCircle className="w-4 h-4 text-blue-500" />
+        <div className="fixed bottom-6 right-6 z-50 bg-[#0D1526] text-white text-xs font-semibold px-4 py-3 rounded-2xl shadow-xl flex items-center gap-2 border border-white/10">
+          <CheckCircle className="w-4 h-4 text-[#4F93FF]" />
           <span>{toastMsg}</span>
         </div>
       )}
 
-      {/* Header Banner */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+      {/* Page Header (Reference composition: Blue Dot + Painel de Controle + Atualizar floating pill) */}
+      <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-4">
         <div>
-          <div className="flex items-center gap-2 text-blue-600 dark:text-blue-400 text-xs font-black tracking-wider uppercase mb-1">
-            <span className="w-2 h-2 rounded-full bg-blue-600 animate-pulse"></span>
-            CONSOLE OPERACIONAL
+          <div className="flex items-center gap-3">
+            <span className="w-2.5 h-2.5 rounded-full bg-[#1668FF] shrink-0 shadow-[0_0_10px_rgba(22,104,255,0.45)]" />
+            <h1 className="text-[28px] sm:text-[36px] lg:text-[40px] font-bold text-[#0D1526] tracking-[-0.03em] leading-[1.1]">
+              Painel de Controle
+            </h1>
           </div>
-          <h1 className="text-2xl sm:text-3xl font-black text-zinc-900 dark:text-white tracking-tight">
-            Painel de Controle
-          </h1>
-          <p className="text-sm text-zinc-500 dark:text-zinc-400 mt-0.5">
-            Uma visão de alto nível do seu ecossistema turístico e controle de dados em tempo real.
+          <p className="text-[14.5px] sm:text-[15.5px] font-normal text-[#5B6B85] mt-1.5 sm:pl-[22px]">
+            Visão geral do seu ecossistema turístico.
           </p>
         </div>
 
-        <div className="flex items-center gap-3">
-          <button
-            onClick={fetchDashboardData}
-            disabled={refreshing}
-            className="flex items-center gap-2 px-4 py-2.5 bg-white dark:bg-[#16181d] border border-zinc-200 dark:border-zinc-800 hover:bg-zinc-50 dark:hover:bg-zinc-800/60 text-zinc-700 dark:text-zinc-200 text-xs font-black rounded-xl shadow-xs transition-all active:scale-95 cursor-pointer"
-          >
-            <RefreshCw className={`w-3.5 h-3.5 ${refreshing ? 'animate-spin text-blue-600 dark:text-blue-400' : ''}`} />
-            <span>{refreshing ? 'Sincronizando...' : 'Atualizar'}</span>
-          </button>
-        </div>
+        <button
+          type="button"
+          onClick={fetchDashboardData}
+          disabled={refreshing}
+          className="self-start sm:self-auto inline-flex items-center gap-2.5 px-5 py-2.5 rounded-full bg-white border border-white/95 text-[#0D1526] text-[14px] font-semibold cursor-pointer select-none transition-all duration-200 hover:-translate-y-0.5 active:translate-y-0 active:scale-[0.97] disabled:opacity-70"
+          style={{ boxShadow: ADMIN_SHADOWS.floatingPill }}
+        >
+          <RefreshCw
+            className={`w-4 h-4 text-[#0D1526] ${refreshing ? 'animate-spin text-[#1668FF]' : ''}`}
+          />
+          <span>{refreshing ? 'Atualizando...' : 'Atualizar'}</span>
+        </button>
       </div>
 
-      {/* 8 Metric Cards Grid (Matching reference with 100% real database metrics) */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        <MetricCard
-          label="COMUNIDADE TOTAL"
-          value={data?.totalUsers !== undefined ? data.totalUsers.toLocaleString('pt-BR') : '0'}
-          subtext="usuários cadastrados"
-          changePercent={data?.usersGrowth?.changePercent || '0%'}
-          trend={data?.usersGrowth?.trend || 'up'}
-          sparklinePath={data?.usersSparkline || 'M 0 26 L 100 26'}
-          strokeColor="#2563eb"
-          fillColor="#2563eb"
-        />
+      {/* 8 KPI Cards Grid (4 cols × 2 rows on desktop) */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4 sm:gap-5">
+        {kpiCards.map((card, idx) => (
+          <KpiCard
+            key={card.label}
+            {...card}
+            index={idx}
+            reducedMotion={prefersReducedMotion}
+          />
+        ))}
+      </div>
 
-        <MetricCard
-          label="CRESCIMENTO ATIVO"
-          value={data?.activeUsersCount !== undefined ? data.activeUsersCount.toLocaleString('pt-BR') : '0'}
-          subtext="usuários ativos (últimos 7 dias)"
-          changePercent={data?.activeGrowth?.changePercent || '0%'}
-          trend={data?.activeGrowth?.trend || 'up'}
-          sparklinePath={data?.activeSparkline || 'M 0 26 L 100 26'}
-          strokeColor="#2563eb"
-          fillColor="#2563eb"
+      {/* Two Equal-Height Analytical Chart Panels */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-5 sm:gap-6">
+        <AdminCommunityActivityChart
+          seriesByRange={defaultActivitySeries}
+          range={activityRange}
+          onRangeChange={setActivityRange}
+          loading={loading}
         />
-
-        <MetricCard
-          label="DESTINOS"
-          value={data?.totalSpots !== undefined ? data.totalSpots.toLocaleString('pt-BR') : '0'}
-          subtext="catálogo ativo no mapa"
-          changePercent={data?.spotsGrowth?.changePercent || '0%'}
-          trend={data?.spotsGrowth?.trend || 'up'}
-          sparklinePath={data?.spotsSparkline || 'M 0 26 L 100 26'}
-          strokeColor="#2563eb"
-          fillColor="#2563eb"
-        />
-
-        <MetricCard
-          label="VISUALIZAÇÕES TOTAIS"
-          value={data?.viewsTotal !== undefined ? data.viewsTotal.toLocaleString('pt-BR') : '0'}
-          subtext="visualizações reais registradas"
-          changePercent={data?.viewsGrowth?.changePercent || '0%'}
-          trend={data?.viewsGrowth?.trend || 'up'}
-          sparklinePath={data?.viewsSparkline || 'M 0 26 L 100 26'}
-          strokeColor="#6366f1"
-          fillColor="#6366f1"
-        />
-
-        <MetricCard
-          label="ENGAJAMENTO"
-          value={data?.engagementTotal !== undefined ? data.engagementTotal.toLocaleString('pt-BR') : '0'}
-          subtext="interações reais no app"
-          changePercent={data?.engagementGrowth?.changePercent || '0%'}
-          trend={data?.engagementGrowth?.trend || 'up'}
-          sparklinePath={data?.engagementSparkline || 'M 0 26 L 100 26'}
-          strokeColor="#8b5cf6"
-          fillColor="#8b5cf6"
-        />
-
-        <MetricCard
-          label="AVALIAÇÕES"
-          value={data?.totalReviews !== undefined ? data.totalReviews.toLocaleString('pt-BR') : '0'}
-          subtext="avaliações publicadas"
-          changePercent={data?.reviewsGrowth?.changePercent || '0%'}
-          trend={data?.reviewsGrowth?.trend || 'up'}
-          sparklinePath={data?.reviewsSparkline || 'M 0 26 L 100 26'}
-          strokeColor="#ec4899"
-          fillColor="#ec4899"
-        />
-
-        <MetricCard
-          label="SATISFAÇÃO"
-          value={data?.satisfactionScore ? `${data.satisfactionScore} / 5` : '0 / 5'}
-          subtext={data?.totalReviews > 0 ? `média de ${data.totalReviews} avaliações` : 'sem avaliações registradas'}
-          changePercent={data?.satisfactionGrowth?.changePercent || '0%'}
-          trend={data?.satisfactionGrowth?.trend || 'up'}
-          sparklinePath={data?.satisfactionSparkline || 'M 0 26 L 100 26'}
-          strokeColor="#2563eb"
-          fillColor="#2563eb"
-        />
-
-        <MetricCard
-          label="MÉDIA DE SESSÃO"
-          value={data?.avgSessionDuration || '0m'}
-          subtext="tempo estimado de uso"
-          changePercent={data?.sessionGrowth?.changePercent || '0%'}
-          trend={data?.sessionGrowth?.trend || 'up'}
-          sparklinePath={data?.sessionSparkline || 'M 0 26 L 100 26'}
-          strokeColor="#f59e0b"
-          fillColor="#f59e0b"
+        <AdminDestinationViewsChart
+          destinationsByRange={defaultDestinationViews}
+          range={destinationRange}
+          onRangeChange={setDestinationRange}
+          loading={loading}
         />
       </div>
 
-      {/* Weather & Climate Effects Section (Exact match with reference screenshots) */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6 pt-2">
+      {/* Preserved Real Controls: Clima & Efeitos no Mapa */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-5 sm:gap-6 pt-1">
         {/* Rain on Map Card */}
-        <div className="bg-white dark:bg-[#16181d] p-6 rounded-3xl border border-zinc-200/90 dark:border-zinc-800 shadow-xs flex flex-col justify-between">
+        <div
+          className="rounded-[24px] p-6 flex flex-col justify-between"
+          style={ADMIN_CARD_STYLE}
+        >
           <div>
-            <div className="flex items-center justify-between mb-3">
-              <span className="text-[11px] font-black tracking-wider text-zinc-400 dark:text-zinc-500 uppercase">
-                CLIMA E EFEITOS
-              </span>
-              <div className="flex items-center gap-2">
-                <span className={`text-xs font-black ${rainEnabled ? 'text-blue-600 dark:text-blue-400' : 'text-zinc-400 dark:text-zinc-500'}`}>
+            <div className="flex items-center justify-between mb-4">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-full bg-[#EBF2FF] text-[#1668FF] flex items-center justify-center shrink-0">
+                  <CloudRain className="w-[19px] h-[19px]" />
+                </div>
+                <div>
+                  <h3 className="text-[16px] font-bold text-[#0D1526] tracking-[-0.015em]">
+                    Chuva no Mapa
+                  </h3>
+                  <span className="text-[11.5px] font-medium text-[#7B8AA3]">
+                    Clima e efeitos em tempo real
+                  </span>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-2.5">
+                <span
+                  className={`text-xs font-semibold ${
+                    rainEnabled ? 'text-[#1668FF]' : 'text-[#7B8AA3]'
+                  }`}
+                >
                   {rainEnabled ? 'Ligado' : 'Desligado'}
                 </span>
                 <button
                   type="button"
+                  disabled={savingEffects}
                   onClick={() => {
                     const next = !rainEnabled;
                     setRainEnabled(next);
                     handleUpdateEffect(next ? rainMode : 'off');
                   }}
-                  className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
-                    rainEnabled ? 'bg-blue-600' : 'bg-zinc-200 dark:bg-zinc-700'
+                  aria-label="Alternar efeito de chuva no mapa"
+                  className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 focus:outline-none ${
+                    rainEnabled ? 'bg-[#1668FF]' : 'bg-slate-200'
                   }`}
                 >
                   <span
-                    className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow-sm ring-0 transition duration-200 ease-in-out ${
+                    className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow-sm transition duration-200 ${
                       rainEnabled ? 'translate-x-5' : 'translate-x-0'
                     }`}
                   />
@@ -317,64 +377,81 @@ export const AdminDashboard: React.FC<{ onNavigateTo: (tab: string) => void }> =
               </div>
             </div>
 
-            <div className="flex items-center gap-2.5 mb-2">
-              <div className="w-8 h-8 rounded-xl bg-blue-50 dark:bg-blue-950/40 text-blue-600 dark:text-blue-400 flex items-center justify-center">
-                <CloudRain className="w-4 h-4" />
-              </div>
-              <h3 className="text-lg font-black text-zinc-900 dark:text-white">Chuva no Mapa</h3>
-            </div>
-
-            <p className="text-xs text-zinc-500 dark:text-zinc-400 leading-relaxed">
-              Quando desligada, segue o clima real de Campos do Jordão. No modo automático, só ativa se estiver chovendo E o usuário estiver em Campos do Jordão.
+            <p className="text-[13px] text-[#5B6B85] leading-relaxed">
+              Quando desligada, segue o clima real de Campos do Jordão. No modo automático, ativa apenas quando chove e o usuário está na cidade.
             </p>
           </div>
 
-          <div className="mt-6 pt-4 border-t border-zinc-100 dark:border-zinc-800 flex items-center gap-2 overflow-x-auto">
-            {(['fraca', 'moderada', 'forte', 'auto'] as const).map((mode) => (
-              <button
-                key={mode}
-                type="button"
-                onClick={() => {
-                  setRainMode(mode);
-                  setRainEnabled(true);
-                  handleUpdateEffect(mode);
-                }}
-                className={`flex-1 py-2 px-3 rounded-xl text-xs font-black uppercase transition-all cursor-pointer ${
-                  rainMode === mode && rainEnabled
-                    ? 'bg-blue-600 text-white shadow-sm shadow-blue-500/20'
-                    : 'bg-zinc-50 dark:bg-zinc-800/60 hover:bg-zinc-100 dark:hover:bg-zinc-800 text-zinc-700 dark:text-zinc-300 border border-zinc-200/60 dark:border-zinc-700'
-                }`}
-              >
-                {mode}
-              </button>
-            ))}
+          <div className="mt-5 pt-4 border-t border-slate-100 flex items-center gap-2 overflow-x-auto">
+            {(['fraca', 'moderada', 'forte', 'auto'] as const).map((mode) => {
+              const active = rainMode === mode && rainEnabled;
+              return (
+                <button
+                  key={mode}
+                  type="button"
+                  disabled={savingEffects}
+                  onClick={() => {
+                    setRainMode(mode);
+                    setRainEnabled(true);
+                    handleUpdateEffect(mode);
+                  }}
+                  className={`flex-1 py-2 px-3 rounded-xl text-xs font-semibold capitalize transition-all duration-200 cursor-pointer active:scale-[0.97] ${
+                    active
+                      ? 'bg-[#1668FF] text-white shadow-[0_6px_14px_-4px_rgba(22,104,255,0.45)]'
+                      : 'bg-[#F4F7FC] hover:bg-[#EBF2FF] text-[#334155]'
+                  }`}
+                >
+                  {mode}
+                </button>
+              );
+            })}
           </div>
         </div>
 
         {/* Snow on Map Card */}
-        <div className="bg-white dark:bg-[#16181d] p-6 rounded-3xl border border-zinc-200/90 dark:border-zinc-800 shadow-xs flex flex-col justify-between">
+        <div
+          className="rounded-[24px] p-6 flex flex-col justify-between"
+          style={ADMIN_CARD_STYLE}
+        >
           <div>
-            <div className="flex items-center justify-between mb-3">
-              <span className="text-[11px] font-black tracking-wider text-zinc-400 dark:text-zinc-500 uppercase">
-                CLIMA E EFEITOS
-              </span>
-              <div className="flex items-center gap-2">
-                <span className={`text-xs font-black ${snowEnabled ? 'text-sky-600 dark:text-sky-400' : 'text-zinc-400 dark:text-zinc-500'}`}>
+            <div className="flex items-center justify-between mb-4">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-full bg-[#EBF2FF] text-[#1668FF] flex items-center justify-center shrink-0">
+                  <Snowflake className="w-[19px] h-[19px]" />
+                </div>
+                <div>
+                  <h3 className="text-[16px] font-bold text-[#0D1526] tracking-[-0.015em]">
+                    Neve no Mapa
+                  </h3>
+                  <span className="text-[11.5px] font-medium text-[#7B8AA3]">
+                    Efeito atmosférico na Serra
+                  </span>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-2.5">
+                <span
+                  className={`text-xs font-semibold ${
+                    snowEnabled ? 'text-[#1668FF]' : 'text-[#7B8AA3]'
+                  }`}
+                >
                   {snowEnabled ? 'Ligado' : 'Desligado'}
                 </span>
                 <button
                   type="button"
+                  disabled={savingEffects}
                   onClick={() => {
                     const next = !snowEnabled;
                     setSnowEnabled(next);
                     handleUpdateEffect(undefined, next ? snowMode : 'off');
                   }}
-                  className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
-                    snowEnabled ? 'bg-sky-500' : 'bg-zinc-200 dark:bg-zinc-700'
+                  aria-label="Alternar efeito de neve no mapa"
+                  className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 focus:outline-none ${
+                    snowEnabled ? 'bg-[#1668FF]' : 'bg-slate-200'
                   }`}
                 >
                   <span
-                    className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow-sm ring-0 transition duration-200 ease-in-out ${
+                    className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow-sm transition duration-200 ${
                       snowEnabled ? 'translate-x-5' : 'translate-x-0'
                     }`}
                   />
@@ -382,201 +459,133 @@ export const AdminDashboard: React.FC<{ onNavigateTo: (tab: string) => void }> =
               </div>
             </div>
 
-            <div className="flex items-center gap-2.5 mb-2">
-              <div className="w-8 h-8 rounded-xl bg-sky-50 dark:bg-sky-950/40 text-sky-600 dark:text-sky-400 flex items-center justify-center">
-                <Snowflake className="w-4 h-4" />
-              </div>
-              <h3 className="text-lg font-black text-zinc-900 dark:text-white">Neve no Mapa</h3>
-            </div>
-
-            <p className="text-xs text-zinc-500 dark:text-zinc-400 leading-relaxed">
-              Flocos de neve caindo suavemente do topo da tela sobre a vista 3D e o relevo da Serra da Mantiqueira.
+            <p className="text-[13px] text-[#5B6B85] leading-relaxed">
+              Flocos de neve caindo suavemente sobre a vista 3D e o relevo da Serra da Mantiqueira.
             </p>
           </div>
 
-          <div className="mt-6 pt-4 border-t border-zinc-100 dark:border-zinc-800 flex items-center gap-2 overflow-x-auto">
-            {(['fraca', 'moderada', 'forte'] as const).map((mode) => (
-              <button
-                key={mode}
-                type="button"
-                onClick={() => {
-                  setSnowMode(mode);
-                  setSnowEnabled(true);
-                  handleUpdateEffect(undefined, mode);
-                }}
-                className={`flex-1 py-2 px-3 rounded-xl text-xs font-black uppercase transition-all cursor-pointer ${
-                  snowMode === mode && snowEnabled
-                    ? 'bg-sky-500 text-white shadow-sm shadow-sky-500/20'
-                    : 'bg-zinc-50 dark:bg-zinc-800/60 hover:bg-zinc-100 dark:hover:bg-zinc-800 text-zinc-700 dark:text-zinc-300 border border-zinc-200/60 dark:border-zinc-700'
-                }`}
-              >
-                {mode}
-              </button>
-            ))}
+          <div className="mt-5 pt-4 border-t border-slate-100 flex items-center gap-2 overflow-x-auto">
+            {(['fraca', 'moderada', 'forte'] as const).map((mode) => {
+              const active = snowMode === mode && snowEnabled;
+              return (
+                <button
+                  key={mode}
+                  type="button"
+                  disabled={savingEffects}
+                  onClick={() => {
+                    setSnowMode(mode);
+                    setSnowEnabled(true);
+                    handleUpdateEffect(undefined, mode);
+                  }}
+                  className={`flex-1 py-2 px-3 rounded-xl text-xs font-semibold capitalize transition-all duration-200 cursor-pointer active:scale-[0.97] ${
+                    active
+                      ? 'bg-[#1668FF] text-white shadow-[0_6px_14px_-4px_rgba(22,104,255,0.45)]'
+                      : 'bg-[#F4F7FC] hover:bg-[#EBF2FF] text-[#334155]'
+                  }`}
+                >
+                  {mode}
+                </button>
+              );
+            })}
           </div>
         </div>
       </div>
 
-      {/* Onboarding & Referral Insights Section */}
-      <div className="bg-white dark:bg-[#16181d] p-6 rounded-3xl border border-zinc-200/90 dark:border-zinc-800 shadow-xs">
+      {/* Preserved Onboarding & Audience Insights */}
+      <div className="rounded-[24px] p-6" style={ADMIN_CARD_STYLE}>
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-5">
           <div>
-            <span className="text-[11px] font-black tracking-wider text-blue-600 dark:text-blue-400 uppercase block mb-0.5">
-              AQUISIÇÃO & ONBOARDING
-            </span>
-            <h3 className="text-lg font-black text-zinc-900 dark:text-white">
+            <h3 className="text-[17px] font-bold text-[#0D1526] tracking-[-0.015em]">
               Origem dos Usuários & Preferências
             </h3>
+            <p className="text-[12.5px] text-[#7B8AA3] mt-0.5">
+              Dados reais de onboarding da comunidade Monvian.
+            </p>
           </div>
           <div className="flex items-center gap-3">
-            <span className="text-xs font-black text-zinc-600 dark:text-zinc-300 bg-zinc-100 dark:bg-zinc-800 px-3 py-1.5 rounded-xl border border-zinc-200 dark:border-zinc-700">
-              Taxa de Conclusão: <strong className="text-blue-600 dark:text-blue-400">{data?.onboarding?.completionRate || 100}%</strong>
+            <span className="text-xs font-semibold text-[#475569] bg-[#F4F7FC] px-3.5 py-1.5 rounded-full">
+              Conclusão:{' '}
+              <strong className="text-[#1668FF] font-bold">
+                {data?.onboarding?.completionRate ?? 0}%
+              </strong>
             </span>
             <button
+              type="button"
               onClick={() => onNavigateTo('users')}
-              className="text-xs font-black text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 flex items-center gap-1 cursor-pointer"
+              className="text-xs font-semibold text-[#1668FF] hover:text-[#0F5AE6] inline-flex items-center gap-1 cursor-pointer transition-colors"
             >
-              <span>Ver Lista Detalhada</span>
+              <span>Ver Usuários</span>
               <ChevronRight className="w-3.5 h-3.5" />
             </button>
           </div>
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          {/* Referral Channels */}
-          <div className="p-4 rounded-2xl bg-zinc-50 dark:bg-zinc-900/60 border border-zinc-100 dark:border-zinc-800">
-            <span className="text-[11px] font-black text-zinc-500 dark:text-zinc-400 uppercase tracking-wider block mb-3">
-              Canais de Descoberta (Origem)
+          <div className="p-4 rounded-2xl bg-[#F7F9FD] border border-slate-100">
+            <span className="text-[11.5px] font-semibold text-[#64748B] block mb-3">
+              Relação com Campos
             </span>
             <div className="space-y-2">
               {data?.onboarding?.referrals && data.onboarding.referrals.length > 0 ? (
                 data.onboarding.referrals.map((item: any, idx: number) => (
                   <div key={idx} className="flex items-center justify-between text-xs">
-                    <span className="font-black text-zinc-700 dark:text-zinc-300">{item.referral_source || 'Direto'}</span>
-                    <span className="font-black text-zinc-900 dark:text-white bg-white dark:bg-zinc-800 px-2 py-0.5 rounded border border-zinc-200 dark:border-zinc-700">
+                    <span className="font-medium text-[#334155] truncate pr-2">
+                      {item.referral_source || 'Direto'}
+                    </span>
+                    <span className="font-bold text-[#0D1526] bg-white px-2.5 py-0.5 rounded-full shadow-2xs border border-slate-100">
                       {item.count}
                     </span>
                   </div>
                 ))
               ) : (
-                <p className="text-xs text-zinc-400 dark:text-zinc-500 italic">Nenhum dado registrado ainda</p>
+                <p className="text-xs text-[#7B8AA3]">Nenhum dado registrado ainda</p>
               )}
             </div>
           </div>
 
-          {/* Travel Styles */}
-          <div className="p-4 rounded-2xl bg-zinc-50 dark:bg-zinc-900/60 border border-zinc-100 dark:border-zinc-800">
-            <span className="text-[11px] font-black text-zinc-500 dark:text-zinc-400 uppercase tracking-wider block mb-3">
-              Estilos de Viagem
+          <div className="p-4 rounded-2xl bg-[#F7F9FD] border border-slate-100">
+            <span className="text-[11.5px] font-semibold text-[#64748B] block mb-3">
+              Companhia de Viagem
             </span>
             <div className="space-y-2">
               {data?.onboarding?.styles && data.onboarding.styles.length > 0 ? (
                 data.onboarding.styles.map((item: any, idx: number) => (
                   <div key={idx} className="flex items-center justify-between text-xs">
-                    <span className="font-black text-zinc-700 dark:text-zinc-300">{item.travel_style || 'Não informado'}</span>
-                    <span className="font-black text-zinc-900 dark:text-white bg-white dark:bg-zinc-800 px-2 py-0.5 rounded border border-zinc-200 dark:border-zinc-700">
+                    <span className="font-medium text-[#334155] truncate pr-2">
+                      {item.travel_style || 'Não informado'}
+                    </span>
+                    <span className="font-bold text-[#0D1526] bg-white px-2.5 py-0.5 rounded-full shadow-2xs border border-slate-100">
                       {item.count}
                     </span>
                   </div>
                 ))
               ) : (
-                <p className="text-xs text-zinc-400 dark:text-zinc-500 italic">Nenhum dado registrado ainda</p>
+                <p className="text-xs text-[#7B8AA3]">Nenhum dado registrado ainda</p>
               )}
             </div>
           </div>
 
-          {/* Travel Frequencies */}
-          <div className="p-4 rounded-2xl bg-zinc-50 dark:bg-zinc-900/60 border border-zinc-100 dark:border-zinc-800">
-            <span className="text-[11px] font-black text-zinc-500 dark:text-zinc-400 uppercase tracking-wider block mb-3">
-              Frequência de Visitas
+          <div className="p-4 rounded-2xl bg-[#F7F9FD] border border-slate-100">
+            <span className="text-[11.5px] font-semibold text-[#64748B] block mb-3">
+              Previsão de Visita
             </span>
             <div className="space-y-2">
               {data?.onboarding?.frequencies && data.onboarding.frequencies.length > 0 ? (
                 data.onboarding.frequencies.map((item: any, idx: number) => (
                   <div key={idx} className="flex items-center justify-between text-xs">
-                    <span className="font-black text-zinc-700 dark:text-zinc-300">{item.travel_frequency || 'Não informado'}</span>
-                    <span className="font-black text-zinc-900 dark:text-white bg-white dark:bg-zinc-800 px-2 py-0.5 rounded border border-zinc-200 dark:border-zinc-700">
+                    <span className="font-medium text-[#334155] truncate pr-2">
+                      {item.travel_frequency || 'Não informado'}
+                    </span>
+                    <span className="font-bold text-[#0D1526] bg-white px-2.5 py-0.5 rounded-full shadow-2xs border border-slate-100">
                       {item.count}
                     </span>
                   </div>
                 ))
               ) : (
-                <p className="text-xs text-zinc-400 dark:text-zinc-500 italic">Nenhum dado registrado ainda</p>
+                <p className="text-xs text-[#7B8AA3]">Nenhum dado registrado ainda</p>
               )}
             </div>
           </div>
-        </div>
-      </div>
-
-      {/* Quick Navigation Action Grid */}
-      <div className="pt-2">
-        <h3 className="text-xs font-black text-zinc-400 dark:text-zinc-500 uppercase tracking-wider mb-4">
-          Acesso Rápido aos Módulos
-        </h3>
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-          <button
-            onClick={() => onNavigateTo('spots')}
-            className="p-4 bg-white dark:bg-[#16181d] hover:bg-blue-50/50 dark:hover:bg-blue-950/20 border border-zinc-200 dark:border-zinc-800 rounded-2xl text-left transition-all group cursor-pointer flex items-center justify-between"
-          >
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-xl bg-blue-50 dark:bg-blue-950/40 text-blue-600 dark:text-blue-400 flex items-center justify-center group-hover:scale-105 transition-transform">
-                <MapPin className="w-5 h-5" />
-              </div>
-              <div>
-                <span className="block text-sm font-black text-zinc-900 dark:text-white">Pontos Turísticos</span>
-                <span className="text-xs text-zinc-500 dark:text-zinc-400">{data?.totalSpots !== undefined ? data.totalSpots : 0} locais ativos</span>
-              </div>
-            </div>
-            <ChevronRight className="w-4 h-4 text-zinc-400 group-hover:text-blue-600 dark:group-hover:text-blue-400 group-hover:translate-x-0.5 transition-all" />
-          </button>
-
-          <button
-            onClick={() => onNavigateTo('users')}
-            className="p-4 bg-white dark:bg-[#16181d] hover:bg-blue-50/50 dark:hover:bg-blue-950/20 border border-zinc-200 dark:border-zinc-800 rounded-2xl text-left transition-all group cursor-pointer flex items-center justify-between"
-          >
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-xl bg-blue-50 dark:bg-blue-950/40 text-blue-600 dark:text-blue-400 flex items-center justify-center group-hover:scale-105 transition-transform">
-                <Users className="w-5 h-5" />
-              </div>
-              <div>
-                <span className="block text-sm font-black text-zinc-900 dark:text-white">Usuários & Membros</span>
-                <span className="text-xs text-zinc-500 dark:text-zinc-400">Gestão de comunidade</span>
-              </div>
-            </div>
-            <ChevronRight className="w-4 h-4 text-zinc-400 group-hover:text-blue-600 dark:group-hover:text-blue-400 group-hover:translate-x-0.5 transition-all" />
-          </button>
-
-          <button
-            onClick={() => onNavigateTo('cleanup')}
-            className="p-4 bg-white dark:bg-[#16181d] hover:bg-purple-50/50 dark:hover:bg-purple-950/20 border border-zinc-200 dark:border-zinc-800 rounded-2xl text-left transition-all group cursor-pointer flex items-center justify-between"
-          >
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-xl bg-purple-50 dark:bg-purple-950/40 text-purple-600 dark:text-purple-400 flex items-center justify-center group-hover:scale-105 transition-transform">
-                <Sparkles className="w-5 h-5" />
-              </div>
-              <div>
-                <span className="block text-sm font-black text-zinc-900 dark:text-white">Limpeza do Sistema</span>
-                <span className="text-xs text-zinc-500 dark:text-zinc-400">Otimização SQLite</span>
-              </div>
-            </div>
-            <ChevronRight className="w-4 h-4 text-zinc-400 group-hover:text-purple-600 dark:group-hover:text-purple-400 group-hover:translate-x-0.5 transition-all" />
-          </button>
-
-          <button
-            onClick={() => onNavigateTo('settings')}
-            className="p-4 bg-white dark:bg-[#16181d] hover:bg-amber-50/50 dark:hover:bg-amber-950/20 border border-zinc-200 dark:border-zinc-800 rounded-2xl text-left transition-all group cursor-pointer flex items-center justify-between"
-          >
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-xl bg-amber-50 dark:bg-amber-950/40 text-amber-600 dark:text-amber-400 flex items-center justify-center group-hover:scale-105 transition-transform">
-                <Zap className="w-5 h-5" />
-              </div>
-              <div>
-                <span className="block text-sm font-black text-zinc-900 dark:text-white">Configurações Gerais</span>
-                <span className="text-xs text-zinc-500 dark:text-zinc-400">Links, redes e suporte</span>
-              </div>
-            </div>
-            <ChevronRight className="w-4 h-4 text-zinc-400 group-hover:text-amber-600 dark:group-hover:text-amber-400 group-hover:translate-x-0.5 transition-all" />
-          </button>
         </div>
       </div>
     </div>

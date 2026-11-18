@@ -2,16 +2,10 @@ import React, { useState, useEffect, useRef } from 'react';
 import {
   X,
   MapPin,
-  Image as ImageIcon,
   Upload,
   CheckCircle2,
-  Clock,
-  Star,
   Sparkles,
-  Globe,
   Loader2,
-  Trash2,
-  Plus,
 } from 'lucide-react';
 import { AdminMapPicker } from './AdminMapPicker';
 import { persistSpotToFirestore } from '../../services/firestoreSync';
@@ -62,7 +56,6 @@ export const AdminSpotModal: React.FC<AdminSpotModalProps> = ({
     price: 'Entrada Franca',
     maps_url: '',
     is_active: 1,
-    is_star: 0,
   });
 
   const [newGalleryUrl, setNewGalleryUrl] = useState('');
@@ -87,13 +80,6 @@ export const AdminSpotModal: React.FC<AdminSpotModalProps> = ({
           parsedGallery = spotToEdit.gallery.split(',').map((s: string) => s.trim()).filter(Boolean);
         }
       }
-      const editIsStar =
-        spotToEdit.is_star !== undefined && spotToEdit.is_star !== null
-          ? Number(spotToEdit.is_star) === 1 || spotToEdit.is_star === true
-          : spotToEdit.isStar !== undefined
-            ? Boolean(spotToEdit.isStar)
-            : spotToEdit.badge === 'Estrela';
-
       setFormData({
         id: spotToEdit.id || '',
         name: spotToEdit.name || '',
@@ -119,7 +105,6 @@ export const AdminSpotModal: React.FC<AdminSpotModalProps> = ({
         price: spotToEdit.price || 'Entrada Franca',
         maps_url: spotToEdit.maps_url || spotToEdit.mapsUrl || '',
         is_active: spotToEdit.is_active !== undefined ? Number(spotToEdit.is_active) : spotToEdit.isActive === false ? 0 : 1,
-        is_star: editIsStar ? 1 : 0,
       });
     } else {
       setFormData({
@@ -143,7 +128,6 @@ export const AdminSpotModal: React.FC<AdminSpotModalProps> = ({
         price: 'Entrada Franca',
         maps_url: '',
         is_active: 1,
-        is_star: 0,
       });
     }
   }, [spotToEdit, isOpen]);
@@ -263,8 +247,6 @@ export const AdminSpotModal: React.FC<AdminSpotModalProps> = ({
             ? [formData.image]
             : [];
 
-      const isStarBool = formData.is_star === 1;
-
       const payload = {
         ...formData,
         id: spotId,
@@ -283,10 +265,10 @@ export const AdminSpotModal: React.FC<AdminSpotModalProps> = ({
         priceRange: formData.price_range,
         mapsUrl: formData.maps_url,
         isActive: formData.is_active === 1,
-        isStar: isStarBool,
-        is_star: isStarBool ? 1 : 0,
-        badge: isStarBool ? 'Estrela' : '',
-        highlighted: isStarBool,
+        isStar: false,
+        is_star: 0,
+        badge: spotToEdit?.badge === 'Estrela' ? '' : (spotToEdit?.badge || ''),
+        highlighted: false,
       };
 
       // Persist directly and authoritatively to SQLite + Supabase PostgreSQL
@@ -297,8 +279,8 @@ export const AdminSpotModal: React.FC<AdminSpotModalProps> = ({
         persistSpotToFirestore({
           ...savedSpot,
           gallery: JSON.stringify(finalGallery),
-          is_star: isStarBool ? 1 : 0,
-          isStar: isStarBool,
+          is_star: 0,
+          isStar: false,
         }).catch(() => {});
       } catch {}
 
@@ -314,102 +296,38 @@ export const AdminSpotModal: React.FC<AdminSpotModalProps> = ({
 
   return (
     <>
-      <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/75 backdrop-blur-sm p-3 sm:p-5 overflow-y-auto">
-        <div className="bg-zinc-900 border border-white/10 rounded-3xl max-w-2xl w-full text-white shadow-2xl overflow-hidden my-auto max-h-[92vh] flex flex-col">
+      <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/45 backdrop-blur-xs p-3 sm:p-5 overflow-y-auto">
+        <div className="bg-white border border-zinc-200 rounded-3xl max-w-2xl w-full text-zinc-900 shadow-2xl overflow-hidden my-auto max-h-[92vh] flex flex-col">
           {/* Header */}
-          <div className="px-6 py-4 border-b border-white/10 flex items-center justify-between bg-zinc-950/60 shrink-0">
+          <div className="px-6 py-4 border-b border-zinc-200 flex items-center justify-between bg-zinc-50 shrink-0">
             <div>
-              <h3 className="text-lg font-black tracking-tight">
+              <h3 className="text-lg font-black tracking-tight text-zinc-900">
                 {spotToEdit ? `Editar: ${spotToEdit.name}` : 'Novo Ponto Turístico'}
               </h3>
-              <p className="text-xs text-zinc-400">
+              <p className="text-xs text-zinc-500">
                 Sincronizado em tempo real com o Mapa Interativo
               </p>
             </div>
             <button
               type="button"
               onClick={onClose}
-              className="p-2 rounded-xl bg-white/5 hover:bg-white/10 text-zinc-400 hover:text-white transition-colors cursor-pointer"
+              className="p-2 rounded-xl bg-zinc-100 hover:bg-zinc-200 text-zinc-500 hover:text-zinc-900 transition-colors cursor-pointer"
             >
               <X className="w-5 h-5" />
             </button>
           </div>
 
           {/* Form Body */}
-          <form onSubmit={handleSave} className="p-6 overflow-y-auto space-y-5 flex-1">
+          <form onSubmit={handleSave} className="p-6 overflow-y-auto space-y-5 flex-1 bg-white">
             {errorMsg && (
-              <div className="p-3.5 rounded-xl bg-rose-500/15 border border-rose-500/30 text-rose-300 text-xs font-bold">
+              <div className="p-3.5 rounded-xl bg-rose-50 border border-rose-200 text-rose-700 text-xs font-bold">
                 {errorMsg}
               </div>
             )}
 
-            {/* Opção "Estrela" — Ponto Mais Famoso no Mapa (Estrela Amarela Pulsante com Foto) */}
-            <div
-              onClick={() =>
-                setFormData((prev) => ({ ...prev, is_star: prev.is_star === 1 ? 0 : 1 }))
-              }
-              role="button"
-              tabIndex={0}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter' || e.key === ' ') {
-                  e.preventDefault();
-                  setFormData((prev) => ({ ...prev, is_star: prev.is_star === 1 ? 0 : 1 }));
-                }
-              }}
-              className={`p-4 rounded-2xl border transition-all duration-200 cursor-pointer select-none flex items-center justify-between gap-4 ${
-                formData.is_star === 1
-                  ? 'bg-[#FFD60A]/12 border-[#FFD60A] shadow-[0_0_24px_rgba(255,214,10,0.18)]'
-                  : 'bg-zinc-950/90 border-white/10 hover:border-white/25'
-              }`}
-            >
-              <div className="flex items-center gap-3.5 min-w-0">
-                <div
-                  className={`w-12 h-12 rounded-2xl flex items-center justify-center shrink-0 transition-all ${
-                    formData.is_star === 1
-                      ? 'bg-[#FFD60A] text-black shadow-[0_0_16px_rgba(255,214,10,0.65)] monvian-star-pulse'
-                      : 'bg-zinc-900 border border-white/10 text-zinc-400'
-                  }`}
-                >
-                  <Star
-                    className={`w-6 h-6 ${
-                      formData.is_star === 1 ? 'fill-black text-black' : 'text-zinc-400'
-                    }`}
-                  />
-                </div>
-                <div className="min-w-0">
-                  <div className="flex items-center gap-2">
-                    <span className="text-sm font-black text-white tracking-tight">
-                      Estrela
-                    </span>
-                    {formData.is_star === 1 && (
-                      <span className="px-2 py-0.5 rounded-full bg-[#FFD60A] text-black text-[10px] font-black uppercase tracking-wider">
-                        Ativado no Mapa
-                      </span>
-                    )}
-                  </div>
-                  <p className="text-xs text-zinc-400 mt-0.5 leading-snug">
-                    Destacar como ponto famoso: aparece automaticamente como uma estrela amarela pulsante com a foto no meio no mapa.
-                  </p>
-                </div>
-              </div>
-
-              {/* iOS-style switch */}
-              <div
-                className={`relative inline-flex h-7 w-12 shrink-0 items-center rounded-full transition-colors duration-200 ${
-                  formData.is_star === 1 ? 'bg-[#FFD60A]' : 'bg-zinc-700'
-                }`}
-              >
-                <span
-                  className={`inline-block h-5 w-5 transform rounded-full bg-white shadow-md transition-transform duration-200 ${
-                    formData.is_star === 1 ? 'translate-x-6' : 'translate-x-1'
-                  }`}
-                />
-              </div>
-            </div>
-
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="sm:col-span-2">
-                <label className="block text-xs font-bold text-zinc-400 uppercase tracking-wider mb-1.5">
+                <label className="block text-xs font-bold text-zinc-600 uppercase tracking-wider mb-1.5">
                   Nome do Ponto Turístico / Estabelecimento *
                 </label>
                 <input
@@ -418,12 +336,12 @@ export const AdminSpotModal: React.FC<AdminSpotModalProps> = ({
                   placeholder="Ex: Parque Amantikir"
                   value={formData.name}
                   onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                  className="w-full px-4 py-3 bg-zinc-950 border border-white/10 rounded-xl text-sm text-white focus:outline-none focus:border-blue-500"
+                  className="w-full px-4 py-3 bg-zinc-50 border border-zinc-200 rounded-xl text-sm text-zinc-900 placeholder-zinc-400 focus:outline-none focus:bg-white focus:border-blue-500"
                 />
               </div>
 
               <div>
-                <label className="block text-xs font-bold text-zinc-400 uppercase tracking-wider mb-1.5">
+                <label className="block text-xs font-bold text-zinc-600 uppercase tracking-wider mb-1.5">
                   Nome Curto (Pino do Mapa)
                 </label>
                 <input
@@ -433,21 +351,21 @@ export const AdminSpotModal: React.FC<AdminSpotModalProps> = ({
                   onChange={(e) =>
                     setFormData({ ...formData, short_name: e.target.value, tag_label: e.target.value })
                   }
-                  className="w-full px-4 py-3 bg-zinc-950 border border-white/10 rounded-xl text-sm text-white focus:outline-none focus:border-blue-500"
+                  className="w-full px-4 py-3 bg-zinc-50 border border-zinc-200 rounded-xl text-sm text-zinc-900 placeholder-zinc-400 focus:outline-none focus:bg-white focus:border-blue-500"
                 />
               </div>
 
               <div>
-                <label className="block text-xs font-bold text-zinc-400 uppercase tracking-wider mb-1.5">
+                <label className="block text-xs font-bold text-zinc-600 uppercase tracking-wider mb-1.5">
                   Categoria *
                 </label>
                 <select
                   value={formData.category}
                   onChange={(e) => handleCategoryChange(e.target.value)}
-                  className="w-full px-4 py-3 bg-zinc-950 border border-white/10 rounded-xl text-sm text-white focus:outline-none focus:border-blue-500"
+                  className="w-full px-4 py-3 bg-zinc-50 border border-zinc-200 rounded-xl text-sm text-zinc-900 focus:outline-none focus:bg-white focus:border-blue-500"
                 >
                   {CATEGORIES.map((c) => (
-                    <option key={c.id} value={c.id} className="bg-zinc-900 text-white">
+                    <option key={c.id} value={c.id} className="bg-white text-zinc-900">
                       {c.label}
                     </option>
                   ))}
@@ -456,16 +374,16 @@ export const AdminSpotModal: React.FC<AdminSpotModalProps> = ({
             </div>
 
             {/* Coordinates + Interactive Map Picker */}
-            <div className="p-4 rounded-2xl bg-zinc-950/80 border border-white/10 space-y-3">
+            <div className="p-4 rounded-2xl bg-zinc-50 border border-zinc-200 space-y-3">
               <div className="flex items-center justify-between">
-                <span className="text-xs font-bold text-zinc-300 flex items-center gap-1.5">
-                  <MapPin className="w-4 h-4 text-blue-400" />
+                <span className="text-xs font-bold text-zinc-700 flex items-center gap-1.5">
+                  <MapPin className="w-4 h-4 text-blue-600" />
                   Coordenadas GPS no Mapa de Campos do Jordão
                 </span>
                 <button
                   type="button"
                   onClick={() => setIsMapPickerOpen(true)}
-                  className="px-3 py-1.5 rounded-lg bg-blue-600/20 hover:bg-blue-600/30 text-blue-400 border border-blue-500/30 text-xs font-bold transition-colors cursor-pointer"
+                  className="px-3 py-1.5 rounded-lg bg-blue-50 hover:bg-blue-100 text-blue-600 border border-blue-200 text-xs font-bold transition-colors cursor-pointer"
                 >
                   Selecionar no Mapa
                 </button>
@@ -478,7 +396,7 @@ export const AdminSpotModal: React.FC<AdminSpotModalProps> = ({
                     step="any"
                     value={formData.lat}
                     onChange={(e) => setFormData({ ...formData, lat: parseFloat(e.target.value) || 0 })}
-                    className="w-full px-3 py-2 bg-zinc-900 border border-white/10 rounded-lg text-xs font-mono text-white"
+                    className="w-full px-3 py-2 bg-white border border-zinc-200 rounded-lg text-xs font-mono text-zinc-900 focus:outline-none focus:border-blue-500"
                   />
                 </div>
                 <div>
@@ -488,7 +406,7 @@ export const AdminSpotModal: React.FC<AdminSpotModalProps> = ({
                     step="any"
                     value={formData.lng}
                     onChange={(e) => setFormData({ ...formData, lng: parseFloat(e.target.value) || 0 })}
-                    className="w-full px-3 py-2 bg-zinc-900 border border-white/10 rounded-lg text-xs font-mono text-white"
+                    className="w-full px-3 py-2 bg-white border border-zinc-200 rounded-lg text-xs font-mono text-zinc-900 focus:outline-none focus:border-blue-500"
                   />
                 </div>
               </div>
@@ -497,7 +415,7 @@ export const AdminSpotModal: React.FC<AdminSpotModalProps> = ({
             {/* Image & Supabase Storage Upload */}
             <div className="space-y-3">
               <div className="flex items-center justify-between">
-                <label className="block text-xs font-bold text-zinc-400 uppercase tracking-wider">
+                <label className="block text-xs font-bold text-zinc-600 uppercase tracking-wider">
                   Foto Principal (URL ou Upload Supabase Storage)
                 </label>
                 <input
@@ -511,7 +429,7 @@ export const AdminSpotModal: React.FC<AdminSpotModalProps> = ({
                   type="button"
                   disabled={uploadingImage}
                   onClick={() => fileInputRef.current?.click()}
-                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-emerald-500/15 hover:bg-emerald-500/25 text-emerald-400 border border-emerald-500/30 text-xs font-bold transition-colors cursor-pointer"
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-200 text-xs font-bold transition-colors cursor-pointer"
                 >
                   {uploadingImage ? (
                     <>
@@ -533,13 +451,13 @@ export const AdminSpotModal: React.FC<AdminSpotModalProps> = ({
                   placeholder="https://... ou envie do dispositivo"
                   value={formData.image}
                   onChange={(e) => setFormData({ ...formData, image: e.target.value })}
-                  className="flex-1 px-4 py-3 bg-zinc-950 border border-white/10 rounded-xl text-sm text-white focus:outline-none focus:border-blue-500"
+                  className="flex-1 px-4 py-3 bg-zinc-50 border border-zinc-200 rounded-xl text-sm text-zinc-900 placeholder-zinc-400 focus:outline-none focus:bg-white focus:border-blue-500"
                 />
                 {formData.image && (
                   <img
                     src={formData.image}
                     alt="Preview"
-                    className="w-12 h-12 rounded-xl object-cover border border-white/10 shrink-0"
+                    className="w-12 h-12 rounded-xl object-cover border border-zinc-200 shrink-0"
                   />
                 )}
               </div>
@@ -547,7 +465,7 @@ export const AdminSpotModal: React.FC<AdminSpotModalProps> = ({
 
             {/* Description & Tourist Tip */}
             <div>
-              <label className="block text-xs font-bold text-zinc-400 uppercase tracking-wider mb-1.5">
+              <label className="block text-xs font-bold text-zinc-600 uppercase tracking-wider mb-1.5">
                 Descrição do Local
               </label>
               <textarea
@@ -555,13 +473,13 @@ export const AdminSpotModal: React.FC<AdminSpotModalProps> = ({
                 placeholder="Descreva a experiência e os diferenciais do local..."
                 value={formData.description}
                 onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-                className="w-full px-4 py-3 bg-zinc-950 border border-white/10 rounded-xl text-sm text-white focus:outline-none focus:border-blue-500 resize-none"
+                className="w-full px-4 py-3 bg-zinc-50 border border-zinc-200 rounded-xl text-sm text-zinc-900 placeholder-zinc-400 focus:outline-none focus:bg-white focus:border-blue-500 resize-none"
               />
             </div>
 
             <div>
-              <label className="block text-xs font-bold text-zinc-400 uppercase tracking-wider mb-1.5 flex items-center gap-1.5">
-                <Sparkles className="w-3.5 h-3.5 text-amber-400" />
+              <label className="block text-xs font-bold text-zinc-600 uppercase tracking-wider mb-1.5 flex items-center gap-1.5">
+                <Sparkles className="w-3.5 h-3.5 text-amber-500" />
                 Dica de Ouro para o Turista
               </label>
               <input
@@ -569,14 +487,14 @@ export const AdminSpotModal: React.FC<AdminSpotModalProps> = ({
                 placeholder="Ex: Chegue antes das 16h30 para ver o pôr do sol no mirante."
                 value={formData.tourist_tip}
                 onChange={(e) => setFormData({ ...formData, tourist_tip: e.target.value })}
-                className="w-full px-4 py-3 bg-zinc-950 border border-white/10 rounded-xl text-sm text-white focus:outline-none focus:border-blue-500"
+                className="w-full px-4 py-3 bg-zinc-50 border border-zinc-200 rounded-xl text-sm text-zinc-900 placeholder-zinc-400 focus:outline-none focus:bg-white focus:border-blue-500"
               />
             </div>
 
             {/* Address, Hours, Rating & Price */}
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
-                <label className="block text-xs font-bold text-zinc-400 uppercase tracking-wider mb-1.5">
+                <label className="block text-xs font-bold text-zinc-600 uppercase tracking-wider mb-1.5">
                   Endereço
                 </label>
                 <input
@@ -584,12 +502,12 @@ export const AdminSpotModal: React.FC<AdminSpotModalProps> = ({
                   placeholder="Ex: Av. Macedo Soares, 123 - Capivari"
                   value={formData.address}
                   onChange={(e) => setFormData({ ...formData, address: e.target.value })}
-                  className="w-full px-4 py-3 bg-zinc-950 border border-white/10 rounded-xl text-sm text-white focus:outline-none focus:border-blue-500"
+                  className="w-full px-4 py-3 bg-zinc-50 border border-zinc-200 rounded-xl text-sm text-zinc-900 placeholder-zinc-400 focus:outline-none focus:bg-white focus:border-blue-500"
                 />
               </div>
 
               <div>
-                <label className="block text-xs font-bold text-zinc-400 uppercase tracking-wider mb-1.5">
+                <label className="block text-xs font-bold text-zinc-600 uppercase tracking-wider mb-1.5">
                   Horário de Funcionamento
                 </label>
                 <input
@@ -597,12 +515,12 @@ export const AdminSpotModal: React.FC<AdminSpotModalProps> = ({
                   placeholder="Ex: Diariamente das 09h às 18h"
                   value={formData.hours}
                   onChange={(e) => setFormData({ ...formData, hours: e.target.value })}
-                  className="w-full px-4 py-3 bg-zinc-950 border border-white/10 rounded-xl text-sm text-white focus:outline-none focus:border-blue-500"
+                  className="w-full px-4 py-3 bg-zinc-50 border border-zinc-200 rounded-xl text-sm text-zinc-900 placeholder-zinc-400 focus:outline-none focus:bg-white focus:border-blue-500"
                 />
               </div>
 
               <div>
-                <label className="block text-xs font-bold text-zinc-400 uppercase tracking-wider mb-1.5">
+                <label className="block text-xs font-bold text-zinc-600 uppercase tracking-wider mb-1.5">
                   Avaliação (0.0 a 5.0)
                 </label>
                 <input
@@ -612,12 +530,12 @@ export const AdminSpotModal: React.FC<AdminSpotModalProps> = ({
                   max="5"
                   value={formData.rating}
                   onChange={(e) => setFormData({ ...formData, rating: parseFloat(e.target.value) || 4.8 })}
-                  className="w-full px-4 py-3 bg-zinc-950 border border-white/10 rounded-xl text-sm text-white focus:outline-none focus:border-blue-500"
+                  className="w-full px-4 py-3 bg-zinc-50 border border-zinc-200 rounded-xl text-sm text-zinc-900 focus:outline-none focus:bg-white focus:border-blue-500"
                 />
               </div>
 
               <div>
-                <label className="block text-xs font-bold text-zinc-400 uppercase tracking-wider mb-1.5">
+                <label className="block text-xs font-bold text-zinc-600 uppercase tracking-wider mb-1.5">
                   Link Google Maps (Opcional)
                 </label>
                 <input
@@ -625,24 +543,24 @@ export const AdminSpotModal: React.FC<AdminSpotModalProps> = ({
                   placeholder="https://maps.google.com/..."
                   value={formData.maps_url}
                   onChange={(e) => setFormData({ ...formData, maps_url: e.target.value })}
-                  className="w-full px-4 py-3 bg-zinc-950 border border-white/10 rounded-xl text-sm text-white focus:outline-none focus:border-blue-500"
+                  className="w-full px-4 py-3 bg-zinc-50 border border-zinc-200 rounded-xl text-sm text-zinc-900 placeholder-zinc-400 focus:outline-none focus:bg-white focus:border-blue-500"
                 />
               </div>
             </div>
 
             {/* Footer Actions */}
-            <div className="flex items-center justify-end gap-3 pt-4 border-t border-white/10">
+            <div className="flex items-center justify-end gap-3 pt-4 border-t border-zinc-200">
               <button
                 type="button"
                 onClick={onClose}
-                className="px-5 py-3 rounded-xl bg-zinc-800 hover:bg-zinc-700 text-zinc-300 text-sm font-bold transition-colors cursor-pointer"
+                className="px-5 py-3 rounded-xl bg-zinc-100 hover:bg-zinc-200 text-zinc-700 text-sm font-bold transition-colors cursor-pointer"
               >
                 Cancelar
               </button>
               <button
                 type="submit"
                 disabled={saving}
-                className="flex items-center gap-2 px-6 py-3 rounded-xl bg-blue-600 hover:bg-blue-500 disabled:opacity-50 text-white text-sm font-bold shadow-lg shadow-blue-600/25 transition-all cursor-pointer"
+                className="flex items-center gap-2 px-6 py-3 rounded-xl bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white text-sm font-bold shadow-lg shadow-blue-600/20 transition-all cursor-pointer"
               >
                 {saving ? (
                   <>
@@ -662,14 +580,14 @@ export const AdminSpotModal: React.FC<AdminSpotModalProps> = ({
       </div>
 
       {isMapPickerOpen && (
-        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/80 p-4">
-          <div className="bg-zinc-900 border border-white/15 rounded-3xl p-5 max-w-lg w-full space-y-4 shadow-2xl">
+        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/45 backdrop-blur-xs p-4">
+          <div className="bg-white border border-zinc-200 rounded-3xl p-5 max-w-lg w-full space-y-4 shadow-2xl text-zinc-900">
             <div className="flex items-center justify-between">
-              <h4 className="text-sm font-black text-white">Toque no mapa para definir as coordenadas</h4>
+              <h4 className="text-sm font-black text-zinc-900">Toque no mapa para definir as coordenadas</h4>
               <button
                 type="button"
                 onClick={() => setIsMapPickerOpen(false)}
-                className="px-3 py-1.5 rounded-xl bg-blue-600 hover:bg-blue-500 text-white text-xs font-bold cursor-pointer"
+                className="px-3 py-1.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold cursor-pointer"
               >
                 Concluir
               </button>

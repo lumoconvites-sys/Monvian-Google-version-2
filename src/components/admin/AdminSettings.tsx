@@ -84,22 +84,21 @@ export const AdminSettings: React.FC = () => {
 
       {/* Header */}
       <div>
-        <div className="flex items-center gap-2 text-blue-600 dark:text-blue-400 text-xs font-black tracking-wider uppercase mb-1">
-          <span className="w-2 h-2 rounded-full bg-blue-600 dark:bg-blue-400"></span>
-          CONSOLE OPERACIONAL
+        <div className="flex items-center gap-3">
+          <span className="w-2.5 h-2.5 rounded-full bg-[#1668FF] shrink-0 shadow-[0_0_10px_rgba(22,104,255,0.4)]" />
+          <h1 className="text-[28px] sm:text-[34px] font-bold text-[#0D1526] tracking-[-0.03em] leading-tight">
+            Configurações
+          </h1>
         </div>
-        <h1 className="text-2xl sm:text-3xl font-black text-zinc-900 dark:text-white tracking-tight">
-          Configurações do Monvian
-        </h1>
-        <p className="text-xs sm:text-sm text-zinc-500 dark:text-zinc-400 mt-0.5">
+        <p className="text-sm text-[#5B6B85] mt-1 sm:pl-[22px]">
           Gerencie os canais oficiais, links de comunidade e informações do ecossistema.
         </p>
       </div>
 
       {/* Form Card */}
-      <form onSubmit={handleSave} className="bg-white dark:bg-[#121418] rounded-3xl p-6 sm:p-8 border border-zinc-200/90 dark:border-zinc-800 shadow-xs space-y-6">
+      <form onSubmit={handleSave} className="bg-white rounded-3xl p-6 sm:p-8 border border-zinc-200/90 shadow-xs space-y-6">
         {errorMsg && (
-          <div className="p-4 rounded-2xl bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-900/60 text-rose-700 dark:text-rose-400 text-xs flex items-center gap-2">
+          <div className="p-4 rounded-2xl bg-rose-50 border border-rose-200 text-rose-700 text-xs flex items-center gap-2">
             <AlertCircle className="w-4 h-4 shrink-0 text-rose-500" />
             <span>{errorMsg}</span>
           </div>
@@ -107,8 +106,8 @@ export const AdminSettings: React.FC = () => {
 
         {/* Setting: Phone */}
         <div className="space-y-2">
-          <label className="text-xs font-black text-zinc-800 dark:text-zinc-200 flex items-center gap-2">
-            <Phone className="w-4 h-4 text-blue-600 dark:text-blue-400" />
+          <label className="text-xs font-black text-zinc-800 flex items-center gap-2">
+            <Phone className="w-4 h-4 text-blue-600" />
             Telefone / WhatsApp de Suporte
           </label>
           <input
@@ -116,78 +115,78 @@ export const AdminSettings: React.FC = () => {
             value={settings.support_phone || ''}
             onChange={(e) => setSettings({ ...settings, support_phone: e.target.value })}
             placeholder="+55 12 99123-4567"
-            className="w-full px-4 py-2.5 bg-zinc-50 dark:bg-zinc-900/80 border border-zinc-200 dark:border-zinc-700 rounded-xl text-sm text-zinc-900 dark:text-white focus:outline-none focus:border-blue-500 focus:bg-white dark:focus:bg-zinc-900 transition-all"
+            className="w-full px-4 py-2.5 bg-zinc-50 border border-zinc-200 rounded-xl text-sm text-zinc-900 focus:outline-none focus:border-blue-500 focus:bg-white transition-all"
           />
         </div>
 
         {/* Setting 4: Map & Camera Configurations (Persistência Duradoura) */}
-        <div className="space-y-4 pt-6 border-t border-zinc-100 dark:border-zinc-800">
+        <div className="space-y-4 pt-6 border-t border-zinc-100">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
               <ShieldCheck className="w-4 h-4 text-blue-500" />
-              <h3 className="text-xs font-black text-zinc-900 dark:text-white uppercase tracking-wider">
+              <h3 className="text-xs font-black text-zinc-900 uppercase tracking-wider">
                 Configurações & Câmera do Mapa (Persistência na Nuvem)
               </h3>
             </div>
-            <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-blue-50 dark:bg-blue-950/50 text-blue-700 dark:text-blue-400 border border-blue-200 dark:border-blue-800">
+            <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-blue-50 text-blue-700 border border-blue-200">
               Cloud Firestore Ativo
             </span>
           </div>
-          <p className="text-[11px] text-zinc-500 dark:text-zinc-400">
+          <p className="text-[11px] text-zinc-500">
             Todas as posições, ângulos de câmera, estilo padrão e tokens são sincronizados e preservados entre builds e publicações.
           </p>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div className="space-y-1.5">
-              <label className="text-[11px] font-bold text-zinc-700 dark:text-zinc-300">Latitude Central Padrão</label>
+              <label className="text-[11px] font-bold text-zinc-700">Latitude Central Padrão</label>
               <input
                 type="text"
                 value={settings.map_center_lat || '-22.7290'}
                 onChange={(e) => setSettings({ ...settings, map_center_lat: e.target.value })}
                 placeholder="-22.7290"
-                className="w-full px-3.5 py-2 bg-zinc-50 dark:bg-zinc-900/80 border border-zinc-200 dark:border-zinc-700 rounded-xl text-xs font-mono text-zinc-900 dark:text-white focus:outline-none focus:border-blue-500"
+                className="w-full px-3.5 py-2 bg-zinc-50 border border-zinc-200 rounded-xl text-xs font-mono text-zinc-900 focus:outline-none focus:border-blue-500"
               />
             </div>
 
             <div className="space-y-1.5">
-              <label className="text-[11px] font-bold text-zinc-700 dark:text-zinc-300">Longitude Central Padrão</label>
+              <label className="text-[11px] font-bold text-zinc-700">Longitude Central Padrão</label>
               <input
                 type="text"
                 value={settings.map_center_lng || '-45.5830'}
                 onChange={(e) => setSettings({ ...settings, map_center_lng: e.target.value })}
                 placeholder="-45.5830"
-                className="w-full px-3.5 py-2 bg-zinc-50 dark:bg-zinc-900/80 border border-zinc-200 dark:border-zinc-700 rounded-xl text-xs font-mono text-zinc-900 dark:text-white focus:outline-none focus:border-blue-500"
+                className="w-full px-3.5 py-2 bg-zinc-50 border border-zinc-200 rounded-xl text-xs font-mono text-zinc-900 focus:outline-none focus:border-blue-500"
               />
             </div>
 
             <div className="space-y-1.5">
-              <label className="text-[11px] font-bold text-zinc-700 dark:text-zinc-300">Zoom Inicial Padrão</label>
+              <label className="text-[11px] font-bold text-zinc-700">Zoom Inicial Padrão</label>
               <input
                 type="text"
                 value={settings.map_zoom || '11.75'}
                 onChange={(e) => setSettings({ ...settings, map_zoom: e.target.value })}
                 placeholder="11.75"
-                className="w-full px-3.5 py-2 bg-zinc-50 dark:bg-zinc-900/80 border border-zinc-200 dark:border-zinc-700 rounded-xl text-xs font-mono text-zinc-900 dark:text-white focus:outline-none focus:border-blue-500"
+                className="w-full px-3.5 py-2 bg-zinc-50 border border-zinc-200 rounded-xl text-xs font-mono text-zinc-900 focus:outline-none focus:border-blue-500"
               />
             </div>
 
             <div className="space-y-1.5">
-              <label className="text-[11px] font-bold text-zinc-700 dark:text-zinc-300">Inclinação da Câmera (Pitch / 3D)</label>
+              <label className="text-[11px] font-bold text-zinc-700">Inclinação da Câmera (Pitch / 3D)</label>
               <input
                 type="text"
                 value={settings.map_pitch || '52'}
                 onChange={(e) => setSettings({ ...settings, map_pitch: e.target.value })}
                 placeholder="52"
-                className="w-full px-3.5 py-2 bg-zinc-50 dark:bg-zinc-900/80 border border-zinc-200 dark:border-zinc-700 rounded-xl text-xs font-mono text-zinc-900 dark:text-white focus:outline-none focus:border-blue-500"
+                className="w-full px-3.5 py-2 bg-zinc-50 border border-zinc-200 rounded-xl text-xs font-mono text-zinc-900 focus:outline-none focus:border-blue-500"
               />
             </div>
 
             <div className="space-y-1.5">
-              <label className="text-[11px] font-bold text-zinc-700 dark:text-zinc-300">Modo de Estilo Padrão</label>
+              <label className="text-[11px] font-bold text-zinc-700">Modo de Estilo Padrão</label>
               <select
                 value={settings.map_default_mode || 'explorar'}
                 onChange={(e) => setSettings({ ...settings, map_default_mode: e.target.value })}
-                className="w-full px-3.5 py-2 bg-zinc-50 dark:bg-zinc-900/80 border border-zinc-200 dark:border-zinc-700 rounded-xl text-xs text-zinc-900 dark:text-white focus:outline-none focus:border-blue-500 font-medium"
+                className="w-full px-3.5 py-2 bg-zinc-50 border border-zinc-200 rounded-xl text-xs text-zinc-900 focus:outline-none focus:border-blue-500 font-medium"
               >
                 <option value="explorar">Explorar (Apple Maps Minimalista Escuro/Claro)</option>
                 <option value="satelite">Satélite HD (Esri / Imagem Orbital)</option>
@@ -197,20 +196,20 @@ export const AdminSettings: React.FC = () => {
             </div>
 
             <div className="space-y-1.5">
-              <label className="text-[11px] font-bold text-zinc-700 dark:text-zinc-300">Mapbox Access Token (Opcional)</label>
+              <label className="text-[11px] font-bold text-zinc-700">Mapbox Access Token (Opcional)</label>
               <input
                 type="password"
                 value={settings.mapbox_access_token || ''}
                 onChange={(e) => setSettings({ ...settings, mapbox_access_token: e.target.value })}
                 placeholder="pk.eyJ1..."
-                className="w-full px-3.5 py-2 bg-zinc-50 dark:bg-zinc-900/80 border border-zinc-200 dark:border-zinc-700 rounded-xl text-xs font-mono text-zinc-900 dark:text-white focus:outline-none focus:border-blue-500"
+                className="w-full px-3.5 py-2 bg-zinc-50 border border-zinc-200 rounded-xl text-xs font-mono text-zinc-900 focus:outline-none focus:border-blue-500"
               />
             </div>
           </div>
         </div>
 
         {/* Submit */}
-        <div className="pt-6 border-t border-zinc-100 dark:border-zinc-800 flex items-center justify-end">
+        <div className="pt-6 border-t border-zinc-100 flex items-center justify-end">
           <button
             type="submit"
             disabled={saving}

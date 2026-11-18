@@ -3838,42 +3838,245 @@ async function startServer() {
   });
 
   app.get('/api/admin/dashboard', (_req: Request, res: Response) => {
+    const safeCount = (sql: string, params: any[] = []): number => {
+      try {
+        const row = db.prepare(sql).get(...params) as any;
+        return Number(row?.c ?? row?.total ?? 0) || 0;
+      } catch {
+        return 0;
+      }
+    };
+
+    const safeAll = <T = any>(sql: string, params: any[] = []): T[] => {
+      try {
+        return db.prepare(sql).all(...params) as T[];
+      } catch {
+        return [];
+      }
+    };
+
+    const safeGet = <T = any>(sql: string, params: any[] = []): T | null => {
+      try {
+        return (db.prepare(sql).get(...params) as T) || null;
+      } catch {
+        return null;
+      }
+    };
+
     try {
-      const totalUsers = (db.prepare('SELECT COUNT(*) as c FROM users').get() as any)?.c || 0;
-      const totalSpots = (db.prepare('SELECT COUNT(*) as c FROM spots WHERE is_active = 1').get() as any)?.c || 0;
-      const totalFavorites = (db.prepare('SELECT COUNT(*) as c FROM favorites').get() as any)?.c || 0;
-      const totalPosts = (db.prepare('SELECT COUNT(*) as c FROM posts').get() as any)?.c || 0;
-      const rainSetting = (db.prepare("SELECT value FROM system_settings WHERE key = 'weather_rain_mode'").get() as any)?.value || 'auto';
-      const snowSetting = (db.prepare("SELECT value FROM system_settings WHERE key = 'weather_snow_mode'").get() as any)?.value || 'fraca';
+      const totalUsers = safeCount('SELECT COUNT(*) as c FROM users');
+      const activeUsersCount = safeCount(
+        `SELECT COUNT(*) as c FROM users WHERE datetime(COALESCE(last_access, created_at)) >= datetime('now', '-7 days')`
+      );
+      const totalSpots = safeCount('SELECT COUNT(*) as c FROM spots WHERE is_active = 1');
+
+      // Real engagement counts across community & spot tables
+      const totalFavorites =
+        safeCount('SELECT COUNT(*) as c FROM favorites') +
+        safeCount('SELECT COUNT(*) as c FROM user_favorites');
+      const totalPosts = safeCount('SELECT COUNT(*) as c FROM posts');
+      const totalPostLikes = safeCount('SELECT COUNT(*) as c FROM post_likes');
+      const totalPostComments = safeCount('SELECT COUNT(*) as c FROM post_comments');
+      const totalPostSaves = safeCount('SELECT COUNT(*) as c FROM post_saves');
+      const totalReviews = safeCount('SELECT COUNT(*) as c FROM spot_reviews');
+      const totalSpotVisits = safeCount('SELECT COUNT(*) as c FROM user_spot_visits');
+      const totalItineraryViews = safeCount('SELECT COUNT(*) as c FROM itinerary_views');
+      const totalStoryViews = safeCount('SELECT COUNT(*) as c FROM story_views');
+      const spotsVisitorsToday = safeCount('SELECT COALESCE(SUM(visitors_today), 0) as c FROM spots WHERE is_active = 1');
+
+      const viewsTotal = totalSpotVisits + totalItineraryViews + totalStoryViews + spotsVisitorsToday;
+      const engagementTotal =
+        totalFavorites + totalPosts + totalPostLikes + totalPostComments + totalPostSaves + totalReviews;
+
+      // Real satisfaction score from published reviews (null when 0 reviews)
+      const avgRatingRow = safeGet<{ avg_rating: number | null }>(
+        'SELECT AVG(rating) as avg_rating FROM spot_reviews'
+      );
+      const satisfactionScore =
+        totalReviews > 0 && avgRatingRow?.avg_rating
+          ? Number(avgRatingRow.avg_rating).toFixed(1)
+          : null;
+
+      // Real estimated average session duration from real sessions & visits (0m when no sessions)
+      const totalSessions = safeCount('SELECT COUNT(*) as c FROM sessions');
+      let avgSessionDuration = '0m';
+      if (totalSessions > 0) {
+        const interactionsPerSession = (engagementTotal + viewsTotal) / Math.max(1, totalSessions);
+        const estimatedMinutes = Math.max(1, Math.min(45, Math.round(2 + interactionsPerSession * 1.5)));
+        avgSessionDuration = `${estimatedMinutes}m`;
+      }
+
+      const rainSetting =
+        safeGet<{ value: string }>("SELECT value FROM system_settings WHERE key = 'weather_rain_mode'")?.value || 'auto';
+      const snowSetting =
+        safeGet<{ value: string }>("SELECT value FROM system_settings WHERE key = 'weather_snow_mode'")?.value || 'fraca';
+
+      // Build real community activity time series for 7d, 30d, and 90d
+      const buildActivitySeries = (daysWindow: 7 | 30 | 90) => {
+        const bucketCount = daysWindow === 7 ? 7 : 6;
+        const bucketSizeDays = daysWindow === 7 ? 1 : daysWindow / bucketCount;
+        const now = new Date();
+        now.setHours(23, 59, 59, 999);
+
+        const rawTimestamps: string[] = [];
+        const sources: Array<[string, string]> = [
+          ['users', 'created_at'],
+          ['sessions', 'created_at'],
+          ['posts', 'created_at'],
+          ['post_likes', 'created_at'],
+          ['post_comments', 'created_at'],
+          ['spot_reviews', 'created_at'],
+          ['user_favorites', 'created_at'],
+          ['favorites', 'created_at'],
+          ['user_spot_visits', 'visited_at'],
+          ['stories', 'created_at'],
+        ];
+
+        for (const [table, col] of sources) {
+          const rows = safeAll<{ ts: string }>(
+            `SELECT ${col} as ts FROM ${table} WHERE ${col} IS NOT NULL AND datetime(${col}) >= datetime('now', '-${daysWindow} days')`
+          );
+          for (const r of rows) {
+            if (r?.ts) rawTimestamps.push(String(r.ts));
+          }
+        }
+
+        const parsedTimes = rawTimestamps
+          .map((ts) => {
+            const normalized = ts.includes('T') ? ts : ts.replace(' ', 'T') + 'Z';
+            const t = Date.parse(normalized);
+            return Number.isNaN(t) ? Date.parse(ts) : t;
+          })
+          .filter((t) => !Number.isNaN(t));
+
+        const buckets: Array<{ label: string; fullLabel: string; value: number }> = [];
+        const dayNames = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'];
+
+        for (let i = bucketCount - 1; i >= 0; i--) {
+          const endMs = now.getTime() - i * bucketSizeDays * 86400000;
+          const startMs = endMs - bucketSizeDays * 86400000;
+          const endDate = new Date(endMs);
+          const count = parsedTimes.filter((t) => t > startMs && t <= endMs).length;
+
+          const dd = String(endDate.getDate()).padStart(2, '0');
+          const mm = String(endDate.getMonth() + 1).padStart(2, '0');
+          const label = daysWindow === 7 ? dayNames[endDate.getDay()] : `${dd}/${mm}`;
+          const fullLabel = `${dd}/${mm}`;
+
+          buckets.push({ label, fullLabel, value: count });
+        }
+
+        return buckets;
+      };
+
+      // Build real destination views/activity grouped by spot for 7d, 30d, and 90d
+      const buildDestinationViews = (daysWindow: 7 | 30 | 90) => {
+        const countsBySpot = new Map<string, number>();
+
+        const addCounts = (rows: Array<{ spot_id: string; c: number }>) => {
+          for (const row of rows) {
+            if (!row?.spot_id) continue;
+            countsBySpot.set(row.spot_id, (countsBySpot.get(row.spot_id) || 0) + (Number(row.c) || 0));
+          }
+        };
+
+        addCounts(
+          safeAll(
+            `SELECT spot_id, COUNT(*) as c FROM user_spot_visits WHERE visited_at IS NOT NULL AND datetime(visited_at) >= datetime('now', '-${daysWindow} days') GROUP BY spot_id`
+          )
+        );
+        addCounts(
+          safeAll(
+            `SELECT spot_id, COUNT(*) as c FROM spot_reviews WHERE created_at IS NOT NULL AND datetime(created_at) >= datetime('now', '-${daysWindow} days') GROUP BY spot_id`
+          )
+        );
+        addCounts(
+          safeAll(
+            `SELECT item_id as spot_id, COUNT(*) as c FROM user_favorites WHERE item_type = 'spot' AND created_at IS NOT NULL AND datetime(created_at) >= datetime('now', '-${daysWindow} days') GROUP BY item_id`
+          )
+        );
+        addCounts(
+          safeAll(
+            `SELECT spot_id, COUNT(*) as c FROM favorites WHERE created_at IS NOT NULL AND datetime(created_at) >= datetime('now', '-${daysWindow} days') GROUP BY spot_id`
+          )
+        );
+
+        // Include real visitors_today recorded on active spots
+        const activeSpots = safeAll<{ id: string; name: string; short_name: string | null; visitors_today: number | null }>(
+          'SELECT id, name, short_name, visitors_today FROM spots WHERE is_active = 1'
+        );
+        const spotLookup = new Map<string, { name: string; shortName: string }>();
+
+        for (const s of activeSpots) {
+          spotLookup.set(s.id, {
+            name: s.name || s.id,
+            shortName: (s.short_name || s.name || s.id).trim(),
+          });
+          const vt = Number(s.visitors_today) || 0;
+          if (vt > 0) {
+            countsBySpot.set(s.id, (countsBySpot.get(s.id) || 0) + vt);
+          }
+        }
+
+        return Array.from(countsBySpot.entries())
+          .filter(([, value]) => value > 0)
+          .sort((a, b) => b[1] - a[1])
+          .slice(0, 7)
+          .map(([id, value]) => {
+            const info = spotLookup.get(id);
+            return {
+              id,
+              name: info?.name || id,
+              shortName: info?.shortName || id,
+              value,
+            };
+          });
+      };
+
+      // Real onboarding breakdowns from users / user_onboarding tables
+      const referrals = safeAll<{ referral_source: string; count: number }>(
+        `SELECT COALESCE(NULLIF(TRIM(campos_relationship), ''), 'Direto') as referral_source, COUNT(*) as count FROM user_onboarding WHERE onboarding_completed = 1 GROUP BY referral_source ORDER BY count DESC LIMIT 5`
+      );
+      const styles = safeAll<{ travel_style: string; count: number }>(
+        `SELECT COALESCE(NULLIF(TRIM(travel_company), ''), 'Não informado') as travel_style, COUNT(*) as count FROM user_onboarding WHERE onboarding_completed = 1 GROUP BY travel_style ORDER BY count DESC LIMIT 5`
+      );
+      const frequencies = safeAll<{ travel_frequency: string; count: number }>(
+        `SELECT COALESCE(NULLIF(TRIM(next_trip_timing), ''), 'Não informado') as travel_frequency, COUNT(*) as count FROM user_onboarding WHERE onboarding_completed = 1 GROUP BY travel_frequency ORDER BY count DESC LIMIT 5`
+      );
+      const completedOnboarding = safeCount('SELECT COUNT(*) as c FROM user_onboarding WHERE onboarding_completed = 1');
+      const completionRate =
+        totalUsers > 0 ? Math.min(100, Math.round((completedOnboarding / totalUsers) * 100)) : 0;
 
       return res.json({
         success: true,
         metrics: {
           totalUsers,
-          activeUsersCount: Math.max(1, totalUsers),
+          activeUsersCount,
           totalSpots,
-          viewsTotal: totalUsers * 14 + totalSpots * 8,
-          engagementTotal: totalFavorites + totalPosts + totalUsers * 3,
-          totalReviews: totalPosts,
-          satisfactionScore: '4.9',
-          avgSessionDuration: '6m 24s',
-          usersGrowth: { changePercent: '+18%', trend: 'up' },
-          activeGrowth: { changePercent: '+12%', trend: 'up' },
-          spotsGrowth: { changePercent: '+5%', trend: 'up' },
-          viewsGrowth: { changePercent: '+24%', trend: 'up' },
-          engagementGrowth: { changePercent: '+15%', trend: 'up' },
-          reviewsGrowth: { changePercent: '+9%', trend: 'up' },
-          satisfactionGrowth: { changePercent: '+2%', trend: 'up' },
-          sessionGrowth: { changePercent: '+8%', trend: 'up' },
+          viewsTotal,
+          engagementTotal,
+          totalReviews,
+          satisfactionScore,
+          avgSessionDuration,
+          communityActivity: {
+            '7d': buildActivitySeries(7),
+            '30d': buildActivitySeries(30),
+            '90d': buildActivitySeries(90),
+          },
+          destinationViews: {
+            '7d': buildDestinationViews(7),
+            '30d': buildDestinationViews(30),
+            '90d': buildDestinationViews(90),
+          },
           effects: {
             rainMode: rainSetting,
             snowMode: snowSetting,
           },
           onboarding: {
-            completionRate: 100,
-            referrals: [{ referral_source: 'Instagram & Direto', count: totalUsers }],
-            styles: [{ travel_style: 'Gastronomia & Casal', count: totalUsers }],
-            frequencies: [{ travel_frequency: 'Fim de Semana', count: totalUsers }],
+            completionRate,
+            referrals,
+            styles,
+            frequencies,
           },
         },
       });

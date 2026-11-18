@@ -1,32 +1,34 @@
-import React, { useState, useEffect } from 'react';
-import { motion, AnimatePresence } from 'motion/react';
+import React, { useState, useEffect, useRef } from 'react';
+import { motion, AnimatePresence, useReducedMotion } from 'motion/react';
 import {
-  LayoutDashboard,
+  Home,
   MapPin,
+  Map,
+  Leaf,
   Store,
   Users,
   Settings,
-  Sparkles,
-  Layers,
   Menu,
   X,
   ArrowLeft,
-  ShieldCheck,
-  Compass,
+  ChevronDown,
   LogOut,
-  ChevronRight,
-  Route
+  User as UserIcon,
 } from 'lucide-react';
 import { AdminDashboard } from './AdminDashboard';
 import { AdminSpots } from './AdminSpots';
 import { AdminUsers } from './AdminUsers';
 import { AdminSettings } from './AdminSettings';
-import { AdminCleanup } from './AdminCleanup';
 import { AdminItineraries } from './AdminItineraries';
 import { AdminServices } from './AdminServices';
 import { AdminPlatanos } from './AdminPlatanos';
-import { PlatanoLeafIcon } from '../platanos/PlatanoLeafIcon';
 import { useIOSBackEntry } from '../../services/iosNavigationManager';
+import {
+  ADMIN_COLORS,
+  ADMIN_MOTION_EASE,
+  ADMIN_NAV_3D_STYLE,
+  ADMIN_SHADOWS,
+} from './adminTheme';
 
 interface AdminLayoutProps {
   currentUser: any;
@@ -34,15 +36,111 @@ interface AdminLayoutProps {
   onLogout?: () => void;
 }
 
+interface NavItemDef {
+  id: string;
+  label: string;
+  icon: React.ComponentType<{ className?: string }>;
+}
+
+const NAV_ITEMS: NavItemDef[] = [
+  { id: 'dashboard', label: 'Visão Geral', icon: Home },
+  { id: 'spots', label: 'Pontos Turísticos', icon: MapPin },
+  { id: 'itineraries', label: 'Roteiros', icon: Map },
+  { id: 'platanos', label: 'Plátanos & Stripe', icon: Leaf },
+  { id: 'services', label: 'Locais e Serviços', icon: Store },
+  { id: 'users', label: 'Usuários & Comunidade', icon: Users },
+  { id: 'settings', label: 'Configurações', icon: Settings },
+];
+
+interface Sidebar3DButtonProps {
+  item: NavItemDef;
+  isActive: boolean;
+  onClick: () => void;
+  reducedMotion: boolean;
+}
+
+const Sidebar3DButton: React.FC<Sidebar3DButtonProps> = ({
+  item,
+  isActive,
+  onClick,
+  reducedMotion,
+}) => {
+  const Icon = item.icon;
+  const [isHovered, setIsHovered] = useState(false);
+  const [isPressed, setIsPressed] = useState(false);
+
+  const baseStyle = isActive ? ADMIN_NAV_3D_STYLE.active : ADMIN_NAV_3D_STYLE.normal;
+
+  const computedShadow = isPressed
+    ? isActive
+      ? '0 3px 10px -3px rgba(22, 104, 255, 0.22), inset 2.5px 0 0 rgba(22, 104, 255, 0.85), inset 0 2px 4px rgba(22, 104, 255, 0.14)'
+      : '0 2px 6px -2px rgba(15, 23, 42, 0.08), inset 0 2px 4px rgba(148, 163, 184, 0.18)'
+    : isHovered
+      ? isActive
+        ? '0 14px 28px -6px rgba(22, 104, 255, 0.28), 0 4px 10px -2px rgba(22, 104, 255, 0.14), inset 2.5px 0 0 rgba(22, 104, 255, 0.9), inset 0 1px 1px rgba(255, 255, 255, 0.96), inset 0 -2px 3px rgba(22, 104, 255, 0.12)'
+        : '0 11px 22px -6px rgba(30, 58, 138, 0.13), 0 3px 8px -2px rgba(15, 23, 42, 0.06), inset 0 1px 0 rgba(255, 255, 255, 1), inset 0 -1.5px 2px rgba(148, 163, 184, 0.10)'
+      : baseStyle.boxShadow;
+
+  const computedTransform = reducedMotion
+    ? 'none'
+    : isPressed
+      ? 'translateY(1px) scale(0.985)'
+      : isHovered
+        ? 'translateY(-2.5px)'
+        : 'translateY(0px)';
+
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      onMouseEnter={() => setIsHovered(true)}
+      onMouseLeave={() => {
+        setIsHovered(false);
+        setIsPressed(false);
+      }}
+      onMouseDown={() => setIsPressed(true)}
+      onMouseUp={() => setIsPressed(false)}
+      onTouchStart={() => setIsPressed(true)}
+      onTouchEnd={() => setIsPressed(false)}
+      aria-current={isActive ? 'page' : undefined}
+      className="w-full flex items-center gap-3.5 px-4 py-3.5 rounded-[19px] text-left cursor-pointer select-none outline-none focus-visible:ring-2 focus-visible:ring-[#1668FF]/40"
+      style={{
+        ...baseStyle,
+        boxShadow: computedShadow,
+        transform: computedTransform,
+        transition: reducedMotion
+          ? 'background 180ms ease, color 180ms ease'
+          : 'transform 220ms cubic-bezier(0.22, 1, 0.36, 1), box-shadow 220ms cubic-bezier(0.22, 1, 0.36, 1), background 220ms ease, border-color 220ms ease',
+      }}
+    >
+      <span
+        className="w-5 h-5 flex items-center justify-center shrink-0 transition-colors duration-200"
+        style={{ color: isActive ? ADMIN_COLORS.primaryBlue : '#3B4D6B' }}
+      >
+        <Icon className={`w-[19px] h-[19px] ${isActive ? 'stroke-[2.25]' : 'stroke-[1.85]'}`} />
+      </span>
+      <span
+        className={`text-[14.5px] tracking-[-0.01em] leading-snug truncate transition-colors duration-200 ${
+          isActive ? 'font-bold text-[#1668FF]' : 'font-semibold text-[#0D1526]'
+        }`}
+      >
+        {item.label}
+      </span>
+    </button>
+  );
+};
+
 export const AdminLayout: React.FC<AdminLayoutProps> = ({
   currentUser,
   onExitAdmin,
-  onLogout
+  onLogout,
 }) => {
+  const prefersReducedMotion = useReducedMotion() ?? false;
   const [activeTab, setActiveTab] = useState<string>('dashboard');
   const [adminTabHistory, setAdminTabHistory] = useState<string[]>([]);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
-  const [currentTime, setCurrentTime] = useState('');
+  const [isProfileMenuOpen, setIsProfileMenuOpen] = useState(false);
+  const profileMenuRef = useRef<HTMLDivElement>(null);
 
   const handleSelectAdminTab = React.useCallback((nextTab: string) => {
     setActiveTab((prev) => {
@@ -51,6 +149,25 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({
       return nextTab;
     });
   }, []);
+
+  // Close profile dropdown on outside click or Escape key
+  useEffect(() => {
+    if (!isProfileMenuOpen) return;
+    const handleClickOutside = (e: MouseEvent) => {
+      if (profileMenuRef.current && !profileMenuRef.current.contains(e.target as Node)) {
+        setIsProfileMenuOpen(false);
+      }
+    };
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setIsProfileMenuOpen(false);
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    document.addEventListener('keydown', handleKeyDown);
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+      document.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [isProfileMenuOpen]);
 
   // Register iOS Edge-Swipe Back Gesture for internal Admin tabs
   useIOSBackEntry({
@@ -84,44 +201,23 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({
     },
   });
 
-  // Live Clock & Date formatted (matching screenshot: 16:35 | 12 de setembro)
-  useEffect(() => {
-    const updateTime = () => {
-      const now = new Date();
-      const hours = String(now.getHours()).padStart(2, '0');
-      const minutes = String(now.getMinutes()).padStart(2, '0');
-      const day = now.getDate();
-      const months = [
-        'janeiro', 'fevereiro', 'março', 'abril', 'maio', 'junho',
-        'julho', 'agosto', 'setembro', 'outubro', 'novembro', 'dezembro'
-      ];
-      const monthStr = months[now.getMonth()];
-      setCurrentTime(`${hours}:${minutes} | ${day} de ${monthStr}`);
-    };
-
-    updateTime();
-    const interval = setInterval(updateTime, 1000 * 30);
-    return () => clearInterval(interval);
-  }, []);
-
-  const userName = (currentUser?.name || 'MARIOMELOZ').toUpperCase();
-
-  const NAV_ITEMS = [
-    { id: 'dashboard', label: 'Visão Geral', icon: LayoutDashboard },
-    { id: 'spots', label: 'Pontos Turísticos', icon: MapPin },
-    { id: 'itineraries', label: 'Roteiros', icon: Route },
-    { id: 'platanos', label: 'Plátanos & Stripe', icon: PlatanoLeafIcon },
-    { id: 'services', label: 'Locais e Serviços', icon: Store },
-    { id: 'users', label: 'Usuários & Comunidade', icon: Users },
-    { id: 'settings', label: 'Configurações', icon: Settings },
-    { id: 'cleanup', label: 'Limpeza do Sistema', icon: Sparkles },
-  ];
+  const displayName = currentUser?.name || 'Mario Yesk';
+  const avatarSrc =
+    currentUser?.avatar_url && currentUser.avatar_url !== '/fotoperfil.png'
+      ? currentUser.avatar_url
+      : (typeof window !== 'undefined' ? localStorage.getItem('monvian_local_avatar') : null) ||
+        currentUser?.avatar_url ||
+        '/fotoperfil.png';
 
   return (
     <div
       id="admin-layout-root"
-      className="w-full bg-[#f8fafc] dark:bg-[#000000] text-zinc-900 dark:text-zinc-100 flex flex-col font-sans antialiased overflow-hidden rounded-t-[26px] ios-page-top-rounded"
+      className="w-full flex overflow-hidden antialiased rounded-t-[26px] ios-page-top-rounded"
       style={{
+        backgroundColor: ADMIN_COLORS.canvasBg,
+        color: ADMIN_COLORS.textPrimary,
+        fontFamily:
+          '-apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro Text", "Inter", "Segoe UI", Roboto, sans-serif',
         height: 'var(--app-height, 100dvh)',
         minHeight: 'var(--app-height, 100dvh)',
         borderTopLeftRadius: '26px',
@@ -129,270 +225,289 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({
         overflow: 'hidden',
         WebkitMaskImage: '-webkit-radial-gradient(white, black)',
         isolation: 'isolate',
+        colorScheme: 'light',
       }}
     >
-      {/* Top Header Bar */}
-      <header
-        className="shrink-0 z-40 bg-white dark:bg-[#000000] border-b border-zinc-200/80 dark:border-[#262626] px-4 sm:px-6 py-3 flex items-center justify-between shadow-2xs rounded-t-[26px]"
+      {/* Desktop Sidebar (~308px on 1648px reference, adapts cleanly on notebooks) */}
+      <aside
+        className="hidden md:flex md:w-[272px] lg:w-[292px] xl:w-[308px] shrink-0 bg-white flex-col z-20 overflow-y-auto md:rounded-r-[28px]"
         style={{
-          paddingTop: 'max(12px, env(safe-area-inset-top, 0px))',
-          paddingLeft: 'max(16px, env(safe-area-inset-left, 0px))',
-          paddingRight: 'max(16px, env(safe-area-inset-right, 0px))',
-          borderTopLeftRadius: '26px',
-          borderTopRightRadius: '26px',
+          boxShadow: ADMIN_SHADOWS.sidebar,
+          paddingTop: 'max(28px, calc(env(safe-area-inset-top, 0px) + 20px))',
+          paddingBottom: 'max(28px, calc(env(safe-area-inset-bottom, 0px) + 20px))',
         }}
       >
-        {/* Left: Greeting and Clock */}
-        <div className="flex items-center gap-3">
-          {/* Mobile hamburger */}
-          <button
-            onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
-            className="md:hidden p-2 rounded-xl text-zinc-600 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors cursor-pointer"
-          >
-            {isMobileMenuOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
-          </button>
-
-          <div>
-            <div className="flex items-center gap-2">
-              <span className="text-xs sm:text-sm font-black text-zinc-900 dark:text-white tracking-tight">
-                BOA TARDE, {userName}
-              </span>
-            </div>
-            <div className="flex items-center gap-2 text-[11px] text-zinc-400 dark:text-zinc-400 font-black">
-              <span>{currentTime}</span>
-              <span className="text-zinc-300 dark:text-zinc-600">•</span>
-              <button
-                type="button"
-                onClick={onExitAdmin}
-                className="text-blue-600 dark:text-blue-400 font-black hover:underline cursor-pointer flex items-center gap-0.5"
-              >
-                <span>VOLTAR AO PERFIL</span>
-              </button>
-            </div>
-          </div>
-        </div>
-
-        {/* Right: Actions and Profile */}
-        <div className="flex items-center gap-2.5">
-          <button
-            type="button"
-            id="btn-admin-back-to-profile"
-            onClick={onExitAdmin}
-            onTouchEnd={(e) => {
-              e.preventDefault();
-              onExitAdmin();
-            }}
-            className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-zinc-900 dark:bg-white hover:bg-zinc-800 dark:hover:bg-zinc-100 active:scale-95 text-white dark:text-zinc-900 font-black text-xs shadow-xs transition-all cursor-pointer pointer-events-auto z-30"
-            title="Voltar ao Perfil"
-          >
-            <ArrowLeft className="w-3.5 h-3.5 stroke-[2.5]" />
-            <span>Voltar ao Perfil</span>
-          </button>
-
-          {/* User Profile Capsule */}
-          <div className="flex items-center gap-2 pl-2 border-l border-zinc-200 dark:border-zinc-700">
+        {/* Brand Identity Lockup (Original Monvian logo + Monvian / Campos do Jordão) */}
+        <div className="px-6 pb-8 flex items-center gap-3.5">
+          <div className="w-11 h-11 rounded-2xl bg-white flex items-center justify-center shrink-0 overflow-hidden">
             <img
-              src={
-                currentUser?.avatar_url && currentUser.avatar_url !== '/fotoperfil.png'
-                  ? currentUser.avatar_url
-                  : (typeof window !== 'undefined' ? localStorage.getItem('monvian_local_avatar') : null) ||
-                    currentUser?.avatar_url ||
-                    '/fotoperfil.png'
-              }
-              alt="Avatar"
-              className="w-8 h-8 rounded-full object-cover ring-1 ring-zinc-200 dark:ring-zinc-700"
+              src="/minilogo.png"
+              alt="Monvian"
+              className="w-10 h-10 object-contain select-none"
+              style={{ mixBlendMode: 'multiply' }}
             />
-            <div className="hidden sm:block text-left">
-              <span className="block text-xs font-black text-zinc-900 dark:text-zinc-100 leading-tight">
-                {currentUser?.name || 'mariomeloz'}
-              </span>
-              <span className="text-[10px] font-black text-blue-600 dark:text-blue-400 tracking-wider">
-                GERENTE
-              </span>
-            </div>
+          </div>
+          <div className="min-w-0">
+            <span className="block text-[21px] font-bold tracking-[-0.03em] text-[#0D1526] leading-tight">
+              Monvian
+            </span>
+            <span className="block text-[12.5px] font-medium text-[#64748B] tracking-[-0.01em] leading-tight mt-0.5">
+              Campos do Jordão
+            </span>
           </div>
         </div>
-      </header>
 
-      {/* Main Container: Sidebar + Content */}
-      <div className="flex-1 flex min-h-0 overflow-hidden">
-        {/* Desktop Sidebar (Matching screenshot layout) */}
-        <aside className="hidden md:flex w-64 bg-white dark:bg-[#000000] border-r border-zinc-200/80 dark:border-[#262626] flex-col justify-between shrink-0 p-4 overflow-y-auto">
-          <div className="space-y-6">
-            {/* Logo */}
-            <div className="px-3 py-2 flex items-center gap-2.5">
-              <div className="w-11 h-11 rounded-xl bg-black flex items-center justify-center shadow-sm overflow-hidden p-1.5">
-                <img src="/logomodoescuro.png" alt="Logo" className="w-full h-full object-contain" />
-              </div>
-              <div>
-                <span className="block text-sm font-black tracking-tight text-zinc-900 dark:text-white">
-                  MONVIAN ADM
-                </span>
-                <span className="block text-[10px] font-black text-zinc-400 dark:text-zinc-500 uppercase tracking-wider">
-                  Campos do Jordão
-                </span>
-              </div>
-            </div>
+        {/* 3D Tactile Navigation Buttons (Exclusively the 7 core pages) */}
+        <nav className="px-5 flex-1 space-y-3" aria-label="Navegação administrativa">
+          {NAV_ITEMS.map((item) => (
+            <Sidebar3DButton
+              key={item.id}
+              item={item}
+              isActive={activeTab === item.id}
+              onClick={() => handleSelectAdminTab(item.id)}
+              reducedMotion={prefersReducedMotion}
+            />
+          ))}
+        </nav>
+      </aside>
 
-            {/* Navigation Menu */}
-            <nav className="space-y-1">
-              {NAV_ITEMS.map((item) => {
-                const Icon = item.icon;
-                const isActive = activeTab === item.id;
-                return (
-                  <button
-                    key={item.id}
-                    onClick={() => handleSelectAdminTab(item.id)}
-                    className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-xs font-black transition-all cursor-pointer ${
-                      isActive
-                        ? 'bg-blue-50 dark:bg-blue-950/40 text-blue-600 dark:text-blue-400 font-black shadow-2xs'
-                        : 'text-zinc-600 dark:text-zinc-400 hover:bg-zinc-50 dark:hover:bg-zinc-800/60 hover:text-zinc-900 dark:hover:text-zinc-100'
-                    }`}
-                  >
-                    <Icon className={`${item.id === 'platanos' ? 'w-6 h-6' : 'w-4 h-4'} ${isActive ? 'text-blue-600 dark:text-blue-400' : 'text-zinc-400 dark:text-zinc-500'}`} />
-                    <span>{item.label}</span>
-                  </button>
-                );
-              })}
-            </nav>
-          </div>
-
-          {/* Bottom Sidebar: System Health Card (Matching reference) */}
-          <div className="space-y-3 pt-4 border-t border-zinc-100 dark:border-zinc-800">
-            <div className="p-3.5 bg-zinc-50 dark:bg-zinc-800/50 border border-zinc-200/80 dark:border-zinc-700/60 rounded-2xl space-y-1.5">
-              <div className="flex items-center justify-between text-[11px] font-black text-zinc-400 dark:text-zinc-500 uppercase">
-                <span>SAÚDE DO SISTEMA</span>
-                <span className="w-2 h-2 rounded-full bg-blue-500 animate-pulse"></span>
-              </div>
-              <div className="flex items-center gap-1.5">
-                <span className="text-xs font-black text-blue-600 dark:text-blue-400">Operacional</span>
-              </div>
-              <p className="text-[10px] text-zinc-400 dark:text-zinc-500 font-black">
-                Latência: 24ms • Ativo há 12d 4h
-              </p>
-            </div>
-
-            <button
-              type="button"
-              onClick={onExitAdmin}
-              onTouchEnd={(e) => {
-                e.preventDefault();
-                onExitAdmin();
-              }}
-              className="w-full flex items-center justify-center gap-2 py-2 px-3 bg-zinc-100 dark:bg-zinc-800 hover:bg-zinc-200 dark:hover:bg-zinc-700 text-zinc-700 dark:text-zinc-200 rounded-xl text-xs font-black transition-colors cursor-pointer pointer-events-auto"
-            >
-              <ArrowLeft className="w-3.5 h-3.5 stroke-[2.5]" />
-              <span>Voltar ao Perfil</span>
-            </button>
-          </div>
-        </aside>
-
-        {/* Mobile Slide-out Drawer */}
+      {/* Mobile / Tablet Slide-over Sidebar Drawer */}
+      <AnimatePresence>
         {isMobileMenuOpen && (
           <div className="md:hidden fixed inset-0 z-50 flex">
-            <div
-              className="fixed inset-0 bg-black/50 backdrop-blur-xs"
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: prefersReducedMotion ? 0 : 0.2 }}
+              className="fixed inset-0 bg-[#0D1526]/30 backdrop-blur-xs"
               onClick={() => setIsMobileMenuOpen(false)}
             />
-            <div 
-              className="relative w-72 max-w-[80vw] bg-white dark:bg-[#000000] border-r dark:border-[#262626] h-full flex flex-col justify-between shadow-2xl z-10 animate-in slide-in-from-left duration-200"
+            <motion.div
+              initial={prefersReducedMotion ? false : { x: '-100%' }}
+              animate={{ x: 0 }}
+              exit={prefersReducedMotion ? undefined : { x: '-100%' }}
+              transition={{ duration: 0.24, ease: ADMIN_MOTION_EASE }}
+              className="relative w-[290px] max-w-[84vw] bg-white h-full flex flex-col z-10 rounded-r-[28px] overflow-y-auto"
               style={{
+                boxShadow: '20px 0 50px -12px rgba(15, 23, 42, 0.22)',
                 paddingTop: 'max(24px, calc(env(safe-area-inset-top, 0px) + 16px))',
                 paddingBottom: 'max(24px, calc(env(safe-area-inset-bottom, 0px) + 16px))',
-                paddingLeft: 'max(16px, env(safe-area-inset-left, 0px))',
-                paddingRight: 'max(16px, env(safe-area-inset-right, 0px))',
               }}
             >
-              <div className="space-y-6">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    <div className="w-11 h-11 rounded-xl bg-black flex items-center justify-center shadow-sm overflow-hidden p-1.5">
-                      <img src="/logomodoescuro.png" alt="Logo" className="w-full h-full object-contain" />
-                    </div>
-                    <span className="font-black text-sm text-zinc-900 dark:text-white">MONVIAN ADM</span>
+              <div className="px-5 pb-6 flex items-center justify-between gap-2">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-xl bg-white flex items-center justify-center shrink-0">
+                    <img
+                      src="/minilogo.png"
+                      alt="Monvian"
+                      className="w-9 h-9 object-contain select-none"
+                      style={{ mixBlendMode: 'multiply' }}
+                    />
                   </div>
-                  <button
-                    onClick={() => setIsMobileMenuOpen(false)}
-                    className="p-2 text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-200"
-                  >
-                    <X className="w-5 h-5" />
-                  </button>
+                  <div>
+                    <span className="block text-[19px] font-bold tracking-[-0.03em] text-[#0D1526] leading-tight">
+                      Monvian
+                    </span>
+                    <span className="block text-[12px] font-medium text-[#64748B] leading-tight">
+                      Campos do Jordão
+                    </span>
+                  </div>
                 </div>
-
-                <nav className="space-y-1">
-                  {NAV_ITEMS.map((item) => {
-                    const Icon = item.icon;
-                    const isActive = activeTab === item.id;
-                    return (
-                      <button
-                        key={item.id}
-                        onClick={() => {
-                          handleSelectAdminTab(item.id);
-                          setIsMobileMenuOpen(false);
-                        }}
-                        className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-xs font-black transition-all ${
-                          isActive
-                            ? 'bg-blue-50 dark:bg-blue-950/40 text-blue-600 dark:text-blue-400 font-black'
-                            : 'text-zinc-600 dark:text-zinc-400 hover:bg-zinc-50 dark:hover:bg-zinc-800'
-                        }`}
-                      >
-                        <Icon className={item.id === 'platanos' ? 'w-6 h-6' : 'w-4 h-4'} />
-                        <span>{item.label}</span>
-                      </button>
-                    );
-                  })}
-                </nav>
-              </div>
-
-              <div className="space-y-2">
                 <button
                   type="button"
-                  onClick={() => {
-                    setIsMobileMenuOpen(false);
-                    onExitAdmin();
-                  }}
-                  onTouchEnd={(e) => {
-                    e.preventDefault();
-                    setIsMobileMenuOpen(false);
-                    onExitAdmin();
-                  }}
-                  className="w-full py-2.5 bg-zinc-900 dark:bg-white text-white dark:text-zinc-900 font-black text-xs rounded-xl flex items-center justify-center gap-2 cursor-pointer pointer-events-auto"
+                  onClick={() => setIsMobileMenuOpen(false)}
+                  aria-label="Fechar menu"
+                  className="p-2 rounded-full text-[#64748B] hover:text-[#0D1526] hover:bg-[#F4F7FC] transition-colors cursor-pointer"
                 >
-                  <ArrowLeft className="w-4 h-4 stroke-[2.5]" />
-                  <span>Voltar ao Perfil</span>
+                  <X className="w-5 h-5" />
                 </button>
               </div>
-            </div>
+
+              <nav className="px-4 flex-1 space-y-2.5" aria-label="Navegação administrativa mobile">
+                {NAV_ITEMS.map((item) => (
+                  <Sidebar3DButton
+                    key={item.id}
+                    item={item}
+                    isActive={activeTab === item.id}
+                    onClick={() => {
+                      handleSelectAdminTab(item.id);
+                      setIsMobileMenuOpen(false);
+                    }}
+                    reducedMotion={prefersReducedMotion}
+                  />
+                ))}
+              </nav>
+            </motion.div>
           </div>
         )}
+      </AnimatePresence>
 
-        {/* Dynamic Content Area with Full Scroll & Safe Bottom Padding */}
-        <main 
+      {/* Main Content Workspace */}
+      <div className="flex-1 flex flex-col min-w-0 min-h-0 overflow-hidden">
+        <main
           id="admin-main-content"
-          className="flex-1 p-4 sm:p-6 lg:p-8 overflow-y-auto min-h-0 max-w-7xl mx-auto w-full"
+          className="flex-1 overflow-y-auto min-h-0 w-full"
           style={{
-            paddingBottom: 'max(128px, calc(env(safe-area-inset-bottom, 0px) + 96px))',
+            paddingTop: 'max(18px, calc(env(safe-area-inset-top, 0px) + 14px))',
+            paddingBottom: 'max(100px, calc(env(safe-area-inset-bottom, 0px) + 72px))',
+            paddingLeft: 'max(16px, env(safe-area-inset-left, 0px))',
+            paddingRight: 'max(16px, env(safe-area-inset-right, 0px))',
           }}
         >
-          <AnimatePresence mode="wait">
-            <motion.div
-              key={activeTab}
-              initial={{ opacity: 0, y: 12 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -12 }}
-              transition={{ duration: 0.18, ease: "easeOut" }}
-              className="w-full"
-            >
-              {activeTab === 'dashboard' && <AdminDashboard onNavigateTo={(tab) => handleSelectAdminTab(tab)} />}
-              {activeTab === 'spots' && <AdminSpots />}
-              {activeTab === 'itineraries' && <AdminItineraries />}
-              {activeTab === 'platanos' && <AdminPlatanos currentUser={currentUser} />}
-              {activeTab === 'services' && <AdminServices />}
-              {activeTab === 'users' && <AdminUsers />}
-              {activeTab === 'settings' && <AdminSettings />}
-              {activeTab === 'cleanup' && <AdminCleanup />}
-            </motion.div>
-          </AnimatePresence>
+          <div className="max-w-[1340px] mx-auto px-1 sm:px-4 lg:px-8">
+            {/* Compact Top Utility Row (Mobile drawer trigger + Floating Profile Pill on right) */}
+            <div className="flex items-center justify-between md:justify-end gap-3 mb-4 sm:mb-5">
+              {/* Mobile Hamburger + Compact Brand */}
+              <div className="flex md:hidden items-center gap-2.5">
+                <button
+                  type="button"
+                  onClick={() => setIsMobileMenuOpen(true)}
+                  aria-label="Abrir menu administrativo"
+                  className="w-11 h-11 rounded-full bg-white flex items-center justify-center text-[#0D1526] active:scale-95 transition-transform cursor-pointer"
+                  style={{ boxShadow: ADMIN_SHADOWS.floatingPill }}
+                >
+                  <Menu className="w-5 h-5" />
+                </button>
+                <div className="flex items-center gap-2">
+                  <img
+                    src="/minilogo.png"
+                    alt="Monvian"
+                    className="w-7 h-7 object-contain select-none"
+                    style={{ mixBlendMode: 'multiply' }}
+                  />
+                  <span className="text-[16px] font-bold tracking-[-0.02em] text-[#0D1526]">
+                    Monvian
+                  </span>
+                </div>
+              </div>
+
+              {/* Compact Floating Profile Pill Dropdown (Matching Reference Top-Right) */}
+              <div ref={profileMenuRef} className="relative z-40">
+                <button
+                  type="button"
+                  id="btn-admin-profile-menu"
+                  onClick={() => setIsProfileMenuOpen((v) => !v)}
+                  aria-expanded={isProfileMenuOpen}
+                  aria-haspopup="menu"
+                  className="group flex items-center gap-3 pl-2 pr-4 py-1.5 rounded-full bg-white border border-white/95 cursor-pointer select-none transition-all duration-200 hover:-translate-y-0.5 active:translate-y-0 active:scale-[0.98]"
+                  style={{ boxShadow: ADMIN_SHADOWS.floatingPill }}
+                >
+                  <img
+                    src={avatarSrc}
+                    alt={displayName}
+                    className="w-9 h-9 rounded-full object-cover ring-2 ring-[#F4F7FC] shrink-0"
+                  />
+                  <span className="text-[14px] sm:text-[14.5px] font-semibold text-[#0D1526] tracking-[-0.01em] max-w-[130px] sm:max-w-[180px] truncate">
+                    {displayName}
+                  </span>
+                  <ChevronDown
+                    className={`w-4 h-4 text-[#475569] transition-transform duration-200 ${
+                      isProfileMenuOpen ? 'rotate-180 text-[#1668FF]' : ''
+                    }`}
+                  />
+                </button>
+
+                <AnimatePresence>
+                  {isProfileMenuOpen && (
+                    <motion.div
+                      role="menu"
+                      initial={prefersReducedMotion ? false : { opacity: 0, y: 6, scale: 0.97 }}
+                      animate={{ opacity: 1, y: 0, scale: 1 }}
+                      exit={prefersReducedMotion ? undefined : { opacity: 0, y: 4, scale: 0.97 }}
+                      transition={{ duration: 0.18, ease: ADMIN_MOTION_EASE }}
+                      className="absolute right-0 mt-2.5 w-64 rounded-[22px] bg-white border border-slate-200/80 p-2 z-50 origin-top-right"
+                      style={{ boxShadow: ADMIN_SHADOWS.popover }}
+                    >
+                      <div className="px-3.5 py-2.5 border-b border-slate-100 mb-1.5">
+                        <div className="flex items-center gap-2.5">
+                          <img
+                            src={avatarSrc}
+                            alt={displayName}
+                            className="w-9 h-9 rounded-full object-cover ring-1 ring-slate-200 shrink-0"
+                          />
+                          <div className="min-w-0">
+                            <p className="text-[13.5px] font-bold text-[#0D1526] truncate">
+                              {displayName}
+                            </p>
+                            <p className="text-[11.5px] font-medium text-[#64748B] truncate">
+                              {currentUser?.email || 'Administrador Monvian'}
+                            </p>
+                          </div>
+                        </div>
+                      </div>
+
+                      <button
+                        type="button"
+                        role="menuitem"
+                        id="btn-admin-back-to-profile"
+                        onClick={() => {
+                          setIsProfileMenuOpen(false);
+                          onExitAdmin();
+                        }}
+                        className="w-full flex items-center gap-2.5 px-3.5 py-2.5 rounded-xl text-[13.5px] font-semibold text-[#0D1526] hover:bg-[#F4F7FC] hover:text-[#1668FF] transition-colors cursor-pointer"
+                      >
+                        <ArrowLeft className="w-4 h-4 text-[#1668FF]" />
+                        <span>Voltar ao Perfil</span>
+                      </button>
+
+                      <button
+                        type="button"
+                        role="menuitem"
+                        onClick={() => {
+                          setIsProfileMenuOpen(false);
+                          handleSelectAdminTab('settings');
+                        }}
+                        className="w-full flex items-center gap-2.5 px-3.5 py-2.5 rounded-xl text-[13.5px] font-semibold text-[#334155] hover:bg-[#F4F7FC] hover:text-[#0D1526] transition-colors cursor-pointer"
+                      >
+                        <UserIcon className="w-4 h-4 text-[#64748B]" />
+                        <span>Configurações da Conta</span>
+                      </button>
+
+                      {onLogout && (
+                        <div className="mt-1 pt-1 border-t border-slate-100">
+                          <button
+                            type="button"
+                            role="menuitem"
+                            onClick={() => {
+                              setIsProfileMenuOpen(false);
+                              onLogout();
+                            }}
+                            className="w-full flex items-center gap-2.5 px-3.5 py-2.5 rounded-xl text-[13.5px] font-semibold text-rose-600 hover:bg-rose-50 transition-colors cursor-pointer"
+                          >
+                            <LogOut className="w-4 h-4" />
+                            <span>Sair do Painel</span>
+                          </button>
+                        </div>
+                      )}
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+              </div>
+            </div>
+
+            {/* Active Admin Page Container */}
+            <AnimatePresence mode="wait">
+              <motion.div
+                key={activeTab}
+                initial={prefersReducedMotion ? false : { opacity: 0, y: 8 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={prefersReducedMotion ? undefined : { opacity: 0, y: -6 }}
+                transition={{ duration: 0.2, ease: ADMIN_MOTION_EASE }}
+                className="w-full"
+              >
+                {activeTab === 'dashboard' && (
+                  <AdminDashboard onNavigateTo={(tab) => handleSelectAdminTab(tab)} />
+                )}
+                {activeTab === 'spots' && <AdminSpots />}
+                {activeTab === 'itineraries' && <AdminItineraries />}
+                {activeTab === 'platanos' && <AdminPlatanos currentUser={currentUser} />}
+                {activeTab === 'services' && <AdminServices />}
+                {activeTab === 'users' && <AdminUsers />}
+                {activeTab === 'settings' && <AdminSettings />}
+              </motion.div>
+            </AnimatePresence>
+          </div>
         </main>
       </div>
     </div>

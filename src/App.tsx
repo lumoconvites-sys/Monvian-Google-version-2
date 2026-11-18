@@ -44,66 +44,32 @@ const AuthScreen = React.lazy(() =>
   import('./components/AuthScreen').then((m) => ({ default: m.AuthScreen }))
 );
 
-// Authenticated app shell & heavy views (deactivated and NOT loaded when the user is logged out)
-const MapComponent = React.lazy(() =>
-  import('./components/MapComponent').then((m) => ({ default: m.MapComponent }))
-);
-const BottomNavigation = React.lazy(() =>
-  import('./components/BottomNavigation').then((m) => ({ default: m.BottomNavigation }))
-);
-const SpotDetailSheet = React.lazy(() =>
-  import('./components/SpotDetailSheet').then((m) => ({ default: m.SpotDetailSheet }))
-);
-const SpotPreviewBanner = React.lazy(() =>
-  import('./components/SpotPreviewBanner').then((m) => ({ default: m.SpotPreviewBanner }))
-);
-const SearchFilterDrawer = React.lazy(() =>
-  import('./components/SearchFilterDrawer').then((m) => ({ default: m.SearchFilterDrawer }))
-);
-const SavedView = React.lazy(() =>
-  import('./components/SavedView').then((m) => ({ default: m.SavedView }))
-);
-const ProfileModal = React.lazy(() =>
-  import('./components/ProfileModal').then((m) => ({ default: m.ProfileModal }))
-);
-const ItinerariesView = React.lazy(() =>
-  import('./components/ItinerariesView').then((m) => ({ default: m.ItinerariesView }))
-);
-const SettingsModal = React.lazy(() =>
-  import('./components/SettingsModal').then((m) => ({ default: m.SettingsModal }))
-);
+// Authenticated core views (single on-demand module: NEVER loaded when logged out,
+// and synchronously available across all tabs once logged in — zero white screen on tab switch)
+type AuthenticatedViewsModule = typeof import('./components/AuthenticatedViews');
+let cachedAuthenticatedViews: AuthenticatedViewsModule | null = null;
+let authenticatedViewsPromise: Promise<AuthenticatedViewsModule> | null = null;
+
+function loadAuthenticatedViews(): Promise<AuthenticatedViewsModule> {
+  if (!authenticatedViewsPromise) {
+    authenticatedViewsPromise = import('./components/AuthenticatedViews').then((mod) => {
+      cachedAuthenticatedViews = mod;
+      return mod;
+    });
+  }
+  return authenticatedViewsPromise;
+}
+
+if (typeof window !== 'undefined' && hasSyncSessionToken()) {
+  loadAuthenticatedViews();
+}
+
+// Rare flows kept isolated with individual local Suspense boundaries
 const AdminLayout = React.lazy(() =>
   import('./components/admin/AdminLayout').then((m) => ({ default: m.AdminLayout }))
 );
 const OnboardingFlow = React.lazy(() =>
   import('./components/OnboardingFlow').then((m) => ({ default: m.OnboardingFlow }))
-);
-const RainEffect = React.lazy(() =>
-  import('./components/RainEffect').then((m) => ({ default: m.RainEffect }))
-);
-const SnowEffect = React.lazy(() =>
-  import('./components/SnowEffect').then((m) => ({ default: m.SnowEffect }))
-);
-const GoldSuccessModal = React.lazy(() =>
-  import('./components/GoldSuccessModal').then((m) => ({ default: m.GoldSuccessModal }))
-);
-const DesktopSidebar = React.lazy(() =>
-  import('./components/desktop/DesktopSidebar').then((m) => ({ default: m.DesktopSidebar }))
-);
-const DesktopMapControls = React.lazy(() =>
-  import('./components/desktop/DesktopMapControls').then((m) => ({ default: m.DesktopMapControls }))
-);
-const DesktopExplorePanel = React.lazy(() =>
-  import('./components/desktop/DesktopExplorePanel').then((m) => ({ default: m.DesktopExplorePanel }))
-);
-const AirbnbPresentationCard = React.lazy(() =>
-  import('./components/AirbnbPresentationCard').then((m) => ({ default: m.AirbnbPresentationCard }))
-);
-const PlatanosWalletModal = React.lazy(() =>
-  import('./components/platanos/PlatanosWalletModal').then((m) => ({ default: m.PlatanosWalletModal }))
-);
-const CamposAchievementModal = React.lazy(() =>
-  import('./components/CamposAchievementModal').then((m) => ({ default: m.CamposAchievementModal }))
 );
 const SignupIntroSequence = React.lazy(() =>
   import('./components/SignupIntroSequence').then((m) => ({ default: m.SignupIntroSequence }))
@@ -113,15 +79,6 @@ const FirstSignupWelcomeScreen = React.lazy(() =>
 );
 const WelcomeJourneyModal = React.lazy(() =>
   import('./components/WelcomeJourneyModal').then((m) => ({ default: m.WelcomeJourneyModal }))
-);
-const XpRewardNotificationOverlay = React.lazy(() =>
-  import('./components/XpRewardNotificationOverlay').then((m) => ({ default: m.XpRewardNotificationOverlay }))
-);
-const WhiteConfettiOverlay = React.lazy(() =>
-  import('./components/WhiteConfettiOverlay').then((m) => ({ default: m.WhiteConfettiOverlay }))
-);
-const ClothingWeatherModal = React.lazy(() =>
-  import('./components/ClothingWeatherWidget').then((m) => ({ default: m.ClothingWeatherModal }))
 );
 
 const welcomeContainerVariants = {
@@ -270,10 +227,27 @@ export default function App() {
     } catch {}
   }, []);
 
-  // Preload authenticated itinerary & map resources ONLY while logged in
+  const [authenticatedViews, setAuthenticatedViews] = useState<AuthenticatedViewsModule | null>(
+    () => cachedAuthenticatedViews
+  );
+
+  // Preload authenticated views & itinerary resources ONLY while logged in
   useEffect(() => {
     if (!isAuthenticated || pendingResetOobCode) return;
     startPreloadResources();
+    if (cachedAuthenticatedViews) {
+      setAuthenticatedViews(cachedAuthenticatedViews);
+      return;
+    }
+    let cancelled = false;
+    loadAuthenticatedViews().then((mod) => {
+      if (!cancelled) {
+        setAuthenticatedViews(mod);
+      }
+    });
+    return () => {
+      cancelled = true;
+    };
   }, [isAuthenticated, pendingResetOobCode]);
 
   // Map style mode state
@@ -2540,13 +2514,66 @@ export default function App() {
                 const rootEl = document.getElementById('root');
                 if (rootEl) rootEl.scrollTop = 0;
               } catch {}
+              loadAuthenticatedViews();
               setIsAuthChecking(false);
               setIsAuthenticated(true);
             }}
           />
           </Suspense>
         </motion.div>
-      ) : (
+      ) : !authenticatedViews ? (
+        <div
+          key="monvian-app-hydrating"
+          className={`fixed inset-0 w-full z-[130] flex items-center justify-center ${
+            theme === 'dark' ? 'bg-[#000000]' : 'bg-[#FFFFFF]'
+          }`}
+          style={{
+            top: 0,
+            bottom: 0,
+            left: 0,
+            right: 0,
+            width: '100%',
+            height: 'var(--app-height, 100dvh)',
+            minHeight: 'var(--app-height, 100dvh)',
+          }}
+        >
+          <img
+            src={
+              theme === 'dark'
+                ? '/logomodoescuro.png'
+                : '/assets/aistudio/monvian_logo_dark_transparent.png'
+            }
+            alt="Monvian"
+            draggable={false}
+            style={{ animation: 'monvianLogoIdleBreath 1.4s ease-in-out infinite' }}
+            className="w-[220px] max-w-[60vw] h-auto object-contain select-none pointer-events-none"
+          />
+        </div>
+      ) : (() => {
+        const {
+          MapComponent,
+          BottomNavigation,
+          SpotDetailSheet,
+          SpotPreviewBanner,
+          SearchFilterDrawer,
+          SavedView,
+          ProfileModal,
+          ItinerariesView,
+          SettingsModal,
+          RainEffect,
+          SnowEffect,
+          GoldSuccessModal,
+          DesktopSidebar,
+          DesktopMapControls,
+          DesktopExplorePanel,
+          AirbnbPresentationCard,
+          PlatanosWalletModal,
+          CamposAchievementModal,
+          XpRewardNotificationOverlay,
+          WhiteConfettiOverlay,
+          ClothingWeatherModal,
+        } = authenticatedViews;
+        return (
         <motion.div
           key="monvian-main-app"
           initial={false}
@@ -2588,7 +2615,6 @@ export default function App() {
               signupIntroStage === 'white' || signupIntroStage === 'video' ? 'none' : undefined,
           }}
         >
-      <Suspense fallback={null}>
       <OfflineIndicator />
 
       {/* Desktop Left Sidebar (Only visible on md+ >= 768px, hidden during exclusive post-signup itinerary selection, welcome screen & spotlight) */}
@@ -2960,10 +2986,10 @@ export default function App() {
       {activeTab === 'roteiros' && (
         <motion.div
           key="itineraries-view-reveal-wrapper"
-          initial={{ opacity: 0, scale: 0.96, filter: 'blur(6px)' }}
-          animate={{ opacity: 1, scale: 1, filter: 'blur(0px)' }}
-          exit={{ opacity: 0, scale: 0.96, filter: 'blur(6px)' }}
-          transition={{ duration: 0.42, ease: [0.22, 1, 0.36, 1] }}
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          exit={{ opacity: 0 }}
+          transition={{ duration: 0.16, ease: [0.22, 1, 0.36, 1] }}
           className="fixed inset-0 w-full z-40"
           style={{
             top: 0,
@@ -3010,10 +3036,10 @@ export default function App() {
       {(activeTab === 'salvos' || activeTab === ('chat' as any)) && (
         <motion.div
           key="saved-view-reveal-wrapper"
-          initial={{ opacity: 0, scale: 0.96, filter: 'blur(6px)' }}
-          animate={{ opacity: 1, scale: 1, filter: 'blur(0px)' }}
-          exit={{ opacity: 0, scale: 0.96, filter: 'blur(6px)' }}
-          transition={{ duration: 0.42, ease: [0.22, 1, 0.36, 1] }}
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          exit={{ opacity: 0 }}
+          transition={{ duration: 0.16, ease: [0.22, 1, 0.36, 1] }}
           className="fixed inset-0 w-full z-40 bg-white dark:bg-black overflow-y-auto"
         >
           <SavedView
@@ -3046,10 +3072,10 @@ export default function App() {
       {activeTab === 'perfil' && (
         <motion.div
           key="profile-view-reveal-wrapper"
-          initial={{ opacity: 0, scale: 0.96, filter: 'blur(6px)' }}
-          animate={{ opacity: 1, scale: 1, filter: 'blur(0px)' }}
-          exit={{ opacity: 0, scale: 0.96, filter: 'blur(6px)' }}
-          transition={{ duration: 0.42, ease: [0.22, 1, 0.36, 1] }}
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          exit={{ opacity: 0 }}
+          transition={{ duration: 0.16, ease: [0.22, 1, 0.36, 1] }}
           className="fixed inset-0 w-full z-40 bg-white dark:bg-black overflow-y-auto"
         >
           <ProfileModal
@@ -3467,7 +3493,7 @@ export default function App() {
           animate={{ opacity: 1, x: 0 }}
           exit={{ opacity: 0, x: 18 }}
           transition={{ duration: 0.24, ease: [0.32, 0.72, 0, 1] }}
-          className="fixed inset-0 w-full z-[130]"
+          className="fixed inset-0 w-full z-[130] bg-white"
           style={{
             top: 0,
             bottom: 0,
@@ -3478,18 +3504,20 @@ export default function App() {
             minHeight: 'var(--app-height, 100dvh)',
           }}
         >
-          <AdminLayout
-            currentUser={user}
-            onExitAdmin={() => {
-              setIsAdminOpen(false);
-              fetchSpots();
-              fetchVisualIcons();
-              fetchSettings();
-            }}
-            onLogout={() => {
-              setIsAdminOpen(false);
-            }}
-          />
+          <Suspense fallback={null}>
+            <AdminLayout
+              currentUser={user}
+              onExitAdmin={() => {
+                setIsAdminOpen(false);
+                fetchSpots();
+                fetchVisualIcons();
+                fetchSettings();
+              }}
+              onLogout={() => {
+                setIsAdminOpen(false);
+              }}
+            />
+          </Suspense>
         </motion.div>
       )}
     </AnimatePresence>
@@ -3528,68 +3556,70 @@ export default function App() {
     )}
 
     {/* 4-Step Complementary Registration Flow followed by Original Welcome Screen */}
-    <AnimatePresence mode="wait">
-      {showOnboardingQuestions ? (
-        <OnboardingFlow
-          key="monvian-smart-onboarding"
-          user={user}
-          theme={theme}
-          initialStep={user?.onboarding_step || 1}
-          onComplete={(updatedUser, preferences) => {
-            const cleanEmail = String(
-              updatedUser?.email || user?.email || user?.whatsapp || ''
-            )
-              .trim()
-              .toLowerCase();
-            try {
-              if (cleanEmail) {
-                localStorage.removeItem(`monvian_smart_onboarding_pending_${cleanEmail}`);
-                localStorage.setItem(`monvian_first_welcome_pending_${cleanEmail}`, '1');
-                localStorage.removeItem(`monvian_first_welcome_seen_${cleanEmail}`);
-              }
-            } catch {}
+    <Suspense fallback={null}>
+      <AnimatePresence mode="wait">
+        {showOnboardingQuestions ? (
+          <OnboardingFlow
+            key="monvian-smart-onboarding"
+            user={user}
+            theme={theme}
+            initialStep={user?.onboarding_step || 1}
+            onComplete={(updatedUser, preferences) => {
+              const cleanEmail = String(
+                updatedUser?.email || user?.email || user?.whatsapp || ''
+              )
+                .trim()
+                .toLowerCase();
+              try {
+                if (cleanEmail) {
+                  localStorage.removeItem(`monvian_smart_onboarding_pending_${cleanEmail}`);
+                  localStorage.setItem(`monvian_first_welcome_pending_${cleanEmail}`, '1');
+                  localStorage.removeItem(`monvian_first_welcome_seen_${cleanEmail}`);
+                }
+              } catch {}
 
-            if (updatedUser || preferences) {
-              const token = localStorage.getItem('monvian_token');
-              const mergedForCloud = normalizeAppUser({
-                ...(user || {}),
-                ...(updatedUser || {}),
-                ...(preferences || {}),
-                onboarding_step: 4,
-                onboarding_completed: 1,
-              });
-              if (mergedForCloud) {
-                persistUserToFirestore(mergedForCloud).catch(() => {});
-              }
-              setUser((prev: any) => {
-                const merged = normalizeAppUser({
-                  ...(prev || {}),
+              if (updatedUser || preferences) {
+                const token = localStorage.getItem('monvian_token');
+                const mergedForCloud = normalizeAppUser({
+                  ...(user || {}),
                   ...(updatedUser || {}),
                   ...(preferences || {}),
                   onboarding_step: 4,
                   onboarding_completed: 1,
                 });
-                try {
-                  localStorage.setItem('monvian_user', JSON.stringify(merged));
-                  if (token) {
-                    savePersistentSession(token, merged).catch(() => {});
-                  }
-                } catch {}
-                return merged;
-              });
-            }
-            setShowOnboardingQuestions(false);
-            setShowFirstSignupWelcome(true);
-          }}
-        />
-      ) : showFirstSignupWelcome ? (
-        <FirstSignupWelcomeScreen
-          key="monvian-first-signup-welcome"
-          theme={theme}
-          onComplete={handleDismissFirstSignupWelcome}
-        />
-      ) : null}
-    </AnimatePresence>
+                if (mergedForCloud) {
+                  persistUserToFirestore(mergedForCloud).catch(() => {});
+                }
+                setUser((prev: any) => {
+                  const merged = normalizeAppUser({
+                    ...(prev || {}),
+                    ...(updatedUser || {}),
+                    ...(preferences || {}),
+                    onboarding_step: 4,
+                    onboarding_completed: 1,
+                  });
+                  try {
+                    localStorage.setItem('monvian_user', JSON.stringify(merged));
+                    if (token) {
+                      savePersistentSession(token, merged).catch(() => {});
+                    }
+                  } catch {}
+                  return merged;
+                });
+              }
+              setShowOnboardingQuestions(false);
+              setShowFirstSignupWelcome(true);
+            }}
+          />
+        ) : showFirstSignupWelcome ? (
+          <FirstSignupWelcomeScreen
+            key="monvian-first-signup-welcome"
+            theme={theme}
+            onComplete={handleDismissFirstSignupWelcome}
+          />
+        ) : null}
+      </AnimatePresence>
+    </Suspense>
 
     <PlatanosWalletModal
       isOpen={isPlatanosWalletOpen}
@@ -3603,9 +3633,9 @@ export default function App() {
       onClose={() => setIsCamposAchievementOpen(false)}
     />
 
-      </Suspense>
   </motion.div>
-  )}
+        );
+      })()}
   </AnimatePresence>
   </>
   );

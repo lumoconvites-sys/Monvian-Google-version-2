@@ -163,14 +163,13 @@ export const AdminServices: React.FC = () => {
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <div className="flex items-center gap-2 text-blue-600 dark:text-blue-400 text-xs font-black tracking-wider uppercase mb-1">
-            <span className="w-2 h-2 rounded-full bg-blue-600"></span>
-            CONSOLE OPERACIONAL
+          <div className="flex items-center gap-3">
+            <span className="w-2.5 h-2.5 rounded-full bg-[#1668FF] shrink-0 shadow-[0_0_10px_rgba(22,104,255,0.4)]" />
+            <h1 className="text-[28px] sm:text-[34px] font-bold text-[#0D1526] tracking-[-0.03em] leading-tight">
+              Locais e Serviços
+            </h1>
           </div>
-          <h1 className="text-2xl sm:text-3xl font-black text-zinc-900 dark:text-white tracking-tight">
-            Locais e Serviços
-          </h1>
-          <p className="text-xs sm:text-sm text-zinc-500 dark:text-zinc-400 mt-0.5">
+          <p className="text-sm text-[#5B6B85] mt-1 sm:pl-[22px]">
             {services.length} locais e estabelecimentos cadastrados no sistema.
           </p>
         </div>
@@ -196,7 +195,7 @@ export const AdminServices: React.FC = () => {
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             placeholder="Buscar por nome, categoria ou endereço..."
-            className="w-full pl-10 pr-4 py-2.5 bg-white dark:bg-[#16181d] border border-zinc-200 dark:border-zinc-800 rounded-xl text-xs sm:text-sm text-zinc-900 dark:text-white placeholder-zinc-400 focus:outline-none focus:border-blue-500 shadow-xs"
+            className="w-full pl-10 pr-4 py-2.5 bg-white border border-zinc-200 rounded-xl text-xs sm:text-sm text-zinc-900 placeholder-zinc-400 focus:outline-none focus:border-blue-500 shadow-xs"
           />
         </div>
 
@@ -213,8 +212,8 @@ export const AdminServices: React.FC = () => {
                 }}
                 className={`h-[36px] px-3.5 rounded-full text-xs whitespace-nowrap transition-all duration-200 ease-out cursor-pointer inline-flex items-center gap-1.5 select-none active:scale-[0.96] ${
                   isSelected
-                    ? 'bg-[#E5E5EA] dark:bg-white/20 text-zinc-900 dark:text-white border border-black/[0.06] dark:border-white/20 shadow-[inset_0_1.5px_2.5px_rgba(0,0,0,0.12)] font-semibold'
-                    : 'bg-white dark:bg-[#1C1C1E] text-zinc-700 dark:text-zinc-300 border border-zinc-200/90 dark:border-white/10 shadow-[0_2px_5px_-1px_rgba(0,0,0,0.07),_0_1px_2px_rgba(0,0,0,0.04)] hover:shadow-[0_3px_8px_-1px_rgba(0,0,0,0.09)]'
+                    ? 'bg-[#E5E5EA] text-zinc-900 border border-black/[0.06] shadow-[inset_0_1.5px_2.5px_rgba(0,0,0,0.12)] font-semibold'
+                    : 'bg-white text-zinc-700 border border-zinc-200/90 shadow-[0_2px_5px_-1px_rgba(0,0,0,0.07),_0_1px_2px_rgba(0,0,0,0.04)] hover:shadow-[0_3px_8px_-1px_rgba(0,0,0,0.09)]'
                 }`}
               >
                 {cat.label}
@@ -226,15 +225,15 @@ export const AdminServices: React.FC = () => {
 
       {/* Grid */}
       {loading ? (
-        <div className="flex flex-col items-center justify-center py-20 bg-white dark:bg-[#16181d] rounded-3xl border border-zinc-200 dark:border-zinc-800">
+        <div className="flex flex-col items-center justify-center py-20 bg-white rounded-3xl border border-zinc-200">
           <RefreshCw className="w-8 h-8 text-blue-600 animate-spin mb-3" />
-          <p className="text-sm font-black text-zinc-600 dark:text-zinc-400">Carregando estabelecimentos...</p>
+          <p className="text-sm font-black text-zinc-600">Carregando estabelecimentos...</p>
         </div>
       ) : filteredServices.length === 0 ? (
-        <div className="text-center py-16 bg-white dark:bg-[#16181d] rounded-3xl border border-zinc-200 dark:border-zinc-800 p-8">
-          <Store className="w-12 h-12 text-zinc-300 dark:text-zinc-600 mx-auto mb-3" />
-          <h3 className="text-base font-black text-zinc-800 dark:text-zinc-200">Nenhum estabelecimento encontrado</h3>
-          <p className="text-xs text-zinc-500 dark:text-zinc-400 mt-1 max-w-sm mx-auto">
+        <div className="text-center py-16 bg-white rounded-3xl border border-zinc-200 p-8">
+          <Store className="w-12 h-12 text-zinc-300 mx-auto mb-3" />
+          <h3 className="text-base font-black text-zinc-800">Nenhum estabelecimento encontrado</h3>
+          <p className="text-xs text-zinc-500 mt-1 max-w-sm mx-auto">
             Cadastre novos hotéis, restaurantes ou comércios parceiros para o aplicativo.
           </p>
           <button
@@ -253,9 +252,9 @@ export const AdminServices: React.FC = () => {
           {filteredServices.map((item) => (
             <div
               key={item.id}
-              className="bg-white dark:bg-[#16181d] rounded-2xl border border-zinc-200/90 dark:border-zinc-800/90 shadow-xs hover:shadow-md transition-all overflow-hidden flex flex-col group"
+              className="bg-white rounded-2xl border border-zinc-200/90 shadow-xs hover:shadow-md transition-all overflow-hidden flex flex-col group"
             >
-              <div className="relative h-44 w-full bg-zinc-100 dark:bg-zinc-800 overflow-hidden">
+              <div className="relative h-44 w-full bg-zinc-100 overflow-hidden">
                 <img
                   src={item.image}
                   alt={item.name}
@@ -269,7 +268,7 @@ export const AdminServices: React.FC = () => {
                       VERIFICADO
                     </span>
                   ) : (
-                    <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-zinc-800/80 backdrop-blur-md text-white text-[10px] font-black">
+                    <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-white/90 backdrop-blur-md text-zinc-800 text-[10px] font-black shadow-xs">
                       PADRÃO
                     </span>
                   )}
@@ -308,16 +307,16 @@ export const AdminServices: React.FC = () => {
 
               <div className="p-4 flex-1 flex flex-col justify-between">
                 <div>
-                  <h3 className="text-base font-black text-zinc-900 dark:text-white group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors line-clamp-1">
+                  <h3 className="text-base font-black text-zinc-900 group-hover:text-blue-600 transition-colors line-clamp-1">
                     {item.name}
                   </h3>
-                  <p className="text-xs text-zinc-500 dark:text-zinc-400 mt-1 line-clamp-2 leading-relaxed">
+                  <p className="text-xs text-zinc-500 mt-1 line-clamp-2 leading-relaxed">
                     {item.description || 'Estabelecimento verificado em Campos do Jordão.'}
                   </p>
                 </div>
 
-                <div className="mt-4 pt-3 border-t border-zinc-100 dark:border-zinc-800 flex items-center justify-between">
-                  <div className="flex items-center gap-1 text-[11px] text-zinc-400 dark:text-zinc-500 truncate max-w-[140px]">
+                <div className="mt-4 pt-3 border-t border-zinc-100 flex items-center justify-between">
+                  <div className="flex items-center gap-1 text-[11px] text-zinc-400 truncate max-w-[140px]">
                     <MapPin className="w-3.5 h-3.5 shrink-0 text-blue-500" />
                     <span className="truncate">{item.address || 'Campos do Jordão'}</span>
                   </div>
@@ -329,7 +328,7 @@ export const AdminServices: React.FC = () => {
                         setServiceToEdit(item);
                         setIsModalOpen(true);
                       }}
-                      className="p-1.5 rounded-lg text-zinc-600 dark:text-zinc-300 hover:text-blue-600 dark:hover:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/30 transition-colors cursor-pointer"
+                      className="p-1.5 rounded-lg text-zinc-600 hover:text-blue-600 hover:bg-blue-50 transition-colors cursor-pointer"
                       title="Editar"
                     >
                       <Edit className="w-4 h-4" />
@@ -337,7 +336,7 @@ export const AdminServices: React.FC = () => {
                     <button
                       type="button"
                       onClick={() => handleDelete(item)}
-                      className="p-1.5 rounded-lg text-zinc-600 dark:text-zinc-300 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/30 transition-colors cursor-pointer"
+                      className="p-1.5 rounded-lg text-zinc-600 hover:text-rose-600 hover:bg-rose-50 transition-colors cursor-pointer"
                       title="Excluir"
                     >
                       <Trash2 className="w-4 h-4" />

@@ -229,7 +229,7 @@ export const AdminMapPicker: React.FC<AdminMapPickerProps> = ({
     <div className="space-y-3">
       {/* Search and Quick Presets */}
       <div className="flex flex-col sm:flex-row gap-2">
-        <div className="flex-1 flex items-center gap-1.5 bg-zinc-50 dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-700 rounded-xl px-3 py-1.5">
+        <div className="flex-1 flex items-center gap-1.5 bg-zinc-50 border border-zinc-200 rounded-xl px-3 py-1.5">
           <Search className="w-4 h-4 text-zinc-400 shrink-0" />
           <input
             type="text"
@@ -242,7 +242,7 @@ export const AdminMapPicker: React.FC<AdminMapPickerProps> = ({
               }
             }}
             placeholder="Buscar endereço ou estabelecimento em Campos do Jordão..."
-            className="w-full text-xs text-zinc-800 dark:text-zinc-100 bg-transparent outline-none placeholder-zinc-400"
+            className="w-full text-xs text-zinc-800 bg-transparent outline-none placeholder-zinc-400"
           />
           <button
             type="button"
@@ -258,21 +258,21 @@ export const AdminMapPicker: React.FC<AdminMapPickerProps> = ({
           <button
             type="button"
             onClick={() => handlePresetLocation(-22.7192, -45.5673, 'Vila Capivari, Campos do Jordão - SP')}
-            className="text-[11px] px-2.5 py-1.5 bg-zinc-100 dark:bg-zinc-800 hover:bg-zinc-200 dark:hover:bg-zinc-700 text-zinc-700 dark:text-zinc-200 rounded-lg whitespace-nowrap transition-colors cursor-pointer font-semibold"
+            className="text-[11px] px-2.5 py-1.5 bg-zinc-100 hover:bg-zinc-200 text-zinc-700 rounded-lg whitespace-nowrap transition-colors cursor-pointer font-semibold"
           >
             Capivari
           </button>
           <button
             type="button"
             onClick={() => handlePresetLocation(-22.7420, -45.5960, 'Abernéssia, Campos do Jordão - SP')}
-            className="text-[11px] px-2.5 py-1.5 bg-zinc-100 dark:bg-zinc-800 hover:bg-zinc-200 dark:hover:bg-zinc-700 text-zinc-700 dark:text-zinc-200 rounded-lg whitespace-nowrap transition-colors cursor-pointer font-semibold"
+            className="text-[11px] px-2.5 py-1.5 bg-zinc-100 hover:bg-zinc-200 text-zinc-700 rounded-lg whitespace-nowrap transition-colors cursor-pointer font-semibold"
           >
             Abernéssia
           </button>
           <button
             type="button"
             onClick={() => handlePresetLocation(-22.7661, -45.6125, 'Gavião Gonzaga, Campos do Jordão - SP')}
-            className="text-[11px] px-2.5 py-1.5 bg-zinc-100 dark:bg-zinc-800 hover:bg-zinc-200 dark:hover:bg-zinc-700 text-zinc-700 dark:text-zinc-200 rounded-lg whitespace-nowrap transition-colors cursor-pointer font-semibold"
+            className="text-[11px] px-2.5 py-1.5 bg-zinc-100 hover:bg-zinc-200 text-zinc-700 rounded-lg whitespace-nowrap transition-colors cursor-pointer font-semibold"
           >
             Gavião Gonzaga
           </button>
@@ -280,7 +280,7 @@ export const AdminMapPicker: React.FC<AdminMapPickerProps> = ({
       </div>
 
       {/* Map Container */}
-      <div className="relative w-full h-64 sm:h-72 rounded-2xl overflow-hidden border border-zinc-200 dark:border-zinc-800 bg-zinc-100 shadow-inner">
+      <div className="relative w-full h-64 sm:h-72 rounded-2xl overflow-hidden border border-zinc-200 bg-zinc-100 shadow-inner">
         <div ref={mapContainer} className="w-full h-full" />
 
         {/* Map Mode Segmented Switch (Padrão / Satélite) */}
@@ -367,7 +367,7 @@ export const AdminMapPicker: React.FC<AdminMapPickerProps> = ({
               setCurrentCoords((prev) => ({ ...prev, lat: val }));
               onChange(val, currentCoords.lng);
             }}
-            className="w-full px-3 py-2 bg-zinc-50 dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-700 rounded-xl text-xs font-mono text-zinc-800 dark:text-zinc-100 focus:outline-none focus:border-[#007AFF]"
+            className="w-full px-3 py-2 bg-zinc-50 border border-zinc-200 rounded-xl text-xs font-mono text-zinc-800 focus:outline-none focus:border-[#007AFF]"
           />
         </div>
         <div>
@@ -381,7 +381,7 @@ export const AdminMapPicker: React.FC<AdminMapPickerProps> = ({
               setCurrentCoords((prev) => ({ ...prev, lng: val }));
               onChange(currentCoords.lat, val);
             }}
-            className="w-full px-3 py-2 bg-zinc-50 dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-700 rounded-xl text-xs font-mono text-zinc-800 dark:text-zinc-100 focus:outline-none focus:border-[#007AFF]"
+            className="w-full px-3 py-2 bg-zinc-50 border border-zinc-200 rounded-xl text-xs font-mono text-zinc-800 focus:outline-none focus:border-[#007AFF]"
           />
         </div>
       </div>

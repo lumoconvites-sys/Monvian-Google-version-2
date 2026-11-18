@@ -144,23 +144,22 @@ export const AdminUsers: React.FC = () => {
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <div className="flex items-center gap-2 text-blue-600 dark:text-blue-400 text-xs font-black tracking-wider uppercase mb-1">
-            <span className="w-2 h-2 rounded-full bg-blue-600 dark:bg-blue-400"></span>
-            CONSOLE OPERACIONAL
+          <div className="flex items-center gap-3">
+            <span className="w-2.5 h-2.5 rounded-full bg-[#1668FF] shrink-0 shadow-[0_0_10px_rgba(22,104,255,0.4)]" />
+            <h1 className="text-[28px] sm:text-[34px] font-bold text-[#0D1526] tracking-[-0.03em] leading-tight">
+              Usuários & Comunidade
+            </h1>
           </div>
-          <h1 className="text-2xl sm:text-3xl font-black text-zinc-900 dark:text-white tracking-tight">
-            Usuários & Onboarding
-          </h1>
-          <p className="text-xs sm:text-sm text-zinc-500 dark:text-zinc-400 mt-0.5">
+          <p className="text-sm text-[#5B6B85] mt-1 sm:pl-[22px]">
             {stats ? `${stats.total} cadastrados • ${stats.completedOnboarding} completaram onboarding (${stats.pendingOnboarding} pendentes)` : `${users.length} usuários cadastrados.`}
           </p>
         </div>
 
         <button
           onClick={fetchUsers}
-          className="flex items-center gap-2 px-4 py-2 bg-white dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 hover:bg-zinc-50 dark:hover:bg-zinc-700 text-zinc-700 dark:text-zinc-200 text-xs font-black rounded-xl shadow-xs transition-all cursor-pointer"
+          className="flex items-center gap-2 px-4 py-2 bg-white border border-zinc-200 hover:bg-zinc-50 text-zinc-700 text-xs font-black rounded-xl shadow-xs transition-all cursor-pointer"
         >
-          <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin text-blue-600 dark:text-blue-400' : ''}`} />
+          <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin text-blue-600' : ''}`} />
           <span>Atualizar Lista</span>
         </button>
       </div>
@@ -174,7 +173,7 @@ export const AdminUsers: React.FC = () => {
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             placeholder="Buscar por nome, WhatsApp ou ID..."
-            className="w-full pl-10 pr-4 py-2.5 bg-white dark:bg-[#121418] border border-zinc-200 dark:border-zinc-700 rounded-xl text-xs sm:text-sm text-zinc-900 dark:text-white placeholder-zinc-400 focus:outline-none focus:border-blue-500 shadow-xs"
+            className="w-full pl-10 pr-4 py-2.5 bg-white border border-zinc-200 rounded-xl text-xs sm:text-sm text-zinc-900 placeholder-zinc-400 focus:outline-none focus:border-blue-500 shadow-xs"
           />
         </div>
 
@@ -193,8 +192,8 @@ export const AdminUsers: React.FC = () => {
                 onClick={() => setSelectedStatus(tab.id as any)}
                 className={`h-[34px] px-3.5 rounded-full text-xs font-medium whitespace-nowrap transition-all duration-200 ease-out cursor-pointer inline-flex items-center select-none active:scale-[0.96] ${
                   isSelected
-                    ? 'bg-[#E5E5EA] dark:bg-white/20 text-zinc-900 dark:text-white border border-black/[0.06] dark:border-white/20 shadow-[inset_0_1.5px_2.5px_rgba(0,0,0,0.12)] font-semibold'
-                    : 'bg-white dark:bg-[#1C1C1E] text-zinc-700 dark:text-zinc-300 border border-zinc-200/90 dark:border-white/10 shadow-[0_2px_5px_-1px_rgba(0,0,0,0.07),_0_1px_2px_rgba(0,0,0,0.04)] hover:shadow-[0_3px_8px_-1px_rgba(0,0,0,0.09)]'
+                    ? 'bg-[#E5E5EA] text-zinc-900 border border-black/[0.06] shadow-[inset_0_1.5px_2.5px_rgba(0,0,0,0.12)] font-semibold'
+                    : 'bg-white text-zinc-700 border border-zinc-200/90 shadow-[0_2px_5px_-1px_rgba(0,0,0,0.07),_0_1px_2px_rgba(0,0,0,0.04)] hover:shadow-[0_3px_8px_-1px_rgba(0,0,0,0.09)]'
                 }`}
               >
                 {tab.label}
@@ -218,8 +217,8 @@ export const AdminUsers: React.FC = () => {
                 onClick={() => setSelectedOnboarding(tab.id as any)}
                 className={`h-[34px] px-3.5 rounded-full text-xs font-medium whitespace-nowrap transition-all duration-200 ease-out cursor-pointer inline-flex items-center select-none active:scale-[0.96] ${
                   isSelected
-                    ? 'bg-[#E5E5EA] dark:bg-white/20 text-zinc-900 dark:text-white border border-black/[0.06] dark:border-white/20 shadow-[inset_0_1.5px_2.5px_rgba(0,0,0,0.12)] font-semibold'
-                    : 'bg-white dark:bg-[#1C1C1E] text-zinc-700 dark:text-zinc-300 border border-zinc-200/90 dark:border-white/10 shadow-[0_2px_5px_-1px_rgba(0,0,0,0.07),_0_1px_2px_rgba(0,0,0,0.04)] hover:shadow-[0_3px_8px_-1px_rgba(0,0,0,0.09)]'
+                    ? 'bg-[#E5E5EA] text-zinc-900 border border-black/[0.06] shadow-[inset_0_1.5px_2.5px_rgba(0,0,0,0.12)] font-semibold'
+                    : 'bg-white text-zinc-700 border border-zinc-200/90 shadow-[0_2px_5px_-1px_rgba(0,0,0,0.07),_0_1px_2px_rgba(0,0,0,0.04)] hover:shadow-[0_3px_8px_-1px_rgba(0,0,0,0.09)]'
                 }`}
               >
                 {tab.label}
@@ -233,7 +232,7 @@ export const AdminUsers: React.FC = () => {
           value={selectedReferral}
           onChange={(e) => setSelectedReferral(e.target.value)}
           aria-label="Filtrar por canal de origem"
-          className="px-3 py-2 bg-white dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-xl text-xs font-black text-zinc-700 dark:text-zinc-200 focus:outline-none focus:border-blue-500 cursor-pointer"
+          className="px-3 py-2 bg-white border border-zinc-200 rounded-xl text-xs font-black text-zinc-700 focus:outline-none focus:border-blue-500 cursor-pointer"
         >
           <option value="all">Todas as Origens</option>
           <option value="TikTok">TikTok</option>
@@ -245,11 +244,11 @@ export const AdminUsers: React.FC = () => {
       </div>
 
       {/* Users Table */}
-      <div className="bg-white dark:bg-[#121418] rounded-2xl border border-zinc-200/90 dark:border-zinc-800 shadow-xs overflow-hidden">
+      <div className="bg-white rounded-2xl border border-zinc-200/90 shadow-xs overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full text-left border-collapse">
             <thead>
-              <tr className="border-b border-zinc-100 dark:border-zinc-800 bg-zinc-50/50 dark:bg-zinc-900/50 text-[11px] font-black text-zinc-400 dark:text-zinc-500 uppercase tracking-wider">
+              <tr className="border-b border-zinc-100 bg-zinc-50/50 text-[11px] font-black text-zinc-400 uppercase tracking-wider">
                 <th className="py-3.5 px-6">USUÁRIO</th>
                 <th className="py-3.5 px-6">ORIGEM / ONBOARDING</th>
                 <th className="py-3.5 px-6">STATUS</th>
@@ -257,17 +256,17 @@ export const AdminUsers: React.FC = () => {
                 <th className="py-3.5 px-6 text-right">AÇÕES</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-zinc-100 dark:divide-zinc-800 text-xs sm:text-sm">
+            <tbody className="divide-y divide-zinc-100 text-xs sm:text-sm">
               {loading ? (
                 <tr>
-                  <td colSpan={5} className="py-12 text-center text-zinc-500 dark:text-zinc-400 font-black">
+                  <td colSpan={5} className="py-12 text-center text-zinc-500 font-black">
                     <RefreshCw className="w-6 h-6 animate-spin mx-auto mb-2 text-blue-600" />
                     Carregando base de usuários...
                   </td>
                 </tr>
               ) : filteredUsers.length === 0 ? (
                 <tr>
-                  <td colSpan={5} className="py-12 text-center text-zinc-400 dark:text-zinc-500">
+                  <td colSpan={5} className="py-12 text-center text-zinc-400">
                     Nenhum usuário localizado com os filtros selecionados.
                   </td>
                 </tr>
@@ -278,7 +277,7 @@ export const AdminUsers: React.FC = () => {
                   const isCompleted = user.onboarding_completed;
 
                   return (
-                    <tr key={user.id} className="hover:bg-zinc-50/60 dark:hover:bg-zinc-800/40 transition-colors">
+                    <tr key={user.id} className="hover:bg-zinc-50/60 transition-colors">
                       {/* Column 1: User details */}
                       <td className="py-4 px-6">
                         <div className="flex items-center gap-3">
@@ -293,20 +292,20 @@ export const AdminUsers: React.FC = () => {
                                 : user.avatar_url || '/fotoperfil.png'
                             }
                             alt={user.name}
-                            className="w-9 h-9 rounded-full object-cover ring-1 ring-zinc-200 dark:ring-zinc-700"
+                            className="w-9 h-9 rounded-full object-cover ring-1 ring-zinc-200"
                           />
                           <div>
                             <div className="flex items-center gap-1.5">
-                              <span className="font-black text-zinc-900 dark:text-white text-xs sm:text-sm">
+                              <span className="font-black text-zinc-900 text-xs sm:text-sm">
                                 {user.name || 'Membro Monvian'}
                               </span>
                               {user.role === 'admin' && (
-                                <span className="text-[9px] font-black uppercase px-1.5 py-0.5 rounded bg-blue-50 dark:bg-blue-950/60 text-blue-600 dark:text-blue-400 border border-blue-100 dark:border-blue-900">
+                                <span className="text-[9px] font-black uppercase px-1.5 py-0.5 rounded bg-blue-50 text-blue-600 border border-blue-100">
                                   GERENTE
                                 </span>
                               )}
                             </div>
-                            <span className="text-[11px] text-zinc-400 dark:text-zinc-500 block font-mono">
+                            <span className="text-[11px] text-zinc-400 block font-mono">
                               ID: {user.id} • {user.email || user.whatsapp || 'Sem e-mail'}
                             </span>
                           </div>
@@ -328,18 +327,18 @@ export const AdminUsers: React.FC = () => {
                             )}
 
                             {isCompleted ? (
-                              <span className="inline-flex items-center gap-1 text-[10px] font-black text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-950/40 border border-blue-200 dark:border-blue-900 px-1.5 py-0.5 rounded">
+                              <span className="inline-flex items-center gap-1 text-[10px] font-black text-blue-600 bg-blue-50 border border-blue-200 px-1.5 py-0.5 rounded">
                                 <CheckCircle2 className="w-3.5 h-3.5" />
                                 Concluído
                               </span>
                             ) : (
-                              <span className="inline-flex items-center gap-1 text-[10px] font-black text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-900 px-1.5 py-0.5 rounded">
+                              <span className="inline-flex items-center gap-1 text-[10px] font-black text-amber-600 bg-amber-50 border border-amber-200 px-1.5 py-0.5 rounded">
                                 Passo {user.onboarding_step || 1}/5
                               </span>
                             )}
                           </div>
                           {user.travel_style && (
-                            <span className="text-[11px] text-zinc-500 dark:text-zinc-400 block">
+                            <span className="text-[11px] text-zinc-500 block">
                               {user.travel_style}
                             </span>
                           )}
@@ -349,20 +348,20 @@ export const AdminUsers: React.FC = () => {
                       {/* Column 3: Status Badge Pill */}
                       <td className="py-4 px-6 whitespace-nowrap">
                         {isBanned ? (
-                          <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-rose-50 dark:bg-rose-950/40 text-rose-600 dark:text-rose-400 border border-rose-200/80 dark:border-rose-900/80 text-[11px] font-black uppercase">
-                            <span className="w-1.5 h-1.5 rounded-full bg-rose-600 dark:bg-rose-400"></span>
+                          <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-rose-50 text-rose-600 border border-rose-200/80 text-[11px] font-black uppercase">
+                            <span className="w-1.5 h-1.5 rounded-full bg-rose-600"></span>
                             BANIDO
                           </span>
                         ) : (
-                          <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-blue-50 dark:bg-blue-950/40 text-blue-600 dark:text-blue-400 border border-blue-200/80 dark:border-blue-900/80 text-[11px] font-black uppercase">
-                            <span className="w-1.5 h-1.5 rounded-full bg-blue-600 dark:bg-blue-400"></span>
+                          <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-blue-50 text-blue-600 border border-blue-200/80 text-[11px] font-black uppercase">
+                            <span className="w-1.5 h-1.5 rounded-full bg-blue-600"></span>
                             ATIVO
                           </span>
                         )}
                       </td>
 
                       {/* Column 4: Created at date */}
-                      <td className="py-4 px-6 text-zinc-600 dark:text-zinc-400 font-black whitespace-nowrap text-xs">
+                      <td className="py-4 px-6 text-zinc-600 font-black whitespace-nowrap text-xs">
                         {formatDate(user.created_at)}
                       </td>
 
@@ -372,7 +371,7 @@ export const AdminUsers: React.FC = () => {
                           <button
                             type="button"
                             onClick={() => setSelectedUserDetail(user)}
-                            className="p-1.5 rounded-xl bg-zinc-100 dark:bg-zinc-800 hover:bg-zinc-200 dark:hover:bg-zinc-700 text-zinc-700 dark:text-zinc-300 transition-colors cursor-pointer"
+                            className="p-1.5 rounded-xl bg-zinc-100 hover:bg-zinc-200 text-zinc-700 transition-colors cursor-pointer"
                             title="Ver Respostas & Perfil"
                           >
                             <Eye className="w-4 h-4" />
@@ -382,7 +381,7 @@ export const AdminUsers: React.FC = () => {
                             <button
                               type="button"
                               onClick={() => setUserToBan(user)}
-                              className="px-3 py-1 rounded-xl bg-blue-50 dark:bg-blue-950/50 hover:bg-blue-100 dark:hover:bg-blue-900/50 text-blue-600 dark:text-blue-400 text-xs font-black transition-colors cursor-pointer"
+                              className="px-3 py-1 rounded-xl bg-blue-50 hover:bg-blue-100 text-blue-600 text-xs font-black transition-colors cursor-pointer"
                             >
                               Desbanir
                             </button>
@@ -390,7 +389,7 @@ export const AdminUsers: React.FC = () => {
                             <button
                               type="button"
                               onClick={() => setUserToBan(user)}
-                              className="px-3 py-1 rounded-xl bg-rose-50 dark:bg-rose-950/50 hover:bg-rose-100 dark:hover:bg-rose-900/50 text-rose-600 dark:text-rose-400 text-xs font-black transition-colors cursor-pointer"
+                              className="px-3 py-1 rounded-xl bg-rose-50 hover:bg-rose-100 text-rose-600 text-xs font-black transition-colors cursor-pointer"
                             >
                               Banir
                             </button>
@@ -409,10 +408,10 @@ export const AdminUsers: React.FC = () => {
       {/* User Preferences Detail Modal */}
       {selectedUserDetail && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs">
-          <div className="w-full max-w-lg bg-white dark:bg-[#16181d] rounded-3xl p-6 shadow-2xl border border-zinc-200 dark:border-zinc-800 overflow-hidden">
-            <div className="flex items-center justify-between pb-4 border-b border-zinc-100 dark:border-zinc-800 mb-5">
+          <div className="w-full max-w-lg bg-white rounded-3xl p-6 shadow-2xl border border-zinc-200 overflow-hidden">
+            <div className="flex items-center justify-between pb-4 border-b border-zinc-100 mb-5">
               <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-full overflow-hidden bg-blue-50 dark:bg-blue-950/50 text-blue-600 dark:text-blue-400 font-black flex items-center justify-center ring-1 ring-zinc-200 dark:ring-zinc-700 shrink-0">
+                <div className="w-10 h-10 rounded-full overflow-hidden bg-blue-50 text-blue-600 font-black flex items-center justify-center ring-1 ring-zinc-200 shrink-0">
                   {selectedUserDetail.avatar_url || (selectedUserDetail.role === 'admin' && typeof window !== 'undefined' && localStorage.getItem('monvian_local_avatar')) ? (
                     <img
                       src={
@@ -430,10 +429,10 @@ export const AdminUsers: React.FC = () => {
                   )}
                 </div>
                 <div>
-                  <h3 className="text-base font-black text-zinc-900 dark:text-white">
+                  <h3 className="text-base font-black text-zinc-900">
                     {selectedUserDetail.name || 'Membro Monvian'}
                   </h3>
-                  <span className="text-xs text-zinc-500 dark:text-zinc-400 font-mono">
+                  <span className="text-xs text-zinc-500 font-mono">
                     ID: {selectedUserDetail.id} • {selectedUserDetail.email || selectedUserDetail.whatsapp}
                   </span>
                 </div>
@@ -441,22 +440,22 @@ export const AdminUsers: React.FC = () => {
               <button
                 type="button"
                 onClick={() => setSelectedUserDetail(null)}
-                className="p-2 rounded-full hover:bg-zinc-100 dark:hover:bg-zinc-800 text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-200 transition-colors cursor-pointer"
+                className="p-2 rounded-full hover:bg-zinc-100 text-zinc-400 hover:text-zinc-700 transition-colors cursor-pointer"
               >
                 <X className="w-5 h-5" />
               </button>
             </div>
 
             <div className="space-y-4">
-              <div className="flex items-center justify-between p-3 rounded-2xl bg-zinc-50 dark:bg-zinc-900/60 border border-zinc-100 dark:border-zinc-800 text-xs">
-                <span className="font-black text-zinc-500 dark:text-zinc-400">Status do Onboarding:</span>
+              <div className="flex items-center justify-between p-3 rounded-2xl bg-zinc-50 border border-zinc-100 text-xs">
+                <span className="font-black text-zinc-500">Status do Onboarding:</span>
                 {selectedUserDetail.onboarding_completed ? (
-                  <span className="font-black text-blue-600 dark:text-blue-400 bg-blue-100/80 dark:bg-blue-950/60 px-2.5 py-1 rounded-full flex items-center gap-1">
+                  <span className="font-black text-blue-600 bg-blue-100/80 px-2.5 py-1 rounded-full flex items-center gap-1">
                     <CheckCircle2 className="w-3.5 h-3.5" />
                     Concluído
                   </span>
                 ) : (
-                  <span className="font-black text-amber-700 dark:text-amber-400 bg-amber-100/80 dark:bg-amber-950/60 px-2.5 py-1 rounded-full">
+                  <span className="font-black text-amber-700 bg-amber-100/80 px-2.5 py-1 rounded-full">
                     Pendente (Passo {selectedUserDetail.onboarding_step || 1} de 5)
                   </span>
                 )}
@@ -464,66 +463,66 @@ export const AdminUsers: React.FC = () => {
 
               {/* Answers Grid */}
               <div className="space-y-3 text-xs">
-                <div className="p-3.5 rounded-2xl border border-zinc-200/80 dark:border-zinc-800 bg-zinc-50/50 dark:bg-zinc-900/40 space-y-1">
-                  <span className="text-[11px] font-black text-zinc-400 dark:text-zinc-500 uppercase tracking-wider block">
+                <div className="p-3.5 rounded-2xl border border-zinc-200/80 bg-zinc-50/50 space-y-1">
+                  <span className="text-[11px] font-black text-zinc-400 uppercase tracking-wider block">
                     1. Como conheceu o Monvian?
                   </span>
-                  <p className="font-black text-zinc-800 dark:text-zinc-200 text-[13px]">
+                  <p className="font-black text-zinc-800 text-[13px]">
                     {selectedUserDetail.referral_source || 'Não informado / Usuário antigo'}
                   </p>
                 </div>
 
-                <div className="p-3.5 rounded-2xl border border-zinc-200/80 dark:border-zinc-800 bg-zinc-50/50 dark:bg-zinc-900/40 space-y-1">
-                  <span className="text-[11px] font-black text-zinc-400 dark:text-zinc-500 uppercase tracking-wider block">
+                <div className="p-3.5 rounded-2xl border border-zinc-200/80 bg-zinc-50/50 space-y-1">
+                  <span className="text-[11px] font-black text-zinc-400 uppercase tracking-wider block">
                     2. Frequência de Visita a Campos do Jordão
                   </span>
-                  <p className="font-black text-zinc-800 dark:text-zinc-200 text-[13px]">
+                  <p className="font-black text-zinc-800 text-[13px]">
                     {selectedUserDetail.travel_frequency || 'Não informado'}
                   </p>
                 </div>
 
-                <div className="p-3.5 rounded-2xl border border-zinc-200/80 dark:border-zinc-800 bg-zinc-50/50 dark:bg-zinc-900/40 space-y-1">
-                  <span className="text-[11px] font-black text-zinc-400 dark:text-zinc-500 uppercase tracking-wider block">
+                <div className="p-3.5 rounded-2xl border border-zinc-200/80 bg-zinc-50/50 space-y-1">
+                  <span className="text-[11px] font-black text-zinc-400 uppercase tracking-wider block">
                     3. Estilo de Viagem Favorito
                   </span>
-                  <p className="font-black text-zinc-800 dark:text-zinc-200 text-[13px]">
+                  <p className="font-black text-zinc-800 text-[13px]">
                     {selectedUserDetail.travel_style || 'Não informado'}
                   </p>
                 </div>
 
-                <div className="p-3.5 rounded-2xl border border-zinc-200/80 dark:border-zinc-800 bg-zinc-50/50 dark:bg-zinc-900/40 space-y-1">
-                  <span className="text-[11px] font-black text-zinc-400 dark:text-zinc-500 uppercase tracking-wider block">
+                <div className="p-3.5 rounded-2xl border border-zinc-200/80 bg-zinc-50/50 space-y-1">
+                  <span className="text-[11px] font-black text-zinc-400 uppercase tracking-wider block">
                     4. O que mais gosta de descobrir
                   </span>
                   <div className="flex flex-wrap gap-1.5 pt-1">
                     {Array.isArray(selectedUserDetail.main_interests) && selectedUserDetail.main_interests.length > 0 ? (
                       selectedUserDetail.main_interests.map((item: string, i: number) => (
-                        <span key={i} className="px-2.5 py-1 rounded-lg bg-zinc-100 dark:bg-zinc-800 text-zinc-800 dark:text-zinc-200 font-black text-[11px]">
+                        <span key={i} className="px-2.5 py-1 rounded-lg bg-zinc-100 text-zinc-800 font-black text-[11px]">
                           {item}
                         </span>
                       ))
                     ) : (
-                      <span className="text-zinc-500 dark:text-zinc-400 font-black">Não informado</span>
+                      <span className="text-zinc-500 font-black">Não informado</span>
                     )}
                   </div>
                 </div>
 
-                <div className="p-3.5 rounded-2xl border border-zinc-200/80 dark:border-zinc-800 bg-zinc-50/50 dark:bg-zinc-900/40 space-y-1">
-                  <span className="text-[11px] font-black text-zinc-400 dark:text-zinc-500 uppercase tracking-wider block">
+                <div className="p-3.5 rounded-2xl border border-zinc-200/80 bg-zinc-50/50 space-y-1">
+                  <span className="text-[11px] font-black text-zinc-400 uppercase tracking-wider block">
                     5. Época Favorita na Serra
                   </span>
-                  <p className="font-black text-zinc-800 dark:text-zinc-200 text-[13px]">
+                  <p className="font-black text-zinc-800 text-[13px]">
                     {selectedUserDetail.preferred_season || 'Não informado'}
                   </p>
                 </div>
               </div>
             </div>
 
-            <div className="mt-6 pt-4 border-t border-zinc-100 dark:border-zinc-800 flex justify-end">
+            <div className="mt-6 pt-4 border-t border-zinc-100 flex justify-end">
               <button
                 type="button"
                 onClick={() => setSelectedUserDetail(null)}
-                className="px-5 py-2.5 rounded-xl bg-zinc-900 dark:bg-blue-600 hover:bg-zinc-800 dark:hover:bg-blue-700 text-white font-black text-xs transition-colors cursor-pointer"
+                className="px-5 py-2.5 rounded-xl bg-zinc-900 hover:bg-zinc-800 text-white font-black text-xs transition-colors cursor-pointer"
               >
                 Fechar Detalhes
               </button>
@@ -535,22 +534,22 @@ export const AdminUsers: React.FC = () => {
       {/* Ban / Unban Confirmation Modal */}
       {userToBan && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs">
-          <div className="w-full max-w-md bg-white dark:bg-[#16181d] rounded-3xl p-6 shadow-2xl border border-zinc-200 dark:border-zinc-800">
+          <div className="w-full max-w-md bg-white rounded-3xl p-6 shadow-2xl border border-zinc-200">
             <div
               className={`w-12 h-12 rounded-2xl flex items-center justify-center mb-4 ${
                 userToBan.is_banned === 1
-                  ? 'bg-blue-50 dark:bg-blue-950/50 text-blue-600 dark:text-blue-400'
-                  : 'bg-rose-50 dark:bg-rose-950/50 text-rose-600 dark:text-rose-400'
+                  ? 'bg-blue-50 text-blue-600'
+                  : 'bg-rose-50 text-rose-600'
               }`}
             >
               {userToBan.is_banned === 1 ? <UserCheck className="w-6 h-6" /> : <Ban className="w-6 h-6" />}
             </div>
 
-            <h3 className="text-lg font-black text-zinc-900 dark:text-white">
+            <h3 className="text-lg font-black text-zinc-900">
               {userToBan.is_banned === 1 ? 'Desbanir Usuário' : 'Banir Usuário'}
             </h3>
 
-            <p className="text-xs text-zinc-500 dark:text-zinc-400 mt-2 leading-relaxed">
+            <p className="text-xs text-zinc-500 mt-2 leading-relaxed">
               {userToBan.is_banned === 1
                 ? `Deseja restabelecer o acesso do usuário ${userToBan.name || userToBan.email || userToBan.whatsapp}? Ele poderá entrar novamente no aplicativo.`
                 : `Tem certeza que deseja banir o usuário ${userToBan.name || userToBan.email || userToBan.whatsapp}? Suas sessões ativas serão encerradas imediatamente e ele não poderá acessar o Monvian.`}
@@ -560,7 +559,7 @@ export const AdminUsers: React.FC = () => {
               <button
                 type="button"
                 onClick={() => setUserToBan(null)}
-                className="px-4 py-2 rounded-xl border border-zinc-200 dark:border-zinc-700 text-xs font-black text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors cursor-pointer"
+                className="px-4 py-2 rounded-xl border border-zinc-200 text-xs font-black text-zinc-700 hover:bg-zinc-100 transition-colors cursor-pointer"
               >
                 Cancelar
               </button>

@@ -16,8 +16,6 @@ import {
   fetchSpotsFromSupabase,
   deleteSpotFromSupabase,
   toggleSpotActiveInSupabase,
-  toggleSpotVerifiedInSupabase,
-  toggleSpotStarInSupabase,
   subscribeToSpotsChanges
 } from '../../services/supabaseSpots';
 
@@ -107,47 +105,6 @@ export const AdminSpots: React.FC = () => {
     }
   };
 
-  const handleToggleStar = async (spot: any, e: React.MouseEvent) => {
-    e.stopPropagation();
-    const currentIsStar = Boolean(spot.isStar || spot.is_star === 1 || spot.is_star === true || spot.badge === 'Estrela');
-    const nextIsStar = !currentIsStar;
-    try {
-      setSpots((prev) =>
-        prev.map((s) =>
-          s.id === spot.id
-            ? { ...s, isStar: nextIsStar, is_star: nextIsStar ? 1 : 0, badge: nextIsStar ? 'Estrela' : '' }
-            : s
-        )
-      );
-      await toggleSpotStarInSupabase(spot, nextIsStar);
-      showToast(
-        nextIsStar
-          ? `"${spot.name}" ativado como Estrela amarela no mapa!`
-          : `"${spot.name}" voltou ao marcador circular padrão.`
-      );
-    } catch (err: any) {
-      console.error(err);
-      showToast('Erro ao atualizar opção Estrela.');
-    }
-  };
-
-  const handleToggleVerified = async (id: string, e: React.MouseEvent) => {
-    e.stopPropagation();
-    const spot = spots.find(s => s.id === id);
-    if (!spot) return;
-    const newStatus = !spot.isVerified;
-    try {
-      await toggleSpotVerifiedInSupabase(id, newStatus);
-      setSpots((prev) =>
-        prev.map((s) => (s.id === id ? { ...s, isVerified: newStatus, is_verified: newStatus ? 1 : 0 } : s))
-      );
-      showToast(newStatus ? 'Ponto marcado como verificado.' : 'Verificação removida.');
-    } catch (err: any) {
-      console.error(err);
-      showToast('Erro ao atualizar verificação no Supabase.');
-    }
-  };
-
   const handleDelete = async (spot: any) => {
     if (!window.confirm(`Tem certeza que deseja excluir "${spot.name}" do banco de dados?`)) return;
     try {
@@ -212,7 +169,7 @@ export const AdminSpots: React.FC = () => {
       {/* Toast */}
       {toast && (
         <div className="fixed bottom-6 right-6 z-50 bg-zinc-900 text-white text-xs font-black px-4 py-3 rounded-2xl shadow-xl flex items-center gap-2 border border-zinc-700 animate-in slide-in-from-bottom-3">
-          <CheckCircle2 className="w-4 h-4 text-blue-500" />
+          <CheckCircle2 className="w-4 h-4 text-blue-400" />
           <span>{toast}</span>
         </div>
       )}
@@ -220,14 +177,13 @@ export const AdminSpots: React.FC = () => {
       {/* Top Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <div className="flex items-center gap-2 text-blue-600 dark:text-blue-400 text-xs font-black tracking-wider uppercase mb-1">
-            <span className="w-2 h-2 rounded-full bg-blue-600"></span>
-            CONSOLE OPERACIONAL
+          <div className="flex items-center gap-3">
+            <span className="w-2.5 h-2.5 rounded-full bg-[#1668FF] shrink-0 shadow-[0_0_10px_rgba(22,104,255,0.4)]" />
+            <h1 className="text-[28px] sm:text-[34px] font-bold text-[#0D1526] tracking-[-0.03em] leading-tight">
+              Pontos Turísticos
+            </h1>
           </div>
-          <h1 className="text-2xl sm:text-3xl font-black text-zinc-900 dark:text-white tracking-tight">
-            Pontos Turísticos
-          </h1>
-          <p className="text-xs sm:text-sm text-zinc-500 dark:text-zinc-400 mt-0.5">
+          <p className="text-sm text-[#5B6B85] mt-1 sm:pl-[22px]">
             {spots.length} locais cadastrados no banco de dados do Monvian.
           </p>
         </div>
@@ -236,7 +192,7 @@ export const AdminSpots: React.FC = () => {
           <button
             onClick={() => fetchSpots(false)}
             disabled={isRefreshing}
-            className="flex items-center gap-1.5 px-3.5 py-2.5 bg-zinc-100 hover:bg-zinc-200 dark:bg-white/10 dark:hover:bg-white/15 text-zinc-700 dark:text-zinc-200 text-xs sm:text-sm font-bold rounded-xl transition-all cursor-pointer"
+            className="flex items-center gap-1.5 px-3.5 py-2.5 bg-white hover:bg-zinc-100 border border-zinc-200 text-zinc-700 text-xs sm:text-sm font-bold rounded-xl transition-all cursor-pointer"
             title="Atualizar lista com Supabase"
           >
             <RefreshCw className={`w-4 h-4 ${isRefreshing ? 'animate-spin text-blue-500' : ''}`} />
@@ -264,7 +220,7 @@ export const AdminSpots: React.FC = () => {
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             placeholder="Buscar por nome, atrativo ou descrição..."
-            className="w-full pl-10 pr-4 py-2.5 bg-white dark:bg-[#16181d] border border-zinc-200 dark:border-zinc-800 rounded-xl text-xs sm:text-sm text-zinc-900 dark:text-white placeholder-zinc-400 focus:outline-none focus:border-blue-500 shadow-xs"
+            className="w-full pl-10 pr-4 py-2.5 bg-white border border-zinc-200 rounded-xl text-xs sm:text-sm text-zinc-900 placeholder-zinc-400 focus:outline-none focus:border-blue-500 shadow-xs"
           />
         </div>
 
@@ -281,8 +237,8 @@ export const AdminSpots: React.FC = () => {
                 }}
                 className={`h-[36px] px-3.5 rounded-full text-xs whitespace-nowrap transition-all duration-200 ease-out cursor-pointer inline-flex items-center gap-1.5 select-none active:scale-[0.96] ${
                   isSelected
-                    ? 'bg-[#E5E5EA] dark:bg-white/20 text-zinc-900 dark:text-white border border-black/[0.06] dark:border-white/20 shadow-[inset_0_1.5px_2.5px_rgba(0,0,0,0.12)] font-semibold'
-                    : 'bg-white dark:bg-[#1C1C1E] text-zinc-700 dark:text-zinc-300 border border-zinc-200/90 dark:border-white/10 shadow-[0_2px_5px_-1px_rgba(0,0,0,0.07),_0_1px_2px_rgba(0,0,0,0.04)] hover:shadow-[0_3px_8px_-1px_rgba(0,0,0,0.09)]'
+                    ? 'bg-[#E5E5EA] text-zinc-900 border border-black/[0.06] shadow-[inset_0_1.5px_2.5px_rgba(0,0,0,0.12)] font-semibold'
+                    : 'bg-white text-zinc-700 border border-zinc-200/90 shadow-[0_2px_5px_-1px_rgba(0,0,0,0.07),_0_1px_2px_rgba(0,0,0,0.04)] hover:shadow-[0_3px_8px_-1px_rgba(0,0,0,0.09)]'
                 }`}
               >
                 {cat.label}
@@ -294,15 +250,15 @@ export const AdminSpots: React.FC = () => {
 
       {/* Spots Grid */}
       {loading && spots.length === 0 ? (
-        <div className="flex flex-col items-center justify-center py-20 bg-white dark:bg-[#16181d] rounded-3xl border border-zinc-200 dark:border-zinc-800">
+        <div className="flex flex-col items-center justify-center py-20 bg-white rounded-3xl border border-zinc-200">
           <RefreshCw className="w-8 h-8 text-blue-600 animate-spin mb-3" />
-          <p className="text-sm font-black text-zinc-600 dark:text-zinc-400">Carregando catálogo de pontos...</p>
+          <p className="text-sm font-black text-zinc-600">Carregando catálogo de pontos...</p>
         </div>
       ) : error && spots.length === 0 ? (
-        <div className="text-center py-16 bg-white dark:bg-[#16181d] rounded-3xl border border-red-500/20 dark:border-red-500/30 p-8">
+        <div className="text-center py-16 bg-white rounded-3xl border border-red-200 p-8">
           <AlertCircle className="w-12 h-12 text-red-500 mx-auto mb-3" />
-          <h3 className="text-base font-black text-zinc-800 dark:text-zinc-200">Não foi possível carregar os pontos</h3>
-          <p className="text-xs text-zinc-500 dark:text-zinc-400 mt-1 max-w-sm mx-auto">
+          <h3 className="text-base font-black text-zinc-800">Não foi possível carregar os pontos</h3>
+          <p className="text-xs text-zinc-500 mt-1 max-w-sm mx-auto">
             {error}
           </p>
           <button
@@ -314,10 +270,10 @@ export const AdminSpots: React.FC = () => {
           </button>
         </div>
       ) : filteredSpots.length === 0 ? (
-        <div className="text-center py-16 bg-white dark:bg-[#16181d] rounded-3xl border border-zinc-200 dark:border-zinc-800 p-8">
-          <Compass className="w-12 h-12 text-zinc-300 dark:text-zinc-600 mx-auto mb-3" />
-          <h3 className="text-base font-black text-zinc-800 dark:text-zinc-200">Nenhum ponto turístico encontrado</h3>
-          <p className="text-xs text-zinc-500 dark:text-zinc-400 mt-1 max-w-sm mx-auto">
+        <div className="text-center py-16 bg-white rounded-3xl border border-zinc-200 p-8">
+          <Compass className="w-12 h-12 text-zinc-300 mx-auto mb-3" />
+          <h3 className="text-base font-black text-zinc-800">Nenhum ponto turístico encontrado</h3>
+          <p className="text-xs text-zinc-500 mt-1 max-w-sm mx-auto">
             Tente mudar o termo de busca ou cadastre um novo destino turístico.
           </p>
           <button
@@ -333,143 +289,112 @@ export const AdminSpots: React.FC = () => {
         </div>
       ) : (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
-          {filteredSpots.map((spot) => {
-            const isStarSpot = Boolean(
-              spot.isStar || spot.is_star === 1 || spot.is_star === true || spot.badge === 'Estrela'
-            );
-            return (
-              <div
-                key={spot.id}
-                className={`bg-white dark:bg-[#16181d] rounded-2xl border shadow-xs hover:shadow-md transition-all overflow-hidden flex flex-col group ${
-                  isStarSpot
-                    ? 'border-[#FFD60A] ring-1 ring-[#FFD60A]/40'
-                    : 'border-zinc-200/90 dark:border-zinc-800/90'
-                }`}
-              >
-                {/* Card Image Banner */}
-                <div className="relative h-44 w-full bg-zinc-100 dark:bg-zinc-800 overflow-hidden">
-                  <img
-                    src={spot.image}
-                    alt={spot.name}
-                    className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
-                  />
+          {filteredSpots.map((spot) => (
+            <div
+              key={spot.id}
+              className="bg-white rounded-2xl border border-zinc-200/90 shadow-xs hover:shadow-md transition-all overflow-hidden flex flex-col group"
+            >
+              {/* Card Image Banner */}
+              <div className="relative h-44 w-full bg-zinc-100 overflow-hidden">
+                <img
+                  src={spot.image}
+                  alt={spot.name}
+                  className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                />
 
-                  {/* Status Switch and Star / Verified Badge on Image */}
-                  <div className="absolute top-3 left-3 right-3 flex items-center justify-between pointer-events-auto">
-                    <div className="flex items-center gap-1.5">
-                      {isStarSpot ? (
-                        <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-[#FFD60A] text-black text-[10px] font-black uppercase shadow-md">
-                          <Star className="w-3 h-3 fill-black text-black" />
-                          ESTRELA
-                        </span>
-                      ) : spot.isVerified ? (
-                        <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-blue-600/90 backdrop-blur-md text-white text-[10px] font-black uppercase shadow-sm">
-                          <CheckCircle2 className="w-3 h-3" />
-                          VERIFICADO
-                        </span>
-                      ) : (
-                        <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-zinc-800/80 backdrop-blur-md text-white text-[10px] font-black">
-                          PADRÃO
-                        </span>
-                      )}
-                    </div>
-
-                    {/* Active Toggle Switch */}
-                    <div className="flex items-center gap-1.5 bg-black/50 backdrop-blur-md px-2 py-1 rounded-full">
-                      <span className="text-[10px] font-black text-white uppercase">
-                        {spot.isActive ? 'Ativo' : 'Pausado'}
+                {/* Status Switch and Verified Badge on Image */}
+                <div className="absolute top-3 left-3 right-3 flex items-center justify-between pointer-events-auto">
+                  <div className="flex items-center gap-1.5">
+                    {spot.isVerified ? (
+                      <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-blue-600/90 backdrop-blur-md text-white text-[10px] font-black uppercase shadow-sm">
+                        <CheckCircle2 className="w-3 h-3" />
+                        VERIFICADO
                       </span>
-                      <button
-                        type="button"
-                        onClick={(e) => handleToggleActive(spot.id, e)}
-                        className={`relative inline-flex h-4 w-8 shrink-0 cursor-pointer rounded-full border border-transparent transition-colors duration-200 ease-in-out ${
-                          spot.isActive ? 'bg-blue-600' : 'bg-zinc-500'
-                        }`}
-                      >
-                        <span
-                          className={`pointer-events-none inline-block h-3 w-3 transform rounded-full bg-white shadow-sm ring-0 transition duration-200 ease-in-out mt-0.5 ${
-                            spot.isActive ? 'translate-x-4' : 'translate-x-0.5'
-                          }`}
-                        />
-                      </button>
-                    </div>
+                    ) : (
+                      <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-white/90 backdrop-blur-md text-zinc-800 text-[10px] font-black shadow-xs">
+                        PADRÃO
+                      </span>
+                    )}
                   </div>
 
-                  {/* Category pill on bottom left of image */}
-                  <div className="absolute bottom-3 left-3">
-                    <span className="text-[10px] font-black uppercase tracking-wider text-white bg-black/60 backdrop-blur-md px-2.5 py-1 rounded-lg">
-                      {spot.categoryLabel || spot.category}
+                  {/* Active Toggle Switch */}
+                  <div className="flex items-center gap-1.5 bg-black/50 backdrop-blur-md px-2 py-1 rounded-full">
+                    <span className="text-[10px] font-black text-white uppercase">
+                      {spot.isActive ? 'Ativo' : 'Pausado'}
                     </span>
-                  </div>
-
-                  {/* Rating on bottom right */}
-                  <div className="absolute bottom-3 right-3 bg-black/60 backdrop-blur-md px-2 py-1 rounded-lg flex items-center gap-1 text-white text-xs font-black">
-                    <Star className="w-3 h-3 text-amber-400 fill-amber-400" />
-                    <span>{spot.rating?.toFixed(1) || '4.8'}</span>
+                    <button
+                      type="button"
+                      onClick={(e) => handleToggleActive(spot.id, e)}
+                      className={`relative inline-flex h-4 w-8 shrink-0 cursor-pointer rounded-full border border-transparent transition-colors duration-200 ease-in-out ${
+                        spot.isActive ? 'bg-blue-600' : 'bg-zinc-500'
+                      }`}
+                    >
+                      <span
+                        className={`pointer-events-none inline-block h-3 w-3 transform rounded-full bg-white shadow-sm ring-0 transition duration-200 ease-in-out mt-0.5 ${
+                          spot.isActive ? 'translate-x-4' : 'translate-x-0.5'
+                        }`}
+                      />
+                    </button>
                   </div>
                 </div>
 
-                {/* Card Body */}
-                <div className="p-4 flex-1 flex flex-col justify-between">
-                  <div>
-                    <h3 className="text-base font-black text-zinc-900 dark:text-white group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors line-clamp-1">
-                      {spot.name}
-                    </h3>
-                    <p className="text-xs text-zinc-500 dark:text-zinc-400 mt-1 line-clamp-2 leading-relaxed">
-                      {spot.description || 'Ponto turístico localizado nas montanhas de Campos do Jordão.'}
-                    </p>
+                {/* Category pill on bottom left of image */}
+                <div className="absolute bottom-3 left-3">
+                  <span className="text-[10px] font-black uppercase tracking-wider text-white bg-black/60 backdrop-blur-md px-2.5 py-1 rounded-lg">
+                    {spot.categoryLabel || spot.category}
+                  </span>
+                </div>
+
+                {/* Rating on bottom right */}
+                <div className="absolute bottom-3 right-3 bg-black/60 backdrop-blur-md px-2 py-1 rounded-lg flex items-center gap-1 text-white text-xs font-black">
+                  <Star className="w-3 h-3 text-amber-400 fill-amber-400" />
+                  <span>{spot.rating?.toFixed(1) || '4.8'}</span>
+                </div>
+              </div>
+
+              {/* Card Body */}
+              <div className="p-4 flex-1 flex flex-col justify-between">
+                <div>
+                  <h3 className="text-base font-black text-zinc-900 group-hover:text-blue-600 transition-colors line-clamp-1">
+                    {spot.name}
+                  </h3>
+                  <p className="text-xs text-zinc-500 mt-1 line-clamp-2 leading-relaxed">
+                    {spot.description || 'Ponto turístico localizado nas montanhas de Campos do Jordão.'}
+                  </p>
+                </div>
+
+                {/* Address & Actions */}
+                <div className="mt-4 pt-3 border-t border-zinc-100 flex items-center justify-between gap-2">
+                  <div className="flex items-center gap-1 text-[11px] text-zinc-400 truncate max-w-[160px]">
+                    <MapPin className="w-3.5 h-3.5 shrink-0 text-blue-500" />
+                    <span className="truncate">{spot.address || 'Campos do Jordão'}</span>
                   </div>
 
-                  {/* Address & Actions */}
-                  <div className="mt-4 pt-3 border-t border-zinc-100 dark:border-zinc-800 flex items-center justify-between gap-2">
-                    <div className="flex items-center gap-1 text-[11px] text-zinc-400 dark:text-zinc-500 truncate max-w-[120px]">
-                      <MapPin className="w-3.5 h-3.5 shrink-0 text-blue-500" />
-                      <span className="truncate">{spot.address || 'Campos do Jordão'}</span>
-                    </div>
-
-                    <div className="flex items-center gap-1.5">
-                      <button
-                        type="button"
-                        onClick={(e) => handleToggleStar(spot, e)}
-                        className={`px-2.5 py-1.5 rounded-lg text-[11px] font-black inline-flex items-center gap-1 transition-all cursor-pointer ${
-                          isStarSpot
-                            ? 'bg-[#FFD60A] text-black shadow-sm'
-                            : 'bg-zinc-100 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-300 hover:bg-[#FFD60A]/20 hover:text-amber-500'
-                        }`}
-                        title="Destacar como Estrela amarela no mapa"
-                      >
-                        <Star
-                          className={`w-3.5 h-3.5 ${
-                            isStarSpot ? 'fill-black text-black' : 'text-amber-400'
-                          }`}
-                        />
-                        <span>Estrela</span>
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setSpotToEdit(spot);
-                          setIsModalOpen(true);
-                        }}
-                        className="p-1.5 rounded-lg text-zinc-600 dark:text-zinc-300 hover:text-blue-600 dark:hover:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/30 transition-colors cursor-pointer"
-                        title="Editar Ponto"
-                      >
-                        <Edit className="w-4 h-4" />
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => handleDelete(spot)}
-                        className="p-1.5 rounded-lg text-zinc-600 dark:text-zinc-300 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/30 transition-colors cursor-pointer"
-                        title="Excluir Ponto"
-                      >
-                        <Trash2 className="w-4 h-4" />
-                      </button>
-                    </div>
+                  <div className="flex items-center gap-1.5">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setSpotToEdit(spot);
+                        setIsModalOpen(true);
+                      }}
+                      className="p-1.5 rounded-lg text-zinc-600 hover:text-blue-600 hover:bg-blue-50 transition-colors cursor-pointer"
+                      title="Editar Ponto"
+                    >
+                      <Edit className="w-4 h-4" />
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleDelete(spot)}
+                      className="p-1.5 rounded-lg text-zinc-600 hover:text-rose-600 hover:bg-rose-50 transition-colors cursor-pointer"
+                      title="Excluir Ponto"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </button>
                   </div>
                 </div>
               </div>
-            );
-          })}
+            </div>
+          ))}
         </div>
       )}
 

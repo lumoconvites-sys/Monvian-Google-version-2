@@ -1435,6 +1435,163 @@ export function registerPlatanosRoutes(
         `)
         .get() as any;
 
+      const parseDbTimestamp = (ts: string | null | undefined): number => {
+        if (!ts) return NaN;
+        const normalized = ts.includes('T') ? ts : ts.replace(' ', 'T') + 'Z';
+        const parsed = Date.parse(normalized);
+        return Number.isNaN(parsed) ? Date.parse(ts) : parsed;
+      };
+
+      const allTx90d = db
+        .prepare(`
+          SELECT amount, type, status, created_at
+          FROM platanos_transactions
+          WHERE created_at IS NOT NULL AND datetime(created_at) >= datetime('now', '-90 days')
+        `)
+        .all() as Array<{ amount: number; type: string; status: string; created_at: string }>;
+
+      const allPaidOrders90d = db
+        .prepare(`
+          SELECT amount_cents, platanos_amount, created_at
+          FROM platanos_stripe_orders
+          WHERE status = 'paid' AND credited = 1 AND created_at IS NOT NULL AND datetime(created_at) >= datetime('now', '-90 days')
+        `)
+        .all() as Array<{ amount_cents: number; platanos_amount: number; created_at: string }>;
+
+      const dayNames = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'];
+
+      const buildPerformanceSeries = (daysWindow: 7 | 30 | 90) => {
+        const bucketCount = daysWindow === 7 ? 7 : 6;
+        const bucketSizeDays = daysWindow === 7 ? 1 : daysWindow / bucketCount;
+        const now = new Date();
+        now.setHours(23, 59, 59, 999);
+
+        const buckets: Array<{
+          label: string;
+          fullLabel: string;
+          creditsAdded: number;
+          platanosConsumed: number;
+        }> = [];
+
+        for (let i = bucketCount - 1; i >= 0; i--) {
+          const endMs = now.getTime() - i * bucketSizeDays * 86400000;
+          const startMs = endMs - bucketSizeDays * 86400000;
+          const endDate = new Date(endMs);
+
+          let creditsAdded = 0;
+          let platanosConsumed = 0;
+
+          for (const tx of allTx90d) {
+            if (tx.status === 'cancelled' || tx.status === 'failed') continue;
+            const t = parseDbTimestamp(tx.created_at);
+            if (Number.isNaN(t) || t <= startMs || t > endMs) continue;
+            const amt = Number(tx.amount) || 0;
+            if (amt > 0) creditsAdded += amt;
+            else if (amt < 0) platanosConsumed += Math.abs(amt);
+          }
+
+          const dd = String(endDate.getDate()).padStart(2, '0');
+          const mm = String(endDate.getMonth() + 1).padStart(2, '0');
+          buckets.push({
+            label: daysWindow === 7 ? dayNames[endDate.getDay()] : `${dd}/${mm}`,
+            fullLabel: `${dd}/${mm}`,
+            creditsAdded,
+            platanosConsumed,
+          });
+        }
+
+        return buckets;
+      };
+
+      const buildStripeRevenueSeries = (daysWindow: 7 | 30 | 90) => {
+        const bucketCount = daysWindow === 7 ? 7 : 6;
+        const bucketSizeDays = daysWindow === 7 ? 1 : daysWindow / bucketCount;
+        const now = new Date();
+        now.setHours(23, 59, 59, 999);
+
+        const buckets: Array<{
+          label: string;
+          fullLabel: string;
+          revenueCents: number;
+          revenueReais: number;
+          paymentsCount: number;
+        }> = [];
+
+        for (let i = bucketCount - 1; i >= 0; i--) {
+          const endMs = now.getTime() - i * bucketSizeDays * 86400000;
+          const startMs = endMs - bucketSizeDays * 86400000;
+          const endDate = new Date(endMs);
+
+          let revenueCents = 0;
+          let paymentsCount = 0;
+
+          for (const ord of allPaidOrders90d) {
+            const t = parseDbTimestamp(ord.created_at);
+            if (Number.isNaN(t) || t <= startMs || t > endMs) continue;
+            revenueCents += Number(ord.amount_cents) || 0;
+            paymentsCount += 1;
+          }
+
+          const dd = String(endDate.getDate()).padStart(2, '0');
+          const mm = String(endDate.getMonth() + 1).padStart(2, '0');
+          buckets.push({
+            label: daysWindow === 7 ? dayNames[endDate.getDay()] : `${dd}/${mm}`,
+            fullLabel: `${dd}/${mm}`,
+            revenueCents,
+            revenueReais: Number((revenueCents / 100).toFixed(2)),
+            paymentsCount,
+          });
+        }
+
+        return buckets;
+      };
+
+      const perf7d = buildPerformanceSeries(7);
+      const rev7d = buildStripeRevenueSeries(7);
+
+      // Compute real historical deltas (last 30d vs prior 30d) ONLY when prior period has non-zero baseline
+      const computeDeltaPct = (current: number, previous: number): number | null => {
+        if (previous <= 0) return null;
+        return Math.round(((current - previous) / previous) * 100);
+      };
+
+      const nowMs = Date.now();
+      const d30Ms = nowMs - 30 * 86400000;
+      const d60Ms = nowMs - 60 * 86400000;
+
+      let credCur = 0;
+      let credPrev = 0;
+      let spentCur = 0;
+      let spentPrev = 0;
+      let netCur = 0;
+      let netPrev = 0;
+
+      for (const tx of allTx90d) {
+        if (tx.status === 'cancelled' || tx.status === 'failed') continue;
+        const t = parseDbTimestamp(tx.created_at);
+        if (Number.isNaN(t)) continue;
+        const amt = Number(tx.amount) || 0;
+        if (t >= d30Ms) {
+          netCur += amt;
+          if (amt > 0) credCur += amt;
+          else if (amt < 0) spentCur += Math.abs(amt);
+        } else if (t >= d60Ms && t < d30Ms) {
+          netPrev += amt;
+          if (amt > 0) credPrev += amt;
+          else if (amt < 0) spentPrev += Math.abs(amt);
+        }
+      }
+
+      let revCur = 0;
+      let revPrev = 0;
+      for (const ord of allPaidOrders90d) {
+        const t = parseDbTimestamp(ord.created_at);
+        if (Number.isNaN(t)) continue;
+        const c = Number(ord.amount_cents) || 0;
+        if (t >= d30Ms) revCur += c;
+        else if (t >= d60Ms && t < d30Ms) revPrev += c;
+      }
+
       res.json({
         success: true,
         stats: {
@@ -1446,6 +1603,30 @@ export function registerPlatanosRoutes(
           revenueBRL: formatCentsToBRL(Number(revenueRow?.revenueCents || 0)),
           paidOrdersCount: Number(revenueRow?.paidOrdersCount || 0),
           totalUnlocks: unlocks.length,
+        },
+        analytics: {
+          performanceByRange: {
+            '7d': perf7d,
+            '30d': buildPerformanceSeries(30),
+            '90d': buildPerformanceSeries(90),
+          },
+          stripeRevenueByRange: {
+            '7d': rev7d,
+            '30d': buildStripeRevenueSeries(30),
+            '90d': buildStripeRevenueSeries(90),
+          },
+          sparklines: {
+            circulation: perf7d.map((p) => Math.max(0, p.creditsAdded - p.platanosConsumed)),
+            credited: perf7d.map((p) => p.creditsAdded),
+            spent: perf7d.map((p) => p.platanosConsumed),
+            revenue: rev7d.map((r) => r.revenueReais),
+          },
+          deltas: {
+            circulationPct: computeDeltaPct(Math.max(0, netCur), Math.max(0, netPrev)),
+            creditedPct: computeDeltaPct(credCur, credPrev),
+            spentPct: computeDeltaPct(spentCur, spentPrev),
+            revenuePct: computeDeltaPct(revCur, revPrev),
+          },
         },
         packages,
         itineraries,
