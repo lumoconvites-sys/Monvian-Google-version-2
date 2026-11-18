@@ -2368,16 +2368,17 @@ export default function App() {
             minHeight: 'var(--app-height, 100dvh)',
           }}
         >
-          {theme === 'dark' ? (
-            <img
-              src="/logomodoescuro.png"
-              alt="Monvian"
-              draggable={false}
-              className="w-[220px] max-w-[60vw] h-auto object-contain select-none pointer-events-none"
-            />
-          ) : (
-            <div className="w-7 h-7 rounded-full border-2 animate-spin border-[#E5E7EB] border-t-[#080808]" />
-          )}
+          <img
+            src={
+              theme === 'dark'
+                ? '/logomodoescuro.png'
+                : '/assets/aistudio/monvian_logo_dark_transparent.png'
+            }
+            alt="Monvian"
+            draggable={false}
+            style={{ animation: 'monvianLogoIdleBreath 1.4s ease-in-out infinite' }}
+            className="w-[220px] max-w-[60vw] h-auto object-contain select-none pointer-events-none"
+          />
         </div>
       ) : !isAuthenticated || pendingResetOobCode ? (
         <motion.div

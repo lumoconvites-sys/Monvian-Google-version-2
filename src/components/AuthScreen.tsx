@@ -149,12 +149,6 @@ export function AuthScreen({
   useEffect(() => {
     try {
       const preloader = document.getElementById('monvian-app-preloader');
-      const video = document.getElementById('monvian-preloader-video') as HTMLVideoElement | null;
-      if (video) {
-        try {
-          video.pause();
-        } catch {}
-      }
       if (preloader) {
         preloader.style.display = 'none';
         preloader.style.opacity = '0';
