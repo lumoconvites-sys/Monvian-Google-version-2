@@ -1,54 +1,27 @@
-import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
+import React, { useState, useEffect, useMemo, useCallback, useRef, Suspense } from 'react';
 import { CAMPOS_SPOTS, INITIAL_WEATHER } from './data/spots';
 import { Spot, MapVisualIcon, MapModeType } from './types';
-import { MapComponent } from './components/MapComponent';
-import { BottomNavigation, TabType } from './components/BottomNavigation';
-import { SpotDetailSheet } from './components/SpotDetailSheet';
-import { SpotPreviewBanner } from './components/SpotPreviewBanner';
-import { SearchFilterDrawer } from './components/SearchFilterDrawer';
-import { SavedView } from './components/SavedView';
-import { ProfileModal } from './components/ProfileModal';
-import { ItinerariesView } from './components/ItinerariesView';
+import type { TabType } from './components/BottomNavigation';
 import { Itinerary } from './types';
 import { favoritesManager } from './services/favoritesManager';
 import { CloudRain, SlidersHorizontal, MapPin, Navigation2, Compass, Mic, Search, X, ShieldCheck, Sun, Moon, Building2, UtensilsCrossed, Coffee, Cake, Mountain, Cross, Check, RotateCcw, Star, ChevronRight, Settings } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
-import { SettingsModal } from './components/SettingsModal';
-import { AuthScreen } from './components/AuthScreen';
-import { AdminLayout } from './components/admin/AdminLayout';
-import { OnboardingFlow } from './components/OnboardingFlow';
-import { OnboardingQuestionsModal } from './components/OnboardingQuestionsModal';
 import { OfflineIndicator } from './components/OfflineIndicator';
 import { Weather3DIcon } from './components/Weather3DIcon';
 import { Map3DIcon } from './components/Map3DIcon';
-import { RainEffect } from './components/RainEffect';
-import { SnowEffect } from './components/SnowEffect';
-import { GoldSuccessModal } from './components/GoldSuccessModal';
 import { computeAdaptiveThemeColor, applySystemThemeColor } from './utils/themeColor';
 import { gpsNavigationManager, calculateHaversineDistance } from './services/gpsNavigation';
 import { ActiveMapRoute, acquireUserGpsForRoute, fetchRealRoadRoute } from './services/mapboxDirections';
 import { deviceHeadingManager } from './utils/deviceHeading';
 import { getSpotImage, getSpotFallbackImage } from './utils/spotImages';
 import { VerifiedBadge } from './components/ui/VerifiedBadge';
-import { DesktopSidebar } from './components/desktop/DesktopSidebar';
-import { DesktopMapControls } from './components/desktop/DesktopMapControls';
-import { DesktopExplorePanel } from './components/desktop/DesktopExplorePanel';
 import { startPreloadResources } from './utils/preloadItineraries';
-import { AirbnbPresentationCard, isPresentationCardSeen, markPresentationCardSeen, PresentationTab } from './components/AirbnbPresentationCard';
+import { isPresentationCardSeen, markPresentationCardSeen, type PresentationTab } from './components/AirbnbPresentationCard';
 import { persistUserToFirestore, syncPermissionsFromDatabase, markWelcomeCardSeen, markGlobeIntroSeen } from './services/firestoreSync';
 import { fetchSpotsFromSupabase, subscribeToSpotsChanges } from './services/supabaseSpots';
 import { broadcastPlatanosWalletUpdate, getAuthHeaders } from './hooks/usePlatanos';
-import { PlatanosWalletModal } from './components/platanos/PlatanosWalletModal';
-import { CamposAchievementModal } from './components/CamposAchievementModal';
+import type { SignupIntroStage } from './components/SignupIntroSequence';
 import { isWithinCamposRadius } from './utils/geoCache';
-import { SignupIntroSequence, SignupIntroStage } from './components/SignupIntroSequence';
-import { FirstSignupWelcomeScreen } from './components/FirstSignupWelcomeScreen';
-import { WelcomeJourneyModal } from './components/WelcomeJourneyModal';
-import { XpRewardNotificationOverlay } from './components/XpRewardNotificationOverlay';
-import { WhiteConfettiOverlay } from './components/WhiteConfettiOverlay';
-import {
-  ClothingWeatherModal,
-} from './components/ClothingWeatherWidget';
 import { IOSInteractiveBackSystem } from './components/IOSInteractiveBackSystem';
 import { useIOSBackEntry, iosNavigationManager } from './services/iosNavigationManager';
 import { auth, signOut, setCachedAccessToken, waitForFirebaseAuthUser, getFreshFirebaseIdToken } from './lib/firebase';
@@ -65,6 +38,91 @@ import {
   writeScopedString,
   purgeLegacyUnscopedActivityKeys,
 } from './utils/userScopedStorage';
+
+// Unauthenticated flow (deactivated and NOT loaded when the user is logged in)
+const AuthScreen = React.lazy(() =>
+  import('./components/AuthScreen').then((m) => ({ default: m.AuthScreen }))
+);
+
+// Authenticated app shell & heavy views (deactivated and NOT loaded when the user is logged out)
+const MapComponent = React.lazy(() =>
+  import('./components/MapComponent').then((m) => ({ default: m.MapComponent }))
+);
+const BottomNavigation = React.lazy(() =>
+  import('./components/BottomNavigation').then((m) => ({ default: m.BottomNavigation }))
+);
+const SpotDetailSheet = React.lazy(() =>
+  import('./components/SpotDetailSheet').then((m) => ({ default: m.SpotDetailSheet }))
+);
+const SpotPreviewBanner = React.lazy(() =>
+  import('./components/SpotPreviewBanner').then((m) => ({ default: m.SpotPreviewBanner }))
+);
+const SearchFilterDrawer = React.lazy(() =>
+  import('./components/SearchFilterDrawer').then((m) => ({ default: m.SearchFilterDrawer }))
+);
+const SavedView = React.lazy(() =>
+  import('./components/SavedView').then((m) => ({ default: m.SavedView }))
+);
+const ProfileModal = React.lazy(() =>
+  import('./components/ProfileModal').then((m) => ({ default: m.ProfileModal }))
+);
+const ItinerariesView = React.lazy(() =>
+  import('./components/ItinerariesView').then((m) => ({ default: m.ItinerariesView }))
+);
+const SettingsModal = React.lazy(() =>
+  import('./components/SettingsModal').then((m) => ({ default: m.SettingsModal }))
+);
+const AdminLayout = React.lazy(() =>
+  import('./components/admin/AdminLayout').then((m) => ({ default: m.AdminLayout }))
+);
+const OnboardingFlow = React.lazy(() =>
+  import('./components/OnboardingFlow').then((m) => ({ default: m.OnboardingFlow }))
+);
+const RainEffect = React.lazy(() =>
+  import('./components/RainEffect').then((m) => ({ default: m.RainEffect }))
+);
+const SnowEffect = React.lazy(() =>
+  import('./components/SnowEffect').then((m) => ({ default: m.SnowEffect }))
+);
+const GoldSuccessModal = React.lazy(() =>
+  import('./components/GoldSuccessModal').then((m) => ({ default: m.GoldSuccessModal }))
+);
+const DesktopSidebar = React.lazy(() =>
+  import('./components/desktop/DesktopSidebar').then((m) => ({ default: m.DesktopSidebar }))
+);
+const DesktopMapControls = React.lazy(() =>
+  import('./components/desktop/DesktopMapControls').then((m) => ({ default: m.DesktopMapControls }))
+);
+const DesktopExplorePanel = React.lazy(() =>
+  import('./components/desktop/DesktopExplorePanel').then((m) => ({ default: m.DesktopExplorePanel }))
+);
+const AirbnbPresentationCard = React.lazy(() =>
+  import('./components/AirbnbPresentationCard').then((m) => ({ default: m.AirbnbPresentationCard }))
+);
+const PlatanosWalletModal = React.lazy(() =>
+  import('./components/platanos/PlatanosWalletModal').then((m) => ({ default: m.PlatanosWalletModal }))
+);
+const CamposAchievementModal = React.lazy(() =>
+  import('./components/CamposAchievementModal').then((m) => ({ default: m.CamposAchievementModal }))
+);
+const SignupIntroSequence = React.lazy(() =>
+  import('./components/SignupIntroSequence').then((m) => ({ default: m.SignupIntroSequence }))
+);
+const FirstSignupWelcomeScreen = React.lazy(() =>
+  import('./components/FirstSignupWelcomeScreen').then((m) => ({ default: m.FirstSignupWelcomeScreen }))
+);
+const WelcomeJourneyModal = React.lazy(() =>
+  import('./components/WelcomeJourneyModal').then((m) => ({ default: m.WelcomeJourneyModal }))
+);
+const XpRewardNotificationOverlay = React.lazy(() =>
+  import('./components/XpRewardNotificationOverlay').then((m) => ({ default: m.XpRewardNotificationOverlay }))
+);
+const WhiteConfettiOverlay = React.lazy(() =>
+  import('./components/WhiteConfettiOverlay').then((m) => ({ default: m.WhiteConfettiOverlay }))
+);
+const ClothingWeatherModal = React.lazy(() =>
+  import('./components/ClothingWeatherWidget').then((m) => ({ default: m.ClothingWeatherModal }))
+);
 
 const welcomeContainerVariants = {
   hidden: { opacity: 0 },
@@ -190,11 +248,8 @@ export default function App() {
     });
   }, [theme]);
 
-  // Preload all itinerary images in background as soon as app opens, even if user is on another tab
+  // Referral tracking listener on mount (/indique/:code or ?ref=code)
   useEffect(() => {
-    startPreloadResources();
-
-    // Referral tracking listener on mount (/indique/:code or ?ref=code)
     try {
       const searchParams = new URLSearchParams(window.location.search);
       const queryRef = searchParams.get('ref') || searchParams.get('indique') || searchParams.get('referral');
@@ -214,6 +269,12 @@ export default function App() {
       }
     } catch {}
   }, []);
+
+  // Preload authenticated itinerary & map resources ONLY while logged in
+  useEffect(() => {
+    if (!isAuthenticated || pendingResetOobCode) return;
+    startPreloadResources();
+  }, [isAuthenticated, pendingResetOobCode]);
 
   // Map style mode state
   const [mapStyle, setMapStyle] = useState<MapModeType>('animado');
@@ -1107,6 +1168,10 @@ export default function App() {
   };
 
   useEffect(() => {
+    if (!isAuthenticated || pendingResetOobCode) {
+      return;
+    }
+
     fetchSpots();
     fetchVisualIcons();
     fetchSettings();
@@ -1170,7 +1235,7 @@ export default function App() {
       window.removeEventListener('focus', handleWindowFocus);
       unsubscribeRealtime();
     };
-  }, []);
+  }, [isAuthenticated, pendingResetOobCode]);
 
   const wasAdminOpenRef = useRef(false);
   useEffect(() => {
@@ -2270,14 +2335,22 @@ export default function App() {
   return (
     <>
       <IOSInteractiveBackSystem />
-      <SignupIntroSequence
-        stage={signupIntroStage}
-        onAdvanceStage={setSignupIntroStage}
-      />
-      <WelcomeJourneyModal
-        isOpen={isWelcomeJourneyOpen}
-        onFinish={() => setIsWelcomeJourneyOpen(false)}
-      />
+      {signupIntroStage !== 'idle' && (
+        <Suspense fallback={null}>
+          <SignupIntroSequence
+            stage={signupIntroStage}
+            onAdvanceStage={setSignupIntroStage}
+          />
+        </Suspense>
+      )}
+      {isAuthenticated && !pendingResetOobCode && isWelcomeJourneyOpen && (
+        <Suspense fallback={null}>
+          <WelcomeJourneyModal
+            isOpen={isWelcomeJourneyOpen}
+            onFinish={() => setIsWelcomeJourneyOpen(false)}
+          />
+        </Suspense>
+      )}
       <AnimatePresence>
       {isAuthChecking && !isAuthenticated && !pendingResetOobCode ? (
         <div
@@ -2333,14 +2406,23 @@ export default function App() {
             minHeight: 'var(--app-height, 100dvh)',
           }}
         >
-          <AuthScreen
-            theme={theme}
-            initialAuthMode={authInitialMode}
-            initialResetOobCode={pendingResetOobCode}
-            onResetHandled={() => {
-              setPendingResetOobCode(null);
-              clearPersistentSession().catch(() => {});
-            }}
+          <Suspense
+            fallback={
+              <div
+                className={`w-full h-full flex items-center justify-center ${
+                  theme === 'dark' ? 'bg-[#000000]' : 'bg-[#ffffff]'
+                }`}
+              />
+            }
+          >
+            <AuthScreen
+              theme={theme}
+              initialAuthMode={authInitialMode}
+              initialResetOobCode={pendingResetOobCode}
+              onResetHandled={() => {
+                setPendingResetOobCode(null);
+                clearPersistentSession().catch(() => {});
+              }}
             onSuccess={(token, userData, isNewAccount) => {
               authEpochRef.current += 1;
               try {
@@ -2461,6 +2543,7 @@ export default function App() {
               setIsAuthenticated(true);
             }}
           />
+          </Suspense>
         </motion.div>
       ) : (
         <motion.div
@@ -2504,6 +2587,7 @@ export default function App() {
               signupIntroStage === 'white' || signupIntroStage === 'video' ? 'none' : undefined,
           }}
         >
+      <Suspense fallback={null}>
       <OfflineIndicator />
 
       {/* Desktop Left Sidebar (Only visible on md+ >= 768px, hidden during exclusive post-signup itinerary selection, welcome screen & spotlight) */}
@@ -3518,6 +3602,7 @@ export default function App() {
       onClose={() => setIsCamposAchievementOpen(false)}
     />
 
+      </Suspense>
   </motion.div>
   )}
   </AnimatePresence>

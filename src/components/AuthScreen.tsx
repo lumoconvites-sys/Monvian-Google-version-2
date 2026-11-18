@@ -1295,15 +1295,24 @@ export function AuthScreen({
         }`}
         style={{
           top: 0,
-          bottom: 0,
+          bottom: isKeyboardOpen && registerStep < 4 ? 'auto' : 0,
           left: 0,
           right: 0,
           width: '100%',
-          height: 'var(--app-height, 100dvh)',
-          minHeight: 'var(--app-height, 100dvh)',
+          height:
+            isKeyboardOpen && registerStep < 4 && viewportHeight > 0
+              ? `${viewportHeight}px`
+              : 'var(--app-height, 100dvh)',
+          minHeight:
+            isKeyboardOpen && registerStep < 4 && viewportHeight > 0
+              ? `${viewportHeight}px`
+              : 'var(--app-height, 100dvh)',
           backgroundColor: isDark ? '#000000' : '#FFFFFF',
           paddingTop: 'max(16px, calc(env(safe-area-inset-top, 0px) + 12px))',
-          paddingBottom: 'max(24px, env(safe-area-inset-bottom, 0px))',
+          paddingBottom:
+            isKeyboardOpen && registerStep < 4
+              ? '12px'
+              : 'max(24px, env(safe-area-inset-bottom, 0px))',
           paddingLeft: 'max(24px, env(safe-area-inset-left, 0px))',
           paddingRight: 'max(24px, env(safe-area-inset-right, 0px))',
           willChange: 'transform, opacity',
@@ -1349,7 +1358,11 @@ export function AuthScreen({
         </header>
 
         {/* Center Content Area: stays vertically centered in visible area above virtual keyboard */}
-        <main className="w-full max-w-sm mx-auto flex flex-col justify-center my-auto py-8">
+        <main
+          className={`w-full max-w-sm mx-auto flex-1 flex flex-col justify-center ${
+            isKeyboardOpen && registerStep < 4 ? 'pt-4 pb-2' : 'py-8'
+          }`}
+        >
           {/* ETAPA 1 — NOME */}
           <form
             ref={step1FormRef}
@@ -1788,7 +1801,7 @@ export function AuthScreen({
         {/* Bottom Primary Action Area */}
         <footer
           className={`w-full max-w-sm mx-auto pb-4 pt-2 shrink-0 transition-opacity duration-200 ${
-            isKeyboardOpen && registerStep < 4 ? 'opacity-0 pointer-events-none' : 'opacity-100'
+            isKeyboardOpen && registerStep < 4 ? 'hidden' : 'block'
           }`}
         >
           {registerStep === 1 && (

@@ -122,89 +122,38 @@ export const PersistentSiteNavbar: React.FC<PersistentSiteNavbarProps> = ({
       <style>{`
         .monvian-floating-nav {
           border-radius: 999px;
-          backdrop-filter: blur(25px) saturate(151%);
-          -webkit-backdrop-filter: blur(25px) saturate(151%);
+          background: #FFFFFF;
+          border-color: rgba(0, 0, 0, 0.08);
+          color: #000000;
+          text-shadow: none;
+          box-shadow:
+            0 10px 28px rgba(10, 28, 56, 0.12),
+            0 2px 8px rgba(0, 0, 0, 0.06);
           transform: translate3d(0, 0, 0);
           overflow: hidden;
-          transition: background 0.28s ease, border-color 0.28s ease, color 0.24s ease, box-shadow 0.28s ease;
+          transition: background 0.24s ease, border-color 0.24s ease, color 0.24s ease, box-shadow 0.24s ease;
           contain: layout style;
-        }
-        .monvian-floating-nav::before {
-          content: '';
-          position: absolute;
-          inset: 0;
-          border-radius: 999px;
-          padding: 1.25px;
-          background: linear-gradient(
-            135deg,
-            rgba(255, 255, 255, 0.94) 0%,
-            rgba(255, 255, 255, 0.36) 24%,
-            rgba(255, 255, 255, 0.72) 50%,
-            rgba(255, 255, 255, 0.32) 76%,
-            rgba(255, 255, 255, 0.96) 100%
-          );
-          -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
-          -webkit-mask-composite: xor;
-          mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
-          mask-composite: exclude;
-          pointer-events: none;
-          z-index: 2;
-        }
-        .monvian-floating-nav::after {
-          content: '';
-          position: absolute;
-          inset: 0;
-          border-radius: 999px;
-          background:
-            radial-gradient(28% 120% at 4% 52%, rgba(255, 255, 255, 0.44) 0%, rgba(255, 255, 255, 0.12) 48%, rgba(255, 255, 255, 0) 85%),
-            radial-gradient(28% 120% at 96% 48%, rgba(255, 255, 255, 0.46) 0%, rgba(255, 255, 255, 0.12) 48%, rgba(255, 255, 255, 0) 85%),
-            linear-gradient(180deg, rgba(255, 255, 255, 0.32) 0%, rgba(255, 255, 255, 0.04) 26%, rgba(255, 255, 255, 0) 62%, rgba(255, 255, 255, 0.16) 100%);
-          pointer-events: none;
-          z-index: 1;
         }
         .monvian-floating-nav > nav {
           position: relative;
           z-index: 3;
         }
-        .monvian-floating-nav[data-nav-theme='dark'] {
-          background: linear-gradient(
-            180deg,
-            rgba(255, 255, 255, 0.18) 0%,
-            rgba(255, 255, 255, 0.07) 52%,
-            rgba(255, 255, 255, 0.14) 100%
-          );
-          border-color: rgba(255, 255, 255, 0.34);
-          color: rgba(255, 255, 255, 0.98);
-          text-shadow: 0 1px 2px rgba(8, 22, 46, 0.18);
-          box-shadow:
-            0 12px 30px rgba(10, 28, 56, 0.18),
-            0 3px 10px rgba(0, 0, 0, 0.08),
-            inset 0 1.5px 2px rgba(255, 255, 255, 0.65),
-            inset 0 -1.5px 3px rgba(255, 255, 255, 0.28),
-            inset 10px 0 16px -8px rgba(255, 255, 255, 0.38),
-            inset -10px 0 16px -8px rgba(255, 255, 255, 0.38);
-        }
+        .monvian-floating-nav[data-nav-theme='dark'],
         .monvian-floating-nav[data-nav-theme='light'] {
-          background: linear-gradient(
-            180deg,
-            rgba(255, 255, 255, 0.56) 0%,
-            rgba(244, 247, 254, 0.36) 52%,
-            rgba(255, 255, 255, 0.50) 100%
-          );
-          border-color: rgba(255, 255, 255, 0.72);
-          color: rgba(8, 8, 8, 0.90);
+          background: #FFFFFF;
+          border-color: rgba(0, 0, 0, 0.08);
+          color: #000000;
           text-shadow: none;
           box-shadow:
-            0 0 0 0.5px rgba(8, 8, 8, 0.06),
-            0 10px 28px rgba(15, 23, 42, 0.09),
-            0 2px 8px rgba(15, 23, 42, 0.05),
-            inset 0 1.5px 2px rgba(255, 255, 255, 0.92),
-            inset 0 -1.5px 3px rgba(255, 255, 255, 0.55),
-            inset 10px 0 16px -8px rgba(255, 255, 255, 0.62),
-            inset -10px 0 16px -8px rgba(255, 255, 255, 0.62);
+            0 10px 28px rgba(10, 28, 56, 0.12),
+            0 2px 8px rgba(0, 0, 0, 0.06);
         }
-        .monvian-floating-nav[data-nav-theme='light'] button:hover {
-          color: #2673E8;
+        .monvian-floating-nav button {
+          color: #000000;
+        }
+        .monvian-floating-nav button:hover {
+          color: #000000;
+          opacity: 0.72;
         }
         @media (prefers-reduced-motion: reduce) {
           .monvian-floating-nav {
@@ -227,7 +176,7 @@ export const PersistentSiteNavbar: React.FC<PersistentSiteNavbarProps> = ({
           data-nav-theme={navTheme}
           className="monvian-floating-nav relative w-full pointer-events-auto rounded-[999px] px-3.5 sm:px-5 py-2 border"
         >
-          <nav className="flex items-center justify-between gap-1 sm:gap-3 text-[12px] sm:text-[13px] font-medium tracking-[-0.01em]">
+          <nav className="flex items-center justify-between gap-1 sm:gap-3 text-[12px] sm:text-[13px] font-medium tracking-[-0.01em] text-[#000000]">
             <button
               type="button"
               onClick={() => {
@@ -235,7 +184,7 @@ export const PersistentSiteNavbar: React.FC<PersistentSiteNavbarProps> = ({
                 setIsLangMenuOpen(false);
                 onStartRegister();
               }}
-              className="px-2 py-1 rounded-full transition-transform duration-150 active:scale-[0.96] whitespace-nowrap shrink-0 cursor-pointer focus-visible:outline-2 focus-visible:outline-[#2673E8]"
+              className="px-2 py-1 rounded-full transition-transform duration-150 active:scale-[0.96] whitespace-nowrap shrink-0 cursor-pointer text-[#000000] focus-visible:outline-2 focus-visible:outline-[#000000]"
             >
               {tr('Criar conta')}
             </button>
@@ -247,7 +196,7 @@ export const PersistentSiteNavbar: React.FC<PersistentSiteNavbarProps> = ({
                 setIsLangMenuOpen(false);
                 onOpenLogin();
               }}
-              className="px-2 py-1 rounded-full transition-transform duration-150 active:scale-[0.96] whitespace-nowrap shrink-0 cursor-pointer focus-visible:outline-2 focus-visible:outline-[#2673E8]"
+              className="px-2 py-1 rounded-full transition-transform duration-150 active:scale-[0.96] whitespace-nowrap shrink-0 cursor-pointer text-[#000000] focus-visible:outline-2 focus-visible:outline-[#000000]"
             >
               {tr('Entrar')}
             </button>
@@ -258,7 +207,7 @@ export const PersistentSiteNavbar: React.FC<PersistentSiteNavbarProps> = ({
                 setIsLangMenuOpen(false);
                 onOpenItineraries();
               }}
-              className="px-2 py-1 rounded-full transition-transform duration-150 active:scale-[0.96] whitespace-nowrap shrink-0 cursor-pointer focus-visible:outline-2 focus-visible:outline-[#2673E8]"
+              className="px-2 py-1 rounded-full transition-transform duration-150 active:scale-[0.96] whitespace-nowrap shrink-0 cursor-pointer text-[#000000] focus-visible:outline-2 focus-visible:outline-[#000000]"
             >
               {tr('Roteiros')}
             </button>
@@ -271,13 +220,13 @@ export const PersistentSiteNavbar: React.FC<PersistentSiteNavbarProps> = ({
               aria-haspopup="menu"
               aria-expanded={isLangMenuOpen}
               aria-label={tr('Selecionar idioma')}
-              className="px-1.5 py-[1px] rounded-full transition-transform duration-150 active:scale-[0.96] whitespace-nowrap shrink-0 cursor-pointer inline-flex items-center gap-1.5 focus-visible:outline-2 focus-visible:outline-[#2673E8]"
+              className="px-1.5 py-[1px] rounded-full transition-transform duration-150 active:scale-[0.96] whitespace-nowrap shrink-0 cursor-pointer inline-flex items-center gap-1.5 text-[#000000] focus-visible:outline-2 focus-visible:outline-[#000000]"
             >
-              <span className="w-[24px] h-[24px] sm:w-[25px] sm:h-[25px] rounded-full overflow-hidden shrink-0 shadow-[0_1px_4px_rgba(0,0,0,0.20)] ring-1 ring-white/45 flex items-center justify-center">
+              <span className="w-[24px] h-[24px] sm:w-[25px] sm:h-[25px] rounded-full overflow-hidden shrink-0 shadow-[0_1px_4px_rgba(0,0,0,0.16)] ring-1 ring-black/10 flex items-center justify-center">
                 <LanguageFlagIcon lang={selectedLanguage} />
               </span>
               <ChevronDown
-                className={`w-3.5 h-3.5 stroke-[2.4] transition-transform duration-200 ${
+                className={`w-3.5 h-3.5 stroke-[2.4] text-[#000000] transition-transform duration-200 ${
                   isLangMenuOpen ? 'rotate-180' : 'rotate-0'
                 }`}
               />

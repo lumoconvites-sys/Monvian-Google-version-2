@@ -585,7 +585,7 @@ export const CinematicLandingView: React.FC<CinematicLandingViewProps> = ({
       <span
         className={`inline-block whitespace-nowrap ${
           isAccent
-            ? 'text-[#83C792] drop-shadow-[0_2px_18px_rgba(131,199,146,0.28)]'
+            ? 'text-[#000000] [text-shadow:none]'
             : 'text-[#FFFFFF]'
         }`}
       >
