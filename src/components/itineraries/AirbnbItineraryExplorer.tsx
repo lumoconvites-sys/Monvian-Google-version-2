@@ -1664,22 +1664,22 @@ const HorizontalReferenceItineraryCard: React.FC<HorizontalReferenceItineraryCar
 
             {/* Active Route or Plátanos Cost Indicator */}
             {isActiveRoute ? (
-              <div className="absolute top-3 left-3 px-2.5 py-1 rounded-full bg-white/95 backdrop-blur-xs text-zinc-900 text-[11px] font-semibold shadow-xs flex items-center gap-1 z-10">
-                <Check className="w-3 h-3 stroke-[2.8] text-emerald-600" />
+              <div className="absolute top-3 left-3 px-3.5 py-1.5 rounded-full bg-white text-[#000000] border border-white text-[13px] font-bold tracking-[-0.01em] shadow-[0_10px_30px_rgba(0,0,0,0.22)] flex items-center gap-2 z-10">
+                <Check className="w-4 h-4 stroke-[3.2] text-black drop-shadow-[0_1.5px_2px_rgba(0,0,0,0.35)]" />
                 <span>Roteiro ativo</span>
               </div>
             ) : platanoPrice > 0 ? (
-              <div className="absolute top-3 left-3 px-2.5 py-1 rounded-full bg-black/70 backdrop-blur-md text-white border border-white/15 text-[11px] font-semibold flex items-center gap-1.5 z-10 tabular-nums">
+              <div className="absolute top-3 left-3 z-10">
                 {isUnlocked ? (
-                  <>
-                    <Check className="w-3 h-3 stroke-[2.6] text-emerald-400" />
+                  <div className="px-3.5 py-1.5 rounded-full bg-white text-[#000000] border border-white text-[13px] font-bold tracking-[-0.01em] shadow-[0_10px_30px_rgba(0,0,0,0.22)] flex items-center gap-2">
+                    <Check className="w-4 h-4 stroke-[3.2] text-black drop-shadow-[0_1.5px_2px_rgba(0,0,0,0.35)]" />
                     <span>Liberado</span>
-                  </>
+                  </div>
                 ) : (
-                  <>
+                  <div className="px-3 py-1 rounded-full bg-black/70 backdrop-blur-md text-white border border-white/15 text-[11px] font-semibold flex items-center gap-1.5 tabular-nums">
                     <PlatanoLeafIcon className="w-[21px] h-[21px] shrink-0" variant="light" />
                     <span>{platanoPrice} Plátanos</span>
-                  </>
+                  </div>
                 )}
               </div>
             ) : null}
