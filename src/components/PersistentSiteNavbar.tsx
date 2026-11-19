@@ -122,13 +122,15 @@ export const PersistentSiteNavbar: React.FC<PersistentSiteNavbarProps> = ({
       <style>{`
         .monvian-floating-nav {
           border-radius: 999px;
-          background: #FFFFFF;
-          border-color: rgba(0, 0, 0, 0.08);
+          background: rgba(255, 255, 255, 0.72);
+          backdrop-filter: blur(20px) saturate(180%);
+          -webkit-backdrop-filter: blur(20px) saturate(180%);
+          border-color: rgba(255, 255, 255, 0.45);
           color: #000000;
           text-shadow: none;
           box-shadow:
-            0 10px 28px rgba(10, 28, 56, 0.12),
-            0 2px 8px rgba(0, 0, 0, 0.06);
+            0 12px 32px rgba(10, 28, 56, 0.14),
+            0 2px 8px rgba(0, 0, 0, 0.04);
           transform: translate3d(0, 0, 0);
           overflow: hidden;
           transition: background 0.24s ease, border-color 0.24s ease, color 0.24s ease, box-shadow 0.24s ease;
@@ -138,15 +140,29 @@ export const PersistentSiteNavbar: React.FC<PersistentSiteNavbarProps> = ({
           position: relative;
           z-index: 3;
         }
-        .monvian-floating-nav[data-nav-theme='dark'],
-        .monvian-floating-nav[data-nav-theme='light'] {
-          background: #FFFFFF;
-          border-color: rgba(0, 0, 0, 0.08);
-          color: #000000;
-          text-shadow: none;
+        .monvian-floating-nav[data-nav-theme='dark'] {
+          background: rgba(28, 28, 30, 0.72);
+          backdrop-filter: blur(20px) saturate(180%);
+          -webkit-backdrop-filter: blur(20px) saturate(180%);
+          border-color: rgba(255, 255, 255, 0.18);
+          color: #FFFFFF;
           box-shadow:
-            0 10px 28px rgba(10, 28, 56, 0.12),
-            0 2px 8px rgba(0, 0, 0, 0.06);
+            0 12px 36px rgba(0, 0, 0, 0.45),
+            0 2px 8px rgba(0, 0, 0, 0.2);
+        }
+        .monvian-floating-nav[data-nav-theme='light'] {
+          background: rgba(255, 255, 255, 0.72);
+          backdrop-filter: blur(20px) saturate(180%);
+          -webkit-backdrop-filter: blur(20px) saturate(180%);
+          border-color: rgba(255, 255, 255, 0.45);
+          color: #000000;
+        }
+        .monvian-floating-nav[data-nav-theme='dark'] button {
+          color: #FFFFFF;
+        }
+        .monvian-floating-nav[data-nav-theme='dark'] button:hover {
+          color: #FFFFFF;
+          opacity: 0.78;
         }
         .monvian-floating-nav button {
           color: #000000;
