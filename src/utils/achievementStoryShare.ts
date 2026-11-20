@@ -1,5 +1,5 @@
 export const CAMPOS_ACHIEVEMENT_SOURCE_PATH =
-  '/assets/aistudio/394C436B-1D9B-47EB-B9AC-8ABFAD3A4DA1_08c1ec8a.webp';
+  'https://gxyqrwebnkbgxqrfdvuj.supabase.co/storage/v1/object/public/monvian-media/app-assets/achievement-story-bg-08c1ec8a82817a39.webp';
 
 export const STORY_WIDTH = 1080;
 export const STORY_HEIGHT = 1920;

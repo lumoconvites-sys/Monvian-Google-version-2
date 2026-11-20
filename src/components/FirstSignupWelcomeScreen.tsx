@@ -344,8 +344,6 @@ export const FirstSignupWelcomeScreen: React.FC<FirstSignupWelcomeScreenProps> =
                         background: isDark
                           ? 'linear-gradient(145deg, rgba(44, 44, 46, 0.78) 0%, rgba(28, 28, 30, 0.68) 100%)'
                           : 'linear-gradient(145deg, rgba(255, 255, 255, 0.56) 0%, rgba(255, 255, 255, 0.24) 55%, rgba(255, 255, 255, 0.40) 100%)',
-                        backdropFilter: 'blur(20px) saturate(175%)',
-                        WebkitBackdropFilter: 'blur(20px) saturate(175%)',
                         border: isDark
                           ? '1px solid rgba(255, 255, 255, 0.16)'
                           : '1px solid rgba(255, 255, 255, 0.72)',
@@ -464,8 +462,6 @@ export const FirstSignupWelcomeScreen: React.FC<FirstSignupWelcomeScreenProps> =
                 background: isDark
                   ? 'linear-gradient(180deg, rgba(44, 44, 46, 0.92) 0%, rgba(28, 28, 30, 0.96) 54%, rgba(36, 36, 40, 0.94) 100%)'
                   : 'linear-gradient(180deg, rgba(36, 36, 40, 0.94) 0%, rgba(10, 10, 12, 0.98) 54%, rgba(22, 22, 26, 0.96) 100%)',
-                backdropFilter: 'blur(20px) saturate(160%)',
-                WebkitBackdropFilter: 'blur(20px) saturate(160%)',
                 border: isDark ? '1px solid rgba(255, 255, 255, 0.30)' : '1px solid rgba(255, 255, 255, 0.22)',
                 boxShadow:
                   '0 14px 32px rgba(0, 0, 0, 0.24), 0 4px 12px rgba(0, 0, 0, 0.14), inset 0 1.5px 1.5px rgba(255, 255, 255, 0.36), inset 0 -1.5px 2px rgba(255, 255, 255, 0.10)',

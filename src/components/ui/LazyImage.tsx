@@ -7,7 +7,25 @@ interface LazyImageProps {
   onError?: (e: React.SyntheticEvent<HTMLImageElement, Event>) => void;
 }
 
+const MAX_LOADED_IMAGE_CACHE = 250;
 const loadedImageCache = new Set<string>();
+
+function rememberLoadedImage(src: string) {
+  if (!src || src.startsWith('data:')) return;
+  if (loadedImageCache.has(src)) {
+    // Refresh recency order for LRU eviction
+    loadedImageCache.delete(src);
+    loadedImageCache.add(src);
+    return;
+  }
+  if (loadedImageCache.size >= MAX_LOADED_IMAGE_CACHE) {
+    const oldest = loadedImageCache.values().next().value;
+    if (oldest !== undefined) {
+      loadedImageCache.delete(oldest);
+    }
+  }
+  loadedImageCache.add(src);
+}
 
 export const LazyImage: React.FC<LazyImageProps> = React.memo(({ src, alt, className, onError }) => {
   const [isLoaded, setIsLoaded] = useState(() => Boolean(src && loadedImageCache.has(src)));
@@ -19,7 +37,7 @@ export const LazyImage: React.FC<LazyImageProps> = React.memo(({ src, alt, class
       return;
     }
     if (imgRef.current && imgRef.current.complete && imgRef.current.naturalWidth > 0) {
-      if (src) loadedImageCache.add(src);
+      if (src) rememberLoadedImage(src);
       setIsLoaded(true);
     } else {
       setIsLoaded(false);
@@ -37,7 +55,7 @@ export const LazyImage: React.FC<LazyImageProps> = React.memo(({ src, alt, class
       className={`relative overflow-hidden ${className || ''}`}
     >
       {!isLoaded && (
-        <div className="absolute inset-0 rounded-[inherit] bg-zinc-200/60 dark:bg-white/[0.08] pointer-events-none" />
+        <div className="absolute inset-0 rounded-[inherit] bg-[#F2F2F2] dark:bg-[#171717] pointer-events-none" />
       )}
       <img
         ref={imgRef}
@@ -46,14 +64,14 @@ export const LazyImage: React.FC<LazyImageProps> = React.memo(({ src, alt, class
         loading="lazy"
         decoding="async"
         onLoad={() => {
-          if (src) loadedImageCache.add(src);
+          if (src) rememberLoadedImage(src);
           setIsLoaded(true);
         }}
         onError={(e) => {
           setIsLoaded(true);
           onError?.(e);
         }}
-        className={`w-full h-full object-cover rounded-[inherit] transition-opacity duration-300 ease-out ${
+        className={`w-full h-full object-cover rounded-[inherit] transition-opacity duration-250 ease-out ${
           isLoaded ? 'opacity-100' : 'opacity-0'
         }`}
         referrerPolicy="no-referrer"

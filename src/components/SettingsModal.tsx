@@ -56,7 +56,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
           exit={{ opacity: 0 }}
           transition={{ duration: 0.2, ease: [0.22, 1, 0.36, 1] }}
           onClick={onClose}
-          className="fixed inset-0 z-50 flex flex-col justify-end md:justify-center md:items-center p-0 md:p-6 bg-black/60 backdrop-blur-sm select-none"
+          className="fixed inset-0 z-50 flex flex-col justify-end md:justify-center md:items-center p-0 md:p-6 bg-black/60 select-none"
         >
           <motion.div
             id="settings-modal-sheet"
@@ -86,8 +86,6 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                 className="sticky top-0 z-20 shrink-0 border-b border-black/5 dark:border-white/10"
                 style={{
                   backgroundColor: isDark ? 'rgba(0, 0, 0, 0.55)' : 'rgba(254, 254, 254, 0.40)',
-                  backdropFilter: 'blur(8px) saturate(150%)',
-                  WebkitBackdropFilter: 'blur(8px) saturate(150%)',
                 }}
               >
                 {/* iOS Grabber */}

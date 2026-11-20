@@ -603,39 +603,23 @@ html.dark .monvian-globe-space-active .maplibregl-canvas-container {
   right: max(10px, env(safe-area-inset-right, 0px)) !important;
 }
 
-/* iPhone Gloss / Liquid Glass style for marker labels with 30% reduced resting opacity (0.7) */
+/* Crisp near-solid marker labels without GPU backdrop-filter overhead */
 .spot-marker-label {
-  transition: opacity 0.22s cubic-bezier(0.2, 0.8, 0.2, 1), background-color 0.2s ease;
-  opacity: 0.7;
-  backdrop-filter: blur(8px);
-  -webkit-backdrop-filter: blur(8px);
+  transition: opacity 0.2s cubic-bezier(0.2, 0.8, 0.2, 1), background-color 0.2s ease;
+  opacity: 0.92;
 }
 
 .map-panning-active .spot-marker-label {
-  opacity: 0.42 !important;
-  backdrop-filter: none !important;
-  -webkit-backdrop-filter: none !important;
+  opacity: 0.55 !important;
 }
 
 .spot-marker-container:hover .spot-marker-label {
-  opacity: 0.95;
+  opacity: 1;
 }
 
-/* Subtle infinite breathing pulse for user photo marker on map */
-@keyframes userPhotoPulse {
-  0%, 100% {
-    transform: scale(1);
-    box-shadow: 0 0 0 0 rgba(0, 122, 255, 0.45);
-  }
-  50% {
-    transform: scale(1.07);
-    box-shadow: 0 0 0 7px rgba(0, 122, 255, 0);
-  }
-}
-
+/* Crisp static blue ring around user photo marker (avoids continuous box-shadow GPU repaints) */
 .user-photo-pulse {
-  animation: userPhotoPulse 2.4s cubic-bezier(0.4, 0, 0.6, 1) infinite;
-  will-change: transform;
+  box-shadow: 0 0 0 3px rgba(0, 122, 255, 0.28);
 }
 
 /* ============================================================ */
@@ -656,156 +640,108 @@ html.dark .monvian-globe-space-active .maplibregl-canvas-container {
               box-shadow 0.4s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
-/* Light Theme: Pure crystal translucent glass with subtle specular gloss */
+/* Light Theme: Crisp near-solid minimalist surface with subtle border (no GPU blur) */
 html:not(.dark) .ios-glass {
-  background: rgba(255, 255, 255, 0.38) !important;
-  backdrop-filter: blur(20px) saturate(190%) !important;
-  -webkit-backdrop-filter: blur(20px) saturate(190%) !important;
-  border: 1px solid rgba(255, 255, 255, 0.45) !important;
-  box-shadow: 0 10px 30px -5px rgba(0, 0, 0, 0.07),
-              0 0 1px 1px rgba(0, 0, 0, 0.03),
-              inset 0 1px 1.5px 0 rgba(255, 255, 255, 0.8),
-              inset 0 -1px 1px 0 rgba(0, 0, 0, 0.03) !important;
+  background: rgba(255, 255, 255, 0.95) !important;
+  border: 1px solid rgba(0, 0, 0, 0.08) !important;
+  box-shadow: 0 8px 24px -6px rgba(0, 0, 0, 0.08),
+              0 1px 2px rgba(0, 0, 0, 0.04) !important;
 }
 
 html:not(.dark) .ios-glass-nav {
-  background: rgba(255, 255, 255, 0.38) !important;
-  backdrop-filter: blur(20px) saturate(190%) !important;
-  -webkit-backdrop-filter: blur(20px) saturate(190%) !important;
-  border: 1px solid rgba(255, 255, 255, 0.45) !important;
-  box-shadow: none !important;
+  background: rgba(255, 255, 255, 0.96) !important;
+  border: 1px solid rgba(0, 0, 0, 0.08) !important;
+  box-shadow: 0 6px 20px -4px rgba(0, 0, 0, 0.07) !important;
 }
 
-/* Light Theme subtle top gloss reflection line */
 html:not(.dark) .ios-glass::before,
 html:not(.dark) .ios-glass-nav::before {
-  content: '';
-  position: absolute;
-  top: 0;
-  left: 12%;
-  right: 12%;
-  height: 1px;
-  background: linear-gradient(90deg, transparent 0%, rgba(255, 255, 255, 0.7) 50%, transparent 100%);
-  pointer-events: none;
-  z-index: 1;
+  display: none;
 }
 
-/* Dark Theme: Smoked Obsidian glass with subtle rim light and deep depth */
+/* Dark Theme: Deep charcoal near-solid surface with subtle hairline border (no GPU blur) */
 .dark .ios-glass {
-  background: rgba(18, 20, 26, 0.38) !important;
-  backdrop-filter: blur(24px) saturate(190%) !important;
-  -webkit-backdrop-filter: blur(24px) saturate(190%) !important;
+  background: rgba(23, 23, 23, 0.95) !important;
   border: 1px solid rgba(255, 255, 255, 0.10) !important;
-  box-shadow: 0 16px 40px -8px rgba(0, 0, 0, 0.6),
-              0 0 0 1px rgba(255, 255, 255, 0.04),
-              inset 0 1px 1px 0 rgba(255, 255, 255, 0.18),
-              inset 0 -1px 1px 0 rgba(0, 0, 0, 0.35) !important;
+  box-shadow: 0 12px 30px -8px rgba(0, 0, 0, 0.55) !important;
 }
 
 .dark .ios-glass-nav {
-  background: rgba(18, 20, 26, 0.38) !important;
-  backdrop-filter: blur(24px) saturate(190%) !important;
-  -webkit-backdrop-filter: blur(24px) saturate(190%) !important;
+  background: rgba(23, 23, 23, 0.96) !important;
   border: 1px solid rgba(255, 255, 255, 0.10) !important;
-  box-shadow: none !important;
+  box-shadow: 0 8px 24px -6px rgba(0, 0, 0, 0.5) !important;
 }
 
-/* Dark Theme subtle top specular rim */
 .dark .ios-glass::before,
 .dark .ios-glass-nav::before {
-  content: '';
-  position: absolute;
-  top: 0;
-  left: 10%;
-  right: 10%;
-  height: 1px;
-  background: linear-gradient(90deg, transparent 0%, rgba(255, 255, 255, 0.22) 50%, transparent 100%);
-  pointer-events: none;
-  z-index: 1;
+  display: none;
 }
 
-/* Floating iOS Glass Buttons */
+/* Floating Monvian Buttons */
 .ios-glass-btn {
   position: relative;
-  transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+  transition: background-color 0.2s cubic-bezier(0.16, 1, 0.3, 1), border-color 0.2s ease, transform 0.16s ease;
 }
 
 html:not(.dark) .ios-glass-btn {
-  background: rgba(255, 255, 255, 0.75) !important;
-  backdrop-filter: blur(20px) saturate(190%) !important;
-  -webkit-backdrop-filter: blur(20px) saturate(190%) !important;
-  border: 1px solid rgba(255, 255, 255, 0.85) !important;
-  box-shadow: none !important;
+  background: rgba(255, 255, 255, 0.95) !important;
+  border: 1px solid rgba(0, 0, 0, 0.08) !important;
+  box-shadow: 0 4px 12px -2px rgba(0, 0, 0, 0.07) !important;
 }
 
 html:not(.dark) .ios-glass-btn:hover {
-  background: rgba(255, 255, 255, 0.90) !important;
-  border-color: rgba(255, 255, 255, 1) !important;
-  box-shadow: none !important;
+  background: #FFFFFF !important;
+  border-color: rgba(0, 0, 0, 0.14) !important;
 }
 
 .dark .ios-glass-btn {
-  background: rgba(20, 22, 28, 0.65) !important;
-  backdrop-filter: blur(24px) saturate(190%) !important;
-  -webkit-backdrop-filter: blur(24px) saturate(190%) !important;
-  border: 1px solid rgba(255, 255, 255, 0.12) !important;
-  box-shadow: none !important;
+  background: rgba(23, 23, 23, 0.94) !important;
+  border: 1px solid rgba(255, 255, 255, 0.11) !important;
+  box-shadow: 0 4px 14px -2px rgba(0, 0, 0, 0.45) !important;
 }
 
 .dark .ios-glass-btn:hover {
-  background: rgba(28, 30, 38, 0.80) !important;
+  background: #242426 !important;
   border-color: rgba(255, 255, 255, 0.18) !important;
-  box-shadow: none !important;
 }
 
-/* White / Light Apple Glass Variants - matching the translucent card */
+/* White / Light Floating Variants */
 .ios-glass-btn-white {
-  background: rgba(255, 255, 255, 0.40) !important;
-  backdrop-filter: blur(24px) saturate(190%) !important;
-  -webkit-backdrop-filter: blur(24px) saturate(190%) !important;
-  border: 1px solid rgba(255, 255, 255, 0.50) !important;
-  box-shadow: 0 8px 24px -4px rgba(0, 0, 0, 0.12),
-              inset 0 1px 1.5px 0 rgba(255, 255, 255, 0.8) !important;
-  color: #18181b !important;
+  background: rgba(255, 255, 255, 0.95) !important;
+  border: 1px solid rgba(0, 0, 0, 0.08) !important;
+  box-shadow: 0 6px 18px -4px rgba(0, 0, 0, 0.12) !important;
+  color: #000000 !important;
 }
 
 .dark .ios-glass-btn-white {
-  background: rgba(255, 255, 255, 0.38) !important;
-  backdrop-filter: blur(24px) saturate(190%) !important;
-  -webkit-backdrop-filter: blur(24px) saturate(190%) !important;
-  border: 1px solid rgba(255, 255, 255, 0.45) !important;
-  box-shadow: 0 8px 24px -4px rgba(0, 0, 0, 0.25),
-              inset 0 1px 1.5px 0 rgba(255, 255, 255, 0.7) !important;
-  color: #18181b !important;
+  background: rgba(255, 255, 255, 0.94) !important;
+  border: 1px solid rgba(0, 0, 0, 0.10) !important;
+  box-shadow: 0 6px 18px -4px rgba(0, 0, 0, 0.25) !important;
+  color: #000000 !important;
 }
 
 .ios-glass-btn-white:hover,
 .dark .ios-glass-btn-white:hover {
-  background: rgba(255, 255, 255, 0.55) !important;
-  border-color: rgba(255, 255, 255, 0.65) !important;
-  box-shadow: 0 10px 28px -4px rgba(0, 0, 0, 0.18) !important;
+  background: #FFFFFF !important;
+  border-color: rgba(0, 0, 0, 0.14) !important;
+  box-shadow: 0 8px 22px -4px rgba(0, 0, 0, 0.16) !important;
 }
 
 .ios-glass-nav-white,
 html:not(.dark) .ios-glass-nav-white,
 .dark .ios-glass-nav-white {
-  background: rgba(255, 255, 255, 0.40) !important;
-  backdrop-filter: blur(24px) saturate(190%) !important;
-  -webkit-backdrop-filter: blur(24px) saturate(190%) !important;
-  border: 1px solid rgba(255, 255, 255, 0.50) !important;
-  box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.15) !important;
+  background: rgba(255, 255, 255, 0.96) !important;
+  border: 1px solid rgba(0, 0, 0, 0.08) !important;
+  box-shadow: 0 6px 24px 0 rgba(0, 0, 0, 0.12) !important;
 }
 
 .ios-glass-white,
 html:not(.dark) .ios-glass-white,
 .dark .ios-glass-white {
-  background: rgba(255, 255, 255, 0.40) !important;
-  backdrop-filter: blur(24px) saturate(190%) !important;
-  -webkit-backdrop-filter: blur(24px) saturate(190%) !important;
-  border: 1px solid rgba(255, 255, 255, 0.50) !important;
-  box-shadow: 0 14px 40px -6px rgba(0, 0, 0, 0.15),
-              inset 0 1px 2px 0 rgba(255, 255, 255, 0.8) !important;
-  color: #18181b !important;
+  background: rgba(255, 255, 255, 0.96) !important;
+  border: 1px solid rgba(0, 0, 0, 0.08) !important;
+  box-shadow: 0 10px 28px -6px rgba(0, 0, 0, 0.12) !important;
+  color: #000000 !important;
 }
 
 /* High Contrast Mode fallback */
@@ -969,157 +905,62 @@ html:not(.dark) .expo-liquid-glass-clear:hover,
 html:not(.dark) .ios26-liquid-glass,
 .ios26-liquid-glass-nav,
 html:not(.dark) .ios26-liquid-glass-nav {
-  background: rgba(255, 255, 255, 0.22) !important;
-  backdrop-filter: blur(26px) saturate(180%) !important;
-  -webkit-backdrop-filter: blur(26px) saturate(180%) !important;
-  border: 1px solid rgba(255, 255, 255, 0.42) !important;
-  box-shadow:
-    0 8px 24px rgba(0, 0, 0, 0.10),
-    inset 0 1.5px 1.5px rgba(255, 255, 255, 0.78),
-    inset 0 -1.5px 2px rgba(255, 255, 255, 0.22),
-    inset 1px 0 1px rgba(255, 255, 255, 0.28),
-    inset -1px 0 1px rgba(255, 255, 255, 0.28),
-    inset 0 0 14px rgba(255, 255, 255, 0.14) !important;
+  background: rgba(255, 255, 255, 0.95) !important;
+  border: 1px solid rgba(0, 0, 0, 0.08) !important;
+  box-shadow: 0 6px 20px -4px rgba(0, 0, 0, 0.10),
+              0 1px 2px rgba(0, 0, 0, 0.04) !important;
   color: #000000;
   isolation: isolate;
 }
 
 .dark .ios26-liquid-glass,
 .dark .ios26-liquid-glass-nav {
-  background: rgba(28, 28, 30, 0.62) !important;
-  backdrop-filter: blur(26px) saturate(180%) !important;
-  -webkit-backdrop-filter: blur(26px) saturate(180%) !important;
-  border: 1px solid rgba(255, 255, 255, 0.16) !important;
-  box-shadow:
-    0 10px 28px rgba(0, 0, 0, 0.45),
-    inset 0 1.5px 1.5px rgba(255, 255, 255, 0.20),
-    inset 0 -1.5px 2px rgba(255, 255, 255, 0.06),
-    inset 1px 0 1px rgba(255, 255, 255, 0.08),
-    inset -1px 0 1px rgba(255, 255, 255, 0.08),
-    inset 0 0 14px rgba(255, 255, 255, 0.04) !important;
+  background: rgba(23, 23, 23, 0.95) !important;
+  border: 1px solid rgba(255, 255, 255, 0.10) !important;
+  box-shadow: 0 8px 24px -4px rgba(0, 0, 0, 0.52) !important;
   color: #FFFFFF;
   isolation: isolate;
 }
 
-/* Top translucent white gradient specular reflection */
 .ios26-liquid-glass::before,
-.ios26-liquid-glass-nav::before {
-  content: '';
-  position: absolute;
-  inset: 0;
-  border-radius: inherit;
-  background: linear-gradient(
-    180deg,
-    rgba(255, 255, 255, 0.46) 0%,
-    rgba(255, 255, 255, 0.16) 28%,
-    rgba(255, 255, 255, 0.02) 60%,
-    rgba(255, 255, 255, 0.10) 100%
-  );
-  pointer-events: none;
-  z-index: 0;
-}
-
-.dark .ios26-liquid-glass::before,
-.dark .ios26-liquid-glass-nav::before {
-  background: linear-gradient(
-    180deg,
-    rgba(255, 255, 255, 0.14) 0%,
-    rgba(255, 255, 255, 0.04) 30%,
-    rgba(255, 255, 255, 0) 64%,
-    rgba(255, 255, 255, 0.04) 100%
-  );
-}
-
-/* Upper curved rim specular highlight */
+.ios26-liquid-glass-nav::before,
 .ios26-liquid-glass::after,
 .ios26-liquid-glass-nav::after {
-  content: '';
-  position: absolute;
-  top: 1px;
-  left: 16%;
-  right: 16%;
-  height: 1.5px;
-  border-radius: 9999px;
-  background: linear-gradient(
-    90deg,
-    rgba(255, 255, 255, 0) 0%,
-    rgba(255, 255, 255, 0.88) 50%,
-    rgba(255, 255, 255, 0) 100%
-  );
-  pointer-events: none;
-  z-index: 0;
-}
-
-.dark .ios26-liquid-glass::after,
-.dark .ios26-liquid-glass-nav::after {
-  background: linear-gradient(
-    90deg,
-    rgba(255, 255, 255, 0) 0%,
-    rgba(255, 255, 255, 0.34) 50%,
-    rgba(255, 255, 255, 0) 100%
-  );
+  display: none !important;
 }
 
 .ios26-liquid-glass:hover,
 html:not(.dark) .ios26-liquid-glass:hover {
-  background: rgba(255, 255, 255, 0.28) !important;
-  border-color: rgba(255, 255, 255, 0.56) !important;
-  box-shadow:
-    0 10px 28px rgba(0, 0, 0, 0.10),
-    inset 0 1.5px 2px rgba(255, 255, 255, 0.88),
-    inset 0 -1.5px 2px rgba(255, 255, 255, 0.28),
-    inset 1px 0 1px rgba(255, 255, 255, 0.34),
-    inset -1px 0 1px rgba(255, 255, 255, 0.34),
-    inset 0 0 16px rgba(255, 255, 255, 0.18) !important;
+  background: #FFFFFF !important;
+  border-color: rgba(0, 0, 0, 0.14) !important;
+  box-shadow: 0 8px 22px -4px rgba(0, 0, 0, 0.12) !important;
 }
 
 .dark .ios26-liquid-glass:hover {
-  background: rgba(44, 44, 46, 0.72) !important;
-  border-color: rgba(255, 255, 255, 0.24) !important;
-  box-shadow:
-    0 12px 30px rgba(0, 0, 0, 0.55),
-    inset 0 1.5px 2px rgba(255, 255, 255, 0.26),
-    inset 0 -1.5px 2px rgba(255, 255, 255, 0.08),
-    inset 1px 0 1px rgba(255, 255, 255, 0.10),
-    inset -1px 0 1px rgba(255, 255, 255, 0.10),
-    inset 0 0 16px rgba(255, 255, 255, 0.06) !important;
+  background: #242426 !important;
+  border-color: rgba(255, 255, 255, 0.18) !important;
+  box-shadow: 0 10px 26px -4px rgba(0, 0, 0, 0.58) !important;
 }
 
-/* Inner active tab optical glass lens inside bottom navigation bar */
+/* Inner active tab subtle surface inside bottom navigation bar */
 .ios26-liquid-glass-pill,
 html:not(.dark) .ios26-liquid-glass-pill {
-  background: linear-gradient(
-    180deg,
-    rgba(255, 255, 255, 0.42) 0%,
-    rgba(255, 255, 255, 0.22) 100%
-  ) !important;
-  border: 1px solid rgba(255, 255, 255, 0.54) !important;
-  box-shadow:
-    0 2px 10px rgba(0, 0, 0, 0.08),
-    inset 0 1px 1.5px rgba(255, 255, 255, 0.86),
-    inset 0 -1px 1px rgba(255, 255, 255, 0.22) !important;
+  background: #F2F2F2 !important;
+  border: 1px solid rgba(0, 0, 0, 0.06) !important;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05) !important;
 }
 
 .dark .ios26-liquid-glass-pill {
-  background: linear-gradient(
-    180deg,
-    rgba(255, 255, 255, 0.18) 0%,
-    rgba(255, 255, 255, 0.08) 100%
-  ) !important;
-  border: 1px solid rgba(255, 255, 255, 0.22) !important;
-  box-shadow:
-    0 2px 10px rgba(0, 0, 0, 0.35),
-    inset 0 1px 1.5px rgba(255, 255, 255, 0.26),
-    inset 0 -1px 1px rgba(255, 255, 255, 0.06) !important;
+  background: rgba(255, 255, 255, 0.12) !important;
+  border: 1px solid rgba(255, 255, 255, 0.14) !important;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.32) !important;
 }
 
 /* ============================================================ */
-/* APPLE CIRCULAR BACK BUTTON — LIGHT (WHITE) & DARK GLASS      */
+/* APPLE CIRCULAR BACK BUTTON — LIGHT & DARK NEAR-SOLID SURFACE */
 /* ============================================================ */
 
 .apple-back-btn {
-  backdrop-filter: blur(20px) saturate(180%);
-  -webkit-backdrop-filter: blur(20px) saturate(180%);
   transition: background 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease, transform 0.15s cubic-bezier(0.22, 1, 0.36, 1);
 }
 
@@ -1418,28 +1259,14 @@ html:not(.dark) .apple-back-btn-auto:hover {
 
 /* ========================================================
    MONVIAN PREMIUM 5.0 STAR MAP MARKERS (APPLE iOS STYLE)
-   Continuous 1.0 -> 1.06 scale pulse over 2.5s ease-in-out
+   Zero continuous idle animation for smooth 120 FPS panning
    ======================================================== */
-@keyframes monvianPremiumStarPulse {
-  0%, 100% {
-    transform: scale3d(1, 1, 1);
-  }
-  50% {
-    transform: scale3d(1.06, 1.06, 1);
-  }
-}
-
 .monvian-star-pulse {
-  animation: monvianPremiumStarPulse 2.5s ease-in-out infinite;
   transform-origin: center center;
-  will-change: transform;
-  backface-visibility: hidden;
-  -webkit-backface-visibility: hidden;
+  transform: scale3d(1, 1, 1);
 }
 
 .monvian-star-pulse.is-selected {
-  animation-play-state: paused !important;
-  animation: none !important;
   transform: scale3d(1, 1, 1);
 }
 

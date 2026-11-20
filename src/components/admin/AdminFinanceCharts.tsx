@@ -447,7 +447,7 @@ export const FinancialPerformanceChart: React.FC<{
             {/* Honest Empty State */}
             {!hasData && (
               <div className="absolute inset-0 flex items-center justify-center pointer-events-none pb-4 pl-8">
-                <div className="px-4 py-2.5 rounded-2xl bg-white/94 backdrop-blur-xs border border-slate-200/80 shadow-xs text-center">
+                <div className="px-4 py-2.5 rounded-2xl bg-white/94 border border-slate-200/80 shadow-xs text-center">
                   <p className="text-xs font-semibold text-[#334155]">
                     Sem movimentações de Plátanos nos últimos {range === '7d' ? '7 dias' : range === '30d' ? '30 dias' : '90 dias'}
                   </p>
@@ -679,7 +679,7 @@ export const StripeRevenueChart: React.FC<{
             {/* Honest Empty State */}
             {!hasData && (
               <div className="absolute inset-0 flex items-center justify-center pointer-events-none pb-4 pl-8">
-                <div className="px-4 py-2.5 rounded-2xl bg-white/94 backdrop-blur-xs border border-slate-200/80 shadow-xs text-center">
+                <div className="px-4 py-2.5 rounded-2xl bg-white/94 border border-slate-200/80 shadow-xs text-center">
                   <p className="text-xs font-semibold text-[#334155]">
                     Sem receita Stripe confirmada nos últimos {range === '7d' ? '7 dias' : range === '30d' ? '30 dias' : '90 dias'}
                   </p>

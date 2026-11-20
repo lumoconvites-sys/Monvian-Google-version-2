@@ -2208,7 +2208,7 @@ export default function App() {
     setArrivalConfettiTrigger((prev) => prev + 1);
   }, []);
 
-  const handleAirbnbCardAction = () => {
+  const handleAirbnbCardAction = useCallback(() => {
     if (!airbnbCardTab) return;
     const current = airbnbCardTab;
     markPresentationCardSeen(current);
@@ -2216,13 +2216,13 @@ export default function App() {
     if (current === 'salvos') {
       handleTabChange('explorar');
     }
-  };
+  }, [airbnbCardTab, handleTabChange]);
 
-  const handleAirbnbCardClose = () => {
+  const handleAirbnbCardClose = useCallback(() => {
     if (!airbnbCardTab) return;
     markPresentationCardSeen(airbnbCardTab);
     setAirbnbCardTab(null);
-  };
+  }, [airbnbCardTab]);
 
   // User's first name for personalized greetings
   const userFirstName = (() => {
@@ -2238,6 +2238,7 @@ export default function App() {
   const isWhiteMapUI = activeTab === 'explorar' && (theme === 'light' || mapStyle === 'animado' || mapStyle === 'satelite' || mapStyle === 'transporte');
   const isSatelliteExplore = activeTab === 'explorar' && mapStyle === 'satelite';
   const [isRoteirosSatelliteNav, setIsRoteirosSatelliteNav] = useState(false);
+  const [isItineraryMapActive, setIsItineraryMapActive] = useState(false);
 
   const [isDesktopExplorePanelOpen, setIsDesktopExplorePanelOpen] = useState<boolean>(true);
 
@@ -2252,6 +2253,113 @@ export default function App() {
     : user?.email
       ? `acct-${String(user.email).trim().toLowerCase()}`
       : 'anon';
+
+  // Hybrid tab retention: keep lightweight Saved & Profile tabs warm in cache after first visit
+  const [hasVisitedSaved, setHasVisitedSaved] = useState(false);
+  const [hasVisitedProfile, setHasVisitedProfile] = useState(false);
+  const isSavedTabActive = activeTab === 'salvos' || activeTab === ('chat' as any);
+  const isProfileTabActive = activeTab === 'perfil';
+
+  useEffect(() => {
+    if (isSavedTabActive && !hasVisitedSaved) setHasVisitedSaved(true);
+  }, [isSavedTabActive, hasVisitedSaved]);
+
+  useEffect(() => {
+    if (isProfileTabActive && !hasVisitedProfile) setHasVisitedProfile(true);
+  }, [isProfileTabActive, hasVisitedProfile]);
+
+  useEffect(() => {
+    setHasVisitedSaved(false);
+    setHasVisitedProfile(false);
+    setIsItineraryMapActive(false);
+  }, [accountSessionKey]);
+
+  useEffect(() => {
+    if (activeTab !== 'roteiros' && isItineraryMapActive) {
+      setIsItineraryMapActive(false);
+    }
+  }, [activeTab, isItineraryMapActive]);
+
+  // Stable memoized callbacks to preserve React.memo across child tabs and modals
+  const handleItineraryMapActiveChange = useCallback((active: boolean) => {
+    setIsItineraryMapActive(active);
+  }, []);
+
+  const handleCloseToExplore = useCallback(() => {
+    setActiveTab('explorar');
+  }, []);
+
+  const handleOpenSpotDetails = useCallback((spot: Spot) => {
+    setSelectedSpot(spot);
+    setIsDetailOpen(true);
+  }, []);
+
+  const handleCloseSpotDetail = useCallback(() => {
+    setIsDetailOpen(false);
+    if (activeTab !== 'explorar') {
+      setSelectedSpot(null);
+    }
+  }, [activeTab]);
+
+  const handleNavigateToSpot = useCallback(
+    (spot: Spot) => {
+      if (activeRoute && activeRoute.spotId !== spot.id) {
+        clearActiveRoute();
+      }
+      setSelectedSpot(spot);
+      setIsDetailOpen(false);
+    },
+    [activeRoute, clearActiveRoute]
+  );
+
+  const handleUpdateSpot = useCallback((updatedSpot: Spot) => {
+    setSpots((prev) => prev.map((s) => (s.id === updatedSpot.id ? updatedSpot : s)));
+    setSelectedSpot(updatedSpot);
+  }, []);
+
+  const handleSelectSpotAndReturnExplore = useCallback(
+    (spot: Spot) => {
+      handleSelectSpot(spot);
+      setActiveTab('explorar');
+    },
+    [handleSelectSpot]
+  );
+
+  const handleSavedOpenItinerary = useCallback(
+    (itinerary: Itinerary) => {
+      try {
+        writeScopedJSON('monvian_active_itinerary', itinerary, user);
+        writeScopedString('monvian_itinerary_view_mode', 'map', user);
+        writeScopedString('monvian_itinerary_expanded', 'true', user);
+        window.dispatchEvent(new CustomEvent('monvian:itinerary_applied', { detail: itinerary }));
+      } catch {}
+      setSelectedItinerary(null);
+      setActiveTab('roteiros');
+    },
+    [user]
+  );
+
+  const handleToggleRain = useCallback(() => setRainEnabled((prev) => !prev), []);
+  const handleToggleSnow = useCallback(() => setSnowEnabled((prev) => !prev), []);
+  const handleToggleHighContrast = useCallback(() => setHighContrast((prev) => !prev), []);
+  const handleToggle3DMode = useCallback(() => setIs3DMode((prev) => !prev), []);
+  const handleToggleDesktopSidebar = useCallback(() => setIsDesktopSidebarCollapsed((prev) => !prev), []);
+  const handleOpenWeatherModal = useCallback(() => setIsWeatherModalOpen(true), []);
+  const handleOpenAdminFromSidebar = useCallback(() => setIsAdminOpen(true), []);
+  const handleOpenAdminFromProfile = useCallback(() => {
+    setActiveTab('explorar');
+    setIsAdminOpen(true);
+  }, []);
+  const handleProfileUpdateUser = useCallback((updatedUser: any) => {
+    setUser(updatedUser);
+  }, []);
+  const handleProfileLogout = useCallback(() => {
+    performFullLogout({ redirectToLogin: true });
+  }, [performFullLogout]);
+  const handleNoop = useCallback(() => {}, []);
+  const handleDesktopSelectCategory = useCallback((catId: string) => {
+    setSelectedCategoryFilter(catId === 'all' ? null : catId);
+  }, []);
 
   const prefersReducedMotion =
     typeof window !== 'undefined' &&
@@ -2297,7 +2405,7 @@ export default function App() {
             src={
               theme === 'dark'
                 ? '/logomodoescuro.png'
-                : '/assets/aistudio/monvian_logo_dark_transparent.png'
+                : 'https://gxyqrwebnkbgxqrfdvuj.supabase.co/storage/v1/object/public/monvian-media/app-assets/monvian-logo-dark-49b84fe93ec7ba83.webp'
             }
             alt="Monvian"
             draggable={false}
@@ -2492,7 +2600,7 @@ export default function App() {
             src={
               theme === 'dark'
                 ? '/logomodoescuro.png'
-                : '/assets/aistudio/monvian_logo_dark_transparent.png'
+                : 'https://gxyqrwebnkbgxqrfdvuj.supabase.co/storage/v1/object/public/monvian-media/app-assets/monvian-logo-dark-49b84fe93ec7ba83.webp'
             }
             alt="Monvian"
             draggable={false}
@@ -2564,12 +2672,12 @@ export default function App() {
           theme={theme}
           onToggleTheme={handleToggleTheme}
           realWeather={realWeather}
-          onOpenWeatherModal={() => {}}
+          onOpenWeatherModal={handleNoop}
           user={user}
-          onOpenAdmin={() => setIsAdminOpen(true)}
+          onOpenAdmin={handleOpenAdminFromSidebar}
           isUserAdmin={isUserAdmin}
           isCollapsed={isDesktopSidebarCollapsed}
-          onToggleCollapse={() => setIsDesktopSidebarCollapsed((prev) => !prev)}
+          onToggleCollapse={handleToggleDesktopSidebar}
         />
       )}
 
@@ -2613,23 +2721,20 @@ export default function App() {
                   spots={filteredSpots}
                   selectedSpot={selectedSpot}
                   onSelectSpot={handleSelectSpot}
-                  onOpenSpotDetails={(spot) => {
-                    setSelectedSpot(spot);
-                    setIsDetailOpen(true);
-                  }}
+                  onOpenSpotDetails={handleOpenSpotDetails}
                   selectedCategory={selectedCategoryFilter || 'all'}
-                  onSelectCategory={(catId) => setSelectedCategoryFilter(catId === 'all' ? null : catId)}
+                  onSelectCategory={handleDesktopSelectCategory}
                   searchQuery={searchQuery}
                   onSearchChange={setSearchQuery}
                   theme={theme}
                   realWeather={realWeather}
-                  onOpenClothingGuide={() => setIsWeatherModalOpen(true)}
+                  onOpenClothingGuide={handleOpenWeatherModal}
                 />
               </motion.div>
             )}
           </AnimatePresence>
 
-          {/* Interactive Map Canvas Column (Kept warm in GPU memory so tab switches have zero WebGL rebuild lag) */}
+          {/* Interactive Map Canvas Column (Suspended cleanly when Roteiros 3D map is active -> max 1 WebGL context) */}
           <div
             id="app-map-layer"
             aria-hidden={activeTab !== 'explorar'}
@@ -2669,6 +2774,7 @@ export default function App() {
               isGlobeIntroPlaying={isGlobeIntroPlaying}
               onGlobeIntroComplete={handleGlobeIntroComplete}
               activeRoute={activeRoute}
+              isSuspended={isItineraryMapActive}
             />
 
             {/* 2. Dynamic Rain Particle Effect Overlay (Downloaded & mounted ONLY when user enabled AND actually raining) */}
@@ -2701,7 +2807,7 @@ export default function App() {
                 currentMode={mapStyle}
                 onChangeMode={setMapStyle}
                 is3DMode={is3DMode}
-                onToggle3DMode={() => setIs3DMode((prev) => !prev)}
+                onToggle3DMode={handleToggle3DMode}
                 realWeather={realWeather}
               />
             )}
@@ -2734,12 +2840,12 @@ export default function App() {
             }}
           >
             <div
-              className={`w-full flex items-start justify-between transition-[filter,opacity,transform] duration-300 ease-[cubic-bezier(0.22,1,0.36,1)] ${
+              className={`w-full flex items-start justify-between transition-[opacity,transform] duration-250 ease-[cubic-bezier(0.22,1,0.36,1)] ${
                 isSpotFocusActive
-                  ? 'opacity-0 scale-95 blur-[4px] [&_*]:!pointer-events-none'
+                  ? 'opacity-0 scale-95 [&_*]:!pointer-events-none'
                   : isBlurActive
-                    ? 'blur-[6px] opacity-40 scale-100 [&_*]:!pointer-events-none'
-                    : 'blur-0 opacity-100 scale-100'
+                    ? 'opacity-30 scale-100 [&_*]:!pointer-events-none'
+                    : 'opacity-100 scale-100'
               }`}
             >
               {/* Left: Big Weather Temperature & Dynamic Condition */}
@@ -2888,25 +2994,11 @@ export default function App() {
               key={`spot-detail-${selectedSpot.id}`}
               spot={selectedSpot}
               theme={theme}
-              onClose={() => {
-                setIsDetailOpen(false);
-                if (activeTab !== 'explorar') {
-                  setSelectedSpot(null);
-                }
-              }}
-              onNavigateTo={(spot) => {
-                if (activeRoute && activeRoute.spotId !== spot.id) {
-                  clearActiveRoute();
-                }
-                setSelectedSpot(spot);
-                setIsDetailOpen(false);
-              }}
+              onClose={handleCloseSpotDetail}
+              onNavigateTo={handleNavigateToSpot}
               isFavorite={favorites.includes(selectedSpot.id)}
               onToggleFavorite={handleToggleFavorite}
-              onUpdateSpot={(updatedSpot) => {
-                setSpots((prev) => prev.map((s) => (s.id === updatedSpot.id ? updatedSpot : s)));
-                setSelectedSpot(updatedSpot);
-              }}
+              onUpdateSpot={handleUpdateSpot}
             />
           )}
         </AnimatePresence>
@@ -2917,18 +3009,15 @@ export default function App() {
         <Suspense fallback={null}>
           <SearchFilterDrawer
             isOpen={true}
-            onClose={() => setActiveTab('explorar')}
+            onClose={handleCloseToExplore}
             spots={spots}
             theme={theme}
-            onSelectSpot={(spot) => {
-              handleSelectSpot(spot);
-              setActiveTab('explorar');
-            }}
+            onSelectSpot={handleSelectSpotAndReturnExplore}
           />
         </Suspense>
       )}
 
-      {/* 8.5. Itineraries & Route Planning (Mounted ONLY when Tab === 'roteiros', idle-prefetched) */}
+      {/* 8.5. Itineraries & Route Planning (Mounted ONLY when Tab === 'roteiros'; suspends Explorar WebGL when map mode is active) */}
       {activeTab === 'roteiros' && (
         <motion.div
           key="itineraries-view-reveal-wrapper"
@@ -2951,12 +3040,13 @@ export default function App() {
             <ItinerariesView
               key={`itineraries-view-${accountSessionKey}`}
               isOpen={true}
-              onClose={() => setActiveTab('explorar')}
+              onClose={handleCloseToExplore}
               theme={theme}
               spots={spots}
               isOnboardingSelection={isOnboardingItinerarySelection}
               isOnboardingRevealReady={isOnboardingRevealReady}
               onSatelliteUiChange={setIsRoteirosSatelliteNav}
+              onMapActiveChange={handleItineraryMapActiveChange}
               onCompleteOnboardingSelection={(selectedItins, chosenInvestment) => {
                 setIsOnboardingItinerarySelection(false);
                 try {
@@ -2980,90 +3070,68 @@ export default function App() {
         </motion.div>
       )}
 
-      {/* 9. Saved / Favorites Wishlists (Mounted ONLY when Tab === 'salvos', idle-prefetched) */}
-      {(activeTab === 'salvos' || activeTab === ('chat' as any)) && (
-        <motion.div
-          key="saved-view-reveal-wrapper"
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          exit={{ opacity: 0 }}
-          transition={{ duration: 0.16, ease: [0.22, 1, 0.36, 1] }}
-          className="fixed inset-0 w-full z-40 bg-white dark:bg-black overflow-y-auto"
+      {/* 9. Saved / Favorites Wishlists (Hybrid Tab Retention: cached in memory after first visit, hidden when inactive) */}
+      {(hasVisitedSaved || isSavedTabActive) && (
+        <div
+          aria-hidden={!isSavedTabActive}
+          className={
+            isSavedTabActive
+              ? 'fixed inset-0 w-full z-40 bg-white dark:bg-black overflow-y-auto'
+              : 'hidden'
+          }
         >
           <Suspense fallback={null}>
             <SavedView
               key={`saved-view-${accountSessionKey}`}
               isOpen={true}
+              isActive={isSavedTabActive}
               theme={theme}
               spots={spots}
-              onOpenSpot={(spot) => {
-                setSelectedSpot(spot);
-                setIsDetailOpen(true);
-              }}
-              onOpenItinerary={(itinerary) => {
-                try {
-                  writeScopedJSON('monvian_active_itinerary', itinerary, user);
-                  writeScopedString('monvian_itinerary_view_mode', 'map', user);
-                  writeScopedString('monvian_itinerary_expanded', 'true', user);
-                  window.dispatchEvent(new CustomEvent('monvian:itinerary_applied', { detail: itinerary }));
-                } catch {}
-                setSelectedItinerary(null);
-                setActiveTab('roteiros');
-              }}
-              onNavigateTab={(targetTab) => {
-                setActiveTab(targetTab);
-              }}
+              onOpenSpot={handleOpenSpotDetails}
+              onOpenItinerary={handleSavedOpenItinerary}
+              onNavigateTab={setActiveTab}
             />
           </Suspense>
-        </motion.div>
+        </div>
       )}
 
-      {/* 10. Profile & Favorites (Mounted ONLY when Tab === 'perfil', idle-prefetched) */}
-      {activeTab === 'perfil' && (
-        <motion.div
-          key="profile-view-reveal-wrapper"
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          exit={{ opacity: 0 }}
-          transition={{ duration: 0.16, ease: [0.22, 1, 0.36, 1] }}
-          className="fixed inset-0 w-full z-40 bg-white dark:bg-black overflow-y-auto"
+      {/* 10. Profile & Favorites (Hybrid Tab Retention: cached in memory after first visit, hidden when inactive) */}
+      {(hasVisitedProfile || isProfileTabActive) && (
+        <div
+          aria-hidden={!isProfileTabActive}
+          className={
+            isProfileTabActive
+              ? 'fixed inset-0 w-full z-40 bg-white dark:bg-black overflow-y-auto'
+              : 'hidden'
+          }
         >
           <Suspense fallback={null}>
             <ProfileModal
               key={`profile-modal-${accountSessionKey}`}
               isOpen={true}
-              onClose={() => setActiveTab('explorar')}
+              isActive={isProfileTabActive}
+              onClose={handleCloseToExplore}
               favorites={favorites}
               spots={spots}
-              onSelectSpot={(spot) => {
-                handleSelectSpot(spot);
-                setActiveTab('explorar');
-              }}
+              onSelectSpot={handleSelectSpotAndReturnExplore}
               rainEnabled={rainEnabled}
-              onToggleRain={() => setRainEnabled(!rainEnabled)}
+              onToggleRain={handleToggleRain}
               snowEnabled={snowEnabled}
-              onToggleSnow={() => setSnowEnabled(!snowEnabled)}
+              onToggleSnow={handleToggleSnow}
               theme={theme}
               onToggleTheme={handleToggleTheme}
               highContrast={highContrast}
-              onToggleHighContrast={() => setHighContrast((prev) => !prev)}
+              onToggleHighContrast={handleToggleHighContrast}
               user={user}
-              onUpdateUser={(updatedUser) => {
-                setUser(updatedUser);
-              }}
-              onOpenAdmin={() => {
-                setActiveTab('explorar');
-                setIsAdminOpen(true);
-              }}
-              onSubViewChange={() => {}}
+              onUpdateUser={handleProfileUpdateUser}
+              onOpenAdmin={handleOpenAdminFromProfile}
+              onSubViewChange={handleNoop}
               communityUrl={systemSettings.community_url}
               instagramUrl={systemSettings.instagram_url}
-              onLogout={() => {
-                performFullLogout({ redirectToLogin: true });
-              }}
+              onLogout={handleProfileLogout}
             />
           </Suspense>
-        </motion.div>
+        </div>
       )}
 
       {/* 10.6 Gold Success Celebration Modal (Loaded ONLY when opened) */}
@@ -3123,8 +3191,7 @@ export default function App() {
           exit={{ opacity: 0 }}
           transition={{ duration: 0.28, ease: [0.22, 1, 0.36, 1] }}
           onClick={handleMapDismiss}
-          className="md:hidden fixed inset-0 z-[60] bg-black/25 dark:bg-black/55 backdrop-blur-md cursor-pointer pointer-events-auto"
-          style={{ WebkitBackdropFilter: 'blur(12px)' }}
+          className="md:hidden fixed inset-0 z-[60] bg-black/45 dark:bg-black/65 cursor-pointer pointer-events-auto"
         />
       )}
     </AnimatePresence>
@@ -3206,8 +3273,7 @@ export default function App() {
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
           transition={{ duration: 0.2, ease: [0.22, 1, 0.36, 1] }}
-          className="fixed inset-0 z-[60] bg-black/25 dark:bg-black/55 backdrop-blur-md cursor-pointer pointer-events-auto"
-          style={{ WebkitBackdropFilter: 'blur(12px)' }}
+          className="fixed inset-0 z-[60] bg-black/45 dark:bg-black/65 cursor-pointer pointer-events-auto"
           onClick={() => {
             setIsCategoryCardOpen(false);
             setIsSearchOpen(false);

@@ -145,7 +145,7 @@ export const TripNotesModal: React.FC<TripNotesModalProps> = ({
         exit={{ opacity: 0 }}
         transition={{ duration: 0.22 }}
         onClick={onClose}
-        className="absolute inset-0 bg-black/70 backdrop-blur-md"
+        className="absolute inset-0 bg-black/70"
       />
 
       {/* 2. Main Modal: The Parchment Sheet itself, without transparent side cards */}

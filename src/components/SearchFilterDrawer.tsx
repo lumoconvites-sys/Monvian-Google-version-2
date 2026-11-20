@@ -303,8 +303,6 @@ export const SearchFilterDrawer: React.FC<SearchFilterDrawerProps> = React.memo(
           paddingLeft: 'max(20px, env(safe-area-inset-left, 0px))',
           paddingRight: 'max(20px, env(safe-area-inset-right, 0px))',
           backgroundColor: isDark ? 'rgba(0, 0, 0, 0.40)' : 'rgba(255, 255, 255, 0.40)',
-          backdropFilter: 'blur(8px) saturate(150%)',
-          WebkitBackdropFilter: 'blur(8px) saturate(150%)',
         }}
       >
         <div className="max-w-3xl mx-auto w-full flex items-center justify-between">

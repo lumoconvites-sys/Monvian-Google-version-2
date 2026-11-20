@@ -586,10 +586,9 @@ export const ClothingWeatherModal: React.FC<ClothingWeatherModalProps> = ({
           exit={{ opacity: 0 }}
           transition={{ duration: 0.2, ease: [0.22, 1, 0.36, 1] }}
           onClick={onClose}
-          className={`fixed inset-0 z-[85] backdrop-blur-md flex items-end sm:items-center justify-center p-0 sm:p-5 select-none ${
-            isDark ? 'bg-black/60' : 'bg-black/35'
+          className={`fixed inset-0 z-[85] flex items-end sm:items-center justify-center p-0 sm:p-5 select-none ${
+            isDark ? 'bg-black/70' : 'bg-black/45'
           }`}
-          style={{ WebkitBackdropFilter: 'blur(14px)' }}
         >
           <motion.div
             id="clothing-weather-modal-sheet"
@@ -610,8 +609,6 @@ export const ClothingWeatherModal: React.FC<ClothingWeatherModalProps> = ({
               fontFamily:
                 '-apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro Text", sans-serif',
               paddingBottom: 'max(28px, calc(env(safe-area-inset-bottom, 0px) + 20px))',
-              backdropFilter: 'blur(28px) saturate(180%)',
-              WebkitBackdropFilter: 'blur(28px) saturate(180%)',
             }}
           >
             {/* iOS Grabber Handle on mobile */}

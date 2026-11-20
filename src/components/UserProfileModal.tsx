@@ -217,8 +217,6 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
               style={{
                 paddingTop: 'max(calc(env(safe-area-inset-top, 0px) + 8px), 14px)',
                 backgroundColor: isDark ? 'rgba(0, 0, 0, 0.40)' : 'rgba(255, 255, 255, 0.40)',
-                backdropFilter: 'blur(8px) saturate(150%)',
-                WebkitBackdropFilter: 'blur(8px) saturate(150%)',
               }}
             >
               <AppleBackButton
@@ -667,8 +665,6 @@ const PostFullscreenPage: React.FC<PostFullscreenPageProps> = ({
         style={{
           paddingTop: 'max(calc(env(safe-area-inset-top, 0px) + 8px), 14px)',
           backgroundColor: isDark ? 'rgba(0, 0, 0, 0.40)' : 'rgba(255, 255, 255, 0.72)',
-          backdropFilter: 'blur(8px) saturate(150%)',
-          WebkitBackdropFilter: 'blur(8px) saturate(150%)',
         }}
       >
         <AppleBackButton
@@ -890,7 +886,7 @@ const PostFullscreenPage: React.FC<PostFullscreenPageProps> = ({
 
       {/* 9. COMMENT INPUT BAR */}
       <div
-        className={`sticky bottom-0 backdrop-blur-md border-t px-3.5 py-2.5 flex items-center gap-2.5 z-40 ${
+        className={`sticky bottom-0 border-t px-3.5 py-2.5 flex items-center gap-2.5 z-40 ${
           isDark ? 'bg-black/95 border-white/10' : 'bg-white/95 border-zinc-200'
         }`}
         style={{ paddingBottom: 'max(calc(env(safe-area-inset-bottom, 0px) + 12px), 16px)' }}

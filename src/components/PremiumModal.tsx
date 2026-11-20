@@ -144,7 +144,7 @@ export const PremiumModal: React.FC<PremiumModalProps> = ({
         exit={{ opacity: 0 }}
         transition={{ duration: 0.2 }}
         onClick={onClose}
-        className={`fixed inset-0 z-[300] flex items-center justify-center p-4 sm:p-6 backdrop-blur-md select-none ${
+        className={`fixed inset-0 z-[300] flex items-center justify-center p-4 sm:p-6 select-none ${
           isLight ? 'bg-black/40' : 'bg-black/80'
         }`}
         style={{
@@ -187,7 +187,7 @@ export const PremiumModal: React.FC<PremiumModalProps> = ({
               type="button"
               onClick={onClose}
               aria-label="Fechar"
-              className={`absolute top-5 right-5 w-8 h-8 rounded-full flex items-center justify-center backdrop-blur-md transition-colors cursor-pointer z-20 ${
+              className={`absolute top-5 right-5 w-8 h-8 rounded-full flex items-center justify-center transition-colors cursor-pointer z-20 ${
                 isLight
                   ? 'bg-black/20 hover:bg-black/30 text-white border border-white/30'
                   : 'bg-black/60 hover:bg-black/80 text-white/80 hover:text-white border border-white/15'

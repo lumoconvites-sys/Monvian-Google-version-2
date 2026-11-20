@@ -67,6 +67,7 @@ interface ItinerariesViewProps {
   isOnboardingRevealReady?: boolean;
   onCompleteOnboardingSelection?: (selectedItins: Itinerary[], chosenInvestment: string) => void;
   onSatelliteUiChange?: (isWhiteNav: boolean) => void;
+  onMapActiveChange?: (isActive: boolean) => void;
 }
 
 const MAPBOX_TOKEN = (import.meta.env.VITE_MAPBOX_ACCESS_TOKEN || '').trim();
@@ -604,6 +605,7 @@ export const ItinerariesView: React.FC<ItinerariesViewProps> = memo(({
   isOnboardingRevealReady = true,
   onCompleteOnboardingSelection,
   onSatelliteUiChange,
+  onMapActiveChange,
 }) => {
   const isDark = theme === 'dark';
   const [shouldAnimateEntrance] = useState(() => !hasPlayedItinerariesMapEntranceAnimation);
@@ -1167,8 +1169,27 @@ export const ItinerariesView: React.FC<ItinerariesViewProps> = memo(({
       onSatelliteUiChange?.(false);
     };
   }, [isSatelliteNavActive, onSatelliteUiChange]);
+  // Notify parent when Roteiros 3D map is active so Explorar WebGL context suspends cleanly (max 1 WebGL context)
+  const isItineraryMapActive = Boolean(
+    isOpen && !isOnboardingSelection && itineraryViewMode === 'map'
+  );
+
+  useEffect(() => {
+    onMapActiveChange?.(isItineraryMapActive);
+    return () => {
+      onMapActiveChange?.(false);
+    };
+  }, [isItineraryMapActive, onMapActiveChange]);
+
   const selectedStopIdRef = useRef(selectedStopId);
   selectedStopIdRef.current = selectedStopId;
+
+  // Refs for in-place style swapping without destroying WebGL
+  const itineraryMapStyleRef = useRef(itineraryMapStyle);
+  itineraryMapStyleRef.current = itineraryMapStyle;
+  const themeRef = useRef(theme);
+  themeRef.current = theme;
+  const prevItineraryStyleKeyRef = useRef<string>('');
 
   // Map references
   const mapContainerRef = useRef<HTMLDivElement | null>(null);
@@ -2127,7 +2148,7 @@ export const ItinerariesView: React.FC<ItinerariesViewProps> = memo(({
     renderRouteAndMarkersRef.current = renderRouteAndMarkers;
   }, [renderRouteAndMarkers]);
 
-  // Initialize MapLibre GL map ONCE when tab is open and in map mode
+  // Initialize MapLibre GL map ONCE when tab is open and in map mode (style/theme swaps use setStyle in-place)
   useEffect(() => {
     if (!isOpen || itineraryViewMode !== 'map' || !mapContainerRef.current) return;
 
@@ -2148,15 +2169,22 @@ export const ItinerariesView: React.FC<ItinerariesViewProps> = memo(({
       mapRef.current = null;
     }
 
+    const initialStyleMode = itineraryMapStyleRef.current;
+    const initialThemeMode = themeRef.current === 'dark' ? 'dark' : 'light';
+    prevItineraryStyleKeyRef.current = `${initialStyleMode}:${initialThemeMode}`;
+
     const map = new maplibregl.Map({
       container: mapContainerRef.current,
-      style: getMapStyle(itineraryMapStyle, theme === 'dark' ? 'dark' : 'light'),
+      style: getMapStyle(initialStyleMode, initialThemeMode),
       center: [-45.5870, -22.7355],
       zoom: 15.2,
       pitch: 52,
       bearing: -13,
       projection: { type: 'globe' },
       attributionControl: false,
+      fadeDuration: 0,
+      maxTileCacheSize: 120,
+      refreshExpiredTiles: false,
     } as any);
 
     mapRef.current = map;
@@ -2172,11 +2200,19 @@ export const ItinerariesView: React.FC<ItinerariesViewProps> = memo(({
       renderRouteAndMarkersRef.current?.(true, undefined, undefined, true);
     };
 
+    const onStyleLoad = () => {
+      if (mapRef.current !== map || !hasInitializedRoute) return;
+      isMapLoadedRef.current = true;
+      renderRouteAndMarkersRef.current?.(false);
+    };
+
     if (map.loaded() && map.isStyleLoaded()) {
       onMapReady();
     } else {
       map.once('load', onMapReady);
     }
+
+    map.on('style.load', onStyleLoad);
 
     const safetyTimer = setTimeout(() => {
       if (mapRef.current === map && !hasInitializedRoute) {
@@ -2185,13 +2221,19 @@ export const ItinerariesView: React.FC<ItinerariesViewProps> = memo(({
     }, 600);
 
     // When clicking anywhere on the map, collapse the sheet so only 20% is visible
-    map.on('click', () => {
+    const onMapClick = () => {
       setIsExpanded(false);
-    });
+    };
+    map.on('click', onMapClick);
 
     return () => {
       clearTimeout(safetyTimer);
       isMapLoadedRef.current = false;
+      prevItineraryStyleKeyRef.current = '';
+      try {
+        map.off('style.load', onStyleLoad);
+        map.off('click', onMapClick);
+      } catch (e) {}
       markerRecordsRef.current.forEach((rec) => {
         try {
           rec.marker.remove();
@@ -2206,7 +2248,22 @@ export const ItinerariesView: React.FC<ItinerariesViewProps> = memo(({
         mapRef.current = null;
       }
     };
-  }, [isOpen, itineraryViewMode, itineraryMapStyle, theme]);
+  }, [isOpen, itineraryViewMode]);
+
+  // Swap MapLibre style/theme in-place without destroying the WebGL context or resetting camera
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map || !isOpen || itineraryViewMode !== 'map') return;
+    const nextThemeMode = theme === 'dark' ? 'dark' : 'light';
+    const nextKey = `${itineraryMapStyle}:${nextThemeMode}`;
+    if (prevItineraryStyleKeyRef.current === nextKey) return;
+    prevItineraryStyleKeyRef.current = nextKey;
+    try {
+      map.setStyle(getMapStyle(itineraryMapStyle, nextThemeMode));
+    } catch (e) {
+      console.warn('Error swapping itinerary map style in-place:', e);
+    }
+  }, [itineraryMapStyle, theme, isOpen, itineraryViewMode]);
 
   const prevItinIdRef = useRef<string | null>(userItinerary?.id || null);
   const prevDayIndexRef = useRef<number>(selectedDayIndex);
@@ -2402,7 +2459,7 @@ export const ItinerariesView: React.FC<ItinerariesViewProps> = memo(({
               initial={{ opacity: 0, y: -20, scale: 0.95 }}
               animate={{ opacity: 1, y: 0, scale: 1 }}
               exit={{ opacity: 0, y: -15, scale: 0.95 }}
-              className="fixed top-20 inset-x-0 mx-auto z-70 w-fit px-5 py-2.5 rounded-full bg-zinc-900/90 text-white border border-white/15 backdrop-blur-xl shadow-2xl flex items-center gap-2 text-xs font-black"
+              className="fixed top-20 inset-x-0 mx-auto z-70 w-fit px-5 py-2.5 rounded-full bg-zinc-900/90 text-white border border-white/15 shadow-2xl flex items-center gap-2 text-xs font-black"
             >
               <span className="w-5 h-5 rounded-full bg-emerald-500 text-white flex items-center justify-center shrink-0">
                 <Check className="w-3 h-3 stroke-[3]" />
@@ -2647,8 +2704,6 @@ export const ItinerariesView: React.FC<ItinerariesViewProps> = memo(({
           className="sticky top-0 z-20 p-4 lg:p-5 pb-3 border-b border-black/10 dark:border-[#262626]/70 shrink-0"
           style={{
             backgroundColor: isDark ? 'rgba(0, 0, 0, 0.40)' : 'rgba(255, 255, 255, 0.40)',
-            backdropFilter: 'blur(8px) saturate(150%)',
-            WebkitBackdropFilter: 'blur(8px) saturate(150%)',
           }}
         >
           <div className="flex items-center justify-between gap-2 mb-2">
@@ -2941,8 +2996,6 @@ export const ItinerariesView: React.FC<ItinerariesViewProps> = memo(({
                 onClick={() => setIsImportModalOpen(true)}
                 style={{
                   backgroundColor: isDark ? 'rgba(28, 28, 30, 0.88)' : 'rgba(255, 255, 255, 0.88)',
-                  backdropFilter: 'blur(24px) saturate(190%)',
-                  WebkitBackdropFilter: 'blur(24px) saturate(190%)',
                 }}
                 className={`w-full max-w-[326px] sm:max-w-[342px] py-2.5 px-4 rounded-[28px] flex items-center justify-center gap-3 border pointer-events-auto cursor-pointer shadow-[0_8px_24px_rgba(0,0,0,0.10)] transition-transform active:scale-95 ${
                   isDark ? 'border-white/15 text-white' : 'border-zinc-200/80 text-black'
@@ -2972,8 +3025,6 @@ export const ItinerariesView: React.FC<ItinerariesViewProps> = memo(({
                 onClick={() => setIsExpanded(true)}
                 style={{
                   backgroundColor: isDark ? 'rgba(28, 28, 30, 0.88)' : 'rgba(255, 255, 255, 0.88)',
-                  backdropFilter: 'blur(24px) saturate(190%)',
-                  WebkitBackdropFilter: 'blur(24px) saturate(190%)',
                 }}
                 className={`w-full max-w-[326px] sm:max-w-[342px] py-2 px-3 sm:py-2.5 sm:px-3.5 rounded-[28px] flex items-center justify-between gap-3 transition-all border pointer-events-auto cursor-pointer shadow-[0_8px_24px_rgba(0,0,0,0.10)] ${
                   isDark ? 'border-white/15 text-white' : 'border-zinc-200/80 text-black'
@@ -3234,7 +3285,7 @@ export const ItinerariesView: React.FC<ItinerariesViewProps> = memo(({
             initial={{ opacity: 0, y: -20, scale: 0.95 }}
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: -15, scale: 0.95 }}
-            className="fixed top-20 inset-x-0 mx-auto z-70 w-fit px-5 py-2.5 rounded-full bg-zinc-900/90 text-white border border-white/15 backdrop-blur-xl shadow-2xl flex items-center gap-2 text-xs font-black"
+            className="fixed top-20 inset-x-0 mx-auto z-70 w-fit px-5 py-2.5 rounded-full bg-zinc-900/90 text-white border border-white/15 shadow-2xl flex items-center gap-2 text-xs font-black"
           >
             <span className="w-5 h-5 rounded-full bg-emerald-500 text-white flex items-center justify-center shrink-0">
               <Check className="w-3 h-3 stroke-[3]" />

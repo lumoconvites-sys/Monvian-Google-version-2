@@ -54,8 +54,6 @@ export const CompactGeolocationNotificationCard: React.FC<CompactGeolocationNoti
       style={{
         fontFamily:
           "-apple-system, BlinkMacSystemFont, 'SF Pro Text', 'SF Pro Display', 'Inter', sans-serif",
-        WebkitBackdropFilter: 'blur(22px) saturate(180%)',
-        backdropFilter: 'blur(22px) saturate(180%)',
       }}
       className={`w-[calc(100vw-24px)] max-w-[340px] p-2.5 rounded-[22px] border flex items-center justify-between gap-3 select-none cursor-pointer pointer-events-auto transition-colors ${
         isDark

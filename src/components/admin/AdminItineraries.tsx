@@ -546,7 +546,7 @@ export const AdminItineraries: React.FC = () => {
 
                         {/* Top Badges */}
                         <div className="absolute top-2.5 left-2.5 right-2.5 flex items-center justify-between">
-                          <span className="px-2.5 py-1 rounded-full text-[11px] font-black bg-black/70 backdrop-blur-md text-white border border-white/10 flex items-center gap-1">
+                          <span className="px-2.5 py-1 rounded-full text-[11px] font-black bg-black/70 text-white border border-white/10 flex items-center gap-1">
                             <Calendar className="w-3 h-3 text-white" />
                             <span>{it.daysCount} {it.daysCount === 1 ? 'Dia' : 'Dias'}</span>
                           </span>
@@ -556,7 +556,7 @@ export const AdminItineraries: React.FC = () => {
                             <button
                               type="button"
                               onClick={() => handleToggleFeatured(it.id)}
-                              className={`p-1.5 rounded-full backdrop-blur-md transition-all cursor-pointer ${
+                              className={`p-1.5 rounded-full transition-all cursor-pointer ${
                                 isFeaturedActive
                                   ? 'bg-amber-400 text-zinc-900 shadow-md'
                                   : 'bg-black/60 text-white/70 hover:text-white'

@@ -13,7 +13,7 @@ export const AdminItineraryCategoryModal: React.FC<AdminItineraryCategoryModalPr
 }) => {
   if (!isOpen) return null;
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-xs p-4">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
       <div className="bg-white border border-zinc-200 rounded-3xl p-6 max-w-md w-full text-zinc-900 shadow-2xl">
         <h3 className="text-lg font-black mb-4 text-zinc-900">Categoria de Roteiro</h3>
         <button

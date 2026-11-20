@@ -113,7 +113,7 @@ export const ItineraryEditModal: React.FC<ItineraryEditModalProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 z-[150] flex items-center justify-center p-4 bg-black/60 backdrop-blur-md">
+    <div className="fixed inset-0 z-[150] flex items-center justify-center p-4 bg-black/60">
       <motion.div
         initial={{ opacity: 0, scale: 0.94, y: 15 }}
         animate={{ opacity: 1, scale: 1, y: 0 }}
@@ -134,8 +134,6 @@ export const ItineraryEditModal: React.FC<ItineraryEditModalProps> = ({
           style={{
             color: isDark ? '#FFFFFF' : '#4f4f4f',
             backgroundColor: isDark ? 'rgba(0, 0, 0, 0.40)' : 'rgba(255, 255, 255, 0.40)',
-            backdropFilter: 'blur(8px) saturate(150%)',
-            WebkitBackdropFilter: 'blur(8px) saturate(150%)',
           }}
         >
           <div>

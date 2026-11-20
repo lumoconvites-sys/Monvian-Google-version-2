@@ -1,4 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
+import { uploadMediaToSupabaseStorage } from '../lib/supabase';
 import { Spot } from '../types';
 import {
   X,
@@ -55,6 +56,7 @@ import { usePlatanos } from '../hooks/usePlatanos';
 
 interface ProfileModalProps {
   isOpen: boolean;
+  isActive?: boolean;
   onClose: () => void;
   favorites: string[];
   spots: Spot[];
@@ -89,6 +91,7 @@ type SubView =
 
 export const ProfileModal: React.FC<ProfileModalProps> = React.memo(({
   isOpen,
+  isActive = true,
   onClose,
   favorites,
   spots,
@@ -109,6 +112,7 @@ export const ProfileModal: React.FC<ProfileModalProps> = React.memo(({
   instagramUrl = 'https://instagram.com/monvian.campos',
   onLogout,
 }) => {
+  const isViewActive = Boolean(isOpen && isActive);
   const { wallet } = usePlatanos();
   const getInitialAvatar = (u: any) => {
     try {
@@ -251,7 +255,7 @@ export const ProfileModal: React.FC<ProfileModalProps> = React.memo(({
 
   // Fetch latest saved traveler onboarding preferences when ProfileModal opens
   useEffect(() => {
-    if (!isOpen || !cleanUserEmail) return;
+    if (!isViewActive || !cleanUserEmail) return;
     let active = true;
     const token = localStorage.getItem('monvian_token');
     const headers: Record<string, string> = {};
@@ -279,7 +283,7 @@ export const ProfileModal: React.FC<ProfileModalProps> = React.memo(({
     return () => {
       active = false;
     };
-  }, [isOpen, cleanUserEmail]);
+  }, [isViewActive, cleanUserEmail]);
 
   const handleSaveTravelerPreferences = async () => {
     if (isSavingTravelerPrefs) return;
@@ -464,7 +468,7 @@ export const ProfileModal: React.FC<ProfileModalProps> = React.memo(({
   // Register iOS Interactive Edge-Swipe Back Gesture for Profile subviews and modals
   useIOSBackEntry({
     id: `profile:help-legal:${helpLegalPage}`,
-    enabled: isOpen && activeSubView === 'ajuda-informacoes' && helpLegalPage !== 'hub',
+    enabled: isViewActive && activeSubView === 'ajuda-informacoes' && helpLegalPage !== 'hub',
     priority: 130,
     label: 'Ajuda e Informações',
     foregroundSelector: '#profile-subview-content',
@@ -477,7 +481,7 @@ export const ProfileModal: React.FC<ProfileModalProps> = React.memo(({
   useIOSBackEntry({
     id: `profile:subview:${activeSubView}`,
     enabled:
-      isOpen &&
+      isViewActive &&
       activeSubView !== 'main' &&
       !(activeSubView === 'ajuda-informacoes' && helpLegalPage !== 'hub'),
     priority: 125,
@@ -495,7 +499,7 @@ export const ProfileModal: React.FC<ProfileModalProps> = React.memo(({
 
   useIOSBackEntry({
     id: 'profile:notifications',
-    enabled: isOpen && isNotificationsOpen,
+    enabled: isViewActive && isNotificationsOpen,
     priority: 245,
     label: 'Perfil',
     foregroundSelector: '#notifications-fullscreen-view',
@@ -508,7 +512,7 @@ export const ProfileModal: React.FC<ProfileModalProps> = React.memo(({
 
   useIOSBackEntry({
     id: 'profile:premium',
-    enabled: isOpen && isPremiumModalOpen,
+    enabled: isViewActive && isPremiumModalOpen,
     priority: 245,
     label: 'Perfil',
     foregroundSelector: '#profile-modal-panel',
@@ -520,53 +524,36 @@ export const ProfileModal: React.FC<ProfileModalProps> = React.memo(({
   const isDark = theme === 'dark';
   const favoriteSpots = spots.filter((s) => favorites.includes(s.id));
 
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
     if (!file.type.startsWith('image/')) {
-      alert('Selecione uma imagem válida (JPEG, PNG ou WEBP).');
+      setSaveError('Selecione uma imagem válida (JPEG, PNG ou WEBP).');
       return;
     }
 
     setIsUploading(true);
-    const reader = new FileReader();
-    reader.onload = (event) => {
-      const img = new Image();
-      img.onload = () => {
-        const canvas = document.createElement('canvas');
-        const MAX_DIM = 400;
-        let width = img.width;
-        let height = img.height;
-
-        if (width > height) {
-          if (width > MAX_DIM) {
-            height = Math.round((height * MAX_DIM) / width);
-            width = MAX_DIM;
-          }
-        } else {
-          if (height > MAX_DIM) {
-            width = Math.round((width * MAX_DIM) / height);
-            height = MAX_DIM;
-          }
-        }
-
-        canvas.width = width;
-        canvas.height = height;
-        const ctx = canvas.getContext('2d');
-        if (ctx) {
-          ctx.drawImage(img, 0, 0, width, height);
-          const compressedBase64 = canvas.toDataURL('image/jpeg', 0.85);
-          setTempAvatar(compressedBase64);
-          setUserAvatar(compressedBase64);
-          saveProfileToBackend(userName, userUsername, userBio, userEmail, compressedBase64);
-        }
-        setIsUploading(false);
-      };
-      img.onerror = () => setIsUploading(false);
-      img.src = event.target?.result as string;
-    };
-    reader.readAsDataURL(file);
+    setSaveError('');
+    try {
+      const publicUrl = await uploadMediaToSupabaseStorage(file, 'avatars', {
+        maxDimension: 384,
+        quality: 0.82,
+        filename: file.name,
+      });
+      if (!publicUrl) {
+        setSaveError('Não foi possível enviar sua foto para o armazenamento. Tente novamente.');
+        return;
+      }
+      setTempAvatar(publicUrl);
+      setUserAvatar(publicUrl);
+      await saveProfileToBackend(userName, userUsername, userBio, userEmail, publicUrl);
+    } catch {
+      setSaveError('Erro ao processar a foto selecionada.');
+    } finally {
+      setIsUploading(false);
+      e.target.value = '';
+    }
   };
 
   const saveProfileToBackend = async (
@@ -725,7 +712,7 @@ export const ProfileModal: React.FC<ProfileModalProps> = React.memo(({
         exit={{ opacity: 0 }}
         transition={{ duration: 0.18, ease: [0.22, 1, 0.36, 1] }}
         onClick={onClose}
-        className="fixed inset-0 z-45 flex flex-col justify-end md:justify-center md:items-center md:p-6 select-none overflow-hidden transition-colors duration-200 md:bg-black/50 md:backdrop-blur-xs"
+        className="fixed inset-0 z-45 flex flex-col justify-end md:justify-center md:items-center md:p-6 select-none overflow-hidden transition-colors duration-200 md:bg-black/50"
         style={{
           height: 'var(--app-height, 100dvh)',
           minHeight: 'var(--app-height, 100dvh)',
@@ -775,8 +762,6 @@ export const ProfileModal: React.FC<ProfileModalProps> = React.memo(({
             paddingLeft: 'max(20px, env(safe-area-inset-left, 0px))',
             paddingRight: 'max(20px, env(safe-area-inset-right, 0px))',
             backgroundColor: isDark ? 'rgba(0, 0, 0, 0.40)' : 'rgba(255, 255, 255, 0.40)',
-            backdropFilter: 'blur(8px) saturate(150%)',
-            WebkitBackdropFilter: 'blur(8px) saturate(150%)',
           }}
         >
           <div className="max-w-3xl mx-auto w-full flex items-center justify-between">

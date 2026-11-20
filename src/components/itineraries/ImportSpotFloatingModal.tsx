@@ -58,7 +58,7 @@ export const ImportSpotFloatingModal: React.FC<ImportSpotFloatingModalProps> = (
           exit={{ opacity: 0 }}
           transition={{ duration: 0.2, ease: 'easeOut' }}
           onClick={onClose}
-          className="fixed inset-0 z-[120] bg-black/55 backdrop-blur-[3px] flex items-center justify-center p-4 sm:p-6 select-none cursor-pointer"
+          className="fixed inset-0 z-[120] bg-black/55-[3px] flex items-center justify-center p-4 sm:p-6 select-none cursor-pointer"
           style={{ willChange: 'opacity' }}
         >
           <motion.div
@@ -75,8 +75,6 @@ export const ImportSpotFloatingModal: React.FC<ImportSpotFloatingModalProps> = (
             }`}
             style={{
               fontFamily: "'Inter', -apple-system, BlinkMacSystemFont, sans-serif",
-              WebkitBackdropFilter: isLight ? 'blur(25px) saturate(180%)' : undefined,
-              backdropFilter: isLight ? 'blur(25px) saturate(180%)' : undefined,
               willChange: 'transform, opacity',
               transform: 'translateZ(0)',
             }}
@@ -87,8 +85,6 @@ export const ImportSpotFloatingModal: React.FC<ImportSpotFloatingModalProps> = (
             className="sticky top-0 z-20 p-4 sm:p-5 pb-3 flex items-center gap-3 border-b border-black/[0.06] dark:border-[#262626]/70 shrink-0"
             style={{
               backgroundColor: isLight ? 'rgba(255, 255, 255, 0.40)' : 'rgba(0, 0, 0, 0.40)',
-              backdropFilter: 'blur(8px) saturate(150%)',
-              WebkitBackdropFilter: 'blur(8px) saturate(150%)',
             }}
           >
             <div className={`relative flex items-center flex-1 rounded-2xl border px-3.5 py-2.5 transition-all ${
@@ -153,7 +149,7 @@ export const ImportSpotFloatingModal: React.FC<ImportSpotFloatingModalProps> = (
                     whileTap={{ scale: 0.96, transition: { type: 'spring', stiffness: 500, damping: 14 } }}
                     className={`flex items-center justify-between gap-3 p-3 rounded-2xl border transition-colors ${
                       isLight
-                        ? 'bg-white/60 border-black/5 hover:bg-white/85 shadow-sm backdrop-blur-md'
+                        ? 'bg-white/60 border-black/5 hover:bg-white/85 shadow-sm'
                         : 'bg-[#1C1C1E] border-white/10 hover:border-white/25'
                     }`}
                   >

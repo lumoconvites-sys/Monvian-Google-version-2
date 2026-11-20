@@ -7,7 +7,8 @@ interface PlatanoLeafIconProps {
   variant?: 'gold' | 'monochrome' | 'light' | 'dark';
 }
 
-export const PLATANO_LEAF_3D_ICON_SRC = '/assets/aistudio/IMG_0028_9f9883a6.png';
+export const PLATANO_LEAF_3D_ICON_SRC =
+  'https://gxyqrwebnkbgxqrfdvuj.supabase.co/storage/v1/object/public/monvian-media/app-assets/platano-leaf-3d-9f9883a687393e52.webp';
 
 /**
  * Símbolo 3D oficial dos Plátanos (Folha de Plátano de Campos do Jordão)
@@ -65,10 +66,10 @@ export const PlatanoUnlockToast: React.FC<{
           }}
         >
           <div
-            className={`pointer-events-auto flex items-center gap-3 px-4 py-3 rounded-2xl border backdrop-blur-xl max-w-sm w-full ${
+            className={`pointer-events-auto flex items-center gap-3 px-4 py-3 rounded-2xl border max-w-sm w-full ${
               isDark
-                ? 'bg-[#111111]/95 border-[#262626] text-[#FFFFFF] shadow-[0_8px_28px_rgba(0,0,0,0.65)]'
-                : 'bg-[#FFFFFF]/95 border-[#E5E5EA] text-[#000000] shadow-[0_8px_24px_rgba(0,0,0,0.08)]'
+                ? 'bg-[#171717]/95 border-white/10 text-[#FFFFFF] shadow-[0_8px_24px_rgba(0,0,0,0.55)]'
+                : 'bg-[#FFFFFF]/96 border-black/10 text-[#000000] shadow-[0_8px_20px_rgba(0,0,0,0.08)]'
             }`}
           >
             <div

@@ -59,7 +59,7 @@ export const BudgetStep: React.FC<BudgetStepProps> = ({
               key={opt.id}
               type="button"
               onClick={() => setSelectedBudget(opt.id)}
-              className={`w-full p-4 sm:p-4.5 rounded-[24px] flex items-center justify-between text-left transition-all active:scale-[0.99] cursor-pointer border backdrop-blur-xl ${
+              className={`w-full p-4 sm:p-4.5 rounded-[24px] flex items-center justify-between text-left transition-all active:scale-[0.99] cursor-pointer border ${
                 isSelected
                   ? isDark
                     ? 'bg-[#2C2C2E] border-2 border-white text-white shadow-lg'

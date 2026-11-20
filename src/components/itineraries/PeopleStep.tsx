@@ -79,8 +79,8 @@ export const PeopleStep: React.FC<PeopleStepProps> = ({
         <div
           className={`w-full p-5 sm:p-6 rounded-[26px] flex flex-col items-center justify-center transition-all duration-200 ${
             isDark
-              ? 'bg-[#1C1C1E] backdrop-blur-2xl border border-white/10 shadow-[0_15px_35px_rgba(0,0,0,0.5)]'
-              : 'bg-white/95 backdrop-blur-2xl border border-black/8 shadow-[0_10px_30px_rgba(0,0,0,0.06)]'
+              ? 'bg-[#1C1C1E] border border-white/10 shadow-[0_15px_35px_rgba(0,0,0,0.5)]'
+              : 'bg-white/95 border border-black/8 shadow-[0_10px_30px_rgba(0,0,0,0.06)]'
           }`}
         >
           <div className="flex items-center justify-between w-full mb-3 px-1">
@@ -151,8 +151,8 @@ export const PeopleStep: React.FC<PeopleStepProps> = ({
         <div
           className={`w-full p-5 sm:p-6 rounded-[26px] flex flex-col items-center justify-center transition-all duration-200 ${
             isDark
-              ? 'bg-[#1C1C1E] backdrop-blur-2xl border border-white/10 shadow-[0_15px_35px_rgba(0,0,0,0.5)]'
-              : 'bg-white/95 backdrop-blur-2xl border border-black/8 shadow-[0_10px_30px_rgba(0,0,0,0.06)]'
+              ? 'bg-[#1C1C1E] border border-white/10 shadow-[0_15px_35px_rgba(0,0,0,0.5)]'
+              : 'bg-white/95 border border-black/8 shadow-[0_10px_30px_rgba(0,0,0,0.06)]'
           }`}
         >
           <div className="flex items-center justify-between w-full mb-3 px-1">

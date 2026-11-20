@@ -306,19 +306,19 @@ export const AdminSpots: React.FC = () => {
                 <div className="absolute top-3 left-3 right-3 flex items-center justify-between pointer-events-auto">
                   <div className="flex items-center gap-1.5">
                     {spot.isVerified ? (
-                      <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-blue-600/90 backdrop-blur-md text-white text-[10px] font-black uppercase shadow-sm">
+                      <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-blue-600/90 text-white text-[10px] font-black uppercase shadow-sm">
                         <CheckCircle2 className="w-3 h-3" />
                         VERIFICADO
                       </span>
                     ) : (
-                      <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-white/90 backdrop-blur-md text-zinc-800 text-[10px] font-black shadow-xs">
+                      <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-white/90 text-zinc-800 text-[10px] font-black shadow-xs">
                         PADRÃO
                       </span>
                     )}
                   </div>
 
                   {/* Active Toggle Switch */}
-                  <div className="flex items-center gap-1.5 bg-black/50 backdrop-blur-md px-2 py-1 rounded-full">
+                  <div className="flex items-center gap-1.5 bg-black/50 px-2 py-1 rounded-full">
                     <span className="text-[10px] font-black text-white uppercase">
                       {spot.isActive ? 'Ativo' : 'Pausado'}
                     </span>
@@ -340,13 +340,13 @@ export const AdminSpots: React.FC = () => {
 
                 {/* Category pill on bottom left of image */}
                 <div className="absolute bottom-3 left-3">
-                  <span className="text-[10px] font-black uppercase tracking-wider text-white bg-black/60 backdrop-blur-md px-2.5 py-1 rounded-lg">
+                  <span className="text-[10px] font-black uppercase tracking-wider text-white bg-black/60 px-2.5 py-1 rounded-lg">
                     {spot.categoryLabel || spot.category}
                   </span>
                 </div>
 
                 {/* Rating on bottom right */}
-                <div className="absolute bottom-3 right-3 bg-black/60 backdrop-blur-md px-2 py-1 rounded-lg flex items-center gap-1 text-white text-xs font-black">
+                <div className="absolute bottom-3 right-3 bg-black/60 px-2 py-1 rounded-lg flex items-center gap-1 text-white text-xs font-black">
                   <Star className="w-3 h-3 text-amber-400 fill-amber-400" />
                   <span>{spot.rating?.toFixed(1) || '4.8'}</span>
                 </div>

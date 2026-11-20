@@ -193,7 +193,7 @@ export const DesktopExplorePanel: React.FC<DesktopExplorePanelProps> = ({
                     loading="lazy"
                   />
                   {spot.rating && (
-                    <div className="absolute top-1.5 left-1.5 px-1.5 py-0.5 rounded-md bg-black/75 backdrop-blur-xs flex items-center gap-0.5 text-[10px] font-bold text-amber-400">
+                    <div className="absolute top-1.5 left-1.5 px-1.5 py-0.5 rounded-md bg-black/75 flex items-center gap-0.5 text-[10px] font-bold text-amber-400">
                       <Star className="w-2.5 h-2.5 fill-amber-400 stroke-none" />
                       <span>{spot.rating.toFixed(1)}</span>
                     </div>

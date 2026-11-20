@@ -181,8 +181,8 @@ export const TripDateStep: React.FC<TripDateStepProps> = ({
       <div
         className={`w-full p-4 sm:p-5 rounded-[28px] sm:rounded-[32px] transition-all duration-200 ${
           isDark
-            ? 'bg-[#1C1C1E] backdrop-blur-2xl border border-white/10 shadow-[0_20px_50px_rgba(0,0,0,0.6)]'
-            : 'bg-white/90 backdrop-blur-2xl border border-black/8 shadow-[0_15px_40px_rgba(0,0,0,0.08)]'
+            ? 'bg-[#1C1C1E] border border-white/10 shadow-[0_20px_50px_rgba(0,0,0,0.6)]'
+            : 'bg-white/90 border border-black/8 shadow-[0_15px_40px_rgba(0,0,0,0.08)]'
         }`}
       >
         {/* Month Navigation */}

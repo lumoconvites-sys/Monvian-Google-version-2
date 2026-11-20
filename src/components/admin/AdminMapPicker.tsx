@@ -284,7 +284,7 @@ export const AdminMapPicker: React.FC<AdminMapPickerProps> = ({
         <div ref={mapContainer} className="w-full h-full" />
 
         {/* Map Mode Segmented Switch (Padrão / Satélite) */}
-        <div className="absolute top-2.5 left-2.5 z-10 flex items-center bg-white/95 backdrop-blur-md p-1 rounded-xl shadow-md border border-zinc-200/80">
+        <div className="absolute top-2.5 left-2.5 z-10 flex items-center bg-white/95 p-1 rounded-xl shadow-md border border-zinc-200/80">
           <button
             type="button"
             onClick={() => setExplicitMapMode('ruas')}
@@ -343,7 +343,7 @@ export const AdminMapPicker: React.FC<AdminMapPickerProps> = ({
         </div>
 
         {/* Overlay Instruction Banner */}
-        <div className="absolute bottom-2.5 left-2.5 right-2.5 bg-white/90 backdrop-blur-md px-3 py-1.5 rounded-xl border border-zinc-200 shadow-sm flex items-center justify-between text-xs text-zinc-600">
+        <div className="absolute bottom-2.5 left-2.5 right-2.5 bg-white/90 px-3 py-1.5 rounded-xl border border-zinc-200 shadow-sm flex items-center justify-between text-xs text-zinc-600">
           <div className="flex items-center gap-1.5 font-black">
             <MapPin className="w-3.5 h-3.5 text-[#007AFF] shrink-0" />
             <span>Toque no mapa ou arraste o marcador</span>

@@ -68,8 +68,11 @@ export const ProfileXpProgressBar: React.FC<ProfileXpProgressBarProps> = ({ isDa
         <div className="flex items-center justify-between gap-2 mb-2.5">
           <div className="flex items-center gap-2 min-w-0">
             <img
-              src="/assets/aistudio/image-x7AMcdc77bLjrT7fLhP52TPpyoaLvY_64ba28fe.png"
+              src="https://gxyqrwebnkbgxqrfdvuj.supabase.co/storage/v1/object/public/monvian-media/app-assets/xp-badge-icon-1209b807e34e68a6.webp"
               alt="Troféu"
+              loading="lazy"
+              decoding="async"
+              referrerPolicy="no-referrer"
               className="w-[22px] h-[22px] object-contain shrink-0"
             />
             <span
@@ -111,16 +114,7 @@ export const ProfileXpProgressBar: React.FC<ProfileXpProgressBarProps> = ({ isDa
               minWidth: totalXp > 0 ? '18px' : '0px',
               boxShadow: totalXp > 0 ? '0 0 10px rgba(0, 102, 255, 0.35)' : 'none',
             }}
-          >
-            {/* Shimmer light sweep highlight effect */}
-            {totalXp > 0 && (
-              <motion.div
-                className="absolute inset-0 w-full h-full bg-gradient-to-r from-transparent via-white/40 to-transparent pointer-events-none"
-                animate={{ x: ['-100%', '200%'] }}
-                transition={{ repeat: Infinity, duration: 2.2, ease: 'easeInOut' }}
-              />
-            )}
-          </motion.div>
+          />
         </div>
 
         {/* Bottom Micro Hint */}

@@ -80,63 +80,212 @@ export const supabase = isSupabaseConfigured
     })
   : (null as any);
 
+export interface ImageUploadOptions {
+  maxDimension?: number;
+  quality?: number;
+  filename?: string;
+}
+
 /**
- * Uploads a base64 image or File to Supabase Storage ('monvian-media' bucket)
- * Falls back gracefully to dataUrl or server upload if bucket is not yet created
+ * Optimizes an image File or data URL to a resized WebP Blob (falling back to JPEG if WebP encoding is unavailable).
+ */
+export async function optimizeImageToWebP(
+  fileOrDataUrl: File | string,
+  options: ImageUploadOptions = {}
+): Promise<{ blob: Blob; contentType: string; ext: string }> {
+  const maxDimension = options.maxDimension ?? 1280;
+  const quality = options.quality ?? 0.82;
+
+  if (typeof window === 'undefined' || typeof document === 'undefined') {
+    if (fileOrDataUrl instanceof File) {
+      return {
+        blob: fileOrDataUrl,
+        contentType: fileOrDataUrl.type || 'image/jpeg',
+        ext: fileOrDataUrl.name.split('.').pop() || 'jpg',
+      };
+    }
+    throw new Error('Image optimization requires a browser context');
+  }
+
+  // Videos or SVGs bypass canvas rasterization
+  if (fileOrDataUrl instanceof File) {
+    if (fileOrDataUrl.type.startsWith('video/') || fileOrDataUrl.type === 'image/svg+xml') {
+      return {
+        blob: fileOrDataUrl,
+        contentType: fileOrDataUrl.type,
+        ext: fileOrDataUrl.name.split('.').pop() || 'bin',
+      };
+    }
+  }
+
+  const objectUrl =
+    fileOrDataUrl instanceof File ? URL.createObjectURL(fileOrDataUrl) : fileOrDataUrl;
+
+  try {
+    const img = await new Promise<HTMLImageElement>((resolve, reject) => {
+      const el = new Image();
+      el.onload = () => resolve(el);
+      el.onerror = () => reject(new Error('Falha ao decodificar imagem para otimização'));
+      el.src = objectUrl;
+    });
+
+    let width = img.naturalWidth || img.width;
+    let height = img.naturalHeight || img.height;
+
+    if (width > maxDimension || height > maxDimension) {
+      if (width >= height) {
+        height = Math.max(1, Math.round((height * maxDimension) / width));
+        width = maxDimension;
+      } else {
+        width = Math.max(1, Math.round((width * maxDimension) / height));
+        height = maxDimension;
+      }
+    }
+
+    const canvas = document.createElement('canvas');
+    canvas.width = width;
+    canvas.height = height;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) {
+      throw new Error('Contexto 2D indisponível');
+    }
+    ctx.imageSmoothingEnabled = true;
+    ctx.imageSmoothingQuality = 'high';
+    ctx.drawImage(img, 0, 0, width, height);
+
+    const webpBlob = await new Promise<Blob | null>((resolve) => {
+      canvas.toBlob((b) => resolve(b), 'image/webp', quality);
+    });
+
+    if (webpBlob && webpBlob.type === 'image/webp' && webpBlob.size > 0) {
+      return { blob: webpBlob, contentType: 'image/webp', ext: 'webp' };
+    }
+
+    const jpegBlob = await new Promise<Blob | null>((resolve) => {
+      canvas.toBlob((b) => resolve(b), 'image/jpeg', Math.min(0.88, quality + 0.04));
+    });
+
+    if (jpegBlob && jpegBlob.size > 0) {
+      return { blob: jpegBlob, contentType: 'image/jpeg', ext: 'jpg' };
+    }
+
+    if (fileOrDataUrl instanceof File) {
+      return {
+        blob: fileOrDataUrl,
+        contentType: fileOrDataUrl.type || 'image/jpeg',
+        ext: fileOrDataUrl.name.split('.').pop() || 'jpg',
+      };
+    }
+
+    throw new Error('Falha ao gerar imagem otimizada');
+  } finally {
+    if (fileOrDataUrl instanceof File) {
+      URL.revokeObjectURL(objectUrl);
+    }
+  }
+}
+
+function blobToDataUrl(blob: Blob): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(String(reader.result || ''));
+    reader.onerror = () => reject(new Error('Falha ao converter imagem'));
+    reader.readAsDataURL(blob);
+  });
+}
+
+/**
+ * Optimizes (WebP + resize) and uploads an image or video to Supabase Storage ('monvian-media' bucket).
+ * Falls back to '/api/admin/upload' (which also stores in Supabase Storage) and NEVER returns Base64.
  */
 export async function uploadMediaToSupabaseStorage(
   fileOrDataUrl: File | string,
-  folder = 'spots'
+  folder = 'spots',
+  options: ImageUploadOptions = {}
 ): Promise<string | null> {
-  if (!isSupabaseConfigured) return null;
+  const defaultMaxDim = folder === 'avatars' ? 384 : 1280;
+  let blob: Blob;
+  let contentType = 'image/webp';
+  let ext = 'webp';
 
   try {
-    let blob: Blob;
-    let ext = 'jpg';
-    let contentType = 'image/jpeg';
-
-    if (typeof fileOrDataUrl === 'string') {
-      const match = fileOrDataUrl.match(/^data:(image|video)\/([a-zA-Z0-9.+-]+);base64,(.+)$/);
-      if (!match) return null;
-      const mimeCategory = match[1];
-      const mimeSubtype = match[2];
-      contentType = `${mimeCategory}/${mimeSubtype}`;
-      ext = mimeSubtype === 'jpeg' ? 'jpg' : mimeSubtype;
-      const byteCharacters = atob(match[3]);
-      const byteArrays = [];
-      for (let offset = 0; offset < byteCharacters.length; offset += 512) {
-        const slice = byteCharacters.slice(offset, offset + 512);
-        const byteNumbers = new Array(slice.length);
-        for (let i = 0; i < slice.length; i++) {
-          byteNumbers[i] = slice.charCodeAt(i);
-        }
-        byteArrays.push(new Uint8Array(byteNumbers));
-      }
-      blob = new Blob(byteArrays, { type: contentType });
-    } else {
+    const optimized = await optimizeImageToWebP(fileOrDataUrl, {
+      maxDimension: options.maxDimension ?? defaultMaxDim,
+      quality: options.quality ?? 0.82,
+      filename: options.filename,
+    });
+    blob = optimized.blob;
+    contentType = optimized.contentType;
+    ext = optimized.ext;
+  } catch {
+    if (fileOrDataUrl instanceof File) {
       blob = fileOrDataUrl;
       contentType = fileOrDataUrl.type || 'image/jpeg';
       ext = fileOrDataUrl.name.split('.').pop() || 'jpg';
-    }
-
-    const filePath = `${folder}/${Date.now()}-${Math.random().toString(36).substring(2, 8)}.${ext}`;
-    const { data, error } = await supabase.storage
-      .from('monvian-media')
-      .upload(filePath, blob, {
-        contentType,
-        upsert: true,
-      });
-
-    if (error || !data) {
+    } else if (typeof fileOrDataUrl === 'string' && fileOrDataUrl.startsWith('data:')) {
+      const match = fileOrDataUrl.match(/^data:(image|video)\/([a-zA-Z0-9.+-]+);base64,(.+)$/);
+      if (!match) return null;
+      contentType = `${match[1]}/${match[2]}`;
+      ext = match[2] === 'jpeg' ? 'jpg' : match[2];
+      const byteCharacters = atob(match[3]);
+      const bytes = new Uint8Array(byteCharacters.length);
+      for (let i = 0; i < byteCharacters.length; i++) {
+        bytes[i] = byteCharacters.charCodeAt(i);
+      }
+      blob = new Blob([bytes], { type: contentType });
+    } else {
       return null;
     }
-
-    const { data: publicUrlData } = supabase.storage
-      .from('monvian-media')
-      .getPublicUrl(data.path);
-
-    return publicUrlData?.publicUrl || null;
-  } catch {
-    return null;
   }
+
+  // 1. Direct upload to Supabase Storage ('monvian-media')
+  if (isSupabaseConfigured && supabase) {
+    try {
+      const filePath = `${folder}/${Date.now()}-${Math.random().toString(36).substring(2, 8)}.${ext}`;
+      const { data, error } = await supabase.storage
+        .from('monvian-media')
+        .upload(filePath, blob, {
+          contentType,
+          cacheControl: '31536000',
+          upsert: true,
+        });
+
+      if (!error && data) {
+        const { data: publicUrlData } = supabase.storage
+          .from('monvian-media')
+          .getPublicUrl(data.path);
+        if (publicUrlData?.publicUrl) {
+          return publicUrlData.publicUrl;
+        }
+      }
+    } catch {
+      // fall through to backend upload proxy
+    }
+  }
+
+  // 2. Backend upload proxy (/api/admin/upload -> Supabase Storage, never inline Base64)
+  try {
+    const dataUrl = await blobToDataUrl(blob);
+    const token = typeof window !== 'undefined' ? localStorage.getItem('monvian_token') : null;
+    const res = await fetch('/api/admin/upload', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      },
+      body: JSON.stringify({
+        imageBase64: dataUrl,
+        folder,
+        filename: options.filename || `upload.${ext}`,
+      }),
+    });
+    const json = await res.json();
+    if (json?.success && typeof json.url === 'string' && !json.url.startsWith('data:')) {
+      return json.url;
+    }
+  } catch {
+    // ignore
+  }
+
+  return null;
 }

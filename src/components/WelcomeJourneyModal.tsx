@@ -42,8 +42,10 @@ export const WelcomeJourneyModal: React.FC<WelcomeJourneyModalProps> = ({
           }}
         >
           <img
-            src="/public/assets/aistudio/IMG_9933_67c87042.jpeg"
+            src="https://gxyqrwebnkbgxqrfdvuj.supabase.co/storage/v1/object/public/monvian-media/app-assets/welcome-journey-hero-67c87042035790dd.webp"
             alt="Bem-vindo ao Monvian"
+            decoding="async"
+            referrerPolicy="no-referrer"
             className="absolute inset-0 w-full h-full object-cover pointer-events-none select-none"
             draggable={false}
           />

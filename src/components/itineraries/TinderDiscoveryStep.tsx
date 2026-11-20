@@ -93,7 +93,7 @@ const SingleCard: React.FC<SingleCardProps> = ({ cardData, isFront, onSwipe, isD
       {/* Visual Stamp Indicators: LIKE (Right) & SKIP (Left) */}
       <motion.div
         style={{ opacity: likeOpacity }}
-        className="absolute top-5 left-5 z-20 pointer-events-none transform -rotate-12 bg-white/95 backdrop-blur-md text-black border-2 border-white px-4 py-1.5 rounded-2xl shadow-xl"
+        className="absolute top-5 left-5 z-20 pointer-events-none transform -rotate-12 bg-white/95 text-black border-2 border-white px-4 py-1.5 rounded-2xl shadow-xl"
       >
         <span className="text-sm font-black uppercase tracking-wider flex items-center gap-1.5 text-black">
           <Check className="w-5 h-5 stroke-[3] text-black" />
@@ -103,7 +103,7 @@ const SingleCard: React.FC<SingleCardProps> = ({ cardData, isFront, onSwipe, isD
 
       <motion.div
         style={{ opacity: skipOpacity }}
-        className="absolute top-5 right-5 z-20 pointer-events-none transform rotate-12 bg-rose-500/95 backdrop-blur-md text-white border-2 border-white px-4 py-1.5 rounded-2xl shadow-xl"
+        className="absolute top-5 right-5 z-20 pointer-events-none transform rotate-12 bg-rose-500/95 text-white border-2 border-white px-4 py-1.5 rounded-2xl shadow-xl"
       >
         <span className="text-sm font-black uppercase tracking-wider flex items-center gap-1.5">
           <X className="w-5 h-5 stroke-[3]" />

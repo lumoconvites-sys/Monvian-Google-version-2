@@ -2915,48 +2915,107 @@ async function startServer() {
   });
 
   // ===========================================================================
-  // 2. TOURIST SPOTS CRUD + SUPABASE STORAGE UPLOAD
+  // 2. TOURIST SPOTS CRUD + SUPABASE STORAGE UPLOAD (WITH SWR MEMORY CACHE)
   // ===========================================================================
+  const SPOTS_CACHE_TTL_MS = 30_000;
+  let spotsCacheData: any[] | null = null;
+  let spotsCacheUpdatedAt = 0;
+  let spotsRefreshPromise: Promise<any[]> | null = null;
+
+  const invalidateSpotsCache = () => {
+    spotsCacheData = null;
+    spotsCacheUpdatedAt = 0;
+  };
+
+  const loadSpotsLocalSnapshot = (): any[] => {
+    const localRows = db
+      .prepare('SELECT * FROM spots WHERE is_active = 1 ORDER BY is_star DESC, rating DESC, name ASC')
+      .all() as any[];
+    return localRows.length > 0 ? localRows.map(formatSpotRow) : CAMPOS_SPOTS;
+  };
+
+  const refreshSpotsFromSources = (): Promise<any[]> => {
+    if (spotsRefreshPromise) return spotsRefreshPromise;
+    spotsRefreshPromise = (async () => {
+      try {
+        const localRows = db
+          .prepare('SELECT * FROM spots WHERE is_active = 1 ORDER BY is_star DESC, rating DESC, name ASC')
+          .all() as any[];
+        const localMap = new Map(localRows.map((r) => [String(r.id), r]));
+
+        if (supabase) {
+          const { data, error } = await supabase
+            .from('spots')
+            .select('*')
+            .eq('is_active', 1)
+            .order('name', { ascending: true });
+          if (!error && Array.isArray(data) && data.length > 0) {
+            const seenIds = new Set<string>();
+            const merged = data.map((supaRow: any) => {
+              const sid = String(supaRow.id);
+              seenIds.add(sid);
+              const localRow = localMap.get(sid);
+              if (localRow) {
+                return formatSpotRow({
+                  ...supaRow,
+                  ...localRow,
+                  rating: localRow.rating ?? supaRow.rating,
+                  review_count: localRow.review_count ?? supaRow.review_count,
+                  is_star:
+                    localRow.is_star !== undefined && localRow.is_star !== null
+                      ? localRow.is_star
+                      : (supaRow.is_star ?? (supaRow.badge === 'Estrela' ? 1 : 0)),
+                });
+              }
+              return formatSpotRow(supaRow);
+            });
+            for (const lr of localRows) {
+              if (!seenIds.has(String(lr.id))) {
+                merged.push(formatSpotRow(lr));
+              }
+            }
+            spotsCacheData = merged;
+            spotsCacheUpdatedAt = Date.now();
+            return merged;
+          }
+        }
+        const fallbackSpots = localRows.length > 0 ? localRows.map(formatSpotRow) : CAMPOS_SPOTS;
+        spotsCacheData = fallbackSpots;
+        spotsCacheUpdatedAt = Date.now();
+        return fallbackSpots;
+      } catch {
+        return spotsCacheData || loadSpotsLocalSnapshot();
+      } finally {
+        spotsRefreshPromise = null;
+      }
+    })();
+    return spotsRefreshPromise;
+  };
+
+  // Warm the spots cache asynchronously on boot without blocking startup
+  void refreshSpotsFromSources();
+
   app.get('/api/spots', async (_req: Request, res: Response) => {
     try {
-      const localRows = db.prepare('SELECT * FROM spots WHERE is_active = 1 ORDER BY is_star DESC, rating DESC, name ASC').all() as any[];
-      const localMap = new Map(localRows.map((r) => [String(r.id), r]));
-
-      if (supabase) {
-        const { data, error } = await supabase
-          .from('spots')
-          .select('*')
-          .eq('is_active', 1)
-          .order('name', { ascending: true });
-        if (!error && Array.isArray(data) && data.length > 0) {
-          const seenIds = new Set<string>();
-          const merged = data.map((supaRow: any) => {
-            const sid = String(supaRow.id);
-            seenIds.add(sid);
-            const localRow = localMap.get(sid);
-            if (localRow) {
-              return formatSpotRow({
-                ...supaRow,
-                ...localRow,
-                rating: localRow.rating ?? supaRow.rating,
-                review_count: localRow.review_count ?? supaRow.review_count,
-                is_star: localRow.is_star !== undefined && localRow.is_star !== null
-                  ? localRow.is_star
-                  : (supaRow.is_star ?? (supaRow.badge === 'Estrela' ? 1 : 0)),
-              });
-            }
-            return formatSpotRow(supaRow);
-          });
-          for (const lr of localRows) {
-            if (!seenIds.has(String(lr.id))) {
-              merged.push(formatSpotRow(lr));
-            }
-          }
-          return res.json({ success: true, spots: merged });
+      const now = Date.now();
+      res.setHeader('Cache-Control', 'public, max-age=15, stale-while-revalidate=60');
+      if (spotsCacheData) {
+        if (now - spotsCacheUpdatedAt > SPOTS_CACHE_TTL_MS) {
+          // Stale-while-revalidate: serve immediately (<5ms) and refresh Supabase in background
+          void refreshSpotsFromSources();
         }
+        return res.json({ success: true, spots: spotsCacheData });
       }
-      const spots = localRows.length > 0 ? localRows.map(formatSpotRow) : CAMPOS_SPOTS;
-      return res.json({ success: true, spots });
+      // First cold hit: serve SQLite snapshot immediately if available while hydrating Supabase in background
+      const localImmediate = loadSpotsLocalSnapshot();
+      if (localImmediate.length > 0) {
+        spotsCacheData = localImmediate;
+        spotsCacheUpdatedAt = 0; // trigger background Supabase merge immediately
+        void refreshSpotsFromSources();
+        return res.json({ success: true, spots: localImmediate });
+      }
+      const hydrated = await refreshSpotsFromSources();
+      return res.json({ success: true, spots: hydrated });
     } catch {
       return res.json({ success: true, spots: CAMPOS_SPOTS });
     }
@@ -3079,6 +3138,7 @@ async function startServer() {
       const updatedRow = db.prepare('SELECT * FROM spots WHERE id = ?').get(id) as any;
       const formattedSpot = formatSpotRow(updatedRow || { ...existingSpot, rating: nextRating, review_count: nextCount });
 
+      invalidateSpotsCache();
       await persistSpotToSupabase(updatedRow || formattedSpot);
       persistSpotToFirestore(formattedSpot).catch(() => {});
 
@@ -3251,6 +3311,7 @@ async function startServer() {
       const createdRow = db.prepare('SELECT * FROM spots WHERE id = ?').get(spotId);
       const formatted = formatSpotRow(createdRow);
 
+      invalidateSpotsCache();
       await persistSpotToSupabase(createdRow);
       persistSpotToFirestore(formatted).catch(() => {});
 
@@ -3364,6 +3425,7 @@ async function startServer() {
       const updatedRow = db.prepare('SELECT * FROM spots WHERE id = ?').get(id);
       const formatted = formatSpotRow(updatedRow);
 
+      invalidateSpotsCache();
       await persistSpotToSupabase(updatedRow);
       persistSpotToFirestore(formatted).catch(() => {});
 
@@ -3380,6 +3442,7 @@ async function startServer() {
       }
       const { id } = req.params;
       db.prepare('DELETE FROM spots WHERE id = ?').run(id);
+      invalidateSpotsCache();
       await deleteSpotFromSupabase(id);
       deleteSpotFromFirestore(id).catch(() => {});
       return res.json({ success: true });
@@ -3388,7 +3451,7 @@ async function startServer() {
     }
   });
 
-  // Supabase Storage Upload Endpoint (for spots, events, avatars, stories)
+  // Supabase Storage Upload Endpoint (for spots, itineraries, events, avatars, stories — never persists raw Base64)
   app.post('/api/admin/upload', async (req: Request, res: Response) => {
     try {
       const { imageBase64, folder = 'spots', filename } = req.body || {};
@@ -3396,35 +3459,71 @@ async function startServer() {
         return res.status(400).json({ success: false, error: 'Imagem não fornecida' });
       }
 
-      if (supabase && imageBase64.startsWith('data:')) {
-        try {
-          const matches = imageBase64.match(/^data:([^;]+);base64,(.+)$/);
-          if (matches) {
-            const contentType = matches[1];
-            const base64Data = matches[2];
-            const buffer = Buffer.from(base64Data, 'base64');
-            const ext = contentType.split('/')[1]?.replace('jpeg', 'jpg') || 'jpg';
-            const objectPath = `${folder}/${Date.now()}-${filename ? filename.replace(/[^a-zA-Z0-9._-]/g, '') : Math.random().toString(36).substring(2, 8)}.${ext}`;
-
-            const { error: uploadError } = await supabase.storage
-              .from('monvian-media')
-              .upload(objectPath, buffer, {
-                contentType,
-                upsert: true,
-              });
-
-            if (!uploadError) {
-              const { data: pubData } = supabase.storage.from('monvian-media').getPublicUrl(objectPath);
-              if (pubData?.publicUrl) {
-                return res.json({ success: true, url: pubData.publicUrl, storage: 'supabase' });
-              }
-            }
-          }
-        } catch {}
+      if (!supabase) {
+        return res.status(503).json({ success: false, error: 'Supabase Storage não configurado no servidor.' });
       }
 
-      // Fallback to data URL so image upload never fails even if bucket isn't created yet
-      return res.json({ success: true, url: imageBase64, storage: 'inline' });
+      if (!imageBase64.startsWith('data:')) {
+        return res.status(400).json({ success: false, error: 'Formato de imagem inválido para upload.' });
+      }
+
+      const matches = imageBase64.match(/^data:([^;]+);base64,(.+)$/);
+      if (!matches) {
+        return res.status(400).json({ success: false, error: 'Payload Base64 inválido.' });
+      }
+
+      let contentType = matches[1];
+      let buffer = Buffer.from(matches[2], 'base64');
+      let ext = contentType.split('/')[1]?.replace('jpeg', 'jpg') || 'webp';
+
+      // Optimize non-WebP raster images to WebP server-side when ImageMagick is available
+      if (contentType.startsWith('image/') && contentType !== 'image/webp' && contentType !== 'image/svg+xml') {
+        try {
+          const { execFileSync } = await import('child_process');
+          const os = await import('os');
+          const tmpIn = path.join(os.tmpdir(), `monvian_up_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`);
+          const tmpOut = `${tmpIn}.webp`;
+          fs.writeFileSync(tmpIn, buffer);
+          try {
+            const maxDim = folder === 'avatars' ? 384 : 1280;
+            execFileSync('convert', [tmpIn, '-auto-orient', '-strip', '-resize', `${maxDim}x${maxDim}>`, '-quality', '82', tmpOut], { stdio: 'pipe' });
+            buffer = fs.readFileSync(tmpOut);
+            contentType = 'image/webp';
+            ext = 'webp';
+          } finally {
+            try { fs.unlinkSync(tmpIn); } catch {}
+            try { fs.unlinkSync(tmpOut); } catch {}
+          }
+        } catch {
+          // Keep client-optimized buffer if ImageMagick isn't available
+        }
+      }
+
+      const safeFolder = String(folder).replace(/[^a-zA-Z0-9_-]/g, '') || 'spots';
+      const safeName = filename ? String(filename).replace(/\.[^.]+$/, '').replace(/[^a-zA-Z0-9_-]/g, '').slice(0, 32) : Math.random().toString(36).substring(2, 8);
+      const objectPath = `${safeFolder}/${Date.now()}-${safeName}.${ext}`;
+
+      const { error: uploadError } = await supabase.storage
+        .from('monvian-media')
+        .upload(objectPath, buffer, {
+          contentType,
+          cacheControl: '31536000',
+          upsert: true,
+        });
+
+      if (uploadError) {
+        return res.status(502).json({
+          success: false,
+          error: `Falha no upload para o Supabase Storage: ${uploadError.message}`,
+        });
+      }
+
+      const { data: pubData } = supabase.storage.from('monvian-media').getPublicUrl(objectPath);
+      if (!pubData?.publicUrl) {
+        return res.status(502).json({ success: false, error: 'Não foi possível obter URL pública do Supabase Storage.' });
+      }
+
+      return res.json({ success: true, url: pubData.publicUrl, storage: 'supabase' });
     } catch (err: any) {
       return res.status(500).json({ success: false, error: err.message });
     }

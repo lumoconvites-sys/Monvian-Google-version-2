@@ -280,8 +280,11 @@ const FeaturedItineraryBanner: React.FC<FeaturedItineraryBannerProps> = ({
         {/* Touca de Natal exclusiva do Roteiro em Destaque com animação de entrada e interação ao toque */}
         <motion.img
           key={`hat-${itinerary.id}-${category}-${hatTapCount}`}
-          src="/assets/aistudio/IMG_9114_2aef8105.png"
+          src="https://gxyqrwebnkbgxqrfdvuj.supabase.co/storage/v1/object/public/monvian-media/app-assets/itinerary-explorer-icon-5dc56fd5b017766c.webp"
           alt="Gorro de Natal"
+          loading="lazy"
+          decoding="async"
+          referrerPolicy="no-referrer"
           draggable={false}
           onClick={(e) => {
             e.stopPropagation();
@@ -1676,7 +1679,7 @@ const HorizontalReferenceItineraryCard: React.FC<HorizontalReferenceItineraryCar
                     <span>Liberado</span>
                   </div>
                 ) : (
-                  <div className="px-3 py-1 rounded-full bg-black/70 backdrop-blur-md text-white border border-white/15 text-[11px] font-semibold flex items-center gap-1.5 tabular-nums">
+                  <div className="px-3 py-1 rounded-full bg-black/70 text-white border border-white/15 text-[11px] font-semibold flex items-center gap-1.5 tabular-nums">
                     <PlatanoLeafIcon className="w-[21px] h-[21px] shrink-0" variant="light" />
                     <span>{platanoPrice} Plátanos</span>
                   </div>

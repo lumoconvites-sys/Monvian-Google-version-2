@@ -59,6 +59,7 @@ interface MapComponentProps {
   isGlobeIntroPlaying?: boolean;
   onGlobeIntroComplete?: () => void;
   activeRoute?: ActiveMapRoute | null;
+  isSuspended?: boolean;
 }
 
 const getMapboxToken = (): string => {
@@ -360,11 +361,22 @@ export const MapComponent = memo(
       isGlobeIntroPlaying = false,
       onGlobeIntroComplete,
       activeRoute = null,
+      isSuspended = false,
     },
     ref
   ) => {
     const mapContainerRef = useRef<HTMLDivElement | null>(null);
     const mapRef = useRef<maplibregl.Map | null>(null);
+    const isSuspendedRef = useRef<boolean>(isSuspended);
+    isSuspendedRef.current = isSuspended;
+    const savedSuspendedCameraRef = useRef<{
+      center: [number, number];
+      zoom: number;
+      pitch: number;
+      bearing: number;
+    } | null>(null);
+    const clusterMarkersRef = useRef<maplibregl.Marker[]>([]);
+    const syncMarkerClustersRef = useRef<(() => void) | null>(null);
     const [currentMode, setCurrentMode] = useState<MapModeType>(
       mapMode === 'satelite' ? 'satelite' : 'explorar'
     );
@@ -860,8 +872,61 @@ export const MapComponent = memo(
       }
     }, [mapMode]);
 
-    // Initialize or swap map style ONLY when mode or theme genuinely changes
+    // Initialize, suspend (release WebGL when another 3D map is active), or swap map style in-place
     useEffect(() => {
+      if (isSuspended) {
+        if (mapRef.current) {
+          try {
+            const c = mapRef.current.getCenter();
+            savedSuspendedCameraRef.current = {
+              center: [c.lng, c.lat],
+              zoom: mapRef.current.getZoom(),
+              pitch: mapRef.current.getPitch(),
+              bearing: mapRef.current.getBearing(),
+            };
+          } catch {}
+
+          if (userMarkerRef.current) {
+            try {
+              userMarkerRef.current.remove();
+            } catch {}
+            userMarkerRef.current = null;
+          }
+          userMarkerMapRef.current = null;
+          userAvatarImgRef.current = null;
+          userBeamRef.current = null;
+
+          markerRecordsRef.current.forEach((rec) => {
+            try {
+              rec.marker.remove();
+            } catch {}
+          });
+          markerRecordsRef.current = [];
+          animatedSpotIdsRef.current.clear();
+
+          clusterMarkersRef.current.forEach((cm) => {
+            try {
+              cm.remove();
+            } catch {}
+          });
+          clusterMarkersRef.current = [];
+
+          visualIconMarkersRef.current.forEach((m) => {
+            try {
+              m.remove();
+            } catch {}
+          });
+          visualIconMarkersRef.current = [];
+
+          try {
+            mapRef.current.remove();
+          } catch {}
+          mapRef.current = null;
+          prevStyleKeyRef.current = '';
+        }
+        return;
+      }
+
       if (!mapContainerRef.current) return;
 
       const styleKey = `${currentMode}:${theme}`;
@@ -870,15 +935,36 @@ export const MapComponent = memo(
       if (!mapRef.current) {
         prevStyleKeyRef.current = styleKey;
         const startOrbital = isGlobeIntroActiveRef.current;
+        const resumedCam = savedSuspendedCameraRef.current;
         const map = new maplibregl.Map({
           container: mapContainerRef.current,
           style: style,
-          center: startOrbital ? [-22, -10] : CAMPOS_OVERVIEW_CENTER,
-          zoom: startOrbital ? getOrbitalEarthZoom() : CAMPOS_OVERVIEW_ZOOM,
+          center: resumedCam
+            ? resumedCam.center
+            : startOrbital
+              ? [-22, -10]
+              : CAMPOS_OVERVIEW_CENTER,
+          zoom: resumedCam
+            ? resumedCam.zoom
+            : startOrbital
+              ? getOrbitalEarthZoom()
+              : CAMPOS_OVERVIEW_ZOOM,
           minZoom: 0.4,
           maxZoom: 20,
-          pitch: startOrbital ? 0 : is3DModeRef.current ? 60 : 0,
-          bearing: startOrbital ? 0 : is3DModeRef.current ? -20 : 0,
+          pitch: resumedCam
+            ? resumedCam.pitch
+            : startOrbital
+              ? 0
+              : is3DModeRef.current
+                ? 60
+                : 0,
+          bearing: resumedCam
+            ? resumedCam.bearing
+            : startOrbital
+              ? 0
+              : is3DModeRef.current
+                ? -20
+                : 0,
           maxPitch: 75,
           pitchWithRotate: true,
           touchPitch: true,
@@ -904,14 +990,25 @@ export const MapComponent = memo(
         let lastHideUserPin: boolean | null = null;
         let viewportCullRafId: number | null = null;
 
+        const clearClusterMarkers = () => {
+          if (clusterMarkersRef.current.length === 0) return;
+          for (let i = 0; i < clusterMarkersRef.current.length; i++) {
+            try {
+              clusterMarkersRef.current[i].remove();
+            } catch {}
+          }
+          clusterMarkersRef.current = [];
+        };
+
         const syncViewportMarkerVisibility = () => {
           viewportCullRafId = null;
           const records = markerRecordsRef.current;
-          if (!records.length || !mapRef.current) return;
+          if (!records.length || !mapRef.current || mapRef.current !== map) return;
 
           const z = map.getZoom();
           // Always show all markers during orbital globe / regional zoom or spotlight
           if (z < 9.5 || isGlobeIntroActiveRef.current || isSpotlightActiveRef.current) {
+            clearClusterMarkers();
             for (let i = 0; i < records.length; i++) {
               const rec = records[i];
               if (rec.isCulledOffscreen) {
@@ -934,22 +1031,146 @@ export const MapComponent = memo(
             const maxLng = ne.lng + lngPad;
             const activeId = selectedSpotRef.current?.id;
 
+            const shouldCluster =
+              z < 13.4 &&
+              !isFocusModeRef.current &&
+              !activeRouteRef.current &&
+              records.length >= 10;
+
+            clearClusterMarkers();
+
+            if (!shouldCluster) {
+              for (let i = 0; i < records.length; i++) {
+                const rec = records[i];
+                const inView =
+                  rec.spotId === activeId ||
+                  (rec.lat >= minLat && rec.lat <= maxLat && rec.lng >= minLng && rec.lng <= maxLng);
+                const shouldCull = !inView;
+                if (rec.isCulledOffscreen !== shouldCull) {
+                  rec.isCulledOffscreen = shouldCull;
+                  rec.el.style.visibility = shouldCull ? 'hidden' : '';
+                }
+              }
+              return;
+            }
+
+            // Lightweight screen-space spatial clustering at city overview zoom (< 13.4)
+            const CLUSTER_RADIUS_PX = 52;
+            const CLUSTER_RADIUS_SQ = CLUSTER_RADIUS_PX * CLUSTER_RADIUS_PX;
+            const visibleCandidates: Array<{ rec: (typeof records)[number]; x: number; y: number }> = [];
+
             for (let i = 0; i < records.length; i++) {
               const rec = records[i];
+              const isSelected = rec.spotId === activeId;
               const inView =
-                rec.spotId === activeId ||
+                isSelected ||
                 (rec.lat >= minLat && rec.lat <= maxLat && rec.lng >= minLng && rec.lng <= maxLng);
-              const shouldCull = !inView;
-              if (rec.isCulledOffscreen !== shouldCull) {
-                rec.isCulledOffscreen = shouldCull;
-                rec.el.style.visibility = shouldCull ? 'hidden' : '';
+              if (!inView) {
+                if (!rec.isCulledOffscreen) {
+                  rec.isCulledOffscreen = true;
+                  rec.el.style.visibility = 'hidden';
+                }
+                continue;
+              }
+              if (isSelected) {
+                if (rec.isCulledOffscreen) {
+                  rec.isCulledOffscreen = false;
+                  rec.el.style.visibility = '';
+                }
+                continue;
+              }
+              const pt = map.project([rec.lng, rec.lat]);
+              visibleCandidates.push({ rec, x: pt.x, y: pt.y });
+            }
+
+            const visited = new Uint8Array(visibleCandidates.length);
+            const isDarkCluster = themeRef.current === 'dark';
+
+            for (let i = 0; i < visibleCandidates.length; i++) {
+              if (visited[i]) continue;
+              visited[i] = 1;
+              const seed = visibleCandidates[i];
+              const group = [seed];
+
+              for (let j = i + 1; j < visibleCandidates.length; j++) {
+                if (visited[j]) continue;
+                const cand = visibleCandidates[j];
+                const dx = seed.x - cand.x;
+                const dy = seed.y - cand.y;
+                if (dx * dx + dy * dy <= CLUSTER_RADIUS_SQ) {
+                  visited[j] = 1;
+                  group.push(cand);
+                }
+              }
+
+              if (group.length === 1) {
+                if (seed.rec.isCulledOffscreen) {
+                  seed.rec.isCulledOffscreen = false;
+                  seed.rec.el.style.visibility = '';
+                }
+              } else {
+                let sumLng = 0;
+                let sumLat = 0;
+                let hasStar = false;
+                for (let k = 0; k < group.length; k++) {
+                  const item = group[k].rec;
+                  sumLng += item.lng;
+                  sumLat += item.lat;
+                  if (item.isStar) hasStar = true;
+                  if (!item.isCulledOffscreen) {
+                    item.isCulledOffscreen = true;
+                    item.el.style.visibility = 'hidden';
+                  }
+                }
+                const centerLng = sumLng / group.length;
+                const centerLat = sumLat / group.length;
+
+                const clusterEl = document.createElement('button');
+                clusterEl.type = 'button';
+                clusterEl.className = 'monvian-cluster-marker cursor-pointer select-none';
+                clusterEl.setAttribute('aria-label', `${group.length} locais agrupados`);
+                clusterEl.style.width = '40px';
+                clusterEl.style.height = '40px';
+                clusterEl.style.borderRadius = '9999px';
+                clusterEl.style.display = 'flex';
+                clusterEl.style.alignItems = 'center';
+                clusterEl.style.justifyContent = 'center';
+                clusterEl.style.fontWeight = '700';
+                clusterEl.style.fontSize = '13px';
+                clusterEl.style.letterSpacing = '-0.02em';
+                clusterEl.style.backgroundColor = isDarkCluster ? '#171717' : '#FFFFFF';
+                clusterEl.style.color = isDarkCluster ? '#FFFFFF' : '#000000';
+                clusterEl.style.border = hasStar
+                  ? '2px solid #FFD60A'
+                  : isDarkCluster
+                    ? '1.5px solid rgba(255,255,255,0.22)'
+                    : '1.5px solid rgba(0,0,0,0.14)';
+                clusterEl.style.boxShadow = '0 4px 12px rgba(0,0,0,0.26)';
+                clusterEl.textContent = String(group.length);
+
+                clusterEl.onclick = (e) => {
+                  e.stopPropagation();
+                  triggerHapticFeedback(10);
+                  map.easeTo({
+                    center: [centerLng, centerLat],
+                    zoom: Math.min(Math.max(map.getZoom() + 2.1, 13.8), 15.6),
+                    duration: 420,
+                  });
+                };
+
+                const cm = new maplibregl.Marker({ element: clusterEl, opacityWhenCovered: '0' })
+                  .setLngLat([centerLng, centerLat])
+                  .addTo(map);
+                clusterMarkersRef.current.push(cm);
               }
             }
           } catch {}
         };
 
+        syncMarkerClustersRef.current = syncViewportMarkerVisibility;
+
         const scheduleViewportMarkerCull = () => {
-          if (markerRecordsRef.current.length < 30 || viewportCullRafId !== null) return;
+          if (markerRecordsRef.current.length < 10 || viewportCullRafId !== null) return;
           viewportCullRafId = requestAnimationFrame(syncViewportMarkerVisibility);
         };
 
@@ -995,7 +1216,9 @@ export const MapComponent = memo(
             userMarkerRef.current?.setLngLat(currentGpsState.coords);
             latestUserCoordsRef.current = currentGpsState.coords;
           }
-          if (isGlobeIntroActiveRef.current) {
+          if (savedSuspendedCameraRef.current) {
+            savedSuspendedCameraRef.current = null;
+          } else if (isGlobeIntroActiveRef.current) {
             map.jumpTo({
               center: [-22, -10],
               zoom: getOrbitalEarthZoom(),
@@ -1116,7 +1339,7 @@ export const MapComponent = memo(
       } else {
         ensureUserMarker(mapRef.current);
       }
-    }, [currentMode, theme, ensureUserMarker]);
+    }, [currentMode, theme, ensureUserMarker, isSuspended]);
 
     // Subscribe to Device Compass / 3D Orientation Heading for the Blue Flashlight ("Lanterna Azul") & Compass Icon
     useEffect(() => {
@@ -1126,8 +1349,8 @@ export const MapComponent = memo(
 
       const unsubscribeHeading = deviceHeadingManager.subscribe((rawHeading) => {
         if (isNaN(rawHeading)) return;
-        // Skip DOM mutations when map tab is hidden in the background
-        if (activeTabRef.current && activeTabRef.current !== 'explorar') return;
+        // Skip DOM mutations when map tab is hidden or suspended in the background
+        if (isSuspendedRef.current || (activeTabRef.current && activeTabRef.current !== 'explorar')) return;
 
         if (mapRef.current && (!userMarkerRef.current || !userBeamRef.current)) {
           ensureUserMarker(mapRef.current);
@@ -1662,6 +1885,13 @@ export const MapComponent = memo(
         markerRecordsRef.current = [];
         animatedSpotIdsRef.current.clear();
 
+        clusterMarkersRef.current.forEach((cm) => {
+          try {
+            cm.remove();
+          } catch (e) {}
+        });
+        clusterMarkersRef.current = [];
+
         visualIconMarkersRef.current.forEach((m) => {
           try {
             m.remove();
@@ -1759,8 +1989,6 @@ export const MapComponent = memo(
       pulseScaleWrapEl: HTMLDivElement;
       badgeEl: HTMLDivElement;
       pulseEl: HTMLDivElement;
-      rippleEl: HTMLDivElement;
-      secondaryRippleEl: HTMLDivElement;
       imgEl: HTMLImageElement;
       lat: number;
       lng: number;
@@ -1815,50 +2043,57 @@ export const MapComponent = memo(
       selectedSpotRef.current = selectedSpot;
     }, [selectedSpot]);
 
-    // Trigger short haptic feedback + Framer Motion scale expansion & dual concentric ripple synchronized with instant click SFX
+    // Trigger short haptic feedback + ephemeral ripple created on-demand (zero resting DOM overhead)
     const triggerPinTapFeedback = useCallback(
       (
+        containerEl: HTMLDivElement,
         badgeEl: HTMLDivElement,
-        rippleEl: HTMLDivElement,
-        secondaryRippleEl?: HTMLDivElement
+        isStar: boolean
       ) => {
         triggerHapticFeedback(15);
 
-        // Scale expansion peaked right at the ~95ms click sound transient, then settles crisply
         runMotionAnimation(
           badgeEl,
-          { scale: [0.94, 1.24, 1] },
+          { scale: [0.94, 1.2, 1] },
           {
-            duration: 0.34,
-            times: [0, 0.28, 1],
+            duration: 0.3,
+            times: [0, 0.3, 1],
             ease: [0.22, 1, 0.36, 1],
           }
         );
 
-        // Primary outer ripple wave starting immediately at t=0ms with audio transient
-        rippleEl.style.display = 'block';
+        const markerSize = isStar ? 54 : 42;
+        const rippleEl = document.createElement('div');
+        rippleEl.style.position = 'absolute';
+        rippleEl.style.width = `${markerSize}px`;
+        rippleEl.style.height = `${markerSize}px`;
+        rippleEl.style.top = '0';
+        rippleEl.style.left = '0';
+        rippleEl.style.borderRadius = '9999px';
+        rippleEl.style.pointerEvents = 'none';
+        rippleEl.style.zIndex = '-1';
+        rippleEl.style.border = isStar
+          ? '2px solid rgba(255, 214, 10, 0.92)'
+          : '2px solid rgba(255, 255, 255, 0.9)';
+        rippleEl.style.backgroundColor = isStar
+          ? 'rgba(255, 214, 10, 0.2)'
+          : 'rgba(255, 255, 255, 0.16)';
+        containerEl.appendChild(rippleEl);
+
         runMotionAnimation(
           rippleEl,
-          { scale: [0.95, 2.15], opacity: [0.92, 0] },
+          { scale: [0.95, 2.05], opacity: [0.88, 0] },
           {
-            duration: 0.45,
+            duration: 0.42,
             ease: [0.16, 1, 0.3, 1],
           }
         );
 
-        // Secondary crisp inner ripple echo
-        if (secondaryRippleEl) {
-          secondaryRippleEl.style.display = 'block';
-          runMotionAnimation(
-            secondaryRippleEl,
-            { scale: [0.9, 1.65], opacity: [0.7, 0] },
-            {
-              duration: 0.36,
-              delay: 0.035,
-              ease: [0.16, 1, 0.3, 1],
-            }
-          );
-        }
+        window.setTimeout(() => {
+          try {
+            rippleEl.remove();
+          } catch {}
+        }, 460);
       },
       [runMotionAnimation]
     );
@@ -1913,15 +2148,15 @@ export const MapComponent = memo(
               rec.pulseScaleWrapEl.classList.remove('is-selected');
             }
             rec.badgeEl.style.filter = isSelected
-              ? 'drop-shadow(0 10px 22px rgba(0, 0, 0, 0.48)) drop-shadow(0 0 12px rgba(255, 214, 10, 0.92))'
-              : 'drop-shadow(0 6px 14px rgba(0, 0, 0, 0.38)) drop-shadow(0 0 7px rgba(255, 214, 10, 0.45))';
+              ? 'drop-shadow(0 8px 16px rgba(0, 0, 0, 0.44))'
+              : 'drop-shadow(0 4px 9px rgba(0, 0, 0, 0.32))';
           } else {
             rec.badgeEl.style.border = isSelected
               ? '3px solid #FFFFFF'
               : '2.5px solid #FFFFFF';
             rec.badgeEl.style.boxShadow = isSelected
-              ? '0 10px 24px rgba(0, 0, 0, 0.42), 0 3px 8px rgba(0, 0, 0, 0.22), 0 0 0 2px rgba(255, 255, 255, 0.95)'
-              : '0 6px 14px rgba(0, 0, 0, 0.34), 0 2px 5px rgba(0, 0, 0, 0.18)';
+              ? '0 8px 20px rgba(0, 0, 0, 0.38), 0 0 0 2px rgba(255, 255, 255, 0.92)'
+              : '0 4px 10px rgba(0, 0, 0, 0.30)';
           }
 
           if (rec.pulseEl) {
@@ -2152,12 +2387,22 @@ export const MapComponent = memo(
           );
         } catch {}
 
-        // 2. Clean iOS Blue + White circular expansion wave around the discovered spot
+        // 2. Clean ephemeral iOS Blue expansion wave around the discovered spot
         try {
-          rec.rippleEl.style.border = '2px solid #007AFF';
-          rec.rippleEl.style.background = 'radial-gradient(circle, rgba(0, 122, 255, 0.22) 0%, rgba(0, 122, 255, 0) 70%)';
-          rec.rippleEl.style.boxShadow = '0 0 16px rgba(0, 122, 255, 0.55)';
-          rec.rippleEl.animate(
+          const waveSize = rec.isStar ? 54 : 42;
+          const xpWave = document.createElement('div');
+          xpWave.style.position = 'absolute';
+          xpWave.style.width = `${waveSize}px`;
+          xpWave.style.height = `${waveSize}px`;
+          xpWave.style.top = '0';
+          xpWave.style.left = '0';
+          xpWave.style.borderRadius = '9999px';
+          xpWave.style.pointerEvents = 'none';
+          xpWave.style.zIndex = '-1';
+          xpWave.style.border = '2px solid #007AFF';
+          xpWave.style.background = 'radial-gradient(circle, rgba(0, 122, 255, 0.22) 0%, rgba(0, 122, 255, 0) 70%)';
+          rec.containerEl.appendChild(xpWave);
+          xpWave.animate(
             [
               { transform: 'scale(1)', opacity: 0.95 },
               { transform: 'scale(2.45)', opacity: 0 },
@@ -2167,6 +2412,11 @@ export const MapComponent = memo(
               easing: 'cubic-bezier(0.16, 1, 0.3, 1)',
             }
           );
+          window.setTimeout(() => {
+            try {
+              xpWave.remove();
+            } catch {}
+          }, 820);
         } catch {}
       };
 
@@ -2208,10 +2458,10 @@ export const MapComponent = memo(
       const existingMap = new Map(markerRecordsRef.current.map((rec) => [rec.spotId, rec]));
 
       const starPath100 = buildRoundedStarPath(50, 51, 47, 22, 0.16, 2);
-      const starPath01 = buildRoundedStarPath(0.5, 0.51, 0.47, 0.22, 0.16, 4);
-      const starMaskDataUri = `url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><path d='${starPath100}' fill='black'/></svg>")`;
+      const starClipPolygon =
+        'polygon(50% 4%, 64% 34%, 97% 38%, 72% 60%, 79% 93%, 50% 76%, 21% 93%, 28% 60%, 3% 38%, 36% 34%)';
 
-      validSpots.forEach((spot, spotIdx) => {
+      validSpots.forEach((spot) => {
         const lng = Number(spot.lng);
         const lat = Number(spot.lat);
         const imgUrl = getSpotImage(spot);
@@ -2220,7 +2470,6 @@ export const MapComponent = memo(
 
         if (existing && existing.mapInstance === map) {
           if (existing.isStar !== isStar) {
-            // "Estrela" option changed! Remove old marker so it rebuilds immediately as Yellow Star or Circle
             try {
               existing.marker.remove();
             } catch (e) {}
@@ -2268,7 +2517,7 @@ export const MapComponent = memo(
         const markerSize = isStar ? 54 : 42;
         const auraOffset = isStar ? -7 : -13;
 
-        // Glowing circular translucent aura/halo (yellow aura for Star when selected)
+        // Selection halo (hidden at rest, toggled only for active selection)
         const pulseEl = document.createElement('div');
         pulseEl.style.position = 'absolute';
         pulseEl.style.width = '68px';
@@ -2283,45 +2532,6 @@ export const MapComponent = memo(
           : 'radial-gradient(circle, rgba(255, 255, 255, 0.7) 0%, rgba(255, 255, 255, 0.22) 55%, transparent 75%)';
         pulseEl.style.display = isSelected ? 'block' : 'none';
 
-        // Primary visual expansion ripple around the marker (displayed only on tap)
-        const rippleEl = document.createElement('div');
-        rippleEl.style.position = 'absolute';
-        rippleEl.style.width = `${markerSize}px`;
-        rippleEl.style.height = `${markerSize}px`;
-        rippleEl.style.top = '0';
-        rippleEl.style.left = '0';
-        rippleEl.style.borderRadius = '9999px';
-        rippleEl.style.pointerEvents = 'none';
-        rippleEl.style.zIndex = '-1';
-        rippleEl.style.opacity = '0';
-        rippleEl.style.display = 'none';
-        rippleEl.style.border = isStar
-          ? '2px solid rgba(255, 214, 10, 0.95)'
-          : '2px solid rgba(255, 255, 255, 0.92)';
-        rippleEl.style.backgroundColor = isStar
-          ? 'rgba(255, 214, 10, 0.22)'
-          : 'rgba(255, 255, 255, 0.18)';
-        rippleEl.style.boxShadow = isStar
-          ? '0 0 14px rgba(255, 214, 10, 0.55)'
-          : '0 0 12px rgba(255, 255, 255, 0.4)';
-
-        // Secondary concentric ripple echo for liquid iOS tactile depth
-        const secondaryRippleEl = document.createElement('div');
-        secondaryRippleEl.style.position = 'absolute';
-        secondaryRippleEl.style.width = `${markerSize}px`;
-        secondaryRippleEl.style.height = `${markerSize}px`;
-        secondaryRippleEl.style.top = '0';
-        secondaryRippleEl.style.left = '0';
-        secondaryRippleEl.style.borderRadius = '9999px';
-        secondaryRippleEl.style.pointerEvents = 'none';
-        secondaryRippleEl.style.zIndex = '-1';
-        secondaryRippleEl.style.opacity = '0';
-        secondaryRippleEl.style.display = 'none';
-        secondaryRippleEl.style.border = isStar
-          ? '1.5px solid rgba(255, 214, 10, 0.78)'
-          : '1.5px solid rgba(255, 255, 255, 0.72)';
-
-        // Wrapper that carries the continuous 2.5s 1.0 -> 1.06 pulse animation for "Estrela" markers
         const pulseScaleWrapEl = document.createElement('div');
         pulseScaleWrapEl.style.position = 'relative';
         pulseScaleWrapEl.style.display = 'flex';
@@ -2358,16 +2568,11 @@ export const MapComponent = memo(
         };
 
         if (isStar) {
-          // FAMOUS YELLOW STAR MARKER ("Estrela"): 5-pointed Yellow Star with the spot's photo in the middle and gentle pulse
+          // Streamlined 5-pointed Yellow Star marker: 1 single lightweight SVG backing + GPU CSS polygon clip-path
           badgeEl.style.filter = isSelected
-            ? 'drop-shadow(0 10px 22px rgba(0, 0, 0, 0.48)) drop-shadow(0 0 12px rgba(255, 214, 10, 0.92))'
-            : 'drop-shadow(0 6px 14px rgba(0, 0, 0, 0.38)) drop-shadow(0 0 7px rgba(255, 214, 10, 0.45))';
+            ? 'drop-shadow(0 8px 16px rgba(0, 0, 0, 0.44))'
+            : 'drop-shadow(0 4px 9px rgba(0, 0, 0, 0.32))';
 
-          const safeId = spot.id.replace(/[^a-zA-Z0-9_-]/g, '');
-          const clipId = `monvian-star-clip-${safeId}`;
-          const gradId = `monvian-star-grad-${safeId}`;
-
-          // 1. Vibrant Yellow (#FFD60A / #FACC15) 5-pointed star backing & contour + SVG clipPath definition
           const starBgSvg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
           starBgSvg.setAttribute('viewBox', '0 0 100 100');
           starBgSvg.style.position = 'absolute';
@@ -2375,82 +2580,34 @@ export const MapComponent = memo(
           starBgSvg.style.width = '100%';
           starBgSvg.style.height = '100%';
           starBgSvg.style.pointerEvents = 'none';
-          starBgSvg.innerHTML = `
-            <defs>
-              <clipPath id="${clipId}" clipPathUnits="objectBoundingBox">
-                <path d="${starPath01}" />
-              </clipPath>
-              <linearGradient id="${gradId}" x1="0%" y1="0%" x2="100%" y2="100%">
-                <stop offset="0%" stop-color="#FFE629" />
-                <stop offset="50%" stop-color="#FFD60A" />
-                <stop offset="100%" stop-color="#F5B301" />
-              </linearGradient>
-            </defs>
-            <path d="${starPath100}" fill="url(#${gradId})" stroke="#FFD60A" stroke-width="3.2" stroke-linejoin="round" />
-          `;
+          starBgSvg.innerHTML = `<path d="${starPath100}" fill="#FFD60A" stroke="#F5B301" stroke-width="3" stroke-linejoin="round" />`;
 
-          // 2. Inner establishment photograph in the middle of the Yellow Star (inset by 5px so the yellow star points & frame stand out clearly)
           const photoMaskEl = document.createElement('div');
           photoMaskEl.style.position = 'absolute';
           photoMaskEl.style.inset = '5px';
           photoMaskEl.style.overflow = 'hidden';
           photoMaskEl.style.backgroundColor = '#18181B';
-          photoMaskEl.style.clipPath = `url(#${clipId})`;
-          (photoMaskEl.style as any).webkitClipPath = `url(#${clipId})`;
-          (photoMaskEl.style as any).webkitMaskImage = starMaskDataUri;
-          photoMaskEl.style.maskImage = starMaskDataUri;
-          (photoMaskEl.style as any).webkitMaskSize = '100% 100%';
-          photoMaskEl.style.maskSize = '100% 100%';
-          (photoMaskEl.style as any).webkitMaskRepeat = 'no-repeat';
-          photoMaskEl.style.maskRepeat = 'no-repeat';
-          (photoMaskEl.style as any).webkitMaskPosition = 'center';
-          photoMaskEl.style.maskPosition = 'center';
-
+          photoMaskEl.style.clipPath = starClipPolygon;
+          (photoMaskEl.style as any).webkitClipPath = starClipPolygon;
           photoMaskEl.appendChild(imgEl);
-
-          // 3. Crisp inner yellow-gold contour around the photo inside the star
-          const starRimSvg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
-          starRimSvg.setAttribute('viewBox', '0 0 100 100');
-          starRimSvg.style.position = 'absolute';
-          starRimSvg.style.inset = '5px';
-          starRimSvg.style.width = 'calc(100% - 10px)';
-          starRimSvg.style.height = 'calc(100% - 10px)';
-          starRimSvg.style.pointerEvents = 'none';
-          starRimSvg.innerHTML = `
-            <path d="${starPath100}" fill="none" stroke="#FFD60A" stroke-width="2.8" stroke-linejoin="round" />
-          `;
 
           badgeEl.appendChild(starBgSvg);
           badgeEl.appendChild(photoMaskEl);
-          badgeEl.appendChild(starRimSvg);
         } else {
-          // TRADITIONAL CIRCULAR MARKER
+          // Streamlined Circular Marker (minimal DOM, clean shadow)
           badgeEl.style.borderRadius = '9999px';
           badgeEl.style.overflow = 'hidden';
           badgeEl.style.backgroundColor = '#18181B';
           badgeEl.style.border = isSelected ? '3px solid #FFFFFF' : '2.5px solid #FFFFFF';
           badgeEl.style.boxShadow = isSelected
-            ? '0 10px 24px rgba(0, 0, 0, 0.42), 0 3px 8px rgba(0, 0, 0, 0.22), 0 0 0 2px rgba(255, 255, 255, 0.95)'
-            : '0 6px 14px rgba(0, 0, 0, 0.34), 0 2px 5px rgba(0, 0, 0, 0.18)';
-
+            ? '0 8px 20px rgba(0, 0, 0, 0.38), 0 0 0 2px rgba(255, 255, 255, 0.92)'
+            : '0 4px 10px rgba(0, 0, 0, 0.30)';
           imgEl.style.borderRadius = '9999px';
-
-          const glossEl = document.createElement('div');
-          glossEl.style.position = 'absolute';
-          glossEl.style.inset = '0';
-          glossEl.style.borderRadius = '9999px';
-          glossEl.style.pointerEvents = 'none';
-          glossEl.style.boxShadow =
-            'inset 0 1.5px 3px rgba(255, 255, 255, 0.45), inset 0 -2px 4px rgba(0, 0, 0, 0.28)';
-
           badgeEl.appendChild(imgEl);
-          badgeEl.appendChild(glossEl);
         }
 
         pulseScaleWrapEl.appendChild(badgeEl);
         containerEl.appendChild(pulseEl);
-        containerEl.appendChild(rippleEl);
-        containerEl.appendChild(secondaryRippleEl);
         containerEl.appendChild(pulseScaleWrapEl);
         el.appendChild(containerEl);
 
@@ -2500,8 +2657,6 @@ export const MapComponent = memo(
           pulseScaleWrapEl,
           badgeEl,
           pulseEl,
-          rippleEl,
-          secondaryRippleEl,
           imgEl,
           lat,
           lng,
@@ -2530,7 +2685,7 @@ export const MapComponent = memo(
             };
           }
           playSpotClickSound();
-          triggerPinTapFeedback(badgeEl, rippleEl, secondaryRippleEl);
+          triggerPinTapFeedback(containerEl, badgeEl, isStar);
           setFollowMode(false);
           onSelectSpotRef.current(record.spot);
         };
@@ -2539,6 +2694,7 @@ export const MapComponent = memo(
       });
 
       syncMarkerHighlight(currentSelectedId);
+      syncMarkerClustersRef.current?.();
     }, [syncMarkerHighlight, setFollowMode, triggerPinTapFeedback, animateMarkerPress, buildRoundedStarPath, isFiveStarSpot]);
 
     useEffect(() => {

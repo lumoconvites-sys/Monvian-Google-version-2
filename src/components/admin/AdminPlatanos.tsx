@@ -1786,7 +1786,7 @@ export const AdminPlatanos: React.FC<AdminPlatanosProps> = ({ currentUser }) => 
             initial={prefersReducedMotion ? false : { opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className="fixed inset-0 z-50 flex items-center justify-center bg-[#0D1526]/40 backdrop-blur-xs p-4"
+            className="fixed inset-0 z-50 flex items-center justify-center bg-[#0D1526]/40 p-4"
             onClick={() => setAdjustTarget(null)}
           >
             <motion.div
@@ -1890,7 +1890,7 @@ export const AdminPlatanos: React.FC<AdminPlatanosProps> = ({ currentUser }) => 
             initial={prefersReducedMotion ? false : { opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className="fixed inset-0 z-50 flex items-center justify-center bg-[#0D1526]/40 backdrop-blur-xs p-4"
+            className="fixed inset-0 z-50 flex items-center justify-center bg-[#0D1526]/40 p-4"
             onClick={() => setRefundTarget(null)}
           >
             <motion.div

@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
+import { uploadMediaToSupabaseStorage } from '../../lib/supabase';
 import {
   X,
   Plus,
@@ -246,49 +247,7 @@ export const AdminItineraryModal: React.FC<AdminItineraryModalProps> = ({
     }
   };
 
-  // Image upload and client-side compression
-  const compressImage = (file: File): Promise<string> => {
-    return new Promise((resolve, reject) => {
-      const reader = new FileReader();
-      reader.onload = (e) => {
-        const img = new Image();
-        img.onload = () => {
-          const canvas = document.createElement('canvas');
-          const MAX_DIM = 1600;
-          let width = img.width;
-          let height = img.height;
-
-          if (width > height) {
-            if (width > MAX_DIM) {
-              height = Math.round((height * MAX_DIM) / width);
-              width = MAX_DIM;
-            }
-          } else {
-            if (height > MAX_DIM) {
-              width = Math.round((width * MAX_DIM) / height);
-              height = MAX_DIM;
-            }
-          }
-
-          canvas.width = width;
-          canvas.height = height;
-          const ctx = canvas.getContext('2d');
-          if (!ctx) {
-            resolve(e.target?.result as string);
-            return;
-          }
-          ctx.drawImage(img, 0, 0, width, height);
-          const compressed = canvas.toDataURL('image/jpeg', 0.88);
-          resolve(compressed);
-        };
-        img.onerror = () => reject(new Error('Falha ao processar imagem'));
-        img.src = e.target?.result as string;
-      };
-      reader.onerror = () => reject(new Error('Falha ao ler arquivo'));
-      reader.readAsDataURL(file);
-    });
-  };
-
+  // Automated WebP optimization + upload to Supabase Storage ('monvian-media/itineraries')
   const handleCoverFileUpload = async (file: File) => {
     if (!file.type.startsWith('image/')) {
       setCoverUploadError('Por favor, selecione um arquivo de imagem válido (JPG, PNG, WEBP).');
@@ -297,8 +256,15 @@ export const AdminItineraryModal: React.FC<AdminItineraryModalProps> = ({
     setIsUploadingCover(true);
     setCoverUploadError('');
     try {
-      const compressedDataUrl = await compressImage(file);
-      setCoverImage(compressedDataUrl);
+      const publicUrl = await uploadMediaToSupabaseStorage(file, 'itineraries', {
+        maxDimension: 1280,
+        quality: 0.82,
+        filename: file.name,
+      });
+      if (!publicUrl) {
+        throw new Error('Não foi possível enviar a imagem para o Supabase Storage. Tente novamente.');
+      }
+      setCoverImage(publicUrl);
     } catch (err: any) {
       setCoverUploadError(err.message || 'Erro ao carregar imagem');
     } finally {
@@ -310,9 +276,18 @@ export const AdminItineraryModal: React.FC<AdminItineraryModalProps> = ({
     if (!uploadingStepIdx) return;
     if (!file.type.startsWith('image/')) return;
 
+    const target = { ...uploadingStepIdx };
     try {
-      const compressedDataUrl = await compressImage(file);
-      updateStepField(uploadingStepIdx.dayIdx, uploadingStepIdx.stepIdx, 'customImage', compressedDataUrl);
+      const publicUrl = await uploadMediaToSupabaseStorage(file, 'itineraries', {
+        maxDimension: 1280,
+        quality: 0.82,
+        filename: file.name,
+      });
+      if (!publicUrl) {
+        setCoverUploadError('Não foi possível enviar a imagem da etapa para o Supabase Storage.');
+        return;
+      }
+      updateStepField(target.dayIdx, target.stepIdx, 'customImage', publicUrl);
     } catch (err) {
       console.error('Error uploading step image:', err);
     } finally {
@@ -491,7 +466,7 @@ export const AdminItineraryModal: React.FC<AdminItineraryModalProps> = ({
   const currentDay = days[activeDayIdx] || days[0];
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/80 backdrop-blur-md animate-in fade-in duration-200">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/80 animate-in fade-in duration-200">
       <div 
         className="bg-white border border-zinc-200 rounded-3xl w-full max-w-5xl max-h-[94vh] flex flex-col shadow-2xl overflow-hidden"
         style={{ fontFamily: "'Inter', sans-serif" }}

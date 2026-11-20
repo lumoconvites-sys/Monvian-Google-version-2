@@ -39,8 +39,6 @@ export const FollowersListModal: React.FC<FollowersListModalProps> = ({
           className={`sticky top-0 z-20 px-5 pt-5 pb-3 flex items-center justify-between border-b shrink-0 ${isDark ? 'border-zinc-800/70' : 'border-zinc-100/80'}`}
           style={{
             backgroundColor: isDark ? 'rgba(24, 24, 27, 0.40)' : 'rgba(255, 255, 255, 0.40)',
-            backdropFilter: 'blur(8px) saturate(150%)',
-            WebkitBackdropFilter: 'blur(8px) saturate(150%)',
           }}
         >
           <h3 className="text-base font-bold">{title}</h3>

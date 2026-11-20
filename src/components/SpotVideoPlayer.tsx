@@ -278,7 +278,7 @@ export const SpotVideoPlayer: React.FC<SpotVideoPlayerProps> = ({
       {currentVideo ? (
         <div 
           onClick={handleTogglePlay}
-          className="group relative w-full rounded-2xl sm:rounded-3xl overflow-hidden bg-zinc-950/90 border border-zinc-200/80 dark:border-white/10 backdrop-blur-xl shadow-2xl cursor-pointer select-none transition-all duration-300 flex items-center justify-center min-h-[220px]"
+          className="group relative w-full rounded-2xl sm:rounded-3xl overflow-hidden bg-zinc-950/90 border border-zinc-200/80 dark:border-white/10 shadow-2xl cursor-pointer select-none transition-all duration-300 flex items-center justify-center min-h-[220px]"
           style={{
             transform: 'translateZ(0)',
             WebkitTransform: 'translateZ(0)',
@@ -306,14 +306,14 @@ export const SpotVideoPlayer: React.FC<SpotVideoPlayerProps> = ({
           <div className="absolute top-0 inset-x-0 p-3.5 sm:p-4 bg-gradient-to-b from-black/75 via-black/35 to-transparent flex items-center justify-between pointer-events-auto">
             <div className="flex items-center gap-2">
               {/* Speed Badge (1.2x) */}
-              <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-white/20 dark:bg-black/60 backdrop-blur-md border border-white/20 text-[11px] font-black tracking-wider text-white shadow-xs">
+              <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-white/20 dark:bg-black/60 border border-white/20 text-[11px] font-black tracking-wider text-white shadow-xs">
                 <Sparkles className="w-3 h-3 text-[#38bdf8]" />
                 <span>1.2x</span>
               </span>
 
               {/* Video Counter Pill */}
               {videos.length > 0 && (
-                <span className="text-[11px] font-medium text-white/90 drop-shadow-sm bg-black/40 px-2.5 py-1 rounded-full border border-white/10 backdrop-blur-md">
+                <span className="text-[11px] font-medium text-white/90 drop-shadow-sm bg-black/40 px-2.5 py-1 rounded-full border border-white/10">
                   {`Vídeo ${currentIndex + 1} de ${videos.length}`}
                 </span>
               )}
@@ -324,7 +324,7 @@ export const SpotVideoPlayer: React.FC<SpotVideoPlayerProps> = ({
               <button
                 type="button"
                 onClick={toggleMute}
-                className="w-8 h-8 rounded-full bg-black/50 backdrop-blur-md border border-white/15 text-white flex items-center justify-center hover:bg-black/70 active:scale-95 transition-all cursor-pointer shadow-sm"
+                className="w-8 h-8 rounded-full bg-black/50 border border-white/15 text-white flex items-center justify-center hover:bg-black/70 active:scale-95 transition-all cursor-pointer shadow-sm"
                 title={isMuted ? 'Ativar som' : 'Desativar som'}
                 aria-label={isMuted ? 'Ativar som' : 'Desativar som'}
               >
@@ -343,7 +343,7 @@ export const SpotVideoPlayer: React.FC<SpotVideoPlayerProps> = ({
                 transition={{ duration: 0.18 }}
                 className="absolute inset-0 flex items-center justify-center pointer-events-none"
               >
-                <div className="w-16 h-16 rounded-full bg-black/60 backdrop-blur-xl border border-white/20 flex items-center justify-center text-white shadow-2xl">
+                <div className="w-16 h-16 rounded-full bg-black/60 border border-white/20 flex items-center justify-center text-white shadow-2xl">
                   {showCenterIcon === 'pause' ? (
                     <Pause className="w-7 h-7 fill-white text-white" />
                   ) : (
@@ -371,7 +371,7 @@ export const SpotVideoPlayer: React.FC<SpotVideoPlayerProps> = ({
             </div>
 
             {/* Slim Progress Bar */}
-            <div className="w-full h-1 bg-white/20 rounded-full overflow-hidden backdrop-blur-xs">
+            <div className="w-full h-1 bg-white/20 rounded-full overflow-hidden">
               <div 
                 className="h-full bg-white transition-all duration-150 ease-linear rounded-full"
                 style={{
@@ -401,7 +401,7 @@ export const SpotVideoPlayer: React.FC<SpotVideoPlayerProps> = ({
         {isUploadModalOpen && (
           <div 
             onClick={() => setIsUploadModalOpen(false)}
-            className="fixed inset-0 z-[260] bg-black/70 backdrop-blur-md flex items-center justify-center p-4"
+            className="fixed inset-0 z-[260] bg-black/70 flex items-center justify-center p-4"
           >
             <motion.div
               initial={{ opacity: 0, scale: 0.95, y: 14 }}

@@ -30,6 +30,7 @@ export type SavedCollectionType = 'roteiros' | 'pontos' | 'lugares';
 
 interface SavedViewProps {
   isOpen: boolean;
+  isActive?: boolean;
   onClose?: () => void;
   theme?: 'dark' | 'light' | string;
   spots: Spot[];
@@ -63,7 +64,19 @@ const CELL_CLIP_PATHS: Record<number, string> = {
   3: 'inset(0 round 0 0 27px 0)',
 };
 
+const MAX_SAVED_PHOTO_CACHE = 250;
 const loadedSavedPhotoCache = new Set<string>();
+
+function cacheSavedPhotoUrl(url: string) {
+  if (!url || url.startsWith('data:')) return;
+  if (loadedSavedPhotoCache.has(url)) {
+    loadedSavedPhotoCache.delete(url);
+  } else if (loadedSavedPhotoCache.size >= MAX_SAVED_PHOTO_CACHE) {
+    const oldest = loadedSavedPhotoCache.values().next().value;
+    if (oldest) loadedSavedPhotoCache.delete(oldest);
+  }
+  loadedSavedPhotoCache.add(url);
+}
 
 const TranslucentSavedPhoto: React.FC<{
   src: string;
@@ -81,7 +94,7 @@ const TranslucentSavedPhoto: React.FC<{
       return;
     }
     if (imgRef.current && imgRef.current.complete && imgRef.current.naturalWidth > 0) {
-      loadedSavedPhotoCache.add(src);
+      cacheSavedPhotoUrl(src);
       setLoaded(true);
     } else {
       setLoaded(false);
@@ -89,7 +102,7 @@ const TranslucentSavedPhoto: React.FC<{
   }, [src]);
 
   const handleLoad = () => {
-    if (src) loadedSavedPhotoCache.add(src);
+    if (src) cacheSavedPhotoUrl(src);
     setLoaded(true);
   };
 
@@ -221,6 +234,7 @@ if (typeof window !== 'undefined') {
 
 export const SavedView: React.FC<SavedViewProps> = React.memo(({
   isOpen,
+  isActive = true,
   theme = 'dark',
   spots,
   onOpenSpot,
@@ -228,13 +242,14 @@ export const SavedView: React.FC<SavedViewProps> = React.memo(({
   onNavigateTab,
 }) => {
   const isDark = theme === 'dark';
+  const isViewActive = Boolean(isOpen && isActive);
   const [shouldAnimateEntrance] = useState(() => !hasPlayedSavedEntranceAnimation);
 
   useEffect(() => {
-    if (isOpen) {
+    if (isViewActive) {
       hasPlayedSavedEntranceAnimation = true;
     }
-  }, [isOpen]);
+  }, [isViewActive]);
 
   const {
     savedItineraries,
@@ -281,7 +296,7 @@ export const SavedView: React.FC<SavedViewProps> = React.memo(({
   });
 
   useEffect(() => {
-    if (!isOpen) return;
+    if (!isViewActive) return;
     let isMounted = true;
     try {
       const raw = localStorage.getItem('monvian_itineraries_store_cache_v6');
@@ -304,7 +319,7 @@ export const SavedView: React.FC<SavedViewProps> = React.memo(({
     return () => {
       isMounted = false;
     };
-  }, [isOpen]);
+  }, [isViewActive]);
 
   const findItineraryById = (id: string): Itinerary | null => {
     const fromStore = cachedStoreItineraries.find((it) => it.id === id);
@@ -385,7 +400,7 @@ export const SavedView: React.FC<SavedViewProps> = React.memo(({
       const img = new Image();
       img.decoding = 'async';
       img.onload = () => {
-        loadedSavedPhotoCache.add(url);
+        cacheSavedPhotoUrl(url);
       };
       img.src = url;
     });
@@ -406,7 +421,7 @@ export const SavedView: React.FC<SavedViewProps> = React.memo(({
   // Register iOS Edge-Swipe Back Navigation when viewing a Saved collection
   useIOSBackEntry({
     id: `saved-collection:${activeCollection || 'none'}`,
-    enabled: Boolean(isOpen && activeCollection),
+    enabled: Boolean(isViewActive && activeCollection),
     priority: 120,
     label:
       activeCollection === 'roteiros'
@@ -514,12 +529,12 @@ export const SavedView: React.FC<SavedViewProps> = React.memo(({
               }}
             >
               <header
-                className="sticky top-0 z-20 w-full px-6 pb-6 shrink-0"
+                className={`sticky top-0 z-20 w-full px-6 pb-6 shrink-0 border-b ${
+                  isDark ? 'border-white/[0.06]' : 'border-black/[0.06]'
+                }`}
                 style={{
                   paddingTop: 'max(calc(env(safe-area-inset-top, 0px) + 32px), 36px)',
-                  backgroundColor: isDark ? 'rgba(0, 0, 0, 0.40)' : 'rgba(255, 255, 255, 0.40)',
-                  backdropFilter: 'blur(8px) saturate(150%)',
-                  WebkitBackdropFilter: 'blur(8px) saturate(150%)',
+                  backgroundColor: isDark ? 'rgba(0, 0, 0, 0.94)' : 'rgba(255, 255, 255, 0.95)',
                 }}
               >
                 <h1 className="text-3xl sm:text-4xl font-extrabold tracking-tight">
@@ -589,8 +604,6 @@ export const SavedView: React.FC<SavedViewProps> = React.memo(({
                     style={{
                       paddingTop: 'max(calc(env(safe-area-inset-top, 0px) + 16px), 20px)',
                       backgroundColor: isDark ? 'rgba(0, 0, 0, 0.40)' : 'rgba(255, 255, 255, 0.40)',
-                      backdropFilter: 'blur(8px) saturate(150%)',
-                      WebkitBackdropFilter: 'blur(8px) saturate(150%)',
                     }}
                   >
                     <AppleBackButton

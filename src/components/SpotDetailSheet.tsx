@@ -826,7 +826,7 @@ export const SpotDetailSheet: React.FC<SpotDetailSheetProps> = React.memo(({
                     animate={{ opacity: 1 }}
                     exit={{ opacity: 0 }}
                     transition={{ duration: 0.38, ease: 'easeInOut' }}
-                    className="absolute inset-0 z-10 bg-white/25 dark:bg-white/15 backdrop-blur-xl pointer-events-none"
+                    className="absolute inset-0 z-10 bg-white/25 dark:bg-white/15 pointer-events-none"
                   />
                 )}
               </AnimatePresence>
@@ -838,7 +838,7 @@ export const SpotDetailSheet: React.FC<SpotDetailSheetProps> = React.memo(({
                 type="button"
                 onClick={handleToggleHeroMute}
                 aria-label={isHeroMuted ? 'Ativar áudio' : 'Silenciar áudio'}
-                className="absolute bottom-11 right-4 z-20 w-9 h-9 rounded-full bg-black/45 hover:bg-black/65 backdrop-blur-md border border-white/15 flex items-center justify-center text-white transition-all active:scale-90 cursor-pointer"
+                className="absolute bottom-11 right-4 z-20 w-9 h-9 rounded-full bg-black/45 hover:bg-black/65 border border-white/15 flex items-center justify-center text-white transition-all active:scale-90 cursor-pointer"
               >
                 {isHeroMuted ? (
                   <VolumeX className="w-4 h-4 text-white/90" />
@@ -859,7 +859,7 @@ export const SpotDetailSheet: React.FC<SpotDetailSheetProps> = React.memo(({
                   transition={{ duration: 0.18 }}
                   className="absolute inset-0 z-20 flex items-center justify-center pointer-events-none"
                 >
-                  <div className="w-12 h-12 rounded-full bg-black/45 backdrop-blur-md border border-white/20 flex items-center justify-center text-white shadow-lg">
+                  <div className="w-12 h-12 rounded-full bg-black/45 border border-white/20 flex items-center justify-center text-white shadow-lg">
                     {isHeroPaused || heroTapFeedback === 'pause' ? (
                       <Pause className="w-5 h-5 fill-white text-white" />
                     ) : (
@@ -1318,7 +1318,7 @@ export const SpotDetailSheet: React.FC<SpotDetailSheetProps> = React.memo(({
                 type="button"
                 onClick={handleToggleHeroMute}
                 aria-label={isHeroMuted ? 'Ativar áudio' : 'Silenciar áudio'}
-                className="absolute bottom-3.5 right-3.5 z-20 w-9 h-9 rounded-full bg-black/45 hover:bg-black/65 backdrop-blur-md border border-white/15 flex items-center justify-center text-white transition-all active:scale-90 cursor-pointer"
+                className="absolute bottom-3.5 right-3.5 z-20 w-9 h-9 rounded-full bg-black/45 hover:bg-black/65 border border-white/15 flex items-center justify-center text-white transition-all active:scale-90 cursor-pointer"
               >
                 {isHeroMuted ? (
                   <VolumeX className="w-4 h-4 text-white/90" />
@@ -1337,7 +1337,7 @@ export const SpotDetailSheet: React.FC<SpotDetailSheetProps> = React.memo(({
                   animate={{ opacity: 1 }}
                   exit={{ opacity: 0 }}
                   transition={{ duration: 0.38, ease: 'easeInOut' }}
-                  className="absolute inset-0 z-10 bg-white/25 dark:bg-white/15 backdrop-blur-xl pointer-events-none"
+                  className="absolute inset-0 z-10 bg-white/25 dark:bg-white/15 pointer-events-none"
                 />
               )}
             </AnimatePresence>
@@ -1353,7 +1353,7 @@ export const SpotDetailSheet: React.FC<SpotDetailSheetProps> = React.memo(({
                   transition={{ duration: 0.18 }}
                   className="absolute inset-0 z-20 flex items-center justify-center pointer-events-none"
                 >
-                  <div className="w-12 h-12 rounded-full bg-black/45 backdrop-blur-md border border-white/20 flex items-center justify-center text-white shadow-lg">
+                  <div className="w-12 h-12 rounded-full bg-black/45 border border-white/20 flex items-center justify-center text-white shadow-lg">
                     {isHeroPaused || heroTapFeedback === 'pause' ? (
                       <Pause className="w-5 h-5 fill-white text-white" />
                     ) : (

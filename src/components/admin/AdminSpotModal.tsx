@@ -150,66 +150,22 @@ export const AdminSpotModal: React.FC<AdminSpotModalProps> = ({
     setErrorMsg('');
 
     try {
-      // 1. Compress image via canvas first so fallback or upload is fast
-      const base64DataUrl = await new Promise<string>((resolve, reject) => {
-        const reader = new FileReader();
-        reader.onload = (ev) => {
-          const img = new Image();
-          img.onload = () => {
-            const canvas = document.createElement('canvas');
-            const MAX_W = 1200;
-            let w = img.width;
-            let h = img.height;
-            if (w > MAX_W) {
-              h = Math.round((h * MAX_W) / w);
-              w = MAX_W;
-            }
-            canvas.width = w;
-            canvas.height = h;
-            const ctx = canvas.getContext('2d');
-            if (ctx) {
-              ctx.drawImage(img, 0, 0, w, h);
-              resolve(canvas.toDataURL('image/jpeg', 0.85));
-            } else {
-              resolve(ev.target?.result as string);
-            }
-          };
-          img.onerror = reject;
-          img.src = ev.target?.result as string;
-        };
-        reader.onerror = reject;
-        reader.readAsDataURL(file);
+      // Optimize to WebP (max 1280px) and upload automatically to Supabase Storage ('monvian-media/spots')
+      const finalUrl = await uploadMediaToSupabaseStorage(file, 'spots', {
+        maxDimension: 1280,
+        quality: 0.82,
+        filename: file.name,
       });
 
-      // 2. Upload to Supabase Storage bucket ('monvian-media') or backend '/api/admin/upload'
-      let finalUrl = await uploadMediaToSupabaseStorage(file, 'spots');
       if (!finalUrl) {
-        try {
-          const token = localStorage.getItem('monvian_token');
-          const res = await fetch('/api/admin/upload', {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-              ...(token ? { Authorization: `Bearer ${token}` } : {}),
-            },
-            body: JSON.stringify({
-              imageBase64: base64DataUrl,
-              folder: 'spots',
-              filename: file.name,
-            }),
-          });
-          const data = await res.json();
-          if (data.success && data.url) {
-            finalUrl = data.url;
-          }
-        } catch {}
+        setErrorMsg('Não foi possível enviar a imagem para o Supabase Storage. Tente novamente.');
+        return;
       }
 
-      const resolvedImage = finalUrl || base64DataUrl;
       setFormData((prev) => ({
         ...prev,
-        image: resolvedImage,
-        gallery: prev.gallery.includes(resolvedImage) ? prev.gallery : [resolvedImage, ...prev.gallery],
+        image: finalUrl,
+        gallery: prev.gallery.includes(finalUrl) ? prev.gallery : [finalUrl, ...prev.gallery],
       }));
     } catch {
       setErrorMsg('Não foi possível processar a imagem selecionada.');
@@ -296,7 +252,7 @@ export const AdminSpotModal: React.FC<AdminSpotModalProps> = ({
 
   return (
     <>
-      <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/45 backdrop-blur-xs p-3 sm:p-5 overflow-y-auto">
+      <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/45 p-3 sm:p-5 overflow-y-auto">
         <div className="bg-white border border-zinc-200 rounded-3xl max-w-2xl w-full text-zinc-900 shadow-2xl overflow-hidden my-auto max-h-[92vh] flex flex-col">
           {/* Header */}
           <div className="px-6 py-4 border-b border-zinc-200 flex items-center justify-between bg-zinc-50 shrink-0">
@@ -580,7 +536,7 @@ export const AdminSpotModal: React.FC<AdminSpotModalProps> = ({
       </div>
 
       {isMapPickerOpen && (
-        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/45 backdrop-blur-xs p-4">
+        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/45 p-4">
           <div className="bg-white border border-zinc-200 rounded-3xl p-5 max-w-lg w-full space-y-4 shadow-2xl text-zinc-900">
             <div className="flex items-center justify-between">
               <h4 className="text-sm font-black text-zinc-900">Toque no mapa para definir as coordenadas</h4>

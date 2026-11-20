@@ -86,7 +86,7 @@ export const PlatanoPurchaseConfirmModal: React.FC<PlatanoPurchaseConfirmModalPr
           exit={{ opacity: 0 }}
           transition={{ duration: 0.2, ease: [0.22, 1, 0.36, 1] }}
           onClick={onClose}
-          className="fixed inset-0 z-[340] flex items-end sm:items-center justify-center bg-black/70 backdrop-blur-[2px] px-0 sm:px-4"
+          className="fixed inset-0 z-[340] flex items-end sm:items-center justify-center bg-black/70-[2px] px-0 sm:px-4"
           style={{
             fontFamily:
               '-apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro Text", "Inter", sans-serif',

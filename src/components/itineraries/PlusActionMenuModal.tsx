@@ -32,7 +32,7 @@ export const PlusActionMenuModal: React.FC<PlusActionMenuModalProps> = ({
           exit={{ opacity: 0 }}
           transition={{ duration: 0.18, ease: 'easeOut' }}
           onClick={onClose}
-          className="fixed inset-0 z-[115] bg-black/45 backdrop-blur-[2px] flex items-end sm:items-center justify-center p-4 sm:p-6 select-none cursor-pointer"
+          className="fixed inset-0 z-[115] bg-black/45-[2px] flex items-end sm:items-center justify-center p-4 sm:p-6 select-none cursor-pointer"
           style={{ willChange: 'opacity' }}
         >
           <motion.div
@@ -49,8 +49,6 @@ export const PlusActionMenuModal: React.FC<PlusActionMenuModalProps> = ({
             }`}
             style={{
               fontFamily: "'Inter', -apple-system, BlinkMacSystemFont, sans-serif",
-              WebkitBackdropFilter: 'blur(25px) saturate(180%)',
-              backdropFilter: 'blur(25px) saturate(180%)',
               willChange: 'transform, opacity',
               transform: 'translateZ(0)',
             }}
@@ -84,8 +82,8 @@ export const PlusActionMenuModal: React.FC<PlusActionMenuModalProps> = ({
             }}
             className={`w-full p-4 rounded-2xl border text-left flex items-center justify-between transition-all cursor-pointer group ${
               isLight
-                ? 'bg-white/60 hover:bg-white/85 border-black/5 hover:border-black/10 shadow-sm backdrop-blur-md'
-                : 'bg-[#2C2C2E]/75 hover:bg-[#2C2C2E] border-white/10 hover:border-white/20 backdrop-blur-md'
+                ? 'bg-white/60 hover:bg-white/85 border-black/5 hover:border-black/10 shadow-sm'
+                : 'bg-[#2C2C2E]/75 hover:bg-[#2C2C2E] border-white/10 hover:border-white/20'
             }`}
           >
             <div className="flex items-center gap-3.5 min-w-0">
@@ -118,8 +116,8 @@ export const PlusActionMenuModal: React.FC<PlusActionMenuModalProps> = ({
             }}
             className={`w-full p-4 rounded-2xl border text-left flex items-center justify-between transition-all cursor-pointer group ${
               isLight
-                ? 'bg-white/60 hover:bg-white/85 border-black/5 hover:border-black/10 shadow-sm backdrop-blur-md'
-                : 'bg-[#2C2C2E]/75 hover:bg-[#2C2C2E] border-white/10 hover:border-white/20 backdrop-blur-md'
+                ? 'bg-white/60 hover:bg-white/85 border-black/5 hover:border-black/10 shadow-sm'
+                : 'bg-[#2C2C2E]/75 hover:bg-[#2C2C2E] border-white/10 hover:border-white/20'
             }`}
           >
             <div className="flex items-center gap-3.5 min-w-0">

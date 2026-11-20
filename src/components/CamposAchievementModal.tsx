@@ -243,7 +243,7 @@ export const CamposAchievementModal: React.FC<CamposAchievementModalProps> = ({
                   transition={{ duration: 0.2 }}
                   className="absolute inset-x-[10%] bottom-[calc(max(30px,env(safe-area-inset-bottom,0px)+14px)+74px)] z-20 flex justify-center pointer-events-none"
                 >
-                  <div className="px-4 py-2.5 rounded-2xl bg-black/75 backdrop-blur-md text-white text-[12.5px] font-medium text-center leading-snug shadow-lg">
+                  <div className="px-4 py-2.5 rounded-2xl bg-black/75 text-white text-[12.5px] font-medium text-center leading-snug shadow-lg">
                     {feedbackMessage}
                   </div>
                 </motion.div>
@@ -265,8 +265,6 @@ export const CamposAchievementModal: React.FC<CamposAchievementModalProps> = ({
                 className="w-full h-[58px] rounded-full flex items-center justify-center gap-3 text-[#111317] transition-transform duration-150 active:scale-[0.97] disabled:opacity-80 cursor-pointer"
                 style={{
                   backgroundColor: 'rgba(255, 255, 255, 0.90)',
-                  backdropFilter: 'blur(18px) saturate(160%)',
-                  WebkitBackdropFilter: 'blur(18px) saturate(160%)',
                   boxShadow: '0 8px 24px rgba(0, 0, 0, 0.14)',
                 }}
               >

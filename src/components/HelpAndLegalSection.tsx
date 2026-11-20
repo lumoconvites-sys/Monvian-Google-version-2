@@ -810,8 +810,6 @@ export const HelpAndLegalView: React.FC<HelpAndLegalViewProps> = ({
         style={{
           paddingTop: 'max(calc(env(safe-area-inset-top, 0px) + 8px), 14px)',
           backgroundColor: isDark ? 'rgba(0, 0, 0, 0.50)' : 'rgba(255, 255, 255, 0.40)',
-          backdropFilter: 'blur(8px) saturate(150%)',
-          WebkitBackdropFilter: 'blur(8px) saturate(150%)',
         }}
       >
         <AppleBackButton

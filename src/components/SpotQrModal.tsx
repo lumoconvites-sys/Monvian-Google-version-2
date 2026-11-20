@@ -44,8 +44,6 @@ export const SpotQrModal: React.FC<SpotQrModalProps> = ({ isOpen, onClose, spot 
           }}
           style={{
             backgroundColor: 'rgba(0, 0, 0, 0.38)',
-            backdropFilter: 'blur(26px) saturate(165%)',
-            WebkitBackdropFilter: 'blur(26px) saturate(165%)',
             willChange: 'opacity',
           }}
           className="fixed inset-0 z-[300] flex items-center justify-center p-6 select-none cursor-pointer"

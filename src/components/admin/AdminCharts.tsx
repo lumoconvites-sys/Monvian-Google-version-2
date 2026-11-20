@@ -326,7 +326,7 @@ export const AdminCommunityActivityChart: React.FC<CommunityActivityChartProps> 
             {/* Honest Empty State overlay over reference grid */}
             {!hasData && (
               <div className="absolute inset-0 flex items-center justify-center pointer-events-none pb-4 pl-8">
-                <div className="px-4 py-2 rounded-2xl bg-white/92 backdrop-blur-xs border border-slate-200/80 shadow-xs text-center">
+                <div className="px-4 py-2 rounded-2xl bg-white/92 border border-slate-200/80 shadow-xs text-center">
                   <p className="text-xs font-semibold text-[#334155]">
                     Sem atividades registradas nos últimos {range === '7d' ? '7 dias' : range === '30d' ? '30 dias' : '90 dias'}
                   </p>
@@ -525,7 +525,7 @@ export const AdminDestinationViewsChart: React.FC<DestinationViewsChartProps> = 
             {/* Honest Empty State overlay over reference grid */}
             {!hasData && (
               <div className="absolute inset-0 flex items-center justify-center pointer-events-none pb-4 pl-8">
-                <div className="px-4 py-2 rounded-2xl bg-white/92 backdrop-blur-xs border border-slate-200/80 shadow-xs text-center">
+                <div className="px-4 py-2 rounded-2xl bg-white/92 border border-slate-200/80 shadow-xs text-center">
                   <p className="text-xs font-semibold text-[#334155]">
                     Sem visualizações por destino nos últimos {range === '7d' ? '7 dias' : range === '30d' ? '30 dias' : '90 dias'}
                   </p>

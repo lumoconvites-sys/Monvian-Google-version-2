@@ -127,7 +127,7 @@ export const UserSearchModal: React.FC<UserSearchModalProps> = ({
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
           onClick={onClose}
-          className="absolute inset-0 bg-black/60 backdrop-blur-md"
+          className="absolute inset-0 bg-black/60"
         />
 
         {/* Search View Container */}
@@ -154,8 +154,6 @@ export const UserSearchModal: React.FC<UserSearchModalProps> = ({
             style={{
               paddingTop: 'max(calc(env(safe-area-inset-top, 0px) + 8px), 12px)',
               backgroundColor: isDark ? 'rgba(0, 0, 0, 0.40)' : 'rgba(255, 255, 255, 0.40)',
-              backdropFilter: 'blur(8px) saturate(150%)',
-              WebkitBackdropFilter: 'blur(8px) saturate(150%)',
             }}
           >
             <AppleBackButton

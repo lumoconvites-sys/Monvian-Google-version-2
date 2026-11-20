@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, Suspense } from 'react';
 import { motion, AnimatePresence, useReducedMotion } from 'motion/react';
 import {
   Home,
@@ -15,14 +15,29 @@ import {
   LogOut,
   User as UserIcon,
 } from 'lucide-react';
-import { AdminDashboard } from './AdminDashboard';
-import { AdminSpots } from './AdminSpots';
-import { AdminUsers } from './AdminUsers';
-import { AdminSettings } from './AdminSettings';
-import { AdminItineraries } from './AdminItineraries';
-import { AdminServices } from './AdminServices';
-import { AdminPlatanos } from './AdminPlatanos';
 import { useIOSBackEntry } from '../../services/iosNavigationManager';
+
+const AdminDashboard = React.lazy(() =>
+  import('./AdminDashboard').then((m) => ({ default: m.AdminDashboard }))
+);
+const AdminSpots = React.lazy(() =>
+  import('./AdminSpots').then((m) => ({ default: m.AdminSpots }))
+);
+const AdminUsers = React.lazy(() =>
+  import('./AdminUsers').then((m) => ({ default: m.AdminUsers }))
+);
+const AdminSettings = React.lazy(() =>
+  import('./AdminSettings').then((m) => ({ default: m.AdminSettings }))
+);
+const AdminItineraries = React.lazy(() =>
+  import('./AdminItineraries').then((m) => ({ default: m.AdminItineraries }))
+);
+const AdminServices = React.lazy(() =>
+  import('./AdminServices').then((m) => ({ default: m.AdminServices }))
+);
+const AdminPlatanos = React.lazy(() =>
+  import('./AdminPlatanos').then((m) => ({ default: m.AdminPlatanos }))
+);
 import {
   ADMIN_COLORS,
   ADMIN_MOTION_EASE,
@@ -280,7 +295,7 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
               transition={{ duration: prefersReducedMotion ? 0 : 0.2 }}
-              className="fixed inset-0 bg-[#0D1526]/30 backdrop-blur-xs"
+              className="fixed inset-0 bg-[#0D1526]/30"
               onClick={() => setIsMobileMenuOpen(false)}
             />
             <motion.div
@@ -487,26 +502,34 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({
             </div>
 
             {/* Active Admin Page Container */}
-            <AnimatePresence mode="wait">
-              <motion.div
-                key={activeTab}
-                initial={prefersReducedMotion ? false : { opacity: 0, y: 8 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={prefersReducedMotion ? undefined : { opacity: 0, y: -6 }}
-                transition={{ duration: 0.2, ease: ADMIN_MOTION_EASE }}
-                className="w-full"
-              >
-                {activeTab === 'dashboard' && (
-                  <AdminDashboard onNavigateTo={(tab) => handleSelectAdminTab(tab)} />
-                )}
-                {activeTab === 'spots' && <AdminSpots />}
-                {activeTab === 'itineraries' && <AdminItineraries />}
-                {activeTab === 'platanos' && <AdminPlatanos currentUser={currentUser} />}
-                {activeTab === 'services' && <AdminServices />}
-                {activeTab === 'users' && <AdminUsers />}
-                {activeTab === 'settings' && <AdminSettings />}
-              </motion.div>
-            </AnimatePresence>
+            <Suspense
+              fallback={
+                <div className="w-full py-16 flex items-center justify-center">
+                  <div className="w-7 h-7 rounded-full border-2 border-zinc-200 border-t-zinc-900 animate-spin" />
+                </div>
+              }
+            >
+              <AnimatePresence mode="wait">
+                <motion.div
+                  key={activeTab}
+                  initial={prefersReducedMotion ? false : { opacity: 0, y: 8 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={prefersReducedMotion ? undefined : { opacity: 0, y: -6 }}
+                  transition={{ duration: 0.2, ease: ADMIN_MOTION_EASE }}
+                  className="w-full"
+                >
+                  {activeTab === 'dashboard' && (
+                    <AdminDashboard onNavigateTo={(tab) => handleSelectAdminTab(tab)} />
+                  )}
+                  {activeTab === 'spots' && <AdminSpots />}
+                  {activeTab === 'itineraries' && <AdminItineraries />}
+                  {activeTab === 'platanos' && <AdminPlatanos currentUser={currentUser} />}
+                  {activeTab === 'services' && <AdminServices />}
+                  {activeTab === 'users' && <AdminUsers />}
+                  {activeTab === 'settings' && <AdminSettings />}
+                </motion.div>
+              </AnimatePresence>
+            </Suspense>
           </div>
         </main>
       </div>

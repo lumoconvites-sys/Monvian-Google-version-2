@@ -407,7 +407,7 @@ export const AdminUsers: React.FC = () => {
 
       {/* User Preferences Detail Modal */}
       {selectedUserDetail && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60">
           <div className="w-full max-w-lg bg-white rounded-3xl p-6 shadow-2xl border border-zinc-200 overflow-hidden">
             <div className="flex items-center justify-between pb-4 border-b border-zinc-100 mb-5">
               <div className="flex items-center gap-3">
@@ -533,7 +533,7 @@ export const AdminUsers: React.FC = () => {
 
       {/* Ban / Unban Confirmation Modal */}
       {userToBan && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60">
           <div className="w-full max-w-md bg-white rounded-3xl p-6 shadow-2xl border border-zinc-200">
             <div
               className={`w-12 h-12 rounded-2xl flex items-center justify-center mb-4 ${
