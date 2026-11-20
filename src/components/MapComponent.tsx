@@ -16,6 +16,7 @@ import {
 import { CompassIcon } from './CompassIcon';
 import { MapLayerToggleIcon } from './MapLayerToggleIcon';
 import { ActiveMapRoute } from '../services/mapboxDirections';
+import { fetchSpotsInViewport, GeoBounds } from '../services/supabaseSpots';
 
 export type { MapModeType };
 
@@ -60,6 +61,7 @@ interface MapComponentProps {
   onGlobeIntroComplete?: () => void;
   activeRoute?: ActiveMapRoute | null;
   isSuspended?: boolean;
+  onViewportSpotsLoaded?: (spots: Spot[]) => void;
 }
 
 const getMapboxToken = (): string => {
@@ -362,6 +364,7 @@ export const MapComponent = memo(
       onGlobeIntroComplete,
       activeRoute = null,
       isSuspended = false,
+      onViewportSpotsLoaded,
     },
     ref
   ) => {
@@ -375,8 +378,12 @@ export const MapComponent = memo(
       pitch: number;
       bearing: number;
     } | null>(null);
-    const clusterMarkersRef = useRef<maplibregl.Marker[]>([]);
-    const syncMarkerClustersRef = useRef<(() => void) | null>(null);
+    const onViewportSpotsLoadedRef = useRef(onViewportSpotsLoaded);
+    onViewportSpotsLoadedRef.current = onViewportSpotsLoaded;
+    const syncSpotMarkersRef = useRef<(() => void) | null>(null);
+    const viewportSyncRafRef = useRef<number | null>(null);
+    const viewportFetchTimerRef = useRef<number | null>(null);
+    const viewportFetchAbortRef = useRef<AbortController | null>(null);
     const [currentMode, setCurrentMode] = useState<MapModeType>(
       mapMode === 'satelite' ? 'satelite' : 'explorar'
     );
@@ -904,12 +911,18 @@ export const MapComponent = memo(
           markerRecordsRef.current = [];
           animatedSpotIdsRef.current.clear();
 
-          clusterMarkersRef.current.forEach((cm) => {
-            try {
-              cm.remove();
-            } catch {}
-          });
-          clusterMarkersRef.current = [];
+          if (viewportSyncRafRef.current !== null) {
+            cancelAnimationFrame(viewportSyncRafRef.current);
+            viewportSyncRafRef.current = null;
+          }
+          if (viewportFetchTimerRef.current !== null) {
+            window.clearTimeout(viewportFetchTimerRef.current);
+            viewportFetchTimerRef.current = null;
+          }
+          if (viewportFetchAbortRef.current) {
+            viewportFetchAbortRef.current.abort();
+            viewportFetchAbortRef.current = null;
+          }
 
           visualIconMarkersRef.current.forEach((m) => {
             try {
@@ -988,190 +1001,80 @@ export const MapComponent = memo(
 
         let lastSpaceActive: boolean | null = null;
         let lastHideUserPin: boolean | null = null;
-        let viewportCullRafId: number | null = null;
 
-        const clearClusterMarkers = () => {
-          if (clusterMarkersRef.current.length === 0) return;
-          for (let i = 0; i < clusterMarkersRef.current.length; i++) {
+        const cancelPendingViewportFetch = () => {
+          if (viewportFetchTimerRef.current !== null) {
+            window.clearTimeout(viewportFetchTimerRef.current);
+            viewportFetchTimerRef.current = null;
+          }
+          if (viewportFetchAbortRef.current) {
+            viewportFetchAbortRef.current.abort();
+            viewportFetchAbortRef.current = null;
+          }
+        };
+
+        const scheduleViewportMarkerSync = () => {
+          if (viewportSyncRafRef.current !== null) return;
+          viewportSyncRafRef.current = requestAnimationFrame(() => {
+            viewportSyncRafRef.current = null;
+            if (!mapRef.current || mapRef.current !== map) return;
+            syncSpotMarkersRef.current?.();
+          });
+        };
+
+        const scheduleViewportDataFetch = (immediate: boolean = false) => {
+          if (isSuspendedRef.current || isGlobeIntroActiveRef.current) return;
+          if (!mapRef.current || mapRef.current !== map) return;
+          if (map.getZoom() < 8.5) return;
+
+          cancelPendingViewportFetch();
+
+          const runFetch = () => {
+            viewportFetchTimerRef.current = null;
+            if (isSuspendedRef.current || isGlobeIntroActiveRef.current) return;
+            if (!mapRef.current || mapRef.current !== map) return;
+            if (map.getZoom() < 8.5) return;
+
             try {
-              clusterMarkersRef.current[i].remove();
-            } catch {}
-          }
-          clusterMarkersRef.current = [];
-        };
+              const rawBounds = map.getBounds();
+              const sw = rawBounds.getSouthWest();
+              const ne = rawBounds.getNorthEast();
+              const latSpan = Math.max(0.004, ne.lat - sw.lat);
+              const lngSpan = Math.max(0.004, ne.lng - sw.lng);
+              const latAnticipation = Math.max(0.006, latSpan * 0.25);
+              const lngAnticipation = Math.max(0.006, lngSpan * 0.25);
 
-        const syncViewportMarkerVisibility = () => {
-          viewportCullRafId = null;
-          const records = markerRecordsRef.current;
-          if (!records.length || !mapRef.current || mapRef.current !== map) return;
+              const fetchBounds: GeoBounds = {
+                minLat: sw.lat - latAnticipation,
+                maxLat: ne.lat + latAnticipation,
+                minLng: sw.lng - lngAnticipation,
+                maxLng: ne.lng + lngAnticipation,
+              };
 
-          const z = map.getZoom();
-          // Always show all markers during orbital globe / regional zoom or spotlight
-          if (z < 9.5 || isGlobeIntroActiveRef.current || isSpotlightActiveRef.current) {
-            clearClusterMarkers();
-            for (let i = 0; i < records.length; i++) {
-              const rec = records[i];
-              if (rec.isCulledOffscreen) {
-                rec.isCulledOffscreen = false;
-                rec.el.style.visibility = '';
-              }
-            }
-            return;
-          }
+              const controller = new AbortController();
+              viewportFetchAbortRef.current = controller;
 
-          try {
-            const bounds = map.getBounds();
-            const sw = bounds.getSouthWest();
-            const ne = bounds.getNorthEast();
-            const latPad = Math.max(0.015, (ne.lat - sw.lat) * 0.35);
-            const lngPad = Math.max(0.015, (ne.lng - sw.lng) * 0.35);
-            const minLat = sw.lat - latPad;
-            const maxLat = ne.lat + latPad;
-            const minLng = sw.lng - lngPad;
-            const maxLng = ne.lng + lngPad;
-            const activeId = selectedSpotRef.current?.id;
-
-            const shouldCluster =
-              z < 13.4 &&
-              !isFocusModeRef.current &&
-              !activeRouteRef.current &&
-              records.length >= 10;
-
-            clearClusterMarkers();
-
-            if (!shouldCluster) {
-              for (let i = 0; i < records.length; i++) {
-                const rec = records[i];
-                const inView =
-                  rec.spotId === activeId ||
-                  (rec.lat >= minLat && rec.lat <= maxLat && rec.lng >= minLng && rec.lng <= maxLng);
-                const shouldCull = !inView;
-                if (rec.isCulledOffscreen !== shouldCull) {
-                  rec.isCulledOffscreen = shouldCull;
-                  rec.el.style.visibility = shouldCull ? 'hidden' : '';
-                }
-              }
-              return;
-            }
-
-            // Lightweight screen-space spatial clustering at city overview zoom (< 13.4)
-            const CLUSTER_RADIUS_PX = 52;
-            const CLUSTER_RADIUS_SQ = CLUSTER_RADIUS_PX * CLUSTER_RADIUS_PX;
-            const visibleCandidates: Array<{ rec: (typeof records)[number]; x: number; y: number }> = [];
-
-            for (let i = 0; i < records.length; i++) {
-              const rec = records[i];
-              const isSelected = rec.spotId === activeId;
-              const inView =
-                isSelected ||
-                (rec.lat >= minLat && rec.lat <= maxLat && rec.lng >= minLng && rec.lng <= maxLng);
-              if (!inView) {
-                if (!rec.isCulledOffscreen) {
-                  rec.isCulledOffscreen = true;
-                  rec.el.style.visibility = 'hidden';
-                }
-                continue;
-              }
-              if (isSelected) {
-                if (rec.isCulledOffscreen) {
-                  rec.isCulledOffscreen = false;
-                  rec.el.style.visibility = '';
-                }
-                continue;
-              }
-              const pt = map.project([rec.lng, rec.lat]);
-              visibleCandidates.push({ rec, x: pt.x, y: pt.y });
-            }
-
-            const visited = new Uint8Array(visibleCandidates.length);
-            const isDarkCluster = themeRef.current === 'dark';
-
-            for (let i = 0; i < visibleCandidates.length; i++) {
-              if (visited[i]) continue;
-              visited[i] = 1;
-              const seed = visibleCandidates[i];
-              const group = [seed];
-
-              for (let j = i + 1; j < visibleCandidates.length; j++) {
-                if (visited[j]) continue;
-                const cand = visibleCandidates[j];
-                const dx = seed.x - cand.x;
-                const dy = seed.y - cand.y;
-                if (dx * dx + dy * dy <= CLUSTER_RADIUS_SQ) {
-                  visited[j] = 1;
-                  group.push(cand);
-                }
-              }
-
-              if (group.length === 1) {
-                if (seed.rec.isCulledOffscreen) {
-                  seed.rec.isCulledOffscreen = false;
-                  seed.rec.el.style.visibility = '';
-                }
-              } else {
-                let sumLng = 0;
-                let sumLat = 0;
-                let hasStar = false;
-                for (let k = 0; k < group.length; k++) {
-                  const item = group[k].rec;
-                  sumLng += item.lng;
-                  sumLat += item.lat;
-                  if (item.isStar) hasStar = true;
-                  if (!item.isCulledOffscreen) {
-                    item.isCulledOffscreen = true;
-                    item.el.style.visibility = 'hidden';
+              fetchSpotsInViewport(fetchBounds, { signal: controller.signal })
+                .then((regionSpots) => {
+                  if (controller.signal.aborted || mapRef.current !== map) return;
+                  if (viewportFetchAbortRef.current === controller) {
+                    viewportFetchAbortRef.current = null;
                   }
-                }
-                const centerLng = sumLng / group.length;
-                const centerLat = sumLat / group.length;
+                  if (regionSpots.length > 0 && onViewportSpotsLoadedRef.current) {
+                    onViewportSpotsLoadedRef.current(regionSpots);
+                  }
+                })
+                .catch((err: any) => {
+                  if (err?.name === 'AbortError') return;
+                });
+            } catch {}
+          };
 
-                const clusterEl = document.createElement('button');
-                clusterEl.type = 'button';
-                clusterEl.className = 'monvian-cluster-marker cursor-pointer select-none';
-                clusterEl.setAttribute('aria-label', `${group.length} locais agrupados`);
-                clusterEl.style.width = '40px';
-                clusterEl.style.height = '40px';
-                clusterEl.style.borderRadius = '9999px';
-                clusterEl.style.display = 'flex';
-                clusterEl.style.alignItems = 'center';
-                clusterEl.style.justifyContent = 'center';
-                clusterEl.style.fontWeight = '700';
-                clusterEl.style.fontSize = '13px';
-                clusterEl.style.letterSpacing = '-0.02em';
-                clusterEl.style.backgroundColor = isDarkCluster ? '#171717' : '#FFFFFF';
-                clusterEl.style.color = isDarkCluster ? '#FFFFFF' : '#000000';
-                clusterEl.style.border = hasStar
-                  ? '2px solid #FFD60A'
-                  : isDarkCluster
-                    ? '1.5px solid rgba(255,255,255,0.22)'
-                    : '1.5px solid rgba(0,0,0,0.14)';
-                clusterEl.style.boxShadow = '0 4px 12px rgba(0,0,0,0.26)';
-                clusterEl.textContent = String(group.length);
-
-                clusterEl.onclick = (e) => {
-                  e.stopPropagation();
-                  triggerHapticFeedback(10);
-                  map.easeTo({
-                    center: [centerLng, centerLat],
-                    zoom: Math.min(Math.max(map.getZoom() + 2.1, 13.8), 15.6),
-                    duration: 420,
-                  });
-                };
-
-                const cm = new maplibregl.Marker({ element: clusterEl, opacityWhenCovered: '0' })
-                  .setLngLat([centerLng, centerLat])
-                  .addTo(map);
-                clusterMarkersRef.current.push(cm);
-              }
-            }
-          } catch {}
-        };
-
-        syncMarkerClustersRef.current = syncViewportMarkerVisibility;
-
-        const scheduleViewportMarkerCull = () => {
-          if (markerRecordsRef.current.length < 10 || viewportCullRafId !== null) return;
-          viewportCullRafId = requestAnimationFrame(syncViewportMarkerVisibility);
+          if (immediate) {
+            runFetch();
+          } else {
+            viewportFetchTimerRef.current = window.setTimeout(runFetch, 180);
+          }
         };
 
         const syncSpaceAndMarkerZoomTier = () => {
@@ -1240,7 +1143,8 @@ export const MapComponent = memo(
             frameAllSpotsOverview(map, false);
           }
           syncSpaceAndMarkerZoomTier();
-          syncViewportMarkerVisibility();
+          syncSpotMarkersRef.current?.();
+          scheduleViewportDataFetch(true);
           if (onMapLoad) onMapLoad();
         });
 
@@ -1249,15 +1153,15 @@ export const MapComponent = memo(
             map.setProjection({ type: 'globe' });
             map.setSky(getCleanSpaceSky(themeRef.current));
           } catch {}
-          syncSpotMarkers();
+          syncSpotMarkersRef.current?.();
           syncActiveRouteLayers(map);
           ensureUserMarker(map);
           syncSpaceAndMarkerZoomTier();
-          syncViewportMarkerVisibility();
         });
 
         // Mark map as manually moved by user when panning/dragging so camera stops auto-centering
         const onUserManualMoveStart = (e: any) => {
+          cancelPendingViewportFetch();
           if (e && e.originalEvent) {
             isMapGestureActiveRef.current = true;
             lastMapGestureTimeRef.current = performance.now();
@@ -1281,7 +1185,7 @@ export const MapComponent = memo(
             isMapGestureActiveRef.current = true;
             lastMapGestureTimeRef.current = performance.now();
           }
-          scheduleViewportMarkerCull();
+          scheduleViewportMarkerSync();
         };
 
         const onUserZoom = (e: any) => {
@@ -1290,7 +1194,7 @@ export const MapComponent = memo(
             lastMapGestureTimeRef.current = performance.now();
           }
           syncSpaceAndMarkerZoomTier();
-          scheduleViewportMarkerCull();
+          scheduleViewportMarkerSync();
         };
 
         const onInteractionEnd = (e: any) => {
@@ -1299,7 +1203,8 @@ export const MapComponent = memo(
           }
           isMapGestureActiveRef.current = false;
           syncSpaceAndMarkerZoomTier();
-          syncViewportMarkerVisibility();
+          syncSpotMarkersRef.current?.();
+          scheduleViewportDataFetch(false);
           if (lastInteractionStateRef.current) {
             lastInteractionStateRef.current = false;
             if (onInteractionChangeRef.current) onInteractionChangeRef.current(false);
@@ -1885,12 +1790,18 @@ export const MapComponent = memo(
         markerRecordsRef.current = [];
         animatedSpotIdsRef.current.clear();
 
-        clusterMarkersRef.current.forEach((cm) => {
-          try {
-            cm.remove();
-          } catch (e) {}
-        });
-        clusterMarkersRef.current = [];
+        if (viewportSyncRafRef.current !== null) {
+          cancelAnimationFrame(viewportSyncRafRef.current);
+          viewportSyncRafRef.current = null;
+        }
+        if (viewportFetchTimerRef.current !== null) {
+          window.clearTimeout(viewportFetchTimerRef.current);
+          viewportFetchTimerRef.current = null;
+        }
+        if (viewportFetchAbortRef.current) {
+          viewportFetchAbortRef.current.abort();
+          viewportFetchAbortRef.current = null;
+        }
 
         visualIconMarkersRef.current.forEach((m) => {
           try {
@@ -1996,7 +1907,6 @@ export const MapComponent = memo(
       lastSelectedState?: boolean;
       lastHiddenState?: boolean;
       lastZoomTier?: 'orbital' | 'regional' | 'city';
-      isCulledOffscreen?: boolean;
     }[]>([]);
     const lastUserHighlightKeyRef = useRef<string>('');
     const animatedSpotIdsRef = useRef<Set<string>>(new Set());
@@ -2122,12 +2032,6 @@ export const MapComponent = memo(
         rec.lastSelectedState = isSelected;
         rec.lastHiddenState = shouldHideMarker;
         rec.lastZoomTier = zoomTier;
-
-        // Ensure newly selected marker is never culled offscreen
-        if (isSelected && rec.isCulledOffscreen) {
-          rec.isCulledOffscreen = false;
-          rec.el.style.visibility = '';
-        }
 
         rec.containerEl.style.transition =
           'transform 0.36s cubic-bezier(0.22, 1, 0.36, 1), opacity 0.28s cubic-bezier(0.22, 1, 0.36, 1)';
@@ -2432,24 +2336,95 @@ export const MapComponent = memo(
       };
     }, []);
 
-    // Create and update spot markers incrementally (rebuilds a marker immediately if its "Estrela" status changes)
+    // True Viewport-Based Marker Virtualization:
+    // Mounts DOM nodes, images, and MapLibre Marker instances ONLY for spots inside the visible viewport
+    // (+ anticipation margin), and unmounts markers that move beyond the hysteresis exit margin.
     const syncSpotMarkers = useCallback(() => {
       const map = mapRef.current;
       if (!map) return;
 
-      const currentSelectedId = selectedSpotRef.current?.id;
+      const currentSelectedId = selectedSpotRef.current?.id || null;
+      const currentRouteSpotId = activeRouteRef.current?.spotId || null;
       const currentSpots = spotsRef.current || [];
       const validSpots = currentSpots.filter(
         (s) => typeof s.lng === 'number' && !isNaN(s.lng) && typeof s.lat === 'number' && !isNaN(s.lat)
       );
-      const nextSpotIds = new Set(validSpots.map((s) => s.id));
+      const validSpotsById = new Map<string, Spot>();
+      for (let i = 0; i < validSpots.length; i++) {
+        validSpotsById.set(validSpots[i].id, validSpots[i]);
+      }
 
-      // Remove markers whose spots are no longer in the filtered list or belong to a disposed map instance
+      const zoom = map.getZoom();
+      // Do not mount city markers while camera is in orbital Earth space during intro flight
+      if (isGlobeIntroActiveRef.current && zoom < 5.5) {
+        if (markerRecordsRef.current.length > 0) {
+          markerRecordsRef.current.forEach((rec) => {
+            try {
+              rec.marker.remove();
+            } catch {}
+          });
+          markerRecordsRef.current = [];
+        }
+        return;
+      }
+
+      let enterBounds: GeoBounds | null = null;
+      let exitBounds: GeoBounds | null = null;
+
+      try {
+        const rawBounds = map.getBounds();
+        const sw = rawBounds.getSouthWest();
+        const ne = rawBounds.getNorthEast();
+        const latSpan = Math.max(0.004, ne.lat - sw.lat);
+        const lngSpan = Math.max(0.004, ne.lng - sw.lng);
+
+        // Enter margin (~25%, min 0.006 deg): pre-mounts pins slightly before entering screen
+        const enterLatPad = Math.max(0.006, latSpan * 0.25);
+        const enterLngPad = Math.max(0.006, lngSpan * 0.25);
+        enterBounds = {
+          minLat: sw.lat - enterLatPad,
+          maxLat: ne.lat + enterLatPad,
+          minLng: sw.lng - enterLngPad,
+          maxLng: ne.lng + enterLngPad,
+        };
+
+        // Exit margin (~48%, min 0.014 deg): hysteresis buffer prevents edge thrashing while panning
+        const exitLatPad = Math.max(0.014, latSpan * 0.48);
+        const exitLngPad = Math.max(0.014, lngSpan * 0.48);
+        exitBounds = {
+          minLat: sw.lat - exitLatPad,
+          maxLat: ne.lat + exitLatPad,
+          minLng: sw.lng - exitLngPad,
+          maxLng: ne.lng + exitLngPad,
+        };
+      } catch {
+        enterBounds = null;
+        exitBounds = null;
+      }
+
+      const isProtectedSpot = (spotId: string): boolean =>
+        spotId === currentSelectedId || spotId === currentRouteSpotId;
+
+      const isInsideGeoBounds = (lat: number, lng: number, b: GeoBounds | null): boolean => {
+        if (!b) return true;
+        return lat >= b.minLat && lat <= b.maxLat && lng >= b.minLng && lng <= b.maxLng;
+      };
+
+      // Step 1: Unmount markers that were removed, belong to a disposed map, or exited the extended viewport buffer
       markerRecordsRef.current = markerRecordsRef.current.filter((rec) => {
-        if (!nextSpotIds.has(rec.spotId) || rec.mapInstance !== map) {
+        const latestSpot = validSpotsById.get(rec.spotId);
+        if (!latestSpot || rec.mapInstance !== map) {
           try {
             rec.marker.remove();
-          } catch (e) {}
+          } catch {}
+          return false;
+        }
+        const lat = Number(latestSpot.lat);
+        const lng = Number(latestSpot.lng);
+        if (!isProtectedSpot(rec.spotId) && !isInsideGeoBounds(lat, lng, exitBounds)) {
+          try {
+            rec.marker.remove();
+          } catch {}
           return false;
         }
         return true;
@@ -2461,18 +2436,20 @@ export const MapComponent = memo(
       const starClipPolygon =
         'polygon(50% 4%, 64% 34%, 97% 38%, 72% 60%, 79% 93%, 50% 76%, 21% 93%, 28% 60%, 3% 38%, 36% 34%)';
 
+      // Step 2: Update already-mounted pins or mount on-demand ONLY spots inside the enter viewport bounds
       validSpots.forEach((spot) => {
         const lng = Number(spot.lng);
         const lat = Number(spot.lat);
-        const imgUrl = getSpotImage(spot);
-        const isStar = isFiveStarSpot(spot);
         const existing = existingMap.get(spot.id);
+        const protectedPin = isProtectedSpot(spot.id);
 
         if (existing && existing.mapInstance === map) {
+          const imgUrl = getSpotImage(spot);
+          const isStar = isFiveStarSpot(spot);
           if (existing.isStar !== isStar) {
             try {
               existing.marker.remove();
-            } catch (e) {}
+            } catch {}
             markerRecordsRef.current = markerRecordsRef.current.filter((r) => r.spotId !== spot.id);
             animatedSpotIdsRef.current.delete(spot.id);
           } else {
@@ -2491,8 +2468,13 @@ export const MapComponent = memo(
             }
             return;
           }
+        } else if (!protectedPin && !isInsideGeoBounds(lat, lng, enterBounds)) {
+          // Offscreen spot: do NOT instantiate DOM, <img>, or MapLibre Marker
+          return;
         }
 
+        const imgUrl = getSpotImage(spot);
+        const isStar = isFiveStarSpot(spot);
         const isSelected = currentSelectedId === spot.id;
 
         const el = document.createElement('div');
@@ -2694,8 +2676,51 @@ export const MapComponent = memo(
       });
 
       syncMarkerHighlight(currentSelectedId);
-      syncMarkerClustersRef.current?.();
     }, [syncMarkerHighlight, setFollowMode, triggerPinTapFeedback, animateMarkerPress, buildRoundedStarPath, isFiveStarSpot]);
+
+    useEffect(() => {
+      syncSpotMarkersRef.current = syncSpotMarkers;
+    }, [syncSpotMarkers]);
+
+    useEffect(() => {
+      if (isGlobeIntroPending || isGlobeIntroPlaying || isSuspended) return;
+      const map = mapRef.current;
+      if (!map) return;
+      syncSpotMarkers();
+      if (map.getZoom() >= 8.5) {
+        try {
+          const rawBounds = map.getBounds();
+          const sw = rawBounds.getSouthWest();
+          const ne = rawBounds.getNorthEast();
+          const latPad = Math.max(0.006, (ne.lat - sw.lat) * 0.25);
+          const lngPad = Math.max(0.006, (ne.lng - sw.lng) * 0.25);
+          const controller = new AbortController();
+          if (viewportFetchAbortRef.current) {
+            viewportFetchAbortRef.current.abort();
+          }
+          viewportFetchAbortRef.current = controller;
+          fetchSpotsInViewport(
+            {
+              minLat: sw.lat - latPad,
+              maxLat: ne.lat + latPad,
+              minLng: sw.lng - lngPad,
+              maxLng: ne.lng + lngPad,
+            },
+            { signal: controller.signal }
+          )
+            .then((regionSpots) => {
+              if (controller.signal.aborted) return;
+              if (viewportFetchAbortRef.current === controller) {
+                viewportFetchAbortRef.current = null;
+              }
+              if (regionSpots.length > 0 && onViewportSpotsLoadedRef.current) {
+                onViewportSpotsLoadedRef.current(regionSpots);
+              }
+            })
+            .catch(() => {});
+        } catch {}
+      }
+    }, [isGlobeIntroPending, isGlobeIntroPlaying, isSuspended, syncSpotMarkers]);
 
     useEffect(() => {
       spotsRef.current = spots;
@@ -2971,6 +2996,7 @@ export const MapComponent = memo(
 
     // Update marker highlight and camera zoom smoothly when a tourist spot is selected, and restore camera when deselected
     useEffect(() => {
+      syncSpotMarkers();
       syncMarkerHighlight(selectedSpot?.id);
 
       if (!mapRef.current) return;
@@ -3005,7 +3031,7 @@ export const MapComponent = memo(
       } else if (previousCameraStateRef.current) {
         restorePreviousSpotCamera();
       }
-    }, [selectedSpot, isFocusMode, syncMarkerHighlight, setFollowMode, restorePreviousSpotCamera]);
+    }, [selectedSpot, isFocusMode, syncSpotMarkers, syncMarkerHighlight, setFollowMode, restorePreviousSpotCamera]);
 
     // Return zoom and camera to the exact zoom/position before clicking the spot when closing or clicking the map
     useEffect(() => {

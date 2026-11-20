@@ -3,6 +3,75 @@ import { Spot } from '../types';
 import { CAMPOS_SPOTS } from '../data/spots';
 import { getSpotImage } from '../utils/spotImages';
 
+export interface GeoBounds {
+  minLat: number;
+  maxLat: number;
+  minLng: number;
+  maxLng: number;
+}
+
+interface CachedSpatialRegion {
+  bounds: GeoBounds;
+  spots: Spot[];
+  fetchedAt: number;
+}
+
+const REGION_CACHE_TTL_MS = 60_000;
+const MAX_CACHED_REGIONS = 40;
+const cachedSpatialRegions: CachedSpatialRegion[] = [];
+const cachedSpotById = new Map<string, Spot>();
+
+const isPointInBounds = (lat: number, lng: number, b: GeoBounds): boolean =>
+  lat >= b.minLat && lat <= b.maxLat && lng >= b.minLng && lng <= b.maxLng;
+
+const doesBoundsCover = (outer: GeoBounds, inner: GeoBounds): boolean =>
+  outer.minLat <= inner.minLat &&
+  outer.maxLat >= inner.maxLat &&
+  outer.minLng <= inner.minLng &&
+  outer.maxLng >= inner.maxLng;
+
+const registerSpotsInMemory = (spots: Spot[]): Spot[] => {
+  return spots.map((spot) => {
+    const existing = cachedSpotById.get(spot.id);
+    if (
+      existing &&
+      existing.name === spot.name &&
+      existing.lat === spot.lat &&
+      existing.lng === spot.lng &&
+      existing.image === spot.image &&
+      existing.rating === spot.rating &&
+      existing.isStar === spot.isStar &&
+      existing.isActive === spot.isActive &&
+      existing.category === spot.category &&
+      existing.description === spot.description
+    ) {
+      return existing;
+    }
+    cachedSpotById.set(spot.id, spot);
+    return spot;
+  });
+};
+
+export function invalidateViewportSpotsCache(): void {
+  cachedSpatialRegions.length = 0;
+  cachedSpotById.clear();
+}
+
+export function getCachedSpotsInBounds(bounds: GeoBounds): Spot[] | null {
+  const now = Date.now();
+  for (let i = cachedSpatialRegions.length - 1; i >= 0; i--) {
+    const region = cachedSpatialRegions[i];
+    if (now - region.fetchedAt > REGION_CACHE_TTL_MS) {
+      cachedSpatialRegions.splice(i, 1);
+      continue;
+    }
+    if (doesBoundsCover(region.bounds, bounds)) {
+      return region.spots.filter((s) => isPointInBounds(Number(s.lat), Number(s.lng), bounds));
+    }
+  }
+  return null;
+}
+
 /**
  * Normalizes a database row from Supabase 'spots' into a frontend Spot model
  * ensuring both snake_case and camelCase properties are safely populated.
@@ -180,6 +249,132 @@ export async function fetchSpotsFromSupabase(options?: { throwOnError?: boolean 
 }
 
 /**
+ * Fetches tourist spots strictly within a geographic bounding box (with anticipation padding,
+ * spatial region caching to eliminate duplicate queries, and AbortSignal cancellation).
+ */
+export async function fetchSpotsInViewport(
+  bounds: GeoBounds,
+  options?: { signal?: AbortSignal; forceRefresh?: boolean }
+): Promise<Spot[]> {
+  const signal = options?.signal;
+  if (signal?.aborted) {
+    throw new DOMException('Viewport spots request aborted', 'AbortError');
+  }
+
+  // 1. Spatial region cache check — return synchronously if an existing fresh region covers this viewport
+  if (!options?.forceRefresh) {
+    const cachedHit = getCachedSpotsInBounds(bounds);
+    if (cachedHit !== null) {
+      return cachedHit;
+    }
+  }
+
+  // Expand fetched region by ~20% anticipation margin (min 0.008 deg) so small pans hit cache instantly
+  const latSpan = Math.max(0.004, bounds.maxLat - bounds.minLat);
+  const lngSpan = Math.max(0.004, bounds.maxLng - bounds.minLng);
+  const latPad = Math.max(0.008, latSpan * 0.2);
+  const lngPad = Math.max(0.008, lngSpan * 0.2);
+
+  const queryBounds: GeoBounds = {
+    minLat: Math.max(-85, Number((bounds.minLat - latPad).toFixed(5))),
+    maxLat: Math.min(85, Number((bounds.maxLat + latPad).toFixed(5))),
+    minLng: Math.max(-180, Number((bounds.minLng - lngPad).toFixed(5))),
+    maxLng: Math.min(180, Number((bounds.maxLng + lngPad).toFixed(5))),
+  };
+
+  const storeRegion = (rawSpots: Spot[]): Spot[] => {
+    const stableSpots = registerSpotsInMemory(rawSpots);
+    cachedSpatialRegions.push({
+      bounds: queryBounds,
+      spots: stableSpots,
+      fetchedAt: Date.now(),
+    });
+    if (cachedSpatialRegions.length > MAX_CACHED_REGIONS) {
+      cachedSpatialRegions.splice(0, cachedSpatialRegions.length - MAX_CACHED_REGIONS);
+    }
+    return stableSpots.filter((s) => isPointInBounds(Number(s.lat), Number(s.lng), bounds));
+  };
+
+  // Primary 1: Same-origin backend geographic bounding-box endpoint (/api/spots?minLat=...&maxLat=...&minLng=...&maxLng=...)
+  try {
+    if (typeof window !== 'undefined') {
+      const params = new URLSearchParams({
+        minLat: String(queryBounds.minLat),
+        maxLat: String(queryBounds.maxLat),
+        minLng: String(queryBounds.minLng),
+        maxLng: String(queryBounds.maxLng),
+      });
+      const res = await fetch(`/api/spots?${params.toString()}`, { signal });
+      if (res.ok) {
+        const json = await res.json();
+        if (Array.isArray(json?.spots)) {
+          const normalized = json.spots.map(normalizeSpotRecord);
+          return storeRegion(normalized);
+        }
+      }
+    }
+  } catch (err: any) {
+    if (err?.name === 'AbortError' || signal?.aborted) {
+      throw err;
+    }
+  }
+
+  if (signal?.aborted) {
+    throw new DOMException('Viewport spots request aborted', 'AbortError');
+  }
+
+  // Primary 2: Direct Supabase geographic range query fallback
+  try {
+    if (isSupabaseConfigured && supabase) {
+      let query: any = supabase
+        .from('spots')
+        .select('*')
+        .eq('is_active', 1)
+        .gte('lat', queryBounds.minLat)
+        .lte('lat', queryBounds.maxLat)
+        .gte('lng', queryBounds.minLng)
+        .lte('lng', queryBounds.maxLng);
+
+      if (signal && typeof query.abortSignal === 'function') {
+        query = query.abortSignal(signal);
+      }
+
+      const { data, error } = await query;
+      if (signal?.aborted) {
+        throw new DOMException('Viewport spots request aborted', 'AbortError');
+      }
+      if (!error && Array.isArray(data)) {
+        const normalized = data.map(normalizeSpotRecord);
+        return storeRegion(normalized);
+      }
+    }
+  } catch (err: any) {
+    if (err?.name === 'AbortError' || signal?.aborted) {
+      throw err;
+    }
+  }
+
+  // Fallback 3: Filter locally cached spots or bundled CAMPOS_SPOTS strictly to queryBounds
+  try {
+    const cached = localStorage.getItem('monvian_cached_spots');
+    if (cached) {
+      const parsed = JSON.parse(cached);
+      if (Array.isArray(parsed) && parsed.length > 0) {
+        const normalized = parsed
+          .map(normalizeSpotRecord)
+          .filter((s: Spot) => isPointInBounds(Number(s.lat), Number(s.lng), queryBounds));
+        return storeRegion(normalized);
+      }
+    }
+  } catch {}
+
+  const bundledInBounds = CAMPOS_SPOTS.map(normalizeSpotRecord).filter((s) =>
+    isPointInBounds(Number(s.lat), Number(s.lng), queryBounds)
+  );
+  return storeRegion(bundledInBounds);
+}
+
+/**
  * Persists a tourist spot to Supabase PostgreSQL + local backend SQLite with real validation and confirmation.
  */
 export async function saveSpotToSupabase(spotData: any, isEdit: boolean): Promise<Spot> {
@@ -315,7 +510,8 @@ export async function saveSpotToSupabase(spotData: any, isEdit: boolean): Promis
     localStorage.setItem('monvian_cached_spots', JSON.stringify(list));
   } catch {}
 
-  // 4. Notify app components (Map, Admin, Explore) to update immediately
+  // 4. Invalidate spatial region cache & notify app components (Map, Admin, Explore) to update immediately
+  invalidateViewportSpotsCache();
   if (typeof window !== 'undefined') {
     window.dispatchEvent(new CustomEvent('monvian:spots_updated', { detail: { spot: normalized, action: 'save' } }));
   }
@@ -355,7 +551,8 @@ export async function deleteSpotFromSupabase(spotId: string): Promise<boolean> {
     }
   } catch {}
 
-  // Notify app components
+  // Invalidate spatial region cache & notify app components
+  invalidateViewportSpotsCache();
   if (typeof window !== 'undefined') {
     window.dispatchEvent(new CustomEvent('monvian:spots_updated', { detail: { spotId, action: 'delete' } }));
   }
@@ -388,6 +585,7 @@ export async function toggleSpotActiveInSupabase(spotId: string, isActive: boole
     });
   } catch {}
 
+  invalidateViewportSpotsCache();
   if (typeof window !== 'undefined') {
     window.dispatchEvent(new CustomEvent('monvian:spots_updated', { detail: { spotId, isActive, action: 'toggleActive' } }));
   }
@@ -423,6 +621,7 @@ export async function toggleSpotVerifiedInSupabase(spotId: string, isVerified: b
     throw new Error(error.message);
   }
 
+  invalidateViewportSpotsCache();
   if (typeof window !== 'undefined') {
     window.dispatchEvent(new CustomEvent('monvian:spots_updated', { detail: { spotId, isVerified, action: 'toggleVerified' } }));
   }
@@ -434,7 +633,10 @@ export async function toggleSpotVerifiedInSupabase(spotId: string, isVerified: b
  * Subscribes to spot updates across the app (Realtime + Local events)
  */
 export function subscribeToSpotsChanges(onUpdate: () => void): () => void {
-  const handleLocalEvent = () => onUpdate();
+  const handleLocalEvent = () => {
+    invalidateViewportSpotsCache();
+    onUpdate();
+  };
   if (typeof window !== 'undefined') {
     window.addEventListener('monvian:spots_updated', handleLocalEvent);
   }
@@ -448,6 +650,7 @@ export function subscribeToSpotsChanges(onUpdate: () => void): () => void {
           'postgres_changes',
           { event: '*', schema: 'public', table: 'spots' },
           () => {
+            invalidateViewportSpotsCache();
             onUpdate();
           }
         )

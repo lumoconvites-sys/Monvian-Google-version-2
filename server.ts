@@ -158,6 +158,7 @@ db.exec(`
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
   );
+  CREATE INDEX IF NOT EXISTS idx_spots_lat_lng ON spots(is_active, lat, lng);
   CREATE TABLE IF NOT EXISTS events (
     id TEXT PRIMARY KEY,
     name TEXT NOT NULL,
@@ -2995,10 +2996,109 @@ async function startServer() {
   // Warm the spots cache asynchronously on boot without blocking startup
   void refreshSpotsFromSources();
 
-  app.get('/api/spots', async (_req: Request, res: Response) => {
+  const loadSpotsLocalInBounds = (
+    minLat: number,
+    maxLat: number,
+    minLng: number,
+    maxLng: number
+  ): any[] => {
+    const localRows = db
+      .prepare(
+        'SELECT * FROM spots WHERE is_active = 1 AND lat BETWEEN ? AND ? AND lng BETWEEN ? AND ? ORDER BY is_star DESC, rating DESC, name ASC'
+      )
+      .all(minLat, maxLat, minLng, maxLng) as any[];
+    if (localRows.length > 0) {
+      return localRows.map(formatSpotRow);
+    }
+    const totalLocal = (db.prepare('SELECT COUNT(*) as c FROM spots WHERE is_active = 1').get() as any)?.c || 0;
+    if (totalLocal > 0) {
+      return [];
+    }
+    return CAMPOS_SPOTS.filter(
+      (s) => s.lat >= minLat && s.lat <= maxLat && s.lng >= minLng && s.lng <= maxLng
+    );
+  };
+
+  const filterSpotsByGeoBounds = (
+    list: any[],
+    minLat: number,
+    maxLat: number,
+    minLng: number,
+    maxLng: number
+  ): any[] => {
+    const out: any[] = [];
+    for (let i = 0; i < list.length; i++) {
+      const s = list[i];
+      const lat = Number(s.lat);
+      const lng = Number(s.lng);
+      if (
+        !Number.isNaN(lat) &&
+        !Number.isNaN(lng) &&
+        lat >= minLat &&
+        lat <= maxLat &&
+        lng >= minLng &&
+        lng <= maxLng
+      ) {
+        out.push(s);
+      }
+    }
+    return out;
+  };
+
+  app.get('/api/spots', async (req: Request, res: Response) => {
     try {
       const now = Date.now();
       res.setHeader('Cache-Control', 'public, max-age=15, stale-while-revalidate=60');
+
+      const rawMinLat = req.query.minLat;
+      const rawMaxLat = req.query.maxLat;
+      const rawMinLng = req.query.minLng;
+      const rawMaxLng = req.query.maxLng;
+      const hasBoundsQuery =
+        rawMinLat !== undefined &&
+        rawMaxLat !== undefined &&
+        rawMinLng !== undefined &&
+        rawMaxLng !== undefined;
+
+      if (hasBoundsQuery) {
+        const minLat = Number(rawMinLat);
+        const maxLat = Number(rawMaxLat);
+        const minLng = Number(rawMinLng);
+        const maxLng = Number(rawMaxLng);
+        const validBounds =
+          Number.isFinite(minLat) &&
+          Number.isFinite(maxLat) &&
+          Number.isFinite(minLng) &&
+          Number.isFinite(maxLng) &&
+          minLat <= maxLat &&
+          minLng <= maxLng;
+
+        if (validBounds) {
+          if (spotsCacheData) {
+            if (now - spotsCacheUpdatedAt > SPOTS_CACHE_TTL_MS) {
+              void refreshSpotsFromSources();
+            }
+            const bounded = filterSpotsByGeoBounds(spotsCacheData, minLat, maxLat, minLng, maxLng);
+            return res.json({
+              success: true,
+              bounded: true,
+              totalInBounds: bounded.length,
+              spots: bounded,
+            });
+          }
+
+          // Cold cache: answer immediately from indexed SQLite spatial query while hydrating full SWR cache
+          const localBounded = loadSpotsLocalInBounds(minLat, maxLat, minLng, maxLng);
+          void refreshSpotsFromSources();
+          return res.json({
+            success: true,
+            bounded: true,
+            totalInBounds: localBounded.length,
+            spots: localBounded,
+          });
+        }
+      }
+
       if (spotsCacheData) {
         if (now - spotsCacheUpdatedAt > SPOTS_CACHE_TTL_MS) {
           // Stale-while-revalidate: serve immediately (<5ms) and refresh Supabase in background

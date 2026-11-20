@@ -1036,8 +1036,9 @@ export default function App() {
         if (Array.isArray(parsed) && parsed.length > 0) return parsed;
       }
     } catch (e) {}
-    return CAMPOS_SPOTS;
+    return [];
   });
+  const hasFullCatalogLoadedRef = useRef(false);
   const [mapVisualIcons, setMapVisualIcons] = useState<MapVisualIcon[]>([]);
   const [isAdminOpen, setIsAdminOpen] = useState(false);
   const [systemSettings, setSystemSettings] = useState<Record<string, string>>({});
@@ -1057,16 +1058,62 @@ export default function App() {
     selectedSpotIdRef.current = selectedSpot?.id || null;
   }, [selectedSpot?.id]);
 
-  const fetchSpots = async () => {
+  // Merge viewport-fetched spots into state without triggering redundant re-renders when nothing changed
+  const handleViewportSpotsLoaded = useCallback((regionSpots: Spot[]) => {
+    if (!Array.isArray(regionSpots) || regionSpots.length === 0) return;
+    setSpots((prev) => {
+      if (prev.length === 0) {
+        return regionSpots;
+      }
+      const prevById = new Map<string, number>();
+      for (let i = 0; i < prev.length; i++) {
+        prevById.set(prev[i].id, i);
+      }
+
+      let changed = false;
+      const next = prev.slice();
+
+      for (let i = 0; i < regionSpots.length; i++) {
+        const incoming = regionSpots[i];
+        const existingIdx = prevById.get(incoming.id);
+        if (existingIdx === undefined) {
+          next.push(incoming);
+          prevById.set(incoming.id, next.length - 1);
+          changed = true;
+        } else {
+          const cur = next[existingIdx];
+          if (
+            cur !== incoming &&
+            (cur.name !== incoming.name ||
+              cur.lat !== incoming.lat ||
+              cur.lng !== incoming.lng ||
+              cur.image !== incoming.image ||
+              cur.rating !== incoming.rating ||
+              cur.isStar !== incoming.isStar ||
+              cur.isActive !== incoming.isActive ||
+              cur.category !== incoming.category)
+          ) {
+            next[existingIdx] = incoming;
+            changed = true;
+          }
+        }
+      }
+
+      return changed ? next : prev;
+    });
+  }, []);
+
+  const fetchSpots = useCallback(async () => {
     try {
       const spotsData = await fetchSpotsFromSupabase();
       if (spotsData && spotsData.length > 0) {
+        hasFullCatalogLoadedRef.current = true;
         setSpots(spotsData);
       }
     } catch (e) {
       console.warn('Using offline spots fallback', e);
     }
-  };
+  }, []);
 
   const fetchVisualIcons = async () => {
     setMapVisualIcons([]);
@@ -1092,12 +1139,15 @@ export default function App() {
       return;
     }
 
-    fetchSpots();
+    // Explorar map loads its visible geographic region on demand via fetchSpotsInViewport;
+    // full city catalog is hydrated lazily when opening Search, Saved, Roteiros, or Admin.
     fetchVisualIcons();
     fetchSettings();
 
     const unsubscribeRealtime = subscribeToSpotsChanges(() => {
-      fetchSpots();
+      if (hasFullCatalogLoadedRef.current) {
+        fetchSpots();
+      }
     });
 
     const handleSpotsUpdated = (e: any) => {
@@ -1117,7 +1167,9 @@ export default function App() {
           prev && prev.id === updated.id ? { ...prev, ...updated } : prev
         );
       }
-      fetchSpots();
+      if (hasFullCatalogLoadedRef.current) {
+        fetchSpots();
+      }
     };
 
     const handleVisualIconsUpdated = (e: any) => {
@@ -1140,7 +1192,9 @@ export default function App() {
       const now = Date.now();
       if (now - lastFocusFetch > 45000) {
         lastFocusFetch = now;
-        fetchSpots();
+        if (hasFullCatalogLoadedRef.current) {
+          fetchSpots();
+        }
         fetchVisualIcons();
       }
     };
@@ -1155,16 +1209,18 @@ export default function App() {
       window.removeEventListener('focus', handleWindowFocus);
       unsubscribeRealtime();
     };
-  }, [isAuthenticated, pendingResetOobCode]);
+  }, [isAuthenticated, pendingResetOobCode, fetchSpots]);
 
   const wasAdminOpenRef = useRef(false);
   useEffect(() => {
-    if (wasAdminOpenRef.current && !isAdminOpen) {
+    if (isAdminOpen && !hasFullCatalogLoadedRef.current) {
+      fetchSpots();
+    } else if (wasAdminOpenRef.current && !isAdminOpen) {
       fetchSpots();
       fetchVisualIcons();
     }
     wasAdminOpenRef.current = isAdminOpen;
-  }, [isAdminOpen]);
+  }, [isAdminOpen, fetchSpots]);
   const [isDetailOpen, setIsDetailOpen] = useState(false);
   const [activeTab, setActiveTab] = useState<TabType>('explorar');
   const [tabHistory, setTabHistory] = useState<TabType[]>([]);
@@ -1192,6 +1248,35 @@ export default function App() {
   const [searchQuery, setSearchQuery] = useState('');
   const [isSearchOpen, setIsSearchOpen] = useState(false);
   const [isListening, setIsListening] = useState(false);
+
+  // Lazy full-catalog hydration: Explorar map loads strictly by visible geographic viewport,
+  // while global Search, Saved, Roteiros, category filters, or QR deep links hydrate full catalog on demand.
+  useEffect(() => {
+    if (!isAuthenticated || pendingResetOobCode || hasFullCatalogLoadedRef.current) return;
+    let hasDeepLinkSpot = false;
+    try {
+      hasDeepLinkSpot = Boolean(new URLSearchParams(window.location.search).get('spot'));
+    } catch {}
+    const needsFullCatalog =
+      isSearchOpen ||
+      activeTab === 'buscar' ||
+      activeTab === 'salvos' ||
+      activeTab === 'roteiros' ||
+      Boolean(searchQuery.trim()) ||
+      Boolean(selectedCategoryFilter) ||
+      hasDeepLinkSpot;
+    if (needsFullCatalog) {
+      fetchSpots();
+    }
+  }, [
+    isAuthenticated,
+    pendingResetOobCode,
+    isSearchOpen,
+    activeTab,
+    searchQuery,
+    selectedCategoryFilter,
+    fetchSpots,
+  ]);
 
   // Dynamic adaptive system & status bar color based on current screen / modal / theme
   const currentAdaptiveColor = useMemo(() => {
@@ -2775,6 +2860,7 @@ export default function App() {
               onGlobeIntroComplete={handleGlobeIntroComplete}
               activeRoute={activeRoute}
               isSuspended={isItineraryMapActive}
+              onViewportSpotsLoaded={handleViewportSpotsLoaded}
             />
 
             {/* 2. Dynamic Rain Particle Effect Overlay (Downloaded & mounted ONLY when user enabled AND actually raining) */}
