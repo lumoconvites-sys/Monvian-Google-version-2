@@ -3,7 +3,7 @@ import { motion, AnimatePresence, PanInfo, useReducedMotion } from 'motion/react
 import { Star, Route, Loader2 } from 'lucide-react';
 import { Spot } from '../types';
 import { VerifiedBadge } from './ui/VerifiedBadge';
-import { getSpotImage, getSpotFallbackImage } from '../utils/spotImages';
+import { getSpotPinThumbnail, getSpotFallbackImage } from '../utils/spotImages';
 import { triggerHapticFeedback } from '../utils/haptics';
 
 interface SpotPreviewBannerProps {
@@ -68,7 +68,7 @@ export const SpotPreviewBanner: React.FC<SpotPreviewBannerProps> = ({
     if (imgError) {
       return getSpotFallbackImage(spot.name || '', spot.category || 'attractions');
     }
-    return getSpotImage(spot);
+    return getSpotPinThumbnail(spot);
   }, [imgError, spot]);
 
   const cityState = useMemo(() => resolveCityState(spot.address), [spot.address]);
@@ -109,18 +109,19 @@ export const SpotPreviewBanner: React.FC<SpotPreviewBannerProps> = ({
   return (
     <motion.div
       id="spot-preview-banner-card"
-      initial={shouldReduceMotion ? { opacity: 0 } : { opacity: 0, y: 36 }}
+      initial={shouldReduceMotion ? { opacity: 0 } : { opacity: 0, y: 24 }}
       animate={shouldReduceMotion ? { opacity: 1 } : { opacity: 1, y: 0 }}
-      exit={shouldReduceMotion ? { opacity: 0 } : { opacity: 0, y: 36 }}
+      exit={shouldReduceMotion ? { opacity: 0 } : { opacity: 0, y: 24 }}
       transition={
         shouldReduceMotion
-          ? { duration: 0.15 }
-          : { type: 'spring', stiffness: 360, damping: 32, mass: 0.88 }
+          ? { duration: 0.14 }
+          : { duration: 0.22, ease: [0.22, 1, 0.36, 1] }
       }
       className="md:hidden fixed inset-x-0 bottom-[82px] sm:bottom-[84px] z-[245] flex flex-col items-center gap-2 px-4 pointer-events-none select-none"
       style={{
         paddingLeft: '16px',
         paddingRight: '16px',
+        willChange: 'transform, opacity',
         fontFamily:
           "'SF Pro Display', 'SF Pro Text', -apple-system, BlinkMacSystemFont, sans-serif",
       }}
@@ -173,6 +174,7 @@ export const SpotPreviewBanner: React.FC<SpotPreviewBannerProps> = ({
           <img
             src={spotImage}
             alt={spot.name}
+            decoding="async"
             referrerPolicy="no-referrer"
             onError={() => setImgError(true)}
             className="w-full h-full object-cover"

@@ -1,7 +1,6 @@
 import React, { useEffect, useRef, useImperativeHandle, forwardRef, useState, useCallback, memo } from 'react';
 import * as maplibregl from 'maplibre-gl';
 import 'maplibre-gl/dist/maplibre-gl.css';
-import { animate } from 'motion/react';
 import { Play } from 'lucide-react';
 import { Spot, MapModeType, MapWorkflowMode, ItineraryStep } from '../types';
 import { getSpotPinThumbnail, getSpotFallbackImage } from '../utils/spotImages';
@@ -431,6 +430,8 @@ export const MapComponent = memo(
     const viewportFetchTimerRef = useRef<number | null>(null);
     const viewportFetchAbortRef = useRef<AbortController | null>(null);
     const isZoomGestureActiveRef = useRef<boolean>(false);
+    const isProgrammaticZoomRef = useRef<boolean>(false);
+    const programmaticZoomTimerRef = useRef<number | null>(null);
     const lastMarkerSyncCenterRef = useRef<{ lng: number; lat: number } | null>(null);
     const cachedStarPath100Ref = useRef<string | null>(null);
     const [currentMode, setCurrentMode] = useState<MapModeType>(
@@ -519,6 +520,10 @@ export const MapComponent = memo(
     const CAMPOS_OVERVIEW_ZOOM: number = 11.75;
 
     const setFollowMode = useCallback((follow: boolean) => {
+      const unchanged =
+        isFollowingUserRef.current === follow &&
+        (follow || !isCompassTrackingRef.current);
+      if (unchanged) return;
       isFollowingUserRef.current = follow;
       setIsFollowingUser(follow);
       if (!follow) {
@@ -531,6 +536,52 @@ export const MapComponent = memo(
     const themeRef = useRef(theme);
     themeRef.current = theme;
 
+    const beginProgrammaticCameraAnim = useCallback((map: maplibregl.Map, durationMs: number) => {
+      if (viewportSyncRafRef.current !== null) {
+        cancelAnimationFrame(viewportSyncRafRef.current);
+        viewportSyncRafRef.current = null;
+      }
+      if (progressiveMountRafRef.current !== null) {
+        cancelAnimationFrame(progressiveMountRafRef.current);
+        progressiveMountRafRef.current = null;
+      }
+      if (viewportFetchTimerRef.current !== null) {
+        window.clearTimeout(viewportFetchTimerRef.current);
+        viewportFetchTimerRef.current = null;
+      }
+      if (viewportFetchAbortRef.current) {
+        viewportFetchAbortRef.current.abort();
+        viewportFetchAbortRef.current = null;
+      }
+      if (programmaticZoomTimerRef.current !== null) {
+        window.clearTimeout(programmaticZoomTimerRef.current);
+        programmaticZoomTimerRef.current = null;
+      }
+
+      try {
+        map.stop();
+      } catch {}
+
+      isProgrammaticZoomRef.current = true;
+
+      if (viewportSyncRafRef.current !== null) {
+        cancelAnimationFrame(viewportSyncRafRef.current);
+        viewportSyncRafRef.current = null;
+      }
+      if (progressiveMountRafRef.current !== null) {
+        cancelAnimationFrame(progressiveMountRafRef.current);
+        progressiveMountRafRef.current = null;
+      }
+
+      programmaticZoomTimerRef.current = window.setTimeout(() => {
+        programmaticZoomTimerRef.current = null;
+        isProgrammaticZoomRef.current = false;
+        if (mapRef.current === map && !map.isMoving() && !map.isZooming()) {
+          syncSpotMarkersRef.current?.();
+        }
+      }, durationMs + 140);
+    }, []);
+
     const previousCameraStateRef = useRef<{
       center: [number, number];
       zoom: number;
@@ -540,18 +591,23 @@ export const MapComponent = memo(
 
     const restorePreviousSpotCamera = useCallback(() => {
       if (!mapRef.current || !previousCameraStateRef.current) return false;
+      const map = mapRef.current;
       const savedCamera = previousCameraStateRef.current;
       previousCameraStateRef.current = null;
-      mapRef.current.easeTo({
+      const animDuration = 460;
+      beginProgrammaticCameraAnim(map, animDuration);
+      map.easeTo({
         center: savedCamera.center,
         zoom: savedCamera.zoom,
         pitch: savedCamera.pitch,
         bearing: savedCamera.bearing,
         offset: [0, 0],
-        duration: 700,
+        duration: animDuration,
+        easing: (t) => 1 - Math.pow(1 - t, 3),
+        essential: true,
       });
       return true;
-    }, []);
+    }, [beginProgrammaticCameraAnim]);
 
     // Ensure the 3D User Location Marker ("Eu" + Avatar + Blue Flashlight Beam) exists and is attached to the active map
     const ensureUserMarker = useCallback(
@@ -991,16 +1047,21 @@ export const MapComponent = memo(
       },
       flyToSpot: (spot: Spot) => {
         if (!spot.lng || !spot.lat || !mapRef.current) return;
+        const map = mapRef.current;
         setFollowMode(false);
         const isMobile = window.innerWidth < 768;
         const verticalOffset = isMobile ? -Math.round(window.innerHeight * 0.12) : 0;
-        mapRef.current.easeTo({
+        const animDuration = 480;
+        beginProgrammaticCameraAnim(map, animDuration);
+        map.easeTo({
           center: [spot.lng, spot.lat],
           zoom: 15.5,
-          pitch: is3DModeRef.current ? 60 : 35,
+          pitch: is3DModeRef.current ? 55 : 0,
           bearing: is3DModeRef.current ? -20 : 0,
           offset: [0, verticalOffset],
-          duration: 750,
+          duration: animDuration,
+          easing: (t) => 1 - Math.pow(1 - t, 3),
+          essential: true,
         });
       },
       recenter: () => {
@@ -1015,7 +1076,7 @@ export const MapComponent = memo(
       fitSpotsOverview: () => {
         frameAllSpotsOverview(mapRef.current, true);
       },
-    }), [centerOnUserLocation, currentMode, onMapModeChange, onStyleChange, setFollowMode, fitItineraryCameraBounds, focusItineraryStepOnMap, frameAllSpotsOverview]);
+    }), [centerOnUserLocation, currentMode, onMapModeChange, onStyleChange, setFollowMode, beginProgrammaticCameraAnim, fitItineraryCameraBounds, focusItineraryStepOnMap, frameAllSpotsOverview]);
 
     // Synchronize mode from prop if provided (excluding dark map mode)
     useEffect(() => {
@@ -1057,12 +1118,6 @@ export const MapComponent = memo(
             } catch {}
           });
           markerRecordsRef.current = [];
-          clusterMarkersRef.current.forEach((m) => {
-            try {
-              m.remove();
-            } catch {}
-          });
-          clusterMarkersRef.current = [];
           itineraryMarkersRef.current.forEach((rec) => {
             try {
               rec.marker.remove();
@@ -1079,6 +1134,11 @@ export const MapComponent = memo(
             cancelAnimationFrame(progressiveMountRafRef.current);
             progressiveMountRafRef.current = null;
           }
+          if (programmaticZoomTimerRef.current !== null) {
+            window.clearTimeout(programmaticZoomTimerRef.current);
+            programmaticZoomTimerRef.current = null;
+          }
+          isProgrammaticZoomRef.current = false;
           if (viewportFetchTimerRef.current !== null) {
             window.clearTimeout(viewportFetchTimerRef.current);
             viewportFetchTimerRef.current = null;
@@ -1201,12 +1261,12 @@ export const MapComponent = memo(
         };
 
         const scheduleViewportMarkerSync = () => {
-          // Never mutate marker DOM mid-pinch-zoom
-          if (isZoomGestureActiveRef.current) return;
+          // Never mutate marker DOM mid-pinch-zoom or during programmatic spot auto-zoom
+          if (isZoomGestureActiveRef.current || isProgrammaticZoomRef.current) return;
           if (viewportSyncRafRef.current !== null) return;
           viewportSyncRafRef.current = requestAnimationFrame(() => {
             viewportSyncRafRef.current = null;
-            if (isZoomGestureActiveRef.current) return;
+            if (isZoomGestureActiveRef.current || isProgrammaticZoomRef.current) return;
             if (!mapRef.current || mapRef.current !== map) return;
             syncSpotMarkersRef.current?.();
           });
@@ -1263,7 +1323,7 @@ export const MapComponent = memo(
           if (immediate) {
             runFetch();
           } else {
-            viewportFetchTimerRef.current = window.setTimeout(runFetch, 180);
+            viewportFetchTimerRef.current = window.setTimeout(runFetch, 300);
           }
         };
 
@@ -1373,6 +1433,11 @@ export const MapComponent = memo(
             isZoomGestureActiveRef.current = true;
           }
           if (e && e.originalEvent) {
+            if (programmaticZoomTimerRef.current !== null) {
+              window.clearTimeout(programmaticZoomTimerRef.current);
+              programmaticZoomTimerRef.current = null;
+            }
+            isProgrammaticZoomRef.current = false;
             isMapGestureActiveRef.current = true;
             lastMapGestureTimeRef.current = performance.now();
             if (e.type === 'dragstart') {
@@ -1395,9 +1460,9 @@ export const MapComponent = memo(
             isMapGestureActiveRef.current = true;
             lastMapGestureTimeRef.current = performance.now();
           }
-          // Skip DOM sync during active two-finger pinch-zoom; during long continuous pans,
+          // Skip DOM sync during active two-finger pinch-zoom or programmatic zoom; during long continuous pans,
           // only sync once the viewport center has shifted significantly (>= 35% of screen span)
-          if (isZoomGestureActiveRef.current) return;
+          if (isZoomGestureActiveRef.current || isProgrammaticZoomRef.current) return;
           try {
             const c = map.getCenter();
             const last = lastMarkerSyncCenterRef.current;
@@ -1415,7 +1480,7 @@ export const MapComponent = memo(
         };
 
         const onUserZoom = (e: any) => {
-          // Ultra-lightweight zoom handler: ZERO DOM mutations or marker creation while fingers are pinching!
+          // Ultra-lightweight zoom handler: ZERO DOM mutations or marker creation while zooming!
           isZoomGestureActiveRef.current = true;
           if (e && e.originalEvent) {
             isMapGestureActiveRef.current = true;
@@ -1436,10 +1501,15 @@ export const MapComponent = memo(
           }
           // Only reconcile once ALL active camera gestures have completely settled (eliminates 3x duplicate runs)
           if (map.isMoving() || map.isZooming()) return;
+          if (programmaticZoomTimerRef.current !== null) {
+            window.clearTimeout(programmaticZoomTimerRef.current);
+            programmaticZoomTimerRef.current = null;
+          }
+          isProgrammaticZoomRef.current = false;
           isZoomGestureActiveRef.current = false;
           isMapGestureActiveRef.current = false;
           syncSpaceAndMarkerZoomTier();
-          syncSpotMarkersRef.current?.();
+          scheduleViewportMarkerSync();
           scheduleViewportDataFetch(false);
           if (lastInteractionStateRef.current) {
             lastInteractionStateRef.current = false;
@@ -2056,12 +2126,6 @@ export const MapComponent = memo(
           } catch (e) {}
         });
         markerRecordsRef.current = [];
-        clusterMarkersRef.current.forEach((m) => {
-          try {
-            m.remove();
-          } catch (e) {}
-        });
-        clusterMarkersRef.current = [];
         itineraryMarkersRef.current.forEach((rec) => {
           try {
             rec.marker.remove();
@@ -2078,6 +2142,11 @@ export const MapComponent = memo(
           cancelAnimationFrame(progressiveMountRafRef.current);
           progressiveMountRafRef.current = null;
         }
+        if (programmaticZoomTimerRef.current !== null) {
+          window.clearTimeout(programmaticZoomTimerRef.current);
+          programmaticZoomTimerRef.current = null;
+        }
+        isProgrammaticZoomRef.current = false;
         if (viewportFetchTimerRef.current !== null) {
           window.clearTimeout(viewportFetchTimerRef.current);
           viewportFetchTimerRef.current = null;
@@ -2173,7 +2242,6 @@ export const MapComponent = memo(
       return false;
     }, []);
 
-    const clusterMarkersRef = useRef<maplibregl.Marker[]>([]);
     const itineraryMarkersRef = useRef<{
       stepId: string;
       order: number;
@@ -2211,42 +2279,31 @@ export const MapComponent = memo(
     }[]>([]);
     const lastUserHighlightKeyRef = useRef<string>('');
     const animatedSpotIdsRef = useRef<Set<string>>(new Set());
-    const activeMarkerAnimationsRef = useRef<WeakMap<HTMLElement, { stop?: () => void }>>(
+    const activeMarkerAnimationsRef = useRef<WeakMap<HTMLElement, Animation>>(
       new WeakMap()
-    );
-
-    const runMotionAnimation = useCallback(
-      (
-        el: HTMLElement,
-        keyframes: Record<string, any>,
-        options: Record<string, any>
-      ) => {
-        const prev = activeMarkerAnimationsRef.current.get(el);
-        if (prev?.stop) {
-          try {
-            prev.stop();
-          } catch {}
-        }
-        try {
-          const controls = animate(el, keyframes, options);
-          activeMarkerAnimationsRef.current.set(el, controls);
-        } catch {}
-      },
-      []
     );
 
     const animateMarkerPress = useCallback(
       (badgeEl: HTMLDivElement, isPressed: boolean) => {
-        runMotionAnimation(
-          badgeEl,
-          { scale: isPressed ? 0.92 : 1 },
-          {
-            duration: isPressed ? 0.08 : 0.16,
-            ease: [0.22, 1, 0.36, 1],
-          }
-        );
+        const prev = activeMarkerAnimationsRef.current.get(badgeEl);
+        if (prev) {
+          try {
+            prev.cancel();
+          } catch {}
+        }
+        try {
+          const anim = badgeEl.animate(
+            [{ transform: isPressed ? 'scale(1)' : 'scale(0.92)' }, { transform: isPressed ? 'scale(0.92)' : 'scale(1)' }],
+            {
+              duration: isPressed ? 75 : 140,
+              easing: 'cubic-bezier(0.22, 1, 0.36, 1)',
+              fill: 'forwards',
+            }
+          );
+          activeMarkerAnimationsRef.current.set(badgeEl, anim);
+        } catch {}
       },
-      [runMotionAnimation]
+      []
     );
 
     const selectedSpotRef = useRef<Spot | null>(selectedSpot);
@@ -2254,24 +2311,24 @@ export const MapComponent = memo(
       selectedSpotRef.current = selectedSpot;
     }, [selectedSpot]);
 
-    // Trigger short haptic feedback + ephemeral ripple created on-demand (zero resting DOM overhead)
+    // Trigger short haptic feedback + compositor-only ephemeral ripple (zero JS frame contention during zoom)
     const triggerPinTapFeedback = useCallback(
       (
         containerEl: HTMLDivElement,
         badgeEl: HTMLDivElement,
         isStar: boolean
       ) => {
-        triggerHapticFeedback(15);
+        triggerHapticFeedback(14);
 
-        runMotionAnimation(
-          badgeEl,
-          { scale: [0.94, 1.2, 1] },
-          {
-            duration: 0.3,
-            times: [0, 0.3, 1],
-            ease: [0.22, 1, 0.36, 1],
-          }
-        );
+        const prev = activeMarkerAnimationsRef.current.get(badgeEl);
+        if (prev) {
+          try {
+            prev.cancel();
+          } catch {}
+        }
+        try {
+          badgeEl.style.transform = 'scale(1)';
+        } catch {}
 
         const markerSize = isStar ? 54 : 42;
         const rippleEl = document.createElement('div');
@@ -2287,26 +2344,36 @@ export const MapComponent = memo(
           ? '2px solid rgba(255, 214, 10, 0.92)'
           : '2px solid rgba(255, 255, 255, 0.9)';
         rippleEl.style.backgroundColor = isStar
-          ? 'rgba(255, 214, 10, 0.2)'
-          : 'rgba(255, 255, 255, 0.16)';
+          ? 'rgba(255, 214, 10, 0.18)'
+          : 'rgba(255, 255, 255, 0.14)';
         containerEl.appendChild(rippleEl);
 
-        runMotionAnimation(
-          rippleEl,
-          { scale: [0.95, 2.05], opacity: [0.88, 0] },
-          {
-            duration: 0.42,
-            ease: [0.16, 1, 0.3, 1],
-          }
-        );
-
-        window.setTimeout(() => {
-          try {
-            rippleEl.remove();
-          } catch {}
-        }, 460);
+        try {
+          const anim = rippleEl.animate(
+            [
+              { transform: 'scale(0.95)', opacity: 0.85 },
+              { transform: 'scale(1.95)', opacity: 0 },
+            ],
+            {
+              duration: 360,
+              easing: 'cubic-bezier(0.16, 1, 0.3, 1)',
+              fill: 'forwards',
+            }
+          );
+          anim.onfinish = () => {
+            try {
+              rippleEl.remove();
+            } catch {}
+          };
+        } catch {
+          window.setTimeout(() => {
+            try {
+              rippleEl.remove();
+            } catch {}
+          }, 380);
+        }
       },
-      [runMotionAnimation]
+      []
     );
 
     // Synchronize marker highlights smoothly without touching unchanged DOM nodes
@@ -2362,19 +2429,19 @@ export const MapComponent = memo(
         rec.lastHasAnySelection = hasAnySelection;
 
         rec.containerEl.style.transition =
-          'transform 0.32s cubic-bezier(0.22, 1, 0.36, 1), opacity 0.24s cubic-bezier(0.22, 1, 0.36, 1)';
+          'transform 0.24s cubic-bezier(0.22, 1, 0.36, 1), opacity 0.2s cubic-bezier(0.22, 1, 0.36, 1)';
         rec.containerEl.style.opacity = shouldHideMarker
           ? '0'
           : mode === 'SELECT' && selectedRankMap.size > 0 && !isSelected
             ? '0.82'
             : '1';
         rec.containerEl.style.transform = shouldHideMarker
-          ? 'scale(0.62)'
+          ? 'translate3d(0,0,0) scale(0.62)'
           : isSelected
             ? mode === 'SELECT'
-              ? 'scale(1.16)'
-              : 'scale(1.22)'
-            : `scale(${zoomScale})`;
+              ? 'translate3d(0,0,0) scale(1.16)'
+              : 'translate3d(0,0,0) scale(1.22)'
+            : `translate3d(0,0,0) scale(${zoomScale})`;
         rec.containerEl.style.zIndex = isSelected ? '50' : '20';
         rec.el.style.pointerEvents = shouldHideMarker ? 'none' : 'auto';
 
@@ -2795,10 +2862,10 @@ export const MapComponent = memo(
       } catch {}
     }, []);
 
-    // True Viewport-Based Marker Virtualization + Spatial Clustering + Unified Workflow Modes:
-    // - EXPLORE & SELECT: viewport-filtered pins (with spatial grid clustering at low zoom < 11.4), low-res cached thumbnails
-    // - ITINERARY: clears unrelated explore/cluster pins and renders ONLY numbered stop markers (01, 02...) + GeoJSON polyline
-    const syncSpotMarkers = useCallback(() => {
+    // True Viewport-Based Marker Virtualization + Unified Workflow Modes:
+    // - EXPLORE & SELECT: viewport-filtered circular photo pins directly on map (zero numbered cluster circles)
+    // - ITINERARY: clears unrelated explore pins and renders ONLY numbered stop markers (01, 02...) + GeoJSON polyline
+    const syncSpotMarkers = useCallback((onlySpotId?: string | null) => {
       const map = mapRef.current;
       if (!map) return;
 
@@ -2816,17 +2883,6 @@ export const MapComponent = memo(
         }
       };
 
-      const clearAllClusterMarkers = () => {
-        if (clusterMarkersRef.current.length > 0) {
-          clusterMarkersRef.current.forEach((m) => {
-            try {
-              m.remove();
-            } catch {}
-          });
-          clusterMarkersRef.current = [];
-        }
-      };
-
       const clearAllItineraryMarkers = () => {
         if (itineraryMarkersRef.current.length > 0) {
           itineraryMarkersRef.current.forEach((rec) => {
@@ -2838,18 +2894,17 @@ export const MapComponent = memo(
         }
       };
 
-      if (progressiveMountRafRef.current !== null) {
+      if (!onlySpotId && progressiveMountRafRef.current !== null) {
         cancelAnimationFrame(progressiveMountRafRef.current);
         progressiveMountRafRef.current = null;
       }
 
-      // Never run DOM creation/teardown while fingers are pinching to zoom
-      if (isZoomGestureActiveRef.current) return;
+      // Never run full DOM creation/teardown while fingers are pinching or auto-zoom camera is animating
+      if (!onlySpotId && (isZoomGestureActiveRef.current || isProgrammaticZoomRef.current)) return;
 
       // Do not mount city markers while camera is in orbital Earth space during intro flight
       if (isGlobeIntroActiveRef.current && zoom < 5.5) {
         clearAllExploreMarkers();
-        clearAllClusterMarkers();
         clearAllItineraryMarkers();
         return;
       }
@@ -2859,7 +2914,6 @@ export const MapComponent = memo(
       // ================================================================
       if (mode === 'ITINERARY') {
         clearAllExploreMarkers();
-        clearAllClusterMarkers();
 
         const userMarkerEl = userMarkerRef.current?.getElement();
         if (userMarkerEl) {
@@ -2977,7 +3031,7 @@ export const MapComponent = memo(
       }
 
       // ================================================================
-      // MODES 1 & 2: EXPLORE & SELECT — Viewport virtualization + Clustering
+      // MODES 1 & 2: EXPLORE & SELECT — Viewport virtualization (Direct circular photo pins)
       // ================================================================
       const userMarkerEl = userMarkerRef.current?.getElement();
       if (userMarkerEl && !isGlobeIntroActiveRef.current) {
@@ -2991,6 +3045,12 @@ export const MapComponent = memo(
       const currentRouteSpotId = mode === 'EXPLORE' ? activeRouteRef.current?.spotId || null : null;
       const selectedSet = new Set(mode === 'SELECT' ? selectedSpotIdsRef.current || [] : []);
       const currentSpots = spotsRef.current || [];
+
+      const isProtectedSpot = (spotId: string): boolean =>
+        spotId === currentSelectedId ||
+        spotId === currentRouteSpotId ||
+        selectedSet.has(spotId);
+
       const validSpots = currentSpots.filter(
         (s) =>
           typeof s.lng === 'number' &&
@@ -3006,152 +3066,70 @@ export const MapComponent = memo(
       let enterBounds: GeoBounds | null = null;
       let exitBounds: GeoBounds | null = null;
 
-      try {
-        const rawBounds = map.getBounds();
-        const sw = rawBounds.getSouthWest();
-        const ne = rawBounds.getNorthEast();
-        const latSpan = Math.max(0.004, ne.lat - sw.lat);
-        const lngSpan = Math.max(0.004, ne.lng - sw.lng);
+      if (!onlySpotId) {
+        try {
+          const rawBounds = map.getBounds();
+          const sw = rawBounds.getSouthWest();
+          const ne = rawBounds.getNorthEast();
+          const latSpan = Math.max(0.004, ne.lat - sw.lat);
+          const lngSpan = Math.max(0.004, ne.lng - sw.lng);
 
-        // Enter margin (~25%, min 0.006 deg): pre-mounts pins slightly before entering screen
-        const enterLatPad = Math.max(0.006, latSpan * 0.25);
-        const enterLngPad = Math.max(0.006, lngSpan * 0.25);
-        enterBounds = {
-          minLat: sw.lat - enterLatPad,
-          maxLat: ne.lat + enterLatPad,
-          minLng: sw.lng - enterLngPad,
-          maxLng: ne.lng + enterLngPad,
-        };
+          // Enter margin (~25%, min 0.006 deg): pre-mounts pins slightly before entering screen
+          const enterLatPad = Math.max(0.006, latSpan * 0.25);
+          const enterLngPad = Math.max(0.006, lngSpan * 0.25);
+          enterBounds = {
+            minLat: sw.lat - enterLatPad,
+            maxLat: ne.lat + enterLatPad,
+            minLng: sw.lng - enterLngPad,
+            maxLng: ne.lng + enterLngPad,
+          };
 
-        // Exit margin (~48%, min 0.014 deg): hysteresis buffer prevents edge thrashing while panning
-        const exitLatPad = Math.max(0.014, latSpan * 0.48);
-        const exitLngPad = Math.max(0.014, lngSpan * 0.48);
-        exitBounds = {
-          minLat: sw.lat - exitLatPad,
-          maxLat: ne.lat + exitLatPad,
-          minLng: sw.lng - exitLngPad,
-          maxLng: ne.lng + exitLngPad,
-        };
-      } catch {
-        enterBounds = null;
-        exitBounds = null;
+          // Exit margin (~48%, min 0.014 deg): hysteresis buffer prevents edge thrashing while panning
+          const exitLatPad = Math.max(0.014, latSpan * 0.48);
+          const exitLngPad = Math.max(0.014, lngSpan * 0.48);
+          exitBounds = {
+            minLat: sw.lat - exitLatPad,
+            maxLat: ne.lat + exitLatPad,
+            minLng: sw.lng - exitLngPad,
+            maxLng: ne.lng + exitLngPad,
+          };
+        } catch {
+          enterBounds = null;
+          exitBounds = null;
+        }
       }
-
-      const isProtectedSpot = (spotId: string): boolean =>
-        spotId === currentSelectedId ||
-        spotId === currentRouteSpotId ||
-        selectedSet.has(spotId);
 
       const isInsideGeoBounds = (lat: number, lng: number, b: GeoBounds | null): boolean => {
         if (!b) return true;
         return lat >= b.minLat && lat <= b.maxLat && lng >= b.minLng && lng <= b.maxLng;
       };
 
-      // Low-zoom smart spatial clustering (zoom < 11.4) to eliminate clutter and DOM overload
-      clearAllClusterMarkers();
-      const clusteredHiddenSpotIds = new Set<string>();
-      if (zoom < 11.4 && validSpots.length >= 4 && !currentSelectedId) {
-        const cellBuckets = new Map<string, Spot[]>();
-        for (let i = 0; i < validSpots.length; i++) {
-          const spot = validSpots[i];
-          const lat = Number(spot.lat);
-          const lng = Number(spot.lng);
-          if (isProtectedSpot(spot.id)) continue;
-          if (!isInsideGeoBounds(lat, lng, enterBounds)) continue;
-          try {
-            const pt = map.project([lng, lat]);
-            const cellX = Math.floor(pt.x / 46);
-            const cellY = Math.floor(pt.y / 46);
-            const key = `${cellX}:${cellY}`;
-            const bucket = cellBuckets.get(key);
-            if (bucket) {
-              bucket.push(spot);
-            } else {
-              cellBuckets.set(key, [spot]);
-            }
-          } catch {}
-        }
-
-        cellBuckets.forEach((bucket) => {
-          if (bucket.length < 2) return;
-          let sumLng = 0;
-          let sumLat = 0;
-          for (let i = 0; i < bucket.length; i++) {
-            clusteredHiddenSpotIds.add(bucket[i].id);
-            sumLng += Number(bucket[i].lng);
-            sumLat += Number(bucket[i].lat);
+      // Step 1: Unmount markers removed or exited extended viewport buffer (skipped during single-pin mount)
+      if (!onlySpotId) {
+        markerRecordsRef.current = markerRecordsRef.current.filter((rec) => {
+          const latestSpot = validSpotsById.get(rec.spotId);
+          if (!latestSpot || rec.mapInstance !== map) {
+            try {
+              rec.marker.remove();
+            } catch {}
+            return false;
           }
-          const avgLng = sumLng / bucket.length;
-          const avgLat = sumLat / bucket.length;
-
-          const clusterEl = document.createElement('div');
-          clusterEl.className = 'monvian-cluster-marker cursor-pointer select-none';
-          clusterEl.style.width = bucket.length >= 10 ? '42px' : '36px';
-          clusterEl.style.height = bucket.length >= 10 ? '42px' : '36px';
-          clusterEl.style.borderRadius = '9999px';
-          clusterEl.style.display = 'flex';
-          clusterEl.style.alignItems = 'center';
-          clusterEl.style.justifyContent = 'center';
-          clusterEl.style.fontWeight = '900';
-          clusterEl.style.fontSize = '12px';
-          clusterEl.style.fontFamily =
-            '-apple-system, BlinkMacSystemFont, "SF Pro Display", sans-serif';
-          clusterEl.style.background =
-            themeRef.current === 'dark' || currentModeRef.current === 'satelite'
-              ? '#171717'
-              : '#FFFFFF';
-          clusterEl.style.color =
-            themeRef.current === 'dark' || currentModeRef.current === 'satelite'
-              ? '#FFFFFF'
-              : '#000000';
-          clusterEl.style.border = '2.5px solid #FFFFFF';
-          clusterEl.style.boxShadow = '0 6px 16px rgba(0, 0, 0, 0.34)';
-          clusterEl.textContent = String(bucket.length);
-
-          clusterEl.onclick = (e) => {
-            e.stopPropagation();
-            if (isMapGestureActiveRef.current || isZoomGestureActiveRef.current) return;
-            unlockSpotClickSound();
-            playSpotClickSound();
-            triggerHapticFeedback(12);
-            map.easeTo({
-              center: [avgLng, avgLat],
-              zoom: Math.min(14.6, Math.max(12.2, zoom + 2.1)),
-              duration: 480,
-            });
-          };
-
-          const clusterMarker = new maplibregl.Marker({ element: clusterEl })
-            .setLngLat([avgLng, avgLat])
-            .addTo(map);
-          clusterMarkersRef.current.push(clusterMarker);
+          const lat = Number(latestSpot.lat);
+          const lng = Number(latestSpot.lng);
+          if (!isProtectedSpot(rec.spotId) && !isInsideGeoBounds(lat, lng, exitBounds)) {
+            try {
+              rec.marker.remove();
+            } catch {}
+            return false;
+          }
+          return true;
         });
+
+        try {
+          const c = map.getCenter();
+          lastMarkerSyncCenterRef.current = { lng: c.lng, lat: c.lat };
+        } catch {}
       }
-
-      // Step 1: Unmount markers removed, clustered away, or exited extended viewport buffer
-      markerRecordsRef.current = markerRecordsRef.current.filter((rec) => {
-        const latestSpot = validSpotsById.get(rec.spotId);
-        if (!latestSpot || rec.mapInstance !== map || clusteredHiddenSpotIds.has(rec.spotId)) {
-          try {
-            rec.marker.remove();
-          } catch {}
-          return false;
-        }
-        const lat = Number(latestSpot.lat);
-        const lng = Number(latestSpot.lng);
-        if (!isProtectedSpot(rec.spotId) && !isInsideGeoBounds(lat, lng, exitBounds)) {
-          try {
-            rec.marker.remove();
-          } catch {}
-          return false;
-        }
-        return true;
-      });
-
-      try {
-        const c = map.getCenter();
-        lastMarkerSyncCenterRef.current = { lng: c.lng, lat: c.lat };
-      } catch {}
 
       const existingMap = new Map(markerRecordsRef.current.map((rec) => [rec.spotId, rec]));
 
@@ -3165,41 +3143,49 @@ export const MapComponent = memo(
       const pendingToMount: Spot[] = [];
 
       // Step 2: Update already-mounted pins in-place and queue newly entering viewport pins
-      for (let i = 0; i < validSpots.length; i++) {
-        const spot = validSpots[i];
-        if (clusteredHiddenSpotIds.has(spot.id)) continue;
-        const lng = Number(spot.lng);
-        const lat = Number(spot.lat);
-        const existing = existingMap.get(spot.id);
-        const protectedPin = isProtectedSpot(spot.id);
-
-        if (existing && existing.mapInstance === map) {
-          const imgUrl = getSpotPinThumbnail(spot);
-          const isStar = isFiveStarSpot(spot);
-          if (existing.isStar !== isStar) {
-            try {
-              existing.marker.remove();
-            } catch {}
-            markerRecordsRef.current = markerRecordsRef.current.filter((r) => r.spotId !== spot.id);
-            animatedSpotIdsRef.current.delete(spot.id);
-            pendingToMount.push(spot);
-          } else {
-            existing.spot = spot;
-            if (!existing.el.isConnected) {
-              existing.marker.addTo(map);
-            }
-            if (existing.lng !== lng || existing.lat !== lat) {
-              existing.marker.setLngLat([lng, lat]);
-              existing.lng = lng;
-              existing.lat = lat;
-            }
-            if (existing.imgUrl !== imgUrl) {
-              existing.imgEl.src = imgUrl;
-              existing.imgUrl = imgUrl;
-            }
+      if (onlySpotId) {
+        if (!existingMap.has(onlySpotId)) {
+          const singleSpot = validSpotsById.get(onlySpotId);
+          if (singleSpot) {
+            pendingToMount.push(singleSpot);
           }
-        } else if (protectedPin || isInsideGeoBounds(lat, lng, enterBounds)) {
-          pendingToMount.push(spot);
+        }
+      } else {
+        for (let i = 0; i < validSpots.length; i++) {
+          const spot = validSpots[i];
+          const lng = Number(spot.lng);
+          const lat = Number(spot.lat);
+          const existing = existingMap.get(spot.id);
+          const protectedPin = isProtectedSpot(spot.id);
+
+          if (existing && existing.mapInstance === map) {
+            const imgUrl = getSpotPinThumbnail(spot);
+            const isStar = isFiveStarSpot(spot);
+            if (existing.isStar !== isStar) {
+              try {
+                existing.marker.remove();
+              } catch {}
+              markerRecordsRef.current = markerRecordsRef.current.filter((r) => r.spotId !== spot.id);
+              animatedSpotIdsRef.current.delete(spot.id);
+              pendingToMount.push(spot);
+            } else {
+              existing.spot = spot;
+              if (!existing.el.isConnected) {
+                existing.marker.addTo(map);
+              }
+              if (existing.lng !== lng || existing.lat !== lat) {
+                existing.marker.setLngLat([lng, lat]);
+                existing.lng = lng;
+                existing.lat = lat;
+              }
+              if (existing.imgUrl !== imgUrl) {
+                existing.imgEl.src = imgUrl;
+                existing.imgUrl = imgUrl;
+              }
+            }
+          } else if (protectedPin || isInsideGeoBounds(lat, lng, enterBounds)) {
+            pendingToMount.push(spot);
+          }
         }
       }
 
@@ -3435,8 +3421,8 @@ export const MapComponent = memo(
         markerRecordsRef.current.push(record);
       };
 
-      // Step 3: Progressive frame-budgeted mounting (max 8 new pins/frame)
-      const MAX_MOUNTS_PER_FRAME = 8;
+      // Step 3: Progressive frame-budgeted mounting (max 6 new pins/frame, O(1) duplicate guard)
+      const MAX_MOUNTS_PER_FRAME = 6;
       if (pendingToMount.length <= MAX_MOUNTS_PER_FRAME) {
         for (let i = 0; i < pendingToMount.length; i++) {
           mountSpotPin(pendingToMount[i]);
@@ -3455,6 +3441,7 @@ export const MapComponent = memo(
           });
         }
 
+        const mountedIds = new Set(markerRecordsRef.current.map((r) => r.spotId));
         let cursor = 0;
         const mountBatch = () => {
           progressiveMountRafRef.current = null;
@@ -3462,6 +3449,7 @@ export const MapComponent = memo(
             !mapRef.current ||
             mapRef.current !== map ||
             isZoomGestureActiveRef.current ||
+            isProgrammaticZoomRef.current ||
             workflowModeRef.current === 'ITINERARY'
           ) {
             return;
@@ -3469,7 +3457,8 @@ export const MapComponent = memo(
           const end = Math.min(cursor + MAX_MOUNTS_PER_FRAME, pendingToMount.length);
           for (; cursor < end; cursor++) {
             const candidate = pendingToMount[cursor];
-            if (!markerRecordsRef.current.some((r) => r.spotId === candidate.id)) {
+            if (!mountedIds.has(candidate.id)) {
+              mountedIds.add(candidate.id);
               mountSpotPin(candidate);
             }
           }
@@ -3562,7 +3551,9 @@ export const MapComponent = memo(
 
     useEffect(() => {
       spotsRef.current = spots;
-      syncSpotMarkers();
+      if (!isZoomGestureActiveRef.current && !isProgrammaticZoomRef.current) {
+        syncSpotMarkers();
+      }
       if (
         !hasFramedInitialSpotsRef.current &&
         workflowModeRef.current === 'EXPLORE' &&
@@ -3821,24 +3812,32 @@ export const MapComponent = memo(
         if (selectedSpotRef.current && selectedSpotRef.current.lng && selectedSpotRef.current.lat) {
           const isMobile = window.innerWidth < 768;
           const verticalOffset = isMobile ? -Math.round(window.innerHeight * 0.12) : 0;
+          const animDuration = 480;
+          beginProgrammaticCameraAnim(map, animDuration);
           map.easeTo({
             center: [selectedSpotRef.current.lng, selectedSpotRef.current.lat],
             zoom: 15.5,
-            pitch: is3DModeRef.current ? 60 : 35,
+            pitch: is3DModeRef.current ? 55 : 0,
             bearing: is3DModeRef.current ? -20 : 0,
             offset: [0, verticalOffset],
-            duration: 700,
+            duration: animDuration,
+            easing: (t) => 1 - Math.pow(1 - t, 3),
+            essential: true,
           });
         }
       }
-    }, [activeRoute, syncActiveRouteLayers, syncMarkerHighlight, setFollowMode]);
+    }, [activeRoute, syncActiveRouteLayers, syncMarkerHighlight, setFollowMode, beginProgrammaticCameraAnim]);
 
     // Update marker highlight and camera zoom smoothly when a tourist spot is selected, and restore camera when deselected
     useEffect(() => {
-      syncSpotMarkers();
+      // Avoid heavy full-viewport DOM churn synchronously on click/exit; only mount the 1 target pin if not mounted yet
+      if (selectedSpot?.id && !markerRecordsRef.current.some((r) => r.spotId === selectedSpot.id)) {
+        syncSpotMarkers(selectedSpot.id);
+      }
       syncMarkerHighlight(selectedSpot?.id);
 
-      if (!mapRef.current || workflowModeRef.current !== 'EXPLORE') return;
+      const map = mapRef.current;
+      if (!map || workflowModeRef.current !== 'EXPLORE') return;
 
       if (selectedSpot && selectedSpot.lng && selectedSpot.lat) {
         if (activeRouteRef.current?.spotId === selectedSpot.id) {
@@ -3846,31 +3845,43 @@ export const MapComponent = memo(
         }
         // Save exact camera state (zoom, center, pitch, bearing) before zooming into the tourist spot
         if (!previousCameraStateRef.current) {
-          const currentCenter = mapRef.current.getCenter();
+          const currentCenter = map.getCenter();
           previousCameraStateRef.current = {
             center: [currentCenter.lng, currentCenter.lat],
-            zoom: mapRef.current.getZoom(),
-            pitch: mapRef.current.getPitch(),
-            bearing: mapRef.current.getBearing(),
+            zoom: map.getZoom(),
+            pitch: map.getPitch(),
+            bearing: map.getBearing(),
           };
         }
 
         setFollowMode(false);
         const isMobile = window.innerWidth < 768;
         const verticalOffset = isMobile ? -Math.round(window.innerHeight * 0.12) : 0;
+        const animDuration = 480;
+        beginProgrammaticCameraAnim(map, animDuration);
 
-        mapRef.current.easeTo({
+        map.easeTo({
           center: [selectedSpot.lng, selectedSpot.lat],
           zoom: 15.5,
-          pitch: is3DModeRef.current ? 60 : 35,
+          pitch: is3DModeRef.current ? 55 : 0,
           bearing: is3DModeRef.current ? -20 : 0,
           offset: [0, verticalOffset],
-          duration: 700,
+          duration: animDuration,
+          easing: (t) => 1 - Math.pow(1 - t, 3),
+          essential: true,
         });
       } else if (previousCameraStateRef.current) {
         restorePreviousSpotCamera();
       }
-    }, [selectedSpot, isFocusMode, syncSpotMarkers, syncMarkerHighlight, setFollowMode, restorePreviousSpotCamera]);
+    }, [
+      selectedSpot,
+      isFocusMode,
+      syncSpotMarkers,
+      syncMarkerHighlight,
+      setFollowMode,
+      beginProgrammaticCameraAnim,
+      restorePreviousSpotCamera,
+    ]);
 
     // Return zoom and camera to the exact zoom/position before clicking the spot when closing or clicking the map
     useEffect(() => {

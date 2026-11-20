@@ -1089,12 +1089,17 @@ export default function App() {
   const routeFitCounterRef = useRef<number>(0);
   const isBackgroundReroutingRef = useRef<boolean>(false);
   const selectedSpotIdRef = useRef<string | null>(null);
+  const activeRouteSpotIdRef = useRef<string | null>(null);
   const [is3DMode, setIs3DMode] = useState<boolean>(false);
   const [hasToggled3D, setHasToggled3D] = useState<boolean>(false);
 
   useEffect(() => {
     selectedSpotIdRef.current = selectedSpot?.id || null;
   }, [selectedSpot?.id]);
+
+  useEffect(() => {
+    activeRouteSpotIdRef.current = activeRoute?.spotId || null;
+  }, [activeRoute?.spotId]);
 
   // Merge viewport-fetched spots into state without triggering redundant re-renders when nothing changed
   const handleViewportSpotsLoaded = useCallback((regionSpots: Spot[]) => {
@@ -1758,13 +1763,17 @@ export default function App() {
   }, [activeRoute?.spotId, clearActiveRoute, showDiscreetRouteError]);
 
   const handleSelectSpot = useCallback((spot: Spot | null) => {
-    if (!spot || (activeRoute && spot.id !== activeRoute.spotId)) {
+    if (!spot || (activeRouteSpotIdRef.current && spot.id !== activeRouteSpotIdRef.current)) {
       clearActiveRoute();
     }
     setSelectedSpot(spot);
     setSpotPreviewMode('bar');
     setIsDetailOpen(false);
-  }, [activeRoute, clearActiveRoute]);
+  }, [clearActiveRoute]);
+
+  const handleSelectItineraryStepId = useCallback((stepId: string) => {
+    setActiveItineraryStepId(stepId);
+  }, []);
 
   // Dismiss all cards, previews and overlays when touching the map and restore previous zoom/camera if a spot was selected
   const handleMapDismiss = useCallback(() => {
@@ -1776,12 +1785,10 @@ export default function App() {
       return;
     }
     clearActiveRoute();
-    setSelectedSpot((prev) => {
-      if (prev) {
-        setRevertSpotZoomTrigger((t) => t + 1);
-      }
-      return null;
-    });
+    if (selectedSpotIdRef.current) {
+      setRevertSpotZoomTrigger((t) => t + 1);
+    }
+    setSelectedSpot(null);
     setIsDetailOpen(false);
     setIsCategoryCardOpen(false);
     setIsSearchOpen(false);
@@ -3310,9 +3317,7 @@ export default function App() {
               activeItineraryStepId={activeItineraryStepId}
               isPremiumItinerary={Boolean(activeItinerary?.isPremium)}
               isItineraryExpanded={isItineraryDrawerExpanded}
-              onSelectItineraryStep={(stepId) => {
-                setActiveItineraryStepId(stepId);
-              }}
+              onSelectItineraryStep={handleSelectItineraryStepId}
             />
 
             {/* 2. Dynamic Rain Particle Effect Overlay (Downloaded & mounted ONLY when user enabled AND actually raining) */}
