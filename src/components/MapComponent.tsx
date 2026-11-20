@@ -120,19 +120,22 @@ const getOrbitalEarthZoom = (): number => {
 
 const getVectorMapStyle = (
   mode: MapModeType,
-  theme: 'dark' | 'light'
+  theme: 'dark' | 'light',
+  useGlobeProjection: boolean = false
 ): maplibregl.StyleSpecification => {
   const token = getMapboxToken();
-  const globeProjection: maplibregl.ProjectionSpecification = { type: 'globe' };
-  const spaceSky = getCleanSpaceSky(theme);
+  const mapProjection: maplibregl.ProjectionSpecification = {
+    type: useGlobeProjection ? 'globe' : 'mercator',
+  };
+  const optionalSky = useGlobeProjection ? { sky: getCleanSpaceSky(theme) } : {};
 
   // 1. Satellite Mode
   if (mode === 'satelite') {
     if (token) {
       return {
         version: 8,
-        projection: globeProjection,
-        sky: spaceSky,
+        projection: mapProjection,
+        ...optionalSky,
         sources: {
           'mapbox-sat': {
             type: 'raster',
@@ -165,8 +168,8 @@ const getVectorMapStyle = (
     // High-Resolution Esri World Imagery + Reference Labels (Boundaries, Roads & Places)
     return {
       version: 8,
-      projection: globeProjection,
-      sky: spaceSky,
+      projection: mapProjection,
+      ...optionalSky,
       sources: {
         'esri-sat': {
           type: 'raster',
@@ -220,8 +223,8 @@ const getVectorMapStyle = (
     const styleId = theme === 'dark' ? 'mapbox/dark-v11' : 'mapbox/streets-v12';
     return {
       version: 8,
-      projection: globeProjection,
-      sky: spaceSky,
+      projection: mapProjection,
+      ...optionalSky,
       sources: {
         'mapbox-tiles': {
           type: 'raster',
@@ -252,8 +255,8 @@ const getVectorMapStyle = (
   if (theme === 'dark') {
     return {
       version: 8,
-      projection: globeProjection,
-      sky: spaceSky,
+      projection: mapProjection,
+      ...optionalSky,
       sources: {
         'carto-dark': {
           type: 'raster',
@@ -286,8 +289,8 @@ const getVectorMapStyle = (
   // Esri World Street Map (Light mode)
   return {
     version: 8,
-    projection: globeProjection,
-    sky: spaceSky,
+    projection: mapProjection,
+    ...optionalSky,
     sources: {
       'esri-street': {
         type: 'raster',
@@ -943,11 +946,11 @@ export const MapComponent = memo(
       if (!mapContainerRef.current) return;
 
       const styleKey = `${currentMode}:${theme}`;
-      const style = getVectorMapStyle(currentMode, theme);
+      const startOrbital = isGlobeIntroActiveRef.current;
+      const style = getVectorMapStyle(currentMode, theme, startOrbital);
 
       if (!mapRef.current) {
         prevStyleKeyRef.current = styleKey;
-        const startOrbital = isGlobeIntroActiveRef.current;
         const resumedCam = savedSuspendedCameraRef.current;
         const map = new maplibregl.Map({
           container: mapContainerRef.current,
@@ -1079,7 +1082,9 @@ export const MapComponent = memo(
 
         const syncSpaceAndMarkerZoomTier = () => {
           const z = map.getZoom();
-          const shouldSpace = Boolean(isGlobeIntroPendingRef.current || z < 7.2);
+          const shouldSpace = Boolean(
+            isGlobeIntroPendingRef.current || (isGlobeIntroPlayingRef.current && z < 7.2)
+          );
           if (lastSpaceActive !== shouldSpace) {
             lastSpaceActive = shouldSpace;
             setIsSpaceBackgroundActive(shouldSpace);
@@ -1107,8 +1112,13 @@ export const MapComponent = memo(
 
         map.on('load', () => {
           try {
-            map.setProjection({ type: 'globe' });
-            map.setSky(getCleanSpaceSky(themeRef.current));
+            if (isGlobeIntroActiveRef.current) {
+              map.setProjection({ type: 'globe' });
+              map.setSky(getCleanSpaceSky(themeRef.current));
+            } else {
+              map.setProjection({ type: 'mercator' });
+              map.setSky(undefined);
+            }
           } catch {}
           syncSpotMarkers();
           syncActiveRouteLayers(map);
@@ -1150,8 +1160,13 @@ export const MapComponent = memo(
 
         map.on('style.load', () => {
           try {
-            map.setProjection({ type: 'globe' });
-            map.setSky(getCleanSpaceSky(themeRef.current));
+            if (isGlobeIntroActiveRef.current) {
+              map.setProjection({ type: 'globe' });
+              map.setSky(getCleanSpaceSky(themeRef.current));
+            } else {
+              map.setProjection({ type: 'mercator' });
+              map.setSky(undefined);
+            }
           } catch {}
           syncSpotMarkersRef.current?.();
           syncActiveRouteLayers(map);
@@ -1455,15 +1470,28 @@ export const MapComponent = memo(
       }
     }, [activeTab, frameAllSpotsOverview]);
 
-    // Sync space backdrop state whenever intro props change
+    // Sync projection (globe during post-signup intro, flat mercator afterwards) and space backdrop
     useEffect(() => {
-      const z = mapRef.current?.getZoom() ?? (isGlobeIntroPending || isGlobeIntroPlaying ? 1.1 : 11.75);
-      const shouldSpace = Boolean(isGlobeIntroPending || z < 7.2);
+      const introActive = Boolean(isGlobeIntroPending || isGlobeIntroPlaying);
+      const z = mapRef.current?.getZoom() ?? (introActive ? 1.1 : 11.75);
+      const shouldSpace = Boolean(isGlobeIntroPending || (isGlobeIntroPlaying && z < 7.2));
       setIsSpaceBackgroundActive(shouldSpace);
+
+      if (mapRef.current) {
+        try {
+          if (introActive) {
+            mapRef.current.setProjection({ type: 'globe' });
+            mapRef.current.setSky(getCleanSpaceSky(themeRef.current));
+          } else {
+            mapRef.current.setProjection({ type: 'mercator' });
+            mapRef.current.setSky(undefined);
+          }
+        } catch {}
+      }
 
       const userMarkerEl = userMarkerRef.current?.getElement();
       if (userMarkerEl) {
-        const hideUserPin = Boolean((isGlobeIntroPending || isGlobeIntroPlaying) && z < 4.5);
+        const hideUserPin = Boolean(introActive && z < 4.5);
         userMarkerEl.style.transition = 'opacity 0.35s ease';
         userMarkerEl.style.opacity = hideUserPin ? '0' : '1';
       }
@@ -1699,6 +1727,12 @@ export const MapComponent = memo(
           }
 
           if (cancelled) return;
+
+          // Immediately transition from 3D Earth sphere to flat Mercator world upon arrival in Campos do Jordão
+          try {
+            map.setProjection({ type: 'mercator' });
+            map.setSky(undefined);
+          } catch {}
 
           hasCompletedGlobeFlightRef.current = true;
           hasFramedInitialSpotsRef.current = true;

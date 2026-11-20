@@ -90,7 +90,7 @@ const getMapStyle = (
     if (MAPBOX_TOKEN) {
       return {
         version: 8,
-        projection: { type: 'globe' } as any,
+        projection: { type: 'mercator' } as any,
         sources: {
           'mapbox-satellite': {
             type: 'raster',
@@ -123,7 +123,7 @@ const getMapStyle = (
     // Calibrado para ficar 40% mais claro, nítido e altamente visível
     return {
       version: 8,
-      projection: { type: 'globe' } as any,
+      projection: { type: 'mercator' } as any,
       sources: {
         'esri-satellite': {
           type: 'raster',
@@ -175,7 +175,7 @@ const getMapStyle = (
     const tilePath = theme === 'light' ? 'streets-v12' : 'dark-v11';
     return {
       version: 8,
-      projection: { type: 'globe' } as any,
+      projection: { type: 'mercator' } as any,
       sources: {
         'mapbox-tiles': {
           type: 'raster',
@@ -201,7 +201,7 @@ const getMapStyle = (
   if (theme === 'light') {
     return {
       version: 8,
-      projection: { type: 'globe' } as any,
+      projection: { type: 'mercator' } as any,
       sources: {
         'osm-base': {
           type: 'raster',
@@ -235,7 +235,7 @@ const getMapStyle = (
   // Dark mode fallback (without Mapbox token): CartoDB Dark Matter high-DPI tiles
   return {
     version: 8,
-    projection: { type: 'globe' } as any,
+    projection: { type: 'mercator' } as any,
     sources: {
       'carto-dark': {
         type: 'raster',
@@ -2180,7 +2180,7 @@ export const ItinerariesView: React.FC<ItinerariesViewProps> = memo(({
       zoom: 15.2,
       pitch: 52,
       bearing: -13,
-      projection: { type: 'globe' },
+      projection: { type: 'mercator' },
       attributionControl: false,
       fadeDuration: 0,
       maxTileCacheSize: 120,
