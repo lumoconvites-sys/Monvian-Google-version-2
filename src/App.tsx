@@ -64,6 +64,70 @@ if (typeof window !== 'undefined' && hasSyncSessionToken()) {
   loadAuthenticatedViews();
 }
 
+// Secondary authenticated tabs — code-split for fast initial map paint, then idle-prefetched so tab switches are instant
+const loadItinerariesView = () => import('./components/ItinerariesView');
+const loadSavedView = () => import('./components/SavedView');
+const loadProfileModal = () => import('./components/ProfileModal');
+const loadSearchFilterDrawer = () => import('./components/SearchFilterDrawer');
+const loadSpotDetailSheet = () => import('./components/SpotDetailSheet');
+
+const ItinerariesView = React.lazy(() =>
+  loadItinerariesView().then((m) => ({ default: m.ItinerariesView }))
+);
+const SavedView = React.lazy(() =>
+  loadSavedView().then((m) => ({ default: m.SavedView }))
+);
+const ProfileModal = React.lazy(() =>
+  loadProfileModal().then((m) => ({ default: m.ProfileModal }))
+);
+const SearchFilterDrawer = React.lazy(() =>
+  loadSearchFilterDrawer().then((m) => ({ default: m.SearchFilterDrawer }))
+);
+const SpotDetailSheet = React.lazy(() =>
+  loadSpotDetailSheet().then((m) => ({ default: m.SpotDetailSheet }))
+);
+
+// On-demand modals & weather effects — downloaded ONLY when triggered/enabled
+const RainEffect = React.lazy(() =>
+  import('./components/RainEffect').then((m) => ({ default: m.RainEffect }))
+);
+const SnowEffect = React.lazy(() =>
+  import('./components/SnowEffect').then((m) => ({ default: m.SnowEffect }))
+);
+const GoldSuccessModal = React.lazy(() =>
+  import('./components/GoldSuccessModal').then((m) => ({ default: m.GoldSuccessModal }))
+);
+const PlatanosWalletModal = React.lazy(() =>
+  import('./components/platanos/PlatanosWalletModal').then((m) => ({ default: m.PlatanosWalletModal }))
+);
+const CamposAchievementModal = React.lazy(() =>
+  import('./components/CamposAchievementModal').then((m) => ({ default: m.CamposAchievementModal }))
+);
+const WhiteConfettiOverlay = React.lazy(() =>
+  import('./components/WhiteConfettiOverlay').then((m) => ({ default: m.WhiteConfettiOverlay }))
+);
+const ClothingWeatherModal = React.lazy(() =>
+  import('./components/ClothingWeatherWidget').then((m) => ({ default: m.ClothingWeatherModal }))
+);
+
+let hasPrefetchedTabs = false;
+function prefetchSecondaryTabsOnIdle() {
+  if (hasPrefetchedTabs || typeof window === 'undefined') return;
+  hasPrefetchedTabs = true;
+  const run = () => {
+    void loadSpotDetailSheet();
+    void loadSearchFilterDrawer();
+    void loadSavedView();
+    void loadProfileModal();
+    void loadItinerariesView();
+  };
+  if (typeof (window as any).requestIdleCallback === 'function') {
+    (window as any).requestIdleCallback(run, { timeout: 2200 });
+  } else {
+    globalThis.setTimeout(run, 650);
+  }
+}
+
 // Rare flows kept isolated with individual local Suspense boundaries
 const AdminLayout = React.lazy(() =>
   import('./components/admin/AdminLayout').then((m) => ({ default: m.AdminLayout }))
@@ -96,12 +160,10 @@ const welcomeCharVariants = {
   hidden: {
     opacity: 0,
     y: 8,
-    filter: 'blur(3px)',
   },
   visible: {
     opacity: 1,
     y: 0,
-    filter: 'blur(0px)',
     transition: {
       type: 'spring' as const,
       damping: 24,
@@ -498,155 +560,26 @@ export default function App() {
     };
   }, []);
 
-  // Viewport real & dynamic height syncing for iOS PWA and mobile devices
+  // Prefetch secondary navigation tabs during browser idle time once authenticated
   useEffect(() => {
-    const isTextInputActive = () => {
-      try {
-        const el = document.activeElement as HTMLElement | null;
-        if (!el) return false;
-        const tag = (el.tagName || '').toUpperCase();
-        return tag === 'INPUT' || tag === 'TEXTAREA' || Boolean(el.isContentEditable);
-      } catch {
-        return false;
+    if (isAuthenticated && authenticatedViews) {
+      prefetchSecondaryTabsOnIdle();
+    }
+  }, [isAuthenticated, authenticatedViews]);
+
+  // Viewport height sync: delegate to centralized index.html engine (avoids duplicate listeners & timer storms)
+  useEffect(() => {
+    const syncViewport = () => {
+      const globalUpdater = (window as any).__monvianUpdateViewportHeight;
+      if (typeof globalUpdater === 'function') {
+        globalUpdater();
       }
     };
-
-    const updateAppHeight = () => {
-      try {
-        const globalUpdater = (window as any).__monvianUpdateViewportHeight;
-        if (typeof globalUpdater === 'function') {
-          globalUpdater();
-          return;
-        }
-
-        const isStandaloneMode =
-          window.matchMedia('(display-mode: standalone)').matches ||
-          window.matchMedia('(display-mode: fullscreen)').matches ||
-          (window.navigator as any).standalone === true;
-
-        let isLandscape = false;
-        if (window.screen?.orientation && typeof window.screen.orientation.angle === 'number') {
-          isLandscape = Math.abs(window.screen.orientation.angle) === 90;
-        } else if (typeof window.orientation === 'number') {
-          isLandscape = Math.abs(Number(window.orientation)) === 90;
-        } else if (window.matchMedia) {
-          isLandscape = window.matchMedia('(orientation: landscape)').matches;
-        }
-
-        let screenH = 0;
-        if (typeof window !== 'undefined' && window.screen && window.screen.height && window.screen.width) {
-          screenH = isLandscape
-            ? Math.min(window.screen.width, window.screen.height)
-            : Math.max(window.screen.width, window.screen.height);
-        }
-
-        const innerH = window.innerHeight || 0;
-        const clientH = document.documentElement?.clientHeight || 0;
-        const vvH = window.visualViewport?.height || 0;
-        const vvOffsetTop = window.visualViewport?.offsetTop || 0;
-
-        let h = 0;
-        const isIOS =
-          /iPhone|iPod|iPad/i.test(navigator.userAgent || '') ||
-          (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
-        if (isStandaloneMode && screenH > 0) {
-          h = Math.round(Math.max(innerH, clientH, screenH));
-        } else {
-          const candidate = Math.max(innerH, clientH);
-          if (isIOS && screenH > candidate && screenH - candidate <= 105) {
-            h = Math.round(screenH);
-          } else {
-            h = Math.round(candidate || screenH);
-          }
-        }
-
-        const fullH = h > 0 ? `max(${h}px, 100dvh)` : '100dvh';
-        if (h > 0) {
-          document.documentElement.style.setProperty('--app-height-px', `${h}px`);
-        }
-        document.documentElement.style.setProperty('--app-height', fullH);
-        document.documentElement.style.height = fullH;
-        document.documentElement.style.minHeight = fullH;
-        if (document.body) {
-          document.body.style.height = fullH;
-          document.body.style.minHeight = fullH;
-        }
-        const rootEl = document.getElementById('root');
-        if (rootEl) {
-          rootEl.style.height = fullH;
-          rootEl.style.minHeight = fullH;
-        }
-
-        if (
-          typeof window !== 'undefined' &&
-          !document.body.classList.contains('is-login-screen') &&
-          !document.documentElement.classList.contains('is-login-screen')
-        ) {
-          window.scrollTo(0, 0);
-          document.documentElement.scrollTop = 0;
-          document.body.scrollTop = 0;
-          const rootEl = document.getElementById('root');
-          if (rootEl) rootEl.scrollTop = 0;
-        }
-        try {
-          window.dispatchEvent(new CustomEvent('monvian:viewport-stabilized', { detail: { height: h } }));
-        } catch {}
-      } catch (e) {}
-    };
-
-    const timers: number[] = [];
-    const scheduleStabilization = () => {
-      updateAppHeight();
-      requestAnimationFrame(updateAppHeight);
-      [50, 150, 300, 600, 1000].forEach((ms) => {
-        timers.push(window.setTimeout(updateAppHeight, ms));
-      });
-    };
-
-    scheduleStabilization();
-    if (typeof window !== 'undefined' && window.scrollTo) {
-      window.scrollTo(0, 0);
-    }
-
-    window.addEventListener('resize', updateAppHeight, { passive: true });
-    window.addEventListener('orientationchange', scheduleStabilization, { passive: true });
-    window.addEventListener('pageshow', scheduleStabilization, { passive: true });
-    window.addEventListener('focus', scheduleStabilization, { passive: true });
-
-    if (window.visualViewport) {
-      window.visualViewport.addEventListener('resize', updateAppHeight, { passive: true });
-      window.visualViewport.addEventListener('scroll', updateAppHeight, { passive: true });
-    }
-
-    if (window.screen?.orientation) {
-      window.screen.orientation.addEventListener('change', scheduleStabilization, { passive: true });
-    }
-
+    syncViewport();
     const mql = window.matchMedia('(display-mode: standalone)');
-    mql.addEventListener?.('change', scheduleStabilization);
-
-    const handleVisibility = () => {
-      if (document.visibilityState === 'visible') {
-        scheduleStabilization();
-      }
-    };
-    document.addEventListener('visibilitychange', handleVisibility, { passive: true });
-
+    mql.addEventListener?.('change', syncViewport);
     return () => {
-      timers.forEach((id) => window.clearTimeout(id));
-      window.removeEventListener('resize', updateAppHeight);
-      window.removeEventListener('orientationchange', scheduleStabilization);
-      window.removeEventListener('pageshow', scheduleStabilization);
-      window.removeEventListener('focus', scheduleStabilization);
-      if (window.visualViewport) {
-        window.visualViewport.removeEventListener('resize', updateAppHeight);
-        window.visualViewport.removeEventListener('scroll', updateAppHeight);
-      }
-      if (window.screen?.orientation) {
-        window.screen.orientation.removeEventListener('change', scheduleStabilization);
-      }
-      mql.removeEventListener?.('change', scheduleStabilization);
-      document.removeEventListener('visibilitychange', handleVisibility);
+      mql.removeEventListener?.('change', syncViewport);
     };
   }, []);
 
@@ -1040,7 +973,9 @@ export default function App() {
     };
   }, [performFullLogout]);
 
-  // Save settings on change to localStorage and backend database
+  const lastPersistedSettingsKeyRef = useRef<string | null>(null);
+
+  // Save settings on change to localStorage and backend database (only fires network writes when a setting actually changed)
   useEffect(() => {
     localStorage.setItem('monvian_rain_user_enabled', JSON.stringify(rainEnabled));
     localStorage.setItem('monvian_snow_enabled', JSON.stringify(snowEnabled));
@@ -1060,6 +995,17 @@ export default function App() {
     document.documentElement.style.colorScheme = isDarkTheme ? 'dark' : 'light';
     document.documentElement.style.backgroundColor = bg;
     if (document.body) document.body.style.backgroundColor = bg;
+
+    const settingsKey = `${rainEnabled ? 1 : 0}:${snowEnabled ? 1 : 0}:${theme}:${highContrast ? 1 : 0}`;
+    if (lastPersistedSettingsKeyRef.current === null) {
+      // Initial hydration: record baseline without redundant backend/Firestore write
+      lastPersistedSettingsKeyRef.current = settingsKey;
+      return;
+    }
+    if (lastPersistedSettingsKeyRef.current === settingsKey) {
+      return;
+    }
+    lastPersistedSettingsKeyRef.current = settingsKey;
 
     const token = localStorage.getItem('monvian_token');
 
@@ -1344,7 +1290,6 @@ export default function App() {
   const handleVoiceSearch = () => {
     const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
     if (!SpeechRecognition) {
-      alert('Seu navegador não suporta reconhecimento de voz.');
       return;
     }
 
@@ -1419,13 +1364,21 @@ export default function App() {
     };
   });
 
+  const lastWeatherFetchAtRef = useRef<number>(0);
+
   useEffect(() => {
     if (!isAuthenticated || activeTab !== 'explorar') return;
     let isSubscribed = true;
     let activeController: AbortController | null = null;
     let timeoutId: number | null = null;
+    const WEATHER_TTL_MS = 2 * 60 * 1000;
 
-    const fetchWeather = async () => {
+    const fetchWeather = async (force = false) => {
+      const now = Date.now();
+      if (!force && now - lastWeatherFetchAtRef.current < WEATHER_TTL_MS) {
+        return;
+      }
+      lastWeatherFetchAtRef.current = now;
       try {
         activeController?.abort();
         const controller = new AbortController();
@@ -1495,7 +1448,6 @@ export default function App() {
             hasLightning = true;
           }
 
-          // Refine with real measured precipitation (mm) in Campos do Jordão
           if (totalRainMm > 0) {
             isRainingNow = true;
             if (totalRainMm >= 4.0 || wcode >= 95 || wcode === 65 || wcode === 82) {
@@ -1525,15 +1477,14 @@ export default function App() {
           setRealWeather(newWeather);
           localStorage.setItem('monvian_cached_weather', JSON.stringify(newWeather));
         }
-      } catch (err) {
+      } catch {
         // Silently use cached weather fallback
       }
     };
 
-    fetchWeather();
-    // Fast polling every 2 minutes + on window focus only while Explorar (map) is active
-    const interval = setInterval(fetchWeather, 2 * 60 * 1000);
-    const onFocus = () => fetchWeather();
+    fetchWeather(false);
+    const interval = setInterval(() => fetchWeather(true), WEATHER_TTL_MS);
+    const onFocus = () => fetchWeather(false);
     window.addEventListener('focus', onFocus);
 
     return () => {
@@ -1543,7 +1494,7 @@ export default function App() {
       clearInterval(interval);
       window.removeEventListener('focus', onFocus);
     };
-  }, [rainEnabled, isAuthenticated, activeTab]);
+  }, [isAuthenticated, activeTab]);
 
   const filteredSpots = useMemo(() => {
     return spots.filter(spot => {
@@ -2553,25 +2504,12 @@ export default function App() {
         const {
           MapComponent,
           BottomNavigation,
-          SpotDetailSheet,
           SpotPreviewBanner,
-          SearchFilterDrawer,
-          SavedView,
-          ProfileModal,
-          ItinerariesView,
-          SettingsModal,
-          RainEffect,
-          SnowEffect,
-          GoldSuccessModal,
           DesktopSidebar,
           DesktopMapControls,
           DesktopExplorePanel,
           AirbnbPresentationCard,
-          PlatanosWalletModal,
-          CamposAchievementModal,
           XpRewardNotificationOverlay,
-          WhiteConfettiOverlay,
-          ClothingWeatherModal,
         } = authenticatedViews;
         return (
         <motion.div
@@ -2660,10 +2598,10 @@ export default function App() {
                 initial={
                   prefersReducedMotion
                     ? { opacity: 0 }
-                    : { opacity: 0, x: -16, filter: 'blur(6px)' }
+                    : { opacity: 0, x: -16 }
                 }
-                animate={{ opacity: 1, x: 0, filter: 'blur(0px)' }}
-                exit={{ opacity: 0, x: -10, filter: 'blur(6px)' }}
+                animate={{ opacity: 1, x: 0 }}
+                exit={{ opacity: 0, x: -10 }}
                 transition={
                   prefersReducedMotion
                     ? { duration: 0.16 }
@@ -2733,24 +2671,28 @@ export default function App() {
               activeRoute={activeRoute}
             />
 
-            {/* 2. Dynamic Rain Particle Effect Overlay (Only active when user enabled AND actually raining in Campos do Jordão) */}
-            {activeTab === 'explorar' && (
-              <RainEffect
-                enabled={Boolean(rainEnabled && realWeather.isRaining)}
-                weatherCode={realWeather.weatherCode}
-                intensity={realWeather.rainIntensity === 'none' ? 'fraca' : realWeather.rainIntensity}
-                hasLightning={realWeather.hasLightning}
-                theme={theme}
-              />
+            {/* 2. Dynamic Rain Particle Effect Overlay (Downloaded & mounted ONLY when user enabled AND actually raining) */}
+            {activeTab === 'explorar' && rainEnabled && realWeather.isRaining && (
+              <Suspense fallback={null}>
+                <RainEffect
+                  enabled={true}
+                  weatherCode={realWeather.weatherCode}
+                  intensity={realWeather.rainIntensity === 'none' ? 'fraca' : realWeather.rainIntensity}
+                  hasLightning={realWeather.hasLightning}
+                  theme={theme}
+                />
+              </Suspense>
             )}
 
-            {/* 2.5. Dynamic Snow Particle Effect Overlay (Neve nas Montanhas) */}
-            {activeTab === 'explorar' && (
-              <SnowEffect
-                enabled={snowEnabled}
-                intensity={(systemSettings.weather_snow_mode as any) || 'moderada'}
-                theme={theme}
-              />
+            {/* 2.5. Dynamic Snow Particle Effect Overlay (Downloaded & mounted ONLY when enabled) */}
+            {activeTab === 'explorar' && snowEnabled && (
+              <Suspense fallback={null}>
+                <SnowEffect
+                  enabled={true}
+                  intensity={(systemSettings.weather_snow_mode as any) || 'moderada'}
+                  theme={theme}
+                />
+              </Suspense>
             )}
 
             {/* DESKTOP MAP FLOATING CONTROLS (Top-Right Apple Style) */}
@@ -2939,50 +2881,54 @@ export default function App() {
       {/* 4. Bottom Floating Navigation Pill, Focus Mode Blur Backdrop & SpotPreviewBanner rendered at root level */}
 
       {/* 6. Spot Detail Modal / Bottom Sheet (opened ONLY when user clicks "Ver Local") */}
-      <AnimatePresence>
-        {isDetailOpen && selectedSpot && (
-          <SpotDetailSheet
-            key={`spot-detail-${selectedSpot.id}`}
-            spot={selectedSpot}
+      <Suspense fallback={null}>
+        <AnimatePresence>
+          {isDetailOpen && selectedSpot && (
+            <SpotDetailSheet
+              key={`spot-detail-${selectedSpot.id}`}
+              spot={selectedSpot}
+              theme={theme}
+              onClose={() => {
+                setIsDetailOpen(false);
+                if (activeTab !== 'explorar') {
+                  setSelectedSpot(null);
+                }
+              }}
+              onNavigateTo={(spot) => {
+                if (activeRoute && activeRoute.spotId !== spot.id) {
+                  clearActiveRoute();
+                }
+                setSelectedSpot(spot);
+                setIsDetailOpen(false);
+              }}
+              isFavorite={favorites.includes(selectedSpot.id)}
+              onToggleFavorite={handleToggleFavorite}
+              onUpdateSpot={(updatedSpot) => {
+                setSpots((prev) => prev.map((s) => (s.id === updatedSpot.id ? updatedSpot : s)));
+                setSelectedSpot(updatedSpot);
+              }}
+            />
+          )}
+        </AnimatePresence>
+      </Suspense>
+
+      {/* 7. Search & Discovery Drawer (Mounted ONLY when Tab === 'buscar', idle-prefetched) */}
+      {activeTab === 'buscar' && (
+        <Suspense fallback={null}>
+          <SearchFilterDrawer
+            isOpen={true}
+            onClose={() => setActiveTab('explorar')}
+            spots={spots}
             theme={theme}
-            onClose={() => {
-              setIsDetailOpen(false);
-              if (activeTab !== 'explorar') {
-                setSelectedSpot(null);
-              }
-            }}
-            onNavigateTo={(spot) => {
-              if (activeRoute && activeRoute.spotId !== spot.id) {
-                clearActiveRoute();
-              }
-              setSelectedSpot(spot);
-              setIsDetailOpen(false);
-            }}
-            isFavorite={favorites.includes(selectedSpot.id)}
-            onToggleFavorite={handleToggleFavorite}
-            onUpdateSpot={(updatedSpot) => {
-              setSpots((prev) => prev.map((s) => (s.id === updatedSpot.id ? updatedSpot : s)));
-              setSelectedSpot(updatedSpot);
+            onSelectSpot={(spot) => {
+              handleSelectSpot(spot);
+              setActiveTab('explorar');
             }}
           />
-        )}
-      </AnimatePresence>
-
-      {/* 7. Search & Discovery Drawer (Mounted ONLY when Tab === 'buscar') */}
-      {activeTab === 'buscar' && (
-        <SearchFilterDrawer
-          isOpen={true}
-          onClose={() => setActiveTab('explorar')}
-          spots={spots}
-          theme={theme}
-          onSelectSpot={(spot) => {
-            handleSelectSpot(spot);
-            setActiveTab('explorar');
-          }}
-        />
+        </Suspense>
       )}
 
-      {/* 8.5. Itineraries & Route Planning (Mounted ONLY when Tab === 'roteiros') */}
+      {/* 8.5. Itineraries & Route Planning (Mounted ONLY when Tab === 'roteiros', idle-prefetched) */}
       {activeTab === 'roteiros' && (
         <motion.div
           key="itineraries-view-reveal-wrapper"
@@ -3001,38 +2947,40 @@ export default function App() {
             minHeight: 'var(--app-height, 100dvh)',
           }}
         >
-          <ItinerariesView
-            key={`itineraries-view-${accountSessionKey}`}
-            isOpen={true}
-            onClose={() => setActiveTab('explorar')}
-            theme={theme}
-            spots={spots}
-            isOnboardingSelection={isOnboardingItinerarySelection}
-            isOnboardingRevealReady={isOnboardingRevealReady}
-            onSatelliteUiChange={setIsRoteirosSatelliteNav}
-            onCompleteOnboardingSelection={(selectedItins, chosenInvestment) => {
-              setIsOnboardingItinerarySelection(false);
-              try {
-                writeScopedJSON(
-                  'monvian_selected_onboarding_itineraries',
-                  selectedItins.map((i) => i.id),
-                  user
-                );
-                writeScopedString('monvian_trip_budget', chosenInvestment, user);
-                if (selectedItins.length > 0) {
-                  writeScopedJSON('monvian_active_itinerary', selectedItins[0], user);
-                  writeScopedString('monvian_itinerary_view_mode', 'map', user);
-                  window.dispatchEvent(new CustomEvent('monvian:itinerary_applied', { detail: selectedItins[0] }));
-                }
-              } catch {}
-              setActiveTab('roteiros');
-              setIsUserLocationSpotlightActive(false);
-            }}
-          />
+          <Suspense fallback={null}>
+            <ItinerariesView
+              key={`itineraries-view-${accountSessionKey}`}
+              isOpen={true}
+              onClose={() => setActiveTab('explorar')}
+              theme={theme}
+              spots={spots}
+              isOnboardingSelection={isOnboardingItinerarySelection}
+              isOnboardingRevealReady={isOnboardingRevealReady}
+              onSatelliteUiChange={setIsRoteirosSatelliteNav}
+              onCompleteOnboardingSelection={(selectedItins, chosenInvestment) => {
+                setIsOnboardingItinerarySelection(false);
+                try {
+                  writeScopedJSON(
+                    'monvian_selected_onboarding_itineraries',
+                    selectedItins.map((i) => i.id),
+                    user
+                  );
+                  writeScopedString('monvian_trip_budget', chosenInvestment, user);
+                  if (selectedItins.length > 0) {
+                    writeScopedJSON('monvian_active_itinerary', selectedItins[0], user);
+                    writeScopedString('monvian_itinerary_view_mode', 'map', user);
+                    window.dispatchEvent(new CustomEvent('monvian:itinerary_applied', { detail: selectedItins[0] }));
+                  }
+                } catch {}
+                setActiveTab('roteiros');
+                setIsUserLocationSpotlightActive(false);
+              }}
+            />
+          </Suspense>
         </motion.div>
       )}
 
-      {/* 9. Saved / Favorites Wishlists (Mounted ONLY when Tab === 'salvos') */}
+      {/* 9. Saved / Favorites Wishlists (Mounted ONLY when Tab === 'salvos', idle-prefetched) */}
       {(activeTab === 'salvos' || activeTab === ('chat' as any)) && (
         <motion.div
           key="saved-view-reveal-wrapper"
@@ -3042,33 +2990,35 @@ export default function App() {
           transition={{ duration: 0.16, ease: [0.22, 1, 0.36, 1] }}
           className="fixed inset-0 w-full z-40 bg-white dark:bg-black overflow-y-auto"
         >
-          <SavedView
-            key={`saved-view-${accountSessionKey}`}
-            isOpen={true}
-            theme={theme}
-            spots={spots}
-            onOpenSpot={(spot) => {
-              setSelectedSpot(spot);
-              setIsDetailOpen(true);
-            }}
-            onOpenItinerary={(itinerary) => {
-              try {
-                writeScopedJSON('monvian_active_itinerary', itinerary, user);
-                writeScopedString('monvian_itinerary_view_mode', 'map', user);
-                writeScopedString('monvian_itinerary_expanded', 'true', user);
-                window.dispatchEvent(new CustomEvent('monvian:itinerary_applied', { detail: itinerary }));
-              } catch {}
-              setSelectedItinerary(null);
-              setActiveTab('roteiros');
-            }}
-            onNavigateTab={(targetTab) => {
-              setActiveTab(targetTab);
-            }}
-          />
+          <Suspense fallback={null}>
+            <SavedView
+              key={`saved-view-${accountSessionKey}`}
+              isOpen={true}
+              theme={theme}
+              spots={spots}
+              onOpenSpot={(spot) => {
+                setSelectedSpot(spot);
+                setIsDetailOpen(true);
+              }}
+              onOpenItinerary={(itinerary) => {
+                try {
+                  writeScopedJSON('monvian_active_itinerary', itinerary, user);
+                  writeScopedString('monvian_itinerary_view_mode', 'map', user);
+                  writeScopedString('monvian_itinerary_expanded', 'true', user);
+                  window.dispatchEvent(new CustomEvent('monvian:itinerary_applied', { detail: itinerary }));
+                } catch {}
+                setSelectedItinerary(null);
+                setActiveTab('roteiros');
+              }}
+              onNavigateTab={(targetTab) => {
+                setActiveTab(targetTab);
+              }}
+            />
+          </Suspense>
         </motion.div>
       )}
 
-      {/* 10. Profile & Favorites (Mounted ONLY when Tab === 'perfil') */}
+      {/* 10. Profile & Favorites (Mounted ONLY when Tab === 'perfil', idle-prefetched) */}
       {activeTab === 'perfil' && (
         <motion.div
           key="profile-view-reveal-wrapper"
@@ -3078,52 +3028,58 @@ export default function App() {
           transition={{ duration: 0.16, ease: [0.22, 1, 0.36, 1] }}
           className="fixed inset-0 w-full z-40 bg-white dark:bg-black overflow-y-auto"
         >
-          <ProfileModal
-            key={`profile-modal-${accountSessionKey}`}
-            isOpen={true}
-            onClose={() => setActiveTab('explorar')}
-            favorites={favorites}
-            spots={spots}
-            onSelectSpot={(spot) => {
-              handleSelectSpot(spot);
-              setActiveTab('explorar');
-            }}
-            rainEnabled={rainEnabled}
-            onToggleRain={() => setRainEnabled(!rainEnabled)}
-            snowEnabled={snowEnabled}
-            onToggleSnow={() => setSnowEnabled(!snowEnabled)}
-            theme={theme}
-            onToggleTheme={handleToggleTheme}
-            highContrast={highContrast}
-            onToggleHighContrast={() => setHighContrast((prev) => !prev)}
-            user={user}
-            onUpdateUser={(updatedUser) => {
-              setUser(updatedUser);
-            }}
-            onOpenAdmin={() => {
-              setActiveTab('explorar');
-              setIsAdminOpen(true);
-            }}
-            onSubViewChange={() => {}}
-            communityUrl={systemSettings.community_url}
-            instagramUrl={systemSettings.instagram_url}
-            onLogout={() => {
-              performFullLogout({ redirectToLogin: true });
-            }}
-          />
+          <Suspense fallback={null}>
+            <ProfileModal
+              key={`profile-modal-${accountSessionKey}`}
+              isOpen={true}
+              onClose={() => setActiveTab('explorar')}
+              favorites={favorites}
+              spots={spots}
+              onSelectSpot={(spot) => {
+                handleSelectSpot(spot);
+                setActiveTab('explorar');
+              }}
+              rainEnabled={rainEnabled}
+              onToggleRain={() => setRainEnabled(!rainEnabled)}
+              snowEnabled={snowEnabled}
+              onToggleSnow={() => setSnowEnabled(!snowEnabled)}
+              theme={theme}
+              onToggleTheme={handleToggleTheme}
+              highContrast={highContrast}
+              onToggleHighContrast={() => setHighContrast((prev) => !prev)}
+              user={user}
+              onUpdateUser={(updatedUser) => {
+                setUser(updatedUser);
+              }}
+              onOpenAdmin={() => {
+                setActiveTab('explorar');
+                setIsAdminOpen(true);
+              }}
+              onSubViewChange={() => {}}
+              communityUrl={systemSettings.community_url}
+              instagramUrl={systemSettings.instagram_url}
+              onLogout={() => {
+                performFullLogout({ redirectToLogin: true });
+              }}
+            />
+          </Suspense>
         </motion.div>
       )}
 
-      {/* 10.6 Gold Success Celebration Modal */}
-      <GoldSuccessModal
-        isOpen={isGoldSuccessModalOpen}
-        onClose={() => setIsGoldSuccessModalOpen(false)}
-        theme={theme}
-        onExplore={() => {
-          setIsGoldSuccessModalOpen(false);
-          setActiveTab('roteiros');
-        }}
-      />
+      {/* 10.6 Gold Success Celebration Modal (Loaded ONLY when opened) */}
+      {isGoldSuccessModalOpen && (
+        <Suspense fallback={null}>
+          <GoldSuccessModal
+            isOpen={true}
+            onClose={() => setIsGoldSuccessModalOpen(false)}
+            theme={theme}
+            onExplore={() => {
+              setIsGoldSuccessModalOpen(false);
+              setActiveTab('roteiros');
+            }}
+          />
+        </Suspense>
+      )}
 
     </main>
 
@@ -3136,13 +3092,17 @@ export default function App() {
       theme={theme}
     />
 
-    {/* 3.9. Clothing & Thermal Preparation Guide Modal for Campos do Jordão */}
-    <ClothingWeatherModal
-      isOpen={isWeatherModalOpen}
-      onClose={() => setIsWeatherModalOpen(false)}
-      weather={realWeather}
-      theme={theme}
-    />
+    {/* 3.9. Clothing & Thermal Preparation Guide Modal for Campos do Jordão (Loaded ONLY when opened) */}
+    {isWeatherModalOpen && (
+      <Suspense fallback={null}>
+        <ClothingWeatherModal
+          isOpen={true}
+          onClose={() => setIsWeatherModalOpen(false)}
+          weather={realWeather}
+          theme={theme}
+        />
+      </Suspense>
+    )}
 
     {/* Monvian iOS Expansion & Coins Burst Reward Overlay (Mounted ONLY while Explorar map is active) */}
     {activeTab === 'explorar' &&
@@ -3549,10 +3509,12 @@ export default function App() {
 
     {/* White Confetti Burst Overlay (120fps) upon landing in Campos do Jordão */}
     {activeTab === 'explorar' && arrivalConfettiTrigger > 0 && (
-      <WhiteConfettiOverlay
-        triggerKey={arrivalConfettiTrigger}
-        onComplete={() => setArrivalConfettiTrigger(0)}
-      />
+      <Suspense fallback={null}>
+        <WhiteConfettiOverlay
+          triggerKey={arrivalConfettiTrigger}
+          onComplete={() => setArrivalConfettiTrigger(0)}
+        />
+      </Suspense>
     )}
 
     {/* 4-Step Complementary Registration Flow followed by Original Welcome Screen */}
@@ -3621,17 +3583,25 @@ export default function App() {
       </AnimatePresence>
     </Suspense>
 
-    <PlatanosWalletModal
-      isOpen={isPlatanosWalletOpen}
-      onClose={() => setIsPlatanosWalletOpen(false)}
-      theme={theme}
-      initialTab={platanosWalletTab}
-    />
+    {isPlatanosWalletOpen && (
+      <Suspense fallback={null}>
+        <PlatanosWalletModal
+          isOpen={true}
+          onClose={() => setIsPlatanosWalletOpen(false)}
+          theme={theme}
+          initialTab={platanosWalletTab}
+        />
+      </Suspense>
+    )}
 
-    <CamposAchievementModal
-      isOpen={isCamposAchievementOpen}
-      onClose={() => setIsCamposAchievementOpen(false)}
-    />
+    {isCamposAchievementOpen && (
+      <Suspense fallback={null}>
+        <CamposAchievementModal
+          isOpen={true}
+          onClose={() => setIsCamposAchievementOpen(false)}
+        />
+      </Suspense>
+    )}
 
   </motion.div>
         );

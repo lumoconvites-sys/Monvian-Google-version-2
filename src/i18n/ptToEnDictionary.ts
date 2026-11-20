@@ -1747,17 +1747,4 @@ export function translatePtToEn(raw: string): string {
   return raw;
 }
 
-import { translatePtToEs } from './ptToEsDictionary';
-import { translatePtToJa } from './ptToJaDictionary';
-
 export type SupportedAppLanguage = 'pt' | 'en' | 'es' | 'ja';
-
-export function translateFromPt(raw: string, lang: SupportedAppLanguage): string {
-  if (!raw || lang === 'pt') return raw;
-  if (lang === 'en') return translatePtToEn(raw);
-  if (lang === 'es') return translatePtToEs(raw);
-  if (lang === 'ja') return translatePtToJa(raw);
-  return raw;
-}
-
-

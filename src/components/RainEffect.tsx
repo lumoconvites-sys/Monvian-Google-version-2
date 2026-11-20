@@ -13,8 +13,6 @@ interface Drop {
   y: number;
   length: number;
   speed: number;
-  opacity: number;
-  thickness: number;
   layer: 0 | 1 | 2; // 0: distant, 1: mid, 2: foreground
 }
 
@@ -41,12 +39,13 @@ interface ActiveLightning {
   segments: BoltSegment[];
   flashAlpha: number;
   boltAlpha: number;
-  age: number;
-  maxAge: number;
-  reStrikeFrame: number;
+  ageMs: number;
+  maxAgeMs: number;
+  reStrikeMs: number;
+  reStruck: boolean;
 }
 
-export const RainEffect: React.FC<RainEffectProps> = ({
+export const RainEffect: React.FC<RainEffectProps> = React.memo(({
   enabled,
   weatherCode,
   intensity = 'moderada',
@@ -57,7 +56,6 @@ export const RainEffect: React.FC<RainEffectProps> = ({
   const [visible, setVisible] = useState(enabled);
   const [opacityClass, setOpacityClass] = useState(enabled ? 'opacity-100' : 'opacity-0');
 
-  // Resolve effective intensity from weatherCode if 'auto'
   const resolvedIntensity: 'fraca' | 'moderada' | 'forte' = (() => {
     if (intensity === 'fraca' || intensity === 'moderada' || intensity === 'forte') {
       return intensity;
@@ -75,7 +73,6 @@ export const RainEffect: React.FC<RainEffectProps> = ({
       (typeof weatherCode === 'number' && [65, 82, 95, 96, 99].includes(weatherCode))
   );
 
-  // Handle smooth fade-in and fade-out when toggled
   useEffect(() => {
     if (enabled) {
       setVisible(true);
@@ -94,17 +91,25 @@ export const RainEffect: React.FC<RainEffectProps> = ({
     const canvas = canvasRef.current;
     if (!canvas) return;
 
-    const ctx = canvas.getContext('2d');
+    const ctx = canvas.getContext('2d', { alpha: true });
     if (!ctx) return;
 
-    let animationFrameId: number;
-    let isTabVisible = true;
+    const prefersReducedMotion =
+      typeof window !== 'undefined' &&
+      window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
+
+    let animationFrameId = 0;
+    let resizeRafId = 0;
+    let isTabVisible = !document.hidden;
+    let isDisposed = false;
+    let lastTime = 0;
 
     let width = window.innerWidth;
     let height = window.innerHeight;
     const dpr = Math.min(window.devicePixelRatio || 1, 2);
 
-    const resize = () => {
+    const applyResize = () => {
+      resizeRafId = 0;
       width = window.innerWidth;
       height = window.innerHeight;
       if (canvas) {
@@ -114,23 +119,28 @@ export const RainEffect: React.FC<RainEffectProps> = ({
         canvas.style.height = `${height}px`;
       }
     };
-    resize();
-    window.addEventListener('resize', resize, { passive: true });
+    const handleResize = () => {
+      if (!resizeRafId) {
+        resizeRafId = requestAnimationFrame(applyResize);
+      }
+    };
+    applyResize();
+    window.addEventListener('resize', handleResize, { passive: true });
 
-    // Physics parameters calibrated for Chuva Leve, Média, and Forte com Raios
-    const countMultiplier =
+    const baseCountMultiplier =
       resolvedIntensity === 'fraca'
         ? 0.55
         : resolvedIntensity === 'forte'
-          ? 1.65
-          : 1.05;
+          ? 1.55
+          : 1.0;
+    const countMultiplier = prefersReducedMotion ? baseCountMultiplier * 0.45 : baseCountMultiplier;
 
     const speedMultiplier =
-      resolvedIntensity === 'fraca'
+      (resolvedIntensity === 'fraca'
         ? 0.72
         : resolvedIntensity === 'forte'
           ? 1.32
-          : 1.0;
+          : 1.0) * (prefersReducedMotion ? 0.65 : 1.0);
 
     const slantX =
       resolvedIntensity === 'fraca'
@@ -140,12 +150,14 @@ export const RainEffect: React.FC<RainEffectProps> = ({
           : 0.2;
 
     const isMobile = width < 768;
-    const totalDrops = Math.floor((isMobile ? 115 : 195) * countMultiplier);
+    const totalDrops = Math.floor((isMobile ? 110 : 185) * countMultiplier);
 
-    const drops: Drop[] = [];
+    const layer0Drops: Drop[] = [];
+    const layer1Drops: Drop[] = [];
+    const layer2Drops: Drop[] = [];
 
     for (let i = 0; i < totalDrops; i++) {
-      const layer = Math.random() < 0.4 ? 0 : Math.random() < 0.75 ? 1 : 2;
+      const layer: 0 | 1 | 2 = Math.random() < 0.4 ? 0 : Math.random() < 0.75 ? 1 : 2;
       const baseSpeed =
         layer === 0
           ? 11 + Math.random() * 5
@@ -167,30 +179,55 @@ export const RainEffect: React.FC<RainEffectProps> = ({
             ? baseLength * 1.25
             : baseLength;
 
-      const thickness =
-        (layer === 0 ? 0.85 : layer === 1 ? 1.2 : 1.65) *
-        (resolvedIntensity === 'fraca' ? 0.85 : resolvedIntensity === 'forte' ? 1.18 : 1);
-
-      const opacity =
-        (layer === 0
-          ? 0.22 + Math.random() * 0.14
-          : layer === 1
-            ? 0.42 + Math.random() * 0.2
-            : 0.62 + Math.random() * 0.25) *
-        (resolvedIntensity === 'fraca' ? 0.82 : 1);
-
-      drops.push({
+      const drop: Drop = {
         x: Math.random() * (width + 320) - 160,
         y: Math.random() * height,
         length,
         speed,
-        opacity,
-        thickness,
         layer,
-      });
+      };
+      if (layer === 0) layer0Drops.push(drop);
+      else if (layer === 1) layer1Drops.push(drop);
+      else layer2Drops.push(drop);
     }
 
-    // Splash particle pool
+    const intensityWidthFactor =
+      resolvedIntensity === 'fraca' ? 0.85 : resolvedIntensity === 'forte' ? 1.18 : 1;
+    const intensityAlphaFactor = resolvedIntensity === 'fraca' ? 0.82 : 1;
+
+    const layerConfigs = [
+      {
+        drops: layer0Drops,
+        width: 0.85 * intensityWidthFactor,
+        stroke:
+          theme === 'dark'
+            ? `rgba(150, 185, 230, ${(0.18 * intensityAlphaFactor).toFixed(3)})`
+            : `rgba(90, 140, 200, ${(0.15 * intensityAlphaFactor).toFixed(3)})`,
+        groundOffset: 30,
+        splashChance: 0.14,
+      },
+      {
+        drops: layer1Drops,
+        width: 1.2 * intensityWidthFactor,
+        stroke:
+          theme === 'dark'
+            ? `rgba(185, 215, 255, ${(0.38 * intensityAlphaFactor).toFixed(3)})`
+            : `rgba(70, 120, 185, ${(0.34 * intensityAlphaFactor).toFixed(3)})`,
+        groundOffset: 60,
+        splashChance: 0.16,
+      },
+      {
+        drops: layer2Drops,
+        width: 1.65 * intensityWidthFactor,
+        stroke:
+          theme === 'dark'
+            ? `rgba(215, 235, 255, ${(0.62 * intensityAlphaFactor).toFixed(3)})`
+            : `rgba(50, 100, 170, ${(0.58 * intensityAlphaFactor).toFixed(3)})`,
+        groundOffset: 90,
+        splashChance: 0.32,
+      },
+    ];
+
     const splashes: Splash[] = [];
     const maxSplashes =
       resolvedIntensity === 'fraca'
@@ -199,11 +236,11 @@ export const RainEffect: React.FC<RainEffectProps> = ({
           : 24
         : resolvedIntensity === 'forte'
           ? isMobile
-            ? 42
-            : 75
+            ? 40
+            : 70
           : isMobile
-            ? 25
-            : 45;
+            ? 24
+            : 42;
 
     const spawnSplash = (x: number, y: number, layer: number) => {
       if (splashes.length >= maxSplashes) return;
@@ -221,10 +258,10 @@ export const RainEffect: React.FC<RainEffectProps> = ({
       }
     };
 
-    // Procedural Lightning Generator (for Chuva Forte com Raios)
+    const effectiveLightningActive = lightningActive && !prefersReducedMotion;
     let activeLightning: ActiveLightning | null = null;
     let nextLightningTime =
-      performance.now() + (lightningActive ? 1800 + Math.random() * 3200 : 99999999);
+      performance.now() + (effectiveLightningActive ? 1800 + Math.random() * 3200 : 99999999);
 
     const createLightningBolt = (): ActiveLightning => {
       const segments: BoltSegment[] = [];
@@ -257,7 +294,6 @@ export const RainEffect: React.FC<RainEffectProps> = ({
             alpha: branchAlpha,
           });
 
-          // Spawn side branches
           if (depth < 2 && i > 2 && i < steps - 2 && Math.random() < (depth === 0 ? 0.34 : 0.2)) {
             buildBranch(
               nx,
@@ -280,38 +316,49 @@ export const RainEffect: React.FC<RainEffectProps> = ({
         segments,
         flashAlpha: 0.42 + Math.random() * 0.22,
         boltAlpha: 1.0,
-        age: 0,
-        maxAge: 24 + Math.floor(Math.random() * 12),
-        reStrikeFrame: Math.random() < 0.65 ? 7 + Math.floor(Math.random() * 5) : -1,
+        ageMs: 0,
+        maxAgeMs: 400 + Math.random() * 200,
+        reStrikeMs: Math.random() < 0.65 ? 115 + Math.random() * 85 : -1,
+        reStruck: false,
       };
     };
 
-    const render = () => {
-      if (!isTabVisible) {
+    const TWO_PI = Math.PI * 2;
+    const splashColorBase = theme === 'dark' ? 'rgba(215, 235, 255, ' : 'rgba(60, 110, 175, ';
+
+    const render = (now: number) => {
+      if (isDisposed || !isTabVisible) {
         animationFrameId = 0;
         return;
       }
 
-      const now = performance.now();
-      if (lightningActive && !activeLightning && now >= nextLightningTime) {
+      const dtMs = lastTime ? Math.min(now - lastTime, 48) : 16.6667;
+      lastTime = now;
+      const dtScale = dtMs / 16.6667;
+
+      if (effectiveLightningActive && !activeLightning && now >= nextLightningTime) {
         activeLightning = createLightningBolt();
         nextLightningTime = now + 3600 + Math.random() * 5200;
       }
 
-      ctx.save();
-      ctx.scale(dpr, dpr);
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
       ctx.clearRect(0, 0, width, height);
 
-      // 0. Draw Lightning Sky Flash & Branched Bolt (when active in heavy rain / storm)
+      // 0. Draw Lightning Sky Flash & Branched Bolt (time-normalized for 60Hz & 120Hz)
       if (activeLightning) {
-        activeLightning.age += 1;
+        activeLightning.ageMs += dtMs;
 
-        if (activeLightning.age === activeLightning.reStrikeFrame) {
+        if (
+          activeLightning.reStrikeMs > 0 &&
+          !activeLightning.reStruck &&
+          activeLightning.ageMs >= activeLightning.reStrikeMs
+        ) {
+          activeLightning.reStruck = true;
           activeLightning.flashAlpha = 0.52;
           activeLightning.boltAlpha = 1.0;
         } else {
-          activeLightning.flashAlpha *= 0.82;
-          activeLightning.boltAlpha *= 0.84;
+          activeLightning.flashAlpha *= Math.pow(0.82, dtScale);
+          activeLightning.boltAlpha *= Math.pow(0.84, dtScale);
         }
 
         if (activeLightning.flashAlpha > 0.01) {
@@ -342,64 +389,50 @@ export const RainEffect: React.FC<RainEffectProps> = ({
           ctx.restore();
         }
 
-        if (activeLightning.age >= activeLightning.maxAge) {
+        if (activeLightning.ageMs >= activeLightning.maxAgeMs) {
           activeLightning = null;
         }
       }
 
-      // 1. Draw and update raindrops
-      for (let i = 0; i < drops.length; i++) {
-        const d = drops[i];
+      // 1. Draw and update raindrops in 3 batched stroke() calls (instead of 200-320 per frame)
+      ctx.lineCap = 'round';
+      for (let l = 0; l < layerConfigs.length; l++) {
+        const cfg = layerConfigs[l];
+        const arr = cfg.drops;
+        if (arr.length === 0) continue;
 
-        let strokeColor: string;
-        if (theme === 'dark') {
-          if (d.layer === 2) {
-            strokeColor = `rgba(215, 235, 255, ${d.opacity * 0.85})`;
-          } else if (d.layer === 1) {
-            strokeColor = `rgba(185, 215, 255, ${d.opacity * 0.75})`;
-          } else {
-            strokeColor = `rgba(150, 185, 230, ${d.opacity * 0.6})`;
-          }
-        } else {
-          if (d.layer === 2) {
-            strokeColor = `rgba(50, 100, 170, ${d.opacity * 0.8})`;
-          } else if (d.layer === 1) {
-            strokeColor = `rgba(70, 120, 185, ${d.opacity * 0.65})`;
-          } else {
-            strokeColor = `rgba(90, 140, 200, ${d.opacity * 0.5})`;
-          }
-        }
-
-        ctx.strokeStyle = strokeColor;
-        ctx.lineWidth = d.thickness;
-        ctx.lineCap = 'round';
-
+        ctx.strokeStyle = cfg.stroke;
+        ctx.lineWidth = cfg.width;
         ctx.beginPath();
-        ctx.moveTo(d.x, d.y);
-        ctx.lineTo(d.x + slantX * d.length, d.y + d.length);
+
+        const groundThreshold = height - cfg.groundOffset;
+        for (let i = 0; i < arr.length; i++) {
+          const d = arr[i];
+          ctx.moveTo(d.x, d.y);
+          ctx.lineTo(d.x + slantX * d.length, d.y + d.length);
+
+          d.x += slantX * d.speed * dtScale;
+          d.y += d.speed * dtScale;
+
+          if (d.y >= groundThreshold && Math.random() < cfg.splashChance) {
+            spawnSplash(d.x, d.y, d.layer);
+          }
+
+          if (d.y > height + 20 || d.x > width + 120 || d.x < -120) {
+            d.y = -d.length - Math.random() * 40;
+            d.x = Math.random() * (width + 320) - 160;
+          }
+        }
         ctx.stroke();
-
-        d.x += slantX * d.speed;
-        d.y += d.speed;
-
-        const groundThreshold = height - (d.layer === 0 ? 30 : d.layer === 1 ? 60 : 90);
-        if (d.y >= groundThreshold && Math.random() < (d.layer === 2 ? 0.35 : 0.15)) {
-          spawnSplash(d.x, d.y, d.layer);
-        }
-
-        if (d.y > height + 20 || d.x > width + 120 || d.x < -120) {
-          d.y = -d.length - Math.random() * 40;
-          d.x = Math.random() * (width + 320) - 160;
-        }
       }
 
       // 2. Draw and update ground splash particles
       for (let s = splashes.length - 1; s >= 0; s--) {
         const sp = splashes[s];
-        sp.x += sp.vx;
-        sp.y += sp.vy;
-        sp.radius += 0.25;
-        sp.alpha -= 0.045;
+        sp.x += sp.vx * dtScale;
+        sp.y += sp.vy * dtScale;
+        sp.radius += 0.25 * dtScale;
+        sp.alpha -= 0.045 * dtScale;
 
         if (sp.alpha <= 0 || sp.radius >= sp.maxRadius) {
           splashes.splice(s, 1);
@@ -407,21 +440,18 @@ export const RainEffect: React.FC<RainEffectProps> = ({
         }
 
         ctx.beginPath();
-        ctx.ellipse(sp.x, sp.y, sp.radius * 1.4, sp.radius * 0.6, 0, 0, Math.PI * 2);
-        ctx.fillStyle =
-          theme === 'dark'
-            ? `rgba(215, 235, 255, ${sp.alpha * 0.65})`
-            : `rgba(60, 110, 175, ${sp.alpha * 0.65})`;
+        ctx.ellipse(sp.x, sp.y, sp.radius * 1.4, sp.radius * 0.6, 0, 0, TWO_PI);
+        ctx.fillStyle = `${splashColorBase}${(sp.alpha * 0.65).toFixed(3)})`;
         ctx.fill();
       }
 
-      ctx.restore();
       animationFrameId = requestAnimationFrame(render);
     };
 
     const handleVisibilityChange = () => {
       isTabVisible = !document.hidden;
-      if (isTabVisible && animationFrameId === 0) {
+      if (isTabVisible && animationFrameId === 0 && !isDisposed) {
+        lastTime = 0;
         animationFrameId = requestAnimationFrame(render);
       } else if (!isTabVisible && animationFrameId) {
         cancelAnimationFrame(animationFrameId);
@@ -435,8 +465,10 @@ export const RainEffect: React.FC<RainEffectProps> = ({
     }
 
     return () => {
+      isDisposed = true;
       if (animationFrameId) cancelAnimationFrame(animationFrameId);
-      window.removeEventListener('resize', resize);
+      if (resizeRafId) cancelAnimationFrame(resizeRafId);
+      window.removeEventListener('resize', handleResize);
       document.removeEventListener('visibilitychange', handleVisibilityChange);
     };
   }, [visible, resolvedIntensity, lightningActive, theme]);
@@ -468,6 +500,6 @@ export const RainEffect: React.FC<RainEffectProps> = ({
       />
     </div>
   );
-};
+});
 
 export default RainEffect;

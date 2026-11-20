@@ -46,9 +46,16 @@ export const BottomNavigation: React.FC<BottomNavigationProps> = memo(({
   const normalizedActiveTab: TabType = (activeTab as string) === 'chat' ? 'salvos' : (activeTab as TabType);
   const activeIndex = Math.max(0, TABS.findIndex((t) => t.id === normalizedActiveTab));
 
+  const isCompactRef = useRef<boolean>(false);
+  const setCompactSafe = (next: boolean) => {
+    if (isCompactRef.current === next) return;
+    isCompactRef.current = next;
+    setIsCompact(next);
+  };
+
   // Reset to normal size whenever switching tabs
   useEffect(() => {
-    setIsCompact(false);
+    setCompactSafe(false);
     scrollAccumRef.current = 0;
   }, [normalizedActiveTab]);
 
@@ -56,40 +63,35 @@ export const BottomNavigation: React.FC<BottomNavigationProps> = memo(({
   useEffect(() => {
     if (typeof window === 'undefined') return;
 
-    const isHorizontalOnlyScroller = (el: HTMLElement): boolean => {
-      const canScrollY = el.scrollHeight > el.clientHeight + 8;
-      const canScrollX = el.scrollWidth > el.clientWidth + 8;
-      return canScrollX && !canScrollY;
+    let scrollRafId = 0;
+    let pendingScrollEl: HTMLElement | null = null;
+
+    const isInsideMap = (node: EventTarget | null): boolean => {
+      return node instanceof HTMLElement && Boolean(node.closest('.maplibregl-map, #app-map-layer'));
     };
 
-    const handleScrollCapture = (e: Event) => {
-      const rawTarget = e.target;
-      if (!rawTarget) return;
+    const processScroll = () => {
+      scrollRafId = 0;
+      const el = pendingScrollEl;
+      pendingScrollEl = null;
+      if (!el) return;
 
-      let el: HTMLElement | null = null;
-      if (rawTarget === document || rawTarget === window) {
-        el = (document.scrollingElement || document.documentElement) as HTMLElement;
-      } else if (rawTarget instanceof HTMLElement) {
-        el = rawTarget;
-      }
-      if (!el || isHorizontalOnlyScroller(el)) return;
+      const canScrollY = el.scrollHeight > el.clientHeight + 8;
+      if (!canScrollY) return;
 
       const currentScrollTop = Math.max(0, el.scrollTop);
       const prevScrollTop = lastScrollTopMapRef.current.get(el) ?? currentScrollTop;
       const delta = currentScrollTop - prevScrollTop;
       lastScrollTopMapRef.current.set(el, currentScrollTop);
 
-      // Ignore tiny sub-pixel jitter
       if (Math.abs(delta) < 1.5) return;
 
-      // Always restore to normal size when near the top of the page
       if (currentScrollTop <= 14) {
         scrollAccumRef.current = 0;
-        setIsCompact(false);
+        setCompactSafe(false);
         return;
       }
 
-      // Guard against iOS bottom rubber-band bounce causing unwanted expand at the very bottom
       const maxScrollTop = Math.max(0, el.scrollHeight - el.clientHeight);
       const isNearBottomBounce = maxScrollTop > 0 && currentScrollTop >= maxScrollTop - 28;
       if (delta < 0 && isNearBottomBounce && touchDirectionRef.current !== 'down') {
@@ -102,13 +104,29 @@ export const BottomNavigation: React.FC<BottomNavigationProps> = memo(({
       scrollAccumRef.current += delta;
 
       if (scrollAccumRef.current > 10 && currentScrollTop > 20) {
-        // User is rolling the page upward (scrolling down through content) -> shrink bar smoothly
-        setIsCompact(true);
+        setCompactSafe(true);
         scrollAccumRef.current = 0;
       } else if (scrollAccumRef.current < -10) {
-        // User is sliding downward (scrolling back up) -> expand bar smoothly to normal
-        setIsCompact(false);
+        setCompactSafe(false);
         scrollAccumRef.current = 0;
+      }
+    };
+
+    const handleScrollCapture = (e: Event) => {
+      const rawTarget = e.target;
+      if (!rawTarget) return;
+
+      let el: HTMLElement | null = null;
+      if (rawTarget === document || rawTarget === window) {
+        el = (document.scrollingElement || document.documentElement) as HTMLElement;
+      } else if (rawTarget instanceof HTMLElement) {
+        el = rawTarget;
+      }
+      if (!el) return;
+
+      pendingScrollEl = el;
+      if (!scrollRafId) {
+        scrollRafId = requestAnimationFrame(processScroll);
       }
     };
 
@@ -116,13 +134,11 @@ export const BottomNavigation: React.FC<BottomNavigationProps> = memo(({
       let curr = node instanceof HTMLElement ? node : null;
       while (curr && curr !== document.body) {
         if (curr.id === 'bottom-floating-navigation') return null;
-        const style = window.getComputedStyle(curr);
-        const overflowY = style.overflowY;
-        if (
-          (overflowY === 'auto' || overflowY === 'scroll') &&
-          curr.scrollHeight > curr.clientHeight + 10
-        ) {
-          return curr;
+        if (curr.scrollHeight > curr.clientHeight + 10) {
+          const overflowY = window.getComputedStyle(curr).overflowY;
+          if (overflowY === 'auto' || overflowY === 'scroll') {
+            return curr;
+          }
         }
         curr = curr.parentElement;
       }
@@ -131,11 +147,15 @@ export const BottomNavigation: React.FC<BottomNavigationProps> = memo(({
 
     const handleTouchStart = (e: TouchEvent) => {
       if (e.touches.length !== 1) return;
+      if (normalizedActiveTab === 'explorar' && isInsideMap(e.target)) {
+        isTouchInScrollableRef.current = false;
+        return;
+      }
       const y = e.touches[0].clientY;
       touchAnchorYRef.current = y;
       touchLastYRef.current = y;
       touchDirectionRef.current = null;
-      const scrollable = findScrollableAncestor(e.target);
+      const scrollable = normalizedActiveTab !== 'explorar' ? null : findScrollableAncestor(e.target);
       isTouchInScrollableRef.current = Boolean(scrollable) || normalizedActiveTab !== 'explorar';
     };
 
@@ -155,7 +175,6 @@ export const BottomNavigation: React.FC<BottomNavigationProps> = memo(({
       if (Math.abs(frameDeltaY) > 1.5) {
         const currentDir: 'up' | 'down' = frameDeltaY < 0 ? 'up' : 'down';
         if (touchDirectionRef.current && touchDirectionRef.current !== currentDir) {
-          // Finger reversed direction: reset anchor to current position for immediate response
           touchAnchorYRef.current = currentY;
         }
         touchDirectionRef.current = currentDir;
@@ -163,13 +182,11 @@ export const BottomNavigation: React.FC<BottomNavigationProps> = memo(({
 
       const totalDragFromAnchor = currentY - touchAnchorYRef.current;
 
-      // Finger moving up (rolling page upward) -> shrink smoothly
       if (totalDragFromAnchor < -16) {
-        setIsCompact(true);
+        setCompactSafe(true);
         touchAnchorYRef.current = currentY;
       } else if (totalDragFromAnchor > 16) {
-        // Finger sliding down -> return smoothly to normal
-        setIsCompact(false);
+        setCompactSafe(false);
         touchAnchorYRef.current = currentY;
       }
     };
@@ -182,12 +199,14 @@ export const BottomNavigation: React.FC<BottomNavigationProps> = memo(({
     };
 
     const handleWheel = (e: WheelEvent) => {
-      const scrollable = findScrollableAncestor(e.target);
-      if (!scrollable && normalizedActiveTab === 'explorar') return;
+      if (normalizedActiveTab === 'explorar') {
+        if (isInsideMap(e.target)) return;
+        if (!findScrollableAncestor(e.target)) return;
+      }
       if (e.deltaY > 8) {
-        setIsCompact(true);
+        setCompactSafe(true);
       } else if (e.deltaY < -8) {
-        setIsCompact(false);
+        setCompactSafe(false);
       }
     };
 
@@ -199,6 +218,7 @@ export const BottomNavigation: React.FC<BottomNavigationProps> = memo(({
     window.addEventListener('wheel', handleWheel, { passive: true });
 
     return () => {
+      if (scrollRafId) cancelAnimationFrame(scrollRafId);
       window.removeEventListener('scroll', handleScrollCapture, { capture: true });
       window.removeEventListener('touchstart', handleTouchStart);
       window.removeEventListener('touchmove', handleTouchMove);

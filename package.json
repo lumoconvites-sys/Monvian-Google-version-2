@@ -25,8 +25,7 @@
     "motion": "^12.23.24",
     "react": "^19.0.1",
     "react-dom": "^19.0.1",
-    "stripe": "^22.6.2",
-    "three": "^0.186.0"
+    "stripe": "^22.6.2"
   },
   "devDependencies": {
     "@tailwindcss/vite": "^4.1.14",
@@ -36,7 +35,6 @@
     "@types/node": "^22.14.0",
     "@types/react": "^19.3.0",
     "@types/react-dom": "^19.3.0",
-    "@types/three": "^0.186.0",
     "@vitejs/plugin-react": "^5.0.4",
     "esbuild": "^0.25.0",
     "tailwindcss": "^4.1.14",

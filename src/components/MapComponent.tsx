@@ -4,7 +4,6 @@ import 'maplibre-gl/dist/maplibre-gl.css';
 import { animate } from 'motion/react';
 import { Spot, MapModeType } from '../types';
 import { getSpotImage, getSpotFallbackImage } from '../utils/spotImages';
-import { generateMarkerHtml, MAP_VISUAL_ICON_CATEGORIES } from '../utils/mapVisualIcons';
 import { gpsNavigationManager, calculateHaversineDistance } from '../services/gpsNavigation';
 import { monvianXpManager } from '../services/xpService';
 import { deviceHeadingManager } from '../utils/deviceHeading';
@@ -767,7 +766,7 @@ export const MapComponent = memo(
       recenter: () => {
         centerOnUserLocation(true);
       },
-    }));
+    }), [centerOnUserLocation, currentMode, onMapModeChange, onStyleChange, setFollowMode]);
 
     // Compute exact framing parameters for Campos do Jordão overview
     const getCamposOverviewCamera = useCallback(
@@ -901,18 +900,77 @@ export const MapComponent = memo(
           if (onMapClickRef.current) onMapClickRef.current();
         });
 
+        let lastSpaceActive: boolean | null = null;
+        let lastHideUserPin: boolean | null = null;
+        let viewportCullRafId: number | null = null;
+
+        const syncViewportMarkerVisibility = () => {
+          viewportCullRafId = null;
+          const records = markerRecordsRef.current;
+          if (!records.length || !mapRef.current) return;
+
+          const z = map.getZoom();
+          // Always show all markers during orbital globe / regional zoom or spotlight
+          if (z < 9.5 || isGlobeIntroActiveRef.current || isSpotlightActiveRef.current) {
+            for (let i = 0; i < records.length; i++) {
+              const rec = records[i];
+              if (rec.isCulledOffscreen) {
+                rec.isCulledOffscreen = false;
+                rec.el.style.visibility = '';
+              }
+            }
+            return;
+          }
+
+          try {
+            const bounds = map.getBounds();
+            const sw = bounds.getSouthWest();
+            const ne = bounds.getNorthEast();
+            const latPad = Math.max(0.015, (ne.lat - sw.lat) * 0.35);
+            const lngPad = Math.max(0.015, (ne.lng - sw.lng) * 0.35);
+            const minLat = sw.lat - latPad;
+            const maxLat = ne.lat + latPad;
+            const minLng = sw.lng - lngPad;
+            const maxLng = ne.lng + lngPad;
+            const activeId = selectedSpotRef.current?.id;
+
+            for (let i = 0; i < records.length; i++) {
+              const rec = records[i];
+              const inView =
+                rec.spotId === activeId ||
+                (rec.lat >= minLat && rec.lat <= maxLat && rec.lng >= minLng && rec.lng <= maxLng);
+              const shouldCull = !inView;
+              if (rec.isCulledOffscreen !== shouldCull) {
+                rec.isCulledOffscreen = shouldCull;
+                rec.el.style.visibility = shouldCull ? 'hidden' : '';
+              }
+            }
+          } catch {}
+        };
+
+        const scheduleViewportMarkerCull = () => {
+          if (markerRecordsRef.current.length < 30 || viewportCullRafId !== null) return;
+          viewportCullRafId = requestAnimationFrame(syncViewportMarkerVisibility);
+        };
+
         const syncSpaceAndMarkerZoomTier = () => {
           const z = map.getZoom();
           const shouldSpace = Boolean(isGlobeIntroPendingRef.current || z < 7.2);
-          setIsSpaceBackgroundActive((prev) => (prev === shouldSpace ? prev : shouldSpace));
+          if (lastSpaceActive !== shouldSpace) {
+            lastSpaceActive = shouldSpace;
+            setIsSpaceBackgroundActive(shouldSpace);
+          }
 
           const userMarkerEl = userMarkerRef.current?.getElement();
           if (userMarkerEl) {
             const hideUserPinForOrbitalFlight = Boolean(
               isGlobeIntroActiveRef.current && z < 4.5
             );
-            userMarkerEl.style.transition = 'opacity 0.35s ease';
-            userMarkerEl.style.opacity = hideUserPinForOrbitalFlight ? '0' : '1';
+            if (lastHideUserPin !== hideUserPinForOrbitalFlight) {
+              lastHideUserPin = hideUserPinForOrbitalFlight;
+              userMarkerEl.style.transition = 'opacity 0.35s ease';
+              userMarkerEl.style.opacity = hideUserPinForOrbitalFlight ? '0' : '1';
+            }
           }
 
           const nextTier: 'orbital' | 'regional' | 'city' =
@@ -938,7 +996,6 @@ export const MapComponent = memo(
             latestUserCoordsRef.current = currentGpsState.coords;
           }
           if (isGlobeIntroActiveRef.current) {
-            // Keep orbital 3D globe framing until user completes welcome / finishes intro flight
             map.jumpTo({
               center: [-22, -10],
               zoom: getOrbitalEarthZoom(),
@@ -960,6 +1017,7 @@ export const MapComponent = memo(
             frameAllSpotsOverview(map, false);
           }
           syncSpaceAndMarkerZoomTier();
+          syncViewportMarkerVisibility();
           if (onMapLoad) onMapLoad();
         });
 
@@ -972,6 +1030,7 @@ export const MapComponent = memo(
           syncActiveRouteLayers(map);
           ensureUserMarker(map);
           syncSpaceAndMarkerZoomTier();
+          syncViewportMarkerVisibility();
         });
 
         // Mark map as manually moved by user when panning/dragging so camera stops auto-centering
@@ -994,12 +1053,21 @@ export const MapComponent = memo(
           }
         };
 
-        const onUserManualMove = (e: any) => {
+        const onUserDrag = (e: any) => {
+          if (e && e.originalEvent) {
+            isMapGestureActiveRef.current = true;
+            lastMapGestureTimeRef.current = performance.now();
+          }
+          scheduleViewportMarkerCull();
+        };
+
+        const onUserZoom = (e: any) => {
           if (e && e.originalEvent) {
             isMapGestureActiveRef.current = true;
             lastMapGestureTimeRef.current = performance.now();
           }
           syncSpaceAndMarkerZoomTier();
+          scheduleViewportMarkerCull();
         };
 
         const onInteractionEnd = (e: any) => {
@@ -1008,6 +1076,7 @@ export const MapComponent = memo(
           }
           isMapGestureActiveRef.current = false;
           syncSpaceAndMarkerZoomTier();
+          syncViewportMarkerVisibility();
           if (lastInteractionStateRef.current) {
             lastInteractionStateRef.current = false;
             if (onInteractionChangeRef.current) onInteractionChangeRef.current(false);
@@ -1018,8 +1087,8 @@ export const MapComponent = memo(
         map.on('zoomstart', onUserManualMoveStart);
         map.on('rotatestart', onUserManualMoveStart);
         map.on('pitchstart', onUserManualMoveStart);
-        map.on('drag', onUserManualMove);
-        map.on('zoom', onUserManualMove);
+        map.on('drag', onUserDrag);
+        map.on('zoom', onUserZoom);
         map.on('dragend', onInteractionEnd);
         map.on('zoomend', onInteractionEnd);
         map.on('moveend', onInteractionEnd);
@@ -1034,7 +1103,7 @@ export const MapComponent = memo(
           if (userBeamRef.current && deviceHeadingManager.hasSensorData()) {
             const rawHeading = deviceHeadingManager.getCurrentHeading();
             const beamAngle = (rawHeading - bearing + 360) % 360;
-            userBeamRef.current.style.transform = `translate(-50%, -50%) rotate(${beamAngle.toFixed(1)}deg)`;
+            userBeamRef.current.style.transform = `translate3d(-50%, -50%, 0) rotate(${beamAngle.toFixed(1)}deg)`;
           }
         };
 
@@ -1057,6 +1126,8 @@ export const MapComponent = memo(
 
       const unsubscribeHeading = deviceHeadingManager.subscribe((rawHeading) => {
         if (isNaN(rawHeading)) return;
+        // Skip DOM mutations when map tab is hidden in the background
+        if (activeTabRef.current && activeTabRef.current !== 'explorar') return;
 
         if (mapRef.current && (!userMarkerRef.current || !userBeamRef.current)) {
           ensureUserMarker(mapRef.current);
@@ -1067,7 +1138,7 @@ export const MapComponent = memo(
 
         if (userBeamRef.current && Math.abs(beamAngle - lastRenderedBeamAngle) >= 0.25) {
           lastRenderedBeamAngle = beamAngle;
-          userBeamRef.current.style.transform = `translate(-50%, -50%) rotate(${beamAngle.toFixed(1)}deg)`;
+          userBeamRef.current.style.transform = `translate3d(-50%, -50%, 0) rotate(${beamAngle.toFixed(1)}deg)`;
         }
 
         const compassAngle = -rawHeading;
@@ -1149,34 +1220,37 @@ export const MapComponent = memo(
 
         latestUserCoordsRef.current = coords;
 
-        if (mapRef.current && !userMarkerRef.current) {
-          ensureUserMarker(mapRef.current);
-        }
+        const isExplorarVisible = !activeTabRef.current || activeTabRef.current === 'explorar';
 
-        // Move the 3D user marker whenever position delta is perceptible
-        if (
-          userMarkerRef.current &&
-          (Math.abs(coords[0] - lastMarkerLng) > 1e-7 || Math.abs(coords[1] - lastMarkerLat) > 1e-7)
-        ) {
-          lastMarkerLng = coords[0];
-          lastMarkerLat = coords[1];
-          userMarkerRef.current.setLngLat(coords);
-        }
+        if (isExplorarVisible) {
+          if (mapRef.current && !userMarkerRef.current) {
+            ensureUserMarker(mapRef.current);
+          }
 
-        // Fallback rotation for the blue flashlight from GPS course heading when device compass hasn't fired
-        if (
-          userBeamRef.current &&
-          !deviceHeadingManager.hasSensorData() &&
-          typeof navState.heading === 'number' &&
-          !isNaN(navState.heading)
-        ) {
-          const mapBearing = mapRef.current?.getBearing() || 0;
-          const comp = (navState.heading - mapBearing + 360) % 360;
-          userBeamRef.current.style.transform = `translate(-50%, -50%) rotate(${comp.toFixed(1)}deg)`;
+          // Move the 3D user marker whenever position delta is perceptible
+          if (
+            userMarkerRef.current &&
+            (Math.abs(coords[0] - lastMarkerLng) > 1e-7 || Math.abs(coords[1] - lastMarkerLat) > 1e-7)
+          ) {
+            lastMarkerLng = coords[0];
+            lastMarkerLat = coords[1];
+            userMarkerRef.current.setLngLat(coords);
+          }
+
+          // Fallback rotation for the blue flashlight from GPS course heading when device compass hasn't fired
+          if (
+            userBeamRef.current &&
+            !deviceHeadingManager.hasSensorData() &&
+            typeof navState.heading === 'number' &&
+            !isNaN(navState.heading)
+          ) {
+            const mapBearing = mapRef.current?.getBearing() || 0;
+            const comp = (navState.heading - mapBearing + 360) % 360;
+            userBeamRef.current.style.transform = `translate3d(-50%, -50%, 0) rotate(${comp.toFixed(1)}deg)`;
+          }
         }
 
         const now = performance.now();
-        const isExplorarVisible = !activeTabRef.current || activeTabRef.current === 'explorar';
 
         if (
           mapRef.current &&
@@ -1528,11 +1602,10 @@ export const MapComponent = memo(
     // Focus camera on user marker with high spotlight zoom and hide other markers during spotlight presentation
     useEffect(() => {
       if (!isSpotlightActive) {
-        const markers = document.querySelectorAll<HTMLElement>('.monvian-explore-marker');
-        markers.forEach((m) => {
-          m.style.transition = 'opacity 0.45s ease';
-          m.style.opacity = '1';
-          m.style.pointerEvents = 'auto';
+        markerRecordsRef.current.forEach((rec) => {
+          rec.el.style.transition = 'opacity 0.45s ease';
+          rec.el.style.opacity = '1';
+          rec.el.style.pointerEvents = 'auto';
         });
         const userEl = userMarkerRef.current?.getElement();
         if (userEl) userEl.style.zIndex = '30';
@@ -1558,11 +1631,10 @@ export const MapComponent = memo(
           duration: 750,
         });
 
-        const markers = document.querySelectorAll<HTMLElement>('.monvian-explore-marker');
-        markers.forEach((m) => {
-          m.style.transition = 'opacity 0.3s ease';
-          m.style.opacity = '0';
-          m.style.pointerEvents = 'none';
+        markerRecordsRef.current.forEach((rec) => {
+          rec.el.style.transition = 'opacity 0.3s ease';
+          rec.el.style.opacity = '0';
+          rec.el.style.pointerEvents = 'none';
         });
       }
     }, [isSpotlightActive, ensureUserMarker]);
@@ -1695,7 +1767,10 @@ export const MapComponent = memo(
       imgUrl: string;
       lastSelectedState?: boolean;
       lastHiddenState?: boolean;
+      lastZoomTier?: 'orbital' | 'regional' | 'city';
+      isCulledOffscreen?: boolean;
     }[]>([]);
+    const lastUserHighlightKeyRef = useRef<string>('');
     const animatedSpotIdsRef = useRef<Set<string>>(new Set());
     const activeMarkerAnimationsRef = useRef<WeakMap<HTMLElement, { stop?: () => void }>>(
       new WeakMap()
@@ -1793,16 +1868,31 @@ export const MapComponent = memo(
       const focusActive = isFocusModeRef.current;
       const zoomTier = markerZoomTierRef.current;
       const hideForIntroFlight = Boolean(isGlobeIntroActiveRef.current && zoomTier !== 'city');
+      const zoomScale =
+        zoomTier === 'orbital' ? 0.46 : zoomTier === 'regional' ? 0.68 : 0.96;
 
       markerRecordsRef.current.forEach((rec) => {
         const isSelected = activeSpotId ? rec.spotId === activeSpotId : false;
         const shouldHideMarker = hideForIntroFlight || (focusActive && !isSelected);
 
-        const zoomScale =
-          zoomTier === 'orbital' ? 0.46 : zoomTier === 'regional' ? 0.68 : 0.96;
+        if (
+          rec.lastSelectedState === isSelected &&
+          rec.lastHiddenState === shouldHideMarker &&
+          rec.lastZoomTier === zoomTier
+        ) {
+          return;
+        }
 
+        const selectionChanged = rec.lastSelectedState !== isSelected;
         rec.lastSelectedState = isSelected;
         rec.lastHiddenState = shouldHideMarker;
+        rec.lastZoomTier = zoomTier;
+
+        // Ensure newly selected marker is never culled offscreen
+        if (isSelected && rec.isCulledOffscreen) {
+          rec.isCulledOffscreen = false;
+          rec.el.style.visibility = '';
+        }
 
         rec.containerEl.style.transition =
           'transform 0.36s cubic-bezier(0.22, 1, 0.36, 1), opacity 0.28s cubic-bezier(0.22, 1, 0.36, 1)';
@@ -1815,46 +1905,52 @@ export const MapComponent = memo(
         rec.containerEl.style.zIndex = isSelected ? '50' : '20';
         rec.el.style.pointerEvents = shouldHideMarker ? 'none' : 'auto';
 
-        if (rec.isStar) {
-          if (isSelected) {
-            rec.pulseScaleWrapEl.classList.add('is-selected');
+        if (selectionChanged) {
+          if (rec.isStar) {
+            if (isSelected) {
+              rec.pulseScaleWrapEl.classList.add('is-selected');
+            } else {
+              rec.pulseScaleWrapEl.classList.remove('is-selected');
+            }
+            rec.badgeEl.style.filter = isSelected
+              ? 'drop-shadow(0 10px 22px rgba(0, 0, 0, 0.48)) drop-shadow(0 0 12px rgba(255, 214, 10, 0.92))'
+              : 'drop-shadow(0 6px 14px rgba(0, 0, 0, 0.38)) drop-shadow(0 0 7px rgba(255, 214, 10, 0.45))';
           } else {
-            rec.pulseScaleWrapEl.classList.remove('is-selected');
+            rec.badgeEl.style.border = isSelected
+              ? '3px solid #FFFFFF'
+              : '2.5px solid #FFFFFF';
+            rec.badgeEl.style.boxShadow = isSelected
+              ? '0 10px 24px rgba(0, 0, 0, 0.42), 0 3px 8px rgba(0, 0, 0, 0.22), 0 0 0 2px rgba(255, 255, 255, 0.95)'
+              : '0 6px 14px rgba(0, 0, 0, 0.34), 0 2px 5px rgba(0, 0, 0, 0.18)';
           }
-          rec.badgeEl.style.filter = isSelected
-            ? 'drop-shadow(0 10px 22px rgba(0, 0, 0, 0.48)) drop-shadow(0 0 12px rgba(255, 214, 10, 0.92))'
-            : 'drop-shadow(0 6px 14px rgba(0, 0, 0, 0.38)) drop-shadow(0 0 7px rgba(255, 214, 10, 0.45))';
-        } else {
-          rec.badgeEl.style.border = isSelected
-            ? '3px solid #FFFFFF'
-            : '2.5px solid #FFFFFF';
-          rec.badgeEl.style.boxShadow = isSelected
-            ? '0 10px 24px rgba(0, 0, 0, 0.42), 0 3px 8px rgba(0, 0, 0, 0.22), 0 0 0 2px rgba(255, 255, 255, 0.95)'
-            : '0 6px 14px rgba(0, 0, 0, 0.34), 0 2px 5px rgba(0, 0, 0, 0.18)';
-        }
 
-        if (rec.pulseEl) {
-          rec.pulseEl.style.background = rec.isStar
-            ? 'radial-gradient(circle, rgba(255, 214, 10, 0.72) 0%, rgba(250, 204, 21, 0.25) 55%, transparent 75%)'
-            : 'radial-gradient(circle, rgba(255, 255, 255, 0.7) 0%, rgba(255, 255, 255, 0.22) 55%, transparent 75%)';
-          rec.pulseEl.style.display = isSelected ? 'block' : 'none';
+          if (rec.pulseEl) {
+            rec.pulseEl.style.background = rec.isStar
+              ? 'radial-gradient(circle, rgba(255, 214, 10, 0.72) 0%, rgba(250, 204, 21, 0.25) 55%, transparent 75%)'
+              : 'radial-gradient(circle, rgba(255, 255, 255, 0.7) 0%, rgba(255, 255, 255, 0.22) 55%, transparent 75%)';
+            rec.pulseEl.style.display = isSelected ? 'block' : 'none';
+          }
         }
       });
 
-      if (userMarkerStackRef.current) {
-        const userZoomScale = zoomTier === 'orbital' ? 0.62 : zoomTier === 'regional' ? 0.82 : 1;
-        userMarkerStackRef.current.style.transition =
-          'transform 0.32s cubic-bezier(0.22, 1, 0.36, 1), opacity 0.28s cubic-bezier(0.22, 1, 0.36, 1)';
-        userMarkerStackRef.current.style.opacity = focusActive ? '0' : '1';
-        userMarkerStackRef.current.style.transform = focusActive
-          ? 'scale(0.76)'
-          : `scale(${userZoomScale})`;
-        userMarkerStackRef.current.style.pointerEvents = focusActive ? 'none' : 'auto';
-      }
+      const userHighlightKey = `${focusActive ? 1 : 0}:${zoomTier}`;
+      if (lastUserHighlightKeyRef.current !== userHighlightKey) {
+        lastUserHighlightKeyRef.current = userHighlightKey;
+        if (userMarkerStackRef.current) {
+          const userZoomScale = zoomTier === 'orbital' ? 0.62 : zoomTier === 'regional' ? 0.82 : 1;
+          userMarkerStackRef.current.style.transition =
+            'transform 0.32s cubic-bezier(0.22, 1, 0.36, 1), opacity 0.28s cubic-bezier(0.22, 1, 0.36, 1)';
+          userMarkerStackRef.current.style.opacity = focusActive ? '0' : '1';
+          userMarkerStackRef.current.style.transform = focusActive
+            ? 'scale(0.76)'
+            : `scale(${userZoomScale})`;
+          userMarkerStackRef.current.style.pointerEvents = focusActive ? 'none' : 'auto';
+        }
 
-      if (userBeamRef.current) {
-        userBeamRef.current.style.transition = 'opacity 0.28s cubic-bezier(0.22, 1, 0.36, 1)';
-        userBeamRef.current.style.opacity = focusActive || zoomTier !== 'city' ? '0' : '1';
+        if (userBeamRef.current) {
+          userBeamRef.current.style.transition = 'opacity 0.28s cubic-bezier(0.22, 1, 0.36, 1)';
+          userBeamRef.current.style.opacity = focusActive || zoomTier !== 'city' ? '0' : '1';
+        }
       }
     }, []);
 
@@ -2153,6 +2249,7 @@ export const MapComponent = memo(
         const el = document.createElement('div');
         el.className = 'monvian-explore-marker group cursor-pointer select-none';
         el.style.touchAction = 'manipulation';
+        el.style.contain = 'layout style';
         el.setAttribute('data-spot-id', spot.id);
 
         const containerEl = document.createElement('div');
@@ -2763,98 +2860,17 @@ export const MapComponent = memo(
     // Render static visual map icons
     const visualIconMarkersRef = useRef<maplibregl.Marker[]>([]);
 
-    const renderVisualIcons = useCallback(() => {
-      const map = mapRef.current;
-      if (!map) return;
-
-      visualIconMarkersRef.current.forEach((m) => {
-        try {
-          m.remove();
-        } catch (e) {}
-      });
-      visualIconMarkersRef.current = [];
-      return;
-
-      visualIcons.forEach((item, iconIdx) => {
-        const latNum = Number(item.latitude);
-        const lngNum = Number(item.longitude);
-        if (isNaN(latNum) || isNaN(lngNum)) return;
-        if (item.is_active === 0 || item.is_active === false) return;
-
-        const el = document.createElement('div');
-        el.className = 'monvian-visual-icon-pin select-none z-10';
-        el.style.pointerEvents = 'auto';
-        el.style.userSelect = 'none';
-        el.style.webkitUserSelect = 'none';
-        el.style.cursor = 'pointer';
-
-        el.innerHTML = generateMarkerHtml(item.category, 26, item.color);
-
-        try {
-          el.animate(
-            [
-              { transform: 'scale(0)', opacity: 0 },
-              { transform: 'scale(1.28)', opacity: 1, offset: 0.68 },
-              { transform: 'scale(1)', opacity: 1 },
-            ],
-            {
-              duration: 380 + (iconIdx % 12) * 30,
-              easing: 'cubic-bezier(0.34, 1.56, 0.64, 1)',
-              fill: 'both',
-            }
-          );
-        } catch (e) {}
-
-        el.onclick = (e) => {
-          e.stopPropagation();
-          try {
-            el.animate(
-              [
-                { transform: 'scale(0.82)' },
-                { transform: 'scale(1.35)', offset: 0.6 },
-                { transform: 'scale(1)' },
-              ],
-              {
-                duration: 360,
-                easing: 'cubic-bezier(0.34, 1.56, 0.64, 1)',
-              }
-            );
-          } catch (err) {}
-
-          const meta = MAP_VISUAL_ICON_CATEGORIES[item.category];
-          const label = meta?.label || 'Ponto de Referência';
-          try {
-            new maplibregl.Popup({ offset: 25, closeButton: true })
-              .setLngLat([lngNum, latNum])
-              .setHTML(`<div style="padding: 6px 10px; font-weight: bold; font-size: 13px; color: #111; font-family: sans-serif;">📍 ${label}</div>`)
-              .addTo(map);
-          } catch (err) {}
-        };
-
-        const marker = new maplibregl.Marker({
-          element: el,
-        })
-          .setLngLat([lngNum, latNum])
-          .addTo(map);
-
-        visualIconMarkersRef.current.push(marker);
-      });
-    }, [visualIcons]);
-
+    // Clear any legacy visual icon markers once cleanly (feature intentionally disabled on main map)
     useEffect(() => {
-      renderVisualIcons();
-      const map = mapRef.current;
-      if (map) {
-        map.on('style.load', renderVisualIcons);
-        map.on('load', renderVisualIcons);
+      if (visualIconMarkersRef.current.length > 0) {
+        visualIconMarkersRef.current.forEach((m) => {
+          try {
+            m.remove();
+          } catch {}
+        });
+        visualIconMarkersRef.current = [];
       }
-      return () => {
-        if (map) {
-          map.off('style.load', renderVisualIcons);
-          map.off('load', renderVisualIcons);
-        }
-      };
-    }, [renderVisualIcons]);
+    }, []);
 
     // Keep MapLibre canvas synchronized with container dimensions using RAF-debounced ResizeObserver
     useEffect(() => {

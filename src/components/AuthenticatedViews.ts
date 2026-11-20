@@ -1,21 +1,11 @@
+// Core authenticated map shell — loaded immediately upon login for fastest first map paint.
+// Secondary tabs (ItinerariesView, SavedView, ProfileModal, SearchFilterDrawer, SpotDetailSheet)
+// and rare modals/effects are code-split and idle-prefetched in App.tsx.
 export { MapComponent } from './MapComponent';
 export { BottomNavigation } from './BottomNavigation';
-export { SpotDetailSheet } from './SpotDetailSheet';
 export { SpotPreviewBanner } from './SpotPreviewBanner';
-export { SearchFilterDrawer } from './SearchFilterDrawer';
-export { SavedView } from './SavedView';
-export { ProfileModal } from './ProfileModal';
-export { ItinerariesView } from './ItinerariesView';
-export { SettingsModal } from './SettingsModal';
-export { RainEffect } from './RainEffect';
-export { SnowEffect } from './SnowEffect';
-export { GoldSuccessModal } from './GoldSuccessModal';
 export { DesktopSidebar } from './desktop/DesktopSidebar';
 export { DesktopMapControls } from './desktop/DesktopMapControls';
 export { DesktopExplorePanel } from './desktop/DesktopExplorePanel';
 export { AirbnbPresentationCard } from './AirbnbPresentationCard';
-export { PlatanosWalletModal } from './platanos/PlatanosWalletModal';
-export { CamposAchievementModal } from './CamposAchievementModal';
 export { XpRewardNotificationOverlay } from './XpRewardNotificationOverlay';
-export { WhiteConfettiOverlay } from './WhiteConfettiOverlay';
-export { ClothingWeatherModal } from './ClothingWeatherWidget';

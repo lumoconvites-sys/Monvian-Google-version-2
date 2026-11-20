@@ -1,16 +1,16 @@
 import React, {
   createContext,
-  useCallback,
   useContext,
+  useState,
   useEffect,
   useLayoutEffect,
+  useCallback,
   useMemo,
   useRef,
-  useState,
 } from 'react';
-import { translateFromPt } from '../i18n/ptToEnDictionary';
 
 export type AppLanguage = 'pt' | 'en' | 'es' | 'ja';
+type TranslatorFn = (raw: string) => string;
 
 interface LanguageContextValue {
   language: AppLanguage;
@@ -21,52 +21,84 @@ interface LanguageContextValue {
 
 const STORAGE_KEY = 'monvian_language';
 const LANGUAGE_EVENT = 'monvian:language_change';
+const TRANSLATABLE_ATTRS = ['placeholder', 'title', 'aria-label'] as const;
+type TranslatableAttr = (typeof TRANSLATABLE_ATTRS)[number];
 
-const LanguageContext = createContext<LanguageContextValue>({
-  language: 'pt',
-  isEnglish: false,
-  setLanguage: () => {},
-  tr: (t) => t,
-});
+const SKIP_TAGS = new Set(['SCRIPT', 'STYLE', 'NOSCRIPT', 'SVG', 'CODE', 'PRE']);
+const SKIP_TEXT_PARENT_TAGS = new Set(['INPUT', 'TEXTAREA', 'SCRIPT', 'STYLE', 'NOSCRIPT', 'CODE', 'PRE']);
+const SKIP_SELECTOR =
+  'script, style, noscript, svg, code, pre, [contenteditable="true"], [data-no-translate], .notranslate';
+
+// On-demand lazy dictionary cache — zero dictionaries loaded when using default Portuguese ('pt')
+const translatorCache = new Map<AppLanguage, TranslatorFn>();
+const translatorPromises = new Map<AppLanguage, Promise<TranslatorFn>>();
+
+function loadTranslator(lang: AppLanguage): Promise<TranslatorFn> {
+  if (lang === 'pt') return Promise.resolve((raw: string) => raw);
+  const cached = translatorCache.get(lang);
+  if (cached) return Promise.resolve(cached);
+  const existing = translatorPromises.get(lang);
+  if (existing) return existing;
+
+  let promise: Promise<TranslatorFn>;
+  if (lang === 'en') {
+    promise = import('../i18n/ptToEnDictionary').then((m) => m.translatePtToEn);
+  } else if (lang === 'es') {
+    promise = import('../i18n/ptToEsDictionary').then((m) => m.translatePtToEs);
+  } else {
+    promise = import('../i18n/ptToJaDictionary').then((m) => m.translatePtToJa);
+  }
+
+  const wrapped = promise.then((fn) => {
+    translatorCache.set(lang, fn);
+    translatorPromises.delete(lang);
+    return fn;
+  });
+  translatorPromises.set(lang, wrapped);
+  return wrapped;
+}
 
 function isValidAppLanguage(val: unknown): val is AppLanguage {
   return val === 'pt' || val === 'en' || val === 'es' || val === 'ja';
 }
 
 function readInitialLanguage(): AppLanguage {
+  if (typeof window === 'undefined') return 'pt';
   try {
-    const saved = localStorage.getItem(STORAGE_KEY);
-    if (isValidAppLanguage(saved)) {
-      return saved;
-    }
-  } catch {}
+    const saved = window.localStorage.getItem(STORAGE_KEY);
+    if (isValidAppLanguage(saved)) return saved;
+  } catch {
+    // ignore storage errors
+  }
   return 'pt';
 }
 
-const TRANSLATABLE_ATTRS = ['placeholder', 'title', 'aria-label'] as const;
-type TranslatableAttr = (typeof TRANSLATABLE_ATTRS)[number];
-
-const SKIP_SELECTOR =
-  'script, style, noscript, svg, code, pre, [contenteditable="true"], [data-no-translate]';
-
 function shouldSkipElement(el: Element | null): boolean {
   if (!el) return true;
-  if (el.closest(SKIP_SELECTOR)) return true;
-  return false;
+  if (SKIP_TAGS.has(el.tagName.toUpperCase())) return true;
+  if (el.getAttribute('contenteditable') === 'true') return true;
+  return Boolean(el.closest(SKIP_SELECTOR));
 }
 
 function shouldSkipTextNode(node: Text): boolean {
   const parent = node.parentElement;
   if (!parent) return true;
-  const tag = parent.tagName;
-  if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SCRIPT' || tag === 'STYLE' || tag === 'NOSCRIPT') {
-    return true;
-  }
+  if (SKIP_TEXT_PARENT_TAGS.has(parent.tagName.toUpperCase())) return true;
   return shouldSkipElement(parent);
 }
 
+const LanguageContext = createContext<LanguageContextValue>({
+  language: 'pt',
+  isEnglish: false,
+  setLanguage: () => {},
+  tr: (ptText) => ptText,
+});
+
 export const LanguageProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [language, setLanguageState] = useState<AppLanguage>(readInitialLanguage);
+  const [translatorReadyVersion, setTranslatorReadyVersion] = useState(0);
+  const langRef = useRef<AppLanguage>(language);
+  const hasEverTranslatedRef = useRef<boolean>(false);
 
   // WeakMaps preserve original Portuguese strings per DOM node safely across React re-renders
   const originalTextMapRef = useRef(new WeakMap<Text, string>());
@@ -77,14 +109,35 @@ export const LanguageProvider: React.FC<{ children: React.ReactNode }> = ({ chil
   const lastWrittenAttrMapRef = useRef(
     new WeakMap<Element, Partial<Record<TranslatableAttr, string>>>()
   );
-  const isApplyingRef = useRef(false);
+
+  langRef.current = language;
+
+  // Lazy-load the selected language dictionary ONLY when non-Portuguese is active
+  useEffect(() => {
+    if (language === 'pt') return;
+    if (translatorCache.has(language)) return;
+    let cancelled = false;
+    loadTranslator(language)
+      .then(() => {
+        if (!cancelled) {
+          setTranslatorReadyVersion((v) => v + 1);
+        }
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, [language]);
 
   const setLanguage = useCallback((nextLang: AppLanguage) => {
-    setLanguageState((prev) => (prev === nextLang ? prev : nextLang));
+    const normalized: AppLanguage = isValidAppLanguage(nextLang) ? nextLang : 'pt';
+    setLanguageState((prev) => (prev === normalized ? prev : normalized));
     try {
-      localStorage.setItem(STORAGE_KEY, nextLang);
-      window.dispatchEvent(new CustomEvent(LANGUAGE_EVENT, { detail: nextLang }));
-    } catch {}
+      window.localStorage.setItem(STORAGE_KEY, normalized);
+      window.dispatchEvent(new CustomEvent(LANGUAGE_EVENT, { detail: normalized }));
+    } catch {
+      // ignore storage errors
+    }
   }, []);
 
   // Listen for language change events fired externally or across tabs
@@ -110,7 +163,7 @@ export const LanguageProvider: React.FC<{ children: React.ReactNode }> = ({ chil
   }, []);
 
   const applyTranslationToTextNode = useCallback(
-    (node: Text, lang: AppLanguage) => {
+    (node: Text, lang: AppLanguage, translate: TranslatorFn | null) => {
       if (shouldSkipTextNode(node)) return;
       const cur = node.nodeValue ?? '';
       if (!cur || !cur.trim()) return;
@@ -119,21 +172,19 @@ export const LanguageProvider: React.FC<{ children: React.ReactNode }> = ({ chil
       const writtenMap = lastWrittenTextMapRef.current;
       const lastWritten = writtenMap.get(node);
 
-      if (lang !== 'pt') {
-        // If React/script updated the node with fresh text, refresh stored Portuguese source
+      if (lang !== 'pt' && translate) {
         if (lastWritten === undefined || cur !== lastWritten) {
           origMap.set(node, cur);
         }
         const sourcePt = origMap.get(node) ?? cur;
-        const translated = translateFromPt(sourcePt, lang);
+        const translated = translate(sourcePt);
         if (translated !== cur) {
           writtenMap.set(node, translated);
           node.nodeValue = translated;
         } else {
           writtenMap.set(node, cur);
         }
-      } else {
-        // Restore original Portuguese only if node still holds what we wrote
+      } else if (lang === 'pt') {
         const orig = origMap.get(node);
         if (orig !== undefined && lastWritten !== undefined && cur === lastWritten) {
           if (cur !== orig) {
@@ -147,13 +198,14 @@ export const LanguageProvider: React.FC<{ children: React.ReactNode }> = ({ chil
   );
 
   const applyTranslationToElementAttrs = useCallback(
-    (el: Element, lang: AppLanguage) => {
+    (el: Element, lang: AppLanguage, translate: TranslatorFn | null) => {
       if (shouldSkipElement(el)) return;
 
       const origAttrMap = originalAttrMapRef.current;
       const writtenAttrMap = lastWrittenAttrMapRef.current;
 
       for (const attr of TRANSLATABLE_ATTRS) {
+        if (!el.hasAttribute(attr)) continue;
         const cur = el.getAttribute(attr);
         if (!cur || !cur.trim()) continue;
 
@@ -161,7 +213,7 @@ export const LanguageProvider: React.FC<{ children: React.ReactNode }> = ({ chil
         let writtenRecord = writtenAttrMap.get(el);
         const lastWritten = writtenRecord?.[attr];
 
-        if (lang !== 'pt') {
+        if (lang !== 'pt' && translate) {
           if (lastWritten === undefined || cur !== lastWritten) {
             if (!origRecord) {
               origRecord = {};
@@ -170,20 +222,18 @@ export const LanguageProvider: React.FC<{ children: React.ReactNode }> = ({ chil
             origRecord[attr] = cur;
           }
           const sourcePt = origRecord?.[attr] ?? cur;
-          const translated = translateFromPt(sourcePt, lang);
-
+          const translated = translate(sourcePt);
           if (!writtenRecord) {
             writtenRecord = {};
             writtenAttrMap.set(el, writtenRecord);
           }
-
           if (translated !== cur) {
             writtenRecord[attr] = translated;
             el.setAttribute(attr, translated);
           } else {
             writtenRecord[attr] = cur;
           }
-        } else {
+        } else if (lang === 'pt') {
           const orig = origRecord?.[attr];
           if (orig !== undefined && lastWritten !== undefined && cur === lastWritten) {
             if (cur !== orig) {
@@ -200,40 +250,59 @@ export const LanguageProvider: React.FC<{ children: React.ReactNode }> = ({ chil
   );
 
   const processSubtree = useCallback(
-    (root: Node, lang: AppLanguage) => {
+    (root: Node, lang: AppLanguage, translate: TranslatorFn | null) => {
       if (root.nodeType === Node.TEXT_NODE) {
-        applyTranslationToTextNode(root as Text, lang);
+        applyTranslationToTextNode(root as Text, lang, translate);
         return;
       }
-      if (root.nodeType !== Node.ELEMENT_NODE) return;
-
-      const rootEl = root as Element;
-      if (shouldSkipElement(rootEl)) return;
-
-      applyTranslationToElementAttrs(rootEl, lang);
-
-      const elWalker = document.createTreeWalker(rootEl, NodeFilter.SHOW_ELEMENT);
-      let elNode: Node | null = elWalker.nextNode();
-      while (elNode) {
-        const el = elNode as Element;
-        if (!shouldSkipElement(el)) {
-          applyTranslationToElementAttrs(el, lang);
-        }
-        elNode = elWalker.nextNode();
+      if (root.nodeType !== Node.ELEMENT_NODE && root.nodeType !== Node.DOCUMENT_FRAGMENT_NODE) {
+        return;
       }
 
-      const textWalker = document.createTreeWalker(rootEl, NodeFilter.SHOW_TEXT);
-      let textNode: Node | null = textWalker.nextNode();
-      while (textNode) {
-        applyTranslationToTextNode(textNode as Text, lang);
-        textNode = textWalker.nextNode();
+      if (root.nodeType === Node.ELEMENT_NODE) {
+        if (shouldSkipElement(root as Element)) return;
+        applyTranslationToElementAttrs(root as Element, lang, translate);
+      }
+
+      // Single-pass TreeWalker for both elements and text nodes with subtree rejection
+      const walker = document.createTreeWalker(
+        root,
+        NodeFilter.SHOW_ELEMENT | NodeFilter.SHOW_TEXT,
+        {
+          acceptNode(node) {
+            if (node.nodeType === Node.ELEMENT_NODE) {
+              const el = node as Element;
+              if (
+                SKIP_TAGS.has(el.tagName.toUpperCase()) ||
+                el.getAttribute('contenteditable') === 'true' ||
+                el.hasAttribute('data-no-translate') ||
+                el.classList.contains('notranslate')
+              ) {
+                return NodeFilter.FILTER_REJECT;
+              }
+              return NodeFilter.FILTER_ACCEPT;
+            }
+            return NodeFilter.FILTER_ACCEPT;
+          },
+        }
+      );
+
+      let current = walker.nextNode();
+      while (current) {
+        if (current.nodeType === Node.TEXT_NODE) {
+          applyTranslationToTextNode(current as Text, lang, translate);
+        } else {
+          applyTranslationToElementAttrs(current as Element, lang, translate);
+        }
+        current = walker.nextNode();
       }
     },
     [applyTranslationToElementAttrs, applyTranslationToTextNode]
   );
 
-  // Sync <html lang>, run pass on mount/language change, and attach MutationObserver in non-Portuguese mode
+  // Sync <html lang> & translate DOM ONLY when needed (zero work on initial PT boot)
   useLayoutEffect(() => {
+    if (typeof document === 'undefined') return;
     try {
       const htmlLangMap: Record<AppLanguage, string> = {
         pt: 'pt-BR',
@@ -242,105 +311,124 @@ export const LanguageProvider: React.FC<{ children: React.ReactNode }> = ({ chil
         ja: 'ja',
       };
       document.documentElement.lang = htmlLangMap[language] ?? 'pt-BR';
-    } catch {}
-
-    const root = document.body;
-    if (!root) return;
-
-    isApplyingRef.current = true;
-    try {
-      processSubtree(root, language);
-    } finally {
-      isApplyingRef.current = false;
+      document.documentElement.dataset.monvianLang = language;
+    } catch {
+      // ignore DOM errors
     }
 
     if (language === 'pt') {
+      // Skip expensive full-DOM walk on initial PT load when nothing was ever translated
+      if (hasEverTranslatedRef.current && document.body) {
+        processSubtree(document.body, 'pt', null);
+        hasEverTranslatedRef.current = false;
+      }
       return;
     }
 
-    const pendingRoots = new Set<Node>();
+    const translate = translatorCache.get(language);
+    if (!translate) return;
+
+    if (document.body) {
+      hasEverTranslatedRef.current = true;
+      processSubtree(document.body, language, translate);
+    }
+  }, [language, translatorReadyVersion, processSubtree]);
+
+  // Observe dynamic DOM updates (modals, routes, sheets, toasts) via rAF batching when non-PT is active
+  useEffect(() => {
+    if (typeof document === 'undefined' || !document.body) return;
+    if (language === 'pt') return;
+
+    const translate = translatorCache.get(language);
+    if (!translate) return;
+
+    let rafId: number | null = null;
+    const pendingNodes = new Set<Node>();
     const pendingAttrs = new Set<Element>();
-    let flushScheduled = false;
 
     const flush = () => {
-      flushScheduled = false;
-      if (pendingRoots.size === 0 && pendingAttrs.size === 0) return;
-
-      const roots = Array.from(pendingRoots);
-      const attrs = Array.from(pendingAttrs);
-      pendingRoots.clear();
-      pendingAttrs.clear();
-
-      isApplyingRef.current = true;
-      try {
-        for (const el of attrs) {
-          if (el.isConnected) {
-            applyTranslationToElementAttrs(el, language);
-          }
-        }
-        for (const node of roots) {
-          if (node.isConnected) {
-            processSubtree(node, language);
-          }
-        }
-      } finally {
-        isApplyingRef.current = false;
+      rafId = null;
+      const activeLang = langRef.current;
+      if (activeLang === 'pt') {
+        pendingNodes.clear();
+        pendingAttrs.clear();
+        return;
       }
-    };
-
-    const scheduleFlush = () => {
-      if (flushScheduled) return;
-      flushScheduled = true;
-      queueMicrotask(flush);
+      const activeTranslate = translatorCache.get(activeLang);
+      if (!activeTranslate) {
+        pendingNodes.clear();
+        pendingAttrs.clear();
+        return;
+      }
+      observer.disconnect();
+      try {
+        pendingAttrs.forEach((el) => {
+          if (el.isConnected) {
+            applyTranslationToElementAttrs(el, activeLang, activeTranslate);
+          }
+        });
+        pendingNodes.forEach((node) => {
+          if (node.isConnected) {
+            processSubtree(node, activeLang, activeTranslate);
+          }
+        });
+      } finally {
+        pendingNodes.clear();
+        pendingAttrs.clear();
+        if (document.body) {
+          observer.observe(document.body, {
+            childList: true,
+            subtree: true,
+            characterData: true,
+            attributes: true,
+            attributeFilter: [...TRANSLATABLE_ATTRS],
+          });
+        }
+      }
     };
 
     const observer = new MutationObserver((mutations) => {
-      if (isApplyingRef.current) return;
-
-      let hasWork = false;
       for (const m of mutations) {
         if (m.type === 'childList') {
-          m.addedNodes.forEach((n) => {
-            pendingRoots.add(n);
-            hasWork = true;
-          });
+          m.addedNodes.forEach((n) => pendingNodes.add(n));
         } else if (m.type === 'characterData') {
-          pendingRoots.add(m.target);
-          hasWork = true;
+          pendingNodes.add(m.target);
         } else if (m.type === 'attributes' && m.target.nodeType === Node.ELEMENT_NODE) {
           pendingAttrs.add(m.target as Element);
-          hasWork = true;
         }
       }
-
-      if (hasWork) {
-        scheduleFlush();
+      if ((pendingNodes.size > 0 || pendingAttrs.size > 0) && rafId === null) {
+        rafId = requestAnimationFrame(flush);
       }
     });
 
-    observer.observe(root, {
+    observer.observe(document.body, {
       childList: true,
       subtree: true,
       characterData: true,
       attributes: true,
-      attributeFilter: ['placeholder', 'title', 'aria-label'],
+      attributeFilter: [...TRANSLATABLE_ATTRS],
     });
 
     return () => {
       observer.disconnect();
-      pendingRoots.clear();
+      if (rafId !== null) {
+        cancelAnimationFrame(rafId);
+        rafId = null;
+      }
+      pendingNodes.clear();
       pendingAttrs.clear();
     };
-  }, [language, applyTranslationToElementAttrs, processSubtree]);
+  }, [language, translatorReadyVersion, applyTranslationToElementAttrs, processSubtree]);
 
   const tr = useCallback(
-    (ptText: string) => {
-      if (language !== 'pt') {
-        return translateFromPt(ptText, language);
-      }
-      return ptText;
+    (ptText: string): string => {
+      if (language === 'pt') return ptText;
+      const translate = translatorCache.get(language);
+      return translate ? translate(ptText) : ptText;
     },
-    [language]
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [language, translatorReadyVersion]
   );
 
   const value = useMemo<LanguageContextValue>(
@@ -359,4 +447,3 @@ export const LanguageProvider: React.FC<{ children: React.ReactNode }> = ({ chil
 export function useLanguage(): LanguageContextValue {
   return useContext(LanguageContext);
 }
-

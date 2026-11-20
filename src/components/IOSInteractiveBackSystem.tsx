@@ -34,14 +34,11 @@ function isInteractiveOrHorizontalElement(target: EventTarget | null): boolean {
   // that has already been scrolled right (meaning swiping right scrolls it back left)
   let el: HTMLElement | null = target;
   while (el && el !== document.body && el !== document.documentElement) {
-    const style = window.getComputedStyle(el);
-    const overflowX = style.overflowX;
-    if (
-      (overflowX === 'auto' || overflowX === 'scroll') &&
-      el.scrollWidth > el.clientWidth + 4 &&
-      el.scrollLeft > 2
-    ) {
-      return true;
+    if (el.scrollLeft > 2 && el.scrollWidth > el.clientWidth + 4) {
+      const overflowX = window.getComputedStyle(el).overflowX;
+      if (overflowX === 'auto' || overflowX === 'scroll') {
+        return true;
+      }
     }
     el = el.parentElement;
   }
@@ -71,7 +68,9 @@ export const IOSInteractiveBackSystem: React.FC = () => {
     let isTracking = false;
     let isLockedHorizontal = false;
     let isAnimatingRelease = false;
+    let isTouchMoveAttached = false;
     let rafId: number | null = null;
+    let releaseTimerId: number | null = null;
     let viewportWidth = window.innerWidth || 390;
 
     let savedFgTransition = '';
@@ -355,7 +354,9 @@ export const IOSInteractiveBackSystem: React.FC = () => {
       }
 
       const entryToComplete = activeEntry;
-      setTimeout(() => {
+      if (releaseTimerId !== null) window.clearTimeout(releaseTimerId);
+      releaseTimerId = window.setTimeout(() => {
+        releaseTimerId = null;
         if (shouldComplete && entryToComplete) {
           cleanupStyles(true);
           iosNavigationManager.completeGesturePop(entryToComplete);
@@ -364,6 +365,18 @@ export const IOSInteractiveBackSystem: React.FC = () => {
           cleanupStyles(false);
         }
       }, durationMs);
+    };
+
+    const detachActiveTouchMove = () => {
+      if (!isTouchMoveAttached) return;
+      isTouchMoveAttached = false;
+      window.removeEventListener('touchmove', handleTouchMove, { capture: true });
+    };
+
+    const attachActiveTouchMove = () => {
+      if (isTouchMoveAttached) return;
+      isTouchMoveAttached = true;
+      window.addEventListener('touchmove', handleTouchMove, { capture: true, passive: false });
     };
 
     const handleTouchStart = (e: TouchEvent) => {
@@ -376,14 +389,16 @@ export const IOSInteractiveBackSystem: React.FC = () => {
       const touch = e.touches[0];
       viewportWidth = window.innerWidth || 390;
 
-      // Determine left edge relative to viewport OR active container's left edge
-      const targetFg = resolveEntryElement(topEntry.getForegroundEl, topEntry.foregroundSelector);
-      const containerLeft = targetFg ? Math.max(0, targetFg.getBoundingClientRect().left) : 0;
-      const relativeX = touch.clientX - containerLeft;
-
-      const isFromLeftEdge =
-        touch.clientX <= EDGE_THRESHOLD_PX ||
-        (relativeX >= 0 && relativeX <= EDGE_THRESHOLD_PX);
+      // Fast path: check viewport left edge first before querying DOM layout
+      let isFromLeftEdge = touch.clientX <= EDGE_THRESHOLD_PX;
+      if (!isFromLeftEdge) {
+        const targetFg = resolveEntryElement(topEntry.getForegroundEl, topEntry.foregroundSelector);
+        if (targetFg) {
+          const containerLeft = Math.max(0, targetFg.getBoundingClientRect().left);
+          const relativeX = touch.clientX - containerLeft;
+          isFromLeftEdge = relativeX >= 0 && relativeX <= EDGE_THRESHOLD_PX;
+        }
+      }
 
       if (!isFromLeftEdge) return;
       if (isInteractiveOrHorizontalElement(e.target)) return;
@@ -397,10 +412,14 @@ export const IOSInteractiveBackSystem: React.FC = () => {
       velocityX = 0;
       isTracking = true;
       isLockedHorizontal = false;
+      attachActiveTouchMove();
     };
 
     const handleTouchMove = (e: TouchEvent) => {
-      if (!isTracking || isAnimatingRelease || !activeEntry) return;
+      if (!isTracking || isAnimatingRelease || !activeEntry) {
+        detachActiveTouchMove();
+        return;
+      }
       if (e.touches.length !== 1) return;
 
       const touch = e.touches[0];
@@ -412,6 +431,7 @@ export const IOSInteractiveBackSystem: React.FC = () => {
         if (Math.abs(dy) > DIRECTION_LOCK_PX && Math.abs(dy) > Math.abs(dx) * 0.9) {
           isTracking = false;
           activeEntry = null;
+          detachActiveTouchMove();
           return;
         }
 
@@ -419,6 +439,7 @@ export const IOSInteractiveBackSystem: React.FC = () => {
         if (dx < -6) {
           isTracking = false;
           activeEntry = null;
+          detachActiveTouchMove();
           return;
         }
 
@@ -427,6 +448,7 @@ export const IOSInteractiveBackSystem: React.FC = () => {
           if (!startGestureLock()) {
             isTracking = false;
             activeEntry = null;
+            detachActiveTouchMove();
             return;
           }
           isLockedHorizontal = true;
@@ -461,10 +483,12 @@ export const IOSInteractiveBackSystem: React.FC = () => {
     };
 
     const handleTouchEnd = () => {
+      detachActiveTouchMove();
       finishGesture(false);
     };
 
     const handleTouchCancel = () => {
+      detachActiveTouchMove();
       finishGesture(true);
     };
 
@@ -549,7 +573,6 @@ export const IOSInteractiveBackSystem: React.FC = () => {
     };
 
     window.addEventListener('touchstart', handleTouchStart, { capture: true, passive: true });
-    window.addEventListener('touchmove', handleTouchMove, { capture: true, passive: false });
     window.addEventListener('touchend', handleTouchEnd, { capture: true, passive: true });
     window.addEventListener('touchcancel', handleTouchCancel, { capture: true, passive: true });
 
@@ -558,8 +581,10 @@ export const IOSInteractiveBackSystem: React.FC = () => {
     window.addEventListener('mouseup', handleMouseUp, { capture: true });
 
     return () => {
+      detachActiveTouchMove();
+      if (rafId !== null) cancelAnimationFrame(rafId);
+      if (releaseTimerId !== null) window.clearTimeout(releaseTimerId);
       window.removeEventListener('touchstart', handleTouchStart, { capture: true });
-      window.removeEventListener('touchmove', handleTouchMove, { capture: true });
       window.removeEventListener('touchend', handleTouchEnd, { capture: true });
       window.removeEventListener('touchcancel', handleTouchCancel, { capture: true });
 

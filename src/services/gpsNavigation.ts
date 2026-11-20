@@ -935,11 +935,22 @@ class GpsNavigationManager {
   private startAnimationLoop(): void {
     if (this.animFrameId !== null) return;
 
+    let lastFrameTime = 0;
+
     const frame = (now: number) => {
       if (!this.isRunning) {
         this.animFrameId = null;
         return;
       }
+
+      // Sleep rAF loop when app tab is backgrounded to preserve battery/CPU
+      if (typeof document !== 'undefined' && document.hidden) {
+        this.animFrameId = null;
+        return;
+      }
+
+      const dtSec = lastFrameTime ? Math.min((now - lastFrameTime) / 1000, 0.08) : 0.0167;
+      lastFrameTime = now;
 
       const elapsed = now - this.segmentStartTime;
       const duration = this.expectedDuration || 800;
@@ -980,13 +991,10 @@ class GpsNavigationManager {
         }
       }
 
+      // Frame-rate independent exponential smoothing for 60Hz & 120Hz consistency
       const angleDiffVal = Math.abs(angleDiff(this.targetHeading, this.currentHeading));
-      let angleEase = 0.08;
-      if (angleDiffVal > 45) {
-        angleEase = 0.14;
-      } else if (angleDiffVal < 5) {
-        angleEase = 0.05;
-      }
+      const lambda = angleDiffVal > 45 ? 9.0 : angleDiffVal < 5 ? 3.2 : 5.0;
+      const angleEase = Math.min(1, 1 - Math.exp(-lambda * dtSec));
       this.currentHeading =
         angleDiffVal < 0.35
           ? this.targetHeading

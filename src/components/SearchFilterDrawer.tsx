@@ -178,18 +178,16 @@ export const SearchFilterDrawer: React.FC<SearchFilterDrawerProps> = React.memo(
     }
   };
 
-  const isGoldUser = Boolean(
-    (() => {
-      try {
-        const u = JSON.parse(localStorage.getItem('monvian_user') || '{}');
-        const cleanEmail = (u.email || u.whatsapp || '').trim().toLowerCase();
-        const isGoldAdmin = ['empresariomario@gmail.com', 'marioempresario@gmail.com', 'marioyesk@gmail.com'].includes(cleanEmail);
-        return isGoldAdmin || Boolean(u.isGold || u.is_gold === 1 || u.isPremium || u.is_premium === 1);
-      } catch {
-        return false;
-      }
-    })()
-  );
+  const isGoldUser = useMemo(() => {
+    try {
+      const u = JSON.parse(localStorage.getItem('monvian_user') || '{}');
+      const cleanEmail = (u.email || u.whatsapp || '').trim().toLowerCase();
+      const isGoldAdmin = ['empresariomario@gmail.com', 'marioempresario@gmail.com', 'marioyesk@gmail.com'].includes(cleanEmail);
+      return isGoldAdmin || Boolean(u.isGold || u.is_gold === 1 || u.isPremium || u.is_premium === 1);
+    } catch {
+      return false;
+    }
+  }, [isOpen]);
   const searchInputRef = useRef<HTMLInputElement | null>(null);
 
   // Register iOS Edge-Swipe Back Navigation when a category is selected inside Buscar
@@ -213,38 +211,33 @@ export const SearchFilterDrawer: React.FC<SearchFilterDrawerProps> = React.memo(
     }
   }, [isOpen, selectedCategory]);
 
+  // Pre-normalize spot text fields once when spots array changes
+  const indexedSpots = useMemo(() => {
+    return spots.map((spot) => ({
+      spot,
+      catSearch: `${spot.name} ${spot.description} ${spot.categoryLabel}`.toLowerCase(),
+      fullSearch: `${spot.name} ${spot.description} ${spot.categoryLabel} ${spot.tagLabel} ${spot.address}`.toLowerCase(),
+    }));
+  }, [spots]);
+
   // Calculate spots matching either search query or active category
   const filteredSpots = useMemo(() => {
     const q = searchQuery.toLowerCase().trim();
+    const out: Spot[] = [];
 
-    return spots.filter((spot) => {
-      // If a category card is clicked:
+    for (let i = 0; i < indexedSpots.length; i++) {
+      const item = indexedSpots[i];
       if (selectedCategory) {
         const matchesCat =
-          selectedCategory.matchCategories.includes(spot.category) ||
-          selectedCategory.keywords.some((kw) =>
-            spot.name.toLowerCase().includes(kw) ||
-            spot.description.toLowerCase().includes(kw) ||
-            spot.categoryLabel.toLowerCase().includes(kw)
-          );
-
-        if (!matchesCat) return false;
+          selectedCategory.matchCategories.includes(item.spot.category) ||
+          selectedCategory.keywords.some((kw) => item.catSearch.includes(kw));
+        if (!matchesCat) continue;
       }
-
-      // If user typed in search query
-      if (q) {
-        return (
-          spot.name.toLowerCase().includes(q) ||
-          spot.description.toLowerCase().includes(q) ||
-          spot.categoryLabel.toLowerCase().includes(q) ||
-          spot.tagLabel.toLowerCase().includes(q) ||
-          spot.address.toLowerCase().includes(q)
-        );
-      }
-
-      return true;
-    });
-  }, [spots, searchQuery, selectedCategory]);
+      if (q && !item.fullSearch.includes(q)) continue;
+      out.push(item.spot);
+    }
+    return out;
+  }, [indexedSpots, searchQuery, selectedCategory]);
 
   const isDark = theme === 'dark';
 

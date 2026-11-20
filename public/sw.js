@@ -1,7 +1,8 @@
 // Monvian PWA Service Worker - Offline Caching Engine for Spots & Assets
-const STATIC_CACHE = 'monvian-static-v7';
-const API_CACHE = 'monvian-api-v6';
-const IMAGES_CACHE = 'monvian-images-v7';
+const STATIC_CACHE = 'monvian-static-v8';
+const API_CACHE = 'monvian-api-v7';
+const IMAGES_CACHE = 'monvian-images-v8';
+const MAX_IMAGE_CACHE_ENTRIES = 120;
 
 const PRECACHE_ASSETS = [
   '/',
@@ -16,6 +17,19 @@ const PRECACHE_ASSETS = [
   '/fotoperfil.png',
   '/loogo.png'
 ];
+
+async function trimCache(cacheName, maxItems) {
+  try {
+    const cache = await caches.open(cacheName);
+    const keys = await cache.keys();
+    if (keys.length > maxItems) {
+      const excess = keys.length - maxItems;
+      await Promise.all(keys.slice(0, excess).map((key) => cache.delete(key)));
+    }
+  } catch {
+    // Ignore storage quota cleanup errors
+  }
+}
 
 self.addEventListener('install', (event) => {
   event.waitUntil(
@@ -34,7 +48,6 @@ self.addEventListener('activate', (event) => {
       return Promise.all(
         cacheNames.map((cacheName) => {
           if (!currentCaches.includes(cacheName)) {
-            console.log('[SW] Deleting old cache:', cacheName);
             return caches.delete(cacheName);
           }
         })
@@ -78,7 +91,6 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
-
   // Allow map tiles to bypass Service Worker completely so browser native HTTP cache
   // handles them cleanly without CORS or opaque response issues in WebGL
   const isMapTile =
@@ -91,11 +103,10 @@ self.addEventListener('fetch', (event) => {
     url.pathname.includes('/tile/');
 
   if (isMapTile) {
-    return; // Pass through to native browser network & HTTP disk cache
+    return;
   }
 
-  // 2. Read-Only API Endpoints Caching Strategy (Stale-While-Revalidate / Network-First with Cache Fallback)
-  // Endpoints: /api/spots, /api/settings, /api/events, /api/services, /api/weather
+  // 2. Read-Only API Endpoints Caching Strategy (Network-First with Cache Fallback)
   const isCacheableApi =
     url.pathname.startsWith('/api/spots') ||
     url.pathname.startsWith('/api/settings') ||
@@ -107,10 +118,9 @@ self.addEventListener('fetch', (event) => {
     event.respondWith(
       caches.open(API_CACHE).then(async (cache) => {
         try {
-          // Try network first to get freshest data
           const controller = new AbortController();
-          const timeoutId = setTimeout(() => controller.abort(), 3500); // 3.5s timeout for slow networks
-          
+          const timeoutId = setTimeout(() => controller.abort(), 3500);
+
           const networkResponse = await fetch(request, { signal: controller.signal });
           clearTimeout(timeoutId);
 
@@ -118,11 +128,10 @@ self.addEventListener('fetch', (event) => {
             cache.put(request, networkResponse.clone());
             return networkResponse;
           }
-          
+
           const cached = await cache.match(request);
           return cached || networkResponse;
-        } catch (err) {
-          // Offline fallback from Cache
+        } catch {
           const cached = await cache.match(request);
           if (cached) {
             return cached;
@@ -141,18 +150,17 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
-  // 3. Images and Photos Caching Strategy (Cache-First)
-  // Handles Unsplash, spot images, user photos
+  // 3. Images and Photos Caching Strategy (Cache-First with bounded cache size)
   const isImage =
     request.destination === 'image' ||
     url.hostname.includes('unsplash.com') ||
-    url.pathname.match(/\.(png|jpg|jpeg|svg|webp|gif)$/i);
+    /\.(png|jpg|jpeg|svg|webp|gif)$/i.test(url.pathname);
 
   if (isImage) {
     event.respondWith(
       caches.open(IMAGES_CACHE).then(async (cache) => {
         const cached = await cache.match(request);
-        if (cached && cached.status === 200) {
+        if (cached && (cached.status === 200 || cached.type === 'opaque')) {
           return cached;
         }
 
@@ -160,13 +168,13 @@ self.addEventListener('fetch', (event) => {
           const networkResponse = await fetch(request, { referrerPolicy: 'no-referrer' });
           if (networkResponse && (networkResponse.status === 200 || networkResponse.type === 'opaque')) {
             try {
-              cache.put(request, networkResponse.clone());
-            } catch (e) {}
+              await cache.put(request, networkResponse.clone());
+              event.waitUntil(trimCache(IMAGES_CACHE, MAX_IMAGE_CACHE_ENTRIES));
+            } catch {}
           }
           return networkResponse;
-        } catch (err) {
-          if (cached) return cached;
-          return fetch(request);
+        } catch {
+          return cached || new Response(null, { status: 504 });
         }
       })
     );
@@ -192,7 +200,7 @@ self.addEventListener('fetch', (event) => {
             cache.put(request, networkResponse.clone());
           }
           return networkResponse;
-        } catch (err) {
+        } catch {
           return cached || new Response(null, { status: 404 });
         }
       })
@@ -220,7 +228,23 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
-  // 6. Generic Static Assets (JS, CSS, SVGs) (Stale-While-Revalidate)
+  // 6. Immutable Vite Hashed Assets (Cache-First for instant repeat navigation)
+  if (url.origin === self.location.origin && url.pathname.startsWith('/assets/')) {
+    event.respondWith(
+      caches.open(STATIC_CACHE).then(async (cache) => {
+        const cached = await cache.match(request);
+        if (cached) return cached;
+        const networkResponse = await fetch(request);
+        if (networkResponse && networkResponse.status === 200) {
+          cache.put(request, networkResponse.clone());
+        }
+        return networkResponse;
+      })
+    );
+    return;
+  }
+
+  // 7. Generic Static Assets (Stale-While-Revalidate)
   event.respondWith(
     caches.open(STATIC_CACHE).then(async (cache) => {
       const cachedResponse = await cache.match(request);
@@ -264,4 +288,3 @@ self.addEventListener('notificationclick', (event) => {
     })
   );
 });
-
