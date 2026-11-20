@@ -143,12 +143,6 @@ export interface User {
   main_interests?: string[];
   preferred_season?: string;
   onboarding_completed_at?: string;
-  isPremium?: boolean;
-  is_premium?: number | boolean;
-  isGold?: boolean;
-  is_gold?: number | boolean;
-  plan?: 'beta' | 'gold';
-  gold_activated_at?: string;
 }
 
 export interface MapVisualIcon {

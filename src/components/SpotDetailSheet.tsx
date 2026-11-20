@@ -563,19 +563,6 @@ export const SpotDetailSheet: React.FC<SpotDetailSheetProps> = React.memo(({
     };
   }, [isDesktop, spot?.id, onClose, persistHeroPlaybackPosition, pullDownY]);
 
-  const isGoldUser = Boolean(
-    (() => {
-      try {
-        const u = JSON.parse(localStorage.getItem('monvian_user') || '{}');
-        const cleanEmail = (u.email || u.whatsapp || '').trim().toLowerCase();
-        const isGoldAdmin = ['empresariomario@gmail.com', 'marioempresario@gmail.com', 'marioyesk@gmail.com'].includes(cleanEmail);
-        return isGoldAdmin || Boolean(u.isGold || u.is_gold === 1 || u.isPremium || u.is_premium === 1);
-      } catch {
-        return false;
-      }
-    })()
-  );
-
   if (!spot) return null;
 
   const openDirectionsMap = (s: Spot) => {
@@ -910,12 +897,12 @@ export const SpotDetailSheet: React.FC<SpotDetailSheetProps> = React.memo(({
               className="flex items-center gap-2.5 text-xs sm:text-sm mb-6 text-zinc-600 dark:text-[#A1A1AA] flex-wrap"
             >
               <div className="flex items-center gap-1 bg-zinc-100 dark:bg-[#1C1C1E] dark:border dark:border-white/10 px-3 py-1.5 rounded-full">
-                <Star className={`w-4 h-4 ${isGoldUser ? 'fill-[#F5BE38] text-[#F5BE38]' : 'fill-zinc-900 text-zinc-900 dark:fill-white dark:text-white'}`} />
+                <Star className="w-4 h-4 fill-zinc-900 text-zinc-900 dark:fill-white dark:text-white" />
                 <span className="font-semibold text-zinc-900 dark:text-[#FFFFFF]">{Number(liveRating).toFixed(1)}</span>
                 <span className="text-[#9A9894] font-semibold">({liveReviewCount})</span>
               </div>
               <div className="flex items-center gap-1.5 bg-zinc-100 dark:bg-[#1C1C1E] dark:border dark:border-white/10 px-3 py-1.5 rounded-full">
-                <MapPin className={`w-4 h-4 ${isGoldUser ? 'text-[#F5BE38]' : 'text-zinc-900 dark:text-white'}`} />
+                <MapPin className="w-4 h-4 text-zinc-900 dark:text-white" />
                 <span className="font-semibold text-zinc-700 dark:text-[#A1A1AA]">{distance}</span>
               </div>
               <div className="flex items-center gap-1.5 bg-zinc-100 dark:bg-[#1C1C1E] dark:border dark:border-white/10 px-3 py-1.5 rounded-full">
@@ -979,9 +966,7 @@ export const SpotDetailSheet: React.FC<SpotDetailSheetProps> = React.memo(({
                       <motion.div
                         layoutId="activeSpotTab"
                         transition={{ duration: 0.35, ease: [0.16, 1, 0.3, 1] }}
-                        className={`absolute bottom-0 left-0 right-0 h-[2.5px] rounded-full ${
-                          isGoldUser ? 'bg-[#F5BE38]' : 'bg-zinc-950 dark:bg-white'
-                        }`}
+                        className="absolute bottom-0 left-0 right-0 h-[2.5px] rounded-full bg-zinc-950 dark:bg-white"
                       />
                     )}
                   </button>
@@ -1021,7 +1006,7 @@ export const SpotDetailSheet: React.FC<SpotDetailSheetProps> = React.memo(({
                       className="p-3.5 rounded-2xl bg-zinc-50 dark:bg-[#1C1C1E] border border-zinc-100 dark:border-white/10"
                     >
                       <span className="text-xs text-[#9A9894] font-bold block mb-1">Entrada</span>
-                      <span className={`text-sm font-bold ${isGoldUser ? 'text-[#F5BE38]' : 'text-zinc-900 dark:text-[#FFFFFF]'}`}>{spot.priceRange === 'Grátis' ? 'Acesso Livre' : (spot.priceRange || 'Consultar')}</span>
+                      <span className="text-sm font-bold text-zinc-900 dark:text-[#FFFFFF]">{spot.priceRange === 'Grátis' ? 'Acesso Livre' : (spot.priceRange || 'Consultar')}</span>
                     </motion.div>
                   </div>
 
@@ -1031,17 +1016,13 @@ export const SpotDetailSheet: React.FC<SpotDetailSheetProps> = React.memo(({
                     transition={{ duration: 0.72, ease: [0.16, 1, 0.3, 1], delay: 0.54 }}
                     whileTap={{ scale: 0.98 }}
                     onClick={() => openDirectionsMap(spot)}
-                    className={`w-full py-3.5 rounded-2xl font-bold flex items-center justify-between px-6 shadow-sm transition-colors cursor-pointer ${
-                      isGoldUser
-                        ? 'bg-metallic-gold text-[#1A1202] border border-[#FFF4A3]/70 shadow-[0_4px_20px_rgba(230,172,51,0.45)]'
-                        : 'bg-black text-white hover:bg-zinc-800 dark:bg-white dark:text-black dark:hover:bg-zinc-100'
-                    }`}
+                    className="w-full py-3.5 rounded-2xl font-bold flex items-center justify-between px-6 shadow-sm transition-colors cursor-pointer bg-black text-white hover:bg-zinc-800 dark:bg-white dark:text-black dark:hover:bg-zinc-100"
                   >
                     <div className="flex items-center gap-3">
-                      <RoundedNavigationIcon isGold={false} className={`w-5 h-5 ${isGoldUser ? 'text-[#1A1202]' : ''}`} size={20} />
+                      <RoundedNavigationIcon className="w-5 h-5" size={20} />
                       <span className="font-bold">Como chegar no GPS</span>
                     </div>
-                    <span className={`font-bold text-lg ${isGoldUser ? 'text-[#1A1202]' : ''}`}>→</span>
+                    <span className="font-bold text-lg">→</span>
                   </motion.button>
                 </motion.div>
               )}

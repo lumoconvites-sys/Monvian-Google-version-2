@@ -734,14 +734,6 @@ const PT_TO_EN_RAW: Record<string, string> = {
   'Melhor valor': 'Best value',
   'Acesso vitalício': 'Lifetime access',
   'PAGAMENTO ÚNICO · ACESSO VITALÍCIO': 'ONE-TIME PAYMENT · LIFETIME ACCESS',
-  'ATIVAR ELITE GOLD': 'ACTIVATE ELITE GOLD',
-  'Monvian Elite Gold.': 'Monvian Elite Gold.',
-  'Monvian Gold Ativado!': 'Monvian Gold Activated!',
-  'Campos do Jordão Monvian Gold': 'Campos do Jordão Monvian Gold',
-  'Experiências exclusivas, roteiros selecionados e lugares especiais em Campos do Jordão.':
-    'Exclusive experiences, curated itineraries, and special spots in Campos do Jordão.',
-  'Acesso ilimitado liberado a todos os roteiros exclusivos de Campos do Jordão.':
-    'Unlimited access unlocked to all exclusive Campos do Jordão itineraries.',
   'Libera até 1 roteiro premium': 'Unlocks 1 premium itinerary',
   'Notificações': 'Notifications',
   'Notificações e Atividade': 'Notifications & Activity',

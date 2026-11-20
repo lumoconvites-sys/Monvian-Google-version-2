@@ -180,7 +180,6 @@ interface SwipeableStopCardProps {
   idx: number;
   isSelected: boolean;
   isDark: boolean;
-  isPremium?: boolean;
   onSelect: (step: ItineraryStep) => void;
   onDelete: (stepId: string) => void;
 }
@@ -190,7 +189,6 @@ const SwipeableStopCard: React.FC<SwipeableStopCardProps> = ({
   idx,
   isSelected,
   isDark,
-  isPremium = false,
   onSelect,
   onDelete,
 }) => {
@@ -321,13 +319,9 @@ const SwipeableStopCard: React.FC<SwipeableStopCardProps> = ({
           <div className="flex items-center gap-2.5 min-w-0 flex-1">
             <span
               className={`w-7 h-7 rounded-full text-[11px] font-black flex items-center justify-center shrink-0 tabular-nums ${
-                isPremium
-                  ? isSelected
-                    ? 'bg-metallic-gold text-[#1A1202] shadow-sm'
-                    : 'bg-[#1C1C1E] text-[#F5BE38] border border-[#E5AC33]/50'
-                  : isDark
-                    ? 'bg-white text-black'
-                    : 'bg-[#000000] text-white'
+                isDark
+                  ? 'bg-white text-black'
+                  : 'bg-[#000000] text-white'
               }`}
             >
               {String(idx + 1).padStart(2, '0')}
@@ -410,7 +404,6 @@ interface UnifiedItineraryOverlayProps {
   theme: 'dark' | 'light';
   mapStyle: MapModeType;
   onToggleMapStyle: () => void;
-  isUserGold: boolean;
   onExitToExplore: () => void;
   onOpenStore: () => void;
   onSelectMoreSpotsOnMap: () => void;
@@ -438,7 +431,6 @@ export const UnifiedItineraryOverlay: React.FC<UnifiedItineraryOverlayProps> = m
     theme,
     mapStyle,
     onToggleMapStyle,
-    isUserGold,
     onExitToExplore,
     onOpenStore,
     onSelectMoreSpotsOnMap,
@@ -466,7 +458,6 @@ export const UnifiedItineraryOverlay: React.FC<UnifiedItineraryOverlayProps> = m
     const activeSteps = activeDay?.steps || [];
     const currentSelectedStep =
       activeSteps.find((s) => s.id === activeStepId) || activeSteps[0] || null;
-    const isPremiumItinerary = Boolean(itinerary.isPremium);
     const activeStepSpotIds = activeSteps
       .map((s) => s.spot?.id || s.spotId)
       .filter(Boolean) as string[];
@@ -515,14 +506,9 @@ export const UnifiedItineraryOverlay: React.FC<UnifiedItineraryOverlayProps> = m
             style={{ color: useLightOnDark ? '#FFFFFF' : '#000000' }}
           >
             <RoundedNavigationIcon
-              isGold={isPremiumItinerary}
               className="relative z-10 w-[24px] h-[24px] shrink-0"
               style={{
-                color: isPremiumItinerary
-                  ? undefined
-                  : useLightOnDark
-                    ? '#FFFFFF'
-                    : '#000000',
+                color: useLightOnDark ? '#FFFFFF' : '#000000',
               }}
               size={24}
             />
@@ -569,11 +555,6 @@ export const UnifiedItineraryOverlay: React.FC<UnifiedItineraryOverlayProps> = m
                 >
                   {getShortDisplayTitle(itinerary.title || 'Meu Roteiro')}
                 </span>
-                {isPremiumItinerary && (
-                  <span className="px-2 py-0.5 rounded-full bg-metallic-gold-badge border text-[#C28514] dark:text-[#FDE073] text-[9px] font-black uppercase tracking-wider shrink-0">
-                    GOLD
-                  </span>
-                )}
               </div>
             )}
           </div>
@@ -689,10 +670,7 @@ export const UnifiedItineraryOverlay: React.FC<UnifiedItineraryOverlayProps> = m
               <div className="flex items-center justify-between gap-2 mb-2.5">
                 <div className="flex items-center gap-2.5 min-w-0">
                   <RoundedNavigationIcon
-                    isGold={isPremiumItinerary}
-                    className={`w-6 h-6 shrink-0 ${
-                      isPremiumItinerary ? '' : isDark ? 'text-white' : 'text-black'
-                    }`}
+                    className={`w-6 h-6 shrink-0 ${isDark ? 'text-white' : 'text-black'}`}
                     size={24}
                   />
                   <h2 className="text-base font-black uppercase tracking-tight truncate">
@@ -774,7 +752,6 @@ export const UnifiedItineraryOverlay: React.FC<UnifiedItineraryOverlayProps> = m
                     idx={idx}
                     isSelected={step.id === currentSelectedStep?.id}
                     isDark={isDark}
-                    isPremium={isPremiumItinerary}
                     onSelect={onSelectStep}
                     onDelete={onDeleteStep}
                   />
@@ -864,11 +841,9 @@ export const UnifiedItineraryOverlay: React.FC<UnifiedItineraryOverlayProps> = m
                   <div className="flex items-center gap-2.5 min-w-0 flex-1">
                     <span
                       className={`w-7 h-7 rounded-full text-[11px] font-black flex items-center justify-center shrink-0 tabular-nums ${
-                        isPremiumItinerary
-                          ? 'bg-metallic-gold text-[#1A1202]'
-                          : isDark
-                            ? 'bg-white text-black'
-                            : 'bg-[#000000] text-white'
+                        isDark
+                          ? 'bg-white text-black'
+                          : 'bg-[#000000] text-white'
                       }`}
                     >
                       {String(
@@ -958,7 +933,6 @@ export const UnifiedItineraryOverlay: React.FC<UnifiedItineraryOverlayProps> = m
                 backgroundColor: isDark ? '#000000' : '#FFFFFF',
                 maxHeight: '52vh',
                 height: '52vh',
-                paddingBottom: 'calc(84px + env(safe-area-inset-bottom, 0px))',
               }}
             >
               {/* Drag Handle */}
@@ -971,8 +945,11 @@ export const UnifiedItineraryOverlay: React.FC<UnifiedItineraryOverlayProps> = m
 
               {/* Scrollable Sequential Stops List */}
               <div
-                className="flex-1 overflow-y-auto px-4 pt-1 pb-2 space-y-2.5"
-                style={{ WebkitOverflowScrolling: 'touch' }}
+                className="flex-1 overflow-y-auto px-4 pt-1 space-y-2.5"
+                style={{
+                  WebkitOverflowScrolling: 'touch',
+                  paddingBottom: 'calc(88px + env(safe-area-inset-bottom, 0px))',
+                }}
               >
                 {itinerary.days.length > 1 && (
                   <div className="flex items-center gap-1.5 pb-1 overflow-x-auto no-scrollbar">
@@ -1005,7 +982,6 @@ export const UnifiedItineraryOverlay: React.FC<UnifiedItineraryOverlayProps> = m
                       idx={idx}
                       isSelected={step.id === currentSelectedStep?.id}
                       isDark={isDark}
-                      isPremium={isPremiumItinerary}
                       onSelect={onSelectStep}
                       onDelete={onDeleteStep}
                     />
@@ -1053,7 +1029,6 @@ export const UnifiedItineraryOverlay: React.FC<UnifiedItineraryOverlayProps> = m
             onDeleteItinerary={onDeleteItinerary}
             onCreateNewItinerary={onSelectMoreSpotsOnMap}
             theme={theme}
-            isPremium={isPremiumItinerary}
           />
         )}
 
@@ -1075,7 +1050,6 @@ export const UnifiedItineraryOverlay: React.FC<UnifiedItineraryOverlayProps> = m
           onCreateNewItinerary={onOpenStore}
           onAddSpot={() => setIsImportModalOpen(true)}
           theme={theme}
-          isGoldUser={isUserGold}
         />
 
         <ImportSpotFloatingModal
@@ -1085,7 +1059,6 @@ export const UnifiedItineraryOverlay: React.FC<UnifiedItineraryOverlayProps> = m
           importedSpotIds={activeStepSpotIds}
           onImportSpot={onImportSpot}
           theme={theme}
-          isGoldUser={isUserGold}
         />
       </div>
     );

@@ -12,7 +12,6 @@
   --color-text-secondary: #9A9894;
   --color-text-highlight: #FFFFFF;
   
-  --color-accent-gold: #E6AC33;
   --color-accent-blue: #007AFF;
   
   --radius-sm: 8px;
@@ -197,20 +196,16 @@
     color: #A1A1AA;
   }
 
-  /* Destaques em #FFFFFF (Apple System Blue) */
-  .text-highlight,
-  .text-gold,
-  .text-accent-gold {
+  /* Destaques em #FFFFFF */
+  .text-highlight {
     color: #FFFFFF !important;
   }
 
-  .bg-highlight,
-  .bg-gold {
+  .bg-highlight {
     background-color: #FFFFFF !important;
   }
 
-  .border-highlight,
-  .border-gold {
+  .border-highlight {
     border-color: #FFFFFF !important;
   }
 
@@ -235,271 +230,6 @@
   .categories-carousel {
     scroll-behavior: smooth !important;
     -webkit-overflow-scrolling: touch;
-  }
-
-  /* Metallic Gold Palette (Inspired by polished brushed 24k gold leaf) */
-  .bg-metallic-gold {
-    background: linear-gradient(135deg, #B88214 0%, #E6AC33 22%, #FFF4A3 48%, #F5BE38 68%, #C98B18 88%, #9E6505 100%) !important;
-  }
-  .bg-metallic-gold-badge {
-    background: linear-gradient(135deg, rgba(230,172,51,0.22) 0%, rgba(255,244,163,0.42) 45%, rgba(184,130,20,0.22) 100%) !important;
-    border-color: rgba(245,190,56,0.65) !important;
-  }
-  .bg-metallic-gold-icon {
-    background: linear-gradient(145deg, rgba(184,130,20,0.25) 0%, rgba(255,244,163,0.38) 45%, rgba(201,139,24,0.22) 100%) !important;
-    border-color: rgba(245,190,56,0.55) !important;
-  }
-  .text-metallic-gold {
-    background: linear-gradient(135deg, #D49B24 0%, #FFF4A3 38%, #F7C948 68%, #C28514 100%) !important;
-    -webkit-background-clip: text !important;
-    -webkit-text-fill-color: transparent !important;
-  }
-  .text-metallic-gold-solid {
-    color: #F5BE38 !important;
-  }
-  .border-metallic-gold {
-    border-color: rgba(245,190,56,0.55) !important;
-  }
-
-  /* Premium VIP Gold Animated Frame */
-  @keyframes goldBorderRotate {
-    0% {
-      transform: rotate(0deg);
-    }
-    100% {
-      transform: rotate(360deg);
-    }
-  }
-
-  .gold-vip-frame-wrapper {
-    position: relative;
-    padding: 1.5px;
-    border-radius: 32px;
-    overflow: hidden;
-    background: #ffffff;
-    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08), 0 0 18px rgba(229, 172, 51, 0.28);
-  }
-
-  .dark .gold-vip-frame-wrapper {
-    background: #141518;
-    box-shadow: 0 12px 36px rgba(0, 0, 0, 0.75), 0 0 24px rgba(229, 172, 51, 0.22);
-  }
-
-  .gold-vip-frame-wrapper::before {
-    content: '';
-    position: absolute;
-    top: -100%;
-    left: -100%;
-    right: -100%;
-    bottom: -100%;
-    background: conic-gradient(
-      from 0deg,
-      #9E6505 0deg,
-      #E6AC33 60deg,
-      #FFF4A3 120deg,
-      #FFFFFF 135deg,
-      #FFF4A3 150deg,
-      #F5BE38 210deg,
-      #B88214 270deg,
-      #E6AC33 330deg,
-      #9E6505 360deg
-    );
-    animation: goldBorderRotate 8s linear infinite;
-    will-change: transform;
-    opacity: 0.95;
-  }
-
-  .gold-vip-avatar-ring {
-    position: relative;
-    padding: 2.5px;
-    border-radius: 9999px;
-    background: linear-gradient(135deg, #B88214 0%, #E6AC33 22%, #FFF4A3 48%, #F5BE38 68%, #9E6505 100%);
-    box-shadow: 0 0 16px rgba(245, 190, 56, 0.45), inset 0 0 6px rgba(255, 244, 163, 0.6);
-  }
-
-  /* ========================================================
-     METALLIC GOLD LUXURY ITINERARY CARDS (GOLD PASS EXCLUSIVE)
-     ======================================================== */
-  @keyframes goldSheenRay {
-    0%, 12% {
-      transform: translateX(-160%) rotate(30deg);
-      opacity: 0;
-    }
-    18% {
-      opacity: 0.9;
-    }
-    32%, 100% {
-      transform: translateX(280%) rotate(30deg);
-      opacity: 0;
-    }
-  }
-
-  @keyframes goldBorderGleamSpin {
-    0% {
-      transform: rotate(0deg);
-    }
-    100% {
-      transform: rotate(360deg);
-    }
-  }
-
-  .gold-featured-card-wrapper {
-    position: relative;
-    padding: 2px;
-    border-radius: 28px;
-    overflow: hidden;
-    background: linear-gradient(135deg, #9E6505 0%, #E6AC33 22%, #FFF4A3 48%, #F5BE38 68%, #C98B18 88%, #9E6505 100%);
-    box-shadow: 0 16px 42px rgba(0, 0, 0, 0.75), 0 0 28px rgba(229, 172, 51, 0.35);
-    transition: transform 0.22s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.22s cubic-bezier(0.16, 1, 0.3, 1);
-    will-change: transform;
-  }
-
-  .gold-featured-card-wrapper:hover,
-  .gold-featured-card-wrapper:active {
-    box-shadow: 0 20px 50px rgba(0, 0, 0, 0.85), 0 0 40px rgba(229, 172, 51, 0.6);
-  }
-
-  .gold-featured-card-wrapper::before {
-    content: '';
-    position: absolute;
-    top: -120%;
-    left: -120%;
-    right: -120%;
-    bottom: -120%;
-    background: conic-gradient(
-      from 0deg,
-      transparent 0deg,
-      rgba(255, 244, 163, 0.95) 45deg,
-      transparent 90deg,
-      transparent 180deg,
-      rgba(255, 244, 163, 0.8) 225deg,
-      transparent 270deg,
-      transparent 360deg
-    );
-    animation: goldBorderGleamSpin 7.5s linear infinite;
-    will-change: transform;
-    pointer-events: none;
-  }
-
-  .gold-featured-card-inner {
-    position: relative;
-    z-index: 10;
-    border-radius: 26px;
-    background: linear-gradient(180deg, #18191d 0%, #121316 100%);
-    overflow: hidden;
-  }
-
-  .gold-featured-card-inner.light,
-  .light .gold-featured-card-inner {
-    background: linear-gradient(180deg, #FFFFFF 0%, #F9F9FB 100%);
-  }
-
-  .gold-featured-card-wrapper.light,
-  .light .gold-featured-card-wrapper {
-    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.07), 0 0 22px rgba(229, 172, 51, 0.28);
-  }
-
-  .gold-featured-card-wrapper.light:hover,
-  .gold-featured-card-wrapper.light:active,
-  .light .gold-featured-card-wrapper:hover,
-  .light .gold-featured-card-wrapper:active {
-    box-shadow: 0 14px 36px rgba(0, 0, 0, 0.11), 0 0 32px rgba(229, 172, 51, 0.45);
-  }
-
-  .gold-sheen-overlay {
-    position: absolute;
-    top: 0;
-    left: 0;
-    width: 100%;
-    height: 100%;
-    overflow: hidden;
-    pointer-events: none;
-    z-index: 20;
-    border-radius: inherit;
-  }
-
-  .gold-sheen-overlay::after {
-    content: '';
-    position: absolute;
-    top: -50%;
-    left: 0;
-    width: 45%;
-    height: 200%;
-    background: linear-gradient(
-      90deg,
-      transparent 0%,
-      rgba(255, 244, 163, 0.05) 20%,
-      rgba(255, 244, 163, 0.32) 50%,
-      rgba(255, 255, 255, 0.55) 55%,
-      rgba(255, 244, 163, 0.32) 60%,
-      transparent 100%
-    );
-    animation: goldSheenRay 7.5s ease-in-out infinite;
-    will-change: transform;
-  }
-
-  /* Standard Itinerary Gold Card */
-  .gold-standard-card {
-    position: relative;
-    border-radius: 20px;
-    border: 1px solid rgba(245, 190, 56, 0.5);
-    background: linear-gradient(180deg, rgba(28, 29, 34, 0.96) 0%, rgba(18, 19, 23, 0.98) 100%);
-    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.55), 0 0 16px rgba(229, 172, 51, 0.16);
-    transition: transform 0.22s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.22s cubic-bezier(0.16, 1, 0.3, 1), border-color 0.22s ease;
-    overflow: hidden;
-    will-change: transform;
-  }
-
-  .gold-standard-card:hover,
-  .gold-standard-card:active {
-    border-color: rgba(255, 244, 163, 0.9);
-    box-shadow: 0 12px 32px rgba(0, 0, 0, 0.7), 0 0 28px rgba(229, 172, 51, 0.4);
-  }
-
-  .gold-standard-card.light,
-  .light .gold-standard-card {
-    border: 1px solid rgba(230, 172, 51, 0.55);
-    background: linear-gradient(180deg, #FFFFFF 0%, #F8F9FA 100%);
-    box-shadow: 0 4px 18px rgba(0, 0, 0, 0.05), 0 0 14px rgba(229, 172, 51, 0.14);
-  }
-
-  .gold-standard-card.light:hover,
-  .gold-standard-card.light:active,
-  .light .gold-standard-card:hover,
-  .light .gold-standard-card:active {
-    border-color: rgba(201, 139, 24, 0.85);
-    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.08), 0 0 22px rgba(229, 172, 51, 0.28);
-  }
-
-  .gold-standard-sheen {
-    position: absolute;
-    top: 0;
-    left: 0;
-    width: 100%;
-    height: 100%;
-    overflow: hidden;
-    pointer-events: none;
-    z-index: 15;
-    border-radius: inherit;
-  }
-
-  .gold-standard-sheen::after {
-    content: '';
-    position: absolute;
-    top: -50%;
-    left: 0;
-    width: 35%;
-    height: 200%;
-    background: linear-gradient(
-      90deg,
-      transparent 0%,
-      rgba(255, 244, 163, 0.22) 50%,
-      rgba(255, 255, 255, 0.4) 55%,
-      transparent 100%
-    );
-    animation: goldSheenRay 9s ease-in-out infinite;
-    animation-delay: 2.2s;
-    will-change: transform;
   }
 
   /* Global Primary Action Button standard - Apple system blue, white text & icons */
@@ -1305,8 +1035,6 @@ body,
 
 /* Respect OS reduced-motion preference on continuous decorative animations */
 @media (prefers-reduced-motion: reduce) {
-  .gold-featured-card-wrapper::before,
-  .gold-sheen-overlay::after,
   .user-photo-pulse,
   .monvian-star-pulse,
   .animate-ios-shimmer,

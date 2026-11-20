@@ -51,7 +51,6 @@ interface MapComponentProps {
   onMapModeChange?: (mode: MapModeType) => void;
   onInteractionChange?: (isInteracting: boolean) => void;
   zoomToUserTrigger?: number;
-  revertSpotZoomTrigger?: number;
   onStyleChange?: (style: any) => void;
   onOrbitChange?: (isOrbiting: boolean) => void;
   snowEnabled?: boolean;
@@ -71,7 +70,6 @@ interface MapComponentProps {
   onStartItineraryCreation?: () => void;
   itinerarySteps?: ItineraryStep[];
   activeItineraryStepId?: string | null;
-  isPremiumItinerary?: boolean;
   isItineraryExpanded?: boolean;
   onSelectItineraryStep?: (stepId: string) => void;
 }
@@ -369,7 +367,6 @@ export const MapComponent = memo(
       onMapLoad,
       onInteractionChange,
       zoomToUserTrigger,
-      revertSpotZoomTrigger,
       onStyleChange,
       snowEnabled = false,
       rainEnabled = false,
@@ -388,7 +385,6 @@ export const MapComponent = memo(
       onStartItineraryCreation,
       itinerarySteps = [],
       activeItineraryStepId = null,
-      isPremiumItinerary = false,
       isItineraryExpanded = false,
       onSelectItineraryStep,
     },
@@ -410,8 +406,6 @@ export const MapComponent = memo(
     itineraryStepsRef.current = itinerarySteps;
     const activeItineraryStepIdRef = useRef<string | null>(activeItineraryStepId);
     activeItineraryStepIdRef.current = activeItineraryStepId;
-    const isPremiumItineraryRef = useRef<boolean>(isPremiumItinerary);
-    isPremiumItineraryRef.current = isPremiumItinerary;
     const isItineraryExpandedRef = useRef<boolean>(isItineraryExpanded);
     isItineraryExpandedRef.current = isItineraryExpanded;
     const onSelectItineraryStepRef = useRef(onSelectItineraryStep);
@@ -581,33 +575,6 @@ export const MapComponent = memo(
         }
       }, durationMs + 140);
     }, []);
-
-    const previousCameraStateRef = useRef<{
-      center: [number, number];
-      zoom: number;
-      pitch: number;
-      bearing: number;
-    } | null>(null);
-
-    const restorePreviousSpotCamera = useCallback(() => {
-      if (!mapRef.current || !previousCameraStateRef.current) return false;
-      const map = mapRef.current;
-      const savedCamera = previousCameraStateRef.current;
-      previousCameraStateRef.current = null;
-      const animDuration = 460;
-      beginProgrammaticCameraAnim(map, animDuration);
-      map.easeTo({
-        center: savedCamera.center,
-        zoom: savedCamera.zoom,
-        pitch: savedCamera.pitch,
-        bearing: savedCamera.bearing,
-        offset: [0, 0],
-        duration: animDuration,
-        easing: (t) => 1 - Math.pow(1 - t, 3),
-        essential: true,
-      });
-      return true;
-    }, [beginProgrammaticCameraAnim]);
 
     // Ensure the 3D User Location Marker ("Eu" + Avatar + Blue Flashlight Beam) exists and is attached to the active map
     const ensureUserMarker = useCallback(
@@ -831,7 +798,6 @@ export const MapComponent = memo(
           CAMPOS_CENTER;
 
         if (mapRef.current) {
-          previousCameraStateRef.current = null;
           ensureUserMarker(mapRef.current);
           userMarkerRef.current?.setLngLat(targetCoords);
 
@@ -993,7 +959,6 @@ export const MapComponent = memo(
         if (!map) return;
 
         setFollowMode(false);
-        previousCameraStateRef.current = null;
         hasUserMovedMapRef.current = false;
         map.resize();
 
@@ -1229,9 +1194,6 @@ export const MapComponent = memo(
 
         map.on('click', () => {
           if (isGlobeIntroActiveRef.current) return;
-          if (workflowModeRef.current === 'EXPLORE' && (selectedSpotRef.current || previousCameraStateRef.current)) {
-            restorePreviousSpotCamera();
-          }
           if (onMapClickRef.current) onMapClickRef.current();
         });
 
@@ -2118,7 +2080,6 @@ export const MapComponent = memo(
         userAvatarImgRef.current = null;
         userBeamRef.current = null;
         compassIconWrapperRef.current = null;
-        previousCameraStateRef.current = null;
 
         markerRecordsRef.current.forEach((rec) => {
           try {
@@ -2247,7 +2208,6 @@ export const MapComponent = memo(
       order: number;
       lat: number;
       lng: number;
-      isGold: boolean;
       isSelected: boolean;
       mapInstance: maplibregl.Map;
       marker: maplibregl.Marker;
@@ -2758,7 +2718,6 @@ export const MapComponent = memo(
       const LINE_LAYER_ID = 'monvian-itinerary-route-line';
 
       const isItinMode = workflowModeRef.current === 'ITINERARY';
-      const isGold = isPremiumItineraryRef.current;
       const steps = itineraryStepsRef.current || [];
 
       const coords: [number, number][] = [];
@@ -2799,9 +2758,9 @@ export const MapComponent = memo(
           (map.getSource(ROUTE_SOURCE_ID) as maplibregl.GeoJSONSource).setData(routeGeoJson);
         }
 
-        const glowColor = isGold ? '#E5AC33' : '#FFFFFF';
-        const lineColor = isGold ? '#FFF3B0' : '#FFFFFF';
-        const casingColor = isGold ? 'rgba(92, 58, 0, 0.72)' : 'rgba(0, 0, 0, 0.28)';
+        const glowColor = '#FFFFFF';
+        const lineColor = '#FFFFFF';
+        const casingColor = 'rgba(0, 0, 0, 0.28)';
 
         if (!map.getLayer(GLOW_LAYER_ID)) {
           map.addLayer({
@@ -2922,7 +2881,6 @@ export const MapComponent = memo(
         }
 
         const steps = itineraryStepsRef.current || [];
-        const isGold = isPremiumItineraryRef.current;
         const activeId = activeItineraryStepIdRef.current;
 
         clearAllItineraryMarkers();
@@ -2959,26 +2917,14 @@ export const MapComponent = memo(
           badgeEl.style.fontFamily =
             '-apple-system, BlinkMacSystemFont, "SF Pro Display", sans-serif';
 
-          if (isGold) {
-            badgeEl.style.background =
-              'linear-gradient(135deg, #FCE38A 0%, #E5AC33 55%, #C68310 100%)';
-            badgeEl.style.color = '#1A1202';
-            badgeEl.style.border = isSelected
-              ? '2px solid #FFF8D6'
-              : '1.5px solid rgba(255, 244, 163, 0.85)';
-            badgeEl.style.boxShadow = isSelected
-              ? '0 8px 20px rgba(229, 172, 51, 0.38), 0 0 0 5px rgba(255, 255, 255, 0.42)'
-              : '0 4px 12px rgba(0, 0, 0, 0.16)';
-          } else {
-            badgeEl.style.background = '#FFFFFF';
-            badgeEl.style.color = '#111111';
-            badgeEl.style.border = isSelected
-              ? '1px solid rgba(0, 0, 0, 0.08)'
-              : '1px solid rgba(0, 0, 0, 0.06)';
-            badgeEl.style.boxShadow = isSelected
-              ? '0 8px 22px rgba(0, 0, 0, 0.16), 0 0 0 6px rgba(255, 255, 255, 0.48)'
-              : '0 4px 12px rgba(0, 0, 0, 0.12)';
-          }
+          badgeEl.style.background = '#FFFFFF';
+          badgeEl.style.color = '#111111';
+          badgeEl.style.border = isSelected
+            ? '1px solid rgba(0, 0, 0, 0.08)'
+            : '1px solid rgba(0, 0, 0, 0.06)';
+          badgeEl.style.boxShadow = isSelected
+            ? '0 8px 22px rgba(0, 0, 0, 0.16), 0 0 0 6px rgba(255, 255, 255, 0.48)'
+            : '0 4px 12px rgba(0, 0, 0, 0.12)';
           badgeEl.textContent = String(idx + 1).padStart(2, '0');
 
           const tipEl = document.createElement('div');
@@ -2986,9 +2932,7 @@ export const MapComponent = memo(
           tipEl.style.height = '0';
           tipEl.style.borderLeft = '5px solid transparent';
           tipEl.style.borderRight = '5px solid transparent';
-          tipEl.style.borderTop = isGold
-            ? '6px solid #D99B26'
-            : '6px solid #FFFFFF';
+          tipEl.style.borderTop = '6px solid #FFFFFF';
           tipEl.style.marginTop = '-1px';
           tipEl.style.filter = 'drop-shadow(0 2px 3px rgba(0,0,0,0.12))';
 
@@ -3017,7 +2961,6 @@ export const MapComponent = memo(
             order: idx + 1,
             lat,
             lng,
-            isGold,
             isSelected,
             mapInstance: map,
             marker,
@@ -3403,15 +3346,6 @@ export const MapComponent = memo(
             return;
           }
 
-          if (!selectedSpotRef.current && !previousCameraStateRef.current && mapRef.current) {
-            const currentCenter = mapRef.current.getCenter();
-            previousCameraStateRef.current = {
-              center: [currentCenter.lng, currentCenter.lat],
-              zoom: mapRef.current.getZoom(),
-              pitch: mapRef.current.getPitch(),
-              bearing: mapRef.current.getBearing(),
-            };
-          }
           playSpotClickSound();
           triggerPinTapFeedback(containerEl, badgeEl, isStar);
           setFollowMode(false);
@@ -3542,7 +3476,6 @@ export const MapComponent = memo(
       selectedSpotIdsForItinerary,
       itinerarySteps,
       activeItineraryStepId,
-      isPremiumItinerary,
       syncSpotMarkers,
       syncMarkerHighlight,
       syncItineraryRouteLayers,
@@ -3828,7 +3761,7 @@ export const MapComponent = memo(
       }
     }, [activeRoute, syncActiveRouteLayers, syncMarkerHighlight, setFollowMode, beginProgrammaticCameraAnim]);
 
-    // Update marker highlight and camera zoom smoothly when a tourist spot is selected, and restore camera when deselected
+    // Update marker highlight and camera zoom smoothly when a tourist spot is selected
     useEffect(() => {
       // Avoid heavy full-viewport DOM churn synchronously on click/exit; only mount the 1 target pin if not mounted yet
       if (selectedSpot?.id && !markerRecordsRef.current.some((r) => r.spotId === selectedSpot.id)) {
@@ -3842,16 +3775,6 @@ export const MapComponent = memo(
       if (selectedSpot && selectedSpot.lng && selectedSpot.lat) {
         if (activeRouteRef.current?.spotId === selectedSpot.id) {
           return;
-        }
-        // Save exact camera state (zoom, center, pitch, bearing) before zooming into the tourist spot
-        if (!previousCameraStateRef.current) {
-          const currentCenter = map.getCenter();
-          previousCameraStateRef.current = {
-            center: [currentCenter.lng, currentCenter.lat],
-            zoom: map.getZoom(),
-            pitch: map.getPitch(),
-            bearing: map.getBearing(),
-          };
         }
 
         setFollowMode(false);
@@ -3870,8 +3793,6 @@ export const MapComponent = memo(
           easing: (t) => 1 - Math.pow(1 - t, 3),
           essential: true,
         });
-      } else if (previousCameraStateRef.current) {
-        restorePreviousSpotCamera();
       }
     }, [
       selectedSpot,
@@ -3880,15 +3801,7 @@ export const MapComponent = memo(
       syncMarkerHighlight,
       setFollowMode,
       beginProgrammaticCameraAnim,
-      restorePreviousSpotCamera,
     ]);
-
-    // Return zoom and camera to the exact zoom/position before clicking the spot when closing or clicking the map
-    useEffect(() => {
-      if (!revertSpotZoomTrigger || revertSpotZoomTrigger === 0 || !mapRef.current) return;
-      if (workflowModeRef.current !== 'EXPLORE') return;
-      restorePreviousSpotCamera();
-    }, [revertSpotZoomTrigger, restorePreviousSpotCamera]);
 
     // Render static visual map icons
     const visualIconMarkersRef = useRef<maplibregl.Marker[]>([]);

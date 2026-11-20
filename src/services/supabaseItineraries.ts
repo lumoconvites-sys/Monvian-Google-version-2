@@ -633,7 +633,7 @@ export async function toggleItineraryFeaturedInSupabase(
 }
 
 /**
- * Toggles Premium (Elite Gold) status in Supabase and local cache
+ * Toggles paid (Plátanos) status in Supabase and local cache
  */
 export async function toggleItineraryPremiumInSupabase(
   id: string,

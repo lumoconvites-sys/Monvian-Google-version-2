@@ -67,10 +67,6 @@ export interface FirestoreUser {
   avatar_url?: string;
   visits_count?: number;
   is_banned?: number;
-  is_premium?: number;
-  is_gold?: number;
-  plan?: 'beta' | 'gold';
-  gold_activated_at?: string;
   snow_enabled?: number;
   theme?: string;
   high_contrast?: number;
@@ -182,7 +178,6 @@ export async function persistUserToFirestore(user: FirestoreUser): Promise<void>
   if (!user.email) return;
   const cleanEmail = user.email.trim().toLowerCase();
   const isAdmin = ['empresariomario@gmail.com', 'marioempresario@gmail.com', 'marioyesk@gmail.com'].includes(cleanEmail) || user.role === 'admin';
-  const isGold = isAdmin || user.is_gold === 1 || user.is_premium === 1 || user.plan === 'gold';
 
   if (supabase) {
     try {
@@ -201,10 +196,6 @@ export async function persistUserToFirestore(user: FirestoreUser): Promise<void>
               avatar_url: user.avatar_url || '/fotoperfil.png',
               visits_count: user.visits_count || 1,
               is_banned: user.is_banned || 0,
-              is_premium: isGold ? 1 : 0,
-              is_gold: isGold ? 1 : 0,
-              plan: isGold ? 'gold' : 'beta',
-              gold_activated_at: user.gold_activated_at || null,
               snow_enabled: user.snow_enabled || 0,
               theme: user.theme || 'dark',
               high_contrast: user.high_contrast || 0,
@@ -233,10 +224,6 @@ export async function persistUserToFirestore(user: FirestoreUser): Promise<void>
       avatar_url: user.avatar_url || '/fotoperfil.png',
       visits_count: user.visits_count || 1,
       is_banned: user.is_banned || 0,
-      is_premium: isGold ? 1 : 0,
-      is_gold: isGold ? 1 : 0,
-      plan: isGold ? 'gold' : 'beta',
-      gold_activated_at: user.gold_activated_at || null,
       snow_enabled: user.snow_enabled || 0,
       theme: user.theme || 'dark',
       high_contrast: user.high_contrast || 0,
@@ -1404,10 +1391,6 @@ export async function syncDatabaseWithFirestore(sqliteDb: any): Promise<void> {
       try { sqliteDb.exec(`ALTER TABLE users ADD COLUMN avatar_url TEXT;`); } catch (e) {}
       try { sqliteDb.exec(`ALTER TABLE users ADD COLUMN visits_count INTEGER DEFAULT 1;`); } catch (e) {}
       try { sqliteDb.exec(`ALTER TABLE users ADD COLUMN is_banned INTEGER DEFAULT 0;`); } catch (e) {}
-      try { sqliteDb.exec(`ALTER TABLE users ADD COLUMN is_premium INTEGER DEFAULT 0;`); } catch (e) {}
-      try { sqliteDb.exec(`ALTER TABLE users ADD COLUMN is_gold INTEGER DEFAULT 0;`); } catch (e) {}
-      try { sqliteDb.exec(`ALTER TABLE users ADD COLUMN plan TEXT DEFAULT 'beta';`); } catch (e) {}
-      try { sqliteDb.exec(`ALTER TABLE users ADD COLUMN gold_activated_at DATETIME;`); } catch (e) {}
       try { sqliteDb.exec(`ALTER TABLE users ADD COLUMN snow_enabled INTEGER DEFAULT 0;`); } catch (e) {}
       try { sqliteDb.exec(`ALTER TABLE users ADD COLUMN rain_enabled INTEGER DEFAULT 0;`); } catch (e) {}
       try { sqliteDb.exec(`ALTER TABLE users ADD COLUMN theme TEXT DEFAULT 'light';`); } catch (e) {}
@@ -1437,14 +1420,12 @@ export async function syncDatabaseWithFirestore(sqliteDb: any): Promise<void> {
 
           const existingUser = sqliteDb.prepare('SELECT id, name FROM users WHERE LOWER(email) = ? OR LOWER(whatsapp) = ?').get(cleanEmail, cleanEmail) as any;
 
-          const isGold = isPrimaryAdmin(cleanEmail) || cloudUser.is_gold === 1 || Boolean(cloudUser.is_gold) || cloudUser.plan === 'gold';
-          const plan = isGold ? 'gold' : (cloudUser.plan ? String(cloudUser.plan) : 'beta');
           const normUsername = (cloudUser.username_normalized || cloudUser.username || cleanEmail.split('@')[0]).toLowerCase();
 
           if (!existingUser) {
             sqliteDb.prepare(`
-              INSERT INTO users (name, username, username_normalized, email, whatsapp, password_hash, role, avatar_url, visits_count, is_banned, is_premium, is_gold, plan, gold_activated_at, snow_enabled, theme, high_contrast, onboarding_completed, onboarding_step, location_permission_granted, motion_permission_granted, last_access, created_at)
-              VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+              INSERT INTO users (name, username, username_normalized, email, whatsapp, password_hash, role, avatar_url, visits_count, is_banned, snow_enabled, theme, high_contrast, onboarding_completed, onboarding_step, location_permission_granted, motion_permission_granted, last_access, created_at)
+              VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             `).run(
               toSqliteParam(cloudUser.name || cleanEmail.split('@')[0]),
               toSqliteParam(cloudUser.username || cleanEmail.split('@')[0]),
@@ -1456,10 +1437,6 @@ export async function syncDatabaseWithFirestore(sqliteDb: any): Promise<void> {
               toSqliteParam(cloudUser.avatar_url || '/fotoperfil.png'),
               toSqliteParam(cloudUser.visits_count || 1),
               cloudUser.is_banned ? 1 : 0,
-              isGold ? 1 : 0,
-              isGold ? 1 : 0,
-              plan,
-              toSqliteParam(cloudUser.gold_activated_at || null),
               cloudUser.snow_enabled ? 1 : 0,
               toSqliteParam(cloudUser.theme || 'light'),
               cloudUser.high_contrast ? 1 : 0,
@@ -1475,10 +1452,6 @@ export async function syncDatabaseWithFirestore(sqliteDb: any): Promise<void> {
               UPDATE users 
               SET name = ?, username = COALESCE(?, username), username_normalized = COALESCE(?, username_normalized),
                   password_hash = ?, role = ?, avatar_url = ?, is_banned = ?,
-                  is_premium = CASE WHEN ? = 1 THEN 1 ELSE is_premium END,
-                  is_gold = CASE WHEN ? = 1 THEN 1 ELSE is_gold END,
-                  plan = CASE WHEN ? = 'gold' THEN 'gold' ELSE plan END,
-                  gold_activated_at = COALESCE(?, gold_activated_at),
                   location_permission_granted = CASE WHEN ? = 1 THEN 1 ELSE COALESCE(location_permission_granted, 0) END,
                   motion_permission_granted = CASE WHEN ? = 1 THEN 1 ELSE COALESCE(motion_permission_granted, 0) END
               WHERE id = ?
@@ -1490,10 +1463,6 @@ export async function syncDatabaseWithFirestore(sqliteDb: any): Promise<void> {
               targetRole,
               toSqliteParam(cloudUser.avatar_url || '/fotoperfil.png'),
               cloudUser.is_banned ? 1 : 0,
-              isGold ? 1 : 0,
-              isGold ? 1 : 0,
-              plan,
-              toSqliteParam(cloudUser.gold_activated_at || null),
               cloudUser.location_permission_granted ? 1 : 0,
               cloudUser.motion_permission_granted ? 1 : 0,
               existingUser.id
@@ -1510,12 +1479,6 @@ export async function syncDatabaseWithFirestore(sqliteDb: any): Promise<void> {
             OR LOWER(TRIM(COALESCE(whatsapp, ''))) IN ('empresariomario@gmail.com', 'marioempresario@gmail.com', 'marioyesk@gmail.com')
             OR LOWER(TRIM(COALESCE(username, ''))) = 'marioyesk' THEN 'admin'
           ELSE role
-        END,
-        is_gold = CASE
-          WHEN LOWER(TRIM(COALESCE(email, ''))) IN ('empresariomario@gmail.com', 'marioempresario@gmail.com', 'marioyesk@gmail.com') 
-            OR LOWER(TRIM(COALESCE(whatsapp, ''))) IN ('empresariomario@gmail.com', 'marioempresario@gmail.com', 'marioyesk@gmail.com')
-            OR LOWER(TRIM(COALESCE(username, ''))) = 'marioyesk' THEN 1
-          ELSE is_gold
         END
       `).run();
 

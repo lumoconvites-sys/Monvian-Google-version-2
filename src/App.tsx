@@ -108,9 +108,6 @@ const RainEffect = React.lazy(() =>
 const SnowEffect = React.lazy(() =>
   import('./components/SnowEffect').then((m) => ({ default: m.SnowEffect }))
 );
-const GoldSuccessModal = React.lazy(() =>
-  import('./components/GoldSuccessModal').then((m) => ({ default: m.GoldSuccessModal }))
-);
 const PlatanosWalletModal = React.lazy(() =>
   import('./components/platanos/PlatanosWalletModal').then((m) => ({ default: m.PlatanosWalletModal }))
 );
@@ -192,20 +189,12 @@ const normalizeAppUser = (rawUser: any) => {
   const parsed = { ...rawUser };
   const emailClean = (parsed.email || parsed.whatsapp || '').trim().toLowerCase();
   const usernameClean = (parsed.username || '').trim().toLowerCase();
-  const isGoldAdmin =
+  const isAdminAccount =
     ['empresariomario@gmail.com', 'marioempresario@gmail.com', 'marioyesk@gmail.com'].includes(emailClean) ||
     usernameClean === 'marioyesk';
-  const isGold =
-    isGoldAdmin ||
-    Boolean(parsed.isGold || parsed.is_gold === 1 || parsed.isPremium || parsed.is_premium === 1 || parsed.plan === 'gold');
-  if (isGoldAdmin) {
+  if (isAdminAccount) {
     parsed.role = 'admin';
-    parsed.is_gold = 1;
-    parsed.is_premium = 1;
-    parsed.plan = 'gold';
   }
-  parsed.isGold = isGold;
-  parsed.isPremium = isGold;
   return parsed;
 };
 
@@ -409,7 +398,6 @@ export default function App() {
   const isOnboardingRevealReady = signupIntroStage === 'revealing' || signupIntroStage === 'idle';
   const [explorarEntranceTick, setExplorarEntranceTick] = useState<number>(0);
   const [zoomToUserTrigger, setZoomToUserTrigger] = useState<number>(0);
-  const [revertSpotZoomTrigger, setRevertSpotZoomTrigger] = useState<number>(0);
   const [spotPreviewMode, setSpotPreviewMode] = useState<'card' | 'bar'>('bar');
 
   // Unified Single-Map Workflow State (EXPLORE | SELECT | ITINERARY)
@@ -439,7 +427,6 @@ export default function App() {
   // Settings & Theme modal state
   const [isSettingsModalOpen, setIsSettingsModalOpen] = useState<boolean>(false);
   const [isWeatherModalOpen, setIsWeatherModalOpen] = useState<boolean>(false);
-  const [isGoldSuccessModalOpen, setIsGoldSuccessModalOpen] = useState<boolean>(false);
   const [isChatKeyboardOpen, setIsChatKeyboardOpen] = useState<boolean>(false);
   const [isPlatanosWalletOpen, setIsPlatanosWalletOpen] = useState<boolean>(false);
   const [platanosWalletTab, setPlatanosWalletTab] = useState<'topup' | 'history'>('topup');
@@ -529,42 +516,7 @@ export default function App() {
       return;
     }
 
-    if (payment === 'success' && sessionId) {
-      const token = localStorage.getItem('monvian_token');
-      fetch(`/api/stripe/verify-session?session_id=${encodeURIComponent(sessionId)}`, {
-        headers: token ? { Authorization: `Bearer ${token}` } : {}
-      })
-        .then((res) => res.json())
-        .then((data) => {
-          if (data.success && (data.is_gold === 1 || data.isGold)) {
-            setUser((prev: any) => {
-              const updated = {
-                ...(prev || data.user || {}),
-                plan: 'gold' as const,
-                isGold: true,
-                isPremium: true,
-                is_gold: 1,
-                is_premium: 1,
-              };
-              localStorage.setItem('monvian_user', JSON.stringify(updated));
-              localStorage.setItem('monvian_is_gold', 'true');
-              localStorage.setItem('monvian_is_premium', 'true');
-              if (token) {
-                savePersistentSession(token, updated).catch(() => {});
-              }
-              return updated;
-            });
-            setIsGoldSuccessModalOpen(true);
-          }
-        })
-        .catch((err) => {
-          console.error('Error verifying Stripe session:', err);
-        })
-        .finally(() => {
-          const cleanUrl = window.location.pathname;
-          window.history.replaceState({}, document.title, cleanUrl);
-        });
-    } else if (payment === 'cancelled') {
+    if (payment === 'success' || payment === 'cancelled') {
       const cleanUrl = window.location.pathname;
       window.history.replaceState({}, document.title, cleanUrl);
     }
@@ -1775,7 +1727,7 @@ export default function App() {
     setActiveItineraryStepId(stepId);
   }, []);
 
-  // Dismiss all cards, previews and overlays when touching the map and restore previous zoom/camera if a spot was selected
+  // Dismiss all cards, previews and overlays when touching the map
   const handleMapDismiss = useCallback(() => {
     if (mapWorkflowModeRef.current === 'ITINERARY') {
       setIsItineraryDrawerExpanded(false);
@@ -1785,9 +1737,6 @@ export default function App() {
       return;
     }
     clearActiveRoute();
-    if (selectedSpotIdRef.current) {
-      setRevertSpotZoomTrigger((t) => t + 1);
-    }
     setSelectedSpot(null);
     setIsDetailOpen(false);
     setIsCategoryCardOpen(false);
@@ -2155,7 +2104,6 @@ export default function App() {
     backgroundSelector: '#app-map-layer',
     onPop: () => {
       clearActiveRoute();
-      setRevertSpotZoomTrigger((t) => t + 1);
       setSelectedSpot(null);
     },
   });
@@ -2394,25 +2342,6 @@ export default function App() {
   const isWhiteMapUI = activeTab === 'explorar' && (theme === 'light' || mapStyle === 'animado' || mapStyle === 'satelite' || mapStyle === 'transporte');
   const isSatelliteExplore = activeTab === 'explorar' && mapStyle === 'satelite';
 
-  const isUserGold = useMemo(() => {
-    const cleanEmail = (user?.email || user?.whatsapp || '').trim().toLowerCase();
-    const isGoldAdmin = [
-      'empresariomario@gmail.com',
-      'marioempresario@gmail.com',
-      'marioyesk@gmail.com',
-    ].includes(cleanEmail);
-    return (
-      isGoldAdmin ||
-      Boolean(
-        user?.isGold ||
-          user?.is_gold === 1 ||
-          user?.isPremium ||
-          user?.is_premium === 1 ||
-          user?.plan === 'gold'
-      )
-    );
-  }, [user]);
-
   const activeItinerarySteps = useMemo(
     () => resolveEnrichedDaySteps(activeItinerary, activeItineraryDayIndex, spots),
     [activeItinerary, activeItineraryDayIndex, spots]
@@ -2609,7 +2538,6 @@ export default function App() {
     const nextItinerary = buildItineraryFromOrderedSpots(orderedSpots, {
       existingItinerary: isUpdatingExisting ? activeItinerary : null,
       targetDayIndex: targetDayIdx,
-      isGoldUser: isUserGold,
     });
 
     const daySteps = resolveEnrichedDaySteps(nextItinerary, targetDayIdx, spots);
@@ -2635,7 +2563,6 @@ export default function App() {
     spots,
     activeItinerary,
     activeItineraryDayIndex,
-    isUserGold,
     user,
   ]);
 
@@ -3290,7 +3217,6 @@ export default function App() {
               highContrast={highContrast}
               onMapLoad={handleMapLoad}
               zoomToUserTrigger={zoomToUserTrigger}
-              revertSpotZoomTrigger={revertSpotZoomTrigger}
               mapMode={mapStyle === 'satelite' ? 'satelite' : 'explorar'}
               onMapModeChange={setMapStyle}
               onStyleChange={setMapStyle}
@@ -3315,7 +3241,6 @@ export default function App() {
               onStartItineraryCreation={handleStartFreshSelectionFromPlay}
               itinerarySteps={activeItinerarySteps}
               activeItineraryStepId={activeItineraryStepId}
-              isPremiumItinerary={Boolean(activeItinerary?.isPremium)}
               isItineraryExpanded={isItineraryDrawerExpanded}
               onSelectItineraryStep={handleSelectItineraryStepId}
             />
@@ -3692,21 +3617,6 @@ export default function App() {
         </div>
       )}
 
-      {/* 10.6 Gold Success Celebration Modal (Loaded ONLY when opened) */}
-      {isGoldSuccessModalOpen && (
-        <Suspense fallback={null}>
-          <GoldSuccessModal
-            isOpen={true}
-            onClose={() => setIsGoldSuccessModalOpen(false)}
-            theme={theme}
-            onExplore={() => {
-              setIsGoldSuccessModalOpen(false);
-              setActiveTab('roteiros');
-            }}
-          />
-        </Suspense>
-      )}
-
     </main>
 
     {/* 3.8. Airbnb-Style Presentation Cards on first tab visit (Explorar, Roteiros, Salvos) */}
@@ -3787,7 +3697,6 @@ export default function App() {
             onToggleMapStyle={() =>
               setMapStyle((prev) => (prev === 'satelite' ? 'explorar' : 'satelite'))
             }
-            isUserGold={isUserGold}
             onExitToExplore={handleExitWorkflowToExplore}
             onOpenStore={() => setActiveTab('roteiros')}
             onSelectMoreSpotsOnMap={handleSelectMoreSpotsOnMap}
@@ -3832,7 +3741,6 @@ export default function App() {
           isSatellite={isSatelliteExplore}
           onClose={() => {
             clearActiveRoute();
-            setRevertSpotZoomTrigger((t) => t + 1);
             setSelectedSpot(null);
           }}
           onOpenDetails={(spot) => {

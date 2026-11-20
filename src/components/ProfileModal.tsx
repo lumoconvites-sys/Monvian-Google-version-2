@@ -32,7 +32,6 @@ import {
 } from 'lucide-react';
 import { AppleBackButton } from './ui/AppleBackButton';
 import { motion, AnimatePresence } from 'motion/react';
-import { PremiumModal } from './PremiumModal';
 import { ProfileXpProgressBar } from './ProfileXpProgressBar';
 import { IOSSwitch } from './IOSSwitch';
 import { NotificationsModal } from './NotificationsModal';
@@ -461,7 +460,6 @@ export const ProfileModal: React.FC<ProfileModalProps> = React.memo(({
     }
   };
 
-  const [isPremiumModalOpen, setIsPremiumModalOpen] = useState(false);
   const [isNotificationsOpen, setIsNotificationsOpen] = useState(false);
   const [notificationsList, setNotificationsList] = useState<any[]>([]);
 
@@ -507,17 +505,6 @@ export const ProfileModal: React.FC<ProfileModalProps> = React.memo(({
     onPop: () => {
       setIsNotificationsOpen(false);
       handleSetSubView('main');
-    },
-  });
-
-  useIOSBackEntry({
-    id: 'profile:premium',
-    enabled: isViewActive && isPremiumModalOpen,
-    priority: 245,
-    label: 'Perfil',
-    foregroundSelector: '#profile-modal-panel',
-    onPop: () => {
-      setIsPremiumModalOpen(false);
     },
   });
 
@@ -582,16 +569,7 @@ export const ProfileModal: React.FC<ProfileModalProps> = React.memo(({
       email: emailOrWhatsapp.trim(),
       whatsapp: emailOrWhatsapp.trim(),
       avatar_url: finalAvatarUrl,
-      ...(isAdminAccount
-        ? {
-            role: 'admin',
-            isGold: true,
-            isPremium: true,
-            is_gold: 1,
-            is_premium: 1,
-            plan: 'gold',
-          }
-        : {}),
+      ...(isAdminAccount ? { role: 'admin' } : {}),
     };
 
     try {
@@ -635,16 +613,7 @@ export const ProfileModal: React.FC<ProfileModalProps> = React.memo(({
           ...optimisticUser,
           ...data.user,
           avatar_url: finalAvatarUrl || data.user.avatar_url,
-          ...(isAdminAccount
-            ? {
-                role: 'admin',
-                isGold: true,
-                isPremium: true,
-                is_gold: 1,
-                is_premium: 1,
-                plan: 'gold',
-              }
-            : {}),
+          ...(isAdminAccount ? { role: 'admin' } : {}),
         };
         localStorage.setItem('monvian_user', JSON.stringify(mergedUser));
         if (onUpdateUser) onUpdateUser(mergedUser);
@@ -1865,13 +1834,6 @@ export const ProfileModal: React.FC<ProfileModalProps> = React.memo(({
           </AnimatePresence>
           </div>
         </div>
-
-        {/* Monvian Premium Modal */}
-        <PremiumModal
-          isOpen={isPremiumModalOpen}
-          onClose={() => setIsPremiumModalOpen(false)}
-          theme={theme}
-        />
 
         {/* Notifications Modal */}
         <NotificationsModal

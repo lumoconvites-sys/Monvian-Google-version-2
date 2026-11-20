@@ -25,10 +25,6 @@ export interface SupabaseUserRecord {
   avatar_url?: string;
   visits_count?: number;
   is_banned?: number;
-  is_premium?: number;
-  is_gold?: number;
-  plan?: string;
-  gold_activated_at?: string | null;
   snow_enabled?: number;
   theme?: string;
   high_contrast?: number;
@@ -70,7 +66,6 @@ export async function persistUserToSupabase(user: SupabaseUserRecord): Promise<v
   if (!supabase || !user.email) return;
   const cleanEmail = user.email.trim().toLowerCase();
   const isAdmin = isPrimaryAdmin(cleanEmail) || user.role === 'admin';
-  const isGold = isAdmin || user.is_gold === 1 || user.plan === 'gold';
 
   try {
     const payload: any = {
@@ -85,10 +80,6 @@ export async function persistUserToSupabase(user: SupabaseUserRecord): Promise<v
       avatar_url: user.avatar_url || '/fotoperfil.png',
       visits_count: user.visits_count || 1,
       is_banned: user.is_banned || 0,
-      is_premium: isGold ? 1 : 0,
-      is_gold: isGold ? 1 : 0,
-      plan: isGold ? 'gold' : 'beta',
-      gold_activated_at: user.gold_activated_at || null,
       snow_enabled: user.snow_enabled || 0,
       theme: user.theme || 'dark',
       high_contrast: user.high_contrast || 0,
@@ -711,7 +702,6 @@ export async function syncDatabaseWithSupabase(sqliteDb: any): Promise<void> {
           if (!u.email) continue;
           const cleanEmail = u.email.trim().toLowerCase();
           const role = isPrimaryAdmin(cleanEmail) || u.role === 'admin' ? 'admin' : 'user';
-          const isGold = role === 'admin' || u.is_gold === 1 || u.plan === 'gold' ? 1 : 0;
 
           const existing = sqliteDb
             .prepare('SELECT id FROM users WHERE LOWER(email) = ? OR LOWER(whatsapp) = ?')
@@ -725,8 +715,8 @@ export async function syncDatabaseWithSupabase(sqliteDb: any): Promise<void> {
           if (!existing) {
             sqliteDb
               .prepare(`
-                INSERT INTO users (name, username, email, whatsapp, password_hash, role, avatar_url, is_gold, onboarding_completed, onboarding_step, welcome_card_seen, globe_intro_seen)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                INSERT INTO users (name, username, email, whatsapp, password_hash, role, avatar_url, onboarding_completed, onboarding_step, welcome_card_seen, globe_intro_seen)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
               `)
               .run(
                 u.name || cleanEmail.split('@')[0],
@@ -736,7 +726,6 @@ export async function syncDatabaseWithSupabase(sqliteDb: any): Promise<void> {
                 u.password_hash || 'supabase_auth',
                 role,
                 u.avatar_url || '/fotoperfil.png',
-                isGold,
                 onboardingCompleted,
                 onboardingStep,
                 welcomeSeen,
@@ -749,7 +738,6 @@ export async function syncDatabaseWithSupabase(sqliteDb: any): Promise<void> {
                 SET name = COALESCE(?, name),
                     role = ?,
                     avatar_url = COALESCE(?, avatar_url),
-                    is_gold = CASE WHEN ? = 1 THEN 1 ELSE is_gold END,
                     onboarding_completed = CASE WHEN ? = 1 THEN 1 ELSE onboarding_completed END,
                     onboarding_step = COALESCE(?, onboarding_step),
                     welcome_card_seen = CASE WHEN ? = 1 THEN 1 ELSE welcome_card_seen END,
@@ -760,7 +748,6 @@ export async function syncDatabaseWithSupabase(sqliteDb: any): Promise<void> {
                 u.name,
                 role,
                 u.avatar_url,
-                isGold,
                 onboardingCompleted,
                 onboardingStep,
                 welcomeSeen,

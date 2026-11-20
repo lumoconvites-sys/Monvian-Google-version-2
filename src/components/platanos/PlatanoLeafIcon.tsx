@@ -4,7 +4,7 @@ import { motion, AnimatePresence } from 'motion/react';
 interface PlatanoLeafIconProps {
   className?: string;
   size?: number;
-  variant?: 'gold' | 'monochrome' | 'light' | 'dark';
+  variant?: 'monochrome' | 'light' | 'dark';
 }
 
 export const PLATANO_LEAF_3D_ICON_SRC =

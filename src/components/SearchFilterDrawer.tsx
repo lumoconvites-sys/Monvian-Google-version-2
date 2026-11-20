@@ -178,16 +178,6 @@ export const SearchFilterDrawer: React.FC<SearchFilterDrawerProps> = React.memo(
     }
   };
 
-  const isGoldUser = useMemo(() => {
-    try {
-      const u = JSON.parse(localStorage.getItem('monvian_user') || '{}');
-      const cleanEmail = (u.email || u.whatsapp || '').trim().toLowerCase();
-      const isGoldAdmin = ['empresariomario@gmail.com', 'marioempresario@gmail.com', 'marioyesk@gmail.com'].includes(cleanEmail);
-      return isGoldAdmin || Boolean(u.isGold || u.is_gold === 1 || u.isPremium || u.is_premium === 1);
-    } catch {
-      return false;
-    }
-  }, [isOpen]);
   const searchInputRef = useRef<HTMLInputElement | null>(null);
 
   // Register iOS Edge-Swipe Back Navigation when a category is selected inside Buscar

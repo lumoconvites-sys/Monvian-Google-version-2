@@ -12,7 +12,6 @@ interface ImportSpotFloatingModalProps {
   importedSpotIds: string[];
   onImportSpot: (spot: Spot) => void;
   theme?: 'dark' | 'light';
-  isGoldUser?: boolean;
 }
 
 export const ImportSpotFloatingModal: React.FC<ImportSpotFloatingModalProps> = ({
@@ -22,7 +21,6 @@ export const ImportSpotFloatingModal: React.FC<ImportSpotFloatingModalProps> = (
   importedSpotIds,
   onImportSpot,
   theme = 'dark',
-  isGoldUser = false,
 }) => {
   const [searchQuery, setSearchQuery] = useState('');
   const [justImportedId, setJustImportedId] = useState<string | null>(null);
@@ -195,7 +193,7 @@ export const ImportSpotFloatingModal: React.FC<ImportSpotFloatingModalProps> = (
                           {spot.name}
                         </h4>
                         <div className="flex items-center gap-2 text-xs text-zinc-500 dark:text-zinc-400 font-semibold mt-1">
-                          <span className={`flex items-center gap-0.5 font-bold ${isGoldUser ? 'text-[#F5BE38]' : isLight ? 'text-zinc-900' : 'text-white'}`}>
+                          <span className={`flex items-center gap-0.5 font-bold ${isLight ? 'text-zinc-900' : 'text-white'}`}>
                             <Star className="w-3 h-3 fill-current" />
                             {spot.rating}
                           </span>
@@ -227,8 +225,8 @@ export const ImportSpotFloatingModal: React.FC<ImportSpotFloatingModalProps> = (
                           type="button"
                           onClick={() => handleImport(spot)}
                           className={`px-3.5 py-2 rounded-xl text-xs font-black shadow-md flex items-center gap-1.5 transition-all cursor-pointer active:scale-95 ${
-                            isGoldUser
-                              ? 'bg-metallic-gold text-[#1A1202] border border-[#FFF4A3]/70 hover:opacity-95 shadow-[#E5AC33]/25'
+                            isLight
+                              ? 'bg-black hover:bg-zinc-800 text-white'
                               : 'bg-white hover:bg-zinc-200 text-black shadow-white/20'
                           }`}
                         >

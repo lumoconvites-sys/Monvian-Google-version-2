@@ -11,7 +11,6 @@ interface ItineraryEditModalProps {
   onDeleteItinerary: () => void;
   onCreateNewItinerary: () => void;
   theme?: 'dark' | 'light';
-  isPremium?: boolean;
 }
 
 export const ItineraryEditModal: React.FC<ItineraryEditModalProps> = ({
@@ -22,22 +21,8 @@ export const ItineraryEditModal: React.FC<ItineraryEditModalProps> = ({
   onDeleteItinerary,
   onCreateNewItinerary,
   theme = 'light',
-  isPremium
 }) => {
   const isDark = theme === 'dark';
-
-  const isGoldUser = isPremium !== undefined ? isPremium : Boolean(
-    (() => {
-      try {
-        const u = JSON.parse(localStorage.getItem('monvian_user') || '{}');
-        const cleanEmail = (u.email || u.whatsapp || '').trim().toLowerCase();
-        const isGoldAdmin = ['empresariomario@gmail.com', 'marioempresario@gmail.com', 'marioyesk@gmail.com'].includes(cleanEmail);
-        return isGoldAdmin || Boolean(u.isGold || u.is_gold === 1 || u.isPremium || u.is_premium === 1);
-      } catch {
-        return false;
-      }
-    })()
-  );
 
   const [steps, setSteps] = useState<ItineraryStep[]>(() => {
     return itinerary.days[0]?.steps || [];
@@ -165,11 +150,9 @@ export const ItineraryEditModal: React.FC<ItineraryEditModalProps> = ({
                 <div className="flex items-center gap-2.5 min-w-0 flex-1">
                   <span
                     className={`w-7 h-7 rounded-full text-[11px] font-black flex items-center justify-center shrink-0 tabular-nums ${
-                      isGoldUser
-                        ? 'bg-metallic-gold text-[#1A1202] border border-[#FFF4A3]/60'
-                        : isDark
-                          ? 'bg-white text-black'
-                          : 'bg-[#000000] text-white'
+                      isDark
+                        ? 'bg-white text-black'
+                        : 'bg-[#000000] text-white'
                     }`}
                   >
                     {String(idx + 1).padStart(2, '0')}
@@ -180,7 +163,7 @@ export const ItineraryEditModal: React.FC<ItineraryEditModalProps> = ({
                       {step.spot?.name || `Ponto ${idx + 1}`}
                     </h4>
                     <div className="flex items-center gap-1 text-[11px] text-[#8E8E93] font-medium mt-0.5 whitespace-nowrap">
-                      <Clock className={`w-3 h-3 shrink-0 ${isGoldUser ? 'text-[#F5BE38]' : 'text-[#8E8E93]'}`} />
+                      <Clock className="w-3 h-3 shrink-0 text-[#8E8E93]" />
                       <span className="tabular-nums">{step.suggestedTime || '09:30'}</span>
                     </div>
                   </div>

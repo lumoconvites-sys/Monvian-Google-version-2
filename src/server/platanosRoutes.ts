@@ -930,10 +930,10 @@ export function registerPlatanosRoutes(
       try {
         const info = db
           .prepare(
-            `INSERT INTO users (name, username, email, whatsapp, password_hash, role, is_gold)
-             VALUES (?, ?, ?, ?, 'platanos_auto', ?, ?)`
+            `INSERT INTO users (name, username, email, whatsapp, password_hash, role)
+             VALUES (?, ?, ?, ?, 'platanos_auto', ?)`
           )
-          .run(unameVal, `${unameVal}_${Date.now().toString().slice(-4)}`, emailVal, emailVal, roleVal, roleVal === 'admin' ? 1 : 0);
+          .run(unameVal, `${unameVal}_${Date.now().toString().slice(-4)}`, emailVal, emailVal, roleVal);
         const created = db.prepare('SELECT * FROM users WHERE id = ?').get(info.lastInsertRowid) as any;
         if (created) return created;
       } catch {

@@ -56,7 +56,6 @@ export function buildItineraryFromOrderedSpots(
     existingItinerary?: Itinerary | null;
     targetDayIndex?: number;
     title?: string;
-    isGoldUser?: boolean;
   }
 ): Itinerary {
   const existing = options?.existingItinerary || null;
@@ -137,8 +136,8 @@ export function buildItineraryFromOrderedSpots(
     isActive: true,
     isRecommended: existing?.isRecommended ?? false,
     usageCount: existing?.usageCount ?? 1,
-    isPremium: existing?.isPremium ?? Boolean(options?.isGoldUser),
-    badgeText: existing?.badgeText || (options?.isGoldUser ? 'ELITE GOLD' : 'Grátis'),
+    isPremium: existing?.isPremium ?? false,
+    badgeText: existing?.badgeText || 'Grátis',
     placesCount: steps.length,
     days: nextDays,
   };

@@ -244,10 +244,6 @@ try { db.exec(`ALTER TABLE users ADD COLUMN avatar_url TEXT;`); } catch {}
 try { db.exec(`ALTER TABLE users ADD COLUMN bio TEXT DEFAULT '';`); } catch {}
 try { db.exec(`ALTER TABLE users ADD COLUMN visits_count INTEGER DEFAULT 1;`); } catch {}
 try { db.exec(`ALTER TABLE users ADD COLUMN is_banned INTEGER DEFAULT 0;`); } catch {}
-try { db.exec(`ALTER TABLE users ADD COLUMN is_premium INTEGER DEFAULT 0;`); } catch {}
-try { db.exec(`ALTER TABLE users ADD COLUMN is_gold INTEGER DEFAULT 0;`); } catch {}
-try { db.exec(`ALTER TABLE users ADD COLUMN plan TEXT DEFAULT 'beta';`); } catch {}
-try { db.exec(`ALTER TABLE users ADD COLUMN gold_activated_at DATETIME;`); } catch {}
 try { db.exec(`ALTER TABLE users ADD COLUMN snow_enabled INTEGER DEFAULT 0;`); } catch {}
 try { db.exec(`ALTER TABLE users ADD COLUMN rain_enabled INTEGER DEFAULT 0;`); } catch {}
 try { db.exec(`ALTER TABLE users ADD COLUMN theme TEXT DEFAULT 'light';`); } catch {}
@@ -521,7 +517,6 @@ function formatSafeUser(user: any) {
   if (!user) return null;
   const email = (user.email || user.whatsapp || '').trim().toLowerCase();
   const isAdmin = isPrimaryAdmin(email) || user.role === 'admin';
-  const isGold = isAdmin || Boolean(user.is_gold) || user.plan === 'gold';
 
   let onboardingRow: any = null;
   if (email) {
@@ -566,9 +561,6 @@ function formatSafeUser(user: any) {
     email: user.email || user.whatsapp || '',
     whatsapp: user.whatsapp || user.email || '',
     role: isAdmin ? 'admin' : 'user',
-    is_gold: isGold ? 1 : 0,
-    isGold,
-    plan: isGold ? 'gold' : 'beta',
     avatar_url: user.avatar_url || '/fotoperfil.png',
     visits_count: user.visits_count || 1,
     is_banned: user.is_banned || 0,
@@ -822,11 +814,10 @@ async function resolveAuthenticatedUser(req: Request, strictTokenOnly = false): 
             return null;
           }
           const role = isPrimaryAdmin(remoteUser.email) || remoteUser.role === 'admin' ? 'admin' : 'user';
-          const isGold = role === 'admin' || remoteUser.is_gold === 1 ? 1 : 0;
           const ins = db
             .prepare(`
-              INSERT INTO users (name, username, email, whatsapp, password_hash, role, avatar_url, is_gold)
-              VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+              INSERT INTO users (name, username, email, whatsapp, password_hash, role, avatar_url)
+              VALUES (?, ?, ?, ?, ?, ?, ?)
             `)
             .run(
               remoteUser.name || remoteUser.email.split('@')[0],
@@ -835,8 +826,7 @@ async function resolveAuthenticatedUser(req: Request, strictTokenOnly = false): 
               remoteUser.whatsapp || remoteUser.email.toLowerCase(),
               remoteUser.password_hash || '',
               role,
-              remoteUser.avatar_url || '/fotoperfil.png',
-              isGold
+              remoteUser.avatar_url || '/fotoperfil.png'
             );
           dbUser = db.prepare('SELECT * FROM users WHERE id = ?').get(ins.lastInsertRowid);
         }
@@ -872,12 +862,11 @@ async function resolveAuthenticatedUser(req: Request, strictTokenOnly = false): 
       if (!dbUser) {
         const remoteUser = await getUserFromSupabase(jwtUser.email);
         const role = isPrimaryAdmin(jwtUser.email) || remoteUser?.role === 'admin' ? 'admin' : 'user';
-        const isGold = role === 'admin' || remoteUser?.is_gold === 1 ? 1 : 0;
         const username = remoteUser?.username || jwtUser.email.split('@')[0].replace(/[^a-zA-Z0-9_]/g, '');
         const res = db
           .prepare(`
-            INSERT INTO users (name, username, email, whatsapp, password_hash, role, avatar_url, is_gold)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+            INSERT INTO users (name, username, email, whatsapp, password_hash, role, avatar_url)
+            VALUES (?, ?, ?, ?, ?, ?, ?)
           `)
           .run(
             remoteUser?.name || jwtUser.name || username,
@@ -886,8 +875,7 @@ async function resolveAuthenticatedUser(req: Request, strictTokenOnly = false): 
             jwtUser.email,
             'supabase_auth',
             role,
-            remoteUser?.avatar_url || jwtUser.avatarUrl || '/fotoperfil.png',
-            isGold
+            remoteUser?.avatar_url || jwtUser.avatarUrl || '/fotoperfil.png'
           );
         dbUser = db.prepare('SELECT * FROM users WHERE id = ?').get(res.lastInsertRowid);
       }
@@ -919,8 +907,6 @@ async function resolveAuthenticatedUser(req: Request, strictTokenOnly = false): 
         username: 'marioadmin',
         email: headerEmail,
         role: 'admin',
-        is_gold: 1,
-        isGold: true,
       };
     }
   }
@@ -1141,13 +1127,12 @@ async function startServer() {
 
       const hash = bcrypt.hashSync(String(password), 10);
       const role = isPrimaryAdmin(rawEmail) ? 'admin' : 'user';
-      const isGold = role === 'admin' ? 1 : 0;
       const nowIso = new Date().toISOString();
 
       const insert = db
         .prepare(`
-          INSERT INTO users (name, username, email, whatsapp, password_hash, avatar_url, role, is_gold, auth_id, onboarding_completed, onboarding_step)
-          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 0, 1)
+          INSERT INTO users (name, username, email, whatsapp, password_hash, avatar_url, role, auth_id, onboarding_completed, onboarding_step)
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?, 0, 1)
         `)
         .run(
           rawName,
@@ -1157,7 +1142,6 @@ async function startServer() {
           hash,
           avatar_url || null,
           role,
-          isGold,
           authId
         );
 
@@ -1192,7 +1176,6 @@ async function startServer() {
         password_hash: hash,
         role,
         avatar_url: avatar_url || '/fotoperfil.png',
-        is_gold: isGold,
         onboarding_completed: 0,
         onboarding_step: 1,
         created_at: nowIso,
@@ -1254,11 +1237,10 @@ async function startServer() {
         const remoteUser = await getUserFromSupabase(effectiveLookup);
         if (remoteUser && remoteUser.email) {
           const role = isPrimaryAdmin(remoteUser.email) || remoteUser.role === 'admin' ? 'admin' : 'user';
-          const isGold = role === 'admin' || remoteUser.is_gold === 1 ? 1 : 0;
           const ins = db
             .prepare(`
-              INSERT INTO users (name, username, email, whatsapp, password_hash, role, avatar_url, is_gold, auth_id, welcome_card_seen, globe_intro_seen, onboarding_completed, onboarding_step)
-              VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+              INSERT INTO users (name, username, email, whatsapp, password_hash, role, avatar_url, auth_id, welcome_card_seen, globe_intro_seen, onboarding_completed, onboarding_step)
+              VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             `)
             .run(
               remoteUser.name || remoteUser.email.split('@')[0],
@@ -1268,7 +1250,6 @@ async function startServer() {
               remoteUser.password_hash || '',
               role,
               remoteUser.avatar_url || '/fotoperfil.png',
-              isGold,
               verifiedFirebase?.uid || firebase_uid || remoteUser.auth_id || null,
               remoteUser.welcome_card_seen ? 1 : 0,
               remoteUser.globe_intro_seen ? 1 : 0,
@@ -1282,13 +1263,12 @@ async function startServer() {
       // If authenticated directly via Firebase Auth and account wasn't in local SQLite yet, provision it safely
       if (!user && verifiedFirebase?.email) {
         const role = isPrimaryAdmin(verifiedFirebase.email) ? 'admin' : 'user';
-        const isGold = role === 'admin' ? 1 : 0;
         const hash = password ? bcrypt.hashSync(String(password), 10) : bcrypt.hashSync(crypto.randomUUID(), 10);
         const baseUsername = verifiedFirebase.email.split('@')[0].replace(/[^a-zA-Z0-9_]/g, '').toLowerCase() || 'viajante';
         const ins = db
           .prepare(`
-            INSERT INTO users (name, username, email, whatsapp, password_hash, role, avatar_url, is_gold, auth_id)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+            INSERT INTO users (name, username, email, whatsapp, password_hash, role, avatar_url, auth_id)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
           `)
           .run(
             verifiedFirebase.name || baseUsername,
@@ -1298,7 +1278,6 @@ async function startServer() {
             hash,
             role,
             verifiedFirebase.avatarUrl || '/fotoperfil.png',
-            isGold,
             verifiedFirebase.uid || firebase_uid || null
           );
         user = db.prepare('SELECT * FROM users WHERE id = ?').get(ins.lastInsertRowid);
@@ -1318,12 +1297,11 @@ async function startServer() {
             supabaseAuthVerified = true;
             if (!user) {
               const role = isPrimaryAdmin(targetEmail) ? 'admin' : 'user';
-              const isGold = role === 'admin' ? 1 : 0;
               const hash = bcrypt.hashSync(String(password), 10);
               const ins = db
                 .prepare(`
-                  INSERT INTO users (name, username, email, whatsapp, password_hash, role, avatar_url, is_gold)
-                  VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                  INSERT INTO users (name, username, email, whatsapp, password_hash, role, avatar_url)
+                  VALUES (?, ?, ?, ?, ?, ?, ?)
                 `)
                 .run(
                   authData.user.user_metadata?.full_name || targetEmail.split('@')[0],
@@ -1332,8 +1310,7 @@ async function startServer() {
                   targetEmail,
                   hash,
                   role,
-                  authData.user.user_metadata?.avatar_url || '/fotoperfil.png',
-                  isGold
+                  authData.user.user_metadata?.avatar_url || '/fotoperfil.png'
                 );
               user = db.prepare('SELECT * FROM users WHERE id = ?').get(ins.lastInsertRowid);
             }
@@ -1346,8 +1323,8 @@ async function startServer() {
         const hash = bcrypt.hashSync(String(password || crypto.randomUUID()), 10);
         const ins = db
           .prepare(`
-            INSERT INTO users (name, username, email, whatsapp, password_hash, role, avatar_url, is_gold)
-            VALUES (?, ?, ?, ?, ?, 'admin', '/fotoperfil.png', 1)
+            INSERT INTO users (name, username, email, whatsapp, password_hash, role, avatar_url)
+            VALUES (?, ?, ?, ?, ?, 'admin', '/fotoperfil.png')
           `)
           .run('Mario Yesk', 'marioyesk', adminEmail, adminEmail, hash);
         user = db.prepare('SELECT * FROM users WHERE id = ?').get(ins.lastInsertRowid);
@@ -1368,7 +1345,7 @@ async function startServer() {
 
       if (!validPassword && isAdminAccount && password) {
         const newHash = bcrypt.hashSync(String(password), 10);
-        db.prepare("UPDATE users SET password_hash = ?, role = 'admin', is_gold = 1 WHERE id = ?").run(newHash, user.id);
+        db.prepare("UPDATE users SET password_hash = ?, role = 'admin' WHERE id = ?").run(newHash, user.id);
         user.password_hash = newHash;
         validPassword = true;
       }
@@ -1378,10 +1355,9 @@ async function startServer() {
       }
 
       // Ensure primary admin role is preserved
-      if (isAdminAccount && (user.role !== 'admin' || user.is_gold !== 1)) {
-        db.prepare("UPDATE users SET role = 'admin', is_gold = 1 WHERE id = ?").run(user.id);
+      if (isAdminAccount && user.role !== 'admin') {
+        db.prepare("UPDATE users SET role = 'admin' WHERE id = ?").run(user.id);
         user.role = 'admin';
-        user.is_gold = 1;
       }
 
       if (verifiedFirebase?.uid && !user.auth_id) {
@@ -1440,10 +1416,9 @@ async function startServer() {
         const remoteUser = await getUserFromSupabase(cleanEmail);
         if (remoteUser) {
           const role = isPrimaryAdmin(cleanEmail) || remoteUser.role === 'admin' ? 'admin' : 'user';
-          const isGold = role === 'admin' || remoteUser.is_gold === 1 ? 1 : 0;
           const insert = db.prepare(`
-            INSERT INTO users (name, username, email, whatsapp, password_hash, avatar_url, role, is_gold, auth_id, welcome_card_seen, globe_intro_seen, onboarding_completed, onboarding_step)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            INSERT INTO users (name, username, email, whatsapp, password_hash, avatar_url, role, auth_id, welcome_card_seen, globe_intro_seen, onboarding_completed, onboarding_step)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
           `).run(
             remoteUser.name || resolvedName || cleanEmail.split('@')[0],
             remoteUser.username || cleanEmail.split('@')[0],
@@ -1452,7 +1427,6 @@ async function startServer() {
             remoteUser.password_hash || bcrypt.hashSync(crypto.randomUUID(), 10),
             resolvedAvatar || remoteUser.avatar_url || '/fotoperfil.png',
             role,
-            isGold,
             resolvedUid || remoteUser.auth_id || null,
             remoteUser.welcome_card_seen ? 1 : 0,
             remoteUser.globe_intro_seen ? 1 : 0,
@@ -1465,11 +1439,10 @@ async function startServer() {
           const username = cleanEmail.split('@')[0].replace(/[^a-zA-Z0-9_]/g, '') + Math.floor(Math.random() * 100);
           const dummyHash = bcrypt.hashSync(crypto.randomUUID(), 10);
           const role = isPrimaryAdmin(cleanEmail) ? 'admin' : 'user';
-          const isGold = role === 'admin' ? 1 : 0;
           const insert = db.prepare(`
-            INSERT INTO users (name, username, email, whatsapp, password_hash, avatar_url, role, is_gold, auth_id, onboarding_completed, onboarding_step)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 0, 1)
-          `).run(resolvedName || username, username, cleanEmail, cleanEmail, dummyHash, resolvedAvatar || '/fotoperfil.png', role, isGold, resolvedUid || null);
+            INSERT INTO users (name, username, email, whatsapp, password_hash, avatar_url, role, auth_id, onboarding_completed, onboarding_step)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, 0, 1)
+          `).run(resolvedName || username, username, cleanEmail, cleanEmail, dummyHash, resolvedAvatar || '/fotoperfil.png', role, resolvedUid || null);
           user = db.prepare('SELECT * FROM users WHERE id = ?').get(insert.lastInsertRowid);
           try {
             db.prepare(`
@@ -1498,10 +1471,9 @@ async function startServer() {
         } catch {}
       }
 
-      if (isPrimaryAdmin(cleanEmail) && (user.role !== 'admin' || user.is_gold !== 1)) {
-        db.prepare("UPDATE users SET role = 'admin', is_gold = 1 WHERE id = ?").run(user.id);
+      if (isPrimaryAdmin(cleanEmail) && user.role !== 'admin') {
+        db.prepare("UPDATE users SET role = 'admin' WHERE id = ?").run(user.id);
         user.role = 'admin';
-        user.is_gold = 1;
       }
 
       const token = signPersistentSessionToken(user);
@@ -1587,12 +1559,11 @@ async function startServer() {
       if (!user) {
         const remoteUser = await getUserFromSupabase(jwtUser.email);
         const role = isPrimaryAdmin(jwtUser.email) || remoteUser?.role === 'admin' ? 'admin' : 'user';
-        const isGold = role === 'admin' || remoteUser?.is_gold === 1 ? 1 : 0;
         const username = remoteUser?.username || jwtUser.email.split('@')[0].replace(/[^a-zA-Z0-9_]/g, '');
         const ins = db
           .prepare(`
-            INSERT INTO users (name, username, email, whatsapp, password_hash, avatar_url, role, is_gold)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+            INSERT INTO users (name, username, email, whatsapp, password_hash, avatar_url, role)
+            VALUES (?, ?, ?, ?, ?, ?, ?)
           `)
           .run(
             remoteUser?.name || jwtUser.name || username,
@@ -1601,8 +1572,7 @@ async function startServer() {
             jwtUser.email,
             'supabase_auth',
             remoteUser?.avatar_url || jwtUser.avatarUrl || '/fotoperfil.png',
-            role,
-            isGold
+            role
           );
         user = db.prepare('SELECT * FROM users WHERE id = ?').get(ins.lastInsertRowid);
       }
@@ -2162,18 +2132,16 @@ async function startServer() {
           // Rebind current session to the target email account (e.g. switching to marioyesk@gmail.com)
           const preservedRole =
             isPrimaryAdmin(targetEmail) || existingWithTargetEmail.role === 'admin' ? 'admin' : 'user';
-          const preservedGold = preservedRole === 'admin' || existingWithTargetEmail.is_gold === 1 ? 1 : 0;
 
           db.prepare(`
             UPDATE users
-            SET name = ?, bio = ?, avatar_url = ?, role = ?, is_gold = ?
+            SET name = ?, bio = ?, avatar_url = ?, role = ?
             WHERE id = ?
           `).run(
             name || existingWithTargetEmail.name,
             bio !== undefined ? bio : (existingWithTargetEmail.bio || ''),
             avatar_url || existingWithTargetEmail.avatar_url || '/fotoperfil.png',
             preservedRole,
-            preservedGold,
             existingWithTargetEmail.id
           );
 
@@ -2185,11 +2153,10 @@ async function startServer() {
           dbUser = db.prepare('SELECT * FROM users WHERE id = ?').get(existingWithTargetEmail.id);
         } else {
           const preservedRole = isPrimaryAdmin(targetEmail || dbUser.email) || dbUser.role === 'admin' ? 'admin' : 'user';
-          const preservedGold = preservedRole === 'admin' || dbUser.is_gold === 1 ? 1 : 0;
 
           db.prepare(`
             UPDATE users
-            SET name = ?, username = ?, bio = ?, email = ?, whatsapp = ?, avatar_url = ?, role = ?, is_gold = ?
+            SET name = ?, username = ?, bio = ?, email = ?, whatsapp = ?, avatar_url = ?, role = ?
             WHERE id = ?
           `).run(
             name || dbUser.name,
@@ -2199,17 +2166,15 @@ async function startServer() {
             targetEmail || dbUser.whatsapp,
             avatar_url || dbUser.avatar_url || '/fotoperfil.png',
             preservedRole,
-            preservedGold,
             dbUser.id
           );
           dbUser = db.prepare('SELECT * FROM users WHERE id = ?').get(dbUser.id);
         }
       } else {
         const role = isPrimaryAdmin(targetEmail) ? 'admin' : 'user';
-        const isGold = role === 'admin' ? 1 : 0;
         const ins = db.prepare(`
-          INSERT INTO users (name, username, bio, email, whatsapp, password_hash, avatar_url, role, is_gold)
-          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+          INSERT INTO users (name, username, bio, email, whatsapp, password_hash, avatar_url, role)
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?)
         `).run(
           name || cleanUsername,
           cleanUsername,
@@ -2218,8 +2183,7 @@ async function startServer() {
           targetEmail,
           'profile_sync',
           avatar_url || '/fotoperfil.png',
-          role,
-          isGold
+          role
         );
         dbUser = db.prepare('SELECT * FROM users WHERE id = ?').get(ins.lastInsertRowid);
       }
@@ -2477,7 +2441,6 @@ async function startServer() {
               email: safeUser.email,
               bio: safeUser.bio || '',
               role: safeUser.role,
-              plan: safeUser.plan,
               location_permission_granted: Boolean(safeUser.location_permission_granted),
               motion_permission_granted: Boolean(safeUser.motion_permission_granted),
               visits_count: safeUser.visits_count || 1,
@@ -4312,7 +4275,6 @@ async function startServer() {
       const formattedUsers = users.map((u) => ({
         ...u,
         role: isPrimaryAdmin(u.email || u.whatsapp) || u.role === 'admin' ? 'admin' : 'user',
-        is_gold: isPrimaryAdmin(u.email || u.whatsapp) || u.role === 'admin' || u.is_gold === 1 ? 1 : 0,
       }));
       const activeCount = formattedUsers.filter((u) => !u.is_banned).length;
       const bannedCount = formattedUsers.filter((u) => u.is_banned === 1).length;

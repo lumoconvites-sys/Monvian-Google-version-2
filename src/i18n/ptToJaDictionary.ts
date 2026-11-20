@@ -736,14 +736,6 @@ const PT_TO_JA_RAW: Record<string, string> = {
   'Melhor valor': '一番お得',
   'Acesso vitalício': '永久アクセス',
   'PAGAMENTO ÚNICO · ACESSO VITALÍCIO': '1回払い・永久アクセス',
-  'ATIVAR ELITE GOLD': 'ELITE GOLDを有効化',
-  'Monvian Elite Gold.': 'Monvian Elite Gold.',
-  'Monvian Gold Ativado!': 'Monvian Goldが有効になりました！',
-  'Campos do Jordão Monvian Gold': 'カンポス・ド・ジョルドン Monvian Gold',
-  'Experiências exclusivas, roteiros selecionados e lugares especiais em Campos do Jordão.':
-    'カンポス・ド・ジョルドンの限定体験、厳選プラン、特別なスポットへアクセス。',
-  'Acesso ilimitado liberado a todos os roteiros exclusivos de Campos do Jordão.':
-    'カンポス・ド・ジョルドンのすべての限定プランに無制限でアクセスできます。',
   'Libera até 1 roteiro premium': 'プレミアムプラン1件を解放',
   'Notificações': '通知',
   'Notificações e Atividade': '通知とアクティビティ',

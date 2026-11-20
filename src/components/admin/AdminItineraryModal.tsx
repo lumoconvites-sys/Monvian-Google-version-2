@@ -78,8 +78,8 @@ export const AdminItineraryModal: React.FC<AdminItineraryModalProps> = ({
   const [price, setPrice] = useState('Grátis');
   const [status, setStatus] = useState<ItineraryStatus>('published');
   const [isFeatured, setIsFeatured] = useState(false);
-  const [isPremium, setIsPremium] = useState(false); // false = Grátis, true = Elite Gold
-  const [badgeText, setBadgeText] = useState('ELITE GOLD');
+  const [isPremium, setIsPremium] = useState(false); // false = Grátis, true = Pago (15 Plátanos)
+  const [badgeText, setBadgeText] = useState('');
   const [showPrice, setShowPrice] = useState(true);
   const [showStopsCount, setShowStopsCount] = useState(true);
   const [showBadge, setShowBadge] = useState(true);
@@ -148,12 +148,12 @@ export const AdminItineraryModal: React.FC<AdminItineraryModalProps> = ({
       setDaysCount(itineraryToEdit.daysCount || 1);
       setSelectedCategories(itineraryToEdit.categories || []);
       
-      const hasGold = Boolean(itineraryToEdit.isPremium || (itineraryToEdit as any).isGold || (itineraryToEdit as any).is_gold);
-      setIsPremium(hasGold);
-      setPrice(itineraryToEdit.price || (hasGold ? '15 Plátanos' : 'Grátis'));
+      const hasPaidAccess = Boolean(itineraryToEdit.isPremium);
+      setIsPremium(hasPaidAccess);
+      setPrice(itineraryToEdit.price || (hasPaidAccess ? '15 Plátanos' : 'Grátis'));
       setStatus(itineraryToEdit.status || (itineraryToEdit.isActive !== false ? 'published' : 'draft'));
       setIsFeatured(Boolean(itineraryToEdit.isFeatured || itineraryToEdit.isRecommended));
-      setBadgeText(itineraryToEdit.badgeText || (hasGold ? '15 Plátanos' : ''));
+      setBadgeText(itineraryToEdit.badgeText || (hasPaidAccess ? '15 Plátanos' : ''));
       setShowPrice(itineraryToEdit.showPrice !== false);
       setShowStopsCount(itineraryToEdit.showStopsCount !== false);
       setShowBadge(itineraryToEdit.showBadge !== false);

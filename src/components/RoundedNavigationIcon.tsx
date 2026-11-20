@@ -2,19 +2,15 @@ import React from 'react';
 
 export interface RoundedNavigationIconProps {
   className?: string;
-  isGold?: boolean;
   size?: number;
   style?: React.CSSProperties;
 }
 
 export const RoundedNavigationIcon: React.FC<RoundedNavigationIconProps> = ({
   className = 'w-5 h-5',
-  isGold = false,
   size = 24,
   style,
 }) => {
-  const fillColor = isGold ? '#E5AC33' : 'currentColor';
-
   return (
     <svg
       width={size}
@@ -28,8 +24,8 @@ export const RoundedNavigationIcon: React.FC<RoundedNavigationIconProps> = ({
     >
       <path
         d="M5.61 8.99L18.20 4.09Q21 3 19.91 5.80L15.01 18.39Q14 21 13.09 18.78L11.33 14.50Q10.8 13.2 9.50 12.67L5.22 10.91Q3 10 5.61 8.99Z"
-        fill={fillColor}
-        stroke={fillColor}
+        fill="currentColor"
+        stroke="currentColor"
         strokeWidth="1.6"
         strokeLinecap="round"
         strokeLinejoin="round"
