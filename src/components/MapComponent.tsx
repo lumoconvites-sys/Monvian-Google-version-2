@@ -811,9 +811,9 @@ export const MapComponent = memo(
 
         map.easeTo({
           center: [lng, lat],
-          zoom: 15.3,
-          pitch: is3DModeRef.current ? 52 : 28,
-          bearing: is3DModeRef.current ? -13 : 0,
+          zoom: 15.1,
+          pitch: is3DModeRef.current ? 52 : 42,
+          bearing: is3DModeRef.current ? -13 : -8,
           offset: [0, verticalOffset],
           duration: 600,
         });
@@ -843,14 +843,14 @@ export const MapComponent = memo(
         if (coords.length === 1) {
           const verticalOffset = isMobile
             ? isItineraryExpandedRef.current
-              ? -Math.round(window.innerHeight * 0.20)
+              ? -Math.round(window.innerHeight * 0.22)
               : -Math.round(window.innerHeight * 0.08)
             : 0;
           map.easeTo({
             center: coords[0],
-            zoom: 15.3,
-            pitch: is3DModeRef.current ? 52 : 28,
-            bearing: is3DModeRef.current ? -13 : 0,
+            zoom: 15.1,
+            pitch: is3DModeRef.current ? 52 : 42,
+            bearing: is3DModeRef.current ? -13 : -8,
             offset: [0, verticalOffset],
             duration: animDuration,
           });
@@ -862,10 +862,10 @@ export const MapComponent = memo(
         map.fitBounds(bounds, {
           padding: isMobile
             ? {
-                top: 96,
-                bottom: Math.round(window.innerHeight * (isItineraryExpandedRef.current ? 0.52 : 0.22)) + 24,
-                left: 48,
-                right: 48,
+                top: 108,
+                bottom: Math.round(window.innerHeight * (isItineraryExpandedRef.current ? 0.54 : 0.24)) + 28,
+                left: 44,
+                right: 72,
               }
             : {
                 top: 84,
@@ -873,9 +873,9 @@ export const MapComponent = memo(
                 left: 450,
                 right: 84,
               },
-          pitch: is3DModeRef.current ? 50 : 22,
-          bearing: is3DModeRef.current ? -13 : 0,
-          maxZoom: 15.2,
+          pitch: is3DModeRef.current ? 50 : 40,
+          bearing: is3DModeRef.current ? -13 : -8,
+          maxZoom: 14.8,
           duration: animDuration,
         });
       },
@@ -1723,9 +1723,11 @@ export const MapComponent = memo(
 
       const userMarkerEl = userMarkerRef.current?.getElement();
       if (userMarkerEl) {
-        const hideUserPin = Boolean(introActive && z < 4.5);
-        userMarkerEl.style.transition = 'opacity 0.35s ease';
+        const hideUserPin =
+          workflowModeRef.current === 'ITINERARY' || Boolean(introActive && z < 4.5);
+        userMarkerEl.style.transition = 'opacity 0.28s ease';
         userMarkerEl.style.opacity = hideUserPin ? '0' : '1';
+        userMarkerEl.style.pointerEvents = hideUserPin ? 'none' : 'auto';
       }
 
       syncMarkerHighlight(selectedSpotRef.current?.id);
@@ -2859,6 +2861,12 @@ export const MapComponent = memo(
         clearAllExploreMarkers();
         clearAllClusterMarkers();
 
+        const userMarkerEl = userMarkerRef.current?.getElement();
+        if (userMarkerEl) {
+          userMarkerEl.style.opacity = '0';
+          userMarkerEl.style.pointerEvents = 'none';
+        }
+
         const steps = itineraryStepsRef.current || [];
         const isGold = isPremiumItineraryRef.current;
         const activeId = activeItineraryStepIdRef.current;
@@ -2881,8 +2889,8 @@ export const MapComponent = memo(
           wrapEl.style.display = 'flex';
           wrapEl.style.flexDirection = 'column';
           wrapEl.style.alignItems = 'center';
-          wrapEl.style.transition = 'transform 0.26s cubic-bezier(0.22, 1, 0.36, 1)';
-          wrapEl.style.transform = isSelected ? 'scale(1.18)' : 'scale(1)';
+          wrapEl.style.transition = 'transform 0.24s cubic-bezier(0.22, 1, 0.36, 1)';
+          wrapEl.style.transform = isSelected ? 'scale(1.1)' : 'scale(1)';
 
           const badgeEl = document.createElement('div');
           badgeEl.style.width = isSelected ? '38px' : '32px';
@@ -2891,8 +2899,8 @@ export const MapComponent = memo(
           badgeEl.style.display = 'flex';
           badgeEl.style.alignItems = 'center';
           badgeEl.style.justifyContent = 'center';
-          badgeEl.style.fontWeight = '900';
-          badgeEl.style.fontSize = isSelected ? '13px' : '11.5px';
+          badgeEl.style.fontWeight = '800';
+          badgeEl.style.fontSize = isSelected ? '13.5px' : '11.5px';
           badgeEl.style.letterSpacing = '-0.02em';
           badgeEl.style.fontFamily =
             '-apple-system, BlinkMacSystemFont, "SF Pro Display", sans-serif';
@@ -2902,20 +2910,20 @@ export const MapComponent = memo(
               'linear-gradient(135deg, #FCE38A 0%, #E5AC33 55%, #C68310 100%)';
             badgeEl.style.color = '#1A1202';
             badgeEl.style.border = isSelected
-              ? '2.5px solid #FFF8D6'
-              : '2px solid rgba(255, 244, 163, 0.85)';
+              ? '2px solid #FFF8D6'
+              : '1.5px solid rgba(255, 244, 163, 0.85)';
             badgeEl.style.boxShadow = isSelected
-              ? '0 8px 22px rgba(229, 172, 51, 0.55), 0 0 0 3px rgba(255, 255, 255, 0.4)'
-              : '0 4px 12px rgba(0, 0, 0, 0.42)';
+              ? '0 8px 20px rgba(229, 172, 51, 0.38), 0 0 0 5px rgba(255, 255, 255, 0.42)'
+              : '0 4px 12px rgba(0, 0, 0, 0.16)';
           } else {
             badgeEl.style.background = '#FFFFFF';
             badgeEl.style.color = '#111111';
             badgeEl.style.border = isSelected
-              ? '2.5px solid #111111'
-              : '2px solid rgba(0, 0, 0, 0.16)';
+              ? '1px solid rgba(0, 0, 0, 0.08)'
+              : '1px solid rgba(0, 0, 0, 0.06)';
             badgeEl.style.boxShadow = isSelected
-              ? '0 10px 24px rgba(0, 0, 0, 0.42), 0 0 0 3px rgba(255, 255, 255, 0.72)'
-              : '0 4px 12px rgba(0, 0, 0, 0.34)';
+              ? '0 8px 22px rgba(0, 0, 0, 0.16), 0 0 0 6px rgba(255, 255, 255, 0.48)'
+              : '0 4px 12px rgba(0, 0, 0, 0.12)';
           }
           badgeEl.textContent = String(idx + 1).padStart(2, '0');
 
@@ -2928,7 +2936,7 @@ export const MapComponent = memo(
             ? '6px solid #D99B26'
             : '6px solid #FFFFFF';
           tipEl.style.marginTop = '-1px';
-          tipEl.style.filter = 'drop-shadow(0 2px 3px rgba(0,0,0,0.28))';
+          tipEl.style.filter = 'drop-shadow(0 2px 3px rgba(0,0,0,0.12))';
 
           wrapEl.appendChild(badgeEl);
           wrapEl.appendChild(tipEl);
@@ -2971,6 +2979,11 @@ export const MapComponent = memo(
       // ================================================================
       // MODES 1 & 2: EXPLORE & SELECT — Viewport virtualization + Clustering
       // ================================================================
+      const userMarkerEl = userMarkerRef.current?.getElement();
+      if (userMarkerEl && !isGlobeIntroActiveRef.current) {
+        userMarkerEl.style.opacity = '1';
+        userMarkerEl.style.pointerEvents = 'auto';
+      }
       clearAllItineraryMarkers();
       syncItineraryRouteLayers(map);
 

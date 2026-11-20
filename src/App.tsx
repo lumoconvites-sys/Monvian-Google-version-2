@@ -3856,7 +3856,7 @@ export default function App() {
           className={`md:hidden fixed inset-0 pointer-events-none z-[250] transition-opacity duration-150 ${isChatKeyboardOpen ? 'opacity-0 [&_*]:!pointer-events-none' : 'opacity-100'}`}
         >
           <BottomNavigation
-            activeTab={activeTab}
+            activeTab={activeTab === 'explorar' && mapWorkflowMode === 'ITINERARY' ? 'roteiros' : activeTab}
             onChangeTab={handleTabChange}
             unreadCount={2}
             isBlurred={isBlurActive}

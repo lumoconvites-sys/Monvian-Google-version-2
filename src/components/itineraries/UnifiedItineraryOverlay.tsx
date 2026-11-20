@@ -1,9 +1,7 @@
 import React, { useState, useRef, memo } from 'react';
 import { motion, AnimatePresence, useMotionValue, useTransform, animate } from 'motion/react';
 import {
-  ArrowDown,
   ArrowRight,
-  ArrowUp,
   Check,
   Compass,
   Edit3,
@@ -180,27 +178,21 @@ export const SelectModeOverlay: React.FC<SelectModeOverlayProps> = memo(
 interface SwipeableStopCardProps {
   step: ItineraryStep;
   idx: number;
-  totalSteps: number;
   isSelected: boolean;
   isDark: boolean;
   isPremium?: boolean;
   onSelect: (step: ItineraryStep) => void;
   onDelete: (stepId: string) => void;
-  onMoveUp: (index: number) => void;
-  onMoveDown: (index: number) => void;
 }
 
 const SwipeableStopCard: React.FC<SwipeableStopCardProps> = ({
   step,
   idx,
-  totalSteps,
   isSelected,
   isDark,
   isPremium = false,
   onSelect,
   onDelete,
-  onMoveUp,
-  onMoveDown,
 }) => {
   const x = useMotionValue(0);
   const spot = step.spot;
@@ -268,7 +260,7 @@ const SwipeableStopCard: React.FC<SwipeableStopCardProps> = ({
       animate={{ opacity: 1, y: 0 }}
       exit={{ opacity: 0, scale: 0.94 }}
       transition={{ duration: 0.18 }}
-      className="relative w-full rounded-[24px] overflow-hidden select-none touch-pan-y"
+      className="relative w-full rounded-[28px] overflow-hidden select-none touch-pan-y"
     >
       {/* Background Swipe-to-Delete Reveal */}
       <motion.div
@@ -277,8 +269,8 @@ const SwipeableStopCard: React.FC<SwipeableStopCardProps> = ({
           e.stopPropagation();
           onDelete(step.id);
         }}
-        className={`absolute inset-0 rounded-[24px] flex items-center justify-end px-5 z-0 cursor-pointer ${
-          isDark ? 'bg-[#171717] border border-white/10' : 'bg-[#F2F2F2] border border-zinc-200'
+        className={`absolute inset-0 rounded-[28px] flex items-center justify-end px-5 z-0 cursor-pointer ${
+          isDark ? 'bg-[#171717] border border-white/10' : 'bg-[#F2F2F2] border border-black/[0.06]'
         }`}
         aria-label="Excluir ponto turístico"
       >
@@ -314,138 +306,88 @@ const SwipeableStopCard: React.FC<SwipeableStopCardProps> = ({
             onSelect(step);
           }
         }}
-        className={`relative z-10 py-2.5 px-3.5 rounded-[24px] flex items-center justify-between gap-2.5 cursor-pointer transition-colors border ${
+        className={`relative z-10 py-3 px-3.5 rounded-[28px] cursor-pointer transition-all border ${
           isDark
             ? isSelected
-              ? 'border-white/45 ring-1 ring-white/20'
+              ? 'border-white/35 shadow-[0_4px_16px_rgba(0,0,0,0.45)]'
               : 'border-white/10 hover:border-white/25'
             : isSelected
-              ? 'border-black/30 ring-2 ring-black/10 shadow-sm'
-              : 'border-zinc-200/80 hover:border-zinc-300 shadow-2xs'
+              ? 'border-black/[0.16] shadow-[0_4px_16px_rgba(0,0,0,0.06)]'
+              : 'border-black/[0.07] shadow-[0_1px_4px_rgba(0,0,0,0.02)] hover:border-black/15'
         }`}
       >
-        <div className="flex items-center gap-2.5 min-w-0 flex-1">
-          <span
-            className={`w-7 h-7 rounded-full text-[11px] font-black flex items-center justify-center shrink-0 ${
-              isSelected
-                ? isPremium
-                  ? 'bg-metallic-gold text-[#1A1202] shadow-sm'
+        {/* Main Row: Badge + Photo + Full-Width Metadata/Title/Description + White Play Button */}
+        <div className="flex items-center justify-between gap-2.5">
+          <div className="flex items-center gap-2.5 min-w-0 flex-1">
+            <span
+              className={`w-7 h-7 rounded-full text-[11px] font-black flex items-center justify-center shrink-0 tabular-nums ${
+                isPremium
+                  ? isSelected
+                    ? 'bg-metallic-gold text-[#1A1202] shadow-sm'
+                    : 'bg-[#1C1C1E] text-[#F5BE38] border border-[#E5AC33]/50'
                   : isDark
                     ? 'bg-white text-black'
-                    : 'bg-black text-white'
-                : isPremium
-                  ? 'bg-[#1C1C1E] text-[#F5BE38] border border-[#E5AC33]/50'
-                  : isDark
-                    ? 'bg-white text-black'
-                    : 'bg-black text-white'
-            }`}
-          >
-            {String(idx + 1).padStart(2, '0')}
-          </span>
-
-          {spot && (
-            <div className="w-12 h-12 rounded-[14px] overflow-hidden shrink-0 bg-zinc-800 relative">
-              <LazyImage
-                src={getSpotCardThumbnail(spot)}
-                alt={spot.name}
-                className="w-full h-full object-cover pointer-events-none"
-                onError={(e) => {
-                  (e.target as HTMLImageElement).src = getSpotFallbackImage(spot.name, spot.category);
-                }}
-              />
-            </div>
-          )}
-
-          <div className="min-w-0 flex-1">
-            <div className="flex items-center gap-1.5 text-[10px] font-bold text-[#858585] leading-none">
-              <Clock className="w-3 h-3 shrink-0" />
-              <span>{step.suggestedTime || '09:30'}</span>
-              <span>·</span>
-              <span>{estimatedDurationText}</span>
-              <span>·</span>
-              <span className="uppercase truncate">{spot?.categoryLabel || 'Local'}</span>
-            </div>
-
-            <h4
-              className="text-[13.5px] font-black uppercase truncate leading-tight my-1"
-              style={{ color: isDark ? '#FFFFFF' : '#000000' }}
+                    : 'bg-[#000000] text-white'
+              }`}
             >
-              {spot?.shortName || spot?.name || `Ponto ${idx + 1}`}
-            </h4>
+              {String(idx + 1).padStart(2, '0')}
+            </span>
 
-            <p className="text-[10.5px] text-[#858585] truncate leading-none">
-              {shortDescText ||
-                (step.durationToNextMin
-                  ? `${step.durationToNextMin} min até a próxima parada`
-                  : 'Local planejado do roteiro')}
-            </p>
-          </div>
-        </div>
+            {spot && (
+              <div className="w-[48px] h-[48px] rounded-[14px] overflow-hidden shrink-0 bg-zinc-100 dark:bg-zinc-800 relative">
+                <LazyImage
+                  src={getSpotCardThumbnail(spot)}
+                  alt={spot.name}
+                  className="w-full h-full object-cover pointer-events-none"
+                  onError={(e) => {
+                    (e.target as HTMLImageElement).src = getSpotFallbackImage(spot.name, spot.category);
+                  }}
+                />
+              </div>
+            )}
 
-        {/* Right Controls: Reorder Up/Down, Play Maps, Delete */}
-        <div className="flex items-center gap-1 shrink-0" onClick={(e) => e.stopPropagation()}>
-          {totalSteps > 1 && (
-            <div className="flex flex-col gap-0.5 mr-0.5">
-              <button
-                type="button"
-                disabled={idx === 0}
-                onClick={() => onMoveUp(idx)}
-                className={`w-6 h-5 rounded-md flex items-center justify-center transition-colors ${
-                  idx === 0
-                    ? 'opacity-25 cursor-not-allowed'
-                    : isDark
-                      ? 'hover:bg-white/10 text-zinc-300 cursor-pointer'
-                      : 'hover:bg-black/5 text-zinc-700 cursor-pointer'
-                }`}
-                title="Mover para cima"
-                aria-label="Mover para cima"
+            <div className="min-w-0 flex-1">
+              <div className="flex items-center gap-1 text-[11px] font-medium text-[#8E8E93] leading-none whitespace-nowrap overflow-hidden">
+                <Clock className="w-3 h-3 shrink-0 stroke-[1.8]" />
+                <span className="shrink-0 tabular-nums">{step.suggestedTime || '09:30'}</span>
+                <span className="shrink-0">·</span>
+                <span className="shrink-0">{estimatedDurationText}</span>
+                <span className="shrink-0">·</span>
+                <span className="uppercase truncate">{spot?.categoryLabel || 'Local'}</span>
+              </div>
+
+              <h4
+                className="text-[14px] font-black uppercase tracking-tight truncate leading-tight my-1"
+                style={{ color: isDark ? '#FFFFFF' : '#000000' }}
               >
-                <ArrowUp className="w-3 h-3" />
-              </button>
-              <button
-                type="button"
-                disabled={idx === totalSteps - 1}
-                onClick={() => onMoveDown(idx)}
-                className={`w-6 h-5 rounded-md flex items-center justify-center transition-colors ${
-                  idx === totalSteps - 1
-                    ? 'opacity-25 cursor-not-allowed'
-                    : isDark
-                      ? 'hover:bg-white/10 text-zinc-300 cursor-pointer'
-                      : 'hover:bg-black/5 text-zinc-700 cursor-pointer'
-                }`}
-                title="Mover para baixo"
-                aria-label="Mover para baixo"
-              >
-                <ArrowDown className="w-3 h-3" />
-              </button>
+                {spot?.name || spot?.shortName || `Ponto ${idx + 1}`}
+              </h4>
+
+              <p className="text-[11.5px] font-normal text-[#8E8E93] truncate leading-tight">
+                {shortDescText ||
+                  (step.durationToNextMin
+                    ? `${step.durationToNextMin} min até a próxima parada`
+                    : 'Local planejado do roteiro')}
+              </p>
             </div>
-          )}
+          </div>
 
           <button
             type="button"
-            onClick={() => openDirectionsMap(spot)}
-            className={`w-8 h-8 rounded-full flex items-center justify-center transition-transform active:scale-90 cursor-pointer shadow-xs ${
+            onClick={(e) => {
+              e.stopPropagation();
+              openDirectionsMap(spot);
+            }}
+            className={`w-9 h-9 rounded-full flex items-center justify-center transition-transform active:scale-90 cursor-pointer shrink-0 border ${
               isDark
-                ? 'bg-white text-black hover:bg-zinc-200'
-                : 'bg-[#F2F2F2] text-black hover:bg-zinc-200'
+                ? 'bg-[#242426] border-white/10 text-white shadow-[0_2px_10px_rgba(0,0,0,0.4)] hover:bg-zinc-800'
+                : 'bg-[#FFFFFF] border-black/[0.05] text-[#111111] shadow-[0_2px_10px_rgba(0,0,0,0.09)] hover:bg-zinc-50'
             }`}
             title="Abrir rota no Maps"
             aria-label="Abrir rota no Maps"
           >
             <Play className="w-3.5 h-3.5 fill-current ml-0.5" />
           </button>
-
-          {totalSteps > 1 && (
-            <button
-              type="button"
-              onClick={() => onDelete(step.id)}
-              className="w-7 h-7 rounded-full flex items-center justify-center text-[#858585] hover:text-red-500 hover:bg-red-500/10 transition-colors cursor-pointer"
-              title="Remover ponto"
-              aria-label="Remover ponto"
-            >
-              <Trash2 className="w-3.5 h-3.5" />
-            </button>
-          )}
         </div>
       </motion.div>
     </motion.div>
@@ -504,7 +446,6 @@ export const UnifiedItineraryOverlay: React.FC<UnifiedItineraryOverlayProps> = m
     onUpdateItinerary,
     onDeleteItinerary,
     onDeleteStep,
-    onMoveStep,
     onImportSpot,
     onRenameTitle,
     tripNoteText,
@@ -623,7 +564,7 @@ export const UnifiedItineraryOverlay: React.FC<UnifiedItineraryOverlayProps> = m
                     setEditedTitle(itinerary.title || 'Meu Roteiro');
                     setIsEditingTitle(true);
                   }}
-                  className="font-black text-sm tracking-tight truncate max-w-[140px] cursor-pointer"
+                  className="font-bold text-[15px] tracking-tight truncate max-w-[155px] cursor-pointer"
                   title="Toque para editar o nome"
                 >
                   {getShortDisplayTitle(itinerary.title || 'Meu Roteiro')}
@@ -656,64 +597,76 @@ export const UnifiedItineraryOverlay: React.FC<UnifiedItineraryOverlayProps> = m
 
         {/* 2. MOBILE FLOATING MAP ACTIONS (Center route, Layers, Add Spot, Store) */}
         <div
-          className="md:hidden absolute right-3.5 sm:right-6 z-40 pointer-events-auto transition-all duration-300 flex flex-col items-center gap-3"
+          className="md:hidden absolute right-4 z-40 pointer-events-auto transition-all duration-300 flex flex-col items-center gap-2.5"
           style={{
             bottom:
               activeSteps.length > 0 && isExpanded
-                ? 'calc(54vh + 16px)'
+                ? 'calc(52vh + 14px)'
                 : 'calc(max(185px, calc(env(safe-area-inset-bottom, 0px) + 165px)))',
           }}
         >
           <button
             type="button"
             onClick={onCenterRoute}
-            className={`w-[50px] h-[50px] rounded-full ios26-liquid-glass flex items-center justify-center cursor-pointer active:scale-90 transition-transform ${
-              useLightOnDark ? 'text-white' : 'text-black'
+            className={`w-[46px] h-[46px] rounded-full flex items-center justify-center cursor-pointer active:scale-90 transition-all border ${
+              isDark
+                ? 'bg-[#171717]/95 border-white/10 text-white shadow-[0_4px_16px_rgba(0,0,0,0.4)]'
+                : isSatelliteMap
+                  ? 'ios26-liquid-glass border-white/25 text-white'
+                  : 'bg-[#FFFFFF]/95 border-black/[0.05] text-[#111111] shadow-[0_4px_16px_rgba(0,0,0,0.09)]'
             }`}
-            style={{ color: useLightOnDark ? '#FFFFFF' : '#000000' }}
             title="Enquadrar rota"
             aria-label="Enquadrar rota"
           >
-            <Compass className="relative z-10 w-6 h-6 stroke-[2]" />
+            <Compass className="relative z-10 w-[21px] h-[21px] stroke-[1.85]" />
           </button>
 
           <button
             type="button"
             onClick={onToggleMapStyle}
-            className={`w-[50px] h-[50px] rounded-full ios26-liquid-glass flex items-center justify-center cursor-pointer active:scale-90 transition-transform ${
-              useLightOnDark ? 'text-white' : 'text-black'
+            className={`w-[46px] h-[46px] rounded-full flex items-center justify-center cursor-pointer active:scale-90 transition-all border ${
+              isDark
+                ? 'bg-[#171717]/95 border-white/10 text-white shadow-[0_4px_16px_rgba(0,0,0,0.4)]'
+                : isSatelliteMap
+                  ? 'ios26-liquid-glass border-white/25 text-white'
+                  : 'bg-[#FFFFFF]/95 border-black/[0.05] text-[#111111] shadow-[0_4px_16px_rgba(0,0,0,0.09)]'
             }`}
-            style={{ color: useLightOnDark ? '#FFFFFF' : '#000000' }}
             title="Alternar camada do mapa"
             aria-label="Alternar camada do mapa"
           >
-            <Layers className="relative z-10 w-6 h-6 stroke-[2]" />
+            <Layers className="relative z-10 w-[21px] h-[21px] stroke-[1.85]" />
           </button>
 
           <button
             type="button"
             onClick={onSelectMoreSpotsOnMap}
-            className={`w-[50px] h-[50px] rounded-full ios26-liquid-glass flex items-center justify-center cursor-pointer active:scale-90 transition-transform ${
-              useLightOnDark ? 'text-white' : 'text-black'
+            className={`w-[46px] h-[46px] rounded-full flex items-center justify-center cursor-pointer active:scale-90 transition-all border ${
+              isDark
+                ? 'bg-[#171717]/95 border-white/10 text-white shadow-[0_4px_16px_rgba(0,0,0,0.4)]'
+                : isSatelliteMap
+                  ? 'ios26-liquid-glass border-white/25 text-white'
+                  : 'bg-[#FFFFFF]/95 border-black/[0.05] text-[#111111] shadow-[0_4px_16px_rgba(0,0,0,0.09)]'
             }`}
-            style={{ color: useLightOnDark ? '#FFFFFF' : '#000000' }}
             title="Selecionar mais pontos no mapa"
             aria-label="Selecionar mais pontos no mapa"
           >
-            <Plus className="relative z-10 w-6 h-6 stroke-[2.2]" />
+            <Plus className="relative z-10 w-[21px] h-[21px] stroke-[2]" />
           </button>
 
           <button
             type="button"
             onClick={onOpenStore}
-            className={`w-[50px] h-[50px] rounded-full ios26-liquid-glass flex items-center justify-center cursor-pointer active:scale-90 transition-transform ${
-              useLightOnDark ? 'text-white' : 'text-black'
+            className={`w-[46px] h-[46px] rounded-full flex items-center justify-center cursor-pointer active:scale-90 transition-all border ${
+              isDark
+                ? 'bg-[#171717]/95 border-white/10 text-white shadow-[0_4px_16px_rgba(0,0,0,0.4)]'
+                : isSatelliteMap
+                  ? 'ios26-liquid-glass border-white/25 text-white'
+                  : 'bg-[#FFFFFF]/95 border-black/[0.05] text-[#111111] shadow-[0_4px_16px_rgba(0,0,0,0.09)]'
             }`}
-            style={{ color: useLightOnDark ? '#FFFFFF' : '#000000' }}
             title="Loja de Roteiros"
             aria-label="Loja de Roteiros"
           >
-            <Store className="relative z-10 w-5 h-5 stroke-[2]" />
+            <Store className="relative z-10 w-[20px] h-[20px] stroke-[1.85]" />
           </button>
         </div>
 
@@ -819,14 +772,11 @@ export const UnifiedItineraryOverlay: React.FC<UnifiedItineraryOverlayProps> = m
                     key={step.id}
                     step={step}
                     idx={idx}
-                    totalSteps={activeSteps.length}
                     isSelected={step.id === currentSelectedStep?.id}
                     isDark={isDark}
                     isPremium={isPremiumItinerary}
                     onSelect={onSelectStep}
                     onDelete={onDeleteStep}
-                    onMoveUp={(i) => onMoveStep(i, 'up')}
-                    onMoveDown={(i) => onMoveStep(i, 'down')}
                   />
                 ))}
               </AnimatePresence>
@@ -905,18 +855,20 @@ export const UnifiedItineraryOverlay: React.FC<UnifiedItineraryOverlayProps> = m
                   style={{
                     backgroundColor: isDark ? '#171717' : '#FFFFFF',
                   }}
-                  className={`w-full max-w-[342px] py-2.5 px-3.5 rounded-[28px] flex items-center justify-between gap-3 border pointer-events-auto cursor-pointer shadow-[0_8px_28px_rgba(0,0,0,0.16)] ${
-                    isDark ? 'border-white/15 text-white' : 'border-zinc-200/80 text-black'
+                  className={`w-full max-w-[346px] py-3 px-3.5 rounded-[28px] flex items-center justify-between gap-2.5 border pointer-events-auto cursor-pointer ${
+                    isDark
+                      ? 'border-white/15 text-white shadow-[0_8px_28px_rgba(0,0,0,0.45)]'
+                      : 'border-black/[0.07] text-[#000000] shadow-[0_6px_24px_rgba(0,0,0,0.10)]'
                   }`}
                 >
                   <div className="flex items-center gap-2.5 min-w-0 flex-1">
                     <span
-                      className={`w-7 h-7 rounded-full text-[11px] font-black flex items-center justify-center shrink-0 ${
+                      className={`w-7 h-7 rounded-full text-[11px] font-black flex items-center justify-center shrink-0 tabular-nums ${
                         isPremiumItinerary
                           ? 'bg-metallic-gold text-[#1A1202]'
                           : isDark
                             ? 'bg-white text-black'
-                            : 'bg-black text-white'
+                            : 'bg-[#000000] text-white'
                       }`}
                     >
                       {String(
@@ -928,7 +880,7 @@ export const UnifiedItineraryOverlay: React.FC<UnifiedItineraryOverlayProps> = m
                     </span>
 
                     {currentSelectedStep.spot && (
-                      <div className="w-12 h-12 rounded-[14px] overflow-hidden shrink-0 bg-zinc-800">
+                      <div className="w-[48px] h-[48px] rounded-[14px] overflow-hidden shrink-0 bg-zinc-100 dark:bg-zinc-800">
                         <LazyImage
                           src={getSpotCardThumbnail(currentSelectedStep.spot)}
                           alt={currentSelectedStep.spot.name}
@@ -944,23 +896,41 @@ export const UnifiedItineraryOverlay: React.FC<UnifiedItineraryOverlayProps> = m
                     )}
 
                     <div className="min-w-0 flex-1">
-                      <div className="flex items-center gap-1 text-[10px] font-bold text-[#858585] leading-none">
-                        <span>{currentSelectedStep.suggestedTime || '09:30'}</span>
-                        <span>·</span>
-                        <span>{formatEstimatedDuration(currentSelectedStep.spot?.durationMinutes)}</span>
-                        <span>·</span>
+                      <div className="flex items-center gap-1 text-[11px] font-medium text-[#8E8E93] leading-none whitespace-nowrap overflow-hidden">
+                        <Clock className="w-3 h-3 shrink-0 stroke-[1.8]" />
+                        <span className="shrink-0 tabular-nums">{currentSelectedStep.suggestedTime || '09:30'}</span>
+                        <span className="shrink-0">·</span>
+                        <span className="shrink-0">{formatEstimatedDuration(currentSelectedStep.spot?.durationMinutes)}</span>
+                        <span className="shrink-0">·</span>
                         <span className="truncate uppercase">
                           {currentSelectedStep.spot?.categoryLabel || 'Local'}
                         </span>
                       </div>
-                      <h4 className="text-[14px] font-black uppercase truncate leading-tight my-1">
+                      <h4 className="text-[14px] font-black uppercase tracking-tight truncate leading-tight my-1">
                         {currentSelectedStep.spot?.name}
                       </h4>
-                      <p className="text-[10.5px] font-semibold text-[#858585] truncate leading-none">
+                      <p className="text-[11.5px] font-normal text-[#8E8E93] truncate leading-tight">
                         Toque para ver todas as {activeSteps.length} paradas
                       </p>
                     </div>
                   </div>
+
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      openDirectionsMap(currentSelectedStep.spot);
+                    }}
+                    className={`w-9 h-9 rounded-full flex items-center justify-center transition-transform active:scale-90 cursor-pointer shrink-0 border ${
+                      isDark
+                        ? 'bg-[#242426] border-white/10 text-white shadow-[0_2px_10px_rgba(0,0,0,0.4)]'
+                        : 'bg-[#FFFFFF] border-black/[0.05] text-[#111111] shadow-[0_2px_10px_rgba(0,0,0,0.09)]'
+                    }`}
+                    title="Abrir rota no Maps"
+                    aria-label="Abrir rota no Maps"
+                  >
+                    <Play className="w-3.5 h-3.5 fill-current ml-0.5" />
+                  </button>
                 </motion.div>
               ) : null}
             </motion.div>
@@ -979,10 +949,10 @@ export const UnifiedItineraryOverlay: React.FC<UnifiedItineraryOverlayProps> = m
                   onChangeExpanded(false);
                 }
               }}
-              className={`md:hidden absolute inset-x-0 bottom-0 z-40 max-w-3xl mx-auto rounded-t-[32px] overflow-hidden flex flex-col pointer-events-auto border-t shadow-[0_-10px_34px_rgba(0,0,0,0.18)] ${
+              className={`md:hidden absolute inset-x-0 bottom-0 z-40 max-w-3xl mx-auto rounded-t-[32px] overflow-hidden flex flex-col pointer-events-auto border-t shadow-[0_-8px_32px_rgba(0,0,0,0.08)] ${
                 isDark
                   ? 'bg-[#000000] border-white/10 text-white'
-                  : 'bg-[#FFFFFF] border-black/[0.06] text-black'
+                  : 'bg-[#FFFFFF] border-black/[0.04] text-black'
               }`}
               style={{
                 backgroundColor: isDark ? '#000000' : '#FFFFFF',
@@ -994,18 +964,18 @@ export const UnifiedItineraryOverlay: React.FC<UnifiedItineraryOverlayProps> = m
               {/* Drag Handle */}
               <div
                 onClick={() => onChangeExpanded(false)}
-                className="w-full pt-3 pb-1.5 flex items-center justify-center touch-none shrink-0 cursor-grab active:cursor-grabbing"
+                className="w-full pt-3 pb-2 flex items-center justify-center touch-none shrink-0 cursor-grab active:cursor-grabbing"
               >
-                <div className="w-10 h-1.5 rounded-full bg-zinc-300 dark:bg-zinc-700" />
+                <div className="w-10 h-1 rounded-full bg-[#D1D1D6] dark:bg-zinc-700" />
               </div>
 
               {/* Scrollable Sequential Stops List */}
               <div
-                className="flex-1 overflow-y-auto px-4 sm:px-5 py-1.5 space-y-2"
+                className="flex-1 overflow-y-auto px-4 pt-1 pb-2 space-y-2.5"
                 style={{ WebkitOverflowScrolling: 'touch' }}
               >
                 {itinerary.days.length > 1 && (
-                  <div className="flex items-center gap-1.5 pb-2 overflow-x-auto no-scrollbar">
+                  <div className="flex items-center gap-1.5 pb-1 overflow-x-auto no-scrollbar">
                     {itinerary.days.map((day, dIdx) => (
                       <button
                         type="button"
@@ -1033,26 +1003,23 @@ export const UnifiedItineraryOverlay: React.FC<UnifiedItineraryOverlayProps> = m
                       key={step.id}
                       step={step}
                       idx={idx}
-                      totalSteps={activeSteps.length}
                       isSelected={step.id === currentSelectedStep?.id}
                       isDark={isDark}
                       isPremium={isPremiumItinerary}
                       onSelect={onSelectStep}
                       onDelete={onDeleteStep}
-                      onMoveUp={(i) => onMoveStep(i, 'up')}
-                      onMoveDown={(i) => onMoveStep(i, 'down')}
                     />
                   ))}
                 </AnimatePresence>
 
-                <div className="pt-2 pb-6 flex items-center justify-center gap-2.5">
+                <div className="pt-1.5 pb-5 flex items-center justify-center gap-2.5">
                   <button
                     type="button"
                     onClick={onSelectMoreSpotsOnMap}
                     className={`px-4 py-2.5 rounded-full flex items-center gap-1.5 text-xs font-bold border cursor-pointer active:scale-95 transition-transform ${
                       isDark
                         ? 'bg-[#171717] border-white/15 text-white'
-                        : 'bg-[#F2F2F2] border-zinc-200 text-black'
+                        : 'bg-[#FFFFFF] border-black/[0.07] text-[#111111] shadow-[0_2px_8px_rgba(0,0,0,0.05)]'
                     }`}
                   >
                     <MapPin className="w-3.5 h-3.5" />
@@ -1064,7 +1031,7 @@ export const UnifiedItineraryOverlay: React.FC<UnifiedItineraryOverlayProps> = m
                     className={`px-4 py-2.5 rounded-full flex items-center gap-1.5 text-xs font-bold border cursor-pointer active:scale-95 transition-transform ${
                       isDark
                         ? 'bg-[#171717] border-white/15 text-white'
-                        : 'bg-[#F2F2F2] border-zinc-200 text-black'
+                        : 'bg-[#FFFFFF] border-black/[0.07] text-[#111111] shadow-[0_2px_8px_rgba(0,0,0,0.05)]'
                     }`}
                   >
                     <Plus className="w-3.5 h-3.5" />

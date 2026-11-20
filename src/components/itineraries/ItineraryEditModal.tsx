@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
-import { motion, AnimatePresence } from 'motion/react';
-import { Play, X, Check, AlertTriangle, Plus, Clock } from 'lucide-react';
+import { motion } from 'motion/react';
+import { ArrowDown, ArrowUp, Play, X, Check, AlertTriangle, Trash2, Clock } from 'lucide-react';
 import { Itinerary, ItineraryStep, Spot } from '../../types';
 
 interface ItineraryEditModalProps {
@@ -39,7 +39,6 @@ export const ItineraryEditModal: React.FC<ItineraryEditModalProps> = ({
     })()
   );
 
-  // Local editable steps of the first day (or current active day)
   const [steps, setSteps] = useState<ItineraryStep[]>(() => {
     return itinerary.days[0]?.steps || [];
   });
@@ -49,11 +48,11 @@ export const ItineraryEditModal: React.FC<ItineraryEditModalProps> = ({
 
   const openDirectionsMap = (spotTarget?: Spot | { name?: string; address?: string; lat?: number; lng?: number; mapsUrl?: string }) => {
     if (!spotTarget) return;
-    const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) || 
+    const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) ||
       (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
-    
-    const destination = spotTarget.lat && spotTarget.lng 
-      ? `${spotTarget.lat},${spotTarget.lng}` 
+
+    const destination = spotTarget.lat && spotTarget.lng
+      ? `${spotTarget.lat},${spotTarget.lng}`
       : encodeURIComponent(spotTarget.address ? `${spotTarget.name}, ${spotTarget.address}` : `${spotTarget.name} Campos do Jordão`);
 
     if (isIOS) {
@@ -86,10 +85,7 @@ export const ItineraryEditModal: React.FC<ItineraryEditModalProps> = ({
   };
 
   const handleRemoveStep = (id: string) => {
-    if (steps.length <= 1) {
-      alert('O roteiro precisa ter pelo menos 1 ponto.');
-      return;
-    }
+    if (steps.length <= 1) return;
     setSteps(prev => {
       const filtered = prev.filter(s => s.id !== id);
       return filtered.map((s, idx) => ({ ...s, stepOrder: idx + 1 }));
@@ -113,7 +109,7 @@ export const ItineraryEditModal: React.FC<ItineraryEditModalProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 z-[150] flex items-center justify-center p-4 bg-black/60">
+    <div className="fixed inset-0 z-[150] flex items-center justify-center p-4 bg-black/55 pointer-events-auto">
       <motion.div
         initial={{ opacity: 0, scale: 0.94, y: 15 }}
         animate={{ opacity: 1, scale: 1, y: 0 }}
@@ -122,110 +118,158 @@ export const ItineraryEditModal: React.FC<ItineraryEditModalProps> = ({
         className={`w-full max-w-md rounded-[32px] max-h-[85vh] overflow-hidden flex flex-col shadow-[0_20px_50px_rgba(0,0,0,0.18)] border ${
           isDark
             ? 'bg-[#000000] text-white border-[#262626]'
-            : '!bg-[#ffffff] bg-[#ffffff] text-zinc-900 border-zinc-200/80'
+            : 'bg-[#FFFFFF] text-[#000000] border-black/[0.06]'
         }`}
-        style={{ backgroundColor: isDark ? '#000000' : '#ffffff' }}
+        style={{ backgroundColor: isDark ? '#000000' : '#FFFFFF' }}
       >
-        {/* Scrollable Body with Sticky Translucent Blurred Header */}
         <div className="flex-1 overflow-y-auto scrollbar-none flex flex-col">
-        {/* Header */}
-        <div
-          className="sticky top-0 z-20 px-6 pt-6 pb-3.5 flex items-center justify-between border-b border-zinc-200/60 dark:border-[#262626]/70 shrink-0"
-          style={{
-            color: isDark ? '#FFFFFF' : '#4f4f4f',
-            backgroundColor: isDark ? 'rgba(0, 0, 0, 0.40)' : 'rgba(255, 255, 255, 0.40)',
-          }}
-        >
-          <div>
-            <h2
-              className={`text-xl font-black tracking-tight ${isDark ? 'text-white' : 'text-[#2d2d2d]'}`}
-              style={{ color: isDark ? '#FFFFFF' : '#2d2d2d' }}
-            >
-              Editar Roteiro
-            </h2>
-            <p
-              className={`text-xs font-bold mt-0.5 ${isDark ? 'text-[#A1A1AA]' : 'text-[#000000]'}`}
-              style={{ color: isDark ? '#A1A1AA' : '#000000' }}
-            >
-              Reorganize a ordem dos pontos ou remova locais.
-            </p>
-          </div>
-          <button
-            onClick={onClose}
-            className="w-8 h-8 rounded-full flex items-center justify-center hover:bg-zinc-100 dark:hover:bg-white/10 text-zinc-400 hover:text-zinc-700 dark:hover:text-white transition-colors cursor-pointer"
-            title="Fechar"
+          {/* Header */}
+          <div
+            className={`sticky top-0 z-20 px-6 pt-6 pb-3.5 flex items-center justify-between border-b shrink-0 ${
+              isDark ? 'bg-[#000000] border-[#262626]' : 'bg-[#FFFFFF] border-black/[0.06]'
+            }`}
           >
-            <X className="w-5 h-5" />
-          </button>
-        </div>
-
-        {/* Steps List */}
-        <div className="px-6 py-4 space-y-2.5">
-          {steps.map((step, idx) => (
-            <div
-              key={step.id}
-              className={`p-3 sm:p-3.5 rounded-[22px] flex items-center justify-between gap-3 transition-colors ${
+            <div>
+              <h2 className={`text-xl font-black tracking-tight ${isDark ? 'text-white' : 'text-[#000000]'}`}>
+                Editar Roteiro
+              </h2>
+              <p className="text-xs font-medium mt-0.5 text-[#8E8E93]">
+                Reorganize a ordem dos pontos ou remova locais.
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={onClose}
+              className={`w-9 h-9 rounded-full flex items-center justify-center border transition-all active:scale-90 cursor-pointer ${
                 isDark
-                  ? 'bg-[#1C1C1E] border border-white/10 hover:border-white/25'
-                  : 'ios-glass-btn-white hover:bg-white/90 shadow-xs'
+                  ? 'bg-[#171717] border-white/10 text-white hover:bg-zinc-800'
+                  : 'bg-[#FFFFFF] border-black/[0.06] text-[#111111] shadow-[0_2px_8px_rgba(0,0,0,0.06)] hover:bg-zinc-50'
               }`}
+              title="Fechar"
             >
-              <div className="flex items-center gap-3 min-w-0 flex-1">
-                <div className="relative shrink-0 flex items-center justify-center">
-                  <span className={`w-7 h-7 rounded-full text-xs font-black flex items-center justify-center shrink-0 shadow-sm ${
-                    isGoldUser
-                      ? 'bg-metallic-gold text-[#1A1202] shadow-[#E5AC33]/40 border border-[#FFF4A3]/60'
-                      : isDark
-                      ? 'bg-white text-black shadow-white/20'
-                      : 'bg-zinc-900 text-white shadow-black/10'
-                  }`}>
+              <X className="w-4 h-4 stroke-[2]" />
+            </button>
+          </div>
+
+          {/* Steps List */}
+          <div className="px-5 py-4 space-y-2.5">
+            {steps.map((step, idx) => (
+              <div
+                key={step.id}
+                className={`p-3 rounded-[24px] flex items-center justify-between gap-2.5 transition-colors border ${
+                  isDark
+                    ? 'bg-[#171717] border-white/10 hover:border-white/25'
+                    : 'bg-[#FFFFFF] border-black/[0.07] shadow-[0_1px_4px_rgba(0,0,0,0.03)]'
+                }`}
+              >
+                <div className="flex items-center gap-2.5 min-w-0 flex-1">
+                  <span
+                    className={`w-7 h-7 rounded-full text-[11px] font-black flex items-center justify-center shrink-0 tabular-nums ${
+                      isGoldUser
+                        ? 'bg-metallic-gold text-[#1A1202] border border-[#FFF4A3]/60'
+                        : isDark
+                          ? 'bg-white text-black'
+                          : 'bg-[#000000] text-white'
+                    }`}
+                  >
                     {String(idx + 1).padStart(2, '0')}
                   </span>
-                </div>
-                <div className="min-w-0 flex-1">
-                  <div className="flex items-center gap-1.5 min-w-0">
-                    <h4 className="text-[13px] sm:text-sm font-black truncate uppercase text-zinc-900 dark:text-white">
+
+                  <div className="min-w-0 flex-1">
+                    <h4 className={`text-[13px] font-black truncate uppercase ${isDark ? 'text-white' : 'text-[#000000]'}`}>
                       {step.spot?.name || `Ponto ${idx + 1}`}
                     </h4>
-                  </div>
-                  <div className="flex items-center gap-1.5 text-xs text-zinc-400 font-bold mt-0.5">
-                    <Clock className={`w-3 h-3 shrink-0 ${isGoldUser ? 'text-[#F5BE38]' : 'text-zinc-400'}`} />
-                    <span>{step.suggestedTime || '09:30'}</span>
+                    <div className="flex items-center gap-1 text-[11px] text-[#8E8E93] font-medium mt-0.5 whitespace-nowrap">
+                      <Clock className={`w-3 h-3 shrink-0 ${isGoldUser ? 'text-[#F5BE38]' : 'text-[#8E8E93]'}`} />
+                      <span className="tabular-nums">{step.suggestedTime || '09:30'}</span>
+                    </div>
                   </div>
                 </div>
-              </div>
 
-              {/* Action buttons: Round Play Button + Remove */}
-              <div className="flex items-center gap-1.5 shrink-0">
-                <motion.button
-                  type="button"
-                  whileTap={{ scale: 0.9 }}
-                  onClick={() => openDirectionsMap(step.spot)}
-                  className="w-8 h-8 rounded-full bg-white text-zinc-900 shadow-sm flex items-center justify-center hover:bg-zinc-100 transition-all cursor-pointer"
-                  title="Abrir rota no Maps"
-                  aria-label="Abrir rota no Maps"
-                >
-                  <Play className="w-3.5 h-3.5 fill-zinc-900 text-zinc-900 ml-0.5" />
-                </motion.button>
+                {/* Action buttons: Up, Down, Play, Remove */}
+                <div className="flex items-center gap-1 shrink-0">
+                  {steps.length > 1 && (
+                    <>
+                      <button
+                        type="button"
+                        disabled={idx === 0}
+                        onClick={() => handleMoveUp(idx)}
+                        className={`w-7 h-7 rounded-full border flex items-center justify-center transition-all ${
+                          idx === 0 ? 'opacity-30 cursor-not-allowed' : 'active:scale-90 cursor-pointer'
+                        } ${
+                          isDark
+                            ? 'bg-[#242426] border-white/10 text-white'
+                            : 'bg-[#FFFFFF] border-black/[0.06] text-[#111111] shadow-[0_1px_5px_rgba(0,0,0,0.06)]'
+                        }`}
+                        title="Mover para cima"
+                        aria-label="Mover para cima"
+                      >
+                        <ArrowUp className="w-3.5 h-3.5 stroke-[2]" />
+                      </button>
 
-                <button
-                  type="button"
-                  onClick={() => handleRemoveStep(step.id)}
-                  className="px-2 py-1 rounded-lg flex items-center justify-center text-rose-500 hover:bg-rose-500/10 active:scale-95 text-[11px] font-bold transition-all ml-0.5"
-                  title="Remover ponto"
-                >
-                  Remover
-                </button>
+                      <button
+                        type="button"
+                        disabled={idx === steps.length - 1}
+                        onClick={() => handleMoveDown(idx)}
+                        className={`w-7 h-7 rounded-full border flex items-center justify-center transition-all ${
+                          idx === steps.length - 1 ? 'opacity-30 cursor-not-allowed' : 'active:scale-90 cursor-pointer'
+                        } ${
+                          isDark
+                            ? 'bg-[#242426] border-white/10 text-white'
+                            : 'bg-[#FFFFFF] border-black/[0.06] text-[#111111] shadow-[0_1px_5px_rgba(0,0,0,0.06)]'
+                        }`}
+                        title="Mover para baixo"
+                        aria-label="Mover para baixo"
+                      >
+                        <ArrowDown className="w-3.5 h-3.5 stroke-[2]" />
+                      </button>
+                    </>
+                  )}
+
+                  <motion.button
+                    type="button"
+                    whileTap={{ scale: 0.9 }}
+                    onClick={() => openDirectionsMap(step.spot)}
+                    className={`w-8 h-8 rounded-full border flex items-center justify-center transition-all cursor-pointer ${
+                      isDark
+                        ? 'bg-[#242426] border-white/10 text-white'
+                        : 'bg-[#FFFFFF] border-black/[0.05] text-[#111111] shadow-[0_2px_8px_rgba(0,0,0,0.08)] hover:bg-zinc-50'
+                    }`}
+                    title="Abrir rota no Maps"
+                    aria-label="Abrir rota no Maps"
+                  >
+                    <Play className="w-3.5 h-3.5 fill-current ml-0.5" />
+                  </motion.button>
+
+                  {steps.length > 1 && (
+                    <button
+                      type="button"
+                      onClick={() => handleRemoveStep(step.id)}
+                      className={`w-7 h-7 rounded-full border flex items-center justify-center active:scale-90 transition-all cursor-pointer ${
+                        isDark
+                          ? 'bg-[#242426] border-white/10 text-[#8E8E93] hover:text-red-400'
+                          : 'bg-[#FFFFFF] border-black/[0.06] text-[#8E8E93] hover:text-red-500 shadow-[0_1px_5px_rgba(0,0,0,0.06)]'
+                      }`}
+                      title="Remover ponto"
+                      aria-label="Remover ponto"
+                    >
+                      <Trash2 className="w-3.5 h-3.5 stroke-[1.9]" />
+                    </button>
+                  )}
+                </div>
               </div>
-            </div>
-          ))}
-        </div>
+            ))}
+          </div>
         </div>
 
         {/* Delete Confirmation or Actions */}
-        <div className="px-6 pt-3.5 pb-6 border-t border-zinc-200/80 dark:border-white/10 shrink-0">
+        <div
+          className={`px-6 pt-3.5 pb-6 border-t shrink-0 ${
+            isDark ? 'border-white/10' : 'border-black/[0.06]'
+          }`}
+        >
           {confirmDelete ? (
-            <div className="p-3.5 rounded-[22px] bg-rose-500/10 border border-rose-500/20 text-rose-500 flex flex-col gap-2.5">
+            <div className="p-3.5 rounded-[22px] bg-red-500/10 border border-red-500/20 text-red-500 flex flex-col gap-2.5">
               <div className="flex items-center gap-2 text-xs font-bold">
                 <AlertTriangle className="w-4 h-4 shrink-0" />
                 <span>Tem certeza que deseja apagar este roteiro?</span>
@@ -238,14 +282,14 @@ export const ItineraryEditModal: React.FC<ItineraryEditModalProps> = ({
                     onDeleteItinerary();
                     onClose();
                   }}
-                  className="flex-1 py-2.5 rounded-xl bg-rose-600 text-white font-black text-xs hover:bg-rose-500 transition-colors cursor-pointer"
+                  className="flex-1 py-2.5 rounded-full bg-red-600 text-white font-black text-xs hover:bg-red-500 transition-colors cursor-pointer"
                 >
                   Sim, apagar roteiro
                 </button>
                 <button
                   type="button"
                   onClick={() => setConfirmDelete(false)}
-                  className="px-4 py-2.5 rounded-xl bg-zinc-200 dark:bg-zinc-800 text-zinc-800 dark:text-zinc-200 font-bold text-xs hover:bg-zinc-300 dark:hover:bg-zinc-700 transition-colors cursor-pointer"
+                  className="px-4 py-2.5 rounded-full bg-zinc-200 dark:bg-zinc-800 text-zinc-800 dark:text-zinc-200 font-bold text-xs hover:bg-zinc-300 dark:hover:bg-zinc-700 transition-colors cursor-pointer"
                 >
                   Cancelar
                 </button>
@@ -256,9 +300,9 @@ export const ItineraryEditModal: React.FC<ItineraryEditModalProps> = ({
               <button
                 type="button"
                 onClick={() => setConfirmDelete(true)}
-                className="py-2.5 px-3 rounded-xl text-rose-500 hover:bg-rose-500/10 font-bold text-xs flex items-center gap-1.5 transition-colors cursor-pointer"
+                className="py-2.5 px-3 rounded-full text-red-500 hover:bg-red-500/10 font-bold text-xs flex items-center gap-1.5 transition-colors cursor-pointer"
               >
-                <span>Apagar roteiro</span>
+                <span>Apagar</span>
               </button>
 
               <div className="flex items-center gap-2">
@@ -268,12 +312,11 @@ export const ItineraryEditModal: React.FC<ItineraryEditModalProps> = ({
                     onClose();
                     onCreateNewItinerary();
                   }}
-                  className={`py-2.5 px-3 rounded-xl font-bold text-xs transition-colors cursor-pointer ${
+                  className={`py-2.5 px-3.5 rounded-full font-bold text-xs transition-colors cursor-pointer border ${
                     isDark
-                      ? 'text-white hover:bg-white/10 border border-[#262626]'
-                      : '!text-[#000000] text-[#000000] hover:bg-zinc-100 border border-zinc-200'
+                      ? 'bg-[#171717] text-white hover:bg-white/10 border-[#262626]'
+                      : 'bg-[#FFFFFF] text-[#000000] hover:bg-zinc-50 border-black/[0.08] shadow-[0_2px_8px_rgba(0,0,0,0.05)]'
                   }`}
-                  style={{ color: isDark ? '#ffffff' : '#000000' }}
                 >
                   Criar Novo
                 </button>
@@ -281,11 +324,14 @@ export const ItineraryEditModal: React.FC<ItineraryEditModalProps> = ({
                 <button
                   type="button"
                   onClick={handleSave}
-                  className="py-2.5 px-4 rounded-xl font-black text-xs transition-all shadow-md flex items-center gap-1.5 cursor-pointer active:scale-95 !bg-[#2f97ff] bg-[#2f97ff] !text-[#ffffff] text-[#ffffff] hover:opacity-95"
-                  style={{ backgroundColor: '#2f97ff', color: '#ffffff' }}
+                  className={`py-2.5 px-4 rounded-full font-black text-xs transition-all flex items-center gap-1.5 cursor-pointer active:scale-95 ${
+                    isDark
+                      ? 'bg-[#FFFFFF] text-[#000000] hover:bg-zinc-200'
+                      : 'bg-[#000000] text-[#FFFFFF] hover:bg-[#171717] shadow-[0_4px_12px_rgba(0,0,0,0.16)]'
+                  }`}
                 >
-                  <Check className="w-3.5 h-3.5 stroke-[3] !text-[#ffffff] text-[#ffffff]" style={{ color: '#ffffff' }} />
-                  <span className="!text-[#ffffff] text-[#ffffff]" style={{ color: '#ffffff' }}>Salvar</span>
+                  <Check className="w-3.5 h-3.5 stroke-[3]" />
+                  <span>Salvar</span>
                 </button>
               </div>
             </div>
