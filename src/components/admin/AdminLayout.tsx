@@ -229,7 +229,7 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({
       id="admin-layout-root"
       className="w-full flex overflow-hidden antialiased rounded-t-[26px] ios-page-top-rounded"
       style={{
-        backgroundColor: ADMIN_COLORS.canvasBg,
+        backgroundColor: activeTab === 'users' ? '#F6F7F9' : ADMIN_COLORS.canvasBg,
         color: ADMIN_COLORS.textPrimary,
         fontFamily:
           '-apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro Text", "Inter", "Segoe UI", Roboto, sans-serif',
@@ -364,61 +364,67 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({
           id="admin-main-content"
           className="flex-1 overflow-y-auto min-h-0 w-full"
           style={{
-            paddingTop: 'max(18px, calc(env(safe-area-inset-top, 0px) + 14px))',
-            paddingBottom: 'max(100px, calc(env(safe-area-inset-bottom, 0px) + 72px))',
+            paddingTop: 'max(16px, calc(env(safe-area-inset-top, 0px) + 12px))',
+            paddingBottom: 'max(114px, calc(env(safe-area-inset-bottom, 0px) + 92px))',
             paddingLeft: 'max(16px, env(safe-area-inset-left, 0px))',
             paddingRight: 'max(16px, env(safe-area-inset-right, 0px))',
           }}
         >
-          <div className="max-w-[1340px] mx-auto px-1 sm:px-4 lg:px-8">
+          <div className="max-w-[1340px] mx-auto px-0.5 sm:px-4 lg:px-8">
             {/* Compact Top Utility Row (Mobile drawer trigger + Floating Profile Pill on right) */}
-            <div className="flex items-center justify-between md:justify-end gap-3 mb-4 sm:mb-5">
+            <div className="flex items-center justify-between md:justify-end gap-2.5 mb-5">
               {/* Mobile Hamburger + Compact Brand */}
-              <div className="flex md:hidden items-center gap-2.5">
+              <div className="flex md:hidden items-center gap-2.5 min-w-0">
                 <button
                   type="button"
                   onClick={() => setIsMobileMenuOpen(true)}
                   aria-label="Abrir menu administrativo"
-                  className="w-11 h-11 rounded-full bg-white flex items-center justify-center text-[#0D1526] active:scale-95 transition-transform cursor-pointer"
-                  style={{ boxShadow: ADMIN_SHADOWS.floatingPill }}
+                  className="w-11 h-11 rounded-full bg-white border border-black/[0.04] flex items-center justify-center text-[#1C1F26] active:scale-95 transition-transform cursor-pointer shrink-0"
+                  style={{
+                    boxShadow:
+                      '0 6px 18px -6px rgba(15, 23, 42, 0.08), 0 1px 4px rgba(15, 23, 42, 0.04)',
+                  }}
                 >
-                  <Menu className="w-5 h-5" />
+                  <Menu className="w-[19px] h-[19px] stroke-[2]" />
                 </button>
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-1.5 min-w-0">
                   <img
                     src="/minilogo.png"
                     alt="Monvian"
-                    className="w-7 h-7 object-contain select-none"
+                    className="w-7 h-7 object-contain select-none shrink-0"
                     style={{ mixBlendMode: 'multiply' }}
                   />
-                  <span className="text-[16px] font-bold tracking-[-0.02em] text-[#0D1526]">
+                  <span className="text-[16px] font-bold tracking-[-0.025em] text-[#181C23] truncate">
                     Monvian
                   </span>
                 </div>
               </div>
 
-              {/* Compact Floating Profile Pill Dropdown (Matching Reference Top-Right) */}
-              <div ref={profileMenuRef} className="relative z-40">
+              {/* Compact Floating Profile Pill Dropdown */}
+              <div ref={profileMenuRef} className="relative z-40 shrink-0">
                 <button
                   type="button"
                   id="btn-admin-profile-menu"
                   onClick={() => setIsProfileMenuOpen((v) => !v)}
                   aria-expanded={isProfileMenuOpen}
                   aria-haspopup="menu"
-                  className="group flex items-center gap-3 pl-2 pr-4 py-1.5 rounded-full bg-white border border-white/95 cursor-pointer select-none transition-all duration-200 hover:-translate-y-0.5 active:translate-y-0 active:scale-[0.98]"
-                  style={{ boxShadow: ADMIN_SHADOWS.floatingPill }}
+                  className="group flex items-center gap-2.5 pl-1.5 pr-3.5 py-1.5 rounded-full bg-white border border-black/[0.04] cursor-pointer select-none transition-all duration-200 hover:-translate-y-0.5 active:translate-y-0 active:scale-[0.98]"
+                  style={{
+                    boxShadow:
+                      '0 6px 18px -6px rgba(15, 23, 42, 0.08), 0 1px 4px rgba(15, 23, 42, 0.04)',
+                  }}
                 >
                   <img
                     src={avatarSrc}
                     alt={displayName}
-                    className="w-9 h-9 rounded-full object-cover ring-2 ring-[#F4F7FC] shrink-0"
+                    className="w-8 h-8 rounded-full object-cover ring-1 ring-black/[0.05] shrink-0"
                   />
-                  <span className="text-[14px] sm:text-[14.5px] font-semibold text-[#0D1526] tracking-[-0.01em] max-w-[130px] sm:max-w-[180px] truncate">
+                  <span className="text-[13.5px] sm:text-[14.5px] font-semibold text-[#181C23] tracking-[-0.015em] max-w-[116px] sm:max-w-[180px] truncate">
                     {displayName}
                   </span>
                   <ChevronDown
-                    className={`w-4 h-4 text-[#475569] transition-transform duration-200 ${
-                      isProfileMenuOpen ? 'rotate-180 text-[#1668FF]' : ''
+                    className={`w-4 h-4 text-[#4B5563] transition-transform duration-200 shrink-0 ${
+                      isProfileMenuOpen ? 'rotate-180 text-[#181C23]' : ''
                     }`}
                   />
                 </button>
@@ -518,9 +524,7 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({
                   transition={{ duration: 0.2, ease: ADMIN_MOTION_EASE }}
                   className="w-full"
                 >
-                  {activeTab === 'dashboard' && (
-                    <AdminDashboard onNavigateTo={(tab) => handleSelectAdminTab(tab)} />
-                  )}
+                  {activeTab === 'dashboard' && <AdminDashboard />}
                   {activeTab === 'spots' && <AdminSpots />}
                   {activeTab === 'itineraries' && <AdminItineraries />}
                   {activeTab === 'platanos' && <AdminPlatanos currentUser={currentUser} />}

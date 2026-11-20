@@ -16,8 +16,6 @@ import {
   Check,
   Sliders,
   Loader2,
-  CloudRain,
-  Snowflake,
   Moon,
   Sun,
   Bell,
@@ -60,14 +58,12 @@ interface ProfileModalProps {
   favorites: string[];
   spots: Spot[];
   onSelectSpot: (spot: Spot) => void;
-  rainEnabled?: boolean;
-  onToggleRain?: () => void;
-  snowEnabled?: boolean;
-  onToggleSnow?: () => void;
   theme: 'dark' | 'light';
   onToggleTheme: () => void;
   highContrast?: boolean;
   onToggleHighContrast?: () => void;
+  zoomDurationMs?: number;
+  onChangeZoomDuration?: (ms: number) => void;
   user: any;
   onUpdateUser?: (updatedUser: any) => void;
   onOpenAdmin?: () => void;
@@ -95,14 +91,12 @@ export const ProfileModal: React.FC<ProfileModalProps> = React.memo(({
   favorites,
   spots,
   onSelectSpot,
-  rainEnabled = false,
-  onToggleRain,
-  snowEnabled = false,
-  onToggleSnow,
   theme,
   onToggleTheme,
   highContrast = false,
   onToggleHighContrast,
+  zoomDurationMs = 780,
+  onChangeZoomDuration,
   user,
   onUpdateUser,
   onOpenAdmin,
@@ -1114,63 +1108,90 @@ export const ProfileModal: React.FC<ProfileModalProps> = React.memo(({
                 </div>
               </motion.div>
 
-              {/* GROUP 1: PREFERÊNCIAS & CLIMA */}
-              <motion.div
-                initial={{ opacity: 0, scale: 0.88, y: 12 }}
-                animate={{ opacity: 1, scale: 1, y: 0 }}
-                transition={{ type: 'spring', stiffness: 380, damping: 22, delay: 0.025 }}
-              >
-                <p className="text-[12px] font-bold text-zinc-500 dark:text-zinc-400 uppercase tracking-wider px-3 mb-2">
-                  Preferências & Efeitos
-                </p>
-                <div className={`rounded-[24px] border overflow-hidden ${
-                  isDark ? 'bg-[#1C1C1E] border-white/10 divide-y divide-white/5' : 'bg-[#fefefe] border-black/5 divide-y divide-black/5'
-                }`}>
-                  {/* Chuva Dinâmica */}
-                  <div className="p-4 flex items-center justify-between gap-3">
-                    <div className="flex items-center gap-3.5 min-w-0">
-                      <div className="flex items-center justify-center shrink-0 text-zinc-950 dark:text-white">
-                        <CloudRain className="w-7 h-7 stroke-[1.8]" />
+              {/* GROUP 1: PREFERÊNCIAS DE MAPA */}
+              {onChangeZoomDuration && (
+                <motion.div
+                  initial={{ opacity: 0, scale: 0.88, y: 12 }}
+                  animate={{ opacity: 1, scale: 1, y: 0 }}
+                  transition={{ type: 'spring', stiffness: 380, damping: 22, delay: 0.025 }}
+                >
+                  <p className="text-[12px] font-bold text-zinc-500 dark:text-zinc-400 uppercase tracking-wider px-3 mb-2">
+                    Preferências de Mapa
+                  </p>
+                  <div className={`rounded-[24px] border overflow-hidden ${
+                    isDark ? 'bg-[#1C1C1E] border-white/10 divide-y divide-white/5' : 'bg-[#fefefe] border-black/5 divide-y divide-black/5'
+                  }`}>
+                    {/* Velocidade da Transição de Zoom no Mapa */}
+                    <div className="p-4 space-y-3">
+                      <div className="flex items-center justify-between gap-3">
+                        <div className="flex items-center gap-3.5 min-w-0">
+                          <div className="flex items-center justify-center shrink-0 text-zinc-950 dark:text-white">
+                            <Sliders className="w-6 h-6 stroke-[1.8]" />
+                          </div>
+                          <div className="min-w-0">
+                            <h4 className="text-[15px] font-semibold tracking-tight">
+                              Transição de Zoom no Mapa
+                            </h4>
+                            <p className="text-[12px] text-zinc-500 dark:text-zinc-400 font-medium">
+                              Tempo da animação ao focar pontos
+                            </p>
+                          </div>
+                        </div>
+                        <span className="text-[12px] font-bold tabular-nums px-2.5 py-1 rounded-full bg-zinc-100 dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 shrink-0">
+                          {(zoomDurationMs / 1000).toFixed(2).replace('.', ',')}s
+                        </span>
                       </div>
-                      <div className="min-w-0">
-                        <h4 className="text-[15px] font-semibold tracking-tight">
-                          Chuva Dinâmica no Relevo
-                        </h4>
-                        <p className="text-[12px] text-zinc-500 dark:text-zinc-400 font-medium">
-                          Simulação de precipitação no mapa 3D
-                        </p>
-                      </div>
-                    </div>
-                    <IOSSwitch
-                      checked={Boolean(rainEnabled)}
-                      onChange={() => onToggleRain?.()}
-                      ariaLabel="Chuva dinâmica"
-                    />
-                  </div>
 
-                  {/* Neve das Montanhas */}
-                  <div className="p-4 flex items-center justify-between gap-3">
-                    <div className="flex items-center gap-3.5 min-w-0">
-                      <div className="flex items-center justify-center shrink-0 text-zinc-950 dark:text-white">
-                        <Snowflake className="w-7 h-7 stroke-[1.8]" />
+                      <div
+                        className={`grid grid-cols-3 gap-1 p-1 rounded-xl ${
+                          isDark ? 'bg-black/60 border border-white/10' : 'bg-[#F2F2F2]'
+                        }`}
+                      >
+                        {[
+                          { label: 'Ágil', value: 450 },
+                          { label: 'Suave', value: 780 },
+                          { label: 'Cinemática', value: 1200 },
+                        ].map((preset) => {
+                          const isPresetActive = Math.abs(zoomDurationMs - preset.value) <= 60;
+                          return (
+                            <button
+                              key={preset.label}
+                              type="button"
+                              onClick={() => onChangeZoomDuration(preset.value)}
+                              className={`py-1.5 rounded-lg text-[12px] font-semibold transition-all cursor-pointer ${
+                                isPresetActive
+                                  ? 'bg-white text-black shadow-xs'
+                                  : 'text-zinc-500 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-white'
+                              }`}
+                            >
+                              {preset.label}
+                            </button>
+                          );
+                        })}
                       </div>
-                      <div className="min-w-0">
-                        <h4 className="text-[15px] font-semibold tracking-tight">
-                          Neve das Montanhas
-                        </h4>
-                        <p className="text-[12px] text-zinc-500 dark:text-zinc-400 font-medium">
-                          Flocos de neve caindo sobre Campos
-                        </p>
+
+                      <div className="flex items-center gap-3 pt-0.5">
+                        <span className="text-[11px] font-medium text-zinc-400 tabular-nums shrink-0">
+                          0,3s
+                        </span>
+                        <input
+                          type="range"
+                          min={300}
+                          max={1600}
+                          step={50}
+                          value={zoomDurationMs}
+                          onChange={(e) => onChangeZoomDuration(Number(e.target.value))}
+                          aria-label="Tempo da animação de zoom no mapa"
+                          className="w-full h-1.5 rounded-full appearance-none cursor-pointer bg-zinc-200 dark:bg-zinc-700 accent-black dark:accent-white"
+                        />
+                        <span className="text-[11px] font-medium text-zinc-400 tabular-nums shrink-0">
+                          1,6s
+                        </span>
                       </div>
                     </div>
-                    <IOSSwitch
-                      checked={Boolean(snowEnabled)}
-                      onChange={() => onToggleSnow?.()}
-                      ariaLabel="Neve das montanhas"
-                    />
                   </div>
-                </div>
-              </motion.div>
+                </motion.div>
+              )}
 
               {/* GROUP 2: PERMISSÕES & SENSORES */}
               <motion.div

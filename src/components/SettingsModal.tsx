@@ -4,8 +4,6 @@ import {
   X,
   Moon,
   Sun,
-  CloudRain,
-  Snowflake,
   Sliders,
   Check,
   ChevronRight,
@@ -21,10 +19,6 @@ interface SettingsModalProps {
   onClose: () => void;
   theme: 'dark' | 'light';
   onToggleTheme: () => void;
-  rainEnabled?: boolean;
-  onToggleRain?: () => void;
-  snowEnabled?: boolean;
-  onToggleSnow?: () => void;
   highContrast?: boolean;
   onToggleHighContrast?: () => void;
   onOpenAccountSettings?: () => void;
@@ -35,10 +29,6 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
   onClose,
   theme,
   onToggleTheme,
-  rainEnabled = false,
-  onToggleRain,
-  snowEnabled = false,
-  onToggleSnow,
   highContrast = false,
   onToggleHighContrast,
   onOpenAccountSettings,
@@ -157,59 +147,6 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
               </div>
 
               {/* SECTION: EFEITOS VISUAIS */}
-              <div>
-                <span className="text-[11px] font-bold uppercase tracking-wider text-zinc-500 dark:text-zinc-400 px-2 block mb-2">
-                  Efeitos & Relevo
-                </span>
-                <div
-                  className={`rounded-2xl border divide-y overflow-hidden ${
-                    isDark
-                      ? 'bg-[#1C1C1E] border-white/10 divide-white/5'
-                      : 'bg-white border-black/5 divide-black/5 shadow-2xs'
-                  }`}
-                >
-                  {/* Chuva */}
-                  <div className="p-3.5 flex items-center justify-between gap-3">
-                    <div className="flex items-center gap-3 min-w-0">
-                      <CloudRain className="w-5 h-5 text-blue-500 shrink-0 stroke-[2]" />
-                      <div className="min-w-0">
-                        <h4 className="text-sm font-semibold tracking-tight">
-                          Chuva Dinâmica
-                        </h4>
-                        <p className="text-[11px] text-zinc-500 dark:text-zinc-400">
-                          Precipitação no mapa 3D
-                        </p>
-                      </div>
-                    </div>
-                    <IOSSwitch
-                      checked={Boolean(rainEnabled)}
-                      onChange={() => onToggleRain?.()}
-                      ariaLabel="Chuva dinâmica"
-                    />
-                  </div>
-
-                  {/* Neve */}
-                  <div className="p-3.5 flex items-center justify-between gap-3">
-                    <div className="flex items-center gap-3 min-w-0">
-                      <Snowflake className="w-5 h-5 text-sky-400 shrink-0 stroke-[2]" />
-                      <div className="min-w-0">
-                        <h4 className="text-sm font-semibold tracking-tight">
-                          Neve das Montanhas
-                        </h4>
-                        <p className="text-[11px] text-zinc-500 dark:text-zinc-400">
-                          Flocos de neve sobre Campos
-                        </p>
-                      </div>
-                    </div>
-                    <IOSSwitch
-                      checked={Boolean(snowEnabled)}
-                      onChange={() => onToggleSnow?.()}
-                      ariaLabel="Neve das montanhas"
-                    />
-                  </div>
-                </div>
-              </div>
-
               {/* SECTION: IDIOMA */}
               <div>
                 <span className="text-[11px] font-bold uppercase tracking-wider text-zinc-500 dark:text-zinc-400 px-2 block mb-2">

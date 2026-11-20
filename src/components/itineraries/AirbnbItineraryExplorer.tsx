@@ -1042,7 +1042,25 @@ export const AirbnbItineraryExplorer: React.FC<AirbnbItineraryExplorerProps> = (
               title="Sua carteira de Plátanos"
               aria-label="Sua carteira de Plátanos"
             >
-              <PlatanoLeafIcon className="w-6 h-6 shrink-0" variant="monochrome" />
+              <svg
+                viewBox="0 0 24 24"
+                fill="none"
+                aria-hidden="true"
+                className="w-[18px] h-[18px] shrink-0 text-[#000000] dark:text-[#FFFFFF]"
+              >
+                <path
+                  d="M 3.6 20.4 L 7.4 16.6"
+                  stroke="currentColor"
+                  strokeWidth="1.75"
+                  strokeLinecap="round"
+                />
+                <path
+                  fill="currentColor"
+                  fillRule="evenodd"
+                  clipRule="evenodd"
+                  d="M 6.8 16.2 C 5.4 12.0, 7.8 6.8, 13.6 4.8 C 16.4 3.8, 19.0 3.4, 20.8 3.2 C 20.6 5.0, 20.2 7.6, 19.2 10.4 C 17.2 16.2, 12.0 18.6, 7.8 17.2 Z M 7.2 16.5 Q 11.3 12.1 16.7 7.3 Q 11.8 12.7 7.7 17.0 Z"
+                />
+              </svg>
               <span>{wallet.balance}</span>
             </button>
 

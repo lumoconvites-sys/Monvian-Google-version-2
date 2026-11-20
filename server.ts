@@ -2203,18 +2203,14 @@ async function startServer() {
   app.post('/api/user/settings', async (req: Request, res: Response) => {
     try {
       const currentUser = await resolveAuthenticatedUser(req);
-      const { rain_enabled, snow_enabled, theme, high_contrast } = req.body || {};
+      const { theme, high_contrast } = req.body || {};
       if (currentUser?.id) {
         db.prepare(`
           UPDATE users
-          SET rain_enabled = COALESCE(?, rain_enabled),
-              snow_enabled = COALESCE(?, snow_enabled),
-              theme = COALESCE(?, theme),
+          SET theme = COALESCE(?, theme),
               high_contrast = COALESCE(?, high_contrast)
           WHERE id = ?
         `).run(
-          rain_enabled !== undefined ? (rain_enabled ? 1 : 0) : null,
-          snow_enabled !== undefined ? (snow_enabled ? 1 : 0) : null,
           theme || null,
           high_contrast !== undefined ? (high_contrast ? 1 : 0) : null,
           currentUser.id
@@ -4068,11 +4064,6 @@ async function startServer() {
         avgSessionDuration = `${estimatedMinutes}m`;
       }
 
-      const rainSetting =
-        safeGet<{ value: string }>("SELECT value FROM system_settings WHERE key = 'weather_rain_mode'")?.value || 'auto';
-      const snowSetting =
-        safeGet<{ value: string }>("SELECT value FROM system_settings WHERE key = 'weather_snow_mode'")?.value || 'fraca';
-
       // Build real community activity time series for 7d, 30d, and 90d
       const buildActivitySeries = (daysWindow: 7 | 30 | 90) => {
         const bucketCount = daysWindow === 7 ? 7 : 6;
@@ -4195,20 +4186,6 @@ async function startServer() {
           });
       };
 
-      // Real onboarding breakdowns from users / user_onboarding tables
-      const referrals = safeAll<{ referral_source: string; count: number }>(
-        `SELECT COALESCE(NULLIF(TRIM(campos_relationship), ''), 'Direto') as referral_source, COUNT(*) as count FROM user_onboarding WHERE onboarding_completed = 1 GROUP BY referral_source ORDER BY count DESC LIMIT 5`
-      );
-      const styles = safeAll<{ travel_style: string; count: number }>(
-        `SELECT COALESCE(NULLIF(TRIM(travel_company), ''), 'Não informado') as travel_style, COUNT(*) as count FROM user_onboarding WHERE onboarding_completed = 1 GROUP BY travel_style ORDER BY count DESC LIMIT 5`
-      );
-      const frequencies = safeAll<{ travel_frequency: string; count: number }>(
-        `SELECT COALESCE(NULLIF(TRIM(next_trip_timing), ''), 'Não informado') as travel_frequency, COUNT(*) as count FROM user_onboarding WHERE onboarding_completed = 1 GROUP BY travel_frequency ORDER BY count DESC LIMIT 5`
-      );
-      const completedOnboarding = safeCount('SELECT COUNT(*) as c FROM user_onboarding WHERE onboarding_completed = 1');
-      const completionRate =
-        totalUsers > 0 ? Math.min(100, Math.round((completedOnboarding / totalUsers) * 100)) : 0;
-
       return res.json({
         success: true,
         metrics: {
@@ -4230,16 +4207,6 @@ async function startServer() {
             '30d': buildDestinationViews(30),
             '90d': buildDestinationViews(90),
           },
-          effects: {
-            rainMode: rainSetting,
-            snowMode: snowSetting,
-          },
-          onboarding: {
-            completionRate,
-            referrals,
-            styles,
-            frequencies,
-          },
         },
       });
     } catch (err: any) {
@@ -4247,45 +4214,94 @@ async function startServer() {
     }
   });
 
-  app.post('/api/admin/effects', async (req: Request, res: Response) => {
-    try {
-      const { rainMode, snowMode } = req.body || {};
-      const upsert = db.prepare(`
-        INSERT INTO system_settings (key, value, updated_at)
-        VALUES (?, ?, CURRENT_TIMESTAMP)
-        ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = CURRENT_TIMESTAMP
-      `);
-      if (rainMode) {
-        upsert.run('weather_rain_mode', String(rainMode));
-        await persistSystemSettingToSupabase('weather_rain_mode', String(rainMode));
-      }
-      if (snowMode) {
-        upsert.run('weather_snow_mode', String(snowMode));
-        await persistSystemSettingToSupabase('weather_snow_mode', String(snowMode));
-      }
-      return res.json({ success: true });
-    } catch (err: any) {
-      return res.status(500).json({ success: false, error: err.message });
-    }
-  });
-
-  app.get('/api/admin/users', (_req: Request, res: Response) => {
+  app.get('/api/admin/users', (req: Request, res: Response) => {
     try {
       const users = db.prepare('SELECT * FROM users ORDER BY created_at DESC').all() as any[];
-      const formattedUsers = users.map((u) => ({
-        ...u,
-        role: isPrimaryAdmin(u.email || u.whatsapp) || u.role === 'admin' ? 'admin' : 'user',
-      }));
-      const activeCount = formattedUsers.filter((u) => !u.is_banned).length;
-      const bannedCount = formattedUsers.filter((u) => u.is_banned === 1).length;
+      const onboardingRows = db.prepare('SELECT * FROM user_onboarding').all() as any[];
+      const onboardingByEmail = new Map<string, any>();
+      for (const row of onboardingRows) {
+        const key = String(row?.user_email || '').trim().toLowerCase();
+        if (key) onboardingByEmail.set(key, row);
+      }
+
+      const formattedUsers = users.map((u) => {
+        const emailClean = String(u.email || u.whatsapp || '').trim().toLowerCase();
+        const ob = emailClean ? onboardingByEmail.get(emailClean) : null;
+        const { password_hash: _pw, ...safeFields } = u;
+
+        const camposRelationship = ob?.campos_relationship || u.campos_relationship || '';
+        const nextTripTiming = ob?.next_trip_timing || u.next_trip_timing || '';
+        const travelCompany = ob?.travel_company || u.travel_company || '';
+        const locationPreference = ob?.location_preference || u.location_preference || '';
+        const mainInterests = parseInterestCategoriesList(
+          ob?.interest_categories || u.interest_categories
+        );
+
+        const onboardingCompleted =
+          ob?.onboarding_completed !== undefined
+            ? Number(ob.onboarding_completed)
+            : u.onboarding_completed !== undefined
+              ? Number(u.onboarding_completed)
+              : 1;
+        const onboardingStep =
+          ob?.onboarding_step !== undefined
+            ? Number(ob.onboarding_step || 1)
+            : Number(u.onboarding_step || 1);
+
+        return {
+          ...safeFields,
+          role: isPrimaryAdmin(emailClean) || u.role === 'admin' ? 'admin' : 'user',
+          onboarding_completed: onboardingCompleted ? 1 : 0,
+          onboarding_step: onboardingStep,
+          campos_relationship: camposRelationship,
+          next_trip_timing: nextTripTiming,
+          travel_company: travelCompany,
+          location_preference: locationPreference,
+          interest_categories: mainInterests,
+          referral_source: u.referral_source || camposRelationship || '',
+          travel_frequency: u.travel_frequency || nextTripTiming || '',
+          travel_style: u.travel_style || travelCompany || '',
+          main_interests: Array.isArray(u.main_interests) && u.main_interests.length > 0 ? u.main_interests : mainInterests,
+          preferred_season: u.preferred_season || locationPreference || '',
+        };
+      });
+
+      const activeCount = formattedUsers.filter((u) => Number(u.is_banned) !== 1).length;
+      const bannedCount = formattedUsers.filter((u) => Number(u.is_banned) === 1).length;
+      const completedOnboardingCount = formattedUsers.filter(
+        (u) => Number(u.onboarding_completed) === 1
+      ).length;
+      const pendingOnboardingCount = formattedUsers.length - completedOnboardingCount;
+
+      const statusFilter = String(req.query.status || 'all').toLowerCase();
+      const onboardingFilter = String(req.query.onboarding || 'all').toLowerCase();
+      const referralFilter = String(req.query.referral || 'all').toLowerCase();
+
+      const filtered = formattedUsers.filter((u) => {
+        if (statusFilter === 'active' && Number(u.is_banned) === 1) return false;
+        if (statusFilter === 'banned' && Number(u.is_banned) !== 1) return false;
+        if (onboardingFilter === 'completed' && Number(u.onboarding_completed) !== 1) return false;
+        if (onboardingFilter === 'pending' && Number(u.onboarding_completed) === 1) return false;
+        if (referralFilter !== 'all') {
+          const src = String(u.referral_source || '').trim().toLowerCase();
+          if (referralFilter === 'direto') {
+            if (src && !src.includes('direto')) return false;
+          } else if (!src.includes(referralFilter)) {
+            return false;
+          }
+        }
+        return true;
+      });
+
       return res.json({
         success: true,
-        users: formattedUsers,
+        users: filtered,
         stats: {
           total: formattedUsers.length,
           active: activeCount,
           banned: bannedCount,
-          completedOnboarding: formattedUsers.length,
+          completedOnboarding: completedOnboardingCount,
+          pendingOnboarding: pendingOnboardingCount,
         },
       });
     } catch (err: any) {

@@ -1067,8 +1067,6 @@ export async function syncDatabaseWithFirestore(sqliteDb: any): Promise<void> {
         instagram_url: 'https://instagram.com/monvian.campos',
         support_phone: '+55 12 99123-4567',
         app_name: 'Monvian - Campos do Jordão',
-        weather_rain_mode: 'auto',
-        weather_snow_mode: 'fraca',
         maintenance_mode: '0',
         map_center_lat: '-22.7290',
         map_center_lng: '-45.5830',

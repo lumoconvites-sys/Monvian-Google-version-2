@@ -101,13 +101,7 @@ const SpotDetailSheet = React.lazy(() =>
   loadSpotDetailSheet().then((m) => ({ default: m.SpotDetailSheet }))
 );
 
-// On-demand modals & weather effects — downloaded ONLY when triggered/enabled
-const RainEffect = React.lazy(() =>
-  import('./components/RainEffect').then((m) => ({ default: m.RainEffect }))
-);
-const SnowEffect = React.lazy(() =>
-  import('./components/SnowEffect').then((m) => ({ default: m.SnowEffect }))
-);
+// On-demand modals — downloaded ONLY when triggered/enabled
 const PlatanosWalletModal = React.lazy(() =>
   import('./components/platanos/PlatanosWalletModal').then((m) => ({ default: m.PlatanosWalletModal }))
 );
@@ -230,14 +224,6 @@ export default function App() {
     } catch {}
     return null;
   });
-  const [snowEnabled, setSnowEnabled] = useState<boolean>(() => {
-    const saved = localStorage.getItem('monvian_snow_enabled');
-    return saved !== null ? JSON.parse(saved) : false;
-  });
-  const [rainEnabled, setRainEnabled] = useState<boolean>(() => {
-    const saved = localStorage.getItem('monvian_rain_user_enabled');
-    return saved !== null ? JSON.parse(saved) : false;
-  });
 
   // Global Theme State: persisted across sessions ('light' | 'dark')
   const [theme, setTheme] = useState<'dark' | 'light'>(() => {
@@ -331,6 +317,25 @@ export default function App() {
     const saved = localStorage.getItem('monvian_high_contrast');
     return saved !== null ? JSON.parse(saved) : false;
   });
+
+  // Map zoom transition duration (adjustable by user in Profile -> Preferências, in ms)
+  const [mapZoomDurationMs, setMapZoomDurationMs] = useState<number>(() => {
+    try {
+      const saved = Number(localStorage.getItem('monvian_map_zoom_duration_ms'));
+      if (Number.isFinite(saved) && saved >= 300 && saved <= 1600) {
+        return Math.round(saved);
+      }
+    } catch {}
+    return 780;
+  });
+
+  const handleChangeMapZoomDuration = useCallback((nextMs: number) => {
+    const clamped = Math.min(1600, Math.max(300, Math.round(Number(nextMs) || 780)));
+    setMapZoomDurationMs(clamped);
+    try {
+      localStorage.setItem('monvian_map_zoom_duration_ms', String(clamped));
+    } catch {}
+  }, []);
 
   // Map interaction state for Apple iOS translucent dynamic effects
   const [isMapInteracting, setIsMapInteracting] = useState<boolean>(false);
@@ -967,8 +972,6 @@ export default function App() {
 
   // Save settings on change to localStorage and backend database (only fires network writes when a setting actually changed)
   useEffect(() => {
-    localStorage.setItem('monvian_rain_user_enabled', JSON.stringify(rainEnabled));
-    localStorage.setItem('monvian_snow_enabled', JSON.stringify(snowEnabled));
     localStorage.setItem('monvian_theme', theme);
     localStorage.setItem('monvian_high_contrast', JSON.stringify(highContrast));
 
@@ -986,7 +989,7 @@ export default function App() {
     document.documentElement.style.backgroundColor = bg;
     if (document.body) document.body.style.backgroundColor = bg;
 
-    const settingsKey = `${rainEnabled ? 1 : 0}:${snowEnabled ? 1 : 0}:${theme}:${highContrast ? 1 : 0}`;
+    const settingsKey = `${theme}:${highContrast ? 1 : 0}`;
     if (lastPersistedSettingsKeyRef.current === null) {
       // Initial hydration: record baseline without redundant backend/Firestore write
       lastPersistedSettingsKeyRef.current = settingsKey;
@@ -1006,17 +1009,16 @@ export default function App() {
           'Content-Type': 'application/json',
           Authorization: `Bearer ${token}`
         },
-        body: JSON.stringify({ rain_enabled: rainEnabled, snow_enabled: snowEnabled, theme, high_contrast: highContrast })
+        body: JSON.stringify({ theme, high_contrast: highContrast })
       }).catch(() => {});
 
       persistUserToFirestore({
         ...user,
-        snow_enabled: snowEnabled ? 1 : 0,
         theme: theme,
         high_contrast: highContrast ? 1 : 0,
       }).catch(() => {});
     }
-  }, [rainEnabled, snowEnabled, theme, highContrast, user]);
+  }, [theme, highContrast, user]);
 
   const [spots, setSpots] = useState<Spot[]>(() => {
     try {
@@ -1924,6 +1926,7 @@ export default function App() {
   }, []);
 
   const handleTabChange = useCallback((tab: TabType) => {
+    setIsAdminOpen(false);
     if (tab === 'explorar') {
       if (mapWorkflowModeRef.current !== 'EXPLORE') {
         setMapWorkflowMode('EXPLORE');
@@ -2791,8 +2794,6 @@ export default function App() {
     [handleOpenItineraryOnMap]
   );
 
-  const handleToggleRain = useCallback(() => setRainEnabled((prev) => !prev), []);
-  const handleToggleSnow = useCallback(() => setSnowEnabled((prev) => !prev), []);
   const handleToggleHighContrast = useCallback(() => setHighContrast((prev) => !prev), []);
   const handleToggle3DMode = useCallback(() => setIs3DMode((prev) => !prev), []);
   const handleToggleDesktopSidebar = useCallback(() => setIsDesktopSidebarCollapsed((prev) => !prev), []);
@@ -3217,14 +3218,13 @@ export default function App() {
               highContrast={highContrast}
               onMapLoad={handleMapLoad}
               zoomToUserTrigger={zoomToUserTrigger}
+              zoomDurationMs={mapZoomDurationMs}
               mapMode={mapStyle === 'satelite' ? 'satelite' : 'explorar'}
               onMapModeChange={setMapStyle}
               onStyleChange={setMapStyle}
               is3DMode={is3DMode}
               onOrbitChange={setIsMapOrbiting}
               isDetailOpen={isDetailOpen}
-              snowEnabled={snowEnabled}
-              rainEnabled={Boolean(rainEnabled && realWeather.isRaining)}
               isSpotlightActive={isUserLocationSpotlightActive}
               isFocusMode={isSpotFocusActive}
               activeTab={activeTab}
@@ -3244,30 +3244,6 @@ export default function App() {
               isItineraryExpanded={isItineraryDrawerExpanded}
               onSelectItineraryStep={handleSelectItineraryStepId}
             />
-
-            {/* 2. Dynamic Rain Particle Effect Overlay (Downloaded & mounted ONLY when user enabled AND actually raining) */}
-            {activeTab === 'explorar' && rainEnabled && realWeather.isRaining && (
-              <Suspense fallback={null}>
-                <RainEffect
-                  enabled={true}
-                  weatherCode={realWeather.weatherCode}
-                  intensity={realWeather.rainIntensity === 'none' ? 'fraca' : realWeather.rainIntensity}
-                  hasLightning={realWeather.hasLightning}
-                  theme={theme}
-                />
-              </Suspense>
-            )}
-
-            {/* 2.5. Dynamic Snow Particle Effect Overlay (Downloaded & mounted ONLY when enabled) */}
-            {activeTab === 'explorar' && snowEnabled && (
-              <Suspense fallback={null}>
-                <SnowEffect
-                  enabled={true}
-                  intensity={(systemSettings.weather_snow_mode as any) || 'moderada'}
-                  theme={theme}
-                />
-              </Suspense>
-            )}
 
             {/* DESKTOP MAP FLOATING CONTROLS (Top-Right Apple Style — visible in EXPLORE mode) */}
             {activeTab === 'explorar' &&
@@ -3597,14 +3573,12 @@ export default function App() {
               favorites={favorites}
               spots={spots}
               onSelectSpot={handleSelectSpotAndReturnExplore}
-              rainEnabled={rainEnabled}
-              onToggleRain={handleToggleRain}
-              snowEnabled={snowEnabled}
-              onToggleSnow={handleToggleSnow}
               theme={theme}
               onToggleTheme={handleToggleTheme}
               highContrast={highContrast}
               onToggleHighContrast={handleToggleHighContrast}
+              zoomDurationMs={mapZoomDurationMs}
+              onChangeZoomDuration={handleChangeMapZoomDuration}
               user={user}
               onUpdateUser={handleProfileUpdateUser}
               onOpenAdmin={handleOpenAdminFromProfile}
@@ -3769,15 +3743,23 @@ export default function App() {
           className={`md:hidden fixed inset-0 pointer-events-none z-[250] transition-opacity duration-150 ${isChatKeyboardOpen ? 'opacity-0 [&_*]:!pointer-events-none' : 'opacity-100'}`}
         >
           <BottomNavigation
-            activeTab={activeTab === 'explorar' && mapWorkflowMode === 'ITINERARY' ? 'roteiros' : activeTab}
+            activeTab={
+              isAdminOpen
+                ? 'perfil'
+                : activeTab === 'explorar' && mapWorkflowMode === 'ITINERARY'
+                  ? 'roteiros'
+                  : activeTab
+            }
             onChangeTab={handleTabChange}
             unreadCount={2}
-            isBlurred={isBlurActive}
+            isBlurred={!isAdminOpen && isBlurActive}
             forceWhiteUI={
-              isSatelliteExplore &&
-              (mapWorkflowMode !== 'ITINERARY' || !isItineraryDrawerExpanded || theme === 'dark')
+              isAdminOpen
+                ? false
+                : isSatelliteExplore &&
+                  (mapWorkflowMode !== 'ITINERARY' || !isItineraryDrawerExpanded || theme === 'dark')
             }
-            theme={theme}
+            theme={isAdminOpen ? 'light' : theme}
           />
         </div>
       )}

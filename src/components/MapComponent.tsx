@@ -53,8 +53,6 @@ interface MapComponentProps {
   zoomToUserTrigger?: number;
   onStyleChange?: (style: any) => void;
   onOrbitChange?: (isOrbiting: boolean) => void;
-  snowEnabled?: boolean;
-  rainEnabled?: boolean;
   isSpotlightActive?: boolean;
   isFocusMode?: boolean;
   activeTab?: string;
@@ -72,6 +70,7 @@ interface MapComponentProps {
   activeItineraryStepId?: string | null;
   isItineraryExpanded?: boolean;
   onSelectItineraryStep?: (stepId: string) => void;
+  zoomDurationMs?: number;
 }
 
 const getMapboxToken = (): string => {
@@ -368,8 +367,6 @@ export const MapComponent = memo(
       onInteractionChange,
       zoomToUserTrigger,
       onStyleChange,
-      snowEnabled = false,
-      rainEnabled = false,
       isSpotlightActive = false,
       isFocusMode = false,
       activeTab,
@@ -387,6 +384,7 @@ export const MapComponent = memo(
       activeItineraryStepId = null,
       isItineraryExpanded = false,
       onSelectItineraryStep,
+      zoomDurationMs = 780,
     },
     ref
   ) => {
@@ -410,6 +408,10 @@ export const MapComponent = memo(
     isItineraryExpandedRef.current = isItineraryExpanded;
     const onSelectItineraryStepRef = useRef(onSelectItineraryStep);
     onSelectItineraryStepRef.current = onSelectItineraryStep;
+    const clampedZoomDuration = Math.min(2000, Math.max(200, Math.round(Number(zoomDurationMs) || 780)));
+    const zoomDurationMsRef = useRef<number>(clampedZoomDuration);
+    zoomDurationMsRef.current = clampedZoomDuration;
+    const spotFocusRafRef = useRef<number | null>(null);
     const savedSuspendedCameraRef = useRef<{
       center: [number, number];
       zoom: number;
@@ -530,7 +532,37 @@ export const MapComponent = memo(
     const themeRef = useRef(theme);
     themeRef.current = theme;
 
-    const beginProgrammaticCameraAnim = useCallback((map: maplibregl.Map, durationMs: number) => {
+    const smoothCameraEase = useCallback((t: number): number => {
+      return t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
+    }, []);
+
+    const computeAdaptiveZoomDuration = useCallback(
+      (map: maplibregl.Map, targetLng: number, targetLat: number, targetZoom: number, scale: number = 1): number => {
+        if (typeof window !== 'undefined' && window.matchMedia?.('(prefers-reduced-motion: reduce)').matches) {
+          return 180;
+        }
+        const base = Math.round(zoomDurationMsRef.current * scale);
+        try {
+          const currentCenter = map.getCenter();
+          const currentZoom = map.getZoom();
+          const zoomDelta = Math.abs(targetZoom - currentZoom);
+          const distDeg = Math.hypot(targetLng - currentCenter.lng, targetLat - currentCenter.lat);
+
+          // Tiny nudge when camera is already focused nearby
+          if (zoomDelta < 0.35 && distDeg < 0.0025) {
+            return Math.max(240, Math.round(base * 0.65));
+          }
+          // Wide jump across multiple zoom levels or across town: give tiles extra room to stream cleanly
+          if (zoomDelta >= 2.0 || distDeg >= 0.03) {
+            return Math.min(2200, Math.round(base * 1.18));
+          }
+        } catch {}
+        return Math.min(2000, Math.max(220, base));
+      },
+      []
+    );
+
+    const beginProgrammaticCameraAnim = useCallback((map: maplibregl.Map, durationMs: number, stopExisting: boolean = false) => {
       if (viewportSyncRafRef.current !== null) {
         cancelAnimationFrame(viewportSyncRafRef.current);
         viewportSyncRafRef.current = null;
@@ -552,9 +584,11 @@ export const MapComponent = memo(
         programmaticZoomTimerRef.current = null;
       }
 
-      try {
-        map.stop();
-      } catch {}
+      if (stopExisting) {
+        try {
+          map.stop();
+        } catch {}
+      }
 
       isProgrammaticZoomRef.current = true;
 
@@ -798,20 +832,25 @@ export const MapComponent = memo(
           CAMPOS_CENTER;
 
         if (mapRef.current) {
-          ensureUserMarker(mapRef.current);
+          const map = mapRef.current;
+          ensureUserMarker(map);
           userMarkerRef.current?.setLngLat(targetCoords);
 
-          mapRef.current.resize();
-          mapRef.current.easeTo({
+          map.resize();
+          const animDuration = computeAdaptiveZoomDuration(map, targetCoords[0], targetCoords[1], targetZoom, 0.95);
+          beginProgrammaticCameraAnim(map, animDuration);
+          map.easeTo({
             center: targetCoords,
             zoom: targetZoom,
             pitch: is3DModeRef.current ? 60 : 0,
             bearing: is3DModeRef.current ? -20 : 0,
-            duration: 700,
+            duration: animDuration,
+            easing: smoothCameraEase,
+            essential: true,
           });
         }
       },
-      [setFollowMode, ensureUserMarker]
+      [setFollowMode, ensureUserMarker, computeAdaptiveZoomDuration, beginProgrammaticCameraAnim, smoothCameraEase]
     );
 
     const focusItineraryStepOnMap = useCallback(
@@ -831,16 +870,20 @@ export const MapComponent = memo(
             : -Math.round(window.innerHeight * 0.08)
           : 0;
 
+        const animDuration = computeAdaptiveZoomDuration(map, lng, lat, 15.1, 0.95);
+        beginProgrammaticCameraAnim(map, animDuration);
         map.easeTo({
           center: [lng, lat],
           zoom: 15.1,
           pitch: is3DModeRef.current ? 52 : 42,
           bearing: is3DModeRef.current ? -13 : -8,
           offset: [0, verticalOffset],
-          duration: 600,
+          duration: animDuration,
+          easing: smoothCameraEase,
+          essential: true,
         });
       },
-      [setFollowMode]
+      [setFollowMode, computeAdaptiveZoomDuration, beginProgrammaticCameraAnim, smoothCameraEase]
     );
 
     const fitItineraryCameraBounds = useCallback(
@@ -859,8 +902,11 @@ export const MapComponent = memo(
         if (coords.length === 0) return;
 
         setFollowMode(false);
-        const animDuration = instant ? 0 : 620;
+        const animDuration = instant ? 0 : Math.min(1800, Math.max(300, Math.round(zoomDurationMsRef.current * 0.95)));
         const isMobile = typeof window !== 'undefined' && window.innerWidth < 768;
+        if (!instant) {
+          beginProgrammaticCameraAnim(map, animDuration);
+        }
 
         if (coords.length === 1) {
           const verticalOffset = isMobile
@@ -875,6 +921,8 @@ export const MapComponent = memo(
             bearing: is3DModeRef.current ? -13 : -8,
             offset: [0, verticalOffset],
             duration: animDuration,
+            easing: smoothCameraEase,
+            essential: true,
           });
           return;
         }
@@ -899,9 +947,11 @@ export const MapComponent = memo(
           bearing: is3DModeRef.current ? -13 : -8,
           maxZoom: 14.8,
           duration: animDuration,
+          easing: smoothCameraEase,
+          essential: true,
         });
       },
-      [setFollowMode]
+      [setFollowMode, beginProgrammaticCameraAnim, smoothCameraEase]
     );
 
     // Compute exact framing parameters for Campos do Jordão overview
@@ -965,13 +1015,17 @@ export const MapComponent = memo(
         const { center: targetCenter, zoom: targetZoom } = getCamposOverviewCamera(map);
 
         if (animateCamera) {
+          const animDuration = computeAdaptiveZoomDuration(map, targetCenter[0], targetCenter[1], targetZoom, 0.9);
+          beginProgrammaticCameraAnim(map, animDuration);
           map.easeTo({
             center: targetCenter,
             zoom: targetZoom,
             pitch: is3DModeRef.current ? 60 : 0,
             bearing: is3DModeRef.current ? -20 : 0,
             offset: [0, 0],
-            duration: 650,
+            duration: animDuration,
+            easing: smoothCameraEase,
+            essential: true,
           });
         } else {
           map.jumpTo({
@@ -982,16 +1036,22 @@ export const MapComponent = memo(
           });
         }
       },
-      [setFollowMode, getCamposOverviewCamera]
+      [setFollowMode, getCamposOverviewCamera, computeAdaptiveZoomDuration, beginProgrammaticCameraAnim, smoothCameraEase]
     );
 
     // Expose map controls for external iOS floating buttons
     useImperativeHandle(ref, () => ({
       zoomIn: () => {
-        mapRef.current?.zoomIn({ duration: 300 });
+        const map = mapRef.current;
+        if (!map) return;
+        const stepDuration = Math.round(Math.min(540, Math.max(220, zoomDurationMsRef.current * 0.48)));
+        map.zoomIn({ duration: stepDuration, easing: smoothCameraEase });
       },
       zoomOut: () => {
-        mapRef.current?.zoomOut({ duration: 300 });
+        const map = mapRef.current;
+        if (!map) return;
+        const stepDuration = Math.round(Math.min(540, Math.max(220, zoomDurationMsRef.current * 0.48)));
+        map.zoomOut({ duration: stepDuration, easing: smoothCameraEase });
       },
       resetNorth: () => {
         centerOnUserLocation(true);
@@ -1016,7 +1076,7 @@ export const MapComponent = memo(
         setFollowMode(false);
         const isMobile = window.innerWidth < 768;
         const verticalOffset = isMobile ? -Math.round(window.innerHeight * 0.12) : 0;
-        const animDuration = 480;
+        const animDuration = computeAdaptiveZoomDuration(map, spot.lng, spot.lat, 15.5, 1);
         beginProgrammaticCameraAnim(map, animDuration);
         map.easeTo({
           center: [spot.lng, spot.lat],
@@ -1025,7 +1085,7 @@ export const MapComponent = memo(
           bearing: is3DModeRef.current ? -20 : 0,
           offset: [0, verticalOffset],
           duration: animDuration,
-          easing: (t) => 1 - Math.pow(1 - t, 3),
+          easing: smoothCameraEase,
           essential: true,
         });
       },
@@ -1041,7 +1101,7 @@ export const MapComponent = memo(
       fitSpotsOverview: () => {
         frameAllSpotsOverview(mapRef.current, true);
       },
-    }), [centerOnUserLocation, currentMode, onMapModeChange, onStyleChange, setFollowMode, beginProgrammaticCameraAnim, fitItineraryCameraBounds, focusItineraryStepOnMap, frameAllSpotsOverview]);
+    }), [centerOnUserLocation, currentMode, onMapModeChange, onStyleChange, setFollowMode, beginProgrammaticCameraAnim, computeAdaptiveZoomDuration, smoothCameraEase, fitItineraryCameraBounds, focusItineraryStepOnMap, frameAllSpotsOverview]);
 
     // Synchronize mode from prop if provided (excluding dark map mode)
     useEffect(() => {
@@ -1183,9 +1243,15 @@ export const MapComponent = memo(
         });
 
         try {
-          // Make two-finger pinch-to-zoom respond immediately with minimal deadzone on iPhone/touchscreens
+          // Make two-finger pinch-to-zoom and wheel zoom silky smooth on touchscreens and desktop trackpads
           if (typeof (map.touchZoomRotate as any)?.setZoomThreshold === 'function') {
             (map.touchZoomRotate as any).setZoomThreshold(0.06);
+          }
+          if (typeof (map.scrollZoom as any)?.setWheelZoomRate === 'function') {
+            (map.scrollZoom as any).setWheelZoomRate(1 / 420);
+          }
+          if (typeof (map.scrollZoom as any)?.setZoomRate === 'function') {
+            (map.scrollZoom as any).setZoomRate(1 / 120);
           }
         } catch {}
 
@@ -2142,21 +2208,23 @@ export const MapComponent = memo(
       const map = mapRef.current;
       if (!map) return;
 
+      const animDuration = Math.min(1400, Math.max(420, Math.round(zoomDurationMsRef.current * 0.95)));
       isTransitioning3DRef.current = true;
       const timer = window.setTimeout(() => {
         isTransitioning3DRef.current = false;
-      }, 850);
+      }, animDuration + 60);
 
       map.easeTo({
         pitch: is3DMode ? 60 : 0,
         bearing: is3DMode ? -20 : 0,
-        duration: 800,
+        duration: animDuration,
+        easing: smoothCameraEase,
       });
 
       return () => {
         window.clearTimeout(timer);
       };
-    }, [is3DMode]);
+    }, [is3DMode, smoothCameraEase]);
 
     // Helper: Build a smooth Apple iOS 5-pointed star path with softened vertices
     const buildRoundedStarPath = useCallback(
@@ -3743,26 +3811,32 @@ export const MapComponent = memo(
 
         // If user toggled the route off while the spot card is still open, return smoothly to spot camera
         if (selectedSpotRef.current && selectedSpotRef.current.lng && selectedSpotRef.current.lat) {
+          const targetSpot = selectedSpotRef.current;
           const isMobile = window.innerWidth < 768;
           const verticalOffset = isMobile ? -Math.round(window.innerHeight * 0.12) : 0;
-          const animDuration = 480;
+          const animDuration = computeAdaptiveZoomDuration(map, targetSpot.lng, targetSpot.lat, 15.5, 1);
           beginProgrammaticCameraAnim(map, animDuration);
           map.easeTo({
-            center: [selectedSpotRef.current.lng, selectedSpotRef.current.lat],
+            center: [targetSpot.lng, targetSpot.lat],
             zoom: 15.5,
             pitch: is3DModeRef.current ? 55 : 0,
             bearing: is3DModeRef.current ? -20 : 0,
             offset: [0, verticalOffset],
             duration: animDuration,
-            easing: (t) => 1 - Math.pow(1 - t, 3),
+            easing: smoothCameraEase,
             essential: true,
           });
         }
       }
-    }, [activeRoute, syncActiveRouteLayers, syncMarkerHighlight, setFollowMode, beginProgrammaticCameraAnim]);
+    }, [activeRoute, syncActiveRouteLayers, syncMarkerHighlight, setFollowMode, beginProgrammaticCameraAnim, computeAdaptiveZoomDuration, smoothCameraEase]);
 
-    // Update marker highlight and camera zoom smoothly when a tourist spot is selected
+    // Update marker highlight and smoothly glide camera zoom when a tourist spot is selected
     useEffect(() => {
+      if (spotFocusRafRef.current !== null) {
+        cancelAnimationFrame(spotFocusRafRef.current);
+        spotFocusRafRef.current = null;
+      }
+
       // Avoid heavy full-viewport DOM churn synchronously on click/exit; only mount the 1 target pin if not mounted yet
       if (selectedSpot?.id && !markerRecordsRef.current.some((r) => r.spotId === selectedSpot.id)) {
         syncSpotMarkers(selectedSpot.id);
@@ -3777,23 +3851,37 @@ export const MapComponent = memo(
           return;
         }
 
+        const targetSpot = selectedSpot;
         setFollowMode(false);
-        const isMobile = window.innerWidth < 768;
-        const verticalOffset = isMobile ? -Math.round(window.innerHeight * 0.12) : 0;
-        const animDuration = 480;
-        beginProgrammaticCameraAnim(map, animDuration);
 
-        map.easeTo({
-          center: [selectedSpot.lng, selectedSpot.lat],
-          zoom: 15.5,
-          pitch: is3DModeRef.current ? 55 : 0,
-          bearing: is3DModeRef.current ? -20 : 0,
-          offset: [0, verticalOffset],
-          duration: animDuration,
-          easing: (t) => 1 - Math.pow(1 - t, 3),
-          essential: true,
+        // Start camera animation on the next RAF so React card mount & marker highlight commit without frame-0 contention
+        spotFocusRafRef.current = requestAnimationFrame(() => {
+          spotFocusRafRef.current = null;
+          if (!mapRef.current || mapRef.current !== map || workflowModeRef.current !== 'EXPLORE') return;
+          const isMobile = window.innerWidth < 768;
+          const verticalOffset = isMobile ? -Math.round(window.innerHeight * 0.12) : 0;
+          const animDuration = computeAdaptiveZoomDuration(map, targetSpot.lng, targetSpot.lat, 15.5, 1);
+          beginProgrammaticCameraAnim(map, animDuration);
+
+          map.easeTo({
+            center: [targetSpot.lng, targetSpot.lat],
+            zoom: 15.5,
+            pitch: is3DModeRef.current ? 55 : 0,
+            bearing: is3DModeRef.current ? -20 : 0,
+            offset: [0, verticalOffset],
+            duration: animDuration,
+            easing: smoothCameraEase,
+            essential: true,
+          });
         });
       }
+
+      return () => {
+        if (spotFocusRafRef.current !== null) {
+          cancelAnimationFrame(spotFocusRafRef.current);
+          spotFocusRafRef.current = null;
+        }
+      };
     }, [
       selectedSpot,
       isFocusMode,
@@ -3801,6 +3889,8 @@ export const MapComponent = memo(
       syncMarkerHighlight,
       setFollowMode,
       beginProgrammaticCameraAnim,
+      computeAdaptiveZoomDuration,
+      smoothCameraEase,
     ]);
 
     // Render static visual map icons
@@ -3902,34 +3992,6 @@ export const MapComponent = memo(
             backgroundColor: isSpaceBackgroundActive ? '#000000' : undefined,
           }}
         />
-
-        {/* Alpine Snow on the Mountains Relief Atmosphere (Neve nas Montanhas) */}
-        {snowEnabled && (
-          <div
-            aria-hidden="true"
-            className="pointer-events-none absolute inset-0 z-10 transition-opacity duration-700 select-none"
-            style={{
-              background:
-                theme === 'dark'
-                  ? 'radial-gradient(circle at 50% 25%, rgba(186, 230, 253, 0.09) 0%, rgba(147, 197, 253, 0.03) 50%, transparent 80%)'
-                  : 'radial-gradient(circle at 50% 25%, rgba(224, 242, 254, 0.22) 0%, rgba(186, 230, 253, 0.08) 50%, transparent 80%)',
-            }}
-          />
-        )}
-
-        {/* Dynamic Rain Atmosphere on Relief (Chuva Dinâmica no Relevo) */}
-        {rainEnabled && (
-          <div
-            aria-hidden="true"
-            className="pointer-events-none absolute inset-0 z-10 transition-opacity duration-700 select-none"
-            style={{
-              background:
-                theme === 'dark'
-                  ? 'linear-gradient(to bottom, rgba(15, 23, 42, 0.15) 0%, transparent 60%)'
-                  : 'linear-gradient(to bottom, rgba(100, 116, 139, 0.09) 0%, transparent 60%)',
-            }}
-          />
-        )}
 
         {/* Floating Right-Side Map Controls (Play Itinerary, Compass/Location, Layers) */}
         <div
