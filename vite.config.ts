@@ -1,11 +1,51 @@
 import tailwindcss from '@tailwindcss/vite';
 import react from '@vitejs/plugin-react';
+import fs from 'fs';
 import path from 'path';
-import {defineConfig} from 'vite';
+import {defineConfig, type Plugin} from 'vite';
+
+function stripMissingSourceMaps(): Plugin {
+  const sourceMapCommentRegex = /\/\/[#@]\s*sourceMappingURL=([^\s'"]+)/;
+  const stripTrailingCommentRegex = /\r?\n?\/\/[#@]\s*sourceMappingURL=[^\s'"]+\s*$/;
+
+  return {
+    name: 'strip-missing-source-maps',
+    enforce: 'pre',
+    load(id) {
+      const [filePath, query] = id.split('?');
+      if (query && !/^(?:v=|t=|import(?:&|$))/.test(query)) return null;
+      if (!filePath.includes('node_modules') || !/\.(?:m?js)$/.test(filePath)) return null;
+      if (!fs.existsSync(filePath)) return null;
+
+      const code = fs.readFileSync(filePath, 'utf-8');
+      const match = code.match(sourceMapCommentRegex);
+      if (!match || match[1].startsWith('data:')) return null;
+
+      const mapPath = path.resolve(path.dirname(filePath), match[1]);
+      if (fs.existsSync(mapPath)) return null;
+
+      return code.replace(stripTrailingCommentRegex, '');
+    },
+    generateBundle(_options, bundle) {
+      for (const item of Object.values(bundle)) {
+        if (
+          item.type === 'asset' &&
+          /maplibre-gl-worker.*\.(?:m?js)$/.test(item.fileName)
+        ) {
+          const text =
+            typeof item.source === 'string'
+              ? item.source
+              : Buffer.from(item.source).toString('utf-8');
+          item.source = text.replace(stripTrailingCommentRegex, '');
+        }
+      }
+    },
+  };
+}
 
 export default defineConfig(() => {
   return {
-    plugins: [react(), tailwindcss()],
+    plugins: [stripMissingSourceMaps(), react(), tailwindcss()],
     resolve: {
       alias: {
         '@': path.resolve(__dirname, '.'),

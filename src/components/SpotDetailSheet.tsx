@@ -12,14 +12,17 @@ import {
   Play,
   Pause,
   Volume2,
-  VolumeX
+  VolumeX,
+  ArrowLeft,
+  ArrowRight,
+  Clock,
+  Ticket
 } from 'lucide-react';
 import { motion, AnimatePresence, useMotionValue, useTransform, animate } from 'motion/react';
 import { SpotQrModal } from './SpotQrModal';
 import { RoundedNavigationIcon } from './RoundedNavigationIcon';
 import { getSpotImage, getSpotFallbackImage } from '../utils/spotImages';
 import { VerifiedBadge } from './ui/VerifiedBadge';
-import { AppleBackButton } from './ui/AppleBackButton';
 import { SpotVideoPlayer } from './SpotVideoPlayer';
 import {
   SpotVideo,
@@ -581,9 +584,8 @@ export const SpotDetailSheet: React.FC<SpotDetailSheetProps> = React.memo(({
   };
 
   const distance = "1,4 km";
-  const views = (spot.visitorsToday * 112 + 15000).toLocaleString('pt-BR');
+  const views = ((spot.visitorsToday || 0) * 112 + 15000).toLocaleString('pt-BR');
 
-  const hasDirections = Boolean((spot.lat && spot.lng) || spot.address || spot.name);
   const phoneHref = spot.phone ? `tel:${spot.phone}` : 'tel:+551236631234';
   const websiteHref = spot.website || spot.mapsUrl || 'https://www.camposdojordao.sp.gov.br/turismo';
 
@@ -618,13 +620,12 @@ export const SpotDetailSheet: React.FC<SpotDetailSheetProps> = React.memo(({
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       exit={{ opacity: 0 }}
-      transition={{ duration: 0.72, ease: [0.16, 1, 0.3, 1] }}
+      transition={{ duration: 0.22, ease: [0.22, 1, 0.36, 1] }}
       onClick={() => {
         persistHeroPlaybackPosition();
         onClose();
       }}
       className="fixed inset-0 z-[260] flex flex-col justify-end md:justify-center md:items-center md:pl-[calc(var(--desktop-sidebar-width,72px)+24px)] md:pr-6 md:py-6 select-none cursor-pointer"
-      style={{ willChange: 'opacity' }}
     >
       {/* Dim scrim that fades smoothly when pulling down to reveal the previous page */}
       <motion.div
@@ -633,14 +634,14 @@ export const SpotDetailSheet: React.FC<SpotDetailSheetProps> = React.memo(({
         className="absolute inset-0 bg-black/45 md:bg-black/40 pointer-events-none"
       />
       {/* =====================================================================
-          1. MOBILE VIEW (< 768px): SMOOTH WEIGHTLESS iOS ENTRANCE
+          1. MOBILE VIEW (< 768px): SMOOTH HARDWARE-COMPOSED iOS SPRING ENTRANCE
          ===================================================================== */}
       <motion.div
         id="spot-detail-sheet-container"
-        initial={{ opacity: 0, y: 52, scale: 0.985 }}
-        animate={{ opacity: 1, y: 0, scale: 1 }}
-        exit={{ opacity: 0, y: 40, scale: 0.99 }}
-        transition={{ duration: 0.86, ease: [0.16, 1, 0.3, 1] }}
+        initial={{ y: '100%' }}
+        animate={{ y: 0 }}
+        exit={{ y: '100%' }}
+        transition={{ type: 'spring', stiffness: 360, damping: 34, mass: 0.82 }}
         onClick={(e) => e.stopPropagation()}
         className="md:hidden relative w-full h-full flex flex-col z-[260] transform-gpu overflow-hidden bg-transparent"
         style={{
@@ -648,7 +649,7 @@ export const SpotDetailSheet: React.FC<SpotDetailSheetProps> = React.memo(({
           WebkitTransform: 'translate3d(0, 0, 0)',
           backfaceVisibility: 'hidden',
           WebkitBackfaceVisibility: 'hidden',
-          willChange: 'transform, opacity',
+          willChange: 'transform',
         }}
       >
         <motion.div
@@ -658,69 +659,88 @@ export const SpotDetailSheet: React.FC<SpotDetailSheetProps> = React.memo(({
             scale: pullDownScale,
             borderTopLeftRadius: pullDownRadius,
             borderTopRightRadius: pullDownRadius,
+            willChange: 'transform',
           }}
           className="relative w-full h-full bg-transparent text-zinc-900 dark:text-white flex flex-col overflow-hidden shadow-[0_12px_40px_rgba(0,0,0,0.20)]"
         >
         {/* Floating Top Bar Controls (Mobile) */}
         <div
-          className="absolute left-0 right-0 z-30 flex items-center justify-between pointer-events-none px-4"
+          className="absolute left-0 right-0 z-30 flex items-center justify-between pointer-events-none px-5"
           style={{
             top: 'max(calc(env(safe-area-inset-top, 0px) + 12px), 16px)',
-            left: 'max(16px, env(safe-area-inset-left, 0px))',
-            right: 'max(16px, env(safe-area-inset-right, 0px))',
           }}
         >
-          <AppleBackButton
-            theme="glass"
+          <motion.button
+            initial={{ opacity: 0, scale: 0.76, y: -6 }}
+            animate={{ opacity: 1, scale: 1, y: 0 }}
+            transition={{ type: 'spring', stiffness: 460, damping: 26, delay: 0.09 }}
+            whileTap={{ scale: 0.88 }}
+            type="button"
             onClick={(e) => {
               e.stopPropagation();
               persistHeroPlaybackPosition();
               onClose();
             }}
-            className="pointer-events-auto"
+            className="pointer-events-auto w-[44px] h-[44px] rounded-full bg-white dark:bg-[#1C1C1E] text-[#111111] dark:text-white border border-black/[0.05] dark:border-white/10 shadow-[0_4px_16px_rgba(0,0,0,0.14)] flex items-center justify-center cursor-pointer transition-transform"
             title="Voltar"
             aria-label="Voltar para o mapa"
-          />
+          >
+            <ArrowLeft className="w-[21px] h-[21px]" strokeWidth={2.2} />
+          </motion.button>
 
           <div className="flex items-center gap-2 pointer-events-auto">
             <motion.button 
+              initial={{ opacity: 0, scale: 0.76, y: -6 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              transition={{ type: 'spring', stiffness: 460, damping: 26, delay: 0.12 }}
               whileTap={{ scale: 0.88 }}
               type="button"
               onClick={(e) => {
                 e.stopPropagation();
                 setIsQrModalOpen(true);
               }}
-              className="w-10 h-10 rounded-full ios26-liquid-glass flex items-center justify-center text-black dark:text-white cursor-pointer transition-colors"
+              className="w-[44px] h-[44px] rounded-full bg-white dark:bg-[#1C1C1E] text-[#111111] dark:text-white border border-black/[0.05] dark:border-white/10 shadow-[0_4px_16px_rgba(0,0,0,0.14)] flex items-center justify-center cursor-pointer transition-transform"
               title="Gerar QR Code deste local"
               aria-label="Gerar QR Code deste local"
             >
-              <QrCode className="relative z-10 w-5 h-5 text-black dark:text-white" />
+              <QrCode className="w-[20px] h-[20px]" strokeWidth={1.9} />
             </motion.button>
             <motion.button 
+              initial={{ opacity: 0, scale: 0.76, y: -6 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              transition={{ type: 'spring', stiffness: 460, damping: 26, delay: 0.15 }}
               whileTap={{ scale: 0.88 }}
               type="button"
               onClick={(e) => {
                 e.stopPropagation();
                 handleShare();
               }}
-              className="w-10 h-10 rounded-full ios26-liquid-glass flex items-center justify-center text-black dark:text-white cursor-pointer active:opacity-80 transition-opacity"
+              className="w-[44px] h-[44px] rounded-full bg-white dark:bg-[#1C1C1E] text-[#111111] dark:text-white border border-black/[0.05] dark:border-white/10 shadow-[0_4px_16px_rgba(0,0,0,0.14)] flex items-center justify-center cursor-pointer transition-transform"
               title="Compartilhar"
               aria-label="Compartilhar"
             >
-              <Share2 className="relative z-10 w-5 h-5 text-black dark:text-white" />
+              <Share2 className="w-[20px] h-[20px]" strokeWidth={1.9} />
             </motion.button>
             <motion.button 
+              initial={{ opacity: 0, scale: 0.76, y: -6 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              transition={{ type: 'spring', stiffness: 460, damping: 26, delay: 0.18 }}
               whileTap={{ scale: 0.88 }}
               type="button"
               onClick={(e) => {
                 e.stopPropagation();
                 onToggleFavorite(spot.id);
               }} 
-              className="w-10 h-10 rounded-full ios26-liquid-glass flex items-center justify-center text-black dark:text-white cursor-pointer active:opacity-80 transition-opacity"
+              className="w-[44px] h-[44px] rounded-full bg-white dark:bg-[#1C1C1E] text-[#111111] dark:text-white border border-black/[0.05] dark:border-white/10 shadow-[0_4px_16px_rgba(0,0,0,0.14)] flex items-center justify-center cursor-pointer transition-transform"
               title={isFavorite ? 'Remover dos favoritos' : 'Adicionar aos favoritos'}
               aria-label={isFavorite ? 'Remover dos favoritos' : 'Adicionar aos favoritos'}
             >
-              <Heart className={`relative z-10 w-5 h-5 ${isFavorite ? 'fill-red-500 text-red-500' : 'text-black dark:text-white'}`} />
+              <Heart
+                className={`w-[20px] h-[20px] ${
+                  isFavorite ? 'fill-red-500 text-red-500' : 'text-[#111111] dark:text-white'
+                }`}
+                strokeWidth={1.9}
+              />
             </motion.button>
           </div>
         </div>
@@ -740,7 +760,7 @@ export const SpotDetailSheet: React.FC<SpotDetailSheetProps> = React.memo(({
           {/* Header Media Area - Foto por 1s -> Efeito Translúcido -> Vídeo em 1.2x com loop e blur ao rolar */}
           <div 
             onClick={handleToggleHeroPlayPause}
-            className="sticky top-0 h-[320px] sm:h-[350px] w-full shrink-0 select-none overflow-hidden bg-zinc-900 z-0 pointer-events-auto touch-pan-y cursor-pointer"
+            className="sticky top-0 h-[310px] sm:h-[340px] w-full shrink-0 select-none overflow-hidden bg-zinc-900 z-0 pointer-events-auto touch-pan-y cursor-pointer"
             style={{
               position: 'sticky',
               top: 0,
@@ -749,16 +769,16 @@ export const SpotDetailSheet: React.FC<SpotDetailSheetProps> = React.memo(({
             }}
           >
             <motion.div
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              transition={{ duration: 0.88, ease: [0.16, 1, 0.3, 1] }}
+              initial={{ scale: 1.12 }}
+              animate={{ scale: 1.04 }}
+              transition={{ type: 'spring', stiffness: 260, damping: 28, mass: 0.9 }}
               ref={heroMediaWrapperRef}
-              className="w-full h-full relative transform-gpu transition-[filter,transform] duration-75 ease-out"
+              className="w-full h-full relative transform-gpu"
               style={{
                 filter: 'none',
                 transform: 'scale(1.04) translateZ(0)',
                 WebkitTransform: 'scale(1.04) translateZ(0)',
-                willChange: 'filter, transform, opacity',
+                willChange: 'transform',
               }}
             >
               {/* Base Cover Photo (stays for 1s, then cross-fades under the translucent video) */}
@@ -857,116 +877,125 @@ export const SpotDetailSheet: React.FC<SpotDetailSheetProps> = React.memo(({
               )}
             </AnimatePresence>
 
-            {/* Subtle Gradient Shadow for Top Bar Legibility */}
-            <div className="absolute inset-x-0 top-0 h-28 bg-gradient-to-b from-black/50 via-black/20 to-transparent pointer-events-none" />
+            {/* Subtle Top Shadow for Control Legibility */}
+            <div className="absolute inset-x-0 top-0 h-24 bg-gradient-to-b from-black/35 via-black/10 to-transparent pointer-events-none" />
           </div>
 
-          {/* Main Content Body - Card branco com bordas superiores arredondadas estilo Roteiros */}
-          <motion.div
-            initial={{ opacity: 0, y: 24 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.88, ease: [0.16, 1, 0.3, 1], delay: 0.14 }}
-            className="relative z-10 -mt-6 bg-white dark:bg-[#000000] border-t border-black/5 dark:border-white/10 rounded-t-[32px] sm:rounded-t-[36px] rounded-b-none px-5 sm:px-6 pt-6 pb-32 flex flex-col min-h-[calc(var(--app-height,100dvh)-60px)] shadow-[0_-8px_32px_rgba(0,0,0,0.08)] dark:shadow-[0_-12px_36px_rgba(0,0,0,0.5)]"
+          {/* Main Content Body - Card Branco Puro Premium iOS */}
+          <div
+            className="relative z-10 -mt-7 bg-[#FFFFFF] dark:bg-[#000000] border-t border-black/[0.04] dark:border-white/10 rounded-t-[32px] rounded-b-none px-5 pt-7 flex flex-col min-h-[calc(var(--app-height,100dvh)-60px)] shadow-[0_-6px_28px_rgba(0,0,0,0.06)] dark:shadow-[0_-12px_36px_rgba(0,0,0,0.5)]"
             style={{
+              paddingBottom: 'max(calc(env(safe-area-inset-bottom, 0px) + 32px), 40px)',
               transform: 'translate3d(0, 0, 0)',
               WebkitTransform: 'translate3d(0, 0, 0)',
               backfaceVisibility: 'hidden',
               WebkitBackfaceVisibility: 'hidden',
-              willChange: 'transform, opacity',
             }}
           >
-            
-            {/* Title and Badge */}
+            {/* 1. Título forte + Selo de verificação azul */}
             <motion.div
-              initial={{ opacity: 0, y: 12 }}
+              initial={{ opacity: 0, y: 14 }}
               animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.78, ease: [0.16, 1, 0.3, 1], delay: 0.20 }}
-              className="flex items-center gap-2 mb-2"
+              transition={{ type: 'spring', stiffness: 400, damping: 30, delay: 0.08 }}
+              className="flex items-center gap-2.5 mb-4"
             >
-              <h1 className="text-2xl sm:text-3xl font-bold tracking-tight text-[#000000] dark:text-[#FFFFFF] leading-tight">
+              <h1 className="text-[26px] sm:text-[28px] font-extrabold tracking-[-0.02em] text-[#0B0B0C] dark:text-[#FFFFFF] leading-[1.15]">
                 {spot.name}
               </h1>
-              <VerifiedBadge />
+              <VerifiedBadge className="w-[21px] h-[21px] shrink-0" />
             </motion.div>
 
-            {/* Metadata Row */}
+            {/* 2. Três indicadores distribuídos uniformemente pela largura */}
             <motion.div
-              initial={{ opacity: 0, y: 12 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.78, ease: [0.16, 1, 0.3, 1], delay: 0.27 }}
-              className="flex items-center gap-2.5 text-xs sm:text-sm mb-6 text-zinc-600 dark:text-[#A1A1AA] flex-wrap"
+              initial={{ opacity: 0, y: 12, scale: 0.96 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              transition={{ type: 'spring', stiffness: 420, damping: 28, delay: 0.12 }}
+              className="grid grid-cols-3 gap-2.5 mb-5"
             >
-              <div className="flex items-center gap-1 bg-zinc-100 dark:bg-[#1C1C1E] dark:border dark:border-white/10 px-3 py-1.5 rounded-full">
-                <Star className="w-4 h-4 fill-zinc-900 text-zinc-900 dark:fill-white dark:text-white" />
-                <span className="font-semibold text-zinc-900 dark:text-[#FFFFFF]">{Number(liveRating).toFixed(1)}</span>
-                <span className="text-[#9A9894] font-semibold">({liveReviewCount})</span>
+              <div className="h-[42px] px-2.5 rounded-full bg-[#F3F3F5] dark:bg-[#1C1C1E] dark:border dark:border-white/10 flex items-center justify-center gap-1.5 min-w-0 tabular-nums">
+                <Star className="w-[16px] h-[16px] fill-[#111111] text-[#111111] dark:fill-white dark:text-white shrink-0" />
+                <span className="text-[14px] font-bold text-[#111111] dark:text-[#FFFFFF] leading-none">
+                  {Number(liveRating).toFixed(1)}
+                </span>
+                <span className="text-[13.5px] font-medium text-[#71717A] dark:text-[#A1A1AA] leading-none">
+                  ({liveReviewCount})
+                </span>
               </div>
-              <div className="flex items-center gap-1.5 bg-zinc-100 dark:bg-[#1C1C1E] dark:border dark:border-white/10 px-3 py-1.5 rounded-full">
-                <MapPin className="w-4 h-4 text-zinc-900 dark:text-white" />
-                <span className="font-semibold text-zinc-700 dark:text-[#A1A1AA]">{distance}</span>
+
+              <div className="h-[42px] px-2.5 rounded-full bg-[#F3F3F5] dark:bg-[#1C1C1E] dark:border dark:border-white/10 flex items-center justify-center gap-1.5 min-w-0 tabular-nums">
+                <MapPin className="w-[16px] h-[16px] text-[#111111] dark:text-white shrink-0" strokeWidth={2} />
+                <span className="text-[14px] font-semibold text-[#52525B] dark:text-[#D4D4D8] leading-none truncate">
+                  {distance}
+                </span>
               </div>
-              <div className="flex items-center gap-1.5 bg-zinc-100 dark:bg-[#1C1C1E] dark:border dark:border-white/10 px-3 py-1.5 rounded-full">
-                <Eye className="w-4 h-4 text-zinc-500 dark:text-[#A1A1AA]" />
-                <span className="font-semibold text-zinc-700 dark:text-[#A1A1AA]">{views}</span>
+
+              <div className="h-[42px] px-2.5 rounded-full bg-[#F3F3F5] dark:bg-[#1C1C1E] dark:border dark:border-white/10 flex items-center justify-center gap-1.5 min-w-0 tabular-nums">
+                <Eye className="w-[17px] h-[17px] text-[#3F3F46] dark:text-[#A1A1AA] shrink-0" strokeWidth={1.9} />
+                <span className="text-[14px] font-semibold text-[#52525B] dark:text-[#D4D4D8] leading-none truncate">
+                  {views}
+                </span>
               </div>
             </motion.div>
 
-            {/* Action Buttons Row - Apple Maps iOS Liquid Glass Aesthetic */}
+            {/* 3. Botões principais — Ligar e Site (2 colunas iguais, altura e destaque premium) */}
             <motion.div
-              initial={{ opacity: 0, y: 12 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.78, ease: [0.16, 1, 0.3, 1], delay: 0.34 }}
-              className="grid grid-cols-2 gap-3 mb-8"
+              initial={{ opacity: 0, y: 14, scale: 0.96 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              transition={{ type: 'spring', stiffness: 400, damping: 28, delay: 0.16 }}
+              className="grid grid-cols-2 gap-3 mb-7"
             >
-
-              <motion.a 
-                whileHover={{ scale: 1.02, transition: { type: 'spring', stiffness: 400, damping: 18 } }}
-                whileTap={{ scale: 0.94, transition: { type: 'spring', stiffness: 500, damping: 14 } }}
+              <motion.a
+                whileTap={{ scale: 0.95 }}
                 href={phoneHref}
-                className="expo-liquid-glass-btn text-zinc-900 dark:text-white rounded-full py-3 px-3 flex items-center justify-center gap-2 transition-colors cursor-pointer font-bold active:opacity-90 border border-black/5"
+                className="h-[54px] px-4 rounded-full bg-[#0B0B0C] hover:bg-[#1C1C1E] text-white dark:bg-white dark:text-black shadow-[0_6px_18px_rgba(0,0,0,0.12)] flex items-center justify-center gap-2.5 transition-colors cursor-pointer"
                 title="Ligar para o estabelecimento"
               >
-                <Phone className="w-4 h-4 shrink-0" />
-                <span className="text-sm font-bold">Ligar</span>
+                <Phone className="w-[19px] h-[19px] shrink-0" strokeWidth={2} />
+                <span className="text-[16px] font-semibold tracking-[-0.01em]">Ligar</span>
               </motion.a>
 
-              <motion.a 
-                whileHover={{ scale: 1.02, transition: { type: 'spring', stiffness: 400, damping: 18 } }}
-                whileTap={{ scale: 0.94, transition: { type: 'spring', stiffness: 500, damping: 14 } }}
+              <motion.a
+                whileTap={{ scale: 0.95 }}
                 href={websiteHref}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="expo-liquid-glass-btn text-zinc-900 dark:text-white rounded-full py-3 px-3 flex items-center justify-center gap-2 transition-colors cursor-pointer font-bold active:opacity-90 border border-black/5"
+                className="h-[54px] px-4 rounded-full bg-[#FFFFFF] hover:bg-[#FAFAFA] text-[#111111] dark:bg-[#1C1C1E] dark:text-white border border-[#E5E5EA] dark:border-white/15 shadow-[0_4px_14px_rgba(0,0,0,0.05)] flex items-center justify-center gap-2.5 transition-colors cursor-pointer"
                 title="Acessar Website"
               >
-                <Globe className="w-4 h-4 shrink-0" />
-                <span className="text-sm font-bold">Site</span>
+                <Globe className="w-[19px] h-[19px] shrink-0" strokeWidth={1.9} />
+                <span className="text-[16px] font-semibold tracking-[-0.01em]">Site</span>
               </motion.a>
             </motion.div>
 
-            {/* Tabs Row */}
+            {/* 4. Navegação por abas */}
             <motion.div
-              initial={{ opacity: 0, y: 12 }}
+              initial={{ opacity: 0, y: 10 }}
               animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.78, ease: [0.16, 1, 0.3, 1], delay: 0.40 }}
-              className="flex items-center justify-between border-b border-zinc-200 dark:border-white/10 mb-6"
+              transition={{ type: 'spring', stiffness: 420, damping: 30, delay: 0.19 }}
+              className="grid grid-cols-4 border-b border-[#EFEFF1] dark:border-white/10 mb-5"
+              role="tablist"
             >
               {['Sobre', 'Experiência', 'Vídeos', 'Avaliações'].map((tab) => {
                 const isActive = activeTab === tab;
                 return (
-                  <button 
-                    key={tab} 
+                  <button
+                    key={tab}
+                    type="button"
+                    role="tab"
+                    aria-selected={isActive}
                     onClick={() => setActiveTab(tab)}
-                    className={`relative pb-3 text-sm font-semibold transition-colors cursor-pointer ${
-                      isActive ? 'text-zinc-900 dark:text-white' : 'text-zinc-400 dark:text-zinc-500 hover:text-zinc-600 dark:hover:text-zinc-300'
+                    className={`relative pb-3 text-[15px] tracking-[-0.01em] text-center transition-colors cursor-pointer whitespace-nowrap ${
+                      isActive
+                        ? 'text-[#0B0B0C] dark:text-white font-bold'
+                        : 'text-[#8E8E93] dark:text-zinc-500 font-medium hover:text-[#3F3F46] dark:hover:text-zinc-300'
                     }`}
                   >
                     <span>{tr(tab)}</span>
                     {isActive && (
                       <motion.div
                         layoutId="activeSpotTab"
-                        transition={{ duration: 0.35, ease: [0.16, 1, 0.3, 1] }}
-                        className="absolute bottom-0 left-0 right-0 h-[2.5px] rounded-full bg-zinc-950 dark:bg-white"
+                        transition={{ type: 'spring', stiffness: 450, damping: 32 }}
+                        className="absolute bottom-0 left-2 right-2 h-[2.5px] rounded-full bg-[#0B0B0C] dark:bg-white"
                       />
                     )}
                   </button>
@@ -974,56 +1003,78 @@ export const SpotDetailSheet: React.FC<SpotDetailSheetProps> = React.memo(({
               })}
             </motion.div>
 
-            {/* Tab Panels with Smooth Transitions */}
-            <div className="flex-1 space-y-6 pb-6">
+            {/* Tab Panels */}
+            <div className="flex-1 space-y-5 pb-4">
               {activeTab === 'Sobre' && (
                 <motion.div
                   key="tab-sobre"
                   initial={{ opacity: 0, y: 12 }}
                   animate={{ opacity: 1, y: 0 }}
-                  transition={{ duration: 0.74, ease: [0.16, 1, 0.3, 1], delay: 0.42 }}
+                  transition={{ type: 'spring', stiffness: 420, damping: 30, delay: 0.04 }}
                   className="space-y-5"
                 >
-                  <p className="text-sm sm:text-base text-zinc-700 dark:text-zinc-300 leading-relaxed">
-                    {spot.description}
-                  </p>
+                  {/* 5. Cartões informativos lado a lado (Horário de funcionamento e Entrada) */}
+                  <div className="grid grid-cols-2 gap-3.5">
+                    <div className="p-4 rounded-[22px] bg-[#F6F6F8] dark:bg-[#1C1C1E] border border-black/[0.04] dark:border-white/10 flex flex-col justify-between min-h-[124px]">
+                      <div className="flex items-start gap-2.5">
+                        <Clock
+                          className="w-[22px] h-[22px] text-[#111111] dark:text-white shrink-0 mt-0.5"
+                          strokeWidth={1.9}
+                        />
+                        <span className="text-[13px] font-medium text-[#71717A] dark:text-[#A1A1AA] leading-[1.25]">
+                          Horário de Funcionamento
+                        </span>
+                      </div>
+                      <span className="mt-3 text-[15.5px] font-bold text-[#111111] dark:text-[#FFFFFF] leading-[1.3] block">
+                        {spot.hours || '09:00 - 18:00'}
+                      </span>
+                    </div>
 
-                  {/* Informações Práticas */}
-                  <div className="grid grid-cols-2 gap-3">
-                    <motion.div
-                      initial={{ opacity: 0, y: 10 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      transition={{ duration: 0.72, ease: [0.16, 1, 0.3, 1], delay: 0.46 }}
-                      className="p-3.5 rounded-2xl bg-zinc-50 dark:bg-[#1C1C1E] border border-zinc-100 dark:border-white/10"
-                    >
-                      <span className="text-xs text-[#9A9894] font-bold block mb-1">Horário de Funcionamento</span>
-                      <span className="text-sm font-bold text-zinc-900 dark:text-[#FFFFFF]">{spot.hours || "09:00 - 18:00"}</span>
-                    </motion.div>
-                    <motion.div
-                      initial={{ opacity: 0, y: 10 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      transition={{ duration: 0.72, ease: [0.16, 1, 0.3, 1], delay: 0.50 }}
-                      className="p-3.5 rounded-2xl bg-zinc-50 dark:bg-[#1C1C1E] border border-zinc-100 dark:border-white/10"
-                    >
-                      <span className="text-xs text-[#9A9894] font-bold block mb-1">Entrada</span>
-                      <span className="text-sm font-bold text-zinc-900 dark:text-[#FFFFFF]">{spot.priceRange === 'Grátis' ? 'Acesso Livre' : (spot.priceRange || 'Consultar')}</span>
-                    </motion.div>
+                    <div className="p-4 rounded-[22px] bg-[#F6F6F8] dark:bg-[#1C1C1E] border border-black/[0.04] dark:border-white/10 flex flex-col justify-between min-h-[124px]">
+                      <div className="flex items-start gap-2.5">
+                        <Ticket
+                          className="w-[22px] h-[22px] text-[#111111] dark:text-white shrink-0 mt-0.5"
+                          strokeWidth={1.9}
+                        />
+                        <span className="text-[13px] font-medium text-[#71717A] dark:text-[#A1A1AA] leading-[1.25]">
+                          Entrada
+                        </span>
+                      </div>
+                      <span className="mt-3 text-[15.5px] font-bold text-[#111111] dark:text-[#FFFFFF] leading-[1.3] block">
+                        {spot.priceRange === 'Grátis' ? 'Acesso Livre' : spot.priceRange || 'Consultar'}
+                      </span>
+                    </div>
                   </div>
 
-                  <motion.button 
-                    initial={{ opacity: 0, y: 10 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ duration: 0.72, ease: [0.16, 1, 0.3, 1], delay: 0.54 }}
-                    whileTap={{ scale: 0.98 }}
+                  {/* 6. Botão de GPS proeminente */}
+                  <motion.button
+                    whileTap={{ scale: 0.97 }}
+                    type="button"
                     onClick={() => openDirectionsMap(spot)}
-                    className="w-full py-3.5 rounded-2xl font-bold flex items-center justify-between px-6 shadow-sm transition-colors cursor-pointer bg-black text-white hover:bg-zinc-800 dark:bg-white dark:text-black dark:hover:bg-zinc-100"
+                    className="w-full h-[58px] rounded-full px-6 flex items-center justify-between bg-[#0B0B0C] hover:bg-[#1C1C1E] text-white dark:bg-white dark:text-black shadow-[0_8px_22px_rgba(0,0,0,0.14)] transition-colors cursor-pointer"
                   >
                     <div className="flex items-center gap-3">
-                      <RoundedNavigationIcon className="w-5 h-5" size={20} />
-                      <span className="font-bold">Como chegar no GPS</span>
+                      <RoundedNavigationIcon className="w-[20px] h-[20px] shrink-0" size={20} />
+                      <span className="text-[16.5px] font-bold tracking-[-0.01em]">
+                        Como chegar no GPS
+                      </span>
                     </div>
-                    <span className="font-bold text-lg">→</span>
+                    <ArrowRight className="w-[21px] h-[21px] shrink-0" strokeWidth={2.2} />
                   </motion.button>
+
+                  {/* Descrição e endereço do estabelecimento preservados abaixo */}
+                  {spot.description && (
+                    <p className="text-[14.5px] text-[#52525B] dark:text-zinc-300 leading-relaxed pt-1">
+                      {spot.description}
+                    </p>
+                  )}
+
+                  {spot.address && (
+                    <div className="flex items-center gap-2 text-[13px] text-[#71717A] dark:text-[#A1A1AA]">
+                      <MapPin className="w-4 h-4 shrink-0 text-[#52525B] dark:text-[#A1A1AA]" />
+                      <span>{spot.address}</span>
+                    </div>
+                  )}
                 </motion.div>
               )}
 
@@ -1032,22 +1083,22 @@ export const SpotDetailSheet: React.FC<SpotDetailSheetProps> = React.memo(({
                   key="tab-experiencia"
                   initial={{ opacity: 0, y: 10 }}
                   animate={{ opacity: 1, y: 0 }}
-                  transition={{ duration: 0.60, ease: [0.16, 1, 0.3, 1] }}
+                  transition={{ duration: 0.45, ease: [0.16, 1, 0.3, 1] }}
                   className="space-y-4"
                 >
-                  <div className="p-4 bg-zinc-50 dark:bg-[#1C1C1E] rounded-2xl border border-zinc-100 dark:border-white/10 space-y-3">
-                    <h3 className="font-black text-zinc-900 dark:text-white text-sm uppercase tracking-wider">O que esperar</h3>
-                    <ul className="space-y-2.5 text-sm text-zinc-600 dark:text-zinc-300">
+                  <div className="p-4 bg-[#F6F6F8] dark:bg-[#1C1C1E] rounded-[22px] border border-black/[0.04] dark:border-white/10 space-y-3">
+                    <h3 className="font-bold text-[#111111] dark:text-white text-xs uppercase tracking-wider">O que esperar</h3>
+                    <ul className="space-y-2.5 text-sm text-[#52525B] dark:text-zinc-300">
                       <li className="flex items-start gap-2">
-                        <span className="text-zinc-900 dark:text-white font-bold">✓</span>
+                        <span className="text-[#111111] dark:text-white font-bold">✓</span>
                         <span>Mirante panorâmico com vista de tirar o fôlego para vales e montanhas</span>
                       </li>
                       <li className="flex items-start gap-2">
-                        <span className="text-zinc-900 dark:text-white font-bold">✓</span>
+                        <span className="text-[#111111] dark:text-white font-bold">✓</span>
                         <span>Excelente ponto para fotografia e contemplação do pôr do sol</span>
                       </li>
                       <li className="flex items-start gap-2">
-                        <span className="text-zinc-900 dark:text-white font-bold">✓</span>
+                        <span className="text-[#111111] dark:text-white font-bold">✓</span>
                         <span>Estacionamento e cafés típicos nas imediações</span>
                       </li>
                     </ul>
@@ -1056,11 +1107,11 @@ export const SpotDetailSheet: React.FC<SpotDetailSheetProps> = React.memo(({
                   <motion.div
                     initial={{ opacity: 0, y: 10 }}
                     animate={{ opacity: 1, y: 0 }}
-                    transition={{ duration: 0.60, ease: [0.16, 1, 0.3, 1], delay: 0.08 }}
-                    className="p-4 bg-zinc-50 dark:bg-[#1C1C1E] rounded-2xl border border-zinc-100 dark:border-white/10"
+                    transition={{ duration: 0.45, ease: [0.16, 1, 0.3, 1], delay: 0.06 }}
+                    className="p-4 bg-[#F6F6F8] dark:bg-[#1C1C1E] rounded-[22px] border border-black/[0.04] dark:border-white/10"
                   >
-                    <h4 className="font-black text-zinc-900 dark:text-white text-xs uppercase tracking-wider mb-2">Dica de quem foi</h4>
-                    <p className="text-sm text-zinc-600 dark:text-zinc-300 leading-relaxed">
+                    <h4 className="font-bold text-[#111111] dark:text-white text-xs uppercase tracking-wider mb-2">Dica de quem foi</h4>
+                    <p className="text-sm text-[#52525B] dark:text-zinc-300 leading-relaxed">
                       {spot.touristTip || 'Leve um casaco quentinho, especialmente no final da tarde, pois a altitude faz a temperatura cair rapidamente!'}
                     </p>
                   </motion.div>
@@ -1092,10 +1143,10 @@ export const SpotDetailSheet: React.FC<SpotDetailSheetProps> = React.memo(({
                   transition={{ duration: 0.60, ease: [0.16, 1, 0.3, 1] }}
                   className="space-y-4"
                 >
-                  <div className="flex items-center justify-between p-4 bg-zinc-50 dark:bg-[#1C1C1E] rounded-2xl border border-zinc-100 dark:border-white/10">
+                  <div className="flex items-center justify-between p-4 bg-[#F6F6F8] dark:bg-[#1C1C1E] rounded-[22px] border border-black/[0.04] dark:border-white/10">
                     <div>
-                      <span className="text-3xl font-black text-zinc-900 dark:text-white">{Number(liveRating).toFixed(1)}</span>
-                      <span className="text-xs text-zinc-400 block mt-0.5">de 5.0 estrelas</span>
+                      <span className="text-3xl font-black text-[#0B0B0C] dark:text-white">{Number(liveRating).toFixed(1)}</span>
+                      <span className="text-xs text-[#71717A] dark:text-[#A1A1AA] block mt-0.5">de 5.0 estrelas</span>
                     </div>
                     <div className="flex flex-col items-end">
                       <div className="flex text-[#F2B900]">
@@ -1106,17 +1157,17 @@ export const SpotDetailSheet: React.FC<SpotDetailSheetProps> = React.memo(({
                           />
                         ))}
                       </div>
-                      <span className="text-xs text-zinc-500 dark:text-zinc-400 mt-1">{tr(`${liveReviewCount} avaliações reais`)}</span>
+                      <span className="text-xs text-[#71717A] dark:text-zinc-400 mt-1">{tr(`${liveReviewCount} avaliações reais`)}</span>
                     </div>
                   </div>
 
                   {/* Interactive iOS Rating Submission Card */}
                   <form
                     onSubmit={handleSubmitReview}
-                    className="p-4 bg-zinc-50 dark:bg-[#1C1C1E] rounded-2xl border border-zinc-100 dark:border-white/10 space-y-3"
+                    className="p-4 bg-[#F6F6F8] dark:bg-[#1C1C1E] rounded-[22px] border border-black/[0.04] dark:border-white/10 space-y-3"
                   >
                     <div className="flex items-center justify-between">
-                      <span className="text-xs font-bold text-zinc-900 dark:text-white">
+                      <span className="text-xs font-bold text-[#111111] dark:text-white">
                         {tr('Avaliar este ponto turístico')}
                       </span>
                       <div className="flex items-center gap-1">
@@ -1145,23 +1196,23 @@ export const SpotDetailSheet: React.FC<SpotDetailSheetProps> = React.memo(({
                       value={userCommentInput}
                       onChange={(e) => setUserCommentInput(e.target.value)}
                       placeholder={tr('Conte como foi sua experiência (opcional)...')}
-                      className="w-full px-3.5 py-2.5 rounded-xl bg-white dark:bg-[#2C2C2E] border border-zinc-200 dark:border-white/10 text-xs text-zinc-900 dark:text-white focus:outline-none focus:border-zinc-400 dark:focus:border-white/40"
+                      className="w-full px-3.5 py-2.5 rounded-xl bg-white dark:bg-[#2C2C2E] border border-[#E5E5EA] dark:border-white/10 text-xs text-[#111111] dark:text-white focus:outline-none focus:border-[#0B0B0C] dark:focus:border-white/40"
                     />
 
                     <div className="flex items-center justify-between gap-2">
                       {reviewSubmittedMsg ? (
-                        <span className="text-[11px] text-zinc-500 dark:text-zinc-400 font-medium">
+                        <span className="text-[11px] text-[#52525B] dark:text-zinc-400 font-medium">
                           {tr(reviewSubmittedMsg)}
                         </span>
                       ) : (
-                        <span className="text-[11px] text-zinc-400">
+                        <span className="text-[11px] text-[#71717A] dark:text-zinc-400">
                           {tr(`Nota ${userRatingInput}.0 selecionada`)}
                         </span>
                       )}
                       <button
                         type="submit"
                         disabled={isSubmittingReview}
-                        className="px-4 py-2 rounded-full expo-liquid-glass-btn text-black dark:text-white text-xs font-bold transition-transform active:scale-95 disabled:opacity-50 cursor-pointer shrink-0 border border-black/5 dark:border-white/15 shadow-xs"
+                        className="px-4 py-2 rounded-full bg-[#0B0B0C] hover:bg-[#1C1C1E] text-white dark:bg-white dark:text-black text-xs font-semibold transition-transform active:scale-95 disabled:opacity-50 cursor-pointer shrink-0 shadow-[0_4px_12px_rgba(0,0,0,0.12)]"
                       >
                         {isSubmittingReview ? tr('Salvando...') : tr('Publicar avaliação')}
                       </button>
@@ -1195,7 +1246,7 @@ export const SpotDetailSheet: React.FC<SpotDetailSheetProps> = React.memo(({
                       initial={{ opacity: 0, y: 10 }}
                       animate={{ opacity: 1, y: 0 }}
                       transition={{ duration: 0.56, ease: [0.16, 1, 0.3, 1], delay: 0.05 * Math.min(idx, 4) }}
-                      className="p-4 bg-zinc-50 dark:bg-[#1C1C1E] rounded-2xl border border-zinc-100 dark:border-white/10 space-y-2"
+                      className="p-4 bg-[#F6F6F8] dark:bg-[#1C1C1E] rounded-[22px] border border-black/[0.04] dark:border-white/10 space-y-2"
                     >
                       <div className="flex items-center justify-between">
                         <span className="font-black text-xs text-zinc-900 dark:text-white">
@@ -1225,7 +1276,7 @@ export const SpotDetailSheet: React.FC<SpotDetailSheetProps> = React.memo(({
                 </motion.div>
               )}
             </div>
-          </motion.div>
+          </div>
         </div>
       </motion.div>
 
@@ -1234,10 +1285,10 @@ export const SpotDetailSheet: React.FC<SpotDetailSheetProps> = React.memo(({
          ===================================================================== */}
       <motion.div
         id="spot-detail-desktop-panel"
-        initial={{ opacity: 0, scale: 0.975, y: 24 }}
+        initial={{ opacity: 0, scale: 0.94, y: 24 }}
         animate={{ opacity: 1, scale: 1, y: 0 }}
-        exit={{ opacity: 0, scale: 0.985, y: 16 }}
-        transition={{ duration: 0.82, ease: [0.16, 1, 0.3, 1] }}
+        exit={{ opacity: 0, scale: 0.96, y: 14 }}
+        transition={{ type: 'spring', stiffness: 380, damping: 30, mass: 0.8 }}
         onClick={(e) => e.stopPropagation()}
         className="hidden md:flex flex-col lg:flex-row w-full max-w-[960px] lg:max-w-[1080px] xl:max-w-[1180px] 2xl:max-w-[1260px] md:max-h-[88vh] lg:h-[min(680px,85vh)] xl:h-[min(730px,85vh)] bg-white dark:bg-[#000000] text-zinc-950 dark:text-white rounded-[24px] border border-zinc-200/90 dark:border-[#262626] shadow-[0_20px_60px_rgba(0,0,0,0.18)] overflow-hidden cursor-default z-[260]"
         style={{
@@ -1350,16 +1401,19 @@ export const SpotDetailSheet: React.FC<SpotDetailSheetProps> = React.memo(({
 
             {/* Top-Left: Back Button */}
             <div className="absolute top-3.5 left-3.5 z-20">
-              <AppleBackButton
-                theme="glass"
+              <button
+                type="button"
                 onClick={(e) => {
                   e.stopPropagation();
                   persistHeroPlaybackPosition();
                   onClose();
                 }}
+                className="w-11 h-11 rounded-full bg-white dark:bg-[#1C1C1E] text-[#111111] dark:text-white border border-black/[0.05] dark:border-white/10 shadow-[0_4px_14px_rgba(0,0,0,0.14)] flex items-center justify-center transition-transform active:scale-95 cursor-pointer"
                 title="Voltar"
                 aria-label="Voltar para o mapa"
-              />
+              >
+                <ArrowLeft className="w-5 h-5" strokeWidth={2.2} />
+              </button>
             </div>
 
             {/* Top-Right: Discreet Floating Controls (QR Code, Share, Favorite) */}
@@ -1370,11 +1424,11 @@ export const SpotDetailSheet: React.FC<SpotDetailSheetProps> = React.memo(({
                   e.stopPropagation();
                   setIsQrModalOpen(true);
                 }}
-                className="w-10 h-10 rounded-full ios26-liquid-glass text-black dark:text-white flex items-center justify-center transition-transform active:scale-95 cursor-pointer"
+                className="w-11 h-11 rounded-full bg-white dark:bg-[#1C1C1E] text-[#111111] dark:text-white border border-black/[0.05] dark:border-white/10 shadow-[0_4px_14px_rgba(0,0,0,0.14)] flex items-center justify-center transition-transform active:scale-95 cursor-pointer"
                 title="Gerar QR Code deste local"
                 aria-label="QR Code"
               >
-                <QrCode className="relative z-10 w-5 h-5 text-black dark:text-white" />
+                <QrCode className="w-5 h-5" strokeWidth={1.9} />
               </button>
               <button
                 type="button"
@@ -1382,11 +1436,11 @@ export const SpotDetailSheet: React.FC<SpotDetailSheetProps> = React.memo(({
                   e.stopPropagation();
                   handleShare();
                 }}
-                className="w-10 h-10 rounded-full ios26-liquid-glass text-black dark:text-white flex items-center justify-center transition-transform active:scale-95 cursor-pointer"
+                className="w-11 h-11 rounded-full bg-white dark:bg-[#1C1C1E] text-[#111111] dark:text-white border border-black/[0.05] dark:border-white/10 shadow-[0_4px_14px_rgba(0,0,0,0.14)] flex items-center justify-center transition-transform active:scale-95 cursor-pointer"
                 title="Compartilhar"
                 aria-label="Compartilhar"
               >
-                <Share2 className="relative z-10 w-5 h-5 text-black dark:text-white" />
+                <Share2 className="w-5 h-5" strokeWidth={1.9} />
               </button>
               <button
                 type="button"
@@ -1394,14 +1448,15 @@ export const SpotDetailSheet: React.FC<SpotDetailSheetProps> = React.memo(({
                   e.stopPropagation();
                   onToggleFavorite(spot.id);
                 }}
-                className="w-10 h-10 rounded-full ios26-liquid-glass text-black dark:text-white flex items-center justify-center transition-transform active:scale-95 cursor-pointer"
+                className="w-11 h-11 rounded-full bg-white dark:bg-[#1C1C1E] text-[#111111] dark:text-white border border-black/[0.05] dark:border-white/10 shadow-[0_4px_14px_rgba(0,0,0,0.14)] flex items-center justify-center transition-transform active:scale-95 cursor-pointer"
                 title={isFavorite ? 'Remover dos favoritos' : 'Adicionar aos favoritos'}
                 aria-label="Favoritar"
               >
                 <Heart
-                  className={`relative z-10 w-5 h-5 transition-colors ${
-                    isFavorite ? 'fill-red-500 text-red-500' : 'text-black dark:text-white'
+                  className={`w-5 h-5 transition-colors ${
+                    isFavorite ? 'fill-red-500 text-red-500' : 'text-[#111111] dark:text-white'
                   }`}
+                  strokeWidth={1.9}
                 />
               </button>
             </div>
@@ -1411,86 +1466,55 @@ export const SpotDetailSheet: React.FC<SpotDetailSheetProps> = React.memo(({
         {/* RIGHT COLUMN (42-44% on Desktop): Structured Info, Actions & Integrated Tabs */}
         <div className="flex-1 lg:w-[44%] xl:w-[42%] h-full min-h-0 flex flex-col bg-white dark:bg-[#000000] px-5 py-4 lg:px-7 lg:py-6 overflow-hidden">
           {/* 1 & 2. Full Name + Verification Indicator */}
-          <div className="flex items-center gap-2 shrink-0">
-            <h1 className="text-xl lg:text-2xl xl:text-[26px] font-bold tracking-tight text-zinc-950 dark:text-white leading-tight">
+          <div className="flex items-center gap-2.5 shrink-0">
+            <h1 className="text-2xl xl:text-[27px] font-extrabold tracking-[-0.02em] text-[#0B0B0C] dark:text-white leading-tight">
               {spot.name}
             </h1>
-            <div className="shrink-0">
-              <VerifiedBadge />
+            <VerifiedBadge className="w-[20px] h-[20px] shrink-0" />
+          </div>
+
+          {/* 3. Three Uniform Indicators (Rating, Distance, Views) */}
+          <div className="grid grid-cols-3 gap-2 mt-3.5 shrink-0">
+            <div className="h-[38px] px-2.5 rounded-full bg-[#F3F3F5] dark:bg-[#1C1C1E] dark:border dark:border-white/10 flex items-center justify-center gap-1.5 min-w-0 tabular-nums">
+              <Star className="w-4 h-4 fill-[#111111] text-[#111111] dark:fill-white dark:text-white shrink-0" />
+              <span className="text-[13px] font-bold text-[#111111] dark:text-white">{Number(liveRating).toFixed(1)}</span>
+              <span className="text-[12.5px] font-medium text-[#71717A] dark:text-[#A1A1AA]">({liveReviewCount})</span>
+            </div>
+            <div className="h-[38px] px-2.5 rounded-full bg-[#F3F3F5] dark:bg-[#1C1C1E] dark:border dark:border-white/10 flex items-center justify-center gap-1.5 min-w-0 tabular-nums">
+              <MapPin className="w-4 h-4 text-[#111111] dark:text-white shrink-0" strokeWidth={2} />
+              <span className="text-[13px] font-semibold text-[#52525B] dark:text-[#D4D4D8] truncate">{distance}</span>
+            </div>
+            <div className="h-[38px] px-2.5 rounded-full bg-[#F3F3F5] dark:bg-[#1C1C1E] dark:border dark:border-white/10 flex items-center justify-center gap-1.5 min-w-0 tabular-nums">
+              <Eye className="w-4 h-4 text-[#3F3F46] dark:text-[#A1A1AA] shrink-0" strokeWidth={1.9} />
+              <span className="text-[13px] font-semibold text-[#52525B] dark:text-[#D4D4D8] truncate">{views}</span>
             </div>
           </div>
 
-          {/* 3. Category & Location */}
-          <div className="flex items-center gap-1.5 text-xs lg:text-[13px] font-medium text-zinc-500 dark:text-[#A1A1AA] mt-1.5 shrink-0 flex-wrap">
-            <span className="text-zinc-700 dark:text-zinc-300 font-semibold">
-              {spot.categoryLabel || spot.category}
-            </span>
-            <span aria-hidden="true">·</span>
-            <span className="inline-flex items-center gap-1 text-zinc-500 dark:text-[#A1A1AA]">
-              <MapPin className="w-3.5 h-3.5 text-zinc-400 shrink-0" />
-              <span className="truncate max-w-[280px] xl:max-w-[340px]">
-                {spot.address || 'Campos do Jordão, SP'}
-              </span>
-            </span>
-            <span aria-hidden="true">·</span>
-            <span>{distance}</span>
+          {/* 4. Action Buttons Side-by-Side (Ligar, Site) */}
+          <div className="grid grid-cols-2 gap-3 mt-4 shrink-0">
+            <a
+              href={phoneHref}
+              className="h-[48px] px-4 rounded-full bg-[#0B0B0C] hover:bg-[#1C1C1E] text-white dark:bg-white dark:text-black text-[14.5px] font-semibold flex items-center justify-center gap-2 shadow-[0_6px_16px_rgba(0,0,0,0.12)] transition-colors cursor-pointer"
+              title="Ligar para o local"
+            >
+              <Phone className="w-[17px] h-[17px] shrink-0" strokeWidth={2} />
+              <span>Ligar</span>
+            </a>
+
+            <a
+              href={websiteHref}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="h-[48px] px-4 rounded-full bg-[#FFFFFF] hover:bg-[#FAFAFA] text-[#111111] dark:bg-[#1C1C1E] dark:text-white border border-[#E5E5EA] dark:border-white/15 text-[14.5px] font-semibold flex items-center justify-center gap-2 shadow-[0_4px_12px_rgba(0,0,0,0.05)] transition-colors cursor-pointer"
+              title="Acessar site oficial"
+            >
+              <Globe className="w-[17px] h-[17px] shrink-0" strokeWidth={1.9} />
+              <span>Site</span>
+            </a>
           </div>
 
-          {/* 4. Average Rating, Review Count & Views */}
-          <div className="flex items-center gap-3 text-xs lg:text-[13px] mt-3 pb-3.5 border-b border-zinc-100 dark:border-[#262626] shrink-0 flex-wrap">
-            {spot.rating !== undefined && (
-              <div className="flex items-center gap-1">
-                <Star className="w-4 h-4 fill-zinc-950 text-zinc-950 dark:fill-white dark:text-white shrink-0" />
-                <span className="font-bold text-zinc-950 dark:text-white">{Number(liveRating).toFixed(1)}</span>
-                <span className="text-zinc-500 dark:text-[#A1A1AA] font-medium">
-                  {tr(`(${liveReviewCount.toLocaleString('pt-BR')} avaliações)`)}
-                </span>
-              </div>
-            )}
-            {spot.rating !== undefined && <span className="text-zinc-300 dark:text-zinc-700" aria-hidden="true">·</span>}
-            <div className="flex items-center gap-1.5 text-zinc-500 dark:text-[#A1A1AA] font-medium">
-              <Eye className="w-4 h-4 text-zinc-400 shrink-0" />
-              <span>{tr(`${views} visualizações`)}</span>
-            </div>
-          </div>
-
-          {/* 5. Concise Summary Description */}
-          {spot.description && (
-            <p className="text-[13px] lg:text-[13.5px] text-zinc-600 dark:text-[#A1A1AA] leading-relaxed mt-3 line-clamp-2 shrink-0">
-              {spot.description}
-            </p>
-          )}
-
-          {/* 6. Action Buttons Side-by-Side (Ligar, Site) */}
-          <div className="flex items-center gap-2.5 mt-4 shrink-0">
-
-            {phoneHref && (
-              <a
-                href={phoneHref}
-                className="h-10 px-4 rounded-full expo-liquid-glass-btn text-black dark:text-white text-xs lg:text-[13px] font-bold flex items-center justify-center gap-1.5 transition-colors cursor-pointer shrink-0 border border-black/5 shadow-sm"
-                title="Ligar para o local"
-              >
-                <Phone className="w-3.5 h-3.5 text-black dark:text-white shrink-0" />
-                <span>Ligar</span>
-              </a>
-            )}
-
-            {websiteHref && (
-              <a
-                href={websiteHref}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="h-10 px-4 rounded-full expo-liquid-glass-btn text-black dark:text-white text-xs lg:text-[13px] font-bold flex items-center justify-center gap-1.5 transition-colors cursor-pointer shrink-0 border border-black/5 shadow-sm"
-                title="Acessar site oficial"
-              >
-                <Globe className="w-3.5 h-3.5 text-black dark:text-white shrink-0" />
-                <span>Site</span>
-              </a>
-            )}
-          </div>
-
-          {/* 7. Horizontal Desktop Tab Navigation (Sobre, Experiência, Vídeos, Avaliações) */}
-          <div className="flex items-center gap-6 border-b border-zinc-200 dark:border-[#262626] mt-5 shrink-0" role="tablist">
+          {/* 5. Horizontal Desktop Tab Navigation (Sobre, Experiência, Vídeos, Avaliações) */}
+          <div className="grid grid-cols-4 border-b border-[#EFEFF1] dark:border-[#262626] mt-5 shrink-0" role="tablist">
             {['Sobre', 'Experiência', 'Vídeos', 'Avaliações'].map((tab) => {
               const isActive = activeTab === tab;
               return (
@@ -1500,8 +1524,10 @@ export const SpotDetailSheet: React.FC<SpotDetailSheetProps> = React.memo(({
                   role="tab"
                   aria-selected={isActive}
                   onClick={() => setActiveTab(tab)}
-                  className={`relative pb-2.5 text-[13px] lg:text-sm font-semibold transition-colors cursor-pointer ${
-                    isActive ? 'text-zinc-950 dark:text-white' : 'text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-200'
+                  className={`relative pb-2.5 text-[13.5px] text-center transition-colors cursor-pointer whitespace-nowrap ${
+                    isActive
+                      ? 'text-[#0B0B0C] dark:text-white font-bold'
+                      : 'text-[#8E8E93] font-medium hover:text-[#3F3F46] dark:hover:text-zinc-200'
                   }`}
                 >
                   <span>{tr(tab)}</span>
@@ -1509,7 +1535,7 @@ export const SpotDetailSheet: React.FC<SpotDetailSheetProps> = React.memo(({
                     <motion.div
                       layoutId="activeSpotTabDesktop"
                       transition={{ type: 'spring', damping: 28, stiffness: 360 }}
-                      className="absolute bottom-0 left-0 right-0 h-[2px] rounded-full bg-zinc-950 dark:bg-white"
+                      className="absolute bottom-0 left-2 right-2 h-[2.5px] rounded-full bg-[#0B0B0C] dark:bg-white"
                     />
                   )}
                 </button>
@@ -1527,47 +1553,55 @@ export const SpotDetailSheet: React.FC<SpotDetailSheetProps> = React.memo(({
                 transition={{ duration: 0.48, ease: [0.16, 1, 0.3, 1] }}
                 className="space-y-4"
               >
-                <p className="text-sm text-zinc-700 dark:text-zinc-300 leading-relaxed">
-                  {spot.description}
-                </p>
-
                 {/* Practical Info Grid */}
                 <div className="grid grid-cols-2 gap-3">
-                  <div className="p-3.5 rounded-xl bg-zinc-50 dark:bg-[#1C1C1E] border border-zinc-200/70 dark:border-white/10">
-                    <span className="text-[11px] text-zinc-500 dark:text-[#A1A1AA] font-semibold block mb-1">
-                      Horário de Funcionamento
-                    </span>
-                    <span className="text-[13px] font-bold text-zinc-900 dark:text-white">
+                  <div className="p-4 rounded-[20px] bg-[#F6F6F8] dark:bg-[#1C1C1E] border border-black/[0.04] dark:border-white/10 flex flex-col justify-between min-h-[108px]">
+                    <div className="flex items-start gap-2">
+                      <Clock className="w-[19px] h-[19px] text-[#111111] dark:text-white shrink-0 mt-0.5" strokeWidth={1.9} />
+                      <span className="text-[12px] text-[#71717A] dark:text-[#A1A1AA] font-medium leading-tight">
+                        Horário de Funcionamento
+                      </span>
+                    </div>
+                    <span className="mt-2.5 text-[14.5px] font-bold text-[#111111] dark:text-white leading-snug block">
                       {spot.hours || '09:00 - 18:00'}
                     </span>
                   </div>
-                  <div className="p-3.5 rounded-xl bg-zinc-50 dark:bg-[#1C1C1E] border border-zinc-200/70 dark:border-white/10">
-                    <span className="text-[11px] text-zinc-500 dark:text-[#A1A1AA] font-semibold block mb-1">
-                      Entrada
-                    </span>
-                    <span className="text-[13px] font-bold text-zinc-900 dark:text-white">
+                  <div className="p-4 rounded-[20px] bg-[#F6F6F8] dark:bg-[#1C1C1E] border border-black/[0.04] dark:border-white/10 flex flex-col justify-between min-h-[108px]">
+                    <div className="flex items-start gap-2">
+                      <Ticket className="w-[19px] h-[19px] text-[#111111] dark:text-white shrink-0 mt-0.5" strokeWidth={1.9} />
+                      <span className="text-[12px] text-[#71717A] dark:text-[#A1A1AA] font-medium leading-tight">
+                        Entrada
+                      </span>
+                    </div>
+                    <span className="mt-2.5 text-[14.5px] font-bold text-[#111111] dark:text-white leading-snug block">
                       {spot.priceRange === 'Grátis' ? 'Acesso Livre' : (spot.priceRange || 'Consultar')}
                     </span>
                   </div>
                 </div>
 
+                {/* Desktop GPS CTA */}
+                <button
+                  type="button"
+                  onClick={() => openDirectionsMap(spot)}
+                  className="w-full h-[52px] rounded-full px-5 flex items-center justify-between bg-[#0B0B0C] hover:bg-[#1C1C1E] text-white dark:bg-white dark:text-black shadow-[0_6px_18px_rgba(0,0,0,0.12)] transition-colors cursor-pointer"
+                >
+                  <div className="flex items-center gap-2.5">
+                    <RoundedNavigationIcon className="w-[18px] h-[18px] shrink-0" size={18} />
+                    <span className="text-[15px] font-bold">Como chegar no GPS</span>
+                  </div>
+                  <ArrowRight className="w-[19px] h-[19px] shrink-0" strokeWidth={2.2} />
+                </button>
+
+                {spot.description && (
+                  <p className="text-[13.5px] text-[#52525B] dark:text-zinc-300 leading-relaxed">
+                    {spot.description}
+                  </p>
+                )}
+
                 {spot.address && (
-                  <div className="p-3.5 rounded-xl bg-zinc-50 dark:bg-[#1C1C1E] border border-zinc-200/70 dark:border-white/10 flex items-center justify-between gap-3">
-                    <div className="min-w-0">
-                      <span className="text-[11px] text-zinc-500 dark:text-[#A1A1AA] font-semibold block mb-0.5">
-                        Endereço
-                      </span>
-                      <span className="text-xs font-medium text-zinc-800 dark:text-zinc-200 block truncate">
-                        {spot.address}
-                      </span>
-                    </div>
-                    <button
-                      type="button"
-                      onClick={() => openDirectionsMap(spot)}
-                      className="px-3 py-1.5 rounded-lg bg-white hover:bg-zinc-100 dark:bg-[#2C2C2E] dark:hover:bg-[#3A3A3C] text-zinc-900 dark:text-white border border-zinc-200 dark:border-white/10 text-xs font-semibold shrink-0 cursor-pointer transition-colors"
-                    >
-                      Abrir no GPS
-                    </button>
+                  <div className="flex items-center gap-2 text-xs text-[#71717A] dark:text-[#A1A1AA]">
+                    <MapPin className="w-3.5 h-3.5 shrink-0 text-[#52525B] dark:text-[#A1A1AA]" />
+                    <span>{spot.address}</span>
                   </div>
                 )}
               </motion.div>
@@ -1581,31 +1615,31 @@ export const SpotDetailSheet: React.FC<SpotDetailSheetProps> = React.memo(({
                 transition={{ duration: 0.48, ease: [0.16, 1, 0.3, 1] }}
                 className="space-y-3.5"
               >
-                <div className="p-4 bg-zinc-50 dark:bg-[#1C1C1E] rounded-xl border border-zinc-200/70 dark:border-white/10 space-y-2.5">
-                  <h3 className="font-bold text-zinc-900 dark:text-white text-xs uppercase tracking-wider">
+                <div className="p-4 bg-[#F6F6F8] dark:bg-[#1C1C1E] rounded-[22px] border border-black/[0.04] dark:border-white/10 space-y-2.5">
+                  <h3 className="font-bold text-[#111111] dark:text-white text-xs uppercase tracking-wider">
                     O que esperar
                   </h3>
-                  <ul className="space-y-2 text-[13px] text-zinc-600 dark:text-zinc-300">
+                  <ul className="space-y-2 text-[13px] text-[#52525B] dark:text-zinc-300">
                     <li className="flex items-start gap-2">
-                      <span className="text-zinc-900 dark:text-white font-bold">✓</span>
+                      <span className="text-[#111111] dark:text-white font-bold">✓</span>
                       <span>Mirante panorâmico com vista de tirar o fôlego para vales e montanhas</span>
                     </li>
                     <li className="flex items-start gap-2">
-                      <span className="text-zinc-900 dark:text-white font-bold">✓</span>
+                      <span className="text-[#111111] dark:text-white font-bold">✓</span>
                       <span>Excelente ponto para fotografia e contemplação do pôr do sol</span>
                     </li>
                     <li className="flex items-start gap-2">
-                      <span className="text-zinc-900 dark:text-white font-bold">✓</span>
+                      <span className="text-[#111111] dark:text-white font-bold">✓</span>
                       <span>Estacionamento e cafés típicos nas imediações</span>
                     </li>
                   </ul>
                 </div>
 
-                <div className="p-4 bg-zinc-50 dark:bg-[#1C1C1E] rounded-xl border border-zinc-200/70 dark:border-white/10">
-                  <h4 className="font-bold text-zinc-900 dark:text-white text-xs uppercase tracking-wider mb-1.5">
+                <div className="p-4 bg-[#F6F6F8] dark:bg-[#1C1C1E] rounded-[22px] border border-black/[0.04] dark:border-white/10">
+                  <h4 className="font-bold text-[#111111] dark:text-white text-xs uppercase tracking-wider mb-1.5">
                     Dica de quem foi
                   </h4>
-                  <p className="text-[13px] text-zinc-600 dark:text-zinc-300 leading-relaxed">
+                  <p className="text-[13px] text-[#52525B] dark:text-zinc-300 leading-relaxed">
                     {spot.touristTip || 'Leve um casaco quentinho, especialmente no final da tarde, pois a altitude faz a temperatura cair rapidamente!'}
                   </p>
                 </div>
@@ -1637,13 +1671,13 @@ export const SpotDetailSheet: React.FC<SpotDetailSheetProps> = React.memo(({
                 transition={{ duration: 0.48, ease: [0.16, 1, 0.3, 1] }}
                 className="space-y-3"
               >
-                <div className="flex items-center justify-between p-3.5 bg-zinc-50 dark:bg-[#1C1C1E] rounded-xl border border-zinc-200/70 dark:border-white/10">
+                <div className="flex items-center justify-between p-4 bg-[#F6F6F8] dark:bg-[#1C1C1E] rounded-[22px] border border-black/[0.04] dark:border-white/10">
                   <div>
-                    <span className="text-2xl font-bold text-zinc-950 dark:text-white">{Number(liveRating).toFixed(1)}</span>
-                    <span className="text-xs text-zinc-500 dark:text-[#A1A1AA] block mt-0.5">de 5.0 estrelas</span>
+                    <span className="text-2xl font-bold text-[#0B0B0C] dark:text-white">{Number(liveRating).toFixed(1)}</span>
+                    <span className="text-xs text-[#71717A] dark:text-[#A1A1AA] block mt-0.5">de 5.0 estrelas</span>
                   </div>
                   <div className="flex flex-col items-end">
-                    <div className="flex items-center gap-0.5 text-zinc-900 dark:text-[#F2B900]">
+                    <div className="flex items-center gap-0.5 text-[#111111] dark:text-[#F2B900]">
                       {Array.from({ length: 5 }).map((_, i) => (
                         <Star
                           key={i}
@@ -1651,7 +1685,7 @@ export const SpotDetailSheet: React.FC<SpotDetailSheetProps> = React.memo(({
                         />
                       ))}
                     </div>
-                    <span className="text-xs text-zinc-500 dark:text-[#A1A1AA] mt-1">
+                    <span className="text-xs text-[#71717A] dark:text-[#A1A1AA] mt-1">
                       {tr(`${liveReviewCount.toLocaleString('pt-BR')} avaliações reais`)}
                     </span>
                   </div>
@@ -1660,10 +1694,10 @@ export const SpotDetailSheet: React.FC<SpotDetailSheetProps> = React.memo(({
                 {/* Desktop Interactive Rating Card */}
                 <form
                   onSubmit={handleSubmitReview}
-                  className="p-3.5 bg-zinc-50 dark:bg-[#1C1C1E] rounded-xl border border-zinc-200/70 dark:border-white/10 space-y-2.5"
+                  className="p-4 bg-[#F6F6F8] dark:bg-[#1C1C1E] rounded-[22px] border border-black/[0.04] dark:border-white/10 space-y-2.5"
                 >
                   <div className="flex items-center justify-between">
-                    <span className="text-xs font-bold text-zinc-900 dark:text-white">
+                    <span className="text-xs font-bold text-[#111111] dark:text-white">
                       {tr('Avaliar este ponto turístico')}
                     </span>
                     <div className="flex items-center gap-1">
@@ -1691,23 +1725,23 @@ export const SpotDetailSheet: React.FC<SpotDetailSheetProps> = React.memo(({
                     value={userCommentInput}
                     onChange={(e) => setUserCommentInput(e.target.value)}
                     placeholder={tr('Conte como foi sua experiência (opcional)...')}
-                    className="w-full px-3 py-2 rounded-lg bg-white dark:bg-[#2C2C2E] border border-zinc-200 dark:border-white/10 text-xs text-zinc-900 dark:text-white focus:outline-none focus:border-zinc-400 dark:focus:border-white/40"
+                    className="w-full px-3.5 py-2 rounded-xl bg-white dark:bg-[#2C2C2E] border border-[#E5E5EA] dark:border-white/10 text-xs text-[#111111] dark:text-white focus:outline-none focus:border-[#0B0B0C] dark:focus:border-white/40"
                   />
 
                   <div className="flex items-center justify-between gap-2">
                     {reviewSubmittedMsg ? (
-                      <span className="text-[11px] text-zinc-500 dark:text-zinc-400 font-medium">
+                      <span className="text-[11px] text-[#52525B] dark:text-zinc-400 font-medium">
                         {tr(reviewSubmittedMsg)}
                       </span>
                     ) : (
-                      <span className="text-[11px] text-zinc-400">
+                      <span className="text-[11px] text-[#71717A] dark:text-zinc-400">
                         {tr(`Nota ${userRatingInput}.0 selecionada`)}
                       </span>
                     )}
                     <button
                       type="submit"
                       disabled={isSubmittingReview}
-                      className="px-4 py-2 rounded-full expo-liquid-glass-btn text-black dark:text-white text-xs font-bold transition-transform active:scale-95 disabled:opacity-50 cursor-pointer shrink-0 border border-black/5 dark:border-white/15 shadow-xs"
+                      className="px-4 py-2 rounded-full bg-[#0B0B0C] hover:bg-[#1C1C1E] text-white dark:bg-white dark:text-black text-xs font-semibold transition-transform active:scale-95 disabled:opacity-50 cursor-pointer shrink-0 shadow-[0_4px_12px_rgba(0,0,0,0.12)]"
                     >
                       {isSubmittingReview ? tr('Salvando...') : tr('Publicar avaliação')}
                     </button>
@@ -1737,7 +1771,7 @@ export const SpotDetailSheet: React.FC<SpotDetailSheetProps> = React.memo(({
                 ).map((rev, idx) => (
                   <div
                     key={rev.id || idx}
-                    className="p-3.5 bg-zinc-50 dark:bg-[#1C1C1E] rounded-xl border border-zinc-200/70 dark:border-white/10 space-y-1.5"
+                    className="p-4 bg-[#F6F6F8] dark:bg-[#1C1C1E] rounded-[22px] border border-black/[0.04] dark:border-white/10 space-y-1.5"
                   >
                     <div className="flex items-center justify-between">
                       <span className="font-bold text-xs text-zinc-900 dark:text-white">

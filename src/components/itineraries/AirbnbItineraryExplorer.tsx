@@ -9,7 +9,6 @@ import {
   RotateCcw,
   AlertCircle,
   Play,
-  Plus,
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { Itinerary, ItineraryCategory } from '../../types';
@@ -442,8 +441,6 @@ if (typeof window !== 'undefined') {
 
 export const AirbnbItineraryExplorer: React.FC<AirbnbItineraryExplorerProps> = ({
   onSelectItinerary,
-  onOpenMap,
-  onCreateManualItinerary,
   theme = 'dark',
   activeItineraryId,
   isOnboardingSelection = false,
@@ -1026,8 +1023,8 @@ export const AirbnbItineraryExplorer: React.FC<AirbnbItineraryExplorerProps> = (
             </h1>
           </div>
 
-          {/* Right Action: Plátanos Wallet Balance + Play / Create button */}
-          <div className="flex items-center gap-2">
+          {/* Right Action: Plátanos Wallet Balance */}
+          <div className="flex items-center">
             <button
               type="button"
               onClick={() => {
@@ -1042,77 +1039,9 @@ export const AirbnbItineraryExplorer: React.FC<AirbnbItineraryExplorerProps> = (
               title="Sua carteira de Plátanos"
               aria-label="Sua carteira de Plátanos"
             >
-              <svg
-                viewBox="0 0 24 24"
-                fill="none"
-                aria-hidden="true"
-                className="w-[18px] h-[18px] shrink-0 text-[#000000] dark:text-[#FFFFFF]"
-              >
-                <path
-                  d="M 3.6 20.4 L 7.4 16.6"
-                  stroke="currentColor"
-                  strokeWidth="1.75"
-                  strokeLinecap="round"
-                />
-                <path
-                  fill="currentColor"
-                  fillRule="evenodd"
-                  clipRule="evenodd"
-                  d="M 6.8 16.2 C 5.4 12.0, 7.8 6.8, 13.6 4.8 C 16.4 3.8, 19.0 3.4, 20.8 3.2 C 20.6 5.0, 20.2 7.6, 19.2 10.4 C 17.2 16.2, 12.0 18.6, 7.8 17.2 Z M 7.2 16.5 Q 11.3 12.1 16.7 7.3 Q 11.8 12.7 7.7 17.0 Z"
-                />
-              </svg>
+              <PlatanoLeafIcon className="w-[29px] h-[29px] shrink-0" variant="monochrome" />
               <span>{wallet.balance}</span>
             </button>
-
-            {activeItineraryId && onOpenMap ? (
-              <button
-                type="button"
-                onClick={onOpenMap}
-                className="w-9 h-9 rounded-full bg-black flex items-center justify-center text-white cursor-pointer active:scale-90 transition-transform border border-white/10 shadow-none outline-none"
-                title="Abrir roteiro no mapa"
-                aria-label="Abrir roteiro no mapa"
-              >
-                <Play className="w-4 h-4 fill-white text-white ml-0.5" />
-              </button>
-            ) : onCreateManualItinerary ? (
-              <button
-                type="button"
-                onClick={onCreateManualItinerary}
-                className={`w-9 h-9 rounded-full border flex items-center justify-center shrink-0 cursor-pointer active:scale-90 transition-all outline-none ${
-                  isDark
-                    ? 'bg-[#1C1C1E] border-white/15 text-white hover:bg-[#2C2C2E]'
-                    : 'bg-[#fefefe] border-white text-black'
-                }`}
-                style={
-                  isDark
-                    ? {
-                        boxShadow: '0 8px 24px rgba(0,0,0,0.45)',
-                      }
-                    : {
-                        boxShadow:
-                          '0 8px 24px rgba(0,0,0,0.08), 0 2px 4px rgba(0,0,0,0.04), inset 0 2px 0 rgba(255,255,255,1)',
-                        borderBottom: '4px solid #e4e4e7',
-                      }
-                }
-                title="Criar roteiro manualmente no mapa"
-                aria-label="Criar roteiro manualmente no mapa"
-              >
-                <Plus
-                  className={`w-[18px] h-[18px] shrink-0 ${isDark ? 'text-white' : 'text-black'}`}
-                  strokeWidth={2.2}
-                />
-              </button>
-            ) : onOpenMap ? (
-              <button
-                type="button"
-                onClick={onOpenMap}
-                className="w-9 h-9 rounded-full bg-black flex items-center justify-center text-white cursor-pointer active:scale-90 transition-transform border border-white/10 shadow-none outline-none"
-                title="Abrir roteiro no mapa"
-                aria-label="Abrir roteiro no mapa"
-              >
-                <Play className="w-4 h-4 fill-white text-white ml-0.5" />
-              </button>
-            ) : null}
           </div>
         </div>
 

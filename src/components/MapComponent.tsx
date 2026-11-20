@@ -1,6 +1,7 @@
 import React, { useEffect, useRef, useImperativeHandle, forwardRef, useState, useCallback, memo } from 'react';
 import * as maplibregl from 'maplibre-gl';
 import 'maplibre-gl/dist/maplibre-gl.css';
+import '../utils/configureMaplibre';
 import { Play } from 'lucide-react';
 import { Spot, MapModeType, MapWorkflowMode, ItineraryStep } from '../types';
 import { getSpotPinThumbnail, getSpotFallbackImage } from '../utils/spotImages';

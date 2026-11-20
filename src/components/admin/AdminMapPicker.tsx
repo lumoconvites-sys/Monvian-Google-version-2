@@ -1,6 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import * as maplibregl from 'maplibre-gl';
 import 'maplibre-gl/dist/maplibre-gl.css';
+import '../../utils/configureMaplibre';
 import { Search, MapPin, ZoomIn, ZoomOut, Compass, Layers } from 'lucide-react';
 import { playPinTapSound } from '../../utils/sound';
 import { Spot } from '../../types';
