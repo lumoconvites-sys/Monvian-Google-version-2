@@ -2181,11 +2181,23 @@ export const ItinerariesView: React.FC<ItinerariesViewProps> = memo(({
       pitch: 52,
       bearing: -13,
       projection: { type: 'mercator' },
+      touchZoomRotate: true,
+      touchPitch: false,
       attributionControl: false,
       fadeDuration: 0,
-      maxTileCacheSize: 120,
+      crossSourceCollisions: false,
+      validateStyle: false,
+      cancelPendingTileRequestsWhileZooming: true,
+      maxTileCacheZoomLevels: 4,
+      pixelRatio: typeof window !== 'undefined' ? Math.min(window.devicePixelRatio || 1, 2) : 1,
       refreshExpiredTiles: false,
     } as any);
+
+    try {
+      if (typeof (map.touchZoomRotate as any)?.setZoomThreshold === 'function') {
+        (map.touchZoomRotate as any).setZoomThreshold(0.06);
+      }
+    } catch {}
 
     mapRef.current = map;
     let hasInitializedRoute = false;

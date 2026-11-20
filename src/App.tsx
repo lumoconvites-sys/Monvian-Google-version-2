@@ -1759,6 +1759,12 @@ export default function App() {
     gpsNavigationManager.refreshPositionNow();
   };
 
+  // Track active map drag/pinch via ref (zero React re-renders) so GPS state updates never stall a pinch gesture
+  const isMapInteractingRef = useRef<boolean>(false);
+  const handleMapInteractionChange = useCallback((isInteracting: boolean) => {
+    isMapInteractingRef.current = isInteracting;
+  }, []);
+
   useEffect(() => {
     if (!isAuthenticated || activeTab !== 'explorar') {
       gpsNavigationManager.stop();
@@ -1778,14 +1784,18 @@ export default function App() {
         setGeoStatus(navState.status);
       }
 
+      // Never trigger a full App React re-render while the user is actively pinching/panning the map
+      if (isMapInteractingRef.current) return;
+
       const now = performance.now();
       const shouldSyncImmediately = Boolean(navState.hasRealFix && !hasSyncedFirstRealFix);
-      if (shouldSyncImmediately || now - lastReactSync > 500) {
+      // MapComponent updates the user pin imperatively at 60fps; React state only needs coarse updates (~2s / ~22m)
+      if (shouldSyncImmediately || now - lastReactSync > 2000) {
         const [lng, lat] = navState.coords;
         if (
           shouldSyncImmediately ||
-          Math.abs(lng - lastLng) > 0.00004 ||
-          Math.abs(lat - lastLat) > 0.00004
+          Math.abs(lng - lastLng) > 0.0002 ||
+          Math.abs(lat - lastLat) > 0.0002
         ) {
           if (navState.hasRealFix) {
             hasSyncedFirstRealFix = true;
@@ -2860,6 +2870,7 @@ export default function App() {
               onGlobeIntroComplete={handleGlobeIntroComplete}
               activeRoute={activeRoute}
               isSuspended={isItineraryMapActive}
+              onInteractionChange={handleMapInteractionChange}
               onViewportSpotsLoaded={handleViewportSpotsLoaded}
             />
 

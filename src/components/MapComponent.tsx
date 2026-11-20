@@ -158,7 +158,7 @@ const getVectorMapStyle = (
               'raster-brightness-max': 1.0,
               'raster-contrast': 0.15,
               'raster-saturation': 0.2,
-              'raster-fade-duration': 240,
+              'raster-fade-duration': 0,
             },
           },
         ],
@@ -200,7 +200,7 @@ const getVectorMapStyle = (
             'raster-brightness-max': 1.0,
             'raster-contrast': 0.15,
             'raster-saturation': 0.22,
-            'raster-fade-duration': 240,
+            'raster-fade-duration': 0,
           },
         },
         {
@@ -211,7 +211,7 @@ const getVectorMapStyle = (
           maxzoom: 19,
           paint: {
             'raster-opacity': 0.95,
-            'raster-fade-duration': 240,
+            'raster-fade-duration': 0,
           },
         },
       ],
@@ -244,7 +244,8 @@ const getVectorMapStyle = (
           maxzoom: 22,
           paint: {
             'raster-opacity': 1,
-            'raster-fade-duration': 240,
+            'raster-saturation': theme === 'light' ? 0.15 : 0,
+            'raster-fade-duration': 0,
           },
         },
       ],
@@ -279,14 +280,14 @@ const getVectorMapStyle = (
           maxzoom: 20,
           paint: {
             'raster-opacity': 1,
-            'raster-fade-duration': 240,
+            'raster-fade-duration': 0,
           },
         },
       ],
     };
   }
 
-  // Esri World Street Map (Light mode)
+  // Esri World Street Map (Light mode — native WebGL saturation avoids full-screen CSS filter pass)
   return {
     version: 8,
     projection: mapProjection,
@@ -310,7 +311,8 @@ const getVectorMapStyle = (
         maxzoom: 20,
         paint: {
           'raster-opacity': 1,
-          'raster-fade-duration': 240,
+          'raster-saturation': 0.15,
+          'raster-fade-duration': 0,
         },
       },
     ],
@@ -385,8 +387,12 @@ export const MapComponent = memo(
     onViewportSpotsLoadedRef.current = onViewportSpotsLoaded;
     const syncSpotMarkersRef = useRef<(() => void) | null>(null);
     const viewportSyncRafRef = useRef<number | null>(null);
+    const progressiveMountRafRef = useRef<number | null>(null);
     const viewportFetchTimerRef = useRef<number | null>(null);
     const viewportFetchAbortRef = useRef<AbortController | null>(null);
+    const isZoomGestureActiveRef = useRef<boolean>(false);
+    const lastMarkerSyncCenterRef = useRef<{ lng: number; lat: number } | null>(null);
+    const cachedStarPath100Ref = useRef<string | null>(null);
     const [currentMode, setCurrentMode] = useState<MapModeType>(
       mapMode === 'satelite' ? 'satelite' : 'explorar'
     );
@@ -918,6 +924,10 @@ export const MapComponent = memo(
             cancelAnimationFrame(viewportSyncRafRef.current);
             viewportSyncRafRef.current = null;
           }
+          if (progressiveMountRafRef.current !== null) {
+            cancelAnimationFrame(progressiveMountRafRef.current);
+            progressiveMountRafRef.current = null;
+          }
           if (viewportFetchTimerRef.current !== null) {
             window.clearTimeout(viewportFetchTimerRef.current);
             viewportFetchTimerRef.current = null;
@@ -983,13 +993,25 @@ export const MapComponent = memo(
                 : 0,
           maxPitch: 75,
           pitchWithRotate: true,
-          touchPitch: true,
+          touchZoomRotate: true,
+          touchPitch: false,
           attributionControl: false,
           fadeDuration: 0,
-          maxTileCacheSize: 150,
+          crossSourceCollisions: false,
+          validateStyle: false,
+          cancelPendingTileRequestsWhileZooming: true,
+          maxTileCacheZoomLevels: 4,
+          pixelRatio: typeof window !== 'undefined' ? Math.min(window.devicePixelRatio || 1, 2) : 1,
           refreshExpiredTiles: false,
           trackResize: false,
         });
+
+        try {
+          // Make two-finger pinch-to-zoom respond immediately with minimal deadzone on iPhone/touchscreens
+          if (typeof (map.touchZoomRotate as any)?.setZoomThreshold === 'function') {
+            (map.touchZoomRotate as any).setZoomThreshold(0.06);
+          }
+        } catch {}
 
         mapRef.current = map;
         ensureUserMarker(map);
@@ -1005,6 +1027,17 @@ export const MapComponent = memo(
         let lastSpaceActive: boolean | null = null;
         let lastHideUserPin: boolean | null = null;
 
+        const cancelPendingViewportWork = () => {
+          if (viewportSyncRafRef.current !== null) {
+            cancelAnimationFrame(viewportSyncRafRef.current);
+            viewportSyncRafRef.current = null;
+          }
+          if (progressiveMountRafRef.current !== null) {
+            cancelAnimationFrame(progressiveMountRafRef.current);
+            progressiveMountRafRef.current = null;
+          }
+        };
+
         const cancelPendingViewportFetch = () => {
           if (viewportFetchTimerRef.current !== null) {
             window.clearTimeout(viewportFetchTimerRef.current);
@@ -1017,9 +1050,12 @@ export const MapComponent = memo(
         };
 
         const scheduleViewportMarkerSync = () => {
+          // Never mutate marker DOM mid-pinch-zoom
+          if (isZoomGestureActiveRef.current) return;
           if (viewportSyncRafRef.current !== null) return;
           viewportSyncRafRef.current = requestAnimationFrame(() => {
             viewportSyncRafRef.current = null;
+            if (isZoomGestureActiveRef.current) return;
             if (!mapRef.current || mapRef.current !== map) return;
             syncSpotMarkersRef.current?.();
           });
@@ -1174,9 +1210,13 @@ export const MapComponent = memo(
           syncSpaceAndMarkerZoomTier();
         });
 
-        // Mark map as manually moved by user when panning/dragging so camera stops auto-centering
+        // Mark map as manually moved by user when panning/pinching so camera stays 100% responsive
         const onUserManualMoveStart = (e: any) => {
           cancelPendingViewportFetch();
+          cancelPendingViewportWork();
+          if (e && e.type === 'zoomstart') {
+            isZoomGestureActiveRef.current = true;
+          }
           if (e && e.originalEvent) {
             isMapGestureActiveRef.current = true;
             lastMapGestureTimeRef.current = performance.now();
@@ -1200,22 +1240,48 @@ export const MapComponent = memo(
             isMapGestureActiveRef.current = true;
             lastMapGestureTimeRef.current = performance.now();
           }
-          scheduleViewportMarkerSync();
+          // Skip DOM sync during active two-finger pinch-zoom; during long continuous pans,
+          // only sync once the viewport center has shifted significantly (>= 35% of screen span)
+          if (isZoomGestureActiveRef.current) return;
+          try {
+            const c = map.getCenter();
+            const last = lastMarkerSyncCenterRef.current;
+            if (!last) {
+              scheduleViewportMarkerSync();
+              return;
+            }
+            const b = map.getBounds();
+            const latThresh = Math.max(0.005, (b.getNorth() - b.getSouth()) * 0.35);
+            const lngThresh = Math.max(0.005, (b.getEast() - b.getWest()) * 0.35);
+            if (Math.abs(c.lat - last.lat) >= latThresh || Math.abs(c.lng - last.lng) >= lngThresh) {
+              scheduleViewportMarkerSync();
+            }
+          } catch {}
         };
 
         const onUserZoom = (e: any) => {
+          // Ultra-lightweight zoom handler: ZERO DOM mutations or marker creation while fingers are pinching!
+          isZoomGestureActiveRef.current = true;
           if (e && e.originalEvent) {
             isMapGestureActiveRef.current = true;
             lastMapGestureTimeRef.current = performance.now();
           }
-          syncSpaceAndMarkerZoomTier();
-          scheduleViewportMarkerSync();
+          if (isGlobeIntroActiveRef.current) {
+            syncSpaceAndMarkerZoomTier();
+          }
         };
 
-        const onInteractionEnd = (e: any) => {
+        const onZoomEnd = () => {
+          isZoomGestureActiveRef.current = false;
+        };
+
+        const onMoveEnd = (e: any) => {
           if (e && e.originalEvent) {
             lastMapGestureTimeRef.current = performance.now();
           }
+          // Only reconcile once ALL active camera gestures have completely settled (eliminates 3x duplicate runs)
+          if (map.isMoving() || map.isZooming()) return;
+          isZoomGestureActiveRef.current = false;
           isMapGestureActiveRef.current = false;
           syncSpaceAndMarkerZoomTier();
           syncSpotMarkersRef.current?.();
@@ -1232,9 +1298,8 @@ export const MapComponent = memo(
         map.on('pitchstart', onUserManualMoveStart);
         map.on('drag', onUserDrag);
         map.on('zoom', onUserZoom);
-        map.on('dragend', onInteractionEnd);
-        map.on('zoomend', onInteractionEnd);
-        map.on('moveend', onInteractionEnd);
+        map.on('zoomend', onZoomEnd);
+        map.on('moveend', onMoveEnd);
 
         // Keep deviceHeadingManager aware of map bearing so the flashlight aligns with true heading
         let lastBearingApplied = -999;
@@ -1269,8 +1334,15 @@ export const MapComponent = memo(
 
       const unsubscribeHeading = deviceHeadingManager.subscribe((rawHeading) => {
         if (isNaN(rawHeading)) return;
-        // Skip DOM mutations when map tab is hidden or suspended in the background
-        if (isSuspendedRef.current || (activeTabRef.current && activeTabRef.current !== 'explorar')) return;
+        // Skip DOM mutations when map tab is hidden, suspended, or actively pinching/dragging
+        if (
+          isSuspendedRef.current ||
+          isMapGestureActiveRef.current ||
+          isZoomGestureActiveRef.current ||
+          (activeTabRef.current && activeTabRef.current !== 'explorar')
+        ) {
+          return;
+        }
 
         if (mapRef.current && (!userMarkerRef.current || !userBeamRef.current)) {
           ensureUserMarker(mapRef.current);
@@ -1279,13 +1351,13 @@ export const MapComponent = memo(
         const mapBearing = mapRef.current?.getBearing() || 0;
         const beamAngle = (rawHeading - mapBearing + 360) % 360;
 
-        if (userBeamRef.current && Math.abs(beamAngle - lastRenderedBeamAngle) >= 0.25) {
+        if (userBeamRef.current && Math.abs(beamAngle - lastRenderedBeamAngle) >= 0.4) {
           lastRenderedBeamAngle = beamAngle;
           userBeamRef.current.style.transform = `translate3d(-50%, -50%, 0) rotate(${beamAngle.toFixed(1)}deg)`;
         }
 
         const compassAngle = -rawHeading;
-        if (compassIconWrapperRef.current && Math.abs(compassAngle - lastRenderedCompassAngle) >= 0.25) {
+        if (compassIconWrapperRef.current && Math.abs(compassAngle - lastRenderedCompassAngle) >= 0.4) {
           lastRenderedCompassAngle = compassAngle;
           compassIconWrapperRef.current.style.transform = `rotate(${compassAngle.toFixed(1)}deg)`;
         }
@@ -1365,7 +1437,7 @@ export const MapComponent = memo(
 
         const isExplorarVisible = !activeTabRef.current || activeTabRef.current === 'explorar';
 
-        if (isExplorarVisible) {
+        if (isExplorarVisible && !isMapGestureActiveRef.current && !isZoomGestureActiveRef.current) {
           if (mapRef.current && !userMarkerRef.current) {
             ensureUserMarker(mapRef.current);
           }
@@ -1828,6 +1900,10 @@ export const MapComponent = memo(
           cancelAnimationFrame(viewportSyncRafRef.current);
           viewportSyncRafRef.current = null;
         }
+        if (progressiveMountRafRef.current !== null) {
+          cancelAnimationFrame(progressiveMountRafRef.current);
+          progressiveMountRafRef.current = null;
+        }
         if (viewportFetchTimerRef.current !== null) {
           window.clearTimeout(viewportFetchTimerRef.current);
           viewportFetchTimerRef.current = null;
@@ -2085,9 +2161,6 @@ export const MapComponent = memo(
             } else {
               rec.pulseScaleWrapEl.classList.remove('is-selected');
             }
-            rec.badgeEl.style.filter = isSelected
-              ? 'drop-shadow(0 8px 16px rgba(0, 0, 0, 0.44))'
-              : 'drop-shadow(0 4px 9px rgba(0, 0, 0, 0.32))';
           } else {
             rec.badgeEl.style.border = isSelected
               ? '3px solid #FFFFFF'
@@ -2464,14 +2537,33 @@ export const MapComponent = memo(
         return true;
       });
 
+      if (progressiveMountRafRef.current !== null) {
+        cancelAnimationFrame(progressiveMountRafRef.current);
+        progressiveMountRafRef.current = null;
+      }
+
+      // Never run DOM creation/teardown while the user's fingers are actively pinching to zoom
+      if (isZoomGestureActiveRef.current) return;
+
+      try {
+        const c = map.getCenter();
+        lastMarkerSyncCenterRef.current = { lng: c.lng, lat: c.lat };
+      } catch {}
+
       const existingMap = new Map(markerRecordsRef.current.map((rec) => [rec.spotId, rec]));
 
-      const starPath100 = buildRoundedStarPath(50, 51, 47, 22, 0.16, 2);
+      if (!cachedStarPath100Ref.current) {
+        cachedStarPath100Ref.current = buildRoundedStarPath(50, 51, 47, 22, 0.16, 2);
+      }
+      const starPath100 = cachedStarPath100Ref.current;
       const starClipPolygon =
         'polygon(50% 4%, 64% 34%, 97% 38%, 72% 60%, 79% 93%, 50% 76%, 21% 93%, 28% 60%, 3% 38%, 36% 34%)';
 
-      // Step 2: Update already-mounted pins or mount on-demand ONLY spots inside the enter viewport bounds
-      validSpots.forEach((spot) => {
+      const pendingToMount: Spot[] = [];
+
+      // Step 2: Update already-mounted pins in-place and queue newly entering viewport pins
+      for (let i = 0; i < validSpots.length; i++) {
+        const spot = validSpots[i];
         const lng = Number(spot.lng);
         const lat = Number(spot.lat);
         const existing = existingMap.get(spot.id);
@@ -2486,6 +2578,7 @@ export const MapComponent = memo(
             } catch {}
             markerRecordsRef.current = markerRecordsRef.current.filter((r) => r.spotId !== spot.id);
             animatedSpotIdsRef.current.delete(spot.id);
+            pendingToMount.push(spot);
           } else {
             existing.spot = spot;
             if (!existing.el.isConnected) {
@@ -2500,20 +2593,22 @@ export const MapComponent = memo(
               existing.imgEl.src = imgUrl;
               existing.imgUrl = imgUrl;
             }
-            return;
           }
-        } else if (!protectedPin && !isInsideGeoBounds(lat, lng, enterBounds)) {
-          // Offscreen spot: do NOT instantiate DOM, <img>, or MapLibre Marker
-          return;
+        } else if (protectedPin || isInsideGeoBounds(lat, lng, enterBounds)) {
+          pendingToMount.push(spot);
         }
+      }
 
+      const mountSpotPin = (spot: Spot) => {
+        const lng = Number(spot.lng);
+        const lat = Number(spot.lat);
         const imgUrl = getSpotImage(spot);
         const isStar = isFiveStarSpot(spot);
         const isSelected = currentSelectedId === spot.id;
 
         const el = document.createElement('div');
         el.className = 'monvian-explore-marker group cursor-pointer select-none';
-        el.style.touchAction = 'manipulation';
+        el.style.touchAction = 'none';
         el.style.contain = 'layout style';
         el.setAttribute('data-spot-id', spot.id);
 
@@ -2523,8 +2618,6 @@ export const MapComponent = memo(
         containerEl.style.flexDirection = 'column';
         containerEl.style.alignItems = 'center';
         containerEl.style.justifyContent = 'center';
-        containerEl.style.transition =
-          'transform 0.36s cubic-bezier(0.22, 1, 0.36, 1), opacity 0.28s cubic-bezier(0.22, 1, 0.36, 1)';
         containerEl.style.transform = isSelected ? 'scale(1.22)' : 'scale(0.96)';
         containerEl.style.zIndex = isSelected ? '50' : '20';
 
@@ -2584,19 +2677,16 @@ export const MapComponent = memo(
         };
 
         if (isStar) {
-          // Streamlined 5-pointed Yellow Star marker: 1 single lightweight SVG backing + GPU CSS polygon clip-path
-          badgeEl.style.filter = isSelected
-            ? 'drop-shadow(0 8px 16px rgba(0, 0, 0, 0.44))'
-            : 'drop-shadow(0 4px 9px rgba(0, 0, 0, 0.32))';
-
+          // 5-pointed Yellow Star marker with GPU-friendly SVG offset shadow (zero CSS filter: drop-shadow pass)
           const starBgSvg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
-          starBgSvg.setAttribute('viewBox', '0 0 100 100');
+          starBgSvg.setAttribute('viewBox', '0 0 100 104');
           starBgSvg.style.position = 'absolute';
           starBgSvg.style.inset = '0';
           starBgSvg.style.width = '100%';
           starBgSvg.style.height = '100%';
+          starBgSvg.style.overflow = 'visible';
           starBgSvg.style.pointerEvents = 'none';
-          starBgSvg.innerHTML = `<path d="${starPath100}" fill="#FFD60A" stroke="#F5B301" stroke-width="3" stroke-linejoin="round" />`;
+          starBgSvg.innerHTML = `<path d="${starPath100}" transform="translate(0 4)" fill="rgba(0,0,0,0.28)" /><path d="${starPath100}" fill="#FFD60A" stroke="#F5B301" stroke-width="3" stroke-linejoin="round" />`;
 
           const photoMaskEl = document.createElement('div');
           photoMaskEl.style.position = 'absolute';
@@ -2631,6 +2721,8 @@ export const MapComponent = memo(
         let pointerMovedDuringTap = false;
 
         el.onpointerdown = (e) => {
+          // Ignore secondary fingers during two-finger pinch-to-zoom
+          if (!e.isPrimary || isZoomGestureActiveRef.current) return;
           pointerStartPos = { x: e.clientX, y: e.clientY };
           pointerMovedDuringTap = false;
           unlockSpotClickSound();
@@ -2658,7 +2750,8 @@ export const MapComponent = memo(
           }
         };
 
-        const marker = new maplibregl.Marker({ element: el, opacityWhenCovered: '0' })
+        // Omit opacityWhenCovered on flat Mercator markers to avoid per-frame occlusion raycasts
+        const marker = new maplibregl.Marker({ element: el })
           .setLngLat([lng, lat])
           .addTo(map);
 
@@ -2685,6 +2778,7 @@ export const MapComponent = memo(
           if (
             pointerMovedDuringTap ||
             isMapGestureActiveRef.current ||
+            isZoomGestureActiveRef.current ||
             performance.now() - lastMapGestureTimeRef.current < 80
           ) {
             pointerMovedDuringTap = false;
@@ -2707,9 +2801,48 @@ export const MapComponent = memo(
         };
 
         markerRecordsRef.current.push(record);
-      });
+      };
 
-      syncMarkerHighlight(currentSelectedId);
+      // Step 3: Progressive frame-budgeted mounting (max 8 new pins/frame) to prevent frame drops when zooming out
+      const MAX_MOUNTS_PER_FRAME = 8;
+      if (pendingToMount.length <= MAX_MOUNTS_PER_FRAME) {
+        for (let i = 0; i < pendingToMount.length; i++) {
+          mountSpotPin(pendingToMount[i]);
+        }
+        syncMarkerHighlight(currentSelectedId);
+      } else {
+        // Prioritize protected pins & spots closest to viewport center first
+        const center = lastMarkerSyncCenterRef.current;
+        if (center) {
+          pendingToMount.sort((a, b) => {
+            const ap = isProtectedSpot(a.id) ? -1 : 0;
+            const bp = isProtectedSpot(b.id) ? -1 : 0;
+            if (ap !== bp) return ap - bp;
+            const da = (a.lat - center.lat) ** 2 + (a.lng - center.lng) ** 2;
+            const db = (b.lat - center.lat) ** 2 + (b.lng - center.lng) ** 2;
+            return da - db;
+          });
+        }
+
+        let cursor = 0;
+        const mountBatch = () => {
+          progressiveMountRafRef.current = null;
+          if (!mapRef.current || mapRef.current !== map || isZoomGestureActiveRef.current) return;
+          const end = Math.min(cursor + MAX_MOUNTS_PER_FRAME, pendingToMount.length);
+          for (; cursor < end; cursor++) {
+            const candidate = pendingToMount[cursor];
+            if (!markerRecordsRef.current.some((r) => r.spotId === candidate.id)) {
+              mountSpotPin(candidate);
+            }
+          }
+          syncMarkerHighlight(selectedSpotRef.current?.id || null);
+          if (cursor < pendingToMount.length) {
+            progressiveMountRafRef.current = requestAnimationFrame(mountBatch);
+          }
+        };
+
+        mountBatch();
+      }
     }, [syncMarkerHighlight, setFollowMode, triggerPinTapFeedback, animateMarkerPress, buildRoundedStarPath, isFiveStarSpot]);
 
     useEffect(() => {

@@ -145,10 +145,23 @@ export const BottomNavigation: React.FC<BottomNavigationProps> = memo(({
       return null;
     };
 
+    let isTouchMoveListening = false;
+
+    const detachTouchMove = () => {
+      if (!isTouchMoveListening) return;
+      isTouchMoveListening = false;
+      window.removeEventListener('touchmove', handleTouchMove);
+    };
+
     const handleTouchStart = (e: TouchEvent) => {
-      if (e.touches.length !== 1) return;
+      if (e.touches.length !== 1) {
+        isTouchInScrollableRef.current = false;
+        detachTouchMove();
+        return;
+      }
       if (normalizedActiveTab === 'explorar' && isInsideMap(e.target)) {
         isTouchInScrollableRef.current = false;
+        detachTouchMove();
         return;
       }
       const y = e.touches[0].clientY;
@@ -157,6 +170,10 @@ export const BottomNavigation: React.FC<BottomNavigationProps> = memo(({
       touchDirectionRef.current = null;
       const scrollable = normalizedActiveTab !== 'explorar' ? null : findScrollableAncestor(e.target);
       isTouchInScrollableRef.current = Boolean(scrollable) || normalizedActiveTab !== 'explorar';
+      if (isTouchInScrollableRef.current && !isTouchMoveListening) {
+        isTouchMoveListening = true;
+        window.addEventListener('touchmove', handleTouchMove, { passive: true });
+      }
     };
 
     const handleTouchMove = (e: TouchEvent) => {
@@ -166,6 +183,7 @@ export const BottomNavigation: React.FC<BottomNavigationProps> = memo(({
         touchAnchorYRef.current === null ||
         !isTouchInScrollableRef.current
       ) {
+        detachTouchMove();
         return;
       }
       const currentY = e.touches[0].clientY;
@@ -196,6 +214,7 @@ export const BottomNavigation: React.FC<BottomNavigationProps> = memo(({
       touchLastYRef.current = null;
       touchDirectionRef.current = null;
       isTouchInScrollableRef.current = false;
+      detachTouchMove();
     };
 
     const handleWheel = (e: WheelEvent) => {
@@ -212,16 +231,15 @@ export const BottomNavigation: React.FC<BottomNavigationProps> = memo(({
 
     window.addEventListener('scroll', handleScrollCapture, { capture: true, passive: true });
     window.addEventListener('touchstart', handleTouchStart, { passive: true });
-    window.addEventListener('touchmove', handleTouchMove, { passive: true });
     window.addEventListener('touchend', handleTouchEnd, { passive: true });
     window.addEventListener('touchcancel', handleTouchEnd, { passive: true });
     window.addEventListener('wheel', handleWheel, { passive: true });
 
     return () => {
       if (scrollRafId) cancelAnimationFrame(scrollRafId);
+      detachTouchMove();
       window.removeEventListener('scroll', handleScrollCapture, { capture: true });
       window.removeEventListener('touchstart', handleTouchStart);
-      window.removeEventListener('touchmove', handleTouchMove);
       window.removeEventListener('touchend', handleTouchEnd);
       window.removeEventListener('touchcancel', handleTouchEnd);
       window.removeEventListener('wheel', handleWheel);

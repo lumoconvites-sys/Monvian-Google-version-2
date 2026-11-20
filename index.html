@@ -442,7 +442,7 @@
         function isZoomAllowed(target) {
           if (!target) return false;
           if (target.nodeType === 3) target = target.parentElement;
-          if (target && target.closest && target.closest('.maplibregl-map, .maplibregl-canvas-container, .maplibregl-canvas, #map, [data-map-container]')) {
+          if (target && target.closest && target.closest('#app-map-layer, .maplibregl-map, .maplibregl-canvas-container, .maplibregl-canvas, .maplibregl-marker, .monvian-explore-marker, #map, [data-map-container]')) {
             return true;
           }
           if (target && target.closest && target.closest('#auth-main-section, [data-allow-zoom="true"], .auth-login-screen, #input-login-email, #input-login-password, .login-zoom-container')) {
@@ -450,6 +450,16 @@
           }
           if (document.body && (document.body.classList.contains('is-login-screen') || document.documentElement.classList.contains('is-login-screen'))) {
             return true;
+          }
+          return false;
+        }
+
+        function isTouchEventInAllowedZone(e) {
+          if (isZoomAllowed(e.target)) return true;
+          if (e.touches && e.touches.length > 0) {
+            for (var i = 0; i < e.touches.length; i++) {
+              if (isZoomAllowed(e.touches[i].target)) return true;
+            }
           }
           return false;
         }
@@ -473,13 +483,12 @@
           }
         }, { passive: false });
 
-        // Prevent multi-touch pinch outside map without blocking 1-finger 120Hz compositor scrolling
+        // Prevent multi-touch pinch outside map without interfering with 2-finger map pinch-to-zoom
         var pinchMoveGuardActive = false;
         function onPinchTouchMove(e) {
-          if (e.touches && e.touches.length > 1) {
-            if (!isZoomAllowed(e.target)) {
-              e.preventDefault();
-            }
+          if (!e.touches || e.touches.length < 2) return;
+          if (!isTouchEventInAllowedZone(e)) {
+            e.preventDefault();
           }
         }
         function clearPinchMoveGuard() {
@@ -489,7 +498,8 @@
         }
 
         document.addEventListener('touchstart', function(e) {
-          if (e.touches && e.touches.length > 1 && !isZoomAllowed(e.target)) {
+          if (!e.touches || e.touches.length < 2) return;
+          if (!isTouchEventInAllowedZone(e)) {
             e.preventDefault();
             if (!pinchMoveGuardActive) {
               pinchMoveGuardActive = true;
