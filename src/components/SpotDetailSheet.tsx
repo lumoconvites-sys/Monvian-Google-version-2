@@ -1014,7 +1014,12 @@ export const SpotDetailSheet: React.FC<SpotDetailSheetProps> = React.memo(({
                   className="space-y-5"
                 >
                   {/* 5. Cartões informativos lado a lado (Horário de funcionamento e Entrada) */}
-                  <div className="grid grid-cols-2 gap-3.5">
+                  <motion.div
+                    initial={{ opacity: 0, y: 14, scale: 0.97 }}
+                    animate={{ opacity: 1, y: 0, scale: 1 }}
+                    transition={{ type: 'spring', stiffness: 400, damping: 28, delay: 0.21 }}
+                    className="grid grid-cols-2 gap-3.5"
+                  >
                     <div className="p-4 rounded-[22px] bg-[#F6F6F8] dark:bg-[#1C1C1E] border border-black/[0.04] dark:border-white/10 flex flex-col justify-between min-h-[124px]">
                       <div className="flex items-start gap-2.5">
                         <Clock
@@ -1044,11 +1049,14 @@ export const SpotDetailSheet: React.FC<SpotDetailSheetProps> = React.memo(({
                         {spot.priceRange === 'Grátis' ? 'Acesso Livre' : spot.priceRange || 'Consultar'}
                       </span>
                     </div>
-                  </div>
+                  </motion.div>
 
                   {/* 6. Botão de GPS proeminente */}
                   <motion.button
-                    whileTap={{ scale: 0.97 }}
+                    initial={{ opacity: 0, y: 14, scale: 0.97 }}
+                    animate={{ opacity: 1, y: 0, scale: 1 }}
+                    transition={{ type: 'spring', stiffness: 400, damping: 28, delay: 0.25 }}
+                    whileTap={{ scale: 0.96 }}
                     type="button"
                     onClick={() => openDirectionsMap(spot)}
                     className="w-full h-[58px] rounded-full px-6 flex items-center justify-between bg-[#0B0B0C] hover:bg-[#1C1C1E] text-white dark:bg-white dark:text-black shadow-[0_8px_22px_rgba(0,0,0,0.14)] transition-colors cursor-pointer"
@@ -1081,9 +1089,9 @@ export const SpotDetailSheet: React.FC<SpotDetailSheetProps> = React.memo(({
               {activeTab === 'Experiência' && (
                 <motion.div
                   key="tab-experiencia"
-                  initial={{ opacity: 0, y: 10 }}
+                  initial={{ opacity: 0, y: 12 }}
                   animate={{ opacity: 1, y: 0 }}
-                  transition={{ duration: 0.45, ease: [0.16, 1, 0.3, 1] }}
+                  transition={{ type: 'spring', stiffness: 420, damping: 30 }}
                   className="space-y-4"
                 >
                   <div className="p-4 bg-[#F6F6F8] dark:bg-[#1C1C1E] rounded-[22px] border border-black/[0.04] dark:border-white/10 space-y-3">
@@ -1107,7 +1115,7 @@ export const SpotDetailSheet: React.FC<SpotDetailSheetProps> = React.memo(({
                   <motion.div
                     initial={{ opacity: 0, y: 10 }}
                     animate={{ opacity: 1, y: 0 }}
-                    transition={{ duration: 0.45, ease: [0.16, 1, 0.3, 1], delay: 0.06 }}
+                    transition={{ type: 'spring', stiffness: 420, damping: 30, delay: 0.04 }}
                     className="p-4 bg-[#F6F6F8] dark:bg-[#1C1C1E] rounded-[22px] border border-black/[0.04] dark:border-white/10"
                   >
                     <h4 className="font-bold text-[#111111] dark:text-white text-xs uppercase tracking-wider mb-2">Dica de quem foi</h4>
@@ -1121,9 +1129,9 @@ export const SpotDetailSheet: React.FC<SpotDetailSheetProps> = React.memo(({
               {activeTab === 'Vídeos' && (
                 <motion.div
                   key="tab-videos"
-                  initial={{ opacity: 0, y: 10 }}
+                  initial={{ opacity: 0, y: 12 }}
                   animate={{ opacity: 1, y: 0 }}
-                  transition={{ duration: 0.60, ease: [0.16, 1, 0.3, 1] }}
+                  transition={{ type: 'spring', stiffness: 420, damping: 30 }}
                   className="space-y-4"
                 >
                   <SpotVideoPlayer 
@@ -1138,9 +1146,9 @@ export const SpotDetailSheet: React.FC<SpotDetailSheetProps> = React.memo(({
               {activeTab === 'Avaliações' && (
                 <motion.div
                   key="tab-avaliacoes"
-                  initial={{ opacity: 0, y: 10 }}
+                  initial={{ opacity: 0, y: 12 }}
                   animate={{ opacity: 1, y: 0 }}
-                  transition={{ duration: 0.60, ease: [0.16, 1, 0.3, 1] }}
+                  transition={{ type: 'spring', stiffness: 420, damping: 30 }}
                   className="space-y-4"
                 >
                   <div className="flex items-center justify-between p-4 bg-[#F6F6F8] dark:bg-[#1C1C1E] rounded-[22px] border border-black/[0.04] dark:border-white/10">
