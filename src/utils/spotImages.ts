@@ -206,6 +206,59 @@ export function getSpotImage(spot: {
 }
 
 /**
+ * Optimizes Unsplash CDN URLs to exact target dimensions without affecting custom uploaded assets.
+ */
+function resizeSpotImageUrl(resolved: string, width: number, height?: number, quality: number = 72): string {
+  if (!resolved) return SPOT_PHOTO_MAP['parque-capivari'];
+  if (resolved.includes('images.unsplash.com/')) {
+    try {
+      const url = new URL(resolved);
+      url.searchParams.set('auto', 'format');
+      url.searchParams.set('fit', 'crop');
+      url.searchParams.set('w', String(width));
+      if (height) {
+        url.searchParams.set('h', String(height));
+      } else {
+        url.searchParams.delete('h');
+      }
+      url.searchParams.set('q', String(quality));
+      return url.toString();
+    } catch {
+      return resolved;
+    }
+  }
+  return resolved;
+}
+
+/**
+ * Lightweight square thumbnail (~140x140px) specifically for map circle pins to save RAM, bandwidth & GPU texture memory.
+ */
+export function getSpotPinThumbnail(spot: {
+  id?: string;
+  name?: string;
+  shortName?: string;
+  category?: string;
+  image?: string;
+  gallery?: string[];
+}): string {
+  return resizeSpotImageUrl(getSpotImage(spot), 140, 140, 68);
+}
+
+/**
+ * Medium thumbnail (~360px) for itinerary stop cards & previews; full resolution loads on demand in detail sheets.
+ */
+export function getSpotCardThumbnail(spot: {
+  id?: string;
+  name?: string;
+  shortName?: string;
+  category?: string;
+  image?: string;
+  gallery?: string[];
+}): string {
+  return resizeSpotImageUrl(getSpotImage(spot), 360, undefined, 76);
+}
+
+/**
  * Returns an optimized high-DPI square image URL specifically tuned for compact iOS notifications (~76x76px @ 3x Retina = 240x240px).
  * Preserves custom database URLs while optimizing Unsplash CDN parameters for fast loading.
  */
@@ -217,27 +270,70 @@ export function getSpotNotificationImage(spot: {
   image?: string;
   gallery?: string[];
 }): string {
-  const resolved = getSpotImage(spot);
-  if (!resolved) return SPOT_PHOTO_MAP['parque-capivari'];
-
-  if (resolved.includes('images.unsplash.com/')) {
-    try {
-      const url = new URL(resolved);
-      url.searchParams.set('auto', 'format');
-      url.searchParams.set('fit', 'crop');
-      url.searchParams.set('w', '240');
-      url.searchParams.set('h', '240');
-      url.searchParams.set('q', '82');
-      return url.toString();
-    } catch {
-      return resolved;
-    }
-  }
-
-  return resolved;
+  return resizeSpotImageUrl(getSpotImage(spot), 240, 240, 82);
 }
 
-const preloadedUrls = new Set<string>();
+// Bounded LRU image cache (caps memory overhead while preventing redundant network fetches)
+const MAX_IMAGE_CACHE_ENTRIES = 160;
+const imageCache = new Map<string, { status: 'loaded' | 'error'; fallback?: string }>();
+const inflightImageRequests = new Map<string, Promise<string>>();
+
+function touchImageCache(url: string, value: { status: 'loaded' | 'error'; fallback?: string }): void {
+  if (imageCache.has(url)) {
+    imageCache.delete(url);
+  }
+  imageCache.set(url, value);
+  while (imageCache.size > MAX_IMAGE_CACHE_ENTRIES) {
+    const oldestKey = imageCache.keys().next().value;
+    if (!oldestKey) break;
+    imageCache.delete(oldestKey);
+  }
+}
+
+export function clearSpotImageCache(): void {
+  imageCache.clear();
+  inflightImageRequests.clear();
+}
+
+/**
+ * Preloads and decodes an image URL once using the bounded LRU cache + request deduplication.
+ */
+export function preloadCachedImageUrl(url: string, fallbackUrl: string): Promise<string> {
+  if (typeof window === 'undefined' || !url) {
+    return Promise.resolve(url || fallbackUrl);
+  }
+
+  const cached = imageCache.get(url);
+  if (cached) {
+    touchImageCache(url, cached);
+    return Promise.resolve(cached.status === 'loaded' ? url : cached.fallback || fallbackUrl);
+  }
+
+  const existingInflight = inflightImageRequests.get(url);
+  if (existingInflight) {
+    return existingInflight;
+  }
+
+  const promise = new Promise<string>((resolve) => {
+    const img = new Image();
+    img.decoding = 'async';
+    img.referrerPolicy = 'no-referrer';
+    img.onload = () => {
+      inflightImageRequests.delete(url);
+      touchImageCache(url, { status: 'loaded' });
+      resolve(url);
+    };
+    img.onerror = () => {
+      inflightImageRequests.delete(url);
+      touchImageCache(url, { status: 'error', fallback: fallbackUrl });
+      resolve(fallbackUrl);
+    };
+    img.src = url;
+  });
+
+  inflightImageRequests.set(url, promise);
+  return promise;
+}
 
 /**
  * Preloads and decodes a spot's notification thumbnail in memory so it renders with zero latency.
@@ -251,24 +347,8 @@ export function preloadSpotNotificationImage(spot: {
   gallery?: string[];
 }): Promise<string> {
   const url = getSpotNotificationImage(spot);
-  if (typeof window === 'undefined' || !url || preloadedUrls.has(url)) {
-    return Promise.resolve(url);
-  }
-
-  return new Promise((resolve) => {
-    const img = new Image();
-    img.decoding = 'async';
-    img.referrerPolicy = 'no-referrer';
-    img.onload = () => {
-      preloadedUrls.add(url);
-      resolve(url);
-    };
-    img.onerror = () => {
-      const fallback = getSpotFallbackImage(spot.name || '', spot.category || 'attractions');
-      resolve(fallback);
-    };
-    img.src = url;
-  });
+  const fallback = getSpotFallbackImage(spot.name || '', spot.category || 'attractions');
+  return preloadCachedImageUrl(url, fallback);
 }
 
 /**

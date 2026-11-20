@@ -1,8 +1,8 @@
 import React, { useRef } from 'react';
 import { Spot } from '../../types';
-import { Star, Search, X, ChevronRight, MapPin } from 'lucide-react';
+import { Star, Search, X, ChevronRight, MapPin, Play } from 'lucide-react';
 import { VerifiedBadge } from '../ui/VerifiedBadge';
-import { getSpotImage, getSpotFallbackImage } from '../../utils/spotImages';
+import { getSpotCardThumbnail, getSpotFallbackImage } from '../../utils/spotImages';
 import {
   DesktopExploreClothingBanner,
   RealWeatherSnapshot,
@@ -20,6 +20,7 @@ interface DesktopExplorePanelProps {
   theme?: 'dark' | 'light';
   realWeather?: RealWeatherSnapshot;
   onOpenClothingGuide?: () => void;
+  onStartItineraryCreation?: () => void;
 }
 
 const CATEGORIES = [
@@ -44,6 +45,7 @@ export const DesktopExplorePanel: React.FC<DesktopExplorePanelProps> = ({
   theme = 'light',
   realWeather,
   onOpenClothingGuide,
+  onStartItineraryCreation,
 }) => {
   const categoriesRef = useRef<HTMLDivElement | null>(null);
   const isDark = theme === 'dark';
@@ -68,18 +70,36 @@ export const DesktopExplorePanel: React.FC<DesktopExplorePanelProps> = ({
         }`}
         style={{ backgroundColor: isDark ? '#000000' : '#ffffff' }}
       >
-        {/* Title & Count */}
-        <div className="flex items-baseline justify-between">
-          <h2
-            className="text-xl font-bold tracking-tight"
-            style={{ color: isDark ? '#FFFFFF' : '#424242' }}
-          >
-            Explorar
-          </h2>
-          <span className="text-xs font-semibold text-zinc-500">
-            <span>{spots.length}</span>{' '}
-            <span>{spots.length === 1 ? 'local' : 'locais'}</span>
-          </span>
+        {/* Title, Itinerary Play Trigger & Count */}
+        <div className="flex items-center justify-between gap-2">
+          <div className="flex items-baseline gap-2.5">
+            <h2
+              className="text-xl font-bold tracking-tight"
+              style={{ color: isDark ? '#FFFFFF' : '#424242' }}
+            >
+              Explorar
+            </h2>
+            <span className="text-xs font-semibold text-zinc-500">
+              <span>{spots.length}</span>{' '}
+              <span>{spots.length === 1 ? 'local' : 'locais'}</span>
+            </span>
+          </div>
+
+          {onStartItineraryCreation && (
+            <button
+              type="button"
+              onClick={onStartItineraryCreation}
+              className={`px-3 py-1.5 rounded-full text-xs font-bold flex items-center gap-1.5 transition-all active:scale-95 cursor-pointer border ${
+                isDark
+                  ? 'bg-white text-black border-white hover:bg-zinc-200'
+                  : 'bg-[#171717] text-white border-[#171717] hover:bg-black'
+              }`}
+              title="Selecionar pontos no mapa para criar roteiro"
+            >
+              <Play className="w-3 h-3 fill-current" />
+              <span>Criar Roteiro</span>
+            </button>
+          )}
         </div>
 
         {/* Weather & Attire Informative Widget */}
@@ -162,7 +182,7 @@ export const DesktopExplorePanel: React.FC<DesktopExplorePanelProps> = ({
         {spots.length > 0 ? (
           spots.map((spot) => {
             const isSelected = selectedSpot?.id === spot.id;
-            const imgUrl = getSpotImage(spot);
+            const imgUrl = getSpotCardThumbnail(spot);
 
             return (
               <div
