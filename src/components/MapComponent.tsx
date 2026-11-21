@@ -1,4 +1,5 @@
 import React, { useEffect, useRef, useImperativeHandle, forwardRef, useState, useCallback, memo } from 'react';
+import { motion } from 'motion/react';
 import * as maplibregl from 'maplibre-gl';
 import 'maplibre-gl/dist/maplibre-gl.css';
 import '../utils/configureMaplibre';
@@ -72,6 +73,7 @@ interface MapComponentProps {
   isItineraryExpanded?: boolean;
   onSelectItineraryStep?: (stepId: string) => void;
   zoomDurationMs?: number;
+  entranceTick?: number;
 }
 
 const getMapboxToken = (): string => {
@@ -386,6 +388,7 @@ export const MapComponent = memo(
       isItineraryExpanded = false,
       onSelectItineraryStep,
       zoomDurationMs = 780,
+      entranceTick = 0,
     },
     ref
   ) => {
@@ -3995,6 +3998,24 @@ export const MapComponent = memo(
         />
 
         {/* Floating Right-Side Map Controls (Play Itinerary, Compass/Location, Layers) */}
+        {(() => {
+          const isSat = currentMode === 'satelite';
+          const controlIconColor = isSat
+            ? theme === 'dark'
+              ? '#C0C0C6'
+              : '#858585'
+            : theme === 'dark'
+              ? '#FFFFFF'
+              : '#000000';
+          const controlTextClass = isSat
+            ? theme === 'dark'
+              ? 'text-[#C0C0C6]'
+              : 'text-[#858585]'
+            : theme === 'dark'
+              ? 'text-white'
+              : 'text-black';
+
+          return (
         <div
           id="mobile-map-right-controls"
           className={`md:hidden absolute right-3.5 top-1/2 -translate-y-1/2 z-30 flex flex-col items-center gap-3 transition-[opacity,transform] duration-300 ease-[cubic-bezier(0.22,1,0.36,1)] ${
@@ -4008,9 +4029,14 @@ export const MapComponent = memo(
         >
           {/* PLAY — Create Custom Itinerary Directly on Map */}
           {workflowMode === 'EXPLORE' && onStartItineraryCreation && (
-            <button
+            <motion.button
+              key={`map-ctrl-play-${entranceTick}`}
               id="btn-play-itinerary"
               type="button"
+              initial={{ opacity: 0, scale: 0.88, y: 12 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              transition={{ type: 'spring', stiffness: 380, damping: 22, delay: 0.08 }}
+              whileTap={{ scale: 0.9, transition: { type: 'spring', stiffness: 500, damping: 14 } }}
               onClick={() => {
                 unlockSpotClickSound();
                 playSpotClickSound();
@@ -4019,64 +4045,70 @@ export const MapComponent = memo(
               }}
               aria-label="Criar roteiro no mapa"
               title="Criar roteiro no mapa"
-              className={`w-[53px] h-[53px] sm:w-[58px] sm:h-[58px] rounded-full ios26-liquid-glass flex items-center justify-center active:scale-90 transition-all duration-200 cursor-pointer shrink-0 ${
-                currentMode === 'satelite' || theme === 'dark' ? 'text-white' : 'text-black'
-              }`}
-              style={{ color: currentMode === 'satelite' || theme === 'dark' ? '#FFFFFF' : '#000000' }}
+              className={`w-[53px] h-[53px] sm:w-[58px] sm:h-[58px] rounded-full ios26-liquid-glass flex items-center justify-center transition-colors duration-200 cursor-pointer shrink-0 ${controlTextClass}`}
+              style={{ color: controlIconColor }}
             >
               <Play
                 className="relative z-10 w-[23px] h-[23px] sm:w-[25px] sm:h-[25px] ml-0.5 fill-current"
-                style={{ color: currentMode === 'satelite' || theme === 'dark' ? '#FFFFFF' : '#000000' }}
+                style={{ color: controlIconColor }}
               />
-            </button>
+            </motion.button>
           )}
 
           {/* My Real-Time Location & Compass Orientation Button */}
-          <button
+          <motion.button
+            key={`map-ctrl-compass-${entranceTick}`}
             type="button"
+            initial={{ opacity: 0, scale: 0.88, y: 12 }}
+            animate={{ opacity: 1, scale: 1, y: 0 }}
+            transition={{ type: 'spring', stiffness: 380, damping: 22, delay: 0.12 }}
+            whileTap={{ scale: 0.9, transition: { type: 'spring', stiffness: 500, damping: 14 } }}
             onClick={() => centerOnUserLocation(true, true)}
             aria-label="Centralizar na minha localização e ativar bússola em tempo real"
-            className={`w-[53px] h-[53px] sm:w-[58px] sm:h-[58px] rounded-full ios26-liquid-glass flex items-center justify-center active:scale-90 transition-all duration-200 cursor-pointer shrink-0 ${
-              currentMode === 'satelite' || theme === 'dark' ? 'text-white' : 'text-black'
-            } ${
+            className={`w-[53px] h-[53px] sm:w-[58px] sm:h-[58px] rounded-full ios26-liquid-glass flex items-center justify-center transition-colors duration-200 cursor-pointer shrink-0 ${controlTextClass} ${
               isCompassTracking
                 ? 'ring-2 ring-[#007AFF]/70'
                 : isFollowingUser
                   ? 'ring-2 ring-[#007AFF]/35'
                   : ''
             }`}
-            style={{ color: currentMode === 'satelite' || theme === 'dark' ? '#FFFFFF' : '#000000' }}
+            style={{ color: controlIconColor }}
           >
             <div
               ref={compassIconWrapperRef}
               className="relative z-10 flex items-center justify-center will-change-transform"
-              style={{ color: currentMode === 'satelite' || theme === 'dark' ? '#FFFFFF' : '#000000' }}
+              style={{ color: controlIconColor }}
             >
               <CompassIcon
                 size={28}
                 className="w-[26px] h-[26px] sm:w-[29px] sm:h-[29px]"
-                style={{ color: currentMode === 'satelite' || theme === 'dark' ? '#FFFFFF' : '#000000' }}
+                style={{ color: controlIconColor }}
               />
             </div>
-          </button>
+          </motion.button>
 
           {/* Map Layers Toggle */}
-          <button
+          <motion.button
+            key={`map-ctrl-layers-${entranceTick}`}
             type="button"
+            initial={{ opacity: 0, scale: 0.88, y: 12 }}
+            animate={{ opacity: 1, scale: 1, y: 0 }}
+            transition={{ type: 'spring', stiffness: 380, damping: 22, delay: 0.16 }}
+            whileTap={{ scale: 0.9, transition: { type: 'spring', stiffness: 500, damping: 14 } }}
             onClick={handleCycleMapStyle}
             aria-label="Alternar camada do mapa"
             title={currentMode === 'satelite' ? 'Alternar para mapa padrão' : 'Alternar para satélite'}
-            className={`w-[53px] h-[53px] sm:w-[58px] sm:h-[58px] rounded-full ios26-liquid-glass flex items-center justify-center active:scale-90 transition-all duration-200 cursor-pointer shrink-0 ${
-              currentMode === 'satelite' || theme === 'dark' ? 'text-white' : 'text-black'
-            }`}
-            style={{ color: currentMode === 'satelite' || theme === 'dark' ? '#FFFFFF' : '#000000' }}
+            className={`w-[53px] h-[53px] sm:w-[58px] sm:h-[58px] rounded-full ios26-liquid-glass flex items-center justify-center transition-colors duration-200 cursor-pointer shrink-0 ${controlTextClass}`}
+            style={{ color: controlIconColor }}
           >
             <MapLayerToggleIcon
               className="relative z-10 w-[28px] h-[28px] sm:w-[31px] sm:h-[31px]"
-              style={{ color: currentMode === 'satelite' || theme === 'dark' ? '#FFFFFF' : '#000000' }}
+              style={{ color: controlIconColor }}
             />
-          </button>
+          </motion.button>
         </div>
+          );
+        })()}
       </div>
     );
   }

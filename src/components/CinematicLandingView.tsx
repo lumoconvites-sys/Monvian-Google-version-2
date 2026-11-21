@@ -15,6 +15,8 @@ interface CinematicLandingViewProps {
   theme?: 'dark' | 'light';
 }
 
+const FIXED_USER_COUNT_DISPLAY = '42.828';
+
 const HeroUsersCounter = React.memo(function HeroUsersCounter({
   prefersReducedMotion,
   isDark = false,
@@ -22,41 +24,8 @@ const HeroUsersCounter = React.memo(function HeroUsersCounter({
   prefersReducedMotion: boolean | null;
   isDark?: boolean;
 }) {
-  const { language, tr } = useLanguage();
-  const [userCount, setUserCount] = useState<number>(() => {
-    try {
-      const saved = localStorage.getItem('monvian_social_user_count');
-      if (saved) {
-        const parsed = parseInt(saved, 10);
-        if (!Number.isNaN(parsed) && parsed >= 38937) {
-          return parsed;
-        }
-      }
-    } catch {}
-    return 38937;
-  });
-
-  useEffect(() => {
-    const timer = setInterval(() => {
-      setUserCount((prev) => {
-        const randomStep = Math.floor(Math.random() * 3) + 3;
-        const next = prev + randomStep;
-        try {
-          localStorage.setItem('monvian_social_user_count', String(next));
-        } catch {}
-        return next;
-      });
-    }, 3000);
-    return () => clearInterval(timer);
-  }, []);
-
-  const localeMap: Record<'pt' | 'en' | 'es' | 'ja', string> = {
-    pt: 'pt-BR',
-    en: 'en-US',
-    es: 'es-ES',
-    ja: 'ja-JP',
-  };
-  const formattedCount = userCount.toLocaleString(localeMap[language] ?? 'pt-BR');
+  const { tr } = useLanguage();
+  const formattedCount = FIXED_USER_COUNT_DISPLAY;
 
   return (
     <motion.div
@@ -125,59 +94,7 @@ const HeroUsersCounter = React.memo(function HeroUsersCounter({
               "'SF Pro Display', -apple-system, BlinkMacSystemFont, sans-serif",
           }}
         >
-          {formattedCount
-            .split('')
-            .map((char, idx) => {
-              if (char === '.' || char === ',') {
-                return (
-                  <span key={`sep-${idx}`} className="inline-block px-[0.5px]">
-                    {char}
-                  </span>
-                );
-              }
-              return (
-                <span
-                  key={`digit-slot-${idx}`}
-                  className="relative inline-flex flex-col items-center justify-center overflow-hidden h-[1.14em] -my-[0.04em]"
-                >
-                  <AnimatePresence mode="popLayout" initial={false}>
-                    <motion.span
-                      key={`pos-${idx}-val-${char}`}
-                      initial={
-                        prefersReducedMotion
-                          ? { opacity: 1, y: '0%' }
-                          : { y: '100%', opacity: 0.25 }
-                      }
-                      animate={
-                        prefersReducedMotion
-                          ? { opacity: 1, y: '0%' }
-                          : {
-                              y: ['100%', '-22%', '0%'],
-                              opacity: [0.25, 1, 1],
-                            }
-                      }
-                      exit={
-                        prefersReducedMotion
-                          ? { opacity: 0 }
-                          : {
-                              y: '-100%',
-                              opacity: 0,
-                              transition: { duration: 0.24, ease: [0.4, 0, 0.2, 1] },
-                            }
-                      }
-                      transition={{
-                        duration: 0.62,
-                        times: [0, 0.62, 1],
-                        ease: [0.22, 1, 0.36, 1],
-                      }}
-                      className="inline-block tabular-nums will-change-transform"
-                    >
-                      {char}
-                    </motion.span>
-                  </AnimatePresence>
-                </span>
-              );
-            })}
+          {formattedCount}
         </span>
         <span
           className={`text-[14.5px] sm:text-[15.5px] font-medium leading-[1.2] tracking-[-0.01em] mt-0.5 ${

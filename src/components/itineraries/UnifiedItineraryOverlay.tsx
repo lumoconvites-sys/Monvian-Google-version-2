@@ -88,16 +88,29 @@ export const SelectModeOverlay: React.FC<SelectModeOverlayProps> = memo(
     onRemoveSpot,
     onContinue,
   }) => {
-    const useLightOnDark = isDark || isSatellite;
+    const glassIconColor = isSatellite
+      ? isDark
+        ? '#C0C0C6'
+        : '#858585'
+      : isDark
+        ? '#FFFFFF'
+        : '#000000';
+    const glassTextClass = isSatellite
+      ? isDark
+        ? '!text-[#C0C0C6]'
+        : '!text-[#858585]'
+      : isDark
+        ? '!text-white'
+        : '!text-black';
 
     return (
       <div className="fixed inset-0 md:left-[var(--desktop-sidebar-width,72px)] z-[45] pointer-events-none select-none flex flex-col justify-between">
         {/* Discreet Top Bar */}
         <motion.div
-          initial={{ opacity: 0, y: -14 }}
-          animate={{ opacity: 1, y: 0 }}
-          exit={{ opacity: 0, y: -10 }}
-          transition={{ duration: 0.22, ease: [0.22, 1, 0.36, 1] }}
+          initial={{ opacity: 0, scale: 0.88, y: 12 }}
+          animate={{ opacity: 1, scale: 1, y: 0 }}
+          exit={{ opacity: 0, scale: 0.94, y: -8 }}
+          transition={{ type: 'spring', stiffness: 380, damping: 22, delay: 0.02 }}
           className="w-full px-4 sm:px-6 flex items-center justify-between gap-2 pointer-events-none"
           style={{
             paddingTop: 'max(calc(env(safe-area-inset-top, 0px) + 16px), 24px)',
@@ -108,18 +121,16 @@ export const SelectModeOverlay: React.FC<SelectModeOverlayProps> = memo(
               theme="glass"
               size="explore"
               onClick={onCancel}
-              className={useLightOnDark ? '!text-white' : '!text-black'}
-              style={{ color: useLightOnDark ? '#FFFFFF' : '#000000' }}
+              className={glassTextClass}
+              style={{ color: glassIconColor }}
               title="Cancelar seleção"
               aria-label="Cancelar seleção"
             />
           </div>
 
           <div
-            className={`pointer-events-auto h-11 px-4 rounded-full ios26-liquid-glass flex items-center gap-2 text-xs sm:text-sm font-bold shadow-sm ${
-              useLightOnDark ? 'text-white' : 'text-black'
-            }`}
-            style={{ color: useLightOnDark ? '#FFFFFF' : '#000000' }}
+            className={`pointer-events-auto h-11 px-4 rounded-full ios26-liquid-glass flex items-center gap-2 text-xs sm:text-sm font-bold shadow-sm ${glassTextClass}`}
+            style={{ color: glassIconColor }}
           >
             <MapPin className="w-3.5 h-3.5 shrink-0" />
             <span>
@@ -134,10 +145,8 @@ export const SelectModeOverlay: React.FC<SelectModeOverlayProps> = memo(
               <button
                 type="button"
                 onClick={onClearSelection}
-                className={`h-11 px-3.5 rounded-full ios26-liquid-glass flex items-center justify-center gap-1 text-xs font-bold active:scale-95 transition-transform cursor-pointer ${
-                  useLightOnDark ? 'text-white' : 'text-black'
-                }`}
-                style={{ color: useLightOnDark ? '#FFFFFF' : '#000000' }}
+                className={`h-11 px-3.5 rounded-full ios26-liquid-glass flex items-center justify-center gap-1 text-xs font-bold active:scale-95 transition-transform cursor-pointer ${glassTextClass}`}
+                style={{ color: glassIconColor }}
                 title="Limpar seleção"
               >
                 <RotateCcw className="w-3.5 h-3.5" />
@@ -149,10 +158,10 @@ export const SelectModeOverlay: React.FC<SelectModeOverlayProps> = memo(
 
         {/* Discreet Bottom Creation Bar above BottomNavigation */}
         <motion.div
-          initial={{ opacity: 0, y: 18 }}
-          animate={{ opacity: 1, y: 0 }}
-          exit={{ opacity: 0, y: 14 }}
-          transition={{ duration: 0.24, ease: [0.22, 1, 0.36, 1] }}
+          initial={{ opacity: 0, scale: 0.88, y: 12 }}
+          animate={{ opacity: 1, scale: 1, y: 0 }}
+          exit={{ opacity: 0, scale: 0.94, y: 12 }}
+          transition={{ type: 'spring', stiffness: 380, damping: 22, delay: 0.08 }}
           className="w-full flex flex-col items-center px-4 pb-[90px] md:pb-8 pointer-events-none"
         >
           <div
@@ -325,10 +334,15 @@ const SwipeableStopCard: React.FC<SwipeableStopCardProps> = ({
   return (
     <motion.div
       layout
-      initial={{ opacity: 0, y: 10 }}
-      animate={{ opacity: 1, y: 0 }}
+      initial={{ opacity: 0, scale: 0.88, y: 12 }}
+      animate={{ opacity: 1, scale: 1, y: 0 }}
       exit={{ opacity: 0, scale: 0.94 }}
-      transition={{ duration: 0.18 }}
+      transition={{
+        type: 'spring',
+        stiffness: 380,
+        damping: 22,
+        delay: Math.min(0.06 + idx * 0.04, 0.34),
+      }}
       className="relative w-full rounded-[28px] overflow-hidden select-none touch-pan-y"
     >
       {/* Background Swipe-to-Delete Reveal */}
@@ -516,7 +530,20 @@ export const UnifiedItineraryOverlay: React.FC<UnifiedItineraryOverlayProps> = m
   }) => {
     const isDark = theme === 'dark';
     const isSatelliteMap = mapStyle === 'satelite';
-    const useLightOnDark = isSatelliteMap || isDark;
+    const glassIconColor = isSatelliteMap
+      ? isDark
+        ? '#C0C0C6'
+        : '#858585'
+      : isDark
+        ? '#FFFFFF'
+        : '#000000';
+    const glassTextClass = isSatelliteMap
+      ? isDark
+        ? '!text-[#C0C0C6]'
+        : '!text-[#858585]'
+      : isDark
+        ? '!text-white'
+        : '!text-black';
 
     const [isEditModalOpen, setIsEditModalOpen] = useState(false);
     const [isNotesModalOpen, setIsNotesModalOpen] = useState(false);
@@ -557,29 +584,35 @@ export const UnifiedItineraryOverlay: React.FC<UnifiedItineraryOverlayProps> = m
             paddingRight: 'max(16px, env(safe-area-inset-right, 0px))',
           }}
         >
-          <div className="flex items-center gap-2 pointer-events-auto shrink-0">
+          <motion.div
+            initial={{ opacity: 0, scale: 0.88, y: 12 }}
+            animate={{ opacity: 1, scale: 1, y: 0 }}
+            transition={{ type: 'spring', stiffness: 380, damping: 22, delay: 0.02 }}
+            className="flex items-center gap-2 pointer-events-auto shrink-0"
+          >
             <AppleBackButton
               theme="glass"
               size="explore"
               onClick={onExitToExplore}
-              className={useLightOnDark ? '!text-white' : '!text-black'}
-              style={{ color: useLightOnDark ? '#FFFFFF' : '#000000' }}
+              className={glassTextClass}
+              style={{ color: glassIconColor }}
               title="Voltar para Explorar"
               aria-label="Voltar para Explorar"
             />
-          </div>
+          </motion.div>
 
           {/* Dynamic Island Title Pill */}
-          <div
-            className={`h-12 px-4 sm:px-5 rounded-full pointer-events-auto ios26-liquid-glass flex items-center gap-2.5 text-xs sm:text-sm font-bold max-w-[calc(100vw-148px)] transition-all duration-200 ${
-              useLightOnDark ? 'text-white' : 'text-black'
-            }`}
-            style={{ color: useLightOnDark ? '#FFFFFF' : '#000000' }}
+          <motion.div
+            initial={{ opacity: 0, scale: 0.88, y: 12 }}
+            animate={{ opacity: 1, scale: 1, y: 0 }}
+            transition={{ type: 'spring', stiffness: 380, damping: 22, delay: 0.055 }}
+            className={`h-12 px-4 sm:px-5 rounded-full pointer-events-auto ios26-liquid-glass flex items-center gap-2.5 text-xs sm:text-sm font-bold max-w-[calc(100vw-148px)] transition-colors duration-200 ${glassTextClass}`}
+            style={{ color: glassIconColor }}
           >
             <RoundedNavigationIcon
               className="relative z-10 w-[24px] h-[24px] shrink-0"
               style={{
-                color: useLightOnDark ? '#FFFFFF' : '#000000',
+                color: glassIconColor,
               }}
               size={24}
             />
@@ -628,23 +661,25 @@ export const UnifiedItineraryOverlay: React.FC<UnifiedItineraryOverlayProps> = m
                 </span>
               </div>
             )}
-          </div>
+          </motion.div>
 
-          <button
+          <motion.button
             type="button"
+            initial={{ opacity: 0, scale: 0.88, y: 12 }}
+            animate={{ opacity: 1, scale: 1, y: 0 }}
+            transition={{ type: 'spring', stiffness: 380, damping: 22, delay: 0.09 }}
+            whileTap={{ scale: 0.9, transition: { type: 'spring', stiffness: 500, damping: 14 } }}
             onClick={() => setIsEditModalOpen(true)}
-            className={`w-[53px] h-[53px] sm:w-[58px] sm:h-[58px] rounded-full ios26-liquid-glass flex items-center justify-center pointer-events-auto transition-all duration-200 active:scale-90 cursor-pointer shrink-0 ${
-              useLightOnDark ? 'text-white' : 'text-black'
-            }`}
-            style={{ color: useLightOnDark ? '#FFFFFF' : '#000000' }}
+            className={`w-[53px] h-[53px] sm:w-[58px] sm:h-[58px] rounded-full ios26-liquid-glass flex items-center justify-center pointer-events-auto transition-colors duration-200 cursor-pointer shrink-0 ${glassTextClass}`}
+            style={{ color: glassIconColor }}
             title="Opções do roteiro"
             aria-label="Opções do roteiro"
           >
             <SlidersHorizontal
               className="relative z-10 w-6 h-6 stroke-[2]"
-              style={{ color: useLightOnDark ? '#FFFFFF' : '#000000' }}
+              style={{ color: glassIconColor }}
             />
-          </button>
+          </motion.button>
         </div>
 
         {/* 2. MOBILE FLOATING MAP ACTIONS (Center route, Layers, Add Spot, Store) */}
@@ -657,74 +692,98 @@ export const UnifiedItineraryOverlay: React.FC<UnifiedItineraryOverlayProps> = m
                 : 'calc(max(185px, calc(env(safe-area-inset-bottom, 0px) + 165px)))',
           }}
         >
-          <button
+          <motion.button
             type="button"
+            initial={{ opacity: 0, scale: 0.88, y: 12 }}
+            animate={{ opacity: 1, scale: 1, y: 0 }}
+            transition={{ type: 'spring', stiffness: 380, damping: 22, delay: 0.08 }}
+            whileTap={{ scale: 0.9, transition: { type: 'spring', stiffness: 500, damping: 14 } }}
             onClick={onCenterRoute}
-            className={`w-[46px] h-[46px] rounded-full flex items-center justify-center cursor-pointer active:scale-90 transition-all border ${
+            className={`w-[46px] h-[46px] rounded-full flex items-center justify-center cursor-pointer transition-colors border ${
               isDark
-                ? 'bg-[#171717]/95 border-white/10 text-white shadow-[0_4px_16px_rgba(0,0,0,0.4)]'
+                ? 'bg-[#171717]/95 border-white/10 shadow-[0_4px_16px_rgba(0,0,0,0.4)]'
                 : isSatelliteMap
-                  ? 'ios26-liquid-glass border-white/25 text-white'
-                  : 'bg-[#FFFFFF]/95 border-black/[0.05] text-[#111111] shadow-[0_4px_16px_rgba(0,0,0,0.09)]'
+                  ? 'ios26-liquid-glass border-white/25'
+                  : 'bg-[#FFFFFF]/95 border-black/[0.05] shadow-[0_4px_16px_rgba(0,0,0,0.09)]'
             }`}
+            style={{ color: glassIconColor }}
             title="Enquadrar rota"
             aria-label="Enquadrar rota"
           >
-            <Compass className="relative z-10 w-[21px] h-[21px] stroke-[1.85]" />
-          </button>
+            <Compass className="relative z-10 w-[21px] h-[21px] stroke-[1.85]" style={{ color: glassIconColor }} />
+          </motion.button>
 
-          <button
+          <motion.button
             type="button"
+            initial={{ opacity: 0, scale: 0.88, y: 12 }}
+            animate={{ opacity: 1, scale: 1, y: 0 }}
+            transition={{ type: 'spring', stiffness: 380, damping: 22, delay: 0.115 }}
+            whileTap={{ scale: 0.9, transition: { type: 'spring', stiffness: 500, damping: 14 } }}
             onClick={onToggleMapStyle}
-            className={`w-[46px] h-[46px] rounded-full flex items-center justify-center cursor-pointer active:scale-90 transition-all border ${
+            className={`w-[46px] h-[46px] rounded-full flex items-center justify-center cursor-pointer transition-colors border ${
               isDark
-                ? 'bg-[#171717]/95 border-white/10 text-white shadow-[0_4px_16px_rgba(0,0,0,0.4)]'
+                ? 'bg-[#171717]/95 border-white/10 shadow-[0_4px_16px_rgba(0,0,0,0.4)]'
                 : isSatelliteMap
-                  ? 'ios26-liquid-glass border-white/25 text-white'
-                  : 'bg-[#FFFFFF]/95 border-black/[0.05] text-[#111111] shadow-[0_4px_16px_rgba(0,0,0,0.09)]'
+                  ? 'ios26-liquid-glass border-white/25'
+                  : 'bg-[#FFFFFF]/95 border-black/[0.05] shadow-[0_4px_16px_rgba(0,0,0,0.09)]'
             }`}
+            style={{ color: glassIconColor }}
             title="Alternar camada do mapa"
             aria-label="Alternar camada do mapa"
           >
-            <Layers className="relative z-10 w-[21px] h-[21px] stroke-[1.85]" />
-          </button>
+            <Layers className="relative z-10 w-[21px] h-[21px] stroke-[1.85]" style={{ color: glassIconColor }} />
+          </motion.button>
 
-          <button
+          <motion.button
             type="button"
+            initial={{ opacity: 0, scale: 0.88, y: 12 }}
+            animate={{ opacity: 1, scale: 1, y: 0 }}
+            transition={{ type: 'spring', stiffness: 380, damping: 22, delay: 0.15 }}
+            whileTap={{ scale: 0.9, transition: { type: 'spring', stiffness: 500, damping: 14 } }}
             onClick={onSelectMoreSpotsOnMap}
-            className={`w-[46px] h-[46px] rounded-full flex items-center justify-center cursor-pointer active:scale-90 transition-all border ${
+            className={`w-[46px] h-[46px] rounded-full flex items-center justify-center cursor-pointer transition-colors border ${
               isDark
-                ? 'bg-[#171717]/95 border-white/10 text-white shadow-[0_4px_16px_rgba(0,0,0,0.4)]'
+                ? 'bg-[#171717]/95 border-white/10 shadow-[0_4px_16px_rgba(0,0,0,0.4)]'
                 : isSatelliteMap
-                  ? 'ios26-liquid-glass border-white/25 text-white'
-                  : 'bg-[#FFFFFF]/95 border-black/[0.05] text-[#111111] shadow-[0_4px_16px_rgba(0,0,0,0.09)]'
+                  ? 'ios26-liquid-glass border-white/25'
+                  : 'bg-[#FFFFFF]/95 border-black/[0.05] shadow-[0_4px_16px_rgba(0,0,0,0.09)]'
             }`}
+            style={{ color: glassIconColor }}
             title="Selecionar mais pontos no mapa"
             aria-label="Selecionar mais pontos no mapa"
           >
-            <Plus className="relative z-10 w-[21px] h-[21px] stroke-[2]" />
-          </button>
+            <Plus className="relative z-10 w-[21px] h-[21px] stroke-[2]" style={{ color: glassIconColor }} />
+          </motion.button>
 
-          <button
+          <motion.button
             type="button"
+            initial={{ opacity: 0, scale: 0.88, y: 12 }}
+            animate={{ opacity: 1, scale: 1, y: 0 }}
+            transition={{ type: 'spring', stiffness: 380, damping: 22, delay: 0.185 }}
+            whileTap={{ scale: 0.9, transition: { type: 'spring', stiffness: 500, damping: 14 } }}
             onClick={onOpenStore}
-            className={`w-[46px] h-[46px] rounded-full flex items-center justify-center cursor-pointer active:scale-90 transition-all border ${
+            className={`w-[46px] h-[46px] rounded-full flex items-center justify-center cursor-pointer transition-colors border ${
               isDark
-                ? 'bg-[#171717]/95 border-white/10 text-white shadow-[0_4px_16px_rgba(0,0,0,0.4)]'
+                ? 'bg-[#171717]/95 border-white/10 shadow-[0_4px_16px_rgba(0,0,0,0.4)]'
                 : isSatelliteMap
-                  ? 'ios26-liquid-glass border-white/25 text-white'
-                  : 'bg-[#FFFFFF]/95 border-black/[0.05] text-[#111111] shadow-[0_4px_16px_rgba(0,0,0,0.09)]'
+                  ? 'ios26-liquid-glass border-white/25'
+                  : 'bg-[#FFFFFF]/95 border-black/[0.05] shadow-[0_4px_16px_rgba(0,0,0,0.09)]'
             }`}
+            style={{ color: glassIconColor }}
             title="Loja de Roteiros"
             aria-label="Loja de Roteiros"
           >
-            <Store className="relative z-10 w-[20px] h-[20px] stroke-[1.85]" />
-          </button>
+            <Store className="relative z-10 w-[20px] h-[20px] stroke-[1.85]" style={{ color: glassIconColor }} />
+          </motion.button>
         </div>
 
         {/* 3. DESKTOP LEFT SIDE PANEL */}
-        <aside
+        <motion.aside
           aria-label="Roteiro de Viagem"
+          initial={{ opacity: 0, scale: 0.94, y: 12 }}
+          animate={{ opacity: 1, scale: 1, y: 0 }}
+          exit={{ opacity: 0, scale: 0.96, y: 8 }}
+          transition={{ type: 'spring', stiffness: 380, damping: 24, delay: 0.02 }}
           className={`hidden md:flex flex-col absolute top-5 bottom-5 left-5 w-96 lg:w-[420px] z-30 rounded-[28px] overflow-hidden border shadow-[0_12px_40px_rgba(0,0,0,0.14)] pointer-events-auto select-none ${
             isDark
               ? 'bg-[#000000] border-[#262626] text-white'
@@ -829,7 +888,12 @@ export const UnifiedItineraryOverlay: React.FC<UnifiedItineraryOverlayProps> = m
                 ))}
               </AnimatePresence>
 
-              <div className="pt-2 pb-4 grid grid-cols-2 gap-2">
+              <motion.div
+                initial={{ opacity: 0, scale: 0.88, y: 12 }}
+                animate={{ opacity: 1, scale: 1, y: 0 }}
+                transition={{ type: 'spring', stiffness: 380, damping: 22, delay: 0.16 }}
+                className="pt-2 pb-4 grid grid-cols-2 gap-2"
+              >
                 <button
                   type="button"
                   onClick={onSelectMoreSpotsOnMap}
@@ -854,20 +918,20 @@ export const UnifiedItineraryOverlay: React.FC<UnifiedItineraryOverlayProps> = m
                   <Plus className="w-3.5 h-3.5" />
                   <span>Buscar Ponto</span>
                 </button>
-              </div>
+              </motion.div>
             </div>
           </div>
-        </aside>
+        </motion.aside>
 
         {/* 4. MOBILE COLLAPSED FLOATING STOP CARD & EXPANDABLE DRAWER */}
         <AnimatePresence mode="wait">
           {!isExpanded || activeSteps.length === 0 ? (
             <motion.div
               key="unified-itinerary-collapsed-card"
-              initial={{ opacity: 0, y: 14, scale: 0.96 }}
-              animate={{ opacity: 1, y: 0, scale: 1 }}
-              exit={{ opacity: 0, y: 12, scale: 0.96 }}
-              transition={SPRING_DRAWER}
+              initial={{ opacity: 0, scale: 0.88, y: 14 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.94, y: 12 }}
+              transition={{ type: 'spring', stiffness: 380, damping: 22, delay: 0.1 }}
               className="md:hidden fixed inset-x-0 z-40 flex justify-center px-4 pointer-events-none select-none"
               style={{ bottom: '84px' }}
             >
@@ -1059,7 +1123,12 @@ export const UnifiedItineraryOverlay: React.FC<UnifiedItineraryOverlayProps> = m
                   ))}
                 </AnimatePresence>
 
-                <div className="pt-1.5 pb-5 flex items-center justify-center gap-2.5">
+                <motion.div
+                  initial={{ opacity: 0, scale: 0.88, y: 12 }}
+                  animate={{ opacity: 1, scale: 1, y: 0 }}
+                  transition={{ type: 'spring', stiffness: 380, damping: 22, delay: 0.16 }}
+                  className="pt-1.5 pb-5 flex items-center justify-center gap-2.5"
+                >
                   <button
                     type="button"
                     onClick={onSelectMoreSpotsOnMap}
@@ -1084,7 +1153,7 @@ export const UnifiedItineraryOverlay: React.FC<UnifiedItineraryOverlayProps> = m
                     <Plus className="w-3.5 h-3.5" />
                     <span>Buscar Ponto</span>
                   </button>
-                </div>
+                </motion.div>
               </div>
             </motion.div>
           )}

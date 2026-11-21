@@ -38,7 +38,6 @@ import { persistUserToFirestore, syncPermissionsFromDatabase, markWelcomeCardSee
 import { fetchSpotsFromSupabase, subscribeToSpotsChanges } from './services/supabaseSpots';
 import { broadcastPlatanosWalletUpdate, getAuthHeaders } from './hooks/usePlatanos';
 import type { SignupIntroStage } from './components/SignupIntroSequence';
-import { isWithinCamposRadius } from './utils/geoCache';
 import { IOSInteractiveBackSystem } from './components/IOSInteractiveBackSystem';
 import { useIOSBackEntry, iosNavigationManager } from './services/iosNavigationManager';
 import { auth, signOut, setCachedAccessToken, waitForFirebaseAuthUser, getFreshFirebaseIdToken } from './lib/firebase';
@@ -109,9 +108,6 @@ const SpotDetailSheet = React.lazy(() =>
 // On-demand modals — downloaded ONLY when triggered/enabled
 const PlatanosWalletModal = React.lazy(() =>
   import('./components/platanos/PlatanosWalletModal').then((m) => ({ default: m.PlatanosWalletModal }))
-);
-const CamposAchievementModal = React.lazy(() =>
-  import('./components/CamposAchievementModal').then((m) => ({ default: m.CamposAchievementModal }))
 );
 const WhiteConfettiOverlay = React.lazy(() =>
   import('./components/WhiteConfettiOverlay').then((m) => ({ default: m.WhiteConfettiOverlay }))
@@ -440,6 +436,7 @@ export default function App() {
   const isSignupRevealActive = signupIntroStage !== 'idle';
   const isOnboardingRevealReady = signupIntroStage === 'revealing' || signupIntroStage === 'idle';
   const [explorarEntranceTick, setExplorarEntranceTick] = useState<number>(0);
+  const [itineraryEntranceTick, setItineraryEntranceTick] = useState<number>(0);
   const [zoomToUserTrigger, setZoomToUserTrigger] = useState<number>(0);
   const [spotPreviewMode, setSpotPreviewMode] = useState<'card' | 'bar'>('bar');
 
@@ -484,14 +481,6 @@ export default function App() {
   const [isMyItinerariesSubViewActive, setIsMyItinerariesSubViewActive] = useState<boolean>(false);
   const [isPlatanosWalletOpen, setIsPlatanosWalletOpen] = useState<boolean>(false);
   const [platanosWalletTab, setPlatanosWalletTab] = useState<'topup' | 'history'>('topup');
-  const [isCamposAchievementOpen, setIsCamposAchievementOpen] = useState<boolean>(() => {
-    try {
-      const params = new URLSearchParams(window.location.search);
-      return params.get('conquista') === 'campos';
-    } catch {
-      return false;
-    }
-  });
 
   useEffect(() => {
     const handleOpenWallet = (e: Event) => {
@@ -499,23 +488,17 @@ export default function App() {
       setPlatanosWalletTab(detail?.tab === 'history' ? 'history' : 'topup');
       setIsPlatanosWalletOpen(true);
     };
-    const handleOpenCamposAchievement = () => {
-      setIsCamposAchievementOpen(true);
-    };
     const handleMyItinerariesActive = (e: Event) => {
       setIsMyItinerariesSubViewActive(Boolean((e as CustomEvent)?.detail));
     };
     const handleCloseAll = () => {
       setIsPlatanosWalletOpen(false);
-      setIsCamposAchievementOpen(false);
     };
     window.addEventListener('monvian:open_platanos_wallet', handleOpenWallet);
-    window.addEventListener('monvian:open_campos_achievement', handleOpenCamposAchievement);
     window.addEventListener('monvian:my_itineraries_active', handleMyItinerariesActive);
     window.addEventListener('monvian-close-modals', handleCloseAll);
     return () => {
       window.removeEventListener('monvian:open_platanos_wallet', handleOpenWallet);
-      window.removeEventListener('monvian:open_campos_achievement', handleOpenCamposAchievement);
       window.removeEventListener('monvian:my_itineraries_active', handleMyItinerariesActive);
       window.removeEventListener('monvian-close-modals', handleCloseAll);
     };
@@ -1868,63 +1851,6 @@ export default function App() {
     };
   }, [isAuthenticated, activeTab]);
 
-  // Unlock "Eu visitei Campos do Jordão" achievement once when real GPS confirms presence in Campos do Jordão
-  useEffect(() => {
-    if (
-      !isAuthenticated ||
-      activeTab !== 'explorar' ||
-      showOnboardingQuestions ||
-      showFirstSignupWelcome ||
-      isGlobeIntroPending ||
-      isGlobeIntroPlaying ||
-      isOnboardingItinerarySelection ||
-      isWelcomeJourneyOpen ||
-      isCamposAchievementOpen
-    ) {
-      return;
-    }
-
-    const userKey = String(user?.id || user?.email || user?.whatsapp || 'default')
-      .trim()
-      .toLowerCase();
-    const storageKey = `monvian_achievement_campos_seen_${userKey}`;
-
-    try {
-      if (localStorage.getItem(storageKey) === '1') {
-        return;
-      }
-    } catch {
-      return;
-    }
-
-    const navState = gpsNavigationManager.getState();
-    if (!navState.hasRealFix || navState.status !== 'granted') {
-      return;
-    }
-
-    if (isWithinCamposRadius(navState.coords, 18)) {
-      try {
-        localStorage.setItem(storageKey, '1');
-      } catch {}
-      setIsCamposAchievementOpen(true);
-    }
-  }, [
-    isAuthenticated,
-    activeTab,
-    userCoords,
-    geoStatus,
-    user?.id,
-    user?.email,
-    user?.whatsapp,
-    showOnboardingQuestions,
-    showFirstSignupWelcome,
-    isGlobeIntroPending,
-    isGlobeIntroPlaying,
-    isOnboardingItinerarySelection,
-    isWelcomeJourneyOpen,
-    isCamposAchievementOpen,
-  ]);
-
   // Smoothly recalculate the active road route when user's real GPS position moves significantly
   useEffect(() => {
     if (!activeRoute || activeTab !== 'explorar' || isRouteLoading || isBackgroundReroutingRef.current) {
@@ -2042,6 +1968,22 @@ export default function App() {
       return tab;
     });
   }, [clearActiveRoute, activeItinerary]);
+
+  // Re-executa a animação de entrada da área Explorar e do Roteiro carregado toda vez que entrar na página
+  const prevEntranceKeyRef = useRef<string>(`${activeTab}:${mapWorkflowMode}`);
+  useEffect(() => {
+    const nextKey = `${activeTab}:${mapWorkflowMode}`;
+    if (prevEntranceKeyRef.current !== nextKey) {
+      prevEntranceKeyRef.current = nextKey;
+      if (activeTab === 'explorar') {
+        if (mapWorkflowMode === 'ITINERARY') {
+          setItineraryEntranceTick((prev) => prev + 1);
+        } else {
+          setExplorarEntranceTick((prev) => prev + 1);
+        }
+      }
+    }
+  }, [activeTab, mapWorkflowMode]);
 
   // Sempre que entrar no aplicativo, carregar Explorar ou voltar de outra aba/segundo plano, dá zoom automático na localização do usuário
   const prevActiveTabForZoomRef = useRef<TabType>(activeTab);
@@ -2673,6 +2615,7 @@ export default function App() {
       saveActiveItineraryToStorage(normalized, user);
       setActiveTab('explorar');
       setMapWorkflowMode('ITINERARY');
+      setItineraryEntranceTick((prev) => prev + 1);
 
       window.setTimeout(() => {
         mapRef.current?.fitItineraryBounds(daySteps, false);
@@ -3270,14 +3213,14 @@ export default function App() {
                 initial={
                   prefersReducedMotion
                     ? { opacity: 0 }
-                    : { opacity: 0, x: -16 }
+                    : { opacity: 0, scale: 0.96, y: 12 }
                 }
-                animate={{ opacity: 1, x: 0 }}
-                exit={{ opacity: 0, x: -10 }}
+                animate={{ opacity: 1, scale: 1, y: 0 }}
+                exit={{ opacity: 0, scale: 0.97, y: 8 }}
                 transition={
                   prefersReducedMotion
                     ? { duration: 0.16 }
-                    : { type: 'spring', damping: 26, stiffness: 280, delay: 0.05 }
+                    : { type: 'spring', stiffness: 380, damping: 24, delay: 0.02 }
                 }
                 className="h-full shrink-0"
               >
@@ -3349,6 +3292,7 @@ export default function App() {
               activeItineraryStepId={activeItineraryStepId}
               isItineraryExpanded={isItineraryDrawerExpanded}
               onSelectItineraryStep={handleSelectItineraryStepId}
+              entranceTick={explorarEntranceTick}
             />
 
             {/* DESKTOP MAP FLOATING CONTROLS (Top-Right Apple Style — visible in EXPLORE mode on real desktop/tablet only) */}
@@ -3380,18 +3324,10 @@ export default function App() {
           !isGlobeIntroPlaying && (
           <motion.header
             key={`explore-mobile-header-${explorarEntranceTick}`}
-            initial={
-              prefersReducedMotion
-                ? { opacity: 0 }
-                : { opacity: 0, y: -18, scale: 0.97 }
-            }
-            animate={{ opacity: 1, y: 0, scale: 1 }}
-            exit={{ opacity: 0, y: -10, scale: 0.97 }}
-            transition={
-              prefersReducedMotion
-                ? { duration: 0.16 }
-                : { type: 'spring', damping: 25, stiffness: 290, delay: 0.06 }
-            }
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.15 }}
             aria-label="Informações de Campos do Jordão"
             className="md:hidden absolute top-0 left-0 right-0 z-40 pointer-events-none px-4 sm:px-6"
             style={{
@@ -3410,16 +3346,7 @@ export default function App() {
               }`}
             >
               {/* Left: Big Weather Temperature & Dynamic Condition */}
-              <motion.div
-                initial={prefersReducedMotion ? { opacity: 1 } : { opacity: 0, x: -12 }}
-                animate={{ opacity: 1, x: 0 }}
-                transition={
-                  prefersReducedMotion
-                    ? { duration: 0.14 }
-                    : { type: 'spring', damping: 24, stiffness: 280, delay: 0.08 }
-                }
-                className="flex items-center pointer-events-auto"
-              >
+              <div className="flex items-center pointer-events-auto">
                 <div
                   id="weather-header-display"
                   onClick={() => setIsWeatherModalOpen(true)}
@@ -3429,8 +3356,15 @@ export default function App() {
                   {/* Layout: Large beautiful 3D icon on the left, bold prominent degrees */}
                   <div className="flex items-center gap-1.5 sm:gap-2">
                     {/* Weather 3D Icon */}
-                    <div
+                    <motion.div
                       id="weather-3d-icon-clean"
+                      initial={prefersReducedMotion ? { opacity: 0 } : { opacity: 0, scale: 0.88, y: 12 }}
+                      animate={{ opacity: 1, scale: 1, y: 0 }}
+                      transition={
+                        prefersReducedMotion
+                          ? { duration: 0.14 }
+                          : { type: 'spring', stiffness: 380, damping: 22, delay: 0.02 }
+                      }
                       className="select-none flex items-center justify-center shrink-0 drop-shadow-md"
                     >
                       <Weather3DIcon
@@ -3438,11 +3372,18 @@ export default function App() {
                         isDay={realWeather.isDay}
                         className="w-14 h-14 sm:w-16 sm:h-16 lg:w-20 lg:h-20 -my-2.5"
                       />
-                    </div>
+                    </motion.div>
 
                     {/* Temperature Degrees */}
-                    <div
+                    <motion.div
                       id="weather-degrees-clean"
+                      initial={prefersReducedMotion ? { opacity: 0 } : { opacity: 0, scale: 0.88, y: 12 }}
+                      animate={{ opacity: 1, scale: 1, y: 0 }}
+                      transition={
+                        prefersReducedMotion
+                          ? { duration: 0.14 }
+                          : { type: 'spring', stiffness: 380, damping: 22, delay: 0.055 }
+                      }
                       className="flex items-baseline select-none text-left drop-shadow-[0_2px_8px_rgba(0,0,0,0.6)]"
                     >
                       <span className={`text-5xl sm:text-6xl font-extrabold tracking-tighter leading-none text-[#ffffff] ${
@@ -3452,12 +3393,19 @@ export default function App() {
                       }`}>
                         {realWeather.temperature}°
                       </span>
-                    </div>
+                    </motion.div>
                   </div>
 
                   {/* Condition label under the temperature */}
-                  <div
+                  <motion.div
                     id="weather-condition-clean"
+                    initial={prefersReducedMotion ? { opacity: 0 } : { opacity: 0, scale: 0.88, y: 12 }}
+                    animate={{ opacity: 1, scale: 1, y: 0 }}
+                    transition={
+                      prefersReducedMotion
+                        ? { duration: 0.14 }
+                        : { type: 'spring', stiffness: 380, damping: 22, delay: 0.085 }
+                    }
                     className="text-left mt-0.5 ml-1 drop-shadow-[0_1px_4px_rgba(0,0,0,0.6)]"
                   >
                     <span className={`block text-[13px] sm:text-[14px] font-semibold tracking-tight whitespace-nowrap ${
@@ -3471,75 +3419,97 @@ export default function App() {
                     }`}>
                       {realWeather.condition}
                     </span>
-                  </div>
+                  </motion.div>
                 </div>
-              </motion.div>
+              </div>
 
               {/* Right: Clean Header Action Icons with iOS Liquid Glass Buttons */}
-              <motion.div
-                initial={prefersReducedMotion ? { opacity: 1 } : { opacity: 0, x: 12, scale: 0.9 }}
-                animate={{ opacity: 1, x: 0, scale: 1 }}
-                transition={
-                  prefersReducedMotion
-                    ? { duration: 0.14 }
-                    : { type: 'spring', damping: 24, stiffness: 290, delay: 0.11 }
-                }
-                className="flex items-center gap-2.5 pointer-events-auto relative"
-              >
+              {(() => {
+                const headerIconColor = isSatelliteExplore
+                  ? theme === 'dark'
+                    ? '#C0C0C6'
+                    : '#858585'
+                  : theme === 'dark'
+                    ? '#FFFFFF'
+                    : '#000000';
+                const headerIconTextClass = isSatelliteExplore
+                  ? theme === 'dark'
+                    ? 'text-[#C0C0C6]'
+                    : 'text-[#858585]'
+                  : theme === 'dark'
+                    ? 'text-white'
+                    : 'text-black';
+
+                return (
+              <div className="flex items-center gap-2.5 pointer-events-auto relative">
 
                 {/* 3D View Toggle Icon */}
-                <button
+                <motion.button
                   id="btn-3d-toggle"
                   type="button"
+                  initial={prefersReducedMotion ? { opacity: 0 } : { opacity: 0, scale: 0.88, y: 12 }}
+                  animate={{ opacity: 1, scale: 1, y: 0 }}
+                  transition={
+                    prefersReducedMotion
+                      ? { duration: 0.14 }
+                      : { type: 'spring', stiffness: 380, damping: 22, delay: 0.06 }
+                  }
+                  whileTap={{ scale: 0.9, transition: { type: 'spring', stiffness: 500, damping: 14 } }}
                   onClick={() => {
                     setHasToggled3D(true);
                     setIs3DMode((prev) => !prev);
                   }}
-                  className={`w-[53px] h-[53px] sm:w-[58px] sm:h-[58px] rounded-full ios26-liquid-glass flex items-center justify-center transition-all duration-200 active:scale-90 cursor-pointer group shrink-0 ${
-                    isSatelliteExplore || theme === 'dark' ? 'text-white' : 'text-black'
-                  }`}
-                  style={{ color: isSatelliteExplore || theme === 'dark' ? '#FFFFFF' : '#000000' }}
+                  className={`w-[53px] h-[53px] sm:w-[58px] sm:h-[58px] rounded-full ios26-liquid-glass flex items-center justify-center transition-colors duration-200 cursor-pointer group shrink-0 ${headerIconTextClass}`}
+                  style={{ color: headerIconColor }}
                   aria-label={is3DMode ? 'Alternar para visualização 2D' : 'Alternar para visualização 3D'}
                   title={is3DMode ? 'Alternar para visão 2D Plana' : 'Alternar para visão 3D com Relevo e Montanhas'}
                 >
                   <div
                     className="relative z-10 flex items-center justify-center group-hover:scale-105 transition-transform duration-200"
-                    style={{ color: isSatelliteExplore || theme === 'dark' ? '#FFFFFF' : '#000000' }}
+                    style={{ color: headerIconColor }}
                   >
                     <Map3DIcon
                       mode={!hasToggled3D || is3DMode ? '3D' : '2D'}
-                      style={{ color: isSatelliteExplore || theme === 'dark' ? '#FFFFFF' : '#000000' }}
+                      style={{ color: headerIconColor }}
                     />
                   </div>
-                </button>
+                </motion.button>
 
                 {/* Category Filter Button with Dropdown */}
                 <div className="relative shrink-0">
-                  <button
+                  <motion.button
                     id="btn-category-icon-toggle"
                     type="button"
+                    initial={prefersReducedMotion ? { opacity: 0 } : { opacity: 0, scale: 0.88, y: 12 }}
+                    animate={{ opacity: 1, scale: 1, y: 0 }}
+                    transition={
+                      prefersReducedMotion
+                        ? { duration: 0.14 }
+                        : { type: 'spring', stiffness: 380, damping: 22, delay: 0.1 }
+                    }
+                    whileTap={{ scale: 0.9, transition: { type: 'spring', stiffness: 500, damping: 14 } }}
                     onClick={() => {
                       setIsCategoryCardOpen((prev) => !prev);
                       setIsSearchOpen(false);
                     }}
-                    className={`w-[53px] h-[53px] sm:w-[58px] sm:h-[58px] rounded-full ios26-liquid-glass flex items-center justify-center transition-all duration-200 active:scale-90 cursor-pointer group shrink-0 ${
-                      isSatelliteExplore || theme === 'dark' ? 'text-white' : 'text-black'
-                    }`}
-                    style={{ color: isSatelliteExplore || theme === 'dark' ? '#FFFFFF' : '#000000' }}
+                    className={`w-[53px] h-[53px] sm:w-[58px] sm:h-[58px] rounded-full ios26-liquid-glass flex items-center justify-center transition-colors duration-200 cursor-pointer group shrink-0 ${headerIconTextClass}`}
+                    style={{ color: headerIconColor }}
                     title={selectedCategoryFilter ? 'Filtro de categoria ativo - Clique para alterar ou limpar' : 'Filtrar por Categoria'}
                   >
                     <div className="relative z-10 flex items-center justify-center group-hover:scale-105 transition-transform duration-300">
                       <SlidersHorizontal
                         className="w-6 h-6 sm:w-[29px] sm:h-[29px] stroke-[2]"
-                        style={{ color: isSatelliteExplore || theme === 'dark' ? '#FFFFFF' : '#000000' }}
+                        style={{ color: headerIconColor }}
                       />
                     </div>
                     {selectedCategoryFilter && (
                       <span className="absolute top-0 right-0 z-20 w-2.5 h-2.5 rounded-full bg-blue-500 ring-2 ring-white dark:ring-[#1C1C1E]" />
                     )}
-                  </button>
+                  </motion.button>
                 </div>
-              </motion.div>
+              </div>
+                );
+              })()}
             </div>
           </motion.header>
         )}
@@ -3761,6 +3731,7 @@ export default function App() {
         !showFirstSignupWelcome &&
         !isGlobeIntroPlaying && (
           <SelectModeOverlay
+            key={`select-mode-overlay-${explorarEntranceTick}`}
             selectedCount={selectedSpotIdsForItinerary.length}
             selectedSpots={selectedSpotsForItinerary}
             onRemoveSpot={handleRemoveSelectedSpotFromItinerary}
@@ -3841,6 +3812,7 @@ export default function App() {
         !showFirstSignupWelcome &&
         !isGlobeIntroPlaying && (
           <UnifiedItineraryOverlay
+            key={`unified-itinerary-${activeItinerary.id}-${itineraryEntranceTick}`}
             itinerary={activeItinerary}
             allSpots={spots}
             activeDayIndex={activeItineraryDayIndex}
@@ -3938,7 +3910,8 @@ export default function App() {
             onChangeTab={handleTabChange}
             unreadCount={2}
             isBlurred={!isAdminOpen && isBlurActive}
-            forceWhiteUI={
+            forceWhiteUI={false}
+            isSatellite={
               isAdminOpen
                 ? false
                 : isSatelliteExplore &&
@@ -3997,10 +3970,16 @@ export default function App() {
           }}
         >
           <div className={`relative z-10 flex items-center justify-between px-3 py-2 border-b ${
-            isSatelliteExplore || theme === 'dark' ? 'border-white/15' : 'border-black/10'
+            theme === 'dark' ? 'border-white/15' : 'border-black/10'
           }`}>
             <span className={`text-[11px] font-black uppercase tracking-wider ${
-              isSatelliteExplore || theme === 'dark' ? 'text-white/75' : 'text-black/65'
+              isSatelliteExplore
+                ? theme === 'dark'
+                  ? 'text-[#C0C0C6]'
+                  : 'text-[#858585]'
+                : theme === 'dark'
+                  ? 'text-white/75'
+                  : 'text-black/65'
             }`}>
               Categorias
             </span>
@@ -4011,7 +3990,13 @@ export default function App() {
                   setIsCategoryCardOpen(false);
                 }}
                 className={`text-[11px] font-black hover:underline cursor-pointer flex items-center gap-1 ${
-                  isSatelliteExplore || theme === 'dark' ? 'text-white' : 'text-black'
+                  isSatelliteExplore
+                    ? theme === 'dark'
+                      ? 'text-[#C0C0C6]'
+                      : 'text-[#858585]'
+                    : theme === 'dark'
+                      ? 'text-white'
+                      : 'text-black'
                 }`}
               >
                 <RotateCcw className="w-3 h-3" />
@@ -4030,7 +4015,14 @@ export default function App() {
           ].map((cat) => {
             const CategoryIcon = 'icon' in cat ? (cat.icon as React.ComponentType<{ className?: string }>) : null;
             const isSelected = selectedCategoryFilter === cat.id;
-            const useDarkDropdownUi = isSatelliteExplore || theme === 'dark';
+            const useDarkDropdownUi = theme === 'dark';
+            const dropdownTextClass = isSatelliteExplore
+              ? useDarkDropdownUi
+                ? 'text-[#C0C0C6]'
+                : 'text-[#858585]'
+              : useDarkDropdownUi
+                ? 'text-white'
+                : 'text-black';
 
             return (
               <button
@@ -4039,14 +4031,12 @@ export default function App() {
                   setSelectedCategoryFilter(isSelected ? null : cat.id);
                   setIsCategoryCardOpen(false);
                 }}
-                className={`relative z-10 w-full px-3 py-2.5 rounded-2xl active:scale-[0.98] text-xs font-black flex items-center justify-between gap-2.5 transition-all text-left cursor-pointer group ${
+                className={`relative z-10 w-full px-3 py-2.5 rounded-2xl active:scale-[0.98] text-xs font-black flex items-center justify-between gap-2.5 transition-all text-left cursor-pointer group ${dropdownTextClass} ${
                   isSelected
-                    ? useDarkDropdownUi
-                      ? 'ios26-liquid-glass-pill text-white font-extrabold'
-                      : 'ios26-liquid-glass-pill text-black font-extrabold'
+                    ? 'ios26-liquid-glass-pill font-extrabold'
                     : useDarkDropdownUi
-                      ? 'hover:bg-white/10 text-white'
-                      : 'hover:bg-white/25 text-black'
+                      ? 'hover:bg-white/10'
+                      : 'hover:bg-black/5'
                 }`}
               >
                 <div className="flex items-center gap-2.5 min-w-0">
@@ -4357,15 +4347,6 @@ export default function App() {
           onClose={() => setIsPlatanosWalletOpen(false)}
           theme={theme}
           initialTab={platanosWalletTab}
-        />
-      </Suspense>
-    )}
-
-    {isCamposAchievementOpen && (
-      <Suspense fallback={null}>
-        <CamposAchievementModal
-          isOpen={true}
-          onClose={() => setIsCamposAchievementOpen(false)}
         />
       </Suspense>
     )}

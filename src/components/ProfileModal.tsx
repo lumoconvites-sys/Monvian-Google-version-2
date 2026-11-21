@@ -51,8 +51,8 @@ import { useIOSBackEntry } from '../services/iosNavigationManager';
 import { PlatanoLeafIcon } from './platanos/PlatanoLeafIcon';
 import { usePlatanos } from '../hooks/usePlatanos';
 import { MyItinerariesView } from './itineraries/MyItinerariesView';
-import foldedMap3dIcon from '../assets/images/folded_map_pin_3d_1795219073754.jpg';
-import platanosLeaf3dIcon from '../assets/images/platanos_leaf_hero_3d_1794936165022.jpg';
+import foldedMap3dIcon from '../assets/images/folded_map_pin_3d.png';
+import platanosLeaf3dIcon from '../assets/images/platanos_leaf_hero_3d.png';
 
 interface ProfileModalProps {
   isOpen: boolean;
@@ -118,6 +118,14 @@ export const ProfileModal: React.FC<ProfileModalProps> = React.memo(({
   onDeleteUserItinerary,
 }) => {
   const isViewActive = Boolean(isOpen && isActive);
+  const [visitTick, setVisitTick] = useState(0);
+  const prevIsViewActiveRef = useRef(isViewActive);
+  useEffect(() => {
+    if (isViewActive && !prevIsViewActiveRef.current) {
+      setVisitTick((t) => t + 1);
+    }
+    prevIsViewActiveRef.current = isViewActive;
+  }, [isViewActive]);
   const { wallet } = usePlatanos();
   const getInitialAvatar = (u: any) => {
     try {
@@ -803,10 +811,10 @@ export const ProfileModal: React.FC<ProfileModalProps> = React.memo(({
           {/* ============================================================ */}
           {/* VIEW 1: MAIN PROFILE (Clean Native Airbnb / iOS Design)       */}
           {/* ============================================================ */}
-          <AnimatePresence mode="wait" initial={false}>
+          <AnimatePresence mode="wait" initial={true}>
           <motion.div
             id="profile-subview-content"
-            key={activeSubView}
+            key={`${activeSubView}-${visitTick}`}
             initial={{ opacity: 0, y: 6 }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: -4 }}
@@ -979,10 +987,13 @@ export const ProfileModal: React.FC<ProfileModalProps> = React.memo(({
                     <ChevronRight className="w-4 h-4 text-zinc-400 shrink-0" />
                   </div>
                   <div className="my-2 flex justify-center items-center h-[46px]">
-                    <img
+                    <motion.img
+                      initial={{ opacity: 0, scale: 0.88, y: 10 }}
+                      animate={{ opacity: 1, scale: 1, y: 0 }}
+                      transition={{ type: 'spring', stiffness: 380, damping: 22, delay: 0.14 }}
                       src={platanosLeaf3dIcon}
                       alt="Plátanos"
-                      className="h-[64px] w-auto object-contain"
+                      className="h-[58px] w-auto object-contain drop-shadow-[0_4px_10px_rgba(0,0,0,0.18)]"
                       draggable={false}
                     />
                   </div>
@@ -1014,10 +1025,13 @@ export const ProfileModal: React.FC<ProfileModalProps> = React.memo(({
                     <ChevronRight className="w-4 h-4 text-zinc-400 shrink-0" />
                   </div>
                   <div className="my-2 flex justify-center items-center h-[46px]">
-                    <img
+                    <motion.img
+                      initial={{ opacity: 0, scale: 0.88, y: 10 }}
+                      animate={{ opacity: 1, scale: 1, y: 0 }}
+                      transition={{ type: 'spring', stiffness: 380, damping: 22, delay: 0.16 }}
                       src={foldedMap3dIcon}
                       alt="Meus roteiros"
-                      className="h-[64px] w-auto object-contain"
+                      className="h-[58px] w-auto object-contain drop-shadow-[0_4px_10px_rgba(0,0,0,0.18)]"
                       draggable={false}
                     />
                   </div>

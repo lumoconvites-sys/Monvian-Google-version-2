@@ -35,11 +35,13 @@ export const ItineraryCreationFinalizeModal: React.FC<ItineraryCreationFinalizeM
   initialCoverImage = '',
   existingItinerary = null,
   selectedSpots,
+  theme = 'light',
   user,
   onBackToMapSelection,
   onClose,
   onSavedAndGoToMyItineraries,
 }) => {
+  const isDark = theme === 'dark';
   const [title, setTitle] = useState<string>(() => {
     if (initialTitle && initialTitle.trim().length > 0) return initialTitle;
     if (mode === 'edit' && existingItinerary?.title) return existingItinerary.title;
@@ -173,9 +175,11 @@ export const ItineraryCreationFinalizeModal: React.FC<ItineraryCreationFinalizeM
         animate={{ opacity: 1, y: 0 }}
         exit={{ opacity: 0, y: 18 }}
         transition={{ type: 'spring', stiffness: 380, damping: 34, mass: 0.82 }}
-        className="fixed inset-0 z-[270] bg-[#FFFFFF] text-[#0B0B0C] flex flex-col select-none overflow-hidden"
+        className={`fixed inset-0 z-[270] flex flex-col select-none overflow-hidden ${
+          isDark ? 'bg-[#000000] text-[#FFFFFF]' : 'bg-[#FFFFFF] text-[#0B0B0C]'
+        }`}
         style={{
-          backgroundColor: '#ffffff',
+          backgroundColor: isDark ? '#000000' : '#ffffff',
           fontFamily:
             '-apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro Text", "Inter", sans-serif',
         }}
@@ -191,7 +195,9 @@ export const ItineraryCreationFinalizeModal: React.FC<ItineraryCreationFinalizeM
 
         {/* 1. CABEÇALHO */}
         <div
-          className="w-full max-w-[480px] mx-auto px-6 pb-4 flex items-center justify-between shrink-0 bg-[#FFFFFF]"
+          className={`w-full max-w-[480px] mx-auto px-6 pb-4 flex items-center justify-between shrink-0 ${
+            isDark ? 'bg-[#000000]' : 'bg-[#FFFFFF]'
+          }`}
           style={{
             paddingTop: 'max(calc(env(safe-area-inset-top, 16px) + 14px), 24px)',
           }}
@@ -207,12 +213,20 @@ export const ItineraryCreationFinalizeModal: React.FC<ItineraryCreationFinalizeM
             }}
             aria-label="Voltar"
             title="Voltar"
-            className="w-[46px] h-[46px] rounded-full bg-[#F5F5F7] border border-black/[0.04] shadow-[0_2px_8px_rgba(0,0,0,0.04)] flex items-center justify-center text-[#0B0B0C] active:scale-95 transition-transform cursor-pointer"
+            className={`w-[46px] h-[46px] rounded-full border flex items-center justify-center active:scale-95 transition-transform cursor-pointer ${
+              isDark
+                ? 'bg-[#171717] border-white/10 text-[#FFFFFF] shadow-[0_2px_10px_rgba(0,0,0,0.45)]'
+                : 'bg-[#F5F5F7] border-black/[0.04] text-[#0B0B0C] shadow-[0_2px_8px_rgba(0,0,0,0.04)]'
+            }`}
           >
             <ChevronLeft className="w-6 h-6 -ml-0.5" strokeWidth={2.2} />
           </button>
 
-          <h1 className="text-[20px] font-bold text-[#0B0B0C] tracking-[-0.02em] text-center">
+          <h1
+            className={`text-[20px] font-bold tracking-[-0.02em] text-center ${
+              isDark ? 'text-[#FFFFFF]' : 'text-[#0B0B0C]'
+            }`}
+          >
             Finalizar roteiro
           </h1>
 
@@ -235,7 +249,11 @@ export const ItineraryCreationFinalizeModal: React.FC<ItineraryCreationFinalizeM
                 handleTriggerFileUpload();
               }
             }}
-            className="relative w-full min-h-[304px] rounded-[32px] bg-[#F7F7F9] border border-black/[0.03] shadow-[0_4px_20px_rgba(0,0,0,0.02)] overflow-hidden flex flex-col items-center justify-center text-center cursor-pointer transition-transform active:scale-[0.995]"
+            className={`relative w-full min-h-[304px] rounded-[32px] border overflow-hidden flex flex-col items-center justify-center text-center cursor-pointer transition-transform active:scale-[0.995] ${
+              isDark
+                ? 'bg-[#171717] border-white/10 shadow-[0_8px_28px_rgba(0,0,0,0.45)]'
+                : 'bg-[#F7F7F9] border-black/[0.03] shadow-[0_4px_20px_rgba(0,0,0,0.02)]'
+            }`}
           >
             {coverImage ? (
               <div className="relative w-full h-[304px]">
@@ -278,7 +296,7 @@ export const ItineraryCreationFinalizeModal: React.FC<ItineraryCreationFinalizeM
                       width="56"
                       height="44"
                       rx="9"
-                      stroke="#8E8E93"
+                      stroke={isDark ? '#858585' : '#8E8E93'}
                       strokeWidth="2.6"
                     />
                     {/* Sol */}
@@ -286,22 +304,22 @@ export const ItineraryCreationFinalizeModal: React.FC<ItineraryCreationFinalizeM
                       cx="21"
                       cy="20"
                       r="5"
-                      stroke="#8E8E93"
+                      stroke={isDark ? '#858585' : '#8E8E93'}
                       strokeWidth="2.5"
                     />
                     {/* Montanhas */}
                     <path
                       d="M11 46L35 26L45 35L53 28L61 36"
-                      stroke="#8E8E93"
+                      stroke={isDark ? '#858585' : '#8E8E93'}
                       strokeWidth="2.6"
                       strokeLinecap="round"
                       strokeLinejoin="round"
                     />
-                    {/* Círculo preto com símbolo de adicionar (+) */}
-                    <circle cx="57" cy="46" r="14" fill="#0B0B0C" />
+                    {/* Círculo com símbolo de adicionar (+) */}
+                    <circle cx="57" cy="46" r="14" fill={isDark ? '#FFFFFF' : '#0B0B0C'} />
                     <path
                       d="M57 40V52M51 46H63"
-                      stroke="#FFFFFF"
+                      stroke={isDark ? '#000000' : '#FFFFFF'}
                       strokeWidth="2.6"
                       strokeLinecap="round"
                     />
@@ -309,28 +327,40 @@ export const ItineraryCreationFinalizeModal: React.FC<ItineraryCreationFinalizeM
                 </div>
 
                 {/* Título */}
-                <h2 className="text-[22px] font-bold text-[#0B0B0C] tracking-[-0.02em] leading-tight">
+                <h2
+                  className={`text-[22px] font-bold tracking-[-0.02em] leading-tight ${
+                    isDark ? 'text-[#FFFFFF]' : 'text-[#0B0B0C]'
+                  }`}
+                >
                   Adicionar uma foto
                 </h2>
 
                 {/* Texto secundário */}
-                <p className="mt-2 text-[15.5px] font-normal text-[#71717A] leading-[1.35] max-w-[235px]">
+                <p
+                  className={`mt-2 text-[15.5px] font-normal leading-[1.35] max-w-[235px] ${
+                    isDark ? 'text-[#858585]' : 'text-[#71717A]'
+                  }`}
+                >
                   Faça upload de uma foto para seu roteiro
                 </p>
 
-                {/* Botão preto grande "Fazer upload" com ícone de envio branco */}
+                {/* Botão "Fazer upload" */}
                 <button
                   type="button"
                   onClick={(e) => {
                     e.stopPropagation();
                     handleTriggerFileUpload();
                   }}
-                  className="mt-7 w-full max-w-[295px] h-[56px] rounded-full bg-[#0B0B0C] text-white flex items-center justify-center gap-2.5 shadow-[0_6px_18px_rgba(0,0,0,0.14)] active:scale-[0.98] transition-transform cursor-pointer"
+                  className={`mt-7 w-full max-w-[295px] h-[56px] rounded-full flex items-center justify-center gap-2.5 active:scale-[0.98] transition-transform cursor-pointer ${
+                    isDark
+                      ? 'bg-[#FFFFFF] text-[#000000] shadow-[0_6px_20px_rgba(0,0,0,0.4)]'
+                      : 'bg-[#0B0B0C] text-white shadow-[0_6px_18px_rgba(0,0,0,0.14)]'
+                  }`}
                 >
                   {isUploadingPhoto ? (
-                    <Loader2 className="w-5 h-5 animate-spin text-white" />
+                    <Loader2 className="w-5 h-5 animate-spin text-current" />
                   ) : (
-                    <Upload className="w-[21px] h-[21px] text-white" strokeWidth={2.2} />
+                    <Upload className="w-[21px] h-[21px] text-current" strokeWidth={2.2} />
                   )}
                   <span className="text-[17px] font-semibold tracking-[-0.01em]">
                     Fazer upload
@@ -344,7 +374,9 @@ export const ItineraryCreationFinalizeModal: React.FC<ItineraryCreationFinalizeM
           <div className="mt-8">
             <label
               htmlFor="itinerary-finalize-title-input"
-              className="block text-[18px] font-bold text-[#0B0B0C] tracking-[-0.015em] mb-3"
+              className={`block text-[18px] font-bold tracking-[-0.015em] mb-3 ${
+                isDark ? 'text-[#FFFFFF]' : 'text-[#0B0B0C]'
+              }`}
             >
               Nome do roteiro
             </label>
@@ -355,20 +387,36 @@ export const ItineraryCreationFinalizeModal: React.FC<ItineraryCreationFinalizeM
               onChange={(e) => setTitle(e.target.value)}
               placeholder="Ex: Roteiro Gastronômico"
               maxLength={60}
-              className="w-full h-[58px] px-5 rounded-[20px] bg-[#F5F5F7] border border-black/[0.04] text-[17px] font-normal text-[#0B0B0C] placeholder:text-[#8E8E93] outline-none focus:border-black/20 transition-colors"
+              className={`w-full h-[58px] px-5 rounded-[20px] border text-[17px] font-normal outline-none transition-colors ${
+                isDark
+                  ? 'bg-[#171717] border-white/10 text-[#FFFFFF] placeholder:text-[#858585] focus:border-white/30'
+                  : 'bg-[#F5F5F7] border-black/[0.04] text-[#0B0B0C] placeholder:text-[#8E8E93] focus:border-black/20'
+              }`}
             />
           </div>
 
           {/* 4. PARADAS DO ROTEIRO */}
-          <div className="mt-7 pt-1 pb-5 border-b border-[#EFEFF2] flex items-center justify-between gap-3">
-            <span className="text-[18px] font-bold text-[#0B0B0C] tracking-[-0.015em]">
+          <div
+            className={`mt-7 pt-1 pb-5 border-b flex items-center justify-between gap-3 ${
+              isDark ? 'border-white/10' : 'border-[#EFEFF2]'
+            }`}
+          >
+            <span
+              className={`text-[18px] font-bold tracking-[-0.015em] ${
+                isDark ? 'text-[#FFFFFF]' : 'text-[#0B0B0C]'
+              }`}
+            >
               Paradas do roteiro ({selectedSpots.length})
             </span>
 
             <button
               type="button"
               onClick={() => onBackToMapSelection({ title, coverImage })}
-              className="px-5 h-[44px] rounded-full bg-[#F2F2F5] hover:bg-[#EAEAEF] text-[#0B0B0C] text-[15px] font-semibold flex items-center justify-center active:scale-95 transition-all cursor-pointer shrink-0"
+              className={`px-5 h-[44px] rounded-full text-[15px] font-semibold flex items-center justify-center active:scale-95 transition-all cursor-pointer shrink-0 ${
+                isDark
+                  ? 'bg-[#171717] hover:bg-[#222222] border border-white/10 text-[#FFFFFF]'
+                  : 'bg-[#F2F2F5] hover:bg-[#EAEAEF] text-[#0B0B0C]'
+              }`}
             >
               Adicionar novo
             </button>
@@ -377,7 +425,9 @@ export const ItineraryCreationFinalizeModal: React.FC<ItineraryCreationFinalizeM
 
         {/* 5. BOTÃO INFERIOR FIXO */}
         <div
-          className="w-full bg-[#FFFFFF] border-t border-[#EFEFF2] shrink-0"
+          className={`w-full border-t shrink-0 ${
+            isDark ? 'bg-[#000000] border-white/10' : 'bg-[#FFFFFF] border-[#EFEFF2]'
+          }`}
           style={{
             paddingTop: '16px',
             paddingBottom: 'max(24px, calc(env(safe-area-inset-bottom, 0px) + 16px))',
@@ -388,10 +438,14 @@ export const ItineraryCreationFinalizeModal: React.FC<ItineraryCreationFinalizeM
               type="button"
               disabled={selectedSpots.length === 0 || isSaving}
               onClick={handleSaveItinerary}
-              className={`w-full h-[58px] rounded-full font-bold text-[17.5px] tracking-[-0.01em] flex items-center justify-center gap-2 shadow-[0_8px_24px_rgba(0,0,0,0.14)] transition-all ${
+              className={`w-full h-[58px] rounded-full font-bold text-[17.5px] tracking-[-0.01em] flex items-center justify-center gap-2 transition-all ${
                 selectedSpots.length > 0 && !isSaving
-                  ? 'bg-[#0B0B0C] text-white active:scale-[0.98] cursor-pointer'
-                  : 'bg-[#E5E5EA] text-[#8E8E93] cursor-not-allowed shadow-none'
+                  ? isDark
+                    ? 'bg-[#FFFFFF] text-[#000000] shadow-[0_8px_24px_rgba(0,0,0,0.45)] active:scale-[0.98] cursor-pointer'
+                    : 'bg-[#0B0B0C] text-white shadow-[0_8px_24px_rgba(0,0,0,0.14)] active:scale-[0.98] cursor-pointer'
+                  : isDark
+                    ? 'bg-[#171717] text-[#858585] border border-white/10 cursor-not-allowed shadow-none'
+                    : 'bg-[#E5E5EA] text-[#8E8E93] cursor-not-allowed shadow-none'
               }`}
             >
               {isSaving ? (

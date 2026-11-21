@@ -21,7 +21,7 @@ import { PlatanoLeafIcon, PLATANO_LEAF_3D_ICON_SRC } from './PlatanoLeafIcon';
 import { usePlatanos } from '../../hooks/usePlatanos';
 import { PlatanoPackage, PlatanoTransaction } from '../../types';
 import { useIOSBackEntry } from '../../services/iosNavigationManager';
-import platanosLeafHero3d from '../../assets/images/platanos_leaf_hero_3d_1794936165022.jpg';
+import platanosLeafHero3d from '../../assets/images/platanos_leaf_hero_3d.png';
 import platanosLeafCardGold from '../../assets/images/platanos_leaf_card_gold_1794936165278.jpg';
 
 interface PlatanosWalletModalProps {
@@ -665,7 +665,7 @@ export const PlatanosWalletModal: React.FC<PlatanosWalletModalProps> = ({
                     isDark ? 'text-[#D4D4D8]' : 'text-[#3A3A3C]'
                   }`}
                 >
-                  Compre Plátanos e desbloqueie roteiros premium!
+                  Compre Plátanos e desbloqueie roteiros premium pra sua viagem completa!
                 </span>
               </div>
             </div>
@@ -686,7 +686,7 @@ export const PlatanosWalletModal: React.FC<PlatanosWalletModalProps> = ({
                   onClick={() => setActiveTab('topup')}
                   className={`relative h-10 rounded-full text-[13.5px] font-semibold tracking-[-0.01em] transition-colors duration-200 cursor-pointer flex items-center justify-center whitespace-nowrap ${
                     activeTab === 'topup'
-                      ? 'text-[#FFFFFF]'
+                      ? 'text-[#111111]'
                       : isDark
                         ? 'text-[#8E8E93] hover:text-[#FFFFFF]'
                         : 'text-[#6E6E73] hover:text-[#1C1C1E]'
@@ -700,17 +700,18 @@ export const PlatanosWalletModal: React.FC<PlatanosWalletModalProps> = ({
                         stiffness: 460,
                         damping: 36,
                       }}
-                      className={`absolute inset-0 rounded-full ${
-                        isDark
-                          ? 'bg-[#ffc800] shadow-[0_2px_10px_rgba(0,0,0,0.45)]'
-                          : 'bg-[#ffc800] shadow-[0_2px_8px_rgba(0,0,0,0.12)]'
-                      }`}
-                      style={{ backgroundColor: '#ffc800' }}
+                      className="absolute inset-0 rounded-full border border-white/90"
+                      style={{
+                        background: 'linear-gradient(180deg, #FFFFFF 0%, #F3F3F5 100%)',
+                        boxShadow: isDark
+                          ? '0 6px 16px rgba(0, 0, 0, 0.48), 0 2px 4px rgba(0, 0, 0, 0.3), inset 0 1.5px 1px rgba(255, 255, 255, 0.96), inset 0 -1.5px 3px rgba(0, 0, 0, 0.08)'
+                          : '0 6px 16px rgba(0, 0, 0, 0.10), 0 2px 4px rgba(0, 0, 0, 0.06), inset 0 1.5px 1px rgba(255, 255, 255, 0.98), inset 0 -1.5px 3px rgba(0, 0, 0, 0.05)',
+                      }}
                     />
                   )}
                   <span
                     className="relative z-10"
-                    style={activeTab === 'topup' ? { color: '#ffffff' } : undefined}
+                    style={activeTab === 'topup' ? { color: '#111111' } : undefined}
                   >
                     Comprar Plátanos
                   </span>
@@ -723,7 +724,7 @@ export const PlatanosWalletModal: React.FC<PlatanosWalletModalProps> = ({
                   onClick={() => setActiveTab('history')}
                   className={`relative h-10 rounded-full text-[13.5px] font-semibold tracking-[-0.01em] transition-colors duration-200 cursor-pointer flex items-center justify-center whitespace-nowrap tabular-nums ${
                     activeTab === 'history'
-                      ? 'text-[#FFFFFF]'
+                      ? 'text-[#111111]'
                       : isDark
                         ? 'text-[#8E8E93] hover:text-[#FFFFFF]'
                         : 'text-[#6E6E73] hover:text-[#1C1C1E]'
@@ -737,17 +738,18 @@ export const PlatanosWalletModal: React.FC<PlatanosWalletModalProps> = ({
                         stiffness: 460,
                         damping: 36,
                       }}
-                      className={`absolute inset-0 rounded-full ${
-                        isDark
-                          ? 'bg-[#ffc800] shadow-[0_2px_10px_rgba(0,0,0,0.45)]'
-                          : 'bg-[#ffc800] shadow-[0_2px_8px_rgba(0,0,0,0.12)]'
-                      }`}
-                      style={{ backgroundColor: '#ffc800' }}
+                      className="absolute inset-0 rounded-full border border-white/90"
+                      style={{
+                        background: 'linear-gradient(180deg, #FFFFFF 0%, #F3F3F5 100%)',
+                        boxShadow: isDark
+                          ? '0 6px 16px rgba(0, 0, 0, 0.48), 0 2px 4px rgba(0, 0, 0, 0.3), inset 0 1.5px 1px rgba(255, 255, 255, 0.96), inset 0 -1.5px 3px rgba(0, 0, 0, 0.08)'
+                          : '0 6px 16px rgba(0, 0, 0, 0.10), 0 2px 4px rgba(0, 0, 0, 0.06), inset 0 1.5px 1px rgba(255, 255, 255, 0.98), inset 0 -1.5px 3px rgba(0, 0, 0, 0.05)',
+                      }}
                     />
                   )}
                   <span
                     className="relative z-10"
-                    style={activeTab === 'history' ? { color: '#ffffff' } : undefined}
+                    style={activeTab === 'history' ? { color: '#111111' } : undefined}
                   >
                     Histórico
                     {wallet.transactions.length > 0
@@ -886,16 +888,22 @@ export const PlatanosWalletModal: React.FC<PlatanosWalletModalProps> = ({
                           type="button"
                           disabled={Boolean(checkoutLoadingId)}
                           onClick={() => handleCheckout(pkg)}
-                          style={{ backgroundColor: '#ffc800', color: '#ffffff' }}
-                          className="relative z-10 h-10 px-4 rounded-full bg-[#ffc800] hover:bg-[#f2be00] text-[#FFFFFF] active:scale-[0.96] transition-all duration-150 inline-flex items-center justify-center gap-1 text-[14px] font-semibold tracking-[-0.01em] shrink-0 cursor-pointer disabled:opacity-55 shadow-[0_4px_12px_rgba(255,200,0,0.28)]"
+                          style={{
+                            background: 'linear-gradient(180deg, #FFFFFF 0%, #F3F3F5 100%)',
+                            color: '#111111',
+                            boxShadow: isDark
+                              ? '0 6px 16px rgba(0, 0, 0, 0.45), 0 2px 4px rgba(0, 0, 0, 0.28), inset 0 1.5px 1px rgba(255, 255, 255, 0.98), inset 0 -2px 3px rgba(0, 0, 0, 0.06)'
+                              : '0 6px 14px rgba(0, 0, 0, 0.10), 0 2px 4px rgba(0, 0, 0, 0.05), inset 0 1.5px 1px rgba(255, 255, 255, 0.98), inset 0 -2px 3px rgba(0, 0, 0, 0.05)',
+                          }}
+                          className="relative z-10 h-10 px-4 rounded-full border border-white/95 text-[#111111] active:scale-[0.96] transition-all duration-150 inline-flex items-center justify-center gap-1 text-[14px] font-semibold tracking-[-0.01em] shrink-0 cursor-pointer disabled:opacity-55"
                         >
-                          <span style={{ color: '#ffffff' }}>
+                          <span style={{ color: '#111111' }}>
                             {isProcessing ? 'Abrindo...' : 'Adquirir'}
                           </span>
                           {!isProcessing && (
                             <ChevronRight
-                              className="w-3.5 h-3.5 stroke-[2.4] text-[#FFFFFF]"
-                              style={{ color: '#ffffff' }}
+                              className="w-3.5 h-3.5 stroke-[2.4] text-[#111111]"
+                              style={{ color: '#111111' }}
                             />
                           )}
                         </button>
@@ -933,16 +941,22 @@ export const PlatanosWalletModal: React.FC<PlatanosWalletModalProps> = ({
                         type="button"
                         disabled={Boolean(checkoutLoadingId)}
                         onClick={() => handleCheckout(pkg)}
-                        style={{ backgroundColor: '#ffc800', color: '#ffffff' }}
-                        className="h-10 px-4 rounded-full bg-[#ffc800] hover:bg-[#f2be00] text-[#FFFFFF] active:scale-[0.96] transition-all duration-150 inline-flex items-center justify-center gap-1 text-[14px] font-semibold tracking-[-0.01em] shrink-0 cursor-pointer disabled:opacity-55"
+                        style={{
+                          background: 'linear-gradient(180deg, #FFFFFF 0%, #F3F3F5 100%)',
+                          color: '#111111',
+                          boxShadow: isDark
+                            ? '0 6px 16px rgba(0, 0, 0, 0.45), 0 2px 4px rgba(0, 0, 0, 0.28), inset 0 1.5px 1px rgba(255, 255, 255, 0.98), inset 0 -2px 3px rgba(0, 0, 0, 0.06)'
+                            : '0 6px 14px rgba(0, 0, 0, 0.10), 0 2px 4px rgba(0, 0, 0, 0.05), inset 0 1.5px 1px rgba(255, 255, 255, 0.98), inset 0 -2px 3px rgba(0, 0, 0, 0.05)',
+                        }}
+                        className="h-10 px-4 rounded-full border border-white/95 text-[#111111] active:scale-[0.96] transition-all duration-150 inline-flex items-center justify-center gap-1 text-[14px] font-semibold tracking-[-0.01em] shrink-0 cursor-pointer disabled:opacity-55"
                       >
-                        <span style={{ color: '#ffffff' }}>
+                        <span style={{ color: '#111111' }}>
                           {isProcessing ? 'Abrindo...' : 'Adquirir'}
                         </span>
                         {!isProcessing && (
                           <ChevronRight
-                            className="w-3.5 h-3.5 stroke-[2.4] text-[#FFFFFF]"
-                            style={{ color: '#ffffff' }}
+                            className="w-3.5 h-3.5 stroke-[2.4] text-[#111111]"
+                            style={{ color: '#111111' }}
                           />
                         )}
                       </button>

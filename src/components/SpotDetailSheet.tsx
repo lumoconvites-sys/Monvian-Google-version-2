@@ -108,8 +108,7 @@ const SummaryRatingStars: React.FC<{ rating: number; idPrefix: string }> = ({ ra
             {/* Base Empty Star */}
             <path
               d={ROUNDED_STAR_PATH}
-              fill="#EFEFF4"
-              stroke="#C7C7CC"
+              className="fill-[#EFEFF4] dark:fill-[#2C2C2E] stroke-[#C7C7CC] dark:stroke-[#3A3A3C]"
               strokeWidth="1.2"
               strokeLinejoin="round"
             />
@@ -145,8 +144,11 @@ const UserReviewStars: React.FC<{ rating: number }> = ({ rating }) => {
           >
             <path
               d={ROUNDED_STAR_PATH}
-              fill={isFilled ? '#F7B801' : '#E5E5EA'}
-              stroke={isFilled ? '#F5B000' : '#C7C7CC'}
+              className={
+                isFilled
+                  ? 'fill-[#F7B801] stroke-[#F5B000]'
+                  : 'fill-[#E5E5EA] dark:fill-[#2C2C2E] stroke-[#C7C7CC] dark:stroke-[#3A3A3C]'
+              }
               strokeWidth={isFilled ? '0.5' : '1'}
               strokeLinejoin="round"
             />
@@ -1251,29 +1253,25 @@ export const SpotDetailSheet: React.FC<SpotDetailSheetProps> = React.memo(({
                   initial={{ opacity: 0, y: 12 }}
                   animate={{ opacity: 1, y: 0 }}
                   transition={{ type: 'spring', stiffness: 420, damping: 30 }}
-                  className="space-y-4 pt-0.5 bg-[#FFFFFF]"
-                  style={{ backgroundColor: '#ffffff' }}
+                  className="space-y-4 pt-0.5 bg-transparent"
                 >
                   {/* 3. Resumo das avaliações — Card único, amplo e minimalista */}
-                  <div
-                    className="flex items-center justify-between px-5 py-6 bg-[#FFFFFF] rounded-[26px] border border-[#EBEBEF] shadow-[0_4px_16px_rgba(0,0,0,0.03)]"
-                    style={{ backgroundColor: '#ffffff' }}
-                  >
+                  <div className="flex items-center justify-between px-5 py-6 bg-[#FFFFFF] dark:bg-[#171717] rounded-[26px] border border-[#EBEBEF] dark:border-white/10 shadow-[0_4px_16px_rgba(0,0,0,0.03)] dark:shadow-[0_4px_20px_rgba(0,0,0,0.35)]">
                     <div className="w-[43%] flex flex-col items-center justify-center pr-2">
-                      <span className="text-[48px] leading-none font-extrabold text-[#0B0B0C] tracking-[-0.03em] tabular-nums">
+                      <span className="text-[48px] leading-none font-extrabold text-[#0B0B0C] dark:text-[#FFFFFF] tracking-[-0.03em] tabular-nums">
                         {Number(liveRating).toFixed(1)}
                       </span>
-                      <span className="text-[14.5px] font-normal text-[#6E6E73] mt-2 tracking-[-0.01em]">
+                      <span className="text-[14.5px] font-normal text-[#6E6E73] dark:text-[#858585] mt-2 tracking-[-0.01em]">
                         {tr('de 5.0 estrelas')}
                       </span>
                     </div>
 
                     {/* Separação visual discreta entre a nota e as estrelas */}
-                    <div className="w-[1px] h-[58px] bg-[#DCDCE1] shrink-0" />
+                    <div className="w-[1px] h-[58px] bg-[#DCDCE1] dark:bg-white/10 shrink-0" />
 
                     <div className="w-[56%] flex flex-col items-center justify-center pl-2">
                       <SummaryRatingStars rating={Number(liveRating)} idPrefix="mobile-summary" />
-                      <span className="text-[15px] font-normal text-[#6E6E73] mt-2.5 tracking-[-0.01em] tabular-nums">
+                      <span className="text-[15px] font-normal text-[#6E6E73] dark:text-[#858585] mt-2.5 tracking-[-0.01em] tabular-nums">
                         {tr(`${liveReviewCount} avaliações`)}
                       </span>
                     </div>
@@ -1306,15 +1304,14 @@ export const SpotDetailSheet: React.FC<SpotDetailSheetProps> = React.memo(({
                       initial={{ opacity: 0, y: 10 }}
                       animate={{ opacity: 1, y: 0 }}
                       transition={{ duration: 0.45, ease: [0.16, 1, 0.3, 1], delay: 0.04 * Math.min(idx, 4) }}
-                      className="p-5 bg-[#FFFFFF] rounded-[26px] border border-[#EBEBEF] shadow-[0_4px_16px_rgba(0,0,0,0.03)]"
-                      style={{ backgroundColor: '#ffffff' }}
+                      className="p-5 bg-[#FFFFFF] dark:bg-[#171717] rounded-[26px] border border-[#EBEBEF] dark:border-white/10 shadow-[0_4px_16px_rgba(0,0,0,0.03)] dark:shadow-[0_4px_20px_rgba(0,0,0,0.35)]"
                     >
                       <div className="flex items-start justify-between gap-3">
                         <div className="flex items-center gap-3.5 min-w-0">
                           <img
                             src={getReviewUserAvatar(rev, idx)}
                             alt={rev.user_name || 'Visitante'}
-                            className="w-[48px] h-[48px] rounded-full object-cover shrink-0 bg-[#E5E5EA]"
+                            className="w-[48px] h-[48px] rounded-full object-cover shrink-0 bg-[#E5E5EA] dark:bg-[#262626]"
                             loading="lazy"
                             referrerPolicy="no-referrer"
                             onError={(e) => {
@@ -1322,17 +1319,17 @@ export const SpotDetailSheet: React.FC<SpotDetailSheetProps> = React.memo(({
                             }}
                           />
                           <div className="flex flex-col min-w-0">
-                            <span className="text-[17px] font-bold text-[#0B0B0C] leading-[1.2] tracking-[-0.015em] truncate">
+                            <span className="text-[17px] font-bold text-[#0B0B0C] dark:text-[#FFFFFF] leading-[1.2] tracking-[-0.015em] truncate">
                               {rev.user_name || 'Visitante'}
                             </span>
-                            <span className="text-[14px] font-normal text-[#8E8E93] leading-[1.2] mt-1">
+                            <span className="text-[14px] font-normal text-[#8E8E93] dark:text-[#858585] leading-[1.2] mt-1">
                               {formatReviewDateLabel(rev.created_at)}
                             </span>
                           </div>
                         </div>
                         <UserReviewStars rating={Number(rev.rating ?? 5)} />
                       </div>
-                      <p className="mt-3.5 text-[16px] font-normal text-[#1C1C1E] leading-[1.42] tracking-[-0.01em]">
+                      <p className="mt-3.5 text-[16px] font-normal text-[#1C1C1E] dark:text-zinc-200 leading-[1.42] tracking-[-0.01em]">
                         {rev.comment}
                       </p>
                     </motion.div>
@@ -1342,11 +1339,10 @@ export const SpotDetailSheet: React.FC<SpotDetailSheetProps> = React.memo(({
                   <button
                     type="button"
                     onClick={() => setIsAllReviewsOpen(true)}
-                    className="w-full h-[56px] rounded-full bg-[#FFFFFF] border border-[#E5E5EA] shadow-[0_2px_10px_rgba(0,0,0,0.03)] flex items-center justify-center gap-1.5 text-[16.5px] font-bold text-[#0B0B0C] tracking-[-0.01em] hover:bg-[#FAFAFC] active:scale-[0.98] transition-all cursor-pointer"
-                    style={{ backgroundColor: '#ffffff' }}
+                    className="w-full h-[56px] rounded-full bg-[#FFFFFF] dark:bg-[#171717] border border-[#E5E5EA] dark:border-white/10 shadow-[0_2px_10px_rgba(0,0,0,0.03)] dark:shadow-none flex items-center justify-center gap-1.5 text-[16.5px] font-bold text-[#0B0B0C] dark:text-[#FFFFFF] tracking-[-0.01em] hover:bg-[#FAFAFC] dark:hover:bg-[#222222] active:scale-[0.98] transition-all cursor-pointer"
                   >
                     <span>{tr('Ver todas as avaliações')}</span>
-                    <ChevronRight className="w-[19px] h-[19px] text-[#0B0B0C] shrink-0" strokeWidth={2.4} />
+                    <ChevronRight className="w-[19px] h-[19px] text-[#0B0B0C] dark:text-[#FFFFFF] shrink-0" strokeWidth={2.4} />
                   </button>
                 </motion.div>
               )}
@@ -1539,15 +1535,9 @@ export const SpotDetailSheet: React.FC<SpotDetailSheetProps> = React.memo(({
         </div>
 
         {/* RIGHT COLUMN (42-44% on Desktop): Structured Info, Actions & Integrated Tabs */}
-        <div
-          className="flex-1 lg:w-[44%] xl:w-[42%] h-full min-h-0 flex flex-col bg-white dark:bg-[#000000] px-5 py-4 lg:px-7 lg:py-6 overflow-hidden"
-          style={{ backgroundColor: activeTab === 'Avaliações' ? '#ffffff' : undefined }}
-        >
+        <div className="flex-1 lg:w-[44%] xl:w-[42%] h-full min-h-0 flex flex-col bg-white dark:bg-[#000000] px-5 py-4 lg:px-7 lg:py-6 overflow-hidden">
           {/* 1 & 2. Full Name + Verification Indicator */}
-          <div
-            className="flex items-center gap-2.5 shrink-0 bg-[#FFFFFF] dark:bg-transparent"
-            style={{ backgroundColor: '#ffffff' }}
-          >
+          <div className="flex items-center gap-2.5 shrink-0 bg-transparent">
             <h1 className="text-2xl xl:text-[27px] font-extrabold tracking-[-0.02em] text-[#0B0B0C] dark:text-white leading-tight">
               {spot.name}
             </h1>
@@ -1555,10 +1545,7 @@ export const SpotDetailSheet: React.FC<SpotDetailSheetProps> = React.memo(({
           </div>
 
           {/* 3. Three Uniform Indicators (Rating, Distance, Views) */}
-          <div
-            className="grid grid-cols-3 gap-2 mt-3.5 shrink-0 bg-[#FFFFFF] dark:bg-transparent"
-            style={{ backgroundColor: '#ffffff' }}
-          >
+          <div className="grid grid-cols-3 gap-2 mt-3.5 shrink-0 bg-transparent">
             <div className="h-[38px] px-2.5 rounded-full bg-[#F3F3F5] dark:bg-[#1C1C1E] dark:border dark:border-white/10 flex items-center justify-center gap-1.5 min-w-0 tabular-nums">
               <Star className="w-4 h-4 fill-[#111111] text-[#111111] dark:fill-white dark:text-white shrink-0" />
               <span className="text-[13px] font-bold text-[#111111] dark:text-white">{Number(liveRating).toFixed(1)}</span>
@@ -1736,28 +1723,24 @@ export const SpotDetailSheet: React.FC<SpotDetailSheetProps> = React.memo(({
                 initial={{ opacity: 0, y: 8 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ duration: 0.48, ease: [0.16, 1, 0.3, 1] }}
-                className="space-y-3.5 bg-[#FFFFFF]"
-                style={{ backgroundColor: '#ffffff' }}
+                className="space-y-3.5 bg-transparent"
               >
                 {/* Resumo das avaliações */}
-                <div
-                  className="flex items-center justify-between px-5 py-5 bg-[#FFFFFF] rounded-[24px] border border-[#EBEBEF] shadow-[0_4px_16px_rgba(0,0,0,0.03)]"
-                  style={{ backgroundColor: '#ffffff' }}
-                >
+                <div className="flex items-center justify-between px-5 py-5 bg-[#FFFFFF] dark:bg-[#171717] rounded-[24px] border border-[#EBEBEF] dark:border-white/10 shadow-[0_4px_16px_rgba(0,0,0,0.03)] dark:shadow-[0_4px_20px_rgba(0,0,0,0.35)]">
                   <div className="w-[43%] flex flex-col items-center justify-center pr-2">
-                    <span className="text-[42px] leading-none font-extrabold text-[#0B0B0C] tracking-[-0.03em] tabular-nums">
+                    <span className="text-[42px] leading-none font-extrabold text-[#0B0B0C] dark:text-[#FFFFFF] tracking-[-0.03em] tabular-nums">
                       {Number(liveRating).toFixed(1)}
                     </span>
-                    <span className="text-[13.5px] font-normal text-[#6E6E73] mt-2 tracking-[-0.01em]">
+                    <span className="text-[13.5px] font-normal text-[#6E6E73] dark:text-[#858585] mt-2 tracking-[-0.01em]">
                       {tr('de 5.0 estrelas')}
                     </span>
                   </div>
 
-                  <div className="w-[1px] h-[54px] bg-[#DCDCE1] shrink-0" />
+                  <div className="w-[1px] h-[54px] bg-[#DCDCE1] dark:bg-white/10 shrink-0" />
 
                   <div className="w-[56%] flex flex-col items-center justify-center pl-2">
                     <SummaryRatingStars rating={Number(liveRating)} idPrefix="desktop-summary" />
-                    <span className="text-[14px] font-normal text-[#6E6E73] mt-2 tracking-[-0.01em] tabular-nums">
+                    <span className="text-[14px] font-normal text-[#6E6E73] dark:text-[#858585] mt-2 tracking-[-0.01em] tabular-nums">
                       {tr(`${liveReviewCount} avaliações`)}
                     </span>
                   </div>
@@ -1787,15 +1770,14 @@ export const SpotDetailSheet: React.FC<SpotDetailSheetProps> = React.memo(({
                 ).map((rev, idx) => (
                   <div
                     key={rev.id || idx}
-                    className="p-4.5 bg-[#FFFFFF] rounded-[24px] border border-[#EBEBEF] shadow-[0_4px_16px_rgba(0,0,0,0.03)]"
-                    style={{ backgroundColor: '#ffffff' }}
+                    className="p-4.5 bg-[#FFFFFF] dark:bg-[#171717] rounded-[24px] border border-[#EBEBEF] dark:border-white/10 shadow-[0_4px_16px_rgba(0,0,0,0.03)] dark:shadow-[0_4px_20px_rgba(0,0,0,0.35)]"
                   >
                     <div className="flex items-start justify-between gap-3">
                       <div className="flex items-center gap-3 min-w-0">
                         <img
                           src={getReviewUserAvatar(rev, idx)}
                           alt={rev.user_name || 'Visitante'}
-                          className="w-[44px] h-[44px] rounded-full object-cover shrink-0 bg-[#E5E5EA]"
+                          className="w-[44px] h-[44px] rounded-full object-cover shrink-0 bg-[#E5E5EA] dark:bg-[#262626]"
                           loading="lazy"
                           referrerPolicy="no-referrer"
                           onError={(e) => {
@@ -1803,17 +1785,17 @@ export const SpotDetailSheet: React.FC<SpotDetailSheetProps> = React.memo(({
                           }}
                         />
                         <div className="flex flex-col min-w-0">
-                          <span className="text-[15.5px] font-bold text-[#0B0B0C] leading-[1.2] tracking-[-0.015em] truncate">
+                          <span className="text-[15.5px] font-bold text-[#0B0B0C] dark:text-[#FFFFFF] leading-[1.2] tracking-[-0.015em] truncate">
                             {rev.user_name || 'Visitante'}
                           </span>
-                          <span className="text-[13px] font-normal text-[#8E8E93] leading-[1.2] mt-0.5">
+                          <span className="text-[13px] font-normal text-[#8E8E93] dark:text-[#858585] leading-[1.2] mt-0.5">
                             {formatReviewDateLabel(rev.created_at)}
                           </span>
                         </div>
                       </div>
                       <UserReviewStars rating={Number(rev.rating ?? 5)} />
                     </div>
-                    <p className="mt-3 text-[14.5px] font-normal text-[#1C1C1E] leading-[1.42] tracking-[-0.01em]">
+                    <p className="mt-3 text-[14.5px] font-normal text-[#1C1C1E] dark:text-zinc-200 leading-[1.42] tracking-[-0.01em]">
                       {rev.comment}
                     </p>
                   </div>
@@ -1823,11 +1805,10 @@ export const SpotDetailSheet: React.FC<SpotDetailSheetProps> = React.memo(({
                 <button
                   type="button"
                   onClick={() => setIsAllReviewsOpen(true)}
-                  className="w-full h-[52px] rounded-full bg-[#FFFFFF] border border-[#E5E5EA] shadow-[0_2px_10px_rgba(0,0,0,0.03)] flex items-center justify-center gap-1.5 text-[15.5px] font-bold text-[#0B0B0C] tracking-[-0.01em] hover:bg-[#FAFAFC] active:scale-[0.98] transition-all cursor-pointer"
-                  style={{ backgroundColor: '#ffffff' }}
+                  className="w-full h-[52px] rounded-full bg-[#FFFFFF] dark:bg-[#171717] border border-[#E5E5EA] dark:border-white/10 shadow-[0_2px_10px_rgba(0,0,0,0.03)] dark:shadow-none flex items-center justify-center gap-1.5 text-[15.5px] font-bold text-[#0B0B0C] dark:text-[#FFFFFF] tracking-[-0.01em] hover:bg-[#FAFAFC] dark:hover:bg-[#222222] active:scale-[0.98] transition-all cursor-pointer"
                 >
                   <span>{tr('Ver todas as avaliações')}</span>
-                  <ChevronRight className="w-[18px] h-[18px] text-[#0B0B0C] shrink-0" strokeWidth={2.4} />
+                  <ChevronRight className="w-[18px] h-[18px] text-[#0B0B0C] dark:text-[#FFFFFF] shrink-0" strokeWidth={2.4} />
                 </button>
               </motion.div>
             )}
@@ -1846,18 +1827,16 @@ export const SpotDetailSheet: React.FC<SpotDetailSheetProps> = React.memo(({
             exit={{ opacity: 0, y: 24 }}
             transition={{ type: 'spring', stiffness: 400, damping: 32 }}
             onClick={(e) => e.stopPropagation()}
-            className="fixed inset-0 z-[280] bg-[#FFFFFF] flex flex-col overflow-hidden"
+            className="fixed inset-0 z-[280] bg-[#FFFFFF] dark:bg-[#000000] text-[#0B0B0C] dark:text-[#FFFFFF] flex flex-col overflow-hidden"
             style={{
-              backgroundColor: '#ffffff',
               fontFamily:
                 "-apple-system, BlinkMacSystemFont, 'SF Pro Display', 'SF Pro Text', 'Inter', sans-serif",
             }}
           >
             {/* Topo da listagem completa */}
             <div
-              className="flex items-center justify-between px-5 pb-3.5 border-b border-[#EFEFF1] bg-[#FFFFFF] shrink-0"
+              className="flex items-center justify-between px-5 pb-3.5 border-b border-[#EFEFF1] dark:border-white/10 bg-[#FFFFFF] dark:bg-[#000000] shrink-0"
               style={{
-                backgroundColor: '#ffffff',
                 paddingTop: 'max(calc(env(safe-area-inset-top, 14px) + 12px), 20px)',
               }}
             >
@@ -1865,17 +1844,17 @@ export const SpotDetailSheet: React.FC<SpotDetailSheetProps> = React.memo(({
                 type="button"
                 onClick={() => setIsAllReviewsOpen(false)}
                 aria-label="Voltar"
-                className="w-10 h-10 rounded-full bg-[#F3F3F5] flex items-center justify-center text-[#0B0B0C] active:scale-95 transition-transform cursor-pointer"
+                className="w-10 h-10 rounded-full bg-[#F3F3F5] dark:bg-[#171717] dark:border dark:border-white/10 flex items-center justify-center text-[#0B0B0C] dark:text-[#FFFFFF] active:scale-95 transition-transform cursor-pointer"
               >
                 <ArrowLeft className="w-5 h-5" strokeWidth={2.2} />
               </button>
-              <h2 className="text-[18px] font-bold text-[#0B0B0C] tracking-[-0.015em]">
+              <h2 className="text-[18px] font-bold text-[#0B0B0C] dark:text-[#FFFFFF] tracking-[-0.015em]">
                 {tr('Todas as avaliações')}
               </h2>
               <button
                 type="button"
                 onClick={() => setShowWriteReviewForm((prev) => !prev)}
-                className="px-3.5 h-9 rounded-full bg-[#F3F3F5] text-[13px] font-semibold text-[#0B0B0C] active:scale-95 transition-transform cursor-pointer"
+                className="px-3.5 h-9 rounded-full bg-[#F3F3F5] dark:bg-[#171717] dark:border dark:border-white/10 text-[13px] font-semibold text-[#0B0B0C] dark:text-[#FFFFFF] active:scale-95 transition-transform cursor-pointer"
               >
                 {showWriteReviewForm ? tr('Fechar') : tr('Avaliar')}
               </button>
@@ -1883,31 +1862,27 @@ export const SpotDetailSheet: React.FC<SpotDetailSheetProps> = React.memo(({
 
             {/* Corpo rolável com todas as avaliações */}
             <div
-              className="flex-1 overflow-y-auto px-5 pt-5 space-y-4 max-w-2xl w-full mx-auto bg-[#FFFFFF]"
+              className="flex-1 overflow-y-auto px-5 pt-5 space-y-4 max-w-2xl w-full mx-auto bg-[#FFFFFF] dark:bg-[#000000]"
               style={{
-                backgroundColor: '#ffffff',
                 paddingBottom: 'max(calc(env(safe-area-inset-bottom, 0px) + 32px), 40px)',
               }}
             >
               {/* Resumo das avaliações no topo */}
-              <div
-                className="flex items-center justify-between px-5 py-6 bg-[#FFFFFF] rounded-[26px] border border-[#EBEBEF] shadow-[0_4px_16px_rgba(0,0,0,0.03)]"
-                style={{ backgroundColor: '#ffffff' }}
-              >
+              <div className="flex items-center justify-between px-5 py-6 bg-[#FFFFFF] dark:bg-[#171717] rounded-[26px] border border-[#EBEBEF] dark:border-white/10 shadow-[0_4px_16px_rgba(0,0,0,0.03)] dark:shadow-[0_4px_20px_rgba(0,0,0,0.35)]">
                 <div className="w-[43%] flex flex-col items-center justify-center pr-2">
-                  <span className="text-[48px] leading-none font-extrabold text-[#0B0B0C] tracking-[-0.03em] tabular-nums">
+                  <span className="text-[48px] leading-none font-extrabold text-[#0B0B0C] dark:text-[#FFFFFF] tracking-[-0.03em] tabular-nums">
                     {Number(liveRating).toFixed(1)}
                   </span>
-                  <span className="text-[14.5px] font-normal text-[#6E6E73] mt-2 tracking-[-0.01em]">
+                  <span className="text-[14.5px] font-normal text-[#6E6E73] dark:text-[#858585] mt-2 tracking-[-0.01em]">
                     {tr('de 5.0 estrelas')}
                   </span>
                 </div>
 
-                <div className="w-[1px] h-[58px] bg-[#DCDCE1] shrink-0" />
+                <div className="w-[1px] h-[58px] bg-[#DCDCE1] dark:bg-white/10 shrink-0" />
 
                 <div className="w-[56%] flex flex-col items-center justify-center pl-2">
                   <SummaryRatingStars rating={Number(liveRating)} idPrefix="modal-summary" />
-                  <span className="text-[15px] font-normal text-[#6E6E73] mt-2.5 tracking-[-0.01em] tabular-nums">
+                  <span className="text-[15px] font-normal text-[#6E6E73] dark:text-[#858585] mt-2.5 tracking-[-0.01em] tabular-nums">
                     {tr(`${liveReviewCount} avaliações`)}
                   </span>
                 </div>
@@ -1922,11 +1897,10 @@ export const SpotDetailSheet: React.FC<SpotDetailSheetProps> = React.memo(({
                     animate={{ opacity: 1, height: 'auto' }}
                     exit={{ opacity: 0, height: 0 }}
                     onSubmit={handleSubmitReview}
-                    className="p-5 bg-[#FFFFFF] rounded-[26px] border border-[#EBEBEF] space-y-3.5 overflow-hidden"
-                    style={{ backgroundColor: '#ffffff' }}
+                    className="p-5 bg-[#FFFFFF] dark:bg-[#171717] rounded-[26px] border border-[#EBEBEF] dark:border-white/10 space-y-3.5 overflow-hidden"
                   >
                     <div className="flex items-center justify-between">
-                      <span className="text-[14px] font-bold text-[#0B0B0C]">
+                      <span className="text-[14px] font-bold text-[#0B0B0C] dark:text-[#FFFFFF]">
                         {tr('Sua avaliação')}
                       </span>
                       <div className="flex items-center gap-1">
@@ -1941,7 +1915,7 @@ export const SpotDetailSheet: React.FC<SpotDetailSheetProps> = React.memo(({
                               className={`w-5 h-5 transition-colors ${
                                 starVal <= userRatingInput
                                   ? 'fill-[#F7B801] text-[#F7B801]'
-                                  : 'text-zinc-300'
+                                  : 'text-zinc-300 dark:text-zinc-600'
                               }`}
                             />
                           </button>
@@ -1954,23 +1928,23 @@ export const SpotDetailSheet: React.FC<SpotDetailSheetProps> = React.memo(({
                       value={userCommentInput}
                       onChange={(e) => setUserCommentInput(e.target.value)}
                       placeholder={tr('Conte como foi sua experiência...')}
-                      className="w-full px-4 py-3 rounded-2xl bg-white border border-[#E5E5EA] text-[14.5px] text-[#0B0B0C] focus:outline-none focus:border-[#0B0B0C]"
+                      className="w-full px-4 py-3 rounded-2xl bg-white dark:bg-[#000000] border border-[#E5E5EA] dark:border-white/10 text-[14.5px] text-[#0B0B0C] dark:text-[#FFFFFF] placeholder:text-[#8E8E93] dark:placeholder:text-[#858585] focus:outline-none focus:border-[#0B0B0C] dark:focus:border-white/30"
                     />
 
                     <div className="flex items-center justify-between gap-2">
                       {reviewSubmittedMsg ? (
-                        <span className="text-[12.5px] text-[#52525B] font-medium">
+                        <span className="text-[12.5px] text-[#52525B] dark:text-zinc-300 font-medium">
                           {tr(reviewSubmittedMsg)}
                         </span>
                       ) : (
-                        <span className="text-[12.5px] text-[#71717A]">
+                        <span className="text-[12.5px] text-[#71717A] dark:text-[#858585]">
                           {tr(`Nota ${userRatingInput}.0 selecionada`)}
                         </span>
                       )}
                       <button
                         type="submit"
                         disabled={isSubmittingReview}
-                        className="px-5 py-2.5 rounded-full bg-[#0B0B0C] hover:bg-[#1C1C1E] text-white text-[13.5px] font-bold transition-transform active:scale-95 disabled:opacity-50 cursor-pointer shrink-0"
+                        className="px-5 py-2.5 rounded-full bg-[#0B0B0C] hover:bg-[#1C1C1E] dark:bg-[#FFFFFF] dark:hover:bg-zinc-200 text-white dark:text-[#000000] text-[13.5px] font-bold transition-transform active:scale-95 disabled:opacity-50 cursor-pointer shrink-0"
                       >
                         {isSubmittingReview ? tr('Salvando...') : tr('Publicar')}
                       </button>
@@ -2003,15 +1977,14 @@ export const SpotDetailSheet: React.FC<SpotDetailSheetProps> = React.memo(({
               ).map((rev, idx) => (
                 <div
                   key={rev.id || idx}
-                  className="p-5 bg-[#FFFFFF] rounded-[26px] border border-[#EBEBEF] shadow-[0_4px_16px_rgba(0,0,0,0.03)]"
-                  style={{ backgroundColor: '#ffffff' }}
+                  className="p-5 bg-[#FFFFFF] dark:bg-[#171717] rounded-[26px] border border-[#EBEBEF] dark:border-white/10 shadow-[0_4px_16px_rgba(0,0,0,0.03)] dark:shadow-[0_4px_20px_rgba(0,0,0,0.35)]"
                 >
                   <div className="flex items-start justify-between gap-3">
                     <div className="flex items-center gap-3.5 min-w-0">
                       <img
                         src={getReviewUserAvatar(rev, idx)}
                         alt={rev.user_name || 'Visitante'}
-                        className="w-[48px] h-[48px] rounded-full object-cover shrink-0 bg-[#E5E5EA]"
+                        className="w-[48px] h-[48px] rounded-full object-cover shrink-0 bg-[#E5E5EA] dark:bg-[#262626]"
                         loading="lazy"
                         referrerPolicy="no-referrer"
                         onError={(e) => {
@@ -2019,17 +1992,17 @@ export const SpotDetailSheet: React.FC<SpotDetailSheetProps> = React.memo(({
                         }}
                       />
                       <div className="flex flex-col min-w-0">
-                        <span className="text-[17px] font-bold text-[#0B0B0C] leading-[1.2] tracking-[-0.015em] truncate">
+                        <span className="text-[17px] font-bold text-[#0B0B0C] dark:text-[#FFFFFF] leading-[1.2] tracking-[-0.015em] truncate">
                           {rev.user_name || 'Visitante'}
                         </span>
-                        <span className="text-[14px] font-normal text-[#8E8E93] leading-[1.2] mt-1">
+                        <span className="text-[14px] font-normal text-[#8E8E93] dark:text-[#858585] leading-[1.2] mt-1">
                           {formatReviewDateLabel(rev.created_at)}
                         </span>
                       </div>
                     </div>
                     <UserReviewStars rating={Number(rev.rating ?? 5)} />
                   </div>
-                  <p className="mt-3.5 text-[16px] font-normal text-[#1C1C1E] leading-[1.42] tracking-[-0.01em]">
+                  <p className="mt-3.5 text-[16px] font-normal text-[#1C1C1E] dark:text-zinc-200 leading-[1.42] tracking-[-0.01em]">
                     {rev.comment}
                   </p>
                 </div>

@@ -100,13 +100,11 @@ const SEARCH_CATEGORIES: CategoryConfig[] = [
 
 let cachedSearchQuery = '';
 let cachedSelectedSearchCategoryId: string | null = null;
-let hasPlayedSearchEntranceAnimation = false;
 
 if (typeof window !== 'undefined') {
   window.addEventListener('monvian:user_logged_out', () => {
     cachedSearchQuery = '';
     cachedSelectedSearchCategoryId = null;
-    hasPlayedSearchEntranceAnimation = false;
   });
 }
 
@@ -117,7 +115,7 @@ export const SearchFilterDrawer: React.FC<SearchFilterDrawerProps> = React.memo(
   onSelectSpot,
   theme = 'dark',
 }) => {
-  const [shouldAnimateEntrance] = useState(() => !hasPlayedSearchEntranceAnimation);
+  const shouldAnimateEntrance = true;
   const [searchQuery, setSearchQuery] = useState(() => cachedSearchQuery);
   const [selectedCategory, setSelectedCategory] = useState<CategoryConfig | null>(() =>
     cachedSelectedSearchCategoryId
@@ -126,12 +124,6 @@ export const SearchFilterDrawer: React.FC<SearchFilterDrawerProps> = React.memo(
   );
   const [isListening, setIsListening] = useState(false);
   const recognitionRef = useRef<any>(null);
-
-  useEffect(() => {
-    if (isOpen) {
-      hasPlayedSearchEntranceAnimation = true;
-    }
-  }, [isOpen]);
 
   useEffect(() => {
     cachedSearchQuery = searchQuery;
@@ -308,11 +300,16 @@ export const SearchFilterDrawer: React.FC<SearchFilterDrawerProps> = React.memo(
             />
           ) : null}
 
-          <h1 className={`text-2xl sm:text-[28px] font-bold tracking-tight ${
-            isDark ? 'text-white' : 'text-zinc-950'
-          }`}>
+          <motion.h1
+            initial={{ opacity: 0, scale: 0.88, y: 12 }}
+            animate={{ opacity: 1, scale: 1, y: 0 }}
+            transition={{ type: 'spring', stiffness: 380, damping: 22, delay: 0.02 }}
+            className={`text-2xl sm:text-[28px] font-bold tracking-tight ${
+              isDark ? 'text-white' : 'text-zinc-950'
+            }`}
+          >
             {selectedCategory ? selectedCategory.name : 'Buscar'}
-          </h1>
+          </motion.h1>
         </div>
         </div>
       </div>
@@ -320,7 +317,12 @@ export const SearchFilterDrawer: React.FC<SearchFilterDrawerProps> = React.memo(
       <div className="px-5 sm:px-7 max-w-3xl mx-auto w-full flex-1 flex flex-col">
         {/* Barra de busca exibida apenas na tela inicial de categorias ou busca por texto */}
         {!selectedCategory && (
-          <div className="mt-1 mb-4">
+          <motion.div
+            initial={{ opacity: 0, scale: 0.88, y: 12 }}
+            animate={{ opacity: 1, scale: 1, y: 0 }}
+            transition={{ type: 'spring', stiffness: 380, damping: 22, delay: 0.05 }}
+            className="mt-1 mb-4"
+          >
             <div
               style={{ height: '52px' }}
               className="w-full relative flex items-center rounded-full px-4 expo-liquid-glass-bar transition-colors duration-150"
@@ -369,7 +371,7 @@ export const SearchFilterDrawer: React.FC<SearchFilterDrawerProps> = React.memo(
                 <Mic style={{ width: '22px', height: '22px' }} />
               </button>
             </div>
-          </div>
+          </motion.div>
         )}
 
         {/* VIEW 1: Categorias Principais (quando nenhuma categoria ou busca foi acionada) */}

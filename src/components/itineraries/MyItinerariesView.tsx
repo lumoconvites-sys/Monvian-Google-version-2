@@ -24,7 +24,7 @@ import {
   normalizeItineraryLivreFlags,
   removeUserCreatedItineraryFromStorage,
 } from '../../utils/itineraryHelpers';
-import foldedMap3dIcon from '../../assets/images/folded_map_pin_3d_1795219073754.jpg';
+import foldedMap3dIcon from '../../assets/images/folded_map_pin_3d.png';
 
 interface MyItinerariesViewProps {
   user: any;

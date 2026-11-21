@@ -35,14 +35,7 @@ import { useIOSBackEntry } from '../../services/iosNavigationManager';
 // Fast in-memory cache for categories
 let memoryCategoriesCache: ItineraryCategory[] | null = null;
 const CACHE_KEY_CATS = 'monvian_itinerary_categories_cache_v6';
-let hasPlayedExplorerEntranceAnimation = false;
 const loadedItineraryCoverCache = new Set<string>();
-
-if (typeof window !== 'undefined') {
-  window.addEventListener('monvian:user_logged_out', () => {
-    hasPlayedExplorerEntranceAnimation = false;
-  });
-}
 
 function getKnownItinerariesPool(): Itinerary[] {
   try {
@@ -155,10 +148,11 @@ interface PhotoCategoryItem {
 // Photographic Category Thumbnail Item (matching reference phone 1)
 const CategoryPhotoThumbnail: React.FC<{
   cat: PhotoCategoryItem;
+  index: number;
   isSelected: boolean;
   isDark: boolean;
   onClick: (e: React.MouseEvent) => void;
-}> = React.memo(({ cat, isSelected, isDark, onClick }) => {
+}> = React.memo(({ cat, index, isSelected, isDark, onClick }) => {
   const [imgSrc, setImgSrc] = useState(cat.image);
 
   useEffect(() => {
@@ -166,14 +160,23 @@ const CategoryPhotoThumbnail: React.FC<{
   }, [cat.image]);
 
   return (
-    <button
+    <motion.button
       type="button"
       onClick={onClick}
+      initial={{ opacity: 0, scale: 0.88, y: 12 }}
+      animate={{ opacity: 1, scale: 1, y: 0 }}
+      transition={{
+        type: 'spring',
+        stiffness: 380,
+        damping: 22,
+        delay: 0.065 + Math.min(index * 0.028, 0.16),
+      }}
+      whileTap={{ scale: 0.94, transition: { type: 'spring', stiffness: 500, damping: 14 } }}
       style={{
         WebkitTapHighlightColor: 'transparent',
         touchAction: 'pan-x',
       }}
-      className="group w-[calc((100%-36px)/4)] shrink-0 snap-start flex flex-col items-center py-2 cursor-pointer select-none focus:outline-none active:scale-95 transition-transform duration-150"
+      className="group w-[calc((100%-36px)/4)] shrink-0 snap-start flex flex-col items-center py-2 cursor-pointer select-none focus:outline-none"
     >
       <div
         className={`flex flex-col items-center transition-all duration-300 ease-out origin-center ${
@@ -185,7 +188,15 @@ const CategoryPhotoThumbnail: React.FC<{
         {/* Category Icon without border/background wrapper */}
         <div className="p-[2.5px] rounded-[18px]">
           <div className="w-[64px] h-[64px] sm:w-[68px] sm:h-[68px] rounded-[14px] relative flex items-center justify-center">
-            <img
+            <motion.img
+              initial={{ opacity: 0, scale: 0.88, y: 8 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              transition={{
+                type: 'spring',
+                stiffness: 380,
+                damping: 22,
+                delay: 0.08 + Math.min(index * 0.028, 0.16),
+              }}
               src={imgSrc}
               alt={cat.name}
               loading="eager"
@@ -216,7 +227,7 @@ const CategoryPhotoThumbnail: React.FC<{
           {cat.name}
         </span>
       </div>
-    </button>
+    </motion.button>
   );
 });
 
@@ -255,17 +266,20 @@ const FeaturedItineraryBanner: React.FC<FeaturedItineraryBannerProps> = ({
     >
       <motion.div
         key={`featured-${itinerary.id}-${category}`}
-        initial={shouldAnimate ? { opacity: 0, y: 24, scale: 0.985 } : false}
-        animate={{ opacity: 1, y: 0, scale: 1 }}
+        initial={shouldAnimate ? { opacity: 0, scale: 0.88, y: 12 } : false}
+        animate={{ opacity: 1, scale: 1, y: 0 }}
         transition={
           shouldAnimate
             ? {
-                duration: 0.95,
-                ease: [0.16, 1, 0.3, 1],
-                delay: 0.05,
+                type: 'spring',
+                stiffness: 380,
+                damping: 22,
+                delay: 0.09,
               }
             : { duration: 0 }
         }
+        whileHover={{ scale: 1.01, transition: { type: 'spring', stiffness: 400, damping: 18 } }}
+        whileTap={{ scale: 0.97, transition: { type: 'spring', stiffness: 500, damping: 14 } }}
         style={{
           transform: 'translate3d(0, 0, 0)',
           WebkitTransform: 'translate3d(0, 0, 0)',
@@ -446,10 +460,7 @@ export const AirbnbItineraryExplorer: React.FC<AirbnbItineraryExplorerProps> = (
   isOnboardingSelection = false,
   isOnboardingRevealReady = true,
 }) => {
-  const [shouldAnimateEntrance] = useState(() => !hasPlayedExplorerEntranceAnimation);
-  useEffect(() => {
-    hasPlayedExplorerEntranceAnimation = true;
-  }, []);
+  const shouldAnimateEntrance = true;
 
   const initialItinerariesData = useMemo(
     () =>
@@ -1004,7 +1015,12 @@ export const AirbnbItineraryExplorer: React.FC<AirbnbItineraryExplorerProps> = (
         }}
       >
         {/* 1. CABEÇALHO COMPACTO */}
-        <div className="px-5 pb-1 flex items-center justify-between">
+        <motion.div
+          initial={{ opacity: 0, y: -8 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ type: 'spring', stiffness: 380, damping: 24, delay: 0.01 }}
+          className="px-5 pb-1 flex items-center justify-between"
+        >
           <div className="flex items-center gap-2.5">
             {showAllItineraries && (
               <AppleBackButton
@@ -1024,14 +1040,21 @@ export const AirbnbItineraryExplorer: React.FC<AirbnbItineraryExplorerProps> = (
           </div>
 
           {/* Right Action: Plátanos Wallet Balance */}
-          <div className="flex items-center">
-            <button
+          <motion.div
+            initial={{ opacity: 0, scale: 0.88, y: 8 }}
+            animate={{ opacity: 1, scale: 1, y: 0 }}
+            transition={{ type: 'spring', stiffness: 380, damping: 22, delay: 0.03 }}
+            className="flex items-center"
+          >
+            <motion.button
               type="button"
+              whileHover={{ scale: 1.02, transition: { type: 'spring', stiffness: 400, damping: 18 } }}
+              whileTap={{ scale: 0.94, transition: { type: 'spring', stiffness: 500, damping: 14 } }}
               onClick={() => {
                 setWalletInitialTab('topup');
                 setIsWalletOpen(true);
               }}
-              className={`h-9 px-3 rounded-full border-0 flex items-center justify-center gap-1.5 text-[12.5px] font-semibold tracking-tight tabular-nums shrink-0 cursor-pointer active:scale-95 transition-all outline-none ${
+              className={`h-9 px-3 rounded-full border-0 flex items-center justify-center gap-1.5 text-[12.5px] font-semibold tracking-tight tabular-nums shrink-0 cursor-pointer transition-colors outline-none ${
                 isDark
                   ? 'bg-[#1C1C1E] text-white hover:bg-[#2C2C2E]'
                   : 'bg-[#F5F5F7] text-zinc-900 hover:bg-[#E5E5EA]'
@@ -1041,12 +1064,18 @@ export const AirbnbItineraryExplorer: React.FC<AirbnbItineraryExplorerProps> = (
             >
               <PlatanoLeafIcon className="w-[29px] h-[29px] shrink-0" variant="monochrome" />
               <span>{wallet.balance}</span>
-            </button>
-          </div>
-        </div>
+            </motion.button>
+          </motion.div>
+        </motion.div>
 
         {/* 2. BARRA DE PESQUISA */}
-        <div className="px-5 pb-1" style={{ color: isDark ? '#ffffff' : '#000000', backgroundColor: isDark ? '#000000' : '#ffffff' }}>
+        <motion.div
+          initial={{ opacity: 0, scale: 0.88, y: 12 }}
+          animate={{ opacity: 1, scale: 1, y: 0 }}
+          transition={{ type: 'spring', stiffness: 380, damping: 22, delay: 0.045 }}
+          className="px-5 pb-1"
+          style={{ color: isDark ? '#ffffff' : '#000000', backgroundColor: isDark ? '#000000' : '#ffffff' }}
+        >
           <div
             onClick={() => {
               setIsSearchFocused(true);
@@ -1120,7 +1149,7 @@ export const AirbnbItineraryExplorer: React.FC<AirbnbItineraryExplorerProps> = (
               </div>
             )}
           </div>
-        </div>
+        </motion.div>
 
         {/* 3. CATEGORIAS COM MINIATURAS FOTOGRÁFICAS (Carrossel com apenas 4 visíveis por vez) */}
         <div className="px-5" style={{ paddingLeft: '22px', paddingTop: '2px', paddingRight: '22px', paddingBottom: '4px', backgroundColor: isDark ? '#000000' : '#ffffff' }}>
@@ -1137,12 +1166,13 @@ export const AirbnbItineraryExplorer: React.FC<AirbnbItineraryExplorerProps> = (
               WebkitOverflowScrolling: 'touch',
             }}
           >
-            {photoCategories.map((cat) => {
+            {photoCategories.map((cat, idx) => {
               const isSelected = selectedCategory === cat.id;
               return (
                 <CategoryPhotoThumbnail
                   key={cat.id}
                   cat={cat}
+                  index={idx}
                   isSelected={isSelected}
                   isDark={isDark}
                   onClick={() => {
@@ -1289,23 +1319,8 @@ export const AirbnbItineraryExplorer: React.FC<AirbnbItineraryExplorerProps> = (
             </svg>
           </div>
         ) : (
-          <motion.div
+          <div
             key={`itineraries-reveal-${selectedCategory}-${durationFilter}-${debouncedSearchQuery}`}
-            initial={shouldAnimateEntrance ? { opacity: 0, y: 18 } : false}
-            animate={{ opacity: 1, y: 0 }}
-            transition={
-              shouldAnimateEntrance
-                ? {
-                    duration: 0.90,
-                    ease: [0.16, 1, 0.3, 1],
-                  }
-                : { duration: 0 }
-            }
-            style={{
-              transform: 'translate3d(0, 0, 0)',
-              WebkitTransform: 'translate3d(0, 0, 0)',
-              willChange: 'transform, opacity',
-            }}
             className="space-y-6"
           >
             {/* 4. ROTEIRO EM DESTAQUE — BANNER */}
@@ -1326,14 +1341,15 @@ export const AirbnbItineraryExplorer: React.FC<AirbnbItineraryExplorerProps> = (
             {displayItineraries.length > 0 && (
               <section className="space-y-3">
                 <motion.div
-                  initial={shouldAnimateEntrance ? { opacity: 0, y: 14 } : false}
-                  animate={{ opacity: 1, y: 0 }}
+                  initial={shouldAnimateEntrance ? { opacity: 0, scale: 0.88, y: 10 } : false}
+                  animate={{ opacity: 1, scale: 1, y: 0 }}
                   transition={
                     shouldAnimateEntrance
                       ? {
-                          duration: 0.85,
-                          ease: [0.16, 1, 0.3, 1],
-                          delay: 0.14,
+                          type: 'spring',
+                          stiffness: 380,
+                          damping: 22,
+                          delay: 0.11,
                         }
                       : { duration: 0 }
                   }
@@ -1438,7 +1454,7 @@ export const AirbnbItineraryExplorer: React.FC<AirbnbItineraryExplorerProps> = (
                 </div>
               </section>
             )}
-          </motion.div>
+          </div>
         )}
         </div>
       </div>
@@ -1552,14 +1568,15 @@ const HorizontalReferenceItineraryCard: React.FC<HorizontalReferenceItineraryCar
       return (
         <motion.div
           onClick={onClick}
-          initial={shouldAnimate ? { opacity: 0, y: 22, scale: 0.985 } : false}
-          animate={{ opacity: 1, y: 0, scale: 1 }}
+          initial={shouldAnimate ? { opacity: 0, scale: 0.88, y: 12 } : false}
+          animate={{ opacity: 1, scale: 1, y: 0 }}
           transition={
             shouldAnimate
               ? {
-                  duration: 0.92,
-                  ease: [0.16, 1, 0.3, 1],
-                  delay: 0.14 + Math.min((index % 6) * 0.08, 0.48),
+                  type: 'spring',
+                  stiffness: 380,
+                  damping: 22,
+                  delay: 0.13 + Math.min((index % 6) * 0.045, 0.25),
                 }
               : { duration: 0 }
           }
@@ -1570,7 +1587,8 @@ const HorizontalReferenceItineraryCard: React.FC<HorizontalReferenceItineraryCar
             backfaceVisibility: 'hidden',
             WebkitBackfaceVisibility: 'hidden',
           }}
-          whileTap={{ scale: 0.98 }}
+          whileHover={{ scale: 1.01, transition: { type: 'spring', stiffness: 400, damping: 18 } }}
+          whileTap={{ scale: 0.97, transition: { type: 'spring', stiffness: 500, damping: 14 } }}
           className="group flex flex-col cursor-pointer select-none"
         >
           {/* 1. HORIZONTAL RECTANGULAR PHOTOGRAPH (Proporção horizontal fiel à referência + Dimensões reservadas) */}

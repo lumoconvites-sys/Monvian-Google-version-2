@@ -1,4 +1,5 @@
 import React, { useRef } from 'react';
+import { motion } from 'motion/react';
 import { Spot } from '../../types';
 import { Star, Search, X, ChevronRight, MapPin, Play } from 'lucide-react';
 import { VerifiedBadge } from '../ui/VerifiedBadge';
@@ -71,7 +72,12 @@ export const DesktopExplorePanel: React.FC<DesktopExplorePanelProps> = ({
         style={{ backgroundColor: isDark ? '#000000' : '#ffffff' }}
       >
         {/* Title, Itinerary Play Trigger & Count */}
-        <div className="flex items-center justify-between gap-2">
+        <motion.div
+          initial={{ opacity: 0, scale: 0.88, y: 12 }}
+          animate={{ opacity: 1, scale: 1, y: 0 }}
+          transition={{ type: 'spring', stiffness: 380, damping: 22, delay: 0.02 }}
+          className="flex items-center justify-between gap-2"
+        >
           <div className="flex items-baseline gap-2.5">
             <h2
               className="text-xl font-bold tracking-tight"
@@ -100,19 +106,28 @@ export const DesktopExplorePanel: React.FC<DesktopExplorePanelProps> = ({
               <span>Criar Roteiro</span>
             </button>
           )}
-        </div>
+        </motion.div>
 
         {/* Weather & Attire Informative Widget */}
         {realWeather && onOpenClothingGuide && (
-          <DesktopExploreClothingBanner
-            weather={realWeather}
-            onOpenGuide={onOpenClothingGuide}
-            theme={theme}
-          />
+          <motion.div
+            initial={{ opacity: 0, scale: 0.88, y: 12 }}
+            animate={{ opacity: 1, scale: 1, y: 0 }}
+            transition={{ type: 'spring', stiffness: 380, damping: 22, delay: 0.05 }}
+          >
+            <DesktopExploreClothingBanner
+              weather={realWeather}
+              onOpenGuide={onOpenClothingGuide}
+              theme={theme}
+            />
+          </motion.div>
         )}
 
         {/* Search Input */}
-        <div
+        <motion.div
+          initial={{ opacity: 0, scale: 0.88, y: 12 }}
+          animate={{ opacity: 1, scale: 1, y: 0 }}
+          transition={{ type: 'spring', stiffness: 380, damping: 22, delay: 0.08 }}
           className={`relative flex items-center px-3.5 py-2.5 rounded-xl border transition-all ${
             isDark
               ? 'bg-[#1C1C1E] border-white/10 focus-within:border-white/30'
@@ -138,7 +153,7 @@ export const DesktopExplorePanel: React.FC<DesktopExplorePanelProps> = ({
               <X className="w-3.5 h-3.5" />
             </button>
           )}
-        </div>
+        </motion.div>
 
         {/* 2. Horizontal Categories Scroller */}
         <div
@@ -148,14 +163,23 @@ export const DesktopExplorePanel: React.FC<DesktopExplorePanelProps> = ({
             WebkitOverflowScrolling: 'touch',
           }}
         >
-          {CATEGORIES.map((cat) => {
+          {CATEGORIES.map((cat, idx) => {
             const isSelected = activeCategory === cat.id;
             return (
-              <button
+              <motion.button
                 key={cat.id}
                 type="button"
+                initial={{ opacity: 0, scale: 0.88, y: 12 }}
+                animate={{ opacity: 1, scale: 1, y: 0 }}
+                transition={{
+                  type: 'spring',
+                  stiffness: 380,
+                  damping: 22,
+                  delay: 0.1 + idx * 0.025,
+                }}
+                whileTap={{ scale: 0.94, transition: { type: 'spring', stiffness: 500, damping: 14 } }}
                 onClick={() => onSelectCategory(cat.id === 'all' ? 'all' : cat.id)}
-                className={`px-3 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap transition-all duration-150 cursor-pointer shrink-0 ${
+                className={`px-3 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap transition-colors duration-150 cursor-pointer shrink-0 ${
                   isDark
                     ? isSelected
                       ? 'bg-white text-black shadow-xs'
@@ -166,7 +190,7 @@ export const DesktopExplorePanel: React.FC<DesktopExplorePanelProps> = ({
                 }`}
               >
                 {cat.label}
-              </button>
+              </motion.button>
             );
           })}
         </div>
@@ -180,15 +204,25 @@ export const DesktopExplorePanel: React.FC<DesktopExplorePanelProps> = ({
         style={{ backgroundColor: isDark ? '#000000' : '#ffffff', color: '#ffffff' }}
       >
         {spots.length > 0 ? (
-          spots.map((spot) => {
+          spots.map((spot, idx) => {
             const isSelected = selectedSpot?.id === spot.id;
             const imgUrl = getSpotCardThumbnail(spot);
 
             return (
-              <div
+              <motion.div
                 key={spot.id}
+                initial={{ opacity: 0, scale: 0.88, y: 12 }}
+                animate={{ opacity: 1, scale: 1, y: 0 }}
+                transition={{
+                  type: 'spring',
+                  stiffness: 380,
+                  damping: 22,
+                  delay: Math.min(0.12 + idx * 0.03, 0.36),
+                }}
+                whileHover={{ scale: 1.01, transition: { type: 'spring', stiffness: 400, damping: 18 } }}
+                whileTap={{ scale: 0.97, transition: { type: 'spring', stiffness: 500, damping: 14 } }}
                 onClick={() => onSelectSpot(spot)}
-                className={`w-full p-3 rounded-2xl border transition-all duration-150 flex items-center gap-3.5 text-left cursor-pointer group relative ${
+                className={`w-full p-3 rounded-2xl border transition-colors duration-150 flex items-center gap-3.5 text-left cursor-pointer group relative ${
                   isDark
                     ? isSelected
                       ? 'bg-[#1C1C1E] border-amber-500/80 ring-1 ring-amber-500/30 shadow-sm'
@@ -275,7 +309,7 @@ export const DesktopExplorePanel: React.FC<DesktopExplorePanelProps> = ({
                     </button>
                   </div>
                 </div>
-              </div>
+              </motion.div>
             );
           })
         ) : (
