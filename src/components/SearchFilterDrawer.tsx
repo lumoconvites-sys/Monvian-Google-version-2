@@ -237,10 +237,14 @@ export const SearchFilterDrawer: React.FC<SearchFilterDrawerProps> = React.memo(
               : { duration: 0 }
           }
           onClick={onClose}
-          className="fixed inset-0 z-45 flex flex-col justify-end md:justify-center md:items-center md:p-6 select-none overflow-hidden transition-colors duration-200 md:bg-black/50"
+          className={`fixed inset-0 z-[55] flex flex-col justify-end md:justify-center md:items-center md:p-6 select-none overflow-hidden transition-colors duration-200 ${
+            isDark ? 'bg-[#000000] md:bg-black/50' : 'bg-[#ffffff] md:bg-black/50'
+          }`}
           style={{
             height: 'var(--app-height, 100dvh)',
             minHeight: 'var(--app-height, 100dvh)',
+            maxHeight: 'var(--app-height, 100dvh)',
+            contain: 'layout paint size',
           }}
         >
           <motion.div

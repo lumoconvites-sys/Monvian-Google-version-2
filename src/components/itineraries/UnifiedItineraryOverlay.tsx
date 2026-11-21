@@ -104,7 +104,14 @@ export const SelectModeOverlay: React.FC<SelectModeOverlayProps> = memo(
         : '!text-black';
 
     return (
-      <div className="fixed inset-0 md:left-[var(--desktop-sidebar-width,72px)] z-[45] pointer-events-none select-none flex flex-col justify-between">
+      <div
+        className="fixed inset-0 md:left-[var(--desktop-sidebar-width,72px)] z-[45] pointer-events-none select-none flex flex-col justify-between overflow-hidden"
+        style={{
+          height: 'var(--app-height, 100dvh)',
+          maxHeight: 'var(--app-height, 100dvh)',
+          contain: 'layout paint size',
+        }}
+      >
         {/* Discreet Top Bar */}
         <motion.div
           initial={{ opacity: 0, scale: 0.88, y: 12 }}
@@ -574,7 +581,14 @@ export const UnifiedItineraryOverlay: React.FC<UnifiedItineraryOverlayProps> = m
     };
 
     return (
-      <div className="fixed inset-0 md:left-[var(--desktop-sidebar-width,72px)] z-[42] pointer-events-none select-none overflow-hidden">
+      <div
+        className="fixed inset-0 md:left-[var(--desktop-sidebar-width,72px)] z-[42] pointer-events-none select-none overflow-hidden"
+        style={{
+          height: 'var(--app-height, 100dvh)',
+          maxHeight: 'var(--app-height, 100dvh)',
+          contain: 'layout paint size',
+        }}
+      >
         {/* 1. MOBILE TOP HEADER OVERLAY */}
         <div
           className="md:hidden absolute top-0 left-0 right-0 z-30 pointer-events-none flex items-center justify-between gap-2 px-4 sm:px-6"

@@ -3320,205 +3320,206 @@ export default function App() {
         </div>
 
       {/* 3. Top Floating Header Bar (MOBILE ONLY: md:hidden, mounted only on Explorar EXPLORE mode) */}
-      <AnimatePresence>
-        {activeTab === 'explorar' &&
-          mapWorkflowMode === 'EXPLORE' &&
-          !isMapOrbiting &&
-          !isUserLocationSpotlightActive &&
-          !showFirstSignupWelcome &&
-          !isGlobeIntroPlaying && (
-          <motion.header
-            key={`explore-mobile-header-${explorarEntranceTick}`}
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            transition={{ duration: 0.15 }}
-            aria-label="Informações de Campos do Jordão"
-            className="md:hidden absolute top-0 left-0 right-0 z-40 pointer-events-none px-4 sm:px-6"
-            style={{
-              paddingTop: 'max(calc(env(safe-area-inset-top, 0px) + 16px), 28px)',
-              paddingLeft: 'max(16px, env(safe-area-inset-left, 0px))',
-              paddingRight: 'max(16px, env(safe-area-inset-right, 0px))',
-            }}
-          >
-            <div
-              className={`w-full flex items-start justify-between transition-[opacity,transform] duration-250 ease-[cubic-bezier(0.22,1,0.36,1)] ${
-                isSpotFocusActive
-                  ? 'opacity-0 scale-95 [&_*]:!pointer-events-none'
-                  : isBlurActive
-                    ? 'opacity-30 scale-100 [&_*]:!pointer-events-none'
-                    : 'opacity-100 scale-100'
-              }`}
+      {activeTab === 'explorar' && (
+        <AnimatePresence>
+          {mapWorkflowMode === 'EXPLORE' &&
+            !isMapOrbiting &&
+            !isUserLocationSpotlightActive &&
+            !showFirstSignupWelcome &&
+            !isGlobeIntroPlaying && (
+            <motion.header
+              key={`explore-mobile-header-${explorarEntranceTick}`}
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: 0.15 }}
+              aria-label="Informações de Campos do Jordão"
+              className="md:hidden absolute top-0 left-0 right-0 z-40 pointer-events-none px-4 sm:px-6"
+              style={{
+                paddingTop: 'max(calc(env(safe-area-inset-top, 0px) + 16px), 28px)',
+                paddingLeft: 'max(16px, env(safe-area-inset-left, 0px))',
+                paddingRight: 'max(16px, env(safe-area-inset-right, 0px))',
+              }}
             >
-              {/* Left: Big Weather Temperature & Dynamic Condition */}
-              <div className="flex items-center pointer-events-auto">
-                <div
-                  id="weather-header-display"
-                  onClick={() => setIsWeatherModalOpen(true)}
-                  className="flex flex-col items-start select-none opacity-100 scale-100 cursor-pointer"
-                  title={`Campos do Jordão: ${realWeather.temperature}°C — ${realWeather.condition}`}
-                >
-                  {/* Layout: Large beautiful 3D icon on the left, bold prominent degrees */}
-                  <div className="flex items-center gap-1.5 sm:gap-2">
-                    {/* Weather 3D Icon */}
-                    <motion.div
-                      id="weather-3d-icon-clean"
-                      initial={prefersReducedMotion ? { opacity: 0 } : { opacity: 0, scale: 0.88, y: 12 }}
-                      animate={{ opacity: 1, scale: 1, y: 0 }}
-                      transition={
-                        prefersReducedMotion
-                          ? { duration: 0.14 }
-                          : { type: 'spring', stiffness: 380, damping: 22, delay: 0.02 }
-                      }
-                      className="select-none flex items-center justify-center shrink-0 drop-shadow-md"
-                    >
-                      <Weather3DIcon
-                        weatherCode={realWeather.weatherCode}
-                        isDay={realWeather.isDay}
-                        className="w-14 h-14 sm:w-16 sm:h-16 lg:w-20 lg:h-20 -my-2.5"
-                      />
-                    </motion.div>
+              <div
+                className={`w-full flex items-start justify-between transition-[opacity,transform] duration-250 ease-[cubic-bezier(0.22,1,0.36,1)] ${
+                  isSpotFocusActive
+                    ? 'opacity-0 scale-95 [&_*]:!pointer-events-none'
+                    : isBlurActive
+                      ? 'opacity-30 scale-100 [&_*]:!pointer-events-none'
+                      : 'opacity-100 scale-100'
+                }`}
+              >
+                {/* Left: Big Weather Temperature & Dynamic Condition */}
+                <div className="flex items-center pointer-events-auto">
+                  <div
+                    id="weather-header-display"
+                    onClick={() => setIsWeatherModalOpen(true)}
+                    className="flex flex-col items-start select-none opacity-100 scale-100 cursor-pointer"
+                    title={`Campos do Jordão: ${realWeather.temperature}°C — ${realWeather.condition}`}
+                  >
+                    {/* Layout: Large beautiful 3D icon on the left, bold prominent degrees */}
+                    <div className="flex items-center gap-1.5 sm:gap-2">
+                      {/* Weather 3D Icon */}
+                      <motion.div
+                        id="weather-3d-icon-clean"
+                        initial={prefersReducedMotion ? { opacity: 0 } : { opacity: 0, scale: 0.88, y: 12 }}
+                        animate={{ opacity: 1, scale: 1, y: 0 }}
+                        transition={
+                          prefersReducedMotion
+                            ? { duration: 0.14 }
+                            : { type: 'spring', stiffness: 380, damping: 22, delay: 0.02 }
+                        }
+                        className="select-none flex items-center justify-center shrink-0 drop-shadow-md"
+                      >
+                        <Weather3DIcon
+                          weatherCode={realWeather.weatherCode}
+                          isDay={realWeather.isDay}
+                          className="w-14 h-14 sm:w-16 sm:h-16 lg:w-20 lg:h-20 -my-2.5"
+                        />
+                      </motion.div>
 
-                    {/* Temperature Degrees */}
+                      {/* Temperature Degrees */}
+                      <motion.div
+                        id="weather-degrees-clean"
+                        initial={prefersReducedMotion ? { opacity: 0 } : { opacity: 0, scale: 0.88, y: 12 }}
+                        animate={{ opacity: 1, scale: 1, y: 0 }}
+                        transition={
+                          prefersReducedMotion
+                            ? { duration: 0.14 }
+                            : { type: 'spring', stiffness: 380, damping: 22, delay: 0.055 }
+                        }
+                        className="flex items-baseline select-none text-left drop-shadow-[0_2px_8px_rgba(0,0,0,0.6)]"
+                      >
+                        <span className={`text-5xl sm:text-6xl font-extrabold tracking-tighter leading-none text-[#ffffff] ${
+                          mapStyle === 'animado'
+                            ? '[-webkit-text-stroke:_0.6px_rgba(0,0,0,0.22)]'
+                            : ''
+                        }`}>
+                          {realWeather.temperature}°
+                        </span>
+                      </motion.div>
+                    </div>
+
+                    {/* Condition label under the temperature */}
                     <motion.div
-                      id="weather-degrees-clean"
+                      id="weather-condition-clean"
                       initial={prefersReducedMotion ? { opacity: 0 } : { opacity: 0, scale: 0.88, y: 12 }}
                       animate={{ opacity: 1, scale: 1, y: 0 }}
                       transition={
                         prefersReducedMotion
                           ? { duration: 0.14 }
-                          : { type: 'spring', stiffness: 380, damping: 22, delay: 0.055 }
+                          : { type: 'spring', stiffness: 380, damping: 22, delay: 0.085 }
                       }
-                      className="flex items-baseline select-none text-left drop-shadow-[0_2px_8px_rgba(0,0,0,0.6)]"
+                      className="text-left mt-0.5 ml-1 drop-shadow-[0_1px_4px_rgba(0,0,0,0.6)]"
                     >
-                      <span className={`text-5xl sm:text-6xl font-extrabold tracking-tighter leading-none text-[#ffffff] ${
-                        mapStyle === 'animado'
-                          ? '[-webkit-text-stroke:_0.6px_rgba(0,0,0,0.22)]'
-                          : ''
+                      <span className={`block text-[13px] sm:text-[14px] font-semibold tracking-tight whitespace-nowrap ${
+                        isSatelliteExplore
+                          ? 'text-white'
+                          : mapStyle === 'animado'
+                            ? 'text-white [-webkit-text-stroke:_0.35px_rgba(0,0,0,0.20)]'
+                            : theme === 'dark'
+                              ? 'text-white/95'
+                              : 'text-zinc-800 dark:text-zinc-200'
                       }`}>
-                        {realWeather.temperature}°
+                        {realWeather.condition}
                       </span>
                     </motion.div>
                   </div>
-
-                  {/* Condition label under the temperature */}
-                  <motion.div
-                    id="weather-condition-clean"
-                    initial={prefersReducedMotion ? { opacity: 0 } : { opacity: 0, scale: 0.88, y: 12 }}
-                    animate={{ opacity: 1, scale: 1, y: 0 }}
-                    transition={
-                      prefersReducedMotion
-                        ? { duration: 0.14 }
-                        : { type: 'spring', stiffness: 380, damping: 22, delay: 0.085 }
-                    }
-                    className="text-left mt-0.5 ml-1 drop-shadow-[0_1px_4px_rgba(0,0,0,0.6)]"
-                  >
-                    <span className={`block text-[13px] sm:text-[14px] font-semibold tracking-tight whitespace-nowrap ${
-                      isSatelliteExplore
-                        ? 'text-white'
-                        : mapStyle === 'animado'
-                          ? 'text-white [-webkit-text-stroke:_0.35px_rgba(0,0,0,0.20)]'
-                          : theme === 'dark'
-                            ? 'text-white/95'
-                            : 'text-zinc-800 dark:text-zinc-200'
-                    }`}>
-                      {realWeather.condition}
-                    </span>
-                  </motion.div>
                 </div>
-              </div>
 
-              {/* Right: Clean Header Action Icons with iOS Liquid Glass Buttons */}
-              {(() => {
-                const headerIconColor = isSatelliteExplore
-                  ? theme === 'dark'
-                    ? '#C0C0C6'
-                    : '#858585'
-                  : theme === 'dark'
-                    ? '#FFFFFF'
-                    : '#000000';
-                const headerIconTextClass = isSatelliteExplore
-                  ? theme === 'dark'
-                    ? 'text-[#C0C0C6]'
-                    : 'text-[#858585]'
-                  : theme === 'dark'
-                    ? 'text-white'
-                    : 'text-black';
+                {/* Right: Clean Header Action Icons with iOS Liquid Glass Buttons */}
+                {(() => {
+                  const headerIconColor = isSatelliteExplore
+                    ? theme === 'dark'
+                      ? '#C0C0C6'
+                      : '#858585'
+                    : theme === 'dark'
+                      ? '#FFFFFF'
+                      : '#000000';
+                  const headerIconTextClass = isSatelliteExplore
+                    ? theme === 'dark'
+                      ? 'text-[#C0C0C6]'
+                      : 'text-[#858585]'
+                    : theme === 'dark'
+                      ? 'text-white'
+                      : 'text-black';
 
-                return (
-              <div className="flex items-center gap-2.5 pointer-events-auto relative">
+                  return (
+                <div className="flex items-center gap-2.5 pointer-events-auto relative">
 
-                {/* 3D View Toggle Icon */}
-                <motion.button
-                  id="btn-3d-toggle"
-                  type="button"
-                  initial={prefersReducedMotion ? { opacity: 0 } : { opacity: 0, scale: 0.88, y: 12 }}
-                  animate={{ opacity: 1, scale: 1, y: 0 }}
-                  transition={
-                    prefersReducedMotion
-                      ? { duration: 0.14 }
-                      : { type: 'spring', stiffness: 380, damping: 22, delay: 0.06 }
-                  }
-                  whileTap={{ scale: 0.9, transition: { type: 'spring', stiffness: 500, damping: 14 } }}
-                  onClick={() => {
-                    setHasToggled3D(true);
-                    setIs3DMode((prev) => !prev);
-                  }}
-                  className={`w-[53px] h-[53px] sm:w-[58px] sm:h-[58px] rounded-full ios26-liquid-glass flex items-center justify-center transition-colors duration-200 cursor-pointer group shrink-0 ${headerIconTextClass}`}
-                  style={{ color: headerIconColor }}
-                  aria-label={is3DMode ? 'Alternar para visualização 2D' : 'Alternar para visualização 3D'}
-                  title={is3DMode ? 'Alternar para visão 2D Plana' : 'Alternar para visão 3D com Relevo e Montanhas'}
-                >
-                  <div
-                    className="relative z-10 flex items-center justify-center group-hover:scale-105 transition-transform duration-200"
-                    style={{ color: headerIconColor }}
-                  >
-                    <Map3DIcon
-                      mode={!hasToggled3D || is3DMode ? '3D' : '2D'}
-                      style={{ color: headerIconColor }}
-                    />
-                  </div>
-                </motion.button>
-
-                {/* Category Filter Button with Dropdown */}
-                <div className="relative shrink-0">
+                  {/* 3D View Toggle Icon */}
                   <motion.button
-                    id="btn-category-icon-toggle"
+                    id="btn-3d-toggle"
                     type="button"
                     initial={prefersReducedMotion ? { opacity: 0 } : { opacity: 0, scale: 0.88, y: 12 }}
                     animate={{ opacity: 1, scale: 1, y: 0 }}
                     transition={
                       prefersReducedMotion
                         ? { duration: 0.14 }
-                        : { type: 'spring', stiffness: 380, damping: 22, delay: 0.1 }
+                        : { type: 'spring', stiffness: 380, damping: 22, delay: 0.06 }
                     }
                     whileTap={{ scale: 0.9, transition: { type: 'spring', stiffness: 500, damping: 14 } }}
                     onClick={() => {
-                      setIsCategoryCardOpen((prev) => !prev);
-                      setIsSearchOpen(false);
+                      setHasToggled3D(true);
+                      setIs3DMode((prev) => !prev);
                     }}
                     className={`w-[53px] h-[53px] sm:w-[58px] sm:h-[58px] rounded-full ios26-liquid-glass flex items-center justify-center transition-colors duration-200 cursor-pointer group shrink-0 ${headerIconTextClass}`}
                     style={{ color: headerIconColor }}
-                    title={selectedCategoryFilter ? 'Filtro de categoria ativo - Clique para alterar ou limpar' : 'Filtrar por Categoria'}
+                    aria-label={is3DMode ? 'Alternar para visualização 2D' : 'Alternar para visualização 3D'}
+                    title={is3DMode ? 'Alternar para visão 2D Plana' : 'Alternar para visão 3D com Relevo e Montanhas'}
                   >
-                    <div className="relative z-10 flex items-center justify-center group-hover:scale-105 transition-transform duration-300">
-                      <SlidersHorizontal
-                        className="w-6 h-6 sm:w-[29px] sm:h-[29px] stroke-[2]"
+                    <div
+                      className="relative z-10 flex items-center justify-center group-hover:scale-105 transition-transform duration-200"
+                      style={{ color: headerIconColor }}
+                    >
+                      <Map3DIcon
+                        mode={!hasToggled3D || is3DMode ? '3D' : '2D'}
                         style={{ color: headerIconColor }}
                       />
                     </div>
-                    {selectedCategoryFilter && (
-                      <span className="absolute top-0 right-0 z-20 w-2.5 h-2.5 rounded-full bg-blue-500 ring-2 ring-white dark:ring-[#1C1C1E]" />
-                    )}
                   </motion.button>
+
+                  {/* Category Filter Button with Dropdown */}
+                  <div className="relative shrink-0">
+                    <motion.button
+                      id="btn-category-icon-toggle"
+                      type="button"
+                      initial={prefersReducedMotion ? { opacity: 0 } : { opacity: 0, scale: 0.88, y: 12 }}
+                      animate={{ opacity: 1, scale: 1, y: 0 }}
+                      transition={
+                        prefersReducedMotion
+                          ? { duration: 0.14 }
+                          : { type: 'spring', stiffness: 380, damping: 22, delay: 0.1 }
+                      }
+                      whileTap={{ scale: 0.9, transition: { type: 'spring', stiffness: 500, damping: 14 } }}
+                      onClick={() => {
+                        setIsCategoryCardOpen((prev) => !prev);
+                        setIsSearchOpen(false);
+                      }}
+                      className={`w-[53px] h-[53px] sm:w-[58px] sm:h-[58px] rounded-full ios26-liquid-glass flex items-center justify-center transition-colors duration-200 cursor-pointer group shrink-0 ${headerIconTextClass}`}
+                      style={{ color: headerIconColor }}
+                      title={selectedCategoryFilter ? 'Filtro de categoria ativo - Clique para alterar ou limpar' : 'Filtrar por Categoria'}
+                    >
+                      <div className="relative z-10 flex items-center justify-center group-hover:scale-105 transition-transform duration-300">
+                        <SlidersHorizontal
+                          className="w-6 h-6 sm:w-[29px] sm:h-[29px] stroke-[2]"
+                          style={{ color: headerIconColor }}
+                        />
+                      </div>
+                      {selectedCategoryFilter && (
+                        <span className="absolute top-0 right-0 z-20 w-2.5 h-2.5 rounded-full bg-blue-500 ring-2 ring-white dark:ring-[#1C1C1E]" />
+                      )}
+                    </motion.button>
+                  </div>
                 </div>
+                  );
+                })()}
               </div>
-                );
-              })()}
-            </div>
-          </motion.header>
-        )}
-      </AnimatePresence>
+            </motion.header>
+          )}
+        </AnimatePresence>
+      )}
 
       {/* 4. Bottom Floating Navigation Pill, Focus Mode Blur Backdrop & SpotPreviewBanner rendered at root level */}
 
@@ -3542,15 +3543,30 @@ export default function App() {
 
       {/* 7. Search & Discovery Drawer (Mounted ONLY when Tab === 'buscar', idle-prefetched) */}
       {activeTab === 'buscar' && (
-        <Suspense fallback={null}>
-          <SearchFilterDrawer
-            isOpen={true}
-            onClose={handleCloseToExplore}
-            spots={spots}
-            theme={theme}
-            onSelectSpot={handleSelectSpotAndReturnExplore}
-          />
-        </Suspense>
+        <div
+          className="fixed inset-0 w-full z-[55] bg-white dark:bg-black overflow-hidden"
+          style={{
+            top: 0,
+            bottom: 0,
+            left: 0,
+            right: 0,
+            width: '100%',
+            height: 'var(--app-height, 100dvh)',
+            minHeight: 'var(--app-height, 100dvh)',
+            maxHeight: 'var(--app-height, 100dvh)',
+            contain: 'layout paint size',
+          }}
+        >
+          <Suspense fallback={null}>
+            <SearchFilterDrawer
+              isOpen={true}
+              onClose={handleCloseToExplore}
+              spots={spots}
+              theme={theme}
+              onSelectSpot={handleSelectSpotAndReturnExplore}
+            />
+          </Suspense>
+        </div>
       )}
 
       {/* 8.5. Itineraries Store & Discovery (Mounted ONLY when Tab === 'roteiros'; routes back to unified map on Play/Manual Create) */}
@@ -3561,7 +3577,7 @@ export default function App() {
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
           transition={{ duration: 0.16, ease: [0.22, 1, 0.36, 1] }}
-          className="fixed inset-0 w-full z-40"
+          className="fixed inset-0 w-full z-[55] bg-white dark:bg-black overflow-hidden"
           style={{
             top: 0,
             bottom: 0,
@@ -3570,6 +3586,8 @@ export default function App() {
             width: '100%',
             height: 'var(--app-height, 100dvh)',
             minHeight: 'var(--app-height, 100dvh)',
+            maxHeight: 'var(--app-height, 100dvh)',
+            contain: 'layout paint size',
           }}
         >
           <Suspense fallback={null}>
@@ -3617,8 +3635,23 @@ export default function App() {
           aria-hidden={!isSavedTabActive}
           className={
             isSavedTabActive
-              ? 'fixed inset-0 w-full z-40 bg-white dark:bg-black overflow-y-auto'
+              ? 'fixed inset-0 w-full z-[55] bg-white dark:bg-black overflow-y-auto overflow-x-hidden'
               : 'hidden'
+          }
+          style={
+            isSavedTabActive
+              ? {
+                  top: 0,
+                  bottom: 0,
+                  left: 0,
+                  right: 0,
+                  width: '100%',
+                  height: 'var(--app-height, 100dvh)',
+                  minHeight: 'var(--app-height, 100dvh)',
+                  maxHeight: 'var(--app-height, 100dvh)',
+                  contain: 'layout paint size',
+                }
+              : undefined
           }
         >
           <Suspense fallback={null}>
@@ -3642,8 +3675,23 @@ export default function App() {
           aria-hidden={!isProfileTabActive}
           className={
             isProfileTabActive
-              ? 'fixed inset-0 w-full z-40 bg-white dark:bg-black overflow-y-auto'
+              ? 'fixed inset-0 w-full z-[55] bg-white dark:bg-black overflow-y-auto overflow-x-hidden'
               : 'hidden'
+          }
+          style={
+            isProfileTabActive
+              ? {
+                  top: 0,
+                  bottom: 0,
+                  left: 0,
+                  right: 0,
+                  width: '100%',
+                  height: 'var(--app-height, 100dvh)',
+                  minHeight: 'var(--app-height, 100dvh)',
+                  maxHeight: 'var(--app-height, 100dvh)',
+                  contain: 'layout paint size',
+                }
+              : undefined
           }
         >
           <Suspense fallback={null}>
@@ -3727,27 +3775,25 @@ export default function App() {
         <XpRewardNotificationOverlay visible={true} />
       )}
 
-    {/* Unified Map Mode 2: Pin Selection Overlay */}
-    <AnimatePresence>
-      {activeTab === 'explorar' &&
-        mapWorkflowMode === 'SELECT' &&
-        !isFinalizeItineraryModalOpen &&
-        !isMapOrbiting &&
-        !showFirstSignupWelcome &&
-        !isGlobeIntroPlaying && (
-          <SelectModeOverlay
-            key={`select-mode-overlay-${explorarEntranceTick}`}
-            selectedCount={selectedSpotIdsForItinerary.length}
-            selectedSpots={selectedSpotsForItinerary}
-            onRemoveSpot={handleRemoveSelectedSpotFromItinerary}
-            isDark={theme === 'dark'}
-            isSatellite={isSatelliteExplore}
-            onCancel={handleCancelSelectMode}
-            onClearSelection={() => setSelectedSpotIdsForItinerary([])}
-            onContinue={handleConfirmSelectionToItinerary}
-          />
-        )}
-    </AnimatePresence>
+    {/* Unified Map Mode 2: Pin Selection Overlay (Strictly scoped to activeTab === 'explorar') */}
+    {activeTab === 'explorar' &&
+      mapWorkflowMode === 'SELECT' &&
+      !isFinalizeItineraryModalOpen &&
+      !isMapOrbiting &&
+      !showFirstSignupWelcome &&
+      !isGlobeIntroPlaying && (
+        <SelectModeOverlay
+          key={`select-mode-overlay-${explorarEntranceTick}`}
+          selectedCount={selectedSpotIdsForItinerary.length}
+          selectedSpots={selectedSpotsForItinerary}
+          onRemoveSpot={handleRemoveSelectedSpotFromItinerary}
+          isDark={theme === 'dark'}
+          isSatellite={isSatelliteExplore}
+          onCancel={handleCancelSelectMode}
+          onClearSelection={() => setSelectedSpotIdsForItinerary([])}
+          onContinue={handleConfirmSelectionToItinerary}
+        />
+      )}
 
     {/* Itinerary Creation & Editing Finalization Modal (AI Cover Generation + Stop Ordering + Save) */}
     <ItineraryCreationFinalizeModal
@@ -3808,94 +3854,96 @@ export default function App() {
       }}
     />
 
-    {/* Unified Map Mode 3: Active Itinerary Overlay */}
-    <AnimatePresence>
-      {activeTab === 'explorar' &&
-        mapWorkflowMode === 'ITINERARY' &&
-        activeItinerary &&
-        !isMapOrbiting &&
-        !showFirstSignupWelcome &&
-        !isGlobeIntroPlaying && (
-          <UnifiedItineraryOverlay
-            key={`unified-itinerary-${activeItinerary.id}-${itineraryEntranceTick}`}
-            itinerary={activeItinerary}
-            allSpots={spots}
-            activeDayIndex={activeItineraryDayIndex}
-            onChangeDayIndex={(dIdx) => {
-              setActiveItineraryDayIndex(dIdx);
-              const nextDaySteps = resolveEnrichedDaySteps(activeItinerary, dIdx, spots);
-              setActiveItineraryStepId(nextDaySteps[0]?.id || null);
-              window.setTimeout(() => {
-                mapRef.current?.fitItineraryBounds(nextDaySteps, false);
-              }, 60);
-            }}
-            activeStepId={activeItineraryStepId}
-            onSelectStep={handleSelectItineraryStepOnMap}
-            isExpanded={isItineraryDrawerExpanded}
-            onChangeExpanded={setIsItineraryDrawerExpanded}
-            theme={theme}
-            mapStyle={mapStyle}
-            onToggleMapStyle={() =>
-              setMapStyle((prev) => (prev === 'satelite' ? 'explorar' : 'satelite'))
-            }
-            onExitToExplore={handleExitWorkflowToExplore}
-            onOpenStore={() => setActiveTab('roteiros')}
-            onSelectMoreSpotsOnMap={handleSelectMoreSpotsOnMap}
-            onCenterRoute={() => mapRef.current?.fitItineraryBounds(activeItinerarySteps, false)}
-            onUpdateItinerary={handleUpdateItinerary}
-            onDeleteItinerary={handleDeleteActiveItinerary}
-            onDeleteStep={handleDeleteItineraryStep}
-            onMoveStep={handleMoveItineraryStep}
-            onImportSpot={handleImportSpotToActiveItinerary}
-            onRenameTitle={handleRenameItineraryTitle}
-            tripNoteText={tripNoteText}
-            onSaveTripNote={handleSaveTripNote}
-          />
-        )}
-    </AnimatePresence>
+    {/* Unified Map Mode 3: Active Itinerary Overlay (Strictly scoped to activeTab === 'explorar') */}
+    {activeTab === 'explorar' &&
+      mapWorkflowMode === 'ITINERARY' &&
+      activeItinerary &&
+      !isMapOrbiting &&
+      !showFirstSignupWelcome &&
+      !isGlobeIntroPlaying && (
+        <UnifiedItineraryOverlay
+          key={`unified-itinerary-${activeItinerary.id}-${itineraryEntranceTick}`}
+          itinerary={activeItinerary}
+          allSpots={spots}
+          activeDayIndex={activeItineraryDayIndex}
+          onChangeDayIndex={(dIdx) => {
+            setActiveItineraryDayIndex(dIdx);
+            const nextDaySteps = resolveEnrichedDaySteps(activeItinerary, dIdx, spots);
+            setActiveItineraryStepId(nextDaySteps[0]?.id || null);
+            window.setTimeout(() => {
+              mapRef.current?.fitItineraryBounds(nextDaySteps, false);
+            }, 60);
+          }}
+          activeStepId={activeItineraryStepId}
+          onSelectStep={handleSelectItineraryStepOnMap}
+          isExpanded={isItineraryDrawerExpanded}
+          onChangeExpanded={setIsItineraryDrawerExpanded}
+          theme={theme}
+          mapStyle={mapStyle}
+          onToggleMapStyle={() =>
+            setMapStyle((prev) => (prev === 'satelite' ? 'explorar' : 'satelite'))
+          }
+          onExitToExplore={handleExitWorkflowToExplore}
+          onOpenStore={() => setActiveTab('roteiros')}
+          onSelectMoreSpotsOnMap={handleSelectMoreSpotsOnMap}
+          onCenterRoute={() => mapRef.current?.fitItineraryBounds(activeItinerarySteps, false)}
+          onUpdateItinerary={handleUpdateItinerary}
+          onDeleteItinerary={handleDeleteActiveItinerary}
+          onDeleteStep={handleDeleteItineraryStep}
+          onMoveStep={handleMoveItineraryStep}
+          onImportSpot={handleImportSpotToActiveItinerary}
+          onRenameTitle={handleRenameItineraryTitle}
+          tripNoteText={tripNoteText}
+          onSaveTripNote={handleSaveTripNote}
+        />
+      )}
 
     {/* Focus Mode Fullscreen Blur Backdrop when a Spot Card is active on mobile (matches filter blur style) */}
-    <AnimatePresence>
-      {isSpotFocusActive && (
-        <motion.div
-          id="spot-focus-blur-backdrop"
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          exit={{ opacity: 0 }}
-          transition={{ duration: 0.28, ease: [0.22, 1, 0.36, 1] }}
-          onClick={handleMapDismiss}
-          className="md:hidden fixed inset-0 z-[60] bg-black/45 dark:bg-black/65 cursor-pointer pointer-events-auto"
-        />
-      )}
-    </AnimatePresence>
+    {activeTab === 'explorar' && (
+      <AnimatePresence>
+        {isSpotFocusActive && (
+          <motion.div
+            id="spot-focus-blur-backdrop"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.28, ease: [0.22, 1, 0.36, 1] }}
+            onClick={handleMapDismiss}
+            className="md:hidden fixed inset-0 z-[60] bg-black/45 dark:bg-black/65 cursor-pointer pointer-events-auto"
+          />
+        )}
+      </AnimatePresence>
+    )}
 
     {/* 5. Floating Establishment Bottom Sheet Preview (EXPLORE mode only) */}
-    <AnimatePresence>
-      {activeTab === 'explorar' && mapWorkflowMode === 'EXPLORE' && isSpotCardOpen && selectedSpot && (
-        <SpotPreviewBanner
-          key="spot-preview-sheet"
-          spot={selectedSpot}
-          userCoords={userCoords}
-          viewMode={spotPreviewMode}
-          onViewModeChange={setSpotPreviewMode}
-          theme={theme}
-          isSatellite={isSatelliteExplore}
-          onClose={() => {
-            clearActiveRoute();
-            setSelectedSpot(null);
-          }}
-          onOpenDetails={(spot) => {
-            setSelectedSpot(spot);
-            setIsDetailOpen(true);
-          }}
-          onOpenItineraryTab={() => setActiveTab('roteiros')}
-          onToggleRoute={handleToggleSpotRoute}
-          isRouteActive={activeRoute?.spotId === selectedSpot.id}
-          isRouteLoading={isRouteLoading}
-          routeError={routeError}
-        />
-      )}
-    </AnimatePresence>
+    {activeTab === 'explorar' && (
+      <AnimatePresence>
+        {mapWorkflowMode === 'EXPLORE' && isSpotCardOpen && selectedSpot && (
+          <SpotPreviewBanner
+            key="spot-preview-sheet"
+            spot={selectedSpot}
+            userCoords={userCoords}
+            viewMode={spotPreviewMode}
+            onViewModeChange={setSpotPreviewMode}
+            theme={theme}
+            isSatellite={isSatelliteExplore}
+            onClose={() => {
+              clearActiveRoute();
+              setSelectedSpot(null);
+            }}
+            onOpenDetails={(spot) => {
+              setSelectedSpot(spot);
+              setIsDetailOpen(true);
+            }}
+            onOpenItineraryTab={() => setActiveTab('roteiros')}
+            onToggleRoute={handleToggleSpotRoute}
+            isRouteActive={activeRoute?.spotId === selectedSpot.id}
+            isRouteLoading={isRouteLoading}
+            routeError={routeError}
+          />
+        )}
+      </AnimatePresence>
+    )}
 
     {/* 4. Bottom Navigation Pill rendered at root level */}
     {!isAdminOpen &&
@@ -3943,145 +3991,150 @@ export default function App() {
     </AnimatePresence>
 
     {/* 4.5. Root-Level Fullscreen Blur Backdrop for Filters & Search (Covers map, header icons, and BottomNavigation) */}
-    <AnimatePresence>
-      {activeTab === 'explorar' && isBlurActive && (
-        <motion.div
-          id="global-blur-backdrop"
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          exit={{ opacity: 0 }}
-          transition={{ duration: 0.2, ease: [0.22, 1, 0.36, 1] }}
-          className="fixed inset-0 z-[60] bg-black/45 dark:bg-black/65 cursor-pointer pointer-events-auto"
-          onClick={() => {
-            setIsCategoryCardOpen(false);
-            setIsSearchOpen(false);
-          }}
-        />
-      )}
-    </AnimatePresence>
+    {activeTab === 'explorar' && (
+      <AnimatePresence>
+        {isBlurActive && (
+          <motion.div
+            id="global-blur-backdrop"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.2, ease: [0.22, 1, 0.36, 1] }}
+            className="fixed inset-0 z-[60] bg-black/45 dark:bg-black/65 cursor-pointer pointer-events-auto"
+            onClick={() => {
+              setIsCategoryCardOpen(false);
+              setIsSearchOpen(false);
+            }}
+          />
+        )}
+      </AnimatePresence>
+    )}
 
     {/* 4.6. Small Category Card / Dropdown (Floats crisply above global blur backdrop) */}
-    <AnimatePresence>
-      {activeTab === 'explorar' && isCategoryCardOpen && !isMapOrbiting && (
-        <motion.div
-          initial={{ opacity: 0, scale: 0.94, y: -6 }}
-          animate={{ opacity: 1, scale: 1, y: 0 }}
-          exit={{ opacity: 0, scale: 0.94, y: -6 }}
-          transition={{ type: 'spring', damping: 25, stiffness: 420 }}
-          className="md:hidden fixed right-4 sm:right-6 w-64 p-2.5 rounded-[26px] ios26-liquid-glass z-[70] space-y-1 pointer-events-auto"
-          style={{
-            top: 'max(calc(env(safe-area-inset-top, 0px) + 74px), 86px)',
-          }}
-        >
-          <div className={`relative z-10 flex items-center justify-between px-3 py-2 border-b ${
-            theme === 'dark' ? 'border-white/15' : 'border-black/10'
-          }`}>
-            <span className={`text-[11px] font-black uppercase tracking-wider ${
-              isSatelliteExplore
-                ? theme === 'dark'
+    {activeTab === 'explorar' && (
+      <AnimatePresence>
+        {isCategoryCardOpen && !isMapOrbiting && (
+          <motion.div
+            initial={{ opacity: 0, scale: 0.94, y: -6 }}
+            animate={{ opacity: 1, scale: 1, y: 0 }}
+            exit={{ opacity: 0, scale: 0.94, y: -6 }}
+            transition={{ type: 'spring', damping: 25, stiffness: 420 }}
+            className="md:hidden fixed right-4 sm:right-6 w-64 p-2.5 rounded-[26px] ios26-liquid-glass z-[70] space-y-1 pointer-events-auto"
+            style={{
+              top: 'max(calc(env(safe-area-inset-top, 0px) + 74px), 86px)',
+            }}
+          >
+            <div className={`relative z-10 flex items-center justify-between px-3 py-2 border-b ${
+              theme === 'dark' ? 'border-white/15' : 'border-black/10'
+            }`}>
+              <span className={`text-[11px] font-black uppercase tracking-wider ${
+                isSatelliteExplore
+                  ? theme === 'dark'
+                    ? 'text-[#C0C0C6]'
+                    : 'text-[#858585]'
+                  : theme === 'dark'
+                    ? 'text-white/75'
+                    : 'text-black/65'
+              }`}>
+                Categorias
+              </span>
+              {selectedCategoryFilter && (
+                <button
+                  onClick={() => {
+                    setSelectedCategoryFilter(null);
+                    setIsCategoryCardOpen(false);
+                  }}
+                  className={`text-[11px] font-black hover:underline cursor-pointer flex items-center gap-1 ${
+                    isSatelliteExplore
+                      ? theme === 'dark'
+                        ? 'text-[#C0C0C6]'
+                        : 'text-[#858585]'
+                      : theme === 'dark'
+                        ? 'text-white'
+                        : 'text-black'
+                  }`}
+                >
+                  <RotateCcw className="w-3 h-3" />
+                  Limpar
+                </button>
+              )}
+            </div>
+
+            {[
+              { id: 'hotels', label: 'Hotéis e Pousadas', image: '/hotel.png' },
+              { id: 'restaurants', label: 'Restaurantes', image: '/restaurante.png' },
+              { id: 'cafes', label: 'Cafés', image: '/cafe.png' },
+              { id: 'sweets', label: 'Chocolates & Doces', image: '/doce.png' },
+              { id: 'attractions', label: 'Atrações & Parques', image: '/atracoes.png' },
+              { id: 'pharmacies', label: 'Farmácias', image: '/medicacao.png' },
+            ].map((cat) => {
+              const CategoryIcon = 'icon' in cat ? (cat.icon as React.ComponentType<{ className?: string }>) : null;
+              const isSelected = selectedCategoryFilter === cat.id;
+              const useDarkDropdownUi = theme === 'dark';
+              const dropdownTextClass = isSatelliteExplore
+                ? useDarkDropdownUi
                   ? 'text-[#C0C0C6]'
                   : 'text-[#858585]'
-                : theme === 'dark'
-                  ? 'text-white/75'
-                  : 'text-black/65'
-            }`}>
-              Categorias
-            </span>
-            {selectedCategoryFilter && (
-              <button
-                onClick={() => {
-                  setSelectedCategoryFilter(null);
-                  setIsCategoryCardOpen(false);
-                }}
-                className={`text-[11px] font-black hover:underline cursor-pointer flex items-center gap-1 ${
-                  isSatelliteExplore
-                    ? theme === 'dark'
-                      ? 'text-[#C0C0C6]'
-                      : 'text-[#858585]'
-                    : theme === 'dark'
-                      ? 'text-white'
-                      : 'text-black'
-                }`}
-              >
-                <RotateCcw className="w-3 h-3" />
-                Limpar
-              </button>
-            )}
-          </div>
+                : useDarkDropdownUi
+                  ? 'text-white'
+                  : 'text-black';
 
-          {[
-            { id: 'hotels', label: 'Hotéis e Pousadas', image: '/hotel.png' },
-            { id: 'restaurants', label: 'Restaurantes', image: '/restaurante.png' },
-            { id: 'cafes', label: 'Cafés', image: '/cafe.png' },
-            { id: 'sweets', label: 'Chocolates & Doces', image: '/doce.png' },
-            { id: 'attractions', label: 'Atrações & Parques', image: '/atracoes.png' },
-            { id: 'pharmacies', label: 'Farmácias', image: '/medicacao.png' },
-          ].map((cat) => {
-            const CategoryIcon = 'icon' in cat ? (cat.icon as React.ComponentType<{ className?: string }>) : null;
-            const isSelected = selectedCategoryFilter === cat.id;
-            const useDarkDropdownUi = theme === 'dark';
-            const dropdownTextClass = isSatelliteExplore
-              ? useDarkDropdownUi
-                ? 'text-[#C0C0C6]'
-                : 'text-[#858585]'
-              : useDarkDropdownUi
-                ? 'text-white'
-                : 'text-black';
-
-            return (
-              <button
-                key={cat.id}
-                onClick={() => {
-                  setSelectedCategoryFilter(isSelected ? null : cat.id);
-                  setIsCategoryCardOpen(false);
-                }}
-                className={`relative z-10 w-full px-3 py-2.5 rounded-2xl active:scale-[0.98] text-xs font-black flex items-center justify-between gap-2.5 transition-all text-left cursor-pointer group ${dropdownTextClass} ${
-                  isSelected
-                    ? 'ios26-liquid-glass-pill font-extrabold'
-                    : useDarkDropdownUi
-                      ? 'hover:bg-white/10'
-                      : 'hover:bg-black/5'
-                }`}
-              >
-                <div className="flex items-center gap-2.5 min-w-0">
-                  {'image' in cat && cat.image ? (
-                    <div className="w-10.5 h-10.5 shrink-0 flex items-center justify-center group-hover:scale-110 transition-transform">
-                      <img
-                        src={cat.image}
-                        alt={cat.label}
-                        className="w-full h-full object-contain select-none"
-                        onError={(e) => {
-                          const target = e.currentTarget;
-                          if (!target.src.endsWith('.png.png') && target.src.endsWith('.png')) {
-                            target.src = target.src + '.png';
-                          }
-                        }}
-                      />
-                    </div>
-                  ) : (
-                    <div className={`w-10.5 h-10.5 rounded-xl flex items-center justify-center shrink-0 group-hover:scale-105 transition-transform ${
-                      isSelected
-                        ? useDarkDropdownUi ? 'bg-white/25 text-white shadow-sm' : 'bg-white/60 text-black shadow-sm'
-                        : useDarkDropdownUi ? 'bg-white/15 text-white' : 'bg-white/25 text-black'
-                    }`}>
-                      {CategoryIcon && <CategoryIcon className="w-4 h-4 stroke-[2]" />}
-                    </div>
+              return (
+                <button
+                  key={cat.id}
+                  onClick={() => {
+                    setSelectedCategoryFilter(isSelected ? null : cat.id);
+                    setIsCategoryCardOpen(false);
+                  }}
+                  className={`relative z-10 w-full px-3 py-2.5 rounded-2xl active:scale-[0.98] text-xs font-black flex items-center justify-between gap-2.5 transition-all text-left cursor-pointer group ${dropdownTextClass} ${
+                    isSelected
+                      ? 'ios26-liquid-glass-pill font-extrabold'
+                      : useDarkDropdownUi
+                        ? 'hover:bg-white/10'
+                        : 'hover:bg-black/5'
+                  }`}
+                >
+                  <div className="flex items-center gap-2.5 min-w-0">
+                    {'image' in cat && cat.image ? (
+                      <div className="w-10.5 h-10.5 shrink-0 flex items-center justify-center group-hover:scale-110 transition-transform">
+                        <img
+                          src={cat.image}
+                          alt={cat.label}
+                          className="w-full h-full object-contain select-none"
+                          onError={(e) => {
+                            const target = e.currentTarget;
+                            if (!target.src.endsWith('.png.png') && target.src.endsWith('.png')) {
+                              target.src = target.src + '.png';
+                            }
+                          }}
+                        />
+                      </div>
+                    ) : (
+                      <div className={`w-10.5 h-10.5 rounded-xl flex items-center justify-center shrink-0 group-hover:scale-105 transition-transform ${
+                        isSelected
+                          ? useDarkDropdownUi ? 'bg-white/25 text-white shadow-sm' : 'bg-white/60 text-black shadow-sm'
+                          : useDarkDropdownUi ? 'bg-white/15 text-white' : 'bg-white/25 text-black'
+                      }`}>
+                        {CategoryIcon && <CategoryIcon className="w-4 h-4 stroke-[2]" />}
+                      </div>
+                    )}
+                    <span className="truncate">{cat.label}</span>
+                  </div>
+                  {isSelected && (
+                    <Check className={`w-4 h-4 shrink-0 stroke-[2.5] ${useDarkDropdownUi ? 'text-white' : 'text-black'}`} />
                   )}
-                  <span className="truncate">{cat.label}</span>
-                </div>
-                {isSelected && (
-                  <Check className={`w-4 h-4 shrink-0 stroke-[2.5] ${useDarkDropdownUi ? 'text-white' : 'text-black'}`} />
-                )}
-              </button>
-            );
-          })}
-        </motion.div>
-      )}
-    </AnimatePresence>
+                </button>
+              );
+            })}
+          </motion.div>
+        )}
+      </AnimatePresence>
+    )}
 
     {/* 4.7. Floating Search Bar and Results (Floats prominently above blur) */}
-    <AnimatePresence>
-      {activeTab === 'explorar' && isSearchOpen && (
+    {activeTab === 'explorar' && (
+      <AnimatePresence>
+        {isSearchOpen && (
         <motion.div
           initial={{ opacity: 0, y: -10, scale: 0.98 }}
           animate={{ opacity: 1, y: 0, scale: 1 }}
@@ -4203,7 +4256,8 @@ export default function App() {
           </div>
         </motion.div>
       )}
-    </AnimatePresence>
+      </AnimatePresence>
+    )}
 
     {/* Admin Fullscreen Layer (Mounted above #app-root-shell so map & app states remain preserved underneath) */}
     <AnimatePresence>
