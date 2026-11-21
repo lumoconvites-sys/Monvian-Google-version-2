@@ -16,7 +16,6 @@ import {
   User,
   Users,
   Baby,
-  Navigation,
   ChevronLeft,
   ChevronRight,
   Pencil,
@@ -26,12 +25,7 @@ import {
   CalendarDays,
   HelpCircle,
 } from 'lucide-react';
-import { gpsNavigationManager } from '../services/gpsNavigation';
-import { deviceHeadingManager } from '../utils/deviceHeading';
-import {
-  saveUserPermissionsToDatabase,
-  persistUserOnboardingToFirestore,
-} from '../services/firestoreSync';
+import { persistUserOnboardingToFirestore } from '../services/firestoreSync';
 
 export interface TravelerOnboardingPreferences {
   campos_relationship: string;
@@ -203,7 +197,7 @@ interface OnboardingFlowProps {
   onComplete: (updatedUser?: any, preferences?: TravelerOnboardingPreferences) => void;
 }
 
-const TOTAL_STEPS = 4;
+const TOTAL_STEPS = 3;
 
 const MONTH_NAMES_PT = [
   'Janeiro',
@@ -477,11 +471,11 @@ export const OnboardingFlow: React.FC<OnboardingFlowProps> = ({
     () => user?.travel_company || ''
   );
 
-  // Step 4: Localização
+  // Preserve existing location_preference if already stored on user profile
   const [locationPreference, setLocationPreference] = useState<string>(
     () => user?.location_preference || ''
   );
-  const [isRequestingLocation, setIsRequestingLocation] = useState<boolean>(false);
+  const [isCompleting, setIsCompleting] = useState<boolean>(false);
 
   const cleanEmail = String(user?.email || user?.whatsapp || '')
     .trim()
@@ -534,10 +528,9 @@ export const OnboardingFlow: React.FC<OnboardingFlowProps> = ({
         if (
           typeof p.onboarding_step === 'number' &&
           p.onboarding_step >= 1 &&
-          p.onboarding_step <= TOTAL_STEPS &&
           p.onboarding_completed === 0
         ) {
-          setStep(p.onboarding_step);
+          setStep(Math.min(TOTAL_STEPS, p.onboarding_step));
         }
       })
       .catch(() => {});
@@ -685,32 +678,31 @@ export const OnboardingFlow: React.FC<OnboardingFlowProps> = ({
     setStep(prev);
   }, [step]);
 
-  // Complete all 4 steps of onboarding and transition immediately to original Monvian Welcome Screen
-  const finalizeFourStepOnboarding = useCallback(
-    async (locPref: 'granted' | 'skipped' | 'prompted', locGranted: boolean, coords?: [number, number]) => {
-      if (locGranted) {
-        saveUserPermissionsToDatabase({
-          locationGranted: true,
-          motionGranted: true,
-          coords,
-          email: cleanEmail,
-        }).catch(() => {});
-      }
+  // Complete the 3-step onboarding and transition immediately to original Monvian Welcome Screen
+  const handleCompleteOnboarding = useCallback(async () => {
+    if (isCompleting) return;
+    triggerSubtleHaptic();
+    setIsCompleting(true);
 
+    try {
       const tripValues = buildTripDateValues();
+      const preservedLocPref = locationPreference || 'skipped';
+      const preservedLocGranted =
+        preservedLocPref === 'granted' ? 1 : Number(user?.location_permission_granted || 0);
+
       const finalPreferences: TravelerOnboardingPreferences = {
         campos_relationship: camposRelationship,
         next_trip_timing: tripValues.next_trip_timing,
         next_trip_date: tripValues.next_trip_date,
         interest_categories: interestCategories,
         travel_company: travelCompany,
-        location_preference: locPref,
-        location_permission_granted: locGranted ? 1 : 0,
-        onboarding_step: 4,
+        location_preference: preservedLocPref,
+        location_permission_granted: preservedLocGranted,
+        onboarding_step: TOTAL_STEPS,
         onboarding_completed: 1,
       };
 
-      const result = await persistStepToBackend(4, finalPreferences, true);
+      const result = await persistStepToBackend(TOTAL_STEPS, finalPreferences, true);
       const updatedUser = result?.user || {
         ...(user || {}),
         ...finalPreferences,
@@ -718,112 +710,20 @@ export const OnboardingFlow: React.FC<OnboardingFlowProps> = ({
       };
 
       onComplete(updatedUser, finalPreferences);
-    },
-    [
-      cleanEmail,
-      buildTripDateValues,
-      camposRelationship,
-      interestCategories,
-      travelCompany,
-      persistStepToBackend,
-      user,
-      onComplete,
-    ]
-  );
-
-  // Automatically prompt for native iPhone Location & Motion permission upon entering Step 4 ("Descubra o que está ao seu redor.")
-  useEffect(() => {
-    if (step !== 4) return;
-    let active = true;
-
-    try {
-      gpsNavigationManager.requestPermissionAndStartFromGesture();
-      if (
-        deviceHeadingManager.isPermissionRequired() &&
-        !deviceHeadingManager.isPermissionHandled()
-      ) {
-        deviceHeadingManager.requestPermission().catch(() => {});
-      }
-      deviceHeadingManager.start();
-    } catch {}
-
-    if (typeof navigator !== 'undefined' && navigator.geolocation) {
-      navigator.geolocation.getCurrentPosition(
-        (pos) => {
-          if (!active) return;
-          const coords: [number, number] = [
-            Number(pos.coords.longitude),
-            Number(pos.coords.latitude),
-          ];
-          setLocationPreference('granted');
-          saveUserPermissionsToDatabase({
-            locationGranted: true,
-            motionGranted: true,
-            coords,
-            email: cleanEmail,
-          }).catch(() => {});
-        },
-        () => {},
-        {
-          enableHighAccuracy: true,
-          timeout: 8000,
-          maximumAge: 15000,
-        }
-      );
+    } finally {
+      setIsCompleting(false);
     }
-
-    return () => {
-      active = false;
-    };
-  }, [step, cleanEmail]);
-
-  const handleActivateLocation = async () => {
-    if (isRequestingLocation) return;
-    triggerSubtleHaptic();
-    setIsRequestingLocation(true);
-
-    // Synchronously invoke iPhone Safari geolocation & motion permission from user tap gesture
-    try {
-      gpsNavigationManager.requestPermissionAndStartFromGesture();
-      if (deviceHeadingManager.isPermissionRequired()) {
-        deviceHeadingManager.requestPermission().catch(() => {});
-      }
-      deviceHeadingManager.start();
-    } catch {}
-
-    let granted = false;
-    let coords: [number, number] | undefined;
-
-    if (typeof navigator !== 'undefined' && navigator.geolocation) {
-      try {
-        const pos = await new Promise<GeolocationPosition>((resolve, reject) => {
-          navigator.geolocation.getCurrentPosition(resolve, reject, {
-            enableHighAccuracy: true,
-            timeout: 7000,
-            maximumAge: 15000,
-          });
-        });
-        granted = true;
-        coords = [Number(pos.coords.longitude), Number(pos.coords.latitude)];
-      } catch {
-        granted = gpsNavigationManager.getState().status === 'granted';
-      }
-    }
-
-    const prefValue = granted ? 'granted' : 'prompted';
-    setLocationPreference(prefValue);
-    await finalizeFourStepOnboarding(prefValue, granted, coords);
-    setIsRequestingLocation(false);
-  };
-
-  const handleSkipLocation = async () => {
-    if (isRequestingLocation) return;
-    triggerSubtleHaptic();
-    setIsRequestingLocation(true);
-    setLocationPreference('skipped');
-    await finalizeFourStepOnboarding('skipped', false);
-    setIsRequestingLocation(false);
-  };
+  }, [
+    isCompleting,
+    buildTripDateValues,
+    locationPreference,
+    camposRelationship,
+    interestCategories,
+    travelCompany,
+    persistStepToBackend,
+    user,
+    onComplete,
+  ]);
 
   // Calendar grid helper for Step 2
   const calendarCells = useMemo(() => {
@@ -958,7 +858,7 @@ export const OnboardingFlow: React.FC<OnboardingFlowProps> = ({
           )}
         </div>
 
-        {/* 4 Bolinhas Alinhadas Horizontalmente (Etapa atual em preto, futuras em cinza-claro) */}
+        {/* 3 Bolinhas Alinhadas Horizontalmente (Etapa atual em preto, futuras em cinza-claro) */}
         <div
           className="flex items-center justify-center gap-3"
           role="progressbar"
@@ -967,7 +867,7 @@ export const OnboardingFlow: React.FC<OnboardingFlowProps> = ({
           aria-valuemax={TOTAL_STEPS}
           aria-label={`Etapa ${step} de ${TOTAL_STEPS}`}
         >
-          {[1, 2, 3, 4].map((dotIdx) => {
+          {[1, 2, 3].map((dotIdx) => {
             const isCurrent = dotIdx === step;
             return (
               <motion.span
@@ -1453,145 +1353,22 @@ export const OnboardingFlow: React.FC<OnboardingFlowProps> = ({
               <div className="pt-1">
                 <button
                   type="button"
-                  onClick={() =>
-                    goToStep(4, { interest_categories: interestCategories })
-                  }
-                  className={`w-full h-[56px] rounded-full font-semibold text-[16.5px] tracking-[-0.015em] flex items-center justify-center gap-2 transition-all active:scale-[0.985] cursor-pointer ${
+                  disabled={isCompleting}
+                  onClick={handleCompleteOnboarding}
+                  className={`w-full h-[56px] rounded-full font-semibold text-[16.5px] tracking-[-0.015em] flex items-center justify-center gap-2 transition-all active:scale-[0.985] cursor-pointer disabled:opacity-70 ${
                     isDark
                       ? 'bg-[#FFFFFF] text-[#080808] hover:bg-zinc-200'
                       : 'bg-[#080808] text-[#FFFFFF] hover:bg-zinc-900'
                   }`}
                 >
-                  <span>Próximo</span>
-                  <ChevronRight className="w-5 h-5 stroke-[2.4]" />
-                </button>
-              </div>
-            </motion.div>
-          )}
-
-          {/* ============================================================== */}
-          {/* TELA 4 — LOCALIZAÇÃO (PEDESTAL 3D + PERMISSÃO NATIVA IPHONE)   */}
-          {/* ============================================================== */}
-          {step === 4 && (
-            <motion.div
-              key="onboarding-step-4"
-              custom={direction}
-              variants={slideVariants}
-              initial="enter"
-              animate="center"
-              exit="exit"
-              transition={{ duration: 0.42, ease: [0.22, 1, 0.36, 1] }}
-              className="flex-1 flex flex-col justify-between gap-6"
-            >
-              <div className="flex-1 flex flex-col items-center justify-center text-center px-2">
-                {/* 3D Sculpted Navigation Pedestal with Concentric Ripples (Matches Reference Image 1) */}
-                <div className="relative w-[220px] h-[220px] flex items-center justify-center mb-6">
-                  {/* Outer Ripple Ring */}
-                  <div
-                    className={`absolute inset-0 rounded-full border ${
-                      isDark
-                        ? 'border-white/[0.06] bg-white/[0.01]'
-                        : 'border-black/[0.045] bg-black/[0.008]'
-                    }`}
-                  />
-                  {/* Middle Ripple Ring */}
-                  <div
-                    className={`absolute w-[174px] h-[174px] rounded-full border ${
-                      isDark
-                        ? 'border-white/[0.09] bg-white/[0.02]'
-                        : 'border-black/[0.06] bg-white/60 shadow-[0_12px_32px_-8px_rgba(0,0,0,0.06)]'
-                    }`}
-                  />
-                  {/* Elevated 3D Circular Pedestal */}
-                  <div
-                    className={`relative w-[136px] h-[136px] rounded-full flex items-center justify-center border ${
-                      isDark
-                        ? 'bg-gradient-to-b from-[#2C2C2E] to-[#18181A] border-white/15 shadow-[0_18px_36px_rgba(0,0,0,0.7),inset_0_2px_3px_rgba(255,255,255,0.15)]'
-                        : 'bg-gradient-to-b from-[#FFFFFF] via-[#F9F9FB] to-[#EAEAEF] border-white shadow-[0_18px_36px_-10px_rgba(0,0,0,0.14),0_4px_12px_rgba(0,0,0,0.05),inset_0_2px_4px_rgba(255,255,255,1)]'
-                    }`}
-                  >
-                    {/* 3D Sculpted Black Navigation Arrow */}
-                    <svg
-                      viewBox="0 0 64 64"
-                      className="w-[68px] h-[68px]"
-                      style={{
-                        filter: isDark
-                          ? 'drop-shadow(0 8px 12px rgba(0,0,0,0.65))'
-                          : 'drop-shadow(0 8px 12px rgba(0,0,0,0.22))',
-                      }}
-                    >
-                      <defs>
-                        <linearGradient
-                          id="monvian3dNavGrad"
-                          x1="0%"
-                          y1="0%"
-                          x2="100%"
-                          y2="100%"
-                        >
-                          <stop
-                            offset="0%"
-                            stopColor={isDark ? '#FFFFFF' : '#2C2C30'}
-                          />
-                          <stop
-                            offset="55%"
-                            stopColor={isDark ? '#E5E5EA' : '#121214'}
-                          />
-                          <stop
-                            offset="100%"
-                            stopColor={isDark ? '#C7C7CC' : '#050506'}
-                          />
-                        </linearGradient>
-                      </defs>
-                      <path
-                        d="M52.8 11.2C54.1 12.5 54.4 14.5 53.6 16.2L37.4 51.4C36.5 53.3 34.4 54.3 32.4 53.7C30.5 53.1 29.2 51.4 29.0 49.4L27.3 36.7L14.6 35.0C12.6 34.8 10.9 33.5 10.3 31.6C9.7 29.6 10.7 27.5 12.6 26.6L47.8 10.4C49.5 9.6 51.5 9.9 52.8 11.2Z"
-                        fill="url(#monvian3dNavGrad)"
-                      />
-                    </svg>
-                  </div>
-                </div>
-
-                <h1 className="text-[29px] sm:text-[32px] font-bold tracking-[-0.03em] leading-[1.12] max-w-[320px]">
-                  Descubra o que está ao seu redor.
-                </h1>
-                <p
-                  className={`text-[15.5px] leading-[1.45] font-normal mt-3 max-w-[330px] ${
-                    isDark ? 'text-[#8E8E93]' : 'text-[#6E6E73]'
-                  }`}
-                >
-                  Permita o acesso à sua localização para encontrar experiências, lugares e atrações próximas de você.
-                </p>
-              </div>
-
-              <div className="space-y-3 pt-2">
-                <button
-                  type="button"
-                  disabled={isRequestingLocation}
-                  onClick={handleActivateLocation}
-                  className={`w-full h-[56px] rounded-full font-semibold text-[16.5px] tracking-[-0.015em] flex items-center justify-center gap-2.5 transition-all active:scale-[0.985] cursor-pointer shadow-sm ${
-                    isDark
-                      ? 'bg-[#FFFFFF] text-[#080808] hover:bg-zinc-200'
-                      : 'bg-[#080808] text-[#FFFFFF] hover:bg-zinc-900'
-                  }`}
-                >
-                  {isRequestingLocation ? (
+                  {isCompleting ? (
                     <Loader2 className="w-5 h-5 animate-spin" />
                   ) : (
-                    <Navigation className="w-5 h-5 stroke-[2.2]" />
+                    <>
+                      <span>Próximo</span>
+                      <ChevronRight className="w-5 h-5 stroke-[2.4]" />
+                    </>
                   )}
-                  <span>Ativar localização</span>
-                </button>
-
-                <button
-                  type="button"
-                  disabled={isRequestingLocation}
-                  onClick={handleSkipLocation}
-                  className={`w-full h-[54px] rounded-full font-semibold text-[16px] tracking-[-0.01em] transition-all active:scale-[0.985] cursor-pointer border ${
-                    isDark
-                      ? 'bg-[#1C1C1E] border-white/10 text-white hover:bg-[#252528]'
-                      : 'bg-[#FBFBFD] border-black/[0.08] text-[#080808] hover:bg-[#F2F2F6]'
-                  }`}
-                >
-                  Continuar sem localização
                 </button>
               </div>
             </motion.div>

@@ -53,6 +53,7 @@ import { usePlatanos } from '../hooks/usePlatanos';
 import { MyItinerariesView } from './itineraries/MyItinerariesView';
 import foldedMap3dIcon from '../assets/images/folded_map_pin_3d.png';
 import platanosLeaf3dIcon from '../assets/images/platanos_leaf_hero_3d.png';
+import { isAppSoundEnabled, setAppSoundEnabled } from '../utils/soundEffects';
 
 interface ProfileModalProps {
   isOpen: boolean;
@@ -457,10 +458,7 @@ export const ProfileModal: React.FC<ProfileModalProps> = React.memo(({
     return saved !== null ? saved === 'true' : true;
   });
 
-  const [soundEnabled, setSoundEnabled] = useState<boolean>(() => {
-    const saved = localStorage.getItem('monvian_sound_enabled');
-    return saved !== null ? saved === 'true' : true;
-  });
+  const [soundEnabled, setSoundEnabled] = useState<boolean>(() => isAppSoundEnabled());
 
   const handleToggleLocation = (val: boolean) => {
     setLocationPerm(val);
@@ -477,12 +475,7 @@ export const ProfileModal: React.FC<ProfileModalProps> = React.memo(({
 
   const handleToggleSound = (val: boolean) => {
     setSoundEnabled(val);
-    localStorage.setItem('monvian_sound_enabled', String(val));
-    if (val) {
-      localStorage.removeItem('monvian_sound_disabled');
-    } else {
-      localStorage.setItem('monvian_sound_disabled', 'true');
-    }
+    setAppSoundEnabled(val);
   };
 
   const [isNotificationsOpen, setIsNotificationsOpen] = useState(false);

@@ -14,6 +14,7 @@ import {
   prefetchSpotClickSound,
   unlockSpotClickSound,
   playSpotClickSound,
+  playMapLayerToggleSound,
 } from '../utils/soundEffects';
 import { CompassIcon } from './CompassIcon';
 import { MapLayerToggleIcon } from './MapLayerToggleIcon';
@@ -3973,7 +3974,22 @@ export const MapComponent = memo(
       };
     }, []);
 
+    const lastMapLayerSfxTsRef = useRef<number>(0);
+
+    const handleMapLayerButtonPointerDown = () => {
+      unlockSpotClickSound();
+      playMapLayerToggleSound();
+      lastMapLayerSfxTsRef.current = typeof performance !== 'undefined' ? performance.now() : Date.now();
+    };
+
     const handleCycleMapStyle = () => {
+      const now = typeof performance !== 'undefined' ? performance.now() : Date.now();
+      if (now - lastMapLayerSfxTsRef.current > 350) {
+        unlockSpotClickSound();
+        playMapLayerToggleSound();
+        lastMapLayerSfxTsRef.current = now;
+      }
+      triggerHapticFeedback(12);
       const next: MapModeType = currentMode === 'satelite' ? 'explorar' : 'satelite';
       setCurrentMode(next);
       if (onMapModeChange) onMapModeChange(next);
@@ -4095,6 +4111,7 @@ export const MapComponent = memo(
             animate={{ opacity: 1, scale: 1, y: 0 }}
             transition={{ type: 'spring', stiffness: 380, damping: 22, delay: 0.16 }}
             whileTap={{ scale: 0.9, transition: { type: 'spring', stiffness: 500, damping: 14 } }}
+            onPointerDown={handleMapLayerButtonPointerDown}
             onClick={handleCycleMapStyle}
             aria-label="Alternar camada do mapa"
             title={currentMode === 'satelite' ? 'Alternar para mapa padrão' : 'Alternar para satélite'}

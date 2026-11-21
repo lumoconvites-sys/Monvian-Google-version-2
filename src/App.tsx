@@ -4303,7 +4303,7 @@ export default function App() {
                   ...(user || {}),
                   ...(updatedUser || {}),
                   ...(preferences || {}),
-                  onboarding_step: 4,
+                  onboarding_step: 3,
                   onboarding_completed: 1,
                 });
                 if (mergedForCloud) {
@@ -4314,7 +4314,7 @@ export default function App() {
                     ...(prev || {}),
                     ...(updatedUser || {}),
                     ...(preferences || {}),
-                    onboarding_step: 4,
+                    onboarding_step: 3,
                     onboarding_completed: 1,
                   });
                   try {

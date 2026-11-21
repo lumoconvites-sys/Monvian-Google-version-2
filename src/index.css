@@ -688,6 +688,29 @@ html:not(.dark) .ios26-liquid-glass-pill {
   box-shadow: 0 1px 4px rgba(0, 0, 0, 0.32) !important;
 }
 
+/* Elevated interactive Liquid Glass magnifying lens while scrubbing the bottom Dock */
+.ios26-liquid-glass-pill[data-lens-active="true"],
+html:not(.dark) .ios26-liquid-glass-pill[data-lens-active="true"] {
+  background: rgba(255, 255, 255, 0.86) !important;
+  border: 1px solid rgba(255, 255, 255, 0.94) !important;
+  backdrop-filter: blur(18px) saturate(180%) !important;
+  -webkit-backdrop-filter: blur(18px) saturate(180%) !important;
+  box-shadow:
+    0 10px 26px -2px rgba(0, 0, 0, 0.14),
+    0 2px 8px rgba(0, 0, 0, 0.06),
+    inset 0 1px 0 rgba(255, 255, 255, 1) !important;
+}
+
+.dark .ios26-liquid-glass-pill[data-lens-active="true"] {
+  background: rgba(255, 255, 255, 0.16) !important;
+  border: 1px solid rgba(255, 255, 255, 0.28) !important;
+  backdrop-filter: blur(18px) saturate(160%) !important;
+  -webkit-backdrop-filter: blur(18px) saturate(160%) !important;
+  box-shadow:
+    0 12px 28px -2px rgba(0, 0, 0, 0.56),
+    inset 0 1px 0 rgba(255, 255, 255, 0.28) !important;
+}
+
 /* ============================================================ */
 /* APPLE CIRCULAR BACK BUTTON — LIGHT & DARK NEAR-SOLID SURFACE */
 /* ============================================================ */
