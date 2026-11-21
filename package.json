@@ -6,6 +6,11 @@
   "scripts": {
     "dev": "tsx server.ts",
     "build": "vite build && esbuild server.ts --platform=node --packages=external --bundle --format=esm --outfile=dist/server.js",
+    "build:web": "vite build",
+    "cap:sync": "npm run build:web && cap sync",
+    "cap:sync:ios": "npm run build:web && cap sync ios",
+    "cap:open:ios": "cap open ios",
+    "cap:doctor": "cap doctor",
     "postbuild": "find dist node_modules -name '*.map' -delete 2>/dev/null; rm -rf node_modules/@firebase/firestore/dist/intermediate node_modules/@firebase/firestore/dist/lite node_modules/@firebase/database* node_modules/@firebase/storage* node_modules/@firebase/ai* node_modules/@firebase/data-connect* node_modules/@firebase/messaging* node_modules/firebase/compat node_modules/maplibre-gl/dist/maplibre-gl-dev.js node_modules/better-sqlite3/deps node_modules/better-sqlite3/prebuilds/darwin-* node_modules/better-sqlite3/prebuilds/win32-* node_modules/better-sqlite3/prebuilds/*-arm64* node_modules/lucide-react/dist/cjs node_modules/lucide-react/dist/umd node_modules/three/build/three.cjs node_modules/three/build/three.webgpu* node_modules/three/examples node_modules/@dimforge node_modules/lightningcss-linux-x64-musl 2>/dev/null || true",
     "start": "node server.ts",
     "preview": "vite preview",
@@ -13,6 +18,9 @@
     "lint": "tsc --noEmit"
   },
   "dependencies": {
+    "@capacitor/cli": "^8.6.2",
+    "@capacitor/core": "^8.6.2",
+    "@capacitor/ios": "^8.6.2",
     "@google/genai": "^3.6.1",
     "@supabase/supabase-js": "^2.117.3",
     "bcryptjs": "^3.0.3",
