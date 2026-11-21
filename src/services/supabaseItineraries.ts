@@ -4,6 +4,126 @@ import { DEFAULT_CURATED_ITINERARIES } from '../data/defaultItineraries.ts';
 
 export const CACHE_KEY_ITINERARIES = 'monvian_cached_itineraries';
 export const CACHE_KEY_ITINERARY_CATEGORIES = 'monvian_cached_itinerary_categories';
+export const HIDE_FROM_ALL_TOKEN = '__hide_from_all';
+
+export type StoreSectionId =
+  | 'all'
+  | 'destaque'
+  | 'natureza'
+  | 'romantico'
+  | 'gastronomia'
+  | 'aventura'
+  | 'familia'
+  | 'terror';
+
+export interface StoreSectionOption {
+  id: StoreSectionId;
+  name: string;
+  image: string;
+}
+
+export const STORE_SECTION_OPTIONS: StoreSectionOption[] = [
+  { id: 'all', name: 'Todos', image: '/foguinho.png' },
+  { id: 'destaque', name: 'Destaques', image: '/star.png' },
+  { id: 'natureza', name: 'Natureza', image: '/natureza.png' },
+  { id: 'romantico', name: 'Romântico', image: '/romantic.png' },
+  { id: 'gastronomia', name: 'Gastronomia', image: '/gastrom.png' },
+  { id: 'aventura', name: 'Aventura', image: '/aventure.png' },
+  { id: 'familia', name: 'Família', image: '/family.png' },
+  { id: 'terror', name: 'Terror', image: '/terror.png' },
+];
+
+const SECTION_ALIAS_SETS: Record<Exclude<StoreSectionId, 'all'>, string[]> = {
+  destaque: ['destaque', 'destaques', 'popular', 'mais procurados', 'mais-procurados'],
+  natureza: ['natureza', 'nature', 'ecotourism', 'ecoturismo'],
+  romantico: ['romantico', 'romantic', 'casais', 'casal', 'romance'],
+  gastronomia: ['gastronomia', 'gastronomy', 'sweets', 'cafes', 'culinaria', 'fondue'],
+  aventura: ['aventura', 'adventure', 'trilhas', 'radical', 'esportes'],
+  familia: ['familia', 'family', 'kids', 'criancas'],
+  terror: ['terror', 'assombrado', 'misterio', 'sobrenatural'],
+};
+
+const ALL_MANAGED_SECTION_TOKENS = new Set<string>([
+  'all',
+  'todos',
+  HIDE_FROM_ALL_TOKEN,
+  ...Object.values(SECTION_ALIAS_SETS).flat(),
+]);
+
+export function extractStoreSectionsFromItinerary(itin: Partial<Itinerary> | null | undefined): StoreSectionId[] {
+  if (!itin) return ['all'];
+  const normCats = (itin.categories || []).map(normalizeToken);
+  const sections: StoreSectionId[] = [];
+
+  const normTitle = normalizeToken(itin.title || '');
+  const normDesc = normalizeToken(itin.description || '');
+  const isLegacyExclusiveDestaque =
+    !normCats.includes('all') &&
+    !normCats.includes(HIDE_FROM_ALL_TOKEN) &&
+    (itin.id === 'itin-093850-ialh' ||
+      itin.id === 'roteiro-romantico-montanhas' ||
+      normTitle === 'romantico' ||
+      (normTitle.includes('romantico') && (normDesc.includes('desfrute') || Boolean(itin.isFeatured))));
+
+  if (!normCats.includes(HIDE_FROM_ALL_TOKEN) && !isLegacyExclusiveDestaque) {
+    sections.push('all');
+  }
+
+  if (
+    Boolean(itin.isFeatured) ||
+    Boolean(itin.isRecommended) ||
+    isLegacyExclusiveDestaque ||
+    normCats.some((c) => SECTION_ALIAS_SETS.destaque.includes(c))
+  ) {
+    sections.push('destaque');
+  }
+
+  (Object.keys(SECTION_ALIAS_SETS) as Array<Exclude<StoreSectionId, 'all'>>).forEach((secId) => {
+    if (secId === 'destaque') return;
+    if (normCats.some((c) => SECTION_ALIAS_SETS[secId].includes(c))) {
+      sections.push(secId);
+    }
+  });
+
+  return sections.length > 0 ? sections : ['all'];
+}
+
+export function buildCategoriesForStoreSections(
+  selectedSections: StoreSectionId[],
+  existingCategories: string[] = []
+): string[] {
+  const uniqueSections = Array.from(new Set(selectedSections));
+  const preservedExtra = existingCategories.filter((cat) => {
+    const norm = normalizeToken(cat);
+    return norm.length > 0 && !ALL_MANAGED_SECTION_TOKENS.has(norm);
+  });
+
+  const nextCategories: string[] = [];
+
+  if (uniqueSections.includes('all')) {
+    nextCategories.push('all');
+  } else {
+    nextCategories.push(HIDE_FROM_ALL_TOKEN);
+  }
+
+  for (const sec of uniqueSections) {
+    if (sec !== 'all') {
+      nextCategories.push(sec);
+    }
+  }
+
+  return Array.from(new Set([...nextCategories, ...preservedExtra]));
+}
+
+export function getDisplayStoreSectionLabels(itin: Partial<Itinerary> | null | undefined): string[] {
+  const sections = extractStoreSectionsFromItinerary(itin);
+  const nameById = new Map<StoreSectionId, string>(
+    STORE_SECTION_OPTIONS.map((opt) => [opt.id, opt.name])
+  );
+  return sections
+    .map((id) => nameById.get(id))
+    .filter((label): label is string => Boolean(label));
+}
 
 export const INITIAL_STORE_CATEGORIES: ItineraryCategory[] = [
   { id: 'popular', name: 'Mais procurados', icon: 'Sparkles', sortOrder: 1, description: 'Os roteiros mais bem avaliados pelos viajantes', isActive: true },
@@ -829,8 +949,102 @@ const PAGE_CACHE_TTL_MS = 2 * 60 * 1000; // 2 minutes valid page cache
 const paginatedPageCache = new Map<string, { timestamp: number; data: PaginatedItinerariesResult }>();
 const inFlightPaginatedRequests = new Map<string, Promise<PaginatedItinerariesResult>>();
 
+// Authoritative in-memory snapshot populated on app startup during the logo loading splash
+let preloadedItinerariesMemory: Itinerary[] | null = null;
+let preloadedItinerariesLoadedAt = 0;
+let preloadedItinerariesInFlight: Promise<Itinerary[]> | null = null;
+
+export function getPreloadedItinerariesSnapshot(): Itinerary[] | null {
+  return preloadedItinerariesMemory;
+}
+
+export function hasPreloadedItineraries(): boolean {
+  return preloadedItinerariesMemory !== null;
+}
+
+export function setPreloadedItinerariesSnapshot(items: Itinerary[]): void {
+  const activeOnly = items.filter((i) => i.isActive !== false);
+  preloadedItinerariesMemory = activeOnly;
+  preloadedItinerariesLoadedAt = Date.now();
+  paginatedPageCache.clear();
+  try {
+    localStorage.setItem(CACHE_KEY_ITINERARIES, JSON.stringify(activeOnly));
+  } catch {}
+}
+
 export function clearItinerariesPageCache(): void {
   paginatedPageCache.clear();
+  preloadedItinerariesMemory = null;
+  preloadedItinerariesLoadedAt = 0;
+}
+
+/**
+ * Preloads all real active itineraries + store category icons + cover images right on app startup
+ * so entering "Loja de roteiros" renders every itinerary in its exact section with zero flash.
+ */
+export async function preloadAllStoreItineraries(forceRefresh = false): Promise<Itinerary[]> {
+  if (
+    !forceRefresh &&
+    preloadedItinerariesMemory !== null &&
+    Date.now() - preloadedItinerariesLoadedAt < PAGE_CACHE_TTL_MS
+  ) {
+    return preloadedItinerariesMemory;
+  }
+
+  if (!forceRefresh && preloadedItinerariesInFlight) {
+    return preloadedItinerariesInFlight;
+  }
+
+  // Warm store 3D section icons immediately in parallel
+  if (typeof window !== 'undefined') {
+    STORE_SECTION_OPTIONS.forEach((sec) => {
+      const img = new Image();
+      img.src = sec.image;
+    });
+  }
+
+  const runPreload = async (): Promise<Itinerary[]> => {
+    try {
+      const [fetchedItins] = await Promise.all([
+        fetchItinerariesFromSupabase({ all: false }),
+        fetchItineraryCategoriesFromSupabase().catch(() => []),
+      ]);
+
+      const activeList = Array.isArray(fetchedItins)
+        ? fetchedItins.filter((i) => i.isActive !== false)
+        : [];
+
+      setPreloadedItinerariesSnapshot(activeList);
+
+      // Warm itinerary cover images in browser cache so every section opens crisply
+      if (typeof window !== 'undefined') {
+        activeList.forEach((itin) => {
+          if (itin.coverImage) {
+            const img = new Image();
+            img.referrerPolicy = 'no-referrer';
+            img.src = itin.coverImage;
+          }
+        });
+      }
+
+      return activeList;
+    } catch {
+      return preloadedItinerariesMemory || [];
+    }
+  };
+
+  preloadedItinerariesInFlight = runPreload().finally(() => {
+    preloadedItinerariesInFlight = null;
+  });
+
+  return preloadedItinerariesInFlight;
+}
+
+if (typeof window !== 'undefined') {
+  window.addEventListener('monvian:itineraries_updated', () => {
+    clearItinerariesPageCache();
+    void preloadAllStoreItineraries(true);
+  });
 }
 
 function normalizeToken(val: string): string {
@@ -850,70 +1064,70 @@ export function matchesItineraryFilter(
   const normTitle = normalizeToken(itin.title || '');
   const normDesc = normalizeToken(itin.description || '');
   const cat = normalizeToken(category || 'all');
+  const itinCats = (itin.categories || []).map(normalizeToken).filter(Boolean);
+  const hasHideFromAll = itinCats.includes(HIDE_FROM_ALL_TOKEN);
+  const hasExplicitAll = itinCats.includes('all');
+  const explicitContentCats = itinCats.filter(
+    (c) => c !== HIDE_FROM_ALL_TOKEN && c !== 'all' && c !== 'todos'
+  );
+  const hasAnyExplicitCategories = explicitContentCats.length > 0 || hasHideFromAll || hasExplicitAll;
 
-  // Regra estrita: O roteiro "Romântico" (itin-093850-ialh / roteiro-romantico-montanhas) não deve aparecer na área "todos",
-  // aparecendo APENAS na área "destaques" (com estrela)
-  const isExclusiveDestaqueItinerary =
-    itin.id === 'itin-093850-ialh' ||
-    itin.id === 'roteiro-romantico-montanhas' ||
-    normTitle === 'romantico' ||
-    (normTitle.includes('romantico') && (normDesc.includes('desfrute') || itin.isFeatured));
+  // Regra legada para roteiro "Romântico" exclusivo de destaques (apenas se ainda não foi reconfigurado explicitamente)
+  const isLegacyExclusiveDestaque =
+    !hasExplicitAll &&
+    !hasHideFromAll &&
+    (itin.id === 'itin-093850-ialh' ||
+      itin.id === 'roteiro-romantico-montanhas' ||
+      normTitle === 'romantico' ||
+      (normTitle.includes('romantico') && (normDesc.includes('desfrute') || Boolean(itin.isFeatured))));
 
-  if (isExclusiveDestaqueItinerary) {
-    if (cat !== 'destaque' && cat !== 'destaques') {
-      return false;
-    }
+  if (isLegacyExclusiveDestaque && cat !== 'destaque' && cat !== 'destaques') {
+    return false;
   }
 
-  // 1. Category Filter
-  if (category && category !== 'all') {
-    const cat = normalizeToken(category);
-    if (cat === 'destaque' || cat === 'destaques' || cat === 'popular') {
-      if (!itin.isFeatured && !itin.isRecommended && !isExclusiveDestaqueItinerary) return false;
-    } else {
-      const itinCats = (itin.categories || []).map(normalizeToken);
-      const normTitle = normalizeToken(itin.title || '');
-
-      if (cat === 'natureza' || cat === 'nature') {
-        const ok =
-          itinCats.some((c) => ['nature', 'natureza', 'ecotourism', 'ecoturismo'].includes(c)) ||
-          normTitle.includes('natureza');
-        if (!ok) return false;
-      } else if (cat === 'romantico' || cat === 'romantic') {
-        const ok =
-          itinCats.some((c) => ['romantic', 'romantico', 'casais', 'casal', 'romance'].includes(c)) ||
-          normTitle.includes('romantic') ||
-          normTitle.includes('casal') ||
-          normTitle.includes('casais');
-        if (!ok) return false;
-      } else if (cat === 'gastronomia' || cat === 'gastronomy') {
-        const ok =
-          itinCats.some((c) =>
-            ['gastronomy', 'gastronomia', 'sweets', 'cafes', 'culinaria', 'fondue'].includes(c)
-          ) ||
-          normTitle.includes('gastronom') ||
-          normTitle.includes('fondue');
-        if (!ok) return false;
-      } else if (cat === 'aventura' || cat === 'adventure') {
-        const ok =
-          itinCats.some((c) => ['adventure', 'aventura', 'trilhas', 'radical', 'esportes'].includes(c)) ||
-          normTitle.includes('aventur') ||
-          normTitle.includes('trilha');
-        if (!ok) return false;
-      } else if (cat === 'familia' || cat === 'family') {
-        const ok =
-          itinCats.some((c) => ['family', 'familia', 'kids', 'criancas'].includes(c)) ||
-          normTitle.includes('familia');
-        if (!ok) return false;
-      } else if (cat === 'terror') {
-        const ok =
-          itinCats.some((c) => ['terror', 'assombrado', 'misterio', 'sobrenatural'].includes(c)) ||
-          normTitle.includes('terror');
-        if (!ok) return false;
-      } else if (!itinCats.includes(cat) && !normTitle.includes(cat)) {
-        return false;
-      }
-    }
+  // 1. Category / Store Section Filter
+  if (cat === 'all' || cat === 'todos' || !cat) {
+    if (hasHideFromAll) return false;
+  } else if (cat === 'destaque' || cat === 'destaques' || cat === 'popular') {
+    const isDestaque =
+      Boolean(itin.isFeatured) ||
+      Boolean(itin.isRecommended) ||
+      isLegacyExclusiveDestaque ||
+      itinCats.some((c) => SECTION_ALIAS_SETS.destaque.includes(c));
+    if (!isDestaque) return false;
+  } else if (cat === 'natureza' || cat === 'nature') {
+    const ok =
+      itinCats.some((c) => SECTION_ALIAS_SETS.natureza.includes(c)) ||
+      (!hasAnyExplicitCategories && normTitle.includes('natureza'));
+    if (!ok) return false;
+  } else if (cat === 'romantico' || cat === 'romantic' || cat === 'casais') {
+    const ok =
+      itinCats.some((c) => SECTION_ALIAS_SETS.romantico.includes(c)) ||
+      (!hasAnyExplicitCategories &&
+        (normTitle.includes('romantic') || normTitle.includes('casal') || normTitle.includes('casais')));
+    if (!ok) return false;
+  } else if (cat === 'gastronomia' || cat === 'gastronomy') {
+    const ok =
+      itinCats.some((c) => SECTION_ALIAS_SETS.gastronomia.includes(c)) ||
+      (!hasAnyExplicitCategories && (normTitle.includes('gastronom') || normTitle.includes('fondue')));
+    if (!ok) return false;
+  } else if (cat === 'aventura' || cat === 'adventure') {
+    const ok =
+      itinCats.some((c) => SECTION_ALIAS_SETS.aventura.includes(c)) ||
+      (!hasAnyExplicitCategories && (normTitle.includes('aventur') || normTitle.includes('trilha')));
+    if (!ok) return false;
+  } else if (cat === 'familia' || cat === 'family') {
+    const ok =
+      itinCats.some((c) => SECTION_ALIAS_SETS.familia.includes(c)) ||
+      (!hasAnyExplicitCategories && normTitle.includes('familia'));
+    if (!ok) return false;
+  } else if (cat === 'terror') {
+    const ok =
+      itinCats.some((c) => SECTION_ALIAS_SETS.terror.includes(c)) ||
+      (!hasAnyExplicitCategories && normTitle.includes('terror'));
+    if (!ok) return false;
+  } else if (!itinCats.includes(cat) && (hasAnyExplicitCategories || !normTitle.includes(cat))) {
+    return false;
   }
 
   // 2. Duration / Type Filter
@@ -1148,6 +1362,14 @@ export async function fetchPaginatedItinerariesFromSupabase(
   const cacheKey = `${category}|${durationFilter}|${searchQuery.toLowerCase()}|${cursor || ''}|${offset}|${limit}|${excludeKey}|${includeFeatured ? '1' : '0'}`;
 
   if (!params.forceRefresh) {
+    // Fast authoritative path: serve directly from startup-preloaded memory cache (0ms, exact filtering)
+    if (
+      preloadedItinerariesMemory !== null &&
+      Date.now() - preloadedItinerariesLoadedAt < PAGE_CACHE_TTL_MS
+    ) {
+      return paginateItinerariesArray(preloadedItinerariesMemory, params);
+    }
+
     const cachedPage = paginatedPageCache.get(cacheKey);
     if (cachedPage && Date.now() - cachedPage.timestamp < PAGE_CACHE_TTL_MS) {
       return cachedPage.data;
@@ -1160,7 +1382,7 @@ export async function fetchPaginatedItinerariesFromSupabase(
   }
 
   const executeQuery = async (): Promise<PaginatedItinerariesResult> => {
-    // 1. Primary Path: Direct Supabase PostgreSQL Paginated Query + Scoped Hydration
+    // 1. Primary Path: Direct Supabase PostgreSQL Query with strict section filtering + Scoped Hydration
     if (isSupabaseConfigured && supabase) {
       try {
         let baseQuery = supabase
@@ -1170,11 +1392,8 @@ export async function fetchPaginatedItinerariesFromSupabase(
           .order('sort_order', { ascending: true })
           .order('id', { ascending: true });
 
-        // Push down filters to Supabase PostgreSQL where applicable
+        // Push down duration/free filters to Supabase PostgreSQL where applicable
         const catNorm = normalizeToken(category);
-        if (catNorm === 'destaque' || catNorm === 'popular') {
-          baseQuery = baseQuery.or('is_featured.eq.1,is_recommended.eq.1');
-        }
         if (durationFilter === '1day') {
           baseQuery = baseQuery.eq('days_count', 1);
         } else if (durationFilter === 'multiday') {
@@ -1183,11 +1402,9 @@ export async function fetchPaginatedItinerariesFromSupabase(
           baseQuery = baseQuery.eq('is_premium', 0);
         }
 
-        // If no complex client-side category synonym or spot-nested search is required,
-        // use direct cursor/range pagination in PostgreSQL
-        const canUseDirectSqlRange =
-          (catNorm === 'all' || catNorm === 'destaque' || catNorm === 'popular') &&
-          !searchQuery;
+        // Always route through lightweight metadata + strict matchesItineraryFilter so
+        // store section placement (including __hide_from_all) is 100% honored before hydration!
+        const canUseDirectSqlRange = false;
 
         if (canUseDirectSqlRange) {
           let featuredItinerary: Itinerary | null = null;

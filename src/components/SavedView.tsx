@@ -22,7 +22,10 @@ import { Spot, Itinerary } from '../types';
 import { DEFAULT_CURATED_ITINERARIES } from '../data/defaultItineraries';
 import { useFavorites } from '../hooks/useFavorites';
 import { getSpotImage } from '../utils/spotImages';
-import { fetchItinerariesFromSupabase } from '../services/supabaseItineraries';
+import {
+  fetchItinerariesFromSupabase,
+  getDisplayStoreSectionLabels,
+} from '../services/supabaseItineraries';
 import { useIOSBackEntry } from '../services/iosNavigationManager';
 import { readScopedJSON } from '../utils/userScopedStorage';
 
@@ -727,7 +730,7 @@ export const SavedView: React.FC<SavedViewProps> = React.memo(({
                                       {itinerary.title}
                                     </h4>
                                     <p className="text-xs text-zinc-500 dark:text-zinc-400 font-medium mt-0.5 truncate">
-                                      {(itinerary as any).duration || `${itinerary.daysCount || itinerary.days?.length || 1} dias`} · {itinerary.categories?.[0] || 'Campos do Jordão'}
+                                      {(itinerary as any).duration || `${itinerary.daysCount || itinerary.days?.length || 1} dias`} · {getDisplayStoreSectionLabels(itinerary).find((l) => l !== 'Todos') || getDisplayStoreSectionLabels(itinerary)[0] || 'Campos do Jordão'}
                                     </p>
                                   </div>
                                 </motion.div>

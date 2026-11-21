@@ -893,13 +893,21 @@ export function registerItineraryRoutes(
     const daysCount = Number(row.days_count || 1);
     const isPrem = row.is_premium !== undefined && row.is_premium !== null ? Number(row.is_premium) === 1 : true;
 
-    // Regra estrita: O roteiro "Romântico" (itin-093850-ialh / roteiro-romantico-montanhas) não deve aparecer na área "todos",
-    // aparecendo APENAS na área "destaques" (com estrela)
+    const hasHideFromAll = rowCats.includes('__hide_from_all');
+    const hasExplicitAll = rowCats.includes('all');
+    const explicitContentCats = rowCats.filter(
+      (c) => c !== '__hide_from_all' && c !== 'all' && c !== 'todos'
+    );
+    const hasAnyExplicitCategories = explicitContentCats.length > 0 || hasHideFromAll || hasExplicitAll;
+
+    // Regra legada para roteiro "Romântico" exclusivo de destaques (apenas se não configurado explicitamente)
     const isExclusivelyDestaqueItinerary =
-      String(row.id) === 'itin-093850-ialh' ||
-      String(row.id) === 'roteiro-romantico-montanhas' ||
-      normTitle === 'romantico' ||
-      (normTitle.includes('romantico') && (normDesc.includes('desfrute') || isFeat));
+      !hasExplicitAll &&
+      !hasHideFromAll &&
+      (String(row.id) === 'itin-093850-ialh' ||
+        String(row.id) === 'roteiro-romantico-montanhas' ||
+        normTitle === 'romantico' ||
+        (normTitle.includes('romantico') && (normDesc.includes('desfrute') || isFeat)));
 
     const effectiveCat = categoryFilter ? normalizeFilterToken(categoryFilter) : 'all';
 
@@ -909,11 +917,17 @@ export function registerItineraryRoutes(
       }
     }
 
-    // 1. Category Filter
-    if (categoryFilter && categoryFilter !== 'all' && categoryFilter !== 'todos') {
-      const cat = normalizeFilterToken(categoryFilter);
+    // 1. Category / Store Section Filter
+    if (!effectiveCat || effectiveCat === 'all' || effectiveCat === 'todos') {
+      if (hasHideFromAll) return false;
+    } else {
+      const cat = effectiveCat;
       if (cat === 'destaque' || cat === 'destaques' || cat === 'popular' || cat === 'mais-procurados') {
-        if (!isFeat && !isExclusivelyDestaqueItinerary) return false;
+        const matchDestaque =
+          isFeat ||
+          isExclusivelyDestaqueItinerary ||
+          rowCats.some((c) => ['destaque', 'destaques', 'popular', 'mais-procurados'].includes(c));
+        if (!matchDestaque) return false;
       } else if (cat === '1day' || cat === '1-dia' || cat === '1dia') {
         if (daysCount !== 1) return false;
       } else if (cat === '2days' || cat === '2-dias' || cat === '2dias') {
@@ -921,41 +935,41 @@ export function registerItineraryRoutes(
       } else if (cat === 'natureza' || cat === 'nature') {
         const match =
           rowCats.some((c) => ['nature', 'natureza', 'ecotourism', 'ecoturismo'].includes(c)) ||
-          normTitle.includes('natureza');
+          (!hasAnyExplicitCategories && normTitle.includes('natureza'));
         if (!match) return false;
       } else if (cat === 'romantico' || cat === 'romantic' || cat === 'casais') {
         const match =
           rowCats.some((c) => ['romantic', 'romantico', 'casais', 'casal', 'romance'].includes(c)) ||
-          normTitle.includes('romantic') ||
-          normTitle.includes('casal') ||
-          normTitle.includes('casais');
+          (!hasAnyExplicitCategories &&
+            (normTitle.includes('romantic') || normTitle.includes('casal') || normTitle.includes('casais')));
         if (!match) return false;
       } else if (cat === 'gastronomia' || cat === 'gastronomy') {
         const match =
           rowCats.some((c) =>
             ['gastronomy', 'gastronomia', 'sweets', 'cafes', 'culinaria', 'fondue'].includes(c)
           ) ||
-          normTitle.includes('gastronom') ||
-          normTitle.includes('fondue');
+          (!hasAnyExplicitCategories && (normTitle.includes('gastronom') || normTitle.includes('fondue')));
         if (!match) return false;
       } else if (cat === 'aventura' || cat === 'adventure') {
         const match =
           rowCats.some((c) => ['adventure', 'aventura', 'trilhas', 'radical', 'esportes'].includes(c)) ||
-          normTitle.includes('aventur') ||
-          normTitle.includes('trilha');
+          (!hasAnyExplicitCategories && (normTitle.includes('aventur') || normTitle.includes('trilha')));
         if (!match) return false;
       } else if (cat === 'familia' || cat === 'family') {
         const match =
           rowCats.some((c) => ['family', 'familia', 'kids', 'criancas'].includes(c)) ||
-          normTitle.includes('familia');
+          (!hasAnyExplicitCategories && normTitle.includes('familia'));
         if (!match) return false;
       } else if (cat === 'terror') {
         const match =
           rowCats.some((c) => ['terror', 'assombrado', 'misterio', 'sobrenatural'].includes(c)) ||
-          normTitle.includes('terror');
+          (!hasAnyExplicitCategories && normTitle.includes('terror'));
         if (!match) return false;
       } else {
-        const match = rowCats.includes(cat) || rowCats.some((c) => c.includes(cat)) || normTitle.includes(cat);
+        const match =
+          rowCats.includes(cat) ||
+          rowCats.some((c) => c.includes(cat)) ||
+          (!hasAnyExplicitCategories && normTitle.includes(cat));
         if (!match) return false;
       }
     }

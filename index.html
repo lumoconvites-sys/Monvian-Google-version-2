@@ -157,6 +157,11 @@
     <script>
       (function() {
         var dismissed = false;
+        var minAnimationDone = false;
+        var itinerariesReady = false;
+        var minTimer = null;
+        var maxTimer = null;
+
         function hasAuthenticatedSession() {
           try {
             var token = localStorage.getItem('monvian_token');
@@ -170,6 +175,8 @@
 
         function hidePreloaderImmediately() {
           dismissed = true;
+          if (minTimer) clearTimeout(minTimer);
+          if (maxTimer) clearTimeout(maxTimer);
           var preloader = document.getElementById('monvian-app-preloader');
           if (preloader) {
             preloader.style.display = 'none';
@@ -181,25 +188,108 @@
         function dismissPreloader() {
           if (dismissed) return;
           dismissed = true;
+          if (minTimer) clearTimeout(minTimer);
+          if (maxTimer) clearTimeout(maxTimer);
           var preloader = document.getElementById('monvian-app-preloader');
           var stage = document.getElementById('monvian-preloader-stage');
 
           if (stage) {
-            stage.style.transition = 'opacity 0.36s ease-out, transform 0.36s ease-out';
+            stage.style.transition = 'opacity 0.42s cubic-bezier(0.22, 1, 0.36, 1), transform 0.42s cubic-bezier(0.22, 1, 0.36, 1)';
             stage.style.opacity = '0';
-            stage.style.transform = 'scale(0.97)';
+            stage.style.transform = 'scale(1.045)';
           }
 
           if (preloader) {
-            preloader.style.transition = 'opacity 0.42s cubic-bezier(0.22, 1, 0.36, 1)';
+            preloader.style.transition = 'opacity 0.48s cubic-bezier(0.22, 1, 0.36, 1)';
             preloader.style.opacity = '0';
             preloader.style.pointerEvents = 'none';
 
             setTimeout(function() {
               preloader.style.display = 'none';
-            }, 440);
+            }, 500);
           }
         }
+
+        function tryFinishPreloader() {
+          if (dismissed) return;
+          if (minAnimationDone && itinerariesReady) {
+            dismissPreloader();
+          }
+        }
+
+        function playLogoPreloaderSequence(minMs, maxMs) {
+          dismissed = false;
+          minAnimationDone = false;
+          if (minTimer) clearTimeout(minTimer);
+          if (maxTimer) clearTimeout(maxTimer);
+
+          var isDark =
+            (typeof window.__monvianIsDarkThemeActive === 'function' && window.__monvianIsDarkThemeActive()) ||
+            document.documentElement.classList.contains('dark');
+
+          var preloader = document.getElementById('monvian-app-preloader');
+          var stage = document.getElementById('monvian-preloader-stage');
+          var lightLogo = document.getElementById('monvian-preloader-light-logo');
+          var darkLogo = document.getElementById('monvian-preloader-dark-logo');
+          var progressFill = document.getElementById('monvian-preloader-progress-fill');
+
+          if (preloader) {
+            preloader.style.transition = 'none';
+            preloader.style.backgroundColor = isDark ? '#000000' : '#ffffff';
+            preloader.style.opacity = '1';
+            preloader.style.pointerEvents = 'auto';
+            preloader.style.display = 'flex';
+          }
+
+          if (stage) {
+            stage.style.transition = 'none';
+            stage.style.opacity = '1';
+            stage.style.transform = 'scale(1)';
+          }
+
+          if (isDark) {
+            if (lightLogo) lightLogo.style.display = 'none';
+            if (darkLogo) {
+              darkLogo.style.display = 'block';
+              darkLogo.style.animation = 'none';
+              void darkLogo.offsetWidth;
+              darkLogo.style.animation = 'monvianLogoMotionIntro 1.85s cubic-bezier(0.22, 1, 0.36, 1) forwards';
+            }
+          } else {
+            if (darkLogo) darkLogo.style.display = 'none';
+            if (lightLogo) {
+              lightLogo.style.display = 'block';
+              lightLogo.style.animation = 'none';
+              void lightLogo.offsetWidth;
+              lightLogo.style.animation = 'monvianLogoMotionIntro 1.85s cubic-bezier(0.22, 1, 0.36, 1) forwards';
+            }
+          }
+
+          if (progressFill) {
+            progressFill.style.animation = 'none';
+            void progressFill.offsetWidth;
+            progressFill.style.animation = 'monvianPreloaderBarSweep ' + (minMs || 1750) + 'ms cubic-bezier(0.22, 1, 0.36, 1) forwards';
+          }
+
+          minTimer = setTimeout(function() {
+            minAnimationDone = true;
+            tryFinishPreloader();
+          }, minMs || 1750);
+
+          maxTimer = setTimeout(function() {
+            dismissPreloader();
+          }, maxMs || 3200);
+        }
+
+        window.__monvianMarkItinerariesPreloaded = function() {
+          itinerariesReady = true;
+          tryFinishPreloader();
+        };
+
+        window.__monvianReplayLogoPreloader = function() {
+          itinerariesReady = false;
+          playLogoPreloaderSequence(1550, 2900);
+        };
 
         function initLogoPreloader() {
           // Never show the Monvian logo loading screen on the Login / Landing screen
@@ -207,35 +297,7 @@
             hidePreloaderImmediately();
             return;
           }
-
-          var isDark =
-            (typeof window.__monvianIsDarkThemeActive === 'function' && window.__monvianIsDarkThemeActive()) ||
-            document.documentElement.classList.contains('dark');
-
-          var preloader = document.getElementById('monvian-app-preloader');
-          var lightLogo = document.getElementById('monvian-preloader-light-logo');
-          var darkLogo = document.getElementById('monvian-preloader-dark-logo');
-
-          if (preloader) {
-            preloader.style.backgroundColor = isDark ? '#000000' : '#ffffff';
-            preloader.style.display = 'flex';
-          }
-
-          if (isDark) {
-            if (lightLogo) lightLogo.style.display = 'none';
-            if (darkLogo) {
-              darkLogo.style.display = 'block';
-              darkLogo.style.animation = 'monvianLogoPulseBreath 1.15s cubic-bezier(0.22, 1, 0.36, 1) forwards';
-            }
-          } else {
-            if (darkLogo) darkLogo.style.display = 'none';
-            if (lightLogo) {
-              lightLogo.style.display = 'block';
-              lightLogo.style.animation = 'monvianLogoPulseBreath 1.15s cubic-bezier(0.22, 1, 0.36, 1) forwards';
-            }
-          }
-
-          setTimeout(dismissPreloader, 1180);
+          playLogoPreloaderSequence(1750, 3200);
         }
 
         if (document.readyState === 'loading') {
@@ -543,28 +605,39 @@
   </head>
   <body>
     <div id="monvian-app-preloader" style="position:fixed;inset:0;width:100%;height:var(--app-height,100dvh);min-height:var(--app-height,100dvh);display:none;flex-direction:column;align-items:center;justify-content:center;background-color:#ffffff;overflow:hidden;z-index:99999;user-select:none;-webkit-user-select:none;touch-action:none;">
-      <div id="monvian-preloader-stage" style="display:flex;align-items:center;justify-content:center;will-change:transform,opacity;">
-        <img
-          id="monvian-preloader-light-logo"
-          src="/assets/aistudio/monvian_logo_dark_transparent.png"
-          alt="Monvian"
-          draggable="false"
-          decoding="sync"
-          style="width:240px;max-width:64vw;height:auto;object-fit:contain;display:none;pointer-events:none;user-select:none;-webkit-user-select:none;will-change:transform,opacity;"
-        />
-        <img
-          id="monvian-preloader-dark-logo"
-          src="/logomodoescuro.png"
-          alt="Monvian"
-          draggable="false"
-          decoding="sync"
-          style="width:240px;max-width:64vw;height:auto;object-fit:contain;display:none;pointer-events:none;user-select:none;-webkit-user-select:none;will-change:transform,opacity;"
-        />
+      <div id="monvian-preloader-stage" style="display:flex;flex-direction:column;align-items:center;justify-content:center;gap:22px;will-change:transform,opacity;">
+        <div style="position:relative;display:flex;align-items:center;justify-content:center;overflow:hidden;padding:8px 12px;">
+          <img
+            id="monvian-preloader-light-logo"
+            src="/assets/aistudio/monvian_logo_dark_transparent.png"
+            alt="Monvian"
+            draggable="false"
+            decoding="sync"
+            style="width:248px;max-width:64vw;height:auto;object-fit:contain;display:none;pointer-events:none;user-select:none;-webkit-user-select:none;will-change:transform,opacity,filter;"
+          />
+          <img
+            id="monvian-preloader-dark-logo"
+            src="/logomodoescuro.png"
+            alt="Monvian"
+            draggable="false"
+            decoding="sync"
+            style="width:248px;max-width:64vw;height:auto;object-fit:contain;display:none;pointer-events:none;user-select:none;-webkit-user-select:none;will-change:transform,opacity,filter;"
+          />
+        </div>
+        <div id="monvian-preloader-progress-track" style="width:112px;height:2.5px;border-radius:999px;background:rgba(0,0,0,0.09);overflow:hidden;">
+          <div id="monvian-preloader-progress-fill" style="width:0%;height:100%;border-radius:999px;background:#000000;"></div>
+        </div>
       </div>
     </div>
     <style>
       html.dark #monvian-app-preloader {
         background-color: #000000 !important;
+      }
+      html.dark #monvian-preloader-progress-track {
+        background: rgba(255,255,255,0.14) !important;
+      }
+      html.dark #monvian-preloader-progress-fill {
+        background: #ffffff !important;
       }
       html.dark #monvian-preloader-light-logo {
         display: none !important;
@@ -577,6 +650,39 @@
       }
       html.light #monvian-preloader-dark-logo {
         display: none !important;
+      }
+      @keyframes monvianLogoMotionIntro {
+        0% {
+          opacity: 0;
+          transform: translate3d(0, 12px, 0) scale(0.88);
+          filter: blur(8px);
+        }
+        28% {
+          opacity: 1;
+          transform: translate3d(0, 0, 0) scale(1.015);
+          filter: blur(0px);
+        }
+        58% {
+          opacity: 0.96;
+          transform: translate3d(0, -1px, 0) scale(1.045);
+          filter: blur(0px);
+        }
+        100% {
+          opacity: 1;
+          transform: translate3d(0, 0, 0) scale(1);
+          filter: blur(0px);
+        }
+      }
+      @keyframes monvianPreloaderBarSweep {
+        0% {
+          width: 0%;
+        }
+        45% {
+          width: 68%;
+        }
+        100% {
+          width: 100%;
+        }
       }
       @keyframes monvianLogoPulseBreath {
         0% {
@@ -612,6 +718,7 @@
           animation: none !important;
           opacity: 1 !important;
           transform: none !important;
+          filter: none !important;
         }
       }
     </style>

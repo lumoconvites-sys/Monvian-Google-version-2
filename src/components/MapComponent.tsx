@@ -2503,6 +2503,11 @@ export const MapComponent = memo(
               ? 'radial-gradient(circle, rgba(255, 214, 10, 0.72) 0%, rgba(250, 204, 21, 0.25) 55%, transparent 75%)'
               : 'radial-gradient(circle, rgba(255, 255, 255, 0.7) 0%, rgba(255, 255, 255, 0.22) 55%, transparent 75%)';
             rec.pulseEl.style.display = isSelected ? 'block' : 'none';
+            if (isSelected) {
+              rec.pulseEl.classList.add('monvian-marker-select-halo');
+            } else {
+              rec.pulseEl.classList.remove('monvian-marker-select-halo');
+            }
           }
 
           if (rec.orderBadgeEl) {
@@ -3248,17 +3253,20 @@ export const MapComponent = memo(
           ? 'radial-gradient(circle, rgba(255, 214, 10, 0.72) 0%, rgba(250, 204, 21, 0.25) 55%, transparent 75%)'
           : 'radial-gradient(circle, rgba(255, 255, 255, 0.7) 0%, rgba(255, 255, 255, 0.22) 55%, transparent 75%)';
         pulseEl.style.display = isSelected ? 'block' : 'none';
+        if (isSelected) {
+          pulseEl.classList.add('monvian-marker-select-halo');
+        }
 
         const pulseScaleWrapEl = document.createElement('div');
         pulseScaleWrapEl.style.position = 'relative';
         pulseScaleWrapEl.style.display = 'flex';
         pulseScaleWrapEl.style.alignItems = 'center';
         pulseScaleWrapEl.style.justifyContent = 'center';
-        if (isStar) {
-          pulseScaleWrapEl.className = isSelected
-            ? 'monvian-star-pulse is-selected'
-            : 'monvian-star-pulse';
-        }
+        pulseScaleWrapEl.className = isStar
+          ? isSelected
+            ? 'monvian-star-pulse is-selected monvian-marker-enter'
+            : 'monvian-star-pulse monvian-marker-enter'
+          : 'monvian-marker-enter';
 
         const badgeEl = document.createElement('div');
         badgeEl.style.position = 'relative';

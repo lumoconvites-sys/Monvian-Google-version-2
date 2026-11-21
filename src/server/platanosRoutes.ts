@@ -5,6 +5,12 @@ import crypto from 'crypto';
 import { firestore, isPrimaryAdmin } from '../services/firestoreSync.ts';
 import { supabase } from '../services/supabaseClient.ts';
 import { doc, setDoc } from 'firebase/firestore';
+import {
+  processStripeDashboardWebhookEvent,
+  upsertCanonicalStripeTransaction,
+  refreshStripeBalanceCache,
+  broadcastDashboardUpdate,
+} from './stripeDashboardService.ts';
 
 export interface PlatanoPackageRow {
   id: string;
@@ -1141,8 +1147,8 @@ export function registerPlatanosRoutes(
     const rawBody = req.rawBody;
 
     let event: Stripe.Event;
+    const stripeClient = await getStripeClientAsync();
     try {
-      const stripeClient = getStripeClient();
       if (stripeWebhookSecret) {
         if (!sig || !rawBody) {
           res.status(400).json({ error: 'Assinatura do webhook ausente.' });
@@ -1165,6 +1171,11 @@ export function registerPlatanosRoutes(
 
     try {
       const result = handlePlatanosStripeWebhookEvent(db, event);
+      try {
+        await processStripeDashboardWebhookEvent(db, event, stripeClient);
+      } catch (dashErr: any) {
+        console.warn('[Plátanos Webhook] Aviso ao atualizar dashboard financeiro:', dashErr?.message);
+      }
       res.json({ received: true, ...result });
     } catch (err: any) {
       console.error('[Plátanos Webhook] Erro ao processar evento:', err);
@@ -1214,6 +1225,33 @@ export function registerPlatanosRoutes(
             packageId: session.metadata?.packageId || existingOrder?.package_id,
             amountTotalCents: session.amount_total ?? undefined,
           });
+          try {
+            upsertCanonicalStripeTransaction(db, {
+              stripePaymentIntentId:
+                typeof session.payment_intent === 'string' ? session.payment_intent : null,
+              stripeSessionId: session.id,
+              customerEmail:
+                session.metadata?.userEmail ||
+                session.customer_details?.email ||
+                existingOrder?.user_email ||
+                null,
+              productName: session.metadata?.platanosAmount
+                ? `Recarga ${session.metadata.platanosAmount} Plátanos`
+                : 'Recarga de Plátanos',
+              productType: 'platanos_topup',
+              packageId: session.metadata?.packageId || existingOrder?.package_id || null,
+              platanosAmount: Number(creditRes.creditedAmount || session.metadata?.platanosAmount || 0),
+              grossAmountCents: session.amount_total ?? 0,
+              currency: session.currency || 'brl',
+              paymentStatus: 'succeeded',
+              source: 'platanos_verify',
+              livemode: session.livemode,
+              metadata: session.metadata || undefined,
+              purchasedAt: new Date((session.created || Math.floor(Date.now() / 1000)) * 1000).toISOString(),
+            });
+            refreshStripeBalanceCache(db, stripeClient).catch(() => {});
+            broadcastDashboardUpdate('platanos_verify_session', 'checkout.session.completed');
+          } catch {}
           const wallet = getUserWalletSnapshot(db, creditRes.userId, existingOrder?.user_email || '');
           res.json({
             success: true,
@@ -1313,6 +1351,10 @@ export function registerPlatanosRoutes(
         itineraryId,
         itineraryTitleFallback: itineraryTitle,
       });
+
+      if (result.success && !result.alreadyUnlocked) {
+        broadcastDashboardUpdate('itinerary_unlocked', 'itinerary_sale');
+      }
 
       const wallet = getUserWalletSnapshot(db, Number(user.id), user.email || user.whatsapp || '');
 

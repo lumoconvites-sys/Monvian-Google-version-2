@@ -10,6 +10,7 @@ import { registerItineraryRoutes, setupItineraryDatabase } from './src/server/it
 import { registerSocialRoutes, setupSocialDatabase } from './src/server/socialRoutes.ts';
 import { registerStoryRoutes, setupStoriesDatabase } from './src/server/storyRoutes.ts';
 import { registerStripeRoutes, setupStripeDatabase } from './src/server/stripeRoutes.ts';
+import { syncStripeHistoryAndBalance } from './src/server/stripeDashboardService.ts';
 import { registerPlatanosRoutes, setupPlatanosDatabase } from './src/server/platanosRoutes.ts';
 import { registerXpRoutes } from './src/server/xpRoutes.ts';
 import { CAMPOS_SPOTS } from './src/data/spots.ts';
@@ -4884,6 +4885,9 @@ async function startServer() {
         .catch((err) => console.warn('[SupabaseBootSync]', err))
         .finally(() => {
           syncDatabaseWithFirestore(db).catch((err) => console.warn('[FirestoreBootSync]', err));
+          syncStripeHistoryAndBalance(db, { silent: true }).catch((err) =>
+            console.warn('[StripeBootSync]', err?.message || err)
+          );
         });
     }, 1000);
   });

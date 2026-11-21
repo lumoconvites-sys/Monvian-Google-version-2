@@ -1058,10 +1058,50 @@ body,
   -webkit-mask-image: -webkit-radial-gradient(white, black) !important;
 }
 
+/* Subtle GPU-composited map marker entrance & selection halo (zero impact on map panning) */
+@keyframes monvian-marker-enter {
+  0% {
+    opacity: 0;
+    transform: translate3d(0, 6px, 0) scale3d(0.76, 0.76, 1);
+  }
+  70% {
+    opacity: 1;
+    transform: translate3d(0, -1px, 0) scale3d(1.04, 1.04, 1);
+  }
+  100% {
+    opacity: 1;
+    transform: translate3d(0, 0, 0) scale3d(1, 1, 1);
+  }
+}
+
+.monvian-marker-enter {
+  animation: monvian-marker-enter 0.34s cubic-bezier(0.22, 1, 0.36, 1) both;
+  transform-origin: center center;
+}
+
+@keyframes monvian-marker-select-breathe {
+  0%, 100% {
+    opacity: 0.78;
+    transform: scale3d(0.96, 0.96, 1);
+  }
+  50% {
+    opacity: 1;
+    transform: scale3d(1.12, 1.12, 1);
+  }
+}
+
+.monvian-marker-select-halo {
+  animation: monvian-marker-select-breathe 2.2s cubic-bezier(0.22, 1, 0.36, 1) infinite;
+  transform-origin: center center;
+  will-change: transform, opacity;
+}
+
 /* Respect OS reduced-motion preference on continuous decorative animations */
 @media (prefers-reduced-motion: reduce) {
   .user-photo-pulse,
   .monvian-star-pulse,
+  .monvian-marker-enter,
+  .monvian-marker-select-halo,
   .animate-ios-shimmer,
   .animate-pulse-subtle {
     animation: none !important;

@@ -3025,9 +3025,14 @@ export default function App() {
                     localStorage.removeItem(`monvian_first_welcome_seen_${cleanEmail}`);
                   }
                 } catch {}
+                void startPreloadResources(true);
                 setShowOnboardingQuestions(true);
                 setShowFirstSignupWelcome(false);
               } else {
+                try {
+                  (window as any).__monvianReplayLogoPreloader?.();
+                } catch {}
+                void startPreloadResources(true);
                 try {
                   if (cleanEmail) {
                     localStorage.removeItem(`monvian_smart_onboarding_pending_${cleanEmail}`);

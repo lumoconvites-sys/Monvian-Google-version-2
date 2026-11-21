@@ -230,9 +230,11 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({
       className="w-full flex overflow-hidden antialiased rounded-t-[26px] ios-page-top-rounded"
       style={{
         backgroundColor:
-          activeTab === 'users' || activeTab === 'itineraries'
-            ? '#F6F7F9'
-            : ADMIN_COLORS.canvasBg,
+          activeTab === 'dashboard'
+            ? '#F2F6FC'
+            : activeTab === 'users' || activeTab === 'itineraries'
+              ? '#F6F7F9'
+              : ADMIN_COLORS.canvasBg,
         color: ADMIN_COLORS.textPrimary,
         fontFamily:
           '-apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro Text", "Inter", "Segoe UI", Roboto, sans-serif',
@@ -287,6 +289,17 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({
             />
           ))}
         </nav>
+
+        <div className="px-5 pt-4 mt-4 border-t border-slate-100">
+          <button
+            type="button"
+            onClick={onExitAdmin}
+            className="w-full flex items-center gap-3 px-4 py-3 rounded-[16px] text-[14px] font-semibold text-[#475569] hover:text-[#1668FF] hover:bg-[#F2F6FC] transition-colors cursor-pointer"
+          >
+            <ArrowLeft className="w-[18px] h-[18px]" />
+            <span>Voltar ao App</span>
+          </button>
+        </div>
       </aside>
 
       {/* Mobile / Tablet Slide-over Sidebar Drawer */}
@@ -356,6 +369,20 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({
                   />
                 ))}
               </nav>
+
+              <div className="px-4 pt-4 mt-4 border-t border-slate-100">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIsMobileMenuOpen(false);
+                    onExitAdmin();
+                  }}
+                  className="w-full flex items-center gap-3 px-4 py-3 rounded-[16px] text-[14px] font-semibold text-[#475569] hover:text-[#1668FF] hover:bg-[#F2F6FC] transition-colors cursor-pointer"
+                >
+                  <ArrowLeft className="w-[18px] h-[18px]" />
+                  <span>Voltar ao App</span>
+                </button>
+              </div>
             </motion.div>
           </div>
         )}
@@ -374,7 +401,8 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({
           }}
         >
           <div className="max-w-[1340px] mx-auto px-0.5 sm:px-4 lg:px-8">
-            {/* Compact Top Utility Row (Mobile drawer trigger + Floating Profile Pill on right) */}
+            {/* Compact Top Utility Row (Hidden on Dashboard so Dashboard owns its clean reference header without Monvian branding) */}
+            {activeTab !== 'dashboard' && (
             <div className="flex items-center justify-between md:justify-end gap-2.5 mb-5">
               {/* Mobile Hamburger + Compact Brand */}
               <div className="flex md:hidden items-center gap-2.5 min-w-0">
@@ -509,6 +537,7 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({
                 </AnimatePresence>
               </div>
             </div>
+            )}
 
             {/* Active Admin Page Container */}
             <Suspense
@@ -527,7 +556,12 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({
                   transition={{ duration: 0.2, ease: ADMIN_MOTION_EASE }}
                   className="w-full"
                 >
-                  {activeTab === 'dashboard' && <AdminDashboard />}
+                  {activeTab === 'dashboard' && (
+                    <AdminDashboard
+                      currentUser={currentUser}
+                      onOpenMobileMenu={() => setIsMobileMenuOpen(true)}
+                    />
+                  )}
                   {activeTab === 'spots' && <AdminSpots />}
                   {activeTab === 'itineraries' && <AdminItineraries />}
                   {activeTab === 'platanos' && <AdminPlatanos currentUser={currentUser} />}
