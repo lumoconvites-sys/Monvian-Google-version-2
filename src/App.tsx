@@ -3893,7 +3893,8 @@ export default function App() {
     </AnimatePresence>
 
     {/* 4. Bottom Navigation Pill rendered at root level */}
-    {!isMapOrbiting &&
+    {!isAdminOpen &&
+      !isMapOrbiting &&
       !isOnboardingItinerarySelection &&
       !isDetailOpen &&
       !showOnboardingQuestions &&
@@ -3906,18 +3907,16 @@ export default function App() {
           className={`md:hidden fixed inset-0 pointer-events-none z-[250] transition-opacity duration-150 ${isChatKeyboardOpen ? 'opacity-0 [&_*]:!pointer-events-none' : 'opacity-100'}`}
         >
           <BottomNavigation
-            activeTab={isAdminOpen ? 'perfil' : activeTab}
+            activeTab={activeTab}
             onChangeTab={handleTabChange}
             unreadCount={2}
-            isBlurred={!isAdminOpen && isBlurActive}
+            isBlurred={isBlurActive}
             forceWhiteUI={false}
             isSatellite={
-              isAdminOpen
-                ? false
-                : isSatelliteExplore &&
-                  (mapWorkflowMode !== 'ITINERARY' || !isItineraryDrawerExpanded || theme === 'dark')
+              isSatelliteExplore &&
+              (mapWorkflowMode !== 'ITINERARY' || !isItineraryDrawerExpanded || theme === 'dark')
             }
-            theme={isAdminOpen ? 'light' : theme}
+            theme={theme}
           />
         </div>
       )}

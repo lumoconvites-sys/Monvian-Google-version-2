@@ -1,4 +1,6 @@
 import React, { useState, useEffect } from 'react';
+import { createPortal } from 'react-dom';
+import { motion, AnimatePresence, useReducedMotion } from 'motion/react';
 import {
   Compass,
   Plus,
@@ -9,24 +11,17 @@ import {
   Trash2,
   Edit,
   Copy,
-  Users,
-  Eye,
   CheckCircle2,
-  XCircle,
   AlertCircle,
   Sparkles,
-  ArrowRight,
-  Filter,
-  Check,
-  ChevronRight,
   Tag,
   Star,
-  EyeOff,
   ShoppingBag,
-  Layers,
-  Crown
+  X,
+  RefreshCw,
 } from 'lucide-react';
 import { Itinerary, ItineraryCategory, ItineraryStatus } from '../../types';
+import { PlatanoLeafIcon } from '../platanos/PlatanoLeafIcon';
 import { AdminItineraryModal } from './AdminItineraryModal';
 import { AdminItineraryCategoryModal } from './AdminItineraryCategoryModal';
 import {
@@ -39,11 +34,20 @@ import {
   subscribeToItinerariesChanges,
 } from '../../services/supabaseItineraries';
 
+const CARD_SHADOW =
+  '0 6px 22px -6px rgba(15, 23, 42, 0.055), 0 1px 4px rgba(15, 23, 42, 0.025)';
+const PILL_SHADOW =
+  '0 3px 10px -3px rgba(15, 23, 42, 0.06), 0 1px 2px rgba(15, 23, 42, 0.03)';
+
 export const AdminItineraries: React.FC = () => {
-  const [activeAdminTab, setActiveAdminTab] = useState<'itineraries' | 'categories' | 'featured'>('itineraries');
+  const prefersReducedMotion = useReducedMotion() ?? false;
+  const [activeAdminTab, setActiveAdminTab] = useState<'itineraries' | 'categories' | 'featured'>(
+    'itineraries'
+  );
   const [itineraries, setItineraries] = useState<Itinerary[]>([]);
   const [categories, setCategories] = useState<ItineraryCategory[]>([]);
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState<'all' | 'published' | 'draft' | 'hidden'>('all');
   const [daysFilter, setDaysFilter] = useState<number | 'all'>('all');
@@ -55,20 +59,30 @@ export const AdminItineraries: React.FC = () => {
   const [isCategoryModalOpen, setIsCategoryModalOpen] = useState(false);
   const [categoryToEdit, setCategoryToEdit] = useState<ItineraryCategory | null>(null);
 
+  // Native iOS Delete Confirmation Modal State (replaces window.confirm)
+  const [pendingDelete, setPendingDelete] = useState<{
+    type: 'itinerary' | 'category';
+    id: string;
+    title: string;
+  } | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
+
   // Toast feedback
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
 
   const showToast = (message: string, type: 'success' | 'error' = 'success') => {
     setToast({ message, type });
-    setTimeout(() => setToast(null), 3000);
+    setTimeout(() => setToast(null), 3200);
   };
 
-  const fetchData = async () => {
+  const fetchData = async (isManual = false) => {
     try {
-      setLoading(true);
+      if (isManual) setRefreshing(true);
+      else setLoading(true);
+
       const [itinsData, catsData] = await Promise.all([
         fetchItinerariesFromSupabase({ all: true, throwOnError: false }),
-        fetchItineraryCategoriesFromSupabase()
+        fetchItineraryCategoriesFromSupabase(),
       ]);
 
       if (Array.isArray(itinsData)) {
@@ -78,16 +92,17 @@ export const AdminItineraries: React.FC = () => {
         setCategories(catsData);
       }
     } catch (err: any) {
-      showToast('Erro ao carregar dados do Supabase: ' + err.message, 'error');
+      showToast('Erro ao carregar dados: ' + err.message, 'error');
     } finally {
       setLoading(false);
+      setRefreshing(false);
     }
   };
 
   useEffect(() => {
-    fetchData();
+    fetchData(false);
     const unsubscribe = subscribeToItinerariesChanges(() => {
-      fetchData();
+      fetchData(false);
     });
     return () => unsubscribe();
   }, []);
@@ -115,12 +130,12 @@ export const AdminItineraries: React.FC = () => {
   const handleDuplicate = async (id: string, title: string) => {
     try {
       const res = await fetch(`/api/admin/itineraries/${id}/duplicate`, {
-        method: 'POST'
+        method: 'POST',
       });
       const data = await res.json();
       if (data.success) {
-        showToast(`Roteiro "${title}" duplicado com sucesso!`);
-        fetchData();
+        showToast(`Roteiro "${title}" duplicado.`);
+        fetchData(false);
       } else {
         showToast(data.error || 'Erro ao duplicar roteiro', 'error');
       }
@@ -130,26 +145,30 @@ export const AdminItineraries: React.FC = () => {
   };
 
   const handleToggleFeatured = async (id: string) => {
-    const current = itineraries.find(it => it.id === id);
+    const current = itineraries.find((it) => it.id === id);
     const nextFeatured = !current?.isFeatured;
     try {
       await toggleItineraryFeaturedInSupabase(id, nextFeatured);
-      setItineraries(prev =>
-        prev.map(it => (it.id === id ? { ...it, isFeatured: nextFeatured, isRecommended: nextFeatured } : it))
+      setItineraries((prev) =>
+        prev.map((it) =>
+          it.id === id ? { ...it, isFeatured: nextFeatured, isRecommended: nextFeatured } : it
+        )
       );
-      showToast(nextFeatured ? 'Roteiro adicionado aos destaques da Loja!' : 'Roteiro removido dos destaques.');
+      showToast(
+        nextFeatured ? 'Roteiro destacado na Loja.' : 'Roteiro removido dos destaques.'
+      );
     } catch (e: any) {
-      showToast('Erro ao alterar destaque no Supabase: ' + e.message, 'error');
+      showToast('Erro ao alterar destaque: ' + e.message, 'error');
     }
   };
 
   const handleTogglePremium = async (id: string) => {
-    const current = itineraries.find(it => it.id === id);
+    const current = itineraries.find((it) => it.id === id);
     const nextPremium = !current?.isPremium;
     try {
       await toggleItineraryPremiumInSupabase(id, nextPremium);
-      setItineraries(prev =>
-        prev.map(it =>
+      setItineraries((prev) =>
+        prev.map((it) =>
           it.id === id
             ? {
                 ...it,
@@ -164,55 +183,61 @@ export const AdminItineraries: React.FC = () => {
       );
       showToast(
         nextPremium
-          ? 'Roteiro definido como pago (15 Plátanos)!'
-          : 'Roteiro alterado para Grátis (Acesso Livre).'
+          ? 'Acesso alterado para Pago (15 Plátanos).'
+          : 'Acesso alterado para Grátis.'
       );
     } catch (e: any) {
-      showToast('Erro ao alterar acesso do roteiro: ' + e.message, 'error');
+      showToast('Erro ao alterar acesso: ' + e.message, 'error');
     }
   };
 
   const handleQuickStatusChange = async (id: string, newStatus: ItineraryStatus) => {
     try {
       await toggleItineraryStatusInSupabase(id, newStatus);
-      setItineraries(prev =>
-        prev.map(it => (it.id === id ? { ...it, status: newStatus, isActive: newStatus === 'published' } : it))
+      setItineraries((prev) =>
+        prev.map((it) =>
+          it.id === id ? { ...it, status: newStatus, isActive: newStatus === 'published' } : it
+        )
       );
-      showToast(`Status alterado para ${newStatus === 'published' ? 'Publicado' : newStatus === 'draft' ? 'Rascunho' : 'Oculto'}`);
+      showToast(
+        `Status atualizado para ${
+          newStatus === 'published'
+            ? 'Publicado'
+            : newStatus === 'draft'
+              ? 'Rascunho'
+              : 'Oculto'
+        }.`
+      );
     } catch (e: any) {
-      showToast('Erro ao alterar status no Supabase: ' + e.message, 'error');
+      showToast('Erro ao alterar status: ' + e.message, 'error');
     }
   };
 
-  const handleDeleteItinerary = async (id: string, title: string) => {
-    if (!window.confirm(`Tem certeza que deseja excluir permanentemente o roteiro "${title}"?`)) {
-      return;
-    }
-
+  const handleConfirmDelete = async () => {
+    if (!pendingDelete || isDeleting) return;
+    setIsDeleting(true);
     try {
-      await deleteItineraryFromSupabase(id);
-      setItineraries(prev => prev.filter(it => it.id !== id));
-      showToast(`Roteiro "${title}" excluído do Supabase.`);
-    } catch (e: any) {
-      showToast('Erro ao excluir no Supabase: ' + e.message, 'error');
-    }
-  };
-
-  const handleDeleteCategory = async (id: string, name: string) => {
-    if (!window.confirm(`Excluir a categoria "${name}"?`)) return;
-    try {
-      const res = await fetch(`/api/admin/itinerary-categories/${id}`, {
-        method: 'DELETE'
-      });
-      const data = await res.json();
-      if (data.success) {
-        setCategories(prev => prev.filter(c => c.id !== id));
-        showToast(`Categoria "${name}" excluída.`);
+      if (pendingDelete.type === 'itinerary') {
+        await deleteItineraryFromSupabase(pendingDelete.id);
+        setItineraries((prev) => prev.filter((it) => it.id !== pendingDelete.id));
+        showToast(`Roteiro "${pendingDelete.title}" excluído.`);
       } else {
-        showToast(data.error || 'Erro ao excluir categoria', 'error');
+        const res = await fetch(`/api/admin/itinerary-categories/${pendingDelete.id}`, {
+          method: 'DELETE',
+        });
+        const data = await res.json();
+        if (data.success) {
+          setCategories((prev) => prev.filter((c) => c.id !== pendingDelete.id));
+          showToast(`Categoria "${pendingDelete.title}" excluída.`);
+        } else {
+          showToast(data.error || 'Erro ao excluir categoria', 'error');
+        }
       }
+      setPendingDelete(null);
     } catch (e: any) {
-      showToast('Erro: ' + e.message, 'error');
+      showToast('Erro ao excluir: ' + e.message, 'error');
+    } finally {
+      setIsDeleting(false);
     }
   };
 
@@ -222,14 +247,16 @@ export const AdminItineraries: React.FC = () => {
       const res = await fetch(`/api/admin/itinerary-categories/${cat.id}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ isActive: nextActive })
+        body: JSON.stringify({ isActive: nextActive }),
       });
       const data = await res.json();
       if (data.success) {
-        setCategories(prev =>
-          prev.map(c => (c.id === cat.id ? { ...c, isActive: nextActive } : c))
+        setCategories((prev) =>
+          prev.map((c) => (c.id === cat.id ? { ...c, isActive: nextActive } : c))
         );
-        showToast(nextActive ? `Categoria "${cat.name}" ativada.` : `Categoria "${cat.name}" desativada.`);
+        showToast(
+          nextActive ? `Categoria "${cat.name}" ativada.` : `Categoria "${cat.name}" desativada.`
+        );
       }
     } catch (e: any) {
       showToast('Erro: ' + e.message, 'error');
@@ -237,232 +264,302 @@ export const AdminItineraries: React.FC = () => {
   };
 
   // Filtered itineraries
-  const filteredItineraries = itineraries.filter(it => {
+  const filteredItineraries = itineraries.filter((it) => {
+    const q = searchQuery.toLowerCase().trim();
     const matchesSearch =
-      it.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      it.description?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      it.categories.some(c => c.toLowerCase().includes(searchQuery.toLowerCase()));
+      !q ||
+      it.title.toLowerCase().includes(q) ||
+      (it.description || '').toLowerCase().includes(q) ||
+      (it.price || '').toLowerCase().includes(q) ||
+      (it.categories || []).some((c) => c.toLowerCase().includes(q));
 
     const currentStatus = it.status || (it.isActive ? 'published' : 'draft');
-    const matchesStatus =
-      statusFilter === 'all'
-        ? true
-        : currentStatus === statusFilter;
+    const matchesStatus = statusFilter === 'all' ? true : currentStatus === statusFilter;
 
     const matchesDays =
-      daysFilter === 'all' ? true : it.daysCount === daysFilter;
+      daysFilter === 'all'
+        ? true
+        : daysFilter === 3
+          ? it.daysCount >= 3
+          : it.daysCount === daysFilter;
 
     return matchesSearch && matchesStatus && matchesDays;
   });
 
-  // Featured list
-  const featuredItineraries = itineraries.filter(it => it.isFeatured || it.isRecommended);
-
   // Metrics
   const totalItineraries = itineraries.length;
-  const publishedItineraries = itineraries.filter(it => (it.status === 'published' || (!it.status && it.isActive))).length;
-  const draftItineraries = itineraries.filter(it => it.status === 'draft' || (!it.status && !it.isActive)).length;
-  const featuredCount = featuredItineraries.length;
+  const publishedItineraries = itineraries.filter(
+    (it) => it.status === 'published' || (!it.status && it.isActive)
+  ).length;
+  const draftItineraries = itineraries.filter(
+    (it) => it.status === 'draft' || it.status === 'hidden' || (!it.status && !it.isActive)
+  ).length;
+  const featuredCount = itineraries.filter((it) => it.isFeatured || it.isRecommended).length;
+  const activeCategoriesCount = categories.filter((c) => c.isActive).length;
+
+  const sectionTabs: Array<{
+    id: 'itineraries' | 'categories' | 'featured';
+    label: string;
+    count: number;
+    icon: React.ReactNode;
+  }> = [
+    {
+      id: 'itineraries',
+      label: 'Roteiros',
+      count: totalItineraries,
+      icon: <ShoppingBag className="w-[15px] h-[15px] stroke-[2]" />,
+    },
+    {
+      id: 'categories',
+      label: 'Categorias',
+      count: categories.length,
+      icon: <Tag className="w-[15px] h-[15px] stroke-[2]" />,
+    },
+    {
+      id: 'featured',
+      label: 'Destaques',
+      count: featuredCount,
+      icon: <Sparkles className="w-[15px] h-[15px] stroke-[2]" />,
+    },
+  ];
 
   return (
-    <div className="space-y-6" style={{ fontFamily: "'Inter', -apple-system, BlinkMacSystemFont, sans-serif" }}>
+    <div
+      className="space-y-4 sm:space-y-5"
+      style={{ fontFamily: "'Inter', -apple-system, BlinkMacSystemFont, sans-serif" }}
+    >
       {/* Toast Feedback */}
-      {toast && (
-        <div className="fixed top-5 right-5 z-50 animate-in slide-in-from-top-3 duration-200">
-          <div
-            className={`px-4 py-3 rounded-2xl shadow-xl flex items-center gap-2.5 text-xs font-bold ${
+      <AnimatePresence>
+        {toast && (
+          <motion.div
+            initial={prefersReducedMotion ? { opacity: 1 } : { opacity: 0, y: 12 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={prefersReducedMotion ? { opacity: 0 } : { opacity: 0, y: 8 }}
+            transition={{ duration: 0.18 }}
+            className={`fixed bottom-24 md:bottom-6 right-4 sm:right-6 z-[9998] px-4 py-3 rounded-2xl shadow-xl flex items-center gap-2.5 text-[12.5px] font-semibold border ${
               toast.type === 'success'
-                ? 'bg-zinc-900 text-white border border-white/10'
-                : 'bg-red-600 text-white'
+                ? 'bg-[#111318] text-white border-white/10'
+                : 'bg-[#B91C1C] text-white border-red-400/20'
             }`}
           >
             {toast.type === 'success' ? (
-              <CheckCircle2 className="w-4 h-4 text-blue-400" />
+              <CheckCircle2 className="w-4 h-4 text-[#4ADE80] shrink-0" />
             ) : (
-              <AlertCircle className="w-4 h-4" />
+              <AlertCircle className="w-4 h-4 text-white shrink-0" />
             )}
             <span>{toast.message}</span>
-          </div>
-        </div>
-      )}
+          </motion.div>
+        )}
+      </AnimatePresence>
 
-      {/* Header & Primary CTA */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-        <div>
-          <div className="flex items-center gap-2">
-            <h1 className="text-xl sm:text-2xl font-black text-zinc-900 tracking-tight">
-              Loja de Roteiros
-            </h1>
-            <span className="px-2.5 py-0.5 rounded-full bg-[#2563EB]/15 text-[#2563EB] text-[10px] font-black uppercase tracking-wider border border-[#2563EB]/25">
-              Administração
-            </span>
-          </div>
-          <p className="text-xs sm:text-sm text-zinc-600 font-semibold mt-0.5">
-            Gerencie os roteiros turísticos, preços, paradas organizadas e categorias da loja do Monvian.
+      {/* Clean Minimal Header & Primary Action */}
+      <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-3.5 pt-0.5">
+        <div className="max-w-xl">
+          <h1 className="text-[30px] sm:text-[34px] font-bold text-[#181C23] tracking-[-0.035em] leading-[1.08]">
+            Loja de Roteiros
+          </h1>
+          <p className="text-[14px] sm:text-[15px] font-normal text-[#6B7280] leading-[1.4] mt-1.5">
+            Gerencie roteiros turísticos, acessos, paradas e destaques da loja.
           </p>
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 shrink-0">
+          <button
+            type="button"
+            onClick={() => fetchData(true)}
+            disabled={refreshing}
+            aria-label="Atualizar lista de roteiros"
+            className="h-[42px] w-[42px] sm:w-auto sm:px-4 rounded-full bg-white border border-black/[0.06] text-[13px] font-semibold text-[#181C23] inline-flex items-center justify-center gap-2 cursor-pointer active:scale-[0.97] transition-all disabled:opacity-60"
+            style={{ boxShadow: PILL_SHADOW }}
+          >
+            <RefreshCw className={`w-4 h-4 text-[#374151] ${refreshing ? 'animate-spin' : ''}`} />
+            <span className="hidden sm:inline">
+              {refreshing ? 'Atualizando...' : 'Atualizar'}
+            </span>
+          </button>
+
           {activeAdminTab === 'categories' ? (
             <button
               type="button"
               onClick={handleOpenCreateCategory}
-              className="inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-zinc-900 hover:bg-black text-white font-black text-xs shadow-md transition-all cursor-pointer"
+              className="h-[42px] px-4 sm:px-5 rounded-full bg-[#111318] hover:bg-[#1F232B] active:scale-[0.98] text-white font-semibold text-[13px] inline-flex items-center justify-center gap-1.5 shadow-[0_6px_18px_-4px_rgba(17,19,24,0.32)] transition-all cursor-pointer"
             >
-              <Plus className="w-4 h-4 stroke-[3]" />
-              <span>+ Criar Categoria</span>
+              <Plus className="w-4 h-4 stroke-[2.4]" />
+              <span>Criar Categoria</span>
             </button>
           ) : (
             <button
               type="button"
               onClick={handleOpenCreateItinerary}
-              className="inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-zinc-900 hover:bg-black text-white font-black text-xs shadow-md transition-all cursor-pointer"
+              className="h-[42px] px-4 sm:px-5 rounded-full bg-[#111318] hover:bg-[#1F232B] active:scale-[0.98] text-white font-semibold text-[13px] inline-flex items-center justify-center gap-1.5 shadow-[0_6px_18px_-4px_rgba(17,19,24,0.32)] transition-all cursor-pointer"
             >
-              <Plus className="w-4 h-4 stroke-[3]" />
-              <span>+ Criar Roteiro</span>
+              <Plus className="w-4 h-4 stroke-[2.4]" />
+              <span>Criar Roteiro</span>
             </button>
           )}
         </div>
       </div>
 
-      {/* Admin Tab Switcher */}
-      <div className="flex items-center border-b border-zinc-200 gap-2">
-        <button
-          type="button"
-          onClick={() => setActiveAdminTab('itineraries')}
-          className={`px-4 py-3 text-xs font-black border-b-2 transition-all cursor-pointer flex items-center gap-2 ${
-            activeAdminTab === 'itineraries'
-              ? 'border-zinc-900 text-zinc-900'
-              : 'border-transparent text-zinc-500 hover:text-zinc-900'
-          }`}
+      {/* Compact KPI Metrics Row (2x2 mobile, 4 cols desktop) */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+        <div
+          className="rounded-[22px] bg-white border border-black/[0.04] p-3.5 flex items-center gap-3"
+          style={{ boxShadow: CARD_SHADOW }}
         >
-          <ShoppingBag className="w-4 h-4" />
-          <span>Roteiros da Loja ({totalItineraries})</span>
-        </button>
-
-        <button
-          type="button"
-          onClick={() => setActiveAdminTab('categories')}
-          className={`px-4 py-3 text-xs font-black border-b-2 transition-all cursor-pointer flex items-center gap-2 ${
-            activeAdminTab === 'categories'
-              ? 'border-zinc-900 text-zinc-900'
-              : 'border-transparent text-zinc-500 hover:text-zinc-900'
-          }`}
-        >
-          <Tag className="w-4 h-4" />
-          <span>Categorias da Loja ({categories.length})</span>
-        </button>
-
-        <button
-          type="button"
-          onClick={() => setActiveAdminTab('featured')}
-          className={`px-4 py-3 text-xs font-black border-b-2 transition-all cursor-pointer flex items-center gap-2 ${
-            activeAdminTab === 'featured'
-              ? 'border-zinc-900 text-zinc-900'
-              : 'border-transparent text-zinc-500 hover:text-zinc-900'
-          }`}
-        >
-          <Sparkles className="w-4 h-4" />
-          <span>Destaques da Loja ({featuredCount})</span>
-        </button>
-      </div>
-
-      {/* Metrics Cards */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
-        <div className="p-4 rounded-2xl bg-white border border-zinc-200 shadow-2xs">
-          <div className="text-[11px] font-black text-zinc-500 uppercase tracking-wider mb-1">
-            Roteiros Publicados
+          <div className="w-10 h-10 rounded-full bg-[#E7F6EC] text-[#15803D] flex items-center justify-center shrink-0">
+            <CheckCircle2 className="w-[18px] h-[18px] stroke-[2]" />
           </div>
-          <div className="flex items-baseline gap-2">
-            <span className="text-2xl font-black text-emerald-600">
-              {publishedItineraries}
+          <div className="min-w-0">
+            <span className="block text-[21px] sm:text-[23px] font-bold text-[#181C23] tracking-[-0.03em] leading-none tabular-nums">
+              {loading ? '—' : publishedItineraries}
             </span>
-            <span className="text-xs text-zinc-500 font-semibold">
-              na loja ativa
+            <span className="block text-[12px] text-[#6B7280] font-medium mt-1 truncate">
+              Publicados
             </span>
           </div>
         </div>
 
-        <div className="p-4 rounded-2xl bg-white border border-zinc-200 shadow-2xs">
-          <div className="text-[11px] font-black text-zinc-500 uppercase tracking-wider mb-1">
-            Rascunhos / Ocultos
+        <div
+          className="rounded-[22px] bg-white border border-black/[0.04] p-3.5 flex items-center gap-3"
+          style={{ boxShadow: CARD_SHADOW }}
+        >
+          <div className="w-10 h-10 rounded-full bg-[#F2F3F5] text-[#374151] flex items-center justify-center shrink-0">
+            <Clock className="w-[18px] h-[18px] stroke-[2]" />
           </div>
-          <div className="flex items-baseline gap-2">
-            <span className="text-2xl font-black text-amber-500">
-              {draftItineraries}
+          <div className="min-w-0">
+            <span className="block text-[21px] sm:text-[23px] font-bold text-[#181C23] tracking-[-0.03em] leading-none tabular-nums">
+              {loading ? '—' : draftItineraries}
             </span>
-            <span className="text-xs text-zinc-500 font-semibold">
-              em edição
-            </span>
-          </div>
-        </div>
-
-        <div className="p-4 rounded-2xl bg-white border border-zinc-200 shadow-2xs">
-          <div className="text-[11px] font-black text-zinc-500 uppercase tracking-wider mb-1">
-            Roteiros em Destaque
-          </div>
-          <div className="flex items-baseline gap-2">
-            <span className="text-2xl font-black text-[#2563EB]">
-              {featuredCount}
-            </span>
-            <span className="text-xs text-zinc-500 font-semibold">
-              no carrossel
+            <span className="block text-[12px] text-[#6B7280] font-medium mt-1 truncate">
+              Rascunhos / Ocultos
             </span>
           </div>
         </div>
 
-        <div className="p-4 rounded-2xl bg-white border border-zinc-200 shadow-2xs">
-          <div className="text-[11px] font-black text-zinc-500 uppercase tracking-wider mb-1">
-            Categorias Ativas
+        <div
+          className="rounded-[22px] bg-white border border-black/[0.04] p-3.5 flex items-center gap-3"
+          style={{ boxShadow: CARD_SHADOW }}
+        >
+          <div className="w-10 h-10 rounded-full bg-[#EFF4FF] text-[#2563EB] flex items-center justify-center shrink-0">
+            <Sparkles className="w-[18px] h-[18px] stroke-[2]" />
           </div>
-          <div className="flex items-baseline gap-2">
-            <span className="text-2xl font-black text-zinc-900">
-              {categories.filter(c => c.isActive).length}
+          <div className="min-w-0">
+            <span className="block text-[21px] sm:text-[23px] font-bold text-[#181C23] tracking-[-0.03em] leading-none tabular-nums">
+              {loading ? '—' : featuredCount}
             </span>
-            <span className="text-xs text-zinc-500 font-semibold">
-              de {categories.length} totais
+            <span className="block text-[12px] text-[#6B7280] font-medium mt-1 truncate">
+              Em destaque
+            </span>
+          </div>
+        </div>
+
+        <div
+          className="rounded-[22px] bg-white border border-black/[0.04] p-3.5 flex items-center gap-3"
+          style={{ boxShadow: CARD_SHADOW }}
+        >
+          <div className="w-10 h-10 rounded-full bg-[#F2F3F5] text-[#374151] flex items-center justify-center shrink-0">
+            <Tag className="w-[18px] h-[18px] stroke-[2]" />
+          </div>
+          <div className="min-w-0">
+            <span className="block text-[21px] sm:text-[23px] font-bold text-[#181C23] tracking-[-0.03em] leading-none tabular-nums">
+              {loading ? '—' : activeCategoriesCount}
+            </span>
+            <span className="block text-[12px] text-[#6B7280] font-medium mt-1 truncate">
+              Categorias ativas
             </span>
           </div>
         </div>
       </div>
 
-      {/* TAB 1: ROTEIROS DA LOJA */}
+      {/* Horizontal Section Tabs (Matching AdminItineraryModal style) */}
+      <div className="border-b border-black/[0.06]">
+        <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar">
+          {sectionTabs.map((tab) => {
+            const isSelected = activeAdminTab === tab.id;
+            return (
+              <button
+                key={tab.id}
+                type="button"
+                onClick={() => setActiveAdminTab(tab.id)}
+                className={`relative px-3.5 py-3 text-[13.5px] font-semibold transition-colors cursor-pointer shrink-0 flex items-center gap-1.5 whitespace-nowrap ${
+                  isSelected ? 'text-[#111827]' : 'text-[#858585] hover:text-[#374151]'
+                }`}
+              >
+                <span className={isSelected ? 'text-[#2563EB]' : 'text-[#9CA3AF]'}>{tab.icon}</span>
+                <span>{tab.label}</span>
+                <span
+                  className={`px-1.5 py-0.5 rounded-full text-[10.5px] font-bold leading-none tabular-nums ${
+                    isSelected
+                      ? 'bg-[#2563EB]/12 text-[#2563EB]'
+                      : 'bg-[#ECEEF2] text-[#4B5563]'
+                  }`}
+                >
+                  {tab.count}
+                </span>
+                {isSelected && (
+                  <motion.span
+                    layoutId="admin-itineraries-section-tab-line"
+                    transition={{ type: 'spring', stiffness: 460, damping: 36 }}
+                    className="absolute bottom-0 left-2 right-2 h-[2.5px] rounded-full bg-[#2563EB]"
+                  />
+                )}
+              </button>
+            );
+          })}
+        </div>
+      </div>
+
+      {/* ====================================================================
+          TAB 1: ROTEIROS DA LOJA
+         ==================================================================== */}
       {activeAdminTab === 'itineraries' && (
         <div className="space-y-4">
-          {/* Filters Bar */}
-          <div className="p-4 rounded-2xl bg-white border border-zinc-200 shadow-2xs space-y-3">
-            <div className="flex flex-col sm:flex-row items-center gap-3">
-              {/* Search */}
-              <div className="relative flex-1 w-full">
-                <Search className="w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2 text-zinc-400" />
+          {/* Compact Search & Filter Row */}
+          <div className="space-y-2.5">
+            <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2.5">
+              {/* Pill Search Input */}
+              <div className="relative flex-1">
+                <Search className="w-4 h-4 absolute left-4 top-1/2 -translate-y-1/2 text-[#9CA3AF] pointer-events-none" />
                 <input
                   type="text"
                   value={searchQuery}
-                  onChange={e => setSearchQuery(e.target.value)}
+                  onChange={(e) => setSearchQuery(e.target.value)}
                   placeholder="Buscar roteiro por nome, preço ou categoria..."
-                  className="w-full pl-10 pr-4 py-2 bg-zinc-50 border border-zinc-200 rounded-xl text-xs text-zinc-900 font-semibold focus:outline-hidden focus:border-[#2563EB]"
+                  className="w-full h-[44px] pl-10 pr-9 bg-white border border-black/[0.06] rounded-full text-[13.5px] text-[#111827] font-medium placeholder:text-[#9CA3AF] focus:outline-none focus:border-[#2563EB] focus:ring-2 focus:ring-[#2563EB]/12 transition-all"
+                  style={{ boxShadow: PILL_SHADOW }}
                 />
+                {searchQuery && (
+                  <button
+                    type="button"
+                    onClick={() => setSearchQuery('')}
+                    aria-label="Limpar pesquisa"
+                    className="absolute right-3 top-1/2 -translate-y-1/2 w-6 h-6 rounded-full bg-[#F2F3F5] text-[#4B5563] flex items-center justify-center cursor-pointer"
+                  >
+                    <X className="w-3 h-3" />
+                  </button>
+                )}
               </div>
 
-              {/* Status Filters */}
-              <div className="flex items-center gap-2 w-full sm:w-auto overflow-x-auto no-scrollbar py-0.5">
+              {/* Status Filter Pills */}
+              <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar py-0.5">
                 {[
                   { label: 'Todos', value: 'all' as const },
                   { label: 'Publicados', value: 'published' as const },
                   { label: 'Rascunhos', value: 'draft' as const },
                   { label: 'Ocultos', value: 'hidden' as const },
-                ].map(s => {
+                ].map((s) => {
                   const isSelected = statusFilter === s.value;
                   return (
                     <button
                       key={s.value}
                       type="button"
                       onClick={() => setStatusFilter(s.value)}
-                      className={`h-[34px] px-3.5 rounded-full text-xs font-medium whitespace-nowrap transition-all duration-200 ease-out cursor-pointer inline-flex items-center select-none active:scale-[0.96] ${
+                      className={`h-[36px] px-3.5 rounded-full text-[12.5px] font-semibold whitespace-nowrap transition-all cursor-pointer shrink-0 active:scale-[0.97] border ${
                         isSelected
-                          ? 'bg-[#E5E5EA] text-zinc-900 border border-black/[0.06] shadow-[inset_0_1.5px_2.5px_rgba(0,0,0,0.12)] font-semibold'
-                          : 'bg-white text-zinc-700 border border-zinc-200/90 shadow-[0_2px_5px_-1px_rgba(0,0,0,0.07),_0_1px_2px_rgba(0,0,0,0.04)] hover:shadow-[0_3px_8px_-1px_rgba(0,0,0,0.09)]'
+                          ? 'bg-[#111318] text-white border-[#111318]'
+                          : 'bg-white text-[#4B5563] border-black/[0.06] hover:border-black/[0.14]'
                       }`}
+                      style={isSelected ? undefined : { boxShadow: PILL_SHADOW }}
                     >
                       {s.label}
                     </button>
@@ -471,11 +568,13 @@ export const AdminItineraries: React.FC = () => {
               </div>
             </div>
 
-            {/* Days Filters */}
-            <div className="flex items-center gap-2 pt-1.5 border-t border-zinc-100 overflow-x-auto text-xs py-0.5">
-              <span className="text-zinc-500 font-medium shrink-0">Duração:</span>
+            {/* Compact Duration Chips */}
+            <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar">
+              <span className="text-[12px] text-[#858585] font-medium mr-1 shrink-0">
+                Duração:
+              </span>
               {[
-                { label: 'Todas as durações', value: 'all' as const },
+                { label: 'Todas', value: 'all' as const },
                 { label: '1 Dia', value: 1 },
                 { label: '2 Dias', value: 2 },
                 { label: '3+ Dias', value: 3 },
@@ -486,10 +585,10 @@ export const AdminItineraries: React.FC = () => {
                     key={idx}
                     type="button"
                     onClick={() => setDaysFilter(item.value)}
-                    className={`h-[28px] px-3 rounded-full text-[11px] font-medium whitespace-nowrap transition-all duration-200 ease-out cursor-pointer inline-flex items-center select-none active:scale-[0.96] ${
+                    className={`h-[30px] px-3 rounded-full text-[12px] font-semibold whitespace-nowrap transition-all cursor-pointer shrink-0 border ${
                       isSelected
-                        ? 'bg-[#E5E5EA] text-zinc-900 border border-black/[0.06] shadow-[inset_0_1.5px_2px_rgba(0,0,0,0.1)] font-semibold'
-                        : 'bg-white text-zinc-700 border border-zinc-200/90 shadow-[0_1.5px_4px_rgba(0,0,0,0.06)]'
+                        ? 'bg-[#2563EB]/10 text-[#1D4ED8] border-[#2563EB]'
+                        : 'bg-white text-[#4B5563] border-black/[0.06] hover:border-black/[0.14]'
                     }`}
                   >
                     {item.label}
@@ -499,140 +598,205 @@ export const AdminItineraries: React.FC = () => {
             </div>
           </div>
 
-          {/* List of Itineraries */}
+          {/* Itinerary Cards Grid */}
           {loading ? (
-            <div className="py-16 text-center">
-              <div className="inline-block w-8 h-8 border-2 border-[#2563EB] border-t-transparent rounded-full animate-spin mb-3" />
-              <p className="text-xs text-zinc-500 font-bold">Carregando roteiros...</p>
+            <div className="py-16 text-center flex flex-col items-center gap-2.5">
+              <RefreshCw className="w-6 h-6 text-[#2563EB] animate-spin" />
+              <p className="text-[13px] text-[#6B7280] font-medium">Carregando roteiros...</p>
             </div>
           ) : filteredItineraries.length === 0 ? (
-            <div className="py-16 text-center border border-dashed border-zinc-300 rounded-3xl bg-white p-6 space-y-3">
-              <Compass className="w-10 h-10 text-zinc-400 mx-auto" />
-              <h3 className="text-sm font-black text-zinc-900">
+            <div
+              className="py-14 px-6 text-center rounded-[26px] bg-white border border-dashed border-[#D8DCE3] flex flex-col items-center gap-2.5"
+              style={{ boxShadow: CARD_SHADOW }}
+            >
+              <span className="w-12 h-12 rounded-full bg-[#F2F3F5] text-[#6B7280] flex items-center justify-center">
+                <Compass className="w-6 h-6 stroke-[1.8]" />
+              </span>
+              <h3 className="text-[15.5px] font-bold text-[#111827]">
                 Nenhum roteiro encontrado
               </h3>
-              <p className="text-xs text-zinc-500 max-w-sm mx-auto font-medium">
-                Crie um novo roteiro para abastecer a Loja de Roteiros Turísticos.
+              <p className="text-[13px] text-[#6B7280] max-w-sm">
+                Crie um novo roteiro ou ajuste os filtros para visualizar a loja.
               </p>
               <button
                 type="button"
                 onClick={handleOpenCreateItinerary}
-                className="px-4 py-2 rounded-xl bg-[#2563EB] text-white text-xs font-black shadow-md cursor-pointer hover:bg-blue-600"
+                className="mt-2 h-[42px] px-5 rounded-full bg-[#111318] hover:bg-[#1F232B] text-white text-[13px] font-semibold inline-flex items-center gap-1.5 cursor-pointer transition-all"
               >
-                + Criar Roteiro Agora
+                <Plus className="w-4 h-4 stroke-[2.4]" />
+                <span>Criar Roteiro</span>
               </button>
             </div>
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-              {filteredItineraries.map(it => {
-                const placesCount = it.placesCount || it.days?.reduce((acc, d) => acc + (d.steps?.length || 0), 0) || 0;
+              {filteredItineraries.map((it) => {
+                const placesCount =
+                  it.placesCount ||
+                  it.days?.reduce((acc, d) => acc + (d.steps?.length || 0), 0) ||
+                  0;
                 const itStatus = it.status || (it.isActive ? 'published' : 'draft');
-                const isFeaturedActive = it.isFeatured || it.isRecommended;
+                const isFeaturedActive = Boolean(it.isFeatured || it.isRecommended);
+                const isPaid = Boolean(it.isPremium);
 
                 return (
                   <div
                     key={it.id}
-                    className="bg-white border border-zinc-200 rounded-2xl overflow-hidden shadow-2xs hover:shadow-md transition-shadow flex flex-col justify-between"
+                    className="rounded-[24px] bg-white border border-black/[0.05] overflow-hidden flex flex-col justify-between transition-all hover:shadow-[0_12px_30px_-8px_rgba(15,23,42,0.10)]"
+                    style={{ boxShadow: CARD_SHADOW }}
                   >
                     <div>
-                      {/* Image & Overlay Badges */}
-                      <div className="relative aspect-16/9 w-full bg-zinc-100 overflow-hidden">
+                      {/* Clean Cover Photo Header */}
+                      <div
+                        onClick={() => handleOpenEditItinerary(it)}
+                        className="relative aspect-[16/10] w-full bg-[#F2F3F5] overflow-hidden cursor-pointer group"
+                      >
                         <img
                           src={it.coverImage}
                           alt={it.title}
-                          className="w-full h-full object-cover"
+                          loading="lazy"
+                          className="w-full h-full object-cover group-hover:scale-[1.03] transition-transform duration-300"
                         />
-                        <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/25 to-transparent" />
+                        <div className="absolute inset-0 bg-gradient-to-t from-black/50 via-transparent to-black/15" />
 
-                        {/* Top Badges */}
-                        <div className="absolute top-2.5 left-2.5 right-2.5 flex items-center justify-between">
-                          <span className="px-2.5 py-1 rounded-full text-[11px] font-black bg-black/70 text-white border border-white/10 flex items-center gap-1">
-                            <Calendar className="w-3 h-3 text-white" />
-                            <span>{it.daysCount} {it.daysCount === 1 ? 'Dia' : 'Dias'}</span>
+                        {/* Top Row: Duration/Stops + Featured Star */}
+                        <div className="absolute top-3 left-3 right-3 flex items-center justify-between gap-2">
+                          <span className="px-2.5 py-1 rounded-full text-[11px] font-semibold bg-black/55 backdrop-blur-md text-white inline-flex items-center gap-1.5 tabular-nums">
+                            <Calendar className="w-3 h-3" />
+                            <span>
+                              {it.daysCount} {it.daysCount === 1 ? 'dia' : 'dias'}
+                            </span>
+                            <span className="text-white/50">·</span>
+                            <MapPin className="w-3 h-3" />
+                            <span>
+                              {placesCount} {placesCount === 1 ? 'parada' : 'paradas'}
+                            </span>
                           </span>
 
-                          <div className="flex items-center gap-1.5">
-                            {/* Star featured toggle */}
-                            <button
-                              type="button"
-                              onClick={() => handleToggleFeatured(it.id)}
-                              className={`p-1.5 rounded-full transition-all cursor-pointer ${
-                                isFeaturedActive
-                                  ? 'bg-amber-400 text-zinc-900 shadow-md'
-                                  : 'bg-black/60 text-white/70 hover:text-white'
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleToggleFeatured(it.id);
+                            }}
+                            className={`w-8 h-8 rounded-full flex items-center justify-center transition-all cursor-pointer active:scale-95 ${
+                              isFeaturedActive
+                                ? 'bg-white text-[#111827] shadow-md'
+                                : 'bg-black/45 backdrop-blur-md text-white/85 hover:bg-black/65'
+                            }`}
+                            title={
+                              isFeaturedActive
+                                ? 'Remover dos destaques da loja'
+                                : 'Destacar na loja'
+                            }
+                          >
+                            <Star
+                              className={`w-3.5 h-3.5 ${
+                                isFeaturedActive ? 'fill-[#F59E0B] text-[#F59E0B]' : ''
                               }`}
-                              title={isFeaturedActive ? 'Remover dos destaques da loja' : 'Destacar na loja'}
-                            >
-                              <Star className={`w-3.5 h-3.5 ${isFeaturedActive ? 'fill-current' : ''}`} />
-                            </button>
-
-                            {/* Status badge */}
-                            <span
-                              className={`px-2 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider ${
-                                itStatus === 'published'
-                                  ? 'bg-emerald-500 text-white'
-                                  : itStatus === 'draft'
-                                  ? 'bg-amber-500 text-zinc-900'
-                                  : 'bg-zinc-600 text-white'
-                              }`}
-                            >
-                              {itStatus === 'published' ? 'Publicado' : itStatus === 'draft' ? 'Rascunho' : 'Oculto'}
-                            </span>
-                          </div>
+                            />
+                          </button>
                         </div>
 
-                        {/* Bottom Info on Image */}
-                        <div className="absolute bottom-2.5 left-2.5 right-2.5 flex items-center justify-between text-white text-[11px] font-bold">
-                          <div className="flex items-center gap-1">
-                            <MapPin className="w-3.5 h-3.5 text-white" />
-                            <span>{placesCount} {placesCount === 1 ? 'parada' : 'paradas'}</span>
-                          </div>
-                        </div>
+                        {/* Bottom-Right Access Pill (Clickable quick toggle Grátis / 15 Plátanos) */}
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleTogglePremium(it.id);
+                          }}
+                          title="Alternar entre Grátis e 15 Plátanos"
+                          className={`absolute bottom-3 right-3 px-2.5 py-1 rounded-full backdrop-blur-md text-[11px] font-semibold inline-flex items-center gap-1 transition-transform active:scale-95 cursor-pointer ${
+                            isPaid
+                              ? 'bg-[#111318]/85 text-white'
+                              : 'bg-[#E7F6EC]/95 text-[#15803D]'
+                          }`}
+                        >
+                          {isPaid && (
+                            <PlatanoLeafIcon className="w-3.5 h-3.5" variant="monochrome" />
+                          )}
+                          <span>{isPaid ? '15 Plátanos' : 'Grátis'}</span>
+                        </button>
                       </div>
 
-                      {/* Content */}
+                      {/* Card Body */}
                       <div className="p-4 space-y-2">
-                        <h3 className="font-black text-sm text-zinc-900 line-clamp-1">
-                          {it.title}
-                        </h3>
-                        <p className="text-xs text-zinc-500 font-medium line-clamp-2 leading-relaxed">
+                        <div className="flex items-start justify-between gap-2">
+                          <h3
+                            onClick={() => handleOpenEditItinerary(it)}
+                            className="text-[15.5px] font-bold text-[#111827] tracking-[-0.015em] leading-snug line-clamp-1 cursor-pointer hover:text-[#2563EB] transition-colors"
+                          >
+                            {it.title}
+                          </h3>
+                          <span
+                            className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10.5px] font-semibold shrink-0 ${
+                              itStatus === 'published'
+                                ? 'bg-[#E7F6EC] text-[#15803D]'
+                                : itStatus === 'draft'
+                                  ? 'bg-[#FEF3C7] text-[#92400E]'
+                                  : 'bg-[#F2F3F5] text-[#4B5563]'
+                            }`}
+                          >
+                            <span
+                              className={`w-1.5 h-1.5 rounded-full ${
+                                itStatus === 'published'
+                                  ? 'bg-[#22C55E]'
+                                  : itStatus === 'draft'
+                                    ? 'bg-[#D97706]'
+                                    : 'bg-[#6B7280]'
+                              }`}
+                            />
+                            {itStatus === 'published'
+                              ? 'Publicado'
+                              : itStatus === 'draft'
+                                ? 'Rascunho'
+                                : 'Oculto'}
+                          </span>
+                        </div>
+
+                        <p className="text-[12.5px] text-[#6B7280] line-clamp-2 leading-relaxed">
                           {it.description || 'Roteiro turístico exclusivo em Campos do Jordão.'}
                         </p>
 
-                        {/* Category Tags */}
                         {Array.isArray(it.categories) && it.categories.length > 0 && (
-                          <div className="flex flex-wrap gap-1 pt-1">
-                            {it.categories.map((cId, idx) => (
+                          <div className="flex flex-wrap gap-1.5 pt-0.5">
+                            {it.categories.slice(0, 3).map((cId, idx) => (
                               <span
                                 key={idx}
-                                className="px-2 py-0.5 rounded-md text-[10px] font-bold bg-zinc-100 text-zinc-700"
+                                className="px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-[#F2F3F5] text-[#374151]"
                               >
                                 {cId}
                               </span>
                             ))}
+                            {it.categories.length > 3 && (
+                              <span className="px-2 py-0.5 rounded-full text-[11px] font-semibold bg-[#F2F3F5] text-[#6B7280]">
+                                +{it.categories.length - 3}
+                              </span>
+                            )}
                           </div>
                         )}
                       </div>
                     </div>
 
-                    {/* Actions Footer */}
-                    <div className="px-4 py-3 border-t border-zinc-100 flex items-center justify-between bg-zinc-50/50">
-                      {/* Status Selector dropdown */}
+                    {/* Clean Compact Actions Footer */}
+                    <div className="px-4 py-3 border-t border-[#F2F3F5] flex items-center justify-between gap-2">
                       <select
                         value={itStatus}
-                        onChange={e => handleQuickStatusChange(it.id, e.target.value as ItineraryStatus)}
-                        className="text-[11px] font-bold px-2 py-1 rounded-lg bg-zinc-100 text-zinc-700 border-none cursor-pointer"
+                        onChange={(e) =>
+                          handleQuickStatusChange(it.id, e.target.value as ItineraryStatus)
+                        }
+                        aria-label={`Status do roteiro ${it.title}`}
+                        className="h-8 px-3 rounded-full bg-[#F5F6F8] hover:bg-[#ECEEF2] text-[#111827] text-[12px] font-semibold border border-black/[0.04] outline-none cursor-pointer transition-colors"
                       >
                         <option value="published">Publicado</option>
                         <option value="draft">Rascunho</option>
                         <option value="hidden">Oculto</option>
                       </select>
 
-                      <div className="flex items-center gap-1">
+                      <div className="flex items-center gap-1.5">
                         <button
                           type="button"
                           onClick={() => handleDuplicate(it.id, it.title)}
-                          className="p-1.5 text-zinc-500 hover:text-zinc-900 rounded-lg hover:bg-zinc-200 transition-colors cursor-pointer"
+                          className="w-8 h-8 rounded-full bg-[#F5F6F8] hover:bg-[#EAECEF] text-[#4B5563] hover:text-[#111827] flex items-center justify-center transition-colors cursor-pointer"
                           title="Duplicar roteiro"
                         >
                           <Copy className="w-3.5 h-3.5" />
@@ -640,15 +804,18 @@ export const AdminItineraries: React.FC = () => {
                         <button
                           type="button"
                           onClick={() => handleOpenEditItinerary(it)}
-                          className="p-1.5 text-zinc-500 hover:text-zinc-900 rounded-lg hover:bg-zinc-200 transition-colors cursor-pointer"
+                          className="h-8 px-3 rounded-full bg-[#F5F6F8] hover:bg-[#EAECEF] text-[#111827] text-[12px] font-semibold inline-flex items-center gap-1.5 transition-colors cursor-pointer"
                           title="Editar roteiro"
                         >
                           <Edit className="w-3.5 h-3.5" />
+                          <span>Editar</span>
                         </button>
                         <button
                           type="button"
-                          onClick={() => handleDeleteItinerary(it.id, it.title)}
-                          className="p-1.5 text-zinc-500 hover:text-red-500 rounded-lg hover:bg-zinc-200 transition-colors cursor-pointer"
+                          onClick={() =>
+                            setPendingDelete({ type: 'itinerary', id: it.id, title: it.title })
+                          }
+                          className="w-8 h-8 rounded-full bg-[#FCECEC] hover:bg-[#FADADA] text-[#B91C1C] flex items-center justify-center transition-colors cursor-pointer"
                           title="Excluir roteiro"
                         >
                           <Trash2 className="w-3.5 h-3.5" />
@@ -663,68 +830,79 @@ export const AdminItineraries: React.FC = () => {
         </div>
       )}
 
-      {/* TAB 2: CATEGORIAS DA LOJA */}
+      {/* ====================================================================
+          TAB 2: CATEGORIAS DA LOJA
+         ==================================================================== */}
       {activeAdminTab === 'categories' && (
-        <div className="space-y-4">
-          <div className="flex items-center justify-between">
-            <p className="text-xs text-zinc-500 font-semibold">
-              Filtros e categorias exibidos horizontalmente na Loja de Roteiros.
+        <div className="space-y-3.5">
+          <div className="flex items-center justify-between gap-3">
+            <p className="text-[13px] text-[#6B7280] font-medium">
+              Filtros exibidos horizontalmente na Loja de Roteiros.
             </p>
             <button
               type="button"
               onClick={handleOpenCreateCategory}
-              className="px-3.5 py-1.5 rounded-xl bg-[#2563EB] text-white text-xs font-black flex items-center gap-1.5 shadow-sm hover:bg-blue-600 cursor-pointer"
+              className="h-9 px-4 rounded-full bg-[#111318] hover:bg-[#1F232B] text-white text-[12.5px] font-semibold inline-flex items-center gap-1.5 cursor-pointer transition-all shrink-0"
             >
-              <Plus className="w-3.5 h-3.5 stroke-[3]" />
+              <Plus className="w-3.5 h-3.5 stroke-[2.4]" />
               <span>Nova Categoria</span>
             </button>
           </div>
 
-          <div className="bg-white border border-zinc-200 rounded-2xl overflow-hidden shadow-2xs">
-            <div className="divide-y divide-zinc-200">
-              {categories.map(cat => (
+          <div
+            className="rounded-[24px] bg-white border border-black/[0.05] overflow-hidden divide-y divide-[#F0F1F4]"
+            style={{ boxShadow: CARD_SHADOW }}
+          >
+            {categories.length === 0 ? (
+              <div className="py-12 text-center text-[13px] text-[#6B7280]">
+                Nenhuma categoria cadastrada.
+              </div>
+            ) : (
+              categories.map((cat) => (
                 <div
                   key={cat.id}
-                  className="p-4 flex items-center justify-between gap-4 hover:bg-zinc-50 transition-colors"
+                  className="px-4 py-3.5 flex items-center justify-between gap-3 hover:bg-[#FAFAFB] transition-colors"
                 >
-                  <div className="flex items-center gap-3">
-                    <div className="w-9 h-9 rounded-xl bg-[#2563EB]/15 text-[#2563EB] flex items-center justify-center font-bold">
-                      <Tag className="w-4 h-4" />
+                  <div className="flex items-center gap-3 min-w-0">
+                    <div className="w-9 h-9 rounded-full bg-[#F2F3F5] text-[#111827] flex items-center justify-center shrink-0">
+                      <Tag className="w-4 h-4 stroke-[2]" />
                     </div>
-                    <div>
-                      <div className="flex items-center gap-2">
-                        <span className="font-black text-sm text-zinc-900">
+                    <div className="min-w-0">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span className="text-[14.5px] font-bold text-[#111827] truncate">
                           {cat.name}
                         </span>
-                        <span className="text-[10px] font-bold text-zinc-400">
-                          (id: {cat.id})
+                        <span
+                          className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10.5px] font-semibold ${
+                            cat.isActive
+                              ? 'bg-[#E7F6EC] text-[#15803D]'
+                              : 'bg-[#F2F3F5] text-[#6B7280]'
+                          }`}
+                        >
+                          <span
+                            className={`w-1.5 h-1.5 rounded-full ${
+                              cat.isActive ? 'bg-[#22C55E]' : 'bg-[#9CA3AF]'
+                            }`}
+                          />
+                          {cat.isActive ? 'Ativa' : 'Inativa'}
                         </span>
-                        {cat.isActive ? (
-                          <span className="px-2 py-0.5 rounded-md bg-emerald-500/15 text-emerald-600 text-[10px] font-bold">
-                            Ativa na Loja
-                          </span>
-                        ) : (
-                          <span className="px-2 py-0.5 rounded-md bg-zinc-500/15 text-zinc-500 text-[10px] font-bold">
-                            Inativa
-                          </span>
-                        )}
                       </div>
                       {cat.description && (
-                        <p className="text-xs text-zinc-500 mt-0.5 font-medium">
+                        <p className="text-[12px] text-[#6B7280] mt-0.5 truncate">
                           {cat.description}
                         </p>
                       )}
                     </div>
                   </div>
 
-                  <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-1.5 shrink-0">
                     <button
                       type="button"
                       onClick={() => handleToggleCategoryActive(cat)}
-                      className={`text-xs font-bold px-2.5 py-1 rounded-lg transition-colors cursor-pointer ${
+                      className={`h-8 px-3 rounded-full text-[12px] font-semibold transition-colors cursor-pointer ${
                         cat.isActive
-                          ? 'bg-zinc-100 text-zinc-600'
-                          : 'bg-emerald-500/20 text-emerald-600'
+                          ? 'bg-[#F2F3F5] text-[#4B5563] hover:bg-[#E5E7EB]'
+                          : 'bg-[#E7F6EC] text-[#15803D] hover:bg-[#D5EEDF]'
                       }`}
                     >
                       {cat.isActive ? 'Desativar' : 'Ativar'}
@@ -732,74 +910,89 @@ export const AdminItineraries: React.FC = () => {
                     <button
                       type="button"
                       onClick={() => handleOpenEditCategory(cat)}
-                      className="p-2 text-zinc-500 hover:text-zinc-900 rounded-lg hover:bg-zinc-100 cursor-pointer"
+                      className="w-8 h-8 rounded-full bg-[#F5F6F8] hover:bg-[#EAECEF] text-[#4B5563] hover:text-[#111827] flex items-center justify-center cursor-pointer transition-colors"
                       title="Editar categoria"
                     >
-                      <Edit className="w-4 h-4" />
+                      <Edit className="w-3.5 h-3.5" />
                     </button>
                     <button
                       type="button"
-                      onClick={() => handleDeleteCategory(cat.id, cat.name)}
-                      className="p-2 text-zinc-500 hover:text-red-500 rounded-lg hover:bg-zinc-100 cursor-pointer"
+                      onClick={() =>
+                        setPendingDelete({ type: 'category', id: cat.id, title: cat.name })
+                      }
+                      className="w-8 h-8 rounded-full bg-[#FCECEC] hover:bg-[#FADADA] text-[#B91C1C] flex items-center justify-center cursor-pointer transition-colors"
                       title="Excluir categoria"
                     >
-                      <Trash2 className="w-4 h-4" />
+                      <Trash2 className="w-3.5 h-3.5" />
                     </button>
                   </div>
                 </div>
-              ))}
-            </div>
+              ))
+            )}
           </div>
         </div>
       )}
 
-      {/* TAB 3: DESTAQUES DA LOJA */}
+      {/* ====================================================================
+          TAB 3: DESTAQUES DA LOJA
+         ==================================================================== */}
       {activeAdminTab === 'featured' && (
-        <div className="space-y-4">
-          <p className="text-xs text-zinc-500 font-semibold">
-            Roteiros que aparecem no carrossel de topo "Roteiros em destaque" na Loja de Roteiros. Toque na estrela para destacar ou remover.
+        <div className="space-y-3.5">
+          <p className="text-[13px] text-[#6B7280] font-medium">
+            Ative os roteiros que aparecem no topo da loja em &quot;Roteiros em destaque&quot;.
           </p>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
-            {itineraries.map(it => {
-              const isFeat = it.isFeatured || it.isRecommended;
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+            {itineraries.map((it) => {
+              const isFeat = Boolean(it.isFeatured || it.isRecommended);
+              const placesCount =
+                it.placesCount ||
+                it.days?.reduce((acc, d) => acc + (d.steps?.length || 0), 0) ||
+                0;
 
               return (
                 <div
                   key={it.id}
-                  className={`p-3.5 rounded-2xl border transition-all flex items-center justify-between gap-3 ${
+                  className={`p-3 rounded-[20px] border transition-all flex items-center justify-between gap-3 ${
                     isFeat
-                      ? 'bg-white border-[#2563EB] shadow-sm'
-                      : 'bg-zinc-50/70 border-zinc-200 opacity-70'
+                      ? 'bg-white border-[#2563EB]/45 ring-1 ring-[#2563EB]/12'
+                      : 'bg-white border-black/[0.05] opacity-80'
                   }`}
+                  style={{ boxShadow: CARD_SHADOW }}
                 >
                   <div className="flex items-center gap-3 min-w-0">
                     <img
                       src={it.coverImage}
                       alt={it.title}
-                      className="w-12 h-12 rounded-xl object-cover shrink-0"
+                      loading="lazy"
+                      className="w-12 h-12 rounded-[14px] object-cover shrink-0 bg-[#F2F3F5] border border-black/[0.04]"
                     />
                     <div className="min-w-0">
-                      <h4 className="text-xs font-black text-zinc-900 truncate">
+                      <h4 className="text-[13.5px] font-bold text-[#111827] truncate">
                         {it.title}
                       </h4>
-                      <p className="text-[11px] text-zinc-500 font-bold">
-                        {it.daysCount} {it.daysCount === 1 ? 'dia' : 'dias'}
+                      <p className="text-[11.5px] text-[#6B7280] font-medium mt-0.5 tabular-nums">
+                        {it.daysCount} {it.daysCount === 1 ? 'dia' : 'dias'} · {placesCount}{' '}
+                        {placesCount === 1 ? 'parada' : 'paradas'}
                       </p>
                     </div>
                   </div>
 
                   <button
                     type="button"
+                    role="switch"
+                    aria-checked={isFeat}
                     onClick={() => handleToggleFeatured(it.id)}
-                    className={`p-2 rounded-xl cursor-pointer transition-colors ${
-                      isFeat
-                        ? 'bg-amber-400 text-zinc-900'
-                        : 'bg-zinc-200 text-zinc-400 hover:text-white'
+                    aria-label={isFeat ? 'Remover destaque' : 'Destacar roteiro'}
+                    className={`w-[46px] h-[27px] rounded-full transition-colors duration-200 relative shrink-0 cursor-pointer ${
+                      isFeat ? 'bg-[#22C55E]' : 'bg-[#E2E5EA]'
                     }`}
-                    title={isFeat ? 'Remover destaque' : 'Destacar roteiro'}
                   >
-                    <Star className={`w-4 h-4 ${isFeat ? 'fill-current' : ''}`} />
+                    <span
+                      className={`block w-[21px] h-[21px] rounded-full bg-white shadow-[0_1px_3px_rgba(0,0,0,0.2)] transition-transform duration-200 ${
+                        isFeat ? 'translate-x-[22px]' : 'translate-x-[3px]'
+                      }`}
+                    />
                   </button>
                 </div>
               );
@@ -812,7 +1005,7 @@ export const AdminItineraries: React.FC = () => {
       <AdminItineraryModal
         isOpen={isItineraryModalOpen}
         onClose={() => setIsItineraryModalOpen(false)}
-        onSaved={fetchData}
+        onSaved={() => fetchData(false)}
         itineraryToEdit={itineraryToEdit}
         categories={categories}
       />
@@ -820,9 +1013,60 @@ export const AdminItineraries: React.FC = () => {
       <AdminItineraryCategoryModal
         isOpen={isCategoryModalOpen}
         onClose={() => setIsCategoryModalOpen(false)}
-        onSaved={fetchData}
+        onSaved={() => fetchData(false)}
         categoryToEdit={categoryToEdit}
       />
+
+      {/* Native iOS Portalized Delete Confirmation Modal */}
+      {typeof document !== 'undefined' &&
+        pendingDelete &&
+        createPortal(
+          <div
+            className="fixed inset-0 z-[9995] flex items-center justify-center p-4 bg-black/45 backdrop-blur-[6px]"
+            onClick={() => {
+              if (!isDeleting) setPendingDelete(null);
+            }}
+          >
+            <div
+              onClick={(e) => e.stopPropagation()}
+              className="w-full max-w-sm bg-white rounded-[28px] p-6 shadow-2xl border border-black/[0.06]"
+            >
+              <div className="w-11 h-11 rounded-full bg-[#FCECEC] text-[#B91C1C] flex items-center justify-center mb-4">
+                <Trash2 className="w-5 h-5 stroke-[2]" />
+              </div>
+
+              <h3 className="text-[18px] font-bold text-[#111827] tracking-[-0.02em]">
+                {pendingDelete.type === 'itinerary' ? 'Excluir Roteiro' : 'Excluir Categoria'}
+              </h3>
+
+              <p className="text-[13px] text-[#6B7280] mt-2 leading-relaxed">
+                Tem certeza que deseja excluir permanentemente{' '}
+                <span className="font-semibold text-[#111827]">&quot;{pendingDelete.title}&quot;</span>?
+                Esta ação não pode ser desfeita.
+              </p>
+
+              <div className="mt-6 grid grid-cols-2 gap-2.5">
+                <button
+                  type="button"
+                  disabled={isDeleting}
+                  onClick={() => setPendingDelete(null)}
+                  className="h-[46px] px-4 rounded-full bg-[#F2F3F5] hover:bg-[#E5E7EB] text-[13.5px] font-semibold text-[#111827] transition-colors cursor-pointer disabled:opacity-50"
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="button"
+                  disabled={isDeleting}
+                  onClick={handleConfirmDelete}
+                  className="h-[46px] px-4 rounded-full bg-[#B91C1C] hover:bg-[#991B1B] text-[13.5px] font-semibold text-white transition-colors cursor-pointer disabled:opacity-60"
+                >
+                  {isDeleting ? 'Excluindo...' : 'Excluir'}
+                </button>
+              </div>
+            </div>
+          </div>,
+          document.body
+        )}
     </div>
   );
 };

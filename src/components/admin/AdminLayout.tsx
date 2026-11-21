@@ -229,7 +229,10 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({
       id="admin-layout-root"
       className="w-full flex overflow-hidden antialiased rounded-t-[26px] ios-page-top-rounded"
       style={{
-        backgroundColor: activeTab === 'users' ? '#F6F7F9' : ADMIN_COLORS.canvasBg,
+        backgroundColor:
+          activeTab === 'users' || activeTab === 'itineraries'
+            ? '#F6F7F9'
+            : ADMIN_COLORS.canvasBg,
         color: ADMIN_COLORS.textPrimary,
         fontFamily:
           '-apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro Text", "Inter", "Segoe UI", Roboto, sans-serif',
@@ -365,7 +368,7 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({
           className="flex-1 overflow-y-auto min-h-0 w-full"
           style={{
             paddingTop: 'max(16px, calc(env(safe-area-inset-top, 0px) + 12px))',
-            paddingBottom: 'max(114px, calc(env(safe-area-inset-bottom, 0px) + 92px))',
+            paddingBottom: 'max(28px, calc(env(safe-area-inset-bottom, 0px) + 20px))',
             paddingLeft: 'max(16px, env(safe-area-inset-left, 0px))',
             paddingRight: 'max(16px, env(safe-area-inset-right, 0px))',
           }}

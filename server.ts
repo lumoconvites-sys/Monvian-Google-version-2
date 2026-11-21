@@ -1132,12 +1132,13 @@ async function startServer() {
 
       const insert = db
         .prepare(`
-          INSERT INTO users (name, username, email, whatsapp, password_hash, avatar_url, role, auth_id, onboarding_completed, onboarding_step)
-          VALUES (?, ?, ?, ?, ?, ?, ?, ?, 0, 1)
+          INSERT INTO users (name, username, username_normalized, email, whatsapp, password_hash, avatar_url, role, auth_id, onboarding_completed, onboarding_step)
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 0, 1)
         `)
         .run(
           rawName,
           cleanUsername,
+          cleanUsername.toLowerCase(),
           rawEmail,
           rawEmail,
           hash,
@@ -4481,14 +4482,24 @@ async function startServer() {
   app.delete('/api/admin/users/:id', async (req: Request, res: Response) => {
     try {
       const { id } = req.params;
-      const target = db.prepare('SELECT email FROM users WHERE id = ?').get(id) as any;
+      const target = db.prepare('SELECT id, email FROM users WHERE id = ?').get(id) as any;
       if (target && isPrimaryAdmin(target.email)) {
         return res.status(400).json({ success: false, error: 'Não é permitido excluir o administrador principal.' });
       }
+      const uidStr = String(id);
+      const cleanEmail = String(target?.email || '').trim().toLowerCase();
       db.prepare('DELETE FROM sessions WHERE user_id = ?').run(id);
+      if (cleanEmail) {
+        try { db.prepare('DELETE FROM user_onboarding WHERE LOWER(user_email) = ?').run(cleanEmail); } catch {}
+      }
+      try { db.prepare('DELETE FROM favorites WHERE user_id = ?').run(uidStr); } catch {}
+      try { db.prepare('DELETE FROM user_favorites WHERE user_id = ?').run(uidStr); } catch {}
       db.prepare('DELETE FROM users WHERE id = ?').run(id);
-      if (supabase && target?.email) {
-        await supabase.from('users').delete().eq('email', target.email);
+      if (supabase && cleanEmail) {
+        try { await supabase.from('users').delete().ilike('email', cleanEmail); } catch {}
+      }
+      if (cleanEmail) {
+        await deleteUserAccountFromFirestore(cleanEmail);
       }
       return res.json({ success: true });
     } catch (err: any) {

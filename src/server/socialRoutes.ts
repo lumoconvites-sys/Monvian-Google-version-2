@@ -606,60 +606,38 @@ export function setupSocialDatabase(db: SqliteDatabase) {
     `);
   } catch (e) {}
 
-  // Seed real creators into users table and backfill user_username in posts
+  // Backfill user_username in curated posts without inserting fake accounts into the users table
   try {
-    const SEED_CAMPOS_CREATORS = [
-      { name: 'Mariana Silva', username: 'marianasilva', photo: 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?auto=format&fit=crop&w=200&q=80', bio: 'Explorando as belezas e o charme de Campos do Jordão 🍁' },
-      { name: 'Gabriel Martins', username: 'gabrielmartins', photo: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&w=200&q=80', bio: 'Amante de gastronomia serrana e bons vinhos 🍷' },
-      { name: 'Juliana Mendes', username: 'julianamendes', photo: 'https://images.unsplash.com/photo-1544005313-94ddf0286df2?auto=format&fit=crop&w=200&q=80', bio: 'Aventureira nas trilhas e montanhas da Mantiqueira 🏔️' },
-      { name: 'Thiago Nogueira', username: 'thiagonogueira', photo: 'https://images.unsplash.com/photo-1522075469751-3a6694fb2f61?auto=format&fit=crop&w=200&q=80', bio: 'Fotógrafo da natureza e do friozinho serrano 📸' },
-      { name: 'Larissa Ferreira', username: 'larissaferreira', photo: 'https://images.unsplash.com/photo-1487412720507-e7ab37603c6f?auto=format&fit=crop&w=200&q=80', bio: 'Passeios, mirantes e pores do sol em Campos 🌲' },
-      { name: 'André Carvalho', username: 'andrecarvalho', photo: 'https://images.unsplash.com/photo-1492562080023-ab3db95bfbce?auto=format&fit=crop&w=200&q=80', bio: 'Descobrindo cerveja artesanal e clima alpino 🍺' },
-      { name: 'Beatriz Costa', username: 'beatrizcosta', photo: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=200&q=80', bio: 'Jardins, labirintos e arquitetura de Campos 🌸' },
-      { name: 'Rodrigo Lima', username: 'rodrigolima', photo: 'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?auto=format&fit=crop&w=200&q=80', bio: 'Horto Florestal, cachoeiras e ar puro da serra 🌿' },
-      { name: 'Fernanda Pires', username: 'fernandapires', photo: 'https://images.unsplash.com/photo-1524504388940-b1c1722653e1?auto=format&fit=crop&w=200&q=80', bio: 'Enoturismo e vinícolas de altitude na Mantiqueira 🍇' },
-      { name: 'Lucas Almeida', username: 'lucasalmeida', photo: 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&w=200&q=80', bio: 'Vila Capivari, fondue e o encanto do inverno ❄️' },
-      { name: 'Vanessa Toledo', username: 'vanessatoledo', photo: 'https://images.unsplash.com/photo-1531746020798-e6953c6e8e04?auto=format&fit=crop&w=200&q=80', bio: 'Mirantes cinematográficos e cafés aconchegantes ☕' },
-      { name: 'Eduardo Ramos', username: 'eduardoramos', photo: 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?auto=format&fit=crop&w=200&q=80', bio: 'Ducha de Prata, passeios históricos e trilhas 🥾' },
-      { name: 'Camila Rocha', username: 'camilarocha', photo: 'https://images.unsplash.com/photo-1517841905240-472988babdf9?auto=format&fit=crop&w=200&q=80', bio: 'Pico do Itapeva e céu estrelado da serra ✨' },
-      { name: 'Marcelo Rossi', username: 'marcelorossi', photo: 'https://images.unsplash.com/photo-1519085360753-af0119f7cbe7?auto=format&fit=crop&w=200&q=80', bio: 'Arquitetura alpina, bondinhos e história 🚂' },
-      { name: 'Priscila Bueno', username: 'priscilabueno', photo: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=200&q=80', bio: 'Pousadas charmosas e roteiros românticos em Campos 🏡' },
-      { name: 'Felipe Santos', username: 'felipesantos', photo: 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?auto=format&fit=crop&w=200&q=80', bio: 'Inverno na serra, geadas e noites na lareira 🔥' },
-      { name: 'Clara Meirelles', username: 'clarameirelles', photo: 'https://images.unsplash.com/photo-1544005313-94ddf0286df2?auto=format&fit=crop&w=200&q=80', bio: 'Caminhadas relaxantes e os encantos do Capivari 🌼' },
+    const POST_AUTHOR_USERNAMES = [
+      { name: 'Mariana Silva', username: 'marianasilva' },
+      { name: 'Gabriel Martins', username: 'gabrielmartins' },
+      { name: 'Juliana Mendes', username: 'julianamendes' },
+      { name: 'Thiago Nogueira', username: 'thiagonogueira' },
+      { name: 'Larissa Ferreira', username: 'larissaferreira' },
+      { name: 'André Carvalho', username: 'andrecarvalho' },
+      { name: 'Beatriz Costa', username: 'beatrizcosta' },
+      { name: 'Rodrigo Lima', username: 'rodrigolima' },
+      { name: 'Fernanda Pires', username: 'fernandapires' },
+      { name: 'Lucas Almeida', username: 'lucasalmeida' },
+      { name: 'Vanessa Toledo', username: 'vanessatoledo' },
+      { name: 'Eduardo Ramos', username: 'eduardoramos' },
+      { name: 'Camila Rocha', username: 'camilarocha' },
+      { name: 'Marcelo Rossi', username: 'marcelorossi' },
+      { name: 'Priscila Bueno', username: 'priscilabueno' },
+      { name: 'Felipe Santos', username: 'felipesantos' },
+      { name: 'Clara Meirelles', username: 'clarameirelles' },
     ];
 
-    for (const c of SEED_CAMPOS_CREATORS) {
-      const existing = db.prepare('SELECT id FROM users WHERE username_normalized = ?').get(c.username);
-      if (!existing) {
-        db.prepare(`
-          INSERT INTO users (name, username, username_normalized, email, whatsapp, password_hash, role, avatar_url, bio)
-          VALUES (?, ?, ?, ?, ?, 'seed_default_hash', 'user', ?, ?)
-        `).run(c.name, c.username, c.username, `${c.username}@monvian.app`, `${c.username}@monvian.app`, c.photo, c.bio);
-      } else {
-        db.prepare('UPDATE users SET bio = ?, avatar_url = ? WHERE username_normalized = ?').run(c.bio, c.photo, c.username);
-      }
-
-      // Populate user_username in posts
+    for (const c of POST_AUTHOR_USERNAMES) {
       db.prepare(`
         UPDATE posts 
         SET user_username = ? 
-        WHERE LOWER(user_name) = ? OR user_id = ? OR user_id = ?
+        WHERE (user_username IS NULL OR user_username = '')
+          AND (LOWER(user_name) = ? OR user_id = ? OR user_id = ?)
       `).run(c.username, c.name.toLowerCase(), `u-${c.username}`, c.username);
     }
-
-    // Seed realistic initial follows between creators if table is empty
-    const existingFollows = (db.prepare('SELECT count(*) as count FROM user_follows').get() as any)?.count || 0;
-    if (existingFollows === 0) {
-      const insertFollow = db.prepare('INSERT OR IGNORE INTO user_follows (follower_id, following_id) VALUES (?, ?)');
-      SEED_CAMPOS_CREATORS.forEach((c, i) => {
-        for (let step = 1; step <= 5; step++) {
-          const other = SEED_CAMPOS_CREATORS[(i + step) % SEED_CAMPOS_CREATORS.length];
-          insertFollow.run(c.username, other.username);
-        }
-      });
-    }
   } catch (seedErr) {
-    console.warn('[SocialRoutes] Creators seed notice:', seedErr);
+    console.warn('[SocialRoutes] Post username backfill notice:', seedErr);
   }
 }
 
