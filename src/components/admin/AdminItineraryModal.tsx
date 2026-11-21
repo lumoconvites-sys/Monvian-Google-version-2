@@ -1,4 +1,6 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
+import { createPortal } from 'react-dom';
+import { motion, AnimatePresence, useReducedMotion, useDragControls } from 'motion/react';
 import { uploadMediaToSupabaseStorage } from '../../lib/supabase';
 import {
   X,
@@ -25,11 +27,9 @@ import {
   Layers,
   Layout,
   Tag,
-  DollarSign,
   Calendar,
-  Sparkle,
-  Crown,
-  ArrowRight
+  Megaphone,
+  FileText,
 } from 'lucide-react';
 import { PlatanoLeafIcon } from '../platanos/PlatanoLeafIcon';
 import { fetchSpotsFromSupabase } from '../../services/supabaseSpots';
@@ -53,14 +53,68 @@ const COVER_PRESETS = [
   { label: 'Trilha & Bosque de Pinhos', url: 'https://images.unsplash.com/photo-1448375240586-882707db888b?auto=format&fit=crop&w=1000&q=80' },
 ];
 
+type StepTabId = 'info' | 'cover' | 'builder' | 'appearance';
+
+interface SectionHeadingProps {
+  icon: React.ReactNode;
+  title: string;
+  rightSlot?: React.ReactNode;
+}
+
+const SectionHeading: React.FC<SectionHeadingProps> = ({ icon, title, rightSlot }) => (
+  <div className="flex items-center justify-between gap-2 mb-2.5">
+    <div className="flex items-center gap-2.5 min-w-0">
+      <span className="w-8 h-8 rounded-full bg-[#F2F3F5] text-[#111827] flex items-center justify-center shrink-0">
+        {icon}
+      </span>
+      <span className="text-[14.5px] font-bold text-[#111827] tracking-[-0.015em] truncate">
+        {title}
+      </span>
+    </div>
+    {rightSlot && <div className="shrink-0">{rightSlot}</div>}
+  </div>
+);
+
+interface IOSToggleProps {
+  checked: boolean;
+  onChange: (next: boolean) => void;
+  ariaLabel: string;
+}
+
+const IOSToggle: React.FC<IOSToggleProps> = ({ checked, onChange, ariaLabel }) => (
+  <button
+    type="button"
+    role="switch"
+    aria-checked={checked}
+    aria-label={ariaLabel}
+    onClick={() => onChange(!checked)}
+    className={`w-[46px] h-[27px] rounded-full transition-colors duration-200 relative shrink-0 cursor-pointer ${
+      checked ? 'bg-[#22C55E]' : 'bg-[#E2E5EA]'
+    }`}
+  >
+    <span
+      className={`block w-[21px] h-[21px] rounded-full bg-white shadow-[0_1px_3px_rgba(0,0,0,0.2)] transition-transform duration-200 ${
+        checked ? 'translate-x-[22px]' : 'translate-x-[3px]'
+      }`}
+    />
+  </button>
+);
+
+const INPUT_BASE_CLASS =
+  'w-full px-4 bg-[#F7F8FA] border border-[#E6E8EC] rounded-[18px] text-[14.5px] text-[#111827] font-medium placeholder:text-[#9CA3AF] focus:outline-none focus:bg-white focus:border-[#2563EB] focus:ring-2 focus:ring-[#2563EB]/12 transition-all';
+
 export const AdminItineraryModal: React.FC<AdminItineraryModalProps> = ({
   isOpen,
   onClose,
   onSaved,
   itineraryToEdit,
-  categories
+  categories,
 }) => {
-  const [activeTab, setActiveTab] = useState<'info' | 'cover' | 'builder' | 'appearance'>('info');
+  const prefersReducedMotion = useReducedMotion() ?? false;
+  const sheetDragControls = useDragControls();
+  const scrollContainerRef = useRef<HTMLDivElement>(null);
+
+  const [activeTab, setActiveTab] = useState<StepTabId>('info');
   const [availableSpots, setAvailableSpots] = useState<Spot[]>([]);
   const [loadingSpots, setLoadingSpots] = useState(false);
 
@@ -93,22 +147,24 @@ export const AdminItineraryModal: React.FC<AdminItineraryModalProps> = ({
 
   // Days and Steps state
   const [activeDayIdx, setActiveDayIdx] = useState(0);
-  const [days, setDays] = useState<Array<{
-    dayNumber: number;
-    title: string;
-    summary: string;
-    steps: Array<{
-      spotId: string;
-      stepOrder: number;
-      suggestedTime: string;
-      durationMinutes: number;
-      notes: string;
-      customName?: string;
-      customDescription?: string;
-      customTip?: string;
-      customImage?: string;
-    }>;
-  }>>([]);
+  const [days, setDays] = useState<
+    Array<{
+      dayNumber: number;
+      title: string;
+      summary: string;
+      steps: Array<{
+        spotId: string;
+        stepOrder: number;
+        suggestedTime: string;
+        durationMinutes: number;
+        notes: string;
+        customName?: string;
+        customDescription?: string;
+        customTip?: string;
+        customImage?: string;
+      }>;
+    }>
+  >([]);
 
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
@@ -116,6 +172,31 @@ export const AdminItineraryModal: React.FC<AdminItineraryModalProps> = ({
   // Spot photo upload tracking for steps
   const [uploadingStepIdx, setUploadingStepIdx] = useState<{ dayIdx: number; stepIdx: number } | null>(null);
   const stepFileInputRef = useRef<HTMLInputElement>(null);
+
+  // Lock background body scroll & support Escape to close
+  useEffect(() => {
+    if (!isOpen) return;
+    const prevOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape' && !isSubmitting) {
+        onClose();
+      }
+    };
+    document.addEventListener('keydown', handleKeyDown);
+    return () => {
+      document.body.style.overflow = prevOverflow;
+      document.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [isOpen, isSubmitting, onClose]);
+
+  // Reset scroll to top when switching steps
+  useEffect(() => {
+    if (scrollContainerRef.current) {
+      scrollContainerRef.current.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+  }, [activeTab]);
 
   // Fetch spots for selector
   useEffect(() => {
@@ -147,7 +228,7 @@ export const AdminItineraryModal: React.FC<AdminItineraryModalProps> = ({
       setCoverImage(itineraryToEdit.coverImage || COVER_PRESETS[0].url);
       setDaysCount(itineraryToEdit.daysCount || 1);
       setSelectedCategories(itineraryToEdit.categories || []);
-      
+
       const hasPaidAccess = Boolean(itineraryToEdit.isPremium);
       setIsPremium(hasPaidAccess);
       setPrice(itineraryToEdit.price || (hasPaidAccess ? '15 Plátanos' : 'Grátis'));
@@ -173,8 +254,8 @@ export const AdminItineraryModal: React.FC<AdminItineraryModalProps> = ({
               customName: s.customName || s.spot?.name || '',
               customDescription: s.customDescription || s.spot?.description || '',
               customTip: s.customTip || '',
-              customImage: s.customImage || s.spot?.image || ''
-            }))
+              customImage: s.customImage || s.spot?.image || '',
+            })),
           }))
         );
       } else {
@@ -199,6 +280,8 @@ export const AdminItineraryModal: React.FC<AdminItineraryModalProps> = ({
       initializeDays(2);
     }
     setErrorMsg('');
+    setCoverUploadError('');
+    setShowCoverUrlInput(false);
     setActiveTab('info');
     setActiveDayIdx(0);
     setSpotSearchQuery('');
@@ -212,7 +295,7 @@ export const AdminItineraryModal: React.FC<AdminItineraryModalProps> = ({
         dayNumber: i,
         title: `Dia ${i}: Experiências e Paradas`,
         summary: '',
-        steps: []
+        steps: [],
       });
     }
     setDays(newDays);
@@ -227,7 +310,7 @@ export const AdminItineraryModal: React.FC<AdminItineraryModalProps> = ({
           dayNumber: i,
           title: `Dia ${i}: Experiências e Paradas`,
           summary: '',
-          steps: []
+          steps: [],
         });
       }
       setDays([...days, ...added]);
@@ -241,7 +324,7 @@ export const AdminItineraryModal: React.FC<AdminItineraryModalProps> = ({
 
   const toggleCategory = (catId: string) => {
     if (selectedCategories.includes(catId)) {
-      setSelectedCategories(selectedCategories.filter(c => c !== catId));
+      setSelectedCategories(selectedCategories.filter((c) => c !== catId));
     } else {
       setSelectedCategories([...selectedCategories, catId]);
     }
@@ -310,19 +393,19 @@ export const AdminItineraryModal: React.FC<AdminItineraryModalProps> = ({
       customImage: spot.image || '',
     };
 
-    setDays(prev => {
+    setDays((prev) => {
       const copy = [...prev];
       if (!copy[activeDayIdx]) return prev;
       copy[activeDayIdx] = {
         ...copy[activeDayIdx],
-        steps: [...copy[activeDayIdx].steps, newStep]
+        steps: [...copy[activeDayIdx].steps, newStep],
       };
       return copy;
     });
   };
 
   const removeStepFromDay = (dayIndex: number, stepIndex: number) => {
-    setDays(prev => {
+    setDays((prev) => {
       const copy = [...prev];
       const updatedSteps = copy[dayIndex].steps
         .filter((_, idx) => idx !== stepIndex)
@@ -333,7 +416,7 @@ export const AdminItineraryModal: React.FC<AdminItineraryModalProps> = ({
   };
 
   const moveStep = (dayIndex: number, stepIndex: number, direction: 'up' | 'down') => {
-    setDays(prev => {
+    setDays((prev) => {
       const copy = [...prev];
       const steps = [...copy[dayIndex].steps];
       const targetIndex = direction === 'up' ? stepIndex - 1 : stepIndex + 1;
@@ -344,7 +427,6 @@ export const AdminItineraryModal: React.FC<AdminItineraryModalProps> = ({
       steps[stepIndex] = steps[targetIndex];
       steps[targetIndex] = temp;
 
-      // Reorder numbers
       const reindexed = steps.map((s, idx) => ({ ...s, stepOrder: idx + 1 }));
       copy[dayIndex] = { ...copy[dayIndex], steps: reindexed };
       return copy;
@@ -352,14 +434,14 @@ export const AdminItineraryModal: React.FC<AdminItineraryModalProps> = ({
   };
 
   const updateStepField = (dayIndex: number, stepIndex: number, field: string, value: any) => {
-    setDays(prev => {
+    setDays((prev) => {
       const copy = [...prev];
       const targetDay = { ...copy[dayIndex] };
       const steps = [...targetDay.steps];
       steps[stepIndex] = { ...steps[stepIndex], [field]: value };
 
       if (field === 'spotId') {
-        const found = availableSpots.find(s => s.id === value);
+        const found = availableSpots.find((s) => s.id === value);
         if (found) {
           steps[stepIndex].customName = found.name;
           steps[stepIndex].customImage = found.image;
@@ -376,14 +458,17 @@ export const AdminItineraryModal: React.FC<AdminItineraryModalProps> = ({
   const filteredSpotsForBuilder = useMemo(() => {
     let result = availableSpots;
     if (spotCategoryFilter !== 'all') {
-      result = result.filter(s => (s.category || '').toLowerCase() === spotCategoryFilter.toLowerCase());
+      result = result.filter(
+        (s) => (s.category || '').toLowerCase() === spotCategoryFilter.toLowerCase()
+      );
     }
     const q = spotSearchQuery.toLowerCase().trim();
     if (q) {
-      result = result.filter(s =>
-        s.name.toLowerCase().includes(q) ||
-        (s.categoryLabel || '').toLowerCase().includes(q) ||
-        (s.description || '').toLowerCase().includes(q)
+      result = result.filter(
+        (s) =>
+          s.name.toLowerCase().includes(q) ||
+          (s.categoryLabel || '').toLowerCase().includes(q) ||
+          (s.description || '').toLowerCase().includes(q)
       );
     }
     return result;
@@ -392,7 +477,7 @@ export const AdminItineraryModal: React.FC<AdminItineraryModalProps> = ({
   // Unique categories for spot filter pills
   const spotCategories = useMemo(() => {
     const set = new Set<string>();
-    availableSpots.forEach(s => {
+    availableSpots.forEach((s) => {
       if (s.category) set.add(s.category);
     });
     return Array.from(set);
@@ -400,14 +485,14 @@ export const AdminItineraryModal: React.FC<AdminItineraryModalProps> = ({
 
   const handleSaveWithStatus = async (chosenStatus: ItineraryStatus) => {
     if (!title.trim()) {
-      setErrorMsg('Por favor, informe o título do roteiro.');
+      setErrorMsg('Por favor, informe o nome do roteiro.');
       setActiveTab('info');
       return;
     }
 
     const totalSteps = days.reduce((acc, d) => acc + d.steps.length, 0);
     if (totalSteps === 0) {
-      setErrorMsg('Adicione pelo menos uma parada ao roteiro na aba "3. Paradas do Roteiro".');
+      setErrorMsg('Adicione pelo menos uma parada na etapa "Paradas do roteiro".');
       setActiveTab('builder');
       return;
     }
@@ -429,25 +514,29 @@ export const AdminItineraryModal: React.FC<AdminItineraryModalProps> = ({
       isFeatured,
       isRecommended: isFeatured,
       isPremium,
-      badgeText: isPremium ? '15 Plátanos' : '',
-      showPrice: true,
+      badgeText: isPremium ? '15 Plátanos' : badgeText || '',
+      showPrice: showPrice !== false,
       showStopsCount,
-      showBadge: isPremium,
+      showBadge: isPremium && showBadge !== false,
       notes: tips.trim(),
-      days
+      days,
     };
 
     try {
       const fullPayload = {
         ...payload,
-        id: itineraryToEdit?.id
+        id: itineraryToEdit?.id,
       };
 
       // 1. Persist directly and authoritatively to Supabase PostgreSQL (Single Source of Truth)
       await saveItineraryToSupabase(fullPayload, Boolean(itineraryToEdit?.id));
 
       try {
-        window.dispatchEvent(new CustomEvent('monvian:itineraries_updated', { detail: { updatedItineraryId: itineraryToEdit?.id } }));
+        window.dispatchEvent(
+          new CustomEvent('monvian:itineraries_updated', {
+            detail: { updatedItineraryId: itineraryToEdit?.id },
+          })
+        );
       } catch (e) {}
 
       onSaved();
@@ -460,923 +549,1242 @@ export const AdminItineraryModal: React.FC<AdminItineraryModalProps> = ({
     }
   };
 
-  if (!isOpen) return null;
+  if (typeof document === 'undefined') return null;
 
   const totalPlaces = days.reduce((acc, d) => acc + d.steps.length, 0);
   const currentDay = days[activeDayIdx] || days[0];
 
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/80 animate-in fade-in duration-200">
-      <div 
-        className="bg-white border border-zinc-200 rounded-3xl w-full max-w-5xl max-h-[94vh] flex flex-col shadow-2xl overflow-hidden"
-        style={{ fontFamily: "'Inter', sans-serif" }}
-      >
-        
-        {/* 1. Top Modal Header */}
-        <div className="px-5 py-3.5 sm:py-4 border-b border-zinc-200 flex items-center justify-between bg-zinc-50 shrink-0">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-2xl flex items-center justify-center border shrink-0 bg-[#2563EB]/15 text-[#2563EB] border-[#2563EB]/30">
-              <Compass className="w-5 h-5 stroke-[2.2]" />
-            </div>
-            <div>
-              <div className="flex items-center gap-2">
-                <h2 className="text-base sm:text-lg font-black text-zinc-900 tracking-tight">
-                  {itineraryToEdit ? 'Configurações do Roteiro' : 'Novo Roteiro Turístico'}
-                </h2>
-                <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider ${
-                  status === 'published'
-                    ? 'bg-emerald-500/20 text-emerald-600 border border-emerald-500/30'
-                    : status === 'draft'
-                    ? 'bg-amber-500/20 text-amber-600 border border-amber-500/30'
-                    : 'bg-zinc-500/20 text-zinc-600 border border-zinc-500/30'
-                }`}>
-                  {status === 'published' ? 'Publicado' : status === 'draft' ? 'Rascunho' : 'Oculto'}
-                </span>
-              </div>
-              <p className="text-xs text-zinc-500 font-semibold mt-0.5">
-                {totalPlaces} {totalPlaces === 1 ? 'parada' : 'paradas'} · {daysCount} {daysCount === 1 ? 'dia' : 'dias'}
-              </p>
-            </div>
-          </div>
-          <button
-            type="button"
-            onClick={onClose}
-            className="p-2 text-zinc-500 hover:text-zinc-900 rounded-xl hover:bg-zinc-200 transition-colors cursor-pointer"
+  const primaryActionStatus: ItineraryStatus = status === 'hidden' ? 'hidden' : 'published';
+  const primaryActionLabel =
+    status === 'hidden'
+      ? 'Salvar oculto'
+      : itineraryToEdit
+        ? 'Atualizar roteiro'
+        : 'Publicar roteiro';
+
+  const tabs: Array<{
+    id: StepTabId;
+    label: string;
+    icon: React.ReactNode;
+    badge?: React.ReactNode;
+  }> = [
+    {
+      id: 'info',
+      label: 'Informações e acesso',
+      icon: <Info className="w-[15px] h-[15px] stroke-[2]" />,
+    },
+    {
+      id: 'cover',
+      label: 'Foto de capa',
+      icon: <ImageIcon className="w-[15px] h-[15px] stroke-[2]" />,
+      badge: coverImage ? (
+        <span className="w-1.5 h-1.5 rounded-full bg-[#22C55E] shrink-0" />
+      ) : null,
+    },
+    {
+      id: 'builder',
+      label: 'Paradas do roteiro',
+      icon: <Layers className="w-[15px] h-[15px] stroke-[2]" />,
+      badge: (
+        <span
+          className={`px-1.5 py-0.5 rounded-full text-[10.5px] font-bold leading-none tabular-nums ${
+            activeTab === 'builder'
+              ? 'bg-[#2563EB]/12 text-[#2563EB]'
+              : 'bg-[#F0F1F4] text-[#4B5563]'
+          }`}
+        >
+          {totalPlaces}
+        </span>
+      ),
+    },
+    {
+      id: 'appearance',
+      label: 'Destaque na loja',
+      icon: <Layout className="w-[15px] h-[15px] stroke-[2]" />,
+    },
+  ];
+
+  const headerTitle =
+    title.trim() || (itineraryToEdit ? 'Editar Roteiro' : 'Novo Roteiro Turístico');
+
+  return createPortal(
+    <AnimatePresence>
+      {isOpen && (
+        <motion.div
+          key="admin-itinerary-backdrop"
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          exit={{ opacity: 0 }}
+          transition={{ duration: prefersReducedMotion ? 0.1 : 0.22, ease: 'easeOut' }}
+          onClick={() => {
+            if (!isSubmitting) onClose();
+          }}
+          role="dialog"
+          aria-modal="true"
+          aria-label={headerTitle}
+          className="fixed inset-0 z-[9990] flex items-end sm:items-center justify-center bg-black/45 backdrop-blur-[8px] sm:p-4"
+        >
+          <motion.div
+            key="admin-itinerary-sheet"
+            initial={prefersReducedMotion ? { opacity: 0 } : { y: '100%' }}
+            animate={prefersReducedMotion ? { opacity: 1 } : { y: 0 }}
+            exit={prefersReducedMotion ? { opacity: 0 } : { y: '100%' }}
+            transition={
+              prefersReducedMotion
+                ? { duration: 0.12 }
+                : { type: 'spring', stiffness: 360, damping: 36, mass: 0.9 }
+            }
+            drag={prefersReducedMotion ? false : 'y'}
+            dragControls={sheetDragControls}
+            dragListener={false}
+            dragConstraints={{ top: 0, bottom: 0 }}
+            dragElastic={{ top: 0.03, bottom: 0.4 }}
+            onDragEnd={(_, info) => {
+              if (!isSubmitting && (info.offset.y > 120 || info.velocity.y > 550)) {
+                onClose();
+              }
+            }}
+            onClick={(e) => e.stopPropagation()}
+            className="w-full sm:max-w-[700px] lg:max-w-[860px] h-[94dvh] sm:h-[90dvh] sm:max-h-[860px] bg-[#FFFFFF] rounded-t-[34px] sm:rounded-[32px] shadow-[0_-14px_44px_rgba(0,0,0,0.18)] border border-black/[0.06] flex flex-col overflow-hidden"
+            style={{ fontFamily: "'Inter', -apple-system, BlinkMacSystemFont, sans-serif" }}
           >
-            <X className="w-5 h-5" />
-          </button>
-        </div>
+            {/* 1. FIXED STANDARDIZED HEADER (Drag Handle + Title + Meta + Status + Close) */}
+            <div
+              onPointerDown={(e) => sheetDragControls.start(e)}
+              className="shrink-0 bg-[#FFFFFF] px-5 sm:px-6 pt-3 pb-3.5 touch-none select-none cursor-grab active:cursor-grabbing"
+            >
+              <div className="w-11 h-[5px] rounded-full bg-[#D1D5DB] mx-auto mb-3.5" />
 
-        {/* 2. Tab Navigation */}
-        <div className="flex items-center border-b border-zinc-200 px-4 pt-1.5 bg-zinc-50/70 shrink-0 gap-1 sm:gap-2 overflow-x-auto no-scrollbar">
-          <button
-            type="button"
-            onClick={() => setActiveTab('info')}
-            className={`px-3.5 py-2.5 text-xs font-bold border-b-2 transition-all cursor-pointer shrink-0 flex items-center gap-2 ${
-              activeTab === 'info'
-                ? 'border-zinc-900 text-zinc-900'
-                : 'border-transparent text-zinc-500 hover:text-zinc-900'
-            }`}
-          >
-            <Info className="w-3.5 h-3.5" />
-            <span>1. Informações & Acesso</span>
-          </button>
-
-          <button
-            type="button"
-            onClick={() => setActiveTab('cover')}
-            className={`px-3.5 py-2.5 text-xs font-bold border-b-2 transition-all cursor-pointer shrink-0 flex items-center gap-2 ${
-              activeTab === 'cover'
-                ? 'border-zinc-900 text-zinc-900'
-                : 'border-transparent text-zinc-500 hover:text-zinc-900'
-            }`}
-          >
-            <ImageIcon className="w-3.5 h-3.5" />
-            <span>2. Foto de Capa</span>
-            {coverImage && <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />}
-          </button>
-
-          <button
-            type="button"
-            onClick={() => setActiveTab('builder')}
-            className={`px-3.5 py-2.5 text-xs font-bold border-b-2 transition-all flex items-center gap-2 cursor-pointer shrink-0 ${
-              activeTab === 'builder'
-                ? 'border-zinc-900 text-zinc-900'
-                : 'border-transparent text-zinc-500 hover:text-zinc-900'
-            }`}
-          >
-            <Layers className="w-3.5 h-3.5" />
-            <span>3. Paradas do Roteiro</span>
-            <span className="px-2 py-0.5 rounded-full text-[10px] bg-zinc-200 text-zinc-900 font-black">
-              {totalPlaces}
-            </span>
-          </button>
-
-          <button
-            type="button"
-            onClick={() => setActiveTab('appearance')}
-            className={`px-3.5 py-2.5 text-xs font-bold border-b-2 transition-all cursor-pointer shrink-0 flex items-center gap-2 ${
-              activeTab === 'appearance'
-                ? 'border-zinc-900 text-zinc-900'
-                : 'border-transparent text-zinc-500 hover:text-zinc-900'
-            }`}
-          >
-            <Layout className="w-3.5 h-3.5" />
-            <span>4. Destaque na Loja</span>
-          </button>
-        </div>
-
-        {/* Form Body */}
-        <div className="flex-1 overflow-y-auto p-4 sm:p-6 space-y-6">
-          {errorMsg && (
-            <div className="p-3.5 bg-red-50 border border-red-200 rounded-2xl flex items-center gap-2.5 text-xs text-red-600 font-semibold">
-              <AlertCircle className="w-4 h-4 shrink-0" />
-              <span>{errorMsg}</span>
-            </div>
-          )}
-
-          {/* TAB 1: INFORMATIONS & ACCESS TYPE */}
-          {activeTab === 'info' && (
-            <div className="space-y-6 animate-in fade-in duration-150">
-              
-              {/* 1. Nome do Roteiro */}
-              <div>
-                <label className="block text-xs font-black text-zinc-700 mb-1.5">
-                  Nome do Roteiro *
-                </label>
-                <input
-                  type="text"
-                  required
-                  value={title}
-                  onChange={e => setTitle(e.target.value)}
-                  placeholder="Ex: Essência de Campos: O Clássico em 2 Dias"
-                  className="w-full px-4 py-3 bg-zinc-50 border border-zinc-300 rounded-2xl text-sm text-zinc-900 font-bold focus:outline-hidden focus:border-[#2563EB] shadow-2xs"
-                />
-              </div>
-
-              {/* Status de Publicação */}
-              <div>
-                <label className="block text-xs font-black text-zinc-700 mb-2">
-                  Status de Publicação
-                </label>
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
-                  <button
-                    type="button"
-                    onClick={() => setStatus('published')}
-                    className={`p-3.5 rounded-2xl border text-left flex items-start gap-2.5 cursor-pointer transition-all ${
-                      status === 'published'
-                        ? 'border-emerald-500 bg-emerald-50/60 text-emerald-900 ring-2 ring-emerald-500/20 shadow-2xs'
-                        : 'border-zinc-200 bg-zinc-50 text-zinc-700'
-                    }`}
-                  >
-                    <CheckCircle2 className={`w-4 h-4 shrink-0 mt-0.5 ${status === 'published' ? 'text-emerald-500' : 'text-zinc-400'}`} />
-                    <div>
-                      <span className="block text-xs font-black">Publicado</span>
-                      <span className="text-[11px] leading-tight opacity-80 block mt-0.5">Visível para os turistas na loja</span>
-                    </div>
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={() => setStatus('draft')}
-                    className={`p-3.5 rounded-2xl border text-left flex items-start gap-2.5 cursor-pointer transition-all ${
-                      status === 'draft'
-                        ? 'border-amber-500 bg-amber-50/60 text-amber-900 ring-2 ring-amber-500/20 shadow-2xs'
-                        : 'border-zinc-200 bg-zinc-50 text-zinc-700'
-                    }`}
-                  >
-                    <Clock className={`w-4 h-4 shrink-0 mt-0.5 ${status === 'draft' ? 'text-amber-500' : 'text-zinc-400'}`} />
-                    <div>
-                      <span className="block text-xs font-black">Rascunho</span>
-                      <span className="text-[11px] leading-tight opacity-80 block mt-0.5">Em edição (não aparece na loja)</span>
-                    </div>
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={() => setStatus('hidden')}
-                    className={`p-3.5 rounded-2xl border text-left flex items-start gap-2.5 cursor-pointer transition-all ${
-                      status === 'hidden'
-                        ? 'border-zinc-500 bg-zinc-100 text-zinc-900 ring-2 ring-zinc-500/20 shadow-2xs'
-                        : 'border-zinc-200 bg-zinc-50 text-zinc-700'
-                    }`}
-                  >
-                    <EyeOff className={`w-4 h-4 shrink-0 mt-0.5 ${status === 'hidden' ? 'text-zinc-500' : 'text-zinc-400'}`} />
-                    <div>
-                      <span className="block text-xs font-black">Oculto</span>
-                      <span className="text-[11px] leading-tight opacity-80 block mt-0.5">Desativado / Arquivado</span>
-                    </div>
-                  </button>
-                </div>
-              </div>
-
-              {/* Acesso & Monetização (Grátis vs 15 Plátanos) */}
-              <div>
-                <label className="block text-xs font-black text-zinc-700 mb-2">
-                  Tipo de Acesso (Plátanos)
-                </label>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setIsPremium(false);
-                      setPrice('Grátis');
-                    }}
-                    className={`p-3.5 rounded-2xl border text-left flex items-start gap-2.5 cursor-pointer transition-all ${
-                      !isPremium
-                        ? 'border-zinc-900 bg-zinc-100 text-zinc-900 ring-2 ring-black/10 shadow-2xs'
-                        : 'border-zinc-200 bg-zinc-50 text-zinc-700'
-                    }`}
-                  >
-                    <CheckCircle2 className={`w-4 h-4 shrink-0 mt-0.5 ${!isPremium ? 'text-emerald-500' : 'text-zinc-400'}`} />
-                    <div>
-                      <span className="block text-xs font-black">Grátis</span>
-                      <span className="text-[11px] leading-tight opacity-80 block mt-0.5">
-                        Acesso livre para todos os viajantes
-                      </span>
-                    </div>
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setIsPremium(true);
-                      setPrice('15 Plátanos');
-                    }}
-                    className={`p-3.5 rounded-2xl border text-left flex items-start gap-2.5 cursor-pointer transition-all ${
-                      isPremium
-                        ? 'border-zinc-900 bg-zinc-100 text-zinc-900 ring-2 ring-black/10 shadow-2xs'
-                        : 'border-zinc-200 bg-zinc-50 text-zinc-700'
-                    }`}
-                  >
-                    <PlatanoLeafIcon className="w-6 h-6 shrink-0 mt-0.5" variant="monochrome" />
-                    <div>
-                      <span className="block text-xs font-black">Pago · 15 Plátanos</span>
-                      <span className="text-[11px] leading-tight opacity-80 block mt-0.5">
-                        Desbloqueado com 15 Plátanos (R$ 29,90 via Stripe)
-                      </span>
-                    </div>
-                  </button>
-                </div>
-              </div>
-
-              {/* Duração & Categorias */}
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                <div>
-                  <label className="block text-xs font-black text-zinc-700 mb-1.5">
-                    Duração em Dias
-                  </label>
-                  <select
-                    value={daysCount}
-                    onChange={e => handleDaysCountChange(Number(e.target.value))}
-                    className="w-full px-3.5 py-3 bg-zinc-50 border border-zinc-300 rounded-2xl text-sm text-zinc-900 font-bold focus:outline-hidden focus:border-[#2563EB]"
-                  >
-                    <option value={1}>1 Dia (Bate e Volta / Expresso)</option>
-                    <option value={2}>2 Dias (Fim de Semana)</option>
-                    <option value={3}>3 Dias (Feriado Prolongado)</option>
-                    <option value={4}>4 Dias (Experiência Completa)</option>
-                  </select>
-                </div>
-
-                <div className="sm:col-span-2">
-                  <label className="block text-xs font-black text-zinc-700 mb-1.5">
-                    Categorias do Roteiro (Filtros na Loja)
-                  </label>
-                  <div className="flex flex-wrap gap-2 pt-1 pb-1">
-                    {categories.map(cat => {
-                      const selected = selectedCategories.includes(cat.id);
-                      return (
-                        <button
-                          key={cat.id}
-                          type="button"
-                          onClick={() => toggleCategory(cat.id)}
-                          className={`h-[32px] px-3.5 rounded-full text-xs transition-all duration-200 ease-out flex items-center gap-1.5 cursor-pointer select-none active:scale-[0.96] ${
-                            selected
-                              ? 'bg-[#E5E5EA] text-zinc-900 border border-black/[0.06] shadow-[inset_0_1.5px_2px_rgba(0,0,0,0.12)] font-semibold'
-                              : 'bg-white text-zinc-700 border border-zinc-200/90 shadow-[0_2px_5px_-1px_rgba(0,0,0,0.07),_0_1px_2px_rgba(0,0,0,0.04)] hover:shadow-[0_3px_8px_-1px_rgba(0,0,0,0.09)]'
-                          }`}
-                        >
-                          {selected && <Check className="w-3.5 h-3.5 stroke-[2.5]" />}
-                          <span>{cat.name}</span>
-                        </button>
-                      );
-                    })}
-                  </div>
-                </div>
-              </div>
-
-              {/* Descrição */}
-              <div>
-                <label className="block text-xs font-black text-zinc-700 mb-1.5">
-                  Descrição Completa do Roteiro
-                </label>
-                <textarea
-                  rows={3}
-                  value={description}
-                  onChange={e => setDescription(e.target.value)}
-                  placeholder="Apresente os pontos fortes deste roteiro, o clima da experiência e o que os turistas irão desfrutar..."
-                  className="w-full px-4 py-3 bg-zinc-50 border border-zinc-300 rounded-2xl text-sm text-zinc-900 font-medium focus:outline-hidden focus:border-[#2563EB] resize-none shadow-2xs"
-                />
-              </div>
-
-              {/* Dicas */}
-              <div>
-                <label className="block text-xs font-black text-zinc-700 mb-1.5 flex items-center gap-1.5">
-                  <Lightbulb className="w-3.5 h-3.5 text-[#2563EB]" />
-                  <span>Dicas Exclusivas do Guia Local</span>
-                </label>
-                <textarea
-                  rows={2}
-                  value={tips}
-                  onChange={e => setTips(e.target.value)}
-                  placeholder="Dicas de vestimenta, horários de pico, reservas recomendadas, melhores mirantes..."
-                  className="w-full px-4 py-3 bg-zinc-50 border border-zinc-300 rounded-2xl text-sm text-zinc-900 font-medium focus:outline-hidden focus:border-[#2563EB] resize-none shadow-2xs"
-                />
-              </div>
-            </div>
-          )}
-
-          {/* TAB 2: FOTO DE CAPA */}
-          {activeTab === 'cover' && (
-            <div className="space-y-6 animate-in fade-in duration-150">
-              <div className="bg-white border border-zinc-200/90 rounded-3xl p-5 sm:p-6 shadow-xs space-y-5">
-                
-                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1 border-b border-zinc-100 pb-3.5">
-                  <div>
-                    <h3 className="text-sm sm:text-base font-black text-zinc-900 tracking-tight">
-                      Foto de capa
-                    </h3>
-                    <p className="text-xs text-zinc-500 font-medium mt-0.5">
-                      Escolha uma imagem de alta qualidade para representar este roteiro.
-                    </p>
-                  </div>
-                  <span className="text-[11px] text-zinc-400 font-medium shrink-0">
-                    16:9 ou 4:3 recomendado
-                  </span>
-                </div>
-
-                <input
-                  type="file"
-                  ref={coverFileInputRef}
-                  accept="image/*"
-                  onChange={e => {
-                    const file = e.target.files?.[0];
-                    if (file) handleCoverFileUpload(file);
-                  }}
-                  className="hidden"
-                />
-
-                <div
-                  onDragOver={e => {
-                    e.preventDefault();
-                    setIsDraggingCover(true);
-                  }}
-                  onDragLeave={() => setIsDraggingCover(false)}
-                  onDrop={e => {
-                    e.preventDefault();
-                    setIsDraggingCover(false);
-                    const file = e.dataTransfer.files?.[0];
-                    if (file) handleCoverFileUpload(file);
-                  }}
-                  className={`border border-dashed rounded-2xl p-4 sm:p-5 text-center transition-all flex flex-col items-center justify-center gap-2.5 ${
-                    isDraggingCover
-                      ? 'border-[#2563EB] bg-[#2563EB]/10'
-                      : 'border-zinc-300/80 bg-zinc-50/70 hover:border-[#2563EB] hover:bg-zinc-100/70'
-                  }`}
-                >
-                  <div className="w-10 h-10 rounded-full bg-[#2563EB]/10 text-[#2563EB] flex items-center justify-center shrink-0">
-                    {isUploadingCover ? (
-                      <RefreshCw className="w-5 h-5 animate-spin" />
-                    ) : (
-                      <Upload className="w-5 h-5" />
-                    )}
-                  </div>
-                  <div>
-                    <p className="text-xs font-black text-zinc-800">
-                      Arraste uma foto ou faça upload do seu computador
-                    </p>
-                    <p className="text-[11px] text-zinc-500 mt-0.5">
-                      PNG, JPG ou WEBP até 10MB
-                    </p>
-                  </div>
-                  <button
-                    type="button"
-                    onClick={() => coverFileInputRef.current?.click()}
-                    disabled={isUploadingCover}
-                    className="mt-1 px-4 py-2 rounded-xl bg-zinc-900 text-white text-xs font-bold hover:bg-black transition-colors cursor-pointer shadow-2xs"
-                  >
-                    {isUploadingCover ? 'Processando...' : 'Selecionar do Computador'}
-                  </button>
-                </div>
-
-                {coverUploadError && (
-                  <p className="text-xs text-red-500 font-semibold">{coverUploadError}</p>
-                )}
-
-                {/* Cover Preview & Presets */}
-                <div className="space-y-3 pt-2">
-                  <div className="flex items-center justify-between">
-                    <span className="text-xs font-black text-zinc-700">
-                      Imagens Sugeridas de Campos do Jordão
-                    </span>
-                    <button
-                      type="button"
-                      onClick={() => setShowCoverUrlInput(!showCoverUrlInput)}
-                      className="text-xs text-[#2563EB] font-bold hover:underline flex items-center gap-1 cursor-pointer"
-                    >
-                      <LinkIcon className="w-3 h-3" />
-                      <span>{showCoverUrlInput ? 'Ocultar URL web' : 'Inserir URL web'}</span>
-                    </button>
+              <div className="flex items-center justify-between gap-3">
+                <div className="flex items-center gap-3 min-w-0 flex-1">
+                  <div className="w-10 h-10 rounded-full bg-[#F2F3F5] text-[#111827] flex items-center justify-center shrink-0">
+                    <Compass className="w-[19px] h-[19px] stroke-[1.9]" />
                   </div>
 
-                  {showCoverUrlInput && (
-                    <div className="flex gap-2">
-                      <input
-                        type="url"
-                        value={coverImage}
-                        onChange={e => setCoverImage(e.target.value)}
-                        placeholder="https://images.unsplash.com/..."
-                        className="flex-1 px-3.5 py-2.5 bg-zinc-50 border border-zinc-300 rounded-xl text-xs text-zinc-900 font-medium focus:outline-hidden focus:border-[#2563EB]"
-                      />
-                    </div>
-                  )}
-
-                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5">
-                    {COVER_PRESETS.map((preset, idx) => {
-                      const isSelected = coverImage === preset.url;
-                      return (
-                        <button
-                          key={idx}
-                          type="button"
-                          onClick={() => setCoverImage(preset.url)}
-                          className={`text-left p-2.5 rounded-2xl border flex items-center gap-2.5 transition-all cursor-pointer ${
-                            isSelected
-                              ? 'border-[#2563EB] bg-[#2563EB]/10 ring-2 ring-[#2563EB]'
-                              : 'border-zinc-200/90 bg-zinc-50/50 hover:border-zinc-300'
-                          }`}
-                        >
-                          <img src={preset.url} alt={preset.label} className="w-11 h-11 rounded-xl object-cover shrink-0" />
-                          <div className="overflow-hidden min-w-0">
-                            <span className={`text-xs font-bold block truncate ${
-                              isSelected ? 'text-[#2563EB]' : 'text-zinc-800'
-                            }`}>
-                              {preset.label}
-                            </span>
-                            <span className="text-[10px] text-zinc-400">Campos do Jordão</span>
-                          </div>
-                        </button>
-                      );
-                    })}
-                  </div>
-                </div>
-
-              </div>
-            </div>
-          )}
-
-          {/* TAB 3: PARADAS DO ROTEIRO (SELEÇÃO EM LISTA INTUITIVA) */}
-          {activeTab === 'builder' && (
-            <div className="space-y-5 animate-in fade-in duration-150">
-              
-              {/* Day selection tabs */}
-              {days.length > 1 && (
-                <div className="flex items-center gap-2 overflow-x-auto pb-1">
-                  {days.map((d, dIdx) => (
-                    <button
-                      key={dIdx}
-                      type="button"
-                      onClick={() => setActiveDayIdx(dIdx)}
-                      className={`px-4 py-2 rounded-2xl text-xs font-black transition-all cursor-pointer shrink-0 border ${
-                        activeDayIdx === dIdx
-                          ? 'bg-[#2563EB] text-white border-blue-500 shadow-sm'
-                          : 'bg-zinc-100 text-zinc-600 border-transparent hover:bg-zinc-200'
-                      }`}
-                    >
-                      Dia {d.dayNumber} ({d.steps.length} paradas)
-                    </button>
-                  ))}
-                </div>
-              )}
-
-              {/* Day Details Bar */}
-              <div className="p-4 rounded-2xl bg-zinc-50 border border-zinc-200 flex items-center justify-between gap-3">
-                <div className="flex-1 min-w-0">
-                  <label className="block text-[10px] font-black uppercase text-zinc-400 tracking-wider mb-0.5">
-                    Título do Dia {activeDayIdx + 1}
-                  </label>
-                  <input
-                    type="text"
-                    value={currentDay?.title || ''}
-                    onChange={e => {
-                      const copy = [...days];
-                      copy[activeDayIdx] = { ...copy[activeDayIdx], title: e.target.value };
-                      setDays(copy);
-                    }}
-                    placeholder={`Dia ${activeDayIdx + 1}: O Clássico de Capivari`}
-                    className="w-full bg-transparent text-sm font-black text-zinc-900 outline-none"
-                  />
-                </div>
-                <div className="text-right shrink-0">
-                  <span className="text-xs font-black text-[#2563EB]">
-                    {currentDay?.steps.length || 0} {currentDay?.steps.length === 1 ? 'local adicionado' : 'locais adicionados'}
-                  </span>
-                </div>
-              </div>
-
-              {/* Hidden file input for step photo uploads */}
-              <input
-                type="file"
-                ref={stepFileInputRef}
-                accept="image/*"
-                onChange={e => {
-                  const file = e.target.files?.[0];
-                  if (file) handleStepCustomImageUpload(file);
-                }}
-                className="hidden"
-              />
-
-              {/* TWO COLUMNS: CURRENT STOPS (LEFT) & SPOT CATALOG SELECTOR (RIGHT) */}
-              <div className="grid grid-cols-1 lg:grid-cols-12 gap-5">
-                
-                {/* LEFT COLUMN: Current Stops List */}
-                <div className="lg:col-span-6 space-y-3">
-                  <div className="flex items-center justify-between px-1">
-                    <h3 className="text-xs font-black uppercase tracking-wider text-zinc-500 flex items-center gap-1.5">
-                      <Layers className="w-3.5 h-3.5 text-[#2563EB]" />
-                      <span>Roteiro do Dia {activeDayIdx + 1} ({currentDay?.steps.length || 0})</span>
-                    </h3>
-                  </div>
-
-                  {currentDay?.steps.length === 0 ? (
-                    <div className="p-8 rounded-3xl border border-dashed border-zinc-300 text-center space-y-2.5 bg-zinc-50/50">
-                      <MapPin className="w-8 h-8 text-zinc-400 mx-auto" />
-                      <p className="text-xs font-black text-zinc-700">
-                        Nenhuma parada no Dia {activeDayIdx + 1} ainda.
-                      </p>
-                      <p className="text-[11px] text-zinc-500">
-                        Selecione os pontos turísticos na lista ao lado para adicionar a este dia.
-                      </p>
-                    </div>
-                  ) : (
-                    <div className="space-y-2.5 max-h-[500px] overflow-y-auto pr-1 no-scrollbar">
-                      {currentDay?.steps.map((step, sIdx) => {
-                        const stepNumber = String(sIdx + 1).padStart(2, '0');
-                        const spotData = availableSpots.find(s => s.id === step.spotId);
-                        const stepPhoto = step.customImage || spotData?.image;
-                        const stepName = step.customName || spotData?.name || 'Local Turístico';
-
-                        return (
-                          <div
-                            key={sIdx}
-                            className="p-3.5 rounded-2xl bg-zinc-50 border border-zinc-200 space-y-2.5 shadow-2xs hover:border-zinc-300 transition-colors"
-                          >
-                            <div className="flex items-center justify-between gap-2">
-                              <div className="flex items-center gap-2.5 min-w-0 flex-1">
-                                <span className="w-6 h-6 rounded-full bg-[#2563EB] text-white font-black text-[11px] flex items-center justify-center shrink-0">
-                                  {stepNumber}
-                                </span>
-                                
-                                {stepPhoto ? (
-                                  <img
-                                    src={stepPhoto}
-                                    alt={stepName}
-                                    className="w-10 h-10 rounded-xl object-cover border border-zinc-300 shrink-0"
-                                  />
-                                ) : (
-                                  <div className="w-10 h-10 rounded-xl bg-zinc-200 flex items-center justify-center text-zinc-500 shrink-0">
-                                    <Camera className="w-4 h-4" />
-                                  </div>
-                                )}
-
-                                <div className="min-w-0 flex-1">
-                                  <h4 className="text-xs font-black text-zinc-900 truncate">
-                                    {stepName}
-                                  </h4>
-                                  <span className="text-[10.5px] text-zinc-500 font-semibold block truncate">
-                                    {spotData?.categoryLabel || spotData?.category || 'Atração'}
-                                  </span>
-                                </div>
-                              </div>
-
-                              {/* Controls */}
-                              <div className="flex items-center gap-1 shrink-0">
-                                <button
-                                  type="button"
-                                  disabled={sIdx === 0}
-                                  onClick={() => moveStep(activeDayIdx, sIdx, 'up')}
-                                  className="p-1.5 rounded-lg bg-white text-zinc-700 disabled:opacity-20 hover:bg-zinc-200 cursor-pointer shadow-2xs"
-                                  title="Subir"
-                                >
-                                  <ChevronUp className="w-3.5 h-3.5" />
-                                </button>
-                                <button
-                                  type="button"
-                                  disabled={sIdx === (currentDay?.steps.length || 0) - 1}
-                                  onClick={() => moveStep(activeDayIdx, sIdx, 'down')}
-                                  className="p-1.5 rounded-lg bg-white text-zinc-700 disabled:opacity-20 hover:bg-zinc-200 cursor-pointer shadow-2xs"
-                                  title="Descer"
-                                >
-                                  <ChevronDown className="w-3.5 h-3.5" />
-                                </button>
-                                <button
-                                  type="button"
-                                  onClick={() => removeStepFromDay(activeDayIdx, sIdx)}
-                                  className="p-1.5 rounded-lg bg-red-100 text-red-600 hover:bg-red-200 cursor-pointer ml-1"
-                                  title="Remover"
-                                >
-                                  <Trash2 className="w-3.5 h-3.5" />
-                                </button>
-                              </div>
-                            </div>
-
-                            {/* Timing inputs */}
-                            <div className="grid grid-cols-2 gap-2 pt-1 border-t border-zinc-200/60">
-                              <div>
-                                <label className="block text-[10px] font-bold text-zinc-400 mb-0.5">
-                                  Horário Sugerido
-                                </label>
-                                <input
-                                  type="text"
-                                  value={step.suggestedTime}
-                                  onChange={e => updateStepField(activeDayIdx, sIdx, 'suggestedTime', e.target.value)}
-                                  placeholder="09:30"
-                                  className="w-full px-2.5 py-1.5 bg-white border border-zinc-200 rounded-xl text-xs font-bold text-zinc-900"
-                                />
-                              </div>
-
-                              <div>
-                                <label className="block text-[10px] font-bold text-zinc-400 mb-0.5">
-                                  Duração Estimada (min)
-                                </label>
-                                <input
-                                  type="number"
-                                  value={step.durationMinutes}
-                                  onChange={e => updateStepField(activeDayIdx, sIdx, 'durationMinutes', Number(e.target.value))}
-                                  placeholder="60"
-                                  className="w-full px-2.5 py-1.5 bg-white border border-zinc-200 rounded-xl text-xs font-bold text-zinc-900"
-                                />
-                              </div>
-                            </div>
-                          </div>
-                        );
-                      })}
-                    </div>
-                  )}
-                </div>
-
-                {/* RIGHT COLUMN: SEARCHABLE SPOT CATALOG */}
-                <div className="lg:col-span-6 space-y-3">
-                  <div className="flex items-center justify-between px-1">
-                    <h3 className="text-xs font-black uppercase tracking-wider text-zinc-500 flex items-center gap-1.5">
-                      <Search className="w-3.5 h-3.5 text-[#2563EB]" />
-                      <span>Locais Turísticos Disponíveis ({filteredSpotsForBuilder.length})</span>
-                    </h3>
-                  </div>
-
-                  {/* Search and Filters */}
-                  <div className="space-y-2 bg-zinc-50 p-3 rounded-2xl border border-zinc-200">
-                    <div className="relative">
-                      <Search className="w-4 h-4 text-zinc-400 absolute left-3 top-1/2 -translate-y-1/2" />
-                      <input
-                        type="text"
-                        value={spotSearchQuery}
-                        onChange={e => setSpotSearchQuery(e.target.value)}
-                        placeholder="Buscar local por nome..."
-                        className="w-full pl-9 pr-3 py-2 bg-white border border-zinc-200 rounded-xl text-xs font-bold text-zinc-900 outline-none focus:border-[#2563EB]"
-                      />
-                      {spotSearchQuery && (
-                        <button
-                          type="button"
-                          onClick={() => setSpotSearchQuery('')}
-                          className="absolute right-2.5 top-1/2 -translate-y-1/2 text-zinc-400 hover:text-zinc-600 p-1"
-                        >
-                          <X className="w-3 h-3" />
-                        </button>
-                      )}
-                    </div>
-
-                    {/* Category pills */}
-                    <div className="category-carousel-container flex gap-2 overflow-x-auto no-scrollbar pt-1 pb-1">
-                      <button
-                        type="button"
-                        onClick={(e) => {
-                          setSpotCategoryFilter('all');
-                          (e.currentTarget as HTMLElement)?.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
-                        }}
-                        className={`h-[28px] px-3 rounded-full text-[11px] font-medium shrink-0 transition-all duration-200 ease-out cursor-pointer select-none active:scale-[0.96] ${
-                          spotCategoryFilter === 'all'
-                            ? 'bg-[#E5E5EA] text-zinc-900 border border-black/[0.06] shadow-[inset_0_1.5px_2px_rgba(0,0,0,0.1)] font-semibold'
-                            : 'bg-white text-zinc-700 border border-zinc-200/90 shadow-[0_1.5px_4px_rgba(0,0,0,0.06)]'
-                        }`}
-                      >
-                        Todos
-                      </button>
-                      {spotCategories.map(cat => (
-                        <button
-                          key={cat}
-                          type="button"
-                          onClick={(e) => {
-                            setSpotCategoryFilter(cat);
-                            (e.currentTarget as HTMLElement)?.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
-                          }}
-                          className={`h-[28px] px-3 rounded-full text-[11px] font-medium shrink-0 capitalize transition-all duration-200 ease-out cursor-pointer select-none active:scale-[0.96] ${
-                            spotCategoryFilter === cat
-                              ? 'bg-[#E5E5EA] text-zinc-900 border border-black/[0.06] shadow-[inset_0_1.5px_2px_rgba(0,0,0,0.1)] font-semibold'
-                              : 'bg-white text-zinc-700 border border-zinc-200/90 shadow-[0_1.5px_4px_rgba(0,0,0,0.06)]'
-                          }`}
-                        >
-                          {cat}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-
-                  {/* Spot items list */}
-                  <div className="space-y-2 max-h-[440px] overflow-y-auto pr-1 no-scrollbar">
-                    {loadingSpots ? (
-                      <div className="py-12 text-center text-xs text-zinc-400">
-                        Carregando locais turísticos...
-                      </div>
-                    ) : filteredSpotsForBuilder.length === 0 ? (
-                      <div className="py-12 text-center text-xs text-zinc-400">
-                        Nenhum local turístico encontrado.
-                      </div>
-                    ) : (
-                      filteredSpotsForBuilder.map(spot => {
-                        const countInCurrentDay = (currentDay?.steps || []).filter(s => s.spotId === spot.id).length;
-
-                        return (
-                          <div
-                            key={spot.id}
-                            className="p-2.5 rounded-2xl bg-white border border-zinc-200 flex items-center justify-between gap-3 hover:border-blue-400 transition-all group"
-                          >
-                            <div className="flex items-center gap-2.5 min-w-0 flex-1">
-                              <img
-                                src={spot.image || 'https://images.unsplash.com/photo-1585320806297-9794b3e4eeae?auto=format&fit=crop&w=300&q=80'}
-                                alt={spot.name}
-                                className="w-11 h-11 rounded-xl object-cover shrink-0 border border-black/5"
-                                loading="lazy"
-                              />
-                              <div className="min-w-0 flex-1">
-                                <h4 className="text-xs font-black text-zinc-900 truncate">
-                                  {spot.name}
-                                </h4>
-                                <div className="flex items-center gap-1.5 mt-0.5">
-                                  <span className="text-[10px] font-bold text-zinc-500 capitalize">
-                                    {spot.categoryLabel || spot.category || 'Ponto Turístico'}
-                                  </span>
-                                  {spot.priceRange && (
-                                    <>
-                                      <span className="text-[10px] text-zinc-400">·</span>
-                                      <span className="text-[10px] font-bold text-emerald-600">
-                                        {spot.priceRange}
-                                      </span>
-                                    </>
-                                  )}
-                                </div>
-                              </div>
-                            </div>
-
-                            <button
-                              type="button"
-                              onClick={() => addSpotToActiveDay(spot)}
-                              className={`px-3 py-1.5 rounded-xl text-xs font-black flex items-center gap-1 transition-all cursor-pointer shrink-0 shadow-2xs ${
-                                countInCurrentDay > 0
-                                  ? 'bg-emerald-500 text-white hover:bg-emerald-600'
-                                  : 'bg-zinc-900 text-white hover:bg-black group-hover:scale-102'
-                              }`}
-                            >
-                              <Plus className="w-3.5 h-3.5 stroke-[3]" />
-                              <span>{countInCurrentDay > 0 ? `Adicionado (${countInCurrentDay})` : 'Adicionar'}</span>
-                            </button>
-                          </div>
-                        );
-                      })
-                    )}
-                  </div>
-
-                </div>
-
-              </div>
-
-            </div>
-          )}
-
-          {/* TAB 4: DESTAQUE NA LOJA & LIVE PREVIEW */}
-          {activeTab === 'appearance' && (
-            <div className="space-y-6 animate-in fade-in duration-150">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                
-                {/* Left Column: Settings */}
-                <div className="space-y-4">
-                  <div className="p-4 rounded-2xl bg-zinc-50 border border-zinc-200 space-y-3">
-                    <h3 className="text-xs font-black text-zinc-900 uppercase tracking-wider">
-                      Destaque na Loja
-                    </h3>
-                    <div className="flex items-center justify-between">
-                      <div>
-                        <span className="block text-xs font-bold text-zinc-800">
-                          Roteiro em Destaque
-                        </span>
-                        <span className="text-[11px] text-zinc-500">
-                          Aparece no topo em "Roteiros em destaque"
-                        </span>
-                      </div>
-                      <button
-                        type="button"
-                        onClick={() => setIsFeatured(!isFeatured)}
-                        className={`w-12 h-6.5 rounded-full transition-colors relative cursor-pointer ${
-                          isFeatured ? 'bg-[#2563EB]' : 'bg-zinc-300'
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center gap-2 min-w-0">
+                      <h2 className="text-[17px] sm:text-[18px] font-bold text-[#111827] tracking-[-0.02em] leading-tight truncate">
+                        {headerTitle}
+                      </h2>
+                      <span
+                        className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-semibold shrink-0 leading-tight ${
+                          status === 'published'
+                            ? 'bg-[#E7F6EC] text-[#15803D]'
+                            : status === 'draft'
+                              ? 'bg-[#FEF3C7] text-[#92400E]'
+                              : 'bg-[#F2F3F5] text-[#4B5563]'
                         }`}
                       >
                         <span
-                          className={`block w-5 h-5 rounded-full bg-white transition-transform ${
-                            isFeatured ? 'translate-x-6' : 'translate-x-1'
+                          className={`w-1.5 h-1.5 rounded-full ${
+                            status === 'published'
+                              ? 'bg-[#22C55E]'
+                              : status === 'draft'
+                                ? 'bg-[#D97706]'
+                                : 'bg-[#6B7280]'
                           }`}
                         />
-                      </button>
+                        {status === 'published'
+                          ? 'Publicado'
+                          : status === 'draft'
+                            ? 'Rascunho'
+                            : 'Oculto'}
+                      </span>
                     </div>
-                  </div>
 
-                  <div className="p-4 rounded-2xl bg-zinc-50 border border-zinc-200 space-y-3">
-                    <h3 className="text-xs font-black text-zinc-900 uppercase tracking-wider">
-                      Visibilidade dos Dados
-                    </h3>
-
-                    <div className="flex items-center justify-between pt-1">
-                      <span className="text-xs font-semibold text-zinc-700">Mostrar Contagem de Paradas</span>
-                      <input
-                        type="checkbox"
-                        checked={showStopsCount}
-                        onChange={e => setShowStopsCount(e.target.checked)}
-                        className="w-4 h-4 accent-[#2563EB] cursor-pointer"
-                      />
-                    </div>
+                    <p className="text-[12.5px] font-medium text-[#6B7280] mt-0.5 tabular-nums truncate">
+                      {totalPlaces} {totalPlaces === 1 ? 'parada' : 'paradas'} · {daysCount}{' '}
+                      {daysCount === 1 ? 'dia' : 'dias'} · {isPremium ? '15 Plátanos' : 'Grátis'}
+                    </p>
                   </div>
                 </div>
 
-                {/* Right Column: Live Card Preview */}
-                <div className="space-y-3">
-                  <div className="flex items-center justify-between">
-                    <span className="text-xs font-black text-zinc-900 uppercase tracking-wider">
-                      Pré-visualização do Card na Loja
-                    </span>
-                  </div>
+                <button
+                  type="button"
+                  onPointerDown={(e) => e.stopPropagation()}
+                  onClick={onClose}
+                  aria-label="Fechar janela de roteiro"
+                  className="w-9 h-9 rounded-full bg-[#F2F3F5] hover:bg-[#E5E7EB] active:scale-95 text-[#374151] flex items-center justify-center transition-all cursor-pointer shrink-0"
+                >
+                  <X className="w-[17px] h-[17px] stroke-[2]" />
+                </button>
+              </div>
+            </div>
 
-                  {/* Simulated Card in Shop */}
-                  <div className="p-4 rounded-3xl border bg-[#f4f4f6] border-zinc-200 text-zinc-900">
-                    <div className="rounded-2xl p-3.5 border bg-white border-zinc-200 shadow-sm text-zinc-900">
-                      <div className="aspect-16/9 rounded-xl overflow-hidden relative mb-2.5 bg-zinc-100">
-                        {coverImage ? (
-                          <img src={coverImage} alt="Preview" className="w-full h-full object-cover" />
+            {/* 2. HORIZONTAL STEP NAVIGATION (Standardized across all 4 steps) */}
+            <div className="shrink-0 bg-[#FFFFFF] border-b border-[#EFEFF2] px-4 sm:px-6">
+              <div className="flex items-center gap-1 sm:gap-2 overflow-x-auto no-scrollbar">
+                {tabs.map((tab) => {
+                  const isSelected = activeTab === tab.id;
+                  return (
+                    <button
+                      key={tab.id}
+                      type="button"
+                      onClick={() => setActiveTab(tab.id)}
+                      className={`relative px-3 py-3 text-[13px] font-semibold transition-colors cursor-pointer shrink-0 flex items-center gap-1.5 whitespace-nowrap ${
+                        isSelected
+                          ? 'text-[#111827]'
+                          : 'text-[#858585] hover:text-[#374151]'
+                      }`}
+                    >
+                      <span className={isSelected ? 'text-[#2563EB]' : 'text-[#9CA3AF]'}>
+                        {tab.icon}
+                      </span>
+                      <span>{tab.label}</span>
+                      {tab.badge}
+                      {isSelected && (
+                        <motion.span
+                          layoutId="admin-itinerary-active-tab-line"
+                          transition={{ type: 'spring', stiffness: 460, damping: 36 }}
+                          className="absolute bottom-0 left-2 right-2 h-[2.5px] rounded-full bg-[#2563EB]"
+                        />
+                      )}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* 3. INDEPENDENT SCROLLABLE CONTENT AREA */}
+            <div
+              ref={scrollContainerRef}
+              className="flex-1 overflow-y-auto overscroll-contain bg-[#FFFFFF] px-5 sm:px-6 py-5"
+            >
+              {errorMsg && (
+                <div className="mb-4 px-3.5 py-3 bg-[#FEF2F2] border border-[#FECACA] rounded-[16px] flex items-center gap-2.5 text-[13px] text-[#B91C1C] font-medium">
+                  <AlertCircle className="w-4 h-4 shrink-0" />
+                  <span>{errorMsg}</span>
+                </div>
+              )}
+
+              <AnimatePresence mode="wait" initial={false}>
+                {/* ============================================================
+                    ETAPA 1 — INFORMAÇÕES E ACESSO
+                   ============================================================ */}
+                {activeTab === 'info' && (
+                  <motion.div
+                    key="step-info"
+                    initial={prefersReducedMotion ? { opacity: 1 } : { opacity: 0, y: 6 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={prefersReducedMotion ? { opacity: 0 } : { opacity: 0, y: -4 }}
+                    transition={{ duration: 0.16, ease: 'easeOut' }}
+                    className="space-y-5 pb-3"
+                  >
+                    {/* Nome do Roteiro */}
+                    <div>
+                      <SectionHeading
+                        icon={<MapPin className="w-[16px] h-[16px] stroke-[2]" />}
+                        title="Nome do Roteiro"
+                      />
+                      <input
+                        type="text"
+                        required
+                        value={title}
+                        onChange={(e) => setTitle(e.target.value)}
+                        placeholder="Ex: Essência de Campos: O Clássico em 2 Dias"
+                        className={`${INPUT_BASE_CLASS} h-[48px]`}
+                      />
+                    </div>
+
+                    {/* Status de Publicação — 3 opções compactas lado a lado */}
+                    <div>
+                      <SectionHeading
+                        icon={<Megaphone className="w-[16px] h-[16px] stroke-[2]" />}
+                        title="Status de Publicação"
+                      />
+                      <div className="grid grid-cols-3 gap-2.5">
+                        {[
+                          {
+                            value: 'published' as ItineraryStatus,
+                            label: 'Publicado',
+                            desc: 'Visível na loja',
+                            icon: (selected: boolean) => (
+                              <CheckCircle2
+                                className={`w-[18px] h-[18px] stroke-[2] ${
+                                  selected ? 'text-[#16A34A]' : 'text-[#6B7280]'
+                                }`}
+                              />
+                            ),
+                          },
+                          {
+                            value: 'draft' as ItineraryStatus,
+                            label: 'Rascunho',
+                            desc: 'Fora da loja',
+                            icon: (selected: boolean) => (
+                              <Clock
+                                className={`w-[18px] h-[18px] stroke-[2] ${
+                                  selected ? 'text-[#111827]' : 'text-[#6B7280]'
+                                }`}
+                              />
+                            ),
+                          },
+                          {
+                            value: 'hidden' as ItineraryStatus,
+                            label: 'Oculto',
+                            desc: 'Arquivado',
+                            icon: (selected: boolean) => (
+                              <EyeOff
+                                className={`w-[18px] h-[18px] stroke-[2] ${
+                                  selected ? 'text-[#111827]' : 'text-[#6B7280]'
+                                }`}
+                              />
+                            ),
+                          },
+                        ].map((opt) => {
+                          const selected = status === opt.value;
+                          return (
+                            <button
+                              key={opt.value}
+                              type="button"
+                              onClick={() => setStatus(opt.value)}
+                              className={`py-3 px-2 rounded-[18px] border text-center flex flex-col items-center justify-center gap-1 transition-all cursor-pointer active:scale-[0.98] ${
+                                selected
+                                  ? 'bg-[#FFFFFF] border-[#111827] ring-1 ring-[#111827]/10 shadow-[0_4px_14px_-4px_rgba(17,24,39,0.12)]'
+                                  : 'bg-[#F7F8FA] border-[#EAECEF] hover:border-[#D1D5DB]'
+                              }`}
+                            >
+                              {opt.icon(selected)}
+                              <span
+                                className={`text-[13px] font-bold leading-tight mt-0.5 ${
+                                  selected ? 'text-[#111827]' : 'text-[#374151]'
+                                }`}
+                              >
+                                {opt.label}
+                              </span>
+                              <span className="text-[11px] text-[#6B7280] leading-tight">
+                                {opt.desc}
+                              </span>
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+
+                    {/* Tipo de Acesso — 2 opções lado a lado (Grátis vs Pago 15 Plátanos) */}
+                    <div>
+                      <SectionHeading
+                        icon={<Tag className="w-[16px] h-[16px] stroke-[2]" />}
+                        title="Tipo de Acesso"
+                      />
+                      <div className="grid grid-cols-2 gap-2.5">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setIsPremium(false);
+                            setPrice('Grátis');
+                          }}
+                          className={`p-3 rounded-[18px] border text-left flex items-center gap-3 transition-all cursor-pointer active:scale-[0.98] ${
+                            !isPremium
+                              ? 'bg-[#FFFFFF] border-[#111827] ring-1 ring-[#111827]/10 shadow-[0_4px_14px_-4px_rgba(17,24,39,0.12)]'
+                              : 'bg-[#F7F8FA] border-[#EAECEF] hover:border-[#D1D5DB]'
+                          }`}
+                        >
+                          <div
+                            className={`w-9 h-9 rounded-full flex items-center justify-center shrink-0 ${
+                              !isPremium
+                                ? 'bg-[#E7F6EC] text-[#15803D]'
+                                : 'bg-[#ECEEF2] text-[#6B7280]'
+                            }`}
+                          >
+                            <Sparkles className="w-[17px] h-[17px] stroke-[2]" />
+                          </div>
+                          <div className="min-w-0">
+                            <span className="block text-[13.5px] font-bold text-[#111827] leading-tight">
+                              Grátis
+                            </span>
+                            <span className="block text-[11.5px] text-[#6B7280] leading-tight mt-0.5 truncate">
+                              Acesso livre
+                            </span>
+                          </div>
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setIsPremium(true);
+                            setPrice('15 Plátanos');
+                          }}
+                          className={`p-3 rounded-[18px] border text-left flex items-center gap-3 transition-all cursor-pointer active:scale-[0.98] ${
+                            isPremium
+                              ? 'bg-[#FFFFFF] border-[#111827] ring-1 ring-[#111827]/10 shadow-[0_4px_14px_-4px_rgba(17,24,39,0.12)]'
+                              : 'bg-[#F7F8FA] border-[#EAECEF] hover:border-[#D1D5DB]'
+                          }`}
+                        >
+                          <div
+                            className={`w-9 h-9 rounded-full flex items-center justify-center shrink-0 ${
+                              isPremium ? 'bg-[#111318] text-white' : 'bg-[#ECEEF2] text-[#4B5563]'
+                            }`}
+                          >
+                            <PlatanoLeafIcon className="w-5 h-5" variant="monochrome" />
+                          </div>
+                          <div className="min-w-0">
+                            <span className="block text-[13.5px] font-bold text-[#111827] leading-tight">
+                              Pago · 15 Plátanos
+                            </span>
+                            <span className="block text-[11.5px] text-[#6B7280] leading-tight mt-0.5 truncate">
+                              R$ 29,90 via Stripe
+                            </span>
+                          </div>
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* Duração em Dias */}
+                    <div>
+                      <SectionHeading
+                        icon={<Clock className="w-[16px] h-[16px] stroke-[2]" />}
+                        title="Duração em Dias"
+                      />
+                      <div className="relative flex items-center">
+                        <span className="w-7 h-7 rounded-full bg-white border border-black/[0.06] text-[#111827] flex items-center justify-center absolute left-3 pointer-events-none">
+                          <Calendar className="w-3.5 h-3.5 stroke-[2]" />
+                        </span>
+                        <select
+                          value={daysCount}
+                          onChange={(e) => handleDaysCountChange(Number(e.target.value))}
+                          className={`${INPUT_BASE_CLASS} h-[48px] pl-12 pr-10 appearance-none cursor-pointer`}
+                        >
+                          <option value={1}>1 Dia · Bate e Volta / Expresso</option>
+                          <option value={2}>2 Dias · Fim de Semana</option>
+                          <option value={3}>3 Dias · Feriado Prolongado</option>
+                          <option value={4}>4 Dias · Experiência Completa</option>
+                        </select>
+                        <ChevronDown className="w-4 h-4 text-[#6B7280] absolute right-4 pointer-events-none" />
+                      </div>
+                    </div>
+
+                    {/* Categorias do Roteiro */}
+                    {categories.length > 0 && (
+                      <div>
+                        <SectionHeading
+                          icon={<Layers className="w-[16px] h-[16px] stroke-[2]" />}
+                          title="Categorias na Loja"
+                        />
+                        <div className="flex flex-wrap gap-2">
+                          {categories.map((cat) => {
+                            const selected = selectedCategories.includes(cat.id);
+                            return (
+                              <button
+                                key={cat.id}
+                                type="button"
+                                onClick={() => toggleCategory(cat.id)}
+                                className={`h-[34px] px-3.5 rounded-full text-[12.5px] transition-all flex items-center gap-1.5 cursor-pointer select-none active:scale-[0.97] border ${
+                                  selected
+                                    ? 'bg-[#2563EB]/10 text-[#1D4ED8] border-[#2563EB] font-semibold'
+                                    : 'bg-[#F7F8FA] text-[#374151] border-[#E6E8EC] hover:border-[#D1D5DB] font-medium'
+                                }`}
+                              >
+                                {selected && <Check className="w-3.5 h-3.5 stroke-[2.5]" />}
+                                <span>{cat.name}</span>
+                              </button>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Descrição & Dicas */}
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                      <div>
+                        <SectionHeading
+                          icon={<FileText className="w-[16px] h-[16px] stroke-[2]" />}
+                          title="Descrição do Roteiro"
+                        />
+                        <textarea
+                          rows={3}
+                          value={description}
+                          onChange={(e) => setDescription(e.target.value)}
+                          placeholder="Descreva os pontos fortes e o clima desta experiência..."
+                          className={`${INPUT_BASE_CLASS} py-3 resize-none leading-relaxed`}
+                        />
+                      </div>
+
+                      <div>
+                        <SectionHeading
+                          icon={<Lightbulb className="w-[16px] h-[16px] stroke-[2]" />}
+                          title="Dicas do Guia Local"
+                        />
+                        <textarea
+                          rows={3}
+                          value={tips}
+                          onChange={(e) => setTips(e.target.value)}
+                          placeholder="Horários ideais, vestimenta, reservas ou mirantes..."
+                          className={`${INPUT_BASE_CLASS} py-3 resize-none leading-relaxed`}
+                        />
+                      </div>
+                    </div>
+                  </motion.div>
+                )}
+
+                {/* ============================================================
+                    ETAPA 2 — FOTO DE CAPA
+                   ============================================================ */}
+                {activeTab === 'cover' && (
+                  <motion.div
+                    key="step-cover"
+                    initial={prefersReducedMotion ? { opacity: 1 } : { opacity: 0, y: 6 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={prefersReducedMotion ? { opacity: 0 } : { opacity: 0, y: -4 }}
+                    transition={{ duration: 0.16, ease: 'easeOut' }}
+                    className="space-y-5 pb-3"
+                  >
+                    <input
+                      type="file"
+                      ref={coverFileInputRef}
+                      accept="image/*"
+                      onChange={(e) => {
+                        const file = e.target.files?.[0];
+                        if (file) handleCoverFileUpload(file);
+                        e.target.value = '';
+                      }}
+                      className="hidden"
+                    />
+
+                    {/* Preview atual + Área de Upload compacta */}
+                    <div>
+                      <SectionHeading
+                        icon={<Camera className="w-[16px] h-[16px] stroke-[2]" />}
+                        title="Imagem de Capa"
+                        rightSlot={
+                          <span className="text-[11.5px] font-medium text-[#858585]">
+                            Proporção 16:9 ou 4:3
+                          </span>
+                        }
+                      />
+
+                      <div className="grid grid-cols-1 sm:grid-cols-12 gap-3.5 items-stretch">
+                        {/* Prévia da capa selecionada */}
+                        <div className="sm:col-span-5 relative rounded-[20px] overflow-hidden bg-[#F2F3F5] border border-black/[0.06] aspect-[16/10] sm:aspect-auto sm:min-h-[144px]">
+                          {coverImage ? (
+                            <img
+                              src={coverImage}
+                              alt="Capa selecionada do roteiro"
+                              className="w-full h-full object-cover"
+                            />
+                          ) : (
+                            <div className="w-full h-full flex flex-col items-center justify-center text-[#9CA3AF] gap-1">
+                              <ImageIcon className="w-6 h-6" />
+                              <span className="text-[12px] font-medium">Sem capa</span>
+                            </div>
+                          )}
+                          <span className="absolute bottom-2.5 left-2.5 px-2.5 py-1 rounded-full bg-black/55 backdrop-blur-md text-white text-[11px] font-semibold">
+                            Capa atual
+                          </span>
+                        </div>
+
+                        {/* Área de Upload compacta */}
+                        <div
+                          onDragOver={(e) => {
+                            e.preventDefault();
+                            setIsDraggingCover(true);
+                          }}
+                          onDragLeave={() => setIsDraggingCover(false)}
+                          onDrop={(e) => {
+                            e.preventDefault();
+                            setIsDraggingCover(false);
+                            const file = e.dataTransfer.files?.[0];
+                            if (file) handleCoverFileUpload(file);
+                          }}
+                          className={`sm:col-span-7 rounded-[20px] border border-dashed p-4 flex flex-col items-center justify-center text-center gap-2 transition-all ${
+                            isDraggingCover
+                              ? 'border-[#2563EB] bg-[#2563EB]/[0.06]'
+                              : 'border-[#D5D9E0] bg-[#F7F8FA] hover:border-[#9CA3AF]'
+                          }`}
+                        >
+                          <div className="w-10 h-10 rounded-full bg-white border border-black/[0.06] text-[#111827] flex items-center justify-center shadow-[0_2px_6px_rgba(0,0,0,0.04)]">
+                            {isUploadingCover ? (
+                              <RefreshCw className="w-[18px] h-[18px] animate-spin text-[#2563EB]" />
+                            ) : (
+                              <Upload className="w-[18px] h-[18px] stroke-[2]" />
+                            )}
+                          </div>
+                          <div>
+                            <p className="text-[13.5px] font-semibold text-[#111827]">
+                              Arraste ou envie uma imagem
+                            </p>
+                            <p className="text-[11.5px] text-[#6B7280] mt-0.5">
+                              JPG, PNG ou WEBP até 10MB
+                            </p>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => coverFileInputRef.current?.click()}
+                            disabled={isUploadingCover}
+                            className="mt-1 h-9 px-4 rounded-full bg-[#111318] hover:bg-[#1F232B] active:scale-[0.98] text-white text-[12.5px] font-semibold transition-all cursor-pointer disabled:opacity-60"
+                          >
+                            {isUploadingCover ? 'Enviando...' : 'Selecionar imagem'}
+                          </button>
+                        </div>
+                      </div>
+
+                      {coverUploadError && (
+                        <p className="mt-2 text-[12px] text-[#B91C1C] font-medium">
+                          {coverUploadError}
+                        </p>
+                      )}
+                    </div>
+
+                    {/* Imagens Sugeridas de Campos do Jordão — Grade 2 colunas + Ação discreta de URL */}
+                    <div>
+                      <SectionHeading
+                        icon={<ImageIcon className="w-[16px] h-[16px] stroke-[2]" />}
+                        title="Sugestões de Campos do Jordão"
+                        rightSlot={
+                          <button
+                            type="button"
+                            onClick={() => setShowCoverUrlInput((prev) => !prev)}
+                            className="h-8 px-3 rounded-full bg-[#F2F3F5] hover:bg-[#E5E7EB] text-[#374151] text-[12px] font-semibold inline-flex items-center gap-1.5 transition-colors cursor-pointer"
+                          >
+                            <LinkIcon className="w-3.5 h-3.5" />
+                            <span>{showCoverUrlInput ? 'Ocultar URL' : 'Inserir URL'}</span>
+                          </button>
+                        }
+                      />
+
+                      <AnimatePresence initial={false}>
+                        {showCoverUrlInput && (
+                          <motion.div
+                            initial={{ opacity: 0, height: 0 }}
+                            animate={{ opacity: 1, height: 'auto' }}
+                            exit={{ opacity: 0, height: 0 }}
+                            className="overflow-hidden mb-3"
+                          >
+                            <input
+                              type="url"
+                              value={coverImage}
+                              onChange={(e) => setCoverImage(e.target.value)}
+                              placeholder="https://images.unsplash.com/..."
+                              className={`${INPUT_BASE_CLASS} h-[44px] text-[13px]`}
+                            />
+                          </motion.div>
+                        )}
+                      </AnimatePresence>
+
+                      <div className="grid grid-cols-2 gap-2.5">
+                        {COVER_PRESETS.map((preset, idx) => {
+                          const isSelected = coverImage === preset.url;
+                          return (
+                            <button
+                              key={idx}
+                              type="button"
+                              onClick={() => setCoverImage(preset.url)}
+                              className={`group text-left p-1.5 rounded-[18px] border transition-all cursor-pointer active:scale-[0.985] ${
+                                isSelected
+                                  ? 'border-[#2563EB] bg-[#2563EB]/[0.04] ring-1 ring-[#2563EB]/25'
+                                  : 'border-[#EAECEF] bg-white hover:border-[#D1D5DB]'
+                              }`}
+                            >
+                              <div className="relative aspect-[16/10] rounded-[13px] overflow-hidden bg-[#F2F3F5]">
+                                <img
+                                  src={preset.url}
+                                  alt={preset.label}
+                                  loading="lazy"
+                                  className="w-full h-full object-cover group-hover:scale-[1.03] transition-transform duration-300"
+                                />
+                                {isSelected && (
+                                  <span className="absolute top-2 right-2 w-6 h-6 rounded-full bg-[#2563EB] text-white flex items-center justify-center shadow-sm">
+                                    <Check className="w-3.5 h-3.5 stroke-[2.6]" />
+                                  </span>
+                                )}
+                              </div>
+                              <div className="px-1.5 pt-2 pb-1">
+                                <span
+                                  className={`block text-[12.5px] font-semibold truncate ${
+                                    isSelected ? 'text-[#2563EB]' : 'text-[#111827]'
+                                  }`}
+                                >
+                                  {preset.label}
+                                </span>
+                              </div>
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  </motion.div>
+                )}
+
+                {/* ============================================================
+                    ETAPA 3 — PARADAS DO ROTEIRO
+                   ============================================================ */}
+                {activeTab === 'builder' && (
+                  <motion.div
+                    key="step-builder"
+                    initial={prefersReducedMotion ? { opacity: 1 } : { opacity: 0, y: 6 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={prefersReducedMotion ? { opacity: 0 } : { opacity: 0, y: -4 }}
+                    transition={{ duration: 0.16, ease: 'easeOut' }}
+                    className="space-y-4 pb-3"
+                  >
+                    {/* Hidden file input for optional custom step photo upload */}
+                    <input
+                      type="file"
+                      ref={stepFileInputRef}
+                      accept="image/*"
+                      onChange={(e) => {
+                        const file = e.target.files?.[0];
+                        if (file) handleStepCustomImageUpload(file);
+                        e.target.value = '';
+                      }}
+                      className="hidden"
+                    />
+
+                    {/* Seleção de Dias — Botões arredondados e compactos */}
+                    <div className="flex items-center gap-2 overflow-x-auto no-scrollbar pb-0.5">
+                      {days.map((d, dIdx) => {
+                        const isSelected = activeDayIdx === dIdx;
+                        const count = d.steps.length;
+                        return (
+                          <button
+                            key={dIdx}
+                            type="button"
+                            onClick={() => setActiveDayIdx(dIdx)}
+                            className={`h-[36px] px-3.5 rounded-full text-[12.5px] font-semibold transition-all cursor-pointer shrink-0 border flex items-center gap-1.5 tabular-nums ${
+                              isSelected
+                                ? 'bg-[#111318] text-white border-[#111318] shadow-[0_2px_8px_rgba(17,19,24,0.16)]'
+                                : 'bg-[#F4F5F7] text-[#4B5563] border-transparent hover:bg-[#EAECEF]'
+                            }`}
+                          >
+                            <span>Dia {d.dayNumber}</span>
+                            <span className={isSelected ? 'text-white/60' : 'text-[#9CA3AF]'}>·</span>
+                            <span className={isSelected ? 'text-white/90' : 'text-[#6B7280]'}>
+                              {count} {count === 1 ? 'parada' : 'paradas'}
+                            </span>
+                          </button>
+                        );
+                      })}
+                    </div>
+
+                    {/* Título do Dia — Barra compacta com contagem discreta */}
+                    <div className="px-3.5 py-2.5 rounded-[18px] bg-[#F7F8FA] border border-[#E6E8EC] flex items-center justify-between gap-3">
+                      <div className="flex-1 min-w-0">
+                        <label className="block text-[11px] font-semibold text-[#858585] leading-none mb-1">
+                          Título do Dia {activeDayIdx + 1}
+                        </label>
+                        <input
+                          type="text"
+                          value={currentDay?.title || ''}
+                          onChange={(e) => {
+                            const copy = [...days];
+                            copy[activeDayIdx] = { ...copy[activeDayIdx], title: e.target.value };
+                            setDays(copy);
+                          }}
+                          placeholder={`Dia ${activeDayIdx + 1}: O Clássico de Capivari`}
+                          className="w-full bg-transparent text-[14px] font-bold text-[#111827] placeholder:text-[#9CA3AF] outline-none"
+                        />
+                      </div>
+                      <span className="px-2.5 py-1 rounded-full bg-white border border-black/[0.06] text-[11.5px] font-semibold text-[#374151] tabular-nums shrink-0">
+                        {currentDay?.steps.length || 0}{' '}
+                        {currentDay?.steps.length === 1 ? 'local' : 'locais'}
+                      </span>
+                    </div>
+
+                    {/* Duas colunas no desktop, fluxo vertical compacto no mobile */}
+                    <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 items-start">
+                      {/* COLUNA A: ROTEIRO DO DIA */}
+                      <div className="lg:col-span-6 space-y-2.5">
+                        <SectionHeading
+                          icon={<Layers className="w-[15px] h-[15px] stroke-[2]" />}
+                          title={`Roteiro do Dia ${activeDayIdx + 1}`}
+                          rightSlot={
+                            <span className="text-[12px] font-semibold text-[#6B7280] tabular-nums">
+                              {currentDay?.steps.length || 0}{' '}
+                              {currentDay?.steps.length === 1 ? 'parada' : 'paradas'}
+                            </span>
+                          }
+                        />
+
+                        {currentDay?.steps.length === 0 ? (
+                          <div className="py-7 px-4 rounded-[20px] border border-dashed border-[#D8DCE3] bg-[#FAFAFB] text-center flex flex-col items-center gap-1.5">
+                            <span className="w-10 h-10 rounded-full bg-[#F2F3F5] text-[#6B7280] flex items-center justify-center mb-0.5">
+                              <MapPin className="w-[18px] h-[18px] stroke-[1.9]" />
+                            </span>
+                            <p className="text-[13.5px] font-bold text-[#111827]">
+                              Nenhuma parada no Dia {activeDayIdx + 1}
+                            </p>
+                            <p className="text-[12px] text-[#6B7280] max-w-[240px]">
+                              Escolha os locais disponíveis para montar a sequência deste dia.
+                            </p>
+                          </div>
                         ) : (
-                          <div className="w-full h-full flex items-center justify-center text-zinc-400 text-xs">
-                            Sem imagem
+                          <div className="space-y-2 max-h-[420px] overflow-y-auto pr-0.5 no-scrollbar">
+                            {currentDay?.steps.map((step, sIdx) => {
+                              const stepNumber = String(sIdx + 1).padStart(2, '0');
+                              const spotData = availableSpots.find((s) => s.id === step.spotId);
+                              const stepPhoto = step.customImage || spotData?.image;
+                              const stepName =
+                                step.customName || spotData?.name || 'Local Turístico';
+
+                              return (
+                                <div
+                                  key={`${step.spotId}-${sIdx}`}
+                                  className="p-2.5 rounded-[18px] bg-white border border-[#EAECEF] shadow-[0_2px_8px_-4px_rgba(15,23,42,0.06)] space-y-2"
+                                >
+                                  <div className="flex items-center justify-between gap-2">
+                                    <div className="flex items-center gap-2.5 min-w-0 flex-1">
+                                      <span className="w-6 h-6 rounded-full bg-[#2563EB]/10 text-[#2563EB] font-bold text-[11px] flex items-center justify-center shrink-0 tabular-nums">
+                                        {stepNumber}
+                                      </span>
+
+                                      <button
+                                        type="button"
+                                        onClick={() => {
+                                          setUploadingStepIdx({ dayIdx: activeDayIdx, stepIdx: sIdx });
+                                          stepFileInputRef.current?.click();
+                                        }}
+                                        title="Trocar foto desta parada"
+                                        className="relative w-10 h-10 rounded-[12px] overflow-hidden border border-black/[0.06] bg-[#F2F3F5] shrink-0 cursor-pointer group"
+                                      >
+                                        {stepPhoto ? (
+                                          <img
+                                            src={stepPhoto}
+                                            alt={stepName}
+                                            className="w-full h-full object-cover"
+                                          />
+                                        ) : (
+                                          <span className="w-full h-full flex items-center justify-center text-[#9CA3AF]">
+                                            <Camera className="w-4 h-4" />
+                                          </span>
+                                        )}
+                                      </button>
+
+                                      <div className="min-w-0 flex-1">
+                                        <h4 className="text-[13.5px] font-bold text-[#111827] truncate leading-tight">
+                                          {stepName}
+                                        </h4>
+                                        <span className="text-[11.5px] text-[#6B7280] font-medium block truncate mt-0.5 capitalize">
+                                          {spotData?.categoryLabel || spotData?.category || 'Atração'}
+                                        </span>
+                                      </div>
+                                    </div>
+
+                                    {/* Reorder & Remove */}
+                                    <div className="flex items-center gap-1 shrink-0">
+                                      <button
+                                        type="button"
+                                        disabled={sIdx === 0}
+                                        onClick={() => moveStep(activeDayIdx, sIdx, 'up')}
+                                        className="w-7 h-7 rounded-full bg-[#F4F5F7] text-[#374151] hover:bg-[#E5E7EB] disabled:opacity-25 flex items-center justify-center transition-colors cursor-pointer"
+                                        title="Mover para cima"
+                                      >
+                                        <ChevronUp className="w-3.5 h-3.5" />
+                                      </button>
+                                      <button
+                                        type="button"
+                                        disabled={sIdx === (currentDay?.steps.length || 0) - 1}
+                                        onClick={() => moveStep(activeDayIdx, sIdx, 'down')}
+                                        className="w-7 h-7 rounded-full bg-[#F4F5F7] text-[#374151] hover:bg-[#E5E7EB] disabled:opacity-25 flex items-center justify-center transition-colors cursor-pointer"
+                                        title="Mover para baixo"
+                                      >
+                                        <ChevronDown className="w-3.5 h-3.5" />
+                                      </button>
+                                      <button
+                                        type="button"
+                                        onClick={() => removeStepFromDay(activeDayIdx, sIdx)}
+                                        className="w-7 h-7 rounded-full bg-[#FCECEC] text-[#B91C1C] hover:bg-[#FADADA] flex items-center justify-center transition-colors cursor-pointer ml-0.5"
+                                        title="Remover parada"
+                                      >
+                                        <Trash2 className="w-3.5 h-3.5" />
+                                      </button>
+                                    </div>
+                                  </div>
+
+                                  {/* Compact Timing Row */}
+                                  <div className="grid grid-cols-2 gap-2 pt-2 border-t border-[#F2F3F5]">
+                                    <div className="flex items-center gap-2 px-2.5 h-8 rounded-[11px] bg-[#F7F8FA] border border-[#ECEEF2]">
+                                      <Clock className="w-3 h-3 text-[#9CA3AF] shrink-0" />
+                                      <input
+                                        type="text"
+                                        value={step.suggestedTime}
+                                        onChange={(e) =>
+                                          updateStepField(
+                                            activeDayIdx,
+                                            sIdx,
+                                            'suggestedTime',
+                                            e.target.value
+                                          )
+                                        }
+                                        placeholder="09:30"
+                                        aria-label="Horário sugerido"
+                                        className="w-full bg-transparent text-[12px] font-semibold text-[#111827] outline-none tabular-nums"
+                                      />
+                                    </div>
+
+                                    <div className="flex items-center gap-1.5 px-2.5 h-8 rounded-[11px] bg-[#F7F8FA] border border-[#ECEEF2]">
+                                      <input
+                                        type="number"
+                                        value={step.durationMinutes}
+                                        onChange={(e) =>
+                                          updateStepField(
+                                            activeDayIdx,
+                                            sIdx,
+                                            'durationMinutes',
+                                            Number(e.target.value)
+                                          )
+                                        }
+                                        placeholder="60"
+                                        aria-label="Duração estimada em minutos"
+                                        className="w-full bg-transparent text-[12px] font-semibold text-[#111827] outline-none tabular-nums"
+                                      />
+                                      <span className="text-[11px] text-[#858585] font-medium shrink-0">
+                                        min
+                                      </span>
+                                    </div>
+                                  </div>
+                                </div>
+                              );
+                            })}
                           </div>
                         )}
                       </div>
-                      <div className="space-y-1">
-                        <div className="flex items-center justify-between text-[11px] text-zinc-500">
-                          <span>{daysCount} {daysCount === 1 ? 'dia' : 'dias'} · {totalPlaces} {totalPlaces === 1 ? 'parada' : 'paradas'}</span>
+
+                      {/* COLUNA B: LOCAIS TURÍSTICOS DISPONÍVEIS */}
+                      <div className="lg:col-span-6 space-y-2.5">
+                        <SectionHeading
+                          icon={<Search className="w-[15px] h-[15px] stroke-[2]" />}
+                          title="Locais Disponíveis"
+                          rightSlot={
+                            <span className="text-[12px] font-semibold text-[#6B7280] tabular-nums">
+                              {filteredSpotsForBuilder.length}
+                            </span>
+                          }
+                        />
+
+                        {/* Campo de Pesquisa + Chips de Categoria */}
+                        <div className="space-y-2">
+                          <div className="relative">
+                            <Search className="w-4 h-4 text-[#9CA3AF] absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+                            <input
+                              type="text"
+                              value={spotSearchQuery}
+                              onChange={(e) => setSpotSearchQuery(e.target.value)}
+                              placeholder="Buscar estabelecimento ou atração..."
+                              className={`${INPUT_BASE_CLASS} h-[42px] pl-10 pr-9 text-[13.5px]`}
+                            />
+                            {spotSearchQuery && (
+                              <button
+                                type="button"
+                                onClick={() => setSpotSearchQuery('')}
+                                aria-label="Limpar busca"
+                                className="absolute right-2.5 top-1/2 -translate-y-1/2 w-6 h-6 rounded-full bg-[#E5E7EB] text-[#4B5563] flex items-center justify-center cursor-pointer"
+                              >
+                                <X className="w-3 h-3" />
+                              </button>
+                            )}
+                          </div>
+
+                          <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar pb-0.5">
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                setSpotCategoryFilter('all');
+                                (e.currentTarget as HTMLElement)?.scrollIntoView({
+                                  behavior: 'smooth',
+                                  block: 'nearest',
+                                  inline: 'center',
+                                });
+                              }}
+                              className={`h-[30px] px-3 rounded-full text-[12px] font-semibold shrink-0 transition-all cursor-pointer border ${
+                                spotCategoryFilter === 'all'
+                                  ? 'bg-[#111318] text-white border-[#111318]'
+                                  : 'bg-[#F7F8FA] text-[#4B5563] border-[#E6E8EC] hover:border-[#D1D5DB]'
+                              }`}
+                            >
+                              Todos
+                            </button>
+                            {spotCategories.map((cat) => (
+                              <button
+                                key={cat}
+                                type="button"
+                                onClick={(e) => {
+                                  setSpotCategoryFilter(cat);
+                                  (e.currentTarget as HTMLElement)?.scrollIntoView({
+                                    behavior: 'smooth',
+                                    block: 'nearest',
+                                    inline: 'center',
+                                  });
+                                }}
+                                className={`h-[30px] px-3 rounded-full text-[12px] font-semibold shrink-0 capitalize transition-all cursor-pointer border ${
+                                  spotCategoryFilter === cat
+                                    ? 'bg-[#111318] text-white border-[#111318]'
+                                    : 'bg-[#F7F8FA] text-[#4B5563] border-[#E6E8EC] hover:border-[#D1D5DB]'
+                                }`}
+                              >
+                                {cat}
+                              </button>
+                            ))}
+                          </div>
                         </div>
-                        <h4 className="text-sm font-black tracking-tight line-clamp-1 text-zinc-900">
-                          {title || 'Título do Roteiro'}
-                        </h4>
-                        <p className="text-xs text-zinc-500 line-clamp-2">
-                          {description || 'Descrição do roteiro que será exibida para os viajantes...'}
-                        </p>
+
+                        {/* Resultados Compactos (múltiplos locais visíveis na tela) */}
+                        <div className="space-y-1.5 max-h-[380px] overflow-y-auto pr-0.5 no-scrollbar">
+                          {loadingSpots ? (
+                            <div className="py-10 text-center text-[12.5px] text-[#858585] flex items-center justify-center gap-2">
+                              <RefreshCw className="w-4 h-4 animate-spin" />
+                              <span>Carregando locais...</span>
+                            </div>
+                          ) : filteredSpotsForBuilder.length === 0 ? (
+                            <div className="py-10 text-center text-[12.5px] text-[#858585]">
+                              Nenhum local encontrado para este filtro.
+                            </div>
+                          ) : (
+                            filteredSpotsForBuilder.map((spot) => {
+                              const countInCurrentDay = (currentDay?.steps || []).filter(
+                                (s) => s.spotId === spot.id
+                              ).length;
+
+                              return (
+                                <div
+                                  key={spot.id}
+                                  className="p-2 rounded-[16px] bg-white border border-[#ECEEF2] hover:border-[#D1D5DB] flex items-center justify-between gap-2.5 transition-colors"
+                                >
+                                  <div className="flex items-center gap-2.5 min-w-0 flex-1">
+                                    <img
+                                      src={
+                                        spot.image ||
+                                        'https://images.unsplash.com/photo-1585320806297-9794b3e4eeae?auto=format&fit=crop&w=300&q=80'
+                                      }
+                                      alt={spot.name}
+                                      loading="lazy"
+                                      className="w-10 h-10 rounded-[11px] object-cover shrink-0 bg-[#F2F3F5] border border-black/[0.04]"
+                                    />
+                                    <div className="min-w-0 flex-1">
+                                      <h4 className="text-[13px] font-bold text-[#111827] truncate leading-tight">
+                                        {spot.name}
+                                      </h4>
+                                      <div className="flex items-center gap-1.5 mt-0.5 text-[11px] text-[#6B7280]">
+                                        <span className="truncate capitalize">
+                                          {spot.categoryLabel || spot.category || 'Ponto Turístico'}
+                                        </span>
+                                        {spot.priceRange && (
+                                          <>
+                                            <span className="text-[#D1D5DB]">·</span>
+                                            <span className="font-semibold text-[#15803D] shrink-0">
+                                              {spot.priceRange}
+                                            </span>
+                                          </>
+                                        )}
+                                      </div>
+                                    </div>
+                                  </div>
+
+                                  <button
+                                    type="button"
+                                    onClick={() => addSpotToActiveDay(spot)}
+                                    className={`h-8 px-3 rounded-full text-[12px] font-semibold flex items-center gap-1 transition-all cursor-pointer shrink-0 active:scale-[0.96] ${
+                                      countInCurrentDay > 0
+                                        ? 'bg-[#E7F6EC] text-[#15803D] hover:bg-[#D5EEDF]'
+                                        : 'bg-[#111318] text-white hover:bg-[#1F232B]'
+                                    }`}
+                                  >
+                                    {countInCurrentDay > 0 ? (
+                                      <>
+                                        <Check className="w-3.5 h-3.5 stroke-[2.5]" />
+                                        <span>{countInCurrentDay}x</span>
+                                      </>
+                                    ) : (
+                                      <>
+                                        <Plus className="w-3.5 h-3.5 stroke-[2.4]" />
+                                        <span>Adicionar</span>
+                                      </>
+                                    )}
+                                  </button>
+                                </div>
+                              );
+                            })
+                          )}
+                        </div>
                       </div>
                     </div>
-                  </div>
-                </div>
+                  </motion.div>
+                )}
 
+                {/* ============================================================
+                    ETAPA 4 — DESTAQUE NA LOJA
+                   ============================================================ */}
+                {activeTab === 'appearance' && (
+                  <motion.div
+                    key="step-appearance"
+                    initial={prefersReducedMotion ? { opacity: 1 } : { opacity: 0, y: 6 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={prefersReducedMotion ? { opacity: 0 } : { opacity: 0, y: -4 }}
+                    transition={{ duration: 0.16, ease: 'easeOut' }}
+                    className="grid grid-cols-1 md:grid-cols-12 gap-5 items-start pb-3"
+                  >
+                    {/* Coluna Esquerda: Configurações compactas em linhas iOS */}
+                    <div className="md:col-span-6 space-y-4">
+                      <div>
+                        <SectionHeading
+                          icon={<Sparkles className="w-[16px] h-[16px] stroke-[2]" />}
+                          title="Exibição na Loja"
+                        />
+
+                        <div className="rounded-[20px] bg-white border border-[#EAECEF] divide-y divide-[#F0F1F4] overflow-hidden shadow-[0_4px_16px_-6px_rgba(15,23,42,0.05)]">
+                          {/* Linha 1: Roteiro em destaque */}
+                          <div className="px-4 py-3.5 flex items-center justify-between gap-3">
+                            <div className="min-w-0">
+                              <span className="block text-[14px] font-semibold text-[#111827] leading-tight">
+                                Roteiro em destaque
+                              </span>
+                              <span className="block text-[12px] text-[#6B7280] mt-0.5 leading-snug">
+                                Exibir no topo em &quot;Roteiros em destaque&quot;
+                              </span>
+                            </div>
+                            <IOSToggle
+                              checked={isFeatured}
+                              onChange={setIsFeatured}
+                              ariaLabel="Ativar roteiro em destaque"
+                            />
+                          </div>
+
+                          {/* Linha 2: Visibilidade dos dados (contagem de paradas) */}
+                          <div className="px-4 py-3.5 flex items-center justify-between gap-3">
+                            <div className="min-w-0">
+                              <span className="block text-[14px] font-semibold text-[#111827] leading-tight">
+                                Mostrar contagem de paradas
+                              </span>
+                              <span className="block text-[12px] text-[#6B7280] mt-0.5 leading-snug">
+                                Exibe a quantidade total de locais no card
+                              </span>
+                            </div>
+                            <IOSToggle
+                              checked={showStopsCount}
+                              onChange={setShowStopsCount}
+                              ariaLabel="Mostrar contagem de paradas no card"
+                            />
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Coluna Direita: Pré-visualização compacta do Card na Loja */}
+                    <div className="md:col-span-6">
+                      <SectionHeading
+                        icon={<Layout className="w-[16px] h-[16px] stroke-[2]" />}
+                        title="Pré-visualização na Loja"
+                      />
+
+                      <div className="p-3.5 rounded-[24px] bg-[#F7F8FA] border border-[#ECEEF2]">
+                        <div className="rounded-[20px] bg-white border border-black/[0.05] overflow-hidden shadow-[0_8px_24px_-8px_rgba(15,23,42,0.09)]">
+                          <div className="relative aspect-[16/9] bg-[#EFEFF2] overflow-hidden">
+                            {coverImage ? (
+                              <img
+                                src={coverImage}
+                                alt="Prévia da capa do roteiro"
+                                className="w-full h-full object-cover"
+                              />
+                            ) : (
+                              <div className="w-full h-full flex items-center justify-center text-[#9CA3AF] text-[12px] font-medium">
+                                Sem imagem de capa
+                              </div>
+                            )}
+
+                            {/* Badge Destaque quando ativo */}
+                            {isFeatured && (
+                              <span className="absolute top-2.5 left-2.5 px-2.5 py-1 rounded-full bg-white/92 backdrop-blur-md text-[#111827] text-[11px] font-bold shadow-xs">
+                                Destaque
+                              </span>
+                            )}
+
+                            {/* Badge de Acesso */}
+                            <span
+                              className={`absolute top-2.5 right-2.5 px-2.5 py-1 rounded-full backdrop-blur-md text-[11px] font-bold inline-flex items-center gap-1 shadow-xs ${
+                                isPremium
+                                  ? 'bg-[#111318]/85 text-white'
+                                  : 'bg-[#E7F6EC]/95 text-[#15803D]'
+                              }`}
+                            >
+                              {isPremium && (
+                                <PlatanoLeafIcon className="w-3.5 h-3.5" variant="monochrome" />
+                              )}
+                              <span>{isPremium ? '15 Plátanos' : 'Grátis'}</span>
+                            </span>
+                          </div>
+
+                          <div className="p-3.5 space-y-1.5">
+                            <div className="flex items-center justify-between gap-2 text-[11.5px] font-semibold text-[#6B7280] tabular-nums">
+                              <span>
+                                {daysCount} {daysCount === 1 ? 'dia' : 'dias'}
+                                {showStopsCount && (
+                                  <>
+                                    {' · '}
+                                    {totalPlaces} {totalPlaces === 1 ? 'parada' : 'paradas'}
+                                  </>
+                                )}
+                              </span>
+                              <span className={isPremium ? 'text-[#111827]' : 'text-[#15803D]'}>
+                                {isPremium ? 'R$ 29,90' : 'Acesso livre'}
+                              </span>
+                            </div>
+
+                            <h4 className="text-[15px] font-bold text-[#111827] tracking-[-0.015em] line-clamp-1">
+                              {title.trim() || 'Título do Roteiro'}
+                            </h4>
+
+                            <p className="text-[12.5px] text-[#6B7280] line-clamp-2 leading-relaxed">
+                              {description.trim() ||
+                                'Descrição do roteiro que será apresentada aos visitantes na loja do Monvian.'}
+                            </p>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </motion.div>
+                )}
+              </AnimatePresence>
+            </div>
+
+            {/* 4. FIXED STANDARDIZED FOOTER (All 4 Steps + iPhone Safe Area) */}
+            <div
+              className="shrink-0 bg-[#FFFFFF] border-t border-[#EFEFF2] px-4 sm:px-6 pt-3 flex items-center justify-between gap-2"
+              style={{
+                paddingBottom: 'max(18px, calc(env(safe-area-inset-bottom, 0px) + 12px))',
+              }}
+            >
+              <button
+                type="button"
+                onClick={onClose}
+                disabled={isSubmitting}
+                className="h-[44px] px-3 sm:px-4 rounded-full text-[13px] font-semibold text-[#6B7280] hover:text-[#111827] hover:bg-[#F3F4F6] transition-colors cursor-pointer disabled:opacity-50 shrink-0"
+              >
+                Cancelar
+              </button>
+
+              <div className="flex items-center gap-2 min-w-0">
+                <button
+                  type="button"
+                  disabled={isSubmitting}
+                  onClick={() => handleSaveWithStatus('draft')}
+                  className="h-[44px] px-3.5 sm:px-4 rounded-full bg-white border border-[#DDE1E7] hover:bg-[#F7F8FA] active:scale-[0.98] text-[#111827] text-[13px] font-semibold transition-all cursor-pointer disabled:opacity-50 whitespace-nowrap"
+                >
+                  <span className="hidden sm:inline">Salvar como rascunho</span>
+                  <span className="sm:hidden">Rascunho</span>
+                </button>
+
+                <button
+                  type="button"
+                  disabled={isSubmitting}
+                  onClick={() => handleSaveWithStatus(primaryActionStatus)}
+                  className="h-[44px] px-4 sm:px-5 rounded-full bg-[#111318] hover:bg-[#1F232B] active:scale-[0.98] text-white text-[13px] font-semibold transition-all cursor-pointer disabled:opacity-50 flex items-center justify-center gap-1.5 whitespace-nowrap shadow-[0_4px_14px_-4px_rgba(17,19,24,0.35)]"
+                >
+                  {isSubmitting ? (
+                    <>
+                      <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                      <span>Salvando...</span>
+                    </>
+                  ) : (
+                    <>
+                      <CheckCircle2 className="w-4 h-4 stroke-[2]" />
+                      <span>{primaryActionLabel}</span>
+                    </>
+                  )}
+                </button>
               </div>
             </div>
-          )}
-        </div>
-
-        {/* 10. Modal Footer Buttons */}
-        <div className="px-5 py-3.5 border-t border-zinc-200 flex items-center justify-between bg-zinc-50/90 shrink-0">
-          <button
-            type="button"
-            onClick={onClose}
-            className="h-11 px-4 text-xs font-bold text-zinc-500 hover:text-zinc-900 transition-colors cursor-pointer flex items-center justify-center rounded-xl hover:bg-zinc-100"
-          >
-            Cancelar
-          </button>
-
-          <div className="flex items-center gap-2.5">
-            <button
-              type="button"
-              disabled={isSubmitting}
-              onClick={() => handleSaveWithStatus('draft')}
-              className="h-11 px-4 rounded-2xl border border-zinc-300 bg-white text-zinc-800 text-xs font-bold hover:bg-zinc-100 transition-colors cursor-pointer disabled:opacity-50 flex items-center justify-center shadow-2xs"
-            >
-              Salvar como Rascunho
-            </button>
-
-            <button
-              type="button"
-              disabled={isSubmitting}
-              onClick={() => handleSaveWithStatus('published')}
-              className="h-11 px-5 rounded-2xl bg-zinc-900 text-white text-xs font-black hover:bg-black transition-colors cursor-pointer disabled:opacity-50 shadow-xs flex items-center justify-center gap-1.5"
-            >
-              {isSubmitting ? (
-                <>
-                  <RefreshCw className="w-3.5 h-3.5 animate-spin" />
-                  <span>Salvando...</span>
-                </>
-              ) : (
-                <>
-                  <CheckCircle2 className="w-3.5 h-3.5" />
-                  <span>{itineraryToEdit ? 'Atualizar Roteiro' : 'Publicar Roteiro'}</span>
-                </>
-              )}
-            </button>
-          </div>
-        </div>
-
-      </div>
-    </div>
+          </motion.div>
+        </motion.div>
+      )}
+    </AnimatePresence>,
+    document.body
   );
 };

@@ -44,6 +44,7 @@ import {
   getUserFavoritesFromFirestore,
   persistUserOnboardingToFirestore,
   getUserOnboardingFromFirestore,
+  getAllUserOnboardingFromFirestore,
 } from './src/services/firestoreSync.ts';
 import firebaseAppletConfig from './firebase-applet-config.json' with { type: 'json' };
 
@@ -4214,7 +4215,100 @@ async function startServer() {
     }
   });
 
-  app.get('/api/admin/users', (req: Request, res: Response) => {
+  const INTERNAL_LOCATION_FLAGS = new Set(['granted', 'skipped', 'prompted', 'denied', 'true', 'false']);
+  const resolveRealRegionPreference = (...candidates: Array<any>): string => {
+    for (const candidate of candidates) {
+      const val = String(candidate || '').trim();
+      if (!val) continue;
+      if (INTERNAL_LOCATION_FLAGS.has(val.toLowerCase())) continue;
+      return val;
+    }
+    return '';
+  };
+
+  const formatAdminUserRecord = (u: any, ob: any, cloudOb: any) => {
+    const emailClean = String(u.email || u.whatsapp || '').trim().toLowerCase();
+    const { password_hash: _pw, ...safeFields } = u;
+
+    const camposRelationship = String(
+      ob?.campos_relationship || cloudOb?.campos_relationship || u.campos_relationship || ''
+    ).trim();
+    const nextTripTiming = String(
+      ob?.next_trip_timing || cloudOb?.next_trip_timing || u.next_trip_timing || ''
+    ).trim();
+    const nextTripDate = String(
+      ob?.next_trip_date || cloudOb?.next_trip_date || u.next_trip_date || ''
+    ).trim();
+    const travelCompany = String(
+      ob?.travel_company || cloudOb?.travel_company || u.travel_company || ''
+    ).trim();
+    const locationPreference = String(
+      ob?.location_preference || cloudOb?.location_preference || u.location_preference || ''
+    ).trim();
+
+    const obInterests = parseInterestCategoriesList(ob?.interest_categories);
+    const cloudInterests = parseInterestCategoriesList(cloudOb?.interest_categories);
+    const userInterests = parseInterestCategoriesList(u.interest_categories);
+    const legacyInterests = parseInterestCategoriesList(u.main_interests);
+    const mainInterests =
+      obInterests.length > 0
+        ? obInterests
+        : cloudInterests.length > 0
+          ? cloudInterests
+          : userInterests.length > 0
+            ? userInterests
+            : legacyInterests;
+
+    const preferredRegion = resolveRealRegionPreference(
+      u.preferred_region,
+      u.preferred_season,
+      ob?.preferred_region,
+      cloudOb?.preferred_region,
+      locationPreference
+    );
+
+    const onboardingCompleted =
+      ob?.onboarding_completed !== undefined
+        ? Number(ob.onboarding_completed)
+        : cloudOb?.onboarding_completed !== undefined
+          ? Number(cloudOb.onboarding_completed)
+          : u.onboarding_completed !== undefined
+            ? Number(u.onboarding_completed)
+            : 1;
+    const onboardingStep =
+      ob?.onboarding_step !== undefined
+        ? Number(ob.onboarding_step || 1)
+        : cloudOb?.onboarding_step !== undefined
+          ? Number(cloudOb.onboarding_step || 1)
+          : Number(u.onboarding_step || 1);
+
+    const effectiveFrequency = String(
+      u.travel_frequency || nextTripTiming || nextTripDate || ''
+    ).trim();
+    const effectiveStyle = String(u.travel_style || travelCompany || '').trim();
+    const effectiveOrigin = String(camposRelationship || u.referral_source || '').trim();
+
+    return {
+      ...safeFields,
+      role: isPrimaryAdmin(emailClean) || u.role === 'admin' ? 'admin' : 'user',
+      onboarding_completed: onboardingCompleted ? 1 : 0,
+      onboarding_step: onboardingStep,
+      campos_relationship: camposRelationship,
+      next_trip_timing: nextTripTiming,
+      next_trip_date: nextTripDate,
+      travel_company: travelCompany,
+      location_preference: locationPreference,
+      interest_categories: mainInterests,
+      preferred_region: preferredRegion,
+      referral_source: effectiveOrigin,
+      travel_frequency: effectiveFrequency,
+      travel_style: effectiveStyle,
+      main_interests: mainInterests,
+      preferred_season: preferredRegion,
+    };
+  };
+
+  app.get('/api/admin/users', async (req: Request, res: Response) => {
     try {
       const users = db.prepare('SELECT * FROM users ORDER BY created_at DESC').all() as any[];
       const onboardingRows = db.prepare('SELECT * FROM user_onboarding').all() as any[];
@@ -4224,46 +4318,97 @@ async function startServer() {
         if (key) onboardingByEmail.set(key, row);
       }
 
+      const forceCloud = String(req.query.refresh || '') === '1';
+      let cloudOnboardingMap = new Map<string, any>();
+      try {
+        cloudOnboardingMap = await getAllUserOnboardingFromFirestore(forceCloud);
+      } catch {}
+
+      // Backfill local SQLite user_onboarding + users whenever Firestore has richer answers
+      if (cloudOnboardingMap.size > 0) {
+        try {
+          const upsertOb = db.prepare(`
+            INSERT INTO user_onboarding (
+              user_email, user_id, campos_relationship, next_trip_timing, next_trip_date,
+              interest_categories, travel_company, location_preference,
+              location_permission_granted, onboarding_step, onboarding_completed,
+              completed_at, updated_at
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ON CONFLICT(user_email) DO UPDATE SET
+              campos_relationship = CASE WHEN excluded.campos_relationship != '' THEN excluded.campos_relationship ELSE user_onboarding.campos_relationship END,
+              next_trip_timing = CASE WHEN excluded.next_trip_timing != '' THEN excluded.next_trip_timing ELSE user_onboarding.next_trip_timing END,
+              next_trip_date = CASE WHEN excluded.next_trip_date != '' THEN excluded.next_trip_date ELSE user_onboarding.next_trip_date END,
+              interest_categories = CASE WHEN excluded.interest_categories != '[]' THEN excluded.interest_categories ELSE user_onboarding.interest_categories END,
+              travel_company = CASE WHEN excluded.travel_company != '' THEN excluded.travel_company ELSE user_onboarding.travel_company END,
+              location_preference = CASE WHEN excluded.location_preference != '' THEN excluded.location_preference ELSE user_onboarding.location_preference END,
+              onboarding_step = COALESCE(excluded.onboarding_step, user_onboarding.onboarding_step),
+              onboarding_completed = CASE WHEN excluded.onboarding_completed = 1 THEN 1 ELSE user_onboarding.onboarding_completed END,
+              updated_at = COALESCE(excluded.updated_at, user_onboarding.updated_at)
+          `);
+          const updateUserOb = db.prepare(`
+            UPDATE users
+            SET campos_relationship = CASE WHEN ? != '' THEN ? ELSE COALESCE(campos_relationship, '') END,
+                next_trip_timing = CASE WHEN ? != '' THEN ? ELSE COALESCE(next_trip_timing, '') END,
+                next_trip_date = CASE WHEN ? != '' THEN ? ELSE COALESCE(next_trip_date, '') END,
+                interest_categories = CASE WHEN ? != '[]' THEN ? ELSE COALESCE(interest_categories, '[]') END,
+                travel_company = CASE WHEN ? != '' THEN ? ELSE COALESCE(travel_company, '') END,
+                location_preference = CASE WHEN ? != '' THEN ? ELSE COALESCE(location_preference, '') END
+            WHERE id = ?
+          `);
+
+          for (const u of users) {
+            const emailClean = String(u.email || u.whatsapp || '').trim().toLowerCase();
+            if (!emailClean) continue;
+            const cloudOb = cloudOnboardingMap.get(emailClean);
+            if (!cloudOb) continue;
+            const localOb = onboardingByEmail.get(emailClean);
+            const localHasData = Boolean(
+              localOb?.campos_relationship ||
+                localOb?.next_trip_timing ||
+                localOb?.travel_company ||
+                parseInterestCategoriesList(localOb?.interest_categories).length > 0
+            );
+            if (!localHasData) {
+              const rel = String(cloudOb.campos_relationship || '').trim();
+              const timing = String(cloudOb.next_trip_timing || '').trim();
+              const tripDate = String(cloudOb.next_trip_date || '').trim();
+              const interestsJson = JSON.stringify(parseInterestCategoriesList(cloudOb.interest_categories));
+              const company = String(cloudOb.travel_company || '').trim();
+              const locPref = String(cloudOb.location_preference || '').trim();
+              upsertOb.run(
+                emailClean,
+                String(u.id || cloudOb.user_id || ''),
+                rel,
+                timing,
+                tripDate,
+                interestsJson,
+                company,
+                locPref,
+                cloudOb.location_permission_granted ? 1 : 0,
+                Number(cloudOb.onboarding_step || u.onboarding_step || 1),
+                cloudOb.onboarding_completed ? 1 : Number(u.onboarding_completed || 0),
+                cloudOb.completed_at || null,
+                cloudOb.updated_at || new Date().toISOString()
+              );
+              updateUserOb.run(
+                rel, rel,
+                timing, timing,
+                tripDate, tripDate,
+                interestsJson, interestsJson,
+                company, company,
+                locPref, locPref,
+                u.id
+              );
+            }
+          }
+        } catch {}
+      }
+
       const formattedUsers = users.map((u) => {
         const emailClean = String(u.email || u.whatsapp || '').trim().toLowerCase();
         const ob = emailClean ? onboardingByEmail.get(emailClean) : null;
-        const { password_hash: _pw, ...safeFields } = u;
-
-        const camposRelationship = ob?.campos_relationship || u.campos_relationship || '';
-        const nextTripTiming = ob?.next_trip_timing || u.next_trip_timing || '';
-        const travelCompany = ob?.travel_company || u.travel_company || '';
-        const locationPreference = ob?.location_preference || u.location_preference || '';
-        const mainInterests = parseInterestCategoriesList(
-          ob?.interest_categories || u.interest_categories
-        );
-
-        const onboardingCompleted =
-          ob?.onboarding_completed !== undefined
-            ? Number(ob.onboarding_completed)
-            : u.onboarding_completed !== undefined
-              ? Number(u.onboarding_completed)
-              : 1;
-        const onboardingStep =
-          ob?.onboarding_step !== undefined
-            ? Number(ob.onboarding_step || 1)
-            : Number(u.onboarding_step || 1);
-
-        return {
-          ...safeFields,
-          role: isPrimaryAdmin(emailClean) || u.role === 'admin' ? 'admin' : 'user',
-          onboarding_completed: onboardingCompleted ? 1 : 0,
-          onboarding_step: onboardingStep,
-          campos_relationship: camposRelationship,
-          next_trip_timing: nextTripTiming,
-          travel_company: travelCompany,
-          location_preference: locationPreference,
-          interest_categories: mainInterests,
-          referral_source: u.referral_source || camposRelationship || '',
-          travel_frequency: u.travel_frequency || nextTripTiming || '',
-          travel_style: u.travel_style || travelCompany || '',
-          main_interests: Array.isArray(u.main_interests) && u.main_interests.length > 0 ? u.main_interests : mainInterests,
-          preferred_season: u.preferred_season || locationPreference || '',
-        };
+        const cloudOb = emailClean ? cloudOnboardingMap.get(emailClean) : null;
+        return formatAdminUserRecord(u, ob, cloudOb);
       });
 
       const activeCount = formattedUsers.filter((u) => Number(u.is_banned) !== 1).length;
@@ -4304,6 +4449,30 @@ async function startServer() {
           pendingOnboarding: pendingOnboardingCount,
         },
       });
+    } catch (err: any) {
+      return res.status(500).json({ success: false, error: err.message });
+    }
+  });
+
+  app.get('/api/admin/users/:id', async (req: Request, res: Response) => {
+    try {
+      const { id } = req.params;
+      const u = db.prepare('SELECT * FROM users WHERE id = ?').get(id) as any;
+      if (!u) {
+        return res.status(404).json({ success: false, error: 'Usuário não encontrado.' });
+      }
+      const emailClean = String(u.email || u.whatsapp || '').trim().toLowerCase();
+      const ob = emailClean
+        ? (db.prepare('SELECT * FROM user_onboarding WHERE LOWER(user_email) = ?').get(emailClean) as any)
+        : null;
+      let cloudOb: any = null;
+      if (emailClean) {
+        try {
+          cloudOb = await getUserOnboardingFromFirestore(emailClean);
+        } catch {}
+      }
+      const formatted = formatAdminUserRecord(u, ob, cloudOb);
+      return res.json({ success: true, user: formatted });
     } catch (err: any) {
       return res.status(500).json({ success: false, error: err.message });
     }

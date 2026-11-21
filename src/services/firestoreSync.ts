@@ -405,6 +405,131 @@ export async function getUserOnboardingFromFirestore(
   return null;
 }
 
+function normalizeInterestList(raw: unknown): string[] {
+  if (Array.isArray(raw)) {
+    return raw.map((item) => String(item || '').trim()).filter(Boolean);
+  }
+  if (typeof raw === 'string') {
+    const trimmed = raw.trim();
+    if (!trimmed) return [];
+    try {
+      const parsed = JSON.parse(trimmed);
+      if (Array.isArray(parsed)) {
+        return parsed.map((item) => String(item || '').trim()).filter(Boolean);
+      }
+    } catch {}
+    return trimmed
+      .split(',')
+      .map((item) => item.trim())
+      .filter(Boolean);
+  }
+  return [];
+}
+
+let cachedAllOnboardingMap: Map<string, FirestoreUserOnboarding> | null = null;
+let cachedAllOnboardingAt = 0;
+const ONBOARDING_CACHE_TTL_MS = 10000;
+
+export async function getAllUserOnboardingFromFirestore(
+  forceRefresh = false
+): Promise<Map<string, FirestoreUserOnboarding>> {
+  const now = Date.now();
+  if (
+    !forceRefresh &&
+    cachedAllOnboardingMap &&
+    now - cachedAllOnboardingAt < ONBOARDING_CACHE_TTL_MS
+  ) {
+    return cachedAllOnboardingMap;
+  }
+
+  const mergedMap = new Map<string, FirestoreUserOnboarding>();
+
+  try {
+    const [obSnap, usersSnap] = await Promise.all([
+      withTimeout(getDocs(collection(firestore, 'user_onboarding')), 3500, null as any),
+      withTimeout(getDocs(collection(firestore, 'users')), 3500, null as any),
+    ]);
+
+    const mergeInto = (emailRaw: string, src: Record<string, any>, preferIncoming: boolean) => {
+      const cleanEmail = String(emailRaw || '').trim().toLowerCase();
+      if (!cleanEmail) return;
+
+      const existing = mergedMap.get(cleanEmail);
+      const incomingInterests = normalizeInterestList(src.interest_categories);
+      const existingInterests = existing?.interest_categories || [];
+
+      const pickStr = (incoming: any, current?: string) => {
+        const inc = String(incoming || '').trim();
+        const cur = String(current || '').trim();
+        if (preferIncoming) return inc || cur;
+        return cur || inc;
+      };
+
+      mergedMap.set(cleanEmail, {
+        user_id: pickStr(src.user_id || src.id, existing?.user_id ? String(existing.user_id) : ''),
+        user_email: cleanEmail,
+        campos_relationship: pickStr(src.campos_relationship, existing?.campos_relationship),
+        next_trip_timing: pickStr(src.next_trip_timing, existing?.next_trip_timing),
+        next_trip_date: pickStr(src.next_trip_date, existing?.next_trip_date),
+        interest_categories:
+          preferIncoming
+            ? incomingInterests.length > 0
+              ? incomingInterests
+              : existingInterests
+            : existingInterests.length > 0
+              ? existingInterests
+              : incomingInterests,
+        travel_company: pickStr(src.travel_company, existing?.travel_company),
+        location_preference: pickStr(src.location_preference, existing?.location_preference),
+        location_permission_granted: Number(
+          src.location_permission_granted ?? existing?.location_permission_granted ?? 0
+        ),
+        onboarding_step: Number(src.onboarding_step ?? existing?.onboarding_step ?? 1),
+        onboarding_completed:
+          src.onboarding_completed !== undefined
+            ? Number(src.onboarding_completed)
+            : existing?.onboarding_completed !== undefined
+              ? Number(existing.onboarding_completed)
+              : 0,
+        completed_at: pickStr(src.completed_at, existing?.completed_at),
+        updated_at: pickStr(src.updated_at, existing?.updated_at),
+      });
+    };
+
+    if (usersSnap && !usersSnap.empty) {
+      usersSnap.forEach((docSnap: any) => {
+        const data = docSnap.data() || {};
+        const email = data.email || data.user_email || docSnap.id;
+        if (
+          data.campos_relationship ||
+          data.next_trip_timing ||
+          data.next_trip_date ||
+          data.travel_company ||
+          data.location_preference ||
+          normalizeInterestList(data.interest_categories).length > 0
+        ) {
+          mergeInto(email, data, false);
+        }
+      });
+    }
+
+    if (obSnap && !obSnap.empty) {
+      obSnap.forEach((docSnap: any) => {
+        const data = docSnap.data() || {};
+        const email = data.user_email || data.email || docSnap.id;
+        mergeInto(email, data, true);
+      });
+    }
+
+    cachedAllOnboardingMap = mergedMap;
+    cachedAllOnboardingAt = now;
+  } catch (err) {
+    if (cachedAllOnboardingMap) return cachedAllOnboardingMap;
+  }
+
+  return mergedMap;
+}
+
 /**
  * Permanently registers that the first-access welcome card was presented to the authenticated user.
  * Syncs to SQLite server API, Firestore, and Supabase.
@@ -1407,7 +1532,46 @@ export async function syncDatabaseWithFirestore(sqliteDb: any): Promise<void> {
         `);
       } catch (e) {}
 
-      const usersSnap = await withTimeout(getDocs(collection(firestore, 'users')), 5000, null as any);
+      try { sqliteDb.exec(`ALTER TABLE users ADD COLUMN campos_relationship TEXT DEFAULT '';`); } catch (e) {}
+      try { sqliteDb.exec(`ALTER TABLE users ADD COLUMN next_trip_timing TEXT DEFAULT '';`); } catch (e) {}
+      try { sqliteDb.exec(`ALTER TABLE users ADD COLUMN next_trip_date TEXT DEFAULT '';`); } catch (e) {}
+      try { sqliteDb.exec(`ALTER TABLE users ADD COLUMN interest_categories TEXT DEFAULT '[]';`); } catch (e) {}
+      try { sqliteDb.exec(`ALTER TABLE users ADD COLUMN travel_company TEXT DEFAULT '';`); } catch (e) {}
+      try { sqliteDb.exec(`ALTER TABLE users ADD COLUMN location_preference TEXT DEFAULT '';`); } catch (e) {}
+      try {
+        sqliteDb.exec(`
+          CREATE TABLE IF NOT EXISTS user_onboarding (
+            user_email TEXT PRIMARY KEY,
+            user_id TEXT,
+            campos_relationship TEXT DEFAULT '',
+            next_trip_timing TEXT DEFAULT '',
+            next_trip_date TEXT DEFAULT '',
+            interest_categories TEXT DEFAULT '[]',
+            travel_company TEXT DEFAULT '',
+            location_preference TEXT DEFAULT '',
+            location_permission_granted INTEGER DEFAULT 0,
+            onboarding_step INTEGER DEFAULT 1,
+            onboarding_completed INTEGER DEFAULT 0,
+            completed_at DATETIME,
+            updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+          );
+        `);
+      } catch (e) {}
+
+      const [usersSnap, onboardingSnap] = await Promise.all([
+        withTimeout(getDocs(collection(firestore, 'users')), 5000, null as any),
+        withTimeout(getDocs(collection(firestore, 'user_onboarding')), 5000, null as any),
+      ]);
+
+      const cloudObByEmail = new Map<string, any>();
+      if (onboardingSnap && !onboardingSnap.empty) {
+        onboardingSnap.forEach((docSnap: any) => {
+          const obData = docSnap.data() || {};
+          const key = String(obData.user_email || obData.email || docSnap.id || '').trim().toLowerCase();
+          if (key) cloudObByEmail.set(key, obData);
+        });
+      }
+
       if (usersSnap && !usersSnap.empty) {
         usersSnap.forEach((docSnap: any) => {
           const cloudUser = docSnap.data() as FirestoreUser;
@@ -1415,6 +1579,19 @@ export async function syncDatabaseWithFirestore(sqliteDb: any): Promise<void> {
 
           const cleanEmail = String(cloudUser.email).trim().toLowerCase();
           const targetRole = isPrimaryAdmin(cleanEmail) ? 'admin' : (cloudUser.role ? String(cloudUser.role) : 'user');
+          const cloudOb = cloudObByEmail.get(cleanEmail) || {};
+
+          const mergedRelationship = String(cloudOb.campos_relationship || cloudUser.campos_relationship || '').trim();
+          const mergedTiming = String(cloudOb.next_trip_timing || cloudUser.next_trip_timing || '').trim();
+          const mergedTripDate = String(cloudOb.next_trip_date || cloudUser.next_trip_date || '').trim();
+          const mergedCompany = String(cloudOb.travel_company || cloudUser.travel_company || '').trim();
+          const mergedLocPref = String(cloudOb.location_preference || cloudUser.location_preference || '').trim();
+          const mergedInterestsList = (() => {
+            const fromOb = normalizeInterestList(cloudOb.interest_categories);
+            if (fromOb.length > 0) return fromOb;
+            return normalizeInterestList(cloudUser.interest_categories);
+          })();
+          const mergedInterestsJson = JSON.stringify(mergedInterestsList);
 
           const existingUser = sqliteDb.prepare('SELECT id, name FROM users WHERE LOWER(email) = ? OR LOWER(whatsapp) = ?').get(cleanEmail, cleanEmail) as any;
 
@@ -1422,8 +1599,14 @@ export async function syncDatabaseWithFirestore(sqliteDb: any): Promise<void> {
 
           if (!existingUser) {
             sqliteDb.prepare(`
-              INSERT INTO users (name, username, username_normalized, email, whatsapp, password_hash, role, avatar_url, visits_count, is_banned, snow_enabled, theme, high_contrast, onboarding_completed, onboarding_step, location_permission_granted, motion_permission_granted, last_access, created_at)
-              VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+              INSERT INTO users (
+                name, username, username_normalized, email, whatsapp, password_hash, role, avatar_url,
+                visits_count, is_banned, snow_enabled, theme, high_contrast, onboarding_completed, onboarding_step,
+                location_permission_granted, motion_permission_granted,
+                campos_relationship, next_trip_timing, next_trip_date, interest_categories, travel_company, location_preference,
+                last_access, created_at
+              )
+              VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             `).run(
               toSqliteParam(cloudUser.name || cleanEmail.split('@')[0]),
               toSqliteParam(cloudUser.username || cleanEmail.split('@')[0]),
@@ -1439,9 +1622,15 @@ export async function syncDatabaseWithFirestore(sqliteDb: any): Promise<void> {
               toSqliteParam(cloudUser.theme || 'light'),
               cloudUser.high_contrast ? 1 : 0,
               cloudUser.onboarding_completed !== undefined ? (cloudUser.onboarding_completed ? 1 : 0) : 1,
-              Number(cloudUser.onboarding_step || 1),
+              Number(cloudOb.onboarding_step || cloudUser.onboarding_step || 1),
               cloudUser.location_permission_granted ? 1 : 0,
               cloudUser.motion_permission_granted ? 1 : 0,
+              mergedRelationship,
+              mergedTiming,
+              mergedTripDate,
+              mergedInterestsJson,
+              mergedCompany,
+              mergedLocPref,
               toSqliteParam(cloudUser.last_access || new Date().toISOString()),
               toSqliteParam(cloudUser.created_at || new Date().toISOString())
             );
@@ -1451,7 +1640,13 @@ export async function syncDatabaseWithFirestore(sqliteDb: any): Promise<void> {
               SET name = ?, username = COALESCE(?, username), username_normalized = COALESCE(?, username_normalized),
                   password_hash = ?, role = ?, avatar_url = ?, is_banned = ?,
                   location_permission_granted = CASE WHEN ? = 1 THEN 1 ELSE COALESCE(location_permission_granted, 0) END,
-                  motion_permission_granted = CASE WHEN ? = 1 THEN 1 ELSE COALESCE(motion_permission_granted, 0) END
+                  motion_permission_granted = CASE WHEN ? = 1 THEN 1 ELSE COALESCE(motion_permission_granted, 0) END,
+                  campos_relationship = CASE WHEN ? != '' THEN ? ELSE COALESCE(campos_relationship, '') END,
+                  next_trip_timing = CASE WHEN ? != '' THEN ? ELSE COALESCE(next_trip_timing, '') END,
+                  next_trip_date = CASE WHEN ? != '' THEN ? ELSE COALESCE(next_trip_date, '') END,
+                  interest_categories = CASE WHEN ? != '[]' THEN ? ELSE COALESCE(interest_categories, '[]') END,
+                  travel_company = CASE WHEN ? != '' THEN ? ELSE COALESCE(travel_company, '') END,
+                  location_preference = CASE WHEN ? != '' THEN ? ELSE COALESCE(location_preference, '') END
               WHERE id = ?
             `).run(
               toSqliteParam(cloudUser.name || existingUser.name || cleanEmail.split('@')[0]),
@@ -1463,9 +1658,89 @@ export async function syncDatabaseWithFirestore(sqliteDb: any): Promise<void> {
               cloudUser.is_banned ? 1 : 0,
               cloudUser.location_permission_granted ? 1 : 0,
               cloudUser.motion_permission_granted ? 1 : 0,
+              mergedRelationship,
+              mergedRelationship,
+              mergedTiming,
+              mergedTiming,
+              mergedTripDate,
+              mergedTripDate,
+              mergedInterestsJson,
+              mergedInterestsJson,
+              mergedCompany,
+              mergedCompany,
+              mergedLocPref,
+              mergedLocPref,
               existingUser.id
             );
           }
+        });
+      }
+
+      // Also hydrate user_onboarding SQLite table from Firestore user_onboarding collection
+      if (cloudObByEmail.size > 0) {
+        const upsertObStmt = sqliteDb.prepare(`
+          INSERT INTO user_onboarding (
+            user_email, user_id, campos_relationship, next_trip_timing, next_trip_date,
+            interest_categories, travel_company, location_preference,
+            location_permission_granted, onboarding_step, onboarding_completed,
+            completed_at, updated_at
+          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+          ON CONFLICT(user_email) DO UPDATE SET
+            campos_relationship = CASE WHEN excluded.campos_relationship != '' THEN excluded.campos_relationship ELSE user_onboarding.campos_relationship END,
+            next_trip_timing = CASE WHEN excluded.next_trip_timing != '' THEN excluded.next_trip_timing ELSE user_onboarding.next_trip_timing END,
+            next_trip_date = CASE WHEN excluded.next_trip_date != '' THEN excluded.next_trip_date ELSE user_onboarding.next_trip_date END,
+            interest_categories = CASE WHEN excluded.interest_categories != '[]' THEN excluded.interest_categories ELSE user_onboarding.interest_categories END,
+            travel_company = CASE WHEN excluded.travel_company != '' THEN excluded.travel_company ELSE user_onboarding.travel_company END,
+            location_preference = CASE WHEN excluded.location_preference != '' THEN excluded.location_preference ELSE user_onboarding.location_preference END,
+            onboarding_step = COALESCE(excluded.onboarding_step, user_onboarding.onboarding_step),
+            onboarding_completed = CASE WHEN excluded.onboarding_completed = 1 THEN 1 ELSE user_onboarding.onboarding_completed END,
+            completed_at = COALESCE(excluded.completed_at, user_onboarding.completed_at),
+            updated_at = COALESCE(excluded.updated_at, user_onboarding.updated_at)
+        `);
+        const updateUsersFromObStmt = sqliteDb.prepare(`
+          UPDATE users
+          SET campos_relationship = CASE WHEN ? != '' THEN ? ELSE COALESCE(campos_relationship, '') END,
+              next_trip_timing = CASE WHEN ? != '' THEN ? ELSE COALESCE(next_trip_timing, '') END,
+              next_trip_date = CASE WHEN ? != '' THEN ? ELSE COALESCE(next_trip_date, '') END,
+              interest_categories = CASE WHEN ? != '[]' THEN ? ELSE COALESCE(interest_categories, '[]') END,
+              travel_company = CASE WHEN ? != '' THEN ? ELSE COALESCE(travel_company, '') END,
+              location_preference = CASE WHEN ? != '' THEN ? ELSE COALESCE(location_preference, '') END
+          WHERE LOWER(email) = ? OR LOWER(whatsapp) = ?
+        `);
+
+        cloudObByEmail.forEach((obData, cleanEmail) => {
+          try {
+            const rel = String(obData.campos_relationship || '').trim();
+            const timing = String(obData.next_trip_timing || '').trim();
+            const tripDate = String(obData.next_trip_date || '').trim();
+            const interestsJson = JSON.stringify(normalizeInterestList(obData.interest_categories));
+            const company = String(obData.travel_company || '').trim();
+            const locPref = String(obData.location_preference || '').trim();
+            upsertObStmt.run(
+              cleanEmail,
+              String(obData.user_id || ''),
+              rel,
+              timing,
+              tripDate,
+              interestsJson,
+              company,
+              locPref,
+              obData.location_permission_granted ? 1 : 0,
+              Number(obData.onboarding_step || 1),
+              obData.onboarding_completed ? 1 : 0,
+              obData.completed_at || null,
+              obData.updated_at || new Date().toISOString()
+            );
+            updateUsersFromObStmt.run(
+              rel, rel,
+              timing, timing,
+              tripDate, tripDate,
+              interestsJson, interestsJson,
+              company, company,
+              locPref, locPref,
+              cleanEmail, cleanEmail
+            );
+          } catch {}
         });
       }
 

@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
-import { motion, AnimatePresence, useReducedMotion } from 'motion/react';
+import { createPortal } from 'react-dom';
+import { motion, AnimatePresence, useReducedMotion, useDragControls } from 'motion/react';
 import {
   Users,
   Check,
@@ -14,6 +15,10 @@ import {
   UserCheck,
   Eye,
   X,
+  Plane,
+  Briefcase,
+  Heart,
+  MapPin,
 } from 'lucide-react';
 
 const CARD_SHADOW =
@@ -36,11 +41,13 @@ const PAGE_BATCH_SIZE = 25;
 interface AdminUserAvatarProps {
   user: any;
   sizeClass?: string;
+  ringClass?: string;
 }
 
 const AdminUserAvatar: React.FC<AdminUserAvatarProps> = ({
   user,
   sizeClass = 'w-[52px] h-[52px]',
+  ringClass = 'ring-1 ring-black/[0.04]',
 }) => {
   const [imgError, setImgError] = useState(false);
 
@@ -61,6 +68,10 @@ const AdminUserAvatar: React.FC<AdminUserAvatarProps> = ({
     return '';
   }, [user?.avatar_url, user?.role, user?.id]);
 
+  useEffect(() => {
+    setImgError(false);
+  }, [resolvedSrc]);
+
   if (resolvedSrc && !imgError) {
     return (
       <img
@@ -68,7 +79,7 @@ const AdminUserAvatar: React.FC<AdminUserAvatarProps> = ({
         alt={user?.name || 'Avatar do usuário'}
         referrerPolicy="no-referrer"
         onError={() => setImgError(true)}
-        className={`${sizeClass} rounded-full object-cover bg-[#E8EAEE] ring-1 ring-black/[0.04] shrink-0`}
+        className={`${sizeClass} rounded-full object-cover bg-[#E8EAEE] ${ringClass} shrink-0`}
       />
     );
   }
@@ -76,7 +87,7 @@ const AdminUserAvatar: React.FC<AdminUserAvatarProps> = ({
   return (
     <div
       aria-hidden="true"
-      className={`${sizeClass} rounded-full bg-[#E6E8EC] flex items-end justify-center overflow-hidden shrink-0 ring-1 ring-black/[0.03]`}
+      className={`${sizeClass} rounded-full bg-[#E6E8EC] flex items-end justify-center overflow-hidden shrink-0 ${ringClass}`}
     >
       <svg
         viewBox="0 0 48 48"
@@ -89,6 +100,86 @@ const AdminUserAvatar: React.FC<AdminUserAvatarProps> = ({
     </div>
   );
 };
+
+const INTERNAL_GPS_PREF_VALUES = new Set(['granted', 'skipped', 'prompted', 'denied', 'true', 'false']);
+
+function parseUserInterests(user: any): string[] {
+  const rawSource =
+    Array.isArray(user?.interest_categories) && user.interest_categories.length > 0
+      ? user.interest_categories
+      : Array.isArray(user?.main_interests) && user.main_interests.length > 0
+        ? user.main_interests
+        : user?.interest_categories || user?.main_interests || [];
+
+  let list: string[] = [];
+  if (Array.isArray(rawSource)) {
+    list = rawSource.map((item) => String(item || '').trim());
+  } else if (typeof rawSource === 'string') {
+    const trimmed = rawSource.trim();
+    if (trimmed) {
+      try {
+        const parsed = JSON.parse(trimmed);
+        if (Array.isArray(parsed)) {
+          list = parsed.map((item) => String(item || '').trim());
+        } else {
+          list = trimmed.split(',').map((item) => item.trim());
+        }
+      } catch {
+        list = trimmed.split(',').map((item) => item.trim());
+      }
+    }
+  }
+
+  const seen = new Set<string>();
+  const cleaned: string[] = [];
+  for (const item of list) {
+    const cleanLabel = item.replace(/\.+$/, '').trim();
+    if (!cleanLabel) continue;
+    const key = cleanLabel.toLowerCase();
+    if (!seen.has(key)) {
+      seen.add(key);
+      cleaned.push(cleanLabel);
+    }
+  }
+  return cleaned;
+}
+
+function resolveUserOrigin(user: any): string {
+  const relationship = String(user?.campos_relationship || '').trim();
+  const referral = String(user?.referral_source || '').trim();
+  return relationship || referral || 'Direto';
+}
+
+function resolveUserVisitFrequency(user: any): string {
+  const freq = String(user?.travel_frequency || '').trim();
+  const timing = String(user?.next_trip_timing || '').trim();
+  const date = String(user?.next_trip_date || '').trim();
+  return freq || timing || date || 'Não informado';
+}
+
+function resolveUserCompanyStyle(user: any): string {
+  const company = String(user?.travel_company || '').trim();
+  const style = String(user?.travel_style || '').trim();
+  if (company && style && company.toLowerCase() !== style.toLowerCase()) {
+    return `${company} • ${style}`;
+  }
+  return company || style || 'Não informado';
+}
+
+function resolveUserRegionPreference(user: any): string {
+  const candidates = [
+    user?.preferred_region,
+    user?.preferred_season,
+    user?.location_preference,
+  ];
+  for (const c of candidates) {
+    const val = String(c || '').trim();
+    if (!val) continue;
+    if (INTERNAL_GPS_PREF_VALUES.has(val.toLowerCase())) continue;
+    return val;
+  }
+  return 'Não informado';
+}
 
 export const AdminUsers: React.FC = () => {
   const prefersReducedMotion = useReducedMotion() ?? false;
@@ -116,13 +207,15 @@ export const AdminUsers: React.FC = () => {
   const [userToBan, setUserToBan] = useState<any | null>(null);
   const [isProcessing, setIsProcessing] = useState(false);
   const [toast, setToast] = useState<string | null>(null);
+  const sheetDragControls = useDragControls();
 
   const fetchUsers = useCallback(async (isManualRefresh = false) => {
     try {
       if (isManualRefresh) setRefreshing(true);
       else setLoading(true);
 
-      const res = await fetch('/api/admin/users', { cache: 'no-store' });
+      const url = isManualRefresh ? '/api/admin/users?refresh=1' : '/api/admin/users';
+      const res = await fetch(url, { cache: 'no-store' });
       const data = await res.json();
       if (data.success && Array.isArray(data.users)) {
         setUsers(data.users);
@@ -177,6 +270,48 @@ export const AdminUsers: React.FC = () => {
       document.removeEventListener('keydown', handleKeyDown);
     };
   }, [isFilterOpen]);
+
+  // Lock body scroll and close on Escape while profile bottom sheet is open
+  useEffect(() => {
+    if (!selectedUserDetail) return;
+    const prevOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape' && !userToBan) {
+        setSelectedUserDetail(null);
+      }
+    };
+    document.addEventListener('keydown', handleKeyDown);
+    return () => {
+      document.body.style.overflow = prevOverflow;
+      document.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [selectedUserDetail, userToBan]);
+
+  // Live refresh real onboarding data for the opened user (merges SQLite + Firestore live)
+  useEffect(() => {
+    const targetId = selectedUserDetail?.id;
+    if (!targetId) return;
+    let active = true;
+
+    fetch(`/api/admin/users/${encodeURIComponent(String(targetId))}`, { cache: 'no-store' })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((data) => {
+        if (!active || !data?.success || !data?.user) return;
+        setSelectedUserDetail((prev: any) =>
+          prev && String(prev.id) === String(targetId) ? { ...prev, ...data.user } : prev
+        );
+        setUsers((prev) =>
+          prev.map((u) => (String(u.id) === String(targetId) ? { ...u, ...data.user } : u))
+        );
+      })
+      .catch(() => {});
+
+    return () => {
+      active = false;
+    };
+  }, [selectedUserDetail?.id]);
 
   const showToast = (msg: string) => {
     setToast(msg);
@@ -897,239 +1032,343 @@ export const AdminUsers: React.FC = () => {
       </div>
 
       {/* User Preferences Detail Modal */}
-      {selectedUserDetail && (
-        <div
-          className="fixed inset-0 z-[270] flex items-end sm:items-center justify-center p-0 sm:p-4 bg-black/45 backdrop-blur-[2px]"
-          onClick={() => setSelectedUserDetail(null)}
-        >
-          <div
-            onClick={(e) => e.stopPropagation()}
-            className="w-full sm:max-w-lg bg-white rounded-t-[28px] sm:rounded-[28px] p-5 sm:p-6 shadow-2xl border border-black/[0.06] max-h-[88dvh] overflow-y-auto"
-            style={{
-              paddingBottom: 'max(24px, calc(env(safe-area-inset-bottom, 0px) + 20px))',
-            }}
-          >
-            <div className="flex items-center justify-between pb-4 border-b border-slate-100 mb-4">
-              <div className="flex items-center gap-3 min-w-0">
-                <AdminUserAvatar user={selectedUserDetail} sizeClass="w-11 h-11" />
-                <div className="min-w-0">
-                  <div className="flex items-center gap-2">
-                    <h3 className="text-[16px] font-bold text-[#181C23] truncate">
-                      {selectedUserDetail.name || 'Membro Monvian'}
-                    </h3>
-                    {selectedUserDetail.role === 'admin' && (
-                      <span className="text-[10px] font-semibold uppercase px-1.5 py-0.5 rounded bg-[#F2F3F5] text-[#374151] shrink-0">
-                        Gerente
-                      </span>
-                    )}
-                  </div>
-                  <span className="text-xs text-[#6B7280] block truncate tabular-nums">
-                    ID: {selectedUserDetail.id} • {selectedUserDetail.email || selectedUserDetail.whatsapp}
-                  </span>
-                </div>
-              </div>
-              <button
-                type="button"
-                onClick={() => setSelectedUserDetail(null)}
-                aria-label="Fechar detalhes"
-                className="w-9 h-9 rounded-full bg-[#F3F4F6] hover:bg-[#E5E7EB] text-[#4B5563] flex items-center justify-center transition-colors cursor-pointer shrink-0"
-              >
-                <X className="w-4 h-4" />
-              </button>
-            </div>
+      {/* Reformulated Native iOS Bottom Sheet — Perfil do Usuário (Portalized above BottomNavigation) */}
+      {typeof document !== 'undefined' &&
+        createPortal(
+          <AnimatePresence>
+            {selectedUserDetail && (() => {
+              const isBanned = Number(selectedUserDetail.is_banned) === 1;
+              const isOnboardingDone = Number(selectedUserDetail.onboarding_completed) === 1;
+              const originText = resolveUserOrigin(selectedUserDetail);
+              const frequencyText = resolveUserVisitFrequency(selectedUserDetail);
+              const companyStyleText = resolveUserCompanyStyle(selectedUserDetail);
+              const interestsList = parseUserInterests(selectedUserDetail);
+              const regionText = resolveUserRegionPreference(selectedUserDetail);
+              const registeredAtText = formatDate(selectedUserDetail.created_at);
 
-            <div className="space-y-3">
-              <div className="flex items-center justify-between p-3.5 rounded-2xl bg-[#F7F8FA] border border-black/[0.04] text-xs">
-                <span className="font-medium text-[#6B7280]">Status da Conta:</span>
-                {Number(selectedUserDetail.is_banned) === 1 ? (
-                  <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-[#EFF1F4] text-[#4B5563] font-medium">
-                    <span className="w-1.5 h-1.5 rounded-full bg-[#64748B]" />
-                    Banido
-                  </span>
-                ) : (
-                  <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-[#E7F6EC] text-[#1F7A47] font-medium">
-                    <span className="w-1.5 h-1.5 rounded-full bg-[#22A05B]" />
-                    Ativo
-                  </span>
-                )}
-              </div>
-
-              <div className="flex items-center justify-between p-3.5 rounded-2xl bg-[#F7F8FA] border border-black/[0.04] text-xs">
-                <span className="font-medium text-[#6B7280]">Status do Onboarding:</span>
-                {Number(selectedUserDetail.onboarding_completed) === 1 ? (
-                  <span className="font-semibold text-[#181C23] inline-flex items-center gap-1.5">
-                    <Check className="w-3.5 h-3.5 text-[#2F3540] stroke-[2.5]" />
-                    Concluído
-                  </span>
-                ) : (
-                  <span className="font-semibold text-amber-700">
-                    Pendente (Passo {selectedUserDetail.onboarding_step || 1} de 5)
-                  </span>
-                )}
-              </div>
-
-              <div className="space-y-2.5 text-xs">
-                <div className="p-3.5 rounded-2xl border border-black/[0.05] bg-[#FAFAFB] space-y-1">
-                  <span className="text-[11px] font-medium text-[#6B7280] block">
-                    Origem / Relação com Campos do Jordão
-                  </span>
-                  <p className="font-semibold text-[#181C23] text-[13px]">
-                    {selectedUserDetail.referral_source ||
-                      selectedUserDetail.campos_relationship ||
-                      'Direto'}
-                  </p>
-                </div>
-
-                <div className="p-3.5 rounded-2xl border border-black/[0.05] bg-[#FAFAFB] space-y-1">
-                  <span className="text-[11px] font-medium text-[#6B7280] block">
-                    Previsão ou Frequência de Visita
-                  </span>
-                  <p className="font-semibold text-[#181C23] text-[13px]">
-                    {selectedUserDetail.travel_frequency ||
-                      selectedUserDetail.next_trip_timing ||
-                      'Não informado'}
-                  </p>
-                </div>
-
-                <div className="p-3.5 rounded-2xl border border-black/[0.05] bg-[#FAFAFB] space-y-1">
-                  <span className="text-[11px] font-medium text-[#6B7280] block">
-                    Companhia / Estilo de Viagem
-                  </span>
-                  <p className="font-semibold text-[#181C23] text-[13px]">
-                    {selectedUserDetail.travel_style ||
-                      selectedUserDetail.travel_company ||
-                      'Não informado'}
-                  </p>
-                </div>
-
-                <div className="p-3.5 rounded-2xl border border-black/[0.05] bg-[#FAFAFB] space-y-1">
-                  <span className="text-[11px] font-medium text-[#6B7280] block">
-                    Interesses Principais
-                  </span>
-                  <div className="flex flex-wrap gap-1.5 pt-1">
-                    {Array.isArray(selectedUserDetail.main_interests) &&
-                    selectedUserDetail.main_interests.length > 0 ? (
-                      selectedUserDetail.main_interests.map((item: string, i: number) => (
-                        <span
-                          key={i}
-                          className="px-2.5 py-1 rounded-full bg-[#ECEEF2] text-[#181C23] font-medium text-[11.5px]"
+              return (
+                <motion.div
+                  key="admin-user-profile-backdrop"
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  exit={{ opacity: 0 }}
+                  transition={{ duration: prefersReducedMotion ? 0.1 : 0.22, ease: 'easeOut' }}
+                  className="fixed inset-0 z-[9990] flex items-end sm:items-center justify-center bg-black/45 backdrop-blur-[8px] sm:p-4"
+                  onClick={() => setSelectedUserDetail(null)}
+                  role="dialog"
+                  aria-modal="true"
+                  aria-label="Perfil do Usuário"
+                >
+                  <motion.div
+                    key="admin-user-profile-sheet"
+                    initial={prefersReducedMotion ? { opacity: 0 } : { y: '100%' }}
+                    animate={prefersReducedMotion ? { opacity: 1 } : { y: 0 }}
+                    exit={prefersReducedMotion ? { opacity: 0 } : { y: '100%' }}
+                    transition={
+                      prefersReducedMotion
+                        ? { duration: 0.12 }
+                        : { type: 'spring', stiffness: 360, damping: 36, mass: 0.9 }
+                    }
+                    drag={prefersReducedMotion ? false : 'y'}
+                    dragControls={sheetDragControls}
+                    dragListener={false}
+                    dragConstraints={{ top: 0, bottom: 0 }}
+                    dragElastic={{ top: 0.04, bottom: 0.45 }}
+                    onDragEnd={(_, info) => {
+                      if (info.offset.y > 110 || info.velocity.y > 500) {
+                        setSelectedUserDetail(null);
+                      }
+                    }}
+                    onClick={(e) => e.stopPropagation()}
+                    className="w-full sm:max-w-[460px] h-[91dvh] sm:h-auto sm:max-h-[90dvh] bg-[#FFFFFF] rounded-t-[34px] sm:rounded-[34px] shadow-[0_-12px_40px_rgba(0,0,0,0.16)] border border-black/[0.05] flex flex-col overflow-hidden"
+                  >
+                    {/* Drag Handle & Sheet Top Header */}
+                    <div
+                      onPointerDown={(e) => sheetDragControls.start(e)}
+                      className="shrink-0 touch-none select-none cursor-grab active:cursor-grabbing px-6 pt-3 pb-3"
+                    >
+                      <div className="w-11 h-[5px] rounded-full bg-[#C7CBD4] mx-auto mb-3.5" />
+                      <div className="flex items-center justify-between gap-3">
+                        <h2 className="text-[22px] font-bold text-[#111827] tracking-[-0.025em] leading-tight">
+                          Perfil do Usuário
+                        </h2>
+                        <button
+                          type="button"
+                          onPointerDown={(e) => e.stopPropagation()}
+                          onClick={() => setSelectedUserDetail(null)}
+                          aria-label="Fechar perfil do usuário"
+                          className="w-10 h-10 rounded-full bg-[#F2F3F5] hover:bg-[#E5E7EB] active:scale-95 text-[#374151] flex items-center justify-center transition-all cursor-pointer shrink-0"
                         >
-                          {item}
-                        </span>
-                      ))
-                    ) : (
-                      <span className="text-[#6B7280] font-medium">Não informado</span>
-                    )}
-                  </div>
-                </div>
+                          <X className="w-[18px] h-[18px] stroke-[2]" />
+                        </button>
+                      </div>
+                    </div>
 
-                <div className="p-3.5 rounded-2xl border border-black/[0.05] bg-[#FAFAFB] space-y-1">
-                  <span className="text-[11px] font-medium text-[#6B7280] block">
-                    Preferência de Região / Cadastro
-                  </span>
-                  <p className="font-semibold text-[#181C23] text-[13px]">
-                    {selectedUserDetail.preferred_season ||
-                      selectedUserDetail.location_preference ||
-                      'Não informado'}{' '}
-                    • {formatDate(selectedUserDetail.created_at)}
-                  </p>
-                </div>
-              </div>
-            </div>
+                    {/* Scrollable Sheet Content */}
+                    <div className="flex-1 overflow-y-auto overscroll-contain px-6 pb-6">
+                      {/* Horizontal Profile Header */}
+                      <div className="flex items-center gap-4 pt-2 pb-6">
+                        <div className="p-[3px] rounded-full bg-white shadow-[0_6px_20px_rgba(15,23,42,0.11)] ring-1 ring-black/[0.04] shrink-0">
+                          <AdminUserAvatar
+                            user={selectedUserDetail}
+                            sizeClass="w-[82px] h-[82px]"
+                            ringClass="ring-0"
+                          />
+                        </div>
 
-            <div className="mt-5 pt-4 border-t border-slate-100 flex items-center justify-between gap-2.5">
-              {Number(selectedUserDetail.is_banned) === 1 ? (
-                <button
-                  type="button"
-                  onClick={() => setUserToBan(selectedUserDetail)}
-                  className="h-10 px-4 rounded-full bg-[#E7F6EC] hover:bg-[#D5EEDF] text-[#1F7A47] font-semibold text-xs transition-colors cursor-pointer"
-                >
-                  Desbanir Usuário
-                </button>
-              ) : (
-                <button
-                  type="button"
-                  onClick={() => setUserToBan(selectedUserDetail)}
-                  className="h-10 px-4 rounded-full bg-rose-50 hover:bg-rose-100 text-rose-700 font-semibold text-xs transition-colors cursor-pointer"
-                >
-                  Banir Usuário
-                </button>
-              )}
+                        <div className="min-w-0 flex-1">
+                          <div className="flex items-center gap-2">
+                            <h3 className="text-[21px] font-bold text-[#111827] tracking-[-0.02em] leading-snug truncate">
+                              {selectedUserDetail.name || 'Membro Monvian'}
+                            </h3>
+                            {selectedUserDetail.role === 'admin' && (
+                              <span className="text-[10px] font-semibold uppercase px-2 py-0.5 rounded-full bg-[#F2F3F5] text-[#374151] shrink-0">
+                                Gerente
+                              </span>
+                            )}
+                          </div>
 
-              <button
-                type="button"
-                onClick={() => setSelectedUserDetail(null)}
-                className="h-10 px-5 rounded-full bg-[#1C1F26] hover:bg-[#2C313B] text-white font-semibold text-xs transition-colors cursor-pointer"
-              >
-                Fechar
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+                          <p className="text-[13.5px] text-[#6B7280] mt-0.5 truncate tabular-nums">
+                            ID: {selectedUserDetail.id} •{' '}
+                            {selectedUserDetail.email || selectedUserDetail.whatsapp || 'Sem e-mail'}
+                          </p>
 
-      {/* Ban / Unban Confirmation Modal */}
-      {userToBan && (
-        <div
-          className="fixed inset-0 z-[280] flex items-center justify-center p-4 bg-black/50 backdrop-blur-[2px]"
-          onClick={() => setUserToBan(null)}
-        >
+                          <div className="flex flex-wrap items-center gap-2 mt-2.5">
+                            {isBanned ? (
+                              <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-[#FCECEC] text-[#B91C1C] text-[12.5px] font-semibold leading-none">
+                                <span className="w-2 h-2 rounded-full bg-[#DC2626]" />
+                                Banido
+                              </span>
+                            ) : (
+                              <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-[#E7F6EC] text-[#15803D] text-[12.5px] font-semibold leading-none">
+                                <span className="w-2 h-2 rounded-full bg-[#22C55E]" />
+                                Ativo
+                              </span>
+                            )}
+
+                            {isOnboardingDone ? (
+                              <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-[#F2F3F5] text-[#1F2937] text-[12.5px] font-semibold leading-none">
+                                <Check className="w-3.5 h-3.5 text-[#1F2937] stroke-[2.4]" />
+                                Onboarding concluído
+                              </span>
+                            ) : (
+                              <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-[#F2F3F5] text-[#6B7280] text-[12.5px] font-semibold leading-none">
+                                Onboarding pendente
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Main Card — Informações da Viagem */}
+                      <div
+                        className="rounded-[26px] bg-[#FFFFFF] border border-black/[0.05] px-5 py-5"
+                        style={{
+                          boxShadow:
+                            '0 8px 30px -8px rgba(15, 23, 42, 0.065), 0 1px 4px rgba(15, 23, 42, 0.025)',
+                        }}
+                      >
+                        {/* Card Title */}
+                        <div className="flex items-center gap-3.5 mb-5">
+                          <div className="w-10 h-10 rounded-full bg-[#F2F3F5] flex items-center justify-center shrink-0 text-[#1F242D]">
+                            <Plane className="w-[18px] h-[18px] stroke-[1.85]" />
+                          </div>
+                          <h4 className="text-[17px] font-bold text-[#111827] tracking-[-0.015em]">
+                            Informações da Viagem
+                          </h4>
+                        </div>
+
+                        {/* Row 1: Two-Column Split (Origem | Frequência de Visita) */}
+                        <div className="grid grid-cols-2 pb-4 border-b border-[#F0F1F4]">
+                          <div className="pr-3.5 border-r border-[#ECEEF2] min-w-0">
+                            <span className="text-[13px] font-normal text-[#6B7280] block leading-snug">
+                              Origem
+                            </span>
+                            <p className="text-[15px] font-bold text-[#111827] mt-1 leading-snug break-words">
+                              {originText}
+                            </p>
+                          </div>
+
+                          <div className="pl-4 min-w-0">
+                            <span className="text-[13px] font-normal text-[#6B7280] block leading-snug">
+                              Frequência de Visita
+                            </span>
+                            <p className="text-[15px] font-bold text-[#111827] mt-1 leading-snug break-words">
+                              {frequencyText}
+                            </p>
+                          </div>
+                        </div>
+
+                        {/* Row 2: Companhia / Estilo de Viagem */}
+                        <div className="flex items-start gap-3.5 py-4 border-b border-[#F0F1F4]">
+                          <div className="w-10 h-10 rounded-full bg-[#F2F3F5] flex items-center justify-center shrink-0 text-[#1F242D] mt-0.5">
+                            <Briefcase className="w-[18px] h-[18px] stroke-[1.85]" />
+                          </div>
+                          <div className="min-w-0 flex-1">
+                            <span className="text-[13px] font-normal text-[#6B7280] block leading-snug">
+                              Companhia / Estilo de Viagem
+                            </span>
+                            <p className="text-[15px] font-bold text-[#111827] mt-0.5 leading-snug break-words">
+                              {companyStyleText}
+                            </p>
+                          </div>
+                        </div>
+
+                        {/* Row 3: Interesses Principais */}
+                        <div className="flex items-start gap-3.5 py-4 border-b border-[#F0F1F4]">
+                          <div className="w-10 h-10 rounded-full bg-[#F2F3F5] flex items-center justify-center shrink-0 text-[#1F242D] mt-0.5">
+                            <Heart className="w-[18px] h-[18px] stroke-[1.85]" />
+                          </div>
+                          <div className="min-w-0 flex-1">
+                            <span className="text-[13px] font-normal text-[#6B7280] block leading-snug">
+                              Interesses Principais
+                            </span>
+                            {interestsList.length > 0 ? (
+                              <div className="flex flex-wrap gap-1.5 mt-2">
+                                {interestsList.map((interest, idx) => (
+                                  <span
+                                    key={`${interest}-${idx}`}
+                                    className="px-2.5 py-1 rounded-full bg-[#F2F3F5] text-[#111827] text-[12.5px] font-semibold leading-tight"
+                                  >
+                                    {interest}
+                                  </span>
+                                ))}
+                              </div>
+                            ) : (
+                              <p className="text-[15px] font-bold text-[#111827] mt-0.5 leading-snug">
+                                Não informado
+                              </p>
+                            )}
+                          </div>
+                        </div>
+
+                        {/* Row 4: Preferência de Região / Cadastro */}
+                        <div className="flex items-start gap-3.5 pt-4">
+                          <div className="w-10 h-10 rounded-full bg-[#F2F3F5] flex items-center justify-center shrink-0 text-[#1F242D] mt-0.5">
+                            <MapPin className="w-[18px] h-[18px] stroke-[1.85]" />
+                          </div>
+                          <div className="min-w-0 flex-1">
+                            <span className="text-[13px] font-normal text-[#6B7280] block leading-snug">
+                              Preferência de Região / Cadastro
+                            </span>
+                            <p className="text-[15px] font-bold text-[#111827] mt-0.5 leading-snug tabular-nums break-words">
+                              {regionText} • {registeredAtText}
+                            </p>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Fixed Bottom Action Footer */}
+                    <div
+                      className="shrink-0 bg-[#FFFFFF] px-6 pt-3.5 border-t border-black/[0.04]"
+                      style={{
+                        paddingBottom: 'max(22px, calc(env(safe-area-inset-bottom, 0px) + 14px))',
+                      }}
+                    >
+                      <div className="grid grid-cols-2 gap-3">
+                        {isBanned ? (
+                          <button
+                            type="button"
+                            onClick={() => setUserToBan(selectedUserDetail)}
+                            className="h-[52px] px-4 rounded-full bg-[#E7F6EC] hover:bg-[#D5EEDF] active:scale-[0.98] text-[#15803D] font-semibold text-[15px] flex items-center justify-center gap-2 transition-all cursor-pointer"
+                          >
+                            <UserCheck className="w-[18px] h-[18px] stroke-[2]" />
+                            <span>Desbanir Usuário</span>
+                          </button>
+                        ) : (
+                          <button
+                            type="button"
+                            onClick={() => setUserToBan(selectedUserDetail)}
+                            className="h-[52px] px-4 rounded-full bg-[#FCECEC] hover:bg-[#FADADA] active:scale-[0.98] text-[#B91C1C] font-semibold text-[15px] flex items-center justify-center gap-2 transition-all cursor-pointer"
+                          >
+                            <Ban className="w-[18px] h-[18px] stroke-[2]" />
+                            <span>Banir Usuário</span>
+                          </button>
+                        )}
+
+                        <button
+                          type="button"
+                          onClick={() => setSelectedUserDetail(null)}
+                          className="h-[52px] px-5 rounded-full bg-[#111318] hover:bg-[#1F232B] active:scale-[0.98] text-white font-semibold text-[15px] flex items-center justify-center transition-all cursor-pointer"
+                        >
+                          Fechar
+                        </button>
+                      </div>
+                    </div>
+                  </motion.div>
+                </motion.div>
+              );
+            })()}
+          </AnimatePresence>,
+          document.body
+        )}
+
+      {/* Ban / Unban Confirmation Modal (Portalized above Profile Bottom Sheet) */}
+      {typeof document !== 'undefined' &&
+        userToBan &&
+        createPortal(
           <div
-            onClick={(e) => e.stopPropagation()}
-            className="w-full max-w-md bg-white rounded-[28px] p-6 shadow-2xl border border-black/[0.06]"
+            className="fixed inset-0 z-[9995] flex items-center justify-center p-4 bg-black/50 backdrop-blur-[4px]"
+            onClick={() => setUserToBan(null)}
           >
             <div
-              className={`w-12 h-12 rounded-2xl flex items-center justify-center mb-4 ${
-                Number(userToBan.is_banned) === 1
-                  ? 'bg-[#E7F6EC] text-[#1F7A47]'
-                  : 'bg-rose-50 text-rose-600'
-              }`}
+              onClick={(e) => e.stopPropagation()}
+              className="w-full max-w-md bg-white rounded-[28px] p-6 shadow-2xl border border-black/[0.06]"
             >
-              {Number(userToBan.is_banned) === 1 ? (
-                <UserCheck className="w-6 h-6" />
-              ) : (
-                <Ban className="w-6 h-6" />
-              )}
-            </div>
-
-            <h3 className="text-lg font-bold text-[#181C23]">
-              {Number(userToBan.is_banned) === 1 ? 'Desbanir Usuário' : 'Banir Usuário'}
-            </h3>
-
-            <p className="text-xs text-[#6B7280] mt-2 leading-relaxed">
-              {Number(userToBan.is_banned) === 1
-                ? `Deseja restabelecer o acesso do usuário ${userToBan.name || userToBan.email || userToBan.whatsapp}? Ele poderá entrar novamente no aplicativo.`
-                : `Tem certeza que deseja banir o usuário ${userToBan.name || userToBan.email || userToBan.whatsapp}? Suas sessões ativas serão encerradas imediatamente e ele não poderá acessar o Monvian.`}
-            </p>
-
-            <div className="mt-6 flex items-center justify-end gap-2.5">
-              <button
-                type="button"
-                onClick={() => setUserToBan(null)}
-                className="h-10 px-4 rounded-full border border-black/[0.08] text-xs font-semibold text-[#374151] hover:bg-[#F3F4F6] transition-colors cursor-pointer"
-              >
-                Cancelar
-              </button>
-              <button
-                type="button"
-                onClick={handleBan}
-                disabled={isProcessing}
-                className={`h-10 px-5 rounded-full text-xs font-semibold text-white transition-all cursor-pointer disabled:opacity-60 ${
+              <div
+                className={`w-12 h-12 rounded-2xl flex items-center justify-center mb-4 ${
                   Number(userToBan.is_banned) === 1
-                    ? 'bg-[#1F7A47] hover:bg-[#19653A]'
-                    : 'bg-rose-600 hover:bg-rose-700'
+                    ? 'bg-[#E7F6EC] text-[#1F7A47]'
+                    : 'bg-rose-50 text-rose-600'
                 }`}
               >
-                {isProcessing
-                  ? 'Processando...'
-                  : Number(userToBan.is_banned) === 1
-                  ? 'Confirmar Desbanimento'
-                  : 'Confirmar Banimento'}
-              </button>
+                {Number(userToBan.is_banned) === 1 ? (
+                  <UserCheck className="w-6 h-6" />
+                ) : (
+                  <Ban className="w-6 h-6" />
+                )}
+              </div>
+
+              <h3 className="text-lg font-bold text-[#181C23]">
+                {Number(userToBan.is_banned) === 1 ? 'Desbanir Usuário' : 'Banir Usuário'}
+              </h3>
+
+              <p className="text-xs text-[#6B7280] mt-2 leading-relaxed">
+                {Number(userToBan.is_banned) === 1
+                  ? `Deseja restabelecer o acesso do usuário ${userToBan.name || userToBan.email || userToBan.whatsapp}? Ele poderá entrar novamente no aplicativo.`
+                  : `Tem certeza que deseja banir o usuário ${userToBan.name || userToBan.email || userToBan.whatsapp}? Suas sessões ativas serão encerradas imediatamente e ele não poderá acessar o Monvian.`}
+              </p>
+
+              <div className="mt-6 flex items-center justify-end gap-2.5">
+                <button
+                  type="button"
+                  onClick={() => setUserToBan(null)}
+                  className="h-10 px-4 rounded-full border border-black/[0.08] text-xs font-semibold text-[#374151] hover:bg-[#F3F4F6] transition-colors cursor-pointer"
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="button"
+                  onClick={handleBan}
+                  disabled={isProcessing}
+                  className={`h-10 px-5 rounded-full text-xs font-semibold text-white transition-all cursor-pointer disabled:opacity-60 ${
+                    Number(userToBan.is_banned) === 1
+                      ? 'bg-[#1F7A47] hover:bg-[#19653A]'
+                      : 'bg-rose-600 hover:bg-rose-700'
+                  }`}
+                >
+                  {isProcessing
+                    ? 'Processando...'
+                    : Number(userToBan.is_banned) === 1
+                    ? 'Confirmar Desbanimento'
+                    : 'Confirmar Banimento'}
+                </button>
+              </div>
             </div>
-          </div>
-        </div>
-      )}
+          </div>,
+          document.body
+        )}
     </div>
   );
 };
