@@ -68,15 +68,26 @@ const openDirectionsMap = (
 
 interface SelectModeOverlayProps {
   selectedCount: number;
+  selectedSpots?: Spot[];
   isDark: boolean;
   isSatellite: boolean;
   onCancel: () => void;
   onClearSelection: () => void;
+  onRemoveSpot?: (spotId: string) => void;
   onContinue: () => void;
 }
 
 export const SelectModeOverlay: React.FC<SelectModeOverlayProps> = memo(
-  ({ selectedCount, isDark, isSatellite, onCancel, onClearSelection, onContinue }) => {
+  ({
+    selectedCount,
+    selectedSpots = [],
+    isDark,
+    isSatellite,
+    onCancel,
+    onClearSelection,
+    onRemoveSpot,
+    onContinue,
+  }) => {
     const useLightOnDark = isDark || isSatellite;
 
     return (
@@ -113,8 +124,8 @@ export const SelectModeOverlay: React.FC<SelectModeOverlayProps> = memo(
             <MapPin className="w-3.5 h-3.5 shrink-0" />
             <span>
               {selectedCount === 0
-                ? 'Toque nos pins do mapa'
-                : `${selectedCount} ${selectedCount === 1 ? 'ponto selecionado' : 'pontos selecionados'}`}
+                ? 'Toque nos locais do mapa'
+                : `${selectedCount} ${selectedCount === 1 ? 'local selecionado' : 'locais selecionados'}`}
             </span>
           </div>
 
@@ -136,35 +147,95 @@ export const SelectModeOverlay: React.FC<SelectModeOverlayProps> = memo(
           </div>
         </motion.div>
 
-        {/* Bottom Floating "CONTINUAR" CTA above BottomNavigation */}
+        {/* Discreet Bottom Creation Bar above BottomNavigation */}
         <motion.div
           initial={{ opacity: 0, y: 18 }}
           animate={{ opacity: 1, y: 0 }}
           exit={{ opacity: 0, y: 14 }}
           transition={{ duration: 0.24, ease: [0.22, 1, 0.36, 1] }}
-          className="w-full flex justify-center px-4 pb-[94px] md:pb-8 pointer-events-none"
+          className="w-full flex flex-col items-center px-4 pb-[90px] md:pb-8 pointer-events-none"
         >
-          <button
-            type="button"
-            disabled={selectedCount === 0}
-            onClick={onContinue}
-            className={`pointer-events-auto flex items-center justify-center gap-2.5 px-7 py-3.5 rounded-full text-sm font-black tracking-tight shadow-[0_12px_32px_rgba(0,0,0,0.28)] border transition-all duration-200 ${
-              selectedCount > 0
-                ? isDark
-                  ? 'bg-white text-black border-white hover:bg-zinc-200 active:scale-95 cursor-pointer'
-                  : 'bg-[#000000] text-white border-[#000000] hover:bg-[#171717] active:scale-95 cursor-pointer'
-                : isDark
-                  ? 'bg-[#171717]/90 text-[#858585] border-white/10 cursor-not-allowed'
-                  : 'bg-white/90 text-[#858585] border-black/10 cursor-not-allowed'
+          <div
+            className={`pointer-events-auto w-full max-w-[388px] rounded-[28px] p-3 border shadow-[0_14px_38px_rgba(0,0,0,0.22)] transition-all ${
+              isDark
+                ? 'bg-[#171717]/95 border-white/15 text-white backdrop-blur-xl'
+                : 'bg-white/95 border-black/[0.07] text-[#111111] backdrop-blur-xl'
             }`}
           >
-            <span>
-              {selectedCount > 0
-                ? `Continuar (${selectedCount})`
-                : 'Selecione 1 ou mais pontos'}
-            </span>
-            {selectedCount > 0 && <ArrowRight className="w-4 h-4 stroke-[2.5]" />}
-          </button>
+            {/* Visual indication of added spots in selection order */}
+            {selectedSpots.length > 0 && (
+              <div className="flex items-center gap-2 overflow-x-auto no-scrollbar pb-2.5 mb-2.5 border-b border-black/[0.06] dark:border-white/10">
+                {selectedSpots.map((spot, idx) => (
+                  <div
+                    key={spot.id}
+                    onClick={() => onRemoveSpot?.(spot.id)}
+                    className={`flex items-center gap-1.5 pl-1.5 pr-2.5 py-1 rounded-full shrink-0 border text-[11.5px] font-bold cursor-pointer active:scale-95 transition-transform ${
+                      isDark
+                        ? 'bg-[#242426] border-white/10 text-white'
+                        : 'bg-[#F5F5F7] border-black/[0.05] text-[#111111]'
+                    }`}
+                    title={`Toque para remover ${spot.name}`}
+                  >
+                    <span
+                      className={`w-5 h-5 rounded-full text-[10px] font-black flex items-center justify-center shrink-0 tabular-nums ${
+                        isDark ? 'bg-white text-black' : 'bg-black text-white'
+                      }`}
+                    >
+                      {idx + 1}
+                    </span>
+                    <div className="w-5 h-5 rounded-full overflow-hidden shrink-0 bg-zinc-200 dark:bg-zinc-700">
+                      <img
+                        src={getSpotCardThumbnail(spot)}
+                        alt={spot.name}
+                        referrerPolicy="no-referrer"
+                        className="w-full h-full object-cover"
+                        onError={(e) => {
+                          (e.target as HTMLImageElement).src = getSpotFallbackImage(
+                            spot.name,
+                            spot.category
+                          );
+                        }}
+                      />
+                    </div>
+                    <span className="max-w-[96px] truncate">{spot.shortName || spot.name}</span>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            <div className="flex items-center justify-between gap-3 pl-1.5">
+              <div className="min-w-0">
+                <p className="text-[14px] font-extrabold tracking-tight leading-tight">
+                  {selectedCount === 0
+                    ? 'Nenhum local selecionado'
+                    : `${selectedCount} ${selectedCount === 1 ? 'local selecionado' : 'locais selecionados'}`}
+                </p>
+                <p className="text-[11.5px] font-medium text-[#8E8E93] truncate">
+                  {selectedCount === 0
+                    ? 'Toque nos pontos do mapa na ordem desejada'
+                    : 'Toque nos pontos para adicionar na sequência'}
+                </p>
+              </div>
+
+              <button
+                type="button"
+                disabled={selectedCount === 0}
+                onClick={onContinue}
+                className={`h-11 px-5 rounded-full text-[13.5px] font-extrabold tracking-tight flex items-center justify-center gap-1.5 shrink-0 transition-all duration-200 ${
+                  selectedCount > 0
+                    ? isDark
+                      ? 'bg-white text-black hover:bg-zinc-200 active:scale-95 cursor-pointer shadow-sm'
+                      : 'bg-[#000000] text-white hover:bg-[#171717] active:scale-95 cursor-pointer shadow-sm'
+                    : isDark
+                      ? 'bg-zinc-800 text-zinc-500 cursor-not-allowed'
+                      : 'bg-zinc-200 text-zinc-400 cursor-not-allowed'
+                }`}
+              >
+                <span>Continuar</span>
+                <ArrowRight className="w-4 h-4 stroke-[2.5]" />
+              </button>
+            </div>
+          </div>
         </motion.div>
       </div>
     );

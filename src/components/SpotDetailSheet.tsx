@@ -202,12 +202,14 @@ export const SpotDetailSheet: React.FC<SpotDetailSheetProps> = React.memo(({
 
   // Track viewport mode so only one <video> instance mounts & plays at a time
   const [isDesktop, setIsDesktop] = useState<boolean>(() =>
-    typeof window !== 'undefined' ? window.matchMedia('(min-width: 768px)').matches : false
+    typeof window !== 'undefined'
+      ? window.matchMedia('(min-width: 768px) and (min-height: 540px)').matches
+      : false
   );
 
   useEffect(() => {
     if (typeof window === 'undefined') return;
-    const mq = window.matchMedia('(min-width: 768px)');
+    const mq = window.matchMedia('(min-width: 768px) and (min-height: 540px)');
     const handler = (e: MediaQueryListEvent) => setIsDesktop(e.matches);
     mq.addEventListener('change', handler);
     return () => mq.removeEventListener('change', handler);

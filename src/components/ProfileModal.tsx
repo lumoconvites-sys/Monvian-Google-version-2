@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { uploadMediaToSupabaseStorage } from '../lib/supabase';
-import { Spot } from '../types';
+import { Spot, Itinerary } from '../types';
 import {
   X,
   Pencil,
@@ -50,6 +50,9 @@ import {
 import { useIOSBackEntry } from '../services/iosNavigationManager';
 import { PlatanoLeafIcon } from './platanos/PlatanoLeafIcon';
 import { usePlatanos } from '../hooks/usePlatanos';
+import { MyItinerariesView } from './itineraries/MyItinerariesView';
+import foldedMap3dIcon from '../assets/images/folded_map_pin_3d_1795219073754.jpg';
+import platanosLeaf3dIcon from '../assets/images/platanos_leaf_hero_3d_1794936165022.jpg';
 
 interface ProfileModalProps {
   isOpen: boolean;
@@ -71,10 +74,15 @@ interface ProfileModalProps {
   communityUrl?: string;
   instagramUrl?: string;
   onLogout?: () => void;
+  onStartCreateItinerary?: () => void;
+  onOpenUserItineraryOnMap?: (itinerary: Itinerary) => void;
+  onEditUserItinerary?: (itinerary: Itinerary) => void;
+  onDeleteUserItinerary?: (itineraryId: string) => void;
 }
 
 type SubView =
   | 'main'
+  | 'meus-roteiros'
   | 'edit-profile'
   | 'traveler-profile'
   | 'curtidos'
@@ -104,6 +112,10 @@ export const ProfileModal: React.FC<ProfileModalProps> = React.memo(({
   communityUrl = 'https://chat.whatsapp.com/invite/monvian-campos',
   instagramUrl = 'https://instagram.com/monvian.campos',
   onLogout,
+  onStartCreateItinerary,
+  onOpenUserItineraryOnMap,
+  onEditUserItinerary,
+  onDeleteUserItinerary,
 }) => {
   const isViewActive = Boolean(isOpen && isActive);
   const { wallet } = usePlatanos();
@@ -139,6 +151,17 @@ export const ProfileModal: React.FC<ProfileModalProps> = React.memo(({
     setActiveSubView(subView);
     onSubViewChange?.(subView);
   };
+
+  useEffect(() => {
+    const handleOpenMyItineraries = () => {
+      setActiveSubView('meus-roteiros');
+      onSubViewChange?.('meus-roteiros');
+    };
+    window.addEventListener('monvian:open_my_itineraries', handleOpenMyItineraries);
+    return () => {
+      window.removeEventListener('monvian:open_my_itineraries', handleOpenMyItineraries);
+    };
+  }, [onSubViewChange]);
 
   const openHelpLegalPage = (page: HelpLegalPageId, fromView: 'main' | 'permissoes' = 'main') => {
     setHelpReturnView(fromView);
@@ -715,7 +738,7 @@ export const ProfileModal: React.FC<ProfileModalProps> = React.memo(({
           }}
         >
         {/* Top Header Bar */}
-        {activeSubView !== 'ajuda-informacoes' && (
+        {activeSubView !== 'ajuda-informacoes' && activeSubView !== 'meus-roteiros' && (
         <div
           className={`sticky top-0 z-20 w-full pb-2 shrink-0 transition-colors ${
             isDark ? 'text-white' : 'text-zinc-950'
@@ -931,6 +954,81 @@ export const ProfileModal: React.FC<ProfileModalProps> = React.memo(({
               </div>
 
 
+              {/* 3. Plátanos & Carteira + Meus roteiros (2-Column Bento Cards matching iOS Native Reference) */}
+              <div className="grid grid-cols-2 gap-3 sm:gap-3.5">
+                {/* Plátanos & Carteira */}
+                <motion.button
+                  type="button"
+                  initial={{ opacity: 0, scale: 0.88, y: 12 }}
+                  animate={{ opacity: 1, scale: 1, y: 0 }}
+                  transition={{ type: 'spring', stiffness: 380, damping: 22, delay: 0.125 }}
+                  whileHover={{ scale: 1.02, transition: { type: 'spring', stiffness: 400, damping: 18 } }}
+                  whileTap={{ scale: 0.94, transition: { type: 'spring', stiffness: 500, damping: 14 } }}
+                  onClick={() => {
+                    onClose();
+                    window.dispatchEvent(
+                      new CustomEvent('monvian:open_platanos_wallet', { detail: { tab: 'topup' } })
+                    );
+                  }}
+                  className={`rounded-[24px] p-4 border transition-colors cursor-pointer flex flex-col justify-between text-left ${
+                    isDark ? 'bg-[#1C1C1E] border-white/10 shadow-xs' : 'bg-[#ffffff] border-black/5 shadow-xs'
+                  }`}
+                  style={{ backgroundColor: isDark ? undefined : '#ffffff' }}
+                >
+                  <div className="flex justify-end">
+                    <ChevronRight className="w-4 h-4 text-zinc-400 shrink-0" />
+                  </div>
+                  <div className="my-2 flex justify-center items-center h-[46px]">
+                    <img
+                      src={platanosLeaf3dIcon}
+                      alt="Plátanos"
+                      className="h-[64px] w-auto object-contain"
+                      draggable={false}
+                    />
+                  </div>
+                  <div>
+                    <h3 className="text-[15px] font-bold tracking-tight leading-snug text-zinc-950 dark:text-white">
+                      Plátanos & Carteira
+                    </h3>
+                    <p className="text-[12px] text-zinc-500 dark:text-zinc-400 tabular-nums mt-0.5">
+                      {wallet.balance} {wallet.balance === 1 ? 'Plátano disponível' : 'Plátanos disponíveis'}
+                    </p>
+                  </div>
+                </motion.button>
+
+                {/* Meus roteiros */}
+                <motion.button
+                  type="button"
+                  initial={{ opacity: 0, scale: 0.88, y: 12 }}
+                  animate={{ opacity: 1, scale: 1, y: 0 }}
+                  transition={{ type: 'spring', stiffness: 380, damping: 22, delay: 0.145 }}
+                  whileHover={{ scale: 1.02, transition: { type: 'spring', stiffness: 400, damping: 18 } }}
+                  whileTap={{ scale: 0.94, transition: { type: 'spring', stiffness: 500, damping: 14 } }}
+                  onClick={() => handleSetSubView('meus-roteiros')}
+                  className={`rounded-[24px] p-4 border transition-colors cursor-pointer flex flex-col justify-between text-left ${
+                    isDark ? 'bg-[#1C1C1E] border-white/10 shadow-xs' : 'bg-[#ffffff] border-black/5 shadow-xs'
+                  }`}
+                  style={{ backgroundColor: isDark ? undefined : '#ffffff' }}
+                >
+                  <div className="flex justify-end">
+                    <ChevronRight className="w-4 h-4 text-zinc-400 shrink-0" />
+                  </div>
+                  <div className="my-2 flex justify-center items-center h-[46px]">
+                    <img
+                      src={foldedMap3dIcon}
+                      alt="Meus roteiros"
+                      className="h-[64px] w-auto object-contain"
+                      draggable={false}
+                    />
+                  </div>
+                  <div>
+                    <h3 className="text-[15px] font-bold tracking-tight leading-snug text-zinc-950 dark:text-white">
+                      Meus roteiros
+                    </h3>
+                  </div>
+                </motion.button>
+              </div>
+
               {/* 4. Options List */}
               <div className="space-y-2.5 pt-1">
                 {isUserAdmin && (
@@ -959,42 +1057,6 @@ export const ProfileModal: React.FC<ProfileModalProps> = React.memo(({
                     </div>
                   </motion.button>
                 )}
-
-
-
-                {/* Carteira de Plátanos */}
-                <motion.button
-                  type="button"
-                  initial={{ opacity: 0, scale: 0.88, y: 12 }}
-                  animate={{ opacity: 1, scale: 1, y: 0 }}
-                  transition={{ type: 'spring', stiffness: 380, damping: 22, delay: 0.175 }}
-                  whileHover={{ scale: 1.01, transition: { type: 'spring', stiffness: 400, damping: 18 } }}
-                  whileTap={{ scale: 0.96, transition: { type: 'spring', stiffness: 500, damping: 14 } }}
-                  onClick={() => {
-                    onClose();
-                    window.dispatchEvent(
-                      new CustomEvent('monvian:open_platanos_wallet', { detail: { tab: 'topup' } })
-                    );
-                  }}
-                  className={`w-full p-4 rounded-[22px] border transition-colors flex items-center justify-between text-left cursor-pointer ${
-                    isDark ? 'bg-[#1C1C1E] border-white/10 hover:bg-[#252528]' : 'bg-[#fefefe] border-black/5 hover:bg-[#E5E5EA]/80'
-                  }`}
-                >
-                  <div className="flex items-center gap-3.5 min-w-0">
-                    <div className="flex items-center justify-center shrink-0 text-zinc-950 dark:text-white">
-                      <PlatanoLeafIcon className="w-[42px] h-[42px]" variant="monochrome" />
-                    </div>
-                    <div className="min-w-0">
-                      <h3 className="text-[15px] font-semibold text-zinc-950 dark:text-white tracking-tight">
-                        Plátanos & Carteira
-                      </h3>
-                      <p className="text-[12px] text-zinc-500 dark:text-zinc-400 tabular-nums">
-                        {wallet.balance} {wallet.balance === 1 ? 'Plátano disponível' : 'Plátanos disponíveis'}
-                      </p>
-                    </div>
-                  </div>
-                  <ChevronRight className="w-4 h-4 text-zinc-400 shrink-0" />
-                </motion.button>
 
                 {/* Configurações da Conta -> opens 'permissoes' */}
                 <motion.button
@@ -1066,6 +1128,33 @@ export const ProfileModal: React.FC<ProfileModalProps> = React.memo(({
                 </motion.button>
               </div>
             </div>
+          )}
+
+          {/* ============================================================ */}
+          {/* VIEW 1.5: MEUS ROTEIROS (iOS Native User & Purchased Routes) */}
+          {/* ============================================================ */}
+          {activeSubView === 'meus-roteiros' && (
+            <MyItinerariesView
+              user={user}
+              spots={spots}
+              isDark={isDark}
+              onBack={() => handleSetSubView('main')}
+              onStartCreateNewItinerary={() => {
+                onClose();
+                onStartCreateItinerary?.();
+              }}
+              onPlayItineraryOnMap={(itin) => {
+                onClose();
+                onOpenUserItineraryOnMap?.(itin);
+              }}
+              onEditItinerary={(itin) => {
+                onClose();
+                onEditUserItinerary?.(itin);
+              }}
+              onDeletedItinerary={(itinId) => {
+                onDeleteUserItinerary?.(itinId);
+              }}
+            />
           )}
 
           {/* ============================================================ */}

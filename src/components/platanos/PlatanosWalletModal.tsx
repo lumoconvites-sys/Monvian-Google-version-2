@@ -748,10 +748,10 @@ export const PlatanosWalletModal: React.FC<PlatanosWalletModalProps> = ({
               </div>
             )}
 
-            {/* Scrollable Body (Packages / History) */}
+            {/* Scrollable Body (Packages / History — locked height so Histórico matches Comprar Plátanos) */}
             <div
               ref={scrollBodyRef}
-              className={`flex-1 overflow-y-auto px-5 pt-1 pb-3 overscroll-contain ${
+              className={`relative flex-1 overflow-y-auto px-5 pt-1 pb-20 overscroll-contain grid grid-cols-1 ${
                 isDark ? 'bg-[#0E0E11]' : 'bg-[#FAFAFB]'
               }`}
               style={{
@@ -761,269 +761,267 @@ export const PlatanosWalletModal: React.FC<PlatanosWalletModalProps> = ({
                   : 'linear-gradient(180deg, #FFFFFF 0%, #FAFAFB 16%, #F8F8FA 100%)',
               }}
             >
-              <AnimatePresence mode="wait" initial={false}>
-                {activeTab === 'topup' ? (
-                  <motion.div
-                    key="wallet-tab-topup"
-                    initial={{ opacity: 0, y: 6 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    exit={{ opacity: 0, y: -6 }}
-                    transition={{ duration: 0.18, ease: [0.22, 1, 0.36, 1] }}
-                    className="space-y-3 pb-1"
-                  >
-                    {wallet.packages.map((pkg) => {
-                      const isSpecial200 = Boolean(
-                        pkg.isBestValue || pkg.platanos === 200
-                      );
-                      const isProcessing = checkoutLoadingId === pkg.id;
-                      const benefitText = getPackageDescription(pkg.platanos);
+              {/* TOPUP TAB (Always mounted in grid cell 1/1 to preserve exact Comprar Plátanos card height) */}
+              <div
+                aria-hidden={activeTab !== 'topup'}
+                className={`col-start-1 row-start-1 space-y-3 pb-1 transition-opacity duration-200 ${
+                  activeTab === 'topup'
+                    ? 'opacity-100 pointer-events-auto'
+                    : 'opacity-0 pointer-events-none select-none'
+                }`}
+              >
+                {wallet.packages.map((pkg) => {
+                  const isSpecial200 = Boolean(
+                    pkg.isBestValue || pkg.platanos === 200
+                  );
+                  const isProcessing = checkoutLoadingId === pkg.id;
+                  const benefitText = getPackageDescription(pkg.platanos);
 
-                      if (isSpecial200) {
-                        return (
-                          <div
-                            key={pkg.id}
-                            className={`relative overflow-hidden rounded-[24px] px-5 py-4 border flex items-center justify-between gap-4 ${
-                              isDark
-                                ? 'border-[#D4B47C]/25 shadow-[0_8px_24px_rgba(0,0,0,0.45)]'
-                                : 'border-[#E8DEC8] shadow-[0_6px_22px_rgba(148,112,56,0.09),0_1px_4px_rgba(0,0,0,0.03)]'
-                            }`}
-                            style={{
-                              background: isDark
-                                ? 'linear-gradient(135deg, #161411 0%, #1E1A13 58%, #262016 100%)'
-                                : 'linear-gradient(135deg, #FFFFFF 0%, #FAF5EC 58%, #F4E9D4 100%)',
-                            }}
-                          >
-                            {/* Enlarged Subtle 3D Platanus Leaf Backdrop */}
-                            {isDark ? (
+                  if (isSpecial200) {
+                    return (
+                      <div
+                        key={pkg.id}
+                        className={`relative overflow-hidden rounded-[24px] px-5 py-4 border flex items-center justify-between gap-4 ${
+                          isDark
+                            ? 'border-[#D4B47C]/25 shadow-[0_8px_24px_rgba(0,0,0,0.45)]'
+                            : 'border-[#E8DEC8] shadow-[0_6px_22px_rgba(148,112,56,0.09),0_1px_4px_rgba(0,0,0,0.03)]'
+                        }`}
+                        style={{
+                          background: isDark
+                            ? 'linear-gradient(135deg, #161411 0%, #1E1A13 58%, #262016 100%)'
+                            : 'linear-gradient(135deg, #FFFFFF 0%, #FAF5EC 58%, #F4E9D4 100%)',
+                        }}
+                      >
+                        {/* Enlarged Subtle 3D Platanus Leaf Backdrop */}
+                        {isDark ? (
+                          <img
+                            src={PLATANO_LEAF_3D_ICON_SRC}
+                            alt=""
+                            aria-hidden="true"
+                            draggable={false}
+                            className="absolute -right-6 top-1/2 -translate-y-1/2 w-[148px] h-[148px] object-contain opacity-[0.22] pointer-events-none select-none"
+                          />
+                        ) : (
+                          <>
+                            {!cardImgFailed && (
                               <img
-                                src={PLATANO_LEAF_3D_ICON_SRC}
+                                src={platanosLeafCardGold}
                                 alt=""
                                 aria-hidden="true"
                                 draggable={false}
-                                className="absolute -right-6 top-1/2 -translate-y-1/2 w-[148px] h-[148px] object-contain opacity-[0.22] pointer-events-none select-none"
+                                referrerPolicy="no-referrer"
+                                onError={() => setCardImgFailed(true)}
+                                className="absolute inset-0 w-full h-full object-cover object-right opacity-95 pointer-events-none select-none"
                               />
-                            ) : (
-                              <>
-                                {!cardImgFailed && (
-                                  <img
-                                    src={platanosLeafCardGold}
-                                    alt=""
-                                    aria-hidden="true"
-                                    draggable={false}
-                                    referrerPolicy="no-referrer"
-                                    onError={() => setCardImgFailed(true)}
-                                    className="absolute inset-0 w-full h-full object-cover object-right opacity-95 pointer-events-none select-none"
-                                  />
-                                )}
-                                {/* Left Readability Scrim */}
-                                <div
-                                  aria-hidden="true"
-                                  className="absolute inset-0 bg-gradient-to-r from-[#FDFBF7]/95 via-[#FCF8F0]/75 to-transparent pointer-events-none"
-                                />
-                              </>
                             )}
+                            {/* Left Readability Scrim */}
+                            <div
+                              aria-hidden="true"
+                              className="absolute inset-0 bg-gradient-to-r from-[#FDFBF7]/95 via-[#FCF8F0]/75 to-transparent pointer-events-none"
+                            />
+                          </>
+                        )}
 
-                            <div className="relative z-10 min-w-0">
-                              <span
-                                className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-semibold tracking-[-0.01em] mb-1.5 ${
-                                  isDark
-                                    ? 'bg-[#D4B47C]/20 text-[#F3D8A8]'
-                                    : 'bg-[#EDE0C8]/90 text-[#1C1C1E]'
-                                }`}
-                              >
-                                <Crown className="w-3 h-3 stroke-[2.1] shrink-0" />
-                                <span>Melhor valor</span>
-                              </span>
-
-                              <h3
-                                className={`text-[18.5px] font-bold tracking-[-0.02em] leading-tight tabular-nums ${
-                                  isDark ? 'text-[#FFFFFF]' : 'text-[#000000]'
-                                }`}
-                              >
-                                {pkg.platanos} Plátanos
-                              </h3>
-                              <p
-                                className={`text-[13px] font-normal mt-1 leading-snug ${
-                                  isDark ? 'text-[#C7C2B8]' : 'text-[#52525B]'
-                                }`}
-                              >
-                                {benefitText}
-                              </p>
-                            </div>
-
-                            <button
-                              type="button"
-                              disabled={Boolean(checkoutLoadingId)}
-                              onClick={() => handleCheckout(pkg)}
-                              className={`relative z-10 h-10 px-4 rounded-full active:scale-[0.96] transition-all duration-150 inline-flex items-center justify-center gap-1 text-[14px] font-semibold tracking-[-0.01em] tabular-nums shrink-0 cursor-pointer disabled:opacity-55 ${
-                                isDark
-                                  ? 'bg-[#FFFFFF] text-[#000000] hover:bg-[#E5E5EA] shadow-[0_4px_14px_rgba(0,0,0,0.45)]'
-                                  : 'bg-[#000000] text-[#FFFFFF] hover:bg-[#1C1C1E] shadow-[0_4px_12px_rgba(0,0,0,0.16)]'
-                              }`}
-                            >
-                              <span>
-                                {isProcessing ? 'Abrindo...' : pkg.priceBRL}
-                              </span>
-                              {!isProcessing && (
-                                <ChevronRight className="w-3.5 h-3.5 stroke-[2.4] opacity-85" />
-                              )}
-                            </button>
-                          </div>
-                        );
-                      }
-
-                      return (
-                        <div
-                          key={pkg.id}
-                          className={`rounded-[24px] px-5 py-4 border flex items-center justify-between gap-4 ${
-                            isDark
-                              ? 'bg-[#161619] border-white/[0.07] shadow-[0_4px_18px_rgba(0,0,0,0.35)]'
-                              : 'bg-[#FFFFFF] border-black/[0.04] shadow-[0_4px_18px_rgba(0,0,0,0.045),0_1px_4px_rgba(0,0,0,0.025)]'
-                          }`}
-                        >
-                          <div className="min-w-0">
-                            <h3
-                              className={`text-[18px] font-bold tracking-[-0.02em] leading-tight tabular-nums ${
-                                isDark ? 'text-[#FFFFFF]' : 'text-[#000000]'
-                              }`}
-                            >
-                              {pkg.platanos} Plátanos
-                            </h3>
-                            <p
-                              className={`text-[13px] font-normal mt-1 leading-snug ${
-                                isDark ? 'text-[#A1A1AA]' : 'text-[#71717A]'
-                              }`}
-                            >
-                              {benefitText}
-                            </p>
-                          </div>
-
-                          <button
-                            type="button"
-                            disabled={Boolean(checkoutLoadingId)}
-                            onClick={() => handleCheckout(pkg)}
-                            className={`h-10 px-4 rounded-full active:scale-[0.96] transition-all duration-150 inline-flex items-center justify-center gap-1 text-[14px] font-semibold tracking-[-0.01em] tabular-nums shrink-0 cursor-pointer disabled:opacity-55 ${
+                        <div className="relative z-10 min-w-0">
+                          <span
+                            className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-semibold tracking-[-0.01em] mb-1.5 ${
                               isDark
-                                ? 'bg-[#FFFFFF] text-[#000000] hover:bg-[#E5E5EA]'
-                                : 'bg-[#000000] text-[#FFFFFF] hover:bg-[#1C1C1E]'
+                                ? 'bg-[#D4B47C]/20 text-[#F3D8A8]'
+                                : 'bg-[#EDE0C8]/90 text-[#1C1C1E]'
                             }`}
                           >
-                            <span>
-                              {isProcessing ? 'Abrindo...' : pkg.priceBRL}
-                            </span>
-                            {!isProcessing && (
-                              <ChevronRight className="w-3.5 h-3.5 stroke-[2.4] opacity-85" />
-                            )}
-                          </button>
+                            <Crown className="w-3 h-3 stroke-[2.1] shrink-0" />
+                            <span>Melhor valor</span>
+                          </span>
+
+                          <h3
+                            className={`text-[18.5px] font-bold tracking-[-0.02em] leading-tight tabular-nums ${
+                              isDark ? 'text-[#FFFFFF]' : 'text-[#000000]'
+                            }`}
+                          >
+                            {pkg.platanos} Plátanos
+                          </h3>
+                          <p
+                            className={`text-[13px] font-normal mt-1 leading-snug ${
+                              isDark ? 'text-[#C7C2B8]' : 'text-[#52525B]'
+                            }`}
+                          >
+                            {benefitText}
+                          </p>
                         </div>
-                      );
-                    })}
-                  </motion.div>
-                ) : (
-                  <motion.div
-                    key="wallet-tab-history"
-                    initial={{ opacity: 0, y: 6 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    exit={{ opacity: 0, y: -6 }}
-                    transition={{ duration: 0.18, ease: [0.22, 1, 0.36, 1] }}
-                  >
-                    {wallet.transactions.length === 0 ? (
-                      <div className="py-14 text-center space-y-1.5">
-                        <p
-                          className={`text-[15px] font-semibold ${
+
+                        <button
+                          type="button"
+                          disabled={Boolean(checkoutLoadingId)}
+                          onClick={() => handleCheckout(pkg)}
+                          className={`relative z-10 h-10 px-4 rounded-full active:scale-[0.96] transition-all duration-150 inline-flex items-center justify-center gap-1 text-[14px] font-semibold tracking-[-0.01em] shrink-0 cursor-pointer disabled:opacity-55 ${
+                            isDark
+                              ? 'bg-[#FFFFFF] text-[#000000] hover:bg-[#E5E5EA] shadow-[0_4px_14px_rgba(0,0,0,0.45)]'
+                              : 'bg-[#000000] text-[#FFFFFF] hover:bg-[#1C1C1E] shadow-[0_4px_12px_rgba(0,0,0,0.16)]'
+                          }`}
+                        >
+                          <span>
+                            {isProcessing ? 'Abrindo...' : 'Adquirir'}
+                          </span>
+                          {!isProcessing && (
+                            <ChevronRight className="w-3.5 h-3.5 stroke-[2.4] opacity-85" />
+                          )}
+                        </button>
+                      </div>
+                    );
+                  }
+
+                  return (
+                    <div
+                      key={pkg.id}
+                      className={`rounded-[24px] px-5 py-4 border flex items-center justify-between gap-4 ${
+                        isDark
+                          ? 'bg-[#161619] border-white/[0.07] shadow-[0_4px_18px_rgba(0,0,0,0.35)]'
+                          : 'bg-[#FFFFFF] border-black/[0.04] shadow-[0_4px_18px_rgba(0,0,0,0.045),0_1px_4px_rgba(0,0,0,0.025)]'
+                      }`}
+                    >
+                      <div className="min-w-0">
+                        <h3
+                          className={`text-[18px] font-bold tracking-[-0.02em] leading-tight tabular-nums ${
                             isDark ? 'text-[#FFFFFF]' : 'text-[#000000]'
                           }`}
                         >
-                          Nenhuma movimentação ainda
-                        </p>
-                        <p className="text-[13px] text-[#8E8E93] max-w-xs mx-auto leading-relaxed">
-                          Suas compras de Plátanos e roteiros liberados aparecerão aqui.
+                          {pkg.platanos} Plátanos
+                        </h3>
+                        <p
+                          className={`text-[13px] font-normal mt-1 leading-snug ${
+                            isDark ? 'text-[#A1A1AA]' : 'text-[#71717A]'
+                          }`}
+                        >
+                          {benefitText}
                         </p>
                       </div>
-                    ) : (
-                      <div className="space-y-2.5 pb-1">
-                        {wallet.transactions.map((tx) => {
-                          const isCredit = tx.amount > 0;
-                          const statusText = getStatusLabel(tx.status);
 
-                          return (
+                      <button
+                        type="button"
+                        disabled={Boolean(checkoutLoadingId)}
+                        onClick={() => handleCheckout(pkg)}
+                        className={`h-10 px-4 rounded-full active:scale-[0.96] transition-all duration-150 inline-flex items-center justify-center gap-1 text-[14px] font-semibold tracking-[-0.01em] shrink-0 cursor-pointer disabled:opacity-55 ${
+                          isDark
+                            ? 'bg-[#FFFFFF] text-[#000000] hover:bg-[#E5E5EA]'
+                            : 'bg-[#000000] text-[#FFFFFF] hover:bg-[#1C1C1E]'
+                        }`}
+                      >
+                        <span>
+                          {isProcessing ? 'Abrindo...' : 'Adquirir'}
+                        </span>
+                        {!isProcessing && (
+                          <ChevronRight className="w-3.5 h-3.5 stroke-[2.4] opacity-85" />
+                        )}
+                      </button>
+                    </div>
+                  );
+                })}
+              </div>
+
+              {/* HISTORY TAB (Occupies the exact same grid cell 1/1 so card size never shrinks) */}
+              <div
+                aria-hidden={activeTab !== 'history'}
+                className={`col-start-1 row-start-1 flex flex-col transition-opacity duration-200 ${
+                  activeTab === 'history'
+                    ? 'opacity-100 pointer-events-auto'
+                    : 'opacity-0 pointer-events-none select-none'
+                }`}
+              >
+                {wallet.transactions.length === 0 ? (
+                  <div className="flex-1 flex flex-col items-center justify-center py-10 text-center space-y-1.5">
+                    <p
+                      className={`text-[15px] font-semibold ${
+                        isDark ? 'text-[#FFFFFF]' : 'text-[#000000]'
+                      }`}
+                    >
+                      Nenhuma movimentação ainda
+                    </p>
+                    <p className="text-[13px] text-[#8E8E93] max-w-xs mx-auto leading-relaxed">
+                      Suas compras de Plátanos e roteiros liberados aparecerão aqui.
+                    </p>
+                  </div>
+                ) : (
+                  <div className="space-y-2.5 pb-1">
+                    {wallet.transactions.map((tx) => {
+                      const isCredit = tx.amount > 0;
+                      const statusText = getStatusLabel(tx.status);
+
+                      return (
+                        <div
+                          key={tx.id}
+                          className={`rounded-[20px] px-4 py-3.5 border flex items-center justify-between gap-3 ${
+                            isDark
+                              ? 'bg-[#161619] border-white/[0.07] shadow-[0_4px_14px_rgba(0,0,0,0.3)]'
+                              : 'bg-[#FFFFFF] border-black/[0.04] shadow-[0_2px_12px_rgba(0,0,0,0.035)]'
+                          }`}
+                        >
+                          <div className="flex items-start gap-3 min-w-0">
                             <div
-                              key={tx.id}
-                              className={`rounded-[20px] px-4 py-3.5 border flex items-center justify-between gap-3 ${
+                              className={`w-8 h-8 rounded-full flex items-center justify-center shrink-0 mt-0.5 ${
                                 isDark
-                                  ? 'bg-[#161619] border-white/[0.07] shadow-[0_4px_14px_rgba(0,0,0,0.3)]'
-                                  : 'bg-[#FFFFFF] border-black/[0.04] shadow-[0_2px_12px_rgba(0,0,0,0.035)]'
+                                  ? 'bg-[#262629] text-[#E4E4E7]'
+                                  : 'bg-[#F2F2F7] text-[#3A3A3C]'
                               }`}
                             >
-                              <div className="flex items-start gap-3 min-w-0">
-                                <div
-                                  className={`w-8 h-8 rounded-full flex items-center justify-center shrink-0 mt-0.5 ${
-                                    isDark
-                                      ? 'bg-[#262629] text-[#E4E4E7]'
-                                      : 'bg-[#F2F2F7] text-[#3A3A3C]'
-                                  }`}
-                                >
-                                  {isCredit ? (
-                                    <ArrowDownLeft className="w-4 h-4 stroke-[2]" />
-                                  ) : (
-                                    <ArrowUpRight className="w-4 h-4 stroke-[2]" />
-                                  )}
-                                </div>
+                              {isCredit ? (
+                                <ArrowDownLeft className="w-4 h-4 stroke-[2]" />
+                              ) : (
+                                <ArrowUpRight className="w-4 h-4 stroke-[2]" />
+                              )}
+                            </div>
 
-                                <div className="min-w-0">
-                                  <p
-                                    className={`text-[13.5px] font-semibold leading-snug truncate ${
-                                      isDark ? 'text-[#FFFFFF]' : 'text-[#000000]'
-                                    }`}
-                                  >
-                                    {tx.description}
-                                  </p>
-                                  <div className="flex items-center gap-1.5 mt-0.5 text-[11.5px] text-[#8E8E93]">
-                                    <span>{formatDateTimePtBR(tx.createdAt)}</span>
-                                    <span>·</span>
-                                    <span>{statusText}</span>
-                                  </div>
-                                </div>
-                              </div>
-
-                              <div className="text-right shrink-0">
-                                <div
-                                  className={`text-[14px] font-bold tabular-nums ${
-                                    isDark ? 'text-[#FFFFFF]' : 'text-[#000000]'
-                                  }`}
-                                >
-                                  {tx.amount > 0 ? `+${tx.amount}` : tx.amount}
-                                </div>
-                                <span className="text-[11px] font-normal text-[#8E8E93] block tabular-nums">
-                                  Saldo: {tx.balanceAfter}
-                                </span>
+                            <div className="min-w-0">
+                              <p
+                                className={`text-[13.5px] font-semibold leading-snug truncate ${
+                                  isDark ? 'text-[#FFFFFF]' : 'text-[#000000]'
+                                }`}
+                              >
+                                {tx.description}
+                              </p>
+                              <div className="flex items-center gap-1.5 mt-0.5 text-[11.5px] text-[#8E8E93]">
+                                <span>{formatDateTimePtBR(tx.createdAt)}</span>
+                                <span>·</span>
+                                <span>{statusText}</span>
                               </div>
                             </div>
-                          );
-                        })}
-                      </div>
-                    )}
-                  </motion.div>
+                          </div>
+
+                          <div className="text-right shrink-0">
+                            <div
+                              className={`text-[14px] font-bold tabular-nums ${
+                                isDark ? 'text-[#FFFFFF]' : 'text-[#000000]'
+                              }`}
+                            >
+                              {tx.amount > 0 ? `+${tx.amount}` : tx.amount}
+                            </div>
+                            <span className="text-[11px] font-normal text-[#8E8E93] block tabular-nums">
+                              Saldo: {tx.balanceAfter}
+                            </span>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
                 )}
-              </AnimatePresence>
+              </div>
             </div>
 
-            {/* Minimalist Stripe Security Footer */}
+            {/* Centered Floating White Bar for Stripe Security (replaces full-width bottom plate) */}
             <div
-              className={`px-5 pt-2.5 pb-2 shrink-0 border-t flex items-center justify-center gap-1.5 touch-none select-none ${
-                isDark
-                  ? 'bg-[#0B0B0D] border-white/[0.06] text-[#8E8E93]'
-                  : 'bg-[#FFFFFF] border-black/[0.04] text-[#71717A]'
-              }`}
-              style={{ touchAction: 'none' }}
+              className="pointer-events-none absolute inset-x-0 bottom-3.5 z-20 flex justify-center px-5 select-none"
             >
-              <span className="relative inline-flex items-center justify-center w-4 h-4 shrink-0">
-                <Shield className="w-4 h-4 stroke-[1.8]" />
-                <Lock className="w-2 h-2 stroke-[2.2] absolute" />
-              </span>
-              <span className="text-[12px] font-medium tracking-[-0.01em]">
-                Pagamento seguro processado via Stripe
-              </span>
+              <div
+                className="pointer-events-auto h-9 px-4 rounded-full bg-[#FFFFFF] text-[#52525B] border border-black/[0.06] shadow-[0_8px_24px_rgba(0,0,0,0.10),0_2px_6px_rgba(0,0,0,0.04)] inline-flex items-center justify-center gap-1.5"
+              >
+                <span className="relative inline-flex items-center justify-center w-4 h-4 shrink-0 text-[#52525B]">
+                  <Shield className="w-4 h-4 stroke-[1.8]" />
+                  <Lock className="w-2 h-2 stroke-[2.2] absolute" />
+                </span>
+                <span className="text-[12px] font-medium tracking-[-0.01em] whitespace-nowrap">
+                  Pagamento seguro pela Stripe
+                </span>
+              </div>
             </div>
               </div>
               {/* Bottom extension skirt so upward rubber-banding never shows a gap */}

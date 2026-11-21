@@ -4,16 +4,21 @@ import { Spot, MapVisualIcon, MapModeType, MapWorkflowMode, Itinerary, Itinerary
 import type { TabType } from './components/BottomNavigation';
 import type { MapComponentHandle } from './components/MapComponent';
 import { SelectModeOverlay, UnifiedItineraryOverlay } from './components/itineraries/UnifiedItineraryOverlay';
+import { ItineraryCreationFinalizeModal } from './components/itineraries/ItineraryCreationFinalizeModal';
 import {
   buildItineraryFromOrderedSpots,
   deleteUserItineraryFromBackend,
   getOrCreateItinerarySessionId,
   loadActiveItineraryFromStorage,
+  loadIsItineraryActiveOnMapFromStorage,
   normalizeItineraryLivreFlags,
   persistUserItineraryToBackend,
   recomputeStepsScheduleAndDistances,
+  removeUserCreatedItineraryFromStorage,
   resolveEnrichedDaySteps,
   saveActiveItineraryToStorage,
+  saveIsItineraryActiveOnMapToStorage,
+  upsertUserCreatedItineraryToStorage,
 } from './utils/itineraryHelpers';
 import { favoritesManager } from './services/favoritesManager';
 import { CloudRain, SlidersHorizontal, MapPin, Navigation2, Compass, Mic, Search, X, ShieldCheck, Sun, Moon, Building2, UtensilsCrossed, Coffee, Cake, Mountain, Cross, Check, RotateCcw, Star, ChevronRight, Settings } from 'lucide-react';
@@ -306,11 +311,44 @@ export default function App() {
 
   // Desktop Sidebar Compact Mode: Collapsed by default (72px)
   const [isDesktopSidebarCollapsed, setIsDesktopSidebarCollapsed] = useState<boolean>(true);
+  const [isDesktopLayout, setIsDesktopLayout] = useState<boolean>(() => {
+    if (typeof window === 'undefined') return false;
+    const isPhoneUA = /Android.*Mobile|iPhone|iPod|IEMobile|Opera Mini/i.test(
+      window.navigator?.userAgent || ''
+    );
+    if (isPhoneUA) return false;
+    return window.matchMedia('(min-width: 768px) and (min-height: 540px)').matches;
+  });
 
   useEffect(() => {
-    const w = isDesktopSidebarCollapsed ? '72px' : '250px';
+    if (typeof window === 'undefined') return;
+    const checkLayout = () => {
+      const isPhoneUA = /Android.*Mobile|iPhone|iPod|IEMobile|Opera Mini/i.test(
+        window.navigator?.userAgent || ''
+      );
+      if (isPhoneUA) {
+        setIsDesktopLayout(false);
+        return;
+      }
+      const matches =
+        window.innerWidth >= 768 &&
+        window.innerHeight >= 540 &&
+        Math.min(window.screen?.width || window.innerWidth, window.screen?.height || window.innerHeight) >= 540;
+      setIsDesktopLayout(matches);
+    };
+    checkLayout();
+    window.addEventListener('resize', checkLayout);
+    window.addEventListener('orientationchange', checkLayout);
+    return () => {
+      window.removeEventListener('resize', checkLayout);
+      window.removeEventListener('orientationchange', checkLayout);
+    };
+  }, []);
+
+  useEffect(() => {
+    const w = !isDesktopLayout ? '0px' : isDesktopSidebarCollapsed ? '72px' : '250px';
     document.documentElement.style.setProperty('--desktop-sidebar-width', w);
-  }, [isDesktopSidebarCollapsed]);
+  }, [isDesktopSidebarCollapsed, isDesktopLayout]);
 
   // Accessibility: High Contrast Mode State
   const [highContrast, setHighContrast] = useState<boolean>(() => {
@@ -407,12 +445,19 @@ export default function App() {
 
   // Unified Single-Map Workflow State (EXPLORE | SELECT | ITINERARY)
   const mapRef = useRef<MapComponentHandle | null>(null);
-  const [mapWorkflowMode, setMapWorkflowMode] = useState<MapWorkflowMode>('EXPLORE');
+  const [mapWorkflowMode, setMapWorkflowMode] = useState<MapWorkflowMode>(() =>
+    loadIsItineraryActiveOnMapFromStorage() ? 'ITINERARY' : 'EXPLORE'
+  );
   const mapWorkflowModeRef = useRef<MapWorkflowMode>(mapWorkflowMode);
   mapWorkflowModeRef.current = mapWorkflowMode;
   const isEditingExistingItineraryRef = useRef<boolean>(false);
 
   const [selectedSpotIdsForItinerary, setSelectedSpotIdsForItinerary] = useState<string[]>([]);
+  const [isFinalizeItineraryModalOpen, setIsFinalizeItineraryModalOpen] = useState<boolean>(false);
+  const [finalizeItineraryMode, setFinalizeItineraryMode] = useState<'create' | 'edit'>('create');
+  const [editingCustomItinerary, setEditingCustomItinerary] = useState<Itinerary | null>(null);
+  const [draftItineraryTitle, setDraftItineraryTitle] = useState<string>('');
+  const [draftItineraryCover, setDraftItineraryCover] = useState<string>('');
   const [activeItinerary, setActiveItinerary] = useState<Itinerary | null>(() =>
     loadActiveItineraryFromStorage()
   );
@@ -420,7 +465,10 @@ export default function App() {
   const [activeItineraryStepId, setActiveItineraryStepId] = useState<string | null>(
     () => loadActiveItineraryFromStorage()?.days?.[0]?.steps?.[0]?.id || null
   );
-  const [isItineraryDrawerExpanded, setIsItineraryDrawerExpanded] = useState<boolean>(false);
+  const [isItineraryDrawerExpanded, setIsItineraryDrawerExpanded] = useState<boolean>(() => {
+    const saved = loadActiveItineraryFromStorage();
+    return Boolean(loadIsItineraryActiveOnMapFromStorage() && (saved?.days?.[0]?.steps?.length ?? 0) > 1);
+  });
   const [tripNoteText, setTripNoteText] = useState<string>(() => {
     try {
       return readScopedString('monvian_trip_note_campos') || '';
@@ -433,6 +481,7 @@ export default function App() {
   const [isSettingsModalOpen, setIsSettingsModalOpen] = useState<boolean>(false);
   const [isWeatherModalOpen, setIsWeatherModalOpen] = useState<boolean>(false);
   const [isChatKeyboardOpen, setIsChatKeyboardOpen] = useState<boolean>(false);
+  const [isMyItinerariesSubViewActive, setIsMyItinerariesSubViewActive] = useState<boolean>(false);
   const [isPlatanosWalletOpen, setIsPlatanosWalletOpen] = useState<boolean>(false);
   const [platanosWalletTab, setPlatanosWalletTab] = useState<'topup' | 'history'>('topup');
   const [isCamposAchievementOpen, setIsCamposAchievementOpen] = useState<boolean>(() => {
@@ -453,16 +502,21 @@ export default function App() {
     const handleOpenCamposAchievement = () => {
       setIsCamposAchievementOpen(true);
     };
+    const handleMyItinerariesActive = (e: Event) => {
+      setIsMyItinerariesSubViewActive(Boolean((e as CustomEvent)?.detail));
+    };
     const handleCloseAll = () => {
       setIsPlatanosWalletOpen(false);
       setIsCamposAchievementOpen(false);
     };
     window.addEventListener('monvian:open_platanos_wallet', handleOpenWallet);
     window.addEventListener('monvian:open_campos_achievement', handleOpenCamposAchievement);
+    window.addEventListener('monvian:my_itineraries_active', handleMyItinerariesActive);
     window.addEventListener('monvian-close-modals', handleCloseAll);
     return () => {
       window.removeEventListener('monvian:open_platanos_wallet', handleOpenWallet);
       window.removeEventListener('monvian:open_campos_achievement', handleOpenCamposAchievement);
+      window.removeEventListener('monvian:my_itineraries_active', handleMyItinerariesActive);
       window.removeEventListener('monvian-close-modals', handleCloseAll);
     };
   }, []);
@@ -1928,11 +1982,13 @@ export default function App() {
   const handleTabChange = useCallback((tab: TabType) => {
     setIsAdminOpen(false);
     if (tab === 'explorar') {
-      if (mapWorkflowModeRef.current !== 'EXPLORE') {
-        setMapWorkflowMode('EXPLORE');
+      if (mapWorkflowModeRef.current === 'SELECT') {
+        setMapWorkflowMode(
+          isEditingExistingItineraryRef.current && activeItinerary ? 'ITINERARY' : 'EXPLORE'
+        );
         setSelectedSpotIdsForItinerary([]);
         isEditingExistingItineraryRef.current = false;
-      } else {
+      } else if (mapWorkflowModeRef.current === 'EXPLORE') {
         setZoomToUserTrigger((prev) => prev + 1);
       }
       if (gpsNavigationManager.getState().status !== 'granted') {
@@ -1946,7 +2002,9 @@ export default function App() {
       deviceHeadingManager.start();
     } else {
       if (mapWorkflowModeRef.current === 'SELECT') {
-        setMapWorkflowMode('EXPLORE');
+        setMapWorkflowMode(
+          isEditingExistingItineraryRef.current && activeItinerary ? 'ITINERARY' : 'EXPLORE'
+        );
         setSelectedSpotIdsForItinerary([]);
         isEditingExistingItineraryRef.current = false;
       }
@@ -1983,7 +2041,7 @@ export default function App() {
       }
       return tab;
     });
-  }, [clearActiveRoute]);
+  }, [clearActiveRoute, activeItinerary]);
 
   // Sempre que entrar no aplicativo, carregar Explorar ou voltar de outra aba/segundo plano, dá zoom automático na localização do usuário
   const prevActiveTabForZoomRef = useRef<TabType>(activeTab);
@@ -2350,16 +2408,32 @@ export default function App() {
     [activeItinerary, activeItineraryDayIndex, spots]
   );
 
+  const selectedSpotsForItinerary = useMemo(() => {
+    if (selectedSpotIdsForItinerary.length === 0) return [];
+    const spotsById = new Map(spots.map((s) => [s.id, s]));
+    const fallbackSteps = editingCustomItinerary?.days?.[0]?.steps || activeItinerary?.days?.[0]?.steps || [];
+    return selectedSpotIdsForItinerary
+      .map((id) => {
+        const fromCatalog = spotsById.get(id);
+        if (fromCatalog) return fromCatalog;
+        const fromStep = fallbackSteps.find((st) => st.spot?.id === id || st.spotId === id);
+        return fromStep?.spot || null;
+      })
+      .filter((s): s is Spot => Boolean(s));
+  }, [selectedSpotIdsForItinerary, spots, editingCustomItinerary, activeItinerary]);
+
   // Sync active itinerary and trip note per account/session or external events
   useEffect(() => {
     const handleItineraryApplied = (e: any) => {
       const applied = e?.detail as Itinerary | undefined;
       if (!applied || !Array.isArray(applied.days) || applied.days.length === 0) return;
       const normalized = normalizeItineraryLivreFlags(applied);
+      saveActiveItineraryToStorage(normalized);
       setActiveItinerary(normalized);
       setActiveItineraryDayIndex(0);
       setActiveItineraryStepId(normalized.days?.[0]?.steps?.[0]?.id || null);
       setIsItineraryDrawerExpanded((normalized.days?.[0]?.steps?.length ?? 0) > 1);
+      setMapWorkflowMode('ITINERARY');
     };
 
     const handleLoggedOut = () => {
@@ -2375,11 +2449,15 @@ export default function App() {
     const handleAccountSwitched = (e: any) => {
       const nextUser = e?.detail || null;
       const scopedItin = loadActiveItineraryFromStorage(nextUser);
+      const isActiveOnMap = loadIsItineraryActiveOnMapFromStorage(nextUser);
       setActiveItinerary(scopedItin);
       setActiveItineraryDayIndex(0);
       setActiveItineraryStepId(scopedItin?.days?.[0]?.steps?.[0]?.id || null);
       setSelectedSpotIdsForItinerary([]);
-      setMapWorkflowMode('EXPLORE');
+      setMapWorkflowMode(isActiveOnMap && scopedItin ? 'ITINERARY' : 'EXPLORE');
+      setIsItineraryDrawerExpanded(
+        Boolean(isActiveOnMap && (scopedItin?.days?.[0]?.steps?.length ?? 0) > 1)
+      );
       setTripNoteText(readScopedString('monvian_trip_note_campos', nextUser) || '');
     };
 
@@ -2406,9 +2484,16 @@ export default function App() {
       .then((data) => {
         if (!data?.success || !Array.isArray(data.itineraries) || data.itineraries.length === 0) return;
         const normalized = normalizeItineraryLivreFlags(data.itineraries[0]);
+        const wasExplicitlyExited = readScopedString('monvian_itinerary_map_active', user) === '0';
         setActiveItinerary((prev) => {
           if (prev) return prev;
           saveActiveItineraryToStorage(normalized, user);
+          if (wasExplicitlyExited) {
+            saveIsItineraryActiveOnMapToStorage(false, user);
+          } else {
+            setMapWorkflowMode('ITINERARY');
+            setIsItineraryDrawerExpanded((normalized.days?.[0]?.steps?.length ?? 0) > 1);
+          }
           setActiveItineraryStepId(normalized.days?.[0]?.steps?.[0]?.id || null);
           return normalized;
         });
@@ -2450,6 +2535,7 @@ export default function App() {
       }
       setMapWorkflowMode('EXPLORE');
       isEditingExistingItineraryRef.current = false;
+      saveIsItineraryActiveOnMapToStorage(false, user);
     },
   });
 
@@ -2494,6 +2580,11 @@ export default function App() {
     setIsCategoryCardOpen(false);
     setIsSearchOpen(false);
     isEditingExistingItineraryRef.current = false;
+    setEditingCustomItinerary(null);
+    setFinalizeItineraryMode('create');
+    setDraftItineraryTitle('');
+    setDraftItineraryCover('');
+    setIsFinalizeItineraryModalOpen(false);
     setSelectedSpotIdsForItinerary([]);
     setActiveTab('explorar');
     setMapWorkflowMode('SELECT');
@@ -2504,6 +2595,12 @@ export default function App() {
       .map((s) => s.spot?.id || s.spotId)
       .filter(Boolean) as string[];
     isEditingExistingItineraryRef.current = Boolean(activeItinerary);
+    if (activeItinerary) {
+      setEditingCustomItinerary(activeItinerary);
+      setFinalizeItineraryMode('edit');
+      setDraftItineraryTitle(activeItinerary.title || '');
+      setDraftItineraryCover(activeItinerary.coverImage || '');
+    }
     setSelectedSpotIdsForItinerary(existingIds);
     setActiveTab('explorar');
     setMapWorkflowMode('SELECT');
@@ -2518,55 +2615,46 @@ export default function App() {
     });
   }, []);
 
+  const handleRemoveSelectedSpotFromItinerary = useCallback((spotId: string) => {
+    setSelectedSpotIdsForItinerary((prev) => prev.filter((id) => id !== spotId));
+  }, []);
+
   const handleCancelSelectMode = useCallback(() => {
+    setIsFinalizeItineraryModalOpen(false);
     if (isEditingExistingItineraryRef.current && activeItinerary) {
       setMapWorkflowMode('ITINERARY');
     } else {
       setMapWorkflowMode('EXPLORE');
     }
     setSelectedSpotIdsForItinerary([]);
+    setEditingCustomItinerary(null);
+    setDraftItineraryTitle('');
+    setDraftItineraryCover('');
     isEditingExistingItineraryRef.current = false;
   }, [activeItinerary]);
 
   const handleConfirmSelectionToItinerary = useCallback(() => {
     if (selectedSpotIdsForItinerary.length === 0) return;
-    const spotsById = new Map(spots.map((s) => [s.id, s]));
-    const orderedSpots = selectedSpotIdsForItinerary
-      .map((id) => spotsById.get(id))
-      .filter((s): s is Spot => Boolean(s));
-    if (orderedSpots.length === 0) return;
-
-    const isUpdatingExisting = Boolean(isEditingExistingItineraryRef.current && activeItinerary);
-    const targetDayIdx = isUpdatingExisting ? activeItineraryDayIndex : 0;
-    const nextItinerary = buildItineraryFromOrderedSpots(orderedSpots, {
-      existingItinerary: isUpdatingExisting ? activeItinerary : null,
-      targetDayIndex: targetDayIdx,
-    });
-
-    const daySteps = resolveEnrichedDaySteps(nextItinerary, targetDayIdx, spots);
-    const firstStepId = daySteps[0]?.id || null;
-
-    setActiveItinerary(nextItinerary);
-    setActiveItineraryDayIndex(targetDayIdx);
-    setActiveItineraryStepId(firstStepId);
-    setIsItineraryDrawerExpanded(daySteps.length > 1);
-    setSelectedSpotIdsForItinerary([]);
-    isEditingExistingItineraryRef.current = false;
-    setMapWorkflowMode('ITINERARY');
-
-    saveActiveItineraryToStorage(nextItinerary, user);
-    const sessionId = getOrCreateItinerarySessionId(user);
-    void persistUserItineraryToBackend(nextItinerary, isUpdatingExisting ? 'PUT' : 'POST', sessionId);
-
-    window.setTimeout(() => {
-      mapRef.current?.fitItineraryBounds(daySteps, false);
-    }, 60);
+    if (isEditingExistingItineraryRef.current && (editingCustomItinerary || activeItinerary)) {
+      const target = editingCustomItinerary || activeItinerary;
+      setEditingCustomItinerary(target);
+      setFinalizeItineraryMode('edit');
+      if (!draftItineraryTitle && target?.title) {
+        setDraftItineraryTitle(target.title);
+      }
+      if (!draftItineraryCover && target?.coverImage) {
+        setDraftItineraryCover(target.coverImage);
+      }
+    } else {
+      setFinalizeItineraryMode('create');
+    }
+    setIsFinalizeItineraryModalOpen(true);
   }, [
-    selectedSpotIdsForItinerary,
-    spots,
+    selectedSpotIdsForItinerary.length,
+    editingCustomItinerary,
     activeItinerary,
-    activeItineraryDayIndex,
-    user,
+    draftItineraryTitle,
+    draftItineraryCover,
   ]);
 
   const handleOpenItineraryOnMap = useCallback(
@@ -2597,7 +2685,8 @@ export default function App() {
     setMapWorkflowMode('EXPLORE');
     setSelectedSpotIdsForItinerary([]);
     isEditingExistingItineraryRef.current = false;
-  }, []);
+    saveIsItineraryActiveOnMapToStorage(false, user);
+  }, [user]);
 
   const handleSelectItineraryStepOnMap = useCallback(
     (step: ItineraryStep) => {
@@ -2617,8 +2706,11 @@ export default function App() {
       const nextItin: Itinerary = { ...updated, days: normalizedDays };
       setActiveItinerary(nextItin);
       saveActiveItineraryToStorage(nextItin, user);
+      if (!(nextItin as any).sourceItineraryId) {
+        upsertUserCreatedItineraryToStorage(nextItin, user);
+      }
       const sessionId = getOrCreateItinerarySessionId(user);
-      void persistUserItineraryToBackend(nextItin, 'PUT', sessionId);
+      void persistUserItineraryToBackend(nextItin, 'PUT', sessionId, user);
     },
     [activeItineraryDayIndex, user]
   );
@@ -2637,8 +2729,11 @@ export default function App() {
         setActiveItineraryStepId(recomputed[0]?.id || null);
       }
       saveActiveItineraryToStorage(nextItin, user);
+      if (!(nextItin as any).sourceItineraryId) {
+        upsertUserCreatedItineraryToStorage(nextItin, user);
+      }
       const sessionId = getOrCreateItinerarySessionId(user);
-      void persistUserItineraryToBackend(nextItin, 'PUT', sessionId);
+      void persistUserItineraryToBackend(nextItin, 'PUT', sessionId, user);
     },
     [activeItinerary, activeItinerarySteps, activeItineraryDayIndex, activeItineraryStepId, user]
   );
@@ -2665,8 +2760,11 @@ export default function App() {
         mapRef.current?.focusItineraryStep(movedStep, isItineraryDrawerExpanded);
       }
       saveActiveItineraryToStorage(nextItin, user);
+      if (!(nextItin as any).sourceItineraryId) {
+        upsertUserCreatedItineraryToStorage(nextItin, user);
+      }
       const sessionId = getOrCreateItinerarySessionId(user);
-      void persistUserItineraryToBackend(nextItin, 'PUT', sessionId);
+      void persistUserItineraryToBackend(nextItin, 'PUT', sessionId, user);
     },
     [activeItinerary, activeItinerarySteps, activeItineraryDayIndex, isItineraryDrawerExpanded, user]
   );
@@ -2699,8 +2797,11 @@ export default function App() {
       setActiveItinerary(nextItin);
       setActiveItineraryStepId(newStep.id);
       saveActiveItineraryToStorage(nextItin, user);
+      if (!(nextItin as any).sourceItineraryId) {
+        upsertUserCreatedItineraryToStorage(nextItin, user);
+      }
       const sessionId = getOrCreateItinerarySessionId(user);
-      void persistUserItineraryToBackend(nextItin, 'PUT', sessionId);
+      void persistUserItineraryToBackend(nextItin, 'PUT', sessionId, user);
       mapRef.current?.focusItineraryStep(newStep, isItineraryDrawerExpanded);
     },
     [activeItinerary, activeItinerarySteps, activeItineraryDayIndex, isItineraryDrawerExpanded, user]
@@ -2714,8 +2815,11 @@ export default function App() {
       const nextItin: Itinerary = { ...activeItinerary, title: clean };
       setActiveItinerary(nextItin);
       saveActiveItineraryToStorage(nextItin, user);
+      if (!(nextItin as any).sourceItineraryId) {
+        upsertUserCreatedItineraryToStorage(nextItin, user);
+      }
       const sessionId = getOrCreateItinerarySessionId(user);
-      void persistUserItineraryToBackend(nextItin, 'PUT', sessionId);
+      void persistUserItineraryToBackend(nextItin, 'PUT', sessionId, user);
     },
     [activeItinerary, user]
   );
@@ -2728,10 +2832,12 @@ export default function App() {
     setMapWorkflowMode('EXPLORE');
     try {
       removeScopedKey('monvian_active_itinerary', user);
+      saveIsItineraryActiveOnMapToStorage(false, user);
     } catch {}
     if (idToDelete) {
+      removeUserCreatedItineraryFromStorage(idToDelete, user);
       const sessionId = getOrCreateItinerarySessionId(user);
-      void deleteUserItineraryFromBackend(idToDelete, sessionId);
+      void deleteUserItineraryFromBackend(idToDelete, sessionId, user);
     }
   }, [activeItinerary?.id, user]);
 
@@ -2820,7 +2926,6 @@ export default function App() {
 
   return (
     <>
-      <IOSInteractiveBackSystem />
       {signupIntroStage !== 'idle' && (
         <Suspense fallback={null}>
           <SignupIntroSequence
@@ -3116,8 +3221,8 @@ export default function App() {
         >
       <OfflineIndicator />
 
-      {/* Desktop Left Sidebar (Only visible on md+ >= 768px, hidden during exclusive post-signup itinerary selection, welcome screen & spotlight) */}
-      {!isOnboardingItinerarySelection && !isUserLocationSpotlightActive && !showFirstSignupWelcome && !isGlobeIntroPlaying && (
+      {/* Desktop Left Sidebar (Only visible on real desktop/tablet md+, never on rotated phones) */}
+      {isDesktopLayout && !isOnboardingItinerarySelection && !isUserLocationSpotlightActive && !showFirstSignupWelcome && !isGlobeIntroPlaying && (
         <DesktopSidebar
           activeTab={activeTab}
           onChangeTab={handleTabChange}
@@ -3151,9 +3256,10 @@ export default function App() {
         }}
       >
         <div className="w-full h-full flex flex-row relative overflow-hidden">
-          {/* DESKTOP EXPLORE PANEL (Side-by-side Discovery Column on md+ when activeTab === 'explorar' && workflow !== 'ITINERARY') */}
+          {/* DESKTOP EXPLORE PANEL (Side-by-side Discovery Column on real desktop/tablet md+ when activeTab === 'explorar' && workflow !== 'ITINERARY') */}
           <AnimatePresence>
-            {activeTab === 'explorar' &&
+            {isDesktopLayout &&
+              activeTab === 'explorar' &&
               mapWorkflowMode !== 'ITINERARY' &&
               !isMapOrbiting &&
               !isUserLocationSpotlightActive &&
@@ -3245,8 +3351,9 @@ export default function App() {
               onSelectItineraryStep={handleSelectItineraryStepId}
             />
 
-            {/* DESKTOP MAP FLOATING CONTROLS (Top-Right Apple Style — visible in EXPLORE mode) */}
-            {activeTab === 'explorar' &&
+            {/* DESKTOP MAP FLOATING CONTROLS (Top-Right Apple Style — visible in EXPLORE mode on real desktop/tablet only) */}
+            {isDesktopLayout &&
+              activeTab === 'explorar' &&
               mapWorkflowMode === 'EXPLORE' &&
               !isMapOrbiting &&
               !isUserLocationSpotlightActive &&
@@ -3582,10 +3689,31 @@ export default function App() {
               user={user}
               onUpdateUser={handleProfileUpdateUser}
               onOpenAdmin={handleOpenAdminFromProfile}
-              onSubViewChange={handleNoop}
+              onSubViewChange={(subView) => {
+                setIsMyItinerariesSubViewActive(subView === 'meus-roteiros');
+              }}
               communityUrl={systemSettings.community_url}
               instagramUrl={systemSettings.instagram_url}
               onLogout={handleProfileLogout}
+              onStartCreateItinerary={handleStartFreshSelectionFromPlay}
+              onOpenUserItineraryOnMap={handleOpenItineraryOnMap}
+              onEditUserItinerary={(itin) => {
+                const stepSpotIds = (itin.days?.[0]?.steps || [])
+                  .map((s) => s.spot?.id || s.spotId)
+                  .filter(Boolean) as string[];
+                setEditingCustomItinerary(itin);
+                setDraftItineraryTitle(itin.title || '');
+                setDraftItineraryCover(itin.coverImage || '');
+                setSelectedSpotIdsForItinerary(stepSpotIds);
+                isEditingExistingItineraryRef.current = true;
+                setFinalizeItineraryMode('edit');
+                setIsFinalizeItineraryModalOpen(true);
+              }}
+              onDeleteUserItinerary={(itinId) => {
+                if (activeItinerary?.id === itinId) {
+                  handleDeleteActiveItinerary();
+                }
+              }}
             />
           </Suspense>
         </div>
@@ -3628,11 +3756,14 @@ export default function App() {
     <AnimatePresence>
       {activeTab === 'explorar' &&
         mapWorkflowMode === 'SELECT' &&
+        !isFinalizeItineraryModalOpen &&
         !isMapOrbiting &&
         !showFirstSignupWelcome &&
         !isGlobeIntroPlaying && (
           <SelectModeOverlay
             selectedCount={selectedSpotIdsForItinerary.length}
+            selectedSpots={selectedSpotsForItinerary}
+            onRemoveSpot={handleRemoveSelectedSpotFromItinerary}
             isDark={theme === 'dark'}
             isSatellite={isSatelliteExplore}
             onCancel={handleCancelSelectMode}
@@ -3641,6 +3772,65 @@ export default function App() {
           />
         )}
     </AnimatePresence>
+
+    {/* Itinerary Creation & Editing Finalization Modal (AI Cover Generation + Stop Ordering + Save) */}
+    <ItineraryCreationFinalizeModal
+      isOpen={isFinalizeItineraryModalOpen}
+      mode={finalizeItineraryMode}
+      selectedSpots={selectedSpotsForItinerary}
+      existingItinerary={editingCustomItinerary}
+      initialTitle={draftItineraryTitle}
+      initialCoverImage={draftItineraryCover}
+      user={user}
+      theme={theme}
+      onChangeSelectedSpots={(nextSpots) => {
+        setSelectedSpotIdsForItinerary(nextSpots.map((s) => s.id));
+      }}
+      onBackToMapSelection={(draft) => {
+        setDraftItineraryTitle(draft.title);
+        setDraftItineraryCover(draft.coverImage);
+        setIsFinalizeItineraryModalOpen(false);
+        setActiveTab('explorar');
+        setMapWorkflowMode('SELECT');
+      }}
+      onClose={() => {
+        setIsFinalizeItineraryModalOpen(false);
+        if (mapWorkflowMode !== 'SELECT') {
+          setEditingCustomItinerary(null);
+          setDraftItineraryTitle('');
+          setDraftItineraryCover('');
+          isEditingExistingItineraryRef.current = false;
+        }
+      }}
+      onSavedAndViewOnMap={(savedItin) => {
+        setIsFinalizeItineraryModalOpen(false);
+        setDraftItineraryTitle('');
+        setDraftItineraryCover('');
+        setEditingCustomItinerary(null);
+        isEditingExistingItineraryRef.current = false;
+        handleOpenItineraryOnMap(savedItin);
+      }}
+      onSavedAndGoToMyItineraries={(savedItin) => {
+        setIsFinalizeItineraryModalOpen(false);
+        setDraftItineraryTitle('');
+        setDraftItineraryCover('');
+        setEditingCustomItinerary(null);
+        setSelectedSpotIdsForItinerary([]);
+        isEditingExistingItineraryRef.current = false;
+        if (activeItinerary?.id === savedItin.id) {
+          setActiveItinerary(savedItin);
+          saveActiveItineraryToStorage(savedItin, user);
+        }
+        if (mapWorkflowMode === 'SELECT') {
+          setMapWorkflowMode(activeItinerary ? 'ITINERARY' : 'EXPLORE');
+        }
+        setActiveTab('perfil');
+        setHasVisitedProfile(true);
+        window.setTimeout(() => {
+          window.dispatchEvent(new CustomEvent('monvian:open_my_itineraries'));
+        }, 30);
+      }}
+    />
 
     {/* Unified Map Mode 3: Active Itinerary Overlay */}
     <AnimatePresence>
@@ -3737,19 +3927,14 @@ export default function App() {
       !showOnboardingQuestions &&
       !showFirstSignupWelcome &&
       !isGlobeIntroPending &&
-      !isGlobeIntroPlaying && (
+      !isGlobeIntroPlaying &&
+      !(activeTab === 'perfil' && isMyItinerariesSubViewActive) && (
         <div
           key="bottom-nav-shell"
           className={`md:hidden fixed inset-0 pointer-events-none z-[250] transition-opacity duration-150 ${isChatKeyboardOpen ? 'opacity-0 [&_*]:!pointer-events-none' : 'opacity-100'}`}
         >
           <BottomNavigation
-            activeTab={
-              isAdminOpen
-                ? 'perfil'
-                : activeTab === 'explorar' && mapWorkflowMode === 'ITINERARY'
-                  ? 'roteiros'
-                  : activeTab
-            }
+            activeTab={isAdminOpen ? 'perfil' : activeTab}
             onChangeTab={handleTabChange}
             unreadCount={2}
             isBlurred={!isAdminOpen && isBlurActive}

@@ -1,5 +1,6 @@
 import express from 'express';
 import type { Database } from 'better-sqlite3';
+import { GoogleGenAI } from '@google/genai';
 import { CAMPOS_SPOTS } from '../data/spots.ts';
 import { DEFAULT_CURATED_ITINERARIES } from '../data/defaultItineraries.ts';
 import {
@@ -1974,6 +1975,127 @@ export function registerItineraryRoutes(
   });
 
   // ==========================================
+  // AI COVER IMAGE GENERATOR FOR USER ITINERARIES
+  // ==========================================
+  app.post('/api/itineraries/generate-cover', async (req, res) => {
+    try {
+      const { title = 'Meu Roteiro em Campos do Jordão', spots = [] } = req.body || {};
+      const cleanTitle = String(title || 'Experiência em Campos do Jordão').trim();
+      const spotList = Array.isArray(spots) ? spots : [];
+      const spotNames = spotList
+        .map((s: any) => String(s?.name || '').trim())
+        .filter(Boolean)
+        .slice(0, 6);
+      const spotCategories = Array.from(
+        new Set(
+          spotList
+            .map((s: any) => String(s?.categoryLabel || s?.category || '').trim())
+            .filter(Boolean)
+        )
+      ).slice(0, 4);
+
+      const placesContext =
+        spotNames.length > 0
+          ? `inspired by the tourist stops: ${spotNames.join(', ')} (${spotCategories.join(', ')})`
+          : 'featuring iconic alpine architecture, araucaria trees, and misty mountains';
+
+      const prompt = [
+        `Ultra-realistic professional travel photography of Campos do Jordão, Brazil, for a personalized travel itinerary titled "${cleanTitle}", ${placesContext}.`,
+        'Characteristic European Swiss-alpine half-timbered architecture, lush green Serra da Mantiqueira mountains, iconic Brazilian Araucaria pine trees, golden hour warm mountain sunlight, crisp atmospheric depth.',
+        'Horizontal 16:9 editorial cover composition, National Geographic and Condé Nast Traveler magazine quality, photorealistic, 8k detail, natural colors. Absolutely NO text, NO typography, NO logos, NO watermarks, NO borders.',
+      ].join(' ');
+
+      const apiKey = process.env.GEMINI_API_KEY;
+      if (apiKey && apiKey.trim().length > 0) {
+        try {
+          const ai = new GoogleGenAI({
+            apiKey: apiKey.trim(),
+            httpOptions: {
+              headers: {
+                'User-Agent': 'aistudio-build',
+              },
+            },
+          });
+
+          const response = await ai.models.generateContent({
+            model: 'gemini-3.1-flash-lite-image',
+            contents: {
+              parts: [{ text: prompt }],
+            },
+            config: {
+              imageConfig: {
+                aspectRatio: '16:9',
+              },
+            },
+          });
+
+          for (const part of response.candidates?.[0]?.content?.parts ?? []) {
+            if (part.inlineData?.data) {
+              const mime = part.inlineData.mimeType || 'image/png';
+              const dataUrl = `data:${mime};base64,${part.inlineData.data}`;
+              res.json({
+                success: true,
+                coverImage: dataUrl,
+                source: 'gemini',
+              });
+              return;
+            }
+          }
+        } catch (geminiErr: any) {
+          console.warn('[AI Cover] Gemini image generation error, attempting fallback AI generator:', geminiErr?.message || geminiErr);
+        }
+      }
+
+      // Secondary server-side AI image generation fallback so cover generation works even if a paid Gemini image key isn't attached yet
+      try {
+        const seed = Math.floor(Math.random() * 900000) + 100000;
+        const encodedPrompt = encodeURIComponent(
+          `Photorealistic travel photography of Campos do Jordao Brazil mountain town, ${cleanTitle}, ${spotNames.slice(0, 3).join(', ')}, Swiss alpine architecture, Araucaria pine forest, Serra da Mantiqueira golden hour, editorial photography, no text, no watermark`
+        );
+        const aiUrl = `https://image.pollinations.ai/prompt/${encodedPrompt}?width=1280&height=720&seed=${seed}&nologo=true&model=flux`;
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 11000);
+        const imgRes = await fetch(aiUrl, {
+          signal: controller.signal,
+          headers: {
+            'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7)',
+            Accept: 'image/jpeg,image/png,image/webp,image/*,*/*;q=0.8',
+          },
+        });
+        clearTimeout(timeoutId);
+
+        if (imgRes.ok) {
+          const contentType = imgRes.headers.get('content-type') || 'image/jpeg';
+          const arrayBuffer = await imgRes.arrayBuffer();
+          if (arrayBuffer.byteLength > 4000) {
+            const base64 = Buffer.from(arrayBuffer).toString('base64');
+            const dataUrl = `data:${contentType};base64,${base64}`;
+            res.json({
+              success: true,
+              coverImage: dataUrl,
+              source: 'ai-flux',
+            });
+            return;
+          }
+        }
+      } catch (fallbackErr: any) {
+        console.warn('[AI Cover] Secondary AI image generator unreachable:', fallbackErr?.message || fallbackErr);
+      }
+
+      res.status(502).json({
+        success: false,
+        error: 'Não foi possível gerar a capa por IA neste momento. Tente novamente ou escolha uma foto.',
+      });
+    } catch (err: any) {
+      console.error('[AI Cover] Unexpected error:', err);
+      res.status(500).json({
+        success: false,
+        error: 'Erro ao gerar capa do roteiro: ' + (err?.message || 'Erro desconhecido'),
+      });
+    }
+  });
+
+  // ==========================================
   // USER SAVED ITINERARIES API
   // ==========================================
 
@@ -1981,41 +2103,62 @@ export function registerItineraryRoutes(
   app.get('/api/user-itineraries', (req, res) => {
     try {
       const user = getAuthUserSync(req);
-      const sessionId = req.headers['x-session-id'] as string || '';
+      const sessionId = (req.headers['x-session-id'] as string) || '';
 
       let rows: any[] = [];
-      if (user) {
-        rows = db.prepare('SELECT * FROM user_itineraries WHERE user_id = ? ORDER BY created_at DESC').all(user.id) as any[];
+      if (user && user.id) {
+        if (sessionId) {
+          try {
+            db.prepare(
+              'UPDATE user_itineraries SET user_id = ? WHERE session_id = ? AND (user_id IS NULL OR user_id = 0)'
+            ).run(user.id, sessionId);
+          } catch {}
+        }
+        rows = db
+          .prepare('SELECT * FROM user_itineraries WHERE user_id = ? ORDER BY updated_at DESC, created_at DESC')
+          .all(user.id) as any[];
       } else if (sessionId) {
-        rows = db.prepare('SELECT * FROM user_itineraries WHERE session_id = ? ORDER BY created_at DESC').all(sessionId) as any[];
+        rows = db
+          .prepare('SELECT * FROM user_itineraries WHERE session_id = ? ORDER BY updated_at DESC, created_at DESC')
+          .all(sessionId) as any[];
       } else {
         rows = [];
       }
 
       const spotsMap = getSpotsMap();
-      const itineraries = rows.map(r => {
+      const itineraries = rows.map((r) => {
         let days: any[] = [];
         try {
           days = JSON.parse(r.itinerary_data_json || '[]');
-        } catch (e) {
+        } catch {
           days = [];
         }
 
         // Re-hydrate spot data if possible
         days = days.map((d: any) => ({
           ...d,
-          steps: (d.steps || []).map((s: any) => ({
-            ...s,
-            spot: spotsMap.get(s.spotId) || s.spot
-          }))
+          steps: (d.steps || []).map((s: any) => {
+            const hydratedSpot = spotsMap.get(s.spotId) || s.spot;
+            return {
+              ...s,
+              spot: hydratedSpot,
+              lat: Number(s.lat ?? hydratedSpot?.lat ?? -22.734),
+              lng: Number(s.lng ?? hydratedSpot?.lng ?? -45.591),
+            };
+          }),
         }));
 
         let preferences: any = {};
         try {
           preferences = JSON.parse(r.preferences_json || '{}');
-        } catch (e) {}
+        } catch {}
 
         const isPremium = Boolean(preferences.isPremium || preferences.sourceItineraryId || r.is_premium);
+        const isUserCreated = Boolean(preferences.isUserCreated || !preferences.sourceItineraryId);
+        const placesCount = days.reduce(
+          (acc: number, d: any) => acc + (Array.isArray(d.steps) ? d.steps.length : 0),
+          0
+        );
 
         return {
           id: r.id,
@@ -2024,7 +2167,8 @@ export function registerItineraryRoutes(
           title: r.title,
           description: r.description || '',
           coverImage: r.cover_image,
-          daysCount: r.days_count,
+          daysCount: r.days_count || days.length || 1,
+          placesCount,
           tripDate: r.trip_date || '',
           pace: r.pace || 'Equilibrado',
           hasCar: r.has_car === 1,
@@ -2032,11 +2176,13 @@ export function registerItineraryRoutes(
           prioritizeFood: r.prioritize_food === 1,
           prioritizeAttractions: r.prioritize_attractions === 1,
           isPremium,
-          badgeText: preferences.badgeText || (isPremium ? 'Premium' : undefined),
+          isUserCreated,
+          sourceItineraryId: preferences.sourceItineraryId || null,
+          badgeText: preferences.badgeText || (isPremium ? 'Premium' : 'Grátis'),
           price: preferences.price || (isPremium ? 'R$ 14,90' : undefined),
           days,
           createdAt: r.created_at,
-          updatedAt: r.updated_at
+          updatedAt: r.updated_at,
         };
       });
 
@@ -2050,9 +2196,10 @@ export function registerItineraryRoutes(
   app.post('/api/user-itineraries', (req, res) => {
     try {
       const user = getAuthUserSync(req);
-      const sessionId = req.headers['x-session-id'] as string || '';
+      const sessionId = (req.headers['x-session-id'] as string) || '';
 
       const {
+        id: clientProvidedId,
         title,
         description,
         coverImage,
@@ -2064,7 +2211,7 @@ export function registerItineraryRoutes(
         prioritizeFood,
         prioritizeAttractions,
         preferences,
-        days
+        days,
       } = req.body;
 
       if (!title || !Array.isArray(days)) {
@@ -2072,15 +2219,34 @@ export function registerItineraryRoutes(
         return;
       }
 
-      const id = 'user-itin-' + Date.now() + '-' + Math.random().toString(36).substring(2, 6);
+      const id =
+        clientProvidedId && String(clientProvidedId).trim().length > 0
+          ? String(clientProvidedId).trim()
+          : 'user-itin-' + Date.now() + '-' + Math.random().toString(36).substring(2, 6);
+
+      const mergedPreferences = {
+        ...(preferences || {}),
+        isUserCreated: preferences?.isUserCreated !== undefined ? Boolean(preferences.isUserCreated) : true,
+      };
 
       db.prepare(`
         INSERT INTO user_itineraries (
           id, user_id, session_id, title, description, cover_image,
           days_count, trip_date, pace, has_car, less_walking,
           prioritize_food, prioritize_attractions, preferences_json,
-          itinerary_data_json
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+          itinerary_data_json, created_at, updated_at
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+        ON CONFLICT(id) DO UPDATE SET
+          user_id = COALESCE(excluded.user_id, user_itineraries.user_id),
+          session_id = COALESCE(excluded.session_id, user_itineraries.session_id),
+          title = excluded.title,
+          description = excluded.description,
+          cover_image = excluded.cover_image,
+          days_count = excluded.days_count,
+          trip_date = excluded.trip_date,
+          preferences_json = excluded.preferences_json,
+          itinerary_data_json = excluded.itinerary_data_json,
+          updated_at = CURRENT_TIMESTAMP
       `).run(
         id,
         user ? user.id : null,
@@ -2095,42 +2261,89 @@ export function registerItineraryRoutes(
         lessWalking !== undefined ? (lessWalking ? 1 : 0) : 0,
         prioritizeFood !== undefined ? (prioritizeFood ? 1 : 0) : 0,
         prioritizeAttractions !== undefined ? (prioritizeAttractions ? 1 : 0) : 1,
-        preferences ? JSON.stringify(preferences) : '{}',
+        JSON.stringify(mergedPreferences),
         JSON.stringify(days)
       );
 
-      res.json({ success: true, id, message: 'Roteiro salvo com sucesso!' });
+      const savedRow = db.prepare('SELECT created_at, updated_at FROM user_itineraries WHERE id = ?').get(id) as any;
+
+      res.json({
+        success: true,
+        id,
+        createdAt: savedRow?.created_at || new Date().toISOString(),
+        updatedAt: savedRow?.updated_at || new Date().toISOString(),
+        message: 'Roteiro salvo com sucesso!',
+      });
     } catch (err: any) {
       console.error(err);
       res.status(500).json({ error: 'Erro ao salvar roteiro: ' + err.message });
     }
   });
 
-  // Update user itinerary (edit steps, notes, times)
+  // Update user itinerary (edit title, coverImage, steps, notes, times)
   app.put('/api/user-itineraries/:id', (req, res) => {
     try {
+      const user = getAuthUserSync(req);
+      const sessionId = (req.headers['x-session-id'] as string) || '';
       const { id } = req.params;
-      const { title, description, coverImage, tripDate, days } = req.body;
+      const { title, description, coverImage, daysCount, tripDate, days, preferences } = req.body;
 
-      db.prepare(`
-        UPDATE user_itineraries SET
-          title = COALESCE(?, title),
-          description = COALESCE(?, description),
-          cover_image = COALESCE(?, cover_image),
-          trip_date = COALESCE(?, trip_date),
-          itinerary_data_json = COALESCE(?, itinerary_data_json),
-          updated_at = CURRENT_TIMESTAMP
-        WHERE id = ?
-      `).run(
-        title,
-        description,
-        coverImage,
-        tripDate,
-        days ? JSON.stringify(days) : null,
-        id
-      );
+      const existing = db.prepare('SELECT id FROM user_itineraries WHERE id = ?').get(id) as any;
+      if (!existing && title && Array.isArray(days)) {
+        const mergedPreferences = {
+          ...(preferences || {}),
+          isUserCreated: preferences?.isUserCreated !== undefined ? Boolean(preferences.isUserCreated) : true,
+        };
+        db.prepare(`
+          INSERT INTO user_itineraries (
+            id, user_id, session_id, title, description, cover_image,
+            days_count, trip_date, preferences_json, itinerary_data_json,
+            created_at, updated_at
+          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+        `).run(
+          id,
+          user ? user.id : null,
+          sessionId,
+          title,
+          description || '',
+          coverImage || 'https://images.unsplash.com/photo-1585320806297-9794b3e4eeae?auto=format&fit=crop&w=1000&q=80',
+          daysCount || days.length || 1,
+          tripDate || '',
+          JSON.stringify(mergedPreferences),
+          JSON.stringify(days)
+        );
+      } else {
+        db.prepare(`
+          UPDATE user_itineraries SET
+            user_id = COALESCE(?, user_id),
+            title = COALESCE(?, title),
+            description = COALESCE(?, description),
+            cover_image = COALESCE(?, cover_image),
+            days_count = COALESCE(?, days_count),
+            trip_date = COALESCE(?, trip_date),
+            itinerary_data_json = COALESCE(?, itinerary_data_json),
+            updated_at = CURRENT_TIMESTAMP
+          WHERE id = ?
+        `).run(
+          user ? user.id : null,
+          title ?? null,
+          description ?? null,
+          coverImage ?? null,
+          daysCount ?? (Array.isArray(days) ? days.length : null),
+          tripDate ?? null,
+          days ? JSON.stringify(days) : null,
+          id
+        );
+      }
 
-      res.json({ success: true, message: 'Roteiro atualizado com sucesso' });
+      const savedRow = db.prepare('SELECT created_at, updated_at FROM user_itineraries WHERE id = ?').get(id) as any;
+      res.json({
+        success: true,
+        id,
+        createdAt: savedRow?.created_at || new Date().toISOString(),
+        updatedAt: savedRow?.updated_at || new Date().toISOString(),
+        message: 'Roteiro atualizado com sucesso',
+      });
     } catch (err: any) {
       res.status(500).json({ error: 'Erro ao atualizar roteiro: ' + err.message });
     }

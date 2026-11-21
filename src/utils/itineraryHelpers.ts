@@ -56,6 +56,7 @@ export function buildItineraryFromOrderedSpots(
     existingItinerary?: Itinerary | null;
     targetDayIndex?: number;
     title?: string;
+    coverImage?: string;
   }
 ): Itinerary {
   const existing = options?.existingItinerary || null;
@@ -128,18 +129,21 @@ export function buildItineraryFromOrderedSpots(
       existing?.description ||
       `Roteiro personalizado com ${steps.length} ${steps.length === 1 ? 'parada' : 'paradas'} selecionadas no mapa.`,
     coverImage:
-      selectedSpots[0]?.image ||
+      options?.coverImage ||
       existing?.coverImage ||
+      selectedSpots[0]?.image ||
       'https://images.unsplash.com/photo-1585320806297-9794b3e4eeae?auto=format&fit=crop&w=800&q=80',
     daysCount: nextDays.length,
     categories: Array.from(new Set(selectedSpots.map((s) => s.category))),
     isActive: true,
     isRecommended: existing?.isRecommended ?? false,
     usageCount: existing?.usageCount ?? 1,
-    isPremium: existing?.isPremium ?? false,
-    badgeText: existing?.badgeText || 'Grátis',
+    isPremium: false,
+    badgeText: 'Grátis',
     placesCount: steps.length,
     days: nextDays,
+    createdAt: existing?.createdAt || new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
   };
 }
 
@@ -235,29 +239,157 @@ export function loadActiveItineraryFromStorage(userOverride?: any): Itinerary | 
   return null;
 }
 
+export function loadIsItineraryActiveOnMapFromStorage(userOverride?: any): boolean {
+  try {
+    const itin = loadActiveItineraryFromStorage(userOverride);
+    if (!itin) return false;
+    const flag = readScopedString('monvian_itinerary_map_active', userOverride);
+    return flag !== '0';
+  } catch {
+    return false;
+  }
+}
+
+export function saveIsItineraryActiveOnMapToStorage(isActiveOnMap: boolean, userOverride?: any): void {
+  try {
+    writeScopedString('monvian_itinerary_map_active', isActiveOnMap ? '1' : '0', userOverride);
+  } catch {}
+}
+
 export function saveActiveItineraryToStorage(itinerary: Itinerary | null, userOverride?: any): void {
   try {
     if (itinerary) {
       writeScopedJSON('monvian_active_itinerary', itinerary, userOverride);
+      writeScopedString('monvian_itinerary_map_active', '1', userOverride);
     } else {
       removeScopedKey('monvian_active_itinerary', userOverride);
+      removeScopedKey('monvian_itinerary_map_active', userOverride);
     }
   } catch {}
+}
+
+function getItineraryRequestAuthHeaders(sessionId: string, userOverride?: any): Record<string, string> {
+  const headers: Record<string, string> = {
+    'Content-Type': 'application/json',
+    'x-session-id': sessionId,
+  };
+  try {
+    const token = typeof window !== 'undefined' ? localStorage.getItem('monvian_token') : null;
+    if (token) {
+      headers.Authorization = `Bearer ${token}`;
+    }
+    const rawUser =
+      userOverride ||
+      (typeof window !== 'undefined' && localStorage.getItem('monvian_user')
+        ? JSON.parse(localStorage.getItem('monvian_user') || 'null')
+        : null);
+    const email = String(rawUser?.email || rawUser?.whatsapp || '').trim().toLowerCase();
+    if (email) {
+      headers['x-user-email'] = email;
+    }
+  } catch {}
+  return headers;
+}
+
+export function loadUserCreatedItinerariesFromStorage(userOverride?: any): Itinerary[] {
+  try {
+    const list = readScopedJSON<Itinerary[]>('monvian_my_custom_itineraries', [], userOverride);
+    if (Array.isArray(list)) {
+      return list
+        .filter((it) => it && (it.id || it.title) && Array.isArray(it.days) && it.days.length > 0)
+        .map((it) => normalizeItineraryLivreFlags(it));
+    }
+  } catch {}
+  return [];
+}
+
+export function saveUserCreatedItinerariesToStorage(itineraries: Itinerary[], userOverride?: any): void {
+  try {
+    writeScopedJSON('monvian_my_custom_itineraries', itineraries, userOverride);
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new CustomEvent('monvian:user_itineraries_updated', { detail: itineraries }));
+    }
+  } catch {}
+}
+
+export function upsertUserCreatedItineraryToStorage(itinerary: Itinerary, userOverride?: any): Itinerary[] {
+  const current = loadUserCreatedItinerariesFromStorage(userOverride);
+  const normalized = normalizeItineraryLivreFlags({
+    ...itinerary,
+    updatedAt: new Date().toISOString(),
+    createdAt: itinerary.createdAt || new Date().toISOString(),
+  });
+  const existsIdx = current.findIndex((item) => item.id === normalized.id);
+  const next =
+    existsIdx >= 0
+      ? current.map((item, idx) => (idx === existsIdx ? normalized : item))
+      : [normalized, ...current];
+  saveUserCreatedItinerariesToStorage(next, userOverride);
+  return next;
+}
+
+export function removeUserCreatedItineraryFromStorage(itineraryId: string, userOverride?: any): Itinerary[] {
+  const current = loadUserCreatedItinerariesFromStorage(userOverride);
+  const next = current.filter((item) => item.id !== itineraryId);
+  saveUserCreatedItinerariesToStorage(next, userOverride);
+  return next;
+}
+
+export async function fetchUserCreatedItinerariesFromBackend(userOverride?: any): Promise<Itinerary[]> {
+  const localList = loadUserCreatedItinerariesFromStorage(userOverride);
+  try {
+    const sessionId = getOrCreateItinerarySessionId(userOverride);
+    const res = await fetch('/api/user-itineraries', {
+      headers: getItineraryRequestAuthHeaders(sessionId, userOverride),
+    });
+    if (!res.ok) return localList;
+    const data = await res.json();
+    if (!data?.success || !Array.isArray(data.itineraries)) return localList;
+
+    // Filter only itineraries created by the user themselves (not cloned store templates)
+    const serverCustom: Itinerary[] = data.itineraries
+      .filter((it: any) => Boolean(it && (it.isUserCreated !== false && !it.sourceItineraryId)))
+      .map((it: any) => normalizeItineraryLivreFlags(it));
+
+    // Merge local and server itineraries by ID (preserving the most recently updated version)
+    const mergedMap = new Map<string, Itinerary>();
+    for (const item of serverCustom) {
+      if (item?.id) mergedMap.set(item.id, item);
+    }
+    for (const localItem of localList) {
+      if (!localItem?.id) continue;
+      const existing = mergedMap.get(localItem.id);
+      if (!existing) {
+        mergedMap.set(localItem.id, localItem);
+      } else {
+        const localTime = localItem.updatedAt ? new Date(localItem.updatedAt).getTime() : 0;
+        const serverTime = existing.updatedAt ? new Date(existing.updatedAt).getTime() : 0;
+        if (localTime >= serverTime) {
+          mergedMap.set(localItem.id, localItem);
+        }
+      }
+    }
+
+    const merged = Array.from(mergedMap.values());
+    saveUserCreatedItinerariesToStorage(merged, userOverride);
+    return merged;
+  } catch {
+    return localList;
+  }
 }
 
 export async function persistUserItineraryToBackend(
   itinerary: Itinerary,
   method: 'POST' | 'PUT',
-  sessionId: string
+  sessionId: string,
+  userOverride?: any
 ): Promise<void> {
   try {
+    upsertUserCreatedItineraryToStorage(itinerary, userOverride);
     const url = method === 'POST' ? '/api/user-itineraries' : `/api/user-itineraries/${encodeURIComponent(itinerary.id)}`;
     await fetch(url, {
       method,
-      headers: {
-        'Content-Type': 'application/json',
-        'x-session-id': sessionId,
-      },
+      headers: getItineraryRequestAuthHeaders(sessionId, userOverride),
       body: JSON.stringify({
         id: itinerary.id,
         title: itinerary.title,
@@ -265,6 +397,7 @@ export async function persistUserItineraryToBackend(
         coverImage: itinerary.coverImage,
         daysCount: itinerary.daysCount,
         tripDate: '',
+        preferences: { isUserCreated: true },
         days: itinerary.days,
       }),
     });
@@ -273,11 +406,17 @@ export async function persistUserItineraryToBackend(
   }
 }
 
-export async function deleteUserItineraryFromBackend(itineraryId: string, sessionId: string): Promise<void> {
+export async function deleteUserItineraryFromBackend(
+  itineraryId: string,
+  sessionId: string,
+  userOverride?: any
+): Promise<void> {
   try {
+    removeUserCreatedItineraryFromStorage(itineraryId, userOverride);
     await fetch(`/api/user-itineraries/${encodeURIComponent(itineraryId)}`, {
       method: 'DELETE',
-      headers: { 'x-session-id': sessionId },
+      headers: getItineraryRequestAuthHeaders(sessionId, userOverride),
     });
   } catch {}
 }
+

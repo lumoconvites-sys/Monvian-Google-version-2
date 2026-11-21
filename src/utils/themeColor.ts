@@ -135,7 +135,9 @@ export function applySystemThemeColor(color: string) {
 
   const appShell = document.getElementById('monvian-main-app') || document.getElementById('app-root-shell');
   if (appShell) {
-    const isDesktop = typeof window !== 'undefined' && window.matchMedia('(min-width: 768px)').matches;
+    const isDesktop =
+      typeof window !== 'undefined' &&
+      window.matchMedia('(min-width: 768px) and (min-height: 540px)').matches;
     appShell.style.backgroundColor = isDarkDom ? '#000000' : isDesktop ? '#ffffff' : color;
   }
 }
