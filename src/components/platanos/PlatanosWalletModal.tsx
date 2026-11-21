@@ -423,7 +423,7 @@ export const PlatanosWalletModal: React.FC<PlatanosWalletModalProps> = ({
               : { duration: 0.34, ease: [0.22, 1, 0.36, 1] }
           }
           onClick={onClose}
-          className="fixed inset-0 z-[320] flex items-end sm:items-center justify-center sm:p-4"
+          className="fixed inset-0 z-[320] flex items-end md:items-center justify-center md:p-4"
           style={{
             fontFamily:
               '-apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro Text", sans-serif',
@@ -480,7 +480,7 @@ export const PlatanosWalletModal: React.FC<PlatanosWalletModalProps> = ({
                   }
             }
             onClick={(e) => e.stopPropagation()}
-            className="relative z-10 w-full max-w-[430px] sm:max-w-md flex flex-col transform-gpu"
+            className="relative z-10 w-full max-w-[500px] md:max-w-md flex flex-col transform-gpu"
             style={{
               willChange: 'transform, opacity',
               transformOrigin: 'center bottom',
@@ -498,33 +498,50 @@ export const PlatanosWalletModal: React.FC<PlatanosWalletModalProps> = ({
                   e.stopPropagation();
                 }
               }}
-              className={`relative w-full max-h-[91dvh] flex flex-col rounded-t-[36px] sm:rounded-[34px] overflow-visible transform-gpu ${
+              className={`relative w-full max-h-[92dvh] flex flex-col rounded-t-[36px] md:rounded-[34px] overflow-visible transform-gpu ${
                 isDark
-                  ? 'bg-[#0B0B0D] text-[#FFFFFF] border-t sm:border border-white/[0.08] shadow-[0_-14px_48px_rgba(0,0,0,0.72),0_20px_60px_rgba(0,0,0,0.85)]'
+                  ? 'bg-[#0B0B0D] text-[#FFFFFF] border-t md:border border-white/[0.08] shadow-[0_-14px_48px_rgba(0,0,0,0.72),0_20px_60px_rgba(0,0,0,0.85)]'
                   : 'bg-[#FFFFFF] text-[#000000] shadow-[0_-10px_40px_rgba(0,0,0,0.16),0_18px_50px_rgba(0,0,0,0.18)]'
               }`}
               style={{
                 y: sheetDragY,
-                paddingBottom: 'max(env(safe-area-inset-bottom, 0px), 12px)',
+                backgroundColor: isDark ? undefined : '#ffffff',
                 willChange: 'transform',
                 backfaceVisibility: 'hidden',
                 WebkitBackfaceVisibility: 'hidden',
               }}
             >
-              {/* Clipped visual surface inside sheet so top rounded corners stay crisp */}
-              <div className="w-full flex-1 min-h-0 flex flex-col rounded-t-[36px] sm:rounded-[34px] overflow-hidden">
-            {/* Top Surface with Subtle Radial Warm Depth + 3D Platanus Leaf */}
+              {/* Clipped visual surface inside sheet so top rounded corners stay crisp while extending flush to bottom */}
+              <div
+                className={`w-full flex-1 min-h-0 flex flex-col rounded-t-[36px] md:rounded-[34px] overflow-hidden ${
+                  isDark ? 'bg-[#0B0B0D]' : 'bg-[#FFFFFF]'
+                }`}
+                style={{
+                  backgroundColor: isDark ? undefined : '#ffffff',
+                }}
+              >
+            {/* Top Surface + 3D Platanus Leaf */}
             <div
-              className="relative shrink-0 overflow-hidden select-none touch-none cursor-grab active:cursor-grabbing"
+              className={`relative shrink-0 overflow-hidden select-none touch-none cursor-grab active:cursor-grabbing ${
+                isDark ? '' : 'bg-[#FFFFFF]'
+              }`}
               style={{
                 touchAction: 'none',
+                backgroundColor: isDark ? undefined : '#ffffff',
                 background: isDark
                   ? 'radial-gradient(120% 100% at 84% 32%, #1D1812 0%, #0B0B0D 66%)'
-                  : 'radial-gradient(120% 100% at 84% 32%, #FAF5EC 0%, #FFFFFF 64%)',
+                  : '#ffffff',
               }}
             >
               {/* Top Grabber Indicator (Generous Touch Area, No Close X Button) */}
-              <div className="relative z-20 pt-3 pb-2 flex justify-center">
+              <div
+                className={`relative z-20 pt-3 pb-2 flex justify-center ${
+                  isDark ? '' : 'bg-[#FFFFFF]'
+                }`}
+                style={{
+                  backgroundColor: isDark ? undefined : '#ffffff',
+                }}
+              >
                 <div
                   className={`w-11 h-[5px] rounded-full ${
                     isDark ? 'bg-[#48484A]' : 'bg-[#C7C7CC]'
@@ -533,7 +550,14 @@ export const PlatanosWalletModal: React.FC<PlatanosWalletModalProps> = ({
               </div>
 
               {/* Header + Prominent Balance (Left) & 3D Platanus Leaf (Right) */}
-              <div className="relative px-6 pt-2 pb-4 flex items-center justify-between gap-2 min-h-[168px]">
+              <div
+                className={`relative px-6 pt-2 pb-4 flex items-center justify-between gap-2 min-h-[168px] ${
+                  isDark ? '' : 'bg-[#FFFFFF]'
+                }`}
+                style={{
+                  backgroundColor: isDark ? undefined : '#ffffff',
+                }}
+              >
                 {/* Left Column: Carteira / Seus Plátanos / Balance */}
                 <div className="relative z-10 flex-1 min-w-0 pr-2">
                   <span className="block text-[13px] font-medium tracking-[-0.01em] text-[#8E8E93]">
@@ -662,9 +686,7 @@ export const PlatanosWalletModal: React.FC<PlatanosWalletModalProps> = ({
                   onClick={() => setActiveTab('topup')}
                   className={`relative h-10 rounded-full text-[13.5px] font-semibold tracking-[-0.01em] transition-colors duration-200 cursor-pointer flex items-center justify-center whitespace-nowrap ${
                     activeTab === 'topup'
-                      ? isDark
-                        ? 'text-[#000000]'
-                        : 'text-[#FFFFFF]'
+                      ? 'text-[#FFFFFF]'
                       : isDark
                         ? 'text-[#8E8E93] hover:text-[#FFFFFF]'
                         : 'text-[#6E6E73] hover:text-[#1C1C1E]'
@@ -680,12 +702,18 @@ export const PlatanosWalletModal: React.FC<PlatanosWalletModalProps> = ({
                       }}
                       className={`absolute inset-0 rounded-full ${
                         isDark
-                          ? 'bg-[#FFFFFF] shadow-[0_2px_10px_rgba(0,0,0,0.45)]'
-                          : 'bg-[#000000] shadow-[0_2px_8px_rgba(0,0,0,0.14)]'
+                          ? 'bg-[#ffc800] shadow-[0_2px_10px_rgba(0,0,0,0.45)]'
+                          : 'bg-[#ffc800] shadow-[0_2px_8px_rgba(0,0,0,0.12)]'
                       }`}
+                      style={{ backgroundColor: '#ffc800' }}
                     />
                   )}
-                  <span className="relative z-10">Comprar Plátanos</span>
+                  <span
+                    className="relative z-10"
+                    style={activeTab === 'topup' ? { color: '#ffffff' } : undefined}
+                  >
+                    Comprar Plátanos
+                  </span>
                 </button>
 
                 <button
@@ -695,9 +723,7 @@ export const PlatanosWalletModal: React.FC<PlatanosWalletModalProps> = ({
                   onClick={() => setActiveTab('history')}
                   className={`relative h-10 rounded-full text-[13.5px] font-semibold tracking-[-0.01em] transition-colors duration-200 cursor-pointer flex items-center justify-center whitespace-nowrap tabular-nums ${
                     activeTab === 'history'
-                      ? isDark
-                        ? 'text-[#000000]'
-                        : 'text-[#FFFFFF]'
+                      ? 'text-[#FFFFFF]'
                       : isDark
                         ? 'text-[#8E8E93] hover:text-[#FFFFFF]'
                         : 'text-[#6E6E73] hover:text-[#1C1C1E]'
@@ -713,12 +739,16 @@ export const PlatanosWalletModal: React.FC<PlatanosWalletModalProps> = ({
                       }}
                       className={`absolute inset-0 rounded-full ${
                         isDark
-                          ? 'bg-[#FFFFFF] shadow-[0_2px_10px_rgba(0,0,0,0.45)]'
-                          : 'bg-[#000000] shadow-[0_2px_8px_rgba(0,0,0,0.14)]'
+                          ? 'bg-[#ffc800] shadow-[0_2px_10px_rgba(0,0,0,0.45)]'
+                          : 'bg-[#ffc800] shadow-[0_2px_8px_rgba(0,0,0,0.12)]'
                       }`}
+                      style={{ backgroundColor: '#ffc800' }}
                     />
                   )}
-                  <span className="relative z-10">
+                  <span
+                    className="relative z-10"
+                    style={activeTab === 'history' ? { color: '#ffffff' } : undefined}
+                  >
                     Histórico
                     {wallet.transactions.length > 0
                       ? ` (${wallet.transactions.length})`
@@ -748,17 +778,19 @@ export const PlatanosWalletModal: React.FC<PlatanosWalletModalProps> = ({
               </div>
             )}
 
-            {/* Scrollable Body (Packages / History — locked height so Histórico matches Comprar Plátanos) */}
+            {/* Scrollable Body (Packages / History — extends flush to the bottom edge of the screen) */}
             <div
               ref={scrollBodyRef}
-              className={`relative flex-1 overflow-y-auto px-5 pt-1 pb-20 overscroll-contain grid grid-cols-1 ${
-                isDark ? 'bg-[#0E0E11]' : 'bg-[#FAFAFB]'
+              className={`relative flex-1 overflow-y-auto px-5 pt-1 overscroll-contain grid grid-cols-1 ${
+                isDark ? 'bg-[#0E0E11]' : 'bg-[#FFFFFF]'
               }`}
               style={{
                 WebkitOverflowScrolling: 'touch',
+                paddingBottom: 'max(calc(env(safe-area-inset-bottom, 0px) + 68px), 80px)',
+                backgroundColor: isDark ? undefined : '#ffffff',
                 background: isDark
                   ? 'linear-gradient(180deg, #0B0B0D 0%, #0E0E11 16%, #101013 100%)'
-                  : 'linear-gradient(180deg, #FFFFFF 0%, #FAFAFB 16%, #F8F8FA 100%)',
+                  : '#ffffff',
               }}
             >
               {/* TOPUP TAB (Always mounted in grid cell 1/1 to preserve exact Comprar Plátanos card height) */}
@@ -854,17 +886,17 @@ export const PlatanosWalletModal: React.FC<PlatanosWalletModalProps> = ({
                           type="button"
                           disabled={Boolean(checkoutLoadingId)}
                           onClick={() => handleCheckout(pkg)}
-                          className={`relative z-10 h-10 px-4 rounded-full active:scale-[0.96] transition-all duration-150 inline-flex items-center justify-center gap-1 text-[14px] font-semibold tracking-[-0.01em] shrink-0 cursor-pointer disabled:opacity-55 ${
-                            isDark
-                              ? 'bg-[#FFFFFF] text-[#000000] hover:bg-[#E5E5EA] shadow-[0_4px_14px_rgba(0,0,0,0.45)]'
-                              : 'bg-[#000000] text-[#FFFFFF] hover:bg-[#1C1C1E] shadow-[0_4px_12px_rgba(0,0,0,0.16)]'
-                          }`}
+                          style={{ backgroundColor: '#ffc800', color: '#ffffff' }}
+                          className="relative z-10 h-10 px-4 rounded-full bg-[#ffc800] hover:bg-[#f2be00] text-[#FFFFFF] active:scale-[0.96] transition-all duration-150 inline-flex items-center justify-center gap-1 text-[14px] font-semibold tracking-[-0.01em] shrink-0 cursor-pointer disabled:opacity-55 shadow-[0_4px_12px_rgba(255,200,0,0.28)]"
                         >
-                          <span>
+                          <span style={{ color: '#ffffff' }}>
                             {isProcessing ? 'Abrindo...' : 'Adquirir'}
                           </span>
                           {!isProcessing && (
-                            <ChevronRight className="w-3.5 h-3.5 stroke-[2.4] opacity-85" />
+                            <ChevronRight
+                              className="w-3.5 h-3.5 stroke-[2.4] text-[#FFFFFF]"
+                              style={{ color: '#ffffff' }}
+                            />
                           )}
                         </button>
                       </div>
@@ -901,17 +933,17 @@ export const PlatanosWalletModal: React.FC<PlatanosWalletModalProps> = ({
                         type="button"
                         disabled={Boolean(checkoutLoadingId)}
                         onClick={() => handleCheckout(pkg)}
-                        className={`h-10 px-4 rounded-full active:scale-[0.96] transition-all duration-150 inline-flex items-center justify-center gap-1 text-[14px] font-semibold tracking-[-0.01em] shrink-0 cursor-pointer disabled:opacity-55 ${
-                          isDark
-                            ? 'bg-[#FFFFFF] text-[#000000] hover:bg-[#E5E5EA]'
-                            : 'bg-[#000000] text-[#FFFFFF] hover:bg-[#1C1C1E]'
-                        }`}
+                        style={{ backgroundColor: '#ffc800', color: '#ffffff' }}
+                        className="h-10 px-4 rounded-full bg-[#ffc800] hover:bg-[#f2be00] text-[#FFFFFF] active:scale-[0.96] transition-all duration-150 inline-flex items-center justify-center gap-1 text-[14px] font-semibold tracking-[-0.01em] shrink-0 cursor-pointer disabled:opacity-55"
                       >
-                        <span>
+                        <span style={{ color: '#ffffff' }}>
                           {isProcessing ? 'Abrindo...' : 'Adquirir'}
                         </span>
                         {!isProcessing && (
-                          <ChevronRight className="w-3.5 h-3.5 stroke-[2.4] opacity-85" />
+                          <ChevronRight
+                            className="w-3.5 h-3.5 stroke-[2.4] text-[#FFFFFF]"
+                            style={{ color: '#ffffff' }}
+                          />
                         )}
                       </button>
                     </div>
@@ -1007,9 +1039,12 @@ export const PlatanosWalletModal: React.FC<PlatanosWalletModalProps> = ({
               </div>
             </div>
 
-            {/* Centered Floating White Bar for Stripe Security (replaces full-width bottom plate) */}
+            {/* Centered Floating White Bar for Stripe Security */}
             <div
-              className="pointer-events-none absolute inset-x-0 bottom-3.5 z-20 flex justify-center px-5 select-none"
+              className="pointer-events-none absolute inset-x-0 z-20 flex justify-center px-5 select-none"
+              style={{
+                bottom: 'max(calc(env(safe-area-inset-bottom, 0px) + 10px), 14px)',
+              }}
             >
               <div
                 className="pointer-events-auto h-9 px-4 rounded-full bg-[#FFFFFF] text-[#52525B] border border-black/[0.06] shadow-[0_8px_24px_rgba(0,0,0,0.10),0_2px_6px_rgba(0,0,0,0.04)] inline-flex items-center justify-center gap-1.5"
@@ -1024,12 +1059,15 @@ export const PlatanosWalletModal: React.FC<PlatanosWalletModalProps> = ({
               </div>
             </div>
               </div>
-              {/* Bottom extension skirt so upward rubber-banding never shows a gap */}
+              {/* Bottom extension skirt so upward rubber-banding or safe-area never shows a gap */}
               <div
                 aria-hidden="true"
-                className={`sm:hidden pointer-events-none absolute inset-x-0 top-full h-24 ${
+                className={`md:hidden pointer-events-none absolute inset-x-0 top-full h-40 ${
                   isDark ? 'bg-[#0B0B0D]' : 'bg-[#FFFFFF]'
                 }`}
+                style={{
+                  backgroundColor: isDark ? undefined : '#ffffff',
+                }}
               />
             </motion.div>
           </motion.div>

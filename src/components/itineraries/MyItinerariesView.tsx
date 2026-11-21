@@ -565,8 +565,9 @@ export const MyItinerariesView: React.FC<MyItinerariesViewProps> = ({
           className={`w-full max-w-md rounded-full p-1.5 grid grid-cols-2 gap-1 pointer-events-auto border backdrop-blur-2xl ${
             isDark
               ? 'bg-[#1C1C1E]/95 border-white/10 shadow-[0_10px_32px_rgba(0,0,0,0.65)]'
-              : 'bg-[#F2F2F7]/95 border-black/[0.05] shadow-[0_10px_32px_rgba(0,0,0,0.09)]'
+              : 'bg-[#FFFFFF] border-black/[0.05] shadow-[0_10px_32px_rgba(0,0,0,0.09)]'
           }`}
+          style={isDark ? undefined : { backgroundColor: '#ffffff' }}
         >
           <button
             type="button"
