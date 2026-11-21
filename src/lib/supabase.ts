@@ -80,6 +80,16 @@ export const supabase = isSupabaseConfigured
     })
   : (null as any);
 
+export const supabaseCommunityClient = isSupabaseConfigured
+  ? createClient(supabaseUrl, supabaseAnonKey, {
+      auth: {
+        persistSession: false,
+        autoRefreshToken: false,
+        detectSessionInUrl: false,
+      },
+    })
+  : (null as any);
+
 export interface ImageUploadOptions {
   maxDimension?: number;
   quality?: number;

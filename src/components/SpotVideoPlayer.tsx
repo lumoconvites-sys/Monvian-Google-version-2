@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
+import { createPortal } from 'react-dom';
 import { 
   Play, 
   Pause, 
@@ -48,6 +49,7 @@ export const SpotVideoPlayer: React.FC<SpotVideoPlayerProps> = ({
   const [uploadTitle, setUploadTitle] = useState('');
   const [uploadAuthor, setUploadAuthor] = useState('');
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [isUploading, setIsUploading] = useState(false);
   const [uploadSuccess, setUploadSuccess] = useState(false);
 
@@ -61,7 +63,20 @@ export const SpotVideoPlayer: React.FC<SpotVideoPlayerProps> = ({
       const u = JSON.parse(localStorage.getItem('monvian_user') || '{}');
       if (u.name) setUploadAuthor(u.name);
     } catch {}
-  }, []);
+  }, [isUploadModalOpen]);
+
+  // Generate local preview URL for the selected video file
+  useEffect(() => {
+    if (!selectedFile) {
+      setPreviewUrl(null);
+      return;
+    }
+    const objectUrl = URL.createObjectURL(selectedFile);
+    setPreviewUrl(objectUrl);
+    return () => {
+      URL.revokeObjectURL(objectUrl);
+    };
+  }, [selectedFile]);
 
   // 1. Fetch videos from Cloud Firestore + cache
   useEffect(() => {
@@ -208,11 +223,15 @@ export const SpotVideoPlayer: React.FC<SpotVideoPlayerProps> = ({
     const files = e.target.files;
     if (files && files[0]) {
       setSelectedFile(files[0]);
-      if (!uploadTitle) {
-        const rawName = files[0].name.replace(/\.[^/.]+$/, '');
-        setUploadTitle(rawName.length > 4 ? rawName : `Experiência em ${spotName}`);
-      }
     }
+  };
+
+  const handleCloseUploadModal = () => {
+    if (isUploading) return;
+    setIsUploadModalOpen(false);
+    setSelectedFile(null);
+    setUploadTitle('');
+    setUploadSuccess(false);
   };
 
   const handleUploadSubmit = async (e: React.FormEvent) => {
@@ -224,8 +243,8 @@ export const SpotVideoPlayer: React.FC<SpotVideoPlayerProps> = ({
       const newVid = await uploadSpotVideo(
         spotId,
         selectedFile,
-        uploadTitle || `Experiência em ${spotName}`,
-        uploadAuthor || 'Visitante'
+        uploadTitle.trim() || `Experiência em ${spotName}`,
+        uploadAuthor.trim() || 'Visitante'
       );
 
       setVideos((prev) => [newVid, ...prev]);
@@ -396,140 +415,204 @@ export const SpotVideoPlayer: React.FC<SpotVideoPlayerProps> = ({
         </div>
       ) : null}
 
-      {/* iOS-Style Translucent Upload Video Modal */}
-      <AnimatePresence>
-        {isUploadModalOpen && (
-          <div 
-            onClick={() => setIsUploadModalOpen(false)}
-            className="fixed inset-0 z-[260] bg-black/70 flex items-center justify-center p-4"
-          >
-            <motion.div
-              initial={{ opacity: 0, scale: 0.95, y: 14 }}
-              animate={{ opacity: 1, scale: 1, y: 0 }}
-              exit={{ opacity: 0, scale: 0.95, y: 10 }}
-              transition={{ duration: 0.22, ease: [0.16, 1, 0.3, 1] }}
-              onClick={(e) => e.stopPropagation()}
-              className="w-full max-w-md bg-white dark:bg-[#1C1C1E] border border-zinc-200 dark:border-white/10 rounded-3xl p-6 shadow-2xl space-y-5 text-zinc-900 dark:text-white"
-            >
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <div className="w-9 h-9 rounded-2xl bg-[#38bdf8]/15 border border-[#38bdf8]/30 flex items-center justify-center text-[#38bdf8]">
-                    <Upload className="w-5 h-5" />
-                  </div>
-                  <div>
-                    <h3 className="text-base font-bold">Enviar Vídeo do Local</h3>
-                    <p className="text-xs text-zinc-500 dark:text-zinc-400">{spotName}</p>
-                  </div>
-                </div>
-              </div>
-
-              {uploadSuccess ? (
-                <div className="py-8 flex flex-col items-center justify-center text-center gap-3">
-                  <div className="w-14 h-14 rounded-full bg-green-500/20 border border-green-500/30 text-green-500 flex items-center justify-center">
-                    <Check className="w-7 h-7 stroke-[2.5]" />
-                  </div>
-                  <h4 className="text-base font-bold">Vídeo Enviado com Sucesso!</h4>
-                  <p className="text-xs text-zinc-500 dark:text-zinc-400">
-                    Seu vídeo foi salvo na nuvem no formato original e adicionado à reprodução em 1.2x.
-                  </p>
-                </div>
-              ) : (
-                <form onSubmit={handleUploadSubmit} className="space-y-4">
-                  {/* File Picker Area */}
-                  <div>
-                    <input
-                      ref={fileInputRef}
-                      type="file"
-                      accept="video/*"
-                      onChange={handleFileChange}
-                      className="hidden"
-                    />
-                    <div
-                      onClick={() => fileInputRef.current?.click()}
-                      className="border-2 border-dashed border-zinc-200 dark:border-white/15 hover:border-zinc-400 dark:hover:border-white/30 rounded-2xl p-5 flex flex-col items-center justify-center text-center gap-2 cursor-pointer transition-colors bg-zinc-50 dark:bg-white/5"
-                    >
-                      <Film className="w-8 h-8 text-zinc-400" />
-                      {selectedFile ? (
-                        <div>
-                          <p className="text-xs font-bold text-green-500 truncate max-w-[260px]">
-                            ✓ {selectedFile.name}
-                          </p>
-                          <span className="text-[11px] text-zinc-500">
-                            {`${(selectedFile.size / (1024 * 1024)).toFixed(1)} MB • Clique para trocar`}
-                          </span>
-                        </div>
-                      ) : (
-                        <div>
-                          <p className="text-xs font-bold">Clique para gravar ou escolher vídeo</p>
-                          <span className="text-[11px] text-zinc-500">
-                            MP4, MOV ou WebM no formato original
-                          </span>
-                        </div>
-                      )}
+      {/* iOS Bottom Sheet Upload Video Modal */}
+      {typeof document !== 'undefined' &&
+        createPortal(
+          <AnimatePresence>
+            {isUploadModalOpen && (
+              <motion.div
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                transition={{ duration: 0.2 }}
+                onClick={handleCloseUploadModal}
+                className="fixed inset-0 z-[320] bg-black/45 backdrop-blur-[2px] flex flex-col justify-end items-center"
+              >
+                <motion.div
+                  initial={{ y: '100%' }}
+                  animate={{ y: 0 }}
+                  exit={{ y: '100%' }}
+                  transition={{ type: 'spring', stiffness: 360, damping: 34 }}
+                  onClick={(e) => e.stopPropagation()}
+                  className="w-full max-w-[500px] bg-white rounded-t-[36px] px-6 pt-7 shadow-[0_-12px_40px_rgba(0,0,0,0.16)] text-[#0B0B0C] max-h-[92dvh] overflow-y-auto"
+                  style={{
+                    paddingBottom: 'max(calc(env(safe-area-inset-bottom, 16px) + 18px), 28px)',
+                    fontFamily:
+                      '-apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro Text", "Inter", sans-serif',
+                  }}
+                >
+                  {/* 2. CABEÇALHO */}
+                  <div className="flex items-center gap-4 mb-6">
+                    <div className="w-[54px] h-[54px] rounded-full bg-[#EFEFF6] flex items-center justify-center shrink-0">
+                      <Upload className="w-[24px] h-[24px] text-[#0B0B0C]" strokeWidth={2.1} />
+                    </div>
+                    <div className="min-w-0">
+                      <h3 className="text-[21px] font-bold text-[#0B0B0C] tracking-[-0.02em] leading-tight">
+                        Enviar Vídeo do Local
+                      </h3>
+                      <p className="text-[15.5px] font-normal text-[#71717A] leading-snug mt-0.5">
+                        Compartilhe sua experiência
+                      </p>
                     </div>
                   </div>
 
-                  {/* Title input */}
-                  <div>
-                    <label className="block text-xs font-semibold mb-1 text-zinc-700 dark:text-zinc-300">
-                      Título ou Dica do Vídeo
-                    </label>
-                    <input
-                      type="text"
-                      value={uploadTitle}
-                      onChange={(e) => setUploadTitle(e.target.value)}
-                      placeholder={`Ex: Tour imperdível no ${spotName}`}
-                      className="w-full h-11 px-3.5 rounded-xl bg-zinc-100 dark:bg-white/5 border border-zinc-200 dark:border-white/10 text-xs font-medium focus:outline-none focus:border-zinc-400 dark:focus:border-white/30"
-                    />
-                  </div>
+                  {uploadSuccess ? (
+                    <div className="py-12 flex flex-col items-center justify-center text-center gap-3">
+                      <div className="w-16 h-16 rounded-full bg-emerald-500/15 text-emerald-600 flex items-center justify-center">
+                        <Check className="w-8 h-8 stroke-[2.5]" />
+                      </div>
+                      <h4 className="text-[19px] font-bold text-[#0B0B0C]">
+                        Vídeo Enviado com Sucesso!
+                      </h4>
+                      <p className="text-[14.5px] text-[#71717A] max-w-xs">
+                        Seu vídeo foi salvo na nuvem e adicionado às experiências deste local.
+                      </p>
+                    </div>
+                  ) : (
+                    <form onSubmit={handleUploadSubmit} className="space-y-5">
+                      {/* 3. ÁREA DE SELEÇÃO DO VÍDEO */}
+                      <div>
+                        <input
+                          ref={fileInputRef}
+                          type="file"
+                          accept="video/mp4,video/quicktime,video/webm,video/*"
+                          onChange={handleFileChange}
+                          className="hidden"
+                        />
 
-                  {/* Author input */}
-                  <div>
-                    <label className="block text-xs font-semibold mb-1 text-zinc-700 dark:text-zinc-300">
-                      Seu Nome ou Perfil
-                    </label>
-                    <input
-                      type="text"
-                      value={uploadAuthor}
-                      onChange={(e) => setUploadAuthor(e.target.value)}
-                      placeholder="Ex: Ana Luiza"
-                      className="w-full h-11 px-3.5 rounded-xl bg-zinc-100 dark:bg-white/5 border border-zinc-200 dark:border-white/10 text-xs font-medium focus:outline-none focus:border-zinc-400 dark:focus:border-white/30"
-                    />
-                  </div>
+                        <div
+                          onClick={() => fileInputRef.current?.click()}
+                          className="relative w-full rounded-[26px] bg-[#F8F8FA] hover:bg-[#F3F3F7] border-[1.5px] border-dashed border-[#D8D8DF] min-h-[195px] flex flex-col items-center justify-center text-center px-6 py-7 cursor-pointer transition-colors overflow-hidden"
+                        >
+                          {selectedFile && previewUrl ? (
+                            <div className="w-full flex flex-col items-center gap-3">
+                              <div className="relative w-full max-h-[210px] rounded-[18px] overflow-hidden bg-black flex items-center justify-center">
+                                <video
+                                  src={previewUrl}
+                                  className="w-full max-h-[210px] object-contain"
+                                  playsInline
+                                  muted
+                                  loop
+                                  autoPlay
+                                />
+                                <div className="absolute bottom-2.5 right-2.5 px-3.5 py-1.5 rounded-full bg-black/70 backdrop-blur-md text-white text-[12.5px] font-semibold">
+                                  Trocar vídeo
+                                </div>
+                              </div>
+                              <div className="text-center">
+                                <p className="text-[15px] font-bold text-[#0B0B0C] truncate max-w-[280px]">
+                                  {selectedFile.name}
+                                </p>
+                                <p className="text-[13.5px] text-[#8E8E93] mt-0.5">
+                                  {`${(selectedFile.size / (1024 * 1024)).toFixed(1)} MB • Toque para substituir`}
+                                </p>
+                              </div>
+                            </div>
+                          ) : (
+                            <>
+                              {/* Modern Video Camera Icon with Play Button */}
+                              <div className="mb-3.5 flex items-center justify-center">
+                                <svg
+                                  width="72"
+                                  height="48"
+                                  viewBox="0 0 72 48"
+                                  fill="none"
+                                  xmlns="http://www.w3.org/2000/svg"
+                                  aria-hidden="true"
+                                >
+                                  <rect
+                                    x="2"
+                                    y="4"
+                                    width="48"
+                                    height="40"
+                                    rx="10"
+                                    fill="#8E929F"
+                                  />
+                                  <path
+                                    d="M53 17.5L65.4 10.1C67.4 8.9 70 10.35 70 12.7V35.3C70 37.65 67.4 39.1 65.4 37.9L53 30.5V17.5Z"
+                                    fill="#8E929F"
+                                  />
+                                  <path
+                                    d="M22.5 17.2C22.5 16.02 23.8 15.3 24.8 15.93L35.4 22.73C36.33 23.32 36.33 24.68 35.4 25.27L24.8 32.07C23.8 32.7 22.5 31.98 22.5 30.8V17.2Z"
+                                    fill="#FFFFFF"
+                                  />
+                                </svg>
+                              </div>
 
-                  {/* Action Buttons */}
-                  <div className="flex items-center gap-2 pt-1">
-                    <button
-                      type="button"
-                      onClick={() => setIsUploadModalOpen(false)}
-                      className="flex-1 h-12 rounded-xl bg-zinc-100 hover:bg-zinc-200 text-zinc-700 dark:bg-white/10 dark:hover:bg-white/15 dark:text-zinc-300 font-bold text-xs cursor-pointer transition-colors"
-                    >
-                      Cancelar
-                    </button>
-                    <button
-                      type="submit"
-                      disabled={!selectedFile || isUploading}
-                      className="flex-2 h-12 px-6 rounded-xl bg-zinc-900 hover:bg-zinc-800 text-white dark:bg-white dark:hover:bg-zinc-100 dark:text-zinc-950 font-bold text-xs flex items-center justify-center gap-2 transition-transform active:scale-98 disabled:opacity-50 cursor-pointer shadow-md"
-                    >
-                      {isUploading ? (
-                        <div className="flex items-center gap-2">
-                          <div className="w-4 h-4 border-2 border-current border-t-transparent rounded-full animate-spin" />
-                          <span>Enviando...</span>
+                              <p className="text-[17.5px] font-bold text-[#0B0B0C] tracking-[-0.015em] leading-snug">
+                                Clique para gravar ou escolher vídeo
+                              </p>
+                              <span className="text-[15px] font-normal text-[#8E8E93] mt-1">
+                                MP4, MOV ou WebM
+                              </span>
+                            </>
+                          )}
                         </div>
-                      ) : (
-                        <>
-                          <Upload className="w-4 h-4" />
-                          <span>Publicar Vídeo</span>
-                        </>
-                      )}
-                    </button>
-                  </div>
-                </form>
-              )}
-            </motion.div>
-          </div>
+                      </div>
+
+                      {/* 4. CAMPO TÍTULO OU DICA DO VÍDEO */}
+                      <div>
+                        <label className="block text-[17px] font-bold text-[#0B0B0C] tracking-[-0.015em] mb-2.5">
+                          Título ou Dica do Vídeo
+                        </label>
+                        <input
+                          type="text"
+                          value={uploadTitle}
+                          onChange={(e) => setUploadTitle(e.target.value)}
+                          placeholder={`Ex: Tour imperdível no ${spotName}`}
+                          className="w-full h-[56px] px-5 rounded-[20px] bg-[#F3F3F6] border border-black/[0.04] text-[16.5px] font-normal text-[#0B0B0C] placeholder:text-[#8E8E93] focus:outline-none focus:ring-2 focus:ring-black/10 transition-all"
+                        />
+                      </div>
+
+                      {/* 5. CAMPO SEU NOME OU PERFIL */}
+                      <div>
+                        <label className="block text-[17px] font-bold text-[#0B0B0C] tracking-[-0.015em] mb-2.5">
+                          Seu Nome ou Perfil
+                        </label>
+                        <input
+                          type="text"
+                          value={uploadAuthor}
+                          onChange={(e) => setUploadAuthor(e.target.value)}
+                          placeholder="Seu nome"
+                          className="w-full h-[56px] px-5 rounded-[20px] bg-[#F3F3F6] border border-black/[0.04] text-[16.5px] font-normal text-[#0B0B0C] placeholder:text-[#8E8E93] focus:outline-none focus:ring-2 focus:ring-black/10 transition-all"
+                        />
+                      </div>
+
+                      {/* 6. BOTÕES INFERIORES */}
+                      <div className="flex items-center gap-3.5 pt-2">
+                        <button
+                          type="button"
+                          onClick={handleCloseUploadModal}
+                          className="w-[36%] h-[58px] rounded-full bg-[#F3F3F6] hover:bg-[#EAEAEF] active:scale-[0.98] text-[#0B0B0C] font-bold text-[17px] tracking-[-0.01em] transition-all cursor-pointer shrink-0"
+                        >
+                          Cancelar
+                        </button>
+                        <button
+                          type="submit"
+                          disabled={!selectedFile || isUploading}
+                          className="flex-1 h-[58px] px-6 rounded-full bg-[#0B0B0C] hover:bg-black/90 active:scale-[0.98] text-white font-bold text-[17px] tracking-[-0.01em] flex items-center justify-center gap-2.5 shadow-[0_8px_22px_rgba(0,0,0,0.16)] transition-all disabled:opacity-45 disabled:cursor-not-allowed cursor-pointer"
+                        >
+                          {isUploading ? (
+                            <div className="flex items-center gap-2.5">
+                              <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                              <span>Enviando...</span>
+                            </div>
+                          ) : (
+                            <>
+                              <Upload className="w-[21px] h-[21px]" strokeWidth={2.2} />
+                              <span>Publicar Vídeo</span>
+                            </>
+                          )}
+                        </button>
+                      </div>
+                    </form>
+                  )}
+                </motion.div>
+              </motion.div>
+            )}
+          </AnimatePresence>,
+          document.body
         )}
-      </AnimatePresence>
     </div>
   );
 };

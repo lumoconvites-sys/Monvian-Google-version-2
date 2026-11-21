@@ -1,23 +1,7 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import {
-  Check,
-  ChevronDown,
-  ChevronUp,
-  Image as ImageIcon,
-  Loader2,
-  MapPin,
-  Plus,
-  RefreshCw,
-  Sparkles,
-  Trash2,
-  Upload,
-  Navigation,
-} from 'lucide-react';
+import { ChevronLeft, Loader2, Upload } from 'lucide-react';
 import { Itinerary, Spot } from '../../types';
-import { AppleBackButton } from '../ui/AppleBackButton';
-import { LazyImage } from '../ui/LazyImage';
-import { getSpotCardThumbnail, getSpotFallbackImage } from '../../utils/spotImages';
 import { uploadMediaToSupabaseStorage } from '../../lib/supabase';
 import {
   buildItineraryFromOrderedSpots,
@@ -25,38 +9,8 @@ import {
   persistUserItineraryToBackend,
 } from '../../utils/itineraryHelpers';
 
-const MONVIAN_CURATED_COVERS: { id: string; label: string; url: string }[] = [
-  {
-    id: 'portal-campos',
-    label: 'Portal de Campos do Jordão',
-    url: 'https://images.unsplash.com/photo-1519501025264-65ba15a82390?auto=format&fit=crop&w=1200&q=85',
-  },
-  {
-    id: 'amantikir-gardens',
-    label: 'Jardins & Araucárias',
-    url: 'https://images.unsplash.com/photo-1585320806297-9794b3e4eeae?auto=format&fit=crop&w=1200&q=85',
-  },
-  {
-    id: 'teleferico-capivari',
-    label: 'Vista Panorâmica da Serra',
-    url: 'https://images.unsplash.com/photo-1513836279014-a89f7a76ae86?auto=format&fit=crop&w=1200&q=85',
-  },
-  {
-    id: 'mantiqueira-sunset',
-    label: 'Montanhas da Mantiqueira',
-    url: 'https://images.unsplash.com/photo-1506744038136-46273834b3fb?auto=format&fit=crop&w=1200&q=85',
-  },
-  {
-    id: 'gastronomia-inverno',
-    label: 'Gastronomia & Charme Alpino',
-    url: 'https://images.unsplash.com/photo-1514933651103-005eec06c04b?auto=format&fit=crop&w=1200&q=85',
-  },
-  {
-    id: 'bosque-outono',
-    label: 'Bosques & Natureza',
-    url: 'https://images.unsplash.com/photo-1441974231531-c6227db76b6e?auto=format&fit=crop&w=1200&q=85',
-  },
-];
+const DEFAULT_FALLBACK_COVER =
+  'https://images.unsplash.com/photo-1519501025264-65ba15a82390?auto=format&fit=crop&w=1200&q=85';
 
 interface ItineraryCreationFinalizeModalProps {
   isOpen: boolean;
@@ -81,156 +35,74 @@ export const ItineraryCreationFinalizeModal: React.FC<ItineraryCreationFinalizeM
   initialCoverImage = '',
   existingItinerary = null,
   selectedSpots,
-  theme = 'light',
   user,
-  onChangeSelectedSpots,
   onBackToMapSelection,
   onClose,
-  onSavedAndViewOnMap,
   onSavedAndGoToMyItineraries,
 }) => {
-  const isDark = theme === 'dark';
+  const [title, setTitle] = useState<string>(() => {
+    if (initialTitle && initialTitle.trim().length > 0) return initialTitle;
+    if (mode === 'edit' && existingItinerary?.title) return existingItinerary.title;
+    return '';
+  });
 
-  const getSuggestedTitle = useCallback(() => {
-    if (initialTitle && initialTitle.trim().length > 0) return initialTitle.trim();
-    if (existingItinerary?.title) return existingItinerary.title;
-    if (selectedSpots.length > 0) {
-      const hasFood = selectedSpots.some(
-        (s) => s.category === 'gastronomy' || s.category === 'restaurants' || s.category === 'cafes' || s.category === 'sweets'
-      );
-      const hasNature = selectedSpots.some(
-        (s) => s.category === 'parks' || s.category === 'viewpoint' || s.category === 'attractions'
-      );
-      if (hasFood && !hasNature) return 'Roteiro Gastronômico';
-      if (hasNature && selectedSpots.length >= 3) return 'Fim de Semana em Campos';
-    }
-    return 'Meu Roteiro em Campos';
-  }, [initialTitle, existingItinerary?.title, selectedSpots]);
+  const [coverImage, setCoverImage] = useState<string>(() => {
+    if (initialCoverImage && initialCoverImage.trim().length > 0) return initialCoverImage;
+    if (mode === 'edit' && existingItinerary?.coverImage) return existingItinerary.coverImage;
+    return '';
+  });
 
-  const [title, setTitle] = useState<string>(() => getSuggestedTitle());
-  const [coverImage, setCoverImage] = useState<string>(
-    () => initialCoverImage || existingItinerary?.coverImage || ''
-  );
-  const [isGeneratingCover, setIsGeneratingCover] = useState<boolean>(false);
-  const [coverGenerationError, setCoverGenerationError] = useState<string | null>(null);
-  const [showLibraryPicker, setShowLibraryPicker] = useState<boolean>(false);
-  const [isUploadingCustomPhoto, setIsUploadingCustomPhoto] = useState<boolean>(false);
+  const [isUploadingPhoto, setIsUploadingPhoto] = useState<boolean>(false);
   const [isSaving, setIsSaving] = useState<boolean>(false);
-  const [savedItineraryResult, setSavedItineraryResult] = useState<Itinerary | null>(null);
 
   const fileInputRef = useRef<HTMLInputElement | null>(null);
-  const hasAutoTriggeredCoverRef = useRef<boolean>(false);
-  const abortControllerRef = useRef<AbortController | null>(null);
-
-  const generateAICover = useCallback(
-    async (customTitle?: string) => {
-      if (abortControllerRef.current) {
-        abortControllerRef.current.abort();
-      }
-      const controller = new AbortController();
-      abortControllerRef.current = controller;
-
-      setIsGeneratingCover(true);
-      setCoverGenerationError(null);
-
-      try {
-        const res = await fetch('/api/itineraries/generate-cover', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          signal: controller.signal,
-          body: JSON.stringify({
-            title: (customTitle ?? title).trim() || 'Experiência em Campos do Jordão',
-            spots: selectedSpots.map((s) => ({
-              id: s.id,
-              name: s.name,
-              category: s.category,
-              categoryLabel: s.categoryLabel,
-              description: s.description,
-            })),
-          }),
-        });
-
-        if (controller.signal.aborted) return;
-
-        const data = await res.json().catch(() => null);
-        if (res.ok && data?.success && data?.coverImage) {
-          setCoverImage(data.coverImage);
-          setCoverGenerationError(null);
-        } else {
-          setCoverGenerationError(
-            data?.error ||
-              'Não foi possível gerar a capa automática agora. Tente novamente ou escolha uma fotografia abaixo.'
-          );
-          setShowLibraryPicker(true);
-          if (!coverImage) {
-            const firstSpotImg = selectedSpots.find((s) => s.image)?.image;
-            setCoverImage(firstSpotImg || MONVIAN_CURATED_COVERS[0].url);
-          }
-        }
-      } catch (err: any) {
-        if (err?.name === 'AbortError' || controller.signal.aborted) return;
-        setCoverGenerationError(
-          'Não foi possível concluir a geração por IA. Você pode tentar novamente ou escolher uma fotografia abaixo.'
-        );
-        setShowLibraryPicker(true);
-        if (!coverImage) {
-          const firstSpotImg = selectedSpots.find((s) => s.image)?.image;
-          setCoverImage(firstSpotImg || MONVIAN_CURATED_COVERS[0].url);
-        }
-      } finally {
-        if (abortControllerRef.current === controller) {
-          setIsGeneratingCover(false);
-          abortControllerRef.current = null;
-        }
-      }
-    },
-    [title, selectedSpots, coverImage]
-  );
 
   useEffect(() => {
-    if (!isOpen) {
-      hasAutoTriggeredCoverRef.current = false;
-      setSavedItineraryResult(null);
-      abortControllerRef.current?.abort();
-      return;
+    if (!isOpen) return;
+    if (initialTitle && initialTitle.trim().length > 0) {
+      setTitle(initialTitle);
+    } else if (mode === 'edit' && existingItinerary?.title) {
+      setTitle(existingItinerary.title);
+    } else {
+      setTitle('');
     }
 
-    const nextSuggestedTitle = getSuggestedTitle();
-    setTitle(nextSuggestedTitle);
-
-    const existingCover = initialCoverImage || existingItinerary?.coverImage || '';
-    if (existingCover) {
-      setCoverImage(existingCover);
+    if (initialCoverImage && initialCoverImage.trim().length > 0) {
+      setCoverImage(initialCoverImage);
+    } else if (mode === 'edit' && existingItinerary?.coverImage) {
+      setCoverImage(existingItinerary.coverImage);
+    } else {
+      setCoverImage('');
     }
+  }, [isOpen, mode, initialTitle, initialCoverImage, existingItinerary?.title, existingItinerary?.coverImage]);
 
-    // Automatically generate AI cover when finalizing a new itinerary that doesn't have a cover yet
-    if (mode === 'create' && !existingCover && !hasAutoTriggeredCoverRef.current) {
-      hasAutoTriggeredCoverRef.current = true;
-      void generateAICover(nextSuggestedTitle);
-    }
-  }, [isOpen, mode, initialCoverImage, existingItinerary?.coverImage, getSuggestedTitle, generateAICover]);
-
-  const handleMoveSpot = (index: number, direction: 'up' | 'down') => {
-    const targetIdx = direction === 'up' ? index - 1 : index + 1;
-    if (targetIdx < 0 || targetIdx >= selectedSpots.length) return;
-    const next = [...selectedSpots];
-    const temp = next[targetIdx];
-    next[targetIdx] = next[index];
-    next[index] = temp;
-    onChangeSelectedSpots(next);
-  };
-
-  const handleRemoveSpot = (spotId: string) => {
-    const next = selectedSpots.filter((s) => s.id !== spotId);
-    onChangeSelectedSpots(next);
+  const handleTriggerFileUpload = () => {
+    if (isUploadingPhoto) return;
+    fileInputRef.current?.click();
   };
 
   const handleUploadCoverFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
-    setIsUploadingCustomPhoto(true);
-    setCoverGenerationError(null);
+
+    // Immediately create a local Data URL preview so the photo appears right away inside the card
+    const readAsDataUrl = (f: File): Promise<string> =>
+      new Promise((resolve) => {
+        const reader = new FileReader();
+        reader.onload = () => {
+          resolve(typeof reader.result === 'string' ? reader.result : '');
+        };
+        reader.onerror = () => resolve('');
+        reader.readAsDataURL(f);
+      });
+
+    setIsUploadingPhoto(true);
     try {
+      const localPreview = await readAsDataUrl(file);
+      if (localPreview) {
+        setCoverImage(localPreview);
+      }
+
       const uploadedUrl = await uploadMediaToSupabaseStorage(file, 'itineraries', {
         maxDimension: 1280,
         quality: 0.85,
@@ -238,25 +110,11 @@ export const ItineraryCreationFinalizeModal: React.FC<ItineraryCreationFinalizeM
       });
       if (uploadedUrl) {
         setCoverImage(uploadedUrl);
-      } else {
-        const reader = new FileReader();
-        reader.onload = () => {
-          if (typeof reader.result === 'string') {
-            setCoverImage(reader.result);
-          }
-        };
-        reader.readAsDataURL(file);
       }
     } catch {
-      const reader = new FileReader();
-      reader.onload = () => {
-        if (typeof reader.result === 'string') {
-          setCoverImage(reader.result);
-        }
-      };
-      reader.readAsDataURL(file);
+      // Keep localPreview if remote storage upload fails
     } finally {
-      setIsUploadingCustomPhoto(false);
+      setIsUploadingPhoto(false);
       e.target.value = '';
     }
   };
@@ -265,11 +123,11 @@ export const ItineraryCreationFinalizeModal: React.FC<ItineraryCreationFinalizeM
     if (selectedSpots.length === 0 || isSaving) return;
     setIsSaving(true);
 
-    const cleanTitle = title.trim() || 'Meu Roteiro em Campos';
+    const cleanTitle = title.trim() || 'Roteiro Gastronômico';
     const finalCover =
       coverImage ||
       selectedSpots.find((s) => s.image)?.image ||
-      MONVIAN_CURATED_COVERS[0].url;
+      DEFAULT_FALLBACK_COVER;
 
     const built = buildItineraryFromOrderedSpots(selectedSpots, {
       existingItinerary: mode === 'edit' ? existingItinerary : null,
@@ -302,548 +160,251 @@ export const ItineraryCreationFinalizeModal: React.FC<ItineraryCreationFinalizeM
     } catch {}
 
     setIsSaving(false);
-    setSavedItineraryResult(finalItinerary);
+    onSavedAndGoToMyItineraries(finalItinerary);
   };
-
-  // Combine Monvian curated covers + photos of selected spots for the library picker
-  const libraryChoices = React.useMemo(() => {
-    const spotPhotos = selectedSpots
-      .filter((s) => Boolean(s.image))
-      .map((s) => ({
-        id: `spot-${s.id}`,
-        label: s.name,
-        url: getSpotCardThumbnail(s),
-      }));
-    const seen = new Set<string>();
-    const combined: { id: string; label: string; url: string }[] = [];
-    for (const item of [...MONVIAN_CURATED_COVERS, ...spotPhotos]) {
-      if (!item.url || seen.has(item.url)) continue;
-      seen.add(item.url);
-      combined.push(item);
-    }
-    return combined;
-  }, [selectedSpots]);
 
   if (!isOpen) return null;
 
   return (
     <AnimatePresence>
       <motion.div
-        key="itinerary-finalize-modal-backdrop"
-        initial={{ opacity: 0 }}
-        animate={{ opacity: 1 }}
-        exit={{ opacity: 0 }}
-        transition={{ duration: 0.2 }}
-        className="fixed inset-0 z-[270] bg-black/50 backdrop-blur-sm flex items-end md:items-center justify-center select-none"
+        key="itinerary-finalize-fullscreen"
+        initial={{ opacity: 0, y: 18 }}
+        animate={{ opacity: 1, y: 0 }}
+        exit={{ opacity: 0, y: 18 }}
+        transition={{ type: 'spring', stiffness: 380, damping: 34, mass: 0.82 }}
+        className="fixed inset-0 z-[270] bg-[#FFFFFF] text-[#0B0B0C] flex flex-col select-none overflow-hidden"
+        style={{
+          backgroundColor: '#ffffff',
+          fontFamily:
+            '-apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro Text", "Inter", sans-serif',
+        }}
       >
-        <motion.div
-          key="itinerary-finalize-modal-sheet"
-          initial={{ y: '100%' }}
-          animate={{ y: 0 }}
-          exit={{ y: '100%' }}
-          transition={{ type: 'spring', stiffness: 360, damping: 34, mass: 0.82 }}
-          className={`w-full md:max-w-[520px] h-[94dvh] md:h-[88vh] rounded-t-[34px] md:rounded-[34px] overflow-hidden flex flex-col shadow-[0_-14px_48px_rgba(0,0,0,0.22)] ${
-            isDark ? 'bg-[#000000] text-white border border-white/10' : 'bg-[#FFFFFF] text-[#111111]'
-          }`}
+        {/* Hidden File Input for Real Device Gallery Selection */}
+        <input
+          ref={fileInputRef}
+          type="file"
+          accept="image/*"
+          onChange={handleUploadCoverFile}
+          className="hidden"
+        />
+
+        {/* 1. CABEÇALHO */}
+        <div
+          className="w-full max-w-[480px] mx-auto px-6 pb-4 flex items-center justify-between shrink-0 bg-[#FFFFFF]"
           style={{
-            fontFamily:
-              '-apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro Text", "Inter", sans-serif',
+            paddingTop: 'max(calc(env(safe-area-inset-top, 16px) + 14px), 24px)',
           }}
         >
-          {/* Hidden file input for custom cover upload */}
-          <input
-            ref={fileInputRef}
-            type="file"
-            accept="image/png,image/jpeg,image/webp,image/jpg"
-            onChange={handleUploadCoverFile}
-            className="hidden"
-          />
-
-          {/* Top Bar */}
-          <div
-            className={`px-5 pt-4 pb-3 flex items-center justify-between border-b shrink-0 ${
-              isDark ? 'border-white/10 bg-[#000000]' : 'border-black/[0.06] bg-[#FFFFFF]'
-            }`}
+          <button
+            type="button"
+            onClick={() => {
+              if (mode === 'create') {
+                onBackToMapSelection({ title, coverImage });
+              } else {
+                onClose();
+              }
+            }}
+            aria-label="Voltar"
+            title="Voltar"
+            className="w-[46px] h-[46px] rounded-full bg-[#F5F5F7] border border-black/[0.04] shadow-[0_2px_8px_rgba(0,0,0,0.04)] flex items-center justify-center text-[#0B0B0C] active:scale-95 transition-transform cursor-pointer"
           >
-            <AppleBackButton
-              theme={isDark ? 'dark' : 'light'}
-              onClick={() => {
-                if (savedItineraryResult) {
-                  onSavedAndGoToMyItineraries(savedItineraryResult);
-                  return;
-                }
-                if (mode === 'create') {
-                  onBackToMapSelection({ title, coverImage });
-                } else {
-                  onClose();
-                }
-              }}
-              title="Voltar"
-              aria-label="Voltar"
-            />
+            <ChevronLeft className="w-6 h-6 -ml-0.5" strokeWidth={2.2} />
+          </button>
 
-            <h2 className="text-[18px] font-bold tracking-tight text-center">
-              {savedItineraryResult
-                ? 'Roteiro Salvo'
-                : mode === 'edit'
-                  ? 'Editar roteiro'
-                  : 'Finalizar roteiro'}
-            </h2>
+          <h1 className="text-[20px] font-bold text-[#0B0B0C] tracking-[-0.02em] text-center">
+            Finalizar roteiro
+          </h1>
 
-            <div className="w-10" />
+          <div className="w-[46px]" />
+        </div>
+
+        {/* CORPO PRINCIPAL */}
+        <div
+          className="flex-1 overflow-y-auto w-full max-w-[480px] mx-auto px-6 pt-3 pb-8"
+          style={{ WebkitOverflowScrolling: 'touch' }}
+        >
+          {/* 2. CARD DE UPLOAD */}
+          <div
+            role="button"
+            tabIndex={0}
+            onClick={handleTriggerFileUpload}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' || e.key === ' ') {
+                e.preventDefault();
+                handleTriggerFileUpload();
+              }
+            }}
+            className="relative w-full min-h-[304px] rounded-[32px] bg-[#F7F7F9] border border-black/[0.03] shadow-[0_4px_20px_rgba(0,0,0,0.02)] overflow-hidden flex flex-col items-center justify-center text-center cursor-pointer transition-transform active:scale-[0.995]"
+          >
+            {coverImage ? (
+              <div className="relative w-full h-[304px]">
+                <img
+                  src={coverImage}
+                  alt={title || 'Foto do roteiro'}
+                  className="w-full h-full object-cover"
+                />
+                {/* Opção discreta para substituir a fotografia */}
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    handleTriggerFileUpload();
+                  }}
+                  className="absolute bottom-4 right-4 px-4 py-2.5 rounded-full bg-black/75 backdrop-blur-md text-white text-[13.5px] font-semibold flex items-center gap-2 shadow-lg active:scale-95 transition-transform cursor-pointer"
+                >
+                  {isUploadingPhoto ? (
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                  ) : (
+                    <Upload className="w-4 h-4" strokeWidth={2.2} />
+                  )}
+                  <span>Substituir foto</span>
+                </button>
+              </div>
+            ) : (
+              <div className="w-full px-7 py-9 flex flex-col items-center justify-center">
+                {/* Ícone grande de imagem com símbolo de adicionar */}
+                <div className="relative w-[78px] h-[66px] mb-5 flex items-center justify-center">
+                  <svg
+                    viewBox="0 0 76 64"
+                    fill="none"
+                    className="w-full h-full"
+                    xmlns="http://www.w3.org/2000/svg"
+                  >
+                    {/* Moldura da fotografia */}
+                    <rect
+                      x="6"
+                      y="6"
+                      width="56"
+                      height="44"
+                      rx="9"
+                      stroke="#8E8E93"
+                      strokeWidth="2.6"
+                    />
+                    {/* Sol */}
+                    <circle
+                      cx="21"
+                      cy="20"
+                      r="5"
+                      stroke="#8E8E93"
+                      strokeWidth="2.5"
+                    />
+                    {/* Montanhas */}
+                    <path
+                      d="M11 46L35 26L45 35L53 28L61 36"
+                      stroke="#8E8E93"
+                      strokeWidth="2.6"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                    />
+                    {/* Círculo preto com símbolo de adicionar (+) */}
+                    <circle cx="57" cy="46" r="14" fill="#0B0B0C" />
+                    <path
+                      d="M57 40V52M51 46H63"
+                      stroke="#FFFFFF"
+                      strokeWidth="2.6"
+                      strokeLinecap="round"
+                    />
+                  </svg>
+                </div>
+
+                {/* Título */}
+                <h2 className="text-[22px] font-bold text-[#0B0B0C] tracking-[-0.02em] leading-tight">
+                  Adicionar uma foto
+                </h2>
+
+                {/* Texto secundário */}
+                <p className="mt-2 text-[15.5px] font-normal text-[#71717A] leading-[1.35] max-w-[235px]">
+                  Faça upload de uma foto para seu roteiro
+                </p>
+
+                {/* Botão preto grande "Fazer upload" com ícone de envio branco */}
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    handleTriggerFileUpload();
+                  }}
+                  className="mt-7 w-full max-w-[295px] h-[56px] rounded-full bg-[#0B0B0C] text-white flex items-center justify-center gap-2.5 shadow-[0_6px_18px_rgba(0,0,0,0.14)] active:scale-[0.98] transition-transform cursor-pointer"
+                >
+                  {isUploadingPhoto ? (
+                    <Loader2 className="w-5 h-5 animate-spin text-white" />
+                  ) : (
+                    <Upload className="w-[21px] h-[21px] text-white" strokeWidth={2.2} />
+                  )}
+                  <span className="text-[17px] font-semibold tracking-[-0.01em]">
+                    Fazer upload
+                  </span>
+                </button>
+              </div>
+            )}
           </div>
 
-          {/* Content Body */}
-          {savedItineraryResult ? (
-            /* ============================================================
-             * POST-SAVE CONFIRMATION SCREEN ("Seu roteiro está pronto!")
-             * ============================================================ */
-            <div className="flex-1 overflow-y-auto px-6 py-8 flex flex-col items-center justify-center text-center">
-              <motion.div
-                initial={{ scale: 0.85, opacity: 0 }}
-                animate={{ scale: 1, opacity: 1 }}
-                transition={{ type: 'spring', stiffness: 360, damping: 26 }}
-                className="w-16 h-16 rounded-full bg-black dark:bg-white text-white dark:text-black flex items-center justify-center mb-5 shadow-lg"
-              >
-                <Check className="w-8 h-8 stroke-[2.8]" />
-              </motion.div>
+          {/* 3. NOME DO ROTEIRO */}
+          <div className="mt-8">
+            <label
+              htmlFor="itinerary-finalize-title-input"
+              className="block text-[18px] font-bold text-[#0B0B0C] tracking-[-0.015em] mb-3"
+            >
+              Nome do roteiro
+            </label>
+            <input
+              id="itinerary-finalize-title-input"
+              type="text"
+              value={title}
+              onChange={(e) => setTitle(e.target.value)}
+              placeholder="Ex: Roteiro Gastronômico"
+              maxLength={60}
+              className="w-full h-[58px] px-5 rounded-[20px] bg-[#F5F5F7] border border-black/[0.04] text-[17px] font-normal text-[#0B0B0C] placeholder:text-[#8E8E93] outline-none focus:border-black/20 transition-colors"
+            />
+          </div>
 
-              <h3 className="text-[26px] font-extrabold tracking-tight leading-tight mb-2">
-                Seu roteiro está pronto!
-              </h3>
-              <p className="text-[14.5px] font-medium text-[#8E8E93] max-w-[320px] mb-6">
-                {savedItineraryResult.title} foi salvo com {selectedSpots.length}{' '}
-                {selectedSpots.length === 1 ? 'parada' : 'paradas'} em Campos do Jordão.
-              </p>
+          {/* 4. PARADAS DO ROTEIRO */}
+          <div className="mt-7 pt-1 pb-5 border-b border-[#EFEFF2] flex items-center justify-between gap-3">
+            <span className="text-[18px] font-bold text-[#0B0B0C] tracking-[-0.015em]">
+              Paradas do roteiro ({selectedSpots.length})
+            </span>
 
-              {/* Saved Preview Card */}
-              <div
-                className={`w-full max-w-[380px] rounded-[28px] overflow-hidden border mb-7 text-left shadow-[0_10px_30px_rgba(0,0,0,0.08)] ${
-                  isDark ? 'bg-[#171717] border-white/10' : 'bg-[#FFFFFF] border-black/[0.06]'
-                }`}
-              >
-                <div className="relative w-full h-[180px] bg-zinc-100 dark:bg-zinc-900 overflow-hidden">
-                  <img
-                    src={savedItineraryResult.coverImage}
-                    alt={savedItineraryResult.title}
-                    referrerPolicy="no-referrer"
-                    className="w-full h-full object-cover"
-                  />
-                </div>
-                <div className="p-4 flex items-center justify-between gap-3">
-                  <div className="min-w-0">
-                    <h4 className="text-[17px] font-bold tracking-tight truncate">
-                      {savedItineraryResult.title}
-                    </h4>
-                    <p className="text-[12.5px] font-medium text-[#8E8E93] mt-0.5">
-                      {selectedSpots.length}{' '}
-                      {selectedSpots.length === 1 ? 'local selecionado' : 'locais selecionados'}
-                    </p>
-                  </div>
-                </div>
-              </div>
+            <button
+              type="button"
+              onClick={() => onBackToMapSelection({ title, coverImage })}
+              className="px-5 h-[44px] rounded-full bg-[#F2F2F5] hover:bg-[#EAEAEF] text-[#0B0B0C] text-[15px] font-semibold flex items-center justify-center active:scale-95 transition-all cursor-pointer shrink-0"
+            >
+              Adicionar novo
+            </button>
+          </div>
+        </div>
 
-              <div className="w-full max-w-[380px] space-y-3">
-                <button
-                  type="button"
-                  onClick={() => onSavedAndViewOnMap(savedItineraryResult)}
-                  className={`w-full h-[54px] rounded-full font-bold text-[15.5px] flex items-center justify-center gap-2.5 shadow-md active:scale-[0.98] transition-transform cursor-pointer ${
-                    isDark ? 'bg-white text-black' : 'bg-[#000000] text-white'
-                  }`}
-                >
-                  <Navigation className="w-4 h-4 fill-current" />
-                  <span>Visualizar roteiro no mapa</span>
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() => onSavedAndGoToMyItineraries(savedItineraryResult)}
-                  className={`w-full h-[54px] rounded-full font-bold text-[15.5px] flex items-center justify-center transition-colors active:scale-[0.98] cursor-pointer ${
-                    isDark
-                      ? 'bg-[#1C1C1E] text-white border border-white/10 hover:bg-zinc-800'
-                      : 'bg-[#F2F2F7] text-[#111111] hover:bg-zinc-200/80'
-                  }`}
-                >
-                  <span>Voltar para Meus roteiros</span>
-                </button>
-              </div>
-            </div>
-          ) : (
-            /* ============================================================
-             * EDIT / FINALIZE FORM VIEW
-             * ============================================================ */
-            <>
-              <div
-                className="flex-1 overflow-y-auto px-5 py-5 space-y-6"
-                style={{ WebkitOverflowScrolling: 'touch' }}
-              >
-                {/* 1. AI Cover Image Card */}
-                <div>
-                  <div className="flex items-center justify-between mb-2.5">
-                    <label className="text-[13px] font-bold uppercase tracking-wider text-[#8E8E93]">
-                      Capa do roteiro
-                    </label>
-                    <div className="flex items-center gap-2">
-                      <button
-                        type="button"
-                        disabled={isGeneratingCover}
-                        onClick={() => generateAICover(title)}
-                        className={`px-3 py-1.5 rounded-full text-[12px] font-bold flex items-center gap-1.5 transition-all cursor-pointer active:scale-95 ${
-                          isDark
-                            ? 'bg-[#1C1C1E] text-white border border-white/10 hover:bg-zinc-800'
-                            : 'bg-[#F2F2F7] text-[#111111] hover:bg-zinc-200/80'
-                        } ${isGeneratingCover ? 'opacity-60 cursor-not-allowed' : ''}`}
-                      >
-                        <Sparkles className="w-3.5 h-3.5" />
-                        <span>{coverImage ? 'Gerar nova capa IA' : 'Gerar capa IA'}</span>
-                      </button>
-                    </div>
-                  </div>
-
-                  <div
-                    className={`relative w-full h-[200px] sm:h-[220px] rounded-[26px] overflow-hidden border ${
-                      isDark
-                        ? 'bg-[#141416] border-white/10'
-                        : 'bg-[#F5F5F7] border-black/[0.06]'
-                    }`}
-                  >
-                    {isGeneratingCover ? (
-                      <div className="absolute inset-0 flex flex-col items-center justify-center p-6 text-center">
-                        <div className="w-12 h-12 rounded-full bg-black/90 dark:bg-white/90 text-white dark:text-black flex items-center justify-center mb-3.5 shadow-md">
-                          <Loader2 className="w-6 h-6 animate-spin" />
-                        </div>
-                        <p className="text-[15px] font-bold tracking-tight">
-                          Preparando a capa da sua experiência…
-                        </p>
-                        <p className="text-[12.5px] font-medium text-[#8E8E93] mt-1 max-w-[260px]">
-                          Criando fotografia exclusiva de Campos do Jordão com base no seu roteiro
-                        </p>
-                      </div>
-                    ) : coverImage ? (
-                      <>
-                        <img
-                          src={coverImage}
-                          alt={title || 'Capa do roteiro'}
-                          referrerPolicy="no-referrer"
-                          className="w-full h-full object-cover"
-                        />
-                        <div className="absolute bottom-3 left-3 right-3 flex items-center justify-between gap-2">
-                          <button
-                            type="button"
-                            onClick={() => setShowLibraryPicker((prev) => !prev)}
-                            className="px-3.5 py-2 rounded-full bg-white/95 text-black text-[12px] font-bold shadow-md flex items-center gap-1.5 active:scale-95 transition-transform cursor-pointer"
-                          >
-                            <ImageIcon className="w-3.5 h-3.5" />
-                            <span>Biblioteca</span>
-                          </button>
-
-                          <button
-                            type="button"
-                            disabled={isUploadingCustomPhoto}
-                            onClick={() => fileInputRef.current?.click()}
-                            className="px-3.5 py-2 rounded-full bg-black/75 backdrop-blur-md text-white text-[12px] font-bold shadow-md flex items-center gap-1.5 active:scale-95 transition-transform cursor-pointer"
-                          >
-                            {isUploadingCustomPhoto ? (
-                              <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                            ) : (
-                              <Upload className="w-3.5 h-3.5" />
-                            )}
-                            <span>Enviar foto</span>
-                          </button>
-                        </div>
-                      </>
-                    ) : (
-                      <div className="absolute inset-0 flex flex-col items-center justify-center p-6 text-center">
-                        <button
-                          type="button"
-                          onClick={() => generateAICover(title)}
-                          className="px-5 py-2.5 rounded-full bg-black text-white text-xs font-bold flex items-center gap-2 shadow-md cursor-pointer"
-                        >
-                          <Sparkles className="w-4 h-4" />
-                          <span>Gerar capa por IA</span>
-                        </button>
-                      </div>
-                    )}
-                  </div>
-
-                  {/* Error notice with Retry + Library fallback */}
-                  {coverGenerationError && (
-                    <div
-                      className={`mt-2.5 p-3.5 rounded-2xl border flex items-center justify-between gap-3 ${
-                        isDark
-                          ? 'bg-[#1C1C1E] border-white/10 text-zinc-200'
-                          : 'bg-[#F8F8FA] border-black/[0.06] text-zinc-800'
-                      }`}
-                    >
-                      <p className="text-[12.5px] font-medium leading-snug flex-1">
-                        {coverGenerationError}
-                      </p>
-                      <button
-                        type="button"
-                        onClick={() => generateAICover(title)}
-                        className="px-3 py-1.5 rounded-full bg-black dark:bg-white text-white dark:text-black text-[11.5px] font-bold flex items-center gap-1 shrink-0 cursor-pointer"
-                      >
-                        <RefreshCw className="w-3 h-3" />
-                        <span>Tentar novamente</span>
-                      </button>
-                    </div>
-                  )}
-
-                  {/* Expandable Monvian Library & Upload Picker */}
-                  <AnimatePresence>
-                    {showLibraryPicker && (
-                      <motion.div
-                        initial={{ opacity: 0, height: 0 }}
-                        animate={{ opacity: 1, height: 'auto' }}
-                        exit={{ opacity: 0, height: 0 }}
-                        className="overflow-hidden"
-                      >
-                        <div className="pt-3">
-                          <div className="flex items-center justify-between mb-2">
-                            <span className="text-[12px] font-bold text-[#8E8E93]">
-                              Biblioteca Monvian ou foto própria
-                            </span>
-                            <button
-                              type="button"
-                              onClick={() => fileInputRef.current?.click()}
-                              className="text-[12px] font-bold text-black dark:text-white underline cursor-pointer"
-                            >
-                              Enviar do aparelho
-                            </button>
-                          </div>
-                          <div className="flex items-center gap-2.5 overflow-x-auto pb-1 no-scrollbar">
-                            {libraryChoices.map((choice) => {
-                              const isSelected = coverImage === choice.url;
-                              return (
-                                <button
-                                  key={choice.id}
-                                  type="button"
-                                  onClick={() => setCoverImage(choice.url)}
-                                  className={`relative w-24 h-16 rounded-2xl overflow-hidden shrink-0 border-2 transition-all cursor-pointer ${
-                                    isSelected
-                                      ? 'border-black dark:border-white scale-[1.02]'
-                                      : 'border-transparent opacity-80 hover:opacity-100'
-                                  }`}
-                                  title={choice.label}
-                                >
-                                  <img
-                                    src={choice.url}
-                                    alt={choice.label}
-                                    referrerPolicy="no-referrer"
-                                    className="w-full h-full object-cover"
-                                  />
-                                </button>
-                              );
-                            })}
-                          </div>
-                        </div>
-                      </motion.div>
-                    )}
-                  </AnimatePresence>
-                </div>
-
-                {/* 2. Itinerary Title Input */}
-                <div>
-                  <label
-                    htmlFor="itinerary-custom-title-input"
-                    className="block text-[13px] font-bold uppercase tracking-wider text-[#8E8E93] mb-2"
-                  >
-                    Nome do roteiro
-                  </label>
-                  <input
-                    id="itinerary-custom-title-input"
-                    type="text"
-                    value={title}
-                    onChange={(e) => setTitle(e.target.value)}
-                    placeholder="Ex: Fim de Semana Romântico"
-                    maxLength={60}
-                    className={`w-full h-[54px] px-4 rounded-[20px] text-[16px] font-bold tracking-tight outline-none border transition-colors ${
-                      isDark
-                        ? 'bg-[#171717] border-white/15 text-white focus:border-white'
-                        : 'bg-[#F5F5F7] border-black/[0.06] text-[#111111] focus:border-black focus:bg-white'
-                    }`}
-                  />
-                </div>
-
-                {/* 3. Selected Tourist Spots & Order */}
-                <div>
-                  <div className="flex items-center justify-between mb-3">
-                    <div>
-                      <h3 className="text-[15px] font-bold tracking-tight">
-                        Paradas do roteiro ({selectedSpots.length})
-                      </h3>
-                      <p className="text-[12px] font-medium text-[#8E8E93]">
-                        Ordem das paradas selecionadas no mapa
-                      </p>
-                    </div>
-
-                    <button
-                      type="button"
-                      onClick={() => onBackToMapSelection({ title, coverImage })}
-                      className={`px-3.5 py-2 rounded-full text-[12.5px] font-bold flex items-center gap-1.5 transition-transform active:scale-95 cursor-pointer ${
-                        isDark
-                          ? 'bg-[#1C1C1E] text-white border border-white/10'
-                          : 'bg-[#F2F2F7] text-[#111111]'
-                      }`}
-                    >
-                      <Plus className="w-3.5 h-3.5 stroke-[2.4]" />
-                      <span>Adicionar no mapa</span>
-                    </button>
-                  </div>
-
-                  {selectedSpots.length === 0 ? (
-                    <div
-                      className={`p-6 rounded-[24px] border text-center ${
-                        isDark ? 'bg-[#171717] border-white/10' : 'bg-[#F7F7F9] border-black/[0.05]'
-                      }`}
-                    >
-                      <MapPin className="w-7 h-7 mx-auto mb-2 text-[#8E8E93]" />
-                      <p className="text-[14px] font-bold mb-1">
-                        Nenhum local selecionado
-                      </p>
-                      <p className="text-[12.5px] text-[#8E8E93] mb-4">
-                        Volte ao mapa Explorar para selecionar os pontos turísticos do seu roteiro.
-                      </p>
-                      <button
-                        type="button"
-                        onClick={() => onBackToMapSelection({ title, coverImage })}
-                        className="px-5 py-2.5 rounded-full bg-black dark:bg-white text-white dark:text-black text-xs font-bold cursor-pointer"
-                      >
-                        Selecionar locais no mapa
-                      </button>
-                    </div>
-                  ) : (
-                    <div className="space-y-2.5">
-                      {selectedSpots.map((spot, idx) => (
-                        <div
-                          key={spot.id}
-                          className={`p-3 rounded-[22px] border flex items-center justify-between gap-2.5 ${
-                            isDark
-                              ? 'bg-[#171717] border-white/10'
-                              : 'bg-[#FFFFFF] border-black/[0.06] shadow-[0_2px_10px_rgba(0,0,0,0.03)]'
-                          }`}
-                        >
-                          <div className="flex items-center gap-3 min-w-0 flex-1">
-                            <span
-                              className={`w-7 h-7 rounded-full text-[11px] font-black flex items-center justify-center shrink-0 tabular-nums ${
-                                isDark ? 'bg-white text-black' : 'bg-[#000000] text-white'
-                              }`}
-                            >
-                              {String(idx + 1).padStart(2, '0')}
-                            </span>
-
-                            <div className="w-12 h-12 rounded-[14px] overflow-hidden shrink-0 bg-zinc-100 dark:bg-zinc-800">
-                              <LazyImage
-                                src={getSpotCardThumbnail(spot)}
-                                alt={spot.name}
-                                className="w-full h-full object-cover"
-                                onError={(e) => {
-                                  (e.target as HTMLImageElement).src = getSpotFallbackImage(
-                                    spot.name,
-                                    spot.category
-                                  );
-                                }}
-                              />
-                            </div>
-
-                            <div className="min-w-0 flex-1">
-                              <p className="text-[10.5px] font-bold uppercase tracking-wider text-[#8E8E93] truncate">
-                                {spot.categoryLabel || 'Ponto Turístico'}
-                              </p>
-                              <h4 className="text-[14.5px] font-bold tracking-tight truncate">
-                                {spot.name}
-                              </h4>
-                            </div>
-                          </div>
-
-                          <div className="flex items-center gap-1 shrink-0">
-                            <button
-                              type="button"
-                              disabled={idx === 0}
-                              onClick={() => handleMoveSpot(idx, 'up')}
-                              className={`w-8 h-8 rounded-full flex items-center justify-center transition-colors cursor-pointer ${
-                                idx === 0
-                                  ? 'opacity-25 cursor-not-allowed'
-                                  : isDark
-                                    ? 'hover:bg-white/10 text-white'
-                                    : 'hover:bg-zinc-100 text-zinc-700'
-                              }`}
-                              title="Mover para cima"
-                              aria-label="Mover para cima"
-                            >
-                              <ChevronUp className="w-4 h-4" />
-                            </button>
-
-                            <button
-                              type="button"
-                              disabled={idx === selectedSpots.length - 1}
-                              onClick={() => handleMoveSpot(idx, 'down')}
-                              className={`w-8 h-8 rounded-full flex items-center justify-center transition-colors cursor-pointer ${
-                                idx === selectedSpots.length - 1
-                                  ? 'opacity-25 cursor-not-allowed'
-                                  : isDark
-                                    ? 'hover:bg-white/10 text-white'
-                                    : 'hover:bg-zinc-100 text-zinc-700'
-                              }`}
-                              title="Mover para baixo"
-                              aria-label="Mover para baixo"
-                            >
-                              <ChevronDown className="w-4 h-4" />
-                            </button>
-
-                            <button
-                              type="button"
-                              onClick={() => handleRemoveSpot(spot.id)}
-                              className="w-8 h-8 rounded-full flex items-center justify-center text-red-500 hover:bg-red-500/10 transition-colors cursor-pointer"
-                              title="Remover parada"
-                              aria-label="Remover parada"
-                            >
-                              <Trash2 className="w-4 h-4" />
-                            </button>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </div>
-              </div>
-
-              {/* Sticky Bottom Save Button */}
-              <div
-                className={`p-5 border-t shrink-0 ${
-                  isDark ? 'bg-[#000000] border-white/10' : 'bg-[#FFFFFF] border-black/[0.06]'
-                }`}
-                style={{
-                  paddingBottom: 'max(20px, calc(env(safe-area-inset-bottom, 0px) + 14px))',
-                }}
-              >
-                <button
-                  type="button"
-                  disabled={selectedSpots.length === 0 || isSaving || isGeneratingCover}
-                  onClick={handleSaveItinerary}
-                  className={`w-full h-[56px] rounded-full font-bold text-[16px] tracking-tight flex items-center justify-center gap-2 shadow-[0_10px_28px_rgba(0,0,0,0.18)] transition-all ${
-                    selectedSpots.length > 0 && !isSaving && !isGeneratingCover
-                      ? isDark
-                        ? 'bg-white text-black active:scale-[0.98] cursor-pointer'
-                        : 'bg-[#000000] text-white active:scale-[0.98] cursor-pointer'
-                      : isDark
-                        ? 'bg-zinc-800 text-zinc-500 cursor-not-allowed'
-                        : 'bg-zinc-200 text-zinc-400 cursor-not-allowed'
-                  }`}
-                >
-                  {isSaving ? (
-                    <>
-                      <Loader2 className="w-5 h-5 animate-spin" />
-                      <span>Salvando roteiro…</span>
-                    </>
-                  ) : (
-                    <span>{mode === 'edit' ? 'Salvar alterações' : 'Salvar roteiro'}</span>
-                  )}
-                </button>
-              </div>
-            </>
-          )}
-        </motion.div>
+        {/* 5. BOTÃO INFERIOR FIXO */}
+        <div
+          className="w-full bg-[#FFFFFF] border-t border-[#EFEFF2] shrink-0"
+          style={{
+            paddingTop: '16px',
+            paddingBottom: 'max(24px, calc(env(safe-area-inset-bottom, 0px) + 16px))',
+          }}
+        >
+          <div className="w-full max-w-[480px] mx-auto px-6">
+            <button
+              type="button"
+              disabled={selectedSpots.length === 0 || isSaving}
+              onClick={handleSaveItinerary}
+              className={`w-full h-[58px] rounded-full font-bold text-[17.5px] tracking-[-0.01em] flex items-center justify-center gap-2 shadow-[0_8px_24px_rgba(0,0,0,0.14)] transition-all ${
+                selectedSpots.length > 0 && !isSaving
+                  ? 'bg-[#0B0B0C] text-white active:scale-[0.98] cursor-pointer'
+                  : 'bg-[#E5E5EA] text-[#8E8E93] cursor-not-allowed shadow-none'
+              }`}
+            >
+              {isSaving ? (
+                <>
+                  <Loader2 className="w-5 h-5 animate-spin" />
+                  <span>Salvando roteiro…</span>
+                </>
+              ) : (
+                <span>Salvar roteiro</span>
+              )}
+            </button>
+          </div>
+        </div>
       </motion.div>
     </AnimatePresence>
   );

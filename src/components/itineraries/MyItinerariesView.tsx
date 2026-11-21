@@ -258,8 +258,11 @@ export const MyItinerariesView: React.FC<MyItinerariesViewProps> = ({
         if (openMenuItineraryId) setOpenMenuItineraryId(null);
       }}
     >
-      {/* Top Navigation Bar: Back button + Centered Title "Meus roteiros" */}
-      <div
+      {/* Top Navigation Bar: Back button + Centered Title "Meus roteiros" + Top-Right "+" Create Button */}
+      <motion.div
+        initial={{ opacity: 0, y: -8 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ type: 'spring', stiffness: 380, damping: 24, delay: 0.01 }}
         className={`sticky top-0 z-30 w-full pb-3 transition-colors ${
           isDark ? 'bg-black/85 text-white' : 'bg-white/90 text-zinc-950'
         } backdrop-blur-xl`}
@@ -277,82 +280,40 @@ export const MyItinerariesView: React.FC<MyItinerariesViewProps> = ({
           <h1 className="text-[20px] sm:text-[22px] font-bold tracking-tight text-center">
             Meus roteiros
           </h1>
-          <div className="w-11 h-11 shrink-0" aria-hidden="true" />
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation();
+              onStartCreateNewItinerary();
+            }}
+            title="Criar novo roteiro"
+            aria-label="Criar novo roteiro"
+            className={`apple-back-btn ${
+              isDark ? 'apple-back-btn-dark' : 'apple-back-btn-light'
+            } w-11 h-11 rounded-full flex items-center justify-center shrink-0 select-none cursor-pointer transition-transform duration-150 active:scale-[0.91] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#007AFF]`}
+          >
+            <Plus className="relative z-10 w-[23px] h-[23px] pointer-events-none" strokeWidth={2.5} />
+          </button>
         </div>
-      </div>
+      </motion.div>
 
       {/* Main Scrollable Content */}
-      <div className="max-w-2xl mx-auto w-full flex-1 flex flex-col space-y-5 pt-1 pb-36">
-        {/* Highlight Hero Card ("Seus roteiros") */}
-        <motion.div
-          initial={{ opacity: 0, y: 10, scale: 0.98 }}
-          animate={{ opacity: 1, y: 0, scale: 1 }}
-          transition={{ type: 'spring', stiffness: 360, damping: 26 }}
-          className={`w-full rounded-[30px] p-5 sm:p-6 border flex items-center gap-4 sm:gap-6 ${
-            isDark
-              ? 'bg-[#1C1C1E] border-white/10 shadow-[0_8px_28px_rgba(0,0,0,0.4)]'
-              : 'bg-[#F7F7F9] border-black/[0.04] shadow-[0_6px_24px_rgba(0,0,0,0.03)]'
-          }`}
-        >
-          {/* 3D Folded Map with Red Pin Illustration */}
-          <div className="w-[108px] h-[108px] sm:w-[126px] sm:h-[126px] shrink-0 flex items-center justify-center rounded-2xl overflow-hidden">
-            <img
-              src={foldedMap3dIcon}
-              alt="Mapa 3D Campos do Jordão"
-              className={`w-full h-full object-contain select-none ${
-                isDark ? 'rounded-2xl' : 'mix-blend-multiply'
-              }`}
-              draggable={false}
-            />
-          </div>
-
-          {/* Right Column: Title, Subtitle, "+ Criar novo roteiro" button */}
-          <div className="flex-1 min-w-0 flex flex-col items-start text-left">
-            <h2
-              className={`text-[22px] sm:text-[25px] font-extrabold tracking-tight leading-tight ${
-                isDark ? 'text-white' : 'text-zinc-950'
-              }`}
-            >
-              Seus roteiros
-            </h2>
-            <p
-              className={`text-[13.5px] sm:text-[14.5px] font-medium leading-snug mt-1.5 ${
-                isDark ? 'text-zinc-400' : 'text-[#8E8E93]'
-              }`}
-            >
-              Explore e organize suas experiências em Campos do Jordão.
-            </p>
-
-            <button
-              type="button"
-              onClick={(e) => {
-                e.stopPropagation();
-                onStartCreateNewItinerary();
-              }}
-              className={`mt-4 inline-flex items-center justify-center gap-2 px-4 sm:px-5 py-2.5 rounded-full text-[13.5px] sm:text-[14px] font-bold tracking-tight transition-all active:scale-95 cursor-pointer shadow-sm ${
-                isDark
-                  ? 'bg-white text-black hover:bg-zinc-200'
-                  : 'bg-[#0A0A0C] text-white hover:bg-zinc-800'
-              }`}
-            >
-              <Plus className="w-4 h-4 stroke-[2.8]" />
-              <span>Criar novo roteiro</span>
-            </button>
-          </div>
-        </motion.div>
-
+      <div className="max-w-2xl mx-auto w-full flex-1 flex flex-col space-y-5 pt-2 pb-36">
         {/* Itinerary Cards List */}
         <AnimatePresence mode="wait">
           <motion.div
             key={activeCategory}
-            initial={{ opacity: 0, y: 8 }}
+            initial={{ opacity: 0, y: 6 }}
             animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -6 }}
+            exit={{ opacity: 0, y: -4 }}
             transition={{ duration: 0.18, ease: [0.22, 1, 0.36, 1] }}
             className="space-y-5"
           >
             {displayedItineraries.length === 0 ? (
-              <div
+              <motion.div
+                initial={{ opacity: 0, scale: 0.88, y: 12 }}
+                animate={{ opacity: 1, scale: 1, y: 0 }}
+                transition={{ type: 'spring', stiffness: 380, damping: 22, delay: 0.04 }}
                 className={`w-full rounded-[28px] p-8 sm:p-10 text-center border flex flex-col items-center justify-center ${
                   isDark
                     ? 'bg-[#1C1C1E]/70 border-white/10'
@@ -360,7 +321,10 @@ export const MyItinerariesView: React.FC<MyItinerariesViewProps> = ({
                 }`}
               >
                 <div className="w-16 h-16 rounded-2xl overflow-hidden flex items-center justify-center mb-3.5">
-                  <img
+                  <motion.img
+                    initial={{ opacity: 0, scale: 0.88, y: 10 }}
+                    animate={{ opacity: 1, scale: 1, y: 0 }}
+                    transition={{ type: 'spring', stiffness: 380, damping: 22, delay: 0.06 }}
                     src={foldedMap3dIcon}
                     alt="Roteiros"
                     className={`w-full h-full object-contain ${
@@ -382,7 +346,7 @@ export const MyItinerariesView: React.FC<MyItinerariesViewProps> = ({
                         isDark ? 'text-zinc-400' : 'text-[#8E8E93]'
                       }`}
                     >
-                      Toque em “+ Criar novo roteiro” para escolher seus pontos favoritos diretamente no mapa de Campos do Jordão.
+                      Toque no botão “+” no canto superior direito para escolher seus pontos favoritos diretamente no mapa de Campos do Jordão.
                     </p>
                   </>
                 ) : (
@@ -403,7 +367,7 @@ export const MyItinerariesView: React.FC<MyItinerariesViewProps> = ({
                     </p>
                   </>
                 )}
-              </div>
+              </motion.div>
             ) : (
               displayedItineraries.map((itin, idx) => {
                 const firstStepSpotImg =
@@ -419,16 +383,18 @@ export const MyItinerariesView: React.FC<MyItinerariesViewProps> = ({
                 return (
                   <motion.div
                     key={itin.id}
-                    initial={{ opacity: 0, y: 12 }}
-                    animate={{ opacity: 1, y: 0 }}
+                    initial={{ opacity: 0, scale: 0.88, y: 12 }}
+                    animate={{ opacity: 1, scale: 1, y: 0 }}
                     transition={{
                       type: 'spring',
-                      stiffness: 360,
-                      damping: 26,
-                      delay: Math.min(idx * 0.04, 0.2),
+                      stiffness: 380,
+                      damping: 22,
+                      delay: 0.075 + Math.min(idx * 0.045, 0.25),
                     }}
+                    whileHover={{ scale: 1.01, transition: { type: 'spring', stiffness: 400, damping: 18 } }}
+                    whileTap={{ scale: 0.97, transition: { type: 'spring', stiffness: 500, damping: 14 } }}
                     onClick={() => handleCardClick(itin)}
-                    className={`group relative w-full rounded-[28px] overflow-hidden border transition-all cursor-pointer active:scale-[0.99] ${
+                    className={`group relative w-full rounded-[28px] overflow-hidden border transition-colors cursor-pointer ${
                       isDark
                         ? 'bg-[#1C1C1E] border-white/10 shadow-[0_10px_30px_rgba(0,0,0,0.45)]'
                         : 'bg-white border-black/[0.06] shadow-[0_8px_28px_rgba(0,0,0,0.06)]'
@@ -544,7 +510,15 @@ export const MyItinerariesView: React.FC<MyItinerariesViewProps> = ({
                     <div className="px-4 sm:px-5 py-3.5 sm:py-4 flex items-center justify-between gap-3">
                       <div className="flex items-center gap-3 min-w-0 flex-1">
                         <div className="w-10 h-10 rounded-xl overflow-hidden shrink-0 flex items-center justify-center">
-                          <img
+                          <motion.img
+                            initial={{ opacity: 0, scale: 0.88, y: 8 }}
+                            animate={{ opacity: 1, scale: 1, y: 0 }}
+                            transition={{
+                              type: 'spring',
+                              stiffness: 380,
+                              damping: 22,
+                              delay: 0.095 + Math.min(idx * 0.045, 0.25),
+                            }}
                             src={foldedMap3dIcon}
                             alt=""
                             className={`w-full h-full object-contain ${
@@ -584,7 +558,10 @@ export const MyItinerariesView: React.FC<MyItinerariesViewProps> = ({
           paddingBottom: 'max(14px, env(safe-area-inset-bottom, 14px))',
         }}
       >
-        <div
+        <motion.div
+          initial={{ opacity: 0, scale: 0.88, y: 14 }}
+          animate={{ opacity: 1, scale: 1, y: 0 }}
+          transition={{ type: 'spring', stiffness: 380, damping: 22, delay: 0.14 }}
           className={`w-full max-w-md rounded-full p-1.5 grid grid-cols-2 gap-1 pointer-events-auto border backdrop-blur-2xl ${
             isDark
               ? 'bg-[#1C1C1E]/95 border-white/10 shadow-[0_10px_32px_rgba(0,0,0,0.65)]'
@@ -624,7 +601,7 @@ export const MyItinerariesView: React.FC<MyItinerariesViewProps> = ({
             <ShoppingBag className="w-[18px] h-[18px] stroke-[2.2]" />
             <span>Adquiridos</span>
           </button>
-        </div>
+        </motion.div>
       </div>
 
       {/* Delete Confirmation Dialog */}

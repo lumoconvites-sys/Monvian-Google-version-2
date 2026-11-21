@@ -1019,7 +1019,7 @@ export const AirbnbItineraryExplorer: React.FC<AirbnbItineraryExplorerProps> = (
                 isDark ? 'text-white' : 'text-zinc-900'
               }`}
             >
-              Roteiros
+              Loja de roteiros
             </h1>
           </div>
 

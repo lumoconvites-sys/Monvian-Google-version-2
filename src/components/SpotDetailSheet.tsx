@@ -15,6 +15,7 @@ import {
   VolumeX,
   ArrowLeft,
   ArrowRight,
+  ChevronRight,
   Clock,
   Ticket
 } from 'lucide-react';
@@ -23,7 +24,6 @@ import { SpotQrModal } from './SpotQrModal';
 import { RoundedNavigationIcon } from './RoundedNavigationIcon';
 import { getSpotImage, getSpotFallbackImage } from '../utils/spotImages';
 import { VerifiedBadge } from './ui/VerifiedBadge';
-import { SpotVideoPlayer } from './SpotVideoPlayer';
 import {
   SpotVideo,
   fetchSpotVideos,
@@ -32,6 +32,130 @@ import {
 } from '../services/spotVideosService';
 import { useIOSBackEntry } from '../services/iosNavigationManager';
 import { useLanguage } from '../contexts/LanguageContext';
+
+const REVIEW_AVATAR_FALLBACKS = [
+  'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=180&auto=format&fit=crop&q=80',
+  'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=180&auto=format&fit=crop&q=80',
+  'https://images.unsplash.com/photo-1517841905240-472988babdf9?w=180&auto=format&fit=crop&q=80',
+  'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=180&auto=format&fit=crop&q=80',
+  'https://images.unsplash.com/photo-1544005313-94ddf0286df2?w=180&auto=format&fit=crop&q=80',
+  'https://images.unsplash.com/photo-1506794778202-cad84cf45f1d?w=180&auto=format&fit=crop&q=80',
+];
+
+function getReviewUserAvatar(rev: any, idx: number): string {
+  const explicit = rev?.user_avatar || rev?.avatar_url || rev?.photoUrl || rev?.avatar;
+  if (explicit && typeof explicit === 'string' && explicit.trim().length > 0) {
+    return explicit;
+  }
+  const name = String(rev?.user_name || '').toLowerCase();
+  if (name.includes('mariana')) {
+    return REVIEW_AVATAR_FALLBACKS[0];
+  }
+  if (name.includes('lucas')) {
+    return REVIEW_AVATAR_FALLBACKS[1];
+  }
+  let hash = 0;
+  for (let i = 0; i < name.length; i++) {
+    hash = (hash * 31 + name.charCodeAt(i)) >>> 0;
+  }
+  return REVIEW_AVATAR_FALLBACKS[(hash + idx) % REVIEW_AVATAR_FALLBACKS.length];
+}
+
+function formatReviewDateLabel(rawDate: any): string {
+  if (!rawDate) return 'Recente';
+  const str = String(rawDate).trim();
+  if (str.startsWith('Há') || str === 'Hoje' || str === 'Ontem' || str === 'Recente') {
+    return str;
+  }
+  const parsed = new Date(str.includes('T') ? str : str.replace(' ', 'T') + 'Z');
+  if (isNaN(parsed.getTime())) {
+    return str;
+  }
+  const diffMs = Date.now() - parsed.getTime();
+  const diffDays = Math.max(0, Math.floor(diffMs / (1000 * 60 * 60 * 24)));
+  if (diffDays === 0) return 'Hoje';
+  if (diffDays === 1) return 'Há 1 dia';
+  if (diffDays < 7) return `Há ${diffDays} dias`;
+  const diffWeeks = Math.floor(diffDays / 7);
+  if (diffWeeks === 1) return 'Há 1 semana';
+  if (diffWeeks < 5) return `Há ${diffWeeks} semanas`;
+  const diffMonths = Math.max(1, Math.floor(diffDays / 30));
+  return diffMonths === 1 ? 'Há 1 mês' : `Há ${diffMonths} meses`;
+}
+
+const ROUNDED_STAR_PATH =
+  'M12 2.4c.42 0 .8.24.99.62l2.32 4.7 5.19.76c.42.06.77.35.9.76.13.4 0 .85-.3 1.15l-3.75 3.66.89 5.17c.07.42-.1.84-.44 1.09-.35.25-.8.28-1.18.08L12 18l-4.62 2.43c-.38.2-.83.17-1.18-.08-.34-.25-.51-.67-.44-1.09l.89-5.17-3.75-3.66c-.3-.3-.43-.75-.3-1.15.13-.41.48-.7.9-.76l5.19-.76 2.32-4.7c.19-.38.57-.62.99-.62z';
+
+const SummaryRatingStars: React.FC<{ rating: number; idPrefix: string }> = ({ rating, idPrefix }) => {
+  const safeRating = Math.max(0, Math.min(5, Number(rating) || 0));
+  return (
+    <div className="flex items-center gap-1.5" aria-label={`${safeRating.toFixed(1)} de 5 estrelas`}>
+      {Array.from({ length: 5 }).map((_, i) => {
+        const fillFraction = Math.max(0, Math.min(1, safeRating - i));
+        const percent = Math.round(fillFraction * 100);
+        const clipId = `${idPrefix}-star-clip-${i}`;
+        return (
+          <svg
+            key={i}
+            viewBox="0 0 24 24"
+            className="w-[26px] h-[26px] shrink-0"
+          >
+            <defs>
+              <clipPath id={clipId}>
+                <rect x="0" y="0" width={`${(24 * percent) / 100}`} height="24" />
+              </clipPath>
+            </defs>
+            {/* Base Empty Star */}
+            <path
+              d={ROUNDED_STAR_PATH}
+              fill="#EFEFF4"
+              stroke="#C7C7CC"
+              strokeWidth="1.2"
+              strokeLinejoin="round"
+            />
+            {/* Filled Yellow Star Portion */}
+            {percent > 0 && (
+              <path
+                d={ROUNDED_STAR_PATH}
+                fill="#F7B801"
+                stroke="#F5B000"
+                strokeWidth="0.6"
+                strokeLinejoin="round"
+                clipPath={`url(#${clipId})`}
+              />
+            )}
+          </svg>
+        );
+      })}
+    </div>
+  );
+};
+
+const UserReviewStars: React.FC<{ rating: number }> = ({ rating }) => {
+  const count = Math.max(1, Math.min(5, Math.round(Number(rating) || 5)));
+  return (
+    <div className="flex items-center gap-[3px] shrink-0 pt-0.5">
+      {Array.from({ length: 5 }).map((_, i) => {
+        const isFilled = i < count;
+        return (
+          <svg
+            key={i}
+            viewBox="0 0 24 24"
+            className="w-[17px] h-[17px] shrink-0"
+          >
+            <path
+              d={ROUNDED_STAR_PATH}
+              fill={isFilled ? '#F7B801' : '#E5E5EA'}
+              stroke={isFilled ? '#F5B000' : '#C7C7CC'}
+              strokeWidth={isFilled ? '0.5' : '1'}
+              strokeLinejoin="round"
+            />
+          </svg>
+        );
+      })}
+    </div>
+  );
+};
 
 interface SpotDetailSheetProps {
   spot: Spot | null;
@@ -54,6 +178,8 @@ export const SpotDetailSheet: React.FC<SpotDetailSheetProps> = React.memo(({
   const { tr } = useLanguage();
   const [activeTab, setActiveTab] = useState('Sobre');
   const [isQrModalOpen, setIsQrModalOpen] = useState(false);
+  const [isAllReviewsOpen, setIsAllReviewsOpen] = useState(false);
+  const [showWriteReviewForm, setShowWriteReviewForm] = useState(false);
   const scrollRef = useRef<HTMLDivElement | null>(null);
   const mobileSheetRef = useRef<HTMLDivElement | null>(null);
   const heroMediaWrapperRef = useRef<HTMLDivElement | null>(null);
@@ -110,6 +236,8 @@ export const SpotDetailSheet: React.FC<SpotDetailSheetProps> = React.memo(({
     setLiveRating(Number(spot.rating ?? 5.0));
     setLiveReviewCount(Number(spot.reviewCount ?? 120));
     setReviewSubmittedMsg(null);
+    setIsAllReviewsOpen(false);
+    setShowWriteReviewForm(false);
 
     let active = true;
     fetch(`/api/spots/${encodeURIComponent(spot.id)}/reviews`)
@@ -605,17 +733,6 @@ export const SpotDetailSheet: React.FC<SpotDetailSheetProps> = React.memo(({
     }
   };
 
-  const handleNewVideoUploaded = (newVid: SpotVideo) => {
-    setHeroVideos((prev) => [newVid, ...prev]);
-    setCurrentHeroVideoIndex(0);
-    pendingResumeTimeRef.current = 0;
-    setIsTranslucentSwap(true);
-    setShowHeroVideo(true);
-    window.setTimeout(() => {
-      setIsTranslucentSwap(false);
-    }, 550);
-  };
-
   return (
     <motion.div
       id="spot-detail-sheet-backdrop"
@@ -974,10 +1091,10 @@ export const SpotDetailSheet: React.FC<SpotDetailSheetProps> = React.memo(({
               initial={{ opacity: 0, y: 10 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ type: 'spring', stiffness: 420, damping: 30, delay: 0.19 }}
-              className="grid grid-cols-4 border-b border-[#EFEFF1] dark:border-white/10 mb-5"
+              className="grid grid-cols-3 border-b border-[#EFEFF1] dark:border-white/10 mb-5"
               role="tablist"
             >
-              {['Sobre', 'Experiência', 'Vídeos', 'Avaliações'].map((tab) => {
+              {['Sobre', 'Experiência', 'Avaliações'].map((tab) => {
                 const isActive = activeTab === tab;
                 return (
                   <button
@@ -1128,117 +1245,50 @@ export const SpotDetailSheet: React.FC<SpotDetailSheetProps> = React.memo(({
                 </motion.div>
               )}
 
-              {activeTab === 'Vídeos' && (
-                <motion.div
-                  key="tab-videos"
-                  initial={{ opacity: 0, y: 12 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ type: 'spring', stiffness: 420, damping: 30 }}
-                  className="space-y-4"
-                >
-                  <SpotVideoPlayer 
-                    spotId={spot.id} 
-                    spotName={spot.name} 
-                    spotCategory={spot.category}
-                    onVideoUploaded={handleNewVideoUploaded}
-                  />
-                </motion.div>
-              )}
-
               {activeTab === 'Avaliações' && (
                 <motion.div
                   key="tab-avaliacoes"
                   initial={{ opacity: 0, y: 12 }}
                   animate={{ opacity: 1, y: 0 }}
                   transition={{ type: 'spring', stiffness: 420, damping: 30 }}
-                  className="space-y-4"
+                  className="space-y-4 pt-0.5 bg-[#FFFFFF]"
+                  style={{ backgroundColor: '#ffffff' }}
                 >
-                  <div className="flex items-center justify-between p-4 bg-[#F6F6F8] dark:bg-[#1C1C1E] rounded-[22px] border border-black/[0.04] dark:border-white/10">
-                    <div>
-                      <span className="text-3xl font-black text-[#0B0B0C] dark:text-white">{Number(liveRating).toFixed(1)}</span>
-                      <span className="text-xs text-[#71717A] dark:text-[#A1A1AA] block mt-0.5">de 5.0 estrelas</span>
+                  {/* 3. Resumo das avaliações — Card único, amplo e minimalista */}
+                  <div
+                    className="flex items-center justify-between px-5 py-6 bg-[#FFFFFF] rounded-[26px] border border-[#EBEBEF] shadow-[0_4px_16px_rgba(0,0,0,0.03)]"
+                    style={{ backgroundColor: '#ffffff' }}
+                  >
+                    <div className="w-[43%] flex flex-col items-center justify-center pr-2">
+                      <span className="text-[48px] leading-none font-extrabold text-[#0B0B0C] tracking-[-0.03em] tabular-nums">
+                        {Number(liveRating).toFixed(1)}
+                      </span>
+                      <span className="text-[14.5px] font-normal text-[#6E6E73] mt-2 tracking-[-0.01em]">
+                        {tr('de 5.0 estrelas')}
+                      </span>
                     </div>
-                    <div className="flex flex-col items-end">
-                      <div className="flex text-[#F2B900]">
-                        {Array.from({ length: 5 }).map((_, i) => (
-                          <Star
-                            key={i}
-                            className={`w-4 h-4 ${i < Math.round(liveRating) ? 'fill-current' : 'text-zinc-300 dark:text-zinc-700'}`}
-                          />
-                        ))}
-                      </div>
-                      <span className="text-xs text-[#71717A] dark:text-zinc-400 mt-1">{tr(`${liveReviewCount} avaliações reais`)}</span>
+
+                    {/* Separação visual discreta entre a nota e as estrelas */}
+                    <div className="w-[1px] h-[58px] bg-[#DCDCE1] shrink-0" />
+
+                    <div className="w-[56%] flex flex-col items-center justify-center pl-2">
+                      <SummaryRatingStars rating={Number(liveRating)} idPrefix="mobile-summary" />
+                      <span className="text-[15px] font-normal text-[#6E6E73] mt-2.5 tracking-[-0.01em] tabular-nums">
+                        {tr(`${liveReviewCount} avaliações`)}
+                      </span>
                     </div>
                   </div>
 
-                  {/* Interactive iOS Rating Submission Card */}
-                  <form
-                    onSubmit={handleSubmitReview}
-                    className="p-4 bg-[#F6F6F8] dark:bg-[#1C1C1E] rounded-[22px] border border-black/[0.04] dark:border-white/10 space-y-3"
-                  >
-                    <div className="flex items-center justify-between">
-                      <span className="text-xs font-bold text-[#111111] dark:text-white">
-                        {tr('Avaliar este ponto turístico')}
-                      </span>
-                      <div className="flex items-center gap-1">
-                        {[1, 2, 3, 4, 5].map((starVal) => (
-                          <button
-                            key={starVal}
-                            type="button"
-                            onClick={() => setUserRatingInput(starVal)}
-                            className="p-1 cursor-pointer transition-transform active:scale-90"
-                            aria-label={tr(`${starVal} estrelas`)}
-                          >
-                            <Star
-                              className={`w-5 h-5 transition-colors ${
-                                starVal <= userRatingInput
-                                  ? 'fill-[#F2B900] text-[#F2B900]'
-                                  : 'text-zinc-300 dark:text-zinc-700'
-                              }`}
-                            />
-                          </button>
-                        ))}
-                      </div>
-                    </div>
-
-                    <input
-                      type="text"
-                      value={userCommentInput}
-                      onChange={(e) => setUserCommentInput(e.target.value)}
-                      placeholder={tr('Conte como foi sua experiência (opcional)...')}
-                      className="w-full px-3.5 py-2.5 rounded-xl bg-white dark:bg-[#2C2C2E] border border-[#E5E5EA] dark:border-white/10 text-xs text-[#111111] dark:text-white focus:outline-none focus:border-[#0B0B0C] dark:focus:border-white/40"
-                    />
-
-                    <div className="flex items-center justify-between gap-2">
-                      {reviewSubmittedMsg ? (
-                        <span className="text-[11px] text-[#52525B] dark:text-zinc-400 font-medium">
-                          {tr(reviewSubmittedMsg)}
-                        </span>
-                      ) : (
-                        <span className="text-[11px] text-[#71717A] dark:text-zinc-400">
-                          {tr(`Nota ${userRatingInput}.0 selecionada`)}
-                        </span>
-                      )}
-                      <button
-                        type="submit"
-                        disabled={isSubmittingReview}
-                        className="px-4 py-2 rounded-full bg-[#0B0B0C] hover:bg-[#1C1C1E] text-white dark:bg-white dark:text-black text-xs font-semibold transition-transform active:scale-95 disabled:opacity-50 cursor-pointer shrink-0 shadow-[0_4px_12px_rgba(0,0,0,0.12)]"
-                      >
-                        {isSubmittingReview ? tr('Salvando...') : tr('Publicar avaliação')}
-                      </button>
-                    </div>
-                  </form>
-
-                  {/* Dynamic Reviews List */}
+                  {/* 4. Avaliações dos usuários — Cards modernos seguindo exatamente a referência */}
                   {(reviewsList.length > 0
-                    ? reviewsList
+                    ? reviewsList.slice(0, 2)
                     : [
                         {
                           id: 'default-1',
                           user_name: 'Mariana Costa',
                           rating: 5,
                           comment:
-                            'Lugar espetacular! Vista incrível de Campos do Jordão e clima super agradável. Vale muito a pena a visita.',
+                            'Lugar espetacular! Vista incrível de Campos do Jordão e clima super agradável.',
                           created_at: 'Há 2 dias',
                         },
                         {
@@ -1246,7 +1296,7 @@ export const SpotDetailSheet: React.FC<SpotDetailSheetProps> = React.memo(({
                           user_name: 'Lucas Ferreira',
                           rating: 5,
                           comment:
-                            'Pôr do sol inesquecível. Recomendo chegar pelo menos 40 minutos antes do sol se pôr para pegar um bom lugar.',
+                            'Pôr do sol inesquecível. Recomendo chegar pelo menos 40 minutos antes.',
                           created_at: 'Há 1 semana',
                         },
                       ]
@@ -1255,34 +1305,49 @@ export const SpotDetailSheet: React.FC<SpotDetailSheetProps> = React.memo(({
                       key={rev.id || idx}
                       initial={{ opacity: 0, y: 10 }}
                       animate={{ opacity: 1, y: 0 }}
-                      transition={{ duration: 0.56, ease: [0.16, 1, 0.3, 1], delay: 0.05 * Math.min(idx, 4) }}
-                      className="p-4 bg-[#F6F6F8] dark:bg-[#1C1C1E] rounded-[22px] border border-black/[0.04] dark:border-white/10 space-y-2"
+                      transition={{ duration: 0.45, ease: [0.16, 1, 0.3, 1], delay: 0.04 * Math.min(idx, 4) }}
+                      className="p-5 bg-[#FFFFFF] rounded-[26px] border border-[#EBEBEF] shadow-[0_4px_16px_rgba(0,0,0,0.03)]"
+                      style={{ backgroundColor: '#ffffff' }}
                     >
-                      <div className="flex items-center justify-between">
-                        <span className="font-black text-xs text-zinc-900 dark:text-white">
-                          {rev.user_name || 'Visitante'}
-                        </span>
-                        <span className="text-[11px] text-zinc-400">
-                          {rev.created_at && String(rev.created_at).startsWith('Há')
-                            ? rev.created_at
-                            : 'Recente'}
-                        </span>
-                      </div>
-                      <div className="flex text-[#F2B900]">
-                        {Array.from({ length: 5 }).map((_, i) => (
-                          <Star
-                            key={i}
-                            className={`w-3 h-3 ${
-                              i < Number(rev.rating ?? 5) ? 'fill-current' : 'text-zinc-300 dark:text-zinc-700'
-                            }`}
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="flex items-center gap-3.5 min-w-0">
+                          <img
+                            src={getReviewUserAvatar(rev, idx)}
+                            alt={rev.user_name || 'Visitante'}
+                            className="w-[48px] h-[48px] rounded-full object-cover shrink-0 bg-[#E5E5EA]"
+                            loading="lazy"
+                            referrerPolicy="no-referrer"
+                            onError={(e) => {
+                              (e.target as HTMLImageElement).src = REVIEW_AVATAR_FALLBACKS[idx % REVIEW_AVATAR_FALLBACKS.length];
+                            }}
                           />
-                        ))}
+                          <div className="flex flex-col min-w-0">
+                            <span className="text-[17px] font-bold text-[#0B0B0C] leading-[1.2] tracking-[-0.015em] truncate">
+                              {rev.user_name || 'Visitante'}
+                            </span>
+                            <span className="text-[14px] font-normal text-[#8E8E93] leading-[1.2] mt-1">
+                              {formatReviewDateLabel(rev.created_at)}
+                            </span>
+                          </div>
+                        </div>
+                        <UserReviewStars rating={Number(rev.rating ?? 5)} />
                       </div>
-                      <p className="text-xs text-zinc-600 dark:text-zinc-300 leading-relaxed">
+                      <p className="mt-3.5 text-[16px] font-normal text-[#1C1C1E] leading-[1.42] tracking-[-0.01em]">
                         {rev.comment}
                       </p>
                     </motion.div>
                   ))}
+
+                  {/* 5. Botão inferior — Ver todas as avaliações */}
+                  <button
+                    type="button"
+                    onClick={() => setIsAllReviewsOpen(true)}
+                    className="w-full h-[56px] rounded-full bg-[#FFFFFF] border border-[#E5E5EA] shadow-[0_2px_10px_rgba(0,0,0,0.03)] flex items-center justify-center gap-1.5 text-[16.5px] font-bold text-[#0B0B0C] tracking-[-0.01em] hover:bg-[#FAFAFC] active:scale-[0.98] transition-all cursor-pointer"
+                    style={{ backgroundColor: '#ffffff' }}
+                  >
+                    <span>{tr('Ver todas as avaliações')}</span>
+                    <ChevronRight className="w-[19px] h-[19px] text-[#0B0B0C] shrink-0" strokeWidth={2.4} />
+                  </button>
                 </motion.div>
               )}
             </div>
@@ -1474,9 +1539,15 @@ export const SpotDetailSheet: React.FC<SpotDetailSheetProps> = React.memo(({
         </div>
 
         {/* RIGHT COLUMN (42-44% on Desktop): Structured Info, Actions & Integrated Tabs */}
-        <div className="flex-1 lg:w-[44%] xl:w-[42%] h-full min-h-0 flex flex-col bg-white dark:bg-[#000000] px-5 py-4 lg:px-7 lg:py-6 overflow-hidden">
+        <div
+          className="flex-1 lg:w-[44%] xl:w-[42%] h-full min-h-0 flex flex-col bg-white dark:bg-[#000000] px-5 py-4 lg:px-7 lg:py-6 overflow-hidden"
+          style={{ backgroundColor: activeTab === 'Avaliações' ? '#ffffff' : undefined }}
+        >
           {/* 1 & 2. Full Name + Verification Indicator */}
-          <div className="flex items-center gap-2.5 shrink-0">
+          <div
+            className="flex items-center gap-2.5 shrink-0 bg-[#FFFFFF] dark:bg-transparent"
+            style={{ backgroundColor: '#ffffff' }}
+          >
             <h1 className="text-2xl xl:text-[27px] font-extrabold tracking-[-0.02em] text-[#0B0B0C] dark:text-white leading-tight">
               {spot.name}
             </h1>
@@ -1484,7 +1555,10 @@ export const SpotDetailSheet: React.FC<SpotDetailSheetProps> = React.memo(({
           </div>
 
           {/* 3. Three Uniform Indicators (Rating, Distance, Views) */}
-          <div className="grid grid-cols-3 gap-2 mt-3.5 shrink-0">
+          <div
+            className="grid grid-cols-3 gap-2 mt-3.5 shrink-0 bg-[#FFFFFF] dark:bg-transparent"
+            style={{ backgroundColor: '#ffffff' }}
+          >
             <div className="h-[38px] px-2.5 rounded-full bg-[#F3F3F5] dark:bg-[#1C1C1E] dark:border dark:border-white/10 flex items-center justify-center gap-1.5 min-w-0 tabular-nums">
               <Star className="w-4 h-4 fill-[#111111] text-[#111111] dark:fill-white dark:text-white shrink-0" />
               <span className="text-[13px] font-bold text-[#111111] dark:text-white">{Number(liveRating).toFixed(1)}</span>
@@ -1523,9 +1597,9 @@ export const SpotDetailSheet: React.FC<SpotDetailSheetProps> = React.memo(({
             </a>
           </div>
 
-          {/* 5. Horizontal Desktop Tab Navigation (Sobre, Experiência, Vídeos, Avaliações) */}
-          <div className="grid grid-cols-4 border-b border-[#EFEFF1] dark:border-[#262626] mt-5 shrink-0" role="tablist">
-            {['Sobre', 'Experiência', 'Vídeos', 'Avaliações'].map((tab) => {
+          {/* 5. Horizontal Desktop Tab Navigation (Sobre, Experiência, Avaliações) */}
+          <div className="grid grid-cols-3 border-b border-[#EFEFF1] dark:border-[#262626] mt-5 shrink-0" role="tablist">
+            {['Sobre', 'Experiência', 'Avaliações'].map((tab) => {
               const isActive = activeTab === tab;
               return (
                 <button
@@ -1656,117 +1730,49 @@ export const SpotDetailSheet: React.FC<SpotDetailSheetProps> = React.memo(({
               </motion.div>
             )}
 
-            {activeTab === 'Vídeos' && (
-              <motion.div
-                key="desktop-tab-videos"
-                initial={{ opacity: 0, y: 8 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.48, ease: [0.16, 1, 0.3, 1] }}
-                className="space-y-3"
-              >
-                <SpotVideoPlayer
-                  spotId={spot.id}
-                  spotName={spot.name}
-                  spotCategory={spot.category}
-                  onVideoUploaded={handleNewVideoUploaded}
-                />
-              </motion.div>
-            )}
-
             {activeTab === 'Avaliações' && (
               <motion.div
                 key="desktop-tab-avaliacoes"
                 initial={{ opacity: 0, y: 8 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ duration: 0.48, ease: [0.16, 1, 0.3, 1] }}
-                className="space-y-3"
+                className="space-y-3.5 bg-[#FFFFFF]"
+                style={{ backgroundColor: '#ffffff' }}
               >
-                <div className="flex items-center justify-between p-4 bg-[#F6F6F8] dark:bg-[#1C1C1E] rounded-[22px] border border-black/[0.04] dark:border-white/10">
-                  <div>
-                    <span className="text-2xl font-bold text-[#0B0B0C] dark:text-white">{Number(liveRating).toFixed(1)}</span>
-                    <span className="text-xs text-[#71717A] dark:text-[#A1A1AA] block mt-0.5">de 5.0 estrelas</span>
+                {/* Resumo das avaliações */}
+                <div
+                  className="flex items-center justify-between px-5 py-5 bg-[#FFFFFF] rounded-[24px] border border-[#EBEBEF] shadow-[0_4px_16px_rgba(0,0,0,0.03)]"
+                  style={{ backgroundColor: '#ffffff' }}
+                >
+                  <div className="w-[43%] flex flex-col items-center justify-center pr-2">
+                    <span className="text-[42px] leading-none font-extrabold text-[#0B0B0C] tracking-[-0.03em] tabular-nums">
+                      {Number(liveRating).toFixed(1)}
+                    </span>
+                    <span className="text-[13.5px] font-normal text-[#6E6E73] mt-2 tracking-[-0.01em]">
+                      {tr('de 5.0 estrelas')}
+                    </span>
                   </div>
-                  <div className="flex flex-col items-end">
-                    <div className="flex items-center gap-0.5 text-[#111111] dark:text-[#F2B900]">
-                      {Array.from({ length: 5 }).map((_, i) => (
-                        <Star
-                          key={i}
-                          className={`w-3.5 h-3.5 ${i < Math.round(liveRating) ? 'fill-current' : 'text-zinc-300 dark:text-zinc-700'}`}
-                        />
-                      ))}
-                    </div>
-                    <span className="text-xs text-[#71717A] dark:text-[#A1A1AA] mt-1">
-                      {tr(`${liveReviewCount.toLocaleString('pt-BR')} avaliações reais`)}
+
+                  <div className="w-[1px] h-[54px] bg-[#DCDCE1] shrink-0" />
+
+                  <div className="w-[56%] flex flex-col items-center justify-center pl-2">
+                    <SummaryRatingStars rating={Number(liveRating)} idPrefix="desktop-summary" />
+                    <span className="text-[14px] font-normal text-[#6E6E73] mt-2 tracking-[-0.01em] tabular-nums">
+                      {tr(`${liveReviewCount} avaliações`)}
                     </span>
                   </div>
                 </div>
 
-                {/* Desktop Interactive Rating Card */}
-                <form
-                  onSubmit={handleSubmitReview}
-                  className="p-4 bg-[#F6F6F8] dark:bg-[#1C1C1E] rounded-[22px] border border-black/[0.04] dark:border-white/10 space-y-2.5"
-                >
-                  <div className="flex items-center justify-between">
-                    <span className="text-xs font-bold text-[#111111] dark:text-white">
-                      {tr('Avaliar este ponto turístico')}
-                    </span>
-                    <div className="flex items-center gap-1">
-                      {[1, 2, 3, 4, 5].map((starVal) => (
-                        <button
-                          key={starVal}
-                          type="button"
-                          onClick={() => setUserRatingInput(starVal)}
-                          className="p-0.5 cursor-pointer transition-transform active:scale-90"
-                        >
-                          <Star
-                            className={`w-4 h-4 transition-colors ${
-                              starVal <= userRatingInput
-                                ? 'fill-[#F2B900] text-[#F2B900]'
-                                : 'text-zinc-300 dark:text-zinc-700'
-                            }`}
-                          />
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-
-                  <input
-                    type="text"
-                    value={userCommentInput}
-                    onChange={(e) => setUserCommentInput(e.target.value)}
-                    placeholder={tr('Conte como foi sua experiência (opcional)...')}
-                    className="w-full px-3.5 py-2 rounded-xl bg-white dark:bg-[#2C2C2E] border border-[#E5E5EA] dark:border-white/10 text-xs text-[#111111] dark:text-white focus:outline-none focus:border-[#0B0B0C] dark:focus:border-white/40"
-                  />
-
-                  <div className="flex items-center justify-between gap-2">
-                    {reviewSubmittedMsg ? (
-                      <span className="text-[11px] text-[#52525B] dark:text-zinc-400 font-medium">
-                        {tr(reviewSubmittedMsg)}
-                      </span>
-                    ) : (
-                      <span className="text-[11px] text-[#71717A] dark:text-zinc-400">
-                        {tr(`Nota ${userRatingInput}.0 selecionada`)}
-                      </span>
-                    )}
-                    <button
-                      type="submit"
-                      disabled={isSubmittingReview}
-                      className="px-4 py-2 rounded-full bg-[#0B0B0C] hover:bg-[#1C1C1E] text-white dark:bg-white dark:text-black text-xs font-semibold transition-transform active:scale-95 disabled:opacity-50 cursor-pointer shrink-0 shadow-[0_4px_12px_rgba(0,0,0,0.12)]"
-                    >
-                      {isSubmittingReview ? tr('Salvando...') : tr('Publicar avaliação')}
-                    </button>
-                  </div>
-                </form>
-
+                {/* Avaliações dos usuários */}
                 {(reviewsList.length > 0
-                  ? reviewsList
+                  ? reviewsList.slice(0, 2)
                   : [
                       {
                         id: 'default-1',
                         user_name: 'Mariana Costa',
                         rating: 5,
                         comment:
-                          'Lugar espetacular! Vista incrível de Campos do Jordão e clima super agradável. Vale muito a pena a visita.',
+                          'Lugar espetacular! Vista incrível de Campos do Jordão e clima super agradável.',
                         created_at: 'Há 2 dias',
                       },
                       {
@@ -1774,46 +1780,264 @@ export const SpotDetailSheet: React.FC<SpotDetailSheetProps> = React.memo(({
                         user_name: 'Lucas Ferreira',
                         rating: 5,
                         comment:
-                          'Pôr do sol inesquecível. Recomendo chegar pelo menos 40 minutos antes do sol se pôr para pegar um bom lugar.',
+                          'Pôr do sol inesquecível. Recomendo chegar pelo menos 40 minutos antes.',
                         created_at: 'Há 1 semana',
                       },
                     ]
                 ).map((rev, idx) => (
                   <div
                     key={rev.id || idx}
-                    className="p-4 bg-[#F6F6F8] dark:bg-[#1C1C1E] rounded-[22px] border border-black/[0.04] dark:border-white/10 space-y-1.5"
+                    className="p-4.5 bg-[#FFFFFF] rounded-[24px] border border-[#EBEBEF] shadow-[0_4px_16px_rgba(0,0,0,0.03)]"
+                    style={{ backgroundColor: '#ffffff' }}
                   >
-                    <div className="flex items-center justify-between">
-                      <span className="font-bold text-xs text-zinc-900 dark:text-white">
-                        {rev.user_name || 'Visitante'}
-                      </span>
-                      <span className="text-[11px] text-zinc-400">
-                        {rev.created_at && String(rev.created_at).startsWith('Há')
-                          ? rev.created_at
-                          : 'Recente'}
-                      </span>
-                    </div>
-                    <div className="flex items-center gap-0.5 text-zinc-900 dark:text-[#F2B900]">
-                      {Array.from({ length: 5 }).map((_, i) => (
-                        <Star
-                          key={i}
-                          className={`w-3 h-3 ${
-                            i < Number(rev.rating ?? 5) ? 'fill-current' : 'text-zinc-300 dark:text-zinc-700'
-                          }`}
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="flex items-center gap-3 min-w-0">
+                        <img
+                          src={getReviewUserAvatar(rev, idx)}
+                          alt={rev.user_name || 'Visitante'}
+                          className="w-[44px] h-[44px] rounded-full object-cover shrink-0 bg-[#E5E5EA]"
+                          loading="lazy"
+                          referrerPolicy="no-referrer"
+                          onError={(e) => {
+                            (e.target as HTMLImageElement).src = REVIEW_AVATAR_FALLBACKS[idx % REVIEW_AVATAR_FALLBACKS.length];
+                          }}
                         />
-                      ))}
+                        <div className="flex flex-col min-w-0">
+                          <span className="text-[15.5px] font-bold text-[#0B0B0C] leading-[1.2] tracking-[-0.015em] truncate">
+                            {rev.user_name || 'Visitante'}
+                          </span>
+                          <span className="text-[13px] font-normal text-[#8E8E93] leading-[1.2] mt-0.5">
+                            {formatReviewDateLabel(rev.created_at)}
+                          </span>
+                        </div>
+                      </div>
+                      <UserReviewStars rating={Number(rev.rating ?? 5)} />
                     </div>
-                    <p className="text-xs text-zinc-600 dark:text-zinc-300 leading-relaxed">
+                    <p className="mt-3 text-[14.5px] font-normal text-[#1C1C1E] leading-[1.42] tracking-[-0.01em]">
                       {rev.comment}
                     </p>
                   </div>
                 ))}
+
+                {/* Botão inferior — Ver todas as avaliações */}
+                <button
+                  type="button"
+                  onClick={() => setIsAllReviewsOpen(true)}
+                  className="w-full h-[52px] rounded-full bg-[#FFFFFF] border border-[#E5E5EA] shadow-[0_2px_10px_rgba(0,0,0,0.03)] flex items-center justify-center gap-1.5 text-[15.5px] font-bold text-[#0B0B0C] tracking-[-0.01em] hover:bg-[#FAFAFC] active:scale-[0.98] transition-all cursor-pointer"
+                  style={{ backgroundColor: '#ffffff' }}
+                >
+                  <span>{tr('Ver todas as avaliações')}</span>
+                  <ChevronRight className="w-[18px] h-[18px] text-[#0B0B0C] shrink-0" strokeWidth={2.4} />
+                </button>
               </motion.div>
             )}
           </div>
         </div>
         </motion.div>
       </motion.div>
+
+      {/* Listagem Completa das Avaliações */}
+      <AnimatePresence>
+        {isAllReviewsOpen && (
+          <motion.div
+            key="all-reviews-overlay"
+            initial={{ opacity: 0, y: 24 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: 24 }}
+            transition={{ type: 'spring', stiffness: 400, damping: 32 }}
+            onClick={(e) => e.stopPropagation()}
+            className="fixed inset-0 z-[280] bg-[#FFFFFF] flex flex-col overflow-hidden"
+            style={{
+              backgroundColor: '#ffffff',
+              fontFamily:
+                "-apple-system, BlinkMacSystemFont, 'SF Pro Display', 'SF Pro Text', 'Inter', sans-serif",
+            }}
+          >
+            {/* Topo da listagem completa */}
+            <div
+              className="flex items-center justify-between px-5 pb-3.5 border-b border-[#EFEFF1] bg-[#FFFFFF] shrink-0"
+              style={{
+                backgroundColor: '#ffffff',
+                paddingTop: 'max(calc(env(safe-area-inset-top, 14px) + 12px), 20px)',
+              }}
+            >
+              <button
+                type="button"
+                onClick={() => setIsAllReviewsOpen(false)}
+                aria-label="Voltar"
+                className="w-10 h-10 rounded-full bg-[#F3F3F5] flex items-center justify-center text-[#0B0B0C] active:scale-95 transition-transform cursor-pointer"
+              >
+                <ArrowLeft className="w-5 h-5" strokeWidth={2.2} />
+              </button>
+              <h2 className="text-[18px] font-bold text-[#0B0B0C] tracking-[-0.015em]">
+                {tr('Todas as avaliações')}
+              </h2>
+              <button
+                type="button"
+                onClick={() => setShowWriteReviewForm((prev) => !prev)}
+                className="px-3.5 h-9 rounded-full bg-[#F3F3F5] text-[13px] font-semibold text-[#0B0B0C] active:scale-95 transition-transform cursor-pointer"
+              >
+                {showWriteReviewForm ? tr('Fechar') : tr('Avaliar')}
+              </button>
+            </div>
+
+            {/* Corpo rolável com todas as avaliações */}
+            <div
+              className="flex-1 overflow-y-auto px-5 pt-5 space-y-4 max-w-2xl w-full mx-auto bg-[#FFFFFF]"
+              style={{
+                backgroundColor: '#ffffff',
+                paddingBottom: 'max(calc(env(safe-area-inset-bottom, 0px) + 32px), 40px)',
+              }}
+            >
+              {/* Resumo das avaliações no topo */}
+              <div
+                className="flex items-center justify-between px-5 py-6 bg-[#FFFFFF] rounded-[26px] border border-[#EBEBEF] shadow-[0_4px_16px_rgba(0,0,0,0.03)]"
+                style={{ backgroundColor: '#ffffff' }}
+              >
+                <div className="w-[43%] flex flex-col items-center justify-center pr-2">
+                  <span className="text-[48px] leading-none font-extrabold text-[#0B0B0C] tracking-[-0.03em] tabular-nums">
+                    {Number(liveRating).toFixed(1)}
+                  </span>
+                  <span className="text-[14.5px] font-normal text-[#6E6E73] mt-2 tracking-[-0.01em]">
+                    {tr('de 5.0 estrelas')}
+                  </span>
+                </div>
+
+                <div className="w-[1px] h-[58px] bg-[#DCDCE1] shrink-0" />
+
+                <div className="w-[56%] flex flex-col items-center justify-center pl-2">
+                  <SummaryRatingStars rating={Number(liveRating)} idPrefix="modal-summary" />
+                  <span className="text-[15px] font-normal text-[#6E6E73] mt-2.5 tracking-[-0.01em] tabular-nums">
+                    {tr(`${liveReviewCount} avaliações`)}
+                  </span>
+                </div>
+              </div>
+
+              {/* Formulário opcional ao tocar em Avaliar */}
+              <AnimatePresence>
+                {showWriteReviewForm && (
+                  <motion.form
+                    key="modal-review-form"
+                    initial={{ opacity: 0, height: 0 }}
+                    animate={{ opacity: 1, height: 'auto' }}
+                    exit={{ opacity: 0, height: 0 }}
+                    onSubmit={handleSubmitReview}
+                    className="p-5 bg-[#FFFFFF] rounded-[26px] border border-[#EBEBEF] space-y-3.5 overflow-hidden"
+                    style={{ backgroundColor: '#ffffff' }}
+                  >
+                    <div className="flex items-center justify-between">
+                      <span className="text-[14px] font-bold text-[#0B0B0C]">
+                        {tr('Sua avaliação')}
+                      </span>
+                      <div className="flex items-center gap-1">
+                        {[1, 2, 3, 4, 5].map((starVal) => (
+                          <button
+                            key={starVal}
+                            type="button"
+                            onClick={() => setUserRatingInput(starVal)}
+                            className="p-1 cursor-pointer transition-transform active:scale-90"
+                          >
+                            <Star
+                              className={`w-5 h-5 transition-colors ${
+                                starVal <= userRatingInput
+                                  ? 'fill-[#F7B801] text-[#F7B801]'
+                                  : 'text-zinc-300'
+                              }`}
+                            />
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+
+                    <input
+                      type="text"
+                      value={userCommentInput}
+                      onChange={(e) => setUserCommentInput(e.target.value)}
+                      placeholder={tr('Conte como foi sua experiência...')}
+                      className="w-full px-4 py-3 rounded-2xl bg-white border border-[#E5E5EA] text-[14.5px] text-[#0B0B0C] focus:outline-none focus:border-[#0B0B0C]"
+                    />
+
+                    <div className="flex items-center justify-between gap-2">
+                      {reviewSubmittedMsg ? (
+                        <span className="text-[12.5px] text-[#52525B] font-medium">
+                          {tr(reviewSubmittedMsg)}
+                        </span>
+                      ) : (
+                        <span className="text-[12.5px] text-[#71717A]">
+                          {tr(`Nota ${userRatingInput}.0 selecionada`)}
+                        </span>
+                      )}
+                      <button
+                        type="submit"
+                        disabled={isSubmittingReview}
+                        className="px-5 py-2.5 rounded-full bg-[#0B0B0C] hover:bg-[#1C1C1E] text-white text-[13.5px] font-bold transition-transform active:scale-95 disabled:opacity-50 cursor-pointer shrink-0"
+                      >
+                        {isSubmittingReview ? tr('Salvando...') : tr('Publicar')}
+                      </button>
+                    </div>
+                  </motion.form>
+                )}
+              </AnimatePresence>
+
+              {/* Lista completa de avaliações */}
+              {(reviewsList.length > 0
+                ? reviewsList
+                : [
+                    {
+                      id: 'default-1',
+                      user_name: 'Mariana Costa',
+                      rating: 5,
+                      comment:
+                        'Lugar espetacular! Vista incrível de Campos do Jordão e clima super agradável.',
+                      created_at: 'Há 2 dias',
+                    },
+                    {
+                      id: 'default-2',
+                      user_name: 'Lucas Ferreira',
+                      rating: 5,
+                      comment:
+                        'Pôr do sol inesquecível. Recomendo chegar pelo menos 40 minutos antes.',
+                      created_at: 'Há 1 semana',
+                    },
+                  ]
+              ).map((rev, idx) => (
+                <div
+                  key={rev.id || idx}
+                  className="p-5 bg-[#FFFFFF] rounded-[26px] border border-[#EBEBEF] shadow-[0_4px_16px_rgba(0,0,0,0.03)]"
+                  style={{ backgroundColor: '#ffffff' }}
+                >
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="flex items-center gap-3.5 min-w-0">
+                      <img
+                        src={getReviewUserAvatar(rev, idx)}
+                        alt={rev.user_name || 'Visitante'}
+                        className="w-[48px] h-[48px] rounded-full object-cover shrink-0 bg-[#E5E5EA]"
+                        loading="lazy"
+                        referrerPolicy="no-referrer"
+                        onError={(e) => {
+                          (e.target as HTMLImageElement).src = REVIEW_AVATAR_FALLBACKS[idx % REVIEW_AVATAR_FALLBACKS.length];
+                        }}
+                      />
+                      <div className="flex flex-col min-w-0">
+                        <span className="text-[17px] font-bold text-[#0B0B0C] leading-[1.2] tracking-[-0.015em] truncate">
+                          {rev.user_name || 'Visitante'}
+                        </span>
+                        <span className="text-[14px] font-normal text-[#8E8E93] leading-[1.2] mt-1">
+                          {formatReviewDateLabel(rev.created_at)}
+                        </span>
+                      </div>
+                    </div>
+                    <UserReviewStars rating={Number(rev.rating ?? 5)} />
+                  </div>
+                  <p className="mt-3.5 text-[16px] font-normal text-[#1C1C1E] leading-[1.42] tracking-[-0.01em]">
+                    {rev.comment}
+                  </p>
+                </div>
+              ))}
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {/* Modal de Compartilhamento por QR Code */}
       <SpotQrModal
