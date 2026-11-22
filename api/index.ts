@@ -3,6 +3,16 @@ import Stripe from 'stripe';
 import bcrypt from 'bcryptjs';
 import crypto from 'crypto';
 import firebaseAppletConfig from '../firebase-applet-config.json' with { type: 'json' };
+import { CAMPOS_SPOTS } from '../src/data/spots.ts';
+import { DEFAULT_CURATED_ITINERARIES } from '../src/data/defaultItineraries.ts';
+import {
+  PRIMARY_GEMINI_MODEL,
+  classifyGeminiError,
+  runGeminiAssistantTurn,
+  type AssistantHistoryTurn,
+  type ClassifiedAssistantError,
+  type GeminiAssistantKnowledge,
+} from '../src/server/geminiAssistantEngine.ts';
 
 const ACTIVE_PROJECT_REF = 'gxyqrwebnkbgxqrfdvuj';
 const DEFAULT_SUPABASE_URL = 'https://gxyqrwebnkbgxqrfdvuj.supabase.co';
@@ -782,7 +792,7 @@ export default async function handler(req: any, res: any) {
   // CORS
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, PATCH, DELETE, OPTIONS');
-  res.setHeader('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept, Authorization, x-user-email');
+  res.setHeader('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept, Authorization, x-user-email, x-monvian-user-id');
 
   if (req.method === 'OPTIONS') {
     return res.status(200).end();
@@ -2901,6 +2911,284 @@ export default async function handler(req: any, res: any) {
         }
       }
       return res.status(200).json({ success: false, status: 'pending' });
+    }
+
+    // =========================================================================
+    // 12. MONVIAN AI ASSISTANT (GOOGLE GEMINI SERVER-SIDE ENGINE)
+    // =========================================================================
+    if (cleanPath === '/assistant/health' && method === 'GET') {
+      const hasKey = Boolean(String(process.env.GEMINI_API_KEY || '').trim());
+      return res.status(200).json({
+        ok: hasKey,
+        provider: 'google-gemini',
+        model: PRIMARY_GEMINI_MODEL,
+        configured: hasKey,
+      });
+    }
+
+    if (cleanPath === '/assistant/history' && method === 'GET') {
+      const userKey = String(
+        url.searchParams.get('userKey') || req.headers['x-monvian-user-id'] || 'guest_anonymous'
+      )
+        .trim()
+        .slice(0, 128);
+      const settingKey = `assistant_conv_${userKey}`;
+      try {
+        const { data } = await supabase
+          .from('system_settings')
+          .select('value')
+          .eq('key', settingKey)
+          .limit(1);
+        if (data && data.length > 0 && data[0].value) {
+          const parsed = JSON.parse(data[0].value);
+          return res.status(200).json({
+            conversationId: parsed?.conversationId || null,
+            messages: Array.isArray(parsed?.messages) ? parsed.messages.slice(-60) : [],
+          });
+        }
+      } catch {}
+      return res.status(200).json({ conversationId: null, messages: [] });
+    }
+
+    if (cleanPath === '/assistant/reset' && method === 'POST') {
+      const userKey = String(
+        body?.userKey || req.headers['x-monvian-user-id'] || 'guest_anonymous'
+      )
+        .trim()
+        .slice(0, 128);
+      const newConvId = `conv_${crypto.randomUUID()}`;
+      const settingKey = `assistant_conv_${userKey}`;
+      try {
+        await supabase.from('system_settings').upsert(
+          {
+            key: settingKey,
+            value: JSON.stringify({ conversationId: newConvId, messages: [] }),
+            updated_at: new Date().toISOString(),
+          },
+          { onConflict: 'key' }
+        );
+      } catch {}
+      return res.status(200).json({ conversationId: newConvId, messages: [] });
+    }
+
+    if (cleanPath === '/assistant/chat' && method === 'POST') {
+      const userMessage = String(body?.message || '').trim();
+      if (!userMessage) {
+        return res.status(400).json({
+          code: 'INVALID_REQUEST',
+          message: 'Digite uma mensagem antes de enviar.',
+          retryable: false,
+        });
+      }
+
+      const userKey = String(
+        body?.userKey || req.headers['x-monvian-user-id'] || 'guest_anonymous'
+      )
+        .trim()
+        .slice(0, 128);
+      const userName = String(body?.userName || '').trim() || undefined;
+      const pendingStyleFromClient = String(body?.pendingItineraryStyle || '').trim();
+      const userLocation =
+        body?.userLocation &&
+        Number.isFinite(Number(body.userLocation.lat)) &&
+        Number.isFinite(Number(body.userLocation.lng))
+          ? { lat: Number(body.userLocation.lat), lng: Number(body.userLocation.lng) }
+          : null;
+
+      res.setHeader('Content-Type', 'text/event-stream; charset=utf-8');
+      res.setHeader('Cache-Control', 'no-cache, no-transform');
+      res.setHeader('Connection', 'keep-alive');
+      res.setHeader('X-Accel-Buffering', 'no');
+      if (typeof res.flushHeaders === 'function') {
+        res.flushHeaders();
+      }
+
+      const sendEvent = (event: string, data: any) => {
+        if (res.writableEnded) return;
+        res.write(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`);
+        if (typeof res.flush === 'function') res.flush();
+      };
+
+      const heartbeat = setInterval(() => {
+        if (!res.writableEnded) {
+          res.write(`: keep-alive\n\n`);
+          if (typeof res.flush === 'function') res.flush();
+        }
+      }, 4000);
+
+      try {
+        const settingKey = `assistant_conv_${userKey}`;
+        let storedConvId = String(body?.conversationId || '').trim() || `conv_${crypto.randomUUID()}`;
+        let storedMessages: any[] = [];
+
+        try {
+          const { data } = await supabase
+            .from('system_settings')
+            .select('value')
+            .eq('key', settingKey)
+            .limit(1);
+          if (data && data.length > 0 && data[0].value) {
+            const parsed = JSON.parse(data[0].value);
+            if (parsed?.conversationId && (!body?.conversationId || parsed.conversationId === body.conversationId)) {
+              storedConvId = String(parsed.conversationId);
+              storedMessages = Array.isArray(parsed.messages) ? parsed.messages : [];
+            }
+          }
+        } catch {}
+
+        // Use client-provided compact history fallback if serverless storage was empty
+        const clientHistory: AssistantHistoryTurn[] = Array.isArray(body?.history)
+          ? body.history
+              .slice(-12)
+              .map((h: any) => ({
+                role: h?.role === 'user' ? 'user' : 'assistant',
+                content: String(h?.content || ''),
+              }))
+              .filter((h: AssistantHistoryTurn) => h.content.trim().length > 0)
+          : [];
+
+        const history: AssistantHistoryTurn[] =
+          storedMessages.length > 0
+            ? storedMessages.slice(-12).map((m: any) => ({
+                role: m.role === 'user' ? 'user' : 'assistant',
+                content: String(m.content || ''),
+              }))
+            : clientHistory;
+
+        const userMsgId = `msg_${crypto.randomUUID()}`;
+        sendEvent('meta', { conversationId: storedConvId, userMessageId: userMsgId });
+
+        // Build live Monvian RAG knowledge base from Supabase (with CAMPOS_SPOTS fallback)
+        let activeSpots = CAMPOS_SPOTS.map((s) => ({
+          id: String(s.id),
+          name: s.name,
+          category: s.category,
+          categoryLabel: s.categoryLabel,
+          address: s.address,
+          priceRange: s.priceRange || '$$',
+          price: s.price,
+          rating: s.rating,
+          hours: s.hours,
+          description: s.description,
+          touristTip: s.touristTip,
+          lat: s.lat,
+          lng: s.lng,
+          image: s.image,
+          highlighted: Boolean(s.highlighted),
+        }));
+
+        try {
+          const { data: dbSpots } = await supabase
+            .from('spots')
+            .select('*')
+            .neq('is_active', 0)
+            .limit(60);
+          if (Array.isArray(dbSpots) && dbSpots.length > 0) {
+            activeSpots = dbSpots.map((r: any) => ({
+              id: String(r.id),
+              name: String(r.name || ''),
+              category: String(r.category || 'culture'),
+              categoryLabel: String(r.category_label || r.categoryLabel || r.category || ''),
+              address: String(r.address || 'Campos do Jordão, SP'),
+              priceRange: String(r.price_range || r.priceRange || '$$'),
+              price: String(r.price || ''),
+              rating: Number(r.rating) || 4.8,
+              hours: String(r.hours || ''),
+              description: String(r.description || ''),
+              touristTip: String(r.tourist_tip || r.touristTip || ''),
+              lat: Number(r.lat) || -22.7192,
+              lng: Number(r.lng) || -45.5669,
+              image: String(r.image || ''),
+              highlighted: Boolean(r.highlighted || r.is_star),
+            }));
+          }
+        } catch {}
+
+        const knowledge: GeminiAssistantKnowledge = {
+          spots: activeSpots,
+          itineraries: DEFAULT_CURATED_ITINERARIES.slice(0, 8).map((it: any) => ({
+            id: String(it.id),
+            title: String(it.title || ''),
+            subtitle: String(it.subtitle || it.description || ''),
+            category: String(it.category || it.tag || 'Experiência'),
+            duration: String(it.duration || `${it.days?.length || 1} dia(s)`),
+            stopsCount: Number(it.stopsCount || it.days?.[0]?.steps?.length || 3),
+            description: String(it.description || ''),
+          })),
+          events: [],
+        };
+
+        const result = await runGeminiAssistantTurn({
+          apiKey: String(process.env.GEMINI_API_KEY || ''),
+          userMessage,
+          history,
+          knowledge,
+          userName,
+          pendingItineraryStyle: pendingStyleFromClient || undefined,
+          userLocation,
+          onTextDelta: (delta) => {
+            sendEvent('delta', { text: delta });
+          },
+        });
+
+        if (result.action) {
+          sendEvent('action', result.action);
+        }
+
+        const assistantMsgId = `msg_${crypto.randomUUID()}`;
+        const updatedMessages = [
+          ...storedMessages,
+          { id: userMsgId, role: 'user', content: userMessage, createdAt: new Date().toISOString() },
+          {
+            id: assistantMsgId,
+            role: 'assistant',
+            content: result.text,
+            metadata: result.action ? { action: result.action } : undefined,
+            createdAt: new Date().toISOString(),
+          },
+        ].slice(-40);
+
+        try {
+          await supabase.from('system_settings').upsert(
+            {
+              key: settingKey,
+              value: JSON.stringify({ conversationId: storedConvId, messages: updatedMessages }),
+              updated_at: new Date().toISOString(),
+            },
+            { onConflict: 'key' }
+          );
+        } catch {}
+
+        sendEvent('done', {
+          messageId: assistantMsgId,
+          conversationId: storedConvId,
+          content: result.text,
+          action: result.action,
+          model: result.modelUsed,
+        });
+      } catch (err: any) {
+        const classified: ClassifiedAssistantError =
+          err && typeof err === 'object' && 'code' in err && 'userMessage' in err
+            ? (err as ClassifiedAssistantError)
+            : classifyGeminiError(err);
+
+        console.error(
+          `[Monvian Serverless Assistant Error] [${classified.code}]`,
+          classified.technicalDetail
+        );
+
+        sendEvent('error', {
+          code: classified.code,
+          message: classified.userMessage,
+          retryable: classified.retryable,
+        });
+      } finally {
+        clearInterval(heartbeat);
+        if (!res.writableEnded) {
+          res.end();
+        }
+      }
+      return;
     }
 
     return res.status(404).json({ success: false, error: `Route ${cleanPath} not found`, message: `Route ${cleanPath} not found` });

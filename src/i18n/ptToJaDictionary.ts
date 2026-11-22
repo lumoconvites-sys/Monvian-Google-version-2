@@ -1553,6 +1553,16 @@ const PT_TO_JA_RAW: Record<string, string> = {
   'Nevoeiro na serra': '高原の霧',
   'Pancadas de neve': 'にわか雪',
   'Tempestade com raios': '雷雨',
+  'Vamos fazer hoje?': '今日は何をしますか？',
+  'Como deseja aproveitar sua viagem?': '旅をどのように楽しみますか？',
+  'Criar roteiro': 'プランを作成',
+  'Monte seu próprio passeio.': '自分だけの旅を組み立てよう。',
+  'Acesse seus roteiros salvos.': '保存済みのプランにアクセス。',
+  'Encontrar guia': 'ガイドを探す',
+  'Em breve disponível.': '近日公開予定。',
+  'Loja de roteiros': 'プランストア',
+  'Encontre roteiros prontos para conhecer.': 'おすすめの作成済みプランを探す。',
+  'Expandir mapa': 'マップを広げる',
 };
 
 const normalizeLookupKeyJa = (s: string): string =>

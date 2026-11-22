@@ -86,6 +86,7 @@ interface ProfileModalProps {
   onOpenUserItineraryOnMap?: (itinerary: Itinerary) => void;
   onEditUserItinerary?: (itinerary: Itinerary) => void;
   onDeleteUserItinerary?: (itineraryId: string) => void;
+  openMyItinerariesSignal?: number;
 }
 
 type SubView =
@@ -124,6 +125,7 @@ export const ProfileModal: React.FC<ProfileModalProps> = React.memo(({
   onOpenUserItineraryOnMap,
   onEditUserItinerary,
   onDeleteUserItinerary,
+  openMyItinerariesSignal = 0,
 }) => {
   const isViewActive = Boolean(isOpen && isActive);
   const scrollContainerRef = useRef<HTMLDivElement | null>(null);
@@ -156,7 +158,10 @@ export const ProfileModal: React.FC<ProfileModalProps> = React.memo(({
   const [isLanguageSheetOpen, setIsLanguageSheetOpen] = useState(false);
   const currentLanguageOption = getLanguageOptionByCode(language);
 
-  const [activeSubView, setActiveSubView] = useState<SubView>('main');
+  const [activeSubView, setActiveSubView] = useState<SubView>(() =>
+    openMyItinerariesSignal > 0 ? 'meus-roteiros' : 'main'
+  );
+  const lastHandledMyItinerariesSignalRef = useRef<number>(openMyItinerariesSignal);
   const [helpLegalPage, setHelpLegalPage] = useState<HelpLegalPageId>('hub');
   const [helpReturnView, setHelpReturnView] = useState<'main' | 'permissoes'>('main');
 
@@ -176,7 +181,20 @@ export const ProfileModal: React.FC<ProfileModalProps> = React.memo(({
   }, [isViewActive, activeSubView]);
 
   useEffect(() => {
+    if (
+      openMyItinerariesSignal > 0 &&
+      openMyItinerariesSignal !== lastHandledMyItinerariesSignalRef.current
+    ) {
+      lastHandledMyItinerariesSignalRef.current = openMyItinerariesSignal;
+      setIsLanguageSheetOpen(false);
+      setActiveSubView('meus-roteiros');
+      onSubViewChange?.('meus-roteiros');
+    }
+  }, [openMyItinerariesSignal, onSubViewChange]);
+
+  useEffect(() => {
     const handleOpenMyItineraries = () => {
+      setIsLanguageSheetOpen(false);
       setActiveSubView('meus-roteiros');
       onSubViewChange?.('meus-roteiros');
     };

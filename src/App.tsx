@@ -5,7 +5,7 @@ import type { TabType } from './components/BottomNavigation';
 import type { MapComponentHandle } from './components/MapComponent';
 import { SelectModeOverlay, UnifiedItineraryOverlay } from './components/itineraries/UnifiedItineraryOverlay';
 import { ItineraryCreationFinalizeModal } from './components/itineraries/ItineraryCreationFinalizeModal';
-import { MonvianAssistantPanel } from './components/assistant/MonvianAssistantPanel';
+import { ExploreDiscoveryPanel } from './components/ExploreDiscoveryPanel';
 import {
   buildItineraryFromOrderedSpots,
   deleteUserItineraryFromBackend,
@@ -484,6 +484,8 @@ export default function App() {
   const [isWeatherModalOpen, setIsWeatherModalOpen] = useState<boolean>(false);
   const [isChatKeyboardOpen, setIsChatKeyboardOpen] = useState<boolean>(false);
   const [isMyItinerariesSubViewActive, setIsMyItinerariesSubViewActive] = useState<boolean>(false);
+  const [openMyItinerariesSignal, setOpenMyItinerariesSignal] = useState<number>(0);
+  const [isDiscoveryPanelMinimized, setIsDiscoveryPanelMinimized] = useState<boolean>(false);
   const [isPlatanosWalletOpen, setIsPlatanosWalletOpen] = useState<boolean>(false);
   const [platanosWalletTab, setPlatanosWalletTab] = useState<'topup' | 'history'>('topup');
 
@@ -2605,8 +2607,6 @@ export default function App() {
   });
 
   const [isDesktopExplorePanelOpen, setIsDesktopExplorePanelOpen] = useState<boolean>(true);
-  // Stage 7: Assistant auto-opens when entering the main map screen in EXPLORE mode
-  const [isAssistantOpen, setIsAssistantOpen] = useState<boolean>(true);
 
   const isUserAdmin = Boolean(
     user?.role === 'admin' ||
@@ -2646,7 +2646,6 @@ export default function App() {
     setIsDetailOpen(false);
     setIsCategoryCardOpen(false);
     setIsSearchOpen(false);
-    setIsAssistantOpen(false);
     isEditingExistingItineraryRef.current = false;
     setEditingCustomItinerary(null);
     setFinalizeItineraryMode('create');
@@ -2657,45 +2656,6 @@ export default function App() {
     setActiveTab('explorar');
     setMapWorkflowMode('SELECT');
   }, [clearActiveRoute]);
-
-  const handleStartAssistantItinerarySelection = useCallback(
-    (payload: { spotIds: string[]; title: string; description: string }) => {
-      clearActiveRoute();
-      setSelectedSpot(null);
-      setIsDetailOpen(false);
-      setIsCategoryCardOpen(false);
-      setIsSearchOpen(false);
-      setIsAssistantOpen(false);
-      isEditingExistingItineraryRef.current = false;
-      setEditingCustomItinerary(null);
-      setFinalizeItineraryMode('create');
-      setDraftItineraryTitle(payload.title || 'Roteiro Inteligente Monvian');
-      setDraftItineraryCover('');
-      setIsFinalizeItineraryModalOpen(false);
-      setSelectedSpotIdsForItinerary(payload.spotIds);
-      setActiveTab('explorar');
-      setMapWorkflowMode('SELECT');
-
-      // Smoothly zoom the map to frame all selected pins ordered by Gemini
-      window.setTimeout(() => {
-        const chosenSpots = payload.spotIds
-          .map((id) => spots.find((s) => String(s.id) === String(id)))
-          .filter((s): s is Spot => Boolean(s));
-        if (chosenSpots.length > 0) {
-          const previewSteps: ItineraryStep[] = chosenSpots.map((spot, idx) => ({
-            id: `ai-step-${spot.id}-${idx}`,
-            stepOrder: idx + 1,
-            suggestedTime: `${9 + idx * 2}:00`,
-            durationMinutes: 60,
-            spotId: spot.id,
-            spot,
-          }));
-          mapRef.current?.fitItineraryBounds(previewSteps, false);
-        }
-      }, 120);
-    },
-    [clearActiveRoute, spots]
-  );
 
   const handleSelectMoreSpotsOnMap = useCallback(() => {
     const existingIds = activeItinerarySteps
@@ -2962,6 +2922,26 @@ export default function App() {
   const handleCloseToExplore = useCallback(() => {
     setActiveTab('explorar');
   }, []);
+
+  const handleOpenMyItinerariesFromDiscovery = useCallback(() => {
+    setHasVisitedProfile(true);
+    setIsMyItinerariesSubViewActive(true);
+    setOpenMyItinerariesSignal((prev) => prev + 1);
+    setActiveTab('perfil');
+    window.setTimeout(() => {
+      window.dispatchEvent(new CustomEvent('monvian:open_my_itineraries'));
+    }, 30);
+  }, []);
+
+  const handleOpenStoreFromDiscovery = useCallback(() => {
+    setActiveTab('roteiros');
+  }, []);
+
+  useEffect(() => {
+    if (activeTab !== 'explorar' || mapWorkflowMode !== 'EXPLORE') {
+      setIsDiscoveryPanelMinimized(false);
+    }
+  }, [activeTab, mapWorkflowMode]);
 
   const handleOpenSpotDetails = useCallback((spot: Spot) => {
     setSelectedSpot(spot);
@@ -3407,10 +3387,31 @@ export default function App() {
         />
       )}
 
+      {(() => {
+        const canShowMobileDiscoveryPanel =
+          !isDesktopLayout &&
+          activeTab === 'explorar' &&
+          mapWorkflowMode === 'EXPLORE' &&
+          !isSpotCardOpen &&
+          !isDetailOpen &&
+          !isMapOrbiting &&
+          !isUserLocationSpotlightActive &&
+          !showFirstSignupWelcome &&
+          !isGlobeIntroPlaying &&
+          !isGlobeIntroPending &&
+          !isOnboardingItinerarySelection;
+        const isMobileDiscoveryPanelExpanded =
+          canShowMobileDiscoveryPanel && !isDiscoveryPanelMinimized;
+
+        return (
       <main
         id="main-app-content"
         className={`relative flex-1 w-full h-full min-h-full overflow-hidden select-none transition-all duration-300 md:rounded-none ios-page-top-rounded ${
-          theme === 'dark' ? 'bg-black' : 'bg-zinc-50'
+          theme === 'dark'
+            ? 'bg-black'
+            : isMobileDiscoveryPanelExpanded
+              ? 'bg-white'
+              : 'bg-zinc-50'
         }`}
         style={{
           width: '100%',
@@ -3423,7 +3424,7 @@ export default function App() {
           isolation: 'isolate',
         }}
       >
-        <div className="w-full h-full flex flex-row relative overflow-hidden">
+        <div className="w-full h-full flex flex-col md:flex-row relative overflow-hidden">
           {/* DESKTOP EXPLORE PANEL (Side-by-side Discovery Column on real desktop/tablet md+ when activeTab === 'explorar' && workflow !== 'ITINERARY') */}
           <AnimatePresence>
             {isDesktopLayout &&
@@ -3473,7 +3474,9 @@ export default function App() {
             aria-hidden={activeTab !== 'explorar'}
             className={
               activeTab === 'explorar'
-                ? 'flex-1 h-full relative overflow-hidden'
+                ? isMobileDiscoveryPanelExpanded
+                  ? 'flex-1 min-h-0 w-full relative overflow-hidden rounded-b-[28px] md:rounded-none'
+                  : 'flex-1 h-full w-full relative overflow-hidden'
                 : 'fixed inset-0 w-full h-full opacity-0 pointer-events-none -z-10 overflow-hidden'
             }
           >
@@ -3518,6 +3521,7 @@ export default function App() {
               isItineraryExpanded={isItineraryDrawerExpanded}
               onSelectItineraryStep={handleSelectItineraryStepId}
               entranceTick={explorarEntranceTick}
+              isDiscoveryPanelOpen={isMobileDiscoveryPanelExpanded}
             />
 
             {/* DESKTOP MAP FLOATING CONTROLS (Top-Right Apple Style — visible in EXPLORE mode on real desktop/tablet only) */}
@@ -3537,6 +3541,20 @@ export default function App() {
               />
             )}
           </div>
+
+          {/* MOBILE EXPLORE DISCOVERY PANEL ("Vamos fazer hoje?") — Sits directly beneath the rounded-bottom map */}
+          <AnimatePresence initial={false}>
+            {canShowMobileDiscoveryPanel && (
+              <ExploreDiscoveryPanel
+                theme={theme}
+                isMinimized={isDiscoveryPanelMinimized}
+                onToggleMinimized={setIsDiscoveryPanelMinimized}
+                onCreateItinerary={handleStartFreshSelectionFromPlay}
+                onOpenMyItineraries={handleOpenMyItinerariesFromDiscovery}
+                onOpenStore={handleOpenStoreFromDiscovery}
+              />
+            )}
+          </AnimatePresence>
         </div>
 
       {/* 3. Top Floating Header Bar (MOBILE ONLY: md:hidden, mounted only on Explorar EXPLORE mode) */}
@@ -3958,12 +3976,15 @@ export default function App() {
                   handleDeleteActiveItinerary();
                 }
               }}
+              openMyItinerariesSignal={openMyItinerariesSignal}
             />
           </Suspense>
         </div>
       )}
 
     </main>
+        );
+      })()}
 
     {/* 3.8. Airbnb-Style Presentation Cards on first tab visit (Explorar, Roteiros, Salvos) */}
     <AirbnbPresentationCard
@@ -4166,41 +4187,7 @@ export default function App() {
       </AnimatePresence>
     )}
 
-    {/* Monvian AI — Intelligent Gemini Tourist Assistant (Bottom Sheet & Floating Robot on Map) */}
-    {activeTab === 'explorar' &&
-      mapWorkflowMode === 'EXPLORE' &&
-      !isAdminOpen &&
-      !isMapOrbiting &&
-      !isOnboardingItinerarySelection &&
-      !isDetailOpen &&
-      !showOnboardingQuestions &&
-      !showFirstSignupWelcome &&
-      !isGlobeIntroPending &&
-      !isGlobeIntroPlaying && (
-        <MonvianAssistantPanel
-          key={`monvian-assistant-${accountSessionKey}`}
-          isOpen={isAssistantOpen && !isSpotCardOpen && !isCategoryCardOpen && !isSearchOpen}
-          onOpenChange={(nextOpen) => {
-            if (nextOpen) {
-              setSelectedSpot(null);
-              setIsCategoryCardOpen(false);
-              setIsSearchOpen(false);
-            }
-            setIsAssistantOpen(nextOpen);
-          }}
-          user={user}
-          spots={spots}
-          userLocation={userCoords ? { lat: userCoords[1], lng: userCoords[0] } : null}
-          onFocusSpotOnMap={(spot) => {
-            setIsAssistantOpen(false);
-            handleSelectSpot(spot);
-          }}
-          onStartItinerarySelectionOnMap={handleStartAssistantItinerarySelection}
-          hideFloatingButton={isSpotCardOpen || isCategoryCardOpen || isSearchOpen}
-        />
-      )}
-
-    {/* 4. Bottom Navigation Pill rendered at root level (Temporarily hidden when Assistant Panel is expanded or in SELECT mode) */}
+    {/* 4. Bottom Navigation Pill rendered at root level */}
     {!isAdminOpen &&
       !isMapOrbiting &&
       !isOnboardingItinerarySelection &&
@@ -4209,16 +4196,7 @@ export default function App() {
       !showFirstSignupWelcome &&
       !isGlobeIntroPending &&
       !isGlobeIntroPlaying &&
-      !(activeTab === 'perfil' && isMyItinerariesSubViewActive) &&
-      !(
-        activeTab === 'explorar' &&
-        (mapWorkflowMode === 'SELECT' ||
-          (mapWorkflowMode === 'EXPLORE' &&
-            isAssistantOpen &&
-            !isSpotCardOpen &&
-            !isCategoryCardOpen &&
-            !isSearchOpen))
-      ) && (
+      !(activeTab === 'perfil' && isMyItinerariesSubViewActive) && (
         <div
           key="bottom-nav-shell"
           className={`md:hidden fixed inset-0 pointer-events-none z-[250] transition-opacity duration-150 ${isChatKeyboardOpen ? 'opacity-0 [&_*]:!pointer-events-none' : 'opacity-100'}`}
@@ -4231,6 +4209,7 @@ export default function App() {
             forceWhiteUI={false}
             isSatellite={
               isSatelliteExplore &&
+              (isDesktopLayout || isDiscoveryPanelMinimized || isSpotCardOpen || mapWorkflowMode !== 'EXPLORE') &&
               (mapWorkflowMode !== 'ITINERARY' || !isItineraryDrawerExpanded || theme === 'dark')
             }
             theme={theme}

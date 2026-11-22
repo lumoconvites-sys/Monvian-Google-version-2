@@ -75,6 +75,7 @@ interface MapComponentProps {
   onSelectItineraryStep?: (stepId: string) => void;
   zoomDurationMs?: number;
   entranceTick?: number;
+  isDiscoveryPanelOpen?: boolean;
 }
 
 const getMapboxToken = (): string => {
@@ -390,6 +391,7 @@ export const MapComponent = memo(
       onSelectItineraryStep,
       zoomDurationMs = 780,
       entranceTick = 0,
+      isDiscoveryPanelOpen = false,
     },
     ref
   ) => {
@@ -4061,7 +4063,9 @@ export const MapComponent = memo(
           return (
         <div
           id="mobile-map-right-controls"
-          className={`md:hidden absolute right-3.5 top-1/2 -translate-y-1/2 z-30 flex flex-col items-center gap-3 transition-[opacity,transform] duration-300 ease-[cubic-bezier(0.22,1,0.36,1)] ${
+          className={`md:hidden absolute right-3.5 ${
+            isDiscoveryPanelOpen ? 'bottom-3.5 top-auto translate-y-0' : 'top-1/2 -translate-y-1/2'
+          } z-30 flex flex-col items-center gap-3 transition-[opacity,transform] duration-300 ease-[cubic-bezier(0.22,1,0.36,1)] ${
             isFocusMode || isGlobeIntroPlaying || workflowMode === 'ITINERARY'
               ? 'opacity-0 scale-90 pointer-events-none [&_*]:!pointer-events-none'
               : 'opacity-100 scale-100 pointer-events-auto'

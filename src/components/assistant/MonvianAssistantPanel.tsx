@@ -14,9 +14,107 @@ export interface AssistantChatMessage {
   role: 'user' | 'assistant';
   content: string;
   isStreaming?: boolean;
+  isError?: boolean;
   isLiveVoiceTranscript?: boolean;
   action?: AssistantActionPayload | null;
   createdAt?: string;
+}
+
+const CLIENT_REQUEST_TIMEOUT_MS = 48_000;
+const DUPLICATE_SUBMIT_WINDOW_MS = 1_500;
+
+interface ClientStreamFailure {
+  code: string;
+  message: string;
+  retryable: boolean;
+}
+
+function classifyHttpFailure(status: number, parsedBody?: any): ClientStreamFailure {
+  const serverMessage =
+    typeof parsedBody?.message === 'string' && parsedBody.message.trim()
+      ? parsedBody.message.trim()
+      : typeof parsedBody?.error === 'string' && parsedBody.error.trim()
+        ? parsedBody.error.trim()
+        : '';
+  const serverCode = typeof parsedBody?.code === 'string' ? parsedBody.code : '';
+
+  if (status === 401 || status === 403) {
+    return {
+      code: serverCode || 'AUTH_ERROR',
+      message:
+        serverMessage ||
+        'Não foi possível autenticar a consulta ao Assistente Monvian. Verifique a configuração da API Gemini.',
+      retryable: false,
+    };
+  }
+  if (status === 404) {
+    return {
+      code: serverCode || 'ENDPOINT_NOT_FOUND',
+      message:
+        serverMessage ||
+        'O serviço do Assistente Monvian não respondeu neste endereço. Recarregue o aplicativo e tente novamente.',
+      retryable: false,
+    };
+  }
+  if (status === 429) {
+    return {
+      code: serverCode || 'RATE_LIMIT',
+      message:
+        serverMessage ||
+        'Muitas mensagens enviadas em sequência. Aguarde alguns segundos e tente novamente.',
+      retryable: true,
+    };
+  }
+  if (status === 504) {
+    return {
+      code: serverCode || 'TIMEOUT',
+      message:
+        serverMessage ||
+        'A resposta do Assistente Monvian demorou mais que o esperado. Tente novamente.',
+      retryable: true,
+    };
+  }
+  if (status === 502 || status === 503) {
+    return {
+      code: serverCode || 'UPSTREAM_UNAVAILABLE',
+      message:
+        serverMessage ||
+        'O Google Gemini está com alta demanda neste instante. Tente novamente em alguns segundos.',
+      retryable: true,
+    };
+  }
+
+  return {
+    code: serverCode || `HTTP_${status}`,
+    message:
+      serverMessage ||
+      'Não foi possível concluir sua consulta ao Assistente Monvian agora. Tente novamente.',
+    retryable: Boolean(parsedBody?.retryable) || status >= 500,
+  };
+}
+
+function parseSseBlock(block: string): { eventType: string; data: any } | null {
+  const lines = block.split(/\r?\n/);
+  let eventType = 'message';
+  const dataLines: string[] = [];
+
+  for (const rawLine of lines) {
+    const line = rawLine.trimEnd();
+    if (!line || line.startsWith(':')) continue; // Ignore SSE comments (e.g. : keep-alive)
+    if (line.startsWith('event:')) {
+      eventType = line.slice(6).trim();
+    } else if (line.startsWith('data:')) {
+      dataLines.push(line.slice(5).trimStart());
+    }
+  }
+
+  if (dataLines.length === 0) return null;
+  const dataStr = dataLines.join('\n');
+  try {
+    return { eventType, data: JSON.parse(dataStr) };
+  } catch {
+    return null;
+  }
 }
 
 interface MonvianAssistantPanelProps {
@@ -318,6 +416,15 @@ export const MonvianAssistantPanel: React.FC<MonvianAssistantPanelProps> = ({
   const latestVoiceTranscriptRef = useRef<string>('');
   const dragStartYRef = useRef<number | null>(null);
   const isOpenRef = useRef(isOpen);
+  const messagesRef = useRef<AssistantChatMessage[]>(messages);
+  const abortControllerRef = useRef<AbortController | null>(null);
+  const requestSeqRef = useRef(0);
+  const isSendingRef = useRef(false);
+  const lastSubmissionRef = useRef<{ text: string; at: number } | null>(null);
+
+  useEffect(() => {
+    messagesRef.current = messages;
+  }, [messages]);
 
   useEffect(() => {
     isOpenRef.current = isOpen;
@@ -356,12 +463,27 @@ export const MonvianAssistantPanel: React.FC<MonvianAssistantPanelProps> = ({
   useEffect(() => {
     return () => {
       stopVoiceCapture(true);
+      requestSeqRef.current += 1;
+      if (abortControllerRef.current) {
+        abortControllerRef.current.abort();
+        abortControllerRef.current = null;
+      }
+      isSendingRef.current = false;
     };
   }, [stopVoiceCapture]);
 
   // Load isolated conversation history for the current authenticated user
   useEffect(() => {
     let cancelled = false;
+
+    // Cancel any in-flight request from a previous account immediately
+    requestSeqRef.current += 1;
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
+      abortControllerRef.current = null;
+    }
+    isSendingRef.current = false;
+    setIsStreaming(false);
 
     // 1. Fast restore from user-scoped localStorage
     try {
@@ -418,7 +540,9 @@ export const MonvianAssistantPanel: React.FC<MonvianAssistantPanelProps> = ({
   // Persist isolated conversation snapshot per user
   useEffect(() => {
     try {
-      const cleanMessages = messages.filter((m) => !m.isLiveVoiceTranscript);
+      const cleanMessages = messages.filter(
+        (m) => !m.isLiveVoiceTranscript && !m.isStreaming && !m.isError
+      );
       localStorage.setItem(
         storageKey,
         JSON.stringify({
@@ -486,15 +610,45 @@ export const MonvianAssistantPanel: React.FC<MonvianAssistantPanelProps> = ({
     [spots, onOpenChange, onFocusSpotOnMap, onStartItinerarySelectionOnMap]
   );
 
-  // Send message to Gemini Backend with progressive SSE streaming
+  // Send message to Gemini Backend with progressive SSE streaming, timeout, controlled retry & recovery
   const sendMessageToGemini = useCallback(
     async (rawText: string, existingUserBubbleId?: string, overrideStyle?: string) => {
       const trimmed = rawText.trim();
-      if (!trimmed || isStreaming) return;
+      if (!trimmed || isSendingRef.current) return;
 
+      const now = Date.now();
+      if (
+        lastSubmissionRef.current &&
+        lastSubmissionRef.current.text === trimmed &&
+        now - lastSubmissionRef.current.at < DUPLICATE_SUBMIT_WINDOW_MS
+      ) {
+        return;
+      }
+
+      lastSubmissionRef.current = { text: trimmed, at: now };
+      isSendingRef.current = true;
       isUserScrolledUpRef.current = false;
-      const userMsgId = existingUserBubbleId || `user_${Date.now()}`;
-      const assistantMsgId = `assistant_${Date.now() + 1}`;
+
+      const currentSeq = ++requestSeqRef.current;
+      const userMsgId = existingUserBubbleId || `user_${now}`;
+      const assistantMsgId = `assistant_${now + 1}`;
+
+      // Build clean compact history from existing non-error turns for stateless/serverless resilience
+      const historyPayload = messagesRef.current
+        .filter(
+          (m) =>
+            m.id !== INITIAL_WELCOME_MESSAGE.id &&
+            m.id !== existingUserBubbleId &&
+            !m.isStreaming &&
+            !m.isError &&
+            !m.isLiveVoiceTranscript &&
+            m.content.trim().length > 0
+        )
+        .slice(-12)
+        .map((m) => ({
+          role: m.role,
+          content: m.content,
+        }));
 
       setMessages((prev) => {
         const hasExisting = existingUserBubbleId && prev.some((m) => m.id === existingUserBubbleId);
@@ -527,141 +681,330 @@ export const MonvianAssistantPanel: React.FC<MonvianAssistantPanelProps> = ({
       setInputValue('');
       setIsStreaming(true);
 
-      try {
-        const response = await fetch('/api/assistant/chat', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'x-monvian-user-id': userKey,
-          },
-          body: JSON.stringify({
-            message: trimmed,
-            conversationId,
-            userKey,
-            userName: user?.name || undefined,
-            pendingItineraryStyle: overrideStyle || pendingItineraryStyle || undefined,
-            userLocation: userLocation || undefined,
-          }),
-        });
-
-        if (!response.ok || !response.body) {
-          throw new Error('Falha na comunicação com o Assistente Monvian.');
+      const executeSingleAttempt = async (): Promise<{
+        receivedAnyDelta: boolean;
+      }> => {
+        if (typeof navigator !== 'undefined' && navigator.onLine === false) {
+          throw {
+            code: 'OFFLINE',
+            message:
+              'Você parece estar sem conexão com a internet. Verifique sua rede e tente novamente.',
+            retryable: false,
+          } satisfies ClientStreamFailure;
         }
 
-        const reader = response.body.getReader();
-        const decoder = new TextDecoder();
-        let buffer = '';
+        if (abortControllerRef.current) {
+          abortControllerRef.current.abort();
+        }
+        const controller = new AbortController();
+        abortControllerRef.current = controller;
+
+        let timedOut = false;
+        const timeoutHandle = window.setTimeout(() => {
+          timedOut = true;
+          controller.abort();
+        }, CLIENT_REQUEST_TIMEOUT_MS);
+
+        let receivedAnyDelta = false;
         let accumulatedText = '';
         let receivedAction: AssistantActionPayload | null = null;
+        let receivedDoneEvent = false;
+        let streamError: ClientStreamFailure | null = null;
 
-        while (true) {
-          const { value, done } = await reader.read();
-          if (done) break;
-          buffer += decoder.decode(value, { stream: true });
+        const handleParsedEvent = (eventType: string, parsed: any) => {
+          if (requestSeqRef.current !== currentSeq) return;
 
-          const blocks = buffer.split('\n\n');
-          buffer = blocks.pop() || '';
-
-          for (const block of blocks) {
-            const lines = block.split('\n');
-            let eventType = 'message';
-            let dataStr = '';
-
-            for (const line of lines) {
-              if (line.startsWith('event:')) {
-                eventType = line.slice(6).trim();
-              } else if (line.startsWith('data:')) {
-                dataStr += line.slice(5).trim();
-              }
-            }
-
-            if (!dataStr) continue;
-            let parsed: any = null;
-            try {
-              parsed = JSON.parse(dataStr);
-            } catch {
-              continue;
-            }
-
-            if (eventType === 'meta' && parsed?.conversationId) {
+          if (eventType === 'meta' && parsed?.conversationId) {
+            setConversationId(parsed.conversationId);
+          } else if (eventType === 'delta' && typeof parsed?.text === 'string' && parsed.text.length > 0) {
+            receivedAnyDelta = true;
+            accumulatedText += parsed.text;
+            const currentSnapshot = accumulatedText;
+            setMessages((prev) =>
+              prev.map((m) =>
+                m.id === assistantMsgId
+                  ? { ...m, content: currentSnapshot, isStreaming: true, isError: false }
+                  : m
+              )
+            );
+          } else if (eventType === 'action' && parsed) {
+            receivedAction = parsed as AssistantActionPayload;
+            setMessages((prev) =>
+              prev.map((m) =>
+                m.id === assistantMsgId ? { ...m, action: receivedAction } : m
+              )
+            );
+          } else if (eventType === 'done') {
+            receivedDoneEvent = true;
+            if (parsed?.conversationId) {
               setConversationId(parsed.conversationId);
-            } else if (eventType === 'delta' && typeof parsed?.text === 'string') {
-              accumulatedText += parsed.text;
-              const currentSnapshot = accumulatedText;
-              setMessages((prev) =>
-                prev.map((m) =>
-                  m.id === assistantMsgId
-                    ? { ...m, content: currentSnapshot, isStreaming: true }
-                    : m
-                )
-              );
-            } else if (eventType === 'action' && parsed) {
-              receivedAction = parsed as AssistantActionPayload;
-              setMessages((prev) =>
-                prev.map((m) =>
-                  m.id === assistantMsgId ? { ...m, action: receivedAction } : m
-                )
-              );
-            } else if (eventType === 'done') {
-              if (parsed?.conversationId) {
-                setConversationId(parsed.conversationId);
-              }
-              const finalContent = parsed?.content || accumulatedText;
-              const finalAction = (parsed?.action || receivedAction) as AssistantActionPayload | null;
-              setMessages((prev) =>
-                prev.map((m) =>
-                  m.id === assistantMsgId
-                    ? {
-                        ...m,
-                        content: finalContent,
-                        isStreaming: false,
-                        action: finalAction,
-                      }
-                    : m
-                )
-              );
+            }
+            const finalContent = String(parsed?.content || accumulatedText || '').trim();
+            const finalAction = (parsed?.action || receivedAction) as AssistantActionPayload | null;
 
-              if (!isOpenRef.current) {
-                setHasUnreadResponseWhileCollapsed(true);
-              }
+            if (!finalContent) {
+              streamError = {
+                code: 'EMPTY_RESPONSE',
+                message:
+                  'O Assistente Monvian retornou uma resposta vazia. Tente enviar sua mensagem novamente.',
+                retryable: true,
+              };
+              return;
+            }
 
-              if (finalAction) {
-                executeMapAction(finalAction);
+            accumulatedText = finalContent;
+            setMessages((prev) =>
+              prev.map((m) =>
+                m.id === assistantMsgId
+                  ? {
+                      ...m,
+                      content: finalContent,
+                      isStreaming: false,
+                      isError: false,
+                      action: finalAction,
+                    }
+                  : m
+              )
+            );
+
+            if (!isOpenRef.current) {
+              setHasUnreadResponseWhileCollapsed(true);
+            }
+
+            if (finalAction) {
+              executeMapAction(finalAction);
+            }
+          } else if (eventType === 'error') {
+            streamError = {
+              code: typeof parsed?.code === 'string' ? parsed.code : 'STREAM_ERROR',
+              message:
+                typeof parsed?.message === 'string' && parsed.message.trim()
+                  ? parsed.message.trim()
+                  : 'Não consegui concluir sua resposta agora. Tente novamente em instantes.',
+              retryable: Boolean(parsed?.retryable),
+            };
+          }
+        };
+
+        try {
+          const response = await fetch('/api/assistant/chat', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              Accept: 'text/event-stream, application/json',
+              'x-monvian-user-id': userKey,
+            },
+            signal: controller.signal,
+            body: JSON.stringify({
+              message: trimmed,
+              conversationId,
+              userKey,
+              userName: user?.name || undefined,
+              pendingItineraryStyle: overrideStyle || pendingItineraryStyle || undefined,
+              userLocation: userLocation || undefined,
+              history: historyPayload,
+            }),
+          });
+
+          const contentType = (response.headers.get('content-type') || '').toLowerCase();
+
+          if (!response.ok) {
+            let parsedError: any = null;
+            try {
+              parsedError = await response.json();
+            } catch {
+              try {
+                const rawErrText = await response.text();
+                if (rawErrText.trim()) parsedError = { message: rawErrText.slice(0, 200) };
+              } catch {}
+            }
+            throw classifyHttpFailure(response.status, parsedError);
+          }
+
+          // Handle direct JSON response gracefully if a proxy converted/returned JSON
+          if (contentType.includes('application/json')) {
+            const json = await response.json();
+            if (json?.code && json?.message && !json?.content) {
+              throw {
+                code: String(json.code),
+                message: String(json.message),
+                retryable: Boolean(json.retryable),
+              } satisfies ClientStreamFailure;
+            }
+            handleParsedEvent('done', json);
+            if (streamError) throw streamError;
+            return { receivedAnyDelta: true };
+          }
+
+          if (!response.body) {
+            throw {
+              code: 'EMPTY_STREAM',
+              message:
+                'Não foi possível ler a resposta do Assistente Monvian. Tente novamente.',
+              retryable: true,
+            } satisfies ClientStreamFailure;
+          }
+
+          const reader = response.body.getReader();
+          const decoder = new TextDecoder();
+          let buffer = '';
+
+          while (true) {
+            const { value, done } = await reader.read();
+            if (requestSeqRef.current !== currentSeq) {
+              try {
+                await reader.cancel();
+              } catch {}
+              return { receivedAnyDelta };
+            }
+
+            if (done) {
+              buffer += decoder.decode();
+              break;
+            }
+
+            buffer += decoder.decode(value, { stream: true });
+            const blocks = buffer.split(/\r?\n\r?\n/);
+            buffer = blocks.pop() || '';
+
+            for (const block of blocks) {
+              const evt = parseSseBlock(block);
+              if (evt) {
+                handleParsedEvent(evt.eventType, evt.data);
               }
-            } else if (eventType === 'error') {
-              const errMsg =
-                parsed?.message ||
-                'Não consegui concluir sua resposta agora. Tente novamente em instantes.';
-              setMessages((prev) =>
-                prev.map((m) =>
-                  m.id === assistantMsgId
-                    ? { ...m, content: errMsg, isStreaming: false }
-                    : m
-                )
-              );
             }
           }
+
+          // Flush any final SSE block left in buffer after EOF
+          if (buffer.trim()) {
+            const trailingBlocks = buffer.split(/\r?\n\r?\n/);
+            for (const block of trailingBlocks) {
+              const evt = parseSseBlock(block);
+              if (evt) {
+                handleParsedEvent(evt.eventType, evt.data);
+              }
+            }
+          }
+
+          if (streamError) {
+            throw streamError;
+          }
+
+          // If the stream closed cleanly after sending delta chunks without an explicit done frame
+          if (!receivedDoneEvent) {
+            if (accumulatedText.trim()) {
+              handleParsedEvent('done', {
+                content: accumulatedText.trim(),
+                action: receivedAction,
+              });
+            } else {
+              throw {
+                code: 'EMPTY_RESPONSE',
+                message:
+                  'A conexão com o Assistente Monvian foi encerrada antes de receber a resposta. Tente novamente.',
+                retryable: true,
+              } satisfies ClientStreamFailure;
+            }
+          }
+
+          return { receivedAnyDelta };
+        } catch (err: any) {
+          if (requestSeqRef.current !== currentSeq) {
+            return { receivedAnyDelta };
+          }
+          if (timedOut) {
+            throw {
+              code: 'TIMEOUT',
+              message:
+                'A resposta do Assistente Monvian demorou mais que o esperado. Tente enviar sua mensagem novamente.',
+              retryable: true,
+            } satisfies ClientStreamFailure;
+          }
+          if (err?.name === 'AbortError') {
+            throw {
+              code: 'ABORTED',
+              message: 'A solicitação foi interrompida.',
+              retryable: false,
+            } satisfies ClientStreamFailure;
+          }
+          if (err && typeof err === 'object' && 'code' in err && 'message' in err) {
+            throw Object.assign(err, { receivedAnyDelta });
+          }
+          throw {
+            code: 'NETWORK_ERROR',
+            message:
+              'Falha de conexão ao consultar o Assistente Monvian. Verifique sua internet e tente novamente.',
+            retryable: true,
+            receivedAnyDelta,
+          };
+        } finally {
+          window.clearTimeout(timeoutHandle);
+          if (abortControllerRef.current === controller) {
+            abortControllerRef.current = null;
+          }
         }
-      } catch (err) {
-        console.error('[Monvian Assistant Client Error]', err);
-        setMessages((prev) =>
-          prev.map((m) =>
-            m.id === assistantMsgId
-              ? {
-                  ...m,
-                  content:
-                    'Desculpe, ocorreu uma instabilidade momentânea ao consultar o Assistente Monvian. Tente novamente.',
-                  isStreaming: false,
-                }
-              : m
-          )
-        );
+      };
+
+      try {
+        let lastFailure: ClientStreamFailure | null = null;
+        for (let attempt = 0; attempt < 2; attempt++) {
+          if (requestSeqRef.current !== currentSeq) return;
+          try {
+            await executeSingleAttempt();
+            lastFailure = null;
+            break;
+          } catch (attemptErr: any) {
+            if (requestSeqRef.current !== currentSeq) return;
+            const failure: ClientStreamFailure =
+              attemptErr && typeof attemptErr === 'object' && 'message' in attemptErr
+                ? {
+                    code: String(attemptErr.code || 'CLIENT_ERROR'),
+                    message: String(attemptErr.message),
+                    retryable: Boolean(attemptErr.retryable),
+                  }
+                : {
+                    code: 'CLIENT_ERROR',
+                    message:
+                      'Não foi possível consultar o Assistente Monvian agora. Tente novamente.',
+                    retryable: false,
+                  };
+
+            lastFailure = failure;
+            const alreadyStreamedText = Boolean(attemptErr?.receivedAnyDelta);
+
+            // Controlled single retry only on transient error before any text has streamed
+            if (attempt === 0 && failure.retryable && !alreadyStreamedText && failure.code !== 'ABORTED') {
+              console.warn(`[Monvian Assistant] Retrying once after transient error [${failure.code}]`);
+              await new Promise((resolve) => window.setTimeout(resolve, 1200));
+              continue;
+            }
+            break;
+          }
+        }
+
+        if (lastFailure && lastFailure.code !== 'ABORTED' && requestSeqRef.current === currentSeq) {
+          console.error(`[Monvian Assistant Client Error] [${lastFailure.code}]`, lastFailure.message);
+          setMessages((prev) =>
+            prev.map((m) =>
+              m.id === assistantMsgId
+                ? {
+                    ...m,
+                    content: lastFailure!.message,
+                    isStreaming: false,
+                    isError: true,
+                  }
+                : m
+            )
+          );
+        }
       } finally {
-        setIsStreaming(false);
+        if (requestSeqRef.current === currentSeq) {
+          isSendingRef.current = false;
+          setIsStreaming(false);
+        }
       }
     },
     [
-      isStreaming,
       userKey,
       conversationId,
       user?.name,

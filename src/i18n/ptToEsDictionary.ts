@@ -1553,6 +1553,16 @@ const PT_TO_ES_RAW: Record<string, string> = {
   'Nevoeiro na serra': 'Niebla en la sierra',
   'Pancadas de neve': 'Chubascos de nieve',
   'Tempestade com raios': 'Tormenta eléctrica',
+  'Vamos fazer hoje?': '¿Qué hacemos hoy?',
+  'Como deseja aproveitar sua viagem?': '¿Cómo deseas disfrutar tu viaje?',
+  'Criar roteiro': 'Crear ruta',
+  'Monte seu próprio passeio.': 'Arma tu propio paseo.',
+  'Acesse seus roteiros salvos.': 'Accede a tus rutas guardadas.',
+  'Encontrar guia': 'Encontrar guía',
+  'Em breve disponível.': 'Disponible pronto.',
+  'Loja de roteiros': 'Tienda de rutas',
+  'Encontre roteiros prontos para conhecer.': 'Encuentra rutas listas para conocer.',
+  'Expandir mapa': 'Expandir mapa',
 };
 
 const normalizeLookupKeyEs = (s: string): string =>

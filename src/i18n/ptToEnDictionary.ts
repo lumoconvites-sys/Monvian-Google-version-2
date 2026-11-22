@@ -1551,6 +1551,16 @@ const PT_TO_EN_RAW: Record<string, string> = {
   'Nevoeiro na serra': 'Mountain fog',
   'Pancadas de neve': 'Snow showers',
   'Tempestade com raios': 'Thunderstorm',
+  'Vamos fazer hoje?': 'What shall we do today?',
+  'Como deseja aproveitar sua viagem?': 'How would you like to enjoy your trip?',
+  'Criar roteiro': 'Create itinerary',
+  'Monte seu próprio passeio.': 'Build your own tour.',
+  'Acesse seus roteiros salvos.': 'Access your saved itineraries.',
+  'Encontrar guia': 'Find a guide',
+  'Em breve disponível.': 'Coming soon.',
+  'Loja de roteiros': 'Itinerary store',
+  'Encontre roteiros prontos para conhecer.': 'Find ready-made itineraries to explore.',
+  'Expandir mapa': 'Expand map',
 };
 
 const normalizeLookupKey = (s: string): string =>
