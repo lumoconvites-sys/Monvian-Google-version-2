@@ -175,6 +175,7 @@
 
         function hidePreloaderImmediately() {
           dismissed = true;
+          window.__monvianPreloaderDismissed = true;
           if (minTimer) clearTimeout(minTimer);
           if (maxTimer) clearTimeout(maxTimer);
           var preloader = document.getElementById('monvian-app-preloader');
@@ -183,11 +184,15 @@
             preloader.style.opacity = '0';
             preloader.style.pointerEvents = 'none';
           }
+          try {
+            window.dispatchEvent(new CustomEvent('monvian:preloader-dismissed'));
+          } catch (e) {}
         }
 
         function dismissPreloader() {
           if (dismissed) return;
           dismissed = true;
+          window.__monvianPreloaderDismissed = true;
           if (minTimer) clearTimeout(minTimer);
           if (maxTimer) clearTimeout(maxTimer);
           var preloader = document.getElementById('monvian-app-preloader');
@@ -208,6 +213,9 @@
               preloader.style.display = 'none';
             }, 500);
           }
+          try {
+            window.dispatchEvent(new CustomEvent('monvian:preloader-dismissed'));
+          } catch (e) {}
         }
 
         function tryFinishPreloader() {
@@ -219,6 +227,7 @@
 
         function playLogoPreloaderSequence(minMs, maxMs) {
           dismissed = false;
+          window.__monvianPreloaderDismissed = false;
           minAnimationDone = false;
           if (minTimer) clearTimeout(minTimer);
           if (maxTimer) clearTimeout(maxTimer);

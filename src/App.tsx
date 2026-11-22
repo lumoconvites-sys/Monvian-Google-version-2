@@ -109,9 +109,7 @@ const SpotDetailSheet = React.lazy(() =>
 const PlatanosWalletModal = React.lazy(() =>
   import('./components/platanos/PlatanosWalletModal').then((m) => ({ default: m.PlatanosWalletModal }))
 );
-const WhiteConfettiOverlay = React.lazy(() =>
-  import('./components/WhiteConfettiOverlay').then((m) => ({ default: m.WhiteConfettiOverlay }))
-);
+import { WhiteConfettiOverlay } from './components/WhiteConfettiOverlay';
 const ClothingWeatherModal = React.lazy(() =>
   import('./components/ClothingWeatherWidget').then((m) => ({ default: m.ClothingWeatherModal }))
 );
@@ -426,6 +424,8 @@ export default function App() {
   });
   const [isGlobeIntroPlaying, setIsGlobeIntroPlaying] = useState<boolean>(false);
   const [arrivalConfettiTrigger, setArrivalConfettiTrigger] = useState<number>(0);
+  const hasTriggeredMainAppConfettiRef = useRef<boolean>(false);
+  const hasTriggeredInitialBootConfettiRef = useRef<boolean>(false);
   const [signupIntroStage, setSignupIntroStage] = useState<SignupIntroStage>('idle');
   const [isWelcomeJourneyOpen, setIsWelcomeJourneyOpen] = useState<boolean>(false);
   const [pendingWelcomeJourney, setPendingWelcomeJourney] = useState<boolean>(false);
@@ -2312,8 +2312,75 @@ export default function App() {
     setIsGlobeIntroPlaying(false);
     setIsGlobeIntroPending(false);
     setExplorarEntranceTick((prev) => prev + 1);
+    hasTriggeredMainAppConfettiRef.current = true;
     setArrivalConfettiTrigger((prev) => prev + 1);
   }, []);
+
+  // Automatically trigger 3D White & Silver Confetti burst once per app opening (no click required)
+  useEffect(() => {
+    if (isAuthChecking) return;
+
+    const isPreloaderFinished = () => {
+      if (typeof window === 'undefined') return true;
+      if ((window as any).__monvianPreloaderDismissed === true) return true;
+      const el = document.getElementById('monvian-app-preloader');
+      if (!el) return true;
+      return el.style.display === 'none' || el.style.opacity === '0';
+    };
+
+    // 1. Authenticated main app open (over the map and components)
+    if (isAuthenticated && authenticatedViews) {
+      if (
+        showOnboardingQuestions ||
+        showFirstSignupWelcome ||
+        isGlobeIntroPending ||
+        isGlobeIntroPlaying ||
+        hasTriggeredMainAppConfettiRef.current
+      ) {
+        return;
+      }
+
+      const fireMainAppConfetti = () => {
+        if (hasTriggeredMainAppConfettiRef.current) return;
+        hasTriggeredMainAppConfettiRef.current = true;
+        hasTriggeredInitialBootConfettiRef.current = true;
+        setArrivalConfettiTrigger((prev) => prev + 1);
+      };
+
+      if (isPreloaderFinished()) {
+        const t = window.setTimeout(fireMainAppConfetti, 80);
+        return () => window.clearTimeout(t);
+      }
+
+      const onPreloaderDismissed = () => {
+        window.setTimeout(fireMainAppConfetti, 90);
+      };
+      window.addEventListener('monvian:preloader-dismissed', onPreloaderDismissed, { once: true });
+      const fallbackTimer = window.setTimeout(fireMainAppConfetti, 2200);
+
+      return () => {
+        window.removeEventListener('monvian:preloader-dismissed', onPreloaderDismissed);
+        window.clearTimeout(fallbackTimer);
+      };
+    }
+
+    // 2. Unauthenticated initial app open (if app opens on welcome/auth screen without an active session)
+    if (!isAuthenticated && !hasTriggeredInitialBootConfettiRef.current) {
+      hasTriggeredInitialBootConfettiRef.current = true;
+      const t = window.setTimeout(() => {
+        setArrivalConfettiTrigger((prev) => prev + 1);
+      }, 120);
+      return () => window.clearTimeout(t);
+    }
+  }, [
+    isAuthChecking,
+    isAuthenticated,
+    authenticatedViews,
+    showOnboardingQuestions,
+    showFirstSignupWelcome,
+    isGlobeIntroPending,
+    isGlobeIntroPlaying,
+  ]);
 
   const handleAirbnbCardAction = useCallback(() => {
     if (!airbnbCardTab) return;
@@ -4322,16 +4389,6 @@ export default function App() {
       />
     )}
 
-    {/* White Confetti Burst Overlay (120fps) upon landing in Campos do Jordão */}
-    {activeTab === 'explorar' && arrivalConfettiTrigger > 0 && (
-      <Suspense fallback={null}>
-        <WhiteConfettiOverlay
-          triggerKey={arrivalConfettiTrigger}
-          onComplete={() => setArrivalConfettiTrigger(0)}
-        />
-      </Suspense>
-    )}
-
     {/* 4-Step Complementary Registration Flow followed by Original Welcome Screen */}
     <Suspense fallback={null}>
       <AnimatePresence mode="wait">
@@ -4413,6 +4470,14 @@ export default function App() {
         );
       })()}
   </AnimatePresence>
+
+  {/* Global Independent 120fps 3D White & Silver Confetti + Ribbons Layer (pointer-events: none) */}
+  {arrivalConfettiTrigger > 0 && (
+    <WhiteConfettiOverlay
+      triggerKey={arrivalConfettiTrigger}
+      onComplete={() => setArrivalConfettiTrigger(0)}
+    />
+  )}
   </>
   );
 }
