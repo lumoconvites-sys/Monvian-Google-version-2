@@ -262,7 +262,10 @@ export const MyItinerariesView: React.FC<MyItinerariesViewProps> = ({
       }}
     >
       {/* Top Navigation Bar: Back button + Centered Title "Meus roteiros" + Top-Right "+" Create Button */}
-      <div
+      <motion.div
+        initial={{ opacity: 0, y: -8 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ type: 'spring', stiffness: 380, damping: 24 }}
         className={`sticky top-0 z-30 w-full pb-3 transition-colors ${
           isDark ? 'bg-black/85 text-white' : 'bg-white/90 text-zinc-950'
         } backdrop-blur-xl`}
@@ -295,14 +298,18 @@ export const MyItinerariesView: React.FC<MyItinerariesViewProps> = ({
             <Plus className="relative z-10 w-[23px] h-[23px] pointer-events-none" strokeWidth={2.5} />
           </button>
         </div>
-      </div>
+      </motion.div>
 
       {/* Main Scrollable Content */}
       <div className="max-w-2xl mx-auto w-full flex-1 flex flex-col space-y-5 pt-2 pb-36">
         {/* Itinerary Cards List */}
         <div className="space-y-5">
           {displayedItineraries.length === 0 ? (
-            <div
+            <motion.div
+              key={`empty-${activeCategory}`}
+              initial={{ opacity: 0, scale: 0.88, y: 12 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              transition={{ type: 'spring', stiffness: 380, damping: 22, delay: 0.04 }}
               className={`w-full rounded-[28px] p-8 sm:p-10 text-center border flex flex-col items-center justify-center ${
                 isDark
                   ? 'bg-[#1C1C1E]/70 border-white/10'
@@ -357,9 +364,9 @@ export const MyItinerariesView: React.FC<MyItinerariesViewProps> = ({
                   </p>
                 </>
               )}
-            </div>
+            </motion.div>
           ) : (
-            displayedItineraries.map((itin) => {
+            displayedItineraries.map((itin, idx) => {
               const firstStepSpotImg =
                 itin.days?.[0]?.steps?.[0]?.spot?.image ||
                 itin.days?.[0]?.steps?.[0]?.image ||
@@ -371,10 +378,19 @@ export const MyItinerariesView: React.FC<MyItinerariesViewProps> = ({
               const isMenuOpen = openMenuItineraryId === itin.id;
 
               return (
-                <div
-                  key={itin.id}
+                <motion.div
+                  key={`${activeCategory}-${itin.id}`}
+                  initial={{ opacity: 0, scale: 0.88, y: 12 }}
+                  animate={{ opacity: 1, scale: 1, y: 0 }}
+                  transition={{
+                    type: 'spring',
+                    stiffness: 380,
+                    damping: 22,
+                    delay: Math.min(0.03 + idx * 0.05, 0.28),
+                  }}
+                  whileTap={{ scale: 0.985 }}
                   onClick={() => handleCardClick(itin)}
-                  className={`group relative w-full rounded-[28px] overflow-hidden border transition-transform duration-150 active:scale-[0.985] cursor-pointer ${
+                  className={`group relative w-full rounded-[28px] overflow-hidden border transition-colors cursor-pointer ${
                     isDark
                       ? 'bg-[#1C1C1E] border-white/10 shadow-[0_10px_30px_rgba(0,0,0,0.45)]'
                       : 'bg-white border-black/[0.06] shadow-[0_8px_28px_rgba(0,0,0,0.06)]'
@@ -514,7 +530,7 @@ export const MyItinerariesView: React.FC<MyItinerariesViewProps> = ({
                       }`}
                     />
                   </div>
-                </div>
+                </motion.div>
               );
             })
           )}
@@ -529,7 +545,10 @@ export const MyItinerariesView: React.FC<MyItinerariesViewProps> = ({
           paddingBottom: 'max(14px, env(safe-area-inset-bottom, 14px))',
         }}
       >
-        <div
+        <motion.div
+          initial={{ opacity: 0, y: 18, scale: 0.94 }}
+          animate={{ opacity: 1, y: 0, scale: 1 }}
+          transition={{ type: 'spring', stiffness: 380, damping: 24, delay: 0.08 }}
           className={`w-full max-w-md rounded-full p-1.5 grid grid-cols-2 gap-1 pointer-events-auto border backdrop-blur-2xl ${
             isDark
               ? 'bg-[#1C1C1E]/95 border-white/10 shadow-[0_10px_32px_rgba(0,0,0,0.65)]'
@@ -570,7 +589,7 @@ export const MyItinerariesView: React.FC<MyItinerariesViewProps> = ({
             <ShoppingBag className="w-[18px] h-[18px] stroke-[2.2]" />
             <span>{tr('Adquiridos')}</span>
           </button>
-        </div>
+        </motion.div>
       </div>
 
       {/* Delete Confirmation Dialog */}

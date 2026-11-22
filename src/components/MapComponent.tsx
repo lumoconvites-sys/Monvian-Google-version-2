@@ -4181,12 +4181,8 @@ export const MapComponent = memo(
           {/* PLAY — Create Custom Itinerary Directly on Map */}
           {workflowMode === 'EXPLORE' && onStartItineraryCreation && (
             <motion.button
-              key={`map-ctrl-play-${entranceTick}`}
               id="btn-play-itinerary"
               type="button"
-              initial={{ opacity: 0, scale: 0.88, y: 12 }}
-              animate={{ opacity: 1, scale: 1, y: 0 }}
-              transition={{ type: 'spring', stiffness: 380, damping: 22, delay: 0.08 }}
               whileTap={{ scale: 0.9, transition: { type: 'spring', stiffness: 500, damping: 14 } }}
               onClick={() => {
                 unlockSpotClickSound();
@@ -4208,11 +4204,7 @@ export const MapComponent = memo(
 
           {/* My Real-Time Location & Compass Orientation Button */}
           <motion.button
-            key={`map-ctrl-compass-${entranceTick}`}
             type="button"
-            initial={{ opacity: 0, scale: 0.88, y: 12 }}
-            animate={{ opacity: 1, scale: 1, y: 0 }}
-            transition={{ type: 'spring', stiffness: 380, damping: 22, delay: 0.12 }}
             whileTap={{ scale: 0.9, transition: { type: 'spring', stiffness: 500, damping: 14 } }}
             onClick={() => centerOnUserLocation(true, true)}
             aria-label="Centralizar na minha localização e ativar bússola em tempo real"
@@ -4240,11 +4232,7 @@ export const MapComponent = memo(
 
           {/* Map Layers Toggle */}
           <motion.button
-            key={`map-ctrl-layers-${entranceTick}`}
             type="button"
-            initial={{ opacity: 0, scale: 0.88, y: 12 }}
-            animate={{ opacity: 1, scale: 1, y: 0 }}
-            transition={{ type: 'spring', stiffness: 380, damping: 22, delay: 0.16 }}
             whileTap={{ scale: 0.9, transition: { type: 'spring', stiffness: 500, damping: 14 } }}
             onPointerDown={handleMapLayerButtonPointerDown}
             onClick={handleCycleMapStyle}

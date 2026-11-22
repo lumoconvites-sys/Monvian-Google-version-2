@@ -23,7 +23,6 @@ import {
   ExternalLink,
   Sparkles,
   HelpCircle,
-  Lock,
   Compass,
   Calendar,
   Users,
@@ -58,7 +57,6 @@ import { useIOSBackEntry } from '../services/iosNavigationManager';
 import { PlatanoLeafIcon } from './platanos/PlatanoLeafIcon';
 import { usePlatanos } from '../hooks/usePlatanos';
 import { MyItinerariesView } from './itineraries/MyItinerariesView';
-import foldedMap3dIcon from '../assets/images/folded_map_pin_3d.png';
 import platanosLeaf3dIcon from '../assets/images/platanos_leaf_hero_3d.png';
 import { isAppSoundEnabled, setAppSoundEnabled } from '../utils/soundEffects';
 
@@ -174,7 +172,14 @@ export const ProfileModal: React.FC<ProfileModalProps> = React.memo(({
     }
   };
 
+  const [profileEntranceTick, setProfileEntranceTick] = useState(0);
+  const wasViewActiveRef = useRef(isViewActive);
+
   useEffect(() => {
+    if (isViewActive && !wasViewActiveRef.current) {
+      setProfileEntranceTick((t) => t + 1);
+    }
+    wasViewActiveRef.current = isViewActive;
     if (isViewActive && scrollContainerRef.current && activeSubView === 'main') {
       scrollContainerRef.current.scrollTop = 0;
     }
@@ -842,9 +847,13 @@ export const ProfileModal: React.FC<ProfileModalProps> = React.memo(({
             className="flex-1 flex flex-col w-full"
           >
           {activeSubView === 'main' && (
-            <div className="space-y-4 pt-1 pb-6">
+            <div key={`profile-main-${profileEntranceTick}`} className="space-y-4 pt-1 pb-6">
               {/* 1. Main Profile Card */}
-              <div
+              <motion.div
+                initial={{ opacity: 0, scale: 0.88, y: 12 }}
+                animate={{ opacity: 1, scale: 1, y: 0 }}
+                transition={{ type: 'spring', stiffness: 380, damping: 22, delay: 0.02 }}
+                whileTap={{ scale: 0.985 }}
                 onClick={() => {
                   setTempName(userName);
                   setTempUsername(userUsername);
@@ -856,7 +865,7 @@ export const ProfileModal: React.FC<ProfileModalProps> = React.memo(({
                   setSaveError('');
                   handleSetSubView('edit-profile');
                 }}
-                className={`w-full p-5 sm:p-6 rounded-[28px] border transition-transform duration-150 active:scale-[0.985] cursor-pointer group flex flex-col items-center text-center ${
+                className={`w-full p-5 sm:p-6 rounded-[28px] border transition-colors cursor-pointer group flex flex-col items-center text-center ${
                   isDark
                     ? 'bg-[#1C1C1E] border-white/10 shadow-xs'
                     : 'bg-[#fefefe] border-black/5 shadow-xs'
@@ -892,94 +901,76 @@ export const ProfileModal: React.FC<ProfileModalProps> = React.memo(({
                     @{userUsername}
                   </p>
                 )}
-              </div>
+              </motion.div>
 
               {/* 1.5. Barra de Progresso Monvian XP por Exploração */}
-              <ProfileXpProgressBar isDark={isDark} />
+              <motion.div
+                initial={{ opacity: 0, scale: 0.88, y: 12 }}
+                animate={{ opacity: 1, scale: 1, y: 0 }}
+                transition={{ type: 'spring', stiffness: 380, damping: 22, delay: 0.06 }}
+              >
+                <ProfileXpProgressBar isDark={isDark} />
+              </motion.div>
 
-              {/* 2. Feature Cards Grid (Viagens & Conexões) */}
-              <div className="grid grid-cols-2 gap-3 sm:gap-3.5">
-                {/* Viagens */}
-                <div
-                  onClick={(e) => {
-                    e.stopPropagation();
-                  }}
-                  className={`rounded-[24px] p-4 border transition-colors cursor-default flex flex-col justify-between ${
-                    isDark ? 'bg-[#1C1C1E] border-white/10 shadow-xs' : 'bg-[#fefefe] border-black/5 shadow-xs'
-                  }`}
-                >
-                  <div className="flex justify-end">
-                    <span className="px-2 py-0.5 rounded-full bg-[#0079ff] text-[#ffffff] border-[#008eff] text-[9px] font-bold uppercase tracking-wider" style={{ backgroundColor: '#0079ff' }}>
-                      {tr('NOVO')}
-                    </span>
-                  </div>
-                  <div className="my-2 flex justify-center items-center h-[46px]">
-                    <img
-                      src="/lugares.png"
-                      alt={tr('Viagens')}
-                      className="h-[64px] w-auto object-contain"
-                    />
-                  </div>
-                  <div>
-                    <div className="flex items-center justify-between">
-                      <h3 className="text-[15px] font-bold tracking-tight leading-snug">
-                        {tr('Viagens')}
-                      </h3>
-                      <Lock className="w-3.5 h-3.5 text-zinc-400 dark:text-zinc-500" />
-                    </div>
-                  </div>
-                </div>
-
+              {/* 2. Feature Cards Grid (Conexões & Plátanos & Carteira — side by side, equal size) */}
+              <div className="grid grid-cols-2 gap-3 sm:gap-3.5 items-stretch">
                 {/* Conexões */}
-                <div
+                <motion.button
+                  type="button"
+                  initial={{ opacity: 0, scale: 0.88, y: 12 }}
+                  animate={{ opacity: 1, scale: 1, y: 0 }}
+                  transition={{ type: 'spring', stiffness: 380, damping: 22, delay: 0.1 }}
+                  whileTap={{ scale: 0.97 }}
                   onClick={() => {
                     window.open('https://chat.whatsapp.com/BS2Fu5Kws5qE8iaWHWrbCY?s=cl&p=i&mlu=4&ilr=4&iam=2', '_blank');
                   }}
-                  className={`rounded-[24px] p-4 border transition-transform duration-150 active:scale-[0.97] cursor-pointer flex flex-col justify-between ${
-                    isDark ? 'bg-[#1C1C1E] border-white/10 shadow-xs' : 'bg-[#fefefe] border-black/5 shadow-xs'
+                  className={`h-full min-h-[168px] rounded-[24px] p-4 border transition-colors cursor-pointer flex flex-col justify-between text-left ${
+                    isDark ? 'bg-[#1C1C1E] border-white/10 shadow-xs' : 'bg-[#ffffff] border-black/5 shadow-xs'
                   }`}
+                  style={{ backgroundColor: isDark ? undefined : '#ffffff' }}
                 >
-                  <div className="flex justify-end">
+                  <div className="h-5 flex items-center justify-end">
                     <span className="px-2 py-0.5 rounded-full bg-[#0079ff] text-white text-[9px] font-bold uppercase tracking-wider" style={{ backgroundColor: '#0079ff' }}>
                       {tr('NOVO')}
                     </span>
                   </div>
-                  <div className="my-2 flex justify-center items-center h-[46px]">
+                  <div className="my-2 flex justify-center items-center h-[58px]">
                     <img
                       src="/conexao.png"
                       alt={tr('Conexões')}
-                      className="h-[64px] w-auto object-contain"
+                      className="h-[58px] w-auto object-contain"
+                      draggable={false}
                     />
                   </div>
-                  <div>
-                    <h3 className="text-[15px] font-bold tracking-tight leading-snug">
+                  <div className="min-h-[38px] flex flex-col justify-end">
+                    <h3 className="text-[15px] font-bold tracking-tight leading-snug text-zinc-950 dark:text-white">
                       {tr('Conexões')}
                     </h3>
                   </div>
-                </div>
-              </div>
+                </motion.button>
 
-
-              {/* 3. Plátanos & Carteira + Meus roteiros (2-Column Bento Cards matching iOS Native Reference) */}
-              <div className="grid grid-cols-2 gap-3 sm:gap-3.5">
                 {/* Plátanos & Carteira */}
-                <button
+                <motion.button
                   type="button"
+                  initial={{ opacity: 0, scale: 0.88, y: 12 }}
+                  animate={{ opacity: 1, scale: 1, y: 0 }}
+                  transition={{ type: 'spring', stiffness: 380, damping: 22, delay: 0.14 }}
+                  whileTap={{ scale: 0.97 }}
                   onClick={() => {
                     onClose();
                     window.dispatchEvent(
                       new CustomEvent('monvian:open_platanos_wallet', { detail: { tab: 'topup' } })
                     );
                   }}
-                  className={`rounded-[24px] p-4 border transition-transform duration-150 active:scale-[0.97] cursor-pointer flex flex-col justify-between text-left ${
+                  className={`h-full min-h-[168px] rounded-[24px] p-4 border transition-colors cursor-pointer flex flex-col justify-between text-left ${
                     isDark ? 'bg-[#1C1C1E] border-white/10 shadow-xs' : 'bg-[#ffffff] border-black/5 shadow-xs'
                   }`}
                   style={{ backgroundColor: isDark ? undefined : '#ffffff' }}
                 >
-                  <div className="flex justify-end">
+                  <div className="h-5 flex items-center justify-end">
                     <ChevronRight className="w-4 h-4 text-zinc-400 shrink-0" />
                   </div>
-                  <div className="my-2 flex justify-center items-center h-[46px]">
+                  <div className="my-2 flex justify-center items-center h-[58px]">
                     <img
                       src={platanosLeaf3dIcon}
                       alt="Plátanos"
@@ -987,7 +978,7 @@ export const ProfileModal: React.FC<ProfileModalProps> = React.memo(({
                       draggable={false}
                     />
                   </div>
-                  <div>
+                  <div className="min-h-[38px] flex flex-col justify-end">
                     <h3 className="text-[15px] font-bold tracking-tight leading-snug text-zinc-950 dark:text-white">
                       {tr('Plátanos & Carteira')}
                     </h3>
@@ -995,46 +986,23 @@ export const ProfileModal: React.FC<ProfileModalProps> = React.memo(({
                       {wallet.balance} {wallet.balance === 1 ? tr('Plátano disponível') : tr('Plátanos disponíveis')}
                     </p>
                   </div>
-                </button>
-
-                {/* Meus roteiros */}
-                <button
-                  type="button"
-                  onClick={() => handleSetSubView('meus-roteiros')}
-                  className={`rounded-[24px] p-4 border transition-transform duration-150 active:scale-[0.97] cursor-pointer flex flex-col justify-between text-left ${
-                    isDark ? 'bg-[#1C1C1E] border-white/10 shadow-xs' : 'bg-[#ffffff] border-black/5 shadow-xs'
-                  }`}
-                  style={{ backgroundColor: isDark ? undefined : '#ffffff' }}
-                >
-                  <div className="flex justify-end">
-                    <ChevronRight className="w-4 h-4 text-zinc-400 shrink-0" />
-                  </div>
-                  <div className="my-2 flex justify-center items-center h-[46px]">
-                    <img
-                      src={foldedMap3dIcon}
-                      alt={tr('Meus roteiros')}
-                      className="h-[58px] w-auto object-contain drop-shadow-[0_4px_10px_rgba(0,0,0,0.18)]"
-                      draggable={false}
-                    />
-                  </div>
-                  <div>
-                    <h3 className="text-[15px] font-bold tracking-tight leading-snug text-zinc-950 dark:text-white">
-                      {tr('Meus roteiros')}
-                    </h3>
-                  </div>
-                </button>
+                </motion.button>
               </div>
 
               {/* 4. Options List */}
               <div className="space-y-2.5 pt-1">
                 {isUserAdmin && (
-                  <button
+                  <motion.button
                     type="button"
+                    initial={{ opacity: 0, scale: 0.88, y: 12 }}
+                    animate={{ opacity: 1, scale: 1, y: 0 }}
+                    transition={{ type: 'spring', stiffness: 380, damping: 22, delay: 0.17 }}
+                    whileTap={{ scale: 0.985 }}
                     onClick={() => {
                       onClose();
                       onOpenAdmin?.();
                     }}
-                    className={`w-full p-4 rounded-[22px] border transition-all duration-150 active:scale-[0.985] flex items-center justify-between text-left cursor-pointer ${
+                    className={`w-full p-4 rounded-[22px] border transition-colors flex items-center justify-between text-left cursor-pointer ${
                       isDark ? 'bg-[#1C1C1E] border-white/10 hover:bg-[#252528]' : 'bg-[#fefefe] border-black/5 hover:bg-[#E5E5EA]/80'
                     }`}
                   >
@@ -1046,14 +1014,18 @@ export const ProfileModal: React.FC<ProfileModalProps> = React.memo(({
                         {tr('Painel ADM')}
                       </h3>
                     </div>
-                  </button>
+                  </motion.button>
                 )}
 
                 {/* Configurações da Conta -> opens 'permissoes' */}
-                <button
+                <motion.button
                   type="button"
+                  initial={{ opacity: 0, scale: 0.88, y: 12 }}
+                  animate={{ opacity: 1, scale: 1, y: 0 }}
+                  transition={{ type: 'spring', stiffness: 380, damping: 22, delay: isUserAdmin ? 0.2 : 0.17 }}
+                  whileTap={{ scale: 0.985 }}
                   onClick={() => handleSetSubView('permissoes')}
-                  className={`w-full p-4 rounded-[22px] border transition-all duration-150 active:scale-[0.985] flex items-center justify-between text-left cursor-pointer ${
+                  className={`w-full p-4 rounded-[22px] border transition-colors flex items-center justify-between text-left cursor-pointer ${
                     isDark ? 'bg-[#1C1C1E] border-white/10 hover:bg-[#252528]' : 'bg-[#fefefe] border-black/5 hover:bg-[#E5E5EA]/80'
                   }`}
                 >
@@ -1066,12 +1038,16 @@ export const ProfileModal: React.FC<ProfileModalProps> = React.memo(({
                       {tr('Configurações da conta')}
                     </h3>
                   </div>
-                </button>
+                </motion.button>
 
-                <button
+                <motion.button
                   type="button"
+                  initial={{ opacity: 0, scale: 0.88, y: 12 }}
+                  animate={{ opacity: 1, scale: 1, y: 0 }}
+                  transition={{ type: 'spring', stiffness: 380, damping: 22, delay: isUserAdmin ? 0.23 : 0.2 }}
+                  whileTap={{ scale: 0.985 }}
                   onClick={() => openHelpLegalPage('hub', 'main')}
-                  className={`w-full p-4 rounded-[22px] border transition-all duration-150 active:scale-[0.985] flex items-center justify-between text-left cursor-pointer ${
+                  className={`w-full p-4 rounded-[22px] border transition-colors flex items-center justify-between text-left cursor-pointer ${
                     isDark ? 'bg-[#1C1C1E] border-white/10 hover:bg-[#252528]' : 'bg-[#fefefe] border-black/5 hover:bg-[#E5E5EA]/80'
                   }`}
                 >
@@ -1083,13 +1059,17 @@ export const ProfileModal: React.FC<ProfileModalProps> = React.memo(({
                       {tr('Ajuda e informações')}
                     </h3>
                   </div>
-                </button>
+                </motion.button>
 
                 {/* Sair da conta */}
-                <button
+                <motion.button
                   type="button"
+                  initial={{ opacity: 0, scale: 0.88, y: 12 }}
+                  animate={{ opacity: 1, scale: 1, y: 0 }}
+                  transition={{ type: 'spring', stiffness: 380, damping: 22, delay: isUserAdmin ? 0.26 : 0.23 }}
+                  whileTap={{ scale: 0.985 }}
                   onClick={() => handleSetSubView('logout-confirm')}
-                  className={`w-full p-4 rounded-[22px] border transition-all duration-150 active:scale-[0.985] flex items-center justify-between text-left cursor-pointer ${
+                  className={`w-full p-4 rounded-[22px] border transition-colors flex items-center justify-between text-left cursor-pointer ${
                     isDark ? 'bg-[#1C1C1E] border-white/10 hover:bg-[#252528]' : 'bg-[#fefefe] border-black/5 hover:bg-[#E5E5EA]/80'
                   }`}
                 >
@@ -1101,7 +1081,7 @@ export const ProfileModal: React.FC<ProfileModalProps> = React.memo(({
                       {tr('Sair da conta')}
                     </h3>
                   </div>
-                </button>
+                </motion.button>
               </div>
             </div>
           )}
@@ -1111,6 +1091,7 @@ export const ProfileModal: React.FC<ProfileModalProps> = React.memo(({
           {/* ============================================================ */}
           {activeSubView === 'meus-roteiros' && (
             <MyItinerariesView
+              key={`my-itineraries-${profileEntranceTick}`}
               user={user}
               spots={spots}
               isDark={isDark}

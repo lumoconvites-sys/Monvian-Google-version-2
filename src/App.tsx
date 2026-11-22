@@ -3563,207 +3563,164 @@ export default function App() {
         </div>
 
       {/* 3. Top Floating Header Bar (MOBILE ONLY: md:hidden, mounted only on Explorar EXPLORE mode) */}
-      {activeTab === 'explorar' && (
-        <AnimatePresence>
-          {mapWorkflowMode === 'EXPLORE' &&
-            !isMapOrbiting &&
-            !isUserLocationSpotlightActive &&
-            !showFirstSignupWelcome &&
-            !isGlobeIntroPlaying && (
-            <motion.header
-              key={`explore-mobile-header-${explorarEntranceTick}`}
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              transition={{ duration: 0.15 }}
-              aria-label="Informações de Campos do Jordão"
-              className="md:hidden absolute top-0 left-0 right-0 z-40 pointer-events-none px-4 sm:px-6"
-              style={{
-                paddingTop: 'max(calc(env(safe-area-inset-top, 0px) + 16px), 28px)',
-                paddingLeft: 'max(16px, env(safe-area-inset-left, 0px))',
-                paddingRight: 'max(16px, env(safe-area-inset-right, 0px))',
-              }}
+      {activeTab === 'explorar' &&
+        mapWorkflowMode === 'EXPLORE' &&
+        !isMapOrbiting &&
+        !isUserLocationSpotlightActive &&
+        !showFirstSignupWelcome &&
+        !isGlobeIntroPlaying && (
+          <header
+            aria-label="Informações de Campos do Jordão"
+            className="md:hidden absolute top-0 left-0 right-0 z-40 pointer-events-none px-4 sm:px-6"
+            style={{
+              paddingTop: 'max(calc(env(safe-area-inset-top, 0px) + 16px), 28px)',
+              paddingLeft: 'max(16px, env(safe-area-inset-left, 0px))',
+              paddingRight: 'max(16px, env(safe-area-inset-right, 0px))',
+            }}
+          >
+            <div
+              className={`w-full flex items-start justify-between transition-[opacity,transform] duration-250 ease-[cubic-bezier(0.22,1,0.36,1)] ${
+                isSpotFocusActive
+                  ? 'opacity-0 scale-95 [&_*]:!pointer-events-none'
+                  : isBlurActive
+                    ? 'opacity-30 scale-100 [&_*]:!pointer-events-none'
+                    : 'opacity-100 scale-100'
+              }`}
             >
-              <div
-                className={`w-full flex items-start justify-between transition-[opacity,transform] duration-250 ease-[cubic-bezier(0.22,1,0.36,1)] ${
-                  isSpotFocusActive
-                    ? 'opacity-0 scale-95 [&_*]:!pointer-events-none'
-                    : isBlurActive
-                      ? 'opacity-30 scale-100 [&_*]:!pointer-events-none'
-                      : 'opacity-100 scale-100'
-                }`}
-              >
-                {/* Left: Big Weather Temperature & Dynamic Condition */}
-                <div className="flex items-center pointer-events-auto">
-                  <motion.div
-                    id="weather-header-display"
-                    whileTap={{ scale: 0.94 }}
-                    transition={IOS_SPRING_PRESS}
-                    onClick={() => setIsWeatherModalOpen(true)}
-                    className="flex flex-col items-start select-none opacity-100 cursor-pointer"
-                    title={`Campos do Jordão: ${realWeather.temperature}°C — ${realWeather.condition}`}
-                  >
-                    {/* Layout: Large beautiful 3D icon on the left, bold prominent degrees */}
-                    <div className="flex items-center gap-1.5 sm:gap-2">
-                      {/* Weather 3D Icon */}
-                      <motion.div
-                        id="weather-3d-icon-clean"
-                        initial={prefersReducedMotion ? { opacity: 0 } : { opacity: 0, scale: 0.88, y: 12 }}
-                        animate={{ opacity: 1, scale: 1, y: 0 }}
-                        transition={
-                          prefersReducedMotion
-                            ? { duration: 0.14 }
-                            : { type: 'spring', stiffness: 380, damping: 22, delay: 0.02 }
-                        }
-                        className="select-none flex items-center justify-center shrink-0 drop-shadow-md"
-                      >
-                        <Weather3DIcon
-                          weatherCode={realWeather.weatherCode}
-                          isDay={realWeather.isDay}
-                          className="w-14 h-14 sm:w-16 sm:h-16 lg:w-20 lg:h-20 -my-2.5"
-                        />
-                      </motion.div>
-
-                      {/* Temperature Degrees */}
-                      <motion.div
-                        id="weather-degrees-clean"
-                        initial={prefersReducedMotion ? { opacity: 0 } : { opacity: 0, scale: 0.88, y: 12 }}
-                        animate={{ opacity: 1, scale: 1, y: 0 }}
-                        transition={
-                          prefersReducedMotion
-                            ? { duration: 0.14 }
-                            : { type: 'spring', stiffness: 380, damping: 22, delay: 0.055 }
-                        }
-                        className="flex items-baseline select-none text-left drop-shadow-[0_2px_8px_rgba(0,0,0,0.6)]"
-                      >
-                        <span className={`text-5xl sm:text-6xl font-extrabold tracking-tighter leading-none text-[#ffffff] ${
-                          mapStyle === 'animado'
-                            ? '[-webkit-text-stroke:_0.6px_rgba(0,0,0,0.22)]'
-                            : ''
-                        }`}>
-                          {realWeather.temperature}°
-                        </span>
-                      </motion.div>
+              {/* Left: Big Weather Temperature & Dynamic Condition */}
+              <div className="flex items-center pointer-events-auto">
+                <motion.div
+                  id="weather-header-display"
+                  whileTap={{ scale: 0.94 }}
+                  transition={IOS_SPRING_PRESS}
+                  onClick={() => setIsWeatherModalOpen(true)}
+                  className="flex flex-col items-start select-none opacity-100 cursor-pointer"
+                  title={`Campos do Jordão: ${realWeather.temperature}°C — ${realWeather.condition}`}
+                >
+                  {/* Layout: Large beautiful 3D icon on the left, bold prominent degrees */}
+                  <div className="flex items-center gap-1.5 sm:gap-2">
+                    {/* Weather 3D Icon */}
+                    <div
+                      id="weather-3d-icon-clean"
+                      className="select-none flex items-center justify-center shrink-0 drop-shadow-md"
+                    >
+                      <Weather3DIcon
+                        weatherCode={realWeather.weatherCode}
+                        isDay={realWeather.isDay}
+                        className="w-14 h-14 sm:w-16 sm:h-16 lg:w-20 lg:h-20 -my-2.5"
+                      />
                     </div>
 
-                    {/* Condition label under the temperature */}
-                    <motion.div
-                      id="weather-condition-clean"
-                      initial={prefersReducedMotion ? { opacity: 0 } : { opacity: 0, scale: 0.88, y: 12 }}
-                      animate={{ opacity: 1, scale: 1, y: 0 }}
-                      transition={
-                        prefersReducedMotion
-                          ? { duration: 0.14 }
-                          : { type: 'spring', stiffness: 380, damping: 22, delay: 0.085 }
-                      }
-                      className="text-left mt-0.5 ml-1 drop-shadow-[0_1px_4px_rgba(0,0,0,0.6)]"
+                    {/* Temperature Degrees */}
+                    <div
+                      id="weather-degrees-clean"
+                      className="flex items-baseline select-none text-left drop-shadow-[0_2px_8px_rgba(0,0,0,0.6)]"
                     >
-                      <span className={`block text-[13px] sm:text-[14px] font-semibold tracking-tight whitespace-nowrap ${
-                        isSatelliteExplore
-                          ? 'text-white'
-                          : mapStyle === 'animado'
-                            ? 'text-white [-webkit-text-stroke:_0.35px_rgba(0,0,0,0.20)]'
-                            : theme === 'dark'
-                              ? 'text-white/95'
-                              : 'text-zinc-800 dark:text-zinc-200'
+                      <span className={`text-5xl sm:text-6xl font-extrabold tracking-tighter leading-none text-[#ffffff] ${
+                        mapStyle === 'animado'
+                          ? '[-webkit-text-stroke:_0.6px_rgba(0,0,0,0.22)]'
+                          : ''
                       }`}>
-                        {realWeather.condition}
+                        {realWeather.temperature}°
                       </span>
-                    </motion.div>
-                  </motion.div>
-                </div>
+                    </div>
+                  </div>
 
-                {/* Right: Clean Header Action Icons with iOS Liquid Glass Buttons */}
-                {(() => {
-                  const headerIconColor = isSatelliteExplore
-                    ? theme === 'dark'
-                      ? '#C0C0C6'
-                      : '#858585'
-                    : theme === 'dark'
-                      ? '#FFFFFF'
-                      : '#000000';
-                  const headerIconTextClass = isSatelliteExplore
-                    ? theme === 'dark'
-                      ? 'text-[#C0C0C6]'
-                      : 'text-[#858585]'
-                    : theme === 'dark'
-                      ? 'text-white'
-                      : 'text-black';
+                  {/* Condition label under the temperature */}
+                  <div
+                    id="weather-condition-clean"
+                    className="text-left mt-0.5 ml-1 drop-shadow-[0_1px_4px_rgba(0,0,0,0.6)]"
+                  >
+                    <span className={`block text-[13px] sm:text-[14px] font-semibold tracking-tight whitespace-nowrap ${
+                      isSatelliteExplore
+                        ? 'text-white'
+                        : mapStyle === 'animado'
+                          ? 'text-white [-webkit-text-stroke:_0.35px_rgba(0,0,0,0.20)]'
+                          : theme === 'dark'
+                            ? 'text-white/95'
+                            : 'text-zinc-800 dark:text-zinc-200'
+                    }`}>
+                      {realWeather.condition}
+                    </span>
+                  </div>
+                </motion.div>
+              </div>
 
-                  return (
-                <div className="flex items-center gap-2.5 pointer-events-auto relative">
+              {/* Right: Clean Header Action Icons with iOS Liquid Glass Buttons */}
+              {(() => {
+                const headerIconColor = isSatelliteExplore
+                  ? theme === 'dark'
+                    ? '#C0C0C6'
+                    : '#858585'
+                  : theme === 'dark'
+                    ? '#FFFFFF'
+                    : '#000000';
+                const headerIconTextClass = isSatelliteExplore
+                  ? theme === 'dark'
+                    ? 'text-[#C0C0C6]'
+                    : 'text-[#858585]'
+                  : theme === 'dark'
+                    ? 'text-white'
+                    : 'text-black';
 
-                  {/* 3D View Toggle Icon */}
+                return (
+              <div className="flex items-center gap-2.5 pointer-events-auto relative">
+
+                {/* 3D View Toggle Icon */}
+                <motion.button
+                  id="btn-3d-toggle"
+                  type="button"
+                  whileTap={{ scale: 0.9, transition: { type: 'spring', stiffness: 500, damping: 14 } }}
+                  onClick={() => {
+                    setHasToggled3D(true);
+                    setIs3DMode((prev) => !prev);
+                  }}
+                  className={`w-[53px] h-[53px] sm:w-[58px] sm:h-[58px] rounded-full ios26-liquid-glass flex items-center justify-center transition-colors duration-200 cursor-pointer group shrink-0 ${headerIconTextClass}`}
+                  style={{ color: headerIconColor }}
+                  aria-label={is3DMode ? 'Alternar para visualização 2D' : 'Alternar para visualização 3D'}
+                  title={is3DMode ? 'Alternar para visão 2D Plana' : 'Alternar para visão 3D com Relevo e Montanhas'}
+                >
+                  <div
+                    className="relative z-10 flex items-center justify-center group-hover:scale-105 transition-transform duration-200"
+                    style={{ color: headerIconColor }}
+                  >
+                    <Map3DIcon
+                      mode={!hasToggled3D || is3DMode ? '3D' : '2D'}
+                      style={{ color: headerIconColor }}
+                    />
+                  </div>
+                </motion.button>
+
+                {/* Category Filter Button with Dropdown */}
+                <div className="relative shrink-0">
                   <motion.button
-                    id="btn-3d-toggle"
+                    id="btn-category-icon-toggle"
                     type="button"
-                    initial={prefersReducedMotion ? { opacity: 0 } : { opacity: 0, scale: 0.88, y: 12 }}
-                    animate={{ opacity: 1, scale: 1, y: 0 }}
-                    transition={
-                      prefersReducedMotion
-                        ? { duration: 0.14 }
-                        : { type: 'spring', stiffness: 380, damping: 22, delay: 0.06 }
-                    }
                     whileTap={{ scale: 0.9, transition: { type: 'spring', stiffness: 500, damping: 14 } }}
                     onClick={() => {
-                      setHasToggled3D(true);
-                      setIs3DMode((prev) => !prev);
+                      setIsCategoryCardOpen((prev) => !prev);
+                      setIsSearchOpen(false);
                     }}
                     className={`w-[53px] h-[53px] sm:w-[58px] sm:h-[58px] rounded-full ios26-liquid-glass flex items-center justify-center transition-colors duration-200 cursor-pointer group shrink-0 ${headerIconTextClass}`}
                     style={{ color: headerIconColor }}
-                    aria-label={is3DMode ? 'Alternar para visualização 2D' : 'Alternar para visualização 3D'}
-                    title={is3DMode ? 'Alternar para visão 2D Plana' : 'Alternar para visão 3D com Relevo e Montanhas'}
+                    title={selectedCategoryFilter ? 'Filtro de categoria ativo - Clique para alterar ou limpar' : 'Filtrar por Categoria'}
                   >
-                    <div
-                      className="relative z-10 flex items-center justify-center group-hover:scale-105 transition-transform duration-200"
-                      style={{ color: headerIconColor }}
-                    >
-                      <Map3DIcon
-                        mode={!hasToggled3D || is3DMode ? '3D' : '2D'}
+                    <div className="relative z-10 flex items-center justify-center group-hover:scale-105 transition-transform duration-300">
+                      <SlidersHorizontal
+                        className="w-6 h-6 sm:w-[29px] sm:h-[29px] stroke-[2]"
                         style={{ color: headerIconColor }}
                       />
                     </div>
+                    {selectedCategoryFilter && (
+                      <span className="absolute top-0 right-0 z-20 w-2.5 h-2.5 rounded-full bg-blue-500 ring-2 ring-white dark:ring-[#1C1C1E]" />
+                    )}
                   </motion.button>
-
-                  {/* Category Filter Button with Dropdown */}
-                  <div className="relative shrink-0">
-                    <motion.button
-                      id="btn-category-icon-toggle"
-                      type="button"
-                      initial={prefersReducedMotion ? { opacity: 0 } : { opacity: 0, scale: 0.88, y: 12 }}
-                      animate={{ opacity: 1, scale: 1, y: 0 }}
-                      transition={
-                        prefersReducedMotion
-                          ? { duration: 0.14 }
-                          : { type: 'spring', stiffness: 380, damping: 22, delay: 0.1 }
-                      }
-                      whileTap={{ scale: 0.9, transition: { type: 'spring', stiffness: 500, damping: 14 } }}
-                      onClick={() => {
-                        setIsCategoryCardOpen((prev) => !prev);
-                        setIsSearchOpen(false);
-                      }}
-                      className={`w-[53px] h-[53px] sm:w-[58px] sm:h-[58px] rounded-full ios26-liquid-glass flex items-center justify-center transition-colors duration-200 cursor-pointer group shrink-0 ${headerIconTextClass}`}
-                      style={{ color: headerIconColor }}
-                      title={selectedCategoryFilter ? 'Filtro de categoria ativo - Clique para alterar ou limpar' : 'Filtrar por Categoria'}
-                    >
-                      <div className="relative z-10 flex items-center justify-center group-hover:scale-105 transition-transform duration-300">
-                        <SlidersHorizontal
-                          className="w-6 h-6 sm:w-[29px] sm:h-[29px] stroke-[2]"
-                          style={{ color: headerIconColor }}
-                        />
-                      </div>
-                      {selectedCategoryFilter && (
-                        <span className="absolute top-0 right-0 z-20 w-2.5 h-2.5 rounded-full bg-blue-500 ring-2 ring-white dark:ring-[#1C1C1E]" />
-                      )}
-                    </motion.button>
-                  </div>
                 </div>
-                  );
-                })()}
               </div>
-            </motion.header>
-          )}
-        </AnimatePresence>
+                );
+              })()}
+            </div>
+          </header>
       )}
 
       {/* 4. Bottom Floating Navigation Pill, Focus Mode Blur Backdrop & SpotPreviewBanner rendered at root level */}
