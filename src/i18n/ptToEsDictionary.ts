@@ -1563,6 +1563,8 @@ const PT_TO_ES_RAW: Record<string, string> = {
   'Loja de roteiros': 'Tienda de rutas',
   'Encontre roteiros prontos para conhecer.': 'Encuentra rutas listas para conocer.',
   'Expandir mapa': 'Expandir mapa',
+  'Expandir painel': 'Expandir panel',
+  'Recolher painel': 'Contraer panel',
 };
 
 const normalizeLookupKeyEs = (s: string): string =>

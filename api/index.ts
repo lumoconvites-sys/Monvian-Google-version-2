@@ -3087,10 +3087,10 @@ export default async function handler(req: any, res: any) {
             activeSpots = dbSpots.map((r: any) => ({
               id: String(r.id),
               name: String(r.name || ''),
-              category: String(r.category || 'culture'),
+              category: String(r.category || 'culture') as typeof activeSpots[number]['category'],
               categoryLabel: String(r.category_label || r.categoryLabel || r.category || ''),
               address: String(r.address || 'Campos do Jordão, SP'),
-              priceRange: String(r.price_range || r.priceRange || '$$'),
+              priceRange: String(r.price_range || r.priceRange || '$$') as typeof activeSpots[number]['priceRange'],
               price: String(r.price || ''),
               rating: Number(r.rating) || 4.8,
               hours: String(r.hours || ''),

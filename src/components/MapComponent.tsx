@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useImperativeHandle, forwardRef, useState, useCallback, memo } from 'react';
-import { motion } from 'motion/react';
+import { motion, useMotionValue, useTransform, type MotionValue } from 'motion/react';
 import * as maplibregl from 'maplibre-gl';
 import 'maplibre-gl/dist/maplibre-gl.css';
 import '../utils/configureMaplibre';
@@ -76,6 +76,7 @@ interface MapComponentProps {
   zoomDurationMs?: number;
   entranceTick?: number;
   isDiscoveryPanelOpen?: boolean;
+  discoverySheetHeightMV?: MotionValue<number>;
 }
 
 const getMapboxToken = (): string => {
@@ -392,9 +393,21 @@ export const MapComponent = memo(
       zoomDurationMs = 780,
       entranceTick = 0,
       isDiscoveryPanelOpen = false,
+      discoverySheetHeightMV,
     },
     ref
   ) => {
+    const fallbackSheetHeightMV = useMotionValue<number>(0);
+    const activeSheetHeightMV = discoverySheetHeightMV ?? fallbackSheetHeightMV;
+    const rightControlsLiftY = useTransform(activeSheetHeightMV, (sheetH) => {
+      const vh =
+        typeof window !== 'undefined'
+          ? window.visualViewport?.height || window.innerHeight || 844
+          : 844;
+      const maxLift = Math.max(0, vh - 14 - 183 - 106);
+      const desiredLift = Math.max(0, sheetH) + 14;
+      return -Math.min(desiredLift, maxLift);
+    });
     const mapContainerRef = useRef<HTMLDivElement | null>(null);
     const mapRef = useRef<maplibregl.Map | null>(null);
     const isSuspendedRef = useRef<boolean>(isSuspended);
@@ -4061,17 +4074,18 @@ export const MapComponent = memo(
               : 'text-black';
 
           return (
-        <div
+        <motion.div
           id="mobile-map-right-controls"
           className={`md:hidden absolute right-3.5 ${
-            isDiscoveryPanelOpen ? 'bottom-3.5 top-auto translate-y-0' : 'top-1/2 -translate-y-1/2'
-          } z-30 flex flex-col items-center gap-3 transition-[opacity,transform] duration-300 ease-[cubic-bezier(0.22,1,0.36,1)] ${
+            isDiscoveryPanelOpen ? 'bottom-0 top-auto' : 'top-1/2 -translate-y-1/2'
+          } z-30 flex flex-col items-center gap-3 transition-opacity duration-300 ease-[cubic-bezier(0.22,1,0.36,1)] will-change-transform ${
             isFocusMode || isGlobeIntroPlaying || workflowMode === 'ITINERARY'
               ? 'opacity-0 scale-90 pointer-events-none [&_*]:!pointer-events-none'
               : 'opacity-100 scale-100 pointer-events-auto'
           }`}
           style={{
             paddingRight: 'env(safe-area-inset-right, 0px)',
+            y: isDiscoveryPanelOpen ? rightControlsLiftY : undefined,
           }}
         >
           {/* PLAY — Create Custom Itinerary Directly on Map */}
@@ -4154,7 +4168,7 @@ export const MapComponent = memo(
               style={{ color: controlIconColor }}
             />
           </motion.button>
-        </div>
+        </motion.div>
           );
         })()}
       </div>

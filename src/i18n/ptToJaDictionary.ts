@@ -1563,6 +1563,8 @@ const PT_TO_JA_RAW: Record<string, string> = {
   'Loja de roteiros': 'プランストア',
   'Encontre roteiros prontos para conhecer.': 'おすすめの作成済みプランを探す。',
   'Expandir mapa': 'マップを広げる',
+  'Expandir painel': 'パネルを広げる',
+  'Recolher painel': 'パネルを閉じる',
 };
 
 const normalizeLookupKeyJa = (s: string): string =>

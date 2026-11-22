@@ -105,7 +105,11 @@ export const SelectModeOverlay: React.FC<SelectModeOverlayProps> = memo(
         : '!text-black';
 
     return (
-      <div
+      <motion.div
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        exit={{ opacity: 0 }}
+        transition={{ duration: 0.2, ease: [0.22, 1, 0.36, 1] }}
         className="fixed inset-0 md:left-[var(--desktop-sidebar-width,72px)] z-[45] pointer-events-none select-none flex flex-col justify-between overflow-hidden"
         style={{
           height: 'var(--app-height, 100dvh)',
@@ -254,7 +258,7 @@ export const SelectModeOverlay: React.FC<SelectModeOverlayProps> = memo(
             </div>
           </div>
         </motion.div>
-      </div>
+      </motion.div>
     );
   }
 );

@@ -23,7 +23,8 @@ import {
 } from './utils/itineraryHelpers';
 import { favoritesManager } from './services/favoritesManager';
 import { CloudRain, SlidersHorizontal, MapPin, Navigation2, Compass, Mic, Search, X, ShieldCheck, Sun, Moon, Building2, UtensilsCrossed, Coffee, Cake, Mountain, Cross, Check, RotateCcw, Star, ChevronRight, Settings } from 'lucide-react';
-import { motion, AnimatePresence } from 'motion/react';
+import { motion, AnimatePresence, useMotionValue } from 'motion/react';
+import { IOS_PAGE_TRANSITION, IOS_SPRING_PRESS } from './utils/iosMotion';
 import { OfflineIndicator } from './components/OfflineIndicator';
 import { Weather3DIcon } from './components/Weather3DIcon';
 import { Map3DIcon } from './components/Map3DIcon';
@@ -485,7 +486,8 @@ export default function App() {
   const [isChatKeyboardOpen, setIsChatKeyboardOpen] = useState<boolean>(false);
   const [isMyItinerariesSubViewActive, setIsMyItinerariesSubViewActive] = useState<boolean>(false);
   const [openMyItinerariesSignal, setOpenMyItinerariesSignal] = useState<number>(0);
-  const [isDiscoveryPanelMinimized, setIsDiscoveryPanelMinimized] = useState<boolean>(false);
+  const [discoveryResetSignal, setDiscoveryResetSignal] = useState<number>(0);
+  const discoverySheetHeightMV = useMotionValue<number>(0);
   const [isPlatanosWalletOpen, setIsPlatanosWalletOpen] = useState<boolean>(false);
   const [platanosWalletTab, setPlatanosWalletTab] = useState<'topup' | 'history'>('topup');
 
@@ -2938,8 +2940,8 @@ export default function App() {
   }, []);
 
   useEffect(() => {
-    if (activeTab !== 'explorar' || mapWorkflowMode !== 'EXPLORE') {
-      setIsDiscoveryPanelMinimized(false);
+    if (activeTab === 'explorar' && mapWorkflowMode === 'EXPLORE') {
+      setDiscoveryResetSignal((s) => s + 1);
     }
   }, [activeTab, mapWorkflowMode]);
 
@@ -3400,18 +3402,12 @@ export default function App() {
           !isGlobeIntroPlaying &&
           !isGlobeIntroPending &&
           !isOnboardingItinerarySelection;
-        const isMobileDiscoveryPanelExpanded =
-          canShowMobileDiscoveryPanel && !isDiscoveryPanelMinimized;
 
         return (
       <main
         id="main-app-content"
-        className={`relative flex-1 w-full h-full min-h-full overflow-hidden select-none transition-all duration-300 md:rounded-none ios-page-top-rounded ${
-          theme === 'dark'
-            ? 'bg-black'
-            : isMobileDiscoveryPanelExpanded
-              ? 'bg-white'
-              : 'bg-zinc-50'
+        className={`relative flex-1 w-full h-full min-h-full overflow-hidden select-none transition-colors duration-300 md:rounded-none ios-page-top-rounded ${
+          theme === 'dark' ? 'bg-black' : 'bg-zinc-50'
         }`}
         style={{
           width: '100%',
@@ -3424,7 +3420,7 @@ export default function App() {
           isolation: 'isolate',
         }}
       >
-        <div className="w-full h-full flex flex-col md:flex-row relative overflow-hidden">
+        <div className="w-full h-full flex flex-row relative overflow-hidden">
           {/* DESKTOP EXPLORE PANEL (Side-by-side Discovery Column on real desktop/tablet md+ when activeTab === 'explorar' && workflow !== 'ITINERARY') */}
           <AnimatePresence>
             {isDesktopLayout &&
@@ -3468,15 +3464,13 @@ export default function App() {
             )}
           </AnimatePresence>
 
-          {/* Single Unified Interactive Map Canvas Column (Persists across EXPLORE, SELECT, ITINERARY — Zero WebGL teardown) */}
+          {/* Single Unified Interactive Map Canvas Column (Full-bleed 100% behind Bottom Sheet — Zero bottom rounding, Zero WebGL teardown) */}
           <div
             id="app-map-layer"
             aria-hidden={activeTab !== 'explorar'}
             className={
               activeTab === 'explorar'
-                ? isMobileDiscoveryPanelExpanded
-                  ? 'flex-1 min-h-0 w-full relative overflow-hidden rounded-b-[28px] md:rounded-none'
-                  : 'flex-1 h-full w-full relative overflow-hidden'
+                ? 'flex-1 h-full w-full relative overflow-hidden'
                 : 'fixed inset-0 w-full h-full opacity-0 pointer-events-none -z-10 overflow-hidden'
             }
           >
@@ -3521,7 +3515,8 @@ export default function App() {
               isItineraryExpanded={isItineraryDrawerExpanded}
               onSelectItineraryStep={handleSelectItineraryStepId}
               entranceTick={explorarEntranceTick}
-              isDiscoveryPanelOpen={isMobileDiscoveryPanelExpanded}
+              isDiscoveryPanelOpen={canShowMobileDiscoveryPanel}
+              discoverySheetHeightMV={discoverySheetHeightMV}
             />
 
             {/* DESKTOP MAP FLOATING CONTROLS (Top-Right Apple Style — visible in EXPLORE mode on real desktop/tablet only) */}
@@ -3542,13 +3537,13 @@ export default function App() {
             )}
           </div>
 
-          {/* MOBILE EXPLORE DISCOVERY PANEL ("Vamos fazer hoje?") — Sits directly beneath the rounded-bottom map */}
+          {/* MOBILE EXPLORE INTERACTIVE BOTTOM SHEET ("Vamos fazer hoje?") — Overlaid cleanly atop full-bleed map */}
           <AnimatePresence initial={false}>
             {canShowMobileDiscoveryPanel && (
               <ExploreDiscoveryPanel
                 theme={theme}
-                isMinimized={isDiscoveryPanelMinimized}
-                onToggleMinimized={setIsDiscoveryPanelMinimized}
+                sheetVisibleHeightMV={discoverySheetHeightMV}
+                resetDetentSignal={discoveryResetSignal}
                 onCreateItinerary={handleStartFreshSelectionFromPlay}
                 onOpenMyItineraries={handleOpenMyItinerariesFromDiscovery}
                 onOpenStore={handleOpenStoreFromDiscovery}
@@ -3590,10 +3585,12 @@ export default function App() {
               >
                 {/* Left: Big Weather Temperature & Dynamic Condition */}
                 <div className="flex items-center pointer-events-auto">
-                  <div
+                  <motion.div
                     id="weather-header-display"
+                    whileTap={{ scale: 0.94 }}
+                    transition={IOS_SPRING_PRESS}
                     onClick={() => setIsWeatherModalOpen(true)}
-                    className="flex flex-col items-start select-none opacity-100 scale-100 cursor-pointer"
+                    className="flex flex-col items-start select-none opacity-100 cursor-pointer"
                     title={`Campos do Jordão: ${realWeather.temperature}°C — ${realWeather.condition}`}
                   >
                     {/* Layout: Large beautiful 3D icon on the left, bold prominent degrees */}
@@ -3663,7 +3660,7 @@ export default function App() {
                         {realWeather.condition}
                       </span>
                     </motion.div>
-                  </div>
+                  </motion.div>
                 </div>
 
                 {/* Right: Clean Header Action Icons with iOS Liquid Glass Buttons */}
@@ -3779,119 +3776,131 @@ export default function App() {
         </AnimatePresence>
       </Suspense>
 
-      {/* 7. Search & Discovery Drawer (Mounted ONLY when Tab === 'buscar', idle-prefetched) */}
-      {activeTab === 'buscar' && (
-        <div
-          className="fixed inset-0 w-full z-[55] bg-white dark:bg-black overflow-hidden"
-          style={{
-            top: 0,
-            bottom: 0,
-            left: 0,
-            right: 0,
-            width: '100%',
-            height: 'var(--app-height, 100dvh)',
-            minHeight: 'var(--app-height, 100dvh)',
-            maxHeight: 'var(--app-height, 100dvh)',
-            contain: 'layout paint size',
-          }}
-        >
-          <Suspense fallback={null}>
-            <SearchFilterDrawer
-              key={`search-filter-drawer-${accountSessionKey}`}
-              isOpen={true}
-              onClose={handleCloseToExplore}
-              spots={spots}
-              theme={theme}
-              onSelectSpot={handleSelectSpotAndReturnExplore}
-            />
-          </Suspense>
-        </div>
-      )}
+      {/* 7. Search & Discovery Drawer (Smooth iOS page transition) */}
+      <AnimatePresence>
+        {activeTab === 'buscar' && (
+          <motion.div
+            key="search-tab-page-transition"
+            initial={{ opacity: 0, y: 18, scale: 0.99 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: 14, scale: 0.99 }}
+            transition={IOS_PAGE_TRANSITION}
+            className="fixed inset-0 w-full z-[55] bg-white dark:bg-black overflow-hidden will-change-[transform,opacity]"
+            style={{
+              top: 0,
+              bottom: 0,
+              left: 0,
+              right: 0,
+              width: '100%',
+              height: 'var(--app-height, 100dvh)',
+              minHeight: 'var(--app-height, 100dvh)',
+              maxHeight: 'var(--app-height, 100dvh)',
+              contain: 'layout paint size',
+            }}
+          >
+            <Suspense fallback={null}>
+              <SearchFilterDrawer
+                key={`search-filter-drawer-${accountSessionKey}`}
+                isOpen={true}
+                onClose={handleCloseToExplore}
+                spots={spots}
+                theme={theme}
+                onSelectSpot={handleSelectSpotAndReturnExplore}
+              />
+            </Suspense>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
-      {/* 8.5. Itineraries Store & Discovery (Mounted ONLY when Tab === 'roteiros'; routes back to unified map on Play/Manual Create) */}
-      {activeTab === 'roteiros' && (
-        <motion.div
-          key="itineraries-view-reveal-wrapper"
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          exit={{ opacity: 0 }}
-          transition={{ duration: 0.16, ease: [0.22, 1, 0.36, 1] }}
-          className="fixed inset-0 w-full z-[55] bg-white dark:bg-black overflow-hidden"
-          style={{
-            top: 0,
-            bottom: 0,
-            left: 0,
-            right: 0,
-            width: '100%',
-            height: 'var(--app-height, 100dvh)',
-            minHeight: 'var(--app-height, 100dvh)',
-            maxHeight: 'var(--app-height, 100dvh)',
-            contain: 'layout paint size',
-          }}
-        >
-          <Suspense fallback={null}>
-            <ItinerariesView
-              key={`itineraries-view-${accountSessionKey}`}
-              isOpen={true}
-              onClose={handleCloseToExplore}
-              theme={theme}
-              spots={spots}
-              activeItinerary={activeItinerary}
-              isOnboardingSelection={isOnboardingItinerarySelection}
-              isOnboardingRevealReady={isOnboardingRevealReady}
-              onOpenItineraryOnMap={handleOpenItineraryOnMap}
-              onStartManualSelectionOnMap={handleStartFreshSelectionFromPlay}
-              onCompleteOnboardingSelection={(selectedItins, chosenInvestment) => {
-                setIsOnboardingItinerarySelection(false);
-                try {
-                  writeScopedJSON(
-                    'monvian_selected_onboarding_itineraries',
-                    selectedItins.map((i) => i.id),
-                    user
-                  );
-                  writeScopedString('monvian_trip_budget', chosenInvestment, user);
-                  if (selectedItins.length > 0) {
-                    const normalized = normalizeItineraryLivreFlags(selectedItins[0]);
-                    saveActiveItineraryToStorage(normalized, user);
-                    setActiveItinerary(normalized);
-                    setActiveItineraryDayIndex(0);
-                    setActiveItineraryStepId(normalized.days?.[0]?.steps?.[0]?.id || null);
-                    setIsItineraryDrawerExpanded((normalized.days?.[0]?.steps?.length ?? 0) > 1);
-                    setMapWorkflowMode('ITINERARY');
-                  }
-                } catch {}
-                setActiveTab('explorar');
-                setIsUserLocationSpotlightActive(false);
-              }}
-            />
-          </Suspense>
-        </motion.div>
-      )}
+      {/* 8.5. Itineraries Store & Discovery (Smooth iOS page entry & exit) */}
+      <AnimatePresence>
+        {activeTab === 'roteiros' && (
+          <motion.div
+            key="itineraries-view-reveal-wrapper"
+            initial={{ opacity: 0, y: 20, scale: 0.99 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: 16, scale: 0.99 }}
+            transition={IOS_PAGE_TRANSITION}
+            className="fixed inset-0 w-full z-[55] bg-white dark:bg-black overflow-hidden will-change-[transform,opacity]"
+            style={{
+              top: 0,
+              bottom: 0,
+              left: 0,
+              right: 0,
+              width: '100%',
+              height: 'var(--app-height, 100dvh)',
+              minHeight: 'var(--app-height, 100dvh)',
+              maxHeight: 'var(--app-height, 100dvh)',
+              contain: 'layout paint size',
+            }}
+          >
+            <Suspense fallback={null}>
+              <ItinerariesView
+                key={`itineraries-view-${accountSessionKey}`}
+                isOpen={true}
+                onClose={handleCloseToExplore}
+                theme={theme}
+                spots={spots}
+                activeItinerary={activeItinerary}
+                isOnboardingSelection={isOnboardingItinerarySelection}
+                isOnboardingRevealReady={isOnboardingRevealReady}
+                onOpenItineraryOnMap={handleOpenItineraryOnMap}
+                onStartManualSelectionOnMap={handleStartFreshSelectionFromPlay}
+                onCompleteOnboardingSelection={(selectedItins, chosenInvestment) => {
+                  setIsOnboardingItinerarySelection(false);
+                  try {
+                    writeScopedJSON(
+                      'monvian_selected_onboarding_itineraries',
+                      selectedItins.map((i) => i.id),
+                      user
+                    );
+                    writeScopedString('monvian_trip_budget', chosenInvestment, user);
+                    if (selectedItins.length > 0) {
+                      const normalized = normalizeItineraryLivreFlags(selectedItins[0]);
+                      saveActiveItineraryToStorage(normalized, user);
+                      setActiveItinerary(normalized);
+                      setActiveItineraryDayIndex(0);
+                      setActiveItineraryStepId(normalized.days?.[0]?.steps?.[0]?.id || null);
+                      setIsItineraryDrawerExpanded((normalized.days?.[0]?.steps?.length ?? 0) > 1);
+                      setMapWorkflowMode('ITINERARY');
+                    }
+                  } catch {}
+                  setActiveTab('explorar');
+                  setIsUserLocationSpotlightActive(false);
+                }}
+              />
+            </Suspense>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
-      {/* 9. Saved / Favorites Wishlists (Hybrid Tab Retention: cached in memory after first visit, hidden when inactive) */}
+      {/* 9. Saved / Favorites Wishlists (Hybrid Tab Retention + GPU iOS transition) */}
       {(hasVisitedSaved || isSavedTabActive) && (
-        <div
+        <motion.div
           aria-hidden={!isSavedTabActive}
+          initial={{ opacity: 0, y: 18 }}
+          animate={
+            isSavedTabActive
+              ? { opacity: 1, y: 0 }
+              : { opacity: 0, y: 14 }
+          }
+          transition={IOS_PAGE_TRANSITION}
           className={
             isSavedTabActive
-              ? 'fixed inset-0 w-full z-[55] bg-white dark:bg-black overflow-y-auto overflow-x-hidden'
-              : 'hidden'
+              ? 'fixed inset-0 w-full z-[55] bg-white dark:bg-black overflow-y-auto overflow-x-hidden pointer-events-auto will-change-[transform,opacity]'
+              : 'fixed inset-0 w-full -z-20 bg-white dark:bg-black overflow-hidden pointer-events-none select-none'
           }
-          style={
-            isSavedTabActive
-              ? {
-                  top: 0,
-                  bottom: 0,
-                  left: 0,
-                  right: 0,
-                  width: '100%',
-                  height: 'var(--app-height, 100dvh)',
-                  minHeight: 'var(--app-height, 100dvh)',
-                  maxHeight: 'var(--app-height, 100dvh)',
-                  contain: 'layout paint size',
-                }
-              : undefined
-          }
+          style={{
+            top: 0,
+            bottom: 0,
+            left: 0,
+            right: 0,
+            width: '100%',
+            height: 'var(--app-height, 100dvh)',
+            minHeight: 'var(--app-height, 100dvh)',
+            maxHeight: 'var(--app-height, 100dvh)',
+            contain: 'layout paint size',
+          }}
         >
           <Suspense fallback={null}>
             <SavedView
@@ -3905,33 +3914,36 @@ export default function App() {
               onNavigateTab={setActiveTab}
             />
           </Suspense>
-        </div>
+        </motion.div>
       )}
 
-      {/* 10. Profile & Favorites (Hybrid Tab Retention: cached in memory after first visit, hidden when inactive) */}
+      {/* 10. Profile & Favorites (Hybrid Tab Retention + GPU iOS transition — Zero layout shuffling) */}
       {(hasVisitedProfile || isProfileTabActive) && (
-        <div
+        <motion.div
           aria-hidden={!isProfileTabActive}
+          initial={{ opacity: 0, y: 18 }}
+          animate={
+            isProfileTabActive
+              ? { opacity: 1, y: 0 }
+              : { opacity: 0, y: 14 }
+          }
+          transition={IOS_PAGE_TRANSITION}
           className={
             isProfileTabActive
-              ? 'fixed inset-0 w-full z-[55] bg-white dark:bg-black overflow-y-auto overflow-x-hidden'
-              : 'hidden'
+              ? 'fixed inset-0 w-full z-[55] bg-white dark:bg-black overflow-y-auto overflow-x-hidden pointer-events-auto will-change-[transform,opacity]'
+              : 'fixed inset-0 w-full -z-20 bg-white dark:bg-black overflow-hidden pointer-events-none select-none'
           }
-          style={
-            isProfileTabActive
-              ? {
-                  top: 0,
-                  bottom: 0,
-                  left: 0,
-                  right: 0,
-                  width: '100%',
-                  height: 'var(--app-height, 100dvh)',
-                  minHeight: 'var(--app-height, 100dvh)',
-                  maxHeight: 'var(--app-height, 100dvh)',
-                  contain: 'layout paint size',
-                }
-              : undefined
-          }
+          style={{
+            top: 0,
+            bottom: 0,
+            left: 0,
+            right: 0,
+            width: '100%',
+            height: 'var(--app-height, 100dvh)',
+            minHeight: 'var(--app-height, 100dvh)',
+            maxHeight: 'var(--app-height, 100dvh)',
+            contain: 'layout paint size',
+          }}
         >
           <Suspense fallback={null}>
             <ProfileModal
@@ -3979,7 +3991,7 @@ export default function App() {
               openMyItinerariesSignal={openMyItinerariesSignal}
             />
           </Suspense>
-        </div>
+        </motion.div>
       )}
 
     </main>
@@ -4017,25 +4029,27 @@ export default function App() {
         <XpRewardNotificationOverlay visible={true} />
       )}
 
-    {/* Unified Map Mode 2: Pin Selection Overlay (Strictly scoped to activeTab === 'explorar') */}
-    {activeTab === 'explorar' &&
-      mapWorkflowMode === 'SELECT' &&
-      !isFinalizeItineraryModalOpen &&
-      !isMapOrbiting &&
-      !showFirstSignupWelcome &&
-      !isGlobeIntroPlaying && (
-        <SelectModeOverlay
-          key={`select-mode-overlay-${explorarEntranceTick}`}
-          selectedCount={selectedSpotIdsForItinerary.length}
-          selectedSpots={selectedSpotsForItinerary}
-          onRemoveSpot={handleRemoveSelectedSpotFromItinerary}
-          isDark={theme === 'dark'}
-          isSatellite={isSatelliteExplore}
-          onCancel={handleCancelSelectMode}
-          onClearSelection={() => setSelectedSpotIdsForItinerary([])}
-          onContinue={handleConfirmSelectionToItinerary}
-        />
-      )}
+    {/* Unified Map Mode 2: Pin Selection Overlay (Animated entry & exit) */}
+    <AnimatePresence>
+      {activeTab === 'explorar' &&
+        mapWorkflowMode === 'SELECT' &&
+        !isFinalizeItineraryModalOpen &&
+        !isMapOrbiting &&
+        !showFirstSignupWelcome &&
+        !isGlobeIntroPlaying && (
+          <SelectModeOverlay
+            key={`select-mode-overlay-${explorarEntranceTick}`}
+            selectedCount={selectedSpotIdsForItinerary.length}
+            selectedSpots={selectedSpotsForItinerary}
+            onRemoveSpot={handleRemoveSelectedSpotFromItinerary}
+            isDark={theme === 'dark'}
+            isSatellite={isSatelliteExplore}
+            onCancel={handleCancelSelectMode}
+            onClearSelection={() => setSelectedSpotIdsForItinerary([])}
+            onContinue={handleConfirmSelectionToItinerary}
+          />
+        )}
+    </AnimatePresence>
 
     {/* Itinerary Creation & Editing Finalization Modal (AI Cover Generation + Stop Ordering + Save) */}
     <ItineraryCreationFinalizeModal
@@ -4096,49 +4110,51 @@ export default function App() {
       }}
     />
 
-    {/* Unified Map Mode 3: Active Itinerary Overlay (Strictly scoped to activeTab === 'explorar') */}
-    {activeTab === 'explorar' &&
-      mapWorkflowMode === 'ITINERARY' &&
-      activeItinerary &&
-      !isMapOrbiting &&
-      !showFirstSignupWelcome &&
-      !isGlobeIntroPlaying && (
-        <UnifiedItineraryOverlay
-          key={`unified-itinerary-${activeItinerary.id}-${itineraryEntranceTick}`}
-          itinerary={activeItinerary}
-          allSpots={spots}
-          activeDayIndex={activeItineraryDayIndex}
-          onChangeDayIndex={(dIdx) => {
-            setActiveItineraryDayIndex(dIdx);
-            const nextDaySteps = resolveEnrichedDaySteps(activeItinerary, dIdx, spots);
-            setActiveItineraryStepId(nextDaySteps[0]?.id || null);
-            window.setTimeout(() => {
-              mapRef.current?.fitItineraryBounds(nextDaySteps, false);
-            }, 60);
-          }}
-          activeStepId={activeItineraryStepId}
-          onSelectStep={handleSelectItineraryStepOnMap}
-          isExpanded={isItineraryDrawerExpanded}
-          onChangeExpanded={setIsItineraryDrawerExpanded}
-          theme={theme}
-          mapStyle={mapStyle}
-          onToggleMapStyle={() =>
-            setMapStyle((prev) => (prev === 'satelite' ? 'explorar' : 'satelite'))
-          }
-          onExitToExplore={handleExitWorkflowToExplore}
-          onOpenStore={() => setActiveTab('roteiros')}
-          onSelectMoreSpotsOnMap={handleSelectMoreSpotsOnMap}
-          onCenterRoute={() => mapRef.current?.fitItineraryBounds(activeItinerarySteps, false)}
-          onUpdateItinerary={handleUpdateItinerary}
-          onDeleteItinerary={handleDeleteActiveItinerary}
-          onDeleteStep={handleDeleteItineraryStep}
-          onMoveStep={handleMoveItineraryStep}
-          onImportSpot={handleImportSpotToActiveItinerary}
-          onRenameTitle={handleRenameItineraryTitle}
-          tripNoteText={tripNoteText}
-          onSaveTripNote={handleSaveTripNote}
-        />
-      )}
+    {/* Unified Map Mode 3: Active Itinerary Overlay (Animated entry & exit) */}
+    <AnimatePresence>
+      {activeTab === 'explorar' &&
+        mapWorkflowMode === 'ITINERARY' &&
+        activeItinerary &&
+        !isMapOrbiting &&
+        !showFirstSignupWelcome &&
+        !isGlobeIntroPlaying && (
+          <UnifiedItineraryOverlay
+            key={`unified-itinerary-${activeItinerary.id}-${itineraryEntranceTick}`}
+            itinerary={activeItinerary}
+            allSpots={spots}
+            activeDayIndex={activeItineraryDayIndex}
+            onChangeDayIndex={(dIdx) => {
+              setActiveItineraryDayIndex(dIdx);
+              const nextDaySteps = resolveEnrichedDaySteps(activeItinerary, dIdx, spots);
+              setActiveItineraryStepId(nextDaySteps[0]?.id || null);
+              window.setTimeout(() => {
+                mapRef.current?.fitItineraryBounds(nextDaySteps, false);
+              }, 60);
+            }}
+            activeStepId={activeItineraryStepId}
+            onSelectStep={handleSelectItineraryStepOnMap}
+            isExpanded={isItineraryDrawerExpanded}
+            onChangeExpanded={setIsItineraryDrawerExpanded}
+            theme={theme}
+            mapStyle={mapStyle}
+            onToggleMapStyle={() =>
+              setMapStyle((prev) => (prev === 'satelite' ? 'explorar' : 'satelite'))
+            }
+            onExitToExplore={handleExitWorkflowToExplore}
+            onOpenStore={() => setActiveTab('roteiros')}
+            onSelectMoreSpotsOnMap={handleSelectMoreSpotsOnMap}
+            onCenterRoute={() => mapRef.current?.fitItineraryBounds(activeItinerarySteps, false)}
+            onUpdateItinerary={handleUpdateItinerary}
+            onDeleteItinerary={handleDeleteActiveItinerary}
+            onDeleteStep={handleDeleteItineraryStep}
+            onMoveStep={handleMoveItineraryStep}
+            onImportSpot={handleImportSpotToActiveItinerary}
+            onRenameTitle={handleRenameItineraryTitle}
+            tripNoteText={tripNoteText}
+            onSaveTripNote={handleSaveTripNote}
+          />
+        )}
+    </AnimatePresence>
 
     {/* Focus Mode Fullscreen Blur Backdrop when a Spot Card is active on mobile (matches filter blur style) */}
     {activeTab === 'explorar' && (
@@ -4209,7 +4225,7 @@ export default function App() {
             forceWhiteUI={false}
             isSatellite={
               isSatelliteExplore &&
-              (isDesktopLayout || isDiscoveryPanelMinimized || isSpotCardOpen || mapWorkflowMode !== 'EXPLORE') &&
+              (isDesktopLayout || isSpotCardOpen || mapWorkflowMode !== 'EXPLORE') &&
               (mapWorkflowMode !== 'ITINERARY' || !isItineraryDrawerExpanded || theme === 'dark')
             }
             theme={theme}

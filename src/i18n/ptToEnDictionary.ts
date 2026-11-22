@@ -1561,6 +1561,8 @@ const PT_TO_EN_RAW: Record<string, string> = {
   'Loja de roteiros': 'Itinerary store',
   'Encontre roteiros prontos para conhecer.': 'Find ready-made itineraries to explore.',
   'Expandir mapa': 'Expand map',
+  'Expandir painel': 'Expand panel',
+  'Recolher painel': 'Collapse panel',
 };
 
 const normalizeLookupKey = (s: string): string =>
