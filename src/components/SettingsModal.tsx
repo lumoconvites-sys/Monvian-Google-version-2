@@ -13,6 +13,10 @@ import {
 } from 'lucide-react';
 import { IOSSwitch } from './IOSSwitch';
 import { useLanguage } from '../contexts/LanguageContext';
+import {
+  CircularLanguageFlag,
+  MONVIAN_LANGUAGE_OPTIONS,
+} from './ui/CircularLanguageFlag';
 
 interface SettingsModalProps {
   isOpen: boolean;
@@ -159,14 +163,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                       : 'bg-white border-black/5 divide-black/5 shadow-2xs'
                   }`}
                 >
-                  {(
-                    [
-                      { code: 'pt', label: 'Português' },
-                      { code: 'en', label: 'English' },
-                      { code: 'es', label: 'Español' },
-                      { code: 'ja', label: '日本語' },
-                    ] as const
-                  ).map((item) => (
+                  {MONVIAN_LANGUAGE_OPTIONS.map((item) => (
                     <button
                       key={item.code}
                       type="button"
@@ -178,13 +175,16 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                       }`}
                     >
                       <div className="flex items-center gap-3 min-w-0">
-                        <Globe className={`w-5 h-5 shrink-0 stroke-[2] ${isDark ? 'text-zinc-300' : 'text-zinc-600'}`} />
+                        <CircularLanguageFlag
+                          lang={item.code}
+                          className="w-6 h-6 ring-1 ring-black/10 dark:ring-white/10"
+                        />
                         <span className="text-sm font-semibold tracking-tight" data-no-translate>
                           {item.label}
                         </span>
                       </div>
                       {language === item.code && (
-                        <Check className="w-4 h-4 text-[#007AFF] stroke-[2.6] shrink-0" />
+                        <Check className={`w-4 h-4 stroke-[2.5] shrink-0 ${isDark ? 'text-white' : 'text-zinc-950'}`} />
                       )}
                     </button>
                   ))}

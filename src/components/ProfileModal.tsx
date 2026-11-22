@@ -27,8 +27,15 @@ import {
   Compass,
   Calendar,
   Users,
+  Globe,
 } from 'lucide-react';
 import { AppleBackButton } from './ui/AppleBackButton';
+import {
+  CircularLanguageFlag,
+  MONVIAN_LANGUAGE_OPTIONS,
+  getLanguageOptionByCode,
+} from './ui/CircularLanguageFlag';
+import { useLanguage } from '../contexts/LanguageContext';
 import { motion, AnimatePresence } from 'motion/react';
 import { ProfileXpProgressBar } from './ProfileXpProgressBar';
 import { IOSSwitch } from './IOSSwitch';
@@ -152,11 +159,16 @@ export const ProfileModal: React.FC<ProfileModalProps> = React.memo(({
     return null;
   };
 
+  const { language, setLanguage } = useLanguage();
+  const [isLanguageSheetOpen, setIsLanguageSheetOpen] = useState(false);
+  const currentLanguageOption = getLanguageOptionByCode(language);
+
   const [activeSubView, setActiveSubView] = useState<SubView>('main');
   const [helpLegalPage, setHelpLegalPage] = useState<HelpLegalPageId>('hub');
   const [helpReturnView, setHelpReturnView] = useState<'main' | 'permissoes'>('main');
 
   const handleSetSubView = (subView: SubView) => {
+    setIsLanguageSheetOpen(false);
     setActiveSubView(subView);
     onSubViewChange?.(subView);
   };
@@ -1289,6 +1301,58 @@ export const ProfileModal: React.FC<ProfileModalProps> = React.memo(({
                 </motion.div>
               )}
 
+              {/* GROUP 1.5: IDIOMA */}
+              <motion.div
+                initial={{ opacity: 0, scale: 0.88, y: 12 }}
+                animate={{ opacity: 1, scale: 1, y: 0 }}
+                transition={{ type: 'spring', stiffness: 380, damping: 22, delay: 0.045 }}
+              >
+                <p className="text-[12px] font-bold text-zinc-500 dark:text-zinc-400 uppercase tracking-wider px-3 mb-2">
+                  Idioma
+                </p>
+                <div
+                  className={`rounded-[24px] border overflow-hidden ${
+                    isDark
+                      ? 'bg-[#1C1C1E] border-white/10 divide-y divide-white/10'
+                      : 'bg-[#fefefe] border-black/5 divide-y divide-black/5'
+                  }`}
+                >
+                  <button
+                    type="button"
+                    onClick={() => setIsLanguageSheetOpen(true)}
+                    className="w-full p-4 flex items-center justify-between gap-3 text-left cursor-pointer hover:opacity-90 active:scale-[0.99] transition-all"
+                  >
+                    <div className="flex items-center gap-3.5 min-w-0">
+                      <div className="flex items-center justify-center shrink-0 text-zinc-950 dark:text-white">
+                        <Globe className="w-7 h-7 stroke-[1.8]" />
+                      </div>
+                      <div className="min-w-0">
+                        <h4 className="text-[15px] font-semibold tracking-tight">
+                          Idioma
+                        </h4>
+                        <p className="text-[12px] text-zinc-500 dark:text-zinc-400 font-medium truncate">
+                          Idioma de exibição do aplicativo
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center gap-2.5 shrink-0">
+                      <CircularLanguageFlag
+                        lang={language}
+                        className="w-6 h-6 ring-1 ring-black/10 dark:ring-white/15 shadow-2xs"
+                      />
+                      <span
+                        data-no-translate
+                        className="text-[13.5px] font-semibold text-zinc-700 dark:text-zinc-200 whitespace-nowrap"
+                      >
+                        {currentLanguageOption.label}
+                      </span>
+                      <ChevronRight className="w-4 h-4 text-zinc-400 dark:text-zinc-500 stroke-[2.2] shrink-0" />
+                    </div>
+                  </button>
+                </div>
+              </motion.div>
+
               {/* GROUP 2: PERMISSÕES & SENSORES */}
               <motion.div
                 initial={{ opacity: 0, scale: 0.88, y: 12 }}
@@ -1970,6 +2034,122 @@ export const ProfileModal: React.FC<ProfileModalProps> = React.memo(({
             setNotificationsList((prev) => prev.map((n) => ({ ...n, is_read: 1 })));
           }}
         />
+
+        {/* Animated iOS Bottom Sheet Card for Language Selection */}
+        <AnimatePresence>
+          {isLanguageSheetOpen && activeSubView === 'permissoes' && (
+            <motion.div
+              key="monvian-language-sheet-backdrop"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: 0.24, ease: [0.22, 1, 0.36, 1] }}
+              onClick={() => setIsLanguageSheetOpen(false)}
+              className="fixed inset-0 z-[150] bg-black/55 backdrop-blur-[2px] flex flex-col justify-end items-center select-none"
+            >
+              <motion.div
+                key="monvian-language-sheet-card"
+                initial={{ y: '100%', opacity: 0.6 }}
+                animate={{ y: 0, opacity: 1 }}
+                exit={{ y: '100%', opacity: 0 }}
+                transition={{
+                  type: 'spring',
+                  stiffness: 380,
+                  damping: 34,
+                  mass: 0.85,
+                }}
+                onClick={(e) => e.stopPropagation()}
+                className={`w-full max-w-lg rounded-t-[34px] border-t border-x overflow-hidden ${
+                  isDark
+                    ? 'bg-[#141416] border-white/[0.12] text-white shadow-[0_-20px_60px_rgba(0,0,0,0.88)]'
+                    : 'bg-[#FFFFFF] border-black/[0.08] text-zinc-950 shadow-[0_-18px_50px_rgba(0,0,0,0.16)]'
+                }`}
+                style={{
+                  paddingBottom: 'max(calc(env(safe-area-inset-bottom, 16px) + 18px), 26px)',
+                }}
+              >
+                {/* iOS Grabber Pill */}
+                <div className="w-full flex justify-center pt-3 pb-1.5">
+                  <div
+                    className={`w-12 h-1.5 rounded-full ${
+                      isDark ? 'bg-white/25' : 'bg-black/15'
+                    }`}
+                  />
+                </div>
+
+                {/* Sheet Title Header */}
+                <div className="px-6 pt-2.5 pb-4 flex items-center gap-3.5">
+                  <Globe
+                    className={`w-7 h-7 stroke-[1.85] shrink-0 ${
+                      isDark ? 'text-white' : 'text-zinc-950'
+                    }`}
+                  />
+                  <h3 className="text-[22px] font-bold tracking-tight">
+                    Idioma
+                  </h3>
+                </div>
+
+                {/* Language Options Card */}
+                <div className="px-4">
+                  <div
+                    className={`rounded-[26px] border overflow-hidden divide-y ${
+                      isDark
+                        ? 'bg-[#1C1C1E] border-white/[0.08] divide-white/[0.07]'
+                        : 'bg-[#F8F8FA] border-black/[0.06] divide-black/[0.06]'
+                    }`}
+                  >
+                    {MONVIAN_LANGUAGE_OPTIONS.map((option) => {
+                      const isSelected = language === option.code;
+                      return (
+                        <button
+                          key={option.code}
+                          type="button"
+                          onClick={() => {
+                            try {
+                              if (typeof navigator !== 'undefined' && navigator.vibrate) {
+                                navigator.vibrate(10);
+                              }
+                            } catch {}
+                            setLanguage(option.code);
+                            setIsLanguageSheetOpen(false);
+                          }}
+                          className={`w-full px-4 py-4 flex items-center justify-between gap-3.5 text-left transition-colors cursor-pointer ${
+                            isDark
+                              ? 'hover:bg-white/[0.04] active:bg-white/[0.08]'
+                              : 'hover:bg-black/[0.03] active:bg-black/[0.06]'
+                          }`}
+                        >
+                          <div className="flex items-center gap-3.5 min-w-0">
+                            <CircularLanguageFlag
+                              lang={option.code}
+                              className="w-9 h-9 ring-1 ring-black/10 dark:ring-white/10 shadow-xs"
+                            />
+                            <span
+                              data-no-translate
+                              className={`text-[17px] font-semibold tracking-tight truncate ${
+                                isDark ? 'text-white' : 'text-zinc-950'
+                              }`}
+                            >
+                              {option.label}
+                            </span>
+                          </div>
+
+                          {isSelected && (
+                            <Check
+                              className={`w-5 h-5 stroke-[2.3] shrink-0 ${
+                                isDark ? 'text-white' : 'text-zinc-950'
+                              }`}
+                            />
+                          )}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              </motion.div>
+            </motion.div>
+          )}
+        </AnimatePresence>
         </motion.div>
       </motion.div>
       )}
