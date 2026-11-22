@@ -1,4 +1,4 @@
-import type { Spot } from '../types';
+import type { Spot } from '../types.js';
 
 export type AssistantBudgetTier = 'economico' | 'premium';
 

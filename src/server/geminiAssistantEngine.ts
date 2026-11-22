@@ -4,7 +4,7 @@ import {
   selectSmartItinerarySpots,
   type AssistantBudgetTier,
   type AssistantSpotCandidate,
-} from '../utils/assistantHelpers';
+} from '../utils/assistantHelpers.js';
 
 export interface AssistantActionPayload {
   type:

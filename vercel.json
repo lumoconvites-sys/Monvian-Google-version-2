@@ -10,20 +10,20 @@
   },
   "rewrites": [
     {
-      "source": "/__/auth/(.*)",
-      "destination": "https://inspired-nirvana-5dtd0.firebaseapp.com/__/auth/$1"
+      "source": "/__/auth/:path*",
+      "destination": "https://inspired-nirvana-5dtd0.firebaseapp.com/__/auth/:path*"
     },
     {
-      "source": "/__/firebase/(.*)",
-      "destination": "https://inspired-nirvana-5dtd0.firebaseapp.com/__/firebase/$1"
+      "source": "/__/firebase/:path*",
+      "destination": "https://inspired-nirvana-5dtd0.firebaseapp.com/__/firebase/:path*"
     },
     {
-      "source": "/api/(.*)",
-      "destination": "/api/index?__path=/$1"
+      "source": "/api/:path*",
+      "destination": "/api/index?__path=/:path*"
     },
     {
-      "source": "/auth/(.*)",
-      "destination": "/api/index?__path=/auth/$1"
+      "source": "/auth/:path*",
+      "destination": "/api/index?__path=/auth/:path*"
     },
     {
       "source": "/((?!api/|auth/|__/|assets/|public/|favicon|.*\\..*).*)",

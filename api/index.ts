@@ -5,8 +5,8 @@ import crypto from 'crypto';
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
-import { CAMPOS_SPOTS } from '../src/data/spots';
-import { DEFAULT_CURATED_ITINERARIES } from '../src/data/defaultItineraries';
+import { CAMPOS_SPOTS } from '../src/data/spots.js';
+import { DEFAULT_CURATED_ITINERARIES } from '../src/data/defaultItineraries.js';
 import {
   PRIMARY_GEMINI_MODEL,
   classifyGeminiError,
@@ -14,19 +14,17 @@ import {
   type AssistantHistoryTurn,
   type ClassifiedAssistantError,
   type GeminiAssistantKnowledge,
-} from '../src/server/geminiAssistantEngine';
+} from '../src/server/geminiAssistantEngine.js';
 
-let cachedFirebaseApiKey: string | null = null;
+const EXPECTED_FIREBASE_PROJECT_ID = 'inspired-nirvana-5dtd0';
+let cachedFirebaseConfig: { apiKey: string; projectId: string } | null = null;
+let cachedGoogleCerts: { certs: Record<string, string>; expiresAt: number } | null = null;
 
-function getFirebaseApiKeyServerless(): string {
-  if (cachedFirebaseApiKey !== null) return cachedFirebaseApiKey;
-  const envKey = String(
-    process.env.FIREBASE_API_KEY || process.env.VITE_FIREBASE_API_KEY || ''
-  ).trim();
-  if (envKey && envKey.startsWith('AIza')) {
-    cachedFirebaseApiKey = envKey;
-    return cachedFirebaseApiKey;
-  }
+function getFirebaseConfigServerless(): { apiKey: string; projectId: string } {
+  if (cachedFirebaseConfig !== null) return cachedFirebaseConfig;
+
+  let fileApiKey = '';
+  let fileProjectId = EXPECTED_FIREBASE_PROJECT_ID;
 
   const candidatePaths: string[] = [];
   try {
@@ -39,17 +37,103 @@ function getFirebaseApiKeyServerless(): string {
     try {
       if (fs.existsSync(cfgPath)) {
         const parsed = JSON.parse(fs.readFileSync(cfgPath, 'utf8'));
-        const fileKey = String(parsed?.apiKey || '').trim();
-        if (fileKey) {
-          cachedFirebaseApiKey = fileKey;
-          return cachedFirebaseApiKey;
+        const k = String(parsed?.apiKey || '').trim();
+        const pid = String(parsed?.projectId || '').trim();
+        if (pid) fileProjectId = pid;
+        if (k && k.startsWith('AIza')) {
+          fileApiKey = k;
+          break;
         }
       }
     } catch {}
   }
 
-  cachedFirebaseApiKey = '';
-  return '';
+  const envProjectId = String(
+    process.env.FIREBASE_PROJECT_ID || process.env.VITE_FIREBASE_PROJECT_ID || ''
+  ).trim();
+  const envKey = String(
+    process.env.FIREBASE_API_KEY || process.env.VITE_FIREBASE_API_KEY || ''
+  ).trim();
+
+  // Only prefer env API key when env projectId matches the active Firebase project (or config file unavailable)
+  const envMatchesProject =
+    Boolean(envKey && envKey.startsWith('AIza')) &&
+    (!envProjectId || envProjectId === fileProjectId);
+
+  cachedFirebaseConfig = {
+    projectId: fileProjectId || EXPECTED_FIREBASE_PROJECT_ID,
+    apiKey: fileApiKey || (envMatchesProject ? envKey : ''),
+  };
+  return cachedFirebaseConfig;
+}
+
+async function fetchGoogleSecureTokenCerts(): Promise<Record<string, string> | null> {
+  const now = Date.now();
+  if (cachedGoogleCerts && cachedGoogleCerts.expiresAt > now) {
+    return cachedGoogleCerts.certs;
+  }
+  try {
+    const resp = await fetch(
+      'https://www.googleapis.com/robot/v1/metadata/x509/securetoken@system.gserviceaccount.com'
+    );
+    if (!resp.ok) return null;
+    const certs = (await resp.json()) as Record<string, string>;
+    const cc = resp.headers.get('cache-control') || '';
+    const maxAgeMatch = cc.match(/max-age=(\d+)/i);
+    const maxAgeSec = maxAgeMatch ? Math.max(60, Math.min(86400, Number(maxAgeMatch[1]))) : 3600;
+    cachedGoogleCerts = {
+      certs,
+      expiresAt: now + maxAgeSec * 1000,
+    };
+    return certs;
+  } catch {
+    return null;
+  }
+}
+
+async function verifyFirebaseIdTokenWithPublicCerts(
+  idToken: string,
+  projectId: string
+): Promise<{ uid: string; email: string; name?: string; avatarUrl?: string } | null> {
+  const parts = idToken.split('.');
+  if (parts.length !== 3) return null;
+  const [headerB64, payloadB64, sigB64] = parts;
+  if (!headerB64 || !payloadB64 || !sigB64) return null;
+
+  try {
+    const header = JSON.parse(Buffer.from(headerB64, 'base64url').toString('utf8'));
+    if (header?.alg !== 'RS256' || !header?.kid) return null;
+
+    const certs = await fetchGoogleSecureTokenCerts();
+    const certPem = certs?.[String(header.kid)];
+    if (!certPem) return null;
+
+    const isValidSig = crypto.verify(
+      'RSA-SHA256',
+      Buffer.from(`${headerB64}.${payloadB64}`, 'utf8'),
+      certPem,
+      Buffer.from(sigB64, 'base64url')
+    );
+    if (!isValidSig) return null;
+
+    const payload = JSON.parse(Buffer.from(payloadB64, 'base64url').toString('utf8'));
+    const nowSec = Math.floor(Date.now() / 1000);
+    if (payload?.aud !== projectId) return null;
+    if (payload?.iss !== `https://securetoken.google.com/${projectId}`) return null;
+    if (!payload?.sub || typeof payload.sub !== 'string') return null;
+    if (typeof payload?.exp !== 'number' || payload.exp <= nowSec) return null;
+    if (typeof payload?.iat === 'number' && payload.iat > nowSec + 300) return null;
+    if (!payload?.email || typeof payload.email !== 'string') return null;
+
+    return {
+      uid: String(payload.sub),
+      email: String(payload.email).trim().toLowerCase(),
+      name: payload.name ? String(payload.name).trim() : undefined,
+      avatarUrl: payload.picture ? String(payload.picture).trim() : undefined,
+    };
+  } catch {
+    return null;
+  }
 }
 
 const UUID_V4_LIKE_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -133,9 +217,17 @@ async function verifyFirebaseIdTokenServerless(
   idToken?: string
 ): Promise<{ uid: string; email: string; name?: string; avatarUrl?: string } | null> {
   if (!idToken || typeof idToken !== 'string' || idToken.length < 40) return null;
-  const apiKey = getFirebaseApiKeyServerless();
+  const { apiKey, projectId } = getFirebaseConfigServerless();
+
+  // 1. Primary: Cryptographic RS256 verification against Google's official public X.509 certs (zero API key dependency)
+  const certVerified = await verifyFirebaseIdTokenWithPublicCerts(idToken, projectId);
+  if (certVerified) {
+    return certVerified;
+  }
+
+  // 2. Fallback: Firebase Identity Toolkit accounts:lookup
   if (!apiKey) {
-    console.error('[Monvian API Auth] Firebase API key unavailable for token verification.');
+    console.error('[Monvian API Auth] Firebase API key unavailable for fallback token verification.');
     return null;
   }
 
@@ -850,6 +942,64 @@ async function creditPlatanosOrderServerless(params: {
   };
 }
 
+async function readJsonBodyServerless(req: any, method: string): Promise<any> {
+  if (req?.body !== undefined && req?.body !== null) {
+    if (Buffer.isBuffer(req.body)) {
+      const raw = req.body.toString('utf8').trim();
+      if (!raw) return {};
+      try {
+        return JSON.parse(raw);
+      } catch {
+        return raw;
+      }
+    }
+    if (typeof req.body === 'string') {
+      const trimmed = req.body.trim();
+      if (!trimmed) return {};
+      try {
+        return JSON.parse(trimmed);
+      } catch {
+        return trimmed;
+      }
+    }
+    return req.body;
+  }
+
+  if (
+    (method === 'POST' || method === 'PUT' || method === 'PATCH' || method === 'DELETE') &&
+    typeof req?.on === 'function' &&
+    !req.readableEnded
+  ) {
+    try {
+      const chunks: Buffer[] = [];
+      await new Promise<void>((resolve, reject) => {
+        const timer = setTimeout(() => resolve(), 5000);
+        req.on('data', (chunk: Buffer | string) => {
+          chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk));
+        });
+        req.on('end', () => {
+          clearTimeout(timer);
+          resolve();
+        });
+        req.on('error', (err: any) => {
+          clearTimeout(timer);
+          reject(err);
+        });
+      });
+      const raw = Buffer.concat(chunks).toString('utf8').trim();
+      if (raw) {
+        try {
+          return JSON.parse(raw);
+        } catch {
+          return raw;
+        }
+      }
+    } catch {}
+  }
+
+  return {};
+}
+
 export default async function handler(req: any, res: any) {
   // Scoped CORS for same-host and trusted deployments (never wildcard on authenticated routes)
   const origin = String(req.headers?.origin || '').trim();
@@ -884,22 +1034,42 @@ export default async function handler(req: any, res: any) {
     return res.status(200).end();
   }
 
-  const url = new URL(req.url || '/', `https://${req.headers.host || 'localhost'}`);
+  const url = new URL(req.url || '/', `https://${req.headers?.host || 'localhost'}`);
   let rawPath = url.pathname;
-  const rewrittenPath = url.searchParams.get('__path');
-  if (rewrittenPath) {
+
+  // Extract rewritten path cleanly across all Vercel rewrite formats (:path*, array query, header fallback)
+  const pathParams = url.searchParams.getAll('__path').filter(Boolean);
+  let rewrittenPath = pathParams.length > 0 ? pathParams.join('/') : '';
+  if (!rewrittenPath && req?.query?.__path) {
+    rewrittenPath = Array.isArray(req.query.__path)
+      ? req.query.__path.join('/')
+      : String(req.query.__path);
+  }
+  const isInvalidRewriteParam =
+    !rewrittenPath ||
+    rewrittenPath === '/index' ||
+    rewrittenPath === 'index' ||
+    rewrittenPath === '/api/index' ||
+    rewrittenPath.includes('$1') ||
+    rewrittenPath.includes(':path');
+
+  if (!isInvalidRewriteParam) {
     rawPath = rewrittenPath;
     url.searchParams.delete('__path');
-  } else if (rawPath === '/api/index' || rawPath === '/index') {
+  } else if (rawPath === '/api/index' || rawPath === '/index' || rawPath === '/') {
     const origUrl = String(
       req.headers?.['x-vercel-original-url'] ||
         req.headers?.['x-forwarded-uri'] ||
+        req.headers?.['x-invoke-path'] ||
         req.headers?.['x-original-url'] ||
         ''
     );
     if (origUrl) {
       try {
-        rawPath = new URL(origUrl, 'https://localhost').pathname;
+        const parsedOrig = new URL(origUrl, 'https://localhost').pathname;
+        if (parsedOrig && parsedOrig !== '/api/index' && parsedOrig !== '/index') {
+          rawPath = parsedOrig;
+        }
       } catch {}
     }
   }
@@ -912,16 +1082,12 @@ export default async function handler(req: any, res: any) {
   if (!rawPath.startsWith('/')) {
     rawPath = '/' + rawPath;
   }
-  // Trim trailing slash for uniform routing
+  // Normalize duplicate slashes and trim trailing slash for uniform routing
+  rawPath = rawPath.replace(/\/{2,}/g, '/');
   const cleanPath = rawPath.length > 1 && rawPath.endsWith('/') ? rawPath.slice(0, -1) : rawPath;
   const method = req.method?.toUpperCase() || 'GET';
 
-  let body = req.body;
-  if (typeof body === 'string' && body.trim().length > 0) {
-    try {
-      body = JSON.parse(body);
-    } catch {}
-  }
+  const body = await readJsonBodyServerless(req, method);
 
   try {
     // =========================================================================

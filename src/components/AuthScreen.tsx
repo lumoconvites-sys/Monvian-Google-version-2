@@ -715,9 +715,19 @@ export function AuthScreen({
           firebase_id_token: firebaseIdToken,
         }),
       });
-      const data = await res.json();
+      const rawLoginText = await res.text();
+      let data: any = null;
+      try {
+        data = rawLoginText ? JSON.parse(rawLoginText) : null;
+      } catch {
+        console.error('[Monvian Auth HTTP Diagnostic]', {
+          endpoint: '/api/auth/login',
+          status: res.status,
+          snippet: rawLoginText.slice(0, 200),
+        });
+      }
 
-      if (res.ok && data.success && data.user) {
+      if (res.ok && data?.success && data?.user) {
         // If authenticated via existing DB credentials and Firebase account was not linked yet, enroll silently
         if (!firebaseUid && cleanIdentifier.includes('@')) {
           ensureFirebaseEmailSession(cleanIdentifier, password).catch(() => {});
@@ -885,12 +895,26 @@ export function AuthScreen({
         }),
       });
 
+      const rawRegisterText = await res.text();
       let data: any = null;
       try {
-        data = await res.json();
-      } catch {}
+        data = rawRegisterText ? JSON.parse(rawRegisterText) : null;
+      } catch {
+        console.error('[Monvian Auth HTTP Diagnostic]', {
+          endpoint: '/api/auth/register',
+          status: res.status,
+          snippet: rawRegisterText.slice(0, 200),
+        });
+      }
 
       if (!res.ok || !data?.success || !data?.user || !data?.token) {
+        if (!data?.error) {
+          console.error('[Monvian Auth HTTP Diagnostic]', {
+            endpoint: '/api/auth/register',
+            status: res.status,
+            data,
+          });
+        }
         const errObj = new Error(data?.error || 'Não foi possível concluir o cadastro.');
         (errObj as any).status = res.status;
         throw errObj;
@@ -992,10 +1016,16 @@ export function AuthScreen({
       }),
     });
 
+    const rawGoogleText = await res.text();
     let data: any = null;
     try {
-      data = await res.json();
+      data = rawGoogleText ? JSON.parse(rawGoogleText) : null;
     } catch {
+      console.error('[Monvian Auth HTTP Diagnostic]', {
+        endpoint: '/api/auth/google',
+        status: res.status,
+        snippet: rawGoogleText.slice(0, 200),
+      });
       throw new Error('Resposta inválida do servidor ao autenticar sua conta.');
     }
 
