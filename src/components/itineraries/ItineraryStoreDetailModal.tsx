@@ -11,6 +11,7 @@ import { Itinerary } from '../../types';
 import { getSpotImage, getSpotFallbackImage } from '../../utils/spotImages';
 import { useIOSBackEntry } from '../../services/iosNavigationManager';
 import { AppleBackButton } from '../ui/AppleBackButton';
+import { VerifiedBadge } from '../ui/VerifiedBadge';
 import { PlatanoLeafIcon } from '../platanos/PlatanoLeafIcon';
 
 interface ItineraryStoreDetailModalProps {
@@ -719,13 +720,16 @@ export const ItineraryStoreDetailModal: React.FC<ItineraryStoreDetailModalProps>
                                 {spotCategory}
                               </span>
 
-                              <h4
-                                className={`text-[15.5px] font-bold tracking-[-0.015em] truncate leading-snug mt-0.5 ${
-                                  isLight ? 'text-[#111111]' : 'text-[#FFFFFF]'
-                                }`}
-                              >
-                                {spotName}
-                              </h4>
+                              <div className="flex items-center gap-1.5 min-w-0 mt-0.5">
+                                <h4
+                                  className={`text-[15.5px] font-bold tracking-[-0.015em] truncate leading-snug ${
+                                    isLight ? 'text-[#111111]' : 'text-[#FFFFFF]'
+                                  }`}
+                                >
+                                  {spotName}
+                                </h4>
+                                <VerifiedBadge className="w-[15px] h-[15px] shrink-0" />
+                              </div>
 
                               {isValidContent(locationText) && (
                                 <div className="flex items-center gap-1 mt-0.5 min-w-0">

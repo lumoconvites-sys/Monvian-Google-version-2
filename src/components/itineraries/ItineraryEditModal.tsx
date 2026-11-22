@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { motion } from 'motion/react';
 import { ArrowDown, ArrowUp, Play, X, Check, AlertTriangle, Trash2, Clock } from 'lucide-react';
 import { Itinerary, ItineraryStep, Spot } from '../../types';
+import { VerifiedBadge } from '../ui/VerifiedBadge';
 
 interface ItineraryEditModalProps {
   isOpen: boolean;
@@ -159,9 +160,12 @@ export const ItineraryEditModal: React.FC<ItineraryEditModalProps> = ({
                   </span>
 
                   <div className="min-w-0 flex-1">
-                    <h4 className={`text-[13px] font-black truncate uppercase ${isDark ? 'text-white' : 'text-[#000000]'}`}>
-                      {step.spot?.name || `Ponto ${idx + 1}`}
-                    </h4>
+                    <div className="flex items-center gap-1.5 min-w-0">
+                      <h4 className={`text-[13px] font-black truncate uppercase ${isDark ? 'text-white' : 'text-[#000000]'}`}>
+                        {step.spot?.name || `Ponto ${idx + 1}`}
+                      </h4>
+                      <VerifiedBadge className="w-3.5 h-3.5 shrink-0" />
+                    </div>
                     <div className="flex items-center gap-1 text-[11px] text-[#8E8E93] font-medium mt-0.5 whitespace-nowrap">
                       <Clock className="w-3 h-3 shrink-0 text-[#8E8E93]" />
                       <span className="tabular-nums">{step.suggestedTime || '09:30'}</span>

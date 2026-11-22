@@ -21,6 +21,12 @@ import { getSpotImage, getSpotFallbackImage } from '../utils/spotImages';
 import { VerifiedBadge } from './ui/VerifiedBadge';
 import { AppleBackButton } from './ui/AppleBackButton';
 import { useIOSBackEntry } from '../services/iosNavigationManager';
+import {
+  readUserSearchCategoryFilter,
+  writeUserSearchCategoryFilter,
+  readUserSearchQuery,
+  writeUserSearchQuery,
+} from '../utils/userScopedStorage';
 
 interface SearchFilterDrawerProps {
   isOpen: boolean;
@@ -98,16 +104,6 @@ const SEARCH_CATEGORIES: CategoryConfig[] = [
   },
 ];
 
-let cachedSearchQuery = '';
-let cachedSelectedSearchCategoryId: string | null = null;
-
-if (typeof window !== 'undefined') {
-  window.addEventListener('monvian:user_logged_out', () => {
-    cachedSearchQuery = '';
-    cachedSelectedSearchCategoryId = null;
-  });
-}
-
 export const SearchFilterDrawer: React.FC<SearchFilterDrawerProps> = React.memo(({
   isOpen,
   onClose,
@@ -116,22 +112,40 @@ export const SearchFilterDrawer: React.FC<SearchFilterDrawerProps> = React.memo(
   theme = 'dark',
 }) => {
   const shouldAnimateEntrance = true;
-  const [searchQuery, setSearchQuery] = useState(() => cachedSearchQuery);
-  const [selectedCategory, setSelectedCategory] = useState<CategoryConfig | null>(() =>
-    cachedSelectedSearchCategoryId
-      ? SEARCH_CATEGORIES.find((c) => c.id === cachedSelectedSearchCategoryId) || null
-      : null
-  );
+  const [searchQuery, setSearchQuery] = useState(() => readUserSearchQuery());
+  const [selectedCategory, setSelectedCategory] = useState<CategoryConfig | null>(() => {
+    const savedId = readUserSearchCategoryFilter();
+    return savedId ? SEARCH_CATEGORIES.find((c) => c.id === savedId) || null : null;
+  });
   const [isListening, setIsListening] = useState(false);
   const recognitionRef = useRef<any>(null);
 
   useEffect(() => {
-    cachedSearchQuery = searchQuery;
+    writeUserSearchQuery(searchQuery);
   }, [searchQuery]);
 
   useEffect(() => {
-    cachedSelectedSearchCategoryId = selectedCategory?.id || null;
+    writeUserSearchCategoryFilter(selectedCategory?.id || null);
   }, [selectedCategory]);
+
+  useEffect(() => {
+    const handleLoggedOut = () => {
+      setSearchQuery('');
+      setSelectedCategory(null);
+    };
+    const handleAccountSwitched = (e: Event) => {
+      const nextUser = (e as CustomEvent)?.detail || null;
+      setSearchQuery(readUserSearchQuery(nextUser));
+      const savedId = readUserSearchCategoryFilter(nextUser);
+      setSelectedCategory(savedId ? SEARCH_CATEGORIES.find((c) => c.id === savedId) || null : null);
+    };
+    window.addEventListener('monvian:user_logged_out', handleLoggedOut);
+    window.addEventListener('monvian:account_switched', handleAccountSwitched);
+    return () => {
+      window.removeEventListener('monvian:user_logged_out', handleLoggedOut);
+      window.removeEventListener('monvian:account_switched', handleAccountSwitched);
+    };
+  }, []);
 
   useEffect(() => {
     return () => {

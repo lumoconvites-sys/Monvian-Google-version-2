@@ -18,6 +18,7 @@ import {
 } from 'lucide-react';
 import { Itinerary, ItineraryStep, MapModeType, Spot } from '../../types';
 import { AppleBackButton } from '../ui/AppleBackButton';
+import { VerifiedBadge } from '../ui/VerifiedBadge';
 import { LazyImage } from '../ui/LazyImage';
 import { RoundedNavigationIcon } from '../RoundedNavigationIcon';
 import { getSpotCardThumbnail, getSpotFallbackImage } from '../../utils/spotImages';
@@ -442,12 +443,15 @@ const SwipeableStopCard: React.FC<SwipeableStopCardProps> = ({
                 <span className="uppercase truncate">{spot?.categoryLabel || 'Local'}</span>
               </div>
 
-              <h4
-                className="text-[14px] font-black uppercase tracking-tight truncate leading-tight my-1"
-                style={{ color: isDark ? '#FFFFFF' : '#000000' }}
-              >
-                {spot?.name || spot?.shortName || `Ponto ${idx + 1}`}
-              </h4>
+              <div className="flex items-center gap-1.5 min-w-0 my-1">
+                <h4
+                  className="text-[14px] font-black uppercase tracking-tight truncate leading-tight"
+                  style={{ color: isDark ? '#FFFFFF' : '#000000' }}
+                >
+                  {spot?.name || spot?.shortName || `Ponto ${idx + 1}`}
+                </h4>
+                <VerifiedBadge className="w-3.5 h-3.5 shrink-0" />
+              </div>
 
               <p className="text-[11.5px] font-normal text-[#8E8E93] truncate leading-tight">
                 {shortDescText ||

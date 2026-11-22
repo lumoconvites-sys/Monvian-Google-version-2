@@ -4,6 +4,7 @@ import { X, Search, Star, MapPin, Check, Plus } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { Spot } from '../../types';
 import { getSpotImage, getSpotFallbackImage } from '../../utils/spotImages';
+import { VerifiedBadge } from '../ui/VerifiedBadge';
 
 interface ImportSpotFloatingModalProps {
   isOpen: boolean;
@@ -189,9 +190,12 @@ export const ImportSpotFloatingModal: React.FC<ImportSpotFloatingModalProps> = (
                       </div>
 
                       <div className="min-w-0 flex-1">
-                        <h4 className="text-sm font-bold truncate text-zinc-900 dark:text-white leading-tight">
-                          {spot.name}
-                        </h4>
+                        <div className="flex items-center gap-1.5 min-w-0">
+                          <h4 className="text-sm font-bold truncate text-zinc-900 dark:text-white leading-tight">
+                            {spot.name}
+                          </h4>
+                          <VerifiedBadge className="w-3.5 h-3.5 shrink-0" />
+                        </div>
                         <div className="flex items-center gap-2 text-xs text-zinc-500 dark:text-zinc-400 font-semibold mt-1">
                           <span className={`flex items-center gap-0.5 font-bold ${isLight ? 'text-zinc-900' : 'text-white'}`}>
                             <Star className="w-3 h-3 fill-current" />

@@ -274,13 +274,13 @@ function getItineraryRequestAuthHeaders(sessionId: string, userOverride?: any): 
     'x-session-id': sessionId,
   };
   try {
-    const token = typeof window !== 'undefined' ? localStorage.getItem('monvian_token') : null;
+    const token = typeof localStorage !== 'undefined' ? localStorage.getItem('monvian_token') : null;
     if (token) {
       headers.Authorization = `Bearer ${token}`;
     }
     const rawUser =
       userOverride ||
-      (typeof window !== 'undefined' && localStorage.getItem('monvian_user')
+      (typeof localStorage !== 'undefined' && localStorage.getItem('monvian_user')
         ? JSON.parse(localStorage.getItem('monvian_user') || 'null')
         : null);
     const email = String(rawUser?.email || rawUser?.whatsapp || '').trim().toLowerCase();
@@ -306,7 +306,7 @@ export function loadUserCreatedItinerariesFromStorage(userOverride?: any): Itine
 export function saveUserCreatedItinerariesToStorage(itineraries: Itinerary[], userOverride?: any): void {
   try {
     writeScopedJSON('monvian_my_custom_itineraries', itineraries, userOverride);
-    if (typeof window !== 'undefined') {
+    if (typeof window !== 'undefined' && typeof window.dispatchEvent === 'function') {
       window.dispatchEvent(new CustomEvent('monvian:user_itineraries_updated', { detail: itineraries }));
     }
   } catch {}

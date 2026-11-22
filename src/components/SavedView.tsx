@@ -18,6 +18,7 @@ import {
   RotateCcw
 } from 'lucide-react';
 import { AppleBackButton } from './ui/AppleBackButton';
+import { VerifiedBadge } from './ui/VerifiedBadge';
 import { Spot, Itinerary } from '../types';
 import { DEFAULT_CURATED_ITINERARIES } from '../data/defaultItineraries';
 import { useFavorites } from '../hooks/useFavorites';
@@ -783,9 +784,12 @@ export const SavedView: React.FC<SavedViewProps> = React.memo(({
                                     />
                                   </div>
                                   <div className="flex-1 min-w-0">
-                                    <h4 className="text-[15px] font-bold truncate">
-                                      {spot.name}
-                                    </h4>
+                                    <div className="flex items-center gap-1.5 min-w-0">
+                                      <h4 className="text-[15px] font-bold truncate">
+                                        {spot.name}
+                                      </h4>
+                                      <VerifiedBadge className="w-3.5 h-3.5 shrink-0" />
+                                    </div>
                                     <div className="flex items-center gap-2 mt-0.5 text-xs text-zinc-500 dark:text-zinc-400">
                                       <span>{spot.categoryLabel || spot.category}</span>
                                       {spot.rating && (
@@ -860,9 +864,14 @@ export const SavedView: React.FC<SavedViewProps> = React.memo(({
                                     />
                                   </div>
                                   <div className="flex-1 min-w-0">
-                                    <h4 className="text-[15px] font-bold truncate">
-                                      {title}
-                                    </h4>
+                                    <div className="flex items-center gap-1.5 min-w-0">
+                                      <h4 className="text-[15px] font-bold truncate">
+                                        {title}
+                                      </h4>
+                                      {isSpotEntry && (
+                                        <VerifiedBadge className="w-3.5 h-3.5 shrink-0" />
+                                      )}
+                                    </div>
                                     <p className="text-xs text-zinc-500 dark:text-zinc-400 font-medium mt-0.5 truncate">
                                       {subtitle}
                                     </p>

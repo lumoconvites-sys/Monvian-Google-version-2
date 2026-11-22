@@ -2238,6 +2238,25 @@ export function registerItineraryRoutes(
           ? String(clientProvidedId).trim()
           : 'user-itin-' + Date.now() + '-' + Math.random().toString(36).substring(2, 6);
 
+      const existingOwner = db
+        .prepare('SELECT user_id, session_id FROM user_itineraries WHERE id = ?')
+        .get(id) as { user_id?: number | null; session_id?: string | null } | undefined;
+
+      if (existingOwner) {
+        const ownedByOtherUser =
+          existingOwner.user_id &&
+          (!user || Number(existingOwner.user_id) !== Number(user.id));
+        const ownedByOtherSession =
+          !existingOwner.user_id &&
+          existingOwner.session_id &&
+          sessionId &&
+          existingOwner.session_id !== sessionId;
+        if (ownedByOtherUser || ownedByOtherSession) {
+          res.status(403).json({ error: 'Acesso negado: este roteiro pertence a outra conta.' });
+          return;
+        }
+      }
+
       const mergedPreferences = {
         ...(preferences || {}),
         isUserCreated: preferences?.isUserCreated !== undefined ? Boolean(preferences.isUserCreated) : true,
@@ -2251,7 +2270,7 @@ export function registerItineraryRoutes(
           itinerary_data_json, created_at, updated_at
         ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
         ON CONFLICT(id) DO UPDATE SET
-          user_id = COALESCE(excluded.user_id, user_itineraries.user_id),
+          user_id = COALESCE(user_itineraries.user_id, excluded.user_id),
           session_id = COALESCE(excluded.session_id, user_itineraries.session_id),
           title = excluded.title,
           description = excluded.description,
@@ -2302,7 +2321,25 @@ export function registerItineraryRoutes(
       const { id } = req.params;
       const { title, description, coverImage, daysCount, tripDate, days, preferences } = req.body;
 
-      const existing = db.prepare('SELECT id FROM user_itineraries WHERE id = ?').get(id) as any;
+      const existing = db
+        .prepare('SELECT id, user_id, session_id FROM user_itineraries WHERE id = ?')
+        .get(id) as { id: string; user_id?: number | null; session_id?: string | null } | undefined;
+
+      if (existing) {
+        const ownedByOtherUser =
+          existing.user_id &&
+          (!user || Number(existing.user_id) !== Number(user.id));
+        const ownedByOtherSession =
+          !existing.user_id &&
+          existing.session_id &&
+          sessionId &&
+          existing.session_id !== sessionId;
+        if (ownedByOtherUser || ownedByOtherSession) {
+          res.status(403).json({ error: 'Acesso negado: você não pode modificar um roteiro de outra conta.' });
+          return;
+        }
+      }
+
       if (!existing && title && Array.isArray(days)) {
         const mergedPreferences = {
           ...(preferences || {}),
@@ -2326,10 +2363,10 @@ export function registerItineraryRoutes(
           JSON.stringify(mergedPreferences),
           JSON.stringify(days)
         );
-      } else {
+      } else if (existing) {
         db.prepare(`
           UPDATE user_itineraries SET
-            user_id = COALESCE(?, user_id),
+            user_id = COALESCE(user_id, ?),
             title = COALESCE(?, title),
             description = COALESCE(?, description),
             cover_image = COALESCE(?, cover_image),
@@ -2366,7 +2403,28 @@ export function registerItineraryRoutes(
   // Delete user itinerary
   app.delete('/api/user-itineraries/:id', (req, res) => {
     try {
+      const user = getAuthUserSync(req);
+      const sessionId = (req.headers['x-session-id'] as string) || '';
       const { id } = req.params;
+
+      const existing = db
+        .prepare('SELECT id, user_id, session_id FROM user_itineraries WHERE id = ?')
+        .get(id) as { id: string; user_id?: number | null; session_id?: string | null } | undefined;
+
+      if (existing) {
+        const ownedByOtherUser =
+          existing.user_id &&
+          (!user || Number(existing.user_id) !== Number(user.id));
+        const ownedByOtherSession =
+          !existing.user_id &&
+          existing.session_id &&
+          (!sessionId || existing.session_id !== sessionId);
+        if (ownedByOtherUser || ownedByOtherSession) {
+          res.status(403).json({ error: 'Acesso negado: você não pode excluir um roteiro de outra conta.' });
+          return;
+        }
+      }
+
       db.prepare('DELETE FROM user_itineraries WHERE id = ?').run(id);
       res.json({ success: true, message: 'Roteiro excluído' });
     } catch (err: any) {
@@ -2378,14 +2436,19 @@ export function registerItineraryRoutes(
   app.post('/api/user-itineraries/draft', (req, res) => {
     try {
       const user = getAuthUserSync(req);
-      const sessionId = (req.headers['x-session-id'] as string) || req.body.sessionId || 'default-guest-session';
+      const rawSessionId = (req.headers['x-session-id'] as string) || req.body.sessionId || '';
+      const effectiveDraftKey = user?.id ? `user_${user.id}` : rawSessionId;
+      if (!effectiveDraftKey) {
+        res.status(400).json({ error: 'Sessão não identificada' });
+        return;
+      }
       const { tripDate, peopleCount, adultsCount, childrenCount, budget, likedSpots } = req.body;
 
       db.prepare(`
         INSERT INTO itinerary_drafts (session_id, user_id, trip_date, people_count, adults_count, children_count, budget, liked_spots_json, updated_at)
         VALUES (?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
         ON CONFLICT(session_id) DO UPDATE SET
-          user_id = COALESCE(excluded.user_id, itinerary_drafts.user_id),
+          user_id = COALESCE(itinerary_drafts.user_id, excluded.user_id),
           trip_date = COALESCE(excluded.trip_date, itinerary_drafts.trip_date),
           people_count = COALESCE(excluded.people_count, itinerary_drafts.people_count),
           adults_count = COALESCE(excluded.adults_count, itinerary_drafts.adults_count),
@@ -2394,7 +2457,7 @@ export function registerItineraryRoutes(
           liked_spots_json = COALESCE(excluded.liked_spots_json, itinerary_drafts.liked_spots_json),
           updated_at = CURRENT_TIMESTAMP
       `).run(
-        sessionId,
+        effectiveDraftKey,
         user ? user.id : null,
         tripDate !== undefined ? tripDate : null,
         peopleCount !== undefined ? peopleCount : null,
@@ -2414,9 +2477,15 @@ export function registerItineraryRoutes(
   // Get itinerary wizard draft
   app.get('/api/user-itineraries/draft', (req, res) => {
     try {
-      const sessionId = (req.headers['x-session-id'] as string) || (req.query.sessionId as string) || 'default-guest-session';
-      const row = db.prepare('SELECT * FROM itinerary_drafts WHERE session_id = ?').get(sessionId) as any;
-      if (!row) {
+      const user = getAuthUserSync(req);
+      const rawSessionId = (req.headers['x-session-id'] as string) || (req.query.sessionId as string) || '';
+      const effectiveDraftKey = user?.id ? `user_${user.id}` : rawSessionId;
+      if (!effectiveDraftKey) {
+        res.json({ success: true, draft: null });
+        return;
+      }
+      const row = db.prepare('SELECT * FROM itinerary_drafts WHERE session_id = ?').get(effectiveDraftKey) as any;
+      if (!row || (row.user_id && user?.id && Number(row.user_id) !== Number(user.id))) {
         res.json({ success: true, draft: null });
         return;
       }
@@ -2446,8 +2515,12 @@ export function registerItineraryRoutes(
   // Clear draft
   app.delete('/api/user-itineraries/draft', (req, res) => {
     try {
-      const sessionId = (req.headers['x-session-id'] as string) || (req.query.sessionId as string) || 'default-guest-session';
-      db.prepare('DELETE FROM itinerary_drafts WHERE session_id = ?').run(sessionId);
+      const user = getAuthUserSync(req);
+      const rawSessionId = (req.headers['x-session-id'] as string) || (req.query.sessionId as string) || '';
+      const effectiveDraftKey = user?.id ? `user_${user.id}` : rawSessionId;
+      if (effectiveDraftKey) {
+        db.prepare('DELETE FROM itinerary_drafts WHERE session_id = ?').run(effectiveDraftKey);
+      }
       res.json({ success: true, message: 'Rascunho limpo' });
     } catch (err: any) {
       res.status(500).json({ error: 'Erro ao limpar rascunho' });

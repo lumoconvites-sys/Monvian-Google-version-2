@@ -11,6 +11,7 @@ import { getSpotImage } from '../utils/spotImages';
 import { getCleanSpotDisplayName } from './geolocationNotifications';
 import { playXpRewardSound, playLevelUpSound } from '../utils/sound';
 import { triggerHapticFeedback } from '../utils/haptics';
+import { getActiveUserScope, readScopedString, writeScopedString } from '../utils/userScopedStorage';
 
 export interface XpProfileState {
   userId: string;
@@ -97,26 +98,39 @@ class MonvianXpManager {
 
   constructor() {
     this.loadCachedState();
-    if (typeof window !== 'undefined') {
+    if (typeof window !== 'undefined' && typeof window.addEventListener === 'function') {
       window.addEventListener('monvian:user_updated', () => {
         this.loadCachedState();
         this.fetchProfile().catch(() => {});
       });
+      window.addEventListener('monvian:account_switched', () => {
+        this.pendingValidations.clear();
+        this.currentTrackedSpotId = null;
+        this.lastProximityDetail = null;
+        this.loadCachedState();
+        this.subscribers.forEach((cb) => cb(this.state));
+        this.fetchProfile().catch(() => {});
+      });
+      window.addEventListener('monvian:user_logged_out', () => {
+        this.reset();
+      });
     }
   }
 
+  public reset(): void {
+    this.pendingValidations.clear();
+    this.currentTrackedSpotId = null;
+    this.lastProximityDetail = null;
+    this.knownVisitedSpotIds = new Set();
+    this.state = { ...DEFAULT_XP_STATE, visitedSpotIds: [], history: [] };
+    this.subscribers.forEach((cb) => cb(this.state));
+  }
+
   private getCurrentUserCacheKey(): string {
-    if (typeof window === 'undefined') return 'monvian_cached_xp_state_guest';
-    try {
-      const rawUser = localStorage.getItem('monvian_user');
-      if (rawUser) {
-        const parsed = JSON.parse(rawUser);
-        const key = parsed?.id || parsed?.email || parsed?.username;
-        if (key) return `monvian_cached_xp_state_v3_${String(key).toLowerCase()}`;
-      }
-      const sessionId = localStorage.getItem('monvian_user_session_id');
-      if (sessionId) return `monvian_cached_xp_state_v3_${sessionId}`;
-    } catch {}
+    const scope = getActiveUserScope();
+    if (scope) {
+      return `monvian_cached_xp_state_v3_${scope}`;
+    }
     return 'monvian_cached_xp_state_v3_guest';
   }
 
@@ -125,7 +139,7 @@ class MonvianXpManager {
       'Content-Type': 'application/json',
     };
 
-    if (typeof window !== 'undefined') {
+    if (typeof localStorage !== 'undefined') {
       try {
         const token =
           localStorage.getItem('monvian_token') ||
@@ -143,10 +157,10 @@ class MonvianXpManager {
           if (parsed?.email) headers['x-user-email'] = String(parsed.email);
         }
 
-        let sessionId = localStorage.getItem('monvian_user_session_id');
+        let sessionId = readScopedString('monvian_user_session_id');
         if (!sessionId) {
           sessionId = `sess_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
-          localStorage.setItem('monvian_user_session_id', sessionId);
+          writeScopedString('monvian_user_session_id', sessionId);
         }
         headers['x-session-id'] = sessionId;
       } catch {}
@@ -156,8 +170,14 @@ class MonvianXpManager {
   }
 
   private loadCachedState() {
-    if (typeof window === 'undefined') return;
+    if (typeof localStorage === 'undefined') return;
     try {
+      const scope = getActiveUserScope();
+      if (!scope) {
+        this.state = { ...DEFAULT_XP_STATE, visitedSpotIds: [], history: [] };
+        this.knownVisitedSpotIds = new Set();
+        return;
+      }
       const cacheKey = this.getCurrentUserCacheKey();
       const cached = localStorage.getItem(cacheKey);
       if (cached) {
@@ -165,15 +185,17 @@ class MonvianXpManager {
         this.state = { ...DEFAULT_XP_STATE, ...parsed };
         this.knownVisitedSpotIds = new Set(this.state.visitedSpotIds || []);
       } else {
-        this.state = { ...DEFAULT_XP_STATE };
+        this.state = { ...DEFAULT_XP_STATE, visitedSpotIds: [], history: [] };
         this.knownVisitedSpotIds = new Set();
       }
     } catch {}
   }
 
   private saveCachedState() {
-    if (typeof window === 'undefined') return;
+    if (typeof localStorage === 'undefined') return;
     try {
+      const scope = getActiveUserScope();
+      if (!scope) return;
       const cacheKey = this.getCurrentUserCacheKey();
       localStorage.setItem(cacheKey, JSON.stringify(this.state));
     } catch {}

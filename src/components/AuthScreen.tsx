@@ -207,6 +207,7 @@ export function AuthScreen({
   const [isGoogleAccountPreparing, setIsGoogleAccountPreparing] = useState(false);
   const [error, setError] = useState('');
   const isSubmittingRef = useRef(false);
+  const pendingGoogleRegistrationRef = useRef<{ email: string; uid: string | null } | null>(null);
 
   // Zoom state & touch pinch handlers for Login / Recover screen
   const [loginZoom, setLoginZoom] = useState(1);
@@ -843,7 +844,11 @@ export function AuthScreen({
       setCreationMessage('Criando sua conta…');
       setCreationProgress(25);
 
-      let firebaseUid: string | null = null;
+      let firebaseUid: string | null =
+        pendingGoogleRegistrationRef.current &&
+        pendingGoogleRegistrationRef.current.email === cleanEmail
+          ? pendingGoogleRegistrationRef.current.uid
+          : null;
       let firebaseIdToken: string | null = null;
 
       try {
@@ -852,17 +857,11 @@ export function AuthScreen({
         firebaseIdToken = fbSignUp.idToken;
       } catch (fbErr: any) {
         const fbCode = String(fbErr?.code || '');
-        const fbMsg = String(fbErr?.message || '').toLowerCase();
-        if (
-          fbCode === 'auth/email-already-in-use' ||
-          fbMsg.includes('email-already-in-use') ||
-          fbMsg.includes('already registered')
-        ) {
-          throw new Error('Este e-mail já está cadastrado. Utilize outro endereço de e-mail ou faça login na sua conta.');
-        }
         if (fbCode === 'auth/invalid-email' || fbCode === 'auth/weak-password') {
           throw fbErr;
         }
+        // If Firebase Auth reports email-already-in-use (e.g. user first attempted Google login
+        // with an unregistered email), let /api/auth/register verify the actual database.
       }
 
       // 2. “Adicionando suas informações…” -> salvar perfil e criar sessão imediatamente via API
@@ -995,6 +994,46 @@ export function AuthScreen({
       data = await res.json();
     } catch {
       throw new Error('Resposta inválida do servidor ao autenticar sua conta.');
+    }
+
+    if (
+      data?.requiresRegistration ||
+      data?.code === 'ACCOUNT_NOT_REGISTERED' ||
+      (res.status === 404 && data?.registered === false)
+    ) {
+      const attemptedEmail = String(data?.email || gUser?.email || '')
+        .trim()
+        .toLowerCase();
+
+      pendingGoogleRegistrationRef.current = {
+        email: attemptedEmail,
+        uid: gUser?.uid || data?.google_uid || null,
+      };
+
+      if (auth.currentUser) {
+        signOut(auth).catch(() => {});
+      }
+
+      setIsGoogleAccountPreparing(false);
+      setGoogleLoading(false);
+      setError('');
+      setRecoverSent(false);
+      setLoginZoom(1);
+
+      if (attemptedEmail) {
+        setRegisterEmail(attemptedEmail);
+        setEmailTouched(false);
+        try {
+          sessionStorage.setItem('monvian_signup_draft_email', attemptedEmail);
+        } catch {}
+      }
+
+      setAvatarPreview(null);
+      setAvatarBase64(null);
+      setRegisterStep(1);
+      setAuthMode('register');
+      focusStepInputSynchronously(1);
+      return;
     }
 
     if (!res.ok || !data?.success || !data?.token || !data?.user) {

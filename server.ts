@@ -887,6 +887,9 @@ async function resolveAuthenticatedUser(req: Request, strictTokenOnly = false): 
         return formatSafeUser(dbUser);
       }
     }
+
+    // If a token was explicitly provided in the request but failed all verification checks, reject immediately
+    return null;
   }
 
   if (strictTokenOnly) {
@@ -991,8 +994,7 @@ async function startServer() {
   });
 
   const getAuthUserSync = (req: Request) => {
-    const authHeader = req.headers.authorization;
-    const token = authHeader?.startsWith('Bearer ') ? authHeader.substring(7).trim() : '';
+    const token = extractRequestToken(req);
     return getUserByToken(token);
   };
 
@@ -1413,11 +1415,11 @@ async function startServer() {
       }
 
       let user = db.prepare('SELECT * FROM users WHERE LOWER(email) = ? OR LOWER(whatsapp) = ?').get(cleanEmail, cleanEmail) as any;
-      let isNew = false;
+      const isNew = false;
 
       if (!user) {
         const remoteUser = await getUserFromSupabase(cleanEmail);
-        if (remoteUser) {
+        if (remoteUser && remoteUser.email) {
           const role = isPrimaryAdmin(cleanEmail) || remoteUser.role === 'admin' ? 'admin' : 'user';
           const insert = db.prepare(`
             INSERT INTO users (name, username, email, whatsapp, password_hash, avatar_url, role, auth_id, welcome_card_seen, globe_intro_seen, onboarding_completed, onboarding_step)
@@ -1438,30 +1440,17 @@ async function startServer() {
           );
           user = db.prepare('SELECT * FROM users WHERE id = ?').get(insert.lastInsertRowid);
         } else {
-          isNew = true;
-          const username = cleanEmail.split('@')[0].replace(/[^a-zA-Z0-9_]/g, '') + Math.floor(Math.random() * 100);
-          const dummyHash = bcrypt.hashSync(crypto.randomUUID(), 10);
-          const role = isPrimaryAdmin(cleanEmail) ? 'admin' : 'user';
-          const insert = db.prepare(`
-            INSERT INTO users (name, username, email, whatsapp, password_hash, avatar_url, role, auth_id, onboarding_completed, onboarding_step)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, 0, 1)
-          `).run(resolvedName || username, username, cleanEmail, cleanEmail, dummyHash, resolvedAvatar || '/fotoperfil.png', role, resolvedUid || null);
-          user = db.prepare('SELECT * FROM users WHERE id = ?').get(insert.lastInsertRowid);
-          try {
-            db.prepare(`
-              INSERT OR REPLACE INTO user_onboarding (
-                user_email, user_id, onboarding_step, onboarding_completed, updated_at
-              ) VALUES (?, ?, 1, 0, CURRENT_TIMESTAMP)
-            `).run(cleanEmail, String(user.id));
-          } catch {}
-          try {
-            const uidStr = String(user.id);
-            db.prepare('DELETE FROM favorites WHERE user_id = ?').run(uidStr);
-            db.prepare('DELETE FROM user_favorites WHERE user_id = ?').run(uidStr);
-            db.prepare('DELETE FROM post_likes WHERE user_id = ?').run(uidStr);
-            try { db.prepare('DELETE FROM post_saves WHERE user_id = ?').run(uidStr); } catch {}
-            db.prepare('DELETE FROM user_follows WHERE follower_id = ?').run(uidStr);
-          } catch {}
+          return res.status(404).json({
+            success: false,
+            registered: false,
+            requiresRegistration: true,
+            code: 'ACCOUNT_NOT_REGISTERED',
+            email: cleanEmail,
+            name: resolvedName,
+            avatar_url: resolvedAvatar,
+            google_uid: resolvedUid || null,
+            error: 'Esta conta ainda não está cadastrada. Inicie seu cadastro para continuar.',
+          });
         }
       }
 
@@ -1756,11 +1745,14 @@ async function startServer() {
   app.get('/api/user/onboarding', async (req: Request, res: Response) => {
     try {
       const currentUser = await resolveAuthenticatedUser(req);
-      const emailParam = String(
-        req.query.email || currentUser?.email || req.headers['x-user-email'] || ''
-      )
-        .trim()
-        .toLowerCase();
+      const queryEmail = String(req.query.email || '').trim().toLowerCase();
+      const currentEmail = String(currentUser?.email || currentUser?.whatsapp || '').trim().toLowerCase();
+
+      if (currentUser && queryEmail && currentEmail && queryEmail !== currentEmail && !isPrimaryAdmin(currentEmail)) {
+        return res.status(403).json({ success: false, error: 'Acesso negado a dados de outra conta.' });
+      }
+
+      const emailParam = currentEmail || queryEmail;
 
       if (!currentUser && !emailParam) {
         return res.status(401).json({ success: false, error: 'Sessão não autenticada.' });
@@ -1891,11 +1883,14 @@ async function startServer() {
     try {
       const currentUser = await resolveAuthenticatedUser(req);
       const body = req.body || {};
-      const emailParam = String(
-        body.email || currentUser?.email || req.headers['x-user-email'] || ''
-      )
-        .trim()
-        .toLowerCase();
+      const bodyEmail = String(body.email || '').trim().toLowerCase();
+      const currentEmail = String(currentUser?.email || currentUser?.whatsapp || '').trim().toLowerCase();
+
+      if (currentUser && bodyEmail && currentEmail && bodyEmail !== currentEmail && !isPrimaryAdmin(currentEmail)) {
+        return res.status(403).json({ success: false, error: 'Não é permitido alterar preferências de outra conta.' });
+      }
+
+      const emailParam = currentEmail || bodyEmail;
 
       if (!currentUser && !emailParam) {
         return res.status(401).json({ success: false, error: 'Sessão não autenticada.' });
@@ -2105,91 +2100,70 @@ async function startServer() {
 
 
 
-  // User Profile Update (Preserves role & Gold status from DB, never trusting client role input)
+  // User Profile Update (Preserves role & Gold status from DB, enforces strict account ownership)
   const updateProfileHandler = async (req: Request, res: Response) => {
     try {
       const currentUser = await resolveAuthenticatedUser(req);
-      const { name, username, bio, email, whatsapp, avatar_url } = req.body;
-      const targetEmail = (email || whatsapp || currentUser?.email || '').trim().toLowerCase();
-
-      if (!targetEmail && !currentUser) {
-        return res.status(400).json({ success: false, error: 'E-mail ou sessão necessária' });
+      if (!currentUser || !currentUser.id) {
+        return res.status(401).json({ success: false, error: 'Sessão não autenticada.' });
       }
 
-      let dbUser = currentUser?.id
-        ? (db.prepare('SELECT * FROM users WHERE id = ?').get(currentUser.id) as any)
-        : (db.prepare('SELECT * FROM users WHERE LOWER(email) = ? OR LOWER(whatsapp) = ?').get(targetEmail, targetEmail) as any);
+      const { name, username, bio, email, whatsapp, avatar_url } = req.body;
+      const targetEmail = (email || whatsapp || currentUser.email || '').trim().toLowerCase();
+
+      let dbUser = db.prepare('SELECT * FROM users WHERE id = ?').get(currentUser.id) as any;
+      if (!dbUser) {
+        return res.status(404).json({ success: false, error: 'Usuário não encontrado.' });
+      }
 
       const cleanUsername = (username || name || targetEmail.split('@')[0] || 'explorador')
         .trim()
         .replace(/^@+/, '');
 
-      if (dbUser) {
-        const existingWithTargetEmail = targetEmail
-          ? (db
-              .prepare('SELECT * FROM users WHERE (LOWER(email) = ? OR LOWER(whatsapp) = ?) AND id != ?')
-              .get(targetEmail, targetEmail, dbUser.id) as any)
-          : null;
+      const existingWithTargetEmail = targetEmail
+        ? (db
+            .prepare('SELECT id, email FROM users WHERE (LOWER(email) = ? OR LOWER(whatsapp) = ?) AND id != ?')
+            .get(targetEmail, targetEmail, dbUser.id) as any)
+        : null;
 
-        if (existingWithTargetEmail) {
-          // Rebind current session to the target email account (e.g. switching to marioyesk@gmail.com)
-          const preservedRole =
-            isPrimaryAdmin(targetEmail) || existingWithTargetEmail.role === 'admin' ? 'admin' : 'user';
-
-          db.prepare(`
-            UPDATE users
-            SET name = ?, bio = ?, avatar_url = ?, role = ?
-            WHERE id = ?
-          `).run(
-            name || existingWithTargetEmail.name,
-            bio !== undefined ? bio : (existingWithTargetEmail.bio || ''),
-            avatar_url || existingWithTargetEmail.avatar_url || '/fotoperfil.png',
-            preservedRole,
-            existingWithTargetEmail.id
-          );
-
-          const authHeader = req.headers.authorization;
-          const token = authHeader?.startsWith('Bearer ') ? authHeader.substring(7).trim() : '';
-          if (token) {
-            db.prepare('UPDATE sessions SET user_id = ? WHERE token = ?').run(existingWithTargetEmail.id, token);
-          }
-          dbUser = db.prepare('SELECT * FROM users WHERE id = ?').get(existingWithTargetEmail.id);
-        } else {
-          const preservedRole = isPrimaryAdmin(targetEmail || dbUser.email) || dbUser.role === 'admin' ? 'admin' : 'user';
-
-          db.prepare(`
-            UPDATE users
-            SET name = ?, username = ?, bio = ?, email = ?, whatsapp = ?, avatar_url = ?, role = ?
-            WHERE id = ?
-          `).run(
-            name || dbUser.name,
-            cleanUsername,
-            bio !== undefined ? bio : (dbUser.bio || ''),
-            targetEmail || dbUser.email,
-            targetEmail || dbUser.whatsapp,
-            avatar_url || dbUser.avatar_url || '/fotoperfil.png',
-            preservedRole,
-            dbUser.id
-          );
-          dbUser = db.prepare('SELECT * FROM users WHERE id = ?').get(dbUser.id);
-        }
-      } else {
-        const role = isPrimaryAdmin(targetEmail) ? 'admin' : 'user';
-        const ins = db.prepare(`
-          INSERT INTO users (name, username, bio, email, whatsapp, password_hash, avatar_url, role)
-          VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-        `).run(
-          name || cleanUsername,
-          cleanUsername,
-          bio || '',
-          targetEmail,
-          targetEmail,
-          'profile_sync',
-          avatar_url || '/fotoperfil.png',
-          role
-        );
-        dbUser = db.prepare('SELECT * FROM users WHERE id = ?').get(ins.lastInsertRowid);
+      if (existingWithTargetEmail) {
+        return res.status(409).json({
+          success: false,
+          error: 'Este e-mail já está vinculado a outra conta.',
+        });
       }
+
+      const existingWithUsername = cleanUsername
+        ? (db
+            .prepare('SELECT id FROM users WHERE LOWER(username) = ? AND id != ?')
+            .get(cleanUsername.toLowerCase(), dbUser.id) as any)
+        : null;
+
+      if (existingWithUsername) {
+        return res.status(409).json({
+          success: false,
+          error: 'Este nome de usuário já está em uso por outra conta.',
+        });
+      }
+
+      const preservedRole = isPrimaryAdmin(targetEmail || dbUser.email) || dbUser.role === 'admin' ? 'admin' : 'user';
+
+      db.prepare(`
+        UPDATE users
+        SET name = ?, username = ?, username_normalized = ?, bio = ?, email = ?, whatsapp = ?, avatar_url = ?, role = ?
+        WHERE id = ?
+      `).run(
+        name || dbUser.name,
+        cleanUsername,
+        cleanUsername.toLowerCase(),
+        bio !== undefined ? bio : (dbUser.bio || ''),
+        targetEmail || dbUser.email,
+        targetEmail || dbUser.whatsapp,
+        avatar_url || dbUser.avatar_url || '/fotoperfil.png',
+        preservedRole,
+        dbUser.id
+      );
+      dbUser = db.prepare('SELECT * FROM users WHERE id = ?').get(dbUser.id);
 
       await persistUserToSupabase(dbUser);
       persistUserToFirestore(dbUser).catch(() => {});
@@ -2225,35 +2199,33 @@ async function startServer() {
     }
   });
 
-  // User Device Permissions Persistence (Location & Motion/Orientation saved in DB)
+  // User Device Permissions Persistence (Strictly Per-Account Scoped in DB)
   app.post('/api/user/permissions', async (req: Request, res: Response) => {
     try {
       const currentUser = await resolveAuthenticatedUser(req);
       const { email, locationGranted, motionGranted, coords } = req.body || {};
-      const targetEmail = (email || currentUser?.email || '').trim().toLowerCase();
+      const bodyEmail = String(email || '').trim().toLowerCase();
+      const currentEmail = String(currentUser?.email || currentUser?.whatsapp || '').trim().toLowerCase();
+
+      if (currentUser && bodyEmail && currentEmail && bodyEmail !== currentEmail && !isPrimaryAdmin(currentEmail)) {
+        return res.status(403).json({ success: false, error: 'Acesso negado a permissões de outra conta.' });
+      }
+
+      const targetEmail = currentEmail || bodyEmail;
 
       const locVal = locationGranted !== undefined ? (locationGranted ? 1 : 0) : undefined;
       const motVal = motionGranted !== undefined ? (motionGranted ? 1 : 0) : undefined;
 
-      // Persist both globally and per-user in system_settings as a durable DB store
-      if (locVal === 1) {
-        db.prepare('INSERT OR REPLACE INTO system_settings (key, value) VALUES (?, ?)').run('perm_loc_global', '1');
-        if (targetEmail) {
-          db.prepare('INSERT OR REPLACE INTO system_settings (key, value) VALUES (?, ?)').run(`perm_loc_${targetEmail}`, '1');
-        }
+      // Persist strictly per-user in system_settings (never globally across different accounts)
+      if (locVal === 1 && targetEmail) {
+        db.prepare('INSERT OR REPLACE INTO system_settings (key, value) VALUES (?, ?)').run(`perm_loc_${targetEmail}`, '1');
       }
-      if (motVal === 1) {
-        db.prepare('INSERT OR REPLACE INTO system_settings (key, value) VALUES (?, ?)').run('perm_mot_global', '1');
-        if (targetEmail) {
-          db.prepare('INSERT OR REPLACE INTO system_settings (key, value) VALUES (?, ?)').run(`perm_mot_${targetEmail}`, '1');
-        }
+      if (motVal === 1 && targetEmail) {
+        db.prepare('INSERT OR REPLACE INTO system_settings (key, value) VALUES (?, ?)').run(`perm_mot_${targetEmail}`, '1');
       }
-      if (Array.isArray(coords) && coords.length === 2 && typeof coords[0] === 'number' && typeof coords[1] === 'number') {
+      if (targetEmail && Array.isArray(coords) && coords.length === 2 && typeof coords[0] === 'number' && typeof coords[1] === 'number') {
         const coordsJson = JSON.stringify([coords[0], coords[1]]);
-        db.prepare('INSERT OR REPLACE INTO system_settings (key, value) VALUES (?, ?)').run('perm_coords_global', coordsJson);
-        if (targetEmail) {
-          db.prepare('INSERT OR REPLACE INTO system_settings (key, value) VALUES (?, ?)').run(`perm_coords_${targetEmail}`, coordsJson);
-        }
+        db.prepare('INSERT OR REPLACE INTO system_settings (key, value) VALUES (?, ?)').run(`perm_coords_${targetEmail}`, coordsJson);
       }
 
       if (targetEmail || currentUser?.id) {
@@ -2280,8 +2252,8 @@ async function startServer() {
       return res.json({
         success: true,
         permissions: {
-          location_permission_granted: locVal ?? 1,
-          motion_permission_granted: motVal ?? 1,
+          location_permission_granted: locVal ?? 0,
+          motion_permission_granted: motVal ?? 0,
         },
       });
     } catch (err: any) {
@@ -2292,7 +2264,14 @@ async function startServer() {
   app.get('/api/user/permissions', async (req: Request, res: Response) => {
     try {
       const currentUser = await resolveAuthenticatedUser(req);
-      const email = String(req.query.email || currentUser?.email || '').trim().toLowerCase();
+      const queryEmail = String(req.query.email || '').trim().toLowerCase();
+      const currentEmail = String(currentUser?.email || currentUser?.whatsapp || '').trim().toLowerCase();
+
+      if (currentUser && queryEmail && currentEmail && queryEmail !== currentEmail && !isPrimaryAdmin(currentEmail)) {
+        return res.status(403).json({ success: false, error: 'Acesso negado a permissões de outra conta.' });
+      }
+
+      const email = currentEmail || queryEmail;
 
       let locGranted = false;
       let motGranted = false;
@@ -2315,25 +2294,6 @@ async function startServer() {
             if (Array.isArray(parsed) && parsed.length === 2) savedCoords = [Number(parsed[0]), Number(parsed[1])];
           } catch {}
         }
-      }
-
-      const globalLoc = db.prepare('SELECT value FROM system_settings WHERE key = ?').get('perm_loc_global') as any;
-      const globalMot = db.prepare('SELECT value FROM system_settings WHERE key = ?').get('perm_mot_global') as any;
-      const globalCoords = db.prepare('SELECT value FROM system_settings WHERE key = ?').get('perm_coords_global') as any;
-      if (globalLoc?.value === '1') locGranted = true;
-      if (globalMot?.value === '1') motGranted = true;
-      if (!savedCoords && globalCoords?.value) {
-        try {
-          const parsed = JSON.parse(globalCoords.value);
-          if (Array.isArray(parsed) && parsed.length === 2) savedCoords = [Number(parsed[0]), Number(parsed[1])];
-        } catch {}
-      }
-
-      // Also check if any user row in SQLite has granted permissions on this instance
-      if (!locGranted || !motGranted) {
-        const anyGranted = db.prepare('SELECT MAX(location_permission_granted) as loc, MAX(motion_permission_granted) as mot FROM users').get() as any;
-        if (anyGranted?.loc === 1) locGranted = true;
-        if (anyGranted?.mot === 1) motGranted = true;
       }
 
       return res.json({

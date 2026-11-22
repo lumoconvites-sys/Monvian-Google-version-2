@@ -167,6 +167,8 @@ export function clearAuthCookies(): void {
     document.cookie = `${COOKIE_TOKEN_KEY}=; Max-Age=0; Path=/; SameSite=Lax${secureFlag}`;
     document.cookie = `${COOKIE_TOKEN_KEY}=; Max-Age=0; Path=/; SameSite=Lax`;
     document.cookie = `monvian_user=; Max-Age=0; Path=/; SameSite=Lax`;
+    document.cookie = `monvian_location_granted=; Max-Age=0; Path=/; SameSite=Lax`;
+    document.cookie = `monvian_motion_granted=; Max-Age=0; Path=/; SameSite=Lax`;
   } catch {}
 }
 
@@ -263,7 +265,7 @@ export async function loadPersistentSession(): Promise<{ token: string; user: an
 }
 
 export function clearSyncSessionStorage(options?: { preserveManualLogoutFlag?: boolean }): void {
-  if (typeof window === 'undefined') return;
+  if (typeof localStorage === 'undefined') return;
   const keysToRemove = [
     'monvian_token',
     'monvian_auth_token',
@@ -274,6 +276,7 @@ export function clearSyncSessionStorage(options?: { preserveManualLogoutFlag?: b
     'monvian_active_itinerary',
     'monvian_itinerary_view_mode',
     'monvian_itinerary_expanded',
+    'monvian_itinerary_map_active',
     'monvian_itinerary_session',
     'monvian_selected_onboarding_itineraries',
     'monvian_trip_budget',
@@ -289,6 +292,19 @@ export function clearSyncSessionStorage(options?: { preserveManualLogoutFlag?: b
     'monvian_liked_posts',
     'monvian_saved_posts',
     'monvian_following_users',
+    'monvian_selected_category_filter',
+    'monvian_map_category_filter',
+    'monvian_search_category_filter',
+    'monvian_search_query',
+    'monvian_geo_visit_state_v2',
+    'monvian_geo_notifications_history_v2',
+    'monvian_location_permission_granted',
+    'monvian_location_perm',
+    'monvian_motion_permission_granted',
+    'monvian_compass_permission_handled',
+    'monvian_last_coords',
+    'monvian_last_coords_meta_v2',
+    'monvian_welcome_completed',
     ...(options?.preserveManualLogoutFlag ? [] : ['monvian_manual_logout']),
   ];
 
@@ -306,7 +322,7 @@ export function clearSyncSessionStorage(options?: { preserveManualLogoutFlag?: b
         k &&
         (k.startsWith('monvian_user_avatar_') ||
           k.startsWith('monvian_user_itinerary_') ||
-          k.startsWith('monvian_cached_xp_state_') ||
+          (k.startsWith('monvian_presentation_seen_') && !k.includes('__acct_')) ||
           k.startsWith('sb-') ||
           k.startsWith('supabase.auth'))
       ) {
@@ -317,7 +333,9 @@ export function clearSyncSessionStorage(options?: { preserveManualLogoutFlag?: b
   } catch {}
 
   try {
-    sessionStorage.clear();
+    if (typeof sessionStorage !== 'undefined') {
+      sessionStorage.clear();
+    }
   } catch {}
 
   clearAuthCookies();

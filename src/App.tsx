@@ -50,11 +50,15 @@ import {
   hasSyncSessionToken,
 } from './utils/persistentAuthStorage';
 import {
+  getActiveUserScope,
   readScopedString,
   writeScopedJSON,
   writeScopedString,
   removeScopedKey,
   purgeLegacyUnscopedActivityKeys,
+  purgeScopedKeysForUser,
+  readUserCategoryFilter,
+  writeUserCategoryFilter,
 } from './utils/userScopedStorage';
 
 // Unauthenticated flow (deactivated and NOT loaded when the user is logged in)
@@ -674,9 +678,20 @@ export default function App() {
     setArrivalConfettiTrigger(0);
     setSignupIntroStage('idle');
     setPendingWelcomeJourney(false);
+    setSelectedCategoryFilter(null);
+    setIsCategoryCardOpen(false);
+    setSearchQuery('');
+    setIsSearchOpen(false);
     setSelectedItinerary(null);
     setSelectedSpot(null);
     setIsDetailOpen(false);
+    setActiveItinerary(null);
+    setActiveItineraryDayIndex(0);
+    setActiveItineraryStepId(null);
+    setSelectedSpotIdsForItinerary([]);
+    setMapWorkflowMode('EXPLORE');
+    setIsItineraryDrawerExpanded(false);
+    setTripNoteText('');
     setIsAdminOpen(false);
     setIsSettingsModalOpen(false);
     setUser(null);
@@ -778,6 +793,10 @@ export default function App() {
       }
       if (!isMounted || myEpoch !== authEpochRef.current) return;
       favoritesManager.setActiveAccount(normalized);
+      setSelectedCategoryFilter(readUserCategoryFilter(normalized));
+      setIsCategoryCardOpen(false);
+      setSearchQuery('');
+      setIsSearchOpen(false);
       window.dispatchEvent(new CustomEvent('monvian:account_switched', { detail: normalized }));
       setUser(normalized);
       setIsAuthenticated(true);
@@ -872,6 +891,7 @@ export default function App() {
             await applyAuthenticatedUser(restored.token, restored.user);
             return;
           }
+          setSelectedCategoryFilter(null);
           setUser(null);
           setIsAuthenticated(false);
           return;
@@ -879,7 +899,9 @@ export default function App() {
 
         // If restored from IndexedDB or cookie when localStorage was empty, enter app immediately while verifying
         if (stored.user && isMounted && myEpoch === authEpochRef.current) {
-          setUser(normalizeAppUser(stored.user));
+          const normalizedStored = normalizeAppUser(stored.user);
+          setUser(normalizedStored);
+          setSelectedCategoryFilter(readUserCategoryFilter(normalizedStored));
           setIsAuthenticated(true);
           setIsAuthChecking(false);
         }
@@ -940,9 +962,12 @@ export default function App() {
           const fallback = await loadPersistentSession().catch(() => null);
           if (!isMounted || myEpoch !== authEpochRef.current) return;
           if (fallback?.token && fallback?.user) {
-            setUser(normalizeAppUser(fallback.user));
+            const normalizedFallback = normalizeAppUser(fallback.user);
+            setUser(normalizedFallback);
+            setSelectedCategoryFilter(readUserCategoryFilter(normalizedFallback));
             setIsAuthenticated(true);
           } else {
+            setSelectedCategoryFilter(null);
             setUser(null);
             setIsAuthenticated(false);
           }
@@ -1276,11 +1301,24 @@ export default function App() {
     return () => unsubscribe();
   }, []);
 
-  const [selectedCategoryFilter, setSelectedCategoryFilter] = useState<string | null>(null);
+  const [selectedCategoryFilter, setSelectedCategoryFilter] = useState<string | null>(() =>
+    isAuthenticated && user ? readUserCategoryFilter(user) : null
+  );
   const [isCategoryCardOpen, setIsCategoryCardOpen] = useState<boolean>(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [isSearchOpen, setIsSearchOpen] = useState(false);
   const [isListening, setIsListening] = useState(false);
+
+  const handleUpdateSelectedCategoryFilter = useCallback(
+    (nextCategory: string | null) => {
+      const normalizedCat = nextCategory === 'all' ? null : nextCategory;
+      setSelectedCategoryFilter(normalizedCat);
+      if (isAuthenticated && user) {
+        writeUserCategoryFilter(normalizedCat, user);
+      }
+    },
+    [isAuthenticated, user]
+  );
 
   useEffect(() => {
     if (!isAuthenticated || pendingResetOobCode || hasFullCatalogLoadedRef.current) return;
@@ -2446,12 +2484,17 @@ export default function App() {
     };
 
     const handleLoggedOut = () => {
+      setSelectedCategoryFilter(null);
+      setIsCategoryCardOpen(false);
+      setSearchQuery('');
+      setIsSearchOpen(false);
       setActiveItinerary(null);
       setActiveItineraryDayIndex(0);
       setActiveItineraryStepId(null);
       setSelectedSpotIdsForItinerary([]);
       setMapWorkflowMode('EXPLORE');
       setIsItineraryDrawerExpanded(false);
+      setTripNoteText('');
       isEditingExistingItineraryRef.current = false;
     };
 
@@ -2459,6 +2502,10 @@ export default function App() {
       const nextUser = e?.detail || null;
       const scopedItin = loadActiveItineraryFromStorage(nextUser);
       const isActiveOnMap = loadIsItineraryActiveOnMapFromStorage(nextUser);
+      setSelectedCategoryFilter(readUserCategoryFilter(nextUser));
+      setIsCategoryCardOpen(false);
+      setSearchQuery('');
+      setIsSearchOpen(false);
       setActiveItinerary(scopedItin);
       setActiveItineraryDayIndex(0);
       setActiveItineraryStepId(scopedItin?.days?.[0]?.steps?.[0]?.id || null);
@@ -2482,15 +2529,23 @@ export default function App() {
 
   // Hydrate saved backend itinerary on startup if none in local storage
   useEffect(() => {
-    if (!isAuthenticated || pendingResetOobCode || activeItinerary) return;
+    if (!isAuthenticated || pendingResetOobCode || activeItinerary || !user) return;
+    const requestScope = getActiveUserScope(user);
+    if (!requestScope) return;
     const sessionId = getOrCreateItinerarySessionId(user);
     const controller = new AbortController();
     fetch('/api/user-itineraries', {
-      headers: { 'x-session-id': sessionId },
+      headers: {
+        ...getAuthHeaders(),
+        'x-session-id': sessionId,
+      },
       signal: controller.signal,
     })
       .then((res) => (res.ok ? res.json() : null))
       .then((data) => {
+        if (controller.signal.aborted) return;
+        const currentScope = getActiveUserScope();
+        if (!currentScope || currentScope !== requestScope) return;
         if (!data?.success || !Array.isArray(data.itineraries) || data.itineraries.length === 0) return;
         const normalized = normalizeItineraryLivreFlags(data.itineraries[0]);
         const wasExplicitlyExited = readScopedString('monvian_itinerary_map_active', user) === '0';
@@ -2926,9 +2981,12 @@ export default function App() {
     performFullLogout({ redirectToLogin: true });
   }, [performFullLogout]);
   const handleNoop = useCallback(() => {}, []);
-  const handleDesktopSelectCategory = useCallback((catId: string) => {
-    setSelectedCategoryFilter(catId === 'all' ? null : catId);
-  }, []);
+  const handleDesktopSelectCategory = useCallback(
+    (catId: string) => {
+      handleUpdateSelectedCategoryFilter(catId === 'all' ? null : catId);
+    },
+    [handleUpdateSelectedCategoryFilter]
+  );
 
   const prefersReducedMotion =
     typeof window !== 'undefined' &&
@@ -3038,21 +3096,33 @@ export default function App() {
 
               // Ensure any residual unscoped or previous account state is wiped before initializing the new account
               purgeLegacyUnscopedActivityKeys();
+              if (isNewAccount && normalizedUser) {
+                purgeScopedKeysForUser(normalizedUser);
+                writeUserCategoryFilter(null, normalizedUser);
+              }
               try {
                 const prevUserRaw = localStorage.getItem('monvian_user');
                 const prevUser = prevUserRaw ? JSON.parse(prevUserRaw) : null;
                 const prevEmail = (prevUser?.email || prevUser?.whatsapp || '').trim().toLowerCase();
                 if (!prevUser || prevEmail !== cleanEmail || String(prevUser?.id) !== String(normalizedUser?.id)) {
                   localStorage.removeItem('monvian_local_avatar');
-                  setSelectedItinerary(null);
-                  setSelectedSpot(null);
-                  setIsDetailOpen(false);
                 }
                 if (token && normalizedUser) {
                   localStorage.setItem('monvian_token', token);
                   localStorage.setItem('monvian_user', JSON.stringify(normalizedUser));
                 }
               } catch {}
+
+              clearActiveRoute();
+              setSelectedItinerary(null);
+              setSelectedSpot(null);
+              setIsDetailOpen(false);
+              setIsCategoryCardOpen(false);
+              setSearchQuery('');
+              setIsSearchOpen(false);
+              setSelectedCategoryFilter(
+                isNewAccount ? null : readUserCategoryFilter(normalizedUser)
+              );
 
               savePersistentSession(token, normalizedUser).catch(() => {});
               favoritesManager.setActiveAccount(normalizedUser);
@@ -3666,6 +3736,7 @@ export default function App() {
         >
           <Suspense fallback={null}>
             <SearchFilterDrawer
+              key={`search-filter-drawer-${accountSessionKey}`}
               isOpen={true}
               onClose={handleCloseToExplore}
               spots={spots}
@@ -4148,7 +4219,7 @@ export default function App() {
               {selectedCategoryFilter && (
                 <button
                   onClick={() => {
-                    setSelectedCategoryFilter(null);
+                    handleUpdateSelectedCategoryFilter(null);
                     setIsCategoryCardOpen(false);
                   }}
                   className={`text-[11px] font-black hover:underline cursor-pointer flex items-center gap-1 ${
@@ -4190,7 +4261,7 @@ export default function App() {
                 <button
                   key={cat.id}
                   onClick={() => {
-                    setSelectedCategoryFilter(isSelected ? null : cat.id);
+                    handleUpdateSelectedCategoryFilter(isSelected ? null : cat.id);
                     setIsCategoryCardOpen(false);
                   }}
                   className={`relative z-10 w-full px-3 py-2.5 rounded-2xl active:scale-[0.98] text-xs font-black flex items-center justify-between gap-2.5 transition-all text-left cursor-pointer group ${dropdownTextClass} ${

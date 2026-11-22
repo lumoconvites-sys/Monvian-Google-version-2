@@ -688,7 +688,6 @@ export async function saveUserPermissionsToDatabase(params: {
       permPayload.last_lat = params.coords[1];
     }
 
-    await withTimeout(setDoc(doc(firestore, 'user_permissions', 'global_device'), permPayload, { merge: true }), 2500, null);
     if (cleanEmail) {
       await withTimeout(setDoc(doc(firestore, 'user_permissions', cleanEmail), permPayload, { merge: true }), 2500, null);
       await withTimeout(setDoc(doc(firestore, 'users', cleanEmail), permPayload, { merge: true }), 2500, null);
@@ -704,7 +703,7 @@ let inFlightPermSync: Promise<{
 
 /**
  * Loads and restores saved permissions from the database (Backend SQLite + Cloud Firestore)
- * so the user is never prompted again after permitting once.
+ * strictly for the currently authenticated user account.
  */
 export async function syncPermissionsFromDatabase(email?: string): Promise<{
   locationGranted: boolean;
@@ -720,13 +719,8 @@ export async function syncPermissionsFromDatabase(email?: string): Promise<{
   }
 
   const runSync = async () => {
-    let locationGranted =
-      localStorage.getItem('monvian_location_permission_granted') === 'true' ||
-      document.cookie.includes('monvian_location_granted=true');
-    let motionGranted =
-      localStorage.getItem('monvian_motion_permission_granted') === 'true' ||
-      localStorage.getItem('monvian_compass_permission_handled') === 'true' ||
-      document.cookie.includes('monvian_motion_granted=true');
+    let locationGranted = false;
+    let motionGranted = false;
     let coords: [number, number] | null = null;
 
     try {
@@ -737,33 +731,27 @@ export async function syncPermissionsFromDatabase(email?: string): Promise<{
       if (savedUser?.location_permission_granted === 1) locationGranted = true;
       if (savedUser?.motion_permission_granted === 1) motionGranted = true;
 
-      // 1. Check backend SQLite database
-      const res = await withTimeout(
-        fetch(`/api/user/permissions?email=${encodeURIComponent(cleanEmail)}`),
-        2000,
-        null as any
-      );
-      if (res && res.ok) {
-        const data = await res.json();
-        if (data.location_permission_granted === 1) locationGranted = true;
-        if (data.motion_permission_granted === 1) motionGranted = true;
-        if (Array.isArray(data.coords) && data.coords.length === 2) {
-          coords = [Number(data.coords[0]), Number(data.coords[1])];
-        }
-      }
-
-      // 2. Check Cloud Firestore (both global_device and user email if available)
-      const globalSnap = await withTimeout(getDoc(doc(firestore, 'user_permissions', 'global_device')), 2000, null as any);
-      if (globalSnap && globalSnap.exists()) {
-        const gData = globalSnap.data();
-        if (gData?.location_permission_granted === 1) locationGranted = true;
-        if (gData?.motion_permission_granted === 1) motionGranted = true;
-        if (typeof gData?.last_lng === 'number' && typeof gData?.last_lat === 'number') {
-          coords = [gData.last_lng, gData.last_lat];
-        }
-      }
-
       if (cleanEmail) {
+        const token = localStorage.getItem('monvian_token');
+        const headers: Record<string, string> = {};
+        if (token) headers.Authorization = `Bearer ${token}`;
+
+        // 1. Check backend SQLite database for this user
+        const res = await withTimeout(
+          fetch(`/api/user/permissions?email=${encodeURIComponent(cleanEmail)}`, { headers }),
+          2000,
+          null as any
+        );
+        if (res && res.ok) {
+          const data = await res.json();
+          if (data.location_permission_granted === 1) locationGranted = true;
+          if (data.motion_permission_granted === 1) motionGranted = true;
+          if (Array.isArray(data.coords) && data.coords.length === 2) {
+            coords = [Number(data.coords[0]), Number(data.coords[1])];
+          }
+        }
+
+        // 2. Check Cloud Firestore strictly for this user's email
         const permSnap = await withTimeout(getDoc(doc(firestore, 'user_permissions', cleanEmail)), 2000, null as any);
         if (permSnap && permSnap.exists()) {
           const pData = permSnap.data();
