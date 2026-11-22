@@ -240,7 +240,6 @@
           var stage = document.getElementById('monvian-preloader-stage');
           var lightLogo = document.getElementById('monvian-preloader-light-logo');
           var darkLogo = document.getElementById('monvian-preloader-dark-logo');
-          var progressFill = document.getElementById('monvian-preloader-progress-fill');
 
           if (preloader) {
             preloader.style.transition = 'none';
@@ -272,12 +271,6 @@
               void lightLogo.offsetWidth;
               lightLogo.style.animation = 'monvianLogoMotionIntro 1.85s cubic-bezier(0.22, 1, 0.36, 1) forwards';
             }
-          }
-
-          if (progressFill) {
-            progressFill.style.animation = 'none';
-            void progressFill.offsetWidth;
-            progressFill.style.animation = 'monvianPreloaderBarSweep ' + (minMs || 1750) + 'ms cubic-bezier(0.22, 1, 0.36, 1) forwards';
           }
 
           minTimer = setTimeout(function() {
@@ -633,8 +626,11 @@
             style="width:248px;max-width:64vw;height:auto;object-fit:contain;display:none;pointer-events:none;user-select:none;-webkit-user-select:none;will-change:transform,opacity,filter;"
           />
         </div>
-        <div id="monvian-preloader-progress-track" style="width:112px;height:2.5px;border-radius:999px;background:rgba(0,0,0,0.09);overflow:hidden;">
-          <div id="monvian-preloader-progress-fill" style="width:0%;height:100%;border-radius:999px;background:#000000;"></div>
+        <div id="monvian-preloader-spinner" role="status" aria-label="Carregando" style="width:22px;height:22px;display:flex;align-items:center;justify-content:center;pointer-events:none;">
+          <svg id="monvian-preloader-ring-svg" viewBox="0 0 24 24" width="22" height="22" fill="none" xmlns="http://www.w3.org/2000/svg" style="display:block;animation:monvianCircularRotate 0.92s linear infinite;will-change:transform;">
+            <circle id="monvian-preloader-ring-track" cx="12" cy="12" r="9.25" stroke="rgba(0,0,0,0.10)" stroke-width="1.85" />
+            <circle id="monvian-preloader-ring-arc" cx="12" cy="12" r="9.25" stroke="#171717" stroke-width="1.85" stroke-linecap="round" stroke-dasharray="58.12" stroke-dashoffset="42" style="animation:monvianCircularArcGlide 1.45s cubic-bezier(0.4, 0, 0.2, 1) infinite;transform-origin:50% 50%;" />
+          </svg>
         </div>
       </div>
     </div>
@@ -642,11 +638,11 @@
       html.dark #monvian-app-preloader {
         background-color: #000000 !important;
       }
-      html.dark #monvian-preloader-progress-track {
-        background: rgba(255,255,255,0.14) !important;
+      html.dark #monvian-preloader-ring-track {
+        stroke: rgba(255,255,255,0.14) !important;
       }
-      html.dark #monvian-preloader-progress-fill {
-        background: #ffffff !important;
+      html.dark #monvian-preloader-ring-arc {
+        stroke: #ffffff !important;
       }
       html.dark #monvian-preloader-light-logo {
         display: none !important;
@@ -682,15 +678,23 @@
           filter: blur(0px);
         }
       }
-      @keyframes monvianPreloaderBarSweep {
+      @keyframes monvianCircularRotate {
         0% {
-          width: 0%;
-        }
-        45% {
-          width: 68%;
+          transform: rotate(0deg);
         }
         100% {
-          width: 100%;
+          transform: rotate(360deg);
+        }
+      }
+      @keyframes monvianCircularArcGlide {
+        0% {
+          stroke-dashoffset: 45;
+        }
+        50% {
+          stroke-dashoffset: 27;
+        }
+        100% {
+          stroke-dashoffset: 45;
         }
       }
       @keyframes monvianLogoPulseBreath {

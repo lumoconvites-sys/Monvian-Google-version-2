@@ -4,6 +4,7 @@
  * Designed to be soft, calm, and pleasant (Apple Find My / Apple Maps aesthetic),
  * avoiding high-pitched or repetitive metallic tones.
  */
+import { playSpotClickSound } from './soundEffects';
 
 let audioCtx: AudioContext | null = null;
 
@@ -118,6 +119,10 @@ export function playLevelUpSound() {
   } catch {}
 }
 
-export const playPinTapSound = () => {};
-export const playSound = () => {};
+export const playPinTapSound = () => {
+  playSpotClickSound();
+};
+export const playSound = () => {
+  playSpotClickSound();
+};
 export default playPinTapSound;

@@ -3018,11 +3018,23 @@ export const MapComponent = memo(
           wrapEl.appendChild(tipEl);
           el.appendChild(wrapEl);
 
+          let lastStepSfxTs = 0;
+          el.onpointerdown = (e) => {
+            if (!e.isPrimary || isMapGestureActiveRef.current || isZoomGestureActiveRef.current) return;
+            unlockSpotClickSound();
+            playSpotClickSound();
+            lastStepSfxTs = typeof performance !== 'undefined' ? performance.now() : Date.now();
+          };
+
           el.onclick = (e) => {
             e.stopPropagation();
             if (isMapGestureActiveRef.current || isZoomGestureActiveRef.current) return;
-            unlockSpotClickSound();
-            playSpotClickSound();
+            const now = typeof performance !== 'undefined' ? performance.now() : Date.now();
+            if (now - lastStepSfxTs > 380) {
+              unlockSpotClickSound();
+              playSpotClickSound();
+              lastStepSfxTs = now;
+            }
             triggerHapticFeedback(14);
             if (onSelectItineraryStepRef.current) {
               onSelectItineraryStepRef.current(step.id);
@@ -3354,12 +3366,15 @@ export const MapComponent = memo(
 
         let pointerStartPos: { x: number; y: number } | null = null;
         let pointerMovedDuringTap = false;
+        let lastPinSfxTs = 0;
 
         el.onpointerdown = (e) => {
-          if (!e.isPrimary || isZoomGestureActiveRef.current) return;
+          if (!e.isPrimary || isZoomGestureActiveRef.current || isMapGestureActiveRef.current) return;
           pointerStartPos = { x: e.clientX, y: e.clientY };
           pointerMovedDuringTap = false;
           unlockSpotClickSound();
+          playSpotClickSound();
+          lastPinSfxTs = typeof performance !== 'undefined' ? performance.now() : Date.now();
           animateMarkerPress(badgeEl, true);
         };
 
@@ -3420,14 +3435,18 @@ export const MapComponent = memo(
             return;
           }
 
-          if (workflowModeRef.current === 'SELECT') {
+          const now = typeof performance !== 'undefined' ? performance.now() : Date.now();
+          if (now - lastPinSfxTs > 380) {
             playSpotClickSound();
+            lastPinSfxTs = now;
+          }
+
+          if (workflowModeRef.current === 'SELECT') {
             triggerPinTapFeedback(containerEl, badgeEl, isStar);
             onToggleSelectSpotRef.current?.(record.spot);
             return;
           }
 
-          playSpotClickSound();
           triggerPinTapFeedback(containerEl, badgeEl, isStar);
           setFollowMode(false);
           onSelectSpotRef.current(record.spot);

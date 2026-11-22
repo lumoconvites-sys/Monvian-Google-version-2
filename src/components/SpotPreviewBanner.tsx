@@ -49,9 +49,8 @@ export const SpotPreviewBanner: React.FC<SpotPreviewBannerProps> = ({
   isRouteLoading = false,
   routeError = null,
   theme = 'light',
-  isSatellite = false,
 }) => {
-  const useWhiteText = isSatellite || theme === 'dark';
+  const useWhiteText = theme === 'dark';
   const shouldReduceMotion = useReducedMotion();
   const [imgError, setImgError] = useState(false);
   const didDragRef = useRef(false);

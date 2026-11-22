@@ -3156,7 +3156,7 @@ export default function App() {
       ) : !authenticatedViews ? (
         <div
           key="monvian-app-hydrating"
-          className={`fixed inset-0 w-full z-[130] flex items-center justify-center ${
+          className={`fixed inset-0 w-full z-[130] flex flex-col items-center justify-center gap-[22px] ${
             theme === 'dark' ? 'bg-[#000000]' : 'bg-[#FFFFFF]'
           }`}
           style={{
@@ -3173,13 +3173,53 @@ export default function App() {
             src={
               theme === 'dark'
                 ? '/logomodoescuro.png'
-                : 'https://gxyqrwebnkbgxqrfdvuj.supabase.co/storage/v1/object/public/monvian-media/app-assets/monvian-logo-dark-49b84fe93ec7ba83.webp'
+                : '/assets/aistudio/monvian_logo_dark_transparent.png'
             }
             alt="Monvian"
             draggable={false}
             style={{ animation: 'monvianLogoIdleBreath 1.4s ease-in-out infinite' }}
-            className="w-[220px] max-w-[60vw] h-auto object-contain select-none pointer-events-none"
+            className="w-[248px] max-w-[64vw] h-auto object-contain select-none pointer-events-none"
           />
+          <div
+            role="status"
+            aria-label="Carregando"
+            className="w-[22px] h-[22px] flex items-center justify-center pointer-events-none"
+          >
+            <svg
+              viewBox="0 0 24 24"
+              width="22"
+              height="22"
+              fill="none"
+              xmlns="http://www.w3.org/2000/svg"
+              style={{
+                display: 'block',
+                animation: 'monvianCircularRotate 0.92s linear infinite',
+                willChange: 'transform',
+              }}
+            >
+              <circle
+                cx="12"
+                cy="12"
+                r="9.25"
+                stroke={theme === 'dark' ? 'rgba(255,255,255,0.14)' : 'rgba(0,0,0,0.10)'}
+                strokeWidth="1.85"
+              />
+              <circle
+                cx="12"
+                cy="12"
+                r="9.25"
+                stroke={theme === 'dark' ? '#FFFFFF' : '#171717'}
+                strokeWidth="1.85"
+                strokeLinecap="round"
+                strokeDasharray="58.12"
+                strokeDashoffset="42"
+                style={{
+                  animation: 'monvianCircularArcGlide 1.45s cubic-bezier(0.4, 0, 0.2, 1) infinite',
+                  transformOrigin: '50% 50%',
+                }}
+              />
+            </svg>
+          </div>
         </div>
       ) : (() => {
         const {

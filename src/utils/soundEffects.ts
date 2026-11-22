@@ -4,7 +4,7 @@
  * so spot marker clicks trigger with 0ms delay on iOS Safari and desktop.
  */
 
-const SPOT_CLICK_SFX_URL = '/assets/aistudio/spot_click_sfx.wav';
+const SPOT_CLICK_SFX_URL = '/assets/aistudio/spot_click_ui_select.wav';
 const MAP_LAYER_TOGGLE_SFX_URL = '/assets/aistudio/sfxmint-ui-menu-12_3dc1a42f.mp3';
 
 let audioCtx: AudioContext | null = null;
@@ -12,6 +12,7 @@ let masterGain: GainNode | null = null;
 
 // Spot click SFX state
 let decodedSpotClickBuffer: AudioBuffer | null = null;
+let spotClickTrimOffsetSec = 0;
 let rawAudioBytesPromise: Promise<ArrayBuffer | null> | null = null;
 let decodePromise: Promise<AudioBuffer | null> | null = null;
 let fallbackAudioEl: HTMLAudioElement | null = null;
@@ -158,8 +159,8 @@ function detectLeadingSilenceOffsetSec(buffer: AudioBuffer): number {
     }
 
     if (firstAudibleSample >= length) return 0;
-    // Keep ~1.5ms of pre-attack headroom so the transient never clips
-    const headroomSamples = Math.floor(buffer.sampleRate * 0.0015);
+    // Keep ~0.5ms of pre-attack headroom so the transient never clips
+    const headroomSamples = Math.floor(buffer.sampleRate * 0.0005);
     const startSample = Math.max(0, firstAudibleSample - headroomSamples);
     return startSample / buffer.sampleRate;
   } catch {
@@ -176,7 +177,7 @@ export function prefetchSpotClickSound(): void {
   ensureFallbackAudio();
 
   if (!rawAudioBytesPromise) {
-    rawAudioBytesPromise = fetch(SPOT_CLICK_SFX_URL, { cache: 'force-cache' })
+    rawAudioBytesPromise = fetch(SPOT_CLICK_SFX_URL)
       .then((res) => (res.ok ? res.arrayBuffer() : null))
       .then((bytes) => {
         // If AudioContext already exists (e.g. desktop Chrome), decode immediately
@@ -223,6 +224,7 @@ async function decodeBuffer(ctx: AudioContext, bytes: ArrayBuffer): Promise<Audi
       // Slice so the cached ArrayBuffer is never detached across retries
       const copy = bytes.slice(0);
       const buffer = await ctx.decodeAudioData(copy);
+      spotClickTrimOffsetSec = detectLeadingSilenceOffsetSec(buffer);
       decodedSpotClickBuffer = buffer;
       return buffer;
     } catch {
@@ -357,7 +359,7 @@ export function playSpotClickSound(): void {
         const source = ctx.createBufferSource();
         source.buffer = decodedSpotClickBuffer;
         source.connect(masterGain ?? ctx.destination);
-        source.start(0);
+        source.start(0, spotClickTrimOffsetSec);
         return;
       } catch {
         // Fall through to HTMLAudioElement fallback
@@ -370,7 +372,7 @@ export function playSpotClickSound(): void {
   const fallback = ensureFallbackAudio();
   if (fallback) {
     try {
-      fallback.currentTime = 0;
+      fallback.currentTime = spotClickTrimOffsetSec || 0;
       const playResult = fallback.play();
       if (playResult && typeof playResult.catch === 'function') {
         playResult.catch(() => {});
