@@ -1096,6 +1096,15 @@ body,
   will-change: transform, opacity;
 }
 
+@keyframes monvianFloat {
+  0%, 100% {
+    transform: translate3d(0, 0px, 0);
+  }
+  50% {
+    transform: translate3d(0, -4px, 0);
+  }
+}
+
 /* Respect OS reduced-motion preference on continuous decorative animations */
 @media (prefers-reduced-motion: reduce) {
   .user-photo-pulse,
@@ -1107,3 +1116,4 @@ body,
     animation: none !important;
   }
 }
+

@@ -126,14 +126,7 @@ export const ProfileModal: React.FC<ProfileModalProps> = React.memo(({
   onDeleteUserItinerary,
 }) => {
   const isViewActive = Boolean(isOpen && isActive);
-  const [visitTick, setVisitTick] = useState(0);
-  const prevIsViewActiveRef = useRef(isViewActive);
-  useEffect(() => {
-    if (isViewActive && !prevIsViewActiveRef.current) {
-      setVisitTick((t) => t + 1);
-    }
-    prevIsViewActiveRef.current = isViewActive;
-  }, [isViewActive]);
+  const scrollContainerRef = useRef<HTMLDivElement | null>(null);
   const { wallet } = usePlatanos();
   const getInitialAvatar = (u: any) => {
     try {
@@ -159,7 +152,7 @@ export const ProfileModal: React.FC<ProfileModalProps> = React.memo(({
     return null;
   };
 
-  const { language, setLanguage } = useLanguage();
+  const { language, setLanguage, tr } = useLanguage();
   const [isLanguageSheetOpen, setIsLanguageSheetOpen] = useState(false);
   const currentLanguageOption = getLanguageOptionByCode(language);
 
@@ -171,7 +164,16 @@ export const ProfileModal: React.FC<ProfileModalProps> = React.memo(({
     setIsLanguageSheetOpen(false);
     setActiveSubView(subView);
     onSubViewChange?.(subView);
+    if (scrollContainerRef.current) {
+      scrollContainerRef.current.scrollTop = 0;
+    }
   };
+
+  useEffect(() => {
+    if (isViewActive && scrollContainerRef.current && activeSubView === 'main') {
+      scrollContainerRef.current.scrollTop = 0;
+    }
+  }, [isViewActive, activeSubView]);
 
   useEffect(() => {
     const handleOpenMyItineraries = () => {
@@ -737,6 +739,7 @@ export const ProfileModal: React.FC<ProfileModalProps> = React.memo(({
         >
         {/* Main Content Area (single scroll container so scrolled items glide behind sticky translucent header) */}
         <div
+          ref={scrollContainerRef}
           className={`flex-1 min-h-0 overflow-y-auto overscroll-contain w-full flex flex-col transition-colors ${
             isDark
               ? 'bg-[#000000] text-white'
@@ -769,18 +772,18 @@ export const ProfileModal: React.FC<ProfileModalProps> = React.memo(({
               <AppleBackButton
                 theme={isDark ? 'dark' : 'light'}
                 onClick={() => handleSetSubView('main')}
-                title="Voltar"
-                aria-label="Voltar"
+                title={tr('Voltar')}
+                aria-label={tr('Voltar')}
               />
             ) : null}
 
             <h1 className="text-2xl sm:text-[28px] font-bold tracking-tight">
-              {activeSubView === 'main' && 'Perfil'}
-              {activeSubView === 'edit-profile' && 'Editar Perfil'}
-              {activeSubView === 'traveler-profile' && 'Meu perfil de viajante'}
-              {activeSubView === 'curtidos' && 'Lugares Curtidos'}
-              {activeSubView === 'permissoes' && 'Configurações'}
-              {activeSubView === 'logout-confirm' && 'Encerrar Sessão'}
+              {activeSubView === 'main' && tr('Perfil')}
+              {activeSubView === 'edit-profile' && tr('Editar Perfil')}
+              {activeSubView === 'traveler-profile' && tr('Meu perfil de viajante')}
+              {activeSubView === 'curtidos' && tr('Lugares Curtidos')}
+              {activeSubView === 'permissoes' && tr('Configurações')}
+              {activeSubView === 'logout-confirm' && tr('Encerrar Sessão')}
             </h1>
           </div>
 
@@ -792,8 +795,8 @@ export const ProfileModal: React.FC<ProfileModalProps> = React.memo(({
                 className={`w-12 h-12 rounded-full flex items-center justify-center transition-colors cursor-pointer ${
                   isDark ? 'bg-white/10 hover:bg-white/15 text-white' : 'bg-[#fefefe]/90 hover:bg-[#E5E5EA] text-zinc-900 shadow-2xs'
                 }`}
-                title="Notificações"
-                aria-label="Notificações"
+                title={tr('Notificações')}
+                aria-label={tr('Notificações')}
               >
                 <Bell className="w-6 h-6 stroke-[2]" />
               </button>
@@ -816,25 +819,14 @@ export const ProfileModal: React.FC<ProfileModalProps> = React.memo(({
           {/* ============================================================ */}
           {/* VIEW 1: MAIN PROFILE (Clean Native Airbnb / iOS Design)       */}
           {/* ============================================================ */}
-          <AnimatePresence mode="wait" initial={true}>
-          <motion.div
+          <div
             id="profile-subview-content"
-            key={`${activeSubView}-${visitTick}`}
-            initial={{ opacity: 0, y: 6 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -4 }}
-            transition={{ duration: 0.18, ease: [0.22, 1, 0.36, 1] }}
             className="flex-1 flex flex-col w-full"
           >
           {activeSubView === 'main' && (
             <div className="space-y-4 pt-1 pb-6">
               {/* 1. Main Profile Card */}
-              <motion.div
-                initial={{ opacity: 0, scale: 0.88, y: 12 }}
-                animate={{ opacity: 1, scale: 1, y: 0 }}
-                transition={{ type: 'spring', stiffness: 380, damping: 22, delay: 0.02 }}
-                whileHover={{ scale: 1.01, transition: { type: 'spring', stiffness: 400, damping: 18 } }}
-                whileTap={{ scale: 0.96, transition: { type: 'spring', stiffness: 500, damping: 14 } }}
+              <div
                 onClick={() => {
                   setTempName(userName);
                   setTempUsername(userUsername);
@@ -846,7 +838,7 @@ export const ProfileModal: React.FC<ProfileModalProps> = React.memo(({
                   setSaveError('');
                   handleSetSubView('edit-profile');
                 }}
-                className={`w-full p-5 sm:p-6 rounded-[28px] border transition-colors cursor-pointer group flex flex-col items-center text-center ${
+                className={`w-full p-5 sm:p-6 rounded-[28px] border transition-transform duration-150 active:scale-[0.985] cursor-pointer group flex flex-col items-center text-center ${
                   isDark
                     ? 'bg-[#1C1C1E] border-white/10 shadow-xs'
                     : 'bg-[#fefefe] border-black/5 shadow-xs'
@@ -857,10 +849,7 @@ export const ProfileModal: React.FC<ProfileModalProps> = React.memo(({
                     isDark ? 'bg-zinc-800 border-zinc-700' : 'bg-zinc-100 border-white'
                   }`}>
                     {userAvatar && !userAvatar.endsWith('fotoperfil.png') ? (
-                      <motion.img
-                        initial={{ opacity: 0, scale: 0.88, y: 10 }}
-                        animate={{ opacity: 1, scale: 1, y: 0 }}
-                        transition={{ type: 'spring', stiffness: 380, damping: 22, delay: 0.04 }}
+                      <img
                         src={userAvatar}
                         alt={userName}
                         className="w-full h-full object-cover"
@@ -885,7 +874,7 @@ export const ProfileModal: React.FC<ProfileModalProps> = React.memo(({
                     @{userUsername}
                   </p>
                 )}
-              </motion.div>
+              </div>
 
               {/* 1.5. Barra de Progresso Monvian XP por Exploração */}
               <ProfileXpProgressBar isDark={isDark} />
@@ -893,10 +882,7 @@ export const ProfileModal: React.FC<ProfileModalProps> = React.memo(({
               {/* 2. Feature Cards Grid (Viagens & Conexões) */}
               <div className="grid grid-cols-2 gap-3 sm:gap-3.5">
                 {/* Viagens */}
-                <motion.div
-                  initial={{ opacity: 0, scale: 0.88, y: 12 }}
-                  animate={{ opacity: 1, scale: 1, y: 0 }}
-                  transition={{ type: 'spring', stiffness: 380, damping: 22, delay: 0.055 }}
+                <div
                   onClick={(e) => {
                     e.stopPropagation();
                   }}
@@ -906,84 +892,68 @@ export const ProfileModal: React.FC<ProfileModalProps> = React.memo(({
                 >
                   <div className="flex justify-end">
                     <span className="px-2 py-0.5 rounded-full bg-[#0079ff] text-[#ffffff] border-[#008eff] text-[9px] font-bold uppercase tracking-wider" style={{ backgroundColor: '#0079ff' }}>
-                      NOVO
+                      {tr('NOVO')}
                     </span>
                   </div>
                   <div className="my-2 flex justify-center items-center h-[46px]">
-                    <motion.img
-                      initial={{ opacity: 0, scale: 0.88, y: 10 }}
-                      animate={{ opacity: 1, scale: 1, y: 0 }}
-                      transition={{ type: 'spring', stiffness: 380, damping: 22, delay: 0.075 }}
+                    <img
                       src="/lugares.png"
-                      alt="Viagens"
+                      alt={tr('Viagens')}
                       className="h-[64px] w-auto object-contain"
                     />
                   </div>
                   <div>
                     <div className="flex items-center justify-between">
                       <h3 className="text-[15px] font-bold tracking-tight leading-snug">
-                        Viagens
+                        {tr('Viagens')}
                       </h3>
                       <Lock className="w-3.5 h-3.5 text-zinc-400 dark:text-zinc-500" />
                     </div>
                   </div>
-                </motion.div>
+                </div>
 
                 {/* Conexões */}
-                <motion.div
-                  initial={{ opacity: 0, scale: 0.88, y: 12 }}
-                  animate={{ opacity: 1, scale: 1, y: 0 }}
-                  transition={{ type: 'spring', stiffness: 380, damping: 22, delay: 0.09 }}
-                  whileHover={{ scale: 1.02, transition: { type: 'spring', stiffness: 400, damping: 18 } }}
-                  whileTap={{ scale: 0.94, transition: { type: 'spring', stiffness: 500, damping: 14 } }}
+                <div
                   onClick={() => {
                     window.open('https://chat.whatsapp.com/BS2Fu5Kws5qE8iaWHWrbCY?s=cl&p=i&mlu=4&ilr=4&iam=2', '_blank');
                   }}
-                  className={`rounded-[24px] p-4 border transition-colors cursor-pointer flex flex-col justify-between ${
+                  className={`rounded-[24px] p-4 border transition-transform duration-150 active:scale-[0.97] cursor-pointer flex flex-col justify-between ${
                     isDark ? 'bg-[#1C1C1E] border-white/10 shadow-xs' : 'bg-[#fefefe] border-black/5 shadow-xs'
                   }`}
                 >
                   <div className="flex justify-end">
                     <span className="px-2 py-0.5 rounded-full bg-[#0079ff] text-white text-[9px] font-bold uppercase tracking-wider" style={{ backgroundColor: '#0079ff' }}>
-                      NOVO
+                      {tr('NOVO')}
                     </span>
                   </div>
                   <div className="my-2 flex justify-center items-center h-[46px]">
-                    <motion.img
-                      initial={{ opacity: 0, scale: 0.88, y: 10 }}
-                      animate={{ opacity: 1, scale: 1, y: 0 }}
-                      transition={{ type: 'spring', stiffness: 380, damping: 22, delay: 0.11 }}
+                    <img
                       src="/conexao.png"
-                      alt="Conexões"
+                      alt={tr('Conexões')}
                       className="h-[64px] w-auto object-contain"
                     />
                   </div>
                   <div>
                     <h3 className="text-[15px] font-bold tracking-tight leading-snug">
-                      Conexões
+                      {tr('Conexões')}
                     </h3>
                   </div>
-                </motion.div>
+                </div>
               </div>
 
 
               {/* 3. Plátanos & Carteira + Meus roteiros (2-Column Bento Cards matching iOS Native Reference) */}
               <div className="grid grid-cols-2 gap-3 sm:gap-3.5">
                 {/* Plátanos & Carteira */}
-                <motion.button
+                <button
                   type="button"
-                  initial={{ opacity: 0, scale: 0.88, y: 12 }}
-                  animate={{ opacity: 1, scale: 1, y: 0 }}
-                  transition={{ type: 'spring', stiffness: 380, damping: 22, delay: 0.125 }}
-                  whileHover={{ scale: 1.02, transition: { type: 'spring', stiffness: 400, damping: 18 } }}
-                  whileTap={{ scale: 0.94, transition: { type: 'spring', stiffness: 500, damping: 14 } }}
                   onClick={() => {
                     onClose();
                     window.dispatchEvent(
                       new CustomEvent('monvian:open_platanos_wallet', { detail: { tab: 'topup' } })
                     );
                   }}
-                  className={`rounded-[24px] p-4 border transition-colors cursor-pointer flex flex-col justify-between text-left ${
+                  className={`rounded-[24px] p-4 border transition-transform duration-150 active:scale-[0.97] cursor-pointer flex flex-col justify-between text-left ${
                     isDark ? 'bg-[#1C1C1E] border-white/10 shadow-xs' : 'bg-[#ffffff] border-black/5 shadow-xs'
                   }`}
                   style={{ backgroundColor: isDark ? undefined : '#ffffff' }}
@@ -992,10 +962,7 @@ export const ProfileModal: React.FC<ProfileModalProps> = React.memo(({
                     <ChevronRight className="w-4 h-4 text-zinc-400 shrink-0" />
                   </div>
                   <div className="my-2 flex justify-center items-center h-[46px]">
-                    <motion.img
-                      initial={{ opacity: 0, scale: 0.88, y: 10 }}
-                      animate={{ opacity: 1, scale: 1, y: 0 }}
-                      transition={{ type: 'spring', stiffness: 380, damping: 22, delay: 0.14 }}
+                    <img
                       src={platanosLeaf3dIcon}
                       alt="Plátanos"
                       className="h-[58px] w-auto object-contain drop-shadow-[0_4px_10px_rgba(0,0,0,0.18)]"
@@ -1004,24 +971,19 @@ export const ProfileModal: React.FC<ProfileModalProps> = React.memo(({
                   </div>
                   <div>
                     <h3 className="text-[15px] font-bold tracking-tight leading-snug text-zinc-950 dark:text-white">
-                      Plátanos & Carteira
+                      {tr('Plátanos & Carteira')}
                     </h3>
                     <p className="text-[12px] text-zinc-500 dark:text-zinc-400 tabular-nums mt-0.5">
-                      {wallet.balance} {wallet.balance === 1 ? 'Plátano disponível' : 'Plátanos disponíveis'}
+                      {wallet.balance} {wallet.balance === 1 ? tr('Plátano disponível') : tr('Plátanos disponíveis')}
                     </p>
                   </div>
-                </motion.button>
+                </button>
 
                 {/* Meus roteiros */}
-                <motion.button
+                <button
                   type="button"
-                  initial={{ opacity: 0, scale: 0.88, y: 12 }}
-                  animate={{ opacity: 1, scale: 1, y: 0 }}
-                  transition={{ type: 'spring', stiffness: 380, damping: 22, delay: 0.145 }}
-                  whileHover={{ scale: 1.02, transition: { type: 'spring', stiffness: 400, damping: 18 } }}
-                  whileTap={{ scale: 0.94, transition: { type: 'spring', stiffness: 500, damping: 14 } }}
                   onClick={() => handleSetSubView('meus-roteiros')}
-                  className={`rounded-[24px] p-4 border transition-colors cursor-pointer flex flex-col justify-between text-left ${
+                  className={`rounded-[24px] p-4 border transition-transform duration-150 active:scale-[0.97] cursor-pointer flex flex-col justify-between text-left ${
                     isDark ? 'bg-[#1C1C1E] border-white/10 shadow-xs' : 'bg-[#ffffff] border-black/5 shadow-xs'
                   }`}
                   style={{ backgroundColor: isDark ? undefined : '#ffffff' }}
@@ -1030,39 +992,31 @@ export const ProfileModal: React.FC<ProfileModalProps> = React.memo(({
                     <ChevronRight className="w-4 h-4 text-zinc-400 shrink-0" />
                   </div>
                   <div className="my-2 flex justify-center items-center h-[46px]">
-                    <motion.img
-                      initial={{ opacity: 0, scale: 0.88, y: 10 }}
-                      animate={{ opacity: 1, scale: 1, y: 0 }}
-                      transition={{ type: 'spring', stiffness: 380, damping: 22, delay: 0.16 }}
+                    <img
                       src={foldedMap3dIcon}
-                      alt="Meus roteiros"
+                      alt={tr('Meus roteiros')}
                       className="h-[58px] w-auto object-contain drop-shadow-[0_4px_10px_rgba(0,0,0,0.18)]"
                       draggable={false}
                     />
                   </div>
                   <div>
                     <h3 className="text-[15px] font-bold tracking-tight leading-snug text-zinc-950 dark:text-white">
-                      Meus roteiros
+                      {tr('Meus roteiros')}
                     </h3>
                   </div>
-                </motion.button>
+                </button>
               </div>
 
               {/* 4. Options List */}
               <div className="space-y-2.5 pt-1">
                 {isUserAdmin && (
-                  <motion.button
+                  <button
                     type="button"
-                    initial={{ opacity: 0, scale: 0.88, y: 12 }}
-                    animate={{ opacity: 1, scale: 1, y: 0 }}
-                    transition={{ type: 'spring', stiffness: 380, damping: 22, delay: 0.16 }}
-                    whileHover={{ scale: 1.01, transition: { type: 'spring', stiffness: 400, damping: 18 } }}
-                    whileTap={{ scale: 0.96, transition: { type: 'spring', stiffness: 500, damping: 14 } }}
                     onClick={() => {
                       onClose();
                       onOpenAdmin?.();
                     }}
-                    className={`w-full p-4 rounded-[22px] border transition-colors flex items-center justify-between text-left cursor-pointer ${
+                    className={`w-full p-4 rounded-[22px] border transition-all duration-150 active:scale-[0.985] flex items-center justify-between text-left cursor-pointer ${
                       isDark ? 'bg-[#1C1C1E] border-white/10 hover:bg-[#252528]' : 'bg-[#fefefe] border-black/5 hover:bg-[#E5E5EA]/80'
                     }`}
                   >
@@ -1071,22 +1025,17 @@ export const ProfileModal: React.FC<ProfileModalProps> = React.memo(({
                         <ShieldCheck className="w-7 h-7 stroke-[1.8]" />
                       </div>
                       <h3 className="text-[15px] font-semibold text-zinc-950 dark:text-white tracking-tight">
-                        Painel ADM
+                        {tr('Painel ADM')}
                       </h3>
                     </div>
-                  </motion.button>
+                  </button>
                 )}
 
                 {/* Configurações da Conta -> opens 'permissoes' */}
-                <motion.button
+                <button
                   type="button"
-                  initial={{ opacity: 0, scale: 0.88, y: 12 }}
-                  animate={{ opacity: 1, scale: 1, y: 0 }}
-                  transition={{ type: 'spring', stiffness: 380, damping: 22, delay: 0.195 }}
-                  whileHover={{ scale: 1.01, transition: { type: 'spring', stiffness: 400, damping: 18 } }}
-                  whileTap={{ scale: 0.96, transition: { type: 'spring', stiffness: 500, damping: 14 } }}
                   onClick={() => handleSetSubView('permissoes')}
-                  className={`w-full p-4 rounded-[22px] border transition-colors flex items-center justify-between text-left cursor-pointer ${
+                  className={`w-full p-4 rounded-[22px] border transition-all duration-150 active:scale-[0.985] flex items-center justify-between text-left cursor-pointer ${
                     isDark ? 'bg-[#1C1C1E] border-white/10 hover:bg-[#252528]' : 'bg-[#fefefe] border-black/5 hover:bg-[#E5E5EA]/80'
                   }`}
                 >
@@ -1096,20 +1045,15 @@ export const ProfileModal: React.FC<ProfileModalProps> = React.memo(({
                       <span className={`absolute -top-0.5 -right-0.5 w-2.5 h-2.5 rounded-full bg-[#0079ff] ring-2 ${isDark ? 'ring-[#1C1C1E]' : 'ring-[#fefefe]'}`} style={{ backgroundColor: '#0079ff' }} />
                     </div>
                     <h3 className="text-[15px] font-semibold text-zinc-950 dark:text-white tracking-tight">
-                      Configurações da conta
+                      {tr('Configurações da conta')}
                     </h3>
                   </div>
-                </motion.button>
+                </button>
 
-                <motion.button
+                <button
                   type="button"
-                  initial={{ opacity: 0, scale: 0.88, y: 12 }}
-                  animate={{ opacity: 1, scale: 1, y: 0 }}
-                  transition={{ type: 'spring', stiffness: 380, damping: 22, delay: 0.23 }}
-                  whileHover={{ scale: 1.01, transition: { type: 'spring', stiffness: 400, damping: 18 } }}
-                  whileTap={{ scale: 0.96, transition: { type: 'spring', stiffness: 500, damping: 14 } }}
                   onClick={() => openHelpLegalPage('hub', 'main')}
-                  className={`w-full p-4 rounded-[22px] border transition-colors flex items-center justify-between text-left cursor-pointer ${
+                  className={`w-full p-4 rounded-[22px] border transition-all duration-150 active:scale-[0.985] flex items-center justify-between text-left cursor-pointer ${
                     isDark ? 'bg-[#1C1C1E] border-white/10 hover:bg-[#252528]' : 'bg-[#fefefe] border-black/5 hover:bg-[#E5E5EA]/80'
                   }`}
                 >
@@ -1118,21 +1062,16 @@ export const ProfileModal: React.FC<ProfileModalProps> = React.memo(({
                       <Star className="w-7 h-7 stroke-[1.8]" />
                     </div>
                     <h3 className="text-[15px] font-semibold text-zinc-950 dark:text-white tracking-tight">
-                      Ajuda e informações
+                      {tr('Ajuda e informações')}
                     </h3>
                   </div>
-                </motion.button>
+                </button>
 
                 {/* Sair da conta */}
-                <motion.button
+                <button
                   type="button"
-                  initial={{ opacity: 0, scale: 0.88, y: 12 }}
-                  animate={{ opacity: 1, scale: 1, y: 0 }}
-                  transition={{ type: 'spring', stiffness: 380, damping: 22, delay: 0.26 }}
-                  whileHover={{ scale: 1.01, transition: { type: 'spring', stiffness: 400, damping: 18 } }}
-                  whileTap={{ scale: 0.96, transition: { type: 'spring', stiffness: 500, damping: 14 } }}
                   onClick={() => handleSetSubView('logout-confirm')}
-                  className={`w-full p-4 rounded-[22px] border transition-colors flex items-center justify-between text-left cursor-pointer ${
+                  className={`w-full p-4 rounded-[22px] border transition-all duration-150 active:scale-[0.985] flex items-center justify-between text-left cursor-pointer ${
                     isDark ? 'bg-[#1C1C1E] border-white/10 hover:bg-[#252528]' : 'bg-[#fefefe] border-black/5 hover:bg-[#E5E5EA]/80'
                   }`}
                 >
@@ -1141,10 +1080,10 @@ export const ProfileModal: React.FC<ProfileModalProps> = React.memo(({
                       <LogOut className="w-7 h-7 stroke-[1.8]" />
                     </div>
                     <h3 className="text-[15px] font-semibold text-red-500 tracking-tight">
-                      Sair da conta
+                      {tr('Sair da conta')}
                     </h3>
                   </div>
-                </motion.button>
+                </button>
               </div>
             </div>
           )}
@@ -1993,7 +1932,7 @@ export const ProfileModal: React.FC<ProfileModalProps> = React.memo(({
                     isDark ? 'bg-white/10 hover:bg-white/15 text-white' : 'bg-zinc-200 hover:bg-zinc-300 text-zinc-800'
                   }`}
                 >
-                  Permanecer
+                  {tr('Permanecer')}
                 </button>
                 <button
                   type="button"
@@ -2006,13 +1945,12 @@ export const ProfileModal: React.FC<ProfileModalProps> = React.memo(({
                   }}
                   className="flex-1 py-3.5 rounded-2xl bg-red-500 hover:bg-red-600 text-white text-sm font-bold transition-all cursor-pointer shadow-lg active:scale-95"
                 >
-                  Sim, sair
+                  {tr('Sim, sair')}
                 </button>
               </div>
             </motion.div>
           )}
-          </motion.div>
-          </AnimatePresence>
+          </div>
           </div>
         </div>
 

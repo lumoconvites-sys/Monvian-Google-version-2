@@ -5,6 +5,7 @@ import type { TabType } from './components/BottomNavigation';
 import type { MapComponentHandle } from './components/MapComponent';
 import { SelectModeOverlay, UnifiedItineraryOverlay } from './components/itineraries/UnifiedItineraryOverlay';
 import { ItineraryCreationFinalizeModal } from './components/itineraries/ItineraryCreationFinalizeModal';
+import { MonvianAssistantPanel } from './components/assistant/MonvianAssistantPanel';
 import {
   buildItineraryFromOrderedSpots,
   deleteUserItineraryFromBackend,
@@ -2604,6 +2605,8 @@ export default function App() {
   });
 
   const [isDesktopExplorePanelOpen, setIsDesktopExplorePanelOpen] = useState<boolean>(true);
+  // Stage 7: Assistant auto-opens when entering the main map screen in EXPLORE mode
+  const [isAssistantOpen, setIsAssistantOpen] = useState<boolean>(true);
 
   const isUserAdmin = Boolean(
     user?.role === 'admin' ||
@@ -2643,6 +2646,7 @@ export default function App() {
     setIsDetailOpen(false);
     setIsCategoryCardOpen(false);
     setIsSearchOpen(false);
+    setIsAssistantOpen(false);
     isEditingExistingItineraryRef.current = false;
     setEditingCustomItinerary(null);
     setFinalizeItineraryMode('create');
@@ -2653,6 +2657,45 @@ export default function App() {
     setActiveTab('explorar');
     setMapWorkflowMode('SELECT');
   }, [clearActiveRoute]);
+
+  const handleStartAssistantItinerarySelection = useCallback(
+    (payload: { spotIds: string[]; title: string; description: string }) => {
+      clearActiveRoute();
+      setSelectedSpot(null);
+      setIsDetailOpen(false);
+      setIsCategoryCardOpen(false);
+      setIsSearchOpen(false);
+      setIsAssistantOpen(false);
+      isEditingExistingItineraryRef.current = false;
+      setEditingCustomItinerary(null);
+      setFinalizeItineraryMode('create');
+      setDraftItineraryTitle(payload.title || 'Roteiro Inteligente Monvian');
+      setDraftItineraryCover('');
+      setIsFinalizeItineraryModalOpen(false);
+      setSelectedSpotIdsForItinerary(payload.spotIds);
+      setActiveTab('explorar');
+      setMapWorkflowMode('SELECT');
+
+      // Smoothly zoom the map to frame all selected pins ordered by Gemini
+      window.setTimeout(() => {
+        const chosenSpots = payload.spotIds
+          .map((id) => spots.find((s) => String(s.id) === String(id)))
+          .filter((s): s is Spot => Boolean(s));
+        if (chosenSpots.length > 0) {
+          const previewSteps: ItineraryStep[] = chosenSpots.map((spot, idx) => ({
+            id: `ai-step-${spot.id}-${idx}`,
+            stepOrder: idx + 1,
+            suggestedTime: `${9 + idx * 2}:00`,
+            durationMinutes: 60,
+            spotId: spot.id,
+            spot,
+          }));
+          mapRef.current?.fitItineraryBounds(previewSteps, false);
+        }
+      }, 120);
+    },
+    [clearActiveRoute, spots]
+  );
 
   const handleSelectMoreSpotsOnMap = useCallback(() => {
     const existingIds = activeItinerarySteps
@@ -4123,7 +4166,41 @@ export default function App() {
       </AnimatePresence>
     )}
 
-    {/* 4. Bottom Navigation Pill rendered at root level */}
+    {/* Monvian AI — Intelligent Gemini Tourist Assistant (Bottom Sheet & Floating Robot on Map) */}
+    {activeTab === 'explorar' &&
+      mapWorkflowMode === 'EXPLORE' &&
+      !isAdminOpen &&
+      !isMapOrbiting &&
+      !isOnboardingItinerarySelection &&
+      !isDetailOpen &&
+      !showOnboardingQuestions &&
+      !showFirstSignupWelcome &&
+      !isGlobeIntroPending &&
+      !isGlobeIntroPlaying && (
+        <MonvianAssistantPanel
+          key={`monvian-assistant-${accountSessionKey}`}
+          isOpen={isAssistantOpen && !isSpotCardOpen && !isCategoryCardOpen && !isSearchOpen}
+          onOpenChange={(nextOpen) => {
+            if (nextOpen) {
+              setSelectedSpot(null);
+              setIsCategoryCardOpen(false);
+              setIsSearchOpen(false);
+            }
+            setIsAssistantOpen(nextOpen);
+          }}
+          user={user}
+          spots={spots}
+          userLocation={userCoords ? { lat: userCoords[1], lng: userCoords[0] } : null}
+          onFocusSpotOnMap={(spot) => {
+            setIsAssistantOpen(false);
+            handleSelectSpot(spot);
+          }}
+          onStartItinerarySelectionOnMap={handleStartAssistantItinerarySelection}
+          hideFloatingButton={isSpotCardOpen || isCategoryCardOpen || isSearchOpen}
+        />
+      )}
+
+    {/* 4. Bottom Navigation Pill rendered at root level (Temporarily hidden when Assistant Panel is expanded or in SELECT mode) */}
     {!isAdminOpen &&
       !isMapOrbiting &&
       !isOnboardingItinerarySelection &&
@@ -4132,7 +4209,16 @@ export default function App() {
       !showFirstSignupWelcome &&
       !isGlobeIntroPending &&
       !isGlobeIntroPlaying &&
-      !(activeTab === 'perfil' && isMyItinerariesSubViewActive) && (
+      !(activeTab === 'perfil' && isMyItinerariesSubViewActive) &&
+      !(
+        activeTab === 'explorar' &&
+        (mapWorkflowMode === 'SELECT' ||
+          (mapWorkflowMode === 'EXPLORE' &&
+            isAssistantOpen &&
+            !isSpotCardOpen &&
+            !isCategoryCardOpen &&
+            !isSearchOpen))
+      ) && (
         <div
           key="bottom-nav-shell"
           className={`md:hidden fixed inset-0 pointer-events-none z-[250] transition-opacity duration-150 ${isChatKeyboardOpen ? 'opacity-0 [&_*]:!pointer-events-none' : 'opacity-100'}`}

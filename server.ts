@@ -13,6 +13,7 @@ import { registerStripeRoutes, setupStripeDatabase } from './src/server/stripeRo
 import { syncStripeHistoryAndBalance } from './src/server/stripeDashboardService.ts';
 import { registerPlatanosRoutes, setupPlatanosDatabase } from './src/server/platanosRoutes.ts';
 import { registerXpRoutes } from './src/server/xpRoutes.ts';
+import { registerAssistantRoutes, setupAssistantDatabase } from './src/server/assistantRoutes.ts';
 import { CAMPOS_SPOTS } from './src/data/spots.ts';
 import { supabase, supabaseAnonClient } from './src/services/supabaseClient.ts';
 import {
@@ -325,6 +326,7 @@ try { setupSocialDatabase(db); } catch {}
 try { setupStoriesDatabase(db); } catch {}
 try { setupStripeDatabase(db); } catch {}
 try { setupPlatanosDatabase(db); } catch {}
+try { setupAssistantDatabase(db); } catch {}
 
 // Seed initial spots into SQLite if empty so CRUD operations work on real DB rows
 try {
@@ -939,7 +941,7 @@ async function startServer() {
   app.use((req, res, next) => {
     res.header('Access-Control-Allow-Origin', '*');
     res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, PATCH, DELETE, OPTIONS');
-    res.header('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept, Authorization, x-user-email');
+    res.header('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept, Authorization, x-user-email, x-monvian-user-id');
     if (req.method === 'OPTIONS') {
       res.sendStatus(200);
       return;
@@ -1005,6 +1007,7 @@ async function startServer() {
   registerStripeRoutes(app, db, (req) => resolveAuthenticatedUser(req));
   registerPlatanosRoutes(app, db, (req) => resolveAuthenticatedUser(req), (req) => isRequestAdmin(req));
   registerXpRoutes(app, db, (req) => resolveAuthenticatedUser(req));
+  registerAssistantRoutes(app, db);
 
   // ===========================================================================
   // 1. AUTHENTICATION & SUPABASE AUTH ROUTES
