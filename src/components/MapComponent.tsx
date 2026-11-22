@@ -365,7 +365,7 @@ export const MapComponent = memo(
       visualIcons = [],
       userAvatar,
       userName,
-      is3DMode = false,
+      is3DMode = true,
       isDetailOpen = false,
       mapMode = 'explorar',
       onMapModeChange,
@@ -408,6 +408,8 @@ export const MapComponent = memo(
       const desiredLift = Math.max(0, sheetH) + 14;
       return -Math.min(desiredLift, maxLift);
     });
+    const isDiscoveryPanelOpenRef = useRef<boolean>(isDiscoveryPanelOpen);
+    isDiscoveryPanelOpenRef.current = isDiscoveryPanelOpen;
     const mapContainerRef = useRef<HTMLDivElement | null>(null);
     const mapRef = useRef<maplibregl.Map | null>(null);
     const isSuspendedRef = useRef<boolean>(isSuspended);
@@ -1001,13 +1003,37 @@ export const MapComponent = memo(
             camposSpots.forEach((s) => {
               bounds.extend([Number(s.lng), Number(s.lat)]);
             });
+            const isMobile = typeof window !== 'undefined' && window.innerWidth < 768;
+            const rawSheetH =
+              isMobile && isDiscoveryPanelOpenRef.current
+                ? Math.max(0, activeSheetHeightMV.get() || 0)
+                : 0;
+            const vh =
+              typeof window !== 'undefined'
+                ? window.visualViewport?.height || window.innerHeight || 844
+                : 844;
+            const dynamicBottomPad = isMobile
+              ? rawSheetH > 24
+                ? Math.min(Math.round(vh * 0.56), Math.round(rawSheetH + 24))
+                : 112
+              : 145;
+            // Temporarily clear map padding before cameraForBounds so MapLibre does not double-subtract active map.setPadding
+            const prevPadding = typeof map.getPadding === 'function' ? map.getPadding() : null;
+            if (prevPadding && typeof map.setPadding === 'function') {
+              map.setPadding({ top: 0, bottom: 0, left: 0, right: 0 });
+            }
             const cam = map.cameraForBounds(bounds, {
-              padding: { top: 130, bottom: 145, left: 48, right: 82 },
+              padding: { top: 108, bottom: dynamicBottomPad, left: 48, right: 82 },
               maxZoom: 12.1,
             });
+            if (prevPadding && typeof map.setPadding === 'function') {
+              map.setPadding(prevPadding);
+            }
             if (cam && cam.center) {
               const c = maplibregl.LngLat.convert(cam.center);
-              targetCenter = [c.lng, c.lat];
+              // Use the geographic center of the spots bounds so map.setPadding centers the orbit pivot in the visible area
+              const boundsCenter = bounds.getCenter();
+              targetCenter = isMobile ? [boundsCenter.lng, boundsCenter.lat] : [c.lng, c.lat];
               targetZoom =
                 typeof cam.zoom === 'number'
                   ? Math.min(cam.zoom, 12.1)
@@ -1018,10 +1044,52 @@ export const MapComponent = memo(
 
         return { center: targetCenter, zoom: targetZoom };
       },
-      []
+      [activeSheetHeightMV]
     );
     const getCamposOverviewCameraRef = useRef(getCamposOverviewCamera);
     getCamposOverviewCameraRef.current = getCamposOverviewCamera;
+
+    const applyDynamicExplorePadding = useCallback(
+      (targetMap?: maplibregl.Map | null, overrideSheetHeight?: number) => {
+        const map = targetMap || mapRef.current;
+        if (!map) return;
+        if (typeof map.setPadding !== 'function') return;
+        if (workflowModeRef.current !== 'EXPLORE' || isGlobeIntroActiveRef.current) return;
+
+        const isMobile = typeof window !== 'undefined' && window.innerWidth < 768;
+        if (!isMobile) {
+          try {
+            map.setPadding({ top: 0, bottom: 0, left: 0, right: 0 });
+          } catch {}
+          return;
+        }
+
+        const vh =
+          typeof window !== 'undefined'
+            ? window.visualViewport?.height || window.innerHeight || 844
+            : 844;
+        const sheetH =
+          overrideSheetHeight !== undefined
+            ? overrideSheetHeight
+            : isDiscoveryPanelOpenRef.current
+              ? Math.max(0, activeSheetHeightMV.get() || 0)
+              : 0;
+        const bottomPad =
+          isDiscoveryPanelOpenRef.current && sheetH > 20
+            ? Math.min(Math.round(vh * 0.56), Math.round(sheetH * 0.88))
+            : 0;
+
+        try {
+          map.setPadding({
+            top: bottomPad > 0 ? 52 : 0,
+            bottom: bottomPad,
+            left: 0,
+            right: 0,
+          });
+        } catch {}
+      },
+      [activeSheetHeightMV]
+    );
 
     const frameAllSpotsOverview = useCallback(
       (targetMap?: maplibregl.Map | null, animateCamera: boolean = false) => {
@@ -1031,8 +1099,15 @@ export const MapComponent = memo(
         setFollowMode(false);
         hasUserMovedMapRef.current = false;
         map.resize();
+        applyDynamicExplorePadding(map);
 
         const { center: targetCenter, zoom: targetZoom } = getCamposOverviewCamera(map);
+        const currentBearing = map.getBearing();
+        const targetBearing = is3DModeRef.current
+          ? Number.isFinite(currentBearing) && Math.abs(currentBearing) > 0.1
+            ? currentBearing
+            : -20
+          : 0;
 
         if (animateCamera) {
           const animDuration = computeAdaptiveZoomDuration(map, targetCenter[0], targetCenter[1], targetZoom, 0.9);
@@ -1041,7 +1116,7 @@ export const MapComponent = memo(
             center: targetCenter,
             zoom: targetZoom,
             pitch: is3DModeRef.current ? 60 : 0,
-            bearing: is3DModeRef.current ? -20 : 0,
+            bearing: targetBearing,
             offset: [0, 0],
             duration: animDuration,
             easing: smoothCameraEase,
@@ -1052,11 +1127,11 @@ export const MapComponent = memo(
             center: targetCenter,
             zoom: targetZoom,
             pitch: is3DModeRef.current ? 60 : 0,
-            bearing: is3DModeRef.current ? -20 : 0,
+            bearing: targetBearing,
           });
         }
       },
-      [setFollowMode, getCamposOverviewCamera, computeAdaptiveZoomDuration, beginProgrammaticCameraAnim, smoothCameraEase]
+      [setFollowMode, getCamposOverviewCamera, applyDynamicExplorePadding, computeAdaptiveZoomDuration, beginProgrammaticCameraAnim, smoothCameraEase]
     );
 
     // Expose map controls for external iOS floating buttons
@@ -2236,7 +2311,7 @@ export const MapComponent = memo(
 
       map.easeTo({
         pitch: is3DMode ? 60 : 0,
-        bearing: is3DMode ? -20 : 0,
+        bearing: is3DMode ? map.getBearing() : 0,
         duration: animDuration,
         easing: smoothCameraEase,
       });
@@ -2245,6 +2320,90 @@ export const MapComponent = memo(
         window.clearTimeout(timer);
       };
     }, [is3DMode, smoothCameraEase]);
+
+    // Synchronize MapLibre vanishing point & visible area dynamically with the Bottom Sheet height
+    // (Preserves current 3D orbit bearing and coordinates without restarting camera)
+    useEffect(() => {
+      applyDynamicExplorePadding(mapRef.current);
+      const unsub = activeSheetHeightMV.on('change', (latestH) => {
+        applyDynamicExplorePadding(mapRef.current, latestH);
+      });
+      return () => {
+        unsub();
+      };
+    }, [activeSheetHeightMV, isDiscoveryPanelOpen, workflowMode, applyDynamicExplorePadding]);
+
+    // Single-instance Cinematic 360° 3D Auto-Rotation around the tourist spots region
+    // Runs smoothly at 60fps in EXPLORE 3D mode, yields immediately to manual touch/drag/zoom,
+    // and resumes with a gentle velocity ramp-in after idle.
+    useEffect(() => {
+      let orbitRafId: number | null = null;
+      let lastFrameTs = 0;
+      let currentSpeedMultiplier = 0;
+      let lastMarkerCullSyncTs = 0;
+      const TARGET_DEG_PER_SEC = 2.6; // Smooth cinematic ~138s full 360° revolution
+      const MANUAL_IDLE_RESUME_MS = 2200;
+
+      const stepOrbit = (ts: number) => {
+        orbitRafId = requestAnimationFrame(stepOrbit);
+
+        if (lastFrameTs === 0) {
+          lastFrameTs = ts;
+          return;
+        }
+        const dtSec = Math.min(0.064, Math.max(0.001, (ts - lastFrameTs) / 1000));
+        lastFrameTs = ts;
+
+        const map = mapRef.current;
+        const isExplorarVisible = !activeTabRef.current || activeTabRef.current === 'explorar';
+        const timeSinceManual = performance.now() - lastMapGestureTimeRef.current;
+
+        const canOrbit =
+          Boolean(map) &&
+          !isSuspendedRef.current &&
+          isExplorarVisible &&
+          is3DModeRef.current &&
+          workflowModeRef.current === 'EXPLORE' &&
+          !isGlobeIntroActiveRef.current &&
+          !isSpotlightActiveRef.current &&
+          !isTransitioning3DRef.current &&
+          !isMapGestureActiveRef.current &&
+          !isZoomGestureActiveRef.current &&
+          !isProgrammaticZoomRef.current &&
+          !selectedSpotRef.current &&
+          !activeRouteRef.current &&
+          !isFollowingUserRef.current &&
+          !isCompassTrackingRef.current &&
+          timeSinceManual > MANUAL_IDLE_RESUME_MS;
+
+        if (!canOrbit || !map) {
+          currentSpeedMultiplier = 0;
+          return;
+        }
+
+        // Smooth ease-in ramp over ~1.25s so rotation never starts or resumes abruptly
+        currentSpeedMultiplier = Math.min(1, currentSpeedMultiplier + dtSec * 0.8);
+        const deltaBearing = TARGET_DEG_PER_SEC * currentSpeedMultiplier * dtSec;
+        const nextBearing = ((map.getBearing() + deltaBearing + 180) % 360) - 180;
+
+        try {
+          map.setBearing(nextBearing);
+        } catch {}
+
+        // Periodically refresh viewport marker culling during rotation without frame jitter
+        if (ts - lastMarkerCullSyncTs > 750) {
+          lastMarkerCullSyncTs = ts;
+          syncSpotMarkersRef.current?.();
+        }
+      };
+
+      orbitRafId = requestAnimationFrame(stepOrbit);
+      return () => {
+        if (orbitRafId !== null) {
+          cancelAnimationFrame(orbitRafId);
+        }
+      };
+    }, []);
 
     // Helper: Build a smooth Apple iOS 5-pointed star path with softened vertices
     const buildRoundedStarPath = useCallback(

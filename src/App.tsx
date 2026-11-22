@@ -1111,7 +1111,7 @@ export default function App() {
   const isBackgroundReroutingRef = useRef<boolean>(false);
   const selectedSpotIdRef = useRef<string | null>(null);
   const activeRouteSpotIdRef = useRef<string | null>(null);
-  const [is3DMode, setIs3DMode] = useState<boolean>(false);
+  const [is3DMode, setIs3DMode] = useState<boolean>(true);
   const [hasToggled3D, setHasToggled3D] = useState<boolean>(false);
 
   useEffect(() => {
@@ -3538,12 +3538,13 @@ export default function App() {
           </div>
 
           {/* MOBILE EXPLORE INTERACTIVE BOTTOM SHEET ("Vamos fazer hoje?") — Overlaid cleanly atop full-bleed map */}
-          <AnimatePresence initial={false}>
+          <AnimatePresence>
             {canShowMobileDiscoveryPanel && (
               <ExploreDiscoveryPanel
                 theme={theme}
                 sheetVisibleHeightMV={discoverySheetHeightMV}
                 resetDetentSignal={discoveryResetSignal}
+                entranceTick={explorarEntranceTick}
                 onCreateItinerary={handleStartFreshSelectionFromPlay}
                 onOpenMyItineraries={handleOpenMyItinerariesFromDiscovery}
                 onOpenStore={handleOpenStoreFromDiscovery}

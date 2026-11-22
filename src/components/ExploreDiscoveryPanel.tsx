@@ -21,6 +21,7 @@ interface ExploreDiscoveryPanelProps {
   theme: 'dark' | 'light';
   sheetVisibleHeightMV?: MotionValue<number>;
   resetDetentSignal?: number;
+  entranceTick?: number;
   onPositionChange?: (position: SheetPosition) => void;
   onCreateItinerary: () => void;
   onOpenMyItineraries: () => void;
@@ -29,10 +30,18 @@ interface ExploreDiscoveryPanelProps {
 
 const PEEK_VISIBLE_HEIGHT = 152; // Grabber + "Vamos fazer hoje?" + subtitle right above BottomNavigation
 
+// Exact spring physics used in ItinerariesView / AirbnbItineraryExplorer ("Loja de roteiros")
+const STORE_ENTRANCE_SPRING = {
+  type: 'spring' as const,
+  stiffness: 380,
+  damping: 22,
+};
+
 export const ExploreDiscoveryPanel: React.FC<ExploreDiscoveryPanelProps> = React.memo(({
   theme,
   sheetVisibleHeightMV,
   resetDetentSignal = 0,
+  entranceTick = 0,
   onPositionChange,
   onCreateItinerary,
   onOpenMyItineraries,
@@ -100,7 +109,7 @@ export const ExploreDiscoveryPanel: React.FC<ExploreDiscoveryPanelProps> = React
     };
   }, [sheetY, syncVisibleHeight]);
 
-  // Continuously broadcast visible sheet height to MapComponent right-side controls
+  // Continuously broadcast visible sheet height to MapComponent (right-side controls & 3D camera padding)
   useEffect(() => {
     syncVisibleHeight(sheetY.get());
     const unsub = sheetY.on('change', (latestY) => {
@@ -279,13 +288,13 @@ export const ExploreDiscoveryPanel: React.FC<ExploreDiscoveryPanelProps> = React
   return (
     <motion.section
       ref={sheetRef}
-      key="explore-discovery-panel"
+      key={`explore-discovery-panel-${entranceTick}`}
       id="explore-discovery-panel"
       aria-label={tr('Vamos fazer hoje?')}
-      initial={{ opacity: 0, y: 40 }}
-      animate={{ opacity: 1, y: 0 }}
-      exit={{ opacity: 0, y: 48 }}
-      transition={IOS_SPRING_SHEET}
+      initial={{ opacity: 0, scale: 0.94, y: 24 }}
+      animate={{ opacity: 1, scale: 1, y: 0 }}
+      exit={{ opacity: 0, scale: 0.96, y: 32 }}
+      transition={{ ...STORE_ENTRANCE_SPRING, delay: 0.01 }}
       onPointerDown={handlePointerDown}
       onPointerMove={handlePointerMove}
       onPointerUp={finishDrag}
@@ -308,7 +317,12 @@ export const ExploreDiscoveryPanel: React.FC<ExploreDiscoveryPanelProps> = React
         className="touch-none cursor-grab active:cursor-grabbing"
       >
         {/* Top Grabber Bar */}
-        <div className="w-full flex justify-center pt-2.5 pb-1.5 [@media(max-height:740px)]:pt-2 [@media(max-height:740px)]:pb-1">
+        <motion.div
+          initial={{ opacity: 0, scale: 0.88, y: 8 }}
+          animate={{ opacity: 1, scale: 1, y: 0 }}
+          transition={{ ...STORE_ENTRANCE_SPRING, delay: 0.02 }}
+          className="w-full flex justify-center pt-2.5 pb-1.5 [@media(max-height:740px)]:pt-2 [@media(max-height:740px)]:pb-1"
+        >
           <button
             type="button"
             onClick={handleGrabberTap}
@@ -321,10 +335,15 @@ export const ExploreDiscoveryPanel: React.FC<ExploreDiscoveryPanelProps> = React
               }`}
             />
           </button>
-        </div>
+        </motion.div>
 
-        {/* Header */}
-        <div className="px-1 pt-0.5 pb-3 [@media(max-height:740px)]:pb-2">
+        {/* Header (Same opening animation as Loja de roteiros header) */}
+        <motion.div
+          initial={{ opacity: 0, scale: 0.88, y: 12 }}
+          animate={{ opacity: 1, scale: 1, y: 0 }}
+          transition={{ ...STORE_ENTRANCE_SPRING, delay: 0.045 }}
+          className="px-1 pt-0.5 pb-3 [@media(max-height:740px)]:pb-2"
+        >
           <h2
             className={`text-[23px] sm:text-[25px] [@media(max-height:740px)]:text-[20px] font-bold tracking-[-0.025em] leading-[1.15] ${
               isDark ? 'text-white' : 'text-black'
@@ -339,17 +358,19 @@ export const ExploreDiscoveryPanel: React.FC<ExploreDiscoveryPanelProps> = React
           >
             {tr('Como deseja aproveitar sua viagem?')}
           </p>
-        </div>
+        </motion.div>
       </div>
 
-      {/* 2x2 Discovery Cards Grid — Original exact proportions preserved (zero internal resizing during drag) */}
+      {/* 2x2 Discovery Cards Grid — Same opening spring animation as Loja de roteiros cards */}
       <div className="grid grid-cols-2 gap-2.5 sm:gap-3 [@media(max-height:740px)]:gap-2">
         {/* Card 1: Criar roteiro */}
         <motion.button
           id="discovery-card-create-itinerary"
           type="button"
-          whileTap={{ scale: 0.96 }}
-          transition={IOS_SPRING_PRESS}
+          initial={{ opacity: 0, scale: 0.88, y: 12 }}
+          animate={{ opacity: 1, scale: 1, y: 0 }}
+          transition={{ ...STORE_ENTRANCE_SPRING, delay: 0.065 }}
+          whileTap={{ scale: 0.96, transition: IOS_SPRING_PRESS }}
           onClick={() => handleActionClick(onCreateItinerary)}
           className={`group relative flex flex-col justify-between text-left rounded-[22px] p-3.5 sm:p-4 min-h-[118px] sm:min-h-[126px] [@media(max-height:740px)]:p-2.5 [@media(max-height:740px)]:min-h-[96px] [@media(max-height:740px)]:rounded-[18px] border transition-colors duration-150 cursor-pointer focus:outline-none ${
             isDark
@@ -358,7 +379,10 @@ export const ExploreDiscoveryPanel: React.FC<ExploreDiscoveryPanelProps> = React
           }`}
         >
           <div className="w-full flex items-center justify-center h-[46px] sm:h-[52px] [@media(max-height:740px)]:h-[36px] mb-1.5 [@media(max-height:740px)]:mb-1">
-            <img
+            <motion.img
+              initial={{ opacity: 0, scale: 0.88, y: 8 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              transition={{ ...STORE_ENTRANCE_SPRING, delay: 0.08 }}
               src={foldedMapPin3d}
               alt=""
               draggable={false}
@@ -387,8 +411,10 @@ export const ExploreDiscoveryPanel: React.FC<ExploreDiscoveryPanelProps> = React
         <motion.button
           id="discovery-card-my-itineraries"
           type="button"
-          whileTap={{ scale: 0.96 }}
-          transition={IOS_SPRING_PRESS}
+          initial={{ opacity: 0, scale: 0.88, y: 12 }}
+          animate={{ opacity: 1, scale: 1, y: 0 }}
+          transition={{ ...STORE_ENTRANCE_SPRING, delay: 0.095 }}
+          whileTap={{ scale: 0.96, transition: IOS_SPRING_PRESS }}
           onClick={() => handleActionClick(onOpenMyItineraries)}
           className={`group relative flex flex-col justify-between text-left rounded-[22px] p-3.5 sm:p-4 min-h-[118px] sm:min-h-[126px] [@media(max-height:740px)]:p-2.5 [@media(max-height:740px)]:min-h-[96px] [@media(max-height:740px)]:rounded-[18px] border transition-colors duration-150 cursor-pointer focus:outline-none ${
             isDark
@@ -397,7 +423,10 @@ export const ExploreDiscoveryPanel: React.FC<ExploreDiscoveryPanelProps> = React
           }`}
         >
           <div className="w-full flex items-center justify-center h-[46px] sm:h-[52px] [@media(max-height:740px)]:h-[36px] mb-1.5 [@media(max-height:740px)]:mb-1">
-            <img
+            <motion.img
+              initial={{ opacity: 0, scale: 0.88, y: 8 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              transition={{ ...STORE_ENTRANCE_SPRING, delay: 0.11 }}
               src={myItinerariesRoute3d}
               alt=""
               draggable={false}
@@ -427,8 +456,10 @@ export const ExploreDiscoveryPanel: React.FC<ExploreDiscoveryPanelProps> = React
           id="discovery-card-find-guide"
           role="button"
           aria-disabled="true"
-          whileTap={{ scale: 0.985 }}
-          transition={IOS_SPRING_PRESS}
+          initial={{ opacity: 0, scale: 0.88, y: 12 }}
+          animate={{ opacity: 1, scale: 1, y: 0 }}
+          transition={{ ...STORE_ENTRANCE_SPRING, delay: 0.125 }}
+          whileTap={{ scale: 0.985, transition: IOS_SPRING_PRESS }}
           onClick={handleLockedCardTap}
           className={`relative flex flex-col justify-between text-left rounded-[22px] p-3.5 sm:p-4 min-h-[118px] sm:min-h-[126px] [@media(max-height:740px)]:p-2.5 [@media(max-height:740px)]:min-h-[96px] [@media(max-height:740px)]:rounded-[18px] border cursor-default select-none ${
             isDark
@@ -453,7 +484,10 @@ export const ExploreDiscoveryPanel: React.FC<ExploreDiscoveryPanelProps> = React
           </motion.span>
 
           <div className="w-full flex items-center justify-center h-[46px] sm:h-[52px] [@media(max-height:740px)]:h-[36px] mb-1.5 [@media(max-height:740px)]:mb-1">
-            <img
+            <motion.img
+              initial={{ opacity: 0, scale: 0.88, y: 8 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              transition={{ ...STORE_ENTRANCE_SPRING, delay: 0.14 }}
               src={tourGuide3d}
               alt=""
               draggable={false}
@@ -484,8 +518,10 @@ export const ExploreDiscoveryPanel: React.FC<ExploreDiscoveryPanelProps> = React
         <motion.button
           id="discovery-card-itinerary-store"
           type="button"
-          whileTap={{ scale: 0.96 }}
-          transition={IOS_SPRING_PRESS}
+          initial={{ opacity: 0, scale: 0.88, y: 12 }}
+          animate={{ opacity: 1, scale: 1, y: 0 }}
+          transition={{ ...STORE_ENTRANCE_SPRING, delay: 0.155 }}
+          whileTap={{ scale: 0.96, transition: IOS_SPRING_PRESS }}
           onClick={() => handleActionClick(onOpenStore)}
           className={`group relative flex flex-col justify-between text-left rounded-[22px] p-3.5 sm:p-4 min-h-[118px] sm:min-h-[126px] [@media(max-height:740px)]:p-2.5 [@media(max-height:740px)]:min-h-[96px] [@media(max-height:740px)]:rounded-[18px] border transition-colors duration-150 cursor-pointer focus:outline-none ${
             isDark
@@ -494,7 +530,10 @@ export const ExploreDiscoveryPanel: React.FC<ExploreDiscoveryPanelProps> = React
           }`}
         >
           <div className="w-full flex items-center justify-center h-[46px] sm:h-[52px] [@media(max-height:740px)]:h-[36px] mb-1.5 [@media(max-height:740px)]:mb-1">
-            <img
+            <motion.img
+              initial={{ opacity: 0, scale: 0.88, y: 8 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              transition={{ ...STORE_ENTRANCE_SPRING, delay: 0.17 }}
               src={itineraryStoreBag3d}
               alt=""
               draggable={false}
