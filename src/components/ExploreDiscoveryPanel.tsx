@@ -23,6 +23,7 @@ interface ExploreDiscoveryPanelProps {
   resetDetentSignal?: number;
   entranceTick?: number;
   onPositionChange?: (position: SheetPosition) => void;
+  onClose?: () => void;
   onCreateItinerary: () => void;
   onOpenMyItineraries: () => void;
   onOpenStore: () => void;
@@ -43,6 +44,7 @@ export const ExploreDiscoveryPanel: React.FC<ExploreDiscoveryPanelProps> = React
   resetDetentSignal = 0,
   entranceTick = 0,
   onPositionChange,
+  onClose,
   onCreateItinerary,
   onOpenMyItineraries,
   onOpenStore,
@@ -248,6 +250,13 @@ export const ExploreDiscoveryPanel: React.FC<ExploreDiscoveryPanelProps> = React
 
     const maxDown = getCollapseDistance();
     const currentY = sheetY.get();
+
+    if (currentY > maxDown + 28 || velY > 550) {
+      triggerHapticFeedback(10);
+      onClose?.();
+      return;
+    }
+
     let targetPos: SheetPosition = positionRef.current;
 
     if (Math.abs(velY) > 380) {
@@ -288,10 +297,10 @@ export const ExploreDiscoveryPanel: React.FC<ExploreDiscoveryPanelProps> = React
   return (
     <motion.section
       ref={sheetRef}
-      key={`explore-discovery-panel-${entranceTick}`}
+      key="explore-discovery-panel"
       id="explore-discovery-panel"
-      aria-label={tr('Vamos fazer hoje?')}
-      initial={{ opacity: 0, scale: 0.94, y: 24 }}
+      aria-label={tr('Painel de Acesso Rápido')}
+      initial={false}
       animate={{ opacity: 1, scale: 1, y: 0 }}
       exit={{ opacity: 0, scale: 0.96, y: 32 }}
       transition={{ ...STORE_ENTRANCE_SPRING, delay: 0.01 }}
@@ -337,7 +346,7 @@ export const ExploreDiscoveryPanel: React.FC<ExploreDiscoveryPanelProps> = React
         </motion.div>
       </div>
 
-      {/* 2x2 Discovery Cards Grid — Premium iOS 3D Volumetric Finish */}
+      {/* 2x2 Discovery Cards Grid — Matching Plans Card Style & Rounding */}
       <div className="grid grid-cols-2 gap-2.5 sm:gap-3 [@media(max-height:740px)]:gap-2 pt-1">
         {/* Card 1: Criar roteiro */}
         <motion.button
@@ -348,10 +357,10 @@ export const ExploreDiscoveryPanel: React.FC<ExploreDiscoveryPanelProps> = React
           transition={{ ...STORE_ENTRANCE_SPRING, delay: 0.065 }}
           whileTap={{ scale: 0.96, transition: IOS_SPRING_PRESS }}
           onClick={() => handleActionClick(onCreateItinerary)}
-          className={`group relative flex flex-col justify-between text-left rounded-[26px] p-3.5 sm:p-4 min-h-[108px] sm:min-h-[116px] [@media(max-height:740px)]:p-2.5 [@media(max-height:740px)]:min-h-[92px] [@media(max-height:740px)]:rounded-[22px] transition-all duration-200 cursor-pointer focus:outline-none ${
+          className={`group relative flex flex-col justify-between text-left rounded-[24px] p-3.5 sm:p-4 min-h-[108px] sm:min-h-[116px] [@media(max-height:740px)]:p-2.5 [@media(max-height:740px)]:min-h-[92px] [@media(max-height:740px)]:rounded-[20px] transition-all duration-200 cursor-pointer focus:outline-none ${
             isDark
-              ? 'bg-[#18181B] border border-white/[0.08] shadow-[0_12px_40px_rgba(0,0,0,0.6),0_2px_8px_rgba(0,0,0,0.3),inset_0_1px_0_rgba(255,255,255,0.08)] active:bg-[#202024]'
-              : 'bg-[#FFFFFF] border border-black/[0.04] shadow-[0_12px_36px_rgba(0,0,0,0.06),0_2px_8px_rgba(0,0,0,0.03),inset_0_1px_0_rgba(255,255,255,0.9)] active:bg-[#F9F9FB]'
+              ? 'bg-[#161619] border border-white/[0.07] shadow-[0_4px_18px_rgba(0,0,0,0.35)] active:bg-[#1E1E22]'
+              : 'bg-[#FFFFFF] border border-black/[0.04] shadow-[0_4px_18px_rgba(0,0,0,0.045),0_1px_4px_rgba(0,0,0,0.025)] active:bg-[#F9F9FB]'
           }`}
         >
           <div className="w-full flex items-center justify-center h-[40px] sm:h-[46px] [@media(max-height:740px)]:h-[32px] mb-1 [@media(max-height:740px)]:mb-0.5">
@@ -392,10 +401,10 @@ export const ExploreDiscoveryPanel: React.FC<ExploreDiscoveryPanelProps> = React
           transition={{ ...STORE_ENTRANCE_SPRING, delay: 0.095 }}
           whileTap={{ scale: 0.96, transition: IOS_SPRING_PRESS }}
           onClick={() => handleActionClick(onOpenMyItineraries)}
-          className={`group relative flex flex-col justify-between text-left rounded-[26px] p-3.5 sm:p-4 min-h-[108px] sm:min-h-[116px] [@media(max-height:740px)]:p-2.5 [@media(max-height:740px)]:min-h-[92px] [@media(max-height:740px)]:rounded-[22px] transition-all duration-200 cursor-pointer focus:outline-none ${
+          className={`group relative flex flex-col justify-between text-left rounded-[24px] p-3.5 sm:p-4 min-h-[108px] sm:min-h-[116px] [@media(max-height:740px)]:p-2.5 [@media(max-height:740px)]:min-h-[92px] [@media(max-height:740px)]:rounded-[20px] transition-all duration-200 cursor-pointer focus:outline-none ${
             isDark
-              ? 'bg-[#18181B] border border-white/[0.08] shadow-[0_12px_40px_rgba(0,0,0,0.6),0_2px_8px_rgba(0,0,0,0.3),inset_0_1px_0_rgba(255,255,255,0.08)] active:bg-[#202024]'
-              : 'bg-[#FFFFFF] border border-black/[0.04] shadow-[0_12px_36px_rgba(0,0,0,0.06),0_2px_8px_rgba(0,0,0,0.03),inset_0_1px_0_rgba(255,255,255,0.9)] active:bg-[#F9F9FB]'
+              ? 'bg-[#161619] border border-white/[0.07] shadow-[0_4px_18px_rgba(0,0,0,0.35)] active:bg-[#1E1E22]'
+              : 'bg-[#FFFFFF] border border-black/[0.04] shadow-[0_4px_18px_rgba(0,0,0,0.045),0_1px_4px_rgba(0,0,0,0.025)] active:bg-[#F9F9FB]'
           }`}
         >
           <div className="w-full flex items-center justify-center h-[40px] sm:h-[46px] [@media(max-height:740px)]:h-[32px] mb-1 [@media(max-height:740px)]:mb-0.5">
@@ -437,10 +446,10 @@ export const ExploreDiscoveryPanel: React.FC<ExploreDiscoveryPanelProps> = React
           transition={{ ...STORE_ENTRANCE_SPRING, delay: 0.125 }}
           whileTap={{ scale: 0.985, transition: IOS_SPRING_PRESS }}
           onClick={handleLockedCardTap}
-          className={`relative flex flex-col justify-between text-left rounded-[26px] p-3.5 sm:p-4 min-h-[108px] sm:min-h-[116px] [@media(max-height:740px)]:p-2.5 [@media(max-height:740px)]:min-h-[92px] [@media(max-height:740px)]:rounded-[22px] transition-all duration-200 cursor-default select-none ${
+          className={`relative flex flex-col justify-between text-left rounded-[24px] p-3.5 sm:p-4 min-h-[108px] sm:min-h-[116px] [@media(max-height:740px)]:p-2.5 [@media(max-height:740px)]:min-h-[92px] [@media(max-height:740px)]:rounded-[20px] transition-all duration-200 cursor-default select-none ${
             isDark
-              ? 'bg-[#151518] border border-white/[0.06] shadow-[0_10px_32px_rgba(0,0,0,0.5),0_2px_6px_rgba(0,0,0,0.25),inset_0_1px_0_rgba(255,255,255,0.06)]'
-              : 'bg-[#FAFAFB] border border-black/[0.03] shadow-[0_10px_28px_rgba(0,0,0,0.04),0_2px_6px_rgba(0,0,0,0.02),inset_0_1px_0_rgba(255,255,255,0.8)]'
+              ? 'bg-[#161619] border border-white/[0.07] shadow-[0_4px_18px_rgba(0,0,0,0.35)]'
+              : 'bg-[#FFFFFF] border border-black/[0.04] shadow-[0_4px_18px_rgba(0,0,0,0.045),0_1px_4px_rgba(0,0,0,0.025)]'
           }`}
         >
           <motion.span
@@ -499,10 +508,10 @@ export const ExploreDiscoveryPanel: React.FC<ExploreDiscoveryPanelProps> = React
           transition={{ ...STORE_ENTRANCE_SPRING, delay: 0.155 }}
           whileTap={{ scale: 0.96, transition: IOS_SPRING_PRESS }}
           onClick={() => handleActionClick(onOpenStore)}
-          className={`group relative flex flex-col justify-between text-left rounded-[26px] p-3.5 sm:p-4 min-h-[108px] sm:min-h-[116px] [@media(max-height:740px)]:p-2.5 [@media(max-height:740px)]:min-h-[92px] [@media(max-height:740px)]:rounded-[22px] transition-all duration-200 cursor-pointer focus:outline-none ${
+          className={`group relative flex flex-col justify-between text-left rounded-[24px] p-3.5 sm:p-4 min-h-[108px] sm:min-h-[116px] [@media(max-height:740px)]:p-2.5 [@media(max-height:740px)]:min-h-[92px] [@media(max-height:740px)]:rounded-[20px] transition-all duration-200 cursor-pointer focus:outline-none ${
             isDark
-              ? 'bg-[#18181B] border border-white/[0.08] shadow-[0_12px_40px_rgba(0,0,0,0.6),0_2px_8px_rgba(0,0,0,0.3),inset_0_1px_0_rgba(255,255,255,0.08)] active:bg-[#202024]'
-              : 'bg-[#FFFFFF] border border-black/[0.04] shadow-[0_12px_36px_rgba(0,0,0,0.06),0_2px_8px_rgba(0,0,0,0.03),inset_0_1px_0_rgba(255,255,255,0.9)] active:bg-[#F9F9FB]'
+              ? 'bg-[#161619] border border-white/[0.07] shadow-[0_4px_18px_rgba(0,0,0,0.35)] active:bg-[#1E1E22]'
+              : 'bg-[#FFFFFF] border border-black/[0.04] shadow-[0_4px_18px_rgba(0,0,0,0.045),0_1px_4px_rgba(0,0,0,0.025)] active:bg-[#F9F9FB]'
           }`}
         >
           <div className="w-full flex items-center justify-center h-[40px] sm:h-[46px] [@media(max-height:740px)]:h-[32px] mb-1 [@media(max-height:740px)]:mb-0.5">

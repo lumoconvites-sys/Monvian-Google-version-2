@@ -583,6 +583,8 @@ export default function App() {
     );
   });
 
+  const [isDiscoveryPanelClosed, setIsDiscoveryPanelClosed] = useState<boolean>(false);
+
   useEffect(() => {
     const checkStandalone = () => {
       const standalone =
@@ -1951,6 +1953,7 @@ export default function App() {
   const handleTabChange = useCallback((tab: TabType) => {
     setIsAdminOpen(false);
     if (tab === 'explorar') {
+      setIsDiscoveryPanelClosed(false);
       if (mapWorkflowModeRef.current === 'SELECT') {
         setMapWorkflowMode(
           isEditingExistingItineraryRef.current && activeItinerary ? 'ITINERARY' : 'EXPLORE'
@@ -3401,7 +3404,8 @@ export default function App() {
           !showFirstSignupWelcome &&
           !isGlobeIntroPlaying &&
           !isGlobeIntroPending &&
-          !isOnboardingItinerarySelection;
+          !isOnboardingItinerarySelection &&
+          !isDiscoveryPanelClosed;
 
         return (
       <main
@@ -3545,6 +3549,7 @@ export default function App() {
                 sheetVisibleHeightMV={discoverySheetHeightMV}
                 resetDetentSignal={discoveryResetSignal}
                 entranceTick={explorarEntranceTick}
+                onClose={() => setIsDiscoveryPanelClosed(true)}
                 onCreateItinerary={handleStartFreshSelectionFromPlay}
                 onOpenMyItineraries={handleOpenMyItinerariesFromDiscovery}
                 onOpenStore={handleOpenStoreFromDiscovery}
