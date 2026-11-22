@@ -350,27 +350,22 @@ export const googleSignIn = async (): Promise<{
       throw error;
     }
 
-    // Graceful fallback for preview domains or unauthorized domains in Firebase Console
+    // Domain not authorized in Firebase Console -> surface real error so it can be authorized properly
     if (code === 'auth/unauthorized-domain') {
-      const fallbackEmail = prompt('Digite seu e-mail do Google para continuar:', 'marioyesk@gmail.com') || 'marioyesk@gmail.com';
-      const cleanEmail = fallbackEmail.trim().toLowerCase();
-      const displayName = cleanEmail.split('@')[0] || 'Usuário Google';
-      const mockGoogleUser = {
-        uid: 'google_preview_' + cleanEmail.replace(/[^a-z0-9]/g, '_'),
-        email: cleanEmail,
-        displayName: displayName.charAt(0).toUpperCase() + displayName.slice(1),
-        photoURL: '/fotoperfil.png',
-        getIdToken: async () => 'preview_google_token_' + cleanEmail,
-      };
-      return {
-        user: mockGoogleUser as any,
-        accessToken: 'preview_google_access_token',
-        idToken: 'preview_google_token_' + cleanEmail,
-      };
+      throw error;
     }
 
-    // Only when popup itself is strictly blocked by browser, fall back to redirect flow
-    if (code === 'auth/popup-blocked') {
+    const isStandalonePwa =
+      typeof window !== 'undefined' &&
+      (Boolean((window.navigator as any)?.standalone) ||
+        window.matchMedia?.('(display-mode: standalone)')?.matches);
+
+    // Fall back to full-page redirect when popup is blocked, unsupported, or in iOS standalone PWA
+    if (
+      code === 'auth/popup-blocked' ||
+      code === 'auth/operation-not-supported-in-this-environment' ||
+      (code === 'auth/internal-error' && isStandalonePwa)
+    ) {
       try {
         sessionStorage.setItem('monvian_google_redirect_pending', '1');
       } catch {}

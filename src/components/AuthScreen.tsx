@@ -705,6 +705,7 @@ export function AuthScreen({
 
       const res = await fetch('/api/auth/login', {
         method: 'POST',
+        credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           email: cleanIdentifier,
@@ -872,6 +873,7 @@ export function AuthScreen({
 
       const res = await fetch('/api/auth/register', {
         method: 'POST',
+        credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           firebase_uid: firebaseUid,
@@ -979,6 +981,7 @@ export function AuthScreen({
 
     const res = await fetch('/api/auth/google', {
       method: 'POST',
+      credentials: 'include',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         email: gUser.email,
@@ -1046,6 +1049,7 @@ export function AuthScreen({
 
     const [meResult] = await Promise.allSettled([
       fetch('/api/auth/me', {
+        credentials: 'include',
         headers: {
           Authorization: `Bearer ${token}`,
           ...(cleanEmail ? { 'x-user-email': cleanEmail } : {}),

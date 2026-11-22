@@ -134,10 +134,17 @@ export function mapAuthErrorToUserMessage(
     return 'O cadastro por e-mail está temporariamente indisponível. Tente entrar com Google ou tente novamente em instantes.';
   }
 
-  // API key, unauthorized domain, popup blocked, network or server configuration errors
+  // Unauthorized domain in Firebase Authentication Console (e.g. new Vercel URL)
+  if (code === 'auth/unauthorized-domain' || msg.includes('unauthorized-domain')) {
+    const host = typeof window !== 'undefined' ? window.location.hostname : '';
+    return host
+      ? `O domínio "${host}" precisa ser adicionado aos domínios autorizados no Firebase Authentication para login com Google.`
+      : 'Este domínio precisa ser autorizado nas configurações do Firebase Authentication para login com Google.';
+  }
+
+  // API key, popup blocked, network or server configuration errors
   if (
     code.includes('api-key-not-valid') ||
-    code === 'auth/unauthorized-domain' ||
     code === 'auth/popup-blocked' ||
     code === 'auth/network-request-failed' ||
     code === 'auth/internal-error' ||
@@ -146,7 +153,6 @@ export function mapAuthErrorToUserMessage(
     msg.includes('invalid api key') ||
     msg.includes('api-key-not-valid') ||
     msg.includes('api key not valid') ||
-    msg.includes('unauthorized-domain') ||
     msg.includes('failed to fetch') ||
     msg.includes('networkerror') ||
     msg.includes('network request failed') ||

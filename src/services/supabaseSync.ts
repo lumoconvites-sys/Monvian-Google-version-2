@@ -89,14 +89,8 @@ export async function persistUserToSupabase(user: SupabaseUserRecord): Promise<v
       updated_at: new Date().toISOString(),
     };
 
-    if (user.auth_id) payload.auth_id = user.auth_id;
-    if (user.welcome_card_seen !== undefined) {
-      payload.welcome_card_seen = user.welcome_card_seen ? 1 : 0;
-    }
-    if (user.globe_intro_seen !== undefined) {
-      payload.globe_intro_seen = user.globe_intro_seen ? 1 : 0;
-    }
-
+    // Do not write Firebase UIDs or synthetic auth_* strings into public.users.auth_id
+    // (which has a UUID UNIQUE REFERENCES auth.users(id) constraint in PostgreSQL).
     await withTimeout(
       supabase.from('users').upsert(payload, { onConflict: 'email' }),
       3500,

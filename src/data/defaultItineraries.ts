@@ -1,4 +1,4 @@
-import type { Itinerary } from '../types.ts';
+import type { Itinerary } from '../types';
 
 export const DEFAULT_CURATED_ITINERARIES: Itinerary[] = [
   {
