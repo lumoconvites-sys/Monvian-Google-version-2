@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState, useCallback } from 'react';
+import React, { useEffect, useLayoutEffect, useRef, useState, useCallback } from 'react';
 import {
   motion,
   useMotionValue,
@@ -31,18 +31,10 @@ interface ExploreDiscoveryPanelProps {
 
 const PEEK_VISIBLE_HEIGHT = 92; // Grabber + top spacing right above BottomNavigation
 
-// Exact spring physics used in ItinerariesView / AirbnbItineraryExplorer ("Loja de roteiros")
-const STORE_ENTRANCE_SPRING = {
-  type: 'spring' as const,
-  stiffness: 380,
-  damping: 22,
-};
-
 export const ExploreDiscoveryPanel: React.FC<ExploreDiscoveryPanelProps> = React.memo(({
   theme,
   sheetVisibleHeightMV,
   resetDetentSignal = 0,
-  entranceTick = 0,
   onPositionChange,
   onClose,
   onCreateItinerary,
@@ -77,8 +69,8 @@ export const ExploreDiscoveryPanel: React.FC<ExploreDiscoveryPanelProps> = React
     [sheetVisibleHeightMV]
   );
 
-  // Measure natural panel height once (and on resize) so the sheet never resizes its internals during drag
-  useEffect(() => {
+  // Measure natural panel height synchronously before paint so right-side controls never jump
+  useLayoutEffect(() => {
     const el = sheetRef.current;
     if (!el) return;
 
@@ -301,9 +293,8 @@ export const ExploreDiscoveryPanel: React.FC<ExploreDiscoveryPanelProps> = React
       id="explore-discovery-panel"
       aria-label={tr('Painel de Acesso Rápido')}
       initial={false}
-      animate={{ opacity: 1, scale: 1, y: 0 }}
-      exit={{ opacity: 0, scale: 0.96, y: 32 }}
-      transition={{ ...STORE_ENTRANCE_SPRING, delay: 0.01 }}
+      animate={{ opacity: 1 }}
+      exit={{ opacity: 0, y: 240, transition: { duration: 0.22, ease: [0.32, 0.72, 0, 1] } }}
       onPointerDown={handlePointerDown}
       onPointerMove={handlePointerMove}
       onPointerUp={finishDrag}
@@ -325,12 +316,7 @@ export const ExploreDiscoveryPanel: React.FC<ExploreDiscoveryPanelProps> = React
         data-sheet-drag-zone="true"
         className="touch-none cursor-grab active:cursor-grabbing pb-2 pt-2.5"
       >
-        <motion.div
-          initial={{ opacity: 0, scale: 0.88, y: 8 }}
-          animate={{ opacity: 1, scale: 1, y: 0 }}
-          transition={{ ...STORE_ENTRANCE_SPRING, delay: 0.02 }}
-          className="w-full flex justify-center"
-        >
+        <div className="w-full flex justify-center">
           <button
             type="button"
             onClick={handleGrabberTap}
@@ -343,7 +329,7 @@ export const ExploreDiscoveryPanel: React.FC<ExploreDiscoveryPanelProps> = React
               }`}
             />
           </button>
-        </motion.div>
+        </div>
       </div>
 
       {/* 2x2 Discovery Cards Grid — Matching Plans Card Style & Rounding */}
@@ -352,25 +338,21 @@ export const ExploreDiscoveryPanel: React.FC<ExploreDiscoveryPanelProps> = React
         <motion.button
           id="discovery-card-create-itinerary"
           type="button"
-          initial={{ opacity: 0, scale: 0.88, y: 12 }}
-          animate={{ opacity: 1, scale: 1, y: 0 }}
-          transition={{ ...STORE_ENTRANCE_SPRING, delay: 0.065 }}
           whileTap={{ scale: 0.96, transition: IOS_SPRING_PRESS }}
           onClick={() => handleActionClick(onCreateItinerary)}
-          className={`group relative flex flex-col justify-between text-left rounded-[24px] p-3.5 sm:p-4 min-h-[108px] sm:min-h-[116px] [@media(max-height:740px)]:p-2.5 [@media(max-height:740px)]:min-h-[92px] [@media(max-height:740px)]:rounded-[20px] transition-all duration-200 cursor-pointer focus:outline-none ${
+          className={`group relative flex flex-col justify-between text-left rounded-[24px] p-3.5 sm:p-4 min-h-[108px] sm:min-h-[116px] [@media(max-height:740px)]:p-2.5 [@media(max-height:740px)]:min-h-[92px] [@media(max-height:740px)]:rounded-[20px] transition-colors duration-150 cursor-pointer focus:outline-none ${
             isDark
               ? 'bg-[#161619] border border-white/[0.07] shadow-[0_4px_18px_rgba(0,0,0,0.35)] active:bg-[#1E1E22]'
               : 'bg-[#FFFFFF] border border-black/[0.04] shadow-[0_4px_18px_rgba(0,0,0,0.045),0_1px_4px_rgba(0,0,0,0.025)] active:bg-[#F9F9FB]'
           }`}
         >
           <div className="w-full flex items-center justify-center h-[40px] sm:h-[46px] [@media(max-height:740px)]:h-[32px] mb-1 [@media(max-height:740px)]:mb-0.5">
-            <motion.img
-              initial={{ opacity: 0, scale: 0.88, y: 8 }}
-              animate={{ opacity: 1, scale: 1, y: 0 }}
-              transition={{ ...STORE_ENTRANCE_SPRING, delay: 0.08 }}
+            <img
               src={foldedMapPin3d}
               alt=""
               draggable={false}
+              loading="eager"
+              decoding="sync"
               className="h-[38px] sm:h-[44px] [@media(max-height:740px)]:h-[30px] w-auto object-contain drop-shadow-[0_4px_10px_rgba(0,0,0,0.18)] transition-transform duration-200 group-active:scale-95"
             />
           </div>
@@ -396,25 +378,21 @@ export const ExploreDiscoveryPanel: React.FC<ExploreDiscoveryPanelProps> = React
         <motion.button
           id="discovery-card-my-itineraries"
           type="button"
-          initial={{ opacity: 0, scale: 0.88, y: 12 }}
-          animate={{ opacity: 1, scale: 1, y: 0 }}
-          transition={{ ...STORE_ENTRANCE_SPRING, delay: 0.095 }}
           whileTap={{ scale: 0.96, transition: IOS_SPRING_PRESS }}
           onClick={() => handleActionClick(onOpenMyItineraries)}
-          className={`group relative flex flex-col justify-between text-left rounded-[24px] p-3.5 sm:p-4 min-h-[108px] sm:min-h-[116px] [@media(max-height:740px)]:p-2.5 [@media(max-height:740px)]:min-h-[92px] [@media(max-height:740px)]:rounded-[20px] transition-all duration-200 cursor-pointer focus:outline-none ${
+          className={`group relative flex flex-col justify-between text-left rounded-[24px] p-3.5 sm:p-4 min-h-[108px] sm:min-h-[116px] [@media(max-height:740px)]:p-2.5 [@media(max-height:740px)]:min-h-[92px] [@media(max-height:740px)]:rounded-[20px] transition-colors duration-150 cursor-pointer focus:outline-none ${
             isDark
               ? 'bg-[#161619] border border-white/[0.07] shadow-[0_4px_18px_rgba(0,0,0,0.35)] active:bg-[#1E1E22]'
               : 'bg-[#FFFFFF] border border-black/[0.04] shadow-[0_4px_18px_rgba(0,0,0,0.045),0_1px_4px_rgba(0,0,0,0.025)] active:bg-[#F9F9FB]'
           }`}
         >
           <div className="w-full flex items-center justify-center h-[40px] sm:h-[46px] [@media(max-height:740px)]:h-[32px] mb-1 [@media(max-height:740px)]:mb-0.5">
-            <motion.img
-              initial={{ opacity: 0, scale: 0.88, y: 8 }}
-              animate={{ opacity: 1, scale: 1, y: 0 }}
-              transition={{ ...STORE_ENTRANCE_SPRING, delay: 0.11 }}
+            <img
               src={myItinerariesRoute3d}
               alt=""
               draggable={false}
+              loading="eager"
+              decoding="sync"
               className="h-[38px] sm:h-[44px] [@media(max-height:740px)]:h-[30px] w-auto object-contain drop-shadow-[0_4px_10px_rgba(0,0,0,0.18)] transition-transform duration-200 group-active:scale-95"
             />
           </div>
@@ -441,12 +419,9 @@ export const ExploreDiscoveryPanel: React.FC<ExploreDiscoveryPanelProps> = React
           id="discovery-card-find-guide"
           role="button"
           aria-disabled="true"
-          initial={{ opacity: 0, scale: 0.88, y: 12 }}
-          animate={{ opacity: 1, scale: 1, y: 0 }}
-          transition={{ ...STORE_ENTRANCE_SPRING, delay: 0.125 }}
           whileTap={{ scale: 0.985, transition: IOS_SPRING_PRESS }}
           onClick={handleLockedCardTap}
-          className={`relative flex flex-col justify-between text-left rounded-[24px] p-3.5 sm:p-4 min-h-[108px] sm:min-h-[116px] [@media(max-height:740px)]:p-2.5 [@media(max-height:740px)]:min-h-[92px] [@media(max-height:740px)]:rounded-[20px] transition-all duration-200 cursor-default select-none ${
+          className={`relative flex flex-col justify-between text-left rounded-[24px] p-3.5 sm:p-4 min-h-[108px] sm:min-h-[116px] [@media(max-height:740px)]:p-2.5 [@media(max-height:740px)]:min-h-[92px] [@media(max-height:740px)]:rounded-[20px] transition-colors duration-150 cursor-default select-none ${
             isDark
               ? 'bg-[#161619] border border-white/[0.07] shadow-[0_4px_18px_rgba(0,0,0,0.35)]'
               : 'bg-[#FFFFFF] border border-black/[0.04] shadow-[0_4px_18px_rgba(0,0,0,0.045),0_1px_4px_rgba(0,0,0,0.025)]'
@@ -469,13 +444,12 @@ export const ExploreDiscoveryPanel: React.FC<ExploreDiscoveryPanelProps> = React
           </motion.span>
 
           <div className="w-full flex items-center justify-center h-[40px] sm:h-[46px] [@media(max-height:740px)]:h-[32px] mb-1 [@media(max-height:740px)]:mb-0.5">
-            <motion.img
-              initial={{ opacity: 0, scale: 0.88, y: 8 }}
-              animate={{ opacity: 1, scale: 1, y: 0 }}
-              transition={{ ...STORE_ENTRANCE_SPRING, delay: 0.14 }}
+            <img
               src={tourGuide3d}
               alt=""
               draggable={false}
+              loading="eager"
+              decoding="sync"
               className={`h-[40px] sm:h-[46px] [@media(max-height:740px)]:h-[32px] w-auto object-contain ${
                 isDark ? 'opacity-70' : 'opacity-78'
               }`}
@@ -503,25 +477,21 @@ export const ExploreDiscoveryPanel: React.FC<ExploreDiscoveryPanelProps> = React
         <motion.button
           id="discovery-card-itinerary-store"
           type="button"
-          initial={{ opacity: 0, scale: 0.88, y: 12 }}
-          animate={{ opacity: 1, scale: 1, y: 0 }}
-          transition={{ ...STORE_ENTRANCE_SPRING, delay: 0.155 }}
           whileTap={{ scale: 0.96, transition: IOS_SPRING_PRESS }}
           onClick={() => handleActionClick(onOpenStore)}
-          className={`group relative flex flex-col justify-between text-left rounded-[24px] p-3.5 sm:p-4 min-h-[108px] sm:min-h-[116px] [@media(max-height:740px)]:p-2.5 [@media(max-height:740px)]:min-h-[92px] [@media(max-height:740px)]:rounded-[20px] transition-all duration-200 cursor-pointer focus:outline-none ${
+          className={`group relative flex flex-col justify-between text-left rounded-[24px] p-3.5 sm:p-4 min-h-[108px] sm:min-h-[116px] [@media(max-height:740px)]:p-2.5 [@media(max-height:740px)]:min-h-[92px] [@media(max-height:740px)]:rounded-[20px] transition-colors duration-150 cursor-pointer focus:outline-none ${
             isDark
               ? 'bg-[#161619] border border-white/[0.07] shadow-[0_4px_18px_rgba(0,0,0,0.35)] active:bg-[#1E1E22]'
               : 'bg-[#FFFFFF] border border-black/[0.04] shadow-[0_4px_18px_rgba(0,0,0,0.045),0_1px_4px_rgba(0,0,0,0.025)] active:bg-[#F9F9FB]'
           }`}
         >
           <div className="w-full flex items-center justify-center h-[40px] sm:h-[46px] [@media(max-height:740px)]:h-[32px] mb-1 [@media(max-height:740px)]:mb-0.5">
-            <motion.img
-              initial={{ opacity: 0, scale: 0.88, y: 8 }}
-              animate={{ opacity: 1, scale: 1, y: 0 }}
-              transition={{ ...STORE_ENTRANCE_SPRING, delay: 0.17 }}
+            <img
               src={itineraryStoreBag3d}
               alt=""
               draggable={false}
+              loading="eager"
+              decoding="sync"
               className="h-[38px] sm:h-[44px] [@media(max-height:740px)]:h-[30px] w-auto object-contain drop-shadow-[0_4px_10px_rgba(0,0,0,0.18)] transition-transform duration-200 group-active:scale-95"
             />
           </div>

@@ -404,8 +404,11 @@ export const MapComponent = memo(
         typeof window !== 'undefined'
           ? window.visualViewport?.height || window.innerHeight || 844
           : 844;
-      const maxLift = Math.max(0, vh - 14 - 183 - 106);
-      const desiredLift = Math.max(0, sheetH) + 14;
+      const groupHeight = 175;
+      const topControlsClearance = 136;
+      const maxLift = Math.max(0, vh - groupHeight - topControlsClearance);
+      const extraLift = Math.round(Math.max(54, Math.min(78, vh * 0.08)));
+      const desiredLift = Math.max(0, sheetH) + extraLift;
       return -Math.min(desiredLift, maxLift);
     });
     const isDiscoveryPanelOpenRef = useRef<boolean>(isDiscoveryPanelOpen);
@@ -4165,7 +4168,7 @@ export const MapComponent = memo(
           id="mobile-map-right-controls"
           className={`md:hidden absolute right-3.5 ${
             isDiscoveryPanelOpen ? 'bottom-0 top-auto' : 'top-1/2 -translate-y-1/2'
-          } z-30 flex flex-col items-center gap-3 transition-opacity duration-300 ease-[cubic-bezier(0.22,1,0.36,1)] will-change-transform ${
+          } z-30 flex flex-col items-center gap-2 transition-opacity duration-300 ease-[cubic-bezier(0.22,1,0.36,1)] will-change-transform ${
             isFocusMode || isGlobeIntroPlaying || workflowMode === 'ITINERARY'
               ? 'opacity-0 scale-90 pointer-events-none [&_*]:!pointer-events-none'
               : 'opacity-100 scale-100 pointer-events-auto'

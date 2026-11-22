@@ -2942,6 +2942,10 @@ export default function App() {
     setActiveTab('roteiros');
   }, []);
 
+  const handleCloseDiscoveryPanel = useCallback(() => {
+    setIsDiscoveryPanelClosed(true);
+  }, []);
+
   useEffect(() => {
     if (activeTab === 'explorar' && mapWorkflowMode === 'EXPLORE') {
       setDiscoveryResetSignal((s) => s + 1);
@@ -3541,15 +3545,15 @@ export default function App() {
             )}
           </div>
 
-          {/* MOBILE EXPLORE INTERACTIVE BOTTOM SHEET ("Vamos fazer hoje?") — Overlaid cleanly atop full-bleed map */}
-          <AnimatePresence>
+          {/* MOBILE EXPLORE INTERACTIVE BOTTOM SHEET — Overlaid cleanly atop full-bleed map */}
+          <AnimatePresence initial={false}>
             {canShowMobileDiscoveryPanel && (
               <ExploreDiscoveryPanel
                 theme={theme}
                 sheetVisibleHeightMV={discoverySheetHeightMV}
                 resetDetentSignal={discoveryResetSignal}
                 entranceTick={explorarEntranceTick}
-                onClose={() => setIsDiscoveryPanelClosed(true)}
+                onClose={handleCloseDiscoveryPanel}
                 onCreateItinerary={handleStartFreshSelectionFromPlay}
                 onOpenMyItineraries={handleOpenMyItinerariesFromDiscovery}
                 onOpenStore={handleOpenStoreFromDiscovery}
