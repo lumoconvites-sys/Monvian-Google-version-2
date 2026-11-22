@@ -28,7 +28,7 @@ interface ExploreDiscoveryPanelProps {
   onOpenStore: () => void;
 }
 
-const PEEK_VISIBLE_HEIGHT = 152; // Grabber + "Vamos fazer hoje?" + subtitle right above BottomNavigation
+const PEEK_VISIBLE_HEIGHT = 138; // Grabber + "Vamos fazer hoje?" + subtitle right above BottomNavigation
 
 // Exact spring physics used in ItinerariesView / AirbnbItineraryExplorer ("Loja de roteiros")
 const STORE_ENTRANCE_SPRING = {
@@ -51,7 +51,7 @@ export const ExploreDiscoveryPanel: React.FC<ExploreDiscoveryPanelProps> = React
   const isDark = theme === 'dark';
 
   const sheetRef = useRef<HTMLElement | null>(null);
-  const measuredHeightRef = useRef<number>(420);
+  const measuredHeightRef = useRef<number>(390);
   const [position, setPosition] = useState<SheetPosition>('open');
   const positionRef = useRef<SheetPosition>('open');
   positionRef.current = position;
@@ -308,7 +308,7 @@ export const ExploreDiscoveryPanel: React.FC<ExploreDiscoveryPanelProps> = React
         y: sheetY,
         paddingLeft: 'max(16px, env(safe-area-inset-left, 0px))',
         paddingRight: 'max(16px, env(safe-area-inset-right, 0px))',
-        paddingBottom: 'calc(env(safe-area-inset-bottom, 0px) + 84px)',
+        paddingBottom: 'calc(env(safe-area-inset-bottom, 0px) + 72px)',
       }}
     >
       {/* Top Drag Handle & Header Zone */}
@@ -321,7 +321,7 @@ export const ExploreDiscoveryPanel: React.FC<ExploreDiscoveryPanelProps> = React
           initial={{ opacity: 0, scale: 0.88, y: 8 }}
           animate={{ opacity: 1, scale: 1, y: 0 }}
           transition={{ ...STORE_ENTRANCE_SPRING, delay: 0.02 }}
-          className="w-full flex justify-center pt-2.5 pb-1.5 [@media(max-height:740px)]:pt-2 [@media(max-height:740px)]:pb-1"
+          className="w-full flex justify-center pt-2 pb-1 [@media(max-height:740px)]:pt-1.5 [@media(max-height:740px)]:pb-0.5"
         >
           <button
             type="button"
@@ -342,17 +342,17 @@ export const ExploreDiscoveryPanel: React.FC<ExploreDiscoveryPanelProps> = React
           initial={{ opacity: 0, scale: 0.88, y: 12 }}
           animate={{ opacity: 1, scale: 1, y: 0 }}
           transition={{ ...STORE_ENTRANCE_SPRING, delay: 0.045 }}
-          className="px-1 pt-0.5 pb-3 [@media(max-height:740px)]:pb-2"
+          className="px-1 pt-0 pb-2.5 [@media(max-height:740px)]:pb-1.5"
         >
           <h2
-            className={`text-[23px] sm:text-[25px] [@media(max-height:740px)]:text-[20px] font-bold tracking-[-0.025em] leading-[1.15] ${
+            className={`text-[22px] sm:text-[24px] [@media(max-height:740px)]:text-[19px] font-bold tracking-[-0.025em] leading-[1.15] ${
               isDark ? 'text-white' : 'text-black'
             }`}
           >
             {tr('Vamos fazer hoje?')}
           </h2>
           <p
-            className={`text-[13.5px] sm:text-[14.5px] [@media(max-height:740px)]:text-[12.5px] font-normal leading-[1.3] mt-0.5 ${
+            className={`text-[13px] sm:text-[14px] [@media(max-height:740px)]:text-[12px] font-normal leading-[1.3] mt-0.5 ${
               isDark ? 'text-[#8E8E93]' : 'text-[#6E6E73]'
             }`}
           >
@@ -362,7 +362,7 @@ export const ExploreDiscoveryPanel: React.FC<ExploreDiscoveryPanelProps> = React
       </div>
 
       {/* 2x2 Discovery Cards Grid — Same opening spring animation as Loja de roteiros cards */}
-      <div className="grid grid-cols-2 gap-2.5 sm:gap-3 [@media(max-height:740px)]:gap-2">
+      <div className="grid grid-cols-2 gap-2 sm:gap-2.5 [@media(max-height:740px)]:gap-1.5">
         {/* Card 1: Criar roteiro */}
         <motion.button
           id="discovery-card-create-itinerary"
@@ -372,13 +372,13 @@ export const ExploreDiscoveryPanel: React.FC<ExploreDiscoveryPanelProps> = React
           transition={{ ...STORE_ENTRANCE_SPRING, delay: 0.065 }}
           whileTap={{ scale: 0.96, transition: IOS_SPRING_PRESS }}
           onClick={() => handleActionClick(onCreateItinerary)}
-          className={`group relative flex flex-col justify-between text-left rounded-[22px] p-3.5 sm:p-4 min-h-[118px] sm:min-h-[126px] [@media(max-height:740px)]:p-2.5 [@media(max-height:740px)]:min-h-[96px] [@media(max-height:740px)]:rounded-[18px] border transition-colors duration-150 cursor-pointer focus:outline-none ${
+          className={`group relative flex flex-col justify-between text-left rounded-[20px] p-3 sm:p-3.5 min-h-[104px] sm:min-h-[112px] [@media(max-height:740px)]:p-2 [@media(max-height:740px)]:min-h-[88px] [@media(max-height:740px)]:rounded-[16px] border transition-colors duration-150 cursor-pointer focus:outline-none ${
             isDark
               ? 'bg-[#151517] border-white/[0.08] active:bg-[#1D1D20]'
               : 'bg-[#FFFFFF] border-black/[0.06] shadow-[0_2px_12px_rgba(0,0,0,0.045)] active:bg-[#F5F5F7]'
           }`}
         >
-          <div className="w-full flex items-center justify-center h-[46px] sm:h-[52px] [@media(max-height:740px)]:h-[36px] mb-1.5 [@media(max-height:740px)]:mb-1">
+          <div className="w-full flex items-center justify-center h-[40px] sm:h-[46px] [@media(max-height:740px)]:h-[32px] mb-1 [@media(max-height:740px)]:mb-0.5">
             <motion.img
               initial={{ opacity: 0, scale: 0.88, y: 8 }}
               animate={{ opacity: 1, scale: 1, y: 0 }}
@@ -386,19 +386,19 @@ export const ExploreDiscoveryPanel: React.FC<ExploreDiscoveryPanelProps> = React
               src={foldedMapPin3d}
               alt=""
               draggable={false}
-              className="h-[44px] sm:h-[50px] [@media(max-height:740px)]:h-[34px] w-auto object-contain drop-shadow-[0_4px_10px_rgba(0,0,0,0.18)] transition-transform duration-200 group-active:scale-95"
+              className="h-[38px] sm:h-[44px] [@media(max-height:740px)]:h-[30px] w-auto object-contain drop-shadow-[0_4px_10px_rgba(0,0,0,0.18)] transition-transform duration-200 group-active:scale-95"
             />
           </div>
           <div>
             <h3
-              className={`text-[14.5px] sm:text-[15.5px] [@media(max-height:740px)]:text-[13.5px] font-semibold tracking-[-0.015em] leading-[1.2] ${
+              className={`text-[14px] sm:text-[15px] [@media(max-height:740px)]:text-[13px] font-semibold tracking-[-0.015em] leading-[1.2] ${
                 isDark ? 'text-white' : 'text-black'
               }`}
             >
               {tr('Criar roteiro')}
             </h3>
             <p
-              className={`text-[12px] sm:text-[12.5px] [@media(max-height:740px)]:text-[11px] leading-[1.3] mt-0.5 line-clamp-2 ${
+              className={`text-[11.5px] sm:text-[12px] [@media(max-height:740px)]:text-[10.5px] leading-[1.25] mt-0.5 line-clamp-2 ${
                 isDark ? 'text-[#8E8E93]' : 'text-[#6E6E73]'
               }`}
             >
@@ -416,13 +416,13 @@ export const ExploreDiscoveryPanel: React.FC<ExploreDiscoveryPanelProps> = React
           transition={{ ...STORE_ENTRANCE_SPRING, delay: 0.095 }}
           whileTap={{ scale: 0.96, transition: IOS_SPRING_PRESS }}
           onClick={() => handleActionClick(onOpenMyItineraries)}
-          className={`group relative flex flex-col justify-between text-left rounded-[22px] p-3.5 sm:p-4 min-h-[118px] sm:min-h-[126px] [@media(max-height:740px)]:p-2.5 [@media(max-height:740px)]:min-h-[96px] [@media(max-height:740px)]:rounded-[18px] border transition-colors duration-150 cursor-pointer focus:outline-none ${
+          className={`group relative flex flex-col justify-between text-left rounded-[20px] p-3 sm:p-3.5 min-h-[104px] sm:min-h-[112px] [@media(max-height:740px)]:p-2 [@media(max-height:740px)]:min-h-[88px] [@media(max-height:740px)]:rounded-[16px] border transition-colors duration-150 cursor-pointer focus:outline-none ${
             isDark
               ? 'bg-[#151517] border-white/[0.08] active:bg-[#1D1D20]'
               : 'bg-[#FFFFFF] border-black/[0.06] shadow-[0_2px_12px_rgba(0,0,0,0.045)] active:bg-[#F5F5F7]'
           }`}
         >
-          <div className="w-full flex items-center justify-center h-[46px] sm:h-[52px] [@media(max-height:740px)]:h-[36px] mb-1.5 [@media(max-height:740px)]:mb-1">
+          <div className="w-full flex items-center justify-center h-[40px] sm:h-[46px] [@media(max-height:740px)]:h-[32px] mb-1 [@media(max-height:740px)]:mb-0.5">
             <motion.img
               initial={{ opacity: 0, scale: 0.88, y: 8 }}
               animate={{ opacity: 1, scale: 1, y: 0 }}
@@ -430,19 +430,19 @@ export const ExploreDiscoveryPanel: React.FC<ExploreDiscoveryPanelProps> = React
               src={myItinerariesRoute3d}
               alt=""
               draggable={false}
-              className="h-[44px] sm:h-[50px] [@media(max-height:740px)]:h-[34px] w-auto object-contain drop-shadow-[0_4px_10px_rgba(0,0,0,0.18)] transition-transform duration-200 group-active:scale-95"
+              className="h-[38px] sm:h-[44px] [@media(max-height:740px)]:h-[30px] w-auto object-contain drop-shadow-[0_4px_10px_rgba(0,0,0,0.18)] transition-transform duration-200 group-active:scale-95"
             />
           </div>
           <div>
             <h3
-              className={`text-[14.5px] sm:text-[15.5px] [@media(max-height:740px)]:text-[13.5px] font-semibold tracking-[-0.015em] leading-[1.2] ${
+              className={`text-[14px] sm:text-[15px] [@media(max-height:740px)]:text-[13px] font-semibold tracking-[-0.015em] leading-[1.2] ${
                 isDark ? 'text-white' : 'text-black'
               }`}
             >
               {tr('Meus roteiros')}
             </h3>
             <p
-              className={`text-[12px] sm:text-[12.5px] [@media(max-height:740px)]:text-[11px] leading-[1.3] mt-0.5 line-clamp-2 ${
+              className={`text-[11.5px] sm:text-[12px] [@media(max-height:740px)]:text-[10.5px] leading-[1.25] mt-0.5 line-clamp-2 ${
                 isDark ? 'text-[#8E8E93]' : 'text-[#6E6E73]'
               }`}
             >
@@ -461,7 +461,7 @@ export const ExploreDiscoveryPanel: React.FC<ExploreDiscoveryPanelProps> = React
           transition={{ ...STORE_ENTRANCE_SPRING, delay: 0.125 }}
           whileTap={{ scale: 0.985, transition: IOS_SPRING_PRESS }}
           onClick={handleLockedCardTap}
-          className={`relative flex flex-col justify-between text-left rounded-[22px] p-3.5 sm:p-4 min-h-[118px] sm:min-h-[126px] [@media(max-height:740px)]:p-2.5 [@media(max-height:740px)]:min-h-[96px] [@media(max-height:740px)]:rounded-[18px] border cursor-default select-none ${
+          className={`relative flex flex-col justify-between text-left rounded-[20px] p-3 sm:p-3.5 min-h-[104px] sm:min-h-[112px] [@media(max-height:740px)]:p-2 [@media(max-height:740px)]:min-h-[88px] [@media(max-height:740px)]:rounded-[16px] border cursor-default select-none ${
             isDark
               ? 'bg-[#121214] border-white/[0.06]'
               : 'bg-[#FAFAFB] border-black/[0.05] shadow-[0_1px_8px_rgba(0,0,0,0.03)]'
@@ -476,14 +476,14 @@ export const ExploreDiscoveryPanel: React.FC<ExploreDiscoveryPanelProps> = React
             }
             transition={{ duration: 0.32, ease: 'easeInOut' }}
             aria-hidden="true"
-            className={`absolute top-3 right-3 [@media(max-height:740px)]:top-2.5 [@media(max-height:740px)]:right-2.5 flex items-center justify-center ${
+            className={`absolute top-2.5 right-2.5 [@media(max-height:740px)]:top-2 [@media(max-height:740px)]:right-2 flex items-center justify-center ${
               isDark ? 'text-white/40' : 'text-black/38'
             }`}
           >
-            <Lock className="w-[15px] h-[15px]" strokeWidth={1.85} />
+            <Lock className="w-[14px] h-[14px]" strokeWidth={1.85} />
           </motion.span>
 
-          <div className="w-full flex items-center justify-center h-[46px] sm:h-[52px] [@media(max-height:740px)]:h-[36px] mb-1.5 [@media(max-height:740px)]:mb-1">
+          <div className="w-full flex items-center justify-center h-[40px] sm:h-[46px] [@media(max-height:740px)]:h-[32px] mb-1 [@media(max-height:740px)]:mb-0.5">
             <motion.img
               initial={{ opacity: 0, scale: 0.88, y: 8 }}
               animate={{ opacity: 1, scale: 1, y: 0 }}
@@ -491,21 +491,21 @@ export const ExploreDiscoveryPanel: React.FC<ExploreDiscoveryPanelProps> = React
               src={tourGuide3d}
               alt=""
               draggable={false}
-              className={`h-[46px] sm:h-[52px] [@media(max-height:740px)]:h-[36px] w-auto object-contain ${
+              className={`h-[40px] sm:h-[46px] [@media(max-height:740px)]:h-[32px] w-auto object-contain ${
                 isDark ? 'opacity-70' : 'opacity-78'
               }`}
             />
           </div>
           <div>
             <h3
-              className={`text-[14.5px] sm:text-[15.5px] [@media(max-height:740px)]:text-[13.5px] font-semibold tracking-[-0.015em] leading-[1.2] ${
+              className={`text-[14px] sm:text-[15px] [@media(max-height:740px)]:text-[13px] font-semibold tracking-[-0.015em] leading-[1.2] ${
                 isDark ? 'text-white/68' : 'text-black/62'
               }`}
             >
               {tr('Encontrar guia')}
             </h3>
             <p
-              className={`text-[12px] sm:text-[12.5px] [@media(max-height:740px)]:text-[11px] leading-[1.3] mt-0.5 line-clamp-2 ${
+              className={`text-[11.5px] sm:text-[12px] [@media(max-height:740px)]:text-[10.5px] leading-[1.25] mt-0.5 line-clamp-2 ${
                 isDark ? 'text-[#7A7A80]' : 'text-[#858585]'
               }`}
             >
@@ -523,13 +523,13 @@ export const ExploreDiscoveryPanel: React.FC<ExploreDiscoveryPanelProps> = React
           transition={{ ...STORE_ENTRANCE_SPRING, delay: 0.155 }}
           whileTap={{ scale: 0.96, transition: IOS_SPRING_PRESS }}
           onClick={() => handleActionClick(onOpenStore)}
-          className={`group relative flex flex-col justify-between text-left rounded-[22px] p-3.5 sm:p-4 min-h-[118px] sm:min-h-[126px] [@media(max-height:740px)]:p-2.5 [@media(max-height:740px)]:min-h-[96px] [@media(max-height:740px)]:rounded-[18px] border transition-colors duration-150 cursor-pointer focus:outline-none ${
+          className={`group relative flex flex-col justify-between text-left rounded-[20px] p-3 sm:p-3.5 min-h-[104px] sm:min-h-[112px] [@media(max-height:740px)]:p-2 [@media(max-height:740px)]:min-h-[88px] [@media(max-height:740px)]:rounded-[16px] border transition-colors duration-150 cursor-pointer focus:outline-none ${
             isDark
               ? 'bg-[#151517] border-white/[0.08] active:bg-[#1D1D20]'
               : 'bg-[#FFFFFF] border-black/[0.06] shadow-[0_2px_12px_rgba(0,0,0,0.045)] active:bg-[#F5F5F7]'
           }`}
         >
-          <div className="w-full flex items-center justify-center h-[46px] sm:h-[52px] [@media(max-height:740px)]:h-[36px] mb-1.5 [@media(max-height:740px)]:mb-1">
+          <div className="w-full flex items-center justify-center h-[40px] sm:h-[46px] [@media(max-height:740px)]:h-[32px] mb-1 [@media(max-height:740px)]:mb-0.5">
             <motion.img
               initial={{ opacity: 0, scale: 0.88, y: 8 }}
               animate={{ opacity: 1, scale: 1, y: 0 }}
@@ -537,19 +537,19 @@ export const ExploreDiscoveryPanel: React.FC<ExploreDiscoveryPanelProps> = React
               src={itineraryStoreBag3d}
               alt=""
               draggable={false}
-              className="h-[44px] sm:h-[50px] [@media(max-height:740px)]:h-[34px] w-auto object-contain drop-shadow-[0_4px_10px_rgba(0,0,0,0.18)] transition-transform duration-200 group-active:scale-95"
+              className="h-[38px] sm:h-[44px] [@media(max-height:740px)]:h-[30px] w-auto object-contain drop-shadow-[0_4px_10px_rgba(0,0,0,0.18)] transition-transform duration-200 group-active:scale-95"
             />
           </div>
           <div>
             <h3
-              className={`text-[14.5px] sm:text-[15.5px] [@media(max-height:740px)]:text-[13.5px] font-semibold tracking-[-0.015em] leading-[1.2] ${
+              className={`text-[14px] sm:text-[15px] [@media(max-height:740px)]:text-[13px] font-semibold tracking-[-0.015em] leading-[1.2] ${
                 isDark ? 'text-white' : 'text-black'
               }`}
             >
               {tr('Loja de roteiros')}
             </h3>
             <p
-              className={`text-[12px] sm:text-[12.5px] [@media(max-height:740px)]:text-[11px] leading-[1.3] mt-0.5 line-clamp-2 ${
+              className={`text-[11.5px] sm:text-[12px] [@media(max-height:740px)]:text-[10.5px] leading-[1.25] mt-0.5 line-clamp-2 ${
                 isDark ? 'text-[#8E8E93]' : 'text-[#6E6E73]'
               }`}
             >
