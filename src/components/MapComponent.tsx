@@ -2322,7 +2322,7 @@ export const MapComponent = memo(
     }, [is3DMode, smoothCameraEase]);
 
     // Synchronize MapLibre vanishing point & visible area dynamically with the Bottom Sheet height
-    // (Preserves current 3D orbit bearing and coordinates without restarting camera)
+    // (Preserves current 3D bearing and coordinates without restarting camera)
     useEffect(() => {
       applyDynamicExplorePadding(mapRef.current);
       const unsub = activeSheetHeightMV.on('change', (latestH) => {
@@ -2332,78 +2332,6 @@ export const MapComponent = memo(
         unsub();
       };
     }, [activeSheetHeightMV, isDiscoveryPanelOpen, workflowMode, applyDynamicExplorePadding]);
-
-    // Single-instance Cinematic 360° 3D Auto-Rotation around the tourist spots region
-    // Runs smoothly at 60fps in EXPLORE 3D mode, yields immediately to manual touch/drag/zoom,
-    // and resumes with a gentle velocity ramp-in after idle.
-    useEffect(() => {
-      let orbitRafId: number | null = null;
-      let lastFrameTs = 0;
-      let currentSpeedMultiplier = 0;
-      let lastMarkerCullSyncTs = 0;
-      const TARGET_DEG_PER_SEC = 2.6; // Smooth cinematic ~138s full 360° revolution
-      const MANUAL_IDLE_RESUME_MS = 2200;
-
-      const stepOrbit = (ts: number) => {
-        orbitRafId = requestAnimationFrame(stepOrbit);
-
-        if (lastFrameTs === 0) {
-          lastFrameTs = ts;
-          return;
-        }
-        const dtSec = Math.min(0.064, Math.max(0.001, (ts - lastFrameTs) / 1000));
-        lastFrameTs = ts;
-
-        const map = mapRef.current;
-        const isExplorarVisible = !activeTabRef.current || activeTabRef.current === 'explorar';
-        const timeSinceManual = performance.now() - lastMapGestureTimeRef.current;
-
-        const canOrbit =
-          Boolean(map) &&
-          !isSuspendedRef.current &&
-          isExplorarVisible &&
-          is3DModeRef.current &&
-          workflowModeRef.current === 'EXPLORE' &&
-          !isGlobeIntroActiveRef.current &&
-          !isSpotlightActiveRef.current &&
-          !isTransitioning3DRef.current &&
-          !isMapGestureActiveRef.current &&
-          !isZoomGestureActiveRef.current &&
-          !isProgrammaticZoomRef.current &&
-          !selectedSpotRef.current &&
-          !activeRouteRef.current &&
-          !isFollowingUserRef.current &&
-          !isCompassTrackingRef.current &&
-          timeSinceManual > MANUAL_IDLE_RESUME_MS;
-
-        if (!canOrbit || !map) {
-          currentSpeedMultiplier = 0;
-          return;
-        }
-
-        // Smooth ease-in ramp over ~1.25s so rotation never starts or resumes abruptly
-        currentSpeedMultiplier = Math.min(1, currentSpeedMultiplier + dtSec * 0.8);
-        const deltaBearing = TARGET_DEG_PER_SEC * currentSpeedMultiplier * dtSec;
-        const nextBearing = ((map.getBearing() + deltaBearing + 180) % 360) - 180;
-
-        try {
-          map.setBearing(nextBearing);
-        } catch {}
-
-        // Periodically refresh viewport marker culling during rotation without frame jitter
-        if (ts - lastMarkerCullSyncTs > 750) {
-          lastMarkerCullSyncTs = ts;
-          syncSpotMarkersRef.current?.();
-        }
-      };
-
-      orbitRafId = requestAnimationFrame(stepOrbit);
-      return () => {
-        if (orbitRafId !== null) {
-          cancelAnimationFrame(orbitRafId);
-        }
-      };
-    }, []);
 
     // Helper: Build a smooth Apple iOS 5-pointed star path with softened vertices
     const buildRoundedStarPath = useCallback(
