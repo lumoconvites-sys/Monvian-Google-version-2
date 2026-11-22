@@ -1,9 +1,9 @@
 import React, { useEffect, useRef, useImperativeHandle, forwardRef, useState, useCallback, memo } from 'react';
-import { motion, useMotionValue, useTransform, type MotionValue } from 'motion/react';
+import { motion, useMotionValue, animate, type MotionValue } from 'motion/react';
 import * as maplibregl from 'maplibre-gl';
 import 'maplibre-gl/dist/maplibre-gl.css';
 import '../utils/configureMaplibre';
-import { Play } from 'lucide-react';
+import { Plus } from 'lucide-react';
 import { Spot, MapModeType, MapWorkflowMode, ItineraryStep } from '../types';
 import { getSpotPinThumbnail, getSpotFallbackImage } from '../utils/spotImages';
 import { gpsNavigationManager, calculateHaversineDistance } from '../services/gpsNavigation';
@@ -76,6 +76,7 @@ interface MapComponentProps {
   zoomDurationMs?: number;
   entranceTick?: number;
   isDiscoveryPanelOpen?: boolean;
+  onToggleDiscoveryPanel?: () => void;
   discoverySheetHeightMV?: MotionValue<number>;
 }
 
@@ -393,26 +394,70 @@ export const MapComponent = memo(
       zoomDurationMs = 780,
       entranceTick = 0,
       isDiscoveryPanelOpen = false,
+      onToggleDiscoveryPanel,
       discoverySheetHeightMV,
     },
     ref
   ) => {
     const fallbackSheetHeightMV = useMotionValue<number>(0);
     const activeSheetHeightMV = discoverySheetHeightMV ?? fallbackSheetHeightMV;
-    const rightControlsLiftY = useTransform(activeSheetHeightMV, (sheetH) => {
+    const computeRightControlsTargetY = useCallback((open: boolean, sheetH: number) => {
       const vh =
         typeof window !== 'undefined'
           ? window.visualViewport?.height || window.innerHeight || 844
           : 844;
       const groupHeight = 175;
+      if (!open || sheetH <= 4) {
+        return -Math.round((vh - groupHeight) / 2);
+      }
       const topControlsClearance = 136;
       const maxLift = Math.max(0, vh - groupHeight - topControlsClearance);
       const extraLift = Math.round(Math.max(54, Math.min(78, vh * 0.08)));
       const desiredLift = Math.max(0, sheetH) + extraLift;
       return -Math.min(desiredLift, maxLift);
-    });
+    }, []);
+    const rightControlsY = useMotionValue<number>(
+      computeRightControlsTargetY(isDiscoveryPanelOpen, activeSheetHeightMV.get())
+    );
+    const rightControlsAnimRef = useRef<ReturnType<typeof animate> | null>(null);
     const isDiscoveryPanelOpenRef = useRef<boolean>(isDiscoveryPanelOpen);
     isDiscoveryPanelOpenRef.current = isDiscoveryPanelOpen;
+
+    // Smoothly glide right-side buttons in sync with the Plátanos-style bottom sheet open/close & drag
+    useEffect(() => {
+      const target = computeRightControlsTargetY(isDiscoveryPanelOpen, activeSheetHeightMV.get());
+      rightControlsAnimRef.current?.stop();
+      rightControlsAnimRef.current = animate(rightControlsY, target, {
+        type: 'spring',
+        stiffness: 300,
+        damping: 30,
+        mass: 0.82,
+      });
+
+      const unsub = activeSheetHeightMV.on('change', (latestH) => {
+        if (!isDiscoveryPanelOpenRef.current) return;
+        const nextY = computeRightControlsTargetY(true, latestH);
+        rightControlsAnimRef.current?.stop();
+        rightControlsAnimRef.current = animate(rightControlsY, nextY, {
+          type: 'spring',
+          stiffness: 300,
+          damping: 30,
+          mass: 0.82,
+        });
+      });
+
+      const handleResize = () => {
+        rightControlsY.set(
+          computeRightControlsTargetY(isDiscoveryPanelOpenRef.current, activeSheetHeightMV.get())
+        );
+      };
+      window.addEventListener('resize', handleResize);
+
+      return () => {
+        unsub();
+        window.removeEventListener('resize', handleResize);
+      };
+    }, [isDiscoveryPanelOpen, activeSheetHeightMV, computeRightControlsTargetY, rightControlsY]);
     const mapContainerRef = useRef<HTMLDivElement | null>(null);
     const mapRef = useRef<maplibregl.Map | null>(null);
     const isSuspendedRef = useRef<boolean>(isSuspended);
@@ -4166,39 +4211,47 @@ export const MapComponent = memo(
           return (
         <motion.div
           id="mobile-map-right-controls"
-          className={`md:hidden absolute right-3.5 ${
-            isDiscoveryPanelOpen ? 'bottom-0 top-auto' : 'top-1/2 -translate-y-1/2'
-          } z-30 flex flex-col items-center gap-2 transition-opacity duration-300 ease-[cubic-bezier(0.22,1,0.36,1)] will-change-transform ${
+          className={`md:hidden absolute right-3.5 bottom-0 z-[38] flex flex-col items-center gap-2 transition-opacity duration-300 ease-[cubic-bezier(0.22,1,0.36,1)] will-change-transform ${
             isFocusMode || isGlobeIntroPlaying || workflowMode === 'ITINERARY'
               ? 'opacity-0 scale-90 pointer-events-none [&_*]:!pointer-events-none'
               : 'opacity-100 scale-100 pointer-events-auto'
           }`}
           style={{
             paddingRight: 'env(safe-area-inset-right, 0px)',
-            y: isDiscoveryPanelOpen ? rightControlsLiftY : undefined,
+            y: rightControlsY,
           }}
         >
-          {/* PLAY — Create Custom Itinerary Directly on Map */}
-          {workflowMode === 'EXPLORE' && onStartItineraryCreation && (
+          {/* PLUS / CLOSE — Toggle Quick Discovery Actions Sheet */}
+          {workflowMode === 'EXPLORE' && onToggleDiscoveryPanel && (
             <motion.button
-              id="btn-play-itinerary"
+              id="btn-toggle-discovery-panel"
               type="button"
               whileTap={{ scale: 0.9, transition: { type: 'spring', stiffness: 500, damping: 14 } }}
               onClick={() => {
                 unlockSpotClickSound();
                 playSpotClickSound();
-                triggerHapticFeedback(14);
-                onStartItineraryCreation();
+                triggerHapticFeedback(12);
+                onToggleDiscoveryPanel();
               }}
-              aria-label="Criar roteiro no mapa"
-              title="Criar roteiro no mapa"
+              aria-label={isDiscoveryPanelOpen ? 'Fechar menu rápido' : 'Abrir menu rápido'}
+              aria-expanded={isDiscoveryPanelOpen}
+              title={isDiscoveryPanelOpen ? 'Fechar menu rápido' : 'Abrir menu rápido'}
               className={`w-[53px] h-[53px] sm:w-[58px] sm:h-[58px] rounded-full ios26-liquid-glass flex items-center justify-center transition-colors duration-200 cursor-pointer shrink-0 ${controlTextClass}`}
               style={{ color: controlIconColor }}
             >
-              <Play
-                className="relative z-10 w-[23px] h-[23px] sm:w-[25px] sm:h-[25px] ml-0.5 fill-current"
-                style={{ color: controlIconColor }}
-              />
+              <motion.span
+                aria-hidden="true"
+                initial={false}
+                animate={{ rotate: isDiscoveryPanelOpen ? 45 : 0 }}
+                transition={{ type: 'spring', stiffness: 420, damping: 28 }}
+                className="relative z-10 flex items-center justify-center"
+              >
+                <Plus
+                  className="w-[24px] h-[24px] sm:w-[26px] sm:h-[26px]"
+                  strokeWidth={2.35}
+                  style={{ color: controlIconColor }}
+                />
+              </motion.span>
             </motion.button>
           )}
 

@@ -583,7 +583,7 @@ export default function App() {
     );
   });
 
-  const [isDiscoveryPanelClosed, setIsDiscoveryPanelClosed] = useState<boolean>(false);
+  const [isDiscoveryPanelClosed, setIsDiscoveryPanelClosed] = useState<boolean>(true);
 
   useEffect(() => {
     const checkStandalone = () => {
@@ -1952,8 +1952,8 @@ export default function App() {
 
   const handleTabChange = useCallback((tab: TabType) => {
     setIsAdminOpen(false);
+    setIsDiscoveryPanelClosed(true);
     if (tab === 'explorar') {
-      setIsDiscoveryPanelClosed(false);
       if (mapWorkflowModeRef.current === 'SELECT') {
         setMapWorkflowMode(
           isEditingExistingItineraryRef.current && activeItinerary ? 'ITINERARY' : 'EXPLORE'
@@ -2658,6 +2658,7 @@ export default function App() {
     setDraftItineraryCover('');
     setIsFinalizeItineraryModalOpen(false);
     setSelectedSpotIdsForItinerary([]);
+    setIsDiscoveryPanelClosed(true);
     setActiveTab('explorar');
     setMapWorkflowMode('SELECT');
   }, [clearActiveRoute]);
@@ -2932,6 +2933,7 @@ export default function App() {
     setHasVisitedProfile(true);
     setIsMyItinerariesSubViewActive(true);
     setOpenMyItinerariesSignal((prev) => prev + 1);
+    setIsDiscoveryPanelClosed(true);
     setActiveTab('perfil');
     window.setTimeout(() => {
       window.dispatchEvent(new CustomEvent('monvian:open_my_itineraries'));
@@ -2939,11 +2941,16 @@ export default function App() {
   }, []);
 
   const handleOpenStoreFromDiscovery = useCallback(() => {
+    setIsDiscoveryPanelClosed(true);
     setActiveTab('roteiros');
   }, []);
 
   const handleCloseDiscoveryPanel = useCallback(() => {
     setIsDiscoveryPanelClosed(true);
+  }, []);
+
+  const handleToggleDiscoveryPanel = useCallback(() => {
+    setIsDiscoveryPanelClosed((prev) => !prev);
   }, []);
 
   useEffect(() => {
@@ -3524,6 +3531,7 @@ export default function App() {
               onSelectItineraryStep={handleSelectItineraryStepId}
               entranceTick={explorarEntranceTick}
               isDiscoveryPanelOpen={canShowMobileDiscoveryPanel}
+              onToggleDiscoveryPanel={handleToggleDiscoveryPanel}
               discoverySheetHeightMV={discoverySheetHeightMV}
             />
 

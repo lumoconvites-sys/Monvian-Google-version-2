@@ -2,6 +2,7 @@ import React, { useEffect, useLayoutEffect, useRef, useState, useCallback } from
 import {
   motion,
   useMotionValue,
+  useReducedMotion,
   animate,
   MotionValue,
 } from 'motion/react';
@@ -43,6 +44,7 @@ export const ExploreDiscoveryPanel: React.FC<ExploreDiscoveryPanelProps> = React
 }) => {
   const { tr } = useLanguage();
   const isDark = theme === 'dark';
+  const prefersReducedMotion = useReducedMotion();
 
   const sheetRef = useRef<HTMLElement | null>(null);
   const measuredHeightRef = useRef<number>(310);
@@ -243,31 +245,19 @@ export const ExploreDiscoveryPanel: React.FC<ExploreDiscoveryPanelProps> = React
     const maxDown = getCollapseDistance();
     const currentY = sheetY.get();
 
-    if (currentY > maxDown + 28 || velY > 550) {
+    if (currentY > maxDown * 0.35 || velY > 360) {
       triggerHapticFeedback(10);
       onClose?.();
       return;
     }
 
-    let targetPos: SheetPosition = positionRef.current;
-
-    if (Math.abs(velY) > 380) {
-      targetPos = velY > 0 ? 'collapsed' : 'open';
-    } else {
-      const projectedY = currentY + velY * 0.14;
-      targetPos = projectedY > maxDown * 0.45 ? 'collapsed' : 'open';
-    }
-
-    if (targetPos !== positionRef.current) {
-      triggerHapticFeedback(8);
-    }
-    snapToPosition(targetPos, Math.max(-1800, Math.min(1800, velY)));
+    snapToPosition('open', Math.max(-1800, Math.min(1800, velY)));
   };
 
   const handleGrabberTap = () => {
     if (performance.now() < suppressClickUntilRef.current) return;
     triggerHapticFeedback(8);
-    snapToPosition(positionRef.current === 'open' ? 'collapsed' : 'open');
+    onClose?.();
   };
 
   const handleActionClick = (callback: () => void) => {
@@ -287,30 +277,68 @@ export const ExploreDiscoveryPanel: React.FC<ExploreDiscoveryPanelProps> = React
   const isCollapsed = position === 'collapsed';
 
   return (
-    <motion.section
-      ref={sheetRef}
+    <motion.div
       key="explore-discovery-panel"
-      id="explore-discovery-panel"
-      aria-label={tr('Painel de Acesso Rápido')}
-      initial={false}
-      animate={{ opacity: 1 }}
-      exit={{ opacity: 0, y: 240, transition: { duration: 0.22, ease: [0.32, 0.72, 0, 1] } }}
-      onPointerDown={handlePointerDown}
-      onPointerMove={handlePointerMove}
-      onPointerUp={finishDrag}
-      onPointerCancel={finishDrag}
-      className={`md:hidden absolute inset-x-0 bottom-0 z-[36] w-full rounded-t-[28px] select-none transition-colors duration-200 will-change-transform after:content-[''] after:absolute after:inset-x-0 after:top-full after:h-16 after:bg-inherit ${
-        isDark
-          ? 'bg-[#09090A] border-t border-white/[0.10] shadow-[0_-10px_32px_rgba(0,0,0,0.6)]'
-          : 'bg-[#FFFFFF] border-t border-black/[0.06] shadow-[0_-10px_30px_rgba(0,0,0,0.12)]'
-      }`}
+      initial={
+        prefersReducedMotion
+          ? { opacity: 0 }
+          : { y: 116, scale: 0.955, opacity: 0 }
+      }
+      animate={
+        prefersReducedMotion
+          ? { opacity: 1 }
+          : { y: 0, scale: 1, opacity: 1 }
+      }
+      exit={
+        prefersReducedMotion
+          ? { opacity: 0, transition: { duration: 0.16 } }
+          : {
+              y: 96,
+              opacity: 0,
+              transition: {
+                duration: 0.24,
+                ease: [0.32, 0.72, 0, 1],
+              },
+            }
+      }
+      transition={
+        prefersReducedMotion
+          ? { duration: 0.16 }
+          : {
+              type: 'spring',
+              stiffness: 300,
+              damping: 30,
+              mass: 0.82,
+            }
+      }
+      className="md:hidden absolute inset-x-0 bottom-0 z-[36] w-full pointer-events-none transform-gpu"
       style={{
-        y: sheetY,
-        paddingLeft: 'max(16px, env(safe-area-inset-left, 0px))',
-        paddingRight: 'max(16px, env(safe-area-inset-right, 0px))',
-        paddingBottom: 'calc(env(safe-area-inset-bottom, 0px) + 72px)',
+        willChange: 'transform, opacity',
+        transformOrigin: 'center bottom',
+        backfaceVisibility: 'hidden',
+        WebkitBackfaceVisibility: 'hidden',
       }}
     >
+      <motion.section
+        ref={sheetRef}
+        id="explore-discovery-panel"
+        aria-label={tr('Painel de Acesso Rápido')}
+        onPointerDown={handlePointerDown}
+        onPointerMove={handlePointerMove}
+        onPointerUp={finishDrag}
+        onPointerCancel={finishDrag}
+        className={`pointer-events-auto relative w-full rounded-t-[28px] select-none transition-colors duration-200 will-change-transform after:content-[''] after:absolute after:inset-x-0 after:top-full after:h-16 after:bg-inherit ${
+          isDark
+            ? 'bg-[#09090A] border-t border-white/[0.10] shadow-[0_-10px_32px_rgba(0,0,0,0.6)]'
+            : 'bg-[#FFFFFF] border-t border-black/[0.06] shadow-[0_-10px_30px_rgba(0,0,0,0.12)]'
+        }`}
+        style={{
+          y: sheetY,
+          paddingLeft: 'max(16px, env(safe-area-inset-left, 0px))',
+          paddingRight: 'max(16px, env(safe-area-inset-right, 0px))',
+          paddingBottom: 'calc(env(safe-area-inset-bottom, 0px) + 72px)',
+        }}
+      >
       {/* Top Drag Handle Bar */}
       <div
         data-sheet-drag-zone="true"
@@ -513,7 +541,8 @@ export const ExploreDiscoveryPanel: React.FC<ExploreDiscoveryPanelProps> = React
           </div>
         </motion.button>
       </div>
-    </motion.section>
+      </motion.section>
+    </motion.div>
   );
 });
 
