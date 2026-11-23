@@ -574,6 +574,7 @@ export const MapComponent = memo(
     isGlobeIntroPlayingRef.current = isGlobeIntroPlaying;
     const isGlobeIntroActiveRef = useRef<boolean>(Boolean(isGlobeIntroPending || isGlobeIntroPlaying));
     isGlobeIntroActiveRef.current = Boolean(isGlobeIntroPending || isGlobeIntroPlaying);
+    const isGlobeSpinActiveRef = useRef<boolean>(false);
     const onGlobeIntroCompleteRef = useRef(onGlobeIntroComplete);
     onGlobeIntroCompleteRef.current = onGlobeIntroComplete;
     const [isSpaceBackgroundActive, setIsSpaceBackgroundActive] = useState<boolean>(
@@ -1385,7 +1386,7 @@ export const MapComponent = memo(
           center: resumedCam
             ? resumedCam.center
             : startOrbital
-              ? [-22, -10]
+              ? [CAMPOS_OVERVIEW_CENTER[0], -12]
               : CAMPOS_OVERVIEW_CENTER,
           zoom: resumedCam
             ? resumedCam.zoom
@@ -1590,12 +1591,14 @@ export const MapComponent = memo(
           if (savedSuspendedCameraRef.current) {
             savedSuspendedCameraRef.current = null;
           } else if (isGlobeIntroActiveRef.current) {
-            map.jumpTo({
-              center: [-22, -10],
-              zoom: getOrbitalEarthZoom(),
-              pitch: 0,
-              bearing: 0,
-            });
+            if (!isGlobeSpinActiveRef.current) {
+              map.jumpTo({
+                center: [CAMPOS_OVERVIEW_CENTER[0], -12],
+                zoom: getOrbitalEarthZoom(),
+                pitch: 0,
+                bearing: 0,
+              });
+            }
           } else if (workflowModeRef.current === 'ITINERARY' && itineraryStepsRef.current.length > 0) {
             fitItineraryCameraBounds(itineraryStepsRef.current, true);
           } else if (selectedSpotRef.current && selectedSpotRef.current.lng && selectedSpotRef.current.lat) {
@@ -1706,6 +1709,7 @@ export const MapComponent = memo(
         };
 
         const onMoveEnd = (e: any) => {
+          if (isGlobeSpinActiveRef.current) return;
           if (e && e.originalEvent) {
             lastMapGestureTimeRef.current = performance.now();
           }
@@ -2013,10 +2017,11 @@ export const MapComponent = memo(
       syncMarkerHighlight(selectedSpotRef.current?.id);
     }, [isGlobeIntroPending, isGlobeIntroPlaying]);
 
-    // Choreographed Post-Signup Space-to-Location Cinematic Camera Flight (Stage A -> B -> C -> D)
-    // Depends ONLY on isGlobeIntroPlaying so avatar/prop updates never interrupt or cancel mid-flight
+    // App-Entry 3D Earth Globe Intro: 2.5s smooth 360-degree orbital rotation -> smooth zoom to Campos do Jordão
+    // Depends ONLY on isGlobeIntroPlaying & isMapInstanceReady so prop updates never interrupt mid-flight
     useEffect(() => {
       if (!isGlobeIntroPlaying) {
+        isGlobeSpinActiveRef.current = false;
         hasCompletedGlobeFlightRef.current = false;
         return;
       }
@@ -2027,10 +2032,73 @@ export const MapComponent = memo(
       if (!map) return;
 
       let cancelled = false;
+      let spinRafId: number | null = null;
+      let preloaderCleanup: (() => void) | null = null;
 
       const waitNextFrame = () =>
         new Promise<void>((resolve) => {
           requestAnimationFrame(() => resolve());
+        });
+
+      const waitForPreloaderDismissed = () =>
+        new Promise<void>((resolve) => {
+          if (cancelled || typeof window === 'undefined') {
+            resolve();
+            return;
+          }
+          const preloaderEl = document.getElementById('monvian-app-preloader');
+          const alreadyDismissed =
+            Boolean((window as any).__monvianPreloaderDismissed) ||
+            !preloaderEl ||
+            preloaderEl.style.display === 'none' ||
+            preloaderEl.style.opacity === '0';
+          if (alreadyDismissed) {
+            resolve();
+            return;
+          }
+          let done = false;
+          const finish = () => {
+            if (done) return;
+            done = true;
+            window.removeEventListener('monvian:preloader-dismissed', finish);
+            window.clearTimeout(fallbackTimer);
+            preloaderCleanup = null;
+            resolve();
+          };
+          const fallbackTimer = window.setTimeout(finish, 3600);
+          window.addEventListener('monvian:preloader-dismissed', finish, { once: true });
+          preloaderCleanup = () => {
+            if (done) return;
+            done = true;
+            window.removeEventListener('monvian:preloader-dismissed', finish);
+            window.clearTimeout(fallbackTimer);
+          };
+        });
+
+      const waitForStyleReady = () =>
+        new Promise<void>((resolve) => {
+          if (cancelled) {
+            resolve();
+            return;
+          }
+          try {
+            if (map.isStyleLoaded()) {
+              resolve();
+              return;
+            }
+          } catch {}
+          let done = false;
+          const finish = () => {
+            if (done) return;
+            done = true;
+            map.off('style.load', finish);
+            map.off('load', finish);
+            window.clearTimeout(timerId);
+            resolve();
+          };
+          const timerId = window.setTimeout(finish, 500);
+          map.once('style.load', finish);
+          map.once('load', finish);
         });
 
       const animateCamera = (
@@ -2051,7 +2119,7 @@ export const MapComponent = memo(
             window.clearTimeout(timerId);
             resolve();
           };
-          const timerId = window.setTimeout(onEnd, durationMs + 160);
+          const timerId = window.setTimeout(onEnd, durationMs + 180);
           map.on('moveend', onEnd);
           try {
             if (method === 'flyTo') {
@@ -2082,6 +2150,65 @@ export const MapComponent = memo(
         });
       };
 
+      const spinGlobe360 = (
+        durationMs: number,
+        startLng: number,
+        startLat: number,
+        endLat: number,
+        orbitalZoom: number
+      ) =>
+        new Promise<void>((resolve) => {
+          if (cancelled) {
+            resolve();
+            return;
+          }
+          // C1-continuous medium-speed orbital rotation: steady 360-degree spin across 72%
+          // followed by a gentle deceleration over the final 28% as Brazil aligns dead-center
+          const LINEAR_END = 0.72;
+          const SPEED = 1 / (LINEAR_END + (1 - LINEAR_END) / 2);
+          const computeSpinProgress = (t: number) => {
+            if (t <= 0) return 0;
+            if (t >= 1) return 1;
+            if (t < LINEAR_END) return SPEED * t;
+            const u = (t - LINEAR_END) / (1 - LINEAR_END);
+            return SPEED * LINEAR_END + SPEED * ((1 - LINEAR_END) / 2) * (2 * u - u * u);
+          };
+
+          const startTime = performance.now();
+          const tick = (now: number) => {
+            if (cancelled) {
+              spinRafId = null;
+              resolve();
+              return;
+            }
+            const t = Math.min(1, (now - startTime) / durationMs);
+            const p = computeSpinProgress(t);
+            const rawLng = startLng - 360 * p;
+            const wrappedLng = ((((rawLng + 180) % 360) + 360) % 360) - 180;
+            const latT = Math.max(0, (t - 0.45) / 0.55);
+            const smoothLatT = latT * latT * (3 - 2 * latT);
+            const currentLat = startLat + (endLat - startLat) * smoothLatT;
+
+            try {
+              map.jumpTo({
+                center: [wrappedLng, currentLat],
+                zoom: orbitalZoom,
+                pitch: 0,
+                bearing: 0,
+              });
+            } catch {}
+
+            if (t < 1) {
+              spinRafId = requestAnimationFrame(tick);
+            } else {
+              spinRafId = null;
+              resolve();
+            }
+          };
+
+          spinRafId = requestAnimationFrame(tick);
+        });
+
       const runChoreographedGlobeFlight = async () => {
         setFollowModeRef.current(false);
         setInteractionsEnabled(false);
@@ -2092,29 +2219,37 @@ export const MapComponent = memo(
               window.matchMedia?.('(prefers-reduced-motion: reduce)')?.matches
           );
           const orbitalZoom = getOrbitalEarthZoom();
-          const camposTarget = getCamposOverviewCameraRef.current(map);
           const finalPitch = is3DModeRef.current ? 60 : 0;
           const finalBearing = is3DModeRef.current ? -20 : 0;
+          const startLng = CAMPOS_OVERVIEW_CENTER[0];
+          const startLat = -12;
+          const alignLat = -18.5;
 
           try {
             map.setProjection({ type: 'globe' });
             map.setSky(getCleanSpaceSky(themeRef.current));
           } catch {}
 
-          // Ensure Stage A orbital Earth framing at exact entry, then begin descent immediately
-          if (Math.abs(map.getZoom() - orbitalZoom) > 0.35) {
+          // Position the full 3D Earth sphere cleanly at orbital zoom before the preloader fades
+          try {
             map.jumpTo({
-              center: [-22, -10],
+              center: [startLng, startLat],
               zoom: orbitalZoom,
               pitch: 0,
               bearing: 0,
             });
-          }
+          } catch {}
+
+          await Promise.all([waitForPreloaderDismissed(), waitForStyleReady()]);
+          if (cancelled) return;
 
           await waitNextFrame();
           if (cancelled) return;
 
+          isGlobeSpinActiveRef.current = true;
+
           if (prefersReduced) {
+            const camposTarget = getCamposOverviewCameraRef.current(map);
             await animateCamera('easeTo', {
               center: camposTarget.center,
               zoom: camposTarget.zoom,
@@ -2124,131 +2259,34 @@ export const MapComponent = memo(
               easing: (t) => 1 - Math.pow(1 - t, 3),
             });
           } else {
-            const smoothEase = (t: number) =>
+            // Stage 1: Full 360-degree Earth sphere rotation at medium speed for 2.5 seconds
+            await spinGlobe360(2500, startLng, startLat, alignLat, orbitalZoom);
+            if (cancelled) return;
+
+            // Stage 2: Single continuous, silky smooth zoom straight into Campos do Jordão
+            const camposTarget = getCamposOverviewCameraRef.current(map);
+            const smoothCubicInOut = (t: number) =>
               t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
 
-            // Stage C.1-3: Rotate gently & approach South America immediately
             await animateCamera('easeTo', {
-              center: [-58.5, -16.5],
-              zoom: Math.max(2.45, orbitalZoom + 1.55),
-              pitch: 10,
-              bearing: -4,
-              duration: 1180,
-              easing: smoothEase,
+              center: camposTarget.center,
+              zoom: camposTarget.zoom,
+              pitch: finalPitch,
+              bearing: finalBearing,
+              duration: 2350,
+              easing: smoothCubicInOut,
             });
-            if (cancelled) return;
-
-            // Stage C.4: Approach Brazil
-            await animateCamera('easeTo', {
-              center: [-48.6, -18.5],
-              zoom: 4.5,
-              pitch: 20,
-              bearing: -8,
-              duration: 1040,
-              easing: smoothEase,
-            });
-            if (cancelled) return;
-
-            // Stage B + C.5-6: Non-blocking check of real device location fix
-            const gpsState = gpsNavigationManager.getState();
-            const hasRealUserLocation = Boolean(
-              gpsState.hasRealFix &&
-                gpsState.status === 'granted' &&
-                Array.isArray(gpsState.coords) &&
-                Number.isFinite(gpsState.coords[0]) &&
-                Number.isFinite(gpsState.coords[1])
-            );
-
-            if (hasRealUserLocation) {
-              const [userLng, userLat] = gpsState.coords;
-              latestUserCoordsRef.current = [userLng, userLat];
-              ensureUserMarkerRef.current(map);
-              userMarkerRef.current?.setLngLat([userLng, userLat]);
-
-              const distKm =
-                calculateHaversineDistance(
-                  userLng,
-                  userLat,
-                  camposTarget.center[0],
-                  camposTarget.center[1]
-                ) / 1000;
-
-              if (distKm > 18) {
-                // Pass smoothly through user's identified region, then glide continuously to Campos do Jordão
-                const regionalZoom = distKm > 1500 ? 5.8 : distKm > 300 ? 7.8 : 9.4;
-                await animateCamera(distKm > 1500 ? 'flyTo' : 'easeTo', {
-                  center: [userLng, userLat],
-                  zoom: regionalZoom,
-                  pitch: 26,
-                  bearing: -10,
-                  curve: 1.2,
-                  duration: distKm > 1500 ? 1280 : 1020,
-                  easing: smoothEase,
-                });
-                if (cancelled) return;
-
-                // Stage D: Smooth continuous glide into Campos do Jordão
-                await animateCamera(distKm > 1500 ? 'flyTo' : 'easeTo', {
-                  center: camposTarget.center,
-                  zoom: camposTarget.zoom,
-                  pitch: finalPitch,
-                  bearing: finalBearing,
-                  curve: 1.15,
-                  duration: distKm > 1500 ? 1380 : 1140,
-                  easing: smoothEase,
-                });
-              } else {
-                // User is already in Campos do Jordão region: state -> user area -> full spot overview
-                await animateCamera('easeTo', {
-                  center: [userLng, userLat],
-                  zoom: 9.2,
-                  pitch: 26,
-                  bearing: -12,
-                  duration: 920,
-                  easing: smoothEase,
-                });
-                if (cancelled) return;
-
-                await animateCamera('easeTo', {
-                  center: camposTarget.center,
-                  zoom: camposTarget.zoom,
-                  pitch: finalPitch,
-                  bearing: finalBearing,
-                  duration: 1080,
-                  easing: (t) => 1 - Math.pow(1 - t, 3),
-                });
-              }
-            } else {
-              // GPS denied or still acquiring: smooth São Paulo state -> Campos do Jordão approach
-              await animateCamera('easeTo', {
-                center: [-46.6, -23.15],
-                zoom: 7.4,
-                pitch: 26,
-                bearing: -10,
-                duration: 960,
-                easing: smoothEase,
-              });
-              if (cancelled) return;
-
-              await animateCamera('easeTo', {
-                center: camposTarget.center,
-                zoom: camposTarget.zoom,
-                pitch: finalPitch,
-                bearing: finalBearing,
-                duration: 1120,
-                easing: (t) => 1 - Math.pow(1 - t, 3),
-              });
-            }
           }
 
           if (cancelled) return;
 
-          // Immediately transition from 3D Earth sphere to flat Mercator world upon arrival in Campos do Jordão
+          // Transition from 3D Earth sphere to flat Mercator world upon arrival in Campos do Jordão
           try {
             map.setProjection({ type: 'mercator' });
             map.setSky(undefined);
           } catch {}
 
+          isGlobeSpinActiveRef.current = false;
           hasCompletedGlobeFlightRef.current = true;
           hasFramedInitialSpotsRef.current = true;
           hasUserMovedMapRef.current = false;
@@ -2256,11 +2294,12 @@ export const MapComponent = memo(
           setIsSpaceBackgroundActive(false);
           const userMarkerEl = userMarkerRef.current?.getElement();
           if (userMarkerEl) {
-            userMarkerEl.style.opacity = '1';
+            userMarkerEl.style.opacity = workflowModeRef.current === 'ITINERARY' ? '0' : '1';
           }
           syncMarkerHighlight(selectedSpotRef.current?.id);
           onGlobeIntroCompleteRef.current?.();
         } finally {
+          isGlobeSpinActiveRef.current = false;
           setInteractionsEnabled(true);
         }
       };
@@ -2269,6 +2308,15 @@ export const MapComponent = memo(
 
       return () => {
         cancelled = true;
+        isGlobeSpinActiveRef.current = false;
+        if (spinRafId !== null) {
+          cancelAnimationFrame(spinRafId);
+          spinRafId = null;
+        }
+        if (preloaderCleanup) {
+          preloaderCleanup();
+          preloaderCleanup = null;
+        }
         try {
           map.stop();
         } catch {}
@@ -2487,6 +2535,9 @@ export const MapComponent = memo(
       containerEl: HTMLDivElement;
       pulseScaleWrapEl: HTMLDivElement;
       badgeEl: HTMLDivElement;
+      pinBgSvg?: SVGSVGElement;
+      pinPathEl?: SVGPathElement;
+      photoCircleEl?: HTMLDivElement;
       pulseEl: HTMLDivElement;
       orderBadgeEl: HTMLDivElement;
       imgEl: HTMLImageElement;
@@ -2675,17 +2726,23 @@ export const MapComponent = memo(
             } else {
               rec.pulseScaleWrapEl.classList.remove('is-selected');
             }
-          } else if (mode === 'SELECT' && isSelected) {
-            rec.badgeEl.style.border = '3px solid #FFFFFF';
-            rec.badgeEl.style.boxShadow =
-              '0 8px 20px rgba(0, 0, 0, 0.42), 0 0 0 3px rgba(0, 0, 0, 0.85)';
-          } else {
-            rec.badgeEl.style.border = isSelected
-              ? '3px solid #FFFFFF'
-              : '2.5px solid #FFFFFF';
-            rec.badgeEl.style.boxShadow = isSelected
-              ? '0 8px 20px rgba(0, 0, 0, 0.38), 0 0 0 2px rgba(255, 255, 255, 0.92)'
-              : '0 4px 10px rgba(0, 0, 0, 0.30)';
+          } else if (rec.pinPathEl && rec.pinBgSvg && rec.photoCircleEl) {
+            if (mode === 'SELECT' && isSelected) {
+              rec.photoCircleEl.style.inset = '3px';
+              rec.pinPathEl.setAttribute('stroke', 'rgba(0, 0, 0, 0.85)');
+              rec.pinPathEl.setAttribute('stroke-width', '5');
+              rec.pinBgSvg.style.filter = 'drop-shadow(0 6px 12px rgba(0, 0, 0, 0.40))';
+            } else if (isSelected) {
+              rec.photoCircleEl.style.inset = '3px';
+              rec.pinPathEl.setAttribute('stroke', 'rgba(255, 255, 255, 0.92)');
+              rec.pinPathEl.setAttribute('stroke-width', '3');
+              rec.pinBgSvg.style.filter = 'drop-shadow(0 6px 12px rgba(0, 0, 0, 0.36))';
+            } else {
+              rec.photoCircleEl.style.inset = '2.5px';
+              rec.pinPathEl.setAttribute('stroke', 'none');
+              rec.pinPathEl.setAttribute('stroke-width', '0');
+              rec.pinBgSvg.style.filter = 'drop-shadow(0 3px 5px rgba(0, 0, 0, 0.28))';
+            }
           }
 
           if (rec.pulseEl) {
@@ -3496,6 +3553,10 @@ export const MapComponent = memo(
           imgEl.src = getSpotFallbackImage(spot.name, spot.category);
         };
 
+        let pinBgSvg: SVGSVGElement | undefined;
+        let pinPathEl: SVGPathElement | undefined;
+        let photoCircleEl: HTMLDivElement | undefined;
+
         if (isStar) {
           const starBgSvg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
           starBgSvg.setAttribute('viewBox', '0 0 100 104');
@@ -3519,15 +3580,61 @@ export const MapComponent = memo(
           badgeEl.appendChild(starBgSvg);
           badgeEl.appendChild(photoMaskEl);
         } else {
-          badgeEl.style.borderRadius = '9999px';
-          badgeEl.style.overflow = 'hidden';
-          badgeEl.style.backgroundColor = '#18181B';
-          badgeEl.style.border = isSelected ? '3px solid #FFFFFF' : '2.5px solid #FFFFFF';
-          badgeEl.style.boxShadow = isSelected
-            ? '0 8px 20px rgba(0, 0, 0, 0.38), 0 0 0 2px rgba(255, 255, 255, 0.92)'
-            : '0 4px 10px rgba(0, 0, 0, 0.30)';
+          badgeEl.style.overflow = 'visible';
+
+          const isSelectPicked = workflowModeRef.current === 'SELECT' && isSelected;
+          const PHOTO_PIN_PATH =
+            'M 12.79 40.33 A 21 21 0 1 1 29.21 40.33 C 26.26 41.58 23.6 44.6 21.7 48.2 Q 21 49.4 20.3 48.2 C 18.4 44.6 15.74 41.58 12.79 40.33 Z';
+
+          pinBgSvg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+          pinBgSvg.setAttribute('viewBox', '0 0 42 50');
+          pinBgSvg.setAttribute('aria-hidden', 'true');
+          pinBgSvg.style.position = 'absolute';
+          pinBgSvg.style.top = '0';
+          pinBgSvg.style.left = '0';
+          pinBgSvg.style.width = `${markerSize}px`;
+          pinBgSvg.style.height = `${Math.round((markerSize * 50) / 42)}px`;
+          pinBgSvg.style.overflow = 'visible';
+          pinBgSvg.style.pointerEvents = 'none';
+          pinBgSvg.style.filter = isSelectPicked
+            ? 'drop-shadow(0 6px 12px rgba(0, 0, 0, 0.40))'
+            : isSelected
+              ? 'drop-shadow(0 6px 12px rgba(0, 0, 0, 0.36))'
+              : 'drop-shadow(0 3px 5px rgba(0, 0, 0, 0.28))';
+
+          pinPathEl = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+          pinPathEl.setAttribute('d', PHOTO_PIN_PATH);
+          pinPathEl.setAttribute('fill', '#FFFFFF');
+          pinPathEl.setAttribute('stroke-linejoin', 'round');
+          pinPathEl.setAttribute('paint-order', 'stroke fill');
+          pinPathEl.setAttribute(
+            'stroke',
+            isSelectPicked
+              ? 'rgba(0, 0, 0, 0.85)'
+              : isSelected
+                ? 'rgba(255, 255, 255, 0.92)'
+                : 'none'
+          );
+          pinPathEl.setAttribute(
+            'stroke-width',
+            isSelectPicked ? '5' : isSelected ? '3' : '0'
+          );
+          pinBgSvg.appendChild(pinPathEl);
+
+          photoCircleEl = document.createElement('div');
+          photoCircleEl.style.position = 'absolute';
+          photoCircleEl.style.inset = isSelected ? '3px' : '2.5px';
+          photoCircleEl.style.borderRadius = '9999px';
+          photoCircleEl.style.overflow = 'hidden';
+          photoCircleEl.style.backgroundColor = '#18181B';
+          photoCircleEl.style.zIndex = '1';
+          photoCircleEl.style.transform = 'translateZ(0)';
+
           imgEl.style.borderRadius = '9999px';
-          badgeEl.appendChild(imgEl);
+          photoCircleEl.appendChild(imgEl);
+
+          badgeEl.appendChild(pinBgSvg);
+          badgeEl.appendChild(photoCircleEl);
         }
 
         // Order badge pill shown ONLY in SELECT mode for picked spots
@@ -3605,6 +3712,9 @@ export const MapComponent = memo(
           containerEl,
           pulseScaleWrapEl,
           badgeEl,
+          pinBgSvg,
+          pinPathEl,
+          photoCircleEl,
           pulseEl,
           orderBadgeEl,
           imgEl,

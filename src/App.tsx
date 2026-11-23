@@ -421,11 +421,24 @@ export default function App() {
   });
   const [isGlobeIntroPending, setIsGlobeIntroPending] = useState<boolean>(() => {
     try {
+      const token = localStorage.getItem('monvian_token');
       const savedUser = localStorage.getItem('monvian_user');
-      if (!savedUser) return false;
+      if (!token || !savedUser) return false;
       const parsed = JSON.parse(savedUser);
       const email = String(parsed?.email || parsed?.whatsapp || '').trim().toLowerCase();
       if (!email) return false;
+      const needsOnboarding = Boolean(
+        parsed?.onboarding_completed === 0 ||
+          (parsed?.onboarding_completed !== 1 &&
+            localStorage.getItem(`monvian_smart_onboarding_pending_${email}`) === '1')
+      );
+      const needsWelcome = Boolean(
+        !needsOnboarding &&
+          parsed?.welcome_card_seen !== 1 &&
+          localStorage.getItem(`monvian_first_welcome_seen_${email}`) !== '1' &&
+          localStorage.getItem(`monvian_first_welcome_pending_${email}`) === '1'
+      );
+      if (needsOnboarding || needsWelcome) return true;
       if (parsed?.globe_intro_seen === 1) return false;
       if (localStorage.getItem(`monvian_globe_intro_seen_${email}`) === '1') return false;
       return localStorage.getItem(`monvian_globe_intro_pending_${email}`) === '1';
@@ -433,7 +446,34 @@ export default function App() {
       return false;
     }
   });
-  const [isGlobeIntroPlaying, setIsGlobeIntroPlaying] = useState<boolean>(false);
+  const [isGlobeIntroPlaying, setIsGlobeIntroPlaying] = useState<boolean>(() => {
+    try {
+      const token = localStorage.getItem('monvian_token');
+      const savedUser = localStorage.getItem('monvian_user');
+      if (!token || !savedUser) return false;
+      const parsed = JSON.parse(savedUser);
+      const email = String(parsed?.email || parsed?.whatsapp || '').trim().toLowerCase();
+      if (!email) return false;
+      const needsOnboarding = Boolean(
+        parsed?.onboarding_completed === 0 ||
+          (parsed?.onboarding_completed !== 1 &&
+            localStorage.getItem(`monvian_smart_onboarding_pending_${email}`) === '1')
+      );
+      const needsWelcome = Boolean(
+        !needsOnboarding &&
+          parsed?.welcome_card_seen !== 1 &&
+          localStorage.getItem(`monvian_first_welcome_seen_${email}`) !== '1' &&
+          localStorage.getItem(`monvian_first_welcome_pending_${email}`) === '1'
+      );
+      return !needsOnboarding && !needsWelcome;
+    } catch {
+      return false;
+    }
+  });
+  const globeIntroSourceRef = useRef<'app-open' | 'post-signup'>(
+    isGlobeIntroPending ? 'post-signup' : 'app-open'
+  );
+  const hasStartedAppOpenGlobeRef = useRef<boolean>(isGlobeIntroPlaying);
   const [isMapTutorialOpen, setIsMapTutorialOpen] = useState<boolean>(false);
   const [isMapTutorialMounted, setIsMapTutorialMounted] = useState<boolean>(false);
   const [verifiedTutorialUserKey, setVerifiedTutorialUserKey] = useState<string | null>(null);
@@ -699,6 +739,8 @@ export default function App() {
     // 2. Keep 'landing' as default on session expiration; open 'login' only on explicit Profile sign-out
     setAuthInitialMode(shouldRedirectToLogin ? 'login' : 'landing');
     hasExecutedSignupIntroRef.current = false;
+    hasStartedAppOpenGlobeRef.current = false;
+    globeIntroSourceRef.current = 'app-open';
     setIsOnboardingItinerarySelection(false);
     setShowFirstSignupWelcome(false);
     setIsGlobeIntroPending(false);
@@ -790,6 +832,7 @@ export default function App() {
               (normalized.onboarding_completed !== 1 &&
                 localStorage.getItem(`monvian_smart_onboarding_pending_${userEmail}`) === '1')
           );
+          let needsWelcomeCard = false;
           if (needsSmartOnboarding) {
             localStorage.setItem(`monvian_smart_onboarding_pending_${userEmail}`, '1');
             setShowOnboardingQuestions(true);
@@ -805,19 +848,26 @@ export default function App() {
               localStorage.getItem(`monvian_first_welcome_seen_${userEmail}`) !== '1' &&
               localStorage.getItem(`monvian_first_welcome_pending_${userEmail}`) === '1'
             ) {
+              needsWelcomeCard = true;
               setShowFirstSignupWelcome(true);
             }
           }
-          if (normalized.globe_intro_seen === 1) {
-            localStorage.setItem(`monvian_globe_intro_seen_${userEmail}`, '1');
-            localStorage.removeItem(`monvian_globe_intro_pending_${userEmail}`);
-            setIsGlobeIntroPending(false);
-            setIsGlobeIntroPlaying(false);
-          } else if (
-            localStorage.getItem(`monvian_globe_intro_seen_${userEmail}`) !== '1' &&
-            localStorage.getItem(`monvian_globe_intro_pending_${userEmail}`) === '1'
-          ) {
+
+          if (needsSmartOnboarding || needsWelcomeCard) {
+            globeIntroSourceRef.current = 'post-signup';
             setIsGlobeIntroPending(true);
+            setIsGlobeIntroPlaying(false);
+          } else {
+            if (normalized.globe_intro_seen === 1) {
+              localStorage.setItem(`monvian_globe_intro_seen_${userEmail}`, '1');
+              localStorage.removeItem(`monvian_globe_intro_pending_${userEmail}`);
+            }
+            if (!hasStartedAppOpenGlobeRef.current) {
+              hasStartedAppOpenGlobeRef.current = true;
+              globeIntroSourceRef.current = 'app-open';
+              setIsGlobeIntroPending(false);
+              setIsGlobeIntroPlaying(true);
+            }
           }
         } catch {}
       }
@@ -2341,10 +2391,7 @@ export default function App() {
       }
     } catch {}
 
-    const shouldPlayGlobeFlight = Boolean(
-      isGlobeIntroPending &&
-        user?.globe_intro_seen !== 1
-    );
+    const shouldPlayGlobeFlight = Boolean(isGlobeIntroPending);
 
     if (shouldPlayGlobeFlight) {
       try {
@@ -2371,6 +2418,8 @@ export default function App() {
       if (String(user?.map_tutorial_status || '').trim().toLowerCase() === 'pending') {
         void loadMapOnboardingTutorial();
       }
+      globeIntroSourceRef.current = 'post-signup';
+      hasStartedAppOpenGlobeRef.current = true;
       setIsDiscoveryPanelClosed(true);
       setIsGlobeIntroPending(false);
       setIsGlobeIntroPlaying(true);
@@ -2397,9 +2446,10 @@ export default function App() {
     setIsGlobeIntroPlaying(false);
     setIsGlobeIntroPending(false);
     setExplorarEntranceTick((prev) => prev + 1);
+    const isPostSignup = globeIntroSourceRef.current === 'post-signup';
     const isTutorialPending =
       String(user?.map_tutorial_status || '').trim().toLowerCase() === 'pending';
-    if (!isTutorialPending) {
+    if (isPostSignup && !isTutorialPending) {
       hasTriggeredMainAppConfettiRef.current = true;
       setArrivalConfettiTrigger((prev) => prev + 1);
     }
@@ -2792,79 +2842,6 @@ export default function App() {
     setSelectedSpotIdsForItinerary([]);
     setMapWorkflowMode('EXPLORE');
   }, [isMapTutorialOpen, tutorialActiveStepId, clearActiveRoute]);
-
-  // Automatically trigger 3D White & Silver Confetti burst once per app opening (deferred during new-user tutorial until Tudo pronto)
-  useEffect(() => {
-    if (isAuthChecking) return;
-
-    const isPreloaderFinished = () => {
-      if (typeof window === 'undefined') return true;
-      if ((window as any).__monvianPreloaderDismissed === true) return true;
-      const el = document.getElementById('monvian-app-preloader');
-      if (!el) return true;
-      return el.style.display === 'none' || el.style.opacity === '0';
-    };
-
-    // 1. Authenticated main app open (over the map and components)
-    if (isAuthenticated && authenticatedViews) {
-      if (
-        showOnboardingQuestions ||
-        showFirstSignupWelcome ||
-        isGlobeIntroPending ||
-        isGlobeIntroPlaying ||
-        isMapTutorialOpen ||
-        tutorialUserStatus === 'pending' ||
-        (tutorialUserKey && verifiedTutorialUserKey !== tutorialUserKey) ||
-        hasTriggeredMainAppConfettiRef.current
-      ) {
-        return;
-      }
-
-      const fireMainAppConfetti = () => {
-        if (hasTriggeredMainAppConfettiRef.current) return;
-        hasTriggeredMainAppConfettiRef.current = true;
-        hasTriggeredInitialBootConfettiRef.current = true;
-        setArrivalConfettiTrigger((prev) => prev + 1);
-      };
-
-      if (isPreloaderFinished()) {
-        const t = window.setTimeout(fireMainAppConfetti, 80);
-        return () => window.clearTimeout(t);
-      }
-
-      const onPreloaderDismissed = () => {
-        window.setTimeout(fireMainAppConfetti, 90);
-      };
-      window.addEventListener('monvian:preloader-dismissed', onPreloaderDismissed, { once: true });
-      const fallbackTimer = window.setTimeout(fireMainAppConfetti, 2200);
-
-      return () => {
-        window.removeEventListener('monvian:preloader-dismissed', onPreloaderDismissed);
-        window.clearTimeout(fallbackTimer);
-      };
-    }
-
-    // 2. Unauthenticated initial app open (if app opens on welcome/auth screen without an active session)
-    if (!isAuthenticated && !hasTriggeredInitialBootConfettiRef.current) {
-      hasTriggeredInitialBootConfettiRef.current = true;
-      const t = window.setTimeout(() => {
-        setArrivalConfettiTrigger((prev) => prev + 1);
-      }, 120);
-      return () => window.clearTimeout(t);
-    }
-  }, [
-    isAuthChecking,
-    isAuthenticated,
-    authenticatedViews,
-    showOnboardingQuestions,
-    showFirstSignupWelcome,
-    isGlobeIntroPending,
-    isGlobeIntroPlaying,
-    isMapTutorialOpen,
-    tutorialUserStatus,
-    tutorialUserKey,
-    verifiedTutorialUserKey,
-  ]);
 
   const handleAirbnbCardAction = useCallback(() => {
     if (!airbnbCardTab) return;
@@ -3654,6 +3631,7 @@ export default function App() {
                     cleanEmail &&
                     localStorage.getItem(`monvian_smart_onboarding_pending_${cleanEmail}`) === '1')
               );
+              let loginNeedsWelcomeCard = false;
               if (needsSmartOnboarding) {
                 try {
                   if (cleanEmail) {
@@ -3676,31 +3654,31 @@ export default function App() {
                   }
                 } catch {}
                 setShowOnboardingQuestions(false);
-                const needsWelcomeCard = Boolean(
+                loginNeedsWelcomeCard = Boolean(
                   !normalizedUser?.welcome_card_seen &&
                     cleanEmail &&
                     localStorage.getItem(`monvian_first_welcome_seen_${cleanEmail}`) !== '1' &&
                     localStorage.getItem(`monvian_first_welcome_pending_${cleanEmail}`) === '1'
                 );
-                setShowFirstSignupWelcome(needsWelcomeCard);
+                setShowFirstSignupWelcome(loginNeedsWelcomeCard);
               }
 
-              const hasSeenGlobeIntro = Boolean(
-                normalizedUser?.globe_intro_seen === 1 ||
-                  (!isNewAccount && cleanEmail && localStorage.getItem(`monvian_globe_intro_seen_${cleanEmail}`) === '1')
-              );
-              if (isNewAccount && !hasSeenGlobeIntro) {
+              if (isNewAccount || needsSmartOnboarding || loginNeedsWelcomeCard) {
                 try {
                   if (cleanEmail) {
                     localStorage.removeItem(`monvian_globe_intro_seen_${cleanEmail}`);
                     localStorage.setItem(`monvian_globe_intro_pending_${cleanEmail}`, '1');
                   }
                 } catch {}
+                globeIntroSourceRef.current = 'post-signup';
+                hasStartedAppOpenGlobeRef.current = true;
                 setIsGlobeIntroPending(true);
                 setIsGlobeIntroPlaying(false);
               } else {
+                globeIntroSourceRef.current = 'app-open';
+                hasStartedAppOpenGlobeRef.current = true;
                 setIsGlobeIntroPending(false);
-                setIsGlobeIntroPlaying(false);
+                setIsGlobeIntroPlaying(true);
               }
 
               if (isNewAccount) {
