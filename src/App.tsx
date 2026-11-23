@@ -436,6 +436,7 @@ export default function App() {
   const [isMapTutorialOpen, setIsMapTutorialOpen] = useState<boolean>(false);
   const [isMapTutorialMounted, setIsMapTutorialMounted] = useState<boolean>(false);
   const [verifiedTutorialUserKey, setVerifiedTutorialUserKey] = useState<string | null>(null);
+  const [tutorialActiveStepId, setTutorialActiveStepId] = useState<string | null>(null);
   const [arrivalConfettiTrigger, setArrivalConfettiTrigger] = useState<number>(0);
   const hasTriggeredMainAppConfettiRef = useRef<boolean>(false);
   const hasTriggeredInitialBootConfettiRef = useRef<boolean>(false);
@@ -2380,9 +2381,17 @@ export default function App() {
     setArrivalConfettiTrigger((prev) => prev + 1);
   }, []);
 
+  const handleTutorialStepChange = useCallback((stepId: string | null) => {
+    setTutorialActiveStepId(stepId);
+  }, []);
+
   const handleFinishMapTutorial = useCallback(
     (status: 'completed' | 'skipped') => {
       setIsMapTutorialOpen(false);
+      setTutorialActiveStepId(null);
+      setIsDiscoveryPanelClosed(true);
+      setSelectedSpotIdsForItinerary([]);
+      setMapWorkflowMode('EXPLORE');
       const nowIso = new Date().toISOString();
       const cleanEmail = String(user?.email || user?.whatsapp || '').trim().toLowerCase();
       const token = (() => {
@@ -2392,6 +2401,17 @@ export default function App() {
           return undefined;
         }
       })();
+
+      if (status === 'completed') {
+        window.setTimeout(() => {
+          try {
+            if (gpsNavigationManager.getState().status === 'granted') {
+              gpsNavigationManager.refreshPositionNow();
+            }
+          } catch {}
+          mapRef.current?.recenter();
+        }, 120);
+      }
 
       setUser((prev: any) => {
         if (!prev) return prev;
@@ -2473,9 +2493,9 @@ export default function App() {
 
     if (!canStartTutorial) return;
 
-    setIsDiscoveryPanelClosed(true);
-
     if (isMapTutorialOpen) return;
+
+    setIsDiscoveryPanelClosed(true);
 
     void loadMapOnboardingTutorial();
     const timer = window.setTimeout(() => {
@@ -2525,6 +2545,91 @@ export default function App() {
     }, 340);
     return () => window.clearTimeout(t);
   }, [isMapTutorialOpen, isMapTutorialMounted]);
+
+  const spotsRefForTutorial = useRef(spots);
+  spotsRefForTutorial.current = spots;
+
+  // Synchronize interactive map tutorial workflow demonstrations (Discovery Sheet -> Criar Roteiro -> 3 spots -> Explore + GPS prep)
+  useEffect(() => {
+    if (!isMapTutorialOpen || !tutorialActiveStepId) return;
+
+    if (tutorialActiveStepId === 'open-discovery-create') {
+      setSelectedSpotIdsForItinerary([]);
+      setMapWorkflowMode('EXPLORE');
+      setIsDiscoveryPanelClosed(false);
+      setDiscoveryResetSignal((prev) => prev + 1);
+      return;
+    }
+
+    if (tutorialActiveStepId === 'select-three-spots') {
+      setIsDiscoveryPanelClosed(true);
+      setSelectedSpot(null);
+      setIsDetailOpen(false);
+      clearActiveRoute();
+      setSelectedSpotIdsForItinerary([]);
+      setMapWorkflowMode('SELECT');
+
+      const validSpots = (spotsRefForTutorial.current || []).filter(
+        (s) =>
+          s &&
+          typeof s.id === 'string' &&
+          typeof s.lat === 'number' &&
+          !isNaN(s.lat) &&
+          typeof s.lng === 'number' &&
+          !isNaN(s.lng)
+      );
+
+      if (validSpots.length === 0) return;
+
+      const preferredOrder = ['itapeva', 'krokodilo', 'capivari', 'elefante', 'tarundu', 'baden'];
+      const chosen: Spot[] = [];
+      for (const kw of preferredOrder) {
+        const match = validSpots.find(
+          (s) =>
+            (s.name || '').toLowerCase().includes(kw) &&
+            !chosen.some((c) => c.id === s.id)
+        );
+        if (match) chosen.push(match);
+        if (chosen.length >= 3) break;
+      }
+      for (const s of validSpots) {
+        if (chosen.length >= 3) break;
+        if (!chosen.some((c) => c.id === s.id)) chosen.push(s);
+      }
+
+      const timers: number[] = [];
+      chosen.forEach((spot, idx) => {
+        const delayMs = 360 + idx * 660;
+        const tid = window.setTimeout(() => {
+          setSelectedSpotIdsForItinerary((prev) =>
+            prev.includes(spot.id) ? prev : [...prev, spot.id]
+          );
+        }, delayMs);
+        timers.push(tid);
+      });
+
+      return () => {
+        timers.forEach((tid) => window.clearTimeout(tid));
+      };
+    }
+
+    if (tutorialActiveStepId === 'finish') {
+      setIsDiscoveryPanelClosed(true);
+      setSelectedSpotIdsForItinerary([]);
+      setMapWorkflowMode('EXPLORE');
+      try {
+        if (gpsNavigationManager.getState().status === 'granted') {
+          gpsNavigationManager.refreshPositionNow();
+        }
+      } catch {}
+      return;
+    }
+
+    // Standard map control tour steps keep Explore clean and sheet closed
+    setIsDiscoveryPanelClosed(true);
+    setSelectedSpotIdsForItinerary([]);
+    setMapWorkflowMode('EXPLORE');
+  }, [isMapTutorialOpen, tutorialActiveStepId, clearActiveRoute]);
 
   // Automatically trigger 3D White & Silver Confetti burst once per app opening (no click required)
   useEffect(() => {
@@ -3585,9 +3690,9 @@ export default function App() {
           !isGlobeIntroPlaying &&
           !isGlobeIntroPending &&
           !isOnboardingItinerarySelection &&
-          !isMapTutorialOpen &&
-          tutorialUserStatus !== 'pending' &&
-          !isDiscoveryPanelClosed;
+          (!isMapTutorialOpen
+            ? tutorialUserStatus !== 'pending' && !isDiscoveryPanelClosed
+            : tutorialActiveStepId === 'open-discovery-create');
 
         return (
       <main
@@ -4819,6 +4924,7 @@ export default function App() {
           userName={user?.name}
           onComplete={() => handleFinishMapTutorial('completed')}
           onSkip={() => handleFinishMapTutorial('skipped')}
+          onStepChange={handleTutorialStepChange}
         />
       </Suspense>
     )}

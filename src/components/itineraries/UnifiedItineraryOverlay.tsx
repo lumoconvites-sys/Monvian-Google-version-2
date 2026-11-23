@@ -141,6 +141,7 @@ export const SelectModeOverlay: React.FC<SelectModeOverlayProps> = memo(
           </div>
 
           <div
+            id="select-mode-top-pill"
             className={`pointer-events-auto h-11 px-4 rounded-full ios26-liquid-glass flex items-center gap-2 text-xs sm:text-sm font-bold shadow-sm ${glassTextClass}`}
             style={{ color: glassIconColor }}
           >
@@ -177,6 +178,7 @@ export const SelectModeOverlay: React.FC<SelectModeOverlayProps> = memo(
           className="w-full flex flex-col items-center px-4 pb-[90px] md:pb-8 pointer-events-none"
         >
           <div
+            id="select-mode-bottom-tray"
             className={`pointer-events-auto w-full max-w-[388px] rounded-[28px] p-3 border shadow-[0_14px_38px_rgba(0,0,0,0.22)] transition-all ${
               isDark
                 ? 'bg-[#171717]/95 border-white/15 text-white backdrop-blur-xl'

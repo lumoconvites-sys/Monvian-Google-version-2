@@ -8,6 +8,7 @@ export interface MapOnboardingTutorialProps {
   userName?: string;
   onComplete: () => void;
   onSkip: () => void;
+  onStepChange?: (stepId: string | null) => void;
 }
 
 type BalloonPlacement = 'top' | 'bottom' | 'left' | 'right' | 'center';
@@ -22,6 +23,9 @@ interface TutorialStepDefinition {
   radius: number;
   title: string;
   description: string;
+  mobileOnly?: boolean;
+  desktopOnly?: boolean;
+  deferredMount?: boolean;
 }
 
 interface SpotlightRect {
@@ -34,6 +38,8 @@ interface SpotlightRect {
   rx: number;
 }
 
+const STEP_DURATION_MS = 3000;
+
 const ALL_TUTORIAL_STEPS: TutorialStepDefinition[] = [
   {
     id: 'weather',
@@ -42,10 +48,11 @@ const ALL_TUTORIAL_STEPS: TutorialStepDefinition[] = [
     shape: 'rounded',
     padX: 10,
     padY: 6,
-    radius: 20,
+    radius: 22,
+    mobileOnly: true,
     title: 'Clima em tempo real',
     description:
-      'Acompanhe a temperatura de Campos do Jordão e toque aqui para ver o guia do que vestir hoje.',
+      'Acompanhe a temperatura de Campos do Jordão e toque para ver o guia do que vestir hoje.',
   },
   {
     id: 'desktop-weather',
@@ -54,7 +61,8 @@ const ALL_TUTORIAL_STEPS: TutorialStepDefinition[] = [
     shape: 'rounded',
     padX: 6,
     padY: 6,
-    radius: 18,
+    radius: 20,
+    desktopOnly: true,
     title: 'Clima na serra',
     description:
       'Veja a temperatura atual em Campos do Jordão e toque para abrir sugestões de vestimenta.',
@@ -90,34 +98,11 @@ const ALL_TUTORIAL_STEPS: TutorialStepDefinition[] = [
     shape: 'rounded',
     padX: 6,
     padY: 6,
-    radius: 16,
+    radius: 18,
+    desktopOnly: true,
     title: 'Filtros do mapa',
     description:
       'Filtre os pontos turísticos por categoria para encontrar exatamente o que procura.',
-  },
-  {
-    id: 'discovery-plus',
-    selector: '#btn-toggle-discovery-panel',
-    preferredPlacement: 'left',
-    shape: 'circle',
-    padX: 6,
-    padY: 6,
-    radius: 999,
-    title: 'Menu de roteiros',
-    description:
-      'Toque no + para criar seu próprio roteiro no mapa, abrir roteiros salvos ou visitar a loja.',
-  },
-  {
-    id: 'desktop-create-itinerary',
-    selector: '#desktop-create-itinerary-btn',
-    preferredPlacement: 'bottom',
-    shape: 'rounded',
-    padX: 6,
-    padY: 6,
-    radius: 999,
-    title: 'Criar roteiro no mapa',
-    description:
-      'Selecione os pontos desejados direto no mapa e monte seu passeio personalizado.',
   },
   {
     id: 'compass',
@@ -151,9 +136,63 @@ const ALL_TUTORIAL_STEPS: TutorialStepDefinition[] = [
     padX: 6,
     padY: 6,
     radius: 999,
+    mobileOnly: true,
     title: 'Navegação principal',
     description:
       'Alterne entre Roteiros, Salvos, Mapa, Busca inteligente e o seu Perfil a qualquer momento.',
+  },
+  {
+    id: 'discovery-plus',
+    selector: '#btn-toggle-discovery-panel',
+    preferredPlacement: 'left',
+    shape: 'circle',
+    padX: 6,
+    padY: 6,
+    radius: 999,
+    mobileOnly: true,
+    title: 'Menu de roteiros',
+    description:
+      'Toque no + para abrir a aba de roteiros, acessar seus passeios salvos e explorar a loja.',
+  },
+  {
+    id: 'open-discovery-create',
+    selector: '#discovery-card-create-itinerary',
+    preferredPlacement: 'top',
+    shape: 'rounded',
+    padX: 6,
+    padY: 6,
+    radius: 26,
+    mobileOnly: true,
+    deferredMount: true,
+    title: 'Criar roteiro personalizado',
+    description:
+      'Abrindo o menu, toque em Criar roteiro para escolher seus pontos favoritos no mapa.',
+  },
+  {
+    id: 'desktop-create-itinerary',
+    selector: '#desktop-create-itinerary-btn',
+    preferredPlacement: 'bottom',
+    shape: 'rounded',
+    padX: 6,
+    padY: 6,
+    radius: 999,
+    desktopOnly: true,
+    title: 'Criar roteiro no mapa',
+    description:
+      'Toque em Criar roteiro para selecionar seus pontos favoritos direto no mapa.',
+  },
+  {
+    id: 'select-three-spots',
+    selector: '#select-mode-bottom-tray',
+    preferredPlacement: 'top',
+    shape: 'rounded',
+    padX: 6,
+    padY: 6,
+    radius: 30,
+    deferredMount: true,
+    title: 'Selecione os pontos no mapa',
+    description:
+      'Escolha os locais na ordem desejada e acompanhe seu trajeto pronto antes de continuar.',
   },
   {
     id: 'finish',
@@ -163,9 +202,9 @@ const ALL_TUTORIAL_STEPS: TutorialStepDefinition[] = [
     padX: 0,
     padY: 0,
     radius: 0,
-    title: 'Pronto para explorar',
+    title: 'Tudo pronto!',
     description:
-      'Toque nos locais do mapa, descubra experiências exclusivas e viva Campos do Jordão no seu ritmo.',
+      'Vamos aproximar na sua localização para você explorar Campos do Jordão no seu ritmo.',
   },
 ];
 
@@ -193,7 +232,13 @@ function isElementVisiblyMounted(selector: string | null): boolean {
 }
 
 function getVisibleTutorialSteps(): TutorialStepDefinition[] {
-  const filtered = ALL_TUTORIAL_STEPS.filter((step) => isElementVisiblyMounted(step.selector));
+  const isDesktop = typeof window !== 'undefined' && window.innerWidth >= 768;
+  const filtered = ALL_TUTORIAL_STEPS.filter((step) => {
+    if (step.mobileOnly && isDesktop) return false;
+    if (step.desktopOnly && !isDesktop) return false;
+    if (step.deferredMount || !step.selector) return true;
+    return isElementVisiblyMounted(step.selector);
+  });
   return filtered.length > 0 ? filtered : [ALL_TUTORIAL_STEPS[ALL_TUTORIAL_STEPS.length - 1]];
 }
 
@@ -235,6 +280,7 @@ export const MapOnboardingTutorial: React.FC<MapOnboardingTutorialProps> = ({
   userName,
   onComplete,
   onSkip,
+  onStepChange,
 }) => {
   const prefersReducedMotion = Boolean(useReducedMotion());
   const isDark = theme === 'dark';
@@ -252,9 +298,10 @@ export const MapOnboardingTutorial: React.FC<MapOnboardingTutorialProps> = ({
     w: typeof window !== 'undefined' ? window.innerWidth : 390,
     h: typeof window !== 'undefined' ? window.innerHeight : 844,
   });
+  const [isSimulatingTap, setIsSimulatingTap] = useState<boolean>(false);
 
   const balloonRef = useRef<HTMLDivElement | null>(null);
-  const [balloonSize, setBalloonSize] = useState<{ w: number; h: number }>({ w: 266, h: 170 });
+  const [balloonSize, setBalloonSize] = useState<{ w: number; h: number }>({ w: 282, h: 176 });
 
   const recomputeVisibleSteps = useCallback(() => {
     const filtered = getVisibleTutorialSteps();
@@ -274,6 +321,8 @@ export const MapOnboardingTutorial: React.FC<MapOnboardingTutorialProps> = ({
     if (!isOpen) {
       setStepIndex(0);
       setSpotlight(null);
+      setIsSimulatingTap(false);
+      onStepChange?.(null);
       return;
     }
 
@@ -303,11 +352,20 @@ export const MapOnboardingTutorial: React.FC<MapOnboardingTutorialProps> = ({
       window.clearTimeout(settleTimer1);
       window.clearTimeout(settleTimer2);
     };
-  }, [isOpen, recomputeVisibleSteps]);
+  }, [isOpen, recomputeVisibleSteps, onStepChange]);
 
   const activeStep = visibleSteps[stepIndex] || visibleSteps[visibleSteps.length - 1] || null;
   const totalSteps = visibleSteps.length;
   const isFinalStep = Boolean(activeStep && activeStep.selector === null);
+
+  // Notify parent whenever the active step changes so App.tsx can synchronize UI (e.g. discovery sheet, SELECT demo)
+  useEffect(() => {
+    if (!isOpen) {
+      onStepChange?.(null);
+      return;
+    }
+    onStepChange?.(activeStep?.id || null);
+  }, [isOpen, activeStep?.id, onStepChange]);
 
   const updatePositions = useCallback(() => {
     if (!isOpen) return;
@@ -317,12 +375,25 @@ export const MapOnboardingTutorial: React.FC<MapOnboardingTutorialProps> = ({
     }
   }, [isOpen, activeStep]);
 
+  // Continuously track target rect during spring mounts, chip additions, and viewport changes
   useEffect(() => {
     if (!isOpen) return;
     updatePositions();
 
-    const raf = requestAnimationFrame(updatePositions);
-    const t = window.setTimeout(updatePositions, 80);
+    let rafId: number | null = null;
+    const startTime = performance.now();
+    const trackSpringLoop = () => {
+      updatePositions();
+      if (performance.now() - startTime < 700) {
+        rafId = requestAnimationFrame(trackSpringLoop);
+      }
+    };
+    rafId = requestAnimationFrame(trackSpringLoop);
+
+    const settle1 = window.setTimeout(updatePositions, 90);
+    const settle2 = window.setTimeout(updatePositions, 260);
+    const settle3 = window.setTimeout(updatePositions, 520);
+
     const onResize = () => {
       recomputeVisibleSteps();
       updatePositions();
@@ -332,20 +403,46 @@ export const MapOnboardingTutorial: React.FC<MapOnboardingTutorialProps> = ({
     window.addEventListener('orientationchange', onResize);
 
     let ro: ResizeObserver | null = null;
-    if (activeStep?.selector && typeof ResizeObserver !== 'undefined') {
-      const targetEl = document.querySelector(activeStep.selector);
-      if (targetEl) {
-        ro = new ResizeObserver(updatePositions);
-        ro.observe(targetEl);
+    let mo: MutationObserver | null = null;
+
+    const attachResizeObserver = () => {
+      if (ro) {
+        ro.disconnect();
+        ro = null;
       }
+      if (activeStep?.selector && typeof ResizeObserver !== 'undefined') {
+        const targetEl = document.querySelector(activeStep.selector);
+        if (targetEl) {
+          ro = new ResizeObserver(() => {
+            updatePositions();
+          });
+          ro.observe(targetEl);
+        }
+      }
+    };
+
+    attachResizeObserver();
+
+    if (activeStep?.selector && typeof MutationObserver !== 'undefined') {
+      mo = new MutationObserver(() => {
+        attachResizeObserver();
+        updatePositions();
+      });
+      mo.observe(document.body, {
+        childList: true,
+        subtree: true,
+      });
     }
 
     return () => {
-      cancelAnimationFrame(raf);
-      window.clearTimeout(t);
+      if (rafId !== null) cancelAnimationFrame(rafId);
+      window.clearTimeout(settle1);
+      window.clearTimeout(settle2);
+      window.clearTimeout(settle3);
       window.removeEventListener('resize', onResize);
       window.removeEventListener('orientationchange', onResize);
       ro?.disconnect();
+      mo?.disconnect();
     };
   }, [isOpen, activeStep, updatePositions, recomputeVisibleSteps]);
 
@@ -359,10 +456,11 @@ export const MapOnboardingTutorial: React.FC<MapOnboardingTutorialProps> = ({
           : prev
       );
     }
-  }, [isOpen, stepIndex, activeStep?.id, viewport.w, viewport.h]);
+  }, [isOpen, stepIndex, activeStep?.id, spotlight?.top, spotlight?.height, viewport.w, viewport.h]);
 
   const handleNext = useCallback(() => {
     if (!isOpen) return;
+    setIsSimulatingTap(false);
     if (stepIndex >= totalSteps - 1) {
       onComplete();
     } else {
@@ -372,8 +470,34 @@ export const MapOnboardingTutorial: React.FC<MapOnboardingTutorialProps> = ({
 
   const handleSkipTutorial = useCallback(() => {
     if (!isOpen) return;
+    setIsSimulatingTap(false);
     onSkip();
   }, [isOpen, onSkip]);
+
+  // 3-second auto-advance timer per card + simulated click pulse right before entering SELECT mode
+  useEffect(() => {
+    if (!isOpen || !activeStep) return;
+
+    setIsSimulatingTap(false);
+    let tapHintTimer: number | null = null;
+    if (
+      activeStep.id === 'open-discovery-create' ||
+      activeStep.id === 'desktop-create-itinerary'
+    ) {
+      tapHintTimer = window.setTimeout(() => {
+        setIsSimulatingTap(true);
+      }, 2250);
+    }
+
+    const autoAdvanceTimer = window.setTimeout(() => {
+      handleNext();
+    }, STEP_DURATION_MS);
+
+    return () => {
+      if (tapHintTimer !== null) window.clearTimeout(tapHintTimer);
+      window.clearTimeout(autoAdvanceTimer);
+    };
+  }, [isOpen, activeStep?.id, stepIndex, handleNext]);
 
   // Keyboard support for accessibility & desktop users
   useEffect(() => {
@@ -382,7 +506,7 @@ export const MapOnboardingTutorial: React.FC<MapOnboardingTutorialProps> = ({
       if (e.key === 'Escape') {
         e.preventDefault();
         handleSkipTutorial();
-      } else if (e.key === 'Enter' || e.key === 'ArrowRight') {
+      } else if (e.key === 'Enter' || e.key === 'ArrowRight' || e.key === ' ') {
         e.preventDefault();
         handleNext();
       }
@@ -398,9 +522,9 @@ export const MapOnboardingTutorial: React.FC<MapOnboardingTutorialProps> = ({
     const safeH = 16;
     const safeTop = Math.max(24, vw < 768 ? 52 : 24);
     const safeBottom = Math.max(20, vw < 768 ? 26 : 20);
-    const maxW = isFinalStep ? Math.min(316, vw - safeH * 2) : Math.min(266, vw - safeH * 2);
+    const maxW = isFinalStep ? Math.min(324, vw - safeH * 2) : Math.min(284, vw - safeH * 2);
     const bW = Math.min(maxW, balloonSize.w || maxW);
-    const bH = balloonSize.h || 170;
+    const bH = balloonSize.h || 176;
 
     if (!spotlight || !activeStep || isFinalStep) {
       return {
@@ -444,7 +568,7 @@ export const MapOnboardingTutorial: React.FC<MapOnboardingTutorialProps> = ({
       const availableW = Math.min(maxW, Math.max(204, spotlight.left - safeH - gap));
       const left = clamp(spotlight.left - gap - availableW, safeH, vw - safeH - availableW);
       const top = clamp(targetCy - bH / 2, safeTop, vh - safeBottom - bH);
-      const arrowOffset = clamp(targetCy - top, 24, bH - 24);
+      const arrowOffset = clamp(targetCy - top, 28, bH - 28);
       return { placement: 'left' as BalloonPlacement, left, top, maxWidth: availableW, arrowOffset };
     }
 
@@ -452,21 +576,21 @@ export const MapOnboardingTutorial: React.FC<MapOnboardingTutorialProps> = ({
       const availableW = Math.min(maxW, Math.max(220, vw - safeH - spotlight.right - gap));
       const left = clamp(spotlight.right + gap, safeH, vw - safeH - availableW);
       const top = clamp(targetCy - bH / 2, safeTop, vh - safeBottom - bH);
-      const arrowOffset = clamp(targetCy - top, 24, bH - 24);
+      const arrowOffset = clamp(targetCy - top, 28, bH - 28);
       return { placement: 'right' as BalloonPlacement, left, top, maxWidth: availableW, arrowOffset };
     }
 
     if (chosen === 'top') {
       const left = clamp(targetCx - bW / 2, safeH, vw - safeH - maxW);
       const top = clamp(spotlight.top - gap - bH, safeTop, vh - safeBottom - bH);
-      const arrowOffset = clamp(targetCx - left, 26, Math.min(bW, maxW) - 26);
+      const arrowOffset = clamp(targetCx - left, 30, Math.min(bW, maxW) - 30);
       return { placement: 'top' as BalloonPlacement, left, top, maxWidth: maxW, arrowOffset };
     }
 
     // default: bottom
     const left = clamp(targetCx - bW / 2, safeH, vw - safeH - maxW);
     const top = clamp(spotlight.bottom + gap, safeTop, vh - safeBottom - bH);
-    const arrowOffset = clamp(targetCx - left, 26, Math.min(bW, maxW) - 26);
+    const arrowOffset = clamp(targetCx - left, 30, Math.min(bW, maxW) - 30);
     return { placement: 'bottom' as BalloonPlacement, left, top, maxWidth: maxW, arrowOffset };
   }, [viewport, spotlight, activeStep, isFinalStep, balloonSize.w, balloonSize.h]);
 
@@ -477,8 +601,9 @@ export const MapOnboardingTutorial: React.FC<MapOnboardingTutorialProps> = ({
   }, [userName]);
 
   const transitionEase = [0.22, 1, 0.36, 1] as const;
-  const backdropFill = isDark ? 'rgba(0, 0, 0, 0.64)' : 'rgba(0, 0, 0, 0.46)';
+  const backdropFill = isDark ? 'rgba(0, 0, 0, 0.62)' : 'rgba(0, 0, 0, 0.44)';
   const hasSpotlightCutout = Boolean(spotlight && !isFinalStep);
+  const isWaitingForDeferredTarget = Boolean(!isFinalStep && activeStep?.selector && !spotlight);
 
   return (
     <AnimatePresence>
@@ -488,23 +613,15 @@ export const MapOnboardingTutorial: React.FC<MapOnboardingTutorialProps> = ({
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
-          transition={{ duration: prefersReducedMotion ? 0.14 : 0.32, ease: transitionEase }}
+          transition={{ duration: prefersReducedMotion ? 0.14 : 0.3, ease: transitionEase }}
           role="dialog"
           aria-modal="true"
           aria-label="Apresentação do mapa Monvian"
-          className="fixed inset-0 z-[280] select-none overflow-hidden"
-          style={{ touchAction: 'none' }}
+          onClick={handleNext}
+          className="fixed inset-0 z-[280] select-none overflow-hidden pointer-events-auto cursor-pointer"
+          style={{ touchAction: 'manipulation' }}
         >
-          {/* Interactive tap-blocker backdrop so user remains focused on the tour */}
-          <div
-            aria-hidden="true"
-            className="fixed inset-0 pointer-events-auto"
-            onClick={(e) => {
-              e.stopPropagation();
-            }}
-          />
-
-          {/* Full-screen dimming layer when on the centered final step (or no spotlight target) */}
+          {/* Full-screen dimming layer when on the centered final step or awaiting deferred target mount */}
           <motion.div
             aria-hidden="true"
             initial={false}
@@ -514,7 +631,7 @@ export const MapOnboardingTutorial: React.FC<MapOnboardingTutorialProps> = ({
             style={{ backgroundColor: backdropFill }}
           />
 
-          {/* Hardware-friendly Spotlight Cutout + Monochrome Focus Ring (Zero WebKit SVG Mask glitches) */}
+          {/* Hardware-friendly Spotlight Cutout + Monochrome Focus Ring */}
           {spotlight && (
             <motion.div
               aria-hidden="true"
@@ -532,18 +649,19 @@ export const MapOnboardingTutorial: React.FC<MapOnboardingTutorialProps> = ({
                 width: spotlight.width,
                 height: spotlight.height,
                 borderRadius: spotlight.rx,
+                scale: isSimulatingTap ? 0.94 : 1,
                 opacity: isFinalStep ? 0 : 1,
               }}
               transition={
                 prefersReducedMotion
                   ? { duration: 0.12 }
-                  : { duration: 0.36, ease: transitionEase }
+                  : { duration: 0.34, ease: transitionEase }
               }
               className="fixed pointer-events-none"
               style={{
                 boxShadow: isDark
-                  ? `0 0 0 2600px ${backdropFill}, 0 0 0 1.5px rgba(255, 255, 255, 0.88), 0 0 24px rgba(255, 255, 255, 0.28)`
-                  : `0 0 0 2600px ${backdropFill}, 0 0 0 1.5px rgba(255, 255, 255, 0.96), 0 0 26px rgba(255, 255, 255, 0.42)`,
+                  ? `0 0 0 2600px ${backdropFill}, 0 0 0 1.5px rgba(255, 255, 255, 0.9), 0 0 26px rgba(255, 255, 255, 0.28)`
+                  : `0 0 0 2600px ${backdropFill}, 0 0 0 1.5px rgba(255, 255, 255, 0.98), 0 0 28px rgba(255, 255, 255, 0.42)`,
               }}
             >
               {!prefersReducedMotion && !isFinalStep && (
@@ -554,227 +672,268 @@ export const MapOnboardingTutorial: React.FC<MapOnboardingTutorialProps> = ({
                     borderRadius: spotlight.rx + 6,
                     border: '1px solid rgba(255, 255, 255, 0.45)',
                   }}
-                  animate={{
-                    scale: [1, 1.09, 1],
-                    opacity: [0.6, 0.08, 0.6],
-                  }}
-                  transition={{
-                    duration: 2.1,
-                    repeat: Infinity,
-                    ease: 'easeInOut',
-                  }}
+                  animate={
+                    isSimulatingTap
+                      ? { scale: [1, 1.16], opacity: [0.95, 0] }
+                      : { scale: [1, 1.08, 1], opacity: [0.58, 0.08, 0.58] }
+                  }
+                  transition={
+                    isSimulatingTap
+                      ? { duration: 0.55, ease: 'easeOut' }
+                      : { duration: 2.0, repeat: Infinity, ease: 'easeInOut' }
+                  }
                 />
               )}
             </motion.div>
           )}
 
-          {/* Compact Floating Callout Balloon with smooth step-to-step AnimatePresence transitions */}
-          <AnimatePresence mode="wait">
-            <motion.div
-              ref={balloonRef}
-              key={activeStep.id}
-              initial={
-                prefersReducedMotion
-                  ? { opacity: 0 }
-                  : {
-                      opacity: 0,
-                      scale: 0.95,
-                      y:
-                        balloonLayout.placement === 'top'
-                          ? 10
-                          : balloonLayout.placement === 'bottom'
-                            ? -10
-                            : 8,
-                      x:
-                        balloonLayout.placement === 'left'
-                          ? 10
-                          : balloonLayout.placement === 'right'
-                            ? -10
-                            : 0,
-                    }
-              }
-              animate={{ opacity: 1, scale: 1, x: 0, y: 0 }}
-              exit={
-                prefersReducedMotion
-                  ? { opacity: 0 }
-                  : {
-                      opacity: 0,
-                      scale: 0.96,
-                      y:
-                        balloonLayout.placement === 'top'
-                          ? -6
-                          : balloonLayout.placement === 'bottom'
-                            ? 6
-                            : -4,
-                    }
-              }
-              transition={{
-                duration: prefersReducedMotion ? 0.14 : 0.24,
-                ease: transitionEase,
-              }}
-              className={`fixed pointer-events-auto rounded-[22px] p-4 border backdrop-blur-2xl ${
-                isDark
-                  ? 'bg-[#171717]/94 border-white/14 text-[#FFFFFF]'
-                  : 'bg-[#FFFFFF]/96 border-black/[0.08] text-[#000000]'
-              }`}
-              style={{
-                left: balloonLayout.left,
-                top: balloonLayout.top,
-                width: balloonLayout.maxWidth,
-                boxShadow: isDark
-                  ? '0 22px 48px -12px rgba(0, 0, 0, 0.72), 0 0 0 0.5px rgba(255, 255, 255, 0.08)'
-                  : '0 22px 48px -12px rgba(0, 0, 0, 0.22), 0 4px 16px -4px rgba(0, 0, 0, 0.08)',
-                fontFamily:
-                  '-apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro Text", "Inter", sans-serif',
-              }}
-            >
-              {/* Subtle Directional Pointer Arrow */}
-              {!isFinalStep && balloonLayout.placement === 'bottom' && (
-                <span
-                  aria-hidden="true"
-                  className={`absolute -top-[6px] w-3 h-3 rotate-45 border-l border-t ${
-                    isDark
-                      ? 'bg-[#171717] border-white/14'
-                      : 'bg-[#FFFFFF] border-black/[0.08]'
-                  }`}
-                  style={{ left: balloonLayout.arrowOffset - 6 }}
-                />
-              )}
-              {!isFinalStep && balloonLayout.placement === 'top' && (
-                <span
-                  aria-hidden="true"
-                  className={`absolute -bottom-[6px] w-3 h-3 rotate-45 border-r border-b ${
-                    isDark
-                      ? 'bg-[#171717] border-white/14'
-                      : 'bg-[#FFFFFF] border-black/[0.08]'
-                  }`}
-                  style={{ left: balloonLayout.arrowOffset - 6 }}
-                />
-              )}
-              {!isFinalStep && balloonLayout.placement === 'left' && (
-                <span
-                  aria-hidden="true"
-                  className={`absolute -right-[6px] w-3 h-3 rotate-45 border-r border-t ${
-                    isDark
-                      ? 'bg-[#171717] border-white/14'
-                      : 'bg-[#FFFFFF] border-black/[0.08]'
-                  }`}
-                  style={{ top: balloonLayout.arrowOffset - 6 }}
-                />
-              )}
-              {!isFinalStep && balloonLayout.placement === 'right' && (
-                <span
-                  aria-hidden="true"
-                  className={`absolute -left-[6px] w-3 h-3 rotate-45 border-l border-b ${
-                    isDark
-                      ? 'bg-[#171717] border-white/14'
-                      : 'bg-[#FFFFFF] border-black/[0.08]'
-                  }`}
-                  style={{ top: balloonLayout.arrowOffset - 6 }}
-                />
-              )}
-
-              {/* Header row: subtle step indicator + close/skip icon */}
-              <div className="flex items-center justify-between gap-2 mb-2">
-                {isFinalStep ? (
-                  <div
-                    className={`inline-flex items-center gap-1.5 text-[11px] font-semibold tracking-tight ${
-                      isDark ? 'text-[#A3A3A3]' : 'text-[#858585]'
-                    }`}
-                  >
-                    <Compass className="w-3.5 h-3.5" strokeWidth={2} />
-                    <span>Campos do Jordão</span>
-                  </div>
-                ) : (
+          {/* Modern Rounded Floating Callout Balloon */}
+          {!isWaitingForDeferredTarget && (
+            <AnimatePresence mode="wait">
+              <motion.div
+                ref={balloonRef}
+                key={activeStep.id}
+                initial={
+                  prefersReducedMotion
+                    ? { opacity: 0 }
+                    : {
+                        opacity: 0,
+                        scale: 0.94,
+                        y:
+                          balloonLayout.placement === 'top'
+                            ? 10
+                            : balloonLayout.placement === 'bottom'
+                              ? -10
+                              : 8,
+                        x:
+                          balloonLayout.placement === 'left'
+                            ? 10
+                            : balloonLayout.placement === 'right'
+                              ? -10
+                              : 0,
+                      }
+                }
+                animate={{ opacity: 1, scale: 1, x: 0, y: 0 }}
+                exit={
+                  prefersReducedMotion
+                    ? { opacity: 0 }
+                    : {
+                        opacity: 0,
+                        scale: 0.96,
+                        y:
+                          balloonLayout.placement === 'top'
+                            ? -6
+                            : balloonLayout.placement === 'bottom'
+                              ? 6
+                              : -4,
+                      }
+                }
+                transition={{
+                  duration: prefersReducedMotion ? 0.14 : 0.24,
+                  ease: transitionEase,
+                }}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  handleNext();
+                }}
+                className={`fixed pointer-events-auto rounded-[30px] p-5 border backdrop-blur-2xl backdrop-saturate-150 transition-[left,top] duration-300 ease-[cubic-bezier(0.22,1,0.36,1)] ${
+                  isDark
+                    ? 'bg-[#171717]/95 border-white/[0.14] text-[#FFFFFF]'
+                    : 'bg-[#FFFFFF]/96 border-black/[0.08] text-[#000000]'
+                }`}
+                style={{
+                  left: balloonLayout.left,
+                  top: balloonLayout.top,
+                  width: balloonLayout.maxWidth,
+                  boxShadow: isDark
+                    ? '0 24px 52px -12px rgba(0, 0, 0, 0.78), 0 0 0 0.5px rgba(255, 255, 255, 0.1)'
+                    : '0 24px 52px -12px rgba(0, 0, 0, 0.22), 0 4px 18px -4px rgba(0, 0, 0, 0.08)',
+                  fontFamily:
+                    '-apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro Text", "Inter", sans-serif',
+                }}
+              >
+                {/* Subtle Directional Pointer Arrow */}
+                {!isFinalStep && balloonLayout.placement === 'bottom' && (
                   <span
-                    className={`text-[11px] font-semibold tracking-tight tabular-nums ${
-                      isDark ? 'text-[#A3A3A3]' : 'text-[#858585]'
-                    }`}
-                  >
-                    {stepIndex + 1} de {totalSteps}
-                  </span>
-                )}
-
-                {!isFinalStep && (
-                  <button
-                    type="button"
-                    onClick={handleSkipTutorial}
-                    aria-label="Pular apresentação"
-                    className={`-mr-1 -mt-1 p-1 rounded-full transition-colors cursor-pointer ${
+                    aria-hidden="true"
+                    className={`absolute -top-[7px] w-3.5 h-3.5 rotate-45 rounded-[3px] border-l border-t ${
                       isDark
-                        ? 'text-[#858585] hover:text-[#FFFFFF] hover:bg-white/10'
-                        : 'text-[#858585] hover:text-[#000000] hover:bg-black/5'
+                        ? 'bg-[#171717] border-white/[0.14]'
+                        : 'bg-[#FFFFFF] border-black/[0.08]'
                     }`}
-                  >
-                    <X className="w-3.5 h-3.5" strokeWidth={2.2} />
-                  </button>
+                    style={{ left: balloonLayout.arrowOffset - 7 }}
+                  />
                 )}
-              </div>
-
-              {/* Title & concise explanation */}
-              <h3
-                className={`text-[15.5px] font-semibold leading-snug tracking-[-0.015em] ${
-                  isDark ? 'text-[#FFFFFF]' : 'text-[#000000]'
-                }`}
-              >
-                {isFinalStep && firstName
-                  ? `${firstName}, tudo pronto para explorar`
-                  : activeStep.title}
-              </h3>
-
-              <p
-                className={`mt-1.5 text-[13px] leading-[1.45] font-normal ${
-                  isDark ? 'text-[#B3B3B3]' : 'text-[#525252]'
-                }`}
-              >
-                {activeStep.description}
-              </p>
-
-              {/* Progress dots + Discreet Actions */}
-              <div className="mt-4 flex items-center justify-between gap-2">
-                {!isFinalStep ? (
-                  <button
-                    type="button"
-                    onClick={handleSkipTutorial}
-                    className={`text-[12.5px] font-medium px-2 py-1 -ml-2 rounded-lg transition-colors cursor-pointer ${
+                {!isFinalStep && balloonLayout.placement === 'top' && (
+                  <span
+                    aria-hidden="true"
+                    className={`absolute -bottom-[7px] w-3.5 h-3.5 rotate-45 rounded-[3px] border-r border-b ${
                       isDark
-                        ? 'text-[#858585] hover:text-[#FFFFFF]'
-                        : 'text-[#858585] hover:text-[#000000]'
+                        ? 'bg-[#171717] border-white/[0.14]'
+                        : 'bg-[#FFFFFF] border-black/[0.08]'
                     }`}
-                  >
-                    Pular
-                  </button>
-                ) : (
-                  <div className="flex items-center gap-1" aria-hidden="true">
-                    {visibleSteps.map((s, idx) => (
-                      <span
-                        key={s.id}
-                        className={`h-1 rounded-full transition-all duration-200 ${
-                          idx === stepIndex
-                            ? `w-3.5 ${isDark ? 'bg-[#FFFFFF]' : 'bg-[#000000]'}`
-                            : `w-1 ${isDark ? 'bg-white/25' : 'bg-black/15'}`
-                        }`}
-                      />
-                    ))}
-                  </div>
+                    style={{ left: balloonLayout.arrowOffset - 7 }}
+                  />
+                )}
+                {!isFinalStep && balloonLayout.placement === 'left' && (
+                  <span
+                    aria-hidden="true"
+                    className={`absolute -right-[7px] w-3.5 h-3.5 rotate-45 rounded-[3px] border-r border-t ${
+                      isDark
+                        ? 'bg-[#171717] border-white/[0.14]'
+                        : 'bg-[#FFFFFF] border-black/[0.08]'
+                    }`}
+                    style={{ top: balloonLayout.arrowOffset - 7 }}
+                  />
+                )}
+                {!isFinalStep && balloonLayout.placement === 'right' && (
+                  <span
+                    aria-hidden="true"
+                    className={`absolute -left-[7px] w-3.5 h-3.5 rotate-45 rounded-[3px] border-l border-b ${
+                      isDark
+                        ? 'bg-[#171717] border-white/[0.14]'
+                        : 'bg-[#FFFFFF] border-black/[0.08]'
+                    }`}
+                    style={{ top: balloonLayout.arrowOffset - 7 }}
+                  />
                 )}
 
-                <motion.button
-                  type="button"
-                  whileTap={{ scale: 0.96 }}
-                  onClick={handleNext}
-                  className={`inline-flex items-center justify-center gap-1.5 rounded-full px-4 py-2 text-[13px] font-semibold tracking-tight transition-opacity hover:opacity-90 cursor-pointer ${
-                    isDark
-                      ? 'bg-[#FFFFFF] text-[#000000]'
-                      : 'bg-[#171717] text-[#FFFFFF]'
+                {/* Header row: refined pill step indicator + close/skip icon */}
+                <div className="flex items-center justify-between gap-2 mb-2.5">
+                  {isFinalStep ? (
+                    <div
+                      className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-semibold tracking-tight ${
+                        isDark
+                          ? 'bg-white/[0.08] text-[#D4D4D4]'
+                          : 'bg-[#F2F2F2] text-[#525252]'
+                      }`}
+                    >
+                      <Compass className="w-3.5 h-3.5" strokeWidth={2} />
+                      <span>Campos do Jordão</span>
+                    </div>
+                  ) : (
+                    <span
+                      className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-[11px] font-semibold tracking-tight tabular-nums ${
+                        isDark
+                          ? 'bg-white/[0.08] text-[#D4D4D4]'
+                          : 'bg-[#F2F2F2] text-[#525252]'
+                      }`}
+                    >
+                      {stepIndex + 1} de {totalSteps}
+                    </span>
+                  )}
+
+                  {!isFinalStep && (
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleSkipTutorial();
+                      }}
+                      aria-label="Pular apresentação"
+                      className={`-mr-1 -mt-0.5 p-1.5 rounded-full transition-colors cursor-pointer ${
+                        isDark
+                          ? 'text-[#858585] hover:text-[#FFFFFF] hover:bg-white/10'
+                          : 'text-[#858585] hover:text-[#000000] hover:bg-black/5'
+                      }`}
+                    >
+                      <X className="w-3.5 h-3.5" strokeWidth={2.2} />
+                    </button>
+                  )}
+                </div>
+
+                {/* Title & concise explanation */}
+                <h3
+                  className={`text-[16px] font-semibold leading-snug tracking-[-0.02em] ${
+                    isDark ? 'text-[#FFFFFF]' : 'text-[#000000]'
                   }`}
                 >
-                  <span>{isFinalStep ? 'Explorar o mapa' : 'Continuar'}</span>
-                  <ArrowRight className="w-3.5 h-3.5" strokeWidth={2.2} />
-                </motion.button>
-              </div>
-            </motion.div>
-          </AnimatePresence>
+                  {isFinalStep && firstName
+                    ? `${firstName}, tudo pronto!`
+                    : activeStep.title}
+                </h3>
+
+                <p
+                  className={`mt-1.5 text-[13px] leading-[1.45] font-normal ${
+                    isDark ? 'text-[#B3B3B3]' : 'text-[#525252]'
+                  }`}
+                >
+                  {activeStep.description}
+                </p>
+
+                {/* Subtle 3-second monochrome auto-advance timer bar */}
+                <div
+                  aria-hidden="true"
+                  className={`mt-3.5 h-[2.5px] w-full rounded-full overflow-hidden ${
+                    isDark ? 'bg-white/[0.1]' : 'bg-black/[0.08]'
+                  }`}
+                >
+                  <motion.div
+                    key={`progress-${activeStep.id}`}
+                    initial={{ scaleX: 0 }}
+                    animate={{ scaleX: 1 }}
+                    transition={{
+                      duration: STEP_DURATION_MS / 1000,
+                      ease: 'linear',
+                    }}
+                    className={`h-full w-full origin-left rounded-full ${
+                      isDark ? 'bg-[#FFFFFF]' : 'bg-[#171717]'
+                    }`}
+                  />
+                </div>
+
+                {/* Actions row */}
+                <div className="mt-3.5 flex items-center justify-between gap-2">
+                  {!isFinalStep ? (
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleSkipTutorial();
+                      }}
+                      className={`text-[12.5px] font-medium px-2.5 py-1 -ml-2 rounded-full transition-colors cursor-pointer ${
+                        isDark
+                          ? 'text-[#858585] hover:text-[#FFFFFF] hover:bg-white/[0.06]'
+                          : 'text-[#858585] hover:text-[#000000] hover:bg-black/[0.04]'
+                      }`}
+                    >
+                      Pular
+                    </button>
+                  ) : (
+                    <div className="flex items-center gap-1" aria-hidden="true">
+                      {visibleSteps.map((s, idx) => (
+                        <span
+                          key={s.id}
+                          className={`h-1 rounded-full transition-all duration-200 ${
+                            idx === stepIndex
+                              ? `w-4 ${isDark ? 'bg-[#FFFFFF]' : 'bg-[#000000]'}`
+                              : `w-1 ${isDark ? 'bg-white/25' : 'bg-black/15'}`
+                          }`}
+                        />
+                      ))}
+                    </div>
+                  )}
+
+                  <motion.button
+                    type="button"
+                    whileTap={{ scale: 0.96 }}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleNext();
+                    }}
+                    className={`inline-flex items-center justify-center gap-1.5 rounded-full px-4 py-2 text-[13px] font-semibold tracking-tight transition-opacity hover:opacity-90 cursor-pointer ${
+                      isDark
+                        ? 'bg-[#FFFFFF] text-[#000000]'
+                        : 'bg-[#171717] text-[#FFFFFF]'
+                    }`}
+                  >
+                    <span>{isFinalStep ? 'Explorar o mapa' : 'Continuar'}</span>
+                    <ArrowRight className="w-3.5 h-3.5" strokeWidth={2.2} />
+                  </motion.button>
+                </div>
+              </motion.div>
+            </AnimatePresence>
+          )}
         </motion.div>
       )}
     </AnimatePresence>
