@@ -266,6 +266,8 @@ try { db.exec(`ALTER TABLE users ADD COLUMN interest_categories TEXT DEFAULT '[]
 try { db.exec(`ALTER TABLE users ADD COLUMN travel_company TEXT DEFAULT '';`); } catch {}
 try { db.exec(`ALTER TABLE users ADD COLUMN location_preference TEXT DEFAULT '';`); } catch {}
 try { db.exec(`ALTER TABLE users ADD COLUMN onboarding_completed_at DATETIME;`); } catch {}
+try { db.exec(`ALTER TABLE users ADD COLUMN map_tutorial_status TEXT DEFAULT 'completed';`); } catch {}
+try { db.exec(`ALTER TABLE users ADD COLUMN map_tutorial_updated_at DATETIME;`); } catch {}
 
 try {
   db.exec(`
@@ -556,6 +558,14 @@ function formatSafeUser(user: any) {
       ? Number(onboardingRow.onboarding_step || 1)
       : Number(user.onboarding_step || 1);
 
+  const rawMapTutorial = String(user.map_tutorial_status || '').trim().toLowerCase();
+  const mapTutorialStatus: 'pending' | 'completed' | 'skipped' =
+    rawMapTutorial === 'pending'
+      ? 'pending'
+      : rawMapTutorial === 'skipped'
+        ? 'skipped'
+        : 'completed';
+
   return {
     id: user.id,
     auth_id: user.auth_id || user.firebase_uid || (user.id ? `usr_${user.id}` : ''),
@@ -572,6 +582,8 @@ function formatSafeUser(user: any) {
     motion_permission_granted: user.motion_permission_granted ? 1 : 0,
     welcome_card_seen: user.welcome_card_seen ? 1 : 0,
     globe_intro_seen: user.globe_intro_seen ? 1 : 0,
+    map_tutorial_status: mapTutorialStatus,
+    map_tutorial_updated_at: user.map_tutorial_updated_at || null,
     onboarding_completed: onboardingCompleted ? 1 : 0,
     onboarding_step: onboardingStep,
     campos_relationship: camposRelationship,
@@ -1138,8 +1150,8 @@ async function startServer() {
 
       const insert = db
         .prepare(`
-          INSERT INTO users (name, username, username_normalized, email, whatsapp, password_hash, avatar_url, role, auth_id, onboarding_completed, onboarding_step)
-          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 0, 1)
+          INSERT INTO users (name, username, username_normalized, email, whatsapp, password_hash, avatar_url, role, auth_id, onboarding_completed, onboarding_step, map_tutorial_status)
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 0, 1, 'pending')
         `)
         .run(
           rawName,
@@ -1186,6 +1198,7 @@ async function startServer() {
         avatar_url: avatar_url || '/fotoperfil.png',
         onboarding_completed: 0,
         onboarding_step: 1,
+        map_tutorial_status: 'pending',
         created_at: nowIso,
         last_access: nowIso,
       };
@@ -1245,10 +1258,15 @@ async function startServer() {
         const remoteUser = await getUserFromSupabase(effectiveLookup);
         if (remoteUser && remoteUser.email) {
           const role = isPrimaryAdmin(remoteUser.email) || remoteUser.role === 'admin' ? 'admin' : 'user';
+          const rawRemoteTutorial = String(remoteUser.map_tutorial_status || '').trim().toLowerCase();
+          const remoteTutorialStatus =
+            rawRemoteTutorial === 'pending' || rawRemoteTutorial === 'completed' || rawRemoteTutorial === 'skipped'
+              ? rawRemoteTutorial
+              : 'completed';
           const ins = db
             .prepare(`
-              INSERT INTO users (name, username, email, whatsapp, password_hash, role, avatar_url, auth_id, welcome_card_seen, globe_intro_seen, onboarding_completed, onboarding_step)
-              VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+              INSERT INTO users (name, username, email, whatsapp, password_hash, role, avatar_url, auth_id, welcome_card_seen, globe_intro_seen, onboarding_completed, onboarding_step, map_tutorial_status)
+              VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             `)
             .run(
               remoteUser.name || remoteUser.email.split('@')[0],
@@ -1262,7 +1280,8 @@ async function startServer() {
               remoteUser.welcome_card_seen ? 1 : 0,
               remoteUser.globe_intro_seen ? 1 : 0,
               remoteUser.onboarding_completed === 0 ? 0 : 1,
-              remoteUser.onboarding_step || 1
+              remoteUser.onboarding_step || 1,
+              remoteTutorialStatus
             );
           user = db.prepare('SELECT * FROM users WHERE id = ?').get(ins.lastInsertRowid);
         }
@@ -1424,9 +1443,14 @@ async function startServer() {
         const remoteUser = await getUserFromSupabase(cleanEmail);
         if (remoteUser && remoteUser.email) {
           const role = isPrimaryAdmin(cleanEmail) || remoteUser.role === 'admin' ? 'admin' : 'user';
+          const rawRemoteTutorial = String(remoteUser.map_tutorial_status || '').trim().toLowerCase();
+          const remoteTutorialStatus =
+            rawRemoteTutorial === 'pending' || rawRemoteTutorial === 'completed' || rawRemoteTutorial === 'skipped'
+              ? rawRemoteTutorial
+              : 'completed';
           const insert = db.prepare(`
-            INSERT INTO users (name, username, email, whatsapp, password_hash, avatar_url, role, auth_id, welcome_card_seen, globe_intro_seen, onboarding_completed, onboarding_step)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            INSERT INTO users (name, username, email, whatsapp, password_hash, avatar_url, role, auth_id, welcome_card_seen, globe_intro_seen, onboarding_completed, onboarding_step, map_tutorial_status)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
           `).run(
             remoteUser.name || resolvedName || cleanEmail.split('@')[0],
             remoteUser.username || cleanEmail.split('@')[0],
@@ -1439,7 +1463,8 @@ async function startServer() {
             remoteUser.welcome_card_seen ? 1 : 0,
             remoteUser.globe_intro_seen ? 1 : 0,
             remoteUser.onboarding_completed === 0 ? 0 : 1,
-            remoteUser.onboarding_step || 1
+            remoteUser.onboarding_step || 1,
+            remoteTutorialStatus
           );
           user = db.prepare('SELECT * FROM users WHERE id = ?').get(insert.lastInsertRowid);
         } else {
@@ -1737,6 +1762,75 @@ async function startServer() {
         : db.prepare('SELECT * FROM users WHERE LOWER(email) = ? OR LOWER(whatsapp) = ?').get(email, email);
 
       return res.json({ success: true, user: formatSafeUser(updated) });
+    } catch (err: any) {
+      return res.status(500).json({ success: false, error: err.message });
+    }
+  });
+
+  // Per-user interactive map onboarding tutorial state (authoritative DB persistence by user ID)
+  app.get('/api/user/map-tutorial', async (req: Request, res: Response) => {
+    try {
+      const currentUser = await resolveAuthenticatedUser(req, true);
+      if (!currentUser?.id) {
+        return res.status(401).json({ success: false, error: 'Não autenticado' });
+      }
+      const dbUser = db.prepare('SELECT * FROM users WHERE id = ?').get(currentUser.id) as any;
+      if (!dbUser) {
+        return res.status(404).json({ success: false, error: 'Usuário não encontrado' });
+      }
+      const safeUser = formatSafeUser(dbUser);
+      return res.json({
+        success: true,
+        status: safeUser?.map_tutorial_status || 'completed',
+        user: safeUser,
+      });
+    } catch (err: any) {
+      return res.status(500).json({ success: false, error: err.message });
+    }
+  });
+
+  app.post('/api/user/map-tutorial', async (req: Request, res: Response) => {
+    try {
+      const currentUser = await resolveAuthenticatedUser(req, true);
+      if (!currentUser?.id) {
+        return res.status(401).json({ success: false, error: 'Não autenticado' });
+      }
+
+      const rawStatus = String(req.body?.status || '').trim().toLowerCase();
+      if (rawStatus !== 'completed' && rawStatus !== 'skipped') {
+        return res.status(400).json({ success: false, error: 'Status do tutorial inválido.' });
+      }
+
+      const nextStatus: 'completed' | 'skipped' = rawStatus;
+      const nowIso = new Date().toISOString();
+
+      db.prepare(
+        'UPDATE users SET map_tutorial_status = ?, map_tutorial_updated_at = ? WHERE id = ?'
+      ).run(nextStatus, nowIso, currentUser.id);
+
+      const updatedUser = db.prepare('SELECT * FROM users WHERE id = ?').get(currentUser.id) as any;
+
+      if (updatedUser) {
+        await Promise.allSettled([
+          persistUserToFirestore({
+            ...updatedUser,
+            map_tutorial_status: nextStatus,
+            map_tutorial_updated_at: nowIso,
+          }),
+          persistUserToSupabase({
+            ...updatedUser,
+            map_tutorial_status: nextStatus,
+            map_tutorial_updated_at: nowIso,
+          }),
+        ]);
+      }
+
+      const safeUser = formatSafeUser(updatedUser || currentUser);
+      return res.json({
+        success: true,
+        status: nextStatus,
+        user: safeUser,
+      });
     } catch (err: any) {
       return res.status(500).json({ success: false, error: err.message });
     }

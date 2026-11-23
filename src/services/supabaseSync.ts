@@ -32,6 +32,8 @@ export interface SupabaseUserRecord {
   onboarding_step?: number;
   welcome_card_seen?: number;
   globe_intro_seen?: number;
+  map_tutorial_status?: string;
+  map_tutorial_updated_at?: string;
   last_access?: string;
   created_at?: string;
 }
@@ -96,6 +98,25 @@ export async function persistUserToSupabase(user: SupabaseUserRecord): Promise<v
       3500,
       null
     );
+
+    if (user.map_tutorial_status) {
+      const normalizedStatus = String(user.map_tutorial_status).trim().toLowerCase();
+      if (normalizedStatus === 'pending' || normalizedStatus === 'completed' || normalizedStatus === 'skipped') {
+        try {
+          await withTimeout(
+            supabase
+              .from('users')
+              .update({
+                map_tutorial_status: normalizedStatus,
+                ...(user.map_tutorial_updated_at ? { map_tutorial_updated_at: user.map_tutorial_updated_at } : {}),
+              })
+              .eq('email', cleanEmail),
+            2000,
+            null
+          );
+        } catch {}
+      }
+    }
   } catch {}
 }
 
@@ -698,19 +719,24 @@ export async function syncDatabaseWithSupabase(sqliteDb: any): Promise<void> {
           const role = isPrimaryAdmin(cleanEmail) || u.role === 'admin' ? 'admin' : 'user';
 
           const existing = sqliteDb
-            .prepare('SELECT id FROM users WHERE LOWER(email) = ? OR LOWER(whatsapp) = ?')
+            .prepare('SELECT id, map_tutorial_status FROM users WHERE LOWER(email) = ? OR LOWER(whatsapp) = ?')
             .get(cleanEmail, cleanEmail);
 
           const onboardingCompleted = u.onboarding_completed === 0 ? 0 : 1;
           const onboardingStep = u.onboarding_step || 1;
           const welcomeSeen = u.welcome_card_seen ? 1 : 0;
           const globeSeen = u.globe_intro_seen ? 1 : 0;
+          const rawTutorial = String(u.map_tutorial_status || '').trim().toLowerCase();
+          const remoteTutorial =
+            rawTutorial === 'pending' || rawTutorial === 'completed' || rawTutorial === 'skipped'
+              ? rawTutorial
+              : 'completed';
 
           if (!existing) {
             sqliteDb
               .prepare(`
-                INSERT INTO users (name, username, email, whatsapp, password_hash, role, avatar_url, onboarding_completed, onboarding_step, welcome_card_seen, globe_intro_seen)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                INSERT INTO users (name, username, email, whatsapp, password_hash, role, avatar_url, onboarding_completed, onboarding_step, welcome_card_seen, globe_intro_seen, map_tutorial_status)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
               `)
               .run(
                 u.name || cleanEmail.split('@')[0],
@@ -723,9 +749,16 @@ export async function syncDatabaseWithSupabase(sqliteDb: any): Promise<void> {
                 onboardingCompleted,
                 onboardingStep,
                 welcomeSeen,
-                globeSeen
+                globeSeen,
+                remoteTutorial
               );
           } else {
+            const localTutorial = String(existing.map_tutorial_status || '').trim().toLowerCase();
+            const mergedTutorial =
+              localTutorial === 'completed' || localTutorial === 'skipped'
+                ? localTutorial
+                : remoteTutorial;
+
             sqliteDb
               .prepare(`
                 UPDATE users
@@ -735,7 +768,8 @@ export async function syncDatabaseWithSupabase(sqliteDb: any): Promise<void> {
                     onboarding_completed = CASE WHEN ? = 1 THEN 1 ELSE onboarding_completed END,
                     onboarding_step = COALESCE(?, onboarding_step),
                     welcome_card_seen = CASE WHEN ? = 1 THEN 1 ELSE welcome_card_seen END,
-                    globe_intro_seen = CASE WHEN ? = 1 THEN 1 ELSE globe_intro_seen END
+                    globe_intro_seen = CASE WHEN ? = 1 THEN 1 ELSE globe_intro_seen END,
+                    map_tutorial_status = ?
                 WHERE id = ?
               `)
               .run(
@@ -746,6 +780,7 @@ export async function syncDatabaseWithSupabase(sqliteDb: any): Promise<void> {
                 onboardingStep,
                 welcomeSeen,
                 globeSeen,
+                mergedTutorial,
                 existing.id
               );
           }

@@ -4257,6 +4257,7 @@ export const MapComponent = memo(
 
           {/* My Real-Time Location & Compass Orientation Button */}
           <motion.button
+            id="btn-map-compass"
             type="button"
             whileTap={{ scale: 0.9, transition: { type: 'spring', stiffness: 500, damping: 14 } }}
             onClick={() => centerOnUserLocation(true, true)}
@@ -4285,6 +4286,7 @@ export const MapComponent = memo(
 
           {/* Map Layers Toggle */}
           <motion.button
+            id="btn-map-layers"
             type="button"
             whileTap={{ scale: 0.9, transition: { type: 'spring', stiffness: 500, damping: 14 } }}
             onPointerDown={handleMapLayerButtonPointerDown}

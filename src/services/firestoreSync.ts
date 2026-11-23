@@ -80,6 +80,8 @@ export interface FirestoreUser {
   auth_id?: string | null;
   welcome_card_seen?: number;
   globe_intro_seen?: number;
+  map_tutorial_status?: 'pending' | 'completed' | 'skipped' | string;
+  map_tutorial_updated_at?: string;
   campos_relationship?: string;
   next_trip_timing?: string;
   next_trip_date?: string;
@@ -250,6 +252,15 @@ export async function persistUserToFirestore(user: FirestoreUser): Promise<void>
     }
     if (user.globe_intro_seen !== undefined) {
       dataToSave.globe_intro_seen = user.globe_intro_seen ? 1 : 0;
+    }
+    if (user.map_tutorial_status !== undefined) {
+      const normalizedTutorial = String(user.map_tutorial_status).trim().toLowerCase();
+      if (normalizedTutorial === 'pending' || normalizedTutorial === 'completed' || normalizedTutorial === 'skipped') {
+        dataToSave.map_tutorial_status = normalizedTutorial;
+      }
+    }
+    if (user.map_tutorial_updated_at !== undefined) {
+      dataToSave.map_tutorial_updated_at = user.map_tutorial_updated_at;
     }
     if (user.campos_relationship !== undefined) {
       dataToSave.campos_relationship = user.campos_relationship;
@@ -620,6 +631,82 @@ export async function markGlobeIntroSeen(cleanEmail: string, token?: string): Pr
       );
     } catch {}
   }
+}
+
+/**
+ * Persists the interactive map onboarding tutorial status ('completed' | 'skipped')
+ * strictly bound to the authenticated user across SQLite API, Cloud Firestore, and Supabase.
+ */
+export async function updateMapTutorialStatusInDb(
+  status: 'completed' | 'skipped',
+  cleanEmail?: string,
+  token?: string
+): Promise<any | null> {
+  const email = (cleanEmail || '').trim().toLowerCase();
+  const nextStatus: 'completed' | 'skipped' = status === 'skipped' ? 'skipped' : 'completed';
+  const nowIso = new Date().toISOString();
+  let updatedServerUser: any = null;
+
+  // 1. Update authoritative backend SQLite + session-authenticated user record
+  try {
+    const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+    const savedToken =
+      token ||
+      (typeof window !== 'undefined' ? window.localStorage?.getItem('monvian_token') : null);
+    if (savedToken) {
+      headers['Authorization'] = `Bearer ${savedToken}`;
+    }
+    const resp = await fetch('/api/user/map-tutorial', {
+      method: 'POST',
+      credentials: 'include',
+      headers,
+      body: JSON.stringify({ status: nextStatus }),
+    });
+    if (resp.ok) {
+      const json = await resp.json().catch(() => null);
+      if (json?.user) {
+        updatedServerUser = json.user;
+      }
+    }
+  } catch {}
+
+  // 2. Update Firestore document scoped to user email
+  if (email) {
+    try {
+      const userRef = doc(firestore, 'users', email);
+      await withTimeout(
+        setDoc(
+          userRef,
+          {
+            map_tutorial_status: nextStatus,
+            map_tutorial_updated_at: nowIso,
+            updated_at: nowIso,
+          },
+          { merge: true }
+        ),
+        2500,
+        null
+      );
+    } catch {}
+  }
+
+  // 3. Best-effort Supabase table update scoped to user email
+  if (email && supabase) {
+    try {
+      await withTimeout(
+        Promise.resolve(
+          supabase
+            .from('users')
+            .update({ map_tutorial_status: nextStatus, map_tutorial_updated_at: nowIso })
+            .eq('email', email)
+        ),
+        2500,
+        null
+      );
+    } catch {}
+  }
+
+  return updatedServerUser;
 }
 
 /**
@@ -1526,6 +1613,8 @@ export async function syncDatabaseWithFirestore(sqliteDb: any): Promise<void> {
       try { sqliteDb.exec(`ALTER TABLE users ADD COLUMN interest_categories TEXT DEFAULT '[]';`); } catch (e) {}
       try { sqliteDb.exec(`ALTER TABLE users ADD COLUMN travel_company TEXT DEFAULT '';`); } catch (e) {}
       try { sqliteDb.exec(`ALTER TABLE users ADD COLUMN location_preference TEXT DEFAULT '';`); } catch (e) {}
+      try { sqliteDb.exec(`ALTER TABLE users ADD COLUMN map_tutorial_status TEXT DEFAULT 'completed';`); } catch (e) {}
+      try { sqliteDb.exec(`ALTER TABLE users ADD COLUMN map_tutorial_updated_at DATETIME;`); } catch (e) {}
       try {
         sqliteDb.exec(`
           CREATE TABLE IF NOT EXISTS user_onboarding (
@@ -1581,7 +1670,13 @@ export async function syncDatabaseWithFirestore(sqliteDb: any): Promise<void> {
           })();
           const mergedInterestsJson = JSON.stringify(mergedInterestsList);
 
-          const existingUser = sqliteDb.prepare('SELECT id, name FROM users WHERE LOWER(email) = ? OR LOWER(whatsapp) = ?').get(cleanEmail, cleanEmail) as any;
+          const rawCloudTutorial = String(cloudUser.map_tutorial_status || '').trim().toLowerCase();
+          const resolvedCloudTutorial =
+            rawCloudTutorial === 'pending' || rawCloudTutorial === 'completed' || rawCloudTutorial === 'skipped'
+              ? rawCloudTutorial
+              : 'completed';
+
+          const existingUser = sqliteDb.prepare('SELECT id, name, map_tutorial_status FROM users WHERE LOWER(email) = ? OR LOWER(whatsapp) = ?').get(cleanEmail, cleanEmail) as any;
 
           const normUsername = (cloudUser.username_normalized || cloudUser.username || cleanEmail.split('@')[0]).toLowerCase();
 
@@ -1592,9 +1687,10 @@ export async function syncDatabaseWithFirestore(sqliteDb: any): Promise<void> {
                 visits_count, is_banned, snow_enabled, theme, high_contrast, onboarding_completed, onboarding_step,
                 location_permission_granted, motion_permission_granted,
                 campos_relationship, next_trip_timing, next_trip_date, interest_categories, travel_company, location_preference,
+                map_tutorial_status, map_tutorial_updated_at,
                 last_access, created_at
               )
-              VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+              VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             `).run(
               toSqliteParam(cloudUser.name || cleanEmail.split('@')[0]),
               toSqliteParam(cloudUser.username || cleanEmail.split('@')[0]),
@@ -1619,10 +1715,18 @@ export async function syncDatabaseWithFirestore(sqliteDb: any): Promise<void> {
               mergedInterestsJson,
               mergedCompany,
               mergedLocPref,
+              resolvedCloudTutorial,
+              toSqliteParam(cloudUser.map_tutorial_updated_at || null),
               toSqliteParam(cloudUser.last_access || new Date().toISOString()),
               toSqliteParam(cloudUser.created_at || new Date().toISOString())
             );
           } else {
+            const localTutorial = String(existingUser.map_tutorial_status || '').trim().toLowerCase();
+            const finalTutorialStatus =
+              localTutorial === 'completed' || localTutorial === 'skipped'
+                ? localTutorial
+                : resolvedCloudTutorial;
+
             sqliteDb.prepare(`
               UPDATE users 
               SET name = ?, username = COALESCE(?, username), username_normalized = COALESCE(?, username_normalized),
@@ -1634,7 +1738,9 @@ export async function syncDatabaseWithFirestore(sqliteDb: any): Promise<void> {
                   next_trip_date = CASE WHEN ? != '' THEN ? ELSE COALESCE(next_trip_date, '') END,
                   interest_categories = CASE WHEN ? != '[]' THEN ? ELSE COALESCE(interest_categories, '[]') END,
                   travel_company = CASE WHEN ? != '' THEN ? ELSE COALESCE(travel_company, '') END,
-                  location_preference = CASE WHEN ? != '' THEN ? ELSE COALESCE(location_preference, '') END
+                  location_preference = CASE WHEN ? != '' THEN ? ELSE COALESCE(location_preference, '') END,
+                  map_tutorial_status = ?,
+                  map_tutorial_updated_at = COALESCE(?, map_tutorial_updated_at)
               WHERE id = ?
             `).run(
               toSqliteParam(cloudUser.name || existingUser.name || cleanEmail.split('@')[0]),
@@ -1658,6 +1764,8 @@ export async function syncDatabaseWithFirestore(sqliteDb: any): Promise<void> {
               mergedCompany,
               mergedLocPref,
               mergedLocPref,
+              finalTutorialStatus,
+              toSqliteParam(cloudUser.map_tutorial_updated_at || null),
               existingUser.id
             );
           }

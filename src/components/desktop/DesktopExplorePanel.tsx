@@ -93,6 +93,7 @@ export const DesktopExplorePanel: React.FC<DesktopExplorePanelProps> = ({
 
           {onStartItineraryCreation && (
             <button
+              id="desktop-create-itinerary-btn"
               type="button"
               onClick={onStartItineraryCreation}
               className={`px-3 py-1.5 rounded-full text-xs font-bold flex items-center gap-1.5 transition-all active:scale-95 cursor-pointer border ${
@@ -111,6 +112,7 @@ export const DesktopExplorePanel: React.FC<DesktopExplorePanelProps> = ({
         {/* Weather & Attire Informative Widget */}
         {realWeather && onOpenClothingGuide && (
           <motion.div
+            id="desktop-explore-weather"
             initial={{ opacity: 0, scale: 0.88, y: 12 }}
             animate={{ opacity: 1, scale: 1, y: 0 }}
             transition={{ type: 'spring', stiffness: 380, damping: 22, delay: 0.05 }}
@@ -157,6 +159,7 @@ export const DesktopExplorePanel: React.FC<DesktopExplorePanelProps> = ({
 
         {/* 2. Horizontal Categories Scroller */}
         <div
+          id="desktop-explore-categories"
           ref={categoriesRef}
           className="flex items-center gap-1.5 overflow-x-auto scrollbar-none py-0.5 no-scrollbar"
           style={{

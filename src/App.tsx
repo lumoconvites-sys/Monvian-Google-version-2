@@ -36,7 +36,7 @@ import { getSpotImage, getSpotFallbackImage } from './utils/spotImages';
 import { VerifiedBadge } from './components/ui/VerifiedBadge';
 import { startPreloadResources } from './utils/preloadItineraries';
 import { isPresentationCardSeen, markPresentationCardSeen, type PresentationTab } from './components/AirbnbPresentationCard';
-import { persistUserToFirestore, syncPermissionsFromDatabase, markWelcomeCardSeen, markGlobeIntroSeen } from './services/firestoreSync';
+import { persistUserToFirestore, syncPermissionsFromDatabase, markWelcomeCardSeen, markGlobeIntroSeen, updateMapTutorialStatusInDb } from './services/firestoreSync';
 import { fetchSpotsFromSupabase, subscribeToSpotsChanges } from './services/supabaseSpots';
 import { broadcastPlatanosWalletUpdate, getAuthHeaders } from './hooks/usePlatanos';
 import type { SignupIntroStage } from './components/SignupIntroSequence';
@@ -153,6 +153,9 @@ const FirstSignupWelcomeScreen = React.lazy(() =>
 );
 const WelcomeJourneyModal = React.lazy(() =>
   import('./components/WelcomeJourneyModal').then((m) => ({ default: m.WelcomeJourneyModal }))
+);
+const MapOnboardingTutorial = React.lazy(() =>
+  import('./components/MapOnboardingTutorial').then((m) => ({ default: m.MapOnboardingTutorial }))
 );
 
 const welcomeContainerVariants = {
@@ -429,6 +432,9 @@ export default function App() {
     }
   });
   const [isGlobeIntroPlaying, setIsGlobeIntroPlaying] = useState<boolean>(false);
+  const [isMapTutorialOpen, setIsMapTutorialOpen] = useState<boolean>(false);
+  const [isMapTutorialMounted, setIsMapTutorialMounted] = useState<boolean>(false);
+  const [verifiedTutorialUserKey, setVerifiedTutorialUserKey] = useState<string | null>(null);
   const [arrivalConfettiTrigger, setArrivalConfettiTrigger] = useState<number>(0);
   const hasTriggeredMainAppConfettiRef = useRef<boolean>(false);
   const hasTriggeredInitialBootConfettiRef = useRef<boolean>(false);
@@ -682,6 +688,8 @@ export default function App() {
     setShowFirstSignupWelcome(false);
     setIsGlobeIntroPending(false);
     setIsGlobeIntroPlaying(false);
+    setIsMapTutorialOpen(false);
+    setVerifiedTutorialUserKey(null);
     setArrivalConfettiTrigger(0);
     setSignupIntroStage('idle');
     setPendingWelcomeJourney(false);
@@ -805,6 +813,8 @@ export default function App() {
       setSearchQuery('');
       setIsSearchOpen(false);
       window.dispatchEvent(new CustomEvent('monvian:account_switched', { detail: normalized }));
+      const dbTutorialKey = String(normalized.id || normalized.email || normalized.whatsapp || '').trim().toLowerCase();
+      setVerifiedTutorialUserKey(dbTutorialKey || null);
       setUser(normalized);
       setIsAuthenticated(true);
       setIsAuthChecking(false);
@@ -2247,7 +2257,9 @@ export default function App() {
       isOnboardingItinerarySelection ||
       showFirstSignupWelcome ||
       isGlobeIntroPending ||
-      isGlobeIntroPlaying
+      isGlobeIntroPlaying ||
+      isMapTutorialOpen ||
+      String(user?.map_tutorial_status || '').toLowerCase() === 'pending'
     ) {
       setAirbnbCardTab(null);
       return;
@@ -2272,6 +2284,8 @@ export default function App() {
     showFirstSignupWelcome,
     isGlobeIntroPending,
     isGlobeIntroPlaying,
+    isMapTutorialOpen,
+    user?.map_tutorial_status,
   ]);
 
   const handleDismissFirstSignupWelcome = useCallback(() => {
@@ -2361,6 +2375,143 @@ export default function App() {
     hasTriggeredMainAppConfettiRef.current = true;
     setArrivalConfettiTrigger((prev) => prev + 1);
   }, []);
+
+  const handleFinishMapTutorial = useCallback(
+    (status: 'completed' | 'skipped') => {
+      setIsMapTutorialOpen(false);
+      const nowIso = new Date().toISOString();
+      const cleanEmail = String(user?.email || user?.whatsapp || '').trim().toLowerCase();
+      const token = (() => {
+        try {
+          return localStorage.getItem('monvian_token') || undefined;
+        } catch {
+          return undefined;
+        }
+      })();
+
+      setUser((prev: any) => {
+        if (!prev) return prev;
+        const updated = normalizeAppUser({
+          ...prev,
+          map_tutorial_status: status,
+          map_tutorial_updated_at: nowIso,
+        });
+        try {
+          localStorage.setItem('monvian_user', JSON.stringify(updated));
+          if (token) {
+            savePersistentSession(token, updated).catch(() => {});
+          }
+        } catch {}
+        return updated;
+      });
+
+      void updateMapTutorialStatusInDb(status, cleanEmail, token).then((serverUser) => {
+        if (!serverUser) return;
+        setUser((prev: any) => {
+          if (!prev) return prev;
+          if (String(prev.id) !== String(serverUser.id)) return prev;
+          const merged = normalizeAppUser({ ...prev, ...serverUser });
+          try {
+            localStorage.setItem('monvian_user', JSON.stringify(merged));
+            if (token) {
+              savePersistentSession(token, merged).catch(() => {});
+            }
+          } catch {}
+          return merged;
+        });
+      });
+    },
+    [user]
+  );
+
+  // Auto-trigger interactive map onboarding tutorial ONLY for authenticated accounts
+  // whose DB record has map_tutorial_status === 'pending' once on the main Explore map.
+  useEffect(() => {
+    if (isAuthChecking || !isAuthenticated || !authenticatedViews || !user) return;
+
+    const currentUserKey = String(user.id || user.email || user.whatsapp || '').trim().toLowerCase();
+    if (!currentUserKey || verifiedTutorialUserKey !== currentUserKey) return;
+
+    const tutorialStatus = String(user.map_tutorial_status || '').trim().toLowerCase();
+    if (tutorialStatus !== 'pending') {
+      if (isMapTutorialOpen) setIsMapTutorialOpen(false);
+      return;
+    }
+
+    const canStartTutorial =
+      activeTab === 'explorar' &&
+      mapWorkflowMode === 'EXPLORE' &&
+      !isAdminOpen &&
+      !showOnboardingQuestions &&
+      !showWelcomeOverlay &&
+      !isSignupRevealActive &&
+      !showFirstSignupWelcome &&
+      !isGlobeIntroPending &&
+      !isGlobeIntroPlaying &&
+      !isOnboardingItinerarySelection &&
+      !isUserLocationSpotlightActive &&
+      !isMapOrbiting &&
+      !isDetailOpen &&
+      !selectedSpot &&
+      !isSettingsModalOpen &&
+      !isWeatherModalOpen &&
+      !isCategoryCardOpen &&
+      !isSearchOpen &&
+      !isFinalizeItineraryModalOpen &&
+      !isPlatanosWalletOpen;
+
+    if (!canStartTutorial) return;
+
+    setIsDiscoveryPanelClosed(true);
+
+    if (isMapTutorialOpen) return;
+
+    const timer = window.setTimeout(() => {
+      setIsMapTutorialMounted(true);
+      setIsMapTutorialOpen(true);
+    }, 950);
+
+    return () => window.clearTimeout(timer);
+  }, [
+    isAuthChecking,
+    isAuthenticated,
+    authenticatedViews,
+    user,
+    verifiedTutorialUserKey,
+    isMapTutorialOpen,
+    activeTab,
+    mapWorkflowMode,
+    isAdminOpen,
+    showOnboardingQuestions,
+    showWelcomeOverlay,
+    isSignupRevealActive,
+    showFirstSignupWelcome,
+    isGlobeIntroPending,
+    isGlobeIntroPlaying,
+    isOnboardingItinerarySelection,
+    isUserLocationSpotlightActive,
+    isMapOrbiting,
+    isDetailOpen,
+    selectedSpot,
+    isSettingsModalOpen,
+    isWeatherModalOpen,
+    isCategoryCardOpen,
+    isSearchOpen,
+    isFinalizeItineraryModalOpen,
+    isPlatanosWalletOpen,
+  ]);
+
+  useEffect(() => {
+    if (isMapTutorialOpen) {
+      setIsMapTutorialMounted(true);
+      return;
+    }
+    if (!isMapTutorialMounted) return;
+    const t = window.setTimeout(() => {
+      setIsMapTutorialMounted(false);
+    }, 340);
+    return () => window.clearTimeout(t);
+  }, [isMapTutorialOpen, isMapTutorialMounted]);
 
   // Automatically trigger 3D White & Silver Confetti burst once per app opening (no click required)
   useEffect(() => {
@@ -2510,6 +2661,7 @@ export default function App() {
       const nextUser = e?.detail || null;
       const scopedItin = loadActiveItineraryFromStorage(nextUser);
       const isActiveOnMap = loadIsItineraryActiveOnMapFromStorage(nextUser);
+      setIsMapTutorialOpen(false);
       setSelectedCategoryFilter(readUserCategoryFilter(nextUser));
       setIsCategoryCardOpen(false);
       setSearchQuery('');
@@ -3177,6 +3329,9 @@ export default function App() {
                 document.cookie = 'monvian_motion_granted=true; max-age=315360000; path=/; SameSite=Lax';
               }
               syncPermissionsFromDatabase(normalizedUser?.email || normalizedUser?.whatsapp).catch(() => {});
+              const nextDbKey = String(normalizedUser?.id || normalizedUser?.email || normalizedUser?.whatsapp || '').trim().toLowerCase();
+              setIsMapTutorialOpen(false);
+              setVerifiedTutorialUserKey(nextDbKey || null);
               setUser(normalizedUser);
               setActiveTab('explorar');
               setExplorarEntranceTick((prev) => prev + 1);
@@ -4631,6 +4786,19 @@ export default function App() {
           onClose={() => setIsPlatanosWalletOpen(false)}
           theme={theme}
           initialTab={platanosWalletTab}
+        />
+      </Suspense>
+    )}
+
+    {/* Interactive Guided Onboarding Tutorial for New Users on Main Map */}
+    {(isMapTutorialOpen || isMapTutorialMounted) && (
+      <Suspense fallback={null}>
+        <MapOnboardingTutorial
+          isOpen={isMapTutorialOpen}
+          theme={theme}
+          userName={user?.name}
+          onComplete={() => handleFinishMapTutorial('completed')}
+          onSkip={() => handleFinishMapTutorial('skipped')}
         />
       </Suspense>
     )}

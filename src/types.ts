@@ -143,6 +143,8 @@ export interface User {
   main_interests?: string[];
   preferred_season?: string;
   onboarding_completed_at?: string;
+  map_tutorial_status?: 'pending' | 'completed' | 'skipped';
+  map_tutorial_updated_at?: string;
 }
 
 export interface MapVisualIcon {

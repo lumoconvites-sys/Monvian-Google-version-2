@@ -68,6 +68,7 @@ export const AdminSpotModal: React.FC<AdminSpotModalProps> = ({
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const handleMagicPencilFill = async () => {
+    if (spotToEdit) return;
     const q = formData.name.trim();
     if (!q) {
       setErrorMsg('Digite primeiro o nome do local para o Lápis Mágico pesquisar.');
@@ -91,16 +92,14 @@ export const AdminSpotModal: React.FC<AdminSpotModalProps> = ({
         setFormData((prev) => ({
           ...prev,
           name: matched.name,
-          short_name: matched.shortName || matched.name,
-          tag_label: matched.tagLabel || matched.name,
+          short_name: prev.short_name.trim() ? prev.short_name : matched.shortName || matched.name,
+          tag_label: prev.tag_label.trim() ? prev.tag_label : matched.tagLabel || matched.name,
           category: matched.category || prev.category,
           category_label: matched.categoryLabel || prev.category_label,
           lat: matched.lat || prev.lat,
           lng: matched.lng || prev.lng,
-          image: matched.image || prev.image,
-          gallery: matched.gallery && matched.gallery.length > 0 ? matched.gallery : prev.gallery,
-          description: matched.description || prev.description,
-          tourist_tip: matched.touristTip || prev.tourist_tip,
+          description: prev.description.trim() ? prev.description : matched.description || prev.description,
+          tourist_tip: prev.tourist_tip.trim() ? prev.tourist_tip : matched.touristTip || prev.tourist_tip,
           rating: matched.rating || prev.rating,
           review_count: matched.reviewCount || prev.review_count,
           hours: matched.hours || prev.hours,
@@ -114,10 +113,10 @@ export const AdminSpotModal: React.FC<AdminSpotModalProps> = ({
         if (lowerQ.includes('hotel') || lowerQ.includes('pousada') || lowerQ.includes('resort')) {
           cat = 'hotels';
           catLabel = 'Hotéis & Pousadas';
-        } else if (lowerQ.includes('restaurante') || lowerQ.includes('bistrô') || lowerQ.includes('fondue') || lowerQ.includes('choperia') || lowerQ.includes('pizza') || lowerQ.includes('massa')) {
+        } else if (lowerQ.includes('restaurante') || lowerQ.includes('bistro') || lowerQ.includes('fondue') || lowerQ.includes('choperia') || lowerQ.includes('pizza') || lowerQ.includes('massa')) {
           cat = 'gastronomy';
           catLabel = 'Restaurantes & Gastronomia';
-        } else if (lowerQ.includes('café') || lowerQ.includes('padaria') || lowerQ.includes('confeitaria') || lowerQ.includes('chá')) {
+        } else if (lowerQ.includes('cafe') || lowerQ.includes('padaria') || lowerQ.includes('confeitaria') || lowerQ.includes('cha')) {
           cat = 'cafes';
           catLabel = 'Cafés & Bistrôs';
         } else if (lowerQ.includes('chocolate') || lowerQ.includes('doce') || lowerQ.includes('cacau')) {
@@ -126,27 +125,24 @@ export const AdminSpotModal: React.FC<AdminSpotModalProps> = ({
         } else if (lowerQ.includes('mirante') || lowerQ.includes('pico') || lowerQ.includes('parque') || lowerQ.includes('trilha') || lowerQ.includes('bosque')) {
           cat = 'viewpoint';
           catLabel = 'Mirantes & Natureza';
-        } else if (lowerQ.includes('farmácia') || lowerQ.includes('drogaria') || lowerQ.includes('hospital') || lowerQ.includes('posto')) {
+        } else if (lowerQ.includes('farmacia') || lowerQ.includes('drogaria') || lowerQ.includes('hospital') || lowerQ.includes('posto')) {
           cat = 'pharmacies';
           catLabel = 'Farmácias & Serviços';
         }
 
         const generatedDesc = `Localizado em Campos do Jordão, ${q} é um estabelecimento de referência que une sofisticação, conforto e atendimento acolhedor. Perfeito para visitantes que buscam momentos memoráveis na Serra da Mantiqueira, oferecendo excelente infraestrutura e charme alpino.`;
         const generatedTip = `Dica do Guia Monvian: Recomenda-se verificar horários de pico nos finais de semana e desfrutar da atmosfera única da serra com tranquilidade.`;
-        const generatedImage = 'https://images.unsplash.com/photo-1507525428034-b723cf961d3e?auto=format&fit=crop&w=800&q=80';
 
         setFormData((prev) => ({
           ...prev,
-          short_name: q.split(' ')[0] || q,
-          tag_label: q,
+          short_name: prev.short_name.trim() ? prev.short_name : q.split(' ')[0] || q,
+          tag_label: prev.tag_label.trim() ? prev.tag_label : q,
           category: cat,
           category_label: catLabel,
-          lat: -22.7350 + (Math.random() - 0.5) * 0.02,
-          lng: -45.5850 + (Math.random() - 0.5) * 0.02,
-          image: generatedImage,
-          gallery: [generatedImage],
-          description: generatedDesc,
-          tourist_tip: generatedTip,
+          lat: prev.lat === -22.7192 ? -22.7350 + (Math.random() - 0.5) * 0.02 : prev.lat,
+          lng: prev.lng === -45.5673 ? -45.5850 + (Math.random() - 0.5) * 0.02 : prev.lng,
+          description: prev.description.trim() ? prev.description : generatedDesc,
+          tourist_tip: prev.tourist_tip.trim() ? prev.tourist_tip : generatedTip,
           rating: 4.8,
           review_count: 150,
           hours: 'Diariamente das 09h00 às 19h00',
@@ -384,25 +380,27 @@ export const AdminSpotModal: React.FC<AdminSpotModalProps> = ({
                   <label className="block text-xs font-bold text-zinc-600 uppercase tracking-wider">
                     Nome do Ponto Turístico / Estabelecimento *
                   </label>
-                  <button
-                    type="button"
-                    onClick={handleMagicPencilFill}
-                    disabled={isMagicLoading}
-                    className="flex items-center gap-1.5 px-3 py-1 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-600 hover:to-amber-700 text-white rounded-lg text-xs font-bold shadow-sm shadow-amber-500/20 transition-all cursor-pointer disabled:opacity-50"
-                    title="Lápis Mágico Inteligente: Preenche automaticamente todos os dados reais e dicas de guia"
-                  >
-                    {isMagicLoading ? (
-                      <>
-                        <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                        Pesquisando dados...
-                      </>
-                    ) : (
-                      <>
-                        <Sparkles className="w-3.5 h-3.5 text-amber-200" />
-                        Lápis Mágico ✨
-                      </>
-                    )}
-                  </button>
+                  {!spotToEdit && (
+                    <button
+                      type="button"
+                      onClick={handleMagicPencilFill}
+                      disabled={isMagicLoading}
+                      className="flex items-center gap-1.5 px-3 py-1 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-600 hover:to-amber-700 text-white rounded-lg text-xs font-bold shadow-sm shadow-amber-500/20 transition-all cursor-pointer disabled:opacity-50"
+                      title="Lápis Mágico Inteligente: Preenche automaticamente dados reais e dicas de guia sem alterar fotos"
+                    >
+                      {isMagicLoading ? (
+                        <>
+                          <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                          Pesquisando dados...
+                        </>
+                      ) : (
+                        <>
+                          <Sparkles className="w-3.5 h-3.5 text-amber-200" />
+                          Lápis Mágico ✨
+                        </>
+                      )}
+                    </button>
+                  )}
                 </div>
                 <input
                   type="text"
