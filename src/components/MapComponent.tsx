@@ -1252,6 +1252,11 @@ export const MapComponent = memo(
         focusItineraryStepOnMap(step, expanded);
       },
       fitSpotsOverview: () => {
+        preSpotCameraRef.current = null;
+        if (spotFocusRafRef.current !== null) {
+          cancelAnimationFrame(spotFocusRafRef.current);
+          spotFocusRafRef.current = null;
+        }
         frameAllSpotsOverview(mapRef.current, true);
       },
       restorePreSpotCamera: () => {

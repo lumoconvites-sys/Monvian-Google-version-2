@@ -630,149 +630,176 @@ export const ItineraryStoreDetailModal: React.FC<ItineraryStoreDetailModalProps>
                     </motion.div>
 
                     <div className="mt-3.5 space-y-3">
-                      {currentDay?.steps.map((step, idx) => {
-                        const stepNumber = String(idx + 1).padStart(2, '0');
-                        const spot = step.spot;
-                        const spotName =
-                          step.customName || spot?.name || step.spotName || 'Ponto Turístico';
-                        const spotCategory =
-                          spot?.categoryLabel ||
-                          step.categoryLabel ||
-                          spot?.category ||
-                          step.category ||
-                          'Atração';
-                        const spotImg = getSpotImage({
-                          id: spot?.id,
-                          name: spotName,
-                          category: spotCategory,
-                          image: step.customImage || spot?.image || activeItinerary.coverImage,
-                        });
-                        const locationText = isValidContent(spot?.address)
-                          ? spot?.address
-                          : isValidContent(step.customDescription)
-                            ? step.customDescription
-                            : isValidContent(step.notes)
-                              ? step.notes
-                              : isValidContent(spot?.description)
-                                ? spot?.description
-                                : spot?.touristTip;
+                      {(() => {
+                        const previousDaysStepsCount = activeItinerary
+                          ? activeItinerary.days
+                              .slice(0, activeDayIndex)
+                              .reduce((acc, d) => acc + (d.steps?.length || 0), 0)
+                          : 0;
 
-                        return (
-                          <motion.div
-                            key={`${activeDayIndex}-${step.id || idx}`}
-                            initial={{ opacity: 0, y: 16, scale: 0.98 }}
-                            animate={{ opacity: 1, y: 0, scale: 1 }}
-                            transition={{
-                              type: 'spring',
-                              stiffness: 400,
-                              damping: 30,
-                              delay:
-                                (hasSwitchedDayRef.current ? 0.02 : 0.14) +
-                                Math.min(idx, 5) * 0.035,
-                            }}
-                            whileTap={{ scale: 0.975 }}
-                            className={`rounded-[24px] px-3.5 py-3 border flex items-center gap-3 cursor-pointer ${
-                              isLight
-                                ? 'bg-[#FFFFFF] border-black/[0.04] shadow-[0_4px_18px_rgba(0,0,0,0.045)]'
-                                : 'bg-[#171717] border-white/10'
-                            }`}
-                          >
-                            {/* Numeração à esquerda */}
-                            <div
-                              className={`w-[30px] h-[30px] rounded-full flex items-center justify-center shrink-0 text-[12px] font-semibold tabular-nums ${
+                        return currentDay?.steps.map((step, idx) => {
+                          const globalStepIndex = previousDaysStepsCount + idx;
+                          const isBlurredPremiumCard = requiresPurchase && globalStepIndex >= 2;
+                          const stepNumber = String(idx + 1).padStart(2, '0');
+                          const spot = step.spot;
+                          const spotName =
+                            step.customName || spot?.name || step.spotName || 'Ponto Turístico';
+                          const spotCategory =
+                            spot?.categoryLabel ||
+                            step.categoryLabel ||
+                            spot?.category ||
+                            step.category ||
+                            'Atração';
+                          const spotImg = getSpotImage({
+                            id: spot?.id,
+                            name: spotName,
+                            category: spotCategory,
+                            image: step.customImage || spot?.image || activeItinerary.coverImage,
+                          });
+                          const locationText = isValidContent(spot?.address)
+                            ? spot?.address
+                            : isValidContent(step.customDescription)
+                              ? step.customDescription
+                              : isValidContent(step.notes)
+                                ? step.notes
+                                : isValidContent(spot?.description)
+                                  ? spot?.description
+                                  : spot?.touristTip;
+
+                          return (
+                            <motion.div
+                              key={`${activeDayIndex}-${step.id || idx}`}
+                              initial={{ opacity: 0, y: 16, scale: 0.98 }}
+                              animate={{ opacity: 1, y: 0, scale: 1 }}
+                              transition={{
+                                type: 'spring',
+                                stiffness: 400,
+                                damping: 30,
+                                delay:
+                                  (hasSwitchedDayRef.current ? 0.02 : 0.14) +
+                                  Math.min(idx, 5) * 0.035,
+                              }}
+                              whileTap={isBlurredPremiumCard ? undefined : { scale: 0.975 }}
+                              className={`rounded-[24px] px-3.5 py-3 border flex items-center gap-3 overflow-hidden ${
+                                isBlurredPremiumCard ? 'select-none' : 'cursor-pointer'
+                              } ${
                                 isLight
-                                  ? 'bg-[#F2F2F4] text-[#18181B]'
-                                  : 'bg-white/15 text-[#FFFFFF]'
+                                  ? 'bg-[#FFFFFF] border-black/[0.04] shadow-[0_4px_18px_rgba(0,0,0,0.045)]'
+                                  : 'bg-[#171717] border-white/10'
                               }`}
                             >
-                              {stepNumber}
-                            </div>
-
-                            {/* Imagem quadrada arredondada */}
-                            <div
-                              className={`w-[68px] h-[68px] rounded-[16px] overflow-hidden shrink-0 ${
-                                isLight ? 'bg-[#F3F4F6]' : 'bg-zinc-800'
-                              }`}
-                            >
-                              <img
-                                src={spotImg}
-                                alt={spotName}
-                                decoding="async"
-                                className="w-full h-full object-cover"
-                                loading="eager"
-                                referrerPolicy="no-referrer"
-                                onError={(e) => {
-                                  (e.target as HTMLImageElement).src = getSpotFallbackImage(
-                                    spotName,
-                                    spotCategory
-                                  );
-                                }}
-                              />
-                            </div>
-
-                            {/* Informações no centro */}
-                            <div className="flex-1 min-w-0 flex flex-col justify-center">
-                              <span
-                                className={`text-[10.5px] font-medium uppercase tracking-[0.04em] truncate leading-tight ${
-                                  isLight ? 'text-[#71717A]' : 'text-[#A1A1AA]'
+                              {/* Numeração à esquerda */}
+                              <div
+                                className={`w-[30px] h-[30px] rounded-full flex items-center justify-center shrink-0 text-[12px] font-semibold tabular-nums transition-[filter,opacity] duration-300 ${
+                                  isBlurredPremiumCard ? 'blur-[1.5px] opacity-80' : ''
+                                } ${
+                                  isLight
+                                    ? 'bg-[#F2F2F4] text-[#18181B]'
+                                    : 'bg-white/15 text-[#FFFFFF]'
                                 }`}
                               >
-                                {spotCategory}
-                              </span>
-
-                              <div className="flex items-center gap-1.5 min-w-0 mt-0.5">
-                                <h4
-                                  className={`text-[15.5px] font-bold tracking-[-0.015em] truncate leading-snug ${
-                                    isLight ? 'text-[#111111]' : 'text-[#FFFFFF]'
-                                  }`}
-                                >
-                                  {spotName}
-                                </h4>
-                                <VerifiedBadge className="w-[15px] h-[15px] shrink-0" />
+                                {stepNumber}
                               </div>
 
-                              {isValidContent(locationText) && (
-                                <div className="flex items-center gap-1 mt-0.5 min-w-0">
-                                  <MapPin
-                                    className={`w-3 h-3 shrink-0 ${
-                                      isLight ? 'text-[#71717A]' : 'text-[#A1A1AA]'
-                                    }`}
-                                    strokeWidth={1.8}
-                                  />
-                                  <span
-                                    className={`text-[12px] font-normal truncate leading-tight ${
-                                      isLight ? 'text-[#71717A]' : 'text-[#A1A1AA]'
-                                    }`}
-                                  >
-                                    {locationText}
-                                  </span>
-                                </div>
-                              )}
-                            </div>
+                              {/* Imagem quadrada arredondada */}
+                              <div
+                                aria-hidden={isBlurredPremiumCard || undefined}
+                                className={`w-[68px] h-[68px] rounded-[16px] overflow-hidden shrink-0 transition-[filter,opacity] duration-300 ${
+                                  isBlurredPremiumCard ? 'blur-[7px] opacity-85 pointer-events-none' : ''
+                                } ${
+                                  isLight ? 'bg-[#F3F4F6]' : 'bg-zinc-800'
+                                }`}
+                              >
+                                <img
+                                  src={spotImg}
+                                  alt={isBlurredPremiumCard ? '' : spotName}
+                                  decoding="async"
+                                  className="w-full h-full object-cover"
+                                  loading="eager"
+                                  referrerPolicy="no-referrer"
+                                  onError={(e) => {
+                                    (e.target as HTMLImageElement).src = getSpotFallbackImage(
+                                      spotName,
+                                      spotCategory
+                                    );
+                                  }}
+                                />
+                              </div>
 
-                            {/* Horário e seta à direita */}
-                            <div className="self-stretch flex flex-col items-end justify-between shrink-0 pl-1 py-0.5">
-                              {isValidContent(step.suggestedTime) ? (
+                              {/* Informações no centro */}
+                              <div
+                                aria-hidden={isBlurredPremiumCard || undefined}
+                                className={`flex-1 min-w-0 flex flex-col justify-center transition-[filter,opacity] duration-300 ${
+                                  isBlurredPremiumCard ? 'blur-[7px] opacity-85 pointer-events-none' : ''
+                                }`}
+                              >
                                 <span
-                                  className={`text-[13px] font-medium tabular-nums leading-tight ${
-                                    isLight ? 'text-[#1C1C1E]' : 'text-[#D4D4D8]'
+                                  className={`text-[10.5px] font-medium uppercase tracking-[0.04em] truncate leading-tight ${
+                                    isLight ? 'text-[#71717A]' : 'text-[#A1A1AA]'
                                   }`}
                                 >
-                                  {step.suggestedTime}
+                                  {spotCategory}
                                 </span>
-                              ) : (
-                                <span />
-                              )}
-                              <ChevronRight
-                                className={`w-[18px] h-[18px] my-auto ${
-                                  isLight ? 'text-[#3F3F46]' : 'text-[#A1A1AA]'
+
+                                <div className="flex items-center gap-1.5 min-w-0 mt-0.5">
+                                  <h4
+                                    className={`text-[15.5px] font-bold tracking-[-0.015em] truncate leading-snug ${
+                                      isLight ? 'text-[#111111]' : 'text-[#FFFFFF]'
+                                    }`}
+                                  >
+                                    {spotName}
+                                  </h4>
+                                  <VerifiedBadge className="w-[15px] h-[15px] shrink-0" />
+                                </div>
+
+                                {isValidContent(locationText) && (
+                                  <div className="flex items-center gap-1 mt-0.5 min-w-0">
+                                    <MapPin
+                                      className={`w-3 h-3 shrink-0 ${
+                                        isLight ? 'text-[#71717A]' : 'text-[#A1A1AA]'
+                                      }`}
+                                      strokeWidth={1.8}
+                                    />
+                                    <span
+                                      className={`text-[12px] font-normal truncate leading-tight ${
+                                        isLight ? 'text-[#71717A]' : 'text-[#A1A1AA]'
+                                      }`}
+                                    >
+                                      {locationText}
+                                    </span>
+                                  </div>
+                                )}
+                              </div>
+
+                              {/* Horário e seta à direita */}
+                              <div
+                                aria-hidden={isBlurredPremiumCard || undefined}
+                                className={`self-stretch flex flex-col items-end justify-between shrink-0 pl-1 py-0.5 transition-[filter,opacity] duration-300 ${
+                                  isBlurredPremiumCard ? 'blur-[6.5px] opacity-80 pointer-events-none' : ''
                                 }`}
-                                strokeWidth={2}
-                              />
-                            </div>
-                          </motion.div>
-                        );
-                      })}
+                              >
+                                {isValidContent(step.suggestedTime) ? (
+                                  <span
+                                    className={`text-[13px] font-medium tabular-nums leading-tight ${
+                                      isLight ? 'text-[#1C1C1E]' : 'text-[#D4D4D8]'
+                                    }`}
+                                  >
+                                    {step.suggestedTime}
+                                  </span>
+                                ) : (
+                                  <span />
+                                )}
+                                <ChevronRight
+                                  className={`w-[18px] h-[18px] my-auto ${
+                                    isLight ? 'text-[#3F3F46]' : 'text-[#A1A1AA]'
+                                  }`}
+                                  strokeWidth={2}
+                                />
+                              </div>
+                            </motion.div>
+                          );
+                        });
+                      })()}
                     </div>
                   </div>
                 </div>

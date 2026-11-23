@@ -1902,12 +1902,16 @@ export default function App() {
     if (mapWorkflowModeRef.current === 'SELECT') {
       return;
     }
+    const hadActiveSpot = Boolean(selectedSpot || isDetailOpen || activeRoute);
     clearActiveRoute();
     setSelectedSpot(null);
     setIsDetailOpen(false);
     setIsCategoryCardOpen(false);
     setIsSearchOpen(false);
-  }, [clearActiveRoute]);
+    if (hadActiveSpot) {
+      mapRef.current?.fitSpotsOverview();
+    }
+  }, [clearActiveRoute, selectedSpot, isDetailOpen, activeRoute]);
 
   // User location state
   const [userCoords, setUserCoords] = useState<[number, number]>(
@@ -4608,6 +4612,7 @@ export default function App() {
             onClose={() => {
               clearActiveRoute();
               setSelectedSpot(null);
+              mapRef.current?.fitSpotsOverview();
             }}
             onOpenDetails={(spot) => {
               setSelectedSpot(spot);
