@@ -727,10 +727,11 @@ export async function syncDatabaseWithSupabase(sqliteDb: any): Promise<void> {
           const welcomeSeen = u.welcome_card_seen ? 1 : 0;
           const globeSeen = u.globe_intro_seen ? 1 : 0;
           const rawTutorial = String(u.map_tutorial_status || '').trim().toLowerCase();
-          const remoteTutorial =
+          const explicitRemoteTutorial =
             rawTutorial === 'pending' || rawTutorial === 'completed' || rawTutorial === 'skipped'
               ? rawTutorial
-              : 'completed';
+              : '';
+          const remoteTutorial = explicitRemoteTutorial || 'completed';
 
           if (!existing) {
             sqliteDb
@@ -757,7 +758,11 @@ export async function syncDatabaseWithSupabase(sqliteDb: any): Promise<void> {
             const mergedTutorial =
               localTutorial === 'completed' || localTutorial === 'skipped'
                 ? localTutorial
-                : remoteTutorial;
+                : explicitRemoteTutorial === 'completed' || explicitRemoteTutorial === 'skipped'
+                  ? explicitRemoteTutorial
+                  : localTutorial === 'pending' || explicitRemoteTutorial === 'pending'
+                    ? 'pending'
+                    : 'completed';
 
             sqliteDb
               .prepare(`

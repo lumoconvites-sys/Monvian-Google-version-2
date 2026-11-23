@@ -154,8 +154,9 @@ const FirstSignupWelcomeScreen = React.lazy(() =>
 const WelcomeJourneyModal = React.lazy(() =>
   import('./components/WelcomeJourneyModal').then((m) => ({ default: m.WelcomeJourneyModal }))
 );
+const loadMapOnboardingTutorial = () => import('./components/MapOnboardingTutorial');
 const MapOnboardingTutorial = React.lazy(() =>
-  import('./components/MapOnboardingTutorial').then((m) => ({ default: m.MapOnboardingTutorial }))
+  loadMapOnboardingTutorial().then((m) => ({ default: m.MapOnboardingTutorial }))
 );
 
 const welcomeContainerVariants = {
@@ -2321,8 +2322,7 @@ export default function App() {
 
     const shouldPlayGlobeFlight = Boolean(
       isGlobeIntroPending &&
-        user?.globe_intro_seen !== 1 &&
-        (!cleanEmail || localStorage.getItem(`monvian_globe_intro_seen_${cleanEmail}`) !== '1')
+        user?.globe_intro_seen !== 1
     );
 
     if (shouldPlayGlobeFlight) {
@@ -2347,6 +2347,10 @@ export default function App() {
         markGlobeIntroSeen(cleanEmail, token).catch(() => {});
       }
 
+      if (String(user?.map_tutorial_status || '').trim().toLowerCase() === 'pending') {
+        void loadMapOnboardingTutorial();
+      }
+      setIsDiscoveryPanelClosed(true);
       setIsGlobeIntroPending(false);
       setIsGlobeIntroPlaying(true);
     } else {
@@ -2424,16 +2428,23 @@ export default function App() {
     [user]
   );
 
-  // Auto-trigger interactive map onboarding tutorial ONLY for authenticated accounts
-  // whose DB record has map_tutorial_status === 'pending' once on the main Explore map.
+  const tutorialUserKey = String(user?.id || user?.email || user?.whatsapp || '').trim().toLowerCase();
+  const tutorialUserStatus = String(user?.map_tutorial_status || '').trim().toLowerCase();
+
+  // Preload tutorial bundle as soon as an authenticated user with pending tutorial enters the app
   useEffect(() => {
-    if (isAuthChecking || !isAuthenticated || !authenticatedViews || !user) return;
+    if (!isAuthenticated || tutorialUserStatus !== 'pending') return;
+    void loadMapOnboardingTutorial();
+  }, [isAuthenticated, tutorialUserStatus]);
 
-    const currentUserKey = String(user.id || user.email || user.whatsapp || '').trim().toLowerCase();
-    if (!currentUserKey || verifiedTutorialUserKey !== currentUserKey) return;
+  // Auto-trigger interactive map onboarding tutorial ONLY for authenticated accounts
+  // whose DB record has map_tutorial_status === 'pending' right after the globe-to-user zoom finishes.
+  useEffect(() => {
+    if (isAuthChecking || !isAuthenticated || !authenticatedViews || !tutorialUserKey) return;
 
-    const tutorialStatus = String(user.map_tutorial_status || '').trim().toLowerCase();
-    if (tutorialStatus !== 'pending') {
+    if (verifiedTutorialUserKey !== tutorialUserKey) return;
+
+    if (tutorialUserStatus !== 'pending') {
       if (isMapTutorialOpen) setIsMapTutorialOpen(false);
       return;
     }
@@ -2466,17 +2477,19 @@ export default function App() {
 
     if (isMapTutorialOpen) return;
 
+    void loadMapOnboardingTutorial();
     const timer = window.setTimeout(() => {
       setIsMapTutorialMounted(true);
       setIsMapTutorialOpen(true);
-    }, 950);
+    }, 320);
 
     return () => window.clearTimeout(timer);
   }, [
     isAuthChecking,
     isAuthenticated,
     authenticatedViews,
-    user,
+    tutorialUserKey,
+    tutorialUserStatus,
     verifiedTutorialUserKey,
     isMapTutorialOpen,
     activeTab,
@@ -3381,11 +3394,12 @@ export default function App() {
 
               const hasSeenGlobeIntro = Boolean(
                 normalizedUser?.globe_intro_seen === 1 ||
-                  (cleanEmail && localStorage.getItem(`monvian_globe_intro_seen_${cleanEmail}`) === '1')
+                  (!isNewAccount && cleanEmail && localStorage.getItem(`monvian_globe_intro_seen_${cleanEmail}`) === '1')
               );
               if (isNewAccount && !hasSeenGlobeIntro) {
                 try {
                   if (cleanEmail) {
+                    localStorage.removeItem(`monvian_globe_intro_seen_${cleanEmail}`);
                     localStorage.setItem(`monvian_globe_intro_pending_${cleanEmail}`, '1');
                   }
                 } catch {}
@@ -3571,6 +3585,8 @@ export default function App() {
           !isGlobeIntroPlaying &&
           !isGlobeIntroPending &&
           !isOnboardingItinerarySelection &&
+          !isMapTutorialOpen &&
+          tutorialUserStatus !== 'pending' &&
           !isDiscoveryPanelClosed;
 
         return (
@@ -4742,6 +4758,8 @@ export default function App() {
                   ...(user || {}),
                   ...(updatedUser || {}),
                   ...(preferences || {}),
+                  map_tutorial_status:
+                    updatedUser?.map_tutorial_status || user?.map_tutorial_status || 'pending',
                   onboarding_step: 3,
                   onboarding_completed: 1,
                 });
@@ -4753,6 +4771,8 @@ export default function App() {
                     ...(prev || {}),
                     ...(updatedUser || {}),
                     ...(preferences || {}),
+                    map_tutorial_status:
+                      updatedUser?.map_tutorial_status || prev?.map_tutorial_status || 'pending',
                     onboarding_step: 3,
                     onboarding_completed: 1,
                   });

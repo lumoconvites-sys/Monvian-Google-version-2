@@ -1671,10 +1671,11 @@ export async function syncDatabaseWithFirestore(sqliteDb: any): Promise<void> {
           const mergedInterestsJson = JSON.stringify(mergedInterestsList);
 
           const rawCloudTutorial = String(cloudUser.map_tutorial_status || '').trim().toLowerCase();
-          const resolvedCloudTutorial =
+          const explicitCloudTutorial =
             rawCloudTutorial === 'pending' || rawCloudTutorial === 'completed' || rawCloudTutorial === 'skipped'
               ? rawCloudTutorial
-              : 'completed';
+              : '';
+          const resolvedCloudTutorial = explicitCloudTutorial || 'completed';
 
           const existingUser = sqliteDb.prepare('SELECT id, name, map_tutorial_status FROM users WHERE LOWER(email) = ? OR LOWER(whatsapp) = ?').get(cleanEmail, cleanEmail) as any;
 
@@ -1725,7 +1726,11 @@ export async function syncDatabaseWithFirestore(sqliteDb: any): Promise<void> {
             const finalTutorialStatus =
               localTutorial === 'completed' || localTutorial === 'skipped'
                 ? localTutorial
-                : resolvedCloudTutorial;
+                : explicitCloudTutorial === 'completed' || explicitCloudTutorial === 'skipped'
+                  ? explicitCloudTutorial
+                  : localTutorial === 'pending' || explicitCloudTutorial === 'pending'
+                    ? 'pending'
+                    : 'completed';
 
             sqliteDb.prepare(`
               UPDATE users 

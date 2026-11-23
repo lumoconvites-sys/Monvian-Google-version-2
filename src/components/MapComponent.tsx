@@ -571,6 +571,7 @@ export const MapComponent = memo(
     const [isSpaceBackgroundActive, setIsSpaceBackgroundActive] = useState<boolean>(
       Boolean(isGlobeIntroPending || isGlobeIntroPlaying)
     );
+    const [isMapInstanceReady, setIsMapInstanceReady] = useState<boolean>(false);
     const hasCompletedGlobeFlightRef = useRef<boolean>(false);
     const markerZoomTierRef = useRef<'orbital' | 'regional' | 'city'>('city');
     const latestUserCoordsRef = useRef<[number, number]>(
@@ -1327,6 +1328,7 @@ export const MapComponent = memo(
             mapRef.current.remove();
           } catch {}
           mapRef.current = null;
+          setIsMapInstanceReady(false);
           prevStyleKeyRef.current = '';
         }
         return;
@@ -1399,6 +1401,7 @@ export const MapComponent = memo(
         } catch {}
 
         mapRef.current = map;
+        setIsMapInstanceReady(true);
         ensureUserMarker(map);
 
         map.on('click', () => {
@@ -1982,6 +1985,7 @@ export const MapComponent = memo(
         return;
       }
       if (hasCompletedGlobeFlightRef.current) return;
+      if (!isMapInstanceReady) return;
 
       const map = mapRef.current;
       if (!map) return;
@@ -2234,7 +2238,7 @@ export const MapComponent = memo(
         } catch {}
         setInteractionsEnabled(true);
       };
-    }, [isGlobeIntroPlaying]);
+    }, [isGlobeIntroPlaying, isMapInstanceReady]);
 
     // Focus camera on user marker with high spotlight zoom and hide other markers during spotlight presentation
     useEffect(() => {
