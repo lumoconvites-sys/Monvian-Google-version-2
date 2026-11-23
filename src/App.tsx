@@ -2962,8 +2962,10 @@ export default function App() {
     if (!requestScope) return;
     const sessionId = getOrCreateItinerarySessionId(user);
     const controller = new AbortController();
+    const userEmail = String(user?.email || user?.whatsapp || '').trim().toLowerCase();
     fetch('/api/user-itineraries', {
       headers: {
+        ...(userEmail ? { 'x-user-email': userEmail } : {}),
         ...getAuthHeaders(),
         'x-session-id': sessionId,
       },
@@ -4504,8 +4506,10 @@ export default function App() {
         if (mapWorkflowMode === 'SELECT') {
           setMapWorkflowMode(activeItinerary ? 'ITINERARY' : 'EXPLORE');
         }
-        setActiveTab('perfil');
         setHasVisitedProfile(true);
+        setIsMyItinerariesSubViewActive(true);
+        setOpenMyItinerariesSignal((prev) => prev + 1);
+        setActiveTab('perfil');
         window.setTimeout(() => {
           window.dispatchEvent(new CustomEvent('monvian:open_my_itineraries'));
         }, 30);
@@ -4610,6 +4614,7 @@ export default function App() {
     {!isAdminOpen &&
       !isMapOrbiting &&
       !isOnboardingItinerarySelection &&
+      !isFinalizeItineraryModalOpen &&
       !isDetailOpen &&
       !showOnboardingQuestions &&
       !showFirstSignupWelcome &&

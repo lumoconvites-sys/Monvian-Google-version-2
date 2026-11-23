@@ -1,6 +1,18 @@
 import { Itinerary, ItineraryDay, ItineraryStep, Spot } from '../types';
 import { CAMPOS_SPOTS } from '../data/spots';
-import { readScopedString, writeScopedString, readScopedJSON, writeScopedJSON, removeScopedKey } from './userScopedStorage';
+import {
+  getActiveUserScope,
+  readScopedString,
+  writeScopedString,
+  readScopedJSON,
+  writeScopedJSON,
+  removeScopedKey,
+} from './userScopedStorage';
+import {
+  persistUserItineraryToFirestore,
+  fetchUserItinerariesFromFirestore,
+  deleteUserItineraryFromFirestore,
+} from '../services/firestoreSync';
 
 export function formatEstimatedDuration(durationMinutes?: number): string {
   const mins = Number(durationMinutes);
@@ -291,31 +303,148 @@ function getItineraryRequestAuthHeaders(sessionId: string, userOverride?: any): 
   return headers;
 }
 
-export function loadUserCreatedItinerariesFromStorage(userOverride?: any): Itinerary[] {
+const inMemoryUserItinerariesByScope = new Map<string, Itinerary[]>();
+const deletedCustomItineraryIds = new Set<string>();
+
+function resolveEffectiveUser(userOverride?: any): any {
+  if (userOverride && typeof userOverride === 'object') return userOverride;
   try {
-    const list = readScopedJSON<Itinerary[]>('monvian_my_custom_itineraries', [], userOverride);
+    if (typeof localStorage !== 'undefined') {
+      const raw = localStorage.getItem('monvian_user');
+      if (raw) return JSON.parse(raw);
+    }
+  } catch {}
+  return userOverride;
+}
+
+function getEffectiveUserScopeKey(userOverride?: any): string {
+  const effective = resolveEffectiveUser(userOverride);
+  return getActiveUserScope(effective) || getActiveUserScope() || '__session__';
+}
+
+function compactSpotForStorage(spot: Spot | undefined): Spot | undefined {
+  if (!spot) return undefined;
+  return {
+    id: spot.id,
+    name: spot.name,
+    shortName: spot.shortName,
+    tagLabel: spot.tagLabel,
+    category: spot.category,
+    categoryLabel: spot.categoryLabel,
+    lat: spot.lat,
+    lng: spot.lng,
+    image: typeof spot.image === 'string' && !spot.image.startsWith('data:') ? spot.image : '',
+    description: typeof spot.description === 'string' ? spot.description.slice(0, 240) : '',
+    touristTip: typeof spot.touristTip === 'string' ? spot.touristTip.slice(0, 200) : '',
+    durationMinutes: spot.durationMinutes,
+    rating: spot.rating,
+    reviewCount: spot.reviewCount,
+    hours: spot.hours,
+    address: spot.address,
+  } as Spot;
+}
+
+function compactItineraryForLocalStorage(itinerary: Itinerary, stripDataCover = false): Itinerary {
+  const cover =
+    typeof itinerary.coverImage === 'string'
+      ? stripDataCover && itinerary.coverImage.startsWith('data:')
+        ? ''
+        : itinerary.coverImage.length > 350_000
+          ? ''
+          : itinerary.coverImage
+      : '';
+
+  const compactDays: ItineraryDay[] = (itinerary.days || []).map((d) => ({
+    ...d,
+    steps: (d.steps || []).map((s) => ({
+      ...s,
+      description: typeof s.description === 'string' ? s.description.slice(0, 240) : '',
+      image: typeof s.image === 'string' && !s.image.startsWith('data:') ? s.image : '',
+      spot: compactSpotForStorage(s.spot),
+    })),
+  }));
+
+  return {
+    ...itinerary,
+    coverImage: cover,
+    days: compactDays,
+  };
+}
+
+export function loadUserCreatedItinerariesFromStorage(userOverride?: any): Itinerary[] {
+  const effective = resolveEffectiveUser(userOverride);
+  const scopeKey = getEffectiveUserScopeKey(effective);
+  const memoryList = inMemoryUserItinerariesByScope.get(scopeKey) || [];
+
+  let storageList: Itinerary[] = [];
+  try {
+    const list = readScopedJSON<Itinerary[]>('monvian_my_custom_itineraries', [], effective);
     if (Array.isArray(list)) {
-      return list
-        .filter((it) => it && (it.id || it.title) && Array.isArray(it.days) && it.days.length > 0)
+      storageList = list
+        .filter(
+          (it) =>
+            it &&
+            (it.id || it.title) &&
+            Array.isArray(it.days) &&
+            it.days.length > 0 &&
+            !deletedCustomItineraryIds.has(it.id)
+        )
         .map((it) => normalizeItineraryLivreFlags(it));
     }
   } catch {}
-  return [];
+
+  if (memoryList.length === 0) return storageList;
+
+  const merged = new Map<string, Itinerary>();
+  for (const item of storageList) {
+    if (item?.id) merged.set(item.id, item);
+  }
+  for (const item of memoryList) {
+    if (item?.id && !deletedCustomItineraryIds.has(item.id)) {
+      merged.set(item.id, item);
+    }
+  }
+  return Array.from(merged.values()).sort((a, b) => {
+    const ta = new Date(a.updatedAt || a.createdAt || 0).getTime();
+    const tb = new Date(b.updatedAt || b.createdAt || 0).getTime();
+    return tb - ta;
+  });
 }
 
 export function saveUserCreatedItinerariesToStorage(itineraries: Itinerary[], userOverride?: any): void {
+  const effective = resolveEffectiveUser(userOverride);
+  const scopeKey = getEffectiveUserScopeKey(effective);
+  const cleanList = (itineraries || []).filter(
+    (it) => it && (it.id || it.title) && Array.isArray(it.days) && it.days.length > 0
+  );
+  inMemoryUserItinerariesByScope.set(scopeKey, cleanList);
+
   try {
-    writeScopedJSON('monvian_my_custom_itineraries', itineraries, userOverride);
+    const compact = cleanList.map((it) => compactItineraryForLocalStorage(it, false));
+    writeScopedJSON('monvian_my_custom_itineraries', compact, effective);
+  } catch {
+    try {
+      const ultraCompact = cleanList.map((it) => compactItineraryForLocalStorage(it, true));
+      writeScopedJSON('monvian_my_custom_itineraries', ultraCompact, effective);
+    } catch {}
+  }
+
+  try {
     if (typeof window !== 'undefined' && typeof window.dispatchEvent === 'function') {
-      window.dispatchEvent(new CustomEvent('monvian:user_itineraries_updated', { detail: itineraries }));
+      window.dispatchEvent(new CustomEvent('monvian:user_itineraries_updated', { detail: cleanList }));
     }
   } catch {}
 }
 
 export function upsertUserCreatedItineraryToStorage(itinerary: Itinerary, userOverride?: any): Itinerary[] {
-  const current = loadUserCreatedItinerariesFromStorage(userOverride);
+  if (itinerary?.id) {
+    deletedCustomItineraryIds.delete(itinerary.id);
+  }
+  const effective = resolveEffectiveUser(userOverride);
+  const current = loadUserCreatedItinerariesFromStorage(effective);
   const normalized = normalizeItineraryLivreFlags({
     ...itinerary,
+    isUserCreated: true,
     updatedAt: new Date().toISOString(),
     createdAt: itinerary.createdAt || new Date().toISOString(),
   });
@@ -324,58 +453,85 @@ export function upsertUserCreatedItineraryToStorage(itinerary: Itinerary, userOv
     existsIdx >= 0
       ? current.map((item, idx) => (idx === existsIdx ? normalized : item))
       : [normalized, ...current];
-  saveUserCreatedItinerariesToStorage(next, userOverride);
+  saveUserCreatedItinerariesToStorage(next, effective);
   return next;
 }
 
 export function removeUserCreatedItineraryFromStorage(itineraryId: string, userOverride?: any): Itinerary[] {
-  const current = loadUserCreatedItinerariesFromStorage(userOverride);
+  if (itineraryId) {
+    deletedCustomItineraryIds.add(itineraryId);
+  }
+  const effective = resolveEffectiveUser(userOverride);
+  const current = loadUserCreatedItinerariesFromStorage(effective);
   const next = current.filter((item) => item.id !== itineraryId);
-  saveUserCreatedItinerariesToStorage(next, userOverride);
+  saveUserCreatedItinerariesToStorage(next, effective);
   return next;
 }
 
 export async function fetchUserCreatedItinerariesFromBackend(userOverride?: any): Promise<Itinerary[]> {
-  const localList = loadUserCreatedItinerariesFromStorage(userOverride);
-  try {
-    const sessionId = getOrCreateItinerarySessionId(userOverride);
-    const res = await fetch('/api/user-itineraries', {
-      headers: getItineraryRequestAuthHeaders(sessionId, userOverride),
-    });
-    if (!res.ok) return localList;
-    const data = await res.json();
-    if (!data?.success || !Array.isArray(data.itineraries)) return localList;
+  const effective = resolveEffectiveUser(userOverride);
+  const localList = loadUserCreatedItinerariesFromStorage(effective);
+  const sessionId = getOrCreateItinerarySessionId(effective);
+  const cleanEmail = String(effective?.email || effective?.whatsapp || '').trim().toLowerCase();
 
-    // Filter only itineraries created by the user themselves (not cloned store templates)
-    const serverCustom: Itinerary[] = data.itineraries
-      .filter((it: any) => Boolean(it && (it.isUserCreated !== false && !it.sourceItineraryId)))
-      .map((it: any) => normalizeItineraryLivreFlags(it));
+  const mergedMap = new Map<string, Itinerary>();
+  const mergeCandidate = (candidate: any) => {
+    if (!candidate || !candidate.id) return;
+    if (deletedCustomItineraryIds.has(candidate.id)) return;
+    if (candidate.isUserCreated === false || candidate.sourceItineraryId) return;
+    if (!Array.isArray(candidate.days) || candidate.days.length === 0) return;
 
-    // Merge local and server itineraries by ID (preserving the most recently updated version)
-    const mergedMap = new Map<string, Itinerary>();
-    for (const item of serverCustom) {
-      if (item?.id) mergedMap.set(item.id, item);
+    const normalized = normalizeItineraryLivreFlags({ ...candidate, isUserCreated: true });
+    const existing = mergedMap.get(normalized.id);
+    if (!existing) {
+      mergedMap.set(normalized.id, normalized);
+      return;
     }
-    for (const localItem of localList) {
-      if (!localItem?.id) continue;
-      const existing = mergedMap.get(localItem.id);
-      if (!existing) {
-        mergedMap.set(localItem.id, localItem);
-      } else {
-        const localTime = localItem.updatedAt ? new Date(localItem.updatedAt).getTime() : 0;
-        const serverTime = existing.updatedAt ? new Date(existing.updatedAt).getTime() : 0;
-        if (localTime >= serverTime) {
-          mergedMap.set(localItem.id, localItem);
-        }
+    const candTime = normalized.updatedAt ? new Date(normalized.updatedAt).getTime() : 0;
+    const existTime = existing.updatedAt ? new Date(existing.updatedAt).getTime() : 0;
+    if (candTime >= existTime) {
+      mergedMap.set(normalized.id, normalized);
+    }
+  };
+
+  for (const localItem of localList) {
+    mergeCandidate(localItem);
+  }
+
+  try {
+    const [apiResult, cloudResult] = await Promise.all([
+      fetch('/api/user-itineraries', {
+        headers: getItineraryRequestAuthHeaders(sessionId, effective),
+      })
+        .then((res) => (res.ok ? res.json() : null))
+        .catch(() => null),
+      fetchUserItinerariesFromFirestore({
+        email: cleanEmail,
+        userId: effective?.id ?? effective?.uid ?? null,
+        sessionId,
+      }).catch(() => []),
+    ]);
+
+    if (apiResult?.success && Array.isArray(apiResult.itineraries)) {
+      for (const item of apiResult.itineraries) {
+        mergeCandidate(item);
       }
     }
+    if (Array.isArray(cloudResult)) {
+      for (const item of cloudResult) {
+        mergeCandidate(item);
+      }
+    }
+  } catch {}
 
-    const merged = Array.from(mergedMap.values());
-    saveUserCreatedItinerariesToStorage(merged, userOverride);
-    return merged;
-  } catch {
-    return localList;
-  }
+  const merged = Array.from(mergedMap.values()).sort((a, b) => {
+    const ta = new Date(a.updatedAt || a.createdAt || 0).getTime();
+    const tb = new Date(b.updatedAt || b.createdAt || 0).getTime();
+    return tb - ta;
+  });
+
+  saveUserCreatedItinerariesToStorage(merged, effective);
+  return merged;
 }
 
 export async function persistUserItineraryToBackend(
@@ -384,23 +540,40 @@ export async function persistUserItineraryToBackend(
   sessionId: string,
   userOverride?: any
 ): Promise<void> {
+  const effective = resolveEffectiveUser(userOverride);
+  const cleanEmail = String(effective?.email || effective?.whatsapp || '').trim().toLowerCase();
+
   try {
-    upsertUserCreatedItineraryToStorage(itinerary, userOverride);
-    const url = method === 'POST' ? '/api/user-itineraries' : `/api/user-itineraries/${encodeURIComponent(itinerary.id)}`;
-    await fetch(url, {
-      method,
-      headers: getItineraryRequestAuthHeaders(sessionId, userOverride),
-      body: JSON.stringify({
-        id: itinerary.id,
-        title: itinerary.title,
-        description: itinerary.description,
-        coverImage: itinerary.coverImage,
-        daysCount: itinerary.daysCount,
-        tripDate: '',
-        preferences: { isUserCreated: true },
-        days: itinerary.days,
-      }),
-    });
+    upsertUserCreatedItineraryToStorage(itinerary, effective);
+    const url =
+      method === 'POST'
+        ? '/api/user-itineraries'
+        : `/api/user-itineraries/${encodeURIComponent(itinerary.id)}`;
+
+    await Promise.all([
+      fetch(url, {
+        method,
+        headers: getItineraryRequestAuthHeaders(sessionId, effective),
+        body: JSON.stringify({
+          id: itinerary.id,
+          title: itinerary.title,
+          description: itinerary.description,
+          coverImage: itinerary.coverImage,
+          daysCount: itinerary.daysCount,
+          tripDate: '',
+          preferences: { isUserCreated: true },
+          days: itinerary.days,
+        }),
+      }).catch(() => null),
+      persistUserItineraryToFirestore(
+        { ...itinerary, isUserCreated: true },
+        {
+          userId: effective?.id ?? effective?.uid ?? null,
+          userEmail: cleanEmail,
+          sessionId,
+        }
+      ).catch(() => null),
+    ]);
   } catch (err) {
     console.warn('[Itinerary] Backend sync warning:', err);
   }
@@ -411,12 +584,16 @@ export async function deleteUserItineraryFromBackend(
   sessionId: string,
   userOverride?: any
 ): Promise<void> {
+  const effective = resolveEffectiveUser(userOverride);
   try {
-    removeUserCreatedItineraryFromStorage(itineraryId, userOverride);
-    await fetch(`/api/user-itineraries/${encodeURIComponent(itineraryId)}`, {
-      method: 'DELETE',
-      headers: getItineraryRequestAuthHeaders(sessionId, userOverride),
-    });
+    removeUserCreatedItineraryFromStorage(itineraryId, effective);
+    await Promise.all([
+      fetch(`/api/user-itineraries/${encodeURIComponent(itineraryId)}`, {
+        method: 'DELETE',
+        headers: getItineraryRequestAuthHeaders(sessionId, effective),
+      }).catch(() => null),
+      deleteUserItineraryFromFirestore(itineraryId).catch(() => null),
+    ]);
   } catch {}
 }
 

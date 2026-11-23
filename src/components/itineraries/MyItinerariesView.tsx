@@ -31,6 +31,7 @@ interface MyItinerariesViewProps {
   user: any;
   spots: Spot[];
   isDark: boolean;
+  isActive?: boolean;
   onBack: () => void;
   onStartCreateNewItinerary: () => void;
   onPlayItineraryOnMap: (itinerary: Itinerary) => void;
@@ -45,6 +46,7 @@ export const MyItinerariesView: React.FC<MyItinerariesViewProps> = ({
   user,
   spots,
   isDark,
+  isActive = true,
   onBack,
   onStartCreateNewItinerary,
   onPlayItineraryOnMap,
@@ -91,6 +93,12 @@ export const MyItinerariesView: React.FC<MyItinerariesViewProps> = ({
   }, []);
 
   useEffect(() => {
+    if (isActive) {
+      void refreshMyItineraries();
+    }
+  }, [isActive, refreshMyItineraries]);
+
+  useEffect(() => {
     void refreshMyItineraries();
     const handleUpdated = () => {
       const next = loadUserCreatedItinerariesFromStorage(user);
@@ -98,9 +106,14 @@ export const MyItinerariesView: React.FC<MyItinerariesViewProps> = ({
         JSON.stringify(prev) === JSON.stringify(next) ? prev : next
       );
     };
+    const handleOpenMyItineraries = () => {
+      void refreshMyItineraries();
+    };
     window.addEventListener('monvian:user_itineraries_updated', handleUpdated);
+    window.addEventListener('monvian:open_my_itineraries', handleOpenMyItineraries);
     return () => {
       window.removeEventListener('monvian:user_itineraries_updated', handleUpdated);
+      window.removeEventListener('monvian:open_my_itineraries', handleOpenMyItineraries);
     };
   }, [refreshMyItineraries, user]);
 

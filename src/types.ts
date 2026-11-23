@@ -237,6 +237,8 @@ export interface Itinerary {
   notes?: string;
   days: ItineraryDay[];
   placesCount?: number;
+  isUserCreated?: boolean;
+  sourceItineraryId?: string;
   createdAt?: string;
   updatedAt?: string;
 }

@@ -9,6 +9,11 @@ import {
   toggleItineraryFeaturedInSupabase,
   toggleItineraryStatusInSupabase,
 } from '../services/supabaseItineraries.ts';
+import {
+  persistUserItineraryToFirestore,
+  fetchUserItinerariesFromFirestore,
+  deleteUserItineraryFromFirestore,
+} from '../services/firestoreSync.ts';
 
 // Haversine formula to calculate distance between coordinates in km
 export function calculateDistanceKm(lat1: number, lon1: number, lat2: number, lon2: number): number {
@@ -545,8 +550,22 @@ export function registerItineraryRoutes(
   db: any,
   getAuthUserSync: any,
   logAdminAction: any,
-  getGenAI: any
+  getGenAI: any,
+  resolveAuthUserAsync?: (req: any) => Promise<any | null>
 ) {
+  const resolveItineraryUser = async (req: any) => {
+    try {
+      if (resolveAuthUserAsync) {
+        const resolved = await resolveAuthUserAsync(req);
+        if (resolved) return resolved;
+      }
+    } catch {}
+    try {
+      const syncUser = getAuthUserSync(req);
+      if (syncUser) return syncUser;
+    } catch {}
+    return null;
+  };
   // Helper to load spots map with slug/alias resolution
   const getSpotsMap = () => {
     const spots = db.prepare('SELECT * FROM spots').all() as any[];
@@ -2113,11 +2132,13 @@ export function registerItineraryRoutes(
   // USER SAVED ITINERARIES API
   // ==========================================
 
-  // List saved itineraries for user or session
-  app.get('/api/user-itineraries', (req, res) => {
+  // List saved itineraries for user or session (backed by SQLite + Cloud Firestore)
+  app.get('/api/user-itineraries', async (req, res) => {
     try {
-      const user = getAuthUserSync(req);
+      const user = await resolveItineraryUser(req);
       const sessionId = (req.headers['x-session-id'] as string) || '';
+      const headerEmail = String(req.headers['x-user-email'] || '').trim().toLowerCase();
+      const userEmail = String(user?.email || user?.whatsapp || headerEmail || '').trim().toLowerCase();
 
       let rows: any[] = [];
       if (user && user.id) {
@@ -2140,7 +2161,7 @@ export function registerItineraryRoutes(
       }
 
       const spotsMap = getSpotsMap();
-      const itineraries = rows.map((r) => {
+      const mapRowToItinerary = (r: any) => {
         let days: any[] = [];
         try {
           days = JSON.parse(r.itinerary_data_json || '[]');
@@ -2198,6 +2219,43 @@ export function registerItineraryRoutes(
           createdAt: r.created_at,
           updatedAt: r.updated_at,
         };
+      };
+
+      const localItineraries = rows.map(mapRowToItinerary);
+      const byId = new Map<string, any>(localItineraries.map((it) => [it.id, it]));
+
+      // Hydrate from Cloud Firestore if user has itineraries saved across server restarts/devices
+      if (userEmail || user?.id || sessionId) {
+        try {
+          const cloudItins = await fetchUserItinerariesFromFirestore({
+            email: userEmail,
+            userId: user?.id ?? null,
+            sessionId: sessionId || null,
+          });
+          for (const cloudItin of cloudItins) {
+            if (!cloudItin?.id || byId.has(cloudItin.id)) continue;
+            // Re-hydrate spots on days
+            const hydratedDays = (cloudItin.days || []).map((d: any) => ({
+              ...d,
+              steps: (d.steps || []).map((s: any) => {
+                const hydratedSpot = spotsMap.get(s.spotId) || s.spot;
+                return {
+                  ...s,
+                  spot: hydratedSpot,
+                  lat: Number(s.lat ?? hydratedSpot?.lat ?? -22.734),
+                  lng: Number(s.lng ?? hydratedSpot?.lng ?? -45.591),
+                };
+              }),
+            }));
+            byId.set(cloudItin.id, { ...cloudItin, days: hydratedDays });
+          }
+        } catch {}
+      }
+
+      const itineraries = Array.from(byId.values()).sort((a, b) => {
+        const ta = new Date(a.updatedAt || a.createdAt || 0).getTime();
+        const tb = new Date(b.updatedAt || b.createdAt || 0).getTime();
+        return tb - ta;
       });
 
       res.json({ success: true, itineraries });
@@ -2207,10 +2265,12 @@ export function registerItineraryRoutes(
   });
 
   // Save / create user itinerary
-  app.post('/api/user-itineraries', (req, res) => {
+  app.post('/api/user-itineraries', async (req, res) => {
     try {
-      const user = getAuthUserSync(req);
+      const user = await resolveItineraryUser(req);
       const sessionId = (req.headers['x-session-id'] as string) || '';
+      const headerEmail = String(req.headers['x-user-email'] || '').trim().toLowerCase();
+      const userEmail = String(user?.email || user?.whatsapp || headerEmail || '').trim().toLowerCase();
 
       const {
         id: clientProvidedId,
@@ -2300,6 +2360,26 @@ export function registerItineraryRoutes(
 
       const savedRow = db.prepare('SELECT created_at, updated_at FROM user_itineraries WHERE id = ?').get(id) as any;
 
+      void persistUserItineraryToFirestore(
+        {
+          id,
+          title,
+          description: description || '',
+          coverImage: coverImage || '',
+          daysCount: daysCount || days.length || 1,
+          isUserCreated: mergedPreferences.isUserCreated,
+          sourceItineraryId: mergedPreferences.sourceItineraryId || null,
+          days,
+          createdAt: savedRow?.created_at || new Date().toISOString(),
+          updatedAt: savedRow?.updated_at || new Date().toISOString(),
+        },
+        {
+          userId: user?.id ?? null,
+          userEmail,
+          sessionId,
+        }
+      );
+
       res.json({
         success: true,
         id,
@@ -2314,10 +2394,12 @@ export function registerItineraryRoutes(
   });
 
   // Update user itinerary (edit title, coverImage, steps, notes, times)
-  app.put('/api/user-itineraries/:id', (req, res) => {
+  app.put('/api/user-itineraries/:id', async (req, res) => {
     try {
-      const user = getAuthUserSync(req);
+      const user = await resolveItineraryUser(req);
       const sessionId = (req.headers['x-session-id'] as string) || '';
+      const headerEmail = String(req.headers['x-user-email'] || '').trim().toLowerCase();
+      const userEmail = String(user?.email || user?.whatsapp || headerEmail || '').trim().toLowerCase();
       const { id } = req.params;
       const { title, description, coverImage, daysCount, tripDate, days, preferences } = req.body;
 
@@ -2387,12 +2469,38 @@ export function registerItineraryRoutes(
         );
       }
 
-      const savedRow = db.prepare('SELECT created_at, updated_at FROM user_itineraries WHERE id = ?').get(id) as any;
+      const updatedRow = db.prepare('SELECT * FROM user_itineraries WHERE id = ?').get(id) as any;
+      if (updatedRow) {
+        let parsedDays: any[] = [];
+        let parsedPrefs: any = {};
+        try { parsedDays = JSON.parse(updatedRow.itinerary_data_json || '[]'); } catch {}
+        try { parsedPrefs = JSON.parse(updatedRow.preferences_json || '{}'); } catch {}
+        void persistUserItineraryToFirestore(
+          {
+            id: updatedRow.id,
+            title: updatedRow.title,
+            description: updatedRow.description || '',
+            coverImage: updatedRow.cover_image || '',
+            daysCount: updatedRow.days_count || parsedDays.length || 1,
+            isUserCreated: parsedPrefs.isUserCreated !== false && !parsedPrefs.sourceItineraryId,
+            sourceItineraryId: parsedPrefs.sourceItineraryId || null,
+            days: parsedDays,
+            createdAt: updatedRow.created_at,
+            updatedAt: updatedRow.updated_at,
+          },
+          {
+            userId: user?.id ?? updatedRow.user_id ?? null,
+            userEmail,
+            sessionId: sessionId || updatedRow.session_id || '',
+          }
+        );
+      }
+
       res.json({
         success: true,
         id,
-        createdAt: savedRow?.created_at || new Date().toISOString(),
-        updatedAt: savedRow?.updated_at || new Date().toISOString(),
+        createdAt: updatedRow?.created_at || new Date().toISOString(),
+        updatedAt: updatedRow?.updated_at || new Date().toISOString(),
         message: 'Roteiro atualizado com sucesso',
       });
     } catch (err: any) {
@@ -2401,9 +2509,9 @@ export function registerItineraryRoutes(
   });
 
   // Delete user itinerary
-  app.delete('/api/user-itineraries/:id', (req, res) => {
+  app.delete('/api/user-itineraries/:id', async (req, res) => {
     try {
-      const user = getAuthUserSync(req);
+      const user = await resolveItineraryUser(req);
       const sessionId = (req.headers['x-session-id'] as string) || '';
       const { id } = req.params;
 
@@ -2418,7 +2526,8 @@ export function registerItineraryRoutes(
         const ownedByOtherSession =
           !existing.user_id &&
           existing.session_id &&
-          (!sessionId || existing.session_id !== sessionId);
+          sessionId &&
+          existing.session_id !== sessionId;
         if (ownedByOtherUser || ownedByOtherSession) {
           res.status(403).json({ error: 'Acesso negado: você não pode excluir um roteiro de outra conta.' });
           return;
@@ -2426,6 +2535,7 @@ export function registerItineraryRoutes(
       }
 
       db.prepare('DELETE FROM user_itineraries WHERE id = ?').run(id);
+      void deleteUserItineraryFromFirestore(id);
       res.json({ success: true, message: 'Roteiro excluído' });
     } catch (err: any) {
       res.status(500).json({ error: 'Erro ao excluir roteiro: ' + err.message });

@@ -6,7 +6,9 @@ import {
   getDoc, 
   getDocs, 
   collection, 
-  deleteDoc
+  deleteDoc,
+  query,
+  where
 } from 'firebase/firestore';
 import firebaseConfig from '../../firebase-applet-config.json' with { type: 'json' };
 import { supabase } from '../lib/supabase.ts';
@@ -1985,4 +1987,201 @@ export async function deleteUserAccountFromFirestore(email: string, deletionLog?
     }
   } catch {}
 }
+
+// ----------------------------------------------------
+// USER CUSTOM ITINERARIES PERSISTENCE (/user_itineraries/{id})
+// ----------------------------------------------------
+
+function compactDaysForCloudItinerary(days: any[]): any[] {
+  if (!Array.isArray(days)) return [];
+  return days.map((d: any) => ({
+    id: d?.id || '',
+    itineraryId: d?.itineraryId || '',
+    dayNumber: Number(d?.dayNumber || 1),
+    title: String(d?.title || ''),
+    summary: String(d?.summary || ''),
+    steps: Array.isArray(d?.steps)
+      ? d.steps.map((s: any, sIdx: number) => ({
+          id: s?.id || `step-${sIdx + 1}`,
+          itineraryId: s?.itineraryId || '',
+          dayId: s?.dayId || '',
+          dayNumber: Number(s?.dayNumber || d?.dayNumber || 1),
+          spotId: String(s?.spotId || s?.spot?.id || ''),
+          stepOrder: Number(s?.stepOrder || sIdx + 1),
+          suggestedTime: String(s?.suggestedTime || ''),
+          durationMinutes: Number(s?.durationMinutes || 90),
+          notes: String(s?.notes || ''),
+          title: String(s?.title || s?.spotName || s?.spot?.name || ''),
+          spotName: String(s?.spotName || s?.title || s?.spot?.name || ''),
+          category: String(s?.category || s?.spot?.category || 'attractions'),
+          categoryLabel: String(s?.categoryLabel || s?.spot?.categoryLabel || 'Atração'),
+          description: String(s?.description || s?.spot?.description || '').slice(0, 600),
+          image:
+            typeof s?.image === 'string' && !s.image.startsWith('data:')
+              ? s.image
+              : typeof s?.spot?.image === 'string' && !s.spot.image.startsWith('data:')
+                ? s.spot.image
+                : '',
+          lat: Number(s?.lat ?? s?.spot?.lat ?? -22.734),
+          lng: Number(s?.lng ?? s?.spot?.lng ?? -45.591),
+          distanceToNextKm: s?.distanceToNextKm ?? null,
+          durationToNextMin: s?.durationToNextMin ?? null,
+        }))
+      : [],
+  }));
+}
+
+export async function persistUserItineraryToFirestore(
+  itinerary: any,
+  meta?: { userId?: string | number | null; userEmail?: string | null; sessionId?: string | null }
+): Promise<void> {
+  if (!itinerary?.id) return;
+  const cleanEmail = String(meta?.userEmail || '').trim().toLowerCase();
+  const cleanSessionId = String(meta?.sessionId || '').trim();
+  const numericUserId =
+    meta?.userId !== undefined && meta?.userId !== null && !Number.isNaN(Number(meta.userId))
+      ? Number(meta.userId)
+      : null;
+
+  try {
+    const compactDays = compactDaysForCloudItinerary(itinerary.days || []);
+    const coverStr =
+      typeof itinerary.coverImage === 'string' && itinerary.coverImage.length < 450_000
+        ? itinerary.coverImage
+        : '';
+
+    const docRef = doc(firestore, 'user_itineraries', String(itinerary.id));
+    await withTimeout(
+      setDoc(
+        docRef,
+        {
+          id: String(itinerary.id),
+          user_id: numericUserId,
+          user_uid: meta?.userId ? String(meta.userId) : '',
+          user_email: cleanEmail,
+          session_id: cleanSessionId,
+          title: String(itinerary.title || 'Meu Roteiro'),
+          description: String(itinerary.description || ''),
+          cover_image: coverStr,
+          days_count: Number(itinerary.daysCount || compactDays.length || 1),
+          places_count: Number(
+            itinerary.placesCount ||
+              compactDays.reduce((acc, d) => acc + (Array.isArray(d.steps) ? d.steps.length : 0), 0)
+          ),
+          is_user_created: itinerary.isUserCreated !== false && !itinerary.sourceItineraryId ? 1 : 0,
+          source_itinerary_id: itinerary.sourceItineraryId || '',
+          preferences_json: JSON.stringify({
+            isUserCreated: itinerary.isUserCreated !== false && !itinerary.sourceItineraryId,
+            sourceItineraryId: itinerary.sourceItineraryId || null,
+            badgeText: itinerary.badgeText || 'Grátis',
+          }),
+          itinerary_data_json: JSON.stringify(compactDays),
+          created_at: itinerary.createdAt || new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+        },
+        { merge: true }
+      ),
+      3500,
+      null
+    );
+  } catch (err) {
+    console.warn('[FirestoreSync] Could not persist user itinerary:', err);
+  }
+}
+
+export async function fetchUserItinerariesFromFirestore(params: {
+  email?: string | null;
+  userId?: string | number | null;
+  sessionId?: string | null;
+}): Promise<any[]> {
+  const cleanEmail = String(params?.email || '').trim().toLowerCase();
+  const cleanUid = params?.userId !== undefined && params?.userId !== null ? String(params.userId).trim() : '';
+  const cleanSession = String(params?.sessionId || '').trim();
+  if (!cleanEmail && !cleanUid && !cleanSession) return [];
+
+  try {
+    const colRef = collection(firestore, 'user_itineraries');
+    const queries: Promise<any>[] = [];
+
+    if (cleanEmail) {
+      queries.push(
+        withTimeout(getDocs(query(colRef, where('user_email', '==', cleanEmail))), 3500, null as any)
+      );
+    }
+    if (cleanUid && !Number.isNaN(Number(cleanUid))) {
+      queries.push(
+        withTimeout(getDocs(query(colRef, where('user_id', '==', Number(cleanUid)))), 3500, null as any)
+      );
+    } else if (cleanUid) {
+      queries.push(
+        withTimeout(getDocs(query(colRef, where('user_uid', '==', cleanUid))), 3500, null as any)
+      );
+    }
+    if (cleanSession) {
+      queries.push(
+        withTimeout(getDocs(query(colRef, where('session_id', '==', cleanSession))), 3500, null as any)
+      );
+    }
+
+    const snapshots = await Promise.all(queries);
+    const byId = new Map<string, any>();
+
+    for (const snap of snapshots) {
+      if (!snap || typeof snap.forEach !== 'function') continue;
+      snap.forEach((docSnap: any) => {
+        const d = docSnap.data();
+        if (!d || !d.id) return;
+        let days: any[] = [];
+        try {
+          days = JSON.parse(d.itinerary_data_json || '[]');
+        } catch {
+          days = [];
+        }
+        let prefs: any = {};
+        try {
+          prefs = JSON.parse(d.preferences_json || '{}');
+        } catch {}
+
+        const isUserCreated =
+          d.is_user_created === 1 ||
+          (prefs.isUserCreated !== false && !d.source_itinerary_id && !prefs.sourceItineraryId);
+
+        if (!isUserCreated || !Array.isArray(days) || days.length === 0) return;
+
+        byId.set(String(d.id), {
+          id: String(d.id),
+          title: String(d.title || 'Meu Roteiro'),
+          description: String(d.description || ''),
+          coverImage: String(d.cover_image || ''),
+          daysCount: Number(d.days_count || days.length || 1),
+          placesCount:
+            Number(d.places_count) ||
+            days.reduce((acc, day) => acc + (Array.isArray(day.steps) ? day.steps.length : 0), 0),
+          isUserCreated: true,
+          isPremium: false,
+          badgeText: 'Grátis',
+          days,
+          createdAt: d.created_at || new Date().toISOString(),
+          updatedAt: d.updated_at || d.created_at || new Date().toISOString(),
+        });
+      });
+    }
+
+    return Array.from(byId.values()).sort((a, b) => {
+      const ta = new Date(a.updatedAt || a.createdAt || 0).getTime();
+      const tb = new Date(b.updatedAt || b.createdAt || 0).getTime();
+      return tb - ta;
+    });
+  } catch {
+    return [];
+  }
+}
+
+export async function deleteUserItineraryFromFirestore(itineraryId: string): Promise<void> {
+  if (!itineraryId) return;
+  try {
+    await withTimeout(deleteDoc(doc(firestore, 'user_itineraries', String(itineraryId))), 2500, null);
+  } catch {}
+}
+
 

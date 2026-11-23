@@ -953,7 +953,7 @@ async function startServer() {
   app.use((req, res, next) => {
     res.header('Access-Control-Allow-Origin', '*');
     res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, PATCH, DELETE, OPTIONS');
-    res.header('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept, Authorization, x-user-email, x-monvian-user-id');
+    res.header('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept, Authorization, x-user-email, x-monvian-user-id, x-session-id');
     if (req.method === 'OPTIONS') {
       res.sendStatus(200);
       return;
@@ -1013,7 +1013,7 @@ async function startServer() {
   };
 
   // Register modular feature routes
-  registerItineraryRoutes(app, db, getAuthUserSync, () => {}, () => null);
+  registerItineraryRoutes(app, db, getAuthUserSync, () => {}, () => null, (req: Request) => resolveAuthenticatedUser(req));
   registerSocialRoutes(app, db);
   registerStoryRoutes(app, db);
   registerStripeRoutes(app, db, (req) => resolveAuthenticatedUser(req));

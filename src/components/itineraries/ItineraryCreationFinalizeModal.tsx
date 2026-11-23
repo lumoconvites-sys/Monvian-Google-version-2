@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import { motion, AnimatePresence } from 'motion/react';
 import { ChevronLeft, Loader2, Upload } from 'lucide-react';
 import { Itinerary, Spot } from '../../types';
@@ -11,6 +12,70 @@ import {
 
 const DEFAULT_FALLBACK_COVER =
   'https://images.unsplash.com/photo-1519501025264-65ba15a82390?auto=format&fit=crop&w=1200&q=85';
+
+function readFileAsCompressedDataUrl(
+  file: File,
+  maxDimension = 960,
+  quality = 0.82
+): Promise<string> {
+  return new Promise((resolve) => {
+    const reader = new FileReader();
+    reader.onload = () => {
+      const rawUrl = typeof reader.result === 'string' ? reader.result : '';
+      if (!rawUrl || typeof Image === 'undefined' || typeof document === 'undefined') {
+        resolve(rawUrl);
+        return;
+      }
+      const img = new Image();
+      img.onload = () => {
+        try {
+          const w = img.naturalWidth || img.width;
+          const h = img.naturalHeight || img.height;
+          if (!w || !h) {
+            resolve(rawUrl);
+            return;
+          }
+          const scale = Math.min(1, maxDimension / Math.max(w, h));
+          const targetW = Math.max(1, Math.round(w * scale));
+          const targetH = Math.max(1, Math.round(h * scale));
+          const canvas = document.createElement('canvas');
+          canvas.width = targetW;
+          canvas.height = targetH;
+          const ctx = canvas.getContext('2d');
+          if (!ctx) {
+            resolve(rawUrl);
+            return;
+          }
+          ctx.drawImage(img, 0, 0, targetW, targetH);
+          const compressed = canvas.toDataURL('image/jpeg', quality);
+          resolve(compressed && compressed.length < rawUrl.length ? compressed : rawUrl);
+        } catch {
+          resolve(rawUrl);
+        }
+      };
+      img.onerror = () => resolve(rawUrl);
+      img.src = rawUrl;
+    };
+    reader.onerror = () => resolve('');
+    reader.readAsDataURL(file);
+  });
+}
+
+function getVisualViewportMetrics(): {
+  height: number;
+  offsetTop: number;
+  isKeyboardOpen: boolean;
+} {
+  if (typeof window === 'undefined') {
+    return { height: 800, offsetTop: 0, isKeyboardOpen: false };
+  }
+  const vv = window.visualViewport;
+  const height = Math.round(vv?.height || window.innerHeight);
+  const offsetTop = Math.round(vv?.offsetTop || 0);
+  const screenH = window.screen?.height || window.innerHeight;
+  const isKeyboardOpen = height < screenH * 0.78;
+  return { height, offsetTop, isKeyboardOpen };
+}
 
 interface ItineraryCreationFinalizeModalProps {
   isOpen: boolean;
@@ -56,8 +121,12 @@ export const ItineraryCreationFinalizeModal: React.FC<ItineraryCreationFinalizeM
 
   const [isUploadingPhoto, setIsUploadingPhoto] = useState<boolean>(false);
   const [isSaving, setIsSaving] = useState<boolean>(false);
+  const [vvMetrics, setVvMetrics] = useState(getVisualViewportMetrics);
 
   const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const scrollBodyRef = useRef<HTMLDivElement | null>(null);
+  const titleSectionRef = useRef<HTMLDivElement | null>(null);
+  const focusTimerRef = useRef<number | null>(null);
 
   useEffect(() => {
     if (!isOpen) return;
@@ -78,6 +147,73 @@ export const ItineraryCreationFinalizeModal: React.FC<ItineraryCreationFinalizeM
     }
   }, [isOpen, mode, initialTitle, initialCoverImage, existingItinerary?.title, existingItinerary?.coverImage]);
 
+  useEffect(() => {
+    if (!isOpen || typeof window === 'undefined') return;
+
+    const syncViewport = () => {
+      if (window.scrollY !== 0 || window.scrollX !== 0) {
+        window.scrollTo(0, 0);
+      }
+      const next = getVisualViewportMetrics();
+      setVvMetrics((prev) =>
+        prev.height === next.height &&
+        prev.offsetTop === next.offsetTop &&
+        prev.isKeyboardOpen === next.isKeyboardOpen
+          ? prev
+          : next
+      );
+    };
+
+    syncViewport();
+
+    const vv = window.visualViewport;
+    vv?.addEventListener('resize', syncViewport);
+    vv?.addEventListener('scroll', syncViewport);
+    window.addEventListener('resize', syncViewport);
+    window.addEventListener('scroll', syncViewport, { passive: true });
+
+    return () => {
+      if (focusTimerRef.current !== null) {
+        window.clearTimeout(focusTimerRef.current);
+        focusTimerRef.current = null;
+      }
+      vv?.removeEventListener('resize', syncViewport);
+      vv?.removeEventListener('scroll', syncViewport);
+      window.removeEventListener('resize', syncViewport);
+      window.removeEventListener('scroll', syncViewport);
+    };
+  }, [isOpen]);
+
+  const handleTitleInputFocus = () => {
+    if (typeof window === 'undefined') return;
+    if (window.scrollY !== 0 || window.scrollX !== 0) {
+      window.scrollTo(0, 0);
+    }
+    if (focusTimerRef.current !== null) {
+      window.clearTimeout(focusTimerRef.current);
+    }
+    focusTimerRef.current = window.setTimeout(() => {
+      focusTimerRef.current = null;
+      if (window.scrollY !== 0 || window.scrollX !== 0) {
+        window.scrollTo(0, 0);
+      }
+      const container = scrollBodyRef.current;
+      const target = titleSectionRef.current;
+      if (container && target) {
+        const containerRect = container.getBoundingClientRect();
+        const targetRect = target.getBoundingClientRect();
+        const desiredTop =
+          container.scrollTop +
+          (targetRect.top - containerRect.top) -
+          Math.max(12, (container.clientHeight - targetRect.height) / 2);
+        container.scrollTo({
+          top: Math.max(0, desiredTop),
+          behavior: 'smooth',
+        });
+      }
+    }, 120);
+  };
+
   const handleTriggerFileUpload = () => {
     if (isUploadingPhoto) return;
     fileInputRef.current?.click();
@@ -87,20 +223,9 @@ export const ItineraryCreationFinalizeModal: React.FC<ItineraryCreationFinalizeM
     const file = e.target.files?.[0];
     if (!file) return;
 
-    // Immediately create a local Data URL preview so the photo appears right away inside the card
-    const readAsDataUrl = (f: File): Promise<string> =>
-      new Promise((resolve) => {
-        const reader = new FileReader();
-        reader.onload = () => {
-          resolve(typeof reader.result === 'string' ? reader.result : '');
-        };
-        reader.onerror = () => resolve('');
-        reader.readAsDataURL(f);
-      });
-
     setIsUploadingPhoto(true);
     try {
-      const localPreview = await readAsDataUrl(file);
+      const localPreview = await readFileAsCompressedDataUrl(file, 960, 0.82);
       if (localPreview) {
         setCoverImage(localPreview);
       }
@@ -114,7 +239,7 @@ export const ItineraryCreationFinalizeModal: React.FC<ItineraryCreationFinalizeM
         setCoverImage(uploadedUrl);
       }
     } catch {
-      // Keep localPreview if remote storage upload fails
+      // Keep compressed localPreview if remote storage upload fails
     } finally {
       setIsUploadingPhoto(false);
       e.target.value = '';
@@ -165,9 +290,11 @@ export const ItineraryCreationFinalizeModal: React.FC<ItineraryCreationFinalizeM
     onSavedAndGoToMyItineraries(finalItinerary);
   };
 
-  if (!isOpen) return null;
+  if (!isOpen || typeof document === 'undefined') return null;
 
-  return (
+  const isKeyboardOpen = vvMetrics.isKeyboardOpen;
+
+  return createPortal(
     <AnimatePresence>
       <motion.div
         key="itinerary-finalize-fullscreen"
@@ -175,10 +302,15 @@ export const ItineraryCreationFinalizeModal: React.FC<ItineraryCreationFinalizeM
         animate={{ opacity: 1, y: 0 }}
         exit={{ opacity: 0, y: 18 }}
         transition={{ type: 'spring', stiffness: 380, damping: 34, mass: 0.82 }}
-        className={`fixed inset-0 z-[270] flex flex-col select-none overflow-hidden ${
+        className={`fixed inset-x-0 z-[310] flex flex-col select-none overflow-hidden ${
           isDark ? 'bg-[#000000] text-[#FFFFFF]' : 'bg-[#FFFFFF] text-[#0B0B0C]'
         }`}
         style={{
+          top: `${vvMetrics.offsetTop}px`,
+          left: 0,
+          right: 0,
+          height: isKeyboardOpen ? `${vvMetrics.height}px` : 'var(--app-height, 100dvh)',
+          maxHeight: isKeyboardOpen ? `${vvMetrics.height}px` : 'var(--app-height, 100dvh)',
           backgroundColor: isDark ? '#000000' : '#ffffff',
           fontFamily:
             '-apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro Text", "Inter", sans-serif',
@@ -195,9 +327,9 @@ export const ItineraryCreationFinalizeModal: React.FC<ItineraryCreationFinalizeM
 
         {/* 1. CABEÇALHO */}
         <div
-          className={`w-full max-w-[480px] mx-auto px-6 pb-4 flex items-center justify-between shrink-0 ${
-            isDark ? 'bg-[#000000]' : 'bg-[#FFFFFF]'
-          }`}
+          className={`w-full max-w-[480px] mx-auto px-6 flex items-center justify-between shrink-0 ${
+            isKeyboardOpen ? 'pb-2.5' : 'pb-4'
+          } ${isDark ? 'bg-[#000000]' : 'bg-[#FFFFFF]'}`}
           style={{
             paddingTop: 'max(calc(env(safe-area-inset-top, 16px) + 14px), 24px)',
           }}
@@ -235,7 +367,8 @@ export const ItineraryCreationFinalizeModal: React.FC<ItineraryCreationFinalizeM
 
         {/* CORPO PRINCIPAL */}
         <div
-          className="flex-1 overflow-y-auto w-full max-w-[480px] mx-auto px-6 pt-3 pb-8"
+          ref={scrollBodyRef}
+          className="flex-1 min-h-0 overflow-y-auto overscroll-contain w-full max-w-[480px] mx-auto px-6 pt-3 pb-8"
           style={{ WebkitOverflowScrolling: 'touch' }}
         >
           {/* 2. CARD DE UPLOAD */}
@@ -371,7 +504,7 @@ export const ItineraryCreationFinalizeModal: React.FC<ItineraryCreationFinalizeM
           </div>
 
           {/* 3. NOME DO ROTEIRO */}
-          <div className="mt-8">
+          <div ref={titleSectionRef} className="mt-8">
             <label
               htmlFor="itinerary-finalize-title-input"
               className={`block text-[18px] font-bold tracking-[-0.015em] mb-3 ${
@@ -385,9 +518,16 @@ export const ItineraryCreationFinalizeModal: React.FC<ItineraryCreationFinalizeM
               type="text"
               value={title}
               onChange={(e) => setTitle(e.target.value)}
+              onFocus={handleTitleInputFocus}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') {
+                  e.currentTarget.blur();
+                }
+              }}
+              enterKeyHint="done"
               placeholder="Ex: Roteiro Gastronômico"
               maxLength={60}
-              className={`w-full h-[58px] px-5 rounded-[20px] border text-[17px] font-normal outline-none transition-colors ${
+              className={`w-full h-[58px] px-5 rounded-[20px] border text-[17px] font-normal outline-none select-text transition-colors ${
                 isDark
                   ? 'bg-[#171717] border-white/10 text-[#FFFFFF] placeholder:text-[#858585] focus:border-white/30'
                   : 'bg-[#F5F5F7] border-black/[0.04] text-[#0B0B0C] placeholder:text-[#8E8E93] focus:border-black/20'
@@ -429,8 +569,10 @@ export const ItineraryCreationFinalizeModal: React.FC<ItineraryCreationFinalizeM
             isDark ? 'bg-[#000000] border-white/10' : 'bg-[#FFFFFF] border-[#EFEFF2]'
           }`}
           style={{
-            paddingTop: '16px',
-            paddingBottom: 'max(24px, calc(env(safe-area-inset-bottom, 0px) + 16px))',
+            paddingTop: isKeyboardOpen ? '10px' : '16px',
+            paddingBottom: isKeyboardOpen
+              ? '10px'
+              : 'max(24px, calc(env(safe-area-inset-bottom, 0px) + 16px))',
           }}
         >
           <div className="w-full max-w-[480px] mx-auto px-6">
@@ -438,7 +580,9 @@ export const ItineraryCreationFinalizeModal: React.FC<ItineraryCreationFinalizeM
               type="button"
               disabled={selectedSpots.length === 0 || isSaving}
               onClick={handleSaveItinerary}
-              className={`w-full h-[58px] rounded-full font-bold text-[17.5px] tracking-[-0.01em] flex items-center justify-center gap-2 transition-all ${
+              className={`w-full ${
+                isKeyboardOpen ? 'h-[50px]' : 'h-[58px]'
+              } rounded-full font-bold text-[17.5px] tracking-[-0.01em] flex items-center justify-center gap-2 transition-all ${
                 selectedSpots.length > 0 && !isSaving
                   ? isDark
                     ? 'bg-[#FFFFFF] text-[#000000] shadow-[0_8px_24px_rgba(0,0,0,0.45)] active:scale-[0.98] cursor-pointer'
@@ -460,6 +604,7 @@ export const ItineraryCreationFinalizeModal: React.FC<ItineraryCreationFinalizeM
           </div>
         </div>
       </motion.div>
-    </AnimatePresence>
+    </AnimatePresence>,
+    document.body
   );
 };

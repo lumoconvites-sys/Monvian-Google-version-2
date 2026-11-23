@@ -957,7 +957,6 @@ export const ProfileModal: React.FC<ProfileModalProps> = React.memo(({
                   transition={{ type: 'spring', stiffness: 380, damping: 22, delay: 0.14 }}
                   whileTap={{ scale: 0.97 }}
                   onClick={() => {
-                    onClose();
                     window.dispatchEvent(
                       new CustomEvent('monvian:open_platanos_wallet', { detail: { tab: 'topup' } })
                     );
@@ -1095,6 +1094,7 @@ export const ProfileModal: React.FC<ProfileModalProps> = React.memo(({
               user={user}
               spots={spots}
               isDark={isDark}
+              isActive={isViewActive}
               onBack={() => handleSetSubView('main')}
               onStartCreateNewItinerary={() => {
                 onClose();
