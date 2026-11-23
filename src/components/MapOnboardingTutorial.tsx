@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { AnimatePresence, motion, useReducedMotion } from 'motion/react';
-import { ArrowRight, Compass } from 'lucide-react';
+import { unlockSpotClickSound } from '../utils/soundEffects';
 
 export interface MapOnboardingTutorialProps {
   isOpen: boolean;
@@ -406,7 +406,7 @@ export const MapOnboardingTutorial: React.FC<MapOnboardingTutorialProps> = ({
   const [isSimulatingTap, setIsSimulatingTap] = useState<boolean>(false);
 
   const balloonRef = useRef<HTMLDivElement | null>(null);
-  const [balloonSize, setBalloonSize] = useState<{ w: number; h: number }>({ w: 288, h: 176 });
+  const [balloonSize, setBalloonSize] = useState<{ w: number; h: number }>({ w: 288, h: 132 });
 
   const recomputeVisibleSteps = useCallback(() => {
     const filtered = getVisibleTutorialSteps();
@@ -583,6 +583,7 @@ export const MapOnboardingTutorial: React.FC<MapOnboardingTutorialProps> = ({
 
   const handleNext = useCallback(() => {
     if (!isOpen) return;
+    unlockSpotClickSound();
     setIsSimulatingTap(false);
     if (stepIndex >= totalSteps - 1) {
       onComplete();
@@ -591,19 +592,29 @@ export const MapOnboardingTutorial: React.FC<MapOnboardingTutorialProps> = ({
     }
   }, [isOpen, stepIndex, totalSteps, onComplete]);
 
-  // 3-second auto-advance timer per card + simulated click pulse right before entering SELECT mode
+  // 3-second auto-advance timer per card + simulated click pulses synchronized with live UI demos
   useEffect(() => {
     if (!isOpen || !activeStep) return;
 
     setIsSimulatingTap(false);
-    let tapHintTimer: number | null = null;
+    const timers: number[] = [];
+
     if (
       activeStep.id === 'open-discovery-create' ||
       activeStep.id === 'desktop-create-itinerary'
     ) {
-      tapHintTimer = window.setTimeout(() => {
-        setIsSimulatingTap(true);
-      }, 2250);
+      timers.push(
+        window.setTimeout(() => {
+          setIsSimulatingTap(true);
+        }, 2250)
+      );
+    } else if (activeStep.id === 'layers') {
+      timers.push(
+        window.setTimeout(() => setIsSimulatingTap(true), 290),
+        window.setTimeout(() => setIsSimulatingTap(false), 680),
+        window.setTimeout(() => setIsSimulatingTap(true), 1650),
+        window.setTimeout(() => setIsSimulatingTap(false), 2040)
+      );
     }
 
     const autoAdvanceTimer = window.setTimeout(() => {
@@ -611,7 +622,7 @@ export const MapOnboardingTutorial: React.FC<MapOnboardingTutorialProps> = ({
     }, STEP_DURATION_MS);
 
     return () => {
-      if (tapHintTimer !== null) window.clearTimeout(tapHintTimer);
+      timers.forEach((tid) => window.clearTimeout(tid));
       window.clearTimeout(autoAdvanceTimer);
     };
   }, [isOpen, activeStep?.id, stepIndex, handleNext]);
@@ -643,7 +654,7 @@ export const MapOnboardingTutorial: React.FC<MapOnboardingTutorialProps> = ({
       : Math.max(20, vw < 768 ? 26 : 20);
     const maxW = isFinalStep ? Math.min(330, vw - safeH * 2) : Math.min(292, vw - safeH * 2);
     const bW = Math.min(maxW, balloonSize.w || maxW);
-    const bH = balloonSize.h || 176;
+    const bH = balloonSize.h || 132;
 
     if (!spotlight || !activeStep || isFinalStep) {
       return {
@@ -960,40 +971,6 @@ export const MapOnboardingTutorial: React.FC<MapOnboardingTutorialProps> = ({
                   />
                 )}
 
-                {/* Header row: clean frosted step indicator pill */}
-                <div className="flex items-center justify-between gap-2 mb-2.5">
-                  {isFinalStep ? (
-                    <div
-                      className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[11px] font-semibold tracking-tight ${
-                        isDark
-                          ? 'bg-white/[0.10] text-[#E5E5EA] border border-white/[0.12]'
-                          : 'bg-black/[0.06] text-[#171717] border border-black/[0.05]'
-                      }`}
-                    >
-                      <Compass className="w-3.5 h-3.5" strokeWidth={2} />
-                      <span>Campos do Jordão</span>
-                    </div>
-                  ) : (
-                    <span
-                      className={`inline-flex items-center px-3 py-0.5 rounded-full text-[11px] font-semibold tracking-tight tabular-nums ${
-                        isDark
-                          ? 'bg-white/[0.10] text-[#E5E5EA] border border-white/[0.12]'
-                          : 'bg-black/[0.06] text-[#171717] border border-black/[0.05]'
-                      }`}
-                    >
-                      {stepIndex + 1} de {totalSteps}
-                    </span>
-                  )}
-
-                  <span
-                    className={`text-[11px] font-medium tracking-tight ${
-                      isDark ? 'text-white/45' : 'text-black/45'
-                    }`}
-                  >
-                    Toque na tela
-                  </span>
-                </div>
-
                 {/* Title & concise explanation */}
                 <h3
                   className={`text-[16px] font-bold leading-snug tracking-[-0.02em] ${
@@ -1034,35 +1011,18 @@ export const MapOnboardingTutorial: React.FC<MapOnboardingTutorialProps> = ({
                   />
                 </div>
 
-                {/* Actions row: clean progress dots + black pill CTA (no Skip button) */}
-                <div className="mt-3.5 flex items-center justify-between gap-2">
-                  <div className="flex items-center gap-1" aria-hidden="true">
-                    {visibleSteps.map((s, idx) => (
-                      <span
-                        key={s.id}
-                        className={`h-1 rounded-full transition-all duration-200 ${
-                          idx === stepIndex
-                            ? `w-3.5 ${isDark ? 'bg-[#FFFFFF]' : 'bg-[#000000]'}`
-                            : `w-1 ${isDark ? 'bg-white/25' : 'bg-black/20'}`
-                        }`}
-                      />
-                    ))}
-                  </div>
-
-                  <motion.button
-                    type="button"
-                    whileTap={{ scale: 0.96 }}
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      handleNext();
-                    }}
-                    className={`inline-flex items-center justify-center gap-1.5 rounded-full px-4 py-2 text-[13px] font-semibold tracking-tight transition-all hover:bg-[#171717] cursor-pointer shadow-[0_8px_20px_-4px_rgba(0,0,0,0.34),inset_0_1px_0_rgba(255,255,255,0.16)] bg-[#000000] text-[#FFFFFF] ${
-                      isDark ? 'border border-white/20' : ''
-                    }`}
-                  >
-                    <span>{isFinalStep ? 'Explorar o mapa' : 'Continuar'}</span>
-                    <ArrowRight className="w-3.5 h-3.5" strokeWidth={2.25} />
-                  </motion.button>
+                {/* Minimalist progress dots (tap anywhere on screen or card to advance) */}
+                <div className="mt-3 flex items-center justify-center gap-1" aria-hidden="true">
+                  {visibleSteps.map((s, idx) => (
+                    <span
+                      key={s.id}
+                      className={`h-1 rounded-full transition-all duration-200 ${
+                        idx === stepIndex
+                          ? `w-3.5 ${isDark ? 'bg-[#FFFFFF]' : 'bg-[#000000]'}`
+                          : `w-1 ${isDark ? 'bg-white/25' : 'bg-black/20'}`
+                      }`}
+                    />
+                  ))}
                 </div>
               </motion.div>
             </AnimatePresence>

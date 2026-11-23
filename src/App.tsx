@@ -35,6 +35,7 @@ import { deviceHeadingManager } from './utils/deviceHeading';
 import { getSpotImage, getSpotFallbackImage } from './utils/spotImages';
 import { VerifiedBadge } from './components/ui/VerifiedBadge';
 import { startPreloadResources } from './utils/preloadItineraries';
+import { playMapLayerToggleSound, playSpotClickSound, unlockSpotClickSound } from './utils/soundEffects';
 import { isPresentationCardSeen, markPresentationCardSeen, type PresentationTab } from './components/AirbnbPresentationCard';
 import { persistUserToFirestore, syncPermissionsFromDatabase, markWelcomeCardSeen, markGlobeIntroSeen, updateMapTutorialStatusInDb } from './services/firestoreSync';
 import { fetchSpotsFromSupabase, subscribeToSpotsChanges } from './services/supabaseSpots';
@@ -2557,9 +2558,11 @@ export default function App() {
   is3DModeRefForTutorial.current = is3DMode;
   const hasToggled3DRefForTutorial = useRef(hasToggled3D);
   hasToggled3DRefForTutorial.current = hasToggled3D;
+  const mapStyleRefForTutorial = useRef(mapStyle);
+  mapStyleRefForTutorial.current = mapStyle;
 
   // Synchronize interactive map tutorial workflow demonstrations:
-  // 3D Toggle -> Discovery Sheet -> Criar Roteiro -> Circular Pins (1..3) -> Bottom Selection Bar -> Explore + Confetti + Zoom on User
+  // 3D Toggle -> Layers Toggle + SFX -> Discovery Sheet -> Criar Roteiro -> Circular Pins (1..3) + SFX -> Bottom Selection Bar -> Explore + Confetti + Zoom on User
   useEffect(() => {
     if (!isMapTutorialOpen || !tutorialActiveStepId) {
       chosenTutorialSpotIdsRef.current = [];
@@ -2590,6 +2593,35 @@ export default function App() {
         window.clearTimeout(tRestore);
         setIs3DMode(initial3D);
         setHasToggled3D(initialHasToggled);
+      };
+    }
+
+    if (tutorialActiveStepId === 'layers') {
+      chosenTutorialSpotIdsRef.current = [];
+      setIsDiscoveryPanelClosed(true);
+      setSelectedSpotIdsForItinerary([]);
+      setMapWorkflowMode('EXPLORE');
+
+      const initialStyle = mapStyleRefForTutorial.current;
+      const toggledStyle: MapModeType = initialStyle === 'satelite' ? 'explorar' : 'satelite';
+      unlockSpotClickSound();
+
+      const tToggle = window.setTimeout(() => {
+        unlockSpotClickSound();
+        playMapLayerToggleSound();
+        setMapStyle(toggledStyle);
+      }, 320);
+
+      const tRestore = window.setTimeout(() => {
+        unlockSpotClickSound();
+        playMapLayerToggleSound();
+        setMapStyle(initialStyle);
+      }, 1680);
+
+      return () => {
+        window.clearTimeout(tToggle);
+        window.clearTimeout(tRestore);
+        setMapStyle(initialStyle);
       };
     }
 
@@ -2696,6 +2728,8 @@ export default function App() {
       chosen.forEach((spot, idx) => {
         const delayMs = 140 + idx * 860;
         const tid = window.setTimeout(() => {
+          unlockSpotClickSound();
+          playSpotClickSound();
           setSelectedSpotIdsForItinerary((prev) =>
             prev.includes(spot.id) ? prev : [...prev, spot.id]
           );
