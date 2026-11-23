@@ -4598,6 +4598,7 @@ export default function App() {
               (mapWorkflowMode !== 'ITINERARY' || !isItineraryDrawerExpanded || theme === 'dark')
             }
             theme={theme}
+            isTutorialSweepActive={isMapTutorialOpen && tutorialActiveStepId === 'bottom-nav'}
           />
         </div>
       )}

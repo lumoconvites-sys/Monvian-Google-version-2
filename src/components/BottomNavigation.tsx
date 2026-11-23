@@ -20,6 +20,7 @@ export interface BottomNavigationProps {
   forceWhiteUI?: boolean;
   isSatellite?: boolean;
   theme?: 'dark' | 'light';
+  isTutorialSweepActive?: boolean;
 }
 
 const TABS: { id: TabType; label: string }[] = [
@@ -194,6 +195,7 @@ export const BottomNavigation: React.FC<BottomNavigationProps> = memo(({
   forceWhiteUI = false,
   isSatellite = false,
   theme = 'light',
+  isTutorialSweepActive = false,
 }) => {
   const prefersReducedMotion = Boolean(useReducedMotion());
   const useWhiteIcons = !isSatellite && (forceWhiteUI || theme === 'dark');
@@ -214,6 +216,7 @@ export const BottomNavigation: React.FC<BottomNavigationProps> = memo(({
   const trackRef = useRef<HTMLDivElement | null>(null);
   const activePointerIdRef = useRef<number | null>(null);
   const isScrubbingRef = useRef<boolean>(false);
+  const isTutorialSweepRef = useRef<boolean>(false);
   const lastScrubIndexRef = useRef<number | null>(null);
   const suppressNextClickRef = useRef<boolean>(false);
 
@@ -242,9 +245,9 @@ export const BottomNavigation: React.FC<BottomNavigationProps> = memo(({
   const smoothPillScaleY = useSpring(pillScaleYMV, LENS_SCALE_SPRING);
   const smoothPillLiftY = useSpring(pillLiftYMV, LENS_SCALE_SPRING);
 
-  // Keep pill aligned with activeIndex whenever not actively dragging
+  // Keep pill aligned with activeIndex whenever not actively dragging or running tutorial sweep
   useEffect(() => {
-    if (!isScrubbingRef.current) {
+    if (!isScrubbingRef.current && !isTutorialSweepRef.current) {
       pillSlotMV.set(activeIndex);
     }
   }, [activeIndex, pillSlotMV]);
@@ -531,7 +534,7 @@ export const BottomNavigation: React.FC<BottomNavigationProps> = memo(({
   );
 
   const applyActiveDockPosition = useCallback(
-    (continuousSlot: number, tabIndex: number) => {
+    (continuousSlot: number, tabIndex: number, silentHaptics: boolean = false) => {
       pointerSlotMV.set(continuousSlot);
       magnifyStrengthMV.set(1);
       // Center the floating Liquid Glass lens directly under the finger, framed cleanly inside the bar
@@ -545,11 +548,83 @@ export const BottomNavigation: React.FC<BottomNavigationProps> = memo(({
       if (lastScrubIndexRef.current !== tabIndex) {
         lastScrubIndexRef.current = tabIndex;
         setScrubIndex(tabIndex);
-        triggerDockHaptic(10);
+        if (!silentHaptics) {
+          triggerDockHaptic(10);
+        }
       }
     },
     [magnifyStrengthMV, pillLiftYMV, pillScaleXMV, pillScaleYMV, pillSlotMV, pointerSlotMV, prefersReducedMotion]
   );
+
+  // Choreographed interactive pill demonstration during the 'bottom-nav' tutorial step:
+  // Glides the Liquid Glass lens across all 5 icons (center -> left -> right -> center) and settles back cleanly
+  useEffect(() => {
+    if (!isTutorialSweepActive) {
+      if (isTutorialSweepRef.current) {
+        isTutorialSweepRef.current = false;
+        resetLensToRest(activeIndex);
+      }
+      return;
+    }
+
+    isTutorialSweepRef.current = true;
+    setCompactSafe(false);
+
+    const easeInOut = (t: number) =>
+      t < 0.5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2;
+
+    const startSlot = activeIndex + 0.5;
+    const minSlot = 0.5;
+    const maxSlot = TABS.length - 0.5;
+
+    const phase1Ms = 600; // center -> leftmost (Roteiros)
+    const phase2Ms = 1780; // leftmost -> rightmost (Perfil)
+    const phase3Ms = 2480; // rightmost -> center (Explorar)
+
+    let rafId: number | null = null;
+    let startTime = 0;
+
+    const stepFrame = (now: number) => {
+      if (!isTutorialSweepRef.current) return;
+      const elapsed = now - startTime;
+
+      let slot = startSlot;
+      if (elapsed < phase1Ms) {
+        const p = easeInOut(Math.max(0, elapsed / phase1Ms));
+        slot = startSlot + (minSlot - startSlot) * p;
+      } else if (elapsed < phase2Ms) {
+        const p = easeInOut((elapsed - phase1Ms) / (phase2Ms - phase1Ms));
+        slot = minSlot + (maxSlot - minSlot) * p;
+      } else if (elapsed < phase3Ms) {
+        const p = easeInOut((elapsed - phase2Ms) / (phase3Ms - phase2Ms));
+        slot = maxSlot + (startSlot - maxSlot) * p;
+      } else {
+        isTutorialSweepRef.current = false;
+        resetLensToRest(activeIndex);
+        return;
+      }
+
+      const idx = Math.max(0, Math.min(TABS.length - 1, Math.floor(slot)));
+      applyActiveDockPosition(slot, idx, true);
+      rafId = requestAnimationFrame(stepFrame);
+    };
+
+    const kickOffTimer = window.setTimeout(() => {
+      if (!isTutorialSweepRef.current) return;
+      startTime = performance.now();
+      applyActiveDockPosition(startSlot, activeIndex, true);
+      rafId = requestAnimationFrame(stepFrame);
+    }, 120);
+
+    return () => {
+      window.clearTimeout(kickOffTimer);
+      if (rafId !== null) cancelAnimationFrame(rafId);
+      if (isTutorialSweepRef.current) {
+        isTutorialSweepRef.current = false;
+        resetLensToRest(activeIndex);
+      }
+    };
+  }, [isTutorialSweepActive, activeIndex, applyActiveDockPosition, resetLensToRest, setCompactSafe]);
 
   const handleTrackPointerDown = useCallback(
     (e: React.PointerEvent<HTMLDivElement>) => {
