@@ -188,7 +188,7 @@ const ALL_TUTORIAL_STEPS: TutorialStepDefinition[] = [
     shape: 'rounded',
     padX: 6,
     padY: 6,
-    radius: 30,
+    radius: 40,
     deferredMount: true,
     title: 'Selecione os pontos no mapa',
     description:
