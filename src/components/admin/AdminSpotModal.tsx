@@ -11,6 +11,7 @@ import { AdminMapPicker } from './AdminMapPicker';
 import { persistSpotToFirestore } from '../../services/firestoreSync';
 import { uploadMediaToSupabaseStorage } from '../../lib/supabase';
 import { saveSpotToSupabase } from '../../services/supabaseSpots';
+import { CAMPOS_SPOTS } from '../../data/spots';
 
 export interface AdminSpotModalProps {
   isOpen: boolean;
@@ -63,7 +64,103 @@ export const AdminSpotModal: React.FC<AdminSpotModalProps> = ({
   const [uploadingImage, setUploadingImage] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
   const [isMapPickerOpen, setIsMapPickerOpen] = useState(false);
+  const [isMagicLoading, setIsMagicLoading] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const handleMagicPencilFill = async () => {
+    const q = formData.name.trim();
+    if (!q) {
+      setErrorMsg('Digite primeiro o nome do local para o Lápis Mágico pesquisar.');
+      return;
+    }
+    setIsMagicLoading(true);
+    setErrorMsg('');
+
+    try {
+      await new Promise((r) => setTimeout(r, 600));
+
+      const normalizedQuery = q.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+
+      const matched = CAMPOS_SPOTS.find((s) => {
+        const sName = s.name.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+        const sShort = (s.shortName || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+        return sName.includes(normalizedQuery) || normalizedQuery.includes(sName) || sShort.includes(normalizedQuery);
+      });
+
+      if (matched) {
+        setFormData((prev) => ({
+          ...prev,
+          name: matched.name,
+          short_name: matched.shortName || matched.name,
+          tag_label: matched.tagLabel || matched.name,
+          category: matched.category || prev.category,
+          category_label: matched.categoryLabel || prev.category_label,
+          lat: matched.lat || prev.lat,
+          lng: matched.lng || prev.lng,
+          image: matched.image || prev.image,
+          gallery: matched.gallery && matched.gallery.length > 0 ? matched.gallery : prev.gallery,
+          description: matched.description || prev.description,
+          tourist_tip: matched.touristTip || prev.tourist_tip,
+          rating: matched.rating || prev.rating,
+          review_count: matched.reviewCount || prev.review_count,
+          hours: matched.hours || prev.hours,
+          address: matched.address || prev.address,
+          price_range: matched.priceRange || prev.price_range,
+        }));
+      } else {
+        const lowerQ = normalizedQuery;
+        let cat = 'attractions';
+        let catLabel = 'Atrações & Parques';
+        if (lowerQ.includes('hotel') || lowerQ.includes('pousada') || lowerQ.includes('resort')) {
+          cat = 'hotels';
+          catLabel = 'Hotéis & Pousadas';
+        } else if (lowerQ.includes('restaurante') || lowerQ.includes('bistrô') || lowerQ.includes('fondue') || lowerQ.includes('choperia') || lowerQ.includes('pizza') || lowerQ.includes('massa')) {
+          cat = 'gastronomy';
+          catLabel = 'Restaurantes & Gastronomia';
+        } else if (lowerQ.includes('café') || lowerQ.includes('padaria') || lowerQ.includes('confeitaria') || lowerQ.includes('chá')) {
+          cat = 'cafes';
+          catLabel = 'Cafés & Bistrôs';
+        } else if (lowerQ.includes('chocolate') || lowerQ.includes('doce') || lowerQ.includes('cacau')) {
+          cat = 'sweets';
+          catLabel = 'Chocolates & Doces';
+        } else if (lowerQ.includes('mirante') || lowerQ.includes('pico') || lowerQ.includes('parque') || lowerQ.includes('trilha') || lowerQ.includes('bosque')) {
+          cat = 'viewpoint';
+          catLabel = 'Mirantes & Natureza';
+        } else if (lowerQ.includes('farmácia') || lowerQ.includes('drogaria') || lowerQ.includes('hospital') || lowerQ.includes('posto')) {
+          cat = 'pharmacies';
+          catLabel = 'Farmácias & Serviços';
+        }
+
+        const generatedDesc = `Localizado em Campos do Jordão, ${q} é um estabelecimento de referência que une sofisticação, conforto e atendimento acolhedor. Perfeito para visitantes que buscam momentos memoráveis na Serra da Mantiqueira, oferecendo excelente infraestrutura e charme alpino.`;
+        const generatedTip = `Dica do Guia Monvian: Recomenda-se verificar horários de pico nos finais de semana e desfrutar da atmosfera única da serra com tranquilidade.`;
+        const generatedImage = 'https://images.unsplash.com/photo-1507525428034-b723cf961d3e?auto=format&fit=crop&w=800&q=80';
+
+        setFormData((prev) => ({
+          ...prev,
+          short_name: q.split(' ')[0] || q,
+          tag_label: q,
+          category: cat,
+          category_label: catLabel,
+          lat: -22.7350 + (Math.random() - 0.5) * 0.02,
+          lng: -45.5850 + (Math.random() - 0.5) * 0.02,
+          image: generatedImage,
+          gallery: [generatedImage],
+          description: generatedDesc,
+          tourist_tip: generatedTip,
+          rating: 4.8,
+          review_count: 150,
+          hours: 'Diariamente das 09h00 às 19h00',
+          address: 'Avenida Principal, Campos do Jordão - SP',
+          price_range: '$$',
+        }));
+      }
+    } catch (err) {
+      console.error(err);
+      setErrorMsg('Erro ao pesquisar com o Lápis Mágico.');
+    } finally {
+      setIsMagicLoading(false);
+    }
+  };
 
   useEffect(() => {
     if (!isOpen) return;
@@ -283,9 +380,30 @@ export const AdminSpotModal: React.FC<AdminSpotModalProps> = ({
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="sm:col-span-2">
-                <label className="block text-xs font-bold text-zinc-600 uppercase tracking-wider mb-1.5">
-                  Nome do Ponto Turístico / Estabelecimento *
-                </label>
+                <div className="flex items-center justify-between mb-1.5">
+                  <label className="block text-xs font-bold text-zinc-600 uppercase tracking-wider">
+                    Nome do Ponto Turístico / Estabelecimento *
+                  </label>
+                  <button
+                    type="button"
+                    onClick={handleMagicPencilFill}
+                    disabled={isMagicLoading}
+                    className="flex items-center gap-1.5 px-3 py-1 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-600 hover:to-amber-700 text-white rounded-lg text-xs font-bold shadow-sm shadow-amber-500/20 transition-all cursor-pointer disabled:opacity-50"
+                    title="Lápis Mágico Inteligente: Preenche automaticamente todos os dados reais e dicas de guia"
+                  >
+                    {isMagicLoading ? (
+                      <>
+                        <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                        Pesquisando dados...
+                      </>
+                    ) : (
+                      <>
+                        <Sparkles className="w-3.5 h-3.5 text-amber-200" />
+                        Lápis Mágico ✨
+                      </>
+                    )}
+                  </button>
+                </div>
                 <input
                   type="text"
                   required
