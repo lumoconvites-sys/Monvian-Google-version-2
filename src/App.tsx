@@ -4004,27 +4004,28 @@ export default function App() {
         <XpRewardNotificationOverlay visible={true} />
       )}
 
-    {/* Unified Map Mode 2: Pin Selection Overlay (Animated entry & exit) */}
-    <AnimatePresence>
-      {activeTab === 'explorar' &&
-        mapWorkflowMode === 'SELECT' &&
-        !isFinalizeItineraryModalOpen &&
-        !isMapOrbiting &&
-        !showFirstSignupWelcome &&
-        !isGlobeIntroPlaying && (
-          <SelectModeOverlay
-            key={`select-mode-overlay-${explorarEntranceTick}`}
-            selectedCount={selectedSpotIdsForItinerary.length}
-            selectedSpots={selectedSpotsForItinerary}
-            onRemoveSpot={handleRemoveSelectedSpotFromItinerary}
-            isDark={theme === 'dark'}
-            isSatellite={isSatelliteExplore}
-            onCancel={handleCancelSelectMode}
-            onClearSelection={() => setSelectedSpotIdsForItinerary([])}
-            onContinue={handleConfirmSelectionToItinerary}
-          />
-        )}
-    </AnimatePresence>
+    {/* Unified Map Mode 2: Pin Selection Overlay (Animated entry & exit within Explorar; instant unmount on tab switch) */}
+    {activeTab === 'explorar' && (
+      <AnimatePresence>
+        {mapWorkflowMode === 'SELECT' &&
+          !isFinalizeItineraryModalOpen &&
+          !isMapOrbiting &&
+          !showFirstSignupWelcome &&
+          !isGlobeIntroPlaying && (
+            <SelectModeOverlay
+              key={`select-mode-overlay-${explorarEntranceTick}`}
+              selectedCount={selectedSpotIdsForItinerary.length}
+              selectedSpots={selectedSpotsForItinerary}
+              onRemoveSpot={handleRemoveSelectedSpotFromItinerary}
+              isDark={theme === 'dark'}
+              isSatellite={isSatelliteExplore}
+              onCancel={handleCancelSelectMode}
+              onClearSelection={() => setSelectedSpotIdsForItinerary([])}
+              onContinue={handleConfirmSelectionToItinerary}
+            />
+          )}
+      </AnimatePresence>
+    )}
 
     {/* Itinerary Creation & Editing Finalization Modal (AI Cover Generation + Stop Ordering + Save) */}
     <ItineraryCreationFinalizeModal
@@ -4085,51 +4086,52 @@ export default function App() {
       }}
     />
 
-    {/* Unified Map Mode 3: Active Itinerary Overlay (Animated entry & exit) */}
-    <AnimatePresence>
-      {activeTab === 'explorar' &&
-        mapWorkflowMode === 'ITINERARY' &&
-        activeItinerary &&
-        !isMapOrbiting &&
-        !showFirstSignupWelcome &&
-        !isGlobeIntroPlaying && (
-          <UnifiedItineraryOverlay
-            key={`unified-itinerary-${activeItinerary.id}-${itineraryEntranceTick}`}
-            itinerary={activeItinerary}
-            allSpots={spots}
-            activeDayIndex={activeItineraryDayIndex}
-            onChangeDayIndex={(dIdx) => {
-              setActiveItineraryDayIndex(dIdx);
-              const nextDaySteps = resolveEnrichedDaySteps(activeItinerary, dIdx, spots);
-              setActiveItineraryStepId(nextDaySteps[0]?.id || null);
-              window.setTimeout(() => {
-                mapRef.current?.fitItineraryBounds(nextDaySteps, false);
-              }, 60);
-            }}
-            activeStepId={activeItineraryStepId}
-            onSelectStep={handleSelectItineraryStepOnMap}
-            isExpanded={isItineraryDrawerExpanded}
-            onChangeExpanded={setIsItineraryDrawerExpanded}
-            theme={theme}
-            mapStyle={mapStyle}
-            onToggleMapStyle={() =>
-              setMapStyle((prev) => (prev === 'satelite' ? 'explorar' : 'satelite'))
-            }
-            onExitToExplore={handleExitWorkflowToExplore}
-            onOpenStore={() => setActiveTab('roteiros')}
-            onSelectMoreSpotsOnMap={handleSelectMoreSpotsOnMap}
-            onCenterRoute={() => mapRef.current?.fitItineraryBounds(activeItinerarySteps, false)}
-            onUpdateItinerary={handleUpdateItinerary}
-            onDeleteItinerary={handleDeleteActiveItinerary}
-            onDeleteStep={handleDeleteItineraryStep}
-            onMoveStep={handleMoveItineraryStep}
-            onImportSpot={handleImportSpotToActiveItinerary}
-            onRenameTitle={handleRenameItineraryTitle}
-            tripNoteText={tripNoteText}
-            onSaveTripNote={handleSaveTripNote}
-          />
-        )}
-    </AnimatePresence>
+    {/* Unified Map Mode 3: Active Itinerary Overlay (Animated entry & exit within Explorar; instant unmount on tab switch) */}
+    {activeTab === 'explorar' && (
+      <AnimatePresence>
+        {mapWorkflowMode === 'ITINERARY' &&
+          activeItinerary &&
+          !isMapOrbiting &&
+          !showFirstSignupWelcome &&
+          !isGlobeIntroPlaying && (
+            <UnifiedItineraryOverlay
+              key={`unified-itinerary-${activeItinerary.id}-${itineraryEntranceTick}`}
+              itinerary={activeItinerary}
+              allSpots={spots}
+              activeDayIndex={activeItineraryDayIndex}
+              onChangeDayIndex={(dIdx) => {
+                setActiveItineraryDayIndex(dIdx);
+                const nextDaySteps = resolveEnrichedDaySteps(activeItinerary, dIdx, spots);
+                setActiveItineraryStepId(nextDaySteps[0]?.id || null);
+                window.setTimeout(() => {
+                  mapRef.current?.fitItineraryBounds(nextDaySteps, false);
+                }, 60);
+              }}
+              activeStepId={activeItineraryStepId}
+              onSelectStep={handleSelectItineraryStepOnMap}
+              isExpanded={isItineraryDrawerExpanded}
+              onChangeExpanded={setIsItineraryDrawerExpanded}
+              theme={theme}
+              mapStyle={mapStyle}
+              onToggleMapStyle={() =>
+                setMapStyle((prev) => (prev === 'satelite' ? 'explorar' : 'satelite'))
+              }
+              onExitToExplore={handleExitWorkflowToExplore}
+              onOpenStore={() => setActiveTab('roteiros')}
+              onSelectMoreSpotsOnMap={handleSelectMoreSpotsOnMap}
+              onCenterRoute={() => mapRef.current?.fitItineraryBounds(activeItinerarySteps, false)}
+              onUpdateItinerary={handleUpdateItinerary}
+              onDeleteItinerary={handleDeleteActiveItinerary}
+              onDeleteStep={handleDeleteItineraryStep}
+              onMoveStep={handleMoveItineraryStep}
+              onImportSpot={handleImportSpotToActiveItinerary}
+              onRenameTitle={handleRenameItineraryTitle}
+              tripNoteText={tripNoteText}
+              onSaveTripNote={handleSaveTripNote}
+            />
+          )}
+      </AnimatePresence>
+    )}
 
     {/* Focus Mode Fullscreen Blur Backdrop when a Spot Card is active on mobile (matches filter blur style) */}
     {activeTab === 'explorar' && (

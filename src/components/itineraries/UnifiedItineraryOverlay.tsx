@@ -589,7 +589,10 @@ export const UnifiedItineraryOverlay: React.FC<UnifiedItineraryOverlayProps> = m
     };
 
     return (
-      <div
+      <motion.div
+        initial={{ opacity: 1 }}
+        animate={{ opacity: 1 }}
+        exit={{ opacity: 0, transition: { duration: 0.16, ease: [0.32, 0.72, 0, 1] } }}
         className="fixed inset-0 md:left-[var(--desktop-sidebar-width,72px)] z-[42] pointer-events-none select-none overflow-hidden"
         style={{
           height: 'var(--app-height, 100dvh)',
@@ -804,7 +807,7 @@ export const UnifiedItineraryOverlay: React.FC<UnifiedItineraryOverlayProps> = m
           aria-label="Roteiro de Viagem"
           initial={{ opacity: 0, scale: 0.94, y: 12 }}
           animate={{ opacity: 1, scale: 1, y: 0 }}
-          exit={{ opacity: 0, scale: 0.96, y: 8 }}
+          exit={{ opacity: 0, transition: { duration: 0.14 } }}
           transition={{ type: 'spring', stiffness: 380, damping: 24, delay: 0.02 }}
           className={`hidden md:flex flex-col absolute top-5 bottom-5 left-5 w-96 lg:w-[420px] z-30 rounded-[28px] overflow-hidden border shadow-[0_12px_40px_rgba(0,0,0,0.14)] pointer-events-auto select-none ${
             isDark
@@ -952,7 +955,7 @@ export const UnifiedItineraryOverlay: React.FC<UnifiedItineraryOverlayProps> = m
               key="unified-itinerary-collapsed-card"
               initial={{ opacity: 0, scale: 0.88, y: 14 }}
               animate={{ opacity: 1, scale: 1, y: 0 }}
-              exit={{ opacity: 0, scale: 0.94, y: 12 }}
+              exit={{ opacity: 0, scale: 0.96, y: 10, transition: { duration: 0.15, ease: [0.32, 0.72, 0, 1] } }}
               transition={{ type: 'spring', stiffness: 380, damping: 22, delay: 0.1 }}
               className="md:hidden fixed inset-x-0 z-40 flex justify-center px-4 pointer-events-none select-none"
               style={{ bottom: '84px' }}
@@ -1071,7 +1074,7 @@ export const UnifiedItineraryOverlay: React.FC<UnifiedItineraryOverlayProps> = m
               key="unified-itinerary-expanded-drawer"
               initial={{ opacity: 0, y: 120 }}
               animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: 120 }}
+              exit={{ opacity: 0, y: 80, transition: { duration: 0.16, ease: [0.32, 0.72, 0, 1] } }}
               transition={SPRING_DRAWER}
               drag="y"
               dragConstraints={{ top: 0, bottom: 0 }}
@@ -1222,7 +1225,7 @@ export const UnifiedItineraryOverlay: React.FC<UnifiedItineraryOverlayProps> = m
           onImportSpot={onImportSpot}
           theme={theme}
         />
-      </div>
+      </motion.div>
     );
   }
 );

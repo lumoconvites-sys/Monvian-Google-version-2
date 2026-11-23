@@ -98,7 +98,7 @@ const DockTabButton: React.FC<DockTabButtonProps> = memo(({
       const radius = 1.65;
       if (dist >= radius) return 1;
       const bell = 0.5 * (1 + Math.cos((Math.PI * dist) / radius));
-      const maxBoost = prefersReducedMotion ? 0.14 : 0.38;
+      const maxBoost = prefersReducedMotion ? 0.08 : 0.16;
       return 1 + maxBoost * bell * strength;
     }
   );
@@ -112,7 +112,7 @@ const DockTabButton: React.FC<DockTabButtonProps> = memo(({
       const radius = 1.65;
       if (dist >= radius) return 0;
       const bell = 0.5 * (1 + Math.cos((Math.PI * dist) / radius));
-      return -5.5 * bell * strength;
+      return -3 * bell * strength;
     }
   );
 
@@ -126,7 +126,7 @@ const DockTabButton: React.FC<DockTabButtonProps> = memo(({
       const dist = Math.abs(diff);
       const radius = 1.65;
       if (dist < 0.04 || dist >= radius) return 0;
-      const push = Math.sin((Math.PI * dist) / radius) * 4.5 * strength;
+      const push = Math.sin((Math.PI * dist) / radius) * 3 * strength;
       return diff > 0 ? push : -push;
     }
   );
@@ -166,7 +166,7 @@ const DockTabButton: React.FC<DockTabButtonProps> = memo(({
           y: smoothY,
           willChange: 'transform',
         }}
-        className="flex items-center justify-center pointer-events-none"
+        className="flex flex-col items-center justify-center gap-[2.5px] pointer-events-none"
       >
         <motion.div
           initial={false}
@@ -174,14 +174,21 @@ const DockTabButton: React.FC<DockTabButtonProps> = memo(({
             rotate: tab.id === 'explorar' ? pulseAnimation : 0,
           }}
           transition={{ duration: 0.24, ease: [0.32, 0.72, 0, 1] }}
-          className="w-[24px] h-[24px] flex items-center justify-center shrink-0"
+          className="w-[21px] h-[21px] flex items-center justify-center shrink-0"
         >
-          {tab.id === 'roteiros' && <NavRoteirosIcon size={24} className="text-current" />}
-          {tab.id === 'salvos' && <NavSalvosIcon size={24} className="text-current" />}
-          {tab.id === 'explorar' && <NavAgoraIcon size={24} className="text-current" />}
-          {tab.id === 'buscar' && <NavSearchIcon size={24} className="text-current" />}
-          {tab.id === 'perfil' && <NavProfileIcon size={24} className="text-current" />}
+          {tab.id === 'roteiros' && <NavRoteirosIcon size={21} className="text-current" />}
+          {tab.id === 'salvos' && <NavSalvosIcon size={21} className="text-current" />}
+          {tab.id === 'explorar' && <NavAgoraIcon size={21} className="text-current" />}
+          {tab.id === 'buscar' && <NavSearchIcon size={21} className="text-current" />}
+          {tab.id === 'perfil' && <NavProfileIcon size={21} className="text-current" />}
         </motion.div>
+        <span
+          className={`text-[10px] leading-[1.05] tracking-[-0.015em] whitespace-nowrap select-none transition-opacity duration-200 ${
+            isEmphasized ? 'font-semibold opacity-100' : 'font-medium opacity-75'
+          }`}
+        >
+          {tab.label}
+        </span>
       </motion.div>
     </button>
   );
@@ -738,7 +745,7 @@ export const BottomNavigation: React.FC<BottomNavigationProps> = memo(({
         onPointerUp={handleTrackPointerUp}
         onPointerCancel={handleTrackPointerCancel}
         onPointerLeave={handleTrackPointerLeave}
-        className="w-full max-w-[326px] sm:max-w-[342px] h-[62px] sm:h-[64px] p-[5.5px] pointer-events-auto relative rounded-full motion-reduce:transition-none"
+        className="w-full max-w-[344px] sm:max-w-[360px] h-[64px] sm:h-[66px] p-[5px] pointer-events-auto relative rounded-full motion-reduce:transition-none"
         style={{
           touchAction: 'none',
           WebkitUserSelect: 'none',
