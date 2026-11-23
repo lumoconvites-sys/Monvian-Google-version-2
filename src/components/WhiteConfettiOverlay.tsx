@@ -505,7 +505,7 @@ export const WhiteConfettiOverlay: React.FC<WhiteConfettiOverlayProps> = ({
     <div
       id="monvian-3d-confetti-layer"
       aria-hidden="true"
-      className="pointer-events-none fixed inset-0 z-[260] overflow-hidden select-none"
+      className="pointer-events-none fixed inset-0 z-[295] overflow-hidden select-none"
       style={{
         pointerEvents: 'none',
         userSelect: 'none',

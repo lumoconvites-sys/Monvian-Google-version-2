@@ -2377,9 +2377,13 @@ export default function App() {
     setIsGlobeIntroPlaying(false);
     setIsGlobeIntroPending(false);
     setExplorarEntranceTick((prev) => prev + 1);
-    hasTriggeredMainAppConfettiRef.current = true;
-    setArrivalConfettiTrigger((prev) => prev + 1);
-  }, []);
+    const isTutorialPending =
+      String(user?.map_tutorial_status || '').trim().toLowerCase() === 'pending';
+    if (!isTutorialPending) {
+      hasTriggeredMainAppConfettiRef.current = true;
+      setArrivalConfettiTrigger((prev) => prev + 1);
+    }
+  }, [user?.map_tutorial_status]);
 
   const handleTutorialStepChange = useCallback((stepId: string | null) => {
     setTutorialActiveStepId(stepId);
@@ -2548,12 +2552,49 @@ export default function App() {
 
   const spotsRefForTutorial = useRef(spots);
   spotsRefForTutorial.current = spots;
+  const chosenTutorialSpotIdsRef = useRef<string[]>([]);
+  const is3DModeRefForTutorial = useRef(is3DMode);
+  is3DModeRefForTutorial.current = is3DMode;
+  const hasToggled3DRefForTutorial = useRef(hasToggled3D);
+  hasToggled3DRefForTutorial.current = hasToggled3D;
 
-  // Synchronize interactive map tutorial workflow demonstrations (Discovery Sheet -> Criar Roteiro -> 3 spots -> Explore + GPS prep)
+  // Synchronize interactive map tutorial workflow demonstrations:
+  // 3D Toggle -> Discovery Sheet -> Criar Roteiro -> Circular Pins (1..3) -> Bottom Selection Bar -> Explore + Confetti + Zoom on User
   useEffect(() => {
-    if (!isMapTutorialOpen || !tutorialActiveStepId) return;
+    if (!isMapTutorialOpen || !tutorialActiveStepId) {
+      chosenTutorialSpotIdsRef.current = [];
+      return;
+    }
+
+    if (tutorialActiveStepId === 'view-3d') {
+      chosenTutorialSpotIdsRef.current = [];
+      setIsDiscoveryPanelClosed(true);
+      setSelectedSpotIdsForItinerary([]);
+      setMapWorkflowMode('EXPLORE');
+
+      const initial3D = is3DModeRefForTutorial.current;
+      const initialHasToggled = hasToggled3DRefForTutorial.current;
+
+      const tToggle = window.setTimeout(() => {
+        setHasToggled3D(true);
+        setIs3DMode(!initial3D);
+      }, 320);
+
+      const tRestore = window.setTimeout(() => {
+        setIs3DMode(initial3D);
+        setHasToggled3D(initialHasToggled);
+      }, 1680);
+
+      return () => {
+        window.clearTimeout(tToggle);
+        window.clearTimeout(tRestore);
+        setIs3DMode(initial3D);
+        setHasToggled3D(initialHasToggled);
+      };
+    }
 
     if (tutorialActiveStepId === 'open-discovery-create') {
+      chosenTutorialSpotIdsRef.current = [];
       setSelectedSpotIdsForItinerary([]);
       setMapWorkflowMode('EXPLORE');
       setIsDiscoveryPanelClosed(false);
@@ -2561,7 +2602,7 @@ export default function App() {
       return;
     }
 
-    if (tutorialActiveStepId === 'select-three-spots') {
+    if (tutorialActiveStepId === 'select-spots-map-pins') {
       setIsDiscoveryPanelClosed(true);
       setSelectedSpot(null);
       setIsDetailOpen(false);
@@ -2581,25 +2622,79 @@ export default function App() {
 
       if (validSpots.length === 0) return;
 
-      const preferredOrder = ['itapeva', 'krokodilo', 'capivari', 'elefante', 'tarundu', 'baden'];
+      const validById = new Map<string, Spot>(validSpots.map((s) => [s.id, s]));
       const chosen: Spot[] = [];
+      const chosenCenters: Array<{ x: number; y: number }> = [];
+
+      // Prefer up to 3 visually distinct circular pins currently visible in the middle band of the map
+      if (typeof document !== 'undefined' && typeof window !== 'undefined') {
+        const vw = window.innerWidth;
+        const vh = window.innerHeight;
+        const markerEls = Array.from(
+          document.querySelectorAll('.monvian-explore-marker[data-spot-id]')
+        ) as HTMLElement[];
+
+        const candidates = markerEls
+          .map((el) => {
+            const spotId = el.getAttribute('data-spot-id') || '';
+            const spot = validById.get(spotId);
+            const r = el.getBoundingClientRect();
+            const cx = r.left + r.width / 2;
+            const cy = r.top + r.height / 2;
+            const distFromCenter = Math.hypot(cx - vw / 2, cy - vh * 0.45);
+            return { spot, r, cx, cy, distFromCenter };
+          })
+          .filter(
+            (item): item is { spot: Spot; r: DOMRect; cx: number; cy: number; distFromCenter: number } =>
+              Boolean(item.spot) &&
+              item.r.width > 12 &&
+              item.r.top > 112 &&
+              item.r.bottom < vh - 235 &&
+              item.r.left > 28 &&
+              item.r.right < vw - 28
+          )
+          .sort((a, b) => a.distFromCenter - b.distFromCenter);
+
+        for (const item of candidates) {
+          if (chosen.length >= 3) break;
+          if (chosen.some((c) => c.id === item.spot.id)) continue;
+          const tooClose = chosenCenters.some(
+            (pt) => Math.hypot(pt.x - item.cx, pt.y - item.cy) < 46
+          );
+          if (!tooClose) {
+            chosen.push(item.spot);
+            chosenCenters.push({ x: item.cx, y: item.cy });
+          }
+        }
+        // Relax spacing if fewer than 3 well-spaced candidates were mounted
+        for (const item of candidates) {
+          if (chosen.length >= 3) break;
+          if (!chosen.some((c) => c.id === item.spot.id)) {
+            chosen.push(item.spot);
+          }
+        }
+      }
+
+      const preferredOrder = ['itapeva', 'krokodilo', 'capivari', 'elefante', 'tarundu', 'baden'];
       for (const kw of preferredOrder) {
+        if (chosen.length >= 3) break;
         const match = validSpots.find(
           (s) =>
             (s.name || '').toLowerCase().includes(kw) &&
             !chosen.some((c) => c.id === s.id)
         );
         if (match) chosen.push(match);
-        if (chosen.length >= 3) break;
       }
       for (const s of validSpots) {
         if (chosen.length >= 3) break;
         if (!chosen.some((c) => c.id === s.id)) chosen.push(s);
       }
 
+      chosenTutorialSpotIdsRef.current = chosen.map((s) => s.id);
+
       const timers: number[] = [];
       chosen.forEach((spot, idx) => {
-        const delayMs = 360 + idx * 660;
+        const delayMs = 140 + idx * 860;
         const tid = window.setTimeout(() => {
           setSelectedSpotIdsForItinerary((prev) =>
             prev.includes(spot.id) ? prev : [...prev, spot.id]
@@ -2613,10 +2708,23 @@ export default function App() {
       };
     }
 
+    if (tutorialActiveStepId === 'select-three-spots') {
+      setIsDiscoveryPanelClosed(true);
+      setMapWorkflowMode('SELECT');
+      if (chosenTutorialSpotIdsRef.current.length > 0) {
+        setSelectedSpotIdsForItinerary([...chosenTutorialSpotIdsRef.current]);
+      }
+      return;
+    }
+
     if (tutorialActiveStepId === 'finish') {
+      chosenTutorialSpotIdsRef.current = [];
       setIsDiscoveryPanelClosed(true);
       setSelectedSpotIdsForItinerary([]);
       setMapWorkflowMode('EXPLORE');
+      hasTriggeredMainAppConfettiRef.current = true;
+      hasTriggeredInitialBootConfettiRef.current = true;
+      setArrivalConfettiTrigger((prev) => prev + 1);
       try {
         if (gpsNavigationManager.getState().status === 'granted') {
           gpsNavigationManager.refreshPositionNow();
@@ -2626,12 +2734,13 @@ export default function App() {
     }
 
     // Standard map control tour steps keep Explore clean and sheet closed
+    chosenTutorialSpotIdsRef.current = [];
     setIsDiscoveryPanelClosed(true);
     setSelectedSpotIdsForItinerary([]);
     setMapWorkflowMode('EXPLORE');
   }, [isMapTutorialOpen, tutorialActiveStepId, clearActiveRoute]);
 
-  // Automatically trigger 3D White & Silver Confetti burst once per app opening (no click required)
+  // Automatically trigger 3D White & Silver Confetti burst once per app opening (deferred during new-user tutorial until Tudo pronto)
   useEffect(() => {
     if (isAuthChecking) return;
 
@@ -2650,6 +2759,9 @@ export default function App() {
         showFirstSignupWelcome ||
         isGlobeIntroPending ||
         isGlobeIntroPlaying ||
+        isMapTutorialOpen ||
+        tutorialUserStatus === 'pending' ||
+        (tutorialUserKey && verifiedTutorialUserKey !== tutorialUserKey) ||
         hasTriggeredMainAppConfettiRef.current
       ) {
         return;
@@ -2695,6 +2807,10 @@ export default function App() {
     showFirstSignupWelcome,
     isGlobeIntroPending,
     isGlobeIntroPlaying,
+    isMapTutorialOpen,
+    tutorialUserStatus,
+    tutorialUserKey,
+    verifiedTutorialUserKey,
   ]);
 
   const handleAirbnbCardAction = useCallback(() => {

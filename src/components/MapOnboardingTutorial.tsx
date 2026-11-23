@@ -1,13 +1,13 @@
 import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { AnimatePresence, motion, useReducedMotion } from 'motion/react';
-import { ArrowRight, Compass, X } from 'lucide-react';
+import { ArrowRight, Compass } from 'lucide-react';
 
 export interface MapOnboardingTutorialProps {
   isOpen: boolean;
   theme: 'dark' | 'light';
   userName?: string;
   onComplete: () => void;
-  onSkip: () => void;
+  onSkip?: () => void;
   onStepChange?: (stepId: string | null) => void;
 }
 
@@ -182,6 +182,19 @@ const ALL_TUTORIAL_STEPS: TutorialStepDefinition[] = [
       'Toque em Criar roteiro para selecionar seus pontos favoritos direto no mapa.',
   },
   {
+    id: 'select-spots-map-pins',
+    selector: '[data-tutorial-select-rank]',
+    preferredPlacement: 'top',
+    shape: 'circle',
+    padX: 12,
+    padY: 12,
+    radius: 999,
+    deferredMount: true,
+    title: 'Toque nos pontos do mapa',
+    description:
+      'Selecione os pontos turísticos em círculos na ordem que deseja visitar durante o passeio.',
+  },
+  {
     id: 'select-three-spots',
     selector: '#select-mode-bottom-tray',
     preferredPlacement: 'top',
@@ -190,9 +203,9 @@ const ALL_TUTORIAL_STEPS: TutorialStepDefinition[] = [
     padY: 6,
     radius: 40,
     deferredMount: true,
-    title: 'Selecione os pontos no mapa',
+    title: 'Acompanhe seu roteiro',
     description:
-      'Escolha os locais na ordem desejada e acompanhe seu trajeto pronto antes de continuar.',
+      'Os pontos escolhidos ficam organizados aqui embaixo. Toque em Continuar para finalizar.',
   },
   {
     id: 'finish',
@@ -242,21 +255,38 @@ function getVisibleTutorialSteps(): TutorialStepDefinition[] {
   return filtered.length > 0 ? filtered : [ALL_TUTORIAL_STEPS[ALL_TUTORIAL_STEPS.length - 1]];
 }
 
-function measureSpotlight(step: TutorialStepDefinition | null | undefined): SpotlightRect | null {
-  if (!step?.selector || typeof document === 'undefined') return null;
-  const el = document.querySelector(step.selector) as HTMLElement | null;
-  if (!el || !el.isConnected) return null;
+function buildSpotlightFromElement(
+  el: HTMLElement,
+  padX: number,
+  padY: number,
+  shape: 'circle' | 'rounded' | 'none',
+  radius: number
+): SpotlightRect | null {
   const rect = el.getBoundingClientRect();
   if (rect.width <= 4 || rect.height <= 4) return null;
 
-  const left = Math.round(rect.left - step.padX);
-  const top = Math.round(rect.top - step.padY);
-  const width = Math.round(rect.width + step.padX * 2);
-  const height = Math.round(rect.height + step.padY * 2);
-  const rx =
-    step.shape === 'circle'
-      ? Math.round(Math.max(width, height) / 2)
-      : Math.round(Math.min(step.radius, Math.min(width, height) / 2));
+  if (shape === 'circle') {
+    const cx = rect.left + rect.width / 2;
+    const cy = rect.top + rect.height / 2;
+    const diameter = Math.round(Math.max(rect.width, rect.height) + Math.max(padX, padY) * 2);
+    const left = Math.round(cx - diameter / 2);
+    const top = Math.round(cy - diameter / 2);
+    return {
+      left,
+      top,
+      width: diameter,
+      height: diameter,
+      right: left + diameter,
+      bottom: top + diameter,
+      rx: Math.round(diameter / 2),
+    };
+  }
+
+  const left = Math.round(rect.left - padX);
+  const top = Math.round(rect.top - padY);
+  const width = Math.round(rect.width + padX * 2);
+  const height = Math.round(rect.height + padY * 2);
+  const rx = Math.round(Math.min(radius, Math.min(width, height) / 2));
 
   return {
     left,
@@ -269,6 +299,81 @@ function measureSpotlight(step: TutorialStepDefinition | null | undefined): Spot
   };
 }
 
+function measureSelectedPinSpotlights(step: TutorialStepDefinition): {
+  primary: SpotlightRect | null;
+  secondary: SpotlightRect[];
+} {
+  if (typeof document === 'undefined' || typeof window === 'undefined') {
+    return { primary: null, secondary: [] };
+  }
+
+  const rankedEls = Array.from(
+    document.querySelectorAll('[data-tutorial-select-rank]')
+  ) as HTMLElement[];
+
+  const validRanked = rankedEls
+    .map((el) => {
+      const rank = Number(el.getAttribute('data-tutorial-select-rank') || '0');
+      const rect = el.getBoundingClientRect();
+      return { el, rank, rect };
+    })
+    .filter(
+      (item) =>
+        item.rank > 0 &&
+        item.rect.width > 6 &&
+        item.rect.height > 6 &&
+        item.rect.bottom > 0 &&
+        item.rect.top < window.innerHeight
+    )
+    .sort((a, b) => a.rank - b.rank);
+
+  if (validRanked.length > 0) {
+    const latest = validRanked[validRanked.length - 1];
+    const primary = buildSpotlightFromElement(
+      latest.el,
+      step.padX,
+      step.padY,
+      'circle',
+      999
+    );
+    const secondary = validRanked
+      .slice(0, -1)
+      .map((item) => buildSpotlightFromElement(item.el, 8, 8, 'circle', 999))
+      .filter(Boolean) as SpotlightRect[];
+    return { primary, secondary };
+  }
+
+  // Fallback for initial ~100ms before first demo spot receives rank attribute
+  const allMarkers = Array.from(
+    document.querySelectorAll('.monvian-explore-marker[data-spot-id]')
+  ) as HTMLElement[];
+  const vw = window.innerWidth;
+  const vh = window.innerHeight;
+  const centerMarker = allMarkers.find((el) => {
+    const r = el.getBoundingClientRect();
+    return r.width > 12 && r.top > 110 && r.bottom < vh - 210 && r.left > 24 && r.right < vw - 24;
+  });
+
+  if (centerMarker) {
+    return {
+      primary: buildSpotlightFromElement(centerMarker, step.padX, step.padY, 'circle', 999),
+      secondary: [],
+    };
+  }
+
+  return { primary: null, secondary: [] };
+}
+
+function measureSpotlight(step: TutorialStepDefinition | null | undefined): SpotlightRect | null {
+  if (!step?.selector || typeof document === 'undefined') return null;
+  if (step.id === 'select-spots-map-pins') {
+    return measureSelectedPinSpotlights(step).primary;
+  }
+  const el = document.querySelector(step.selector) as HTMLElement | null;
+  if (!el || !el.isConnected) return null;
+  return buildSpotlightFromElement(el, step.padX, step.padY, step.shape, step.radius);
+}
+
 function clamp(val: number, min: number, max: number): number {
   if (max < min) return min;
   return Math.min(max, Math.max(min, val));
@@ -279,7 +384,6 @@ export const MapOnboardingTutorial: React.FC<MapOnboardingTutorialProps> = ({
   theme,
   userName,
   onComplete,
-  onSkip,
   onStepChange,
 }) => {
   const prefersReducedMotion = Boolean(useReducedMotion());
@@ -294,6 +398,7 @@ export const MapOnboardingTutorial: React.FC<MapOnboardingTutorialProps> = ({
     const steps = getVisibleTutorialSteps();
     return measureSpotlight(steps[0]);
   });
+  const [secondarySpotlights, setSecondarySpotlights] = useState<SpotlightRect[]>([]);
   const [viewport, setViewport] = useState<{ w: number; h: number }>({
     w: typeof window !== 'undefined' ? window.innerWidth : 390,
     h: typeof window !== 'undefined' ? window.innerHeight : 844,
@@ -301,7 +406,7 @@ export const MapOnboardingTutorial: React.FC<MapOnboardingTutorialProps> = ({
   const [isSimulatingTap, setIsSimulatingTap] = useState<boolean>(false);
 
   const balloonRef = useRef<HTMLDivElement | null>(null);
-  const [balloonSize, setBalloonSize] = useState<{ w: number; h: number }>({ w: 282, h: 176 });
+  const [balloonSize, setBalloonSize] = useState<{ w: number; h: number }>({ w: 288, h: 176 });
 
   const recomputeVisibleSteps = useCallback(() => {
     const filtered = getVisibleTutorialSteps();
@@ -321,6 +426,7 @@ export const MapOnboardingTutorial: React.FC<MapOnboardingTutorialProps> = ({
     if (!isOpen) {
       setStepIndex(0);
       setSpotlight(null);
+      setSecondarySpotlights([]);
       setIsSimulatingTap(false);
       onStepChange?.(null);
       return;
@@ -329,6 +435,7 @@ export const MapOnboardingTutorial: React.FC<MapOnboardingTutorialProps> = ({
     const initialSteps = recomputeVisibleSteps();
     setStepIndex(0);
     setSpotlight(measureSpotlight(initialSteps[0]));
+    setSecondarySpotlights([]);
 
     const settleTimer1 = window.setTimeout(() => {
       const updated = recomputeVisibleSteps();
@@ -358,7 +465,6 @@ export const MapOnboardingTutorial: React.FC<MapOnboardingTutorialProps> = ({
   const totalSteps = visibleSteps.length;
   const isFinalStep = Boolean(activeStep && activeStep.selector === null);
 
-  // Notify parent whenever the active step changes so App.tsx can synchronize UI (e.g. discovery sheet, SELECT demo)
   useEffect(() => {
     if (!isOpen) {
       onStepChange?.(null);
@@ -370,21 +476,29 @@ export const MapOnboardingTutorial: React.FC<MapOnboardingTutorialProps> = ({
   const updatePositions = useCallback(() => {
     if (!isOpen) return;
     setViewport({ w: window.innerWidth, h: window.innerHeight });
-    if (activeStep) {
-      setSpotlight(measureSpotlight(activeStep));
+    if (activeStep?.id === 'select-spots-map-pins') {
+      const { primary, secondary } = measureSelectedPinSpotlights(activeStep);
+      setSpotlight(primary);
+      setSecondarySpotlights(secondary);
+    } else {
+      setSecondarySpotlights([]);
+      if (activeStep) {
+        setSpotlight(measureSpotlight(activeStep));
+      }
     }
   }, [isOpen, activeStep]);
 
-  // Continuously track target rect during spring mounts, chip additions, and viewport changes
+  // Continuously track target rects during spring mounts, circular spot selection, and viewport shifts
   useEffect(() => {
     if (!isOpen) return;
     updatePositions();
 
+    const trackDurationMs = activeStep?.id === 'select-spots-map-pins' ? STEP_DURATION_MS : 750;
     let rafId: number | null = null;
     const startTime = performance.now();
     const trackSpringLoop = () => {
       updatePositions();
-      if (performance.now() - startTime < 700) {
+      if (performance.now() - startTime < trackDurationMs) {
         rafId = requestAnimationFrame(trackSpringLoop);
       }
     };
@@ -410,7 +524,11 @@ export const MapOnboardingTutorial: React.FC<MapOnboardingTutorialProps> = ({
         ro.disconnect();
         ro = null;
       }
-      if (activeStep?.selector && typeof ResizeObserver !== 'undefined') {
+      if (
+        activeStep?.selector &&
+        activeStep.id !== 'select-spots-map-pins' &&
+        typeof ResizeObserver !== 'undefined'
+      ) {
         const targetEl = document.querySelector(activeStep.selector);
         if (targetEl) {
           ro = new ResizeObserver(() => {
@@ -431,6 +549,11 @@ export const MapOnboardingTutorial: React.FC<MapOnboardingTutorialProps> = ({
       mo.observe(document.body, {
         childList: true,
         subtree: true,
+        attributes: activeStep.id === 'select-spots-map-pins',
+        attributeFilter:
+          activeStep.id === 'select-spots-map-pins'
+            ? ['data-tutorial-select-rank', 'style']
+            : undefined,
       });
     }
 
@@ -468,12 +591,6 @@ export const MapOnboardingTutorial: React.FC<MapOnboardingTutorialProps> = ({
     }
   }, [isOpen, stepIndex, totalSteps, onComplete]);
 
-  const handleSkipTutorial = useCallback(() => {
-    if (!isOpen) return;
-    setIsSimulatingTap(false);
-    onSkip();
-  }, [isOpen, onSkip]);
-
   // 3-second auto-advance timer per card + simulated click pulse right before entering SELECT mode
   useEffect(() => {
     if (!isOpen || !activeStep) return;
@@ -503,26 +620,28 @@ export const MapOnboardingTutorial: React.FC<MapOnboardingTutorialProps> = ({
   useEffect(() => {
     if (!isOpen) return;
     const onKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') {
-        e.preventDefault();
-        handleSkipTutorial();
-      } else if (e.key === 'Enter' || e.key === 'ArrowRight' || e.key === ' ') {
+      if (e.key === 'Enter' || e.key === 'ArrowRight' || e.key === ' ') {
         e.preventDefault();
         handleNext();
       }
     };
     window.addEventListener('keydown', onKeyDown);
     return () => window.removeEventListener('keydown', onKeyDown);
-  }, [isOpen, handleNext, handleSkipTutorial]);
+  }, [isOpen, handleNext]);
 
   // Compute dynamic smart balloon position + arrow pointer offset
   const balloonLayout = useMemo(() => {
     const vw = viewport.w;
     const vh = viewport.h;
     const safeH = 16;
-    const safeTop = Math.max(24, vw < 768 ? 52 : 24);
-    const safeBottom = Math.max(20, vw < 768 ? 26 : 20);
-    const maxW = isFinalStep ? Math.min(324, vw - safeH * 2) : Math.min(284, vw - safeH * 2);
+    const isSelectPinsStep = activeStep?.id === 'select-spots-map-pins';
+    const safeTop = isSelectPinsStep
+      ? Math.max(96, vw < 768 ? 104 : 90)
+      : Math.max(24, vw < 768 ? 52 : 24);
+    const safeBottom = isSelectPinsStep
+      ? Math.max(210, vw < 768 ? 228 : 180)
+      : Math.max(20, vw < 768 ? 26 : 20);
+    const maxW = isFinalStep ? Math.min(330, vw - safeH * 2) : Math.min(292, vw - safeH * 2);
     const bW = Math.min(maxW, balloonSize.w || maxW);
     const bH = balloonSize.h || 176;
 
@@ -542,7 +661,11 @@ export const MapOnboardingTutorial: React.FC<MapOnboardingTutorialProps> = ({
 
     let chosen: BalloonPlacement = activeStep.preferredPlacement;
 
-    if (chosen === 'left') {
+    if (isSelectPinsStep) {
+      const spaceAbove = spotlight.top - safeTop - gap;
+      const spaceBelow = vh - safeBottom - spotlight.bottom - gap;
+      chosen = spaceAbove >= bH || spaceAbove >= spaceBelow ? 'top' : 'bottom';
+    } else if (chosen === 'left') {
       const spaceLeft = spotlight.left - safeH - gap;
       if (spaceLeft < 210) {
         chosen = spotlight.top > vh * 0.55 ? 'top' : 'bottom';
@@ -583,14 +706,14 @@ export const MapOnboardingTutorial: React.FC<MapOnboardingTutorialProps> = ({
     if (chosen === 'top') {
       const left = clamp(targetCx - bW / 2, safeH, vw - safeH - maxW);
       const top = clamp(spotlight.top - gap - bH, safeTop, vh - safeBottom - bH);
-      const arrowOffset = clamp(targetCx - left, 30, Math.min(bW, maxW) - 30);
+      const arrowOffset = clamp(targetCx - left, 32, Math.min(bW, maxW) - 32);
       return { placement: 'top' as BalloonPlacement, left, top, maxWidth: maxW, arrowOffset };
     }
 
     // default: bottom
     const left = clamp(targetCx - bW / 2, safeH, vw - safeH - maxW);
     const top = clamp(spotlight.bottom + gap, safeTop, vh - safeBottom - bH);
-    const arrowOffset = clamp(targetCx - left, 30, Math.min(bW, maxW) - 30);
+    const arrowOffset = clamp(targetCx - left, 32, Math.min(bW, maxW) - 32);
     return { placement: 'bottom' as BalloonPlacement, left, top, maxWidth: maxW, arrowOffset };
   }, [viewport, spotlight, activeStep, isFinalStep, balloonSize.w, balloonSize.h]);
 
@@ -601,9 +724,40 @@ export const MapOnboardingTutorial: React.FC<MapOnboardingTutorialProps> = ({
   }, [userName]);
 
   const transitionEase = [0.22, 1, 0.36, 1] as const;
-  const backdropFill = isDark ? 'rgba(0, 0, 0, 0.62)' : 'rgba(0, 0, 0, 0.44)';
+  const backdropFill = isDark ? 'rgba(0, 0, 0, 0.60)' : 'rgba(0, 0, 0, 0.42)';
   const hasSpotlightCutout = Boolean(spotlight && !isFinalStep);
   const isWaitingForDeferredTarget = Boolean(!isFinalStep && activeStep?.selector && !spotlight);
+
+  // Exact Liquid Glass optical surface matching #select-mode-bottom-tray
+  const liquidGlassCardStyle: React.CSSProperties = isDark
+    ? {
+        background:
+          'linear-gradient(168deg, rgba(30, 30, 34, 0.78) 0%, rgba(17, 17, 19, 0.72) 100%)',
+        backdropFilter: 'blur(32px) saturate(165%)',
+        WebkitBackdropFilter: 'blur(32px) saturate(165%)',
+        border: '1px solid rgba(255, 255, 255, 0.15)',
+        boxShadow:
+          '0 22px 48px -8px rgba(0, 0, 0, 0.74), 0 -6px 24px -6px rgba(0, 0, 0, 0.38), -10px 4px 26px -8px rgba(0, 0, 0, 0.40), 10px 4px 26px -8px rgba(0, 0, 0, 0.40), inset 0 1px 0 rgba(255, 255, 255, 0.20), inset 0 -1px 0 rgba(255, 255, 255, 0.05)',
+      }
+    : {
+        background:
+          'linear-gradient(168deg, rgba(255, 255, 255, 0.78) 0%, rgba(246, 246, 248, 0.68) 100%)',
+        backdropFilter: 'blur(32px) saturate(195%)',
+        WebkitBackdropFilter: 'blur(32px) saturate(195%)',
+        border: '1px solid rgba(255, 255, 255, 0.76)',
+        boxShadow:
+          '0 20px 46px -8px rgba(0, 0, 0, 0.22), 0 -6px 24px -6px rgba(0, 0, 0, 0.08), -10px 4px 26px -8px rgba(0, 0, 0, 0.09), 10px 4px 26px -8px rgba(0, 0, 0, 0.09), 0 0 0 0.5px rgba(0, 0, 0, 0.07), inset 0 1.5px 1px rgba(255, 255, 255, 0.94), inset 0 -1px 1px rgba(255, 255, 255, 0.40)',
+      };
+
+  const arrowSurfaceStyle: React.CSSProperties = isDark
+    ? {
+        backgroundColor: 'rgba(26, 26, 30, 0.78)',
+        borderColor: 'rgba(255, 255, 255, 0.16)',
+      }
+    : {
+        backgroundColor: 'rgba(255, 255, 255, 0.76)',
+        borderColor: 'rgba(255, 255, 255, 0.85)',
+      };
 
   return (
     <AnimatePresence>
@@ -630,6 +784,28 @@ export const MapOnboardingTutorial: React.FC<MapOnboardingTutorialProps> = ({
             className="fixed inset-0 pointer-events-none"
             style={{ backgroundColor: backdropFill }}
           />
+
+          {/* Secondary subtle circular rings over already-selected map spots */}
+          {activeStep.id === 'select-spots-map-pins' &&
+            secondarySpotlights.map((rect, i) => (
+              <motion.div
+                key={`secondary-pin-halo-${i}`}
+                aria-hidden="true"
+                initial={{ opacity: 0, scale: 0.84 }}
+                animate={{ opacity: 1, scale: 1 }}
+                transition={{ duration: 0.24, ease: transitionEase }}
+                className="fixed pointer-events-none rounded-full"
+                style={{
+                  left: rect.left,
+                  top: rect.top,
+                  width: rect.width,
+                  height: rect.height,
+                  border: '1.5px solid rgba(255, 255, 255, 0.92)',
+                  boxShadow:
+                    '0 0 18px rgba(255, 255, 255, 0.38), inset 0 0 10px rgba(255, 255, 255, 0.18)',
+                }}
+              />
+            ))}
 
           {/* Hardware-friendly Spotlight Cutout + Monochrome Focus Ring */}
           {spotlight && (
@@ -670,12 +846,12 @@ export const MapOnboardingTutorial: React.FC<MapOnboardingTutorialProps> = ({
                   className="absolute -inset-[6px]"
                   style={{
                     borderRadius: spotlight.rx + 6,
-                    border: '1px solid rgba(255, 255, 255, 0.45)',
+                    border: '1px solid rgba(255, 255, 255, 0.48)',
                   }}
                   animate={
                     isSimulatingTap
                       ? { scale: [1, 1.16], opacity: [0.95, 0] }
-                      : { scale: [1, 1.08, 1], opacity: [0.58, 0.08, 0.58] }
+                      : { scale: [1, 1.09, 1], opacity: [0.62, 0.1, 0.62] }
                   }
                   transition={
                     isSimulatingTap
@@ -687,7 +863,7 @@ export const MapOnboardingTutorial: React.FC<MapOnboardingTutorialProps> = ({
             </motion.div>
           )}
 
-          {/* Modern Rounded Floating Callout Balloon */}
+          {/* Translucent Liquid Glass Floating Callout Card (Matches #select-mode-bottom-tray) */}
           {!isWaitingForDeferredTarget && (
             <AnimatePresence mode="wait">
               <motion.div
@@ -736,76 +912,62 @@ export const MapOnboardingTutorial: React.FC<MapOnboardingTutorialProps> = ({
                   e.stopPropagation();
                   handleNext();
                 }}
-                className={`fixed pointer-events-auto rounded-[30px] p-5 border backdrop-blur-2xl backdrop-saturate-150 transition-[left,top] duration-300 ease-[cubic-bezier(0.22,1,0.36,1)] ${
-                  isDark
-                    ? 'bg-[#171717]/95 border-white/[0.14] text-[#FFFFFF]'
-                    : 'bg-[#FFFFFF]/96 border-black/[0.08] text-[#000000]'
+                className={`fixed pointer-events-auto rounded-[34px] p-5 transition-[left,top] duration-300 ease-[cubic-bezier(0.22,1,0.36,1)] ${
+                  isDark ? 'text-[#FFFFFF]' : 'text-[#000000]'
                 }`}
                 style={{
+                  ...liquidGlassCardStyle,
                   left: balloonLayout.left,
                   top: balloonLayout.top,
                   width: balloonLayout.maxWidth,
-                  boxShadow: isDark
-                    ? '0 24px 52px -12px rgba(0, 0, 0, 0.78), 0 0 0 0.5px rgba(255, 255, 255, 0.1)'
-                    : '0 24px 52px -12px rgba(0, 0, 0, 0.22), 0 4px 18px -4px rgba(0, 0, 0, 0.08)',
                   fontFamily:
                     '-apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro Text", "Inter", sans-serif',
                 }}
               >
-                {/* Subtle Directional Pointer Arrow */}
+                {/* Optical Liquid Glass top rim sheen */}
+                <span
+                  aria-hidden="true"
+                  className="pointer-events-none absolute inset-x-6 top-[1px] h-[1px] rounded-full bg-gradient-to-r from-transparent via-white/90 to-transparent dark:via-white/25"
+                />
+
+                {/* Translucent Directional Pointer Arrow */}
                 {!isFinalStep && balloonLayout.placement === 'bottom' && (
                   <span
                     aria-hidden="true"
-                    className={`absolute -top-[7px] w-3.5 h-3.5 rotate-45 rounded-[3px] border-l border-t ${
-                      isDark
-                        ? 'bg-[#171717] border-white/[0.14]'
-                        : 'bg-[#FFFFFF] border-black/[0.08]'
-                    }`}
-                    style={{ left: balloonLayout.arrowOffset - 7 }}
+                    className="absolute -top-[6px] w-3 h-3 rotate-45 rounded-[3px] border-l border-t backdrop-blur-md"
+                    style={{ ...arrowSurfaceStyle, left: balloonLayout.arrowOffset - 6 }}
                   />
                 )}
                 {!isFinalStep && balloonLayout.placement === 'top' && (
                   <span
                     aria-hidden="true"
-                    className={`absolute -bottom-[7px] w-3.5 h-3.5 rotate-45 rounded-[3px] border-r border-b ${
-                      isDark
-                        ? 'bg-[#171717] border-white/[0.14]'
-                        : 'bg-[#FFFFFF] border-black/[0.08]'
-                    }`}
-                    style={{ left: balloonLayout.arrowOffset - 7 }}
+                    className="absolute -bottom-[6px] w-3 h-3 rotate-45 rounded-[3px] border-r border-b backdrop-blur-md"
+                    style={{ ...arrowSurfaceStyle, left: balloonLayout.arrowOffset - 6 }}
                   />
                 )}
                 {!isFinalStep && balloonLayout.placement === 'left' && (
                   <span
                     aria-hidden="true"
-                    className={`absolute -right-[7px] w-3.5 h-3.5 rotate-45 rounded-[3px] border-r border-t ${
-                      isDark
-                        ? 'bg-[#171717] border-white/[0.14]'
-                        : 'bg-[#FFFFFF] border-black/[0.08]'
-                    }`}
-                    style={{ top: balloonLayout.arrowOffset - 7 }}
+                    className="absolute -right-[6px] w-3 h-3 rotate-45 rounded-[3px] border-r border-t backdrop-blur-md"
+                    style={{ ...arrowSurfaceStyle, top: balloonLayout.arrowOffset - 6 }}
                   />
                 )}
                 {!isFinalStep && balloonLayout.placement === 'right' && (
                   <span
                     aria-hidden="true"
-                    className={`absolute -left-[7px] w-3.5 h-3.5 rotate-45 rounded-[3px] border-l border-b ${
-                      isDark
-                        ? 'bg-[#171717] border-white/[0.14]'
-                        : 'bg-[#FFFFFF] border-black/[0.08]'
-                    }`}
-                    style={{ top: balloonLayout.arrowOffset - 7 }}
+                    className="absolute -left-[6px] w-3 h-3 rotate-45 rounded-[3px] border-l border-b backdrop-blur-md"
+                    style={{ ...arrowSurfaceStyle, top: balloonLayout.arrowOffset - 6 }}
                   />
                 )}
 
-                {/* Header row: refined pill step indicator + close/skip icon */}
+                {/* Header row: clean frosted step indicator pill */}
                 <div className="flex items-center justify-between gap-2 mb-2.5">
                   {isFinalStep ? (
                     <div
-                      className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-semibold tracking-tight ${
+                      className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[11px] font-semibold tracking-tight ${
                         isDark
-                          ? 'bg-white/[0.08] text-[#D4D4D4]'
-                          : 'bg-[#F2F2F2] text-[#525252]'
+                          ? 'bg-white/[0.10] text-[#E5E5EA] border border-white/[0.12]'
+                          : 'bg-black/[0.06] text-[#171717] border border-black/[0.05]'
                       }`}
                     >
                       <Compass className="w-3.5 h-3.5" strokeWidth={2} />
@@ -813,38 +975,28 @@ export const MapOnboardingTutorial: React.FC<MapOnboardingTutorialProps> = ({
                     </div>
                   ) : (
                     <span
-                      className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-[11px] font-semibold tracking-tight tabular-nums ${
+                      className={`inline-flex items-center px-3 py-0.5 rounded-full text-[11px] font-semibold tracking-tight tabular-nums ${
                         isDark
-                          ? 'bg-white/[0.08] text-[#D4D4D4]'
-                          : 'bg-[#F2F2F2] text-[#525252]'
+                          ? 'bg-white/[0.10] text-[#E5E5EA] border border-white/[0.12]'
+                          : 'bg-black/[0.06] text-[#171717] border border-black/[0.05]'
                       }`}
                     >
                       {stepIndex + 1} de {totalSteps}
                     </span>
                   )}
 
-                  {!isFinalStep && (
-                    <button
-                      type="button"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        handleSkipTutorial();
-                      }}
-                      aria-label="Pular apresentação"
-                      className={`-mr-1 -mt-0.5 p-1.5 rounded-full transition-colors cursor-pointer ${
-                        isDark
-                          ? 'text-[#858585] hover:text-[#FFFFFF] hover:bg-white/10'
-                          : 'text-[#858585] hover:text-[#000000] hover:bg-black/5'
-                      }`}
-                    >
-                      <X className="w-3.5 h-3.5" strokeWidth={2.2} />
-                    </button>
-                  )}
+                  <span
+                    className={`text-[11px] font-medium tracking-tight ${
+                      isDark ? 'text-white/45' : 'text-black/45'
+                    }`}
+                  >
+                    Toque na tela
+                  </span>
                 </div>
 
                 {/* Title & concise explanation */}
                 <h3
-                  className={`text-[16px] font-semibold leading-snug tracking-[-0.02em] ${
+                  className={`text-[16px] font-bold leading-snug tracking-[-0.02em] ${
                     isDark ? 'text-[#FFFFFF]' : 'text-[#000000]'
                   }`}
                 >
@@ -854,8 +1006,8 @@ export const MapOnboardingTutorial: React.FC<MapOnboardingTutorialProps> = ({
                 </h3>
 
                 <p
-                  className={`mt-1.5 text-[13px] leading-[1.45] font-normal ${
-                    isDark ? 'text-[#B3B3B3]' : 'text-[#525252]'
+                  className={`mt-1.5 text-[13px] leading-[1.45] font-medium ${
+                    isDark ? 'text-[#D1D1D6]' : 'text-[#2C2C2E]'
                   }`}
                 >
                   {activeStep.description}
@@ -865,7 +1017,7 @@ export const MapOnboardingTutorial: React.FC<MapOnboardingTutorialProps> = ({
                 <div
                   aria-hidden="true"
                   className={`mt-3.5 h-[2.5px] w-full rounded-full overflow-hidden ${
-                    isDark ? 'bg-white/[0.1]' : 'bg-black/[0.08]'
+                    isDark ? 'bg-white/[0.14]' : 'bg-black/[0.09]'
                   }`}
                 >
                   <motion.div
@@ -877,42 +1029,25 @@ export const MapOnboardingTutorial: React.FC<MapOnboardingTutorialProps> = ({
                       ease: 'linear',
                     }}
                     className={`h-full w-full origin-left rounded-full ${
-                      isDark ? 'bg-[#FFFFFF]' : 'bg-[#171717]'
+                      isDark ? 'bg-[#FFFFFF]' : 'bg-[#000000]'
                     }`}
                   />
                 </div>
 
-                {/* Actions row */}
+                {/* Actions row: clean progress dots + black pill CTA (no Skip button) */}
                 <div className="mt-3.5 flex items-center justify-between gap-2">
-                  {!isFinalStep ? (
-                    <button
-                      type="button"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        handleSkipTutorial();
-                      }}
-                      className={`text-[12.5px] font-medium px-2.5 py-1 -ml-2 rounded-full transition-colors cursor-pointer ${
-                        isDark
-                          ? 'text-[#858585] hover:text-[#FFFFFF] hover:bg-white/[0.06]'
-                          : 'text-[#858585] hover:text-[#000000] hover:bg-black/[0.04]'
-                      }`}
-                    >
-                      Pular
-                    </button>
-                  ) : (
-                    <div className="flex items-center gap-1" aria-hidden="true">
-                      {visibleSteps.map((s, idx) => (
-                        <span
-                          key={s.id}
-                          className={`h-1 rounded-full transition-all duration-200 ${
-                            idx === stepIndex
-                              ? `w-4 ${isDark ? 'bg-[#FFFFFF]' : 'bg-[#000000]'}`
-                              : `w-1 ${isDark ? 'bg-white/25' : 'bg-black/15'}`
-                          }`}
-                        />
-                      ))}
-                    </div>
-                  )}
+                  <div className="flex items-center gap-1" aria-hidden="true">
+                    {visibleSteps.map((s, idx) => (
+                      <span
+                        key={s.id}
+                        className={`h-1 rounded-full transition-all duration-200 ${
+                          idx === stepIndex
+                            ? `w-3.5 ${isDark ? 'bg-[#FFFFFF]' : 'bg-[#000000]'}`
+                            : `w-1 ${isDark ? 'bg-white/25' : 'bg-black/20'}`
+                        }`}
+                      />
+                    ))}
+                  </div>
 
                   <motion.button
                     type="button"
@@ -921,14 +1056,12 @@ export const MapOnboardingTutorial: React.FC<MapOnboardingTutorialProps> = ({
                       e.stopPropagation();
                       handleNext();
                     }}
-                    className={`inline-flex items-center justify-center gap-1.5 rounded-full px-4 py-2 text-[13px] font-semibold tracking-tight transition-opacity hover:opacity-90 cursor-pointer ${
-                      isDark
-                        ? 'bg-[#FFFFFF] text-[#000000]'
-                        : 'bg-[#171717] text-[#FFFFFF]'
+                    className={`inline-flex items-center justify-center gap-1.5 rounded-full px-4 py-2 text-[13px] font-semibold tracking-tight transition-all hover:bg-[#171717] cursor-pointer shadow-[0_8px_20px_-4px_rgba(0,0,0,0.34),inset_0_1px_0_rgba(255,255,255,0.16)] bg-[#000000] text-[#FFFFFF] ${
+                      isDark ? 'border border-white/20' : ''
                     }`}
                   >
                     <span>{isFinalStep ? 'Explorar o mapa' : 'Continuar'}</span>
-                    <ArrowRight className="w-3.5 h-3.5" strokeWidth={2.2} />
+                    <ArrowRight className="w-3.5 h-3.5" strokeWidth={2.25} />
                   </motion.button>
                 </div>
               </motion.div>

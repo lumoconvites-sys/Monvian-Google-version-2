@@ -2668,8 +2668,10 @@ export const MapComponent = memo(
             if (mode === 'SELECT' && selectRank > 0) {
               rec.orderBadgeEl.textContent = String(selectRank);
               rec.orderBadgeEl.style.display = 'flex';
+              rec.el.setAttribute('data-tutorial-select-rank', String(selectRank));
             } else {
               rec.orderBadgeEl.style.display = 'none';
+              rec.el.removeAttribute('data-tutorial-select-rank');
             }
           }
         }
