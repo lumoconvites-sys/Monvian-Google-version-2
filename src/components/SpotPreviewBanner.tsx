@@ -108,13 +108,13 @@ export const SpotPreviewBanner: React.FC<SpotPreviewBannerProps> = ({
   return (
     <motion.div
       id="spot-preview-banner-card"
-      initial={shouldReduceMotion ? { opacity: 0 } : { opacity: 0, y: 24 }}
-      animate={shouldReduceMotion ? { opacity: 1 } : { opacity: 1, y: 0 }}
-      exit={shouldReduceMotion ? { opacity: 0 } : { opacity: 0, y: 24 }}
+      initial={shouldReduceMotion ? { opacity: 0 } : { opacity: 0, y: 24, scale: 0.97 }}
+      animate={shouldReduceMotion ? { opacity: 1 } : { opacity: 1, y: 0, scale: 1 }}
+      exit={shouldReduceMotion ? { opacity: 0 } : { opacity: 0, y: 32, scale: 0.95 }}
       transition={
         shouldReduceMotion
           ? { duration: 0.14 }
-          : { duration: 0.22, ease: [0.22, 1, 0.36, 1] }
+          : { duration: 0.24, ease: [0.32, 0.72, 0, 1] }
       }
       className="md:hidden fixed inset-x-0 bottom-[82px] sm:bottom-[84px] z-[245] flex flex-col items-center gap-2 px-4 pointer-events-none select-none"
       style={{

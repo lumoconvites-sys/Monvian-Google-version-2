@@ -3,7 +3,6 @@ import { motion, AnimatePresence, useMotionValue, useTransform, animate } from '
 import {
   ArrowRight,
   Check,
-  Compass,
   Edit3,
   Layers,
   MapPin,
@@ -627,7 +626,6 @@ interface UnifiedItineraryOverlayProps {
   onExitToExplore: () => void;
   onOpenStore: () => void;
   onSelectMoreSpotsOnMap: () => void;
-  onCenterRoute: () => void;
   onUpdateItinerary: (updated: Itinerary) => void;
   onDeleteItinerary: () => void;
   onDeleteStep: (stepId: string) => void;
@@ -654,7 +652,6 @@ export const UnifiedItineraryOverlay: React.FC<UnifiedItineraryOverlayProps> = m
     onExitToExplore,
     onOpenStore,
     onSelectMoreSpotsOnMap,
-    onCenterRoute,
     onUpdateItinerary,
     onDeleteItinerary,
     onDeleteStep,
@@ -827,7 +824,7 @@ export const UnifiedItineraryOverlay: React.FC<UnifiedItineraryOverlayProps> = m
           </motion.button>
         </div>
 
-        {/* 2. MOBILE FLOATING MAP ACTIONS (Center route, Layers, Add Spot, Store) */}
+        {/* 2. MOBILE FLOATING MAP ACTIONS (Store, Layers, Add Spot) */}
         <div
           className="md:hidden absolute right-4 z-40 pointer-events-auto transition-all duration-300 flex flex-col items-center gap-2.5"
           style={{
@@ -843,7 +840,7 @@ export const UnifiedItineraryOverlay: React.FC<UnifiedItineraryOverlayProps> = m
             animate={{ opacity: 1, scale: 1, y: 0 }}
             transition={{ type: 'spring', stiffness: 380, damping: 22, delay: 0.08 }}
             whileTap={{ scale: 0.9, transition: { type: 'spring', stiffness: 500, damping: 14 } }}
-            onClick={onCenterRoute}
+            onClick={onOpenStore}
             className={`w-[46px] h-[46px] rounded-full flex items-center justify-center cursor-pointer transition-colors border ${
               isDark
                 ? 'bg-[#171717]/95 border-white/10 shadow-[0_4px_16px_rgba(0,0,0,0.4)]'
@@ -852,10 +849,10 @@ export const UnifiedItineraryOverlay: React.FC<UnifiedItineraryOverlayProps> = m
                   : 'bg-[#FFFFFF]/95 border-black/[0.05] shadow-[0_4px_16px_rgba(0,0,0,0.09)]'
             }`}
             style={{ color: glassIconColor }}
-            title="Enquadrar rota"
-            aria-label="Enquadrar rota"
+            title="Loja de Roteiros"
+            aria-label="Loja de Roteiros"
           >
-            <Compass className="relative z-10 w-[21px] h-[21px] stroke-[1.85]" style={{ color: glassIconColor }} />
+            <Store className="relative z-10 w-[20px] h-[20px] stroke-[1.85]" style={{ color: glassIconColor }} />
           </motion.button>
 
           <motion.button
@@ -898,27 +895,6 @@ export const UnifiedItineraryOverlay: React.FC<UnifiedItineraryOverlayProps> = m
             aria-label="Selecionar mais pontos no mapa"
           >
             <Plus className="relative z-10 w-[21px] h-[21px] stroke-[2]" style={{ color: glassIconColor }} />
-          </motion.button>
-
-          <motion.button
-            type="button"
-            initial={{ opacity: 0, scale: 0.88, y: 12 }}
-            animate={{ opacity: 1, scale: 1, y: 0 }}
-            transition={{ type: 'spring', stiffness: 380, damping: 22, delay: 0.185 }}
-            whileTap={{ scale: 0.9, transition: { type: 'spring', stiffness: 500, damping: 14 } }}
-            onClick={onOpenStore}
-            className={`w-[46px] h-[46px] rounded-full flex items-center justify-center cursor-pointer transition-colors border ${
-              isDark
-                ? 'bg-[#171717]/95 border-white/10 shadow-[0_4px_16px_rgba(0,0,0,0.4)]'
-                : isSatelliteMap
-                  ? 'ios26-liquid-glass border-white/25'
-                  : 'bg-[#FFFFFF]/95 border-black/[0.05] shadow-[0_4px_16px_rgba(0,0,0,0.09)]'
-            }`}
-            style={{ color: glassIconColor }}
-            title="Loja de Roteiros"
-            aria-label="Loja de Roteiros"
-          >
-            <Store className="relative z-10 w-[20px] h-[20px] stroke-[1.85]" style={{ color: glassIconColor }} />
           </motion.button>
         </div>
 

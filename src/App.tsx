@@ -498,12 +498,14 @@ export default function App() {
   const [discoveryResetSignal, setDiscoveryResetSignal] = useState<number>(0);
   const discoverySheetHeightMV = useMotionValue<number>(0);
   const [isPlatanosWalletOpen, setIsPlatanosWalletOpen] = useState<boolean>(false);
+  const [hasMountedPlatanosWallet, setHasMountedPlatanosWallet] = useState<boolean>(false);
   const [platanosWalletTab, setPlatanosWalletTab] = useState<'topup' | 'history'>('topup');
 
   useEffect(() => {
     const handleOpenWallet = (e: Event) => {
       const detail = (e as CustomEvent)?.detail;
       setPlatanosWalletTab(detail?.tab === 'history' ? 'history' : 'topup');
+      setHasMountedPlatanosWallet(true);
       setIsPlatanosWalletOpen(true);
     };
     const handleMyItinerariesActive = (e: Event) => {
@@ -593,6 +595,16 @@ export default function App() {
   });
 
   const [isDiscoveryPanelClosed, setIsDiscoveryPanelClosed] = useState<boolean>(true);
+  const discoveryOpenTimerRef = useRef<number | null>(null);
+
+  useEffect(() => {
+    return () => {
+      if (discoveryOpenTimerRef.current !== null) {
+        window.clearTimeout(discoveryOpenTimerRef.current);
+        discoveryOpenTimerRef.current = null;
+      }
+    };
+  }, []);
 
   useEffect(() => {
     const checkStandalone = () => {
@@ -1812,8 +1824,15 @@ export default function App() {
   }, [activeRoute?.spotId, clearActiveRoute, showDiscreetRouteError]);
 
   const handleSelectSpot = useCallback((spot: Spot | null) => {
+    if (discoveryOpenTimerRef.current !== null) {
+      window.clearTimeout(discoveryOpenTimerRef.current);
+      discoveryOpenTimerRef.current = null;
+    }
     if (!spot || (activeRouteSpotIdRef.current && spot.id !== activeRouteSpotIdRef.current)) {
       clearActiveRoute();
+    }
+    if (spot) {
+      setIsDiscoveryPanelClosed(true);
     }
     setSelectedSpot(spot);
     setSpotPreviewMode('bar');
@@ -3372,8 +3391,25 @@ export default function App() {
   }, []);
 
   const handleToggleDiscoveryPanel = useCallback(() => {
+    if (discoveryOpenTimerRef.current !== null) {
+      window.clearTimeout(discoveryOpenTimerRef.current);
+      discoveryOpenTimerRef.current = null;
+    }
+    if (selectedSpot || isDetailOpen || activeRoute) {
+      mapRef.current?.restorePreSpotCamera();
+      clearActiveRoute();
+      setSelectedSpot(null);
+      setIsDetailOpen(false);
+      setIsCategoryCardOpen(false);
+      setIsSearchOpen(false);
+      discoveryOpenTimerRef.current = window.setTimeout(() => {
+        discoveryOpenTimerRef.current = null;
+        setIsDiscoveryPanelClosed(false);
+      }, 170);
+      return;
+    }
     setIsDiscoveryPanelClosed((prev) => !prev);
-  }, []);
+  }, [selectedSpot, isDetailOpen, activeRoute, clearActiveRoute]);
 
   useEffect(() => {
     if (activeTab === 'explorar' && mapWorkflowMode === 'EXPLORE') {
@@ -4549,7 +4585,6 @@ export default function App() {
               onExitToExplore={handleExitWorkflowToExplore}
               onOpenStore={() => setActiveTab('roteiros')}
               onSelectMoreSpotsOnMap={handleSelectMoreSpotsOnMap}
-              onCenterRoute={() => mapRef.current?.fitItineraryBounds(activeItinerarySteps, false)}
               onUpdateItinerary={handleUpdateItinerary}
               onDeleteItinerary={handleDeleteActiveItinerary}
               onDeleteStep={handleDeleteItineraryStep}
@@ -5060,10 +5095,10 @@ export default function App() {
       </AnimatePresence>
     </Suspense>
 
-    {isPlatanosWalletOpen && (
+    {(isPlatanosWalletOpen || hasMountedPlatanosWallet) && (
       <Suspense fallback={null}>
         <PlatanosWalletModal
-          isOpen={true}
+          isOpen={isPlatanosWalletOpen}
           onClose={() => setIsPlatanosWalletOpen(false)}
           theme={theme}
           initialTab={platanosWalletTab}

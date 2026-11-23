@@ -296,7 +296,7 @@ export const PlatanosWalletModal: React.FC<PlatanosWalletModalProps> = ({
       // Fast downward flick or dragged near the bottom edge -> close smoothly
       if ((vy > 0.65 && totalDeltaY > 28) || currentY > sheetHeight * 0.72) {
         activeAnimRef.current = animate(sheetDragY, sheetHeight + 44, {
-          duration: 0.2,
+          duration: 0.42,
           ease: [0.22, 1, 0.36, 1],
         });
         onClose();
@@ -415,13 +415,18 @@ export const PlatanosWalletModal: React.FC<PlatanosWalletModalProps> = ({
         <motion.div
           key="platanos-wallet-backdrop"
           initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          exit={{ opacity: 0 }}
-          transition={
-            prefersReducedMotion
+          animate={{
+            opacity: 1,
+            transition: prefersReducedMotion
               ? { duration: 0.16 }
-              : { duration: 0.34, ease: [0.22, 1, 0.36, 1] }
-          }
+              : { duration: 0.48, ease: [0.22, 1, 0.36, 1] },
+          }}
+          exit={{
+            opacity: 0,
+            transition: prefersReducedMotion
+              ? { duration: 0.16 }
+              : { duration: 0.44, ease: [0.32, 0.72, 0, 1] },
+          }}
           onClick={onClose}
           className="fixed inset-0 z-[320] flex items-end md:items-center justify-center md:p-4"
           style={{
@@ -444,13 +449,13 @@ export const PlatanosWalletModal: React.FC<PlatanosWalletModalProps> = ({
             }`}
           />
 
-          {/* Outer Motion Container: 120fps lightweight spring open & smooth float-down exit */}
+          {/* Outer Motion Container: unhurried silky iOS sheet open & gentle float-down exit */}
           <motion.div
             key="platanos-wallet-sheet"
             initial={
               prefersReducedMotion
                 ? { opacity: 0 }
-                : { y: 116, scale: 0.955, opacity: 0 }
+                : { y: 150, scale: 0.965, opacity: 0 }
             }
             animate={
               prefersReducedMotion
@@ -461,10 +466,11 @@ export const PlatanosWalletModal: React.FC<PlatanosWalletModalProps> = ({
               prefersReducedMotion
                 ? { opacity: 0, transition: { duration: 0.16 } }
                 : {
-                    y: 96,
+                    y: 140,
+                    scale: 0.97,
                     opacity: 0,
                     transition: {
-                      duration: 0.24,
+                      duration: 0.44,
                       ease: [0.32, 0.72, 0, 1],
                     },
                   }
@@ -474,9 +480,9 @@ export const PlatanosWalletModal: React.FC<PlatanosWalletModalProps> = ({
                 ? { duration: 0.16 }
                 : {
                     type: 'spring',
-                    stiffness: 300,
-                    damping: 30,
-                    mass: 0.82,
+                    stiffness: 185,
+                    damping: 28,
+                    mass: 1.08,
                   }
             }
             onClick={(e) => e.stopPropagation()}

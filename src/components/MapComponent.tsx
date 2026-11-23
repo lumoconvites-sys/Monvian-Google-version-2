@@ -34,6 +34,7 @@ export interface MapComponentHandle {
   fitItineraryBounds: (steps?: ItineraryStep[], instant?: boolean) => void;
   focusItineraryStep: (step: ItineraryStep, isExpanded?: boolean) => void;
   fitSpotsOverview: () => void;
+  restorePreSpotCamera: () => void;
 }
 
 interface MapComponentProps {
@@ -482,6 +483,13 @@ export const MapComponent = memo(
     const zoomDurationMsRef = useRef<number>(clampedZoomDuration);
     zoomDurationMsRef.current = clampedZoomDuration;
     const spotFocusRafRef = useRef<number | null>(null);
+    const prevSelectedSpotIdRef = useRef<string | null>(null);
+    const preSpotCameraRef = useRef<{
+      center: [number, number];
+      zoom: number;
+      pitch: number;
+      bearing: number;
+    } | null>(null);
     const savedSuspendedCameraRef = useRef<{
       center: [number, number];
       zoom: number;
@@ -1244,6 +1252,34 @@ export const MapComponent = memo(
       },
       fitSpotsOverview: () => {
         frameAllSpotsOverview(mapRef.current, true);
+      },
+      restorePreSpotCamera: () => {
+        const map = mapRef.current;
+        const saved = preSpotCameraRef.current;
+        preSpotCameraRef.current = null;
+        if (spotFocusRafRef.current !== null) {
+          cancelAnimationFrame(spotFocusRafRef.current);
+          spotFocusRafRef.current = null;
+        }
+        if (!map || !saved) return;
+        const animDuration = computeAdaptiveZoomDuration(
+          map,
+          saved.center[0],
+          saved.center[1],
+          saved.zoom,
+          0.95
+        );
+        beginProgrammaticCameraAnim(map, animDuration);
+        map.easeTo({
+          center: saved.center,
+          zoom: saved.zoom,
+          pitch: saved.pitch,
+          bearing: saved.bearing,
+          offset: [0, 0],
+          duration: animDuration,
+          easing: smoothCameraEase,
+          essential: true,
+        });
       },
     }), [centerOnUserLocation, currentMode, onMapModeChange, onStyleChange, setFollowMode, beginProgrammaticCameraAnim, computeAdaptiveZoomDuration, smoothCameraEase, fitItineraryCameraBounds, focusItineraryStepOnMap, frameAllSpotsOverview]);
 
@@ -4034,7 +4070,20 @@ export const MapComponent = memo(
       const map = mapRef.current;
       if (!map || workflowModeRef.current !== 'EXPLORE') return;
 
+      const prevSpotId = prevSelectedSpotIdRef.current;
+      prevSelectedSpotIdRef.current = selectedSpot?.id || null;
+
       if (selectedSpot && selectedSpot.lng && selectedSpot.lat) {
+        if (!prevSpotId) {
+          const currentCenter = map.getCenter();
+          preSpotCameraRef.current = {
+            center: [currentCenter.lng, currentCenter.lat],
+            zoom: map.getZoom(),
+            pitch: map.getPitch(),
+            bearing: map.getBearing(),
+          };
+        }
+
         if (activeRouteRef.current?.spotId === selectedSpot.id) {
           return;
         }
@@ -4062,6 +4111,8 @@ export const MapComponent = memo(
             essential: true,
           });
         });
+      } else {
+        preSpotCameraRef.current = null;
       }
 
       return () => {
