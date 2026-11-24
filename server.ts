@@ -298,6 +298,7 @@ try {
   `);
 } catch {}
 
+try { db.exec(`ALTER TABLE map_visual_icons ADD COLUMN name TEXT;`); } catch {}
 try { db.exec(`ALTER TABLE map_visual_icons ADD COLUMN icon TEXT;`); } catch {}
 try { db.exec(`ALTER TABLE map_visual_icons ADD COLUMN color TEXT;`); } catch {}
 try { db.exec(`ALTER TABLE map_visual_icons ADD COLUMN is_active INTEGER DEFAULT 1;`); } catch {}
@@ -3691,8 +3692,36 @@ async function startServer() {
   });
 
   // ===========================================================================
-  // 3. VISUAL MAP ICONS API
+  // 3. VISUAL MAP ICONS (STOP ICONS) API
   // ===========================================================================
+  const normalizeStopIconPayload = (body: any) => {
+    const rawName = typeof body?.name === 'string' ? body.name.trim() : '';
+    const rawCategory = typeof body?.category === 'string' ? body.category.trim() : '';
+    const rawIcon = typeof body?.icon === 'string' ? body.icon.trim() : '';
+    const rawColor = typeof body?.color === 'string' ? body.color.trim() : '';
+    const latNum = Number(body?.latitude);
+    const lngNum = Number(body?.longitude);
+    const safeColor = /^#[0-9A-Fa-f]{6}$/.test(rawColor) ? rawColor.toUpperCase() : '#1668FF';
+    const safeIcon = /^[a-zA-Z0-9_-]{1,64}$/.test(rawIcon) ? rawIcon : 'map-pin';
+    const safeCategory = rawCategory.slice(0, 80);
+    const safeName = (rawName || safeCategory || 'Ponto de Parada').slice(0, 120);
+    return {
+      name: safeName,
+      category: safeCategory,
+      icon: safeIcon,
+      color: safeColor,
+      latitude: latNum,
+      longitude: lngNum,
+      isValidCoords:
+        Number.isFinite(latNum) &&
+        Number.isFinite(lngNum) &&
+        latNum >= -90 &&
+        latNum <= 90 &&
+        lngNum >= -180 &&
+        lngNum <= 180,
+    };
+  };
+
   app.get('/api/map-visual-icons', (_req: Request, res: Response) => {
     try {
       const rows = db.prepare('SELECT * FROM map_visual_icons WHERE is_active = 1 ORDER BY created_at DESC').all();
@@ -3702,8 +3731,11 @@ async function startServer() {
     }
   });
 
-  app.get('/api/admin/map-visual-icons', (_req: Request, res: Response) => {
+  app.get('/api/admin/map-visual-icons', async (req: Request, res: Response) => {
     try {
+      if (!(await isRequestAdmin(req))) {
+        return res.status(403).json({ success: false, error: 'Acesso restrito a administradores.' });
+      }
       const rows = db.prepare('SELECT * FROM map_visual_icons ORDER BY created_at DESC').all();
       return res.json({ success: true, icons: rows });
     } catch (err: any) {
@@ -3713,21 +3745,36 @@ async function startServer() {
 
   app.post('/api/admin/map-visual-icons', async (req: Request, res: Response) => {
     try {
-      const { id, category, latitude, longitude, color, is_active } = req.body;
-      if (!category || latitude === undefined || longitude === undefined) {
-        return res.status(400).json({ success: false, error: 'Categoria, latitude e longitude são obrigatórios' });
+      if (!(await isRequestAdmin(req))) {
+        return res.status(403).json({ success: false, error: 'Acesso restrito a administradores.' });
+      }
+      const parsed = normalizeStopIconPayload(req.body);
+      if (!parsed.category || !parsed.isValidCoords) {
+        return res.status(400).json({ success: false, error: 'Categoria, latitude e longitude válidas são obrigatórios.' });
       }
 
-      const iconId = id || `v_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
-      const activeState = is_active === undefined ? 1 : (is_active ? 1 : 0);
+      const requestedId = typeof req.body?.id === 'string' && /^[a-zA-Z0-9_-]{3,80}$/.test(req.body.id)
+        ? req.body.id
+        : null;
+      const iconId = requestedId || `v_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
+      const activeState = req.body?.is_active === undefined ? 1 : (req.body.is_active ? 1 : 0);
 
       db.prepare(`
-        INSERT INTO map_visual_icons (id, category, latitude, longitude, color, is_active)
-        VALUES (?, ?, ?, ?, ?, ?)
-      `).run(iconId, String(category), Number(latitude), Number(longitude), color || null, activeState);
+        INSERT INTO map_visual_icons (id, name, category, icon, latitude, longitude, color, is_active)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+      `).run(
+        iconId,
+        parsed.name,
+        parsed.category,
+        parsed.icon,
+        parsed.latitude,
+        parsed.longitude,
+        parsed.color,
+        activeState
+      );
 
       const created = db.prepare('SELECT * FROM map_visual_icons WHERE id = ?').get(iconId) as any;
-      await persistMapVisualIconToSupabase(created);
+      persistMapVisualIconToSupabase(created).catch(() => {});
       persistMapVisualIconToFirestore(created).catch(() => {});
 
       return res.json({ success: true, icon: created, message: 'Ícone adicionado com sucesso!' });
@@ -3738,17 +3785,38 @@ async function startServer() {
 
   app.put('/api/admin/map-visual-icons/:id', async (req: Request, res: Response) => {
     try {
+      if (!(await isRequestAdmin(req))) {
+        return res.status(403).json({ success: false, error: 'Acesso restrito a administradores.' });
+      }
       const { id } = req.params;
-      const { category, latitude, longitude, color, is_active } = req.body;
+      const existing = db.prepare('SELECT * FROM map_visual_icons WHERE id = ?').get(id) as any;
+      if (!existing) {
+        return res.status(404).json({ success: false, error: 'Ícone não encontrado.' });
+      }
+
+      const parsed = normalizeStopIconPayload(req.body);
+      if (!parsed.category || !parsed.isValidCoords) {
+        return res.status(400).json({ success: false, error: 'Categoria, latitude e longitude válidas são obrigatórios.' });
+      }
+      const activeState = req.body?.is_active === undefined ? existing.is_active : (req.body.is_active ? 1 : 0);
 
       db.prepare(`
         UPDATE map_visual_icons
-        SET category = ?, latitude = ?, longitude = ?, color = ?, is_active = ?, updated_at = CURRENT_TIMESTAMP
+        SET name = ?, category = ?, icon = ?, latitude = ?, longitude = ?, color = ?, is_active = ?, updated_at = CURRENT_TIMESTAMP
         WHERE id = ?
-      `).run(String(category), Number(latitude), Number(longitude), color || null, is_active ? 1 : 0, id);
+      `).run(
+        parsed.name,
+        parsed.category,
+        parsed.icon,
+        parsed.latitude,
+        parsed.longitude,
+        parsed.color,
+        activeState,
+        id
+      );
 
       const updated = db.prepare('SELECT * FROM map_visual_icons WHERE id = ?').get(id) as any;
-      await persistMapVisualIconToSupabase(updated);
+      persistMapVisualIconToSupabase(updated).catch(() => {});
       persistMapVisualIconToFirestore(updated).catch(() => {});
 
       return res.json({ success: true, icon: updated, message: 'Ícone atualizado com sucesso!' });
@@ -3759,6 +3827,9 @@ async function startServer() {
 
   app.patch('/api/admin/map-visual-icons/:id/toggle-active', async (req: Request, res: Response) => {
     try {
+      if (!(await isRequestAdmin(req))) {
+        return res.status(403).json({ success: false, error: 'Acesso restrito a administradores.' });
+      }
       const { id } = req.params;
       const current = db.prepare('SELECT * FROM map_visual_icons WHERE id = ?').get(id) as any;
       if (!current) {
@@ -3769,11 +3840,12 @@ async function startServer() {
       db.prepare('UPDATE map_visual_icons SET is_active = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?').run(nextActive, id);
 
       const updated = db.prepare('SELECT * FROM map_visual_icons WHERE id = ?').get(id) as any;
-      await persistMapVisualIconToSupabase(updated);
+      persistMapVisualIconToSupabase(updated).catch(() => {});
       persistMapVisualIconToFirestore(updated).catch(() => {});
 
       return res.json({
         success: true,
+        icon: updated,
         is_active: nextActive,
         message: nextActive === 1 ? 'Marcador ativado no mapa' : 'Marcador ocultado do mapa',
       });
@@ -3784,9 +3856,12 @@ async function startServer() {
 
   app.delete('/api/admin/map-visual-icons/:id', async (req: Request, res: Response) => {
     try {
+      if (!(await isRequestAdmin(req))) {
+        return res.status(403).json({ success: false, error: 'Acesso restrito a administradores.' });
+      }
       const { id } = req.params;
       db.prepare('DELETE FROM map_visual_icons WHERE id = ?').run(id);
-      await deleteMapVisualIconFromSupabase(id);
+      deleteMapVisualIconFromSupabase(id).catch(() => {});
       deleteMapVisualIconFromFirestore(id).catch(() => {});
       return res.json({ success: true, message: 'Ícone removido com sucesso' });
     } catch (err: any) {

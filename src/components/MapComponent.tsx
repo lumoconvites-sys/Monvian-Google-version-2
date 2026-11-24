@@ -4,7 +4,11 @@ import * as maplibregl from 'maplibre-gl';
 import 'maplibre-gl/dist/maplibre-gl.css';
 import '../utils/configureMaplibre';
 import { Plus } from 'lucide-react';
-import { Spot, MapModeType, MapWorkflowMode, ItineraryStep } from '../types';
+import { Spot, MapVisualIcon, MapModeType, MapWorkflowMode, ItineraryStep } from '../types';
+import {
+  createStopIconMarkerElements,
+  updateStopIconMarkerAppearance,
+} from '../utils/mapVisualIcons';
 import { getSpotPinThumbnail, getSpotFallbackImage } from '../utils/spotImages';
 import { gpsNavigationManager, calculateHaversineDistance } from '../services/gpsNavigation';
 import { monvianXpManager } from '../services/xpService';
@@ -1622,6 +1626,7 @@ export const MapComponent = memo(
           }
           syncSpaceAndMarkerZoomTier();
           syncSpotMarkersRef.current?.();
+          syncStopIconMarkersRef.current?.();
           scheduleViewportDataFetch(true);
           if (onMapLoad) onMapLoad();
         });
@@ -4247,19 +4252,204 @@ export const MapComponent = memo(
       smoothCameraEase,
     ]);
 
-    // Render static visual map icons
+    // Render auxiliary Stop Icons (Ícones de Pontos de Parada) using incremental diffing,
+    // zoom-aware progressive density/culling, and zero interference with tourist photo pins.
     const visualIconMarkersRef = useRef<maplibregl.Marker[]>([]);
+    const stopIconEntriesRef = useRef<
+      Map<
+        string,
+        {
+          marker: maplibregl.Marker;
+          root: HTMLDivElement;
+          badge: HTMLDivElement;
+          svgHolder: HTMLDivElement;
+          lat: number;
+          lng: number;
+          signature: string;
+        }
+      >
+    >(new Map());
+    const syncStopIconMarkersRef = useRef<(() => void) | null>(null);
+    const updateStopIconsZoomVisibilityRef = useRef<(() => void) | null>(null);
+    const stopIconsZoomListenerMapRef = useRef<maplibregl.Map | null>(null);
 
-    // Clear any legacy visual icon markers once cleanly (feature intentionally disabled on main map)
-    useEffect(() => {
-      if (visualIconMarkersRef.current.length > 0) {
-        visualIconMarkersRef.current.forEach((m) => {
+    const updateStopIconsZoomVisibility = useCallback(() => {
+      const map = mapRef.current;
+      const entries = stopIconEntriesRef.current;
+      if (!map || entries.size === 0) return;
+
+      const isHiddenGlobal =
+        isGlobeIntroPendingRef.current ||
+        isGlobeIntroPlayingRef.current ||
+        workflowModeRef.current === 'SELECT';
+
+      const zoom = typeof map.getZoom === 'function' ? map.getZoom() : 14;
+      const isTooFarOut = zoom < 10.6;
+      const isMediumZoom = zoom >= 10.6 && zoom < 12.3;
+      const isDimmed = isFocusModeRef.current;
+
+      if (isHiddenGlobal || isTooFarOut) {
+        entries.forEach((entry) => {
+          entry.root.style.opacity = '0';
+          entry.root.style.pointerEvents = 'none';
+        });
+        return;
+      }
+
+      // Fast O(n) screen-space proximity culling only at medium-far zoom to prevent visual crowding
+      const placedPoints: Array<{ x: number; y: number }> = [];
+      const minSpacingSq = 28 * 28;
+
+      entries.forEach((entry) => {
+        if (isMediumZoom) {
+          let isCrowded = false;
           try {
-            m.remove();
+            const pt = map.project([entry.lng, entry.lat]);
+            for (let i = 0; i < placedPoints.length; i++) {
+              const dx = pt.x - placedPoints[i].x;
+              const dy = pt.y - placedPoints[i].y;
+              if (dx * dx + dy * dy < minSpacingSq) {
+                isCrowded = true;
+                break;
+              }
+            }
+            if (!isCrowded) {
+              placedPoints.push({ x: pt.x, y: pt.y });
+            }
+          } catch {}
+
+          if (isCrowded) {
+            entry.root.style.opacity = '0';
+            entry.root.style.pointerEvents = 'none';
+            return;
+          }
+          entry.badge.style.transform = 'scale(0.84)';
+        } else {
+          entry.badge.style.transform = 'scale(1)';
+        }
+
+        entry.root.style.opacity = isDimmed ? '0.25' : '1';
+        entry.root.style.pointerEvents = isDimmed ? 'none' : 'auto';
+      });
+    }, []);
+
+    updateStopIconsZoomVisibilityRef.current = updateStopIconsZoomVisibility;
+
+    const syncStopIconMarkers = useCallback(() => {
+      const map = mapRef.current;
+      if (!map) return;
+
+      // Attach a single lightweight RAF-throttled zoom/moveend listener once per map instance
+      if (stopIconsZoomListenerMapRef.current !== map) {
+        stopIconsZoomListenerMapRef.current = map;
+        let zoomRaf: number | null = null;
+        const scheduleVisibilitySync = () => {
+          if (zoomRaf !== null) return;
+          zoomRaf = requestAnimationFrame(() => {
+            zoomRaf = null;
+            updateStopIconsZoomVisibilityRef.current?.();
+          });
+        };
+        map.on('zoom', scheduleVisibilitySync);
+        map.on('zoomend', scheduleVisibilitySync);
+        map.on('moveend', scheduleVisibilitySync);
+      }
+
+      const activeList: MapVisualIcon[] = Array.isArray(visualIcons)
+        ? visualIcons.filter(
+            (item: any) =>
+              item &&
+              item.id &&
+              (item.is_active === undefined || Number(item.is_active) === 1) &&
+              Number.isFinite(Number(item.latitude)) &&
+              Number.isFinite(Number(item.longitude))
+          )
+        : [];
+
+      const entries = stopIconEntriesRef.current;
+      const nextIds = new Set<string>();
+
+      // 1. Create newly added icons or update edited ones in-place (never rebuild untouched markers)
+      for (const item of activeList) {
+        const id = String(item.id);
+        nextIds.add(id);
+
+        const lat = Number(item.latitude);
+        const lng = Number(item.longitude);
+        const signature = `${item.icon || ''}|${item.category || ''}|${item.color || ''}`;
+        const existing = entries.get(id);
+
+        if (existing) {
+          if (existing.lat !== lat || existing.lng !== lng) {
+            existing.lat = lat;
+            existing.lng = lng;
+            existing.marker.setLngLat([lng, lat]);
+          }
+          if (existing.signature !== signature) {
+            existing.signature = signature;
+            updateStopIconMarkerAppearance(existing.badge, existing.svgHolder, item, 28);
+          }
+        } else {
+          const { root, badge, svgHolder } = createStopIconMarkerElements(item, 28);
+          const marker = new maplibregl.Marker({
+            element: root,
+            anchor: 'center',
+          })
+            .setLngLat([lng, lat])
+            .addTo(map);
+
+          entries.set(id, {
+            marker,
+            root,
+            badge,
+            svgHolder,
+            lat,
+            lng,
+            signature,
+          });
+        }
+      }
+
+      // 2. Remove deleted or deactivated icons individually
+      entries.forEach((entry, id) => {
+        if (!nextIds.has(id)) {
+          try {
+            entry.marker.remove();
+          } catch {}
+          entries.delete(id);
+        }
+      });
+
+      // Keep legacy ref array mirrored so map-teardown paths cleanly remove all stop markers
+      visualIconMarkersRef.current = Array.from(entries.values()).map((e) => e.marker);
+
+      // Apply current zoom/focus/intro visibility immediately
+      updateStopIconsZoomVisibility();
+    }, [visualIcons, updateStopIconsZoomVisibility]);
+
+    syncStopIconMarkersRef.current = syncStopIconMarkers;
+
+    useEffect(() => {
+      syncStopIconMarkers();
+    }, [
+      syncStopIconMarkers,
+      isGlobeIntroPending,
+      isGlobeIntroPlaying,
+      isFocusMode,
+      workflowMode,
+    ]);
+
+    useEffect(() => {
+      return () => {
+        stopIconEntriesRef.current.forEach((entry) => {
+          try {
+            entry.marker.remove();
           } catch {}
         });
+        stopIconEntriesRef.current.clear();
         visualIconMarkersRef.current = [];
-      }
+        stopIconsZoomListenerMapRef.current = null;
+      };
     }, []);
 
     // Keep MapLibre canvas synchronized with container dimensions using RAF-debounced ResizeObserver

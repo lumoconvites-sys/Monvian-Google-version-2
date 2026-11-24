@@ -3,6 +3,7 @@ import { motion, AnimatePresence, useReducedMotion } from 'motion/react';
 import {
   Home,
   MapPin,
+  MapPinned,
   Map,
   Leaf,
   Store,
@@ -38,6 +39,9 @@ const AdminServices = React.lazy(() =>
 const AdminPlatanos = React.lazy(() =>
   import('./AdminPlatanos').then((m) => ({ default: m.AdminPlatanos }))
 );
+const AdminStopIcons = React.lazy(() =>
+  import('./AdminStopIcons').then((m) => ({ default: m.AdminStopIcons }))
+);
 import {
   ADMIN_COLORS,
   ADMIN_MOTION_EASE,
@@ -60,6 +64,7 @@ interface NavItemDef {
 const NAV_ITEMS: NavItemDef[] = [
   { id: 'dashboard', label: 'Visão Geral', icon: Home },
   { id: 'spots', label: 'Pontos Turísticos', icon: MapPin },
+  { id: 'stop-icons', label: 'Ícones de Pontos de Parada', icon: MapPinned },
   { id: 'itineraries', label: 'Roteiros', icon: Map },
   { id: 'platanos', label: 'Plátanos & Stripe', icon: Leaf },
   { id: 'services', label: 'Locais e Serviços', icon: Store },
@@ -563,6 +568,7 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({
                     />
                   )}
                   {activeTab === 'spots' && <AdminSpots />}
+                  {activeTab === 'stop-icons' && <AdminStopIcons currentUser={currentUser} />}
                   {activeTab === 'itineraries' && <AdminItineraries />}
                   {activeTab === 'platanos' && <AdminPlatanos currentUser={currentUser} />}
                   {activeTab === 'services' && <AdminServices />}

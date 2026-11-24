@@ -8,7 +8,8 @@ import {
   collection, 
   deleteDoc,
   query,
-  where
+  where,
+  onSnapshot
 } from 'firebase/firestore';
 import firebaseConfig from '../../firebase-applet-config.json' with { type: 'json' };
 import { supabase } from '../lib/supabase.ts';
@@ -148,6 +149,7 @@ export interface FirestoreSpot {
 
 export interface FirestoreMapVisualIcon {
   id: string;
+  name?: string;
   category: string;
   icon: string;
   latitude: number;
@@ -1052,35 +1054,44 @@ export async function fetchCloudSpots(): Promise<any[]> {
 
 export async function persistMapVisualIconToFirestore(icon: FirestoreMapVisualIcon | any): Promise<void> {
   if (!icon?.id) return;
+  const nowIso = new Date().toISOString();
+  const normalizedDoc = {
+    id: String(icon.id),
+    name: String(icon.name || icon.category || 'Ponto de Parada').slice(0, 120),
+    category: String(icon.category || 'gas_station').slice(0, 80),
+    icon: String(icon.icon || icon.category || 'map-pin').slice(0, 80),
+    latitude: Number(icon.latitude),
+    longitude: Number(icon.longitude),
+    color: icon.color ? String(icon.color).slice(0, 16) : null,
+    is_active: icon.is_active !== undefined ? (icon.is_active ? 1 : 0) : 1,
+    created_at: icon.created_at || nowIso,
+    updated_at: nowIso,
+  };
+
   if (supabase) {
     try {
-      await withTimeout(
+      const res: any = await withTimeout(
         Promise.resolve(
-          supabase.from('map_visual_icons').upsert(
-            {
-              id: String(icon.id),
-              category: String(icon.category),
-              icon: String(icon.icon || icon.category),
-              latitude: Number(icon.latitude),
-              longitude: Number(icon.longitude),
-              color: icon.color || null,
-              is_active: icon.is_active !== undefined ? Number(icon.is_active) : 1,
-              updated_at: new Date().toISOString(),
-            },
-            { onConflict: 'id' }
-          )
+          supabase.from('map_visual_icons').upsert(normalizedDoc, { onConflict: 'id' })
         ),
         3000,
         null
       );
+      if (res?.error) {
+        const { name: _omit, ...withoutName } = normalizedDoc;
+        await withTimeout(
+          Promise.resolve(
+            supabase.from('map_visual_icons').upsert(withoutName, { onConflict: 'id' })
+          ),
+          3000,
+          null
+        );
+      }
     } catch {}
   }
   try {
-    const iconRef = doc(firestore, 'map_visual_icons', icon.id);
-    await withTimeout(setDoc(iconRef, {
-      ...icon,
-      updated_at: new Date().toISOString()
-    }, { merge: true }), 3000, null);
+    const iconRef = doc(firestore, 'map_visual_icons', normalizedDoc.id);
+    await withTimeout(setDoc(iconRef, normalizedDoc, { merge: true }), 3000, null);
   } catch (err: any) {
     console.warn('[FirestoreSync] Failed to persist visual icon:', icon.id, err?.message);
   }
@@ -1101,7 +1112,16 @@ export async function deleteMapVisualIconFromFirestore(iconId: string): Promise<
   }
 }
 
-export async function fetchCloudMapVisualIcons(): Promise<any[]> {
+export async function fetchCloudMapVisualIcons(): Promise<FirestoreMapVisualIcon[]> {
+  try {
+    const snap = await withTimeout(getDocs(collection(firestore, 'map_visual_icons')), 3500, null as any);
+    if (snap && !snap.empty) {
+      return snap.docs
+        .map((d: any) => d.data() as FirestoreMapVisualIcon)
+        .filter((i: any) => i && i.id && Number.isFinite(Number(i.latitude)) && Number.isFinite(Number(i.longitude)));
+    }
+  } catch {}
+
   if (supabase) {
     try {
       const res: any = await withTimeout(
@@ -1114,12 +1134,38 @@ export async function fetchCloudMapVisualIcons(): Promise<any[]> {
       }
     } catch {}
   }
+  return [];
+}
+
+export function subscribeToMapVisualIcons(
+  onUpdate: (icons: FirestoreMapVisualIcon[]) => void
+): () => void {
   try {
-    const snap = await withTimeout(getDocs(collection(firestore, 'map_visual_icons')), 3500, null as any);
-    if (!snap || snap.empty) return [];
-    return snap.docs.map((d: any) => d.data());
+    const colRef = collection(firestore, 'map_visual_icons');
+    return onSnapshot(
+      colRef,
+      (snap) => {
+        if (snap.empty && snap.metadata?.fromCache) {
+          return;
+        }
+        const list = snap.docs
+          .map((d) => d.data() as FirestoreMapVisualIcon)
+          .filter(
+            (item) =>
+              item &&
+              item.id &&
+              Number.isFinite(Number(item.latitude)) &&
+              Number.isFinite(Number(item.longitude))
+          )
+          .sort((a, b) => String(b.created_at || '').localeCompare(String(a.created_at || '')));
+        onUpdate(list);
+      },
+      (err) => {
+        console.warn('[FirestoreSync] Visual icons realtime listener notice:', err?.message);
+      }
+    );
   } catch {
-    return [];
+    return () => {};
   }
 }
 
@@ -1318,9 +1364,10 @@ export async function syncDatabaseWithFirestore(sqliteDb: any): Promise<void> {
 
       const iconsSnap = await withTimeout(getDocs(collection(firestore, 'map_visual_icons')), 6000, null as any);
       const upsertIcon = sqliteDb.prepare(`
-        INSERT INTO map_visual_icons (id, category, icon, latitude, longitude, color, is_active, created_at, updated_at)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+        INSERT INTO map_visual_icons (id, name, category, icon, latitude, longitude, color, is_active, created_at, updated_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         ON CONFLICT(id) DO UPDATE SET
+          name = excluded.name,
           category = excluded.category,
           icon = excluded.icon,
           latitude = excluded.latitude,
@@ -1340,6 +1387,7 @@ export async function syncDatabaseWithFirestore(sqliteDb: any): Promise<void> {
             validIconIds.add(icon.id);
             upsertIcon.run(
               toSqliteParam(icon.id),
+              toSqliteParam(icon.name || icon.category),
               toSqliteParam(icon.category),
               toSqliteParam(icon.icon || icon.category),
               Number(icon.latitude),

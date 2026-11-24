@@ -84,12 +84,14 @@
     },
     "MapVisualIcon": {
       "title": "MapVisualIcon",
-      "description": "Visual non-interactive icon marker firmly anchored to GPS position",
+      "description": "Visual utility stop icon marker firmly anchored to GPS position",
       "type": "object",
       "properties": {
-        "id": { "type": "string", "description": "Visual icon ID" },
-        "category": { "type": "string", "description": "Icon category identifier" },
-        "icon": { "type": "string", "description": "Icon type identifier" },
+        "id": { "type": "string", "maxLength": 120, "description": "Visual icon ID" },
+        "name": { "type": "string", "maxLength": 120, "description": "Stop point display name" },
+        "category": { "type": "string", "maxLength": 80, "description": "Icon category identifier or custom label" },
+        "icon": { "type": "string", "maxLength": 80, "description": "Lucide icon name identifier" },
+        "color": { "type": "string", "maxLength": 16, "pattern": "^#[0-9A-Fa-f]{6}$", "description": "Hex marker background color" },
         "latitude": { "type": "number", "description": "Latitude coordinate" },
         "longitude": { "type": "number", "description": "Longitude coordinate" },
         "is_active": { "type": "number", "description": "Active flag (0 or 1)" },

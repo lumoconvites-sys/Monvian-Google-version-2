@@ -149,6 +149,7 @@ export interface User {
 
 export interface MapVisualIcon {
   id: string;
+  name?: string;
   category: string;
   icon: string;
   latitude: number;

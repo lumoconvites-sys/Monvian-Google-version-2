@@ -238,24 +238,36 @@ export async function deleteSpotFromSupabase(spotId: string): Promise<void> {
 
 export async function persistMapVisualIconToSupabase(icon: any): Promise<void> {
   if (!supabase || !icon?.id) return;
+  const basePayload = {
+    id: String(icon.id),
+    category: String(icon.category),
+    icon: String(icon.icon || icon.category),
+    latitude: Number(icon.latitude),
+    longitude: Number(icon.longitude),
+    color: icon.color || null,
+    is_active: icon.is_active !== undefined ? Number(icon.is_active) : 1,
+    updated_at: new Date().toISOString(),
+  };
   try {
-    await withTimeout(
+    const res: any = await withTimeout(
       supabase.from('map_visual_icons').upsert(
         {
-          id: String(icon.id),
-          category: String(icon.category),
-          icon: String(icon.icon || icon.category),
-          latitude: Number(icon.latitude),
-          longitude: Number(icon.longitude),
-          color: icon.color || null,
-          is_active: icon.is_active !== undefined ? Number(icon.is_active) : 1,
-          updated_at: new Date().toISOString(),
+          ...basePayload,
+          ...(icon.name ? { name: String(icon.name) } : {}),
         },
         { onConflict: 'id' }
       ),
       3500,
       null
     );
+    if (res?.error && icon.name) {
+      // Fallback if remote Supabase table predates the name column
+      await withTimeout(
+        supabase.from('map_visual_icons').upsert(basePayload, { onConflict: 'id' }),
+        3500,
+        null
+      );
+    }
   } catch {}
 }
 

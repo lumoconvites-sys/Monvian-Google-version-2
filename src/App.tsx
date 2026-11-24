@@ -37,7 +37,15 @@ import { VerifiedBadge } from './components/ui/VerifiedBadge';
 import { startPreloadResources } from './utils/preloadItineraries';
 import { playMapLayerToggleSound, playSpotClickSound, unlockSpotClickSound } from './utils/soundEffects';
 import { isPresentationCardSeen, markPresentationCardSeen, type PresentationTab } from './components/AirbnbPresentationCard';
-import { persistUserToFirestore, syncPermissionsFromDatabase, markWelcomeCardSeen, markGlobeIntroSeen, updateMapTutorialStatusInDb } from './services/firestoreSync';
+import {
+  persistUserToFirestore,
+  syncPermissionsFromDatabase,
+  markWelcomeCardSeen,
+  markGlobeIntroSeen,
+  updateMapTutorialStatusInDb,
+  fetchCloudMapVisualIcons,
+  subscribeToMapVisualIcons,
+} from './services/firestoreSync';
 import { fetchSpotsFromSupabase, subscribeToSpotsChanges } from './services/supabaseSpots';
 import { broadcastPlatanosWalletUpdate, getAuthHeaders } from './hooks/usePlatanos';
 import { PushAlertBanner } from './components/PushAlertBanner';
@@ -1207,7 +1215,16 @@ export default function App() {
     return [];
   });
   const hasFullCatalogLoadedRef = useRef(false);
-  const [mapVisualIcons, setMapVisualIcons] = useState<MapVisualIcon[]>([]);
+  const [mapVisualIcons, setMapVisualIcons] = useState<MapVisualIcon[]>(() => {
+    try {
+      const cached = localStorage.getItem('monvian_cached_visual_icons');
+      if (cached) {
+        const parsed = JSON.parse(cached);
+        if (Array.isArray(parsed)) return parsed;
+      }
+    } catch {}
+    return [];
+  });
   const [isAdminOpen, setIsAdminOpen] = useState(false);
   const [systemSettings, setSystemSettings] = useState<Record<string, string>>({});
   const [selectedSpot, setSelectedSpot] = useState<Spot | null>(null);
@@ -1288,9 +1305,48 @@ export default function App() {
     }
   }, []);
 
-  const fetchVisualIcons = async () => {
-    setMapVisualIcons([]);
-  };
+  const persistVisualIconsCache = useCallback((iconsList: MapVisualIcon[]) => {
+    try {
+      localStorage.setItem('monvian_cached_visual_icons', JSON.stringify(iconsList));
+    } catch {}
+  }, []);
+
+  const fetchVisualIcons = useCallback(async () => {
+    try {
+      const res = await fetch('/api/map-visual-icons');
+      const data = await res.json();
+      if (data?.success && Array.isArray(data.icons)) {
+        const activeIcons = data.icons.filter(
+          (i: any) =>
+            i &&
+            i.id &&
+            Number(i.is_active ?? 1) === 1 &&
+            Number.isFinite(Number(i.latitude)) &&
+            Number.isFinite(Number(i.longitude))
+        );
+        setMapVisualIcons(activeIcons);
+        persistVisualIconsCache(activeIcons);
+        return;
+      }
+    } catch {}
+
+    // Fallback to Cloud Firestore directly if backend request fails
+    try {
+      const cloudIcons = await fetchCloudMapVisualIcons();
+      if (Array.isArray(cloudIcons)) {
+        const activeIcons = cloudIcons.filter(
+          (i: any) =>
+            i &&
+            i.id &&
+            Number(i.is_active ?? 1) === 1 &&
+            Number.isFinite(Number(i.latitude)) &&
+            Number.isFinite(Number(i.longitude))
+        ) as MapVisualIcon[];
+        setMapVisualIcons(activeIcons);
+        persistVisualIconsCache(activeIcons);
+      }
+    } catch {}
+  }, [persistVisualIconsCache]);
 
   const fetchSettings = async () => {
     try {
@@ -1322,6 +1378,12 @@ export default function App() {
       fetchSpots();
     });
 
+    const unsubscribeVisualIconsRealtime = subscribeToMapVisualIcons((cloudList) => {
+      const activeOnly = cloudList.filter((i) => Number(i.is_active ?? 1) === 1) as MapVisualIcon[];
+      setMapVisualIcons(activeOnly);
+      persistVisualIconsCache(activeOnly);
+    });
+
     const handleSpotsUpdated = (e: any) => {
       const updated = e.detail?.spot || e.detail;
       if (updated && updated.id) {
@@ -1345,17 +1407,31 @@ export default function App() {
     };
 
     const handleVisualIconsUpdated = (e: any) => {
-      const updated = e?.detail;
-      if (updated && updated.id) {
+      const detail = e?.detail;
+      if (detail?.action === 'delete' && detail.id) {
         setMapVisualIcons((prev) => {
-          const exists = prev.some((i) => i.id === updated.id);
-          if (exists) {
-            return prev.map((i) => (i.id === updated.id ? updated : i));
-          } else {
-            return [updated, ...prev];
-          }
+          const next = prev.filter((i) => i.id !== detail.id);
+          persistVisualIconsCache(next);
+          return next;
         });
+        return;
       }
+
+      const updated: MapVisualIcon | undefined = detail?.icon || (detail?.id ? detail : undefined);
+      if (updated && updated.id) {
+        const isActive = Number(updated.is_active ?? 1) === 1;
+        setMapVisualIcons((prev) => {
+          const next = isActive
+            ? prev.some((i) => i.id === updated.id)
+              ? prev.map((i) => (i.id === updated.id ? { ...i, ...updated } : i))
+              : [updated, ...prev]
+            : prev.filter((i) => i.id !== updated.id);
+          persistVisualIconsCache(next);
+          return next;
+        });
+        return;
+      }
+
       fetchVisualIcons();
     };
 
@@ -1380,8 +1456,9 @@ export default function App() {
       window.removeEventListener('monvian:visual_icons_updated', handleVisualIconsUpdated);
       window.removeEventListener('focus', handleWindowFocus);
       unsubscribeRealtime();
+      unsubscribeVisualIconsRealtime();
     };
-  }, [isAuthenticated, pendingResetOobCode, fetchSpots]);
+  }, [isAuthenticated, pendingResetOobCode, fetchSpots, fetchVisualIcons, persistVisualIconsCache]);
 
   const wasAdminOpenRef = useRef(false);
   useEffect(() => {
