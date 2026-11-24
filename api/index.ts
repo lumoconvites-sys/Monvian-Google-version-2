@@ -15,6 +15,16 @@ import {
   type ClassifiedAssistantError,
   type GeminiAssistantKnowledge,
 } from '../src/server/geminiAssistantEngine.js';
+import {
+  getFinancialDashboardMetricsServerless,
+  getPlatanosOverviewServerless,
+  updatePlatanosPackageServerless,
+  updateItineraryPriceServerless,
+  adjustPlatanosWalletServerless,
+  refundPlatanosOrderServerless,
+  invalidateStripeSnapshotCacheServerless,
+  type ServerlessFinanceContext,
+} from '../src/server/serverlessFinanceEngine.js';
 
 const EXPECTED_FIREBASE_PROJECT_ID = 'inspired-nirvana-5dtd0';
 let cachedFirebaseConfig: { apiKey: string; projectId: string } | null = null;
@@ -259,7 +269,7 @@ async function verifyFirebaseIdTokenServerless(
   }
 }
 
-const PRIMARY_ADMIN_EMAILS = ['empresariomario@gmail.com', 'marioempresario@gmail.com', 'marioyesk@gmail.com'];
+const PRIMARY_ADMIN_EMAILS = ['empresariomario@gmail.com', 'marioempresario@gmail.com', 'marioyesk@gmail.com', 'admin@monvian.com'];
 
 function isPrimaryAdmin(email?: string | null): boolean {
   if (!email) return false;
@@ -933,6 +943,7 @@ async function creditPlatanosOrderServerless(params: {
       },
       { onConflict: 'key' }
     ),
+    invalidateStripeSnapshotCacheServerless(supabase),
   ]);
 
   return {
@@ -2976,6 +2987,219 @@ export default async function handler(req: any, res: any) {
     }
 
     // =========================================================================
+    // 8B. ADMIN FINANCIAL DASHBOARD & PLÁTANOS MANAGEMENT (VERCEL)
+    // =========================================================================
+    const resolveAdminUserServerless = async (): Promise<{ id: any; email: string } | null> => {
+      const queryToken = String(url.searchParams.get('token') || '').trim();
+      const effectiveReq =
+        !extractRequestToken(req) && queryToken
+          ? {
+              ...req,
+              headers: {
+                ...(req.headers || {}),
+                authorization: `Bearer ${queryToken}`,
+              },
+            }
+          : req;
+
+      const authUser = await getAuthUser(effectiveReq, false);
+      if (
+        authUser &&
+        (authUser.role === 'admin' || authUser.role === 'superadmin' || isPrimaryAdmin(authUser.email))
+      ) {
+        return {
+          id: authUser.id || 1,
+          email: String(authUser.email || 'admin@monvian.com').trim().toLowerCase(),
+        };
+      }
+
+      const token = extractRequestToken(effectiveReq);
+      if (token) {
+        try {
+          const fbCfg = getFirebaseConfigServerless();
+          const fbUser = await verifyFirebaseIdTokenWithPublicCerts(token, fbCfg.projectId);
+          if (fbUser?.email) {
+            const dbUser = await findUserByEmailOrIdentifier(fbUser.email);
+            if (
+              isPrimaryAdmin(fbUser.email) ||
+              (dbUser && (dbUser.role === 'admin' || dbUser.role === 'superadmin'))
+            ) {
+              return {
+                id: dbUser?.id || 1,
+                email: fbUser.email.trim().toLowerCase(),
+              };
+            }
+          }
+        } catch {}
+      }
+      return null;
+    };
+
+    const getServerlessFinanceContext = (): ServerlessFinanceContext => {
+      const fbCfg = getFirebaseConfigServerless();
+      return {
+        supabase,
+        defaultPackages: DEFAULT_PLATANOS_PACKAGES,
+        getStripeClient: getStripeClientServerless,
+        getPackages: getPlatanosPackagesServerless,
+        getItineraryPrices: getItineraryPricesServerless,
+        firebaseConfig: {
+          projectId: fbCfg.projectId,
+          apiKey: fbCfg.apiKey,
+          databaseId: 'ai-studio-monvian-57f74cb5-b162-47d6-acac-3774c885a8c4',
+        },
+      };
+    };
+
+    if (cleanPath === '/admin/dashboard/financial' && method === 'GET') {
+      const admin = await resolveAdminUserServerless();
+      if (!admin) {
+        return res.status(403).json({ success: false, error: 'Acesso administrativo obrigatório.' });
+      }
+      const period = String(url.searchParams.get('period') || '7d').trim();
+      const startDate = String(url.searchParams.get('startDate') || '').trim();
+      const endDate = String(url.searchParams.get('endDate') || '').trim();
+      const syncFlag = String(url.searchParams.get('sync') || '').trim();
+      const forceSync = syncFlag === '1' || syncFlag === 'true';
+
+      const payload = await getFinancialDashboardMetricsServerless(getServerlessFinanceContext(), {
+        period,
+        startDate,
+        endDate,
+        forceSync,
+      });
+      return res.status(200).json(payload);
+    }
+
+    if (cleanPath === '/admin/dashboard/financial/sync' && method === 'POST') {
+      const admin = await resolveAdminUserServerless();
+      if (!admin) {
+        return res.status(403).json({ success: false, error: 'Acesso administrativo obrigatório.' });
+      }
+      const period = String(body?.period || url.searchParams.get('period') || '7d').trim();
+      const startDate = String(body?.startDate || url.searchParams.get('startDate') || '').trim();
+      const endDate = String(body?.endDate || url.searchParams.get('endDate') || '').trim();
+
+      const payload = await getFinancialDashboardMetricsServerless(getServerlessFinanceContext(), {
+        period,
+        startDate,
+        endDate,
+        forceSync: true,
+      });
+      return res.status(200).json(payload);
+    }
+
+    if (cleanPath === '/admin/dashboard/financial/stream' && method === 'GET') {
+      const admin = await resolveAdminUserServerless();
+      if (!admin) {
+        return res.status(403).json({ success: false, error: 'Acesso administrativo obrigatório.' });
+      }
+      res.setHeader('Content-Type', 'text/event-stream; charset=utf-8');
+      res.setHeader('Cache-Control', 'no-cache, no-transform');
+      res.setHeader('Connection', 'keep-alive');
+      res.setHeader('X-Accel-Buffering', 'no');
+      if (typeof res.flushHeaders === 'function') {
+        res.flushHeaders();
+      }
+      res.write(`event: connected\ndata: ${JSON.stringify({ ok: true, ts: Date.now() })}\n\n`);
+      if (typeof res.flush === 'function') res.flush();
+
+      await new Promise<void>((resolve) => {
+        const timer = setTimeout(() => {
+          if (!res.writableEnded) {
+            res.write(`event: heartbeat\ndata: ${JSON.stringify({ ts: Date.now() })}\n\n`);
+            res.end();
+          }
+          resolve();
+        }, 12000);
+        if (typeof req?.on === 'function') {
+          req.on('close', () => {
+            clearTimeout(timer);
+            resolve();
+          });
+        }
+      });
+      return;
+    }
+
+    if (cleanPath === '/admin/platanos/overview' && method === 'GET') {
+      const admin = await resolveAdminUserServerless();
+      if (!admin) {
+        return res.status(403).json({ success: false, error: 'Acesso administrativo obrigatório.' });
+      }
+      const overview = await getPlatanosOverviewServerless(getServerlessFinanceContext());
+      return res.status(200).json(overview);
+    }
+
+    if (cleanPath.startsWith('/admin/platanos/packages/') && method === 'PUT') {
+      const admin = await resolveAdminUserServerless();
+      if (!admin) {
+        return res.status(403).json({ success: false, error: 'Acesso administrativo obrigatório.' });
+      }
+      const pkgId = decodeURIComponent(cleanPath.replace('/admin/platanos/packages/', '')).trim();
+      const result = await updatePlatanosPackageServerless(getServerlessFinanceContext(), admin, pkgId, body);
+      return res.status(result.status).json(result.payload);
+    }
+
+    if (
+      cleanPath.startsWith('/admin/platanos/itineraries/') &&
+      cleanPath.endsWith('/price') &&
+      method === 'PUT'
+    ) {
+      const admin = await resolveAdminUserServerless();
+      if (!admin) {
+        return res.status(403).json({ success: false, error: 'Acesso administrativo obrigatório.' });
+      }
+      const itineraryId = decodeURIComponent(
+        cleanPath.replace('/admin/platanos/itineraries/', '').replace('/price', '')
+      ).trim();
+      const result = await updateItineraryPriceServerless(
+        getServerlessFinanceContext(),
+        admin,
+        itineraryId,
+        body
+      );
+      return res.status(result.status).json(result.payload);
+    }
+
+    if (
+      cleanPath.startsWith('/admin/platanos/wallets/') &&
+      cleanPath.endsWith('/adjust') &&
+      method === 'POST'
+    ) {
+      const admin = await resolveAdminUserServerless();
+      if (!admin) {
+        return res.status(403).json({ success: false, error: 'Acesso administrativo obrigatório.' });
+      }
+      const targetUserParam = decodeURIComponent(
+        cleanPath.replace('/admin/platanos/wallets/', '').replace('/adjust', '')
+      ).trim();
+      const result = await adjustPlatanosWalletServerless(
+        getServerlessFinanceContext(),
+        admin,
+        targetUserParam,
+        body
+      );
+      return res.status(result.status).json(result.payload);
+    }
+
+    if (
+      cleanPath.startsWith('/admin/platanos/orders/') &&
+      cleanPath.endsWith('/refund') &&
+      method === 'POST'
+    ) {
+      const admin = await resolveAdminUserServerless();
+      if (!admin) {
+        return res.status(403).json({ success: false, error: 'Acesso administrativo obrigatório.' });
+      }
+      const sessionId = decodeURIComponent(
+        cleanPath.replace('/admin/platanos/orders/', '').replace('/refund', '')
+      ).trim();
+      const result = await refundPlatanosOrderServerless(getServerlessFinanceContext(), admin, sessionId);
+      return res.status(result.status).json(result.payload);
+    }
+
+    // =========================================================================
     // 9. FAVORITES
     // =========================================================================
     if ((cleanPath === '/favorites' || cleanPath === '/user/favorites') && method === 'GET') {
@@ -3308,7 +3532,10 @@ export default async function handler(req: any, res: any) {
         ...(wallet.transactions || []),
       ].slice(0, 100);
 
-      await saveUserPlatanosWallet(wallet);
+      await Promise.all([
+        saveUserPlatanosWallet(wallet),
+        invalidateStripeSnapshotCacheServerless(supabase),
+      ]);
 
       return res.status(200).json({
         success: true,
@@ -3339,10 +3566,13 @@ export default async function handler(req: any, res: any) {
         }
         const userEmail = (session?.metadata?.userEmail || session?.customer_email || '').trim().toLowerCase();
         if (userEmail && session?.payment_status === 'paid') {
-          await supabase
-            .from('users')
-            .update({ is_gold: 1, plan: 'gold', is_premium: 1, updated_at: new Date().toISOString() })
-            .eq('email', userEmail);
+          await Promise.all([
+            supabase
+              .from('users')
+              .update({ is_gold: 1, plan: 'gold', is_premium: 1, updated_at: new Date().toISOString() })
+              .eq('email', userEmail),
+            invalidateStripeSnapshotCacheServerless(supabase),
+          ]);
         }
       }
       return res.status(200).json({ received: true });
@@ -3422,10 +3652,13 @@ export default async function handler(req: any, res: any) {
         if (session && session.payment_status === 'paid') {
           const userEmail = (session.metadata?.userEmail || session.customer_email || '').trim().toLowerCase();
           if (userEmail) {
-            await supabase
-              .from('users')
-              .update({ is_gold: 1, plan: 'gold', is_premium: 1, updated_at: new Date().toISOString() })
-              .eq('email', userEmail);
+            await Promise.all([
+              supabase
+                .from('users')
+                .update({ is_gold: 1, plan: 'gold', is_premium: 1, updated_at: new Date().toISOString() })
+                .eq('email', userEmail),
+              invalidateStripeSnapshotCacheServerless(supabase),
+            ]);
           }
           return res.status(200).json({ success: true, plan: 'gold', isGold: true });
         }

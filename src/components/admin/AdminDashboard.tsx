@@ -1033,8 +1033,10 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
         });
         es.onerror = () => {
           es?.close();
-          if (!closed) {
-            reconnectTimer = setTimeout(connect, 6000);
+          if (!closed && typeof document !== 'undefined' && !document.hidden) {
+            reconnectTimer = setTimeout(connect, 15000);
+          } else if (!closed) {
+            reconnectTimer = setTimeout(connect, 30000);
           }
         };
       } catch {}
