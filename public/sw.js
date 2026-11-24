@@ -1,5 +1,5 @@
 // Monvian PWA Service Worker - Offline Caching Engine for Spots & Assets
-const STATIC_CACHE = 'monvian-static-v8';
+const STATIC_CACHE = 'monvian-static-v9';
 const API_CACHE = 'monvian-api-v7';
 const IMAGES_CACHE = 'monvian-images-v8';
 const MAX_IMAGE_CACHE_ENTRIES = 120;
@@ -12,6 +12,7 @@ const PRECACHE_ASSETS = [
   '/pwa-192x192.png',
   '/pwa-512x512.png',
   '/pwa-maskable-512x512.png',
+  '/assets/aistudio/monvian_logo_dark_transparent.png',
   '/notification-badge.png',
   '/logo.png',
   '/fotoperfil.png',

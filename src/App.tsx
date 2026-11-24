@@ -85,6 +85,13 @@ import {
   readUserCategoryFilter,
   writeUserCategoryFilter,
 } from './utils/userScopedStorage';
+import { IOSPwaInstallGate } from './components/IOSPwaInstallGate';
+import {
+  isIOSBrowserRequiringPwaInstallNow,
+  shouldBlockForIOSPwaInstall,
+  shouldRequireIOSPwaInstall,
+  useIOSPwaGateStatus,
+} from './utils/pwaGate';
 
 // Unauthenticated flow (deactivated and NOT loaded when the user is logged in)
 const AuthScreen = React.lazy(() =>
@@ -107,7 +114,7 @@ function loadAuthenticatedViews(): Promise<AuthenticatedViewsModule> {
   return authenticatedViewsPromise;
 }
 
-if (typeof window !== 'undefined' && hasSyncSessionToken()) {
+if (typeof window !== 'undefined' && hasSyncSessionToken() && !isIOSBrowserRequiringPwaInstallNow()) {
   loadAuthenticatedViews();
 }
 
@@ -310,13 +317,20 @@ export default function App() {
     } catch {}
   }, []);
 
+  // Live iOS browser & standalone PWA runtime status (evaluated synchronously on frame 0 — zero flash)
+  const { isIOS: isIOSBrowser, isStandalone } = useIOSPwaGateStatus();
+  const requiresIOSPwaInstall = shouldRequireIOSPwaInstall({
+    isIOS: isIOSBrowser,
+    isStandalone,
+  });
+
   const [authenticatedViews, setAuthenticatedViews] = useState<AuthenticatedViewsModule | null>(
-    () => cachedAuthenticatedViews
+    () => (requiresIOSPwaInstall ? null : cachedAuthenticatedViews)
   );
 
-  // Preload authenticated views & itinerary resources ONLY while logged in
+  // Preload authenticated views & itinerary resources ONLY while logged in and not blocked by the iOS PWA install gate
   useEffect(() => {
-    if (!isAuthenticated || pendingResetOobCode) return;
+    if (!isAuthenticated || pendingResetOobCode || requiresIOSPwaInstall) return;
     startPreloadResources();
     if (cachedAuthenticatedViews) {
       setAuthenticatedViews(cachedAuthenticatedViews);
@@ -331,7 +345,7 @@ export default function App() {
     return () => {
       cancelled = true;
     };
-  }, [isAuthenticated, pendingResetOobCode]);
+  }, [isAuthenticated, pendingResetOobCode, requiresIOSPwaInstall]);
 
   // Map style mode state (persisted so satellite mode stays active on both globe intro and map across restarts)
   const [mapStyle, setMapStyle] = useState<MapModeType>(() => {
@@ -437,6 +451,13 @@ export default function App() {
     } catch {
       return false;
     }
+  });
+  const isBlockedByIOSPwaGate = shouldBlockForIOSPwaInstall({
+    isAuthenticated,
+    hasPendingPasswordReset: Boolean(pendingResetOobCode),
+    isOnboardingQuestionsOpen: showOnboardingQuestions,
+    isIOS: isIOSBrowser,
+    isStandalone,
   });
   const [airbnbCardTab, setAirbnbCardTab] = useState<PresentationTab | null>(null);
   const [showFirstSignupWelcome, setShowFirstSignupWelcome] = useState<boolean>(() => {
@@ -665,16 +686,6 @@ export default function App() {
     }
   }, []);
 
-  // Standalone PWA detection vs standard mobile web browser
-  const [isStandalone, setIsStandalone] = useState<boolean>(() => {
-    if (typeof window === 'undefined') return false;
-    return (
-      window.matchMedia('(display-mode: standalone)').matches ||
-      (window.navigator as any).standalone === true ||
-      document.referrer.includes('android-app://')
-    );
-  });
-
   const [isDiscoveryPanelClosed, setIsDiscoveryPanelClosed] = useState<boolean>(true);
   const discoveryOpenTimerRef = useRef<number | null>(null);
 
@@ -687,30 +698,12 @@ export default function App() {
     };
   }, []);
 
+  // Prefetch secondary navigation tabs during browser idle time once authenticated and unlocked
   useEffect(() => {
-    const checkStandalone = () => {
-      const standalone =
-        window.matchMedia('(display-mode: standalone)').matches ||
-        (window.navigator as any).standalone === true ||
-        document.referrer.includes('android-app://');
-      setIsStandalone(standalone);
-    };
-    checkStandalone();
-    const mql = window.matchMedia('(display-mode: standalone)');
-    mql.addEventListener?.('change', checkStandalone);
-    window.addEventListener('resize', checkStandalone);
-    return () => {
-      mql.removeEventListener?.('change', checkStandalone);
-      window.removeEventListener('resize', checkStandalone);
-    };
-  }, []);
-
-  // Prefetch secondary navigation tabs during browser idle time once authenticated
-  useEffect(() => {
-    if (isAuthenticated && authenticatedViews) {
+    if (isAuthenticated && authenticatedViews && !requiresIOSPwaInstall) {
       prefetchSecondaryTabsOnIdle();
     }
-  }, [isAuthenticated, authenticatedViews]);
+  }, [isAuthenticated, authenticatedViews, requiresIOSPwaInstall]);
 
   // Viewport height sync: delegate to centralized index.html engine (avoids duplicate listeners & timer storms)
   useEffect(() => {
@@ -2760,7 +2753,16 @@ export default function App() {
   // Auto-trigger interactive map onboarding tutorial ONLY for authenticated accounts
   // whose DB record has map_tutorial_status === 'pending' right after the globe-to-user zoom finishes.
   useEffect(() => {
-    if (isAuthChecking || !isAuthenticated || !authenticatedViews || !tutorialUserKey) return;
+    if (
+      isAuthChecking ||
+      !isAuthenticated ||
+      !authenticatedViews ||
+      !tutorialUserKey ||
+      requiresIOSPwaInstall ||
+      isBlockedByIOSPwaGate
+    ) {
+      return;
+    }
 
     if (verifiedTutorialUserKey !== tutorialUserKey) return;
 
@@ -2832,6 +2834,8 @@ export default function App() {
     isSearchOpen,
     isFinalizeItineraryModalOpen,
     isPlatanosWalletOpen,
+    requiresIOSPwaInstall,
+    isBlockedByIOSPwaGate,
   ]);
 
   useEffect(() => {
@@ -3892,7 +3896,11 @@ export default function App() {
           />
         </Suspense>
       )}
-      {isAuthenticated && !pendingResetOobCode && isWelcomeJourneyOpen && (
+      {isAuthenticated &&
+        !pendingResetOobCode &&
+        !requiresIOSPwaInstall &&
+        !isBlockedByIOSPwaGate &&
+        isWelcomeJourneyOpen && (
         <Suspense fallback={null}>
           <WelcomeJourneyModal
             isOpen={isWelcomeJourneyOpen}
@@ -4060,10 +4068,12 @@ export default function App() {
                 setShowOnboardingQuestions(true);
                 setShowFirstSignupWelcome(false);
               } else {
-                try {
-                  (window as any).__monvianReplayLogoPreloader?.();
-                } catch {}
-                void startPreloadResources(true);
+                if (!requiresIOSPwaInstall) {
+                  try {
+                    (window as any).__monvianReplayLogoPreloader?.();
+                  } catch {}
+                  void startPreloadResources(true);
+                }
                 try {
                   if (cleanEmail) {
                     localStorage.removeItem(`monvian_smart_onboarding_pending_${cleanEmail}`);
@@ -4076,7 +4086,7 @@ export default function App() {
                     localStorage.getItem(`monvian_first_welcome_seen_${cleanEmail}`) !== '1' &&
                     localStorage.getItem(`monvian_first_welcome_pending_${cleanEmail}`) === '1'
                 );
-                setShowFirstSignupWelcome(loginNeedsWelcomeCard);
+                setShowFirstSignupWelcome(requiresIOSPwaInstall ? false : loginNeedsWelcomeCard);
               }
 
               if (isNewAccount || needsSmartOnboarding || loginNeedsWelcomeCard) {
@@ -4094,7 +4104,7 @@ export default function App() {
                 globeIntroSourceRef.current = 'app-open';
                 hasStartedAppOpenGlobeRef.current = true;
                 setIsGlobeIntroPending(false);
-                setIsGlobeIntroPlaying(true);
+                setIsGlobeIntroPlaying(!requiresIOSPwaInstall);
               }
 
               if (isNewAccount) {
@@ -4111,13 +4121,88 @@ export default function App() {
                 const rootEl = document.getElementById('root');
                 if (rootEl) rootEl.scrollTop = 0;
               } catch {}
-              loadAuthenticatedViews();
+              if (!requiresIOSPwaInstall) {
+                loadAuthenticatedViews();
+              }
               setIsAuthChecking(false);
               setIsAuthenticated(true);
             }}
           />
           </Suspense>
         </motion.div>
+      ) : showOnboardingQuestions && requiresIOSPwaInstall ? (
+        <div
+          key="monvian-ios-onboarding-wrapper"
+          className={`fixed inset-0 w-full z-[210] ${
+            theme === 'dark' ? 'bg-[#000000]' : 'bg-[#FFFFFF]'
+          }`}
+          style={{
+            height: 'var(--app-height, 100dvh)',
+            minHeight: 'var(--app-height, 100dvh)',
+          }}
+        >
+          <Suspense fallback={null}>
+            <OnboardingFlow
+              key="monvian-smart-onboarding-ios"
+              user={user}
+              theme={theme}
+              initialStep={user?.onboarding_step || 1}
+              onComplete={(updatedUser, preferences) => {
+                const cleanEmail = String(
+                  updatedUser?.email || user?.email || user?.whatsapp || ''
+                )
+                  .trim()
+                  .toLowerCase();
+                try {
+                  if (cleanEmail) {
+                    localStorage.removeItem(`monvian_smart_onboarding_pending_${cleanEmail}`);
+                    localStorage.setItem(`monvian_first_welcome_pending_${cleanEmail}`, '1');
+                    localStorage.removeItem(`monvian_first_welcome_seen_${cleanEmail}`);
+                  }
+                } catch {}
+
+                if (updatedUser || preferences) {
+                  const token = localStorage.getItem('monvian_token');
+                  const mergedForCloud = normalizeAppUser({
+                    ...(user || {}),
+                    ...(updatedUser || {}),
+                    ...(preferences || {}),
+                    map_tutorial_status:
+                      updatedUser?.map_tutorial_status || user?.map_tutorial_status || 'pending',
+                    onboarding_step: 3,
+                    onboarding_completed: 1,
+                  });
+                  if (mergedForCloud) {
+                    persistUserToFirestore(mergedForCloud).catch(() => {});
+                  }
+                  setUser((prev: any) => {
+                    const merged = normalizeAppUser({
+                      ...(prev || {}),
+                      ...(updatedUser || {}),
+                      ...(preferences || {}),
+                      map_tutorial_status:
+                        updatedUser?.map_tutorial_status || prev?.map_tutorial_status || 'pending',
+                      onboarding_step: 3,
+                      onboarding_completed: 1,
+                    });
+                    try {
+                      localStorage.setItem('monvian_user', JSON.stringify(merged));
+                      if (token) {
+                        savePersistentSession(token, merged).catch(() => {});
+                      }
+                    } catch {}
+                    return merged;
+                  });
+                }
+                // Final onboarding step on iPhone Safari: hand off directly to Mandatory PWA Install Gate
+                setShowOnboardingQuestions(false);
+                setShowFirstSignupWelcome(false);
+              }}
+            />
+          </Suspense>
+        </div>
+      ) : isBlockedByIOSPwaGate ? (
+        <IOSPwaInstallGate key="monvian-ios-pwa-install-gate" />
       ) : !authenticatedViews ? (
         <div
           key="monvian-app-hydrating"

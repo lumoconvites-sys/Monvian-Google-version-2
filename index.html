@@ -283,6 +283,8 @@
           }, maxMs || 3200);
         }
 
+        window.__monvianHidePreloaderImmediately = hidePreloaderImmediately;
+
         window.__monvianMarkItinerariesPreloaded = function() {
           itinerariesReady = true;
           tryFinishPreloader();
@@ -293,9 +295,36 @@
           playLogoPreloaderSequence(1550, 2900);
         };
 
+        function isIOSNonStandaloneBrowser() {
+          try {
+            if (
+              window.Capacitor &&
+              typeof window.Capacitor.isNativePlatform === 'function' &&
+              window.Capacitor.isNativePlatform()
+            ) {
+              return false;
+            }
+            var ua = (navigator.userAgent || '').toLowerCase();
+            var isIOS =
+              /iphone|ipad|ipod/.test(ua) ||
+              (navigator.platform === 'MacIntel' && (navigator.maxTouchPoints || 0) > 1);
+            if (!isIOS) return false;
+            var isStandalone = Boolean(
+              (window.matchMedia &&
+                (window.matchMedia('(display-mode: standalone)').matches ||
+                  window.matchMedia('(display-mode: fullscreen)').matches)) ||
+                window.navigator.standalone === true
+            );
+            return !isStandalone;
+          } catch (e) {
+            return false;
+          }
+        }
+
         function initLogoPreloader() {
           // Never show the Monvian logo loading screen on the Login / Landing screen
-          if (!hasAuthenticatedSession()) {
+          // or when the mandatory iOS PWA install gate will immediately take over
+          if (!hasAuthenticatedSession() || isIOSNonStandaloneBrowser()) {
             hidePreloaderImmediately();
             return;
           }
