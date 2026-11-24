@@ -198,14 +198,8 @@ export const BottomNavigation: React.FC<BottomNavigationProps> = memo(({
   isTutorialSweepActive = false,
 }) => {
   const prefersReducedMotion = Boolean(useReducedMotion());
-  const useWhiteIcons = !isSatellite && (forceWhiteUI || theme === 'dark');
-  const iconColor = isSatellite
-    ? theme === 'dark'
-      ? '#C0C0C6'
-      : '#858585'
-    : useWhiteIcons
-      ? '#FFFFFF'
-      : '#000000';
+  const useWhiteIcons = forceWhiteUI || theme === 'dark';
+  const iconColor = useWhiteIcons ? '#FFFFFF' : '#000000';
 
   const [pulseAnimation, setPulseAnimation] = useState<number>(0);
   const [isCompact, setIsCompact] = useState<boolean>(false);
@@ -801,12 +795,13 @@ export const BottomNavigation: React.FC<BottomNavigationProps> = memo(({
         WebkitTransform: 'translateZ(0)',
       }}
     >
-      {/* Capsule with iOS 26 Liquid Glass finish — preserves exact original dimensions & styling */}
+      {/* Capsule with iOS 26 Liquid Glass finish (expo-glass-effect GlassView) */}
       <GlassView
         ref={capsuleRef as React.Ref<HTMLElement>}
         id="bottom-navigation-capsule"
         variant="bar"
         glassEffectStyle="liquid26"
+        colorScheme={theme}
         isInteractive
         onPointerDown={handleTrackPointerDown}
         onPointerMove={handleTrackPointerMove}
@@ -857,6 +852,7 @@ export const BottomNavigation: React.FC<BottomNavigationProps> = memo(({
             <GlassView
               variant="pill"
               glassEffectStyle="liquid26"
+              colorScheme={theme}
               data-lens-active={isLensActive ? 'true' : 'false'}
               className="w-full h-full rounded-full transition-[background,box-shadow,border-color,backdrop-filter] duration-[200ms] ease-out"
             />

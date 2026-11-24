@@ -1,6 +1,12 @@
-import React, { forwardRef } from 'react';
+import React, { forwardRef, useCallback } from 'react';
+import {
+  resolveGlassSurfaceClasses,
+  type GlassStyle,
+  type GlassVariant,
+  type GlassColorScheme,
+} from './glassEffectUtils';
 
-export type GlassStyle = 'regular' | 'clear' | 'liquid26';
+export type { GlassStyle, GlassVariant, GlassColorScheme };
 
 export interface GlassViewProps extends React.HTMLAttributes<HTMLDivElement> {
   /**
@@ -18,10 +24,15 @@ export interface GlassViewProps extends React.HTMLAttributes<HTMLDivElement> {
    */
   tintColor?: string;
   /**
-   * Surface preset for MOVEA bars, buttons, or pills.
+   * Explicit color scheme override matching expo-glass-effect API.
+   * @default 'auto'
+   */
+  colorScheme?: GlassColorScheme;
+  /**
+   * Surface preset for Monvian bars, buttons, or pills.
    * @default 'bar'
    */
-  variant?: 'bar' | 'button' | 'pill';
+  variant?: GlassVariant;
   /**
    * Element tag to render.
    * @default 'div'
@@ -50,8 +61,16 @@ export function isLiquidGlassAvailable(): boolean {
 }
 
 /**
- * Web-native implementation of `expo-glass-effect`'s `GlassView` component
- * calibrated for iOS Liquid Glass aesthetics (soft blur + subtle specular reflective rim).
+ * Alias matching official expo-glass-effect API.
+ */
+export function isGlassEffectAPIAvailable(): boolean {
+  return isLiquidGlassAvailable();
+}
+
+/**
+ * Web & Capacitor-native implementation of `expo-glass-effect`'s `GlassView` component,
+ * calibrated for Apple iOS 26 Liquid Glass (real optical backdrop blur, saturation boost,
+ * specular refractive rim, and interactive pointer sheen).
  */
 export const GlassView = forwardRef<HTMLElement, GlassViewProps>(
   (
@@ -59,53 +78,74 @@ export const GlassView = forwardRef<HTMLElement, GlassViewProps>(
       glassEffectStyle = 'regular',
       isInteractive = false,
       tintColor,
+      colorScheme = 'auto',
       variant = 'bar',
       as: Component = 'div',
       className = '',
       style,
+      onPointerMove,
+      onPointerLeave,
       children,
       ...rest
     },
     ref
   ) => {
-    const isLiquid26 = glassEffectStyle === 'liquid26';
-    const variantClass = isLiquid26
-      ? variant === 'button'
-        ? 'ios26-liquid-glass'
-        : variant === 'pill'
-          ? 'ios26-liquid-glass-pill'
-          : 'ios26-liquid-glass-nav'
-      : variant === 'button'
-        ? 'expo-liquid-glass-btn'
-        : variant === 'pill'
-          ? 'expo-liquid-glass-pill'
-          : 'expo-liquid-glass-bar';
-
-    const styleVariantClass =
-      glassEffectStyle === 'clear' ? 'expo-liquid-glass-clear' : '';
-
-    const interactiveClass = isInteractive ? 'expo-liquid-glass-interactive' : '';
-
-    const combinedClassName = [
-      variantClass,
-      styleVariantClass,
-      interactiveClass,
+    const combinedClassName = resolveGlassSurfaceClasses({
+      glassEffectStyle,
+      variant,
+      isInteractive,
+      colorScheme,
       className,
-    ]
-      .filter(Boolean)
-      .join(' ');
+    });
+
+    const handlePointerMove = useCallback(
+      (e: React.PointerEvent<HTMLDivElement>) => {
+        if (isInteractive) {
+          const el = e.currentTarget;
+          const rect = el.getBoundingClientRect();
+          if (rect.width > 0 && rect.height > 0) {
+            const xPct = Math.max(0, Math.min(100, ((e.clientX - rect.left) / rect.width) * 100));
+            const yPct = Math.max(0, Math.min(100, ((e.clientY - rect.top) / rect.height) * 100));
+            el.style.setProperty('--glass-pointer-x', `${xPct.toFixed(1)}%`);
+            el.style.setProperty('--glass-pointer-y', `${yPct.toFixed(1)}%`);
+            el.style.setProperty('--glass-sheen-opacity', '1');
+          }
+        }
+        onPointerMove?.(e);
+      },
+      [isInteractive, onPointerMove]
+    );
+
+    const handlePointerLeave = useCallback(
+      (e: React.PointerEvent<HTMLDivElement>) => {
+        if (isInteractive) {
+          e.currentTarget.style.setProperty('--glass-sheen-opacity', '0');
+        }
+        onPointerLeave?.(e);
+      },
+      [isInteractive, onPointerLeave]
+    );
 
     const mergedStyle: React.CSSProperties = tintColor
-      ? {
+      ? ({
           ...style,
           '--expo-glass-tint': tintColor,
-        } as React.CSSProperties
+        } as React.CSSProperties)
       : { ...style };
 
     const Tag = Component as any;
 
     return (
-      <Tag ref={ref} className={combinedClassName} style={mergedStyle} {...rest}>
+      <Tag
+        ref={ref}
+        data-glass-style={glassEffectStyle}
+        data-glass-interactive={isInteractive ? 'true' : 'false'}
+        className={combinedClassName}
+        style={mergedStyle}
+        onPointerMove={handlePointerMove}
+        onPointerLeave={handlePointerLeave}
+        {...rest}
+      >
         {children}
       </Tag>
     );
@@ -115,7 +155,7 @@ export const GlassView = forwardRef<HTMLElement, GlassViewProps>(
 GlassView.displayName = 'GlassView';
 
 /**
- * Web-native implementation of `expo-glass-effect`'s `GlassContainer` component.
+ * Web & Capacitor-native implementation of `expo-glass-effect`'s `GlassContainer` component.
  */
 export const GlassContainer = forwardRef<HTMLDivElement, GlassContainerProps>(
   ({ spacing, className = '', style, children, ...rest }, ref) => {
@@ -142,4 +182,5 @@ export default {
   GlassView,
   GlassContainer,
   isLiquidGlassAvailable,
+  isGlassEffectAPIAvailable,
 };
