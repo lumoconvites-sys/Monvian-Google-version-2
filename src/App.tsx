@@ -2000,6 +2000,9 @@ export default function App() {
 
   const isBlurActive = Boolean(isCategoryCardOpen || isSearchOpen);
   const isSpotFocusActive = false;
+  const isSpotSelectedMode = Boolean(
+    mapWorkflowMode === 'EXPLORE' && isSpotCardOpen && selectedSpot
+  );
 
   const clearActiveRoute = useCallback(() => {
     if (routeAbortControllerRef.current) {
@@ -2100,6 +2103,8 @@ export default function App() {
     }
     if (spot) {
       setIsDiscoveryPanelClosed(true);
+      setIsCategoryCardOpen(false);
+      setIsSearchOpen(false);
     }
     setSelectedSpot(spot);
     setSpotPreviewMode('bar');
@@ -4386,6 +4391,7 @@ export default function App() {
               isDiscoveryPanelOpen={canShowMobileDiscoveryPanel}
               onToggleDiscoveryPanel={handleToggleDiscoveryPanel}
               discoverySheetHeightMV={discoverySheetHeightMV}
+              hideFloatingControls={isSpotSelectedMode}
             />
 
             {/* DESKTOP MAP FLOATING CONTROLS (Top-Right Apple Style — visible in EXPLORE mode on real desktop/tablet only) */}
@@ -4526,7 +4532,14 @@ export default function App() {
                     : 'text-black';
 
                 return (
-              <div className="flex items-center gap-2.5 pointer-events-auto relative">
+              <div
+                aria-hidden={isSpotSelectedMode}
+                className={`flex items-center gap-2.5 relative transition-[opacity,transform] motion-reduce:transition-none motion-reduce:transform-none ${
+                  isSpotSelectedMode
+                    ? 'opacity-0 -translate-y-2 scale-[0.95] duration-[280ms] ease-in-out pointer-events-none [&_*]:!pointer-events-none'
+                    : 'opacity-100 translate-y-0 scale-100 duration-[340ms] ease-[cubic-bezier(0.22,1,0.36,1)] pointer-events-auto'
+                }`}
+              >
 
                 {/* 3D View Toggle Icon */}
                 <motion.button

@@ -84,6 +84,7 @@ interface MapComponentProps {
   isDiscoveryPanelOpen?: boolean;
   onToggleDiscoveryPanel?: () => void;
   discoverySheetHeightMV?: MotionValue<number>;
+  hideFloatingControls?: boolean;
 }
 
 const getMapboxToken = (): string => {
@@ -402,6 +403,7 @@ export const MapComponent = memo(
       isDiscoveryPanelOpen = false,
       onToggleDiscoveryPanel,
       discoverySheetHeightMV,
+      hideFloatingControls = false,
     },
     ref
   ) => {
@@ -4554,19 +4556,34 @@ export const MapComponent = memo(
               ? 'text-white'
               : 'text-black';
 
+          const isRightControlsHidden = Boolean(
+            isFocusMode ||
+              isGlobeIntroPlaying ||
+              workflowMode === 'ITINERARY' ||
+              hideFloatingControls
+          );
+
           return (
         <motion.div
           id="mobile-map-right-controls"
-          className={`md:hidden absolute right-3.5 bottom-0 z-[38] flex flex-col items-center gap-2 transition-opacity duration-300 ease-[cubic-bezier(0.22,1,0.36,1)] will-change-transform ${
-            isFocusMode || isGlobeIntroPlaying || workflowMode === 'ITINERARY'
-              ? 'opacity-0 scale-90 pointer-events-none [&_*]:!pointer-events-none'
-              : 'opacity-100 scale-100 pointer-events-auto'
+          aria-hidden={isRightControlsHidden}
+          className={`md:hidden absolute right-3.5 bottom-0 z-[38] will-change-transform ${
+            isRightControlsHidden
+              ? 'pointer-events-none [&_*]:!pointer-events-none'
+              : 'pointer-events-auto'
           }`}
           style={{
             paddingRight: 'env(safe-area-inset-right, 0px)',
             y: rightControlsY,
           }}
         >
+          <div
+            className={`flex flex-col items-center gap-2 transition-[opacity,transform] motion-reduce:transition-none motion-reduce:transform-none ${
+              isRightControlsHidden
+                ? 'opacity-0 translate-x-3 scale-[0.95] duration-[280ms] ease-in-out pointer-events-none [&_*]:!pointer-events-none'
+                : 'opacity-100 translate-x-0 scale-100 duration-[340ms] ease-[cubic-bezier(0.22,1,0.36,1)] pointer-events-auto'
+            }`}
+          >
           {/* PLUS / CLOSE — Toggle Quick Discovery Actions Sheet */}
           {workflowMode === 'EXPLORE' && onToggleDiscoveryPanel && (
             <motion.button
@@ -4647,6 +4664,7 @@ export const MapComponent = memo(
               style={{ color: controlIconColor }}
             />
           </motion.button>
+          </div>
         </motion.div>
           );
         })()}
