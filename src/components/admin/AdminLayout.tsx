@@ -565,6 +565,7 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({
                     <AdminDashboard
                       currentUser={currentUser}
                       onOpenMobileMenu={() => setIsMobileMenuOpen(true)}
+                      onOpenFinancialDetails={() => setActiveTab('platanos')}
                     />
                   )}
                   {activeTab === 'spots' && <AdminSpots />}

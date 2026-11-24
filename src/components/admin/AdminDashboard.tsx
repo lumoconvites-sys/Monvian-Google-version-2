@@ -100,6 +100,7 @@ interface FinancialDashboardPayload {
 interface AdminDashboardProps {
   currentUser?: any;
   onOpenMobileMenu?: () => void;
+  onOpenFinancialDetails?: () => void;
 }
 
 const PERIOD_OPTIONS: Array<{ key: DashboardPeriodKey; label: string }> = [
@@ -935,6 +936,7 @@ const TopItineraryRow: React.FC<{
 export const AdminDashboard: React.FC<AdminDashboardProps> = ({
   currentUser,
   onOpenMobileMenu,
+  onOpenFinancialDetails,
 }) => {
   const prefersReducedMotion = useReducedMotion() ?? false;
   const [period, setPeriod] = useState<DashboardPeriodKey>('7d');
@@ -1103,6 +1105,22 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
 
   const animatedRevenueCents = useAnimatedNumber(
     data?.revenue.totalCents ?? 0,
+    !prefersReducedMotion && !loading
+  );
+  const animatedGrossCents = useAnimatedNumber(
+    data?.revenue.grossCents ?? 0,
+    !prefersReducedMotion && !loading
+  );
+  const animatedFeesCents = useAnimatedNumber(
+    data?.revenue.feesCents ?? 0,
+    !prefersReducedMotion && !loading
+  );
+  const animatedRefundsCents = useAnimatedNumber(
+    data?.revenue.refundsCents ?? 0,
+    !prefersReducedMotion && !loading
+  );
+  const animatedAvailableBalanceCents = useAnimatedNumber(
+    data?.revenue.availableBalanceCents ?? 0,
     !prefersReducedMotion && !loading
   );
   const animatedSalesCount = useAnimatedNumber(
@@ -1285,67 +1303,153 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
               />
             )}
           </div>
+        </motion.section>
 
-          {/* Real Stripe Financial Breakdown Strip (Single Surface, Clean Hairline Divider) */}
-          <div className="mt-4 pt-3.5 border-t border-[#F1F5FB] grid grid-cols-2 sm:grid-cols-5 gap-x-4 gap-y-2.5">
-            <div>
-              <span className="block text-[11px] font-medium text-[#7B8BA3]">
+        {/* 1.5. CARD DE RESUMO FINANCEIRO (Independent 2x2 Section) */}
+        <motion.section
+          id="admin-financial-summary-card"
+          initial={prefersReducedMotion ? false : { opacity: 0, y: 12 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.39, delay: prefersReducedMotion ? 0 : 0.03, ease: EASE_IOS }}
+          className="relative overflow-hidden rounded-[28px] bg-gradient-to-br from-[#F8FBFF] via-[#FFFFFF] to-[#F4F8FF] border border-[#E8F0FC] px-5 py-5 sm:px-6 sm:py-6"
+          style={{
+            boxShadow: CARD_SHADOW,
+            fontFamily:
+              "'SF Pro Display', 'SF Pro Text', -apple-system, BlinkMacSystemFont, sans-serif",
+          }}
+        >
+          {/* Subtle decorative soft-blue corner curves matching reference */}
+          <svg
+            aria-hidden="true"
+            viewBox="0 0 180 120"
+            className="pointer-events-none absolute -top-2 -right-2 w-[150px] h-[100px] text-[#E6F0FF] opacity-85"
+          >
+            <path
+              d="M20,0 L180,0 L180,105 C122,96 72,56 20,0 Z"
+              fill="currentColor"
+            />
+          </svg>
+          <svg
+            aria-hidden="true"
+            viewBox="0 0 120 90"
+            className="pointer-events-none absolute -bottom-2 -left-2 w-[96px] h-[72px] text-[#E8F1FF] opacity-80"
+          >
+            <path
+              d="M0,18 C34,38 66,64 98,90 L0,90 Z"
+              fill="currentColor"
+            />
+          </svg>
+
+          {/* Header: Bar Chart Icon + Title & Subtitle + Right Chevron */}
+          <div
+            onClick={onOpenFinancialDetails}
+            role={onOpenFinancialDetails ? 'button' : undefined}
+            tabIndex={onOpenFinancialDetails ? 0 : undefined}
+            onKeyDown={(e) => {
+              if (onOpenFinancialDetails && (e.key === 'Enter' || e.key === ' ')) {
+                e.preventDefault();
+                onOpenFinancialDetails();
+              }
+            }}
+            aria-label="Resumo Financeiro — Abrir detalhes financeiros"
+            className={`relative z-10 flex items-center justify-between gap-3 ${
+              onOpenFinancialDetails ? 'cursor-pointer group select-none' : ''
+            }`}
+          >
+            <div className="flex items-center gap-3.5 min-w-0">
+              <div className="w-[44px] h-[44px] rounded-[14px] bg-[#E8F1FF] flex items-center justify-center shrink-0">
+                <svg
+                  viewBox="0 0 24 24"
+                  className="w-[22px] h-[22px] text-[#1668FF]"
+                  fill="currentColor"
+                  aria-hidden="true"
+                >
+                  <rect x="4.5" y="12.5" width="3.4" height="6.5" rx="1.7" />
+                  <rect x="10.3" y="6.5" width="3.4" height="12.5" rx="1.7" />
+                  <rect x="16.1" y="9.8" width="3.4" height="9.2" rx="1.7" />
+                </svg>
+              </div>
+
+              <div className="min-w-0">
+                <h2 className="text-[16.5px] sm:text-[17.5px] font-semibold tracking-[-0.02em] text-[#0D1526] leading-snug truncate">
+                  Resumo Financeiro
+                </h2>
+                <p className="text-[13px] font-medium text-[#64748B] leading-snug truncate mt-0.5">
+                  Seus principais indicadores
+                </p>
+              </div>
+            </div>
+
+            <ChevronRight
+              className={`w-[18px] h-[18px] text-[#64748B] stroke-[2.1] shrink-0 transition-transform duration-200 ${
+                onOpenFinancialDetails ? 'group-hover:translate-x-0.5 group-hover:text-[#0D1526]' : ''
+              }`}
+            />
+          </div>
+
+          {/* 2x2 Balanced Grid with Subtle Horizontal & Vertical Hairline Dividers */}
+          <div className="relative z-10 mt-5 grid grid-cols-2">
+            {/* Row 1, Col 1: Faturamento bruto */}
+            <div className="pr-4 pb-4 border-b border-[#EAF0FA]">
+              <span className="block text-[13.5px] sm:text-[14px] font-medium text-[#64748B] tracking-[-0.01em] truncate">
                 Faturamento bruto
               </span>
               {loading ? (
-                <ShimmerBlock className="h-4 w-20 mt-1" />
+                <ShimmerBlock className="h-6 w-24 mt-1.5" />
               ) : (
-                <span className="block text-[13.5px] font-bold text-[#0D1526] tabular-nums mt-0.5">
-                  {formatBRLFromCents(data?.revenue.grossCents ?? 0, currency)}
+                <span className="block text-[20px] sm:text-[22px] font-bold tracking-[-0.025em] text-[#0D1526] leading-tight tabular-nums mt-1 truncate">
+                  {formatBRLFromCents(Math.round(animatedGrossCents), currency)}
                 </span>
               )}
             </div>
 
-            <div>
-              <span className="block text-[11px] font-medium text-[#7B8BA3]">Taxas Stripe</span>
+            {/* Row 1, Col 2: Taxas Stripe */}
+            <div className="pl-5 pb-4 border-b border-l border-[#EAF0FA]">
+              <span className="block text-[13.5px] sm:text-[14px] font-medium text-[#64748B] tracking-[-0.01em] truncate">
+                Taxas Stripe
+              </span>
               {loading ? (
-                <ShimmerBlock className="h-4 w-16 mt-1" />
+                <ShimmerBlock className="h-6 w-24 mt-1.5" />
               ) : (
-                <span className="block text-[13.5px] font-bold text-[#0D1526] tabular-nums mt-0.5">
-                  {formatBRLFromCents(data?.revenue.feesCents ?? 0, currency)}
+                <span className="block text-[20px] sm:text-[22px] font-bold tracking-[-0.025em] text-[#0D1526] leading-tight tabular-nums mt-1 truncate">
+                  {formatBRLFromCents(Math.round(animatedFeesCents), currency)}
                 </span>
               )}
             </div>
 
-            <div>
-              <span className="block text-[11px] font-medium text-[#7B8BA3]">Reembolsos</span>
+            {/* Row 2, Col 1: Reembolsos */}
+            <div className="pr-4 pt-4">
+              <span className="block text-[13.5px] sm:text-[14px] font-medium text-[#64748B] tracking-[-0.01em] truncate">
+                Reembolsos
+              </span>
               {loading ? (
-                <ShimmerBlock className="h-4 w-16 mt-1" />
+                <ShimmerBlock className="h-6 w-24 mt-1.5" />
               ) : (
-                <span className="block text-[13.5px] font-bold text-[#0D1526] tabular-nums mt-0.5">
-                  {formatBRLFromCents(data?.revenue.refundsCents ?? 0, currency)}
+                <span className="block text-[20px] sm:text-[22px] font-bold tracking-[-0.025em] text-[#0D1526] leading-tight tabular-nums mt-1 truncate">
+                  {formatBRLFromCents(Math.round(animatedRefundsCents), currency)}
                 </span>
               )}
             </div>
 
-            <div>
-              <span className="block text-[11px] font-medium text-[#7B8BA3]">
+            {/* Row 2, Col 2: Saldo disponível */}
+            <div className="pl-5 pt-4 border-l border-[#EAF0FA]">
+              <span className="block text-[13.5px] sm:text-[14px] font-medium text-[#64748B] tracking-[-0.01em] truncate">
                 Saldo disponível
               </span>
               {loading ? (
-                <ShimmerBlock className="h-4 w-20 mt-1" />
+                <ShimmerBlock className="h-6 w-28 mt-1.5" />
               ) : (
-                <span className="block text-[13.5px] font-bold text-[#10B981] tabular-nums mt-0.5">
-                  {formatBRLFromCents(data?.revenue.availableBalanceCents ?? 0, currency)}
-                </span>
-              )}
-            </div>
-
-            <div className="col-span-2 sm:col-span-1">
-              <span className="block text-[11px] font-medium text-[#7B8BA3]">
-                Saldo pendente
-              </span>
-              {loading ? (
-                <ShimmerBlock className="h-4 w-20 mt-1" />
-              ) : (
-                <span className="block text-[13.5px] font-bold text-[#1668FF] tabular-nums mt-0.5">
-                  {formatBRLFromCents(data?.revenue.pendingBalanceCents ?? 0, currency)}
-                </span>
+                <div className="mt-1 flex items-center gap-2 min-w-0">
+                  <span className="text-[20px] sm:text-[22px] font-bold tracking-[-0.025em] text-[#10B981] leading-tight tabular-nums truncate">
+                    {formatBRLFromCents(Math.round(animatedAvailableBalanceCents), currency)}
+                  </span>
+                  <span
+                    aria-hidden="true"
+                    className="w-[19px] h-[19px] rounded-full bg-[#10B981] text-white flex items-center justify-center shrink-0"
+                  >
+                    <Check className="w-[12px] h-[12px] stroke-[3]" />
+                  </span>
+                </div>
               )}
             </div>
           </div>
