@@ -1356,6 +1356,7 @@ export async function syncDatabaseWithFirestore(sqliteDb: any): Promise<void> {
     // 2. MAP VISUAL ICONS (Firmly anchored to GPS, Firestore Authority)
     // ----------------------------------------------------
     try {
+      try { sqliteDb.exec(`ALTER TABLE map_visual_icons ADD COLUMN name TEXT;`); } catch (e) {}
       try { sqliteDb.exec(`ALTER TABLE map_visual_icons ADD COLUMN icon TEXT;`); } catch (e) {}
       try { sqliteDb.exec(`ALTER TABLE map_visual_icons ADD COLUMN color TEXT;`); } catch (e) {}
       try { sqliteDb.exec(`ALTER TABLE map_visual_icons ADD COLUMN is_active INTEGER DEFAULT 1;`); } catch (e) {}

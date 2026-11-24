@@ -2601,35 +2601,294 @@ export default async function handler(req: any, res: any) {
     }
 
     // =========================================================================
-    // 6. MAP VISUAL ICONS
+    // 6. MAP VISUAL ICONS (Stop Icons — Schema-Resilient Supabase CRUD)
     // =========================================================================
-    if ((cleanPath === '/map-visual-icons' || cleanPath === '/admin/map-visual-icons') && method === 'GET') {
-      const { data, error } = await supabase.from('map_visual_icons').select('*');
-      if (error) return res.status(500).json({ success: false, error: error.message });
-      return res.status(200).json({ success: true, icons: data || [] });
+    const isMissingColumnError = (err: any): string | null => {
+      const msg = String(err?.message || err?.details || '');
+      const cacheMatch = msg.match(/Could not find the '([^']+)' column/i);
+      if (cacheMatch?.[1]) return cacheMatch[1];
+      const pgMatch = msg.match(/column\s+"?([a-zA-Z0-9_]+)"?\s+of\s+relation\s+"?map_visual_icons"?\s+does not exist/i);
+      if (pgMatch?.[1]) return pgMatch[1];
+      const genericPg = msg.match(/column\s+map_visual_icons\.([a-zA-Z0-9_]+)\s+does not exist/i);
+      if (genericPg?.[1]) return genericPg[1];
+      return null;
+    };
+
+    const normalizeStopIconPayload = (raw: any, existingId?: string) => {
+      const cleanName = String(raw?.name ?? '').trim().slice(0, 120);
+      const cleanCategory = String(raw?.category ?? '').trim().slice(0, 80);
+      const cleanIcon = String(raw?.icon ?? cleanCategory ?? 'map-pin').trim().slice(0, 80);
+      const rawColor = String(raw?.color ?? '').trim();
+      const cleanColor = /^#[0-9A-Fa-f]{6}$/.test(rawColor) ? rawColor.toUpperCase() : '#1668FF';
+      const lat = Number(raw?.latitude);
+      const lng = Number(raw?.longitude);
+      const isActive =
+        raw?.is_active !== undefined ? (Number(raw.is_active) === 0 ? 0 : 1) : 1;
+
+      if (!cleanCategory || !Number.isFinite(lat) || !Number.isFinite(lng) || Math.abs(lat) > 90 || Math.abs(lng) > 180) {
+        return { error: 'Categoria, latitude e longitude válidas são obrigatórias.' } as const;
+      }
+
+      const id =
+        existingId ||
+        (typeof raw?.id === 'string' && raw.id.trim().length > 0
+          ? raw.id.trim().slice(0, 80)
+          : `mvi_${Date.now()}_${crypto.randomBytes(4).toString('hex')}`);
+
+      const nowIso = new Date().toISOString();
+      return {
+        id,
+        name: cleanName || cleanCategory,
+        category: cleanCategory,
+        icon: cleanIcon || 'map-pin',
+        color: cleanColor,
+        latitude: Number(lat.toFixed(6)),
+        longitude: Number(lng.toFixed(6)),
+        is_active: isActive,
+        created_at: nowIso,
+        updated_at: nowIso,
+      } as const;
+    };
+
+    const ensureStopIconAdmin = async (): Promise<boolean> => {
+      const authUser = await getAuthUser(req, false);
+      if (authUser && (authUser.role === 'admin' || authUser.role === 'superadmin' || isPrimaryAdmin(authUser.email))) {
+        return true;
+      }
+      const token = extractRequestToken(req);
+      if (token) {
+        try {
+          const fbCfg = getFirebaseConfigServerless();
+          const fbUser = await verifyFirebaseIdTokenWithPublicCerts(token, fbCfg.projectId);
+          if (fbUser?.email) {
+            if (isPrimaryAdmin(fbUser.email)) return true;
+            const dbUser = await findUserByEmailOrIdentifier(fbUser.email);
+            if (dbUser && (dbUser.role === 'admin' || dbUser.role === 'superadmin')) return true;
+          }
+        } catch {}
+      }
+      return false;
+    };
+
+    if (cleanPath === '/map-visual-icons' && method === 'GET') {
+      res.setHeader('Cache-Control', 'public, s-maxage=10, stale-while-revalidate=60');
+      let result = await supabase
+        .from('map_visual_icons')
+        .select('*')
+        .eq('is_active', 1)
+        .order('created_at', { ascending: false });
+      if (result.error && isMissingColumnError(result.error)) {
+        result = await supabase.from('map_visual_icons').select('*').eq('is_active', 1);
+      }
+      if (result.error) return res.status(500).json({ success: false, error: result.error.message });
+      return res.status(200).json({ success: true, icons: result.data || [] });
+    }
+
+    if (cleanPath === '/admin/map-visual-icons' && method === 'GET') {
+      if (!(await ensureStopIconAdmin())) {
+        return res.status(403).json({ success: false, error: 'Acesso administrativo obrigatório.' });
+      }
+      let result = await supabase
+        .from('map_visual_icons')
+        .select('*')
+        .order('created_at', { ascending: false });
+      if (result.error && isMissingColumnError(result.error)) {
+        result = await supabase.from('map_visual_icons').select('*');
+      }
+      if (result.error) return res.status(500).json({ success: false, error: result.error.message });
+      return res.status(200).json({ success: true, icons: result.data || [] });
     }
 
     if (cleanPath === '/admin/map-visual-icons' && method === 'POST') {
-      const { data, error } = await supabase
-        .from('map_visual_icons')
-        .insert(body)
-        .select()
-        .single();
-      if (error) return res.status(500).json({ success: false, error: error.message });
-      return res.status(200).json({ success: true, icon: data });
+      if (!(await ensureStopIconAdmin())) {
+        return res.status(403).json({ success: false, error: 'Acesso administrativo obrigatório.' });
+      }
+      const parsed = normalizeStopIconPayload(body);
+      if ('error' in parsed) {
+        return res.status(400).json({ success: false, error: parsed.error });
+      }
+
+      const attemptRow: Record<string, any> = { ...parsed };
+      let savedData: any = null;
+      let lastError: any = null;
+
+      for (let i = 0; i < 6; i++) {
+        const { data, error } = await supabase
+          .from('map_visual_icons')
+          .insert(attemptRow)
+          .select()
+          .single();
+        if (!error) {
+          savedData = data;
+          lastError = null;
+          break;
+        }
+        lastError = error;
+        const missingCol = isMissingColumnError(error);
+        if (missingCol && missingCol in attemptRow) {
+          delete attemptRow[missingCol];
+          continue;
+        }
+        break;
+      }
+
+      if (lastError) {
+        return res.status(500).json({ success: false, error: lastError.message });
+      }
+
+      const hydratedIcon = {
+        ...parsed,
+        ...(savedData || {}),
+        name: savedData?.name || parsed.name,
+        icon: savedData?.icon || parsed.icon,
+        color: savedData?.color || parsed.color,
+      };
+      return res.status(200).json({ success: true, icon: hydratedIcon });
+    }
+
+    if (
+      cleanPath.startsWith('/admin/map-visual-icons/') &&
+      !cleanPath.endsWith('/toggle-active') &&
+      method === 'PUT'
+    ) {
+      if (!(await ensureStopIconAdmin())) {
+        return res.status(403).json({ success: false, error: 'Acesso administrativo obrigatório.' });
+      }
+      const id = decodeURIComponent(cleanPath.replace('/admin/map-visual-icons/', '')).trim();
+      if (!id) {
+        return res.status(400).json({ success: false, error: 'ID inválido.' });
+      }
+      const parsed = normalizeStopIconPayload(body, id);
+      if ('error' in parsed) {
+        return res.status(400).json({ success: false, error: parsed.error });
+      }
+
+      const attemptRow: Record<string, any> = {
+        name: parsed.name,
+        category: parsed.category,
+        icon: parsed.icon,
+        color: parsed.color,
+        latitude: parsed.latitude,
+        longitude: parsed.longitude,
+        is_active: parsed.is_active,
+        updated_at: parsed.updated_at,
+      };
+      let savedData: any = null;
+      let lastError: any = null;
+
+      for (let i = 0; i < 6; i++) {
+        const { data, error } = await supabase
+          .from('map_visual_icons')
+          .update(attemptRow)
+          .eq('id', id)
+          .select()
+          .maybeSingle();
+        if (!error) {
+          savedData = data;
+          lastError = null;
+          break;
+        }
+        lastError = error;
+        const missingCol = isMissingColumnError(error);
+        if (missingCol && missingCol in attemptRow) {
+          delete attemptRow[missingCol];
+          continue;
+        }
+        break;
+      }
+
+      if (lastError) {
+        return res.status(500).json({ success: false, error: lastError.message });
+      }
+
+      // If icon existed only in Firestore and not yet in Supabase, upsert it cleanly
+      if (!savedData) {
+        const insertAttempt: Record<string, any> = { ...parsed };
+        for (let i = 0; i < 6; i++) {
+          const { data, error } = await supabase
+            .from('map_visual_icons')
+            .upsert(insertAttempt, { onConflict: 'id' })
+            .select()
+            .maybeSingle();
+          if (!error) {
+            savedData = data;
+            break;
+          }
+          const missingCol = isMissingColumnError(error);
+          if (missingCol && missingCol in insertAttempt) {
+            delete insertAttempt[missingCol];
+            continue;
+          }
+          return res.status(500).json({ success: false, error: error.message });
+        }
+      }
+
+      const hydratedIcon = {
+        ...parsed,
+        ...(savedData || {}),
+        id,
+        name: savedData?.name || parsed.name,
+        icon: savedData?.icon || parsed.icon,
+        color: savedData?.color || parsed.color,
+      };
+      return res.status(200).json({ success: true, icon: hydratedIcon });
     }
 
     if (cleanPath.startsWith('/admin/map-visual-icons/') && cleanPath.endsWith('/toggle-active') && method === 'PATCH') {
-      const id = cleanPath.replace('/admin/map-visual-icons/', '').replace('/toggle-active', '');
-      const { data: existing } = await supabase.from('map_visual_icons').select('is_active').eq('id', id).single();
-      const newStatus = existing?.is_active === 1 ? 0 : 1;
-      const { error } = await supabase.from('map_visual_icons').update({ is_active: newStatus }).eq('id', id);
-      if (error) return res.status(500).json({ success: false, error: error.message });
-      return res.status(200).json({ success: true, is_active: newStatus });
+      if (!(await ensureStopIconAdmin())) {
+        return res.status(403).json({ success: false, error: 'Acesso administrativo obrigatório.' });
+      }
+      const id = decodeURIComponent(
+        cleanPath.replace('/admin/map-visual-icons/', '').replace('/toggle-active', '')
+      ).trim();
+      const { data: existing } = await supabase
+        .from('map_visual_icons')
+        .select('*')
+        .eq('id', id)
+        .maybeSingle();
+      const newStatus = existing && Number(existing.is_active ?? 1) === 1 ? 0 : 1;
+
+      const attemptUpdate: Record<string, any> = {
+        is_active: newStatus,
+        updated_at: new Date().toISOString(),
+      };
+      let updatedRow: any = null;
+      let lastError: any = null;
+
+      for (let i = 0; i < 3; i++) {
+        const { data, error } = await supabase
+          .from('map_visual_icons')
+          .update(attemptUpdate)
+          .eq('id', id)
+          .select()
+          .maybeSingle();
+        if (!error) {
+          updatedRow = data;
+          lastError = null;
+          break;
+        }
+        lastError = error;
+        const missingCol = isMissingColumnError(error);
+        if (missingCol && missingCol in attemptUpdate) {
+          delete attemptUpdate[missingCol];
+          continue;
+        }
+        break;
+      }
+
+      if (lastError) return res.status(500).json({ success: false, error: lastError.message });
+      return res.status(200).json({
+        success: true,
+        is_active: newStatus,
+        icon: updatedRow || (existing ? { ...existing, is_active: newStatus } : { id, is_active: newStatus }),
+      });
     }
 
     if (cleanPath.startsWith('/admin/map-visual-icons/') && method === 'DELETE') {
-      const id = cleanPath.replace('/admin/map-visual-icons/', '');
+      if (!(await ensureStopIconAdmin())) {
+        return res.status(403).json({ success: false, error: 'Acesso administrativo obrigatório.' });
+      }
+      const id = decodeURIComponent(cleanPath.replace('/admin/map-visual-icons/', '')).trim();
       const { error } = await supabase.from('map_visual_icons').delete().eq('id', id);
       if (error) return res.status(500).json({ success: false, error: error.message });
       return res.status(200).json({ success: true });

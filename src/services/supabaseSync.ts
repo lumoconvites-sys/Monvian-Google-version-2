@@ -669,11 +669,15 @@ export async function syncDatabaseWithSupabase(sqliteDb: any): Promise<void> {
 
       if (!iconsErr && Array.isArray(remoteIcons)) {
         if (remoteIcons.length > 0) {
+          try { sqliteDb.exec(`ALTER TABLE map_visual_icons ADD COLUMN name TEXT;`); } catch {}
+          try { sqliteDb.exec(`ALTER TABLE map_visual_icons ADD COLUMN icon TEXT;`); } catch {}
           const upsertIcon = sqliteDb.prepare(`
-            INSERT INTO map_visual_icons (id, category, latitude, longitude, color, is_active)
-            VALUES (?, ?, ?, ?, ?, ?)
+            INSERT INTO map_visual_icons (id, name, category, icon, latitude, longitude, color, is_active)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
             ON CONFLICT(id) DO UPDATE SET
+              name = COALESCE(NULLIF(excluded.name, ''), map_visual_icons.name),
               category = excluded.category,
+              icon = COALESCE(NULLIF(excluded.icon, ''), map_visual_icons.icon),
               latitude = excluded.latitude,
               longitude = excluded.longitude,
               color = excluded.color,
@@ -684,7 +688,9 @@ export async function syncDatabaseWithSupabase(sqliteDb: any): Promise<void> {
             if (ic && ic.id && ic.category) {
               upsertIcon.run(
                 ic.id,
+                ic.name || '',
                 ic.category,
+                ic.icon || ic.category,
                 Number(ic.latitude),
                 Number(ic.longitude),
                 ic.color || null,
@@ -700,7 +706,7 @@ export async function syncDatabaseWithSupabase(sqliteDb: any): Promise<void> {
                 localIcons.map((ic: any) => ({
                   id: ic.id,
                   category: ic.category,
-                  icon: ic.category,
+                  icon: ic.icon || ic.category,
                   latitude: Number(ic.latitude),
                   longitude: Number(ic.longitude),
                   color: ic.color || null,

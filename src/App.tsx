@@ -46,6 +46,7 @@ import {
   fetchCloudMapVisualIcons,
   subscribeToMapVisualIcons,
 } from './services/firestoreSync';
+import { preloadStopIconSymbols } from './utils/mapVisualIcons';
 import { fetchSpotsFromSupabase, subscribeToSpotsChanges } from './services/supabaseSpots';
 import { broadcastPlatanosWalletUpdate, getAuthHeaders } from './hooks/usePlatanos';
 import { PushAlertBanner } from './components/PushAlertBanner';
@@ -1220,7 +1221,10 @@ export default function App() {
       const cached = localStorage.getItem('monvian_cached_visual_icons');
       if (cached) {
         const parsed = JSON.parse(cached);
-        if (Array.isArray(parsed)) return parsed;
+        if (Array.isArray(parsed)) {
+          preloadStopIconSymbols(parsed);
+          return parsed;
+        }
       }
     } catch {}
     return [];
@@ -1311,42 +1315,108 @@ export default function App() {
     } catch {}
   }, []);
 
-  const fetchVisualIcons = useCallback(async () => {
-    try {
-      const res = await fetch('/api/map-visual-icons');
-      const data = await res.json();
-      if (data?.success && Array.isArray(data.icons)) {
-        const activeIcons = data.icons.filter(
-          (i: any) =>
-            i &&
-            i.id &&
-            Number(i.is_active ?? 1) === 1 &&
-            Number.isFinite(Number(i.latitude)) &&
-            Number.isFinite(Number(i.longitude))
-        );
-        setMapVisualIcons(activeIcons);
-        persistVisualIconsCache(activeIcons);
-        return;
-      }
-    } catch {}
+  const filterAndMergeActiveVisualIcons = useCallback(
+    (primary: any[], secondary: any[] = []): MapVisualIcon[] => {
+      const byId = new Map<string, MapVisualIcon>();
+      const ingest = (list: any[], isPrimary: boolean) => {
+        for (const item of list) {
+          if (
+            !item ||
+            !item.id ||
+            Number(item.is_active ?? 1) !== 1 ||
+            !Number.isFinite(Number(item.latitude)) ||
+            !Number.isFinite(Number(item.longitude))
+          ) {
+            continue;
+          }
+          const id = String(item.id);
+          const existing = byId.get(id);
+          if (!existing) {
+            byId.set(id, {
+              ...item,
+              id,
+              latitude: Number(item.latitude),
+              longitude: Number(item.longitude),
+              is_active: 1,
+            });
+          } else if (isPrimary) {
+            byId.set(id, {
+              ...existing,
+              ...item,
+              id,
+              name: item.name || existing.name,
+              icon: item.icon || existing.icon || item.category,
+              color: item.color || existing.color,
+              latitude: Number(item.latitude),
+              longitude: Number(item.longitude),
+              is_active: 1,
+            });
+          }
+        }
+      };
+      ingest(secondary, false);
+      ingest(primary, true);
+      return Array.from(byId.values());
+    },
+    []
+  );
 
-    // Fallback to Cloud Firestore directly if backend request fails
-    try {
-      const cloudIcons = await fetchCloudMapVisualIcons();
-      if (Array.isArray(cloudIcons)) {
-        const activeIcons = cloudIcons.filter(
-          (i: any) =>
-            i &&
-            i.id &&
-            Number(i.is_active ?? 1) === 1 &&
-            Number.isFinite(Number(i.latitude)) &&
-            Number.isFinite(Number(i.longitude))
-        ) as MapVisualIcon[];
-        setMapVisualIcons(activeIcons);
-        persistVisualIconsCache(activeIcons);
+  const fetchVisualIcons = useCallback(async () => {
+    let apiActive: MapVisualIcon[] | null = null;
+    let cloudActive: MapVisualIcon[] | null = null;
+
+    const applyLatest = () => {
+      const merged = filterAndMergeActiveVisualIcons(
+        apiActive || cloudActive || [],
+        cloudActive || apiActive || []
+      );
+      if (merged.length > 0 || (apiActive !== null && cloudActive !== null)) {
+        preloadStopIconSymbols(merged);
+        setMapVisualIcons(merged);
+        persistVisualIconsCache(merged);
       }
-    } catch {}
-  }, [persistVisualIconsCache]);
+    };
+
+    const apiPromise = fetch('/api/map-visual-icons')
+      .then((res) => res.json())
+      .then((data) => {
+        if (data?.success && Array.isArray(data.icons)) {
+          apiActive = filterAndMergeActiveVisualIcons(data.icons);
+          applyLatest();
+        }
+      })
+      .catch(() => {});
+
+    const cloudPromise = fetchCloudMapVisualIcons()
+      .then((cloudIcons) => {
+        if (Array.isArray(cloudIcons)) {
+          cloudActive = filterAndMergeActiveVisualIcons(cloudIcons);
+          applyLatest();
+        }
+      })
+      .catch(() => {});
+
+    await Promise.allSettled([apiPromise, cloudPromise]);
+  }, [filterAndMergeActiveVisualIcons, persistVisualIconsCache]);
+
+  // Load and subscribe to Stop Icons immediately on app startup (before/during globe intro & auth check)
+  useEffect(() => {
+    fetchVisualIcons();
+    const unsubscribeVisualIconsRealtime = subscribeToMapVisualIcons((cloudList) => {
+      const activeOnly = filterAndMergeActiveVisualIcons(cloudList);
+      if (activeOnly.length > 0) {
+        preloadStopIconSymbols(activeOnly);
+        setMapVisualIcons((prev) => {
+          const merged = filterAndMergeActiveVisualIcons(activeOnly, prev);
+          persistVisualIconsCache(merged);
+          return merged;
+        });
+      }
+    });
+    return () => {
+      unsubscribeVisualIconsRealtime();
+    };
+  }, [fetchVisualIcons, filterAndMergeActiveVisualIcons, persistVisualIconsCache]);
 
   const fetchSettings = async () => {
     try {

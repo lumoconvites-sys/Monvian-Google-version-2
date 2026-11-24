@@ -523,6 +523,24 @@ export async function loadLucideIconNode(iconName: string): Promise<LucideSvgNod
   return p;
 }
 
+/**
+ * Warms up the Lucide SVG node cache in parallel for all active stop icons
+ * so vector symbols render synchronously on the very first paint.
+ */
+export function preloadStopIconSymbols(
+  icons: ReadonlyArray<Pick<MapVisualIcon, 'icon' | 'category'>>
+): void {
+  if (!Array.isArray(icons) || icons.length === 0) return;
+  const seen = new Set<string>();
+  for (const item of icons) {
+    const canonical = resolveLucideIconName(item?.icon, item?.category);
+    if (!seen.has(canonical) && !iconNodeCache.has(canonical)) {
+      seen.add(canonical);
+      loadLucideIconNode(canonical).catch(() => {});
+    }
+  }
+}
+
 const ALLOWED_SVG_TAGS = new Set(['path', 'circle', 'rect', 'line', 'polyline', 'polygon', 'ellipse']);
 const ALLOWED_SVG_ATTRS = new Set([
   'd',
@@ -638,9 +656,9 @@ export function createStopIconMarkerElements(
   badge.style.alignItems = 'center';
   badge.style.justifyContent = 'center';
   badge.style.transformOrigin = 'center center';
-  badge.style.transition = 'transform 200ms cubic-bezier(0.22, 1, 0.36, 1), filter 160ms ease, box-shadow 180ms ease';
-  badge.style.opacity = '0';
-  badge.style.transform = 'scale(0.84)';
+  badge.style.transition = 'transform 180ms cubic-bezier(0.22, 1, 0.36, 1), filter 160ms ease, box-shadow 180ms ease';
+  badge.style.opacity = '1';
+  badge.style.transform = 'scale(1)';
 
   const svgHolder = document.createElement('div');
   svgHolder.style.display = 'flex';
@@ -654,12 +672,6 @@ export function createStopIconMarkerElements(
 
   badge.appendChild(svgHolder);
   root.appendChild(badge);
-
-  // Discrete entry animation (single shot, zero continuous pulsing)
-  requestAnimationFrame(() => {
-    badge.style.opacity = '1';
-    badge.style.transform = 'scale(1)';
-  });
 
   // Exclusively visual tactile tap feedback (never triggers map click, modal, popup, or camera)
   let releaseTimer: number | null = null;

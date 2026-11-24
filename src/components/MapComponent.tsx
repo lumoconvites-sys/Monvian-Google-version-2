@@ -8,6 +8,7 @@ import { Spot, MapVisualIcon, MapModeType, MapWorkflowMode, ItineraryStep } from
 import {
   createStopIconMarkerElements,
   updateStopIconMarkerAppearance,
+  preloadStopIconSymbols,
 } from '../utils/mapVisualIcons';
 import { getSpotPinThumbnail, getSpotFallbackImage } from '../utils/spotImages';
 import { gpsNavigationManager, calculateHaversineDistance } from '../services/gpsNavigation';
@@ -1449,6 +1450,8 @@ export const MapComponent = memo(
         mapRef.current = map;
         setIsMapInstanceReady(true);
         ensureUserMarker(map);
+        syncSpotMarkersRef.current?.();
+        syncStopIconMarkersRef.current?.();
 
         map.on('click', () => {
           if (isGlobeIntroActiveRef.current) return;
@@ -1574,6 +1577,7 @@ export const MapComponent = memo(
           if (markerZoomTierRef.current !== nextTier) {
             markerZoomTierRef.current = nextTier;
             syncMarkerHighlight(selectedSpotRef.current?.id);
+            updateStopIconsZoomVisibilityRef.current?.();
           }
         };
 
@@ -1642,6 +1646,7 @@ export const MapComponent = memo(
             }
           } catch {}
           syncSpotMarkersRef.current?.();
+          syncStopIconMarkersRef.current?.();
           syncActiveRouteLayers(map);
           syncItineraryRouteLayers(map);
           ensureUserMarker(map);
@@ -2307,6 +2312,8 @@ export const MapComponent = memo(
             userMarkerEl.style.opacity = workflowModeRef.current === 'ITINERARY' ? '0' : '1';
           }
           syncMarkerHighlight(selectedSpotRef.current?.id);
+          syncStopIconMarkersRef.current?.();
+          updateStopIconsZoomVisibilityRef.current?.();
           onGlobeIntroCompleteRef.current?.();
         } finally {
           isGlobeSpinActiveRef.current = false;
@@ -4278,14 +4285,16 @@ export const MapComponent = memo(
       const entries = stopIconEntriesRef.current;
       if (!map || entries.size === 0) return;
 
-      const isHiddenGlobal =
+      const zoom = typeof map.getZoom === 'function' ? map.getZoom() : 11.75;
+      const isIntroInOrbitalSpace =
         isGlobeIntroPendingRef.current ||
-        isGlobeIntroPlayingRef.current ||
+        (isGlobeIntroPlayingRef.current && zoom < 7.5);
+      const isHiddenGlobal =
+        isIntroInOrbitalSpace ||
         workflowModeRef.current === 'SELECT';
 
-      const zoom = typeof map.getZoom === 'function' ? map.getZoom() : 14;
-      const isTooFarOut = zoom < 10.6;
-      const isMediumZoom = zoom >= 10.6 && zoom < 12.3;
+      const isTooFarOut = zoom < 7.5;
+      const isRegionalOverview = zoom >= 7.5 && zoom < 10.2;
       const isDimmed = isFocusModeRef.current;
 
       if (isHiddenGlobal || isTooFarOut) {
@@ -4296,38 +4305,10 @@ export const MapComponent = memo(
         return;
       }
 
-      // Fast O(n) screen-space proximity culling only at medium-far zoom to prevent visual crowding
-      const placedPoints: Array<{ x: number; y: number }> = [];
-      const minSpacingSq = 28 * 28;
+      const scaleExpr = isRegionalOverview ? 'scale(0.88)' : 'scale(1)';
 
       entries.forEach((entry) => {
-        if (isMediumZoom) {
-          let isCrowded = false;
-          try {
-            const pt = map.project([entry.lng, entry.lat]);
-            for (let i = 0; i < placedPoints.length; i++) {
-              const dx = pt.x - placedPoints[i].x;
-              const dy = pt.y - placedPoints[i].y;
-              if (dx * dx + dy * dy < minSpacingSq) {
-                isCrowded = true;
-                break;
-              }
-            }
-            if (!isCrowded) {
-              placedPoints.push({ x: pt.x, y: pt.y });
-            }
-          } catch {}
-
-          if (isCrowded) {
-            entry.root.style.opacity = '0';
-            entry.root.style.pointerEvents = 'none';
-            return;
-          }
-          entry.badge.style.transform = 'scale(0.84)';
-        } else {
-          entry.badge.style.transform = 'scale(1)';
-        }
-
+        entry.badge.style.transform = scaleExpr;
         entry.root.style.opacity = isDimmed ? '0.25' : '1';
         entry.root.style.pointerEvents = isDimmed ? 'none' : 'auto';
       });
@@ -4365,6 +4346,8 @@ export const MapComponent = memo(
               Number.isFinite(Number(item.longitude))
           )
         : [];
+
+      preloadStopIconSymbols(activeList);
 
       const entries = stopIconEntriesRef.current;
       const nextIds = new Set<string>();
@@ -4433,6 +4416,7 @@ export const MapComponent = memo(
       syncStopIconMarkers();
     }, [
       syncStopIconMarkers,
+      isMapInstanceReady,
       isGlobeIntroPending,
       isGlobeIntroPlaying,
       isFocusMode,

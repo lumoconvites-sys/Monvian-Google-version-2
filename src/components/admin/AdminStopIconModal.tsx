@@ -293,7 +293,16 @@ export const AdminStopIconModal: React.FC<AdminStopIconModalProps> = ({
         throw new Error(data?.error || 'Não foi possível salvar o ícone.');
       }
 
-      const savedIcon: MapVisualIcon = data.icon;
+      const savedIcon: MapVisualIcon = {
+        ...data.icon,
+        name: data.icon?.name || trimmedName,
+        category: data.icon?.category || resolvedCategory,
+        icon: data.icon?.icon || safeIcon,
+        color: data.icon?.color || safeColor,
+        latitude: Number(data.icon?.latitude ?? payload.latitude),
+        longitude: Number(data.icon?.longitude ?? payload.longitude),
+        is_active: data.icon?.is_active !== undefined ? Number(data.icon.is_active) : payload.is_active,
+      };
 
       // Mirror immediately to Firestore client SDK so realtime listeners stay in sync on the same tick
       persistMapVisualIconToFirestore(savedIcon).catch(() => {});

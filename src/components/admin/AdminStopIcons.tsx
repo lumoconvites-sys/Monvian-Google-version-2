@@ -67,57 +67,80 @@ export const AdminStopIcons: React.FC<AdminStopIconsProps> = ({ currentUser }) =
     }, 3200);
   }, []);
 
+  const mergeStopIconLists = useCallback(
+    (primary: MapVisualIcon[], secondary: MapVisualIcon[]): MapVisualIcon[] => {
+      const merged = new Map<string, MapVisualIcon>();
+      secondary.forEach((item) => {
+        if (item?.id) merged.set(String(item.id), item);
+      });
+      primary.forEach((item) => {
+        if (!item?.id) return;
+        const id = String(item.id);
+        const cloud = merged.get(id);
+        merged.set(id, {
+          ...cloud,
+          ...item,
+          name: item.name?.trim() || cloud?.name?.trim() || undefined,
+          icon: item.icon || cloud?.icon || item.category,
+          color: item.color || cloud?.color,
+        });
+      });
+      return Array.from(merged.values());
+    },
+    []
+  );
+
   const loadIcons = useCallback(
     async (background = false) => {
+      if (!background) setLoading(true);
+      setIsRefreshing(true);
       try {
-        if (!background) setLoading(true);
-        setIsRefreshing(true);
+        const [apiRes, cloudRes] = await Promise.allSettled([
+          fetch('/api/admin/map-visual-icons', { headers: authHeaders }).then(async (res) => {
+            const data = await res.json();
+            if (res.ok && data?.success && Array.isArray(data.icons)) {
+              return data.icons as MapVisualIcon[];
+            }
+            return null;
+          }),
+          fetchCloudMapVisualIcons().then((list) =>
+            Array.isArray(list) ? (list as MapVisualIcon[]) : null
+          ),
+        ]);
 
-        const res = await fetch('/api/admin/map-visual-icons', {
-          headers: authHeaders,
-        });
-        const data = await res.json();
-        if (res.ok && data?.success && Array.isArray(data.icons)) {
-          setIcons(data.icons);
-          return;
-        }
-      } catch {}
+        const apiIcons = apiRes.status === 'fulfilled' ? apiRes.value : null;
+        const cloudIcons = cloudRes.status === 'fulfilled' ? cloudRes.value : null;
 
-      try {
-        const cloud = await fetchCloudMapVisualIcons();
-        if (Array.isArray(cloud)) {
-          setIcons(cloud as MapVisualIcon[]);
+        if (apiIcons && cloudIcons) {
+          setIcons(mergeStopIconLists(apiIcons, cloudIcons));
+        } else if (apiIcons) {
+          setIcons(apiIcons);
+        } else if (cloudIcons) {
+          setIcons(cloudIcons);
         }
       } catch {} finally {
         setLoading(false);
         setIsRefreshing(false);
       }
     },
-    [authHeaders]
+    [authHeaders, mergeStopIconLists]
   );
 
   useEffect(() => {
     let active = true;
-    loadIcons(false).finally(() => {
-      if (active) {
-        setLoading(false);
-        setIsRefreshing(false);
-      }
-    });
+    loadIcons(false);
 
     const unsub = subscribeToMapVisualIcons((cloudIcons) => {
       if (!active) return;
-      setIcons((prev) => {
-        if (cloudIcons.length === 0 && prev.length > 0) return prev;
-        return cloudIcons as MapVisualIcon[];
-      });
+      if (!Array.isArray(cloudIcons) || cloudIcons.length === 0) return;
+      setIcons((prev) => mergeStopIconLists(prev, cloudIcons as MapVisualIcon[]));
     });
 
     return () => {
       active = false;
       unsub();
     };
-  }, [loadIcons]);
+  }, [loadIcons, mergeStopIconLists]);
 
   const existingCategories = useMemo(() => {
     const set = new Set<string>();
