@@ -128,7 +128,9 @@ export function parseSpotHoursCard(hours?: string | null): SpotInfoCardData | nu
   if (/\b24\s*(h|horas)\b/.test(normalizedSegment)) {
     return {
       primary: '24 horas',
-      secondary: daysSecondary || (/\baberto\s+24/.test(normalizedSegment) ? 'Todos os dias' : undefined),
+      secondary:
+        daysSecondary ||
+        (/\baberto\s+24/.test(normalizedSegment) ? 'Todos os dias' : undefined),
     };
   }
 
@@ -163,8 +165,15 @@ function formatReaisAmount(rawNumber: string): string {
   return `R$ ${cleaned.replace('.', ',')}`;
 }
 
-function detectPriceUnitSecondary(normalizedRaw: string, hasExplicitAmount: boolean): string | undefined {
-  if (/\b(por\s+veiculo|\/veiculo|por\s+carro|\/carro|estacionamento)\b/.test(normalizedRaw)) {
+function detectPriceUnitSecondary(
+  normalizedRaw: string,
+  hasExplicitAmount: boolean
+): string | undefined {
+  if (
+    /\b(por\s+veiculo|\/veiculo|por\s+carro|\/carro|estacionamento)\b/.test(
+      normalizedRaw
+    )
+  ) {
     return 'Por veículo';
   }
   if (/\b(por\s+casal|\/casal)\b/.test(normalizedRaw)) {
@@ -182,7 +191,11 @@ function detectPriceUnitSecondary(normalizedRaw: string, hasExplicitAmount: bool
   if (/\b(a\s+partir\s+de|partir\s+de)\b/.test(normalizedRaw)) {
     return 'A partir de';
   }
-  if (/\b(por\s+pessoa|\/pessoa|individual|ingresso|entrada|inteira|adulto)\b/.test(normalizedRaw)) {
+  if (
+    /\b(por\s+pessoa|\/pessoa|individual|ingresso|entrada|inteira|adulto)\b/.test(
+      normalizedRaw
+    )
+  ) {
     return 'Por pessoa';
   }
   // Standard single ticket amount registered in spot.price
@@ -190,6 +203,78 @@ function detectPriceUnitSecondary(normalizedRaw: string, hasExplicitAmount: bool
     return 'Por pessoa';
   }
   return undefined;
+}
+
+function parseSinglePriceString(rawText: string): SpotInfoCardData | null {
+  if (isPlaceholder(rawText)) return null;
+
+  const normalized = rawText
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '');
+
+  // Free entrance
+  if (
+    /\b(gratis|gratuito|gratuita|entrada franca|acesso livre|livre|sem custo)\b/.test(
+      normalized
+    ) ||
+    /^(?:r\$\s*)?0(?:[,.]00)?$/.test(normalized)
+  ) {
+    return { primary: 'Gratuito' };
+  }
+
+  // Currency range with or without "R$" e.g. "R$ 20 a R$ 40", "20 a 40", "R$ 20 - 40"
+  const rangeMatch = rawText.match(
+    /(?:R\$\s*)?(\d+(?:[.,]\d{1,2})?)\s*(?:a|às|as|-|–|—)\s*(?:R\$\s*)?(\d+(?:[.,]\d{1,2})?)/i
+  );
+  if (rangeMatch) {
+    const minVal = formatReaisAmount(rangeMatch[1]);
+    const maxVal = formatReaisAmount(rangeMatch[2]).replace(/^R\$\s*/, '');
+    const unitSecondary = detectPriceUnitSecondary(normalized, false);
+    return {
+      primary: `${minVal} a ${maxVal}`,
+      secondary: unitSecondary,
+    };
+  }
+
+  // Single currency value with "R$" e.g. "R$ 30", "R$ 30,00 por pessoa"
+  const explicitReaisMatch = rawText.match(
+    /R\$\s*(\d+(?:\.\d{3})*(?:[.,]\d{1,2})?)/i
+  );
+  if (explicitReaisMatch) {
+    const formatted = formatReaisAmount(explicitReaisMatch[1]);
+    const unitSecondary = detectPriceUnitSecondary(normalized, true);
+    return {
+      primary: formatted,
+      secondary: unitSecondary,
+    };
+  }
+
+  // Bare numeric price entered without "R$" e.g. "30", "30,00", "30 por pessoa"
+  const bareNumericMatch = rawText.match(
+    /^(\d+(?:\.\d{3})*(?:[.,]\d{1,2})?)(?:\s+.*)?$/
+  );
+  if (bareNumericMatch) {
+    const formatted = formatReaisAmount(bareNumericMatch[1]);
+    const unitSecondary = detectPriceUnitSecondary(normalized, true);
+    return {
+      primary: formatted,
+      secondary: unitSecondary,
+    };
+  }
+
+  // Dollar-sign price range stored in price or priceRange
+  if (/^\${1,4}$/.test(rawText)) {
+    return {
+      primary: rawText,
+      secondary: 'Faixa de preço',
+    };
+  }
+
+  // Real descriptive text registered by admin
+  return {
+    primary: rawText,
+  };
 }
 
 /**
@@ -203,84 +288,8 @@ export function parseSpotPriceCard(
   const rawPrice = normalizeText(price);
   const rawRange = normalizeText(priceRange);
 
-  const hasRealPrice = !isPlaceholder(rawPrice);
-  const hasRealRange = !isPlaceholder(rawRange);
+  const parsedFromPrice = parseSinglePriceString(rawPrice);
+  if (parsedFromPrice) return parsedFromPrice;
 
-  if (!hasRealPrice && !hasRealRange) return null;
-
-  if (hasRealPrice) {
-    const normalized = rawPrice
-      .toLowerCase()
-      .normalize('NFD')
-      .replace(/[\u0300-\u036f]/g, '');
-
-    // Free entrance
-    if (
-      /\b(gratis|gratuito|gratuita|entrada franca|acesso livre|livre|sem custo)\b/.test(
-        normalized
-      ) ||
-      /^r\$\s*0(?:[,.]00)?$/.test(normalized)
-    ) {
-      return { primary: 'Gratuito' };
-    }
-
-    // Currency range e.g. "R$ 20 a R$ 40" or "R$ 20 - 40"
-    const rangeMatch = rawPrice.match(
-      /R\$\s*(\d+(?:[.,]\d{1,2})?)\s*(?:a|às|as|-|–|—)\s*(?:R\$\s*)?(\d+(?:[.,]\d{1,2})?)/i
-    );
-    if (rangeMatch) {
-      const minVal = formatReaisAmount(rangeMatch[1]);
-      const maxVal = formatReaisAmount(rangeMatch[2]).replace(/^R\$\s*/, '');
-      const unitSecondary = detectPriceUnitSecondary(normalized, false);
-      return {
-        primary: `${minVal} a ${maxVal}`,
-        secondary: unitSecondary,
-      };
-    }
-
-    // Single currency value e.g. "R$ 30", "R$ 30,00 por pessoa"
-    const singleMatch = rawPrice.match(/R\$\s*(\d+(?:\.\d{3})*(?:[.,]\d{1,2})?)/i);
-    if (singleMatch) {
-      const formatted = formatReaisAmount(singleMatch[1]);
-      const unitSecondary = detectPriceUnitSecondary(normalized, true);
-      return {
-        primary: formatted,
-        secondary: unitSecondary,
-      };
-    }
-
-    // Dollar-sign price range stored directly in price
-    if (/^\${1,4}$/.test(rawPrice)) {
-      return {
-        primary: rawPrice,
-        secondary: 'Faixa de preço',
-      };
-    }
-
-    // Real descriptive text registered by admin
-    return {
-      primary: rawPrice,
-    };
-  }
-
-  // Fallback strictly to registered priceRange
-  const normalizedRange = rawRange
-    .toLowerCase()
-    .normalize('NFD')
-    .replace(/[\u0300-\u036f]/g, '');
-
-  if (/\b(gratis|gratuito|gratuita|entrada franca)\b/.test(normalizedRange)) {
-    return { primary: 'Gratuito' };
-  }
-
-  if (/^\${1,4}$/.test(rawRange)) {
-    return {
-      primary: rawRange,
-      secondary: 'Faixa de preço',
-    };
-  }
-
-  return {
-    primary: rawRange,
-  };
+  return parseSinglePriceString(rawRange);
 }

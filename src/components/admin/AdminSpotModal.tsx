@@ -195,7 +195,13 @@ export const AdminSpotModal: React.FC<AdminSpotModalProps> = ({
         hours: spotToEdit.hours || '',
         address: spotToEdit.address || 'Campos do Jordão, SP',
         price_range: spotToEdit.price_range || spotToEdit.priceRange || '',
-        price: spotToEdit.price || '',
+        price:
+          spotToEdit.price ||
+          (spotToEdit.price_range && !/^\${1,4}$/.test(spotToEdit.price_range)
+            ? spotToEdit.price_range
+            : spotToEdit.priceRange && !/^\${1,4}$/.test(spotToEdit.priceRange)
+              ? spotToEdit.priceRange
+              : ''),
         maps_url: spotToEdit.maps_url || spotToEdit.mapsUrl || '',
         is_active: spotToEdit.is_active !== undefined ? Number(spotToEdit.is_active) : spotToEdit.isActive === false ? 0 : 1,
       });
@@ -311,7 +317,9 @@ export const AdminSpotModal: React.FC<AdminSpotModalProps> = ({
         gallery: finalGallery,
         touristTip: formData.tourist_tip,
         reviewCount: Number(formData.review_count),
-        priceRange: formData.price_range,
+        price: formData.price.trim(),
+        price_range: (formData.price_range || formData.price).trim(),
+        priceRange: (formData.price_range || formData.price).trim(),
         mapsUrl: formData.maps_url,
         isActive: formData.is_active === 1,
         isStar: false,
@@ -584,11 +592,82 @@ export const AdminSpotModal: React.FC<AdminSpotModalProps> = ({
                 </label>
                 <input
                   type="text"
-                  placeholder="Ex: Diariamente das 09h às 18h"
+                  placeholder="Ex: 09h às 17h · Todos os dias"
                   value={formData.hours}
                   onChange={(e) => setFormData({ ...formData, hours: e.target.value })}
                   className="w-full px-4 py-3 bg-zinc-50 border border-zinc-200 rounded-xl text-sm text-zinc-900 placeholder-zinc-400 focus:outline-none focus:bg-white focus:border-blue-500"
                 />
+              </div>
+
+              <div className="sm:col-span-2">
+                <label className="block text-xs font-bold text-zinc-600 uppercase tracking-wider mb-1.5">
+                  Valor da Entrada / Preço
+                </label>
+                <input
+                  type="text"
+                  placeholder="Ex: R$ 30, Gratuito, R$ 45 por pessoa..."
+                  value={formData.price}
+                  onChange={(e) =>
+                    setFormData({
+                      ...formData,
+                      price: e.target.value,
+                      price_range: e.target.value.trim()
+                        ? e.target.value
+                        : formData.price_range,
+                    })
+                  }
+                  className="w-full px-4 py-3 bg-zinc-50 border border-zinc-200 rounded-xl text-sm text-zinc-900 placeholder-zinc-400 focus:outline-none focus:bg-white focus:border-blue-500"
+                />
+                <div className="flex flex-wrap items-center gap-1.5 mt-2">
+                  {[
+                    { label: 'Gratuito', value: 'Gratuito' },
+                    { label: 'R$ 20', value: 'R$ 20 por pessoa' },
+                    { label: 'R$ 30', value: 'R$ 30 por pessoa' },
+                    { label: 'R$ 50', value: 'R$ 50 por pessoa' },
+                    { label: '$', value: '$' },
+                    { label: '$$', value: '$$' },
+                    { label: '$$$', value: '$$$' },
+                  ].map((preset) => {
+                    const isSelected =
+                      formData.price.trim().toLowerCase() ===
+                      preset.value.toLowerCase();
+                    return (
+                      <button
+                        key={preset.label}
+                        type="button"
+                        onClick={() =>
+                          setFormData({
+                            ...formData,
+                            price: preset.value,
+                            price_range: preset.value,
+                          })
+                        }
+                        className={`px-2.5 py-1 rounded-lg text-xs font-semibold border transition-colors cursor-pointer ${
+                          isSelected
+                            ? 'bg-blue-600 text-white border-blue-600'
+                            : 'bg-zinc-100 hover:bg-zinc-200 text-zinc-700 border-zinc-200'
+                        }`}
+                      >
+                        {preset.label}
+                      </button>
+                    );
+                  })}
+                  {formData.price && (
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setFormData({
+                          ...formData,
+                          price: '',
+                          price_range: '',
+                        })
+                      }
+                      className="px-2.5 py-1 rounded-lg text-xs font-semibold text-rose-600 hover:bg-rose-50 border border-transparent transition-colors cursor-pointer"
+                    >
+                      Limpar preço
+                    </button>
+                  )}
+                </div>
               </div>
 
               <div>
