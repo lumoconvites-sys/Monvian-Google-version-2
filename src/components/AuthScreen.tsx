@@ -205,6 +205,9 @@ export function AuthScreen({
   const [loading, setLoading] = useState(false);
   const [googleLoading, setGoogleLoading] = useState(false);
   const [isGoogleAccountPreparing, setIsGoogleAccountPreparing] = useState(false);
+  const [loginPreparingMessage, setLoginPreparingMessage] = useState('Carregando suas informações…');
+  const [loginPreparingAvatar, setLoginPreparingAvatar] = useState<string | null>(null);
+  const [showLoginPreparingAvatar, setShowLoginPreparingAvatar] = useState(false);
   const [error, setError] = useState('');
   const isSubmittingRef = useRef(false);
   const pendingGoogleRegistrationRef = useRef<{ email: string; uid: string | null } | null>(null);
@@ -221,6 +224,26 @@ export function AuthScreen({
         navigator.vibrate(10);
       }
     } catch {}
+  };
+
+  const resolveLoginAvatarUrl = (candidate?: string | null): string => {
+    const trimmed = String(candidate || '').trim();
+    return trimmed ? trimmed : '/fotoperfil.png';
+  };
+
+  const playLoginAvatarReveal = async (avatarUrl?: string | null) => {
+    const resolved = resolveLoginAvatarUrl(avatarUrl);
+    setLoginPreparingAvatar(resolved);
+    setLoginPreparingMessage('Carregando suas informações…');
+    setIsGoogleAccountPreparing(true);
+    setShowLoginPreparingAvatar(true);
+    await new Promise<void>((resolve) =>
+      window.setTimeout(resolve, shouldReduceMotion ? 320 : 900)
+    );
+    setShowLoginPreparingAvatar(false);
+    await new Promise<void>((resolve) =>
+      window.setTimeout(resolve, shouldReduceMotion ? 120 : 300)
+    );
   };
 
   useEffect(() => {
@@ -732,7 +755,10 @@ export function AuthScreen({
         if (!firebaseUid && cleanIdentifier.includes('@')) {
           ensureFirebaseEmailSession(cleanIdentifier, password).catch(() => {});
         }
-        await savePersistentSession(data.token, data.user);
+        await Promise.all([
+          savePersistentSession(data.token, data.user),
+          playLoginAvatarReveal(data.user.avatar_url),
+        ]);
         iosNavigationManager.clearAuthEntries();
         onSuccess(data.token, data.user, false);
       } else {
@@ -745,6 +771,9 @@ export function AuthScreen({
         setError(mapped);
       }
     } catch (err) {
+      setShowLoginPreparingAvatar(false);
+      setLoginPreparingAvatar(null);
+      setIsGoogleAccountPreparing(false);
       setError(mapAuthErrorToUserMessage(err, 'login'));
     } finally {
       setLoading(false);
@@ -1000,6 +1029,9 @@ export function AuthScreen({
     accessToken?: string | null,
     idToken?: string
   ) => {
+    setLoginPreparingMessage('Carregando suas informações…');
+    setLoginPreparingAvatar(gUser?.photoURL ? String(gUser.photoURL) : null);
+    setShowLoginPreparingAvatar(false);
     setIsGoogleAccountPreparing(true);
     setCachedAccessToken(accessToken || null);
 
@@ -1047,6 +1079,8 @@ export function AuthScreen({
         signOut(auth).catch(() => {});
       }
 
+      setShowLoginPreparingAvatar(false);
+      setLoginPreparingAvatar(null);
       setIsGoogleAccountPreparing(false);
       setGoogleLoading(false);
       setError('');
@@ -1120,7 +1154,10 @@ export function AuthScreen({
       onboarding_step: verifiedUser.onboarding_step ?? 1,
     }).catch(() => {});
 
-    await savePersistentSession(token, verifiedUser);
+    await Promise.all([
+      savePersistentSession(token, verifiedUser),
+      playLoginAvatarReveal(verifiedUser?.avatar_url || gUser?.photoURL),
+    ]);
     iosNavigationManager.clearAuthEntries();
 
     onSuccess(token, verifiedUser, isNewAccount);
@@ -1155,6 +1192,8 @@ export function AuthScreen({
             redirectResult.idToken
           );
         } else if (hadPendingRedirect) {
+          setShowLoginPreparingAvatar(false);
+          setLoginPreparingAvatar(null);
           setIsGoogleAccountPreparing(false);
           setGoogleLoading(false);
         }
@@ -1164,6 +1203,8 @@ export function AuthScreen({
           sessionStorage.removeItem('monvian_google_redirect_pending');
         } catch {}
         if (!active) return;
+        setShowLoginPreparingAvatar(false);
+        setLoginPreparingAvatar(null);
         setIsGoogleAccountPreparing(false);
         setGoogleLoading(false);
         setAuthMode('login');
@@ -1196,6 +1237,8 @@ export function AuthScreen({
         authResult.idToken
       );
     } catch (err: any) {
+      setShowLoginPreparingAvatar(false);
+      setLoginPreparingAvatar(null);
       setIsGoogleAccountPreparing(false);
       setGoogleLoading(false);
       setError(mapAuthErrorToUserMessage(err, 'google'));
@@ -1995,6 +2038,48 @@ export function AuthScreen({
                 />
               </motion.div>
 
+              {/* Foto de perfil pequena animada durante a etapa de informações */}
+              <div className="h-12 mb-3 flex items-center justify-center">
+                <AnimatePresence>
+                  {creationMessage === 'Adicionando suas informações…' && (
+                    <motion.div
+                      key="signup-info-avatar"
+                      initial={
+                        shouldReduceMotion
+                          ? { opacity: 0 }
+                          : { opacity: 0, scale: 0.68, y: 8, filter: 'blur(4px)' }
+                      }
+                      animate={{ opacity: 1, scale: 1, y: 0, filter: 'blur(0px)' }}
+                      exit={
+                        shouldReduceMotion
+                          ? { opacity: 0 }
+                          : { opacity: 0, scale: 0.74, y: -6, filter: 'blur(4px)' }
+                      }
+                      transition={{
+                        duration: shouldReduceMotion ? 0.16 : 0.34,
+                        ease: [0.22, 1, 0.36, 1],
+                      }}
+                      className={`w-11 h-11 rounded-full overflow-hidden shrink-0 ${
+                        isDark
+                          ? 'ring-1 ring-white/20 bg-[#171717] shadow-[0_6px_18px_rgba(0,0,0,0.45)]'
+                          : 'ring-1 ring-black/10 bg-[#F2F2F2] shadow-[0_6px_18px_rgba(0,0,0,0.12)]'
+                      }`}
+                    >
+                      <img
+                        src={resolveLoginAvatarUrl(avatarPreview)}
+                        alt=""
+                        decoding="async"
+                        referrerPolicy="no-referrer"
+                        onError={(e) => {
+                          (e.currentTarget as HTMLImageElement).src = '/fotoperfil.png';
+                        }}
+                        className="w-full h-full object-cover select-none pointer-events-none"
+                      />
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+              </div>
+
               {/* Indicador circular de carregamento animado */}
               <div
                 className="relative w-7 h-7 mb-6 flex items-center justify-center"
@@ -2605,6 +2690,48 @@ export function AuthScreen({
               />
             </motion.div>
 
+            {/* Foto de perfil pequena da conta com entrada e saída suaves */}
+            <div className="h-12 mb-3.5 flex items-center justify-center">
+              <AnimatePresence>
+                {showLoginPreparingAvatar && loginPreparingAvatar && (
+                  <motion.div
+                    key="login-preparing-user-avatar"
+                    initial={
+                      shouldReduceMotion
+                        ? { opacity: 0 }
+                        : { opacity: 0, scale: 0.65, y: 8, filter: 'blur(5px)' }
+                    }
+                    animate={{ opacity: 1, scale: 1, y: 0, filter: 'blur(0px)' }}
+                    exit={
+                      shouldReduceMotion
+                        ? { opacity: 0 }
+                        : { opacity: 0, scale: 0.72, y: -6, filter: 'blur(5px)' }
+                    }
+                    transition={{
+                      duration: shouldReduceMotion ? 0.15 : 0.34,
+                      ease: [0.22, 1, 0.36, 1],
+                    }}
+                    className={`w-11 h-11 rounded-full overflow-hidden shrink-0 ${
+                      isDark
+                        ? 'ring-1 ring-white/20 bg-[#171717] shadow-[0_6px_18px_rgba(0,0,0,0.45)]'
+                        : 'ring-1 ring-black/10 bg-[#F2F2F2] shadow-[0_6px_18px_rgba(0,0,0,0.12)]'
+                    }`}
+                  >
+                    <img
+                      src={loginPreparingAvatar}
+                      alt=""
+                      decoding="async"
+                      referrerPolicy="no-referrer"
+                      onError={(e) => {
+                        (e.currentTarget as HTMLImageElement).src = '/fotoperfil.png';
+                      }}
+                      className="w-full h-full object-cover select-none pointer-events-none"
+                    />
+                  </motion.div>
+                )}
+              </AnimatePresence>
+            </div>
+
             {/* Indicador Circular de Carregamento (Loading Spinner) */}
             <div className="relative w-6 h-6 flex items-center justify-center">
               <motion.svg
@@ -2640,6 +2767,7 @@ export function AuthScreen({
 
             {/* Mensagem de Carregamento */}
             <motion.p
+              key={loginPreparingMessage}
               initial={{ opacity: 0, y: 4 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.28, delay: 0.04, ease: [0.22, 1, 0.36, 1] }}
@@ -2651,7 +2779,7 @@ export function AuthScreen({
                   "'SF Pro Text', -apple-system, BlinkMacSystemFont, sans-serif",
               }}
             >
-              Conectando sua conta…
+              {loginPreparingMessage}
             </motion.p>
           </motion.div>
         )}

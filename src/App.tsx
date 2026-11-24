@@ -311,8 +311,21 @@ export default function App() {
     };
   }, [isAuthenticated, pendingResetOobCode]);
 
-  // Map style mode state
-  const [mapStyle, setMapStyle] = useState<MapModeType>('animado');
+  // Map style mode state (persisted so satellite mode stays active on both globe intro and map across restarts)
+  const [mapStyle, setMapStyle] = useState<MapModeType>(() => {
+    try {
+      const saved = localStorage.getItem('monvian_map_style');
+      if (
+        saved === 'satelite' ||
+        saved === 'explorar' ||
+        saved === 'animado' ||
+        saved === 'transporte'
+      ) {
+        return saved;
+      }
+    } catch {}
+    return 'animado';
+  });
 
   // Desktop Sidebar Compact Mode: Collapsed by default (72px)
   const [isDesktopSidebarCollapsed, setIsDesktopSidebarCollapsed] = useState<boolean>(true);
@@ -478,6 +491,12 @@ export default function App() {
   const [isMapTutorialMounted, setIsMapTutorialMounted] = useState<boolean>(false);
   const [verifiedTutorialUserKey, setVerifiedTutorialUserKey] = useState<string | null>(null);
   const [tutorialActiveStepId, setTutorialActiveStepId] = useState<string | null>(null);
+  useEffect(() => {
+    if (tutorialActiveStepId === 'layers') return;
+    try {
+      localStorage.setItem('monvian_map_style', mapStyle);
+    } catch {}
+  }, [mapStyle, tutorialActiveStepId]);
   const [arrivalConfettiTrigger, setArrivalConfettiTrigger] = useState<number>(0);
   const hasTriggeredMainAppConfettiRef = useRef<boolean>(false);
   const hasTriggeredInitialBootConfettiRef = useRef<boolean>(false);
@@ -5072,6 +5091,7 @@ export default function App() {
           <FirstSignupWelcomeScreen
             key="monvian-first-signup-welcome"
             theme={theme}
+            userName={user?.name}
             onComplete={handleDismissFirstSignupWelcome}
           />
         ) : null}

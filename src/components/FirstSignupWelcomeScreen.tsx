@@ -1,4 +1,4 @@
-import React, { useCallback, useState } from 'react';
+import React, { useCallback, useMemo, useState } from 'react';
 import { motion, useReducedMotion } from 'motion/react';
 import { ArrowRight } from 'lucide-react';
 import { useLanguage } from '../contexts/LanguageContext';
@@ -6,6 +6,7 @@ import { useLanguage } from '../contexts/LanguageContext';
 interface FirstSignupWelcomeScreenProps {
   onComplete: () => void;
   theme?: 'dark' | 'light';
+  userName?: string | null;
 }
 
 const PinFeatureIcon: React.FC<{ isDark?: boolean }> = ({ isDark = false }) => (
@@ -133,11 +134,20 @@ const MinimalWavingHandIcon: React.FC<{ isDark?: boolean }> = ({ isDark = false 
 export const FirstSignupWelcomeScreen: React.FC<FirstSignupWelcomeScreenProps> = ({
   onComplete,
   theme = 'light',
+  userName,
 }) => {
   const isDark = false;
   const { tr } = useLanguage();
   const prefersReducedMotion = useReducedMotion();
   const [isClosing, setIsClosing] = useState(false);
+
+  const firstName = useMemo(() => {
+    const raw = String(userName || '').trim();
+    if (!raw) return '';
+    const firstToken = raw.split(/\s+/)[0] || '';
+    if (!firstToken) return '';
+    return firstToken.charAt(0).toUpperCase() + firstToken.slice(1);
+  }, [userName]);
 
   const handleDismiss = useCallback(() => {
     if (isClosing) return;
@@ -250,11 +260,13 @@ export const FirstSignupWelcomeScreen: React.FC<FirstSignupWelcomeScreenProps> =
                     ? { duration: 0.16 }
                     : { ...iosSpring, delay: 0.22 }
                 }
-                className={`inline-flex items-center justify-center gap-2.5 text-[35px] sm:text-[41px] font-bold tracking-[-0.025em] leading-[1.08] ${
+                className={`inline-flex flex-wrap items-center justify-center gap-2 text-[32px] sm:text-[38px] font-bold tracking-[-0.025em] leading-[1.1] ${
                   isDark ? 'text-[#FFFFFF]' : 'text-[#000000]'
                 }`}
               >
-                <span>{tr('Bem-vindo')}</span>
+                <span>
+                  {firstName ? `${tr('Bem-vindo')} ${firstName}` : tr('Bem-vindo')}
+                </span>
                 <motion.span
                   initial={prefersReducedMotion ? { opacity: 1 } : { scale: 0.6, rotate: -18 }}
                   animate={
