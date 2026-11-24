@@ -284,6 +284,13 @@ function formatSafeUser(u: any) {
     u.role === 'admin' ||
     u.role === 'superadmin';
   const isGold = isAdm || u.is_gold === 1 || u.plan === 'gold' || u.is_premium === 1;
+  const rawTutorial = String(u.map_tutorial_status || '').trim().toLowerCase();
+  const mapTutorialStatus =
+    rawTutorial === 'pending' || rawTutorial === 'completed' || rawTutorial === 'skipped'
+      ? rawTutorial
+      : u.onboarding_completed === 0
+        ? 'pending'
+        : 'completed';
   return {
     id: u.id,
     name: u.name || (u.email ? u.email.split('@')[0] : 'Explorador'),
@@ -302,10 +309,94 @@ function formatSafeUser(u: any) {
     bio: u.bio || '',
     onboarding_completed: u.onboarding_completed ?? 1,
     onboarding_step: u.onboarding_step ?? 1,
-    welcome_card_seen: u.welcome_card_seen ?? 0,
+    welcome_card_seen: u.welcome_card_seen ? 1 : 0,
+    globe_intro_seen: u.globe_intro_seen ? 1 : 0,
+    map_tutorial_status: mapTutorialStatus,
+    map_tutorial_updated_at: u.map_tutorial_updated_at || null,
     location_permission_granted: u.location_permission_granted ?? 0,
     motion_permission_granted: u.motion_permission_granted ?? 0,
     created_at: u.created_at,
+  };
+}
+
+interface PersistedOnboardingFlags {
+  welcome_card_seen?: number;
+  globe_intro_seen?: number;
+  map_tutorial_status?: 'pending' | 'completed' | 'skipped';
+  map_tutorial_updated_at?: string | null;
+}
+
+async function readPersistedOnboardingFlags(email: string): Promise<PersistedOnboardingFlags | null> {
+  const clean = String(email || '').trim().toLowerCase();
+  if (!clean) return null;
+  try {
+    const { data } = await supabase
+      .from('system_settings')
+      .select('value')
+      .eq('key', `user_onboarding_flags:${clean}`)
+      .maybeSingle();
+    if (!data?.value) return null;
+    const parsed = typeof data.value === 'string' ? JSON.parse(data.value) : data.value;
+    if (parsed && typeof parsed === 'object') {
+      return parsed as PersistedOnboardingFlags;
+    }
+  } catch {}
+  return null;
+}
+
+async function writePersistedOnboardingFlags(
+  email: string,
+  patch: PersistedOnboardingFlags
+): Promise<PersistedOnboardingFlags> {
+  const clean = String(email || '').trim().toLowerCase();
+  const existing = (await readPersistedOnboardingFlags(clean)) || {};
+  const merged: PersistedOnboardingFlags = {
+    ...existing,
+    ...patch,
+  };
+  if (clean) {
+    try {
+      await supabase
+        .from('system_settings')
+        .upsert(
+          {
+            key: `user_onboarding_flags:${clean}`,
+            value: JSON.stringify(merged),
+            updated_at: new Date().toISOString(),
+          },
+          { onConflict: 'key' }
+        );
+    } catch {}
+  }
+  return merged;
+}
+
+async function enrichSafeUserWithOnboardingFlags(safeUser: any) {
+  if (!safeUser) return null;
+  const email = String(safeUser.email || safeUser.whatsapp || '').trim().toLowerCase();
+  if (!email) return safeUser;
+  const persisted = await readPersistedOnboardingFlags(email);
+  if (!persisted) return safeUser;
+  const nextWelcome =
+    typeof persisted.welcome_card_seen === 'number'
+      ? persisted.welcome_card_seen
+      : safeUser.welcome_card_seen;
+  const nextGlobe =
+    typeof persisted.globe_intro_seen === 'number'
+      ? persisted.globe_intro_seen
+      : safeUser.globe_intro_seen;
+  const nextTutorial =
+    persisted.map_tutorial_status === 'pending' ||
+    persisted.map_tutorial_status === 'completed' ||
+    persisted.map_tutorial_status === 'skipped'
+      ? persisted.map_tutorial_status
+      : safeUser.map_tutorial_status;
+  return {
+    ...safeUser,
+    welcome_card_seen: nextWelcome ? 1 : 0,
+    globe_intro_seen: nextGlobe ? 1 : 0,
+    map_tutorial_status: nextTutorial,
+    map_tutorial_updated_at: persisted.map_tutorial_updated_at ?? safeUser.map_tutorial_updated_at ?? null,
   };
 }
 
@@ -588,7 +679,7 @@ async function getAuthUser(req: any, strictSession = false): Promise<any | null>
       }
       if (userRow) {
         if (userRow.is_banned === 1 && !isPrimaryAdmin(userRow.email)) return null;
-        return formatSafeUser(userRow);
+        return await enrichSafeUserWithOnboardingFlags(formatSafeUser(userRow));
       }
       if (signed.email && isPrimaryAdmin(signed.email)) {
         return formatSafeUser({
@@ -619,7 +710,7 @@ async function getAuthUser(req: any, strictSession = false): Promise<any | null>
 
         if (userRow) {
           if (userRow.is_banned === 1 && !isPrimaryAdmin(userRow.email)) return null;
-          return formatSafeUser(userRow);
+          return await enrichSafeUserWithOnboardingFlags(formatSafeUser(userRow));
         }
       }
     } catch {}
@@ -631,7 +722,7 @@ async function getAuthUser(req: any, strictSession = false): Promise<any | null>
         const userRow = await findUserByEmailOrIdentifier(authData.user.email);
         if (userRow) {
           if (userRow.is_banned === 1 && !isPrimaryAdmin(userRow.email)) return null;
-          return formatSafeUser(userRow);
+          return await enrichSafeUserWithOnboardingFlags(formatSafeUser(userRow));
         }
 
         return formatSafeUser({
@@ -1277,7 +1368,7 @@ export default async function handler(req: any, res: any) {
       return res.status(200).json({
         success: true,
         token,
-        user: formatSafeUser(user),
+        user: await enrichSafeUserWithOnboardingFlags(formatSafeUser(user)),
       });
     }
 
@@ -1377,12 +1468,19 @@ export default async function handler(req: any, res: any) {
           } catch {}
         }
 
+        await writePersistedOnboardingFlags(cleanEmail, {
+          welcome_card_seen: 0,
+          globe_intro_seen: 0,
+          map_tutorial_status: 'pending',
+          map_tutorial_updated_at: null,
+        });
+
         setPersistentSessionCookie(req, res, token);
 
         return res.status(200).json({
           success: true,
           token,
-          user: formatSafeUser(updatedUser),
+          user: await enrichSafeUserWithOnboardingFlags(formatSafeUser(updatedUser)),
           isNewUser: true,
         });
       }
@@ -1469,12 +1567,19 @@ export default async function handler(req: any, res: any) {
         } catch {}
       }
 
+      await writePersistedOnboardingFlags(cleanEmail, {
+        welcome_card_seen: 0,
+        globe_intro_seen: 0,
+        map_tutorial_status: 'pending',
+        map_tutorial_updated_at: null,
+      });
+
       setPersistentSessionCookie(req, res, token);
 
       return res.status(200).json({
         success: true,
         token,
-        user: formatSafeUser(inserted),
+        user: await enrichSafeUserWithOnboardingFlags(formatSafeUser(inserted)),
         isNewUser: true,
       });
     }
@@ -1637,12 +1742,21 @@ export default async function handler(req: any, res: any) {
           } catch {}
         }
 
+        if (isNewUser && resolvedEmail) {
+          await writePersistedOnboardingFlags(resolvedEmail, {
+            welcome_card_seen: 0,
+            globe_intro_seen: 0,
+            map_tutorial_status: 'pending',
+            map_tutorial_updated_at: null,
+          });
+        }
+
         setPersistentSessionCookie(req, res, token);
 
         return res.status(200).json({
           success: true,
           token,
-          user: formatSafeUser(user),
+          user: await enrichSafeUserWithOnboardingFlags(formatSafeUser(user)),
           isNewUser,
         });
       }
@@ -1774,20 +1888,104 @@ export default async function handler(req: any, res: any) {
 
       let updatedUser = currentUser;
       if (email) {
+        await writePersistedOnboardingFlags(email, { welcome_card_seen: 1 });
         try {
           const { data } = await supabase
             .from('users')
-            .update({ onboarding_completed: 1, updated_at: new Date().toISOString() })
+            .update({ welcome_card_seen: 1, updated_at: new Date().toISOString() })
             .ilike('email', email)
             .select()
             .maybeSingle();
-          if (data) updatedUser = formatSafeUser(data);
+          if (data) updatedUser = await enrichSafeUserWithOnboardingFlags(formatSafeUser(data));
         } catch {}
       }
 
       return res.status(200).json({
         success: true,
         user: updatedUser ? { ...updatedUser, welcome_card_seen: 1 } : null,
+      });
+    }
+
+    if (cleanPath === '/auth/globe-intro-seen' && method === 'POST') {
+      const currentUser = await getAuthUser(req);
+      const email = String(body?.email || currentUser?.email || body?.identifier || '')
+        .trim()
+        .toLowerCase();
+
+      if (!currentUser && !email) {
+        return res.status(401).json({ success: false, error: 'Não autenticado' });
+      }
+
+      let updatedUser = currentUser;
+      if (email) {
+        await writePersistedOnboardingFlags(email, { globe_intro_seen: 1 });
+        try {
+          const { data } = await supabase
+            .from('users')
+            .update({ globe_intro_seen: 1, updated_at: new Date().toISOString() })
+            .ilike('email', email)
+            .select()
+            .maybeSingle();
+          if (data) updatedUser = await enrichSafeUserWithOnboardingFlags(formatSafeUser(data));
+        } catch {}
+      }
+
+      return res.status(200).json({
+        success: true,
+        user: updatedUser ? { ...updatedUser, globe_intro_seen: 1 } : null,
+      });
+    }
+
+    if (cleanPath === '/user/map-tutorial' && method === 'GET') {
+      const currentUser = await getAuthUser(req, true);
+      if (!currentUser) {
+        return res.status(401).json({ success: false, error: 'Não autenticado' });
+      }
+      return res.status(200).json({
+        success: true,
+        status: currentUser.map_tutorial_status || 'completed',
+        updatedAt: currentUser.map_tutorial_updated_at || null,
+        user: currentUser,
+      });
+    }
+
+    if (cleanPath === '/user/map-tutorial' && method === 'POST') {
+      const currentUser = await getAuthUser(req, true);
+      if (!currentUser) {
+        return res.status(401).json({ success: false, error: 'Não autenticado' });
+      }
+      const rawStatus = String(body?.status || '').trim().toLowerCase();
+      if (rawStatus !== 'completed' && rawStatus !== 'skipped') {
+        return res.status(400).json({ success: false, error: 'Status inválido para tutorial.' });
+      }
+      const nowIso = new Date().toISOString();
+      const email = String(currentUser.email || currentUser.whatsapp || '').trim().toLowerCase();
+      if (email) {
+        await writePersistedOnboardingFlags(email, {
+          map_tutorial_status: rawStatus as 'completed' | 'skipped',
+          map_tutorial_updated_at: nowIso,
+        });
+        try {
+          await supabase
+            .from('users')
+            .update({
+              map_tutorial_status: rawStatus,
+              map_tutorial_updated_at: nowIso,
+              updated_at: nowIso,
+            })
+            .ilike('email', email);
+        } catch {}
+      }
+      const refreshedUser = {
+        ...currentUser,
+        map_tutorial_status: rawStatus,
+        map_tutorial_updated_at: nowIso,
+      };
+      return res.status(200).json({
+        success: true,
+        status: rawStatus,
+        updatedAt: nowIso,
+        user: refreshedUser,
       });
     }
 
@@ -1969,6 +2167,17 @@ export default async function handler(req: any, res: any) {
       } catch {}
 
       let updatedUser = currentUser;
+      if (markComplete) {
+        const existingFlags = await readPersistedOnboardingFlags(targetEmail);
+        if (!existingFlags) {
+          await writePersistedOnboardingFlags(targetEmail, {
+            welcome_card_seen: 0,
+            globe_intro_seen: 0,
+            map_tutorial_status: 'pending',
+            map_tutorial_updated_at: null,
+          });
+        }
+      }
       try {
         const { data: userRow } = await supabase
           .from('users')
@@ -1981,7 +2190,7 @@ export default async function handler(req: any, res: any) {
           .select()
           .maybeSingle();
         if (userRow) {
-          updatedUser = formatSafeUser(userRow);
+          updatedUser = await enrichSafeUserWithOnboardingFlags(formatSafeUser(userRow));
         }
       } catch {}
 

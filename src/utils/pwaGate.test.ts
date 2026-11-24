@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import {
   isIOSBrowserEnvironment,
   isStandalonePWAEnvironment,
+  resolvePostInstallExperienceState,
   shouldBlockForIOSPwaInstall,
   shouldRequireIOSPwaInstall,
 } from './pwaGate.ts';
@@ -194,3 +195,92 @@ test('allows unauthenticated auth screen, password resets, and non-iOS desktop s
     false
   );
 });
+
+test('defers Welcome Screen and 3D Globe animation while user is still on iPhone Safari before installing PWA', () => {
+  const decision = resolvePostInstallExperienceState({
+    isAuthenticated: true,
+    requiresIOSPwaInstall: true,
+    needsSmartOnboarding: false,
+    welcomeCardSeenInDb: false,
+    globeIntroSeenInDb: false,
+    mapTutorialStatusInDb: 'pending',
+    localWelcomePending: true,
+    localWelcomeSeen: false,
+    localGlobePending: true,
+    localGlobeSeen: false,
+  });
+
+  assert.deepEqual(decision, {
+    showFirstSignupWelcome: false,
+    isGlobeIntroPending: true,
+    isGlobeIntroPlaying: false,
+    globeIntroSource: 'post-signup',
+  });
+});
+
+test('launches Welcome Screen + holds post-signup 3D Globe animation when user opens installed iPhone PWA with empty isolated localStorage', () => {
+  const decision = resolvePostInstallExperienceState({
+    isAuthenticated: true,
+    requiresIOSPwaInstall: false,
+    needsSmartOnboarding: false,
+    welcomeCardSeenInDb: false,
+    globeIntroSeenInDb: false,
+    mapTutorialStatusInDb: 'pending',
+    localWelcomePending: false,
+    localWelcomeSeen: false,
+    localGlobePending: false,
+    localGlobeSeen: false,
+  });
+
+  assert.deepEqual(decision, {
+    showFirstSignupWelcome: true,
+    isGlobeIntroPending: true,
+    isGlobeIntroPlaying: false,
+    globeIntroSource: 'post-signup',
+  });
+});
+
+test('launches post-signup 3D Globe animation directly if welcome card was already seen but globe/tutorial are still pending', () => {
+  const decision = resolvePostInstallExperienceState({
+    isAuthenticated: true,
+    requiresIOSPwaInstall: false,
+    needsSmartOnboarding: false,
+    welcomeCardSeenInDb: true,
+    globeIntroSeenInDb: false,
+    mapTutorialStatusInDb: 'pending',
+    localWelcomePending: false,
+    localWelcomeSeen: false,
+    localGlobePending: false,
+    localGlobeSeen: false,
+  });
+
+  assert.deepEqual(decision, {
+    showFirstSignupWelcome: false,
+    isGlobeIntroPending: false,
+    isGlobeIntroPlaying: true,
+    globeIntroSource: 'post-signup',
+  });
+});
+
+test('does NOT replay Welcome Screen or post-signup tutorial for returning users who already completed them', () => {
+  const decision = resolvePostInstallExperienceState({
+    isAuthenticated: true,
+    requiresIOSPwaInstall: false,
+    needsSmartOnboarding: false,
+    welcomeCardSeenInDb: true,
+    globeIntroSeenInDb: true,
+    mapTutorialStatusInDb: 'completed',
+    localWelcomePending: false,
+    localWelcomeSeen: false,
+    localGlobePending: false,
+    localGlobeSeen: false,
+  });
+
+  assert.deepEqual(decision, {
+    showFirstSignupWelcome: false,
+    isGlobeIntroPending: false,
+    isGlobeIntroPlaying: true,
+    globeIntroSource: 'app-open',
+  });
+});
+

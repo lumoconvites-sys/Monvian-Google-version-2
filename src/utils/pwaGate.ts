@@ -211,3 +211,116 @@ export function useIOSPwaGateStatus(): PwaRuntimeStatus {
 
   return status;
 }
+
+export interface PostInstallExperienceInput {
+  isAuthenticated: boolean;
+  requiresIOSPwaInstall: boolean;
+  needsSmartOnboarding: boolean;
+  isNewAccount?: boolean;
+  welcomeCardSeenInDb: boolean;
+  globeIntroSeenInDb: boolean;
+  mapTutorialStatusInDb?: string | null;
+  localWelcomePending: boolean;
+  localWelcomeSeen: boolean;
+  localGlobePending: boolean;
+  localGlobeSeen: boolean;
+}
+
+export interface PostInstallExperienceDecision {
+  showFirstSignupWelcome: boolean;
+  isGlobeIntroPending: boolean;
+  isGlobeIntroPlaying: boolean;
+  globeIntroSource: 'post-signup' | 'app-open';
+}
+
+/**
+ * Pure decision engine for Monvian's post-signup cinematic welcome, 3D globe flight,
+ * and interactive map onboarding tutorial.
+ *
+ * Critically handles iOS Home Screen PWA storage isolation:
+ * When a new user completes signup + onboarding in Safari, Safari's localStorage is NOT
+ * shared with the newly installed Home Screen PWA. Therefore, once the user opens the
+ * installed PWA (requiresIOSPwaInstall === false), we rely on authoritative database flags
+ * (`welcome_card_seen !== 1`, `globe_intro_seen !== 1`, `map_tutorial_status === 'pending'`)
+ * in addition to localStorage hints so the full Welcome -> Globe Flight -> Step-by-step Tutorial
+ * sequence ALWAYS plays after installation, and never runs prematurely inside Safari.
+ */
+export function resolvePostInstallExperienceState(
+  input: PostInstallExperienceInput
+): PostInstallExperienceDecision {
+  if (!input.isAuthenticated) {
+    return {
+      showFirstSignupWelcome: false,
+      isGlobeIntroPending: false,
+      isGlobeIntroPlaying: false,
+      globeIntroSource: 'app-open',
+    };
+  }
+
+  const normalizedTutorial = String(input.mapTutorialStatusInDb || '').trim().toLowerCase();
+  const isTutorialPendingInDb = normalizedTutorial === 'pending';
+
+  const needsWelcomeCard = Boolean(
+    !input.needsSmartOnboarding &&
+      !input.welcomeCardSeenInDb &&
+      !input.localWelcomeSeen &&
+      (input.localWelcomePending || isTutorialPendingInDb || Boolean(input.isNewAccount))
+  );
+
+  const needsPostSignupGlobe = Boolean(
+    input.needsSmartOnboarding ||
+      needsWelcomeCard ||
+      (!input.globeIntroSeenInDb &&
+        !input.localGlobeSeen &&
+        (input.localGlobePending || isTutorialPendingInDb || Boolean(input.isNewAccount)))
+  );
+
+  // While user is still on iOS Safari outside standalone mode, defer ALL post-install animations/tutorials
+  if (input.requiresIOSPwaInstall) {
+    return {
+      showFirstSignupWelcome: false,
+      isGlobeIntroPending: needsPostSignupGlobe,
+      isGlobeIntroPlaying: false,
+      globeIntroSource: needsPostSignupGlobe ? 'post-signup' : 'app-open',
+    };
+  }
+
+  // Still completing the 3-step complementary onboarding questionnaire
+  if (input.needsSmartOnboarding) {
+    return {
+      showFirstSignupWelcome: false,
+      isGlobeIntroPending: true,
+      isGlobeIntroPlaying: false,
+      globeIntroSource: 'post-signup',
+    };
+  }
+
+  // Installed PWA / Desktop: show Welcome Screen first, holding the 3D globe flight until user taps "Começar"
+  if (needsWelcomeCard) {
+    return {
+      showFirstSignupWelcome: true,
+      isGlobeIntroPending: true,
+      isGlobeIntroPlaying: false,
+      globeIntroSource: 'post-signup',
+    };
+  }
+
+  // Welcome card already dismissed, but post-signup globe flight is still pending
+  if (needsPostSignupGlobe) {
+    return {
+      showFirstSignupWelcome: false,
+      isGlobeIntroPending: false,
+      isGlobeIntroPlaying: true,
+      globeIntroSource: 'post-signup',
+    };
+  }
+
+  // Returning user who already finished welcome, post-signup globe intro, and tutorial
+  return {
+    showFirstSignupWelcome: false,
+    isGlobeIntroPending: false,
+    isGlobeIntroPlaying: true,
+    globeIntroSource: 'app-open',
+  };
+}
+

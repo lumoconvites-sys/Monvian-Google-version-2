@@ -1,4 +1,4 @@
-import React, { useCallback, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { motion, useReducedMotion } from 'motion/react';
 import { ArrowRight } from 'lucide-react';
 import { useLanguage } from '../contexts/LanguageContext';
@@ -140,6 +140,24 @@ export const FirstSignupWelcomeScreen: React.FC<FirstSignupWelcomeScreenProps> =
   const { tr } = useLanguage();
   const prefersReducedMotion = useReducedMotion();
   const [isClosing, setIsClosing] = useState(false);
+
+  // Immediately clear boot preloader so the Welcome Screen animates in crisply on first PWA launch
+  useEffect(() => {
+    try {
+      const hidePreloader = (window as unknown as { __monvianHidePreloaderImmediately?: () => void })
+        .__monvianHidePreloaderImmediately;
+      if (typeof hidePreloader === 'function') {
+        hidePreloader();
+      } else {
+        const preloader = document.getElementById('monvian-app-preloader');
+        if (preloader) {
+          preloader.style.display = 'none';
+          preloader.style.opacity = '0';
+          preloader.style.pointerEvents = 'none';
+        }
+      }
+    } catch {}
+  }, []);
 
   const firstName = useMemo(() => {
     const raw = String(userName || '').trim();

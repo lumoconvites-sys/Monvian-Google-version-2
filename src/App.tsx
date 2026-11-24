@@ -88,6 +88,7 @@ import {
 import { IOSPwaInstallGate } from './components/IOSPwaInstallGate';
 import {
   isIOSBrowserRequiringPwaInstallNow,
+  resolvePostInstallExperienceState,
   shouldBlockForIOSPwaInstall,
   shouldRequireIOSPwaInstall,
   useIOSPwaGateStatus,
@@ -460,76 +461,67 @@ export default function App() {
     isStandalone,
   });
   const [airbnbCardTab, setAirbnbCardTab] = useState<PresentationTab | null>(null);
-  const [showFirstSignupWelcome, setShowFirstSignupWelcome] = useState<boolean>(() => {
-    try {
-      const savedUser = localStorage.getItem('monvian_user');
-      if (!savedUser) return false;
-      const parsed = JSON.parse(savedUser);
-      const email = String(parsed?.email || parsed?.whatsapp || '').trim().toLowerCase();
-      if (!email) return false;
-      if (parsed?.onboarding_completed === 0) return false;
-      if (parsed?.welcome_card_seen === 1) return false;
-      if (localStorage.getItem(`monvian_first_welcome_seen_${email}`) === '1') return false;
-      return localStorage.getItem(`monvian_first_welcome_pending_${email}`) === '1';
-    } catch {
-      return false;
-    }
-  });
-  const [isGlobeIntroPending, setIsGlobeIntroPending] = useState<boolean>(() => {
+  const initialPostInstallDecision = useMemo(() => {
     try {
       const token = localStorage.getItem('monvian_token');
       const savedUser = localStorage.getItem('monvian_user');
-      if (!token || !savedUser) return false;
+      if (!token || !savedUser) {
+        return {
+          showFirstSignupWelcome: false,
+          isGlobeIntroPending: false,
+          isGlobeIntroPlaying: false,
+          globeIntroSource: 'app-open' as const,
+        };
+      }
       const parsed = JSON.parse(savedUser);
       const email = String(parsed?.email || parsed?.whatsapp || '').trim().toLowerCase();
-      if (!email) return false;
+      if (!email) {
+        return {
+          showFirstSignupWelcome: false,
+          isGlobeIntroPending: false,
+          isGlobeIntroPlaying: false,
+          globeIntroSource: 'app-open' as const,
+        };
+      }
       const needsOnboarding = Boolean(
         parsed?.onboarding_completed === 0 ||
           (parsed?.onboarding_completed !== 1 &&
             localStorage.getItem(`monvian_smart_onboarding_pending_${email}`) === '1')
       );
-      const needsWelcome = Boolean(
-        !needsOnboarding &&
-          parsed?.welcome_card_seen !== 1 &&
-          localStorage.getItem(`monvian_first_welcome_seen_${email}`) !== '1' &&
-          localStorage.getItem(`monvian_first_welcome_pending_${email}`) === '1'
-      );
-      if (needsOnboarding || needsWelcome) return true;
-      if (parsed?.globe_intro_seen === 1) return false;
-      if (localStorage.getItem(`monvian_globe_intro_seen_${email}`) === '1') return false;
-      return localStorage.getItem(`monvian_globe_intro_pending_${email}`) === '1';
+      return resolvePostInstallExperienceState({
+        isAuthenticated: true,
+        requiresIOSPwaInstall: isIOSBrowserRequiringPwaInstallNow(),
+        needsSmartOnboarding: needsOnboarding,
+        welcomeCardSeenInDb: parsed?.welcome_card_seen === 1,
+        globeIntroSeenInDb: parsed?.globe_intro_seen === 1,
+        mapTutorialStatusInDb: parsed?.map_tutorial_status,
+        localWelcomePending: localStorage.getItem(`monvian_first_welcome_pending_${email}`) === '1',
+        localWelcomeSeen: localStorage.getItem(`monvian_first_welcome_seen_${email}`) === '1',
+        localGlobePending: localStorage.getItem(`monvian_globe_intro_pending_${email}`) === '1',
+        localGlobeSeen: localStorage.getItem(`monvian_globe_intro_seen_${email}`) === '1',
+      });
     } catch {
-      return false;
+      return {
+        showFirstSignupWelcome: false,
+        isGlobeIntroPending: false,
+        isGlobeIntroPlaying: false,
+        globeIntroSource: 'app-open' as const,
+      };
     }
-  });
-  const [isGlobeIntroPlaying, setIsGlobeIntroPlaying] = useState<boolean>(() => {
-    try {
-      const token = localStorage.getItem('monvian_token');
-      const savedUser = localStorage.getItem('monvian_user');
-      if (!token || !savedUser) return false;
-      const parsed = JSON.parse(savedUser);
-      const email = String(parsed?.email || parsed?.whatsapp || '').trim().toLowerCase();
-      if (!email) return false;
-      const needsOnboarding = Boolean(
-        parsed?.onboarding_completed === 0 ||
-          (parsed?.onboarding_completed !== 1 &&
-            localStorage.getItem(`monvian_smart_onboarding_pending_${email}`) === '1')
-      );
-      const needsWelcome = Boolean(
-        !needsOnboarding &&
-          parsed?.welcome_card_seen !== 1 &&
-          localStorage.getItem(`monvian_first_welcome_seen_${email}`) !== '1' &&
-          localStorage.getItem(`monvian_first_welcome_pending_${email}`) === '1'
-      );
-      return !needsOnboarding && !needsWelcome;
-    } catch {
-      return false;
-    }
-  });
-  const globeIntroSourceRef = useRef<'app-open' | 'post-signup'>(
-    isGlobeIntroPending ? 'post-signup' : 'app-open'
+  }, []);
+  const [showFirstSignupWelcome, setShowFirstSignupWelcome] = useState<boolean>(
+    initialPostInstallDecision.showFirstSignupWelcome
   );
-  const hasStartedAppOpenGlobeRef = useRef<boolean>(isGlobeIntroPlaying);
+  const [isGlobeIntroPending, setIsGlobeIntroPending] = useState<boolean>(
+    initialPostInstallDecision.isGlobeIntroPending
+  );
+  const [isGlobeIntroPlaying, setIsGlobeIntroPlaying] = useState<boolean>(
+    initialPostInstallDecision.isGlobeIntroPlaying
+  );
+  const globeIntroSourceRef = useRef<'app-open' | 'post-signup'>(
+    initialPostInstallDecision.globeIntroSource
+  );
+  const hasStartedAppOpenGlobeRef = useRef<boolean>(initialPostInstallDecision.isGlobeIntroPlaying);
   const [isMapTutorialOpen, setIsMapTutorialOpen] = useState<boolean>(false);
   const [isMapTutorialMounted, setIsMapTutorialMounted] = useState<boolean>(false);
   const [verifiedTutorialUserKey, setVerifiedTutorialUserKey] = useState<string | null>(null);
@@ -866,42 +858,56 @@ export default function App() {
               (normalized.onboarding_completed !== 1 &&
                 localStorage.getItem(`monvian_smart_onboarding_pending_${userEmail}`) === '1')
           );
-          let needsWelcomeCard = false;
           if (needsSmartOnboarding) {
             localStorage.setItem(`monvian_smart_onboarding_pending_${userEmail}`, '1');
             setShowOnboardingQuestions(true);
-            setShowFirstSignupWelcome(false);
           } else {
             localStorage.removeItem(`monvian_smart_onboarding_pending_${userEmail}`);
             setShowOnboardingQuestions(false);
             if (normalized.welcome_card_seen === 1) {
               localStorage.setItem(`monvian_first_welcome_seen_${userEmail}`, '1');
               localStorage.removeItem(`monvian_first_welcome_pending_${userEmail}`);
-              setShowFirstSignupWelcome(false);
-            } else if (
-              localStorage.getItem(`monvian_first_welcome_seen_${userEmail}`) !== '1' &&
-              localStorage.getItem(`monvian_first_welcome_pending_${userEmail}`) === '1'
-            ) {
-              needsWelcomeCard = true;
-              setShowFirstSignupWelcome(true);
             }
-          }
-
-          if (needsSmartOnboarding || needsWelcomeCard) {
-            globeIntroSourceRef.current = 'post-signup';
-            setIsGlobeIntroPending(true);
-            setIsGlobeIntroPlaying(false);
-          } else {
             if (normalized.globe_intro_seen === 1) {
               localStorage.setItem(`monvian_globe_intro_seen_${userEmail}`, '1');
               localStorage.removeItem(`monvian_globe_intro_pending_${userEmail}`);
             }
-            if (!hasStartedAppOpenGlobeRef.current) {
+          }
+
+          const liveNeedsPwaInstall = isIOSBrowserRequiringPwaInstallNow();
+          const postInstallDecision = resolvePostInstallExperienceState({
+            isAuthenticated: true,
+            requiresIOSPwaInstall: liveNeedsPwaInstall,
+            needsSmartOnboarding,
+            welcomeCardSeenInDb: normalized.welcome_card_seen === 1,
+            globeIntroSeenInDb: normalized.globe_intro_seen === 1,
+            mapTutorialStatusInDb: normalized.map_tutorial_status,
+            localWelcomePending:
+              localStorage.getItem(`monvian_first_welcome_pending_${userEmail}`) === '1',
+            localWelcomeSeen:
+              localStorage.getItem(`monvian_first_welcome_seen_${userEmail}`) === '1',
+            localGlobePending:
+              localStorage.getItem(`monvian_globe_intro_pending_${userEmail}`) === '1',
+            localGlobeSeen:
+              localStorage.getItem(`monvian_globe_intro_seen_${userEmail}`) === '1',
+          });
+
+          setShowFirstSignupWelcome(postInstallDecision.showFirstSignupWelcome);
+          if (postInstallDecision.showFirstSignupWelcome || postInstallDecision.isGlobeIntroPending) {
+            globeIntroSourceRef.current = postInstallDecision.globeIntroSource;
+            setIsGlobeIntroPending(postInstallDecision.isGlobeIntroPending);
+            setIsGlobeIntroPlaying(false);
+          } else if (postInstallDecision.isGlobeIntroPlaying) {
+            if (!hasStartedAppOpenGlobeRef.current || postInstallDecision.globeIntroSource === 'post-signup') {
               hasStartedAppOpenGlobeRef.current = true;
-              globeIntroSourceRef.current = 'app-open';
+              globeIntroSourceRef.current = postInstallDecision.globeIntroSource;
               setIsGlobeIntroPending(false);
               setIsGlobeIntroPlaying(true);
             }
+          } else {
+            globeIntroSourceRef.current = postInstallDecision.globeIntroSource;
+            setIsGlobeIntroPending(false);
+            setIsGlobeIntroPlaying(false);
           }
         } catch {}
       }
@@ -2623,6 +2629,9 @@ export default function App() {
       setUser((prev: any) => {
         if (!prev) return prev;
         const updated = { ...prev, welcome_card_seen: 1, globe_intro_seen: 1 };
+        try {
+          localStorage.setItem('monvian_user', JSON.stringify(updated));
+        } catch {}
         if (token) {
           savePersistentSession(token, updated).catch(() => {});
         }
@@ -2647,6 +2656,9 @@ export default function App() {
       setUser((prev: any) => {
         if (!prev) return prev;
         const updated = { ...prev, welcome_card_seen: 1 };
+        try {
+          localStorage.setItem('monvian_user', JSON.stringify(updated));
+        } catch {}
         if (token) {
           savePersistentSession(token, updated).catch(() => {});
         }
@@ -2744,11 +2756,89 @@ export default function App() {
   const tutorialUserKey = String(user?.id || user?.email || user?.whatsapp || '').trim().toLowerCase();
   const tutorialUserStatus = String(user?.map_tutorial_status || '').trim().toLowerCase();
 
+  // Ensure that once an authenticated user unlocks the installed PWA (or transitions out of Safari gate),
+  // their deferred post-signup Welcome Screen + 3D Globe Flight + Step-by-Step Tutorial launch cleanly.
+  useEffect(() => {
+    if (
+      isAuthChecking ||
+      !isAuthenticated ||
+      pendingResetOobCode ||
+      requiresIOSPwaInstall ||
+      showOnboardingQuestions ||
+      !user
+    ) {
+      return;
+    }
+
+    const cleanEmail = String(user?.email || user?.whatsapp || '').trim().toLowerCase();
+    let localWelcomePending = false;
+    let localWelcomeSeen = false;
+    let localGlobePending = false;
+    let localGlobeSeen = false;
+    try {
+      if (cleanEmail) {
+        localWelcomePending =
+          localStorage.getItem(`monvian_first_welcome_pending_${cleanEmail}`) === '1';
+        localWelcomeSeen =
+          localStorage.getItem(`monvian_first_welcome_seen_${cleanEmail}`) === '1';
+        localGlobePending =
+          localStorage.getItem(`monvian_globe_intro_pending_${cleanEmail}`) === '1';
+        localGlobeSeen =
+          localStorage.getItem(`monvian_globe_intro_seen_${cleanEmail}`) === '1';
+      }
+    } catch {}
+
+    const decision = resolvePostInstallExperienceState({
+      isAuthenticated: true,
+      requiresIOSPwaInstall: false,
+      needsSmartOnboarding: false,
+      welcomeCardSeenInDb: user?.welcome_card_seen === 1,
+      globeIntroSeenInDb: user?.globe_intro_seen === 1,
+      mapTutorialStatusInDb: user?.map_tutorial_status,
+      localWelcomePending,
+      localWelcomeSeen,
+      localGlobePending,
+      localGlobeSeen,
+    });
+
+    if (decision.showFirstSignupWelcome && !showFirstSignupWelcome) {
+      globeIntroSourceRef.current = 'post-signup';
+      setIsGlobeIntroPending(true);
+      setIsGlobeIntroPlaying(false);
+      setShowFirstSignupWelcome(true);
+    } else if (
+      !decision.showFirstSignupWelcome &&
+      decision.globeIntroSource === 'post-signup' &&
+      decision.isGlobeIntroPlaying &&
+      !isGlobeIntroPlaying &&
+      !hasStartedAppOpenGlobeRef.current
+    ) {
+      globeIntroSourceRef.current = 'post-signup';
+      hasStartedAppOpenGlobeRef.current = true;
+      setIsGlobeIntroPending(false);
+      setIsGlobeIntroPlaying(true);
+    }
+  }, [
+    isAuthChecking,
+    isAuthenticated,
+    pendingResetOobCode,
+    requiresIOSPwaInstall,
+    showOnboardingQuestions,
+    showFirstSignupWelcome,
+    isGlobeIntroPlaying,
+    user?.id,
+    user?.email,
+    user?.whatsapp,
+    user?.welcome_card_seen,
+    user?.globe_intro_seen,
+    user?.map_tutorial_status,
+  ]);
+
   // Preload tutorial bundle as soon as an authenticated user with pending tutorial enters the app
   useEffect(() => {
-    if (!isAuthenticated || tutorialUserStatus !== 'pending') return;
+    if (!isAuthenticated || requiresIOSPwaInstall || tutorialUserStatus !== 'pending') return;
     void loadMapOnboardingTutorial();
-  }, [isAuthenticated, tutorialUserStatus]);
+  }, [isAuthenticated, requiresIOSPwaInstall, tutorialUserStatus]);
 
   // Auto-trigger interactive map onboarding tutorial ONLY for authenticated accounts
   // whose DB record has map_tutorial_status === 'pending' right after the globe-to-user zoom finishes.
@@ -4055,56 +4145,76 @@ export default function App() {
                     cleanEmail &&
                     localStorage.getItem(`monvian_smart_onboarding_pending_${cleanEmail}`) === '1')
               );
-              let loginNeedsWelcomeCard = false;
               if (needsSmartOnboarding) {
                 try {
                   if (cleanEmail) {
                     localStorage.setItem(`monvian_smart_onboarding_pending_${cleanEmail}`, '1');
                     localStorage.setItem(`monvian_first_welcome_pending_${cleanEmail}`, '1');
                     localStorage.removeItem(`monvian_first_welcome_seen_${cleanEmail}`);
+                    localStorage.removeItem(`monvian_globe_intro_seen_${cleanEmail}`);
+                    localStorage.setItem(`monvian_globe_intro_pending_${cleanEmail}`, '1');
                   }
                 } catch {}
                 void startPreloadResources(true);
                 setShowOnboardingQuestions(true);
                 setShowFirstSignupWelcome(false);
+                globeIntroSourceRef.current = 'post-signup';
+                hasStartedAppOpenGlobeRef.current = false;
+                setIsGlobeIntroPending(true);
+                setIsGlobeIntroPlaying(false);
               } else {
-                if (!requiresIOSPwaInstall) {
-                  try {
-                    (window as any).__monvianReplayLogoPreloader?.();
-                  } catch {}
-                  void startPreloadResources(true);
-                }
                 try {
                   if (cleanEmail) {
                     localStorage.removeItem(`monvian_smart_onboarding_pending_${cleanEmail}`);
                   }
                 } catch {}
                 setShowOnboardingQuestions(false);
-                loginNeedsWelcomeCard = Boolean(
-                  !normalizedUser?.welcome_card_seen &&
-                    cleanEmail &&
-                    localStorage.getItem(`monvian_first_welcome_seen_${cleanEmail}`) !== '1' &&
-                    localStorage.getItem(`monvian_first_welcome_pending_${cleanEmail}`) === '1'
-                );
-                setShowFirstSignupWelcome(requiresIOSPwaInstall ? false : loginNeedsWelcomeCard);
-              }
 
-              if (isNewAccount || needsSmartOnboarding || loginNeedsWelcomeCard) {
+                let localWelcomePending = false;
+                let localWelcomeSeen = false;
+                let localGlobePending = false;
+                let localGlobeSeen = false;
                 try {
                   if (cleanEmail) {
-                    localStorage.removeItem(`monvian_globe_intro_seen_${cleanEmail}`);
-                    localStorage.setItem(`monvian_globe_intro_pending_${cleanEmail}`, '1');
+                    localWelcomePending =
+                      localStorage.getItem(`monvian_first_welcome_pending_${cleanEmail}`) === '1';
+                    localWelcomeSeen =
+                      localStorage.getItem(`monvian_first_welcome_seen_${cleanEmail}`) === '1';
+                    localGlobePending =
+                      localStorage.getItem(`monvian_globe_intro_pending_${cleanEmail}`) === '1';
+                    localGlobeSeen =
+                      localStorage.getItem(`monvian_globe_intro_seen_${cleanEmail}`) === '1';
                   }
                 } catch {}
-                globeIntroSourceRef.current = 'post-signup';
-                hasStartedAppOpenGlobeRef.current = true;
-                setIsGlobeIntroPending(true);
-                setIsGlobeIntroPlaying(false);
-              } else {
-                globeIntroSourceRef.current = 'app-open';
-                hasStartedAppOpenGlobeRef.current = true;
-                setIsGlobeIntroPending(false);
-                setIsGlobeIntroPlaying(!requiresIOSPwaInstall);
+
+                const postInstallDecision = resolvePostInstallExperienceState({
+                  isAuthenticated: true,
+                  requiresIOSPwaInstall,
+                  needsSmartOnboarding: false,
+                  isNewAccount,
+                  welcomeCardSeenInDb: normalizedUser?.welcome_card_seen === 1,
+                  globeIntroSeenInDb: normalizedUser?.globe_intro_seen === 1,
+                  mapTutorialStatusInDb: normalizedUser?.map_tutorial_status,
+                  localWelcomePending,
+                  localWelcomeSeen,
+                  localGlobePending,
+                  localGlobeSeen,
+                });
+
+                if (!requiresIOSPwaInstall) {
+                  if (!postInstallDecision.showFirstSignupWelcome) {
+                    try {
+                      (window as any).__monvianReplayLogoPreloader?.();
+                    } catch {}
+                  }
+                  void startPreloadResources(true);
+                }
+
+                setShowFirstSignupWelcome(postInstallDecision.showFirstSignupWelcome);
+                globeIntroSourceRef.current = postInstallDecision.globeIntroSource;
+                hasStartedAppOpenGlobeRef.current = postInstallDecision.isGlobeIntroPlaying;
+                setIsGlobeIntroPending(postInstallDecision.isGlobeIntroPending);
+                setIsGlobeIntroPlaying(postInstallDecision.isGlobeIntroPlaying);
               }
 
               if (isNewAccount) {
