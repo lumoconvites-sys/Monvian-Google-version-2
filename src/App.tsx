@@ -4282,7 +4282,8 @@ export default function App() {
         !isMapOrbiting &&
         !isUserLocationSpotlightActive &&
         !showFirstSignupWelcome &&
-        !isGlobeIntroPlaying && (
+        !isGlobeIntroPlaying &&
+        !isWeatherModalOpen && (
           <header
             aria-label="Informações de Campos do Jordão"
             className="md:hidden absolute top-0 left-0 right-0 z-40 pointer-events-none px-4 sm:px-6"
@@ -4916,6 +4917,7 @@ export default function App() {
       !showFirstSignupWelcome &&
       !isGlobeIntroPending &&
       !isGlobeIntroPlaying &&
+      !isWeatherModalOpen &&
       !(activeTab === 'perfil' && isMyItinerariesSubViewActive) && (
         <div
           key="bottom-nav-shell"

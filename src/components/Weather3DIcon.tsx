@@ -303,12 +303,23 @@ export const Weather3DIcon: React.FC<Weather3DIconProps> = ({
               <stop offset="0%" stopColor="#FEF3C7" stopOpacity="0.55" />
               <stop offset="100%" stopColor="#FEF3C7" stopOpacity="0" />
             </radialGradient>
+            <radialGradient id={`${uid}-partMoonGlow`} cx="50%" cy="50%" r="50%">
+              <stop offset="0%" stopColor="#FEF08A" stopOpacity="0.48" />
+              <stop offset="65%" stopColor="#F59E0B" stopOpacity="0.12" />
+              <stop offset="100%" stopColor="#F59E0B" stopOpacity="0" />
+            </radialGradient>
+            <linearGradient id={`${uid}-partMoonGrad`} x1="15%" y1="10%" x2="88%" y2="92%">
+              <stop offset="0%" stopColor="#FFFBEB" />
+              <stop offset="32%" stopColor="#FDE68A" />
+              <stop offset="72%" stopColor="#F59E0B" />
+              <stop offset="100%" stopColor="#B45309" />
+            </linearGradient>
             <filter id={`${uid}-cloudShadowPart`} x="-15%" y="-15%" width="130%" height="140%">
               <feDropShadow dx="0" dy="8" stdDeviation="5.5" floodColor="#0F172A" floodOpacity="0.24" />
             </filter>
           </defs>
 
-          {/* Peeking Plush 3D Sun (or Soft Moon at night) */}
+          {/* Peeking Plush 3D Sun (or Volumetric 3D Moon at night) */}
           {isDay ? (
             <g transform="translate(8, 6)">
               <circle cx="42" cy="42" r="38" fill={`url(#${uid}-partSunGlow)`} />
@@ -336,10 +347,25 @@ export const Weather3DIcon: React.FC<Weather3DIconProps> = ({
               />
             </g>
           ) : (
-            <g transform="translate(14, 10)">
+            <g transform="translate(6, 4)">
+              <circle cx="44" cy="40" r="34" fill={`url(#${uid}-partMoonGlow)`} />
               <path
-                d="M44 10C28 10 16 22 16 38C16 54 28 66 44 66C52 66 58 63 63 58C51 58 40 48 40 36C40 24 51 15 63 15C58 12 51 10 44 10Z"
-                fill="#E2E8F0"
+                d="M46 10C29 10 16 23 16 40C16 57 29 70 46 70C54 70 61 67 66 61C53 61 42 51 42 38C42 25 53 16 66 16C60 12 53 10 46 10Z"
+                fill={`url(#${uid}-partMoonGrad)`}
+              />
+              <ellipse
+                cx="30"
+                cy="27"
+                rx="7"
+                ry="3.6"
+                fill="#FFFFFF"
+                opacity="0.6"
+                transform="rotate(-32 30 27)"
+              />
+              <path
+                d="M72 18L73.6 21.4L77 23L73.6 24.6L72 28L70.4 24.6L67 23L70.4 21.4Z"
+                fill="#FEF08A"
+                opacity="0.9"
               />
             </g>
           )}

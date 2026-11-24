@@ -11,10 +11,10 @@ import {
 } from './Weather3DIcon';
 import { triggerHapticFeedback } from '../utils/haptics';
 
-import weatherOutfitCold from '../assets/images/weather_outfit_cold_1795483893978.jpg';
-import weatherOutfitLayers from '../assets/images/weather_outfit_layers_1795483894104.jpg';
-import weatherOutfitRain from '../assets/images/weather_outfit_rain_1795483895365.jpg';
-import weatherOutfitMild from '../assets/images/weather_outfit_mild_1795483894998.jpg';
+import weatherOutfitCold from '../assets/images/weather_outfit_cold.png';
+import weatherOutfitLayers from '../assets/images/weather_outfit_layers.png';
+import weatherOutfitRain from '../assets/images/weather_outfit_rain.png';
+import weatherOutfitMild from '../assets/images/weather_outfit_mild.png';
 
 export interface RealWeatherSnapshot {
   temperature: number;
@@ -408,12 +408,11 @@ export const DesktopExploreClothingBanner: React.FC<DesktopClothingBannerProps> 
       }}
     >
       <div className="flex items-center gap-3 min-w-0">
-        <div className="w-11 h-11 rounded-xl overflow-hidden shrink-0 border border-white/10 bg-[#2C3138]">
+        <div className="w-11 h-11 shrink-0 flex items-center justify-center">
           <img
             src={rec.image}
             alt={rec.title}
-            referrerPolicy="no-referrer"
-            className="w-full h-full object-cover"
+            className="w-full h-full object-contain drop-shadow-[0_4px_8px_rgba(0,0,0,0.22)]"
           />
         </div>
 
@@ -497,38 +496,56 @@ export const ClothingWeatherModal: React.FC<ClothingWeatherModalProps> = ({
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [isOpen, onClose]);
 
-  const cardSurfaceClass = useDarkGlass
-    ? 'bg-[#2C313A]/62 border-white/[0.24] text-white shadow-[0_20px_50px_rgba(0,0,0,0.36),inset_0_1px_0_rgba(255,255,255,0.28)]'
-    : 'bg-white/78 border-white/85 text-zinc-950 shadow-[0_18px_46px_rgba(15,23,42,0.14),inset_0_1px_0_rgba(255,255,255,0.9)]';
+  // Luminous silver-slate translucent iOS 26 Liquid Glass over satellite/dark map,
+  // and crystal frosted glass over light map.
+  const glassCardStyle: React.CSSProperties = useDarkGlass
+    ? {
+        background:
+          'linear-gradient(150deg, rgba(188, 196, 206, 0.34) 0%, rgba(114, 122, 132, 0.28) 48%, rgba(142, 150, 160, 0.34) 100%)',
+        backdropFilter: 'blur(26px) saturate(150%) brightness(1.06)',
+        WebkitBackdropFilter: 'blur(26px) saturate(150%) brightness(1.06)',
+        border: '1px solid rgba(255, 255, 255, 0.34)',
+        boxShadow:
+          '0 18px 42px rgba(0, 0, 0, 0.16), inset 0 1.5px 1px rgba(255, 255, 255, 0.44), inset 0 -1px 1.5px rgba(255, 255, 255, 0.18), inset 1px 0 1px rgba(255, 255, 255, 0.22)',
+      }
+    : {
+        background:
+          'linear-gradient(150deg, rgba(255, 255, 255, 0.64) 0%, rgba(242, 245, 250, 0.52) 50%, rgba(255, 255, 255, 0.62) 100%)',
+        backdropFilter: 'blur(26px) saturate(160%) brightness(1.03)',
+        WebkitBackdropFilter: 'blur(26px) saturate(160%) brightness(1.03)',
+        border: '1px solid rgba(255, 255, 255, 0.80)',
+        boxShadow:
+          '0 16px 38px rgba(15, 23, 42, 0.11), inset 0 1.5px 1px rgba(255, 255, 255, 0.92), inset 0 -1px 1px rgba(255, 255, 255, 0.48)',
+      };
 
-  const secondaryTextClass = useDarkGlass ? 'text-white/72' : 'text-zinc-600';
-  const metricLabelClass = useDarkGlass ? 'text-white/74' : 'text-zinc-500';
-  const metricValueClass = useDarkGlass ? 'text-white' : 'text-zinc-950';
+  const primaryTextClass = useDarkGlass ? 'text-white' : 'text-zinc-950';
+  const secondaryTextClass = useDarkGlass ? 'text-white/80' : 'text-zinc-600';
+  const metricLabelClass = useDarkGlass ? 'text-white/80' : 'text-zinc-600';
 
   const detailMetrics = [
     {
       id: 'min',
       label: rec.minLabel,
       value: `${minTemp}°C`,
-      icon: <ThermometerMin3DIcon className="w-8 h-8 sm:w-9 sm:h-9" />,
+      icon: <ThermometerMin3DIcon className="w-7 h-7 sm:w-8 sm:h-8" />,
     },
     {
       id: 'max',
       label: rec.maxLabel,
       value: `${maxTemp}°C`,
-      icon: <ThermometerMax3DIcon className="w-8 h-8 sm:w-9 sm:h-9" />,
+      icon: <ThermometerMax3DIcon className="w-7 h-7 sm:w-8 sm:h-8" />,
     },
     {
       id: 'humidity',
       label: rec.humidityLabel,
       value: `${humidity}%`,
-      icon: <HumidityDrop3DIcon className="w-8 h-8 sm:w-9 sm:h-9" />,
+      icon: <HumidityDrop3DIcon className="w-7 h-7 sm:w-8 sm:h-8" />,
     },
     {
       id: 'wind',
       label: rec.windLabel,
       value: `${windSpeed} km/h`,
-      icon: <WindFlow3DIcon className="w-8 h-8 sm:w-9 sm:h-9" />,
+      icon: <WindFlow3DIcon className="w-7 h-7 sm:w-8 sm:h-8" />,
     },
   ];
 
@@ -545,21 +562,24 @@ export const ClothingWeatherModal: React.FC<ClothingWeatherModalProps> = ({
           exit={{ opacity: 0 }}
           transition={{ duration: 0.24, ease: [0.22, 1, 0.36, 1] }}
           onClick={onClose}
-          className={`fixed inset-0 z-[85] flex items-center justify-center px-4 sm:px-6 select-none backdrop-blur-[10px] ${
-            useDarkGlass ? 'bg-black/26' : 'bg-white/24'
-          }`}
+          className="fixed inset-0 z-[260] flex items-center justify-center px-4 sm:px-6 select-none"
           style={{
             fontFamily:
               '-apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro Text", sans-serif',
+            backgroundColor: useDarkGlass
+              ? 'rgba(14, 18, 24, 0.08)'
+              : 'rgba(255, 255, 255, 0.14)',
+            backdropFilter: 'blur(5px)',
+            WebkitBackdropFilter: 'blur(5px)',
             paddingTop: 'max(24px, calc(env(safe-area-inset-top, 0px) + 20px))',
             paddingBottom: 'max(24px, calc(env(safe-area-inset-bottom, 0px) + 20px))',
           }}
         >
           <motion.div
             id="clothing-weather-modal-sheet"
-            initial={{ opacity: 0, y: 22, scale: 0.96 }}
+            initial={{ opacity: 0, y: 20, scale: 0.96 }}
             animate={{ opacity: 1, y: 0, scale: 1 }}
-            exit={{ opacity: 0, y: 16, scale: 0.96 }}
+            exit={{ opacity: 0, y: 14, scale: 0.96 }}
             transition={{
               type: 'spring',
               stiffness: 360,
@@ -567,45 +587,42 @@ export const ClothingWeatherModal: React.FC<ClothingWeatherModalProps> = ({
               mass: 0.85,
             }}
             onClick={(e) => e.stopPropagation()}
-            className="w-full max-w-[390px] sm:max-w-[440px] flex flex-col gap-3.5 sm:gap-4"
+            className="w-full max-w-[388px] sm:max-w-[436px] flex flex-col gap-3.5 sm:gap-4"
           >
-            {/* 1. DOMINANT MAIN WEATHER HERO GLASS CARD */}
+            {/* 1. DOMINANT MAIN WEATHER HERO LIQUID GLASS CARD */}
             <motion.section
               aria-label={`${currentTemp}°C`}
               initial={{ opacity: 0, y: 10 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.28, ease: [0.22, 1, 0.36, 1] }}
-              className={`w-full rounded-[32px] border backdrop-blur-2xl px-6 py-7 sm:px-8 sm:py-8 flex items-center justify-between gap-4 ${cardSurfaceClass}`}
+              style={glassCardStyle}
+              className={`w-full rounded-[34px] px-6 py-6 sm:px-8 sm:py-7 flex items-center justify-between gap-4 ${primaryTextClass}`}
             >
-              {/* Large 3D Weather Condition Icon */}
+              {/* Large Volumetric 3D Weather Condition Icon */}
               <div className="flex-1 flex items-center justify-center">
                 <Weather3DIcon
                   weatherCode={weather.weatherCode}
                   isDay={weather.isDay}
-                  className="w-[122px] h-[122px] sm:w-[138px] sm:h-[138px]"
+                  className="w-[128px] h-[128px] sm:w-[144px] sm:h-[144px]"
                 />
               </div>
 
               {/* Dominant Temperature & Secondary Feels-Like */}
               <div className="flex-1 flex flex-col items-start justify-center pl-1 sm:pl-2">
                 <span
-                  className={`text-[70px] sm:text-[80px] font-bold tracking-[-0.045em] leading-[0.92] tabular-nums ${
-                    useDarkGlass ? 'text-white' : 'text-zinc-950'
-                  }`}
+                  className={`text-[74px] sm:text-[84px] font-bold tracking-[-0.04em] leading-[0.9] tabular-nums drop-shadow-[0_2px_10px_rgba(0,0,0,0.12)] ${primaryTextClass}`}
                 >
                   {currentTemp}°
                 </span>
 
                 <div className="mt-3 flex flex-col">
                   <span
-                    className={`text-[13.5px] sm:text-[14.5px] font-medium tracking-[-0.01em] leading-snug ${secondaryTextClass}`}
+                    className={`text-[13.5px] sm:text-[14.5px] font-normal tracking-[-0.01em] leading-snug ${secondaryTextClass}`}
                   >
                     {rec.feelsLikeLabel}
                   </span>
                   <span
-                    className={`text-[19px] sm:text-[21px] font-semibold tracking-[-0.02em] leading-tight mt-0.5 tabular-nums ${
-                      useDarkGlass ? 'text-white' : 'text-zinc-950'
-                    }`}
+                    className={`text-[19px] sm:text-[21px] font-semibold tracking-[-0.02em] leading-tight mt-0.5 tabular-nums ${primaryTextClass}`}
                   >
                     {feelsLike}°C
                   </span>
@@ -624,18 +641,19 @@ export const ClothingWeatherModal: React.FC<ClothingWeatherModalProps> = ({
               {detailMetrics.map((metric) => (
                 <div
                   key={metric.id}
-                  className={`rounded-[24px] border backdrop-blur-2xl py-4 px-1.5 sm:py-5 sm:px-2 flex flex-col items-center justify-center text-center gap-1.5 ${cardSurfaceClass}`}
+                  style={glassCardStyle}
+                  className={`rounded-[24px] py-3.5 px-1.5 sm:py-4 sm:px-2 flex flex-col items-center justify-center text-center gap-1 ${primaryTextClass}`}
                 >
                   <div className="flex items-center justify-center mb-0.5">
                     {metric.icon}
                   </div>
                   <span
-                    className={`text-[12px] sm:text-[13px] font-medium tracking-[-0.01em] leading-none whitespace-nowrap ${metricLabelClass}`}
+                    className={`text-[12px] sm:text-[13px] font-normal tracking-[-0.01em] leading-none whitespace-nowrap ${metricLabelClass}`}
                   >
                     {metric.label}
                   </span>
                   <span
-                    className={`text-[15.5px] sm:text-[17px] font-bold tracking-[-0.02em] leading-tight tabular-nums whitespace-nowrap mt-0.5 ${metricValueClass}`}
+                    className={`text-[15px] sm:text-[16.5px] font-bold tracking-[-0.02em] leading-tight tabular-nums whitespace-nowrap mt-0.5 ${primaryTextClass}`}
                   >
                     {metric.value}
                   </span>
@@ -643,31 +661,25 @@ export const ClothingWeatherModal: React.FC<ClothingWeatherModalProps> = ({
               ))}
             </motion.section>
 
-            {/* 3. VISUAL DYNAMIC CLOTHING RECOMMENDATION CARD */}
+            {/* 3. VISUAL DYNAMIC CLOTHING RECOMMENDATION CARD (FLOATING TRANSPARENT CUTOUT) */}
             <motion.section
               aria-label={rec.title}
               initial={{ opacity: 0, y: 14 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.32, delay: 0.08, ease: [0.22, 1, 0.36, 1] }}
-              className={`w-full rounded-[30px] border backdrop-blur-2xl p-3.5 sm:p-4.5 flex items-center gap-4 sm:gap-5 ${cardSurfaceClass}`}
+              style={glassCardStyle}
+              className={`w-full rounded-[34px] px-5 py-4 sm:px-6 sm:py-5 flex items-center gap-4 sm:gap-5 ${primaryTextClass}`}
             >
-              {/* Integrated High-Fidelity Clothing Visual */}
-              <div
-                className={`w-[96px] h-[96px] sm:w-[108px] sm:h-[108px] rounded-[20px] overflow-hidden shrink-0 border flex items-center justify-center ${
-                  useDarkGlass
-                    ? 'bg-[#363B42] border-white/[0.14]'
-                    : 'bg-[#2F343B] border-black/[0.08]'
-                }`}
-              >
+              {/* Pure Transparent Floating Clothing Cutout — Zero Background Box */}
+              <div className="w-[100px] h-[100px] sm:w-[114px] sm:h-[114px] shrink-0 flex items-center justify-center">
                 {!imgFailed ? (
                   <img
                     src={rec.image}
                     alt={rec.title}
                     loading="eager"
                     decoding="async"
-                    referrerPolicy="no-referrer"
                     onError={() => setImgFailed(true)}
-                    className="w-full h-full object-cover select-none scale-[1.03]"
+                    className="w-full h-full object-contain select-none drop-shadow-[0_10px_18px_rgba(0,0,0,0.32)]"
                   />
                 ) : (
                   <CoatLinearIcon className="w-10 h-10 text-white/80" />
@@ -675,11 +687,9 @@ export const ClothingWeatherModal: React.FC<ClothingWeatherModalProps> = ({
               </div>
 
               {/* Short, Direct Clothing Recommendation */}
-              <div className="flex-1 min-w-0 pr-1.5">
+              <div className="flex-1 min-w-0 pr-1">
                 <h3
-                  className={`text-[17px] sm:text-[18.5px] font-bold tracking-[-0.02em] leading-snug ${
-                    useDarkGlass ? 'text-white' : 'text-zinc-950'
-                  }`}
+                  className={`text-[17.5px] sm:text-[19px] font-bold tracking-[-0.018em] leading-snug ${primaryTextClass}`}
                 >
                   {rec.title}
                 </h3>
