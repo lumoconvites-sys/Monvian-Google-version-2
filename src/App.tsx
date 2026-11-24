@@ -40,6 +40,19 @@ import { isPresentationCardSeen, markPresentationCardSeen, type PresentationTab 
 import { persistUserToFirestore, syncPermissionsFromDatabase, markWelcomeCardSeen, markGlobeIntroSeen, updateMapTutorialStatusInDb } from './services/firestoreSync';
 import { fetchSpotsFromSupabase, subscribeToSpotsChanges } from './services/supabaseSpots';
 import { broadcastPlatanosWalletUpdate, getAuthHeaders } from './hooks/usePlatanos';
+import { PushAlertBanner } from './components/PushAlertBanner';
+import {
+  enablePushNotifications,
+  disablePushNotifications,
+  updatePushPreferences,
+  syncPushStatusFromServer,
+  fetchRecentPushAlerts,
+  subscribeToPushAlerts,
+  getSavedPushPreferences,
+  markPushAlertIdsAsRead,
+  type PushAlertItem,
+  type PushPreferences,
+} from './services/fcmPushService';
 import type { SignupIntroStage } from './components/SignupIntroSequence';
 import { IOSInteractiveBackSystem } from './components/IOSInteractiveBackSystem';
 import { useIOSBackEntry, iosNavigationManager } from './services/iosNavigationManager';
@@ -1478,13 +1491,12 @@ export default function App() {
     applySystemThemeColor(currentAdaptiveColor);
   }, [currentAdaptiveColor]);
 
-  // Handle URL deep link from QR Code (?spot=spotId)
+  // Handle URL deep link from QR Code or Push Notifications (?spot=spotId)
   useEffect(() => {
     try {
       const params = new URLSearchParams(window.location.search);
-      if (spots.length === 0) return;
       const spotParam = params.get('spot');
-      if (spotParam) {
+      if (spotParam && spots.length > 0) {
         const found = spots.find(
           (s) =>
             s.id.toLowerCase() === spotParam.toLowerCase() ||
@@ -1581,6 +1593,11 @@ export default function App() {
   // Real Weather State from Open-Meteo for Campos do Jordão
   const [realWeather, setRealWeather] = useState<{
     temperature: number;
+    feelsLike?: number;
+    minTemp?: number;
+    maxTemp?: number;
+    humidity?: number;
+    windSpeed?: number;
     condition: string;
     isDay: boolean;
     weatherCode: number;
@@ -1596,6 +1613,11 @@ export default function App() {
         if (typeof parsed.temperature === 'number' && parsed.condition) {
           return {
             temperature: parsed.temperature,
+            feelsLike: typeof parsed.feelsLike === 'number' ? parsed.feelsLike : undefined,
+            minTemp: typeof parsed.minTemp === 'number' ? parsed.minTemp : undefined,
+            maxTemp: typeof parsed.maxTemp === 'number' ? parsed.maxTemp : undefined,
+            humidity: typeof parsed.humidity === 'number' ? parsed.humidity : undefined,
+            windSpeed: typeof parsed.windSpeed === 'number' ? parsed.windSpeed : undefined,
             condition: parsed.condition,
             isDay: parsed.isDay ?? true,
             weatherCode: parsed.weatherCode ?? 2,
@@ -1609,6 +1631,11 @@ export default function App() {
     } catch {}
     return {
       temperature: 17,
+      feelsLike: 16,
+      minTemp: 12,
+      maxTemp: 20,
+      humidity: 78,
+      windSpeed: 8,
       condition: 'Parcialmente nublado',
       isDay: true,
       weatherCode: 2,
@@ -1642,7 +1669,7 @@ export default function App() {
         timeoutId = window.setTimeout(() => controller.abort(), 5000);
 
         const res = await fetch(
-          'https://api.open-meteo.com/v1/forecast?latitude=-22.7394&longitude=-45.5914&current=temperature_2m,relative_humidity_2m,is_day,weather_code,precipitation,rain,showers&timezone=America%2FSao_Paulo',
+          'https://api.open-meteo.com/v1/forecast?latitude=-22.7394&longitude=-45.5914&current=temperature_2m,apparent_temperature,relative_humidity_2m,wind_speed_10m,is_day,weather_code,precipitation,rain,showers&daily=temperature_2m_min,temperature_2m_max&forecast_days=1&timezone=America%2FSao_Paulo',
           { signal: controller.signal, cache: 'no-cache' }
         );
         if (timeoutId) {
@@ -1718,8 +1745,32 @@ export default function App() {
             }
           }
 
+          const feelsLikeVal =
+            typeof data.current.apparent_temperature === 'number'
+              ? Math.round(data.current.apparent_temperature)
+              : temp - (temp <= 14 ? 2 : 1);
+          const humidityVal =
+            typeof data.current.relative_humidity_2m === 'number'
+              ? Math.round(data.current.relative_humidity_2m)
+              : undefined;
+          const windSpeedVal =
+            typeof data.current.wind_speed_10m === 'number'
+              ? Math.round(data.current.wind_speed_10m)
+              : undefined;
+          const dailyMinRaw = data.daily?.temperature_2m_min?.[0];
+          const dailyMaxRaw = data.daily?.temperature_2m_max?.[0];
+          const minTempVal =
+            typeof dailyMinRaw === 'number' ? Math.round(dailyMinRaw) : undefined;
+          const maxTempVal =
+            typeof dailyMaxRaw === 'number' ? Math.round(dailyMaxRaw) : undefined;
+
           const newWeather = {
             temperature: temp,
+            feelsLike: feelsLikeVal,
+            minTemp: minTempVal,
+            maxTemp: maxTempVal,
+            humidity: humidityVal,
+            windSpeed: windSpeedVal,
             condition: cond,
             isDay,
             weatherCode: wcode,
@@ -3477,6 +3528,196 @@ export default function App() {
   const handleProfileLogout = useCallback(() => {
     performFullLogout({ redirectToLogin: true });
   }, [performFullLogout]);
+
+  // =========================================================================
+  // FIREBASE CLOUD MESSAGING (FCM) PUSH NOTIFICATIONS STATE & LIFECYCLE
+  // =========================================================================
+  const [pushPreferences, setPushPreferences] = useState<PushPreferences>(() =>
+    getSavedPushPreferences(user)
+  );
+  const [pushAlerts, setPushAlerts] = useState<PushAlertItem[]>([]);
+  const [activePushBanner, setActivePushBanner] = useState<PushAlertItem | null>(null);
+  const [pushBusy, setPushBusy] = useState(false);
+  const [pushStatusMessage, setPushStatusMessage] = useState<string | null>(null);
+
+  const handleOpenItineraryById = useCallback(
+    async (itineraryId: string) => {
+      if (!itineraryId) {
+        setActiveTab('roteiros');
+        return;
+      }
+      try {
+        const res = await fetch(`/api/itineraries/${encodeURIComponent(itineraryId)}`);
+        if (res.ok) {
+          const data = await res.json();
+          const itin = data?.itinerary || (data?.id ? data : null);
+          if (itin && itin.id) {
+            handleOpenItineraryOnMap(itin);
+            return;
+          }
+        }
+      } catch {}
+      setActiveTab('roteiros');
+    },
+    [handleOpenItineraryOnMap]
+  );
+
+  const handleMarkPushAlertsRead = useCallback(
+    (ids?: string[]) => {
+      setPushAlerts((prev) => {
+        const targetIds = ids && ids.length > 0 ? ids : prev.map((a) => a.id);
+        markPushAlertIdsAsRead(targetIds, user);
+        const idSet = new Set(targetIds);
+        return prev.map((a) => (idSet.has(a.id) ? { ...a, isRead: true } : a));
+      });
+    },
+    [user]
+  );
+
+  const handleSelectPushAlert = useCallback(
+    (alert: PushAlertItem) => {
+      handleMarkPushAlertsRead([alert.id]);
+      if (alert.type === 'itinerary_update' && alert.itineraryId) {
+        void handleOpenItineraryById(alert.itineraryId);
+        return;
+      }
+      if (alert.spotId) {
+        const matched = spots.find(
+          (s) => s.id.toLowerCase() === alert.spotId!.toLowerCase()
+        );
+        if (matched) {
+          handleSelectSpotAndReturnExplore(matched);
+          return;
+        }
+      }
+      if (alert.type === 'itinerary_update') {
+        setActiveTab('roteiros');
+      } else {
+        setActiveTab('explorar');
+      }
+    },
+    [spots, handleMarkPushAlertsRead, handleOpenItineraryById, handleSelectSpotAndReturnExplore]
+  );
+
+  const handleTogglePushMaster = useCallback(
+    async (enabled: boolean) => {
+      setPushBusy(true);
+      setPushStatusMessage(null);
+      try {
+        if (enabled) {
+          const result = await enablePushNotifications(user, pushPreferences);
+          setPushPreferences(result.preferences);
+          setPushStatusMessage(result.message);
+        } else {
+          const updated = await disablePushNotifications(user);
+          setPushPreferences(updated);
+          setPushStatusMessage('Notificações Push desativadas.');
+        }
+      } finally {
+        setPushBusy(false);
+      }
+    },
+    [user, pushPreferences]
+  );
+
+  const handleTogglePushNewSpots = useCallback(
+    async (newSpots: boolean) => {
+      const next: PushPreferences = { ...pushPreferences, newSpots };
+      setPushPreferences(next);
+      await updatePushPreferences(next, user);
+    },
+    [user, pushPreferences]
+  );
+
+  const handleTogglePushItineraryUpdates = useCallback(
+    async (itineraryUpdates: boolean) => {
+      const next: PushPreferences = { ...pushPreferences, itineraryUpdates };
+      setPushPreferences(next);
+      await updatePushPreferences(next, user);
+    },
+    [user, pushPreferences]
+  );
+
+  useEffect(() => {
+    if (!isAuthenticated || !user) {
+      setPushAlerts([]);
+      setActivePushBanner(null);
+      return;
+    }
+
+    let cancelled = false;
+    setPushPreferences(getSavedPushPreferences(user));
+
+    syncPushStatusFromServer(user)
+      .then((prefs) => {
+        if (!cancelled) setPushPreferences(prefs);
+      })
+      .catch(() => {});
+
+    fetchRecentPushAlerts(user, 25)
+      .then((alerts) => {
+        if (!cancelled && alerts.length > 0) {
+          setPushAlerts(alerts);
+        }
+      })
+      .catch(() => {});
+
+    const unsubscribe = subscribeToPushAlerts({
+      user,
+      onAlertsListUpdated: (list) => {
+        if (!cancelled) {
+          setPushAlerts(list);
+        }
+      },
+      onAlertReceived: (alert) => {
+        if (cancelled) return;
+        setPushAlerts((prev) => [alert, ...prev.filter((item) => item.id !== alert.id)]);
+        setActivePushBanner(alert);
+      },
+    });
+
+    return () => {
+      cancelled = true;
+      unsubscribe();
+    };
+  }, [isAuthenticated, user]);
+
+  // Handle Service Worker notification click postMessage (spotId or itineraryId)
+  useEffect(() => {
+    if (typeof navigator === 'undefined' || !('serviceWorker' in navigator)) return;
+    const onSwMessage = (event: MessageEvent) => {
+      const msg = event.data;
+      if (!msg || msg.type !== 'MONVIAN_NOTIFICATION_CLICK') return;
+      if (msg.itineraryId) {
+        void handleOpenItineraryById(String(msg.itineraryId));
+        return;
+      }
+      if (msg.spotId) {
+        const matched = spots.find(
+          (s) => s.id.toLowerCase() === String(msg.spotId).toLowerCase()
+        );
+        if (matched) {
+          handleSelectSpotAndReturnExplore(matched);
+        }
+      }
+    };
+    navigator.serviceWorker.addEventListener('message', onSwMessage);
+    return () => {
+      navigator.serviceWorker.removeEventListener('message', onSwMessage);
+    };
+  }, [spots, handleOpenItineraryById, handleSelectSpotAndReturnExplore]);
+
+  // Handle URL deep link from Push Notifications (?itinerary=itineraryId)
+  useEffect(() => {
+    if (!isAuthenticated) return;
+    try {
+      const params = new URLSearchParams(window.location.search);
+      const itineraryParam = params.get('itinerary');
+      if (itineraryParam) {
+        void handleOpenItineraryById(itineraryParam);
+      }
+    } catch {}
+  }, [isAuthenticated, handleOpenItineraryById]);
   const handleNoop = useCallback(() => {}, []);
   const handleDesktopSelectCategory = useCallback(
     (catId: string) => {
@@ -4429,10 +4670,27 @@ export default function App() {
                 }
               }}
               openMyItinerariesSignal={openMyItinerariesSignal}
+              pushAlerts={pushAlerts}
+              pushPreferences={pushPreferences}
+              pushBusy={pushBusy}
+              pushStatusMessage={pushStatusMessage}
+              onTogglePushMaster={handleTogglePushMaster}
+              onTogglePushNewSpots={handleTogglePushNewSpots}
+              onTogglePushItineraryUpdates={handleTogglePushItineraryUpdates}
+              onMarkPushAlertsRead={handleMarkPushAlertsRead}
+              onSelectItineraryById={handleOpenItineraryById}
             />
           </Suspense>
         </motion.div>
       )}
+
+      {/* Foreground FCM Push Notification Banner (New Spots & Itinerary Updates) */}
+      <PushAlertBanner
+        alert={activePushBanner}
+        onDismiss={() => setActivePushBanner(null)}
+        onSelectAlert={handleSelectPushAlert}
+        theme={theme}
+      />
 
     </main>
         );
@@ -4455,6 +4713,7 @@ export default function App() {
           onClose={() => setIsWeatherModalOpen(false)}
           weather={realWeather}
           theme={theme}
+          isSatellite={isSatelliteExplore}
         />
       </Suspense>
     )}

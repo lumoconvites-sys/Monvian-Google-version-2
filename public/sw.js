@@ -262,13 +262,24 @@ self.addEventListener('fetch', (event) => {
   );
 });
 
-// Handle native iOS / Web notification click to open the corresponding tourist spot details
+// Handle native iOS / Web notification click to open the corresponding tourist spot or itinerary
 self.addEventListener('notificationclick', (event) => {
   event.notification.close();
 
   const data = event.notification.data || {};
-  const spotId = data.spotId || '';
-  const targetUrl = data.url || (spotId ? `/?spot=${encodeURIComponent(spotId)}` : '/');
+  const spotId = data.spotId ? String(data.spotId) : '';
+  const itineraryId = data.itineraryId ? String(data.itineraryId) : '';
+  const alertType = data.alertType ? String(data.alertType) : '';
+  const rawUrl = typeof data.url === 'string' && data.url.startsWith('/') && !data.url.startsWith('//')
+    ? data.url
+    : '';
+  const targetUrl =
+    rawUrl ||
+    (spotId
+      ? `/?spot=${encodeURIComponent(spotId)}`
+      : itineraryId
+        ? `/?itinerary=${encodeURIComponent(itineraryId)}`
+        : '/');
 
   event.waitUntil(
     self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then((clientList) => {
@@ -278,6 +289,8 @@ self.addEventListener('notificationclick', (event) => {
           client.postMessage({
             type: 'MONVIAN_NOTIFICATION_CLICK',
             spotId,
+            itineraryId,
+            alertType,
           });
           return;
         }

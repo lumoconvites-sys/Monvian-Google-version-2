@@ -551,7 +551,14 @@ export function registerItineraryRoutes(
   getAuthUserSync: any,
   logAdminAction: any,
   getGenAI: any,
-  resolveAuthUserAsync?: (req: any) => Promise<any | null>
+  resolveAuthUserAsync?: (req: any) => Promise<any | null>,
+  onItineraryPushEvent?: (payload: {
+    action: 'created' | 'updated';
+    id: string;
+    title: string;
+    description?: string;
+    coverImage?: string;
+  }) => void
 ) {
   const resolveItineraryUser = async (req: any) => {
     try {
@@ -1444,6 +1451,18 @@ export function registerItineraryRoutes(
         console.warn('[ItineraryRoutes] Supabase sync itin notice:', e)
       );
 
+      if (finalActive === 1 && req.body?.notifyUsers !== false && onItineraryPushEvent) {
+        try {
+          onItineraryPushEvent({
+            action: 'created',
+            id,
+            title: String(title),
+            description: description ? String(description) : '',
+            coverImage: coverImage ? String(coverImage) : '',
+          });
+        } catch {}
+      }
+
       logAdminAction(userId, userName, 'Criou Roteiro Turístico', title);
       res.json({ success: true, id, message: 'Roteiro criado com sucesso' });
     } catch (err: any) {
@@ -1585,6 +1604,23 @@ export function registerItineraryRoutes(
       saveItineraryToSupabase({ ...req.body, id }, true).catch((e) =>
         console.warn('[ItineraryRoutes] Supabase sync itin notice:', e)
       );
+
+      if (req.body?.notifyUsers !== false && onItineraryPushEvent) {
+        try {
+          const updatedRow = db
+            .prepare('SELECT id, title, description, cover_image, is_active, status FROM itineraries WHERE id = ?')
+            .get(id) as any;
+          if (updatedRow && (updatedRow.is_active === 1 || updatedRow.status === 'published')) {
+            onItineraryPushEvent({
+              action: 'updated',
+              id: String(updatedRow.id),
+              title: String(updatedRow.title || title || 'Roteiro atualizado'),
+              description: updatedRow.description ? String(updatedRow.description) : '',
+              coverImage: updatedRow.cover_image ? String(updatedRow.cover_image) : '',
+            });
+          }
+        } catch {}
+      }
 
       logAdminAction(userId, userName, 'Editou Roteiro Turístico', `ID: ${id}`);
       res.json({ success: true, message: 'Roteiro atualizado com sucesso' });

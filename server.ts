@@ -14,6 +14,7 @@ import { syncStripeHistoryAndBalance } from './src/server/stripeDashboardService
 import { registerPlatanosRoutes, setupPlatanosDatabase } from './src/server/platanosRoutes.ts';
 import { registerXpRoutes } from './src/server/xpRoutes.ts';
 import { registerAssistantRoutes, setupAssistantDatabase } from './src/server/assistantRoutes.ts';
+import { registerPushRoutes, dispatchPushAlert } from './src/server/pushRoutes.ts';
 import { CAMPOS_SPOTS } from './src/data/spots.ts';
 import { supabase, supabaseAnonClient } from './src/services/supabaseClient.ts';
 import {
@@ -1013,13 +1014,40 @@ async function startServer() {
   };
 
   // Register modular feature routes
-  registerItineraryRoutes(app, db, getAuthUserSync, () => {}, () => null, (req: Request) => resolveAuthenticatedUser(req));
+  registerItineraryRoutes(
+    app,
+    db,
+    getAuthUserSync,
+    () => {},
+    () => null,
+    (req: Request) => resolveAuthenticatedUser(req),
+    (event) => {
+      const isNew = event.action === 'created';
+      dispatchPushAlert(db, {
+        type: 'itinerary_update',
+        title: isNew ? `Novo roteiro: ${event.title}` : `Roteiro atualizado: ${event.title}`,
+        body:
+          event.description?.trim() ||
+          (isNew
+            ? 'Um novo roteiro por Campos do Jordão já está disponível no Monvian.'
+            : 'Novas paradas e melhorias foram aplicadas neste roteiro.'),
+        itineraryId: event.id,
+        imageUrl: event.coverImage || null,
+      }).catch((err) => console.warn('[PushRoutes] Itinerary push notice:', err));
+    }
+  );
   registerSocialRoutes(app, db);
   registerStoryRoutes(app, db);
   registerStripeRoutes(app, db, (req) => resolveAuthenticatedUser(req));
   registerPlatanosRoutes(app, db, (req) => resolveAuthenticatedUser(req), (req) => isRequestAdmin(req));
   registerXpRoutes(app, db, (req) => resolveAuthenticatedUser(req));
   registerAssistantRoutes(app, db);
+  registerPushRoutes(
+    app,
+    db,
+    (req) => resolveAuthenticatedUser(req),
+    (req) => isRequestAdmin(req)
+  );
 
   // ===========================================================================
   // 1. AUTHENTICATION & SUPABASE AUTH ROUTES
@@ -3433,6 +3461,20 @@ async function startServer() {
       invalidateSpotsCache();
       await persistSpotToSupabase(createdRow);
       persistSpotToFirestore(formatted).catch(() => {});
+
+      if (isActiveInt === 1 && body.notifyUsers !== false) {
+        const spotDisplayName = String(formatted.name || body.name).trim();
+        const categoryText = String(formatted.categoryLabel || formatted.category || 'Campos do Jordão').trim();
+        dispatchPushAlert(db, {
+          type: 'new_spot',
+          title: `Novo local: ${spotDisplayName}`,
+          body:
+            String(formatted.description || '').trim() ||
+            `Explore ${spotDisplayName} (${categoryText}) agora no mapa do Monvian.`,
+          spotId: formatted.id,
+          imageUrl: formatted.image || null,
+        }).catch((err) => console.warn('[PushRoutes] New spot push notice:', err));
+      }
 
       return res.json({ success: true, spot: formatted });
     } catch (err: any) {

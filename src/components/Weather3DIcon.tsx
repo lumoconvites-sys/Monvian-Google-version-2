@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useId } from 'react';
 
 interface Weather3DIconProps {
   weatherCode?: number;
@@ -11,49 +11,59 @@ export const Weather3DIcon: React.FC<Weather3DIconProps> = ({
   isDay = true,
   className = 'w-12 h-12',
 }) => {
+  const uid = useId().replace(/:/g, '');
+
   // 1. Clear Sky (Sol / Lua Limpo)
   if (weatherCode === 0) {
     if (isDay) {
       return (
         <div className={`relative flex items-center justify-center shrink-0 ${className}`}>
-          <svg viewBox="0 0 100 100" className="w-full h-full filter drop-shadow-[0_6px_16px_rgba(251,191,36,0.55)]">
+          <svg
+            viewBox="0 0 120 120"
+            className="w-full h-full filter drop-shadow-[0_10px_22px_rgba(245,158,11,0.42)]"
+            aria-hidden="true"
+          >
             <defs>
-              <radialGradient id="sunGlow" cx="50%" cy="50%" r="50%">
-                <stop offset="0%" stopColor="#FFF59D" stopOpacity="0.8" />
-                <stop offset="60%" stopColor="#F59E0B" stopOpacity="0.4" />
-                <stop offset="100%" stopColor="#D97706" stopOpacity="0" />
+              <radialGradient id={`${uid}-sunGlow`} cx="50%" cy="50%" r="50%">
+                <stop offset="0%" stopColor="#FFF7B2" stopOpacity="0.68" />
+                <stop offset="60%" stopColor="#FBBF24" stopOpacity="0.22" />
+                <stop offset="100%" stopColor="#F59E0B" stopOpacity="0" />
               </radialGradient>
-              <radialGradient id="sunCore" cx="35%" cy="30%" r="65%">
-                <stop offset="0%" stopColor="#FFFFFF" />
-                <stop offset="20%" stopColor="#FEF08A" />
-                <stop offset="60%" stopColor="#F59E0B" />
-                <stop offset="100%" stopColor="#B45309" />
+              <radialGradient id={`${uid}-sunCore`} cx="35%" cy="28%" r="70%">
+                <stop offset="0%" stopColor="#FFFDE4" />
+                <stop offset="28%" stopColor="#FDE047" />
+                <stop offset="72%" stopColor="#F59E0B" />
+                <stop offset="100%" stopColor="#D97706" />
               </radialGradient>
-              <linearGradient id="rayGrad" x1="0%" y1="0%" x2="0%" y2="100%">
+              <linearGradient id={`${uid}-rayGrad`} x1="0%" y1="0%" x2="0%" y2="100%">
                 <stop offset="0%" stopColor="#FEF08A" />
                 <stop offset="100%" stopColor="#F59E0B" />
               </linearGradient>
             </defs>
-            {/* Outer Glow */}
-            <circle cx="50" cy="50" r="44" fill="url(#sunGlow)" />
-            {/* 3D Beveled Sun Rays */}
-            {[0, 45, 90, 135, 180, 225, 270, 315].map((deg) => (
+
+            <circle cx="60" cy="60" r="54" fill={`url(#${uid}-sunGlow)`} />
+            {[0, 36, 72, 108, 144, 180, 216, 252, 288, 324].map((deg) => (
               <rect
                 key={deg}
-                x="47"
-                y="10"
-                width="6"
+                x="56.5"
+                y="11"
+                width="7"
                 height="16"
-                rx="3"
-                fill="url(#rayGrad)"
-                transform={`rotate(${deg} 50 50)`}
-                className="origin-center"
+                rx="3.5"
+                fill={`url(#${uid}-rayGrad)`}
+                transform={`rotate(${deg} 60 60)`}
               />
             ))}
-            {/* 3D Sun Center Sphere */}
-            <circle cx="50" cy="50" r="24" fill="url(#sunCore)" />
-            {/* Glossy Top Specular Highlight */}
-            <ellipse cx="43" cy="38" rx="10" ry="6" fill="#FFFFFF" opacity="0.65" transform="rotate(-20 43 38)" />
+            <circle cx="60" cy="60" r="29" fill={`url(#${uid}-sunCore)`} />
+            <ellipse
+              cx="50"
+              cy="46"
+              rx="13"
+              ry="7.5"
+              fill="#FFFFFF"
+              opacity="0.58"
+              transform="rotate(-24 50 46)"
+            />
           </svg>
         </div>
       );
@@ -62,32 +72,33 @@ export const Weather3DIcon: React.FC<Weather3DIconProps> = ({
     // Clear Night Moon
     return (
       <div className={`relative flex items-center justify-center shrink-0 ${className}`}>
-        <svg viewBox="0 0 100 100" className="w-full h-full filter drop-shadow-[0_6px_18px_rgba(165,243,252,0.4)]">
+        <svg
+          viewBox="0 0 120 120"
+          className="w-full h-full filter drop-shadow-[0_10px_22px_rgba(125,211,252,0.34)]"
+          aria-hidden="true"
+        >
           <defs>
-            <radialGradient id="moonGlow" cx="50%" cy="50%" r="50%">
-              <stop offset="0%" stopColor="#E0F2FE" stopOpacity="0.5" />
+            <radialGradient id={`${uid}-moonGlow`} cx="50%" cy="50%" r="50%">
+              <stop offset="0%" stopColor="#E0F2FE" stopOpacity="0.45" />
               <stop offset="100%" stopColor="#38BDF8" stopOpacity="0" />
             </radialGradient>
-            <linearGradient id="moonCore" x1="0%" y1="0%" x2="100%" y2="100%">
+            <linearGradient id={`${uid}-moonCore`} x1="15%" y1="10%" x2="90%" y2="95%">
               <stop offset="0%" stopColor="#FFFFFF" />
-              <stop offset="40%" stopColor="#E2E8F0" />
+              <stop offset="42%" stopColor="#E2E8F0" />
               <stop offset="85%" stopColor="#94A3B8" />
-              <stop offset="100%" stopColor="#475569" />
+              <stop offset="100%" stopColor="#64748B" />
             </linearGradient>
           </defs>
-          <circle cx="50" cy="50" r="42" fill="url(#moonGlow)" />
-          {/* 3D Crescent Moon */}
+          <circle cx="60" cy="60" r="50" fill={`url(#${uid}-moonGlow)`} />
           <path
-            d="M58 18C40 18 26 32 26 50C26 68 40 82 58 82C66 82 73 79 78 74C64 74 52 63 52 49C52 35 64 24 78 24C73 20 66 18 58 18Z"
-            fill="url(#moonCore)"
+            d="M68 20C46 20 29 37 29 59C29 81 46 98 68 98C78 98 87 94 94 87C77 88 62 74 62 57C62 40 77 27 94 28C87 23 78 20 68 20Z"
+            fill={`url(#${uid}-moonCore)`}
           />
-          {/* Subtle Craters */}
-          <circle cx="42" cy="42" r="4" fill="#64748B" opacity="0.25" />
-          <circle cx="48" cy="58" r="5" fill="#64748B" opacity="0.22" />
-          <circle cx="36" cy="54" r="3" fill="#64748B" opacity="0.2" />
-          {/* Little Stars */}
-          <path d="M78 28L80 32L84 34L80 36L78 40L76 36L72 34L76 32Z" fill="#FDE047" opacity="0.9" />
-          <path d="M22 26L23.5 29L26.5 30.5L23.5 32L22 35L20.5 32L17.5 30.5L20.5 29Z" fill="#FDE047" opacity="0.8" />
+          <circle cx="48" cy="49" r="5" fill="#64748B" opacity="0.22" />
+          <circle cx="56" cy="70" r="6" fill="#64748B" opacity="0.18" />
+          <circle cx="41" cy="65" r="3.5" fill="#64748B" opacity="0.18" />
+          <path d="M92 34L94.5 39L99.5 41.5L94.5 44L92 49L89.5 44L84.5 41.5L89.5 39Z" fill="#FEF08A" opacity="0.92" />
+          <path d="M26 30L27.8 33.8L31.6 35.6L27.8 37.4L26 41.2L24.2 37.4L20.4 35.6L24.2 33.8Z" fill="#FEF08A" opacity="0.82" />
         </svg>
       </div>
     );
@@ -97,57 +108,61 @@ export const Weather3DIcon: React.FC<Weather3DIconProps> = ({
   if ((weatherCode >= 50 && weatherCode <= 67) || (weatherCode >= 80 && weatherCode <= 82)) {
     return (
       <div className={`relative flex items-center justify-center shrink-0 ${className}`}>
-        <svg viewBox="0 0 100 100" className="w-full h-full filter drop-shadow-[0_8px_20px_rgba(14,165,233,0.45)]">
+        <svg
+          viewBox="0 0 120 120"
+          className="w-full h-full filter drop-shadow-[0_10px_20px_rgba(14,165,233,0.34)]"
+          aria-hidden="true"
+        >
           <defs>
-            {/* Dark 3D Raincloud Gradient */}
-            <linearGradient id="rainCloudGrad" x1="0%" y1="0%" x2="0%" y2="100%">
+            <radialGradient id={`${uid}-rainCloud`} cx="45%" cy="22%" r="78%">
               <stop offset="0%" stopColor="#FFFFFF" />
-              <stop offset="25%" stopColor="#CBD5E1" />
-              <stop offset="70%" stopColor="#64748B" />
-              <stop offset="100%" stopColor="#334155" />
-            </linearGradient>
-            {/* 3D Translucent Teardrop Raindrop Gradient */}
-            <linearGradient id="dropGrad" x1="0%" y1="0%" x2="0%" y2="100%">
-              <stop offset="0%" stopColor="#38BDF8" />
-              <stop offset="60%" stopColor="#0284C7" />
+              <stop offset="52%" stopColor="#E2E8F0" />
+              <stop offset="86%" stopColor="#B8C4D4" />
+              <stop offset="100%" stopColor="#8A99AE" />
+            </radialGradient>
+            <linearGradient id={`${uid}-dropGrad`} x1="20%" y1="0%" x2="80%" y2="100%">
+              <stop offset="0%" stopColor="#7DD3FC" />
+              <stop offset="55%" stopColor="#0EA5E9" />
               <stop offset="100%" stopColor="#0369A1" />
             </linearGradient>
-            <filter id="cloudShadow" x="-10%" y="-10%" width="120%" height="130%">
-              <feDropShadow dx="0" dy="6" stdDeviation="4" floodColor="#0F172A" floodOpacity="0.4" />
+            <filter id={`${uid}-cloudShadow`} x="-15%" y="-15%" width="130%" height="140%">
+              <feDropShadow dx="0" dy="8" stdDeviation="5" floodColor="#0F172A" floodOpacity="0.28" />
             </filter>
           </defs>
 
-          {/* 3D Rain Drops descending from cloud */}
-          <g transform="translate(0, 4)">
-            {/* Drop 1 */}
-            <g className="animate-pulse" style={{ animationDuration: '1.8s' }}>
-              <path d="M28 64 C28 64 22 74 22 78 C22 82 25 85 28 85 C31 85 34 82 34 78 C34 74 28 64 28 64 Z" fill="url(#dropGrad)" />
-              <ellipse cx="26" cy="77" rx="1.5" ry="3" fill="#FFFFFF" opacity="0.8" />
+          {/* 3D Glossy Raindrops */}
+          <g>
+            <g className="animate-pulse" style={{ animationDuration: '1.9s' }}>
+              <path
+                d="M35 76 C35 76 28 88 28 93 C28 97.5 31.2 101 35 101 C38.8 101 42 97.5 42 93 C42 88 35 76 35 76 Z"
+                fill={`url(#${uid}-dropGrad)`}
+              />
+              <ellipse cx="32.5" cy="91.5" rx="1.7" ry="3.6" fill="#FFFFFF" opacity="0.78" />
             </g>
-            {/* Drop 2 */}
-            <g className="animate-pulse" style={{ animationDuration: '1.4s', animationDelay: '0.3s' }}>
-              <path d="M50 68 C50 68 44 78 44 82 C44 86 47 89 50 89 C53 89 56 86 56 82 C56 78 50 68 50 68 Z" fill="url(#dropGrad)" />
-              <ellipse cx="48" cy="81" rx="1.5" ry="3" fill="#FFFFFF" opacity="0.8" />
+            <g className="animate-pulse" style={{ animationDuration: '1.6s', animationDelay: '0.28s' }}>
+              <path
+                d="M60 80 C60 80 53 92 53 97 C53 101.5 56.2 105 60 105 C63.8 105 67 101.5 67 97 C67 92 60 80 60 80 Z"
+                fill={`url(#${uid}-dropGrad)`}
+              />
+              <ellipse cx="57.5" cy="95.5" rx="1.7" ry="3.6" fill="#FFFFFF" opacity="0.78" />
             </g>
-            {/* Drop 3 */}
-            <g className="animate-pulse" style={{ animationDuration: '2s', animationDelay: '0.6s' }}>
-              <path d="M72 64 C72 64 66 74 66 78 C66 82 69 85 72 85 C75 85 78 82 78 78 C78 74 72 64 72 64 Z" fill="url(#dropGrad)" />
-              <ellipse cx="70" cy="77" rx="1.5" ry="3" fill="#FFFFFF" opacity="0.8" />
+            <g className="animate-pulse" style={{ animationDuration: '2.1s', animationDelay: '0.55s' }}>
+              <path
+                d="M85 76 C85 76 78 88 78 93 C78 97.5 81.2 101 85 101 C88.8 101 92 97.5 92 93 C92 88 85 76 85 76 Z"
+                fill={`url(#${uid}-dropGrad)`}
+              />
+              <ellipse cx="82.5" cy="91.5" rx="1.7" ry="3.6" fill="#FFFFFF" opacity="0.78" />
             </g>
           </g>
 
-          {/* Volumetric 3D Cloud Body */}
-          <g filter="url(#cloudShadow)">
+          {/* Volumetric Sculpted 3D Cloud */}
+          <g filter={`url(#${uid}-cloudShadow)`}>
             <path
-              d="M32 58 H72 C81 58 88 51 88 42 C88 33 81 26 72 26 C71 20 65 14 57 14 C48 14 41 20 39 28 C36 26 32 25 28 25 C19 25 12 32 12 41 C12 50 19 58 32 58 Z"
-              fill="url(#rainCloudGrad)"
+              d="M36 72 H86 C97 72 106 63.5 106 52.5 C106 42 97.5 33.5 87 33.5 C85.5 24 77 16 66 16 C54 16 44.5 24 42.5 35 C39 32.5 35 31.5 30.5 31.5 C19.5 31.5 11 40 11 51.5 C11 63 20 72 36 72 Z"
+              fill={`url(#${uid}-rainCloud)`}
             />
-            {/* Specular White Top Edges */}
-            <path
-              d="M30 27 C34 26 37 28 39 30 C41 21 48 16 57 16 C64 16 70 21 71 28 C73 28 75 27 77 28 C72 23 65 14 57 14 C48 14 41 20 39 28 C36 26 32 25 28 25 C23 25 18 28 15 33 C18 29 23 27 30 27 Z"
-              fill="#FFFFFF"
-              opacity="0.85"
-            />
+            <ellipse cx="64" cy="28" rx="18" ry="8" fill="#FFFFFF" opacity="0.7" />
+            <ellipse cx="32" cy="43" rx="12" ry="6" fill="#FFFFFF" opacity="0.55" />
           </g>
         </svg>
       </div>
@@ -158,84 +173,94 @@ export const Weather3DIcon: React.FC<Weather3DIconProps> = ({
   if (weatherCode >= 90) {
     return (
       <div className={`relative flex items-center justify-center shrink-0 ${className}`}>
-        <svg viewBox="0 0 100 100" className="w-full h-full filter drop-shadow-[0_8px_22px_rgba(234,179,8,0.6)]">
+        <svg
+          viewBox="0 0 120 120"
+          className="w-full h-full filter drop-shadow-[0_10px_22px_rgba(234,179,8,0.42)]"
+          aria-hidden="true"
+        >
           <defs>
-            <linearGradient id="thunderCloud" x1="0%" y1="0%" x2="0%" y2="100%">
-              <stop offset="0%" stopColor="#E2E8F0" />
-              <stop offset="30%" stopColor="#64748B" />
-              <stop offset="75%" stopColor="#334155" />
-              <stop offset="100%" stopColor="#0F172A" />
-            </linearGradient>
-            <linearGradient id="boltGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+            <radialGradient id={`${uid}-thunderCloud`} cx="45%" cy="22%" r="80%">
+              <stop offset="0%" stopColor="#F1F5F9" />
+              <stop offset="48%" stopColor="#94A3B8" />
+              <stop offset="85%" stopColor="#475569" />
+              <stop offset="100%" stopColor="#1E293B" />
+            </radialGradient>
+            <linearGradient id={`${uid}-boltGrad`} x1="0%" y1="0%" x2="100%" y2="100%">
               <stop offset="0%" stopColor="#FFFFFF" />
-              <stop offset="30%" stopColor="#FEF08A" />
-              <stop offset="70%" stopColor="#FACC15" />
+              <stop offset="28%" stopColor="#FEF08A" />
+              <stop offset="72%" stopColor="#FACC15" />
               <stop offset="100%" stopColor="#D97706" />
             </linearGradient>
-            <filter id="boltGlow" x="-20%" y="-20%" width="140%" height="140%">
-              <feDropShadow dx="0" dy="0" stdDeviation="3" floodColor="#FACC15" floodOpacity="0.9" />
+            <filter id={`${uid}-boltGlow`} x="-25%" y="-25%" width="150%" height="150%">
+              <feDropShadow dx="0" dy="2" stdDeviation="4" floodColor="#FACC15" floodOpacity="0.85" />
             </filter>
           </defs>
 
-          {/* 3D Thundercloud Body */}
           <path
-            d="M32 56 H72 C81 56 88 49 88 40 C88 31 81 24 72 24 C71 18 65 12 57 12 C48 12 41 18 39 26 C36 24 32 23 28 23 C19 23 12 30 12 39 C12 48 19 56 32 56 Z"
-            fill="url(#thunderCloud)"
+            d="M36 69 H86 C97 69 106 60.5 106 49.5 C106 39 97.5 30.5 87 30.5 C85.5 21 77 13 66 13 C54 13 44.5 21 42.5 32 C39 29.5 35 28.5 30.5 28.5 C19.5 28.5 11 37 11 48.5 C11 60 20 69 36 69 Z"
+            fill={`url(#${uid}-thunderCloud)`}
           />
+          <ellipse cx="64" cy="25" rx="17" ry="7" fill="#FFFFFF" opacity="0.45" />
 
-          {/* 3D Extruded Glowing Lightning Bolt */}
-          <g filter="url(#boltGlow)">
+          <g filter={`url(#${uid}-boltGlow)`}>
             <polygon
-              points="52,44 38,62 48,62 42,88 64,60 52,60 60,44"
-              fill="url(#boltGrad)"
+              points="62,54 45,76 57,76 50,108 77,73 63,73 72,54"
+              fill={`url(#${uid}-boltGrad)`}
             />
-            {/* White Core Edge */}
             <polygon
-              points="51,46 40,61 48,61 43,84 61,60 52,60 59,46"
+              points="61,57 48,74 57,74 52,102 73,74 63,74 70,57"
               fill="#FFFFFF"
-              opacity="0.75"
+              opacity="0.65"
             />
           </g>
 
-          {/* Rain Drops */}
-          <path d="M26 66 C26 66 22 74 22 77 C22 80 24 82 26 82 C28 82 30 80 30 77 Z" fill="#38BDF8" opacity="0.85" />
-          <path d="M72 66 C72 66 68 74 68 77 C68 80 70 82 72 82 C74 82 76 80 76 77 Z" fill="#38BDF8" opacity="0.85" />
+          <path d="M31 80 C31 80 26 90 26 94 C26 97.5 28.5 100 31 100 C33.5 100 36 97.5 36 94 Z" fill="#38BDF8" opacity="0.85" />
+          <path d="M88 80 C88 80 83 90 83 94 C83 97.5 85.5 100 88 100 C90.5 100 93 97.5 93 94 Z" fill="#38BDF8" opacity="0.85" />
         </svg>
       </div>
     );
   }
 
-  // 4. Snow / Neve (codes 70 to 77)
+  // 4. Snow / Neve / Geada (codes 70 to 77)
   if (weatherCode >= 70 && weatherCode <= 77) {
     return (
       <div className={`relative flex items-center justify-center shrink-0 ${className}`}>
-        <svg viewBox="0 0 100 100" className="w-full h-full filter drop-shadow-[0_8px_20px_rgba(186,230,253,0.6)]">
+        <svg
+          viewBox="0 0 120 120"
+          className="w-full h-full filter drop-shadow-[0_10px_22px_rgba(186,230,253,0.48)]"
+          aria-hidden="true"
+        >
           <defs>
-            <linearGradient id="snowCloud" x1="0%" y1="0%" x2="0%" y2="100%">
+            <radialGradient id={`${uid}-snowCloud`} cx="45%" cy="22%" r="78%">
               <stop offset="0%" stopColor="#FFFFFF" />
-              <stop offset="50%" stopColor="#E0F2FE" />
+              <stop offset="58%" stopColor="#E0F2FE" />
               <stop offset="100%" stopColor="#94A3B8" />
-            </linearGradient>
-            <radialGradient id="flakeGrad" cx="50%" cy="50%" r="50%">
+            </radialGradient>
+            <radialGradient id={`${uid}-flakeGrad`} cx="40%" cy="35%" r="60%">
               <stop offset="0%" stopColor="#FFFFFF" />
               <stop offset="100%" stopColor="#7DD3FC" />
             </radialGradient>
           </defs>
 
           <path
-            d="M32 54 H72 C81 54 88 47 88 38 C88 29 81 22 72 22 C71 16 65 10 57 10 C48 10 41 16 39 24 C36 22 32 21 28 21 C19 21 12 28 12 37 C12 46 19 54 32 54 Z"
-            fill="url(#snowCloud)"
+            d="M36 68 H86 C97 68 106 59.5 106 48.5 C106 38 97.5 29.5 87 29.5 C85.5 20 77 12 66 12 C54 12 44.5 20 42.5 31 C39 28.5 35 27.5 30.5 27.5 C19.5 27.5 11 36 11 47.5 C11 59 20 68 36 68 Z"
+            fill={`url(#${uid}-snowCloud)`}
           />
+          <ellipse cx="64" cy="24" rx="17" ry="7" fill="#FFFFFF" opacity="0.72" />
 
-          {/* 3D Snowflakes */}
           {[
-            { x: 28, y: 70 },
-            { x: 50, y: 76 },
-            { x: 72, y: 70 },
+            { x: 34, y: 86 },
+            { x: 60, y: 94 },
+            { x: 86, y: 86 },
           ].map((sf, idx) => (
             <g key={idx} transform={`translate(${sf.x}, ${sf.y})`}>
-              <circle cx="0" cy="0" r="5" fill="url(#flakeGrad)" />
-              <path d="M-6 0 H6 M0 -6 V6 M-4 -4 L4 4 M-4 4 L4 -4" stroke="#FFFFFF" strokeWidth="1.5" strokeLinecap="round" />
+              <circle cx="0" cy="0" r="6" fill={`url(#${uid}-flakeGrad)`} />
+              <path
+                d="M-7 0 H7 M0 -7 V7 M-5 -5 L5 5 M-5 5 L5 -5"
+                stroke="#FFFFFF"
+                strokeWidth="1.7"
+                strokeLinecap="round"
+              />
             </g>
           ))}
         </svg>
@@ -247,94 +272,309 @@ export const Weather3DIcon: React.FC<Weather3DIconProps> = ({
   if (weatherCode <= 3) {
     return (
       <div className={`relative flex items-center justify-center shrink-0 ${className}`}>
-        <svg viewBox="0 0 100 100" className="w-full h-full filter drop-shadow-[0_8px_20px_rgba(251,191,36,0.45)]">
+        <svg
+          viewBox="0 0 120 120"
+          className="w-full h-full filter drop-shadow-[0_12px_22px_rgba(15,23,42,0.22)]"
+          aria-hidden="true"
+        >
           <defs>
-            <radialGradient id="partSun" cx="35%" cy="30%" r="65%">
-              <stop offset="0%" stopColor="#FFFFFF" />
-              <stop offset="25%" stopColor="#FEF08A" />
-              <stop offset="70%" stopColor="#F59E0B" />
-              <stop offset="100%" stopColor="#D97706" />
+            <radialGradient id={`${uid}-partSunGlow`} cx="50%" cy="50%" r="50%">
+              <stop offset="0%" stopColor="#FEF08A" stopOpacity="0.65" />
+              <stop offset="65%" stopColor="#F59E0B" stopOpacity="0.18" />
+              <stop offset="100%" stopColor="#F59E0B" stopOpacity="0" />
             </radialGradient>
-            <linearGradient id="cloudGradPart" x1="0%" y1="0%" x2="0%" y2="100%">
-              <stop offset="0%" stopColor="#FFFFFF" />
-              <stop offset="60%" stopColor="#F1F5F9" />
-              <stop offset="100%" stopColor="#CBD5E1" />
+            <radialGradient id={`${uid}-partSun`} cx="34%" cy="28%" r="68%">
+              <stop offset="0%" stopColor="#FFFDE4" />
+              <stop offset="30%" stopColor="#FDE047" />
+              <stop offset="72%" stopColor="#F59E0B" />
+              <stop offset="100%" stopColor="#EA580C" />
+            </radialGradient>
+            <linearGradient id={`${uid}-rayGradPart`} x1="0%" y1="0%" x2="0%" y2="100%">
+              <stop offset="0%" stopColor="#FDE047" />
+              <stop offset="100%" stopColor="#F59E0B" />
             </linearGradient>
-            <filter id="cloudShadowPart" x="-10%" y="-10%" width="120%" height="130%">
-              <feDropShadow dx="0" dy="5" stdDeviation="3.5" floodColor="#1E293B" floodOpacity="0.3" />
+            <radialGradient id={`${uid}-cloudPartBody`} cx="45%" cy="20%" r="82%">
+              <stop offset="0%" stopColor="#FFFFFF" />
+              <stop offset="56%" stopColor="#F3F6FB" />
+              <stop offset="86%" stopColor="#D7E0EC" />
+              <stop offset="100%" stopColor="#B4C2D6" />
+            </radialGradient>
+            <radialGradient id={`${uid}-cloudWarmBounce`} cx="35%" cy="35%" r="55%">
+              <stop offset="0%" stopColor="#FEF3C7" stopOpacity="0.55" />
+              <stop offset="100%" stopColor="#FEF3C7" stopOpacity="0" />
+            </radialGradient>
+            <filter id={`${uid}-cloudShadowPart`} x="-15%" y="-15%" width="130%" height="140%">
+              <feDropShadow dx="0" dy="8" stdDeviation="5.5" floodColor="#0F172A" floodOpacity="0.24" />
             </filter>
           </defs>
 
-          {/* Peeking 3D Sun in background */}
-          <g transform="translate(18, 12)">
-            <circle cx="36" cy="36" r="22" fill="url(#partSun)" />
-            {[0, 45, 90, 135, 180, 225, 270, 315].map((deg) => (
-              <rect
-                key={deg}
-                x="33"
-                y="2"
-                width="6"
-                height="10"
-                rx="3"
-                fill="#F59E0B"
-                transform={`rotate(${deg} 36 36)`}
+          {/* Peeking Plush 3D Sun (or Soft Moon at night) */}
+          {isDay ? (
+            <g transform="translate(8, 6)">
+              <circle cx="42" cy="42" r="38" fill={`url(#${uid}-partSunGlow)`} />
+              {[0, 36, 72, 108, 144, 180, 216, 252, 288, 324].map((deg) => (
+                <rect
+                  key={deg}
+                  x="39"
+                  y="4"
+                  width="6"
+                  height="11"
+                  rx="3"
+                  fill={`url(#${uid}-rayGradPart)`}
+                  transform={`rotate(${deg} 42 42)`}
+                />
+              ))}
+              <circle cx="42" cy="42" r="24" fill={`url(#${uid}-partSun)`} />
+              <ellipse
+                cx="34"
+                cy="31"
+                rx="10"
+                ry="5.5"
+                fill="#FFFFFF"
+                opacity="0.58"
+                transform="rotate(-24 34 31)"
               />
-            ))}
-          </g>
+            </g>
+          ) : (
+            <g transform="translate(14, 10)">
+              <path
+                d="M44 10C28 10 16 22 16 38C16 54 28 66 44 66C52 66 58 63 63 58C51 58 40 48 40 36C40 24 51 15 63 15C58 12 51 10 44 10Z"
+                fill="#E2E8F0"
+              />
+            </g>
+          )}
 
-          {/* Foreground 3D Fluffy Cloud */}
-          <g filter="url(#cloudShadowPart)">
+          {/* Foreground Pillowy Sculpted 3D Cloud */}
+          <g filter={`url(#${uid}-cloudShadowPart)`}>
             <path
-              d="M34 66 H74 C82 66 88 59 88 51 C88 43 82 36 74 36 C73 30 67 24 59 24 C51 24 44 29 42 37 C39 35 35 34 31 34 C22 34 16 41 16 50 C16 59 22 66 34 66 Z"
-              fill="url(#cloudGradPart)"
+              d="M36 96 H89 C101 96 110 86.5 110 75 C110 64 101.5 55 90.5 54.5 C88.5 41.5 77.5 32 64.5 32 C51 32 40 41.5 37.5 54.5 C34.5 52.5 30.8 51.5 26.8 51.5 C15.8 51.5 7 60.5 7 72 C7 85.5 18 96 36 96 Z"
+              fill={`url(#${uid}-cloudPartBody)`}
             />
-            {/* Top Specular Rim */}
-            <path
-              d="M33 36 C37 35 40 37 42 39 C44 30 51 25 59 25 C66 25 72 30 73 37 C75 37 77 36 79 37 C74 32 67 24 59 24 C51 24 44 29 42 37 C39 35 35 34 31 34 C26 34 21 37 18 42 C21 38 26 36 33 36 Z"
-              fill="#FFFFFF"
-              opacity="0.9"
-            />
+            {isDay && (
+              <ellipse cx="44" cy="60" rx="22" ry="15" fill={`url(#${uid}-cloudWarmBounce)`} />
+            )}
+            <ellipse cx="64" cy="45" rx="19" ry="8.5" fill="#FFFFFF" opacity="0.82" />
+            <ellipse cx="29" cy="63" rx="12" ry="6" fill="#FFFFFF" opacity="0.65" />
           </g>
         </svg>
       </div>
     );
   }
 
-  // 6. Default Overcast / Nublado (codes 45, 48 or other)
+  // 6. Default Overcast / Fog / Nublado (codes 45, 48 or other)
   return (
     <div className={`relative flex items-center justify-center shrink-0 ${className}`}>
-      <svg viewBox="0 0 100 100" className="w-full h-full filter drop-shadow-[0_8px_18px_rgba(203,213,225,0.4)]">
+      <svg
+        viewBox="0 0 120 120"
+        className="w-full h-full filter drop-shadow-[0_10px_20px_rgba(15,23,42,0.22)]"
+        aria-hidden="true"
+      >
         <defs>
-          <linearGradient id="cloudGradMain" x1="0%" y1="0%" x2="0%" y2="100%">
+          <radialGradient id={`${uid}-cloudMain`} cx="45%" cy="20%" r="82%">
             <stop offset="0%" stopColor="#FFFFFF" />
-            <stop offset="50%" stopColor="#E2E8F0" />
-            <stop offset="100%" stopColor="#94A3B8" />
-          </linearGradient>
-          <linearGradient id="cloudGradBack" x1="0%" y1="0%" x2="0%" y2="100%">
-            <stop offset="0%" stopColor="#CBD5E1" />
-            <stop offset="100%" stopColor="#64748B" />
-          </linearGradient>
+            <stop offset="56%" stopColor="#EBF0F7" />
+            <stop offset="100%" stopColor="#AEBCCD" />
+          </radialGradient>
+          <radialGradient id={`${uid}-cloudBack`} cx="45%" cy="20%" r="80%">
+            <stop offset="0%" stopColor="#DCE4EE" />
+            <stop offset="100%" stopColor="#7C8EA3" />
+          </radialGradient>
         </defs>
 
-        {/* Rear darker 3D cloud */}
         <path
-          d="M26 52 H62 C69 52 74 46 74 39 C74 32 69 26 62 26 C61 21 56 16 49 16 C42 16 36 21 35 27 C32 25 29 24 26 24 C18 24 13 30 13 38 C13 46 18 52 26 52 Z"
-          fill="url(#cloudGradBack)"
-          opacity="0.8"
-        />
-
-        {/* Front volumetric 3D cloud */}
-        <path
-          d="M34 68 H76 C84 68 90 61 90 53 C90 45 84 38 76 38 C75 32 69 26 61 26 C53 26 46 31 44 39 C41 37 37 36 33 36 C24 36 18 43 18 52 C18 61 24 68 34 68 Z"
-          fill="url(#cloudGradMain)"
+          d="M32 68 H78 C87 68 94 61 94 52 C94 43 87 36 78 36 C76.5 28 70 21 61 21 C51.5 21 44 27.5 42 36.5 C39 34.5 35.5 33.5 31.5 33.5 C22 33.5 15 41 15 50.5 C15 60 22.5 68 32 68 Z"
+          fill={`url(#${uid}-cloudBack)`}
+          opacity="0.85"
         />
         <path
-          d="M33 38 C37 37 40 39 42 41 C44 32 51 27 61 27 C68 27 74 32 75 39 C77 39 79 38 81 39 C76 34 69 26 61 26 C53 26 46 31 44 39 C41 37 37 36 33 36 C28 36 23 39 20 44 C23 40 28 38 33 38 Z"
-          fill="#FFFFFF"
-          opacity="0.9"
+          d="M38 92 H92 C103 92 111 83.5 111 73 C111 62.5 103 54 92 54 C90 43 80.5 35 69 35 C57 35 47 43 44.5 54.5 C41.5 52.5 37.5 51.5 33.5 51.5 C23 51.5 15 59.5 15 70.5 C15 82.5 24.5 92 38 92 Z"
+          fill={`url(#${uid}-cloudMain)`}
         />
+        <ellipse cx="68" cy="48" rx="18" ry="8" fill="#FFFFFF" opacity="0.8" />
       </svg>
     </div>
+  );
+};
+
+/**
+ * Cohesive 3D Metric Icons for the Weather Details Row
+ * (Min Temp, Max Temp, Humidity, Wind) — Apple iOS Pro soft-sculpted 3D look
+ */
+export const ThermometerMin3DIcon: React.FC<{ className?: string }> = ({
+  className = 'w-8 h-8',
+}) => {
+  const uid = useId().replace(/:/g, '');
+  return (
+    <svg
+      viewBox="0 0 64 64"
+      className={`shrink-0 filter drop-shadow-[0_4px_10px_rgba(56,189,248,0.38)] ${className}`}
+      aria-hidden="true"
+    >
+      <defs>
+        <linearGradient id={`${uid}-glass`} x1="0%" y1="0%" x2="100%" y2="0%">
+          <stop offset="0%" stopColor="#E0F2FE" />
+          <stop offset="45%" stopColor="#93C5FD" />
+          <stop offset="100%" stopColor="#3B82F6" />
+        </linearGradient>
+        <radialGradient id={`${uid}-bulb`} cx="35%" cy="30%" r="70%">
+          <stop offset="0%" stopColor="#BAE6FD" />
+          <stop offset="48%" stopColor="#38BDF8" />
+          <stop offset="100%" stopColor="#0284C7" />
+        </radialGradient>
+      </defs>
+      {/* Outer 3D glass housing */}
+      <path
+        d="M32 7C26.8 7 23 11 23 16.2V34.6C19.2 37.2 17 41.4 17 46C17 54.2 23.7 60 32 60C40.3 60 47 54.2 47 46C47 41.4 44.8 37.2 41 34.6V16.2C41 11 37.2 7 32 7Z"
+        fill={`url(#${uid}-glass)`}
+        opacity="0.92"
+      />
+      {/* Inner recessed chamber */}
+      <rect x="27.5" y="13" width="9" height="27" rx="4.5" fill="#0F172A" opacity="0.22" />
+      {/* Cool mercury column & bulb */}
+      <rect x="28.5" y="25" width="7" height="19" rx="3.5" fill={`url(#${uid}-bulb)`} />
+      <circle cx="32" cy="46" r="10.5" fill={`url(#${uid}-bulb)`} />
+      {/* Specular highlights */}
+      <rect x="26" y="13" width="2.4" height="19" rx="1.2" fill="#FFFFFF" opacity="0.65" />
+      <ellipse cx="28.5" cy="42.5" rx="3.5" ry="2.2" fill="#FFFFFF" opacity="0.65" transform="rotate(-25 28.5 42.5)" />
+      {/* Scale ticks */}
+      <line x1="42" y1="18" x2="46" y2="18" stroke="#E0F2FE" strokeWidth="2.2" strokeLinecap="round" opacity="0.85" />
+      <line x1="42" y1="24" x2="45" y2="24" stroke="#E0F2FE" strokeWidth="2.2" strokeLinecap="round" opacity="0.7" />
+      <line x1="42" y1="30" x2="46" y2="30" stroke="#E0F2FE" strokeWidth="2.2" strokeLinecap="round" opacity="0.85" />
+    </svg>
+  );
+};
+
+export const ThermometerMax3DIcon: React.FC<{ className?: string }> = ({
+  className = 'w-8 h-8',
+}) => {
+  const uid = useId().replace(/:/g, '');
+  return (
+    <svg
+      viewBox="0 0 64 64"
+      className={`shrink-0 filter drop-shadow-[0_4px_10px_rgba(244,63,94,0.38)] ${className}`}
+      aria-hidden="true"
+    >
+      <defs>
+        <linearGradient id={`${uid}-glassMax`} x1="0%" y1="0%" x2="100%" y2="0%">
+          <stop offset="0%" stopColor="#FFE4E6" />
+          <stop offset="45%" stopColor="#FDA4AF" />
+          <stop offset="100%" stopColor="#E11D48" />
+        </linearGradient>
+        <radialGradient id={`${uid}-bulbMax`} cx="35%" cy="30%" r="70%">
+          <stop offset="0%" stopColor="#FDE047" />
+          <stop offset="32%" stopColor="#FB7185" />
+          <stop offset="72%" stopColor="#EF4444" />
+          <stop offset="100%" stopColor="#B91C1C" />
+        </radialGradient>
+      </defs>
+      <path
+        d="M32 7C26.8 7 23 11 23 16.2V34.6C19.2 37.2 17 41.4 17 46C17 54.2 23.7 60 32 60C40.3 60 47 54.2 47 46C47 41.4 44.8 37.2 41 34.6V16.2C41 11 37.2 7 32 7Z"
+        fill={`url(#${uid}-glassMax)`}
+        opacity="0.94"
+      />
+      <rect x="27.5" y="13" width="9" height="27" rx="4.5" fill="#0F172A" opacity="0.2" />
+      <rect x="28.5" y="16" width="7" height="28" rx="3.5" fill={`url(#${uid}-bulbMax)`} />
+      <circle cx="32" cy="46" r="10.5" fill={`url(#${uid}-bulbMax)`} />
+      <rect x="26" y="13" width="2.4" height="20" rx="1.2" fill="#FFFFFF" opacity="0.65" />
+      <ellipse cx="28.5" cy="42.5" rx="3.5" ry="2.2" fill="#FFFFFF" opacity="0.65" transform="rotate(-25 28.5 42.5)" />
+      <line x1="42" y1="18" x2="46" y2="18" stroke="#FFE4E6" strokeWidth="2.2" strokeLinecap="round" opacity="0.85" />
+      <line x1="42" y1="24" x2="45" y2="24" stroke="#FFE4E6" strokeWidth="2.2" strokeLinecap="round" opacity="0.7" />
+      <line x1="42" y1="30" x2="46" y2="30" stroke="#FFE4E6" strokeWidth="2.2" strokeLinecap="round" opacity="0.85" />
+    </svg>
+  );
+};
+
+export const HumidityDrop3DIcon: React.FC<{ className?: string }> = ({
+  className = 'w-8 h-8',
+}) => {
+  const uid = useId().replace(/:/g, '');
+  return (
+    <svg
+      viewBox="0 0 64 64"
+      className={`shrink-0 filter drop-shadow-[0_4px_10px_rgba(14,165,233,0.4)] ${className}`}
+      aria-hidden="true"
+    >
+      <defs>
+        <radialGradient id={`${uid}-dropBody`} cx="35%" cy="32%" r="72%">
+          <stop offset="0%" stopColor="#E0F2FE" />
+          <stop offset="30%" stopColor="#60A5FA" />
+          <stop offset="72%" stopColor="#2563EB" />
+          <stop offset="100%" stopColor="#1D4ED8" />
+        </radialGradient>
+        <radialGradient id={`${uid}-dropInner`} cx="55%" cy="75%" r="48%">
+          <stop offset="0%" stopColor="#7DD3FC" stopOpacity="0.65" />
+          <stop offset="100%" stopColor="#38BDF8" stopOpacity="0" />
+        </radialGradient>
+      </defs>
+      <path
+        d="M32 7C32 7 13 28.5 13 40.5C13 51.2 21.5 59 32 59C42.5 59 51 51.2 51 40.5C51 28.5 32 7 32 7Z"
+        fill={`url(#${uid}-dropBody)`}
+      />
+      <circle cx="33" cy="44" r="14" fill={`url(#${uid}-dropInner)`} />
+      <ellipse
+        cx="24.5"
+        cy="36"
+        rx="4"
+        ry="8.5"
+        fill="#FFFFFF"
+        opacity="0.68"
+        transform="rotate(14 24.5 36)"
+      />
+      <circle cx="22.5" cy="46.5" r="2.2" fill="#FFFFFF" opacity="0.52" />
+    </svg>
+  );
+};
+
+export const WindFlow3DIcon: React.FC<{ className?: string }> = ({
+  className = 'w-8 h-8',
+}) => {
+  const uid = useId().replace(/:/g, '');
+  return (
+    <svg
+      viewBox="0 0 64 64"
+      className={`shrink-0 filter drop-shadow-[0_4px_10px_rgba(56,189,248,0.36)] ${className}`}
+      aria-hidden="true"
+    >
+      <defs>
+        <linearGradient id={`${uid}-wind1`} x1="0%" y1="0%" x2="100%" y2="0%">
+          <stop offset="0%" stopColor="#BAE6FD" />
+          <stop offset="55%" stopColor="#60A5FA" />
+          <stop offset="100%" stopColor="#2563EB" />
+        </linearGradient>
+        <linearGradient id={`${uid}-wind2`} x1="0%" y1="0%" x2="100%" y2="0%">
+          <stop offset="0%" stopColor="#E0F2FE" />
+          <stop offset="55%" stopColor="#38BDF8" />
+          <stop offset="100%" stopColor="#0284C7" />
+        </linearGradient>
+      </defs>
+      {/* Top curling wind ribbon */}
+      <path
+        d="M10 24H37C41.8 24 45.5 20.4 45.5 16C45.5 11.6 41.8 8.5 37.5 8.5C33.8 8.5 31 11 30.5 14"
+        fill="none"
+        stroke={`url(#${uid}-wind1)`}
+        strokeWidth="5.2"
+        strokeLinecap="round"
+      />
+      {/* Main center wind stream */}
+      <path
+        d="M8 34H47.5C52.5 34 56 30.4 56 26C56 21.6 52.5 18.2 48 18.2"
+        fill="none"
+        stroke={`url(#${uid}-wind2)`}
+        strokeWidth="5.5"
+        strokeLinecap="round"
+      />
+      {/* Lower swirling wind ribbon */}
+      <path
+        d="M14 44H42C46.5 44 50 47.4 50 51.5C50 55.5 46.5 58.5 42.2 58.5C38.5 58.5 35.8 56 35.2 53"
+        fill="none"
+        stroke={`url(#${uid}-wind1)`}
+        strokeWidth="5.2"
+        strokeLinecap="round"
+      />
+      {/* Subtle specular sheen lines */}
+      <path d="M12 32.3H45" stroke="#FFFFFF" strokeWidth="1.5" strokeLinecap="round" opacity="0.55" />
+      <path d="M13 22.4H35" stroke="#FFFFFF" strokeWidth="1.4" strokeLinecap="round" opacity="0.5" />
+    </svg>
   );
 };
 

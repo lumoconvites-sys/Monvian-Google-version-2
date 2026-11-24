@@ -1,12 +1,28 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { Thermometer, Wind, CloudRain, ChevronRight, X, ShieldCheck } from 'lucide-react';
+import { ChevronRight } from 'lucide-react';
 import { useLanguage, AppLanguage } from '../contexts/LanguageContext';
-import { Weather3DIcon } from './Weather3DIcon';
+import {
+  Weather3DIcon,
+  ThermometerMin3DIcon,
+  ThermometerMax3DIcon,
+  HumidityDrop3DIcon,
+  WindFlow3DIcon,
+} from './Weather3DIcon';
 import { triggerHapticFeedback } from '../utils/haptics';
+
+import weatherOutfitCold from '../assets/images/weather_outfit_cold_1795483893978.jpg';
+import weatherOutfitLayers from '../assets/images/weather_outfit_layers_1795483894104.jpg';
+import weatherOutfitRain from '../assets/images/weather_outfit_rain_1795483895365.jpg';
+import weatherOutfitMild from '../assets/images/weather_outfit_mild_1795483894998.jpg';
 
 export interface RealWeatherSnapshot {
   temperature: number;
+  feelsLike?: number;
+  minTemp?: number;
+  maxTemp?: number;
+  humidity?: number;
+  windSpeed?: number;
   condition: string;
   isDay: boolean;
   weatherCode: number;
@@ -16,395 +32,265 @@ export interface RealWeatherSnapshot {
   precipitationMm?: number;
 }
 
-interface ClothingRecommendation {
+type OutfitCategory = 'cold' | 'layers' | 'rain' | 'mild';
+
+interface WeatherClothingPresentation {
+  category: OutfitCategory;
+  image: string;
   pillLabel: string;
-  headline: string;
-  thermalDelta: number;
-  summary: string;
-  layersLabel: string;
-  layersValue: string;
-  accessoriesLabel: string;
-  accessoriesValue: string;
-  footwearLabel: string;
-  footwearValue: string;
-  altitudeTipLabel: string;
-  altitudeTipValue: string;
-  rainAlert: string;
-  modalTitle: string;
-  altitudeSubtitle: string;
+  title: string;
+  subtitle: string;
   feelsLikeLabel: string;
-  understandBtn: string;
+  minLabel: string;
+  maxLabel: string;
+  humidityLabel: string;
+  windLabel: string;
+  ariaLabel: string;
 }
 
-function getClothingRecommendation(
-  temp: number,
+const OUTFIT_IMAGE_MAP: Record<OutfitCategory, string> = {
+  cold: weatherOutfitCold,
+  layers: weatherOutfitLayers,
+  rain: weatherOutfitRain,
+  mild: weatherOutfitMild,
+};
+
+function resolveClothingPresentation(
+  weather: RealWeatherSnapshot,
   lang: AppLanguage
-): ClothingRecommendation {
-  // Tier 1: <= 8°C (Intense mountain cold / frost)
-  if (temp <= 8) {
-    const content: Record<AppLanguage, ClothingRecommendation> = {
-      pt: {
-        pillLabel: 'Casaco térmico e luvas',
-        headline: 'Frio intenso na serra',
-        thermalDelta: -3,
-        summary:
-          'Temperatura rigorosa de inverno na montanha. Vista-se em três camadas térmicas para reter o calor corporal.',
-        layersLabel: 'Camadas principais',
-        layersValue: 'Segunda pele térmica, suéter de lã e sobretudo ou jaqueta puffer pesada',
-        accessoriesLabel: 'Acessórios essenciais',
-        accessoriesValue: 'Gorro, luvas térmicas e cachecol fechado no pescoço',
-        footwearLabel: 'Calçado recomendado',
-        footwearValue: 'Bota forrada ou calçado fechado impermeável com meias térmicas',
-        altitudeTipLabel: 'Dica de altitude · 1.628m',
-        altitudeTipValue:
-          'O vento de serra reduz a sensação térmica rapidamente ao ar livre. Mantenha extremidades protegidas.',
-        rainAlert: 'Umidade e garoa fria: priorize casaco externo impermeável.',
-        modalTitle: 'Guia de Vestuário',
-        altitudeSubtitle: 'Campos do Jordão · 1.628m de altitude',
-        feelsLikeLabel: 'Sensação',
-        understandBtn: 'Fechar guia',
-      },
-      en: {
-        pillLabel: 'Thermal coat & gloves',
-        headline: 'Freezing mountain weather',
-        thermalDelta: -3,
-        summary:
-          'Rigorous mountain cold. Dress in three thermal layers to retain body heat comfortably.',
-        layersLabel: 'Core layers',
-        layersValue: 'Thermal base layer, wool sweater, and a heavy overcoat or puffer jacket',
-        accessoriesLabel: 'Essential accessories',
-        accessoriesValue: 'Beanie, thermal gloves, and a warm scarf around the neck',
-        footwearLabel: 'Recommended footwear',
-        footwearValue: 'Lined boots or waterproof closed shoes with thermal socks',
-        altitudeTipLabel: 'Altitude note · 1,628m',
-        altitudeTipValue:
-          'Mountain winds lower the wind-chill quickly outdoors. Keep hands, ears, and neck covered.',
-        rainAlert: 'Cold mist or rain: wear a waterproof outer shell.',
-        modalTitle: 'Clothing Guide',
-        altitudeSubtitle: 'Campos do Jordão · 1,628m elevation',
-        feelsLikeLabel: 'Feels like',
-        understandBtn: 'Close guide',
-      },
-      es: {
-        pillLabel: 'Abrigo térmico y guantes',
-        headline: 'Frío intenso en la sierra',
-        thermalDelta: -3,
-        summary:
-          'Temperatura rigurosa de montaña. Vístete con tres capas térmicas para conservar el calor corporal.',
-        layersLabel: 'Capas principales',
-        layersValue: 'Primera piel térmica, suéter de lana y abrigo pesado o chaqueta acolchada',
-        accessoriesLabel: 'Accesorios esenciales',
-        accessoriesValue: 'Gorro, guantes térmicos y bufanda cerrada al cuello',
-        footwearLabel: 'Calzado recomendado',
-        footwearValue: 'Botas forradas o calzado cerrado impermeable con medias térmicas',
-        altitudeTipLabel: 'Consejo de altitud · 1.628m',
-        altitudeTipValue:
-          'El viento de la sierra reduce la sensación térmica rápidamente al aire libre. Protege las extremidades.',
-        rainAlert: 'Llovizna fría en la sierra: prioriza una capa exterior impermeable.',
-        modalTitle: 'Guía de Vestimenta',
-        altitudeSubtitle: 'Campos do Jordão · 1.628m de altitud',
-        feelsLikeLabel: 'Sensación',
-        understandBtn: 'Cerrar guía',
-      },
-      ja: {
-        pillLabel: '防寒コートと手袋',
-        headline: '高原の厳しい寒さ',
-        thermalDelta: -3,
-        summary:
-          '山岳地帯ならではの強い冷え込みです。体温を逃さないよう3層の防寒レイヤーを着用してください。',
-        layersLabel: '基本の重ね着',
-        layersValue: 'サーマルインナー＋ウールセーター＋厚手のコートまたはダウンジャケット',
-        accessoriesLabel: '必須アクセサリー',
-        accessoriesValue: 'ニット帽、防寒手袋、首元を覆うマフラー',
-        footwearLabel: 'おすすめの靴',
-        footwearValue: '裏起毛ブーツまたは厚手の靴下を合わせた防水シューズ',
-        altitudeTipLabel: '標高アドバイス・1,628m',
-        altitudeTipValue:
-          '高原の風により体感温度がさらに下がります。手先や首元をしっかり保温してください。',
-        rainAlert: '冷たい雨や霧：防水性のあるアウターを着用してください。',
-        modalTitle: '服装ガイド',
-        altitudeSubtitle: 'カンポス・ド・ジョルドン・標高1,628m',
-        feelsLikeLabel: '体感温度',
-        understandBtn: '閉じる',
-      },
-    };
-    return content[lang] || content.pt;
-  }
+): WeatherClothingPresentation {
+  const temp = Math.round(weather.temperature);
+  const minTemp =
+    typeof weather.minTemp === 'number' ? Math.round(weather.minTemp) : temp - 5;
+  const maxTemp =
+    typeof weather.maxTemp === 'number' ? Math.round(weather.maxTemp) : temp + 3;
+  const dailySpread = Math.max(0, maxTemp - minTemp);
 
-  // Tier 2: 9°C to 14°C (Classic Campos do Jordão chilly weather)
-  if (temp <= 14) {
-    const content: Record<AppLanguage, ClothingRecommendation> = {
-      pt: {
-        pillLabel: 'Casaco de lã e cachecol',
-        headline: 'Clima frio de montanha',
-        thermalDelta: -2,
-        summary:
-          'Clima clássico de Campos do Jordão. Aposte em tricô e um bom casaco estruturado para passear com conforto.',
-        layersLabel: 'Camadas principais',
-        layersValue: 'Tricô ou fleece combinado com casaco de lã ou jaqueta acolchoada',
-        accessoriesLabel: 'Acessórios essenciais',
-        accessoriesValue: 'Cachecol e proteção leve para a brisa fria da serra',
-        footwearLabel: 'Calçado recomendado',
-        footwearValue: 'Bota de couro ou tênis estruturado com meia grossa',
-        altitudeTipLabel: 'Dica de altitude · 1.628m',
-        altitudeTipValue:
-          'Ao entardecer a temperatura cai rapidamente. Mantenha o casaco principal mesmo se o sol aparecer.',
-        rainAlert: 'Previsão de chuva: leve guarda-chuva compacto ou casaco impermeável.',
-        modalTitle: 'Guia de Vestuário',
-        altitudeSubtitle: 'Campos do Jordão · 1.628m de altitude',
-        feelsLikeLabel: 'Sensação',
-        understandBtn: 'Fechar guia',
-      },
-      en: {
-        pillLabel: 'Wool coat & scarf',
-        headline: 'Crisp mountain chill',
-        thermalDelta: -2,
-        summary:
-          'Signature Campos do Jordão weather. Pair knitwear with a structured coat for comfortable sightseeing.',
-        layersLabel: 'Core layers',
-        layersValue: 'Knit sweater or fleece paired with a wool coat or quilted jacket',
-        accessoriesLabel: 'Essential accessories',
-        accessoriesValue: 'Scarf and light wind protection for the mountain breeze',
-        footwearLabel: 'Recommended footwear',
-        footwearValue: 'Leather boots or structured sneakers with warm socks',
-        altitudeTipLabel: 'Altitude note · 1,628m',
-        altitudeTipValue:
-          'Temperatures drop quickly around sunset. Keep your main coat handy even on sunny afternoons.',
-        rainAlert: 'Rain detected: bring a compact umbrella or water-resistant jacket.',
-        modalTitle: 'Clothing Guide',
-        altitudeSubtitle: 'Campos do Jordão · 1,628m elevation',
-        feelsLikeLabel: 'Feels like',
-        understandBtn: 'Close guide',
-      },
-      es: {
-        pillLabel: 'Abrigo de lana y bufanda',
-        headline: 'Clima frío de montaña',
-        thermalDelta: -2,
-        summary:
-          'Clima clásico de Campos do Jordão. Combina tejido de punto con un buen abrigo estructurado.',
-        layersLabel: 'Capas principales',
-        layersValue: 'Suéter de punto o polar combinado con abrigo de lana o chaqueta acolchada',
-        accessoriesLabel: 'Accesorios esenciales',
-        accessoriesValue: 'Bufanda y protección ligera contra la brisa fría de la sierra',
-        footwearLabel: 'Calzado recomendado',
-        footwearValue: 'Botas de cuero o zapatillas estructuradas con medias gruesas',
-        altitudeTipLabel: 'Consejo de altitud · 1.628m',
-        altitudeTipValue:
-          'Al atardecer la temperatura baja rápidamente. Lleva tu abrigo principal incluso si hay sol.',
-        rainAlert: 'Lluvia en la zona: incluye paraguas compacto o chaqueta impermeable.',
-        modalTitle: 'Guía de Vestimenta',
-        altitudeSubtitle: 'Campos do Jordão · 1.628m de altitud',
-        feelsLikeLabel: 'Sensación',
-        understandBtn: 'Cerrar guía',
-      },
-      ja: {
-        pillLabel: 'ウールコートとマフラー',
-        headline: '爽やかな高原の冷涼気候',
-        thermalDelta: -2,
-        summary:
-          'カンポス・ド・ジョルドンらしい涼しい気候です。ニットとしっかりしたコートの組み合わせが最適です。',
-        layersLabel: '基本の重ね着',
-        layersValue: 'ニットまたはフリース＋ウールコートやキルティングジャケット',
-        accessoriesLabel: '必須アクセサリー',
-        accessoriesValue: 'マフラーと高原の冷たい風を防ぐアイテム',
-        footwearLabel: 'おすすめの靴',
-        footwearValue: 'レザーブーツまたは厚手の靴下を合わせたスニーカー',
-        altitudeTipLabel: '標高アドバイス・1,628m',
-        altitudeTipValue:
-          '夕暮れ以降は急激に冷え込みます。日中に日差しがあってもコートを携帯してください。',
-        rainAlert: '雨模様：折りたたみ傘や撥水ジャケットをご用意ください。',
-        modalTitle: '服装ガイド',
-        altitudeSubtitle: 'カンポス・ド・ジョルドン・標高1,628m',
-        feelsLikeLabel: '体感温度',
-        understandBtn: '閉じる',
-      },
-    };
-    return content[lang] || content.pt;
-  }
-
-  // Tier 3: 15°C to 19°C (Mild mountain day, chilly shadows & evening)
-  if (temp <= 19) {
-    const content: Record<AppLanguage, ClothingRecommendation> = {
-      pt: {
-        pillLabel: 'Suéter ou jaqueta leve',
-        headline: 'Ameno ao sol, frio à noite',
-        thermalDelta: -1,
-        summary:
-          'Temperatura agradável para caminhar durante o dia, mas fria na sombra e ao anoitecer.',
-        layersLabel: 'Camadas principais',
-        layersValue: 'Camisa de manga longa com tricô leve, cardigã ou jaqueta corta-vento',
-        accessoriesLabel: 'Acessórios essenciais',
-        accessoriesValue: 'Óculos de sol para o dia e echarpe ou cachecol leve para o fim de tarde',
-        footwearLabel: 'Calçado recomendado',
-        footwearValue: 'Tênis confortável ou bota casual para caminhadas',
-        altitudeTipLabel: 'Dica de altitude · 1.628m',
-        altitudeTipValue:
-          'Após as 17h os termômetros costumam cair até 6°C. Tenha sempre um agasalho extra por perto.',
-        rainAlert: 'Tempo úmido: prefira jaqueta impermeável leve com capuz.',
-        modalTitle: 'Guia de Vestuário',
-        altitudeSubtitle: 'Campos do Jordão · 1.628m de altitude',
-        feelsLikeLabel: 'Sensação',
-        understandBtn: 'Fechar guia',
-      },
-      en: {
-        pillLabel: 'Sweater or light jacket',
-        headline: 'Mild sun, chilly evening',
-        thermalDelta: -1,
-        summary:
-          'Pleasant temperature for daytime walks, turning cool in the shade and after sunset.',
-        layersLabel: 'Core layers',
-        layersValue: 'Long-sleeve shirt with a light knit, cardigan, or windbreaker jacket',
-        accessoriesLabel: 'Essential accessories',
-        accessoriesValue: 'Sunglasses for daytime and a light scarf for late afternoon',
-        footwearLabel: 'Recommended footwear',
-        footwearValue: 'Comfortable walking sneakers or casual ankle boots',
-        altitudeTipLabel: 'Altitude note · 1,628m',
-        altitudeTipValue:
-          'After 5 PM temperatures often drop by up to 6°C. Always keep an extra layer nearby.',
-        rainAlert: 'Wet conditions: opt for a lightweight waterproof jacket.',
-        modalTitle: 'Clothing Guide',
-        altitudeSubtitle: 'Campos do Jordão · 1,628m elevation',
-        feelsLikeLabel: 'Feels like',
-        understandBtn: 'Close guide',
-      },
-      es: {
-        pillLabel: 'Suéter o chaqueta ligera',
-        headline: 'Templado al sol, fresco de noche',
-        thermalDelta: -1,
-        summary:
-          'Temperatura agradable para pasear de día, pero fresca a la sombra y al anochecer.',
-        layersLabel: 'Capas principales',
-        layersValue: 'Camisa de manga larga con tejido ligero, cárdigan o cortavientos',
-        accessoriesLabel: 'Accesorios esenciales',
-        accessoriesValue: 'Gafas de sol para el día y pañuelo o bufanda ligera para la tarde',
-        footwearLabel: 'Calzado recomendado',
-        footwearValue: 'Zapatillas cómodas o botas casuales para caminar',
-        altitudeTipLabel: 'Consejo de altitud · 1.628m',
-        altitudeTipValue:
-          'Después de las 17h la temperatura suele bajar hasta 6°C. Ten siempre un abrigo a mano.',
-        rainAlert: 'Clima húmedo: prefiere una chaqueta impermeable ligera.',
-        modalTitle: 'Guía de Vestimenta',
-        altitudeSubtitle: 'Campos do Jordão · 1.628m de altitud',
-        feelsLikeLabel: 'Sensación',
-        understandBtn: 'Cerrar guía',
-      },
-      ja: {
-        pillLabel: 'セーターまたは薄手のジャケット',
-        headline: '日中は快適・夜は冷え込み',
-        thermalDelta: -1,
-        summary:
-          '日中の散策には心地よい気温ですが、日陰や夕方以降は肌寒くなります。',
-        layersLabel: '基本の重ね着',
-        layersValue: '長袖シャツ＋薄手のニット、カーディガン、またはウィンドブレーカー',
-        accessoriesLabel: '必須アクセサリー',
-        accessoriesValue: '日中のサングラスと、夕方用の薄手のストール',
-        footwearLabel: 'おすすめの靴',
-        footwearValue: '歩きやすいスニーカーまたはカジュアルブーツ',
-        altitudeTipLabel: '標高アドバイス・1,628m',
-        altitudeTipValue:
-          '17時以降は気温が最大6°Cほど下がります。羽織れる上着を必ずお持ちください。',
-        rainAlert: '雨への備え：軽量な撥水ジャケットがおすすめです。',
-        modalTitle: '服装ガイド',
-        altitudeSubtitle: 'カンポス・ド・ジョルドン・標高1,628m',
-        feelsLikeLabel: '体感温度',
-        understandBtn: '閉じる',
-      },
-    };
-    return content[lang] || content.pt;
-  }
-
-  // Tier 4: >= 20°C (Pleasant mountain day, cool night)
-  const content: Record<AppLanguage, ClothingRecommendation> = {
+  const labels: Record<
+    AppLanguage,
+    {
+      feelsLikeLabel: string;
+      minLabel: string;
+      maxLabel: string;
+      humidityLabel: string;
+      windLabel: string;
+      ariaLabel: string;
+    }
+  > = {
     pt: {
-      pillLabel: 'Roupa leve + casaco p/ noite',
-      headline: 'Dia agradável na serra',
-      thermalDelta: 0,
-      summary:
-        'Dia suave e ensolarado nos parques e mirantes. Ainda assim, o ar de montanha esfria à noite.',
-      layersLabel: 'Camadas principais',
-      layersValue: 'Camiseta ou camisa leve durante o dia e jaqueta leve para a noite',
-      accessoriesLabel: 'Acessórios essenciais',
-      accessoriesValue: 'Óculos de sol, protetor solar e hidratante labial',
-      footwearLabel: 'Calçado recomendado',
-      footwearValue: 'Tênis leve e confortável para explorar trilhas e o Capivari',
-      altitudeTipLabel: 'Dica de altitude · 1.628m',
-      altitudeTipValue:
-        'Mesmo em dias mais quentes, as noites na serra pedem um agasalho leve para jantar fora.',
-      rainAlert: 'Pancadas na serra: leve capa de chuva ou guarda-chuva compacto.',
-      modalTitle: 'Guia de Vestuário',
-      altitudeSubtitle: 'Campos do Jordão · 1.628m de altitude',
-      feelsLikeLabel: 'Sensação',
-      understandBtn: 'Fechar guia',
+      feelsLikeLabel: 'Sensação térmica',
+      minLabel: 'Mínima',
+      maxLabel: 'Máxima',
+      humidityLabel: 'Umidade',
+      windLabel: 'Vento',
+      ariaLabel: 'Clima em Campos do Jordão',
     },
     en: {
-      pillLabel: 'Light wear + evening jacket',
-      headline: 'Pleasant mountain day',
-      thermalDelta: 0,
-      summary:
-        'Mild and comfortable for parks and viewpoints, though mountain air still cools down at night.',
-      layersLabel: 'Core layers',
-      layersValue: 'Breathable shirt or tee by day, plus a light jacket for the evening',
-      accessoriesLabel: 'Essential accessories',
-      accessoriesValue: 'Sunglasses, sunscreen, and lip balm for the dry mountain air',
-      footwearLabel: 'Recommended footwear',
-      footwearValue: 'Light, comfortable sneakers for exploring trails and Capivari',
-      altitudeTipLabel: 'Altitude note · 1,628m',
-      altitudeTipValue:
-        'Even on warmer days, mountain evenings call for a light sweater or jacket when dining out.',
-      rainAlert: 'Mountain showers: carry a compact umbrella or light rain shell.',
-      modalTitle: 'Clothing Guide',
-      altitudeSubtitle: 'Campos do Jordão · 1,628m elevation',
       feelsLikeLabel: 'Feels like',
-      understandBtn: 'Close guide',
+      minLabel: 'Low',
+      maxLabel: 'High',
+      humidityLabel: 'Humidity',
+      windLabel: 'Wind',
+      ariaLabel: 'Weather in Campos do Jordão',
     },
     es: {
-      pillLabel: 'Ropa ligera + chaqueta nocturna',
-      headline: 'Día agradable en la sierra',
-      thermalDelta: 0,
-      summary:
-        'Día suave para parques y miradores, aunque el aire de montaña siempre refresca por la noche.',
-      layersLabel: 'Capas principales',
-      layersValue: 'Camiseta o camisa ligera de día y chaqueta suave para la noche',
-      accessoriesLabel: 'Accesorios esenciales',
-      accessoriesValue: 'Gafas de sol, protector solar y bálsamo labial',
-      footwearLabel: 'Calzado recomendado',
-      footwearValue: 'Zapatillas ligeras y cómodas para recorrer senderos y Capivari',
-      altitudeTipLabel: 'Consejo de altitud · 1.628m',
-      altitudeTipValue:
-        'Incluso en días cálidos, las noches en la sierra requieren un abrigo ligero al salir.',
-      rainAlert: 'Lluvias de montaña: lleva paraguas compacto o impermeable ligero.',
-      modalTitle: 'Guía de Vestimenta',
-      altitudeSubtitle: 'Campos do Jordão · 1.628m de altitud',
-      feelsLikeLabel: 'Sensación',
-      understandBtn: 'Cerrar guía',
+      feelsLikeLabel: 'Sensación térmica',
+      minLabel: 'Mínima',
+      maxLabel: 'Máxima',
+      humidityLabel: 'Humedad',
+      windLabel: 'Viento',
+      ariaLabel: 'Clima en Campos do Jordão',
     },
     ja: {
-      pillLabel: '軽装＋夜用ジャケット',
-      headline: '過ごしやすい高原の陽気',
-      thermalDelta: 0,
-      summary:
-        '公園や展望台巡りに最適な穏やかな気候ですが、夜間は高原特有の涼しさになります。',
-      layersLabel: '基本の重ね着',
-      layersValue: '日中は軽やかなシャツやTシャツ＋夜用の薄手ジャケット',
-      accessoriesLabel: '必須アクセサリー',
-      accessoriesValue: 'サングラス、日焼け止め、乾燥対策のリップクリーム',
-      footwearLabel: 'おすすめの靴',
-      footwearValue: 'カピヴァリ散策やトレイルに適した軽量スニーカー',
-      altitudeTipLabel: '標高アドバイス・1,628m',
-      altitudeTipValue:
-        '暖かい日でも、夜の外出やディナーには薄手の羽織りものが必要です。',
-      rainAlert: '山の天気：折りたたみ傘やレインジャケットがあると安心です。',
-      modalTitle: '服装ガイド',
-      altitudeSubtitle: 'カンポス・ド・ジョルドン・標高1,628m',
       feelsLikeLabel: '体感温度',
-      understandBtn: '閉じる',
+      minLabel: '最低',
+      maxLabel: '最高',
+      humidityLabel: '湿度',
+      windLabel: '風速',
+      ariaLabel: 'カンポス・ド・ジョルドンの天気',
     },
   };
-  return content[lang] || content.pt;
+
+  const l = labels[lang] || labels.pt;
+
+  // 1. Active rain takes top priority
+  if (weather.isRaining) {
+    const copy: Record<AppLanguage, { pill: string; title: string; sub: string }> = {
+      pt: {
+        pill: 'Proteja-se da chuva',
+        title: 'Proteja-se da chuva',
+        sub:
+          temp <= 15
+            ? 'Casaco impermeável quente e guarda-chuva compacto.'
+            : 'Leve jaqueta impermeável leve e guarda-chuva.',
+      },
+      en: {
+        pill: 'Rain protection',
+        title: 'Stay dry in the rain',
+        sub:
+          temp <= 15
+            ? 'Warm waterproof shell and a compact umbrella.'
+            : 'Bring a light waterproof jacket and umbrella.',
+      },
+      es: {
+        pill: 'Protección de lluvia',
+        title: 'Protégete de la lluvia',
+        sub:
+          temp <= 15
+            ? 'Chaqueta impermeable abrigada y paraguas compacto.'
+            : 'Lleva chaqueta impermeable ligera y paraguas.',
+      },
+      ja: {
+        pill: '雨対策アウター',
+        title: '雨対策を万全に',
+        sub:
+          temp <= 15
+            ? '暖かい防水ジャケットと折りたたみ傘があると安心です。'
+            : '軽量の撥水ジャケットと傘をお持ちください。',
+      },
+    };
+    const c = copy[lang] || copy.pt;
+    return {
+      category: 'rain',
+      image: OUTFIT_IMAGE_MAP.rain,
+      pillLabel: c.pill,
+      title: c.title,
+      subtitle: c.sub,
+      ...l,
+    };
+  }
+
+  // 2. Cold mountain weather (<= 13°C)
+  if (temp <= 13) {
+    const copy: Record<AppLanguage, { pill: string; title: string; sub: string }> = {
+      pt: {
+        pill: 'Casaco e cachecol',
+        title: temp <= 8 ? 'Agasalho reforçado' : 'Aposte em um bom casaco',
+        sub:
+          temp <= 8
+            ? 'Casaco térmico, cachecol e gorro para o frio intenso.'
+            : 'Jaqueta quente, tricô e cachecol para o clima da serra.',
+      },
+      en: {
+        pill: 'Warm coat & scarf',
+        title: temp <= 8 ? 'Bundle up warmly' : 'Wear a warm coat',
+        sub:
+          temp <= 8
+            ? 'Heavy insulated jacket, knit scarf, and beanie.'
+            : 'Puffer or wool coat with a scarf for crisp mountain air.',
+      },
+      es: {
+        pill: 'Abrigo y bufanda',
+        title: temp <= 8 ? 'Abrígate bien' : 'Usa un buen abrigo',
+        sub:
+          temp <= 8
+            ? 'Chaqueta térmica, bufanda y gorro para el frío intenso.'
+            : 'Abrigo cálido y bufanda para el aire frío de montaña.',
+      },
+      ja: {
+        pill: '防寒コートとマフラー',
+        title: temp <= 8 ? 'しっかり防寒対策を' : '暖かいコートがおすすめ',
+        sub:
+          temp <= 8
+            ? '厚手のダウン、マフラー、ニット帽で暖かく。'
+            : '高原の冷え込みに備えてコートとマフラーを。',
+      },
+    };
+    const c = copy[lang] || copy.pt;
+    return {
+      category: 'cold',
+      image: OUTFIT_IMAGE_MAP.cold,
+      pillLabel: c.pill,
+      title: c.title,
+      subtitle: c.sub,
+      ...l,
+    };
+  }
+
+  // 3. Mild / layered mountain weather (14°C – 21°C, or notable daily temperature swing)
+  if (temp <= 21 || dailySpread >= 7) {
+    const useWarmLayerVisual = temp <= 17;
+    const copy: Record<AppLanguage, { pill: string; title: string; sub: string }> = {
+      pt: {
+        pill: 'Vista-se em camadas',
+        title: 'Vista-se em camadas',
+        sub:
+          dailySpread >= 8
+            ? 'Leve uma blusa extra para o frio da serra.'
+            : 'Temperaturas agradáveis, com frio à noite.',
+      },
+      en: {
+        pill: 'Dress in layers',
+        title: 'Dress in layers',
+        sub:
+          dailySpread >= 8
+            ? 'Bring an extra sweater for the mountain chill.'
+            : 'Pleasant temperatures, turning cool at night.',
+      },
+      es: {
+        pill: 'Vístete en capas',
+        title: 'Vístete en capas',
+        sub:
+          dailySpread >= 8
+            ? 'Lleva una prenda extra para el frío de la sierra.'
+            : 'Temperaturas agradables, con fresco por la noche.',
+      },
+      ja: {
+        pill: '重ね着がおすすめ',
+        title: '重ね着がおすすめ',
+        sub:
+          dailySpread >= 8
+            ? '寒暖差に備えて羽織れる上着をお持ちください。'
+            : '日中は快適ですが、夜は肌寒くなります。',
+      },
+    };
+    const c = copy[lang] || copy.pt;
+    return {
+      category: useWarmLayerVisual ? 'cold' : 'layers',
+      image: useWarmLayerVisual ? OUTFIT_IMAGE_MAP.cold : OUTFIT_IMAGE_MAP.layers,
+      pillLabel: c.pill,
+      title: c.title,
+      subtitle: c.sub,
+      ...l,
+    };
+  }
+
+  // 4. Warm / sunny mountain day (>= 22°C, small spread, no rain)
+  const copy: Record<AppLanguage, { pill: string; title: string; sub: string }> = {
+    pt: {
+      pill: 'Roupas leves',
+      title: 'Roupas leves',
+      sub: 'Peças frescas durante o dia e malha leve ao anoitecer.',
+    },
+    en: {
+      pill: 'Light attire',
+      title: 'Wear light clothing',
+      sub: 'Breathable pieces by day and a light layer for evening.',
+    },
+    es: {
+      pill: 'Ropa ligera',
+      title: 'Usa ropa ligera',
+      sub: 'Prendas frescas de día y una capa suave por la noche.',
+    },
+    ja: {
+      pill: '軽やかな服装',
+      title: '軽やかな服装で快適に',
+      sub: '日中は涼しく、夜用に薄手の羽織りがあると安心です。',
+    },
+  };
+  const c = copy[lang] || copy.pt;
+  return {
+    category: 'mild',
+    image: OUTFIT_IMAGE_MAP.mild,
+    pillLabel: c.pill,
+    title: c.title,
+    subtitle: c.sub,
+    ...l,
+  };
 }
 
 /**
- * Minimalist linear coat/jacket SVG icon following Apple SF Symbols stroke aesthetics.
+ * Minimalist linear coat SVG icon used only for compact pill/desktop banner callers.
  */
 const CoatLinearIcon: React.FC<{ className?: string }> = ({ className = 'w-4 h-4' }) => (
   <svg
@@ -438,7 +324,7 @@ export const MobileExploreClothingPill: React.FC<MobileClothingPillProps> = ({
   theme = 'dark',
 }) => {
   const { language } = useLanguage();
-  const rec = getClothingRecommendation(weather.temperature, language);
+  const rec = resolveClothingPresentation(weather, language);
   const isLightMapText = !isSatellite && theme === 'light';
 
   return (
@@ -452,7 +338,7 @@ export const MobileExploreClothingPill: React.FC<MobileClothingPillProps> = ({
         } catch {}
         onOpenGuide();
       }}
-      aria-label={`${rec.modalTitle}: ${rec.pillLabel}`}
+      aria-label={`${rec.ariaLabel}: ${rec.pillLabel}`}
       className={`mt-2 group flex items-center gap-2 px-3 py-1.5 rounded-full ios26-liquid-glass transition-all duration-200 active:scale-95 cursor-pointer select-none max-w-[235px] sm:max-w-[265px] ${
         isLightMapText ? 'text-zinc-900' : 'text-white'
       }`}
@@ -500,8 +386,11 @@ export const DesktopExploreClothingBanner: React.FC<DesktopClothingBannerProps> 
   theme = 'dark',
 }) => {
   const { language } = useLanguage();
-  const rec = getClothingRecommendation(weather.temperature, language);
-  const feelsLike = weather.temperature + rec.thermalDelta;
+  const rec = resolveClothingPresentation(weather, language);
+  const feelsLike =
+    typeof weather.feelsLike === 'number'
+      ? Math.round(weather.feelsLike)
+      : Math.round(weather.temperature - 1);
   const isDark = theme === 'dark';
 
   return (
@@ -519,23 +408,22 @@ export const DesktopExploreClothingBanner: React.FC<DesktopClothingBannerProps> 
       }}
     >
       <div className="flex items-center gap-3 min-w-0">
-        <div
-          className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 border ${
-            isDark
-              ? 'bg-[#1A1D24] border-white/10 text-[#4DA3FF]'
-              : 'bg-white border-zinc-200/80 text-[#007AFF]'
-          }`}
-        >
-          <CoatLinearIcon className="w-5 h-5" />
+        <div className="w-11 h-11 rounded-xl overflow-hidden shrink-0 border border-white/10 bg-[#2C3138]">
+          <img
+            src={rec.image}
+            alt={rec.title}
+            referrerPolicy="no-referrer"
+            className="w-full h-full object-cover"
+          />
         </div>
 
         <div className="min-w-0">
           <div className="flex items-center gap-1.5 text-[11px] font-medium text-zinc-400">
-            <span className="tabular-nums font-semibold text-[#007AFF]">
-              {weather.temperature}°C
+            <span className="tabular-nums font-semibold text-zinc-900 dark:text-white">
+              {Math.round(weather.temperature)}°C
             </span>
             <span aria-hidden="true">·</span>
-            <span className="truncate">
+            <span className="truncate tabular-nums">
               {rec.feelsLikeLabel} {feelsLike}°C
             </span>
           </div>
@@ -544,7 +432,7 @@ export const DesktopExploreClothingBanner: React.FC<DesktopClothingBannerProps> 
               isDark ? 'text-white' : 'text-zinc-900'
             }`}
           >
-            {rec.pillLabel}
+            {rec.title}
           </p>
         </div>
       </div>
@@ -563,6 +451,7 @@ interface ClothingWeatherModalProps {
   onClose: () => void;
   weather: RealWeatherSnapshot;
   theme?: 'dark' | 'light';
+  isSatellite?: boolean;
 }
 
 export const ClothingWeatherModal: React.FC<ClothingWeatherModalProps> = ({
@@ -570,191 +459,237 @@ export const ClothingWeatherModal: React.FC<ClothingWeatherModalProps> = ({
   onClose,
   weather,
   theme = 'dark',
+  isSatellite = false,
 }) => {
-  const { language, tr } = useLanguage();
-  const rec = getClothingRecommendation(weather.temperature, language);
-  const feelsLike = weather.temperature + rec.thermalDelta;
-  const isDark = theme === 'dark';
+  const { language } = useLanguage();
+  const [imgFailed, setImgFailed] = useState(false);
+  const rec = resolveClothingPresentation(weather, language);
+
+  const currentTemp = Math.round(weather.temperature);
+  const feelsLike =
+    typeof weather.feelsLike === 'number'
+      ? Math.round(weather.feelsLike)
+      : currentTemp - (currentTemp <= 14 ? 2 : 1);
+  const minTemp =
+    typeof weather.minTemp === 'number' ? Math.round(weather.minTemp) : currentTemp - 5;
+  const maxTemp =
+    typeof weather.maxTemp === 'number' ? Math.round(weather.maxTemp) : currentTemp + 3;
+  const humidity =
+    typeof weather.humidity === 'number' ? Math.round(weather.humidity) : 78;
+  const windSpeed =
+    typeof weather.windSpeed === 'number' ? Math.round(weather.windSpeed) : 8;
+
+  // Use rich iOS dark frosted glass over satellite / dark map, and luminous frosted glass on light map
+  const useDarkGlass = isSatellite || theme === 'dark';
+
+  useEffect(() => {
+    setImgFailed(false);
+  }, [rec.image]);
+
+  useEffect(() => {
+    if (!isOpen) return;
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        onClose();
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [isOpen, onClose]);
+
+  const cardSurfaceClass = useDarkGlass
+    ? 'bg-[#2C313A]/62 border-white/[0.24] text-white shadow-[0_20px_50px_rgba(0,0,0,0.36),inset_0_1px_0_rgba(255,255,255,0.28)]'
+    : 'bg-white/78 border-white/85 text-zinc-950 shadow-[0_18px_46px_rgba(15,23,42,0.14),inset_0_1px_0_rgba(255,255,255,0.9)]';
+
+  const secondaryTextClass = useDarkGlass ? 'text-white/72' : 'text-zinc-600';
+  const metricLabelClass = useDarkGlass ? 'text-white/74' : 'text-zinc-500';
+  const metricValueClass = useDarkGlass ? 'text-white' : 'text-zinc-950';
+
+  const detailMetrics = [
+    {
+      id: 'min',
+      label: rec.minLabel,
+      value: `${minTemp}°C`,
+      icon: <ThermometerMin3DIcon className="w-8 h-8 sm:w-9 sm:h-9" />,
+    },
+    {
+      id: 'max',
+      label: rec.maxLabel,
+      value: `${maxTemp}°C`,
+      icon: <ThermometerMax3DIcon className="w-8 h-8 sm:w-9 sm:h-9" />,
+    },
+    {
+      id: 'humidity',
+      label: rec.humidityLabel,
+      value: `${humidity}%`,
+      icon: <HumidityDrop3DIcon className="w-8 h-8 sm:w-9 sm:h-9" />,
+    },
+    {
+      id: 'wind',
+      label: rec.windLabel,
+      value: `${windSpeed} km/h`,
+      icon: <WindFlow3DIcon className="w-8 h-8 sm:w-9 sm:h-9" />,
+    },
+  ];
 
   return (
     <AnimatePresence>
       {isOpen && (
         <motion.div
           id="clothing-weather-modal-backdrop"
+          role="dialog"
+          aria-modal="true"
+          aria-label={rec.ariaLabel}
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
-          transition={{ duration: 0.2, ease: [0.22, 1, 0.36, 1] }}
+          transition={{ duration: 0.24, ease: [0.22, 1, 0.36, 1] }}
           onClick={onClose}
-          className={`fixed inset-0 z-[85] flex items-end sm:items-center justify-center p-0 sm:p-5 select-none ${
-            isDark ? 'bg-black/70' : 'bg-black/45'
+          className={`fixed inset-0 z-[85] flex items-center justify-center px-4 sm:px-6 select-none backdrop-blur-[10px] ${
+            useDarkGlass ? 'bg-black/26' : 'bg-white/24'
           }`}
+          style={{
+            fontFamily:
+              '-apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro Text", sans-serif',
+            paddingTop: 'max(24px, calc(env(safe-area-inset-top, 0px) + 20px))',
+            paddingBottom: 'max(24px, calc(env(safe-area-inset-bottom, 0px) + 20px))',
+          }}
         >
           <motion.div
             id="clothing-weather-modal-sheet"
-            role="dialog"
-            aria-modal="true"
-            aria-labelledby="clothing-weather-modal-title"
-            initial={{ opacity: 0, y: 36, scale: 0.98 }}
+            initial={{ opacity: 0, y: 22, scale: 0.96 }}
             animate={{ opacity: 1, y: 0, scale: 1 }}
-            exit={{ opacity: 0, y: 28, scale: 0.98 }}
-            transition={{ duration: 0.24, ease: [0.22, 1, 0.36, 1] }}
-            onClick={(e) => e.stopPropagation()}
-            className={`w-full sm:max-w-[400px] rounded-t-[32px] sm:rounded-[32px] border-t sm:border px-6 pt-4 pb-7 overflow-hidden ${
-              isDark
-                ? 'bg-[#1C1C1E]/95 border-white/10 text-white shadow-[0_24px_60px_rgba(0,0,0,0.65)]'
-                : 'bg-white/95 border-black/10 text-zinc-900 shadow-[0_24px_60px_rgba(0,0,0,0.18)]'
-            }`}
-            style={{
-              fontFamily:
-                '-apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro Text", sans-serif',
-              paddingBottom: 'max(28px, calc(env(safe-area-inset-bottom, 0px) + 20px))',
+            exit={{ opacity: 0, y: 16, scale: 0.96 }}
+            transition={{
+              type: 'spring',
+              stiffness: 360,
+              damping: 30,
+              mass: 0.85,
             }}
+            onClick={(e) => e.stopPropagation()}
+            className="w-full max-w-[390px] sm:max-w-[440px] flex flex-col gap-3.5 sm:gap-4"
           >
-            {/* iOS Grabber Handle on mobile */}
-            <div className={`w-9 h-1 rounded-full mx-auto mb-4 sm:hidden ${isDark ? 'bg-white/20' : 'bg-black/15'}`} />
-
-            {/* Top Header */}
-            <div className="flex items-start justify-between gap-3">
-              <div>
-                <p className={`text-[12px] font-medium tracking-tight ${isDark ? 'text-[#8E939E]' : 'text-zinc-500'}`}>
-                  {rec.altitudeSubtitle}
-                </p>
-                <h2
-                  id="clothing-weather-modal-title"
-                  className={`text-[20px] font-bold tracking-[-0.02em] mt-0.5 ${isDark ? 'text-white' : 'text-zinc-900'}`}
-                >
-                  {rec.modalTitle}
-                </h2>
-              </div>
-
-              <button
-                type="button"
-                onClick={onClose}
-                aria-label={rec.understandBtn}
-                className={`w-8 h-8 rounded-full active:scale-95 flex items-center justify-center transition-all cursor-pointer shrink-0 ${
-                  isDark
-                    ? 'bg-white/[0.08] hover:bg-white/[0.14] text-[#A1A1AA] hover:text-white'
-                    : 'bg-zinc-100 hover:bg-zinc-200 text-zinc-600 hover:text-zinc-900'
-                }`}
-              >
-                <X className="w-4 h-4" />
-              </button>
-            </div>
-
-            {/* Current Weather & Thermal Summary Hero */}
-            <div className={`mt-5 pb-5 border-b flex items-center justify-between gap-4 ${isDark ? 'border-white/[0.08]' : 'border-zinc-200/80'}`}>
-              <div className="flex items-center gap-3">
+            {/* 1. DOMINANT MAIN WEATHER HERO GLASS CARD */}
+            <motion.section
+              aria-label={`${currentTemp}°C`}
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.28, ease: [0.22, 1, 0.36, 1] }}
+              className={`w-full rounded-[32px] border backdrop-blur-2xl px-6 py-7 sm:px-8 sm:py-8 flex items-center justify-between gap-4 ${cardSurfaceClass}`}
+            >
+              {/* Large 3D Weather Condition Icon */}
+              <div className="flex-1 flex items-center justify-center">
                 <Weather3DIcon
                   weatherCode={weather.weatherCode}
                   isDay={weather.isDay}
-                  className="w-14 h-14 -my-1 shrink-0"
+                  className="w-[122px] h-[122px] sm:w-[138px] sm:h-[138px]"
                 />
-                <div>
-                  <div className="flex items-baseline gap-2">
-                    <span className={`text-[38px] font-bold tracking-tighter leading-none tabular-nums ${isDark ? 'text-white' : 'text-zinc-900'}`}>
-                      {weather.temperature}°
-                    </span>
-                    <span className={`text-[13px] font-medium tabular-nums ${isDark ? 'text-[#8E939E]' : 'text-zinc-500'}`}>
-                      {rec.feelsLikeLabel} {feelsLike}°C
-                    </span>
-                  </div>
-                  <p className={`text-[13px] font-medium mt-1 ${isDark ? 'text-[#A1A1AA]' : 'text-zinc-600'}`}>
-                    {tr(weather.condition)}
-                  </p>
-                </div>
-              </div>
-            </div>
-
-            {/* Recommendation Headline & Summary */}
-            <div className="mt-5">
-              <h3 className={`text-[16px] font-semibold tracking-[-0.01em] ${isDark ? 'text-white' : 'text-zinc-900'}`}>
-                {rec.headline}
-              </h3>
-              <p className={`text-[13.5px] leading-relaxed mt-1 ${isDark ? 'text-[#9CA3AF]' : 'text-zinc-600'}`}>
-                {rec.summary}
-              </p>
-            </div>
-
-            {/* Clean Structured Clothing Rows (Unboxed with subtle hairline dividers) */}
-            <div className={`mt-5 divide-y border-y ${isDark ? 'divide-white/[0.08] border-white/[0.08]' : 'divide-zinc-200/80 border-zinc-200/80'}`}>
-              {/* 1. Core Layers */}
-              <div className="py-3.5 flex items-start gap-3.5">
-                <div className={`w-8 h-8 rounded-full flex items-center justify-center shrink-0 mt-0.5 ${isDark ? 'bg-[#007AFF]/15 text-[#4DA3FF]' : 'bg-[#007AFF]/10 text-[#007AFF]'}`}>
-                  <CoatLinearIcon className="w-4 h-4" />
-                </div>
-                <div className="min-w-0 flex-1">
-                  <p className={`text-[12px] font-medium ${isDark ? 'text-[#8E939E]' : 'text-zinc-500'}`}>
-                    {rec.layersLabel}
-                  </p>
-                  <p className={`text-[14px] font-medium leading-snug mt-0.5 ${isDark ? 'text-white' : 'text-zinc-900'}`}>
-                    {rec.layersValue}
-                  </p>
-                </div>
               </div>
 
-              {/* 2. Accessories */}
-              <div className="py-3.5 flex items-start gap-3.5">
-                <div className={`w-8 h-8 rounded-full flex items-center justify-center shrink-0 mt-0.5 ${isDark ? 'bg-[#007AFF]/15 text-[#4DA3FF]' : 'bg-[#007AFF]/10 text-[#007AFF]'}`}>
-                  <Wind className="w-4 h-4 stroke-[1.9]" />
-                </div>
-                <div className="min-w-0 flex-1">
-                  <p className={`text-[12px] font-medium ${isDark ? 'text-[#8E939E]' : 'text-zinc-500'}`}>
-                    {rec.accessoriesLabel}
-                  </p>
-                  <p className={`text-[14px] font-medium leading-snug mt-0.5 ${isDark ? 'text-white' : 'text-zinc-900'}`}>
-                    {rec.accessoriesValue}
-                  </p>
+              {/* Dominant Temperature & Secondary Feels-Like */}
+              <div className="flex-1 flex flex-col items-start justify-center pl-1 sm:pl-2">
+                <span
+                  className={`text-[70px] sm:text-[80px] font-bold tracking-[-0.045em] leading-[0.92] tabular-nums ${
+                    useDarkGlass ? 'text-white' : 'text-zinc-950'
+                  }`}
+                >
+                  {currentTemp}°
+                </span>
+
+                <div className="mt-3 flex flex-col">
+                  <span
+                    className={`text-[13.5px] sm:text-[14.5px] font-medium tracking-[-0.01em] leading-snug ${secondaryTextClass}`}
+                  >
+                    {rec.feelsLikeLabel}
+                  </span>
+                  <span
+                    className={`text-[19px] sm:text-[21px] font-semibold tracking-[-0.02em] leading-tight mt-0.5 tabular-nums ${
+                      useDarkGlass ? 'text-white' : 'text-zinc-950'
+                    }`}
+                  >
+                    {feelsLike}°C
+                  </span>
                 </div>
               </div>
+            </motion.section>
 
-              {/* 3. Footwear */}
-              <div className="py-3.5 flex items-start gap-3.5">
-                <div className={`w-8 h-8 rounded-full flex items-center justify-center shrink-0 mt-0.5 ${isDark ? 'bg-[#007AFF]/15 text-[#4DA3FF]' : 'bg-[#007AFF]/10 text-[#007AFF]'}`}>
-                  <ShieldCheck className="w-4 h-4 stroke-[1.9]" />
-                </div>
-                <div className="min-w-0 flex-1">
-                  <p className={`text-[12px] font-medium ${isDark ? 'text-[#8E939E]' : 'text-zinc-500'}`}>
-                    {rec.footwearLabel}
-                  </p>
-                  <p className={`text-[14px] font-medium leading-snug mt-0.5 ${isDark ? 'text-white' : 'text-zinc-900'}`}>
-                    {rec.footwearValue}
-                  </p>
-                </div>
-              </div>
-
-              {/* Optional Rain Row when raining in Campos do Jordão */}
-              {weather.isRaining && (
-                <div className="py-3.5 flex items-start gap-3.5">
-                  <div className={`w-8 h-8 rounded-full flex items-center justify-center shrink-0 mt-0.5 ${isDark ? 'bg-[#007AFF]/15 text-[#4DA3FF]' : 'bg-[#007AFF]/10 text-[#007AFF]'}`}>
-                    <CloudRain className="w-4 h-4 stroke-[1.9]" />
-                  </div>
-                  <div className="min-w-0 flex-1">
-                    <p className={`text-[13.5px] font-medium leading-snug ${isDark ? 'text-white' : 'text-zinc-900'}`}>
-                      {rec.rainAlert}
-                    </p>
-                  </div>
-                </div>
-              )}
-            </div>
-
-            {/* Mountain Altitude Note */}
-            <div className={`mt-4 flex items-start gap-2.5 ${isDark ? 'text-[#8E939E]' : 'text-zinc-500'}`}>
-              <Thermometer className={`w-4 h-4 shrink-0 mt-0.5 stroke-[1.9] ${isDark ? 'text-[#4DA3FF]' : 'text-[#007AFF]'}`} />
-              <p className="text-[12.5px] leading-relaxed">
-                <span className={`font-semibold ${isDark ? 'text-white/90' : 'text-zinc-900'}`}>{rec.altitudeTipLabel}: </span>
-                {rec.altitudeTipValue}
-              </p>
-            </div>
-
-            {/* Primary Close Action */}
-            <button
-              type="button"
-              onClick={onClose}
-              className="mt-6 w-full h-[50px] rounded-full bg-[#007AFF] hover:bg-[#0066D6] active:scale-[0.98] text-white text-[15px] font-semibold flex items-center justify-center transition-all cursor-pointer"
+            {/* 2. FOUR BALANCED WEATHER DETAIL METRIC CARDS */}
+            <motion.section
+              aria-label="Detalhes do clima"
+              initial={{ opacity: 0, y: 12 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.3, delay: 0.04, ease: [0.22, 1, 0.36, 1] }}
+              className="grid grid-cols-4 gap-2.5 sm:gap-3 w-full"
             >
-              {rec.understandBtn}
-            </button>
+              {detailMetrics.map((metric) => (
+                <div
+                  key={metric.id}
+                  className={`rounded-[24px] border backdrop-blur-2xl py-4 px-1.5 sm:py-5 sm:px-2 flex flex-col items-center justify-center text-center gap-1.5 ${cardSurfaceClass}`}
+                >
+                  <div className="flex items-center justify-center mb-0.5">
+                    {metric.icon}
+                  </div>
+                  <span
+                    className={`text-[12px] sm:text-[13px] font-medium tracking-[-0.01em] leading-none whitespace-nowrap ${metricLabelClass}`}
+                  >
+                    {metric.label}
+                  </span>
+                  <span
+                    className={`text-[15.5px] sm:text-[17px] font-bold tracking-[-0.02em] leading-tight tabular-nums whitespace-nowrap mt-0.5 ${metricValueClass}`}
+                  >
+                    {metric.value}
+                  </span>
+                </div>
+              ))}
+            </motion.section>
+
+            {/* 3. VISUAL DYNAMIC CLOTHING RECOMMENDATION CARD */}
+            <motion.section
+              aria-label={rec.title}
+              initial={{ opacity: 0, y: 14 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.32, delay: 0.08, ease: [0.22, 1, 0.36, 1] }}
+              className={`w-full rounded-[30px] border backdrop-blur-2xl p-3.5 sm:p-4.5 flex items-center gap-4 sm:gap-5 ${cardSurfaceClass}`}
+            >
+              {/* Integrated High-Fidelity Clothing Visual */}
+              <div
+                className={`w-[96px] h-[96px] sm:w-[108px] sm:h-[108px] rounded-[20px] overflow-hidden shrink-0 border flex items-center justify-center ${
+                  useDarkGlass
+                    ? 'bg-[#363B42] border-white/[0.14]'
+                    : 'bg-[#2F343B] border-black/[0.08]'
+                }`}
+              >
+                {!imgFailed ? (
+                  <img
+                    src={rec.image}
+                    alt={rec.title}
+                    loading="eager"
+                    decoding="async"
+                    referrerPolicy="no-referrer"
+                    onError={() => setImgFailed(true)}
+                    className="w-full h-full object-cover select-none scale-[1.03]"
+                  />
+                ) : (
+                  <CoatLinearIcon className="w-10 h-10 text-white/80" />
+                )}
+              </div>
+
+              {/* Short, Direct Clothing Recommendation */}
+              <div className="flex-1 min-w-0 pr-1.5">
+                <h3
+                  className={`text-[17px] sm:text-[18.5px] font-bold tracking-[-0.02em] leading-snug ${
+                    useDarkGlass ? 'text-white' : 'text-zinc-950'
+                  }`}
+                >
+                  {rec.title}
+                </h3>
+                <p
+                  className={`text-[13.5px] sm:text-[14.5px] font-normal leading-[1.35] mt-1 ${secondaryTextClass}`}
+                >
+                  {rec.subtitle}
+                </p>
+              </div>
+            </motion.section>
           </motion.div>
         </motion.div>
       )}

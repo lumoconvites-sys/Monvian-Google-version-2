@@ -38,7 +38,8 @@ import { useLanguage } from '../contexts/LanguageContext';
 import { motion, AnimatePresence } from 'motion/react';
 import { ProfileXpProgressBar } from './ProfileXpProgressBar';
 import { IOSSwitch } from './IOSSwitch';
-import { NotificationsModal } from './NotificationsModal';
+import { NotificationsModal, type SocialNotification } from './NotificationsModal';
+import type { PushAlertItem, PushPreferences } from '../services/fcmPushService';
 import {
   persistUserToFirestore,
   persistUserOnboardingToFirestore,
@@ -85,6 +86,15 @@ interface ProfileModalProps {
   onEditUserItinerary?: (itinerary: Itinerary) => void;
   onDeleteUserItinerary?: (itineraryId: string) => void;
   openMyItinerariesSignal?: number;
+  pushAlerts?: PushAlertItem[];
+  pushPreferences?: PushPreferences;
+  pushBusy?: boolean;
+  pushStatusMessage?: string | null;
+  onTogglePushMaster?: (enabled: boolean) => void;
+  onTogglePushNewSpots?: (enabled: boolean) => void;
+  onTogglePushItineraryUpdates?: (enabled: boolean) => void;
+  onMarkPushAlertsRead?: (ids?: string[]) => void;
+  onSelectItineraryById?: (itineraryId: string) => void;
 }
 
 type SubView =
@@ -124,6 +134,15 @@ export const ProfileModal: React.FC<ProfileModalProps> = React.memo(({
   onEditUserItinerary,
   onDeleteUserItinerary,
   openMyItinerariesSignal = 0,
+  pushAlerts = [],
+  pushPreferences,
+  pushBusy = false,
+  pushStatusMessage = null,
+  onTogglePushMaster,
+  onTogglePushNewSpots,
+  onTogglePushItineraryUpdates,
+  onMarkPushAlertsRead,
+  onSelectItineraryById,
 }) => {
   const isViewActive = Boolean(isOpen && isActive);
   const scrollContainerRef = useRef<HTMLDivElement | null>(null);
@@ -815,13 +834,20 @@ export const ProfileModal: React.FC<ProfileModalProps> = React.memo(({
               <button
                 type="button"
                 onClick={() => setIsNotificationsOpen(true)}
-                className={`w-12 h-12 rounded-full flex items-center justify-center transition-colors cursor-pointer ${
+                className={`relative w-12 h-12 rounded-full flex items-center justify-center transition-colors cursor-pointer ${
                   isDark ? 'bg-white/10 hover:bg-white/15 text-white' : 'bg-[#fefefe]/90 hover:bg-[#E5E5EA] text-zinc-900 shadow-2xs'
                 }`}
                 title={tr('Notificações')}
                 aria-label={tr('Notificações')}
               >
                 <Bell className="w-6 h-6 stroke-[2]" />
+                {(pushAlerts.some((a) => !a.isRead) || notificationsList.some((n) => n.is_read === 0)) && (
+                  <span
+                    className={`absolute top-2.5 right-2.5 w-2 h-2 rounded-full ring-2 ${
+                      isDark ? 'bg-white ring-black' : 'bg-black ring-white'
+                    }`}
+                  />
+                )}
               </button>
             )}
           </div>
@@ -1290,6 +1316,102 @@ export const ProfileModal: React.FC<ProfileModalProps> = React.memo(({
                   </button>
                 </div>
               </motion.div>
+
+              {/* GROUP 1.8: NOTIFICAÇÕES PUSH (FCM) */}
+              {pushPreferences && onTogglePushMaster && (
+                <motion.div
+                  initial={{ opacity: 0, scale: 0.88, y: 12 }}
+                  animate={{ opacity: 1, scale: 1, y: 0 }}
+                  transition={{ type: 'spring', stiffness: 380, damping: 22, delay: 0.055 }}
+                >
+                  <p className="text-[12px] font-bold text-zinc-500 dark:text-zinc-400 uppercase tracking-wider px-3 mb-2">
+                    Notificações Push
+                  </p>
+                  <div
+                    className={`rounded-[24px] border overflow-hidden ${
+                      isDark
+                        ? 'bg-[#1C1C1E] border-white/10 divide-y divide-white/5'
+                        : 'bg-white border-black/5 divide-y divide-black/5'
+                    }`}
+                  >
+                    <div className="p-4 flex items-center justify-between gap-3">
+                      <div className="flex items-center gap-3.5 min-w-0">
+                        <div className="flex items-center justify-center shrink-0 text-zinc-950 dark:text-white">
+                          <Bell className="w-7 h-7 stroke-[1.8]" />
+                        </div>
+                        <div className="min-w-0">
+                          <h4 className="text-[15px] font-semibold tracking-tight">
+                            Alertas Push
+                          </h4>
+                          <p className="text-[12px] text-zinc-500 dark:text-zinc-400 font-medium">
+                            Receba avisos de novidades no dispositivo
+                          </p>
+                        </div>
+                      </div>
+                      <IOSSwitch
+                        checked={pushPreferences.enabled}
+                        onChange={onTogglePushMaster}
+                        disabled={pushBusy}
+                        ariaLabel="Alertas Push"
+                      />
+                    </div>
+
+                    {pushPreferences.enabled && onTogglePushNewSpots && (
+                      <div className="p-4 flex items-center justify-between gap-3">
+                        <div className="flex items-center gap-3.5 min-w-0">
+                          <div className="flex items-center justify-center shrink-0 text-zinc-950 dark:text-white">
+                            <MapPin className="w-6 h-6 stroke-[1.8]" />
+                          </div>
+                          <div className="min-w-0">
+                            <h4 className="text-[14.5px] font-semibold tracking-tight">
+                              Novos locais
+                            </h4>
+                            <p className="text-[12px] text-zinc-500 dark:text-zinc-400 font-medium">
+                              Quando um ponto turístico for adicionado
+                            </p>
+                          </div>
+                        </div>
+                        <IOSSwitch
+                          checked={pushPreferences.newSpots}
+                          onChange={onTogglePushNewSpots}
+                          disabled={pushBusy}
+                          ariaLabel="Notificações de novos locais"
+                        />
+                      </div>
+                    )}
+
+                    {pushPreferences.enabled && onTogglePushItineraryUpdates && (
+                      <div className="p-4 flex items-center justify-between gap-3">
+                        <div className="flex items-center gap-3.5 min-w-0">
+                          <div className="flex items-center justify-center shrink-0 text-zinc-950 dark:text-white">
+                            <Compass className="w-6 h-6 stroke-[1.8]" />
+                          </div>
+                          <div className="min-w-0">
+                            <h4 className="text-[14.5px] font-semibold tracking-tight">
+                              Atualizações em roteiros
+                            </h4>
+                            <p className="text-[12px] text-zinc-500 dark:text-zinc-400 font-medium">
+                              Novos roteiros e melhorias nas paradas
+                            </p>
+                          </div>
+                        </div>
+                        <IOSSwitch
+                          checked={pushPreferences.itineraryUpdates}
+                          onChange={onTogglePushItineraryUpdates}
+                          disabled={pushBusy}
+                          ariaLabel="Notificações de atualizações em roteiros"
+                        />
+                      </div>
+                    )}
+                  </div>
+
+                  {pushStatusMessage && (
+                    <p className="text-[12px] text-zinc-500 dark:text-zinc-400 px-3 pt-2">
+                      {pushStatusMessage}
+                    </p>
+                  )}
+                </motion.div>
+              )}
 
               {/* GROUP 2: PERMISSÕES & SENSORES */}
               <motion.div
@@ -1964,12 +2086,48 @@ export const ProfileModal: React.FC<ProfileModalProps> = React.memo(({
             setIsNotificationsOpen(false);
             handleSetSubView('main');
           }}
-          notifications={notificationsList}
+          notifications={[
+            ...pushAlerts.map(
+              (a): SocialNotification => ({
+                id: a.id,
+                type: a.type,
+                title: a.title,
+                body: a.body,
+                spot_id: a.spotId,
+                itinerary_id: a.itineraryId,
+                image_url: a.imageUrl,
+                is_read: a.isRead ? 1 : 0,
+                created_at: a.createdAt,
+              })
+            ),
+            ...notificationsList,
+          ]}
           isLoading={false}
           theme={theme}
+          spots={spots}
+          onSelectSpot={(spot) => {
+            onSelectSpot(spot);
+            onClose();
+          }}
+          onSelectItinerary={(itineraryId) => {
+            onSelectItineraryById?.(itineraryId);
+            onClose();
+          }}
+          onNotificationClick={(notif) => {
+            if (notif.type === 'new_spot' || notif.type === 'itinerary_update') {
+              onMarkPushAlertsRead?.([notif.id]);
+            }
+          }}
           onMarkAllAsRead={() => {
             setNotificationsList((prev) => prev.map((n) => ({ ...n, is_read: 1 })));
+            onMarkPushAlertsRead?.();
           }}
+          pushPreferences={pushPreferences}
+          pushBusy={pushBusy}
+          pushStatusMessage={pushStatusMessage}
+          onTogglePushMaster={onTogglePushMaster}
+          onTogglePushNewSpots={onTogglePushNewSpots}
+          onTogglePushItineraryUpdates={onTogglePushItineraryUpdates}
         />
 
         {/* Animated iOS Bottom Sheet Card for Language Selection */}
