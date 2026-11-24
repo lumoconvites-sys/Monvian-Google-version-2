@@ -4,6 +4,7 @@ import { Check, X, ArrowLeft, ArrowRight } from 'lucide-react';
 import { Spot } from '../../types';
 import { formatSpotForTinder, FormattedSpotCard } from './tinderSpotHelpers';
 import { getSpotImage, getSpotFallbackImage } from '../../utils/spotImages';
+import { VerifiedBadge } from '../ui/VerifiedBadge';
 
 interface TinderDiscoveryStepProps {
   spots: Spot[];
@@ -64,9 +65,12 @@ const SingleCard: React.FC<SingleCardProps> = ({ cardData, isFront, onSwipe, isD
         </div>
         <div className="p-5 sm:p-6 flex flex-col justify-between h-[43%]">
           <div>
-            <h2 className="text-2xl font-black text-zinc-900 dark:text-white line-clamp-1 tracking-tight">
-              {cardData.name}
-            </h2>
+            <div className="flex items-center gap-1.5 min-w-0">
+              <h2 className="text-2xl font-black text-zinc-900 dark:text-white truncate tracking-tight">
+                {cardData.name}
+              </h2>
+              <VerifiedBadge className="w-4 h-4 shrink-0" />
+            </div>
             <div className="mt-2 text-xs font-bold uppercase tracking-wider text-zinc-400">
               {cardData.categoryLabel}
             </div>
@@ -130,9 +134,12 @@ const SingleCard: React.FC<SingleCardProps> = ({ cardData, isFront, onSwipe, isD
       <div className="w-full h-[43%] p-5 sm:p-6 flex flex-col justify-between">
         <div className="space-y-1">
           {/* Nome do local */}
-          <h2 className="text-2xl sm:text-[26px] font-black text-zinc-900 dark:text-white tracking-tight line-clamp-1 leading-snug">
-            {cardData.name}
-          </h2>
+          <div className="flex items-center gap-1.5 min-w-0">
+            <h2 className="text-2xl sm:text-[26px] font-black text-zinc-900 dark:text-white tracking-tight truncate leading-snug">
+              {cardData.name}
+            </h2>
+            <VerifiedBadge className="w-4 h-4 shrink-0" />
+          </div>
 
           {/* Categoria + ★ Verificado */}
           <div className="flex items-center gap-2 pt-0.5">

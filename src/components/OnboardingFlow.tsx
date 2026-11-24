@@ -41,13 +41,6 @@ export interface TravelerOnboardingPreferences {
 
 export const CAMPOS_RELATIONSHIP_OPTIONS = [
   {
-    id: 'visiting',
-    value: 'Estou visitando a cidade.',
-    label: 'Estou visitando a cidade.',
-    subtitle: 'Já estou em Campos do Jordão aproveitando a serra',
-    icon: MapPin,
-  },
-  {
     id: 'planning',
     value: 'Pretendo visitar em breve.',
     label: 'Pretendo visitar em breve.',
@@ -55,11 +48,11 @@ export const CAMPOS_RELATIONSHIP_OPTIONS = [
     icon: Calendar,
   },
   {
-    id: 'resident',
-    value: 'Moro em Campos do Jordão.',
-    label: 'Moro em Campos do Jordão.',
-    subtitle: 'Vivo na cidade e busco novas experiências locais',
-    icon: Home,
+    id: 'visiting',
+    value: 'Estou visitando a cidade.',
+    label: 'Estou visitando a cidade.',
+    subtitle: 'Já estou em Campos do Jordão aproveitando a serra',
+    icon: MapPin,
   },
   {
     id: 'exploring',
@@ -67,6 +60,13 @@ export const CAMPOS_RELATIONSHIP_OPTIONS = [
     label: 'Estou apenas explorando.',
     subtitle: 'Quero conhecer os roteiros e lugares do Monvian',
     icon: Compass,
+  },
+  {
+    id: 'resident',
+    value: 'Moro em Campos do Jordão.',
+    label: 'Moro em Campos do Jordão.',
+    subtitle: 'Vivo na cidade e busco novas experiências locais',
+    icon: Home,
   },
 ] as const;
 

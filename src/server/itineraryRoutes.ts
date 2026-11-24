@@ -9,6 +9,11 @@ import {
   toggleItineraryFeaturedInSupabase,
   toggleItineraryStatusInSupabase,
 } from '../services/supabaseItineraries.ts';
+import {
+  persistUserItineraryToFirestore,
+  fetchUserItinerariesFromFirestore,
+  deleteUserItineraryFromFirestore,
+} from '../services/firestoreSync.ts';
 
 // Haversine formula to calculate distance between coordinates in km
 export function calculateDistanceKm(lat1: number, lon1: number, lat2: number, lon2: number): number {
@@ -545,8 +550,29 @@ export function registerItineraryRoutes(
   db: any,
   getAuthUserSync: any,
   logAdminAction: any,
-  getGenAI: any
+  getGenAI: any,
+  resolveAuthUserAsync?: (req: any) => Promise<any | null>,
+  onItineraryPushEvent?: (payload: {
+    action: 'created' | 'updated';
+    id: string;
+    title: string;
+    description?: string;
+    coverImage?: string;
+  }) => void
 ) {
+  const resolveItineraryUser = async (req: any) => {
+    try {
+      if (resolveAuthUserAsync) {
+        const resolved = await resolveAuthUserAsync(req);
+        if (resolved) return resolved;
+      }
+    } catch {}
+    try {
+      const syncUser = getAuthUserSync(req);
+      if (syncUser) return syncUser;
+    } catch {}
+    return null;
+  };
   // Helper to load spots map with slug/alias resolution
   const getSpotsMap = () => {
     const spots = db.prepare('SELECT * FROM spots').all() as any[];
@@ -893,13 +919,21 @@ export function registerItineraryRoutes(
     const daysCount = Number(row.days_count || 1);
     const isPrem = row.is_premium !== undefined && row.is_premium !== null ? Number(row.is_premium) === 1 : true;
 
-    // Regra estrita: O roteiro "Romântico" (itin-093850-ialh / roteiro-romantico-montanhas) não deve aparecer na área "todos",
-    // aparecendo APENAS na área "destaques" (com estrela)
+    const hasHideFromAll = rowCats.includes('__hide_from_all');
+    const hasExplicitAll = rowCats.includes('all');
+    const explicitContentCats = rowCats.filter(
+      (c) => c !== '__hide_from_all' && c !== 'all' && c !== 'todos'
+    );
+    const hasAnyExplicitCategories = explicitContentCats.length > 0 || hasHideFromAll || hasExplicitAll;
+
+    // Regra legada para roteiro "Romântico" exclusivo de destaques (apenas se não configurado explicitamente)
     const isExclusivelyDestaqueItinerary =
-      String(row.id) === 'itin-093850-ialh' ||
-      String(row.id) === 'roteiro-romantico-montanhas' ||
-      normTitle === 'romantico' ||
-      (normTitle.includes('romantico') && (normDesc.includes('desfrute') || isFeat));
+      !hasExplicitAll &&
+      !hasHideFromAll &&
+      (String(row.id) === 'itin-093850-ialh' ||
+        String(row.id) === 'roteiro-romantico-montanhas' ||
+        normTitle === 'romantico' ||
+        (normTitle.includes('romantico') && (normDesc.includes('desfrute') || isFeat)));
 
     const effectiveCat = categoryFilter ? normalizeFilterToken(categoryFilter) : 'all';
 
@@ -909,11 +943,17 @@ export function registerItineraryRoutes(
       }
     }
 
-    // 1. Category Filter
-    if (categoryFilter && categoryFilter !== 'all' && categoryFilter !== 'todos') {
-      const cat = normalizeFilterToken(categoryFilter);
+    // 1. Category / Store Section Filter
+    if (!effectiveCat || effectiveCat === 'all' || effectiveCat === 'todos') {
+      if (hasHideFromAll) return false;
+    } else {
+      const cat = effectiveCat;
       if (cat === 'destaque' || cat === 'destaques' || cat === 'popular' || cat === 'mais-procurados') {
-        if (!isFeat && !isExclusivelyDestaqueItinerary) return false;
+        const matchDestaque =
+          isFeat ||
+          isExclusivelyDestaqueItinerary ||
+          rowCats.some((c) => ['destaque', 'destaques', 'popular', 'mais-procurados'].includes(c));
+        if (!matchDestaque) return false;
       } else if (cat === '1day' || cat === '1-dia' || cat === '1dia') {
         if (daysCount !== 1) return false;
       } else if (cat === '2days' || cat === '2-dias' || cat === '2dias') {
@@ -921,41 +961,41 @@ export function registerItineraryRoutes(
       } else if (cat === 'natureza' || cat === 'nature') {
         const match =
           rowCats.some((c) => ['nature', 'natureza', 'ecotourism', 'ecoturismo'].includes(c)) ||
-          normTitle.includes('natureza');
+          (!hasAnyExplicitCategories && normTitle.includes('natureza'));
         if (!match) return false;
       } else if (cat === 'romantico' || cat === 'romantic' || cat === 'casais') {
         const match =
           rowCats.some((c) => ['romantic', 'romantico', 'casais', 'casal', 'romance'].includes(c)) ||
-          normTitle.includes('romantic') ||
-          normTitle.includes('casal') ||
-          normTitle.includes('casais');
+          (!hasAnyExplicitCategories &&
+            (normTitle.includes('romantic') || normTitle.includes('casal') || normTitle.includes('casais')));
         if (!match) return false;
       } else if (cat === 'gastronomia' || cat === 'gastronomy') {
         const match =
           rowCats.some((c) =>
             ['gastronomy', 'gastronomia', 'sweets', 'cafes', 'culinaria', 'fondue'].includes(c)
           ) ||
-          normTitle.includes('gastronom') ||
-          normTitle.includes('fondue');
+          (!hasAnyExplicitCategories && (normTitle.includes('gastronom') || normTitle.includes('fondue')));
         if (!match) return false;
       } else if (cat === 'aventura' || cat === 'adventure') {
         const match =
           rowCats.some((c) => ['adventure', 'aventura', 'trilhas', 'radical', 'esportes'].includes(c)) ||
-          normTitle.includes('aventur') ||
-          normTitle.includes('trilha');
+          (!hasAnyExplicitCategories && (normTitle.includes('aventur') || normTitle.includes('trilha')));
         if (!match) return false;
       } else if (cat === 'familia' || cat === 'family') {
         const match =
           rowCats.some((c) => ['family', 'familia', 'kids', 'criancas'].includes(c)) ||
-          normTitle.includes('familia');
+          (!hasAnyExplicitCategories && normTitle.includes('familia'));
         if (!match) return false;
       } else if (cat === 'terror') {
         const match =
           rowCats.some((c) => ['terror', 'assombrado', 'misterio', 'sobrenatural'].includes(c)) ||
-          normTitle.includes('terror');
+          (!hasAnyExplicitCategories && normTitle.includes('terror'));
         if (!match) return false;
       } else {
-        const match = rowCats.includes(cat) || rowCats.some((c) => c.includes(cat)) || normTitle.includes(cat);
+        const match =
+          rowCats.includes(cat) ||
+          rowCats.some((c) => c.includes(cat)) ||
+          (!hasAnyExplicitCategories && normTitle.includes(cat));
         if (!match) return false;
       }
     }
@@ -1411,6 +1451,18 @@ export function registerItineraryRoutes(
         console.warn('[ItineraryRoutes] Supabase sync itin notice:', e)
       );
 
+      if (finalActive === 1 && req.body?.notifyUsers !== false && onItineraryPushEvent) {
+        try {
+          onItineraryPushEvent({
+            action: 'created',
+            id,
+            title: String(title),
+            description: description ? String(description) : '',
+            coverImage: coverImage ? String(coverImage) : '',
+          });
+        } catch {}
+      }
+
       logAdminAction(userId, userName, 'Criou Roteiro Turístico', title);
       res.json({ success: true, id, message: 'Roteiro criado com sucesso' });
     } catch (err: any) {
@@ -1552,6 +1604,23 @@ export function registerItineraryRoutes(
       saveItineraryToSupabase({ ...req.body, id }, true).catch((e) =>
         console.warn('[ItineraryRoutes] Supabase sync itin notice:', e)
       );
+
+      if (req.body?.notifyUsers !== false && onItineraryPushEvent) {
+        try {
+          const updatedRow = db
+            .prepare('SELECT id, title, description, cover_image, is_active, status FROM itineraries WHERE id = ?')
+            .get(id) as any;
+          if (updatedRow && (updatedRow.is_active === 1 || updatedRow.status === 'published')) {
+            onItineraryPushEvent({
+              action: 'updated',
+              id: String(updatedRow.id),
+              title: String(updatedRow.title || title || 'Roteiro atualizado'),
+              description: updatedRow.description ? String(updatedRow.description) : '',
+              coverImage: updatedRow.cover_image ? String(updatedRow.cover_image) : '',
+            });
+          }
+        } catch {}
+      }
 
       logAdminAction(userId, userName, 'Editou Roteiro Turístico', `ID: ${id}`);
       res.json({ success: true, message: 'Roteiro atualizado com sucesso' });
@@ -2099,11 +2168,13 @@ export function registerItineraryRoutes(
   // USER SAVED ITINERARIES API
   // ==========================================
 
-  // List saved itineraries for user or session
-  app.get('/api/user-itineraries', (req, res) => {
+  // List saved itineraries for user or session (backed by SQLite + Cloud Firestore)
+  app.get('/api/user-itineraries', async (req, res) => {
     try {
-      const user = getAuthUserSync(req);
+      const user = await resolveItineraryUser(req);
       const sessionId = (req.headers['x-session-id'] as string) || '';
+      const headerEmail = String(req.headers['x-user-email'] || '').trim().toLowerCase();
+      const userEmail = String(user?.email || user?.whatsapp || headerEmail || '').trim().toLowerCase();
 
       let rows: any[] = [];
       if (user && user.id) {
@@ -2126,7 +2197,7 @@ export function registerItineraryRoutes(
       }
 
       const spotsMap = getSpotsMap();
-      const itineraries = rows.map((r) => {
+      const mapRowToItinerary = (r: any) => {
         let days: any[] = [];
         try {
           days = JSON.parse(r.itinerary_data_json || '[]');
@@ -2184,6 +2255,43 @@ export function registerItineraryRoutes(
           createdAt: r.created_at,
           updatedAt: r.updated_at,
         };
+      };
+
+      const localItineraries = rows.map(mapRowToItinerary);
+      const byId = new Map<string, any>(localItineraries.map((it) => [it.id, it]));
+
+      // Hydrate from Cloud Firestore if user has itineraries saved across server restarts/devices
+      if (userEmail || user?.id || sessionId) {
+        try {
+          const cloudItins = await fetchUserItinerariesFromFirestore({
+            email: userEmail,
+            userId: user?.id ?? null,
+            sessionId: sessionId || null,
+          });
+          for (const cloudItin of cloudItins) {
+            if (!cloudItin?.id || byId.has(cloudItin.id)) continue;
+            // Re-hydrate spots on days
+            const hydratedDays = (cloudItin.days || []).map((d: any) => ({
+              ...d,
+              steps: (d.steps || []).map((s: any) => {
+                const hydratedSpot = spotsMap.get(s.spotId) || s.spot;
+                return {
+                  ...s,
+                  spot: hydratedSpot,
+                  lat: Number(s.lat ?? hydratedSpot?.lat ?? -22.734),
+                  lng: Number(s.lng ?? hydratedSpot?.lng ?? -45.591),
+                };
+              }),
+            }));
+            byId.set(cloudItin.id, { ...cloudItin, days: hydratedDays });
+          }
+        } catch {}
+      }
+
+      const itineraries = Array.from(byId.values()).sort((a, b) => {
+        const ta = new Date(a.updatedAt || a.createdAt || 0).getTime();
+        const tb = new Date(b.updatedAt || b.createdAt || 0).getTime();
+        return tb - ta;
       });
 
       res.json({ success: true, itineraries });
@@ -2193,10 +2301,12 @@ export function registerItineraryRoutes(
   });
 
   // Save / create user itinerary
-  app.post('/api/user-itineraries', (req, res) => {
+  app.post('/api/user-itineraries', async (req, res) => {
     try {
-      const user = getAuthUserSync(req);
+      const user = await resolveItineraryUser(req);
       const sessionId = (req.headers['x-session-id'] as string) || '';
+      const headerEmail = String(req.headers['x-user-email'] || '').trim().toLowerCase();
+      const userEmail = String(user?.email || user?.whatsapp || headerEmail || '').trim().toLowerCase();
 
       const {
         id: clientProvidedId,
@@ -2224,6 +2334,25 @@ export function registerItineraryRoutes(
           ? String(clientProvidedId).trim()
           : 'user-itin-' + Date.now() + '-' + Math.random().toString(36).substring(2, 6);
 
+      const existingOwner = db
+        .prepare('SELECT user_id, session_id FROM user_itineraries WHERE id = ?')
+        .get(id) as { user_id?: number | null; session_id?: string | null } | undefined;
+
+      if (existingOwner) {
+        const ownedByOtherUser =
+          existingOwner.user_id &&
+          (!user || Number(existingOwner.user_id) !== Number(user.id));
+        const ownedByOtherSession =
+          !existingOwner.user_id &&
+          existingOwner.session_id &&
+          sessionId &&
+          existingOwner.session_id !== sessionId;
+        if (ownedByOtherUser || ownedByOtherSession) {
+          res.status(403).json({ error: 'Acesso negado: este roteiro pertence a outra conta.' });
+          return;
+        }
+      }
+
       const mergedPreferences = {
         ...(preferences || {}),
         isUserCreated: preferences?.isUserCreated !== undefined ? Boolean(preferences.isUserCreated) : true,
@@ -2237,7 +2366,7 @@ export function registerItineraryRoutes(
           itinerary_data_json, created_at, updated_at
         ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
         ON CONFLICT(id) DO UPDATE SET
-          user_id = COALESCE(excluded.user_id, user_itineraries.user_id),
+          user_id = COALESCE(user_itineraries.user_id, excluded.user_id),
           session_id = COALESCE(excluded.session_id, user_itineraries.session_id),
           title = excluded.title,
           description = excluded.description,
@@ -2267,6 +2396,26 @@ export function registerItineraryRoutes(
 
       const savedRow = db.prepare('SELECT created_at, updated_at FROM user_itineraries WHERE id = ?').get(id) as any;
 
+      void persistUserItineraryToFirestore(
+        {
+          id,
+          title,
+          description: description || '',
+          coverImage: coverImage || '',
+          daysCount: daysCount || days.length || 1,
+          isUserCreated: mergedPreferences.isUserCreated,
+          sourceItineraryId: mergedPreferences.sourceItineraryId || null,
+          days,
+          createdAt: savedRow?.created_at || new Date().toISOString(),
+          updatedAt: savedRow?.updated_at || new Date().toISOString(),
+        },
+        {
+          userId: user?.id ?? null,
+          userEmail,
+          sessionId,
+        }
+      );
+
       res.json({
         success: true,
         id,
@@ -2281,14 +2430,34 @@ export function registerItineraryRoutes(
   });
 
   // Update user itinerary (edit title, coverImage, steps, notes, times)
-  app.put('/api/user-itineraries/:id', (req, res) => {
+  app.put('/api/user-itineraries/:id', async (req, res) => {
     try {
-      const user = getAuthUserSync(req);
+      const user = await resolveItineraryUser(req);
       const sessionId = (req.headers['x-session-id'] as string) || '';
+      const headerEmail = String(req.headers['x-user-email'] || '').trim().toLowerCase();
+      const userEmail = String(user?.email || user?.whatsapp || headerEmail || '').trim().toLowerCase();
       const { id } = req.params;
       const { title, description, coverImage, daysCount, tripDate, days, preferences } = req.body;
 
-      const existing = db.prepare('SELECT id FROM user_itineraries WHERE id = ?').get(id) as any;
+      const existing = db
+        .prepare('SELECT id, user_id, session_id FROM user_itineraries WHERE id = ?')
+        .get(id) as { id: string; user_id?: number | null; session_id?: string | null } | undefined;
+
+      if (existing) {
+        const ownedByOtherUser =
+          existing.user_id &&
+          (!user || Number(existing.user_id) !== Number(user.id));
+        const ownedByOtherSession =
+          !existing.user_id &&
+          existing.session_id &&
+          sessionId &&
+          existing.session_id !== sessionId;
+        if (ownedByOtherUser || ownedByOtherSession) {
+          res.status(403).json({ error: 'Acesso negado: você não pode modificar um roteiro de outra conta.' });
+          return;
+        }
+      }
+
       if (!existing && title && Array.isArray(days)) {
         const mergedPreferences = {
           ...(preferences || {}),
@@ -2312,10 +2481,10 @@ export function registerItineraryRoutes(
           JSON.stringify(mergedPreferences),
           JSON.stringify(days)
         );
-      } else {
+      } else if (existing) {
         db.prepare(`
           UPDATE user_itineraries SET
-            user_id = COALESCE(?, user_id),
+            user_id = COALESCE(user_id, ?),
             title = COALESCE(?, title),
             description = COALESCE(?, description),
             cover_image = COALESCE(?, cover_image),
@@ -2336,12 +2505,38 @@ export function registerItineraryRoutes(
         );
       }
 
-      const savedRow = db.prepare('SELECT created_at, updated_at FROM user_itineraries WHERE id = ?').get(id) as any;
+      const updatedRow = db.prepare('SELECT * FROM user_itineraries WHERE id = ?').get(id) as any;
+      if (updatedRow) {
+        let parsedDays: any[] = [];
+        let parsedPrefs: any = {};
+        try { parsedDays = JSON.parse(updatedRow.itinerary_data_json || '[]'); } catch {}
+        try { parsedPrefs = JSON.parse(updatedRow.preferences_json || '{}'); } catch {}
+        void persistUserItineraryToFirestore(
+          {
+            id: updatedRow.id,
+            title: updatedRow.title,
+            description: updatedRow.description || '',
+            coverImage: updatedRow.cover_image || '',
+            daysCount: updatedRow.days_count || parsedDays.length || 1,
+            isUserCreated: parsedPrefs.isUserCreated !== false && !parsedPrefs.sourceItineraryId,
+            sourceItineraryId: parsedPrefs.sourceItineraryId || null,
+            days: parsedDays,
+            createdAt: updatedRow.created_at,
+            updatedAt: updatedRow.updated_at,
+          },
+          {
+            userId: user?.id ?? updatedRow.user_id ?? null,
+            userEmail,
+            sessionId: sessionId || updatedRow.session_id || '',
+          }
+        );
+      }
+
       res.json({
         success: true,
         id,
-        createdAt: savedRow?.created_at || new Date().toISOString(),
-        updatedAt: savedRow?.updated_at || new Date().toISOString(),
+        createdAt: updatedRow?.created_at || new Date().toISOString(),
+        updatedAt: updatedRow?.updated_at || new Date().toISOString(),
         message: 'Roteiro atualizado com sucesso',
       });
     } catch (err: any) {
@@ -2350,10 +2545,33 @@ export function registerItineraryRoutes(
   });
 
   // Delete user itinerary
-  app.delete('/api/user-itineraries/:id', (req, res) => {
+  app.delete('/api/user-itineraries/:id', async (req, res) => {
     try {
+      const user = await resolveItineraryUser(req);
+      const sessionId = (req.headers['x-session-id'] as string) || '';
       const { id } = req.params;
+
+      const existing = db
+        .prepare('SELECT id, user_id, session_id FROM user_itineraries WHERE id = ?')
+        .get(id) as { id: string; user_id?: number | null; session_id?: string | null } | undefined;
+
+      if (existing) {
+        const ownedByOtherUser =
+          existing.user_id &&
+          (!user || Number(existing.user_id) !== Number(user.id));
+        const ownedByOtherSession =
+          !existing.user_id &&
+          existing.session_id &&
+          sessionId &&
+          existing.session_id !== sessionId;
+        if (ownedByOtherUser || ownedByOtherSession) {
+          res.status(403).json({ error: 'Acesso negado: você não pode excluir um roteiro de outra conta.' });
+          return;
+        }
+      }
+
       db.prepare('DELETE FROM user_itineraries WHERE id = ?').run(id);
+      void deleteUserItineraryFromFirestore(id);
       res.json({ success: true, message: 'Roteiro excluído' });
     } catch (err: any) {
       res.status(500).json({ error: 'Erro ao excluir roteiro: ' + err.message });
@@ -2364,14 +2582,19 @@ export function registerItineraryRoutes(
   app.post('/api/user-itineraries/draft', (req, res) => {
     try {
       const user = getAuthUserSync(req);
-      const sessionId = (req.headers['x-session-id'] as string) || req.body.sessionId || 'default-guest-session';
+      const rawSessionId = (req.headers['x-session-id'] as string) || req.body.sessionId || '';
+      const effectiveDraftKey = user?.id ? `user_${user.id}` : rawSessionId;
+      if (!effectiveDraftKey) {
+        res.status(400).json({ error: 'Sessão não identificada' });
+        return;
+      }
       const { tripDate, peopleCount, adultsCount, childrenCount, budget, likedSpots } = req.body;
 
       db.prepare(`
         INSERT INTO itinerary_drafts (session_id, user_id, trip_date, people_count, adults_count, children_count, budget, liked_spots_json, updated_at)
         VALUES (?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
         ON CONFLICT(session_id) DO UPDATE SET
-          user_id = COALESCE(excluded.user_id, itinerary_drafts.user_id),
+          user_id = COALESCE(itinerary_drafts.user_id, excluded.user_id),
           trip_date = COALESCE(excluded.trip_date, itinerary_drafts.trip_date),
           people_count = COALESCE(excluded.people_count, itinerary_drafts.people_count),
           adults_count = COALESCE(excluded.adults_count, itinerary_drafts.adults_count),
@@ -2380,7 +2603,7 @@ export function registerItineraryRoutes(
           liked_spots_json = COALESCE(excluded.liked_spots_json, itinerary_drafts.liked_spots_json),
           updated_at = CURRENT_TIMESTAMP
       `).run(
-        sessionId,
+        effectiveDraftKey,
         user ? user.id : null,
         tripDate !== undefined ? tripDate : null,
         peopleCount !== undefined ? peopleCount : null,
@@ -2400,9 +2623,15 @@ export function registerItineraryRoutes(
   // Get itinerary wizard draft
   app.get('/api/user-itineraries/draft', (req, res) => {
     try {
-      const sessionId = (req.headers['x-session-id'] as string) || (req.query.sessionId as string) || 'default-guest-session';
-      const row = db.prepare('SELECT * FROM itinerary_drafts WHERE session_id = ?').get(sessionId) as any;
-      if (!row) {
+      const user = getAuthUserSync(req);
+      const rawSessionId = (req.headers['x-session-id'] as string) || (req.query.sessionId as string) || '';
+      const effectiveDraftKey = user?.id ? `user_${user.id}` : rawSessionId;
+      if (!effectiveDraftKey) {
+        res.json({ success: true, draft: null });
+        return;
+      }
+      const row = db.prepare('SELECT * FROM itinerary_drafts WHERE session_id = ?').get(effectiveDraftKey) as any;
+      if (!row || (row.user_id && user?.id && Number(row.user_id) !== Number(user.id))) {
         res.json({ success: true, draft: null });
         return;
       }
@@ -2432,8 +2661,12 @@ export function registerItineraryRoutes(
   // Clear draft
   app.delete('/api/user-itineraries/draft', (req, res) => {
     try {
-      const sessionId = (req.headers['x-session-id'] as string) || (req.query.sessionId as string) || 'default-guest-session';
-      db.prepare('DELETE FROM itinerary_drafts WHERE session_id = ?').run(sessionId);
+      const user = getAuthUserSync(req);
+      const rawSessionId = (req.headers['x-session-id'] as string) || (req.query.sessionId as string) || '';
+      const effectiveDraftKey = user?.id ? `user_${user.id}` : rawSessionId;
+      if (effectiveDraftKey) {
+        db.prepare('DELETE FROM itinerary_drafts WHERE session_id = ?').run(effectiveDraftKey);
+      }
       res.json({ success: true, message: 'Rascunho limpo' });
     } catch (err: any) {
       res.status(500).json({ error: 'Erro ao limpar rascunho' });

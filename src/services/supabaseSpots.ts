@@ -127,11 +127,18 @@ export function normalizeSpotRecord(row: any): Spot {
     rating: Number(row.rating ?? 4.8),
     reviewCount: Number(row.review_count ?? row.reviewCount ?? 100),
     review_count: Number(row.review_count ?? row.reviewCount ?? 100),
-    hours: row.hours || '09:00 às 18:00',
+    hours: typeof row.hours === 'string' ? row.hours.trim() : '',
     address: row.address || 'Campos do Jordão, SP',
-    priceRange: row.price_range || row.priceRange || '$$',
-    price_range: row.price_range || row.priceRange || '$$',
-    price: row.price || 'Entrada Franca',
+    priceRange: (row.price_range || row.priceRange || '').trim(),
+    price_range: (row.price_range || row.priceRange || '').trim(),
+    price:
+      typeof row.price === 'string' && row.price.trim()
+        ? row.price.trim()
+        : typeof row.price_range === 'string' &&
+            row.price_range.trim() &&
+            !/^\${1,4}$/.test(row.price_range.trim())
+          ? row.price_range.trim()
+          : '',
     visitorsToday: Number(row.visitors_today ?? row.visitorsToday ?? 120),
     badge:
       row.badge ||
@@ -428,10 +435,12 @@ export async function saveSpotToSupabase(spotData: any, isEdit: boolean): Promis
     tourist_tip: spotData.tourist_tip || spotData.touristTip || '',
     rating: Number(spotData.rating ?? 4.8),
     review_count: Number(spotData.review_count ?? spotData.reviewCount ?? 120),
-    hours: spotData.hours || '09:00 às 18:00',
+    hours: typeof spotData.hours === 'string' ? spotData.hours.trim() : '',
     address: spotData.address || 'Campos do Jordão, SP',
-    price_range: spotData.price_range || spotData.priceRange || '$$',
-    price: spotData.price || 'Entrada Franca',
+    price_range: String(
+      spotData.price_range || spotData.priceRange || spotData.price || ''
+    ).trim(),
+    price: typeof spotData.price === 'string' ? spotData.price.trim() : '',
     maps_url: spotData.maps_url || spotData.mapsUrl || '',
     is_active: spotData.is_active !== undefined ? Number(spotData.is_active) : spotData.isActive === false ? 0 : 1,
     is_verified: spotData.is_verified !== undefined ? Number(spotData.is_verified) : spotData.isVerified === false ? 0 : 1,
@@ -475,22 +484,65 @@ export async function saveSpotToSupabase(spotData: any, isEdit: boolean): Promis
   // 2. Direct PostgreSQL Upsert in Supabase if configured
   if (isSupabaseConfigured && supabase) {
     try {
-      const { data, error } = await supabase
-        .from('spots')
-        .upsert({ ...payload, badge: resolvedBadge, highlighted: isStarFlag ? 1 : 0 }, { onConflict: 'id' })
-        .select();
+      let upsertPayload: Record<string, any> = {
+        ...payload,
+        badge: resolvedBadge,
+        highlighted: isStarFlag ? 1 : 0,
+      };
 
-      if (error) {
-        // Fallback if badge/highlighted columns are not present in remote schema
-        const { data: retryData } = await supabase
+      // If remote Supabase table lacks optional columns (e.g. 'price', 'badge', 'highlighted'),
+      // strip the missing column reported by PostgREST and retry automatically.
+      for (let attempt = 0; attempt < 5; attempt++) {
+        const { data, error } = await supabase
           .from('spots')
-          .upsert(payload, { onConflict: 'id' })
+          .upsert(upsertPayload, { onConflict: 'id' })
           .select();
-        if (retryData && retryData.length > 0) {
-          savedRecord = { ...retryData[0], is_star: isStarFlag ? 1 : 0, isStar: isStarFlag, badge: resolvedBadge };
+
+        if (!error) {
+          if (data && data.length > 0) {
+            savedRecord = {
+              ...data[0],
+              price: payload.price || data[0].price || data[0].price_range || '',
+              price_range: payload.price_range || data[0].price_range || '',
+              is_star: isStarFlag ? 1 : 0,
+              isStar: isStarFlag,
+              badge: resolvedBadge,
+            };
+          }
+          break;
         }
-      } else if (data && data.length > 0) {
-        savedRecord = { ...data[0], is_star: isStarFlag ? 1 : 0, isStar: isStarFlag, badge: resolvedBadge };
+
+        const missingColMatch =
+          error.message?.match(/Could not find the '([^']+)' column/i) ||
+          error.message?.match(/column "([^"]+)" of relation/i);
+
+        if (missingColMatch && missingColMatch[1]) {
+          const missingCol = missingColMatch[1];
+          const nextPayload = { ...upsertPayload };
+          delete nextPayload[missingCol];
+          upsertPayload = nextPayload;
+        } else {
+          // Generic fallback without badge/highlighted/price if schema differs
+          const fallbackPayload: Record<string, any> = { ...payload };
+          delete fallbackPayload.badge;
+          delete fallbackPayload.highlighted;
+          delete fallbackPayload.price;
+          const { data: retryData } = await supabase
+            .from('spots')
+            .upsert(fallbackPayload, { onConflict: 'id' })
+            .select();
+          if (retryData && retryData.length > 0) {
+            savedRecord = {
+              ...retryData[0],
+              price: payload.price || retryData[0].price_range || '',
+              price_range: payload.price_range || retryData[0].price_range || '',
+              is_star: isStarFlag ? 1 : 0,
+              isStar: isStarFlag,
+              badge: resolvedBadge,
+            };
+          }
+          break;
+        }
       }
     } catch {}
   }

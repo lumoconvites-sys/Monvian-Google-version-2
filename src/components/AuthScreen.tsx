@@ -205,8 +205,12 @@ export function AuthScreen({
   const [loading, setLoading] = useState(false);
   const [googleLoading, setGoogleLoading] = useState(false);
   const [isGoogleAccountPreparing, setIsGoogleAccountPreparing] = useState(false);
+  const [loginPreparingMessage, setLoginPreparingMessage] = useState('Carregando suas informações…');
+  const [loginPreparingAvatar, setLoginPreparingAvatar] = useState<string | null>(null);
+  const [showLoginPreparingAvatar, setShowLoginPreparingAvatar] = useState(false);
   const [error, setError] = useState('');
   const isSubmittingRef = useRef(false);
+  const pendingGoogleRegistrationRef = useRef<{ email: string; uid: string | null } | null>(null);
 
   // Zoom state & touch pinch handlers for Login / Recover screen
   const [loginZoom, setLoginZoom] = useState(1);
@@ -220,6 +224,26 @@ export function AuthScreen({
         navigator.vibrate(10);
       }
     } catch {}
+  };
+
+  const resolveLoginAvatarUrl = (candidate?: string | null): string => {
+    const trimmed = String(candidate || '').trim();
+    return trimmed ? trimmed : '/fotoperfil.png';
+  };
+
+  const playLoginAvatarReveal = async (avatarUrl?: string | null) => {
+    const resolved = resolveLoginAvatarUrl(avatarUrl);
+    setLoginPreparingAvatar(resolved);
+    setLoginPreparingMessage('Carregando suas informações…');
+    setIsGoogleAccountPreparing(true);
+    setShowLoginPreparingAvatar(true);
+    await new Promise<void>((resolve) =>
+      window.setTimeout(resolve, shouldReduceMotion ? 320 : 900)
+    );
+    setShowLoginPreparingAvatar(false);
+    await new Promise<void>((resolve) =>
+      window.setTimeout(resolve, shouldReduceMotion ? 120 : 300)
+    );
   };
 
   useEffect(() => {
@@ -704,6 +728,7 @@ export function AuthScreen({
 
       const res = await fetch('/api/auth/login', {
         method: 'POST',
+        credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           email: cleanIdentifier,
@@ -713,14 +738,27 @@ export function AuthScreen({
           firebase_id_token: firebaseIdToken,
         }),
       });
-      const data = await res.json();
+      const rawLoginText = await res.text();
+      let data: any = null;
+      try {
+        data = rawLoginText ? JSON.parse(rawLoginText) : null;
+      } catch {
+        console.error('[Monvian Auth HTTP Diagnostic]', {
+          endpoint: '/api/auth/login',
+          status: res.status,
+          snippet: rawLoginText.slice(0, 200),
+        });
+      }
 
-      if (res.ok && data.success && data.user) {
+      if (res.ok && data?.success && data?.user) {
         // If authenticated via existing DB credentials and Firebase account was not linked yet, enroll silently
         if (!firebaseUid && cleanIdentifier.includes('@')) {
           ensureFirebaseEmailSession(cleanIdentifier, password).catch(() => {});
         }
-        await savePersistentSession(data.token, data.user);
+        await Promise.all([
+          savePersistentSession(data.token, data.user),
+          playLoginAvatarReveal(data.user.avatar_url),
+        ]);
         iosNavigationManager.clearAuthEntries();
         onSuccess(data.token, data.user, false);
       } else {
@@ -733,6 +771,9 @@ export function AuthScreen({
         setError(mapped);
       }
     } catch (err) {
+      setShowLoginPreparingAvatar(false);
+      setLoginPreparingAvatar(null);
+      setIsGoogleAccountPreparing(false);
       setError(mapAuthErrorToUserMessage(err, 'login'));
     } finally {
       setLoading(false);
@@ -843,7 +884,11 @@ export function AuthScreen({
       setCreationMessage('Criando sua conta…');
       setCreationProgress(25);
 
-      let firebaseUid: string | null = null;
+      let firebaseUid: string | null =
+        pendingGoogleRegistrationRef.current &&
+        pendingGoogleRegistrationRef.current.email === cleanEmail
+          ? pendingGoogleRegistrationRef.current.uid
+          : null;
       let firebaseIdToken: string | null = null;
 
       try {
@@ -852,17 +897,11 @@ export function AuthScreen({
         firebaseIdToken = fbSignUp.idToken;
       } catch (fbErr: any) {
         const fbCode = String(fbErr?.code || '');
-        const fbMsg = String(fbErr?.message || '').toLowerCase();
-        if (
-          fbCode === 'auth/email-already-in-use' ||
-          fbMsg.includes('email-already-in-use') ||
-          fbMsg.includes('already registered')
-        ) {
-          throw new Error('Este e-mail já está cadastrado. Utilize outro endereço de e-mail ou faça login na sua conta.');
-        }
         if (fbCode === 'auth/invalid-email' || fbCode === 'auth/weak-password') {
           throw fbErr;
         }
+        // If Firebase Auth reports email-already-in-use (e.g. user first attempted Google login
+        // with an unregistered email), let /api/auth/register verify the actual database.
       }
 
       // 2. “Adicionando suas informações…” -> salvar perfil e criar sessão imediatamente via API
@@ -873,6 +912,7 @@ export function AuthScreen({
 
       const res = await fetch('/api/auth/register', {
         method: 'POST',
+        credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           firebase_uid: firebaseUid,
@@ -884,12 +924,26 @@ export function AuthScreen({
         }),
       });
 
+      const rawRegisterText = await res.text();
       let data: any = null;
       try {
-        data = await res.json();
-      } catch {}
+        data = rawRegisterText ? JSON.parse(rawRegisterText) : null;
+      } catch {
+        console.error('[Monvian Auth HTTP Diagnostic]', {
+          endpoint: '/api/auth/register',
+          status: res.status,
+          snippet: rawRegisterText.slice(0, 200),
+        });
+      }
 
       if (!res.ok || !data?.success || !data?.user || !data?.token) {
+        if (!data?.error) {
+          console.error('[Monvian Auth HTTP Diagnostic]', {
+            endpoint: '/api/auth/register',
+            status: res.status,
+            data,
+          });
+        }
         const errObj = new Error(data?.error || 'Não foi possível concluir o cadastro.');
         (errObj as any).status = res.status;
         throw errObj;
@@ -975,11 +1029,15 @@ export function AuthScreen({
     accessToken?: string | null,
     idToken?: string
   ) => {
+    setLoginPreparingMessage('Carregando suas informações…');
+    setLoginPreparingAvatar(gUser?.photoURL ? String(gUser.photoURL) : null);
+    setShowLoginPreparingAvatar(false);
     setIsGoogleAccountPreparing(true);
     setCachedAccessToken(accessToken || null);
 
     const res = await fetch('/api/auth/google', {
       method: 'POST',
+      credentials: 'include',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         email: gUser.email,
@@ -990,11 +1048,59 @@ export function AuthScreen({
       }),
     });
 
+    const rawGoogleText = await res.text();
     let data: any = null;
     try {
-      data = await res.json();
+      data = rawGoogleText ? JSON.parse(rawGoogleText) : null;
     } catch {
+      console.error('[Monvian Auth HTTP Diagnostic]', {
+        endpoint: '/api/auth/google',
+        status: res.status,
+        snippet: rawGoogleText.slice(0, 200),
+      });
       throw new Error('Resposta inválida do servidor ao autenticar sua conta.');
+    }
+
+    if (
+      data?.requiresRegistration ||
+      data?.code === 'ACCOUNT_NOT_REGISTERED' ||
+      (res.status === 404 && data?.registered === false)
+    ) {
+      const attemptedEmail = String(data?.email || gUser?.email || '')
+        .trim()
+        .toLowerCase();
+
+      pendingGoogleRegistrationRef.current = {
+        email: attemptedEmail,
+        uid: gUser?.uid || data?.google_uid || null,
+      };
+
+      if (auth.currentUser) {
+        signOut(auth).catch(() => {});
+      }
+
+      setShowLoginPreparingAvatar(false);
+      setLoginPreparingAvatar(null);
+      setIsGoogleAccountPreparing(false);
+      setGoogleLoading(false);
+      setError('');
+      setRecoverSent(false);
+      setLoginZoom(1);
+
+      if (attemptedEmail) {
+        setRegisterEmail(attemptedEmail);
+        setEmailTouched(false);
+        try {
+          sessionStorage.setItem('monvian_signup_draft_email', attemptedEmail);
+        } catch {}
+      }
+
+      setAvatarPreview(null);
+      setAvatarBase64(null);
+      setRegisterStep(1);
+      setAuthMode('register');
+      focusStepInputSynchronously(1);
+      return;
     }
 
     if (!res.ok || !data?.success || !data?.token || !data?.user) {
@@ -1007,6 +1113,7 @@ export function AuthScreen({
 
     const [meResult] = await Promise.allSettled([
       fetch('/api/auth/me', {
+        credentials: 'include',
         headers: {
           Authorization: `Bearer ${token}`,
           ...(cleanEmail ? { 'x-user-email': cleanEmail } : {}),
@@ -1047,7 +1154,10 @@ export function AuthScreen({
       onboarding_step: verifiedUser.onboarding_step ?? 1,
     }).catch(() => {});
 
-    await savePersistentSession(token, verifiedUser);
+    await Promise.all([
+      savePersistentSession(token, verifiedUser),
+      playLoginAvatarReveal(verifiedUser?.avatar_url || gUser?.photoURL),
+    ]);
     iosNavigationManager.clearAuthEntries();
 
     onSuccess(token, verifiedUser, isNewAccount);
@@ -1082,6 +1192,8 @@ export function AuthScreen({
             redirectResult.idToken
           );
         } else if (hadPendingRedirect) {
+          setShowLoginPreparingAvatar(false);
+          setLoginPreparingAvatar(null);
           setIsGoogleAccountPreparing(false);
           setGoogleLoading(false);
         }
@@ -1091,6 +1203,8 @@ export function AuthScreen({
           sessionStorage.removeItem('monvian_google_redirect_pending');
         } catch {}
         if (!active) return;
+        setShowLoginPreparingAvatar(false);
+        setLoginPreparingAvatar(null);
         setIsGoogleAccountPreparing(false);
         setGoogleLoading(false);
         setAuthMode('login');
@@ -1123,6 +1237,8 @@ export function AuthScreen({
         authResult.idToken
       );
     } catch (err: any) {
+      setShowLoginPreparingAvatar(false);
+      setLoginPreparingAvatar(null);
       setIsGoogleAccountPreparing(false);
       setGoogleLoading(false);
       setError(mapAuthErrorToUserMessage(err, 'google'));
@@ -1922,6 +2038,48 @@ export function AuthScreen({
                 />
               </motion.div>
 
+              {/* Foto de perfil pequena animada durante a etapa de informações */}
+              <div className="h-12 mb-3 flex items-center justify-center">
+                <AnimatePresence>
+                  {creationMessage === 'Adicionando suas informações…' && (
+                    <motion.div
+                      key="signup-info-avatar"
+                      initial={
+                        shouldReduceMotion
+                          ? { opacity: 0 }
+                          : { opacity: 0, scale: 0.68, y: 8, filter: 'blur(4px)' }
+                      }
+                      animate={{ opacity: 1, scale: 1, y: 0, filter: 'blur(0px)' }}
+                      exit={
+                        shouldReduceMotion
+                          ? { opacity: 0 }
+                          : { opacity: 0, scale: 0.74, y: -6, filter: 'blur(4px)' }
+                      }
+                      transition={{
+                        duration: shouldReduceMotion ? 0.16 : 0.34,
+                        ease: [0.22, 1, 0.36, 1],
+                      }}
+                      className={`w-11 h-11 rounded-full overflow-hidden shrink-0 ${
+                        isDark
+                          ? 'ring-1 ring-white/20 bg-[#171717] shadow-[0_6px_18px_rgba(0,0,0,0.45)]'
+                          : 'ring-1 ring-black/10 bg-[#F2F2F2] shadow-[0_6px_18px_rgba(0,0,0,0.12)]'
+                      }`}
+                    >
+                      <img
+                        src={resolveLoginAvatarUrl(avatarPreview)}
+                        alt=""
+                        decoding="async"
+                        referrerPolicy="no-referrer"
+                        onError={(e) => {
+                          (e.currentTarget as HTMLImageElement).src = '/fotoperfil.png';
+                        }}
+                        className="w-full h-full object-cover select-none pointer-events-none"
+                      />
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+              </div>
+
               {/* Indicador circular de carregamento animado */}
               <div
                 className="relative w-7 h-7 mb-6 flex items-center justify-center"
@@ -2532,6 +2690,48 @@ export function AuthScreen({
               />
             </motion.div>
 
+            {/* Foto de perfil pequena da conta com entrada e saída suaves */}
+            <div className="h-12 mb-3.5 flex items-center justify-center">
+              <AnimatePresence>
+                {showLoginPreparingAvatar && loginPreparingAvatar && (
+                  <motion.div
+                    key="login-preparing-user-avatar"
+                    initial={
+                      shouldReduceMotion
+                        ? { opacity: 0 }
+                        : { opacity: 0, scale: 0.65, y: 8, filter: 'blur(5px)' }
+                    }
+                    animate={{ opacity: 1, scale: 1, y: 0, filter: 'blur(0px)' }}
+                    exit={
+                      shouldReduceMotion
+                        ? { opacity: 0 }
+                        : { opacity: 0, scale: 0.72, y: -6, filter: 'blur(5px)' }
+                    }
+                    transition={{
+                      duration: shouldReduceMotion ? 0.15 : 0.34,
+                      ease: [0.22, 1, 0.36, 1],
+                    }}
+                    className={`w-11 h-11 rounded-full overflow-hidden shrink-0 ${
+                      isDark
+                        ? 'ring-1 ring-white/20 bg-[#171717] shadow-[0_6px_18px_rgba(0,0,0,0.45)]'
+                        : 'ring-1 ring-black/10 bg-[#F2F2F2] shadow-[0_6px_18px_rgba(0,0,0,0.12)]'
+                    }`}
+                  >
+                    <img
+                      src={loginPreparingAvatar}
+                      alt=""
+                      decoding="async"
+                      referrerPolicy="no-referrer"
+                      onError={(e) => {
+                        (e.currentTarget as HTMLImageElement).src = '/fotoperfil.png';
+                      }}
+                      className="w-full h-full object-cover select-none pointer-events-none"
+                    />
+                  </motion.div>
+                )}
+              </AnimatePresence>
+            </div>
+
             {/* Indicador Circular de Carregamento (Loading Spinner) */}
             <div className="relative w-6 h-6 flex items-center justify-center">
               <motion.svg
@@ -2567,6 +2767,7 @@ export function AuthScreen({
 
             {/* Mensagem de Carregamento */}
             <motion.p
+              key={loginPreparingMessage}
               initial={{ opacity: 0, y: 4 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.28, delay: 0.04, ease: [0.22, 1, 0.36, 1] }}
@@ -2578,7 +2779,7 @@ export function AuthScreen({
                   "'SF Pro Text', -apple-system, BlinkMacSystemFont, sans-serif",
               }}
             >
-              Conectando sua conta…
+              {loginPreparingMessage}
             </motion.p>
           </motion.div>
         )}

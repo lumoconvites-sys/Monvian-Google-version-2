@@ -143,10 +143,13 @@ export interface User {
   main_interests?: string[];
   preferred_season?: string;
   onboarding_completed_at?: string;
+  map_tutorial_status?: 'pending' | 'completed' | 'skipped';
+  map_tutorial_updated_at?: string;
 }
 
 export interface MapVisualIcon {
   id: string;
+  name?: string;
   category: string;
   icon: string;
   latitude: number;
@@ -235,6 +238,8 @@ export interface Itinerary {
   notes?: string;
   days: ItineraryDay[];
   placesCount?: number;
+  isUserCreated?: boolean;
+  sourceItineraryId?: string;
   createdAt?: string;
   updatedAt?: string;
 }

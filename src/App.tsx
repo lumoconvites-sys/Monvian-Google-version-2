@@ -5,6 +5,7 @@ import type { TabType } from './components/BottomNavigation';
 import type { MapComponentHandle } from './components/MapComponent';
 import { SelectModeOverlay, UnifiedItineraryOverlay } from './components/itineraries/UnifiedItineraryOverlay';
 import { ItineraryCreationFinalizeModal } from './components/itineraries/ItineraryCreationFinalizeModal';
+import { ExploreDiscoveryPanel } from './components/ExploreDiscoveryPanel';
 import {
   buildItineraryFromOrderedSpots,
   deleteUserItineraryFromBackend,
@@ -22,7 +23,8 @@ import {
 } from './utils/itineraryHelpers';
 import { favoritesManager } from './services/favoritesManager';
 import { CloudRain, SlidersHorizontal, MapPin, Navigation2, Compass, Mic, Search, X, ShieldCheck, Sun, Moon, Building2, UtensilsCrossed, Coffee, Cake, Mountain, Cross, Check, RotateCcw, Star, ChevronRight, Settings } from 'lucide-react';
-import { motion, AnimatePresence } from 'motion/react';
+import { motion, AnimatePresence, useMotionValue } from 'motion/react';
+import { IOS_PAGE_TRANSITION, IOS_SPRING_PRESS } from './utils/iosMotion';
 import { OfflineIndicator } from './components/OfflineIndicator';
 import { Weather3DIcon } from './components/Weather3DIcon';
 import { Map3DIcon } from './components/Map3DIcon';
@@ -33,10 +35,33 @@ import { deviceHeadingManager } from './utils/deviceHeading';
 import { getSpotImage, getSpotFallbackImage } from './utils/spotImages';
 import { VerifiedBadge } from './components/ui/VerifiedBadge';
 import { startPreloadResources } from './utils/preloadItineraries';
+import { playMapLayerToggleSound, playSpotClickSound, unlockSpotClickSound } from './utils/soundEffects';
 import { isPresentationCardSeen, markPresentationCardSeen, type PresentationTab } from './components/AirbnbPresentationCard';
-import { persistUserToFirestore, syncPermissionsFromDatabase, markWelcomeCardSeen, markGlobeIntroSeen } from './services/firestoreSync';
+import {
+  persistUserToFirestore,
+  syncPermissionsFromDatabase,
+  markWelcomeCardSeen,
+  markGlobeIntroSeen,
+  updateMapTutorialStatusInDb,
+  fetchCloudMapVisualIcons,
+  subscribeToMapVisualIcons,
+} from './services/firestoreSync';
+import { preloadStopIconSymbols } from './utils/mapVisualIcons';
 import { fetchSpotsFromSupabase, subscribeToSpotsChanges } from './services/supabaseSpots';
 import { broadcastPlatanosWalletUpdate, getAuthHeaders } from './hooks/usePlatanos';
+import { PushAlertBanner } from './components/PushAlertBanner';
+import {
+  enablePushNotifications,
+  disablePushNotifications,
+  updatePushPreferences,
+  syncPushStatusFromServer,
+  fetchRecentPushAlerts,
+  subscribeToPushAlerts,
+  getSavedPushPreferences,
+  markPushAlertIdsAsRead,
+  type PushAlertItem,
+  type PushPreferences,
+} from './services/fcmPushService';
 import type { SignupIntroStage } from './components/SignupIntroSequence';
 import { IOSInteractiveBackSystem } from './components/IOSInteractiveBackSystem';
 import { useIOSBackEntry, iosNavigationManager } from './services/iosNavigationManager';
@@ -50,12 +75,24 @@ import {
   hasSyncSessionToken,
 } from './utils/persistentAuthStorage';
 import {
+  getActiveUserScope,
   readScopedString,
   writeScopedJSON,
   writeScopedString,
   removeScopedKey,
   purgeLegacyUnscopedActivityKeys,
+  purgeScopedKeysForUser,
+  readUserCategoryFilter,
+  writeUserCategoryFilter,
 } from './utils/userScopedStorage';
+import { IOSPwaInstallGate } from './components/IOSPwaInstallGate';
+import {
+  isIOSBrowserRequiringPwaInstallNow,
+  resolvePostInstallExperienceState,
+  shouldBlockForIOSPwaInstall,
+  shouldRequireIOSPwaInstall,
+  useIOSPwaGateStatus,
+} from './utils/pwaGate';
 
 // Unauthenticated flow (deactivated and NOT loaded when the user is logged in)
 const AuthScreen = React.lazy(() =>
@@ -78,7 +115,7 @@ function loadAuthenticatedViews(): Promise<AuthenticatedViewsModule> {
   return authenticatedViewsPromise;
 }
 
-if (typeof window !== 'undefined' && hasSyncSessionToken()) {
+if (typeof window !== 'undefined' && hasSyncSessionToken() && !isIOSBrowserRequiringPwaInstallNow()) {
   loadAuthenticatedViews();
 }
 
@@ -109,9 +146,7 @@ const SpotDetailSheet = React.lazy(() =>
 const PlatanosWalletModal = React.lazy(() =>
   import('./components/platanos/PlatanosWalletModal').then((m) => ({ default: m.PlatanosWalletModal }))
 );
-const WhiteConfettiOverlay = React.lazy(() =>
-  import('./components/WhiteConfettiOverlay').then((m) => ({ default: m.WhiteConfettiOverlay }))
-);
+import { WhiteConfettiOverlay } from './components/WhiteConfettiOverlay';
 const ClothingWeatherModal = React.lazy(() =>
   import('./components/ClothingWeatherWidget').then((m) => ({ default: m.ClothingWeatherModal }))
 );
@@ -149,6 +184,10 @@ const FirstSignupWelcomeScreen = React.lazy(() =>
 );
 const WelcomeJourneyModal = React.lazy(() =>
   import('./components/WelcomeJourneyModal').then((m) => ({ default: m.WelcomeJourneyModal }))
+);
+const loadMapOnboardingTutorial = () => import('./components/MapOnboardingTutorial');
+const MapOnboardingTutorial = React.lazy(() =>
+  loadMapOnboardingTutorial().then((m) => ({ default: m.MapOnboardingTutorial }))
 );
 
 const welcomeContainerVariants = {
@@ -279,13 +318,20 @@ export default function App() {
     } catch {}
   }, []);
 
+  // Live iOS browser & standalone PWA runtime status (evaluated synchronously on frame 0 — zero flash)
+  const { isIOS: isIOSBrowser, isStandalone } = useIOSPwaGateStatus();
+  const requiresIOSPwaInstall = shouldRequireIOSPwaInstall({
+    isIOS: isIOSBrowser,
+    isStandalone,
+  });
+
   const [authenticatedViews, setAuthenticatedViews] = useState<AuthenticatedViewsModule | null>(
-    () => cachedAuthenticatedViews
+    () => (requiresIOSPwaInstall ? null : cachedAuthenticatedViews)
   );
 
-  // Preload authenticated views & itinerary resources ONLY while logged in
+  // Preload authenticated views & itinerary resources ONLY while logged in and not blocked by the iOS PWA install gate
   useEffect(() => {
-    if (!isAuthenticated || pendingResetOobCode) return;
+    if (!isAuthenticated || pendingResetOobCode || requiresIOSPwaInstall) return;
     startPreloadResources();
     if (cachedAuthenticatedViews) {
       setAuthenticatedViews(cachedAuthenticatedViews);
@@ -300,10 +346,23 @@ export default function App() {
     return () => {
       cancelled = true;
     };
-  }, [isAuthenticated, pendingResetOobCode]);
+  }, [isAuthenticated, pendingResetOobCode, requiresIOSPwaInstall]);
 
-  // Map style mode state
-  const [mapStyle, setMapStyle] = useState<MapModeType>('animado');
+  // Map style mode state (persisted so satellite mode stays active on both globe intro and map across restarts)
+  const [mapStyle, setMapStyle] = useState<MapModeType>(() => {
+    try {
+      const saved = localStorage.getItem('monvian_map_style');
+      if (
+        saved === 'satelite' ||
+        saved === 'explorar' ||
+        saved === 'animado' ||
+        saved === 'transporte'
+      ) {
+        return saved;
+      }
+    } catch {}
+    return 'animado';
+  });
 
   // Desktop Sidebar Compact Mode: Collapsed by default (72px)
   const [isDesktopSidebarCollapsed, setIsDesktopSidebarCollapsed] = useState<boolean>(true);
@@ -394,38 +453,88 @@ export default function App() {
       return false;
     }
   });
+  const isBlockedByIOSPwaGate = shouldBlockForIOSPwaInstall({
+    isAuthenticated,
+    hasPendingPasswordReset: Boolean(pendingResetOobCode),
+    isOnboardingQuestionsOpen: showOnboardingQuestions,
+    isIOS: isIOSBrowser,
+    isStandalone,
+  });
   const [airbnbCardTab, setAirbnbCardTab] = useState<PresentationTab | null>(null);
-  const [showFirstSignupWelcome, setShowFirstSignupWelcome] = useState<boolean>(() => {
+  const initialPostInstallDecision = useMemo(() => {
     try {
+      const token = localStorage.getItem('monvian_token');
       const savedUser = localStorage.getItem('monvian_user');
-      if (!savedUser) return false;
+      if (!token || !savedUser) {
+        return {
+          showFirstSignupWelcome: false,
+          isGlobeIntroPending: false,
+          isGlobeIntroPlaying: false,
+          globeIntroSource: 'app-open' as const,
+        };
+      }
       const parsed = JSON.parse(savedUser);
       const email = String(parsed?.email || parsed?.whatsapp || '').trim().toLowerCase();
-      if (!email) return false;
-      if (parsed?.onboarding_completed === 0) return false;
-      if (parsed?.welcome_card_seen === 1) return false;
-      if (localStorage.getItem(`monvian_first_welcome_seen_${email}`) === '1') return false;
-      return localStorage.getItem(`monvian_first_welcome_pending_${email}`) === '1';
+      if (!email) {
+        return {
+          showFirstSignupWelcome: false,
+          isGlobeIntroPending: false,
+          isGlobeIntroPlaying: false,
+          globeIntroSource: 'app-open' as const,
+        };
+      }
+      const needsOnboarding = Boolean(
+        parsed?.onboarding_completed === 0 ||
+          (parsed?.onboarding_completed !== 1 &&
+            localStorage.getItem(`monvian_smart_onboarding_pending_${email}`) === '1')
+      );
+      return resolvePostInstallExperienceState({
+        isAuthenticated: true,
+        requiresIOSPwaInstall: isIOSBrowserRequiringPwaInstallNow(),
+        needsSmartOnboarding: needsOnboarding,
+        welcomeCardSeenInDb: parsed?.welcome_card_seen === 1,
+        globeIntroSeenInDb: parsed?.globe_intro_seen === 1,
+        mapTutorialStatusInDb: parsed?.map_tutorial_status,
+        localWelcomePending: localStorage.getItem(`monvian_first_welcome_pending_${email}`) === '1',
+        localWelcomeSeen: localStorage.getItem(`monvian_first_welcome_seen_${email}`) === '1',
+        localGlobePending: localStorage.getItem(`monvian_globe_intro_pending_${email}`) === '1',
+        localGlobeSeen: localStorage.getItem(`monvian_globe_intro_seen_${email}`) === '1',
+      });
     } catch {
-      return false;
+      return {
+        showFirstSignupWelcome: false,
+        isGlobeIntroPending: false,
+        isGlobeIntroPlaying: false,
+        globeIntroSource: 'app-open' as const,
+      };
     }
-  });
-  const [isGlobeIntroPending, setIsGlobeIntroPending] = useState<boolean>(() => {
+  }, []);
+  const [showFirstSignupWelcome, setShowFirstSignupWelcome] = useState<boolean>(
+    initialPostInstallDecision.showFirstSignupWelcome
+  );
+  const [isGlobeIntroPending, setIsGlobeIntroPending] = useState<boolean>(
+    initialPostInstallDecision.isGlobeIntroPending
+  );
+  const [isGlobeIntroPlaying, setIsGlobeIntroPlaying] = useState<boolean>(
+    initialPostInstallDecision.isGlobeIntroPlaying
+  );
+  const globeIntroSourceRef = useRef<'app-open' | 'post-signup'>(
+    initialPostInstallDecision.globeIntroSource
+  );
+  const hasStartedAppOpenGlobeRef = useRef<boolean>(initialPostInstallDecision.isGlobeIntroPlaying);
+  const [isMapTutorialOpen, setIsMapTutorialOpen] = useState<boolean>(false);
+  const [isMapTutorialMounted, setIsMapTutorialMounted] = useState<boolean>(false);
+  const [verifiedTutorialUserKey, setVerifiedTutorialUserKey] = useState<string | null>(null);
+  const [tutorialActiveStepId, setTutorialActiveStepId] = useState<string | null>(null);
+  useEffect(() => {
+    if (tutorialActiveStepId === 'layers') return;
     try {
-      const savedUser = localStorage.getItem('monvian_user');
-      if (!savedUser) return false;
-      const parsed = JSON.parse(savedUser);
-      const email = String(parsed?.email || parsed?.whatsapp || '').trim().toLowerCase();
-      if (!email) return false;
-      if (parsed?.globe_intro_seen === 1) return false;
-      if (localStorage.getItem(`monvian_globe_intro_seen_${email}`) === '1') return false;
-      return localStorage.getItem(`monvian_globe_intro_pending_${email}`) === '1';
-    } catch {
-      return false;
-    }
-  });
-  const [isGlobeIntroPlaying, setIsGlobeIntroPlaying] = useState<boolean>(false);
+      localStorage.setItem('monvian_map_style', mapStyle);
+    } catch {}
+  }, [mapStyle, tutorialActiveStepId]);
   const [arrivalConfettiTrigger, setArrivalConfettiTrigger] = useState<number>(0);
+  const hasTriggeredMainAppConfettiRef = useRef<boolean>(false);
+  const hasTriggeredInitialBootConfettiRef = useRef<boolean>(false);
   const [signupIntroStage, setSignupIntroStage] = useState<SignupIntroStage>('idle');
   const [isWelcomeJourneyOpen, setIsWelcomeJourneyOpen] = useState<boolean>(false);
   const [pendingWelcomeJourney, setPendingWelcomeJourney] = useState<boolean>(false);
@@ -479,13 +588,18 @@ export default function App() {
   const [isWeatherModalOpen, setIsWeatherModalOpen] = useState<boolean>(false);
   const [isChatKeyboardOpen, setIsChatKeyboardOpen] = useState<boolean>(false);
   const [isMyItinerariesSubViewActive, setIsMyItinerariesSubViewActive] = useState<boolean>(false);
+  const [openMyItinerariesSignal, setOpenMyItinerariesSignal] = useState<number>(0);
+  const [discoveryResetSignal, setDiscoveryResetSignal] = useState<number>(0);
+  const discoverySheetHeightMV = useMotionValue<number>(0);
   const [isPlatanosWalletOpen, setIsPlatanosWalletOpen] = useState<boolean>(false);
+  const [hasMountedPlatanosWallet, setHasMountedPlatanosWallet] = useState<boolean>(false);
   const [platanosWalletTab, setPlatanosWalletTab] = useState<'topup' | 'history'>('topup');
 
   useEffect(() => {
     const handleOpenWallet = (e: Event) => {
       const detail = (e as CustomEvent)?.detail;
       setPlatanosWalletTab(detail?.tab === 'history' ? 'history' : 'topup');
+      setHasMountedPlatanosWallet(true);
       setIsPlatanosWalletOpen(true);
     };
     const handleMyItinerariesActive = (e: Event) => {
@@ -564,40 +678,24 @@ export default function App() {
     }
   }, []);
 
-  // Standalone PWA detection vs standard mobile web browser
-  const [isStandalone, setIsStandalone] = useState<boolean>(() => {
-    if (typeof window === 'undefined') return false;
-    return (
-      window.matchMedia('(display-mode: standalone)').matches ||
-      (window.navigator as any).standalone === true ||
-      document.referrer.includes('android-app://')
-    );
-  });
+  const [isDiscoveryPanelClosed, setIsDiscoveryPanelClosed] = useState<boolean>(true);
+  const discoveryOpenTimerRef = useRef<number | null>(null);
 
   useEffect(() => {
-    const checkStandalone = () => {
-      const standalone =
-        window.matchMedia('(display-mode: standalone)').matches ||
-        (window.navigator as any).standalone === true ||
-        document.referrer.includes('android-app://');
-      setIsStandalone(standalone);
-    };
-    checkStandalone();
-    const mql = window.matchMedia('(display-mode: standalone)');
-    mql.addEventListener?.('change', checkStandalone);
-    window.addEventListener('resize', checkStandalone);
     return () => {
-      mql.removeEventListener?.('change', checkStandalone);
-      window.removeEventListener('resize', checkStandalone);
+      if (discoveryOpenTimerRef.current !== null) {
+        window.clearTimeout(discoveryOpenTimerRef.current);
+        discoveryOpenTimerRef.current = null;
+      }
     };
   }, []);
 
-  // Prefetch secondary navigation tabs during browser idle time once authenticated
+  // Prefetch secondary navigation tabs during browser idle time once authenticated and unlocked
   useEffect(() => {
-    if (isAuthenticated && authenticatedViews) {
+    if (isAuthenticated && authenticatedViews && !requiresIOSPwaInstall) {
       prefetchSecondaryTabsOnIdle();
     }
-  }, [isAuthenticated, authenticatedViews]);
+  }, [isAuthenticated, authenticatedViews, requiresIOSPwaInstall]);
 
   // Viewport height sync: delegate to centralized index.html engine (avoids duplicate listeners & timer storms)
   useEffect(() => {
@@ -667,16 +765,31 @@ export default function App() {
     // 2. Keep 'landing' as default on session expiration; open 'login' only on explicit Profile sign-out
     setAuthInitialMode(shouldRedirectToLogin ? 'login' : 'landing');
     hasExecutedSignupIntroRef.current = false;
+    hasStartedAppOpenGlobeRef.current = false;
+    globeIntroSourceRef.current = 'app-open';
     setIsOnboardingItinerarySelection(false);
     setShowFirstSignupWelcome(false);
     setIsGlobeIntroPending(false);
     setIsGlobeIntroPlaying(false);
+    setIsMapTutorialOpen(false);
+    setVerifiedTutorialUserKey(null);
     setArrivalConfettiTrigger(0);
     setSignupIntroStage('idle');
     setPendingWelcomeJourney(false);
+    setSelectedCategoryFilter(null);
+    setIsCategoryCardOpen(false);
+    setSearchQuery('');
+    setIsSearchOpen(false);
     setSelectedItinerary(null);
     setSelectedSpot(null);
     setIsDetailOpen(false);
+    setActiveItinerary(null);
+    setActiveItineraryDayIndex(0);
+    setActiveItineraryStepId(null);
+    setSelectedSpotIdsForItinerary([]);
+    setMapWorkflowMode('EXPLORE');
+    setIsItineraryDrawerExpanded(false);
+    setTripNoteText('');
     setIsAdminOpen(false);
     setIsSettingsModalOpen(false);
     setUser(null);
@@ -748,37 +861,65 @@ export default function App() {
           if (needsSmartOnboarding) {
             localStorage.setItem(`monvian_smart_onboarding_pending_${userEmail}`, '1');
             setShowOnboardingQuestions(true);
-            setShowFirstSignupWelcome(false);
           } else {
             localStorage.removeItem(`monvian_smart_onboarding_pending_${userEmail}`);
             setShowOnboardingQuestions(false);
             if (normalized.welcome_card_seen === 1) {
               localStorage.setItem(`monvian_first_welcome_seen_${userEmail}`, '1');
               localStorage.removeItem(`monvian_first_welcome_pending_${userEmail}`);
-              setShowFirstSignupWelcome(false);
-            } else if (
-              localStorage.getItem(`monvian_first_welcome_seen_${userEmail}`) !== '1' &&
-              localStorage.getItem(`monvian_first_welcome_pending_${userEmail}`) === '1'
-            ) {
-              setShowFirstSignupWelcome(true);
+            }
+            if (normalized.globe_intro_seen === 1) {
+              localStorage.setItem(`monvian_globe_intro_seen_${userEmail}`, '1');
+              localStorage.removeItem(`monvian_globe_intro_pending_${userEmail}`);
             }
           }
-          if (normalized.globe_intro_seen === 1) {
-            localStorage.setItem(`monvian_globe_intro_seen_${userEmail}`, '1');
-            localStorage.removeItem(`monvian_globe_intro_pending_${userEmail}`);
+
+          const liveNeedsPwaInstall = isIOSBrowserRequiringPwaInstallNow();
+          const postInstallDecision = resolvePostInstallExperienceState({
+            isAuthenticated: true,
+            requiresIOSPwaInstall: liveNeedsPwaInstall,
+            needsSmartOnboarding,
+            welcomeCardSeenInDb: normalized.welcome_card_seen === 1,
+            globeIntroSeenInDb: normalized.globe_intro_seen === 1,
+            mapTutorialStatusInDb: normalized.map_tutorial_status,
+            localWelcomePending:
+              localStorage.getItem(`monvian_first_welcome_pending_${userEmail}`) === '1',
+            localWelcomeSeen:
+              localStorage.getItem(`monvian_first_welcome_seen_${userEmail}`) === '1',
+            localGlobePending:
+              localStorage.getItem(`monvian_globe_intro_pending_${userEmail}`) === '1',
+            localGlobeSeen:
+              localStorage.getItem(`monvian_globe_intro_seen_${userEmail}`) === '1',
+          });
+
+          setShowFirstSignupWelcome(postInstallDecision.showFirstSignupWelcome);
+          if (postInstallDecision.showFirstSignupWelcome || postInstallDecision.isGlobeIntroPending) {
+            globeIntroSourceRef.current = postInstallDecision.globeIntroSource;
+            setIsGlobeIntroPending(postInstallDecision.isGlobeIntroPending);
+            setIsGlobeIntroPlaying(false);
+          } else if (postInstallDecision.isGlobeIntroPlaying) {
+            if (!hasStartedAppOpenGlobeRef.current || postInstallDecision.globeIntroSource === 'post-signup') {
+              hasStartedAppOpenGlobeRef.current = true;
+              globeIntroSourceRef.current = postInstallDecision.globeIntroSource;
+              setIsGlobeIntroPending(false);
+              setIsGlobeIntroPlaying(true);
+            }
+          } else {
+            globeIntroSourceRef.current = postInstallDecision.globeIntroSource;
             setIsGlobeIntroPending(false);
             setIsGlobeIntroPlaying(false);
-          } else if (
-            localStorage.getItem(`monvian_globe_intro_seen_${userEmail}`) !== '1' &&
-            localStorage.getItem(`monvian_globe_intro_pending_${userEmail}`) === '1'
-          ) {
-            setIsGlobeIntroPending(true);
           }
         } catch {}
       }
       if (!isMounted || myEpoch !== authEpochRef.current) return;
       favoritesManager.setActiveAccount(normalized);
+      setSelectedCategoryFilter(readUserCategoryFilter(normalized));
+      setIsCategoryCardOpen(false);
+      setSearchQuery('');
+      setIsSearchOpen(false);
       window.dispatchEvent(new CustomEvent('monvian:account_switched', { detail: normalized }));
+      const dbTutorialKey = String(normalized.id || normalized.email || normalized.whatsapp || '').trim().toLowerCase();
+      setVerifiedTutorialUserKey(dbTutorialKey || null);
       setUser(normalized);
       setIsAuthenticated(true);
       setIsAuthChecking(false);
@@ -872,6 +1013,7 @@ export default function App() {
             await applyAuthenticatedUser(restored.token, restored.user);
             return;
           }
+          setSelectedCategoryFilter(null);
           setUser(null);
           setIsAuthenticated(false);
           return;
@@ -879,7 +1021,9 @@ export default function App() {
 
         // If restored from IndexedDB or cookie when localStorage was empty, enter app immediately while verifying
         if (stored.user && isMounted && myEpoch === authEpochRef.current) {
-          setUser(normalizeAppUser(stored.user));
+          const normalizedStored = normalizeAppUser(stored.user);
+          setUser(normalizedStored);
+          setSelectedCategoryFilter(readUserCategoryFilter(normalizedStored));
           setIsAuthenticated(true);
           setIsAuthChecking(false);
         }
@@ -940,9 +1084,12 @@ export default function App() {
           const fallback = await loadPersistentSession().catch(() => null);
           if (!isMounted || myEpoch !== authEpochRef.current) return;
           if (fallback?.token && fallback?.user) {
-            setUser(normalizeAppUser(fallback.user));
+            const normalizedFallback = normalizeAppUser(fallback.user);
+            setUser(normalizedFallback);
+            setSelectedCategoryFilter(readUserCategoryFilter(normalizedFallback));
             setIsAuthenticated(true);
           } else {
+            setSelectedCategoryFilter(null);
             setUser(null);
             setIsAuthenticated(false);
           }
@@ -1068,7 +1215,19 @@ export default function App() {
     return [];
   });
   const hasFullCatalogLoadedRef = useRef(false);
-  const [mapVisualIcons, setMapVisualIcons] = useState<MapVisualIcon[]>([]);
+  const [mapVisualIcons, setMapVisualIcons] = useState<MapVisualIcon[]>(() => {
+    try {
+      const cached = localStorage.getItem('monvian_cached_visual_icons');
+      if (cached) {
+        const parsed = JSON.parse(cached);
+        if (Array.isArray(parsed)) {
+          preloadStopIconSymbols(parsed);
+          return parsed;
+        }
+      }
+    } catch {}
+    return [];
+  });
   const [isAdminOpen, setIsAdminOpen] = useState(false);
   const [systemSettings, setSystemSettings] = useState<Record<string, string>>({});
   const [selectedSpot, setSelectedSpot] = useState<Spot | null>(null);
@@ -1081,7 +1240,7 @@ export default function App() {
   const isBackgroundReroutingRef = useRef<boolean>(false);
   const selectedSpotIdRef = useRef<string | null>(null);
   const activeRouteSpotIdRef = useRef<string | null>(null);
-  const [is3DMode, setIs3DMode] = useState<boolean>(false);
+  const [is3DMode, setIs3DMode] = useState<boolean>(true);
   const [hasToggled3D, setHasToggled3D] = useState<boolean>(false);
 
   useEffect(() => {
@@ -1149,9 +1308,114 @@ export default function App() {
     }
   }, []);
 
-  const fetchVisualIcons = async () => {
-    setMapVisualIcons([]);
-  };
+  const persistVisualIconsCache = useCallback((iconsList: MapVisualIcon[]) => {
+    try {
+      localStorage.setItem('monvian_cached_visual_icons', JSON.stringify(iconsList));
+    } catch {}
+  }, []);
+
+  const filterAndMergeActiveVisualIcons = useCallback(
+    (primary: any[], secondary: any[] = []): MapVisualIcon[] => {
+      const byId = new Map<string, MapVisualIcon>();
+      const ingest = (list: any[], isPrimary: boolean) => {
+        for (const item of list) {
+          if (
+            !item ||
+            !item.id ||
+            Number(item.is_active ?? 1) !== 1 ||
+            !Number.isFinite(Number(item.latitude)) ||
+            !Number.isFinite(Number(item.longitude))
+          ) {
+            continue;
+          }
+          const id = String(item.id);
+          const existing = byId.get(id);
+          if (!existing) {
+            byId.set(id, {
+              ...item,
+              id,
+              latitude: Number(item.latitude),
+              longitude: Number(item.longitude),
+              is_active: 1,
+            });
+          } else if (isPrimary) {
+            byId.set(id, {
+              ...existing,
+              ...item,
+              id,
+              name: item.name || existing.name,
+              icon: item.icon || existing.icon || item.category,
+              color: item.color || existing.color,
+              latitude: Number(item.latitude),
+              longitude: Number(item.longitude),
+              is_active: 1,
+            });
+          }
+        }
+      };
+      ingest(secondary, false);
+      ingest(primary, true);
+      return Array.from(byId.values());
+    },
+    []
+  );
+
+  const fetchVisualIcons = useCallback(async () => {
+    let apiActive: MapVisualIcon[] | null = null;
+    let cloudActive: MapVisualIcon[] | null = null;
+
+    const applyLatest = () => {
+      const merged = filterAndMergeActiveVisualIcons(
+        apiActive || cloudActive || [],
+        cloudActive || apiActive || []
+      );
+      if (merged.length > 0 || (apiActive !== null && cloudActive !== null)) {
+        preloadStopIconSymbols(merged);
+        setMapVisualIcons(merged);
+        persistVisualIconsCache(merged);
+      }
+    };
+
+    const apiPromise = fetch('/api/map-visual-icons')
+      .then((res) => res.json())
+      .then((data) => {
+        if (data?.success && Array.isArray(data.icons)) {
+          apiActive = filterAndMergeActiveVisualIcons(data.icons);
+          applyLatest();
+        }
+      })
+      .catch(() => {});
+
+    const cloudPromise = fetchCloudMapVisualIcons()
+      .then((cloudIcons) => {
+        if (Array.isArray(cloudIcons)) {
+          cloudActive = filterAndMergeActiveVisualIcons(cloudIcons);
+          applyLatest();
+        }
+      })
+      .catch(() => {});
+
+    await Promise.allSettled([apiPromise, cloudPromise]);
+  }, [filterAndMergeActiveVisualIcons, persistVisualIconsCache]);
+
+  // Load and subscribe to Stop Icons immediately on app startup (before/during globe intro & auth check)
+  useEffect(() => {
+    fetchVisualIcons();
+    const unsubscribeVisualIconsRealtime = subscribeToMapVisualIcons((cloudList) => {
+      const activeOnly = filterAndMergeActiveVisualIcons(cloudList);
+      if (activeOnly.length > 0) {
+        preloadStopIconSymbols(activeOnly);
+        setMapVisualIcons((prev) => {
+          const merged = filterAndMergeActiveVisualIcons(activeOnly, prev);
+          persistVisualIconsCache(merged);
+          return merged;
+        });
+      }
+    });
+    return () => {
+      unsubscribeVisualIconsRealtime();
+    };
+  }, [fetchVisualIcons, filterAndMergeActiveVisualIcons, persistVisualIconsCache]);
 
   const fetchSettings = async () => {
     try {
@@ -1183,6 +1447,12 @@ export default function App() {
       fetchSpots();
     });
 
+    const unsubscribeVisualIconsRealtime = subscribeToMapVisualIcons((cloudList) => {
+      const activeOnly = cloudList.filter((i) => Number(i.is_active ?? 1) === 1) as MapVisualIcon[];
+      setMapVisualIcons(activeOnly);
+      persistVisualIconsCache(activeOnly);
+    });
+
     const handleSpotsUpdated = (e: any) => {
       const updated = e.detail?.spot || e.detail;
       if (updated && updated.id) {
@@ -1206,17 +1476,31 @@ export default function App() {
     };
 
     const handleVisualIconsUpdated = (e: any) => {
-      const updated = e?.detail;
-      if (updated && updated.id) {
+      const detail = e?.detail;
+      if (detail?.action === 'delete' && detail.id) {
         setMapVisualIcons((prev) => {
-          const exists = prev.some((i) => i.id === updated.id);
-          if (exists) {
-            return prev.map((i) => (i.id === updated.id ? updated : i));
-          } else {
-            return [updated, ...prev];
-          }
+          const next = prev.filter((i) => i.id !== detail.id);
+          persistVisualIconsCache(next);
+          return next;
         });
+        return;
       }
+
+      const updated: MapVisualIcon | undefined = detail?.icon || (detail?.id ? detail : undefined);
+      if (updated && updated.id) {
+        const isActive = Number(updated.is_active ?? 1) === 1;
+        setMapVisualIcons((prev) => {
+          const next = isActive
+            ? prev.some((i) => i.id === updated.id)
+              ? prev.map((i) => (i.id === updated.id ? { ...i, ...updated } : i))
+              : [updated, ...prev]
+            : prev.filter((i) => i.id !== updated.id);
+          persistVisualIconsCache(next);
+          return next;
+        });
+        return;
+      }
+
       fetchVisualIcons();
     };
 
@@ -1241,8 +1525,9 @@ export default function App() {
       window.removeEventListener('monvian:visual_icons_updated', handleVisualIconsUpdated);
       window.removeEventListener('focus', handleWindowFocus);
       unsubscribeRealtime();
+      unsubscribeVisualIconsRealtime();
     };
-  }, [isAuthenticated, pendingResetOobCode, fetchSpots]);
+  }, [isAuthenticated, pendingResetOobCode, fetchSpots, fetchVisualIcons, persistVisualIconsCache]);
 
   const wasAdminOpenRef = useRef(false);
   useEffect(() => {
@@ -1276,11 +1561,24 @@ export default function App() {
     return () => unsubscribe();
   }, []);
 
-  const [selectedCategoryFilter, setSelectedCategoryFilter] = useState<string | null>(null);
+  const [selectedCategoryFilter, setSelectedCategoryFilter] = useState<string | null>(() =>
+    isAuthenticated && user ? readUserCategoryFilter(user) : null
+  );
   const [isCategoryCardOpen, setIsCategoryCardOpen] = useState<boolean>(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [isSearchOpen, setIsSearchOpen] = useState(false);
   const [isListening, setIsListening] = useState(false);
+
+  const handleUpdateSelectedCategoryFilter = useCallback(
+    (nextCategory: string | null) => {
+      const normalizedCat = nextCategory === 'all' ? null : nextCategory;
+      setSelectedCategoryFilter(normalizedCat);
+      if (isAuthenticated && user) {
+        writeUserCategoryFilter(normalizedCat, user);
+      }
+    },
+    [isAuthenticated, user]
+  );
 
   useEffect(() => {
     if (!isAuthenticated || pendingResetOobCode || hasFullCatalogLoadedRef.current) return;
@@ -1339,13 +1637,12 @@ export default function App() {
     applySystemThemeColor(currentAdaptiveColor);
   }, [currentAdaptiveColor]);
 
-  // Handle URL deep link from QR Code (?spot=spotId)
+  // Handle URL deep link from QR Code or Push Notifications (?spot=spotId)
   useEffect(() => {
     try {
       const params = new URLSearchParams(window.location.search);
-      if (spots.length === 0) return;
       const spotParam = params.get('spot');
-      if (spotParam) {
+      if (spotParam && spots.length > 0) {
         const found = spots.find(
           (s) =>
             s.id.toLowerCase() === spotParam.toLowerCase() ||
@@ -1442,6 +1739,11 @@ export default function App() {
   // Real Weather State from Open-Meteo for Campos do Jordão
   const [realWeather, setRealWeather] = useState<{
     temperature: number;
+    feelsLike?: number;
+    minTemp?: number;
+    maxTemp?: number;
+    humidity?: number;
+    windSpeed?: number;
     condition: string;
     isDay: boolean;
     weatherCode: number;
@@ -1457,6 +1759,11 @@ export default function App() {
         if (typeof parsed.temperature === 'number' && parsed.condition) {
           return {
             temperature: parsed.temperature,
+            feelsLike: typeof parsed.feelsLike === 'number' ? parsed.feelsLike : undefined,
+            minTemp: typeof parsed.minTemp === 'number' ? parsed.minTemp : undefined,
+            maxTemp: typeof parsed.maxTemp === 'number' ? parsed.maxTemp : undefined,
+            humidity: typeof parsed.humidity === 'number' ? parsed.humidity : undefined,
+            windSpeed: typeof parsed.windSpeed === 'number' ? parsed.windSpeed : undefined,
             condition: parsed.condition,
             isDay: parsed.isDay ?? true,
             weatherCode: parsed.weatherCode ?? 2,
@@ -1470,6 +1777,11 @@ export default function App() {
     } catch {}
     return {
       temperature: 17,
+      feelsLike: 16,
+      minTemp: 12,
+      maxTemp: 20,
+      humidity: 78,
+      windSpeed: 8,
       condition: 'Parcialmente nublado',
       isDay: true,
       weatherCode: 2,
@@ -1503,7 +1815,7 @@ export default function App() {
         timeoutId = window.setTimeout(() => controller.abort(), 5000);
 
         const res = await fetch(
-          'https://api.open-meteo.com/v1/forecast?latitude=-22.7394&longitude=-45.5914&current=temperature_2m,relative_humidity_2m,is_day,weather_code,precipitation,rain,showers&timezone=America%2FSao_Paulo',
+          'https://api.open-meteo.com/v1/forecast?latitude=-22.7394&longitude=-45.5914&current=temperature_2m,apparent_temperature,relative_humidity_2m,wind_speed_10m,is_day,weather_code,precipitation,rain,showers&daily=temperature_2m_min,temperature_2m_max&forecast_days=1&timezone=America%2FSao_Paulo',
           { signal: controller.signal, cache: 'no-cache' }
         );
         if (timeoutId) {
@@ -1579,8 +1891,32 @@ export default function App() {
             }
           }
 
+          const feelsLikeVal =
+            typeof data.current.apparent_temperature === 'number'
+              ? Math.round(data.current.apparent_temperature)
+              : temp - (temp <= 14 ? 2 : 1);
+          const humidityVal =
+            typeof data.current.relative_humidity_2m === 'number'
+              ? Math.round(data.current.relative_humidity_2m)
+              : undefined;
+          const windSpeedVal =
+            typeof data.current.wind_speed_10m === 'number'
+              ? Math.round(data.current.wind_speed_10m)
+              : undefined;
+          const dailyMinRaw = data.daily?.temperature_2m_min?.[0];
+          const dailyMaxRaw = data.daily?.temperature_2m_max?.[0];
+          const minTempVal =
+            typeof dailyMinRaw === 'number' ? Math.round(dailyMinRaw) : undefined;
+          const maxTempVal =
+            typeof dailyMaxRaw === 'number' ? Math.round(dailyMaxRaw) : undefined;
+
           const newWeather = {
             temperature: temp,
+            feelsLike: feelsLikeVal,
+            minTemp: minTempVal,
+            maxTemp: maxTempVal,
+            humidity: humidityVal,
+            windSpeed: windSpeedVal,
             condition: cond,
             isDay,
             weatherCode: wcode,
@@ -1663,6 +1999,9 @@ export default function App() {
 
   const isBlurActive = Boolean(isCategoryCardOpen || isSearchOpen);
   const isSpotFocusActive = false;
+  const isSpotSelectedMode = Boolean(
+    mapWorkflowMode === 'EXPLORE' && isSpotCardOpen && selectedSpot
+  );
 
   const clearActiveRoute = useCallback(() => {
     if (routeAbortControllerRef.current) {
@@ -1754,8 +2093,17 @@ export default function App() {
   }, [activeRoute?.spotId, clearActiveRoute, showDiscreetRouteError]);
 
   const handleSelectSpot = useCallback((spot: Spot | null) => {
+    if (discoveryOpenTimerRef.current !== null) {
+      window.clearTimeout(discoveryOpenTimerRef.current);
+      discoveryOpenTimerRef.current = null;
+    }
     if (!spot || (activeRouteSpotIdRef.current && spot.id !== activeRouteSpotIdRef.current)) {
       clearActiveRoute();
+    }
+    if (spot) {
+      setIsDiscoveryPanelClosed(true);
+      setIsCategoryCardOpen(false);
+      setIsSearchOpen(false);
     }
     setSelectedSpot(spot);
     setSpotPreviewMode('bar');
@@ -1775,12 +2123,16 @@ export default function App() {
     if (mapWorkflowModeRef.current === 'SELECT') {
       return;
     }
+    const hadActiveSpot = Boolean(selectedSpot || isDetailOpen || activeRoute);
     clearActiveRoute();
     setSelectedSpot(null);
     setIsDetailOpen(false);
     setIsCategoryCardOpen(false);
     setIsSearchOpen(false);
-  }, [clearActiveRoute]);
+    if (hadActiveSpot) {
+      mapRef.current?.fitSpotsOverview();
+    }
+  }, [clearActiveRoute, selectedSpot, isDetailOpen, activeRoute]);
 
   // User location state
   const [userCoords, setUserCoords] = useState<[number, number]>(
@@ -1907,6 +2259,7 @@ export default function App() {
 
   const handleTabChange = useCallback((tab: TabType) => {
     setIsAdminOpen(false);
+    setIsDiscoveryPanelClosed(true);
     if (tab === 'explorar') {
       if (mapWorkflowModeRef.current === 'SELECT') {
         setMapWorkflowMode(
@@ -2201,7 +2554,9 @@ export default function App() {
       isOnboardingItinerarySelection ||
       showFirstSignupWelcome ||
       isGlobeIntroPending ||
-      isGlobeIntroPlaying
+      isGlobeIntroPlaying ||
+      isMapTutorialOpen ||
+      String(user?.map_tutorial_status || '').toLowerCase() === 'pending'
     ) {
       setAirbnbCardTab(null);
       return;
@@ -2226,6 +2581,8 @@ export default function App() {
     showFirstSignupWelcome,
     isGlobeIntroPending,
     isGlobeIntroPlaying,
+    isMapTutorialOpen,
+    user?.map_tutorial_status,
   ]);
 
   const handleDismissFirstSignupWelcome = useCallback(() => {
@@ -2259,11 +2616,7 @@ export default function App() {
       }
     } catch {}
 
-    const shouldPlayGlobeFlight = Boolean(
-      isGlobeIntroPending &&
-        user?.globe_intro_seen !== 1 &&
-        (!cleanEmail || localStorage.getItem(`monvian_globe_intro_seen_${cleanEmail}`) !== '1')
-    );
+    const shouldPlayGlobeFlight = Boolean(isGlobeIntroPending);
 
     if (shouldPlayGlobeFlight) {
       try {
@@ -2276,6 +2629,9 @@ export default function App() {
       setUser((prev: any) => {
         if (!prev) return prev;
         const updated = { ...prev, welcome_card_seen: 1, globe_intro_seen: 1 };
+        try {
+          localStorage.setItem('monvian_user', JSON.stringify(updated));
+        } catch {}
         if (token) {
           savePersistentSession(token, updated).catch(() => {});
         }
@@ -2287,6 +2643,12 @@ export default function App() {
         markGlobeIntroSeen(cleanEmail, token).catch(() => {});
       }
 
+      if (String(user?.map_tutorial_status || '').trim().toLowerCase() === 'pending') {
+        void loadMapOnboardingTutorial();
+      }
+      globeIntroSourceRef.current = 'post-signup';
+      hasStartedAppOpenGlobeRef.current = true;
+      setIsDiscoveryPanelClosed(true);
       setIsGlobeIntroPending(false);
       setIsGlobeIntroPlaying(true);
     } else {
@@ -2294,6 +2656,9 @@ export default function App() {
       setUser((prev: any) => {
         if (!prev) return prev;
         const updated = { ...prev, welcome_card_seen: 1 };
+        try {
+          localStorage.setItem('monvian_user', JSON.stringify(updated));
+        } catch {}
         if (token) {
           savePersistentSession(token, updated).catch(() => {});
         }
@@ -2312,8 +2677,491 @@ export default function App() {
     setIsGlobeIntroPlaying(false);
     setIsGlobeIntroPending(false);
     setExplorarEntranceTick((prev) => prev + 1);
-    setArrivalConfettiTrigger((prev) => prev + 1);
+    const isPostSignup = globeIntroSourceRef.current === 'post-signup';
+    const isTutorialPending =
+      String(user?.map_tutorial_status || '').trim().toLowerCase() === 'pending';
+    if (isPostSignup && !isTutorialPending) {
+      hasTriggeredMainAppConfettiRef.current = true;
+      setArrivalConfettiTrigger((prev) => prev + 1);
+    }
+  }, [user?.map_tutorial_status]);
+
+  const handleTutorialStepChange = useCallback((stepId: string | null) => {
+    setTutorialActiveStepId(stepId);
   }, []);
+
+  const handleFinishMapTutorial = useCallback(
+    (status: 'completed' | 'skipped') => {
+      setIsMapTutorialOpen(false);
+      setTutorialActiveStepId(null);
+      setIsDiscoveryPanelClosed(true);
+      setSelectedSpotIdsForItinerary([]);
+      setMapWorkflowMode('EXPLORE');
+      const nowIso = new Date().toISOString();
+      const cleanEmail = String(user?.email || user?.whatsapp || '').trim().toLowerCase();
+      const token = (() => {
+        try {
+          return localStorage.getItem('monvian_token') || undefined;
+        } catch {
+          return undefined;
+        }
+      })();
+
+      if (status === 'completed') {
+        window.setTimeout(() => {
+          try {
+            if (gpsNavigationManager.getState().status === 'granted') {
+              gpsNavigationManager.refreshPositionNow();
+            }
+          } catch {}
+          mapRef.current?.recenter();
+        }, 120);
+      }
+
+      setUser((prev: any) => {
+        if (!prev) return prev;
+        const updated = normalizeAppUser({
+          ...prev,
+          map_tutorial_status: status,
+          map_tutorial_updated_at: nowIso,
+        });
+        try {
+          localStorage.setItem('monvian_user', JSON.stringify(updated));
+          if (token) {
+            savePersistentSession(token, updated).catch(() => {});
+          }
+        } catch {}
+        return updated;
+      });
+
+      void updateMapTutorialStatusInDb(status, cleanEmail, token).then((serverUser) => {
+        if (!serverUser) return;
+        setUser((prev: any) => {
+          if (!prev) return prev;
+          if (String(prev.id) !== String(serverUser.id)) return prev;
+          const merged = normalizeAppUser({ ...prev, ...serverUser });
+          try {
+            localStorage.setItem('monvian_user', JSON.stringify(merged));
+            if (token) {
+              savePersistentSession(token, merged).catch(() => {});
+            }
+          } catch {}
+          return merged;
+        });
+      });
+    },
+    [user]
+  );
+
+  const tutorialUserKey = String(user?.id || user?.email || user?.whatsapp || '').trim().toLowerCase();
+  const tutorialUserStatus = String(user?.map_tutorial_status || '').trim().toLowerCase();
+
+  // Ensure that once an authenticated user unlocks the installed PWA (or transitions out of Safari gate),
+  // their deferred post-signup Welcome Screen + 3D Globe Flight + Step-by-Step Tutorial launch cleanly.
+  useEffect(() => {
+    if (
+      isAuthChecking ||
+      !isAuthenticated ||
+      pendingResetOobCode ||
+      requiresIOSPwaInstall ||
+      showOnboardingQuestions ||
+      !user
+    ) {
+      return;
+    }
+
+    const cleanEmail = String(user?.email || user?.whatsapp || '').trim().toLowerCase();
+    let localWelcomePending = false;
+    let localWelcomeSeen = false;
+    let localGlobePending = false;
+    let localGlobeSeen = false;
+    try {
+      if (cleanEmail) {
+        localWelcomePending =
+          localStorage.getItem(`monvian_first_welcome_pending_${cleanEmail}`) === '1';
+        localWelcomeSeen =
+          localStorage.getItem(`monvian_first_welcome_seen_${cleanEmail}`) === '1';
+        localGlobePending =
+          localStorage.getItem(`monvian_globe_intro_pending_${cleanEmail}`) === '1';
+        localGlobeSeen =
+          localStorage.getItem(`monvian_globe_intro_seen_${cleanEmail}`) === '1';
+      }
+    } catch {}
+
+    const decision = resolvePostInstallExperienceState({
+      isAuthenticated: true,
+      requiresIOSPwaInstall: false,
+      needsSmartOnboarding: false,
+      welcomeCardSeenInDb: user?.welcome_card_seen === 1,
+      globeIntroSeenInDb: user?.globe_intro_seen === 1,
+      mapTutorialStatusInDb: user?.map_tutorial_status,
+      localWelcomePending,
+      localWelcomeSeen,
+      localGlobePending,
+      localGlobeSeen,
+    });
+
+    if (decision.showFirstSignupWelcome && !showFirstSignupWelcome) {
+      globeIntroSourceRef.current = 'post-signup';
+      setIsGlobeIntroPending(true);
+      setIsGlobeIntroPlaying(false);
+      setShowFirstSignupWelcome(true);
+    } else if (
+      !decision.showFirstSignupWelcome &&
+      decision.globeIntroSource === 'post-signup' &&
+      decision.isGlobeIntroPlaying &&
+      !isGlobeIntroPlaying &&
+      !hasStartedAppOpenGlobeRef.current
+    ) {
+      globeIntroSourceRef.current = 'post-signup';
+      hasStartedAppOpenGlobeRef.current = true;
+      setIsGlobeIntroPending(false);
+      setIsGlobeIntroPlaying(true);
+    }
+  }, [
+    isAuthChecking,
+    isAuthenticated,
+    pendingResetOobCode,
+    requiresIOSPwaInstall,
+    showOnboardingQuestions,
+    showFirstSignupWelcome,
+    isGlobeIntroPlaying,
+    user?.id,
+    user?.email,
+    user?.whatsapp,
+    user?.welcome_card_seen,
+    user?.globe_intro_seen,
+    user?.map_tutorial_status,
+  ]);
+
+  // Preload tutorial bundle as soon as an authenticated user with pending tutorial enters the app
+  useEffect(() => {
+    if (!isAuthenticated || requiresIOSPwaInstall || tutorialUserStatus !== 'pending') return;
+    void loadMapOnboardingTutorial();
+  }, [isAuthenticated, requiresIOSPwaInstall, tutorialUserStatus]);
+
+  // Auto-trigger interactive map onboarding tutorial ONLY for authenticated accounts
+  // whose DB record has map_tutorial_status === 'pending' right after the globe-to-user zoom finishes.
+  useEffect(() => {
+    if (
+      isAuthChecking ||
+      !isAuthenticated ||
+      !authenticatedViews ||
+      !tutorialUserKey ||
+      requiresIOSPwaInstall ||
+      isBlockedByIOSPwaGate
+    ) {
+      return;
+    }
+
+    if (verifiedTutorialUserKey !== tutorialUserKey) return;
+
+    if (tutorialUserStatus !== 'pending') {
+      if (isMapTutorialOpen) setIsMapTutorialOpen(false);
+      return;
+    }
+
+    const canStartTutorial =
+      activeTab === 'explorar' &&
+      mapWorkflowMode === 'EXPLORE' &&
+      !isAdminOpen &&
+      !showOnboardingQuestions &&
+      !showWelcomeOverlay &&
+      !isSignupRevealActive &&
+      !showFirstSignupWelcome &&
+      !isGlobeIntroPending &&
+      !isGlobeIntroPlaying &&
+      !isOnboardingItinerarySelection &&
+      !isUserLocationSpotlightActive &&
+      !isMapOrbiting &&
+      !isDetailOpen &&
+      !selectedSpot &&
+      !isSettingsModalOpen &&
+      !isWeatherModalOpen &&
+      !isCategoryCardOpen &&
+      !isSearchOpen &&
+      !isFinalizeItineraryModalOpen &&
+      !isPlatanosWalletOpen;
+
+    if (!canStartTutorial) return;
+
+    if (isMapTutorialOpen) return;
+
+    setIsDiscoveryPanelClosed(true);
+
+    void loadMapOnboardingTutorial();
+    const timer = window.setTimeout(() => {
+      setIsMapTutorialMounted(true);
+      setIsMapTutorialOpen(true);
+    }, 320);
+
+    return () => window.clearTimeout(timer);
+  }, [
+    isAuthChecking,
+    isAuthenticated,
+    authenticatedViews,
+    tutorialUserKey,
+    tutorialUserStatus,
+    verifiedTutorialUserKey,
+    isMapTutorialOpen,
+    activeTab,
+    mapWorkflowMode,
+    isAdminOpen,
+    showOnboardingQuestions,
+    showWelcomeOverlay,
+    isSignupRevealActive,
+    showFirstSignupWelcome,
+    isGlobeIntroPending,
+    isGlobeIntroPlaying,
+    isOnboardingItinerarySelection,
+    isUserLocationSpotlightActive,
+    isMapOrbiting,
+    isDetailOpen,
+    selectedSpot,
+    isSettingsModalOpen,
+    isWeatherModalOpen,
+    isCategoryCardOpen,
+    isSearchOpen,
+    isFinalizeItineraryModalOpen,
+    isPlatanosWalletOpen,
+    requiresIOSPwaInstall,
+    isBlockedByIOSPwaGate,
+  ]);
+
+  useEffect(() => {
+    if (isMapTutorialOpen) {
+      setIsMapTutorialMounted(true);
+      return;
+    }
+    if (!isMapTutorialMounted) return;
+    const t = window.setTimeout(() => {
+      setIsMapTutorialMounted(false);
+    }, 340);
+    return () => window.clearTimeout(t);
+  }, [isMapTutorialOpen, isMapTutorialMounted]);
+
+  const spotsRefForTutorial = useRef(spots);
+  spotsRefForTutorial.current = spots;
+  const chosenTutorialSpotIdsRef = useRef<string[]>([]);
+  const is3DModeRefForTutorial = useRef(is3DMode);
+  is3DModeRefForTutorial.current = is3DMode;
+  const hasToggled3DRefForTutorial = useRef(hasToggled3D);
+  hasToggled3DRefForTutorial.current = hasToggled3D;
+  const mapStyleRefForTutorial = useRef(mapStyle);
+  mapStyleRefForTutorial.current = mapStyle;
+
+  // Synchronize interactive map tutorial workflow demonstrations:
+  // 3D Toggle -> Layers Toggle + SFX -> Discovery Sheet -> Criar Roteiro -> Circular Pins (1..3) + SFX -> Bottom Selection Bar -> Explore + Confetti + Zoom on User
+  useEffect(() => {
+    if (!isMapTutorialOpen || !tutorialActiveStepId) {
+      chosenTutorialSpotIdsRef.current = [];
+      return;
+    }
+
+    if (tutorialActiveStepId === 'view-3d') {
+      chosenTutorialSpotIdsRef.current = [];
+      setIsDiscoveryPanelClosed(true);
+      setSelectedSpotIdsForItinerary([]);
+      setMapWorkflowMode('EXPLORE');
+
+      const initial3D = is3DModeRefForTutorial.current;
+      const initialHasToggled = hasToggled3DRefForTutorial.current;
+
+      const tToggle = window.setTimeout(() => {
+        setHasToggled3D(true);
+        setIs3DMode(!initial3D);
+      }, 320);
+
+      const tRestore = window.setTimeout(() => {
+        setIs3DMode(initial3D);
+        setHasToggled3D(initialHasToggled);
+      }, 1680);
+
+      return () => {
+        window.clearTimeout(tToggle);
+        window.clearTimeout(tRestore);
+        setIs3DMode(initial3D);
+        setHasToggled3D(initialHasToggled);
+      };
+    }
+
+    if (tutorialActiveStepId === 'layers') {
+      chosenTutorialSpotIdsRef.current = [];
+      setIsDiscoveryPanelClosed(true);
+      setSelectedSpotIdsForItinerary([]);
+      setMapWorkflowMode('EXPLORE');
+
+      const initialStyle = mapStyleRefForTutorial.current;
+      const toggledStyle: MapModeType = initialStyle === 'satelite' ? 'explorar' : 'satelite';
+      unlockSpotClickSound();
+
+      const tToggle = window.setTimeout(() => {
+        unlockSpotClickSound();
+        playMapLayerToggleSound();
+        setMapStyle(toggledStyle);
+      }, 320);
+
+      const tRestore = window.setTimeout(() => {
+        unlockSpotClickSound();
+        playMapLayerToggleSound();
+        setMapStyle(initialStyle);
+      }, 1680);
+
+      return () => {
+        window.clearTimeout(tToggle);
+        window.clearTimeout(tRestore);
+        setMapStyle(initialStyle);
+      };
+    }
+
+    if (tutorialActiveStepId === 'open-discovery-create') {
+      chosenTutorialSpotIdsRef.current = [];
+      setSelectedSpotIdsForItinerary([]);
+      setMapWorkflowMode('EXPLORE');
+      setIsDiscoveryPanelClosed(false);
+      setDiscoveryResetSignal((prev) => prev + 1);
+      return;
+    }
+
+    if (tutorialActiveStepId === 'select-spots-map-pins') {
+      setIsDiscoveryPanelClosed(true);
+      setSelectedSpot(null);
+      setIsDetailOpen(false);
+      clearActiveRoute();
+      setSelectedSpotIdsForItinerary([]);
+      setMapWorkflowMode('SELECT');
+
+      const validSpots = (spotsRefForTutorial.current || []).filter(
+        (s) =>
+          s &&
+          typeof s.id === 'string' &&
+          typeof s.lat === 'number' &&
+          !isNaN(s.lat) &&
+          typeof s.lng === 'number' &&
+          !isNaN(s.lng)
+      );
+
+      if (validSpots.length === 0) return;
+
+      const validById = new Map<string, Spot>(validSpots.map((s) => [s.id, s]));
+      const chosen: Spot[] = [];
+      const chosenCenters: Array<{ x: number; y: number }> = [];
+
+      // Prefer up to 3 visually distinct circular pins currently visible in the middle band of the map
+      if (typeof document !== 'undefined' && typeof window !== 'undefined') {
+        const vw = window.innerWidth;
+        const vh = window.innerHeight;
+        const markerEls = Array.from(
+          document.querySelectorAll('.monvian-explore-marker[data-spot-id]')
+        ) as HTMLElement[];
+
+        const candidates = markerEls
+          .map((el) => {
+            const spotId = el.getAttribute('data-spot-id') || '';
+            const spot = validById.get(spotId);
+            const r = el.getBoundingClientRect();
+            const cx = r.left + r.width / 2;
+            const cy = r.top + r.height / 2;
+            const distFromCenter = Math.hypot(cx - vw / 2, cy - vh * 0.45);
+            return { spot, r, cx, cy, distFromCenter };
+          })
+          .filter(
+            (item): item is { spot: Spot; r: DOMRect; cx: number; cy: number; distFromCenter: number } =>
+              Boolean(item.spot) &&
+              item.r.width > 12 &&
+              item.r.top > 112 &&
+              item.r.bottom < vh - 235 &&
+              item.r.left > 28 &&
+              item.r.right < vw - 28
+          )
+          .sort((a, b) => a.distFromCenter - b.distFromCenter);
+
+        for (const item of candidates) {
+          if (chosen.length >= 3) break;
+          if (chosen.some((c) => c.id === item.spot.id)) continue;
+          const tooClose = chosenCenters.some(
+            (pt) => Math.hypot(pt.x - item.cx, pt.y - item.cy) < 46
+          );
+          if (!tooClose) {
+            chosen.push(item.spot);
+            chosenCenters.push({ x: item.cx, y: item.cy });
+          }
+        }
+        // Relax spacing if fewer than 3 well-spaced candidates were mounted
+        for (const item of candidates) {
+          if (chosen.length >= 3) break;
+          if (!chosen.some((c) => c.id === item.spot.id)) {
+            chosen.push(item.spot);
+          }
+        }
+      }
+
+      const preferredOrder = ['itapeva', 'krokodilo', 'capivari', 'elefante', 'tarundu', 'baden'];
+      for (const kw of preferredOrder) {
+        if (chosen.length >= 3) break;
+        const match = validSpots.find(
+          (s) =>
+            (s.name || '').toLowerCase().includes(kw) &&
+            !chosen.some((c) => c.id === s.id)
+        );
+        if (match) chosen.push(match);
+      }
+      for (const s of validSpots) {
+        if (chosen.length >= 3) break;
+        if (!chosen.some((c) => c.id === s.id)) chosen.push(s);
+      }
+
+      chosenTutorialSpotIdsRef.current = chosen.map((s) => s.id);
+
+      const timers: number[] = [];
+      chosen.forEach((spot, idx) => {
+        const delayMs = 140 + idx * 860;
+        const tid = window.setTimeout(() => {
+          unlockSpotClickSound();
+          playSpotClickSound();
+          setSelectedSpotIdsForItinerary((prev) =>
+            prev.includes(spot.id) ? prev : [...prev, spot.id]
+          );
+        }, delayMs);
+        timers.push(tid);
+      });
+
+      return () => {
+        timers.forEach((tid) => window.clearTimeout(tid));
+      };
+    }
+
+    if (tutorialActiveStepId === 'select-three-spots') {
+      setIsDiscoveryPanelClosed(true);
+      setMapWorkflowMode('SELECT');
+      if (chosenTutorialSpotIdsRef.current.length > 0) {
+        setSelectedSpotIdsForItinerary([...chosenTutorialSpotIdsRef.current]);
+      }
+      return;
+    }
+
+    if (tutorialActiveStepId === 'finish') {
+      chosenTutorialSpotIdsRef.current = [];
+      setIsDiscoveryPanelClosed(true);
+      setSelectedSpotIdsForItinerary([]);
+      setMapWorkflowMode('EXPLORE');
+      hasTriggeredMainAppConfettiRef.current = true;
+      hasTriggeredInitialBootConfettiRef.current = true;
+      setArrivalConfettiTrigger((prev) => prev + 1);
+      try {
+        if (gpsNavigationManager.getState().status === 'granted') {
+          gpsNavigationManager.refreshPositionNow();
+        }
+      } catch {}
+      return;
+    }
+
+    // Standard map control tour steps keep Explore clean and sheet closed
+    chosenTutorialSpotIdsRef.current = [];
+    setIsDiscoveryPanelClosed(true);
+    setSelectedSpotIdsForItinerary([]);
+    setMapWorkflowMode('EXPLORE');
+  }, [isMapTutorialOpen, tutorialActiveStepId, clearActiveRoute]);
 
   const handleAirbnbCardAction = useCallback(() => {
     if (!airbnbCardTab) return;
@@ -2379,12 +3227,17 @@ export default function App() {
     };
 
     const handleLoggedOut = () => {
+      setSelectedCategoryFilter(null);
+      setIsCategoryCardOpen(false);
+      setSearchQuery('');
+      setIsSearchOpen(false);
       setActiveItinerary(null);
       setActiveItineraryDayIndex(0);
       setActiveItineraryStepId(null);
       setSelectedSpotIdsForItinerary([]);
       setMapWorkflowMode('EXPLORE');
       setIsItineraryDrawerExpanded(false);
+      setTripNoteText('');
       isEditingExistingItineraryRef.current = false;
     };
 
@@ -2392,6 +3245,11 @@ export default function App() {
       const nextUser = e?.detail || null;
       const scopedItin = loadActiveItineraryFromStorage(nextUser);
       const isActiveOnMap = loadIsItineraryActiveOnMapFromStorage(nextUser);
+      setIsMapTutorialOpen(false);
+      setSelectedCategoryFilter(readUserCategoryFilter(nextUser));
+      setIsCategoryCardOpen(false);
+      setSearchQuery('');
+      setIsSearchOpen(false);
       setActiveItinerary(scopedItin);
       setActiveItineraryDayIndex(0);
       setActiveItineraryStepId(scopedItin?.days?.[0]?.steps?.[0]?.id || null);
@@ -2415,15 +3273,25 @@ export default function App() {
 
   // Hydrate saved backend itinerary on startup if none in local storage
   useEffect(() => {
-    if (!isAuthenticated || pendingResetOobCode || activeItinerary) return;
+    if (!isAuthenticated || pendingResetOobCode || activeItinerary || !user) return;
+    const requestScope = getActiveUserScope(user);
+    if (!requestScope) return;
     const sessionId = getOrCreateItinerarySessionId(user);
     const controller = new AbortController();
+    const userEmail = String(user?.email || user?.whatsapp || '').trim().toLowerCase();
     fetch('/api/user-itineraries', {
-      headers: { 'x-session-id': sessionId },
+      headers: {
+        ...(userEmail ? { 'x-user-email': userEmail } : {}),
+        ...getAuthHeaders(),
+        'x-session-id': sessionId,
+      },
       signal: controller.signal,
     })
       .then((res) => (res.ok ? res.json() : null))
       .then((data) => {
+        if (controller.signal.aborted) return;
+        const currentScope = getActiveUserScope();
+        if (!currentScope || currentScope !== requestScope) return;
         if (!data?.success || !Array.isArray(data.itineraries) || data.itineraries.length === 0) return;
         const normalized = normalizeItineraryLivreFlags(data.itineraries[0]);
         const wasExplicitlyExited = readScopedString('monvian_itinerary_map_active', user) === '0';
@@ -2528,6 +3396,7 @@ export default function App() {
     setDraftItineraryCover('');
     setIsFinalizeItineraryModalOpen(false);
     setSelectedSpotIdsForItinerary([]);
+    setIsDiscoveryPanelClosed(true);
     setActiveTab('explorar');
     setMapWorkflowMode('SELECT');
   }, [clearActiveRoute]);
@@ -2798,6 +3667,53 @@ export default function App() {
     setActiveTab('explorar');
   }, []);
 
+  const handleOpenMyItinerariesFromDiscovery = useCallback(() => {
+    setHasVisitedProfile(true);
+    setIsMyItinerariesSubViewActive(true);
+    setOpenMyItinerariesSignal((prev) => prev + 1);
+    setIsDiscoveryPanelClosed(true);
+    setActiveTab('perfil');
+    window.setTimeout(() => {
+      window.dispatchEvent(new CustomEvent('monvian:open_my_itineraries'));
+    }, 30);
+  }, []);
+
+  const handleOpenStoreFromDiscovery = useCallback(() => {
+    setIsDiscoveryPanelClosed(true);
+    setActiveTab('roteiros');
+  }, []);
+
+  const handleCloseDiscoveryPanel = useCallback(() => {
+    setIsDiscoveryPanelClosed(true);
+  }, []);
+
+  const handleToggleDiscoveryPanel = useCallback(() => {
+    if (discoveryOpenTimerRef.current !== null) {
+      window.clearTimeout(discoveryOpenTimerRef.current);
+      discoveryOpenTimerRef.current = null;
+    }
+    if (selectedSpot || isDetailOpen || activeRoute) {
+      mapRef.current?.restorePreSpotCamera();
+      clearActiveRoute();
+      setSelectedSpot(null);
+      setIsDetailOpen(false);
+      setIsCategoryCardOpen(false);
+      setIsSearchOpen(false);
+      discoveryOpenTimerRef.current = window.setTimeout(() => {
+        discoveryOpenTimerRef.current = null;
+        setIsDiscoveryPanelClosed(false);
+      }, 170);
+      return;
+    }
+    setIsDiscoveryPanelClosed((prev) => !prev);
+  }, [selectedSpot, isDetailOpen, activeRoute, clearActiveRoute]);
+
+  useEffect(() => {
+    if (activeTab === 'explorar' && mapWorkflowMode === 'EXPLORE') {
+      setDiscoveryResetSignal((s) => s + 1);
+    }
+  }, [activeTab, mapWorkflowMode]);
+
   const handleOpenSpotDetails = useCallback((spot: Spot) => {
     setSelectedSpot(spot);
     setIsDetailOpen(true);
@@ -2858,10 +3774,203 @@ export default function App() {
   const handleProfileLogout = useCallback(() => {
     performFullLogout({ redirectToLogin: true });
   }, [performFullLogout]);
+
+  // =========================================================================
+  // FIREBASE CLOUD MESSAGING (FCM) PUSH NOTIFICATIONS STATE & LIFECYCLE
+  // =========================================================================
+  const [pushPreferences, setPushPreferences] = useState<PushPreferences>(() =>
+    getSavedPushPreferences(user)
+  );
+  const [pushAlerts, setPushAlerts] = useState<PushAlertItem[]>([]);
+  const [activePushBanner, setActivePushBanner] = useState<PushAlertItem | null>(null);
+  const [pushBusy, setPushBusy] = useState(false);
+  const [pushStatusMessage, setPushStatusMessage] = useState<string | null>(null);
+
+  const handleOpenItineraryById = useCallback(
+    async (itineraryId: string) => {
+      if (!itineraryId) {
+        setActiveTab('roteiros');
+        return;
+      }
+      try {
+        const res = await fetch(`/api/itineraries/${encodeURIComponent(itineraryId)}`);
+        if (res.ok) {
+          const data = await res.json();
+          const itin = data?.itinerary || (data?.id ? data : null);
+          if (itin && itin.id) {
+            handleOpenItineraryOnMap(itin);
+            return;
+          }
+        }
+      } catch {}
+      setActiveTab('roteiros');
+    },
+    [handleOpenItineraryOnMap]
+  );
+
+  const handleMarkPushAlertsRead = useCallback(
+    (ids?: string[]) => {
+      setPushAlerts((prev) => {
+        const targetIds = ids && ids.length > 0 ? ids : prev.map((a) => a.id);
+        markPushAlertIdsAsRead(targetIds, user);
+        const idSet = new Set(targetIds);
+        return prev.map((a) => (idSet.has(a.id) ? { ...a, isRead: true } : a));
+      });
+    },
+    [user]
+  );
+
+  const handleSelectPushAlert = useCallback(
+    (alert: PushAlertItem) => {
+      handleMarkPushAlertsRead([alert.id]);
+      if (alert.type === 'itinerary_update' && alert.itineraryId) {
+        void handleOpenItineraryById(alert.itineraryId);
+        return;
+      }
+      if (alert.spotId) {
+        const matched = spots.find(
+          (s) => s.id.toLowerCase() === alert.spotId!.toLowerCase()
+        );
+        if (matched) {
+          handleSelectSpotAndReturnExplore(matched);
+          return;
+        }
+      }
+      if (alert.type === 'itinerary_update') {
+        setActiveTab('roteiros');
+      } else {
+        setActiveTab('explorar');
+      }
+    },
+    [spots, handleMarkPushAlertsRead, handleOpenItineraryById, handleSelectSpotAndReturnExplore]
+  );
+
+  const handleTogglePushMaster = useCallback(
+    async (enabled: boolean) => {
+      setPushBusy(true);
+      setPushStatusMessage(null);
+      try {
+        if (enabled) {
+          const result = await enablePushNotifications(user, pushPreferences);
+          setPushPreferences(result.preferences);
+          setPushStatusMessage(result.message);
+        } else {
+          const updated = await disablePushNotifications(user);
+          setPushPreferences(updated);
+          setPushStatusMessage('Notificações Push desativadas.');
+        }
+      } finally {
+        setPushBusy(false);
+      }
+    },
+    [user, pushPreferences]
+  );
+
+  const handleTogglePushNewSpots = useCallback(
+    async (newSpots: boolean) => {
+      const next: PushPreferences = { ...pushPreferences, newSpots };
+      setPushPreferences(next);
+      await updatePushPreferences(next, user);
+    },
+    [user, pushPreferences]
+  );
+
+  const handleTogglePushItineraryUpdates = useCallback(
+    async (itineraryUpdates: boolean) => {
+      const next: PushPreferences = { ...pushPreferences, itineraryUpdates };
+      setPushPreferences(next);
+      await updatePushPreferences(next, user);
+    },
+    [user, pushPreferences]
+  );
+
+  useEffect(() => {
+    if (!isAuthenticated || !user) {
+      setPushAlerts([]);
+      setActivePushBanner(null);
+      return;
+    }
+
+    let cancelled = false;
+    setPushPreferences(getSavedPushPreferences(user));
+
+    syncPushStatusFromServer(user)
+      .then((prefs) => {
+        if (!cancelled) setPushPreferences(prefs);
+      })
+      .catch(() => {});
+
+    fetchRecentPushAlerts(user, 25)
+      .then((alerts) => {
+        if (!cancelled && alerts.length > 0) {
+          setPushAlerts(alerts);
+        }
+      })
+      .catch(() => {});
+
+    const unsubscribe = subscribeToPushAlerts({
+      user,
+      onAlertsListUpdated: (list) => {
+        if (!cancelled) {
+          setPushAlerts(list);
+        }
+      },
+      onAlertReceived: (alert) => {
+        if (cancelled) return;
+        setPushAlerts((prev) => [alert, ...prev.filter((item) => item.id !== alert.id)]);
+        setActivePushBanner(alert);
+      },
+    });
+
+    return () => {
+      cancelled = true;
+      unsubscribe();
+    };
+  }, [isAuthenticated, user]);
+
+  // Handle Service Worker notification click postMessage (spotId or itineraryId)
+  useEffect(() => {
+    if (typeof navigator === 'undefined' || !('serviceWorker' in navigator)) return;
+    const onSwMessage = (event: MessageEvent) => {
+      const msg = event.data;
+      if (!msg || msg.type !== 'MONVIAN_NOTIFICATION_CLICK') return;
+      if (msg.itineraryId) {
+        void handleOpenItineraryById(String(msg.itineraryId));
+        return;
+      }
+      if (msg.spotId) {
+        const matched = spots.find(
+          (s) => s.id.toLowerCase() === String(msg.spotId).toLowerCase()
+        );
+        if (matched) {
+          handleSelectSpotAndReturnExplore(matched);
+        }
+      }
+    };
+    navigator.serviceWorker.addEventListener('message', onSwMessage);
+    return () => {
+      navigator.serviceWorker.removeEventListener('message', onSwMessage);
+    };
+  }, [spots, handleOpenItineraryById, handleSelectSpotAndReturnExplore]);
+
+  // Handle URL deep link from Push Notifications (?itinerary=itineraryId)
+  useEffect(() => {
+    if (!isAuthenticated) return;
+    try {
+      const params = new URLSearchParams(window.location.search);
+      const itineraryParam = params.get('itinerary');
+      if (itineraryParam) {
+        void handleOpenItineraryById(itineraryParam);
+      }
+    } catch {}
+  }, [isAuthenticated, handleOpenItineraryById]);
   const handleNoop = useCallback(() => {}, []);
-  const handleDesktopSelectCategory = useCallback((catId: string) => {
-    setSelectedCategoryFilter(catId === 'all' ? null : catId);
-  }, []);
+  const handleDesktopSelectCategory = useCallback(
+    (catId: string) => {
+      handleUpdateSelectedCategoryFilter(catId === 'all' ? null : catId);
+    },
+    [handleUpdateSelectedCategoryFilter]
+  );
 
   const prefersReducedMotion =
     typeof window !== 'undefined' &&
@@ -2877,7 +3986,11 @@ export default function App() {
           />
         </Suspense>
       )}
-      {isAuthenticated && !pendingResetOobCode && isWelcomeJourneyOpen && (
+      {isAuthenticated &&
+        !pendingResetOobCode &&
+        !requiresIOSPwaInstall &&
+        !isBlockedByIOSPwaGate &&
+        isWelcomeJourneyOpen && (
         <Suspense fallback={null}>
           <WelcomeJourneyModal
             isOpen={isWelcomeJourneyOpen}
@@ -2971,21 +4084,33 @@ export default function App() {
 
               // Ensure any residual unscoped or previous account state is wiped before initializing the new account
               purgeLegacyUnscopedActivityKeys();
+              if (isNewAccount && normalizedUser) {
+                purgeScopedKeysForUser(normalizedUser);
+                writeUserCategoryFilter(null, normalizedUser);
+              }
               try {
                 const prevUserRaw = localStorage.getItem('monvian_user');
                 const prevUser = prevUserRaw ? JSON.parse(prevUserRaw) : null;
                 const prevEmail = (prevUser?.email || prevUser?.whatsapp || '').trim().toLowerCase();
                 if (!prevUser || prevEmail !== cleanEmail || String(prevUser?.id) !== String(normalizedUser?.id)) {
                   localStorage.removeItem('monvian_local_avatar');
-                  setSelectedItinerary(null);
-                  setSelectedSpot(null);
-                  setIsDetailOpen(false);
                 }
                 if (token && normalizedUser) {
                   localStorage.setItem('monvian_token', token);
                   localStorage.setItem('monvian_user', JSON.stringify(normalizedUser));
                 }
               } catch {}
+
+              clearActiveRoute();
+              setSelectedItinerary(null);
+              setSelectedSpot(null);
+              setIsDetailOpen(false);
+              setIsCategoryCardOpen(false);
+              setSearchQuery('');
+              setIsSearchOpen(false);
+              setSelectedCategoryFilter(
+                isNewAccount ? null : readUserCategoryFilter(normalizedUser)
+              );
 
               savePersistentSession(token, normalizedUser).catch(() => {});
               favoritesManager.setActiveAccount(normalizedUser);
@@ -3001,6 +4126,9 @@ export default function App() {
                 document.cookie = 'monvian_motion_granted=true; max-age=315360000; path=/; SameSite=Lax';
               }
               syncPermissionsFromDatabase(normalizedUser?.email || normalizedUser?.whatsapp).catch(() => {});
+              const nextDbKey = String(normalizedUser?.id || normalizedUser?.email || normalizedUser?.whatsapp || '').trim().toLowerCase();
+              setIsMapTutorialOpen(false);
+              setVerifiedTutorialUserKey(nextDbKey || null);
               setUser(normalizedUser);
               setActiveTab('explorar');
               setExplorarEntranceTick((prev) => prev + 1);
@@ -3023,10 +4151,17 @@ export default function App() {
                     localStorage.setItem(`monvian_smart_onboarding_pending_${cleanEmail}`, '1');
                     localStorage.setItem(`monvian_first_welcome_pending_${cleanEmail}`, '1');
                     localStorage.removeItem(`monvian_first_welcome_seen_${cleanEmail}`);
+                    localStorage.removeItem(`monvian_globe_intro_seen_${cleanEmail}`);
+                    localStorage.setItem(`monvian_globe_intro_pending_${cleanEmail}`, '1');
                   }
                 } catch {}
+                void startPreloadResources(true);
                 setShowOnboardingQuestions(true);
                 setShowFirstSignupWelcome(false);
+                globeIntroSourceRef.current = 'post-signup';
+                hasStartedAppOpenGlobeRef.current = false;
+                setIsGlobeIntroPending(true);
+                setIsGlobeIntroPlaying(false);
               } else {
                 try {
                   if (cleanEmail) {
@@ -3034,30 +4169,52 @@ export default function App() {
                   }
                 } catch {}
                 setShowOnboardingQuestions(false);
-                const needsWelcomeCard = Boolean(
-                  !normalizedUser?.welcome_card_seen &&
-                    cleanEmail &&
-                    localStorage.getItem(`monvian_first_welcome_seen_${cleanEmail}`) !== '1' &&
-                    localStorage.getItem(`monvian_first_welcome_pending_${cleanEmail}`) === '1'
-                );
-                setShowFirstSignupWelcome(needsWelcomeCard);
-              }
 
-              const hasSeenGlobeIntro = Boolean(
-                normalizedUser?.globe_intro_seen === 1 ||
-                  (cleanEmail && localStorage.getItem(`monvian_globe_intro_seen_${cleanEmail}`) === '1')
-              );
-              if (isNewAccount && !hasSeenGlobeIntro) {
+                let localWelcomePending = false;
+                let localWelcomeSeen = false;
+                let localGlobePending = false;
+                let localGlobeSeen = false;
                 try {
                   if (cleanEmail) {
-                    localStorage.setItem(`monvian_globe_intro_pending_${cleanEmail}`, '1');
+                    localWelcomePending =
+                      localStorage.getItem(`monvian_first_welcome_pending_${cleanEmail}`) === '1';
+                    localWelcomeSeen =
+                      localStorage.getItem(`monvian_first_welcome_seen_${cleanEmail}`) === '1';
+                    localGlobePending =
+                      localStorage.getItem(`monvian_globe_intro_pending_${cleanEmail}`) === '1';
+                    localGlobeSeen =
+                      localStorage.getItem(`monvian_globe_intro_seen_${cleanEmail}`) === '1';
                   }
                 } catch {}
-                setIsGlobeIntroPending(true);
-                setIsGlobeIntroPlaying(false);
-              } else {
-                setIsGlobeIntroPending(false);
-                setIsGlobeIntroPlaying(false);
+
+                const postInstallDecision = resolvePostInstallExperienceState({
+                  isAuthenticated: true,
+                  requiresIOSPwaInstall,
+                  needsSmartOnboarding: false,
+                  isNewAccount,
+                  welcomeCardSeenInDb: normalizedUser?.welcome_card_seen === 1,
+                  globeIntroSeenInDb: normalizedUser?.globe_intro_seen === 1,
+                  mapTutorialStatusInDb: normalizedUser?.map_tutorial_status,
+                  localWelcomePending,
+                  localWelcomeSeen,
+                  localGlobePending,
+                  localGlobeSeen,
+                });
+
+                if (!requiresIOSPwaInstall) {
+                  if (!postInstallDecision.showFirstSignupWelcome) {
+                    try {
+                      (window as any).__monvianReplayLogoPreloader?.();
+                    } catch {}
+                  }
+                  void startPreloadResources(true);
+                }
+
+                setShowFirstSignupWelcome(postInstallDecision.showFirstSignupWelcome);
+                globeIntroSourceRef.current = postInstallDecision.globeIntroSource;
+                hasStartedAppOpenGlobeRef.current = postInstallDecision.isGlobeIntroPlaying;
+                setIsGlobeIntroPending(postInstallDecision.isGlobeIntroPending);
+                setIsGlobeIntroPlaying(postInstallDecision.isGlobeIntroPlaying);
               }
 
               if (isNewAccount) {
@@ -3074,17 +4231,92 @@ export default function App() {
                 const rootEl = document.getElementById('root');
                 if (rootEl) rootEl.scrollTop = 0;
               } catch {}
-              loadAuthenticatedViews();
+              if (!requiresIOSPwaInstall) {
+                loadAuthenticatedViews();
+              }
               setIsAuthChecking(false);
               setIsAuthenticated(true);
             }}
           />
           </Suspense>
         </motion.div>
+      ) : showOnboardingQuestions && requiresIOSPwaInstall ? (
+        <div
+          key="monvian-ios-onboarding-wrapper"
+          className={`fixed inset-0 w-full z-[210] ${
+            theme === 'dark' ? 'bg-[#000000]' : 'bg-[#FFFFFF]'
+          }`}
+          style={{
+            height: 'var(--app-height, 100dvh)',
+            minHeight: 'var(--app-height, 100dvh)',
+          }}
+        >
+          <Suspense fallback={null}>
+            <OnboardingFlow
+              key="monvian-smart-onboarding-ios"
+              user={user}
+              theme={theme}
+              initialStep={user?.onboarding_step || 1}
+              onComplete={(updatedUser, preferences) => {
+                const cleanEmail = String(
+                  updatedUser?.email || user?.email || user?.whatsapp || ''
+                )
+                  .trim()
+                  .toLowerCase();
+                try {
+                  if (cleanEmail) {
+                    localStorage.removeItem(`monvian_smart_onboarding_pending_${cleanEmail}`);
+                    localStorage.setItem(`monvian_first_welcome_pending_${cleanEmail}`, '1');
+                    localStorage.removeItem(`monvian_first_welcome_seen_${cleanEmail}`);
+                  }
+                } catch {}
+
+                if (updatedUser || preferences) {
+                  const token = localStorage.getItem('monvian_token');
+                  const mergedForCloud = normalizeAppUser({
+                    ...(user || {}),
+                    ...(updatedUser || {}),
+                    ...(preferences || {}),
+                    map_tutorial_status:
+                      updatedUser?.map_tutorial_status || user?.map_tutorial_status || 'pending',
+                    onboarding_step: 3,
+                    onboarding_completed: 1,
+                  });
+                  if (mergedForCloud) {
+                    persistUserToFirestore(mergedForCloud).catch(() => {});
+                  }
+                  setUser((prev: any) => {
+                    const merged = normalizeAppUser({
+                      ...(prev || {}),
+                      ...(updatedUser || {}),
+                      ...(preferences || {}),
+                      map_tutorial_status:
+                        updatedUser?.map_tutorial_status || prev?.map_tutorial_status || 'pending',
+                      onboarding_step: 3,
+                      onboarding_completed: 1,
+                    });
+                    try {
+                      localStorage.setItem('monvian_user', JSON.stringify(merged));
+                      if (token) {
+                        savePersistentSession(token, merged).catch(() => {});
+                      }
+                    } catch {}
+                    return merged;
+                  });
+                }
+                // Final onboarding step on iPhone Safari: hand off directly to Mandatory PWA Install Gate
+                setShowOnboardingQuestions(false);
+                setShowFirstSignupWelcome(false);
+              }}
+            />
+          </Suspense>
+        </div>
+      ) : isBlockedByIOSPwaGate ? (
+        <IOSPwaInstallGate key="monvian-ios-pwa-install-gate" />
       ) : !authenticatedViews ? (
         <div
           key="monvian-app-hydrating"
-          className={`fixed inset-0 w-full z-[130] flex items-center justify-center ${
+          className={`fixed inset-0 w-full z-[130] flex flex-col items-center justify-center gap-[22px] ${
             theme === 'dark' ? 'bg-[#000000]' : 'bg-[#FFFFFF]'
           }`}
           style={{
@@ -3101,13 +4333,53 @@ export default function App() {
             src={
               theme === 'dark'
                 ? '/logomodoescuro.png'
-                : 'https://gxyqrwebnkbgxqrfdvuj.supabase.co/storage/v1/object/public/monvian-media/app-assets/monvian-logo-dark-49b84fe93ec7ba83.webp'
+                : '/assets/aistudio/monvian_logo_dark_transparent.png'
             }
             alt="Monvian"
             draggable={false}
             style={{ animation: 'monvianLogoIdleBreath 1.4s ease-in-out infinite' }}
-            className="w-[220px] max-w-[60vw] h-auto object-contain select-none pointer-events-none"
+            className="w-[248px] max-w-[64vw] h-auto object-contain select-none pointer-events-none"
           />
+          <div
+            role="status"
+            aria-label="Carregando"
+            className="w-[22px] h-[22px] flex items-center justify-center pointer-events-none"
+          >
+            <svg
+              viewBox="0 0 24 24"
+              width="22"
+              height="22"
+              fill="none"
+              xmlns="http://www.w3.org/2000/svg"
+              style={{
+                display: 'block',
+                animation: 'monvianCircularRotate 0.92s linear infinite',
+                willChange: 'transform',
+              }}
+            >
+              <circle
+                cx="12"
+                cy="12"
+                r="9.25"
+                stroke={theme === 'dark' ? 'rgba(255,255,255,0.14)' : 'rgba(0,0,0,0.10)'}
+                strokeWidth="1.85"
+              />
+              <circle
+                cx="12"
+                cy="12"
+                r="9.25"
+                stroke={theme === 'dark' ? '#FFFFFF' : '#171717'}
+                strokeWidth="1.85"
+                strokeLinecap="round"
+                strokeDasharray="58.12"
+                strokeDashoffset="42"
+                style={{
+                  animation: 'monvianCircularArcGlide 1.45s cubic-bezier(0.4, 0, 0.2, 1) infinite',
+                  transformOrigin: '50% 50%',
+                }}
+              />
+            </svg>
+          </div>
         </div>
       ) : (() => {
         const {
@@ -3182,9 +4454,27 @@ export default function App() {
         />
       )}
 
+      {(() => {
+        const canShowMobileDiscoveryPanel =
+          !isDesktopLayout &&
+          activeTab === 'explorar' &&
+          mapWorkflowMode === 'EXPLORE' &&
+          !isSpotCardOpen &&
+          !isDetailOpen &&
+          !isMapOrbiting &&
+          !isUserLocationSpotlightActive &&
+          !showFirstSignupWelcome &&
+          !isGlobeIntroPlaying &&
+          !isGlobeIntroPending &&
+          !isOnboardingItinerarySelection &&
+          (!isMapTutorialOpen
+            ? tutorialUserStatus !== 'pending' && !isDiscoveryPanelClosed
+            : tutorialActiveStepId === 'open-discovery-create');
+
+        return (
       <main
         id="main-app-content"
-        className={`relative flex-1 w-full h-full min-h-full overflow-hidden select-none transition-all duration-300 md:rounded-none ios-page-top-rounded ${
+        className={`relative flex-1 w-full h-full min-h-full overflow-hidden select-none transition-colors duration-300 md:rounded-none ios-page-top-rounded ${
           theme === 'dark' ? 'bg-black' : 'bg-zinc-50'
         }`}
         style={{
@@ -3242,13 +4532,13 @@ export default function App() {
             )}
           </AnimatePresence>
 
-          {/* Single Unified Interactive Map Canvas Column (Persists across EXPLORE, SELECT, ITINERARY — Zero WebGL teardown) */}
+          {/* Single Unified Interactive Map Canvas Column (Full-bleed 100% behind Bottom Sheet — Zero bottom rounding, Zero WebGL teardown) */}
           <div
             id="app-map-layer"
             aria-hidden={activeTab !== 'explorar'}
             className={
               activeTab === 'explorar'
-                ? 'flex-1 h-full relative overflow-hidden'
+                ? 'flex-1 h-full w-full relative overflow-hidden'
                 : 'fixed inset-0 w-full h-full opacity-0 pointer-events-none -z-10 overflow-hidden'
             }
           >
@@ -3293,6 +4583,10 @@ export default function App() {
               isItineraryExpanded={isItineraryDrawerExpanded}
               onSelectItineraryStep={handleSelectItineraryStepId}
               entranceTick={explorarEntranceTick}
+              isDiscoveryPanelOpen={canShowMobileDiscoveryPanel}
+              onToggleDiscoveryPanel={handleToggleDiscoveryPanel}
+              discoverySheetHeightMV={discoverySheetHeightMV}
+              hideFloatingControls={isSpotSelectedMode}
             />
 
             {/* DESKTOP MAP FLOATING CONTROLS (Top-Right Apple Style — visible in EXPLORE mode on real desktop/tablet only) */}
@@ -3312,22 +4606,33 @@ export default function App() {
               />
             )}
           </div>
+
+          {/* MOBILE EXPLORE INTERACTIVE BOTTOM SHEET — Overlaid cleanly atop full-bleed map */}
+          <AnimatePresence initial={false}>
+            {canShowMobileDiscoveryPanel && (
+              <ExploreDiscoveryPanel
+                theme={theme}
+                sheetVisibleHeightMV={discoverySheetHeightMV}
+                resetDetentSignal={discoveryResetSignal}
+                entranceTick={explorarEntranceTick}
+                onClose={handleCloseDiscoveryPanel}
+                onCreateItinerary={handleStartFreshSelectionFromPlay}
+                onOpenMyItineraries={handleOpenMyItinerariesFromDiscovery}
+                onOpenStore={handleOpenStoreFromDiscovery}
+              />
+            )}
+          </AnimatePresence>
         </div>
 
       {/* 3. Top Floating Header Bar (MOBILE ONLY: md:hidden, mounted only on Explorar EXPLORE mode) */}
-      <AnimatePresence>
-        {activeTab === 'explorar' &&
-          mapWorkflowMode === 'EXPLORE' &&
-          !isMapOrbiting &&
-          !isUserLocationSpotlightActive &&
-          !showFirstSignupWelcome &&
-          !isGlobeIntroPlaying && (
-          <motion.header
-            key={`explore-mobile-header-${explorarEntranceTick}`}
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            transition={{ duration: 0.15 }}
+      {activeTab === 'explorar' &&
+        mapWorkflowMode === 'EXPLORE' &&
+        !isMapOrbiting &&
+        !isUserLocationSpotlightActive &&
+        !showFirstSignupWelcome &&
+        !isGlobeIntroPlaying &&
+        !isWeatherModalOpen && (
+          <header
             aria-label="Informações de Campos do Jordão"
             className="md:hidden absolute top-0 left-0 right-0 z-40 pointer-events-none px-4 sm:px-6"
             style={{
@@ -3347,24 +4652,19 @@ export default function App() {
             >
               {/* Left: Big Weather Temperature & Dynamic Condition */}
               <div className="flex items-center pointer-events-auto">
-                <div
+                <motion.div
                   id="weather-header-display"
+                  whileTap={{ scale: 0.94 }}
+                  transition={IOS_SPRING_PRESS}
                   onClick={() => setIsWeatherModalOpen(true)}
-                  className="flex flex-col items-start select-none opacity-100 scale-100 cursor-pointer"
+                  className="flex flex-col items-start select-none opacity-100 cursor-pointer"
                   title={`Campos do Jordão: ${realWeather.temperature}°C — ${realWeather.condition}`}
                 >
                   {/* Layout: Large beautiful 3D icon on the left, bold prominent degrees */}
                   <div className="flex items-center gap-1.5 sm:gap-2">
                     {/* Weather 3D Icon */}
-                    <motion.div
+                    <div
                       id="weather-3d-icon-clean"
-                      initial={prefersReducedMotion ? { opacity: 0 } : { opacity: 0, scale: 0.88, y: 12 }}
-                      animate={{ opacity: 1, scale: 1, y: 0 }}
-                      transition={
-                        prefersReducedMotion
-                          ? { duration: 0.14 }
-                          : { type: 'spring', stiffness: 380, damping: 22, delay: 0.02 }
-                      }
                       className="select-none flex items-center justify-center shrink-0 drop-shadow-md"
                     >
                       <Weather3DIcon
@@ -3372,18 +4672,11 @@ export default function App() {
                         isDay={realWeather.isDay}
                         className="w-14 h-14 sm:w-16 sm:h-16 lg:w-20 lg:h-20 -my-2.5"
                       />
-                    </motion.div>
+                    </div>
 
                     {/* Temperature Degrees */}
-                    <motion.div
+                    <div
                       id="weather-degrees-clean"
-                      initial={prefersReducedMotion ? { opacity: 0 } : { opacity: 0, scale: 0.88, y: 12 }}
-                      animate={{ opacity: 1, scale: 1, y: 0 }}
-                      transition={
-                        prefersReducedMotion
-                          ? { duration: 0.14 }
-                          : { type: 'spring', stiffness: 380, damping: 22, delay: 0.055 }
-                      }
                       className="flex items-baseline select-none text-left drop-shadow-[0_2px_8px_rgba(0,0,0,0.6)]"
                     >
                       <span className={`text-5xl sm:text-6xl font-extrabold tracking-tighter leading-none text-[#ffffff] ${
@@ -3393,19 +4686,12 @@ export default function App() {
                       }`}>
                         {realWeather.temperature}°
                       </span>
-                    </motion.div>
+                    </div>
                   </div>
 
                   {/* Condition label under the temperature */}
-                  <motion.div
+                  <div
                     id="weather-condition-clean"
-                    initial={prefersReducedMotion ? { opacity: 0 } : { opacity: 0, scale: 0.88, y: 12 }}
-                    animate={{ opacity: 1, scale: 1, y: 0 }}
-                    transition={
-                      prefersReducedMotion
-                        ? { duration: 0.14 }
-                        : { type: 'spring', stiffness: 380, damping: 22, delay: 0.085 }
-                    }
                     className="text-left mt-0.5 ml-1 drop-shadow-[0_1px_4px_rgba(0,0,0,0.6)]"
                   >
                     <span className={`block text-[13px] sm:text-[14px] font-semibold tracking-tight whitespace-nowrap ${
@@ -3419,8 +4705,8 @@ export default function App() {
                     }`}>
                       {realWeather.condition}
                     </span>
-                  </motion.div>
-                </div>
+                  </div>
+                </motion.div>
               </div>
 
               {/* Right: Clean Header Action Icons with iOS Liquid Glass Buttons */}
@@ -3441,19 +4727,19 @@ export default function App() {
                     : 'text-black';
 
                 return (
-              <div className="flex items-center gap-2.5 pointer-events-auto relative">
+              <div
+                aria-hidden={isSpotSelectedMode}
+                className={`flex items-center gap-2.5 relative transition-[opacity,transform] motion-reduce:transition-none motion-reduce:transform-none ${
+                  isSpotSelectedMode
+                    ? 'opacity-0 -translate-y-2 scale-[0.95] duration-[280ms] ease-in-out pointer-events-none [&_*]:!pointer-events-none'
+                    : 'opacity-100 translate-y-0 scale-100 duration-[340ms] ease-[cubic-bezier(0.22,1,0.36,1)] pointer-events-auto'
+                }`}
+              >
 
                 {/* 3D View Toggle Icon */}
                 <motion.button
                   id="btn-3d-toggle"
                   type="button"
-                  initial={prefersReducedMotion ? { opacity: 0 } : { opacity: 0, scale: 0.88, y: 12 }}
-                  animate={{ opacity: 1, scale: 1, y: 0 }}
-                  transition={
-                    prefersReducedMotion
-                      ? { duration: 0.14 }
-                      : { type: 'spring', stiffness: 380, damping: 22, delay: 0.06 }
-                  }
                   whileTap={{ scale: 0.9, transition: { type: 'spring', stiffness: 500, damping: 14 } }}
                   onClick={() => {
                     setHasToggled3D(true);
@@ -3480,13 +4766,6 @@ export default function App() {
                   <motion.button
                     id="btn-category-icon-toggle"
                     type="button"
-                    initial={prefersReducedMotion ? { opacity: 0 } : { opacity: 0, scale: 0.88, y: 12 }}
-                    animate={{ opacity: 1, scale: 1, y: 0 }}
-                    transition={
-                      prefersReducedMotion
-                        ? { duration: 0.14 }
-                        : { type: 'spring', stiffness: 380, damping: 22, delay: 0.1 }
-                    }
                     whileTap={{ scale: 0.9, transition: { type: 'spring', stiffness: 500, damping: 14 } }}
                     onClick={() => {
                       setIsCategoryCardOpen((prev) => !prev);
@@ -3511,9 +4790,8 @@ export default function App() {
                 );
               })()}
             </div>
-          </motion.header>
-        )}
-      </AnimatePresence>
+          </header>
+      )}
 
       {/* 4. Bottom Floating Navigation Pill, Focus Mode Blur Backdrop & SpotPreviewBanner rendered at root level */}
 
@@ -3535,28 +4813,120 @@ export default function App() {
         </AnimatePresence>
       </Suspense>
 
-      {/* 7. Search & Discovery Drawer (Mounted ONLY when Tab === 'buscar', idle-prefetched) */}
-      {activeTab === 'buscar' && (
-        <Suspense fallback={null}>
-          <SearchFilterDrawer
-            isOpen={true}
-            onClose={handleCloseToExplore}
-            spots={spots}
-            theme={theme}
-            onSelectSpot={handleSelectSpotAndReturnExplore}
-          />
-        </Suspense>
-      )}
+      {/* 7. Search & Discovery Drawer (Smooth iOS page transition) */}
+      <AnimatePresence>
+        {activeTab === 'buscar' && (
+          <motion.div
+            key="search-tab-page-transition"
+            initial={{ opacity: 0, y: 18, scale: 0.99 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: 14, scale: 0.99 }}
+            transition={IOS_PAGE_TRANSITION}
+            className="fixed inset-0 w-full z-[55] bg-white dark:bg-black overflow-hidden will-change-[transform,opacity]"
+            style={{
+              top: 0,
+              bottom: 0,
+              left: 0,
+              right: 0,
+              width: '100%',
+              height: 'var(--app-height, 100dvh)',
+              minHeight: 'var(--app-height, 100dvh)',
+              maxHeight: 'var(--app-height, 100dvh)',
+              contain: 'layout paint size',
+            }}
+          >
+            <Suspense fallback={null}>
+              <SearchFilterDrawer
+                key={`search-filter-drawer-${accountSessionKey}`}
+                isOpen={true}
+                onClose={handleCloseToExplore}
+                spots={spots}
+                theme={theme}
+                onSelectSpot={handleSelectSpotAndReturnExplore}
+              />
+            </Suspense>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
-      {/* 8.5. Itineraries Store & Discovery (Mounted ONLY when Tab === 'roteiros'; routes back to unified map on Play/Manual Create) */}
-      {activeTab === 'roteiros' && (
+      {/* 8.5. Itineraries Store & Discovery (Smooth iOS page entry & exit) */}
+      <AnimatePresence>
+        {activeTab === 'roteiros' && (
+          <motion.div
+            key="itineraries-view-reveal-wrapper"
+            initial={{ opacity: 0, y: 20, scale: 0.99 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: 16, scale: 0.99 }}
+            transition={IOS_PAGE_TRANSITION}
+            className="fixed inset-0 w-full z-[55] bg-white dark:bg-black overflow-hidden will-change-[transform,opacity]"
+            style={{
+              top: 0,
+              bottom: 0,
+              left: 0,
+              right: 0,
+              width: '100%',
+              height: 'var(--app-height, 100dvh)',
+              minHeight: 'var(--app-height, 100dvh)',
+              maxHeight: 'var(--app-height, 100dvh)',
+              contain: 'layout paint size',
+            }}
+          >
+            <Suspense fallback={null}>
+              <ItinerariesView
+                key={`itineraries-view-${accountSessionKey}`}
+                isOpen={true}
+                onClose={handleCloseToExplore}
+                theme={theme}
+                spots={spots}
+                activeItinerary={activeItinerary}
+                isOnboardingSelection={isOnboardingItinerarySelection}
+                isOnboardingRevealReady={isOnboardingRevealReady}
+                onOpenItineraryOnMap={handleOpenItineraryOnMap}
+                onStartManualSelectionOnMap={handleStartFreshSelectionFromPlay}
+                onCompleteOnboardingSelection={(selectedItins, chosenInvestment) => {
+                  setIsOnboardingItinerarySelection(false);
+                  try {
+                    writeScopedJSON(
+                      'monvian_selected_onboarding_itineraries',
+                      selectedItins.map((i) => i.id),
+                      user
+                    );
+                    writeScopedString('monvian_trip_budget', chosenInvestment, user);
+                    if (selectedItins.length > 0) {
+                      const normalized = normalizeItineraryLivreFlags(selectedItins[0]);
+                      saveActiveItineraryToStorage(normalized, user);
+                      setActiveItinerary(normalized);
+                      setActiveItineraryDayIndex(0);
+                      setActiveItineraryStepId(normalized.days?.[0]?.steps?.[0]?.id || null);
+                      setIsItineraryDrawerExpanded((normalized.days?.[0]?.steps?.length ?? 0) > 1);
+                      setMapWorkflowMode('ITINERARY');
+                    }
+                  } catch {}
+                  setActiveTab('explorar');
+                  setIsUserLocationSpotlightActive(false);
+                }}
+              />
+            </Suspense>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* 9. Saved / Favorites Wishlists (Hybrid Tab Retention + GPU iOS transition) */}
+      {(hasVisitedSaved || isSavedTabActive) && (
         <motion.div
-          key="itineraries-view-reveal-wrapper"
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          exit={{ opacity: 0 }}
-          transition={{ duration: 0.16, ease: [0.22, 1, 0.36, 1] }}
-          className="fixed inset-0 w-full z-40"
+          aria-hidden={!isSavedTabActive}
+          initial={{ opacity: 0, y: 18 }}
+          animate={
+            isSavedTabActive
+              ? { opacity: 1, y: 0 }
+              : { opacity: 0, y: 14 }
+          }
+          transition={IOS_PAGE_TRANSITION}
+          className={
+            isSavedTabActive
+              ? 'fixed inset-0 w-full z-[55] bg-white dark:bg-black overflow-y-auto overflow-x-hidden pointer-events-auto will-change-[transform,opacity]'
+              : 'fixed inset-0 w-full -z-20 bg-white dark:bg-black overflow-hidden pointer-events-none select-none'
+          }
           style={{
             top: 0,
             bottom: 0,
@@ -3565,56 +4935,9 @@ export default function App() {
             width: '100%',
             height: 'var(--app-height, 100dvh)',
             minHeight: 'var(--app-height, 100dvh)',
+            maxHeight: 'var(--app-height, 100dvh)',
+            contain: 'layout paint size',
           }}
-        >
-          <Suspense fallback={null}>
-            <ItinerariesView
-              key={`itineraries-view-${accountSessionKey}`}
-              isOpen={true}
-              onClose={handleCloseToExplore}
-              theme={theme}
-              spots={spots}
-              activeItinerary={activeItinerary}
-              isOnboardingSelection={isOnboardingItinerarySelection}
-              isOnboardingRevealReady={isOnboardingRevealReady}
-              onOpenItineraryOnMap={handleOpenItineraryOnMap}
-              onStartManualSelectionOnMap={handleStartFreshSelectionFromPlay}
-              onCompleteOnboardingSelection={(selectedItins, chosenInvestment) => {
-                setIsOnboardingItinerarySelection(false);
-                try {
-                  writeScopedJSON(
-                    'monvian_selected_onboarding_itineraries',
-                    selectedItins.map((i) => i.id),
-                    user
-                  );
-                  writeScopedString('monvian_trip_budget', chosenInvestment, user);
-                  if (selectedItins.length > 0) {
-                    const normalized = normalizeItineraryLivreFlags(selectedItins[0]);
-                    saveActiveItineraryToStorage(normalized, user);
-                    setActiveItinerary(normalized);
-                    setActiveItineraryDayIndex(0);
-                    setActiveItineraryStepId(normalized.days?.[0]?.steps?.[0]?.id || null);
-                    setIsItineraryDrawerExpanded((normalized.days?.[0]?.steps?.length ?? 0) > 1);
-                    setMapWorkflowMode('ITINERARY');
-                  }
-                } catch {}
-                setActiveTab('explorar');
-                setIsUserLocationSpotlightActive(false);
-              }}
-            />
-          </Suspense>
-        </motion.div>
-      )}
-
-      {/* 9. Saved / Favorites Wishlists (Hybrid Tab Retention: cached in memory after first visit, hidden when inactive) */}
-      {(hasVisitedSaved || isSavedTabActive) && (
-        <div
-          aria-hidden={!isSavedTabActive}
-          className={
-            isSavedTabActive
-              ? 'fixed inset-0 w-full z-40 bg-white dark:bg-black overflow-y-auto'
-              : 'hidden'
-          }
         >
           <Suspense fallback={null}>
             <SavedView
@@ -3628,18 +4951,36 @@ export default function App() {
               onNavigateTab={setActiveTab}
             />
           </Suspense>
-        </div>
+        </motion.div>
       )}
 
-      {/* 10. Profile & Favorites (Hybrid Tab Retention: cached in memory after first visit, hidden when inactive) */}
+      {/* 10. Profile & Favorites (Hybrid Tab Retention + GPU iOS transition — Zero layout shuffling) */}
       {(hasVisitedProfile || isProfileTabActive) && (
-        <div
+        <motion.div
           aria-hidden={!isProfileTabActive}
+          initial={{ opacity: 0, y: 18 }}
+          animate={
+            isProfileTabActive
+              ? { opacity: 1, y: 0 }
+              : { opacity: 0, y: 14 }
+          }
+          transition={IOS_PAGE_TRANSITION}
           className={
             isProfileTabActive
-              ? 'fixed inset-0 w-full z-40 bg-white dark:bg-black overflow-y-auto'
-              : 'hidden'
+              ? 'fixed inset-0 w-full z-[55] bg-white dark:bg-black overflow-y-auto overflow-x-hidden pointer-events-auto will-change-[transform,opacity]'
+              : 'fixed inset-0 w-full -z-20 bg-white dark:bg-black overflow-hidden pointer-events-none select-none'
           }
+          style={{
+            top: 0,
+            bottom: 0,
+            left: 0,
+            right: 0,
+            width: '100%',
+            height: 'var(--app-height, 100dvh)',
+            minHeight: 'var(--app-height, 100dvh)',
+            maxHeight: 'var(--app-height, 100dvh)',
+            contain: 'layout paint size',
+          }}
         >
           <Suspense fallback={null}>
             <ProfileModal
@@ -3684,12 +5025,32 @@ export default function App() {
                   handleDeleteActiveItinerary();
                 }
               }}
+              openMyItinerariesSignal={openMyItinerariesSignal}
+              pushAlerts={pushAlerts}
+              pushPreferences={pushPreferences}
+              pushBusy={pushBusy}
+              pushStatusMessage={pushStatusMessage}
+              onTogglePushMaster={handleTogglePushMaster}
+              onTogglePushNewSpots={handleTogglePushNewSpots}
+              onTogglePushItineraryUpdates={handleTogglePushItineraryUpdates}
+              onMarkPushAlertsRead={handleMarkPushAlertsRead}
+              onSelectItineraryById={handleOpenItineraryById}
             />
           </Suspense>
-        </div>
+        </motion.div>
       )}
 
+      {/* Foreground FCM Push Notification Banner (New Spots & Itinerary Updates) */}
+      <PushAlertBanner
+        alert={activePushBanner}
+        onDismiss={() => setActivePushBanner(null)}
+        onSelectAlert={handleSelectPushAlert}
+        theme={theme}
+      />
+
     </main>
+        );
+      })()}
 
     {/* 3.8. Airbnb-Style Presentation Cards on first tab visit (Explorar, Roteiros, Salvos) */}
     <AirbnbPresentationCard
@@ -3708,6 +5069,7 @@ export default function App() {
           onClose={() => setIsWeatherModalOpen(false)}
           weather={realWeather}
           theme={theme}
+          isSatellite={isSatelliteExplore}
         />
       </Suspense>
     )}
@@ -3722,27 +5084,28 @@ export default function App() {
         <XpRewardNotificationOverlay visible={true} />
       )}
 
-    {/* Unified Map Mode 2: Pin Selection Overlay */}
-    <AnimatePresence>
-      {activeTab === 'explorar' &&
-        mapWorkflowMode === 'SELECT' &&
-        !isFinalizeItineraryModalOpen &&
-        !isMapOrbiting &&
-        !showFirstSignupWelcome &&
-        !isGlobeIntroPlaying && (
-          <SelectModeOverlay
-            key={`select-mode-overlay-${explorarEntranceTick}`}
-            selectedCount={selectedSpotIdsForItinerary.length}
-            selectedSpots={selectedSpotsForItinerary}
-            onRemoveSpot={handleRemoveSelectedSpotFromItinerary}
-            isDark={theme === 'dark'}
-            isSatellite={isSatelliteExplore}
-            onCancel={handleCancelSelectMode}
-            onClearSelection={() => setSelectedSpotIdsForItinerary([])}
-            onContinue={handleConfirmSelectionToItinerary}
-          />
-        )}
-    </AnimatePresence>
+    {/* Unified Map Mode 2: Pin Selection Overlay (Animated entry & exit within Explorar; instant unmount on tab switch) */}
+    {activeTab === 'explorar' && (
+      <AnimatePresence>
+        {mapWorkflowMode === 'SELECT' &&
+          !isFinalizeItineraryModalOpen &&
+          !isMapOrbiting &&
+          !showFirstSignupWelcome &&
+          !isGlobeIntroPlaying && (
+            <SelectModeOverlay
+              key={`select-mode-overlay-${explorarEntranceTick}`}
+              selectedCount={selectedSpotIdsForItinerary.length}
+              selectedSpots={selectedSpotsForItinerary}
+              onRemoveSpot={handleRemoveSelectedSpotFromItinerary}
+              isDark={theme === 'dark'}
+              isSatellite={isSatelliteExplore}
+              onCancel={handleCancelSelectMode}
+              onClearSelection={() => setSelectedSpotIdsForItinerary([])}
+              onContinue={handleConfirmSelectionToItinerary}
+            />
+          )}
+      </AnimatePresence>
+    )}
 
     {/* Itinerary Creation & Editing Finalization Modal (AI Cover Generation + Stop Ordering + Save) */}
     <ItineraryCreationFinalizeModal
@@ -3795,112 +5158,121 @@ export default function App() {
         if (mapWorkflowMode === 'SELECT') {
           setMapWorkflowMode(activeItinerary ? 'ITINERARY' : 'EXPLORE');
         }
-        setActiveTab('perfil');
         setHasVisitedProfile(true);
+        setIsMyItinerariesSubViewActive(true);
+        setOpenMyItinerariesSignal((prev) => prev + 1);
+        setActiveTab('perfil');
         window.setTimeout(() => {
           window.dispatchEvent(new CustomEvent('monvian:open_my_itineraries'));
         }, 30);
       }}
     />
 
-    {/* Unified Map Mode 3: Active Itinerary Overlay */}
-    <AnimatePresence>
-      {activeTab === 'explorar' &&
-        mapWorkflowMode === 'ITINERARY' &&
-        activeItinerary &&
-        !isMapOrbiting &&
-        !showFirstSignupWelcome &&
-        !isGlobeIntroPlaying && (
-          <UnifiedItineraryOverlay
-            key={`unified-itinerary-${activeItinerary.id}-${itineraryEntranceTick}`}
-            itinerary={activeItinerary}
-            allSpots={spots}
-            activeDayIndex={activeItineraryDayIndex}
-            onChangeDayIndex={(dIdx) => {
-              setActiveItineraryDayIndex(dIdx);
-              const nextDaySteps = resolveEnrichedDaySteps(activeItinerary, dIdx, spots);
-              setActiveItineraryStepId(nextDaySteps[0]?.id || null);
-              window.setTimeout(() => {
-                mapRef.current?.fitItineraryBounds(nextDaySteps, false);
-              }, 60);
-            }}
-            activeStepId={activeItineraryStepId}
-            onSelectStep={handleSelectItineraryStepOnMap}
-            isExpanded={isItineraryDrawerExpanded}
-            onChangeExpanded={setIsItineraryDrawerExpanded}
-            theme={theme}
-            mapStyle={mapStyle}
-            onToggleMapStyle={() =>
-              setMapStyle((prev) => (prev === 'satelite' ? 'explorar' : 'satelite'))
-            }
-            onExitToExplore={handleExitWorkflowToExplore}
-            onOpenStore={() => setActiveTab('roteiros')}
-            onSelectMoreSpotsOnMap={handleSelectMoreSpotsOnMap}
-            onCenterRoute={() => mapRef.current?.fitItineraryBounds(activeItinerarySteps, false)}
-            onUpdateItinerary={handleUpdateItinerary}
-            onDeleteItinerary={handleDeleteActiveItinerary}
-            onDeleteStep={handleDeleteItineraryStep}
-            onMoveStep={handleMoveItineraryStep}
-            onImportSpot={handleImportSpotToActiveItinerary}
-            onRenameTitle={handleRenameItineraryTitle}
-            tripNoteText={tripNoteText}
-            onSaveTripNote={handleSaveTripNote}
-          />
-        )}
-    </AnimatePresence>
+    {/* Unified Map Mode 3: Active Itinerary Overlay (Animated entry & exit within Explorar; instant unmount on tab switch) */}
+    {activeTab === 'explorar' && (
+      <AnimatePresence>
+        {mapWorkflowMode === 'ITINERARY' &&
+          activeItinerary &&
+          !isMapOrbiting &&
+          !showFirstSignupWelcome &&
+          !isGlobeIntroPlaying && (
+            <UnifiedItineraryOverlay
+              key={`unified-itinerary-${activeItinerary.id}-${itineraryEntranceTick}`}
+              itinerary={activeItinerary}
+              allSpots={spots}
+              activeDayIndex={activeItineraryDayIndex}
+              onChangeDayIndex={(dIdx) => {
+                setActiveItineraryDayIndex(dIdx);
+                const nextDaySteps = resolveEnrichedDaySteps(activeItinerary, dIdx, spots);
+                setActiveItineraryStepId(nextDaySteps[0]?.id || null);
+                window.setTimeout(() => {
+                  mapRef.current?.fitItineraryBounds(nextDaySteps, false);
+                }, 60);
+              }}
+              activeStepId={activeItineraryStepId}
+              onSelectStep={handleSelectItineraryStepOnMap}
+              isExpanded={isItineraryDrawerExpanded}
+              onChangeExpanded={setIsItineraryDrawerExpanded}
+              theme={theme}
+              mapStyle={mapStyle}
+              onToggleMapStyle={() =>
+                setMapStyle((prev) => (prev === 'satelite' ? 'explorar' : 'satelite'))
+              }
+              onExitToExplore={handleExitWorkflowToExplore}
+              onOpenStore={() => setActiveTab('roteiros')}
+              onSelectMoreSpotsOnMap={handleSelectMoreSpotsOnMap}
+              onUpdateItinerary={handleUpdateItinerary}
+              onDeleteItinerary={handleDeleteActiveItinerary}
+              onDeleteStep={handleDeleteItineraryStep}
+              onMoveStep={handleMoveItineraryStep}
+              onImportSpot={handleImportSpotToActiveItinerary}
+              onRenameTitle={handleRenameItineraryTitle}
+              tripNoteText={tripNoteText}
+              onSaveTripNote={handleSaveTripNote}
+            />
+          )}
+      </AnimatePresence>
+    )}
 
     {/* Focus Mode Fullscreen Blur Backdrop when a Spot Card is active on mobile (matches filter blur style) */}
-    <AnimatePresence>
-      {isSpotFocusActive && (
-        <motion.div
-          id="spot-focus-blur-backdrop"
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          exit={{ opacity: 0 }}
-          transition={{ duration: 0.28, ease: [0.22, 1, 0.36, 1] }}
-          onClick={handleMapDismiss}
-          className="md:hidden fixed inset-0 z-[60] bg-black/45 dark:bg-black/65 cursor-pointer pointer-events-auto"
-        />
-      )}
-    </AnimatePresence>
+    {activeTab === 'explorar' && (
+      <AnimatePresence>
+        {isSpotFocusActive && (
+          <motion.div
+            id="spot-focus-blur-backdrop"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.28, ease: [0.22, 1, 0.36, 1] }}
+            onClick={handleMapDismiss}
+            className="md:hidden fixed inset-0 z-[60] bg-black/45 dark:bg-black/65 cursor-pointer pointer-events-auto"
+          />
+        )}
+      </AnimatePresence>
+    )}
 
     {/* 5. Floating Establishment Bottom Sheet Preview (EXPLORE mode only) */}
-    <AnimatePresence>
-      {activeTab === 'explorar' && mapWorkflowMode === 'EXPLORE' && isSpotCardOpen && selectedSpot && (
-        <SpotPreviewBanner
-          key="spot-preview-sheet"
-          spot={selectedSpot}
-          userCoords={userCoords}
-          viewMode={spotPreviewMode}
-          onViewModeChange={setSpotPreviewMode}
-          theme={theme}
-          isSatellite={isSatelliteExplore}
-          onClose={() => {
-            clearActiveRoute();
-            setSelectedSpot(null);
-          }}
-          onOpenDetails={(spot) => {
-            setSelectedSpot(spot);
-            setIsDetailOpen(true);
-          }}
-          onOpenItineraryTab={() => setActiveTab('roteiros')}
-          onToggleRoute={handleToggleSpotRoute}
-          isRouteActive={activeRoute?.spotId === selectedSpot.id}
-          isRouteLoading={isRouteLoading}
-          routeError={routeError}
-        />
-      )}
-    </AnimatePresence>
+    {activeTab === 'explorar' && (
+      <AnimatePresence>
+        {mapWorkflowMode === 'EXPLORE' && isSpotCardOpen && selectedSpot && (
+          <SpotPreviewBanner
+            key="spot-preview-sheet"
+            spot={selectedSpot}
+            userCoords={userCoords}
+            viewMode={spotPreviewMode}
+            onViewModeChange={setSpotPreviewMode}
+            theme={theme}
+            isSatellite={isSatelliteExplore}
+            onClose={() => {
+              clearActiveRoute();
+              setSelectedSpot(null);
+              mapRef.current?.fitSpotsOverview();
+            }}
+            onOpenDetails={(spot) => {
+              setSelectedSpot(spot);
+              setIsDetailOpen(true);
+            }}
+            onOpenItineraryTab={() => setActiveTab('roteiros')}
+            onToggleRoute={handleToggleSpotRoute}
+            isRouteActive={activeRoute?.spotId === selectedSpot.id}
+            isRouteLoading={isRouteLoading}
+            routeError={routeError}
+          />
+        )}
+      </AnimatePresence>
+    )}
 
     {/* 4. Bottom Navigation Pill rendered at root level */}
     {!isAdminOpen &&
       !isMapOrbiting &&
       !isOnboardingItinerarySelection &&
+      !isFinalizeItineraryModalOpen &&
       !isDetailOpen &&
       !showOnboardingQuestions &&
       !showFirstSignupWelcome &&
       !isGlobeIntroPending &&
       !isGlobeIntroPlaying &&
+      !isWeatherModalOpen &&
       !(activeTab === 'perfil' && isMyItinerariesSubViewActive) && (
         <div
           key="bottom-nav-shell"
@@ -3914,9 +5286,11 @@ export default function App() {
             forceWhiteUI={false}
             isSatellite={
               isSatelliteExplore &&
+              (isDesktopLayout || isSpotCardOpen || mapWorkflowMode !== 'EXPLORE') &&
               (mapWorkflowMode !== 'ITINERARY' || !isItineraryDrawerExpanded || theme === 'dark')
             }
             theme={theme}
+            isTutorialSweepActive={isMapTutorialOpen && tutorialActiveStepId === 'bottom-nav'}
           />
         </div>
       )}
@@ -3938,145 +5312,150 @@ export default function App() {
     </AnimatePresence>
 
     {/* 4.5. Root-Level Fullscreen Blur Backdrop for Filters & Search (Covers map, header icons, and BottomNavigation) */}
-    <AnimatePresence>
-      {activeTab === 'explorar' && isBlurActive && (
-        <motion.div
-          id="global-blur-backdrop"
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          exit={{ opacity: 0 }}
-          transition={{ duration: 0.2, ease: [0.22, 1, 0.36, 1] }}
-          className="fixed inset-0 z-[60] bg-black/45 dark:bg-black/65 cursor-pointer pointer-events-auto"
-          onClick={() => {
-            setIsCategoryCardOpen(false);
-            setIsSearchOpen(false);
-          }}
-        />
-      )}
-    </AnimatePresence>
+    {activeTab === 'explorar' && (
+      <AnimatePresence>
+        {isBlurActive && (
+          <motion.div
+            id="global-blur-backdrop"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.2, ease: [0.22, 1, 0.36, 1] }}
+            className="fixed inset-0 z-[60] bg-black/45 dark:bg-black/65 cursor-pointer pointer-events-auto"
+            onClick={() => {
+              setIsCategoryCardOpen(false);
+              setIsSearchOpen(false);
+            }}
+          />
+        )}
+      </AnimatePresence>
+    )}
 
     {/* 4.6. Small Category Card / Dropdown (Floats crisply above global blur backdrop) */}
-    <AnimatePresence>
-      {activeTab === 'explorar' && isCategoryCardOpen && !isMapOrbiting && (
-        <motion.div
-          initial={{ opacity: 0, scale: 0.94, y: -6 }}
-          animate={{ opacity: 1, scale: 1, y: 0 }}
-          exit={{ opacity: 0, scale: 0.94, y: -6 }}
-          transition={{ type: 'spring', damping: 25, stiffness: 420 }}
-          className="md:hidden fixed right-4 sm:right-6 w-64 p-2.5 rounded-[26px] ios26-liquid-glass z-[70] space-y-1 pointer-events-auto"
-          style={{
-            top: 'max(calc(env(safe-area-inset-top, 0px) + 74px), 86px)',
-          }}
-        >
-          <div className={`relative z-10 flex items-center justify-between px-3 py-2 border-b ${
-            theme === 'dark' ? 'border-white/15' : 'border-black/10'
-          }`}>
-            <span className={`text-[11px] font-black uppercase tracking-wider ${
-              isSatelliteExplore
-                ? theme === 'dark'
+    {activeTab === 'explorar' && (
+      <AnimatePresence>
+        {isCategoryCardOpen && !isMapOrbiting && (
+          <motion.div
+            initial={{ opacity: 0, scale: 0.94, y: -6 }}
+            animate={{ opacity: 1, scale: 1, y: 0 }}
+            exit={{ opacity: 0, scale: 0.94, y: -6 }}
+            transition={{ type: 'spring', damping: 25, stiffness: 420 }}
+            className="md:hidden fixed right-4 sm:right-6 w-64 p-2.5 rounded-[26px] ios26-liquid-glass z-[70] space-y-1 pointer-events-auto"
+            style={{
+              top: 'max(calc(env(safe-area-inset-top, 0px) + 74px), 86px)',
+            }}
+          >
+            <div className={`relative z-10 flex items-center justify-between px-3 py-2 border-b ${
+              theme === 'dark' ? 'border-white/15' : 'border-black/10'
+            }`}>
+              <span className={`text-[11px] font-black uppercase tracking-wider ${
+                isSatelliteExplore
+                  ? theme === 'dark'
+                    ? 'text-[#C0C0C6]'
+                    : 'text-[#858585]'
+                  : theme === 'dark'
+                    ? 'text-white/75'
+                    : 'text-black/65'
+              }`}>
+                Categorias
+              </span>
+              {selectedCategoryFilter && (
+                <button
+                  onClick={() => {
+                    handleUpdateSelectedCategoryFilter(null);
+                    setIsCategoryCardOpen(false);
+                  }}
+                  className={`text-[11px] font-black hover:underline cursor-pointer flex items-center gap-1 ${
+                    isSatelliteExplore
+                      ? theme === 'dark'
+                        ? 'text-[#C0C0C6]'
+                        : 'text-[#858585]'
+                      : theme === 'dark'
+                        ? 'text-white'
+                        : 'text-black'
+                  }`}
+                >
+                  <RotateCcw className="w-3 h-3" />
+                  Limpar
+                </button>
+              )}
+            </div>
+
+            {[
+              { id: 'hotels', label: 'Hotéis e Pousadas', image: '/hotel.png' },
+              { id: 'restaurants', label: 'Restaurantes', image: '/restaurante.png' },
+              { id: 'cafes', label: 'Cafés', image: '/cafe.png' },
+              { id: 'sweets', label: 'Chocolates & Doces', image: '/doce.png' },
+              { id: 'attractions', label: 'Atrações & Parques', image: '/atracoes.png' },
+              { id: 'pharmacies', label: 'Farmácias', image: '/medicacao.png' },
+            ].map((cat) => {
+              const CategoryIcon = 'icon' in cat ? (cat.icon as React.ComponentType<{ className?: string }>) : null;
+              const isSelected = selectedCategoryFilter === cat.id;
+              const useDarkDropdownUi = theme === 'dark';
+              const dropdownTextClass = isSatelliteExplore
+                ? useDarkDropdownUi
                   ? 'text-[#C0C0C6]'
                   : 'text-[#858585]'
-                : theme === 'dark'
-                  ? 'text-white/75'
-                  : 'text-black/65'
-            }`}>
-              Categorias
-            </span>
-            {selectedCategoryFilter && (
-              <button
-                onClick={() => {
-                  setSelectedCategoryFilter(null);
-                  setIsCategoryCardOpen(false);
-                }}
-                className={`text-[11px] font-black hover:underline cursor-pointer flex items-center gap-1 ${
-                  isSatelliteExplore
-                    ? theme === 'dark'
-                      ? 'text-[#C0C0C6]'
-                      : 'text-[#858585]'
-                    : theme === 'dark'
-                      ? 'text-white'
-                      : 'text-black'
-                }`}
-              >
-                <RotateCcw className="w-3 h-3" />
-                Limpar
-              </button>
-            )}
-          </div>
+                : useDarkDropdownUi
+                  ? 'text-white'
+                  : 'text-black';
 
-          {[
-            { id: 'hotels', label: 'Hotéis e Pousadas', image: '/hotel.png' },
-            { id: 'restaurants', label: 'Restaurantes', image: '/restaurante.png' },
-            { id: 'cafes', label: 'Cafés', image: '/cafe.png' },
-            { id: 'sweets', label: 'Chocolates & Doces', image: '/doce.png' },
-            { id: 'attractions', label: 'Atrações & Parques', image: '/atracoes.png' },
-            { id: 'pharmacies', label: 'Farmácias', image: '/medicacao.png' },
-          ].map((cat) => {
-            const CategoryIcon = 'icon' in cat ? (cat.icon as React.ComponentType<{ className?: string }>) : null;
-            const isSelected = selectedCategoryFilter === cat.id;
-            const useDarkDropdownUi = theme === 'dark';
-            const dropdownTextClass = isSatelliteExplore
-              ? useDarkDropdownUi
-                ? 'text-[#C0C0C6]'
-                : 'text-[#858585]'
-              : useDarkDropdownUi
-                ? 'text-white'
-                : 'text-black';
-
-            return (
-              <button
-                key={cat.id}
-                onClick={() => {
-                  setSelectedCategoryFilter(isSelected ? null : cat.id);
-                  setIsCategoryCardOpen(false);
-                }}
-                className={`relative z-10 w-full px-3 py-2.5 rounded-2xl active:scale-[0.98] text-xs font-black flex items-center justify-between gap-2.5 transition-all text-left cursor-pointer group ${dropdownTextClass} ${
-                  isSelected
-                    ? 'ios26-liquid-glass-pill font-extrabold'
-                    : useDarkDropdownUi
-                      ? 'hover:bg-white/10'
-                      : 'hover:bg-black/5'
-                }`}
-              >
-                <div className="flex items-center gap-2.5 min-w-0">
-                  {'image' in cat && cat.image ? (
-                    <div className="w-10.5 h-10.5 shrink-0 flex items-center justify-center group-hover:scale-110 transition-transform">
-                      <img
-                        src={cat.image}
-                        alt={cat.label}
-                        className="w-full h-full object-contain select-none"
-                        onError={(e) => {
-                          const target = e.currentTarget;
-                          if (!target.src.endsWith('.png.png') && target.src.endsWith('.png')) {
-                            target.src = target.src + '.png';
-                          }
-                        }}
-                      />
-                    </div>
-                  ) : (
-                    <div className={`w-10.5 h-10.5 rounded-xl flex items-center justify-center shrink-0 group-hover:scale-105 transition-transform ${
-                      isSelected
-                        ? useDarkDropdownUi ? 'bg-white/25 text-white shadow-sm' : 'bg-white/60 text-black shadow-sm'
-                        : useDarkDropdownUi ? 'bg-white/15 text-white' : 'bg-white/25 text-black'
-                    }`}>
-                      {CategoryIcon && <CategoryIcon className="w-4 h-4 stroke-[2]" />}
-                    </div>
+              return (
+                <button
+                  key={cat.id}
+                  onClick={() => {
+                    handleUpdateSelectedCategoryFilter(isSelected ? null : cat.id);
+                    setIsCategoryCardOpen(false);
+                  }}
+                  className={`relative z-10 w-full px-3 py-2.5 rounded-2xl active:scale-[0.98] text-xs font-black flex items-center justify-between gap-2.5 transition-all text-left cursor-pointer group ${dropdownTextClass} ${
+                    isSelected
+                      ? 'ios26-liquid-glass-pill font-extrabold'
+                      : useDarkDropdownUi
+                        ? 'hover:bg-white/10'
+                        : 'hover:bg-black/5'
+                  }`}
+                >
+                  <div className="flex items-center gap-2.5 min-w-0">
+                    {'image' in cat && cat.image ? (
+                      <div className="w-10.5 h-10.5 shrink-0 flex items-center justify-center group-hover:scale-110 transition-transform">
+                        <img
+                          src={cat.image}
+                          alt={cat.label}
+                          className="w-full h-full object-contain select-none"
+                          onError={(e) => {
+                            const target = e.currentTarget;
+                            if (!target.src.endsWith('.png.png') && target.src.endsWith('.png')) {
+                              target.src = target.src + '.png';
+                            }
+                          }}
+                        />
+                      </div>
+                    ) : (
+                      <div className={`w-10.5 h-10.5 rounded-xl flex items-center justify-center shrink-0 group-hover:scale-105 transition-transform ${
+                        isSelected
+                          ? useDarkDropdownUi ? 'bg-white/25 text-white shadow-sm' : 'bg-white/60 text-black shadow-sm'
+                          : useDarkDropdownUi ? 'bg-white/15 text-white' : 'bg-white/25 text-black'
+                      }`}>
+                        {CategoryIcon && <CategoryIcon className="w-4 h-4 stroke-[2]" />}
+                      </div>
+                    )}
+                    <span className="truncate">{cat.label}</span>
+                  </div>
+                  {isSelected && (
+                    <Check className={`w-4 h-4 shrink-0 stroke-[2.5] ${useDarkDropdownUi ? 'text-white' : 'text-black'}`} />
                   )}
-                  <span className="truncate">{cat.label}</span>
-                </div>
-                {isSelected && (
-                  <Check className={`w-4 h-4 shrink-0 stroke-[2.5] ${useDarkDropdownUi ? 'text-white' : 'text-black'}`} />
-                )}
-              </button>
-            );
-          })}
-        </motion.div>
-      )}
-    </AnimatePresence>
+                </button>
+              );
+            })}
+          </motion.div>
+        )}
+      </AnimatePresence>
+    )}
 
     {/* 4.7. Floating Search Bar and Results (Floats prominently above blur) */}
-    <AnimatePresence>
-      {activeTab === 'explorar' && isSearchOpen && (
+    {activeTab === 'explorar' && (
+      <AnimatePresence>
+        {isSearchOpen && (
         <motion.div
           initial={{ opacity: 0, y: -10, scale: 0.98 }}
           animate={{ opacity: 1, y: 0, scale: 1 }}
@@ -4198,7 +5577,8 @@ export default function App() {
           </div>
         </motion.div>
       )}
-    </AnimatePresence>
+      </AnimatePresence>
+    )}
 
     {/* Admin Fullscreen Layer (Mounted above #app-root-shell so map & app states remain preserved underneath) */}
     <AnimatePresence>
@@ -4263,16 +5643,6 @@ export default function App() {
       />
     )}
 
-    {/* White Confetti Burst Overlay (120fps) upon landing in Campos do Jordão */}
-    {activeTab === 'explorar' && arrivalConfettiTrigger > 0 && (
-      <Suspense fallback={null}>
-        <WhiteConfettiOverlay
-          triggerKey={arrivalConfettiTrigger}
-          onComplete={() => setArrivalConfettiTrigger(0)}
-        />
-      </Suspense>
-    )}
-
     {/* 4-Step Complementary Registration Flow followed by Original Welcome Screen */}
     <Suspense fallback={null}>
       <AnimatePresence mode="wait">
@@ -4302,6 +5672,8 @@ export default function App() {
                   ...(user || {}),
                   ...(updatedUser || {}),
                   ...(preferences || {}),
+                  map_tutorial_status:
+                    updatedUser?.map_tutorial_status || user?.map_tutorial_status || 'pending',
                   onboarding_step: 3,
                   onboarding_completed: 1,
                 });
@@ -4313,6 +5685,8 @@ export default function App() {
                     ...(prev || {}),
                     ...(updatedUser || {}),
                     ...(preferences || {}),
+                    map_tutorial_status:
+                      updatedUser?.map_tutorial_status || prev?.map_tutorial_status || 'pending',
                     onboarding_step: 3,
                     onboarding_completed: 1,
                   });
@@ -4333,19 +5707,34 @@ export default function App() {
           <FirstSignupWelcomeScreen
             key="monvian-first-signup-welcome"
             theme={theme}
+            userName={user?.name}
             onComplete={handleDismissFirstSignupWelcome}
           />
         ) : null}
       </AnimatePresence>
     </Suspense>
 
-    {isPlatanosWalletOpen && (
+    {(isPlatanosWalletOpen || hasMountedPlatanosWallet) && (
       <Suspense fallback={null}>
         <PlatanosWalletModal
-          isOpen={true}
+          isOpen={isPlatanosWalletOpen}
           onClose={() => setIsPlatanosWalletOpen(false)}
           theme={theme}
           initialTab={platanosWalletTab}
+        />
+      </Suspense>
+    )}
+
+    {/* Interactive Guided Onboarding Tutorial for New Users on Main Map */}
+    {(isMapTutorialOpen || isMapTutorialMounted) && (
+      <Suspense fallback={null}>
+        <MapOnboardingTutorial
+          isOpen={isMapTutorialOpen}
+          theme={theme}
+          userName={user?.name}
+          onComplete={() => handleFinishMapTutorial('completed')}
+          onSkip={() => handleFinishMapTutorial('skipped')}
+          onStepChange={handleTutorialStepChange}
         />
       </Suspense>
     )}
@@ -4354,6 +5743,14 @@ export default function App() {
         );
       })()}
   </AnimatePresence>
+
+  {/* Global Independent 120fps 3D White & Silver Confetti + Ribbons Layer (pointer-events: none) */}
+  {arrivalConfettiTrigger > 0 && (
+    <WhiteConfettiOverlay
+      triggerKey={arrivalConfettiTrigger}
+      onComplete={() => setArrivalConfettiTrigger(0)}
+    />
+  )}
   </>
   );
 }

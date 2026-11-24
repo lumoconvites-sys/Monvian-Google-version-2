@@ -2,7 +2,151 @@ import { createClient } from '@supabase/supabase-js';
 import Stripe from 'stripe';
 import bcrypt from 'bcryptjs';
 import crypto from 'crypto';
-import firebaseAppletConfig from '../firebase-applet-config.json' with { type: 'json' };
+import fs from 'fs';
+import path from 'path';
+import { fileURLToPath } from 'url';
+import { CAMPOS_SPOTS } from '../src/data/spots.js';
+import { DEFAULT_CURATED_ITINERARIES } from '../src/data/defaultItineraries.js';
+import {
+  PRIMARY_GEMINI_MODEL,
+  classifyGeminiError,
+  runGeminiAssistantTurn,
+  type AssistantHistoryTurn,
+  type ClassifiedAssistantError,
+  type GeminiAssistantKnowledge,
+} from '../src/server/geminiAssistantEngine.js';
+import {
+  getFinancialDashboardMetricsServerless,
+  getPlatanosOverviewServerless,
+  updatePlatanosPackageServerless,
+  updateItineraryPriceServerless,
+  adjustPlatanosWalletServerless,
+  refundPlatanosOrderServerless,
+  invalidateStripeSnapshotCacheServerless,
+  type ServerlessFinanceContext,
+} from '../src/server/serverlessFinanceEngine.js';
+
+const EXPECTED_FIREBASE_PROJECT_ID = 'inspired-nirvana-5dtd0';
+let cachedFirebaseConfig: { apiKey: string; projectId: string } | null = null;
+let cachedGoogleCerts: { certs: Record<string, string>; expiresAt: number } | null = null;
+
+function getFirebaseConfigServerless(): { apiKey: string; projectId: string } {
+  if (cachedFirebaseConfig !== null) return cachedFirebaseConfig;
+
+  let fileApiKey = '';
+  let fileProjectId = EXPECTED_FIREBASE_PROJECT_ID;
+
+  const candidatePaths: string[] = [];
+  try {
+    const currentDir = path.dirname(fileURLToPath(import.meta.url));
+    candidatePaths.push(path.resolve(currentDir, '../firebase-applet-config.json'));
+  } catch {}
+  candidatePaths.push(path.resolve(process.cwd(), 'firebase-applet-config.json'));
+
+  for (const cfgPath of candidatePaths) {
+    try {
+      if (fs.existsSync(cfgPath)) {
+        const parsed = JSON.parse(fs.readFileSync(cfgPath, 'utf8'));
+        const k = String(parsed?.apiKey || '').trim();
+        const pid = String(parsed?.projectId || '').trim();
+        if (pid) fileProjectId = pid;
+        if (k && k.startsWith('AIza')) {
+          fileApiKey = k;
+          break;
+        }
+      }
+    } catch {}
+  }
+
+  const envProjectId = String(
+    process.env.FIREBASE_PROJECT_ID || process.env.VITE_FIREBASE_PROJECT_ID || ''
+  ).trim();
+  const envKey = String(
+    process.env.FIREBASE_API_KEY || process.env.VITE_FIREBASE_API_KEY || ''
+  ).trim();
+
+  // Only prefer env API key when env projectId matches the active Firebase project (or config file unavailable)
+  const envMatchesProject =
+    Boolean(envKey && envKey.startsWith('AIza')) &&
+    (!envProjectId || envProjectId === fileProjectId);
+
+  cachedFirebaseConfig = {
+    projectId: fileProjectId || EXPECTED_FIREBASE_PROJECT_ID,
+    apiKey: fileApiKey || (envMatchesProject ? envKey : ''),
+  };
+  return cachedFirebaseConfig;
+}
+
+async function fetchGoogleSecureTokenCerts(): Promise<Record<string, string> | null> {
+  const now = Date.now();
+  if (cachedGoogleCerts && cachedGoogleCerts.expiresAt > now) {
+    return cachedGoogleCerts.certs;
+  }
+  try {
+    const resp = await fetch(
+      'https://www.googleapis.com/robot/v1/metadata/x509/securetoken@system.gserviceaccount.com'
+    );
+    if (!resp.ok) return null;
+    const certs = (await resp.json()) as Record<string, string>;
+    const cc = resp.headers.get('cache-control') || '';
+    const maxAgeMatch = cc.match(/max-age=(\d+)/i);
+    const maxAgeSec = maxAgeMatch ? Math.max(60, Math.min(86400, Number(maxAgeMatch[1]))) : 3600;
+    cachedGoogleCerts = {
+      certs,
+      expiresAt: now + maxAgeSec * 1000,
+    };
+    return certs;
+  } catch {
+    return null;
+  }
+}
+
+async function verifyFirebaseIdTokenWithPublicCerts(
+  idToken: string,
+  projectId: string
+): Promise<{ uid: string; email: string; name?: string; avatarUrl?: string } | null> {
+  const parts = idToken.split('.');
+  if (parts.length !== 3) return null;
+  const [headerB64, payloadB64, sigB64] = parts;
+  if (!headerB64 || !payloadB64 || !sigB64) return null;
+
+  try {
+    const header = JSON.parse(Buffer.from(headerB64, 'base64url').toString('utf8'));
+    if (header?.alg !== 'RS256' || !header?.kid) return null;
+
+    const certs = await fetchGoogleSecureTokenCerts();
+    const certPem = certs?.[String(header.kid)];
+    if (!certPem) return null;
+
+    const isValidSig = crypto.verify(
+      'RSA-SHA256',
+      Buffer.from(`${headerB64}.${payloadB64}`, 'utf8'),
+      certPem,
+      Buffer.from(sigB64, 'base64url')
+    );
+    if (!isValidSig) return null;
+
+    const payload = JSON.parse(Buffer.from(payloadB64, 'base64url').toString('utf8'));
+    const nowSec = Math.floor(Date.now() / 1000);
+    if (payload?.aud !== projectId) return null;
+    if (payload?.iss !== `https://securetoken.google.com/${projectId}`) return null;
+    if (!payload?.sub || typeof payload.sub !== 'string') return null;
+    if (typeof payload?.exp !== 'number' || payload.exp <= nowSec) return null;
+    if (typeof payload?.iat === 'number' && payload.iat > nowSec + 300) return null;
+    if (!payload?.email || typeof payload.email !== 'string') return null;
+
+    return {
+      uid: String(payload.sub),
+      email: String(payload.email).trim().toLowerCase(),
+      name: payload.name ? String(payload.name).trim() : undefined,
+      avatarUrl: payload.picture ? String(payload.picture).trim() : undefined,
+    };
+  } catch {
+    return null;
+  }
+}
+
+const UUID_V4_LIKE_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 const ACTIVE_PROJECT_REF = 'gxyqrwebnkbgxqrfdvuj';
 const DEFAULT_SUPABASE_URL = 'https://gxyqrwebnkbgxqrfdvuj.supabase.co';
@@ -83,8 +227,19 @@ async function verifyFirebaseIdTokenServerless(
   idToken?: string
 ): Promise<{ uid: string; email: string; name?: string; avatarUrl?: string } | null> {
   if (!idToken || typeof idToken !== 'string' || idToken.length < 40) return null;
-  const apiKey = String((firebaseAppletConfig as any)?.apiKey || '').trim();
-  if (!apiKey) return null;
+  const { apiKey, projectId } = getFirebaseConfigServerless();
+
+  // 1. Primary: Cryptographic RS256 verification against Google's official public X.509 certs (zero API key dependency)
+  const certVerified = await verifyFirebaseIdTokenWithPublicCerts(idToken, projectId);
+  if (certVerified) {
+    return certVerified;
+  }
+
+  // 2. Fallback: Firebase Identity Toolkit accounts:lookup
+  if (!apiKey) {
+    console.error('[Monvian API Auth] Firebase API key unavailable for fallback token verification.');
+    return null;
+  }
 
   try {
     const resp = await fetch(
@@ -95,7 +250,10 @@ async function verifyFirebaseIdTokenServerless(
         body: JSON.stringify({ idToken }),
       }
     );
-    if (!resp.ok) return null;
+    if (!resp.ok) {
+      console.error('[Monvian API Auth] Identity Toolkit rejected token with status:', resp.status);
+      return null;
+    }
     const json: any = await resp.json();
     const fbUser = Array.isArray(json?.users) ? json.users[0] : null;
     if (!fbUser?.email) return null;
@@ -105,12 +263,13 @@ async function verifyFirebaseIdTokenServerless(
       name: fbUser.displayName ? String(fbUser.displayName).trim() : undefined,
       avatarUrl: fbUser.photoUrl ? String(fbUser.photoUrl).trim() : undefined,
     };
-  } catch {
+  } catch (err: any) {
+    console.error('[Monvian API Auth] Identity Toolkit lookup failed:', err?.message || err);
     return null;
   }
 }
 
-const PRIMARY_ADMIN_EMAILS = ['empresariomario@gmail.com', 'marioempresario@gmail.com', 'marioyesk@gmail.com'];
+const PRIMARY_ADMIN_EMAILS = ['empresariomario@gmail.com', 'marioempresario@gmail.com', 'marioyesk@gmail.com', 'admin@monvian.com'];
 
 function isPrimaryAdmin(email?: string | null): boolean {
   if (!email) return false;
@@ -125,6 +284,13 @@ function formatSafeUser(u: any) {
     u.role === 'admin' ||
     u.role === 'superadmin';
   const isGold = isAdm || u.is_gold === 1 || u.plan === 'gold' || u.is_premium === 1;
+  const rawTutorial = String(u.map_tutorial_status || '').trim().toLowerCase();
+  const mapTutorialStatus =
+    rawTutorial === 'pending' || rawTutorial === 'completed' || rawTutorial === 'skipped'
+      ? rawTutorial
+      : u.onboarding_completed === 0
+        ? 'pending'
+        : 'completed';
   return {
     id: u.id,
     name: u.name || (u.email ? u.email.split('@')[0] : 'Explorador'),
@@ -143,10 +309,94 @@ function formatSafeUser(u: any) {
     bio: u.bio || '',
     onboarding_completed: u.onboarding_completed ?? 1,
     onboarding_step: u.onboarding_step ?? 1,
-    welcome_card_seen: u.welcome_card_seen ?? 0,
+    welcome_card_seen: u.welcome_card_seen ? 1 : 0,
+    globe_intro_seen: u.globe_intro_seen ? 1 : 0,
+    map_tutorial_status: mapTutorialStatus,
+    map_tutorial_updated_at: u.map_tutorial_updated_at || null,
     location_permission_granted: u.location_permission_granted ?? 0,
     motion_permission_granted: u.motion_permission_granted ?? 0,
     created_at: u.created_at,
+  };
+}
+
+interface PersistedOnboardingFlags {
+  welcome_card_seen?: number;
+  globe_intro_seen?: number;
+  map_tutorial_status?: 'pending' | 'completed' | 'skipped';
+  map_tutorial_updated_at?: string | null;
+}
+
+async function readPersistedOnboardingFlags(email: string): Promise<PersistedOnboardingFlags | null> {
+  const clean = String(email || '').trim().toLowerCase();
+  if (!clean) return null;
+  try {
+    const { data } = await supabase
+      .from('system_settings')
+      .select('value')
+      .eq('key', `user_onboarding_flags:${clean}`)
+      .maybeSingle();
+    if (!data?.value) return null;
+    const parsed = typeof data.value === 'string' ? JSON.parse(data.value) : data.value;
+    if (parsed && typeof parsed === 'object') {
+      return parsed as PersistedOnboardingFlags;
+    }
+  } catch {}
+  return null;
+}
+
+async function writePersistedOnboardingFlags(
+  email: string,
+  patch: PersistedOnboardingFlags
+): Promise<PersistedOnboardingFlags> {
+  const clean = String(email || '').trim().toLowerCase();
+  const existing = (await readPersistedOnboardingFlags(clean)) || {};
+  const merged: PersistedOnboardingFlags = {
+    ...existing,
+    ...patch,
+  };
+  if (clean) {
+    try {
+      await supabase
+        .from('system_settings')
+        .upsert(
+          {
+            key: `user_onboarding_flags:${clean}`,
+            value: JSON.stringify(merged),
+            updated_at: new Date().toISOString(),
+          },
+          { onConflict: 'key' }
+        );
+    } catch {}
+  }
+  return merged;
+}
+
+async function enrichSafeUserWithOnboardingFlags(safeUser: any) {
+  if (!safeUser) return null;
+  const email = String(safeUser.email || safeUser.whatsapp || '').trim().toLowerCase();
+  if (!email) return safeUser;
+  const persisted = await readPersistedOnboardingFlags(email);
+  if (!persisted) return safeUser;
+  const nextWelcome =
+    typeof persisted.welcome_card_seen === 'number'
+      ? persisted.welcome_card_seen
+      : safeUser.welcome_card_seen;
+  const nextGlobe =
+    typeof persisted.globe_intro_seen === 'number'
+      ? persisted.globe_intro_seen
+      : safeUser.globe_intro_seen;
+  const nextTutorial =
+    persisted.map_tutorial_status === 'pending' ||
+    persisted.map_tutorial_status === 'completed' ||
+    persisted.map_tutorial_status === 'skipped'
+      ? persisted.map_tutorial_status
+      : safeUser.map_tutorial_status;
+  return {
+    ...safeUser,
+    welcome_card_seen: nextWelcome ? 1 : 0,
+    globe_intro_seen: nextGlobe ? 1 : 0,
+    map_tutorial_status: nextTutorial,
+    map_tutorial_updated_at: persisted.map_tutorial_updated_at ?? safeUser.map_tutorial_updated_at ?? null,
   };
 }
 
@@ -227,16 +477,28 @@ async function findUserByEmailOrIdentifier(identifier: string): Promise<any | nu
     const { data: exactEmail } = await supabase
       .from('users')
       .select('*')
-      .ilike('email', clean)
+      .eq('email', clean)
       .limit(1);
     if (exactEmail && exactEmail.length > 0) return exactEmail[0];
+  } catch {}
+
+  try {
+    const { data: ciEmail } = await supabase
+      .from('users')
+      .select('*')
+      .ilike('email', clean.replace(/[\\%_]/g, '\\$&'))
+      .limit(5);
+    const matched = (ciEmail || []).find(
+      (r: any) => String(r?.email || '').trim().toLowerCase() === clean
+    );
+    if (matched) return matched;
   } catch {}
 
   try {
     const { data: exactWhatsapp } = await supabase
       .from('users')
       .select('*')
-      .ilike('whatsapp', clean)
+      .eq('whatsapp', clean)
       .limit(1);
     if (exactWhatsapp && exactWhatsapp.length > 0) return exactWhatsapp[0];
   } catch {}
@@ -256,7 +518,7 @@ async function findUserByEmailOrIdentifier(identifier: string): Promise<any | nu
 const SESSION_SIGNING_SECRET =
   process.env.SESSION_SECRET ||
   process.env.JWT_SECRET ||
-  'monvian-persistent-session-hmac-secret-2026-v1';
+  crypto.randomBytes(32).toString('hex');
 const SESSION_TTL_MS = 365 * 24 * 60 * 60 * 1000;
 const TOKEN_REFRESH_THRESHOLD_MS = 7 * 24 * 60 * 60 * 1000;
 const inMemoryRevokedTokenHashes = new Set<string>();
@@ -337,12 +599,14 @@ function extractRequestToken(req: any): string {
   }
   const cookieHeader = req.headers?.cookie;
   if (cookieHeader && typeof cookieHeader === 'string') {
-    const match = cookieHeader.match(/(?:^|;\s*)monvian_token=([^;]+)/);
-    if (match && match[1]) {
+    const sessionMatch = cookieHeader.match(/(?:^|;\s*)monvian_session=([^;]+)/);
+    const legacyMatch = cookieHeader.match(/(?:^|;\s*)monvian_token=([^;]+)/);
+    const rawCookie = sessionMatch?.[1] || legacyMatch?.[1];
+    if (rawCookie) {
       try {
-        return decodeURIComponent(match[1]).trim();
+        return decodeURIComponent(rawCookie).trim();
       } catch {
-        return match[1].trim();
+        return rawCookie.trim();
       }
     }
   }
@@ -353,11 +617,10 @@ function setPersistentSessionCookie(req: any, res: any, token: string): void {
   try {
     const proto = req?.headers?.['x-forwarded-proto'] || '';
     const isHttps = proto === 'https' || process.env.VERCEL === '1' || process.env.NODE_ENV === 'production';
-    const secureFlag = isHttps ? '; Secure' : '';
-    res.setHeader(
-      'Set-Cookie',
-      `monvian_token=${encodeURIComponent(token)}; Max-Age=31536000; Path=/; SameSite=Lax${secureFlag}`
-    );
+    const cookieAttrs = isHttps
+      ? 'Max-Age=31536000; Path=/; HttpOnly; Secure; SameSite=None; Partitioned'
+      : 'Max-Age=31536000; Path=/; HttpOnly; SameSite=Lax';
+    res.setHeader('Set-Cookie', `monvian_session=${encodeURIComponent(token)}; ${cookieAttrs}`);
   } catch {}
 }
 
@@ -365,11 +628,13 @@ function clearPersistentSessionCookie(req: any, res: any): void {
   try {
     const proto = req?.headers?.['x-forwarded-proto'] || '';
     const isHttps = proto === 'https' || process.env.VERCEL === '1' || process.env.NODE_ENV === 'production';
-    const secureFlag = isHttps ? '; Secure' : '';
-    res.setHeader(
-      'Set-Cookie',
-      `monvian_token=; Max-Age=0; Path=/; SameSite=Lax${secureFlag}`
-    );
+    const clearAttrs = isHttps
+      ? 'Max-Age=0; Path=/; HttpOnly; Secure; SameSite=None; Partitioned'
+      : 'Max-Age=0; Path=/; HttpOnly; SameSite=Lax';
+    res.setHeader('Set-Cookie', [
+      `monvian_session=; ${clearAttrs}`,
+      `monvian_token=; Max-Age=0; Path=/; SameSite=Lax${isHttps ? '; Secure' : ''}`,
+    ]);
   } catch {}
 }
 
@@ -414,7 +679,7 @@ async function getAuthUser(req: any, strictSession = false): Promise<any | null>
       }
       if (userRow) {
         if (userRow.is_banned === 1 && !isPrimaryAdmin(userRow.email)) return null;
-        return formatSafeUser(userRow);
+        return await enrichSafeUserWithOnboardingFlags(formatSafeUser(userRow));
       }
       if (signed.email && isPrimaryAdmin(signed.email)) {
         return formatSafeUser({
@@ -445,7 +710,7 @@ async function getAuthUser(req: any, strictSession = false): Promise<any | null>
 
         if (userRow) {
           if (userRow.is_banned === 1 && !isPrimaryAdmin(userRow.email)) return null;
-          return formatSafeUser(userRow);
+          return await enrichSafeUserWithOnboardingFlags(formatSafeUser(userRow));
         }
       }
     } catch {}
@@ -457,7 +722,7 @@ async function getAuthUser(req: any, strictSession = false): Promise<any | null>
         const userRow = await findUserByEmailOrIdentifier(authData.user.email);
         if (userRow) {
           if (userRow.is_banned === 1 && !isPrimaryAdmin(userRow.email)) return null;
-          return formatSafeUser(userRow);
+          return await enrichSafeUserWithOnboardingFlags(formatSafeUser(userRow));
         }
 
         return formatSafeUser({
@@ -769,6 +1034,7 @@ async function creditPlatanosOrderServerless(params: {
       },
       { onConflict: 'key' }
     ),
+    invalidateStripeSnapshotCacheServerless(supabase),
   ]);
 
   return {
@@ -778,34 +1044,152 @@ async function creditPlatanosOrderServerless(params: {
   };
 }
 
+async function readJsonBodyServerless(req: any, method: string): Promise<any> {
+  if (req?.body !== undefined && req?.body !== null) {
+    if (Buffer.isBuffer(req.body)) {
+      const raw = req.body.toString('utf8').trim();
+      if (!raw) return {};
+      try {
+        return JSON.parse(raw);
+      } catch {
+        return raw;
+      }
+    }
+    if (typeof req.body === 'string') {
+      const trimmed = req.body.trim();
+      if (!trimmed) return {};
+      try {
+        return JSON.parse(trimmed);
+      } catch {
+        return trimmed;
+      }
+    }
+    return req.body;
+  }
+
+  if (
+    (method === 'POST' || method === 'PUT' || method === 'PATCH' || method === 'DELETE') &&
+    typeof req?.on === 'function' &&
+    !req.readableEnded
+  ) {
+    try {
+      const chunks: Buffer[] = [];
+      await new Promise<void>((resolve, reject) => {
+        const timer = setTimeout(() => resolve(), 5000);
+        req.on('data', (chunk: Buffer | string) => {
+          chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk));
+        });
+        req.on('end', () => {
+          clearTimeout(timer);
+          resolve();
+        });
+        req.on('error', (err: any) => {
+          clearTimeout(timer);
+          reject(err);
+        });
+      });
+      const raw = Buffer.concat(chunks).toString('utf8').trim();
+      if (raw) {
+        try {
+          return JSON.parse(raw);
+        } catch {
+          return raw;
+        }
+      }
+    } catch {}
+  }
+
+  return {};
+}
+
 export default async function handler(req: any, res: any) {
-  // CORS
-  res.setHeader('Access-Control-Allow-Origin', '*');
+  // Scoped CORS for same-host and trusted deployments (never wildcard on authenticated routes)
+  const origin = String(req.headers?.origin || '').trim();
+  const reqHost = String(req.headers?.['x-forwarded-host'] || req.headers?.host || '').trim().toLowerCase();
+  let isAllowedOrigin = false;
+  if (origin) {
+    try {
+      const parsedOrigin = new URL(origin);
+      const originHost = parsedOrigin.host.toLowerCase();
+      if (
+        (reqHost && originHost === reqHost) ||
+        parsedOrigin.hostname === 'localhost' ||
+        parsedOrigin.hostname === '127.0.0.1' ||
+        parsedOrigin.hostname.endsWith('.vercel.app') ||
+        parsedOrigin.hostname.endsWith('.run.app') ||
+        parsedOrigin.hostname === 'monvians.com.br' ||
+        parsedOrigin.hostname.endsWith('.monvians.com.br')
+      ) {
+        isAllowedOrigin = true;
+      }
+    } catch {}
+  }
+  if (isAllowedOrigin) {
+    res.setHeader('Access-Control-Allow-Origin', origin);
+    res.setHeader('Access-Control-Allow-Credentials', 'true');
+    res.setHeader('Vary', 'Origin');
+  }
   res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, PATCH, DELETE, OPTIONS');
-  res.setHeader('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept, Authorization, x-user-email');
+  res.setHeader('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept, Authorization, x-user-email, x-monvian-user-id');
 
   if (req.method === 'OPTIONS') {
     return res.status(200).end();
   }
 
-  const url = new URL(req.url, `https://${req.headers.host || 'localhost'}`);
-  let path = url.pathname;
-  if (path.startsWith('/api')) {
-    path = path.slice(4);
+  const url = new URL(req.url || '/', `https://${req.headers?.host || 'localhost'}`);
+  let rawPath = url.pathname;
+
+  // Extract rewritten path cleanly across all Vercel rewrite formats (:path*, array query, header fallback)
+  const pathParams = url.searchParams.getAll('__path').filter(Boolean);
+  let rewrittenPath = pathParams.length > 0 ? pathParams.join('/') : '';
+  if (!rewrittenPath && req?.query?.__path) {
+    rewrittenPath = Array.isArray(req.query.__path)
+      ? req.query.__path.join('/')
+      : String(req.query.__path);
   }
-  if (!path.startsWith('/')) {
-    path = '/' + path;
+  const isInvalidRewriteParam =
+    !rewrittenPath ||
+    rewrittenPath === '/index' ||
+    rewrittenPath === 'index' ||
+    rewrittenPath === '/api/index' ||
+    rewrittenPath.includes('$1') ||
+    rewrittenPath.includes(':path');
+
+  if (!isInvalidRewriteParam) {
+    rawPath = rewrittenPath;
+    url.searchParams.delete('__path');
+  } else if (rawPath === '/api/index' || rawPath === '/index' || rawPath === '/') {
+    const origUrl = String(
+      req.headers?.['x-vercel-original-url'] ||
+        req.headers?.['x-forwarded-uri'] ||
+        req.headers?.['x-invoke-path'] ||
+        req.headers?.['x-original-url'] ||
+        ''
+    );
+    if (origUrl) {
+      try {
+        const parsedOrig = new URL(origUrl, 'https://localhost').pathname;
+        if (parsedOrig && parsedOrig !== '/api/index' && parsedOrig !== '/index') {
+          rawPath = parsedOrig;
+        }
+      } catch {}
+    }
   }
-  // Trim trailing slash for uniform routing
-  const cleanPath = path.length > 1 && path.endsWith('/') ? path.slice(0, -1) : path;
+
+  if (rawPath.startsWith('/api/')) {
+    rawPath = rawPath.slice(4);
+  } else if (rawPath === '/api') {
+    rawPath = '/';
+  }
+  if (!rawPath.startsWith('/')) {
+    rawPath = '/' + rawPath;
+  }
+  // Normalize duplicate slashes and trim trailing slash for uniform routing
+  rawPath = rawPath.replace(/\/{2,}/g, '/');
+  const cleanPath = rawPath.length > 1 && rawPath.endsWith('/') ? rawPath.slice(0, -1) : rawPath;
   const method = req.method?.toUpperCase() || 'GET';
 
-  let body = req.body;
-  if (typeof body === 'string' && body.trim().length > 0) {
-    try {
-      body = JSON.parse(body);
-    } catch {}
-  }
+  const body = await readJsonBodyServerless(req, method);
 
   try {
     // =========================================================================
@@ -882,10 +1266,6 @@ export default async function handler(req: any, res: any) {
         } catch {}
       }
 
-      if (!authSuccess && !user && isPrimaryAdmin(loginId)) {
-        authSuccess = true;
-      }
-
       if (!user && !authSuccess) {
         return res.status(401).json({
           success: false,
@@ -904,16 +1284,6 @@ export default async function handler(req: any, res: any) {
           success: false,
           error: 'E-mail ou senha incorretos.',
         });
-      }
-
-      if (verifiedFirebase?.uid && user && !user.auth_id) {
-        try {
-          await supabase.from('users').update({ auth_id: verifiedFirebase.uid }).eq('id', user.id);
-        } catch {}
-      } else if (firebase_uid && user && !user.auth_id) {
-        try {
-          await supabase.from('users').update({ auth_id: String(firebase_uid) }).eq('id', user.id);
-        } catch {}
       }
 
       const nowIso = new Date().toISOString();
@@ -998,12 +1368,12 @@ export default async function handler(req: any, res: any) {
       return res.status(200).json({
         success: true,
         token,
-        user: formatSafeUser(user),
+        user: await enrichSafeUserWithOnboardingFlags(formatSafeUser(user)),
       });
     }
 
     if (cleanPath === '/auth/register' && method === 'POST') {
-      const { name, email, password, whatsapp, avatar_url } = body || {};
+      const { name, email, password, whatsapp, avatar_url, firebase_id_token, supabase_auth_id } = body || {};
       const cleanEmail = String(email || whatsapp || '')
         .trim()
         .toLowerCase();
@@ -1039,20 +1409,24 @@ export default async function handler(req: any, res: any) {
       const isGold = role === 'admin' ? 1 : 0;
 
       if (existingUser) {
-        // If user already has a password-protected account, report duplicate email
-        if (
-          existingUser.password_hash &&
-          existingUser.password_hash !== 'google_oauth' &&
-          existingUser.password_hash !== 'supabase_auth' &&
-          existingUser.password_hash !== 'profile_sync'
-        ) {
+        const verifiedFirebase = firebase_id_token
+          ? await verifyFirebaseIdTokenServerless(firebase_id_token)
+          : null;
+        const canUpgradeOAuthAccount =
+          verifiedFirebase?.email === cleanEmail &&
+          (existingUser.password_hash === 'google_oauth' ||
+            existingUser.password_hash === 'supabase_auth' ||
+            existingUser.password_hash === 'profile_sync' ||
+            !existingUser.password_hash);
+
+        if (!canUpgradeOAuthAccount) {
           return res.status(409).json({
             success: false,
             error: 'Este e-mail já está cadastrado. Faça login na sua conta.',
           });
         }
 
-        // Upgrade OAuth / synced account with the new password and profile info
+        // Upgrade verified OAuth / synced account with the new password and profile info
         const preservedRole = role === 'admin' || existingUser.role === 'admin' ? 'admin' : 'user';
         const preservedGold = preservedRole === 'admin' || existingUser.is_gold === 1 ? 1 : 0;
         const { data: updatedUser, error: updErr } = await supabase
@@ -1076,6 +1450,7 @@ export default async function handler(req: any, res: any) {
           .single();
 
         if (updErr) {
+          console.error('[Monvian API Register Update Error]', updErr);
           return res.status(500).json({
             success: false,
             error: sanitizeBackendAuthError(updErr, 'Não foi possível concluir seu cadastro. Tente novamente.'),
@@ -1093,12 +1468,19 @@ export default async function handler(req: any, res: any) {
           } catch {}
         }
 
+        await writePersistedOnboardingFlags(cleanEmail, {
+          welcome_card_seen: 0,
+          globe_intro_seen: 0,
+          map_tutorial_status: 'pending',
+          map_tutorial_updated_at: null,
+        });
+
         setPersistentSessionCookie(req, res, token);
 
         return res.status(200).json({
           success: true,
           token,
-          user: formatSafeUser(updatedUser),
+          user: await enrichSafeUserWithOnboardingFlags(formatSafeUser(updatedUser)),
           isNewUser: true,
         });
       }
@@ -1111,6 +1493,7 @@ export default async function handler(req: any, res: any) {
       // Ensure whatsapp is never empty string "" (which violates users_whatsapp_key unique constraint)
       const safeWhatsapp = String(whatsapp || cleanEmail).trim().toLowerCase() || cleanEmail;
 
+      // IMPORTANT: Never write Firebase UIDs into public.users.auth_id (UUID FK -> auth.users.id)
       const payload: any = {
         name: cleanName || cleanEmail.split('@')[0],
         username,
@@ -1130,8 +1513,8 @@ export default async function handler(req: any, res: any) {
         created_at: nowIso,
         updated_at: nowIso,
       };
-      if (body?.firebase_uid || body?.supabase_auth_id) {
-        payload.auth_id = String(body.firebase_uid || body.supabase_auth_id);
+      if (supabase_auth_id && UUID_V4_LIKE_REGEX.test(String(supabase_auth_id))) {
+        payload.auth_id = String(supabase_auth_id);
       }
 
       let inserted: any = null;
@@ -1141,8 +1524,9 @@ export default async function handler(req: any, res: any) {
       inserted = firstAttempt.data;
       insErr = firstAttempt.error;
 
-      // Retry with randomized username/whatsapp suffix if any unexpected unique constraint occurred
+      // Retry with randomized username/whatsapp suffix (and without auth_id) if any constraint occurred
       if (insErr) {
+        console.error('[Monvian API Register First Insert Error]', insErr);
         const msg = String(insErr.message || '').toLowerCase();
         if (msg.includes('users_email_key') || (msg.includes('duplicate key') && msg.includes('email'))) {
           return res.status(409).json({
@@ -1152,8 +1536,9 @@ export default async function handler(req: any, res: any) {
         }
         const retrySuffix = Math.floor(1000 + Math.random() * 9000);
         const retryUsername = `${username.slice(0, 18)}${retrySuffix}`;
+        const { auth_id: _droppedAuthId, ...retryBase } = payload;
         const retryPayload = {
-          ...payload,
+          ...retryBase,
           username: retryUsername,
           username_normalized: retryUsername.toLowerCase(),
           whatsapp: cleanEmail,
@@ -1164,6 +1549,7 @@ export default async function handler(req: any, res: any) {
       }
 
       if (insErr || !inserted) {
+        console.error('[Monvian API Register Final Insert Error]', insErr);
         return res.status(500).json({
           success: false,
           error: sanitizeBackendAuthError(insErr, 'Não foi possível concluir o cadastro no momento.'),
@@ -1181,12 +1567,19 @@ export default async function handler(req: any, res: any) {
         } catch {}
       }
 
+      await writePersistedOnboardingFlags(cleanEmail, {
+        welcome_card_seen: 0,
+        globe_intro_seen: 0,
+        map_tutorial_status: 'pending',
+        map_tutorial_updated_at: null,
+      });
+
       setPersistentSessionCookie(req, res, token);
 
       return res.status(200).json({
         success: true,
         token,
-        user: formatSafeUser(inserted),
+        user: await enrichSafeUserWithOnboardingFlags(formatSafeUser(inserted)),
         isNewUser: true,
       });
     }
@@ -1207,37 +1600,27 @@ export default async function handler(req: any, res: any) {
       }
 
       if (method === 'POST') {
-        const { email, name, avatar_url, idToken, google_uid } = body || {};
-        let resolvedEmail = String(email || '').trim().toLowerCase();
-        let resolvedName = String(name || '').trim();
-        let resolvedAvatar = String(avatar_url || '').trim();
-        let resolvedUid = String(google_uid || '').trim();
+        const { name, avatar_url, idToken } = body || {};
 
-        // Verify Firebase ID Token via Identity Toolkit when provided
-        if (idToken && typeof idToken === 'string') {
-          const verified = await verifyFirebaseIdTokenServerless(idToken);
-          if (verified?.email) {
-            resolvedEmail = verified.email;
-            if (!resolvedName && verified.name) resolvedName = verified.name;
-            if (!resolvedAvatar && verified.avatarUrl) resolvedAvatar = verified.avatarUrl;
-            if (verified.uid) resolvedUid = verified.uid;
-          } else if (!resolvedEmail && idToken.includes('.')) {
-            try {
-              const parts = idToken.split('.');
-              const jwtPayload = JSON.parse(Buffer.from(parts[1], 'base64').toString('utf8'));
-              if (jwtPayload?.email) resolvedEmail = String(jwtPayload.email).trim().toLowerCase();
-              if (!resolvedName && jwtPayload?.name) resolvedName = String(jwtPayload.name).trim();
-              if (!resolvedAvatar && jwtPayload?.picture) resolvedAvatar = String(jwtPayload.picture).trim();
-            } catch {}
-          }
+        if (!idToken || typeof idToken !== 'string') {
+          return res.status(401).json({
+            success: false,
+            error: 'Não foi possível validar sua sessão do Google. Tente novamente.',
+          });
         }
 
-        if (!resolvedEmail || !resolvedEmail.includes('@')) {
-          return res.status(400).json({
+        // Verify Firebase ID Token via Identity Toolkit (authoritative email & identity)
+        const verified = await verifyFirebaseIdTokenServerless(idToken);
+        if (!verified?.email || !verified.email.includes('@')) {
+          return res.status(401).json({
             success: false,
             error: 'Não foi possível entrar com Google. Tente novamente.',
           });
         }
+
+        const resolvedEmail = verified.email;
+        const resolvedName = verified.name || String(name || '').trim();
+        const resolvedAvatar = verified.avatarUrl || String(avatar_url || '').trim();
 
         const nowIso = new Date().toISOString();
         let user = await findUserByEmailOrIdentifier(resolvedEmail);
@@ -1262,13 +1645,13 @@ export default async function handler(req: any, res: any) {
               ? resolvedAvatar
               : user.avatar_url || '/fotoperfil.png';
 
-          const { data: updatedRow } = await supabase
+          // IMPORTANT: Do not write Firebase UID into public.users.auth_id (UUID FK -> auth.users.id)
+          const { data: updatedRow, error: updErr } = await supabase
             .from('users')
             .update({
               name: updatedName,
               email: resolvedEmail,
               avatar_url: updatedAvatar,
-              auth_id: user.auth_id || resolvedUid || undefined,
               role,
               is_gold: isGold,
               is_premium: isGold,
@@ -1281,6 +1664,9 @@ export default async function handler(req: any, res: any) {
             .select()
             .single();
 
+          if (updErr) {
+            console.error('[Monvian API Google Update Error]', updErr);
+          }
           if (updatedRow) user = updatedRow;
         } else {
           isNewUser = true;
@@ -1291,6 +1677,7 @@ export default async function handler(req: any, res: any) {
             cleanName || resolvedEmail.split('@')[0]
           );
 
+          // IMPORTANT: Do not write Firebase UID into public.users.auth_id (UUID FK -> auth.users.id)
           const insertPayload: any = {
             name: cleanName,
             username,
@@ -1310,7 +1697,6 @@ export default async function handler(req: any, res: any) {
             created_at: nowIso,
             updated_at: nowIso,
           };
-          if (resolvedUid) insertPayload.auth_id = resolvedUid;
 
           const { data: createdRow, error: createErr } = await supabase
             .from('users')
@@ -1319,6 +1705,7 @@ export default async function handler(req: any, res: any) {
             .single();
 
           if (createErr) {
+            console.error('[Monvian API Google First Insert Error]', createErr);
             const retrySuffix = Math.floor(1000 + Math.random() * 9000);
             const retryUsername = `${username.slice(0, 18)}${retrySuffix}`;
             const { data: retryRow, error: retryErr } = await supabase
@@ -1332,6 +1719,7 @@ export default async function handler(req: any, res: any) {
               .single();
 
             if (retryErr || !retryRow) {
+              console.error('[Monvian API Google Final Insert Error]', retryErr || createErr);
               return res.status(500).json({
                 success: false,
                 error: sanitizeBackendAuthError(retryErr || createErr, 'Não foi possível entrar com Google. Tente novamente.'),
@@ -1354,12 +1742,21 @@ export default async function handler(req: any, res: any) {
           } catch {}
         }
 
+        if (isNewUser && resolvedEmail) {
+          await writePersistedOnboardingFlags(resolvedEmail, {
+            welcome_card_seen: 0,
+            globe_intro_seen: 0,
+            map_tutorial_status: 'pending',
+            map_tutorial_updated_at: null,
+          });
+        }
+
         setPersistentSessionCookie(req, res, token);
 
         return res.status(200).json({
           success: true,
           token,
-          user: formatSafeUser(user),
+          user: await enrichSafeUserWithOnboardingFlags(formatSafeUser(user)),
           isNewUser,
         });
       }
@@ -1381,7 +1778,6 @@ export default async function handler(req: any, res: any) {
           .from('users')
           .update({
             password_hash: hash,
-            auth_id: existing.auth_id || verified.uid || undefined,
             updated_at: new Date().toISOString(),
           })
           .eq('id', existing.id);
@@ -1492,20 +1888,104 @@ export default async function handler(req: any, res: any) {
 
       let updatedUser = currentUser;
       if (email) {
+        await writePersistedOnboardingFlags(email, { welcome_card_seen: 1 });
         try {
           const { data } = await supabase
             .from('users')
-            .update({ onboarding_completed: 1, updated_at: new Date().toISOString() })
+            .update({ welcome_card_seen: 1, updated_at: new Date().toISOString() })
             .ilike('email', email)
             .select()
             .maybeSingle();
-          if (data) updatedUser = formatSafeUser(data);
+          if (data) updatedUser = await enrichSafeUserWithOnboardingFlags(formatSafeUser(data));
         } catch {}
       }
 
       return res.status(200).json({
         success: true,
         user: updatedUser ? { ...updatedUser, welcome_card_seen: 1 } : null,
+      });
+    }
+
+    if (cleanPath === '/auth/globe-intro-seen' && method === 'POST') {
+      const currentUser = await getAuthUser(req);
+      const email = String(body?.email || currentUser?.email || body?.identifier || '')
+        .trim()
+        .toLowerCase();
+
+      if (!currentUser && !email) {
+        return res.status(401).json({ success: false, error: 'Não autenticado' });
+      }
+
+      let updatedUser = currentUser;
+      if (email) {
+        await writePersistedOnboardingFlags(email, { globe_intro_seen: 1 });
+        try {
+          const { data } = await supabase
+            .from('users')
+            .update({ globe_intro_seen: 1, updated_at: new Date().toISOString() })
+            .ilike('email', email)
+            .select()
+            .maybeSingle();
+          if (data) updatedUser = await enrichSafeUserWithOnboardingFlags(formatSafeUser(data));
+        } catch {}
+      }
+
+      return res.status(200).json({
+        success: true,
+        user: updatedUser ? { ...updatedUser, globe_intro_seen: 1 } : null,
+      });
+    }
+
+    if (cleanPath === '/user/map-tutorial' && method === 'GET') {
+      const currentUser = await getAuthUser(req, true);
+      if (!currentUser) {
+        return res.status(401).json({ success: false, error: 'Não autenticado' });
+      }
+      return res.status(200).json({
+        success: true,
+        status: currentUser.map_tutorial_status || 'completed',
+        updatedAt: currentUser.map_tutorial_updated_at || null,
+        user: currentUser,
+      });
+    }
+
+    if (cleanPath === '/user/map-tutorial' && method === 'POST') {
+      const currentUser = await getAuthUser(req, true);
+      if (!currentUser) {
+        return res.status(401).json({ success: false, error: 'Não autenticado' });
+      }
+      const rawStatus = String(body?.status || '').trim().toLowerCase();
+      if (rawStatus !== 'completed' && rawStatus !== 'skipped') {
+        return res.status(400).json({ success: false, error: 'Status inválido para tutorial.' });
+      }
+      const nowIso = new Date().toISOString();
+      const email = String(currentUser.email || currentUser.whatsapp || '').trim().toLowerCase();
+      if (email) {
+        await writePersistedOnboardingFlags(email, {
+          map_tutorial_status: rawStatus as 'completed' | 'skipped',
+          map_tutorial_updated_at: nowIso,
+        });
+        try {
+          await supabase
+            .from('users')
+            .update({
+              map_tutorial_status: rawStatus,
+              map_tutorial_updated_at: nowIso,
+              updated_at: nowIso,
+            })
+            .ilike('email', email);
+        } catch {}
+      }
+      const refreshedUser = {
+        ...currentUser,
+        map_tutorial_status: rawStatus,
+        map_tutorial_updated_at: nowIso,
+      };
+      return res.status(200).json({
+        success: true,
+        status: rawStatus,
+        updatedAt: nowIso,
+        user: refreshedUser,
       });
     }
 
@@ -1687,6 +2167,17 @@ export default async function handler(req: any, res: any) {
       } catch {}
 
       let updatedUser = currentUser;
+      if (markComplete) {
+        const existingFlags = await readPersistedOnboardingFlags(targetEmail);
+        if (!existingFlags) {
+          await writePersistedOnboardingFlags(targetEmail, {
+            welcome_card_seen: 0,
+            globe_intro_seen: 0,
+            map_tutorial_status: 'pending',
+            map_tutorial_updated_at: null,
+          });
+        }
+      }
       try {
         const { data: userRow } = await supabase
           .from('users')
@@ -1699,7 +2190,7 @@ export default async function handler(req: any, res: any) {
           .select()
           .maybeSingle();
         if (userRow) {
-          updatedUser = formatSafeUser(userRow);
+          updatedUser = await enrichSafeUserWithOnboardingFlags(formatSafeUser(userRow));
         }
       } catch {}
 
@@ -2330,35 +2821,294 @@ export default async function handler(req: any, res: any) {
     }
 
     // =========================================================================
-    // 6. MAP VISUAL ICONS
+    // 6. MAP VISUAL ICONS (Stop Icons — Schema-Resilient Supabase CRUD)
     // =========================================================================
-    if ((cleanPath === '/map-visual-icons' || cleanPath === '/admin/map-visual-icons') && method === 'GET') {
-      const { data, error } = await supabase.from('map_visual_icons').select('*');
-      if (error) return res.status(500).json({ success: false, error: error.message });
-      return res.status(200).json({ success: true, icons: data || [] });
+    const isMissingColumnError = (err: any): string | null => {
+      const msg = String(err?.message || err?.details || '');
+      const cacheMatch = msg.match(/Could not find the '([^']+)' column/i);
+      if (cacheMatch?.[1]) return cacheMatch[1];
+      const pgMatch = msg.match(/column\s+"?([a-zA-Z0-9_]+)"?\s+of\s+relation\s+"?map_visual_icons"?\s+does not exist/i);
+      if (pgMatch?.[1]) return pgMatch[1];
+      const genericPg = msg.match(/column\s+map_visual_icons\.([a-zA-Z0-9_]+)\s+does not exist/i);
+      if (genericPg?.[1]) return genericPg[1];
+      return null;
+    };
+
+    const normalizeStopIconPayload = (raw: any, existingId?: string) => {
+      const cleanName = String(raw?.name ?? '').trim().slice(0, 120);
+      const cleanCategory = String(raw?.category ?? '').trim().slice(0, 80);
+      const cleanIcon = String(raw?.icon ?? cleanCategory ?? 'map-pin').trim().slice(0, 80);
+      const rawColor = String(raw?.color ?? '').trim();
+      const cleanColor = /^#[0-9A-Fa-f]{6}$/.test(rawColor) ? rawColor.toUpperCase() : '#1668FF';
+      const lat = Number(raw?.latitude);
+      const lng = Number(raw?.longitude);
+      const isActive =
+        raw?.is_active !== undefined ? (Number(raw.is_active) === 0 ? 0 : 1) : 1;
+
+      if (!cleanCategory || !Number.isFinite(lat) || !Number.isFinite(lng) || Math.abs(lat) > 90 || Math.abs(lng) > 180) {
+        return { error: 'Categoria, latitude e longitude válidas são obrigatórias.' } as const;
+      }
+
+      const id =
+        existingId ||
+        (typeof raw?.id === 'string' && raw.id.trim().length > 0
+          ? raw.id.trim().slice(0, 80)
+          : `mvi_${Date.now()}_${crypto.randomBytes(4).toString('hex')}`);
+
+      const nowIso = new Date().toISOString();
+      return {
+        id,
+        name: cleanName || cleanCategory,
+        category: cleanCategory,
+        icon: cleanIcon || 'map-pin',
+        color: cleanColor,
+        latitude: Number(lat.toFixed(6)),
+        longitude: Number(lng.toFixed(6)),
+        is_active: isActive,
+        created_at: nowIso,
+        updated_at: nowIso,
+      } as const;
+    };
+
+    const ensureStopIconAdmin = async (): Promise<boolean> => {
+      const authUser = await getAuthUser(req, false);
+      if (authUser && (authUser.role === 'admin' || authUser.role === 'superadmin' || isPrimaryAdmin(authUser.email))) {
+        return true;
+      }
+      const token = extractRequestToken(req);
+      if (token) {
+        try {
+          const fbCfg = getFirebaseConfigServerless();
+          const fbUser = await verifyFirebaseIdTokenWithPublicCerts(token, fbCfg.projectId);
+          if (fbUser?.email) {
+            if (isPrimaryAdmin(fbUser.email)) return true;
+            const dbUser = await findUserByEmailOrIdentifier(fbUser.email);
+            if (dbUser && (dbUser.role === 'admin' || dbUser.role === 'superadmin')) return true;
+          }
+        } catch {}
+      }
+      return false;
+    };
+
+    if (cleanPath === '/map-visual-icons' && method === 'GET') {
+      res.setHeader('Cache-Control', 'public, s-maxage=10, stale-while-revalidate=60');
+      let result = await supabase
+        .from('map_visual_icons')
+        .select('*')
+        .eq('is_active', 1)
+        .order('created_at', { ascending: false });
+      if (result.error && isMissingColumnError(result.error)) {
+        result = await supabase.from('map_visual_icons').select('*').eq('is_active', 1);
+      }
+      if (result.error) return res.status(500).json({ success: false, error: result.error.message });
+      return res.status(200).json({ success: true, icons: result.data || [] });
+    }
+
+    if (cleanPath === '/admin/map-visual-icons' && method === 'GET') {
+      if (!(await ensureStopIconAdmin())) {
+        return res.status(403).json({ success: false, error: 'Acesso administrativo obrigatório.' });
+      }
+      let result = await supabase
+        .from('map_visual_icons')
+        .select('*')
+        .order('created_at', { ascending: false });
+      if (result.error && isMissingColumnError(result.error)) {
+        result = await supabase.from('map_visual_icons').select('*');
+      }
+      if (result.error) return res.status(500).json({ success: false, error: result.error.message });
+      return res.status(200).json({ success: true, icons: result.data || [] });
     }
 
     if (cleanPath === '/admin/map-visual-icons' && method === 'POST') {
-      const { data, error } = await supabase
-        .from('map_visual_icons')
-        .insert(body)
-        .select()
-        .single();
-      if (error) return res.status(500).json({ success: false, error: error.message });
-      return res.status(200).json({ success: true, icon: data });
+      if (!(await ensureStopIconAdmin())) {
+        return res.status(403).json({ success: false, error: 'Acesso administrativo obrigatório.' });
+      }
+      const parsed = normalizeStopIconPayload(body);
+      if ('error' in parsed) {
+        return res.status(400).json({ success: false, error: parsed.error });
+      }
+
+      const attemptRow: Record<string, any> = { ...parsed };
+      let savedData: any = null;
+      let lastError: any = null;
+
+      for (let i = 0; i < 6; i++) {
+        const { data, error } = await supabase
+          .from('map_visual_icons')
+          .insert(attemptRow)
+          .select()
+          .single();
+        if (!error) {
+          savedData = data;
+          lastError = null;
+          break;
+        }
+        lastError = error;
+        const missingCol = isMissingColumnError(error);
+        if (missingCol && missingCol in attemptRow) {
+          delete attemptRow[missingCol];
+          continue;
+        }
+        break;
+      }
+
+      if (lastError) {
+        return res.status(500).json({ success: false, error: lastError.message });
+      }
+
+      const hydratedIcon = {
+        ...parsed,
+        ...(savedData || {}),
+        name: savedData?.name || parsed.name,
+        icon: savedData?.icon || parsed.icon,
+        color: savedData?.color || parsed.color,
+      };
+      return res.status(200).json({ success: true, icon: hydratedIcon });
+    }
+
+    if (
+      cleanPath.startsWith('/admin/map-visual-icons/') &&
+      !cleanPath.endsWith('/toggle-active') &&
+      method === 'PUT'
+    ) {
+      if (!(await ensureStopIconAdmin())) {
+        return res.status(403).json({ success: false, error: 'Acesso administrativo obrigatório.' });
+      }
+      const id = decodeURIComponent(cleanPath.replace('/admin/map-visual-icons/', '')).trim();
+      if (!id) {
+        return res.status(400).json({ success: false, error: 'ID inválido.' });
+      }
+      const parsed = normalizeStopIconPayload(body, id);
+      if ('error' in parsed) {
+        return res.status(400).json({ success: false, error: parsed.error });
+      }
+
+      const attemptRow: Record<string, any> = {
+        name: parsed.name,
+        category: parsed.category,
+        icon: parsed.icon,
+        color: parsed.color,
+        latitude: parsed.latitude,
+        longitude: parsed.longitude,
+        is_active: parsed.is_active,
+        updated_at: parsed.updated_at,
+      };
+      let savedData: any = null;
+      let lastError: any = null;
+
+      for (let i = 0; i < 6; i++) {
+        const { data, error } = await supabase
+          .from('map_visual_icons')
+          .update(attemptRow)
+          .eq('id', id)
+          .select()
+          .maybeSingle();
+        if (!error) {
+          savedData = data;
+          lastError = null;
+          break;
+        }
+        lastError = error;
+        const missingCol = isMissingColumnError(error);
+        if (missingCol && missingCol in attemptRow) {
+          delete attemptRow[missingCol];
+          continue;
+        }
+        break;
+      }
+
+      if (lastError) {
+        return res.status(500).json({ success: false, error: lastError.message });
+      }
+
+      // If icon existed only in Firestore and not yet in Supabase, upsert it cleanly
+      if (!savedData) {
+        const insertAttempt: Record<string, any> = { ...parsed };
+        for (let i = 0; i < 6; i++) {
+          const { data, error } = await supabase
+            .from('map_visual_icons')
+            .upsert(insertAttempt, { onConflict: 'id' })
+            .select()
+            .maybeSingle();
+          if (!error) {
+            savedData = data;
+            break;
+          }
+          const missingCol = isMissingColumnError(error);
+          if (missingCol && missingCol in insertAttempt) {
+            delete insertAttempt[missingCol];
+            continue;
+          }
+          return res.status(500).json({ success: false, error: error.message });
+        }
+      }
+
+      const hydratedIcon = {
+        ...parsed,
+        ...(savedData || {}),
+        id,
+        name: savedData?.name || parsed.name,
+        icon: savedData?.icon || parsed.icon,
+        color: savedData?.color || parsed.color,
+      };
+      return res.status(200).json({ success: true, icon: hydratedIcon });
     }
 
     if (cleanPath.startsWith('/admin/map-visual-icons/') && cleanPath.endsWith('/toggle-active') && method === 'PATCH') {
-      const id = cleanPath.replace('/admin/map-visual-icons/', '').replace('/toggle-active', '');
-      const { data: existing } = await supabase.from('map_visual_icons').select('is_active').eq('id', id).single();
-      const newStatus = existing?.is_active === 1 ? 0 : 1;
-      const { error } = await supabase.from('map_visual_icons').update({ is_active: newStatus }).eq('id', id);
-      if (error) return res.status(500).json({ success: false, error: error.message });
-      return res.status(200).json({ success: true, is_active: newStatus });
+      if (!(await ensureStopIconAdmin())) {
+        return res.status(403).json({ success: false, error: 'Acesso administrativo obrigatório.' });
+      }
+      const id = decodeURIComponent(
+        cleanPath.replace('/admin/map-visual-icons/', '').replace('/toggle-active', '')
+      ).trim();
+      const { data: existing } = await supabase
+        .from('map_visual_icons')
+        .select('*')
+        .eq('id', id)
+        .maybeSingle();
+      const newStatus = existing && Number(existing.is_active ?? 1) === 1 ? 0 : 1;
+
+      const attemptUpdate: Record<string, any> = {
+        is_active: newStatus,
+        updated_at: new Date().toISOString(),
+      };
+      let updatedRow: any = null;
+      let lastError: any = null;
+
+      for (let i = 0; i < 3; i++) {
+        const { data, error } = await supabase
+          .from('map_visual_icons')
+          .update(attemptUpdate)
+          .eq('id', id)
+          .select()
+          .maybeSingle();
+        if (!error) {
+          updatedRow = data;
+          lastError = null;
+          break;
+        }
+        lastError = error;
+        const missingCol = isMissingColumnError(error);
+        if (missingCol && missingCol in attemptUpdate) {
+          delete attemptUpdate[missingCol];
+          continue;
+        }
+        break;
+      }
+
+      if (lastError) return res.status(500).json({ success: false, error: lastError.message });
+      return res.status(200).json({
+        success: true,
+        is_active: newStatus,
+        icon: updatedRow || (existing ? { ...existing, is_active: newStatus } : { id, is_active: newStatus }),
+      });
     }
 
     if (cleanPath.startsWith('/admin/map-visual-icons/') && method === 'DELETE') {
-      const id = cleanPath.replace('/admin/map-visual-icons/', '');
+      if (!(await ensureStopIconAdmin())) {
+        return res.status(403).json({ success: false, error: 'Acesso administrativo obrigatório.' });
+      }
+      const id = decodeURIComponent(cleanPath.replace('/admin/map-visual-icons/', '')).trim();
       const { error } = await supabase.from('map_visual_icons').delete().eq('id', id);
       if (error) return res.status(500).json({ success: false, error: error.message });
       return res.status(200).json({ success: true });
@@ -2443,6 +3193,219 @@ export default async function handler(req: any, res: any) {
       const { error } = await supabase.from('users').delete().eq('id', id);
       if (error) return res.status(500).json({ success: false, error: error.message });
       return res.status(200).json({ success: true });
+    }
+
+    // =========================================================================
+    // 8B. ADMIN FINANCIAL DASHBOARD & PLÁTANOS MANAGEMENT (VERCEL)
+    // =========================================================================
+    const resolveAdminUserServerless = async (): Promise<{ id: any; email: string } | null> => {
+      const queryToken = String(url.searchParams.get('token') || '').trim();
+      const effectiveReq =
+        !extractRequestToken(req) && queryToken
+          ? {
+              ...req,
+              headers: {
+                ...(req.headers || {}),
+                authorization: `Bearer ${queryToken}`,
+              },
+            }
+          : req;
+
+      const authUser = await getAuthUser(effectiveReq, false);
+      if (
+        authUser &&
+        (authUser.role === 'admin' || authUser.role === 'superadmin' || isPrimaryAdmin(authUser.email))
+      ) {
+        return {
+          id: authUser.id || 1,
+          email: String(authUser.email || 'admin@monvian.com').trim().toLowerCase(),
+        };
+      }
+
+      const token = extractRequestToken(effectiveReq);
+      if (token) {
+        try {
+          const fbCfg = getFirebaseConfigServerless();
+          const fbUser = await verifyFirebaseIdTokenWithPublicCerts(token, fbCfg.projectId);
+          if (fbUser?.email) {
+            const dbUser = await findUserByEmailOrIdentifier(fbUser.email);
+            if (
+              isPrimaryAdmin(fbUser.email) ||
+              (dbUser && (dbUser.role === 'admin' || dbUser.role === 'superadmin'))
+            ) {
+              return {
+                id: dbUser?.id || 1,
+                email: fbUser.email.trim().toLowerCase(),
+              };
+            }
+          }
+        } catch {}
+      }
+      return null;
+    };
+
+    const getServerlessFinanceContext = (): ServerlessFinanceContext => {
+      const fbCfg = getFirebaseConfigServerless();
+      return {
+        supabase,
+        defaultPackages: DEFAULT_PLATANOS_PACKAGES,
+        getStripeClient: getStripeClientServerless,
+        getPackages: getPlatanosPackagesServerless,
+        getItineraryPrices: getItineraryPricesServerless,
+        firebaseConfig: {
+          projectId: fbCfg.projectId,
+          apiKey: fbCfg.apiKey,
+          databaseId: 'ai-studio-monvian-57f74cb5-b162-47d6-acac-3774c885a8c4',
+        },
+      };
+    };
+
+    if (cleanPath === '/admin/dashboard/financial' && method === 'GET') {
+      const admin = await resolveAdminUserServerless();
+      if (!admin) {
+        return res.status(403).json({ success: false, error: 'Acesso administrativo obrigatório.' });
+      }
+      const period = String(url.searchParams.get('period') || '7d').trim();
+      const startDate = String(url.searchParams.get('startDate') || '').trim();
+      const endDate = String(url.searchParams.get('endDate') || '').trim();
+      const syncFlag = String(url.searchParams.get('sync') || '').trim();
+      const forceSync = syncFlag === '1' || syncFlag === 'true';
+
+      const payload = await getFinancialDashboardMetricsServerless(getServerlessFinanceContext(), {
+        period,
+        startDate,
+        endDate,
+        forceSync,
+      });
+      return res.status(200).json(payload);
+    }
+
+    if (cleanPath === '/admin/dashboard/financial/sync' && method === 'POST') {
+      const admin = await resolveAdminUserServerless();
+      if (!admin) {
+        return res.status(403).json({ success: false, error: 'Acesso administrativo obrigatório.' });
+      }
+      const period = String(body?.period || url.searchParams.get('period') || '7d').trim();
+      const startDate = String(body?.startDate || url.searchParams.get('startDate') || '').trim();
+      const endDate = String(body?.endDate || url.searchParams.get('endDate') || '').trim();
+
+      const payload = await getFinancialDashboardMetricsServerless(getServerlessFinanceContext(), {
+        period,
+        startDate,
+        endDate,
+        forceSync: true,
+      });
+      return res.status(200).json(payload);
+    }
+
+    if (cleanPath === '/admin/dashboard/financial/stream' && method === 'GET') {
+      const admin = await resolveAdminUserServerless();
+      if (!admin) {
+        return res.status(403).json({ success: false, error: 'Acesso administrativo obrigatório.' });
+      }
+      res.setHeader('Content-Type', 'text/event-stream; charset=utf-8');
+      res.setHeader('Cache-Control', 'no-cache, no-transform');
+      res.setHeader('Connection', 'keep-alive');
+      res.setHeader('X-Accel-Buffering', 'no');
+      if (typeof res.flushHeaders === 'function') {
+        res.flushHeaders();
+      }
+      res.write(`event: connected\ndata: ${JSON.stringify({ ok: true, ts: Date.now() })}\n\n`);
+      if (typeof res.flush === 'function') res.flush();
+
+      await new Promise<void>((resolve) => {
+        const timer = setTimeout(() => {
+          if (!res.writableEnded) {
+            res.write(`event: heartbeat\ndata: ${JSON.stringify({ ts: Date.now() })}\n\n`);
+            res.end();
+          }
+          resolve();
+        }, 12000);
+        if (typeof req?.on === 'function') {
+          req.on('close', () => {
+            clearTimeout(timer);
+            resolve();
+          });
+        }
+      });
+      return;
+    }
+
+    if (cleanPath === '/admin/platanos/overview' && method === 'GET') {
+      const admin = await resolveAdminUserServerless();
+      if (!admin) {
+        return res.status(403).json({ success: false, error: 'Acesso administrativo obrigatório.' });
+      }
+      const overview = await getPlatanosOverviewServerless(getServerlessFinanceContext());
+      return res.status(200).json(overview);
+    }
+
+    if (cleanPath.startsWith('/admin/platanos/packages/') && method === 'PUT') {
+      const admin = await resolveAdminUserServerless();
+      if (!admin) {
+        return res.status(403).json({ success: false, error: 'Acesso administrativo obrigatório.' });
+      }
+      const pkgId = decodeURIComponent(cleanPath.replace('/admin/platanos/packages/', '')).trim();
+      const result = await updatePlatanosPackageServerless(getServerlessFinanceContext(), admin, pkgId, body);
+      return res.status(result.status).json(result.payload);
+    }
+
+    if (
+      cleanPath.startsWith('/admin/platanos/itineraries/') &&
+      cleanPath.endsWith('/price') &&
+      method === 'PUT'
+    ) {
+      const admin = await resolveAdminUserServerless();
+      if (!admin) {
+        return res.status(403).json({ success: false, error: 'Acesso administrativo obrigatório.' });
+      }
+      const itineraryId = decodeURIComponent(
+        cleanPath.replace('/admin/platanos/itineraries/', '').replace('/price', '')
+      ).trim();
+      const result = await updateItineraryPriceServerless(
+        getServerlessFinanceContext(),
+        admin,
+        itineraryId,
+        body
+      );
+      return res.status(result.status).json(result.payload);
+    }
+
+    if (
+      cleanPath.startsWith('/admin/platanos/wallets/') &&
+      cleanPath.endsWith('/adjust') &&
+      method === 'POST'
+    ) {
+      const admin = await resolveAdminUserServerless();
+      if (!admin) {
+        return res.status(403).json({ success: false, error: 'Acesso administrativo obrigatório.' });
+      }
+      const targetUserParam = decodeURIComponent(
+        cleanPath.replace('/admin/platanos/wallets/', '').replace('/adjust', '')
+      ).trim();
+      const result = await adjustPlatanosWalletServerless(
+        getServerlessFinanceContext(),
+        admin,
+        targetUserParam,
+        body
+      );
+      return res.status(result.status).json(result.payload);
+    }
+
+    if (
+      cleanPath.startsWith('/admin/platanos/orders/') &&
+      cleanPath.endsWith('/refund') &&
+      method === 'POST'
+    ) {
+      const admin = await resolveAdminUserServerless();
+      if (!admin) {
+        return res.status(403).json({ success: false, error: 'Acesso administrativo obrigatório.' });
+      }
+      const sessionId = decodeURIComponent(
+        cleanPath.replace('/admin/platanos/orders/', '').replace('/refund', '')
+      ).trim();
+      const result = await refundPlatanosOrderServerless(getServerlessFinanceContext(), admin, sessionId);
+      return res.status(result.status).json(result.payload);
     }
 
     // =========================================================================
@@ -2778,7 +3741,10 @@ export default async function handler(req: any, res: any) {
         ...(wallet.transactions || []),
       ].slice(0, 100);
 
-      await saveUserPlatanosWallet(wallet);
+      await Promise.all([
+        saveUserPlatanosWallet(wallet),
+        invalidateStripeSnapshotCacheServerless(supabase),
+      ]);
 
       return res.status(200).json({
         success: true,
@@ -2809,10 +3775,13 @@ export default async function handler(req: any, res: any) {
         }
         const userEmail = (session?.metadata?.userEmail || session?.customer_email || '').trim().toLowerCase();
         if (userEmail && session?.payment_status === 'paid') {
-          await supabase
-            .from('users')
-            .update({ is_gold: 1, plan: 'gold', is_premium: 1, updated_at: new Date().toISOString() })
-            .eq('email', userEmail);
+          await Promise.all([
+            supabase
+              .from('users')
+              .update({ is_gold: 1, plan: 'gold', is_premium: 1, updated_at: new Date().toISOString() })
+              .eq('email', userEmail),
+            invalidateStripeSnapshotCacheServerless(supabase),
+          ]);
         }
       }
       return res.status(200).json({ received: true });
@@ -2892,15 +3861,296 @@ export default async function handler(req: any, res: any) {
         if (session && session.payment_status === 'paid') {
           const userEmail = (session.metadata?.userEmail || session.customer_email || '').trim().toLowerCase();
           if (userEmail) {
-            await supabase
-              .from('users')
-              .update({ is_gold: 1, plan: 'gold', is_premium: 1, updated_at: new Date().toISOString() })
-              .eq('email', userEmail);
+            await Promise.all([
+              supabase
+                .from('users')
+                .update({ is_gold: 1, plan: 'gold', is_premium: 1, updated_at: new Date().toISOString() })
+                .eq('email', userEmail),
+              invalidateStripeSnapshotCacheServerless(supabase),
+            ]);
           }
           return res.status(200).json({ success: true, plan: 'gold', isGold: true });
         }
       }
       return res.status(200).json({ success: false, status: 'pending' });
+    }
+
+    // =========================================================================
+    // 12. MONVIAN AI ASSISTANT (GOOGLE GEMINI SERVER-SIDE ENGINE)
+    // =========================================================================
+    if (cleanPath === '/assistant/health' && method === 'GET') {
+      const hasKey = Boolean(String(process.env.GEMINI_API_KEY || '').trim());
+      return res.status(200).json({
+        ok: hasKey,
+        provider: 'google-gemini',
+        model: PRIMARY_GEMINI_MODEL,
+        configured: hasKey,
+      });
+    }
+
+    if (cleanPath === '/assistant/history' && method === 'GET') {
+      const userKey = String(
+        url.searchParams.get('userKey') || req.headers['x-monvian-user-id'] || 'guest_anonymous'
+      )
+        .trim()
+        .slice(0, 128);
+      const settingKey = `assistant_conv_${userKey}`;
+      try {
+        const { data } = await supabase
+          .from('system_settings')
+          .select('value')
+          .eq('key', settingKey)
+          .limit(1);
+        if (data && data.length > 0 && data[0].value) {
+          const parsed = JSON.parse(data[0].value);
+          return res.status(200).json({
+            conversationId: parsed?.conversationId || null,
+            messages: Array.isArray(parsed?.messages) ? parsed.messages.slice(-60) : [],
+          });
+        }
+      } catch {}
+      return res.status(200).json({ conversationId: null, messages: [] });
+    }
+
+    if (cleanPath === '/assistant/reset' && method === 'POST') {
+      const userKey = String(
+        body?.userKey || req.headers['x-monvian-user-id'] || 'guest_anonymous'
+      )
+        .trim()
+        .slice(0, 128);
+      const newConvId = `conv_${crypto.randomUUID()}`;
+      const settingKey = `assistant_conv_${userKey}`;
+      try {
+        await supabase.from('system_settings').upsert(
+          {
+            key: settingKey,
+            value: JSON.stringify({ conversationId: newConvId, messages: [] }),
+            updated_at: new Date().toISOString(),
+          },
+          { onConflict: 'key' }
+        );
+      } catch {}
+      return res.status(200).json({ conversationId: newConvId, messages: [] });
+    }
+
+    if (cleanPath === '/assistant/chat' && method === 'POST') {
+      const userMessage = String(body?.message || '').trim();
+      if (!userMessage) {
+        return res.status(400).json({
+          code: 'INVALID_REQUEST',
+          message: 'Digite uma mensagem antes de enviar.',
+          retryable: false,
+        });
+      }
+
+      const userKey = String(
+        body?.userKey || req.headers['x-monvian-user-id'] || 'guest_anonymous'
+      )
+        .trim()
+        .slice(0, 128);
+      const userName = String(body?.userName || '').trim() || undefined;
+      const pendingStyleFromClient = String(body?.pendingItineraryStyle || '').trim();
+      const userLocation =
+        body?.userLocation &&
+        Number.isFinite(Number(body.userLocation.lat)) &&
+        Number.isFinite(Number(body.userLocation.lng))
+          ? { lat: Number(body.userLocation.lat), lng: Number(body.userLocation.lng) }
+          : null;
+
+      res.setHeader('Content-Type', 'text/event-stream; charset=utf-8');
+      res.setHeader('Cache-Control', 'no-cache, no-transform');
+      res.setHeader('Connection', 'keep-alive');
+      res.setHeader('X-Accel-Buffering', 'no');
+      if (typeof res.flushHeaders === 'function') {
+        res.flushHeaders();
+      }
+
+      const sendEvent = (event: string, data: any) => {
+        if (res.writableEnded) return;
+        res.write(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`);
+        if (typeof res.flush === 'function') res.flush();
+      };
+
+      const heartbeat = setInterval(() => {
+        if (!res.writableEnded) {
+          res.write(`: keep-alive\n\n`);
+          if (typeof res.flush === 'function') res.flush();
+        }
+      }, 4000);
+
+      try {
+        const settingKey = `assistant_conv_${userKey}`;
+        let storedConvId = String(body?.conversationId || '').trim() || `conv_${crypto.randomUUID()}`;
+        let storedMessages: any[] = [];
+
+        try {
+          const { data } = await supabase
+            .from('system_settings')
+            .select('value')
+            .eq('key', settingKey)
+            .limit(1);
+          if (data && data.length > 0 && data[0].value) {
+            const parsed = JSON.parse(data[0].value);
+            if (parsed?.conversationId && (!body?.conversationId || parsed.conversationId === body.conversationId)) {
+              storedConvId = String(parsed.conversationId);
+              storedMessages = Array.isArray(parsed.messages) ? parsed.messages : [];
+            }
+          }
+        } catch {}
+
+        // Use client-provided compact history fallback if serverless storage was empty
+        const clientHistory: AssistantHistoryTurn[] = Array.isArray(body?.history)
+          ? body.history
+              .slice(-12)
+              .map((h: any) => ({
+                role: h?.role === 'user' ? 'user' : 'assistant',
+                content: String(h?.content || ''),
+              }))
+              .filter((h: AssistantHistoryTurn) => h.content.trim().length > 0)
+          : [];
+
+        const history: AssistantHistoryTurn[] =
+          storedMessages.length > 0
+            ? storedMessages.slice(-12).map((m: any) => ({
+                role: m.role === 'user' ? 'user' : 'assistant',
+                content: String(m.content || ''),
+              }))
+            : clientHistory;
+
+        const userMsgId = `msg_${crypto.randomUUID()}`;
+        sendEvent('meta', { conversationId: storedConvId, userMessageId: userMsgId });
+
+        // Build live Monvian RAG knowledge base from Supabase (with CAMPOS_SPOTS fallback)
+        let activeSpots = CAMPOS_SPOTS.map((s) => ({
+          id: String(s.id),
+          name: s.name,
+          category: s.category,
+          categoryLabel: s.categoryLabel,
+          address: s.address,
+          priceRange: s.priceRange || '$$',
+          price: s.price,
+          rating: s.rating,
+          hours: s.hours,
+          description: s.description,
+          touristTip: s.touristTip,
+          lat: s.lat,
+          lng: s.lng,
+          image: s.image,
+          highlighted: Boolean(s.highlighted),
+        }));
+
+        try {
+          const { data: dbSpots } = await supabase
+            .from('spots')
+            .select('*')
+            .neq('is_active', 0)
+            .limit(60);
+          if (Array.isArray(dbSpots) && dbSpots.length > 0) {
+            activeSpots = dbSpots.map((r: any) => ({
+              id: String(r.id),
+              name: String(r.name || ''),
+              category: String(r.category || 'culture') as typeof activeSpots[number]['category'],
+              categoryLabel: String(r.category_label || r.categoryLabel || r.category || ''),
+              address: String(r.address || 'Campos do Jordão, SP'),
+              priceRange: String(r.price_range || r.priceRange || '$$') as typeof activeSpots[number]['priceRange'],
+              price: String(r.price || ''),
+              rating: Number(r.rating) || 4.8,
+              hours: String(r.hours || ''),
+              description: String(r.description || ''),
+              touristTip: String(r.tourist_tip || r.touristTip || ''),
+              lat: Number(r.lat) || -22.7192,
+              lng: Number(r.lng) || -45.5669,
+              image: String(r.image || ''),
+              highlighted: Boolean(r.highlighted || r.is_star),
+            }));
+          }
+        } catch {}
+
+        const knowledge: GeminiAssistantKnowledge = {
+          spots: activeSpots,
+          itineraries: DEFAULT_CURATED_ITINERARIES.slice(0, 8).map((it: any) => ({
+            id: String(it.id),
+            title: String(it.title || ''),
+            subtitle: String(it.subtitle || it.description || ''),
+            category: String(it.category || it.tag || 'Experiência'),
+            duration: String(it.duration || `${it.days?.length || 1} dia(s)`),
+            stopsCount: Number(it.stopsCount || it.days?.[0]?.steps?.length || 3),
+            description: String(it.description || ''),
+          })),
+          events: [],
+        };
+
+        const result = await runGeminiAssistantTurn({
+          apiKey: String(process.env.GEMINI_API_KEY || ''),
+          userMessage,
+          history,
+          knowledge,
+          userName,
+          pendingItineraryStyle: pendingStyleFromClient || undefined,
+          userLocation,
+          onTextDelta: (delta) => {
+            sendEvent('delta', { text: delta });
+          },
+        });
+
+        if (result.action) {
+          sendEvent('action', result.action);
+        }
+
+        const assistantMsgId = `msg_${crypto.randomUUID()}`;
+        const updatedMessages = [
+          ...storedMessages,
+          { id: userMsgId, role: 'user', content: userMessage, createdAt: new Date().toISOString() },
+          {
+            id: assistantMsgId,
+            role: 'assistant',
+            content: result.text,
+            metadata: result.action ? { action: result.action } : undefined,
+            createdAt: new Date().toISOString(),
+          },
+        ].slice(-40);
+
+        try {
+          await supabase.from('system_settings').upsert(
+            {
+              key: settingKey,
+              value: JSON.stringify({ conversationId: storedConvId, messages: updatedMessages }),
+              updated_at: new Date().toISOString(),
+            },
+            { onConflict: 'key' }
+          );
+        } catch {}
+
+        sendEvent('done', {
+          messageId: assistantMsgId,
+          conversationId: storedConvId,
+          content: result.text,
+          action: result.action,
+          model: result.modelUsed,
+        });
+      } catch (err: any) {
+        const classified: ClassifiedAssistantError =
+          err && typeof err === 'object' && 'code' in err && 'userMessage' in err
+            ? (err as ClassifiedAssistantError)
+            : classifyGeminiError(err);
+
+        console.error(
+          `[Monvian Serverless Assistant Error] [${classified.code}]`,
+          classified.technicalDetail
+        );
+
+        sendEvent('error', {
+          code: classified.code,
+          message: classified.userMessage,
+          retryable: classified.retryable,
+        });
+      } finally {
+        clearInterval(heartbeat);
+        if (!res.writableEnded) {
+          res.end();
+        }
+      }
+      return;
     }
 
     return res.status(404).json({ success: false, error: `Route ${cleanPath} not found`, message: `Route ${cleanPath} not found` });

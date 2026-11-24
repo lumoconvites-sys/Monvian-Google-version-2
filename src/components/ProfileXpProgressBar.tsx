@@ -2,6 +2,7 @@ import React, { useEffect } from 'react';
 import { motion } from 'motion/react';
 import { useMonvianXp } from '../hooks/useMonvianXp';
 import { monvianXpManager } from '../services/xpService';
+import { useLanguage } from '../contexts/LanguageContext';
 
 interface ProfileXpProgressBarProps {
   isDark?: boolean;
@@ -9,6 +10,7 @@ interface ProfileXpProgressBarProps {
 
 export const ProfileXpProgressBar: React.FC<ProfileXpProgressBarProps> = ({ isDark = false }) => {
   const xpState = useMonvianXp();
+  const { tr } = useLanguage();
 
   useEffect(() => {
     monvianXpManager.fetchProfile().catch(() => {});
@@ -69,7 +71,7 @@ export const ProfileXpProgressBar: React.FC<ProfileXpProgressBarProps> = ({ isDa
           <div className="flex items-center gap-2 min-w-0">
             <img
               src="https://gxyqrwebnkbgxqrfdvuj.supabase.co/storage/v1/object/public/monvian-media/app-assets/xp-badge-icon-1209b807e34e68a6.webp"
-              alt="Troféu"
+              alt={tr('Troféu')}
               loading="lazy"
               decoding="async"
               referrerPolicy="no-referrer"
@@ -80,7 +82,7 @@ export const ProfileXpProgressBar: React.FC<ProfileXpProgressBarProps> = ({ isDa
                 isDark ? 'text-white' : 'text-zinc-950'
               }`}
             >
-              {`Nível ${currentLevel} · ${levelTitle}`}
+              {tr(`Nível ${currentLevel} · ${levelTitle}`)}
             </span>
           </div>
 
@@ -92,7 +94,7 @@ export const ProfileXpProgressBar: React.FC<ProfileXpProgressBarProps> = ({ isDa
             >
               {totalXp.toLocaleString()}{' '}
               <span className="text-zinc-400 font-semibold text-[11.5px]">
-                {isMaxLevel ? 'XP · MÁX' : `/ ${tierGoal.toLocaleString()} XP`}
+                {isMaxLevel ? tr('XP · MÁX') : `/ ${tierGoal.toLocaleString()} XP`}
               </span>
             </span>
           </div>
@@ -107,7 +109,7 @@ export const ProfileXpProgressBar: React.FC<ProfileXpProgressBarProps> = ({ isDa
           {/* Animated Gradient Fill Bar with explicit h-full and fluid spring animation */}
           <motion.div
             className="h-full rounded-full bg-gradient-to-r from-[#0066FF] via-[#2F80ED] to-[#00A3FF] relative overflow-hidden"
-            initial={{ width: `${fillPercentage}%` }}
+            initial={false}
             animate={{ width: `${fillPercentage}%` }}
             transition={{ type: 'spring', stiffness: 210, damping: 24 }}
             style={{
@@ -120,12 +122,12 @@ export const ProfileXpProgressBar: React.FC<ProfileXpProgressBarProps> = ({ isDa
         {/* Bottom Micro Hint */}
         <div className="flex items-center justify-between text-[11px] font-medium text-zinc-500 dark:text-zinc-400 mt-2">
           <span>
-            {`${placesDiscoveredCount} ${placesDiscoveredCount === 1 ? 'lugar descoberto' : 'lugares descobertos'}`}
+            {tr(`${placesDiscoveredCount} ${placesDiscoveredCount === 1 ? 'lugar descoberto' : 'lugares descobertos'}`)}
           </span>
           <span>
             {isMaxLevel || xpRemaining <= 0
-              ? 'Todos os pontos explorados · Nível máximo!'
-              : `Faltam ${xpRemaining} XP para o próximo nível`}
+              ? tr('Todos os pontos explorados · Nível máximo!')
+              : tr(`Faltam ${xpRemaining} XP para o próximo nível`)}
           </span>
         </div>
       </div>

@@ -5,6 +5,10 @@ import '../../utils/configureMaplibre';
 import { Search, MapPin, ZoomIn, ZoomOut, Compass, Layers } from 'lucide-react';
 import { playPinTapSound } from '../../utils/sound';
 import { Spot } from '../../types';
+import {
+  renderLucideIntoContainer,
+  sanitizeHexColor,
+} from '../../utils/mapVisualIcons';
 
 interface AdminMapPickerProps {
   lat: number;
@@ -12,6 +16,9 @@ interface AdminMapPickerProps {
   onChange: (lat: number, lng: number, addressSuggestion?: string) => void;
   address?: string;
   spots?: Spot[];
+  markerColor?: string;
+  markerIconName?: string;
+  initialMapMode?: 'satelite' | 'ruas';
 }
 
 const SATELLITE_MAP_STYLE: maplibregl.StyleSpecification = {
@@ -79,13 +86,22 @@ export const AdminMapPicker: React.FC<AdminMapPickerProps> = ({
   lng,
   onChange,
   spots = [],
+  markerColor,
+  markerIconName,
+  initialMapMode = 'ruas',
 }) => {
   const mapContainer = useRef<HTMLDivElement>(null);
   const mapRef = useRef<maplibregl.Map | null>(null);
   const markerRef = useRef<maplibregl.Marker | null>(null);
+  const markerBadgeRef = useRef<HTMLDivElement | null>(null);
+  const markerSvgHolderRef = useRef<HTMLDivElement | null>(null);
+  const markerTipRef = useRef<HTMLDivElement | null>(null);
+  const onChangeRef = useRef(onChange);
+  onChangeRef.current = onChange;
+
   const [searchQuery, setSearchQuery] = useState('');
   const [isSearching, setIsSearching] = useState(false);
-  const [mapMode, setMapMode] = useState<'satelite' | 'ruas'>('ruas');
+  const [mapMode, setMapMode] = useState<'satelite' | 'ruas'>(initialMapMode);
   const [currentCoords, setCurrentCoords] = useState<{ lat: number; lng: number }>({
     lat: lat || -22.7192,
     lng: lng || -45.5673,
@@ -99,9 +115,9 @@ export const AdminMapPicker: React.FC<AdminMapPickerProps> = ({
 
     const map = new maplibregl.Map({
       container: mapContainer.current,
-      style: STREETS_MAP_STYLE,
+      style: initialMapMode === 'satelite' ? SATELLITE_MAP_STYLE : STREETS_MAP_STYLE,
       center: [initialLng, initialLat],
-      zoom: 14.5,
+      zoom: 15,
       attributionControl: false,
     });
 
@@ -109,19 +125,67 @@ export const AdminMapPicker: React.FC<AdminMapPickerProps> = ({
 
     const el = document.createElement('div');
     el.className = 'admin-picker-pin';
-    el.style.width = '32px';
-    el.style.height = '32px';
     el.style.cursor = 'grab';
-    el.innerHTML = `
-      <div style="position:relative; width:100%; height:100%; display:flex; align-items:center; justify-content:center;">
-        <div style="position:absolute; width:18px; height:18px; background:#007AFF; border-radius:50%; box-shadow:0 0 0 4px white, 0 4px 12px rgba(0,122,255,0.55);"></div>
-        <div style="position:absolute; bottom:-4px; width:6px; height:6px; background:#007AFF; border-radius:50%;"></div>
-      </div>
-    `;
+
+    if (markerColor || markerIconName) {
+      const safeBg = sanitizeHexColor(markerColor);
+      el.style.width = '40px';
+      el.style.height = '46px';
+      el.style.display = 'flex';
+      el.style.flexDirection = 'column';
+      el.style.alignItems = 'center';
+      el.style.justifyContent = 'flex-start';
+
+      const badge = document.createElement('div');
+      badge.style.width = '36px';
+      badge.style.height = '36px';
+      badge.style.borderRadius = '9999px';
+      badge.style.backgroundColor = safeBg;
+      badge.style.border = '2.5px solid #FFFFFF';
+      badge.style.boxShadow = '0 6px 16px rgba(15, 23, 42, 0.34), 0 0 0 3px rgba(22, 104, 255, 0.22)';
+      badge.style.display = 'flex';
+      badge.style.alignItems = 'center';
+      badge.style.justifyContent = 'center';
+      badge.style.transition = 'background-color 160ms ease';
+
+      const svgHolder = document.createElement('div');
+      svgHolder.style.display = 'flex';
+      svgHolder.style.alignItems = 'center';
+      svgHolder.style.justifyContent = 'center';
+      svgHolder.style.pointerEvents = 'none';
+      renderLucideIntoContainer(svgHolder, markerIconName || 'map-pin', 18, 2.25);
+
+      const tip = document.createElement('div');
+      tip.style.width = '0';
+      tip.style.height = '0';
+      tip.style.borderLeft = '6px solid transparent';
+      tip.style.borderRight = '6px solid transparent';
+      tip.style.borderTop = `8px solid ${safeBg}`;
+      tip.style.marginTop = '-2px';
+      tip.style.filter = 'drop-shadow(0 2px 2px rgba(0,0,0,0.22))';
+
+      badge.appendChild(svgHolder);
+      el.appendChild(badge);
+      el.appendChild(tip);
+
+      markerBadgeRef.current = badge;
+      markerSvgHolderRef.current = svgHolder;
+      markerTipRef.current = tip;
+    } else {
+      el.style.width = '32px';
+      el.style.height = '32px';
+      el.innerHTML = `
+        <div style="position:relative; width:100%; height:100%; display:flex; align-items:center; justify-content:center;">
+          <div style="position:absolute; width:18px; height:18px; background:#007AFF; border-radius:50%; box-shadow:0 0 0 4px white, 0 4px 12px rgba(0,122,255,0.55);"></div>
+          <div style="position:absolute; bottom:-4px; width:6px; height:6px; background:#007AFF; border-radius:50%;"></div>
+        </div>
+      `;
+    }
 
     const marker = new maplibregl.Marker({
       element: el,
       draggable: true,
+      anchor: markerColor || markerIconName ? 'bottom' : 'center',
     })
       .setLngLat([initialLng, initialLat])
       .addTo(map);
@@ -134,7 +198,7 @@ export const AdminMapPicker: React.FC<AdminMapPickerProps> = ({
       const newLat = Number(lngLat.lat.toFixed(6));
       const newLng = Number(lngLat.lng.toFixed(6));
       setCurrentCoords({ lat: newLat, lng: newLng });
-      onChange(newLat, newLng);
+      onChangeRef.current(newLat, newLng);
     });
 
     map.on('click', (e) => {
@@ -143,14 +207,32 @@ export const AdminMapPicker: React.FC<AdminMapPickerProps> = ({
       const newLng = Number(e.lngLat.lng.toFixed(6));
       marker.setLngLat([newLng, newLat]);
       setCurrentCoords({ lat: newLat, lng: newLng });
-      onChange(newLat, newLng);
+      onChangeRef.current(newLat, newLng);
     });
 
     return () => {
       map.remove();
       mapRef.current = null;
+      markerRef.current = null;
+      markerBadgeRef.current = null;
+      markerSvgHolderRef.current = null;
+      markerTipRef.current = null;
     };
   }, []);
+
+  // Update live marker symbol & color dynamically when edited in the parent form
+  useEffect(() => {
+    if (markerBadgeRef.current && markerColor) {
+      const safeBg = sanitizeHexColor(markerColor);
+      markerBadgeRef.current.style.backgroundColor = safeBg;
+      if (markerTipRef.current) {
+        markerTipRef.current.style.borderTopColor = safeBg;
+      }
+    }
+    if (markerSvgHolderRef.current && markerIconName) {
+      renderLucideIntoContainer(markerSvgHolderRef.current, markerIconName, 18, 2.25);
+    }
+  }, [markerColor, markerIconName]);
 
   // Sync if prop lat/lng change from outside
   useEffect(() => {
@@ -160,7 +242,7 @@ export const AdminMapPicker: React.FC<AdminMapPickerProps> = ({
         markerRef.current.setLngLat([lng, lat]);
       }
       if (mapRef.current) {
-        mapRef.current.flyTo({ center: [lng, lat], zoom: 15.5 });
+        mapRef.current.flyTo({ center: [lng, lat], zoom: Math.max(mapRef.current.getZoom(), 15) });
       }
     }
   }, [lat, lng]);

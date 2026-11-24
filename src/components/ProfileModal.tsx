@@ -23,16 +23,23 @@ import {
   ExternalLink,
   Sparkles,
   HelpCircle,
-  Lock,
   Compass,
   Calendar,
   Users,
+  Globe,
 } from 'lucide-react';
 import { AppleBackButton } from './ui/AppleBackButton';
+import {
+  CircularLanguageFlag,
+  MONVIAN_LANGUAGE_OPTIONS,
+  getLanguageOptionByCode,
+} from './ui/CircularLanguageFlag';
+import { useLanguage } from '../contexts/LanguageContext';
 import { motion, AnimatePresence } from 'motion/react';
 import { ProfileXpProgressBar } from './ProfileXpProgressBar';
 import { IOSSwitch } from './IOSSwitch';
-import { NotificationsModal } from './NotificationsModal';
+import { NotificationsModal, type SocialNotification } from './NotificationsModal';
+import type { PushAlertItem, PushPreferences } from '../services/fcmPushService';
 import {
   persistUserToFirestore,
   persistUserOnboardingToFirestore,
@@ -51,7 +58,6 @@ import { useIOSBackEntry } from '../services/iosNavigationManager';
 import { PlatanoLeafIcon } from './platanos/PlatanoLeafIcon';
 import { usePlatanos } from '../hooks/usePlatanos';
 import { MyItinerariesView } from './itineraries/MyItinerariesView';
-import foldedMap3dIcon from '../assets/images/folded_map_pin_3d.png';
 import platanosLeaf3dIcon from '../assets/images/platanos_leaf_hero_3d.png';
 import { isAppSoundEnabled, setAppSoundEnabled } from '../utils/soundEffects';
 
@@ -79,6 +85,16 @@ interface ProfileModalProps {
   onOpenUserItineraryOnMap?: (itinerary: Itinerary) => void;
   onEditUserItinerary?: (itinerary: Itinerary) => void;
   onDeleteUserItinerary?: (itineraryId: string) => void;
+  openMyItinerariesSignal?: number;
+  pushAlerts?: PushAlertItem[];
+  pushPreferences?: PushPreferences;
+  pushBusy?: boolean;
+  pushStatusMessage?: string | null;
+  onTogglePushMaster?: (enabled: boolean) => void;
+  onTogglePushNewSpots?: (enabled: boolean) => void;
+  onTogglePushItineraryUpdates?: (enabled: boolean) => void;
+  onMarkPushAlertsRead?: (ids?: string[]) => void;
+  onSelectItineraryById?: (itineraryId: string) => void;
 }
 
 type SubView =
@@ -117,16 +133,19 @@ export const ProfileModal: React.FC<ProfileModalProps> = React.memo(({
   onOpenUserItineraryOnMap,
   onEditUserItinerary,
   onDeleteUserItinerary,
+  openMyItinerariesSignal = 0,
+  pushAlerts = [],
+  pushPreferences,
+  pushBusy = false,
+  pushStatusMessage = null,
+  onTogglePushMaster,
+  onTogglePushNewSpots,
+  onTogglePushItineraryUpdates,
+  onMarkPushAlertsRead,
+  onSelectItineraryById,
 }) => {
   const isViewActive = Boolean(isOpen && isActive);
-  const [visitTick, setVisitTick] = useState(0);
-  const prevIsViewActiveRef = useRef(isViewActive);
-  useEffect(() => {
-    if (isViewActive && !prevIsViewActiveRef.current) {
-      setVisitTick((t) => t + 1);
-    }
-    prevIsViewActiveRef.current = isViewActive;
-  }, [isViewActive]);
+  const scrollContainerRef = useRef<HTMLDivElement | null>(null);
   const { wallet } = usePlatanos();
   const getInitialAvatar = (u: any) => {
     try {
@@ -152,17 +171,54 @@ export const ProfileModal: React.FC<ProfileModalProps> = React.memo(({
     return null;
   };
 
-  const [activeSubView, setActiveSubView] = useState<SubView>('main');
+  const { language, setLanguage, tr } = useLanguage();
+  const [isLanguageSheetOpen, setIsLanguageSheetOpen] = useState(false);
+  const currentLanguageOption = getLanguageOptionByCode(language);
+
+  const [activeSubView, setActiveSubView] = useState<SubView>(() =>
+    openMyItinerariesSignal > 0 ? 'meus-roteiros' : 'main'
+  );
+  const lastHandledMyItinerariesSignalRef = useRef<number>(openMyItinerariesSignal);
   const [helpLegalPage, setHelpLegalPage] = useState<HelpLegalPageId>('hub');
   const [helpReturnView, setHelpReturnView] = useState<'main' | 'permissoes'>('main');
 
   const handleSetSubView = (subView: SubView) => {
+    setIsLanguageSheetOpen(false);
     setActiveSubView(subView);
     onSubViewChange?.(subView);
+    if (scrollContainerRef.current) {
+      scrollContainerRef.current.scrollTop = 0;
+    }
   };
+
+  const [profileEntranceTick, setProfileEntranceTick] = useState(0);
+  const wasViewActiveRef = useRef(isViewActive);
+
+  useEffect(() => {
+    if (isViewActive && !wasViewActiveRef.current) {
+      setProfileEntranceTick((t) => t + 1);
+    }
+    wasViewActiveRef.current = isViewActive;
+    if (isViewActive && scrollContainerRef.current && activeSubView === 'main') {
+      scrollContainerRef.current.scrollTop = 0;
+    }
+  }, [isViewActive, activeSubView]);
+
+  useEffect(() => {
+    if (
+      openMyItinerariesSignal > 0 &&
+      openMyItinerariesSignal !== lastHandledMyItinerariesSignalRef.current
+    ) {
+      lastHandledMyItinerariesSignalRef.current = openMyItinerariesSignal;
+      setIsLanguageSheetOpen(false);
+      setActiveSubView('meus-roteiros');
+      onSubViewChange?.('meus-roteiros');
+    }
+  }, [openMyItinerariesSignal, onSubViewChange]);
 
   useEffect(() => {
     const handleOpenMyItineraries = () => {
+      setIsLanguageSheetOpen(false);
       setActiveSubView('meus-roteiros');
       onSubViewChange?.('meus-roteiros');
     };
@@ -725,6 +781,7 @@ export const ProfileModal: React.FC<ProfileModalProps> = React.memo(({
         >
         {/* Main Content Area (single scroll container so scrolled items glide behind sticky translucent header) */}
         <div
+          ref={scrollContainerRef}
           className={`flex-1 min-h-0 overflow-y-auto overscroll-contain w-full flex flex-col transition-colors ${
             isDark
               ? 'bg-[#000000] text-white'
@@ -757,18 +814,18 @@ export const ProfileModal: React.FC<ProfileModalProps> = React.memo(({
               <AppleBackButton
                 theme={isDark ? 'dark' : 'light'}
                 onClick={() => handleSetSubView('main')}
-                title="Voltar"
-                aria-label="Voltar"
+                title={tr('Voltar')}
+                aria-label={tr('Voltar')}
               />
             ) : null}
 
             <h1 className="text-2xl sm:text-[28px] font-bold tracking-tight">
-              {activeSubView === 'main' && 'Perfil'}
-              {activeSubView === 'edit-profile' && 'Editar Perfil'}
-              {activeSubView === 'traveler-profile' && 'Meu perfil de viajante'}
-              {activeSubView === 'curtidos' && 'Lugares Curtidos'}
-              {activeSubView === 'permissoes' && 'Configurações'}
-              {activeSubView === 'logout-confirm' && 'Encerrar Sessão'}
+              {activeSubView === 'main' && tr('Perfil')}
+              {activeSubView === 'edit-profile' && tr('Editar Perfil')}
+              {activeSubView === 'traveler-profile' && tr('Meu perfil de viajante')}
+              {activeSubView === 'curtidos' && tr('Lugares Curtidos')}
+              {activeSubView === 'permissoes' && tr('Configurações')}
+              {activeSubView === 'logout-confirm' && tr('Encerrar Sessão')}
             </h1>
           </div>
 
@@ -777,13 +834,20 @@ export const ProfileModal: React.FC<ProfileModalProps> = React.memo(({
               <button
                 type="button"
                 onClick={() => setIsNotificationsOpen(true)}
-                className={`w-12 h-12 rounded-full flex items-center justify-center transition-colors cursor-pointer ${
+                className={`relative w-12 h-12 rounded-full flex items-center justify-center transition-colors cursor-pointer ${
                   isDark ? 'bg-white/10 hover:bg-white/15 text-white' : 'bg-[#fefefe]/90 hover:bg-[#E5E5EA] text-zinc-900 shadow-2xs'
                 }`}
-                title="Notificações"
-                aria-label="Notificações"
+                title={tr('Notificações')}
+                aria-label={tr('Notificações')}
               >
                 <Bell className="w-6 h-6 stroke-[2]" />
+                {(pushAlerts.some((a) => !a.isRead) || notificationsList.some((n) => n.is_read === 0)) && (
+                  <span
+                    className={`absolute top-2.5 right-2.5 w-2 h-2 rounded-full ring-2 ${
+                      isDark ? 'bg-white ring-black' : 'bg-black ring-white'
+                    }`}
+                  />
+                )}
               </button>
             )}
           </div>
@@ -804,25 +868,18 @@ export const ProfileModal: React.FC<ProfileModalProps> = React.memo(({
           {/* ============================================================ */}
           {/* VIEW 1: MAIN PROFILE (Clean Native Airbnb / iOS Design)       */}
           {/* ============================================================ */}
-          <AnimatePresence mode="wait" initial={true}>
-          <motion.div
+          <div
             id="profile-subview-content"
-            key={`${activeSubView}-${visitTick}`}
-            initial={{ opacity: 0, y: 6 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -4 }}
-            transition={{ duration: 0.18, ease: [0.22, 1, 0.36, 1] }}
             className="flex-1 flex flex-col w-full"
           >
           {activeSubView === 'main' && (
-            <div className="space-y-4 pt-1 pb-6">
+            <div key={`profile-main-${profileEntranceTick}`} className="space-y-4 pt-1 pb-6">
               {/* 1. Main Profile Card */}
               <motion.div
                 initial={{ opacity: 0, scale: 0.88, y: 12 }}
                 animate={{ opacity: 1, scale: 1, y: 0 }}
                 transition={{ type: 'spring', stiffness: 380, damping: 22, delay: 0.02 }}
-                whileHover={{ scale: 1.01, transition: { type: 'spring', stiffness: 400, damping: 18 } }}
-                whileTap={{ scale: 0.96, transition: { type: 'spring', stiffness: 500, damping: 14 } }}
+                whileTap={{ scale: 0.985 }}
                 onClick={() => {
                   setTempName(userName);
                   setTempUsername(userUsername);
@@ -845,10 +902,7 @@ export const ProfileModal: React.FC<ProfileModalProps> = React.memo(({
                     isDark ? 'bg-zinc-800 border-zinc-700' : 'bg-zinc-100 border-white'
                   }`}>
                     {userAvatar && !userAvatar.endsWith('fotoperfil.png') ? (
-                      <motion.img
-                        initial={{ opacity: 0, scale: 0.88, y: 10 }}
-                        animate={{ opacity: 1, scale: 1, y: 0 }}
-                        transition={{ type: 'spring', stiffness: 380, damping: 22, delay: 0.04 }}
+                      <img
                         src={userAvatar}
                         alt={userName}
                         className="w-full h-full object-cover"
@@ -876,162 +930,86 @@ export const ProfileModal: React.FC<ProfileModalProps> = React.memo(({
               </motion.div>
 
               {/* 1.5. Barra de Progresso Monvian XP por Exploração */}
-              <ProfileXpProgressBar isDark={isDark} />
+              <motion.div
+                initial={{ opacity: 0, scale: 0.88, y: 12 }}
+                animate={{ opacity: 1, scale: 1, y: 0 }}
+                transition={{ type: 'spring', stiffness: 380, damping: 22, delay: 0.06 }}
+              >
+                <ProfileXpProgressBar isDark={isDark} />
+              </motion.div>
 
-              {/* 2. Feature Cards Grid (Viagens & Conexões) */}
-              <div className="grid grid-cols-2 gap-3 sm:gap-3.5">
-                {/* Viagens */}
-                <motion.div
-                  initial={{ opacity: 0, scale: 0.88, y: 12 }}
-                  animate={{ opacity: 1, scale: 1, y: 0 }}
-                  transition={{ type: 'spring', stiffness: 380, damping: 22, delay: 0.055 }}
-                  onClick={(e) => {
-                    e.stopPropagation();
-                  }}
-                  className={`rounded-[24px] p-4 border transition-colors cursor-default flex flex-col justify-between ${
-                    isDark ? 'bg-[#1C1C1E] border-white/10 shadow-xs' : 'bg-[#fefefe] border-black/5 shadow-xs'
-                  }`}
-                >
-                  <div className="flex justify-end">
-                    <span className="px-2 py-0.5 rounded-full bg-[#0079ff] text-[#ffffff] border-[#008eff] text-[9px] font-bold uppercase tracking-wider" style={{ backgroundColor: '#0079ff' }}>
-                      NOVO
-                    </span>
-                  </div>
-                  <div className="my-2 flex justify-center items-center h-[46px]">
-                    <motion.img
-                      initial={{ opacity: 0, scale: 0.88, y: 10 }}
-                      animate={{ opacity: 1, scale: 1, y: 0 }}
-                      transition={{ type: 'spring', stiffness: 380, damping: 22, delay: 0.075 }}
-                      src="/lugares.png"
-                      alt="Viagens"
-                      className="h-[64px] w-auto object-contain"
-                    />
-                  </div>
-                  <div>
-                    <div className="flex items-center justify-between">
-                      <h3 className="text-[15px] font-bold tracking-tight leading-snug">
-                        Viagens
-                      </h3>
-                      <Lock className="w-3.5 h-3.5 text-zinc-400 dark:text-zinc-500" />
-                    </div>
-                  </div>
-                </motion.div>
-
+              {/* 2. Feature Cards Grid (Conexões & Plátanos & Carteira — side by side, equal size) */}
+              <div className="grid grid-cols-2 gap-3 sm:gap-3.5 items-stretch">
                 {/* Conexões */}
-                <motion.div
+                <motion.button
+                  type="button"
                   initial={{ opacity: 0, scale: 0.88, y: 12 }}
                   animate={{ opacity: 1, scale: 1, y: 0 }}
-                  transition={{ type: 'spring', stiffness: 380, damping: 22, delay: 0.09 }}
-                  whileHover={{ scale: 1.02, transition: { type: 'spring', stiffness: 400, damping: 18 } }}
-                  whileTap={{ scale: 0.94, transition: { type: 'spring', stiffness: 500, damping: 14 } }}
+                  transition={{ type: 'spring', stiffness: 380, damping: 22, delay: 0.1 }}
+                  whileTap={{ scale: 0.97 }}
                   onClick={() => {
                     window.open('https://chat.whatsapp.com/BS2Fu5Kws5qE8iaWHWrbCY?s=cl&p=i&mlu=4&ilr=4&iam=2', '_blank');
                   }}
-                  className={`rounded-[24px] p-4 border transition-colors cursor-pointer flex flex-col justify-between ${
-                    isDark ? 'bg-[#1C1C1E] border-white/10 shadow-xs' : 'bg-[#fefefe] border-black/5 shadow-xs'
+                  className={`h-full min-h-[168px] rounded-[24px] p-4 border transition-colors cursor-pointer flex flex-col justify-between text-left ${
+                    isDark ? 'bg-[#1C1C1E] border-white/10 shadow-xs' : 'bg-[#ffffff] border-black/5 shadow-xs'
                   }`}
+                  style={{ backgroundColor: isDark ? undefined : '#ffffff' }}
                 >
-                  <div className="flex justify-end">
+                  <div className="h-5 flex items-center justify-end">
                     <span className="px-2 py-0.5 rounded-full bg-[#0079ff] text-white text-[9px] font-bold uppercase tracking-wider" style={{ backgroundColor: '#0079ff' }}>
-                      NOVO
+                      {tr('NOVO')}
                     </span>
                   </div>
-                  <div className="my-2 flex justify-center items-center h-[46px]">
-                    <motion.img
-                      initial={{ opacity: 0, scale: 0.88, y: 10 }}
-                      animate={{ opacity: 1, scale: 1, y: 0 }}
-                      transition={{ type: 'spring', stiffness: 380, damping: 22, delay: 0.11 }}
+                  <div className="my-2 flex justify-center items-center h-[58px]">
+                    <img
                       src="/conexao.png"
-                      alt="Conexões"
-                      className="h-[64px] w-auto object-contain"
+                      alt={tr('Conexões')}
+                      className="h-[58px] w-auto object-contain"
+                      draggable={false}
                     />
                   </div>
-                  <div>
-                    <h3 className="text-[15px] font-bold tracking-tight leading-snug">
-                      Conexões
+                  <div className="min-h-[38px] flex flex-col justify-end">
+                    <h3 className="text-[15px] font-bold tracking-tight leading-snug text-zinc-950 dark:text-white">
+                      {tr('Conexões')}
                     </h3>
                   </div>
-                </motion.div>
-              </div>
+                </motion.button>
 
-
-              {/* 3. Plátanos & Carteira + Meus roteiros (2-Column Bento Cards matching iOS Native Reference) */}
-              <div className="grid grid-cols-2 gap-3 sm:gap-3.5">
                 {/* Plátanos & Carteira */}
                 <motion.button
                   type="button"
                   initial={{ opacity: 0, scale: 0.88, y: 12 }}
                   animate={{ opacity: 1, scale: 1, y: 0 }}
-                  transition={{ type: 'spring', stiffness: 380, damping: 22, delay: 0.125 }}
-                  whileHover={{ scale: 1.02, transition: { type: 'spring', stiffness: 400, damping: 18 } }}
-                  whileTap={{ scale: 0.94, transition: { type: 'spring', stiffness: 500, damping: 14 } }}
+                  transition={{ type: 'spring', stiffness: 380, damping: 22, delay: 0.14 }}
+                  whileTap={{ scale: 0.97 }}
                   onClick={() => {
-                    onClose();
                     window.dispatchEvent(
                       new CustomEvent('monvian:open_platanos_wallet', { detail: { tab: 'topup' } })
                     );
                   }}
-                  className={`rounded-[24px] p-4 border transition-colors cursor-pointer flex flex-col justify-between text-left ${
+                  className={`h-full min-h-[168px] rounded-[24px] p-4 border transition-colors cursor-pointer flex flex-col justify-between text-left ${
                     isDark ? 'bg-[#1C1C1E] border-white/10 shadow-xs' : 'bg-[#ffffff] border-black/5 shadow-xs'
                   }`}
                   style={{ backgroundColor: isDark ? undefined : '#ffffff' }}
                 >
-                  <div className="flex justify-end">
+                  <div className="h-5 flex items-center justify-end">
                     <ChevronRight className="w-4 h-4 text-zinc-400 shrink-0" />
                   </div>
-                  <div className="my-2 flex justify-center items-center h-[46px]">
-                    <motion.img
-                      initial={{ opacity: 0, scale: 0.88, y: 10 }}
-                      animate={{ opacity: 1, scale: 1, y: 0 }}
-                      transition={{ type: 'spring', stiffness: 380, damping: 22, delay: 0.14 }}
+                  <div className="my-2 flex justify-center items-center h-[58px]">
+                    <img
                       src={platanosLeaf3dIcon}
                       alt="Plátanos"
                       className="h-[58px] w-auto object-contain drop-shadow-[0_4px_10px_rgba(0,0,0,0.18)]"
                       draggable={false}
                     />
                   </div>
-                  <div>
+                  <div className="min-h-[38px] flex flex-col justify-end">
                     <h3 className="text-[15px] font-bold tracking-tight leading-snug text-zinc-950 dark:text-white">
-                      Plátanos & Carteira
+                      {tr('Plátanos & Carteira')}
                     </h3>
                     <p className="text-[12px] text-zinc-500 dark:text-zinc-400 tabular-nums mt-0.5">
-                      {wallet.balance} {wallet.balance === 1 ? 'Plátano disponível' : 'Plátanos disponíveis'}
+                      {wallet.balance} {wallet.balance === 1 ? tr('Plátano disponível') : tr('Plátanos disponíveis')}
                     </p>
-                  </div>
-                </motion.button>
-
-                {/* Meus roteiros */}
-                <motion.button
-                  type="button"
-                  initial={{ opacity: 0, scale: 0.88, y: 12 }}
-                  animate={{ opacity: 1, scale: 1, y: 0 }}
-                  transition={{ type: 'spring', stiffness: 380, damping: 22, delay: 0.145 }}
-                  whileHover={{ scale: 1.02, transition: { type: 'spring', stiffness: 400, damping: 18 } }}
-                  whileTap={{ scale: 0.94, transition: { type: 'spring', stiffness: 500, damping: 14 } }}
-                  onClick={() => handleSetSubView('meus-roteiros')}
-                  className={`rounded-[24px] p-4 border transition-colors cursor-pointer flex flex-col justify-between text-left ${
-                    isDark ? 'bg-[#1C1C1E] border-white/10 shadow-xs' : 'bg-[#ffffff] border-black/5 shadow-xs'
-                  }`}
-                  style={{ backgroundColor: isDark ? undefined : '#ffffff' }}
-                >
-                  <div className="flex justify-end">
-                    <ChevronRight className="w-4 h-4 text-zinc-400 shrink-0" />
-                  </div>
-                  <div className="my-2 flex justify-center items-center h-[46px]">
-                    <motion.img
-                      initial={{ opacity: 0, scale: 0.88, y: 10 }}
-                      animate={{ opacity: 1, scale: 1, y: 0 }}
-                      transition={{ type: 'spring', stiffness: 380, damping: 22, delay: 0.16 }}
-                      src={foldedMap3dIcon}
-                      alt="Meus roteiros"
-                      className="h-[58px] w-auto object-contain drop-shadow-[0_4px_10px_rgba(0,0,0,0.18)]"
-                      draggable={false}
-                    />
-                  </div>
-                  <div>
-                    <h3 className="text-[15px] font-bold tracking-tight leading-snug text-zinc-950 dark:text-white">
-                      Meus roteiros
-                    </h3>
                   </div>
                 </motion.button>
               </div>
@@ -1043,9 +1021,8 @@ export const ProfileModal: React.FC<ProfileModalProps> = React.memo(({
                     type="button"
                     initial={{ opacity: 0, scale: 0.88, y: 12 }}
                     animate={{ opacity: 1, scale: 1, y: 0 }}
-                    transition={{ type: 'spring', stiffness: 380, damping: 22, delay: 0.16 }}
-                    whileHover={{ scale: 1.01, transition: { type: 'spring', stiffness: 400, damping: 18 } }}
-                    whileTap={{ scale: 0.96, transition: { type: 'spring', stiffness: 500, damping: 14 } }}
+                    transition={{ type: 'spring', stiffness: 380, damping: 22, delay: 0.17 }}
+                    whileTap={{ scale: 0.985 }}
                     onClick={() => {
                       onClose();
                       onOpenAdmin?.();
@@ -1059,7 +1036,7 @@ export const ProfileModal: React.FC<ProfileModalProps> = React.memo(({
                         <ShieldCheck className="w-7 h-7 stroke-[1.8]" />
                       </div>
                       <h3 className="text-[15px] font-semibold text-zinc-950 dark:text-white tracking-tight">
-                        Painel ADM
+                        {tr('Painel ADM')}
                       </h3>
                     </div>
                   </motion.button>
@@ -1070,9 +1047,8 @@ export const ProfileModal: React.FC<ProfileModalProps> = React.memo(({
                   type="button"
                   initial={{ opacity: 0, scale: 0.88, y: 12 }}
                   animate={{ opacity: 1, scale: 1, y: 0 }}
-                  transition={{ type: 'spring', stiffness: 380, damping: 22, delay: 0.195 }}
-                  whileHover={{ scale: 1.01, transition: { type: 'spring', stiffness: 400, damping: 18 } }}
-                  whileTap={{ scale: 0.96, transition: { type: 'spring', stiffness: 500, damping: 14 } }}
+                  transition={{ type: 'spring', stiffness: 380, damping: 22, delay: isUserAdmin ? 0.2 : 0.17 }}
+                  whileTap={{ scale: 0.985 }}
                   onClick={() => handleSetSubView('permissoes')}
                   className={`w-full p-4 rounded-[22px] border transition-colors flex items-center justify-between text-left cursor-pointer ${
                     isDark ? 'bg-[#1C1C1E] border-white/10 hover:bg-[#252528]' : 'bg-[#fefefe] border-black/5 hover:bg-[#E5E5EA]/80'
@@ -1084,7 +1060,7 @@ export const ProfileModal: React.FC<ProfileModalProps> = React.memo(({
                       <span className={`absolute -top-0.5 -right-0.5 w-2.5 h-2.5 rounded-full bg-[#0079ff] ring-2 ${isDark ? 'ring-[#1C1C1E]' : 'ring-[#fefefe]'}`} style={{ backgroundColor: '#0079ff' }} />
                     </div>
                     <h3 className="text-[15px] font-semibold text-zinc-950 dark:text-white tracking-tight">
-                      Configurações da conta
+                      {tr('Configurações da conta')}
                     </h3>
                   </div>
                 </motion.button>
@@ -1093,9 +1069,8 @@ export const ProfileModal: React.FC<ProfileModalProps> = React.memo(({
                   type="button"
                   initial={{ opacity: 0, scale: 0.88, y: 12 }}
                   animate={{ opacity: 1, scale: 1, y: 0 }}
-                  transition={{ type: 'spring', stiffness: 380, damping: 22, delay: 0.23 }}
-                  whileHover={{ scale: 1.01, transition: { type: 'spring', stiffness: 400, damping: 18 } }}
-                  whileTap={{ scale: 0.96, transition: { type: 'spring', stiffness: 500, damping: 14 } }}
+                  transition={{ type: 'spring', stiffness: 380, damping: 22, delay: isUserAdmin ? 0.23 : 0.2 }}
+                  whileTap={{ scale: 0.985 }}
                   onClick={() => openHelpLegalPage('hub', 'main')}
                   className={`w-full p-4 rounded-[22px] border transition-colors flex items-center justify-between text-left cursor-pointer ${
                     isDark ? 'bg-[#1C1C1E] border-white/10 hover:bg-[#252528]' : 'bg-[#fefefe] border-black/5 hover:bg-[#E5E5EA]/80'
@@ -1106,7 +1081,7 @@ export const ProfileModal: React.FC<ProfileModalProps> = React.memo(({
                       <Star className="w-7 h-7 stroke-[1.8]" />
                     </div>
                     <h3 className="text-[15px] font-semibold text-zinc-950 dark:text-white tracking-tight">
-                      Ajuda e informações
+                      {tr('Ajuda e informações')}
                     </h3>
                   </div>
                 </motion.button>
@@ -1116,9 +1091,8 @@ export const ProfileModal: React.FC<ProfileModalProps> = React.memo(({
                   type="button"
                   initial={{ opacity: 0, scale: 0.88, y: 12 }}
                   animate={{ opacity: 1, scale: 1, y: 0 }}
-                  transition={{ type: 'spring', stiffness: 380, damping: 22, delay: 0.26 }}
-                  whileHover={{ scale: 1.01, transition: { type: 'spring', stiffness: 400, damping: 18 } }}
-                  whileTap={{ scale: 0.96, transition: { type: 'spring', stiffness: 500, damping: 14 } }}
+                  transition={{ type: 'spring', stiffness: 380, damping: 22, delay: isUserAdmin ? 0.26 : 0.23 }}
+                  whileTap={{ scale: 0.985 }}
                   onClick={() => handleSetSubView('logout-confirm')}
                   className={`w-full p-4 rounded-[22px] border transition-colors flex items-center justify-between text-left cursor-pointer ${
                     isDark ? 'bg-[#1C1C1E] border-white/10 hover:bg-[#252528]' : 'bg-[#fefefe] border-black/5 hover:bg-[#E5E5EA]/80'
@@ -1129,7 +1103,7 @@ export const ProfileModal: React.FC<ProfileModalProps> = React.memo(({
                       <LogOut className="w-7 h-7 stroke-[1.8]" />
                     </div>
                     <h3 className="text-[15px] font-semibold text-red-500 tracking-tight">
-                      Sair da conta
+                      {tr('Sair da conta')}
                     </h3>
                   </div>
                 </motion.button>
@@ -1142,9 +1116,11 @@ export const ProfileModal: React.FC<ProfileModalProps> = React.memo(({
           {/* ============================================================ */}
           {activeSubView === 'meus-roteiros' && (
             <MyItinerariesView
+              key={`my-itineraries-${profileEntranceTick}`}
               user={user}
               spots={spots}
               isDark={isDark}
+              isActive={isViewActive}
               onBack={() => handleSetSubView('main')}
               onStartCreateNewItinerary={() => {
                 onClose();
@@ -1286,6 +1262,154 @@ export const ProfileModal: React.FC<ProfileModalProps> = React.memo(({
                       </div>
                     </div>
                   </div>
+                </motion.div>
+              )}
+
+              {/* GROUP 1.5: IDIOMA */}
+              <motion.div
+                initial={{ opacity: 0, scale: 0.88, y: 12 }}
+                animate={{ opacity: 1, scale: 1, y: 0 }}
+                transition={{ type: 'spring', stiffness: 380, damping: 22, delay: 0.045 }}
+              >
+                <p className="text-[12px] font-bold text-zinc-500 dark:text-zinc-400 uppercase tracking-wider px-3 mb-2">
+                  Idioma
+                </p>
+                <div
+                  className={`rounded-[24px] border overflow-hidden ${
+                    isDark
+                      ? 'bg-[#1C1C1E] border-white/10 divide-y divide-white/10'
+                      : 'bg-[#fefefe] border-black/5 divide-y divide-black/5'
+                  }`}
+                >
+                  <button
+                    type="button"
+                    onClick={() => setIsLanguageSheetOpen(true)}
+                    className="w-full p-4 flex items-center justify-between gap-3 text-left cursor-pointer hover:opacity-90 active:scale-[0.99] transition-all"
+                  >
+                    <div className="flex items-center gap-3.5 min-w-0">
+                      <div className="flex items-center justify-center shrink-0 text-zinc-950 dark:text-white">
+                        <Globe className="w-7 h-7 stroke-[1.8]" />
+                      </div>
+                      <div className="min-w-0">
+                        <h4 className="text-[15px] font-semibold tracking-tight">
+                          Idioma
+                        </h4>
+                        <p className="text-[12px] text-zinc-500 dark:text-zinc-400 font-medium truncate">
+                          Idioma de exibição do aplicativo
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center gap-2.5 shrink-0">
+                      <CircularLanguageFlag
+                        lang={language}
+                        className="w-6 h-6 ring-1 ring-black/10 dark:ring-white/15 shadow-2xs"
+                      />
+                      <span
+                        data-no-translate
+                        className="text-[13.5px] font-semibold text-zinc-700 dark:text-zinc-200 whitespace-nowrap"
+                      >
+                        {currentLanguageOption.label}
+                      </span>
+                      <ChevronRight className="w-4 h-4 text-zinc-400 dark:text-zinc-500 stroke-[2.2] shrink-0" />
+                    </div>
+                  </button>
+                </div>
+              </motion.div>
+
+              {/* GROUP 1.8: NOTIFICAÇÕES PUSH (FCM) */}
+              {pushPreferences && onTogglePushMaster && (
+                <motion.div
+                  initial={{ opacity: 0, scale: 0.88, y: 12 }}
+                  animate={{ opacity: 1, scale: 1, y: 0 }}
+                  transition={{ type: 'spring', stiffness: 380, damping: 22, delay: 0.055 }}
+                >
+                  <p className="text-[12px] font-bold text-zinc-500 dark:text-zinc-400 uppercase tracking-wider px-3 mb-2">
+                    Notificações Push
+                  </p>
+                  <div
+                    className={`rounded-[24px] border overflow-hidden ${
+                      isDark
+                        ? 'bg-[#1C1C1E] border-white/10 divide-y divide-white/5'
+                        : 'bg-white border-black/5 divide-y divide-black/5'
+                    }`}
+                  >
+                    <div className="p-4 flex items-center justify-between gap-3">
+                      <div className="flex items-center gap-3.5 min-w-0">
+                        <div className="flex items-center justify-center shrink-0 text-zinc-950 dark:text-white">
+                          <Bell className="w-7 h-7 stroke-[1.8]" />
+                        </div>
+                        <div className="min-w-0">
+                          <h4 className="text-[15px] font-semibold tracking-tight">
+                            Alertas Push
+                          </h4>
+                          <p className="text-[12px] text-zinc-500 dark:text-zinc-400 font-medium">
+                            Receba avisos de novidades no dispositivo
+                          </p>
+                        </div>
+                      </div>
+                      <IOSSwitch
+                        checked={pushPreferences.enabled}
+                        onChange={onTogglePushMaster}
+                        disabled={pushBusy}
+                        ariaLabel="Alertas Push"
+                      />
+                    </div>
+
+                    {pushPreferences.enabled && onTogglePushNewSpots && (
+                      <div className="p-4 flex items-center justify-between gap-3">
+                        <div className="flex items-center gap-3.5 min-w-0">
+                          <div className="flex items-center justify-center shrink-0 text-zinc-950 dark:text-white">
+                            <MapPin className="w-6 h-6 stroke-[1.8]" />
+                          </div>
+                          <div className="min-w-0">
+                            <h4 className="text-[14.5px] font-semibold tracking-tight">
+                              Novos locais
+                            </h4>
+                            <p className="text-[12px] text-zinc-500 dark:text-zinc-400 font-medium">
+                              Quando um ponto turístico for adicionado
+                            </p>
+                          </div>
+                        </div>
+                        <IOSSwitch
+                          checked={pushPreferences.newSpots}
+                          onChange={onTogglePushNewSpots}
+                          disabled={pushBusy}
+                          ariaLabel="Notificações de novos locais"
+                        />
+                      </div>
+                    )}
+
+                    {pushPreferences.enabled && onTogglePushItineraryUpdates && (
+                      <div className="p-4 flex items-center justify-between gap-3">
+                        <div className="flex items-center gap-3.5 min-w-0">
+                          <div className="flex items-center justify-center shrink-0 text-zinc-950 dark:text-white">
+                            <Compass className="w-6 h-6 stroke-[1.8]" />
+                          </div>
+                          <div className="min-w-0">
+                            <h4 className="text-[14.5px] font-semibold tracking-tight">
+                              Atualizações em roteiros
+                            </h4>
+                            <p className="text-[12px] text-zinc-500 dark:text-zinc-400 font-medium">
+                              Novos roteiros e melhorias nas paradas
+                            </p>
+                          </div>
+                        </div>
+                        <IOSSwitch
+                          checked={pushPreferences.itineraryUpdates}
+                          onChange={onTogglePushItineraryUpdates}
+                          disabled={pushBusy}
+                          ariaLabel="Notificações de atualizações em roteiros"
+                        />
+                      </div>
+                    )}
+                  </div>
+
+                  {pushStatusMessage && (
+                    <p className="text-[12px] text-zinc-500 dark:text-zinc-400 px-3 pt-2">
+                      {pushStatusMessage}
+                    </p>
+                  )}
                 </motion.div>
               )}
 
@@ -1929,7 +2053,7 @@ export const ProfileModal: React.FC<ProfileModalProps> = React.memo(({
                     isDark ? 'bg-white/10 hover:bg-white/15 text-white' : 'bg-zinc-200 hover:bg-zinc-300 text-zinc-800'
                   }`}
                 >
-                  Permanecer
+                  {tr('Permanecer')}
                 </button>
                 <button
                   type="button"
@@ -1942,13 +2066,12 @@ export const ProfileModal: React.FC<ProfileModalProps> = React.memo(({
                   }}
                   className="flex-1 py-3.5 rounded-2xl bg-red-500 hover:bg-red-600 text-white text-sm font-bold transition-all cursor-pointer shadow-lg active:scale-95"
                 >
-                  Sim, sair
+                  {tr('Sim, sair')}
                 </button>
               </div>
             </motion.div>
           )}
-          </motion.div>
-          </AnimatePresence>
+          </div>
           </div>
         </div>
 
@@ -1963,13 +2086,165 @@ export const ProfileModal: React.FC<ProfileModalProps> = React.memo(({
             setIsNotificationsOpen(false);
             handleSetSubView('main');
           }}
-          notifications={notificationsList}
+          notifications={[
+            ...pushAlerts.map(
+              (a): SocialNotification => ({
+                id: a.id,
+                type: a.type,
+                title: a.title,
+                body: a.body,
+                spot_id: a.spotId,
+                itinerary_id: a.itineraryId,
+                image_url: a.imageUrl,
+                is_read: a.isRead ? 1 : 0,
+                created_at: a.createdAt,
+              })
+            ),
+            ...notificationsList,
+          ]}
           isLoading={false}
           theme={theme}
+          spots={spots}
+          onSelectSpot={(spot) => {
+            onSelectSpot(spot);
+            onClose();
+          }}
+          onSelectItinerary={(itineraryId) => {
+            onSelectItineraryById?.(itineraryId);
+            onClose();
+          }}
+          onNotificationClick={(notif) => {
+            if (notif.type === 'new_spot' || notif.type === 'itinerary_update') {
+              onMarkPushAlertsRead?.([notif.id]);
+            }
+          }}
           onMarkAllAsRead={() => {
             setNotificationsList((prev) => prev.map((n) => ({ ...n, is_read: 1 })));
+            onMarkPushAlertsRead?.();
           }}
+          pushPreferences={pushPreferences}
+          pushBusy={pushBusy}
+          pushStatusMessage={pushStatusMessage}
+          onTogglePushMaster={onTogglePushMaster}
+          onTogglePushNewSpots={onTogglePushNewSpots}
+          onTogglePushItineraryUpdates={onTogglePushItineraryUpdates}
         />
+
+        {/* Animated iOS Bottom Sheet Card for Language Selection */}
+        <AnimatePresence>
+          {isLanguageSheetOpen && activeSubView === 'permissoes' && (
+            <motion.div
+              key="monvian-language-sheet-backdrop"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: 0.24, ease: [0.22, 1, 0.36, 1] }}
+              onClick={() => setIsLanguageSheetOpen(false)}
+              className="fixed inset-0 z-[150] bg-black/55 backdrop-blur-[2px] flex flex-col justify-end items-center select-none"
+            >
+              <motion.div
+                key="monvian-language-sheet-card"
+                initial={{ y: '100%', opacity: 0.6 }}
+                animate={{ y: 0, opacity: 1 }}
+                exit={{ y: '100%', opacity: 0 }}
+                transition={{
+                  type: 'spring',
+                  stiffness: 380,
+                  damping: 34,
+                  mass: 0.85,
+                }}
+                onClick={(e) => e.stopPropagation()}
+                className={`w-full max-w-lg rounded-t-[34px] border-t border-x overflow-hidden ${
+                  isDark
+                    ? 'bg-[#141416] border-white/[0.12] text-white shadow-[0_-20px_60px_rgba(0,0,0,0.88)]'
+                    : 'bg-[#FFFFFF] border-black/[0.08] text-zinc-950 shadow-[0_-18px_50px_rgba(0,0,0,0.16)]'
+                }`}
+                style={{
+                  paddingBottom: 'max(calc(env(safe-area-inset-bottom, 16px) + 18px), 26px)',
+                }}
+              >
+                {/* iOS Grabber Pill */}
+                <div className="w-full flex justify-center pt-3 pb-1.5">
+                  <div
+                    className={`w-12 h-1.5 rounded-full ${
+                      isDark ? 'bg-white/25' : 'bg-black/15'
+                    }`}
+                  />
+                </div>
+
+                {/* Sheet Title Header */}
+                <div className="px-6 pt-2.5 pb-4 flex items-center gap-3.5">
+                  <Globe
+                    className={`w-7 h-7 stroke-[1.85] shrink-0 ${
+                      isDark ? 'text-white' : 'text-zinc-950'
+                    }`}
+                  />
+                  <h3 className="text-[22px] font-bold tracking-tight">
+                    Idioma
+                  </h3>
+                </div>
+
+                {/* Language Options Card */}
+                <div className="px-4">
+                  <div
+                    className={`rounded-[26px] border overflow-hidden divide-y ${
+                      isDark
+                        ? 'bg-[#1C1C1E] border-white/[0.08] divide-white/[0.07]'
+                        : 'bg-[#F8F8FA] border-black/[0.06] divide-black/[0.06]'
+                    }`}
+                  >
+                    {MONVIAN_LANGUAGE_OPTIONS.map((option) => {
+                      const isSelected = language === option.code;
+                      return (
+                        <button
+                          key={option.code}
+                          type="button"
+                          onClick={() => {
+                            try {
+                              if (typeof navigator !== 'undefined' && navigator.vibrate) {
+                                navigator.vibrate(10);
+                              }
+                            } catch {}
+                            setLanguage(option.code);
+                            setIsLanguageSheetOpen(false);
+                          }}
+                          className={`w-full px-4 py-4 flex items-center justify-between gap-3.5 text-left transition-colors cursor-pointer ${
+                            isDark
+                              ? 'hover:bg-white/[0.04] active:bg-white/[0.08]'
+                              : 'hover:bg-black/[0.03] active:bg-black/[0.06]'
+                          }`}
+                        >
+                          <div className="flex items-center gap-3.5 min-w-0">
+                            <CircularLanguageFlag
+                              lang={option.code}
+                              className="w-9 h-9 ring-1 ring-black/10 dark:ring-white/10 shadow-xs"
+                            />
+                            <span
+                              data-no-translate
+                              className={`text-[17px] font-semibold tracking-tight truncate ${
+                                isDark ? 'text-white' : 'text-zinc-950'
+                              }`}
+                            >
+                              {option.label}
+                            </span>
+                          </div>
+
+                          {isSelected && (
+                            <Check
+                              className={`w-5 h-5 stroke-[2.3] shrink-0 ${
+                                isDark ? 'text-white' : 'text-zinc-950'
+                              }`}
+                            />
+                          )}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              </motion.div>
+            </motion.div>
+          )}
+        </AnimatePresence>
         </motion.div>
       </motion.div>
       )}

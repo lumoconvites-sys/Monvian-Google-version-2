@@ -167,7 +167,7 @@ export const ItinerariesView: React.FC<ItinerariesViewProps> = memo(
     return (
       <div
         id="itineraries-root-container"
-        className="fixed inset-0 z-40 w-full h-full overflow-hidden select-none ios-pushed-page"
+        className="fixed inset-0 z-[55] w-full h-full overflow-hidden select-none ios-pushed-page"
         style={{
           top: 0,
           bottom: 0,
@@ -176,6 +176,8 @@ export const ItinerariesView: React.FC<ItinerariesViewProps> = memo(
           width: '100%',
           height: 'var(--app-height, 100dvh)',
           minHeight: 'var(--app-height, 100dvh)',
+          maxHeight: 'var(--app-height, 100dvh)',
+          contain: 'layout paint size',
         }}
       >
         <div
@@ -184,7 +186,7 @@ export const ItinerariesView: React.FC<ItinerariesViewProps> = memo(
             isOnboardingSelection
               ? 'md:left-0 bg-[#FFFFFF]'
               : `md:left-[var(--desktop-sidebar-width,72px)] ${isDark ? 'bg-[#000000]' : 'bg-white'}`
-          } z-40 w-full md:w-auto h-full overflow-hidden transition-[left,opacity] duration-200 ease-in-out select-none ios-pushed-page`}
+          } z-[55] w-full md:w-auto h-full overflow-hidden transition-[left,opacity] duration-200 ease-in-out select-none ios-pushed-page`}
           style={{
             top: 0,
             bottom: 0,
@@ -192,8 +194,10 @@ export const ItinerariesView: React.FC<ItinerariesViewProps> = memo(
             right: 0,
             height: 'var(--app-height, 100dvh)',
             minHeight: 'var(--app-height, 100dvh)',
+            maxHeight: 'var(--app-height, 100dvh)',
             overflow: 'hidden',
             isolation: 'isolate',
+            contain: 'layout paint size',
           }}
         >
           <AirbnbItineraryExplorer

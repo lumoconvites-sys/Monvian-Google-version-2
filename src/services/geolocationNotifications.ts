@@ -5,6 +5,7 @@ import {
   getSpotNotificationImage,
   preloadSpotNotificationImage,
 } from '../utils/spotImages';
+import { readScopedJSON, writeScopedJSON } from '../utils/userScopedStorage';
 
 export interface GeolocationArrivalNotificationItem {
   id: string;
@@ -193,64 +194,50 @@ export function buildArrivalSpotTargets(spots: Spot[]): Spot[] {
   return result;
 }
 
-function loadVisitRecords(): Record<string, VisitRecord> {
-  if (typeof window === 'undefined') return {};
+function loadVisitRecords(userOverride?: any): Record<string, VisitRecord> {
   try {
-    const raw =
-      sessionStorage.getItem(VISIT_STORAGE_KEY) ||
-      localStorage.getItem(VISIT_STORAGE_KEY);
-    if (raw) {
-      const parsed = JSON.parse(raw);
-      if (parsed && typeof parsed === 'object') {
-        return parsed;
-      }
+    const parsed = readScopedJSON<Record<string, VisitRecord>>(VISIT_STORAGE_KEY, {}, userOverride);
+    if (parsed && typeof parsed === 'object') {
+      return parsed;
     }
   } catch {}
   return {};
 }
 
-function saveVisitRecords(records: Record<string, VisitRecord>) {
-  if (typeof window === 'undefined') return;
+function saveVisitRecords(records: Record<string, VisitRecord>, userOverride?: any) {
   try {
-    const serialized = JSON.stringify(records);
-    sessionStorage.setItem(VISIT_STORAGE_KEY, serialized);
-    localStorage.setItem(VISIT_STORAGE_KEY, serialized);
+    writeScopedJSON(VISIT_STORAGE_KEY, records, userOverride);
   } catch {}
 }
 
-export function loadGeolocationNotificationsHistory(spots: Spot[] = []): GeolocationArrivalNotificationItem[] {
-  if (typeof window === 'undefined') return [];
+export function loadGeolocationNotificationsHistory(spots: Spot[] = [], userOverride?: any): GeolocationArrivalNotificationItem[] {
   try {
-    const raw = localStorage.getItem(HISTORY_STORAGE_KEY);
-    if (raw) {
-      const parsed = JSON.parse(raw);
-      if (Array.isArray(parsed)) {
-        return parsed.map((item: GeolocationArrivalNotificationItem) => {
-          const matchedSpot = spots.find((s) => s.id === item.spotId);
-          const freshImage = matchedSpot
-            ? getSpotNotificationImage(matchedSpot)
-            : getSpotNotificationImage({
-                id: item.spotId,
-                name: item.spotName,
-                image: item.imageUrl,
-              });
-          return {
-            ...item,
-            imageUrl: freshImage || item.imageUrl,
-            spot: matchedSpot || item.spot,
-          };
-        });
-      }
+    const parsed = readScopedJSON<GeolocationArrivalNotificationItem[]>(HISTORY_STORAGE_KEY, [], userOverride);
+    if (Array.isArray(parsed)) {
+      return parsed.map((item: GeolocationArrivalNotificationItem) => {
+        const matchedSpot = spots.find((s) => s.id === item.spotId);
+        const freshImage = matchedSpot
+          ? getSpotNotificationImage(matchedSpot)
+          : getSpotNotificationImage({
+              id: item.spotId,
+              name: item.spotName,
+              image: item.imageUrl,
+            });
+        return {
+          ...item,
+          imageUrl: freshImage || item.imageUrl,
+          spot: matchedSpot || item.spot,
+        };
+      });
     }
   } catch {}
   return [];
 }
 
-export function saveGeolocationNotificationsHistory(items: GeolocationArrivalNotificationItem[]) {
-  if (typeof window === 'undefined') return;
+export function saveGeolocationNotificationsHistory(items: GeolocationArrivalNotificationItem[], userOverride?: any) {
   try {
     const trimmed = items.slice(0, 30).map(({ spot, ...rest }) => rest);
-    localStorage.setItem(HISTORY_STORAGE_KEY, JSON.stringify(trimmed));
+    writeScopedJSON(HISTORY_STORAGE_KEY, trimmed, userOverride);
   } catch {}
 }
 

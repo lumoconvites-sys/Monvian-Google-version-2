@@ -10,8 +10,11 @@ import { registerItineraryRoutes, setupItineraryDatabase } from './src/server/it
 import { registerSocialRoutes, setupSocialDatabase } from './src/server/socialRoutes.ts';
 import { registerStoryRoutes, setupStoriesDatabase } from './src/server/storyRoutes.ts';
 import { registerStripeRoutes, setupStripeDatabase } from './src/server/stripeRoutes.ts';
+import { syncStripeHistoryAndBalance } from './src/server/stripeDashboardService.ts';
 import { registerPlatanosRoutes, setupPlatanosDatabase } from './src/server/platanosRoutes.ts';
 import { registerXpRoutes } from './src/server/xpRoutes.ts';
+import { registerAssistantRoutes, setupAssistantDatabase } from './src/server/assistantRoutes.ts';
+import { registerPushRoutes, dispatchPushAlert } from './src/server/pushRoutes.ts';
 import { CAMPOS_SPOTS } from './src/data/spots.ts';
 import { supabase, supabaseAnonClient } from './src/services/supabaseClient.ts';
 import {
@@ -264,6 +267,8 @@ try { db.exec(`ALTER TABLE users ADD COLUMN interest_categories TEXT DEFAULT '[]
 try { db.exec(`ALTER TABLE users ADD COLUMN travel_company TEXT DEFAULT '';`); } catch {}
 try { db.exec(`ALTER TABLE users ADD COLUMN location_preference TEXT DEFAULT '';`); } catch {}
 try { db.exec(`ALTER TABLE users ADD COLUMN onboarding_completed_at DATETIME;`); } catch {}
+try { db.exec(`ALTER TABLE users ADD COLUMN map_tutorial_status TEXT DEFAULT 'completed';`); } catch {}
+try { db.exec(`ALTER TABLE users ADD COLUMN map_tutorial_updated_at DATETIME;`); } catch {}
 
 try {
   db.exec(`
@@ -293,6 +298,7 @@ try {
   `);
 } catch {}
 
+try { db.exec(`ALTER TABLE map_visual_icons ADD COLUMN name TEXT;`); } catch {}
 try { db.exec(`ALTER TABLE map_visual_icons ADD COLUMN icon TEXT;`); } catch {}
 try { db.exec(`ALTER TABLE map_visual_icons ADD COLUMN color TEXT;`); } catch {}
 try { db.exec(`ALTER TABLE map_visual_icons ADD COLUMN is_active INTEGER DEFAULT 1;`); } catch {}
@@ -324,6 +330,7 @@ try { setupSocialDatabase(db); } catch {}
 try { setupStoriesDatabase(db); } catch {}
 try { setupStripeDatabase(db); } catch {}
 try { setupPlatanosDatabase(db); } catch {}
+try { setupAssistantDatabase(db); } catch {}
 
 // Seed initial spots into SQLite if empty so CRUD operations work on real DB rows
 try {
@@ -553,6 +560,14 @@ function formatSafeUser(user: any) {
       ? Number(onboardingRow.onboarding_step || 1)
       : Number(user.onboarding_step || 1);
 
+  const rawMapTutorial = String(user.map_tutorial_status || '').trim().toLowerCase();
+  const mapTutorialStatus: 'pending' | 'completed' | 'skipped' =
+    rawMapTutorial === 'pending'
+      ? 'pending'
+      : rawMapTutorial === 'skipped'
+        ? 'skipped'
+        : 'completed';
+
   return {
     id: user.id,
     auth_id: user.auth_id || user.firebase_uid || (user.id ? `usr_${user.id}` : ''),
@@ -569,6 +584,8 @@ function formatSafeUser(user: any) {
     motion_permission_granted: user.motion_permission_granted ? 1 : 0,
     welcome_card_seen: user.welcome_card_seen ? 1 : 0,
     globe_intro_seen: user.globe_intro_seen ? 1 : 0,
+    map_tutorial_status: mapTutorialStatus,
+    map_tutorial_updated_at: user.map_tutorial_updated_at || null,
     onboarding_completed: onboardingCompleted ? 1 : 0,
     onboarding_step: onboardingStep,
     campos_relationship: camposRelationship,
@@ -886,6 +903,9 @@ async function resolveAuthenticatedUser(req: Request, strictTokenOnly = false): 
         return formatSafeUser(dbUser);
       }
     }
+
+    // If a token was explicitly provided in the request but failed all verification checks, reject immediately
+    return null;
   }
 
   if (strictTokenOnly) {
@@ -935,7 +955,7 @@ async function startServer() {
   app.use((req, res, next) => {
     res.header('Access-Control-Allow-Origin', '*');
     res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, PATCH, DELETE, OPTIONS');
-    res.header('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept, Authorization, x-user-email');
+    res.header('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept, Authorization, x-user-email, x-monvian-user-id, x-session-id');
     if (req.method === 'OPTIONS') {
       res.sendStatus(200);
       return;
@@ -990,18 +1010,45 @@ async function startServer() {
   });
 
   const getAuthUserSync = (req: Request) => {
-    const authHeader = req.headers.authorization;
-    const token = authHeader?.startsWith('Bearer ') ? authHeader.substring(7).trim() : '';
+    const token = extractRequestToken(req);
     return getUserByToken(token);
   };
 
   // Register modular feature routes
-  registerItineraryRoutes(app, db, getAuthUserSync, () => {}, () => null);
+  registerItineraryRoutes(
+    app,
+    db,
+    getAuthUserSync,
+    () => {},
+    () => null,
+    (req: Request) => resolveAuthenticatedUser(req),
+    (event) => {
+      const isNew = event.action === 'created';
+      dispatchPushAlert(db, {
+        type: 'itinerary_update',
+        title: isNew ? `Novo roteiro: ${event.title}` : `Roteiro atualizado: ${event.title}`,
+        body:
+          event.description?.trim() ||
+          (isNew
+            ? 'Um novo roteiro por Campos do Jordão já está disponível no Monvian.'
+            : 'Novas paradas e melhorias foram aplicadas neste roteiro.'),
+        itineraryId: event.id,
+        imageUrl: event.coverImage || null,
+      }).catch((err) => console.warn('[PushRoutes] Itinerary push notice:', err));
+    }
+  );
   registerSocialRoutes(app, db);
   registerStoryRoutes(app, db);
   registerStripeRoutes(app, db, (req) => resolveAuthenticatedUser(req));
   registerPlatanosRoutes(app, db, (req) => resolveAuthenticatedUser(req), (req) => isRequestAdmin(req));
   registerXpRoutes(app, db, (req) => resolveAuthenticatedUser(req));
+  registerAssistantRoutes(app, db);
+  registerPushRoutes(
+    app,
+    db,
+    (req) => resolveAuthenticatedUser(req),
+    (req) => isRequestAdmin(req)
+  );
 
   // ===========================================================================
   // 1. AUTHENTICATION & SUPABASE AUTH ROUTES
@@ -1132,8 +1179,8 @@ async function startServer() {
 
       const insert = db
         .prepare(`
-          INSERT INTO users (name, username, username_normalized, email, whatsapp, password_hash, avatar_url, role, auth_id, onboarding_completed, onboarding_step)
-          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 0, 1)
+          INSERT INTO users (name, username, username_normalized, email, whatsapp, password_hash, avatar_url, role, auth_id, onboarding_completed, onboarding_step, map_tutorial_status)
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 0, 1, 'pending')
         `)
         .run(
           rawName,
@@ -1180,6 +1227,7 @@ async function startServer() {
         avatar_url: avatar_url || '/fotoperfil.png',
         onboarding_completed: 0,
         onboarding_step: 1,
+        map_tutorial_status: 'pending',
         created_at: nowIso,
         last_access: nowIso,
       };
@@ -1239,10 +1287,15 @@ async function startServer() {
         const remoteUser = await getUserFromSupabase(effectiveLookup);
         if (remoteUser && remoteUser.email) {
           const role = isPrimaryAdmin(remoteUser.email) || remoteUser.role === 'admin' ? 'admin' : 'user';
+          const rawRemoteTutorial = String(remoteUser.map_tutorial_status || '').trim().toLowerCase();
+          const remoteTutorialStatus =
+            rawRemoteTutorial === 'pending' || rawRemoteTutorial === 'completed' || rawRemoteTutorial === 'skipped'
+              ? rawRemoteTutorial
+              : 'completed';
           const ins = db
             .prepare(`
-              INSERT INTO users (name, username, email, whatsapp, password_hash, role, avatar_url, auth_id, welcome_card_seen, globe_intro_seen, onboarding_completed, onboarding_step)
-              VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+              INSERT INTO users (name, username, email, whatsapp, password_hash, role, avatar_url, auth_id, welcome_card_seen, globe_intro_seen, onboarding_completed, onboarding_step, map_tutorial_status)
+              VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             `)
             .run(
               remoteUser.name || remoteUser.email.split('@')[0],
@@ -1256,7 +1309,8 @@ async function startServer() {
               remoteUser.welcome_card_seen ? 1 : 0,
               remoteUser.globe_intro_seen ? 1 : 0,
               remoteUser.onboarding_completed === 0 ? 0 : 1,
-              remoteUser.onboarding_step || 1
+              remoteUser.onboarding_step || 1,
+              remoteTutorialStatus
             );
           user = db.prepare('SELECT * FROM users WHERE id = ?').get(ins.lastInsertRowid);
         }
@@ -1412,15 +1466,20 @@ async function startServer() {
       }
 
       let user = db.prepare('SELECT * FROM users WHERE LOWER(email) = ? OR LOWER(whatsapp) = ?').get(cleanEmail, cleanEmail) as any;
-      let isNew = false;
+      const isNew = false;
 
       if (!user) {
         const remoteUser = await getUserFromSupabase(cleanEmail);
-        if (remoteUser) {
+        if (remoteUser && remoteUser.email) {
           const role = isPrimaryAdmin(cleanEmail) || remoteUser.role === 'admin' ? 'admin' : 'user';
+          const rawRemoteTutorial = String(remoteUser.map_tutorial_status || '').trim().toLowerCase();
+          const remoteTutorialStatus =
+            rawRemoteTutorial === 'pending' || rawRemoteTutorial === 'completed' || rawRemoteTutorial === 'skipped'
+              ? rawRemoteTutorial
+              : 'completed';
           const insert = db.prepare(`
-            INSERT INTO users (name, username, email, whatsapp, password_hash, avatar_url, role, auth_id, welcome_card_seen, globe_intro_seen, onboarding_completed, onboarding_step)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            INSERT INTO users (name, username, email, whatsapp, password_hash, avatar_url, role, auth_id, welcome_card_seen, globe_intro_seen, onboarding_completed, onboarding_step, map_tutorial_status)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
           `).run(
             remoteUser.name || resolvedName || cleanEmail.split('@')[0],
             remoteUser.username || cleanEmail.split('@')[0],
@@ -1433,34 +1492,22 @@ async function startServer() {
             remoteUser.welcome_card_seen ? 1 : 0,
             remoteUser.globe_intro_seen ? 1 : 0,
             remoteUser.onboarding_completed === 0 ? 0 : 1,
-            remoteUser.onboarding_step || 1
+            remoteUser.onboarding_step || 1,
+            remoteTutorialStatus
           );
           user = db.prepare('SELECT * FROM users WHERE id = ?').get(insert.lastInsertRowid);
         } else {
-          isNew = true;
-          const username = cleanEmail.split('@')[0].replace(/[^a-zA-Z0-9_]/g, '') + Math.floor(Math.random() * 100);
-          const dummyHash = bcrypt.hashSync(crypto.randomUUID(), 10);
-          const role = isPrimaryAdmin(cleanEmail) ? 'admin' : 'user';
-          const insert = db.prepare(`
-            INSERT INTO users (name, username, email, whatsapp, password_hash, avatar_url, role, auth_id, onboarding_completed, onboarding_step)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, 0, 1)
-          `).run(resolvedName || username, username, cleanEmail, cleanEmail, dummyHash, resolvedAvatar || '/fotoperfil.png', role, resolvedUid || null);
-          user = db.prepare('SELECT * FROM users WHERE id = ?').get(insert.lastInsertRowid);
-          try {
-            db.prepare(`
-              INSERT OR REPLACE INTO user_onboarding (
-                user_email, user_id, onboarding_step, onboarding_completed, updated_at
-              ) VALUES (?, ?, 1, 0, CURRENT_TIMESTAMP)
-            `).run(cleanEmail, String(user.id));
-          } catch {}
-          try {
-            const uidStr = String(user.id);
-            db.prepare('DELETE FROM favorites WHERE user_id = ?').run(uidStr);
-            db.prepare('DELETE FROM user_favorites WHERE user_id = ?').run(uidStr);
-            db.prepare('DELETE FROM post_likes WHERE user_id = ?').run(uidStr);
-            try { db.prepare('DELETE FROM post_saves WHERE user_id = ?').run(uidStr); } catch {}
-            db.prepare('DELETE FROM user_follows WHERE follower_id = ?').run(uidStr);
-          } catch {}
+          return res.status(404).json({
+            success: false,
+            registered: false,
+            requiresRegistration: true,
+            code: 'ACCOUNT_NOT_REGISTERED',
+            email: cleanEmail,
+            name: resolvedName,
+            avatar_url: resolvedAvatar,
+            google_uid: resolvedUid || null,
+            error: 'Esta conta ainda não está cadastrada. Inicie seu cadastro para continuar.',
+          });
         }
       }
 
@@ -1749,17 +1796,89 @@ async function startServer() {
     }
   });
 
+  // Per-user interactive map onboarding tutorial state (authoritative DB persistence by user ID)
+  app.get('/api/user/map-tutorial', async (req: Request, res: Response) => {
+    try {
+      const currentUser = await resolveAuthenticatedUser(req, true);
+      if (!currentUser?.id) {
+        return res.status(401).json({ success: false, error: 'Não autenticado' });
+      }
+      const dbUser = db.prepare('SELECT * FROM users WHERE id = ?').get(currentUser.id) as any;
+      if (!dbUser) {
+        return res.status(404).json({ success: false, error: 'Usuário não encontrado' });
+      }
+      const safeUser = formatSafeUser(dbUser);
+      return res.json({
+        success: true,
+        status: safeUser?.map_tutorial_status || 'completed',
+        user: safeUser,
+      });
+    } catch (err: any) {
+      return res.status(500).json({ success: false, error: err.message });
+    }
+  });
+
+  app.post('/api/user/map-tutorial', async (req: Request, res: Response) => {
+    try {
+      const currentUser = await resolveAuthenticatedUser(req, true);
+      if (!currentUser?.id) {
+        return res.status(401).json({ success: false, error: 'Não autenticado' });
+      }
+
+      const rawStatus = String(req.body?.status || '').trim().toLowerCase();
+      if (rawStatus !== 'completed' && rawStatus !== 'skipped') {
+        return res.status(400).json({ success: false, error: 'Status do tutorial inválido.' });
+      }
+
+      const nextStatus: 'completed' | 'skipped' = rawStatus;
+      const nowIso = new Date().toISOString();
+
+      db.prepare(
+        'UPDATE users SET map_tutorial_status = ?, map_tutorial_updated_at = ? WHERE id = ?'
+      ).run(nextStatus, nowIso, currentUser.id);
+
+      const updatedUser = db.prepare('SELECT * FROM users WHERE id = ?').get(currentUser.id) as any;
+
+      if (updatedUser) {
+        await Promise.allSettled([
+          persistUserToFirestore({
+            ...updatedUser,
+            map_tutorial_status: nextStatus,
+            map_tutorial_updated_at: nowIso,
+          }),
+          persistUserToSupabase({
+            ...updatedUser,
+            map_tutorial_status: nextStatus,
+            map_tutorial_updated_at: nowIso,
+          }),
+        ]);
+      }
+
+      const safeUser = formatSafeUser(updatedUser || currentUser);
+      return res.json({
+        success: true,
+        status: nextStatus,
+        user: safeUser,
+      });
+    } catch (err: any) {
+      return res.status(500).json({ success: false, error: err.message });
+    }
+  });
+
   // ===========================================================================
   // 1.5. ONBOARDING INTELIGENTE & MEU PERFIL DE VIAJANTE
   // ===========================================================================
   app.get('/api/user/onboarding', async (req: Request, res: Response) => {
     try {
       const currentUser = await resolveAuthenticatedUser(req);
-      const emailParam = String(
-        req.query.email || currentUser?.email || req.headers['x-user-email'] || ''
-      )
-        .trim()
-        .toLowerCase();
+      const queryEmail = String(req.query.email || '').trim().toLowerCase();
+      const currentEmail = String(currentUser?.email || currentUser?.whatsapp || '').trim().toLowerCase();
+
+      if (currentUser && queryEmail && currentEmail && queryEmail !== currentEmail && !isPrimaryAdmin(currentEmail)) {
+        return res.status(403).json({ success: false, error: 'Acesso negado a dados de outra conta.' });
+      }
+
+      const emailParam = currentEmail || queryEmail;
 
       if (!currentUser && !emailParam) {
         return res.status(401).json({ success: false, error: 'Sessão não autenticada.' });
@@ -1890,11 +2009,14 @@ async function startServer() {
     try {
       const currentUser = await resolveAuthenticatedUser(req);
       const body = req.body || {};
-      const emailParam = String(
-        body.email || currentUser?.email || req.headers['x-user-email'] || ''
-      )
-        .trim()
-        .toLowerCase();
+      const bodyEmail = String(body.email || '').trim().toLowerCase();
+      const currentEmail = String(currentUser?.email || currentUser?.whatsapp || '').trim().toLowerCase();
+
+      if (currentUser && bodyEmail && currentEmail && bodyEmail !== currentEmail && !isPrimaryAdmin(currentEmail)) {
+        return res.status(403).json({ success: false, error: 'Não é permitido alterar preferências de outra conta.' });
+      }
+
+      const emailParam = currentEmail || bodyEmail;
 
       if (!currentUser && !emailParam) {
         return res.status(401).json({ success: false, error: 'Sessão não autenticada.' });
@@ -2104,91 +2226,70 @@ async function startServer() {
 
 
 
-  // User Profile Update (Preserves role & Gold status from DB, never trusting client role input)
+  // User Profile Update (Preserves role & Gold status from DB, enforces strict account ownership)
   const updateProfileHandler = async (req: Request, res: Response) => {
     try {
       const currentUser = await resolveAuthenticatedUser(req);
-      const { name, username, bio, email, whatsapp, avatar_url } = req.body;
-      const targetEmail = (email || whatsapp || currentUser?.email || '').trim().toLowerCase();
-
-      if (!targetEmail && !currentUser) {
-        return res.status(400).json({ success: false, error: 'E-mail ou sessão necessária' });
+      if (!currentUser || !currentUser.id) {
+        return res.status(401).json({ success: false, error: 'Sessão não autenticada.' });
       }
 
-      let dbUser = currentUser?.id
-        ? (db.prepare('SELECT * FROM users WHERE id = ?').get(currentUser.id) as any)
-        : (db.prepare('SELECT * FROM users WHERE LOWER(email) = ? OR LOWER(whatsapp) = ?').get(targetEmail, targetEmail) as any);
+      const { name, username, bio, email, whatsapp, avatar_url } = req.body;
+      const targetEmail = (email || whatsapp || currentUser.email || '').trim().toLowerCase();
+
+      let dbUser = db.prepare('SELECT * FROM users WHERE id = ?').get(currentUser.id) as any;
+      if (!dbUser) {
+        return res.status(404).json({ success: false, error: 'Usuário não encontrado.' });
+      }
 
       const cleanUsername = (username || name || targetEmail.split('@')[0] || 'explorador')
         .trim()
         .replace(/^@+/, '');
 
-      if (dbUser) {
-        const existingWithTargetEmail = targetEmail
-          ? (db
-              .prepare('SELECT * FROM users WHERE (LOWER(email) = ? OR LOWER(whatsapp) = ?) AND id != ?')
-              .get(targetEmail, targetEmail, dbUser.id) as any)
-          : null;
+      const existingWithTargetEmail = targetEmail
+        ? (db
+            .prepare('SELECT id, email FROM users WHERE (LOWER(email) = ? OR LOWER(whatsapp) = ?) AND id != ?')
+            .get(targetEmail, targetEmail, dbUser.id) as any)
+        : null;
 
-        if (existingWithTargetEmail) {
-          // Rebind current session to the target email account (e.g. switching to marioyesk@gmail.com)
-          const preservedRole =
-            isPrimaryAdmin(targetEmail) || existingWithTargetEmail.role === 'admin' ? 'admin' : 'user';
-
-          db.prepare(`
-            UPDATE users
-            SET name = ?, bio = ?, avatar_url = ?, role = ?
-            WHERE id = ?
-          `).run(
-            name || existingWithTargetEmail.name,
-            bio !== undefined ? bio : (existingWithTargetEmail.bio || ''),
-            avatar_url || existingWithTargetEmail.avatar_url || '/fotoperfil.png',
-            preservedRole,
-            existingWithTargetEmail.id
-          );
-
-          const authHeader = req.headers.authorization;
-          const token = authHeader?.startsWith('Bearer ') ? authHeader.substring(7).trim() : '';
-          if (token) {
-            db.prepare('UPDATE sessions SET user_id = ? WHERE token = ?').run(existingWithTargetEmail.id, token);
-          }
-          dbUser = db.prepare('SELECT * FROM users WHERE id = ?').get(existingWithTargetEmail.id);
-        } else {
-          const preservedRole = isPrimaryAdmin(targetEmail || dbUser.email) || dbUser.role === 'admin' ? 'admin' : 'user';
-
-          db.prepare(`
-            UPDATE users
-            SET name = ?, username = ?, bio = ?, email = ?, whatsapp = ?, avatar_url = ?, role = ?
-            WHERE id = ?
-          `).run(
-            name || dbUser.name,
-            cleanUsername,
-            bio !== undefined ? bio : (dbUser.bio || ''),
-            targetEmail || dbUser.email,
-            targetEmail || dbUser.whatsapp,
-            avatar_url || dbUser.avatar_url || '/fotoperfil.png',
-            preservedRole,
-            dbUser.id
-          );
-          dbUser = db.prepare('SELECT * FROM users WHERE id = ?').get(dbUser.id);
-        }
-      } else {
-        const role = isPrimaryAdmin(targetEmail) ? 'admin' : 'user';
-        const ins = db.prepare(`
-          INSERT INTO users (name, username, bio, email, whatsapp, password_hash, avatar_url, role)
-          VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-        `).run(
-          name || cleanUsername,
-          cleanUsername,
-          bio || '',
-          targetEmail,
-          targetEmail,
-          'profile_sync',
-          avatar_url || '/fotoperfil.png',
-          role
-        );
-        dbUser = db.prepare('SELECT * FROM users WHERE id = ?').get(ins.lastInsertRowid);
+      if (existingWithTargetEmail) {
+        return res.status(409).json({
+          success: false,
+          error: 'Este e-mail já está vinculado a outra conta.',
+        });
       }
+
+      const existingWithUsername = cleanUsername
+        ? (db
+            .prepare('SELECT id FROM users WHERE LOWER(username) = ? AND id != ?')
+            .get(cleanUsername.toLowerCase(), dbUser.id) as any)
+        : null;
+
+      if (existingWithUsername) {
+        return res.status(409).json({
+          success: false,
+          error: 'Este nome de usuário já está em uso por outra conta.',
+        });
+      }
+
+      const preservedRole = isPrimaryAdmin(targetEmail || dbUser.email) || dbUser.role === 'admin' ? 'admin' : 'user';
+
+      db.prepare(`
+        UPDATE users
+        SET name = ?, username = ?, username_normalized = ?, bio = ?, email = ?, whatsapp = ?, avatar_url = ?, role = ?
+        WHERE id = ?
+      `).run(
+        name || dbUser.name,
+        cleanUsername,
+        cleanUsername.toLowerCase(),
+        bio !== undefined ? bio : (dbUser.bio || ''),
+        targetEmail || dbUser.email,
+        targetEmail || dbUser.whatsapp,
+        avatar_url || dbUser.avatar_url || '/fotoperfil.png',
+        preservedRole,
+        dbUser.id
+      );
+      dbUser = db.prepare('SELECT * FROM users WHERE id = ?').get(dbUser.id);
 
       await persistUserToSupabase(dbUser);
       persistUserToFirestore(dbUser).catch(() => {});
@@ -2224,35 +2325,33 @@ async function startServer() {
     }
   });
 
-  // User Device Permissions Persistence (Location & Motion/Orientation saved in DB)
+  // User Device Permissions Persistence (Strictly Per-Account Scoped in DB)
   app.post('/api/user/permissions', async (req: Request, res: Response) => {
     try {
       const currentUser = await resolveAuthenticatedUser(req);
       const { email, locationGranted, motionGranted, coords } = req.body || {};
-      const targetEmail = (email || currentUser?.email || '').trim().toLowerCase();
+      const bodyEmail = String(email || '').trim().toLowerCase();
+      const currentEmail = String(currentUser?.email || currentUser?.whatsapp || '').trim().toLowerCase();
+
+      if (currentUser && bodyEmail && currentEmail && bodyEmail !== currentEmail && !isPrimaryAdmin(currentEmail)) {
+        return res.status(403).json({ success: false, error: 'Acesso negado a permissões de outra conta.' });
+      }
+
+      const targetEmail = currentEmail || bodyEmail;
 
       const locVal = locationGranted !== undefined ? (locationGranted ? 1 : 0) : undefined;
       const motVal = motionGranted !== undefined ? (motionGranted ? 1 : 0) : undefined;
 
-      // Persist both globally and per-user in system_settings as a durable DB store
-      if (locVal === 1) {
-        db.prepare('INSERT OR REPLACE INTO system_settings (key, value) VALUES (?, ?)').run('perm_loc_global', '1');
-        if (targetEmail) {
-          db.prepare('INSERT OR REPLACE INTO system_settings (key, value) VALUES (?, ?)').run(`perm_loc_${targetEmail}`, '1');
-        }
+      // Persist strictly per-user in system_settings (never globally across different accounts)
+      if (locVal === 1 && targetEmail) {
+        db.prepare('INSERT OR REPLACE INTO system_settings (key, value) VALUES (?, ?)').run(`perm_loc_${targetEmail}`, '1');
       }
-      if (motVal === 1) {
-        db.prepare('INSERT OR REPLACE INTO system_settings (key, value) VALUES (?, ?)').run('perm_mot_global', '1');
-        if (targetEmail) {
-          db.prepare('INSERT OR REPLACE INTO system_settings (key, value) VALUES (?, ?)').run(`perm_mot_${targetEmail}`, '1');
-        }
+      if (motVal === 1 && targetEmail) {
+        db.prepare('INSERT OR REPLACE INTO system_settings (key, value) VALUES (?, ?)').run(`perm_mot_${targetEmail}`, '1');
       }
-      if (Array.isArray(coords) && coords.length === 2 && typeof coords[0] === 'number' && typeof coords[1] === 'number') {
+      if (targetEmail && Array.isArray(coords) && coords.length === 2 && typeof coords[0] === 'number' && typeof coords[1] === 'number') {
         const coordsJson = JSON.stringify([coords[0], coords[1]]);
-        db.prepare('INSERT OR REPLACE INTO system_settings (key, value) VALUES (?, ?)').run('perm_coords_global', coordsJson);
-        if (targetEmail) {
-          db.prepare('INSERT OR REPLACE INTO system_settings (key, value) VALUES (?, ?)').run(`perm_coords_${targetEmail}`, coordsJson);
-        }
+        db.prepare('INSERT OR REPLACE INTO system_settings (key, value) VALUES (?, ?)').run(`perm_coords_${targetEmail}`, coordsJson);
       }
 
       if (targetEmail || currentUser?.id) {
@@ -2279,8 +2378,8 @@ async function startServer() {
       return res.json({
         success: true,
         permissions: {
-          location_permission_granted: locVal ?? 1,
-          motion_permission_granted: motVal ?? 1,
+          location_permission_granted: locVal ?? 0,
+          motion_permission_granted: motVal ?? 0,
         },
       });
     } catch (err: any) {
@@ -2291,7 +2390,14 @@ async function startServer() {
   app.get('/api/user/permissions', async (req: Request, res: Response) => {
     try {
       const currentUser = await resolveAuthenticatedUser(req);
-      const email = String(req.query.email || currentUser?.email || '').trim().toLowerCase();
+      const queryEmail = String(req.query.email || '').trim().toLowerCase();
+      const currentEmail = String(currentUser?.email || currentUser?.whatsapp || '').trim().toLowerCase();
+
+      if (currentUser && queryEmail && currentEmail && queryEmail !== currentEmail && !isPrimaryAdmin(currentEmail)) {
+        return res.status(403).json({ success: false, error: 'Acesso negado a permissões de outra conta.' });
+      }
+
+      const email = currentEmail || queryEmail;
 
       let locGranted = false;
       let motGranted = false;
@@ -2314,25 +2420,6 @@ async function startServer() {
             if (Array.isArray(parsed) && parsed.length === 2) savedCoords = [Number(parsed[0]), Number(parsed[1])];
           } catch {}
         }
-      }
-
-      const globalLoc = db.prepare('SELECT value FROM system_settings WHERE key = ?').get('perm_loc_global') as any;
-      const globalMot = db.prepare('SELECT value FROM system_settings WHERE key = ?').get('perm_mot_global') as any;
-      const globalCoords = db.prepare('SELECT value FROM system_settings WHERE key = ?').get('perm_coords_global') as any;
-      if (globalLoc?.value === '1') locGranted = true;
-      if (globalMot?.value === '1') motGranted = true;
-      if (!savedCoords && globalCoords?.value) {
-        try {
-          const parsed = JSON.parse(globalCoords.value);
-          if (Array.isArray(parsed) && parsed.length === 2) savedCoords = [Number(parsed[0]), Number(parsed[1])];
-        } catch {}
-      }
-
-      // Also check if any user row in SQLite has granted permissions on this instance
-      if (!locGranted || !motGranted) {
-        const anyGranted = db.prepare('SELECT MAX(location_permission_granted) as loc, MAX(motion_permission_granted) as mot FROM users').get() as any;
-        if (anyGranted?.loc === 1) locGranted = true;
-        if (anyGranted?.mot === 1) motGranted = true;
       }
 
       return res.json({
@@ -3376,6 +3463,20 @@ async function startServer() {
       await persistSpotToSupabase(createdRow);
       persistSpotToFirestore(formatted).catch(() => {});
 
+      if (isActiveInt === 1 && body.notifyUsers !== false) {
+        const spotDisplayName = String(formatted.name || body.name).trim();
+        const categoryText = String(formatted.categoryLabel || formatted.category || 'Campos do Jordão').trim();
+        dispatchPushAlert(db, {
+          type: 'new_spot',
+          title: `Novo local: ${spotDisplayName}`,
+          body:
+            String(formatted.description || '').trim() ||
+            `Explore ${spotDisplayName} (${categoryText}) agora no mapa do Monvian.`,
+          spotId: formatted.id,
+          imageUrl: formatted.image || null,
+        }).catch((err) => console.warn('[PushRoutes] New spot push notice:', err));
+      }
+
       return res.json({ success: true, spot: formatted });
     } catch (err: any) {
       return res.status(500).json({ success: false, error: err.message });
@@ -3591,8 +3692,36 @@ async function startServer() {
   });
 
   // ===========================================================================
-  // 3. VISUAL MAP ICONS API
+  // 3. VISUAL MAP ICONS (STOP ICONS) API
   // ===========================================================================
+  const normalizeStopIconPayload = (body: any) => {
+    const rawName = typeof body?.name === 'string' ? body.name.trim() : '';
+    const rawCategory = typeof body?.category === 'string' ? body.category.trim() : '';
+    const rawIcon = typeof body?.icon === 'string' ? body.icon.trim() : '';
+    const rawColor = typeof body?.color === 'string' ? body.color.trim() : '';
+    const latNum = Number(body?.latitude);
+    const lngNum = Number(body?.longitude);
+    const safeColor = /^#[0-9A-Fa-f]{6}$/.test(rawColor) ? rawColor.toUpperCase() : '#1668FF';
+    const safeIcon = /^[a-zA-Z0-9_-]{1,64}$/.test(rawIcon) ? rawIcon : 'map-pin';
+    const safeCategory = rawCategory.slice(0, 80);
+    const safeName = (rawName || safeCategory || 'Ponto de Parada').slice(0, 120);
+    return {
+      name: safeName,
+      category: safeCategory,
+      icon: safeIcon,
+      color: safeColor,
+      latitude: latNum,
+      longitude: lngNum,
+      isValidCoords:
+        Number.isFinite(latNum) &&
+        Number.isFinite(lngNum) &&
+        latNum >= -90 &&
+        latNum <= 90 &&
+        lngNum >= -180 &&
+        lngNum <= 180,
+    };
+  };
+
   app.get('/api/map-visual-icons', (_req: Request, res: Response) => {
     try {
       const rows = db.prepare('SELECT * FROM map_visual_icons WHERE is_active = 1 ORDER BY created_at DESC').all();
@@ -3602,8 +3731,11 @@ async function startServer() {
     }
   });
 
-  app.get('/api/admin/map-visual-icons', (_req: Request, res: Response) => {
+  app.get('/api/admin/map-visual-icons', async (req: Request, res: Response) => {
     try {
+      if (!(await isRequestAdmin(req))) {
+        return res.status(403).json({ success: false, error: 'Acesso restrito a administradores.' });
+      }
       const rows = db.prepare('SELECT * FROM map_visual_icons ORDER BY created_at DESC').all();
       return res.json({ success: true, icons: rows });
     } catch (err: any) {
@@ -3613,21 +3745,36 @@ async function startServer() {
 
   app.post('/api/admin/map-visual-icons', async (req: Request, res: Response) => {
     try {
-      const { id, category, latitude, longitude, color, is_active } = req.body;
-      if (!category || latitude === undefined || longitude === undefined) {
-        return res.status(400).json({ success: false, error: 'Categoria, latitude e longitude são obrigatórios' });
+      if (!(await isRequestAdmin(req))) {
+        return res.status(403).json({ success: false, error: 'Acesso restrito a administradores.' });
+      }
+      const parsed = normalizeStopIconPayload(req.body);
+      if (!parsed.category || !parsed.isValidCoords) {
+        return res.status(400).json({ success: false, error: 'Categoria, latitude e longitude válidas são obrigatórios.' });
       }
 
-      const iconId = id || `v_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
-      const activeState = is_active === undefined ? 1 : (is_active ? 1 : 0);
+      const requestedId = typeof req.body?.id === 'string' && /^[a-zA-Z0-9_-]{3,80}$/.test(req.body.id)
+        ? req.body.id
+        : null;
+      const iconId = requestedId || `v_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
+      const activeState = req.body?.is_active === undefined ? 1 : (req.body.is_active ? 1 : 0);
 
       db.prepare(`
-        INSERT INTO map_visual_icons (id, category, latitude, longitude, color, is_active)
-        VALUES (?, ?, ?, ?, ?, ?)
-      `).run(iconId, String(category), Number(latitude), Number(longitude), color || null, activeState);
+        INSERT INTO map_visual_icons (id, name, category, icon, latitude, longitude, color, is_active)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+      `).run(
+        iconId,
+        parsed.name,
+        parsed.category,
+        parsed.icon,
+        parsed.latitude,
+        parsed.longitude,
+        parsed.color,
+        activeState
+      );
 
       const created = db.prepare('SELECT * FROM map_visual_icons WHERE id = ?').get(iconId) as any;
-      await persistMapVisualIconToSupabase(created);
+      persistMapVisualIconToSupabase(created).catch(() => {});
       persistMapVisualIconToFirestore(created).catch(() => {});
 
       return res.json({ success: true, icon: created, message: 'Ícone adicionado com sucesso!' });
@@ -3638,17 +3785,38 @@ async function startServer() {
 
   app.put('/api/admin/map-visual-icons/:id', async (req: Request, res: Response) => {
     try {
+      if (!(await isRequestAdmin(req))) {
+        return res.status(403).json({ success: false, error: 'Acesso restrito a administradores.' });
+      }
       const { id } = req.params;
-      const { category, latitude, longitude, color, is_active } = req.body;
+      const existing = db.prepare('SELECT * FROM map_visual_icons WHERE id = ?').get(id) as any;
+      if (!existing) {
+        return res.status(404).json({ success: false, error: 'Ícone não encontrado.' });
+      }
+
+      const parsed = normalizeStopIconPayload(req.body);
+      if (!parsed.category || !parsed.isValidCoords) {
+        return res.status(400).json({ success: false, error: 'Categoria, latitude e longitude válidas são obrigatórios.' });
+      }
+      const activeState = req.body?.is_active === undefined ? existing.is_active : (req.body.is_active ? 1 : 0);
 
       db.prepare(`
         UPDATE map_visual_icons
-        SET category = ?, latitude = ?, longitude = ?, color = ?, is_active = ?, updated_at = CURRENT_TIMESTAMP
+        SET name = ?, category = ?, icon = ?, latitude = ?, longitude = ?, color = ?, is_active = ?, updated_at = CURRENT_TIMESTAMP
         WHERE id = ?
-      `).run(String(category), Number(latitude), Number(longitude), color || null, is_active ? 1 : 0, id);
+      `).run(
+        parsed.name,
+        parsed.category,
+        parsed.icon,
+        parsed.latitude,
+        parsed.longitude,
+        parsed.color,
+        activeState,
+        id
+      );
 
       const updated = db.prepare('SELECT * FROM map_visual_icons WHERE id = ?').get(id) as any;
-      await persistMapVisualIconToSupabase(updated);
+      persistMapVisualIconToSupabase(updated).catch(() => {});
       persistMapVisualIconToFirestore(updated).catch(() => {});
 
       return res.json({ success: true, icon: updated, message: 'Ícone atualizado com sucesso!' });
@@ -3659,6 +3827,9 @@ async function startServer() {
 
   app.patch('/api/admin/map-visual-icons/:id/toggle-active', async (req: Request, res: Response) => {
     try {
+      if (!(await isRequestAdmin(req))) {
+        return res.status(403).json({ success: false, error: 'Acesso restrito a administradores.' });
+      }
       const { id } = req.params;
       const current = db.prepare('SELECT * FROM map_visual_icons WHERE id = ?').get(id) as any;
       if (!current) {
@@ -3669,11 +3840,12 @@ async function startServer() {
       db.prepare('UPDATE map_visual_icons SET is_active = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?').run(nextActive, id);
 
       const updated = db.prepare('SELECT * FROM map_visual_icons WHERE id = ?').get(id) as any;
-      await persistMapVisualIconToSupabase(updated);
+      persistMapVisualIconToSupabase(updated).catch(() => {});
       persistMapVisualIconToFirestore(updated).catch(() => {});
 
       return res.json({
         success: true,
+        icon: updated,
         is_active: nextActive,
         message: nextActive === 1 ? 'Marcador ativado no mapa' : 'Marcador ocultado do mapa',
       });
@@ -3684,9 +3856,12 @@ async function startServer() {
 
   app.delete('/api/admin/map-visual-icons/:id', async (req: Request, res: Response) => {
     try {
+      if (!(await isRequestAdmin(req))) {
+        return res.status(403).json({ success: false, error: 'Acesso restrito a administradores.' });
+      }
       const { id } = req.params;
       db.prepare('DELETE FROM map_visual_icons WHERE id = ?').run(id);
-      await deleteMapVisualIconFromSupabase(id);
+      deleteMapVisualIconFromSupabase(id).catch(() => {});
       deleteMapVisualIconFromFirestore(id).catch(() => {});
       return res.json({ success: true, message: 'Ícone removido com sucesso' });
     } catch (err: any) {
@@ -4884,6 +5059,9 @@ async function startServer() {
         .catch((err) => console.warn('[SupabaseBootSync]', err))
         .finally(() => {
           syncDatabaseWithFirestore(db).catch((err) => console.warn('[FirestoreBootSync]', err));
+          syncStripeHistoryAndBalance(db, { silent: true }).catch((err) =>
+            console.warn('[StripeBootSync]', err?.message || err)
+          );
         });
     }, 1000);
   });

@@ -33,7 +33,13 @@ import {
 } from 'lucide-react';
 import { PlatanoLeafIcon } from '../platanos/PlatanoLeafIcon';
 import { fetchSpotsFromSupabase } from '../../services/supabaseSpots';
-import { saveItineraryToSupabase } from '../../services/supabaseItineraries';
+import {
+  saveItineraryToSupabase,
+  STORE_SECTION_OPTIONS,
+  extractStoreSectionsFromItinerary,
+  buildCategoriesForStoreSections,
+  type StoreSectionId,
+} from '../../services/supabaseItineraries';
 import { Spot, Itinerary, ItineraryCategory, ItineraryStatus } from '../../types';
 
 interface AdminItineraryModalProps {
@@ -129,6 +135,7 @@ export const AdminItineraryModal: React.FC<AdminItineraryModalProps> = ({
   const [coverImage, setCoverImage] = useState(COVER_PRESETS[0].url);
   const [daysCount, setDaysCount] = useState(2);
   const [selectedCategories, setSelectedCategories] = useState<string[]>([]);
+  const [selectedStoreSections, setSelectedStoreSections] = useState<StoreSectionId[]>(['all']);
   const [price, setPrice] = useState('Grátis');
   const [status, setStatus] = useState<ItineraryStatus>('published');
   const [isFeatured, setIsFeatured] = useState(false);
@@ -228,12 +235,14 @@ export const AdminItineraryModal: React.FC<AdminItineraryModalProps> = ({
       setCoverImage(itineraryToEdit.coverImage || COVER_PRESETS[0].url);
       setDaysCount(itineraryToEdit.daysCount || 1);
       setSelectedCategories(itineraryToEdit.categories || []);
+      const extractedSections = extractStoreSectionsFromItinerary(itineraryToEdit);
+      setSelectedStoreSections(extractedSections);
 
       const hasPaidAccess = Boolean(itineraryToEdit.isPremium);
       setIsPremium(hasPaidAccess);
       setPrice(itineraryToEdit.price || (hasPaidAccess ? '15 Plátanos' : 'Grátis'));
       setStatus(itineraryToEdit.status || (itineraryToEdit.isActive !== false ? 'published' : 'draft'));
-      setIsFeatured(Boolean(itineraryToEdit.isFeatured || itineraryToEdit.isRecommended));
+      setIsFeatured(extractedSections.includes('destaque') || Boolean(itineraryToEdit.isFeatured || itineraryToEdit.isRecommended));
       setBadgeText(itineraryToEdit.badgeText || (hasPaidAccess ? '15 Plátanos' : ''));
       setShowPrice(itineraryToEdit.showPrice !== false);
       setShowStopsCount(itineraryToEdit.showStopsCount !== false);
@@ -269,6 +278,7 @@ export const AdminItineraryModal: React.FC<AdminItineraryModalProps> = ({
       setCoverImage(COVER_PRESETS[0].url);
       setDaysCount(2);
       setSelectedCategories([]);
+      setSelectedStoreSections(['all']);
       setPrice('Grátis');
       setStatus('published');
       setIsFeatured(false);
@@ -319,14 +329,6 @@ export const AdminItineraryModal: React.FC<AdminItineraryModalProps> = ({
       if (activeDayIdx >= newCount) {
         setActiveDayIdx(newCount - 1);
       }
-    }
-  };
-
-  const toggleCategory = (catId: string) => {
-    if (selectedCategories.includes(catId)) {
-      setSelectedCategories(selectedCategories.filter((c) => c !== catId));
-    } else {
-      setSelectedCategories([...selectedCategories, catId]);
     }
   };
 
@@ -483,9 +485,41 @@ export const AdminItineraryModal: React.FC<AdminItineraryModalProps> = ({
     return Array.from(set);
   }, [availableSpots]);
 
+  const toggleStoreSection = (sectionId: StoreSectionId) => {
+    setSelectedStoreSections((prev) => {
+      const exists = prev.includes(sectionId);
+      // Keep at least one location selected so the itinerary always lives somewhere in the store
+      if (exists && prev.length === 1) {
+        return prev;
+      }
+      const next = exists ? prev.filter((id) => id !== sectionId) : [...prev, sectionId];
+      if (sectionId === 'destaque') {
+        setIsFeatured(!exists);
+      }
+      return next;
+    });
+  };
+
+  const handleToggleFeatured = (nextFeatured: boolean) => {
+    setIsFeatured(nextFeatured);
+    setSelectedStoreSections((prev) => {
+      if (nextFeatured) {
+        return prev.includes('destaque') ? prev : [...prev, 'destaque'];
+      }
+      const filtered = prev.filter((id) => id !== 'destaque');
+      return filtered.length > 0 ? filtered : ['all'];
+    });
+  };
+
   const handleSaveWithStatus = async (chosenStatus: ItineraryStatus) => {
     if (!title.trim()) {
       setErrorMsg('Por favor, informe o nome do roteiro.');
+      setActiveTab('info');
+      return;
+    }
+
+    if (selectedStoreSections.length === 0) {
+      setErrorMsg('Selecione pelo menos um local na Loja de Roteiros.');
       setActiveTab('info');
       return;
     }
@@ -500,19 +534,22 @@ export const AdminItineraryModal: React.FC<AdminItineraryModalProps> = ({
     setIsSubmitting(true);
     setErrorMsg('');
 
+    const finalCategories = buildCategoriesForStoreSections(selectedStoreSections, selectedCategories);
+    const finalIsFeatured = selectedStoreSections.includes('destaque');
+
     const payload = {
       title: title.trim(),
       description: description.trim(),
       tips: tips.trim(),
       coverImage: coverImage.trim() || (itineraryToEdit ? itineraryToEdit.coverImage : COVER_PRESETS[0].url),
       daysCount,
-      categories: selectedCategories,
+      categories: finalCategories,
       price: isPremium ? '15 Plátanos' : 'Grátis',
       platanosPrice: isPremium ? 15 : 0,
       status: chosenStatus,
       isActive: chosenStatus === 'published',
-      isFeatured,
-      isRecommended: isFeatured,
+      isFeatured: finalIsFeatured,
+      isRecommended: finalIsFeatured,
       isPremium,
       badgeText: isPremium ? '15 Plátanos' : badgeText || '',
       showPrice: showPrice !== false,
@@ -953,35 +990,62 @@ export const AdminItineraryModal: React.FC<AdminItineraryModalProps> = ({
                       </div>
                     </div>
 
-                    {/* Categorias do Roteiro */}
-                    {categories.length > 0 && (
-                      <div>
-                        <SectionHeading
-                          icon={<Layers className="w-[16px] h-[16px] stroke-[2]" />}
-                          title="Categorias na Loja"
-                        />
-                        <div className="flex flex-wrap gap-2">
-                          {categories.map((cat) => {
-                            const selected = selectedCategories.includes(cat.id);
-                            return (
-                              <button
-                                key={cat.id}
-                                type="button"
-                                onClick={() => toggleCategory(cat.id)}
-                                className={`h-[34px] px-3.5 rounded-full text-[12.5px] transition-all flex items-center gap-1.5 cursor-pointer select-none active:scale-[0.97] border ${
+                    {/* Local na Loja de Roteiros (Abas oficiais com ícones 3D) */}
+                    <div>
+                      <SectionHeading
+                        icon={<Layers className="w-[16px] h-[16px] stroke-[2]" />}
+                        title="Local na Loja de Roteiros"
+                        rightSlot={
+                          <span className="text-[11.5px] font-semibold text-[#6B7280] tabular-nums">
+                            {selectedStoreSections.length}{' '}
+                            {selectedStoreSections.length === 1 ? 'selecionado' : 'selecionados'}
+                          </span>
+                        }
+                      />
+                      <p className="text-[12px] text-[#6B7280] mb-3 leading-snug">
+                        Escolha exatamente em qual aba da Loja este roteiro será exibido. Desmarque &quot;Todos&quot; se quiser deixá-lo exclusivo de uma área específica.
+                      </p>
+                      <div className="grid grid-cols-4 gap-2">
+                        {STORE_SECTION_OPTIONS.map((section) => {
+                          const selected = selectedStoreSections.includes(section.id);
+                          return (
+                            <button
+                              key={section.id}
+                              type="button"
+                              onClick={() => toggleStoreSection(section.id)}
+                              className={`relative py-2.5 px-1.5 rounded-[18px] border flex flex-col items-center justify-center gap-1.5 transition-all cursor-pointer select-none active:scale-[0.97] ${
+                                selected
+                                  ? 'bg-[#FFFFFF] border-[#111827] ring-1 ring-[#111827]/12 shadow-[0_6px_16px_-6px_rgba(17,24,39,0.16)]'
+                                  : 'bg-[#F7F8FA] border-[#EAECEF] hover:border-[#D1D5DB] opacity-75 hover:opacity-100'
+                              }`}
+                            >
+                              {selected && (
+                                <span className="absolute top-1.5 right-1.5 w-4 h-4 rounded-full bg-[#111827] text-white flex items-center justify-center">
+                                  <Check className="w-2.5 h-2.5 stroke-[3]" />
+                                </span>
+                              )}
+                              <img
+                                src={section.image}
+                                alt={section.name}
+                                draggable={false}
+                                className={`w-10 h-10 object-contain transition-transform ${
+                                  selected ? 'scale-105' : 'scale-95 grayscale-[18%]'
+                                }`}
+                              />
+                              <span
+                                className={`text-[11.5px] leading-tight text-center truncate max-w-full ${
                                   selected
-                                    ? 'bg-[#2563EB]/10 text-[#1D4ED8] border-[#2563EB] font-semibold'
-                                    : 'bg-[#F7F8FA] text-[#374151] border-[#E6E8EC] hover:border-[#D1D5DB] font-medium'
+                                    ? 'font-bold text-[#111827]'
+                                    : 'font-medium text-[#6B7280]'
                                 }`}
                               >
-                                {selected && <Check className="w-3.5 h-3.5 stroke-[2.5]" />}
-                                <span>{cat.name}</span>
-                              </button>
-                            );
-                          })}
-                        </div>
+                                {section.name}
+                              </span>
+                            </button>
+                          );
+                        })}
                       </div>
-                    )}
+                    </div>
 
                     {/* Descrição & Dicas */}
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -1632,7 +1696,7 @@ export const AdminItineraryModal: React.FC<AdminItineraryModalProps> = ({
                             </div>
                             <IOSToggle
                               checked={isFeatured}
-                              onChange={setIsFeatured}
+                              onChange={handleToggleFeatured}
                               ariaLabel="Ativar roteiro em destaque"
                             />
                           </div>

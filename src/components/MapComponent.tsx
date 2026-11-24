@@ -1,10 +1,15 @@
 import React, { useEffect, useRef, useImperativeHandle, forwardRef, useState, useCallback, memo } from 'react';
-import { motion } from 'motion/react';
+import { motion, useMotionValue, animate, type MotionValue } from 'motion/react';
 import * as maplibregl from 'maplibre-gl';
 import 'maplibre-gl/dist/maplibre-gl.css';
 import '../utils/configureMaplibre';
-import { Play } from 'lucide-react';
-import { Spot, MapModeType, MapWorkflowMode, ItineraryStep } from '../types';
+import { Plus } from 'lucide-react';
+import { Spot, MapVisualIcon, MapModeType, MapWorkflowMode, ItineraryStep } from '../types';
+import {
+  createStopIconMarkerElements,
+  updateStopIconMarkerAppearance,
+  preloadStopIconSymbols,
+} from '../utils/mapVisualIcons';
 import { getSpotPinThumbnail, getSpotFallbackImage } from '../utils/spotImages';
 import { gpsNavigationManager, calculateHaversineDistance } from '../services/gpsNavigation';
 import { monvianXpManager } from '../services/xpService';
@@ -34,6 +39,7 @@ export interface MapComponentHandle {
   fitItineraryBounds: (steps?: ItineraryStep[], instant?: boolean) => void;
   focusItineraryStep: (step: ItineraryStep, isExpanded?: boolean) => void;
   fitSpotsOverview: () => void;
+  restorePreSpotCamera: () => void;
 }
 
 interface MapComponentProps {
@@ -75,6 +81,10 @@ interface MapComponentProps {
   onSelectItineraryStep?: (stepId: string) => void;
   zoomDurationMs?: number;
   entranceTick?: number;
+  isDiscoveryPanelOpen?: boolean;
+  onToggleDiscoveryPanel?: () => void;
+  discoverySheetHeightMV?: MotionValue<number>;
+  hideFloatingControls?: boolean;
 }
 
 const getMapboxToken = (): string => {
@@ -363,7 +373,7 @@ export const MapComponent = memo(
       visualIcons = [],
       userAvatar,
       userName,
-      is3DMode = false,
+      is3DMode = true,
       isDetailOpen = false,
       mapMode = 'explorar',
       onMapModeChange,
@@ -390,9 +400,72 @@ export const MapComponent = memo(
       onSelectItineraryStep,
       zoomDurationMs = 780,
       entranceTick = 0,
+      isDiscoveryPanelOpen = false,
+      onToggleDiscoveryPanel,
+      discoverySheetHeightMV,
+      hideFloatingControls = false,
     },
     ref
   ) => {
+    const fallbackSheetHeightMV = useMotionValue<number>(0);
+    const activeSheetHeightMV = discoverySheetHeightMV ?? fallbackSheetHeightMV;
+    const computeRightControlsTargetY = useCallback((open: boolean, sheetH: number) => {
+      const vh =
+        typeof window !== 'undefined'
+          ? window.visualViewport?.height || window.innerHeight || 844
+          : 844;
+      const groupHeight = 175;
+      if (!open || sheetH <= 4) {
+        return -Math.round((vh - groupHeight) / 2);
+      }
+      const topControlsClearance = 136;
+      const maxLift = Math.max(0, vh - groupHeight - topControlsClearance);
+      const extraLift = Math.round(Math.max(54, Math.min(78, vh * 0.08)));
+      const desiredLift = Math.max(0, sheetH) + extraLift;
+      return -Math.min(desiredLift, maxLift);
+    }, []);
+    const rightControlsY = useMotionValue<number>(
+      computeRightControlsTargetY(isDiscoveryPanelOpen, activeSheetHeightMV.get())
+    );
+    const rightControlsAnimRef = useRef<ReturnType<typeof animate> | null>(null);
+    const isDiscoveryPanelOpenRef = useRef<boolean>(isDiscoveryPanelOpen);
+    isDiscoveryPanelOpenRef.current = isDiscoveryPanelOpen;
+
+    // Smoothly glide right-side buttons in sync with the Plátanos-style bottom sheet open/close & drag
+    useEffect(() => {
+      const target = computeRightControlsTargetY(isDiscoveryPanelOpen, activeSheetHeightMV.get());
+      rightControlsAnimRef.current?.stop();
+      rightControlsAnimRef.current = animate(rightControlsY, target, {
+        type: 'spring',
+        stiffness: 300,
+        damping: 30,
+        mass: 0.82,
+      });
+
+      const unsub = activeSheetHeightMV.on('change', (latestH) => {
+        if (!isDiscoveryPanelOpenRef.current) return;
+        const nextY = computeRightControlsTargetY(true, latestH);
+        rightControlsAnimRef.current?.stop();
+        rightControlsAnimRef.current = animate(rightControlsY, nextY, {
+          type: 'spring',
+          stiffness: 300,
+          damping: 30,
+          mass: 0.82,
+        });
+      });
+
+      const handleResize = () => {
+        rightControlsY.set(
+          computeRightControlsTargetY(isDiscoveryPanelOpenRef.current, activeSheetHeightMV.get())
+        );
+      };
+      window.addEventListener('resize', handleResize);
+
+      return () => {
+        unsub();
+        window.removeEventListener('resize', handleResize);
+      };
+    }, [isDiscoveryPanelOpen, activeSheetHeightMV, computeRightControlsTargetY, rightControlsY]);
     const mapContainerRef = useRef<HTMLDivElement | null>(null);
     const mapRef = useRef<maplibregl.Map | null>(null);
     const isSuspendedRef = useRef<boolean>(isSuspended);
@@ -417,6 +490,13 @@ export const MapComponent = memo(
     const zoomDurationMsRef = useRef<number>(clampedZoomDuration);
     zoomDurationMsRef.current = clampedZoomDuration;
     const spotFocusRafRef = useRef<number | null>(null);
+    const prevSelectedSpotIdRef = useRef<string | null>(null);
+    const preSpotCameraRef = useRef<{
+      center: [number, number];
+      zoom: number;
+      pitch: number;
+      bearing: number;
+    } | null>(null);
     const savedSuspendedCameraRef = useRef<{
       center: [number, number];
       zoom: number;
@@ -501,11 +581,13 @@ export const MapComponent = memo(
     isGlobeIntroPlayingRef.current = isGlobeIntroPlaying;
     const isGlobeIntroActiveRef = useRef<boolean>(Boolean(isGlobeIntroPending || isGlobeIntroPlaying));
     isGlobeIntroActiveRef.current = Boolean(isGlobeIntroPending || isGlobeIntroPlaying);
+    const isGlobeSpinActiveRef = useRef<boolean>(false);
     const onGlobeIntroCompleteRef = useRef(onGlobeIntroComplete);
     onGlobeIntroCompleteRef.current = onGlobeIntroComplete;
     const [isSpaceBackgroundActive, setIsSpaceBackgroundActive] = useState<boolean>(
       Boolean(isGlobeIntroPending || isGlobeIntroPlaying)
     );
+    const [isMapInstanceReady, setIsMapInstanceReady] = useState<boolean>(false);
     const hasCompletedGlobeFlightRef = useRef<boolean>(false);
     const markerZoomTierRef = useRef<'orbital' | 'regional' | 'city'>('city');
     const latestUserCoordsRef = useRef<[number, number]>(
@@ -986,13 +1068,37 @@ export const MapComponent = memo(
             camposSpots.forEach((s) => {
               bounds.extend([Number(s.lng), Number(s.lat)]);
             });
+            const isMobile = typeof window !== 'undefined' && window.innerWidth < 768;
+            const rawSheetH =
+              isMobile && isDiscoveryPanelOpenRef.current
+                ? Math.max(0, activeSheetHeightMV.get() || 0)
+                : 0;
+            const vh =
+              typeof window !== 'undefined'
+                ? window.visualViewport?.height || window.innerHeight || 844
+                : 844;
+            const dynamicBottomPad = isMobile
+              ? rawSheetH > 24
+                ? Math.min(Math.round(vh * 0.56), Math.round(rawSheetH + 24))
+                : 112
+              : 145;
+            // Temporarily clear map padding before cameraForBounds so MapLibre does not double-subtract active map.setPadding
+            const prevPadding = typeof map.getPadding === 'function' ? map.getPadding() : null;
+            if (prevPadding && typeof map.setPadding === 'function') {
+              map.setPadding({ top: 0, bottom: 0, left: 0, right: 0 });
+            }
             const cam = map.cameraForBounds(bounds, {
-              padding: { top: 130, bottom: 145, left: 48, right: 82 },
+              padding: { top: 108, bottom: dynamicBottomPad, left: 48, right: 82 },
               maxZoom: 12.1,
             });
+            if (prevPadding && typeof map.setPadding === 'function') {
+              map.setPadding(prevPadding);
+            }
             if (cam && cam.center) {
               const c = maplibregl.LngLat.convert(cam.center);
-              targetCenter = [c.lng, c.lat];
+              // Use the geographic center of the spots bounds so map.setPadding centers the orbit pivot in the visible area
+              const boundsCenter = bounds.getCenter();
+              targetCenter = isMobile ? [boundsCenter.lng, boundsCenter.lat] : [c.lng, c.lat];
               targetZoom =
                 typeof cam.zoom === 'number'
                   ? Math.min(cam.zoom, 12.1)
@@ -1003,10 +1109,52 @@ export const MapComponent = memo(
 
         return { center: targetCenter, zoom: targetZoom };
       },
-      []
+      [activeSheetHeightMV]
     );
     const getCamposOverviewCameraRef = useRef(getCamposOverviewCamera);
     getCamposOverviewCameraRef.current = getCamposOverviewCamera;
+
+    const applyDynamicExplorePadding = useCallback(
+      (targetMap?: maplibregl.Map | null, overrideSheetHeight?: number) => {
+        const map = targetMap || mapRef.current;
+        if (!map) return;
+        if (typeof map.setPadding !== 'function') return;
+        if (workflowModeRef.current !== 'EXPLORE' || isGlobeIntroActiveRef.current) return;
+
+        const isMobile = typeof window !== 'undefined' && window.innerWidth < 768;
+        if (!isMobile) {
+          try {
+            map.setPadding({ top: 0, bottom: 0, left: 0, right: 0 });
+          } catch {}
+          return;
+        }
+
+        const vh =
+          typeof window !== 'undefined'
+            ? window.visualViewport?.height || window.innerHeight || 844
+            : 844;
+        const sheetH =
+          overrideSheetHeight !== undefined
+            ? overrideSheetHeight
+            : isDiscoveryPanelOpenRef.current
+              ? Math.max(0, activeSheetHeightMV.get() || 0)
+              : 0;
+        const bottomPad =
+          isDiscoveryPanelOpenRef.current && sheetH > 20
+            ? Math.min(Math.round(vh * 0.56), Math.round(sheetH * 0.88))
+            : 0;
+
+        try {
+          map.setPadding({
+            top: bottomPad > 0 ? 52 : 0,
+            bottom: bottomPad,
+            left: 0,
+            right: 0,
+          });
+        } catch {}
+      },
+      [activeSheetHeightMV]
+    );
 
     const frameAllSpotsOverview = useCallback(
       (targetMap?: maplibregl.Map | null, animateCamera: boolean = false) => {
@@ -1016,8 +1164,15 @@ export const MapComponent = memo(
         setFollowMode(false);
         hasUserMovedMapRef.current = false;
         map.resize();
+        applyDynamicExplorePadding(map);
 
         const { center: targetCenter, zoom: targetZoom } = getCamposOverviewCamera(map);
+        const currentBearing = map.getBearing();
+        const targetBearing = is3DModeRef.current
+          ? Number.isFinite(currentBearing) && Math.abs(currentBearing) > 0.1
+            ? currentBearing
+            : -20
+          : 0;
 
         if (animateCamera) {
           const animDuration = computeAdaptiveZoomDuration(map, targetCenter[0], targetCenter[1], targetZoom, 0.9);
@@ -1026,7 +1181,7 @@ export const MapComponent = memo(
             center: targetCenter,
             zoom: targetZoom,
             pitch: is3DModeRef.current ? 60 : 0,
-            bearing: is3DModeRef.current ? -20 : 0,
+            bearing: targetBearing,
             offset: [0, 0],
             duration: animDuration,
             easing: smoothCameraEase,
@@ -1037,11 +1192,11 @@ export const MapComponent = memo(
             center: targetCenter,
             zoom: targetZoom,
             pitch: is3DModeRef.current ? 60 : 0,
-            bearing: is3DModeRef.current ? -20 : 0,
+            bearing: targetBearing,
           });
         }
       },
-      [setFollowMode, getCamposOverviewCamera, computeAdaptiveZoomDuration, beginProgrammaticCameraAnim, smoothCameraEase]
+      [setFollowMode, getCamposOverviewCamera, applyDynamicExplorePadding, computeAdaptiveZoomDuration, beginProgrammaticCameraAnim, smoothCameraEase]
     );
 
     // Expose map controls for external iOS floating buttons
@@ -1104,7 +1259,40 @@ export const MapComponent = memo(
         focusItineraryStepOnMap(step, expanded);
       },
       fitSpotsOverview: () => {
+        preSpotCameraRef.current = null;
+        if (spotFocusRafRef.current !== null) {
+          cancelAnimationFrame(spotFocusRafRef.current);
+          spotFocusRafRef.current = null;
+        }
         frameAllSpotsOverview(mapRef.current, true);
+      },
+      restorePreSpotCamera: () => {
+        const map = mapRef.current;
+        const saved = preSpotCameraRef.current;
+        preSpotCameraRef.current = null;
+        if (spotFocusRafRef.current !== null) {
+          cancelAnimationFrame(spotFocusRafRef.current);
+          spotFocusRafRef.current = null;
+        }
+        if (!map || !saved) return;
+        const animDuration = computeAdaptiveZoomDuration(
+          map,
+          saved.center[0],
+          saved.center[1],
+          saved.zoom,
+          0.95
+        );
+        beginProgrammaticCameraAnim(map, animDuration);
+        map.easeTo({
+          center: saved.center,
+          zoom: saved.zoom,
+          pitch: saved.pitch,
+          bearing: saved.bearing,
+          offset: [0, 0],
+          duration: animDuration,
+          easing: smoothCameraEase,
+          essential: true,
+        });
       },
     }), [centerOnUserLocation, currentMode, onMapModeChange, onStyleChange, setFollowMode, beginProgrammaticCameraAnim, computeAdaptiveZoomDuration, smoothCameraEase, fitItineraryCameraBounds, focusItineraryStepOnMap, frameAllSpotsOverview]);
 
@@ -1189,6 +1377,7 @@ export const MapComponent = memo(
             mapRef.current.remove();
           } catch {}
           mapRef.current = null;
+          setIsMapInstanceReady(false);
           prevStyleKeyRef.current = '';
         }
         return;
@@ -1209,7 +1398,7 @@ export const MapComponent = memo(
           center: resumedCam
             ? resumedCam.center
             : startOrbital
-              ? [-22, -10]
+              ? [CAMPOS_OVERVIEW_CENTER[0], -12]
               : CAMPOS_OVERVIEW_CENTER,
           zoom: resumedCam
             ? resumedCam.zoom
@@ -1261,7 +1450,10 @@ export const MapComponent = memo(
         } catch {}
 
         mapRef.current = map;
+        setIsMapInstanceReady(true);
         ensureUserMarker(map);
+        syncSpotMarkersRef.current?.();
+        syncStopIconMarkersRef.current?.();
 
         map.on('click', () => {
           if (isGlobeIntroActiveRef.current) return;
@@ -1387,6 +1579,7 @@ export const MapComponent = memo(
           if (markerZoomTierRef.current !== nextTier) {
             markerZoomTierRef.current = nextTier;
             syncMarkerHighlight(selectedSpotRef.current?.id);
+            updateStopIconsZoomVisibilityRef.current?.();
           }
         };
 
@@ -1413,12 +1606,14 @@ export const MapComponent = memo(
           if (savedSuspendedCameraRef.current) {
             savedSuspendedCameraRef.current = null;
           } else if (isGlobeIntroActiveRef.current) {
-            map.jumpTo({
-              center: [-22, -10],
-              zoom: getOrbitalEarthZoom(),
-              pitch: 0,
-              bearing: 0,
-            });
+            if (!isGlobeSpinActiveRef.current) {
+              map.jumpTo({
+                center: [CAMPOS_OVERVIEW_CENTER[0], -12],
+                zoom: getOrbitalEarthZoom(),
+                pitch: 0,
+                bearing: 0,
+              });
+            }
           } else if (workflowModeRef.current === 'ITINERARY' && itineraryStepsRef.current.length > 0) {
             fitItineraryCameraBounds(itineraryStepsRef.current, true);
           } else if (selectedSpotRef.current && selectedSpotRef.current.lng && selectedSpotRef.current.lat) {
@@ -1437,6 +1632,7 @@ export const MapComponent = memo(
           }
           syncSpaceAndMarkerZoomTier();
           syncSpotMarkersRef.current?.();
+          syncStopIconMarkersRef.current?.();
           scheduleViewportDataFetch(true);
           if (onMapLoad) onMapLoad();
         });
@@ -1452,6 +1648,7 @@ export const MapComponent = memo(
             }
           } catch {}
           syncSpotMarkersRef.current?.();
+          syncStopIconMarkersRef.current?.();
           syncActiveRouteLayers(map);
           syncItineraryRouteLayers(map);
           ensureUserMarker(map);
@@ -1529,6 +1726,7 @@ export const MapComponent = memo(
         };
 
         const onMoveEnd = (e: any) => {
+          if (isGlobeSpinActiveRef.current) return;
           if (e && e.originalEvent) {
             lastMapGestureTimeRef.current = performance.now();
           }
@@ -1836,23 +2034,88 @@ export const MapComponent = memo(
       syncMarkerHighlight(selectedSpotRef.current?.id);
     }, [isGlobeIntroPending, isGlobeIntroPlaying]);
 
-    // Choreographed Post-Signup Space-to-Location Cinematic Camera Flight (Stage A -> B -> C -> D)
-    // Depends ONLY on isGlobeIntroPlaying so avatar/prop updates never interrupt or cancel mid-flight
+    // App-Entry 3D Earth Globe Intro: 2.5s smooth 360-degree orbital rotation -> smooth zoom to Campos do Jordão
+    // Depends ONLY on isGlobeIntroPlaying & isMapInstanceReady so prop updates never interrupt mid-flight
     useEffect(() => {
       if (!isGlobeIntroPlaying) {
+        isGlobeSpinActiveRef.current = false;
         hasCompletedGlobeFlightRef.current = false;
         return;
       }
       if (hasCompletedGlobeFlightRef.current) return;
+      if (!isMapInstanceReady) return;
 
       const map = mapRef.current;
       if (!map) return;
 
       let cancelled = false;
+      let spinRafId: number | null = null;
+      let preloaderCleanup: (() => void) | null = null;
 
       const waitNextFrame = () =>
         new Promise<void>((resolve) => {
           requestAnimationFrame(() => resolve());
+        });
+
+      const waitForPreloaderDismissed = () =>
+        new Promise<void>((resolve) => {
+          if (cancelled || typeof window === 'undefined') {
+            resolve();
+            return;
+          }
+          const preloaderEl = document.getElementById('monvian-app-preloader');
+          const alreadyDismissed =
+            Boolean((window as any).__monvianPreloaderDismissed) ||
+            !preloaderEl ||
+            preloaderEl.style.display === 'none' ||
+            preloaderEl.style.opacity === '0';
+          if (alreadyDismissed) {
+            resolve();
+            return;
+          }
+          let done = false;
+          const finish = () => {
+            if (done) return;
+            done = true;
+            window.removeEventListener('monvian:preloader-dismissed', finish);
+            window.clearTimeout(fallbackTimer);
+            preloaderCleanup = null;
+            resolve();
+          };
+          const fallbackTimer = window.setTimeout(finish, 3600);
+          window.addEventListener('monvian:preloader-dismissed', finish, { once: true });
+          preloaderCleanup = () => {
+            if (done) return;
+            done = true;
+            window.removeEventListener('monvian:preloader-dismissed', finish);
+            window.clearTimeout(fallbackTimer);
+          };
+        });
+
+      const waitForStyleReady = () =>
+        new Promise<void>((resolve) => {
+          if (cancelled) {
+            resolve();
+            return;
+          }
+          try {
+            if (map.isStyleLoaded()) {
+              resolve();
+              return;
+            }
+          } catch {}
+          let done = false;
+          const finish = () => {
+            if (done) return;
+            done = true;
+            map.off('style.load', finish);
+            map.off('load', finish);
+            window.clearTimeout(timerId);
+            resolve();
+          };
+          const timerId = window.setTimeout(finish, 500);
+          map.once('style.load', finish);
+          map.once('load', finish);
         });
 
       const animateCamera = (
@@ -1873,7 +2136,7 @@ export const MapComponent = memo(
             window.clearTimeout(timerId);
             resolve();
           };
-          const timerId = window.setTimeout(onEnd, durationMs + 160);
+          const timerId = window.setTimeout(onEnd, durationMs + 180);
           map.on('moveend', onEnd);
           try {
             if (method === 'flyTo') {
@@ -1904,6 +2167,65 @@ export const MapComponent = memo(
         });
       };
 
+      const spinGlobe360 = (
+        durationMs: number,
+        startLng: number,
+        startLat: number,
+        endLat: number,
+        orbitalZoom: number
+      ) =>
+        new Promise<void>((resolve) => {
+          if (cancelled) {
+            resolve();
+            return;
+          }
+          // C1-continuous medium-speed orbital rotation: steady 360-degree spin across 72%
+          // followed by a gentle deceleration over the final 28% as Brazil aligns dead-center
+          const LINEAR_END = 0.72;
+          const SPEED = 1 / (LINEAR_END + (1 - LINEAR_END) / 2);
+          const computeSpinProgress = (t: number) => {
+            if (t <= 0) return 0;
+            if (t >= 1) return 1;
+            if (t < LINEAR_END) return SPEED * t;
+            const u = (t - LINEAR_END) / (1 - LINEAR_END);
+            return SPEED * LINEAR_END + SPEED * ((1 - LINEAR_END) / 2) * (2 * u - u * u);
+          };
+
+          const startTime = performance.now();
+          const tick = (now: number) => {
+            if (cancelled) {
+              spinRafId = null;
+              resolve();
+              return;
+            }
+            const t = Math.min(1, (now - startTime) / durationMs);
+            const p = computeSpinProgress(t);
+            const rawLng = startLng - 360 * p;
+            const wrappedLng = ((((rawLng + 180) % 360) + 360) % 360) - 180;
+            const latT = Math.max(0, (t - 0.45) / 0.55);
+            const smoothLatT = latT * latT * (3 - 2 * latT);
+            const currentLat = startLat + (endLat - startLat) * smoothLatT;
+
+            try {
+              map.jumpTo({
+                center: [wrappedLng, currentLat],
+                zoom: orbitalZoom,
+                pitch: 0,
+                bearing: 0,
+              });
+            } catch {}
+
+            if (t < 1) {
+              spinRafId = requestAnimationFrame(tick);
+            } else {
+              spinRafId = null;
+              resolve();
+            }
+          };
+
+          spinRafId = requestAnimationFrame(tick);
+        });
+
       const runChoreographedGlobeFlight = async () => {
         setFollowModeRef.current(false);
         setInteractionsEnabled(false);
@@ -1914,29 +2236,37 @@ export const MapComponent = memo(
               window.matchMedia?.('(prefers-reduced-motion: reduce)')?.matches
           );
           const orbitalZoom = getOrbitalEarthZoom();
-          const camposTarget = getCamposOverviewCameraRef.current(map);
           const finalPitch = is3DModeRef.current ? 60 : 0;
           const finalBearing = is3DModeRef.current ? -20 : 0;
+          const startLng = CAMPOS_OVERVIEW_CENTER[0];
+          const startLat = -12;
+          const alignLat = -18.5;
 
           try {
             map.setProjection({ type: 'globe' });
             map.setSky(getCleanSpaceSky(themeRef.current));
           } catch {}
 
-          // Ensure Stage A orbital Earth framing at exact entry, then begin descent immediately
-          if (Math.abs(map.getZoom() - orbitalZoom) > 0.35) {
+          // Position the full 3D Earth sphere cleanly at orbital zoom before the preloader fades
+          try {
             map.jumpTo({
-              center: [-22, -10],
+              center: [startLng, startLat],
               zoom: orbitalZoom,
               pitch: 0,
               bearing: 0,
             });
-          }
+          } catch {}
+
+          await Promise.all([waitForPreloaderDismissed(), waitForStyleReady()]);
+          if (cancelled) return;
 
           await waitNextFrame();
           if (cancelled) return;
 
+          isGlobeSpinActiveRef.current = true;
+
           if (prefersReduced) {
+            const camposTarget = getCamposOverviewCameraRef.current(map);
             await animateCamera('easeTo', {
               center: camposTarget.center,
               zoom: camposTarget.zoom,
@@ -1946,131 +2276,34 @@ export const MapComponent = memo(
               easing: (t) => 1 - Math.pow(1 - t, 3),
             });
           } else {
-            const smoothEase = (t: number) =>
+            // Stage 1: Full 360-degree Earth sphere rotation at medium speed for 2.5 seconds
+            await spinGlobe360(2500, startLng, startLat, alignLat, orbitalZoom);
+            if (cancelled) return;
+
+            // Stage 2: Single continuous, silky smooth zoom straight into Campos do Jordão
+            const camposTarget = getCamposOverviewCameraRef.current(map);
+            const smoothCubicInOut = (t: number) =>
               t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
 
-            // Stage C.1-3: Rotate gently & approach South America immediately
             await animateCamera('easeTo', {
-              center: [-58.5, -16.5],
-              zoom: Math.max(2.45, orbitalZoom + 1.55),
-              pitch: 10,
-              bearing: -4,
-              duration: 1180,
-              easing: smoothEase,
+              center: camposTarget.center,
+              zoom: camposTarget.zoom,
+              pitch: finalPitch,
+              bearing: finalBearing,
+              duration: 2350,
+              easing: smoothCubicInOut,
             });
-            if (cancelled) return;
-
-            // Stage C.4: Approach Brazil
-            await animateCamera('easeTo', {
-              center: [-48.6, -18.5],
-              zoom: 4.5,
-              pitch: 20,
-              bearing: -8,
-              duration: 1040,
-              easing: smoothEase,
-            });
-            if (cancelled) return;
-
-            // Stage B + C.5-6: Non-blocking check of real device location fix
-            const gpsState = gpsNavigationManager.getState();
-            const hasRealUserLocation = Boolean(
-              gpsState.hasRealFix &&
-                gpsState.status === 'granted' &&
-                Array.isArray(gpsState.coords) &&
-                Number.isFinite(gpsState.coords[0]) &&
-                Number.isFinite(gpsState.coords[1])
-            );
-
-            if (hasRealUserLocation) {
-              const [userLng, userLat] = gpsState.coords;
-              latestUserCoordsRef.current = [userLng, userLat];
-              ensureUserMarkerRef.current(map);
-              userMarkerRef.current?.setLngLat([userLng, userLat]);
-
-              const distKm =
-                calculateHaversineDistance(
-                  userLng,
-                  userLat,
-                  camposTarget.center[0],
-                  camposTarget.center[1]
-                ) / 1000;
-
-              if (distKm > 18) {
-                // Pass smoothly through user's identified region, then glide continuously to Campos do Jordão
-                const regionalZoom = distKm > 1500 ? 5.8 : distKm > 300 ? 7.8 : 9.4;
-                await animateCamera(distKm > 1500 ? 'flyTo' : 'easeTo', {
-                  center: [userLng, userLat],
-                  zoom: regionalZoom,
-                  pitch: 26,
-                  bearing: -10,
-                  curve: 1.2,
-                  duration: distKm > 1500 ? 1280 : 1020,
-                  easing: smoothEase,
-                });
-                if (cancelled) return;
-
-                // Stage D: Smooth continuous glide into Campos do Jordão
-                await animateCamera(distKm > 1500 ? 'flyTo' : 'easeTo', {
-                  center: camposTarget.center,
-                  zoom: camposTarget.zoom,
-                  pitch: finalPitch,
-                  bearing: finalBearing,
-                  curve: 1.15,
-                  duration: distKm > 1500 ? 1380 : 1140,
-                  easing: smoothEase,
-                });
-              } else {
-                // User is already in Campos do Jordão region: state -> user area -> full spot overview
-                await animateCamera('easeTo', {
-                  center: [userLng, userLat],
-                  zoom: 9.2,
-                  pitch: 26,
-                  bearing: -12,
-                  duration: 920,
-                  easing: smoothEase,
-                });
-                if (cancelled) return;
-
-                await animateCamera('easeTo', {
-                  center: camposTarget.center,
-                  zoom: camposTarget.zoom,
-                  pitch: finalPitch,
-                  bearing: finalBearing,
-                  duration: 1080,
-                  easing: (t) => 1 - Math.pow(1 - t, 3),
-                });
-              }
-            } else {
-              // GPS denied or still acquiring: smooth São Paulo state -> Campos do Jordão approach
-              await animateCamera('easeTo', {
-                center: [-46.6, -23.15],
-                zoom: 7.4,
-                pitch: 26,
-                bearing: -10,
-                duration: 960,
-                easing: smoothEase,
-              });
-              if (cancelled) return;
-
-              await animateCamera('easeTo', {
-                center: camposTarget.center,
-                zoom: camposTarget.zoom,
-                pitch: finalPitch,
-                bearing: finalBearing,
-                duration: 1120,
-                easing: (t) => 1 - Math.pow(1 - t, 3),
-              });
-            }
           }
 
           if (cancelled) return;
 
-          // Immediately transition from 3D Earth sphere to flat Mercator world upon arrival in Campos do Jordão
+          // Transition from 3D Earth sphere to flat Mercator world upon arrival in Campos do Jordão
           try {
             map.setProjection({ type: 'mercator' });
             map.setSky(undefined);
           } catch {}
 
+          isGlobeSpinActiveRef.current = false;
           hasCompletedGlobeFlightRef.current = true;
           hasFramedInitialSpotsRef.current = true;
           hasUserMovedMapRef.current = false;
@@ -2078,11 +2311,14 @@ export const MapComponent = memo(
           setIsSpaceBackgroundActive(false);
           const userMarkerEl = userMarkerRef.current?.getElement();
           if (userMarkerEl) {
-            userMarkerEl.style.opacity = '1';
+            userMarkerEl.style.opacity = workflowModeRef.current === 'ITINERARY' ? '0' : '1';
           }
           syncMarkerHighlight(selectedSpotRef.current?.id);
+          syncStopIconMarkersRef.current?.();
+          updateStopIconsZoomVisibilityRef.current?.();
           onGlobeIntroCompleteRef.current?.();
         } finally {
+          isGlobeSpinActiveRef.current = false;
           setInteractionsEnabled(true);
         }
       };
@@ -2091,12 +2327,21 @@ export const MapComponent = memo(
 
       return () => {
         cancelled = true;
+        isGlobeSpinActiveRef.current = false;
+        if (spinRafId !== null) {
+          cancelAnimationFrame(spinRafId);
+          spinRafId = null;
+        }
+        if (preloaderCleanup) {
+          preloaderCleanup();
+          preloaderCleanup = null;
+        }
         try {
           map.stop();
         } catch {}
         setInteractionsEnabled(true);
       };
-    }, [isGlobeIntroPlaying]);
+    }, [isGlobeIntroPlaying, isMapInstanceReady]);
 
     // Focus camera on user marker with high spotlight zoom and hide other markers during spotlight presentation
     useEffect(() => {
@@ -2221,7 +2466,7 @@ export const MapComponent = memo(
 
       map.easeTo({
         pitch: is3DMode ? 60 : 0,
-        bearing: is3DMode ? -20 : 0,
+        bearing: is3DMode ? map.getBearing() : 0,
         duration: animDuration,
         easing: smoothCameraEase,
       });
@@ -2230,6 +2475,18 @@ export const MapComponent = memo(
         window.clearTimeout(timer);
       };
     }, [is3DMode, smoothCameraEase]);
+
+    // Synchronize MapLibre vanishing point & visible area dynamically with the Bottom Sheet height
+    // (Preserves current 3D bearing and coordinates without restarting camera)
+    useEffect(() => {
+      applyDynamicExplorePadding(mapRef.current);
+      const unsub = activeSheetHeightMV.on('change', (latestH) => {
+        applyDynamicExplorePadding(mapRef.current, latestH);
+      });
+      return () => {
+        unsub();
+      };
+    }, [activeSheetHeightMV, isDiscoveryPanelOpen, workflowMode, applyDynamicExplorePadding]);
 
     // Helper: Build a smooth Apple iOS 5-pointed star path with softened vertices
     const buildRoundedStarPath = useCallback(
@@ -2297,6 +2554,9 @@ export const MapComponent = memo(
       containerEl: HTMLDivElement;
       pulseScaleWrapEl: HTMLDivElement;
       badgeEl: HTMLDivElement;
+      pinBgSvg?: SVGSVGElement;
+      pinPathEl?: SVGPathElement;
+      photoCircleEl?: HTMLDivElement;
       pulseEl: HTMLDivElement;
       orderBadgeEl: HTMLDivElement;
       imgEl: HTMLImageElement;
@@ -2485,17 +2745,23 @@ export const MapComponent = memo(
             } else {
               rec.pulseScaleWrapEl.classList.remove('is-selected');
             }
-          } else if (mode === 'SELECT' && isSelected) {
-            rec.badgeEl.style.border = '3px solid #FFFFFF';
-            rec.badgeEl.style.boxShadow =
-              '0 8px 20px rgba(0, 0, 0, 0.42), 0 0 0 3px rgba(0, 0, 0, 0.85)';
-          } else {
-            rec.badgeEl.style.border = isSelected
-              ? '3px solid #FFFFFF'
-              : '2.5px solid #FFFFFF';
-            rec.badgeEl.style.boxShadow = isSelected
-              ? '0 8px 20px rgba(0, 0, 0, 0.38), 0 0 0 2px rgba(255, 255, 255, 0.92)'
-              : '0 4px 10px rgba(0, 0, 0, 0.30)';
+          } else if (rec.pinPathEl && rec.pinBgSvg && rec.photoCircleEl) {
+            if (mode === 'SELECT' && isSelected) {
+              rec.photoCircleEl.style.inset = '3px';
+              rec.pinPathEl.setAttribute('stroke', 'rgba(0, 0, 0, 0.85)');
+              rec.pinPathEl.setAttribute('stroke-width', '5');
+              rec.pinBgSvg.style.filter = 'drop-shadow(0 6px 12px rgba(0, 0, 0, 0.40))';
+            } else if (isSelected) {
+              rec.photoCircleEl.style.inset = '3px';
+              rec.pinPathEl.setAttribute('stroke', 'rgba(255, 255, 255, 0.92)');
+              rec.pinPathEl.setAttribute('stroke-width', '3');
+              rec.pinBgSvg.style.filter = 'drop-shadow(0 6px 12px rgba(0, 0, 0, 0.36))';
+            } else {
+              rec.photoCircleEl.style.inset = '2.5px';
+              rec.pinPathEl.setAttribute('stroke', 'none');
+              rec.pinPathEl.setAttribute('stroke-width', '0');
+              rec.pinBgSvg.style.filter = 'drop-shadow(0 3px 5px rgba(0, 0, 0, 0.28))';
+            }
           }
 
           if (rec.pulseEl) {
@@ -2503,14 +2769,21 @@ export const MapComponent = memo(
               ? 'radial-gradient(circle, rgba(255, 214, 10, 0.72) 0%, rgba(250, 204, 21, 0.25) 55%, transparent 75%)'
               : 'radial-gradient(circle, rgba(255, 255, 255, 0.7) 0%, rgba(255, 255, 255, 0.22) 55%, transparent 75%)';
             rec.pulseEl.style.display = isSelected ? 'block' : 'none';
+            if (isSelected) {
+              rec.pulseEl.classList.add('monvian-marker-select-halo');
+            } else {
+              rec.pulseEl.classList.remove('monvian-marker-select-halo');
+            }
           }
 
           if (rec.orderBadgeEl) {
             if (mode === 'SELECT' && selectRank > 0) {
               rec.orderBadgeEl.textContent = String(selectRank);
               rec.orderBadgeEl.style.display = 'flex';
+              rec.el.setAttribute('data-tutorial-select-rank', String(selectRank));
             } else {
               rec.orderBadgeEl.style.display = 'none';
+              rec.el.removeAttribute('data-tutorial-select-rank');
             }
           }
         }
@@ -3013,11 +3286,23 @@ export const MapComponent = memo(
           wrapEl.appendChild(tipEl);
           el.appendChild(wrapEl);
 
+          let lastStepSfxTs = 0;
+          el.onpointerdown = (e) => {
+            if (!e.isPrimary || isMapGestureActiveRef.current || isZoomGestureActiveRef.current) return;
+            unlockSpotClickSound();
+            playSpotClickSound();
+            lastStepSfxTs = typeof performance !== 'undefined' ? performance.now() : Date.now();
+          };
+
           el.onclick = (e) => {
             e.stopPropagation();
             if (isMapGestureActiveRef.current || isZoomGestureActiveRef.current) return;
-            unlockSpotClickSound();
-            playSpotClickSound();
+            const now = typeof performance !== 'undefined' ? performance.now() : Date.now();
+            if (now - lastStepSfxTs > 380) {
+              unlockSpotClickSound();
+              playSpotClickSound();
+              lastStepSfxTs = now;
+            }
             triggerHapticFeedback(14);
             if (onSelectItineraryStepRef.current) {
               onSelectItineraryStepRef.current(step.id);
@@ -3248,17 +3533,20 @@ export const MapComponent = memo(
           ? 'radial-gradient(circle, rgba(255, 214, 10, 0.72) 0%, rgba(250, 204, 21, 0.25) 55%, transparent 75%)'
           : 'radial-gradient(circle, rgba(255, 255, 255, 0.7) 0%, rgba(255, 255, 255, 0.22) 55%, transparent 75%)';
         pulseEl.style.display = isSelected ? 'block' : 'none';
+        if (isSelected) {
+          pulseEl.classList.add('monvian-marker-select-halo');
+        }
 
         const pulseScaleWrapEl = document.createElement('div');
         pulseScaleWrapEl.style.position = 'relative';
         pulseScaleWrapEl.style.display = 'flex';
         pulseScaleWrapEl.style.alignItems = 'center';
         pulseScaleWrapEl.style.justifyContent = 'center';
-        if (isStar) {
-          pulseScaleWrapEl.className = isSelected
-            ? 'monvian-star-pulse is-selected'
-            : 'monvian-star-pulse';
-        }
+        pulseScaleWrapEl.className = isStar
+          ? isSelected
+            ? 'monvian-star-pulse is-selected monvian-marker-enter'
+            : 'monvian-star-pulse monvian-marker-enter'
+          : 'monvian-marker-enter';
 
         const badgeEl = document.createElement('div');
         badgeEl.style.position = 'relative';
@@ -3284,6 +3572,10 @@ export const MapComponent = memo(
           imgEl.src = getSpotFallbackImage(spot.name, spot.category);
         };
 
+        let pinBgSvg: SVGSVGElement | undefined;
+        let pinPathEl: SVGPathElement | undefined;
+        let photoCircleEl: HTMLDivElement | undefined;
+
         if (isStar) {
           const starBgSvg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
           starBgSvg.setAttribute('viewBox', '0 0 100 104');
@@ -3307,15 +3599,61 @@ export const MapComponent = memo(
           badgeEl.appendChild(starBgSvg);
           badgeEl.appendChild(photoMaskEl);
         } else {
-          badgeEl.style.borderRadius = '9999px';
-          badgeEl.style.overflow = 'hidden';
-          badgeEl.style.backgroundColor = '#18181B';
-          badgeEl.style.border = isSelected ? '3px solid #FFFFFF' : '2.5px solid #FFFFFF';
-          badgeEl.style.boxShadow = isSelected
-            ? '0 8px 20px rgba(0, 0, 0, 0.38), 0 0 0 2px rgba(255, 255, 255, 0.92)'
-            : '0 4px 10px rgba(0, 0, 0, 0.30)';
+          badgeEl.style.overflow = 'visible';
+
+          const isSelectPicked = workflowModeRef.current === 'SELECT' && isSelected;
+          const PHOTO_PIN_PATH =
+            'M 12.79 40.33 A 21 21 0 1 1 29.21 40.33 C 26.26 41.58 23.6 44.6 21.7 48.2 Q 21 49.4 20.3 48.2 C 18.4 44.6 15.74 41.58 12.79 40.33 Z';
+
+          pinBgSvg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+          pinBgSvg.setAttribute('viewBox', '0 0 42 50');
+          pinBgSvg.setAttribute('aria-hidden', 'true');
+          pinBgSvg.style.position = 'absolute';
+          pinBgSvg.style.top = '0';
+          pinBgSvg.style.left = '0';
+          pinBgSvg.style.width = `${markerSize}px`;
+          pinBgSvg.style.height = `${Math.round((markerSize * 50) / 42)}px`;
+          pinBgSvg.style.overflow = 'visible';
+          pinBgSvg.style.pointerEvents = 'none';
+          pinBgSvg.style.filter = isSelectPicked
+            ? 'drop-shadow(0 6px 12px rgba(0, 0, 0, 0.40))'
+            : isSelected
+              ? 'drop-shadow(0 6px 12px rgba(0, 0, 0, 0.36))'
+              : 'drop-shadow(0 3px 5px rgba(0, 0, 0, 0.28))';
+
+          pinPathEl = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+          pinPathEl.setAttribute('d', PHOTO_PIN_PATH);
+          pinPathEl.setAttribute('fill', '#FFFFFF');
+          pinPathEl.setAttribute('stroke-linejoin', 'round');
+          pinPathEl.setAttribute('paint-order', 'stroke fill');
+          pinPathEl.setAttribute(
+            'stroke',
+            isSelectPicked
+              ? 'rgba(0, 0, 0, 0.85)'
+              : isSelected
+                ? 'rgba(255, 255, 255, 0.92)'
+                : 'none'
+          );
+          pinPathEl.setAttribute(
+            'stroke-width',
+            isSelectPicked ? '5' : isSelected ? '3' : '0'
+          );
+          pinBgSvg.appendChild(pinPathEl);
+
+          photoCircleEl = document.createElement('div');
+          photoCircleEl.style.position = 'absolute';
+          photoCircleEl.style.inset = isSelected ? '3px' : '2.5px';
+          photoCircleEl.style.borderRadius = '9999px';
+          photoCircleEl.style.overflow = 'hidden';
+          photoCircleEl.style.backgroundColor = '#18181B';
+          photoCircleEl.style.zIndex = '1';
+          photoCircleEl.style.transform = 'translateZ(0)';
+
           imgEl.style.borderRadius = '9999px';
-          badgeEl.appendChild(imgEl);
+          photoCircleEl.appendChild(imgEl);
+
+          badgeEl.appendChild(pinBgSvg);
+          badgeEl.appendChild(photoCircleEl);
         }
 
         // Order badge pill shown ONLY in SELECT mode for picked spots
@@ -3346,12 +3684,15 @@ export const MapComponent = memo(
 
         let pointerStartPos: { x: number; y: number } | null = null;
         let pointerMovedDuringTap = false;
+        let lastPinSfxTs = 0;
 
         el.onpointerdown = (e) => {
-          if (!e.isPrimary || isZoomGestureActiveRef.current) return;
+          if (!e.isPrimary || isZoomGestureActiveRef.current || isMapGestureActiveRef.current) return;
           pointerStartPos = { x: e.clientX, y: e.clientY };
           pointerMovedDuringTap = false;
           unlockSpotClickSound();
+          playSpotClickSound();
+          lastPinSfxTs = typeof performance !== 'undefined' ? performance.now() : Date.now();
           animateMarkerPress(badgeEl, true);
         };
 
@@ -3390,6 +3731,9 @@ export const MapComponent = memo(
           containerEl,
           pulseScaleWrapEl,
           badgeEl,
+          pinBgSvg,
+          pinPathEl,
+          photoCircleEl,
           pulseEl,
           orderBadgeEl,
           imgEl,
@@ -3412,14 +3756,18 @@ export const MapComponent = memo(
             return;
           }
 
-          if (workflowModeRef.current === 'SELECT') {
+          const now = typeof performance !== 'undefined' ? performance.now() : Date.now();
+          if (now - lastPinSfxTs > 380) {
             playSpotClickSound();
+            lastPinSfxTs = now;
+          }
+
+          if (workflowModeRef.current === 'SELECT') {
             triggerPinTapFeedback(containerEl, badgeEl, isStar);
             onToggleSelectSpotRef.current?.(record.spot);
             return;
           }
 
-          playSpotClickSound();
           triggerPinTapFeedback(containerEl, badgeEl, isStar);
           setFollowMode(false);
           onSelectSpotRef.current(record.spot);
@@ -3851,7 +4199,20 @@ export const MapComponent = memo(
       const map = mapRef.current;
       if (!map || workflowModeRef.current !== 'EXPLORE') return;
 
+      const prevSpotId = prevSelectedSpotIdRef.current;
+      prevSelectedSpotIdRef.current = selectedSpot?.id || null;
+
       if (selectedSpot && selectedSpot.lng && selectedSpot.lat) {
+        if (!prevSpotId) {
+          const currentCenter = map.getCenter();
+          preSpotCameraRef.current = {
+            center: [currentCenter.lng, currentCenter.lat],
+            zoom: map.getZoom(),
+            pitch: map.getPitch(),
+            bearing: map.getBearing(),
+          };
+        }
+
         if (activeRouteRef.current?.spotId === selectedSpot.id) {
           return;
         }
@@ -3879,6 +4240,8 @@ export const MapComponent = memo(
             essential: true,
           });
         });
+      } else {
+        preSpotCameraRef.current = null;
       }
 
       return () => {
@@ -3898,19 +4261,181 @@ export const MapComponent = memo(
       smoothCameraEase,
     ]);
 
-    // Render static visual map icons
+    // Render auxiliary Stop Icons (Ícones de Pontos de Parada) using incremental diffing,
+    // zoom-aware progressive density/culling, and zero interference with tourist photo pins.
     const visualIconMarkersRef = useRef<maplibregl.Marker[]>([]);
+    const stopIconEntriesRef = useRef<
+      Map<
+        string,
+        {
+          marker: maplibregl.Marker;
+          root: HTMLDivElement;
+          badge: HTMLDivElement;
+          svgHolder: HTMLDivElement;
+          lat: number;
+          lng: number;
+          signature: string;
+        }
+      >
+    >(new Map());
+    const syncStopIconMarkersRef = useRef<(() => void) | null>(null);
+    const updateStopIconsZoomVisibilityRef = useRef<(() => void) | null>(null);
+    const stopIconsZoomListenerMapRef = useRef<maplibregl.Map | null>(null);
 
-    // Clear any legacy visual icon markers once cleanly (feature intentionally disabled on main map)
-    useEffect(() => {
-      if (visualIconMarkersRef.current.length > 0) {
-        visualIconMarkersRef.current.forEach((m) => {
+    const updateStopIconsZoomVisibility = useCallback(() => {
+      const map = mapRef.current;
+      const entries = stopIconEntriesRef.current;
+      if (!map || entries.size === 0) return;
+
+      const zoom = typeof map.getZoom === 'function' ? map.getZoom() : 11.75;
+      const isIntroInOrbitalSpace =
+        isGlobeIntroPendingRef.current ||
+        (isGlobeIntroPlayingRef.current && zoom < 7.5);
+      const isHiddenGlobal =
+        isIntroInOrbitalSpace ||
+        workflowModeRef.current === 'SELECT';
+
+      const isTooFarOut = zoom < 7.5;
+      const isRegionalOverview = zoom >= 7.5 && zoom < 10.2;
+      const isDimmed = isFocusModeRef.current;
+
+      if (isHiddenGlobal || isTooFarOut) {
+        entries.forEach((entry) => {
+          entry.root.style.opacity = '0';
+          entry.root.style.pointerEvents = 'none';
+        });
+        return;
+      }
+
+      const scaleExpr = isRegionalOverview ? 'scale(0.88)' : 'scale(1)';
+
+      entries.forEach((entry) => {
+        entry.badge.style.transform = scaleExpr;
+        entry.root.style.opacity = isDimmed ? '0.25' : '1';
+        entry.root.style.pointerEvents = isDimmed ? 'none' : 'auto';
+      });
+    }, []);
+
+    updateStopIconsZoomVisibilityRef.current = updateStopIconsZoomVisibility;
+
+    const syncStopIconMarkers = useCallback(() => {
+      const map = mapRef.current;
+      if (!map) return;
+
+      // Attach a single lightweight RAF-throttled zoom/moveend listener once per map instance
+      if (stopIconsZoomListenerMapRef.current !== map) {
+        stopIconsZoomListenerMapRef.current = map;
+        let zoomRaf: number | null = null;
+        const scheduleVisibilitySync = () => {
+          if (zoomRaf !== null) return;
+          zoomRaf = requestAnimationFrame(() => {
+            zoomRaf = null;
+            updateStopIconsZoomVisibilityRef.current?.();
+          });
+        };
+        map.on('zoom', scheduleVisibilitySync);
+        map.on('zoomend', scheduleVisibilitySync);
+        map.on('moveend', scheduleVisibilitySync);
+      }
+
+      const activeList: MapVisualIcon[] = Array.isArray(visualIcons)
+        ? visualIcons.filter(
+            (item: any) =>
+              item &&
+              item.id &&
+              (item.is_active === undefined || Number(item.is_active) === 1) &&
+              Number.isFinite(Number(item.latitude)) &&
+              Number.isFinite(Number(item.longitude))
+          )
+        : [];
+
+      preloadStopIconSymbols(activeList);
+
+      const entries = stopIconEntriesRef.current;
+      const nextIds = new Set<string>();
+
+      // 1. Create newly added icons or update edited ones in-place (never rebuild untouched markers)
+      for (const item of activeList) {
+        const id = String(item.id);
+        nextIds.add(id);
+
+        const lat = Number(item.latitude);
+        const lng = Number(item.longitude);
+        const signature = `${item.icon || ''}|${item.category || ''}|${item.color || ''}`;
+        const existing = entries.get(id);
+
+        if (existing) {
+          if (existing.lat !== lat || existing.lng !== lng) {
+            existing.lat = lat;
+            existing.lng = lng;
+            existing.marker.setLngLat([lng, lat]);
+          }
+          if (existing.signature !== signature) {
+            existing.signature = signature;
+            updateStopIconMarkerAppearance(existing.badge, existing.svgHolder, item, 28);
+          }
+        } else {
+          const { root, badge, svgHolder } = createStopIconMarkerElements(item, 28);
+          const marker = new maplibregl.Marker({
+            element: root,
+            anchor: 'center',
+          })
+            .setLngLat([lng, lat])
+            .addTo(map);
+
+          entries.set(id, {
+            marker,
+            root,
+            badge,
+            svgHolder,
+            lat,
+            lng,
+            signature,
+          });
+        }
+      }
+
+      // 2. Remove deleted or deactivated icons individually
+      entries.forEach((entry, id) => {
+        if (!nextIds.has(id)) {
           try {
-            m.remove();
+            entry.marker.remove();
+          } catch {}
+          entries.delete(id);
+        }
+      });
+
+      // Keep legacy ref array mirrored so map-teardown paths cleanly remove all stop markers
+      visualIconMarkersRef.current = Array.from(entries.values()).map((e) => e.marker);
+
+      // Apply current zoom/focus/intro visibility immediately
+      updateStopIconsZoomVisibility();
+    }, [visualIcons, updateStopIconsZoomVisibility]);
+
+    syncStopIconMarkersRef.current = syncStopIconMarkers;
+
+    useEffect(() => {
+      syncStopIconMarkers();
+    }, [
+      syncStopIconMarkers,
+      isMapInstanceReady,
+      isGlobeIntroPending,
+      isGlobeIntroPlaying,
+      isFocusMode,
+      workflowMode,
+    ]);
+
+    useEffect(() => {
+      return () => {
+        stopIconEntriesRef.current.forEach((entry) => {
+          try {
+            entry.marker.remove();
           } catch {}
         });
+        stopIconEntriesRef.current.clear();
         visualIconMarkersRef.current = [];
-      }
+        stopIconsZoomListenerMapRef.current = null;
+      };
     }, []);
 
     // Keep MapLibre canvas synchronized with container dimensions using RAF-debounced ResizeObserver
@@ -4031,53 +4556,72 @@ export const MapComponent = memo(
               ? 'text-white'
               : 'text-black';
 
+          const isRightControlsHidden = Boolean(
+            isFocusMode ||
+              isGlobeIntroPlaying ||
+              workflowMode === 'ITINERARY' ||
+              hideFloatingControls
+          );
+
           return (
-        <div
+        <motion.div
           id="mobile-map-right-controls"
-          className={`md:hidden absolute right-3.5 top-1/2 -translate-y-1/2 z-30 flex flex-col items-center gap-3 transition-[opacity,transform] duration-300 ease-[cubic-bezier(0.22,1,0.36,1)] ${
-            isFocusMode || isGlobeIntroPlaying || workflowMode === 'ITINERARY'
-              ? 'opacity-0 scale-90 pointer-events-none [&_*]:!pointer-events-none'
-              : 'opacity-100 scale-100 pointer-events-auto'
+          aria-hidden={isRightControlsHidden}
+          className={`md:hidden absolute right-3.5 bottom-0 z-[38] will-change-transform ${
+            isRightControlsHidden
+              ? 'pointer-events-none [&_*]:!pointer-events-none'
+              : 'pointer-events-auto'
           }`}
           style={{
             paddingRight: 'env(safe-area-inset-right, 0px)',
+            y: rightControlsY,
           }}
         >
-          {/* PLAY — Create Custom Itinerary Directly on Map */}
-          {workflowMode === 'EXPLORE' && onStartItineraryCreation && (
+          <div
+            className={`flex flex-col items-center gap-2 transition-[opacity,transform] motion-reduce:transition-none motion-reduce:transform-none ${
+              isRightControlsHidden
+                ? 'opacity-0 translate-x-3 scale-[0.95] duration-[280ms] ease-in-out pointer-events-none [&_*]:!pointer-events-none'
+                : 'opacity-100 translate-x-0 scale-100 duration-[340ms] ease-[cubic-bezier(0.22,1,0.36,1)] pointer-events-auto'
+            }`}
+          >
+          {/* PLUS / CLOSE — Toggle Quick Discovery Actions Sheet */}
+          {workflowMode === 'EXPLORE' && onToggleDiscoveryPanel && (
             <motion.button
-              key={`map-ctrl-play-${entranceTick}`}
-              id="btn-play-itinerary"
+              id="btn-toggle-discovery-panel"
               type="button"
-              initial={{ opacity: 0, scale: 0.88, y: 12 }}
-              animate={{ opacity: 1, scale: 1, y: 0 }}
-              transition={{ type: 'spring', stiffness: 380, damping: 22, delay: 0.08 }}
               whileTap={{ scale: 0.9, transition: { type: 'spring', stiffness: 500, damping: 14 } }}
               onClick={() => {
                 unlockSpotClickSound();
                 playSpotClickSound();
-                triggerHapticFeedback(14);
-                onStartItineraryCreation();
+                triggerHapticFeedback(12);
+                onToggleDiscoveryPanel();
               }}
-              aria-label="Criar roteiro no mapa"
-              title="Criar roteiro no mapa"
+              aria-label={isDiscoveryPanelOpen ? 'Fechar menu rápido' : 'Abrir menu rápido'}
+              aria-expanded={isDiscoveryPanelOpen}
+              title={isDiscoveryPanelOpen ? 'Fechar menu rápido' : 'Abrir menu rápido'}
               className={`w-[53px] h-[53px] sm:w-[58px] sm:h-[58px] rounded-full ios26-liquid-glass flex items-center justify-center transition-colors duration-200 cursor-pointer shrink-0 ${controlTextClass}`}
               style={{ color: controlIconColor }}
             >
-              <Play
-                className="relative z-10 w-[23px] h-[23px] sm:w-[25px] sm:h-[25px] ml-0.5 fill-current"
-                style={{ color: controlIconColor }}
-              />
+              <motion.span
+                aria-hidden="true"
+                initial={false}
+                animate={{ rotate: isDiscoveryPanelOpen ? 45 : 0 }}
+                transition={{ type: 'spring', stiffness: 420, damping: 28 }}
+                className="relative z-10 flex items-center justify-center"
+              >
+                <Plus
+                  className="w-[24px] h-[24px] sm:w-[26px] sm:h-[26px]"
+                  strokeWidth={2.35}
+                  style={{ color: controlIconColor }}
+                />
+              </motion.span>
             </motion.button>
           )}
 
           {/* My Real-Time Location & Compass Orientation Button */}
           <motion.button
-            key={`map-ctrl-compass-${entranceTick}`}
+            id="btn-map-compass"
             type="button"
-            initial={{ opacity: 0, scale: 0.88, y: 12 }}
-            animate={{ opacity: 1, scale: 1, y: 0 }}
-            transition={{ type: 'spring', stiffness: 380, damping: 22, delay: 0.12 }}
             whileTap={{ scale: 0.9, transition: { type: 'spring', stiffness: 500, damping: 14 } }}
             onClick={() => centerOnUserLocation(true, true)}
             aria-label="Centralizar na minha localização e ativar bússola em tempo real"
@@ -4105,11 +4649,8 @@ export const MapComponent = memo(
 
           {/* Map Layers Toggle */}
           <motion.button
-            key={`map-ctrl-layers-${entranceTick}`}
+            id="btn-map-layers"
             type="button"
-            initial={{ opacity: 0, scale: 0.88, y: 12 }}
-            animate={{ opacity: 1, scale: 1, y: 0 }}
-            transition={{ type: 'spring', stiffness: 380, damping: 22, delay: 0.16 }}
             whileTap={{ scale: 0.9, transition: { type: 'spring', stiffness: 500, damping: 14 } }}
             onPointerDown={handleMapLayerButtonPointerDown}
             onClick={handleCycleMapStyle}
@@ -4123,7 +4664,8 @@ export const MapComponent = memo(
               style={{ color: controlIconColor }}
             />
           </motion.button>
-        </div>
+          </div>
+        </motion.div>
           );
         })()}
       </div>

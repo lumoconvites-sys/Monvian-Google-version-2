@@ -23,6 +23,8 @@
         "motion_permission_granted": { "type": "number", "description": "Whether motion/orientation permission was granted (0 or 1)" },
         "welcome_card_seen": { "type": "number", "description": "Whether post-signup welcome screen was completed (0 or 1)" },
         "globe_intro_seen": { "type": "number", "description": "Whether post-onboarding 3D globe intro flight was completed (0 or 1)" },
+        "map_tutorial_status": { "type": "string", "description": "Interactive map onboarding tutorial status ('pending', 'completed', or 'skipped')" },
+        "map_tutorial_updated_at": { "type": "string", "description": "ISO timestamp of last map tutorial status update" },
         "last_access": { "type": "string", "description": "Timestamp of last access" },
         "created_at": { "type": "string", "description": "Creation timestamp" }
       },
@@ -82,12 +84,14 @@
     },
     "MapVisualIcon": {
       "title": "MapVisualIcon",
-      "description": "Visual non-interactive icon marker firmly anchored to GPS position",
+      "description": "Visual utility stop icon marker firmly anchored to GPS position",
       "type": "object",
       "properties": {
-        "id": { "type": "string", "description": "Visual icon ID" },
-        "category": { "type": "string", "description": "Icon category identifier" },
-        "icon": { "type": "string", "description": "Icon type identifier" },
+        "id": { "type": "string", "maxLength": 120, "description": "Visual icon ID" },
+        "name": { "type": "string", "maxLength": 120, "description": "Stop point display name" },
+        "category": { "type": "string", "maxLength": 80, "description": "Icon category identifier or custom label" },
+        "icon": { "type": "string", "maxLength": 80, "description": "Lucide icon name identifier" },
+        "color": { "type": "string", "maxLength": 16, "pattern": "^#[0-9A-Fa-f]{6}$", "description": "Hex marker background color" },
         "latitude": { "type": "number", "description": "Latitude coordinate" },
         "longitude": { "type": "number", "description": "Longitude coordinate" },
         "is_active": { "type": "number", "description": "Active flag (0 or 1)" },
@@ -386,6 +390,42 @@
         "updated_at": { "type": "string", "description": "ISO timestamp of last update" }
       },
       "required": ["user_email"]
+    },
+    "PushSubscription": {
+      "title": "PushSubscription",
+      "description": "FCM Web Push device token and user topic notification preferences",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "description": "Deterministic subscription document ID" },
+        "token": { "type": "string", "description": "FCM device registration token" },
+        "user_id": { "type": "string", "description": "Authenticated user ID" },
+        "user_email": { "type": "string", "description": "Normalized user email" },
+        "platform": { "type": "string", "description": "Client platform (web, ios-pwa, android-pwa)" },
+        "enabled": { "type": "number", "description": "Master push enabled flag (0 or 1)" },
+        "notify_new_spots": { "type": "number", "description": "Subscribe to new tourist spot alerts (0 or 1)" },
+        "notify_itinerary_updates": { "type": "number", "description": "Subscribe to itinerary update alerts (0 or 1)" },
+        "created_at": { "type": "string", "description": "ISO creation timestamp" },
+        "updated_at": { "type": "string", "description": "ISO update timestamp" }
+      },
+      "required": ["id", "user_email", "enabled"]
+    },
+    "PushAlert": {
+      "title": "PushAlert",
+      "description": "Dispatched push notification alert for new spots or itinerary updates",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "description": "Unique push alert ID" },
+        "type": { "type": "string", "description": "Alert category ('new_spot' or 'itinerary_update')" },
+        "title": { "type": "string", "description": "Notification title" },
+        "body": { "type": "string", "description": "Notification body message" },
+        "spot_id": { "type": "string", "description": "Optional target tourist spot ID" },
+        "itinerary_id": { "type": "string", "description": "Optional target itinerary ID" },
+        "image_url": { "type": "string", "description": "Optional cover image URL" },
+        "sent_count": { "type": "number", "description": "Number of FCM tokens delivered" },
+        "delivery_mode": { "type": "string", "description": "Delivery mode ('fcm', 'realtime', or 'hybrid')" },
+        "created_at": { "type": "string", "description": "ISO creation timestamp" }
+      },
+      "required": ["id", "type", "title", "body", "created_at"]
     }
   },
   "firestore": {
@@ -464,6 +504,14 @@
     "/stories/{id}": {
       "schema": "Story",
       "description": "Persistent 24-hour stories"
+    },
+    "/push_subscriptions/{id}": {
+      "schema": "PushSubscription",
+      "description": "FCM Web Push device tokens and topic subscriptions"
+    },
+    "/push_alerts/{id}": {
+      "schema": "PushAlert",
+      "description": "Published alerts for new tourist spots and itinerary updates"
     }
   }
 }

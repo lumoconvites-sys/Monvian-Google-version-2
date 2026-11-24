@@ -1,3 +1,5 @@
+import { preloadAllStoreItineraries, STORE_SECTION_OPTIONS } from '../services/supabaseItineraries';
+
 export function preloadImage(src: string, priority?: 'high' | 'low' | 'auto'): void {
   if (typeof window === 'undefined' || !src) return;
   const img = new Image();
@@ -32,27 +34,40 @@ export function extractAllItineraryImageUrls(itineraries: any[]): string[] {
   return Array.from(urls);
 }
 
-export function startPreloadResources() {
-  if (typeof window === 'undefined') return;
-  // Preload critical assets in idle time
-  const preload = () => {
-    const imagesToPreload = [
-      '/logocarregamento.png',
-      '/logomodoescuro.png',
-      '/loogo.png',
-      '/hotel.png',
-      '/restaurante.png',
-      '/cafe.png'
-    ];
-    imagesToPreload.forEach((src) => {
-      const img = new Image();
-      img.src = src;
-    });
-  };
+let storePreloadStarted = false;
 
-  if ('requestIdleCallback' in window) {
-    (window as any).requestIdleCallback(preload);
-  } else {
-    setTimeout(preload, 1200);
+export function startPreloadResources(forceRefreshItineraries = false): Promise<void> {
+  if (typeof window === 'undefined') return Promise.resolve();
+
+  // Immediately warm Store 3D section icons + core app logos
+  const criticalImages = [
+    ...STORE_SECTION_OPTIONS.map((s) => s.image),
+    '/assets/aistudio/monvian_logo_dark_transparent.png',
+    '/logomodoescuro.png',
+    '/logocarregamento.png',
+    '/loogo.png',
+    '/hotel.png',
+    '/restaurante.png',
+    '/cafe.png',
+  ];
+  criticalImages.forEach((src) => preloadImage(src, 'high'));
+
+  // Immediately preload all real itineraries & cover photos into memory so
+  // entering "Loja de roteiros" renders every section cleanly with zero flash
+  if (!storePreloadStarted || forceRefreshItineraries) {
+    storePreloadStarted = true;
+    return preloadAllStoreItineraries(forceRefreshItineraries)
+      .then(() => {
+        try {
+          (window as any).__monvianMarkItinerariesPreloaded?.();
+        } catch {}
+      })
+      .catch(() => {
+        try {
+          (window as any).__monvianMarkItinerariesPreloaded?.();
+        } catch {}
+      });
   }
+
+  return Promise.resolve();
 }

@@ -1,5 +1,5 @@
 // Monvian PWA Service Worker - Offline Caching Engine for Spots & Assets
-const STATIC_CACHE = 'monvian-static-v8';
+const STATIC_CACHE = 'monvian-static-v9';
 const API_CACHE = 'monvian-api-v7';
 const IMAGES_CACHE = 'monvian-images-v8';
 const MAX_IMAGE_CACHE_ENTRIES = 120;
@@ -12,6 +12,7 @@ const PRECACHE_ASSETS = [
   '/pwa-192x192.png',
   '/pwa-512x512.png',
   '/pwa-maskable-512x512.png',
+  '/assets/aistudio/monvian_logo_dark_transparent.png',
   '/notification-badge.png',
   '/logo.png',
   '/fotoperfil.png',
@@ -262,13 +263,24 @@ self.addEventListener('fetch', (event) => {
   );
 });
 
-// Handle native iOS / Web notification click to open the corresponding tourist spot details
+// Handle native iOS / Web notification click to open the corresponding tourist spot or itinerary
 self.addEventListener('notificationclick', (event) => {
   event.notification.close();
 
   const data = event.notification.data || {};
-  const spotId = data.spotId || '';
-  const targetUrl = data.url || (spotId ? `/?spot=${encodeURIComponent(spotId)}` : '/');
+  const spotId = data.spotId ? String(data.spotId) : '';
+  const itineraryId = data.itineraryId ? String(data.itineraryId) : '';
+  const alertType = data.alertType ? String(data.alertType) : '';
+  const rawUrl = typeof data.url === 'string' && data.url.startsWith('/') && !data.url.startsWith('//')
+    ? data.url
+    : '';
+  const targetUrl =
+    rawUrl ||
+    (spotId
+      ? `/?spot=${encodeURIComponent(spotId)}`
+      : itineraryId
+        ? `/?itinerary=${encodeURIComponent(itineraryId)}`
+        : '/');
 
   event.waitUntil(
     self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then((clientList) => {
@@ -278,6 +290,8 @@ self.addEventListener('notificationclick', (event) => {
           client.postMessage({
             type: 'MONVIAN_NOTIFICATION_CLICK',
             spotId,
+            itineraryId,
+            alertType,
           });
           return;
         }

@@ -157,6 +157,11 @@
     <script>
       (function() {
         var dismissed = false;
+        var minAnimationDone = false;
+        var itinerariesReady = false;
+        var minTimer = null;
+        var maxTimer = null;
+
         function hasAuthenticatedSession() {
           try {
             var token = localStorage.getItem('monvian_token');
@@ -170,72 +175,160 @@
 
         function hidePreloaderImmediately() {
           dismissed = true;
+          window.__monvianPreloaderDismissed = true;
+          if (minTimer) clearTimeout(minTimer);
+          if (maxTimer) clearTimeout(maxTimer);
           var preloader = document.getElementById('monvian-app-preloader');
           if (preloader) {
             preloader.style.display = 'none';
             preloader.style.opacity = '0';
             preloader.style.pointerEvents = 'none';
           }
+          try {
+            window.dispatchEvent(new CustomEvent('monvian:preloader-dismissed'));
+          } catch (e) {}
         }
 
         function dismissPreloader() {
           if (dismissed) return;
           dismissed = true;
+          window.__monvianPreloaderDismissed = true;
+          if (minTimer) clearTimeout(minTimer);
+          if (maxTimer) clearTimeout(maxTimer);
           var preloader = document.getElementById('monvian-app-preloader');
           var stage = document.getElementById('monvian-preloader-stage');
 
           if (stage) {
-            stage.style.transition = 'opacity 0.36s ease-out, transform 0.36s ease-out';
+            stage.style.transition = 'opacity 0.42s cubic-bezier(0.22, 1, 0.36, 1), transform 0.42s cubic-bezier(0.22, 1, 0.36, 1)';
             stage.style.opacity = '0';
-            stage.style.transform = 'scale(0.97)';
+            stage.style.transform = 'scale(1.045)';
           }
 
           if (preloader) {
-            preloader.style.transition = 'opacity 0.42s cubic-bezier(0.22, 1, 0.36, 1)';
+            preloader.style.transition = 'opacity 0.48s cubic-bezier(0.22, 1, 0.36, 1)';
             preloader.style.opacity = '0';
             preloader.style.pointerEvents = 'none';
 
             setTimeout(function() {
               preloader.style.display = 'none';
-            }, 440);
+            }, 500);
+          }
+          try {
+            window.dispatchEvent(new CustomEvent('monvian:preloader-dismissed'));
+          } catch (e) {}
+        }
+
+        function tryFinishPreloader() {
+          if (dismissed) return;
+          if (minAnimationDone && itinerariesReady) {
+            dismissPreloader();
           }
         }
 
-        function initLogoPreloader() {
-          // Never show the Monvian logo loading screen on the Login / Landing screen
-          if (!hasAuthenticatedSession()) {
-            hidePreloaderImmediately();
-            return;
-          }
+        function playLogoPreloaderSequence(minMs, maxMs) {
+          dismissed = false;
+          window.__monvianPreloaderDismissed = false;
+          minAnimationDone = false;
+          if (minTimer) clearTimeout(minTimer);
+          if (maxTimer) clearTimeout(maxTimer);
 
           var isDark =
             (typeof window.__monvianIsDarkThemeActive === 'function' && window.__monvianIsDarkThemeActive()) ||
             document.documentElement.classList.contains('dark');
 
           var preloader = document.getElementById('monvian-app-preloader');
+          var stage = document.getElementById('monvian-preloader-stage');
           var lightLogo = document.getElementById('monvian-preloader-light-logo');
           var darkLogo = document.getElementById('monvian-preloader-dark-logo');
 
           if (preloader) {
+            preloader.style.transition = 'none';
             preloader.style.backgroundColor = isDark ? '#000000' : '#ffffff';
+            preloader.style.opacity = '1';
+            preloader.style.pointerEvents = 'auto';
             preloader.style.display = 'flex';
+          }
+
+          if (stage) {
+            stage.style.transition = 'none';
+            stage.style.opacity = '1';
+            stage.style.transform = 'scale(1)';
           }
 
           if (isDark) {
             if (lightLogo) lightLogo.style.display = 'none';
             if (darkLogo) {
               darkLogo.style.display = 'block';
-              darkLogo.style.animation = 'monvianLogoPulseBreath 1.15s cubic-bezier(0.22, 1, 0.36, 1) forwards';
+              darkLogo.style.animation = 'none';
+              void darkLogo.offsetWidth;
+              darkLogo.style.animation = 'monvianLogoMotionIntro 1.85s cubic-bezier(0.22, 1, 0.36, 1) forwards';
             }
           } else {
             if (darkLogo) darkLogo.style.display = 'none';
             if (lightLogo) {
               lightLogo.style.display = 'block';
-              lightLogo.style.animation = 'monvianLogoPulseBreath 1.15s cubic-bezier(0.22, 1, 0.36, 1) forwards';
+              lightLogo.style.animation = 'none';
+              void lightLogo.offsetWidth;
+              lightLogo.style.animation = 'monvianLogoMotionIntro 1.85s cubic-bezier(0.22, 1, 0.36, 1) forwards';
             }
           }
 
-          setTimeout(dismissPreloader, 1180);
+          minTimer = setTimeout(function() {
+            minAnimationDone = true;
+            tryFinishPreloader();
+          }, minMs || 1750);
+
+          maxTimer = setTimeout(function() {
+            dismissPreloader();
+          }, maxMs || 3200);
+        }
+
+        window.__monvianHidePreloaderImmediately = hidePreloaderImmediately;
+
+        window.__monvianMarkItinerariesPreloaded = function() {
+          itinerariesReady = true;
+          tryFinishPreloader();
+        };
+
+        window.__monvianReplayLogoPreloader = function() {
+          itinerariesReady = false;
+          playLogoPreloaderSequence(1550, 2900);
+        };
+
+        function isIOSNonStandaloneBrowser() {
+          try {
+            if (
+              window.Capacitor &&
+              typeof window.Capacitor.isNativePlatform === 'function' &&
+              window.Capacitor.isNativePlatform()
+            ) {
+              return false;
+            }
+            var ua = (navigator.userAgent || '').toLowerCase();
+            var isIOS =
+              /iphone|ipad|ipod/.test(ua) ||
+              (navigator.platform === 'MacIntel' && (navigator.maxTouchPoints || 0) > 1);
+            if (!isIOS) return false;
+            var isStandalone = Boolean(
+              (window.matchMedia &&
+                (window.matchMedia('(display-mode: standalone)').matches ||
+                  window.matchMedia('(display-mode: fullscreen)').matches)) ||
+                window.navigator.standalone === true
+            );
+            return !isStandalone;
+          } catch (e) {
+            return false;
+          }
+        }
+
+        function initLogoPreloader() {
+          // Never show the Monvian logo loading screen on the Login / Landing screen
+          // or when the mandatory iOS PWA install gate will immediately take over
+          if (!hasAuthenticatedSession() || isIOSNonStandaloneBrowser()) {
+            hidePreloaderImmediately();
+            return;
+          }
+          playLogoPreloaderSequence(1750, 3200);
         }
 
         if (document.readyState === 'loading') {
@@ -543,28 +636,42 @@
   </head>
   <body>
     <div id="monvian-app-preloader" style="position:fixed;inset:0;width:100%;height:var(--app-height,100dvh);min-height:var(--app-height,100dvh);display:none;flex-direction:column;align-items:center;justify-content:center;background-color:#ffffff;overflow:hidden;z-index:99999;user-select:none;-webkit-user-select:none;touch-action:none;">
-      <div id="monvian-preloader-stage" style="display:flex;align-items:center;justify-content:center;will-change:transform,opacity;">
-        <img
-          id="monvian-preloader-light-logo"
-          src="/assets/aistudio/monvian_logo_dark_transparent.png"
-          alt="Monvian"
-          draggable="false"
-          decoding="sync"
-          style="width:240px;max-width:64vw;height:auto;object-fit:contain;display:none;pointer-events:none;user-select:none;-webkit-user-select:none;will-change:transform,opacity;"
-        />
-        <img
-          id="monvian-preloader-dark-logo"
-          src="/logomodoescuro.png"
-          alt="Monvian"
-          draggable="false"
-          decoding="sync"
-          style="width:240px;max-width:64vw;height:auto;object-fit:contain;display:none;pointer-events:none;user-select:none;-webkit-user-select:none;will-change:transform,opacity;"
-        />
+      <div id="monvian-preloader-stage" style="display:flex;flex-direction:column;align-items:center;justify-content:center;gap:22px;will-change:transform,opacity;">
+        <div style="position:relative;display:flex;align-items:center;justify-content:center;overflow:hidden;padding:8px 12px;">
+          <img
+            id="monvian-preloader-light-logo"
+            src="/assets/aistudio/monvian_logo_dark_transparent.png"
+            alt="Monvian"
+            draggable="false"
+            decoding="sync"
+            style="width:248px;max-width:64vw;height:auto;object-fit:contain;display:none;pointer-events:none;user-select:none;-webkit-user-select:none;will-change:transform,opacity,filter;"
+          />
+          <img
+            id="monvian-preloader-dark-logo"
+            src="/logomodoescuro.png"
+            alt="Monvian"
+            draggable="false"
+            decoding="sync"
+            style="width:248px;max-width:64vw;height:auto;object-fit:contain;display:none;pointer-events:none;user-select:none;-webkit-user-select:none;will-change:transform,opacity,filter;"
+          />
+        </div>
+        <div id="monvian-preloader-spinner" role="status" aria-label="Carregando" style="width:22px;height:22px;display:flex;align-items:center;justify-content:center;pointer-events:none;">
+          <svg id="monvian-preloader-ring-svg" viewBox="0 0 24 24" width="22" height="22" fill="none" xmlns="http://www.w3.org/2000/svg" style="display:block;animation:monvianCircularRotate 0.92s linear infinite;will-change:transform;">
+            <circle id="monvian-preloader-ring-track" cx="12" cy="12" r="9.25" stroke="rgba(0,0,0,0.10)" stroke-width="1.85" />
+            <circle id="monvian-preloader-ring-arc" cx="12" cy="12" r="9.25" stroke="#171717" stroke-width="1.85" stroke-linecap="round" stroke-dasharray="58.12" stroke-dashoffset="42" style="animation:monvianCircularArcGlide 1.45s cubic-bezier(0.4, 0, 0.2, 1) infinite;transform-origin:50% 50%;" />
+          </svg>
+        </div>
       </div>
     </div>
     <style>
       html.dark #monvian-app-preloader {
         background-color: #000000 !important;
+      }
+      html.dark #monvian-preloader-ring-track {
+        stroke: rgba(255,255,255,0.14) !important;
+      }
+      html.dark #monvian-preloader-ring-arc {
+        stroke: #ffffff !important;
       }
       html.dark #monvian-preloader-light-logo {
         display: none !important;
@@ -577,6 +684,47 @@
       }
       html.light #monvian-preloader-dark-logo {
         display: none !important;
+      }
+      @keyframes monvianLogoMotionIntro {
+        0% {
+          opacity: 0;
+          transform: translate3d(0, 12px, 0) scale(0.88);
+          filter: blur(8px);
+        }
+        28% {
+          opacity: 1;
+          transform: translate3d(0, 0, 0) scale(1.015);
+          filter: blur(0px);
+        }
+        58% {
+          opacity: 0.96;
+          transform: translate3d(0, -1px, 0) scale(1.045);
+          filter: blur(0px);
+        }
+        100% {
+          opacity: 1;
+          transform: translate3d(0, 0, 0) scale(1);
+          filter: blur(0px);
+        }
+      }
+      @keyframes monvianCircularRotate {
+        0% {
+          transform: rotate(0deg);
+        }
+        100% {
+          transform: rotate(360deg);
+        }
+      }
+      @keyframes monvianCircularArcGlide {
+        0% {
+          stroke-dashoffset: 45;
+        }
+        50% {
+          stroke-dashoffset: 27;
+        }
+        100% {
+          stroke-dashoffset: 45;
+        }
       }
       @keyframes monvianLogoPulseBreath {
         0% {
@@ -612,6 +760,7 @@
           animation: none !important;
           opacity: 1 !important;
           transform: none !important;
+          filter: none !important;
         }
       }
     </style>

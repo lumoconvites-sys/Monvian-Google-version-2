@@ -1167,7 +1167,11 @@ export const SpotDetailSheet: React.FC<SpotDetailSheetProps> = React.memo(({
                         </span>
                       </div>
                       <span className="mt-3 text-[15.5px] font-bold text-[#111111] dark:text-[#FFFFFF] leading-[1.3] block">
-                        {spot.priceRange === 'Grátis' ? 'Acesso Livre' : spot.priceRange || 'Consultar'}
+                        {spot.price
+                          ? spot.price
+                          : spot.priceRange === 'Grátis'
+                            ? 'Gratuito'
+                            : spot.priceRange || 'Consultar'}
                       </span>
                     </div>
                   </motion.div>
@@ -1645,7 +1649,11 @@ export const SpotDetailSheet: React.FC<SpotDetailSheetProps> = React.memo(({
                       </span>
                     </div>
                     <span className="mt-2.5 text-[14.5px] font-bold text-[#111111] dark:text-white leading-snug block">
-                      {spot.priceRange === 'Grátis' ? 'Acesso Livre' : (spot.priceRange || 'Consultar')}
+                      {spot.price
+                        ? spot.price
+                        : spot.priceRange === 'Grátis'
+                          ? 'Gratuito'
+                          : spot.priceRange || 'Consultar'}
                     </span>
                   </div>
                 </div>

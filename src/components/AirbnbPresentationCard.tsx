@@ -1,18 +1,19 @@
 import React from 'react';
+import { readScopedString, writeScopedString } from '../utils/userScopedStorage';
 
 export type PresentationTab = 'explorar' | 'roteiros' | 'salvos';
 
-export const isPresentationCardSeen = (tab: PresentationTab): boolean => {
+export const isPresentationCardSeen = (tab: PresentationTab, userOverride?: any): boolean => {
   try {
-    return localStorage.getItem(`monvian_presentation_seen_${tab}`) === 'true';
+    return readScopedString(`monvian_presentation_seen_${tab}`, userOverride) === 'true';
   } catch {
     return true;
   }
 };
 
-export const markPresentationCardSeen = (tab: PresentationTab): void => {
+export const markPresentationCardSeen = (tab: PresentationTab, userOverride?: any): void => {
   try {
-    localStorage.setItem(`monvian_presentation_seen_${tab}`, 'true');
+    writeScopedString(`monvian_presentation_seen_${tab}`, 'true', userOverride);
   } catch {}
 };
 

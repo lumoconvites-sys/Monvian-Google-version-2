@@ -1,10 +1,10 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { motion, AnimatePresence, PanInfo, useReducedMotion } from 'motion/react';
-import { Star, Route, Loader2 } from 'lucide-react';
+import { Star, Clock, Ticket } from 'lucide-react';
 import { Spot } from '../types';
 import { VerifiedBadge } from './ui/VerifiedBadge';
 import { getSpotPinThumbnail, getSpotFallbackImage } from '../utils/spotImages';
-import { triggerHapticFeedback } from '../utils/haptics';
+import { parseSpotHoursCard, parseSpotPriceCard } from '../utils/spotInfoCards';
 
 interface SpotPreviewBannerProps {
   spot: Spot;
@@ -44,14 +44,10 @@ export const SpotPreviewBanner: React.FC<SpotPreviewBannerProps> = ({
   spot,
   onClose,
   onOpenDetails,
-  onToggleRoute,
-  isRouteActive = false,
-  isRouteLoading = false,
   routeError = null,
   theme = 'light',
-  isSatellite = false,
 }) => {
-  const useWhiteText = isSatellite || theme === 'dark';
+  const useWhiteText = theme === 'dark';
   const shouldReduceMotion = useReducedMotion();
   const [imgError, setImgError] = useState(false);
   const didDragRef = useRef(false);
@@ -78,6 +74,18 @@ export const SpotPreviewBanner: React.FC<SpotPreviewBannerProps> = ({
     spot.isVerified !== false &&
     spot.is_verified !== 0 &&
     spot.is_verified !== false;
+
+  const hoursCard = useMemo(() => parseSpotHoursCard(spot.hours), [spot.hours]);
+  const priceCard = useMemo(
+    () =>
+      parseSpotPriceCard(
+        spot.price,
+        spot.priceRange || (spot as Spot & { price_range?: string }).price_range
+      ),
+    [spot]
+  );
+
+  const visibleInfoCardsCount = (hoursCard ? 1 : 0) + (priceCard ? 1 : 0);
 
   const handleDragStart = () => {
     didDragRef.current = true;
@@ -106,21 +114,29 @@ export const SpotPreviewBanner: React.FC<SpotPreviewBannerProps> = ({
     }
   };
 
+  const infoCardSurfaceClass = useWhiteText
+    ? 'bg-[#171717]/95 text-[#FFFFFF] border border-white/[0.10] shadow-[0_10px_28px_-6px_rgba(0,0,0,0.45),0_2px_6px_-1px_rgba(0,0,0,0.28)]'
+    : 'bg-[#FFFFFF]/96 text-[#000000] border border-black/[0.06] shadow-[0_8px_24px_-6px_rgba(0,0,0,0.12),0_2px_6px_-1px_rgba(0,0,0,0.05)]';
+
+  const infoCardMutedTextClass = useWhiteText
+    ? 'text-[#A1A1AA]'
+    : 'text-[#6E6E73]';
+
   return (
     <motion.div
       id="spot-preview-banner-card"
-      initial={shouldReduceMotion ? { opacity: 0 } : { opacity: 0, y: 24 }}
-      animate={shouldReduceMotion ? { opacity: 1 } : { opacity: 1, y: 0 }}
-      exit={shouldReduceMotion ? { opacity: 0 } : { opacity: 0, y: 24 }}
+      initial={shouldReduceMotion ? { opacity: 0 } : { opacity: 0, y: 20, scale: 0.97 }}
+      animate={shouldReduceMotion ? { opacity: 1 } : { opacity: 1, y: 0, scale: 1 }}
+      exit={shouldReduceMotion ? { opacity: 0 } : { opacity: 0, y: 24, scale: 0.96 }}
       transition={
         shouldReduceMotion
           ? { duration: 0.14 }
-          : { duration: 0.22, ease: [0.22, 1, 0.36, 1] }
+          : { duration: 0.28, ease: [0.22, 1, 0.36, 1] }
       }
-      className="md:hidden fixed inset-x-0 bottom-[82px] sm:bottom-[84px] z-[245] flex flex-col items-center gap-2 px-4 pointer-events-none select-none"
+      className="md:hidden fixed inset-x-0 bottom-[84px] sm:bottom-[86px] z-[245] flex flex-col items-center gap-2.5 px-4 pointer-events-none select-none"
       style={{
-        paddingLeft: '16px',
-        paddingRight: '16px',
+        paddingLeft: 'max(16px, env(safe-area-inset-left, 0px))',
+        paddingRight: 'max(16px, env(safe-area-inset-right, 0px))',
         willChange: 'transform, opacity',
         fontFamily:
           "'SF Pro Display', 'SF Pro Text', -apple-system, BlinkMacSystemFont, sans-serif",
@@ -144,6 +160,121 @@ export const SpotPreviewBanner: React.FC<SpotPreviewBannerProps> = ({
         )}
       </AnimatePresence>
 
+      {/* Complementary Info Cards Row: Funcionamento & Entrada (strictly from real data) */}
+      <AnimatePresence initial={false}>
+        {visibleInfoCardsCount > 0 && (
+          <motion.div
+            key="spot-info-cards-row"
+            initial={
+              shouldReduceMotion ? { opacity: 0 } : { opacity: 0, y: 10, scale: 0.98 }
+            }
+            animate={
+              shouldReduceMotion ? { opacity: 1 } : { opacity: 1, y: 0, scale: 1 }
+            }
+            exit={
+              shouldReduceMotion ? { opacity: 0 } : { opacity: 0, y: 8, scale: 0.97 }
+            }
+            transition={
+              shouldReduceMotion
+                ? { duration: 0.14 }
+                : { duration: 0.3, ease: [0.22, 1, 0.36, 1] }
+            }
+            className={`w-full max-w-[346px] sm:max-w-[366px] grid gap-2.5 items-stretch ${
+              visibleInfoCardsCount === 2 ? 'grid-cols-2' : 'grid-cols-1'
+            }`}
+          >
+            {hoursCard && (
+              <button
+                id="spot-info-card-hours"
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onOpenDetails(spot);
+                }}
+                aria-label={`Funcionamento: ${hoursCard.primary}${hoursCard.secondary ? `, ${hoursCard.secondary}` : ''}`}
+                className={`group flex flex-col justify-between text-left rounded-[24px] px-4 py-3.5 backdrop-blur-md pointer-events-auto cursor-pointer transition-transform duration-150 ease-out active:scale-[0.98] motion-reduce:transition-none ${infoCardSurfaceClass}`}
+              >
+                <div className="flex items-center gap-2 min-w-0">
+                  <Clock
+                    aria-hidden="true"
+                    className={`w-[19px] h-[19px] stroke-[1.95] shrink-0 ${
+                      useWhiteText ? 'text-[#FFFFFF]' : 'text-[#000000]'
+                    }`}
+                  />
+                  <span
+                    className={`text-[13.5px] font-medium tracking-[-0.01em] truncate ${infoCardMutedTextClass}`}
+                  >
+                    Funcionamento
+                  </span>
+                </div>
+
+                <div className="mt-2.5 flex flex-col min-w-0">
+                  <span
+                    className={`text-[18px] sm:text-[19px] font-bold tracking-[-0.025em] leading-[1.18] tabular-nums truncate ${
+                      useWhiteText ? 'text-[#FFFFFF]' : 'text-[#000000]'
+                    }`}
+                  >
+                    {hoursCard.primary}
+                  </span>
+                  {hoursCard.secondary && (
+                    <span
+                      className={`mt-1 text-[13px] font-medium tracking-[-0.01em] leading-tight truncate ${infoCardMutedTextClass}`}
+                    >
+                      {hoursCard.secondary}
+                    </span>
+                  )}
+                </div>
+              </button>
+            )}
+
+            {priceCard && (
+              <button
+                id="spot-info-card-price"
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onOpenDetails(spot);
+                }}
+                aria-label={`Entrada: ${priceCard.primary}${priceCard.secondary ? `, ${priceCard.secondary}` : ''}`}
+                className={`group flex flex-col justify-between text-left rounded-[24px] px-4 py-3.5 backdrop-blur-md pointer-events-auto cursor-pointer transition-transform duration-150 ease-out active:scale-[0.98] motion-reduce:transition-none ${infoCardSurfaceClass}`}
+              >
+                <div className="flex items-center gap-2 min-w-0">
+                  <Ticket
+                    aria-hidden="true"
+                    className={`w-[19px] h-[19px] stroke-[1.95] shrink-0 ${
+                      useWhiteText ? 'text-[#FFFFFF]' : 'text-[#000000]'
+                    }`}
+                  />
+                  <span
+                    className={`text-[13.5px] font-medium tracking-[-0.01em] truncate ${infoCardMutedTextClass}`}
+                  >
+                    Entrada
+                  </span>
+                </div>
+
+                <div className="mt-2.5 flex flex-col min-w-0">
+                  <span
+                    className={`text-[18px] sm:text-[19px] font-bold tracking-[-0.025em] leading-[1.18] tabular-nums truncate ${
+                      useWhiteText ? 'text-[#FFFFFF]' : 'text-[#000000]'
+                    }`}
+                  >
+                    {priceCard.primary}
+                  </span>
+                  {priceCard.secondary && (
+                    <span
+                      className={`mt-1 text-[13px] font-medium tracking-[-0.01em] leading-tight truncate ${infoCardMutedTextClass}`}
+                    >
+                      {priceCard.secondary}
+                    </span>
+                  )}
+                </div>
+              </button>
+            )}
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Main Selected Spot Card */}
       <motion.div
         key={`spot-preview-compact-${spot.id}`}
         drag="y"
@@ -168,9 +299,13 @@ export const SpotPreviewBanner: React.FC<SpotPreviewBannerProps> = ({
         }`}
       >
         {/* 1. Circular Establishment Photo (Left) */}
-        <div className={`relative z-10 w-[56px] h-[56px] rounded-full overflow-hidden shrink-0 border ${
-          useWhiteText ? 'border-white/25 bg-zinc-800/80' : 'border-white/50 bg-zinc-100/70'
-        }`}>
+        <div
+          className={`relative z-10 w-[56px] h-[56px] rounded-full overflow-hidden shrink-0 border ${
+            useWhiteText
+              ? 'border-white/25 bg-zinc-800/80'
+              : 'border-white/50 bg-zinc-100/70'
+          }`}
+        >
           <img
             src={spotImage}
             alt={spot.name}
@@ -184,9 +319,11 @@ export const SpotPreviewBanner: React.FC<SpotPreviewBannerProps> = ({
         {/* 2. Establishment Name, Verified Badge, Star Rating & Location (Center) */}
         <div className="relative z-10 flex-1 min-w-0 flex flex-col justify-center">
           <div className="flex items-center gap-1.5 min-w-0">
-            <h3 className={`text-[17px] min-[380px]:text-[18px] font-bold tracking-[-0.022em] truncate leading-tight ${
-              useWhiteText ? 'text-[#FFFFFF]' : 'text-[#000000]'
-            }`}>
+            <h3
+              className={`text-[17px] min-[380px]:text-[18px] font-bold tracking-[-0.022em] truncate leading-tight ${
+                useWhiteText ? 'text-[#FFFFFF]' : 'text-[#000000]'
+              }`}
+            >
               {spot.name}
             </h3>
             {isVerified && (
@@ -197,22 +334,29 @@ export const SpotPreviewBanner: React.FC<SpotPreviewBannerProps> = ({
           <div className="flex items-center gap-1.5 mt-1 text-[13px] sm:text-[13.5px] leading-tight min-w-0">
             <div className="flex items-center gap-1 shrink-0 font-semibold">
               <Star className="w-[14px] h-[14px] fill-[#FFCC00] text-[#FFCC00]" />
-              <span className={`font-bold ${useWhiteText ? 'text-[#FFD60A]' : 'text-[#C78500]'}`}>
+              <span
+                className={`font-bold ${
+                  useWhiteText ? 'text-[#FFD60A]' : 'text-[#C78500]'
+                }`}
+              >
                 {ratingValue.toFixed(1)}
               </span>
             </div>
-            <span className={useWhiteText ? 'text-white/70' : 'text-black/45'}>•</span>
-            <span className={`truncate font-medium ${useWhiteText ? 'text-white/95' : 'text-black/75'}`}>
+            <span className={useWhiteText ? 'text-white/70' : 'text-black/45'}>
+              •
+            </span>
+            <span
+              className={`truncate font-medium ${
+                useWhiteText ? 'text-white/95' : 'text-black/75'
+              }`}
+            >
               {cityState}
             </span>
           </div>
         </div>
-
-
       </motion.div>
     </motion.div>
   );
 };
 
 export default SpotPreviewBanner;
-

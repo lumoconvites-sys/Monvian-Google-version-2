@@ -2,6 +2,8 @@ import {
   getActiveUserScope,
   getScopedStorageKey,
   purgeLegacyUnscopedActivityKeys,
+  readScopedJSON,
+  writeScopedJSON,
 } from '../utils/userScopedStorage';
 
 // Persistent Favorites & Saved Items Service for Monvian (Strictly Per-Account Isolated)
@@ -23,15 +25,21 @@ const EMPTY_FAVORITES: SavedFavoritesState = {
   places: [],
 };
 
+function sanitizeStringList(parsed: unknown): string[] {
+  if (Array.isArray(parsed)) {
+    return Array.from(
+      new Set(parsed.filter((item): item is string => typeof item === 'string' && item.trim() !== ''))
+    );
+  }
+  return [];
+}
+
 function readStorageList(key: string | null): string[] {
-  if (!key) return [];
+  if (!key || typeof localStorage === 'undefined') return [];
   try {
     const raw = localStorage.getItem(key);
     if (!raw) return [];
-    const parsed = JSON.parse(raw);
-    if (Array.isArray(parsed)) {
-      return Array.from(new Set(parsed.filter((item) => typeof item === 'string' && item.trim() !== '')));
-    }
+    return sanitizeStringList(JSON.parse(raw));
   } catch (e) {
     console.warn(`[Favorites] Error reading ${key}:`, e);
   }
@@ -39,7 +47,7 @@ function readStorageList(key: string | null): string[] {
 }
 
 function writeStorageList(key: string | null, list: string[]): void {
-  if (!key) return;
+  if (!key || typeof localStorage === 'undefined') return;
   try {
     localStorage.setItem(key, JSON.stringify(Array.from(new Set(list))));
   } catch (e) {
@@ -49,6 +57,7 @@ function writeStorageList(key: string | null, list: string[]): void {
 
 function buildAuthHeaders(extraHeaders?: Record<string, string>): Record<string, string> {
   const headers: Record<string, string> = { ...(extraHeaders || {}) };
+  if (typeof localStorage === 'undefined') return headers;
   try {
     const token = localStorage.getItem('monvian_token');
     if (token) headers['Authorization'] = `Bearer ${token}`;
@@ -65,27 +74,35 @@ function buildAuthHeaders(extraHeaders?: Record<string, string>): Record<string,
 class FavoritesManager {
   private state: SavedFavoritesState;
   private activeScope: string | null = null;
+  private activeUser: any | null = null;
   private listeners: Set<() => void> = new Set();
   private isSyncing = false;
 
   constructor() {
-    if (typeof window !== 'undefined') {
+    if (typeof localStorage !== 'undefined') {
       // Remove legacy global device-wide favorite keys so accounts never mix
       purgeLegacyUnscopedActivityKeys();
     }
     this.activeScope = getActiveUserScope();
     this.state = this.loadLocalState(this.activeScope);
 
-    if (typeof window !== 'undefined') {
+    if (typeof window !== 'undefined' && typeof window.addEventListener === 'function') {
       window.addEventListener('storage', this.handleStorageEvent);
       window.addEventListener('monvian:user_logged_out', this.handleLogoutEvent);
       window.addEventListener('monvian:account_switched', this.handleAccountSwitchedEvent as EventListener);
     }
   }
 
-  private loadLocalState(scope: string | null): SavedFavoritesState {
+  private loadLocalState(scope: string | null, userOverride?: any): SavedFavoritesState {
     if (!scope) {
       return { itineraries: [], spots: [], places: [] };
+    }
+    if (userOverride !== undefined) {
+      return {
+        itineraries: sanitizeStringList(readScopedJSON<string[]>(STORAGE_KEYS.ITINERARIES, [], userOverride)),
+        spots: sanitizeStringList(readScopedJSON<string[]>(STORAGE_KEYS.SPOTS, [], userOverride)),
+        places: sanitizeStringList(readScopedJSON<string[]>(STORAGE_KEYS.PLACES, [], userOverride)),
+      };
     }
     const itinKey = `${STORAGE_KEYS.ITINERARIES}__acct_${scope}`;
     const spotKey = `${STORAGE_KEYS.SPOTS}__acct_${scope}`;
@@ -125,6 +142,7 @@ class FavoritesManager {
   public reset(): void {
     purgeLegacyUnscopedActivityKeys();
     this.activeScope = null;
+    this.activeUser = null;
     this.isSyncing = false;
     this.state = { ...EMPTY_FAVORITES, itineraries: [], spots: [], places: [] };
     this.notify();
@@ -139,10 +157,11 @@ class FavoritesManager {
     const nextScope = getActiveUserScope(user);
     const scopeChanged = nextScope !== this.activeScope;
     this.activeScope = nextScope;
+    this.activeUser = user;
     if (scopeChanged) {
       this.isSyncing = false;
     }
-    this.state = this.loadLocalState(nextScope);
+    this.state = this.loadLocalState(nextScope, user);
     this.notify();
     void this.syncWithServer(true);
   }
@@ -156,7 +175,7 @@ class FavoritesManager {
       }
     });
 
-    if (typeof window !== 'undefined') {
+    if (typeof window !== 'undefined' && typeof window.dispatchEvent === 'function') {
       window.dispatchEvent(
         new CustomEvent('monvian:favorites_changed', {
           detail: { ...this.state },
@@ -166,9 +185,15 @@ class FavoritesManager {
   }
 
   private persistLocal() {
-    const scope = this.activeScope || getActiveUserScope();
+    const scope = this.activeScope || getActiveUserScope(this.activeUser ?? undefined);
     if (!scope) return;
     this.activeScope = scope;
+    if (this.activeUser) {
+      writeScopedJSON(STORAGE_KEYS.ITINERARIES, Array.from(new Set(this.state.itineraries)), this.activeUser);
+      writeScopedJSON(STORAGE_KEYS.SPOTS, Array.from(new Set(this.state.spots)), this.activeUser);
+      writeScopedJSON(STORAGE_KEYS.PLACES, Array.from(new Set(this.state.places)), this.activeUser);
+      return;
+    }
     writeStorageList(getScopedStorageKey(STORAGE_KEYS.ITINERARIES) || `${STORAGE_KEYS.ITINERARIES}__acct_${scope}`, this.state.itineraries);
     writeStorageList(getScopedStorageKey(STORAGE_KEYS.SPOTS) || `${STORAGE_KEYS.SPOTS}__acct_${scope}`, this.state.spots);
     writeStorageList(getScopedStorageKey(STORAGE_KEYS.PLACES) || `${STORAGE_KEYS.PLACES}__acct_${scope}`, this.state.places);
@@ -176,9 +201,12 @@ class FavoritesManager {
 
   private ensureScopeMatchesCurrentUser() {
     const currentScope = getActiveUserScope();
-    if (currentScope !== this.activeScope) {
+    if (currentScope && currentScope !== this.activeScope) {
       this.activeScope = currentScope;
       this.state = this.loadLocalState(currentScope);
+    } else if (!currentScope && !this.activeUser && this.activeScope !== null) {
+      this.activeScope = null;
+      this.state = { itineraries: [], spots: [], places: [] };
     }
   }
 

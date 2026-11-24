@@ -6,7 +6,10 @@ import {
   getDoc, 
   getDocs, 
   collection, 
-  deleteDoc
+  deleteDoc,
+  query,
+  where,
+  onSnapshot
 } from 'firebase/firestore';
 import firebaseConfig from '../../firebase-applet-config.json' with { type: 'json' };
 import { supabase } from '../lib/supabase.ts';
@@ -80,6 +83,8 @@ export interface FirestoreUser {
   auth_id?: string | null;
   welcome_card_seen?: number;
   globe_intro_seen?: number;
+  map_tutorial_status?: 'pending' | 'completed' | 'skipped' | string;
+  map_tutorial_updated_at?: string;
   campos_relationship?: string;
   next_trip_timing?: string;
   next_trip_date?: string;
@@ -144,6 +149,7 @@ export interface FirestoreSpot {
 
 export interface FirestoreMapVisualIcon {
   id: string;
+  name?: string;
   category: string;
   icon: string;
   latitude: number;
@@ -250,6 +256,15 @@ export async function persistUserToFirestore(user: FirestoreUser): Promise<void>
     }
     if (user.globe_intro_seen !== undefined) {
       dataToSave.globe_intro_seen = user.globe_intro_seen ? 1 : 0;
+    }
+    if (user.map_tutorial_status !== undefined) {
+      const normalizedTutorial = String(user.map_tutorial_status).trim().toLowerCase();
+      if (normalizedTutorial === 'pending' || normalizedTutorial === 'completed' || normalizedTutorial === 'skipped') {
+        dataToSave.map_tutorial_status = normalizedTutorial;
+      }
+    }
+    if (user.map_tutorial_updated_at !== undefined) {
+      dataToSave.map_tutorial_updated_at = user.map_tutorial_updated_at;
     }
     if (user.campos_relationship !== undefined) {
       dataToSave.campos_relationship = user.campos_relationship;
@@ -623,6 +638,82 @@ export async function markGlobeIntroSeen(cleanEmail: string, token?: string): Pr
 }
 
 /**
+ * Persists the interactive map onboarding tutorial status ('completed' | 'skipped')
+ * strictly bound to the authenticated user across SQLite API, Cloud Firestore, and Supabase.
+ */
+export async function updateMapTutorialStatusInDb(
+  status: 'completed' | 'skipped',
+  cleanEmail?: string,
+  token?: string
+): Promise<any | null> {
+  const email = (cleanEmail || '').trim().toLowerCase();
+  const nextStatus: 'completed' | 'skipped' = status === 'skipped' ? 'skipped' : 'completed';
+  const nowIso = new Date().toISOString();
+  let updatedServerUser: any = null;
+
+  // 1. Update authoritative backend SQLite + session-authenticated user record
+  try {
+    const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+    const savedToken =
+      token ||
+      (typeof window !== 'undefined' ? window.localStorage?.getItem('monvian_token') : null);
+    if (savedToken) {
+      headers['Authorization'] = `Bearer ${savedToken}`;
+    }
+    const resp = await fetch('/api/user/map-tutorial', {
+      method: 'POST',
+      credentials: 'include',
+      headers,
+      body: JSON.stringify({ status: nextStatus }),
+    });
+    if (resp.ok) {
+      const json = await resp.json().catch(() => null);
+      if (json?.user) {
+        updatedServerUser = json.user;
+      }
+    }
+  } catch {}
+
+  // 2. Update Firestore document scoped to user email
+  if (email) {
+    try {
+      const userRef = doc(firestore, 'users', email);
+      await withTimeout(
+        setDoc(
+          userRef,
+          {
+            map_tutorial_status: nextStatus,
+            map_tutorial_updated_at: nowIso,
+            updated_at: nowIso,
+          },
+          { merge: true }
+        ),
+        2500,
+        null
+      );
+    } catch {}
+  }
+
+  // 3. Best-effort Supabase table update scoped to user email
+  if (email && supabase) {
+    try {
+      await withTimeout(
+        Promise.resolve(
+          supabase
+            .from('users')
+            .update({ map_tutorial_status: nextStatus, map_tutorial_updated_at: nowIso })
+            .eq('email', email)
+        ),
+        2500,
+        null
+      );
+    } catch {}
+  }
+
+  return updatedServerUser;
+}
+
+/**
  * Permanently saves Location and Motion/Orientation permissions in:
  * 1. LocalStorage + Long-lived Browser Cookie
  * 2. Cloud Firestore (users/{email}, user_permissions/{email}, and user_permissions/global_device)
@@ -688,7 +779,6 @@ export async function saveUserPermissionsToDatabase(params: {
       permPayload.last_lat = params.coords[1];
     }
 
-    await withTimeout(setDoc(doc(firestore, 'user_permissions', 'global_device'), permPayload, { merge: true }), 2500, null);
     if (cleanEmail) {
       await withTimeout(setDoc(doc(firestore, 'user_permissions', cleanEmail), permPayload, { merge: true }), 2500, null);
       await withTimeout(setDoc(doc(firestore, 'users', cleanEmail), permPayload, { merge: true }), 2500, null);
@@ -704,7 +794,7 @@ let inFlightPermSync: Promise<{
 
 /**
  * Loads and restores saved permissions from the database (Backend SQLite + Cloud Firestore)
- * so the user is never prompted again after permitting once.
+ * strictly for the currently authenticated user account.
  */
 export async function syncPermissionsFromDatabase(email?: string): Promise<{
   locationGranted: boolean;
@@ -720,13 +810,8 @@ export async function syncPermissionsFromDatabase(email?: string): Promise<{
   }
 
   const runSync = async () => {
-    let locationGranted =
-      localStorage.getItem('monvian_location_permission_granted') === 'true' ||
-      document.cookie.includes('monvian_location_granted=true');
-    let motionGranted =
-      localStorage.getItem('monvian_motion_permission_granted') === 'true' ||
-      localStorage.getItem('monvian_compass_permission_handled') === 'true' ||
-      document.cookie.includes('monvian_motion_granted=true');
+    let locationGranted = false;
+    let motionGranted = false;
     let coords: [number, number] | null = null;
 
     try {
@@ -737,33 +822,27 @@ export async function syncPermissionsFromDatabase(email?: string): Promise<{
       if (savedUser?.location_permission_granted === 1) locationGranted = true;
       if (savedUser?.motion_permission_granted === 1) motionGranted = true;
 
-      // 1. Check backend SQLite database
-      const res = await withTimeout(
-        fetch(`/api/user/permissions?email=${encodeURIComponent(cleanEmail)}`),
-        2000,
-        null as any
-      );
-      if (res && res.ok) {
-        const data = await res.json();
-        if (data.location_permission_granted === 1) locationGranted = true;
-        if (data.motion_permission_granted === 1) motionGranted = true;
-        if (Array.isArray(data.coords) && data.coords.length === 2) {
-          coords = [Number(data.coords[0]), Number(data.coords[1])];
-        }
-      }
-
-      // 2. Check Cloud Firestore (both global_device and user email if available)
-      const globalSnap = await withTimeout(getDoc(doc(firestore, 'user_permissions', 'global_device')), 2000, null as any);
-      if (globalSnap && globalSnap.exists()) {
-        const gData = globalSnap.data();
-        if (gData?.location_permission_granted === 1) locationGranted = true;
-        if (gData?.motion_permission_granted === 1) motionGranted = true;
-        if (typeof gData?.last_lng === 'number' && typeof gData?.last_lat === 'number') {
-          coords = [gData.last_lng, gData.last_lat];
-        }
-      }
-
       if (cleanEmail) {
+        const token = localStorage.getItem('monvian_token');
+        const headers: Record<string, string> = {};
+        if (token) headers.Authorization = `Bearer ${token}`;
+
+        // 1. Check backend SQLite database for this user
+        const res = await withTimeout(
+          fetch(`/api/user/permissions?email=${encodeURIComponent(cleanEmail)}`, { headers }),
+          2000,
+          null as any
+        );
+        if (res && res.ok) {
+          const data = await res.json();
+          if (data.location_permission_granted === 1) locationGranted = true;
+          if (data.motion_permission_granted === 1) motionGranted = true;
+          if (Array.isArray(data.coords) && data.coords.length === 2) {
+            coords = [Number(data.coords[0]), Number(data.coords[1])];
+          }
+        }
+
+        // 2. Check Cloud Firestore strictly for this user's email
         const permSnap = await withTimeout(getDoc(doc(firestore, 'user_permissions', cleanEmail)), 2000, null as any);
         if (permSnap && permSnap.exists()) {
           const pData = permSnap.data();
@@ -975,35 +1054,44 @@ export async function fetchCloudSpots(): Promise<any[]> {
 
 export async function persistMapVisualIconToFirestore(icon: FirestoreMapVisualIcon | any): Promise<void> {
   if (!icon?.id) return;
+  const nowIso = new Date().toISOString();
+  const normalizedDoc = {
+    id: String(icon.id),
+    name: String(icon.name || icon.category || 'Ponto de Parada').slice(0, 120),
+    category: String(icon.category || 'gas_station').slice(0, 80),
+    icon: String(icon.icon || icon.category || 'map-pin').slice(0, 80),
+    latitude: Number(icon.latitude),
+    longitude: Number(icon.longitude),
+    color: icon.color ? String(icon.color).slice(0, 16) : null,
+    is_active: icon.is_active !== undefined ? (icon.is_active ? 1 : 0) : 1,
+    created_at: icon.created_at || nowIso,
+    updated_at: nowIso,
+  };
+
   if (supabase) {
     try {
-      await withTimeout(
+      const res: any = await withTimeout(
         Promise.resolve(
-          supabase.from('map_visual_icons').upsert(
-            {
-              id: String(icon.id),
-              category: String(icon.category),
-              icon: String(icon.icon || icon.category),
-              latitude: Number(icon.latitude),
-              longitude: Number(icon.longitude),
-              color: icon.color || null,
-              is_active: icon.is_active !== undefined ? Number(icon.is_active) : 1,
-              updated_at: new Date().toISOString(),
-            },
-            { onConflict: 'id' }
-          )
+          supabase.from('map_visual_icons').upsert(normalizedDoc, { onConflict: 'id' })
         ),
         3000,
         null
       );
+      if (res?.error) {
+        const { name: _omit, ...withoutName } = normalizedDoc;
+        await withTimeout(
+          Promise.resolve(
+            supabase.from('map_visual_icons').upsert(withoutName, { onConflict: 'id' })
+          ),
+          3000,
+          null
+        );
+      }
     } catch {}
   }
   try {
-    const iconRef = doc(firestore, 'map_visual_icons', icon.id);
-    await withTimeout(setDoc(iconRef, {
-      ...icon,
-      updated_at: new Date().toISOString()
-    }, { merge: true }), 3000, null);
+    const iconRef = doc(firestore, 'map_visual_icons', normalizedDoc.id);
+    await withTimeout(setDoc(iconRef, normalizedDoc, { merge: true }), 3000, null);
   } catch (err: any) {
     console.warn('[FirestoreSync] Failed to persist visual icon:', icon.id, err?.message);
   }
@@ -1024,7 +1112,16 @@ export async function deleteMapVisualIconFromFirestore(iconId: string): Promise<
   }
 }
 
-export async function fetchCloudMapVisualIcons(): Promise<any[]> {
+export async function fetchCloudMapVisualIcons(): Promise<FirestoreMapVisualIcon[]> {
+  try {
+    const snap = await withTimeout(getDocs(collection(firestore, 'map_visual_icons')), 3500, null as any);
+    if (snap && !snap.empty) {
+      return snap.docs
+        .map((d: any) => d.data() as FirestoreMapVisualIcon)
+        .filter((i: any) => i && i.id && Number.isFinite(Number(i.latitude)) && Number.isFinite(Number(i.longitude)));
+    }
+  } catch {}
+
   if (supabase) {
     try {
       const res: any = await withTimeout(
@@ -1037,12 +1134,38 @@ export async function fetchCloudMapVisualIcons(): Promise<any[]> {
       }
     } catch {}
   }
+  return [];
+}
+
+export function subscribeToMapVisualIcons(
+  onUpdate: (icons: FirestoreMapVisualIcon[]) => void
+): () => void {
   try {
-    const snap = await withTimeout(getDocs(collection(firestore, 'map_visual_icons')), 3500, null as any);
-    if (!snap || snap.empty) return [];
-    return snap.docs.map((d: any) => d.data());
+    const colRef = collection(firestore, 'map_visual_icons');
+    return onSnapshot(
+      colRef,
+      (snap) => {
+        if (snap.empty && snap.metadata?.fromCache) {
+          return;
+        }
+        const list = snap.docs
+          .map((d) => d.data() as FirestoreMapVisualIcon)
+          .filter(
+            (item) =>
+              item &&
+              item.id &&
+              Number.isFinite(Number(item.latitude)) &&
+              Number.isFinite(Number(item.longitude))
+          )
+          .sort((a, b) => String(b.created_at || '').localeCompare(String(a.created_at || '')));
+        onUpdate(list);
+      },
+      (err) => {
+        console.warn('[FirestoreSync] Visual icons realtime listener notice:', err?.message);
+      }
+    );
   } catch {
-    return [];
+    return () => {};
   }
 }
 
@@ -1233,6 +1356,7 @@ export async function syncDatabaseWithFirestore(sqliteDb: any): Promise<void> {
     // 2. MAP VISUAL ICONS (Firmly anchored to GPS, Firestore Authority)
     // ----------------------------------------------------
     try {
+      try { sqliteDb.exec(`ALTER TABLE map_visual_icons ADD COLUMN name TEXT;`); } catch (e) {}
       try { sqliteDb.exec(`ALTER TABLE map_visual_icons ADD COLUMN icon TEXT;`); } catch (e) {}
       try { sqliteDb.exec(`ALTER TABLE map_visual_icons ADD COLUMN color TEXT;`); } catch (e) {}
       try { sqliteDb.exec(`ALTER TABLE map_visual_icons ADD COLUMN is_active INTEGER DEFAULT 1;`); } catch (e) {}
@@ -1241,9 +1365,10 @@ export async function syncDatabaseWithFirestore(sqliteDb: any): Promise<void> {
 
       const iconsSnap = await withTimeout(getDocs(collection(firestore, 'map_visual_icons')), 6000, null as any);
       const upsertIcon = sqliteDb.prepare(`
-        INSERT INTO map_visual_icons (id, category, icon, latitude, longitude, color, is_active, created_at, updated_at)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+        INSERT INTO map_visual_icons (id, name, category, icon, latitude, longitude, color, is_active, created_at, updated_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         ON CONFLICT(id) DO UPDATE SET
+          name = excluded.name,
           category = excluded.category,
           icon = excluded.icon,
           latitude = excluded.latitude,
@@ -1263,6 +1388,7 @@ export async function syncDatabaseWithFirestore(sqliteDb: any): Promise<void> {
             validIconIds.add(icon.id);
             upsertIcon.run(
               toSqliteParam(icon.id),
+              toSqliteParam(icon.name || icon.category),
               toSqliteParam(icon.category),
               toSqliteParam(icon.icon || icon.category),
               Number(icon.latitude),
@@ -1538,6 +1664,8 @@ export async function syncDatabaseWithFirestore(sqliteDb: any): Promise<void> {
       try { sqliteDb.exec(`ALTER TABLE users ADD COLUMN interest_categories TEXT DEFAULT '[]';`); } catch (e) {}
       try { sqliteDb.exec(`ALTER TABLE users ADD COLUMN travel_company TEXT DEFAULT '';`); } catch (e) {}
       try { sqliteDb.exec(`ALTER TABLE users ADD COLUMN location_preference TEXT DEFAULT '';`); } catch (e) {}
+      try { sqliteDb.exec(`ALTER TABLE users ADD COLUMN map_tutorial_status TEXT DEFAULT 'completed';`); } catch (e) {}
+      try { sqliteDb.exec(`ALTER TABLE users ADD COLUMN map_tutorial_updated_at DATETIME;`); } catch (e) {}
       try {
         sqliteDb.exec(`
           CREATE TABLE IF NOT EXISTS user_onboarding (
@@ -1593,7 +1721,14 @@ export async function syncDatabaseWithFirestore(sqliteDb: any): Promise<void> {
           })();
           const mergedInterestsJson = JSON.stringify(mergedInterestsList);
 
-          const existingUser = sqliteDb.prepare('SELECT id, name FROM users WHERE LOWER(email) = ? OR LOWER(whatsapp) = ?').get(cleanEmail, cleanEmail) as any;
+          const rawCloudTutorial = String(cloudUser.map_tutorial_status || '').trim().toLowerCase();
+          const explicitCloudTutorial =
+            rawCloudTutorial === 'pending' || rawCloudTutorial === 'completed' || rawCloudTutorial === 'skipped'
+              ? rawCloudTutorial
+              : '';
+          const resolvedCloudTutorial = explicitCloudTutorial || 'completed';
+
+          const existingUser = sqliteDb.prepare('SELECT id, name, map_tutorial_status FROM users WHERE LOWER(email) = ? OR LOWER(whatsapp) = ?').get(cleanEmail, cleanEmail) as any;
 
           const normUsername = (cloudUser.username_normalized || cloudUser.username || cleanEmail.split('@')[0]).toLowerCase();
 
@@ -1604,9 +1739,10 @@ export async function syncDatabaseWithFirestore(sqliteDb: any): Promise<void> {
                 visits_count, is_banned, snow_enabled, theme, high_contrast, onboarding_completed, onboarding_step,
                 location_permission_granted, motion_permission_granted,
                 campos_relationship, next_trip_timing, next_trip_date, interest_categories, travel_company, location_preference,
+                map_tutorial_status, map_tutorial_updated_at,
                 last_access, created_at
               )
-              VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+              VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             `).run(
               toSqliteParam(cloudUser.name || cleanEmail.split('@')[0]),
               toSqliteParam(cloudUser.username || cleanEmail.split('@')[0]),
@@ -1631,10 +1767,22 @@ export async function syncDatabaseWithFirestore(sqliteDb: any): Promise<void> {
               mergedInterestsJson,
               mergedCompany,
               mergedLocPref,
+              resolvedCloudTutorial,
+              toSqliteParam(cloudUser.map_tutorial_updated_at || null),
               toSqliteParam(cloudUser.last_access || new Date().toISOString()),
               toSqliteParam(cloudUser.created_at || new Date().toISOString())
             );
           } else {
+            const localTutorial = String(existingUser.map_tutorial_status || '').trim().toLowerCase();
+            const finalTutorialStatus =
+              localTutorial === 'completed' || localTutorial === 'skipped'
+                ? localTutorial
+                : explicitCloudTutorial === 'completed' || explicitCloudTutorial === 'skipped'
+                  ? explicitCloudTutorial
+                  : localTutorial === 'pending' || explicitCloudTutorial === 'pending'
+                    ? 'pending'
+                    : 'completed';
+
             sqliteDb.prepare(`
               UPDATE users 
               SET name = ?, username = COALESCE(?, username), username_normalized = COALESCE(?, username_normalized),
@@ -1646,7 +1794,9 @@ export async function syncDatabaseWithFirestore(sqliteDb: any): Promise<void> {
                   next_trip_date = CASE WHEN ? != '' THEN ? ELSE COALESCE(next_trip_date, '') END,
                   interest_categories = CASE WHEN ? != '[]' THEN ? ELSE COALESCE(interest_categories, '[]') END,
                   travel_company = CASE WHEN ? != '' THEN ? ELSE COALESCE(travel_company, '') END,
-                  location_preference = CASE WHEN ? != '' THEN ? ELSE COALESCE(location_preference, '') END
+                  location_preference = CASE WHEN ? != '' THEN ? ELSE COALESCE(location_preference, '') END,
+                  map_tutorial_status = ?,
+                  map_tutorial_updated_at = COALESCE(?, map_tutorial_updated_at)
               WHERE id = ?
             `).run(
               toSqliteParam(cloudUser.name || existingUser.name || cleanEmail.split('@')[0]),
@@ -1670,6 +1820,8 @@ export async function syncDatabaseWithFirestore(sqliteDb: any): Promise<void> {
               mergedCompany,
               mergedLocPref,
               mergedLocPref,
+              finalTutorialStatus,
+              toSqliteParam(cloudUser.map_tutorial_updated_at || null),
               existingUser.id
             );
           }
@@ -1884,4 +2036,201 @@ export async function deleteUserAccountFromFirestore(email: string, deletionLog?
     }
   } catch {}
 }
+
+// ----------------------------------------------------
+// USER CUSTOM ITINERARIES PERSISTENCE (/user_itineraries/{id})
+// ----------------------------------------------------
+
+function compactDaysForCloudItinerary(days: any[]): any[] {
+  if (!Array.isArray(days)) return [];
+  return days.map((d: any) => ({
+    id: d?.id || '',
+    itineraryId: d?.itineraryId || '',
+    dayNumber: Number(d?.dayNumber || 1),
+    title: String(d?.title || ''),
+    summary: String(d?.summary || ''),
+    steps: Array.isArray(d?.steps)
+      ? d.steps.map((s: any, sIdx: number) => ({
+          id: s?.id || `step-${sIdx + 1}`,
+          itineraryId: s?.itineraryId || '',
+          dayId: s?.dayId || '',
+          dayNumber: Number(s?.dayNumber || d?.dayNumber || 1),
+          spotId: String(s?.spotId || s?.spot?.id || ''),
+          stepOrder: Number(s?.stepOrder || sIdx + 1),
+          suggestedTime: String(s?.suggestedTime || ''),
+          durationMinutes: Number(s?.durationMinutes || 90),
+          notes: String(s?.notes || ''),
+          title: String(s?.title || s?.spotName || s?.spot?.name || ''),
+          spotName: String(s?.spotName || s?.title || s?.spot?.name || ''),
+          category: String(s?.category || s?.spot?.category || 'attractions'),
+          categoryLabel: String(s?.categoryLabel || s?.spot?.categoryLabel || 'Atração'),
+          description: String(s?.description || s?.spot?.description || '').slice(0, 600),
+          image:
+            typeof s?.image === 'string' && !s.image.startsWith('data:')
+              ? s.image
+              : typeof s?.spot?.image === 'string' && !s.spot.image.startsWith('data:')
+                ? s.spot.image
+                : '',
+          lat: Number(s?.lat ?? s?.spot?.lat ?? -22.734),
+          lng: Number(s?.lng ?? s?.spot?.lng ?? -45.591),
+          distanceToNextKm: s?.distanceToNextKm ?? null,
+          durationToNextMin: s?.durationToNextMin ?? null,
+        }))
+      : [],
+  }));
+}
+
+export async function persistUserItineraryToFirestore(
+  itinerary: any,
+  meta?: { userId?: string | number | null; userEmail?: string | null; sessionId?: string | null }
+): Promise<void> {
+  if (!itinerary?.id) return;
+  const cleanEmail = String(meta?.userEmail || '').trim().toLowerCase();
+  const cleanSessionId = String(meta?.sessionId || '').trim();
+  const numericUserId =
+    meta?.userId !== undefined && meta?.userId !== null && !Number.isNaN(Number(meta.userId))
+      ? Number(meta.userId)
+      : null;
+
+  try {
+    const compactDays = compactDaysForCloudItinerary(itinerary.days || []);
+    const coverStr =
+      typeof itinerary.coverImage === 'string' && itinerary.coverImage.length < 450_000
+        ? itinerary.coverImage
+        : '';
+
+    const docRef = doc(firestore, 'user_itineraries', String(itinerary.id));
+    await withTimeout(
+      setDoc(
+        docRef,
+        {
+          id: String(itinerary.id),
+          user_id: numericUserId,
+          user_uid: meta?.userId ? String(meta.userId) : '',
+          user_email: cleanEmail,
+          session_id: cleanSessionId,
+          title: String(itinerary.title || 'Meu Roteiro'),
+          description: String(itinerary.description || ''),
+          cover_image: coverStr,
+          days_count: Number(itinerary.daysCount || compactDays.length || 1),
+          places_count: Number(
+            itinerary.placesCount ||
+              compactDays.reduce((acc, d) => acc + (Array.isArray(d.steps) ? d.steps.length : 0), 0)
+          ),
+          is_user_created: itinerary.isUserCreated !== false && !itinerary.sourceItineraryId ? 1 : 0,
+          source_itinerary_id: itinerary.sourceItineraryId || '',
+          preferences_json: JSON.stringify({
+            isUserCreated: itinerary.isUserCreated !== false && !itinerary.sourceItineraryId,
+            sourceItineraryId: itinerary.sourceItineraryId || null,
+            badgeText: itinerary.badgeText || 'Grátis',
+          }),
+          itinerary_data_json: JSON.stringify(compactDays),
+          created_at: itinerary.createdAt || new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+        },
+        { merge: true }
+      ),
+      3500,
+      null
+    );
+  } catch (err) {
+    console.warn('[FirestoreSync] Could not persist user itinerary:', err);
+  }
+}
+
+export async function fetchUserItinerariesFromFirestore(params: {
+  email?: string | null;
+  userId?: string | number | null;
+  sessionId?: string | null;
+}): Promise<any[]> {
+  const cleanEmail = String(params?.email || '').trim().toLowerCase();
+  const cleanUid = params?.userId !== undefined && params?.userId !== null ? String(params.userId).trim() : '';
+  const cleanSession = String(params?.sessionId || '').trim();
+  if (!cleanEmail && !cleanUid && !cleanSession) return [];
+
+  try {
+    const colRef = collection(firestore, 'user_itineraries');
+    const queries: Promise<any>[] = [];
+
+    if (cleanEmail) {
+      queries.push(
+        withTimeout(getDocs(query(colRef, where('user_email', '==', cleanEmail))), 3500, null as any)
+      );
+    }
+    if (cleanUid && !Number.isNaN(Number(cleanUid))) {
+      queries.push(
+        withTimeout(getDocs(query(colRef, where('user_id', '==', Number(cleanUid)))), 3500, null as any)
+      );
+    } else if (cleanUid) {
+      queries.push(
+        withTimeout(getDocs(query(colRef, where('user_uid', '==', cleanUid))), 3500, null as any)
+      );
+    }
+    if (cleanSession) {
+      queries.push(
+        withTimeout(getDocs(query(colRef, where('session_id', '==', cleanSession))), 3500, null as any)
+      );
+    }
+
+    const snapshots = await Promise.all(queries);
+    const byId = new Map<string, any>();
+
+    for (const snap of snapshots) {
+      if (!snap || typeof snap.forEach !== 'function') continue;
+      snap.forEach((docSnap: any) => {
+        const d = docSnap.data();
+        if (!d || !d.id) return;
+        let days: any[] = [];
+        try {
+          days = JSON.parse(d.itinerary_data_json || '[]');
+        } catch {
+          days = [];
+        }
+        let prefs: any = {};
+        try {
+          prefs = JSON.parse(d.preferences_json || '{}');
+        } catch {}
+
+        const isUserCreated =
+          d.is_user_created === 1 ||
+          (prefs.isUserCreated !== false && !d.source_itinerary_id && !prefs.sourceItineraryId);
+
+        if (!isUserCreated || !Array.isArray(days) || days.length === 0) return;
+
+        byId.set(String(d.id), {
+          id: String(d.id),
+          title: String(d.title || 'Meu Roteiro'),
+          description: String(d.description || ''),
+          coverImage: String(d.cover_image || ''),
+          daysCount: Number(d.days_count || days.length || 1),
+          placesCount:
+            Number(d.places_count) ||
+            days.reduce((acc, day) => acc + (Array.isArray(day.steps) ? day.steps.length : 0), 0),
+          isUserCreated: true,
+          isPremium: false,
+          badgeText: 'Grátis',
+          days,
+          createdAt: d.created_at || new Date().toISOString(),
+          updatedAt: d.updated_at || d.created_at || new Date().toISOString(),
+        });
+      });
+    }
+
+    return Array.from(byId.values()).sort((a, b) => {
+      const ta = new Date(a.updatedAt || a.createdAt || 0).getTime();
+      const tb = new Date(b.updatedAt || b.createdAt || 0).getTime();
+      return tb - ta;
+    });
+  } catch {
+    return [];
+  }
+}
+
+export async function deleteUserItineraryFromFirestore(itineraryId: string): Promise<void> {
+  if (!itineraryId) return;
+  try {
+    await withTimeout(deleteDoc(doc(firestore, 'user_itineraries', String(itineraryId))), 2500, null);
+  } catch {}
+}
+
 

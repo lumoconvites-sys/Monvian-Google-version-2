@@ -12,4 +12,14 @@ bun.lockb
 *.db
 *.corrupt_backup
 
+# Capacitor / iOS Xcode build artifacts
+ios/App/App/public/
+ios/App/Pods/
+ios/App/build/
+ios/DerivedData/
+*.xcarchive
+*.ipa
+*.xcuserstate
+xcuserdata/
+
 

@@ -112,18 +112,21 @@ export const LanguageProvider: React.FC<{ children: React.ReactNode }> = ({ chil
 
   langRef.current = language;
 
-  // Lazy-load the selected language dictionary ONLY when non-Portuguese is active
+  // Preload language dictionaries so switching languages is instantaneous with zero reload
   useEffect(() => {
-    if (language === 'pt') return;
-    if (translatorCache.has(language)) return;
     let cancelled = false;
-    loadTranslator(language)
-      .then(() => {
-        if (!cancelled) {
-          setTranslatorReadyVersion((v) => v + 1);
-        }
-      })
-      .catch(() => {});
+    const langsToLoad: AppLanguage[] =
+      language !== 'pt' ? [language, 'en', 'es', 'ja'] : ['en', 'es', 'ja'];
+    for (const lang of langsToLoad) {
+      if (lang === 'pt' || translatorCache.has(lang)) continue;
+      loadTranslator(lang)
+        .then(() => {
+          if (!cancelled) {
+            setTranslatorReadyVersion((v) => v + 1);
+          }
+        })
+        .catch(() => {});
+    }
     return () => {
       cancelled = true;
     };

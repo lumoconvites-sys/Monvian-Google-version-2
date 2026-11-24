@@ -22,13 +22,15 @@ import {
   subscribeToItinerariesChanges,
   clearItinerariesPageCache,
   matchesItineraryFilter,
+  getPreloadedItinerariesSnapshot,
+  hasPreloadedItineraries,
+  preloadAllStoreItineraries,
 } from '../../services/supabaseItineraries';
 import { useFavorites } from '../../hooks/useFavorites';
 import { usePlatanos } from '../../hooks/usePlatanos';
 import { PlatanosWalletModal } from '../platanos/PlatanosWalletModal';
 import { PlatanoPurchaseConfirmModal } from '../platanos/PlatanoPurchaseConfirmModal';
 import { PlatanoLeafIcon, PlatanoUnlockToast } from '../platanos/PlatanoLeafIcon';
-import { DEFAULT_CURATED_ITINERARIES } from '../../data/defaultItineraries';
 import { triggerHapticFeedback } from '../../utils/haptics';
 import { useIOSBackEntry } from '../../services/iosNavigationManager';
 
@@ -38,6 +40,13 @@ const CACHE_KEY_CATS = 'monvian_itinerary_categories_cache_v6';
 const loadedItineraryCoverCache = new Set<string>();
 
 function getKnownItinerariesPool(): Itinerary[] {
+  // 1. Authoritative in-memory snapshot preloaded during app startup
+  const preloaded = getPreloadedItinerariesSnapshot();
+  if (preloaded !== null) {
+    return preloaded;
+  }
+
+  // 2. Previously synced real localStorage snapshot (never mix hardcoded defaults on top!)
   try {
     const cached =
       localStorage.getItem('monvian_cached_itineraries') ||
@@ -45,18 +54,12 @@ function getKnownItinerariesPool(): Itinerary[] {
     if (cached) {
       const parsed: Itinerary[] = JSON.parse(cached);
       if (Array.isArray(parsed) && parsed.length > 0) {
-        const existingIds = new Set(parsed.map((i) => i.id));
-        const merged = [...parsed];
-        for (const def of DEFAULT_CURATED_ITINERARIES) {
-          if (!existingIds.has(def.id)) {
-            merged.push(def);
-          }
-        }
-        return merged;
+        return parsed;
       }
     }
   } catch {}
-  return DEFAULT_CURATED_ITINERARIES;
+
+  return [];
 }
 
 import { formatItineraryViewsCount, recordItineraryPlayView, useItineraryViews } from '../../services/itineraryViewsService';
@@ -485,14 +488,7 @@ export const AirbnbItineraryExplorer: React.FC<AirbnbItineraryExplorerProps> = (
       .then((fetched) => {
         if (!mounted || !Array.isArray(fetched) || fetched.length === 0) return;
         const activeFetched = fetched.filter((i) => i.isActive !== false);
-        const existingIds = new Set(activeFetched.map((i) => i.id));
-        const combined = [...activeFetched];
-        for (const def of DEFAULT_CURATED_ITINERARIES) {
-          if (def.isActive !== false && !existingIds.has(def.id)) {
-            combined.push(def);
-          }
-        }
-        setOnboardingPool(combined);
+        setOnboardingPool(activeFetched);
       })
       .catch(() => {});
     return () => {
@@ -500,11 +496,13 @@ export const AirbnbItineraryExplorer: React.FC<AirbnbItineraryExplorerProps> = (
     };
   }, [isOnboardingSelection]);
 
-  // Progressive pagination states - starts false because initial cache/defaults are hydrated instantly
-  const [loading, setLoading] = useState<boolean>(false);
+  // Only skip initial loading skeleton when real itineraries are already hydrated
+  const [loading, setLoading] = useState<boolean>(
+    () => !hasPreloadedItineraries() && initialItinerariesData.list.length === 0
+  );
   const isFirstMountRef = useRef<boolean>(true);
   const [loadingMore, setLoadingMore] = useState<boolean>(false);
-  const [hasMore, setHasMore] = useState<boolean>(true);
+  const [hasMore, setHasMore] = useState<boolean>(false);
   const [initialError, setInitialError] = useState<string | null>(null);
   const [loadMoreError, setLoadMoreError] = useState<string | null>(null);
   const [totalMatching, setTotalMatching] = useState<number | undefined>(undefined);
@@ -702,9 +700,11 @@ export const AirbnbItineraryExplorer: React.FC<AirbnbItineraryExplorerProps> = (
   useEffect(() => {
     if (isFirstMountRef.current) {
       isFirstMountRef.current = false;
-      loadInitialBatch({ silent: true });
+      const alreadyHydrated = hasPreloadedItineraries() || itineraries.length > 0;
+      loadInitialBatch({ silent: alreadyHydrated });
     } else {
-      loadInitialBatch();
+      const alreadyPreloaded = hasPreloadedItineraries();
+      loadInitialBatch({ silent: alreadyPreloaded });
     }
   }, [loadInitialBatch]);
 
@@ -712,7 +712,11 @@ export const AirbnbItineraryExplorer: React.FC<AirbnbItineraryExplorerProps> = (
   useEffect(() => {
     const unsubscribe = subscribeToItinerariesChanges(() => {
       clearItinerariesPageCache();
-      loadInitialBatch({ silent: true, forceRefresh: true });
+      preloadAllStoreItineraries(true)
+        .catch(() => {})
+        .finally(() => {
+          loadInitialBatch({ silent: true, forceRefresh: true });
+        });
     });
     return () => unsubscribe();
   }, [loadInitialBatch]);
@@ -978,11 +982,6 @@ export const AirbnbItineraryExplorer: React.FC<AirbnbItineraryExplorerProps> = (
     for (const item of itineraries) {
       if (item.isActive !== false && !map.has(item.id)) {
         map.set(item.id, item);
-      }
-    }
-    for (const def of DEFAULT_CURATED_ITINERARIES) {
-      if (def.isActive !== false && !map.has(def.id)) {
-        map.set(def.id, def);
       }
     }
     return Array.from(map.values());
@@ -1630,25 +1629,18 @@ const HorizontalReferenceItineraryCard: React.FC<HorizontalReferenceItineraryCar
               }`}
             />
 
-            {/* Active Route or Plátanos Cost Indicator */}
+            {/* Active Route or Unlocked Status Indicator (Plátanos cost is already shown on the right pill next to the title) */}
             {isActiveRoute ? (
               <div className="absolute top-3 left-3 px-3.5 py-1.5 rounded-full bg-white text-[#000000] border border-white text-[13px] font-bold tracking-[-0.01em] shadow-[0_10px_30px_rgba(0,0,0,0.22)] flex items-center gap-2 z-10">
                 <Check className="w-4 h-4 stroke-[3.2] text-black drop-shadow-[0_1.5px_2px_rgba(0,0,0,0.35)]" />
                 <span>Roteiro ativo</span>
               </div>
-            ) : platanoPrice > 0 ? (
+            ) : platanoPrice > 0 && isUnlocked ? (
               <div className="absolute top-3 left-3 z-10">
-                {isUnlocked ? (
-                  <div className="px-3.5 py-1.5 rounded-full bg-white text-[#000000] border border-white text-[13px] font-bold tracking-[-0.01em] shadow-[0_10px_30px_rgba(0,0,0,0.22)] flex items-center gap-2">
-                    <Check className="w-4 h-4 stroke-[3.2] text-black drop-shadow-[0_1.5px_2px_rgba(0,0,0,0.35)]" />
-                    <span>Liberado</span>
-                  </div>
-                ) : (
-                  <div className="px-3 py-1 rounded-full bg-black/70 text-white border border-white/15 text-[11px] font-semibold flex items-center gap-1.5 tabular-nums">
-                    <PlatanoLeafIcon className="w-[21px] h-[21px] shrink-0" variant="light" />
-                    <span>{platanoPrice} Plátanos</span>
-                  </div>
-                )}
+                <div className="px-3.5 py-1.5 rounded-full bg-white text-[#000000] border border-white text-[13px] font-bold tracking-[-0.01em] shadow-[0_10px_30px_rgba(0,0,0,0.22)] flex items-center gap-2">
+                  <Check className="w-4 h-4 stroke-[3.2] text-black drop-shadow-[0_1.5px_2px_rgba(0,0,0,0.35)]" />
+                  <span>Liberado</span>
+                </div>
               </div>
             ) : null}
 

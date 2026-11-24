@@ -26,6 +26,26 @@ let memoryWalletSnapshot: PlatanoWalletData = INITIAL_WALLET_STATE;
 let memoryWalletSerialized = '';
 let inflightRefreshPromise: Promise<PlatanoWalletData> | null = null;
 
+export function resetPlatanosWalletSnapshot(): void {
+  memoryWalletSnapshot = { ...INITIAL_WALLET_STATE, unlockedItineraryIds: [], transactions: [], orders: [] };
+  memoryWalletSerialized = '';
+  inflightRefreshPromise = null;
+  if (typeof window !== 'undefined' && typeof window.dispatchEvent === 'function') {
+    window.dispatchEvent(
+      new CustomEvent('monvian:platanos_updated', { detail: { wallet: memoryWalletSnapshot } })
+    );
+  }
+}
+
+if (typeof window !== 'undefined' && typeof window.addEventListener === 'function') {
+  window.addEventListener('monvian:user_logged_out', () => {
+    resetPlatanosWalletSnapshot();
+  });
+  window.addEventListener('monvian:account_switched', () => {
+    resetPlatanosWalletSnapshot();
+  });
+}
+
 function getStoredUserInfo(): { email: string; userId: string; username: string } {
   try {
     const rawUser = localStorage.getItem('monvian_user');
@@ -83,6 +103,7 @@ export function usePlatanos() {
       return inflightRefreshPromise;
     }
 
+    const requestUserEmail = getStoredUserInfo().email;
     inflightRefreshPromise = (async () => {
       try {
         const res = await fetch('/api/platanos/wallet', {
@@ -90,6 +111,10 @@ export function usePlatanos() {
         });
         if (!res.ok) return memoryWalletSnapshot;
         const data = await res.json();
+        // Verify active account did not switch while request was in flight
+        if (getStoredUserInfo().email !== requestUserEmail) {
+          return memoryWalletSnapshot;
+        }
         if (data?.wallet) {
           const next: PlatanoWalletData = {
             ...INITIAL_WALLET_STATE,

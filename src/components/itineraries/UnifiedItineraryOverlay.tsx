@@ -3,7 +3,6 @@ import { motion, AnimatePresence, useMotionValue, useTransform, animate } from '
 import {
   ArrowRight,
   Check,
-  Compass,
   Edit3,
   Layers,
   MapPin,
@@ -18,6 +17,7 @@ import {
 } from 'lucide-react';
 import { Itinerary, ItineraryStep, MapModeType, Spot } from '../../types';
 import { AppleBackButton } from '../ui/AppleBackButton';
+import { VerifiedBadge } from '../ui/VerifiedBadge';
 import { LazyImage } from '../ui/LazyImage';
 import { RoundedNavigationIcon } from '../RoundedNavigationIcon';
 import { getSpotCardThumbnail, getSpotFallbackImage } from '../../utils/spotImages';
@@ -103,20 +103,73 @@ export const SelectModeOverlay: React.FC<SelectModeOverlayProps> = memo(
         ? '!text-white'
         : '!text-black';
 
+    const topCapsuleStyle: React.CSSProperties = isDark
+      ? {
+          background:
+            'linear-gradient(160deg, rgba(32, 32, 36, 0.72) 0%, rgba(18, 18, 20, 0.64) 100%)',
+          backdropFilter: 'blur(26px) saturate(165%)',
+          WebkitBackdropFilter: 'blur(26px) saturate(165%)',
+          border: '1px solid rgba(255, 255, 255, 0.16)',
+          boxShadow:
+            '0 14px 34px -6px rgba(0, 0, 0, 0.62), 0 3px 10px -2px rgba(0, 0, 0, 0.36), inset 0 1px 0 rgba(255, 255, 255, 0.22), inset 0 -1px 0 rgba(255, 255, 255, 0.05)',
+        }
+      : {
+          background:
+            'linear-gradient(160deg, rgba(255, 255, 255, 0.76) 0%, rgba(246, 246, 248, 0.66) 100%)',
+          backdropFilter: 'blur(26px) saturate(190%)',
+          WebkitBackdropFilter: 'blur(26px) saturate(190%)',
+          border: '1px solid rgba(255, 255, 255, 0.78)',
+          boxShadow:
+            '0 14px 32px -6px rgba(0, 0, 0, 0.18), 0 3px 10px -2px rgba(0, 0, 0, 0.08), 0 0 0 0.5px rgba(0, 0, 0, 0.07), inset 0 1.5px 1px rgba(255, 255, 255, 0.94), inset 0 -1px 1px rgba(255, 255, 255, 0.42)',
+        };
+
+    const bottomTrayStyle: React.CSSProperties = isDark
+      ? {
+          background:
+            'linear-gradient(168deg, rgba(30, 30, 34, 0.78) 0%, rgba(17, 17, 19, 0.72) 100%)',
+          backdropFilter: 'blur(32px) saturate(165%)',
+          WebkitBackdropFilter: 'blur(32px) saturate(165%)',
+          border: '1px solid rgba(255, 255, 255, 0.15)',
+          boxShadow:
+            '0 22px 48px -8px rgba(0, 0, 0, 0.74), 0 -6px 24px -6px rgba(0, 0, 0, 0.38), -10px 4px 26px -8px rgba(0, 0, 0, 0.40), 10px 4px 26px -8px rgba(0, 0, 0, 0.40), inset 0 1px 0 rgba(255, 255, 255, 0.20), inset 0 -1px 0 rgba(255, 255, 255, 0.05)',
+        }
+      : {
+          background:
+            'linear-gradient(168deg, rgba(255, 255, 255, 0.78) 0%, rgba(246, 246, 248, 0.68) 100%)',
+          backdropFilter: 'blur(32px) saturate(195%)',
+          WebkitBackdropFilter: 'blur(32px) saturate(195%)',
+          border: '1px solid rgba(255, 255, 255, 0.76)',
+          boxShadow:
+            '0 20px 46px -8px rgba(0, 0, 0, 0.22), 0 -6px 24px -6px rgba(0, 0, 0, 0.08), -10px 4px 26px -8px rgba(0, 0, 0, 0.09), 10px 4px 26px -8px rgba(0, 0, 0, 0.09), 0 0 0 0.5px rgba(0, 0, 0, 0.07), inset 0 1.5px 1px rgba(255, 255, 255, 0.94), inset 0 -1px 1px rgba(255, 255, 255, 0.40)',
+        };
+
     return (
-      <div className="fixed inset-0 md:left-[var(--desktop-sidebar-width,72px)] z-[45] pointer-events-none select-none flex flex-col justify-between">
-        {/* Discreet Top Bar */}
+      <motion.div
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        exit={{ opacity: 0 }}
+        transition={{ duration: 0.2, ease: [0.22, 1, 0.36, 1] }}
+        className="fixed inset-0 md:left-[var(--desktop-sidebar-width,72px)] z-[45] pointer-events-none select-none flex flex-col justify-between overflow-hidden"
+        style={{
+          height: 'var(--app-height, 100dvh)',
+          maxHeight: 'var(--app-height, 100dvh)',
+          contain: 'layout paint size',
+          fontFamily:
+            '-apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro Text", sans-serif',
+        }}
+      >
+        {/* Top Bar — Perfectly Centered Floating Liquid Glass Capsule */}
         <motion.div
-          initial={{ opacity: 0, scale: 0.88, y: 12 }}
+          initial={{ opacity: 0, scale: 0.9, y: 10 }}
           animate={{ opacity: 1, scale: 1, y: 0 }}
           exit={{ opacity: 0, scale: 0.94, y: -8 }}
-          transition={{ type: 'spring', stiffness: 380, damping: 22, delay: 0.02 }}
+          transition={{ type: 'spring', stiffness: 380, damping: 24, delay: 0.02 }}
           className="w-full px-4 sm:px-6 flex items-center justify-between gap-2 pointer-events-none"
           style={{
-            paddingTop: 'max(calc(env(safe-area-inset-top, 0px) + 16px), 24px)',
+            paddingTop: 'max(calc(env(safe-area-inset-top, 0px) + 14px), 22px)',
           }}
         >
-          <div className="pointer-events-auto shrink-0">
+          <div className="pointer-events-auto shrink-0 w-[48px] sm:w-[94px] flex justify-start">
             <AppleBackButton
               theme="glass"
               size="explore"
@@ -129,18 +182,50 @@ export const SelectModeOverlay: React.FC<SelectModeOverlayProps> = memo(
           </div>
 
           <div
-            className={`pointer-events-auto h-11 px-4 rounded-full ios26-liquid-glass flex items-center gap-2 text-xs sm:text-sm font-bold shadow-sm ${glassTextClass}`}
-            style={{ color: glassIconColor }}
+            id="select-mode-top-pill"
+            className={`pointer-events-auto relative overflow-hidden min-h-[48px] sm:min-h-[50px] pl-1.5 pr-4 sm:pl-2 sm:pr-5 py-1.5 rounded-full flex items-center gap-2.5 sm:gap-3 max-w-full min-w-0 ${
+              isDark ? 'text-white' : 'text-[#000000]'
+            }`}
+            style={topCapsuleStyle}
           >
-            <MapPin className="w-3.5 h-3.5 shrink-0" />
-            <span>
-              {selectedCount === 0
-                ? 'Toque nos locais do mapa'
-                : `${selectedCount} ${selectedCount === 1 ? 'local selecionado' : 'locais selecionados'}`}
+            {/* Subtle optical glass top refraction sheen */}
+            <span
+              aria-hidden="true"
+              className="pointer-events-none absolute inset-x-3 top-[1px] h-[44%] rounded-full bg-gradient-to-b from-white/50 to-transparent dark:from-white/[0.12]"
+            />
+
+            {/* Integrated circular location icon medallion */}
+            <span
+              className={`relative z-[1] w-9 h-9 rounded-full shrink-0 flex items-center justify-center border ${
+                isDark
+                  ? 'bg-white/[0.12] border-white/[0.16] text-white shadow-[inset_0_1px_1px_rgba(255,255,255,0.18),0_2px_6px_rgba(0,0,0,0.3)]'
+                  : 'bg-black/[0.055] border-black/[0.06] text-[#000000] shadow-[inset_0_1px_2px_rgba(0,0,0,0.06),0_1px_0_rgba(255,255,255,0.7)]'
+              }`}
+            >
+              <MapPin className="w-[17px] h-[17px] stroke-[2.2]" />
             </span>
+
+            {selectedCount === 0 ? (
+              <span className="relative z-[1] text-[13.5px] sm:text-[14px] font-semibold tracking-[-0.015em] whitespace-nowrap truncate">
+                Toque nos locais do mapa
+              </span>
+            ) : (
+              <div className="relative z-[1] flex items-baseline gap-1.5 whitespace-nowrap min-w-0">
+                <span className="text-[15.5px] sm:text-[16px] font-bold tracking-[-0.025em] tabular-nums">
+                  {selectedCount}
+                </span>
+                <span
+                  className={`text-[13.5px] sm:text-[14px] font-medium tracking-[-0.015em] truncate ${
+                    isDark ? 'text-white/90' : 'text-[#171717]/90'
+                  }`}
+                >
+                  {selectedCount === 1 ? 'local selecionado' : 'locais selecionados'}
+                </span>
+              </div>
+            )}
           </div>
 
-          <div className="pointer-events-auto shrink-0 w-[53px] flex justify-end">
+          <div className="pointer-events-auto shrink-0 w-[48px] sm:w-[94px] flex justify-end">
             {selectedCount > 0 && (
               <button
                 type="button"
@@ -156,70 +241,116 @@ export const SelectModeOverlay: React.FC<SelectModeOverlayProps> = memo(
           </div>
         </motion.div>
 
-        {/* Discreet Bottom Creation Bar above BottomNavigation */}
+        {/* Bottom Floating Liquid Glass Selection Dock above BottomNavigation */}
         <motion.div
-          initial={{ opacity: 0, scale: 0.88, y: 12 }}
+          initial={{ opacity: 0, scale: 0.92, y: 14 }}
           animate={{ opacity: 1, scale: 1, y: 0 }}
-          exit={{ opacity: 0, scale: 0.94, y: 12 }}
-          transition={{ type: 'spring', stiffness: 380, damping: 22, delay: 0.08 }}
-          className="w-full flex flex-col items-center px-4 pb-[90px] md:pb-8 pointer-events-none"
+          exit={{ opacity: 0, scale: 0.95, y: 14 }}
+          transition={{ type: 'spring', stiffness: 360, damping: 24, delay: 0.06 }}
+          className="w-full flex flex-col items-center px-3.5 sm:px-4 pb-[90px] sm:pb-[94px] md:pb-8 pointer-events-none"
         >
           <div
-            className={`pointer-events-auto w-full max-w-[388px] rounded-[28px] p-3 border shadow-[0_14px_38px_rgba(0,0,0,0.22)] transition-all ${
-              isDark
-                ? 'bg-[#171717]/95 border-white/15 text-white backdrop-blur-xl'
-                : 'bg-white/95 border-black/[0.07] text-[#111111] backdrop-blur-xl'
+            id="select-mode-bottom-tray"
+            className={`pointer-events-auto relative w-full max-w-[400px] rounded-[36px] overflow-hidden transition-colors duration-200 ${
+              isDark ? 'text-white' : 'text-[#000000]'
             }`}
+            style={bottomTrayStyle}
           >
-            {/* Visual indication of added spots in selection order */}
+            {/* Subtle specular rim sheen across top curve */}
+            <span
+              aria-hidden="true"
+              className="pointer-events-none absolute inset-x-5 top-[1px] h-[1px] rounded-full bg-gradient-to-r from-transparent via-white/90 to-transparent dark:via-white/25"
+            />
+
+            {/* Integrated Top Grabber Handle */}
+            <div className="w-full flex justify-center pt-2.5 pb-1">
+              <span
+                aria-hidden="true"
+                className={`w-9 h-[3.5px] rounded-full ${
+                  isDark ? 'bg-white/[0.24]' : 'bg-black/[0.16]'
+                }`}
+              />
+            </div>
+
+            {/* Selected Spots Visual Rail — Larger Photos & Crisp Black Number Circles */}
             {selectedSpots.length > 0 && (
-              <div className="flex items-center gap-2 overflow-x-auto no-scrollbar pb-2.5 mb-2.5 border-b border-black/[0.06] dark:border-white/10">
-                {selectedSpots.map((spot, idx) => (
-                  <div
-                    key={spot.id}
-                    onClick={() => onRemoveSpot?.(spot.id)}
-                    className={`flex items-center gap-1.5 pl-1.5 pr-2.5 py-1 rounded-full shrink-0 border text-[11.5px] font-bold cursor-pointer active:scale-95 transition-transform ${
-                      isDark
-                        ? 'bg-[#242426] border-white/10 text-white'
-                        : 'bg-[#F5F5F7] border-black/[0.05] text-[#111111]'
-                    }`}
-                    title={`Toque para remover ${spot.name}`}
-                  >
-                    <span
-                      className={`w-5 h-5 rounded-full text-[10px] font-black flex items-center justify-center shrink-0 tabular-nums ${
-                        isDark ? 'bg-white text-black' : 'bg-black text-white'
+              <>
+                <div className="flex items-center gap-2.5 overflow-x-auto no-scrollbar px-3.5 pt-1.5 pb-3">
+                  {selectedSpots.map((spot, idx) => (
+                    <motion.button
+                      key={spot.id}
+                      type="button"
+                      layout="position"
+                      whileTap={{ scale: 0.95 }}
+                      onClick={() => onRemoveSpot?.(spot.id)}
+                      className={`group relative shrink-0 flex items-center gap-2.5 pl-1.5 pr-3.5 py-1.5 rounded-full border cursor-pointer transition-colors duration-150 ${
+                        isDark
+                          ? 'bg-white/[0.08] hover:bg-white/[0.13] border-white/[0.11] text-white shadow-[0_4px_12px_rgba(0,0,0,0.28),inset_0_1px_0_rgba(255,255,255,0.10)]'
+                          : 'bg-white/60 hover:bg-white/85 border-black/[0.06] text-[#000000] shadow-[0_3px_10px_rgba(0,0,0,0.05),inset_0_1px_0_rgba(255,255,255,0.8)]'
                       }`}
+                      title={`Toque para remover ${spot.name}`}
                     >
-                      {idx + 1}
-                    </span>
-                    <div className="w-5 h-5 rounded-full overflow-hidden shrink-0 bg-zinc-200 dark:bg-zinc-700">
-                      <img
-                        src={getSpotCardThumbnail(spot)}
-                        alt={spot.name}
-                        referrerPolicy="no-referrer"
-                        className="w-full h-full object-cover"
-                        onError={(e) => {
-                          (e.target as HTMLImageElement).src = getSpotFallbackImage(
-                            spot.name,
-                            spot.category
-                          );
-                        }}
-                      />
-                    </div>
-                    <span className="max-w-[96px] truncate">{spot.shortName || spot.name}</span>
-                  </div>
-                ))}
-              </div>
+                      {/* Well-defined crisp black circular stop number */}
+                      <span
+                        className={`w-[22px] h-[22px] rounded-full bg-[#000000] text-[#FFFFFF] text-[10.5px] font-bold flex items-center justify-center shrink-0 tabular-nums shadow-[0_2px_6px_rgba(0,0,0,0.3)] ${
+                          isDark ? 'ring-1 ring-white/25' : ''
+                        }`}
+                      >
+                        {idx + 1}
+                      </span>
+
+                      {/* Larger circular photographic thumbnail */}
+                      <div
+                        className={`w-[34px] h-[34px] rounded-full overflow-hidden shrink-0 ${
+                          isDark
+                            ? 'bg-zinc-800 ring-1 ring-white/20'
+                            : 'bg-zinc-200 ring-1 ring-black/10'
+                        } shadow-[0_2px_8px_rgba(0,0,0,0.12)]`}
+                      >
+                        <img
+                          src={getSpotCardThumbnail(spot)}
+                          alt={spot.name}
+                          referrerPolicy="no-referrer"
+                          className="w-full h-full object-cover"
+                          onError={(e) => {
+                            (e.target as HTMLImageElement).src = getSpotFallbackImage(
+                              spot.name,
+                              spot.category
+                            );
+                          }}
+                        />
+                      </div>
+
+                      <span className="max-w-[92px] truncate text-[12.5px] font-semibold tracking-[-0.015em]">
+                        {spot.shortName || spot.name}
+                      </span>
+                    </motion.button>
+                  ))}
+                </div>
+
+                {/* Hairline Liquid Divider */}
+                <div
+                  aria-hidden="true"
+                  className={`mx-4 h-[1px] ${
+                    isDark ? 'bg-white/[0.09]' : 'bg-black/[0.06]'
+                  }`}
+                />
+              </>
             )}
 
-            <div className="flex items-center justify-between gap-3 pl-1.5">
+            {/* Summary Typography + Black Pill Continuar Button */}
+            <div className="flex items-center justify-between gap-3 px-4 sm:px-5 pt-3 pb-4">
               <div className="min-w-0">
-                <p className="text-[14px] font-extrabold tracking-tight leading-tight">
+                <p className="text-[15.5px] font-bold tracking-[-0.02em] leading-tight tabular-nums">
                   {selectedCount === 0
                     ? 'Nenhum local selecionado'
                     : `${selectedCount} ${selectedCount === 1 ? 'local selecionado' : 'locais selecionados'}`}
                 </p>
-                <p className="text-[11.5px] font-medium text-[#8E8E93] truncate">
+                <p
+                  className={`text-[12px] font-medium leading-snug truncate mt-0.5 ${
+                    isDark ? 'text-[#A1A1A6]' : 'text-[#5A5A5E]'
+                  }`}
+                >
                   {selectedCount === 0
                     ? 'Toque nos pontos do mapa na ordem desejada'
                     : 'Toque nos pontos para adicionar na sequência'}
@@ -230,23 +361,23 @@ export const SelectModeOverlay: React.FC<SelectModeOverlayProps> = memo(
                 type="button"
                 disabled={selectedCount === 0}
                 onClick={onContinue}
-                className={`h-11 px-5 rounded-full text-[13.5px] font-extrabold tracking-tight flex items-center justify-center gap-1.5 shrink-0 transition-all duration-200 ${
+                className={`group/cta h-11 sm:h-[46px] px-5 rounded-full text-[13.5px] font-semibold tracking-[-0.01em] flex items-center justify-center gap-1.5 shrink-0 transition-all duration-200 ${
                   selectedCount > 0
-                    ? isDark
-                      ? 'bg-white text-black hover:bg-zinc-200 active:scale-95 cursor-pointer shadow-sm'
-                      : 'bg-[#000000] text-white hover:bg-[#171717] active:scale-95 cursor-pointer shadow-sm'
+                    ? `bg-[#000000] text-[#FFFFFF] hover:bg-[#171717] active:scale-[0.96] cursor-pointer shadow-[0_8px_20px_-4px_rgba(0,0,0,0.38),inset_0_1px_0_rgba(255,255,255,0.16)] ${
+                        isDark ? 'border border-white/20' : ''
+                      }`
                     : isDark
-                      ? 'bg-zinc-800 text-zinc-500 cursor-not-allowed'
-                      : 'bg-zinc-200 text-zinc-400 cursor-not-allowed'
+                      ? 'bg-white/[0.08] text-white/30 cursor-not-allowed'
+                      : 'bg-black/[0.08] text-black/30 cursor-not-allowed'
                 }`}
               >
                 <span>Continuar</span>
-                <ArrowRight className="w-4 h-4 stroke-[2.5]" />
+                <ArrowRight className="w-4 h-4 stroke-[2.25] transition-transform duration-200 group-hover/cta:translate-x-0.5" />
               </button>
             </div>
           </div>
         </motion.div>
-      </div>
+      </motion.div>
     );
   }
 );
@@ -435,12 +566,15 @@ const SwipeableStopCard: React.FC<SwipeableStopCardProps> = ({
                 <span className="uppercase truncate">{spot?.categoryLabel || 'Local'}</span>
               </div>
 
-              <h4
-                className="text-[14px] font-black uppercase tracking-tight truncate leading-tight my-1"
-                style={{ color: isDark ? '#FFFFFF' : '#000000' }}
-              >
-                {spot?.name || spot?.shortName || `Ponto ${idx + 1}`}
-              </h4>
+              <div className="flex items-center gap-1.5 min-w-0 my-1">
+                <h4
+                  className="text-[14px] font-black uppercase tracking-tight truncate leading-tight"
+                  style={{ color: isDark ? '#FFFFFF' : '#000000' }}
+                >
+                  {spot?.name || spot?.shortName || `Ponto ${idx + 1}`}
+                </h4>
+                <VerifiedBadge className="w-3.5 h-3.5 shrink-0" />
+              </div>
 
               <p className="text-[11.5px] font-normal text-[#8E8E93] truncate leading-tight">
                 {shortDescText ||
@@ -492,7 +626,6 @@ interface UnifiedItineraryOverlayProps {
   onExitToExplore: () => void;
   onOpenStore: () => void;
   onSelectMoreSpotsOnMap: () => void;
-  onCenterRoute: () => void;
   onUpdateItinerary: (updated: Itinerary) => void;
   onDeleteItinerary: () => void;
   onDeleteStep: (stepId: string) => void;
@@ -519,7 +652,6 @@ export const UnifiedItineraryOverlay: React.FC<UnifiedItineraryOverlayProps> = m
     onExitToExplore,
     onOpenStore,
     onSelectMoreSpotsOnMap,
-    onCenterRoute,
     onUpdateItinerary,
     onDeleteItinerary,
     onDeleteStep,
@@ -574,7 +706,17 @@ export const UnifiedItineraryOverlay: React.FC<UnifiedItineraryOverlayProps> = m
     };
 
     return (
-      <div className="fixed inset-0 md:left-[var(--desktop-sidebar-width,72px)] z-[42] pointer-events-none select-none overflow-hidden">
+      <motion.div
+        initial={{ opacity: 1 }}
+        animate={{ opacity: 1 }}
+        exit={{ opacity: 0, transition: { duration: 0.16, ease: [0.32, 0.72, 0, 1] } }}
+        className="fixed inset-0 md:left-[var(--desktop-sidebar-width,72px)] z-[42] pointer-events-none select-none overflow-hidden"
+        style={{
+          height: 'var(--app-height, 100dvh)',
+          maxHeight: 'var(--app-height, 100dvh)',
+          contain: 'layout paint size',
+        }}
+      >
         {/* 1. MOBILE TOP HEADER OVERLAY */}
         <div
           className="md:hidden absolute top-0 left-0 right-0 z-30 pointer-events-none flex items-center justify-between gap-2 px-4 sm:px-6"
@@ -682,7 +824,7 @@ export const UnifiedItineraryOverlay: React.FC<UnifiedItineraryOverlayProps> = m
           </motion.button>
         </div>
 
-        {/* 2. MOBILE FLOATING MAP ACTIONS (Center route, Layers, Add Spot, Store) */}
+        {/* 2. MOBILE FLOATING MAP ACTIONS (Store, Layers, Add Spot) */}
         <div
           className="md:hidden absolute right-4 z-40 pointer-events-auto transition-all duration-300 flex flex-col items-center gap-2.5"
           style={{
@@ -698,7 +840,7 @@ export const UnifiedItineraryOverlay: React.FC<UnifiedItineraryOverlayProps> = m
             animate={{ opacity: 1, scale: 1, y: 0 }}
             transition={{ type: 'spring', stiffness: 380, damping: 22, delay: 0.08 }}
             whileTap={{ scale: 0.9, transition: { type: 'spring', stiffness: 500, damping: 14 } }}
-            onClick={onCenterRoute}
+            onClick={onOpenStore}
             className={`w-[46px] h-[46px] rounded-full flex items-center justify-center cursor-pointer transition-colors border ${
               isDark
                 ? 'bg-[#171717]/95 border-white/10 shadow-[0_4px_16px_rgba(0,0,0,0.4)]'
@@ -707,10 +849,10 @@ export const UnifiedItineraryOverlay: React.FC<UnifiedItineraryOverlayProps> = m
                   : 'bg-[#FFFFFF]/95 border-black/[0.05] shadow-[0_4px_16px_rgba(0,0,0,0.09)]'
             }`}
             style={{ color: glassIconColor }}
-            title="Enquadrar rota"
-            aria-label="Enquadrar rota"
+            title="Loja de Roteiros"
+            aria-label="Loja de Roteiros"
           >
-            <Compass className="relative z-10 w-[21px] h-[21px] stroke-[1.85]" style={{ color: glassIconColor }} />
+            <Store className="relative z-10 w-[20px] h-[20px] stroke-[1.85]" style={{ color: glassIconColor }} />
           </motion.button>
 
           <motion.button
@@ -754,27 +896,6 @@ export const UnifiedItineraryOverlay: React.FC<UnifiedItineraryOverlayProps> = m
           >
             <Plus className="relative z-10 w-[21px] h-[21px] stroke-[2]" style={{ color: glassIconColor }} />
           </motion.button>
-
-          <motion.button
-            type="button"
-            initial={{ opacity: 0, scale: 0.88, y: 12 }}
-            animate={{ opacity: 1, scale: 1, y: 0 }}
-            transition={{ type: 'spring', stiffness: 380, damping: 22, delay: 0.185 }}
-            whileTap={{ scale: 0.9, transition: { type: 'spring', stiffness: 500, damping: 14 } }}
-            onClick={onOpenStore}
-            className={`w-[46px] h-[46px] rounded-full flex items-center justify-center cursor-pointer transition-colors border ${
-              isDark
-                ? 'bg-[#171717]/95 border-white/10 shadow-[0_4px_16px_rgba(0,0,0,0.4)]'
-                : isSatelliteMap
-                  ? 'ios26-liquid-glass border-white/25'
-                  : 'bg-[#FFFFFF]/95 border-black/[0.05] shadow-[0_4px_16px_rgba(0,0,0,0.09)]'
-            }`}
-            style={{ color: glassIconColor }}
-            title="Loja de Roteiros"
-            aria-label="Loja de Roteiros"
-          >
-            <Store className="relative z-10 w-[20px] h-[20px] stroke-[1.85]" style={{ color: glassIconColor }} />
-          </motion.button>
         </div>
 
         {/* 3. DESKTOP LEFT SIDE PANEL */}
@@ -782,7 +903,7 @@ export const UnifiedItineraryOverlay: React.FC<UnifiedItineraryOverlayProps> = m
           aria-label="Roteiro de Viagem"
           initial={{ opacity: 0, scale: 0.94, y: 12 }}
           animate={{ opacity: 1, scale: 1, y: 0 }}
-          exit={{ opacity: 0, scale: 0.96, y: 8 }}
+          exit={{ opacity: 0, transition: { duration: 0.14 } }}
           transition={{ type: 'spring', stiffness: 380, damping: 24, delay: 0.02 }}
           className={`hidden md:flex flex-col absolute top-5 bottom-5 left-5 w-96 lg:w-[420px] z-30 rounded-[28px] overflow-hidden border shadow-[0_12px_40px_rgba(0,0,0,0.14)] pointer-events-auto select-none ${
             isDark
@@ -930,7 +1051,7 @@ export const UnifiedItineraryOverlay: React.FC<UnifiedItineraryOverlayProps> = m
               key="unified-itinerary-collapsed-card"
               initial={{ opacity: 0, scale: 0.88, y: 14 }}
               animate={{ opacity: 1, scale: 1, y: 0 }}
-              exit={{ opacity: 0, scale: 0.94, y: 12 }}
+              exit={{ opacity: 0, scale: 0.96, y: 10, transition: { duration: 0.15, ease: [0.32, 0.72, 0, 1] } }}
               transition={{ type: 'spring', stiffness: 380, damping: 22, delay: 0.1 }}
               className="md:hidden fixed inset-x-0 z-40 flex justify-center px-4 pointer-events-none select-none"
               style={{ bottom: '84px' }}
@@ -1049,7 +1170,7 @@ export const UnifiedItineraryOverlay: React.FC<UnifiedItineraryOverlayProps> = m
               key="unified-itinerary-expanded-drawer"
               initial={{ opacity: 0, y: 120 }}
               animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: 120 }}
+              exit={{ opacity: 0, y: 80, transition: { duration: 0.16, ease: [0.32, 0.72, 0, 1] } }}
               transition={SPRING_DRAWER}
               drag="y"
               dragConstraints={{ top: 0, bottom: 0 }}
@@ -1200,7 +1321,7 @@ export const UnifiedItineraryOverlay: React.FC<UnifiedItineraryOverlayProps> = m
           onImportSpot={onImportSpot}
           theme={theme}
         />
-      </div>
+      </motion.div>
     );
   }
 );
