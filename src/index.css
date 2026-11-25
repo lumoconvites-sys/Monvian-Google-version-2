@@ -1204,11 +1204,11 @@ body,
 @keyframes monvian-marker-enter {
   0% {
     opacity: 0;
-    transform: translate3d(0, 6px, 0) scale3d(0.76, 0.76, 1);
+    transform: translate3d(0, 10px, 0) scale3d(0.72, 0.72, 1);
   }
-  70% {
+  68% {
     opacity: 1;
-    transform: translate3d(0, -1px, 0) scale3d(1.04, 1.04, 1);
+    transform: translate3d(0, -1px, 0) scale3d(1.03, 1.03, 1);
   }
   100% {
     opacity: 1;
@@ -1217,7 +1217,7 @@ body,
 }
 
 .monvian-marker-enter {
-  animation: monvian-marker-enter 0.34s cubic-bezier(0.22, 1, 0.36, 1) both;
+  animation: monvian-marker-enter 0.54s cubic-bezier(0.22, 1, 0.36, 1) both;
   transform-origin: center center;
 }
 

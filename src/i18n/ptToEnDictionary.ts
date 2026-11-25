@@ -33,6 +33,7 @@ const PT_TO_EN_RAW: Record<string, string> = {
   'Ligar': 'Call',
   'Site': 'Website',
   'Pular': 'Skip',
+  'Pular introdução': 'Skip intro',
   'Limpar': 'Clear',
   'Restaurar': 'Restore',
   'Responder': 'Reply',

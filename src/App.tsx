@@ -93,6 +93,8 @@ import {
   shouldRequireIOSPwaInstall,
   useIOSPwaGateStatus,
 } from './utils/pwaGate';
+import { triggerHapticFeedback } from './utils/haptics';
+import { useLanguage } from './contexts/LanguageContext';
 
 // Unauthenticated flow (deactivated and NOT loaded when the user is logged in)
 const AuthScreen = React.lazy(() =>
@@ -233,6 +235,7 @@ const normalizeAppUser = (rawUser: any) => {
 };
 
 export default function App() {
+  const { tr } = useLanguage();
   const [pendingResetOobCode, setPendingResetOobCode] = useState<string | null>(() => {
     if (typeof window === 'undefined') return null;
     try {
@@ -2686,6 +2689,26 @@ export default function App() {
     }
   }, [user?.map_tutorial_status]);
 
+  const handleSkipGlobeIntro = useCallback(() => {
+    triggerHapticFeedback(12);
+    try {
+      const hidePreloader = (window as unknown as { __monvianHidePreloaderImmediately?: () => void })
+        .__monvianHidePreloaderImmediately;
+      if (typeof hidePreloader === 'function') {
+        hidePreloader();
+      } else {
+        const preloader = document.getElementById('monvian-app-preloader');
+        if (preloader) {
+          preloader.style.display = 'none';
+          preloader.style.opacity = '0';
+          preloader.style.pointerEvents = 'none';
+        }
+      }
+    } catch {}
+    mapRef.current?.skipGlobeIntro();
+    handleGlobeIntroComplete();
+  }, [handleGlobeIntroComplete]);
+
   const handleTutorialStepChange = useCallback((stepId: string | null) => {
     setTutorialActiveStepId(stepId);
   }, []);
@@ -2893,7 +2916,7 @@ export default function App() {
     const timer = window.setTimeout(() => {
       setIsMapTutorialMounted(true);
       setIsMapTutorialOpen(true);
-    }, 320);
+    }, 580);
 
     return () => window.clearTimeout(timer);
   }, [
@@ -4437,22 +4460,46 @@ export default function App() {
       <OfflineIndicator />
 
       {/* Desktop Left Sidebar (Only visible on real desktop/tablet md+, never on rotated phones) */}
-      {isDesktopLayout && !isOnboardingItinerarySelection && !isUserLocationSpotlightActive && !showFirstSignupWelcome && !isGlobeIntroPlaying && (
-        <DesktopSidebar
-          activeTab={activeTab}
-          onChangeTab={handleTabChange}
-          unreadCount={2}
-          theme={theme}
-          onToggleTheme={handleToggleTheme}
-          realWeather={realWeather}
-          onOpenWeatherModal={handleNoop}
-          user={user}
-          onOpenAdmin={handleOpenAdminFromSidebar}
-          isUserAdmin={isUserAdmin}
-          isCollapsed={isDesktopSidebarCollapsed}
-          onToggleCollapse={handleToggleDesktopSidebar}
-        />
-      )}
+      <AnimatePresence>
+        {isDesktopLayout &&
+          !isOnboardingItinerarySelection &&
+          !isUserLocationSpotlightActive &&
+          !showFirstSignupWelcome &&
+          !isGlobeIntroPending &&
+          !isGlobeIntroPlaying && (
+            <motion.div
+              key="desktop-sidebar-entrance"
+              initial={
+                prefersReducedMotion
+                  ? { opacity: 0 }
+                  : { opacity: 0, x: -20 }
+              }
+              animate={{ opacity: 1, x: 0 }}
+              exit={{ opacity: 0, x: -16 }}
+              transition={
+                prefersReducedMotion
+                  ? { duration: 0.2 }
+                  : { duration: 0.62, delay: 0.04, ease: [0.22, 1, 0.36, 1] }
+              }
+              className="h-full shrink-0"
+            >
+              <DesktopSidebar
+                activeTab={activeTab}
+                onChangeTab={handleTabChange}
+                unreadCount={2}
+                theme={theme}
+                onToggleTheme={handleToggleTheme}
+                realWeather={realWeather}
+                onOpenWeatherModal={handleNoop}
+                user={user}
+                onOpenAdmin={handleOpenAdminFromSidebar}
+                isUserAdmin={isUserAdmin}
+                isCollapsed={isDesktopSidebarCollapsed}
+                onToggleCollapse={handleToggleDesktopSidebar}
+              />
+            </motion.div>
+          )}
+      </AnimatePresence>
 
       {(() => {
         const canShowMobileDiscoveryPanel =
@@ -4497,20 +4544,21 @@ export default function App() {
               !isMapOrbiting &&
               !isUserLocationSpotlightActive &&
               !showFirstSignupWelcome &&
+              !isGlobeIntroPending &&
               !isGlobeIntroPlaying && (
               <motion.div
                 key={`desktop-explore-panel-wrapper-${explorarEntranceTick}`}
                 initial={
                   prefersReducedMotion
                     ? { opacity: 0 }
-                    : { opacity: 0, scale: 0.96, y: 12 }
+                    : { opacity: 0, scale: 0.96, y: 16 }
                 }
                 animate={{ opacity: 1, scale: 1, y: 0 }}
-                exit={{ opacity: 0, scale: 0.97, y: 8 }}
+                exit={{ opacity: 0, scale: 0.97, y: 10 }}
                 transition={
                   prefersReducedMotion
-                    ? { duration: 0.16 }
-                    : { type: 'spring', stiffness: 380, damping: 24, delay: 0.02 }
+                    ? { duration: 0.2 }
+                    : { duration: 0.64, delay: 0.08, ease: [0.22, 1, 0.36, 1] }
                 }
                 className="h-full shrink-0"
               >
@@ -4625,14 +4673,21 @@ export default function App() {
         </div>
 
       {/* 3. Top Floating Header Bar (MOBILE ONLY: md:hidden, mounted only on Explorar EXPLORE mode) */}
+      <AnimatePresence>
       {activeTab === 'explorar' &&
         mapWorkflowMode === 'EXPLORE' &&
         !isMapOrbiting &&
         !isUserLocationSpotlightActive &&
         !showFirstSignupWelcome &&
+        !isGlobeIntroPending &&
         !isGlobeIntroPlaying &&
         !isWeatherModalOpen && (
-          <header
+          <motion.header
+            key={`mobile-top-header-${explorarEntranceTick}`}
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0, transition: { duration: 0.22, ease: [0.32, 0.72, 0, 1] } }}
+            transition={{ duration: 0.28, ease: [0.22, 1, 0.36, 1] }}
             aria-label="Informações de Campos do Jordão"
             className="md:hidden absolute top-0 left-0 right-0 z-40 pointer-events-none px-4 sm:px-6"
             style={{
@@ -4651,7 +4706,20 @@ export default function App() {
               }`}
             >
               {/* Left: Big Weather Temperature & Dynamic Condition */}
-              <div className="flex items-center pointer-events-auto">
+              <motion.div
+                initial={
+                  prefersReducedMotion
+                    ? { opacity: 0 }
+                    : { opacity: 0, y: -16, scale: 0.93 }
+                }
+                animate={{ opacity: 1, y: 0, scale: 1 }}
+                transition={
+                  prefersReducedMotion
+                    ? { duration: 0.2 }
+                    : { duration: 0.68, delay: 0.04, ease: [0.22, 1, 0.36, 1] }
+                }
+                className="flex items-center pointer-events-auto will-change-[transform,opacity]"
+              >
                 <motion.div
                   id="weather-header-display"
                   whileTap={{ scale: 0.94 }}
@@ -4707,7 +4775,7 @@ export default function App() {
                     </span>
                   </div>
                 </motion.div>
-              </div>
+              </motion.div>
 
               {/* Right: Clean Header Action Icons with iOS Liquid Glass Buttons */}
               {(() => {
@@ -4737,32 +4805,60 @@ export default function App() {
               >
 
                 {/* 3D View Toggle Icon */}
-                <motion.button
-                  id="btn-3d-toggle"
-                  type="button"
-                  whileTap={{ scale: 0.9, transition: { type: 'spring', stiffness: 500, damping: 14 } }}
-                  onClick={() => {
-                    setHasToggled3D(true);
-                    setIs3DMode((prev) => !prev);
-                  }}
-                  className={`w-[53px] h-[53px] sm:w-[58px] sm:h-[58px] rounded-full ios26-liquid-glass flex items-center justify-center transition-colors duration-200 cursor-pointer group shrink-0 ${headerIconTextClass}`}
-                  style={{ color: headerIconColor }}
-                  aria-label={is3DMode ? 'Alternar para visualização 2D' : 'Alternar para visualização 3D'}
-                  title={is3DMode ? 'Alternar para visão 2D Plana' : 'Alternar para visão 3D com Relevo e Montanhas'}
+                <motion.div
+                  initial={
+                    prefersReducedMotion
+                      ? { opacity: 0 }
+                      : { opacity: 0, y: -15, scale: 0.86 }
+                  }
+                  animate={{ opacity: 1, y: 0, scale: 1 }}
+                  transition={
+                    prefersReducedMotion
+                      ? { duration: 0.2 }
+                      : { duration: 0.64, delay: 0.10, ease: [0.22, 1, 0.36, 1] }
+                  }
+                  className="shrink-0 will-change-[transform,opacity]"
                 >
-                  <div
-                    className="relative z-10 flex items-center justify-center group-hover:scale-105 transition-transform duration-200"
+                  <motion.button
+                    id="btn-3d-toggle"
+                    type="button"
+                    whileTap={{ scale: 0.9, transition: { type: 'spring', stiffness: 500, damping: 14 } }}
+                    onClick={() => {
+                      setHasToggled3D(true);
+                      setIs3DMode((prev) => !prev);
+                    }}
+                    className={`w-[53px] h-[53px] sm:w-[58px] sm:h-[58px] rounded-full ios26-liquid-glass flex items-center justify-center transition-colors duration-200 cursor-pointer group shrink-0 ${headerIconTextClass}`}
                     style={{ color: headerIconColor }}
+                    aria-label={is3DMode ? 'Alternar para visualização 2D' : 'Alternar para visualização 3D'}
+                    title={is3DMode ? 'Alternar para visão 2D Plana' : 'Alternar para visão 3D com Relevo e Montanhas'}
                   >
-                    <Map3DIcon
-                      mode={!hasToggled3D || is3DMode ? '3D' : '2D'}
+                    <div
+                      className="relative z-10 flex items-center justify-center group-hover:scale-105 transition-transform duration-200"
                       style={{ color: headerIconColor }}
-                    />
-                  </div>
-                </motion.button>
+                    >
+                      <Map3DIcon
+                        mode={!hasToggled3D || is3DMode ? '3D' : '2D'}
+                        style={{ color: headerIconColor }}
+                      />
+                    </div>
+                  </motion.button>
+                </motion.div>
 
                 {/* Category Filter Button with Dropdown */}
-                <div className="relative shrink-0">
+                <motion.div
+                  initial={
+                    prefersReducedMotion
+                      ? { opacity: 0 }
+                      : { opacity: 0, y: -15, scale: 0.86 }
+                  }
+                  animate={{ opacity: 1, y: 0, scale: 1 }}
+                  transition={
+                    prefersReducedMotion
+                      ? { duration: 0.2 }
+                      : { duration: 0.64, delay: 0.17, ease: [0.22, 1, 0.36, 1] }
+                  }
+                  className="relative shrink-0 will-change-[transform,opacity]"
+                >
                   <motion.button
                     id="btn-category-icon-toggle"
                     type="button"
@@ -4785,13 +4881,14 @@ export default function App() {
                       <span className="absolute top-0 right-0 z-20 w-2.5 h-2.5 rounded-full bg-blue-500 ring-2 ring-white dark:ring-[#1C1C1E]" />
                     )}
                   </motion.button>
-                </div>
+                </motion.div>
               </div>
                 );
               })()}
             </div>
-          </header>
+          </motion.header>
       )}
+      </AnimatePresence>
 
       {/* 4. Bottom Floating Navigation Pill, Focus Mode Blur Backdrop & SpotPreviewBanner rendered at root level */}
 
@@ -5263,37 +5360,45 @@ export default function App() {
     )}
 
     {/* 4. Bottom Navigation Pill rendered at root level */}
-    {!isAdminOpen &&
-      !isMapOrbiting &&
-      !isOnboardingItinerarySelection &&
-      !isFinalizeItineraryModalOpen &&
-      !isDetailOpen &&
-      !showOnboardingQuestions &&
-      !showFirstSignupWelcome &&
-      !isGlobeIntroPending &&
-      !isGlobeIntroPlaying &&
-      !isWeatherModalOpen &&
-      !(activeTab === 'perfil' && isMyItinerariesSubViewActive) && (
-        <div
-          key="bottom-nav-shell"
-          className={`md:hidden fixed inset-0 pointer-events-none z-[250] transition-opacity duration-150 ${isChatKeyboardOpen ? 'opacity-0 [&_*]:!pointer-events-none' : 'opacity-100'}`}
-        >
-          <BottomNavigation
-            activeTab={activeTab}
-            onChangeTab={handleTabChange}
-            unreadCount={2}
-            isBlurred={isBlurActive}
-            forceWhiteUI={false}
-            isSatellite={
-              isSatelliteExplore &&
-              (isDesktopLayout || isSpotCardOpen || mapWorkflowMode !== 'EXPLORE') &&
-              (mapWorkflowMode !== 'ITINERARY' || !isItineraryDrawerExpanded || theme === 'dark')
-            }
-            theme={theme}
-            isTutorialSweepActive={isMapTutorialOpen && tutorialActiveStepId === 'bottom-nav'}
-          />
-        </div>
-      )}
+    <AnimatePresence>
+      {!isAdminOpen &&
+        !isMapOrbiting &&
+        !isOnboardingItinerarySelection &&
+        !isFinalizeItineraryModalOpen &&
+        !isDetailOpen &&
+        !showOnboardingQuestions &&
+        !showFirstSignupWelcome &&
+        !isGlobeIntroPending &&
+        !isGlobeIntroPlaying &&
+        !isWeatherModalOpen &&
+        !(activeTab === 'perfil' && isMyItinerariesSubViewActive) && (
+          <motion.div
+            key="bottom-nav-shell"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: isChatKeyboardOpen ? 0 : 1 }}
+            exit={{ opacity: 0, transition: { duration: 0.22, ease: [0.32, 0.72, 0, 1] } }}
+            transition={{ duration: 0.34, ease: [0.22, 1, 0.36, 1] }}
+            className={`md:hidden fixed inset-0 pointer-events-none z-[250] ${
+              isChatKeyboardOpen ? '[&_*]:!pointer-events-none' : ''
+            }`}
+          >
+            <BottomNavigation
+              activeTab={activeTab}
+              onChangeTab={handleTabChange}
+              unreadCount={2}
+              isBlurred={isBlurActive}
+              forceWhiteUI={false}
+              isSatellite={
+                isSatelliteExplore &&
+                (isDesktopLayout || isSpotCardOpen || mapWorkflowMode !== 'EXPLORE') &&
+                (mapWorkflowMode !== 'ITINERARY' || !isItineraryDrawerExpanded || theme === 'dark')
+              }
+              theme={theme}
+              isTutorialSweepActive={isMapTutorialOpen && tutorialActiveStepId === 'bottom-nav'}
+            />
+          </motion.div>
+        )}
+    </AnimatePresence>
 
     {/* 4.1. Minimalist iOS Radar Presentation on User Location (Map stays 100% visible without darkening) */}
     <AnimatePresence>
@@ -5618,10 +5723,9 @@ export default function App() {
       )}
     </AnimatePresence>
 
-    {/* Uninterruptible Touch & Click Shield while Globe Flight Animation is running */}
+    {/* Uninterruptible Touch & Click Shield while Globe Flight Animation is running + Skip Intro CTA */}
     {isGlobeIntroPlaying && (
       <div
-        aria-hidden="true"
         className="fixed inset-0 z-[245] pointer-events-auto touch-none select-none bg-transparent"
         onClick={(e) => {
           e.preventDefault();
@@ -5640,7 +5744,49 @@ export default function App() {
         onWheel={(e) => {
           e.stopPropagation();
         }}
-      />
+      >
+        <div
+          className="w-full flex justify-end"
+          style={{
+            paddingTop: 'max(calc(env(safe-area-inset-top, 0px) + 16px), 28px)',
+            paddingRight: 'max(16px, calc(env(safe-area-inset-right, 0px) + 16px))',
+            paddingLeft: 'max(16px, calc(env(safe-area-inset-left, 0px) + 16px))',
+          }}
+        >
+          <motion.button
+            id="btn-skip-globe-intro"
+            type="button"
+            initial={{ opacity: 0, y: -6, scale: 0.96 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            transition={{ duration: 0.28, ease: [0.22, 1, 0.36, 1] }}
+            whileTap={{ scale: 0.94, transition: { type: 'spring', stiffness: 500, damping: 16 } }}
+            onPointerDown={(e) => {
+              e.stopPropagation();
+            }}
+            onTouchStart={(e) => {
+              e.stopPropagation();
+            }}
+            onClick={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              handleSkipGlobeIntro();
+            }}
+            className="relative h-[40px] px-4 rounded-full flex items-center justify-center gap-1.5 text-[13.5px] font-semibold tracking-[-0.012em] text-[#FFFFFF] cursor-pointer overflow-hidden transition-colors duration-200 hover:bg-[#242426] active:bg-[#2C2C2E]"
+            style={{
+              background: 'rgba(23, 23, 23, 0.92)',
+              border: '1px solid rgba(255, 255, 255, 0.14)',
+              boxShadow:
+                '0 8px 24px -4px rgba(0, 0, 0, 0.65), inset 0 1px 0.75px rgba(255, 255, 255, 0.22)',
+              backdropFilter: 'blur(18px) saturate(180%)',
+              WebkitBackdropFilter: 'blur(18px) saturate(180%)',
+            }}
+            aria-label={tr('Pular introdução')}
+          >
+            <span className="relative z-10">{tr('Pular introdução')}</span>
+            <ChevronRight className="relative z-10 w-4 h-4 text-[#858585] -mr-0.5 shrink-0" strokeWidth={2.25} />
+          </motion.button>
+        </div>
+      </div>
     )}
 
     {/* 4-Step Complementary Registration Flow followed by Original Welcome Screen */}

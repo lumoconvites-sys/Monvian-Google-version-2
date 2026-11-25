@@ -33,6 +33,7 @@ const PT_TO_JA_RAW: Record<string, string> = {
   'Ligar': '電話する',
   'Site': 'ウェブサイト',
   'Pular': 'スキップ',
+  'Pular introdução': 'イントロをスキップ',
   'Limpar': 'クリア',
   'Restaurar': '復元',
   'Responder': '返信',

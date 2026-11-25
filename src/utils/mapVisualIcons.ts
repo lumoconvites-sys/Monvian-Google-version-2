@@ -642,7 +642,7 @@ export function createStopIconMarkerElements(
   root.style.cursor = 'pointer';
   root.style.zIndex = '4';
   root.style.willChange = 'transform, opacity';
-  root.style.transition = 'opacity 180ms ease';
+  root.style.transition = 'opacity 420ms cubic-bezier(0.22, 1, 0.36, 1)';
 
   const badge = document.createElement('div');
   badge.className = 'monvian-stop-icon-badge';
@@ -656,7 +656,7 @@ export function createStopIconMarkerElements(
   badge.style.alignItems = 'center';
   badge.style.justifyContent = 'center';
   badge.style.transformOrigin = 'center center';
-  badge.style.transition = 'transform 180ms cubic-bezier(0.22, 1, 0.36, 1), filter 160ms ease, box-shadow 180ms ease';
+  badge.style.transition = 'transform 440ms cubic-bezier(0.22, 1, 0.36, 1), filter 160ms ease, box-shadow 180ms ease';
   badge.style.opacity = '1';
   badge.style.transform = 'scale(1)';
 

@@ -170,18 +170,37 @@ const DockTabButton: React.FC<DockTabButtonProps> = memo(({
         className="flex items-center justify-center pointer-events-none"
       >
         <motion.div
-          initial={false}
-          animate={{
-            rotate: tab.id === 'explorar' ? pulseAnimation : 0,
-          }}
-          transition={{ duration: 0.24, ease: [0.32, 0.72, 0, 1] }}
-          className="w-[24px] h-[24px] flex items-center justify-center shrink-0"
+          initial={
+            prefersReducedMotion
+              ? { opacity: 0 }
+              : { opacity: 0, y: 8, scale: 0.84 }
+          }
+          animate={{ opacity: 1, y: 0, scale: 1 }}
+          transition={
+            prefersReducedMotion
+              ? { duration: 0.2 }
+              : {
+                  duration: 0.56,
+                  delay: 0.14 + index * 0.045,
+                  ease: [0.22, 1, 0.36, 1],
+                }
+          }
+          className="flex items-center justify-center pointer-events-none"
         >
-          {tab.id === 'roteiros' && <NavRoteirosIcon size={24} className="text-current" />}
-          {tab.id === 'salvos' && <NavSalvosIcon size={24} className="text-current" />}
-          {tab.id === 'explorar' && <NavAgoraIcon size={24} className="text-current" />}
-          {tab.id === 'buscar' && <NavSearchIcon size={24} className="text-current" />}
-          {tab.id === 'perfil' && <NavProfileIcon size={24} className="text-current" />}
+          <motion.div
+            initial={false}
+            animate={{
+              rotate: tab.id === 'explorar' ? pulseAnimation : 0,
+            }}
+            transition={{ duration: 0.24, ease: [0.32, 0.72, 0, 1] }}
+            className="w-[24px] h-[24px] flex items-center justify-center shrink-0"
+          >
+            {tab.id === 'roteiros' && <NavRoteirosIcon size={24} className="text-current" />}
+            {tab.id === 'salvos' && <NavSalvosIcon size={24} className="text-current" />}
+            {tab.id === 'explorar' && <NavAgoraIcon size={24} className="text-current" />}
+            {tab.id === 'buscar' && <NavSearchIcon size={24} className="text-current" />}
+            {tab.id === 'perfil' && <NavProfileIcon size={24} className="text-current" />}
+          </motion.div>
         </motion.div>
       </motion.div>
     </button>
@@ -795,95 +814,140 @@ export const BottomNavigation: React.FC<BottomNavigationProps> = memo(({
         WebkitTransform: 'translateZ(0)',
       }}
     >
-      {/* Capsule with iOS 26 Liquid Glass finish (expo-glass-effect GlassView) */}
-      <GlassView
-        ref={capsuleRef as React.Ref<HTMLElement>}
-        id="bottom-navigation-capsule"
-        variant="bar"
-        glassEffectStyle="liquid26"
-        colorScheme={theme}
-        isInteractive
-        onPointerDown={handleTrackPointerDown}
-        onPointerMove={handleTrackPointerMove}
-        onPointerUp={handleTrackPointerUp}
-        onPointerCancel={handleTrackPointerCancel}
-        onPointerLeave={handleTrackPointerLeave}
-        className="w-full max-w-[326px] sm:max-w-[342px] h-[62px] sm:h-[64px] p-[5.5px] pointer-events-auto relative rounded-full motion-reduce:transition-none"
+      <motion.div
+        initial={
+          prefersReducedMotion
+            ? { opacity: 0 }
+            : { opacity: 0, y: 30, scale: 0.91 }
+        }
+        animate={
+          prefersReducedMotion
+            ? { opacity: 1 }
+            : { opacity: 1, y: 0, scale: 1 }
+        }
+        exit={
+          prefersReducedMotion
+            ? { opacity: 0, transition: { duration: 0.18 } }
+            : {
+                opacity: 0,
+                y: 22,
+                scale: 0.94,
+                transition: { duration: 0.26, ease: [0.32, 0.72, 0, 1] },
+              }
+        }
+        transition={
+          prefersReducedMotion
+            ? { duration: 0.22 }
+            : {
+                duration: 0.72,
+                delay: 0.08,
+                ease: [0.22, 1, 0.36, 1],
+              }
+        }
         style={{
-          touchAction: 'none',
-          WebkitUserSelect: 'none',
-          userSelect: 'none',
           transformOrigin: '50% 100%',
           WebkitTransformOrigin: '50% 100%',
-          transform: isCompact
-            ? 'translate3d(0, 3px, 0) scale3d(0.82, 0.82, 1)'
-            : 'translate3d(0, 0, 0) scale3d(1, 1, 1)',
-          WebkitTransform: isCompact
-            ? 'translate3d(0, 3px, 0) scale3d(0.82, 0.82, 1)'
-            : 'translate3d(0, 0, 0) scale3d(1, 1, 1)',
-          transition: 'transform 440ms cubic-bezier(0.32, 0.72, 0, 1)',
-          WebkitTransition: '-webkit-transform 440ms cubic-bezier(0.32, 0.72, 0, 1)',
-          willChange: 'transform',
+          willChange: 'transform, opacity',
         }}
+        className="w-full max-w-[326px] sm:max-w-[342px] flex justify-center pointer-events-none"
       >
-        {/* Inner 5-slot interactive Dock track */}
-        <div
-          ref={trackRef}
-          className="relative w-full h-full grid grid-cols-5 items-center z-10 select-none"
+        {/* Capsule with iOS 26 Liquid Glass finish (expo-glass-effect GlassView) */}
+        <GlassView
+          ref={capsuleRef as React.Ref<HTMLElement>}
+          id="bottom-navigation-capsule"
+          variant="bar"
+          glassEffectStyle="liquid26"
+          colorScheme={theme}
+          isInteractive
+          onPointerDown={handleTrackPointerDown}
+          onPointerMove={handleTrackPointerMove}
+          onPointerUp={handleTrackPointerUp}
+          onPointerCancel={handleTrackPointerCancel}
+          onPointerLeave={handleTrackPointerLeave}
+          className="w-full max-w-[326px] sm:max-w-[342px] h-[62px] sm:h-[64px] p-[5.5px] pointer-events-auto relative rounded-full motion-reduce:transition-none"
           style={{
             touchAction: 'none',
             WebkitUserSelect: 'none',
             userSelect: 'none',
+            transformOrigin: '50% 100%',
+            WebkitTransformOrigin: '50% 100%',
+            transform: isCompact
+              ? 'translate3d(0, 3px, 0) scale3d(0.82, 0.82, 1)'
+              : 'translate3d(0, 0, 0) scale3d(1, 1, 1)',
+            WebkitTransform: isCompact
+              ? 'translate3d(0, 3px, 0) scale3d(0.82, 0.82, 1)'
+              : 'translate3d(0, 0, 0) scale3d(1, 1, 1)',
+            transition: 'transform 440ms cubic-bezier(0.32, 0.72, 0, 1)',
+            WebkitTransition: '-webkit-transform 440ms cubic-bezier(0.32, 0.72, 0, 1)',
+            willChange: 'transform',
           }}
         >
-          {/* Active Selection Capsule / Interactive Magnifying Liquid Glass Lens */}
-          <motion.div
-            aria-hidden="true"
-            className="absolute inset-y-0 left-0 w-1/5 pointer-events-none z-0"
+          {/* Inner 5-slot interactive Dock track */}
+          <div
+            ref={trackRef}
+            className="relative w-full h-full grid grid-cols-5 items-center z-10 select-none"
             style={{
-              x: pillTranslateX,
-              y: smoothPillLiftY,
-              scaleX: smoothPillScaleX,
-              scaleY: smoothPillScaleY,
-              transformOrigin: '50% 50%',
-              willChange: 'transform',
+              touchAction: 'none',
+              WebkitUserSelect: 'none',
+              userSelect: 'none',
             }}
           >
-            <GlassView
-              variant="pill"
-              glassEffectStyle="liquid26"
-              colorScheme={theme}
-              data-lens-active={isLensActive ? 'true' : 'false'}
-              className="w-full h-full rounded-full transition-[background,box-shadow,border-color,backdrop-filter] duration-[200ms] ease-out"
-            />
-          </motion.div>
-
-          {TABS.map((tab, index) => {
-            const isActive = normalizedActiveTab === tab.id;
-            const isHighlighted = scrubIndex === index;
-
-            return (
-              <DockTabButton
-                key={tab.id}
-                tab={tab}
-                index={index}
-                isActive={isActive}
-                isHighlighted={isHighlighted}
-                isScrubbing={scrubIndex !== null}
-                pulseAnimation={pulseAnimation}
-                iconColor={iconColor}
-                isSatellite={isSatellite}
-                useWhiteIcons={useWhiteIcons}
-                theme={theme}
-                prefersReducedMotion={prefersReducedMotion}
-                pointerSlotMV={pointerSlotMV}
-                magnifyStrengthMV={magnifyStrengthMV}
-                onButtonClick={handleButtonClick}
+            {/* Active Selection Capsule / Interactive Magnifying Liquid Glass Lens */}
+            <motion.div
+              aria-hidden="true"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              transition={
+                prefersReducedMotion
+                  ? { duration: 0.2 }
+                  : { duration: 0.54, delay: 0.18, ease: [0.22, 1, 0.36, 1] }
+              }
+              className="absolute inset-y-0 left-0 w-1/5 pointer-events-none z-0"
+              style={{
+                x: pillTranslateX,
+                y: smoothPillLiftY,
+                scaleX: smoothPillScaleX,
+                scaleY: smoothPillScaleY,
+                transformOrigin: '50% 50%',
+                willChange: 'transform, opacity',
+              }}
+            >
+              <GlassView
+                variant="pill"
+                glassEffectStyle="liquid26"
+                colorScheme={theme}
+                data-lens-active={isLensActive ? 'true' : 'false'}
+                className="w-full h-full rounded-full transition-[background,box-shadow,border-color,backdrop-filter] duration-[200ms] ease-out"
               />
-            );
-          })}
-        </div>
-      </GlassView>
+            </motion.div>
+
+            {TABS.map((tab, index) => {
+              const isActive = normalizedActiveTab === tab.id;
+              const isHighlighted = scrubIndex === index;
+
+              return (
+                <DockTabButton
+                  key={tab.id}
+                  tab={tab}
+                  index={index}
+                  isActive={isActive}
+                  isHighlighted={isHighlighted}
+                  isScrubbing={scrubIndex !== null}
+                  pulseAnimation={pulseAnimation}
+                  iconColor={iconColor}
+                  isSatellite={isSatellite}
+                  useWhiteIcons={useWhiteIcons}
+                  theme={theme}
+                  prefersReducedMotion={prefersReducedMotion}
+                  pointerSlotMV={pointerSlotMV}
+                  magnifyStrengthMV={magnifyStrengthMV}
+                  onButtonClick={handleButtonClick}
+                />
+              );
+            })}
+          </div>
+        </GlassView>
+      </motion.div>
     </nav>
   );
 });

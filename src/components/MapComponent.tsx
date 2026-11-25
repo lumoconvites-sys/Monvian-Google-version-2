@@ -40,6 +40,7 @@ export interface MapComponentHandle {
   focusItineraryStep: (step: ItineraryStep, isExpanded?: boolean) => void;
   fitSpotsOverview: () => void;
   restorePreSpotCamera: () => void;
+  skipGlobeIntro: () => void;
 }
 
 interface MapComponentProps {
@@ -1294,7 +1295,67 @@ export const MapComponent = memo(
           essential: true,
         });
       },
-    }), [centerOnUserLocation, currentMode, onMapModeChange, onStyleChange, setFollowMode, beginProgrammaticCameraAnim, computeAdaptiveZoomDuration, smoothCameraEase, fitItineraryCameraBounds, focusItineraryStepOnMap, frameAllSpotsOverview]);
+      skipGlobeIntro: () => {
+        const map = mapRef.current;
+        isGlobeIntroPendingRef.current = false;
+        isGlobeIntroPlayingRef.current = false;
+        isGlobeIntroActiveRef.current = false;
+        isGlobeSpinActiveRef.current = false;
+        hasCompletedGlobeFlightRef.current = true;
+        hasFramedInitialSpotsRef.current = true;
+        hasUserMovedMapRef.current = false;
+        markerZoomTierRef.current = 'city';
+        setIsSpaceBackgroundActive(false);
+
+        if (map) {
+          try {
+            map.stop();
+          } catch {}
+          try {
+            map.setProjection({ type: 'mercator' });
+            map.setSky(undefined);
+          } catch {}
+
+          const handlers = [
+            map.dragPan,
+            map.scrollZoom,
+            map.boxZoom,
+            map.dragRotate,
+            map.keyboard,
+            map.doubleClickZoom,
+            map.touchZoomRotate,
+          ];
+          handlers.forEach((h) => {
+            try {
+              h?.enable();
+            } catch {}
+          });
+
+          const camposTarget = getCamposOverviewCameraRef.current(map);
+          const finalPitch = is3DModeRef.current ? 60 : 0;
+          const finalBearing = is3DModeRef.current ? -20 : 0;
+          try {
+            map.jumpTo({
+              center: camposTarget.center,
+              zoom: camposTarget.zoom,
+              pitch: finalPitch,
+              bearing: finalBearing,
+            });
+          } catch {}
+          applyDynamicExplorePadding(map);
+        }
+
+        const userMarkerEl = userMarkerRef.current?.getElement();
+        if (userMarkerEl) {
+          userMarkerEl.style.opacity = workflowModeRef.current === 'ITINERARY' ? '0' : '1';
+          userMarkerEl.style.pointerEvents = workflowModeRef.current === 'ITINERARY' ? 'none' : 'auto';
+        }
+        syncSpotMarkersRef.current?.();
+        syncMarkerHighlight(selectedSpotRef.current?.id);
+        syncStopIconMarkersRef.current?.();
+        updateStopIconsZoomVisibilityRef.current?.();
+      },
+    }), [centerOnUserLocation, currentMode, onMapModeChange, onStyleChange, setFollowMode, beginProgrammaticCameraAnim, computeAdaptiveZoomDuration, smoothCameraEase, fitItineraryCameraBounds, focusItineraryStepOnMap, frameAllSpotsOverview, applyDynamicExplorePadding]);
 
     // Synchronize mode from prop if provided (excluding dark map mode)
     useEffect(() => {
@@ -4301,6 +4362,7 @@ export const MapComponent = memo(
 
       if (isHiddenGlobal || isTooFarOut) {
         entries.forEach((entry) => {
+          entry.badge.style.transform = 'scale(0.76)';
           entry.root.style.opacity = '0';
           entry.root.style.pointerEvents = 'none';
         });
@@ -4558,6 +4620,7 @@ export const MapComponent = memo(
 
           const isRightControlsHidden = Boolean(
             isFocusMode ||
+              isGlobeIntroPending ||
               isGlobeIntroPlaying ||
               workflowMode === 'ITINERARY' ||
               hideFloatingControls
@@ -4578,92 +4641,138 @@ export const MapComponent = memo(
           }}
         >
           <div
-            className={`flex flex-col items-center gap-2 transition-[opacity,transform] motion-reduce:transition-none motion-reduce:transform-none ${
+            key={`right-controls-stack-${entranceTick}`}
+            className={`flex flex-col items-center gap-2 ${
               isRightControlsHidden
-                ? 'opacity-0 translate-x-3 scale-[0.95] duration-[280ms] ease-in-out pointer-events-none [&_*]:!pointer-events-none'
-                : 'opacity-100 translate-x-0 scale-100 duration-[340ms] ease-[cubic-bezier(0.22,1,0.36,1)] pointer-events-auto'
+                ? 'pointer-events-none [&_*]:!pointer-events-none'
+                : 'pointer-events-auto'
             }`}
           >
           {/* PLUS / CLOSE — Toggle Quick Discovery Actions Sheet */}
           {workflowMode === 'EXPLORE' && onToggleDiscoveryPanel && (
-            <motion.button
-              id="btn-toggle-discovery-panel"
-              type="button"
-              whileTap={{ scale: 0.9, transition: { type: 'spring', stiffness: 500, damping: 14 } }}
-              onClick={() => {
-                unlockSpotClickSound();
-                playSpotClickSound();
-                triggerHapticFeedback(12);
-                onToggleDiscoveryPanel();
-              }}
-              aria-label={isDiscoveryPanelOpen ? 'Fechar menu rápido' : 'Abrir menu rápido'}
-              aria-expanded={isDiscoveryPanelOpen}
-              title={isDiscoveryPanelOpen ? 'Fechar menu rápido' : 'Abrir menu rápido'}
-              className={`w-[53px] h-[53px] sm:w-[58px] sm:h-[58px] rounded-full ios26-liquid-glass flex items-center justify-center transition-colors duration-200 cursor-pointer shrink-0 ${controlTextClass}`}
-              style={{ color: controlIconColor }}
+            <motion.div
+              initial={{ opacity: 0, y: 18, x: 8, scale: 0.85 }}
+              animate={
+                isRightControlsHidden
+                  ? { opacity: 0, y: 12, x: 8, scale: 0.88 }
+                  : { opacity: 1, y: 0, x: 0, scale: 1 }
+              }
+              transition={
+                isRightControlsHidden
+                  ? { duration: 0.24, ease: [0.32, 0.72, 0, 1] }
+                  : { duration: 0.66, delay: 0.12, ease: [0.22, 1, 0.36, 1] }
+              }
+              className="will-change-[transform,opacity]"
             >
-              <motion.span
-                aria-hidden="true"
-                initial={false}
-                animate={{ rotate: isDiscoveryPanelOpen ? 45 : 0 }}
-                transition={{ type: 'spring', stiffness: 420, damping: 28 }}
-                className="relative z-10 flex items-center justify-center"
+              <motion.button
+                id="btn-toggle-discovery-panel"
+                type="button"
+                whileTap={{ scale: 0.9, transition: { type: 'spring', stiffness: 500, damping: 14 } }}
+                onClick={() => {
+                  unlockSpotClickSound();
+                  playSpotClickSound();
+                  triggerHapticFeedback(12);
+                  onToggleDiscoveryPanel();
+                }}
+                aria-label={isDiscoveryPanelOpen ? 'Fechar menu rápido' : 'Abrir menu rápido'}
+                aria-expanded={isDiscoveryPanelOpen}
+                title={isDiscoveryPanelOpen ? 'Fechar menu rápido' : 'Abrir menu rápido'}
+                className={`w-[53px] h-[53px] sm:w-[58px] sm:h-[58px] rounded-full ios26-liquid-glass flex items-center justify-center transition-colors duration-200 cursor-pointer shrink-0 ${controlTextClass}`}
+                style={{ color: controlIconColor }}
               >
-                <Plus
-                  className="w-[24px] h-[24px] sm:w-[26px] sm:h-[26px]"
-                  strokeWidth={2.35}
-                  style={{ color: controlIconColor }}
-                />
-              </motion.span>
-            </motion.button>
+                <motion.span
+                  aria-hidden="true"
+                  initial={false}
+                  animate={{ rotate: isDiscoveryPanelOpen ? 45 : 0 }}
+                  transition={{ type: 'spring', stiffness: 420, damping: 28 }}
+                  className="relative z-10 flex items-center justify-center"
+                >
+                  <Plus
+                    className="w-[24px] h-[24px] sm:w-[26px] sm:h-[26px]"
+                    strokeWidth={2.35}
+                    style={{ color: controlIconColor }}
+                  />
+                </motion.span>
+              </motion.button>
+            </motion.div>
           )}
 
           {/* My Real-Time Location & Compass Orientation Button */}
-          <motion.button
-            id="btn-map-compass"
-            type="button"
-            whileTap={{ scale: 0.9, transition: { type: 'spring', stiffness: 500, damping: 14 } }}
-            onClick={() => centerOnUserLocation(true, true)}
-            aria-label="Centralizar na minha localização e ativar bússola em tempo real"
-            className={`w-[53px] h-[53px] sm:w-[58px] sm:h-[58px] rounded-full ios26-liquid-glass flex items-center justify-center transition-colors duration-200 cursor-pointer shrink-0 ${controlTextClass} ${
-              isCompassTracking
-                ? 'ring-2 ring-[#007AFF]/70'
-                : isFollowingUser
-                  ? 'ring-2 ring-[#007AFF]/35'
-                  : ''
-            }`}
-            style={{ color: controlIconColor }}
+          <motion.div
+            initial={{ opacity: 0, y: 18, x: 8, scale: 0.85 }}
+            animate={
+              isRightControlsHidden
+                ? { opacity: 0, y: 12, x: 8, scale: 0.88 }
+                : { opacity: 1, y: 0, x: 0, scale: 1 }
+            }
+            transition={
+              isRightControlsHidden
+                ? { duration: 0.24, ease: [0.32, 0.72, 0, 1] }
+                : { duration: 0.66, delay: 0.19, ease: [0.22, 1, 0.36, 1] }
+            }
+            className="will-change-[transform,opacity]"
           >
-            <div
-              ref={compassIconWrapperRef}
-              className="relative z-10 flex items-center justify-center will-change-transform"
+            <motion.button
+              id="btn-map-compass"
+              type="button"
+              whileTap={{ scale: 0.9, transition: { type: 'spring', stiffness: 500, damping: 14 } }}
+              onClick={() => centerOnUserLocation(true, true)}
+              aria-label="Centralizar na minha localização e ativar bússola em tempo real"
+              className={`w-[53px] h-[53px] sm:w-[58px] sm:h-[58px] rounded-full ios26-liquid-glass flex items-center justify-center transition-colors duration-200 cursor-pointer shrink-0 ${controlTextClass} ${
+                isCompassTracking
+                  ? 'ring-2 ring-[#007AFF]/70'
+                  : isFollowingUser
+                    ? 'ring-2 ring-[#007AFF]/35'
+                    : ''
+              }`}
               style={{ color: controlIconColor }}
             >
-              <CompassIcon
-                size={28}
-                className="w-[26px] h-[26px] sm:w-[29px] sm:h-[29px]"
+              <div
+                ref={compassIconWrapperRef}
+                className="relative z-10 flex items-center justify-center will-change-transform"
                 style={{ color: controlIconColor }}
-              />
-            </div>
-          </motion.button>
+              >
+                <CompassIcon
+                  size={28}
+                  className="w-[26px] h-[26px] sm:w-[29px] sm:h-[29px]"
+                  style={{ color: controlIconColor }}
+                />
+              </div>
+            </motion.button>
+          </motion.div>
 
           {/* Map Layers Toggle */}
-          <motion.button
-            id="btn-map-layers"
-            type="button"
-            whileTap={{ scale: 0.9, transition: { type: 'spring', stiffness: 500, damping: 14 } }}
-            onPointerDown={handleMapLayerButtonPointerDown}
-            onClick={handleCycleMapStyle}
-            aria-label="Alternar camada do mapa"
-            title={currentMode === 'satelite' ? 'Alternar para mapa padrão' : 'Alternar para satélite'}
-            className={`w-[53px] h-[53px] sm:w-[58px] sm:h-[58px] rounded-full ios26-liquid-glass flex items-center justify-center transition-colors duration-200 cursor-pointer shrink-0 ${controlTextClass}`}
-            style={{ color: controlIconColor }}
+          <motion.div
+            initial={{ opacity: 0, y: 18, x: 8, scale: 0.85 }}
+            animate={
+              isRightControlsHidden
+                ? { opacity: 0, y: 12, x: 8, scale: 0.88 }
+                : { opacity: 1, y: 0, x: 0, scale: 1 }
+            }
+            transition={
+              isRightControlsHidden
+                ? { duration: 0.24, ease: [0.32, 0.72, 0, 1] }
+                : { duration: 0.66, delay: 0.26, ease: [0.22, 1, 0.36, 1] }
+            }
+            className="will-change-[transform,opacity]"
           >
-            <MapLayerToggleIcon
-              className="relative z-10 w-[28px] h-[28px] sm:w-[31px] sm:h-[31px]"
+            <motion.button
+              id="btn-map-layers"
+              type="button"
+              whileTap={{ scale: 0.9, transition: { type: 'spring', stiffness: 500, damping: 14 } }}
+              onPointerDown={handleMapLayerButtonPointerDown}
+              onClick={handleCycleMapStyle}
+              aria-label="Alternar camada do mapa"
+              title={currentMode === 'satelite' ? 'Alternar para mapa padrão' : 'Alternar para satélite'}
+              className={`w-[53px] h-[53px] sm:w-[58px] sm:h-[58px] rounded-full ios26-liquid-glass flex items-center justify-center transition-colors duration-200 cursor-pointer shrink-0 ${controlTextClass}`}
               style={{ color: controlIconColor }}
-            />
-          </motion.button>
+            >
+              <MapLayerToggleIcon
+                className="relative z-10 w-[28px] h-[28px] sm:w-[31px] sm:h-[31px]"
+                style={{ color: controlIconColor }}
+              />
+            </motion.button>
+          </motion.div>
           </div>
         </motion.div>
           );
