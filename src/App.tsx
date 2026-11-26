@@ -95,11 +95,8 @@ import {
 } from './utils/pwaGate';
 import { triggerHapticFeedback } from './utils/haptics';
 import { useLanguage } from './contexts/LanguageContext';
-
-// Unauthenticated flow (deactivated and NOT loaded when the user is logged in)
-const AuthScreen = React.lazy(() =>
-  import('./components/AuthScreen').then((m) => ({ default: m.AuthScreen }))
-);
+import { AuthScreen } from './components/AuthScreen';
+import { importWithRetry, lazyWithRetry } from './utils/lazyWithRetry';
 
 // Authenticated core views (single on-demand module: NEVER loaded when logged out,
 // and synchronously available across all tabs once logged in — zero white screen on tab switch)
@@ -109,47 +106,52 @@ let authenticatedViewsPromise: Promise<AuthenticatedViewsModule> | null = null;
 
 function loadAuthenticatedViews(): Promise<AuthenticatedViewsModule> {
   if (!authenticatedViewsPromise) {
-    authenticatedViewsPromise = import('./components/AuthenticatedViews').then((mod) => {
-      cachedAuthenticatedViews = mod;
-      return mod;
-    });
+    authenticatedViewsPromise = importWithRetry(() => import('./components/AuthenticatedViews'))
+      .then((mod) => {
+        cachedAuthenticatedViews = mod;
+        return mod;
+      })
+      .catch((err) => {
+        authenticatedViewsPromise = null;
+        throw err;
+      });
   }
   return authenticatedViewsPromise;
 }
 
 if (typeof window !== 'undefined' && hasSyncSessionToken() && !isIOSBrowserRequiringPwaInstallNow()) {
-  loadAuthenticatedViews();
+  loadAuthenticatedViews().catch(() => {});
 }
 
 // Secondary authenticated tabs — code-split for fast initial map paint, then idle-prefetched so tab switches are instant
-const loadItinerariesView = () => import('./components/ItinerariesView');
-const loadSavedView = () => import('./components/SavedView');
-const loadProfileModal = () => import('./components/ProfileModal');
-const loadSearchFilterDrawer = () => import('./components/SearchFilterDrawer');
-const loadSpotDetailSheet = () => import('./components/SpotDetailSheet');
+const loadItinerariesView = () => importWithRetry(() => import('./components/ItinerariesView'));
+const loadSavedView = () => importWithRetry(() => import('./components/SavedView'));
+const loadProfileModal = () => importWithRetry(() => import('./components/ProfileModal'));
+const loadSearchFilterDrawer = () => importWithRetry(() => import('./components/SearchFilterDrawer'));
+const loadSpotDetailSheet = () => importWithRetry(() => import('./components/SpotDetailSheet'));
 
-const ItinerariesView = React.lazy(() =>
+const ItinerariesView = lazyWithRetry(() =>
   loadItinerariesView().then((m) => ({ default: m.ItinerariesView }))
 );
-const SavedView = React.lazy(() =>
+const SavedView = lazyWithRetry(() =>
   loadSavedView().then((m) => ({ default: m.SavedView }))
 );
-const ProfileModal = React.lazy(() =>
+const ProfileModal = lazyWithRetry(() =>
   loadProfileModal().then((m) => ({ default: m.ProfileModal }))
 );
-const SearchFilterDrawer = React.lazy(() =>
+const SearchFilterDrawer = lazyWithRetry(() =>
   loadSearchFilterDrawer().then((m) => ({ default: m.SearchFilterDrawer }))
 );
-const SpotDetailSheet = React.lazy(() =>
+const SpotDetailSheet = lazyWithRetry(() =>
   loadSpotDetailSheet().then((m) => ({ default: m.SpotDetailSheet }))
 );
 
 // On-demand modals — downloaded ONLY when triggered/enabled
-const PlatanosWalletModal = React.lazy(() =>
+const PlatanosWalletModal = lazyWithRetry(() =>
   import('./components/platanos/PlatanosWalletModal').then((m) => ({ default: m.PlatanosWalletModal }))
 );
 import { WhiteConfettiOverlay } from './components/WhiteConfettiOverlay';
-const ClothingWeatherModal = React.lazy(() =>
+const ClothingWeatherModal = lazyWithRetry(() =>
   import('./components/ClothingWeatherWidget').then((m) => ({ default: m.ClothingWeatherModal }))
 );
 
@@ -158,11 +160,11 @@ function prefetchSecondaryTabsOnIdle() {
   if (hasPrefetchedTabs || typeof window === 'undefined') return;
   hasPrefetchedTabs = true;
   const run = () => {
-    void loadSpotDetailSheet();
-    void loadSearchFilterDrawer();
-    void loadSavedView();
-    void loadProfileModal();
-    void loadItinerariesView();
+    void loadSpotDetailSheet().catch(() => {});
+    void loadSearchFilterDrawer().catch(() => {});
+    void loadSavedView().catch(() => {});
+    void loadProfileModal().catch(() => {});
+    void loadItinerariesView().catch(() => {});
   };
   if (typeof (window as any).requestIdleCallback === 'function') {
     (window as any).requestIdleCallback(run, { timeout: 2200 });
@@ -172,23 +174,23 @@ function prefetchSecondaryTabsOnIdle() {
 }
 
 // Rare flows kept isolated with individual local Suspense boundaries
-const AdminLayout = React.lazy(() =>
+const AdminLayout = lazyWithRetry(() =>
   import('./components/admin/AdminLayout').then((m) => ({ default: m.AdminLayout }))
 );
-const OnboardingFlow = React.lazy(() =>
+const OnboardingFlow = lazyWithRetry(() =>
   import('./components/OnboardingFlow').then((m) => ({ default: m.OnboardingFlow }))
 );
-const SignupIntroSequence = React.lazy(() =>
+const SignupIntroSequence = lazyWithRetry(() =>
   import('./components/SignupIntroSequence').then((m) => ({ default: m.SignupIntroSequence }))
 );
-const FirstSignupWelcomeScreen = React.lazy(() =>
+const FirstSignupWelcomeScreen = lazyWithRetry(() =>
   import('./components/FirstSignupWelcomeScreen').then((m) => ({ default: m.FirstSignupWelcomeScreen }))
 );
-const WelcomeJourneyModal = React.lazy(() =>
+const WelcomeJourneyModal = lazyWithRetry(() =>
   import('./components/WelcomeJourneyModal').then((m) => ({ default: m.WelcomeJourneyModal }))
 );
-const loadMapOnboardingTutorial = () => import('./components/MapOnboardingTutorial');
-const MapOnboardingTutorial = React.lazy(() =>
+const loadMapOnboardingTutorial = () => importWithRetry(() => import('./components/MapOnboardingTutorial'));
+const MapOnboardingTutorial = lazyWithRetry(() =>
   loadMapOnboardingTutorial().then((m) => ({ default: m.MapOnboardingTutorial }))
 );
 
@@ -341,11 +343,13 @@ export default function App() {
       return;
     }
     let cancelled = false;
-    loadAuthenticatedViews().then((mod) => {
-      if (!cancelled) {
-        setAuthenticatedViews(mod);
-      }
-    });
+    loadAuthenticatedViews()
+      .then((mod) => {
+        if (!cancelled) {
+          setAuthenticatedViews(mod);
+        }
+      })
+      .catch(() => {});
     return () => {
       cancelled = true;
     };
@@ -4042,7 +4046,7 @@ export default function App() {
             src={
               theme === 'dark'
                 ? '/logomodoescuro.png'
-                : 'https://gxyqrwebnkbgxqrfdvuj.supabase.co/storage/v1/object/public/monvian-media/app-assets/monvian-logo-dark-49b84fe93ec7ba83.webp'
+                : '/assets/aistudio/monvian_logo_dark_transparent.png'
             }
             alt="Monvian"
             draggable={false}
@@ -5773,12 +5777,9 @@ export default function App() {
             }}
             className="relative h-[40px] px-4 rounded-full flex items-center justify-center gap-1.5 text-[13.5px] font-semibold tracking-[-0.012em] text-[#FFFFFF] cursor-pointer overflow-hidden transition-colors duration-200 hover:bg-[#242426] active:bg-[#2C2C2E]"
             style={{
-              background: 'rgba(23, 23, 23, 0.92)',
+              background: '#171717',
               border: '1px solid rgba(255, 255, 255, 0.14)',
-              boxShadow:
-                '0 8px 24px -4px rgba(0, 0, 0, 0.65), inset 0 1px 0.75px rgba(255, 255, 255, 0.22)',
-              backdropFilter: 'blur(18px) saturate(180%)',
-              WebkitBackdropFilter: 'blur(18px) saturate(180%)',
+              boxShadow: '0 8px 24px -4px rgba(0, 0, 0, 0.65)',
             }}
             aria-label={tr('Pular introdução')}
           >

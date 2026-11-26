@@ -100,30 +100,16 @@ export const GlassView = forwardRef<HTMLElement, GlassViewProps>(
 
     const handlePointerMove = useCallback(
       (e: React.PointerEvent<HTMLDivElement>) => {
-        if (isInteractive) {
-          const el = e.currentTarget;
-          const rect = el.getBoundingClientRect();
-          if (rect.width > 0 && rect.height > 0) {
-            const xPct = Math.max(0, Math.min(100, ((e.clientX - rect.left) / rect.width) * 100));
-            const yPct = Math.max(0, Math.min(100, ((e.clientY - rect.top) / rect.height) * 100));
-            el.style.setProperty('--glass-pointer-x', `${xPct.toFixed(1)}%`);
-            el.style.setProperty('--glass-pointer-y', `${yPct.toFixed(1)}%`);
-            el.style.setProperty('--glass-sheen-opacity', '1');
-          }
-        }
         onPointerMove?.(e);
       },
-      [isInteractive, onPointerMove]
+      [onPointerMove]
     );
 
     const handlePointerLeave = useCallback(
       (e: React.PointerEvent<HTMLDivElement>) => {
-        if (isInteractive) {
-          e.currentTarget.style.setProperty('--glass-sheen-opacity', '0');
-        }
         onPointerLeave?.(e);
       },
-      [isInteractive, onPointerLeave]
+      [onPointerLeave]
     );
 
     const mergedStyle: React.CSSProperties = tintColor

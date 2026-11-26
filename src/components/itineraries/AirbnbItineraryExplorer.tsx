@@ -296,7 +296,7 @@ const FeaturedItineraryBanner: React.FC<FeaturedItineraryBannerProps> = ({
         {/* Touca de Natal exclusiva do Roteiro em Destaque com animação de entrada e interação ao toque */}
         <motion.img
           key={`hat-${itinerary.id}-${category}-${hatTapCount}`}
-          src="https://gxyqrwebnkbgxqrfdvuj.supabase.co/storage/v1/object/public/monvian-media/app-assets/itinerary-explorer-icon-5dc56fd5b017766c.webp"
+          src="/assets/aistudio/IMG_9114_2aef8105.png"
           alt="Gorro de Natal"
           loading="lazy"
           decoding="async"

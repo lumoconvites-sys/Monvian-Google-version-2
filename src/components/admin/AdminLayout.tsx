@@ -17,29 +17,30 @@ import {
   User as UserIcon,
 } from 'lucide-react';
 import { useIOSBackEntry } from '../../services/iosNavigationManager';
+import { lazyWithRetry } from '../../utils/lazyWithRetry';
 
-const AdminDashboard = React.lazy(() =>
+const AdminDashboard = lazyWithRetry(() =>
   import('./AdminDashboard').then((m) => ({ default: m.AdminDashboard }))
 );
-const AdminSpots = React.lazy(() =>
+const AdminSpots = lazyWithRetry(() =>
   import('./AdminSpots').then((m) => ({ default: m.AdminSpots }))
 );
-const AdminUsers = React.lazy(() =>
+const AdminUsers = lazyWithRetry(() =>
   import('./AdminUsers').then((m) => ({ default: m.AdminUsers }))
 );
-const AdminSettings = React.lazy(() =>
+const AdminSettings = lazyWithRetry(() =>
   import('./AdminSettings').then((m) => ({ default: m.AdminSettings }))
 );
-const AdminItineraries = React.lazy(() =>
+const AdminItineraries = lazyWithRetry(() =>
   import('./AdminItineraries').then((m) => ({ default: m.AdminItineraries }))
 );
-const AdminServices = React.lazy(() =>
+const AdminServices = lazyWithRetry(() =>
   import('./AdminServices').then((m) => ({ default: m.AdminServices }))
 );
-const AdminPlatanos = React.lazy(() =>
+const AdminPlatanos = lazyWithRetry(() =>
   import('./AdminPlatanos').then((m) => ({ default: m.AdminPlatanos }))
 );
-const AdminStopIcons = React.lazy(() =>
+const AdminStopIcons = lazyWithRetry(() =>
   import('./AdminStopIcons').then((m) => ({ default: m.AdminStopIcons }))
 );
 import {

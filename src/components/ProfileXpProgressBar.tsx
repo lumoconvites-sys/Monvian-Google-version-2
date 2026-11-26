@@ -70,7 +70,7 @@ export const ProfileXpProgressBar: React.FC<ProfileXpProgressBarProps> = ({ isDa
         <div className="flex items-center justify-between gap-2 mb-2.5">
           <div className="flex items-center gap-2 min-w-0">
             <img
-              src="https://gxyqrwebnkbgxqrfdvuj.supabase.co/storage/v1/object/public/monvian-media/app-assets/xp-badge-icon-1209b807e34e68a6.webp"
+              src="/assets/aistudio/image-x7AMcdc77bLjrT7fLhP52TPpyoaLvY_64ba28fe.png"
               alt={tr('Troféu')}
               loading="lazy"
               decoding="async"

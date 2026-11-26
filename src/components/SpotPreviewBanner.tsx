@@ -115,8 +115,8 @@ export const SpotPreviewBanner: React.FC<SpotPreviewBannerProps> = ({
   };
 
   const infoCardSurfaceClass = useWhiteText
-    ? 'bg-[#171717]/95 text-[#FFFFFF] border border-white/[0.10] shadow-[0_10px_28px_-6px_rgba(0,0,0,0.45),0_2px_6px_-1px_rgba(0,0,0,0.28)]'
-    : 'bg-[#FFFFFF]/96 text-[#000000] border border-black/[0.06] shadow-[0_8px_24px_-6px_rgba(0,0,0,0.12),0_2px_6px_-1px_rgba(0,0,0,0.05)]';
+    ? 'bg-[#171717] text-[#FFFFFF] border border-white/[0.10] shadow-[0_10px_28px_-6px_rgba(0,0,0,0.45),0_2px_6px_-1px_rgba(0,0,0,0.28)]'
+    : 'bg-[#FFFFFF] text-[#000000] border border-black/[0.08] shadow-[0_8px_24px_-6px_rgba(0,0,0,0.12),0_2px_6px_-1px_rgba(0,0,0,0.05)]';
 
   const infoCardMutedTextClass = useWhiteText
     ? 'text-[#A1A1AA]'
@@ -192,7 +192,7 @@ export const SpotPreviewBanner: React.FC<SpotPreviewBannerProps> = ({
                   onOpenDetails(spot);
                 }}
                 aria-label={`Funcionamento: ${hoursCard.primary}${hoursCard.secondary ? `, ${hoursCard.secondary}` : ''}`}
-                className={`group flex flex-col justify-between text-left rounded-[24px] px-4 py-3.5 backdrop-blur-md pointer-events-auto cursor-pointer transition-transform duration-150 ease-out active:scale-[0.98] motion-reduce:transition-none ${infoCardSurfaceClass}`}
+                className={`group flex flex-col justify-between text-left rounded-[24px] px-4 py-3.5 pointer-events-auto cursor-pointer transition-transform duration-150 ease-out active:scale-[0.98] motion-reduce:transition-none ${infoCardSurfaceClass}`}
               >
                 <div className="flex items-center gap-2 min-w-0">
                   <Clock
@@ -236,7 +236,7 @@ export const SpotPreviewBanner: React.FC<SpotPreviewBannerProps> = ({
                   onOpenDetails(spot);
                 }}
                 aria-label={`Entrada: ${priceCard.primary}${priceCard.secondary ? `, ${priceCard.secondary}` : ''}`}
-                className={`group flex flex-col justify-between text-left rounded-[24px] px-4 py-3.5 backdrop-blur-md pointer-events-auto cursor-pointer transition-transform duration-150 ease-out active:scale-[0.98] motion-reduce:transition-none ${infoCardSurfaceClass}`}
+                className={`group flex flex-col justify-between text-left rounded-[24px] px-4 py-3.5 pointer-events-auto cursor-pointer transition-transform duration-150 ease-out active:scale-[0.98] motion-reduce:transition-none ${infoCardSurfaceClass}`}
               >
                 <div className="flex items-center gap-2 min-w-0">
                   <Ticket

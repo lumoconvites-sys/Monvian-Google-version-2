@@ -68,8 +68,61 @@ export const isSupabaseConfigured = Boolean(supabaseUrl && supabaseAnonKey);
 
 const authStorage = typeof window !== 'undefined' ? createSupabaseIndexedDBStorage() : undefined;
 
+const QUOTA_CIRCUIT_KEY = 'monvian_sb_quota_restricted_until';
+const QUOTA_COOLDOWN_MS = 3 * 60 * 1000;
+let memoryQuotaRestrictedUntil = 0;
+
+function isQuotaCircuitOpen(): boolean {
+  const now = Date.now();
+  if (memoryQuotaRestrictedUntil > now) return true;
+  if (typeof window !== 'undefined') {
+    try {
+      const stored = Number(sessionStorage.getItem(QUOTA_CIRCUIT_KEY) || '0');
+      if (stored > now) {
+        memoryQuotaRestrictedUntil = stored;
+        return true;
+      }
+    } catch {}
+  }
+  return false;
+}
+
+function tripQuotaCircuit(): void {
+  const until = Date.now() + QUOTA_COOLDOWN_MS;
+  memoryQuotaRestrictedUntil = until;
+  if (typeof window !== 'undefined') {
+    try {
+      sessionStorage.setItem(QUOTA_CIRCUIT_KEY, String(until));
+    } catch {}
+  }
+}
+
+const supabaseResilientFetch: typeof fetch = async (input, init) => {
+  if (isQuotaCircuitOpen()) {
+    return new Response(
+      JSON.stringify({
+        message: 'Supabase project temporarily restricted (cached circuit breaker)',
+        code: 'exceed_cached_egress_quota',
+      }),
+      {
+        status: 402,
+        headers: { 'Content-Type': 'application/json' },
+      }
+    );
+  }
+
+  const response = await fetch(input, init);
+  if (response.status === 402) {
+    tripQuotaCircuit();
+  }
+  return response;
+};
+
 export const supabase = isSupabaseConfigured
   ? createClient(supabaseUrl, supabaseAnonKey, {
+      global: {
+        fetch: supabaseResilientFetch,
+      },
       auth: {
         persistSession: true,
         autoRefreshToken: true,
@@ -82,6 +135,9 @@ export const supabase = isSupabaseConfigured
 
 export const supabaseCommunityClient = isSupabaseConfigured
   ? createClient(supabaseUrl, supabaseAnonKey, {
+      global: {
+        fetch: supabaseResilientFetch,
+      },
       auth: {
         persistSession: false,
         autoRefreshToken: false,

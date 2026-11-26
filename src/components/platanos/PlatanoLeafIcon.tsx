@@ -8,7 +8,7 @@ interface PlatanoLeafIconProps {
 }
 
 export const PLATANO_LEAF_3D_ICON_SRC =
-  'https://gxyqrwebnkbgxqrfdvuj.supabase.co/storage/v1/object/public/monvian-media/app-assets/platano-leaf-3d-9f9883a687393e52.webp';
+  '/assets/aistudio/IMG_0028_9f9883a6.png';
 
 /**
  * Símbolo 3D oficial dos Plátanos (Folha de Plátano de Campos do Jordão)

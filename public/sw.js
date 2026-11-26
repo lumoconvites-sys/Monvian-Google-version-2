@@ -1,12 +1,10 @@
 // Monvian PWA Service Worker - Offline Caching Engine for Spots & Assets
-const STATIC_CACHE = 'monvian-static-v10';
-const API_CACHE = 'monvian-api-v8';
-const IMAGES_CACHE = 'monvian-images-v8';
+const STATIC_CACHE = 'monvian-static-v12';
+const API_CACHE = 'monvian-api-v10';
+const IMAGES_CACHE = 'monvian-images-v10';
 const MAX_IMAGE_CACHE_ENTRIES = 120;
 
 const PRECACHE_ASSETS = [
-  '/',
-  '/index.html',
   '/manifest.json',
   '/apple-touch-icon.png',
   '/pwa-192x192.png',
@@ -211,14 +209,23 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
-  // 5. Navigation / HTML requests (Network-First with Index.html Fallback)
-  if (request.mode === 'navigate') {
+  // 5. Navigation / HTML requests (Always Network-First so new deployments on Vercel take effect immediately)
+  if (
+    request.mode === 'navigate' ||
+    request.destination === 'document' ||
+    url.pathname === '/' ||
+    url.pathname === '/index.html'
+  ) {
     event.respondWith(
-      fetch(request)
+      fetch(request, { cache: 'no-cache' })
         .then((response) => {
           if (response && response.status === 200) {
-            const clone = response.clone();
-            caches.open(STATIC_CACHE).then((cache) => cache.put(request, clone));
+            const cloneForRoot = response.clone();
+            const cloneForIndex = response.clone();
+            caches.open(STATIC_CACHE).then((cache) => {
+              cache.put('/', cloneForRoot);
+              cache.put('/index.html', cloneForIndex);
+            });
           }
           return response;
         })
@@ -231,17 +238,32 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
-  // 6. Immutable Vite Hashed Assets (Cache-First for instant repeat navigation)
+  // 6. Immutable Vite Hashed Assets (Cache-First with MIME validation so 404 HTML is never cached as JS/CSS)
   if (url.origin === self.location.origin && url.pathname.startsWith('/assets/')) {
     event.respondWith(
       caches.open(STATIC_CACHE).then(async (cache) => {
         const cached = await cache.match(request);
-        if (cached) return cached;
-        const networkResponse = await fetch(request);
-        if (networkResponse && networkResponse.status === 200) {
-          cache.put(request, networkResponse.clone());
+        if (cached) {
+          const cachedType = (cached.headers.get('content-type') || '').toLowerCase();
+          const isJsOrCss = /\.(js|mjs|css)$/i.test(url.pathname);
+          if (!isJsOrCss || !cachedType.includes('text/html')) {
+            return cached;
+          }
+          await cache.delete(request);
         }
-        return networkResponse;
+        try {
+          const networkResponse = await fetch(request);
+          if (networkResponse && networkResponse.status === 200) {
+            const contentType = (networkResponse.headers.get('content-type') || '').toLowerCase();
+            const isJsOrCss = /\.(js|mjs|css)$/i.test(url.pathname);
+            if (!isJsOrCss || !contentType.includes('text/html')) {
+              cache.put(request, networkResponse.clone());
+            }
+          }
+          return networkResponse;
+        } catch {
+          return new Response(null, { status: 504 });
+        }
       })
     );
     return;
@@ -258,7 +280,7 @@ self.addEventListener('fetch', (event) => {
           }
           return networkResponse;
         })
-        .catch(() => cachedResponse);
+        .catch(() => cachedResponse || new Response(null, { status: 504 }));
 
       return cachedResponse || fetchPromise;
     })

@@ -105,42 +105,30 @@ export const SelectModeOverlay: React.FC<SelectModeOverlayProps> = memo(
 
     const topCapsuleStyle: React.CSSProperties = isDark
       ? {
-          background:
-            'linear-gradient(160deg, rgba(32, 32, 36, 0.72) 0%, rgba(18, 18, 20, 0.64) 100%)',
-          backdropFilter: 'blur(26px) saturate(165%)',
-          WebkitBackdropFilter: 'blur(26px) saturate(165%)',
-          border: '1px solid rgba(255, 255, 255, 0.16)',
+          backgroundColor: '#171717',
+          border: '1px solid rgba(255, 255, 255, 0.12)',
           boxShadow:
-            '0 14px 34px -6px rgba(0, 0, 0, 0.62), 0 3px 10px -2px rgba(0, 0, 0, 0.36), inset 0 1px 0 rgba(255, 255, 255, 0.22), inset 0 -1px 0 rgba(255, 255, 255, 0.05)',
+            '0 10px 28px rgba(0, 0, 0, 0.55), 0 2px 8px rgba(0, 0, 0, 0.35)',
         }
       : {
-          background:
-            'linear-gradient(160deg, rgba(255, 255, 255, 0.76) 0%, rgba(246, 246, 248, 0.66) 100%)',
-          backdropFilter: 'blur(26px) saturate(190%)',
-          WebkitBackdropFilter: 'blur(26px) saturate(190%)',
-          border: '1px solid rgba(255, 255, 255, 0.78)',
+          backgroundColor: '#FFFFFF',
+          border: '1px solid rgba(0, 0, 0, 0.08)',
           boxShadow:
-            '0 14px 32px -6px rgba(0, 0, 0, 0.18), 0 3px 10px -2px rgba(0, 0, 0, 0.08), 0 0 0 0.5px rgba(0, 0, 0, 0.07), inset 0 1.5px 1px rgba(255, 255, 255, 0.94), inset 0 -1px 1px rgba(255, 255, 255, 0.42)',
+            '0 8px 24px rgba(0, 0, 0, 0.10), 0 2px 6px rgba(0, 0, 0, 0.05)',
         };
 
     const bottomTrayStyle: React.CSSProperties = isDark
       ? {
-          background:
-            'linear-gradient(168deg, rgba(30, 30, 34, 0.78) 0%, rgba(17, 17, 19, 0.72) 100%)',
-          backdropFilter: 'blur(32px) saturate(165%)',
-          WebkitBackdropFilter: 'blur(32px) saturate(165%)',
-          border: '1px solid rgba(255, 255, 255, 0.15)',
+          backgroundColor: '#171717',
+          border: '1px solid rgba(255, 255, 255, 0.12)',
           boxShadow:
-            '0 22px 48px -8px rgba(0, 0, 0, 0.74), 0 -6px 24px -6px rgba(0, 0, 0, 0.38), -10px 4px 26px -8px rgba(0, 0, 0, 0.40), 10px 4px 26px -8px rgba(0, 0, 0, 0.40), inset 0 1px 0 rgba(255, 255, 255, 0.20), inset 0 -1px 0 rgba(255, 255, 255, 0.05)',
+            '0 16px 38px rgba(0, 0, 0, 0.65), 0 4px 12px rgba(0, 0, 0, 0.40)',
         }
       : {
-          background:
-            'linear-gradient(168deg, rgba(255, 255, 255, 0.78) 0%, rgba(246, 246, 248, 0.68) 100%)',
-          backdropFilter: 'blur(32px) saturate(195%)',
-          WebkitBackdropFilter: 'blur(32px) saturate(195%)',
-          border: '1px solid rgba(255, 255, 255, 0.76)',
+          backgroundColor: '#FFFFFF',
+          border: '1px solid rgba(0, 0, 0, 0.08)',
           boxShadow:
-            '0 20px 46px -8px rgba(0, 0, 0, 0.22), 0 -6px 24px -6px rgba(0, 0, 0, 0.08), -10px 4px 26px -8px rgba(0, 0, 0, 0.09), 10px 4px 26px -8px rgba(0, 0, 0, 0.09), 0 0 0 0.5px rgba(0, 0, 0, 0.07), inset 0 1.5px 1px rgba(255, 255, 255, 0.94), inset 0 -1px 1px rgba(255, 255, 255, 0.40)',
+            '0 12px 32px rgba(0, 0, 0, 0.12), 0 3px 8px rgba(0, 0, 0, 0.06)',
         };
 
     return (
@@ -188,18 +176,12 @@ export const SelectModeOverlay: React.FC<SelectModeOverlayProps> = memo(
             }`}
             style={topCapsuleStyle}
           >
-            {/* Subtle optical glass top refraction sheen */}
-            <span
-              aria-hidden="true"
-              className="pointer-events-none absolute inset-x-3 top-[1px] h-[44%] rounded-full bg-gradient-to-b from-white/50 to-transparent dark:from-white/[0.12]"
-            />
-
             {/* Integrated circular location icon medallion */}
             <span
               className={`relative z-[1] w-9 h-9 rounded-full shrink-0 flex items-center justify-center border ${
                 isDark
-                  ? 'bg-white/[0.12] border-white/[0.16] text-white shadow-[inset_0_1px_1px_rgba(255,255,255,0.18),0_2px_6px_rgba(0,0,0,0.3)]'
-                  : 'bg-black/[0.055] border-black/[0.06] text-[#000000] shadow-[inset_0_1px_2px_rgba(0,0,0,0.06),0_1px_0_rgba(255,255,255,0.7)]'
+                  ? 'bg-[#262629] border-white/[0.10] text-white'
+                  : 'bg-[#F2F2F2] border-black/[0.06] text-[#000000]'
               }`}
             >
               <MapPin className="w-[17px] h-[17px] stroke-[2.2]" />
@@ -256,12 +238,6 @@ export const SelectModeOverlay: React.FC<SelectModeOverlayProps> = memo(
             }`}
             style={bottomTrayStyle}
           >
-            {/* Subtle specular rim sheen across top curve */}
-            <span
-              aria-hidden="true"
-              className="pointer-events-none absolute inset-x-5 top-[1px] h-[1px] rounded-full bg-gradient-to-r from-transparent via-white/90 to-transparent dark:via-white/25"
-            />
-
             {/* Integrated Top Grabber Handle */}
             <div className="w-full flex justify-center pt-2.5 pb-1">
               <span
@@ -285,8 +261,8 @@ export const SelectModeOverlay: React.FC<SelectModeOverlayProps> = memo(
                       onClick={() => onRemoveSpot?.(spot.id)}
                       className={`group relative shrink-0 flex items-center gap-2.5 pl-1.5 pr-3.5 py-1.5 rounded-full border cursor-pointer transition-colors duration-150 ${
                         isDark
-                          ? 'bg-white/[0.08] hover:bg-white/[0.13] border-white/[0.11] text-white shadow-[0_4px_12px_rgba(0,0,0,0.28),inset_0_1px_0_rgba(255,255,255,0.10)]'
-                          : 'bg-white/60 hover:bg-white/85 border-black/[0.06] text-[#000000] shadow-[0_3px_10px_rgba(0,0,0,0.05),inset_0_1px_0_rgba(255,255,255,0.8)]'
+                          ? 'bg-[#262629] hover:bg-[#2E2E32] border-white/[0.10] text-white'
+                          : 'bg-[#F2F2F2] hover:bg-[#E8E8ED] border-black/[0.06] text-[#000000]'
                       }`}
                       title={`Toque para remover ${spot.name}`}
                     >

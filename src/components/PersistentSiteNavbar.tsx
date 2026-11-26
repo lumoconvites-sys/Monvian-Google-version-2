@@ -122,27 +122,26 @@ export const PersistentSiteNavbar: React.FC<PersistentSiteNavbarProps> = ({
       <style>{`
         .monvian-glass-nav {
           border-radius: 999px;
-          background: rgba(255, 255, 255, 0.42);
-          backdrop-filter: blur(32px) saturate(190%);
-          -webkit-backdrop-filter: blur(32px) saturate(190%);
-          border: 1px solid rgba(255, 255, 255, 0.65);
-          box-shadow: 
-            0 12px 36px rgba(0, 0, 0, 0.16),
-            inset 0 0 0 1px rgba(255, 255, 255, 0.4);
+          background: #171717;
+          backdrop-filter: none;
+          -webkit-backdrop-filter: none;
+          border: 1px solid rgba(255, 255, 255, 0.10);
+          box-shadow: 0 8px 24px -4px rgba(0, 0, 0, 0.45);
           color: #FFFFFF;
           transform: translate3d(0, 0, 0);
-          transition: background 0.3s ease, border-color 0.3s ease, color 0.3s ease, box-shadow 0.3s ease;
+          transition: background-color 0.25s ease, border-color 0.25s ease, color 0.25s ease, box-shadow 0.25s ease;
         }
         .monvian-glass-nav[data-nav-theme='dark'] {
+          background: #171717;
+          border: 1px solid rgba(255, 255, 255, 0.10);
+          box-shadow: 0 8px 24px -4px rgba(0, 0, 0, 0.45);
           color: #FFFFFF;
         }
         .monvian-glass-nav[data-nav-theme='light'] {
           color: #000000;
-          background: rgba(255, 255, 255, 0.78);
-          border: 1px solid rgba(0, 0, 0, 0.1);
-          box-shadow: 
-            0 12px 36px rgba(10, 28, 56, 0.14),
-            inset 0 0 0 1px rgba(255, 255, 255, 0.8);
+          background: #FFFFFF;
+          border: 1px solid rgba(0, 0, 0, 0.08);
+          box-shadow: 0 6px 20px -4px rgba(0, 0, 0, 0.10), 0 1px 2px rgba(0, 0, 0, 0.04);
         }
         .monvian-glass-nav[data-nav-theme='dark'] button {
           color: #FFFFFF;
@@ -241,15 +240,13 @@ export const PersistentSiteNavbar: React.FC<PersistentSiteNavbarProps> = ({
               transition={{ duration: 0.2, ease: [0.22, 1, 0.36, 1] }}
               style={{
                 transformOrigin: 'top right',
-                backgroundColor: isDark ? 'rgba(22, 28, 42, 0.92)' : 'rgba(255, 255, 255, 0.92)',
-                backdropFilter: 'blur(24px) saturate(180%)',
-                WebkitBackdropFilter: 'blur(24px) saturate(180%)',
+                backgroundColor: isDark ? '#171717' : '#FFFFFF',
                 fontFamily: "'-apple-system', BlinkMacSystemFont, 'SF Pro Text', sans-serif",
               }}
               className={`absolute right-0 top-full mt-2.5 w-[184px] max-w-[calc(100vw-32px)] rounded-[20px] border overflow-hidden pointer-events-auto ${
                 isDark
-                  ? 'border-white/20 shadow-[0_18px_44px_rgba(0,0,0,0.7)]'
-                  : 'border-white/90 shadow-[0_16px_38px_rgba(10,28,56,0.22),0_2px_8px_rgba(0,0,0,0.06)]'
+                  ? 'border-white/10 shadow-[0_14px_34px_rgba(0,0,0,0.65)]'
+                  : 'border-black/10 shadow-[0_12px_30px_rgba(0,0,0,0.14),0_2px_6px_rgba(0,0,0,0.04)]'
               }`}
             >
               {(
@@ -279,7 +276,7 @@ export const PersistentSiteNavbar: React.FC<PersistentSiteNavbarProps> = ({
                     className={`w-full px-4 py-3 flex items-center gap-3 text-left text-[14px] font-medium transition-colors cursor-pointer ${
                       isDark
                         ? 'text-[#FFFFFF] hover:bg-white/[0.08] active:bg-white/[0.12]'
-                        : 'text-[#0F172A] hover:bg-black/[0.04] active:bg-black/[0.08]'
+                        : 'text-[#000000] hover:bg-black/[0.04] active:bg-black/[0.08]'
                     }`}
                   >
                     <span className="w-[24px] h-[24px] rounded-full overflow-hidden shrink-0 shadow-[0_1px_4px_rgba(0,0,0,0.16)]">

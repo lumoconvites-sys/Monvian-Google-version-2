@@ -236,6 +236,251 @@ async function queryFirestoreCollectionByFieldServerless(
   }
 }
 
+async function listFirestoreCollectionServerless(
+  collectionName: string,
+  pageSize = 200
+): Promise<Record<string, any>[]> {
+  const url = `${getFirestoreBaseUrlServerless()}/${encodeURIComponent(collectionName)}?pageSize=${pageSize}`;
+  try {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 3500);
+    const resp = await fetch(url, { method: 'GET', signal: controller.signal });
+    clearTimeout(timer);
+    if (!resp.ok) return [];
+    const json: any = await resp.json();
+    const docs = Array.isArray(json?.documents) ? json.documents : [];
+    return docs
+      .filter((d: any) => d?.fields)
+      .map((d: any) => {
+        const parsed = fromFirestoreFieldsServerless(d.fields);
+        if (!parsed.id && typeof d.name === 'string') {
+          const parts = d.name.split('/');
+          parsed.id = parts[parts.length - 1];
+        }
+        return parsed;
+      });
+  } catch {
+    return [];
+  }
+}
+
+async function deleteFirestoreDocServerless(
+  collectionName: string,
+  docId: string
+): Promise<boolean> {
+  const cleanId = String(docId || '').trim();
+  if (!cleanId) return false;
+  const url = `${getFirestoreBaseUrlServerless()}/${encodeURIComponent(collectionName)}/${encodeURIComponent(cleanId)}`;
+  try {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 3500);
+    const resp = await fetch(url, { method: 'DELETE', signal: controller.signal });
+    clearTimeout(timer);
+    return resp.ok;
+  } catch {
+    return false;
+  }
+}
+
+function mapSpotToDbRowServerless(s: any): Record<string, any> {
+  const galleryArr = Array.isArray(s.gallery)
+    ? s.gallery
+    : typeof s.gallery === 'string' && s.gallery.startsWith('[')
+      ? (() => {
+          try {
+            return JSON.parse(s.gallery);
+          } catch {
+            return [s.image];
+          }
+        })()
+      : s.image
+        ? [s.image]
+        : [];
+  return {
+    id: String(s.id),
+    name: String(s.name || ''),
+    short_name: String(s.shortName || s.short_name || s.name || ''),
+    category: String(s.category || 'culture'),
+    category_label: String(s.categoryLabel || s.category_label || s.category || ''),
+    description: String(s.description || ''),
+    address: String(s.address || 'Campos do Jordão, SP'),
+    hours: String(s.hours || '09:00 às 18:00'),
+    price_range: String(s.priceRange || s.price_range || '$$'),
+    price: String(s.price || 'Entrada Gratuita'),
+    rating: Number(s.rating || 4.8),
+    image: String(s.image || (galleryArr[0] ?? '')),
+    gallery: JSON.stringify(galleryArr),
+    lat: Number(s.lat ?? -22.7192),
+    lng: Number(s.lng ?? -45.5669),
+    highlighted: s.highlighted || s.is_star ? 1 : 0,
+    is_star: s.highlighted || s.is_star ? 1 : 0,
+    is_active: s.is_active !== undefined ? Number(s.is_active) : 1,
+    tourist_tip: String(s.touristTip || s.tourist_tip || ''),
+    phone: String(s.phone || s.whatsapp || ''),
+    instagram: String(s.instagram || ''),
+    website: String(s.website || ''),
+  };
+}
+
+async function buildFallbackSpotsServerless(includeInactive = false): Promise<any[]> {
+  const byId = new Map<string, any>();
+  for (const s of CAMPOS_SPOTS) {
+    const row = mapSpotToDbRowServerless(s);
+    byId.set(row.id, row);
+  }
+  try {
+    const fsSpots = await listFirestoreCollectionServerless('spots', 250);
+    for (const fsSpot of fsSpots) {
+      if (!fsSpot?.id) continue;
+      if (fsSpot.is_deleted === 1 || fsSpot.isDeleted === true) {
+        byId.delete(String(fsSpot.id));
+        continue;
+      }
+      const merged = mapSpotToDbRowServerless({ ...(byId.get(String(fsSpot.id)) || {}), ...fsSpot });
+      byId.set(merged.id, merged);
+    }
+  } catch {}
+  const list = Array.from(byId.values());
+  const filtered = includeInactive ? list : list.filter((r) => Number(r.is_active ?? 1) !== 0);
+  return filtered.sort((a, b) => String(a.name || '').localeCompare(String(b.name || '')));
+}
+
+async function buildFallbackItinerariesServerless(includeInactive = false): Promise<any[]> {
+  const byId = new Map<string, any>();
+  DEFAULT_CURATED_ITINERARIES.forEach((it: any, idx: number) => {
+    const isFree =
+      it.id === 'roteiro-classico-2-dias' ||
+      it.id === 'roteiro-bate-volta-essencial' ||
+      it.isPremium === false;
+    byId.set(String(it.id), {
+      ...it,
+      id: String(it.id),
+      title: String(it.title || ''),
+      description: String(it.description || ''),
+      coverImage: String(it.coverImage || it.cover_image || ''),
+      daysCount: Number(it.daysCount || it.days?.length || 1),
+      categories: Array.isArray(it.categories) ? it.categories : ['Destaques'],
+      isActive: it.isActive !== false,
+      isRecommended: Boolean(it.isRecommended ?? it.isFeatured ?? idx === 0),
+      isFeatured: Boolean(it.isFeatured ?? it.isRecommended ?? idx === 0),
+      isPremium: !isFree,
+      price: isFree ? 'Grátis' : String(it.price || '15 Plátanos'),
+      status: it.status || 'published',
+      badgeText: it.badgeText || (isFree ? 'Grátis' : 'Premium'),
+      showBadge: it.showBadge !== false,
+      showPrice: it.showPrice !== false,
+      showStopsCount: it.showStopsCount !== false,
+      tips: String(it.tips || it.notes || ''),
+      sortOrder: Number(it.sortOrder ?? idx),
+      usageCount: Number(it.usageCount || 0),
+      notes: String(it.notes || it.tips || ''),
+      days: Array.isArray(it.days) ? it.days : [],
+    });
+  });
+
+  try {
+    const fsItins = await listFirestoreCollectionServerless('itineraries', 100);
+    for (const fsIt of fsItins) {
+      if (!fsIt?.id) continue;
+      if (fsIt.is_deleted === 1 || fsIt.isDeleted === true) {
+        byId.delete(String(fsIt.id));
+        continue;
+      }
+      const existing = byId.get(String(fsIt.id)) || {};
+      let cats = fsIt.categories ?? existing.categories ?? [];
+      if (typeof cats === 'string') {
+        try {
+          cats = JSON.parse(cats);
+        } catch {
+          cats = cats.split(',').map((c: string) => c.trim()).filter(Boolean);
+        }
+      }
+      let days = fsIt.days ?? existing.days ?? [];
+      if (typeof days === 'string') {
+        try {
+          days = JSON.parse(days);
+        } catch {
+          days = existing.days || [];
+        }
+      }
+      byId.set(String(fsIt.id), {
+        ...existing,
+        ...fsIt,
+        id: String(fsIt.id),
+        title: String(fsIt.title || existing.title || 'Roteiro'),
+        description: String(fsIt.description ?? existing.description ?? ''),
+        coverImage: String(fsIt.coverImage || fsIt.cover_image || existing.coverImage || ''),
+        daysCount: Number(fsIt.daysCount || fsIt.days_count || (Array.isArray(days) ? days.length : 1) || 1),
+        categories: Array.isArray(cats) ? cats : [],
+        isActive:
+          fsIt.isActive !== undefined
+            ? Boolean(fsIt.isActive)
+            : fsIt.is_active !== undefined
+              ? Number(fsIt.is_active) === 1
+              : true,
+        isRecommended:
+          fsIt.isRecommended !== undefined
+            ? Boolean(fsIt.isRecommended)
+            : fsIt.is_recommended !== undefined
+              ? Number(fsIt.is_recommended) === 1
+              : Boolean(existing.isRecommended),
+        isFeatured:
+          fsIt.isFeatured !== undefined
+            ? Boolean(fsIt.isFeatured)
+            : fsIt.is_featured !== undefined
+              ? Number(fsIt.is_featured) === 1
+              : Boolean(existing.isFeatured),
+        isPremium:
+          fsIt.isPremium !== undefined
+            ? Boolean(fsIt.isPremium)
+            : fsIt.is_premium !== undefined
+              ? Number(fsIt.is_premium) === 1
+              : Boolean(existing.isPremium),
+        price: String(fsIt.price || existing.price || '15 Plátanos'),
+        status: String(fsIt.status || existing.status || 'published'),
+        badgeText: String(fsIt.badgeText || fsIt.badge_text || existing.badgeText || 'Premium'),
+        showBadge:
+          fsIt.showBadge !== undefined
+            ? Boolean(fsIt.showBadge)
+            : fsIt.show_badge !== undefined
+              ? Number(fsIt.show_badge) === 1
+              : true,
+        showPrice:
+          fsIt.showPrice !== undefined
+            ? Boolean(fsIt.showPrice)
+            : fsIt.show_price !== undefined
+              ? Number(fsIt.show_price) === 1
+              : true,
+        showStopsCount:
+          fsIt.showStopsCount !== undefined
+            ? Boolean(fsIt.showStopsCount)
+            : fsIt.show_stops_count !== undefined
+              ? Number(fsIt.show_stops_count) === 1
+              : true,
+        tips: String(fsIt.tips || fsIt.notes || existing.tips || ''),
+        sortOrder: Number(fsIt.sortOrder ?? fsIt.sort_order ?? existing.sortOrder ?? 0),
+        usageCount: Number(fsIt.usageCount ?? fsIt.usage_count ?? existing.usageCount ?? 0),
+        notes: String(fsIt.notes || fsIt.tips || existing.notes || ''),
+        days: Array.isArray(days) ? days : [],
+      });
+    }
+  } catch {}
+
+  const list = Array.from(byId.values());
+  const filtered = includeInactive ? list : list.filter((it) => it.isActive !== false);
+  return filtered.sort((a, b) => Number(a.sortOrder || 0) - Number(b.sortOrder || 0));
+}
+
+const DEFAULT_ITINERARY_CATEGORIES_SERVERLESS = [
+  { id: 'cat-todos', name: 'Todos', slug: 'todos', icon: 'Sparkles', sort_order: 0, is_active: 1 },
+  { id: 'cat-gratuitos', name: 'Gratuitos', slug: 'gratuitos', icon: 'Gift', sort_order: 1, is_active: 1 },
+  { id: 'cat-casais', name: 'Casais & Romance', slug: 'casais', icon: 'Heart', sort_order: 2, is_active: 1 },
+  { id: 'cat-gastronomia', name: 'Gastronomia', slug: 'gastronomia', icon: 'Utensils', sort_order: 3, is_active: 1 },
+  { id: 'cat-natureza', name: 'Natureza & Aventura', slug: 'natureza', icon: 'Trees', sort_order: 4, is_active: 1 },
+  { id: 'cat-familia', name: 'Em Família', slug: 'familia', icon: 'Users', sort_order: 5, is_active: 1 },
+  { id: 'cat-bate-volta', name: '1 Dia / Bate e Volta', slug: '1-dia', icon: 'Clock', sort_order: 6, is_active: 1 },
+];
+
 function deriveDeterministicUserId(emailOrId: string): number {
   const clean = String(emailOrId || '').trim().toLowerCase();
   if (isPrimaryAdmin(clean)) return 75;
@@ -372,7 +617,33 @@ const resolveValidServiceKey = (anonKey: string): string => {
 
 const supabaseServiceKey = resolveValidServiceKey(supabaseAnonKey);
 
+let serverlessSupabaseQuotaRestrictedUntil = 0;
+
+const serverlessSupabaseResilientFetch: typeof fetch = async (input, init) => {
+  const now = Date.now();
+  if (serverlessSupabaseQuotaRestrictedUntil > now) {
+    return new Response(
+      JSON.stringify({
+        message: 'Supabase project temporarily restricted (serverless circuit breaker)',
+        code: 'exceed_cached_egress_quota',
+      }),
+      {
+        status: 402,
+        headers: { 'Content-Type': 'application/json' },
+      }
+    );
+  }
+  const response = await fetch(input, init);
+  if (response.status === 402) {
+    serverlessSupabaseQuotaRestrictedUntil = Date.now() + 90_000;
+  }
+  return response;
+};
+
 const supabase = createClient(supabaseUrl, supabaseServiceKey, {
+  global: {
+    fetch: serverlessSupabaseResilientFetch,
+  },
   auth: {
     persistSession: false,
     autoRefreshToken: false,
@@ -1220,6 +1491,15 @@ async function loadUserPlatanosWallet(user: { id: number; email: string }) {
     } catch {}
   }
 
+  if (!stored) {
+    try {
+      const fsDoc = await getFirestoreDocServerless('system_settings', settingKey);
+      if (fsDoc?.value) {
+        stored = typeof fsDoc.value === 'string' ? JSON.parse(fsDoc.value) : fsDoc.value;
+      }
+    } catch {}
+  }
+
   return {
     userId: Number(user.id || stored?.userId || 1),
     userEmail: cleanEmail,
@@ -1237,14 +1517,28 @@ async function loadUserPlatanosWallet(user: { id: number; email: string }) {
 async function saveUserPlatanosWallet(wallet: any) {
   const cleanEmail = (wallet.userEmail || `uid_${wallet.userId || 1}`).trim().toLowerCase();
   const settingKey = `platanos_wallet_${cleanEmail}`;
-  await supabase.from('system_settings').upsert(
-    {
-      key: settingKey,
-      value: JSON.stringify(wallet),
-      updated_at: new Date().toISOString(),
-    },
-    { onConflict: 'key' }
-  );
+  const nowIso = new Date().toISOString();
+  const serialized = JSON.stringify(wallet);
+  await Promise.allSettled([
+    supabase.from('system_settings').upsert(
+      {
+        key: settingKey,
+        value: serialized,
+        updated_at: nowIso,
+      },
+      { onConflict: 'key' }
+    ),
+    upsertFirestoreDocServerless(
+      'system_settings',
+      settingKey,
+      {
+        key: settingKey,
+        value: serialized,
+        updated_at: nowIso,
+      },
+      true
+    ),
+  ]);
 }
 
 async function resolvePlatanosUserServerless(req: any, body: any, url: URL): Promise<{ id: number; email: string; name: string }> {
@@ -2889,8 +3183,11 @@ export default async function handler(req: any, res: any) {
         .select('*')
         .eq('is_active', 1)
         .order('name', { ascending: true });
-      if (error) return res.status(500).json({ success: false, error: error.message });
-      return res.status(200).json({ success: true, spots: data || [] });
+      if (error || !Array.isArray(data) || data.length === 0) {
+        const fallbackSpots = await buildFallbackSpotsServerless(false);
+        return res.status(200).json({ success: true, spots: fallbackSpots });
+      }
+      return res.status(200).json({ success: true, spots: data });
     }
 
     if (cleanPath === '/admin/spots' && method === 'GET') {
@@ -2898,36 +3195,46 @@ export default async function handler(req: any, res: any) {
         .from('spots')
         .select('*')
         .order('name', { ascending: true });
-      if (error) return res.status(500).json({ success: false, error: error.message });
-      return res.status(200).json({ success: true, spots: data || [] });
+      if (error || !Array.isArray(data) || data.length === 0) {
+        const fallbackSpots = await buildFallbackSpotsServerless(true);
+        return res.status(200).json({ success: true, spots: fallbackSpots });
+      }
+      return res.status(200).json({ success: true, spots: data });
     }
 
     if ((cleanPath === '/admin/spots' && method === 'POST') || (cleanPath.startsWith('/admin/spots/') && (method === 'PUT' || method === 'POST'))) {
+      const urlSpotId = cleanPath.startsWith('/admin/spots/') ? decodeURIComponent(cleanPath.replace('/admin/spots/', '')).trim() : '';
+      const resolvedId = String(body.id || urlSpotId || `spot-${Date.now()}`).trim();
       const defaultImage = 'https://images.unsplash.com/photo-1585320806297-9794b3e4eeae?auto=format&fit=crop&w=600&q=80';
       const finalImage = body.image || (Array.isArray(body.gallery) && body.gallery.length > 0 ? body.gallery[0] : '') || defaultImage;
       const finalGallery = Array.isArray(body.gallery) ? JSON.stringify(body.gallery) : (typeof body.gallery === 'string' && body.gallery ? body.gallery : JSON.stringify([finalImage]));
 
       const payload = {
         ...body,
+        id: resolvedId,
         image: finalImage,
         gallery: finalGallery,
         lat: Number(body.lat ?? -22.7192),
         lng: Number(body.lng ?? -45.5673),
         updated_at: new Date().toISOString()
       };
-      const { data, error } = await supabase
-        .from('spots')
-        .upsert(payload, { onConflict: 'id' })
-        .select()
-        .single();
-      if (error) return res.status(500).json({ success: false, error: error.message });
-      return res.status(200).json({ success: true, spot: data || payload });
+      const [sbRes] = await Promise.all([
+        supabase
+          .from('spots')
+          .upsert(payload, { onConflict: 'id' })
+          .select()
+          .single(),
+        upsertFirestoreDocServerless('spots', resolvedId, payload, true),
+      ]);
+      return res.status(200).json({ success: true, spot: sbRes?.data || payload });
     }
 
     if (cleanPath.startsWith('/admin/spots/') && method === 'DELETE') {
-      const spotId = cleanPath.replace('/admin/spots/', '');
-      const { error } = await supabase.from('spots').delete().eq('id', spotId);
-      if (error) return res.status(500).json({ success: false, error: error.message });
+      const spotId = decodeURIComponent(cleanPath.replace('/admin/spots/', '')).trim();
+      await Promise.allSettled([
+        supabase.from('spots').delete().eq('id', spotId),
+        upsertFirestoreDocServerless('spots', spotId, { id: spotId, is_deleted: 1, is_active: 0 }, true),
+      ]);
       return res.status(200).json({ success: true });
     }
 
@@ -2938,42 +3245,45 @@ export default async function handler(req: any, res: any) {
       const query = supabase.from('events').select('*').order('date', { ascending: true });
       if (cleanPath === '/events') query.eq('status', 'active');
       const { data, error } = await query;
-      if (error) return res.status(500).json({ success: false, error: error.message });
+      if (error) {
+        const fsEvents = await listFirestoreCollectionServerless('events', 100);
+        const filtered = cleanPath === '/events'
+          ? fsEvents.filter((e) => !e.status || e.status === 'active')
+          : fsEvents;
+        return res.status(200).json({ success: true, events: filtered });
+      }
       return res.status(200).json({ success: true, events: data || [] });
     }
 
     if (cleanPath === '/admin/events' && method === 'POST') {
-      const { data, error } = await supabase
-        .from('events')
-        .insert(body)
-        .select()
-        .single();
-      if (error) return res.status(500).json({ success: false, error: error.message });
-      return res.status(200).json({ success: true, event: data });
+      const evId = String(body?.id || `evt_${Date.now()}`);
+      const evPayload = { ...body, id: evId, created_at: new Date().toISOString() };
+      const [sbRes] = await Promise.all([
+        supabase.from('events').insert(evPayload).select().single(),
+        upsertFirestoreDocServerless('events', evId, evPayload, true),
+      ]);
+      return res.status(200).json({ success: true, event: sbRes?.data || evPayload });
     }
 
     if (cleanPath.startsWith('/admin/events/') && method === 'PUT') {
-      const eventId = cleanPath.replace('/admin/events/', '');
-      const { data, error } = await supabase
-        .from('events')
-        .update(body)
-        .eq('id', eventId)
-        .select()
-        .single();
-      if (error) return res.status(500).json({ success: false, error: error.message });
-      return res.status(200).json({ success: true, event: data });
+      const eventId = decodeURIComponent(cleanPath.replace('/admin/events/', '')).trim();
+      const evPayload = { ...body, id: eventId, updated_at: new Date().toISOString() };
+      const [sbRes] = await Promise.all([
+        supabase.from('events').update(body).eq('id', eventId).select().single(),
+        upsertFirestoreDocServerless('events', eventId, evPayload, true),
+      ]);
+      return res.status(200).json({ success: true, event: sbRes?.data || evPayload });
     }
 
     if (cleanPath.startsWith('/admin/events/') && method === 'DELETE') {
-      const eventId = cleanPath.replace('/admin/events/', '');
-      const { error } = await supabase.from('events').delete().eq('id', eventId);
-      if (error) return res.status(500).json({ success: false, error: error.message });
+      const eventId = decodeURIComponent(cleanPath.replace('/admin/events/', '')).trim();
+      await Promise.allSettled([
+        supabase.from('events').delete().eq('id', eventId),
+        deleteFirestoreDocServerless('events', eventId),
+      ]);
       return res.status(200).json({ success: true });
     }
 
-    // =========================================================================
-    // 5. ITINERARIES & CATEGORIES
-    // =========================================================================
     // =========================================================================
     // 5. ITINERARIES & CATEGORIES
     // =========================================================================
@@ -2984,7 +3294,10 @@ export default async function handler(req: any, res: any) {
         query = query.eq('is_active', 1);
       }
       const { data: rawItins, error } = await query;
-      if (error) return res.status(500).json({ success: false, error: error.message });
+      if (error || !Array.isArray(rawItins) || rawItins.length === 0) {
+        const fallbackItins = await buildFallbackItinerariesServerless(includeAll);
+        return res.status(200).json({ success: true, itineraries: fallbackItins });
+      }
 
       // Hydrate days and steps
       const [daysRes, stepsRes, spotsRes] = await Promise.all([
@@ -3117,10 +3430,17 @@ export default async function handler(req: any, res: any) {
         updated_at: new Date().toISOString(),
       };
 
-      const { data, error } = await supabase.from('itineraries').upsert(itinRow, { onConflict: 'id' }).select();
-      if (error) return res.status(500).json({ success: false, error: error.message });
+      const [{ data, error }] = await Promise.all([
+        supabase.from('itineraries').upsert(itinRow, { onConflict: 'id' }).select(),
+        upsertFirestoreDocServerless(
+          'itineraries',
+          itinId,
+          { ...itinRow, days: JSON.stringify(days) },
+          true
+        ),
+      ]);
 
-      if (days.length > 0) {
+      if (!error && days.length > 0) {
         await supabase.from('itinerary_steps').delete().eq('itinerary_id', itinId);
         await supabase.from('itinerary_days').delete().eq('itinerary_id', itinId);
 
@@ -3173,16 +3493,20 @@ export default async function handler(req: any, res: any) {
       if (subAction === 'featured') {
         const { data: cur } = await supabase.from('itineraries').select('is_featured').eq('id', id).maybeSingle();
         const nextVal = cur?.is_featured ? 0 : 1;
-        const { error } = await supabase.from('itineraries').update({ is_featured: nextVal, is_recommended: nextVal }).eq('id', id);
-        if (error) return res.status(500).json({ success: false, error: error.message });
+        await Promise.allSettled([
+          supabase.from('itineraries').update({ is_featured: nextVal, is_recommended: nextVal }).eq('id', id),
+          upsertFirestoreDocServerless('itineraries', id, { id, is_featured: nextVal, is_recommended: nextVal }, true),
+        ]);
         return res.status(200).json({ success: true, isFeatured: nextVal === 1 });
       }
 
       if (subAction === 'status') {
         const newStatus = body?.status || 'published';
         const isActive = newStatus === 'published' ? 1 : 0;
-        const { error } = await supabase.from('itineraries').update({ status: newStatus, is_active: isActive }).eq('id', id);
-        if (error) return res.status(500).json({ success: false, error: error.message });
+        await Promise.allSettled([
+          supabase.from('itineraries').update({ status: newStatus, is_active: isActive }).eq('id', id),
+          upsertFirestoreDocServerless('itineraries', id, { id, status: newStatus, is_active: isActive }, true),
+        ]);
         return res.status(200).json({ success: true, status: newStatus });
       }
 
@@ -3211,10 +3535,17 @@ export default async function handler(req: any, res: any) {
       if (body.tips !== undefined) updatePayload.tips = body.tips;
       if (body.notes !== undefined) updatePayload.notes = body.notes;
 
-      const { data, error } = await supabase.from('itineraries').update(updatePayload).eq('id', id).select();
-      if (error) return res.status(500).json({ success: false, error: error.message });
+      const [{ data, error }] = await Promise.all([
+        supabase.from('itineraries').update(updatePayload).eq('id', id).select(),
+        upsertFirestoreDocServerless(
+          'itineraries',
+          id,
+          { id, ...updatePayload, ...(days.length > 0 ? { days: JSON.stringify(days) } : {}) },
+          true
+        ),
+      ]);
 
-      if (days.length > 0) {
+      if (!error && days.length > 0) {
         await supabase.from('itinerary_steps').delete().eq('itinerary_id', id);
         await supabase.from('itinerary_days').delete().eq('itinerary_id', id);
 
@@ -3260,8 +3591,10 @@ export default async function handler(req: any, res: any) {
 
     if ((cleanPath.startsWith('/itineraries/') || cleanPath.startsWith('/admin/itineraries/')) && method === 'DELETE') {
       const id = cleanPath.replace('/admin/itineraries/', '').replace('/itineraries/', '');
-      const { error } = await supabase.from('itineraries').delete().eq('id', id);
-      if (error) return res.status(500).json({ success: false, error: error.message });
+      await Promise.allSettled([
+        supabase.from('itineraries').delete().eq('id', id),
+        upsertFirestoreDocServerless('itineraries', id, { id, is_deleted: 1, is_active: 0 }, true),
+      ]);
       return res.status(200).json({ success: true, message: 'Roteiro excluído' });
     }
 
@@ -3270,24 +3603,30 @@ export default async function handler(req: any, res: any) {
         .from('itinerary_categories')
         .select('*')
         .order('sort_order', { ascending: true });
-      if (error) return res.status(500).json({ success: false, error: error.message });
-      return res.status(200).json({ success: true, categories: data || [] });
+      if (error || !Array.isArray(data) || data.length === 0) {
+        const fsCats = await listFirestoreCollectionServerless('itinerary_categories', 50);
+        const categories = fsCats.length > 0 ? fsCats : DEFAULT_ITINERARY_CATEGORIES_SERVERLESS;
+        return res.status(200).json({ success: true, categories });
+      }
+      return res.status(200).json({ success: true, categories: data });
     }
 
     if ((cleanPath === '/itinerary-categories' || cleanPath === '/admin/itinerary-categories') && method === 'POST') {
-      const { data, error } = await supabase
-        .from('itinerary_categories')
-        .upsert(body, { onConflict: 'id' })
-        .select()
-        .single();
-      if (error) return res.status(500).json({ success: false, error: error.message });
-      return res.status(200).json({ success: true, category: data });
+      const catId = String(body?.id || `cat-${Date.now()}`);
+      const catPayload = { ...body, id: catId };
+      const [sbRes] = await Promise.all([
+        supabase.from('itinerary_categories').upsert(catPayload, { onConflict: 'id' }).select().single(),
+        upsertFirestoreDocServerless('itinerary_categories', catId, catPayload, true),
+      ]);
+      return res.status(200).json({ success: true, category: sbRes?.data || catPayload });
     }
 
     if ((cleanPath.startsWith('/itinerary-categories/') || cleanPath.startsWith('/admin/itinerary-categories/')) && method === 'DELETE') {
       const id = cleanPath.replace('/admin/itinerary-categories/', '').replace('/itinerary-categories/', '');
-      const { error } = await supabase.from('itinerary_categories').delete().eq('id', id);
-      if (error) return res.status(500).json({ success: false, error: error.message });
+      await Promise.allSettled([
+        supabase.from('itinerary_categories').delete().eq('id', id),
+        deleteFirestoreDocServerless('itinerary_categories', id),
+      ]);
       return res.status(200).json({ success: true });
     }
 
@@ -3404,7 +3743,11 @@ export default async function handler(req: any, res: any) {
       if (result.error && isMissingColumnError(result.error)) {
         result = await supabase.from('map_visual_icons').select('*').eq('is_active', 1);
       }
-      if (result.error) return res.status(500).json({ success: false, error: result.error.message });
+      if (result.error) {
+        const fsIcons = await listFirestoreCollectionServerless('map_visual_icons', 200);
+        const activeIcons = fsIcons.filter((ic) => Number(ic.is_active ?? 1) === 1 && Number(ic.is_deleted ?? 0) !== 1);
+        return res.status(200).json({ success: true, icons: activeIcons });
+      }
       return res.status(200).json({ success: true, icons: result.data || [] });
     }
 
@@ -3419,7 +3762,11 @@ export default async function handler(req: any, res: any) {
       if (result.error && isMissingColumnError(result.error)) {
         result = await supabase.from('map_visual_icons').select('*');
       }
-      if (result.error) return res.status(500).json({ success: false, error: result.error.message });
+      if (result.error) {
+        const fsIcons = await listFirestoreCollectionServerless('map_visual_icons', 200);
+        const validIcons = fsIcons.filter((ic) => Number(ic.is_deleted ?? 0) !== 1);
+        return res.status(200).json({ success: true, icons: validIcons });
+      }
       return res.status(200).json({ success: true, icons: result.data || [] });
     }
 
@@ -3434,7 +3781,6 @@ export default async function handler(req: any, res: any) {
 
       const attemptRow: Record<string, any> = { ...parsed };
       let savedData: any = null;
-      let lastError: any = null;
 
       for (let i = 0; i < 6; i++) {
         const { data, error } = await supabase
@@ -3444,10 +3790,8 @@ export default async function handler(req: any, res: any) {
           .single();
         if (!error) {
           savedData = data;
-          lastError = null;
           break;
         }
-        lastError = error;
         const missingCol = isMissingColumnError(error);
         if (missingCol && missingCol in attemptRow) {
           delete attemptRow[missingCol];
@@ -3456,9 +3800,7 @@ export default async function handler(req: any, res: any) {
         break;
       }
 
-      if (lastError) {
-        return res.status(500).json({ success: false, error: lastError.message });
-      }
+      await upsertFirestoreDocServerless('map_visual_icons', parsed.id, { ...parsed }, true);
 
       const hydratedIcon = {
         ...parsed,
@@ -3498,7 +3840,6 @@ export default async function handler(req: any, res: any) {
         updated_at: parsed.updated_at,
       };
       let savedData: any = null;
-      let lastError: any = null;
 
       for (let i = 0; i < 6; i++) {
         const { data, error } = await supabase
@@ -3509,10 +3850,8 @@ export default async function handler(req: any, res: any) {
           .maybeSingle();
         if (!error) {
           savedData = data;
-          lastError = null;
           break;
         }
-        lastError = error;
         const missingCol = isMissingColumnError(error);
         if (missingCol && missingCol in attemptRow) {
           delete attemptRow[missingCol];
@@ -3521,31 +3860,7 @@ export default async function handler(req: any, res: any) {
         break;
       }
 
-      if (lastError) {
-        return res.status(500).json({ success: false, error: lastError.message });
-      }
-
-      // If icon existed only in Firestore and not yet in Supabase, upsert it cleanly
-      if (!savedData) {
-        const insertAttempt: Record<string, any> = { ...parsed };
-        for (let i = 0; i < 6; i++) {
-          const { data, error } = await supabase
-            .from('map_visual_icons')
-            .upsert(insertAttempt, { onConflict: 'id' })
-            .select()
-            .maybeSingle();
-          if (!error) {
-            savedData = data;
-            break;
-          }
-          const missingCol = isMissingColumnError(error);
-          if (missingCol && missingCol in insertAttempt) {
-            delete insertAttempt[missingCol];
-            continue;
-          }
-          return res.status(500).json({ success: false, error: error.message });
-        }
-      }
+      await upsertFirestoreDocServerless('map_visual_icons', id, { ...parsed, id }, true);
 
       const hydratedIcon = {
         ...parsed,
@@ -3565,11 +3880,14 @@ export default async function handler(req: any, res: any) {
       const id = decodeURIComponent(
         cleanPath.replace('/admin/map-visual-icons/', '').replace('/toggle-active', '')
       ).trim();
-      const { data: existing } = await supabase
+      let { data: existing } = await supabase
         .from('map_visual_icons')
         .select('*')
         .eq('id', id)
         .maybeSingle();
+      if (!existing) {
+        existing = await getFirestoreDocServerless('map_visual_icons', id);
+      }
       const newStatus = existing && Number(existing.is_active ?? 1) === 1 ? 0 : 1;
 
       const attemptUpdate: Record<string, any> = {
@@ -3577,7 +3895,6 @@ export default async function handler(req: any, res: any) {
         updated_at: new Date().toISOString(),
       };
       let updatedRow: any = null;
-      let lastError: any = null;
 
       for (let i = 0; i < 3; i++) {
         const { data, error } = await supabase
@@ -3588,10 +3905,8 @@ export default async function handler(req: any, res: any) {
           .maybeSingle();
         if (!error) {
           updatedRow = data;
-          lastError = null;
           break;
         }
-        lastError = error;
         const missingCol = isMissingColumnError(error);
         if (missingCol && missingCol in attemptUpdate) {
           delete attemptUpdate[missingCol];
@@ -3600,7 +3915,8 @@ export default async function handler(req: any, res: any) {
         break;
       }
 
-      if (lastError) return res.status(500).json({ success: false, error: lastError.message });
+      await upsertFirestoreDocServerless('map_visual_icons', id, { id, ...attemptUpdate }, true);
+
       return res.status(200).json({
         success: true,
         is_active: newStatus,
@@ -3613,8 +3929,10 @@ export default async function handler(req: any, res: any) {
         return res.status(403).json({ success: false, error: 'Acesso administrativo obrigatório.' });
       }
       const id = decodeURIComponent(cleanPath.replace('/admin/map-visual-icons/', '')).trim();
-      const { error } = await supabase.from('map_visual_icons').delete().eq('id', id);
-      if (error) return res.status(500).json({ success: false, error: error.message });
+      await Promise.allSettled([
+        supabase.from('map_visual_icons').delete().eq('id', id),
+        deleteFirestoreDocServerless('map_visual_icons', id),
+      ]);
       return res.status(200).json({ success: true });
     }
 
@@ -3634,10 +3952,14 @@ export default async function handler(req: any, res: any) {
 
     if ((cleanPath === '/settings' || cleanPath === '/admin/settings') && method === 'POST') {
       const updates = body || {};
+      const nowIso = new Date().toISOString();
       for (const [key, value] of Object.entries(updates)) {
-        await supabase
-          .from('system_settings')
-          .upsert({ key, value: String(value), updated_at: new Date().toISOString() }, { onConflict: 'key' });
+        await Promise.allSettled([
+          supabase
+            .from('system_settings')
+            .upsert({ key, value: String(value), updated_at: nowIso }, { onConflict: 'key' }),
+          upsertFirestoreDocServerless('system_settings', key, { key, value: String(value), updated_at: nowIso }, true),
+        ]);
       }
       return res.status(200).json({ success: true });
     }
@@ -3654,13 +3976,19 @@ export default async function handler(req: any, res: any) {
           supabase.from('itineraries').select('*', { count: 'exact', head: true }),
         ]);
 
+      let fallbackUsersCount = usersCount || 0;
+      if (!fallbackUsersCount) {
+        const fsUsers = await listFirestoreCollectionServerless('users', 200);
+        fallbackUsersCount = fsUsers.length;
+      }
+
       return res.status(200).json({
         success: true,
         stats: {
-          totalSpots: spotsCount || 0,
-          totalUsers: usersCount || 0,
+          totalSpots: spotsCount || CAMPOS_SPOTS.length,
+          totalUsers: fallbackUsersCount,
           totalEvents: eventsCount || 0,
-          totalItineraries: itinerariesCount || 0,
+          totalItineraries: itinerariesCount || DEFAULT_CURATED_ITINERARIES.length,
         },
       });
     }
@@ -3670,8 +3998,14 @@ export default async function handler(req: any, res: any) {
         .from('users')
         .select('*')
         .order('created_at', { ascending: false });
-      if (error) return res.status(500).json({ success: false, error: error.message });
-      const safeUsers = (data || []).map(formatSafeUser);
+      let rawUsers = Array.isArray(data) ? data : [];
+      if (error || rawUsers.length === 0) {
+        const fsUsers = await listFirestoreCollectionServerless('users', 200);
+        rawUsers = fsUsers
+          .map((u) => normalizeFirestoreUserRow(u))
+          .filter(Boolean);
+      }
+      const safeUsers = rawUsers.map(formatSafeUser).filter(Boolean);
       return res.status(200).json({
         success: true,
         users: safeUsers,
@@ -3685,17 +4019,18 @@ export default async function handler(req: any, res: any) {
 
     if (cleanPath.startsWith('/admin/users/') && cleanPath.endsWith('/ban') && method === 'PATCH') {
       const id = cleanPath.replace('/admin/users/', '').replace('/ban', '');
-      const { data: user } = await supabase.from('users').select('is_banned').eq('id', id).single();
+      const { data: user } = await supabase.from('users').select('is_banned, email').eq('id', id).maybeSingle();
       const newBanned = user?.is_banned === 1 ? 0 : 1;
-      const { error } = await supabase.from('users').update({ is_banned: newBanned }).eq('id', id);
-      if (error) return res.status(500).json({ success: false, error: error.message });
+      await supabase.from('users').update({ is_banned: newBanned }).eq('id', id);
+      if (user?.email) {
+        await upsertFirestoreDocServerless('users', String(user.email).toLowerCase(), { is_banned: newBanned }, true);
+      }
       return res.status(200).json({ success: true, is_banned: newBanned });
     }
 
     if (cleanPath.startsWith('/admin/users/') && method === 'DELETE') {
       const id = cleanPath.replace('/admin/users/', '');
-      const { error } = await supabase.from('users').delete().eq('id', id);
-      if (error) return res.status(500).json({ success: false, error: error.message });
+      await supabase.from('users').delete().eq('id', id);
       return res.status(200).json({ success: true });
     }
 

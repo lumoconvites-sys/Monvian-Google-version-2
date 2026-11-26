@@ -496,31 +496,21 @@ export const ClothingWeatherModal: React.FC<ClothingWeatherModalProps> = ({
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [isOpen, onClose]);
 
-  // Luminous silver-slate translucent iOS 26 Liquid Glass over satellite/dark map,
-  // and crystal frosted glass over light map.
   const glassCardStyle: React.CSSProperties = useDarkGlass
     ? {
-        background:
-          'linear-gradient(150deg, rgba(188, 196, 206, 0.34) 0%, rgba(114, 122, 132, 0.28) 48%, rgba(142, 150, 160, 0.34) 100%)',
-        backdropFilter: 'blur(26px) saturate(150%) brightness(1.06)',
-        WebkitBackdropFilter: 'blur(26px) saturate(150%) brightness(1.06)',
-        border: '1px solid rgba(255, 255, 255, 0.34)',
-        boxShadow:
-          '0 18px 42px rgba(0, 0, 0, 0.16), inset 0 1.5px 1px rgba(255, 255, 255, 0.44), inset 0 -1px 1.5px rgba(255, 255, 255, 0.18), inset 1px 0 1px rgba(255, 255, 255, 0.22)',
+        backgroundColor: '#171717',
+        border: '1px solid rgba(255, 255, 255, 0.12)',
+        boxShadow: '0 16px 38px rgba(0, 0, 0, 0.55)',
       }
     : {
-        background:
-          'linear-gradient(150deg, rgba(255, 255, 255, 0.64) 0%, rgba(242, 245, 250, 0.52) 50%, rgba(255, 255, 255, 0.62) 100%)',
-        backdropFilter: 'blur(26px) saturate(160%) brightness(1.03)',
-        WebkitBackdropFilter: 'blur(26px) saturate(160%) brightness(1.03)',
-        border: '1px solid rgba(255, 255, 255, 0.80)',
-        boxShadow:
-          '0 16px 38px rgba(15, 23, 42, 0.11), inset 0 1.5px 1px rgba(255, 255, 255, 0.92), inset 0 -1px 1px rgba(255, 255, 255, 0.48)',
+        backgroundColor: '#FFFFFF',
+        border: '1px solid rgba(0, 0, 0, 0.08)',
+        boxShadow: '0 14px 34px rgba(0, 0, 0, 0.12)',
       };
 
-  const primaryTextClass = useDarkGlass ? 'text-white' : 'text-zinc-950';
-  const secondaryTextClass = useDarkGlass ? 'text-white/80' : 'text-zinc-600';
-  const metricLabelClass = useDarkGlass ? 'text-white/80' : 'text-zinc-600';
+  const primaryTextClass = useDarkGlass ? 'text-white' : 'text-[#000000]';
+  const secondaryTextClass = useDarkGlass ? 'text-[#858585]' : 'text-[#858585]';
+  const metricLabelClass = useDarkGlass ? 'text-[#858585]' : 'text-[#858585]';
 
   const detailMetrics = [
     {
@@ -566,11 +556,7 @@ export const ClothingWeatherModal: React.FC<ClothingWeatherModalProps> = ({
           style={{
             fontFamily:
               '-apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro Text", sans-serif',
-            backgroundColor: useDarkGlass
-              ? 'rgba(14, 18, 24, 0.08)'
-              : 'rgba(255, 255, 255, 0.14)',
-            backdropFilter: 'blur(5px)',
-            WebkitBackdropFilter: 'blur(5px)',
+            backgroundColor: 'rgba(0, 0, 0, 0.45)',
             paddingTop: 'max(24px, calc(env(safe-area-inset-top, 0px) + 20px))',
             paddingBottom: 'max(24px, calc(env(safe-area-inset-bottom, 0px) + 20px))',
           }}
